@@ -72,7 +72,13 @@ var _next_btns: Array = []    # the three buttons of _next_row (eh_next_0 .. eh_
 var _next_list: Array = []    # the catalog entries those buttons offer, in order (the press adds that move after the clip)
 var _hist: Array = []         # [undo depth, move id] for each move built or added here: the last one is the move at the scene's end
 var _row_key := ""            # the ids the row shows now: the row is redrawn only when they change
+var _help_on := false          # the panel shows the help text in place of the picture cards (Help, or the strip's Help)
+var _help_lbl: Label
+var _help_tour: Button
+var _grid: GridContainer
 var _row_h := -1.0            # the strip's height when the camera last framed the clip (a row that grows it reframes)
+const HELP_TEXT := "Click a picture, or type a move and press Enter ('jab then cross' is two strikes). Then: Add after puts the next move after the clip.\nAfter a clip: Again plays it. Faster, Slower, Bigger and Smaller tweak it. Change it types another move.\nThe bar: Library adds objects. Save video makes a video file."
+const HELP_Q := ["how do i", "how do you", "how do we", "how to", "how can i", "how can you", "how would i", "how does", "what can", "help"]   # a typed question: answered with help, not "doesn't know"
 const JOIN_S := 0.5           # ADD AFTER: the first added card is reached this many seconds after the clip's end (the join)
 
 
@@ -93,10 +99,37 @@ func build(root: Control) -> void:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 12)
 	panel.add_child(v)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	v.add_child(head)
 	var title := _label("What should he do?", 26, "text")
 	title.name = "eh_title"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	v.add_child(title)
+	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(title)
+	var help_btn := Button.new()   # the beginner's way to ask what Easy can do (walk-through round 5: there was no help in Easy)
+	help_btn.name = "eh_help"
+	help_btn.text = "Help"
+	help_btn.focus_mode = Control.FOCUS_NONE
+	help_btn.tooltip_text = "what Easy can do, and the tour"
+	help_btn.custom_minimum_size = Vector2(90, 40)
+	help_btn.add_theme_font_size_override("font_size", 18)
+	help_btn.pressed.connect(func(): _help_on = not _help_on; _msg.text = "")
+	head.add_child(help_btn)
+	_help_lbl = _label(HELP_TEXT, 15, "text")
+	_help_lbl.name = "eh_help_text"
+	_help_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_help_lbl.custom_minimum_size = Vector2(PANEL_W, 0)
+	_help_lbl.visible = false
+	v.add_child(_help_lbl)
+	_help_tour = Button.new()
+	_help_tour.name = "eh_help_tour"
+	_help_tour.text = "Show the tour"
+	_help_tour.focus_mode = Control.FOCUS_NONE
+	_help_tour.tooltip_text = "the five-step tour, each step moved on by doing it (Help: show the tour)"
+	_help_tour.visible = false
+	_help_tour.pressed.connect(func(): m.easy.tour_start())
+	v.add_child(_help_tour)
 	_then_box = HBoxContainer.new()
 	_then_box.name = "eh_then"
 	_then_box.add_theme_constant_override("separation", 8)
@@ -116,11 +149,13 @@ func build(root: Control) -> void:
 	grid.add_theme_constant_override("h_separation", 10)
 	grid.add_theme_constant_override("v_separation", 10)
 	v.add_child(grid)
+	_grid = grid
 	for i in CARDS.size():
 		grid.add_child(_card_button(i))
 	_edit = LineEdit.new()
 	_edit.name = "eh_text"
 	_edit.placeholder_text = HINT
+	_edit.select_all_on_focus = true   # a click into the box selects what is there: a new move replaces it (Windows search, Blender fields)
 	_edit.custom_minimum_size = Vector2(PANEL_W, 0)
 	_edit.text_submitted.connect(func(t: String): _words(t))
 	v.add_child(_edit)
@@ -170,7 +205,7 @@ func build(root: Control) -> void:
 	_close.text = "Close"
 	_close.focus_mode = Control.FOCUS_NONE
 	_close.tooltip_text = "back to the strip: the clip stays"
-	_close.pressed.connect(func(): _open = false)
+	_close.pressed.connect(func(): _open = false; _help_on = false)
 	v.add_child(_close)
 
 	strip = PanelContainer.new()
@@ -199,6 +234,7 @@ func build(root: Control) -> void:
 		_next_btns.append(nb)
 	row.add_child(_strip_button("eh_again", "Again", "play the clip from its start", _play, Vector2(150, 56), 22))   # one size for the six
 	row.add_child(_strip_button("eh_change", "Change it", "type another move in the box", _change, Vector2(150, 56), 22))
+	row.add_child(_strip_button("eh_help_strip", "Help", "what Easy can do, and the tour", _open_help, Vector2(110, 56), 22))
 	for t in [["eh_faster", "Faster", "the clip's timing x 0.8 (one undo step)", "faster"], ["eh_slower", "Slower", "the clip's timing x 1.25 (one undo step)", "slower"],
 			["eh_bigger", "Bigger", "the motion 20 % further from the rest pose (one undo step)", "bigger"], ["eh_smaller", "Smaller", "the motion 20 % less from the rest pose (one undo step)", "smaller"]]:
 		row.add_child(_strip_button(t[0], t[1], t[2], tweak.bind(t[3]), Vector2(150, 56), 22))
@@ -279,11 +315,14 @@ func _process(dt: float) -> void:
 		if asking or m.S.cards.size() != int(_toast_at[0]) or m.undo.size() != int(_toast_at[1]):
 			_toast.visible = false
 	_close.visible = not empty and not _gen_on
+	_grid.visible = not _help_on   # the help text takes the cards' place while it is on
+	_help_lbl.visible = _help_on
+	_help_tour.visible = _help_on
 	_then_box.visible = not empty
 	var typed_gap: bool = _gen_words != "" and not _gen_on   # a typed line Kine cannot build
 	var ai_ok: bool = typed_gap and m.gen_move.available()
 	_make_btn.visible = ai_ok
-	_try_row.visible = typed_gap   # the same moves as the cards, one click each
+	_try_row.visible = typed_gap and not _help_on   # the same moves as the cards, one click each
 	_ai_no.visible = typed_gap and not ai_ok   # no maker here: say so, no button that would fail
 	_cancel_btn.visible = _gen_on or (not _copying() and (m._imp_busy() or m._video_pid >= 0))   # the generator, or the tracker's / the fit's own Cancel (a copy keeps the bar's one)
 	if _t0 >= 0 and m.playing and m.playhead > 0.0:   # the first frame in which the clip moves
@@ -433,9 +472,58 @@ func _words(text: String) -> void:
 	if t == "":
 		_fail("Type a move first, such as 'jab then cross' or 'roundhouse', or click a picture.")
 		return
+	if _is_help_question(t):   # "how do I make him jump": the answer is help, not "doesn't know"
+		_ask_help(t)
+		return
 	_t0 = Time.get_ticks_msec()
 	last_ms = -1
 	_go(t, "Typed: " + t, true)
+
+
+## a typed question about how to use Easy ("how do I ...", "how to ...", "help", "?")
+func _is_help_question(t: String) -> bool:
+	var low := t.to_lower().strip_edges()
+	if low == "?" or low.begins_with("?") or low.ends_with("?"):
+		return true
+	for q in HELP_Q:
+		if low == q or low.begins_with(q + " "):
+			return true
+	return false
+
+
+## the card word a question names first ("how do i make him run and jump" -> "run"), or "" when none is named
+func _move_in(t: String) -> String:
+	var low := " " + t.to_lower().replace("?", " ").replace(",", " ").replace(".", " ") + " "
+	var best := ""
+	var at := 1 << 30
+	for c in CARDS:
+		var w := String(c[0]).to_lower()
+		var i := low.find(" " + w + " ")
+		if i >= 0 and i < at:
+			at = i
+			best = w
+	return best
+
+
+## the answer to a typed question: the move it names (typed the way the box takes it), else the help in one line
+func _ask_help(t: String) -> void:
+	var w := _move_in(t)
+	_edit.text = ""   # the question is used: the next typing starts clean (the box kept old words in round 5)
+	if w != "":
+		_msg.text = "Type '%s' in the box and press Enter, or click its picture." % w
+	else:
+		_msg.text = "Type a move in the box and press Enter, such as 'jump' or 'jab then cross'. Or click a picture. Help (top right) says more."
+	_msg.add_theme_color_override("font_color", Tok.c("text"))
+	_open = true
+	_help_on = false
+	_t0 = -1
+
+
+## the strip's Help: the panel comes back with the help text
+func _open_help() -> void:
+	_open = true
+	_help_on = true
+	_msg.text = ""
 
 
 func _go(what: String, label: String, typed := false, force_add := false) -> void:
@@ -455,6 +543,7 @@ func _go(what: String, label: String, typed := false, force_add := false) -> voi
 	_open = false
 	_gen_words = ""
 	_msg.text = ""
+	_edit.text = ""   # a built move uses the box's words: the next typing starts clean (walk-through round 5)
 	_clip_word = "the clip" if add else ("the typed move" if typed else "the " + label.to_lower())
 	var nm := what.strip_edges().to_lower()
 	if not add:
@@ -932,6 +1021,7 @@ func _change() -> void:
 	_open = true
 	_msg.text = ""
 	_edit.grab_focus.call_deferred()
+	_edit.select_all.call_deferred()   # the box's old words (a failed line) are selected: typing replaces them
 
 
 func _fail(sentence: String, quiet := false) -> void:   # quiet: the panel alone says it (a typed word Kine doesn't know)

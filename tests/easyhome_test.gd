@@ -13,6 +13,9 @@
 ##  7. Every card that builds: its click to the first moving frame is under 500 ms (the Kick card built live took 3.6 s; baked it is a file).
 ##  11. CHAIN: with a walk built, Change it and a card (Add after, the default) keeps the walk and adds the wave after it:
 ##     cards = walk + wave, the walk first; Undo takes the add back in one step; Start over replaces the clip.
+##  14. HELP IN EASY: a visible Help button (the panel and the strip) opens the help text and the tour button; Help again hides it.
+##  15. A typed question ('how do I make him jump') names the move to type, or gives the help line; never "doesn't know".
+##  16. After a typed move is used the box is empty; a failed line keeps its words, and Change it selects them.
 ##  C. (the layout) At 1280x720 and at 1600x900 the home panel covers at most 15 % of the body's screen box (the body's capsule
 ##     ends projected with m.cam.unproject_position): the body is visible beside the panel, not under it.
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
@@ -348,6 +351,75 @@ func _init() -> void:
 	await idle(4)
 	var said13: String = (home.panel.find_child("eh_msg", true, false) as Label).text
 	ok(said13.contains("backflip") and not m.ui_status.text.contains("backflip"), "13. 'backflip' is said in the panel only (panel '%s', status '%s')" % [said13, m.ui_status.text])
+	m._new_scene()
+	await idle(4)
+
+	# 14. HELP IN EASY (walk-through round 5): a visible Help button on the panel opens the help (what Easy can do, and the tour);
+	#     the strip after a clip has Help too; Show the tour is there
+	m._new_scene()
+	await idle(4)
+	var help_btn := home.panel.find_child("eh_help", true, false) as Button
+	ok(help_btn != null and help_btn.is_visible_in_tree(), "14. the panel has a visible Help button in Easy")
+	var help_lbl := home.panel.find_child("eh_help_text", true, false) as Label
+	ok(help_lbl != null and not help_lbl.visible, "14. the help text is hidden until Help is pressed")
+	if help_btn != null:
+		help_btn.pressed.emit()
+		await idle(3)
+	ok(help_lbl != null and help_lbl.is_visible_in_tree() and help_lbl.text.contains("Then") and help_lbl.text.contains("Library"),
+		"14. Help opens the help text (what Easy can do: cards, typing, Then, Slower, Library, save video)")
+	ok(card_btn(0) != null and not card_btn(0).is_visible_in_tree(), "14. the help text takes the picture cards' place while it is on")
+	var tour_btn := home.panel.find_child("eh_help_tour", true, false) as Button
+	ok(tour_btn != null and tour_btn.is_visible_in_tree(), "14. the help has a Show the tour button (the existing tour)")
+	if help_btn != null:
+		help_btn.pressed.emit()   # Help again: the cards come back
+		await idle(3)
+	ok(card_btn(0) != null and card_btn(0).is_visible_in_tree(), "14. Help again brings the picture cards back")
+	m._new_scene()
+	await idle(3)
+	home.card(0)   # a walk built: the strip shows, with its own Help
+	await idle(8)
+	var strip_help := home.strip.find_child("eh_help_strip", true, false) as Button
+	ok(strip_help != null and strip_help.is_visible_in_tree(), "14. the strip after a clip has a visible Help button")
+	if strip_help != null:
+		strip_help.pressed.emit()
+		await idle(4)
+	ok(home.shown() == "panel" and help_lbl != null and help_lbl.is_visible_in_tree(), "14. the strip's Help brings the panel up with the help text")
+	m._new_scene()
+	await idle(4)
+
+	# 15. A TYPED QUESTION IS ANSWERED WITH HELP (walk-through round 5): "how do I make him jump" names the move to type, never "doesn't know"
+	m._new_scene()
+	await idle(4)
+	edit.text = "how do I make him jump"
+	edit.text_submitted.emit(edit.text)
+	await idle(4)
+	var msg15 := (home.panel.find_child("eh_msg", true, false) as Label).text
+	ok(msg15.contains("'jump'") and not msg15.contains("doesn't know") and not m.S.cards.size() > 0,
+		"15. 'how do I make him jump' says to type 'jump' (panel '%s')" % msg15)
+	ok(not m.ui_status.text.contains("doesn't know"), "15. the question is not refused in the status line either (status '%s')" % m.ui_status.text)
+	edit.text = "how to make him dance"
+	edit.text_submitted.emit(edit.text)
+	await idle(4)
+	var msg15b := (home.panel.find_child("eh_msg", true, false) as Label).text
+	ok(msg15b.contains("Type a move") and not msg15b.contains("doesn't know"), "15. a how-to with no known move gives the help line ('%s')" % msg15b)
+	m._new_scene()
+	await idle(4)
+
+	# 16. THE TYPED BOX CLEARS AFTER A MOVE IS USED, AND A CLICK SELECTS WHAT IS LEFT (walk-through round 5)
+	m._new_scene()
+	await idle(4)
+	edit.text = "walk"
+	edit.text_submitted.emit("walk")
+	await idle(6)
+	ok(m.S.cards.size() > 0, "16. typed 'walk' built a clip (cards %d)" % m.S.cards.size())
+	ok(edit.text == "", "16. after a typed move is used, the box is empty (box '%s')" % edit.text)
+	edit.text = "backflip"
+	edit.text_submitted.emit("backflip")
+	await idle(4)
+	ok(edit.text == "backflip", "16. a line Kine cannot build keeps its words, for editing (box '%s')" % edit.text)
+	home._change()
+	await idle(4)
+	ok(edit.has_selection() and edit.get_selected_text() == "backflip", "16. Change it selects the box's words, so typing replaces them (selected '%s')" % edit.get_selected_text())
 	m._new_scene()
 	await idle(4)
 
