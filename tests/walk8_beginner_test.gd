@@ -565,13 +565,14 @@ func _init() -> void:
 	say("   file on disk: %s (%s) | folder %s | toast names it: %s" % [mp4, str(exists7), vdir, str(named7)])
 	if not toast7:
 		note("saved video: no toast with an Open folder button on screen")
+	var had7 := Array(DirAccess.get_files_at("res://scenes"))   # the scene files there before this save (never removed)
 	var sv7 := await click_text("More")
 	var sv7b := await click_menu_item(m.easy._more, "Save the scene")
 	await idle(20)
 	await shot("16_scene_saved")
 	var saved_path: String = str(m.scene_path)
-	if saved_path != "":
-		made.append(saved_path)
+	if saved_path != "" and (saved_path.contains("_wip") or (saved_path.begins_with("res://scenes/") and not saved_path.get_file() in had7)):
+		made.append(saved_path)   # only a file this save created (a name already there is the user's or an earlier run's: kept)
 	say("   scene file: %s" % saved_path)
 	end_goal(vid7 and exists7 and toast7 and sv7b, "(video saved: %s, file: %s, toast names the folder: %s, Open folder shows it (not pressed), scene saved: %s)" % [str(vid7), str(exists7), str(named7), str(sv7b)])
 
@@ -611,8 +612,9 @@ func _init() -> void:
 	for r in results:
 		say("  %s | %s | %d | %.1f" % [r[0], "yes" if r[1] else "NO", r[2], r[3]])
 	say("\nlast video: " + str(m.easy.home.last_video))
-	for p in made:   # only the scene files this run saved, and only where the run put them under scenes/_wip
-		if p.contains("_wip") and FileAccess.file_exists(p):
+	for p in made:   # only the scene files this run's save CREATED (scenes/_wip, or a new name in this checkout's scenes/): a left-over
+		# named scene made the next run's New scene hit a name clash
+		if FileAccess.file_exists(p):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
 			say("removed the run's scene file " + p)
 	# NOTHING is deleted from the user's Videos/Kine: an earlier cleanup here removed ~40 older folders (it snapshotted files, not
