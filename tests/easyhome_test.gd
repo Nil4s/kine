@@ -696,6 +696,22 @@ func face127(mm: Node) -> Vector3:
 
 
 ## section 128: a real press at 'at', six moves to at + (dx, 0), the release there (a body drag as a mouse makes it)
+## a point on the left upper arm, on screen now, with no Control over it (the side panel must not take the press)
+func aim128() -> Vector2:
+	await process_frame
+	var c: Array = m.B.cap("upperarm_l")
+	for t in [0.5, 0.35, 0.65, 0.25, 0.75]:
+		var p: Vector2 = m.cam.unproject_position((c[0] as Vector3).lerp(c[1], t))
+		if m._pick(p) == "upperarm_l" and not _over_gui128(p):
+			return p
+	return m.cam.unproject_position((c[0] as Vector3).lerp(c[1], 0.5))
+
+
+func _over_gui128(p: Vector2) -> bool:
+	var sl: Variant = m.easy.get("sliders")
+	return sl != null and sl.panel.visible and (sl.panel as Control).get_global_rect().has_point(p)
+
+
 func drag_px128(at: Vector2, dx: float) -> void:
 	var dn := InputEventMouseButton.new()
 	dn.button_index = MOUSE_BUTTON_LEFT
@@ -3538,6 +3554,11 @@ func _init() -> void:
 	ok(d128_1 == d128_0 and open128 and m.B.state() == s128,
 		"128a. a click on the left upper arm (no movement): undo depth %d -> %d (last step '%s'), the body unchanged %s, the side panel opens %s"
 		% [d128_0, d128_1, name128, str(m.B.state() == s128), str(open128)])
+	# the panel's opening re-frames the body beside it (easy_mode.offsets): aim again, or the press lands on a slider
+	for w128 in 30:
+		await process_frame
+	at128 = await aim128()
+	print("     128: re-aimed at %s (pick '%s')" % [str(at128), m._pick(at128)])
 	var d128_2: int = m.undo.size() + m.undo_dropped
 	await drag_px128(at128, -40.0)   # left: a release right of the arm would land on the open side panel
 	var d128_3: int = m.undo.size() + m.undo_dropped
@@ -3549,6 +3570,7 @@ func _init() -> void:
 	ok(d128_3 - d128_2 == 1 and (name128b.begins_with("Drag ") or name128b.begins_with("Move ")) and moved128 and back128,
 		"128b. a 40 px drag of the left upper arm: %d step ('%s'), the body moved %s; Undo restores the pose exactly %s"
 		% [d128_3 - d128_2, name128b, str(moved128), str(back128)])
+	at128 = await aim128()
 	var d128_4: int = m.undo.size() + m.undo_dropped
 	await click_at(at128)
 	await idle(3)
