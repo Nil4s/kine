@@ -19,6 +19,7 @@ const TOUR := [
 
 var m: Node                 # main (untyped: the same pattern as Browser)
 var on := false             # Easy is showing
+var edit_pick := -1         # the card the user clicked on the strip (-1: none); a + Add pose clears it (card_follows_drag)
 var tour_step := -1         # -1 = no tour
 var bar: PanelContainer
 var tour_card: PanelContainer
@@ -444,6 +445,27 @@ func add_pose(undo_name := "Add pose", strip := true) -> void:
 	var pc := m.ui_cards.get_node_or_null("card_%d" % (i + 1)) as Control
 	if pc != null:
 		m.ui_card_row.ensure_control_visible(pc)
+
+
+## EDIT A PICKED CARD (walk-through round 5, goal 3): in Easy, a body drag with a card picked on the strip writes the body's pose
+## into that card, in place. The drag's own undo step (taken at its press, so it holds the card as it was) takes the change too,
+## and is named "Change pose". The card count and the other cards do not move; the pick can change after it and the edit stays.
+func card_follows_drag() -> void:
+	var i: int = m.sel_card
+	if i < 0 or i >= m.S.cards.size() or i != edit_pick or m.undo.is_empty():
+		return   # only a card the user clicked (edit_pick): + Add pose's new card is selected but waits for its own pose
+	if m.undo.back().get("body") == m.B.state():
+		return   # nothing moved: the card keeps its pose
+	m.S.cards[i]["pose"] = m.B.to_dict()
+	var d: Dictionary = m.undo[-1]
+	d.erase("drag")   # the step is no longer a bare drag: a + Add pose after it makes its own step
+	d["easy"] = "Change pose"
+	d["name"] = "Change pose"
+	m._tree.set_name(m._tree.cur, "Change pose")
+	m._undo_tips()
+	m._history_rows()
+	m._rebuild_cards()
+	m._say("card %d takes the body's new pose (Ctrl+Z takes it back)" % (i + 1))
 
 
 ## the strip's button (main's _rebuild_cards puts it after the last card, or in an empty Easy strip with its tip)

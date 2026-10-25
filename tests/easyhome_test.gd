@@ -13,6 +13,8 @@
 ##  7. Every card that builds: its click to the first moving frame is under 500 ms (the Kick card built live took 3.6 s; baked it is a file).
 ##  11. CHAIN: with a walk built, Change it and a card (Add after, the default) keeps the walk and adds the wave after it:
 ##     cards = walk + wave, the walk first; Undo takes the add back in one step; Start over replaces the clip.
+##  14. EDIT A PICKED CARD: a card picked on the strip, the body dragged: that card takes the pose (one undo step, "Change pose");
+##      the count and the other cards stay; moving the pick off keeps the edit; Ctrl+Z puts the card's pose back.
 ##  C. (the layout) At 1280x720 and at 1600x900 the home panel covers at most 15 % of the body's screen box (the body's capsule
 ##     ends projected with m.cam.unproject_position): the body is visible beside the panel, not under it.
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
@@ -66,6 +68,67 @@ func body_box() -> Rect2:
 
 func card_btn(i: int) -> Button:
 	return m.easy.home.panel.find_child("eh_card_%d" % i, true, false) as Button
+
+
+## the strip's picture button of card i (0-based): the pick button inside its card's panel
+func pick_btn(i: int) -> Control:
+	var pc: Node = m.ui_cards.get_node_or_null("card_%d" % (i + 1))
+	return pc.find_child("b_pick", true, false) as Control if pc != null else null
+
+
+## a real click on a Control (the mouse goes down and up on its middle, through the viewport's input)
+func click_ctl(c: Control) -> void:
+	var at: Vector2 = c.get_global_rect().get_center()
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_LEFT
+	e.pressed = true
+	e.position = at
+	e.global_position = at
+	e.button_mask = MOUSE_BUTTON_MASK_LEFT
+	root.push_input(e)
+	await idle(1)
+	var u := InputEventMouseButton.new()
+	u.button_index = MOUSE_BUTTON_LEFT
+	u.pressed = false
+	u.position = at
+	u.global_position = at
+	root.push_input(u)
+	await idle(4)
+
+
+## a real drag of one part on the body: the pointer goes to the part, down, six moves, up at the end of d
+func drag_part(j: String, d: Vector2) -> void:
+	var c: Array = m.B.cap(j)
+	var p: Vector2 = m.cam.unproject_position(c[0].lerp(c[1], 0.75))
+	var hm := InputEventMouseMotion.new()
+	hm.position = p
+	hm.global_position = p
+	root.push_input(hm)
+	await idle(2)
+	var dn := InputEventMouseButton.new()
+	dn.button_index = MOUSE_BUTTON_LEFT
+	dn.pressed = true
+	dn.position = p
+	dn.global_position = p
+	dn.button_mask = MOUSE_BUTTON_MASK_LEFT
+	root.push_input(dn)
+	await process_frame
+	var st := d / 6.0
+	for i in 6:
+		var mm := InputEventMouseMotion.new()
+		mm.position = p + st * (i + 1)
+		mm.global_position = mm.position
+		mm.relative = st
+		mm.button_mask = MOUSE_BUTTON_MASK_LEFT
+		root.push_input(mm)
+		await process_frame
+	var up := InputEventMouseButton.new()
+	up.button_index = MOUSE_BUTTON_LEFT
+	up.pressed = false
+	up.position = p + d
+	up.global_position = p + d
+	root.push_input(up)
+	await idle(3)
 
 
 func _init() -> void:
@@ -348,6 +411,62 @@ func _init() -> void:
 	await idle(4)
 	var said13: String = (home.panel.find_child("eh_msg", true, false) as Label).text
 	ok(said13.contains("backflip") and not m.ui_status.text.contains("backflip"), "13. 'backflip' is said in the panel only (panel '%s', status '%s')" % [said13, m.ui_status.text])
+	m._new_scene()
+	await idle(4)
+
+	# 14. EDIT A PICKED CARD (walk-through round 5, goal 3): a beginner picks the middle card, drags the arm, and THAT card takes
+	# the new pose in place: one undo step ("Change pose"), the card count and the other cards unchanged; moving the timeline off
+	# the card keeps the edit; Ctrl+Z puts the card's pose back. Real mouse: the card's picture is clicked, the arm dragged on the body.
+	m._new_scene()
+	await idle(2)
+	home.card(0)   # the walk: several cards
+	await idle(6)
+	m.playing = false
+	var n14: int = m.S.cards.size()
+	var k14: int = n14 / 2
+	ok(n14 >= 3, "14. the walk has %d cards: a middle one to pick" % n14)
+	await click_ctl(pick_btn(k14))
+	ok(m.sel_card == k14, "14. a real click picks the middle card %d (picked: %d)" % [k14 + 1, m.sel_card + 1])
+	var before14: Dictionary = m.S.cards[k14]["pose"].duplicate(true)
+	var others14: Array = []
+	for i in n14:
+		if i != k14:
+			others14.append(m.S.cards[i]["pose"].duplicate(true))
+	var undo14: int = m.undo.size()
+	await drag_part("hand_r", Vector2(-70, -30))
+	m.playing = false
+	ok(m.S.cards.size() == n14, "14. the drag keeps the card count (%d -> %d)" % [n14, m.S.cards.size()])
+	ok(not EasyMode.same_pose(m.S.cards[k14]["pose"], before14), "14. the picked card's pose changed (the arm is dragged)")
+	ok(EasyMode.same_pose(m.S.cards[k14]["pose"], m.B.to_dict()), "14. the picked card holds the body's pose now (in place, no new card)")
+	var others_same := true
+	var oi := 0
+	for i in n14:
+		if i != k14:
+			if not EasyMode.same_pose(m.S.cards[i]["pose"], others14[oi]):
+				others_same = false
+			oi += 1
+	ok(others_same, "14. the other cards' poses are unchanged")
+	ok(m.undo.size() == undo14 + 1 and String(m.undo[-1].get("easy", "")) == "Change pose",
+		"14. the drag is one undo step named 'Change pose' (%d -> %d, '%s')" % [undo14, m.undo.size(), String(m.undo[-1].get("easy", ""))])
+	var changed14: Dictionary = m.S.cards[k14]["pose"].duplicate(true)
+	# moving the timeline off the card: the edit stays on that card
+	var other14: int = k14 + 1 if k14 + 1 < n14 else k14 - 1
+	await click_ctl(pick_btn(other14))
+	ok(m.sel_card == other14, "14. a click on another card moves the pick (picked: %d)" % (m.sel_card + 1))
+	ok(EasyMode.same_pose(m.S.cards[k14]["pose"], changed14), "14. moving the timeline off the card keeps the edit on it")
+	# Ctrl+Z (repeated until the card is back: the pick is an undo step of its own) puts the card's pose back
+	for z in 4:
+		if EasyMode.same_pose(m.S.cards[k14]["pose"], before14):
+			break
+		var kz := InputEventKey.new()
+		kz.keycode = KEY_Z
+		kz.physical_keycode = KEY_Z
+		kz.ctrl_pressed = true
+		kz.pressed = true
+		root.push_input(kz)
+		await idle(3)
+	ok(EasyMode.same_pose(m.S.cards[k14]["pose"], before14), "14. Ctrl+Z restores the picked card's pose")
+	ok(m.S.cards.size() == n14, "14. the card count after the undo is the walk's %d (%d)" % [n14, m.S.cards.size()])
 	m._new_scene()
 	await idle(4)
 
