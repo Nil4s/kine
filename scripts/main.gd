@@ -11403,10 +11403,16 @@ func _doc_line(force := false) -> void:
 		return
 	_dot_gen = _dm_gen
 	_dot_hero = H
+	if _dot_later:   # a card build's rebuild: the dot is read after the frame (the serialise is 20+ ms with four fighters)
+		_dot_recheck.call_deferred()
+		return
 	ui_doc_dot.visible = _unsaved()
 
 
 var _dot_gen := -1
+var _dot_later := false   # set by a card build around its rebuild (EasyHome._build)
+func _dot_recheck() -> void:
+	ui_doc_dot.visible = _unsaved()
 var _dot_hero: Scene = null
 
 
@@ -13418,8 +13424,9 @@ func _rebuild_cards() -> void:
 		nb.custom_minimum_size = Vector2(CARD_W - 8, CARD_PIC_H + 16)
 		_card_flat(nb)
 		nb.set_drag_forwarding(Callable(), _card_can_drop.bind(i, nb), _card_drop.bind(i, nb))   # R18: the drag itself is _card_drag_input (6 px, a gold line); R8: a library pose can drop here
-		nb.set_meta("pkey", thumbs.request_pose(c["pose"], pic_rank[i]))
-		var tex := thumbs.pose_picture(c["pose"])
+		var pkey: String = thumbs.pose_key(c["pose"])   # made once for the request and the picture
+		nb.set_meta("pkey", thumbs.request_key(pkey, c["pose"], pic_rank[i]))
+		var tex := thumbs.picture_of_key(pkey)
 		if tex != null:
 			nb.icon = tex
 		v.add_child(nb)
@@ -13455,47 +13462,48 @@ func _rebuild_cards() -> void:
 		_card_timing_look(tb, i)
 		if not (easy != null and easy.on):   # Easy: no timing line (the seconds and the hold are Expert's)
 			v.add_child(tb)
-		var pp := PanelContainer.new()   # not a popup Window (12 of them per rebuild): a panel that floats over the strip
-		pp.name = "time_edit"
-		pp.top_level = true
-		pp.visible = false
-		pp.z_index = 50
-		pp.mouse_exited.connect(func():
-			var fo := pp.get_viewport().gui_get_focus_owner()
-			if fo == null or not pp.is_ancestor_of(fo):
-				pp.visible = false)
-		var pv := VBoxContainer.new()
-		pp.add_child(pv)
-		if i > 0:
-			var mh := HBoxContainer.new()
-			pv.add_child(mh)
-			mh.add_child(_label("move", 13, "text:0.7"))
-			var ms := SpinBox.new()
-			ms.name = "spin_move"
-			ms.min_value = 0.0
-			ms.max_value = 5.0
-			ms.step = 0.05
-			ms.value = maxf(0.0, c["move"])
-			ms.suffix = "s" if c["move"] > 0.0 else "s (auto %.2f)" % S.move_time(i)
-			ms.custom_minimum_size = Vector2(150, 0)
-			ms.tooltip_text = "seconds to get here from the card before. 0 = auto (natural time from how far the body moves)"
-			ms.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["move"] = x if x > 0.0 else -1.0; _markers_follow(); _retimed())
-			mh.add_child(ms)
-		var hh := HBoxContainer.new()
-		pv.add_child(hh)
-		hh.add_child(_label("hold", 13, "text:0.7"))
-		var hs := SpinBox.new()
-		hs.name = "spin_hold"
-		hs.min_value = 0.0
-		hs.max_value = 5.0
-		hs.step = 0.05
-		hs.value = c["hold"]
-		hs.suffix = "s"
-		hs.custom_minimum_size = Vector2(150, 0)
-		hs.tooltip_text = "seconds the body stays still in this pose"
-		hs.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["hold"] = x; _markers_follow(); _retimed(false); tb.text = _card_timing(i); _card_timing_look(tb, i))
-		hh.add_child(hs)
-		pc.add_child(pp)
+		if not easy_on:   # the timing panel (move, hold) is Expert's: Easy has no timing line to open it, so its boxes are not made
+			var pp := PanelContainer.new()   # not a popup Window (12 of them per rebuild): a panel that floats over the strip
+			pp.name = "time_edit"
+			pp.top_level = true
+			pp.visible = false
+			pp.z_index = 50
+			pp.mouse_exited.connect(func():
+				var fo := pp.get_viewport().gui_get_focus_owner()
+				if fo == null or not pp.is_ancestor_of(fo):
+					pp.visible = false)
+			var pv := VBoxContainer.new()
+			pp.add_child(pv)
+			if i > 0:
+				var mh := HBoxContainer.new()
+				pv.add_child(mh)
+				mh.add_child(_label("move", 13, "text:0.7"))
+				var ms := SpinBox.new()
+				ms.name = "spin_move"
+				ms.min_value = 0.0
+				ms.max_value = 5.0
+				ms.step = 0.05
+				ms.value = maxf(0.0, c["move"])
+				ms.suffix = "s" if c["move"] > 0.0 else "s (auto %.2f)" % S.move_time(i)
+				ms.custom_minimum_size = Vector2(150, 0)
+				ms.tooltip_text = "seconds to get here from the card before. 0 = auto (natural time from how far the body moves)"
+				ms.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["move"] = x if x > 0.0 else -1.0; _markers_follow(); _retimed())
+				mh.add_child(ms)
+			var hh := HBoxContainer.new()
+			pv.add_child(hh)
+			hh.add_child(_label("hold", 13, "text:0.7"))
+			var hs := SpinBox.new()
+			hs.name = "spin_hold"
+			hs.min_value = 0.0
+			hs.max_value = 5.0
+			hs.step = 0.05
+			hs.value = c["hold"]
+			hs.suffix = "s"
+			hs.custom_minimum_size = Vector2(150, 0)
+			hs.tooltip_text = "seconds the body stays still in this pose"
+			hs.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["hold"] = x; _markers_follow(); _retimed(false); tb.text = _card_timing(i); _card_timing_look(tb, i))
+			hh.add_child(hs)
+			pc.add_child(pp)
 	if easy != null and easy.on and not S.cards.is_empty():
 		ui_add_slot.add_child(easy.strip_button())   # + Add pose: pinned right of the strip, so a 37-card run never scrolls it away
 	_sg_strip_sync()   # R27: the three mini thumbnails after the current card
@@ -22051,13 +22059,28 @@ func _load_scene(path0: String, work := false) -> void:   # work: a copy the app
 	if not (probe is Dictionary):   # a missing, empty or non-JSON file is refused with a message, not a crash
 		_say_plain("NOT NOW: %s is not a scene file (missing, empty or not JSON)" % path.get_file())
 		return
+	_open_scene_dict(path, probe, work, false)
+
+
+## A CARD BUILD (Easy home): the clip is opened from the dictionary in memory, not from a file written and read back.
+## The values are the ones the file would hold (a JSON round trip), and the _wip file is written after the frame
+## (_write_later) with the same text. Same scene as _load_scene(path, true) on the written file.
+func _load_scene_built(path0: String, d: Dictionary) -> void:
+	var rt: Variant = d.duplicate(true)
+	_write.call_deferred(path0, d.duplicate(true))
+	if not (rt is Dictionary):
+		_say_plain("NOT NOW: %s is not a scene file (missing, empty or not JSON)" % path0.get_file())
+		return
+	_open_scene_dict(path0, rt, true, true)
+
+
+func _open_scene_dict(path: String, d: Dictionary, work: bool, built := false) -> void:   # built: a card build (_load_scene_built): its recents line and the dot follow the frame
 	_actors_home()   # TC3: the opened file's hero goes on the hero's body; its actors are built from it
 	if not vdiff.is_empty():   # COMPARE WITH: a comparison belongs to the scene it was made in
 		_vdiff_clear()
 	swap_scenes = []
 	scene_path = path
 	layer_on = -1   # NA1: edits go to the first layer of a newly opened scene
-	var d: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
 	check_ran = false
 	S = Scene.new()
 	if d.has("cards"):
@@ -22076,7 +22099,10 @@ func _load_scene(path0: String, work := false) -> void:   # work: a copy the app
 		S.name = d.get("name", "move")
 	if ui_scene_name != null:
 		ui_scene_name.text = S.name
-	_recent_note(path)
+	if built:
+		_recent_note.call_deferred(path)   # the settings file's recent list: written after the frame (the card's pictures do not wait for it)
+	else:
+		_recent_note(path)
 	_show_open_scene()
 	if ui_natural != null:
 		ui_natural.set_pressed_no_signal(S.natural)   # the boxes show THIS scene's settings (10-14: they kept the last ones)

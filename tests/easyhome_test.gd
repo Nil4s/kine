@@ -2728,6 +2728,22 @@ func _init() -> void:
 	ok(sb119 != null and m.S.cards.size() > n119 + 1 and not m.B.wep_on and armed119.is_empty(),
 		"119. a walk, a chair 2 m past its end, Sit on the chair (a real click, %d -> %d cards): he holds nothing (wep_on %s, kind %s) and no card carries a weapon (cards with one: %s)" % [n119, m.S.cards.size(), str(m.B.wep_on), m.B.wep_kind, str(armed119)])
 
+	# 120. A CARD'S BUILD IS FAST (buildspeed): card(1) (Run), the click's own synchronous call (the build, the scene load, the rebuild of
+	# the strip, the refresh, the start of play), median of 5 reps from an empty scene. The base before this change: 215.3 ms (5 reps);
+	# the bar is 60 % of it: 129.2 ms. Old code: FAIL (about 215 ms).
+	var ts120 := []
+	for rep120 in 5:
+		m.playing = false
+		m._new_scene()
+		await idle(3)
+		var t120 := Time.get_ticks_usec()
+		home.card(1)
+		ts120.append(Time.get_ticks_usec() - t120)
+		await idle(3)
+	ts120.sort()
+	var med120: float = ts120[2] / 1000.0
+	ok(med120 <= 0.6 * 215.3, "120. card(1) Run: the click's synchronous build median %.1f ms over 5 reps (bar: <= 129.2 ms = 60 %% of the old median 215.3 ms)" % med120)
+
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
 	await idle()
