@@ -309,6 +309,9 @@ func build(root: Control) -> void:
 	fix.name = "eh_fix"
 	fix.add_theme_constant_override("separation", 8)
 	sv.add_child(fix)
+	# MOVES (walk-through round 9, friction 1): the move cards are hidden once a clip is built; "Change it" was the only way back, and
+	# it said nothing about cards. This one says what it shows. Same action as Change it (the picker opens over the clip, or shuts)
+	fix.add_child(_strip_button("eh_moves", "Moves", "show the move cards (Walk, Jump, Punch...) to add after the clip, and the box to type a move", _change, Vector2(130, 56), 22))
 	fix.add_child(_strip_button("eh_from_video_strip", "From a video", "turn a video of one person into a move: pick the file (the same as More > Copy a video)", copy_video, Vector2(170, 56), 22))
 	fix.add_child(_strip_button("eh_cut_start", "Cut start", "drop the cards before the picked card: the clip starts there (one undo step)", trim.bind(true), Vector2(150, 56), 22))
 	fix.add_child(_strip_button("eh_cut_end", "Cut end", "drop the cards after the picked card: the clip ends there (one undo step)", trim.bind(false), Vector2(150, 56), 22))
