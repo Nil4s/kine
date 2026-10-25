@@ -109,3 +109,4 @@ EXTRA="$EXTRA walk10_beginner:w"   # monkey test round 10: wave, chair + sit, co
 EXTRA="$EXTRA walk_model6:w"   # walk-through 6: table (flatten, legs), bevel the top rim, wood material from the library, cylinder onto the table, undo x3 / redo x3, the table as a prop (tests/walk_model6_test.gd)
 EXTRA="$EXTRA longplay:w"   # LONG PLAY: the 61-card axe clip at 30 ms median, the playhead in real time, served frames = live (tests/longplay_test.gd)
 EXTRA="$EXTRA meshprop:w"   # MESH AS A PROP: MODEL > Use in scene (one undo step, POSE shows it), the scene saved and loaded with it, a saved mesh under Add prop and My models (tests/meshprop_test.gd)
+EXTRA="$EXTRA fixall:w"   # FIX ALL: one button applies every Check fix in order, one undo step (tests/fixall_test.gd)
