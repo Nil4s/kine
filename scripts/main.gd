@@ -21581,6 +21581,104 @@ func _export_model() -> String:
 var _last_export_glb := ""   # the GLB the last Export model wrote (Use as a prop imports it)
 
 
+## the mesh objects in the scene, by name (the export dialog's "What to export"): the body (its posed pieces, one mesh),
+## the test cube or body mesh when the model editor has it open, and each set piece (Props) at its place
+func scene_object_names() -> Array:
+	var out := []
+	if not _obj_posed_meshes().is_empty():
+		out.append("body")
+	if kmed != null and kmed.on and kmed.mesh != null:
+		out.append("body_mesh" if BaseBody.is_open(self) else "test_cube")
+	for p in S.props:
+		out.append(String((p as Dictionary)["kind"]))
+	return out
+
+
+## one entry per mesh object: [{name, mesh (ArrayMesh, in the scene's place), xf}]; the same order as scene_object_names
+func scene_objects() -> Array:
+	var out := []
+	var body := _obj_posed_meshes()
+	if not body.is_empty():
+		var am := ArrayMesh.new()
+		for e in body:
+			_append_surfaces(am, (e as Dictionary)["mesh"], Transform3D.IDENTITY)
+		out.append({"name": "body", "mesh": am, "xf": Transform3D.IDENTITY})
+	if kmed != null and kmed.on and kmed.mesh != null:
+		var cube := ArrayMesh.new()
+		_append_surfaces(cube, kmed.mesh.to_array_mesh(), Transform3D.IDENTITY)
+		out.append({"name": "body_mesh" if BaseBody.is_open(self) else "test_cube", "mesh": cube, "xf": Transform3D.IDENTITY})
+	for p in S.props:
+		var pd := p as Dictionary
+		var node := Props.mesh(pd)
+		var pm := ArrayMesh.new()
+		_collect_props_meshes(node, node.transform, pm)
+		node.free()
+		out.append({"name": String(pd["kind"]), "mesh": pm, "xf": Transform3D.IDENTITY})
+	return out
+
+
+func _collect_props_meshes(n: Node, acc: Transform3D, am: ArrayMesh) -> void:
+	for c in n.get_children():
+		if c is MeshInstance3D and (c as MeshInstance3D).mesh != null:
+			var cx := acc * (c as MeshInstance3D).transform
+			_append_surfaces(am, (c as MeshInstance3D).mesh, cx)
+		if c is Node3D:
+			_collect_props_meshes(c, acc * (c as Node3D).transform, am)
+
+
+## the surfaces of mesh, moved by xf (vertices and normals), added to am
+static func _append_surfaces(am: ArrayMesh, mesh: Mesh, xf: Transform3D) -> void:
+	for s in mesh.get_surface_count():
+		var arr: Array = mesh.surface_get_arrays(s)
+		var v: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		if v.is_empty():
+			continue
+		var nv := PackedVector3Array()
+		nv.resize(v.size())
+		for i in v.size():
+			nv[i] = xf * v[i]
+		arr[Mesh.ARRAY_VERTEX] = nv
+		if arr[Mesh.ARRAY_NORMAL] != null:
+			var nrm: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+			var nn := PackedVector3Array()
+			nn.resize(nrm.size())
+			for i in nrm.size():
+				nn[i] = (xf.basis * nrm[i]).normalized()
+			arr[Mesh.ARRAY_NORMAL] = nn
+		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+
+
+## the selected object's name: the test cube (or body mesh) while the model editor has it open, else the set piece
+## picked (sel_prop), else the body
+func selected_object_name() -> String:
+	if kmed != null and kmed.on and kmed.mesh != null:
+		return "body_mesh" if BaseBody.is_open(self) else "test_cube"
+	if sel_prop >= 0 and sel_prop < S.props.size():
+		return String((S.props[sel_prop] as Dictionary)["kind"])
+	return "body"
+
+
+## EXPORT DIALOG "What to export" (only_selected: the one object; else every object by its name): a static .glb of the
+## mesh objects in the scene at res:// dir (user's folder in an exported build). Everything is _export_glb, not this.
+func _export_objects(dir := "res://exports", only_selected := false) -> String:
+	dir = UserPaths.w(dir)
+	var objs := scene_objects()
+	if only_selected:
+		var want := selected_object_name()
+		objs = objs.filter(func(o): return String(o["name"]) == want)
+	if objs.is_empty():
+		_say_plain("NOT DONE: no mesh object to export (open the test cube, or add a set piece)")
+		return ""
+	var stem := String(objs[0]["name"]) if only_selected else safe_file(S.name if S.name != "" else "scene") + "_objects"
+	var path := "%s/%s.glb" % [dir, stem]
+	var err := GltfExport.write_meshes(objs, path)
+	if err != OK:
+		_say_plain("NOT DONE: the .glb could not be written (%s)" % error_string(err))
+		return ""
+	_say_plain("exported %s: %d mesh object%s (%s), static, no animation" % [path.get_file(), objs.size(), "" if objs.size() == 1 else "s", ", ".join(objs.map(func(o): return String(o["name"])))])
+	return path
+
+
 ## Use as a prop: the last exported model goes through the same import as a .glb dropped in (Importer.accept copies it into
 ## the library, Props.register gives it its real size from the file's bounds), so it appears in Library > My models
 func _use_export_as_prop() -> void:

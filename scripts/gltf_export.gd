@@ -202,6 +202,29 @@ static func write_actors(actors: Array, path: String, with_mesh := true) -> Erro
 	return _write(build_actors(actors, path.get_file().get_basename(), with_mesh), path, true)
 
 
+## the chosen mesh objects in one static .glb (the export dialog's "What to export" choice): no skeleton, no animation.
+## objs: [{name, mesh (ArrayMesh, already in place), xf}], one node per object named by it (a repeated name gets _2, _3)
+static func write_meshes(objs: Array, path: String) -> Error:
+	var root := Node3D.new()
+	root.name = "scene"
+	var seen := {}
+	for o in objs:
+		var base := String(o["name"])
+		var nm := base
+		var k := 1
+		while seen.has(nm):
+			k += 1
+			nm = "%s_%d" % [base, k]
+		seen[nm] = true
+		var mi := MeshInstance3D.new()
+		mi.name = nm
+		mi.mesh = o["mesh"]
+		mi.transform = o.get("xf", Transform3D.IDENTITY)
+		root.add_child(mi)
+		mi.owner = root
+	return _write(root, path)
+
+
 static func _write(root: Node3D, path: String, bone_names := false) -> Error:
 	var doc := GLTFDocument.new()
 	var st := GLTFState.new()
