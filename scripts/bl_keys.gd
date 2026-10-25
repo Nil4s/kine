@@ -4,7 +4,8 @@ extends RefCounted
 ## "Keys: Blender-style G R S on / off" turns it on; remembered in the settings file, [look] blkeys).
 ## What Kine's own keys are (main.gd, plain press, nothing held): G = second hand on the weapon, R = reset the part,
 ## S = the command search box, Y = the speed graph tool, X and Z = nothing (Ctrl+Z / Ctrl+Y are undo / redo). With the
-## layer OFF this file does nothing at all, so each of them does what it did. With it ON:
+## layer OFF this file does nothing on the posing pages, so each of them does what it did there (the model preview is
+## the exception, see GRS below). With it ON:
 ##   G  grab: the picked hand / foot (its IK target) or the hips (the root) follows the mouse; X / Y / Z = along the
 ##      world axis; a typed number = metres.   R  rotate the picked part: X / Y / Z = its local bend / side / twist
 ##      (X until you pick), a typed number = degrees.   S  scale where it means something: the weapon's length (a typed
@@ -16,7 +17,10 @@ extends RefCounted
 ## B07: with proportional editing on (O in the model preview, kmesh_proportional.gd) the unselected verts within its
 ## radius follow, weighted by the falloff; the wheel sizes the radius while a mesh G / R / S is live.
 ## B22: with the edit mirror on (scripts/kmesh_topomirror.gd) each moved vert's partner moves mirrored, in the same step.
-## Tests: tests/blkeys_test.gd.
+## GRS (round 2 of the model walk): in the model preview (kmesh_edit_ui.gd) G / R / S work WITHOUT the layer, whenever
+## the mesh edit is on and showing: the layer then only adds the body-page keys. Posing pages keep their own G (second
+## hand), R (reset) and S (search): with the mesh edit off or on another page this file does nothing with the layer off.
+## Tests: tests/blkeys_test.gd, tests/kmesh_grs_test.gd.
 
 const CFG := "look"
 const DEG_PER_PX := 0.5
@@ -78,21 +82,23 @@ func typed() -> float:
 
 ## main passes every unhandled input here first; true = used
 func input(ev: InputEvent) -> bool:
-	if not on:
-		return false
 	if active != "":
+		if not on and where != "mesh":
+			return false
 		return _modal(ev)
 	if not (ev is InputEventKey and ev.pressed and not ev.echo):
 		return false
 	var k := ev as InputEventKey
 	if k.ctrl_pressed or k.alt_pressed or k.shift_pressed or k.meta_pressed:
-		if k.ctrl_pressed and k.keycode == KEY_Z and _mesh_on() and m.kmed.undo.steps.size() > 0:
+		if on and k.ctrl_pressed and k.keycode == KEY_Z and _mesh_on() and m.kmed.undo.steps.size() > 0:   # layer on only: the GRS undo steps
 			m.kmed.undo.undo()
 			m.kmed.view.mark_dirty()
 			m._say("Model: undone (the mesh step before is back)")
 			return true
 		return false
 	if not (k.keycode in [KEY_G, KEY_R, KEY_S]):
+		return false
+	if not on and not _mesh_on():   # GRS: the model preview has G / R / S with the layer off too; posing does not
 		return false
 	var fo: Control = m.get_viewport().gui_get_focus_owner()
 	if fo is LineEdit or fo is SpinBox:
@@ -102,7 +108,7 @@ func input(ev: InputEvent) -> bool:
 
 
 func _mesh_on() -> bool:
-	return m.kmed != null and m.kmed.on
+	return m.kmed != null and m.kmed.on and m.kmed.showing
 
 
 func _begin(which: String) -> void:

@@ -118,9 +118,12 @@ func _init() -> void:
 	await key(KEY_ENTER)
 	ok(not ex[2] and String(ex[1]).contains("E   MODEL") and not String(m.ui_status.text).contains("not built yet"), "4f extrude is live now ('%s'), not greyed: '%s'" % [ex[1], m.ui_status.text])
 	var gr := first_text("grab vertices")
-	ok(gr[0] == "Model: grab the selected vertices" and gr[2] and String(gr[1]).begins_with("G"), "4g layer off: grab greyed, shows '%s'" % gr[1])
+	# GRS (round 2 walk): G works on the model preview with the Blender-keys layer OFF, so the row is live, not greyed
+	ok(gr[0] == "Model: grab the selected vertices" and not gr[2] and String(gr[1]).begins_with("G   MODEL"), "4g layer off: grab live, shows '%s'" % gr[1])
 	await key(KEY_ENTER)
-	ok(String(m.ui_status.text).contains("Blender-style") and m.blk.active == "", "4h a greyed grab says how to turn the layer on and starts nothing: '%s'" % m.ui_status.text)
+	ok(not String(m.ui_status.text).contains("Blender-style") and (m.blk.active == "G" or String(m.ui_status.text).contains("pick vertices")),
+		"4h Enter on the live grab starts it or says to pick vertices, never 'turn the layer on': '%s'" % m.ui_status.text)
+	await key(KEY_ESCAPE)
 	m.blk.set_on(true, false)
 	gr = first_text("grab vertices")
 	ok(not gr[2] and String(gr[1]).begins_with("G   MODEL"), "4i layer on: grab not greyed, '%s'" % gr[1])

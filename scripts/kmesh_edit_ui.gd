@@ -6,6 +6,10 @@ extends Node
 ##   Shift+click  toggle it in the selection                            B  box select (drag a rectangle), L  lasso (drag a loop)
 ##   drag from empty space  box select                                  X  x-ray (select through to the far side)
 ##   A  select all                                                      Esc  disarm B / L, or leave
+##   G / R / S  grab / rotate / scale the selected vertices (on the model preview WITHOUT the Blender-keys layer; then X / Y / Z,
+##      a typed number, click or Enter keeps, Esc or right click cancels; O proportional, the wheel its radius: scripts/bl_keys.gd)
+##   Alt+click  select the edge LOOP through the edge under the mouse (Shift+Alt+click adds it; kmesh_select.gd select_loop)
+##   Ctrl+1 / Ctrl+2 / Ctrl+3  a Subdivide modifier at level 1 / 2 / 3 on the stack (one undo step; the modifiers panel)
 ##   Ctrl+Z  undo the last mesh edit (A12: "Model: subdivide the test cube (Catmull-Clark)" is one step)
 ##   K  add a shape key from the current shape (A13)                    [ / ]  the last key's value -0.1 / +0.1
 ##   T  measure the selection (B20, KMeshMeasure; follows the selection)  Shift+T  next material (the mass with the volume)
@@ -143,7 +147,7 @@ func start() -> void:
 		anat.setup(self)
 		add_child(anat)
 	anat.tick()   # A19: tagged from the first frame
-	m._say("Model: test cube. 1 / 2 / 3 vert / edge / face, click selects, Shift+click adds, B box, L lasso, X x-ray, Delete / Ctrl+Delete delete / dissolve, M merge, E extrude, I inset, Esc leaves")
+	m._say("Model: test cube. 1 / 2 / 3 vert / edge / face, click selects, Shift+click adds, Alt+click an edge loop, B box, L lasso, G R S move rotate scale, E extrude, I inset, Ctrl+1 subdivide, Delete, M merge, Esc leaves")
 
 
 func stop() -> void:
@@ -205,7 +209,7 @@ func set_showing(v: bool) -> void:
 func set_mode(md: int) -> void:
 	sel.set_mode(md)
 	view.mark_dirty()
-	m._say("Model: %s mode, %d selected. Click an element, or B and drag a box" % [["vertex", "edge", "face"][md], sel.count()])
+	m._say("Model: %s mode, %d selected. Click an element, or B and drag a box; then G R S move, rotate, scale" % [["vertex", "edge", "face"][md], sel.count()])
 	_remeasure()
 
 
@@ -231,6 +235,9 @@ func input(ev: InputEvent) -> bool:
 	if refp.input(ev):   # B21: only the two-point clicks while armed
 		return true
 	if snap.input(ev) or pivot.input(ev):   # B08 / B14: Shift+Tab, ".", Shift+right-click (a left press only notes the active element)
+		return true
+	if ev is InputEventKey and ev.pressed and not ev.echo and _ctrl_digit(ev as InputEventKey) > 0:
+		_subdiv_key(_ctrl_digit(ev as InputEventKey))   # Blender's Ctrl+1..3: a Subdivide modifier at that level
 		return true
 	if ev is InputEventKey and ev.pressed and not ev.echo and (ev as InputEventKey).ctrl_pressed:
 		# A12 / B05: Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) are the mesh's own undo / redo while the cube is open, Ctrl+Delete dissolves, Ctrl+E bridges
@@ -333,6 +340,9 @@ func input(ev: InputEvent) -> bool:
 			_cur = mb.position
 			if armed != "":
 				_kind = armed
+			elif mb.alt_pressed and _alt_loop(cam, mb.position, _add):   # Blender's Alt+click: the edge loop through that edge
+				_kind = "click"
+				_report()
 			else:
 				if view.click(cam, mb.position, _add):
 					_kind = "click"
@@ -517,6 +527,32 @@ func _b05_key(e: InputEventKey) -> void:
 	sel.clear()
 	view.mark_dirty()
 	m._say("Model: %s: %s now %s verts %s faces. Ctrl+Z undoes" % [what, before, str(mesh.vert_count()), str(mesh.face_count())])
+
+
+## Alt+click on an edge (Blender): the edge loop through it. False when no edge is under the mouse (then the click is a plain one).
+func _alt_loop(cam: Camera3D, p: Vector2, add: bool) -> bool:
+	var h: Dictionary = view.pick(cam, p)
+	if h.is_empty() or (h["edge"] as Vector2i).x < 0:
+		return false
+	var e: Vector2i = h["edge"]
+	sel.select_loop(e.x, e.y, add)
+	view.mark_dirty()
+	m._say("Model: edge loop selected (%d edges). Shift+Alt+click adds another loop; S scales it, G moves it" % sel.count())
+	return true
+
+
+## Ctrl+1..3 alone (no Shift / Alt): the digit 1..3, else 0
+static func _ctrl_digit(k: InputEventKey) -> int:
+	if not k.ctrl_pressed or k.alt_pressed or k.shift_pressed or k.keycode not in [KEY_1, KEY_2, KEY_3]:
+		return 0
+	return int(k.keycode - KEY_0)
+
+
+## Ctrl+1..3 (Blender): a Subdivide modifier at `levels` on the stack; if the stack refuses it, the mesh is subdivided
+## by the direct path (subdivide), which says so in the status line.
+func _subdiv_key(levels: int) -> void:
+	if mods == null or mods.add_level(levels) < 0:   # the stack refused it (its status said why): subdivide the mesh, which says so
+		subdivide(levels)
 
 
 ## B02 / B03 (scripts/kmesh_extrude.gd): E extrude, I inset, Ctrl+E bridge, Ctrl+Z / Ctrl+Y undo / redo; true = used

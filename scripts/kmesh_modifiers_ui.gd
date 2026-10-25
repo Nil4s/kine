@@ -151,6 +151,17 @@ func add(type: String) -> int:
 	return i
 
 
+## GRS / Ctrl+1..3 (Blender): a Subdivide modifier at `levels` at the bottom of the stack, one undo step. -1 when the stack
+## refuses it (last_error says why): the caller then subdivides the mesh itself and says so.
+func add_level(levels: int) -> int:
+	var i: int = _step("Add Subdivide x%d modifier" % levels, func(): return KMeshModifiers.add(_mesh(), "subdiv", {"levels": levels}))
+	if i < 0:
+		m._say("Model: %s" % KMeshModifiers.last_error)
+		return -1
+	m._say("Model: added Subdivide x%d (Catmull-Clark) as a modifier: the mesh itself is unchanged; Apply bakes it, Ctrl+Z takes it back" % levels)
+	return i
+
+
 func remove(i: int) -> bool:
 	var nm := _name(i)
 	var r: bool = _step("Remove %s modifier" % nm, func(): return KMeshModifiers.remove(_mesh(), i))

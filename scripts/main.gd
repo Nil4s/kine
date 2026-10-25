@@ -5169,7 +5169,7 @@ static func _ray_seg(o: Vector3, d: Vector3, a: Vector3, b: Vector3) -> Vector2:
 
 
 func _unhandled_input(ev: InputEvent) -> void:
-	if blk != null and blk.on and blk.input(ev):   # B16: the optional Blender-style G / R / S layer (off by default: Kine's own keys)
+	if blk != null and blk.input(ev):   # B16 / GRS: G / R / S: the model preview's always, the body's with the Blender-style layer on (off by default)
 		get_viewport().set_input_as_handled()
 		return
 	if feint_ui != null and feint_ui.on and feint_ui.input(ev):   # I20: Tab picks the variant, P previews, Enter accepts, Esc puts the ghosts away
