@@ -266,7 +266,7 @@ func orbit_drag(p: Vector2, d: Vector2) -> void:
 
 
 ## a key press (down and up), with Ctrl / Shift when asked: the way a real key comes in
-func key(k: Key, ctrl := false, shift := false, label := "") -> void:
+func key(k: Key, ctrl := false, shift := false, label := "", alt := false) -> void:
 	keys += 1
 	for down in [true, false]:
 		var ev := InputEventKey.new()
@@ -274,6 +274,7 @@ func key(k: Key, ctrl := false, shift := false, label := "") -> void:
 		ev.physical_keycode = k
 		ev.ctrl_pressed = ctrl
 		ev.shift_pressed = shift
+		ev.alt_pressed = alt
 		ev.pressed = down
 		root.push_input(ev)
 		await process_frame
@@ -846,7 +847,7 @@ func _init() -> void:
 		var e6: Array = pick_edge(func(a: int, b: int, _mid: Vector3) -> bool: return edge_uses(a, b) == 1)
 		if not e6.is_empty():
 			await click_mod(e6[2], "a rim edge of the hole", true, false)
-		await key(KEY_F, false, true, "Alt+F (fill the holes touching the selection)")
+		await key(KEY_F, false, false, "Alt+F (fill the holes touching the selection)", true)
 		await shot("11_hole_filled")
 		var f6b := nf()
 		t6 = fd >= 0 and hole_open > b6 and f6b == f6 and boundary_edges() == 0
