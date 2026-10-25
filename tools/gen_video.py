@@ -40,13 +40,26 @@ NEGATIVE_V2 = ("close-up, medium shot, cropped, out of frame, cut off feet, cut 
 MOTION = ("one continuous action, the same action the whole time, no other moves, brisk and clearly visible movement, "
           "continuous motion, never pauses, the body moves the whole time")
 NEGATIVE_MOTION = "still, frozen, static pose, slow motion, freeze frame, holding a pose"
+# v3: v1m's motion words with a framing aimed at the hands and feet staying sharp and in frame (comfy3: the jumping jack's
+# hands and feet left the frame or blurred in most takes). Slower, clearer movement; the negative names motion blur and the
+# hands and feet leaving the frame. Measured against v1m in C:/Temp/claude/comfy4 before any default change.
+MOTION_V3 = ("one continuous action, the same action the whole time, no other moves, slow controlled clearly readable movement, "
+             "continuous motion, never pauses, the body moves the whole time")
+FRAME_V3 = ("one athletic adult, full body in a wide shot from far away, camera at hip height, both arms and both legs fully "
+            "visible against the plain background, hands and feet in the frame the whole time, sharp focus, no motion blur, "
+            "plain light grey fitted clothes and dark shoes, plain dark grey studio background, empty floor, static "
+            "locked-off camera, side view, even soft light")
+NEGATIVE_V3 = ("motion blur, motion smear, hands out of frame, feet out of frame, hands cut off, feet cut off, close-up, "
+               "medium shot, cropped, out of frame, cut off head, camera movement, zoom, pan, shaky, two people, crowd, "
+               "extra limbs, extra arms, extra legs, deformed hands, fused limbs, blurry")
 STYLES = {"v1": (FRAME_V1, NEGATIVE_V1), "v2": (FRAME_V2, NEGATIVE_V2),
-          "v1m": (MOTION + ", " + FRAME_V1, NEGATIVE_MOTION + ", " + NEGATIVE_V1)}
-DEFAULT_STYLE = "v1m"   # v2 becomes the default only after its feet-out is measured to pass
+          "v1m": (MOTION + ", " + FRAME_V1, NEGATIVE_MOTION + ", " + NEGATIVE_V1),
+          "v3": (MOTION_V3 + ", " + FRAME_V3, NEGATIVE_MOTION + ", " + NEGATIVE_V3)}
+DEFAULT_STYLE = "v3"   # comfy4 (10-25): v3 beat or tied v1m on all 10 takes (5 moves x 2 seeds), mean score +0.313 vs -0.078; ~10 % slower
 # the old settings (--quality)
 QUALITY = {"style": "v1", "steps": 30, "width": 832, "height": 480}
 # the defaults: unchanged until a speed setting and the v2 framing both pass REPORT_V2.md
-DEFAULTS = {"style": "v1m", "steps": 30, "width": 832, "height": 480}
+DEFAULTS = {"style": "v3", "steps": 30, "width": 832, "height": 480}
 FPS = 16   # Wan 2.1's own rate
 
 
