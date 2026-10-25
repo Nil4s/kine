@@ -13414,8 +13414,8 @@ func _easy_card_name(n: String, i := -1) -> String:
 	var t := String(n).strip_edges()
 	if i >= 0 and i < S.cards.size() and S.cards[i].has("from") and easy_is_jargon(t):   # a move's jargon name ("Anticipation: load"): "<Move> <n>" by its place in the move's run
 		return _easy_move_label(i)
-	if i >= 0 and t.begins_with("v") and t.substr(1).is_valid_int():   # a card copied from a video is named v<frame> (video_import): Easy shows its place in the strip
-		return "Pose %d" % (i + 1)
+	if i >= 0 and t.begins_with("v") and t.substr(1).is_valid_int():   # a card copied from a video is named v<frame> (video_import): Easy names it "Video <n>", n its place in the copy
+		return "Video %d" % _copy_place(i)
 	if i >= 0 and t.to_lower().begins_with("pose ") and t.substr(5).strip_edges().is_valid_int():   # "pose 3" (a new card's name): its place in the strip, so a card added between two reads right
 		return "Pose %d" % (i + 1)
 	if EASY_CARD_NAME.has(t.to_lower()):   # the template's own jargon (load, CROSS, recover) in plain words; the stored name is not changed
@@ -13438,6 +13438,20 @@ static func easy_is_jargon(n: String) -> bool:
 		if t.begins_with(w):
 			return true
 	return false
+
+
+## EASY: the place of a copied-video card in its run of copied cards (the v<frame> cards in a row), 1 for the run's first
+func _copy_place(i: int) -> int:
+	var k := 1
+	var j := i - 1
+	while j >= 0 and _is_copy_name(String(S.cards[j]["name"])):
+		k += 1
+		j -= 1
+	return k
+
+
+static func _is_copy_name(n: String) -> bool:
+	return n.begins_with("v") and n.substr(1).is_valid_int()
 
 
 ## EASY: "<Move> <n>" for a card of a move: n is its place in the move's run (consecutive cards with the same tag)
@@ -20364,6 +20378,7 @@ var _video_raw := false   # "import raw": the tracker's frames go straight to th
 var _video_prog := ""     # the tracker's progress file (its fraction 0-1, rewritten as it goes): Easy's "Reading the video: 40 %"
 var _video_cancelled := false   # the last import was stopped by Cancel while the tracker ran (Easy says "Stopped. Nothing was changed.")
 var _land_undo := ""     # EASY's Copy a video: the name of the one undo step the landing makes (the scene before the import); "" = none
+var easy_copy_land := Callable()   # EASY's Copy a video, "Add after": the copied scene goes to this (easy_home.gd) instead of opening; invalid = none
 
 
 ## THE GRIP BOOK (scripts/grip_book.gd): the weapon's recorded grips, one after another; and the pose's grip recorded
@@ -20653,6 +20668,11 @@ static func _import_compute(Bw: Body, keep: Dictionary, P: Dictionary, held: Str
 ## the result of _import_compute lands: written under scenes/_wip, opened as a NEW scene. Returns its path ("" for a cancelled one)
 func _import_land(res: Dictionary, src: String, held: String) -> String:
 	if res.is_empty():
+		return ""
+	if easy_copy_land.is_valid():   # Easy's Copy a video, Add after: the copy's cards join the open scene; no file is opened or written
+		var land := easy_copy_land
+		easy_copy_land = Callable()
+		land.call(res["d"])
 		return ""
 	var d: Dictionary = res["d"]
 	var base := safe_file(String(d["scene"]))

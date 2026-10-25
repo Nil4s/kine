@@ -28,6 +28,13 @@
 ##      the ball (the closest toe is within 6 cm of its surface), the ball is not moved, and the say line says the ball doesn't fly yet.
 ##  26. LIBRARY NAMES ARE PLAIN (walk-through LP round, goal 3): no library tile is named with the old jargon (Step code, Stairs code,
 ##      Ramp15, Moving box, Door frame, Sword on the floor); the prop sword says (on the floor).
+##  40. A SECOND COPY IS REFUSED ON SCREEN (walk-through friction 1): while one video is copied, a second copy's refusal is not
+##      overwritten: one second after it, the bar's line reads "Still copying the first video: ..."
+##  41. AN UNSAVED SCENE IS ASKED ABOUT (walk-through friction 2): a copy over built cards asks "Replace your clip?" first;
+##      Cancel keeps the scene untouched (same cards, same file, no copy started); Add after keeps the cards and adds the copy's
+##      after them (one undo step, the scene's file does not change). The question is screenshotted (easy_vid_ask.png).
+##  42. COPIED CARDS ARE NAMED PLAINLY (walk-through friction 3): every card of a copy reads "Video <n>" in Easy (n = its place
+##      in the copy's run); no "v<frame>", "Pose <n>" or "Move <n>" names for copied cards.
 ## A screenshot of the panel goes to user://easyhome_panel.png (the path is printed).
 extends SceneTree
 
@@ -108,6 +115,20 @@ func seat_gap() -> Array:
 			if Props._over(sup, q):
 				lo = minf(lo, q.y - float(B.rad[part]))
 	return [Props._over(sup, mid), lo - top]
+
+
+## a wait by the clock (frames run in the window; a copy's tracker takes seconds)
+func wait_ms(ms: int) -> void:
+	var t := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t < ms:
+		await process_frame
+
+
+## wait while a copy runs (the copy's own flag), up to ms
+func wait_busy(h: Node, ms: int) -> void:
+	var t := Time.get_ticks_msec()
+	while h._vid_busy and Time.get_ticks_msec() - t < ms:
+		await process_frame
 
 
 func card_btn(i: int) -> Button:
@@ -851,6 +872,62 @@ func _init() -> void:
 			bad26.append(String(it["name"]))
 	ok(bad26.is_empty(), "26. no library tile has an old jargon name (found: %s)" % str(bad26))
 	ok(nm26.has("Sword") and nm26.has("Sword (on the floor)"), "26. the sword tile reads 'Sword' and the prop 'Sword (on the floor)' (names: %s)" % str(nm26))
+
+	# 40-42. COPY A VIDEO IN EASY (walk-through round, friction 1-3): the refusal stays on the bar, an unsaved scene is asked about
+	# first, and the copied cards are named plainly
+	var fx := ProjectSettings.globalize_path("res://tests/data/see_video_crop_small.mp4")
+	var shot_dir := "C:/Temp/claude/C--Users-Nick-Desktop/904598b3-9ea7-4084-af90-fc9f1424ac10/scratchpad"
+	m._new_scene()
+	await idle(4)
+	ok(FileAccess.file_exists(fx), "40. the fixture is there (%s)" % fx)
+	home.copy_video_file(fx)
+	await wait_ms(1000)
+	var busy40 := home._vid_busy
+	home.copy_video_file(fx)   # the second, while the first reads the video: refused
+	await wait_ms(1000)
+	var line40: String = m.ui_status.text if m.ui_status != null else ""
+	ok(busy40 and line40.contains("Still copying the first video"), "40. one second after a second copy the bar says the first is still going (line: '%s')" % line40)
+	await wait_busy(home, 300000)
+	ok(not home._vid_busy and m.S.cards.size() > 0, "40. the first copy finished with cards (%d)" % m.S.cards.size())
+
+	# 41. the unsaved scene (the copy above, untouched since): a copy asks first
+	var n41: int = m.S.cards.size()
+	var path41 := String(m.scene_path)
+	ok(m._unsaved(), "41. the copied scene counts as unsaved (the question's case)")
+	home.copy_video_file(fx)
+	await idle(6)
+	var ask41: Node = m.find_child("CopyAsk", true, false)   # (the new question's node; the old code has none: the copy just starts)
+	ok(ask41 != null and (ask41 as Window).visible, "41. a copy over unsaved cards asks 'Replace your clip?' first")
+	if ask41 != null and (ask41 as Window).visible:
+		var img41 := get_root().get_texture().get_image()
+		img41.save_png(shot_dir + "/easy_vid_ask.png")
+	ok(not home._vid_busy and m.S.cards.size() == n41 and String(m.scene_path) == path41, "41. while the question is up nothing is copied (cards %d, file the same)" % m.S.cards.size())
+	home.call("copy_choose", "cancel")
+	await idle(10)
+	ok(not home._vid_busy and m._video_pid < 0 and m.S.cards.size() == n41 and String(m.scene_path) == path41,
+		"41. Cancel keeps the scene untouched (cards %d -> %d, file %s)" % [n41, m.S.cards.size(), "same" if String(m.scene_path) == path41 else "CHANGED"])
+	home.copy_video_file(fx)
+	await idle(4)
+	home.call("copy_choose", "add")
+	await wait_busy(home, 300000)
+	await idle(4)
+	var n41b: int = m.S.cards.size()
+	ok(n41b > n41, "41. Add after adds the copy's cards after the scene's (%d -> %d cards)" % [n41, n41b])
+	ok(String(m.scene_path) == path41, "41. Add after keeps the scene's file (no new scene opened)")
+
+	# 42. the copied cards' names, every card of the scene (the copy's run and the added run): "Video <n>", no jargon
+	var bad42 := []
+	var names42 := []
+	for i in m.S.cards.size():
+		var en := String(m._easy_card_name(String(m.S.cards[i]["name"]), i))
+		names42.append(en)
+		var jargon := en.begins_with("Pose ") or en.begins_with("Move ") or en.begins_with("v") or en.begins_with("pose ")
+		if not en.begins_with("Video ") or jargon:
+			bad42.append(en)
+	ok(bad42.is_empty(), "42. every copied card reads 'Video <n>' in Easy (not: %s; names %s)" % [str(bad42), str(names42.slice(0, 4))])
+	ok(names42.size() > 0 and names42[0] == "Video 1" and names42[-1] == "Video %d" % names42.size(), "42. the run is numbered 1..%d (first %s, last %s)" % [names42.size(), names42[0] if names42.size() > 0 else "-", names42[-1] if names42.size() > 0 else "-"])
+	m._new_scene()
+	await idle(4)
 
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
