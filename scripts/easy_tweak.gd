@@ -89,3 +89,49 @@ static func exaggerated(S: Scene, B: Body, k: float) -> Dictionary:
 ## the travel of one value from the rest value by factor k
 static func _mix(rest: float, v: float, k: float) -> float:
 	return rest + k * (v - rest)
+
+
+## SMOOTHER (video walk-through round 6, goal 5): one step. Each card between the first and the last takes its own pose blended
+## with its two neighbours' (1/2 itself, 1/4 each side), joint by joint on bend, side and twist, and on the root's offset. The
+## first and last cards stay (the clip starts and ends where it did). The neighbours are read from the clip as it was, so one
+## step does not smooth twice. Joint limits hold (Body.from_dict clamps); a card standing on the floor is snapped back as in
+## exaggerated(). Returns {card index: the new pose}; {} when there are fewer than 3 cards to blend.
+static func smoothed(S: Scene, B: Body) -> Dictionary:
+	var out := {}
+	if S.cards.size() < 3:
+		return out
+	var src: Array = []
+	for c in S.cards:
+		src.append((c["pose"] as Dictionary).duplicate(true))
+	var props := S.solid_props()
+	for i in range(1, S.cards.size() - 1):
+		var d: Dictionary = src[i]
+		if d.is_empty() or not d.has("joints"):
+			continue
+		var pa: Dictionary = src[i - 1]
+		var pb: Dictionary = src[i + 1]
+		var nd := d.duplicate(true)
+		var o: Array = d.get("offset", [0, 0, 0])
+		var oa: Array = pa.get("offset", o)
+		var ob: Array = pb.get("offset", o)
+		nd["offset"] = [_blend(float(oa[0]), float(o[0]), float(ob[0])), _blend(float(oa[1]), float(o[1]), float(ob[1])), _blend(float(oa[2]), float(o[2]), float(ob[2]))]
+		for j in nd["joints"]:
+			var x: Dictionary = nd["joints"][j]
+			var xa: Dictionary = pa["joints"].get(j, x)
+			var xb: Dictionary = pb["joints"].get(j, x)
+			for ax in ["bend", "side", "twist"]:
+				x[ax] = _blend(float(xa[ax]), float(x[ax]), float(xb[ax]))
+		B.from_dict(d)
+		var standing := absf(B.floor_shift()) < STAND_M
+		B.from_dict(nd)
+		nd = B.to_dict()
+		if standing:
+			nd = FloorSnap.snapped_pose(B, nd, props)
+		out[i] = nd
+	return out
+
+
+## one value blended with its two neighbours: 1/2 itself, 1/4 each neighbour
+static func _blend(a: float, v: float, b: float) -> float:
+	return 0.25 * a + 0.5 * v + 0.25 * b
+

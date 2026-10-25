@@ -4827,6 +4827,8 @@ func _refresh() -> void:
 			lk = ""
 		if easy != null and easy.on and lk == "limit":   # EASY QUIET: no joint-limit tint either (no action a beginner can take on it)
 			lk = ""
+		if easy != null and easy.on and lk == "touch":   # EASY QUIET: the contact red (two parts in contact: thighs, torso) is not shown; a beginner cannot act on it, and Easy's red note means Check
+			lk = ""
 		if body:
 			if not clean and not wp_on and lk != "" and not hidden_parts.has(j):   # weight paint shows the weights instead
 				looks[j] = _look_of(lk)
