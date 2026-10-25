@@ -449,7 +449,7 @@ func _go(what: String, label: String, typed := false, force_add := false) -> voi
 	last_build_ms = Time.get_ticks_msec() - t
 	if err != "":
 		_gen_words = what if typed else ""   # a typed line Kine cannot build: the AI video button makes it
-		_fail(err)
+		_fail(err, err.begins_with("Kine doesn't know"))
 		return
 	_built = true
 	_open = false
@@ -934,12 +934,15 @@ func _change() -> void:
 	_edit.grab_focus.call_deferred()
 
 
-func _fail(sentence: String) -> void:
+func _fail(sentence: String, quiet := false) -> void:   # quiet: the panel alone says it (a typed word Kine doesn't know)
 	_msg.text = sentence
 	_msg.add_theme_color_override("font_color", Tok.c("warn"))
 	_open = true   # the panel comes back with the sentence, even from the strip
 	_t0 = -1
-	m._say(sentence)
+	if quiet and m.easy.on:
+		m._say_plain("")   # Easy: the panel says it; the status line under the body would only repeat it (walk-through round 4)
+	else:
+		m._say(sentence)
 
 
 func _card_button(i: int) -> Button:

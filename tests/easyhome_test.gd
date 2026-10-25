@@ -340,6 +340,17 @@ func _init() -> void:
 	m._new_scene()
 	await idle(4)
 
+	# 13. A WORD KINE CANNOT BUILD IS SAID ONCE (walk-through round 4): the panel says it, the status line doesn't repeat it
+	m._new_scene()
+	await idle(4)
+	edit.text = "backflip"
+	edit.text_submitted.emit("backflip")
+	await idle(4)
+	var said13: String = (home.panel.find_child("eh_msg", true, false) as Label).text
+	ok(said13.contains("backflip") and not m.ui_status.text.contains("backflip"), "13. 'backflip' is said in the panel only (panel '%s', status '%s')" % [said13, m.ui_status.text])
+	m._new_scene()
+	await idle(4)
+
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
 	await idle()
