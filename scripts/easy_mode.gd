@@ -446,10 +446,22 @@ func _track_at(t: float) -> Vector3:
 func follow_tick() -> void:
 	if m == null or not on or _track.is_empty():
 		return
-	var c := _track_at(m.playhead)
+	var c := _body_centre()
 	if not c.is_equal_approx(m.target):
 		m.target = c
 		m._cam()
+
+
+## the middle of the body's box as it is posed now (every point with its radius): the look-at point of the follow. The
+## sampled centres (frame_clip) were 0.77 s apart: a jump's apex and a walk's step were framed 50-110 px off centre
+func _body_centre() -> Vector3:
+	var lo := Vector3(INF, INF, INF)
+	var hi := -lo
+	for p in Turntable.points(m.B):
+		var rr := Vector3.ONE * float(p[1])
+		lo = lo.min((p[0] as Vector3) - rr)
+		hi = hi.max((p[0] as Vector3) + rr)
+	return (lo + hi) * 0.5 if lo.x < INF else m.target
 
 
 ## the distance frame_clip set for the clip (-1: no clip framed yet): Reset view uses it in Easy
