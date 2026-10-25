@@ -102,6 +102,9 @@
 ##  126. EASY SLIDER REST TICK (Nick: Raise and Twist sit at the right end at rest and look maxed out; (e) the panel clear of the prop bar): every visible side slider has
 ##      a tick at its rest value 0 at the x its grabber has for 0 (a, within 2 px); at rest the labels read "rest" (b); a 30 px drag
 ##      moves the value off rest: the label shows degrees and the tick has not moved (c); opening the panel adds no undo step (d).
+##  128. A CLICK IS NOT A DRAG (beginner walk-through: Undo after a click "does nothing"): a press and release on the left upper arm with
+##      no movement adds no undo step and opens the side panel (a); a real 40 px drag (left) is one 'Drag' step and Undo restores the pose exactly (b);
+##      a click then a drag is one step (c); a drag that ENDS over the open side panel ends the drag and is one step (d).
 ##  127. TYPED FOLLOW-UPS AND A TYPO (walk11 monkey round): "then turn around" after "jump twice" appends the turn (a: the hips end at
 ##      180 +- 15 deg, one undo step); "make it slower" retimes the whole clip x1.5 +- 0.05, one undo step, Undo restores it (b: and "faster" x0.67);
 ##      "wlak forward" shows a "Did you mean: walk forward?" button whose click builds the walk (c: feet > 0.5 m forward); "jump zorp" still refused.
@@ -690,6 +693,50 @@ func face127(mm: Node) -> Vector3:
 		d.y = 0.0
 		f += d
 	return f
+
+
+## section 128: a real press at 'at', six moves to at + (dx, 0), the release there (a body drag as a mouse makes it)
+## a point on the left upper arm, on screen now, with no Control over it (the side panel must not take the press)
+func aim128() -> Vector2:
+	await process_frame
+	var c: Array = m.B.cap("upperarm_l")
+	for t in [0.5, 0.35, 0.65, 0.25, 0.75]:
+		var p: Vector2 = m.cam.unproject_position((c[0] as Vector3).lerp(c[1], t))
+		if m._pick(p) == "upperarm_l" and not _over_gui128(p):
+			return p
+	return m.cam.unproject_position((c[0] as Vector3).lerp(c[1], 0.5))
+
+
+func _over_gui128(p: Vector2) -> bool:
+	var sl: Variant = m.easy.get("sliders")
+	return sl != null and sl.panel.visible and (sl.panel as Control).get_global_rect().has_point(p)
+
+
+func drag_px128(at: Vector2, dx: float) -> void:
+	var dn := InputEventMouseButton.new()
+	dn.button_index = MOUSE_BUTTON_LEFT
+	dn.pressed = true
+	dn.position = at
+	dn.global_position = at
+	dn.button_mask = MOUSE_BUTTON_MASK_LEFT
+	root.push_input(dn, true)
+	await process_frame
+	var to := at + Vector2(dx, 0.0)
+	for i in 6:
+		var p: Vector2 = at.lerp(to, float(i + 1) / 6.0)
+		var mm := InputEventMouseMotion.new()
+		mm.position = p
+		mm.global_position = p
+		mm.button_mask = MOUSE_BUTTON_MASK_LEFT
+		root.push_input(mm, true)
+		await process_frame
+	var up := InputEventMouseButton.new()
+	up.button_index = MOUSE_BUTTON_LEFT
+	up.pressed = false
+	up.position = to
+	up.global_position = to
+	root.push_input(up, true)
+	await idle(4)
 
 
 ## section 127: a real mouse click on a Control; true when the Control is under the pointer (not covered)
@@ -3363,7 +3410,7 @@ func _init() -> void:
 		ok(false, "126c. after a 30 px drag the label shows degrees (no slider)")
 	# (d) the panel adds no undo step of its own: the click that picks the arm makes the one step every press on a part makes (a
 	# 'Drag' step, already on the code before this change); the panel up for 10 frames adds none more
-	ok(u126_1 - u126_0 <= 1 and u126_2 == u126_1 and name126.begins_with("Drag "),
+	ok(u126_1 - u126_0 <= 1 and u126_2 == u126_1 and (u126_1 == u126_0 or name126.begins_with("Drag ")),   # 128: a click that moves nothing makes no step (the name is the previous step's)
 		"126d. the open panel adds no undo step: the click made %d step ('%s'), and after 10 more frames the depth is %d (was %d)"
 		% [u126_1 - u126_0, name126, u126_2, u126_1])
 	# (e) the panel overlaps nothing else of Easy's: the view buttons, and the prop bar under them (In his hand: the bat / Drop it,
@@ -3481,6 +3528,71 @@ func _init() -> void:
 	var why127b := (home127.panel.find_child("eh_msg", true, false) as Label).text
 	ok(why127b == "Kine doesn't know 'jump zorp' yet." and m.S.cards.is_empty() and (did127b == null or not did127b.is_visible_in_tree()),
 		"127c. 'jump zorp' is still refused (message '%s', Did you mean button shown: %s)" % [why127b, str(did127b != null and did127b.is_visible_in_tree())])
+	m._new_scene()
+	await idle(2)
+
+	# 128. A CLICK IS NOT A DRAG: a press and release on the left upper arm with no movement makes no undo step and opens the side
+	# panel (a); a real 40 px drag (left) is one 'Drag' step and Undo restores the pose exactly (b); a click then a drag is one step (c).
+	m._new_scene()
+	await idle(3)
+	m.easy.set_on(true, false)
+	await idle(3)
+	var c128: Array = m.B.cap("upperarm_l")
+	var at128 := Vector2.ZERO
+	for t128 in [0.5, 0.35, 0.65, 0.25, 0.75]:
+		at128 = m.cam.unproject_position((c128[0] as Vector3).lerp(c128[1], t128))
+		if m._pick(at128) == "upperarm_l":
+			break
+	var s128: Dictionary = m.B.state()
+	var d128_0: int = m.undo.size() + m.undo_dropped
+	await click_at(at128)
+	await idle(4)
+	var d128_1: int = m.undo.size() + m.undo_dropped
+	var sl128: Variant = m.easy.get("sliders")
+	var open128: bool = sl128 != null and sl128.panel.visible
+	var name128 := String(m.undo[-1].get("name", "")) if m.undo.size() > 0 else ""
+	ok(d128_1 == d128_0 and open128 and m.B.state() == s128,
+		"128a. a click on the left upper arm (no movement): undo depth %d -> %d (last step '%s'), the body unchanged %s, the side panel opens %s"
+		% [d128_0, d128_1, name128, str(m.B.state() == s128), str(open128)])
+	# the panel's opening re-frames the body beside it (easy_mode.offsets): aim again, or the press lands on a slider
+	for w128 in 30:
+		await process_frame
+	at128 = await aim128()
+	print("     128: re-aimed at %s (pick '%s')" % [str(at128), m._pick(at128)])
+	var d128_2: int = m.undo.size() + m.undo_dropped
+	await drag_px128(at128, -40.0)   # left: a release right of the arm would land on the open side panel
+	var d128_3: int = m.undo.size() + m.undo_dropped
+	var moved128: bool = m.B.state() != s128
+	var name128b := String(m.undo[-1].get("name", "")) if m.undo.size() > 0 else ""
+	m._undo()
+	await idle(4)
+	var back128: bool = m.B.state() == s128
+	ok(d128_3 - d128_2 == 1 and (name128b.begins_with("Drag ") or name128b.begins_with("Move ")) and moved128 and back128,
+		"128b. a 40 px drag of the left upper arm: %d step ('%s'), the body moved %s; Undo restores the pose exactly %s"
+		% [d128_3 - d128_2, name128b, str(moved128), str(back128)])
+	at128 = await aim128()
+	var d128_4: int = m.undo.size() + m.undo_dropped
+	await click_at(at128)
+	await idle(3)
+	await drag_px128(at128, -40.0)   # left: a release right of the arm would land on the open side panel
+	var d128_5: int = m.undo.size() + m.undo_dropped
+	ok(d128_5 - d128_4 == 1, "128c. a click, then a 40 px drag: %d undo step(s) (bar: 1)" % (d128_5 - d128_4))
+	# (d) a drag that ENDS over the open side panel: the panel does not take the release, so the drag ends (m.dragging "") and is one step
+	var at128d := Vector2.ZERO
+	for t128d in [0.5, 0.35, 0.65, 0.25, 0.75]:
+		at128d = m.cam.unproject_position((m.B.cap("upperarm_l")[0] as Vector3).lerp(m.B.cap("upperarm_l")[1], t128d))
+		if m._pick(at128d) == "upperarm_l":
+			break
+	var pr128d: Rect2 = sl128.panel.get_global_rect()
+	var dx128d: float = pr128d.get_center().x - at128d.x
+	var over128d: bool = pr128d.has_point(Vector2(at128d.x + dx128d, at128d.y))
+	var d128_6: int = m.undo.size() + m.undo_dropped
+	await drag_px128(at128d, dx128d)
+	var d128_7: int = m.undo.size() + m.undo_dropped
+	var still128d: String = str(m.dragging)
+	ok(over128d and still128d == "" and d128_7 - d128_6 == 1,
+		"128d. a drag that ends over the open side panel (release over it %s): the drag ends (dragging '%s') and is %d undo step(s) (bar: 1)"
+		% [str(over128d), still128d, d128_7 - d128_6])
 	m._new_scene()
 	await idle(2)
 

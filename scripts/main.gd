@@ -861,6 +861,7 @@ var _num_on := false
 var _num_axis := 0
 var _num_text := ""
 var _num_start := {}
+var _press_node := -1   # the undo tree node a joint press pushed: a release that left the body as it was drops that step (beginner: Undo after a click did nothing)
 
 
 ## true if the key was the typed angle's
@@ -5433,6 +5434,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 						undo[-1]["easy"] = "Move " + easy_part(j)   # Easy's Undo: "Undo: Move hand", not "Drag left wrist .."
 						undo[-1]["drag"] = true   # Easy: a + Add pose straight after this drag joins this step (easy_mode.add_pose)
 					_tree.set_name(_tree.cur, undo[-1]["name"])
+					_press_node = _tree.cur   # the release drops this step if the body did not change
 					_undo_tips()
 					_group_press(j, mb.ctrl_pressed, mb.position)
 					sel = j
@@ -5502,7 +5504,13 @@ func _unhandled_input(ev: InputEvent) -> void:
 						_say(_grip_said(r, sel))
 				_grab = Vector3(NAN, NAN, NAN)
 				_refresh()   # the reach marker goes with the drag
-			if was == "joint" and easy != null and easy.on and sel_card >= 0 and not auto_key:
+			if was == "joint" and _tree.cur == _press_node and B.state() == _num_start:
+				# a click (press and release, the body not moved): its step goes, so Undo does not "do nothing". Checked after the
+				# group pick (a Ctrl+click that dropped its own step has moved the tree on), and before the card and auto-key
+				# lines, which would otherwise read the step under it
+				_drop_undo()
+				_press_node = -1
+			elif was == "joint" and easy != null and easy.on and sel_card >= 0 and not auto_key:
 				easy.card_follows_drag()   # walk-through 5: Easy, a card picked: the drag changes that card (one undo step, "Change pose")
 			elif was == "joint":
 				_autokey_card()   # ROADMAP 42: the drag that moved the body keys a card at the playhead (its undo step is the press's)
