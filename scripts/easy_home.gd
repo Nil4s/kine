@@ -552,6 +552,7 @@ func sit_on_chair() -> void:
 		return
 	var was: int = m.S.cards.size()
 	m._prop_sit()
+	_note_name("sit on the %s" % m._prop_name(m.sel_prop), was == 0)   # the saved video is named after it too ("walk_then_sit_on_the_chair")
 	_built = true
 	_open = false
 	_gen_words = ""

@@ -486,6 +486,7 @@ func _init() -> void:
 	await idle(3)
 	g14 = seat_gap()
 	ok(String(m.S.cards[k14s]["name"]).begins_with("sit on the chair") and k14s == m.S.cards.size() - 1, "14. the sit card comes after the clip (card %d of %d: '%s')" % [k14s + 1, m.S.cards.size(), String(m.S.cards[k14s]["name"])])
+	ok(home.clip_name().ends_with("_then_sit_on_the_chair"), "14. the clip's name takes the sit after the walk ('%s')" % home.clip_name())
 	ok(m.S.cards.size() > n14s and bool(g14[0]) and float(g14[1]) > -0.005 and float(g14[1]) < 0.15, "14. the strip's Sit on it seats him on the chair after the clip (%d -> %d cards, %.3f m above the seat)" % [n14s, m.S.cards.size(), float(g14[1])])
 	m._new_scene()
 	await idle(4)
