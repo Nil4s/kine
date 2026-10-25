@@ -173,7 +173,8 @@ func _init() -> void:
 	# ---- round trip, no edits
 	cmd(m, "Model: edit the body mesh")
 	await process_frame
-	cmd(m, "Model: apply the body mesh to the fighter")
+	# the round trip goes through BaseBody.apply itself: since 0fcd8c7 the Apply COMMAND skips a body with no edit (bodymesh's bar)
+	BaseBody.apply(m, m.kmed.mesh)
 	await process_frame
 	ok(m.undo.size() == steps0 + 1, "Apply is ONE undo step (%d -> %d)" % [steps0, m.undo.size()])
 	ok(BaseBody.gen(m) == 1, "the fighter draws the applied generation")
@@ -235,6 +236,10 @@ func _init() -> void:
 	await process_frame
 	m.kmed.sel.faces = {best: true}
 	key(m, KEY_E)
+	await process_frame
+	for ch in "0.050":   # E is a live drag since 97f6e52: the amount is typed and Enter confirms
+		key(m, KEY_PERIOD if ch == "." else (KEY_0 + int(ch)))
+	key(m, KEY_ENTER)
 	await process_frame
 	km = m.kmed.mesh
 	var newv := range(nv0, km.verts.size())

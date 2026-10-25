@@ -214,10 +214,12 @@ func _init() -> void:
 	ke.pressed = true
 	ke.keycode = KEY_E
 	var used_e: bool = ui.input(ke)
+	_type_amount(ui, KMeshEditUI.EXTRUDE_D)   # E is a live drag since 97f6e52: the amount is typed and Enter confirms
 	var nf1: int = ui.mesh.face_count()
 	var lift: float = ui.mesh.verts[ui.mesh.faces[0][0]].distance_to(ui.mesh.verts[ui.mesh.faces[nf0][0]])
 	ke.keycode = KEY_I
 	ui.input(ke)
+	_type_amount(ui, KMeshEditUI.INSET_D)
 	var nf2: int = ui.mesh.face_count()
 	var kz := InputEventKey.new()
 	kz.pressed = true
@@ -230,3 +232,16 @@ func _init() -> void:
 	ui.stop()
 	print("extrude: %d failures" % fails)
 	quit(1 if fails > 0 else 0)
+
+
+## the E / I drag's typed amount: its digits, then Enter (KMeshDragOp.handle)
+func _type_amount(ui, amt: float) -> void:
+	for ch in ("%.3f" % amt):
+		var e := InputEventKey.new()
+		e.pressed = true
+		e.keycode = KEY_PERIOD if ch == "." else (KEY_0 + int(ch))
+		ui.input(e)
+	var en := InputEventKey.new()
+	en.pressed = true
+	en.keycode = KEY_ENTER
+	ui.input(en)
