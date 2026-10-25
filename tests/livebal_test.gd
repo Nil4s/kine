@@ -118,6 +118,7 @@ func drag(m: Node, poly: PackedVector2Array, from: Vector2, to: Vector2, alt := 
 func _init() -> void:
 	var m: Node = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
+	m.only_part = false   # HANDS: these bars test a drag's follow and balance, which Only the part I drag turns off (handlock tests it)
 	await process_frame
 	await process_frame
 	m.tour_step = -1

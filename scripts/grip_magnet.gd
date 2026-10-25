@@ -91,7 +91,8 @@ static func roll_to(B: Body, h: String, ang: float) -> float:
 ## quick (a mouse step, NA6): the places are tried the quick way only, never searched; main.gd searches once on release
 static func drag(B: Body, h: String, target: Vector3, quick := false) -> String:
 	var other := "hand_l" if h == "hand_r" else "hand_r"
-	if not (B.wep_on and B.wep_hand == other):
+	# HANDS (w4-handlock): a hand let go of the weapon stays free until "Both hands hold it" (main's hands row)
+	if not (B.wep_on and B.wep_hand == other) or B.free_hand == h:
 		B.reach(h, target)
 		return "free"
 	var L := hand_len(B)

@@ -24,6 +24,8 @@ var _side_shift := false     # the panel's view shift as the camera has it (latc
 var _cam_pending := false    # the panel changed during a body drag: the camera follows at the release
 var _lx_seen := 0.0          # the panel's left edge as the camera last framed it
 var _lib_up := false         # the Library panel open as the camera last framed (the shift keeps the body right of it)
+var _col: VBoxContainer     # the panel's column (blocks go under Reset)
+var _blocks: Array = []     # HANDS (w4-handlock): extra blocks main adds (the lock, the hands row): shown with the panel
 
 
 ## the panel's words and sliders for a joint: [title, [[label, axis], ...]], or [] for a part without sliders
@@ -80,6 +82,7 @@ func build(root: Control) -> void:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 8)
 	panel.add_child(col)
+	_col = col
 	_title = Label.new()
 	_title.name = "easy_slider_title"
 	_title.add_theme_font_size_override("font_size", 22)
@@ -118,6 +121,12 @@ func build(root: Control) -> void:
 	_reset.pressed.connect(_reset_part)
 	col.add_child(_reset)
 	root.add_child(panel)
+
+
+## main's block (HANDS, w4-handlock): the lock and the hands row, under Reset; shown while the panel shows
+func add_block(c: Control) -> void:
+	_col.add_child(c)
+	_blocks.append(c)
 
 
 ## a press on the body part at px p (main's press, Easy): "" = nothing there, the panel shuts
@@ -170,6 +179,8 @@ func _process(_dt: float) -> void:
 			m._cam()
 		else:
 			_cam_pending = true
+	for b in _blocks:
+		(b as Control).visible = on
 	if not on:
 		return
 	if part != _shown_part:
