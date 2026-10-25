@@ -484,6 +484,39 @@ func framed_at(t: float) -> Array:
 	return [box.size.y / maxf(fr.size.y, 1.0), fr.has_point(box.get_center())]
 
 
+## a visible button by its text (the Then row, the tweak row): pressed as a click would press it; false when none shows
+func press_text114(txt: String) -> bool:
+	for b in root.find_children("*", "Button", true, false):
+		var bb := b as Button
+		if bb.is_visible_in_tree() and bb.text.strip_edges() == txt:
+			bb.pressed.emit()
+			await idle(10)
+			return true
+	return false
+
+
+## the clip from 0 to its end every step seconds (the body posed, then the follow as main runs it): the body's box (body_box)
+## against the free rect; [the worst overflow over the four sides (px, > 0 is outside), the time it happens, the clip length]
+func inside_sweep(step := 0.1) -> Array:
+	var L: float = m.S.length()
+	var worst := -INF
+	var at := 0.0
+	for i in range(int(round(L / step)) + 1):
+		var t := minf(i * step, L)
+		m.playhead = t
+		m._ps().apply(m.B, t)
+		m._refresh()
+		await idle(2)
+		m.easy.follow_tick()
+		var fr: Rect2 = m.easy.free_rect()
+		var box := body_box()
+		var over := maxf(maxf(fr.position.y - box.position.y, box.end.y - fr.end.y), maxf(fr.position.x - box.position.x, box.end.x - fr.end.x))
+		if over > worst:
+			worst = over
+			at = t
+	return [worst, at, L]
+
+
 func _init() -> void:
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
@@ -2345,6 +2378,38 @@ func _init() -> void:
 	print("screenshot %s" % ProjectSettings.globalize_path("user://easy_framed.png"))
 	root.content_scale_size = Vector2i(1280, 720)
 	await idle(10)
+
+	# 114. THE BODY INSIDE THE FREE RECT THROUGH THE WHOLE CLIP (round 10, the strip covered the head): a beginner's long clip
+	# (Jump, Bigger, type dance, Slower, Then walk, Then wave: 18.3 s) at 1280x720. At every 0.1 s the body's box (every point with
+	# its radius) is inside the free rect: worst overflow <= 2 px on any side. 114b: a jump alone, the same.
+	# Old code: the look-at followed the centres sampled every 0.77 s, so the jump's apex sat ~43 px above the free rect's top
+	# (1600x900: ~93 px) and the walk's steps ~18 px below its bottom (1600x900: ~52 px).
+	root.content_scale_size = Vector2i(1280, 720)
+	m._new_scene()
+	await idle(3)
+	home.card(2)   # Jump
+	await idle(8)
+	var b114: Array = [await press_text114("Bigger")]
+	home._change()
+	await idle(2)
+	var edit114 := home.panel.find_child("eh_text", true, false) as LineEdit
+	edit114.text = "dance"
+	edit114.text_submitted.emit("dance")
+	await idle(6)
+	b114.append(await press_text114("Slower"))
+	b114.append(await press_text114("Then walk"))
+	await idle(4)
+	b114.append(await press_text114("Then wave"))
+	await idle(4)
+	var long114: Array = await inside_sweep(0.1)
+	ok(long114[0] <= 2.0 and b114.all(func(x): return x) and m.S.cards.size() >= 3,
+		"114a. the long clip (%.2f s, %d cards; Bigger/Slower/Then walk/Then wave pressed %s): the body's box inside the free rect at every 0.1 s, worst overflow %.1f px at %.2f s (<= 2)" % [long114[2], m.S.cards.size(), str(b114), long114[0], long114[1]])
+	m._new_scene()
+	await idle(3)
+	home.card(2)   # Jump
+	await idle(8)
+	var jump114: Array = await inside_sweep(0.1)
+	ok(jump114[0] <= 2.0, "114b. a jump alone (%.2f s): the body's box inside the free rect at every 0.1 s, worst overflow %.1f px at %.2f s (<= 2)" % [jump114[2], jump114[0], jump114[1]])
 
 	# the end: Expert puts it all back
 	m.easy.set_on(false, false)
