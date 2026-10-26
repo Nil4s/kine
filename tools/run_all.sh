@@ -149,3 +149,4 @@ EXTRA="$EXTRA walk6_beginner:w"   # BEGINNER WALK 6: start screen -> 3D BUILDING
 EXTRA="$EXTRA doorfit:w"   # BUILD B2: a doorway shorter than the fighter (stature + 5 cm) is flagged on STAGE: the walk is refused and the button says "(too low)"; tests/doorfit_test.gd
 EXTRA="$EXTRA realismslice:w"   # REALISM / TIMING COACH SLICES: the scene database and the coach suggestions in slices (window keeps drawing, longest frame < 100 ms on combo3), the score in stages, same numbers as the blocking call, a second click cancels (tests/realismslice_test.gd)
 EXTRA="$EXTRA ribbonmesh:w"   # RIBBON STANDARD on MODEL / SCULPT / SURFACE: icon-only groups with captions, <= 20 icons, nothing in More, every old tool by real clicks at 1280x720 + 1600x900 (tests/ribbonmesh_test.gd)
+EXTRA="$EXTRA ribbonsd:w"   # STAGE + DELIVER ribbons: the POSE/ANIMATE standard (captioned groups, 9-20 icons, nothing in More, every tool by real clicks), 1280x720 + 1600x900 (tests/ribbonsd_test.gd)
