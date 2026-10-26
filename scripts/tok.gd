@@ -7,14 +7,14 @@ class_name Tok
 extends RefCounted
 
 const DARK := {
-	"text": Color(1, 1, 1), "heading": Color(0.6, 0.78, 1.0), "info": Color(0.75, 0.9, 1.0), "say": Color(1.0, 0.9, 0.55),
-	"ok": Color(0.55, 0.92, 0.6),   # N064 ouch meter: inside the comfortable range (with warn / fail)
-	"warn": Color(1.0, 0.86, 0.5), "fail": Color(1.0, 0.55, 0.5), "dummy": Color(1.0, 0.6, 0.5), "dummy_text": Color(1.0, 0.8, 0.75),
-	"panel": Color(0.085, 0.09, 0.105, 0.94), "float": Color(0.09, 0.1, 0.12, 0.94), "say_bg": Color(0.05, 0.05, 0.07, 0.85),
-	"btn": Color(0.19, 0.21, 0.25), "btn_hover": Color(0.26, 0.3, 0.37), "main": Color(0.19, 0.21, 0.25), "accent": Color(0.2, 0.42, 0.75), "on_accent": Color(1, 1, 1), "focus": Color(1.0, 0.78, 0.2),
-	"btn_text": Color(0.875, 0.875, 0.875), "field": Color(0.1, 0.11, 0.13),
-	"card": Color(0.16, 0.17, 0.2), "card_sel": Color(0.2, 0.36, 0.62), "card_passby": Color(0.25, 0.2, 0.12), "card_play": Color(0.95, 0.8, 0.3), "card_multi": Color(1.0, 0.62, 0.05), "card_play_bg": Color(0.22, 0.25, 0.31),
-	"graph_bg": Color(0.07, 0.08, 0.1, 0.9), "ink": Color(1, 1, 1), "hair": Color(0.42, 0.26, 0.13),
+	"text": Color(0.925, 0.937, 0.957), "heading": Color(1.0, 0.78, 0.2), "info": Color(0.77, 0.8, 0.85), "say": Color(1.0, 0.85, 0.42),
+	"ok": Color(0.48, 0.85, 0.55),   # N064 ouch meter: inside the comfortable range (with warn / fail)
+	"warn": Color(1.0, 0.78, 0.2), "fail": Color(1.0, 0.48, 0.42), "dummy": Color(1.0, 0.6, 0.5), "dummy_text": Color(1.0, 0.8, 0.75),
+	"panel": Color(0.086, 0.09, 0.106, 0.94), "float": Color(0.118, 0.125, 0.149, 0.94), "say_bg": Color(0.055, 0.06, 0.07, 0.85),
+	"btn": Color(0.165, 0.176, 0.212), "btn_hover": Color(0.23, 0.245, 0.29), "main": Color(1.0, 0.78, 0.2), "accent": Color(1.0, 0.78, 0.2), "on_accent": Color(0.102, 0.11, 0.129), "focus": Color(0.45, 0.75, 1.0),
+	"btn_text": Color(0.925, 0.937, 0.957), "field": Color(0.059, 0.063, 0.078),
+	"card": Color(0.118, 0.125, 0.149), "card_sel": Color(0.12, 0.23, 0.32), "card_passby": Color(0.23, 0.17, 0.06), "card_play": Color(1.0, 0.78, 0.2), "card_multi": Color(1.0, 0.62, 0.11), "card_play_bg": Color(0.165, 0.176, 0.212),
+	"graph_bg": Color(0.07, 0.08, 0.1, 0.9), "ink": Color(0.925, 0.937, 0.957), "hair": Color(0.35, 0.25, 0.08),
 	"world": Color(0.11, 0.115, 0.13), "floor": Color(0.13, 0.135, 0.15), "grid": Color(0.19, 0.2, 0.23), "grid_major": Color(0.32, 0.33, 0.37),
 	"tl_bg": Color(0.07, 0.08, 0.1), "s_tip": Color(1.0, 0.55, 0.3), "s_hips": Color(0.45, 0.75, 1.0), "s_head": Color(0.75, 0.9, 0.5),
 	"cube": Color(0.55, 0.62, 0.75), "cube_edge": Color(0.9, 0.93, 1.0),
@@ -58,18 +58,9 @@ const LIGHT := {
 }
 
 static var dark := true
-## STYLE PROPOSAL (w4-style): --kine-palette=a|b|c overrides the dark or light dict below, only when given.
-## a = graphite + amber, b = graphite + sky (amber kept for the main action and warnings), c = light (amber accent, sky selection).
+## THE DEFAULT DARK PALETTE is graphite + amber (Nick picked it): the DARK dict below. --kine-palette=b|c (only when given)
+## overrides: b = graphite + sky (amber kept for the main action and warnings), c = light (amber accent, sky selection).
 const PALETTES := {
-	"a": {
-		"text": Color(0.925, 0.937, 0.957), "heading": Color(1.0, 0.78, 0.2), "info": Color(0.77, 0.8, 0.85),
-		"say": Color(1.0, 0.85, 0.42), "ok": Color(0.48, 0.85, 0.55), "warn": Color(1.0, 0.78, 0.2), "fail": Color(1.0, 0.48, 0.42),
-		"panel": Color(0.086, 0.09, 0.106, 0.94), "float": Color(0.118, 0.125, 0.149, 0.94), "say_bg": Color(0.055, 0.06, 0.07, 0.85),
-		"btn": Color(0.165, 0.176, 0.212), "btn_hover": Color(0.23, 0.245, 0.29), "main": Color(1.0, 0.78, 0.2), "accent": Color(1.0, 0.78, 0.2), "on_accent": Color(0.102, 0.11, 0.129), "focus": Color(0.45, 0.75, 1.0),
-		"btn_text": Color(0.925, 0.937, 0.957), "field": Color(0.059, 0.063, 0.078),
-		"card": Color(0.118, 0.125, 0.149), "card_sel": Color(0.12, 0.23, 0.32), "card_passby": Color(0.23, 0.17, 0.06), "card_play": Color(1.0, 0.78, 0.2), "card_multi": Color(1.0, 0.62, 0.11), "card_play_bg": Color(0.165, 0.176, 0.212),
-		"ink": Color(0.925, 0.937, 0.957), "hair": Color(0.35, 0.25, 0.08),
-	},
 	"b": {
 		"text": Color(0.925, 0.937, 0.957), "heading": Color(0.45, 0.75, 1.0), "info": Color(0.77, 0.8, 0.85),
 		"say": Color(0.62, 0.84, 1.0), "ok": Color(0.48, 0.85, 0.55), "warn": Color(1.0, 0.78, 0.2), "fail": Color(1.0, 0.48, 0.42),
@@ -97,7 +88,7 @@ static func c(name: String) -> Color:
 	return (_dk if dark else _lt)[name]
 
 
-## the palette the command line asks for ("a", "b" or "c"), or "" when none is given (the app's own colours)
+## the palette the command line asks for ("b" or "c"), or "" when none is given (the app's own colours)
 static func palette_arg() -> String:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--kine-palette="):
