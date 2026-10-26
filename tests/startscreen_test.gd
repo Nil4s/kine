@@ -280,5 +280,66 @@ func _init() -> void:
 	root.content_scale_size = Vector2i(1280, 720)
 	await idle(4)
 
+	# 11 polish (the owner's own launch): the logo, honest cards, the version, a real file picker
+	ss.dirs_override = [DIRT]
+	ss.show_screen()
+	await idle(4)
+	var logo := ss.find_child("logo", true, false) as TextureRect
+	var lr: Rect2 = logo.get_global_rect() if logo != null else Rect2()
+	ok(logo != null and logo.texture != null and lr.size.y >= 38.0 and lr.size.y <= 44.0 and lr.size.x >= 100.0, "11 logo: the KINE mark is ~40 px tall and a whole mark wide (%s)" % lr.size)
+	ok(ss.find_child("easy_animation", true, false) != null and ss.find_child("expert_animation", true, false) != null, "11 cards: ANIMATION keeps its Easy and Expert buttons (it has an Easy flow)")
+	for k in ["modeling", "building"]:
+		var soon := ss.find_child("easy_soon_" + k, true, false) as Label
+		var starts: Array = ss._cards[k].find_children("start_" + k, "Button", true, false)
+		ok(ss.find_child("easy_" + k, true, false) == null and ss.find_child("expert_" + k, true, false) == null, "11 %s card: no Easy / Expert buttons (no Easy flow: no button that lies)" % k)
+		ok(starts.size() == 1 and soon != null and soon.text == "Easy mode coming" and soon.is_visible_in_tree(), "11 %s card: one Start button and the grey 'Easy mode coming' line" % k)
+	await click(ss.find_child("start_modeling", true, false))
+	await idle(4)
+	ok(not ss.visible and m.cur_page == "MODEL" and m.S.kind == "modeling" and not m.easy.on, "11 the Start button of MODELING opens MODEL in Expert (page %s)" % m.cur_page)
+	ss.show_screen()
+	await idle(3)
+	var ver := String(ProjectSettings.get_setting("application/config/version", ""))
+	var vlabel := ""
+	for l in ss.find_child("bottom_bar", true, false).get_children():
+		if l is Label and (l as Label).text.begins_with("Kine v"):
+			vlabel = (l as Label).text
+	ok(ver.begins_with("0.4") and vlabel == "Kine v" + ver and not vlabel.contains("0.1.0"), "11 version: the label reads project.godot (%s, is '%s')" % [ver, vlabel])
+	var bpath := DIRT + "/sst_old.json"
+	ss.file_dialog_inline = true
+	m.easy.scenes.close_panel()
+	await click(ss.find_child("open_file_btn", true, false))
+	await idle(3)
+	var dlg: FileDialog = ss.last_dialog
+	ok(dlg != null and is_instance_valid(dlg) and dlg.file_mode == FileDialog.FILE_MODE_OPEN_FILE and dlg.access == FileDialog.ACCESS_FILESYSTEM and dlg.filters.size() == 1 and String(dlg.filters[0]).begins_with("*.json"), "11 Open file...: a file dialog for *.json scenes opens")
+	ok(not m.easy.scenes.visible, "11 Open file...: it is not the catalog")
+	if dlg != null and is_instance_valid(dlg):
+		dlg.file_selected.emit(gp(bpath))
+		await idle(4)
+	ok(not ss.visible and gp(String(m.scene_path)) == gp(bpath), "11 Open file...: picking a file opens that scene (scene %s)" % String(m.scene_path).get_file())
+	ss.file_dialog_inline = false
+	get_root().get_texture().get_image().save_png("C:/Temp/claude/startpolish/start_polish.png")
+	ss.show_screen()
+	await idle(4)
+	get_root().get_texture().get_image().save_png("C:/Temp/claude/startpolish/start_polish2.png")
+	ss._close()
+
+	# 12 boot on a mesh page: a saved config with the page set; the fighter's body opens by itself
+	for pg in ["MODEL", "SURFACE", "SCULPT"]:
+		m.queue_free()
+		await idle(6)
+		var cfp := "user://poser_test_%d.cfg" % OS.get_process_id()   # written after the old app is gone: it rewrites its settings as it closes
+		var cc := ConfigFile.new()
+		cc.set_value("layout", "page", pg)
+		cc.set_value("look", "mode", "expert")
+		cc.save(cfp)
+		m = (load("res://main.tscn") as PackedScene).instantiate()
+		root.add_child(m)
+		await idle(14)
+		var edit_txt: String = m.ui_mesh_edit.text if m.ui_mesh_edit != null else ""
+		ok(m.cur_page == pg, "12 boot on %s: the saved page is the page (is %s)" % [pg, m.cur_page])
+		ok(edit_txt == "Editing: the fighter's body" and (BaseBody.is_open(m) or m._body_sculpt_on()), "12 boot on %s: the top says '%s', not 'nothing open yet'" % [pg, edit_txt])
+		if pg == "MODEL":
+			get_root().get_texture().get_image().save_png("C:/Temp/claude/startpolish/boot_model.png")
+
 	print("RESULT %d FAIL" % fails if fails > 0 else "RESULT 0 FAIL")
 	quit(1 if fails > 0 else 0)

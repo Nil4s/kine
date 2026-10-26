@@ -3051,6 +3051,8 @@ func _ready() -> void:
 		easy.sliders.add_block(_hands_block(true))   # HANDS (w4-handlock): the lock and the hands row in the Easy side panel
 	BootProfile.mark("easy build")
 	easy.start(cf, testing)   # EASY MODE: the saved mode (a fresh config is Easy); its own tour, once
+	if _mesh_page() and not _mesh_open() and not _body_sculpt_on() and not BaseBody.is_open(self):
+		_mesh_boot_open.call_deferred()   # restored on a mesh page (_pages_load does not auto-open: it saves nothing): the body opens as the page tab's click would
 	start_screen = StartScreen.new()   # THE START SCREEN: built hidden; shown at start-up (below), from the KINE logo or File > Start screen
 	start_screen.m = self
 	ui_root.add_child(start_screen)
@@ -15212,6 +15214,13 @@ func _mesh_auto_open(p: String) -> void:
 	else:
 		BaseBody.start(self)
 	_mesh_opening = was
+
+
+## the boot's own _mesh_auto_open, once the world is built: only if the page is still a mesh page with nothing open
+func _mesh_boot_open() -> void:
+	if _mesh_page() and not _mesh_open() and not _body_sculpt_on() and not BaseBody.is_open(self):
+		_mesh_auto_open(cur_page)
+		_mesh_edit_sync()
 
 
 ## leaving the fighter's body (a posing page, Switch..., a test cube or sphere): an edit is applied as ONE undo step (Ctrl+Z
