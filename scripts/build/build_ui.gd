@@ -15,7 +15,7 @@ extends Node
 ##   USE IN A SCENE (top right): the house becomes a set on STAGE (BuildStage: collision from the record, the doorway open, a named point
 ##            per door); STAGE shows its panel with "Walk through the front door" and Edit in BUILD
 ## The record (Scene.building, scripts/build/building.gd) is the only truth; the mesh here is regenerated from it after every
-## change. Piece / Words are on the ribbon but greyed ("coming next"). Undo: ONE main._push_undo()
+## change. Piece is on the ribbon but greyed ("coming next"); WORDS (phase 1e, build_words.gd + build_words_ui.gd) is a tool: a sentence -> a plan -> Build it. Undo: ONE main._push_undo()
 ## per action, taken BEFORE the record changes (a room: on release; a door: on the click; a slide: on its first move).
 
 const SKY := Color("#73BFFF")
@@ -28,7 +28,8 @@ const TOOLS := [["Room", "ROOM: drag on the floor. Sizes snap to 0.5 m; type the
 	["Opening", "OPENING: click a wall to add a door. Drag it along the wall (snaps to 0.5 m). The Remove button takes it out and fills the hole."],
 	["Floor", "FLOOR: + Floor in the panel adds a floor on top, the same footprint with a floor slab between. Delete takes the top floor off."],
 	["Roof", "ROOF: pick gable, flat or shed in the panel (a click in the view adds a gable). The overhang is a number."]]
-const LATER := ["Piece", "Words"]
+const LATER := ["Piece"]
+const WORDS_TIP := "WORDS: type a building, check the plan, press Build it. The result is normal rooms and openings. Then say changes: move the door to the left."
 const EXTRA_ROWS := [["Floor height", "floor_height"], ["Roof overhang", "roof_overhang"]]
 const LABELS := {"wall_height": "Wall height", "wall_thickness": "Wall thickness", "door_width": "Door width", "door_height": "Door height",
 	"window_sill": "Window sill", "floor_height": "Floor height", "roof_overhang": "Roof overhang"}
@@ -82,6 +83,7 @@ var hint_box: PanelContainer
 var type_box: PanelContainer
 var chip: Button
 var tool_btns := {}
+var words: BuildWordsUI
 var fields := {}               # param -> LineEdit
 var kind_btns := {}
 var remove_btn: Button
@@ -225,6 +227,13 @@ func _build_ui() -> void:
 		_icon_word(btn, t)
 		m._grey(btn, "coming next")
 		row.add_child(btn)
+	var wb: Button = m._button("Words", _pick_tool.bind("Words"), "Words tool. " + WORDS_TIP.get_slice(": ", 1))
+	wb.toggle_mode = true
+	wb.button_group = group
+	wb.name = "build_tool_words"
+	_icon_word(wb, "Words")
+	tool_btns["Words"] = wb
+	row.add_child(wb)
 	ov = Control.new()
 	ov.name = "build_overlay"
 	ov.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -379,6 +388,8 @@ func _build_ui() -> void:
 	stage_panel.add_child(stage_body)
 	stage_panel.visible = false
 	m.ui_root.add_child(stage_panel)
+	words = BuildWordsUI.new()
+	words.setup(self)
 
 
 ## a ribbon button of this page: its icon (scripts/icons.gd, build_*) and one word
@@ -506,12 +517,15 @@ func place_toast(t: Label) -> void:
 	var sz := t.size
 	var x := cl.position.x + 236.0
 	var y := cl.end.y - sz.y - 6.0
-	if panel.visible:
-		var pr := Rect2(panel.position, panel.size).grow(8.0)
+	var side: Control = words.plan_panel if words != null and words.plan_panel.visible else panel
+	if side.visible:
+		var pr := Rect2(side.position, Vector2(side.size.x, maxf(side.size.y, side.get_combined_minimum_size().y))).grow(8.0)
 		if Rect2(Vector2(x, y), sz).intersects(pr):
 			x = maxf(cl.position.x + 12.0, pr.position.x - sz.x)
 		if Rect2(Vector2(x, y), sz).intersects(pr):
 			y = pr.end.y
+	if chip != null and chip.visible and Rect2(Vector2(x, y), sz).intersects(Rect2(chip.position, chip.size)):
+		y -= chip.size.y + 8.0   # still over the Snap chip: one line up
 	t.position = Vector2(x, y)
 
 
@@ -624,7 +638,7 @@ func _layout() -> void:
 	var cl: Rect2 = m.nav_clear_rect()
 	var has: bool = not _bld().is_empty() and not _bld().get("rooms", []).is_empty()
 	var o := _opening(sel)
-	panel.visible = on and has
+	panel.visible = on and has and tool != "Words"
 	panel_title.text = ("%s" % String(o.get("kind", "")).capitalize() + "   (selected)") if not o.is_empty() else {"Floor": "Floors", "Roof": "Roof", "Wall": "Wall"}.get(tool, "Building")
 	(kind_btns["door"].get_parent() as Control).visible = tool == "Opening"
 	wall_box.visible = tool == "Wall"
@@ -651,6 +665,8 @@ func _layout() -> void:
 	if type_box.visible:
 		type_box.reset_size()
 		type_box.position = Vector2(cl.end.x - type_box.size.x - 8.0, cl.position.y + 6.0)
+	if words != null:
+		words.layout(cl)
 	chip.visible = on
 	if on:
 		chip.reset_size()
@@ -680,6 +696,9 @@ func _pick_tool(t: String) -> void:
 	for tl in TOOLS:
 		if tl[0] == t:
 			m._say(tl[1])
+	if t == "Words":
+		m._say(WORDS_TIP)
+		words.focus.call_deferred()
 	_highlights()
 	_layout()
 	ov.queue_redraw()
@@ -1355,7 +1374,13 @@ func _frame_house() -> void:
 		hi = Vector2(maxf(hi.x, float(r["x"]) + float(r["w"])), maxf(hi.y, float(r["z"]) + float(r["d"])))
 	var top := Building.storey_count(bd) * Building.num(bd, "floor_height", 2.8)
 	var d := maxf(VIEW_DIST, (hi - lo).length() * 1.9 + top * 1.7)
-	m._turn_to(m.yaw, m.pitch, d, Vector3((lo.x + hi.x) * 0.5, top * 0.35, (lo.y + hi.y) * 0.5), false)
+	var at := Vector3((lo.x + hi.x) * 0.5, top * 0.35, (lo.y + hi.y) * 0.5)
+	if tool == "Words":   # the plan's cards cover the right of the view: the house stands in the free part, left of them
+		d *= 1.2
+		m._turn_to(m.yaw, m.pitch, d, at, false)
+		var rx: Vector3 = m.cam.global_transform.basis.x
+		at += Vector3(rx.x, 0.0, rx.z).normalized() * d * 0.2
+	m._turn_to(m.yaw, m.pitch, d, at, false)
 
 
 func _add_floor() -> void:
