@@ -158,7 +158,7 @@ func _init() -> void:
 	var same := disk is Dictionary and JSON.stringify(disk["cards"]) == JSON.stringify(rows[2]["a"]["scene"]["cards"])
 	ok(same and absf(float(m.S.cards[2]["hold"]) - holds[3]) < 1e-3,
 		"  its cards equal that autosave's (card 3 holds %.2f, the 3rd newest write)" % float(m.S.cards[2]["hold"]))
-	ok(not m._unsaved(), "  it opens clean: nothing unsaved in the copy")
+	ok(m._unsaved(), "  it opens as a work copy: unsaved until the user saves it, so New / Open / close offer to keep it (7bb342ba)")
 
 	# 8 never overwrites: a second restore is a second file
 	var before := FileAccess.get_file_as_string(p1)

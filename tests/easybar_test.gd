@@ -1,11 +1,11 @@
-## godot --path . -s tests/easybar_test.gd     (EASY BAR: at most 7 visible buttons; every action reachable by its text in at most 2 clicks; needs a window)
-## The bar: 7 buttons at most (More counts). Each action that was on the old 13-button bar is found by its text: on the
+## godot --path . -s tests/easybar_test.gd     (EASY BAR: at most 8 visible buttons (7 until My scenes, 66ca81b9); every action reachable by its text in at most 2 clicks; needs a window)
+## The bar: 8 buttons at most (More counts). Each action that was on the old 13-button bar is found by its text: on the
 ## bar = 1 click, under More = 2 clicks (More, then the entry). Every bar button and More entry has a tooltip, and every
 ## action is still wired. MEASURES only: it does not run the actions (Save scene and Open would open dialogs).
 ## --bar-shot=<png> (after --): saves the viewport picture of the bar, for the screenshot in the task log.
 extends SceneTree
 
-const BAR_MAX := 7
+const BAR_MAX := 8   # My scenes was added in 66ca81b9 (was 7)
 # the old bar's 13 actions, by the label they had -> the label they have now (Export video is Save video; Save is Save scene)
 const OLD13 := {
 	"Pose (drag parts)": "Move his arms and legs", "Key this pose": "Save this pose as a card", "Play / Stop": "Play / Stop",
@@ -74,7 +74,7 @@ func _init() -> void:
 	m.easy.set_on(true, false)
 	await idle(8)
 
-	# 1. the bar: at most 7 visible buttons, the seven named ones, each with a tooltip and wired
+	# 1. the bar: at most 8 visible buttons, the named ones, each with a tooltip and wired
 	var bb := bar_buttons()
 	var labels := bb.map(func(b): return String(b.get_meta("label", "")))
 	ok(m.easy.bar.visible and bb.size() <= BAR_MAX and bb.size() == BAR_MAX,

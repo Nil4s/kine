@@ -1,6 +1,7 @@
 ## godot --path . -s tests/easycam_test.gd     (EASY CAMERA: the body sits in the free rect between the Easy bar or strip and the bottom card panel)
 ## BARS (written first; the body below checks each one):
-##  1. for punch, kick and walk, every 4th frame of the clip: the head, both feet and both hands project INSIDE the free rect
+##  1. for punch, kick and walk, every 4th frame of the clip, with the Easy follow camera ticked at that frame (the look-at rides
+##     the body's centre; c90df523, 2b780927): the head, both feet and both hands project INSIDE the free rect
 ##     (below the Easy bar and the strip, above the bottom card panel), at 1600 x 900 and at 1280 x 720. The whole body
 ##     (every joint, its ends and any weapon, each with its radius) is checked the same way.
 ##  2. Expert's camera is unchanged by going Easy -> Expert: yaw, pitch, dist, target, the offsets and the transform.
@@ -49,8 +50,13 @@ func check_clip(f: Rect2) -> Array:
 	var n := int(ceil(m.S.length() * fps))
 	var frames := 0
 	var cam: Camera3D = m.cam
+	var head0: float = m.playhead
 	for k in range(0, n + 1, 4):
-		m._ps().apply(m.B, float(k) / fps)
+		# Easy's camera follows the body (c90df523, 2b780927): the look-at rides the live box centre at the playhead, so each
+		# frame is posed, the playhead put there and the follow ticked (main does it every frame) before the body is checked
+		m.playhead = float(k) / fps
+		m._ps().apply(m.B, m.playhead)
+		m.easy.follow_tick()
 		frames += 1
 		for j in ["head"] + FEET + HANDS:
 			if cam.is_position_behind(m.B.P[j]) or not inside_rect(cam.unproject_position(m.B.P[j]), f):
@@ -63,6 +69,9 @@ func check_clip(f: Rect2) -> Array:
 			var r := absf(cam.unproject_position(c + cam.global_basis.x * float(p[1])).x - q.x)   # the radius in px, here
 			if not inside_rect(q, f, r):
 				return ["body point (%.0f,%.0f r%.0f) outside at frame %d" % [q.x, q.y, r, k], frames]
+	m.playhead = head0
+	m._ps().apply(m.B, head0)
+	m.easy.follow_tick()
 	return ["", frames]
 
 
