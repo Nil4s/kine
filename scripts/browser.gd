@@ -38,6 +38,7 @@ var _pose_sig := ""   # the pose paths the index was built from
 var _search: LineEdit   # sits over the first row under Poses
 var _search_row: TreeItem
 var _chips: Control   # the layer that draws the matching tags as chips on the rows
+var _followed := ""   # the part whose row follow() last went to (a change of it is the only thing that scrolls the tree to it)
 var _pending := false   # a clip-row rebuild is queued for the next frame   # true while the tree follows the view (a selection made here must not loop back)
 
 
@@ -239,6 +240,10 @@ func _refresh_now() -> void:
 
 ## light the selected part's row (unfold what holds it, scroll to it)
 func follow() -> void:
+	# follow() runs on every refresh (a hover, an edit, each playing frame): only a CHANGE of the picked part scrolls the
+	# tree to its row. Scrolling to it on every refresh pushed a tree the user had scrolled down back up, again and again
+	var picked_now: bool = m.sel != _followed
+	_followed = m.sel
 	_wep.visible = m.B.wep_on
 	_sync_buttons()
 	_light(rows.get(m.hover_part) if m.hover_part != m.sel else null)
@@ -257,7 +262,8 @@ func follow() -> void:
 	# only when the row is OUT of sight (round 20, GATES AA2: follow runs on every refresh, every drag, and re-centred
 	# the row each time, so the tree jumped back whenever the user had scrolled); then in the middle, so the folders
 	# above it stay in sight. Deferred: a just-unfolded tree has no layout yet this frame
-	_scroll_if_hidden.call_deferred(it)
+	if picked_now:
+		_scroll_if_hidden.call_deferred(it)
 
 
 func _scroll_if_hidden(it: TreeItem) -> void:
