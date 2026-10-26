@@ -3348,6 +3348,12 @@ func _exit_tree() -> void:
 		WorkerThreadPool.wait_for_task_completion(_pv_job["task"])
 	if not _dm_job.is_empty():   # the dummy's measurement, the same
 		WorkerThreadPool.wait_for_task_completion(_dm_job["task"])
+	for th in _bg_live + _bg_orphans + _polish_orphans:   # CHECK's worker threads (bg_run, Polish), running or cancelled: waited for, not freed mid-run
+		if (th as Thread).is_started():
+			(th as Thread).wait_to_finish()
+	_bg_live.clear()
+	_bg_orphans.clear()
+	_polish_orphans.clear()
 	if _sg_task >= 0:   # I10: the next-pose strip's MotionMatch.build worker reads scenes/Body statics; it ends before they go (else an access violation at exit)
 		WorkerThreadPool.wait_for_task_completion(_sg_task)
 	if settings != SETTINGS:
@@ -3948,9 +3954,11 @@ func _fd_start(key: String) -> void:
 			Dm.xf = dm["xf"]
 			Dm.D.set_state(dm["st"])
 		box.append(FrameData.analyze(C, Bc, fps, Dm)))
+	_bg_live.append(thr)   # waited for if the app quits first
 	while thr.is_alive():
 		await get_tree().process_frame
 	thr.wait_to_finish()
+	_bg_live.erase(thr)
 	if gen != _fd_gen or box.is_empty() or _fd_key() != key:
 		if gen == _fd_gen:
 			_fd_job = ""
@@ -18583,6 +18591,7 @@ func _fix_all() -> void:
 var _bg_gen := {}          # tag -> generation of the newest run
 var _bg_busy := {}         # tag -> true while a run is waiting for its thread
 var _bg_orphans: Array = []   # threads of cancelled runs: reaped when they end (a thread cannot be stopped)
+var _bg_live: Array = []   # threads still running a bg_run / Polish: the app waits for them when it quits (a Thread freed while it runs crashes the exit)
 
 ## a body for a worker thread: its own skeleton, put in the live body's state (proportions, weapon, pose)
 func bg_body(st: Dictionary) -> Body:
@@ -18609,6 +18618,7 @@ func bg_run(tag: String, say: String, job: Callable) -> Dictionary:
 	var box := []
 	var thr := Thread.new()
 	thr.start(func(): box.append(job.call()))
+	_bg_live.append(thr)
 	var t0 := Time.get_ticks_msec()
 	while thr.is_alive():
 		await get_tree().process_frame
@@ -18617,6 +18627,7 @@ func bg_run(tag: String, say: String, job: Callable) -> Dictionary:
 			return {"ok": false}
 		_say_plain("%s  %.1f s  (click again to cancel)" % [say, (Time.get_ticks_msec() - t0) / 1000.0])
 	thr.wait_to_finish()
+	_bg_live.erase(thr)
 	_bg_busy[tag] = false
 	if box.is_empty():
 		return {"ok": false}
@@ -18666,6 +18677,7 @@ func _polish() -> void:
 		var d0 := D0.to_dict(PB)   # the saved file's bad_frames scan (~1 s): here, not on the main thread
 		d0["plan"] = "Polish (tools/detail.gd) from " + base
 		box.append([pr, d0]))
+	_bg_live.append(thr)
 	var t_start := Time.get_ticks_msec()
 	while thr.is_alive():
 		await get_tree().process_frame
@@ -18674,6 +18686,7 @@ func _polish() -> void:
 			return
 		_say_plain("polishing '%s'... %d s  (click Polish again to cancel)" % [S.name, (Time.get_ticks_msec() - t_start) / 1000])
 	thr.wait_to_finish()
+	_bg_live.erase(thr)
 	_polish_busy = false
 	if box.is_empty():
 		_say("polish failed: nothing came back")
