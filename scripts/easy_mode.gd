@@ -121,6 +121,8 @@ func build(root: Control, expert: Array) -> void:
 		var b := _big(a[0], a[1], a[2])
 		row.add_child(b)
 		_btns[a[0]] = b
+	for k in ["Play / Stop", "Save video"]:   # STYLE: the screen's main actions take the "main" token (amber in palettes a, b, c)
+		_btns[k].theme_type_variation = "Main"
 	# REDO, one click after Undo: a narrow button that is there only while something can be put back (easy_home._process
 	# shows it and names it "Redo: Faster", as Undo is named). The More entry stays too.
 	var rb := _big("Redo", "Put back what Undo took back", m._redo)

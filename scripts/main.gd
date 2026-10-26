@@ -2951,7 +2951,11 @@ func _ready() -> void:
 		theme_pref = "light" if OS.get_cmdline_user_args().has("--light") else "dark"
 	if theme_pref not in ["system", "light", "dark"]:
 		theme_pref = "system"
+	var pal := Tok.palette_arg()   # STYLE PROPOSAL: --kine-palette=a|b|c (a shot or a review); "" = the app's own colours
+	if pal != "":
+		theme_pref = "light" if pal == "c" else "dark"
 	Tok.set_dark(_theme_wanted())
+	Tok.apply_palette(pal)
 	# THE SCALE (ROADMAP 58): the saved one (the user chose it), or a test's 100, or on a first start the screen's pick,
 	# made once the ribbon is built (_auto_scale_now). Nothing is saved for the pick: it is made again each start
 	var pct := 100 if testing else (int(cf.get_value("look", "scale", 0)) if cf.has_section_key("look", "scale") else 0)
@@ -11154,6 +11158,14 @@ func _theme() -> Theme:
 	th.set_font_size("font_size", "RibbonCap", 10)
 	th.set_color("font_color", "RibbonCap", Tok.of("text:0.5"))
 	th.set_color("font_hover_color", "RibbonCap", Tok.c("text"))
+	# STYLE: the one main action of a screen (Play, Save video in Easy): "main" is the button grey in the default palette
+	th.set_type_variation("Main", "Button")
+	th.set_stylebox("normal", "Main", box.call(Tok.c("main")))
+	th.set_stylebox("hover", "Main", box.call(Tok.c("main").lightened(0.12)))
+	th.set_stylebox("pressed", "Main", box.call(Tok.c("main").darkened(0.1)))
+	th.set_stylebox("hover_pressed", "Main", box.call(Tok.c("main").darkened(0.1)))
+	for st in ["font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color"]:
+		th.set_color(st, "Main", Tok.c("on_accent"))
 	th.set_stylebox("normal", "Button", box.call(Tok.c("btn")))
 	th.set_stylebox("hover", "Button", box.call(Tok.c("btn_hover")))
 	th.set_stylebox("pressed", "Button", box.call(Tok.c("accent")))
@@ -11173,6 +11185,8 @@ func _theme() -> Theme:
 		th.set_color("icon_focus_color", t, Tok.c("btn_text"))
 		th.set_color("icon_pressed_color", t, Tok.c("on_accent"))
 		th.set_color("icon_hover_pressed_color", t, Tok.c("on_accent"))
+		th.set_color("font_pressed_color", t, Tok.c("on_accent"))   # STYLE: a pressed button is the accent; its words take on_accent (dark text on amber / sky)
+		th.set_color("font_hover_pressed_color", t, Tok.c("on_accent"))
 	if not Tok.dark:
 		# LIGHT (round 9): Godot's own look is dark, so every control that draws its own box or text gets the palette.
 		# Dark keeps Godot's look for these (nothing Nick knows changes)
@@ -13013,7 +13027,7 @@ func _ui() -> void:
 	ui_mesh_hint_box.visible = false
 	ui_mesh_hint_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var hsb := StyleBoxFlat.new()
-	hsb.bg_color = Color(0.05, 0.06, 0.08, 0.78)
+	hsb.bg_color = Tok.c("say_bg")
 	hsb.set_corner_radius_all(10)
 	hsb.content_margin_left = 16.0
 	hsb.content_margin_right = 16.0
@@ -13028,7 +13042,7 @@ func _ui() -> void:
 	ui_mesh_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ui_mesh_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	ui_mesh_hint.add_theme_font_size_override("font_size", 20)
-	ui_mesh_hint.add_theme_color_override("font_color", Color(0.80, 0.84, 0.92, 0.95))
+	ui_mesh_hint.add_theme_color_override("font_color", Tok.of("text:0.9"))
 	ui_mesh_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_mesh_hint_box.add_child(ui_mesh_hint)
 	# COMPARE WITH (ROADMAP 28): the diff list, top left of the view, only while a version is compared (it never takes a click)
