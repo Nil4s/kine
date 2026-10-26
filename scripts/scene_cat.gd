@@ -16,7 +16,7 @@ const DRAFTS := "Drafts"
 const CHIPS := ["Walk & run", "Fight", "Weapons", "Jump & dodge", "Dance & other"]   # the order the words are tried in
 const WORDS := {
 	"Walk & run": ["walk", "run", "jog", "step", "turn"],
-	"Fight": ["punch", "kick", "jab", "hook", "cross", "block", "guard"],
+	"Fight": ["punch", "kick", "jab", "hook", "cross", "block", "guard", "strike", "hit", "combo", "uppercut", "elbow", "fight"],   # walk12: "hit react", "strike legs", "combo3" fell to Dance & other
 	"Weapons": ["sword", "axe", "bat", "swing", "thrust", "weapon"],
 	"Jump & dodge": ["jump", "dodge", "roll", "fall", "duck"],
 }

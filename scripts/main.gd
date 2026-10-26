@@ -10418,6 +10418,14 @@ func _on_blade_slider(v: float, k: String) -> void:
 ## the picked card keeps the body's weapon (as a pose change does): the card the playhead is on when none is picked
 func _blade_card() -> void:
 	var ci := sel_card if sel_card >= 0 else LimbIK.card_at(S, playhead)
+	if ci < 0 and not S.cards.is_empty():   # the playhead between cards (walk12: Flip said "flipped" and saved nothing): the nearest card in time
+		var ts: Array = S.times()
+		var best := INF
+		for i in ts.size():
+			var dd := 0.0 if playhead >= float(ts[i][0]) and playhead <= float(ts[i][1]) else minf(absf(playhead - float(ts[i][0])), absf(playhead - float(ts[i][1])))
+			if dd < best:
+				best = dd
+				ci = i
 	if ci < 0 or ci >= S.cards.size():
 		return
 	S.cards[ci]["pose"] = B.to_dict()
@@ -10526,8 +10534,9 @@ func _hands_refresh() -> void:
 		# left it met the "Click a part" tip)
 		var vs := get_viewport().get_visible_rect().size
 		ui_hands_panel.reset_size()
-		if easy_on:   # Easy: under its top bar at the left, as first built (its slider panel is at the right)
-			ui_hands_panel.position = Vector2(12.0, float(TOP_H) + 8.0)
+		if easy_on:   # Easy: the view's bottom left, over the floor (under its bar the "What should he do?" picker covered it: walk12;
+			# its slider panel is at the right)
+			ui_hands_panel.position = Vector2(12.0, vs.y - float(BOTTOM_H) - ui_hands_panel.size.y - 64.0)
 		else:   # Expert: the first corner of the view the body is not in (it covered the head, then a hand)
 			var ps := ui_hands_panel.size
 			var x0 := float(LEFT_W) + 12.0
