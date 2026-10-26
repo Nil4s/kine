@@ -16,6 +16,7 @@ const CARDS := [
 	{"id": "step", "title": "Import STEP", "text": "Bring in a CAD file. It stays a real solid.", "easy": "Import and tidy", "expert": "Import and edit"},
 ]
 const KCad := preload("res://scripts/kcad.gd")
+const BuildStarters := preload("res://scripts/build/build_starters.gd")
 const GAP := 14.0
 const YEL := Color(1.0, 0.78, 0.22)
 
@@ -37,6 +38,8 @@ var _last := Vector2.ZERO
 var _settle := 0
 var art: BuildChooseArt   # the six rendered pictures (scripts/build_choose_art.gd), read from the cache or drawn once, a frame at a time
 var _solid: MeshInstance3D = null   # the imported STEP solid, shown on BUILD
+var _starters: PopupMenu = null     # the Template card's list of starter buildings (built on the first click)
+var _starter_easy := false          # the mode the Template card was clicked in
 
 
 ## why a card cannot start yet ("" = it can): the card says it, a click says it again
@@ -47,8 +50,6 @@ func why_not(id: String) -> String:
 				return "Needs the KineCAD add-on, which is not installed."
 		"vehicle":
 			return "Coming soon: it needs the part workspace first."
-		"template":
-			return "Coming soon: no finished building to start from yet."
 		"step":
 			if not KCad.available():
 				return "Needs the KineCAD add-on, which is not installed."
@@ -274,6 +275,8 @@ func _start(id: String, easy_on: bool) -> void:
 		"step":
 			_mode(easy_on)
 			_ask_step(easy_on)
+		"template":
+			_pick_starter(easy_on)
 		"part":
 			if easy_on:   # Easy Part (shape + sliders) is not built yet: say so, change nothing
 				m._say("Easy Part (shapes and sliders) is coming. Expert Part is ready: sketch, extrude, revolve, fillet, with a timeline")
@@ -282,6 +285,38 @@ func _start(id: String, easy_on: bool) -> void:
 			close()
 			m._page_set("BUILD")
 			m.bld.part.set_on(true)
+
+
+## the Template card: a small list of the three starter buildings (a click picks one; the list is a PopupMenu, so it is mouse-only too)
+func _pick_starter(easy_on: bool) -> void:
+	_starter_easy = easy_on
+	if _starters == null:
+		_starters = PopupMenu.new()
+		_starters.name = "build_starters"
+		for i in BuildStarters.LIST.size():
+			var s: Dictionary = BuildStarters.LIST[i]
+			_starters.add_item("%s: %s" % [s["name"], s["say"]], i)
+		_starters.id_pressed.connect(func(i: int): _load_starter(i))
+		add_child(_starters)
+	_starters.popup_centered()
+
+
+## a starter on BUILD, as the current building (one undo step, like a words build); the chooser closes
+func _load_starter(i: int) -> void:
+	var s: Dictionary = BuildStarters.LIST[i]
+	var rec := BuildStarters.build(String(s["id"]))
+	if rec.is_empty():
+		m._say("That starter did not build. Pick another, or start a House")
+		return
+	_mode(_starter_easy)
+	close()
+	m._page_set("BUILD")
+	m._step_hint = "Starter: %s" % s["name"]
+	m._push_undo()
+	m.S.building = rec
+	m.bld.sync()
+	m.bld._frame_house()
+	m._say("Starter: %s. Use in a scene puts it on STAGE; Save house keeps it in My houses" % s["name"])
 
 
 func _mode(easy_on: bool) -> void:
