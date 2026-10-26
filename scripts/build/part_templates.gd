@@ -119,8 +119,8 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var g: float = p["guard_size"]
 			var th: float = p["thickness"]
 			var tip := minf(w * 1.6, L * 0.3)
-			_ex(fs, _sk(fs, "front", _poly([Vector2(0, -w * 0.5), Vector2(L - tip, -w * 0.5), Vector2(L, 0), Vector2(L - tip, w * 0.5), Vector2(0, w * 0.5)])), "extrude", th * 0.5, "new", true)
-			_ex(fs, _sk(fs, "front", [_rect(Vector2(-6, -g * 0.5), Vector2(4, g * 0.5))]), "extrude", 7.0, "join", true)
+			_ex(fs, _sk(fs, "front", _poly([Vector2(0, -w * 0.5), Vector2(L - tip, -w * 0.5), Vector2(L, 0), Vector2(L - tip, w * 0.5), Vector2(0, w * 0.5)])), "extrude", th, "new", true)
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(-6, -g * 0.5), Vector2(4, g * 0.5))]), "extrude", 14.0, "join", true)
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(-106, 0), Vector2(-2, 11))]), "revolve", 0.0, "join")
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(-124, 0), Vector2(-104, 15))]), "revolve", 0.0, "join")
 		"axe":
@@ -130,7 +130,7 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var r: float = float(p["handle_thickness"]) * 0.5
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(0, 0), Vector2(H + 10, r))]), "revolve", 0.0, "new")
 			var ey := maxf(r + 4.0, 18.0)
-			_ex(fs, _sk(fs, "front", _poly([Vector2(H - 30, -ey), Vector2(H + 5, -ey), Vector2(H + 45, -hw * 0.5), Vector2(H + 45, hw * 0.5), Vector2(H + 5, ey), Vector2(H - 30, ey)])), "extrude", ht * 0.5, "join", true)
+			_ex(fs, _sk(fs, "front", _poly([Vector2(H - 30, -ey), Vector2(H + 5, -ey), Vector2(H + 45, -hw * 0.5), Vector2(H + 45, hw * 0.5), Vector2(H + 5, ey), Vector2(H - 30, ey)])), "extrude", ht, "join", true)
 		"shield":
 			var R: float = p["radius"]
 			var th: float = p["thickness"]

@@ -859,6 +859,8 @@ func _draw_dots() -> void:
 		dots.draw_circle(p, 13.0 if hot else 11.0, Color(0.1, 0.11, 0.14))
 		dots.draw_arc(p, 12.0 if hot else 10.0, 0.0, TAU, 28, AMBER, 3.0, true)
 		dots.draw_circle(p, 4.0, AMBER)
+		if not hot:
+			continue   # the label of a dot shows while the mouse is on it or holds it (all of them hid the model)
 		var v: float = float(e["p"][d["k"]]) / 10.0
 		var txt := "%s %s cm" % [d["label"], str(snappedf(v, 0.1))]
 		var sz := font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14)
