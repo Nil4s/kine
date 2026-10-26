@@ -5,6 +5,10 @@
 #include <godot_cpp/classes/array_mesh.hpp>
 #include <godot_cpp/classes/object.hpp>
 #include <godot_cpp/core/class_db.hpp>
+#include <godot_cpp/variant/array.hpp>
+#include <godot_cpp/variant/dictionary.hpp>
+#include <godot_cpp/variant/packed_int32_array.hpp>
+#include <godot_cpp/variant/packed_vector3_array.hpp>
 #include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/vector3.hpp>
 
@@ -43,6 +47,28 @@ public:
 
 	static bool export_step(int p_id, const String &p_path);
 	static int import_step(const String &p_path);
+
+	// ---- phase 2: sketch -> solid (Fusion-style PART tools). A plane is (origin, x_dir, normal); sketch (u, v) = origin + u*x + v*(normal x x).
+	// p_items: Array of Dictionary, in any order, forming ONE closed loop (open for a sweep path / loft rail):
+	//   {t:"line", a:Vector2, b:Vector2}  {t:"arc", a, m (a point on the arc), b}  {t:"bspline", pts:PackedVector2Array, closed:bool}  {t:"circle", c, r}
+	static int sketch_wire(const Array &p_items, const Vector3 &p_origin, const Vector3 &p_x, const Vector3 &p_normal);
+	static int sketch_face(const Array &p_items, const Vector3 &p_origin, const Vector3 &p_x, const Vector3 &p_normal); // wire -> planar face
+	static int path_wire(const PackedVector3Array &p_points); // 3D polyline wire (open)
+	static int face_from_wire(int p_wire);
+	// extrude a face along its normal. p_both: symmetric, p_dist is the total. p_taper (radians): >0 narrows as it goes.
+	static int extrude(int p_face, double p_dist, bool p_both, double p_taper);
+	static int revolve(int p_profile, const Vector3 &p_axis_origin, const Vector3 &p_axis_dir, double p_radians);
+	static int sweep(int p_profile, int p_path); // profile face (solid) or wire (shell) along the path wire
+	static int loft(const PackedInt32Array &p_profiles, bool p_ruled, bool p_solid); // wires or faces, in order
+	// edge / face ids are 1-based positions in the shape's own map: stable for one shape id, NOT across derived shapes
+	static Array edges(int p_id); // [{id, center, a, b, length, dir (tangent at the middle), faces: [face ids]}]
+	static Array faces(int p_id); // [{id, center (of mass), normal (outward at the centre point), area, type, point (a point on the face)}]
+	static int fillet_edges(int p_id, const PackedInt32Array &p_edge_ids, double p_radius);
+	static int chamfer_edges(int p_id, const PackedInt32Array &p_edge_ids, double p_dist);
+	static int mirror(int p_id, const Vector3 &p_origin, const Vector3 &p_normal); // the reflected copy only
+	static int pattern_linear(int p_id, const Vector3 &p_step, int p_count); // copies fused with the original
+	static int pattern_circular(int p_id, const Vector3 &p_axis_origin, const Vector3 &p_axis_dir, int p_count, double p_total_radians);
+	static Dictionary mass_properties(int p_id); // {volume, area, center, inertia (Basis about the centre, density 1)}
 
 	static void release(int p_id);
 	static void release_all();

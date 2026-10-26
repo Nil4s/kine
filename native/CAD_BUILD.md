@@ -7,6 +7,15 @@ It is a separate DLL from `kine_native` on purpose: the sculpt pilot must never 
 
 API (ids are ints, 0 = failed): box, cylinder, sphere, translate, rotate, union, cut, intersect, fillet_all(radius), shell(thickness, open_dir),
 volume, area, face_count, edge_count, tessellate(deflection, angle) -> ArrayMesh with normals (Godot clockwise winding), export_step, import_step.
+Phase 2 (sketch -> solid, KineCAD version 2; wrapper helpers in scripts/kcad.gd): `sketch_face / sketch_wire(items, origin, x_dir, normal)` with items
+`KCad.line / arc (3 points) / circle / bspline (interpolating, closed = periodic)` (or `KCad.polygon(pts)`), `path_wire(points3d)`, `face_from_wire`,
+`extrude(face, dist, both, taper)`, `revolve(profile, axis_origin, axis_dir, radians)`, `sweep(profile, path_wire)`, `loft(ids, ruled, solid)`,
+`edges(id)` / `faces(id)` (ids + centre / normal / length / adjacent faces, for picking), `fillet_edges / chamfer_edges(id, edge_ids, size)`,
+`mirror / mirror_join`, `pattern_linear / pattern_circular` (copies fused), `mass_properties(id)` -> {volume, area, center, inertia}. Edge and face ids are
+positions in that shape's own list: stable for one shape id, NOT across derived shapes (re-read `edges()` after every op).
+Notes: `LocOpe_DPrism` (taper) measures height along the slanted wall, so the extension asks for `dist / cos(taper)` and mirrors the half for `both`;
+volumes use Gauss-Kronrod per knot span (the default fixed Gauss rule was 0.3% off on a B-spline wall); Godot `Vector3` is float32, so centres and inertia
+from `mass_properties` are good to ~1e-7 only. Needs `TKFeat` (added to `LIBS`; `stage_dlls.py` picks the DLL up).
 Test: `godot --headless --path . -s tests/cad_test.gd`. Picture: `godot --path . --position 4000,4000 -s tools/cad_pilot_shot.gd -- out.png`.
 
 ## Licence (read C:/Temp/claude/cad/licence.md summary; OCCT = LGPL 2.1 + Open CASCADE exception)
