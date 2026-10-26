@@ -3,7 +3,7 @@ extends Control
 ## THE START SCREEN (the owner's approved mockup: C:/Temp/claude/start/start.png). A full window over the app:
 ##   top      the KINE logo and name, "Animation & modeling", Settings and Help
 ##   New project  three cards, ANIMATION / MODELING / 3D BUILDING. ANIMATION has an Easy / Expert toggle (default: the
-##            mode the app is in now); the others have no Easy flow yet: one Start button and "Easy mode coming".
+##            mode the app is in now); MODELING has no Easy flow yet: one Start button and "Easy mode coming".
 ##            A click on a card starts that kind of project: a new empty scene, with the page
 ##            it is for (POSE, MODEL with the body open, STAGE). The mode the card shows is the one that applies.
 ##   Open     filter chips (All, Animation, Modeling, Building, Favourites), a search box, Open file..., Examples, and the
@@ -27,7 +27,7 @@ const TILE := Vector2(232, 184)
 const PIC := Vector2(216, 122)
 const CARD_ART_H := 124.0
 const LOGO_H := 40.0
-const EASY_KINDS := ["animation"]   # the kinds that have a real Easy flow (the Easy bar has no MODEL / SURFACE / STAGE pages)
+const EASY_KINDS := ["animation", "building"]   # the kinds that have a real Easy flow (the Easy bar has no MODEL / SURFACE pages; BUILD has its own, scripts/easy_build.gd)
 
 var m: Node                      # the app (main.gd)
 var art: StartArt
