@@ -35,7 +35,7 @@ static var _slice_t := 0
 
 ## the loops call this between steps: true = go on, false = cancelled
 static func pump(done := -1.0) -> bool:
-	if slice_ms <= 0.0:
+	if not slicing():
 		return true
 	if Time.get_ticks_usec() - _slice_t < int(slice_ms * 1000.0):
 		return true
@@ -44,6 +44,22 @@ static func pump(done := -1.0) -> bool:
 	await (Engine.get_main_loop() as SceneTree).process_frame
 	_slice_t = Time.get_ticks_usec()
 	return not abort
+
+## slicing is a main-thread thing: a worker thread (Fix all's bisection, the Polish pass) plays its loops in one go, never waits on a frame
+static func slicing() -> bool:
+	return slice_ms > 0.0 and OS.get_thread_caller_id() == OS.get_main_thread_id()
+
+## a plain (non-awaiting) call of a *_co function: no slicing for its duration, on the main thread only (another thread must not touch it)
+static func suspend_slicing() -> float:
+	if OS.get_thread_caller_id() != OS.get_main_thread_id():
+		return 0.0
+	var k := slice_ms
+	slice_ms = 0.0
+	return k
+
+static func resume_slicing(k: float) -> void:
+	if OS.get_thread_caller_id() == OS.get_main_thread_id():
+		slice_ms = k
 
 static func slice_begin(ms: float, prog := Callable()) -> void:
 	slice_ms = ms
@@ -133,10 +149,9 @@ static func _ctx(S: Scene) -> String:
 
 ## the records of frames 0..n-1 (time min(i/hz, length)); fn.call(i, t) plays one frame and returns its record
 static func frames(tag: String, S: Scene, B: Body, n: int, hz: float, fn: Callable) -> Array:
-	var keep := slice_ms
-	slice_ms = 0.0
+	var keep := suspend_slicing()   # a plain call never waits for a frame
 	var r: Array = frames_co.call(tag, S, B, n, hz, fn)
-	slice_ms = keep
+	resume_slicing(keep)
 	return r
 
 
@@ -224,7 +239,7 @@ static func _frames(tag: String, S: Scene, B: Body, n: int, hz: float, fn: Calla
 			played += 1
 			if hc >= 0:
 				hrec[hc] = recs[i]
-			if slice_ms > 0.0 and not await pump(float(i) / float(n)):
+			if slicing() and not await pump(float(i) / float(n)):
 				return []
 	if usable and not probe:
 		var anch := []

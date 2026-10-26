@@ -159,10 +159,9 @@ static func _new_body() -> Body:
 ## holds the parallel clip to; never cached). Bodies are left as they were. {"fps", "n", "L", "names", "pts": [k][f],
 ## "margin": [k][f], "down": [k][f], "touch": [f], "gap": [f], "sampled": "parallel" / "serial", "cached": bool, "ms"}
 static func sample(fighters: Array, fps: float, needs := {"cross": true, "bal": true}, serial := false) -> Dictionary:
-	var keep := FrameMemo.slice_ms   # a plain call never waits for a frame
-	FrameMemo.slice_ms = 0.0
+	var keep := FrameMemo.suspend_slicing()   # a plain call never waits for a frame
 	var r: Dictionary = sample_co.call(fighters, fps, needs, serial)
-	FrameMemo.slice_ms = keep
+	FrameMemo.resume_slicing(keep)
 	return r
 
 
@@ -210,11 +209,11 @@ static func sample_co(fighters: Array, fps: float, needs := {"cross": true, "bal
 				o[i] = _read(bodies, xfs, needs)
 				i += k
 		var gid := WorkerThreadPool.add_group_task(job, k, -1, true, "EventQuery sample")
-		if FrameMemo.slice_ms > 0.0:
+		if FrameMemo.slicing():
 			while not WorkerThreadPool.is_group_task_completed(gid):
 				await (Engine.get_main_loop() as SceneTree).process_frame
 		WorkerThreadPool.wait_for_group_task_completion(gid)
-		if FrameMemo.slice_ms > 0.0 and FrameMemo.abort:
+		if FrameMemo.slicing() and FrameMemo.abort:
 			return {}
 		for o in outs:
 			for i in o:
@@ -226,7 +225,7 @@ static func sample_co(fighters: Array, fps: float, needs := {"cross": true, "bal
 			for q in bodies.size():
 				(fighters[q]["S"] as Scene).apply(bodies[q], float(i) / fps)
 			rows[i] = _read(bodies, xfs, needs)
-			if FrameMemo.slice_ms > 0.0 and not await FrameMemo.pump(float(i) / float(n)):
+			if FrameMemo.slicing() and not await FrameMemo.pump(float(i) / float(n)):
 				for q in bodies.size():
 					(bodies[q] as Body).set_state(keep[q])
 				return {}

@@ -90,10 +90,9 @@ static func _pt(clip: Dictionary, f: int, nm: String) -> Vector3:
 ## kicking leg for a kick), "over" (deg past the range, > 0 = flagged), "what" ("back" / "forward" / "sideways"), "point"
 ## (the strike's contact point name, "" = none)}. Card 0's own hold is read with the general range.
 static func windows(S: Scene, B: Body) -> Array:
-	var keep := FrameMemo.slice_ms   # a plain call never waits for a frame
-	FrameMemo.slice_ms = 0.0
+	var keep := FrameMemo.suspend_slicing()   # a plain call never waits for a frame
 	var r: Array = windows_co.call(S, B)
-	FrameMemo.slice_ms = keep
+	FrameMemo.resume_slicing(keep)
 	return r
 
 
@@ -122,7 +121,7 @@ static func windows_co(S: Scene, B: Body) -> Array:
 	var ts := S.times()
 	var seen := {}
 	for k in S.cards.size():
-		if FrameMemo.slice_ms > 0.0 and not await FrameMemo.pump(0.9):
+		if FrameMemo.slicing() and not await FrameMemo.pump(0.9):
 			S.stepped = was
 			B.set_state(keep)
 			return []
@@ -179,10 +178,9 @@ static func _move_words(it: Dictionary) -> String:
 
 ## Check's findings: one WARN per card window whose worst frame is past its range. v = deg past it
 static func findings(S: Scene, B: Body) -> Array:
-	var keep := FrameMemo.slice_ms
-	FrameMemo.slice_ms = 0.0
+	var keep := FrameMemo.suspend_slicing()   # a plain call never waits for a frame
 	var r: Array = findings_co.call(S, B)
-	FrameMemo.slice_ms = keep
+	FrameMemo.resume_slicing(keep)
 	return r
 
 

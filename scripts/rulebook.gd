@@ -203,10 +203,9 @@ static var audit_diff := 0
 
 
 static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contacts := false, prefix_t := -INF) -> Dictionary:
-	var keep := FrameMemo.slice_ms   # the plain call never waits for a frame, even while a sliced Check is mid-run
-	FrameMemo.slice_ms = 0.0
+	var keep := FrameMemo.suspend_slicing()   # a plain call never waits for a frame
 	var r: Dictionary = sample_co.call(S, B, base, t0, t1, contacts, prefix_t)   # .call: a coroutine that never suspends returns at once
-	FrameMemo.slice_ms = keep
+	FrameMemo.resume_slicing(keep)
 	return r
 
 
@@ -252,7 +251,7 @@ static func sample_co(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, cont
 				raw.append(base["_raw"][i])
 				continue
 			raw.append(mk.call(i, t))
-			if FrameMemo.slice_ms > 0.0 and not await FrameMemo.pump(float(i) / float(n)):
+			if FrameMemo.slicing() and not await FrameMemo.pump(float(i) / float(n)):
 				S.stepped = was_stepped
 				return {}
 			if contacts and not B.contacts().is_empty():
@@ -1170,10 +1169,9 @@ static func head_quiet(S: Scene, sm: Dictionary) -> Array:
 ## every rule over a scene; sorted by time
 ## sm: a sample already taken of this scene (the Fix button re-samples only a window)
 static func check(S: Scene, B: Body, sm := {}) -> Array:
-	var keep := FrameMemo.slice_ms
-	FrameMemo.slice_ms = 0.0
+	var keep := FrameMemo.suspend_slicing()   # a plain call never waits for a frame
 	var r: Array = check_co.call(S, B, sm)
-	FrameMemo.slice_ms = keep
+	FrameMemo.resume_slicing(keep)
 	return r
 
 

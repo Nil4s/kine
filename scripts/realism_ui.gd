@@ -232,9 +232,9 @@ func show() -> void:
 		m._say("Realism score needs a scene of two cards or more: press Enter to add the body as a card (two at least), or open a scene in the list below")
 		return
 	if int(m.tc_ui.db.get("n", 0)) == 0:
-		await m.tc_ui._database()   # a few scenes per frame (a click while it reads cancels)
-		if int(m.tc_ui.db.get("n", 0)) == 0 and FrameMemo.abort:
-			return
+		m._say("realism score: reading your scenes for the timing coach (once, about 20 s)...")
+		await m.get_tree().process_frame
+		m.tc_ui.db = MotionMatch.build()
 	refresh()
 	_panel()
 

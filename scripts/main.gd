@@ -15178,7 +15178,7 @@ func _next_run() -> void:
 	_step_hint = String(n["text"])
 	match n["kind"]:
 		"clip": _card_add()
-		"check": _check_btn()
+		"check": _check()
 		"dummy": _dummy_move(-0.25)
 		"aim": _strike_aim()
 		"fix":

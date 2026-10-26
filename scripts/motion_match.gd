@@ -114,10 +114,9 @@ static func _build(dirs: Array) -> Dictionary:
 
 ## one clip played through Scene.apply at its own fps: the root, the heading, the feet, the hips, every joint's angle
 static func _clip(S: Scene, B: Body, cname: String, path: String) -> Dictionary:
-	var keep := FrameMemo.slice_ms   # a plain call never waits for a frame
-	FrameMemo.slice_ms = 0.0
+	var keep := FrameMemo.suspend_slicing()   # a plain call never waits for a frame
 	var r: Dictionary = _clip_co.call(S, B, cname, path)
-	FrameMemo.slice_ms = keep
+	FrameMemo.resume_slicing(keep)
 	return r
 
 
@@ -134,7 +133,7 @@ static func _clip_co(S: Scene, B: Body, cname: String, path: String) -> Dictiona
 	var ang := PackedVector3Array()
 	var off := PackedVector3Array()
 	for f in n:
-		if FrameMemo.slice_ms > 0.0 and not await FrameMemo.pump():
+		if FrameMemo.slicing() and not await FrameMemo.pump():
 			return {}
 		S.apply(B, minf(float(f) / fps, L))
 		B.fk()
