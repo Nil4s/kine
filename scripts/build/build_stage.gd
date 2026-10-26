@@ -9,6 +9,8 @@ extends RefCounted
 const WALK_SPEED := 1.3          # m/s: the speed PathWalk's walk is measured at
 const OUTSIDE := 1.8             # m: the walk starts this far outside the door ...
 const INSIDE := 1.6              # ... and ends this far inside
+const CLEAR_MARGIN := 0.05       # m: a doorway must stand this far over the fighter's height (the walk is refused below it)
+const CLEAR_EPS := 0.0005        # m: float slack (half a millimetre), so a door exactly CLEAR_MARGIN over the body passes
 
 
 static func kind_of_building(b: Dictionary) -> String:
@@ -77,12 +79,36 @@ static func walk_points(b: Dictionary, name: String) -> Array:
 	return [pos + out * OUTSIDE, pos, pos - out * INSIDE]
 
 
+## the fighter's height (m) from the scene's body: the default body when it has no stature of its own
+static func stature_of(B: Body) -> float:
+	return float(B.body.get("stature", Proportions.DEFAULT_STATURE))
+
+
+## does the fighter fit under the named doorway with CLEAR_MARGIN to spare? {"ok", "gap_cm" (the doorway's height less the
+## fighter's, cm: negative = too low), "why" (plain words, "" when it fits)}. A name with no doorway fits (the walk refuses it anyway)
+static func clearance(b: Dictionary, name: String, stature: float) -> Dictionary:
+	var a := Building.anchor(b, name)
+	if a.is_empty():
+		return {"ok": true, "gap_cm": 0.0, "why": ""}
+	var gap := float(a["clear"]) - stature
+	var ok := gap >= CLEAR_MARGIN - CLEAR_EPS
+	var why := ""
+	if not ok:
+		var short := "%.0f cm shorter than the fighter" % (-gap * 100.0) if gap < 0.0 else "only %.0f cm over the fighter's head, %.0f cm is needed" % [gap * 100.0, CLEAR_MARGIN * 100.0]
+		why = "The %s is %.2f m high and the fighter is %.2f m tall: %s. Make the door taller in BUILD (Door height), then walk again" % [
+			name, float(a["clear"]), stature, short]
+	return {"ok": ok, "gap_cm": gap * 100.0, "why": why}
+
+
 ## "Walk through the front door": PathWalk's walk cards through the point, as a scene dictionary that carries the house (its
-## record and its prop) and the kind; {"ok": false, "why"} when there is no such point
+## record and its prop) and the kind; {"ok": false, "why"} when there is no such point, or the fighter does not fit under it
 static func walk_scene(S: Scene, B: Body, name: String) -> Dictionary:
 	var pts := walk_points(S.building, name)
 	if pts.is_empty():
 		return {"ok": false, "why": "there is no point called \"%s\": put a door in the house first" % name}
+	var fit := clearance(S.building, name, stature_of(B))
+	if not bool(fit["ok"]):
+		return {"ok": false, "why": String(fit["why"])}
 	var r := PathWalk.build(pts, WALK_SPEED)
 	if not r["ok"]:
 		return r
