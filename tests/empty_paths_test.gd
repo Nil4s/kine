@@ -66,6 +66,9 @@ func _init() -> void:
 	ok(clipped, "2 a real click on 'Clip this pose': %d clip" % m.S.cards.size())
 	await empty()
 	await click(m.ui_cards.get_node("start_open"))
+	# "Open a scene" now opens Expert's catalog (scripts/easy_scenes.gd); this step checks the old scene list, so the catalog's
+	# List view button is pressed first (the list is then the one on screen)
+	await click(m.easy.scenes.find_children("easy_scenes_list", "Button", true, false)[0])
 	var opened: bool = m.ui_scenes.get_popup().visible
 	m.ui_scenes.get_popup().hide()
 	await idle(2)
