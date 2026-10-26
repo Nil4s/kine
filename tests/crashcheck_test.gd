@@ -71,6 +71,8 @@ func click(c: Control) -> void:
 	for down in [true, false]:
 		push_mouse(p, down)
 		await process_frame
+	while bool(m._check_busy):   # the Check button grades in time slices now (checkhunt): its list is there once it has finished
+		await process_frame
 
 
 func key(k: Key, ctrl := false) -> void:

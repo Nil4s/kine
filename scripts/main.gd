@@ -3900,7 +3900,7 @@ func _fd_cycle_fps() -> void:
 ## the frame data of the scene as it is now (a fresh body: the live one is not moved). Made again only when the cards,
 ## the dummy or the frame rate change
 func _fd_data() -> Dictionary:
-	var key := "%d|%s|%s|%s|%s" % [fd_fps, var_to_str(S.cards), var_to_str(T.xf) if dummy_on else "-", var_to_str(S.boxes), "" if dummy_on else FrameAdvantage.app_key(self)]
+	var key := "%d|%s|%s|%s|%s" % [fd_fps, str(S.cards.hash()), var_to_str(T.xf) if dummy_on else "-", var_to_str(S.boxes), "" if dummy_on else FrameAdvantage.app_key(self)]
 	if String(fd_cache.get("key", "")) != key:
 		if _force_body == null:   # I16b: the skeleton is read once, not at every score
 			_force_body = Body.new()
@@ -3984,7 +3984,7 @@ var _force_body: Body = null
 
 ## the clip's inverse dynamics, made once per cards + body (on its own body, like the frame data), {} with fewer than 2 cards
 func _force_data() -> Dictionary:
-	var key := "%s|%s" % [var_to_str(S.cards), var_to_str(S.body)]
+	var key := "%s|%s" % [str(S.cards.hash()), var_to_str(S.body)]
 	if String(force_cache.get("key", "")) != key:
 		if _force_body == null:   # I16b: the skeleton is read once, not at every score
 			_force_body = Body.new()
@@ -12016,7 +12016,23 @@ func _doc_line(force := false) -> void:
 	if _dot_later or Engine.get_process_frames() < _first_hold:   # a card build's rebuild, or the frames of its first moving frame: the dot is read after them (the serialise is 20+ ms with four fighters; 31 ms in Run's first frame)
 		_after_first_frame(_dot_recheck)
 		return
-	ui_doc_dot.visible = _unsaved()
+	ui_doc_dot.visible = _unsaved_cached()
+
+
+var _unsaved_sig := -1
+var _unsaved_val := false
+
+## _unsaved() for the 400 ms strip refresh: JSON.stringify of every card cost 0.3 s a time on a 60 s scene (the whole window stuttered), so
+## the answer is kept until something _doc_key reads has changed (checked by hashes, which are a few ms)
+func _unsaved_cached() -> bool:
+	var H := _hero_scene()
+	var sig := [H.cards.hash(), H.props.map(func(p): return Props.to_dict(p)).hash(), S.building.hash(), H.shots.hash(),
+		H.actors.map(func(a): return [a["name"], a["xf"], (a["scene"] as Scene).cards.hash()]).hash(), BaseBody.gen(self),
+		ArmourFromBody.parts(self).size(), _clean.hash()].hash()
+	if sig != _unsaved_sig:
+		_unsaved_sig = sig
+		_unsaved_val = _unsaved()
+	return _unsaved_val
 
 
 ## a card build's own bookkeeping that nobody sees (the work copy's file, the recents line, the unsaved dot): it runs at the start of the
@@ -12432,7 +12448,7 @@ func _ui() -> void:
 	ui_ribbon["ANIMATE"].add_child(_button("Match the reference timing", tm_ui.show, "retime this clip's cards so its strikes and holds land when the reference video's do: both limb-speed curves are drawn with the matched events; poses are not touched; Preview, then Accept (one undo step)"))
 	ui_ribbon["ANIMATE"].add_child(_button("From several cameras", _multicam_ask, "animation from 2 to 4 videos of one person filmed at the same time: the cameras' places are solved from the person, every joint is triangulated, and it lands as ONE undo step on this scene"))
 	# CHECK
-	ui_ribbon["CHECK"].add_child(_button("Check", _check, "grade the scene against real recorded human motion; click a problem to jump to it"))
+	ui_ribbon["CHECK"].add_child(_button("Check", _check_btn, "grade the scene against real recorded human motion; click a problem to jump to it"))
 	ui_ribbon["CHECK"].add_child(_button("Polish", _polish, "smooth the scene and add the in-between detail into a NEW scene; yours is not touched"))
 	ui_ribbon["CHECK"].add_child(_button("Fix moves through the body", _clear_scene))
 	if tc_ui == null:
@@ -17687,6 +17703,39 @@ func _graph_input(ev: InputEvent) -> void:
 
 
 ## CHECK: the rulebook over the scene as it plays; the panel lists each finding as a button that jumps to it
+var _check_busy := false
+
+## the Check button (checkhunt): the same grade as _check(), played in time slices so the window keeps drawing on a long clip (a 30 s
+## clip held the main thread for ~40 s). The status line shows the percent; a second click while it runs CANCELS it; an edit made
+## meanwhile discards the result (it would grade cards that are gone).
+func _check_btn() -> void:
+	if S.cards.size() < 2:
+		_check()   # the "needs two cards" line
+		return
+	if _check_busy:
+		FrameMemo.abort = true
+		_say("check cancelled")
+		return
+	_check_busy = true
+	var key := S.cards.hash()
+	_say("checking... 0%")
+	FrameMemo.slice_begin(8.0, func(f: float): _say_plain("checking... %d%%  (click Check again to cancel)" % int(f * 100.0)))
+	_bake_validate()
+	var sm: Dictionary = await Rulebook.sample_co(S, ov.GB)
+	var fi: Array = []
+	if not sm.is_empty():
+		fi = await Rulebook.check_co(S, ov.GB, sm)
+	var aborted := FrameMemo.abort or sm.is_empty()
+	FrameMemo.slice_end()
+	_check_busy = false
+	if aborted:
+		return
+	if S.cards.hash() != key:
+		_say("check: the scene changed while it ran; press Check again")
+		return
+	_check(fi)
+	_sm = sm
+
 func _check(given = null) -> void:
 	_previews.clear()   # the previews were for the cards as they were
 	_pv_gen += 1
@@ -18454,26 +18503,60 @@ func _fix_all() -> void:
 
 ## POLISH: the detail pass (tools/detail.gd) on the open scene -> scenes/_wip/<name>_polished.json, opened. Nick's file
 ## is never written; picking it in the list brings it back.
+var _polish_gen := 0
+var _polish_busy := false
+var _polish_orphans: Array = []   # threads of cancelled runs: reaped when they end (a thread cannot be stopped)
+
 func _polish() -> void:
 	if S.cards.size() < 2:
 		_say("Polish needs a scene of two cards or more: press Enter to add the body as a card (two at least), or open a scene in the list below")
 		return
+	for th in _polish_orphans.filter(func(t): return not (t as Thread).is_alive()):
+		(th as Thread).wait_to_finish()
+		_polish_orphans.erase(th)
+	if _polish_busy:   # a second click cancels the run (its result is dropped)
+		_polish_gen += 1
+		_polish_busy = false
+		_say("polish cancelled")
+		return
 	_say("polishing '%s'..." % S.name)
-	await get_tree().process_frame
-	await get_tree().process_frame
 	var keep := B.state()   # lossless (round 8): to_dict rounds, so the live body jumped a rounding step
 	var C := Scene.new()
-	C.from_dict(S.to_dict(B))
+	C.from_dict(S.to_dict(B, false))   # false: no bad_frames scan (1.2 s on 12 cards); the copy is graded by the pass itself
 	B.set_state(keep)
 	var n0 := C.cards.size()
-	var r: Array = DetailTool.polish(ov.GB, C, 30)
-	var D: Scene = r[0]
 	var base := S.name.trim_suffix("_polished")
-	D.name = base + "_polished"
+	# the detail pass is minutes of Scene.apply on a copy: it runs on a worker thread with its OWN body, and the window keeps drawing
+	# (it held the main thread for 2.7 s on a 4.7 s clip, ~1 min on a 60 s one). Nothing it touches is shared: the copy C, the body PB.
+	_polish_busy = true
+	_polish_gen += 1
+	var gen := _polish_gen
+	var box := []
+	var thr := Thread.new()
+	thr.start(func():   # its own body, made on the thread (reading the skeleton files is not free either)
+		var PB := EventQuery._new_body()
+		var pr: Array = DetailTool.polish(PB, C, 30)
+		var D0: Scene = pr[0]
+		D0.name = base + "_polished"
+		var d0 := D0.to_dict(PB)   # the saved file's bad_frames scan (~1 s): here, not on the main thread
+		d0["plan"] = "Polish (tools/detail.gd) from " + base
+		box.append([pr, d0]))
+	var t_start := Time.get_ticks_msec()
+	while thr.is_alive():
+		await get_tree().process_frame
+		if gen != _polish_gen:
+			_polish_orphans.append(thr)
+			return
+		_say_plain("polishing '%s'... %d s  (click Polish again to cancel)" % [S.name, (Time.get_ticks_msec() - t_start) / 1000])
+	thr.wait_to_finish()
+	_polish_busy = false
+	if box.is_empty():
+		_say("polish failed: nothing came back")
+		return
+	var r: Array = box[0][0]
+	var D: Scene = r[0]
 	var path := UserPaths.w("res://scenes/_wip/%s.json" % D.name)
-	var d := D.to_dict(ov.GB)
-	d["plan"] = "Polish (tools/detail.gd) from " + base
-	_write(path, d)
+	_write(path, box[0][1])
 	_load_scene(path, true)
 	_rebuild_cards()
 	_refresh()
