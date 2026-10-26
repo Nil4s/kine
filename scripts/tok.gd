@@ -11,7 +11,7 @@ const DARK := {
 	"ok": Color(0.55, 0.92, 0.6),   # N064 ouch meter: inside the comfortable range (with warn / fail)
 	"warn": Color(1.0, 0.86, 0.5), "fail": Color(1.0, 0.55, 0.5), "dummy": Color(1.0, 0.6, 0.5), "dummy_text": Color(1.0, 0.8, 0.75),
 	"panel": Color(0.085, 0.09, 0.105, 0.94), "float": Color(0.09, 0.1, 0.12, 0.94), "say_bg": Color(0.05, 0.05, 0.07, 0.85),
-	"btn": Color(0.19, 0.21, 0.25), "btn_hover": Color(0.26, 0.3, 0.37), "accent": Color(0.2, 0.42, 0.75), "on_accent": Color(1, 1, 1), "focus": Color(1.0, 0.78, 0.2),
+	"btn": Color(0.19, 0.21, 0.25), "btn_hover": Color(0.26, 0.3, 0.37), "main": Color(0.19, 0.21, 0.25), "accent": Color(0.2, 0.42, 0.75), "on_accent": Color(1, 1, 1), "focus": Color(1.0, 0.78, 0.2),
 	"btn_text": Color(0.875, 0.875, 0.875), "field": Color(0.1, 0.11, 0.13),
 	"card": Color(0.16, 0.17, 0.2), "card_sel": Color(0.2, 0.36, 0.62), "card_passby": Color(0.25, 0.2, 0.12), "card_play": Color(0.95, 0.8, 0.3), "card_multi": Color(1.0, 0.62, 0.05), "card_play_bg": Color(0.22, 0.25, 0.31),
 	"graph_bg": Color(0.07, 0.08, 0.1, 0.9), "ink": Color(1, 1, 1), "hair": Color(0.42, 0.26, 0.13),
@@ -36,7 +36,7 @@ const LIGHT := {
 	"ok": Color(0.08, 0.45, 0.16),
 	"warn": Color(0.5, 0.32, 0.0), "fail": Color(0.7, 0.12, 0.08), "dummy": Color(0.62, 0.2, 0.12), "dummy_text": Color(0.5, 0.2, 0.15),
 	"panel": Color(0.955, 0.957, 0.965, 0.96), "float": Color(0.97, 0.97, 0.975, 0.97), "say_bg": Color(1.0, 0.97, 0.88, 0.94),
-	"btn": Color(0.87, 0.88, 0.9), "btn_hover": Color(0.8, 0.83, 0.88), "accent": Color(0.16, 0.4, 0.8), "on_accent": Color(1, 1, 1), "focus": Color(0.72, 0.3, 0.0),
+	"btn": Color(0.87, 0.88, 0.9), "btn_hover": Color(0.8, 0.83, 0.88), "main": Color(0.87, 0.88, 0.9), "accent": Color(0.16, 0.4, 0.8), "on_accent": Color(1, 1, 1), "focus": Color(0.72, 0.3, 0.0),
 	"btn_text": Color(0.1, 0.11, 0.13), "field": Color(1, 1, 1),
 	"card": Color(0.9, 0.91, 0.93), "card_sel": Color(0.7, 0.8, 0.96), "card_passby": Color(0.95, 0.88, 0.75), "card_play": Color(0.75, 0.45, 0.0), "card_multi": Color(0.9, 0.35, 0.0), "card_play_bg": Color(0.82, 0.86, 0.93),
 	"graph_bg": Color(0.97, 0.97, 0.98, 0.94), "ink": Color(0.1, 0.11, 0.13), "hair": Color(0.3, 0.17, 0.08),
@@ -58,10 +58,63 @@ const LIGHT := {
 }
 
 static var dark := true
+## STYLE PROPOSAL (w4-style): --kine-palette=a|b|c overrides the dark or light dict below, only when given.
+## a = graphite + amber, b = graphite + sky (amber kept for the main action and warnings), c = light (amber accent, sky selection).
+const PALETTES := {
+	"a": {
+		"text": Color(0.925, 0.937, 0.957), "heading": Color(1.0, 0.78, 0.2), "info": Color(0.77, 0.8, 0.85),
+		"say": Color(1.0, 0.85, 0.42), "ok": Color(0.48, 0.85, 0.55), "warn": Color(1.0, 0.78, 0.2), "fail": Color(1.0, 0.48, 0.42),
+		"panel": Color(0.086, 0.09, 0.106, 0.94), "float": Color(0.118, 0.125, 0.149, 0.94), "say_bg": Color(0.055, 0.06, 0.07, 0.85),
+		"btn": Color(0.165, 0.176, 0.212), "btn_hover": Color(0.23, 0.245, 0.29), "main": Color(1.0, 0.78, 0.2), "accent": Color(1.0, 0.78, 0.2), "on_accent": Color(0.102, 0.11, 0.129), "focus": Color(0.45, 0.75, 1.0),
+		"btn_text": Color(0.925, 0.937, 0.957), "field": Color(0.059, 0.063, 0.078),
+		"card": Color(0.118, 0.125, 0.149), "card_sel": Color(0.12, 0.23, 0.32), "card_passby": Color(0.23, 0.17, 0.06), "card_play": Color(1.0, 0.78, 0.2), "card_multi": Color(1.0, 0.62, 0.11), "card_play_bg": Color(0.165, 0.176, 0.212),
+		"ink": Color(0.925, 0.937, 0.957), "hair": Color(0.35, 0.25, 0.08),
+	},
+	"b": {
+		"text": Color(0.925, 0.937, 0.957), "heading": Color(0.45, 0.75, 1.0), "info": Color(0.77, 0.8, 0.85),
+		"say": Color(0.62, 0.84, 1.0), "ok": Color(0.48, 0.85, 0.55), "warn": Color(1.0, 0.78, 0.2), "fail": Color(1.0, 0.48, 0.42),
+		"panel": Color(0.086, 0.09, 0.106, 0.94), "float": Color(0.118, 0.125, 0.149, 0.94), "say_bg": Color(0.055, 0.06, 0.07, 0.85),
+		"btn": Color(0.165, 0.176, 0.212), "btn_hover": Color(0.23, 0.245, 0.29), "main": Color(1.0, 0.78, 0.2), "accent": Color(0.45, 0.75, 1.0), "on_accent": Color(0.102, 0.11, 0.129), "focus": Color(0.925, 0.937, 0.957),
+		"btn_text": Color(0.925, 0.937, 0.957), "field": Color(0.059, 0.063, 0.078),
+		"card": Color(0.118, 0.125, 0.149), "card_sel": Color(0.15, 0.28, 0.4), "card_passby": Color(0.11, 0.17, 0.23), "card_play": Color(1.0, 0.78, 0.2), "card_multi": Color(0.45, 0.75, 1.0), "card_play_bg": Color(0.165, 0.176, 0.212),
+		"ink": Color(0.925, 0.937, 0.957), "hair": Color(0.2, 0.3, 0.4),
+	},
+	"c": {
+		"text": Color(0.102, 0.11, 0.129), "heading": Color(0.102, 0.11, 0.129), "info": Color(0.23, 0.26, 0.32),
+		"say": Color(0.42, 0.27, 0.0), "ok": Color(0.12, 0.45, 0.22), "warn": Color(0.5, 0.32, 0.0), "fail": Color(0.7, 0.12, 0.08),
+		"panel": Color(0.925, 0.937, 0.957, 0.96), "float": Color(0.97, 0.975, 0.98, 0.97), "say_bg": Color(1.0, 0.96, 0.86, 0.94),
+		"btn": Color(0.85, 0.87, 0.91), "btn_hover": Color(0.78, 0.81, 0.87), "main": Color(0.949, 0.678, 0.0), "accent": Color(0.949, 0.678, 0.0), "on_accent": Color(0.102, 0.11, 0.129), "focus": Color(0.102, 0.11, 0.129),
+		"btn_text": Color(0.102, 0.11, 0.129), "field": Color(1, 1, 1),
+		"card": Color(0.86, 0.885, 0.92), "card_sel": Color(0.451, 0.749, 1.0), "card_passby": Color(0.96, 0.9, 0.72), "card_play": Color(0.949, 0.678, 0.0), "card_multi": Color(0.78, 0.47, 0.0), "card_play_bg": Color(0.8, 0.84, 0.9),
+		"ink": Color(0.102, 0.11, 0.129), "hair": Color(0.55, 0.36, 0.05),
+	},
+}
+static var _dk: Dictionary = DARK.duplicate()
+static var _lt: Dictionary = LIGHT.duplicate()
 
 
 static func c(name: String) -> Color:
-	return (DARK if dark else LIGHT)[name]
+	return (_dk if dark else _lt)[name]
+
+
+## the palette the command line asks for ("a", "b" or "c"), or "" when none is given (the app's own colours)
+static func palette_arg() -> String:
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--kine-palette="):
+			var p := a.trim_prefix("--kine-palette=").to_lower()
+			return p if PALETTES.has(p) else ""
+	return ""
+
+
+## lays a named palette over the dark (a, b) or light (c) dict; "" changes nothing
+static func apply_palette(p: String) -> void:
+	if not PALETTES.has(p):
+		return
+	var o: Dictionary = PALETTES[p]
+	var tgt := _lt if p == "c" else _dk
+	for k in o:
+		tgt[k] = o[k]
+	dark = p != "c"
 
 
 ## body text at strength a (1 = full, 0.6 = a side note): mixed toward the panel colour, not made transparent, and
