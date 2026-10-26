@@ -498,11 +498,28 @@ func _input(ev: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 
+var _warm_i := 0   # the next card whose template the idle warm-up reads (CARDS.size() = done)
+
+
+## WARM UP WHILE IDLE: with Easy on and nothing playing, one card's template is read per frame, so the click on that card finds
+## the parsed file in Templates' cache (Run's 37-card file parsed in 21 ms on the first click, 5 ms from the cache). Reads only:
+## nothing in the scene, the undo or a file changes, and the card then builds exactly the same clip.
+func _warm_idle() -> void:
+	if _warm_i >= CARDS.size() or m.playing or m.dragging != "" or _t0 >= 0:
+		return
+	var nm := String(CARDS[_warm_i][1])
+	_warm_i += 1
+	if Templates.has_file(nm):
+		Templates.read(nm)
+
+
 func _process(dt: float) -> void:
 	if m == null or panel == null:
 		return
 	_strip_clear_views()
 	var on: bool = m.easy.on
+	if on:
+		_warm_idle()
 	var empty: bool = m.S.cards.is_empty()
 	var pb: Button = m.easy.button("Play / Stop")
 	if pb != null:   # the button says what a click does now (the walk-through found "Play / Stop" gave no state)
