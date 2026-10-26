@@ -2,8 +2,9 @@ class_name StartScreen
 extends Control
 ## THE START SCREEN (the owner's approved mockup: C:/Temp/claude/start/start.png). A full window over the app:
 ##   top      the KINE logo and name, "Animation & modeling", Settings and Help
-##   New project  three cards, ANIMATION / MODELING / 3D BUILDING, each with its own Easy / Expert toggle (default: the
-##            mode the app is in now). A click on a card starts that kind of project: a new empty scene, with the page
+##   New project  three cards, ANIMATION / MODELING / 3D BUILDING. ANIMATION has an Easy / Expert toggle (default: the
+##            mode the app is in now); the others have no Easy flow yet: one Start button and "Easy mode coming".
+##            A click on a card starts that kind of project: a new empty scene, with the page
 ##            it is for (POSE, MODEL with the body open, STAGE). The mode the card shows is the one that applies.
 ##   Open     filter chips (All, Animation, Modeling, Building, Favourites), a search box, Open file..., Examples, and the
 ##            recent scenes as tiles: the SceneThumbs picture, the kind as a tag, the quality badge of Kine's Check (SceneCat
@@ -25,6 +26,8 @@ const RECENT_MAX := 12
 const TILE := Vector2(232, 184)
 const PIC := Vector2(216, 122)
 const CARD_ART_H := 124.0
+const LOGO_H := 40.0
+const EASY_KINDS := ["animation"]   # the kinds that have a real Easy flow (the Easy bar has no MODEL / SURFACE / STAGE pages)
 
 var m: Node                      # the app (main.gd)
 var art: StartArt
@@ -48,6 +51,8 @@ var _resume_path := ""
 var _settings: PanelContainer
 var _show_check: CheckBox
 var _built := false
+var file_dialog_inline := false   # a test: the in-window dialog (a native one cannot be driven)
+var last_dialog: FileDialog
 var _layout: VBoxContainer     # the window's column (top bar, the scrolled body, the bottom bar)
 var _body: VBoxContainer       # the scrolled body
 
@@ -110,14 +115,12 @@ func _top_bar() -> Control:
 	h.add_theme_constant_override("separation", 12)
 	var logo := TextureRect.new()
 	logo.texture = load("res://assets/brand/kine_logo.svg")
-	logo.custom_minimum_size = Vector2(30, 30)
+	logo.name = "logo"
+	logo.custom_minimum_size = Vector2(LOGO_H * 175.0 / 64.0, LOGO_H)   # the whole mark (the K and "kine", the intro's own K) at its 175 x 64 shape
 	logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	h.add_child(logo)
-	var nm := _label("KINE", 20, "text")
-	nm.add_theme_constant_override("outline_size", 0)
-	h.add_child(nm)
 	h.add_child(_label("Animation & modeling", 13, "info:0.7"))
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -159,7 +162,7 @@ func _card(kind: String, title: String, desc: String) -> PanelContainer:
 	c.mouse_entered.connect(_hover.bind(kind, true))
 	c.mouse_exited.connect(_hover.bind(kind, false))
 	_cards[kind] = c
-	_card_easy[kind] = m == null or m.easy == null or m.easy.on
+	_card_easy[kind] = EASY_KINDS.has(kind) and (m == null or m.easy == null or m.easy.on)
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 6)
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -182,21 +185,30 @@ func _card(kind: String, title: String, desc: String) -> PanelContainer:
 	var foot := HBoxContainer.new()
 	foot.add_theme_constant_override("separation", 6)
 	foot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var grp := ButtonGroup.new()
-	var easy := _button("Easy", "easy_" + kind)
-	easy.toggle_mode = true
-	easy.button_group = grp
-	easy.custom_minimum_size = Vector2(70, 26)
-	var expert := _button("Expert", "expert_" + kind)
-	expert.toggle_mode = true
-	expert.button_group = grp
-	expert.custom_minimum_size = Vector2(70, 26)
-	easy.pressed.connect(_set_card_mode.bind(kind, true))
-	expert.pressed.connect(_set_card_mode.bind(kind, false))
-	_easy_btn[kind] = easy
-	_expert_btn[kind] = expert
-	foot.add_child(easy)
-	foot.add_child(expert)
+	if EASY_KINDS.has(kind):
+		var grp := ButtonGroup.new()
+		var easy := _button("Easy", "easy_" + kind)
+		easy.toggle_mode = true
+		easy.button_group = grp
+		easy.custom_minimum_size = Vector2(70, 26)
+		var expert := _button("Expert", "expert_" + kind)
+		expert.toggle_mode = true
+		expert.button_group = grp
+		expert.custom_minimum_size = Vector2(70, 26)
+		easy.pressed.connect(_set_card_mode.bind(kind, true))
+		expert.pressed.connect(_set_card_mode.bind(kind, false))
+		_easy_btn[kind] = easy
+		_expert_btn[kind] = expert
+		foot.add_child(easy)
+		foot.add_child(expert)
+	else:   # no Easy flow for this kind yet: one honest button, and the note
+		var go := _button("Start", "start_" + kind)
+		go.custom_minimum_size = Vector2(70, 26)
+		go.pressed.connect(_start_kind.bind(kind))
+		foot.add_child(go)
+		var soon := _label("Easy mode coming", 12, "info:0.5")
+		soon.name = "easy_soon_" + kind
+		foot.add_child(soon)
 	var sp := Control.new()
 	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sp.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -357,10 +369,8 @@ func _resume() -> void:
 func _start_kind(kind: String) -> void:
 	if m == null:
 		return
-	var want_easy: bool = bool(_card_easy.get(kind, true))
 	# the pages of MODEL and STAGE are Expert's (the Easy bar hides them): those projects open in Expert
-	if kind != "animation":
-		want_easy = false
+	var want_easy: bool = EASY_KINDS.has(kind) and bool(_card_easy.get(kind, true))
 	if m.easy != null:
 		m.easy.set_on(want_easy)
 	_close()
@@ -378,6 +388,8 @@ func _start_kind(kind: String) -> void:
 
 
 func _sync_modes(kind: String) -> void:
+	if not _easy_btn.has(kind):
+		return
 	var easy := bool(_card_easy.get(kind, true))
 	(_easy_btn[kind] as Button).button_pressed = easy
 	(_expert_btn[kind] as Button).button_pressed = not easy
@@ -684,10 +696,28 @@ func _set_card_mode(kind: String, easy: bool) -> void:
 	_sync_modes(kind)
 
 
+## a real file picker for a .json scene (the native dialog); the screen stays until a file is picked
 func _open_file() -> void:
+	if m == null:
+		return
+	var fd := FileDialog.new()
+	fd.name = "open_file_dialog"
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.json ; Kine scenes"])
+	fd.use_native_dialog = not file_dialog_inline
+	fd.title = "Open a scene (.json)"
+	fd.file_selected.connect(func(p): _file_picked(p); fd.queue_free())
+	fd.canceled.connect(fd.queue_free)
+	m.add_child(fd)
+	fd.popup_centered(Vector2i(800, 500))
+	last_dialog = fd
+
+
+func _file_picked(path: String) -> void:
 	_close()
-	if m != null:
-		m._open_scene_popup()
+	if m != null and FileAccess.file_exists(path):
+		m._open_scene_file(path)
 
 
 func _open_examples() -> void:
