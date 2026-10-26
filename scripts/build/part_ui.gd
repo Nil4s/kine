@@ -1353,12 +1353,23 @@ func _tool_sync() -> void:
 	m._grey(finish_btn, why if not ok else ("" if sk != "" else "no sketch is open"))
 
 
+## Easy Part hides the top ribbon (its own bar stands in for it), so "What to build" moves into that bar while Easy Part is on, and
+## back to the ribbon when it is not
+func _place_reopen() -> void:
+	if reopen_btn == null or ep == null or ep.bar_row == null:
+		return
+	var home: Node = ep.bar_row if (easy and on and bu.on) else part_btn.get_parent()
+	if reopen_btn.get_parent() != home:
+		reopen_btn.get_parent().remove_child(reopen_btn)
+		home.add_child(reopen_btn)
+
+
 ## the row's order: the way back, Part, Easy, Finish, then the tools. A row too long for the window sends its LAST buttons to More,
 ## so Easy and Finish stay on the bar and the advanced tools go (the words of "What to build" made the row longer). Set again on every
 ## sync: the house tools and the Part tools share the row, and something else appends to it after setup
 func _order_row() -> void:
 	var row := part_btn.get_parent() as HBoxContainer
-	if reopen_btn != null and reopen_btn.get_index() != part_btn.get_index() - 1:
+	if reopen_btn != null and reopen_btn.get_parent() == row and reopen_btn.get_index() != part_btn.get_index() - 1:   # (in Easy Part's bar it is not in this row)
 		row.move_child(reopen_btn, part_btn.get_index())
 	if easy_open_btn.get_index() != part_btn.get_index() + 1:
 		row.move_child(easy_open_btn, part_btn.get_index() + 1)
@@ -1369,13 +1380,14 @@ func _order_row() -> void:
 func sync() -> void:
 	var show := chrome()
 	var up := shows()
+	_place_reopen()
 	_order_row()
 	part_btn.visible = bu.on and not bu.easy_ui()
 	part_btn.set_pressed_no_signal(on)
 	for c in house_btns:
 		(c as Control).visible = not show or c == reopen_btn
 	if reopen_btn != null:
-		reopen_btn.text = "What to build" if show else ""   # icon only in the house ribbon (it is crowded there); with words here
+		reopen_btn.text = "What to build" if on else ""   # icon only in the house ribbon (it is crowded there); with words in Part, Expert or Easy
 	for t in tool_btns:
 		(tool_btns[t] as Control).visible = show
 	finish_btn.visible = show

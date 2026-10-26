@@ -15,6 +15,7 @@ extends SceneTree
 ##                not 0.3 cm); "Use in a scene" on the Easy Part bar puts the part in the set as its own prop (page STAGE, ONE undo step); the Expert
 ##                strip's "Use in a scene" does the same for an Expert part
 ##   9 POLISH     axe head face > 2500 px2 from the default camera, its edge thinner than its eye; every template framed 3/4; Expert toast clear of timeline/browser/side panel; no group caption on the Easy buttons
+##  11 PART FILE the Part props of the set saved to a file and reopened: each is there, its mesh has the same vertex count
 ## Shots in C:/Temp/claude/easypart/ (each template, a slider mid-drag). Only user:// is written (and the shots).
 var fails := 0
 var m: Node
@@ -517,5 +518,39 @@ func _init() -> void:
 		if String(p["kind"]).begins_with("part:"):
 			pf_parts += 1
 	ok(m.cur_page == "STAGE" and pf_parts == 2 and m.undo.size() == pf_ub + 1, "10 Expert Use in a scene: a second part prop (page %s, part props %d, undo +%d)" % [m.cur_page, pf_parts, m.undo.size() - pf_ub])
+	# 11 PART PROP FILE: the Part props in the set are saved with their record; reopened, each one is there with the same vertex count
+	var pv_before := _part_props()
+	var pv_n := pv_before.map(func(p): return _verts(p))
+	var pv_path := DIRT + "/part_props.json"
+	var pv_f := FileAccess.open(pv_path, FileAccess.WRITE)
+	pv_f.store_string(JSON.stringify(m.S.to_dict(m.B, false)))
+	pv_f.close()
+	m._new_scene()
+	await idle(3)
+	if m.ui_save_ask != null and m.ui_save_ask.visible:
+		m._save_ask_choose("discard")
+	await idle(2)
+	m._load_scene(pv_path)
+	await idle(6)
+	var pv_after := _part_props()
+	var pv_m := pv_after.map(func(p): return _verts(p))
+	ok(pv_before.size() >= 1 and pv_after.size() == pv_before.size() and pv_m == pv_n, "11 Part props saved and reopened: %d prop(s), vertices %s (before %s)" % [pv_after.size(), str(pv_m), str(pv_n)])
 	print("easypart: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
+
+
+## the Part props of the open scene
+func _part_props() -> Array:
+	return m.S.props.filter(func(p): return String(p["kind"]).begins_with("part:"))
+
+
+## the vertex count of a prop's meshes (what it draws)
+func _verts(p: Dictionary) -> int:
+	var n := Props.mesh(p)
+	var c := 0
+	for mi in n.find_children("*", "MeshInstance3D", true, false):
+		var msh: ArrayMesh = (mi as MeshInstance3D).mesh
+		for s in msh.get_surface_count():
+			c += (msh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+	n.free()
+	return c

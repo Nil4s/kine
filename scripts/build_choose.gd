@@ -79,6 +79,8 @@ func show_chooser() -> void:
 		return
 	open = true
 	root_box.visible = true
+	if m.ui_library != null and m.ui_library.visible:   # the object library left open (Prop pack) would sit under the cards and take their clicks
+		m.ui_library.hide_panel()
 	_settle = 4
 	_sync()
 	_place()
@@ -184,10 +186,11 @@ func _sync() -> void:
 	for c in CARDS:
 		var id: String = c["id"]
 		var why := why_not(id)
+		var left_out: bool = why != "" and m.easy != null and m.easy.on   # Easy: the not-ready cards are left out (Expert keeps them, greyed, with why)
 		(whys[id] as Label).text = why
-		(whys[id] as Label).visible = why != ""
+		(whys[id] as Label).visible = why != "" and not left_out   # a left-out card's reason goes with it
 		(cards[id] as PanelContainer).modulate = Color(1, 1, 1, 0.55) if why != "" else Color.WHITE
-		(cards[id] as PanelContainer).visible = not (why != "" and m.easy != null and m.easy.on)   # Easy: the not-ready cards are left out (Expert keeps them, greyed, with why)
+		(cards[id] as PanelContainer).visible = not left_out
 		for mode in ["easy", "expert"]:
 			var b: Button = btns[id][mode]
 			b.add_theme_stylebox_override("normal", _sb(YEL if (mode == "easy" and why == "") else Color(0.2, 0.21, 0.26), 8))

@@ -78,6 +78,22 @@ func click_ctl(c: Control) -> void:
 	await idle(2)
 
 
+## a Part tool as a user reaches it: its own button when the row shows it; else More, then the tool (1280 x 720: Fillet, Chamfer and
+## Mirror sit in More, the row is full). Clicking a hidden button's last rect hit nothing (round 10-26: Fillet never opened)
+func press_tool(pu: PartUI, t: String) -> void:
+	var b: Button = pu.tool_btns[t]
+	if b.is_visible_in_tree():
+		await click_ctl(b)
+		return
+	await click_ctl(m.ui_more)
+	m.ui_more.get_popup().hide()
+	var i: int = m._more_tools.find(b)
+	ok(i >= 0, "%s is in More at this size" % t)
+	if i >= 0:
+		m._more_pick(i)
+	await idle(2)
+
+
 func click_ctl_at(p: Vector2) -> void:
 	await ev_move(p, false)
 	await ev_mouse(p, true)
@@ -236,7 +252,7 @@ func _init() -> void:
 	states.append(ps())
 
 	# 4 FILLET
-	await click_ctl(pu.tool_btns["Fillet"])
+	await press_tool(pu, "Fillet")
 	ok(pu.dlg.size() > 0 and pu.edge_cache.size() == 12, "4 Fillet: its dialog, %d edges to pick" % pu.edge_cache.size())
 	var target := Vector3(0.05, 0.02, 0.005)   # the long top edge on the +y side
 	await click_ctl_at(m.cam.unproject_position(target))
@@ -381,7 +397,7 @@ func sword(bld: BuildUI, pu: PartUI) -> void:
 	ok(absf(vb - area * 0.008) < 1e-9 and int(pu.res["bodies"]) == 1, "11 blade extruded 8 mm both sides: volume %s (want %s)" % [E(vb), E(area * 0.008)])
 	m._turn_to(20.0, -25.0, 1.5, Vector3(0.27, 0.0, 0.0), false)
 	await idle(2)
-	await click_ctl(pu.tool_btns["Fillet"])
+	await press_tool(pu, "Fillet")
 	var edge_pt := Vector3(0.25, 0.03, 0.004)
 	await click_ctl_at(m.cam.unproject_position(edge_pt))
 	ok(pu.picked.size() == 1, "11 a blade edge picked")

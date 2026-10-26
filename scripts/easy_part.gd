@@ -35,6 +35,7 @@ var use_scene_btn: Button
 var whole_l: Label             # "Whole sword: N cm": the shape's biggest size, under the sliders (the blade slider is not the whole length)
 var easy_btn: Button
 var expert_btn: Button
+var bar_row: HBoxContainer   # the bar's row: Part's "What to build" moves in here while Easy Part is on (part_ui._place_reopen)
 var make_box: HBoxContainer
 var make_btns := {}
 var hint: PanelContainer
@@ -42,6 +43,7 @@ var hint_l: Label
 var shape_box: PanelContainer
 var shape_btns := {}
 var panel: PanelContainer
+var panel_vb: VBoxContainer   # the panel's column: it scrolls inside the panel when the window is short (1280 x 720)
 var panel_title: Label
 var chips := {}
 var rows_vb: VBoxContainer
@@ -84,6 +86,7 @@ func build(root: Control) -> void:
 	row.name = "easypart_row"
 	row.add_theme_constant_override("separation", 6)
 	bar.add_child(row)
+	bar_row = row
 	var home_b: Button = m._home_button()
 	home_b.custom_minimum_size = Vector2(110, m.TOP_H - 12)
 	home_b.add_theme_font_size_override("font_size", 15)
@@ -163,6 +166,7 @@ func build(root: Control) -> void:
 	var v := VBoxContainer.new()
 	v.name = "easypart_panel_vb"
 	v.add_theme_constant_override("separation", 6)
+	panel_vb = v
 	panel.add_child(v)
 	panel_title = Label.new()
 	panel_title.name = "easypart_panel_title"
@@ -198,7 +202,7 @@ func build(root: Control) -> void:
 	v.add_child(foot)
 	back_btn = Button.new()
 	back_btn.name = "easypart_back"
-	back_btn.text = "Back to the first one"
+	back_btn.text = "Reset"   # (was "Back to the first one": the foot wrapped to two rows and the panel ran past the clear view at 1280 x 720)
 	back_btn.focus_mode = Control.FOCUS_NONE
 	back_btn.custom_minimum_size = Vector2(0, 34)
 	back_btn.add_theme_font_size_override("font_size", 14)
@@ -799,6 +803,11 @@ func _sync_shape() -> void:
 		(shape_btns[k] as Button).set_pressed_no_signal(k == shape)
 
 
+## the panel's height if it is not cut short: its column plus its own margins
+func _panel_need() -> float:
+	return panel_vb.get_combined_minimum_size().y + panel.get_theme_stylebox("panel").get_minimum_size().y
+
+
 ## the layout, from PartUI.layout(cl): the clear view's rectangle
 func layout(cl: Rect2) -> void:
 	if not active():
@@ -819,19 +828,19 @@ func layout(cl: Rect2) -> void:
 	# the panel on the right, as tall as it needs; the words under the sliders go first when the room is short
 	var avail := cl.end.y - top - 4.0
 	panel.reset_size()
-	var need := panel.get_combined_minimum_size().y
+	var need := _panel_need()
 	if need > avail and not _compact:
 		_compact = true
 		_rows_sig = ""
 		_rows_sync()
 		panel.reset_size()
-		need = panel.get_combined_minimum_size().y
+		need = _panel_need()
 	elif need < avail - 70.0 and _compact:
 		_compact = false
 		_rows_sig = ""
 		_rows_sync()
 		panel.reset_size()
-		need = panel.get_combined_minimum_size().y
+		need = _panel_need()
 	panel.size = Vector2(PW, minf(need, avail))
 	panel.position = Vector2(cl.end.x - PW - 8.0, top)
 	status.reset_size()
