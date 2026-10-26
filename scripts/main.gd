@@ -17984,6 +17984,20 @@ func _pv_start(f: Dictionary) -> void:
 	_pv_job = job
 
 
+## a preview worker (Fixer.propose on a copy) shares STATIC caches with the main thread (FrameMemo, PoseCache, Scene's memos): a Fix, a
+## Fix all or a realism judge run on the main thread while it works is a data race (a native crash, not a script error). Every
+## main-thread run of those waits for the worker first; its answer is kept, the preview is not shown (the cards are about to change).
+func _pv_quiesce() -> void:
+	if _pv_job.is_empty():
+		return
+	WorkerThreadPool.wait_for_task_completion(_pv_job["task"])
+	_pv_job = {}
+	_previews.clear()
+	_pv_gen += 1
+	_pv_hover = {}
+	ov.fix_preview(S, [], 0.0)
+
+
 ## called every frame: collect a finished preview job, show it if the mouse is still on its button, start the next
 func _pv_poll() -> void:
 	if _pv_job.is_empty() or not WorkerThreadPool.is_task_completed(_pv_job["task"]):
@@ -18014,6 +18028,7 @@ func _fix_layer(f: Dictionary) -> void:
 	_fixing = true
 	_say("fixing %s on a layer... (it plays the scene to check the fix)" % f["rule"])
 	await get_tree().process_frame
+	_pv_quiesce()
 	var r := LayerFix.make(f, S, ov.GB, _sm)
 	if r["ok"]:
 		_step_hint = "Fix on a layer"
@@ -18045,6 +18060,7 @@ func _fix(f: Dictionary) -> void:
 	_say("fixing %s on card %d... (it plays the scene to check the fix)" % [f["rule"], f["card"] + 1])
 	await get_tree().process_frame
 	await get_tree().process_frame
+	_pv_quiesce()
 	var u := _snapshot()
 	var t0 := Time.get_ticks_msec()
 	var r: Dictionary = Fixer.apply(f, S, ov.GB, _sm)
@@ -18101,7 +18117,9 @@ func _fix_all() -> void:
 	var total := findings.filter(func(x): return Fixer.label(x, S) != "").size()
 	var tried := {}
 	var kept := 0
-	var refused := []   # "rule at t s: why" for each fix Fixer put back
+	var refused := {}   # key -> "rule at t s: why" for each fix Fixer put back (dropped again if a later try keeps it)
+	var refused_at := {}   # key -> how many fixes were kept when it was refused (a refusal is tried once more only if the scene changed since)
+	var retried := {}
 	var worst := 0      # the longest single Fixer.apply (ms): the window is frozen that long
 	var n := 0
 	var cap := total * 3 + 5   # a kept fix can surface new findings; this bounds the run
@@ -18112,9 +18130,19 @@ func _fix_all() -> void:
 				nxt = f
 				break
 		if nxt == null:
-			break
+			# a fix that was refused ("made it worse", "did not remove it") may work now that other fixes changed the clip: once more
+			# each (a refusal for "nothing could be changed" is a limit of the body, it does not move with the other cards)
+			for rk in refused.keys():
+				if not retried.has(rk) and int(refused_at[rk]) < kept and not String(refused[rk]).contains("nothing could be changed"):
+					retried[rk] = true
+					tried.erase(rk)
+					nxt = true
+			if nxt == null:
+				break
+			continue
 		var f: Dictionary = nxt
-		tried[_fix_key(f)] = true
+		var fk := _fix_key(f)
+		tried[fk] = true
 		n += 1
 		var prog := "Fixing %d of %d..." % [n, maxi(total, n)]
 		if is_instance_valid(_fixall_btn):
@@ -18126,15 +18154,19 @@ func _fix_all() -> void:
 		# the fix runs on the MAIN thread, exactly as the Fix button runs it: Fixer's sampler keeps static caches (FrameMemo,
 		# PoseCache, Rulebook) that the main thread also uses, so a worker would race them. The window waits for each fix
 		# (its worst case is in the report); the frame is given back before each one.
+		_pv_quiesce()
 		var t0 := Time.get_ticks_usec()
 		var r: Dictionary = Fixer.apply(f, S, ov.GB, _sm)
 		worst = maxi(worst, (Time.get_ticks_usec() - t0) / 1000)
 		if r["kept"]:
 			kept += 1
+			refused.erase(fk)
 			findings = r["after"]   # the scene the fix left, checked by Fixer
 			_sm = {}
 			_bake_drop()   # the cards changed in place: the bake still holds the old poses
-			refused.append("%s at %.2f s: %s" % [f["rule"], f["t"], String(r["msg"]).left(120)])
+		else:
+			refused[fk] = "%s at %.2f s: %s" % [f["rule"], f["t"], String(r["msg"]).replace("Not applied: ", "").left(170)]
+			refused_at[fk] = kept
 	var not_reached := []
 	for f in findings:
 		if Fixer.label(f, S) != "" and not tried.has(_fix_key(f)):
@@ -18150,12 +18182,13 @@ func _fix_all() -> void:
 		_ps().apply(B, playhead)
 	_fixall_on = false
 	_fixing = false
-	_fixall_last = {"tried": n, "kept": kept, "total": total, "refused": refused, "not_reached": not_reached, "no_fix": no_fix,
+	var refused_list: Array = refused.values()
+	_fixall_last = {"tried": n, "kept": kept, "total": total, "refused": refused_list, "not_reached": not_reached, "no_fix": no_fix,
 		"worst_ms": worst, "ms": Time.get_ticks_msec() - t_run, "stopped": _fixall_stop}
 	_check(findings)   # the list again, from the scene the run left (no second Check)
 	_refresh()
 	var need := []
-	need.append_array(refused.map(func(s): return "skipped, it would make the clip worse (" + s + ")"))
+	need.append_array(refused_list.map(func(s): return "could not fix: " + s))
 	need.append_array(not_reached)
 	need.append_array(no_fix.map(func(s): return "no automatic fix: " + s))
 	_say("Fix all: fixed %d of %d in %.1f s%s.  %s" % [kept, total, (Time.get_ticks_msec() - t_run) / 1000.0,
