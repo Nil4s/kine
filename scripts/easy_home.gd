@@ -596,6 +596,9 @@ func _process(dt: float) -> void:
 		_gen_tick(dt)
 	if _vid_busy:
 		_video_tick()
+	if m.easy.building != null and m.easy.building.is_active():   # EASY BUILDING has its own screen: no "What should he do?" panel, strip or prop bar over the house
+		for c in [panel, strip, _pbar, _copy_box, _close, _scrub_row]:
+			c.visible = false
 
 
 ## THE PROP BAR: shown in Easy while the scene has props. With a prop picked (click it in the view, or Next prop) it names it and

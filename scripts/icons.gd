@@ -45,6 +45,8 @@ const DRAW := {
 	"build_wall": [["box", Rect2(3, 9, 18, 6), 1.8], ["seg", Vector2(9, 9), Vector2(9, 15), 1.4], ["seg", Vector2(15, 9), Vector2(15, 15), 1.4]],
 	"build_pull": [["seg", Vector2(12, 20), Vector2(12, 6), 2.2], ["seg", Vector2(6.5, 11), Vector2(12, 5.5), 2.2], ["seg", Vector2(17.5, 11), Vector2(12, 5.5), 2.2], ["seg", Vector2(5, 21), Vector2(19, 21), 1.8]],
 	"build_opening": [["box", Rect2(4, 3.5, 16, 17), 1.8], ["box", Rect2(8.5, 8, 7, 12.5), 0]],
+	"build_door": [["box", Rect2(6, 3.5, 12, 17), 1.8], ["disc", Vector2(15, 12.5), 1.4]],
+	"build_window": [["box", Rect2(4, 4, 16, 16), 1.8], ["seg", Vector2(12, 4), Vector2(12, 20), 1.4], ["seg", Vector2(4, 12), Vector2(20, 12), 1.4]],
 	"build_floor": [["seg", Vector2(12, 4), Vector2(21, 9), 1.8], ["seg", Vector2(21, 9), Vector2(12, 14), 1.8], ["seg", Vector2(12, 14), Vector2(3, 9), 1.8], ["seg", Vector2(3, 9), Vector2(12, 4), 1.8],
 		["seg", Vector2(3, 14), Vector2(12, 19), 1.8], ["seg", Vector2(12, 19), Vector2(21, 14), 1.8]],
 	"build_roof": [["seg", Vector2(3, 12), Vector2(12, 4), 1.9], ["seg", Vector2(12, 4), Vector2(21, 12), 1.9], ["box", Rect2(6, 12, 12, 8), 1.8]],

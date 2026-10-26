@@ -288,7 +288,9 @@ func _init() -> void:
 	var lr: Rect2 = logo.get_global_rect() if logo != null else Rect2()
 	ok(logo != null and logo.texture != null and lr.size.y >= 38.0 and lr.size.y <= 44.0 and lr.size.x >= 100.0, "11 logo: the KINE mark is ~40 px tall and a whole mark wide (%s)" % lr.size)
 	ok(ss.find_child("easy_animation", true, false) != null and ss.find_child("expert_animation", true, false) != null, "11 cards: ANIMATION keeps its Easy and Expert buttons (it has an Easy flow)")
-	for k in ["modeling", "building"]:
+	# BUILDING has its own Easy flow since Easy Building (scripts/easy_build.gd; the owner's OK 2026-10-26 to move it out of the "coming" list)
+	ok(ss.find_child("easy_building", true, false) != null and ss.find_child("expert_building", true, false) != null and ss.find_child("easy_soon_building", true, false) == null, "11 cards: BUILDING has Easy and Expert buttons and no 'Easy mode coming' line (Easy Building)")
+	for k in ["modeling"]:
 		var soon := ss.find_child("easy_soon_" + k, true, false) as Label
 		var starts: Array = ss._cards[k].find_children("start_" + k, "Button", true, false)
 		ok(ss.find_child("easy_" + k, true, false) == null and ss.find_child("expert_" + k, true, false) == null, "11 %s card: no Easy / Expert buttons (no Easy flow: no button that lies)" % k)
