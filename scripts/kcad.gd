@@ -19,7 +19,7 @@ static func available() -> bool:
 static func _n():
 	if not _tried:
 		_tried = true
-		if ClassDB.class_exists("KineCAD"):
+		if NativeExt.ensure("kine_cad", "KineCAD"):
 			_impl = load(NATIVE)
 			if _impl == null:
 				_err = "KineCAD loaded but " + NATIVE + " would not compile"

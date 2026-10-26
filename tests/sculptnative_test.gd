@@ -128,8 +128,8 @@ func time_stroke(src: KMesh, w: Dictionary, params: Dictionary, native: bool) ->
 
 
 func _init() -> void:
+	var door = KMeshSculpt.native_door()   # loads native/kine_native.gdext when its DLL is there
 	have = ClassDB.class_exists("KineSculptNative")
-	var door = KMeshSculpt.native_door()
 	ok(true, "1 DLL: KineSculptNative %s%s" % ["loaded" if have else "MISSING (native bars SKIP)", ", door ok" if door != null else ""])
 	if have:
 		ok(door != null, "1 DLL: the door script loads (version %d)" % door.version())

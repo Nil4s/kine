@@ -85,7 +85,7 @@ static func native_door():
 		return null
 	if not _door_tried:
 		_door_tried = true
-		if ClassDB.class_exists("KineSculptNative"):
+		if NativeExt.ensure("kine_native", "KineSculptNative"):
 			_door = load("res://scripts/kmesh_sculpt_native.gd")
 	return _door
 
