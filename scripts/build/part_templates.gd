@@ -33,6 +33,14 @@ const T := {
 		{"k": "height", "label": "Height", "lo": 200.0, "hi": 800.0, "def": 400.0, "step": 10.0, "words": ["Lower", "Taller"]},
 		{"k": "depth", "label": "Depth", "lo": 200.0, "hi": 800.0, "def": 400.0, "step": 10.0, "words": ["Shallower", "Deeper"]},
 		{"k": "lid", "label": "Lid overhang", "lo": 0.0, "hi": 60.0, "def": 20.0, "step": 5.0, "words": ["None", "More"]}]},
+	# VEHICLE PARTS (B3, scripts/vehicle.gd): not in ORDER, so no Easy chip: a car body and one wheel
+	"car": {"title": "Car body", "params": [
+		{"k": "body_length", "label": "Length", "lo": 1500.0, "hi": 5000.0, "def": 2400.0, "step": 50.0, "words": ["Shorter", "Longer"]},
+		{"k": "body_width", "label": "Width", "lo": 1000.0, "hi": 2200.0, "def": 1200.0, "step": 20.0, "words": ["Narrower", "Wider"]},
+		{"k": "body_height", "label": "Height", "lo": 300.0, "hi": 1000.0, "def": 500.0, "step": 10.0, "words": ["Lower", "Taller"]}]},
+	"wheel": {"title": "Wheel", "params": [
+		{"k": "radius", "label": "Radius", "lo": 100.0, "hi": 600.0, "def": 300.0, "step": 10.0, "words": ["Smaller", "Bigger"]},
+		{"k": "width", "label": "Width", "lo": 50.0, "hi": 400.0, "def": 200.0, "step": 10.0, "words": ["Thinner", "Wider"]}]},
 }
 
 
@@ -170,6 +178,16 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			_ex(fs, _sk(fs, "front", _poly([Vector2(0, sh), Vector2(w, sh), Vector2(w, 0), Vector2(w - lt, 0), Vector2(w - lt, sh - st), Vector2(lt, sh - st), Vector2(lt, 0), Vector2(0, 0)])), "extrude", d, "new")
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(0, sh - st), Vector2(w, sh + bh))]), "extrude", 30.0, "join")
 			_ex(fs, _sk(fs, "right", [_rect(Vector2(-(d - lt), 0), Vector2(-lt, sh - st))]), "extrude", w, "cut")
+		"car":
+			# a box on the ground: length along the Top plane's sketch y (= -Z, the car drives along +Z), width along X, height up
+			var L: float = p["body_length"]
+			var W: float = p["body_width"]
+			_ex(fs, _sk(fs, "top", [_rect(Vector2(-W * 0.5, -L * 0.5), Vector2(W * 0.5, L * 0.5))]), "extrude", float(p["body_height"]), "new")
+		"wheel":
+			# a tyre: the profile (width x radius) turned about the sketch's x axis = world X, the axle (side to side)
+			var R: float = p["radius"]
+			var w: float = p["width"]
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(-w * 0.5, 0.0), Vector2(w * 0.5, R))]), "revolve", 0.0, "new")
 	return fs
 
 
