@@ -66,6 +66,8 @@ static func load_house(nm: String) -> Dictionary:
 static func list() -> Array:
 	skipped = []
 	var out: Array = []
+	if not DirAccess.dir_exists_absolute(_abs(dir)):   # no house saved yet: get_files_at on a missing folder logs an engine ERROR and costs 6-46 ms (library B9)
+		return out
 	var files := DirAccess.get_files_at(_abs(dir))
 	files.sort()
 	for f in files:
