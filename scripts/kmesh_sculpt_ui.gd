@@ -21,6 +21,7 @@ extends Node
 ## Right / middle mouse still orbit and pan the camera. The brush ring follows the mouse on the surface.
 
 const R := 0.3
+const REMESH_VOXEL := 0.015   # M1: Voxel remesh of the sphere: 1.5 cm voxels, about 7 500 quads (scripts/kmesh_voxel_remesh.gd)
 const SPLIT := 24
 const AT := Vector3(1.0, R, 0.0)   # on the floor, beside the fighter at the origin
 const KEYS := {KEY_D: KMeshSculpt.DRAW, KEY_C: KMeshSculpt.CLAY, KEY_I: KMeshSculpt.INFLATE, KEY_S: KMeshSculpt.SMOOTH,
@@ -366,6 +367,21 @@ func _draw_overlay() -> void:
 	var sc := cam.unproject_position(c)
 	var rp := cam.unproject_position(c + cam.global_transform.basis.x * radius * view.global_transform.basis.get_scale().x)
 	_ov.draw_arc(sc, sc.distance_to(rp), 0.0, TAU, 48, Tok.c("pick_hover"), 1.5, true)
+
+
+## M1: Voxel remesh of the sphere (ribbon SPHERE group, scripts/kmesh_voxel_remesh.gd): the sphere becomes an even mesh at
+## REMESH_VOXEL; one undo step (Ctrl+Z takes it back). The sphere keeps its place and its view; its mask channel starts again.
+func remesh() -> void:
+	if not on or view == null:
+		return
+	var r := KMeshVoxelRemesh.apply(mesh, REMESH_VOXEL, undo)
+	if not r["ok"]:
+		m._say("Remesh: " + String(r["why"]))
+		return
+	view.set_mesh(mesh)
+	view.rebuild()
+	tint.refresh(true)
+	m._say("Remesh: the sphere is an even mesh of %d quads (1.5 cm). Ctrl+Z takes it back" % mesh.faces.size())
 
 
 ## Ctrl+Z / Ctrl+Shift+Z, and the top bar's Undo / Redo buttons while the sphere shows (walk13: they only knew pose undo)
