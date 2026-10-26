@@ -13815,18 +13815,25 @@ func _scenes_opening() -> void:
 func _fit_scene_list() -> void:
 	await get_tree().process_frame   # the popup is given its own size on the show: after that frame
 	var pop := ui_scenes.get_popup()
-	if not pop.visible:
-		return
 	var vp := Vector2i(get_viewport().get_visible_rect().size)
 	var cap := vp.y - 16
 	pop.max_size = Vector2i(0, cap)
-	pop.size = Vector2i(mini(pop.size.x, vp.x), mini(pop.size.y, cap))
-	# the popup is kept inside the window: its place is clamped as well (it opened under the Scene button, low in a small window)
-	pop.position = Vector2i(clampi(pop.position.x, 0, maxi(0, vp.x - pop.size.x)), clampi(pop.position.y, 0, maxi(0, vp.y - pop.size.y)))
-	await get_tree().process_frame
-	pop.position = Vector2i(clampi(pop.position.x, 0, maxi(0, vp.x - pop.size.x)), clampi(pop.position.y, 0, maxi(0, vp.y - pop.size.y)))
-	if ui_scenes.selected >= 0:
-		pop.scroll_to_item(ui_scenes.selected)
+	# the popup grows for a few frames after the show (its rows take their pictures), so the fit follows it until its size stops
+	# changing: a place clamped at the first size would leave the bottom off the window once the list is full height
+	var last := Vector2i(-1, -1)
+	for _i in 12:
+		if not pop.visible:
+			return
+		pop.size = Vector2i(mini(pop.size.x, vp.x), mini(pop.size.y, cap))
+		# the popup is kept inside the window: its place is clamped as well (it opened under the Scene button, low in a small window)
+		pop.position = Vector2i(clampi(pop.position.x, 0, maxi(0, vp.x - pop.size.x)), clampi(pop.position.y, 0, maxi(0, vp.y - pop.size.y)))
+		# the open scene is in view: asked for at each height, so the last one wins (a scroll range that is still growing keeps 0)
+		if ui_scenes.selected >= 0:
+			pop.scroll_to_item(ui_scenes.selected)
+		if pop.size == last:
+			break
+		last = pop.size
+		await get_tree().process_frame
 
 
 ## a scene's picture is ready: its row in the list gets it (the row is found by its file, so a re-list in between is safe)
