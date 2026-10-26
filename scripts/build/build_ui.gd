@@ -17,6 +17,8 @@ extends Node
 ##   PIECE    a picker of big icon cards on the left (Stairs: straight, L; Furniture; Fight blocks), then a click inside a room places it (centre on
 ##            the 0.5 m grid, kept inside the room's walls); a click on a piece selects it: its named numbers, the round Rotate arrow (90 deg),
 ##            Remove (or Delete). Stairs follow floor_height, cut the floor above and are a ramp for the fighter (scripts/build/build_pieces.gd)
+##   MY HOUSES the top bar's name box, Save house and Open house (scripts/build/houses.gd, houses_ui.gd): a house saved by name under user://houses/,
+##            with its picture; the library's My houses lists them
 ## The record (Scene.building, scripts/build/building.gd) is the only truth; the mesh here is regenerated from it after every
 ## change. WORDS (phase 1e, build_words.gd + build_words_ui.gd) is a tool: a sentence -> a plan -> Build it. Undo: ONE main._push_undo()
 ## per action, taken BEFORE the record changes (a room: on release; a door: on the click; a slide: on its first move).
@@ -104,6 +106,7 @@ var type_box: PanelContainer
 var chip: Button
 var tool_btns := {}
 var words: BuildWordsUI
+var houses: HousesUI           # My houses: the name box, Save house, Open house (scripts/build/houses_ui.gd)
 var bp: BlueprintUI            # the Blueprint sheet (phase 1g)
 var bp_btn: Button
 var fields := {}               # param -> LineEdit
@@ -466,6 +469,8 @@ func _build_ui() -> void:
 	words.setup(self)
 	bp = BlueprintUI.new()
 	bp.setup(self)
+	houses = HousesUI.new()
+	houses.setup(self)
 
 
 ## a ribbon button of this page: its icon (scripts/icons.gd, build_*) and one word
@@ -663,6 +668,8 @@ func sync() -> void:
 	if BuildStage.refresh(m.S):
 		m._props_show()   # the set follows the house: its collision is the record's again
 	_stage_sync()
+	if houses != null:
+		houses.sync()
 	if bd.is_empty() or bool(bd.get("readonly", false)) or bd.get("rooms", []).is_empty():
 		house.mesh = null
 	else:
@@ -767,6 +774,8 @@ func _layout() -> void:
 		type_box.position = Vector2(cl.end.x - type_box.size.x - 8.0, cl.position.y + 6.0)
 	if words != null:
 		words.layout(cl)
+	if houses != null:
+		houses.layout(cl)
 	chip.visible = on
 	if on:
 		chip.reset_size()
