@@ -20236,6 +20236,10 @@ func _body_outline_show(on: bool) -> void:
 	body_skin.next_pass = _body_outline if on else null
 	light_key.shadow_enabled = not on   # the soft look has none (acne on the skinned mesh); a rig's key casts its own
 	body_skin.rim_enabled = on   # nor its soft rim, nor SSAO and the soft penumbra: the rig's own lights are the picture
+	_body_look_on = on
+	body_skin.roughness = 0.92 if on else 0.55   # and the skin it had before look D (the clay's brighter albedo flattens a rim light's edge)
+	body_skin.metallic_specular = 0.25 if on else 0.5
+	_body_colour_show()
 	world_env.ssao_enabled = on
 	for L in [light_key, light_rim, light_fill]:
 		L.light_angular_distance = 4.0 if (on and L == light_key) else 0.0
@@ -20243,7 +20247,7 @@ func _body_outline_show(on: bool) -> void:
 
 func _body_colour_show() -> void:
 	if body_skin != null:
-		body_skin.albedo_color = BODY_COLOURS[body_colour][1]
+		body_skin.albedo_color = BODY_SKIN_PRE_D if (body_colour == 0 and not _body_look_on) else BODY_COLOURS[body_colour][1]
 
 
 func _prop_del() -> void:
@@ -21769,6 +21773,8 @@ const MULTI_FRAMES := 120        # the rig's least-squares stage reads at most t
 var photomat := PhotoMaterialUI.new(self)   # MATERIAL FROM A PHOTO (scripts/photo_material_ui.gd, E15)
 var body_mats := {}   # part -> the name of its photo material (user://materials/<name>); view state, undone with the rest
 var body_skin: StandardMaterial3D   # the skin material every body part without a photo material wears (_body); His colour sets its albedo
+var _body_look_on := true   # false while a lighting preset is lit (the pre-D skin: BODY_SKIN_PRE_D, roughness .55)
+const BODY_SKIN_PRE_D := Color(0.78, 0.72, 0.64)
 var _outline_off := {}   # the parts whose outline is off now (they wear a tint)
 var _body_outline: ShaderMaterial   # the skin's sky outline (its next_pass), kept to put back after a lighting preset
 var body_colour := 0               # HIS COLOUR: the index in BODY_COLOURS; view state, undone with the rest (not saved, as body_mats is not)

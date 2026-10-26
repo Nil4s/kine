@@ -165,6 +165,6 @@ func _init() -> void:
 				off.append(await fps())
 			skin.next_pass = o
 		var added_ms := 1000.0 / median(on) - 1000.0 / median(off)   # at 600+ fps, 10 % is 0.15 ms: under the jitter, so the bar is 10 % OR under 0.5 ms a frame
-		ok(median(on) >= 0.9 * median(off) or added_ms < 0.5, "5 FPS %s%s: outline %.1f vs none %.1f (%.0f %%, +%.2f ms; bar: >= 90 %% or < 0.5 ms)" % [scene, " (paused on card 3)" if scene == "six" else "", median(on), median(off), 100.0 * median(on) / median(off), added_ms])
+		ok(median(on) >= 0.9 * median(off) or added_ms < 0.5, "5 FPS %s%s: outline %.1f vs none %.1f (%.0f %%, ratio %.3f, +%.2f ms; bar: >= 90 %% or < 0.5 ms)" % [scene, " (paused on card 3)" if scene == "six" else "", median(on), median(off), 100.0 * median(on) / median(off), median(on) / median(off), added_ms])
 	print("done: %d fails" % fails)
 	quit(1 if fails > 0 else 0)
