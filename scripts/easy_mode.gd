@@ -327,7 +327,7 @@ func set_on(v: bool, save := true) -> void:
 		m._layout_bottom()
 		m._fit_rows.call_deferred()
 		if on:
-			frame_clip.call_deferred()   # the free rect is the Easy panel's now: the body is framed in it again
+			frame_clip.bind(true).call_deferred()   # the free rect is the Easy panel's now: the body is framed in it again (keep_body: framing moves the camera, never the pose)
 	if m != null and m.tag != null:
 		m._refresh()   # the body's pick light, name tag, dots and axis names follow the mode now (EASY QUIET in main._refresh), at boot too
 	if m != null and m.ui_status != null and m.is_welcome(m.ui_status.text):
@@ -502,7 +502,7 @@ func follow_target() -> Vector3:
 
 func _resized() -> void:
 	if on:
-		frame_clip.call_deferred()
+		frame_clip.bind(true).call_deferred()   # a resize re-frames the body; it never poses it (no undo step for a pose change)
 
 
 # ---------------------------------------------------------------- the bar's actions
