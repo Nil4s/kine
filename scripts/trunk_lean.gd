@@ -90,6 +90,15 @@ static func _pt(clip: Dictionary, f: int, nm: String) -> Vector3:
 ## kicking leg for a kick), "over" (deg past the range, > 0 = flagged), "what" ("back" / "forward" / "sideways"), "point"
 ## (the strike's contact point name, "" = none)}. Card 0's own hold is read with the general range.
 static func windows(S: Scene, B: Body) -> Array:
+	var keep := FrameMemo.slice_ms   # a plain call never waits for a frame
+	FrameMemo.slice_ms = 0.0
+	var r: Array = windows_co.call(S, B)
+	FrameMemo.slice_ms = keep
+	return r
+
+
+## windows() inside a time-sliced run (FrameMemo.slice_begin); [] = cancelled
+static func windows_co(S: Scene, B: Body) -> Array:
 	var out := []
 	if S.cards.size() < 1:
 		return out
@@ -103,12 +112,20 @@ static func windows(S: Scene, B: Body) -> Array:
 		if _memo.has(key):
 			S.stepped = was
 			return (_memo[key] as Array).duplicate(true)
-	var clip := EventQuery.sample([{"S": S, "B": B, "xf": Transform3D.IDENTITY, "name": String(S.name)}], FPS, {"cross": false, "bal": false}, not main)
+	var clip: Dictionary = await EventQuery.sample_co([{"S": S, "B": B, "xf": Transform3D.IDENTITY, "name": String(S.name)}], FPS, {"cross": false, "bal": false}, not main)
+	if clip.is_empty():
+		S.stepped = was
+		B.set_state(keep)
+		return []
 	var n: int = clip["n"]
 	var rest := rest_pitch(B)
 	var ts := S.times()
 	var seen := {}
 	for k in S.cards.size():
+		if FrameMemo.slice_ms > 0.0 and not await FrameMemo.pump(0.9):
+			S.stepped = was
+			B.set_state(keep)
+			return []
 		var f0 := 0 if k == 0 else int(round(float(ts[k][0]) * FPS))
 		var f1 := mini(int(round(float(ts[k][2]) * FPS)), n - 1)
 		if f1 < f0:
@@ -162,8 +179,16 @@ static func _move_words(it: Dictionary) -> String:
 
 ## Check's findings: one WARN per card window whose worst frame is past its range. v = deg past it
 static func findings(S: Scene, B: Body) -> Array:
+	var keep := FrameMemo.slice_ms
+	FrameMemo.slice_ms = 0.0
+	var r: Array = findings_co.call(S, B)
+	FrameMemo.slice_ms = keep
+	return r
+
+
+static func findings_co(S: Scene, B: Body) -> Array:
 	var out := []
-	for it in windows(S, B):
+	for it in await windows_co(S, B):
 		if float(it["over"]) <= 0.0:
 			continue
 		var nm: Array = it["norm"]

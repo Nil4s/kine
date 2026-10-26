@@ -203,6 +203,15 @@ static var audit_diff := 0
 
 
 static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contacts := false, prefix_t := -INF) -> Dictionary:
+	var keep := FrameMemo.slice_ms   # the plain call never waits for a frame, even while a sliced Check is mid-run
+	FrameMemo.slice_ms = 0.0
+	var r: Dictionary = sample_co.call(S, B, base, t0, t1, contacts, prefix_t)   # .call: a coroutine that never suspends returns at once
+	FrameMemo.slice_ms = keep
+	return r
+
+
+## sample() that gives the frame back every FrameMemo.slice_ms (the Check button); {} = cancelled
+static func sample_co(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contacts := false, prefix_t := -INF) -> Dictionary:
 	var tk_all := Time.get_ticks_usec()
 	var n := int(ceil(S.length() * FPS)) + 1
 	var was_stepped := S.stepped
@@ -229,7 +238,10 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 			r["cf"] = carry_form(S, t, B)
 		return r
 	if not reuse and not contacts and not prefix and FrameMemo.on:
-		raw = FrameMemo.frames("rb", S, B, n, FPS, mk)   # the realism score: only the frames a fix changed are played again
+		raw = await FrameMemo.frames_co("rb", S, B, n, FPS, mk)   # the realism score: only the frames a fix changed are played again
+		if FrameMemo.abort and raw.is_empty():
+			S.stepped = was_stepped
+			return {}
 	else:
 		for i in n:
 			var t := minf(i / FPS, S.length())
@@ -240,6 +252,9 @@ static func sample(S: Scene, B: Body, base := {}, t0 := INF, t1 := -INF, contact
 				raw.append(base["_raw"][i])
 				continue
 			raw.append(mk.call(i, t))
+			if FrameMemo.slice_ms > 0.0 and not await FrameMemo.pump(float(i) / float(n)):
+				S.stepped = was_stepped
+				return {}
 			if contacts and not B.contacts().is_empty():
 				bad += 1
 	S.stepped = was_stepped
@@ -1155,11 +1170,22 @@ static func head_quiet(S: Scene, sm: Dictionary) -> Array:
 ## every rule over a scene; sorted by time
 ## sm: a sample already taken of this scene (the Fix button re-samples only a window)
 static func check(S: Scene, B: Body, sm := {}) -> Array:
+	var keep := FrameMemo.slice_ms
+	FrameMemo.slice_ms = 0.0
+	var r: Array = check_co.call(S, B, sm)
+	FrameMemo.slice_ms = keep
+	return r
+
+
+## check() that gives the frame back between its rule groups and inside the sampling; [] = cancelled
+static func check_co(S: Scene, B: Body, sm := {}) -> Array:
 	if S.cards.size() < 2:
 		return []
 	var tk := Time.get_ticks_usec()
 	if sm.is_empty():
-		sm = sample(S, B)
+		sm = await sample_co(S, B)
+		if sm.is_empty():
+			return []   # cancelled
 		FrameMemo.tick("rb sample total", tk)
 	tk = Time.get_ticks_usec()
 	var out := []
@@ -1180,9 +1206,13 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 	out += rule_hitch(sm, holds)
 	FrameMemo.tick("rules fist/feet/hitch", tk)
 	tk = Time.get_ticks_usec()
+	if not await FrameMemo.pump(0.9):
+		return []
 	out += rule_loop(S, B)
 	FrameMemo.tick("rules loop", tk)
 	tk = Time.get_ticks_usec()
+	if not await FrameMemo.pump(0.9):
+		return []
 	out += rule_balance(sm)
 	out += rule_props(S, sm)
 	out += rule_floats(sm)
@@ -1192,6 +1222,8 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 	out += rule_jump(S, B)
 	FrameMemo.tick("rules rest", tk)
 	tk = Time.get_ticks_usec()
+	if not await FrameMemo.pump(0.9):
+		return []
 	if HumanLimits.on:
 		out += HumanLimits.findings(S, B)   # ROADMAP 10: only when asked ("Check: could a human do this?"): the bars are
 		# not yet checked against the papers (a real bat swing read trunk 1087 deg/s vs a 601 bar; elite hitters reach ~900+)
@@ -1202,13 +1234,19 @@ static func check(S: Scene, B: Body, sm := {}) -> Array:
 		out += Feasible.verdict_finding(S, fz) + fz["findings"].filter(func(f): return f["rule"] != "COUPLED LIMIT")   # N028: listed once, by HumanLimits
 	FrameMemo.tick("feasible total", tk)
 	tk = Time.get_ticks_usec()
+	if not await FrameMemo.pump(0.9):
+		return []
 	if attack:
 		out += WeightXfer.findings(S, B, sm)   # N029: each strike starts with the weight on the foot it needs (scripts/weight_xfer.gd)
 	FrameMemo.tick("rules weight_xfer", tk)
 	tk = Time.get_ticks_usec()
-	out += TrunkLean.findings(S, B)   # Nick 10-23: the trunk leaning past what people do in that move (scripts/trunk_lean.gd)
+	if not await FrameMemo.pump(0.9):
+		return []
+	out += await TrunkLean.findings_co(S, B)   # Nick 10-23: the trunk leaning past what people do in that move (scripts/trunk_lean.gd)
 	FrameMemo.tick("rules trunk_lean", tk)
 	tk = Time.get_ticks_usec()
+	if not await FrameMemo.pump(0.9):
+		return []
 	out += BodyAssert.findings(S, B)   # N002: the scene's saved assertions, re-checked on every Check
 	FrameMemo.tick("rules body_assert", tk)
 	for f in out:

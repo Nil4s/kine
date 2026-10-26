@@ -38,7 +38,7 @@ func commands(add: Callable) -> void:
 
 ## the header's tail on the scene strip: "" until the score was made for exactly these cards
 func tag() -> String:
-	if res.is_empty() or key != var_to_str(m.S.cards):
+	if res.is_empty() or key != str(m.S.cards.hash()):
 		return ""
 	return "  ·  realism %d" % roundi(float(res["score"]))
 
@@ -55,7 +55,7 @@ func gather(db: Dictionary) -> Dictionary:
 	FrameMemo.on = true   # only the frames a fix changed are played again (frame_memo.gd)
 	var body0: Dictionary = m.B.state()   # a view: the body comes back as it was
 	var t0 := Time.get_ticks_usec()
-	var ck := var_to_str(S.cards) + var_to_str(S.body) + var_to_str(S.asserts)   # a judge's answer is kept while the cards and the body are the same (N005: and the saved N002 lines, which Check grades)
+	var ck := str(S.cards.hash()) + var_to_str(S.body) + var_to_str(S.asserts)   # a judge's answer is kept while the cards and the body are the same (N005: and the saved N002 lines, which Check grades)
 	if String(_memo.get("key", "")) != ck:
 		m._bake_validate()
 		var sm := Rulebook.sample(S, m.ov.GB)
@@ -232,9 +232,9 @@ func show() -> void:
 		m._say("Realism score needs a scene of two cards or more: press Enter to add the body as a card (two at least), or open a scene in the list below")
 		return
 	if int(m.tc_ui.db.get("n", 0)) == 0:
-		m._say("realism score: reading your scenes for the timing coach (once, about 20 s)...")
-		await m.get_tree().process_frame
-		m.tc_ui.db = MotionMatch.build()
+		await m.tc_ui._database()   # a few scenes per frame (a click while it reads cancels)
+		if int(m.tc_ui.db.get("n", 0)) == 0 and FrameMemo.abort:
+			return
 	refresh()
 	_panel()
 
@@ -244,9 +244,9 @@ func refresh() -> void:
 	FrameMemo.prof = {}   # the profile of this score (FrameMemo.tick)
 	inp = gather(m.tc_ui.db)
 	res = RealismScore.compute(m.S, inp)
-	if key != var_to_str(m.S.cards):
+	if key != str(m.S.cards.hash()):
 		gains = {}
-	key = var_to_str(m.S.cards)
+	key = str(m.S.cards.hash())
 	if found_key != _find_key():
 		best = {}
 		found_key = ""

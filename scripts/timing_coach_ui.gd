@@ -27,10 +27,25 @@ func commands(add: Callable) -> void:
 		false, "for each strike: a better move time with the reason (a real clip in your scenes that does the same pose pair, and the strike-size and wind-up numbers with their sources); Preview plays it without changing the scene; Accept per line or Accept all, one undo step each")
 
 
+var _reading := false
+
+## the timing database, read a few scenes per frame; a second click while it reads cancels it
 func _database() -> bool:
 	if int(db.get("n", 0)) == 0:
+		if _reading:
+			FrameMemo.abort = true
+			m._say("reading your scenes cancelled")
+			return false
+		_reading = true
 		m._say("timing coach: reading your scenes (once, about 20 s)...")
-		db = MotionMatch.build()
+		FrameMemo.slice_begin(8.0, func(f: float): m._say_plain("reading your scenes... %d%%  (click again to cancel)" % int(f * 100.0)))
+		var r: Dictionary = await MotionMatch.build_co()
+		var stopped := FrameMemo.abort
+		FrameMemo.slice_end()
+		_reading = false
+		if stopped:
+			return false
+		db = r
 	return int(db.get("n", 0)) > 0
 
 
@@ -43,7 +58,12 @@ func show() -> void:
 	if m.S.cards.size() < 2:
 		m._say("Timing coach needs a scene of two cards or more: press Enter to add the body as a card (two at least), or open a scene in the list below")
 		return
-	_database()
+	var had := int(db.get("n", 0)) > 0
+	var ok: bool = await _database()
+	if not ok and not had and FrameMemo.abort:
+		return
+	if m.S.cards.size() < 2:
+		return   # the scene changed while the scenes were read
 	var t0 := Time.get_ticks_usec()
 	var keep: Dictionary = m.B.state()   # a view: the body the user is editing comes back as it was (not re-posed from the playhead)
 	sugs = TimingCoach.compute(m.S, m.B, db, String(m.S.name))
