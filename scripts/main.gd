@@ -18603,7 +18603,7 @@ var ui_confirm: ConfirmationDialog
 var _confirm_do: Callable
 
 
-func _confirm(msg: String, ok_text: String, f: Callable) -> void:
+func _confirm(msg: String, ok_text: String, f: Callable, cancel_text := "Cancel") -> void:
 	if ui_confirm == null:
 		ui_confirm = ConfirmationDialog.new()
 		ui_confirm.title = "Can't be undone"
@@ -18615,6 +18615,7 @@ func _confirm(msg: String, ok_text: String, f: Callable) -> void:
 	_confirm_do = f
 	ui_confirm.dialog_text = msg
 	ui_confirm.ok_button_text = ok_text
+	ui_confirm.get_cancel_button().text = cancel_text   # Easy's Delete asks with Keep; every other caller keeps Cancel
 	ui_confirm.popup_centered()
 	_say(msg.get_slice("\n", 0))
 
