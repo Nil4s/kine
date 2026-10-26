@@ -99,6 +99,7 @@ var cons_hero = null   # runtime (Constraints.link): a fighter's scene -> weakre
 var cons_me := 0       # runtime: this scene's fighter number in the hero's file (0 = the hero)
 var _cons_scratch := {}   # runtime: fighter number -> a Body another fighter's scene is posed on (actor targets)
 var name := "scene"
+var kind := "animation"   # the start screen's project kind (animation, modeling, building); a file without one is an animation
 var natural := true
 var layer := {}        # YY9: ONE additive layer, joint -> Vector3 (deg) added to the played angles x layer_w; {} = none
 var layer_w := 1.0     # YY9: the layer's weight 0..1 (written only with a layer)
@@ -2261,7 +2262,7 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 			cs[-1]["ktype"] = c["ktype"]   # XX3: a key's Blender type (breakdown, moving_hold, extreme); never written for a plain key
 		if c.has("weight_i"):
 			cs[-1]["weight_i"] = c["weight_i"]   # ROADMAP 40: the inertia (kg m2) the swing's timing now fits; only on a contact card timed to a weapon
-	var out := {"scene": name, "natural": natural, "on_floor": on_floor, "floor_body": floor_body, "pin": pin, "fps": fps, "length_s": snappedf(length(), 0.001), "cards": cs,
+	var out := {"scene": name, "kind": kind, "natural": natural, "on_floor": on_floor, "floor_body": floor_body, "pin": pin, "fps": fps, "length_s": snappedf(length(), 0.001), "cards": cs,
 		"bad_frames": bad,
 		"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other."}
 	if not frames:
@@ -2490,6 +2491,7 @@ func from_dict(d: Dictionary) -> void:
 		sc.from_dict(a.get("scene", {}))
 		actors.append({"name": String(a.get("name", "B")), "xf": {"pos": [float(pp[0]), float(pp[1])], "yaw": float(xf.get("yaw", 0.0))}, "scene": sc})
 	name = d.get("scene", "scene")
+	kind = String(d.get("kind", "animation"))
 	natural = bool(d.get("natural", true))
 	spline = bool(d.get("spline", false))
 	moving_holds = bool(d.get("moving_holds", false))

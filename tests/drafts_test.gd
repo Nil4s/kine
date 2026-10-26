@@ -95,7 +95,7 @@ func _init() -> void:
 	# 2
 	var hdr := index_of("Drafts (%d)" % T)
 	ok(hdr >= 0 and String(m.ui_scenes.get_item_text(hdr)).begins_with("+ ") and draft_rows().is_empty(),
-		"2 collapsed: the group says %d (25 test clips + bundled) and no draft is listed" % [T, bundled])
+		"2 collapsed: the group says %d (25 test clips + bundled) and no draft is listed" % T)
 
 	# 3
 	await pick(hdr)

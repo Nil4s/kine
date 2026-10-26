@@ -12,7 +12,7 @@ extends RefCounted
 const PAGES := ["MODEL", "SCULPT", "SURFACE"]
 
 ## the hint in the view while a page has no mesh open (main._mesh_hint_sync): what to click first. Gone when a mesh is open.
-const HINTS := {"MODEL": "Start with Test cube, or Body mesh to edit the body's mesh", "SCULPT": "Start with Test sphere",
+const HINTS := {"MODEL": "Start with Test cube, or Edit body (the fighter's body)", "SCULPT": "Start with Test sphere",
 	"SURFACE": "Open UV editor, or Material from photo"}
 
 ## the sculpt brushes on the ribbon: label, the key the sphere reads (main's KEYS table in kmesh_sculpt_ui.gd)
@@ -38,8 +38,8 @@ static func build(m: Node) -> void:
 		return m._button(label, MeshTools.run.bind(t, m), String(t.get("desc", "")) + " (%s)" % String(t["keys"]) if String(t["keys"]) != "" else String(t.get("desc", "")))
 	var row: HBoxContainer = m.ui_ribbon["MODEL"]
 	row.add_child(m._button("Test cube", m._kmesh_edit_start, "a 4 x 4 cube on the stage to model on (nothing is saved)"))
-	row.add_child(m._button("Body mesh", func(): BaseBody.start(m), "open the fighter's own skin as the mesh to edit (Model: edit the body mesh)"))
-	row.add_child(m._button("Apply body", func(): BaseBody.apply_cmd(m), "write the edited body back to the fighter, one undo step (Model: apply the body mesh to the fighter)"))
+	row.add_child(m._button("Edit body", func(): BaseBody.start(m), "open the fighter's own skin as the mesh to edit; it also opens by itself when you come to this page with nothing open (Model: edit the body mesh)"))
+	row.add_child(m._button("Save to body", func(): BaseBody.apply_cmd(m), "write the edited body back to the fighter now, one undo step; leaving the mesh pages does this by itself (Model: apply the body mesh to the fighter)"))
 	row.add_child(tool.call("mesh_save", "Save"))
 	row.add_child(tool.call("mesh_open", "Open..."))
 	row.add_child(m._button("Use in scene", m._mesh_use_in_scene, "put the open mesh into the scene next to the body as a prop, on the floor at its real size with its material (one undo step); the POSE page shows it"))
@@ -57,7 +57,7 @@ static func build(m: Node) -> void:
 	row.add_child(tool.call("mesh_repair", "Repair"))
 	row = m.ui_ribbon["SCULPT"]
 	row.add_child(m._button("Test sphere", m._sculpt_start, "a sphere on the stage to sculpt (nothing is saved)"))
-	row.add_child(m._button("Sculpt the body", _sculpt_body.bind(m), "sculpt the fighter's body mesh (the one MODEL edits) with the brushes below; each stroke one undo step, Esc goes back to MODEL (Apply body writes it to the fighter)"))
+	row.add_child(m._button("Sculpt the body", _sculpt_body.bind(m), "sculpt the fighter's body mesh (the one MODEL edits) with the brushes below; each stroke one undo step, Esc goes back to MODEL (Save to body writes it to the fighter)"))
 	for b in BRUSHES:
 		var key: Key = b[1]
 		row.add_child(m._button(b[0], _brush.bind(m, key), "sculpt with %s: drag on the sphere (key %s)" % [String(b[0]).to_lower(), OS.get_keycode_string(key)]))
@@ -94,6 +94,7 @@ static func _sculpt_body(m) -> void:
 	kmed.view.visible = false
 	m._mesh_page_for("SCULPT")
 	m.ksc.start()
+	m.set_meta(BaseBody.META_BASE, BaseBody.sig_of(kmed.mesh))   # the sculpt's mask channel is added at its start: not an edit (leaving applies only real edits)
 	m._mesh_show_sync()
 
 

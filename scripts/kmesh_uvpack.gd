@@ -24,6 +24,7 @@ extends RefCounted
 const UV := "uv"
 const TILE := "uv_tile"
 const EPS := 1e-7
+const PAR_MIN := 64            # a group of at least this many boxes tries its heuristics on worker threads
 const ITERS := 22             # bisection steps on the scale (2^-22 relative)
 const BUDGETS := {
 	"1x2k": {"tiles": 1, "px": 2048, "label": "1 x 2k (one 2048 tile)"},
@@ -151,92 +152,235 @@ static func min_box_angle(pts: PackedVector2Array) -> float:
 
 ## pack boxes (Vector2 sizes, margin already added) into the unit square. Returns per box [pos: Vector2, turned: bool],
 ## or [] when one does not fit. heur: "bssf" / "baf" / "bl"; order: "area" / "side" / "height"
+## The free rects live in parallel arrays (x, y, w, h and the float32 ends) so the scan reads no Rect2; rects that no box
+## still to come can fit are dropped as they appear (they can only ever produce smaller dead pieces), which keeps the list
+## short. The candidate order, the comparisons and the float32 rounding of every rect are those of the Rect2 version.
 static func maxrects(sizes: Array, rot: bool, heur := "bssf", order := "area") -> Array:
-	var idx := range(sizes.size())
-	var key := func(i: int) -> float:
+	# the sort keys are computed once per island (same values as before), so the sort makes the same comparisons
+	var nk := sizes.size()
+	var keys := PackedFloat64Array()
+	keys.resize(nk)
+	for i in nk:
 		var s: Vector2 = sizes[i]
 		match order:
 			"side":
-				return maxf(s.x, s.y)
+				keys[i] = maxf(s.x, s.y)
 			"height":
-				return s.y if not rot else minf(s.x, s.y)
-		return s.x * s.y
-	idx.sort_custom(func(a, b): return key.call(a) > key.call(b))
-	var free: Array = [Rect2(0, 0, 1, 1)]
+				keys[i] = s.y if not rot else minf(s.x, s.y)
+			_:
+				keys[i] = s.x * s.y
+	var idx := range(nk)
+	idx.sort_custom(func(a, b): return keys[a] > keys[b])
+	# the smallest box still to come, per direction: a free rect narrower or lower than that is dead
+	var sufw := PackedFloat64Array()
+	var sufh := PackedFloat64Array()
+	sufw.resize(nk + 1)
+	sufh.resize(nk + 1)
+	var sufa := PackedFloat64Array()
+	sufa.resize(nk + 1)
+	sufw[nk] = INF
+	sufh[nk] = INF
+	sufa[nk] = INF
+	for p in range(nk - 1, -1, -1):
+		var s: Vector2 = sizes[idx[p]]
+		var mw := minf(s.x, s.y) if rot else s.x
+		var mh := minf(s.x, s.y) if rot else s.y
+		sufw[p] = minf(sufw[p + 1], mw)
+		sufh[p] = minf(sufh[p + 1], mh)
+		sufa[p] = minf(sufa[p + 1], s.x * s.y)
+	var hcode := 1 if heur == "baf" else (2 if heur == "bl" else 0)
+	var fx := PackedFloat64Array([0.0])
+	var fy := PackedFloat64Array([0.0])
+	var fw := PackedFloat64Array([1.0])
+	var fh := PackedFloat64Array([1.0])
+	var fex := PackedFloat64Array([1.0])
+	var fey := PackedFloat64Array([1.0])
+	var nf := 1
 	var out: Array = []
-	out.resize(sizes.size())
-	for i in idx:
+	out.resize(nk)
+	for pi in nk:
+		var i: int = idx[pi]
 		var sz: Vector2 = sizes[i]
-		var best := [INF, INF]
-		var bpos := Vector2.ZERO
+		var best0 := INF
+		var best1 := INF
+		var bk := -1
 		var bturn := false
-		var found := false
-		for fr in free:
-			var r := fr as Rect2
-			for turn in ([false, true] if rot and absf(sz.x - sz.y) > 1e-12 else [false]):
-				var w := sz.y if turn else sz.x
-				var h := sz.x if turn else sz.y
-				if w > r.size.x + 1e-12 or h > r.size.y + 1e-12:
-					continue
-				var lx := r.size.x - w
-				var ly := r.size.y - h
-				var sc: Array
-				match heur:
-					"baf":
-						sc = [r.size.x * r.size.y - w * h, minf(lx, ly)]
-					"bl":
-						sc = [r.position.y + h, r.position.x]
-					_:
-						sc = [minf(lx, ly), maxf(lx, ly)]
-				if sc[0] < best[0] - 1e-15 or (absf(sc[0] - best[0]) <= 1e-15 and sc[1] < best[1]):
-					best = sc
-					bpos = r.position
-					bturn = turn
-					found = true
-		if not found:
+		var two := rot and absf(sz.x - sz.y) > 1e-12
+		var w0 := sz.x + 0.0
+		var h0 := sz.y + 0.0
+		var w1 := h0
+		var h1 := w0
+		# per free rect, turn 0 then turn 1 (the order of the first version, so ties break the same way)
+		for k in nf:
+			var rw := fw[k]
+			var rh := fh[k]
+			var cw := rw + 1e-12
+			var ch := rh + 1e-12
+			var f0 := w0 <= cw and h0 <= ch
+			var f1 := two and w1 <= cw and h1 <= ch
+			if not (f0 or f1):
+				continue
+			for ti in 2:
+				if ti == 0:
+					if not f0:
+						continue
+				elif not f1:
+					break
+				var w := w0 if ti == 0 else w1
+				var h := h0 if ti == 0 else h1
+				var s0: float
+				var s1: float
+				if hcode == 0:
+					var lx := rw - w
+					var ly := rh - h
+					if lx < ly:
+						s0 = lx
+						s1 = ly
+					else:
+						s0 = ly
+						s1 = lx
+				elif hcode == 1:
+					s0 = rw * rh - w * h
+					s1 = minf(rw - w, rh - h)
+				else:
+					s0 = fy[k] + h
+					s1 = fx[k]
+				if s0 < best0 - 1e-15 or (absf(s0 - best0) <= 1e-15 and s1 < best1):
+					best0 = s0
+					best1 = s1
+					bk = k
+					bturn = ti == 1
+		if bk < 0:
 			return []
+		var bpos := Vector2(fx[bk], fy[bk])
 		out[i] = [bpos, bturn]
 		var pl := Rect2(bpos, Vector2(sz.y, sz.x) if bturn else sz)
-		_split(free, pl)
+		nf = _split(fx, fy, fw, fh, fex, fey, nf, pl, sufw[pi + 1], sufh[pi + 1], sufa[pi + 1])
 	return out
 
 
 ## cut the placed rect out of every free rect it overlaps (up to 4 maximal pieces each), then drop pieces inside others
-static func _split(free: Array, u: Rect2) -> void:
-	var keep: Array = []
+## (and rects narrower / lower than mw / mh: no box to come fits them). Works in place; returns the new count.
+static func _split(fx: PackedFloat64Array, fy: PackedFloat64Array, fw: PackedFloat64Array, fh: PackedFloat64Array, fex: PackedFloat64Array, fey: PackedFloat64Array, nf: int, u: Rect2, mw: float, mh: float, ma: float) -> int:
+	var ux := u.position.x
+	var uy := u.position.y
+	var uex := u.end.x
+	var uey := u.end.y
+	var dw := mw - 1e-9   # a rect under this cannot take a box (the fit test allows 1e-12)
+	var dh := mh - 1e-9
+	var da := ma * (1.0 - 1e-9) - 1e-12   # area of the smallest box still to come
 	var fresh: Array = []
-	for fr in free:
-		var r := fr as Rect2
-		if u.position.x >= r.end.x - 1e-12 or u.end.x <= r.position.x + 1e-12 or u.position.y >= r.end.y - 1e-12 or u.end.y <= r.position.y + 1e-12:
-			keep.append(r)
+	var kept := 0
+	for i in nf:
+		var rx := fx[i]
+		var ry := fy[i]
+		var rw := fw[i]
+		var rh := fh[i]
+		if rw < dw or rh < dh or rw * rh < da:
 			continue
-		if u.position.x > r.position.x + 1e-12:
-			fresh.append(Rect2(r.position, Vector2(u.position.x - r.position.x, r.size.y)))
-		if u.end.x < r.end.x - 1e-12:
-			fresh.append(Rect2(Vector2(u.end.x, r.position.y), Vector2(r.end.x - u.end.x, r.size.y)))
-		if u.position.y > r.position.y + 1e-12:
-			fresh.append(Rect2(r.position, Vector2(r.size.x, u.position.y - r.position.y)))
-		if u.end.y < r.end.y - 1e-12:
-			fresh.append(Rect2(Vector2(r.position.x, u.end.y), Vector2(r.size.x, r.end.y - u.end.y)))
-	# the kept rects are maximal among themselves already: only the fresh ones need checking (against all)
-	var nf: Array = []
-	for i in fresh.size():
+		var rex := fex[i]
+		var rey := fey[i]
+		if ux >= rex - 1e-12 or uex <= rx + 1e-12 or uy >= rey - 1e-12 or uey <= ry + 1e-12:
+			if kept != i:
+				fx[kept] = rx
+				fy[kept] = ry
+				fw[kept] = rw
+				fh[kept] = rh
+				fex[kept] = rex
+				fey[kept] = rey
+			kept += 1
+			continue
+		if ux > rx + 1e-12:
+			fresh.append(Rect2(Vector2(rx, ry), Vector2(ux - rx, rh)))
+		if uex < rex - 1e-12:
+			fresh.append(Rect2(Vector2(uex, ry), Vector2(rex - uex, rh)))
+		if uy > ry + 1e-12:
+			fresh.append(Rect2(Vector2(rx, ry), Vector2(rw, uy - ry)))
+		if uey < rey - 1e-12:
+			fresh.append(Rect2(Vector2(rx, uey), Vector2(rw, rey - uey)))
+	# the kept rects are maximal among themselves already: only the fresh ones need checking (against all). The live fresh
+	# pieces are tested against each other first (same tie rule as before: of two equal pieces the earlier stays), then the
+	# survivors against the kept rects in one walk over them.
+	var nfr := fresh.size()
+	var px := PackedFloat64Array()
+	var py := PackedFloat64Array()
+	var pw := PackedFloat64Array()
+	var ph := PackedFloat64Array()
+	var pex := PackedFloat64Array()
+	var pey := PackedFloat64Array()
+	for i in nfr:
 		var a: Rect2 = fresh[i]
-		var inside := false
-		for k in keep:
-			if (k as Rect2).encloses(a):
-				inside = true
+		if a.size.x < dw or a.size.y < dh or a.size.x * a.size.y < da:
+			continue
+		px.append(a.position.x)
+		py.append(a.position.y)
+		pw.append(a.size.x)
+		ph.append(a.size.y)
+		pex.append(a.end.x)
+		pey.append(a.end.y)
+	var np := px.size()
+	var gone := PackedByteArray()
+	gone.resize(np)
+	var left := np
+	for i in np:
+		var ax := px[i]
+		var ay := py[i]
+		var aex := pex[i]
+		var aey := pey[i]
+		for j in np:
+			if j != i and ax >= px[j] and ay >= py[j] and aex <= pex[j] and aey <= pey[j] 					and not (px[j] >= ax and py[j] >= ay and pex[j] <= aex and pey[j] <= aey and j > i):
+				gone[i] = 1
+				left -= 1
 				break
-		if not inside:
-			for j in fresh.size():
-				if j != i and (fresh[j] as Rect2).encloses(a) and (not a.encloses(fresh[j]) or j < i):
-					inside = true
-					break
-		if not inside:
-			nf.append(a)
-	free.clear()
-	free.append_array(keep)
-	free.append_array(nf)
+	var nkept := kept
+	if left > 0:
+		# a rect that holds a piece holds the corner of every box around the pieces: reject on those four first
+		var maxx := -INF
+		var maxy := -INF
+		var minex := INF
+		var miney := INF
+		for i in np:
+			if gone[i] == 0:
+				maxx = maxf(maxx, px[i])
+				maxy = maxf(maxy, py[i])
+				minex = minf(minex, pex[i])
+				miney = minf(miney, pey[i])
+		for k in nkept:
+			var kx := fx[k]
+			if kx > maxx:
+				continue
+			var ky := fy[k]
+			if ky > maxy:
+				continue
+			var kex := fex[k]
+			if kex < minex:
+				continue
+			var key := fey[k]
+			if key < miney:
+				continue
+			for i in np:
+				if gone[i] == 0 and px[i] >= kx and py[i] >= ky and pex[i] <= kex and pey[i] <= key:
+					gone[i] = 1
+					left -= 1
+			if left == 0:
+				break
+	for i in np:
+		if gone[i] == 0:
+			if kept >= fx.size():
+				fx.resize(kept * 2)
+				fy.resize(kept * 2)
+				fw.resize(kept * 2)
+				fh.resize(kept * 2)
+				fex.resize(kept * 2)
+				fey.resize(kept * 2)
+			fx[kept] = px[i]
+			fy[kept] = py[i]
+			fw[kept] = pw[i]
+			fh[kept] = ph[i]
+			fex[kept] = pex[i]
+			fey[kept] = pey[i]
+			kept += 1
+	return kept
 
 
 # ---------------------------------------------------------------- pack
@@ -388,18 +532,35 @@ static func pack(m: KMesh, opts := {}) -> Dictionary:
 		"margin_px": float(opts.get("margin", 4.0)), "rotate": rotm, "ms": (Time.get_ticks_usec() - t0) / 1000.0}
 
 
-## every tile's group packed at scale s (boxes * s + g); [] when one tile fails. Tries the heuristics in turn.
+## every tile's group packed at scale s (boxes * s + g); [] when one tile fails. The heuristics are tried in the order of
+## HEUR and the first that fits wins; they do not depend on each other, so a big group runs all four at once on the worker
+## threads (a failing pass, which needs all four to fail, then costs one run instead of four) and the same one wins.
 static func _fit_all(groups: Array, boxes: Array, s: float, g: float, rot: bool) -> Array:
 	var res: Array = []
 	for grp in groups:
 		var sizes: Array = []
+		var area := 0.0
 		for i in grp:
-			sizes.append((boxes[i] as Vector2) * s + Vector2(g, g))
+			var sz := (boxes[i] as Vector2) * s + Vector2(g, g)
+			sizes.append(sz)
+			area += sz.x * sz.y
 		var got: Array = []
-		for h in HEUR:
-			got = maxrects(sizes, rot, h[0], h[1])
-			if not got.is_empty():
-				break
+		if area <= 1.0 + 1e-3:   # boxes that overlap by more than that in total cannot all sit in the unit square
+			if sizes.size() >= PAR_MIN:
+				var runs: Array = []
+				runs.resize(HEUR.size())
+				var job := func(k: int) -> void: runs[k] = maxrects(sizes, rot, HEUR[k][0], HEUR[k][1])
+				var tid := WorkerThreadPool.add_group_task(job, HEUR.size(), -1, true, "uvpack heuristics")
+				WorkerThreadPool.wait_for_group_task_completion(tid)
+				for k in HEUR.size():
+					if not (runs[k] as Array).is_empty():
+						got = runs[k]
+						break
+			else:
+				for h in HEUR:
+					got = maxrects(sizes, rot, h[0], h[1])
+					if not got.is_empty():
+						break
 		if got.is_empty() and not grp.is_empty():
 			return []
 		res.append(got)

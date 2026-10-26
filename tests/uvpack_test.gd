@@ -225,6 +225,34 @@ func base() -> KMesh:
 	return m
 
 
+## the fighter's body as BaseBody reads it from the mannequin skin (bar 8)
+class BodyFake extends Node:
+	var pieces := {}
+	var bone_idx := {}
+	var skel: Skeleton3D = null
+
+
+func body_mesh() -> KMesh:
+	var man: Node3D = (load("res://assets/mannequin.glb") as PackedScene).instantiate()
+	root.add_child(man)
+	for ap in man.find_children("*", "AnimationPlayer", true, false):
+		ap.queue_free()
+	await idle(2)
+	var sk: Skeleton3D = man.find_children("*", "Skeleton3D", true, false)[0]
+	sk.reset_bone_poses()
+	var fake := BodyFake.new()
+	fake.skel = sk
+	var n := 0
+	for mi in man.find_children("*", "MeshInstance3D", true, false):
+		if (mi as MeshInstance3D).skin != null:
+			fake.pieces["body%d" % n] = mi
+			n += 1
+	fake.bone_idx = {"pelvis": sk.find_bone("pelvis")}
+	var body := BaseBody.read(fake, {})
+	man.queue_free()
+	return body
+
+
 func _init() -> void:
 	var m := base()
 	var nisl := int(KMeshUVPack.islands(m)["count"])
@@ -300,6 +328,13 @@ func _init() -> void:
 		print("  12 tilted strips, rotate %s: efficiency %.1f%%, overlaps %d" % [rm, r4["efficiency"] * 100.0, ov4])
 		ok(ov4 == 0 and signs(dm) == sg0 and in01(dm), "bar 6: rotate %s: no overlap, no mirrored triangle, inside 0..1" % rm)
 	ok(eff["free"] > eff["none"] + 0.1, "bar 6: free rotation packs tighter (%.1f%% vs %.1f%%)" % [eff["free"] * 100.0, eff["none"] * 100.0])
+	# 8 (speed, wall clock): the fighter's body (6994 verts, 13744 faces) packs in under 2 s
+	var bm := await body_mesh()
+	KMeshUVPack.auto_seams(bm)
+	KMeshUV.unwrap(bm, "angle")
+	var rb := KMeshUVPack.pack(bm, {})
+	print("bar 8: body pack %d islands, %.0f ms (asked < 2000 ms)" % [int(rb.get("islands", 0)), float(rb.get("ms", -1.0))])
+	ok(bool(rb.get("ok", false)) and float(rb.get("ms", INF)) < 2000.0, "bar 8: body pack under 2 s (%.0f ms, %d islands)" % [float(rb.get("ms", -1.0)), int(rb.get("islands", 0))])
 	# 7
 	await app()
 	print("uvpack: %d failures" % fails)

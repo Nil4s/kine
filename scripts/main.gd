@@ -16,6 +16,10 @@ const TOUCH := Color(1.0, 0.25, 0.2)
 const ARMS_OUT := 25.0   # relaxed arms: degrees out from straight down (Nick 10-12)
 const LEFT_W := 240   # round 36 (RR3): the browser; was 250
 const RIGHT_W := 290   # round 36 (RR2): the inspector; was 370 (a panel of sentences)
+const CHIP_MIN_W := 64   # the page bar's next-tool chips shrink (ellipsis) down to this width, so the bar fits a 1024 px window
+const TAB_W := 96        # a page tab's width on a wide window; narrower windows shrink the tabs (_fit_page_bar) down to TAB_MIN_W
+const TAB_MIN_W := 72
+const NEXT_RESERVE := 360   # the room the page bar keeps for its chips (their floor) and the Next: line (about 108 px) before the tabs narrow
 const PAGE_H := 34   # the page bar along the very bottom (docs/PAGES_PLAN.md): the panels sit above it, so it is inside every BOTTOM_ height
 const BOTTOM_H := 248 + PAGE_H   # round 36 (RR4): the scene row 35 + the cards 161 + the ONE strip 34, separations 12, margins 8, the 6-px gap; was 321 (timeline and play row apart)
 const BOTTOM_FOLDED := 48 + PAGE_H   # RR4: the ONE strip (34) + the panel's margins (8) + the 6-px gap; was 118 (QQ4: timeline + play row); tests/fold_test.gd holds it
@@ -112,6 +116,12 @@ var ui_math_btn: Button
 var ui_status: Label
 var ui_mesh_hint: Label      # MESH PAGES: the hint in the view while MODEL / SCULPT / SURFACE have no mesh open (Expert only)
 var ui_mesh_hint_box: PanelContainer   # its dark box: the hint sits at the top centre of the clear view, under the ribbon
+var ui_mesh_edit_box: PanelContainer   # MESH PAGES: the line at the top of the view that says what is open, with Switch...
+var ui_mesh_edit: Label
+var ui_mesh_switch: Button
+var ui_mesh_switch_menu: PopupMenu
+var _leave_said := ""   # the words of the last body leave (BaseBody.leave_apply), said last on the status line
+var _mesh_opening := false   # a mesh is opened by its own call: the page switch then does not open the body as well
 var _pose_dummy_was := false  # the dummy was on when a mesh page opened (the posing overlays come back with it)
 var ui_mouse: MouseHint   # ROADMAP_400 P05: what the mouse buttons do now (scripts/mouse_hint.gd), just above the status line
 var ui_bar: Label   # STATUS BAR (round 9, GATES P4): what is picked, where you are, what Check said; always on
@@ -140,6 +150,7 @@ var ui_natural: CheckBox
 var ui_scene_name: LineEdit
 var ui_scene_btn: MenuButton   # the one Scene menu (Save, Open, Versions, New, Template, Delete)
 var ui_scenes: OptionButton
+var start_screen: StartScreen   # THE START SCREEN (scripts/start_screen.gd): New project cards, Open, recent scenes, Resume
 var recents: Recents   # ROADMAP_400 P13: the start panel of recent scenes with pictures (scripts/recents.gd)
 var thumbs: SceneThumbs   # ROADMAP 51: the pictures in the scene list (scripts/scene_thumbs.gd)
 var ui_tinted := []    # [label, Tok token]: the labels a theme switch re-tints (round 9)
@@ -229,7 +240,7 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 ## THE GROUPS (round 36, GATES RR1; Fusion's CREATE / MODIFY): each tab's tools by label, in order, under a caption.
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
-	"MODEL": [["MESH", ["Test cube", "Body mesh", "Apply body", "Save", "Open...", "Use in scene"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Proportional", "Modifiers", "Validate", "Repair"]]],
+	"MODEL": [["MESH", ["Test cube", "Edit body", "Save to body", "Save", "Open...", "Use in scene"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Proportional", "Modifiers", "Validate", "Repair"]]],
 	"SCULPT": [["SPHERE", ["Test sphere"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
 	"SURFACE": [["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]], ["MATERIAL", ["Material from photo"]]],
 	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped"]]],
@@ -794,7 +805,9 @@ var wp_strength := 0.25  # per dab, at the centre
 var wp_stroke := false
 var wp_key := "mannequin"  # the sidecar's name under user://weights
 var wp_centres := []     # the brush centres of the last stroke (the test reads them)
-var wp_row: HBoxContainer   # the Bone / Brush / size / strength row, shown while Weight paint is on
+var wp_row: HBoxContainer   # the Bone / Brush / size / strength row, in the Brush popover (shown while Weight paint is on)
+var wp_pop: PopupPanel      # the popover that holds wp_row
+var wp_brush_btn: Button    # the POSE tools' Brush button, shown while Weight paint is on: it opens wp_pop
 var wp_bone_pick: OptionButton
 var wp_mode_pick: OptionButton
 var corr := Corrective.new()   # ROADMAP 71: the elbow / knee corrective on the body's pieces (View > Display)
@@ -2971,7 +2984,7 @@ func _ready() -> void:
 	# the smallest window the layout is made for (round 21, GATES BB1): at 1024 x 768 the scene row and the play row ran
 	# off the right and the view was ~390 px between the side panels; Windows now stops a drag below it
 	get_window().min_size = Vector2i(MIN_ROOM)
-	get_viewport().size_changed.connect(func(): _fit_rows.call_deferred(); _fit_top.call_deferred(); _place_nav.call_deferred(); _place_akey_frame.call_deferred(); _strip_fit.call_deferred(); _browser_fit.call_deferred())
+	get_viewport().size_changed.connect(func(): _fit_rows.call_deferred(); _fit_top.call_deferred(); _fit_page_bar.call_deferred(); _place_nav.call_deferred(); _place_akey_frame.call_deferred(); _strip_fit.call_deferred(); _browser_fit.call_deferred())
 	_world()
 	BootProfile.mark("world")
 	_body()
@@ -3037,6 +3050,13 @@ func _ready() -> void:
 		easy.sliders.add_block(_hands_block(true))   # HANDS (w4-handlock): the lock and the hands row in the Easy side panel
 	BootProfile.mark("easy build")
 	easy.start(cf, testing)   # EASY MODE: the saved mode (a fresh config is Easy); its own tour, once
+	start_screen = StartScreen.new()   # THE START SCREEN: built hidden; shown at start-up (below), from the KINE logo or File > Start screen
+	start_screen.m = self
+	ui_root.add_child(start_screen)
+	start_screen.build()
+	var start_boot := not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour") and not OS.get_cmdline_user_args().has("--kine-no-start") and StartScreen.setting_on(cf)
+	if start_boot:
+		_start_screen_boot.call_deferred()
 	BootProfile.mark("easy start")
 	onboard.start_when_clear.call_deferred()
 	if (not testing and not onboard.pending and not easy.on and not OS.get_cmdline_user_args().has("--shot") and _tour_due()) or OS.get_cmdline_user_args().has("--tour"):
@@ -3048,7 +3068,7 @@ func _ready() -> void:
 	if not args.has("--shot") and (not testing or OS.get_environment("POSER_AUTOSAVE") != ""):
 		_recover_offer.call_deferred()
 	recents = Recents.new(self)
-	if not testing and not args.has("--shot") and not args.has("--tour") and not _recent_list().is_empty() and recents.start_on():
+	if not testing and not start_boot and not args.has("--shot") and not args.has("--tour") and not _recent_list().is_empty() and recents.start_on():
 		_recents_start.call_deferred()   # P13: a test never gets it (it asks with File: recent scenes); nor a first-run tour (no recents yet)
 		BootProfile.mark("recents")
 	ov.trail_on = args.has("--trail")
@@ -8800,6 +8820,8 @@ var kmed   # KMeshEditUI (scripts/kmesh_edit_ui.gd), loaded on first use: not ty
 
 
 func _kmesh_edit_start() -> void:
+	if BaseBody.is_open(self) or _body_sculpt_on():
+		_mesh_leave_apply()   # the fighter's body is open: applied and closed first, then the cube
 	if kmed == null:
 		kmed = load("res://scripts/kmesh_edit_ui.gd").new()
 		add_child(kmed)
@@ -8842,6 +8864,8 @@ var ksc   # KMeshSculptUI (scripts/kmesh_sculpt_ui.gd): loaded on the first Scul
 
 
 func _sculpt_start() -> void:
+	if _body_sculpt_on():
+		_mesh_leave_apply()   # the body sculpt is the sphere's place: the body is applied and closed first
 	if ksc == null:
 		ksc = load("res://scripts/kmesh_sculpt_ui.gd").new()
 		add_child(ksc)
@@ -10560,7 +10584,7 @@ func _hands_refresh() -> void:
 	var arm_pick := sel.begins_with("hand") or sel.begins_with("upperarm") or sel.begins_with("lowerarm")
 	var easy_on: bool = easy != null and easy.on
 	if ui_hands_panel != null and is_instance_valid(ui_hands_panel):
-		ui_hands_panel.visible = held and (not easy_on or arm_pick)
+		ui_hands_panel.visible = held and not ExpertPages.PAGES.has(cur_page) and (not easy_on or arm_pick)   # the pose pages only
 		# the view's bottom RIGHT, over the floor, above the status line (under the top bar it covered the head; at the
 		# left it met the "Click a part" tip)
 		var vs := get_viewport().get_visible_rect().size
@@ -10584,6 +10608,7 @@ func _hands_refresh() -> void:
 					pick = c
 					break
 			ui_hands_panel.position = pick
+		ui_hands_panel.position = ui_hands_panel.position.clamp(Vector2.ZERO, (vs - ui_hands_panel.size).max(Vector2.ZERO))   # no candidate fits a short window: it still stays on the view
 	for d in ui_hands:
 		if not is_instance_valid(d["box"]):
 			continue
@@ -12074,6 +12099,9 @@ func _ui() -> void:
 	tv.add_child(caps)
 	var logo := _label("KINE", 13, "heading")
 	logo.custom_minimum_size.x = 64
+	logo.mouse_filter = Control.MOUSE_FILTER_STOP   # THE START SCREEN: a click on the logo reopens it
+	logo.tooltip_text = "Start screen"
+	logo.gui_input.connect(_logo_input)
 	strip.add_child(logo)
 	# round 7, Fusion's ribbon: tabs, then that tab's tools; Undo / Redo / Search / Help always on the right. Nothing
 	# was removed: every button the bar had is in a tab (tests/ribbon_test.gd counts them), and the play row keeps its own
@@ -13046,6 +13074,42 @@ func _ui() -> void:
 	ui_mesh_hint.add_theme_color_override("font_color", Tok.of("text:0.9"))
 	ui_mesh_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_mesh_hint_box.add_child(ui_mesh_hint)
+	# MESH PAGES: the line at the top of the view says what is open, and Switch... picks another object (one undo step each way)
+	ui_mesh_edit_box = PanelContainer.new()
+	ui_mesh_edit_box.name = "mesh_edit_box"
+	ui_mesh_edit_box.visible = false
+	ui_mesh_edit_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var esb := StyleBoxFlat.new()
+	esb.bg_color = Tok.c("say_bg")
+	esb.set_corner_radius_all(10)
+	esb.content_margin_left = 12.0
+	esb.content_margin_right = 8.0
+	esb.content_margin_top = 4.0
+	esb.content_margin_bottom = 4.0
+	ui_mesh_edit_box.add_theme_stylebox_override("panel", esb)
+	var eh := HBoxContainer.new()
+	ui_mesh_edit = Label.new()
+	ui_mesh_edit.name = "mesh_edit"
+	ui_mesh_edit.add_theme_font_size_override("font_size", 16)
+	ui_mesh_edit.add_theme_color_override("font_color", Tok.of("text:0.9"))
+	ui_mesh_edit.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	eh.add_child(ui_mesh_edit)
+	ui_mesh_switch = Button.new()
+	ui_mesh_switch.name = "btn_mesh_switch"
+	ui_mesh_switch.text = "Switch..."
+	ui_mesh_switch.tooltip_text = "switch what this page edits: the fighter's body, the test cube or the test sphere"
+	ui_mesh_switch.focus_mode = Control.FOCUS_NONE
+	ui_mesh_switch.pressed.connect(_mesh_switch_open)
+	eh.add_child(ui_mesh_switch)
+	ui_mesh_edit_box.add_child(eh)
+	ui_mesh_switch_menu = PopupMenu.new()
+	ui_mesh_switch_menu.name = "mesh_switch_menu"
+	ui_mesh_switch_menu.add_item("The fighter's body", 0)
+	ui_mesh_switch_menu.add_item("Test cube", 1)
+	ui_mesh_switch_menu.add_item("Test sphere", 2)
+	ui_mesh_switch_menu.id_pressed.connect(_mesh_switch_pick)
+	add_child(ui_mesh_switch_menu)
+	ui_root.add_child(ui_mesh_edit_box)
 	# COMPARE WITH (ROADMAP 28): the diff list, top left of the view, only while a version is compared (it never takes a click)
 	ui_vdiff = PanelContainer.new()
 	ui_vdiff.name = "vdiff_panel"
@@ -13145,10 +13209,19 @@ func _ui() -> void:
 	ui_help.offset_left = -360
 	ui_help.offset_right = 360
 	ui_help.offset_top = TOP_H + 30
+	ui_help.anchor_bottom = 1.0   # as tall as the window allows (the text scrolls, Got it stays in view)
+	ui_help.offset_bottom = -8
 	ui_root.add_child(ui_help)
+	var hout := VBoxContainer.new()
+	ui_help.add_child(hout)
+	var hscroll := ScrollContainer.new()
+	hscroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	hscroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	hout.add_child(hscroll)
 	var hv := VBoxContainer.new()
 	hv.custom_minimum_size = Vector2(700, 0)
-	ui_help.add_child(hv)
+	hv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hscroll.add_child(hv)
 	hv.add_child(_label("HOW IT WORKS", 22, "heading"))
 	hv.add_child(_label("1  POSE THE BODY.  Click a part, drag it.  Or use the sliders on the right, which say what each one does.  The body stops at real joint limits (yellow) and where parts meet (red).  Drag a hand or a foot and the whole arm or leg follows.  Ctrl+Z undoes.", 16, "text", true))
 	hv.add_child(_label("2  SAVE IT.  Type a name on the left, 'Save body as a pose'.  It joins the list; click it any time to get it back.", 16, "text", true))
@@ -13162,7 +13235,7 @@ func _ui() -> void:
 	hv.add_child(_label("RIGHT-CLICK a part (click, don't drag: right-DRAG still turns the view): a ring around the mouse.  Up = Reset, then clockwise: Snap 90°, Copy to the other side, CLIP this pose, Pin a trail, Snap 45°.  Click one; the middle or Esc cancels.", 16, "text", true))
 	hv.add_child(_label("S = SEARCH.  Don't remember where something is?  Press S, type a word (mirror, trail, staff, slower...), Enter.  Every button and key is in it, with its shortcut.", 16, "say", true))
 	hv.add_child(_label("View: ARROWS slide the view, Shift+ARROWS turn around the body, PageUp/PageDown or the wheel zoom, Tab = big view.  F6 = the panels by keyboard (Tab moves, Enter presses, Esc back).  Mouse: right-drag = turn around, middle-drag = slide.", 15, "text:0.7", true))
-	hv.add_child(_button("Got it", func(): ui_help.visible = false))
+	hout.add_child(_button("Got it", func(): ui_help.visible = false))
 	ui_help.visible = false
 	# ---- WHAT WENT WRONG? (ROADMAP 43): the last refusal, what was tried, why, and the one next step (scripts/whywrong.gd)
 	ui_why = PanelContainer.new()
@@ -14617,7 +14690,7 @@ func _build_page_bar() -> void:
 		b.icon = Icons.tex("page_" + p.to_lower())
 		b.focus_mode = Control.FOCUS_NONE
 		b.theme_type_variation = "RibbonTab"
-		b.custom_minimum_size = Vector2(104, PAGE_H - 10)
+		b.custom_minimum_size = Vector2(TAB_W, PAGE_H - 10)
 		if PAGE_ROW.has(p):
 			var i := PAGES.find(p)
 			b.toggle_mode = true
@@ -14626,7 +14699,13 @@ func _build_page_bar() -> void:
 			b.pressed.connect(func(): _step_hint = "Page: " + p; _page_set(p))
 			ui_page_btns[p] = b
 			ui_ribbon_tabs[PAGE_ROW[p]] = b
-		h.add_child(b)
+		var cell := Control.new()   # the tab's room: a plain Control has no minimum from its child, so the tab's own text cannot widen the bar
+		cell.name = "cell_" + b.name
+		cell.clip_contents = true
+		cell.custom_minimum_size = Vector2(TAB_W, PAGE_H - 10)
+		b.set_anchors_preset(Control.PRESET_FULL_RECT)
+		cell.add_child(b)
+		h.add_child(cell)
 		if p == "DELIVER":
 			var sep := VSeparator.new()
 			sep.custom_minimum_size.x = 14
@@ -14645,10 +14724,19 @@ func _build_page_bar() -> void:
 	ui_next.add_theme_color_override("font_color", Tok.c("say"))
 	ui_next.add_theme_color_override("font_hover_color", Tok.c("say"))
 	ui_next.pressed.connect(_next_run)
-	h.add_child(ui_next)
+	var next_box := Control.new()   # the Next: line's room: a plain Control has no minimum from its child, so the text is clipped, not the bar widened
+	next_box.name = "next_box"
+	next_box.clip_contents = true
+	next_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	next_box.size_flags_stretch_ratio = 2.0   # the Next: line gets the spare room first, the chips second
+	next_box.custom_minimum_size = Vector2(0, PAGE_H - 10)
+	ui_next.set_anchors_preset(Control.PRESET_FULL_RECT)
+	next_box.add_child(ui_next)
+	h.add_child(next_box)
 	nt.load_file()
 	ui_nt_box = HBoxContainer.new()
 	ui_nt_box.name = "nt_chips"
+	ui_nt_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ui_nt_box.add_theme_constant_override("separation", 3)
 	h.add_child(ui_nt_box)
 	for i in 3:
@@ -14657,13 +14745,26 @@ func _build_page_bar() -> void:
 		ch.focus_mode = Control.FOCUS_NONE
 		ch.clip_text = true
 		ch.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		ch.custom_minimum_size = Vector2(130, PAGE_H - 12)
+		ch.custom_minimum_size = Vector2(CHIP_MIN_W, PAGE_H - 12)
+		ch.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		ch.add_theme_font_size_override("font_size", 11)
 		ch.add_theme_color_override("font_color", Tok.c("say"))
 		ch.visible = false
 		ch.pressed.connect(_nt_run.bind(i))
 		ui_nt_box.add_child(ch)
 	_next_sync()
+	_fit_page_bar()
+
+
+## the page tabs narrow (their names ellipsis) when the window is too narrow for them, the Next: line and the chips:
+## the room left after NEXT_RESERVE, split between the tabs, between TAB_MIN_W and TAB_W
+func _fit_page_bar() -> void:
+	if ui_page_btns.is_empty() or ui_page_bar == null:
+		return
+	var room := get_viewport().get_visible_rect().size.x - 16.0   # the bar's own margins
+	var w := clampf(floorf((room - NEXT_RESERVE) / ui_page_btns.size()), TAB_MIN_W, TAB_W)
+	for b in ui_page_btns.values():
+		((b as Button).get_parent() as Control).custom_minimum_size.x = w   # the tab's cell (its clip) takes the width
 
 
 ## R6: THE ONE NEXT STEP, computed from the state; the same on every page, never empty. {text, cmd, kind}: cmd is the
@@ -14870,6 +14971,11 @@ func _page_set(p: String, save := true) -> void:
 	var was_page := cur_page
 	var was_mesh := ExpertPages.PAGES.has(cur_page)
 	var is_mesh := ExpertPages.PAGES.has(p)
+	if was_mesh and p != cur_page and _body_sculpt_on():
+		ksc.stop()   # the body sculpt goes back to the body (ExpertPages._sculpt_body_left) before the page moves on
+	var leave_msg := ""
+	if was_mesh and not is_mesh:
+		leave_msg = _mesh_leave_apply()   # the fighter's body: an edit is applied as one undo step, and the body closes
 	if is_mesh and not was_mesh:   # a mesh page: the posing body's target dummy goes away (as Easy does), remembered
 		_pose_dummy_was = dummy_on
 		if dummy_on:
@@ -14884,8 +14990,16 @@ func _page_set(p: String, save := true) -> void:
 			_dummy_hits()
 	cur_page = p
 	_mesh_show_sync()
+	if is_mesh and save and not _mesh_opening and not _mesh_open() and not (kmed != null and kmed.on) and not (ksc != null and ksc.on):
+		_mesh_auto_open(p)   # only when nothing is open: a test cube open on another page is not stopped by it   # a mesh page with nothing open: the fighter's body opens by itself (no Test cube click)
+	_hands_refresh()   # the hands strip is for the pose pages only
+	var page_said := ""
 	if save and p != was_page:   # the status line says this page's own hint (it was the last page's message)
-		_say("%s page: %s" % [p, PAGE_TIPS[p]])
+		page_said = "%s page: %s" % [p, PAGE_TIPS[p]]
+	if leave_msg != "":
+		page_said = (page_said + "   " if page_said != "" else "") + leave_msg   # what the leaving did, on the same status line
+	if page_said != "":
+		_say(page_said)
 	for k in fold:
 		fold[k] = _page_want(p, k)
 	_ribbon_row(PAGE_ROW[p])
@@ -14922,7 +15036,10 @@ func _mesh_page_for(p: String) -> void:
 	if (easy != null and easy.on) or not ui_page_btns.has(p):
 		return
 	if not _mesh_page() or ((p == "SCULPT") != (cur_page == "SCULPT")):
+		var was := _mesh_opening
+		_mesh_opening = true   # the mesh opened here is the caller's: the page switch does not open the body as well
 		_page_set(p)
+		_mesh_opening = was
 
 
 ## the mesh this page shows is open: the sphere on SCULPT, the cube on MODEL and SURFACE
@@ -14937,15 +15054,18 @@ func _mesh_open() -> bool:
 func _mesh_show_sync() -> void:
 	var mesh_pg := _mesh_page()
 	if kmed != null:
-		kmed.set_showing(mesh_pg and cur_page != "SCULPT")
+		kmed.set_showing(mesh_pg and cur_page != "SCULPT", cur_page == "MODEL")
+		kmed.sync_panels()   # the MODEL panels belong to MODEL: whatever opened the mesh
 	if ksc != null:
 		ksc.set_showing(mesh_pg and cur_page == "SCULPT")
+	_mesh_edit_sync()
 
 
 ## the hint in the view while a mesh page has no mesh open; gone as soon as one is open or the page is left
 func _mesh_hint_sync() -> void:
 	if ui_mesh_hint == null:
 		return
+	_mesh_edit_sync()
 	var txt: String = ExpertPages.HINTS.get(cur_page, "") if _mesh_page() else ""
 	var show := txt != "" and not _mesh_open()
 	if ui_mesh_hint.text != txt:
@@ -14962,7 +15082,84 @@ func _mesh_hint_sync() -> void:
 func _mesh_hint_place() -> void:
 	ui_mesh_hint_box.reset_size()
 	var cl := nav_clear_rect()
-	ui_mesh_hint_box.position = Vector2(cl.position.x + (cl.size.x - ui_mesh_hint_box.size.x) * 0.5, cl.position.y + 8.0)
+	var y := cl.position.y + 8.0 + ((ui_mesh_edit_box.size.y + 6.0) if (ui_mesh_edit_box != null and ui_mesh_edit_box.visible) else 0.0)
+	ui_mesh_hint_box.position = Vector2(cl.position.x + (cl.size.x - ui_mesh_hint_box.size.x) * 0.5, y)
+
+
+## the line at the top of a mesh page: what it edits now (the body, the test cube, the test sphere, or the file's name)
+func _mesh_edit_sync() -> void:
+	if ui_mesh_edit_box == null:
+		return
+	var show := _mesh_page()
+	var txt := ""
+	if show:
+		if BaseBody.is_open(self) or _body_sculpt_on():
+			txt = "Editing: the fighter's body"
+		elif ksc != null and ksc.on:
+			txt = "Editing: Test sphere"
+		elif kmed != null and kmed.on:
+			var nm := ""
+			if kmed.files != null and String(kmed.files.path) != "":
+				nm = String(kmed.files.path).get_file().get_basename()
+			txt = "Editing: %s" % (nm if nm != "" else "Test cube")
+		else:
+			txt = "Editing: nothing open yet (Switch... picks one)"
+	if ui_mesh_edit.text != txt:
+		ui_mesh_edit.text = txt
+	if ui_mesh_edit_box.visible != show:
+		ui_mesh_edit_box.visible = show
+	if show:
+		var cl := nav_clear_rect()
+		ui_mesh_edit_box.reset_size()
+		ui_mesh_edit_box.position = Vector2(cl.position.x + (cl.size.x - ui_mesh_edit_box.size.x) * 0.5, cl.position.y + 8.0)
+
+
+func _body_sculpt_on() -> bool:
+	return ksc != null and ksc.on and ksc.source.is_valid()
+
+
+## a mesh page with nothing open: the fighter's body opens (SCULPT: the body is sculpted, as "Sculpt the body" does)
+func _mesh_auto_open(p: String) -> void:
+	var was := _mesh_opening
+	_mesh_opening = true
+	if p == "SCULPT":
+		ExpertPages._sculpt_body(self)
+	else:
+		BaseBody.start(self)
+	_mesh_opening = was
+
+
+## leaving the fighter's body (a posing page, Switch..., a test cube or sphere): an edit is applied as ONE undo step (Ctrl+Z
+## takes it back), then the body closes and the fighter is back on screen. No edit: nothing is applied and no step is made
+## -> the status line's words for what was done ("" when the body was not open). BaseBody._leave applies an edit
+func _mesh_leave_apply() -> String:
+	if _body_sculpt_on():
+		ksc.stop()   # ExpertPages._sculpt_body_left: the strokes stay on the body's mesh
+	if not BaseBody.is_open(self):
+		return ""
+	kmed.stop()   # the body is left: its edit applied (BaseBody.leave_apply), the fighter's parts back on screen
+	return _leave_said
+
+
+## the Switch... button: the menu of what this page can edit
+func _mesh_switch_open() -> void:
+	var r := ui_mesh_switch.get_global_rect()
+	ui_mesh_switch_menu.position = Vector2i(int(r.position.x), int(r.end.y))
+	ui_mesh_switch_menu.popup()
+
+
+## the Switch... pick: 0 the fighter's body, 1 the test cube, 2 the test sphere. What was open is applied and closed first
+func _mesh_switch_pick(id: int) -> void:
+	if id == 0 and BaseBody.is_open(self):
+		return
+	_mesh_leave_apply()
+	if id == 0:
+		_mesh_auto_open("MODEL")
+	elif id == 1:
+		_kmesh_edit_start()
+	else:
+		_sculpt_start()
+	_mesh_edit_sync()
 
 
 func _page_want(p: String, which: String) -> bool:
@@ -15872,6 +16069,7 @@ func _commands() -> Array:
 	for p in SCALES:
 		add.call("UI size %d %%" % p, "", _set_scale.bind(p), "zoom bigger smaller scale font text size", false, "buttons and words at %d %% (remembered)" % p)
 	add.call("Help", "", func(): ui_help.visible = not ui_help.visible, "how manual", false, "show or hide the help panel")
+	add.call("Start screen", "", func(): start_screen.show_screen(), "start screen home new project open recent resume", false, "the start screen: New project (Animation, Modeling, 3D Building), Open, recent scenes, Resume")
 	add.call("What went wrong?", "", _why_toggle, "why error wrong refused refusal explain not work failed stuck", false, "says what the last refusal or error meant in plain words: what you tried, why it did not work, and the one next step (a button runs it)")
 	add.call("Pick a part", "", _select_set.bind(["upperarm_r"]), "pick select choose part body click", false, "picks the right upper arm, so the next command has a part to act on")
 	add.call("Help: why is it slow?", "", pdoc.start, "slow lag fps performance perf frame rate speed heavy stutter choppy profile doctor", false, "plays the scene for 3 seconds (or orbits the view when it has one card) and times the app's own systems: the three heaviest by milliseconds a frame, each with the button that fixes it, then fps before and after")
@@ -19691,7 +19889,22 @@ func _recent_note(path: String, saved := false) -> void:
 		recents.capture(path)   # the picture of the 3D view, at save time (or the first time the scene is seen)
 
 
+## THE START SCREEN at launch: once the recover offer and any intro are answered (and no tour is running)
+func _start_screen_boot() -> void:
+	for _i in 3:
+		await get_tree().process_frame
+	while ui_recover != null and ui_recover.visible:
+		await ui_recover.visibility_changed
+	if tour_step < 0 and not onboard.pending and intro == null:
+		start_screen.show_screen()
+
+
 ## P13: the start panel, once the recover offer and any intro have been answered
+func _logo_input(ev: InputEvent) -> void:
+	if ev is InputEventMouseButton and (ev as InputEventMouseButton).pressed and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and start_screen != null:
+		start_screen.show_screen()
+
+
 func _recents_start() -> void:
 	for _i in 3:
 		await get_tree().process_frame
@@ -22526,11 +22739,22 @@ func _wp_bind_of(j: String) -> int:
 
 ## the Bone and Brush lists and the two sliders: their own row on the toolbar, shown only while Weight paint is on
 func _wp_ui(bar: Control) -> void:
+	# the row is a popover (a window of its own: the tools bar keeps its width): one Brush button on the bar opens it
+	wp_brush_btn = Button.new()
+	wp_brush_btn.name = "weight_paint_brush"
+	wp_brush_btn.text = "Brush..."
+	wp_brush_btn.focus_mode = Control.FOCUS_NONE
+	wp_brush_btn.visible = false
+	wp_brush_btn.tooltip_text = "the bone, the brush mode, its size and strength: the Weight paint row"
+	bar.add_child(wp_brush_btn)
+	wp_pop = PopupPanel.new()
+	wp_pop.name = "weight_paint_popover"
+	bar.add_child(wp_pop)
+	wp_brush_btn.pressed.connect(func(): wp_pop.popup(Rect2i(Vector2i(wp_brush_btn.get_global_rect().position + Vector2(0, wp_brush_btn.size.y)), Vector2i(wp_pop.get_contents_minimum_size()))))
 	var pose := HBoxContainer.new()
 	pose.name = "weight_paint_row"
 	pose.add_theme_constant_override("separation", 6)
-	pose.visible = false
-	bar.add_child(pose)
+	wp_pop.add_child(pose)
 	wp_row = pose
 	wp_bone_pick = OptionButton.new()
 	wp_bone_pick.tooltip_text = "the bone the brush adds, takes or smooths. While Weight paint is on the body shows this bone's weight"
@@ -22577,8 +22801,10 @@ func _wp_toggle() -> void:
 		_say("no skin to paint: Weight paint works on a body with a skin: pick the mannequin")
 		return
 	wp_on = not wp_on
-	if wp_row != null:
-		wp_row.visible = wp_on
+	if wp_brush_btn != null:
+		wp_brush_btn.visible = wp_on
+		if not wp_on:
+			wp_pop.hide()
 	_wp_show()
 	_say("weight paint on: pick a bone in Bone, then drag on the body. The colour shows that bone's weight: dark = none, orange = all" if wp_on else "weight paint off")
 

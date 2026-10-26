@@ -172,8 +172,10 @@ func _init() -> void:
 	for p in ["MODEL", "SCULPT", "SURFACE"]:
 		m.ui_page_btns[p].pressed.emit()
 		await idle(3)
-		hint_on.append(m.ui_mesh_hint.visible and m.ui_mesh_hint.text == ExpertPages.HINTS[p])
-	ok(hint_on == [true, true, true], "5a the hint on MODEL / SCULPT / SURFACE with no mesh open: %s (SURFACE says \"%s\")" % [hint_on, m.ui_mesh_hint.text])
+		# Nick 2026-10-25: a mesh page opens the fighter's body by itself, so "no mesh open" no longer happens there;
+		# the guidance is the edit line at the top, which must say what is open (never "nothing open")
+		hint_on.append(m.ui_mesh_edit_box.visible and m.ui_mesh_edit.text.begins_with("Editing: ") and not m.ui_mesh_edit.text.contains("nothing open"))
+	ok(hint_on == [true, true, true], "5a the edit line on MODEL / SCULPT / SURFACE says what is open: %s (SURFACE says \"%s\")" % [hint_on, m.ui_mesh_edit.text])
 	var hint_gone: Array = []
 	m.ui_page_btns["MODEL"].pressed.emit()
 	await idle(2)
