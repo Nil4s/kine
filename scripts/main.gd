@@ -321,6 +321,7 @@ var clean := false:         # recording: no highlights, no name tag, NO PANELS (
 			_sides_apply()
 var ui_side: Array = []      # the panels Tab hides
 var onboard: Onboarding     # ONBOARDING (scripts/onboarding.gd, R25): the first-launch 3-step guide
+var build_choose: BuildChoose   # BUILD's "What do you want to build?" chooser (scripts/build_choose.gd)
 var model_cards: ModelCards   # MODEL's task cards, "What do you want to do?" (scripts/model_cards.gd)
 var page_tour: PageTour     # P01 (scripts/page_tour.gd): BODY / MODEL / SCULPT / SURFACE, a 5-step tour the first time each opens
 var easy: EasyMode           # EASY MODE (scripts/easy_mode.gd): the 13-button bar; Expert = every panel and tool
@@ -2933,6 +2934,9 @@ func _ready() -> void:
 	model_cards = ModelCards.new()
 	model_cards.m = self
 	add_child(model_cards)
+	build_choose = BuildChoose.new()
+	build_choose.m = self
+	add_child(build_choose)
 	page_tour = PageTour.new()
 	page_tour.m = self
 	add_child(page_tour)
@@ -3076,7 +3080,9 @@ func _ready() -> void:
 	onboard.build(ui_root)
 	page_tour.build(ui_root)
 	model_cards.build(ui_root)
+	build_choose.build(ui_root)
 	page_tour.auto = not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour")   # P01: a test turns it on itself
+	build_choose.auto = page_tour.auto   # the chooser comes with a new 3D BUILDING project on a real launch; a test turns it on itself
 	model_cards.auto = page_tour.auto   # the cards come the first time MODEL opens on a real launch; a test turns them on itself
 	onboard.prepare(cf, not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour"))   # R25: due on a first launch; the other tours wait for it
 	easy.build(ui_root, [ui_top_bar, ui_cube, ui_nav, ui_bh, ui_play_row, ui_side_of["left"], ui_side_of["right"], ui_page_bar, ui_mouse].filter(func(n): return n != null) + ui_rails.values())   # Easy: no page tabs, no mouse legend
