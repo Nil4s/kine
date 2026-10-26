@@ -242,9 +242,9 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 ## THE GROUPS (round 36, GATES RR1; Fusion's CREATE / MODIFY): each tab's tools by label, in order, under a caption.
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
-	"MODEL": [["MESH", ["Test cube", "Edit body", "Save to body", "Save", "Open...", "Use in scene"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Proportional", "Modifiers", "Validate", "Repair"]]],
-	"SCULPT": [["SPHERE", ["Test sphere"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
-	"SURFACE": [["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]], ["MATERIAL", ["Material from photo"]]],
+	"MODEL": [["MESH", ["Test cube", "Edit body", "Save", "Save to body", "Open...", "Use in scene"]], ["MOVE", ["Move", "Rotate", "Scale"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Validate", "Repair", "Proportional", "Modifiers"]]],
+	"SCULPT": [["START", ["Test sphere", "Sculpt the body"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
+	"SURFACE": [["COLOUR", ["Paint", "Material from photo"]], ["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]]],
 	"BUILD": [["DRAW", ["Room", "Wall", "Pull"]], ["ADD", ["Opening", "Floor", "Roof", "Piece"]], ["SAY", ["Words"]], ["SHEET", ["Blueprint"]],
 		["PART", ["Part"]], ["SKETCH", ["Line", "Rectangle", "Circle", "Arc", "Dimension"]], ["CREATE", ["Extrude", "Revolve", "Mirror"]], ["MODIFY", ["Fillet", "Chamfer"]], ["DONE", ["Finish sketch"]]],   # the last five are the Part workspace's (scripts/build/part_ui.gd)
 	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped"]]],
@@ -263,9 +263,13 @@ const RIBBON_GROUPS := {
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API", "Next poses"]]],
 }
+## THE RIBBON STANDARD rows (CHECK, MODEL, SCULPT, SURFACE): icon-only buttons in 2-6 captioned groups, the rarer tools under the caption's menu,
+## an on toggle = an underline (RibbonUnder), not the amber fill (_iconise; tests/ribbonmesh_test.gd)
+const RIBBON_STD := ["CHECK", "MODEL", "SCULPT", "SURFACE"]
 ## THE RARER TOOLS (CHECK's 8 groups): a tool named here is not on the row; it lives under its group's caption menu (the caption's ▾), the
 ## same tool, tooltip and key. Every group keeps at least two tools on the row. Nothing is hidden by window width: the row is the same at 1280 and 1600
-const RIBBON_REST := {"CHECK": ["Safety sheet", "Real-mocap check", "Speed limits", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check",
+const RIBBON_REST := {"MODEL": ["Save to body", "Open...", "Use in scene", "Loop cut", "Knife", "Bevel", "Proportional", "Modifiers"], "SCULPT": ["Clay", "Crease", "Pinch", "Snake"], "SURFACE": ["Export UVs"],
+	"CHECK": ["Safety sheet", "Real-mocap check", "Speed limits", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check",
 	"Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound", "Star this clip", "My best take", "Make this one more like my best",
 	"What I learned from you", "My combos", "Frame it my way"]}
 ## PAGES (docs/PAGES_PLAN.md, step 1; DaVinci Resolve's page bar): one bar along the bottom, each page its own layout over
@@ -12066,7 +12070,11 @@ const ICON_OF := {"Throw to...": "throw", "Reactions": "react", "React to the hi
 	"Light: three-point": "lit_three", "Light: rim": "lit_rim", "Light: noir": "lit_noir", "Light: daylight": "lit_day",
 	"Add prop": "prop", "Object library...": "library", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective", "Local API": "api",
-	"Pose from words...": "say_it", "Sketch to pose": "sketch_pose", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong"}
+	"Pose from words...": "say_it", "Sketch to pose": "sketch_pose", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong",
+	"Test cube": "mesh_cube", "Edit body": "mannequin", "Save": "save", "Save to body": "body_save", "Open...": "open", "Use in scene": "prop", "Move": "xf_move", "Rotate": "xf_rot", "Scale": "xf_scale",
+	"Extrude": "part_extrude", "Inset": "inset", "Loop cut": "loopcut", "Knife": "knife", "Bevel": "part_chamfer", "Proportional": "proportional", "Modifiers": "stack", "Validate": "validate", "Repair": "wrench",
+	"Test sphere": "sphere", "Sculpt the body": "mannequin", "Draw": "brush_draw", "Inflate": "brush_inflate", "Grab": "brush_grab", "Clay": "brush_clay", "Crease": "brush_crease", "Smooth": "smooth", "Flatten": "brush_flat", "Pinch": "brush_pinch", "Snake": "brush_snake",
+	"Paint": "vpaint", "UV editor": "uv", "Game UVs 2k": "uv_game", "Pack UVs": "uv_pack", "Export UVs": "export", "Material from photo": "photo_mat"}
 
 
 ## icon over a small label, Fusion's ribbon look; the theme tints the (white) icon
@@ -12193,7 +12201,7 @@ func _iconise(b: Node) -> void:
 	b.set_meta("label", t)
 	b.icon = Icons.tex(ICON_OF[t])
 	b.text = ""
-	b.theme_type_variation = "RibbonUnder" if b.toggle_mode and b.get_parent() == ui_ribbon.get("CHECK") else "Ribbon"
+	b.theme_type_variation = "RibbonUnder" if b.toggle_mode and RIBBON_STD.any(func(row): return b.get_parent() == ui_ribbon.get(row)) else "Ribbon"
 	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	b.vertical_icon_alignment = VERTICAL_ALIGNMENT_CENTER
 	b.custom_minimum_size = Vector2(32, TOOLS_H)
