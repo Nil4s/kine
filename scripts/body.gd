@@ -2435,8 +2435,8 @@ func mirror_pose() -> void:
 ## two Lock-both-hands grips blended (round 47: between two cards that both lock, the second hand's turn, place and
 ## fingers move from one grip to the next instead of snapping at the card: a finger turned 97 deg in one frame)
 ## THE WRAP (round 47, GATES CC1/CC2): the fingers of hand h closed round the handle a-b of radius r (scripts/grip_wrap.gd)
-func wrap_fingers(h: String, a: Vector3, b: Vector3, r: float, kind := "") -> Dictionary:
-	return GripWrap.wrap(self, h, a, b, r, kind if kind != "" else GripWrap.type_of(wep_kind))
+func wrap_fingers(h: String, a: Vector3, b: Vector3, r: float, kind := "", free_thumb := false) -> Dictionary:
+	return GripWrap.wrap(self, h, a, b, r, kind if kind != "" else GripWrap.type_of(wep_kind), free_thumb)
 
 
 ## THE FINGERS AFTER A HEAD TILT (w4-fingertilt): a tilt moves the shaft, not the hands, so the fingers that held the old
@@ -2446,11 +2446,11 @@ func refit_fingers() -> void:
 	if wep_hand == "":
 		return
 	var sp := GripMagnet.span(self)
-	wrap_fingers(wep_hand, wep_point(sp.x), wep_point(sp.y), wep_r_handle)
+	wrap_fingers(wep_hand, wep_point(sp.x), wep_point(sp.y), wep_r_handle, "", true)
 	fk()
 	var o := "hand_l" if wep_hand == "hand_r" else "hand_r"
 	if grip and String(grip2.get("hand", "")) == o:
-		wrap_fingers(o, wep_point(sp.x), wep_point(sp.y), wep_r_handle)
+		wrap_fingers(o, wep_point(sp.x), wep_point(sp.y), wep_r_handle, "", true)
 		fk()
 		var fing := {}
 		for j in FINGERS:

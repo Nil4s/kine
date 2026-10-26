@@ -163,7 +163,7 @@ const THUMB_RATIO := [18.0 / 32.0, 1.0]
 
 ## close every finger of hand h ("hand_r" / "hand_l") round the handle a-b of radius r, the way grip type `kind` holds
 ## it (TYPES). Returns {finger: close_finger's rows, "thumb": [[bend, gap, how] x2]}.
-static func wrap(B: Body, h: String, a: Vector3, b: Vector3, r: float, kind := "power") -> Dictionary:
+static func wrap(B: Body, h: String, a: Vector3, b: Vector3, r: float, kind := "power", free_thumb := false) -> Dictionary:
 	var sd := h.right(2)
 	var rep := {}
 	for f in LONG:
@@ -173,6 +173,8 @@ static func wrap(B: Body, h: String, a: Vector3, b: Vector3, r: float, kind := "
 		var v: Vector3 = B.ang[j]
 		B.ang[j] = B.clamp_ang(j, Vector3(0.0, v.y, v.z))
 	B.fk_some(th)
+	if free_thumb:
+		free_thumb_root(B, sd, a, b, r)
 	if kind == "diagonal":
 		rep["thumb"] = [[0.0, gap(B, th[0], a, b, r), "along"], [0.0, gap(B, th[1], a, b, r), "along"]]
 		return rep
@@ -222,6 +224,47 @@ static func wrap(B: Body, h: String, a: Vector3, b: Vector3, r: float, kind := "
 			break
 	rep["thumb"] = [[(B.ang[th[0]] as Vector3).x, gap(B, th[0], a, b, r), how], [(B.ang[tip] as Vector3).x, float(hit.call()), how]]
 	return rep
+
+
+## THE THUMB'S ROOT (w4-fingertilt): a thumb segment already inside the shaft (its surface past the handle's, gap < 0) cannot be
+## closed out by its flexing joints alone, so the root (thumb_01: side and twist, the abduction and opposition of the CMC)
+## is searched on a 5 deg grid, +-40 deg, within its limits. The pose kept has every thumb segment outside the shaft (gap >=
+## -5 mm) and the least of its gap sum (the thumb resting against the surface). Nothing inside: nothing changes.
+const THUMB_FREE_STEP := 5.0
+const THUMB_FREE_REACH := 8   # grid steps each way: +-40 deg
+const THUMB_FREE_OK := -0.005
+
+
+static func free_thumb_root(B: Body, sd: String, a: Vector3, b: Vector3, r: float) -> void:
+	var root := "thumb_01" + sd
+	var segs := [root, "thumb_02" + sd, "thumb_03" + sd]
+	var inside := false
+	for j in segs:
+		if gap(B, j, a, b, r) < 0.0:
+			inside = true
+	if not inside:
+		return
+	var v0: Vector3 = B.ang[root]
+	var best_v := v0
+	var best_score := INF
+	for dy in range(-THUMB_FREE_REACH, THUMB_FREE_REACH + 1):
+		for dz in range(-THUMB_FREE_REACH, THUMB_FREE_REACH + 1):
+			var v: Vector3 = B.clamp_ang(root, Vector3(v0.x, v0.y + THUMB_FREE_STEP * dy, v0.z + THUMB_FREE_STEP * dz))
+			B.ang[root] = v
+			B.fk_some(segs)
+			var ok := true
+			var score := 0.0
+			for j in segs:
+				var g := gap(B, j, a, b, r)
+				if g < THUMB_FREE_OK:
+					ok = false
+					break
+				score += maxf(g, 0.0)
+			if ok and score < best_score - 1e-9:
+				best_score = score
+				best_v = v
+	B.ang[root] = best_v
+	B.fk_some(segs)
 
 
 ## the grip type a weapon kind is held with (KINDS "grip"; power when it does not say)
