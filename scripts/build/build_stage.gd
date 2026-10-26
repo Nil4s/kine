@@ -64,15 +64,26 @@ static func use(S: Scene, part := {}) -> String:
 		var res := Part.replay(part)
 		if res["mesh"] == null:
 			return ""
-		var pk := "part:" + String(part.get("name", "Part"))
+		var pk := "part:%s#%s" % [String(part.get("name", "Part")), str(hash(JSON.stringify(part)))]
 		Props.register_part(pk, res["mesh"])
-		S.props.append(Props.make(pk, Transform3D.IDENTITY))
+		var pp := Props.make(pk, Transform3D.IDENTITY)
+		pp["part_rec"] = part.duplicate(true)
+		S.props.append(pp)
 		return pk
 	var kind := register(S.building)
 	if kind == "":
 		return ""
 	if prop_index(S) < 0:
 		S.props.append(Props.make(kind, Transform3D.IDENTITY))
+	return kind
+
+
+## a Part prop of a scene file (scene.gd): its kind is made again from its record; "" when it has no solid (the prop is skipped)
+static func restore_part(kind: String, rec: Dictionary) -> String:
+	var res := Part.replay(rec)
+	if res["mesh"] == null:
+		return ""
+	Props.register_part(kind, res["mesh"])
 	return kind
 
 

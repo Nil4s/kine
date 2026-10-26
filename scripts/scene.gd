@@ -2577,6 +2577,8 @@ func from_dict(d: Dictionary) -> void:
 			BuildStage.register_named(building, String(p["kind"]))   # BUILD: the house is a kind made from its record
 		if p is Dictionary and BuildPieceKinds.is_piece_kind(String(p.get("kind", ""))):
 			BuildPieceKinds.ensure(String(p["kind"]).trim_prefix(BuildPieceKinds.PREFIX))   # a BUILD piece from the library: its kind is made on load
+		if p is Dictionary and String(p.get("kind", "")).begins_with("part:") and p.get("part_rec") is Dictionary and not Props.has_kind(String(p["kind"])):
+			BuildStage.restore_part(String(p["kind"]), p["part_rec"])   # BUILD: a Part in the set is made again from its record
 		if p is Dictionary and Props.has_kind(String(p.get("kind", ""))):
 			props.append(Props.from_dict(p))
 		elif p is Dictionary:

@@ -142,16 +142,13 @@ func setup(b: BuildUI) -> void:
 	easy_open_btn.name = "part_easy_open"
 	_icon(easy_open_btn, "part_part")
 	row.add_child(easy_open_btn)
-	# the row's order: the way back, Part, Easy, Finish, then the tools. A row too long for the window sends its LAST buttons to More,
-	# so Easy and Finish stay on the bar and the advanced tools go (the words of "What to build" made the row longer)
-	row.move_child(easy_open_btn, part_btn.get_index() + 1)
-	row.move_child(finish_btn, easy_open_btn.get_index() + 1)
-	for c in row.get_children():
-		if not house_btns.has(c) and c != part_btn:
-			c.visible = false
 	for c in house_btns:
 		if c.name == "build_choose_open":
 			reopen_btn = c as Button
+	_order_row()
+	for c in row.get_children():
+		if not house_btns.has(c) and c != part_btn:
+			c.visible = false
 	part_mesh = MeshInstance3D.new()
 	part_mesh.name = "part_mesh"
 	part_mesh.material_override = _solid_mat(Color(0.74, 0.77, 0.82))
@@ -1356,9 +1353,23 @@ func _tool_sync() -> void:
 	m._grey(finish_btn, why if not ok else ("" if sk != "" else "no sketch is open"))
 
 
+## the row's order: the way back, Part, Easy, Finish, then the tools. A row too long for the window sends its LAST buttons to More,
+## so Easy and Finish stay on the bar and the advanced tools go (the words of "What to build" made the row longer). Set again on every
+## sync: the house tools and the Part tools share the row, and something else appends to it after setup
+func _order_row() -> void:
+	var row := part_btn.get_parent() as HBoxContainer
+	if reopen_btn != null and reopen_btn.get_index() != part_btn.get_index() - 1:
+		row.move_child(reopen_btn, part_btn.get_index())
+	if easy_open_btn.get_index() != part_btn.get_index() + 1:
+		row.move_child(easy_open_btn, part_btn.get_index() + 1)
+	if finish_btn.get_index() != easy_open_btn.get_index() + 1:
+		row.move_child(finish_btn, easy_open_btn.get_index() + 1)
+
+
 func sync() -> void:
 	var show := chrome()
 	var up := shows()
+	_order_row()
 	part_btn.visible = bu.on and not bu.easy_ui()
 	part_btn.set_pressed_no_signal(on)
 	for c in house_btns:
