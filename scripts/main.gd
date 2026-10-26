@@ -254,11 +254,20 @@ const RIBBON_GROUPS := {
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial", "Match the reference timing"]], ["SOUND", ["Sound cues"]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]], ["THROW", ["Throw to..."]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions", "React to the hit (physics)", "Add impact frames", "Remove impact frames"]]],
-	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Weapon weight", "Parry rebound", "What I learned from you", "Fight to the beat", "Choreograph to the song", "Fight distance", "Sell the hit", "Gaze director", "Safety sheet", "Reaction direction", "Fight rhythm", "Breakfall check", "Recovery step", "Precog check", "Auto opponent", "Fatigue", "Momentum ledger", "Airborne spin check", "Real-mocap check", "Realism score", "My style", "Use my style", "Star this clip", "My best take", "Make this one more like my best", "Speed limits", "My combos", "Auto camera", "My camera", "Frame it my way", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
+	"CHECK": [["JUDGE", ["Check", "Realism score", "Safety sheet", "Real-mocap check"]], ["FIX", ["Polish", "Fix moves through the body", "Timing coach", "Speed limits"]],
+		["PHYSICS", ["Make it physical", "Accept span", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check"]],
+		["FIGHT", ["Fight distance", "Auto opponent", "Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound"]],
+		["MUSIC", ["Fight to the beat", "Choreograph to the song"]], ["STYLE", ["My style", "Use my style", "Star this clip", "My best take", "Make this one more like my best", "What I learned from you", "My combos"]],
+		["CAMERA", ["Auto camera", "My camera", "Frame it my way"]], ["SHOW", ["Dummy (H)", "Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["PLAN", ["Floor plan"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR", "Pack scene (zip)", "Unpack zip..."]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API", "Next poses"]]],
 }
+## THE RARER TOOLS (CHECK's 8 groups): a tool named here is not on the row; it lives under its group's caption menu (the caption's ▾), the
+## same tool, tooltip and key. Every group keeps at least two tools on the row. Nothing is hidden by window width: the row is the same at 1280 and 1600
+const RIBBON_REST := {"CHECK": ["Safety sheet", "Real-mocap check", "Speed limits", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check",
+	"Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound", "Star this clip", "My best take", "Make this one more like my best",
+	"What I learned from you", "My combos", "Frame it my way"]}
 ## PAGES (docs/PAGES_PLAN.md, step 1; DaVinci Resolve's page bar): one bar along the bottom, each page its own layout over
 ## the SAME scene, body and undo history. A page shows ONE ribbon row (its groups) and decides which side panels and how
 ## much of the scene strip are open; switching is a view change: no undo step, the scene untouched. The VIEW row is not a
@@ -11259,6 +11268,15 @@ func _theme() -> Theme:
 	for st in [["normal", "panel"], ["hover", "btn_hover"], ["pressed", "accent"], ["hover_pressed", "accent"], ["disabled", "panel"]]:
 		var rb: StyleBoxFlat = box.call(Tok.c(st[1]), 4, 3)
 		th.set_stylebox(st[0], "Ribbon", rb)
+	# CHECK's toggles: ON = the lit grey and a 2 px accent underline, not the amber block (amber = the page's one live action)
+	th.set_type_variation("RibbonUnder", "Ribbon")
+	for st in ["pressed", "hover_pressed"]:
+		var ub: StyleBoxFlat = box.call(Tok.c("btn_hover"), 4, 3)
+		ub.border_color = Tok.c("accent")
+		ub.border_width_bottom = 2
+		th.set_stylebox(st, "RibbonUnder", ub)
+	for ic in ["icon_pressed_color", "icon_hover_pressed_color"]:
+		th.set_color(ic, "RibbonUnder", Tok.c("btn_text"))
 	# a tab: small words, no box; the open one underlined in the accent
 	th.set_type_variation("RibbonTab", "Button")
 	for st in ["normal", "hover", "pressed", "hover_pressed"]:
@@ -12107,7 +12125,7 @@ func _iconise(b: Node) -> void:
 	b.set_meta("label", t)
 	b.icon = Icons.tex(ICON_OF[t])
 	b.text = ""
-	b.theme_type_variation = "Ribbon"
+	b.theme_type_variation = "RibbonUnder" if b.toggle_mode and b.get_parent() == ui_ribbon.get("CHECK") else "Ribbon"
 	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	b.vertical_icon_alignment = VERTICAL_ALIGNMENT_CENTER
 	b.custom_minimum_size = Vector2(32, TOOLS_H)
@@ -15656,8 +15674,9 @@ func _fit_top() -> void:
 	for b in all:
 		if b is Button and b.has_meta("full"):
 			b.text = b.get_meta("full")
+	var rest: Array = RIBBON_REST.get(_ribbon_tab, [])
 	for b in ui_ribbon[_ribbon_tab].get_children():
-		(b as Control).visible = bld == null or bld.part == null or bld.part.ribbon_shows(b, _ribbon_tab)   # BUILD: the house tools or the Part workspace's, never both
+		(b as Control).visible = (bld == null or bld.part == null or bld.part.ribbon_shows(b, _ribbon_tab)) and not (b is Button and label_of(b) in rest)   # BUILD: the house tools or the Part workspace's, never both; RIBBON_REST: under the caption only
 	var tools: Array = ui_ribbon[_ribbon_tab].get_children().filter(func(c): return c is Button and (c as Control).visible)
 	ui_more.visible = false
 	_more_tools = []
