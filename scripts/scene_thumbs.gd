@@ -347,7 +347,7 @@ func _new_stage(nm: String) -> Dictionary:
 	vp.size = SIZE
 	vp.own_world_3d = true
 	vp.transparent_bg = false
-	vp.msaa_3d = Viewport.MSAA_4X
+	vp.msaa_3d = Quality.thumb_msaa() as Viewport.MSAA
 	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	add_child(vp)
 	var env := Environment.new()

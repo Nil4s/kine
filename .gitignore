@@ -28,3 +28,4 @@ native/**/*.obj
 native/**/*.a
 native/**/*.lib
 native/**/*.exp
+override.cfg

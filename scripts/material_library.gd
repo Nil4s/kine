@@ -212,7 +212,7 @@ func _stage() -> void:
 	_vp.size = SIZE
 	_vp.own_world_3d = true
 	_vp.transparent_bg = false
-	_vp.msaa_3d = Viewport.MSAA_4X
+	_vp.msaa_3d = Quality.thumb_msaa() as Viewport.MSAA
 	_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
 	add_child(_vp)
 	var sky := Sky.new()
