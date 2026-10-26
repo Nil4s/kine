@@ -163,7 +163,9 @@ func _init() -> void:
 		monotone(gb, "4b")
 	# (5) the cap
 	await open("dodge_side")
-	var cp := await fx({"max_steps": 1, "dry": true})
+	# bar 100: dodge_side's first fix (BODY ACCEL, 1e74ee6a) now lifts 27.07 -> 77.60, over DEFAULT_BAR 70, so the default bar ends the run
+	# "bar_reached" after 1 fix; 100 keeps the bar this line tests (max_steps stops it, not the score)
+	var cp := await fx({"max_steps": 1, "dry": true, "bar": 100})
 	ok(cp["stopped"] == "cap" and int(cp["tried"]) == 1, "5 max_steps 1: %s after %d tried" % [cp["stopped"], cp["tried"]])
 	# (6) impossible
 	var imp := "head at least 5 m from pelvis all clip"

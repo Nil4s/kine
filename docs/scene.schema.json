@@ -376,6 +376,14 @@
       "$ref": "#/$defs/card"
      }
     },
+    "kind": {
+     "description": "the project kind the start screen made it as (only when not animation)",
+     "enum": ["animation", "modeling", "building"]
+    },
+    "building": {
+     "description": "BUILD: the house record (scripts/build/building.gd, its own version)",
+     "type": "object"
+    },
     "natural": {
      "type": "boolean"
     },

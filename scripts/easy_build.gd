@@ -51,6 +51,10 @@ func build(root: Control) -> void:
 		["Switch to Expert", "Show every tool again. The house stays as it is", func(): m.easy.set_on(false)],
 		["Done", "Finish building and go back to the start screen", _done],
 	]
+	var home_b: Button = m._home_button()   # the same Home button as every bar
+	home_b.custom_minimum_size = Vector2(110, m.TOP_H - 12)
+	home_b.add_theme_font_size_override("font_size", 15)
+	row.add_child(home_b)
 	for a in acts:
 		row.add_child(_big(a[0], a[1], a[2]))
 	redo_btn = _big("Redo", "Put back what Undo took back", func(): m._redo())

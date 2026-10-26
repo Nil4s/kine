@@ -287,7 +287,8 @@ const PAGE_TIPS := {"BODY": "make the person: stature, mass and proportions as p
 ## no mannequin, no clips strip, no pose rails). Every name is one thing: figure (the mannequin, the target dummy, the held weapons),
 ## joints (the joint dots, the part tag), sides (the side panels and their rails), scene (the SCENE clips strip), readout (the
 ## part / cards / time line), legend (the mouse legend), next (the page bar's Next: line). A page not named here hides nothing
-const PAGE_KIND_HIDES := {"building": {"BUILD": ["figure", "joints", "sides", "scene", "readout", "legend", "next"]}}
+const PAGE_KIND_HIDES := {"building": {"BUILD": ["figure", "joints", "sides", "scene", "readout", "legend", "next"]},
+	"modeling": {"MODEL": ["scene", "next"], "SURFACE": ["scene", "next"], "SCULPT": ["scene", "next"]}}   # a modeling project has no clip strip ("No clips yet", "Next: Clip this pose") under its body
 var cur_page := "POSE"
 var base_fold := {"left": false, "right": false, "bottom": false}   # the user's own folds (a page that names none follows them)
 var page_fold := {}        # page -> {left/right/bottom: bool}: what the user chose on that page
@@ -12300,6 +12301,8 @@ func _ui() -> void:
 	logo.tooltip_text = "Start screen"
 	logo.gui_input.connect(_logo_input)
 	strip.add_child(logo)
+	var home_btn := _home_button()   # a plain way back to the start screen (the logo works too, but nobody guesses that)
+	strip.add_child(home_btn)
 	# round 7, Fusion's ribbon: tabs, then that tab's tools; Undo / Redo / Search / Help always on the right. Nothing
 	# was removed: every button the bar had is in a tab (tests/ribbon_test.gd counts them), and the play row keeps its own
 	ui_ribbon = {}
@@ -19586,7 +19589,7 @@ func _drafts_row(tag: String) -> void:
 
 ## opens a scene file the one way every pick does (the scene list, the S box's scene rows): at once, or asking first
 ## when the scene open now has unsaved changes
-func _open_scene_file(path: String, then := Callable()) -> void:   # then: run once the scene is open (Easy's My scenes plays it)
+func _open_scene_file(path: String, then := Callable(), answered := false) -> void:   # answered: the caller has just asked Save / Don't save already   # then: run once the scene is open (Easy's My scenes plays it)
 	if path == scene_path and _unsaved() == false:
 		if then.is_valid():
 			then.call()
@@ -19597,7 +19600,7 @@ func _open_scene_file(path: String, then := Callable()) -> void:   # then: run o
 		_refresh()
 		if then.is_valid():
 			then.call()
-	if _unsaved():
+	if _unsaved() and not answered:
 		_ask_save(_scene_label(), go)   # ROADMAP 50: Save / Don't save / Cancel
 	else:
 		go.call()
@@ -20252,10 +20255,23 @@ func _start_screen_boot() -> void:
 	while intro != null and not intro._done and intro.t < intro.length() - KineIntro.FADE - 0.05:
 		await get_tree().process_frame
 	if tour_step < 0 and not onboard.pending:
-		start_screen.show_screen()
+		start_screen.show_screen(true)
 
 
 ## P13: the start panel, once the recover offer and any intro have been answered
+## the Home button (icon + word): top bar in Expert, Easy's bar in Easy. It only opens the start screen (the unsaved-work question
+## comes when a new project is then picked, as before)
+func _home_button() -> Button:
+	var b := Button.new()
+	b.name = "home_btn"
+	b.text = "Home"
+	b.icon = Icons.tex("home")
+	b.focus_mode = Control.FOCUS_NONE
+	b.tooltip_text = "Back to the start screen: new project, open, recent work"
+	b.pressed.connect(func(): start_screen.show_screen())
+	return b
+
+
 func _logo_input(ev: InputEvent) -> void:
 	if ev is InputEventMouseButton and (ev as InputEventMouseButton).pressed and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and start_screen != null:
 		start_screen.show_screen()

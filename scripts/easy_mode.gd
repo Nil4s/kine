@@ -118,6 +118,10 @@ func build(root: Control, expert: Array) -> void:
 		["Flip left and right", "The whole body reflected left and right", m._press.bind(KEY_M, true)],
 		["Put his feet on the floor", "Plant the feet that slide over the cards, so they stay on the floor", m._plant_all],
 	]
+	var home_b: Button = m._home_button()   # the way back to the start screen; not in _btns (the bar's numbered buttons stay as they were)
+	home_b.custom_minimum_size = Vector2(110, m.TOP_H - 12)
+	home_b.add_theme_font_size_override("font_size", 15)
+	row.add_child(home_b)
 	for a in acts:
 		var b := _big(a[0], a[1], a[2])
 		row.add_child(b)
