@@ -541,7 +541,8 @@ static func supports(b: Dictionary) -> Array:
 
 ## NAMED POINTS: one per door / arch ("front door", "back door", "left door", "right door", "inner door"; a second one of a name
 ## is numbered "front door 2"). {"name", "pos" (the opening's middle at floor level), "out" (the unit vector pointing out of the
-## room through it, floor plane), "room"}. The walk card goes in from pos + out x d to pos - out x d
+## room through it, floor plane), "room", "clear" (the opening's height above the floor, m: sill + height, what a body must fit under)}.
+## The walk card goes in from pos + out x d to pos - out x d
 static func anchors(b: Dictionary) -> Array:
 	var out := []
 	var seen := {}
@@ -568,7 +569,8 @@ static func anchors(b: Dictionary) -> Array:
 				nrm = Vector3(0, 0, -1) if String(iw.get("axis", "z")) == "x" else Vector3(-1, 0, 0)
 		var n := int(seen.get(nm, 0)) + 1
 		seen[nm] = n
-		out.append({"name": nm if n == 1 else "%s %d" % [nm, n], "pos": mid, "out": nrm.rotated(Vector3.UP, yaw), "room": String(r["id"])})
+		out.append({"name": nm if n == 1 else "%s %d" % [nm, n], "pos": mid, "out": nrm.rotated(Vector3.UP, yaw), "room": String(r["id"]),
+			"clear": bx.end.y - base_y(b, r)})
 	return out
 
 
