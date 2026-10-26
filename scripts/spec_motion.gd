@@ -1052,7 +1052,7 @@ static func _why(r: Dictionary, bl: Dictionary, P: Dictionary, target: Vector3, 
 		var L: float = (Bp.P[mid] as Vector3).distance_to(Bp.P[root]) + (Bp.P[limb] as Vector3).distance_to(Bp.P[mid]) + end_point(Bp, bl["end"]).distance_to(Bp.P[limb])
 		var far: float = (Bp.P[root] as Vector3).distance_to(target)
 		var how := "the limb (%.2f m long) straight toward it" % L if far > 0.97 * L else "inside the limb's %.2f m length, but its joint limits stop it (a target this close needs a bend the limits refuse)" % L
-		return {"line": r["line"], "why": "reach: the %s stops %.1f cm from the target (%s, from the %s %.2f m away; the trunk leaned inside the balance range; %s)" % [end_words(bl["end"]), closest, how, root.replace("_", " "), far, no_step],
+		return {"line": r["line"], "why": "reach: the %s stops %.1f cm from the target (%s, from the %s %s away; the trunk leaned inside the balance range; %s)" % [end_words(bl["end"]), closest, how, root.replace("_", " "), Units.len(far), no_step],
 			"closest": {"value": closest, "unit": "cm"}}
 	if k == "unread":
 		return {"line": r["line"], "why": "unread: " + String(r.get("error", "")), "closest": null}

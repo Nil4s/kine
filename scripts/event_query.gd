@@ -960,7 +960,7 @@ static func answer(pq: Dictionary, clip: Dictionary, me: int) -> Dictionary:
 	head["rules"] = cond["rules"]
 	var said := []
 	for sp in spans:
-		said.append(("%.3f s (frame %d)" % [sp["t0"], sp["f0"]]) if sp["f0"] == sp["f1"] else ("%.3f-%.3f s (frames %d-%d)" % [sp["t0"], sp["t1"], sp["f0"], sp["f1"]]))
+		said.append(("%.3f s (frame %d)" % [sp["t0"], sp["f0"]]) if sp["f0"] == sp["f1"] else ("%.3f-%.3f s (%d-%d f)" % [sp["t0"], sp["t1"], sp["f0"], sp["f1"]]))
 	head["text"] = ("never (0-%.2f s)" % float(clip["L"])) if spans.is_empty() else "; ".join(said)
 	return head
 

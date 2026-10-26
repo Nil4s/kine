@@ -466,7 +466,7 @@ func section_set(on: bool) -> void:
 		sec_ui.visible = true
 		_sec_axis_sync()
 		section_update()
-		m._say("section plane on (%s = %.2f m): the body above it is cut away, so you see inside the pose. The panel top left moves it; run 'View: section plane' again to turn it off" % ["XYZ"[sec_axis], sec_off])
+		m._say("section plane on (%s = %s): the body above it is cut away, so you see inside the pose. The panel top left moves it; run 'View: section plane' again to turn it off" % ["XYZ"[sec_axis], Units.len(sec_off)])
 	else:
 		RenderingServer.global_shader_parameter_set(GLOBAL, Vector4(0, 0, 0, 1.0e9))
 		_sec_unwrap()
@@ -504,7 +504,7 @@ func section_update() -> void:
 	RenderingServer.global_shader_parameter_set(GLOBAL, section_vec())
 	_sec_wrap_all()
 	if _sec_val != null:
-		_sec_val.text = "%s = %.2f m" % ["XYZ"[sec_axis], sec_off]
+		_sec_val.text = "%s = %s" % ["XYZ"[sec_axis], Units.len(sec_off)]
 	if _sec_slider != null and absf(_sec_slider.value - sec_off) > 1e-4:
 		_sec_slider.set_value_no_signal(sec_off)
 

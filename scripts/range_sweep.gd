@@ -467,7 +467,7 @@ static func run(m: Node, p: Dictionary) -> Dictionary:
 		"where": {"pose": "the body as it stands", "t": "the scene's pose at %.3f s" % at_t, "card": "card %d's pose (N002 lines over the clip)" % (int(cx.get("card", 0)) + 1)}[mode],
 		"clip_frames_played": "%d of %d per sample" % [cx["clip"]["played"], cx["clip"]["n"]] if cx.has("clip") else null,
 		"samples": cx["n"], "ms": snappedf((Time.get_ticks_usec() - t0) / 1000.0, 0.1), "scene_changed": false})
-	(out["text"] as Array).push_front("%s %s, %s (limits %.0f..%.0f deg); %d samples, %.0f ms; nothing changed" % [j, ax, out["where"], L.x, L.y, cx["n"], out["ms"]])
+	(out["text"] as Array).push_front("%s %s, %s (limits %.0f to %.0f deg); %d samples, %.0f ms; nothing changed" % [j, ax, out["where"], L.x, L.y, cx["n"], out["ms"]])
 	return out
 
 
@@ -528,13 +528,13 @@ static func _sweep(cx: Dictionary, lo: float, hi: float, step: float, now: float
 		var nev := alone.filter(func(a): return a["never"])
 		if not nev.is_empty():
 			for a in nev:
-				text.append("EMPTY: '%s' holds for NO value of %s %s in %.1f..%.1f deg%s" % [a["condition"], cx["joint"], ["bend", "side", "twist"][int(cx["ai"])], lo, hi,
+				text.append("EMPTY: '%s' holds for NO value of %s %s in %.1f to %.1f deg%s" % [a["condition"], cx["joint"], ["bend", "side", "twist"][int(cx["ai"])], lo, hi,
 					("" if a["best_slack"] == null else "; closest at %.1f deg, still %.2f %s short" % [a["best_at"], -float(a["best_slack"]), a["unit"]])])
 		else:
-			text.append("EMPTY: each condition holds somewhere, never all at once: " + "; ".join(alone.map(func(a): return "'%s' on %s" % [a["condition"], " + ".join((a["holds_on"] as Array).map(func(h): return "%.1f..%.1f" % [h[0], h[1]]))])))
+			text.append("EMPTY: each condition holds somewhere, never all at once: " + "; ".join(alone.map(func(a): return "'%s' on %s" % [a["condition"], " + ".join((a["holds_on"] as Array).map(func(h): return "%.1f to %.1f deg" % [h[0], h[1]]))])))
 	else:
 		for iv in ivs:
-			text.append("SAFE %.2f .. %.2f deg (%.2f wide, pick %.1f): low end %s; high end %s" % [iv["from"], iv["to"], iv["width"], iv["pick"], _end_words(iv["ends"][0]), _end_words(iv["ends"][1])])
+			text.append("SAFE %.2f to %.2f deg (%.2f deg wide, pick %.1f deg): low end %s; high end %s" % [iv["from"], iv["to"], iv["width"], iv["pick"], _end_words(iv["ends"][0]), _end_words(iv["ends"][1])])
 	text.append("now %.2f deg: %s" % [now, ("inside, %.2f deg from the nearest end" % to_edge) if inside else "OUTSIDE every safe range"])
 	return {"intervals": ivs, "empty": ivs.is_empty(), "never": alone.filter(func(a): return a["never"]).map(func(a): return a["condition"]),
 		"alone": alone, "now_inside": inside, "now_to_edge_deg": to_edge, "step": snappedf((hi - lo) / float(n), 0.001), "text": text}
