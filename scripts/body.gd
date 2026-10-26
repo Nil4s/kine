@@ -2491,6 +2491,15 @@ func to_dict() -> Dictionary:
 	var con := []
 	for c in contacts():
 		con.append([c[0], c[1], snappedf(c[2], 0.0001)])
+	var out := {"offset": _p(offset), "joints": joints, "weapon": weapon_dict(), "contacts": con}
+	if wep2_on:
+		out["weapon2"] = wep2_dict()
+	return out
+
+
+## the held weapon as the file's "weapon" key ({} when none): to_dict's own, and ObjectLibrary.arm_cards' (which needs only this,
+## not the joints and contacts of a whole to_dict per card)
+func weapon_dict() -> Dictionary:
 	var w := {}
 	if wep_on:
 		var x := wep_xform()
@@ -2505,10 +2514,7 @@ func to_dict() -> Dictionary:
 		# the second arm its own way)
 		if grip and not grip2.is_empty():
 			w["grip2"] = grip2.duplicate(true)
-	var out := {"offset": _p(offset), "joints": joints, "weapon": w, "contacts": con}
-	if wep2_on:
-		out["weapon2"] = wep2_dict()
-	return out
+	return w
 
 
 func from_dict(d: Dictionary) -> void:
