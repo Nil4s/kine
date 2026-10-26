@@ -83,16 +83,25 @@ static func caps(kind: String) -> Array:
 
 ## the COM and the hand support at 60 Hz, played here (the fix's re-measure; Check passes HumanLimits.sample's own frames instead)
 static func sample(S: Scene, B: Body) -> Dictionary:
+	return play(S, B, 0, int(ceil(S.length() * FPS)))
+
+
+## frames lo..hi (inclusive) of the clip; the others stay zero / false (a window is all peak_in reads, see there)
+static func play(S: Scene, B: Body, lo: int, hi: int) -> Dictionary:
 	var keep: Dictionary = B.state()
 	var was := S.stepped
 	S.stepped = false
 	var n := int(ceil(S.length() * FPS)) + 1
 	var com := []
 	var sup := []
-	for i in n:
+	com.resize(n)
+	sup.resize(n)
+	com.fill(Vector3.ZERO)
+	sup.fill(false)
+	for i in range(maxi(lo, 0), mini(hi, n - 1) + 1):
 		S.apply_true(B, i / FPS)   # as HumanLimits.sample plays it (FrameMemo.pose when the memo is off)
-		com.append(Balance.com(B))
-		sup.append(HumanLimits.supported(B))
+		com[i] = Balance.com(B)
+		sup[i] = HumanLimits.supported(B)
 	S.stepped = was
 	B.set_state(keep)
 	return {"com": com, "sup": sup}
@@ -218,7 +227,11 @@ static func findings(S: Scene, B: Body, sm := {}) -> Array:
 
 ## the peak of one channel over [t0, t1] s of a scene
 static func peak_in(S: Scene, B: Body, kind: String, t0: float, t1: float) -> Array:
-	var sm := sample(S, B)
+	# only the frames the peak reads and the 2K on each side that series / _free look at: the rest of the clip is not played (the
+	# retime loop asks again after every lengthening; a full replay per ask was most of a step's time: 1e74ee6a)
+	var lo := maxi(int(floor(t0 * FPS)) - 2 * K - 2, 0)
+	var hi := mini(int(ceil(t1 * FPS)) + 2 * K + 2, int(ceil(S.length() * FPS)))
+	var sm := play(S, B, lo, hi)
 	var s: Array = series(sm["com"])[kind]
 	var free := _free(sm["sup"])
 	var pk := 0.0
