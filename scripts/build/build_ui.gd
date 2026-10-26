@@ -688,6 +688,8 @@ func sync() -> void:
 		use_btn.text = "Back to BUILD" if m.cur_page == "STAGE" else "Use in a scene"
 	if bp_btn != null:
 		m._grey(bp_btn, "" if has_rooms else "draw a room first")
+	if m.cur_page == "BUILD" and not m._top_fits():
+		m._fit_top.call_deferred()   # the row grew after the page's own fit (the house name, the chooser's button): else the bar runs past the window and "Use in a scene" slides under the next control
 	if BuildStage.refresh(m.S):
 		m._props_show()   # the set follows the house: its collision is the record's again
 	_stage_sync()
