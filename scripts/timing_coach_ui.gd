@@ -54,9 +54,15 @@ func halt() -> void:
 		pv = null
 
 
+var _computing := false
+
 func show() -> void:
 	if m.S.cards.size() < 2:
 		m._say("Timing coach needs a scene of two cards or more: press Enter to add the body as a card (two at least), or open a scene in the list below")
+		return
+	if _computing:   # a second click while the suggestions are made cancels them (the same as a click during the read)
+		FrameMemo.abort = true
+		m._say("timing coach cancelled")
 		return
 	var had := int(db.get("n", 0)) > 0
 	var ok: bool = await _database()
@@ -66,10 +72,19 @@ func show() -> void:
 		return   # the scene changed while the scenes were read
 	var t0 := Time.get_ticks_usec()
 	var keep: Dictionary = m.B.state()   # a view: the body the user is editing comes back as it was (not re-posed from the playhead)
-	sugs = TimingCoach.compute(m.S, m.B, db, String(m.S.name))
+	var ck: int = m.S.cards.hash()
+	_computing = true
+	FrameMemo.slice_begin(8.0)   # the suggestions are read a few strikes per frame: the window keeps drawing
+	var got: Array = await TimingCoach.compute_co(m.S, m.B, db, String(m.S.name))
+	var stopped := FrameMemo.abort
+	FrameMemo.slice_end()
+	_computing = false
 	ms = float(Time.get_ticks_usec() - t0) / 1000.0
 	m.B.set_state(keep)   # compute posed the body at other times
 	m.B.fk()
+	if stopped or m.S.cards.hash() != ck:
+		return   # cancelled, or the scene changed while the suggestions were read: nothing is shown from them
+	sugs = got
 	learn()
 	_panel()
 

@@ -2692,6 +2692,10 @@ func _open_version(path: String) -> void:
 
 
 func _input(ev: InputEvent) -> void:
+	# FIX ALL runs in slices (its sampler is part way through a clip between two frames): only its own button answers meanwhile
+	if _fixall_on and (ev is InputEventKey or (ev is InputEventMouseButton and not (is_instance_valid(_fixall_btn) and _fixall_btn.get_global_rect().has_point((ev as InputEventMouseButton).position)))):
+		get_viewport().set_input_as_handled()
+		return
 	if sk.on and ev is InputEventKey and ev.pressed and (ev as InputEventKey).keycode == KEY_ESCAPE:   # I9: Esc leaves Sketch mode, the strokes are dropped
 		_sk_toggle()
 		get_viewport().set_input_as_handled()
@@ -18491,8 +18495,12 @@ func _fix_all_press() -> void:
 	_fix_all()
 
 
+## tests: FIX ALL as one blocking call (Fixer.apply on the frame, no slices): the reference the sliced run must equal, bit for bit
+var fixall_sync := false
+
+
 func _fix_all() -> void:
-	if _fixing or _fixall_on or S.cards.size() < 2 or not check_ran:
+	if _fixing or _fixall_on or _check_busy or S.cards.size() < 2 or not check_ran:
 		return
 	_fixall_on = true
 	_fixall_stop = false
@@ -18500,6 +18508,10 @@ func _fix_all() -> void:
 	_previews.clear()
 	_pv_hover = {}
 	ov.fix_preview(S, [], 0.0)
+	# the run gives the frame back every 8 ms of work (FrameMemo slices, as Check does); _input holds every other click and key
+	# meanwhile, so no edit, undo or second Check comes between two of its steps
+	if not fixall_sync:
+		FrameMemo.slice_begin(8.0)
 	var u := _snapshot()   # taken before the first fix: the run is one undo step
 	var t_run := Time.get_ticks_msec()
 	var total := findings.filter(func(x): return Fixer.label(x, S) != "").size()
@@ -18544,8 +18556,13 @@ func _fix_all() -> void:
 		# (its worst case is in the report); the frame is given back before each one.
 		_pv_quiesce()
 		var t0 := Time.get_ticks_usec()
-		var r: Dictionary = Fixer.apply(f, S, ov.GB, _sm)
-		worst = maxi(worst, (Time.get_ticks_usec() - t0) / 1000)
+		var w0 := FrameMemo.waited_usec
+		var r: Dictionary
+		if fixall_sync:
+			r = Fixer.apply(f, S, ov.GB, _sm)
+		else:
+			r = await Fixer.apply_co(f, S, ov.GB, _sm)
+		worst = maxi(worst, (Time.get_ticks_usec() - t0 - (FrameMemo.waited_usec - w0)) / 1000)   # the fix's own work, not the frames it gave back
 		if r["kept"]:
 			kept += 1
 			refused.erase(fk)
@@ -18568,6 +18585,7 @@ func _fix_all() -> void:
 		redo.clear()
 		_rebuild_cards()
 		_ps().apply(B, playhead)
+	FrameMemo.slice_end()
 	_fixall_on = false
 	_fixing = false
 	var refused_list: Array = refused.values()

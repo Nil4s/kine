@@ -390,6 +390,15 @@ func _init() -> void:
 		await key(KEY_Z, true)
 		ok(JSON.stringify(m.S.cards) == cards0, "(d) %s: one Ctrl+Z gives the cards back exactly" % nm)
 
+	# nothing may still be in flight at quit: a worker (a fix preview, Polish), a sliced read or score still running when the process
+	# exits is torn down under the engine's shutdown (the 10-26 exit crash). Each is waited for, then the error logger is removed:
+	# it holds this run's SceneTree, and the engine's own errors at exit (resources still in use) would call into the freed object.
+	var t_end := Time.get_ticks_msec()
+	while (m.tc_ui._reading or m.tc_ui._computing or bool(m.rs_ui.busy) or bool(m._fixing) or bool(m._fixall_on) or bool(m._check_busy) or bool(m._polish_busy)) and Time.get_ticks_msec() - t_end < 300000:
+		await process_frame
+	m._pv_quiesce()
+	await idle(3)
+	OS.remove_logger(lg)
 	for s in err_log:
 		print("     logged: %s" % s)
 	print("crashcheck_test: %d fail(s), %d logged error(s)" % [fails, errs])

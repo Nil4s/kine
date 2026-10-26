@@ -149,11 +149,21 @@ static func _fmt(s: float) -> String:
 ## the suggestions for scene S (read only; B is posed on the way and left wherever the last sample put it).
 ## [{"card", "field": "move", "kind": "STRIKE" | "FOLLOW-THROUGH", "from", "to", "range": [lo, hi], "real": {...}, "reason"}]
 static func compute(S: Scene, B: Body, db: Dictionary, exclude := "") -> Array:
+	var keep := FrameMemo.suspend_slicing()   # a plain call never waits for a frame
+	var r: Array = compute_co.call(S, B, db, exclude)
+	FrameMemo.resume_slicing(keep)
+	return r
+
+
+## compute() in slices: the strikes are read a few per frame while FrameMemo slicing is on (the Timing coach button), [] when cancelled
+static func compute_co(S: Scene, B: Body, db: Dictionary, exclude := "") -> Array:
 	var out := []
 	var ts := S.times()
 	var ref_i := float(WeightFeel.inertia(B, WeightFeel.REF_KIND)["i"])
 	var strike_to := {}
 	for i in range(1, S.cards.size()):
+		if not await FrameMemo.pump(float(i) / float(S.cards.size())):
+			return []
 		if not is_strike(S, i):
 			continue
 		var cur := S.move_time(i)
@@ -206,6 +216,8 @@ static func compute(S: Scene, B: Body, db: Dictionary, exclude := "") -> Array:
 				i + 1, _fmt(cur), _fmt(to), why, rtxt, lo, hi_cited, V_PEAK_LO, V_PEAK_HI, PEAK_OVER_MEAN, wtxt, ratio_txt]})
 	for i in strike_to.keys():
 		var k: int = i + 1
+		if not await FrameMemo.pump(0.95):
+			return []
 		if k >= S.cards.size():
 			continue
 		var cur := S.move_time(k)

@@ -60,6 +60,10 @@ static func run(m: Node, cache: Dictionary, lap: Dictionary) -> Dictionary:
 	var rows_done := false
 	var hr := []
 	for jd in RealismScore.NEW:
+		if FrameMemo.slicing():   # the Realism panel's own run: the window draws between two judges; a cancel (abort) stops here
+			await (m.get_tree() as SceneTree).process_frame
+			if FrameMemo.abort:
+				break
 		var c = cache.get(jd)
 		if c != null and String(c["key"]) == key:
 			out[jd] = c["res"]
