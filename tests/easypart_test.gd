@@ -11,6 +11,7 @@ extends SceneTree
 ##                right way; a refusal (Pull it up with no new shape) says why and leaves no step
 ##   7 DOTS       an amber dot dragged with the mouse changes its number (sword tip: Blade length) as the slider does, one undo step
 ##   8 NO DLL     Part.force_off: the buttons and sliders greyed with the reason, nothing changes
+##   9 POLISH     axe head face > 2500 px2 from the default camera, its edge thinner than its eye; every template framed 3/4; Expert toast clear of timeline/browser/side panel; no group caption on the Easy buttons
 ## Shots in C:/Temp/claude/easypart/ (each template, a slider mid-drag). Only user:// is written (and the shots).
 var fails := 0
 var m: Node
@@ -225,6 +226,58 @@ func _init() -> void:
 		ok(ep.rows.size() >= 3 and ep.rows.size() <= 5 and pu.part_mesh.visible and pu.part_mesh.mesh != null, "1 %s: %d sliders, the model shows" % [t, ep.rows.size()])
 		await shot("template_" + t)
 
+	# 9 POLISH (w4-partpolish): the axe has a real head seen from the default camera, every template is framed 3/4, no caption sits on the big buttons
+	await click_ctl(ep.chips["axe"])
+	await idle(3)
+	var ax: Dictionary = m.S.part
+	var axr := solid(ax)
+	var hs: Dictionary = ax["features"][2]   # the head sketch
+	var hpts := []
+	for e in hs["ents"]:
+		hpts.append(m.cam.unproject_position(Part.to_world(Part.plane("front"), Part.v2(e["a"]))))
+	var area := 0.0
+	for i in hpts.size():
+		var q: Vector2 = hpts[i]
+		var q2: Vector2 = hpts[(i + 1) % hpts.size()]
+		area += q.x * q2.y - q2.x * q.y
+	area = absf(area) * 0.5
+	ok(area > 2500.0, "9 axe: the head's face seen from the default camera covers %.0f px2 (> 2500)" % area)
+	var Hh := pnum("handle_length")
+	var zmin_edge := INF
+	var zmax_edge := -INF
+	var zmin_eye := INF
+	var zmax_eye := -INF
+	for v in (axr["mesh"] as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
+		if v.x > (Hh + 100.0) * 0.001:
+			zmin_edge = minf(zmin_edge, v.z)
+			zmax_edge = maxf(zmax_edge, v.z)
+		if v.x > (Hh - 45.0) * 0.001 and v.x < (Hh + 5.0) * 0.001 and absf(v.y) > 0.018:
+			zmin_eye = minf(zmin_eye, v.z)
+			zmax_eye = maxf(zmax_eye, v.z)
+	ok((zmax_edge - zmin_edge) < (zmax_eye - zmin_eye) * 0.5 and zmax_edge > zmin_edge, "9 axe: the blade edge (%.1f mm) is thinner than the eye (%.1f mm)" % [(zmax_edge - zmin_edge) * 1000.0, (zmax_eye - zmin_eye) * 1000.0])
+	ok(absf(float(axr["aabb"].size.y) - pnum("head_width") * 0.001) < 0.002, "9 axe: the head is the Blade width tall (%.0f mm)" % (float(axr["aabb"].size.y) * 1000.0))
+	await shot("axe_head")
+	for t in PartTemplates.ORDER:
+		await click_ctl(ep.chips[t])
+		await idle(3)
+		var yw := absf(wrapf(float(m.yaw), -180.0, 180.0))
+		var pt := float(m.pitch)
+		var bb: AABB = solid(m.S.part)["aabb"]
+		var sc := Rect2()
+		for c in 8:
+			var pp: Vector2 = m.cam.unproject_position(bb.get_endpoint(c))
+			sc = sc.expand(pp) if c > 0 else Rect2(pp, Vector2.ZERO)
+		ok(yw > 15.0 and yw < 75.0 and absf(pt) > 8.0 and absf(pt) < 45.0 and sc.size.x > 90.0 and sc.size.y > 40.0, "9 %s: the default camera is 3/4 (yaw %.0f, pitch %.0f) and the part spans %.0f x %.0f px" % [t, yw, pt, sc.size.x, sc.size.y])
+		await shot("view_" + t)
+	var capclash := 0
+	var mk: Rect2 = ep.make_box.get_global_rect()
+	for t in m.ui_caps:
+		for pr in m.ui_caps[t]:
+			var cp: Control = pr[0]
+			if cp.is_visible_in_tree() and cp.get_global_rect().intersects(mk):
+				capclash += 1
+	ok(capclash == 0, "9 no group caption (DRAW, ADD ...) sits on the Easy buttons (%d do)" % capclash)
+
 	# 2 SLIDER: sword Blade length 76 -> 90 cm
 	await click_ctl(ep.chips["sword"])
 	await idle(3)
@@ -285,6 +338,12 @@ func _init() -> void:
 	ok(JSON.stringify(m.S.part["features"]) == feats_easy and m.S.part["easy"]["t"] == easy_t, "3 the same record: the same %d features, JSON equal" % n_feats)
 	ok(pu.tl_btns.size() >= n_feats, "3 the timeline shows the steps (%d buttons for %d features)" % [pu.tl_btns.size(), n_feats])
 	await shot("expert_same_part")
+	m._toast("Undid: Change Blade length")
+	await idle(4)
+	var tr: Rect2 = m.ui_toast.get_global_rect()
+	ok(m.ui_toast.visible and not tr.intersects(pu.tl.get_global_rect()) and not tr.intersects(pu.browser.get_global_rect()) and not tr.intersects(pu.side.get_global_rect() if pu.side.visible else Rect2()),
+		"9 Expert: the Undid toast %s clears the timeline %s, the browser and the side panel" % [tr, pu.tl.get_global_rect()])
+	await shot("expert_toast")
 	await click_ctl(pu.easy_open_btn)
 	await idle(3)
 	ok(pu.easy and ep.panel.visible and JSON.stringify(m.S.part["features"]) == feats_easy, "3 Easy again: the same record")
