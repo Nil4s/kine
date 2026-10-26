@@ -152,44 +152,58 @@ static func min_box_angle(pts: PackedVector2Array) -> float:
 ## pack boxes (Vector2 sizes, margin already added) into the unit square. Returns per box [pos: Vector2, turned: bool],
 ## or [] when one does not fit. heur: "bssf" / "baf" / "bl"; order: "area" / "side" / "height"
 static func maxrects(sizes: Array, rot: bool, heur := "bssf", order := "area") -> Array:
-	var idx := range(sizes.size())
-	var key := func(i: int) -> float:
+	# the sort keys are computed once per island (same values as before), so the sort makes the same comparisons
+	var nk := sizes.size()
+	var keys := PackedFloat64Array()
+	keys.resize(nk)
+	for i in nk:
 		var s: Vector2 = sizes[i]
 		match order:
 			"side":
-				return maxf(s.x, s.y)
+				keys[i] = maxf(s.x, s.y)
 			"height":
-				return s.y if not rot else minf(s.x, s.y)
-		return s.x * s.y
-	idx.sort_custom(func(a, b): return key.call(a) > key.call(b))
+				keys[i] = s.y if not rot else minf(s.x, s.y)
+			_:
+				keys[i] = s.x * s.y
+	var idx := range(nk)
+	idx.sort_custom(func(a, b): return keys[a] > keys[b])
+	var hcode := 1 if heur == "baf" else (2 if heur == "bl" else 0)
 	var free: Array = [Rect2(0, 0, 1, 1)]
 	var out: Array = []
-	out.resize(sizes.size())
+	out.resize(nk)
 	for i in idx:
 		var sz: Vector2 = sizes[i]
-		var best := [INF, INF]
+		var best0 := INF
+		var best1 := INF
 		var bpos := Vector2.ZERO
 		var bturn := false
 		var found := false
+		var nturn := 2 if (rot and absf(sz.x - sz.y) > 1e-12) else 1
 		for fr in free:
 			var r := fr as Rect2
-			for turn in ([false, true] if rot and absf(sz.x - sz.y) > 1e-12 else [false]):
+			for ti in nturn:
+				var turn := ti == 1
 				var w := sz.y if turn else sz.x
 				var h := sz.x if turn else sz.y
 				if w > r.size.x + 1e-12 or h > r.size.y + 1e-12:
 					continue
 				var lx := r.size.x - w
 				var ly := r.size.y - h
-				var sc: Array
-				match heur:
-					"baf":
-						sc = [r.size.x * r.size.y - w * h, minf(lx, ly)]
-					"bl":
-						sc = [r.position.y + h, r.position.x]
+				var s0: float
+				var s1: float
+				match hcode:
+					1:
+						s0 = r.size.x * r.size.y - w * h
+						s1 = minf(lx, ly)
+					2:
+						s0 = r.position.y + h
+						s1 = r.position.x
 					_:
-						sc = [minf(lx, ly), maxf(lx, ly)]
-				if sc[0] < best[0] - 1e-15 or (absf(sc[0] - best[0]) <= 1e-15 and sc[1] < best[1]):
-					best = sc
+						s0 = minf(lx, ly)
+						s1 = maxf(lx, ly)
+				if s0 < best0 - 1e-15 or (absf(s0 - best0) <= 1e-15 and s1 < best1):
+					best0 = s0
+					best1 = s1
 					bpos = r.position
 					bturn = turn
 					found = true
