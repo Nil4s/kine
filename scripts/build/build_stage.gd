@@ -88,6 +88,68 @@ static func walk_scene(S: Scene, B: Body, name: String) -> Dictionary:
 	return r
 
 
+## STAIRS: the straight stairs of the house, [[piece id, label]] for the STAGE panel's "Walk up the stairs"
+static func stairs_list(b: Dictionary) -> Array:
+	var out := []
+	for p in b.get("pieces", []):
+		if String(p["kind"]) == "stairs":
+			out.append(String(p["id"]))
+	return out
+
+
+## the height of the stairs' slope under a floor point (the line through the nosings, the floor before the first riser, the floor above after
+## the last): the surface a walk's feet are planted on
+static func stairs_height(b: Dictionary, p: Dictionary, v: Vector3) -> float:
+	var xf := BuildPieces.frame(b, p)
+	var l := xf.affine_inverse() * Vector3(v.x, xf.origin.y, v.z)
+	var s := BuildPieces.stairs_numbers(b, p)
+	var u: float = l.z + float(s["len"]) * 0.5
+	if u < 0.0 or absf(l.x) > float(s["w"]) * 0.5 + 0.05:
+		return xf.origin.y
+	return xf.origin.y + minf(float(s["r"]) + float(s["r"]) / float(s["t"]) * u, float(s["rise"]))
+
+
+## the walk up the stairs: from OUTSIDE m before the first riser, up the flight's middle, INSIDE m past the head (floor points)
+static func stairs_points(b: Dictionary, p: Dictionary) -> Array:
+	var xf := BuildPieces.frame(b, p)
+	var half := float(BuildPieces.stairs_numbers(b, p)["len"]) * 0.5
+	var back := OUTSIDE
+	var front := INSIDE
+	var inner := BuildPieces.room_inner(b, p)
+	if inner.size != Vector2.ZERO:   # the walk stays inside the room: the run-up and the run-out are what the walls leave (less a body's width)
+		var dir := xf.basis * Vector3(0, 0, 1)
+		var bot := Vector2(xf.origin.x, xf.origin.z) - Vector2(dir.x, dir.z) * half
+		var top := Vector2(xf.origin.x, xf.origin.z) + Vector2(dir.x, dir.z) * half
+		back = clampf(_room_run(inner, bot, -Vector2(dir.x, dir.z)) - 0.3, 0.3, OUTSIDE)
+		front = clampf(_room_run(inner, top, Vector2(dir.x, dir.z)) - 0.3, 0.3, INSIDE)
+	return [xf * Vector3(0, 0, -half - back), xf * Vector3(0, 0, -half), xf * Vector3(0, 0, half + front)]
+
+
+## how far a point can go along an axis direction before it leaves the rectangle
+static func _room_run(r: Rect2, from: Vector2, d: Vector2) -> float:
+	if absf(d.x) > absf(d.y):
+		return r.end.x - from.x if d.x > 0.0 else from.x - r.position.x
+	return r.end.y - from.y if d.y > 0.0 else from.y - r.position.y
+
+
+## "Walk up the stairs": PathWalk's cards with the feet on the slope, as a scene that carries the house (like walk_scene)
+static func stairs_scene(S: Scene, B: Body, pid: String) -> Dictionary:
+	var p := Building.piece_of(S.building, pid)
+	if p.is_empty() or String(p["kind"]) != "stairs":
+		return {"ok": false, "why": "there are no straight stairs to walk up: put stairs in the house first"}
+	var r := PathWalk.build(stairs_points(S.building, p), WALK_SPEED, PathWalk.HEIGHT, func(v: Vector3): return stairs_height(S.building, p, v))
+	if not r["ok"]:
+		return r
+	var cur := S.to_dict(B, false)
+	var d: Dictionary = r["scene"]
+	d["kind"] = S.kind
+	d["building"] = cur.get("building", {})
+	d["props"] = cur.get("props", [])
+	d["scene"] = "walk up the stairs"
+	r["scene"] = d
+	return r
+
+
 ## the points a fighter walks through, for the STAGE panel: [[name, "outside -> inside" text]]
 static func door_names(b: Dictionary) -> Array:
 	return Building.anchors(b).map(func(a): return String(a["name"]))

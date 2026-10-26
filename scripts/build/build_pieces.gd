@@ -227,6 +227,18 @@ static func _world_aabb(xf: Transform3D, bx: AABB) -> AABB:
 	return AABB(lo, hi - lo)
 
 
+## the piece's whole world box (a ramp's too)
+static func world_aabb(b: Dictionary, p: Dictionary) -> AABB:
+	if String(p["kind"]) == "ramp":
+		return _world_aabb(frame(b, p), AABB(Vector3(-value(p, "w") * 0.5, 0, -value(p, "d") * 0.5), Vector3(value(p, "w"), value(p, "h"), value(p, "d"))))
+	var bb := AABB()
+	var first := true
+	for bx in world_boxes(b, p):
+		bb = bx if first else bb.merge(bx)
+		first = false
+	return bb
+
+
 ## the plan of the footprint in the world: Rect2 (x, z) round the piece
 static func footprint(b: Dictionary, p: Dictionary) -> Rect2:
 	var lo := Vector2(INF, INF)
@@ -359,6 +371,18 @@ static func fit(b: Dictionary, p: Dictionary) -> Dictionary:
 			dz = inner.end.y - fp.end.y
 		return {"ok": true, "x": float(p["x"]) + dx, "z": float(p["z"]) + dz, "room": String(r["id"])}
 	return {"ok": false, "why": "put it inside a room, on its floor"}
+
+
+## the interior (inside the walls) of the room of the piece's floor that holds its middle, as Rect2 (x, z); an empty Rect2 when none does
+static func room_inner(b: Dictionary, p: Dictionary) -> Rect2:
+	for r in b.get("rooms", []):
+		if int(r.get("storey", 0)) != int(p.get("storey", 0)) or float(r.get("yaw", 0.0)) != 0.0:
+			continue
+		var t := clampf(Building.num(b, r.get("thickness"), 0.2), 0.01, minf(float(r["w"]), float(r["d"])) * 0.5 - 0.01)
+		var inner := Rect2(float(r["x"]) + t, float(r["z"]) + t, float(r["w"]) - 2.0 * t, float(r["d"]) - 2.0 * t)
+		if inner.has_point(Vector2(float(p["x"]), float(p["z"]))):
+			return inner
+	return Rect2()
 
 
 ## the file's piece list entry, cleaned: {} when it is not a piece

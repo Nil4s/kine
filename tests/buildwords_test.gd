@@ -272,7 +272,7 @@ func _init() -> void:
 	await idle(6)
 	var wbtn: Button = m.ui_ribbon["BUILD"].find_child("build_tool_words", true, false)
 	var pbtn: Button = m.ui_ribbon["BUILD"].find_child("build_tool_piece", true, false)
-	ok(wbtn != null and not wbtn.disabled and wbtn.text == "Words" and wbtn.icon != null and pbtn.disabled, "4 Words is a tool on the ribbon (Piece stays greyed)")
+	ok(wbtn != null and not wbtn.disabled and wbtn.text == "Words" and wbtn.icon != null and not pbtn.disabled, "4 Words is a tool on the ribbon (1f: so is Piece, it is no longer greyed)")
 	var n0: int = m.undo.size()
 	await click_ctl(wbtn)
 	await idle(3)

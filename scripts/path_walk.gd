@@ -121,7 +121,9 @@ static func foot(c: Dictionary, sd: String, s: float) -> Vector3:
 
 ## the walk for a path: {"ok": true, "scene": Dictionary (a scene file's shape), "step", "cadence", "covered"} or
 ## {"ok": false, "why"}. pts: Vector3 points on the floor (the path's order). speed in m/s.
-static func build(pts: Array, speed: float, height := HEIGHT) -> Dictionary:
+## surf (BUILD stairs): an optional Callable(Vector3 on the path) -> the height of the surface there (m); the hips and each planted ball rise by it,
+## so a walk goes UP a stair's slope with its feet on it. Without one (every other caller) nothing changes
+static func build(pts: Array, speed: float, height := HEIGHT, surf := Callable()) -> Dictionary:
 	if pts.size() < 2:
 		return {"ok": false, "why": "a path needs at least two points on the floor"}
 	if speed < 0.6 or speed > 1.6:
@@ -145,7 +147,7 @@ static func build(pts: Array, speed: float, height := HEIGHT) -> Dictionary:
 	var arrive := 0.0   # when the current card's move arrives (s); the stand holds HOLD_START first
 	var cur := {"_l": 0.0, "_r": 0.0}   # where each foot's mark is now (s along the path)
 	# the stand: both feet at s = 0 (the path's start)
-	cards.append(_card(B, c, dc[0], "stand", {}, -1.0, HOLD_START, cur, false, 0.0))
+	cards.append(_card(B, c, dc[0], "stand", {}, -1.0, HOLD_START, cur, false, 0.0, NAN, NAN, surf))
 	arrive = HOLD_START
 	var last := 0.0
 	var prev_donor: Dictionary = dc[0]   # the pose the body is in when the period starts: the stand, then the card of the step before
@@ -169,11 +171,11 @@ static func build(pts: Array, speed: float, height := HEIGHT) -> Dictionary:
 		for j in PIVOTS:
 			var f := float(j + 1) / (PIVOTS + 1)
 			arrive += (1.0 - SWING) * T / PIVOTS
-			cards.append(_card(B, c, prev_donor, "pivot %d.%d" % [k, j + 1], {}, (1.0 - SWING) * T / PIVOTS, 0.0, cur, true, arrive, h0, h0))
+			cards.append(_card(B, c, prev_donor, "pivot %d.%d" % [k, j + 1], {}, (1.0 - SWING) * T / PIVOTS, 0.0, cur, true, arrive, h0, h0, surf))
 		var name := "step %s %d" % ["L" if sd == "_l" else "R", k]
 		arrive += SWING * T
 		cur[sd] = s_k
-		cards.append(_card(B, c, donor_card, name, {sd: [off.x, off.y, off.z]}, SWING * T, 0.0, cur, true, arrive))
+		cards.append(_card(B, c, donor_card, name, {sd: [off.x, off.y, off.z]}, SWING * T, 0.0, cur, true, arrive, NAN, NAN, surf))
 		last = s_k
 		prev_donor = donor_card
 	# the stop: the foot that stepped before the last one comes up to the last mark (feet together)
@@ -182,7 +184,7 @@ static func build(pts: Array, speed: float, height := HEIGHT) -> Dictionary:
 	stop_off.y = 0.0
 	cur[behind] = last
 	arrive += T
-	cards.append(_card(B, c, dc[5], "stop: feet together", {behind: [stop_off.x, stop_off.y, stop_off.z]}, T, HOLD_STOP, cur, true, arrive))
+	cards.append(_card(B, c, dc[5], "stop: feet together", {behind: [stop_off.x, stop_off.y, stop_off.z]}, T, HOLD_STOP, cur, true, arrive, NAN, NAN, surf))
 
 	var out := {}
 	for key in ["fps", "on_floor", "floor_body", "natural", "pin", "bad_frames", "note"]:
@@ -208,18 +210,22 @@ static func _hip_s(marks: Dictionary) -> float:
 
 
 static func _card(B: Body, c: Dictionary, donor: Dictionary, name: String, steps: Dictionary, move: float, hold: float,
-		marks: Dictionary, walk: bool, arrive: float, s_hip_in := NAN, s_yaw_in := NAN) -> Dictionary:
+		marks: Dictionary, walk: bool, arrive: float, s_hip_in := NAN, s_yaw_in := NAN, surf := Callable()) -> Dictionary:
 	var s_hip := _hip_s(marks) if is_nan(s_hip_in) else s_hip_in
 	B.from_dict(donor["pose"])
 	B.wep_on = false   # the donor (scenes/walk_bat.json) holds a bat; a walk to a chair is not given one: no card carries it
 	B.turn_world("pelvis", Quaternion(Vector3.UP, heading(c, (s_hip if is_nan(s_yaw_in) else s_yaw_in) - YAW_LAG)))
 	var o: Vector3 = at(c, s_hip)
 	B.offset = Vector3(o.x, B.offset.y, o.z)
+	if surf.is_valid():
+		B.offset.y += float(surf.call(o))
 	B.fk()
 	for sd in ["_l", "_r"]:
 		var s: float = marks[sd]
 		var ball_at := foot(c, sd, s)
 		ball_at.y = (B.p0["ball" + sd] as Vector3).y
+		if surf.is_valid():
+			ball_at.y += float(surf.call(ball_at))
 		var flat := true   # the toe base on its mark on the floor; a heel-first step lands with the heel up, so the ball is the low point
 		B.plant(sd, ball_at, heading(c, s), flat)
 	B.fk()

@@ -14,8 +14,11 @@ extends Node
 ##   ROOF     gable / flat / shed (the panel; a click in the view adds the gable), overhang a number: a closed solid on the top floor
 ##   USE IN A SCENE (top right): the house becomes a set on STAGE (BuildStage: collision from the record, the doorway open, a named point
 ##            per door); STAGE shows its panel with "Walk through the front door" and Edit in BUILD
+##   PIECE    a picker of big icon cards on the left (Stairs: straight, L; Furniture; Fight blocks), then a click inside a room places it (centre on
+##            the 0.5 m grid, kept inside the room's walls); a click on a piece selects it: its named numbers, the round Rotate arrow (90 deg),
+##            Remove (or Delete). Stairs follow floor_height, cut the floor above and are a ramp for the fighter (scripts/build/build_pieces.gd)
 ## The record (Scene.building, scripts/build/building.gd) is the only truth; the mesh here is regenerated from it after every
-## change. Piece is on the ribbon but greyed ("coming next"); WORDS (phase 1e, build_words.gd + build_words_ui.gd) is a tool: a sentence -> a plan -> Build it. Undo: ONE main._push_undo()
+## change. WORDS (phase 1e, build_words.gd + build_words_ui.gd) is a tool: a sentence -> a plan -> Build it. Undo: ONE main._push_undo()
 ## per action, taken BEFORE the record changes (a room: on release; a door: on the click; a slide: on its first move).
 
 const SKY := Color("#73BFFF")
@@ -27,8 +30,9 @@ const TOOLS := [["Room", "ROOM: drag on the floor. Sizes snap to 0.5 m; type the
 	["Pull", "PULL: drag a room's outer wall in or out to resize the room (snaps to 0.5 m). Doors keep their place from the wall's middle."],
 	["Opening", "OPENING: click a wall to add a door. Drag it along the wall (snaps to 0.5 m). The Remove button takes it out and fills the hole."],
 	["Floor", "FLOOR: + Floor in the panel adds a floor on top, the same footprint with a floor slab between. Delete takes the top floor off."],
-	["Roof", "ROOF: pick gable, flat or shed in the panel (a click in the view adds a gable). The overhang is a number."]]
-const LATER := ["Piece"]
+	["Roof", "ROOF: pick gable, flat or shed in the panel (a click in the view adds a gable). The overhang is a number."],
+	["Piece", "PIECE: pick a card on the left, then click inside a room to put it there (snaps to 0.5 m). Click a piece to change its numbers, turn it or remove it."]]
+const LATER := []
 const WORDS_TIP := "WORDS: type a building, check the plan, press Build it. The result is normal rooms and openings. Then say changes: move the door to the left."
 const EXTRA_ROWS := [["Floor height", "floor_height"], ["Roof overhang", "roof_overhang"]]
 const LABELS := {"wall_height": "Wall height", "wall_thickness": "Wall thickness", "door_width": "Door width", "door_height": "Door height",
@@ -69,6 +73,22 @@ var roof_btns := {}
 var stage_panel: PanelContainer
 var stage_body: VBoxContainer
 var walk_btns := {}
+var piece_kind := ""           # the picker's card in hand ("" = none)
+var piece_floor := 0           # the floor (index) a piece is placed on
+var psel := ""                 # the selected piece's id
+var picker: PanelContainer
+var card_btns := {}
+var floor_chips: HBoxContainer
+var piece_box: VBoxContainer
+var piece_rows: VBoxContainer
+var piece_hint: Label
+var piece_info: Label
+var piece_rotate_btn: Button
+var piece_flip_btn: Button
+var piece_remove_btn: Button
+var piece_fields := {}         # param key -> LineEdit
+var _piece_sig := ""
+var num_rows: Array = []       # the building's number rows (hidden while Piece is the tool)
 
 var root3: Node3D              # everything 3D that is BUILD's own (grid, ghost person, the house, its highlights)
 var house: MeshInstance3D
@@ -289,7 +309,54 @@ func _build_ui() -> void:
 		kr.add_child(kb)
 	vb.add_child(kr)
 	for r in ROWS:
-		vb.add_child(_num_row(r[0], r[1]))
+		var nr0 := _num_row(r[0], r[1])
+		num_rows.append(nr0)
+		vb.add_child(nr0)
+	piece_box = VBoxContainer.new()
+	piece_box.name = "build_piece_box"
+	piece_box.add_theme_constant_override("separation", 6)
+	piece_hint = Label.new()
+	piece_hint.name = "build_piece_hint"
+	piece_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	piece_hint.custom_minimum_size.x = PANEL_W - 28.0
+	piece_box.add_child(piece_hint)
+	piece_info = Label.new()
+	piece_info.name = "build_piece_info"
+	piece_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	piece_info.custom_minimum_size.x = PANEL_W - 28.0
+	piece_info.add_theme_font_size_override("font_size", 13)
+	piece_info.modulate = Color(1, 1, 1, 0.75)
+	piece_box.add_child(piece_info)
+	piece_rows = VBoxContainer.new()
+	piece_rows.name = "build_piece_rows"
+	piece_box.add_child(piece_rows)
+	var prow := HBoxContainer.new()
+	piece_rotate_btn = Button.new()
+	piece_rotate_btn.name = "build_piece_rotate"
+	piece_rotate_btn.text = "Rotate 90"
+	piece_rotate_btn.icon = Icons.tex("piece_rotate")
+	piece_rotate_btn.focus_mode = Control.FOCUS_NONE
+	piece_rotate_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	piece_rotate_btn.tooltip_text = "turn the piece a quarter turn about its middle (one undo step)"
+	piece_rotate_btn.pressed.connect(_piece_rotate)
+	prow.add_child(piece_rotate_btn)
+	piece_flip_btn = Button.new()
+	piece_flip_btn.name = "build_piece_flip"
+	piece_flip_btn.text = "Flip"
+	piece_flip_btn.focus_mode = Control.FOCUS_NONE
+	piece_flip_btn.tooltip_text = "the L stairs turn the other way (one undo step)"
+	piece_flip_btn.pressed.connect(_piece_flip)
+	prow.add_child(piece_flip_btn)
+	piece_box.add_child(prow)
+	piece_remove_btn = Button.new()
+	piece_remove_btn.name = "build_piece_remove"
+	piece_remove_btn.text = "Remove this piece"
+	piece_remove_btn.focus_mode = Control.FOCUS_NONE
+	piece_remove_btn.tooltip_text = "take the piece out (one undo step; Delete does the same)"
+	piece_remove_btn.pressed.connect(_piece_remove)
+	piece_box.add_child(piece_remove_btn)
+	piece_box.visible = false
+	vb.add_child(piece_box)
 	wall_box = VBoxContainer.new()
 	wall_box.name = "build_wall_box"
 	var wl := Label.new()
@@ -388,6 +455,7 @@ func _build_ui() -> void:
 	stage_panel.add_child(stage_body)
 	stage_panel.visible = false
 	m.ui_root.add_child(stage_panel)
+	_build_picker()
 	words = BuildWordsUI.new()
 	words.setup(self)
 
@@ -589,6 +657,8 @@ func sync() -> void:
 		house.mesh = Building.to_array_mesh(bd)
 	if sel != "" and _opening(sel).is_empty():
 		sel = ""
+	if psel != "" and Building.piece_of(bd, psel).is_empty():
+		psel = ""
 	_highlights()
 	_layout()
 	_fields_sync()
@@ -608,6 +678,11 @@ func _highlights() -> void:
 	if sel_box.visible:
 		_fit_box(sel_box, _opening_aabb(o), 0.03)
 	hover_box.visible = false
+	if on and tool == "Piece" and not Building.piece_of(_bld(), psel).is_empty():
+		sel_box.visible = true
+		_fit_box(sel_box, _piece_aabb(Building.piece_of(_bld(), psel)), 0.03)
+	elif tool == "Piece":
+		sel_box.visible = false
 	ghost_room.visible = drag == "room" and size_text != ""
 
 
@@ -639,7 +714,20 @@ func _layout() -> void:
 	var has: bool = not _bld().is_empty() and not _bld().get("rooms", []).is_empty()
 	var o := _opening(sel)
 	panel.visible = on and has and tool != "Words"
-	panel_title.text = ("%s" % String(o.get("kind", "")).capitalize() + "   (selected)") if not o.is_empty() else {"Floor": "Floors", "Roof": "Roof", "Wall": "Wall"}.get(tool, "Building")
+	var pc := Building.piece_of(_bld(), psel) if tool == "Piece" else {}
+	panel_title.text = ("%s" % String(o.get("kind", "")).capitalize() + "   (selected)") if not o.is_empty() else {"Floor": "Floors", "Roof": "Roof", "Wall": "Wall", "Piece": "Piece"}.get(tool, "Building")
+	if not pc.is_empty():
+		panel_title.text = "%s   (selected)" % String(BuildPieces.DEFS[String(pc["kind"])]["label"])
+	piece_box.visible = tool == "Piece"
+	for nr in num_rows:
+		(nr as Control).visible = tool != "Piece"
+	if tool == "Piece":
+		_piece_panel_sync(pc)
+	picker.visible = on and tool == "Piece"
+	if picker.visible:
+		_picker_sync(has)
+		picker.reset_size()
+		picker.position = Vector2(cl.position.x + 8.0, cl.position.y + 6.0)
 	(kind_btns["door"].get_parent() as Control).visible = tool == "Opening"
 	wall_box.visible = tool == "Wall"
 	floor_box.visible = tool == "Floor"
@@ -689,6 +777,9 @@ func _pick_tool(t: String) -> void:
 	drag = ""
 	if t != "Opening":
 		sel = ""   # a picked opening belongs to the Opening tool (the panel would still say "Door (selected)")
+	if t != "Piece":
+		psel = ""
+		piece_kind = ""
 	if m.cur_page != "BUILD":
 		m._page_set("BUILD")
 	for k in tool_btns:
@@ -959,6 +1050,8 @@ func _press(p: Vector2) -> bool:
 		return true
 	if tool == "Floor":
 		return true
+	if tool == "Piece":
+		return _press_piece(p)
 	if tool == "Room":
 		var g: Variant = ground(p)
 		if g == null:
@@ -1052,6 +1145,8 @@ func _motion(p: Vector2) -> bool:
 		return true
 	if tool == "Opening" and drag == "":
 		_hover_update(p)
+	if tool == "Piece" and drag == "":
+		_piece_hover(p)
 	return false
 
 
@@ -1140,6 +1235,17 @@ func _key(k: InputEventKey) -> bool:
 	if tool == "Floor" and k.keycode == KEY_DELETE:
 		_remove_floor()
 		return true
+	if tool == "Piece":
+		if psel != "" and (k.keycode == KEY_DELETE or k.keycode == KEY_BACKSPACE) and not (m.get_viewport().gui_get_focus_owner() is LineEdit):
+			_piece_remove()
+			return true
+		if k.keycode == KEY_ESCAPE and (piece_kind != "" or psel != ""):
+			piece_kind = ""
+			psel = ""
+			_sync_cards()
+			sync()
+			m._say("Piece: nothing in hand")
+			return true
 	if (drag == "wall" or drag == "pull") and k.keycode == KEY_ESCAPE:
 		if drag == "pull":
 			_pull_restore()
@@ -1517,14 +1623,18 @@ func _stage_sync() -> void:
 	info.text = "%s\n%.1f x %.1f m, %d floor%s\n%d door%s, %d window%s   linked to BUILD" % [bd.get("name", "House"), hi.x - lo.x, hi.y - lo.y, nf, "" if nf == 1 else "s", doors, "" if doors == 1 else "s", windows, "" if windows == 1 else "s"]
 	stage_body.add_child(info)
 	var names := BuildStage.door_names(bd)
-	for line in ["Collision: walls and floor, doorways open", "Door points: %s" % (", ".join(names) if not names.is_empty() else "none yet (put a door in the house)")]:
+	var stairs := BuildStage.stairs_list(bd)
+	var lines := ["Collision: walls and floor, doorways open", "Door points: %s" % (", ".join(names) if not names.is_empty() else "none yet (put a door in the house)")]
+	if not bd.get("pieces", []).is_empty():
+		lines.append("Pieces: %d (stairs are ramps the fighter walks up)" % bd["pieces"].size())
+	for line in lines:
 		var l := Label.new()
 		l.text = "[ok]  " + line
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.custom_minimum_size.x = PANEL_W - 28.0
 		l.add_theme_font_size_override("font_size", 13)
 		stage_body.add_child(l)
-	if not names.is_empty():
+	if not names.is_empty() or not stairs.is_empty():
 		var say := Label.new()
 		say.text = "ANIMATE can now say:"
 		say.add_theme_font_size_override("font_size", 12)
@@ -1539,6 +1649,15 @@ func _stage_sync() -> void:
 		wb.pressed.connect(walk_through.bind(String(nm)))
 		walk_btns[nm] = wb
 		stage_body.add_child(wb)
+	for sid in stairs:
+		var ub := Button.new()
+		ub.name = "build_walk_up_" + String(sid)
+		ub.text = "Walk up the stairs" if stairs.size() == 1 else "Walk up the stairs %s" % sid
+		ub.focus_mode = Control.FOCUS_NONE
+		ub.tooltip_text = "walk cards from outside, up the stairs, to the floor above, feet on the steps (a new scene; Ctrl+Z goes back)"
+		ub.pressed.connect(walk_up.bind(String(sid)))
+		walk_btns["stairs " + String(sid)] = ub
+		stage_body.add_child(ub)
 	var eb := Button.new()
 	eb.name = "build_edit_in_build"
 	eb.text = "Edit in BUILD"
@@ -1585,6 +1704,418 @@ func walk_through(name: String) -> void:
 		m.undo[-1]["swap"] = true
 	frame_door(name)
 	m._say("walking through the %s: %d cards, from outside to inside at %.1f m/s. The open scene is untouched; Ctrl+Z goes back to it in one step" % [name, n, BuildStage.WALK_SPEED])
+
+
+# ---------------------------------------------------------------- Piece: the picker, placing, the numbers
+
+func _build_picker() -> void:
+	picker = PanelContainer.new()
+	picker.name = "build_piece_picker"
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.1, 0.11, 0.14, 0.94)
+	sb.border_color = SKY
+	sb.set_border_width_all(2)
+	sb.set_corner_radius_all(10)
+	sb.set_content_margin_all(10)
+	picker.add_theme_stylebox_override("panel", sb)
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 5)
+	picker.add_child(vb)
+	var title := Label.new()
+	title.name = "build_picker_title"
+	title.text = "Pick a piece"
+	title.add_theme_font_size_override("font_size", 17)
+	vb.add_child(title)
+	var hint := Label.new()
+	hint.name = "build_picker_hint"
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.custom_minimum_size.x = 3.0 * 104.0 + 12.0
+	hint.add_theme_font_size_override("font_size", 13)
+	hint.modulate = Color(1, 1, 1, 0.75)
+	vb.add_child(hint)
+	floor_chips = HBoxContainer.new()
+	floor_chips.name = "build_piece_floors"
+	vb.add_child(floor_chips)
+	var group := ButtonGroup.new()
+	group.allow_unpress = true
+	for cat in BuildPieces.CATS:
+		var cl := Label.new()
+		cl.text = String(cat[0])
+		cl.add_theme_font_size_override("font_size", 13)
+		cl.modulate = Color(SKY, 0.95)
+		vb.add_child(cl)
+		var gc := GridContainer.new()
+		gc.columns = 3
+		gc.add_theme_constant_override("h_separation", 6)
+		gc.add_theme_constant_override("v_separation", 6)
+		for kd in cat[1]:
+			var btn := Button.new()
+			btn.name = "build_card_" + String(kd)
+			btn.toggle_mode = true
+			btn.button_group = group
+			btn.custom_minimum_size = Vector2(104.0, 92.0)
+			btn.text = String(BuildPieces.DEFS[kd]["label"])
+			btn.icon = Icons.sized("piece_" + String(kd), 44)
+			btn.expand_icon = false
+			btn.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			btn.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
+			btn.focus_mode = Control.FOCUS_NONE
+			btn.tooltip_text = "%s: %s" % [BuildPieces.DEFS[kd]["label"], BuildPieces.DEFS[kd]["help"]]
+			btn.toggled.connect(_card_toggled.bind(String(kd)))
+			card_btns[String(kd)] = btn
+			gc.add_child(btn)
+		vb.add_child(gc)
+	picker.visible = false
+	m.ui_root.add_child(picker)
+
+
+func _card_toggled(pressed: bool, kd: String) -> void:
+	if pressed:
+		piece_kind = kd
+		psel = ""
+		m._say("Piece: %s in hand. Click inside a room to put it down (snaps to 0.5 m); Esc puts it back" % String(BuildPieces.DEFS[kd]["label"]).to_lower())
+	elif piece_kind == kd:
+		piece_kind = ""
+	sync()
+
+
+func _sync_cards() -> void:
+	for k in card_btns:
+		(card_btns[k] as Button).set_pressed_no_signal(k == piece_kind)
+
+
+## the picker follows the house: the floor chips (only with more than one floor), the one-line hint
+func _picker_sync(has: bool) -> void:
+	var nf := maxi(Building.storey_count(_bld()), 1)
+	piece_floor = clampi(piece_floor, 0, nf - 1)
+	var want_chips := nf + 1 if nf > 1 else 0
+	if floor_chips.get_child_count() != want_chips:
+		for c in floor_chips.get_children():
+			floor_chips.remove_child(c)
+			c.queue_free()
+		if nf > 1:
+			var l := Label.new()
+			l.text = "On floor  "
+			floor_chips.add_child(l)
+			var g := ButtonGroup.new()
+			for i in nf:
+				var cb := Button.new()
+				cb.name = "build_piece_floor_%d" % i
+				cb.text = str(i + 1)
+				cb.toggle_mode = true
+				cb.button_group = g
+				cb.focus_mode = Control.FOCUS_NONE
+				cb.custom_minimum_size.x = 34.0
+				cb.tooltip_text = "place pieces on floor %d" % (i + 1)
+				cb.pressed.connect(func(): piece_floor = i)
+				floor_chips.add_child(cb)
+	for i in range(1, floor_chips.get_child_count()):
+		(floor_chips.get_child(i) as Button).set_pressed_no_signal(i - 1 == piece_floor)
+	var ht: Label = picker.find_child("build_picker_hint", true, false)
+	var t := "Draw a room first (Room tool): pieces stand inside rooms." if not has else ("%s in hand: click inside a room." % String(BuildPieces.DEFS[piece_kind]["label"]) if piece_kind != "" else "Pick a card, then click inside a room.")
+	if ht.text != t:
+		ht.text = t
+
+
+func _set_text(l: Label, t: String) -> void:
+	if l.text != t:
+		l.text = t
+
+
+## the right panel while Piece is the tool: the picked piece's named numbers (rows made when the selection changes)
+func _piece_panel_sync(pc: Dictionary) -> void:
+	var sig := "%s|%s" % [psel, String(pc.get("kind", ""))]
+	if sig != _piece_sig:
+		_piece_sig = sig
+		for c in piece_rows.get_children():
+			piece_rows.remove_child(c)
+			c.queue_free()
+		piece_fields.clear()
+		if not pc.is_empty():
+			for key in BuildPieces.DEFS[String(pc["kind"])]["params"]:
+				piece_rows.add_child(_piece_row(key, String(BuildPieces.DEFS[String(pc["kind"])]["params"][key][3])))
+	var has_pc := not pc.is_empty()
+	piece_rotate_btn.visible = has_pc
+	piece_flip_btn.visible = has_pc and String(pc.get("kind", "")) == "stairs_l"
+	piece_remove_btn.visible = has_pc
+	piece_info.visible = has_pc
+	if not has_pc:
+		_set_text(piece_hint, "Pick a card on the left, then click inside a room. Click a piece to change its numbers." if piece_kind == "" else "%s in hand: click inside a room to put it down." % String(BuildPieces.DEFS[piece_kind]["label"]))
+		return
+	_set_text(piece_hint, "Numbers snap to 0.1 m. Rotate turns it a quarter. Delete takes it out.")
+	var fp := BuildPieces.footprint(_bld(), pc)
+	if BuildPieces.is_stairs(pc):
+		var sn := BuildPieces.stairs_numbers(_bld(), pc)
+		_set_text(piece_info, "%d risers of %.1f cm: the rise follows the floor height (%.2f m). %s" % [sn["n"], float(sn["r"]) * 100.0, sn["rise"], "It cuts the floor above." if Building.storey_count(_bld()) > int(pc.get("storey", 0)) + 1 else "No floor above it yet."])
+	else:
+		_set_text(piece_info, "Footprint %.1f x %.1f m, on floor %d" % [fp.size.x, fp.size.y, int(pc.get("storey", 0)) + 1])
+	for key in piece_fields:
+		var le: LineEdit = piece_fields[key]
+		if not le.has_focus():
+			var t := "%.1f m" % BuildPieces.value(pc, key)
+			if le.text != t:
+				le.text = t
+
+
+func _piece_row(key: String, label: String) -> HBoxContainer:
+	var h := HBoxContainer.new()
+	h.name = "build_piece_row_" + key
+	var l := Label.new()
+	l.text = label
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(l)
+	var minus := Button.new()
+	minus.text = "-"
+	minus.name = "step_piece_%s_minus" % key
+	var plus := Button.new()
+	plus.text = "+"
+	plus.name = "step_piece_%s_plus" % key
+	var le := LineEdit.new()
+	le.name = "num_piece_" + key
+	le.custom_minimum_size.x = 64
+	le.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	le.select_all_on_focus = true
+	for bt in [minus, plus]:
+		bt.focus_mode = Control.FOCUS_NONE
+		bt.custom_minimum_size.x = 28
+	minus.pressed.connect(_piece_step.bind(key, -1))
+	plus.pressed.connect(_piece_step.bind(key, 1))
+	le.text_submitted.connect(_piece_typed.bind(key, le))
+	le.focus_exited.connect(func(): _piece_typed(le.text, key, le))
+	piece_fields[key] = le
+	h.add_child(minus)
+	h.add_child(le)
+	h.add_child(plus)
+	return h
+
+
+func _piece_step(key: String, dir: int) -> void:
+	var pc := Building.piece_of(_bld(), psel)
+	if not pc.is_empty():
+		_piece_set(key, BuildPieces.value(pc, key) + 0.1 * dir)
+
+
+func _piece_typed(txt: String, key: String, le: LineEdit) -> void:
+	var s := txt.strip_edges().trim_suffix("m").strip_edges()
+	if s.is_valid_float() and not Building.piece_of(_bld(), psel).is_empty():
+		_piece_set(key, float(s))
+	le.release_focus()
+
+
+## one named number of the picked piece: snapped to 0.1 m, kept in its range, the piece must still fit its room (else nothing changes and the
+## status line says why). ONE undo step
+func _piece_set(key: String, v: float) -> void:
+	var pc := Building.piece_of(_bld(), psel)
+	if pc.is_empty():
+		return
+	var d: Array = BuildPieces.DEFS[String(pc["kind"])]["params"][key]
+	v = clampf(snappedf(v, 0.1), d[1], d[2])
+	var old := BuildPieces.value(pc, key)
+	if absf(old - v) < 1e-6:
+		return
+	var trial: Dictionary = pc.duplicate()
+	trial[key] = v
+	var f := BuildPieces.fit(_bld(), trial)
+	if not bool(f["ok"]):
+		m._say("Piece: %s stays %.1f m: %s" % [String(d[3]).to_lower(), old, f["why"]])
+		_piece_sig = ""
+		return
+	var what := "%s %s %.1f -> %.1f m" % [BuildPieces.DEFS[String(pc["kind"])]["label"], String(d[3]).to_lower(), old, v]
+	m._step_hint = what
+	m._push_undo()
+	pc[key] = v
+	pc["x"] = f["x"]
+	pc["z"] = f["z"]
+	m._say(what)
+	sync()
+
+
+func _piece_rotate() -> void:
+	var pc := Building.piece_of(_bld(), psel)
+	if pc.is_empty():
+		return
+	var trial: Dictionary = pc.duplicate()
+	trial["yaw"] = fposmod(float(pc.get("yaw", 0.0)) + 90.0, 360.0)
+	var f := BuildPieces.fit(_bld(), trial)
+	if not bool(f["ok"]):
+		m._say("Piece: it stays as it is: %s" % f["why"])
+		return
+	m._step_hint = "Piece: rotate"
+	m._push_undo()
+	pc["yaw"] = trial["yaw"]
+	pc["x"] = f["x"]
+	pc["z"] = f["z"]
+	m._say("Piece: turned to %d degrees" % int(pc["yaw"]))
+	sync()
+
+
+func _piece_flip() -> void:
+	var pc := Building.piece_of(_bld(), psel)
+	if pc.is_empty() or String(pc["kind"]) != "stairs_l":
+		return
+	m._step_hint = "Piece: flip"
+	m._push_undo()
+	if bool(pc.get("flip", false)):
+		pc.erase("flip")
+	else:
+		pc["flip"] = true
+	m._say("Piece: the L stairs turn the other way")
+	sync()
+
+
+func _piece_remove() -> void:
+	var pc := Building.piece_of(_bld(), psel)
+	if pc.is_empty():
+		return
+	m._step_hint = "Piece: remove"
+	m._push_undo()
+	Building.remove_piece(_bld(), psel)
+	psel = ""
+	m._say("Piece: removed%s" % (", the floor above is whole again" if BuildPieces.is_stairs(pc) else ""))
+	sync()
+
+
+## the piece's world box (a ramp's too), for the picking ray and the outline
+func _piece_aabb(pc: Dictionary) -> AABB:
+	return BuildPieces.world_aabb(_bld(), pc)
+
+
+## the piece under the mouse, "" if none
+func pick_piece(p: Vector2) -> String:
+	var o: Vector3 = m.cam.project_ray_origin(p)
+	var d: Vector3 = m.cam.project_ray_normal(p)
+	var best := ""
+	var bt := 1e9
+	for pc in _bld().get("pieces", []):
+		var t := _ray_box(o, d, _piece_aabb(pc))
+		if t >= 0.0 and t < bt:
+			bt = t
+			best = String(pc["id"])
+	return best
+
+
+## where the card in hand would stand for a click at floor point g: {"ok", "piece"} or {"ok": false, "why"}. Stairs and long blocks try both
+## ways round (0 then 90 degrees) and take the first that fits the room
+func _piece_trial(g: Vector3) -> Dictionary:
+	var sn := _snap(g)
+	var why := ""
+	for yaw in [0.0, 90.0]:
+		var pc := BuildPieces.make("p0", piece_kind, sn.x, sn.z, yaw, piece_floor)
+		var f := BuildPieces.fit(_bld(), pc)
+		if bool(f["ok"]):
+			pc["x"] = f["x"]
+			pc["z"] = f["z"]
+			return {"ok": true, "piece": pc}
+		why = String(f["why"])
+	return {"ok": false, "why": why}
+
+
+func _piece_floor_y() -> float:
+	return float(piece_floor) * Building.num(_bld(), "floor_height", 2.8)
+
+
+func _press_piece(p: Vector2) -> bool:
+	var hit := pick_piece(p)
+	if hit != "":
+		psel = hit
+		piece_kind = ""
+		_sync_cards()
+		var pc := Building.piece_of(_bld(), hit)
+		m._say("Piece: %s picked. Change its numbers on the right, turn it, or press Delete" % String(BuildPieces.DEFS[String(pc["kind"])]["label"]).to_lower())
+		sync()
+		return true
+	if piece_kind == "":
+		psel = ""
+		sync()
+		return true
+	var bd := _bld()
+	if bd.is_empty() or bd.get("rooms", []).is_empty():
+		m._say("Piece: draw a room first, pieces stand inside rooms")
+		return true
+	var g: Variant = plane_hit(p, _piece_floor_y())
+	if g == null:
+		return true
+	var tr := _piece_trial(g)
+	if not bool(tr["ok"]):
+		m._say("Piece: %s" % tr["why"])
+		return true
+	var pc: Dictionary = tr["piece"]
+	m._step_hint = "Piece: %s" % String(BuildPieces.DEFS[piece_kind]["label"])
+	m._push_undo()
+	var id := Building.add_piece(bd, piece_kind, float(pc["x"]), float(pc["z"]), float(pc["yaw"]), piece_floor)
+	psel = id
+	var np := Building.piece_of(bd, id)
+	if BuildPieces.is_stairs(np):
+		m._say("Piece: %s on floor %d, %d risers%s. Change its numbers on the right" % [String(BuildPieces.DEFS[piece_kind]["label"]).to_lower(), piece_floor + 1,
+			BuildPieces.stairs_numbers(bd, np)["n"], ", the floor above is open over it" if Building.storey_count(bd) > piece_floor + 1 else ""])
+	else:
+		m._say("Piece: %s placed. Change its numbers on the right" % String(BuildPieces.DEFS[piece_kind]["label"]).to_lower())
+	sync()
+	return true
+
+
+func _piece_hover(p: Vector2) -> void:
+	if piece_kind == "" or pick_piece(p) != "":
+		hover_box.visible = false
+		return
+	var g: Variant = plane_hit(p, _piece_floor_y())
+	if g == null:
+		hover_box.visible = false
+		return
+	var tr := _piece_trial(g)
+	hover_box.visible = bool(tr["ok"])
+	if hover_box.visible:
+		_fit_box(hover_box, _piece_aabb(tr["piece"]), 0.02)
+
+
+func _draw_piece_labels() -> void:
+	var pc := Building.piece_of(_bld(), psel)
+	if pc.is_empty():
+		return
+	var bx := _piece_aabb(pc)
+	_outline_box(bx.grow(0.03))
+	var txt := ""
+	if BuildPieces.is_stairs(pc):
+		var sn := BuildPieces.stairs_numbers(_bld(), pc)
+		txt = "%s   %d steps of %.1f cm   rise %.2f m" % [BuildPieces.DEFS[String(pc["kind"])]["label"], int(sn["n"]), float(sn["r"]) * 100.0, sn["rise"]]
+	else:
+		txt = "%s   %.1f x %.1f x %.1f m" % [BuildPieces.DEFS[String(pc["kind"])]["label"], bx.size.x, bx.size.z, bx.size.y]
+	_pill(m.cam.unproject_position(bx.get_center() + Vector3(0, bx.size.y * 0.5 + 0.35, 0)), txt, SKY, Color(0.04, 0.06, 0.1), 14)
+
+
+## "Walk up the stairs": PathWalk's cards with the feet on the stairs' slope, a new scene that carries the house (ONE undo step)
+func walk_up(pid: String) -> void:
+	var r := BuildStage.stairs_scene(m.S, m.B, pid)
+	if not bool(r["ok"]):
+		m._say(String(r["why"]))
+		return
+	var d: Dictionary = r["scene"]
+	var n: int = d["cards"].size()
+	m._do(func():
+		m._actors_home()
+		var old_s: Scene = m.S
+		m.S = Scene.new()
+		m.S.from_dict(d)
+		m.swap_scenes = [old_s, m.S]
+		m.scene_path = ""
+		if m.ui_scene_name != null:
+			m.ui_scene_name.text = m.S.name
+		m._actors_sync()
+		m.sel_card = 0
+		m.ov.mark_dirty()
+		m.wt.mark_dirty()
+		m._dummy_hits()
+		m._rebuild_cards()
+		m.playhead = 0.0
+		m.S.apply(m.B, 0.0)
+		m._bld_scene_changed(false)
+		m._props_show())
+	if not m.undo.is_empty():
+		m.undo[-1]["swap"] = true
+	var pc := Building.piece_of(_bld(), pid)
+	var xf := BuildPieces.frame(_bld(), pc)
+	m._turn_to(rad_to_deg(xf.basis.get_euler().y) + 90.0 + 28.0, -18.0, 8.0, xf.origin + Vector3(0, float(BuildPieces.stairs_numbers(_bld(), pc)["rise"]) * 0.5, 0), false)
+	m._say("walking up the stairs: %d cards, feet on the steps, %.1f m/s. The open scene is untouched; Ctrl+Z goes back to it in one step" % [n, BuildStage.WALK_SPEED])
 
 
 # ---------------------------------------------------------------- the labels over the view
@@ -1654,6 +2185,8 @@ func _draw_labels() -> void:
 		_draw_wall_preview()
 	elif drag == "pull":
 		_draw_pull_label()
+	elif tool == "Piece":
+		_draw_piece_labels()
 	elif tool == "Opening":
 		var o := _opening(sel)
 		if not o.is_empty():

@@ -32,7 +32,17 @@ extends SceneTree
 ##  17 WALK    "Walk through the front door": cards in a new scene, the root passes the doorway plane, no foot inside a wall box, feet on the floor
 ## (bars 1 and 10 of phase 1b said Wall / Pull / Floor / Roof / "Use in a scene" are disabled "coming next": phase 1d enables them, so those two
 ## bars now say the opposite, and Piece / Words stay disabled)
-## Screenshots: C:/Temp/claude/build1c/{empty,dragging,door,panel,selected,door_back}.png and C:/Temp/claude/build1d/{wall,pull,floors,roof,scene,scene_walk}.png.
+## Phase 1f (real clicks; a fresh 8 x 5 house with two floors):
+##  18 PICKER  Piece is a tool; the picker shows 9 big icon cards in the categories Stairs / Furniture / Fight blocks, floor chips with two floors;
+##             a click on the Stairs card puts it in hand
+##  19 STAIRS  a click on floor 1 places straight stairs (centre on the 0.5 m grid): ONE undo step, the floor above loses exactly the stairwell
+##             (plan x slab), the mesh stays closed, the stairs' analytic volume is in it; the panel is its numbers (Width, Tread); + on Width is one step
+##  20 TURN    the round Rotate arrow turns it 90 deg (one step, hole turned), undo; Delete removes it (one step, the slab whole again), undo
+##  21 PROPS   a crate placed by a click (+0.12 m3, one step), the house stays closed; a click on the stairs selects them
+##  22 SCENE   Use in a scene: STAGE, the stairs are a ramp (the inside is solid, the slope is a surface); "Walk up the stairs": cards in a new scene,
+##             no foot inside a step over the whole walk, the lower foot at most one riser over a tread, the root climbs 2.4 m or more
+## (bar 1 and the Piece line of bar 10 said Piece is disabled "coming next": phase 1f enables it, so bar 1 now says the opposite)
+## Screenshots: C:/Temp/claude/build1f/{picker,stairs,props,scene}.png, C:/Temp/claude/build1c/{empty,dragging,door,panel,selected,door_back}.png and C:/Temp/claude/build1d/{wall,pull,floors,roof,scene,scene_walk}.png.
 ## Only user:// is written.
 var fails := 0
 var m: Node
@@ -150,10 +160,10 @@ func _init() -> void:
 	ok(tabs == ["BUILD", "STAGE", "CHECK", "DELIVER"], "1 the page bar is %s" % [tabs])
 	ok(bld.hint_box.visible and (bld.hint_box.get_child(0) as Label).text == "Drag on the floor to make a room", "1 the empty-state hint shows")
 	var later_ok := true
-	for t in ["piece"]:   # (1d: Wall, Pull, Floor and Roof are tools now: bar 12; 1e: Words is a tool too)
+	for t in ["piece"]:   # (1d: Wall, Pull, Floor and Roof are tools now: bar 12; 1e: Words is a tool too; 1f: so is Piece: this bar now says the opposite, as 1d's did)
 		var bt: Button = m.ui_ribbon["BUILD"].find_child("build_tool_" + t, true, false)
-		later_ok = later_ok and bt != null and bt.disabled and bt.tooltip_text.contains("coming next")
-	ok(later_ok, "1 Piece: on the ribbon, disabled, tooltip \"coming next\" (1e: Words is a tool now)")
+		later_ok = later_ok and bt != null and not bt.disabled and not bt.tooltip_text.contains("coming next")
+	ok(later_ok, "1 Piece: on the ribbon, enabled, no \"coming next\" (1f: Piece is a tool now, bar 18)")
 	ok(m.S.building.is_empty() and bld.house.mesh == null, "1 no building yet")
 	await shot("empty")
 
@@ -567,6 +577,176 @@ func _init() -> void:
 	await idle(4)
 	await shot2("scene_walk")
 
+	# ======================================================= phase 1f: Piece + Stairs (a fresh 8 x 5 house, two floors)
+	ss.show_screen()
+	await idle(3)
+	await click_ctl(ss._cards["building"])
+	await idle(6)
+	await drag_floor(0, 0, 8, 5)
+	await click_ctl(m.ui_ribbon["BUILD"].find_child("build_tool_floor", true, false))
+	await click_ctl(bld.panel.find_child("build_add_floor", true, false))
+	ok(Building.storey_count(m.S.building) == 2, "18 a fresh 6 x 5 house with two floors (%d)" % Building.storey_count(m.S.building))
+	var v_h0 := vol_roles(["wall", "floor"])
+	var v_all0 := vol()
+
+	# 18 PICKER
+	var piece_tool: Button = m.ui_ribbon["BUILD"].find_child("build_tool_piece", true, false)
+	ok(piece_tool != null and not piece_tool.disabled and not piece_tool.tooltip_text.contains("coming next"), "18 Piece is a tool on the ribbon now")
+	await click_ctl(piece_tool)
+	var cards_ok := bld.picker.visible and bld.card_btns.size() == 9
+	for k in bld.card_btns:
+		var cb: Button = bld.card_btns[k]
+		cards_ok = cards_ok and cb.is_visible_in_tree() and cb.icon != null and cb.icon.get_width() >= 40 and cb.size.x >= 100.0 and cb.size.y >= 88.0 and cb.text != ""
+	ok(cards_ok, "18 the picker shows 9 big icon cards (%s), each at least 100 x 88 px with a 44 px icon" % [bld.card_btns.keys()])
+	var cats: Array = BuildPieces.CATS.map(func(c): return c[0])
+	ok(cats == ["Stairs", "Furniture", "Fight blocks"] and BuildPieces.CATS[0][1] == ["stairs", "stairs_l"], "18 the categories: %s" % [cats])
+	ok(bld.floor_chips.get_child_count() == 3, "18 with two floors the picker offers \"On floor\" 1 / 2 (%d chips)" % bld.floor_chips.get_child_count())
+	var pr0: Rect2 = bld.picker.get_global_rect()
+	var pn0: Rect2 = bld.panel.get_global_rect()
+	await click_ctl(bld.card_btns["stairs"])
+	ok(bld.piece_kind == "stairs" and (bld.card_btns["stairs"] as Button).button_pressed, "18 a click on the Stairs card puts it in hand")
+	await shot3("picker")
+
+	# 19 STAIRS on floor 1
+	n0 = m.undo.size()
+	var at_pt := Vector3(4.0, 0, 2.5)
+	ok(not pr0.has_point(sp(at_pt)) and not pn0.has_point(sp(at_pt)), "19 the click point %s is in the free view, not under the picker or the panel" % sp(at_pt))
+	await click_ctl_at(sp(at_pt))
+	var pcs: Array = m.S.building.get("pieces", [])
+	var st0: Dictionary = pcs[0] if pcs.size() == 1 else {}
+	var k19 := Building.to_kmesh(m.S.building)
+	var slab5 := 0.2
+	var hole := 1.0 * 15.0 * 0.28 * slab5
+	ok(pcs.size() == 1 and String(st0.get("kind", "")) == "stairs" and int(st0.get("storey", -1)) == 0 and absf(float(st0["x"]) - 4.0) < 1e-9 and absf(float(st0["z"]) - 2.5) < 1e-9 and m.undo.size() == n0 + 1,
+		"19 a click on floor 1 places straight stairs at (4.0, 2.5): %s, ONE undo step" % [st0])
+	ok(k19.boundary_edge_count() == 0 and k19.is_manifold() and absf((v_h0 - vol_roles(["wall", "floor"])) - hole) < 1e-4,
+		"19 the floor above is cut: the house loses exactly the stairwell, %.6f m3 (want %.6f); the mesh with the stairs is closed %s" % [v_h0 - vol_roles(["wall", "floor"]), hole, k19.boundary_edge_count() == 0])
+	ok(absf(vol() - (v_all0 - hole + BuildPieces.volume(m.S.building, st0))) < 1e-4, "19 the stairs are in the mesh: +%.6f m3 (the analytic solid)" % BuildPieces.volume(m.S.building, st0))
+	ok(bld.psel == String(st0.get("id", "?")) and bld.panel.visible and bld.panel_title.text.begins_with("Stairs") and bld.panel.find_child("num_piece_w", true, false) != null and bld.panel.find_child("num_piece_t", true, false) != null,
+		"19 the panel is the stairs' numbers (\"%s\": width, tread)" % bld.panel_title.text)
+	await shot3("stairs")
+	n0 = m.undo.size()
+	await click_ctl(bld.panel.find_child("step_piece_w_plus", true, false))
+	ok(absf(float(m.S.building["pieces"][0]["w"]) - 1.1) < 1e-9 and m.undo.size() == n0 + 1, "19 the + on Width: 1.1 m, one undo step")
+	m._undo()
+	await idle(2)
+	ok(absf(float(m.S.building["pieces"][0]["w"]) - 1.0) < 1e-9, "19 undo: width 1.0 m again")
+
+	# 20 ROTATE, DELETE, UNDO
+	n0 = m.undo.size()
+	await click_ctl(bld.panel.find_child("build_piece_rotate", true, false))
+	var rot: Dictionary = m.S.building["pieces"][0]
+	var k20 := Building.to_kmesh(m.S.building)
+	ok(absf(float(rot["yaw"]) - 90.0) < 1e-9 and m.undo.size() == n0 + 1 and k20.boundary_edge_count() == 0 and absf((v_h0 - vol_roles(["wall", "floor"])) - hole) < 1e-4
+		and absf(BuildPieces.footprint(m.S.building, rot).size.x - 4.2) < 1e-6,
+		"20 the round Rotate arrow: yaw %s, one undo step, closed, the hole turned with it (%.6f m3), footprint %s" % [rot["yaw"], v_h0 - vol_roles(["wall", "floor"]), BuildPieces.footprint(m.S.building, rot).size])
+	m._undo()
+	await idle(2)
+	ok(absf(float(m.S.building["pieces"][0]["yaw"])) < 1e-9, "20 undo: yaw 0 again")
+	n0 = m.undo.size()
+	await key(KEY_DELETE)
+	ok(m.S.building.get("pieces", []).is_empty() and m.undo.size() == n0 + 1 and absf(vol_roles(["wall", "floor"]) - v_h0) < 1e-9 and bld.psel == "",
+		"20 Delete removes the stairs: ONE undo step, the floor above is whole again (%.6f m3 = before)" % vol_roles(["wall", "floor"]))
+	m._undo()
+	await idle(2)
+	ok(m.S.building.get("pieces", []).size() == 1 and absf((v_h0 - vol_roles(["wall", "floor"])) - hole) < 1e-4, "20 undo brings the stairs and the hole back")
+	m._redo()
+	await idle(2)
+	m._undo()
+	await idle(2)
+
+	# 21 CRATE (a furniture block): Escape, pick Crate, click
+	await click_ctl(bld.card_btns["crate"])
+	n0 = m.undo.size()
+	var v21 := vol()
+	await click_ctl_at(sp(Vector3(1.5, 0.0, 1.5)))
+	var crate: Dictionary = {}
+	for pcx in m.S.building.get("pieces", []):
+		if String(pcx["kind"]) == "crate":
+			crate = pcx
+	ok(not crate.is_empty() and m.undo.size() == n0 + 1 and absf((vol() - v21) - 0.6 * 0.4 * 0.5) < 1e-4 and absf(float(crate["x"]) - 1.5) < 1e-9 and bld.psel == String(crate["id"]),
+		"21 a crate placed at (1.5, 1.5): ONE undo step, +%.6f m3 (analytic %.6f), selected: %s" % [vol() - v21, 0.6 * 0.4 * 0.5, crate.get("id", "")])
+	var cp := Building.to_kmesh(m.S.building)
+	ok(cp.boundary_edge_count() == 0 and cp.is_manifold(), "21 the house with the stairs and the crate is closed (%d boundary)" % cp.boundary_edge_count())
+	await shot3("props")
+	# a click on the stairs selects them (and an empty click with nothing in hand deselects)
+	await key(KEY_ESCAPE)
+	await click_ctl_at(sp(Vector3(4.0, 0.4, 2.5)))
+	ok(bld.psel != "" and String(Building.piece_of(m.S.building, bld.psel).get("kind", "")) == "stairs", "21 a click on the stairs selects them (%s)" % bld.psel)
+
+	# 22 USE IN A SCENE, WALK UP THE STAIRS (the stairs turned to run along x: the room's long side has the run-up and the run-out)
+	await click_ctl(bld.panel.find_child("build_piece_rotate", true, false))
+	ok(absf(float(Building.piece_of(m.S.building, String(st0["id"]))["yaw"]) - 90.0) < 1e-9, "22 the stairs turned to run along x")
+	n0 = m.undo.size()
+	await click_ctl(bld.use_btn)
+	await idle(3)
+	var pi22 := BuildStage.prop_index(m.S)
+	var prop22: Dictionary = m.S.props[pi22] if pi22 >= 0 else {}
+	var polys := Props.solids(prop22).filter(func(sw): return sw.has("poly"))
+	ok(m.cur_page == "STAGE" and pi22 >= 0 and m.undo.size() == n0 + 1 and polys.size() == 1 and Props.depth(prop22, Vector3(3.0, 0.3, 2.5), Vector3(3.0, 0.3, 2.5), 0.02) > 0.0,
+		"22 Use in a scene: STAGE, the house is a set with %d ramp (the stairs) and the crate; the inside of the stairs is solid" % polys.size())
+	var props22 := [prop22]
+	var surf0 := float(Props.surface_below(props22, Vector3(4.0 - 2.1 + 1.0, 0.6, 2.5))["y"])
+	ok(absf(surf0 - (0.175 + 0.175 / 0.28 * 1.0)) < 1e-5, "22 the fighter's feet stand on the slope: %.4f m at 1 m up the flight (the nosing line)" % surf0)
+	await shot3("scene_stairs")
+	var wup: Button = bld.stage_panel.find_child("build_walk_up_%s" % String(st0["id"]), true, false)
+	ok(wup != null and wup.is_visible_in_tree() and wup.text == "Walk up the stairs", "22 the STAGE panel offers \"Walk up the stairs\"")
+	var old22: Scene = m.S
+	n0 = m.undo.size()
+	await click_ctl(wup)
+	await idle(4)
+	var Sw2: Scene = m.S
+	ok(Sw2 != old22 and Sw2.cards.size() > 6 and BuildStage.prop_index(Sw2) >= 0 and m.undo.size() == n0 + 1, "22 the walk: %d cards in a new scene that carries the house; one undo step" % Sw2.cards.size())
+	var ts2: Array = Sw2.times()
+	var w0: float = ts2[0][0]
+	var w1: float = ts2[-1][1]
+	var stp: Dictionary = Building.piece_of(Sw2.building, String(st0["id"]))
+	var sn22 := BuildPieces.stairs_numbers(Sw2.building, stp)
+	var xf22 := BuildPieces.frame(Sw2.building, stp)
+	var worst_in := INF       # the lowest a foot gets under the visible tread at its place (negative = inside a step)
+	var worst_up := -INF      # the highest the lower of the two feet floats over the tread
+	var root_y0 := NAN
+	var root_y1 := 0.0
+	var frames22 := 0
+	var on_steps := 0
+	for fi in int((w1 - w0) * 60.0) + 1:
+		Sw2.apply(m.B, w0 + fi / 60.0)
+		frames22 += 1
+		var lows := []
+		var flight_lows := []
+		for jn in ["ball_l", "ball_r"]:
+			var jp: Vector3 = m.B.P[jn]
+			var loc := xf22.affine_inverse() * jp
+			var uu: float = loc.z + float(sn22["len"]) * 0.5
+			var tread := 0.0
+			if uu > 0.0 and absf(loc.x) < 0.5:
+				tread = minf(float(sn22["r"]) * ceilf(uu / float(sn22["t"])), float(sn22["rise"]))
+			if uu > float(sn22["len"]):
+				tread = float(sn22["rise"])
+			var over: float = jp.y - float((m.B.p0[jn] as Vector3).y) - tread   # the sole's height over the tread under it
+			lows.append(over)
+			# measured on the flight only: at the head the foot is on the flat floor above, where a flat walk
+			# shows the same ~4 cm toe/heel dip (flat door walk: -0.040 m), which is the foot's own roll, not the stairs
+			var on_flight: bool = uu > 0.1 and uu < float(sn22["len"]) - 0.1 and absf(loc.x) < 0.5
+			if on_flight:
+				on_steps += 1
+				worst_in = minf(worst_in, over)
+				flight_lows.append(over)
+		if flight_lows.size() == 2:
+			worst_up = maxf(worst_up, minf(flight_lows[0], flight_lows[1]))
+		if is_nan(root_y0):
+			root_y0 = m.B.offset.y
+		root_y1 = m.B.offset.y
+	ok(worst_in > -0.02, "22 no foot goes into a step: the lowest ball is %.4f m over the tread under it (over %d frames, %d samples on the flight)" % [worst_in, frames22, on_steps])
+	# the ramp runs through the nosings, so a foot may stand up to one riser over the back of a tread; plus the foot's own roll
+	# (a flat door walk dips/lifts ~0.04 m the same way), hence riser + 0.05 m
+	ok(worst_up < float(sn22["r"]) + 0.05 and on_steps > 20, "22 the lower foot is never more than a riser (%.3f m) + the foot's roll (0.05 m) over a tread: worst %.4f m" % [sn22["r"], worst_up])
+	ok(root_y1 - root_y0 > 2.4, "22 the fighter climbs: the root goes from %.2f m to %.2f m (the floor above is at 2.8 m)" % [root_y0, root_y1])
+	Sw2.apply(m.B, w0 + (w1 - w0) * 0.5)
+	m.playhead = w0 + (w1 - w0) * 0.5
+	await idle(4)
+	await shot3("scene")
+
 	print("BUILDPAGE %s: %d failed" % ["PASS" if fails == 0 else "FAIL", fails])
 	quit(1 if fails > 0 else 0)
 
@@ -585,6 +765,15 @@ func shot2(nm: String) -> void:
 	await idle(3)
 	DirAccess.make_dir_recursive_absolute(SHOT2)
 	root.get_texture().get_image().save_png("%s/%s.png" % [SHOT2, nm])
+
+
+const SHOT3 := "C:/Temp/claude/build1f"
+
+
+func shot3(nm: String) -> void:
+	await idle(3)
+	DirAccess.make_dir_recursive_absolute(SHOT3)
+	root.get_texture().get_image().save_png("%s/%s.png" % [SHOT3, nm])
 
 
 func vol_roles(roles: Array) -> float:
