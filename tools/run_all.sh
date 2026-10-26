@@ -139,3 +139,4 @@ EXTRA="$EXTRA easybuild:w"   # EASY BUILDING: start screen Building -> Easy, big
 EXTRA="$EXTRA modelcards:w"   # MODEL TASK CARDS: "What do you want to do?" over MODEL (4 cards, Start reaches the tool, Show all the tools, Expert first open only, 1280x720 fit) (scripts/model_cards.gd; tests/modelcards_test.gd)
 EXTRA="$EXTRA smoothbody:w"   # BODY: SMOOTH, the second body option (assets/body_smooth.glb): one undo step, mannequin byte-identical, pose / pick / paint, soles, elbow volume, the drawn face, Easy click
 EXTRA="$EXTRA startbugs:w"   # start screen: modeling lands on MODEL, Home button, Easy/Expert start at once, Esc, Help in front, one save question
+EXTRA="$EXTRA mocapq:h"   # MOCAP QUALITY: jitter / skate / pen / flips / speed bars on fixed keypoint fixtures
