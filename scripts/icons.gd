@@ -63,6 +63,7 @@ const DRAW := {
 	"piece_ramp": [["seg", Vector2(3, 20), Vector2(21, 20), 2.0], ["seg", Vector2(21, 20), Vector2(21, 6), 2.0], ["seg", Vector2(21, 6), Vector2(3, 20), 2.0]],
 	"piece_platform": [["box", Rect2(3, 11, 18, 9), 1.9], ["seg", Vector2(3, 11), Vector2(7, 6.5), 1.6], ["seg", Vector2(21, 11), Vector2(17, 6.5), 1.6], ["seg", Vector2(7, 6.5), Vector2(17, 6.5), 1.6]],
 	"piece_rotate": [["arc", Vector2(12, 12), 7.5, 2.2, 40, 330], ["seg", Vector2(17.5, 3.5), Vector2(19.8, 9.2), 2.2], ["seg", Vector2(19.8, 9.2), Vector2(13.6, 8.6), 2.2]],
+	"build_blueprint": [["box", Rect2(3, 4, 18, 16), 1.8], ["seg", Vector2(3, 9), Vector2(21, 9), 1.2], ["seg", Vector2(9, 9), Vector2(9, 20), 1.2], ["seg", Vector2(13, 14), Vector2(18, 14), 1.4], ["seg", Vector2(13, 17), Vector2(18, 17), 1.4]],
 	"build_words": [["box", Rect2(3.5, 4, 17, 12), 1.8], ["seg", Vector2(8, 16), Vector2(8, 20.5), 1.8], ["seg", Vector2(8, 20.5), Vector2(12.5, 16), 1.8], ["seg", Vector2(7.5, 8.5), Vector2(16.5, 8.5), 1.5], ["seg", Vector2(7.5, 11.5), Vector2(14, 11.5), 1.5]],
 	"shade_wire": [["box", Rect2(4, 4, 16, 16), 1.4], ["seg", Vector2(4, 12), Vector2(20, 12), 1.2], ["seg", Vector2(12, 4), Vector2(12, 20), 1.2]],
 	"shade_solid": [["disc", Vector2(12, 12), 8.5]],

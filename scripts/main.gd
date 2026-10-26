@@ -245,7 +245,7 @@ const RIBBON_GROUPS := {
 	"MODEL": [["MESH", ["Test cube", "Edit body", "Save to body", "Save", "Open...", "Use in scene"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Proportional", "Modifiers", "Validate", "Repair"]]],
 	"SCULPT": [["SPHERE", ["Test sphere"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
 	"SURFACE": [["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]], ["MATERIAL", ["Material from photo"]]],
-	"BUILD": [["DRAW", ["Room", "Wall", "Pull"]], ["ADD", ["Opening", "Floor", "Roof", "Piece"]], ["SAY", ["Words"]]],
+	"BUILD": [["DRAW", ["Room", "Wall", "Pull"]], ["ADD", ["Opening", "Floor", "Roof", "Piece"]], ["SAY", ["Words"]], ["SHEET", ["Blueprint"]]],
 	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped"]]],
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag", "Keep balance"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
