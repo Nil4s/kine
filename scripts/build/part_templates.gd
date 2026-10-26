@@ -36,6 +36,14 @@ const T := {
 }
 
 
+## the default camera of a template: [yaw, pitch] degrees, a 3/4 view in which its main shape reads (the axe turns further so its blade face shows)
+const VIEW := {"sword": [30.0, -22.0], "axe": [42.0, -20.0], "shield": [30.0, -18.0], "chair": [38.0, -22.0], "crate": [34.0, -24.0]}
+
+
+static func view_of(t: String) -> Array:
+	return VIEW.get(t, [30.0, -22.0])
+
+
 static func defaults(t: String) -> Dictionary:
 	var p := {}
 	for d in T[t]["params"]:
@@ -130,7 +138,15 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var r: float = float(p["handle_thickness"]) * 0.5
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(0, 0), Vector2(H + 10, r))]), "revolve", 0.0, "new")
 			var ey := maxf(r + 4.0, 18.0)
-			_ex(fs, _sk(fs, "front", _poly([Vector2(H - 30, -ey), Vector2(H + 5, -ey), Vector2(H + 45, -hw * 0.5), Vector2(H + 45, hw * 0.5), Vector2(H + 5, ey), Vector2(H - 30, ey)])), "extrude", ht, "join", true)
+			# a bearded wedge: the poll and eye round the handle, then the blade flares to the edge (its lower corner hangs a little back: the beard)
+			_ex(fs, _sk(fs, "front", _poly([Vector2(H - 40, -ey), Vector2(H + 10, -ey), Vector2(H + 85, -hw * 0.5), Vector2(H + 110, hw * 0.5), Vector2(H + 10, ey), Vector2(H - 40, ey)])), "extrude", ht, "join", true)
+			# the edge is thinner than the eye: two thin wedges come off the faces, side-on (Top plane: sketch y runs along -Z)
+			var edge := minf(4.0, ht * 0.3)
+			var x0 := H + 10.0
+			var x1 := H + 112.0
+			var hz := ht * 0.5
+			for sg in [1.0, -1.0]:   # one closed wire per sketch: one wedge off each face
+				_ex(fs, _sk(fs, "top", _poly([Vector2(x0, sg * hz), Vector2(x1, sg * edge * 0.5), Vector2(x1, sg * (hz + 1.0)), Vector2(x0, sg * (hz + 1.0))])), "extrude", hw + 80.0, "cut", true)
 		"shield":
 			var R: float = p["radius"]
 			var th: float = p["thickness"]
@@ -180,9 +196,9 @@ static func dot_of(t: String, k: String, p: Dictionary) -> Dictionary:
 		"sword.guard_size":
 			return {"at": Vector3(-1.0 * s, float(p["guard_size"]) * 0.5 * s, 0), "axis": Vector3.UP, "gain": 2.0}
 		"axe.handle_length":
-			return {"at": Vector3((float(p["handle_length"]) + 45.0) * s, 0, 0), "axis": Vector3.RIGHT, "gain": 1.0}
+			return {"at": Vector3((float(p["handle_length"]) + 110.0) * s, 0, 0), "axis": Vector3.RIGHT, "gain": 1.0}
 		"axe.head_width":
-			return {"at": Vector3((float(p["handle_length"]) + 45.0) * s, float(p["head_width"]) * 0.5 * s, 0), "axis": Vector3.UP, "gain": 2.0}
+			return {"at": Vector3((float(p["handle_length"]) + 110.0) * s, float(p["head_width"]) * 0.5 * s, 0), "axis": Vector3.UP, "gain": 2.0}
 		"shield.radius":
 			return {"at": Vector3(float(p["radius"]) * s, 0, 0), "axis": Vector3.RIGHT, "gain": 1.0}
 		"shield.boss":

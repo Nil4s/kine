@@ -53,6 +53,31 @@ func show() -> void:
 	_panel()
 
 
+## the Weapon weight button: show() with the swings read on a worker thread (checkslice)
+func show_bg() -> void:
+	if m.S.cards.size() < 2:
+		show()   # the "needs a swing" line
+		return
+	var C: Scene = m.S.clone()
+	var st: Dictionary = m.B.state()
+	var ov := override.duplicate(true)
+	var t0 := Time.get_ticks_usec()
+	var r: Dictionary = await m.bg_run("weapon weight", "weapon weight: reading the swings...", func():
+		var PB: Body = m.bg_body(st)
+		var out := []
+		var prof := {} if ov.is_empty() else WeaponTorque.profile(String(ov.get("kind", "metal_bat")), ov)
+		for s in WeaponTorque.swings(C, PB):
+			out.append({"r": WeaponTorque.analyze(C, PB, int(s["card"]), prof), "fx": {}})
+		return out)
+	if not r["ok"]:
+		return
+	rows = r["v"]
+	ms = float(Time.get_ticks_usec() - t0) / 1000.0
+	if rows.is_empty():
+		m._say("Weapon weight found no weapon swing: hold a weapon (Weapon: metal bat ...) and name the strike card 'strike' or put a hit marker on it, then try again")
+	_panel()
+
+
 func _bar(v: float, mx: float, label: String) -> Control:
 	var row := HBoxContainer.new()
 	var lb: Label = m._label(label, 12, "text:0.8")

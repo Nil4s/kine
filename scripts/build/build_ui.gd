@@ -616,6 +616,9 @@ func easy_inset() -> float:
 ## a toast (main._toast) never covers the panel: it sits low in the view, right of the Snap chip, and moves left of the panel (or
 ## under it) if it would touch it
 func place_toast(t: Label) -> void:
+	if part != null and part.chrome():
+		part.place_toast(t)   # Part (Expert): top of the view, clear of the timeline and the browser
+		return
 	var cl: Rect2 = m.nav_clear_rect()
 	t.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT, Control.PRESET_MODE_MINSIZE)
 	var sz := t.size
@@ -1643,7 +1646,7 @@ func _stage_sync() -> void:
 	stage_panel.visible = show
 	if not show:
 		return
-	var sig := str(m.easy.on) + JSON.stringify(Building.to_file(_bld()))   # Easy and Expert word it differently
+	var sig := str(m.easy.on) + str(BuildStage.stature_of(m.B)) + JSON.stringify(Building.to_file(_bld()))   # Easy and Expert word it differently; the fighter's height flags doors
 	if sig == _stage_sig and stage_body.get_child_count() > 0:
 		return
 	_stage_sig = sig
@@ -1697,9 +1700,12 @@ func _stage_sync() -> void:
 	for nm in names:
 		var wb := Button.new()
 		wb.name = "build_walk_" + String(nm).replace(" ", "_")
-		wb.text = "Walk through the %s" % nm
+		var fit := BuildStage.clearance(bd, String(nm), BuildStage.stature_of(m.B))   # a doorway the fighter cannot fit under is flagged on its button
+		wb.text = "Walk through the %s" % nm if fit["ok"] else "Walk through the %s (too low)" % nm
 		wb.focus_mode = Control.FOCUS_NONE
 		wb.tooltip_text = ("he walks from outside, through the %s, to inside (a new scene; the Undo button goes back)" if easy_on else "walk cards from outside, through the %s, to inside (a new scene; Ctrl+Z goes back)") % nm
+		if not fit["ok"]:
+			wb.tooltip_text = String(fit["why"])
 		wb.pressed.connect(walk_through.bind(String(nm)))
 		walk_btns[nm] = wb
 		stage_body.add_child(wb)
@@ -1735,7 +1741,7 @@ func _layout_stage() -> void:
 func walk_through(name: String) -> void:
 	var r := BuildStage.walk_scene(m.S, m.B, name)
 	if not bool(r["ok"]):
-		_say(String(r["why"]))
+		_say(String(r["why"]), String(r["why"]))   # Easy shows the same plain words (an empty Easy message would hide the refusal)
 		return
 	var d: Dictionary = r["scene"]
 	var n: int = d["cards"].size()

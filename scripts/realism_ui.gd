@@ -44,7 +44,17 @@ func tag() -> String:
 
 
 ## ask every judge; nothing is written to the scene. TimingCoach needs the move database (read once, ~20 s) unless `db` is given.
+## A plain call: no stage waits for a frame (the tests, the predictions).
 func gather(db: Dictionary) -> Dictionary:
+	var keep := FrameMemo.suspend_slicing()   # a plain call never waits for a frame
+	var r: Dictionary = gather_co.call(db)
+	FrameMemo.resume_slicing(keep)
+	return r
+
+
+## gather() in stages: while the panel's own run is on (FrameMemo sliced) the window gets a frame between the check, the timing
+## coach, the force view and each judge; a second click (_stop / abort) ends the run with nothing written.
+func gather_co(db: Dictionary) -> Dictionary:
 	var S: Scene = m.S
 	var out := {"findings": [], "tc": [], "force": {}, "push": [], "phys": null, "judges": {}}
 	if S.cards.size() < 2:   # nothing to judge (empty, or a pose with no clip): do not play anything
@@ -58,15 +68,21 @@ func gather(db: Dictionary) -> Dictionary:
 	var ck := str(S.cards.hash()) + var_to_str(S.body) + var_to_str(S.asserts)   # a judge's answer is kept while the cards and the body are the same (N005: and the saved N002 lines, which Check grades)
 	if String(_memo.get("key", "")) != ck:
 		m._bake_validate()
-		var sm := Rulebook.sample(S, m.ov.GB)
+		var sm: Dictionary = await Rulebook.sample_co(S, m.ov.GB)
+		if sm.is_empty():   # cancelled while the scene was played
+			return _end(out, body0)
 		var keep: bool = HumanLimits.on
 		HumanLimits.on = true   # the human-limit rules are part of this score
-		var fnd := Rulebook.check(S, m.ov.GB, sm)
+		var fnd: Array = await Rulebook.check_co(S, m.ov.GB, sm)
 		HumanLimits.on = keep
 		lap["check"] = float(Time.get_ticks_usec() - t0) / 1000.0
 		t0 = Time.get_ticks_usec()
-		var tcs := TimingCoach.compute(S, m.B, db, String(S.name))
+		if not await _stage():
+			return _end(out, body0)
+		var tcs: Array = await TimingCoach.compute_co(S, m.B, db, String(S.name))
 		lap["timing"] = float(Time.get_ticks_usec() - t0) / 1000.0
+		if _cancelled():
+			return _end(out, body0)
 		_memo = {"key": ck, "sm": sm, "findings": fnd, "tc": tcs}
 		t0 = Time.get_ticks_usec()
 	else:
@@ -75,6 +91,8 @@ func gather(db: Dictionary) -> Dictionary:
 	m._sm = _memo["sm"]   # a Fix re-uses the sample instead of playing the scene again
 	out["findings"] = _memo["findings"]
 	out["tc"] = _memo["tc"]
+	if not await _stage():
+		return _end(out, body0)
 	out["force"] = m._force_data()
 	lap["force"] = float(Time.get_ticks_usec() - t0) / 1000.0
 	out["push"] = _push_items()
@@ -82,12 +100,29 @@ func gather(db: Dictionary) -> Dictionary:
 	if mp.done and mp.failed == "" and not mp.summary.is_empty():
 		out["phys"] = mp.spans.duplicate()
 	t0 = Time.get_ticks_usec()
-	out["judges"] = JudgeSuite.run(m, jcache, jlap)   # I45: weapon, reaction, fatigue, momentum, recovery, spin, breakfall, precog (poses shared through the frame memo)
+	out["judges"] = await JudgeSuite.run(m, jcache, jlap)   # I45: weapon, reaction, fatigue, momentum, recovery, spin, breakfall, precog (poses shared through the frame memo)
 	lap["judges"] = float(Time.get_ticks_usec() - t0) / 1000.0
+	return _end(out, body0)
+
+
+## the end of gather_co: the memo is off and the body is back where the user had it
+func _end(out: Dictionary, body0: Dictionary) -> Dictionary:
 	FrameMemo.on = false
 	m.B.set_state(body0)   # the judges posed the body at other times
 	m.B.fk()
 	return out
+
+
+## a stage boundary: during the panel's own run the window draws a frame here; false = the run was cancelled
+func _stage() -> bool:
+	if FrameMemo.slicing():
+		await (m.get_tree() as SceneTree).process_frame
+	return not _cancelled()
+
+
+## the panel's run was cancelled by a second click (only a sliced run can be: a plain call is never cancelled)
+func _cancelled() -> bool:
+	return FrameMemo.slicing() and (_stop or FrameMemo.abort)
 
 
 func _short(t: String) -> String:
@@ -227,22 +262,50 @@ func biggest_gain() -> Dictionary:
 	return pick
 
 
+var _stop := false   # a second click during the run: the run ends at its next stage, the panel keeps its last score
+
+
+## the Realism score button: the timing database is read in slices (once), then the score is made in stages; a second click cancels
 func show() -> void:
 	if m.S.cards.size() < 2:
 		m._say("Realism score needs a scene of two cards or more: press Enter to add the body as a card (two at least), or open a scene in the list below")
 		return
+	if busy or m.tc_ui._reading:
+		_stop = true
+		FrameMemo.abort = true
+		m._say("realism score cancelled: the panel keeps its last score")
+		return
+	busy = true
+	_stop = false
 	if int(m.tc_ui.db.get("n", 0)) == 0:
-		m._say("realism score: reading your scenes for the timing coach (once, about 20 s)...")
-		await m.get_tree().process_frame
-		m.tc_ui.db = MotionMatch.build()
-	refresh()
-	_panel()
+		m._say("realism score: reading your scenes for the timing coach (once, about 20 s; click again to cancel)...")
+		await m.tc_ui._database()
+		if FrameMemo.abort:   # cancelled while the scenes were read
+			busy = false
+			return
+	if m.S.cards.size() >= 2:
+		FrameMemo.slice_begin(8.0)   # the score is made a few stages per frame: the window keeps drawing
+		await refresh_co()
+		FrameMemo.slice_end()
+		if not _stop and not FrameMemo.abort:
+			_panel()
+	busy = false
 
 
+## the score, made at once (no frame waits): the tests and the other callers
 func refresh() -> void:
+	var keep := FrameMemo.suspend_slicing()   # a plain call never waits for a frame
+	refresh_co.call()
+	FrameMemo.resume_slicing(keep)
+
+
+func refresh_co() -> void:
 	var t0 := Time.get_ticks_usec()
 	FrameMemo.prof = {}   # the profile of this score (FrameMemo.tick)
-	inp = gather(m.tc_ui.db)
+	var g: Dictionary = await gather_co(m.tc_ui.db)
+	if _cancelled():
+		return
+	inp = g
 	res = RealismScore.compute(m.S, inp)
 	if key != str(m.S.cards.hash()):
 		gains = {}

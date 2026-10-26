@@ -64,32 +64,42 @@ static func propose(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Array:
 	return after
 
 
+## the blocking form (the Fix button, the layer fix): the whole fix in one go, on the calling frame
 static func apply(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
+	var keep := FrameMemo.suspend_slicing()
+	var r: Dictionary = apply_co.call(f, S, B, sm0)   # .call: a coroutine that never suspends returns at once
+	FrameMemo.resume_slicing(keep)
+	return r
+
+
+## the same fix as apply(), bit for bit, that gives the frame back every FrameMemo.slice_ms while it samples (Fix all awaits it;
+## the caller starts the slicing and must not let a second run or an edit interleave: its input is held)
+static func apply_co(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
 	# the cards are edited in place and re-sampled below: the app's pose bake holds the poses of the cards as they WERE and
 	# must not answer those samples (plant plot: "it did not remove the problem" while the bare Scene fix worked)
 	var baker := S.baker
 	S.baker = null
-	var r := _apply(f, S, B, sm0)
+	var r: Dictionary = await _apply_co(f, S, B, sm0)
 	S.baker = baker
 	return r
 
 
-static func _apply(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
+static func _apply_co(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
 	var names := S.cards.map(func(c): return c["name"])
 	var before := S.cards.duplicate(true)
 	if sm0.is_empty():
-		sm0 = Rulebook.sample(S, B)
-	var all0 := Rulebook.check(S, B, sm0)
+		sm0 = await Rulebook.sample_co(S, B)
+	var all0: Array = await Rulebook.check_co(S, B, sm0)
 	var r := {}
 	match f["rule"]:
 		"TIP SPEED", "FIST SPEED":
-			r = _more_time(f, S, B, sm0)
+			r = await _more_time_co(f, S, B, sm0)
 		"STRIKE FRAMES":
-			r = _quicker(f, S, B, sm0)
+			r = await _quicker_co(f, S, B, sm0)
 		"HITCH":
 			r = _flow(f, S, B)
 		"HEAD QUIET":
-			r = _steady_head(f, S, B, sm0)
+			r = await _steady_head_co(f, S, B, sm0)
 		"FOOT SLIDE":
 			r = _plant(f, S, B)
 		"WEIGHT TRANSFER":
@@ -100,7 +110,7 @@ static func _apply(f: Dictionary, S: Scene, B: Body, sm0 := {}) -> Dictionary:
 			r = BodyCaps.retime(f, S, B)
 	assert(S.cards.map(func(c): return c["name"]) == names, "a fix changed the cards' count, names or order")
 	var did: String = r["did"]
-	var all1: Array = r["after"] if r.get("after") != null else Rulebook.check(S, B)
+	var all1: Array = r["after"] if r.get("after") != null else await Rulebook.check_co(S, B)
 	var still := all1.filter(func(x): return _same_finding(f, x))
 	var fails0 := all0.filter(func(x): return x["sev"] == "FAIL").size()
 	var fails1 := all1.filter(func(x): return x["sev"] == "FAIL").size()
@@ -195,11 +205,11 @@ static func _plant(f: Dictionary, S: Scene, B: Body) -> Dictionary:
 ## the sample for a candidate that changes card c's timing or pose: the frames before the first frame the edit can reach
 ## (Fixer.window's start) are base's raw records (the cards and their times before c do not change), the rest is played.
 ## base = the sample of the cards BEFORE the fix ({} = a full sample). Rulebook.audit compares it with a full sample.
-static func _cand_sample(S: Scene, B: Body, base: Dictionary, c: int) -> Dictionary:
+static func _cand_sample_co(S: Scene, B: Body, base: Dictionary, c: int) -> Dictionary:
 	if base.is_empty() or base.get("_raw", []).is_empty():
-		return Rulebook.sample(S, B)
+		return await Rulebook.sample_co(S, B)
 	var x := window(S, c, B).x
-	var sm := Rulebook.sample(S, B, base, INF, -INF, false, x)
+	var sm: Dictionary = await Rulebook.sample_co(S, B, base, INF, -INF, false, x)
 	if Rulebook.audit:
 		var full := Rulebook.sample(S, B)
 		Rulebook.audit_n += 1
@@ -209,8 +219,8 @@ static func _cand_sample(S: Scene, B: Body, base: Dictionary, c: int) -> Diction
 
 
 ## the full Check of the cards a loop left, from the loop's last sample (the same cards: no second sample)
-static func _cand_after(S: Scene, B: Body, sm: Dictionary) -> Array:
-	var out := Rulebook.check(S, B, sm)
+static func _cand_after_co(S: Scene, B: Body, sm: Dictionary) -> Array:
+	var out: Array = await Rulebook.check_co(S, B, sm)
 	if Rulebook.audit:
 		var full := Rulebook.check(S, B)
 		Rulebook.audit_n += 1
@@ -222,6 +232,13 @@ static func _cand_after(S: Scene, B: Body, sm: Dictionary) -> Array:
 ## a too-fast move: its card's move time scaled by speed / bar (speed ~ 1 / time), +5%, until the finding is gone
 ## (usually once: speed is ~ distance / time). The loop's test is this rule alone (Rulebook.check_some); the result is the full Check
 static func _more_time(f: Dictionary, S: Scene, B: Body, base := {}) -> Dictionary:
+	var keep := FrameMemo.suspend_slicing()
+	var r: Dictionary = _more_time_co.call(f, S, B, base)   # .call: a coroutine that never suspends returns at once
+	FrameMemo.resume_slicing(keep)
+	return r
+
+
+static func _more_time_co(f: Dictionary, S: Scene, B: Body, base := {}) -> Dictionary:
 	var c: int = f["card"]
 	var m0 := S.move_time(c)
 	var bar: float = Rulebook.FIST_WARN if f["rule"] == "FIST SPEED" else Rulebook.AT.TIP_MAX.get(_kind(S, B), 40.0)
@@ -229,25 +246,34 @@ static func _more_time(f: Dictionary, S: Scene, B: Body, base := {}) -> Dictiona
 	var sm := {}
 	for k in 4:
 		S.cards[c]["move"] = S.move_time(c) * maxf(1.05, v / bar * 1.05)
-		sm = _cand_sample(S, B, base, c)
+		sm = await _cand_sample_co(S, B, base, c)
 		var left := Rulebook.check_some(S, B, [f["rule"]], sm).filter(func(x): return x["card"] == c)
 		if left.is_empty():
 			break
 		v = left[0]["v"]
-	return {"did": "card %d '%s': move %.2f -> %.2f s" % [c + 1, S.cards[c]["name"], m0, S.move_time(c)], "after": _cand_after(S, B, sm)}
+	var after: Array = await _cand_after_co(S, B, sm)
+	return {"did": "card %d '%s': move %.2f -> %.2f s" % [c + 1, S.cards[c]["name"], m0, S.move_time(c)], "after": after}
 
 
 ## a swing that lasts too many frames: its card's move time x 0.85 until it is gone (the loop's test: STRIKE FRAMES alone)
 static func _quicker(f: Dictionary, S: Scene, B: Body, base := {}) -> Dictionary:
+	var keep := FrameMemo.suspend_slicing()
+	var r: Dictionary = _quicker_co.call(f, S, B, base)   # .call: a coroutine that never suspends returns at once
+	FrameMemo.resume_slicing(keep)
+	return r
+
+
+static func _quicker_co(f: Dictionary, S: Scene, B: Body, base := {}) -> Dictionary:
 	var c: int = f["card"]
 	var m0 := S.move_time(c)
 	var sm := {}
 	for k in 4:
 		S.cards[c]["move"] = maxf(0.05, S.move_time(c) * 0.85)
-		sm = _cand_sample(S, B, base, c)
+		sm = await _cand_sample_co(S, B, base, c)
 		if Rulebook.check_some(S, B, ["STRIKE FRAMES"], sm).filter(func(x): return x["card"] == c).is_empty():
 			break
-	return {"did": "card %d '%s': move %.2f -> %.2f s" % [c + 1, S.cards[c]["name"], m0, S.move_time(c)], "after": _cand_after(S, B, sm)}
+	var after: Array = await _cand_after_co(S, B, sm)
+	return {"did": "card %d '%s': move %.2f -> %.2f s" % [c + 1, S.cards[c]["name"], m0, S.move_time(c)], "after": after}
 
 
 ## a dead stop between two fast moves (no spline): the card it stops at becomes a FLOW card (passed through)
@@ -305,12 +331,19 @@ static func window(S: Scene, c: int, B: Body = null, old := []) -> Vector2:
 ## LEAST amount that brings the head under the bar (bisection, 6 steps = 1.6%); only the card's window is re-played
 ## per step. The arms and the weapon ride on the trunk, so the words report what that did to the tip speed.
 static func _steady_head(f: Dictionary, S: Scene, B: Body, sm0: Dictionary) -> Dictionary:
+	var keep := FrameMemo.suspend_slicing()
+	var r: Dictionary = _steady_head_co.call(f, S, B, sm0)   # .call: a coroutine that never suspends returns at once
+	FrameMemo.resume_slicing(keep)
+	return r
+
+
+static func _steady_head_co(f: Dictionary, S: Scene, B: Body, sm0: Dictionary) -> Dictionary:
 	var c: int = f["card"]
 	var a := Moves._flat(S.cards[c - 1]["pose"])
 	var orig: Dictionary = S.cards[c]["pose"].duplicate(true)
 	var b := Moves._flat(orig)
 	var w := window(S, c, B)
-	var base := Rulebook.sample(S, B, sm0, w.x, w.y, true)   # the window again, to count its contacts
+	var base: Dictionary = await Rulebook.sample_co(S, B, sm0, w.x, w.y, true)   # the window again, to count its contacts
 	var tip0 := _tip_in(base, S, c)
 	var lo := 0.0
 	var hi := 1.0
@@ -318,7 +351,7 @@ static func _steady_head(f: Dictionary, S: Scene, B: Body, sm0: Dictionary) -> D
 	for it in 6:
 		var k := (lo + hi) * 0.5
 		_put(S, B, c, a, b, k)
-		var sm := Rulebook.sample(S, B, sm0, w.x, w.y)
+		var sm: Dictionary = await Rulebook.sample_co(S, B, sm0, w.x, w.y)
 		if Rulebook.audit:   # every bisection step: the windowed sample's head findings == the full sample's
 			var full := Rulebook.sample(S, B)
 			Rulebook.audit_n += 1
@@ -333,9 +366,10 @@ static func _steady_head(f: Dictionary, S: Scene, B: Body, sm0: Dictionary) -> D
 		S.cards[c]["pose"] = orig
 		return {"did": "card %d: even 98%% of the card before's trunk keeps the head moving (the move itself carries it)" % (c + 1), "same": true}
 	_put(S, B, c, a, b, best)
-	var sm1 := Rulebook.sample(S, B, sm0, w.x, w.y, true)
+	var sm1: Dictionary = await Rulebook.sample_co(S, B, sm0, w.x, w.y, true)
+	var after: Array = await Rulebook.check_co(S, B, sm1)
 	return {"did": "card %d '%s': trunk and hips eased %.0f%% back toward card %d; head %.0f cm -> under %.0f.  Tip %.1f -> %.1f m/s" % [c + 1, S.cards[c]["name"], (1.0 - best) * 100.0, c, f["v"] * 100.0, Rulebook.HEAD_WARN * 100.0, tip0, _tip_in(sm1, S, c)],
-		"after": Rulebook.check(S, B, sm1), "bad0": base["bad"], "bad1": sm1["bad"]}
+		"after": after, "bad0": base["bad"], "bad1": sm1["bad"]}
 
 
 static func _put(S: Scene, B: Body, c: int, a: Dictionary, b: Dictionary, k: float) -> void:

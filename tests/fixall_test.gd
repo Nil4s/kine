@@ -214,6 +214,27 @@ func _init() -> void:
 			last = now2
 	ok(fa != null and gap <= GAP_MS, "(d) no frame gap over %d ms while Fix all runs (longest %d ms)" % [GAP_MS, gap])
 
+	# (h) the sliced run leaves the same scene as the blocking call (same cards and findings, byte for byte)
+	var blocking := {}
+	var sliced := {}
+	for mode in [true, false]:
+		m.fixall_sync = mode
+		await fresh()
+		fa = fix_all_button()
+		if fa != null and fa.is_visible_in_tree():
+			await push_click(fa)
+			while bool(m.get("_fixall_on")):
+				await process_frame
+		await idle(3)
+		var out := var_to_str(m.S.cards) + var_to_str(m.findings)
+		if mode:
+			blocking["out"] = out
+		else:
+			sliced["out"] = out
+	m.fixall_sync = false
+	ok(blocking.has("out") and sliced.has("out") and blocking["out"] == sliced["out"],
+		"(h) the sliced Fix all leaves the same cards and findings as the blocking call (%d bytes)" % blocking.get("out", "").length())
+
 	# (e) the shipped file untouched
 	ok(FileAccess.get_file_as_string(SRC) == shipped0, "(e) the shipped scene file is unchanged")
 
