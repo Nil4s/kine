@@ -4905,12 +4905,13 @@ func _hit_ui_tick() -> void:
 ## the weapon's drawn shape: rebuilt when its kind changes (WeaponMesh), then placed in the weapon's frame, the knob at
 ## x[0] and +Y along x[1] (Body.wep_xform), so each piece sits where its grip-frame cylinder is
 func _wep_model_place(model: Node3D, kind: String, x: Array) -> void:
-	if String(model.get_meta("kind", "")) != kind:
+	var key := kind + "#%d" % int(Body.KINDS.get(kind, {}).get("rev", 0))   # a Part's shape is drawn again when its record changed
+	if String(model.get_meta("kind", "")) != key:
 		for c in model.get_children():
 			model.remove_child(c)
 			c.queue_free()
 		model.add_child(WeaponMesh.build(kind))
-		model.set_meta("kind", kind)
+		model.set_meta("kind", key)
 	model.transform = Transform3D(Basis(x[1] as Quaternion), x[0] as Vector3)
 
 
@@ -6167,6 +6168,7 @@ func _rigx_node(i: int, capsule: bool) -> MeshInstance3D:
 
 
 func _after_edit() -> void:
+	part_weapon_changed(S.part)   # a Part the fighter holds takes its edit (PartWeapon)
 	if not vdiff.is_empty():   # COMPARE WITH: the marks follow the open scene's edits
 		_vdiff_update()
 	if shoulder_follow and _arm_edit != "":   # YY5: only a hand edit of an upper arm; never a load, paste or play
@@ -10847,7 +10849,29 @@ func _kind(k: String) -> void:
 		"longsword": "longsword (1.2 m, hand-and-a-half): G puts the second hand on or takes it off; a video import switches it per frame",
 		"katana": "katana (1.0 m, both hands on the tsuka): G takes the second hand off or back",
 		"spear": "spear (2 m, both hands, 55 cm apart): [ ] slides the front hand, , and . the back hand",
-		"dagger": "dagger (30 cm, one hand)"}[k])
+		"dagger": "dagger (30 cm, one hand)"}.get(k, PartWeapon.says(k)))
+
+
+## A PART becomes the fighter's weapon (Easy Part and Expert Part's "Give it to the fighter"): PartWeapon registers its numbers and shape,
+## then the bat hand takes it as any kind (one undo step). Returns the kind, "" when the Part has no solid yet
+func give_part_weapon(rec: Dictionary) -> String:
+	var kind := PartWeapon.register(rec)
+	if kind == "":
+		_say("That part has no solid yet: draw a shape and pull it up first")
+		return ""
+	_do(_kind.bind(kind))
+	return kind
+
+
+## a held Part changed: its numbers and shape are made anew (no undo step of its own: the Part's edit is the step)
+func part_weapon_changed(rec: Dictionary) -> void:
+	if not PartWeapon.is_part(B.wep_kind) or B.wep_kind != PartWeapon.key_of(rec):
+		return
+	if PartWeapon.register(rec) != "":
+		var h := B.wep_hand
+		B.set_kind(B.wep_kind)
+		if B.wep_on and h != "":
+			B.weapon_to_hand(h)
 
 
 ## DUAL WIELD (round 33, Nick 10-16): a dagger in each hand; the main one in the right (or the hand it is in now),

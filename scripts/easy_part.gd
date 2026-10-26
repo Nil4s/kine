@@ -44,6 +44,7 @@ var panel_title: Label
 var chips := {}
 var rows_vb: VBoxContainer
 var rows := []                 # [{"key", "slider", "pill", "kind": "tpl" | "tweak", "def": row dict}]
+var give_btn: Button
 var back_btn: Button
 var use_btn: Button
 var status: PanelContainer
@@ -96,6 +97,10 @@ func build(root: Control) -> void:
 	redo_btn = _bar_btn("Redo", "Put back what Undo took back", func(): m._redo())
 	row.add_child(undo_btn)
 	row.add_child(redo_btn)
+	give_btn = _bar_btn("Give to fighter", "Give it to the fighter: he holds this shape as his weapon, with its size and weight (PartWeapon)", func(): m.give_part_weapon(_rec()))   # one undo step
+	give_btn.name = "easypart_give"
+	give_btn.custom_minimum_size = Vector2(170, m.TOP_H - 12)
+	row.add_child(give_btn)
 	easy_btn = _bar_btn("Easy", "Sliders and big buttons", func(): pass)
 	easy_btn.toggle_mode = true
 	easy_btn.button_pressed = true
@@ -366,6 +371,7 @@ func _flush() -> void:
 		PartTemplates.retemplate(_rec(), _pending)
 		_pending = {}
 	pu.sync()
+	m.part_weapon_changed(_rec())   # a held Part weapon takes the new numbers and shape
 	_values_sync()
 
 

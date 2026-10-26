@@ -21,6 +21,20 @@ const FMAX := 2.0
 const GRIP_U := 0.18       # m from the butt where the hand holds (the bat's default), at most half the handle
 
 
+## m from the butt where the hand holds a kind: a Part's own grip point ("grip_u"), else the bat's default capped at half the handle
+static func grip_of(k: Dictionary) -> float:
+	if k.has("grip_u"):
+		return float(k["grip_u"])
+	var hh: float = k["handle"]
+	var hl := hh if hh >= 0.0 else float(k["len"]) + hh
+	return minf(GRIP_U, 0.5 * hl)
+
+
+## the same for a kind's name (the pose sample of the swing: the bat's default when the kind has no grip of its own)
+static func grip_u_of(kind: String) -> float:
+	return float(Body.KINDS[kind]["grip_u"]) if Body.KINDS.has(kind) and Body.KINDS[kind].has("grip_u") else GRIP_U
+
+
 ## the arm's reach shoulder -> palm (m), arm straight, from the body's rest skeleton
 static func reach(B: Body) -> float:
 	var a := "_r"
@@ -37,9 +51,7 @@ static func inertia(B: Body, kind: String) -> Dictionary:
 		return {}
 	var k: Dictionary = Body.KINDS[kind]
 	var L: float = k["len"]
-	var hh: float = k["handle"]
-	var hl := hh if hh >= 0.0 else L + hh
-	var grip := minf(GRIP_U, 0.5 * hl)
+	var grip := grip_of(k)
 	var m: float = k["mass"]
 	var r := reach(B) + (float(k["com"]) * L - grip)
 	var icm := m * pow(float(k["k"]) * L, 2.0)

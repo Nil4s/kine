@@ -223,11 +223,12 @@ static func items_of(ents: Array) -> Array:
 
 # ---------------------------------------------------------------- replay: features -> solids -> mesh
 
-## Replays features 0..upto (-1 = all). want: {"edges": true} also lists every edge of the result for picking. Answers
-## {"mesh": ArrayMesh or null, "volume": m3 (all bodies), "bodies": n, "volumes": [m3 each], "errors": {feature id: message}, "edges": [...], "aabb": AABB}.
+## Replays features 0..upto (-1 = all). want: {"edges": true} also lists every edge of the result for picking; {"props": true} the
+## mass properties of each body (PartWeapon). Answers
+## {"mesh": ArrayMesh or null, "volume": m3 (all bodies), "bodies": n, "volumes": [m3 each], "errors": {feature id: message}, "edges": [...], "aabb": AABB, "props": [...]}.
 ## Every shape made here is released before it returns.
 static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
-	var res := {"mesh": null, "volume": 0.0, "bodies": 0, "volumes": [], "errors": {}, "edges": [], "aabb": AABB()}
+	var res := {"mesh": null, "volume": 0.0, "bodies": 0, "volumes": [], "errors": {}, "edges": [], "aabb": AABB(), "props": []}
 	if not available():
 		return res
 	var feats: Array = rec.get("features", [])
@@ -273,6 +274,8 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		var v := KCad.volume(b)
 		res["volumes"].append(v)
 		res["volume"] = float(res["volume"]) + v
+		if want.get("props", false):
+			res["props"].append(KCad.mass_properties(b))   # {volume, area, center, inertia} per body, density 1 (PartWeapon)
 		var tm := KCad.tessellate(b, 0.0003, 0.25)
 		if tm != null and tm.get_surface_count() > 0:
 			mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, tm.surface_get_arrays(0))

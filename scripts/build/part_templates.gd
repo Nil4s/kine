@@ -157,6 +157,18 @@ static func features_of(t: String, p: Dictionary) -> Array:
 	return fs
 
 
+## the handle's centre in the Part's own frame (m): the grip a hand holds (PartWeapon). A sword's grip is the revolve x -106..-2 mm; an axe's
+## haft runs 0..H+10 mm. Other templates, and a Part with no template, hold at its origin.
+static func handle_of(rec: Dictionary) -> Vector3:
+	var e: Dictionary = rec.get("easy", {})
+	match String(e.get("t", "")):
+		"sword":
+			return Vector3(-54.0 * MM, 0.0, 0.0)
+		"axe":
+			return Vector3(0.5 * (float(e["p"]["handle_length"]) + 10.0) * MM, 0.0, 0.0)
+	return Vector3.ZERO
+
+
 ## the amber drag dot of a template number: {"at": Vector3 (m), "axis": Vector3 (the way the number grows), "gain": mm of number per mm the dot moves}, or {}
 static func dot_of(t: String, k: String, p: Dictionary) -> Dictionary:
 	var s := MM
