@@ -129,3 +129,4 @@ EXTRA="$EXTRA crashcheck:w"   # CRASH CHECK: every realism option + every Fix + 
 EXTRA="$EXTRA lookd:w"   # THE BODY LOOK "D": clay token, sky outline, soft lights + SSAO, pick tint over the outline, FPS (tests/lookd_test.gd)
 
 EXTRA="$EXTRA animcpu:w"   # ANIMATE CPU (tests/animcpu_test.gd): a playing 6-clip scene <= 12 ms of main thread a frame, 50 clips >= 40 fps, poses bit for bit (tests/animcpu_golden.json), the timeline pixels equal a full redraw
+EXTRA="$EXTRA build:h"   # BUILD mode phase 1 skeleton: the parametric Building record -> closed solid (4x3 room, door volume, scene save/load, collision boxes, mirror) (scripts/build/building.gd; tests/build_test.gd)
