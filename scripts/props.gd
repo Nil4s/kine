@@ -140,6 +140,17 @@ static func register(kind: String, aabb: AABB, glb: String, factor := 1.0) -> vo
 		"glb": glb, "factor": factor, "aabb": aabb}
 
 
+## A BUILD house as a kind (docs/BUILD_PLAN.md 1d): its solids are Building.collision_boxes (the walls in runs, the door gap open),
+## its supports the floor slabs' tops. "hidden": the house itself is drawn by BUILD (build_ui.gd), so the prop's node is empty.
+## Re-registered after every BUILD edit, so the set follows the house. boxes: [{"xf", "half"}] (a room turned by a yaw is a
+## box of its bounding size: BUILD draws rooms without yaw)
+static func register_building(kind: String, boxes: Array, supports: Array) -> void:
+	var sol := []
+	for bx in boxes:
+		sol.append([(bx["xf"] as Transform3D).origin, (bx["half"] as Vector3) * 2.0])
+	EXTRA[kind] = {"label": "%s (from BUILD)" % kind.trim_prefix("building:"), "solids": sol, "supports": supports, "hidden": true, "building": true}
+
+
 static func has_kind(kind: String) -> bool:
 	return KINDS.has(kind) or EXTRA.has(kind)
 
@@ -154,7 +165,8 @@ static func catalogue() -> Array:
 	for k in KINDS:
 		out.append([k, KINDS[k]["label"]])
 	for k in EXTRA:
-		out.append([k, EXTRA[k]["label"]])
+		if not bool(EXTRA[k].get("hidden", false)):   # a BUILD house is a set, not a library prop
+			out.append([k, EXTRA[k]["label"]])
 	return out
 
 
@@ -423,6 +435,8 @@ static func mesh(p: Dictionary) -> Node3D:
 		if pm != null:
 			mat = pm
 	var kd := kind_of(p["kind"])
+	if bool(kd.get("hidden", false)):
+		return root
 	if String(kd.get("glb", "")).get_extension().to_lower() == "obj" and not model_missing(p):   # an imported OBJ (N01): its meshes, same placement as a .glb
 		var n := Node3D.new()
 		for o in ObjIO.import_file(kd["glb"]):

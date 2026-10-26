@@ -7,8 +7,15 @@ extends Node
 ##   OPENING  click a wall = a door (the Door / Window toggle in the panel picks the kind); press an opening and drag along its
 ##            wall = slide it (snaps to 0.5 m); Delete (or the panel's Remove) takes it out and the wall fills
 ## The panel on the right edits the NAMED NUMBERS of the building (Wall height ...): one undo step per committed number.
+##   WALL     drag inside a room: an interior wall across it (snaps to 0.5 m; a click splits the room's long side); openings go in it too
+##   PULL     drag a room's outer wall face in or out: the room resizes (snaps to 0.5 m, a live label); openings keep their offset
+##            from the wall's middle
+##   FLOOR    "+ Floor" in the panel adds a storey on top (same footprint, a floor slab between; floor_height 2.8 m); the panel lists them
+##   ROOF     gable / flat / shed (the panel; a click in the view adds the gable), overhang a number: a closed solid on the top floor
+##   USE IN A SCENE (top right): the house becomes a set on STAGE (BuildStage: collision from the record, the doorway open, a named point
+##            per door); STAGE shows its panel with "Walk through the front door" and Edit in BUILD
 ## The record (Scene.building, scripts/build/building.gd) is the only truth; the mesh here is regenerated from it after every
-## change. Wall / Pull / Floor / Roof / Piece / Words are on the ribbon but greyed ("coming next"). Undo: ONE main._push_undo()
+## change. Piece / Words are on the ribbon but greyed ("coming next"). Undo: ONE main._push_undo()
 ## per action, taken BEFORE the record changes (a room: on release; a door: on the click; a slide: on its first move).
 
 const SKY := Color("#73BFFF")
@@ -16,8 +23,16 @@ const PANEL_W := 250.0
 const ROWS := [["Wall height", "wall_height"], ["Wall thickness", "wall_thickness"], ["Door width", "door_width"],
 	["Door height", "door_height"], ["Window sill", "window_sill"]]
 const TOOLS := [["Room", "ROOM: drag on the floor. Sizes snap to 0.5 m; type them for exact (4, Tab, 3, Enter). Let go to raise the walls and a floor. Undo takes it back."],
-	["Opening", "OPENING: click a wall to add a door. Drag it along the wall (snaps to 0.5 m). The Remove button takes it out and fills the hole."]]
-const LATER := ["Wall", "Pull", "Floor", "Roof", "Piece", "Words"]
+	["Wall", "WALL: drag inside a room to put a wall across it (snaps to 0.5 m); a click splits the long side. Doors and windows go in it like any wall."],
+	["Pull", "PULL: drag a room's outer wall in or out to resize the room (snaps to 0.5 m). Doors keep their place from the wall's middle."],
+	["Opening", "OPENING: click a wall to add a door. Drag it along the wall (snaps to 0.5 m). The Remove button takes it out and fills the hole."],
+	["Floor", "FLOOR: + Floor in the panel adds a floor on top, the same footprint with a floor slab between. Delete takes the top floor off."],
+	["Roof", "ROOF: pick gable, flat or shed in the panel (a click in the view adds a gable). The overhang is a number."]]
+const LATER := ["Piece", "Words"]
+const EXTRA_ROWS := [["Floor height", "floor_height"], ["Roof overhang", "roof_overhang"]]
+const LABELS := {"wall_height": "Wall height", "wall_thickness": "Wall thickness", "door_width": "Door width", "door_height": "Door height",
+	"window_sill": "Window sill", "floor_height": "Floor height", "roof_overhang": "Roof overhang"}
+const MIN_SIDE := 0.4   # m: an interior wall keeps at least this much room on each side
 const FLOOR_HINT := "Drag on the floor to make a room"
 ## the house: ONE mesh (walls and the floor slab), two colours by height: the floor (at or below y = 0) is dark graphite and the walls
 ## are light clay, so the room reads as walls standing on a floor. Lit from above and the side, so every wall face reads
@@ -36,13 +51,23 @@ var snap_on := true
 var sel := ""                  # the selected opening's id
 var size_text := ""            # the live label of the drag ("4.0 m x 3.0 m"), "" when not dragging
 var area_text := ""
-var drag := ""                 # "", "room", "slide"
+var drag := ""                 # "", "room", "slide", "wall", "pull"
 var a := Vector3.ZERO          # the room drag's corner A and the moving corner B (floor, snapped)
 var b := Vector3.ZERO
 var typed := ["", ""]          # typed width / depth while dragging
 var field := 0
 var _slide_moved := false
 var _hover := {}               # the opening tool's hover: {"room", "wall", "at"} or {}
+var _wall_room := ""           # the room a wall drag started in
+var _pull := {}                # a pull drag: {"room", "wall", "y", "g0", "orig", "walls", "moved", "text"}
+var floor_box: VBoxContainer
+var roof_box: VBoxContainer
+var wall_box: VBoxContainer
+var floors_label: Label
+var roof_btns := {}
+var stage_panel: PanelContainer
+var stage_body: VBoxContainer
+var walk_btns := {}
 
 var root3: Node3D              # everything 3D that is BUILD's own (grid, ghost person, the house, its highlights)
 var house: MeshInstance3D
@@ -256,6 +281,64 @@ func _build_ui() -> void:
 	vb.add_child(kr)
 	for r in ROWS:
 		vb.add_child(_num_row(r[0], r[1]))
+	wall_box = VBoxContainer.new()
+	wall_box.name = "build_wall_box"
+	var wl := Label.new()
+	wl.name = "build_wall_hint"
+	wl.text = "Drag inside a room to put a wall across it. A click splits the long side."
+	wl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	wl.custom_minimum_size.x = PANEL_W - 28.0
+	wall_box.add_child(wl)
+	vb.add_child(wall_box)
+	floor_box = VBoxContainer.new()
+	floor_box.name = "build_floor_box"
+	floors_label = Label.new()
+	floors_label.name = "build_floors_list"
+	floor_box.add_child(floors_label)
+	var fb := HBoxContainer.new()
+	var add_f := Button.new()
+	add_f.name = "build_add_floor"
+	add_f.text = "+ Floor"
+	add_f.focus_mode = Control.FOCUS_NONE
+	add_f.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	add_f.tooltip_text = "adds a floor on top: the same footprint, a floor slab between (one undo step)"
+	add_f.pressed.connect(_add_floor)
+	fb.add_child(add_f)
+	var rem_f := Button.new()
+	rem_f.name = "build_remove_floor"
+	rem_f.text = "Remove top floor"
+	rem_f.focus_mode = Control.FOCUS_NONE
+	rem_f.tooltip_text = "takes the top floor off (its rooms, walls and doors); the last floor stays"
+	rem_f.pressed.connect(_remove_floor)
+	fb.add_child(rem_f)
+	floor_box.add_child(fb)
+	floor_box.add_child(_num_row(EXTRA_ROWS[0][0], EXTRA_ROWS[0][1]))
+	vb.add_child(floor_box)
+	roof_box = VBoxContainer.new()
+	roof_box.name = "build_roof_box"
+	var rr := HBoxContainer.new()
+	var rg := ButtonGroup.new()
+	for k in Building.ROOFS:
+		var rb := Button.new()
+		rb.name = "build_roof_" + k
+		rb.text = k.capitalize()
+		rb.toggle_mode = true
+		rb.button_group = rg
+		rb.focus_mode = Control.FOCUS_NONE
+		rb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		rb.tooltip_text = "a %s roof over the top floor (one undo step)" % k
+		rb.pressed.connect(_set_roof.bind(k))
+		roof_btns[k] = rb
+		rr.add_child(rb)
+	roof_box.add_child(rr)
+	var nr := Button.new()
+	nr.name = "build_roof_remove"
+	nr.text = "No roof"
+	nr.focus_mode = Control.FOCUS_NONE
+	nr.pressed.connect(_remove_roof)
+	roof_box.add_child(nr)
+	roof_box.add_child(_num_row(EXTRA_ROWS[1][0], EXTRA_ROWS[1][1]))
+	vb.add_child(roof_box)
 	remove_btn = Button.new()
 	remove_btn.name = "build_remove"
 	remove_btn.text = "Remove this opening"
@@ -281,6 +364,21 @@ func _build_ui() -> void:
 	chip.visible = false
 	m.ui_root.add_child(chip)
 	_chip_text()
+	stage_panel = PanelContainer.new()
+	stage_panel.name = "build_stage_panel"
+	stage_panel.custom_minimum_size.x = PANEL_W
+	var ssb := StyleBoxFlat.new()
+	ssb.bg_color = Color(0.1, 0.11, 0.14, 0.94)
+	ssb.border_color = SKY
+	ssb.set_border_width_all(2)
+	ssb.set_corner_radius_all(10)
+	ssb.set_content_margin_all(12)
+	stage_panel.add_theme_stylebox_override("panel", ssb)
+	stage_body = VBoxContainer.new()
+	stage_body.add_theme_constant_override("separation", 6)
+	stage_panel.add_child(stage_body)
+	stage_panel.visible = false
+	m.ui_root.add_child(stage_panel)
 
 
 ## a ribbon button of this page: its icon (scripts/icons.gd, build_*) and one word
@@ -292,10 +390,10 @@ func _icon_word(btn: Button, word: String) -> void:
 	btn.add_theme_constant_override("h_separation", 6)
 
 
-## "Use in a scene", top right of the window, amber (the project's one main action); it waits for phase 1d (the building as a prop
-## in a scene). main._ui builds the top strip, then calls this with it. Only a building project shows it
+## "Use in a scene", top right of the window, amber (the project's one main action; on STAGE it reads "Back to BUILD"). main._ui
+## builds the top strip, then calls this with it. Only a building project shows it
 func strip_button(strip: Control) -> void:
-	use_btn = m._button("Use in a scene", func(): pass, "put this building into a scene as a set to animate in")
+	use_btn = m._button("Use in a scene", _use_pressed, "put this building into a scene as a set to animate in")
 	use_btn.name = "build_use_in_scene"
 	var c: Color = Tok.c("accent")
 	for st in ["normal", "hover", "pressed", "disabled"]:
@@ -311,7 +409,7 @@ func strip_button(strip: Control) -> void:
 		use_btn.add_theme_stylebox_override(st, sb)
 	for k in ["font_color", "font_hover_color", "font_pressed_color", "font_disabled_color", "font_focus_color"]:
 		use_btn.add_theme_color_override(k, Tok.c("on_accent"))
-	m._grey(use_btn, "coming next")
+	m._grey(use_btn, "draw a room first")
 	use_btn.visible = false
 	strip.add_child(use_btn)
 	strip.move_child(use_btn, m.ui_undo_btn.get_index())
@@ -421,7 +519,7 @@ func place_toast(t: Label) -> void:
 ## room still in the middle. A wall already seen from outside keeps the view
 func frame_wall(room: String, wall: String) -> void:
 	var r := Building.room_of(_bld(), room)
-	if r.is_empty():
+	if r.is_empty() or not Building.WALLS.has(wall):
 		return
 	var n := {"front": Vector3(0, 0, -1), "back": Vector3(0, 0, 1), "left": Vector3(-1, 0, 0), "right": Vector3(1, 0, 0)}[wall] as Vector3
 	var c := Vector3(float(r["x"]) + float(r["w"]) * 0.5, 0.0, float(r["z"]) + float(r["d"]) * 0.5)
@@ -431,6 +529,13 @@ func frame_wall(room: String, wall: String) -> void:
 	if to_cam.normalized().dot(n) > 0.3:
 		return
 	m._turn_to(rad_to_deg(atan2(n.x, n.z)) + 28.0, VIEW_PITCH, m.dist, Vector3(c.x, 0.9, c.z), false)
+
+
+## a NEW project: the default three-quarter view and the Room tool (not where the last house was left)
+func reset_view() -> void:
+	m._turn_to(VIEW_YAW, VIEW_PITCH, VIEW_DIST, VIEW_AT, false)
+	sel = ""
+	_pick_tool("Room")
 
 
 ## the page was set (main._page_set): BUILD's grid / person / labels show on BUILD only; the house shows on every page
@@ -455,9 +560,15 @@ func page_changed(from: String, to: String) -> void:
 ## everything that shows the record follows it: the mesh, the highlights, the panel, the hint, the page tabs
 func sync() -> void:
 	m._page_tabs_sync()
+	var bd := _bld()
+	var has_rooms: bool = not bd.is_empty() and not bool(bd.get("readonly", false)) and not bd.get("rooms", []).is_empty()
 	if use_btn != null:
 		use_btn.visible = m.S.kind == "building"
-	var bd := _bld()
+		m._grey(use_btn, "" if has_rooms else "draw a room first")
+		use_btn.text = "Back to BUILD" if m.cur_page == "STAGE" else "Use in a scene"
+	if BuildStage.refresh(m.S):
+		m._props_show()   # the set follows the house: its collision is the record's again
+	_stage_sync()
 	if bd.is_empty() or bool(bd.get("readonly", false)) or bd.get("rooms", []).is_empty():
 		house.mesh = null
 	else:
@@ -514,8 +625,21 @@ func _layout() -> void:
 	var has: bool = not _bld().is_empty() and not _bld().get("rooms", []).is_empty()
 	var o := _opening(sel)
 	panel.visible = on and has
-	panel_title.text = ("%s" % String(o.get("kind", "")).capitalize() + "   (selected)") if not o.is_empty() else "Building"
+	panel_title.text = ("%s" % String(o.get("kind", "")).capitalize() + "   (selected)") if not o.is_empty() else {"Floor": "Floors", "Roof": "Roof", "Wall": "Wall"}.get(tool, "Building")
 	(kind_btns["door"].get_parent() as Control).visible = tool == "Opening"
+	wall_box.visible = tool == "Wall"
+	floor_box.visible = tool == "Floor"
+	roof_box.visible = tool == "Roof"
+	if floor_box.visible:
+		var nf := Building.storey_count(_bld())
+		var lines := []
+		for i in nf:
+			lines.append("Floor %d%s   (%d room%s)" % [i + 1, "  top" if i == nf - 1 else "", _rooms_on(i), "" if _rooms_on(i) == 1 else "s"])
+		floors_label.text = "\n".join(lines)
+	if roof_box.visible:
+		var rk := String(_bld().get("roof", {}).get("kind", ""))
+		for k in roof_btns:
+			(roof_btns[k] as Button).set_pressed_no_signal(k == rk)
 	remove_btn.visible = not o.is_empty()
 	hint_box.visible = on and not has and tool == "Room" and drag == ""
 	if hint_box.visible:
@@ -534,6 +658,8 @@ func _layout() -> void:
 
 
 func _process(_dt: float) -> void:
+	if stage_panel != null and stage_panel.visible:
+		_layout_stage()
 	if on:
 		_layout()
 		if drag != "":
@@ -545,6 +671,8 @@ func _process(_dt: float) -> void:
 func _pick_tool(t: String) -> void:
 	tool = t
 	drag = ""
+	if t != "Opening":
+		sel = ""   # a picked opening belongs to the Opening tool (the panel would still say "Door (selected)")
 	if m.cur_page != "BUILD":
 		m._page_set("BUILD")
 	for k in tool_btns:
@@ -607,10 +735,7 @@ func _commit_param(key: String, v: float) -> void:
 	var old := float(bd["params"].get(key, def[0]))
 	if absf(old - v) < 1e-6:
 		return
-	var label := ""
-	for r in ROWS:
-		if r[1] == key:
-			label = r[0]
+	var label := String(LABELS.get(key, key))
 	var what := "%s %.1f -> %.1f m" % [label, old, v]
 	m._step_hint = what
 	m._push_undo()
@@ -672,7 +797,24 @@ func pick_opening(p: Vector2) -> String:
 	return best
 
 
-## the wall under the mouse: {"room", "wall", "at"} (at: metres from the wall's centre, snapped), or {}
+## an outer wall's slab (rooms drawn here have yaw 0: the group frame is the world), lifted to its floor
+func wall_slab(r: Dictionary, wall: String) -> AABB:
+	var x := float(r["x"])
+	var z := float(r["z"])
+	var w := float(r["w"])
+	var dd := float(r["d"])
+	var y := Building.base_y(_bld(), r)
+	var h := Building.num(_bld(), r.get("height"), 2.7)
+	var t := clampf(Building.num(_bld(), r.get("thickness"), 0.2), 0.01, minf(w, dd) * 0.5 - 0.01)
+	match wall:
+		"front": return AABB(Vector3(x, y, z), Vector3(w, h, t))
+		"back": return AABB(Vector3(x, y, z + dd - t), Vector3(w, h, t))
+		"left": return AABB(Vector3(x, y, z), Vector3(t, h, dd))
+		_: return AABB(Vector3(x + w - t, y, z), Vector3(t, h, dd))
+
+
+## the wall under the mouse: {"room", "wall" (front / right / back / left, or an interior wall's id), "at" (metres from the
+## wall's middle, snapped), "hit" (the point on it)}, or {}
 func pick_wall(p: Vector2) -> Dictionary:
 	var o: Vector3 = m.cam.project_ray_origin(p)
 	var d: Vector3 = m.cam.project_ray_normal(p)
@@ -683,20 +825,31 @@ func pick_wall(p: Vector2) -> Dictionary:
 		var z := float(r["z"])
 		var w := float(r["w"])
 		var dd := float(r["d"])
-		var h := Building.num(_bld(), r.get("height"), 2.7)
-		var t := clampf(Building.num(_bld(), r.get("thickness"), 0.2), 0.01, minf(w, dd) * 0.5 - 0.01)
-		var slabs := {"front": AABB(Vector3(x, 0, z), Vector3(w, h, t)), "back": AABB(Vector3(x, 0, z + dd - t), Vector3(w, h, t)),
-			"left": AABB(Vector3(x, 0, z), Vector3(t, h, dd)), "right": AABB(Vector3(x + w - t, 0, z), Vector3(t, h, dd))}
+		var slabs := {}
+		for wall in Building.WALLS:
+			slabs[wall] = wall_slab(r, wall)
+		for iw in _bld().get("walls", []):
+			if String(iw["room"]) == String(r["id"]):
+				var ib := Building.inner_box(_bld(), r, iw)
+				if ib.size != Vector3.ZERO:
+					slabs[String(iw["id"])] = ib
 		for wall in slabs:
 			var tt := _ray_box(o, d, slabs[wall])
 			if tt >= 0.0 and tt < bt:
 				bt = tt
 				var hit := o + d * tt
-				var along_x: bool = wall == "front" or wall == "back"
+				var along_x := _along_x(wall)
 				var centre := (x + w * 0.5) if along_x else (z + dd * 0.5)
 				var pos := hit.x if along_x else hit.z
-				best = {"room": String(r["id"]), "wall": wall, "at": _snap_along(pos) - centre}
+				best = {"room": String(r["id"]), "wall": wall, "at": _snap_along(pos) - centre, "hit": hit}
 	return best
+
+
+## does this wall run along X? (front / back; an interior wall by its axis)
+func _along_x(wall: String) -> bool:
+	if Building.WALLS.has(wall):
+		return wall == "front" or wall == "back"
+	return String(Building.wall_of(_bld(), wall).get("axis", "z")) == "x"
 
 
 func _snap_along(v: float) -> float:
@@ -740,6 +893,8 @@ func _end_drag() -> void:
 	field = 0
 	ghost_room.visible = false
 	_slide_moved = false
+	_wall_room = ""
+	_pull = {}
 	_layout()
 	ov.queue_redraw()
 
@@ -775,6 +930,16 @@ func input(ev: InputEvent) -> bool:
 
 
 func _press(p: Vector2) -> bool:
+	if tool == "Wall":
+		return _press_wall(p)
+	if tool == "Pull":
+		return _press_pull(p)
+	if tool == "Roof":
+		if not _bld().is_empty() and not _bld().get("rooms", []).is_empty() and _bld().get("roof", {}).is_empty():
+			_set_roof("gable")
+		return true
+	if tool == "Floor":
+		return true
 	if tool == "Room":
 		var g: Variant = ground(p)
 		if g == null:
@@ -815,6 +980,12 @@ func _press(p: Vector2) -> bool:
 
 
 func _release() -> bool:
+	if drag == "wall":
+		_finish_wall()
+		return true
+	if drag == "pull":
+		_finish_pull()
+		return true
 	if drag == "room":
 		_finish_room()   # typed sizes, if any, are taken as they stand
 		return true
@@ -828,6 +999,21 @@ func _release() -> bool:
 
 
 func _motion(p: Vector2) -> bool:
+	if drag == "wall":
+		var gw: Variant = ground(p)
+		if gw != null:
+			b = _snap(gw)
+			ov.queue_redraw()
+		return true
+	if drag == "pull":
+		_pull_move(p)
+		return true
+	if tool == "Pull" and drag == "":
+		var pw := pick_wall(p)
+		hover_box.visible = not pw.is_empty() and Building.WALLS.has(String(pw["wall"]))
+		if hover_box.visible:
+			_fit_box(hover_box, wall_slab(Building.room_of(_bld(), String(pw["room"])), String(pw["wall"])), 0.02)
+		return false
 	if drag == "room":
 		var g: Variant = ground(p)
 		if g != null:
@@ -863,13 +1049,16 @@ func pick_wall_plane(o: Dictionary, p: Vector2) -> float:
 	var t := clampf(Building.num(_bld(), r.get("thickness"), 0.2), 0.01, minf(w, dd) * 0.5 - 0.01)
 	var org: Vector3 = m.cam.project_ray_origin(p)
 	var dir: Vector3 = m.cam.project_ray_normal(p)
-	var along_x: bool = wall == "front" or wall == "back"
+	var along_x := _along_x(wall)
 	var plane := 0.0
 	match wall:
 		"front": plane = z + t * 0.5
 		"back": plane = z + dd - t * 0.5
 		"left": plane = x + t * 0.5
-		_: plane = x + w - t * 0.5
+		"right": plane = x + w - t * 0.5
+		_:
+			var ib := Building.inner_box(_bld(), r, Building.wall_of(_bld(), wall))
+			plane = (ib.get_center().z) if along_x else (ib.get_center().x)
 	var ax := 2 if along_x else 0   # the axis the wall's plane is perpendicular to
 	if absf(dir[ax]) < 1e-6:
 		return INF
@@ -929,7 +1118,448 @@ func _key(k: InputEventKey) -> bool:
 	if tool == "Opening" and sel != "" and (k.keycode == KEY_DELETE or k.keycode == KEY_BACKSPACE):
 		_remove_sel()
 		return true
+	if tool == "Floor" and k.keycode == KEY_DELETE:
+		_remove_floor()
+		return true
+	if (drag == "wall" or drag == "pull") and k.keycode == KEY_ESCAPE:
+		if drag == "pull":
+			_pull_restore()
+		_end_drag()
+		m._say("cancelled, nothing changed")
+		return true
 	return false
+
+
+# ---------------------------------------------------------------- Wall, Pull, Floor, Roof
+
+func _rooms_on(storey: int) -> int:
+	var n := 0
+	for r in _bld().get("rooms", []):
+		if int(r.get("storey", 0)) == storey:
+			n += 1
+	return n
+
+
+## the ground-floor room whose outside holds this floor point, "" if none
+func _room_at(g: Vector3) -> String:
+	for r in _bld().get("rooms", []):
+		if int(r.get("storey", 0)) != 0:
+			continue
+		if g.x > float(r["x"]) and g.x < float(r["x"]) + float(r["w"]) and g.z > float(r["z"]) and g.z < float(r["z"]) + float(r["d"]):
+			return String(r["id"])
+	return ""
+
+
+func _press_wall(p: Vector2) -> bool:
+	var g: Variant = ground(p)
+	if g == null:
+		return true
+	_wall_room = _room_at(g)
+	if _wall_room == "":
+		m._say("Wall: start the drag inside a room")
+		return true
+	a = _snap(g)
+	b = a
+	drag = "wall"
+	m._say(TOOLS[1][1])
+	ov.queue_redraw()
+	return true
+
+
+## the wall the drag means: {"ok", "axis", "pos", "why"}. A drag along Z is a wall along Z (axis "z", at x = pos from the room's
+## corner); a short drag (a click) splits the room's long side. pos keeps MIN_SIDE of room on each side
+func wall_spec() -> Dictionary:
+	var r := Building.room_of(_bld(), _wall_room)
+	if r.is_empty():
+		return {"ok": false, "why": "no room"}
+	var dx := absf(b.x - a.x)
+	var dz := absf(b.z - a.z)
+	var axis := "z" if dz > dx else "x"
+	if maxf(dx, dz) < 0.25:
+		axis = "z" if float(r["w"]) >= float(r["d"]) else "x"
+	var along_z := axis == "z"
+	var pos := (a.x - float(r["x"])) if along_z else (a.z - float(r["z"]))
+	var across := float(r["w"]) if along_z else float(r["d"])
+	var t := clampf(Building.num(_bld(), r.get("thickness"), 0.2), 0.01, minf(float(r["w"]), float(r["d"])) * 0.5 - 0.01)
+	var ti := Building.num(_bld(), "inner_wall_thickness", 0.1)
+	if pos < t + ti * 0.5 + MIN_SIDE - 1e-6 or pos > across - t - ti * 0.5 - MIN_SIDE + 1e-6:
+		return {"ok": false, "axis": axis, "pos": pos, "why": "too close to a wall"}
+	for iw in _bld().get("walls", []):
+		if String(iw["room"]) == _wall_room and String(iw["axis"]) == axis and absf(float(iw["pos"]) - pos) < 0.05:
+			return {"ok": false, "axis": axis, "pos": pos, "why": "there is a wall there already"}
+	return {"ok": true, "axis": axis, "pos": pos}
+
+
+func _finish_wall() -> void:
+	var sp := wall_spec()
+	var room := _wall_room
+	_end_drag()
+	if not bool(sp["ok"]):
+		m._say("Wall: %s, nothing changed" % sp.get("why", "not a wall"))
+		return
+	m._step_hint = "Wall at %.1f m" % float(sp["pos"])
+	m._push_undo()
+	var id := Building.add_wall(_bld(), room, String(sp["axis"]), float(sp["pos"]))
+	m._say("Wall: %s across the room at %.1f m (%.1f m thick). Use Opening to put a door in it" % [id, float(sp["pos"]), Building.num(_bld(), "inner_wall_thickness", 0.1)])
+	sync()
+
+
+func _draw_wall_preview() -> void:
+	var r := Building.room_of(_bld(), _wall_room)
+	if r.is_empty():
+		return
+	var sp := wall_spec()
+	var x := float(r["x"])
+	var z := float(r["z"])
+	var w := float(r["w"])
+	var dd := float(r["d"])
+	var t := clampf(Building.num(_bld(), r.get("thickness"), 0.2), 0.01, minf(w, dd) * 0.5 - 0.01)
+	var along_z := String(sp.get("axis", "z")) == "z"
+	var pos: float = float(sp.get("pos", 0.0))
+	var p0 := Vector3(x + pos, 0.0, z + t) if along_z else Vector3(x + t, 0.0, z + pos)
+	var p1 := Vector3(x + pos, 0.0, z + dd - t) if along_z else Vector3(x + w - t, 0.0, z + pos)
+	var col := SKY if bool(sp.get("ok", false)) else Color("#ff7a59")
+	var s0: Vector2 = m.cam.unproject_position(p0)
+	var s1: Vector2 = m.cam.unproject_position(p1)
+	ov.draw_line(s0, s1, col, 4.0, true)
+	ov.draw_circle(s0, 5.0, Color.WHITE)
+	ov.draw_circle(s1, 5.0, Color.WHITE)
+	var across := w if along_z else dd
+	var txt := "%.1f m + %.1f m" % [pos, across - pos] if bool(sp.get("ok", false)) else String(sp.get("why", ""))
+	_pill((s0 + s1) * 0.5 + Vector2(0, -20), txt, Color(0.06, 0.07, 0.1, 0.92) if bool(sp.get("ok", false)) else Color("#ff7a59"), Color.WHITE if bool(sp.get("ok", false)) else Color(0.1, 0.03, 0.0), 18)
+
+
+## the point of the ray through screen point p on the horizontal plane at height y, or null
+func plane_hit(p: Vector2, y: float) -> Variant:
+	var o: Vector3 = m.cam.project_ray_origin(p)
+	var n: Vector3 = m.cam.project_ray_normal(p)
+	if absf(n.y) < 1e-5:
+		return null
+	var t := (y - o.y) / n.y
+	if t <= 0.0:
+		return null
+	return o + n * t
+
+
+func _press_pull(p: Vector2) -> bool:
+	var w := pick_wall(p)
+	if w.is_empty() or not Building.WALLS.has(String(w["wall"])):
+		m._say("Pull: press on a room's outer wall and drag it in or out")
+		return true
+	var r := Building.room_of(_bld(), String(w["room"]))
+	var y: float = (w["hit"] as Vector3).y
+	var g0: Variant = plane_hit(p, y)
+	if g0 == null:
+		return true
+	var pos := {}
+	for iw in _bld().get("walls", []):
+		if String(iw["room"]) == String(r["id"]):
+			pos[String(iw["id"])] = float(iw["pos"])
+	_pull = {"room": String(r["id"]), "wall": String(w["wall"]), "y": y, "g0": g0, "moved": false, "text": "",
+		"orig": {"x": float(r["x"]), "z": float(r["z"]), "w": float(r["w"]), "d": float(r["d"])}, "walls": pos}
+	drag = "pull"
+	hover_box.visible = false
+	m._say(TOOLS[2][1])
+	return true
+
+
+func _pull_move(p: Vector2) -> void:
+	if _pull.is_empty():
+		return
+	var g: Variant = plane_hit(p, float(_pull["y"]))
+	if g == null:
+		return
+	var o: Dictionary = _pull["orig"]
+	var d3: Vector3 = (g as Vector3) - (_pull["g0"] as Vector3)
+	var nx: float = o["x"]
+	var nz: float = o["z"]
+	var nw: float = o["w"]
+	var nd: float = o["d"]
+	var wall := String(_pull["wall"])
+	var amount := 0.0
+	match wall:
+		"right":
+			nw = maxf(_snap_along(nx + nw + d3.x) - nx, Building.MIN_SIZE)
+			amount = nw - float(o["w"])
+		"left":
+			var ex := minf(_snap_along(nx + d3.x), float(o["x"]) + float(o["w"]) - Building.MIN_SIZE)
+			nw = float(o["x"]) + float(o["w"]) - ex
+			nx = ex
+			amount = -(nx - float(o["x"]))
+		"back":
+			nd = maxf(_snap_along(nz + nd + d3.z) - nz, Building.MIN_SIZE)
+			amount = nd - float(o["d"])
+		_:
+			var ez := minf(_snap_along(nz + d3.z), float(o["z"]) + float(o["d"]) - Building.MIN_SIZE)
+			nd = float(o["z"]) + float(o["d"]) - ez
+			nz = ez
+			amount = -(nz - float(o["z"]))
+	var r := Building.room_of(_bld(), String(_pull["room"]))
+	if absf(float(r["x"]) - nx) < 1e-9 and absf(float(r["z"]) - nz) < 1e-9 and absf(float(r["w"]) - nw) < 1e-9 and absf(float(r["d"]) - nd) < 1e-9:
+		return
+	if not bool(_pull["moved"]):
+		m._step_hint = "Pull: room"
+		m._push_undo()   # before the record changes: ONE undo step for the whole drag
+		_pull["moved"] = true
+	r["x"] = nx
+	r["z"] = nz
+	r["w"] = nw
+	r["d"] = nd
+	for iw in _bld().get("walls", []):   # an interior wall stays where it stands in the world when its room grows from the left / front
+		if String(iw["room"]) == String(r["id"]) and _pull["walls"].has(String(iw["id"])):
+			var op: float = _pull["walls"][String(iw["id"])]
+			if String(iw["axis"]) == "z":
+				iw["pos"] = op - (nx - float(o["x"]))
+			else:
+				iw["pos"] = op - (nz - float(o["z"]))
+	_pull["text"] = "%s wall %s%.1f m   room %.1f m x %.1f m" % [wall.capitalize(), "+" if amount >= 0.0 else "-", absf(amount), nw, nd]
+	sync()
+	ov.queue_redraw()
+
+
+func _pull_restore() -> void:
+	if not _pull.is_empty() and bool(_pull.get("moved", false)):
+		m._undo()
+
+
+func _finish_pull() -> void:
+	var moved: bool = bool(_pull.get("moved", false))
+	var r := Building.room_of(_bld(), String(_pull.get("room", "")))
+	_end_drag()
+	if moved and not r.is_empty():
+		m._say("Pull: the room is %.1f m x %.1f m now. Doors keep their place from the wall's middle" % [float(r["w"]), float(r["d"])])
+
+
+func _draw_pull_label() -> void:
+	if _pull.is_empty() or String(_pull["text"]) == "":
+		return
+	var r := Building.room_of(_bld(), String(_pull["room"]))
+	var slab := wall_slab(r, String(_pull["wall"]))
+	var c := slab.get_center()
+	var outward := {"front": Vector3(0, 0, -1), "back": Vector3(0, 0, 1), "left": Vector3(-1, 0, 0), "right": Vector3(1, 0, 0)}[String(_pull["wall"])] as Vector3
+	var at: Vector2 = m.cam.unproject_position(c + outward * 0.8 + Vector3(0, slab.size.y * 0.5 + 0.3, 0))
+	at.x = minf(at.x, panel.position.x - 190.0)   # never under the panel
+	_outline_box(slab.grow(0.03))
+	_pill(at, String(_pull["text"]), SKY, Color(0.04, 0.06, 0.1), 16)
+
+
+## frame the whole house: the camera target on its middle, far enough back for its height
+func _frame_house() -> void:
+	var bd := _bld()
+	if bd.is_empty() or bd.get("rooms", []).is_empty():
+		return
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for r in bd["rooms"]:
+		lo = Vector2(minf(lo.x, float(r["x"])), minf(lo.y, float(r["z"])))
+		hi = Vector2(maxf(hi.x, float(r["x"]) + float(r["w"])), maxf(hi.y, float(r["z"]) + float(r["d"])))
+	var top := Building.storey_count(bd) * Building.num(bd, "floor_height", 2.8)
+	var d := maxf(VIEW_DIST, (hi - lo).length() * 1.9 + top * 1.7)
+	m._turn_to(m.yaw, m.pitch, d, Vector3((lo.x + hi.x) * 0.5, top * 0.35, (lo.y + hi.y) * 0.5), false)
+
+
+func _add_floor() -> void:
+	var bd := _bld()
+	if bd.is_empty() or bd.get("rooms", []).is_empty():
+		m._say("Floor: draw a room first")
+		return
+	m._step_hint = "Floor: add"
+	m._push_undo()
+	var n := Building.add_floor(bd)
+	m._say("Floor %d added: the same footprint, a floor slab between (%.1f m up)" % [n + 1, Building.num(bd, "floor_height", 2.8) * n])
+	sync()
+	_frame_house()
+
+
+func _remove_floor() -> void:
+	var bd := _bld()
+	if Building.storey_count(bd) < 2:
+		m._say("Floor: the last floor stays")
+		return
+	m._step_hint = "Floor: remove top"
+	m._push_undo()
+	Building.remove_top_floor(bd)
+	m._say("Floor: the top floor is gone")
+	sync()
+
+
+func _set_roof(k: String) -> void:
+	var bd := _bld()
+	if bd.is_empty() or bd.get("rooms", []).is_empty():
+		m._say("Roof: draw a room first")
+		return
+	if String(bd.get("roof", {}).get("kind", "")) == k:
+		return
+	m._step_hint = "Roof: %s" % k
+	m._push_undo()
+	Building.set_roof(bd, k)
+	m._say("Roof: %s, overhang %.2f m. The overhang is a number in the panel" % [k, Building.num(bd, bd["roof"].get("overhang"), 0.45)])
+	sync()
+	_frame_house()
+
+
+func _remove_roof() -> void:
+	var bd := _bld()
+	if bd.get("roof", {}).is_empty():
+		return
+	m._step_hint = "Roof: none"
+	m._push_undo()
+	bd.erase("roof")
+	m._say("Roof: taken off")
+	sync()
+
+
+# ---------------------------------------------------------------- Use in a scene, and the STAGE panel
+
+func _use_pressed() -> void:
+	if m.cur_page == "STAGE":
+		m._page_set("BUILD")
+		return
+	use_in_scene()
+
+
+## the house becomes a set: its kind is registered from the record, one prop is added (once), the page is STAGE. One undo step
+func use_in_scene() -> void:
+	var bd := _bld()
+	if bd.is_empty() or bd.get("rooms", []).is_empty() or bool(bd.get("readonly", false)):
+		m._say("Use in a scene: draw a room first")
+		return
+	m._step_hint = "Use in a scene: %s" % bd.get("name", "house")
+	m._push_undo()
+	var kind := BuildStage.use(m.S)
+	m.sel_prop = -1
+	m._props_show()
+	m._page_set("STAGE")
+	_stage_sync()
+	var doors := BuildStage.door_names(bd)
+	frame_door(String(doors[0]) if not doors.is_empty() else "")
+	m._say("STAGE: the building is now a set (%s). %s Edit the house in BUILD any time" % [kind.trim_prefix("building:"),
+		"The fighter walks through the %s." % doors[0] if not doors.is_empty() else "Put a door in it and the fighter can walk in."])
+
+
+## the STAGE camera: the door seen from outside, a little above, the fighter's walk in view ("" = the house's middle)
+func frame_door(name: String) -> void:
+	var a := Building.anchor(_bld(), name) if name != "" else {}
+	if a.is_empty():
+		_frame_house()
+		return
+	var pos: Vector3 = a["pos"]
+	var out: Vector3 = a["out"]
+	var at := pos + out * 0.6 + Vector3(0, 0.9, 0)
+	m._turn_to(rad_to_deg(atan2(out.x, out.z)) + 28.0, -24.0, 8.5, at, false)
+
+
+var _stage_sig := ""
+
+
+## the STAGE panel (the mockup's "Set added to STAGE"): follows the record, rebuilt only when it changes
+func _stage_sync() -> void:
+	if stage_panel == null:
+		return
+	var show: bool = m.cur_page == "STAGE" and m.S.kind == "building" and BuildStage.prop_index(m.S) >= 0
+	stage_panel.visible = show
+	if not show:
+		return
+	var sig := JSON.stringify(Building.to_file(_bld()))
+	if sig == _stage_sig and stage_body.get_child_count() > 0:
+		return
+	_stage_sig = sig
+	for c in stage_body.get_children():
+		stage_body.remove_child(c)
+		c.queue_free()
+	walk_btns.clear()
+	var bd := _bld()
+	var title := Label.new()
+	title.name = "build_stage_title"
+	title.text = "Set added to STAGE"
+	title.add_theme_font_size_override("font_size", 17)
+	stage_body.add_child(title)
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	var doors := 0
+	var windows := 0
+	for r in bd.get("rooms", []):
+		lo = Vector2(minf(lo.x, float(r["x"])), minf(lo.y, float(r["z"])))
+		hi = Vector2(maxf(hi.x, float(r["x"]) + float(r["w"])), maxf(hi.y, float(r["z"]) + float(r["d"])))
+	for o in bd.get("openings", []):
+		if String(o["kind"]) == "window":
+			windows += 1
+		else:
+			doors += 1
+	var info := Label.new()
+	info.name = "build_stage_info"
+	var nf := Building.storey_count(bd)
+	info.text = "%s\n%.1f x %.1f m, %d floor%s\n%d door%s, %d window%s   linked to BUILD" % [bd.get("name", "House"), hi.x - lo.x, hi.y - lo.y, nf, "" if nf == 1 else "s", doors, "" if doors == 1 else "s", windows, "" if windows == 1 else "s"]
+	stage_body.add_child(info)
+	var names := BuildStage.door_names(bd)
+	for line in ["Collision: walls and floor, doorways open", "Door points: %s" % (", ".join(names) if not names.is_empty() else "none yet (put a door in the house)")]:
+		var l := Label.new()
+		l.text = "[ok]  " + line
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size.x = PANEL_W - 28.0
+		l.add_theme_font_size_override("font_size", 13)
+		stage_body.add_child(l)
+	if not names.is_empty():
+		var say := Label.new()
+		say.text = "ANIMATE can now say:"
+		say.add_theme_font_size_override("font_size", 12)
+		say.modulate = Color(1, 1, 1, 0.6)
+		stage_body.add_child(say)
+	for nm in names:
+		var wb := Button.new()
+		wb.name = "build_walk_" + String(nm).replace(" ", "_")
+		wb.text = "Walk through the %s" % nm
+		wb.focus_mode = Control.FOCUS_NONE
+		wb.tooltip_text = "walk cards from outside, through the %s, to inside (a new scene; Ctrl+Z goes back)" % nm
+		wb.pressed.connect(walk_through.bind(String(nm)))
+		walk_btns[nm] = wb
+		stage_body.add_child(wb)
+	var eb := Button.new()
+	eb.name = "build_edit_in_build"
+	eb.text = "Edit in BUILD"
+	eb.focus_mode = Control.FOCUS_NONE
+	eb.pressed.connect(func(): m._page_set("BUILD"))
+	stage_body.add_child(eb)
+
+
+func _layout_stage() -> void:
+	var cl: Rect2 = m.nav_clear_rect()
+	stage_panel.reset_size()
+	stage_panel.position = Vector2(cl.end.x - PANEL_W - 48.0, cl.position.y + 6.0)   # left of the view cube
+
+
+## "Walk through the front door": PathWalk's cards from outside to inside, a new scene that carries the house (ONE undo step: Ctrl+Z
+## puts the open scene back whole, as Path walk does)
+func walk_through(name: String) -> void:
+	var r := BuildStage.walk_scene(m.S, m.B, name)
+	if not bool(r["ok"]):
+		m._say(String(r["why"]))
+		return
+	var d: Dictionary = r["scene"]
+	var n: int = d["cards"].size()
+	m._do(func():
+		m._actors_home()
+		var old_s: Scene = m.S
+		m.S = Scene.new()
+		m.S.from_dict(d)
+		m.swap_scenes = [old_s, m.S]
+		m.scene_path = ""
+		if m.ui_scene_name != null:
+			m.ui_scene_name.text = m.S.name
+		m._actors_sync()
+		m.sel_card = 0
+		m.ov.mark_dirty()
+		m.wt.mark_dirty()
+		m._dummy_hits()
+		m._rebuild_cards()
+		m.playhead = 0.0
+		m.S.apply(m.B, 0.0)
+		m._bld_scene_changed(false)
+		m._props_show())
+	if not m.undo.is_empty():
+		m.undo[-1]["swap"] = true
+	frame_door(name)
+	m._say("walking through the %s: %d cards, from outside to inside at %.1f m/s. The open scene is untouched; Ctrl+Z goes back to it in one step" % [name, n, BuildStage.WALK_SPEED])
 
 
 # ---------------------------------------------------------------- the labels over the view
@@ -995,6 +1625,10 @@ func _draw_labels() -> void:
 		_pill(m.cam.unproject_position(Vector3(a.x, 0, a.z)) + Vector2(-70, -26), "corner A: start", Color(0.06, 0.07, 0.1, 0.8), Color(SKY, 0.95), 12)
 		if typed[0] != "" or typed[1] != "":
 			_pill(mid + Vector2(0, -34), "typing:  %s  Tab  %s" % [typed[0] if typed[0] != "" else "-", typed[1] if typed[1] != "" else "-"], Color(SKY, 0.9), Color(0.04, 0.06, 0.1), 14)
+	elif drag == "wall":
+		_draw_wall_preview()
+	elif drag == "pull":
+		_draw_pull_label()
 	elif tool == "Opening":
 		var o := _opening(sel)
 		if not o.is_empty():

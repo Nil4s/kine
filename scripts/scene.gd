@@ -2569,6 +2569,8 @@ func from_dict(d: Dictionary) -> void:
 	clips = Clips.from_file(d.get("clips", []))   # CLIPS: absent = none
 	boxes = HitBoxes.from_file(d.get("boxes", []))   # HIT / HURT BOXES: absent = none
 	for p in d.get("props", []):
+		if p is Dictionary and String(p.get("kind", "")).begins_with("building:"):
+			BuildStage.register_named(building, String(p["kind"]))   # BUILD: the house is a kind made from its record
 		if p is Dictionary and Props.has_kind(String(p.get("kind", ""))):
 			props.append(Props.from_dict(p))
 		elif p is Dictionary:
