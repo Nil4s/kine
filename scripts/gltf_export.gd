@@ -11,8 +11,8 @@ extends RefCounted
 
 ## the mannequin, its own AnimationPlayer (and, without with_mesh, its meshes) taken out
 static func _mannequin(with_mesh: bool) -> Node3D:
-	var man: Node3D = (load("res://assets/mannequin.glb") as PackedScene).instantiate()
-	man.name = "mannequin"   # not the animation's name: the importer makes names unique and would rename the clip "<name>2"
+	var man: Node3D = (load(Overlays.body_file()) as PackedScene).instantiate()   # (the mannequin, or the smooth body when chosen)
+	man.name = "mannequin"  # not the animation's name: the importer makes names unique and would rename the clip "<name>2"
 	for ap in man.find_children("*", "AnimationPlayer", true, false):
 		ap.get_parent().remove_child(ap)
 		ap.free()
