@@ -114,8 +114,8 @@ func deg(a: Vector3, b: Vector3) -> float:
 	return rad_to_deg(a.normalized().angle_to(b.normalized()))
 
 
-## FINGER TIPS (w4-fingertilt): each finger's and the thumb's tip, its gap (m) from the shaft's surface (the grippable
-## span of the held weapon, the handle's radius): negative = inside the handle
+## FINGER TIPS (w4-fingertilt): each finger's tip, its gap (m) from the shaft's surface (the grippable span of the held
+## weapon, the handle's radius): negative = inside the handle. The thumb: its nearest segment's gap (see below)
 func tip_gaps(h: String) -> Array:
 	var sd := h.right(2)
 	var sp := GripMagnet.span(m.B)
@@ -123,13 +123,19 @@ func tip_gaps(h: String) -> Array:
 	var b: Vector3 = m.B.wep_point(sp.y)
 	var r: float = m.B.wep_r_handle
 	var out := []
-	for f in ["index", "middle", "ring", "pinky", "thumb"]:
+	for f in ["index", "middle", "ring", "pinky"]:
 		var jj: String = f + "_03" + sd
 		var c: Array = m.B.cap(jj)
 		var tip: Vector3 = c[1] if (c[1] as Vector3).distance_to(m.B.P[jj]) >= (c[0] as Vector3).distance_to(m.B.P[jj]) else c[0]
 		var ab: Vector3 = b - a
 		var t := clampf((tip - a).dot(ab) / maxf(ab.length_squared(), 1e-9), 0.0, 1.0)
 		out.append((a + ab * t).distance_to(tip) - float(m.B.rad[jj]) - r)
+	# THUMB (decided by Nick's coordinator, w4-fingertilt, before merge): in a power grip the thumb wraps OVER the index, so its
+	# tip sits off the shaft by design; the thumb is measured by its NEAREST segment to the shaft (thumb_02 or thumb_03)
+	var nearest := INF
+	for jt in ["thumb_02" + sd, "thumb_03" + sd]:
+		nearest = minf(nearest, GripWrap.gap(m.B, jt, a, b, r))
+	out.append(nearest)
 	return out
 
 
@@ -303,7 +309,8 @@ func _init() -> void:
 	print("     (g) real drag: turn %.1f deg, long axis %.3f deg, hand %.3f mm, slider %.1f" % [turned, axis_g, hand_g, s0.value])
 	ok(turned > 5.0 and axis_g < 1.0 and hand_g < 0.5, "(g) a real drag of the Blade turn slider turns the blade %.1f deg (> 5), the long axis %.3f deg (< 1), the hand %.3f mm (< 0.5)" % [turned, axis_g, hand_g])
 
-	# ---- (h) Head tilt +30: the holding hand's fingers still wrap the shaft (tips within 1.5 cm, none inside by > 0.5 cm)
+	# ---- (h) Head tilt +30: the holding hand's fingers still wrap the shaft (tips within 1.5 cm, none inside by > 0.5 cm;
+	# the thumb by its nearest segment, decided before merge: a power grip's thumb wraps over the index)
 	m.easy.set_on(false, false)   # (g) left Easy on: the Expert sliders are the ones measured here
 	await idle(6)
 	await fresh()
@@ -366,6 +373,41 @@ func _init() -> void:
 	m._undo()
 	await idle(3)
 	ok(var_to_str(B.state()) == st_i0, "(i) Undo restores the second hand's grip (B.state() exactly)")
+
+	# ---- (j) a scene with no blade turn / tilt keys means 0: a turn on another scene does not carry over (w4-fingertilt)
+	var wb := "user://zz_bladeturn_walk.json"
+	DirAccess.copy_absolute(ProjectSettings.globalize_path("res://scenes/walk_bat.json"), ProjectSettings.globalize_path(wb))
+	m._load_scene(wb)
+	m._refresh()
+	await idle(4)
+	B = m.B
+	var j_ref: Vector3 = wep_frame()[1]   # the head direction of walk_bat's weapon as a fresh load gives it
+	var j_turn_ref := rad_to_deg(B.wep_turn)
+	await fresh()
+	await click_at(spot("bat_handle"))
+	await idle(3)
+	B = m.B
+	await click(hand_btn("btn_turn_blade"))
+	await idle(3)
+	var j_axe_turn := rad_to_deg(B.wep_turn)
+	m._load_scene(wb)
+	m._refresh()
+	await idle(4)
+	B = m.B
+	var j_head: Vector3 = wep_frame()[1]
+	var j_dev := deg(j_ref, j_head)
+	var j_turn := rad_to_deg(B.wep_turn)
+	# the blade turn back to 0 by its slider (what a user does to put the blade back): the head must be where a fresh load has it
+	m._blade_sync()
+	var sl_j := vis("slider_blade_turn") as HSlider
+	var j_read := sl_j.value
+	sl_j.value = 0.0
+	await idle(3)
+	var j_head0: Vector3 = wep_frame()[1]
+	var j_dev0 := deg(j_ref, j_head0)
+	print("     (j) walk_bat head direction after a 90 deg turn on the axe: %.3f deg off a fresh load; blade turn reads %.2f (fresh %.2f), its slider showed %.1f; slider to 0: head %.3f deg off, turn %.2f" % [j_dev, j_turn, j_turn_ref, j_read, j_dev0, rad_to_deg(B.wep_turn)])
+	ok(j_dev <= 0.5 and absf(j_turn - j_turn_ref) < 0.01 and absf(j_axe_turn - 90.0) < 1.0 and j_dev0 <= 0.5 and absf(rad_to_deg(B.wep_turn)) < 0.01,
+		"(j) walk_bat opened after a 90 deg blade turn on another scene: head %.3f deg off a fresh load (<= 0.5), blade turn reads %.2f (= fresh %.2f); the slider back to 0 leaves the head %.3f deg off (<= 0.5)" % [j_dev, j_turn, j_turn_ref, j_dev0])
 
 	print("FAILS: %d" % fails)
 	quit(1 if fails > 0 else 0)

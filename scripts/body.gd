@@ -2524,6 +2524,8 @@ func from_dict(d: Dictionary) -> void:
 	fk()
 	var w: Dictionary = d.get("weapon", {})
 	wep_on = not w.is_empty()
+	wep_turn = 0.0   # w4-fingertilt: no turn / tilt key means 0 (set again below when the weapon has them)
+	wep_tilt = 0.0
 	if wep_on:
 		set_kind(String(w.get("kind", "metal_bat")))
 		set_weapon_len(float(w.get("length", wep_len)))
