@@ -54,6 +54,10 @@ var _jpending := false    # an undo step was pushed or undone since the last jou
 var journal_offer := {}   # a session that did not quit cleanly: {state, t, path, n} (File: restore unsaved work)
 var quit_clean := true    # false = the window goes without a clean quit (a test's simulated kill)
 var journal_capture_us := 0   # the scene's capture for the journal, summed (us): the numbers the journal test prints
+var crash_dir := ""          # CRASH REPORT (P25, scripts/crash_report.gd): "" = off (on with the journal; a test names its folder with POSER_CRASH)
+var crash_cmds: Array = []   # this session's last palette commands, as lines (the page, the time, the name)
+var crash_prev: Array = []   # the same lines from a session that did not quit cleanly: File > Crash report reads these first
+var crash_recent := CrashReport.Recent.new()   # the file the lines go to as they happen (a crash keeps them)
 
 var B := Body.new()
 var S := Scene.new()
@@ -242,9 +246,9 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 ## THE GROUPS (round 36, GATES RR1; Fusion's CREATE / MODIFY): each tab's tools by label, in order, under a caption.
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
-	"MODEL": [["MESH", ["Test cube", "Edit body", "Save to body", "Save", "Open...", "Use in scene"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Proportional", "Modifiers", "Validate", "Repair"]]],
-	"SCULPT": [["SPHERE", ["Test sphere"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
-	"SURFACE": [["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]], ["MATERIAL", ["Material from photo"]]],
+	"MODEL": [["MESH", ["Test cube", "Edit body", "Save", "Save to body", "Open...", "Use in scene"]], ["MOVE", ["Move", "Rotate", "Scale"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Validate", "Repair", "Proportional", "Modifiers"]]],
+	"SCULPT": [["START", ["Test sphere", "Sculpt the body"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
+	"SURFACE": [["COLOUR", ["Paint", "Material from photo"]], ["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]]],
 	"BUILD": [["DRAW", ["Room", "Wall", "Pull"]], ["ADD", ["Opening", "Floor", "Roof", "Piece"]], ["SAY", ["Words"]], ["SHEET", ["Blueprint"]],
 		["PART", ["Part"]], ["SKETCH", ["Line", "Rectangle", "Circle", "Arc", "Dimension"]], ["CREATE", ["Extrude", "Revolve", "Mirror"]], ["MODIFY", ["Fillet", "Chamfer"]], ["DONE", ["Finish sketch"]]],   # the last five are the Part workspace's (scripts/build/part_ui.gd)
 	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped"]]],
@@ -252,20 +256,26 @@ const RIBBON_GROUPS := {
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)", "Force view"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial", "Match the reference timing"]], ["SOUND", ["Sound cues"]]],
-	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]], ["THROW", ["Throw to..."]],
-		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions", "React to the hit (physics)", "Add impact frames", "Remove impact frames"]]],
+	"SET": [["PROPS", ["Library", "Add prop", "Import model", "Turn left", "Turn right", "Delete prop"]], ["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]],
+		["ACT", ["Sit here", "Pick up", "Put down", "Step up", "Throw to...", "Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]],
+		["REACT", ["Reactions", "React to the hit (physics)", "Add impact frames", "Remove impact frames"]]],
 	"CHECK": [["JUDGE", ["Check", "Realism score", "Safety sheet", "Real-mocap check"]], ["FIX", ["Polish", "Fix moves through the body", "Timing coach", "Speed limits"]],
 		["PHYSICS", ["Make it physical", "Accept span", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check"]],
 		["FIGHT", ["Fight distance", "Auto opponent", "Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound"]],
 		["MUSIC", ["Fight to the beat", "Choreograph to the song"]], ["STYLE", ["My style", "Use my style", "Star this clip", "My best take", "Make this one more like my best", "What I learned from you", "My combos"]],
 		["CAMERA", ["Auto camera", "My camera", "Frame it my way"]], ["SHOW", ["Dummy (H)", "Frame data", "Frame boxes", "Frame rate"]]],
-	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["PLAN", ["Floor plan"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR", "Pack scene (zip)", "Unpack zip..."]]],
+	"EXPORT": [["FILES", ["Export...", "Export model (GLB / OBJ)", "Export frame data (json)...", "Render shots (mp4)", "Use as a prop", "Open exports folder"]], ["PLAN", ["Floor plan", "Save version"]], ["SHARE", ["Share as QR", "Pack scene (zip)", "Unpack zip..."]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API", "Next poses"]]],
 }
-## THE RARER TOOLS (CHECK's 8 groups): a tool named here is not on the row; it lives under its group's caption menu (the caption's ▾), the
-## same tool, tooltip and key. Every group keeps at least two tools on the row. Nothing is hidden by window width: the row is the same at 1280 and 1600
-const RIBBON_REST := {"CHECK": ["Safety sheet", "Real-mocap check", "Speed limits", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check",
+## THE RIBBON STANDARD rows (CHECK, MODEL, SCULPT, SURFACE, STAGE's SET, DELIVER's EXPORT): icon-only buttons in 2-6 captioned groups, the rarer
+## tools under the caption's menu, an on toggle = an underline (RibbonUnder), not the amber fill (_iconise; tests/ribbonmesh_test.gd, ribbonsd_test.gd)
+const RIBBON_STD := ["CHECK", "MODEL", "SCULPT", "SURFACE", "SET", "EXPORT"]
+## THE RARER TOOLS: a tool named here is not on the row; it lives under its group's caption menu (the caption's ▾), the same tool, tooltip
+## and key. Every group keeps at least one tool on the row. Nothing is hidden by window width: the row is the same at 1280 and 1600
+const RIBBON_REST := {"MODEL": ["Save to body", "Open...", "Use in scene", "Loop cut", "Knife", "Bevel", "Proportional", "Modifiers"], "SCULPT": ["Clay", "Crease", "Pinch", "Snake"], "SURFACE": ["Export UVs"],
+	"SET": ["Turn left", "Turn right", "Step up", "Throw to...", "Sit down", "Stand up", "Get up", "Add impact frames", "Remove impact frames"],
+	"EXPORT": ["Use as a prop", "Open exports folder"], "CHECK": ["Safety sheet", "Real-mocap check", "Speed limits", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check",
 	"Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound", "Star this clip", "My best take", "Make this one more like my best",
 	"What I learned from you", "My combos", "Frame it my way"]}
 ## PAGES (docs/PAGES_PLAN.md, step 1; DaVinci Resolve's page bar): one bar along the bottom, each page its own layout over
@@ -2998,6 +3008,7 @@ func _ready() -> void:
 	journal_on = jenv != "" or not testing
 	journal_dir = jenv if jenv != "" else JOURNAL
 	if journal_on:
+		_crash_boot()   # before the journal: it reads the session flag the journal boot clears
 		_journal_boot()
 		BootProfile.mark("journal boot")
 	var cf := ConfigFile.new()
@@ -4982,12 +4993,13 @@ func _hit_ui_tick() -> void:
 ## the weapon's drawn shape: rebuilt when its kind changes (WeaponMesh), then placed in the weapon's frame, the knob at
 ## x[0] and +Y along x[1] (Body.wep_xform), so each piece sits where its grip-frame cylinder is
 func _wep_model_place(model: Node3D, kind: String, x: Array) -> void:
-	if String(model.get_meta("kind", "")) != kind:
+	var key := kind + "#%d" % int(Body.KINDS.get(kind, {}).get("rev", 0))   # a Part's shape is drawn again when its record changed
+	if String(model.get_meta("kind", "")) != key:
 		for c in model.get_children():
 			model.remove_child(c)
 			c.queue_free()
 		model.add_child(WeaponMesh.build(kind))
-		model.set_meta("kind", kind)
+		model.set_meta("kind", key)
 	model.transform = Transform3D(Basis(x[1] as Quaternion), x[0] as Vector3)
 
 
@@ -6244,6 +6256,7 @@ func _rigx_node(i: int, capsule: bool) -> MeshInstance3D:
 
 
 func _after_edit() -> void:
+	part_weapon_changed(S.part)   # a Part the fighter holds takes its edit (PartWeapon)
 	if not vdiff.is_empty():   # COMPARE WITH: the marks follow the open scene's edits
 		_vdiff_update()
 	if shoulder_follow and _arm_edit != "":   # YY5: only a hand edit of an upper arm; never a load, paste or play
@@ -10924,7 +10937,29 @@ func _kind(k: String) -> void:
 		"longsword": "longsword (1.2 m, hand-and-a-half): G puts the second hand on or takes it off; a video import switches it per frame",
 		"katana": "katana (1.0 m, both hands on the tsuka): G takes the second hand off or back",
 		"spear": "spear (2 m, both hands, 55 cm apart): [ ] slides the front hand, , and . the back hand",
-		"dagger": "dagger (30 cm, one hand)"}[k])
+		"dagger": "dagger (30 cm, one hand)"}.get(k, PartWeapon.says(k)))
+
+
+## A PART becomes the fighter's weapon (Easy Part and Expert Part's "Give it to the fighter"): PartWeapon registers its numbers and shape,
+## then the bat hand takes it as any kind (one undo step). Returns the kind, "" when the Part has no solid yet
+func give_part_weapon(rec: Dictionary) -> String:
+	var kind := PartWeapon.register(rec)
+	if kind == "":
+		_say("That part has no solid yet: draw a shape and pull it up first")
+		return ""
+	_do(_kind.bind(kind))
+	return kind
+
+
+## a held Part changed: its numbers and shape are made anew (no undo step of its own: the Part's edit is the step)
+func part_weapon_changed(rec: Dictionary) -> void:
+	if not PartWeapon.is_part(B.wep_kind) or B.wep_kind != PartWeapon.key_of(rec):
+		return
+	if PartWeapon.register(rec) != "":
+		var h := B.wep_hand
+		B.set_kind(B.wep_kind)
+		if B.wep_on and h != "":
+			B.weapon_to_hand(h)
 
 
 ## DUAL WIELD (round 33, Nick 10-16): a dagger in each hand; the main one in the right (or the hand it is in now),
@@ -12057,7 +12092,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Throw to...": "throw", "Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Pack scene (zip)": "pack", "Unpack zip...": "unpack", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Keep balance": "keep_balance", "Ouch meter": "ouch", "Show problems on the body": "red_spots", "Collision (C)": "collision",
+const ICON_OF := {"Library": "library", "Export model (GLB / OBJ)": "export_glb", "Throw to...": "throw","Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Pack scene (zip)": "pack", "Unpack zip...": "unpack", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Keep balance": "keep_balance", "Ouch meter": "ouch", "Show problems on the body": "red_spots", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "Parry rebound": "parry", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Reaction direction": "reactdir", "Sell the hit": "sellhit", "Gaze director": "gaze", "Safety sheet": "safety", "Floor plan": "floorplan", "Breakfall check": "breakfall", "Recovery step": "recovery", "Fight rhythm": "rhythm", "Precog check": "precog", "Auto opponent": "autoopp", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Momentum ledger": "momentum", "Airborne spin check": "spin", "Real-mocap check": "mocapchk", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "Star this clip": "star_clip", "My best take": "best_take", "Make this one more like my best": "best_nudge", "Speed limits": "speed_env", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Body: fighter archetype...": "archetype", "Body: from height, weight, sex, age, build": "body_nums", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
@@ -12066,7 +12101,11 @@ const ICON_OF := {"Throw to...": "throw", "Reactions": "react", "React to the hi
 	"Light: three-point": "lit_three", "Light: rim": "lit_rim", "Light: noir": "lit_noir", "Light: daylight": "lit_day",
 	"Add prop": "prop", "Object library...": "library", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective", "Local API": "api",
-	"Pose from words...": "say_it", "Sketch to pose": "sketch_pose", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong"}
+	"Pose from words...": "say_it", "Sketch to pose": "sketch_pose", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong",
+	"Test cube": "mesh_cube", "Edit body": "mannequin", "Save": "save", "Save to body": "body_save", "Open...": "open", "Use in scene": "prop", "Move": "xf_move", "Rotate": "xf_rot", "Scale": "xf_scale",
+	"Extrude": "part_extrude", "Inset": "inset", "Loop cut": "loopcut", "Knife": "knife", "Bevel": "part_chamfer", "Proportional": "proportional", "Modifiers": "stack", "Validate": "validate", "Repair": "wrench",
+	"Test sphere": "sphere", "Sculpt the body": "mannequin", "Draw": "brush_draw", "Inflate": "brush_inflate", "Grab": "brush_grab", "Clay": "brush_clay", "Crease": "brush_crease", "Smooth": "smooth", "Flatten": "brush_flat", "Pinch": "brush_pinch", "Snake": "brush_snake",
+	"Paint": "vpaint", "UV editor": "uv", "Game UVs 2k": "uv_game", "Pack UVs": "uv_pack", "Export UVs": "export", "Material from photo": "photo_mat"}
 
 
 ## icon over a small label, Fusion's ribbon look; the theme tints the (white) icon
@@ -12193,7 +12232,7 @@ func _iconise(b: Node) -> void:
 	b.set_meta("label", t)
 	b.icon = Icons.tex(ICON_OF[t])
 	b.text = ""
-	b.theme_type_variation = "RibbonUnder" if b.toggle_mode and b.get_parent() == ui_ribbon.get("CHECK") else "Ribbon"
+	b.theme_type_variation = "RibbonUnder" if b.toggle_mode and RIBBON_STD.any(func(row): return b.get_parent() == ui_ribbon.get(row)) else "Ribbon"
 	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	b.vertical_icon_alignment = VERTICAL_ALIGNMENT_CENTER
 	b.custom_minimum_size = Vector2(32, TOOLS_H)
@@ -13531,6 +13570,7 @@ func _ui() -> void:
 	tips.attach_all(self, ui_root)
 	ui_cmd.running.connect(func(n): _step_hint = n; _why_cmd = n; _macro_note(n))
 	ui_cmd.running.connect(_hs_note)   # O15: the session log (a separate connection: its own function, scripts/histscript.gd)
+	ui_cmd.running.connect(_crash_note)   # P25: the last 20 commands for the crash report (scripts/crash_report.gd)
 	rec_label = _label("", 16, "fail")   # ROADMAP 81: the REC indicator, shown only while a macro is recorded
 	rec_label.anchor_left = 0.5
 	rec_label.anchor_right = 0.5
@@ -13775,18 +13815,25 @@ func _scenes_opening() -> void:
 func _fit_scene_list() -> void:
 	await get_tree().process_frame   # the popup is given its own size on the show: after that frame
 	var pop := ui_scenes.get_popup()
-	if not pop.visible:
-		return
 	var vp := Vector2i(get_viewport().get_visible_rect().size)
 	var cap := vp.y - 16
 	pop.max_size = Vector2i(0, cap)
-	pop.size = Vector2i(mini(pop.size.x, vp.x), mini(pop.size.y, cap))
-	# the popup is kept inside the window: its place is clamped as well (it opened under the Scene button, low in a small window)
-	pop.position = Vector2i(clampi(pop.position.x, 0, maxi(0, vp.x - pop.size.x)), clampi(pop.position.y, 0, maxi(0, vp.y - pop.size.y)))
-	await get_tree().process_frame
-	pop.position = Vector2i(clampi(pop.position.x, 0, maxi(0, vp.x - pop.size.x)), clampi(pop.position.y, 0, maxi(0, vp.y - pop.size.y)))
-	if ui_scenes.selected >= 0:
-		pop.scroll_to_item(ui_scenes.selected)
+	# the popup grows for a few frames after the show (its rows take their pictures), so the fit follows it until its size stops
+	# changing: a place clamped at the first size would leave the bottom off the window once the list is full height
+	var last := Vector2i(-1, -1)
+	for _i in 12:
+		if not pop.visible:
+			return
+		pop.size = Vector2i(mini(pop.size.x, vp.x), mini(pop.size.y, cap))
+		# the popup is kept inside the window: its place is clamped as well (it opened under the Scene button, low in a small window)
+		pop.position = Vector2i(clampi(pop.position.x, 0, maxi(0, vp.x - pop.size.x)), clampi(pop.position.y, 0, maxi(0, vp.y - pop.size.y)))
+		# the open scene is in view: asked for at each height, so the last one wins (a scroll range that is still growing keeps 0)
+		if ui_scenes.selected >= 0:
+			pop.scroll_to_item(ui_scenes.selected)
+		if pop.size == last:
+			break
+		last = pop.size
+		await get_tree().process_frame
 
 
 ## a scene's picture is ready: its row in the list gets it (the row is found by its file, so a re-list in between is safe)
@@ -16425,6 +16472,7 @@ func _commands() -> Array:
 		_say("recent scenes at start: " + ("on" if recents.start_on() else "off (File: recent scenes still opens it)")), "recent scenes start panel startup show hide setting", false, "turn the recent scenes panel at start on or off (remembered; on by default, and only shown when there are recent scenes)")
 	add.call("File > Restore...", "", _restore_open, "restore autosave autosaved unsaved crash lost back earlier kept", false, "the last 5 autosaves (time, scene, cards) with a picture of each: pick one, it opens as a NEW copy in scenes/_wip (never over a file; the scene on screen asks first)")
 	add.call("File: restore unsaved work", "", _journal_restore, "journal unsaved recover restore crash lost work back", false, "bring back the work a session left unsaved when Kine did not close cleanly: the state after its last edit, still unsaved (the status line offers it at start)")
+	add.call("File > Crash report (last 20 commands)", "", _crash_report_now, "crash report bug problem error problem send lost last commands history what did i do", false, "writes the last 20 things you ran and the page you were on to a text file: you can read it and send it yourself. Nothing is sent")
 	add.call("Export...", "", _export_dialog_open, "export engine target unreal ue5 unity godot blender maya motionbuilder web three raw data format glb bvh usda game", false, "one dialog for every target: pick the engine or tool, see its format, what it needs, the frame rate and a checklist for this scene, then export")
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
 	add.call("Export animation (.glb)", "", _export_glb, "gltf glb blender unreal ue5 unity godot universal export fbx", false, "the scene as exports/<scene>.glb, the open 3D standard: the mannequin, its skeleton (UE5 bone names) and the animation, for any engine")
@@ -20651,6 +20699,52 @@ func _journal_restore() -> void:
 		journal.force_full()
 		_journal_write()
 	_say("restored the work from the journal (%d edits): it is not saved yet, Save scene keeps it" % int(o["n"]))
+
+
+## CRASH REPORT (P25): the commands of a session that did not quit cleanly are kept for the report; a clean last session
+## leaves nothing. Runs before _journal_boot, which clears the session flag this reads
+func _crash_boot() -> void:
+	var cenv := OS.get_environment("POSER_CRASH")   # a test's own folder (never user://crash)
+	crash_dir = cenv if cenv != "" else "user://crash"
+	CrashReport.ensure(crash_dir)
+	var jr := Journal.new()
+	jr.dir = journal_dir
+	if jr.session_clean():
+		CrashReport.clear_recent(crash_dir)
+	else:
+		crash_prev = CrashReport.move_old(crash_dir)
+		if not crash_prev.is_empty():
+			_crash_offer_say.call_deferred()
+	crash_recent.open(crash_dir.path_join(CrashReport.RECENT))
+
+
+func _crash_offer_say() -> void:
+	if journal_offer.is_empty():   # the journal's own offer (Restore the work from ...) says it when there is one
+		_say("Kine did not close cleanly last time. File > Crash report (last 20 commands) saves what you did then")
+
+
+## every palette command, with the page it ran on, goes to the recent list (the file the report reads after a crash)
+func _crash_note(n: String) -> void:
+	if crash_dir == "":
+		return
+	crash_cmds.append(CrashReport.line(Time.get_unix_time_from_system(), cur_page, n))
+	if crash_cmds.size() > CrashReport.KEEP:
+		crash_cmds = crash_cmds.slice(crash_cmds.size() - CrashReport.KEEP)
+	crash_recent.add(crash_cmds[-1])
+
+
+## File > Crash report: the last 20 commands (the session that did not quit, when there is one) and the page, in a text file
+func _crash_report_now() -> void:
+	if crash_dir == "":
+		_say("the crash report is off in this test run")
+		return
+	var lines: Array = crash_prev if not crash_prev.is_empty() else crash_cmds
+	var note := "The commands are from the session that did not close cleanly." if not crash_prev.is_empty() else "The commands are from this session."
+	var path := CrashReport.write(crash_dir, lines, cur_page, note)
+	if path == "":
+		_say("the crash report could not be written: check the disk, then try again")
+		return
+	_say("crash report saved (%d commands, with the page): %s. Nothing is sent; send the file yourself if you want" % [mini(lines.size(), CrashReport.KEEP), path])
 
 
 var ui_recover: ConfirmationDialog

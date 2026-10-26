@@ -102,7 +102,7 @@ const SEAT_CATCH := 0.15     # a seat catches a part whose lowest surface is les
 ## WEIGHT (ROADMAP 40, scripts/weight_feel.gd): "mass" kg, "com" = the centre of mass as a fraction of len from the butt, "k" = the
 ##   radius of gyration about the centre of mass as a fraction of len (a uniform rod is 0.289). Bat 32 oz (0.91 kg);
 ##   quarterstaff ~1.4 kg; the hammer 2.5 kg with its head at the tip; Dane axe 1-2 kg (above); a dagger ~0.3 kg
-const KINDS := {
+static var KINDS := {   # static: a Part becomes a weapon kind at runtime (PartWeapon.register adds "part:<name>")
 	"metal_bat": {"len": 0.84, "handle": 0.40, "r_handle": 0.016, "r_barrel": 0.033, "head": [], "aim": true, "grip": "power", "mass": 0.90, "com": 0.65, "k": 0.25, "parts": [["knob", 0.0, 0.03, "hold"], ["handle", 0.03, 0.40, "hold"], ["barrel", 0.40, 0.84, "no"]]},
 	"staff": {"len": 1.80, "handle": 0.90, "r_handle": 0.016, "r_barrel": 0.016, "head": [], "aim": false, "grip": "power", "mass": 1.40, "com": 0.50, "k": 0.289, "parts": [["shaft", 0.0, 1.80, "hold"]]},
 	"long_hammer": {"len": 1.10, "handle": -0.06, "r_handle": 0.017, "r_barrel": 0.045, "head": [0.12, 0.045], "aim": true, "grip": "power", "mass": 2.50, "com": 0.80, "k": 0.20, "parts": [["haft", 0.0, -0.06, "hold"], ["head", -0.06, 1.10, "no"]]},
@@ -681,7 +681,7 @@ func unlock_weapon() -> void:
 ## the STANDARD grip (data/grips/metal_bat.json, fitted by Nick 10-12): the bat's place in the hand + the finger angles.
 ## Left hand = the mirror: x of the position flipped, rotation (x, y, z, w) -> (x, -y, -z, w), finger twist negated.
 func weapon_to_hand(h: String) -> void:
-	var path := "res://data/grips/%s.json" % wep_kind
+	var path := "" if wep_kind.begins_with("part:") else "res://data/grips/%s.json" % wep_kind   # a Part's kind has no file: the bat's hand, then the grip point
 	if not FileAccess.file_exists(path):
 		path = "res://data/grips/metal_bat.json"   # the same hand round a shaft until Nick fits this kind's own
 	if not FileAccess.file_exists(path):
@@ -744,6 +744,10 @@ func weapon_to_hand(h: String) -> void:
 		slide_in_hand(0.24)
 		grip = true
 		grip_u = 0.86
+	elif wep_kind.begins_with("part:"):
+		# a Part weapon (scripts/build/part_weapon.gd): one hand, on its grip point (the template's handle centre)
+		grip = false
+		slide_in_hand(WeightFeel.grip_u_of(wep_kind) - hold_u())
 
 
 ## the old rough start (no grip file): the bat through the palm, out on the thumb side, knob 6 cm below, locked
