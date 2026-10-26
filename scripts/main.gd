@@ -20206,7 +20206,10 @@ func _start_screen_boot() -> void:
 		await get_tree().process_frame
 	while ui_recover != null and ui_recover.visible:
 		await ui_recover.visibility_changed
-	while intro != null:   # the opening intro plays first: the start screen follows it (it used to give up here)
+	# the opening intro plays first, and the start screen opens UNDER it (the intro is the top layer) just before it lets the app
+	# through: the logo fades straight into the start screen, never into the bare app with the dummy in its T pose. A click that
+	# skips the intro ends it at once: that frame opens the start screen too
+	while intro != null and not intro._done and intro.t < intro.length() - KineIntro.FADE - 0.05:
 		await get_tree().process_frame
 	if tour_step < 0 and not onboard.pending:
 		start_screen.show_screen()
