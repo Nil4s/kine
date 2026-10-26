@@ -21,6 +21,8 @@ var go: Button
 var say_row: HBoxContainer
 var plan_panel: PanelContainer
 var cards_box: VBoxContainer
+var cards_scroll: ScrollContainer   # the cards scroll when the pieces make them taller than the page
+var _avail_h := 600.0
 var title: Label
 var foot: Label
 var did_btn: Button
@@ -121,7 +123,12 @@ func setup(owner: BuildUI) -> void:
 	cards_box = VBoxContainer.new()
 	cards_box.name = "build_words_cards"
 	cards_box.add_theme_constant_override("separation", 6)
-	pv.add_child(cards_box)
+	cards_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cards_scroll = ScrollContainer.new()
+	cards_scroll.name = "build_words_scroll"
+	cards_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	cards_scroll.add_child(cards_box)
+	pv.add_child(cards_scroll)
 	var fp := PanelContainer.new()
 	fp.add_theme_stylebox_override("panel", _sb(Color(0.1, 0.11, 0.14, 0.9), Color(1, 1, 1, 0.18), 1, 10, 8))
 	foot = Label.new()
@@ -166,6 +173,7 @@ func layout(cl: Rect2) -> void:
 	if not on:
 		return
 	var px := cl.end.x - PLAN_W - 8.0
+	_avail_h = cl.end.y - (cl.position.y + 6.0) - 8.0
 	plan_panel.reset_size()
 	plan_panel.position = Vector2(px, cl.position.y + 6.0)
 	box.custom_minimum_size.x = clampf(px - cl.position.x - 28.0, 300.0, 760.0)
@@ -204,6 +212,8 @@ func _parse(t: String, final: bool) -> void:
 		return
 	res = r
 	plan = (r["plan"] as Dictionary).duplicate(true) if r.has("plan") else {}
+	if String(r.get("kind", "")) == "edit" and String(r["edit"]["op"]) == "add_pieces":
+		plan = {"pieces": (r["edit"]["specs"] as Array).duplicate(true)}   # the piece cards of an edit are edited like a plan's
 	defaults = r["defaults"]
 
 
@@ -226,7 +236,9 @@ func submit() -> void:
 	if bool(ui._bld().get("readonly", false)):
 		m._say("Words: this building was saved by a newer Kine and is read only here")
 		return
-	if String(res["kind"]) == "edit":
+	if String(res["kind"]) == "edit" and String(res["edit"]["op"]) == "save":
+		await _do_save(res["edit"])
+	elif String(res["kind"]) == "edit":
 		_do_edit(res["edit"])
 	else:
 		_do_build()
@@ -235,7 +247,8 @@ func submit() -> void:
 
 func _do_build() -> void:
 	var nm := String(ui._bld().get("name", "")) if not ui._bld().is_empty() else (String(m.S.name) if String(m.S.name) != "" else "Untitled")
-	var nb := BuildWords.make_building(plan, nm if nm != "" else "Untitled")
+	var full := BuildWords.make_building_full(plan, nm if nm != "" else "Untitled")
+	var nb: Dictionary = full["b"]
 	if not ui._bld().is_empty() and JSON.stringify(Building.to_file(nb)) == JSON.stringify(Building.to_file(ui._bld())):
 		m._say("Words: that is built already, nothing changed")
 		return
@@ -246,13 +259,43 @@ func _do_build() -> void:
 	ui.sync()
 	ui._frame_house()
 	var said := "Built: %s. Every part is editable." % sm
+	var specs: Array = plan.get("pieces", [])
+	var out := []
+	for i in specs.size():
+		var rr: Dictionary = full["res"][i]
+		if int(rr["placed"]) < int(specs[i]["n"]):
+			out.append("%d %s (%s)" % [int(specs[i]["n"]) - int(rr["placed"]), BuildWordsPieces.label(String(specs[i]["kind"]), int(specs[i]["n"]) - int(rr["placed"])), rr["why"]])
+	if not out.is_empty():
+		said += " Left out, no room: " + " ".join(out)
 	if not (res["ignored"] as Array).is_empty():
 		said += " Left out (not understood): %s." % ", ".join(res["ignored"])
 	m._say(said)
 	m._toast(said)
 
 
+## "save it as Dojo": the house under that name in My houses (its picture drawn once). No undo step: the record does not change
+func _do_save(e: Dictionary) -> void:
+	var nm := String(e["name"])
+	var hu: HousesUI = ui.houses
+	if Houses.exists(nm) and Houses.file_stem(nm) != Houses.file_stem(hu.open_name):
+		var err := "A house called \"%s\" is saved already. Say 'save it as %s 2', or use Save house (it asks before replacing)." % [nm, nm]
+		res = {"ok": false, "kind": "refuse", "error": err, "did": "", "ignored": [], "notes": [], "defaults": {}}
+		m._say(err)
+		return
+	await hu.save_house(nm)
+	if not Houses.exists(nm):
+		return
+	edit.text = ""
+	parsed_text = ""
+	res = {"ok": true, "kind": "done", "say": "Saved as \"%s\" in My houses (with its picture)" % nm}
+	plan = {}
+	m._toast(String(res["say"]))
+
+
 func _do_edit(e: Dictionary) -> void:
+	if String(e["op"]) == "add_pieces" and plan.has("pieces"):
+		e = e.duplicate()
+		e["specs"] = plan["pieces"]
 	var trial: Dictionary = (ui._bld() as Dictionary).duplicate(true)
 	var r := BuildWords.apply_edit(trial, e)
 	if not bool(r["ok"]):
@@ -300,10 +343,21 @@ func _render() -> void:
 				lines.append("This is the building now. Change a card and press Build it again.")
 			else:
 				lines.append("This replaces the building you have (Undo brings it back).")
+	elif kind == "edit" and String(res["edit"]["op"]) == "add_pieces" and plan.has("pieces") and not (plan["pieces"] as Array).is_empty():
+		title.text = "Here is the change"
+		var rep := BuildWordsPieces.report(ui._bld(), plan["pieces"])
+		var cs := BuildWordsPieces.cards(plan["pieces"], rep)
+		for i in cs.size():
+			cs[i]["n"] = i + 1
+			cards_box.add_child(_card(cs[i]))
+		lines.append("Nothing changes until you press Build it. One undo step.")
+		lines.append_array(chip_notes)
+		if not (res.get("ignored", []) as Array).is_empty():
+			lines.append("Not understood, left out: %s." % ", ".join(res["ignored"]))
 	elif kind == "edit":
 		title.text = "Here is the change"
 		cards_box.add_child(_text_card("1", "Change", BuildWords.describe_edit(res["edit"]), ""))
-		lines.append("Nothing changes until you press Build it. One undo step.")
+		lines.append("Nothing changes until you press Build it. One undo step." if String(res["edit"]["op"]) != "save" else "Nothing is saved until you press Build it (or Enter). The picture is drawn once.")
 		if not (res.get("ignored", []) as Array).is_empty():
 			lines.append("Not understood, left out: %s." % ", ".join(res["ignored"]))
 	elif kind == "done":
@@ -328,7 +382,19 @@ func _render() -> void:
 		lines.append("The plan shows here as you type. Nothing is built until you press Build it.")
 	foot.text = "\n".join(lines)
 	plan_panel.reset_size()
+	_fit_scroll()
 	_toast_clear_of_plan()
+
+
+## the cards take their own height, up to what the page has left (then they scroll); the footer stays in view
+func _fit_scroll() -> void:
+	for i in 2:
+		await m.get_tree().process_frame
+	if not is_instance_valid(cards_scroll) or not cards_scroll.is_inside_tree():
+		return
+	var overhead := plan_panel.get_combined_minimum_size().y - cards_scroll.custom_minimum_size.y
+	cards_scroll.custom_minimum_size.y = clampf(cards_box.get_combined_minimum_size().y, 60.0, maxf(_avail_h - overhead, 120.0))
+	plan_panel.reset_size()
 
 
 ## the plan just changed its height (its size is known two frames later): the toast keeps clear of it
@@ -430,7 +496,9 @@ func _card(c: Dictionary) -> PanelContainer:
 	if String(c.get("tail", "")) != "":
 		var tl := Label.new()
 		tl.text = String(c["tail"])
-		tl.modulate = Color(1, 1, 1, 0.65)
+		tl.modulate = Color(1, 0.62, 0.45) if String(c["tail"]).contains("Left out.") else Color(1, 1, 1, 0.65)
+		tl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		tl.custom_minimum_size.x = PLAN_W - 60.0
 		tl.add_theme_font_size_override("font_size", 14)
 		row.add_child(tl)
 	v.add_child(row)
@@ -511,8 +579,10 @@ func _value_of(key: String) -> float:
 			return float(BuildWords.layout(plan)["doors"].size())
 		"win_n":
 			return float(plan["win_n"])
+	if key.begins_with("pc"):
+		return BuildWordsPieces.value_of(plan["pieces"], key)
 	return float(plan.get(key, 0.0))
 
 
 func _fmt(key: String, v: float) -> String:
-	return str(int(v)) if key in ["floors", "door_n", "win_n"] else BuildWords._m(v)
+	return str(int(v)) if key in ["floors", "door_n", "win_n"] or (key.begins_with("pc") and key.ends_with("_n")) else BuildWords._m(v)
