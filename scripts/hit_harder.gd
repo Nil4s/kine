@@ -257,12 +257,12 @@ static func judge(W: Scene, B: Body, R: Dictionary, i: int, ref: Dictionary, all
 	var bl := blow(W, B, R, i, ref["X"])
 	if float(bl["impulse_Ns"]) < min_J:
 		# no gain: the slow rules below are not read (they could only reject it too)
-		return {"why": "it does not raise the blow (%.2f N s, now %.2f)" % [float(bl["impulse_Ns"]), min_J], "rule": "gain", "blow": bl}
+		return {"why": "it does not raise the blow (%.2f N s, now %.2f N s)" % [float(bl["impulse_Ns"]), min_J], "rule": "gain", "blow": bl}
 	if float(bl["miss_m"]) > END_KEEP:
 		return {"why": "the end no longer passes its contact point: %.1f cm off (bar %.0f cm)" % [float(bl["miss_m"]) * 100.0, END_KEEP * 100.0], "rule": "contact", "blow": bl}
 	var dt_f := absf(float(bl["t"]) - float(ref["tc"])) * float(ref["fps"])
 	if not allow_retime and dt_f > 1.0 + 1e-6:
-		return {"why": "the contact moves %.1f frames (bar 1; allow_retime lifts it)" % dt_f, "rule": "time", "blow": bl}
+		return {"why": "the contact moves %.1f frames (bar 1 frame; allow_retime lifts it)" % dt_f, "rule": "time", "blow": bl}
 	var extra: int = W.cards.size() - int(ref["n0"])   # an inserted follow-through card
 	var pk := _peaks(W, B, i - 1, i + 1 + extra)
 	for id in pk:
@@ -294,7 +294,7 @@ static func judge(W: Scene, B: Body, R: Dictionary, i: int, ref: Dictionary, all
 		MoveKnobs.put(Bk, W.cards[k])
 		var mv := MoveKnobs._feet_moved(feet0[k], MoveKnobs._feet(Bk), "")
 		if mv > FEET_M:
-			return {"why": "a planted foot on card %d would move %.1f cm (bar %.0f)" % [k + 1, mv * 100.0, FEET_M * 100.0], "rule": "feet", "blow": bl}
+			return {"why": "a planted foot on card %d would move %.1f cm (bar %.0f cm)" % [k + 1, mv * 100.0, FEET_M * 100.0], "rule": "feet", "blow": bl}
 	if not (ref["asserts"] as Dictionary).is_empty():
 		for r in BodyAssert.run(W, B, W.asserts)["results"]:
 			var ln := String(r["line"])

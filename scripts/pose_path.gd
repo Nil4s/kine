@@ -232,7 +232,7 @@ static func past_limit(B: Body, ang: Dictionary) -> Dictionary:
 			if v[k] < r.x - LIMIT_TOL or v[k] > r.y + LIMIT_TOL:
 				var say: String = String(B.lim[j].get("say", {}).get(ax, ""))
 				return {"joint": j, "axis": ax, "asked": snappedf(v[k], 0.01), "range": [r.x, r.y],
-					"why": "%s %s %.1f deg is outside its range %.0f..%.0f deg%s: no body gets there, so no path does" % [j, ax, v[k], r.x, r.y,
+					"why": "%s %s %.1f deg is outside its range %.0f to %.0f deg%s: no body gets there, so no path does" % [j, ax, v[k], r.x, r.y,
 						(" (%s)" % say) if say != "" else ""]}
 	return {}
 
