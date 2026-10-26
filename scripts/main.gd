@@ -319,6 +319,7 @@ var clean := false:         # recording: no highlights, no name tag, NO PANELS (
 			_sides_apply()
 var ui_side: Array = []      # the panels Tab hides
 var onboard: Onboarding     # ONBOARDING (scripts/onboarding.gd, R25): the first-launch 3-step guide
+var model_cards: ModelCards   # MODEL's task cards, "What do you want to do?" (scripts/model_cards.gd)
 var page_tour: PageTour     # P01 (scripts/page_tour.gd): BODY / MODEL / SCULPT / SURFACE, a 5-step tour the first time each opens
 var easy: EasyMode           # EASY MODE (scripts/easy_mode.gd): the 13-button bar; Expert = every panel and tool
 var ui_top_bar: Control      # the top strip (Easy hides it and shows its own bar)
@@ -2927,6 +2928,9 @@ func _ready() -> void:
 	onboard.m = self
 	add_child(onboard)
 	BootProfile.mark("onboard node")
+	model_cards = ModelCards.new()
+	model_cards.m = self
+	add_child(model_cards)
 	page_tour = PageTour.new()
 	page_tour.m = self
 	add_child(page_tour)
@@ -3069,7 +3073,9 @@ func _ready() -> void:
 	# not on a scripted shot either (round 13: an agent's screenshot came back with the tour card over the body)
 	onboard.build(ui_root)
 	page_tour.build(ui_root)
+	model_cards.build(ui_root)
 	page_tour.auto = not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour")   # P01: a test turns it on itself
+	model_cards.auto = page_tour.auto   # the cards come the first time MODEL opens on a real launch; a test turns them on itself
 	onboard.prepare(cf, not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour"))   # R25: due on a first launch; the other tours wait for it
 	easy.build(ui_root, [ui_top_bar, ui_cube, ui_nav, ui_bh, ui_play_row, ui_side_of["left"], ui_side_of["right"], ui_page_bar, ui_mouse].filter(func(n): return n != null) + ui_rails.values())   # Easy: no page tabs, no mouse legend
 	if easy.sliders != null:
@@ -13256,6 +13262,7 @@ func _ui() -> void:
 	# MESH PAGES: the line at the top of the view says what is open, and Switch... picks another object (one undo step each way)
 	ui_mesh_edit_box = PanelContainer.new()
 	ui_mesh_edit_box.name = "mesh_edit_box"
+	ui_mesh_edit_box.z_index = 2   # over the MODEL task cards' cover (ModelCards), so the "Editing:" line and Switch... stay
 	ui_mesh_edit_box.visible = false
 	ui_mesh_edit_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var esb := StyleBoxFlat.new()
@@ -15250,7 +15257,9 @@ func _page_set(p: String, save := true) -> void:
 		_refresh()   # the part tag and the joint dots follow the page (hidden on the mesh pages)
 		_cam()   # _refresh shows every axis word again: the camera's fit hides those under the bottom bars
 	_pp("refresh_cam")
-	if page_tour != null and page_tour.card != null:
+	if model_cards != null:
+		model_cards.page_opened(p)   # MODEL's task cards, when wanted (the first open in Expert)
+	if page_tour != null and page_tour.card != null and not (model_cards != null and model_cards.open):
 		page_tour.opened.call_deferred(p)   # P01: the page's first-use tour, once its panels are laid out
 	_pp("tour")
 	if save:
@@ -15306,7 +15315,7 @@ func _mesh_hint_sync() -> void:
 		return
 	_mesh_edit_sync()
 	var txt: String = ExpertPages.HINTS.get(cur_page, "") if _mesh_page() else ""
-	var show := txt != "" and not _mesh_open() and not _mesh_pending
+	var show := txt != "" and not _mesh_open() and not _mesh_pending and not (model_cards != null and model_cards.open)
 	if ui_mesh_hint.text != txt:
 		ui_mesh_hint.text = txt
 	if ui_mesh_hint.visible != show:
