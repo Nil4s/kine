@@ -19,3 +19,12 @@ UPGRADES_*.md
 SPEC.md
 **/__pycache__/
 *.pyc
+
+# native pilot build products (native/): never commit DLLs
+native/bin/
+native/.sconsign.dblite
+native/**/*.o
+native/**/*.obj
+native/**/*.a
+native/**/*.lib
+native/**/*.exp
