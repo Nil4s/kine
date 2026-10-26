@@ -150,6 +150,7 @@ func _init() -> void:
 	ss.show_screen()
 	await idle(3)
 	await click_ctl(ss._cards["building"])
+	if m.ui_save_ask != null and m.ui_save_ask.visible: m._save_ask_choose("discard")   # unsaved work above: a new project asks first (startscreen bar 13)
 	await idle(6)
 	ok(not ss.visible and m.cur_page == "BUILD" and m.S.kind == "building" and bld.on, "1 the 3D BUILDING card: kind %s, page %s" % [m.S.kind, m.cur_page])
 	var tabs := []
@@ -360,6 +361,9 @@ func _init() -> void:
 	ss.show_screen()
 	await idle(3)
 	await click_ctl(ss._cards["building"])
+	await idle(3)
+	if m.ui_save_ask != null and m.ui_save_ask.visible:   # the house above is unsaved: a new project asks first (startscreen bar 13); this one is thrown away
+		m._save_ask_choose("discard")
 	await idle(6)
 	await drag_floor(0, 0, 6, 4)
 	await click_ctl(m.ui_ribbon["BUILD"].find_child("build_tool_opening", true, false))
@@ -581,6 +585,7 @@ func _init() -> void:
 	ss.show_screen()
 	await idle(3)
 	await click_ctl(ss._cards["building"])
+	if m.ui_save_ask != null and m.ui_save_ask.visible: m._save_ask_choose("discard")   # unsaved work above: a new project asks first (startscreen bar 13)
 	await idle(6)
 	await drag_floor(0, 0, 8, 5)
 	await click_ctl(m.ui_ribbon["BUILD"].find_child("build_tool_floor", true, false))

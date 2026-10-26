@@ -460,6 +460,7 @@ func _init() -> void:
 	ss.show_screen()
 	await idle(3)
 	await click_ctl(ss._cards["building"])
+	if m.ui_save_ask != null and m.ui_save_ask.visible: m._save_ask_choose("discard")   # unsaved work above: a new project asks first (startscreen bar 13)
 	await idle(6)
 	var wbtn: Button = m.ui_ribbon["BUILD"].find_child("build_tool_words", true, false)
 	var pbtn: Button = m.ui_ribbon["BUILD"].find_child("build_tool_piece", true, false)

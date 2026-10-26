@@ -369,6 +369,14 @@ func _resume() -> void:
 func _start_kind(kind: String) -> void:
 	if m == null:
 		return
+	if m._unsaved():   # a new project replaces the open one: unsaved work is asked about first (Save / Don't save / Cancel)
+		_close()
+		m._ask_save(m._scene_label(), func(): _start_kind_now(kind))
+		return
+	_start_kind_now(kind)
+
+
+func _start_kind_now(kind: String) -> void:
 	# the pages of MODEL and STAGE are Expert's (the Easy bar hides them): those projects open in Expert
 	var want_easy: bool = EASY_KINDS.has(kind) and bool(_card_easy.get(kind, true))
 	if m.easy != null:
