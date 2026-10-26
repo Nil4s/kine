@@ -120,3 +120,4 @@ EXTRA="$EXTRA scenecat:w"   # EASY MY SCENES CATALOG (scripts/scene_cat.gd, scri
 EXTRA="$EXTRA expertcat:w"   # EXPERT "Open a scene" = the Easy catalog (scripts/easy_scenes.gd expert view): chips, badges, stars, List view (tests/expertcat_test.gd)
 
 EXTRA="$EXTRA sculptnative:w"   # first GDExtension pilot: native KineSculptNative vs GDScript sculpt (tests/sculptnative_test.gd; SKIPs the native bars without the DLL)
+EXTRA="$EXTRA cad:w"   # CAD kernel pilot: KineCAD (Open CASCADE) via scripts/kcad.gd: box - hole, fillet, shell, tessellate, STEP (tests/cad_test.gd; SKIPs without the DLL)

@@ -1,0 +1,25 @@
+#!/usr/bin/env python
+# KineCAD (OCCT) extension. Separate DLL from kine_native on purpose: it needs the OCCT DLLs next to it, the sculpt pilot must not.
+# Build (mingw ucrt64 x86_64, release), from this folder:
+#   PATH=/c/msys64/ucrt64/bin:$PATH python -m SCons platform=windows use_mingw=yes target=template_release arch=x86_64 \
+#       custom_api_file=D:/kine_native/api/extension_api.json
+# godot-cpp: KINE_GODOT_CPP (default D:/kine_native/godot-cpp). OCCT install: KINE_OCCT (default D:/kine_native/occt/install).
+# Output: ../bin/ (git-ignored). See native/CAD_BUILD.md.
+import os
+
+cpp = os.environ.get("KINE_GODOT_CPP", "D:/kine_native/godot-cpp")
+occt = os.environ.get("KINE_OCCT", "D:/kine_native/occt/install")
+ARGUMENTS["disable_exceptions"] = "no"   # OCCT throws and headers use try/catch
+env = SConscript(cpp + "/SConstruct")
+env.Append(CPPPATH=["src/", occt + "/inc"])
+env.Append(CPPDEFINES=["_USE_MATH_DEFINES"])
+LIBS = ["TKernel", "TKMath", "TKG2d", "TKG3d", "TKGeomBase", "TKBRep", "TKGeomAlgo", "TKTopAlgo", "TKPrim", "TKBO", "TKBool",
+        "TKFillet", "TKOffset", "TKMesh", "TKShHealing", "TKXSBase", "TKDE", "TKDESTEP"]
+# godot-cpp links the C++ runtime statically; OCCT's DLLs use libstdc++-6.dll and throw C++ exceptions that this DLL catches,
+# so share the one runtime instead (ship libstdc++-6, libgcc_s_seh-1, libwinpthread-1 next to the DLLs).
+env["LINKFLAGS"] = [f for f in env["LINKFLAGS"] if f not in ("-static", "-static-libgcc", "-static-libstdc++")]
+# the OCCT import libs go in as sources (after the objects: ld drops .dll.a archives that come before them)
+imports = [File(occt + "/win64/gcc/lib/lib" + l + ".dll.a") for l in LIBS]
+sources = Glob("src/*.cpp")
+library = env.SharedLibrary("../bin/kine_cad{}{}".format(env["suffix"], env["SHLIBSUFFIX"]), source=sources + imports)
+Default(library)
