@@ -8,13 +8,50 @@ extends RefCounted
 ## at the axle centres; a pivot turns about X, so the wheel rolls with the body.
 ## NUMBERS (template defaults): body 2400 x 1200 x 500 mm, wheel radius 300 mm, width 200 mm; the body's underside 150 mm up;
 ## each wheel's inner face 5 mm outside the body's side; the axles 0.33 of the body length fore and aft of its centre.
-## Not here: a card on BUILD (build_choose.gd keeps Vehicle greyed: tests/buildchoose_test.gd asserts it), Easy sliders, Expert loft.
+## EASY (scripts/easy_vehicle.gd, a screen of its own): the car's numbers (length, width, height, wheelbase) and the wheel's radius are
+## the template's sliders; "Drive it" runs drive() on drive_path(); "Use in a scene" puts the car in the set as a prop (prop_solids).
+## The car body is the BUILD Part record (scene "part"), the wheel is scene "vehicle".wheel; Expert opens the body as a Part.
+## Not here: the wheel as its own Expert Part (it has no tab yet), a car that follows a path in STAGE.
 
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
 const CLEAR := 0.15    # m: the body's underside above the ground
 const GAP := 0.005     # m: a wheel's inner face to the body's side
 const AXLE_Z := 0.33   # the axles sit this share of the body length fore and aft of the centre
+
+
+## a new car: {"car": body record, "wheel": wheel record} from the template numbers (car_p, wheel_p: mm, missing = the defaults)
+static func make_set(car_p := {}, wheel_p := {}) -> Dictionary:
+	return {"car": PartTemplates.make("car", car_p), "wheel": PartTemplates.make("wheel", wheel_p)}
+
+
+## a file's vehicle: {"wheel": the wheel's Part record} or {} when there is none (the car body is the Part record)
+static func from_file(d: Variant) -> Dictionary:
+	if not (d is Dictionary) or not (d as Dictionary).has("wheel"):
+		return {}
+	var w := Part.from_file((d as Dictionary)["wheel"])
+	return {"wheel": w} if w.has("easy") and String(w["easy"].get("t", "")) == "wheel" else {}
+
+
+## the path the car drives on: a straight 10 m, then a curve to the right (metres, the ground is y = 0)
+static func drive_path() -> Dictionary:
+	return PathWalk.curve([Vector3(0, 0, 0), Vector3(0, 0, 10), Vector3(0, 0, 12), Vector3(2.5, 0, 14.5), Vector3(7.0, 0, 15.5)])
+
+
+## the car as a set prop (Props.register_solids): the body box and the four wheel boxes, in the prop's frame (m, centred on the floor)
+static func prop_solids(car: Dictionary, wheel: Dictionary) -> Dictionary:
+	var lay := layout(car["easy"]["p"], wheel["easy"]["p"])
+	var cp: Dictionary = car["easy"]["p"]
+	var wp: Dictionary = wheel["easy"]["p"]
+	var W := float(cp["body_width"]) * MM
+	var L := float(cp["body_length"]) * MM
+	var H := float(cp["body_height"]) * MM
+	var r := float(wp["radius"]) * MM
+	var w := float(wp["width"]) * MM
+	var solids := [[lay["body"] + Vector3(0.0, H * 0.5, 0.0), Vector3(W, H, L)]]
+	for p in lay["wheels"]:
+		solids.append([p, Vector3(w, 2.0 * r, 2.0 * r)])
+	return {"solids": solids, "supports": [[CLEAR + H, Vector2.ZERO, Vector2(W, L)]]}   # supports: [height, centre, size] like Props.register
 
 
 ## the distance a wheel of radius r (m) turns through when the car covers dist (m): radians
@@ -30,7 +67,7 @@ static func layout(car_p: Dictionary, wheel_p: Dictionary) -> Dictionary:
 	var r := float(wheel_p["radius"]) * MM
 	var w := float(wheel_p["width"]) * MM
 	var x := W * 0.5 + GAP + w * 0.5
-	var z := L * AXLE_Z
+	var z := float(car_p["wheelbase"]) * MM * 0.5 if car_p.has("wheelbase") else L * AXLE_Z   # the axles: wheelbase / 2 fore and aft
 	return {"body": Vector3(0.0, CLEAR, 0.0), "r": r, "wheels": [Vector3(-x, r, z), Vector3(x, r, z), Vector3(-x, r, -z), Vector3(x, r, -z)]}
 
 

@@ -6381,7 +6381,7 @@ func _snapshot() -> Dictionary:
 	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
 	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
 		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps, "bcol": body_colour, "bsm": Overlays.smooth,
-		"props": S.props.map(func(p): return Props.to_dict(p)), "building": _bld_file(), "part": _part_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
+		"props": S.props.map(func(p): return Props.to_dict(p)), "building": _bld_file(), "part": _part_file(), "vehicle": _vehicle_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
@@ -6448,6 +6448,11 @@ func _bld_file() -> Dictionary:
 ## the open scene's PART record as the file holds it ({} = none): the undo snapshot's "part"
 func _part_file() -> Dictionary:
 	return {} if S.part.is_empty() else Part.to_file(S.part)
+
+
+## VEHICLE (B3): the wheel's record, as an undo snapshot holds it ({} when there is no car)
+func _vehicle_file() -> Dictionary:
+	return {} if S.vehicle.is_empty() else {"wheel": S.vehicle["wheel"].duplicate(true)}
 
 
 func _restore(u: Dictionary) -> void:
@@ -6562,6 +6567,8 @@ func _restore(u: Dictionary) -> void:
 		S.part = Part.from_file(u["part"])   # PART: the feature timeline, undone like a card
 		if bld != null:
 			bld.sync()
+	if u["scene"] == S and u.has("vehicle") and JSON.stringify(u["vehicle"]) != JSON.stringify(_vehicle_file()):
+		S.vehicle = Vehicle.from_file(u["vehicle"])   # VEHICLE: the wheel, undone like a card
 	if u.has("bcol") and int(u["bcol"]) != body_colour:
 		body_colour = int(u["bcol"])   # His colour, undone like the photo materials
 		_body_colour_show()

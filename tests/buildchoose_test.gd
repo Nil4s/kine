@@ -152,7 +152,8 @@ func _init() -> void:
 	for a in bc._arts:
 		shown = shown and (a as Control).is_visible_in_tree() and bc.art.get_art((a as BuildChoose.Art).kind) != null
 	ok(shown, "1 art: the cards show their pictures")
-	var dim := (bc.cards["vehicle"] as CanvasItem).modulate.a < 1.0 and (bc.cards["house"] as CanvasItem).modulate.a == 1.0   # Vehicle: Part went live with the Part workspace (w4-partws)
+	# Vehicle is live with KineCAD (w4-vehicle, B3 round 2, commit VEHCOMMIT): it is dimmed only without the DLL
+	var dim := ((bc.cards["vehicle"] as CanvasItem).modulate.a == 1.0) == KCad.available() and (bc.cards["house"] as CanvasItem).modulate.a == 1.0
 	ok(dim, "1 art: a greyed card shows its picture dimmed, a live one at full strength")
 	await shot("choose")
 	await shot("choose_art")
@@ -206,7 +207,8 @@ func _init() -> void:
 	await idle(3)
 	var page0: String = m.cur_page
 	var greys_ok := true
-	for id in ["vehicle"] + ([] if KCad.available() else ["step", "part"]):   # 2a89b914: From a template opens the starter buildings now. Part is live with KineCAD since the Part workspace (w4-partws)
+	# Vehicle is live with KineCAD since VEHCOMMIT (w4-vehicle): only the no-DLL cards stay greyed here
+	for id in ([] if KCad.available() else ["vehicle", "step", "part"]):   # 2a89b914: From a template opens the starter buildings now. Part is live with KineCAD since the Part workspace (w4-partws)
 		for mode in ["easy", "expert"]:
 			m._say("")
 			await click(b(id, mode))
@@ -217,7 +219,21 @@ func _init() -> void:
 			if not (card_says and still and said.contains(why.substr(0, 20))):
 				greys_ok = false
 				print("   grey %s %s: card_says %s still %s said '%s'" % [id, mode, card_says, still, said])
-	ok(greys_ok, "3 the greyed cards (Vehicle%s) do nothing but say why: the chooser stays, mode and page unchanged" % ("" if KCad.available() else ", Import STEP, Part"))
+	ok(greys_ok, "3 the greyed cards (%s) do nothing but say why: the chooser stays, mode and page unchanged" % ("none: KineCAD is installed" if KCad.available() else "Vehicle, Import STEP, Part"))
+	if KCad.available():   # 3c VEHICLE (w4-vehicle, VEHCOMMIT): Easy opens the car's own screen (the chooser closes, the page stays BUILD); Expert opens the car body as a Part
+		await click(b("vehicle", "easy"))
+		var cs: EasyVehicle = bc._car_screen
+		ok(not bc.open and cs != null and cs.visible and cs.is_car(), "3c Vehicle Easy opens the car screen with a car (chooser closed %s, page %s)" % [not bc.open, m.cur_page])
+		cs.close()
+		await idle(2)
+		bc.show_chooser()
+		await idle(3)
+		await click(b("vehicle", "expert"))
+		ok(not bc.open and m.bld.part.on and not m.easy.on and String(m.S.part.get("easy", {}).get("t", "")) == "car", "3c Vehicle Expert opens the car body as a Part on BUILD (part %s)" % m.bld.part.on)
+		m.bld.part.set_on(false)
+		await idle(2)
+		bc.show_chooser()
+		await idle(3)
 	ok(not (bc.whys["house"] as Label).visible and not (bc.whys["props"] as Label).visible, "3 the live cards carry no reason")
 	if KCad.available():   # 3b PART (Expert): the card opens the Part workspace on BUILD; Easy Part is not built: it says so, nothing changes
 		await click(b("part", "easy"))
