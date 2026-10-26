@@ -15153,6 +15153,21 @@ func _next_run() -> void:
 
 
 ## A PAGE (a view change: no undo step, the scene untouched): its ribbon row and its panels. Remembered in the settings file
+## page-switch profiler (PAGES speed work): off by default; a test sets page_prof_on and reads page_prof (label -> microseconds)
+var page_prof_on := false
+var page_prof := {}
+var _pp_last := 0
+
+
+func _pp(label) -> void:
+	if not page_prof_on:
+		return
+	var now := Time.get_ticks_usec()
+	if label != null:
+		page_prof[label] = int(page_prof.get(label, 0)) + now - _pp_last
+	_pp_last = now
+
+
 func _page_set(p: String, save := true) -> void:
 	if not PAGE_ROW.has(p):
 		return
@@ -15160,6 +15175,7 @@ func _page_set(p: String, save := true) -> void:
 		return   # the expert pages are hidden in Easy mode (ExpertPages; the Shift+7..9 keys too)
 	if p == "BUILD" and S.kind != "building":
 		return   # the BUILD page belongs to a 3D BUILDING project
+	_pp(null)
 	var was_page := cur_page
 	var was_mesh := ExpertPages.PAGES.has(cur_page)
 	var is_mesh := ExpertPages.PAGES.has(p)
@@ -15180,13 +15196,20 @@ func _page_set(p: String, save := true) -> void:
 		elif not dummy_on:
 			dummy_on = true
 			_dummy_hits()
+	_pp("leave")
 	cur_page = p
 	if bld != null:
 		bld.page_changed(was_page, p)
+	_pp("pre_show")
 	_mesh_show_sync()
+	_pp("mesh_show_sync")
 	if is_mesh and save and not _mesh_opening and not _mesh_open() and not (kmed != null and kmed.on) and not (ksc != null and ksc.on):
-		_mesh_auto_open(p)   # only when nothing is open: a test cube open on another page is not stopped by it   # a mesh page with nothing open: the fighter's body opens by itself (no Test cube click)
+		_mesh_open_later()   # only when nothing is open: a test cube open on another page is not stopped by it   # a mesh page with nothing open: the fighter's body opens by itself (no Test cube click), a frame or two later
+	elif not is_mesh:
+		_mesh_pending = false   # left for a posing page before the body opened: nothing to open
+	_pp("mesh_auto_open")
 	_hands_refresh()   # the hands strip is for the pose pages only
+	_pp("hands_refresh")
 	var page_said := ""
 	if save and p != was_page:   # the status line says this page's own hint (it was the last page's message)
 		page_said = "%s page: %s" % [p, PAGE_TIPS[p]]
@@ -15196,26 +15219,35 @@ func _page_set(p: String, save := true) -> void:
 		_say(page_said)
 	for k in fold:
 		fold[k] = _page_want(p, k)
+	_pp("say_fold")
 	_ribbon_row(PAGE_ROW[p])
+	_pp("ribbon_row")
 	if ui_reactions != null and p != "STAGE":
 		ui_reactions.visible = false   # R16: the picker belongs to the STAGE page
 	if ui_library != null and p != "STAGE":
 		ui_library.visible = false   # the object library too (STAGE's SET row opens it)
+	_pp("reactions")
 	_sides_apply()
+	_pp("sides_apply")
 	_layout_bottom()
+	_pp("layout_bottom")
 	_chrome_sync()
+	_pp("chrome_sync")
 	_fit_rows.call_deferred()
 	if tag != null:
 		_refresh()   # the part tag and the joint dots follow the page (hidden on the mesh pages)
 		_cam()   # _refresh shows every axis word again: the camera's fit hides those under the bottom bars
+	_pp("refresh_cam")
 	if page_tour != null and page_tour.card != null:
 		page_tour.opened.call_deferred(p)   # P01: the page's first-use tour, once its panels are laid out
+	_pp("tour")
 	if save:
 		var cf := ConfigFile.new()
 		cf.load(settings)
 		if cf.get_value("layout", "page", "POSE") != p:
 			cf.set_value("layout", "page", p)
 			cf.save(settings)
+	_pp("save_cfg")
 
 
 ## MESH PAGES (Expert only): the posing overlays (inspector, part tag, joint dots, target dummy) stay off on MODEL / SCULPT / SURFACE
@@ -15262,7 +15294,7 @@ func _mesh_hint_sync() -> void:
 		return
 	_mesh_edit_sync()
 	var txt: String = ExpertPages.HINTS.get(cur_page, "") if _mesh_page() else ""
-	var show := txt != "" and not _mesh_open()
+	var show := txt != "" and not _mesh_open() and not _mesh_pending
 	if ui_mesh_hint.text != txt:
 		ui_mesh_hint.text = txt
 	if ui_mesh_hint.visible != show:
@@ -15288,7 +15320,9 @@ func _mesh_edit_sync() -> void:
 	var show := _mesh_page()
 	var txt := ""
 	if show:
-		if BaseBody.is_open(self) or _body_sculpt_on():
+		if _mesh_pending and not _mesh_open():
+			txt = "Opening the fighter's body..."
+		elif BaseBody.is_open(self) or _body_sculpt_on():
 			txt = "Editing: the fighter's body"
 		elif ksc != null and ksc.on:
 			txt = "Editing: Test sphere"
@@ -15311,6 +15345,32 @@ func _mesh_edit_sync() -> void:
 
 func _body_sculpt_on() -> bool:
 	return ksc != null and ksc.on and ksc.source.is_valid()
+
+
+## the body's open is heavy (0.3-0.4 s: its mesh is built and read): a page switch shows "opening..." and does it two frames later,
+## so the switch itself stays a UI toggle. The page it lands on is read when it runs (MODEL -> SCULPT meanwhile: that one)
+var _mesh_pending := false
+
+
+func _mesh_open_later() -> void:
+	if _mesh_pending:
+		return
+	_mesh_pending = true
+	_mesh_edit_sync()
+	_mesh_open_wait.call_deferred()
+
+
+func _mesh_open_wait() -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame   # one painted frame of the "opening..." state
+	if not _mesh_pending:
+		return
+	_mesh_pending = false
+	var hint: String = ui_status.text
+	var page_hint := hint.begins_with("%s page" % cur_page)   # the open's own status words came before the page's hint when it was synchronous: the hint still wins
+	_mesh_boot_open()
+	if page_hint and ui_status.text != hint:
+		_say(hint)
 
 
 ## a mesh page with nothing open: the fighter's body opens (SCULPT: the body is sculpted, as "Sculpt the body" does)
