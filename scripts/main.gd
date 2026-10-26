@@ -6317,7 +6317,7 @@ var swap_scenes: Array = []
 
 ## another scene is open (opened, or a new one): BUILD shows its house and the tabs of its kind; a building project opens on BUILD,
 ## and a scene of another kind is not left on BUILD
-func _bld_scene_changed(opened: bool) -> void:
+func _bld_scene_changed(opened: bool, caller_follows := false) -> void:   # caller_follows: a card build, whose own rebuild of the cards lays the bottom out (7 ms) and whose own refresh (2 ms) come right after
 	if bld == null:
 		return
 	bld.sync()
@@ -6327,9 +6327,10 @@ func _bld_scene_changed(opened: bool) -> void:
 		_page_set("POSE")
 	else:
 		_sides_apply()   # the kind of scene decides what the page hides (PAGE_KIND_HIDES)
-		_layout_bottom()
+		if not caller_follows:
+			_layout_bottom()
 		_chrome_sync()
-		if tag != null:
+		if tag != null and not caller_follows:
 			_refresh()
 
 
@@ -11986,9 +11987,17 @@ func _doc_line(force := false) -> void:
 	_dot_gen = _dm_gen
 	_dot_hero = H
 	if _dot_later:   # a card build's rebuild: the dot is read after the frame (the serialise is 20+ ms with four fighters)
-		_dot_recheck.call_deferred()
+		_after_first_frame(_dot_recheck)
 		return
 	ui_doc_dot.visible = _unsaved()
+
+
+## a card build's own bookkeeping that nobody sees (the work copy's file, the recents line, the unsaved dot): it runs at the start of the
+## NEXT frame, after the click's own frame has played its first moving frame (a call_deferred ran before it: 35-70 ms of Run's click).
+## Calls queued in one frame run in the order they were queued, before any test or user code that waits for that next frame.
+func _after_first_frame(c: Callable) -> void:
+	await get_tree().process_frame
+	c.call()
 
 
 var _dot_gen := -1
@@ -23252,7 +23261,7 @@ func _load_scene(path0: String, work := false) -> void:   # work: a copy the app
 ## (_write_later) with the same text. Same scene as _load_scene(path, true) on the written file.
 func _load_scene_built(path0: String, d: Dictionary) -> void:
 	var rt: Variant = d   # no deep copy of a 37-card clip: the caller (easy_home._build) never touches d again, the scene's cards copy their poses (Scene._finite) and the file is written from d after the frame
-	_write.call_deferred(path0, d)
+	_after_first_frame(_write.bind(path0, d))
 	if not (rt is Dictionary):
 		_say_plain("NOT NOW: %s is not a scene file (missing, empty or not JSON)" % path0.get_file())
 		return
@@ -23285,7 +23294,7 @@ func _open_scene_dict(path: String, d: Dictionary, work: bool, built := false) -
 	if ui_scene_name != null:
 		ui_scene_name.text = S.name
 	if built:
-		_recent_note.call_deferred(path)   # the settings file's recent list: written after the frame (the card's pictures do not wait for it)
+		_after_first_frame(_recent_note.bind(path))   # the settings file's recent list: written after the clip's first moving frame (the card's pictures do not wait for it)
 	else:
 		_recent_note(path)
 	_show_open_scene()
@@ -23306,7 +23315,7 @@ func _open_scene_dict(path: String, d: Dictionary, work: bool, built := false) -
 			journal.trim()   # ... and its journal goes with it
 	_props_show()   # the opened scene's set is drawn now (a load used to leave the props out of the view until the next edit)
 	S.apply(B, 0.0)
-	_bld_scene_changed(true)
+	_bld_scene_changed(true, built)
 
 
 # ---------------------------------------------------------------- THE SHOT CAMERA (docs/GAP_ANALYSIS.md row 21; GATES SC)

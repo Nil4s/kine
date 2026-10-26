@@ -385,9 +385,22 @@ func offsets(vs: Vector2, mpp: float) -> Vector2:
 ## inside the free rect: the target is the middle of its box, the distance the smallest that keeps every point inside.
 ## Called when a clip is built and when the window resizes. The playhead's pose is put back after the sampling.
 ## frame_clip one frame later: the clip's first moving frame is not held up by the sampling (~100 ms on the Run card)
+var _fc_pending := false   # a framing is already waiting for the next frame
+var _fc_keep := true       # keep_body of the waiting framing: true only while every request asked for it
+
+
+## the framing for the next frame. One click asks for it twice in the same frame (the card's own, and the strip's new row
+## height): the second ask joins the first, so the 20+ poses are sampled once. The same camera comes out: both asks run on
+## the same layout, and the body is put back to the playhead unless every request kept it.
 func frame_clip_next(keep_body := false) -> void:
+	if _fc_pending:
+		_fc_keep = _fc_keep and keep_body
+		return
+	_fc_pending = true
+	_fc_keep = keep_body
 	await get_tree().process_frame
-	frame_clip(keep_body)
+	_fc_pending = false
+	frame_clip(_fc_keep)
 
 
 func frame_clip(keep_body := false) -> void:   # keep_body: the body is put back exactly as it was (a card just added: its pose is the card's)
