@@ -223,8 +223,7 @@ func click_undo() -> bool:
 		await idle(10)
 		return false
 	clicks += 1
-	if ub.text.strip_edges() == "":
-		note("Undo is an arrow icon with no words at the top right (found by its tooltip '%s')" % ub.tooltip_text.split("\n")[0])
+	# an arrow icon with no words is fine (Nick 10-25: "undo button i think is kind intuitive even for easy mode")
 	say("   click the Undo button (tooltip: '%s')" % ub.tooltip_text.split("\n")[0])
 	return await click_ctl(ub)
 
