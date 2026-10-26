@@ -459,7 +459,8 @@ static func _piece_plan(b: Dictionary, p: Dictionary, k: float, dashed: bool) ->
 		var dir: Vector2 = (tip - way[way.size() - 2]).normalized()
 		for sgn in [-1.0, 1.0]:
 			out.append(_line(tip, tip - dir.rotated(sgn * 0.45) * 3.0, "stairs-arrow", data))
-		out.append(_text(way[0] + Vector2(0, 3.2), "UP", 2.2, "m", "text", data))
+		var start_dir: Vector2 = (way[1] - way[0]).normalized()
+		out.append(_text(way[0] - start_dir * 5.2, "UP", 2.2, "m", "text", data))   # just before the arrow's tail, clear of the flight's outline
 	else:
 		out.append(_poly([L.call(x0, z0), L.call(x1, z0), L.call(x1, z1), L.call(x0, z1)], "piece", data))
 		out.append(_text(L.call((x0 + x1) * 0.5, (z0 + z1) * 0.5) + Vector2(0, 0.8), String(BuildPieces.DEFS[String(p["kind"])]["label"]), 1.8, "m", "text", data))
