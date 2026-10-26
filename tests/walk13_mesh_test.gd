@@ -1,12 +1,12 @@
 ## godot --path . -s tests/walk13_mesh_test.gd   (BEGINNER WALK-THROUGH, round 13: EXPERT mode, the mesh pages; real clicks and drags only)
 ## The six goals a hobbyist would try with today's mesh pages (MODEL, SCULPT, SURFACE):
 ##  0 start as a fresh install (Easy), "Switch to Expert" on the Easy bar (the only way to Expert a beginner sees);
-##  1 MODEL: a hint says what to do first (within 2 s); "Body mesh" opens the body's mesh and it is shown;
+##  1 MODEL: a hint says what to do first (within 2 s); the body's mesh opens by itself and it is shown (was: "Body mesh");
 ##  2 box-select a chest region by a drag from empty space, G, move the mouse, click: the vertices move (max mm);
 ##  3 Undo (the top bar): the mesh is back exactly (< 0.01 mm);
 ##  4 SCULPT: "Test sphere", the "Draw" button, one stroke across it: vertices move; Undo restores;
 ##  5 SURFACE: "Library..." on the Materials panel, a skin preset: the body's colour in the picture changes;
-##  6 MODEL "Apply body", Esc, POSE: drag the left elbow: the arm moves and the body edit is applied.
+##  6 MODEL Esc (the edit is applied on leaving; was "Apply body" first), POSE: drag the left elbow: the arm moves and the body edit is applied.
 ## Only what a beginner sees: buttons by their words, the view by a click or a drag at the part's screen point. Reads of state are
 ## for the checks and the numbers only. Prints "GOAL n: PASS|FRICTION - what happened (clicks k, s seconds)". Exits 0.
 ## Screenshots: C:/Temp/claude/w13/walk13_<n>.png.
@@ -481,7 +481,7 @@ func _init() -> void:
 	say("start: buttons %s" % btn_names())
 
 	# 0 + 1. SWITCH TO EXPERT, MODEL: THE HINT, THE BODY MESH
-	start_goal(1, "Switch to Expert, MODEL: a hint says what to do first; Body mesh opens the body's mesh")
+	start_goal(1, "Switch to Expert, MODEL: a hint says what to do first; the body's mesh opens by itself")
 	var sw: bool = await click_has("Expert")
 	await idle(15)
 	say("   after 'Switch to Expert': Easy %s" % str(m.easy.on))
@@ -500,13 +500,13 @@ func _init() -> void:
 	if hint_ms < 0.0:
 		note("no hint on MODEL within 2 s (words on screen: %s)" % visible_words())
 	await shot(10, "MODEL, Expert, before the body mesh")
-	var body_ok := await click_text("Body mesh")
+	var body_ok := BaseBody.is_open(m)   # the body opens by itself on the MODEL page (no "Edit body" click any more; meshclean bar 4)
 	await idle(30)
 	var k1 := kmesh()
 	var nverts := k1.verts.size() if k1 != null else 0
 	say("   body mesh open: %s | verts %d | hint still shown: %s | '%s'" % [str(k1 != null), nverts, str(m.ui_mesh_hint_box.visible), status_now()])
 	if k1 == null:
-		note("'Body mesh' did not open the body's mesh (%s)" % status_now())
+		note("the body's mesh did not open on MODEL by itself (%s)" % status_now())
 	await shot(1, "MODEL, the body mesh open")
 	finish(1, sw and on_model and hint_ms >= 0.0 and k1 != null and body_ok, "Expert %s; MODEL page %s; hint in %.0f ms; body mesh %s verts" % [str(not m.easy.on), str(on_model), hint_ms, str(nverts)])
 
@@ -735,12 +735,12 @@ func _init() -> void:
 	finish(5, mat_shown and skin_ok and gap >= 0.03, "skin preset %s; colour gap %.3f (%s -> %s)" % [str(skin_ok), gap, str(c_before), str(c_after)])
 
 	# 6. BACK TO POSE: THE EDITED BODY STILL POSES
-	start_goal(6, "MODEL: Apply body, Esc, POSE: drag the left elbow: the arm moves, the body edit stays")
+	start_goal(6, "MODEL: Esc applies the body edit, POSE: drag the left elbow: the arm moves, the body edit stays")
 	var on_md := await page_click("MODEL")
 	await idle(15)
-	var ap_ok := await click_text("Apply body")
+	var ap_ok := BaseBody.is_open(m)   # no "Save to body" click any more: Esc (or the page change below) applies the edit by itself
 	await idle(20)
-	say("   after Apply body: '%s'" % status_now())
+	say("   before Esc: '%s'" % status_now())
 	await press_key(KEY_ESCAPE)
 	await idle(15)
 	var on_pose := await page_click("POSE")
@@ -767,7 +767,7 @@ func _init() -> void:
 	if arm_turn < 5.0:
 		note("the left forearm barely moved (%.1f deg) on POSE after the body edit" % arm_turn)
 	if not applied:
-		note("the edited body is not applied to the fighter (Apply body did nothing: %s)" % status_now())
+		note("the edited body is not applied to the fighter (leaving the body did not apply it: %s)" % status_now())
 	await shot(6, "POSE, arm dragged after the edit")
 	finish(6, on_pose and fighter_shown and arm_turn >= 5.0 and applied, "arm turned %.1f deg; fighter shown %s; edit applied %s" % [arm_turn, str(fighter_shown), str(applied)])
 
