@@ -35,6 +35,7 @@ var _arts := []
 var _texts := []
 var _last := Vector2.ZERO
 var _settle := 0
+var art: BuildChooseArt   # the six rendered pictures (scripts/build_choose_art.gd), read from the cache or drawn once, a frame at a time
 var _solid: MeshInstance3D = null   # the imported STEP solid, shown on BUILD
 
 
@@ -78,6 +79,7 @@ func show_chooser() -> void:
 	_settle = 4
 	_sync()
 	_place()
+	art.request_all()   # a no-op once every picture is there; else one per frame, after this one
 
 
 func close() -> void:
@@ -99,6 +101,9 @@ func _process(_dt: float) -> void:
 
 
 func build(parent: Control) -> void:
+	art = BuildChooseArt.new()
+	add_child(art)
+	art.changed.connect(func(_k): for a in _arts: (a as Control).queue_redraw())
 	root_box = Panel.new()
 	root_box.name = "build_choose"
 	root_box.visible = false
@@ -132,11 +137,12 @@ func _card(c: Dictionary) -> PanelContainer:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 4)
 	pc.add_child(v)
-	var art := Art.new()
-	art.kind = id
-	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	v.add_child(art)
-	_arts.append(art)
+	var pic := Art.new()
+	pic.kind = id
+	pic.src = art
+	pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	v.add_child(pic)
+	_arts.append(pic)
 	v.add_child(_label(String(c["title"]), 19, Color(0.95, 0.96, 0.98)))
 	var d := _label(String(c["text"]), 13, Color(0.74, 0.77, 0.82))
 	d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -226,7 +232,7 @@ func _place() -> void:
 	# per card: art + title 26 + text (1-2 lines) + why (0-3 lines) + buttons 44 + margins 20 + gaps
 	var head := (_title.get_combined_minimum_size().y + 6.0) + (_sub.get_combined_minimum_size().y + 6.0 if _sub.visible else 0.0)
 	var card_room := (room - head - GAP) * 0.5
-	var art_h := clampf(card_room - 180.0, 0.0, 120.0)
+	var art_h := clampf(card_room - 150.0, 0.0, 130.0)
 	for t in _texts:
 		(t as Label).custom_minimum_size = Vector2(cw - 24.0, 0)
 		(t as Label).add_theme_font_size_override("font_size", 12 if small else 13)
@@ -312,11 +318,19 @@ func _import_step(path: String, _easy_on: bool) -> bool:
 ## a card's picture: drawn, no files
 class Art extends Control:
 	var kind := ""
+	var src: BuildChooseArt
 
 	func _draw() -> void:
 		var w := size.x
 		var h := size.y
-		draw_rect(Rect2(0, 0, w, h), Color(0.11, 0.12, 0.15), true)
+		draw_rect(Rect2(0, 0, w, h), BuildChooseArt.BG, true)
+		var tex: Texture2D = src.get_art(kind) if src != null else null
+		if tex != null:   # the render, whole, centred (the strip is short: cropping would cut the subject)
+			var ts := tex.get_size()
+			var sc := minf(w / ts.x, h / ts.y)
+			var r := Rect2((Vector2(w, h) - ts * sc) * 0.5, ts * sc)
+			draw_texture_rect(tex, r, false)
+			return
 		var grey := Color(0.74, 0.76, 0.8)
 		var dark := Color(0.5, 0.52, 0.57)
 		var s := minf(w * 0.4, h * 0.8)

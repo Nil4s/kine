@@ -11,8 +11,9 @@ extends SceneTree
 ##   5 "What to build" on the BUILD ribbon (Expert) and on Easy's bar reopens the chooser
 ##   6 Import STEP is live when KCad.available(): a picked file shows as a solid on BUILD (read, not clicked, when the DLL is absent)
 ##   7 fit at 1280x720 and 1024x600: six cards and their buttons inside the window, no overlap
+##   1b every card has a rendered texture, non-uniform (pixel stddev > 8), cached under user://build_choose_art; greyed cards dimmed
 ##   8 no key names in the chooser's texts (mouse only)
-##   shots: C:/Temp/claude/buildchoose/{choose,choose_1024,easy}.png. Only user:// is written.
+##   shots: C:/Temp/claude/buildchoose/{choose,choose_art,choose_1024,easy}.png. Only user:// is written.
 var fails := 0
 var m: Node
 const KCad := preload("res://scripts/kcad.gd")
@@ -115,7 +116,46 @@ func _init() -> void:
 	for id in IDS:
 		six = six and bc.cards.has(id) and (bc.cards[id] as Control).is_visible_in_tree() and b(id, "easy").is_visible_in_tree() and b(id, "expert").is_visible_in_tree()
 	ok(six, "1 six cards, each with an Easy and an Expert button")
+	# 1 art: a real render on every card (non-uniform pixels), cached under user://, the greyed ones dimmed
+	var waited := 0
+	while waited < 900 and not bc.art.ready_all():
+		await process_frame
+		waited += 1
+	await idle(3)
+	var flat := []
+	var sds := []
+	for id in IDS:
+		var t: Texture2D = bc.art.get_art(id)
+		if t == null or t.get_width() < 8:
+			flat.append(id + " no texture")
+			continue
+		var img := t.get_image()
+		var n := 0
+		var sum := 0.0
+		var sum2 := 0.0
+		for y in range(0, img.get_height(), 2):
+			for x in range(0, img.get_width(), 2):
+				var l := img.get_pixel(x, y).get_luminance() * 255.0
+				sum += l
+				sum2 += l * l
+				n += 1
+		var sd := sqrt(maxf(0.0, sum2 / n - (sum / n) * (sum / n)))
+		sds.append("%s %.1f" % [id, sd])
+		if sd <= 8.0:
+			flat.append("%s stddev %.1f" % [id, sd])
+	ok(flat.is_empty(), "1 art: every card has a rendered texture with non-uniform pixels (stddev > 8): %s %s" % [sds, flat])
+	var cached := true
+	for id in IDS:
+		cached = cached and FileAccess.file_exists(BuildChooseArt.cache_path(id)) and BuildChooseArt.cache_path(id).begins_with("user://")
+	ok(cached and bc.art.renders + bc.art.disk_hits >= 6, "1 art: the six pictures are cached under user://build_choose_art/ (renders %d, disk %d)" % [bc.art.renders, bc.art.disk_hits])
+	var shown := true
+	for a in bc._arts:
+		shown = shown and (a as Control).is_visible_in_tree() and bc.art.get_art((a as BuildChoose.Art).kind) != null
+	ok(shown, "1 art: the cards show their pictures")
+	var dim := (bc.cards["part"] as CanvasItem).modulate.a < 1.0 and (bc.cards["house"] as CanvasItem).modulate.a == 1.0
+	ok(dim, "1 art: a greyed card shows its picture dimmed, a live one at full strength")
 	await shot("choose")
+	await shot("choose_art")
 
 	# 7 fit (the live chooser)
 	for sz in [Vector2i(1280, 720), Vector2i(1024, 600)]:
