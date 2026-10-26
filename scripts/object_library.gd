@@ -18,6 +18,11 @@ extends PanelContainer
 ##   Armour: ArmourFromBody (scripts/armour_from_body.gd, make at line 753) takes body region words; ARMOUR below = 7 plates.
 ##   Bodies (.kbody, scripts/body_file.gd, drawn by scripts/body_thumbs.gd) and crowd copies are not objects to place here.
 ##   My models: Props.EXTRA (scripts/props.gd line 114): the .glb models in user://library/props, registered by the importer.
+## CATEGORY BROWSER (Nick: "monkey-brain easy"): the left column is the category list, Recent on top; the right is a grid of big picture
+## cards. The six categories above are the built-in ones (CATS, the inventory); the BUILD ones come after them (EXTRA_CATS: BUILD's
+## own pieces, Fight blocks / Stairs / Furniture, as "piece:<kind>" props, BuildPieceKinds; and the house being drawn, placed as a
+## set as BUILD's Use in a scene does). catalog() lists all of them: every object is in exactly one category (group_of). The search
+## filters the whole catalog. Recent is the last RECENT_MAX objects placed, kept in user://library_recent.json.
 ## Totals with no models of your own: 11 + 5 + 1 + 13 + 7 = 37 built-in objects (the thin tabs are Sports and Armour).
 
 const CATS := ["Weapons", "Furniture", "Sports", "Everyday", "Armour", "My models"]
@@ -37,20 +42,39 @@ const PROP_NAME := {"ball": "Football", "sword": "Sword (on the floor)", "step":
 ## [name, region word]: a plate over the body region (KMeshBody.REGIONS); the words are the ones ArmourFromBody.make reads
 const ARMOUR := [["Chest plate", "chest"], ["Abdomen plate", "abdomen"], ["Helmet", "head"], ["Upper arm plate (left)", "upperarm_l"],
 	["Forearm plate (right)", "forearm_r"], ["Thigh plate (left)", "thigh_l"], ["Shin plate (right)", "shin_r"]]
-const PIC := 104                   # the picture as shown (the 128 px render, scaled): the tile holds it and its name
-const TILE := Vector2(124, PIC + 48)   # the picture and the name under it, two lines at most (B8b: nothing spills)
-const COLS := 4
+const EXTRA_CATS := ["Fight blocks", "Build stairs", "Build furniture", "My houses"]   # BUILD's categories (BuildPieces.CATS), after the built-in ones
+const EXTRA_TIPS := {
+	"Fight blocks": "Fight blocks: pillars, fences, ramps and platforms to fight on and around. A click puts one on the floor in front of him",
+	"Build stairs": "Stairs from BUILD, with real steps he can climb. A click puts one on the floor in front of him",
+	"Build furniture": "Tables, benches and crates from BUILD. A click puts one on the floor in front of him",
+	"My houses": "The house you drew in BUILD. A click puts it in the set",
+}
+const PIECE_CAT := {"Stairs": "Build stairs", "Furniture": "Build furniture", "Fight blocks": "Fight blocks"}   # BuildPieces.CATS name -> the column's name
+const RECENT := "Recent"
+const RECENT_MAX := 12
+const PIC := 112                   # the picture as shown (the 128 px render, scaled): the tile holds it and its name
+const TILE := Vector2(132, PIC + 44)   # the picture and the name under it, two lines at most (B8b: nothing spills)
+const COLS := 3
+const EASY_PIC := 136              # Easy: bigger cards, same grid
+const EASY_TILE := Vector2(156, EASY_PIC + 52)
+const SIDE_W := 128.0              # the category column's width
 const CHROME := 150.0             # px of the panel that is not the grid: header, search, tabs, note, margins
 
 var m: Node                       # main (untyped, as the other panels)
 var weapons: Array = []           # main's WEAPONS: [name, kind, note]
 var items: Array = []             # the inventory: every object, from inventory()
+var more: Array = []              # the BUILD objects, from extra_items(): pieces and the house; items + more = catalog()
+var view := ""                    # "" = the built-in category tab; RECENT or one of EXTRA_CATS = that column entry is shown
+var recent_file := "user://library_recent.json"
+var _recent: Array = []           # ids, newest first
+var _side_btns := {}              # column entry name (RECENT, EXTRA_CATS) -> its Button
 var thumbs: LibraryThumbs
 var tab := 0                      # the category shown when no search is typed
 var query := ""                   # the search box, lower case
 var _tabs: Array = []             # Button per category
 var _search: LineEdit
 var _scroll: ScrollContainer
+var _side: ScrollContainer
 var _grid: GridContainer
 var _note: Label
 var _pics := {}                   # item id -> TextureRect of its tile (the tiles on screen)
@@ -64,6 +88,8 @@ func setup(main: Node, weapon_list: Array) -> void:
 	m = main
 	weapons = weapon_list
 	items = inventory()
+	more = extra_items()
+	_recent = _recent_read()
 	thumbs = LibraryThumbs.new()
 	thumbs.name = "library_thumbs"
 	add_child(thumbs)
@@ -96,26 +122,38 @@ func setup(main: Node, weapon_list: Array) -> void:
 	_search.tooltip_text = "filters every category by name while it has words; clicking a tab clears it"
 	_search.text_changed.connect(_on_search)
 	v.add_child(_search)
-	var tabs := HBoxContainer.new()
-	tabs.add_theme_constant_override("separation", 2)
-	v.add_child(tabs)
+	var body := HBoxContainer.new()
+	body.add_theme_constant_override("separation", 8)
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(body)
+	_side = ScrollContainer.new()
+	_side.name = "library_side"
+	_side.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_side.custom_minimum_size = Vector2(SIDE_W, 0)
+	body.add_child(_side)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 3)
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_side.add_child(col)
 	var grp := ButtonGroup.new()
+	var rb := _side_button(RECENT, grp)
+	rb.pressed.connect(_pick_view.bind(RECENT))
+	col.add_child(rb)
 	for i in CATS.size():
-		var b := Button.new()
+		var b := _side_button(CATS[i], grp)
 		b.name = "tab_%d" % i
-		b.tooltip_text = TAB_TIPS[CATS[i]]
-		b.toggle_mode = true
-		b.button_group = grp
-		b.focus_mode = Control.FOCUS_NONE
-		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.button_pressed = i == tab
 		b.pressed.connect(_pick_tab.bind(i))
-		tabs.add_child(b)
+		col.add_child(b)
 		_tabs.append(b)
+		if CATS[i] == "Armour":   # the BUILD categories sit between Armour and My models
+			for c in EXTRA_CATS:
+				var eb := _side_button(c, grp)
+				eb.pressed.connect(_pick_view.bind(c))
+				col.add_child(eb)
 	_scroll = ScrollContainer.new()
 	_scroll.name = "library_scroll"
 	_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	v.add_child(_scroll)
+	body.add_child(_scroll)
 	_grid = GridContainer.new()
 	_grid.name = "library_grid"
 	_grid.columns = COLS
@@ -148,8 +186,84 @@ func inventory() -> Array:
 	for a in ARMOUR:
 		out.append(_item("Armour", String(a[0]), "armour", String(a[1]), [["box", Vector3.ZERO, Vector3(0.28, 0.28, 0.02)]], "armour:" + String(a[1])))
 	for k in Props.EXTRA.keys():
+		if bool(Props.EXTRA[k].get("piece", false)) or bool(Props.EXTRA[k].get("building", false)):
+			continue   # a BUILD piece or house is listed by extra_items(), not a model of the user's own
 		out.append(_item("My models", _title(String(k).trim_prefix("my ")), "prop", String(k), _prop_shapes(String(k)), "model:" + String(k)))
 	return out
+
+
+## the BUILD objects: each BuildPieces piece (a prop kind "piece:<kind>", BuildPieceKinds) in BUILD's own category, and the house being
+## drawn (when it has a room) as one set
+func extra_items() -> Array:
+	var out: Array = []
+	for c in BuildPieces.CATS:
+		for k in c[1]:
+			var kind := BuildPieceKinds.ensure(String(k))
+			if kind == "":
+				continue
+			out.append(_item(String(PIECE_CAT.get(c[0], c[0])), String((BuildPieces.DEFS[k] as Dictionary)["label"]), "piece", kind, _prop_shapes(kind), "build:" + String(k)))
+	if m != null and m.S != null and not (m.S.building as Dictionary).is_empty() and not (m.S.building.get("rooms", []) as Array).is_empty() and not bool(m.S.building.get("readonly", false)):
+		var b: Dictionary = m.S.building
+		var kind := BuildStage.kind_of_building(b)
+		var boxes: Array = Building.collision_boxes(b)
+		var shapes: Array = []
+		for bx in boxes:
+			shapes.append(["box", (bx["xf"] as Transform3D).origin, (bx["half"] as Vector3) * 2.0])
+		out.append(_item("My houses", "House: %s" % String(b.get("name", "Untitled")), "house", kind, shapes, "house:" + kind))
+	return out
+
+
+## every object the library lists: the inventory and the BUILD objects
+func catalog() -> Array:
+	return items + more
+
+
+## the column entry an object is listed under: its category (the six built-in ones, then EXTRA_CATS)
+func group_of(it: Dictionary) -> String:
+	return String(it["cat"])
+
+
+func in_group(cat: String) -> Array:
+	return catalog().filter(func(it): return group_of(it) == cat)
+
+
+## the objects placed last, newest first (ids still in the catalog)
+func recent_items() -> Array:
+	var out: Array = []
+	for id in _recent:
+		var it := item(String(id))
+		if not it.is_empty():
+			out.append(it)
+	return out
+
+
+func _recent_read() -> Array:
+	if not FileAccess.file_exists(recent_file):
+		return []
+	var d = JSON.parse_string(FileAccess.get_file_as_string(recent_file))
+	var out: Array = []
+	if d is Array:
+		for x in d:
+			if x is String and out.size() < RECENT_MAX:
+				out.append(x)
+	return out
+
+
+func _recent_add(id: String) -> void:
+	_recent.erase(id)
+	_recent.push_front(id)
+	while _recent.size() > RECENT_MAX:
+		_recent.pop_back()
+	var f := FileAccess.open(recent_file, FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify(_recent))
+		f.close()
+
+
+func clear_recent() -> void:
+	_recent = []
+	if FileAccess.file_exists(recent_file):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(recent_file))
 
 
 ## the objects of one category (the inventory's list for it)
@@ -158,7 +272,7 @@ func in_cat(cat: String) -> Array:
 
 
 func item(id: String) -> Dictionary:
-	for it in items:
+	for it in catalog():
 		if it["id"] == id:
 			return it
 	return {}
@@ -167,7 +281,7 @@ func item(id: String) -> Dictionary:
 ## the tile's name, as the search sees it
 func names_matching(text: String) -> Array:
 	var out := []
-	for it in items:
+	for it in catalog():
 		if String(it["name"]).to_lower().contains(text.to_lower()):
 			out.append(String(it["id"]))
 	return out
@@ -176,6 +290,9 @@ func names_matching(text: String) -> Array:
 ## show the panel (under the strip, beside the left panel) and refresh its tiles
 func open() -> void:
 	items = inventory()   # the list is read again on every open: a model exported or used as a prop since the last open is listed
+	more = extra_items()   # ... and the house as BUILD has it now
+	if m != null:
+		_recent = _recent_read()
 	_armour_body = []
 	_armour_hash = ""
 	visible = true
@@ -205,7 +322,7 @@ func fit(vp: Vector2) -> void:
 	var left := float(m.lw()) + 12.0 if m != null else 12.0
 	var low := low_edge(vp, float(m.bottom_h), float(m.LINE_H)) if m != null else vp.y - 120.0
 	var h := clampf(low - top - CHROME, 160.0, 460.0)
-	_scroll.custom_minimum_size = Vector2(float(COLS) * (TILE.x + 8.0) + 24.0, h)
+	_scroll.custom_minimum_size = Vector2(float(COLS) * (_tile_size().x + 8.0) + 24.0, h)
 	reset_size()
 	var over := top + size.y - low   # the panel's own rows (header, search, tabs, note) are more than CHROME on a short window: the grid gives way
 	if over > 0.0 and h > 160.0:
@@ -230,6 +347,8 @@ func place(id: String) -> bool:
 	m._step_easy = String(it["name"]) if m.easy.on else ""   # Easy's undo step is the tile's name ("Undo: Sword")
 	var ok := _place_item(it)
 	m._step_easy = ""
+	if ok:
+		_recent_add(id)
 	return ok
 
 
@@ -247,7 +366,9 @@ func _place_item(it: Dictionary) -> bool:
 		else:
 			_note.text = "%s: right hand%s, Ctrl+Z undoes" % [it["name"], " in every card" if not m.S.cards.is_empty() else ""]
 		return true
-	if how == "prop":
+	if how == "house":
+		return _place_house(it)
+	if how == "prop" or how == "piece":
 		m._prop_add(String(it["key"]))   # main pushes its own undo step, as the Add prop menu does
 		_note.text = ("%s is on the floor. Undo takes it away." if m.easy.on else "%s: on the floor, Ctrl+Z undoes") % it["name"]
 		return true
@@ -260,6 +381,23 @@ func _place_item(it: Dictionary) -> bool:
 		_note.text = "%s not placed: %s" % [it["name"], String(r.get("said", ""))]
 		return false
 	_note.text = ("%s is on him now. Undo takes it away." if m.easy.on else "%s placed over the body (Ctrl+Z takes it back)") % it["name"]
+	return true
+
+
+## the house being drawn goes into the set (BUILD's Use in a scene: one undo step); a house already in the set is not added twice
+func _place_house(it: Dictionary) -> bool:
+	if BuildStage.prop_index(m.S) >= 0:
+		_note.text = "That house is already in the set."
+		return false
+	m._push_undo()
+	var kind := BuildStage.use(m.S)
+	if kind == "":
+		m.undo.pop_back()
+		_note.text = "Draw a room in BUILD first."
+		return false
+	m.sel_prop = -1
+	m._props_show()
+	_note.text = ("%s is in the set. Undo takes it away." if m.easy.on else "%s is in the set (Ctrl+Z takes it back)") % it["name"]
 	return true
 
 
@@ -435,8 +573,31 @@ func _box_style() -> StyleBoxFlat:
 	return sb
 
 
+func _side_button(nm: String, grp: ButtonGroup) -> Button:
+	var b := Button.new()
+	b.name = "cat_" + nm.replace(" ", "_").to_lower()
+	b.text = nm   # the name alone: the count is in the tooltip
+	b.toggle_mode = true
+	b.button_group = grp
+	b.focus_mode = Control.FOCUS_NONE
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.custom_minimum_size = Vector2(0, 30)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if nm == RECENT or EXTRA_CATS.has(nm):
+		_side_btns[nm] = b
+	return b
+
+
 func _pick_tab(i: int) -> void:
 	tab = i
+	view = ""
+	query = ""
+	_search.text = ""
+	_rebuild()
+
+
+func _pick_view(nm: String) -> void:
+	view = nm
 	query = ""
 	_search.text = ""
 	_rebuild()
@@ -452,14 +613,36 @@ func _refresh_tabs() -> void:
 		var b: Button = _tabs[i]
 		b.text = CATS[i]   # the name alone (beginner round 8, friction 8): the count is in the tooltip
 		b.tooltip_text = "%d objects. %s" % [in_cat(CATS[i]).size(), TAB_TIPS[CATS[i]]]
-		b.button_pressed = i == tab and query == ""
+		b.button_pressed = view == "" and i == tab and query == ""
+	for nm in _side_btns:
+		var eb: Button = _side_btns[nm]
+		if nm == RECENT:
+			eb.tooltip_text = "The last things you put in the set, newest first (%d)" % recent_items().size()
+		else:
+			eb.tooltip_text = "%d objects. %s" % [in_group(nm).size(), EXTRA_TIPS[nm]]
+		eb.button_pressed = view == nm and query == ""
+		if nm == "My houses":
+			eb.visible = view == nm or not in_group(nm).is_empty()   # no house drawn yet: no empty entry in the column
 
 
-## the tiles on screen: the current tab, or every match while the search has words
+## the tiles on screen: the search's matches across the whole catalog, else Recent, a BUILD category, or the current built-in tab
 func _shown() -> Array:
 	if query != "":
-		return items.filter(func(it): return String(it["name"]).to_lower().contains(query))
+		return catalog().filter(func(it): return String(it["name"]).to_lower().contains(query))
+	if view == RECENT:
+		return recent_items()
+	if view != "":
+		return in_group(view)
 	return in_cat(CATS[tab])
+
+
+## the card's size and picture: Easy's are bigger
+func _tile_size() -> Vector2:
+	return EASY_TILE if m != null and m.easy != null and m.easy.on else TILE
+
+
+func _pic_size() -> int:
+	return EASY_PIC if m != null and m.easy != null and m.easy.on else PIC
 
 
 func _rebuild() -> void:
@@ -475,10 +658,10 @@ func _rebuild() -> void:
 	if shown.is_empty():
 		var empty := Label.new()
 		empty.name = "library_empty"
-		empty.custom_minimum_size = Vector2(TILE.x * COLS, 60)
+		empty.custom_minimum_size = Vector2(_tile_size().x * COLS, 60)
 		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		empty.text = ("Nothing matches \"%s\"." % query) if query != "" else \
-			("No models of your own yet. Drop a .glb file on the window to bring it in; it is listed here." if m.easy.on else "No models of your own yet. Import model... (the SET row) brings a .glb in; it is listed here.")
+			("Nothing yet. Click a picture in any list and it shows up here." if view == RECENT else "Nothing here yet. Draw a room in BUILD and the house is listed here." if view == "My houses" else "No models of your own yet. Drop a .glb file on the window to bring it in; it is listed here." if m.easy.on else "No models of your own yet. Import model... (the SET row) brings a .glb in; it is listed here.")
 		empty.add_theme_color_override("font_color", Tok.of("text:0.6"))
 		_grid.add_child(empty)
 	_note.text = ("%d shown. Click a picture to give it to him." if m.easy.on else "%d shown. Click a tile to place it in the set or the hand.") % shown.size()
@@ -549,7 +732,7 @@ func _drop(id: String, mp: Vector2) -> void:
 	var it := item(id)
 	if it.is_empty() or m == null:
 		return
-	if String(it["how"]) != "prop":
+	if not (String(it["how"]) in ["prop", "piece"]):
 		place(id)
 		return
 	var hit = Plane(Vector3.UP, 0.0).intersects_ray(m.cam.project_ray_origin(mp), m.cam.project_ray_normal(mp))
@@ -608,7 +791,7 @@ func _ghost_stop() -> void:
 func _tile(it: Dictionary, one := false) -> Control:
 	var b := Button.new()
 	b.name = "tile_" + String(it["id"]).replace(":", "_")
-	b.custom_minimum_size = TILE
+	b.custom_minimum_size = _tile_size()
 	b.focus_mode = Control.FOCUS_NONE
 	b.tooltip_text = ("%s: click it, or drag it onto the floor, to give it to him" if m.easy.on else "%s: click to place it (one undo step)") % it["name"]
 	b.set_meta("item", it["id"])
@@ -620,7 +803,7 @@ func _tile(it: Dictionary, one := false) -> Control:
 	v.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	b.add_child(v)
 	var pic := TextureRect.new()
-	pic.custom_minimum_size = Vector2(PIC, PIC)
+	pic.custom_minimum_size = Vector2(_pic_size(), _pic_size())
 	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -664,12 +847,12 @@ func thumb_source(it: Dictionary) -> Dictionary:
 	if how == "weapon":
 		src["spec"] = var_to_str(["weapon", key, Body.KINDS["dagger" if key == "two_daggers" else key], LibraryThumbs.SAME_SCALE])   # the scale is in the cache name
 		src["build"] = func() -> Node3D: return LibraryThumbs.weapon_node(key)
-	elif how == "prop":
+	elif how == "prop" or how == "piece":
 		src["spec"] = var_to_str(["prop", key, Props.kind_of(key)])
 		src["build"] = func() -> Node3D: return Props.mesh(Props.make(key))
-	if how == "weapon" or how == "prop":
+	if how == "weapon" or how == "prop":   # (a BUILD piece is drawn once and cached under user://thumbs/lib; nothing of it ships)
 		src["shipped"] = LibraryThumbs.shipped_path(String(it["id"]), String(src["spec"]))   # the pictures shipped with the app (tools/make_lib_thumbs.gd)
-	elif m != null and not m.pieces.is_empty() and BaseBody.skin_of(m) != null:
+	elif how == "armour" and m != null and not m.pieces.is_empty() and BaseBody.skin_of(m) != null:
 		# an armour plate: the plate is built on the fighter's body, so its key holds the body's vertex count too
 		if _armour_hash == "":
 			_armour_hash = body_hash(m)
