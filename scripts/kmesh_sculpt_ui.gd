@@ -269,9 +269,7 @@ func input(ev: InputEvent) -> bool:
 		var ke := ev as InputEventKey
 		var k := ke.keycode
 		if ke.ctrl_pressed and k == KEY_Z:
-			var lb := undo.redo() if ke.shift_pressed else undo.undo()
-			view.mark_dirty()
-			m._say("Sculpt: %s %s" % ["redo" if ke.shift_pressed else "undo", lb] if lb != "" else "Sculpt: nothing to %s" % ("redo" if ke.shift_pressed else "undo"))
+			undo_redo(not ke.shift_pressed)
 			return true
 		if _mask_key(ke) or fsets.key(self, ke):
 			return true
@@ -368,3 +366,10 @@ func _draw_overlay() -> void:
 	var sc := cam.unproject_position(c)
 	var rp := cam.unproject_position(c + cam.global_transform.basis.x * radius * view.global_transform.basis.get_scale().x)
 	_ov.draw_arc(sc, sc.distance_to(rp), 0.0, TAU, 48, Tok.c("pick_hover"), 1.5, true)
+
+
+## Ctrl+Z / Ctrl+Shift+Z, and the top bar's Undo / Redo buttons while the sphere shows (walk13: they only knew pose undo)
+func undo_redo(back: bool) -> void:
+	var lb := undo.undo() if back else undo.redo()
+	view.mark_dirty()
+	m._say("Sculpt: %s %s" % ["undo" if back else "redo", lb] if lb != "" else "Sculpt: nothing to %s" % ("undo" if back else "redo"))

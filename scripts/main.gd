@@ -6510,7 +6510,20 @@ func _push_undo() -> void:
 	_co_sync()
 
 
+## the top bar's Undo / Redo on a mesh page: the page's own mesh history (the pose's is a different list). true = taken
+func _mesh_undo(back: bool) -> bool:
+	if ksc != null and ksc.on and ksc.showing:
+		ksc.undo_redo(back)
+		return true
+	if kmed != null and kmed.on and kmed.showing:
+		kmed.undo_redo(back)
+		return true
+	return false
+
+
 func _undo() -> void:
+	if _mesh_undo(true):
+		return
 	sk.fitted = []   # I9: the faint fitted skeleton belongs to the pose that was undone
 	var sk_hist: Variant = sk.hist.back() if not sk.hist.is_empty() else null
 	sk.flips = {}   # ...and so do its flip handles, unless this undo takes back a flip (below)
@@ -6555,6 +6568,8 @@ func _undo() -> void:
 
 
 func _redo() -> void:
+	if _mesh_undo(false):
+		return
 	_tree_sync()
 	if redo.is_empty():
 		return
