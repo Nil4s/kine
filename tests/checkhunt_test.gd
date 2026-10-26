@@ -13,7 +13,7 @@ var finish_ms := 0.0
 
 
 func ok(good: bool, what: String) -> void:
-	print(("PASS: " if good else "FAIL: ") + what)
+	print(("ok   " if good else "FAIL ") + what)   # run_par.py counts lines that start with "ok" and "FAIL"
 	if not good:
 		fails += 1
 
