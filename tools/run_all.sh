@@ -118,3 +118,4 @@ EXTRA="$EXTRA handlock:w"   # HANDS: the weapon's hands row, Only the part I dra
 EXTRA="$EXTRA bladeturn:w"   # BLADE TURN / HEAD TILT: the weapon turned inside its hand, the Expert sliders and buttons, the Easy side slider (tests/bladeturn_test.gd)
 EXTRA="$EXTRA scenecat:w"   # EASY MY SCENES CATALOG (scripts/scene_cat.gd, scripts/easy_scenes.gd): chips, quality badges, Hide weird ones, stars
 EXTRA="$EXTRA expertcat:w"   # EXPERT "Open a scene" = the Easy catalog (scripts/easy_scenes.gd expert view): chips, badges, stars, List view (tests/expertcat_test.gd)
+EXTRA="$EXTRA crashcheck:w"   # CRASH CHECK: every realism option + every Fix + Fix all on the owner scene, real clicks, 0 script errors, one undo step each, no stale timeline index (tests/crashcheck_test.gd)

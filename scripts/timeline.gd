@@ -544,6 +544,9 @@ func _retime_to(x: float, fine: bool) -> void:
 	var S := _S()
 	var i: int = _drag["i"]
 	var n := S.cards.size()
+	if i >= n:   # the cards were rebuilt under the drag (an undo, a Fix): nothing to drag any more
+		_drag = {}
+		return
 	var dx: float = x - float(_drag["x0"])
 	if _drag["kind"] == "edge0":
 		if absf(dx) < 3.0:
@@ -951,7 +954,20 @@ func _draw_sp(font: Font, y0: float, h: float) -> void:
 		draw_string(font, Vector2(r.position.x + 3.0, r.position.y + 10.0), ("IMPOSSIBLE  " if b["flag"] else "FLIGHT  ") + String(b["txt"]), HORIZONTAL_ALIGNMENT_LEFT, maxf(r.size.x - 4.0, 8.0), 10, Tok.c("text"))
 
 
+## the hover / drag hold a CARD INDEX: any rebuild of the cards under a still mouse (a Fix, an undo, a scene opened, Polish) can leave
+## it past the end ('Out of bounds get index 28' every frame in _draw). Dropped here, at the one place that reads it, so no
+## caller of a card change has to remember to reset the timeline.
+func _drop_stale() -> void:
+	var S := _S()
+	var n := 0 if S == null else S.cards.size()
+	if _hover.get("kind", "") in ["move", "hold", "edge0"] and int(_hover.get("i", -1)) >= n:
+		_hover = {}
+	if not _drag.is_empty() and _drag.get("kind", "") in ["move", "hold", "edge0"] and int(_drag.get("i", -1)) >= n:
+		_drag = {}
+
+
 func _draw() -> void:
+	_drop_stale()
 	var S := _S()
 	draw_rect(Rect2(Vector2.ZERO, size), Tok.c("tl_bg"))
 	var font := get_theme_default_font()
@@ -1142,6 +1158,7 @@ var _ph_seen := -1.0
 func _process(_dt: float) -> void:
 	if m == null or not visible:
 		return
+	_drop_stale()
 	var t := float(m.playhead)
 	if t == _ph_seen:
 		return
