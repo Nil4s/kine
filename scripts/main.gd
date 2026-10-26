@@ -76,6 +76,7 @@ var _dummy_keep := true    # what dummy_on was before that
 var parts := {}         # part -> MeshInstance3D (its collision capsule): click target + highlight
 var mats := {}
 var dots := {}
+var man_root: Node3D      # the whole mannequin (its skinned pieces are in it): hidden on a page that hides the figure (PAGE_KIND_HIDES)
 var skel: Skeleton3D     # the mannequin's skeleton (assets/mannequin.glb, Quaternius UAL2, CC0)
 var bone_idx := {}
 var bat_handle: MeshInstance3D
@@ -282,6 +283,11 @@ const PAGE_TIPS := {"BODY": "make the person: stature, mass and proportions as p
 	"STAGE": "the set and the cast: props, cameras, crowd, several fighters", "CHECK": "is it right: grade, human check, frame data",
 	"DELIVER": "get it out: Export... (any engine or tool), frame data, versions",
 	"MODEL": "model the mesh: the test cube, the fighter's body mesh, extrude, bevel, loop cut, modifiers", "SCULPT": "sculpt the test sphere: draw, inflate, smooth, grab with the brushes", "SURFACE": "UVs and materials: the UV editor, unwrap, pack, a material from a photo", "BUILD": "build a set: draw rooms on the grid, put doors and windows in the walls"}
+## CHROME THAT IS ABOUT ANIMATING A FIGHTER, hidden per PROJECT KIND and PAGE (a 3D building project's BUILD page is a drawing board:
+## no mannequin, no clips strip, no pose rails). Every name is one thing: figure (the mannequin, the target dummy, the held weapons),
+## joints (the joint dots, the part tag), sides (the side panels and their rails), scene (the SCENE clips strip), readout (the
+## part / cards / time line), legend (the mouse legend), next (the page bar's Next: line). A page not named here hides nothing
+const PAGE_KIND_HIDES := {"building": {"BUILD": ["figure", "joints", "sides", "scene", "readout", "legend", "next"]}}
 var cur_page := "POSE"
 var base_fold := {"left": false, "right": false, "bottom": false}   # the user's own folds (a page that names none follows them)
 var page_fold := {}        # page -> {left/right/bottom: bool}: what the user chose on that page
@@ -331,12 +337,26 @@ var ui_side_of := {}    # "left" / "right" -> the panel
 var ui_body: BodyPanel  # the BODY page's panel (scripts/body_panel.gd)
 
 
+## does this kind of project hide this on this page (PAGE_KIND_HIDES)
+func _hides(what: String) -> bool:
+	return S != null and (PAGE_KIND_HIDES.get(S.kind, {}).get(cur_page, []) as Array).has(what)
+
+
+## the parts of the window that follow _hides, other than the side panels (_sides_apply), the strip (_layout_bottom), the 3D
+## figure and its joints (_refresh): the Next: line and the mouse legend
+func _chrome_sync() -> void:
+	if ui_next != null and ui_next.get_parent() != null:
+		(ui_next.get_parent() as Control).visible = not _hides("next")
+	if ui_mouse != null:
+		ui_mouse.refresh()
+
+
 func lw() -> float:
-	return 0.0 if big_view or easy.on else float(RAIL_W if fold["left"] else LEFT_W)
+	return 0.0 if big_view or easy.on or _hides("sides") else float(RAIL_W if fold["left"] else LEFT_W)
 
 
 func rw() -> float:
-	return 0.0 if big_view or easy.on else float(RAIL_W if fold["right"] else RIGHT_W)
+	return 0.0 if big_view or easy.on or _hides("sides") else float(RAIL_W if fold["right"] else RIGHT_W)
 
 
 func _fold(which: String, on: bool, save := true) -> void:
@@ -368,7 +388,7 @@ func _sides_apply() -> void:
 		return
 	var mesh_pg := _mesh_page()
 	for k in ui_side_of:
-		var pose_only: bool = mesh_pg   # the posing panels (the inspector, the browser's Body / Poses tree) are off on the mesh pages: back as they were on leaving
+		var pose_only: bool = mesh_pg or _hides("sides")   # the posing panels (the inspector, the browser's Body / Poses tree) are off on the mesh pages: back as they were on leaving
 		ui_side_of[k].visible = not big_view and not fold[k] and not clean and not easy.on and not (k == "left" and cur_page == "BODY") and not pose_only
 		if ui_rails.has(k):
 			ui_rails[k].visible = not big_view and fold[k] and not clean and not easy.on and not pose_only
@@ -3452,7 +3472,7 @@ func _process_body(dt: float) -> void:
 		var bt := bar_text()
 		if bt != ui_bar.text:   # rebuilt every frame, written only when it differs: no edit path can leave it stale
 			ui_bar.text = bt
-		ui_bar.visible = not (easy != null and easy.on)   # Easy: no card count or seconds readout (Expert keeps it)
+		ui_bar.visible = not (easy != null and easy.on) and not _hides("readout")   # Easy: no card count or seconds readout (Expert keeps it)
 	_props_pose()   # UU2: carried and falling props follow the playhead (nothing when no card carries)
 	var _a_before := playhead   # the sound follows whatever moved the playhead this frame (_audio_tick)
 	if playing and not S.cards.is_empty():
@@ -3534,6 +3554,7 @@ func _world() -> void:
 	amat.vertex_color_use_as_albedo = true
 	am.material_override = amat
 	stage_root.add_child(am)
+	stage_marks.append(am)
 	_grid()
 	stage_root.add_child(gm)
 	grid_node = gm
@@ -3548,6 +3569,7 @@ func _world() -> void:
 	floor.material_override = fm
 	floor.position.y = -0.002
 	stage_root.add_child(floor)
+	stage_marks.append(floor)
 	for lab in [["X  his left", Vector3(0.72, 0.01, 0), AXES[0][1]], ["Y  up", Vector3(0, AXIS_Y + 0.05, 0), AXES[1][1]], ["Z  he faces this way", Vector3(0, 0.01, 0.74), AXES[2][1]]]:
 		var l := Label3D.new()
 		l.name = "axis_" + String(lab[0]).left(1)
@@ -3582,6 +3604,7 @@ func _body() -> void:
 	body_skin = skin
 	_body_look_tint()
 	var mq := Overlays.mannequin(self, skin)
+	man_root = mq[0]
 	skel = mq[1]
 	bone_idx = mq[2]
 	BootProfile.mark("body: mannequin load")
@@ -3650,6 +3673,7 @@ const GRID_STEP := 0.1
 const AXIS_Y := 0.3
 const AXES := [[Vector3(0.6, 0.001, 0), Color(0.9, 0.3, 0.3)], [Vector3(0, AXIS_Y, 0), Color(0.35, 0.8, 0.35)], [Vector3(0, 0.001, 0.6), Color(0.3, 0.5, 0.95)]]
 var axis_mesh: ImmediateMesh
+var stage_marks: Array = []   # the fighter's own stage: the axes' lines and the little floor square (hidden with the figure, PAGE_KIND_HIDES)
 var axis_tags: Array = []   # the floor's axis names ("Z  he faces this way"): Expert's reading aids, hidden in Easy (_refresh)
 
 
@@ -3735,7 +3759,7 @@ func _dummy_build() -> void:
 
 ## the dummy now: where it stands, and red with a tag where the weapon is in it
 func _dummy_refresh() -> void:
-	dummy_node.visible = dummy_on
+	dummy_node.visible = dummy_on and not _hides("figure")
 	dummy_node.transform = T.xf
 	var h := T.touch(B) if dummy_on else {}
 	dummy_hit = h
@@ -4979,7 +5003,8 @@ func _refresh() -> void:
 	# EASY QUIET: no standing pick light, name tag or joint dots on a beginner's body (a blue "right upper arm" over the punch
 	# read as a fault); the hover light stays (what a click would grab) and the pick shows while a part is dragged
 	var quiet: bool = easy != null and easy.on and dragging == ""
-	var mesh_pg := _mesh_page()   # the mesh pages: no part tag, no joint dots (the posing overlays)
+	var mesh_hide := _hides("joints")
+	var mesh_pg := _mesh_page() or mesh_hide   # the mesh pages: no part tag, no joint dots (the posing overlays)
 	for j in Body.ORDER + Body.WEAPON + Body.WEAPON2:
 		var body: bool = not (j in Body.WEAPON or j in Body.WEAPON2)
 		if dots.has(j):
@@ -5038,8 +5063,10 @@ func _refresh() -> void:
 		m.visible = B.wep_on
 	d2_handle.visible = B.wep2_on
 	d2_blade.visible = B.wep2_on
-	wep_model.visible = B.wep_on
-	wep2_model.visible = B.wep2_on
+	wep_model.visible = B.wep_on and not _hides("figure")
+	wep2_model.visible = B.wep2_on and not _hides("figure")
+	if man_root != null:
+		man_root.visible = not _hides("figure")
 	if B.wep2_on:
 		var hu := float(Body.KINDS[B.wep2_kind]["handle"])
 		_place(d2_handle, B.wep2_point(0.0), B.wep2_point(hu), 0.0, false)
@@ -5064,7 +5091,9 @@ func _refresh() -> void:
 	var c2: Array = B.cap(sel)
 	tag.visible = not clean and not quiet and not mesh_pg
 	for at in axis_tags:
-		at.visible = not (easy != null and easy.on)
+		at.visible = not (easy != null and easy.on) and not mesh_hide
+	for sm in stage_marks:
+		(sm as Node3D).visible = not _hides("figure")
 	for dj in dots:
 		dots[dj].visible = not clean and not quiet and not hidden_parts.has(dj) and not mesh_pg
 	tag.text = part_words(sel)
@@ -6293,6 +6322,12 @@ func _bld_scene_changed(opened: bool) -> void:
 		_page_set("BUILD")
 	elif cur_page == "BUILD" and S.kind != "building":
 		_page_set("POSE")
+	else:
+		_sides_apply()   # the kind of scene decides what the page hides (PAGE_KIND_HIDES)
+		_layout_bottom()
+		_chrome_sync()
+		if tag != null:
+			_refresh()
 
 
 ## the open scene's BUILD record as the file holds it ({} = none): the undo snapshot's "building"
@@ -10886,7 +10921,10 @@ func _toast(t: String) -> void:
 	var hold := EASY_TOAST_T if easy != null and easy.on else TOAST_T
 	ui_toast.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP, Control.PRESET_MODE_MINSIZE)
 	ui_toast.position.y = 96
-	if easy != null and easy.on:
+	if bld != null and bld.on:
+		bld.place_toast(ui_toast)   # BUILD: low in the view, never over the panel
+		bld.place_toast.call_deferred(ui_toast)
+	elif easy != null and easy.on:
 		_easy_toast_place(ui_toast)
 		_easy_toast_place.call_deferred(ui_toast)   # again once the strip has its new size (an undo can grow or shrink it this frame)
 	_toast_gen += 1
@@ -12560,6 +12598,7 @@ func _ui() -> void:
 		(b as Control).custom_minimum_size = Vector2(28, STRIP_H - 4)
 	hb.name = "b_help"
 	wb.name = "b_why"
+	bld.strip_button(strip)   # BUILD: "Use in a scene", top right, only in a building project
 	var tfill := Control.new()
 	tfill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tb.add_child(tfill)
@@ -15163,6 +15202,7 @@ func _page_set(p: String, save := true) -> void:
 		ui_library.visible = false   # the object library too (STAGE's SET row opens it)
 	_sides_apply()
 	_layout_bottom()
+	_chrome_sync()
 	_fit_rows.call_deferred()
 	if tag != null:
 		_refresh()   # the part tag and the joint dots follow the page (hidden on the mesh pages)
@@ -15533,6 +15573,9 @@ func _layout_bottom() -> void:
 	ui_card_row.custom_minimum_size.y = (EASY_ROW_H if eempty else 26) if empty else (EASY_ROW_H if eo else 104)
 	ui_timeline.visible = not empty
 	ui_play_row.visible = not empty and not easy.on
+	if _hides("scene"):
+		bottom_h = PAGE_H   # the clips strip is not this page's: only the page bar is left along the bottom
+	ui_bp.visible = not _hides("scene")
 	ui_bp.offset_top = -bottom_h
 	for p in ui_side + ui_rails.values():
 		if p != ui_insp and p != ui_side_of.get("left"):   # RR2 / RR6: the inspector and the browser are as tall as they need

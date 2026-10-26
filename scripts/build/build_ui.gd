@@ -19,6 +19,13 @@ const TOOLS := [["Room", "ROOM: drag on the floor. Sizes snap to 0.5 m; type the
 	["Opening", "OPENING: click a wall to add a door. Drag it along the wall (snaps to 0.5 m). The Remove button takes it out and fills the hole."]]
 const LATER := ["Wall", "Pull", "Floor", "Roof", "Piece", "Words"]
 const FLOOR_HINT := "Drag on the floor to make a room"
+## the house: ONE mesh (walls and the floor slab), two colours by height: the floor (at or below y = 0) is dark graphite and the walls
+## are light clay, so the room reads as walls standing on a floor. Lit from above and the side, so every wall face reads
+const HOUSE_SHADER := preload("res://scripts/build/house.gdshader")
+const VIEW_YAW := 208.0   # the default view: three quarters, from the front-left (the front wall is the near one), a little above
+const VIEW_PITCH := -50.0
+const VIEW_DIST := 14.0
+const VIEW_AT := Vector3(0.9, 0.9, 1.0)
 const HALF := 12.0   # the grid reaches this far from the origin
 
 var m: Node
@@ -53,6 +60,7 @@ var tool_btns := {}
 var fields := {}               # param -> LineEdit
 var kind_btns := {}
 var remove_btn: Button
+var use_btn: Button            # "Use in a scene", top right (disabled until phase 1d)
 var panel_title: Label
 var _grid_was := true
 
@@ -65,9 +73,8 @@ func setup(main: Node) -> void:
 	m.stage_root.add_child(root3)
 	house = MeshInstance3D.new()
 	house.name = "build_house"
-	var clay := StandardMaterial3D.new()
-	clay.albedo_color = Color(0.74, 0.76, 0.8)
-	clay.roughness = 0.9
+	var clay := ShaderMaterial.new()
+	clay.shader = HOUSE_SHADER
 	house.material_override = clay
 	root3.add_child(house)
 	ghost_room = MeshInstance3D.new()
@@ -75,7 +82,7 @@ func setup(main: Node) -> void:
 	ghost_room.material_override = _glass(Color(SKY, 0.32))
 	ghost_room.visible = false
 	root3.add_child(ghost_room)
-	sel_box = _box_node("build_sel", Color(SKY, 0.55))
+	sel_box = _box_node("build_sel", Color(SKY, 0.5))
 	hover_box = _box_node("build_hover", Color(SKY, 0.28))
 	grid = _make_grid()
 	root3.add_child(grid)
@@ -114,7 +121,7 @@ func _make_grid() -> MeshInstance3D:
 	for i in range(-n, n + 1):
 		var t := i * 0.5
 		var major := i % 4 == 0
-		var col := Color(0.42, 0.5, 0.62, 0.55) if major else Color(0.3, 0.35, 0.43, 0.32)
+		var col := Color(0.42, 0.5, 0.62, 0.32) if major else Color(0.3, 0.35, 0.43, 0.16)
 		if i == 0:
 			col = Color(0.5, 0.62, 0.9, 0.8)
 		v.append_array([Vector3(t, 0.002, -HALF), Vector3(t, 0.002, HALF), Vector3(-HALF, 0.002, t), Vector3(HALF, 0.002, t)])
@@ -141,7 +148,7 @@ func _make_grid() -> MeshInstance3D:
 func _make_person() -> Node3D:
 	var p := Node3D.new()
 	p.name = "build_person"
-	var mt := _glass(Color(0.78, 0.82, 0.9, 0.7), false)
+	var mt := _glass(Color(0.74, 0.86, 1.0, 0.78))
 	var parts := [[Vector3(-0.1, 0.43, 0), 0.09, 0.86], [Vector3(0.1, 0.43, 0), 0.09, 0.86], [Vector3(0, 1.24, 0), 0.2, 0.76]]
 	for e in parts:
 		var cm := CapsuleMesh.new()
@@ -160,7 +167,16 @@ func _make_person() -> Node3D:
 	hd.material_override = mt
 	hd.position = Vector3(0, 1.69, 0)
 	p.add_child(hd)
-	p.position = Vector3(-1.2, 0, 1.0)
+	var disc := MeshInstance3D.new()   # the dark disc he stands on
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = 0.34
+	cyl.bottom_radius = 0.34
+	cyl.height = 0.01
+	disc.mesh = cyl
+	disc.material_override = _glass(Color(0.0, 0.0, 0.02, 0.75))
+	disc.position = Vector3(0, 0.005, 0)
+	p.add_child(disc)
+	p.position = Vector3(3.8, 0, -1.0)
 	return p
 
 
@@ -175,11 +191,13 @@ func _build_ui() -> void:
 		btn.button_group = group
 		btn.button_pressed = t[0] == tool
 		btn.name = "build_tool_" + String(t[0]).to_lower()
+		_icon_word(btn, String(t[0]))
 		tool_btns[t[0]] = btn
 		row.add_child(btn)
 	for t in LATER:
 		var btn: Button = m._button(t, func(): pass, "%s: " % t)
 		btn.name = "build_tool_" + t.to_lower()
+		_icon_word(btn, t)
 		m._grey(btn, "coming next")
 		row.add_child(btn)
 	ov = Control.new()
@@ -265,6 +283,40 @@ func _build_ui() -> void:
 	_chip_text()
 
 
+## a ribbon button of this page: its icon (scripts/icons.gd, build_*) and one word
+func _icon_word(btn: Button, word: String) -> void:
+	btn.icon = Icons.tex("build_" + word.to_lower())
+	btn.theme_type_variation = "Ribbon"
+	btn.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	btn.expand_icon = false
+	btn.add_theme_constant_override("h_separation", 6)
+
+
+## "Use in a scene", top right of the window, amber (the project's one main action); it waits for phase 1d (the building as a prop
+## in a scene). main._ui builds the top strip, then calls this with it. Only a building project shows it
+func strip_button(strip: Control) -> void:
+	use_btn = m._button("Use in a scene", func(): pass, "put this building into a scene as a set to animate in")
+	use_btn.name = "build_use_in_scene"
+	var c: Color = Tok.c("accent")
+	for st in ["normal", "hover", "pressed", "disabled"]:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = c if st != "disabled" else Color(c, 0.55)
+		if st == "hover":
+			sb.bg_color = c.lightened(0.15)
+		sb.set_corner_radius_all(6)
+		sb.content_margin_left = 12
+		sb.content_margin_right = 12
+		sb.content_margin_top = 1
+		sb.content_margin_bottom = 1
+		use_btn.add_theme_stylebox_override(st, sb)
+	for k in ["font_color", "font_hover_color", "font_pressed_color", "font_disabled_color", "font_focus_color"]:
+		use_btn.add_theme_color_override(k, Tok.c("on_accent"))
+	m._grey(use_btn, "coming next")
+	use_btn.visible = false
+	strip.add_child(use_btn)
+	strip.move_child(use_btn, m.ui_undo_btn.get_index())
+
+
 func _pill_panel(nm: String, txt: String, fs: int) -> PanelContainer:
 	var pc := PanelContainer.new()
 	pc.name = nm
@@ -297,7 +349,13 @@ func _num_row(label: String, key: String) -> HBoxContainer:
 	le.custom_minimum_size.x = 64
 	le.alignment = HORIZONTAL_ALIGNMENT_CENTER
 	le.select_all_on_focus = true
-	le.focus_entered.connect(le.select_all.call_deferred)   # a click in the field takes the whole number: typing replaces it
+	var first := [false]   # this click gave the field its focus (the window grabs it before the press reaches the field)
+	le.gui_input.connect(func(ev: InputEvent):   # a click in the field takes the whole number (the release would put the caret down and drop a selection made at focus): typing replaces it
+		if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+			if not (ev as InputEventMouseButton).pressed and first[0]:
+				first[0] = false
+				le.select_all.call_deferred())
+	le.focus_entered.connect(func(): first[0] = true; le.select_all.call_deferred())
 	for bt in [minus, plus]:
 		bt.focus_mode = Control.FOCUS_NONE
 		bt.custom_minimum_size.x = 28
@@ -342,6 +400,39 @@ func _step_name(what: String) -> void:
 	m._step_hint = what
 
 
+## a toast (main._toast) never covers the panel: it sits low in the view, right of the Snap chip, and moves left of the panel (or
+## under it) if it would touch it
+func place_toast(t: Label) -> void:
+	var cl: Rect2 = m.nav_clear_rect()
+	t.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT, Control.PRESET_MODE_MINSIZE)
+	var sz := t.size
+	var x := cl.position.x + 236.0
+	var y := cl.end.y - sz.y - 6.0
+	if panel.visible:
+		var pr := Rect2(panel.position, panel.size).grow(8.0)
+		if Rect2(Vector2(x, y), sz).intersects(pr):
+			x = maxf(cl.position.x + 12.0, pr.position.x - sz.x)
+		if Rect2(Vector2(x, y), sz).intersects(pr):
+			y = pr.end.y
+	t.position = Vector2(x, y)
+
+
+## frame a wall: when its outer face looks away from the camera (a door on the far side), the camera turns three quarters onto it,
+## room still in the middle. A wall already seen from outside keeps the view
+func frame_wall(room: String, wall: String) -> void:
+	var r := Building.room_of(_bld(), room)
+	if r.is_empty():
+		return
+	var n := {"front": Vector3(0, 0, -1), "back": Vector3(0, 0, 1), "left": Vector3(-1, 0, 0), "right": Vector3(1, 0, 0)}[wall] as Vector3
+	var c := Vector3(float(r["x"]) + float(r["w"]) * 0.5, 0.0, float(r["z"]) + float(r["d"]) * 0.5)
+	var wc := c + Vector3(n.x * float(r["w"]) * 0.5, 0.0, n.z * float(r["d"]) * 0.5)
+	var to_cam: Vector3 = m.cam.global_position - wc
+	to_cam.y = 0.0
+	if to_cam.normalized().dot(n) > 0.3:
+		return
+	m._turn_to(rad_to_deg(atan2(n.x, n.z)) + 28.0, VIEW_PITCH, m.dist, Vector3(c.x, 0.9, c.z), false)
+
+
 ## the page was set (main._page_set): BUILD's grid / person / labels show on BUILD only; the house shows on every page
 func page_changed(from: String, to: String) -> void:
 	var was := on
@@ -350,7 +441,7 @@ func page_changed(from: String, to: String) -> void:
 		_grid_was = m.grid_node.visible if m.grid_node != null else true
 		if m.grid_node != null:
 			m.grid_node.visible = false
-		m._turn_to(-28.0, -32.0, 13.0, Vector3(2.0, 0.4, 1.5), false)
+		m._turn_to(VIEW_YAW, VIEW_PITCH, VIEW_DIST, VIEW_AT, false)
 	elif was and not on:
 		if m.grid_node != null:
 			m.grid_node.visible = _grid_was
@@ -364,6 +455,8 @@ func page_changed(from: String, to: String) -> void:
 ## everything that shows the record follows it: the mesh, the highlights, the panel, the hint, the page tabs
 func sync() -> void:
 	m._page_tabs_sync()
+	if use_btn != null:
+		use_btn.visible = m.S.kind == "building"
 	var bd := _bld()
 	if bd.is_empty() or bool(bd.get("readonly", false)) or bd.get("rooms", []).is_empty():
 		house.mesh = null
@@ -710,6 +803,7 @@ func _press(p: Vector2) -> bool:
 			var id := Building.add_opening(_bld(), w["room"], w["wall"], kind, w["at"])
 			sel = id
 			drag = "slide"
+			frame_wall(w["room"], w["wall"])
 			_slide_moved = true   # its undo step is this click's
 			m._say("Opening: a %s on the %s wall. Drag it along the wall to slide it" % [kind, w["wall"]])
 			sync()
@@ -851,6 +945,31 @@ func _pill(c: Vector2, txt: String, fill: Color, fg: Color, fs: int) -> void:
 	ov.draw_string(f, Vector2(r.position.x + 10.0, r.position.y + 4.0 + f.get_ascent(fs)), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, fg)
 
 
+## the 12 edges of a box, in the sky blue, over the view
+func _outline_box(bx: AABB) -> void:
+	var pts := []
+	for i in 8:
+		pts.append(m.cam.unproject_position(bx.position + Vector3(bx.size.x * (i & 1), bx.size.y * ((i >> 1) & 1), bx.size.z * ((i >> 2) & 1))))
+	for i in 8:
+		for bit in [1, 2, 4]:
+			if (i & bit) == 0:
+				ov.draw_line(pts[i], pts[i | bit], SKY, 2.0, true)
+
+
+## a pill with a thin outline (the hint under a picked opening)
+func _pill_outline(c: Vector2, txt: String, fill: Color, line: Color, fs: int) -> void:
+	var f := ThemeDB.fallback_font
+	var sz := f.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+	var r := Rect2(c - Vector2(sz.x * 0.5 + 10.0, sz.y * 0.5 + 4.0), sz + Vector2(20.0, 8.0))
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = fill
+	sb.border_color = line
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(int(r.size.y * 0.5))
+	ov.draw_style_box(sb, r)
+	ov.draw_string(f, Vector2(r.position.x + 10.0, r.position.y + 4.0 + f.get_ascent(fs)), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(line, 0.95))
+
+
 func _draw_labels() -> void:
 	if not on:
 		return
@@ -880,6 +999,10 @@ func _draw_labels() -> void:
 		var o := _opening(sel)
 		if not o.is_empty():
 			var bx := _opening_aabb(o)
+			_outline_box(bx.grow(0.03))
+			var wall := String(o["wall"])
+			var along: Vector3 = Vector3.RIGHT if (wall == "front" or wall == "back") else Vector3.BACK
+			ov.draw_circle(m.cam.unproject_position(bx.get_center() + along * (bx.size.dot(along) * 0.5 + 0.22)), 5.0, SKY)
 			_pill(m.cam.unproject_position(bx.get_center() + Vector3(0, bx.size.y * 0.5 + 0.2, 0)), "%.1f m" % [Building.num(_bld(), o.get("w"), 0.9)], SKY, Color(0.04, 0.06, 0.1), 14)
-			if drag == "slide":
-				_pill(m.cam.unproject_position(Vector3(bx.get_center().x, 0, bx.position.z)) + Vector2(0, 28), "drag to slide: snaps to 0.5 m", Color(0.06, 0.07, 0.1, 0.85), Color(SKY, 0.95), 12)
+			var foot := Vector3(bx.get_center().x, 0, bx.get_center().z)
+			_pill_outline(m.cam.unproject_position(foot) + Vector2(0, 30), "drag to slide: snaps to %.1f m" % _grid(), Color(0.06, 0.07, 0.1, 0.85), SKY, 12)

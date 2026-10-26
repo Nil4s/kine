@@ -15,10 +15,15 @@ extends SceneTree
 ##   7 PANEL   Wall height typed to 3.0 in the panel: params and mesh follow (volume exact, mesh 3.2 m tall with the floor), one undo
 ##             step, undo restores; the + stepper is one step of 0.1 m
 ##   8 FILE    save + new scene + reopen: the record, the mesh volume and the BUILD page come back
-## Screenshots: C:/Temp/claude/build1b/{empty,dragging,door,panel}.png. Only user:// is written.
+##   9 CHROME  (round 1c) on BUILD of a building project the mannequin, joint dots, part tag, target dummy, clips strip, side panels and rails,
+##             mouse legend, readout and Next: line are not visible; the ghost person is; an animation project has them all back
+##  10 LOOK    the ribbon is icon + one word; "Use in a scene" is top right, disabled, "coming next"; a toast and the status line never cover the
+##             panel; a click in a number field selects its whole value
+##  11 DOOR    a picked door shows its sky-blue box and is inside the free view; a door on the back wall turns the camera to its outside
+## Screenshots: C:/Temp/claude/build1c/{empty,dragging,door,panel,selected,door_back}.png. Only user:// is written.
 var fails := 0
 var m: Node
-const SHOT := "C:/Temp/claude/build1b"
+const SHOT := "C:/Temp/claude/build1c"
 const DIRT := "user://buildpage_test"
 
 
@@ -259,6 +264,74 @@ func _init() -> void:
 	await idle(4)
 	ok(rec() == saved and absf(vol() - vsaved) < 1e-6 and bld.house.mesh != null and m.cur_page == "BUILD" and m.S.kind == "building",
 		"8 reopened: the record, the mesh (volume %.6f) and the BUILD page are back" % vol())
+
+	# 9 CHROME  (round 1c: a building project's BUILD page shows nothing that animates a fighter)
+	await idle(4)
+	var hid := true
+	var why := []
+	for e in [["mannequin", m.man_root], ["target dummy", m.dummy_node], ["part tag", m.tag], ["clips strip", m.ui_bp], ["left panel", m.ui_side_of["left"]], ["right panel", m.ui_side_of["right"]],
+			["mouse legend", m.ui_mouse], ["readout", m.ui_bar], ["Next: line", m.ui_next]] + m.dots.values().map(func(d): return ["joint dot", d]) + m.stage_marks.map(func(d): return ["axes / stage square", d]):
+		var n: Node = e[1]
+		var shown: bool = n != null and ((n as CanvasItem).is_visible_in_tree() if n is CanvasItem else (n as Node3D).is_visible_in_tree())
+		if shown:
+			hid = false
+			why.append(e[0])
+	for k in m.ui_rails:
+		if (m.ui_rails[k] as Control).is_visible_in_tree():
+			hid = false
+			why.append("rail " + k)
+	ok(hid, "9 on BUILD of a building project the animating chrome is not visible (still visible: %s)" % [why])
+	ok(bld.person.visible and bld.person.is_visible_in_tree(), "9 the ghost person (scale) is the one figure left")
+	m._new_scene()
+	await idle(4)
+	ok(m.cur_page == "POSE" and m.man_root.visible and m.ui_bp.visible and not m._hides("figure") and m.dots["head"].visible and m.tag.visible and m.ui_bar.visible,
+		"9 an animation project (page %s): mannequin %s, clips strip %s, joint dots %s, readout %s are back" % [m.cur_page, m.man_root.visible, m.ui_bp.visible, m.dots["head"].visible, m.ui_bar.visible])
+	m._load_scene(path)
+	await idle(4)
+	ok(m.cur_page == "BUILD" and not m.man_root.visible and not m.ui_bp.visible, "9 the building project again: the chrome is gone again")
+
+	# 10 RIBBON, TOAST, FIELD
+	var words := {"Room": "room", "Wall": "wall", "Pull": "pull", "Opening": "opening", "Floor": "floor", "Roof": "roof", "Piece": "piece", "Words": "words"}
+	var rib_ok := true
+	for w in words:
+		var bt: Button = m.ui_ribbon["BUILD"].find_child("build_tool_" + words[w], true, false)
+		rib_ok = rib_ok and bt != null and bt.icon != null and bt.text == w and bt.is_visible_in_tree()
+	ok(rib_ok, "10 the ribbon: icon + one word on Room Wall Pull Opening Floor Roof Piece Words")
+	var ub: Button = bld.use_btn
+	ok(ub != null and ub.is_visible_in_tree() and ub.disabled and ub.tooltip_text.contains("coming next") and ub.text == "Use in a scene" and ub.get_global_rect().position.x > 640.0 and ub.get_global_rect().position.y < 40.0,
+		"10 \"Use in a scene\": top right, disabled, tooltip \"coming next\"")
+	m._toast("Undid: Opening: removed, the wall is whole again")
+	await idle(3)
+	var tr: Rect2 = m.ui_toast.get_global_rect()
+	var pr: Rect2 = bld.panel.get_global_rect()
+	ok(m.ui_toast.is_visible_in_tree() and bld.panel.is_visible_in_tree() and not tr.intersects(pr) and not m.ui_status.get_global_rect().intersects(pr),
+		"10 a toast %s and the status line %s never cover the panel %s (title: \"%s\")" % [tr, m.ui_status.get_global_rect(), pr, bld.panel_title.text])
+	for fk in ["wall_height", "door_width"]:
+		var fe: LineEdit = bld.fields[fk]
+		await click_ctl(fe)
+		ok(fe.has_focus() and fe.has_selection() and fe.get_selected_text() == fe.text and fe.text != "", "10 a click in %s selects the whole value (\"%s\")" % [fk, fe.get_selected_text()])
+	bld.fields["door_width"].release_focus()
+	await idle(2)
+
+	# 11 THE DOOR IS SEEN  (a picked opening: sky blue, its width, the slide hint; a door on the far wall turns the camera to it)
+	await click_ctl(m.ui_ribbon["BUILD"].find_child("build_tool_opening", true, false))
+	var door := Vector3(2.0, 2.3, 0.1)
+	await click_ctl_at(sp(door))
+	await ev_mouse(sp(Vector3(2.0, 1.9, 0.1)), false)
+	await idle(3)
+	ok(bld.sel != "" and bld.sel_box.visible and bld.drag == "", "11 a door is picked: id %s, the sky-blue box shows" % bld.sel)
+	var cbox := bld._opening_aabb(bld._opening(bld.sel)).get_center()
+	var cl: Rect2 = m.nav_clear_rect()
+	var dp := sp(cbox)
+	ok(cl.has_point(dp) and not pr.has_point(dp), "11 the door is inside the free view at %s (view %s)" % [dp, cl])
+	await shot("selected")
+	var to_cam: Vector3 = (m.cam.global_position - Vector3(2.0, 0.0, 0.0))
+	ok(to_cam.z < 0.0, "11 the door on the front wall is seen from outside (camera z %.1f)" % m.cam.global_position.z)
+	await click_ctl_at(sp(Vector3(2.0, 2.3, 2.9)))   # the far wall's inner face, seen over the near wall
+	await idle(2)
+	var od: Dictionary = bld._opening(bld.sel)
+	ok(not od.is_empty() and String(od["wall"]) == "back" and m.cam.global_position.z > 3.0, "11 a door on the back wall: the camera turned to its outside (wall %s, camera z %.1f)" % [od.get("wall", ""), m.cam.global_position.z])
+	await shot("door_back")
 
 	print("BUILDPAGE %s: %d failed" % ["PASS" if fails == 0 else "FAIL", fails])
 	quit(1 if fails > 0 else 0)
