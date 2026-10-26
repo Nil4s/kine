@@ -274,6 +274,17 @@ static func retime(f: Dictionary, S: Scene, B: Body) -> Dictionary:
 	var cs := cards_under(S, tp)
 	var m0 := cs.map(func(i): return S.move_time(i))
 	var before := float(f["v"])
+	# the same answer for the same input: a reason the fix loop lists twice (or asks for on the same cards) replays its windows once.
+	# The key is everything the loop reads (the cards, the body, what else plays), so a hit is the answer the loop would give
+	var key := var_to_str([kind, tp, before, cap, cs, m0, S.cards, S.body, S.plants, S.props, S.clips, S.spline, S.on_floor, S.breath, S.fps])
+	if _retimes.has(key):
+		var hit: Dictionary = _retimes[key]
+		for j in cs.size():
+			if hit["moves"][j] == null:
+				S.cards[cs[j]].erase("move")
+			else:
+				S.cards[cs[j]]["move"] = hit["moves"][j]
+		return (hit["out"] as Dictionary).duplicate(true)
 	var pk := before
 	for it in MAX_ITER:
 		var ratio := pk / cap
@@ -290,5 +301,13 @@ static func retime(f: Dictionary, S: Scene, B: Body) -> Dictionary:
 	var parts := []
 	for j in cs.size():
 		parts.append("card %d '%s' move %.2f -> %.2f s" % [cs[j] + 1, S.cards[cs[j]]["name"], m0[j], to[j]])
-	return {"did": "%s; the %s peak %.1f -> %.1f m/s^2 (cap %.1f)" % [", ".join(parts), kind, before, pk, cap],
+	var out := {"did": "%s; the %s peak %.1f -> %.1f m/s^2 (cap %.1f)" % [", ".join(parts), kind, before, pk, cap],
 		"cards": cs, "from": m0, "to": to, "peak_before": before, "peak_after": pk, "cap": cap, "kind": kind}
+	if _retimes.size() >= 64:
+		_retimes.clear()   # a bound on the memory: the cache only saves repeats within a fix step
+	_retimes[key] = {"moves": cs.map(func(i): return S.cards[i].get("move", null)), "out": out.duplicate(true)}
+	return out
+
+
+## retime's answers by key (see retime): the moves each card ends with, and the returned dictionary
+static var _retimes := {}
