@@ -147,11 +147,42 @@ static func pose_key(pose: Dictionary) -> String:
 	var e = _pk_memo.get(h)
 	if e != null and e[0] == pose:
 		return e[1]
-	var k := (JSON.stringify(pose, "", true) + "|" + FRAME_VER).sha256_text()
+	var k := (_pose_json(pose) + "|" + FRAME_VER).sha256_text()
 	if _pk_memo.size() > 4000:
 		_pk_memo.clear()
 	_pk_memo[h] = [pose.duplicate(true), k]
 	return k
+
+
+## JSON.stringify(pose, "", true), character for character, with the "joints" and "contacts" parts (the long ones)
+## kept by their hash and checked with ==. A pose whose weapon changed (the held sword moves a hair between two
+## builds of the same clip) still has the same joints, so the key of a miss does not stringify them again
+static var _jk_memo := {}   # hash of a joints / contacts value -> [a copy of it, its JSON]
+
+
+static func _pose_json(pose: Dictionary) -> String:
+	if not pose.has("joints"):
+		return JSON.stringify(pose, "", true)
+	var ks := pose.keys()
+	ks.sort()
+	var parts := PackedStringArray()
+	for k in ks:
+		var v = pose[k]
+		var vt: String
+		if k == "joints" or k == "contacts":   # the long parts; the weapon and the offset are short
+			var h := hash(v)
+			var e = _jk_memo.get(h)
+			if e != null and e[0] == v:
+				vt = e[1]
+			else:
+				vt = JSON.stringify(v, "", true)
+				if _jk_memo.size() > 4000:
+					_jk_memo.clear()
+				_jk_memo[h] = [v.duplicate(true) if (v is Dictionary or v is Array) else v, vt]
+		else:
+			vt = JSON.stringify(v, "", true)
+		parts.append(JSON.stringify(k) + ":" + vt)
+	return "{" + ",".join(parts) + "}"
 
 
 ## the picture of this pose if it is at hand (memory), else null

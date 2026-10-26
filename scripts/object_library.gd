@@ -454,7 +454,10 @@ static func arm_cards(S: Scene, B: Body) -> void:
 	var held := PoseBake.held_of(B)
 	var keep := B.state()
 	for c in S.cards:
-		var key := [c["pose"], held, B.rad]
+		# exactly what the result depends on: Scene.put reads the pose's joints and offset; its own weapon is overwritten by the held
+		# one (held_of holds every wep*/grip* key _state0 has), so the pose's old weapon is NOT in the key (a weapon toggle that
+		# ends in the same state hits); free_hand is the one state key put and held leave as the body has it
+		var key := [c["pose"]["joints"], c["pose"].get("offset", [0, 0, 0]), held, B.rad, B.free_hand]
 		var hk := hash(key)
 		var hit = _arm_memo.get(hk)
 		if hit != null and hit[0] == key:
