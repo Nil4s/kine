@@ -20,7 +20,8 @@ static func register(b: Dictionary) -> String:
 	if b.is_empty() or bool(b.get("readonly", false)) or b.get("rooms", []).is_empty():
 		return ""
 	var kind := kind_of_building(b)
-	Props.register_building(kind, Building.collision_boxes(b), Building.supports(b))
+	var pc := BuildPieces.collision_all(b)   # 1f: the pieces: boxes + tops, and the stairs' ramps
+	Props.register_building(kind, Building.collision_boxes(b) + pc["boxes"], Building.supports(b) + pc["supports"], pc["ramps"])
 	return kind
 
 
