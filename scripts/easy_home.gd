@@ -1661,6 +1661,7 @@ func _build(what: String, label: String, easy := "", add := false) -> String:
 	m._rebuild_cards()
 	m._dot_later = false
 	m._first_hold = Engine.get_process_frames() + 2   # this frame and the next: the first moving frame is not held up by the dot or the bake's start
+	m._first_cap = Engine.get_process_frames() + 90
 	m._refresh()
 	return ""
 

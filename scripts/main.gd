@@ -4161,7 +4161,7 @@ func _bake_body(sc: Scene) -> Body:
 
 
 func _bake_poll() -> void:
-	if Engine.get_process_frames() < _first_hold:   # a card build's first moving frame: the bake (the clone and its signature, 3-18 ms) starts a frame later; the frames solve live meanwhile, bit for bit as a baked one serves them
+	if Engine.get_process_frames() < _first_hold or _pics_busy():   # a card build's first moving frame, then the card pictures' drawing: the bake (the clone and its signature, 3-18 ms) starts a frame later; the frames solve live meanwhile, bit for bit as a baked one serves them
 		return
 	var t0 := Time.get_ticks_usec()
 	var live := _bake_scenes()
@@ -12013,6 +12013,8 @@ func _after_first_frame(c: Callable) -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	while not _aff_q.is_empty():
+		while _pics_busy():   # the card pictures' batches (cardstrip's 100 ms frame bar) have the frames first: a held job never shares a frame with one
+			await get_tree().process_frame
 		var job: Callable = _aff_q.pop_front()
 		job.call()
 		if not _aff_q.is_empty():
@@ -12020,6 +12022,14 @@ func _after_first_frame(c: Callable) -> void:
 
 
 var _aff_q: Array = []
+
+
+## the strip's pictures are being drawn, within 90 frames of a card build (a cap: the held work is never left waiting for good)
+func _pics_busy() -> bool:
+	return Engine.get_process_frames() < _first_cap and thumbs != null and (thumbs._pbusy or not thumbs._pq.is_empty())
+
+
+var _first_cap := 0
 
 
 var _first_hold := 0   # a card build's click frame + 1: until the process frame count reaches it, the work nobody sees yet waits (_doc_line, _bake_poll)
