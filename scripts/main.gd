@@ -19895,7 +19895,9 @@ func _start_screen_boot() -> void:
 		await get_tree().process_frame
 	while ui_recover != null and ui_recover.visible:
 		await ui_recover.visibility_changed
-	if tour_step < 0 and not onboard.pending and intro == null:
+	while intro != null:   # the opening intro plays first: the start screen follows it (it used to give up here)
+		await get_tree().process_frame
+	if tour_step < 0 and not onboard.pending:
 		start_screen.show_screen()
 
 
