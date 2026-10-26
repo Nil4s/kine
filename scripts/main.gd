@@ -18489,6 +18489,8 @@ func _stamp() -> String:
 
 func _write(path0: String, d: Dictionary) -> void:
 	var path := UserPaths.w(path0)   # an exported build's res:// is read-only: the user's folder (as run from source: unchanged)
+	if _test_keeps(path):
+		return
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	f.store_string(JSON.stringify(d, " "))
@@ -18733,6 +18735,19 @@ func _save_ask_choose(how: String) -> void:
 func _trash(path: String) -> void:
 	_confirm("Move '%s' to the trash folder?\nIt is kept in trash/ (put it back by hand); Ctrl+Z can't bring it back." % path.get_file().get_basename(),
 		"Move to trash", _trash_now.bind(path))
+
+
+## a TEST run never overwrites a scene that was in res://scenes before it started (10-25: parallel suites rewrote the shipped
+## idle_bat, swing_back and strike_legs in a worktree): its own new files, _wip/ and zz_ files are fine. The app itself (no test
+## script) saves as before. true = refused
+func _test_keeps(path: String) -> bool:
+	if Engine.get_main_loop().get_script() == null or not path.begins_with("res://scenes/") or path.contains("/_wip/") 			or path.get_file().begins_with("zz_") or not FileAccess.file_exists(path):
+		return false
+	var started := Time.get_unix_time_from_system() - Time.get_ticks_msec() / 1000.0 - 2.0
+	if float(FileAccess.get_modified_time(path)) >= started:
+		return false   # written by this run
+	push_warning("test run: refused to overwrite a shipped scene " + path)
+	return true
 
 
 func _trash_now(path: String) -> bool:
