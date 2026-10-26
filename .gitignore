@@ -19,3 +19,4 @@ UPGRADES_*.md
 SPEC.md
 **/__pycache__/
 *.pyc
+override.cfg
