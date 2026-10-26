@@ -12745,6 +12745,7 @@ func _ui() -> void:
 	for it in SCENE_MENU:
 		sm.add_icon_item(Icons.small(it[2]), it[1], it[0])
 	sm.id_pressed.connect(_scene_menu_pick)
+	sm.about_to_popup.connect(_scene_menu_place)
 	bh.add_child(ui_scene_btn)
 	ui_scenes = OptionButton.new()   # the list of scene files: the Open item shows its popup (it has no place in the row)
 	ui_scenes.name = "opt_scene"
@@ -14373,6 +14374,17 @@ func _scene_menu_pick(id: int) -> void:
 			_template_ask()
 		5:
 			_delete_scene()
+
+
+## the Scene menu opens ABOVE its button when there is no room under it. Godot moves a popup that does not fit back up over
+## the button itself, so the release of the click picked the row under the pointer (at 1280 x 720 a click on the Scene
+## button ran Open scene and the menu closed: New empty scene could not be reached with the mouse)
+func _scene_menu_place() -> void:
+	var pm := ui_scene_btn.get_popup()
+	var h := maxf(float(pm.size.y), float(pm.get_contents_minimum_size().y))
+	var below := ui_scene_btn.global_position.y + ui_scene_btn.size.y
+	var top := below if below + h <= get_viewport().get_visible_rect().size.y else ui_scene_btn.global_position.y - h
+	pm.position = Vector2i(int(ui_scene_btn.global_position.x), int(top))
 
 
 ## the list of scenes, as a popup under the Scene button (the list itself is not in the row)
