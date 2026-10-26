@@ -17,6 +17,10 @@ const BADGE_COL := {"Good": Color(0.55, 0.92, 0.6), "OK": Color(1.0, 0.86, 0.5),
 const CFG := "easy_scenes"
 
 var m: Node                       # main (untyped: the same pattern as EasyMode)
+var expert := false               # Expert's view of the same panel ("Open a scene"): a picked scene opens without Play, and List view is shown
+var _box: PanelContainer
+var _title: Label
+var _list_btn: Button
 var extra_dirs: Array = []        # a test's own folders (user://), read with the saved scenes
 var draft_dirs: Array = []        # a test's own drafts folders, in place of res://scenes/_wip (empty = the shipped one)
 var _mine: HFlowContainer
@@ -40,7 +44,7 @@ var _base_mine: Array = []        # the same two lists, newest first (what "Newe
 var _base_dr: Array = []
 var _cache := {}                  # SceneCat's cache (path -> entry), read at each open
 var _new_entries := {}            # the categories of the files whose cache entry was stale (merged at the end of _fill)
-const LIST := "user://scene_quality_list.json"   # the worker's list of scenes to grade (written by the panel)
+static var LIST := "user://scene_quality_list_%d.json" % OS.get_process_id()   # the worker's list of scenes to grade (written by the panel); one per process: two Kines (or two tests) never share it
 const POLL_S := 0.5              # the cache file is checked this often (its modified time: cheap)
 static var workers_started := 0  # every worker process the panel started (the test counts them)
 var _grades := {}                 # path -> [fails, warns], for every scene graded (this open or cached)
@@ -74,6 +78,7 @@ func build(root: Control) -> void:
 	box.offset_top = 40.0
 	box.offset_right = -40.0
 	box.offset_bottom = -40.0
+	_box = box
 	var st := StyleBoxFlat.new()
 	st.bg_color = Tok.c("panel")
 	st.set_corner_radius_all(12)
@@ -85,11 +90,21 @@ func build(root: Control) -> void:
 	box.add_child(v)
 	var head := HBoxContainer.new()
 	v.add_child(head)
-	var title := Label.new()
-	title.text = "My scenes"
-	title.add_theme_font_size_override("font_size", 28)
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(title)
+	_title = Label.new()
+	_title.text = "My scenes"
+	_title.add_theme_font_size_override("font_size", 28)
+	_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(_title)
+	_list_btn = Button.new()
+	_list_btn.name = "easy_scenes_list"
+	_list_btn.text = "List view"
+	_list_btn.tooltip_text = "the plain list of scene names (Expert's old Open list)"
+	_list_btn.focus_mode = Control.FOCUS_NONE
+	_list_btn.custom_minimum_size = Vector2(150, 44)
+	_list_btn.add_theme_font_size_override("font_size", 18)
+	_list_btn.visible = false
+	_list_btn.pressed.connect(_to_list)
+	head.add_child(_list_btn)
 	var close := Button.new()
 	close.name = "easy_scenes_close"
 	close.text = "Close"
@@ -180,11 +195,19 @@ func _heading(text: String) -> Label:
 
 
 ## the panel: the saved scenes and the examples are read now (a scene saved since the last open is listed)
-func open_panel() -> void:
+func open_panel(as_expert := false) -> void:
 	if m == null or m.thumbs == null:
 		return
 	if not m.thumbs.made.is_connected(_made):
 		m.thumbs.made.connect(_made)
+	expert = as_expert
+	_title.text = "Open a scene" if expert else "My scenes"
+	_list_btn.visible = expert
+	var mg := 24.0 if expert else 40.0   # Expert's panel takes more of the window: the tiles get the room
+	_box.offset_left = mg
+	_box.offset_top = mg
+	_box.offset_right = -mg
+	_box.offset_bottom = -mg
 	_load_prefs()
 	_cache = SceneCat.load_cache()
 	_fill()
@@ -196,6 +219,12 @@ func close_panel() -> void:
 	visible = false
 	set_process(false)
 	_stop_worker()
+
+
+## Expert's List view: the panel shuts and the old list of scene names opens under the Scene button
+func _to_list() -> void:
+	close_panel()
+	m._open_scene_list()
 
 
 ## the paths of the tiles shown, in order: the saved scenes (example false) or the examples (example true)
@@ -414,6 +443,15 @@ func _made(path: String) -> void:
 ## a tile's click: the panel shuts, the scene opens (save-first question when the open one has unsaved work), and it plays
 func _pick(path: String, example: bool) -> void:
 	close_panel()
+	if expert:   # Expert: the scene opens and Expert stays on; nothing plays
+		if example:
+			if m._unsaved():
+				m._ask_save(m._scene_label(), func(): m._open_example(path))
+			else:
+				m._open_example(path)
+		else:
+			m._open_scene_file(path)
+		return
 	var play := func():
 		if m.S.cards.size() >= 2 and not m.playing:
 			m._toggle_play()

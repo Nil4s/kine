@@ -34,7 +34,7 @@ SILENT = ["--audio-driver", "Dummy"]   # no test makes a sound on Nick's speaker
 # there ("asked 1280 x 720 ... stays 1600 x 900"). Found 10-23 by running every listed test that sets get_window().size
 # / window_set_size (21) embedded, then each failure again as a top-level window: these 3 failed only embedded (or, for
 # ring_edges, failed differently); pathwalk's 10.5 deg facing gap fails either way, so it is not here.
-TOPLEVEL = {"small_window", "r25", "ring_edges", "easycam", "easy_overlap"}   # easycam and easy_overlap set the window size themselves (1600x900, 1280x720)
+TOPLEVEL = {"small_window", "r25", "ring_edges", "easycam", "easy_overlap", "scene_thumbs"}   # easycam and easy_overlap set the window size themselves (1600x900, 1280x720)
 # shared state on disk (the scenes list, moves/ and trash/, exports, the CLI's files): kept out of the parallel batch.
 # r50b: actors_file read every file in scenes/ while others wrote there (parsed a half-written file). 10-23: + every
 # test writing a fixed res://(scenes|moves|...)/zz* path, and the suites that list scenes/.
