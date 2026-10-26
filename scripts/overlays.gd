@@ -113,10 +113,24 @@ func setup() -> void:
 	_hide()
 
 
-## ONE mannequin from assets/mannequin.glb under parent, its animation player gone, every mesh in material m:
-## [node, skeleton, {joint: bone index}]. The main body, the dummy and the ghosts are all made by this.
+## BODY: SMOOTH (scripts/main.gd _body_smooth_set): the second body option. Same skeleton, same rest pose, a smooth human
+## mesh with the mannequin's egg head (tools/smoothbody_build.gd). The mannequin stays the default; every body made from now
+## on (the figure, ghosts, previews, exports) follows the choice. Saved bodies (.kbody, Model > Apply, weight sidecars) are
+## the mannequin's own vertices: they stay tied to it.
+static var smooth := false
+const MANNEQUIN_GLB := "res://assets/mannequin.glb"
+const SMOOTH_GLB := "res://assets/body_smooth.glb"
+
+
+static func body_file() -> String:
+	return SMOOTH_GLB if smooth else MANNEQUIN_GLB
+
+
+## ONE mannequin from assets/mannequin.glb (assets/body_smooth.glb while Overlays.smooth) under parent, its animation
+## player gone, every mesh in material m: [node, skeleton, {joint: bone index}]. The main body, the dummy and the ghosts
+## are all made by this.
 static func mannequin(parent: Node, m: Material) -> Array:
-	var man: Node3D = (load("res://assets/mannequin.glb") as PackedScene).instantiate()
+	var man: Node3D = (load(body_file()) as PackedScene).instantiate()
 	parent.add_child(man)
 	for ap in man.find_children("*", "AnimationPlayer", true, false):
 		(ap as AnimationPlayer).stop()
