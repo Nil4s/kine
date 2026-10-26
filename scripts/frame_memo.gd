@@ -32,6 +32,7 @@ static var slice_ms := 0.0
 static var abort := false   # a newer click cancels the run: every loop stops at its next pump and the caller returns empty
 static var progress := Callable()   # called with (done: float 0..1) at each pump
 static var _slice_t := 0
+static var waited_usec := 0   # time the slices spent giving the frame back (a Fix all step's own work = its wall time less this)
 
 ## the loops call this between steps: true = go on, false = cancelled
 static func pump(done := -1.0) -> bool:
@@ -41,7 +42,9 @@ static func pump(done := -1.0) -> bool:
 		return true
 	if progress.is_valid() and done >= 0.0:
 		progress.call(done)
+	var w0 := Time.get_ticks_usec()
 	await (Engine.get_main_loop() as SceneTree).process_frame
+	waited_usec += Time.get_ticks_usec() - w0
 	_slice_t = Time.get_ticks_usec()
 	return not abort
 
