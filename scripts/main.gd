@@ -140,6 +140,7 @@ var ui_natural: CheckBox
 var ui_scene_name: LineEdit
 var ui_scene_btn: MenuButton   # the one Scene menu (Save, Open, Versions, New, Template, Delete)
 var ui_scenes: OptionButton
+var start_screen: StartScreen   # THE START SCREEN (scripts/start_screen.gd): New project cards, Open, recent scenes, Resume
 var recents: Recents   # ROADMAP_400 P13: the start panel of recent scenes with pictures (scripts/recents.gd)
 var thumbs: SceneThumbs   # ROADMAP 51: the pictures in the scene list (scripts/scene_thumbs.gd)
 var ui_tinted := []    # [label, Tok token]: the labels a theme switch re-tints (round 9)
@@ -3037,6 +3038,13 @@ func _ready() -> void:
 		easy.sliders.add_block(_hands_block(true))   # HANDS (w4-handlock): the lock and the hands row in the Easy side panel
 	BootProfile.mark("easy build")
 	easy.start(cf, testing)   # EASY MODE: the saved mode (a fresh config is Easy); its own tour, once
+	start_screen = StartScreen.new()   # THE START SCREEN: built hidden; shown at start-up (below), from the KINE logo or File > Start screen
+	start_screen.m = self
+	ui_root.add_child(start_screen)
+	start_screen.build()
+	var start_boot := not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour") and not OS.get_cmdline_user_args().has("--kine-no-start") and StartScreen.setting_on(cf)
+	if start_boot:
+		_start_screen_boot.call_deferred()
 	BootProfile.mark("easy start")
 	onboard.start_when_clear.call_deferred()
 	if (not testing and not onboard.pending and not easy.on and not OS.get_cmdline_user_args().has("--shot") and _tour_due()) or OS.get_cmdline_user_args().has("--tour"):
@@ -3048,7 +3056,7 @@ func _ready() -> void:
 	if not args.has("--shot") and (not testing or OS.get_environment("POSER_AUTOSAVE") != ""):
 		_recover_offer.call_deferred()
 	recents = Recents.new(self)
-	if not testing and not args.has("--shot") and not args.has("--tour") and not _recent_list().is_empty() and recents.start_on():
+	if not testing and not start_boot and not args.has("--shot") and not args.has("--tour") and not _recent_list().is_empty() and recents.start_on():
 		_recents_start.call_deferred()   # P13: a test never gets it (it asks with File: recent scenes); nor a first-run tour (no recents yet)
 		BootProfile.mark("recents")
 	ov.trail_on = args.has("--trail")
@@ -12074,6 +12082,9 @@ func _ui() -> void:
 	tv.add_child(caps)
 	var logo := _label("KINE", 13, "heading")
 	logo.custom_minimum_size.x = 64
+	logo.mouse_filter = Control.MOUSE_FILTER_STOP   # THE START SCREEN: a click on the logo reopens it
+	logo.tooltip_text = "Start screen"
+	logo.gui_input.connect(_logo_input)
 	strip.add_child(logo)
 	# round 7, Fusion's ribbon: tabs, then that tab's tools; Undo / Redo / Search / Help always on the right. Nothing
 	# was removed: every button the bar had is in a tab (tests/ribbon_test.gd counts them), and the play row keeps its own
@@ -15872,6 +15883,7 @@ func _commands() -> Array:
 	for p in SCALES:
 		add.call("UI size %d %%" % p, "", _set_scale.bind(p), "zoom bigger smaller scale font text size", false, "buttons and words at %d %% (remembered)" % p)
 	add.call("Help", "", func(): ui_help.visible = not ui_help.visible, "how manual", false, "show or hide the help panel")
+	add.call("Start screen", "", func(): start_screen.show_screen(), "start screen home new project open recent resume", false, "the start screen: New project (Animation, Modeling, 3D Building), Open, recent scenes, Resume")
 	add.call("What went wrong?", "", _why_toggle, "why error wrong refused refusal explain not work failed stuck", false, "says what the last refusal or error meant in plain words: what you tried, why it did not work, and the one next step (a button runs it)")
 	add.call("Pick a part", "", _select_set.bind(["upperarm_r"]), "pick select choose part body click", false, "picks the right upper arm, so the next command has a part to act on")
 	add.call("Help: why is it slow?", "", pdoc.start, "slow lag fps performance perf frame rate speed heavy stutter choppy profile doctor", false, "plays the scene for 3 seconds (or orbits the view when it has one card) and times the app's own systems: the three heaviest by milliseconds a frame, each with the button that fixes it, then fps before and after")
@@ -19691,7 +19703,22 @@ func _recent_note(path: String, saved := false) -> void:
 		recents.capture(path)   # the picture of the 3D view, at save time (or the first time the scene is seen)
 
 
+## THE START SCREEN at launch: once the recover offer and any intro are answered (and no tour is running)
+func _start_screen_boot() -> void:
+	for _i in 3:
+		await get_tree().process_frame
+	while ui_recover != null and ui_recover.visible:
+		await ui_recover.visibility_changed
+	if tour_step < 0 and not onboard.pending and intro == null:
+		start_screen.show_screen()
+
+
 ## P13: the start panel, once the recover offer and any intro have been answered
+func _logo_input(ev: InputEvent) -> void:
+	if ev is InputEventMouseButton and (ev as InputEventMouseButton).pressed and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and start_screen != null:
+		start_screen.show_screen()
+
+
 func _recents_start() -> void:
 	for _i in 3:
 		await get_tree().process_frame
