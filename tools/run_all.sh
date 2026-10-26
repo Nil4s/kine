@@ -127,3 +127,5 @@ EXTRA="$EXTRA perfpresets:w"   # GRAPHICS QUALITY: Auto/Low/Medium/High presets,
 EXTRA="$EXTRA cad:w"   # CAD kernel pilot: KineCAD (Open CASCADE) via scripts/kcad.gd: box - hole, fillet, shell, tessellate, STEP (tests/cad_test.gd; SKIPs without the DLL)
 EXTRA="$EXTRA crashcheck:w"   # CRASH CHECK: every realism option + every Fix + Fix all on the owner scene, real clicks, 0 script errors, one undo step each, no stale timeline index (tests/crashcheck_test.gd)
 EXTRA="$EXTRA lookd:w"   # THE BODY LOOK "D": clay token, sky outline, soft lights + SSAO, pick tint over the outline, FPS (tests/lookd_test.gd)
+
+EXTRA="$EXTRA animcpu:w"   # ANIMATE CPU (tests/animcpu_test.gd): a playing 6-clip scene <= 12 ms of main thread a frame, 50 clips >= 40 fps, poses bit for bit (tests/animcpu_golden.json), the timeline pixels equal a full redraw

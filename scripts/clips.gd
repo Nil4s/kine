@@ -230,6 +230,32 @@ static func _pose_src(e: Dictionary, lt: float, mirror: bool, Q: Body) -> void:
 		Q.mirror_pose()
 
 
+const POSE_CACHE_MAX := 2000   # entries one source keeps (a few hundred cover a loop of a clip at 60 Hz); past it the table starts over
+
+
+## the source posed at its own time lt, as a cached [angles, hips offset] (mirrored if asked). A source posed at the same lt gives the
+## same body, so a loop, a repeat, or the 2nd to 50th use of one file costs a lookup, not a Scene.apply. The table lives in the source's
+## cache entry (a file that changed is reloaded with a fresh one) and is keyed by the nesting depth too (MAX_DEPTH cuts a chain short).
+static func _pose_of(e: Dictionary, lt: float, mirror: bool, Q: Body) -> Array:
+	var pc: Dictionary = e.get("pc", {})
+	var side := _depth * 2 + (1 if mirror else 0)
+	var tab: Dictionary = pc.get(side, {})
+	var hit = tab.get(lt)
+	if hit != null:
+		return hit
+	_pose_src(e, lt, mirror, Q)
+	if e.get("pn", 0) >= POSE_CACHE_MAX:
+		pc = {}
+		e["pn"] = 0
+		tab = {}
+	var ent := [Q.ang.duplicate(), Q.offset]
+	tab[lt] = ent
+	pc[side] = tab
+	e["pc"] = pc
+	e["pn"] = int(e.get("pn", 0)) + 1
+	return ent
+
+
 ## the hips' step one cycle makes over the floor: offset(L) - offset(0), y dropped
 static func root_step(e: Dictionary, mirror: bool) -> Vector3:
 	_mu.lock()
@@ -483,18 +509,18 @@ static func _play(S: Scene, B: Body, t: float) -> void:
 		var Q := _body(_depth)
 		var o0 := Vector3.ZERO
 		if c["type"] == "add" and mask_root(c["mask"]):
-			_pose_src(e, 0.0, mirror, Q)
-			o0 = Q.offset
-		_pose_src(e, float(a["lt"]), mirror, Q)
-		var off := Q.offset + step * int(a["k"])
+			o0 = (_pose_of(e, 0.0, mirror, Q) as Array)[1]
+		var qp := _pose_of(e, float(a["lt"]), mirror, Q)
+		var qa: Dictionary = qp[0]
+		var off: Vector3 = (qp[1] as Vector3) + step * int(a["k"])
 		var mt: Dictionary = c.get("match", {}) if c["type"] == "replace" else {}   # ROADMAP 84
 		if not mt.is_empty() and mask_root(c["mask"]):
 			off = align(off, mt)
 		for j in mask_joints(c["mask"]):
-			if not B.ang.has(j) or not Q.ang.has(j):
+			if not B.ang.has(j) or not qa.has(j):
 				continue
 			var x: Vector3 = B.ang[j]
-			var y: Vector3 = Q.ang[j]
+			var y: Vector3 = qa[j]
 			if j == "pelvis" and not mt.is_empty():
 				y.z += float(mt["yaw"])   # the walk turned as the match says
 			var r := x + y * w if c["type"] == "add" else x + Scene._d(x, y, j) * w
@@ -517,7 +543,7 @@ static func label(c: Dictionary) -> String:
 	if int(c["repeat"]) > 1:
 		s += " x%d" % int(c["repeat"])
 	if absf(float(c["speed"]) - 1.0) > 1e-4:
-		s += " @%.2gx" % float(c["speed"])
+		s += " @%sx" % str(snappedf(float(c["speed"]), 0.01))   # (Godot has no %g: the old format failed on any speed but 1)
 	if c["mask"] != "all":
 		s += " [%s]" % c["mask"]
 	if c["type"] == "add":
