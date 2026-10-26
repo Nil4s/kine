@@ -138,3 +138,4 @@ EXTRA="$EXTRA houses:w"   # MY HOUSES: BUILD saves houses by name (JSON + pictur
 EXTRA="$EXTRA easybuild:w"   # EASY BUILDING: start screen Building -> Easy, big bar + left column (Room, Door, Window, + Floor, Roof, Stairs, Use in a scene), real clicks, no key names, no Expert ribbon, 1280x720 fit, Switch to Expert keeps the house (scripts/easy_build.gd; tests/easybuild_test.gd)
 EXTRA="$EXTRA modelcards:w"   # MODEL TASK CARDS: "What do you want to do?" over MODEL (4 cards, Start reaches the tool, Show all the tools, Expert first open only, 1280x720 fit) (scripts/model_cards.gd; tests/modelcards_test.gd)
 EXTRA="$EXTRA smoothbody:w"   # BODY: SMOOTH, the second body option (assets/body_smooth.glb): one undo step, mannequin byte-identical, pose / pick / paint, soles, elbow volume, the drawn face, Easy click
+EXTRA="$EXTRA startbugs:w"   # start screen: modeling lands on MODEL, Home button, Easy/Expert start at once, Esc, Help in front, one save question
