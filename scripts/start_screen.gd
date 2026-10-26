@@ -382,7 +382,7 @@ func _start_kind(kind: String) -> void:
 		"modeling":
 			BaseBody.start(m)
 		"building":
-			m._page_set("STAGE")
+			m._page_set("BUILD")
 	if m.has_method("_refresh"):
 		m._refresh()
 

@@ -38,6 +38,8 @@ const DRAW := {
 	"page_sculpt": [["disc", Vector2(12, 14), 7], ["arc", Vector2(12, 8), 4, 2, 200, 340], ["seg", Vector2(12, 3), Vector2(12, 6), 2.0]],
 	"page_surface": [["box", Rect2(3.5, 3.5, 17, 17), 1.8], ["seg", Vector2(3.5, 12), Vector2(20.5, 12), 1.4], ["seg", Vector2(12, 3.5), Vector2(12, 20.5), 1.4],
 		["disc", Vector2(7.7, 7.7), 1.6], ["disc", Vector2(16.3, 16.3), 1.6]],
+	"page_build": [["seg", Vector2(3, 11), Vector2(12, 3.5), 1.8], ["seg", Vector2(12, 3.5), Vector2(21, 11), 1.8], ["box", Rect2(5.5, 11, 13, 9.5), 1.8],
+		["box", Rect2(10, 14.5, 4, 6), 1.4]],
 	"shade_wire": [["box", Rect2(4, 4, 16, 16), 1.4], ["seg", Vector2(4, 12), Vector2(20, 12), 1.2], ["seg", Vector2(12, 4), Vector2(12, 20), 1.2]],
 	"shade_solid": [["disc", Vector2(12, 12), 8.5]],
 	"shade_matcap": [["ring", Vector2(12, 12), 8.5, 1.8], ["disc", Vector2(9, 9), 2.6]],

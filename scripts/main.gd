@@ -232,17 +232,19 @@ var _hs_sel := ""              # the part the log last said was picked
 var _hs_playing := false       # a script is running: its steps are not logged again
 var ui_cube: ViewCube
 var ui_browser: Browser
-const RIBBON := ["BODY", "POSE", "ANIMATE", "SET", "CHECK", "EXPORT", "VIEW", "MODEL", "SCULPT", "SURFACE"]   # SET: round 37 (SS5), the props   # EXPORT: round 35a, QQ4 (Fusion's workspaces: what it is FOR)
+const RIBBON := ["BODY", "POSE", "ANIMATE", "SET", "CHECK", "EXPORT", "VIEW", "MODEL", "SCULPT", "SURFACE"]
+const RIBBON_ALL := RIBBON + ["BUILD"]   # BUILD's row (a 3D BUILDING project's page) is built like the others but is not one of the nine every project has   # SET: round 37 (SS5), the props   # EXPORT: round 35a, QQ4 (Fusion's workspaces: what it is FOR)
 const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as real percentiles", "POSE": "reset, relax, mirror, collision", "ANIMATE": "trail, onion, spacing, speed graph, stepped, holds",
 	"SET": "props to pose with: add, move, turn, delete, your own models", "CHECK": "grade the motion, polish, fix, the dummy", "EXPORT": "the animation out: Export... (any engine or tool), frame data, a version",
 	"VIEW": "front / sides / top / back, big view (or the cube, or keys 1-5)",
-	"MODEL": "the mesh: the test cube or the body, extrude, inset, bevel, loop cut, modifiers", "SCULPT": "brushes on the test sphere", "SURFACE": "UVs and materials of the mesh"}
+	"MODEL": "the mesh: the test cube or the body, extrude, inset, bevel, loop cut, modifiers", "SCULPT": "brushes on the test sphere", "SURFACE": "UVs and materials of the mesh", "BUILD": "draw rooms and doors of a 3D building"}
 ## THE GROUPS (round 36, GATES RR1; Fusion's CREATE / MODIFY): each tab's tools by label, in order, under a caption.
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
 	"MODEL": [["MESH", ["Test cube", "Edit body", "Save to body", "Save", "Open...", "Use in scene"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Proportional", "Modifiers", "Validate", "Repair"]]],
 	"SCULPT": [["SPHERE", ["Test sphere"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
 	"SURFACE": [["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]], ["MATERIAL", ["Material from photo"]]],
+	"BUILD": [["DRAW", ["Room", "Wall", "Pull"]], ["ADD", ["Opening", "Floor", "Roof", "Piece"]], ["SAY", ["Words"]]],
 	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped"]]],
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag", "Keep balance"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
@@ -262,7 +264,8 @@ const RIBBON_GROUPS := {
 ## a page does not name follows the user's own folds. The user's changes on a page are remembered for that page.
 ## the expert pages (MODEL, SCULPT, SURFACE: scripts/expert_pages.gd) are pages too; Easy mode hides them (ExpertPages.PAGES)
 const PAGES := ["BODY", "POSE", "ANIMATE", "STAGE", "CHECK", "DELIVER", "MODEL", "SCULPT", "SURFACE"]
-const PAGE_ROW := {"BODY": "BODY", "POSE": "POSE", "ANIMATE": "ANIMATE", "STAGE": "SET", "CHECK": "CHECK", "DELIVER": "EXPORT", "MODEL": "MODEL", "SCULPT": "SCULPT", "SURFACE": "SURFACE"}
+const PAGES_ALL := PAGES + ["BUILD"]   # BUILD: a 3D BUILDING project's page (scripts/build/build_ui.gd), first in its page bar; the nine above are every project's
+const PAGE_ROW := {"BODY": "BODY", "POSE": "POSE", "ANIMATE": "ANIMATE", "STAGE": "SET", "CHECK": "CHECK", "DELIVER": "EXPORT", "MODEL": "MODEL", "SCULPT": "SCULPT", "SURFACE": "SURFACE", "BUILD": "BUILD"}
 const PAGE_LAYOUT := {
 	"BODY": {"left": false, "bottom": true},                     # the body panel (it takes the browser's place), the strip a thin line
 	"POSE": {},                                                  # the body and its inspector: as the user left them
@@ -273,11 +276,12 @@ const PAGE_LAYOUT := {
 	"MODEL": {"bottom": true},                                   # the test cube or the body mesh in the preview, its tools in the ribbon
 	"SCULPT": {"bottom": true},                                  # the test sphere and its brushes
 	"SURFACE": {"bottom": true},                                 # the UVs and the materials of the mesh
+	"BUILD": {"left": true, "right": true, "bottom": true},      # the grid and the building: its own panel (build_ui.gd) is the inspector
 }
 const PAGE_TIPS := {"BODY": "make the person: stature, mass and proportions as percentiles of the ANSUR II survey", "POSE": "pose one moment: the body, the inspector, the pose library", "ANIMATE": "cards, timeline, curves, overlays",
 	"STAGE": "the set and the cast: props, cameras, crowd, several fighters", "CHECK": "is it right: grade, human check, frame data",
 	"DELIVER": "get it out: Export... (any engine or tool), frame data, versions",
-	"MODEL": "model the mesh: the test cube, the fighter's body mesh, extrude, bevel, loop cut, modifiers", "SCULPT": "sculpt the test sphere: draw, inflate, smooth, grab with the brushes", "SURFACE": "UVs and materials: the UV editor, unwrap, pack, a material from a photo"}
+	"MODEL": "model the mesh: the test cube, the fighter's body mesh, extrude, bevel, loop cut, modifiers", "SCULPT": "sculpt the test sphere: draw, inflate, smooth, grab with the brushes", "SURFACE": "UVs and materials: the UV editor, unwrap, pack, a material from a photo", "BUILD": "build a set: draw rooms on the grid, put doors and windows in the walls"}
 var cur_page := "POSE"
 var base_fold := {"left": false, "right": false, "bottom": false}   # the user's own folds (a page that names none follows them)
 var page_fold := {}        # page -> {left/right/bottom: bool}: what the user chose on that page
@@ -5411,6 +5415,9 @@ func _unhandled_input(ev: InputEvent) -> void:
 	if bed != null and bed.on and bed.input(ev):   # J01: the bone editor's keys (E, Shift+A, X, Tab, Esc), picks and end-ball drags
 		get_viewport().set_input_as_handled()
 		return
+	if bld != null and bld.on and bld.input(ev):   # BUILD: a drag on the floor makes a room, a click on a wall a door; typed sizes
+		get_viewport().set_input_as_handled()
+		return
 	if kmed != null and kmed.on and kmed.showing and kmed.input(ev):   # ROADMAP_400 A05/A06: the test cube's keys (1/2/3, B, L, X, Esc) and clicks
 		get_viewport().set_input_as_handled()
 		return
@@ -6236,7 +6243,7 @@ func _snapshot() -> Dictionary:
 	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
 	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
 		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps, "bcol": body_colour,
-		"props": S.props.map(func(p): return Props.to_dict(p)), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
+		"props": S.props.map(func(p): return Props.to_dict(p)), "building": _bld_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
@@ -6274,6 +6281,23 @@ const BAKE_FLAGS := ["on_floor", "pin", "spline", "stepped", "natural", "floor_b
 ## here. Any other step belongs to the scene it was taken on and never pastes into another one (fix_window: "undo after
 ## opening thrust leaves thrust's cards alone"); opening / making a scene empties the list.
 var swap_scenes: Array = []
+
+
+## another scene is open (opened, or a new one): BUILD shows its house and the tabs of its kind; a building project opens on BUILD,
+## and a scene of another kind is not left on BUILD
+func _bld_scene_changed(opened: bool) -> void:
+	if bld == null:
+		return
+	bld.sync()
+	if opened and S.kind == "building" and cur_page != "BUILD":
+		_page_set("BUILD")
+	elif cur_page == "BUILD" and S.kind != "building":
+		_page_set("POSE")
+
+
+## the open scene's BUILD record as the file holds it ({} = none): the undo snapshot's "building"
+func _bld_file() -> Dictionary:
+	return {} if S.building.is_empty() else Building.to_file(S.building)
 
 
 func _restore(u: Dictionary) -> void:
@@ -6380,6 +6404,10 @@ func _restore(u: Dictionary) -> void:
 		if sel_prop >= S.props.size():
 			sel_prop = -1
 		_props_show()
+	if u["scene"] == S and u.has("building") and JSON.stringify(u["building"]) != JSON.stringify(_bld_file()):
+		S.building = Building.from_file(u["building"])   # BUILD: the house, undone like a card
+		if bld != null:
+			bld.sync()
 	if u.has("bcol") and int(u["bcol"]) != body_colour:
 		body_colour = int(u["bcol"])   # His colour, undone like the photo materials
 		_body_colour_show()
@@ -8832,6 +8860,7 @@ func _dgb_release() -> void:
 	_say(DragBalance.words(d["r"]) + "   (keyed at %s; Ctrl+Z takes it back in one step)" % Units.time(t, S.fps))
 
 ## MODEL PAGE, FIRST STEP (ROADMAP_400 A05/A06; scripts/kmesh_view.gd, kmesh_edit_ui.gd): a test cube you can select on
+var bld: BuildUI   # BUILD page (scripts/build/build_ui.gd): the 3D BUILDING project's grid, tools and panel
 var kmed   # KMeshEditUI (scripts/kmesh_edit_ui.gd), loaded on first use: not typed, so the class is not parsed at boot
 
 
@@ -12202,14 +12231,17 @@ func _ui() -> void:
 	ui_view_menu.about_to_popup.connect(_view_menu_fill)
 	ui_view_menu.get_popup().id_pressed.connect(_view_menu_pick)
 	strip.add_child(ui_view_menu)
-	for t in RIBBON:
+	for t in RIBBON_ALL:
 		var tools := HBoxContainer.new()
 		tools.add_theme_constant_override("separation", 6)
 		tools.name = "ribbon_" + t.to_lower()
 		ui_ribbon[t] = tools
 	_build_page_bar()
-	for t in RIBBON:
+	for t in RIBBON_ALL:
 		tb.add_child(ui_ribbon[t])
+	bld = BuildUI.new()
+	add_child(bld)
+	bld.setup(self)   # BUILD: its ribbon tools and panel (the page itself is in PAGES)
 	ExpertPages.build(self)   # MODEL / SCULPT / SURFACE: their ribbon tools (scripts/expert_pages.gd), before the groups are laid out
 	var tog := func(tab: String, label: String, f: Callable, on: Callable, tip := ""):
 		var b := _button(label, f, tip)
@@ -12518,7 +12550,7 @@ func _ui() -> void:
 	strip.add_child(hb)
 	var wb := _button("What went wrong?", _why_toggle, "the last refusal or error, explained in plain words, with the one next step")
 	strip.add_child(wb)
-	for t in RIBBON:
+	for t in RIBBON_ALL:
 		_group(t)
 		for b in ui_ribbon[t].get_children():
 			_iconise(b)
@@ -12532,7 +12564,7 @@ func _ui() -> void:
 	tfill.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tb.add_child(tfill)
 	ui_tb = tb
-	for t in RIBBON:
+	for t in RIBBON_ALL:
 		ui_caps[t] = []
 		for g in RIBBON_GROUPS.get(t, []):
 			var cap := MenuButton.new()
@@ -14745,7 +14777,7 @@ this part"), "run": _toggle_lock.bind(j)},
 
 ## show one ribbon row. A page's row (SET is STAGE's) is a PAGE SWITCH; "VIEW" only shows the view row (tests, --ribbon)
 func _ribbon(t: String) -> void:
-	for p in PAGES:
+	for p in PAGES_ALL:
 		if PAGE_ROW[p] == t or p == t:
 			_page_set(p)
 			return
@@ -14753,9 +14785,9 @@ func _ribbon(t: String) -> void:
 
 
 func _ribbon_row(t: String) -> void:
-	for k in RIBBON:
+	for k in RIBBON_ALL:
 		ui_ribbon[k].visible = k == t
-	for p in PAGES:
+	for p in PAGES_ALL:
 		ui_page_btns[p].set_pressed_no_signal(PAGE_ROW[p] == t)   # by hand: _no_signal does not release the group's others
 	_ribbon_tab = t
 	_fit_top()
@@ -14779,7 +14811,7 @@ func _build_page_bar() -> void:
 	h.add_theme_constant_override("separation", 4)
 	bar.add_child(h)
 	var group := ButtonGroup.new()
-	for p in PAGES:
+	for p in PAGES_ALL:
 		var b := Button.new()
 		b.name = ("tab_" + String(PAGE_ROW[p]).to_lower()) if PAGE_ROW.has(p) else ("page_" + p.to_lower())
 		b.text = p
@@ -14791,7 +14823,7 @@ func _build_page_bar() -> void:
 			var i := PAGES.find(p)
 			b.toggle_mode = true
 			b.button_group = group
-			b.tooltip_text = "%s page (Shift+%d): %s" % [p, i + 1, PAGE_TIPS[p]]
+			b.tooltip_text = ("%s page (Shift+%d): %s" % [p, i + 1, PAGE_TIPS[p]]) if i >= 0 else "%s page: %s" % [p, PAGE_TIPS[p]]
 			b.pressed.connect(func(): _step_hint = "Page: " + p; _page_set(p))
 			ui_page_btns[p] = b
 			ui_ribbon_tabs[PAGE_ROW[p]] = b
@@ -14801,7 +14833,8 @@ func _build_page_bar() -> void:
 		cell.custom_minimum_size = Vector2(TAB_W, PAGE_H - 10)
 		b.set_anchors_preset(Control.PRESET_FULL_RECT)
 		cell.add_child(b)
-		h.add_child(cell)
+		if p != "BUILD":
+			h.add_child(cell)   # BUILD's tab joins the bar only in a 3D BUILDING project (_page_tabs_sync): every other bar is the nine pages
 		if p == "DELIVER":
 			var sep := VSeparator.new()
 			sep.custom_minimum_size.x = 14
@@ -14852,13 +14885,34 @@ func _build_page_bar() -> void:
 	_fit_page_bar()
 
 
+## THE PAGE BAR OF A PROJECT KIND: a 3D BUILDING project shows BUILD | STAGE | CHECK | DELIVER (BUILD first); every other
+## kind shows the nine pages it always had (BUILD is only that kind's page)
+const BUILD_TABS := ["BUILD", "STAGE", "CHECK", "DELIVER"]
+func _page_tabs_sync() -> void:
+	if ui_page_btns.is_empty() or S == null:
+		return
+	var building: bool = S.kind == "building"
+	var h := ui_page_bar.get_child(0) as Control
+	var bc := (ui_page_btns["BUILD"] as Button).get_parent() as Control
+	if building and bc.get_parent() == null:
+		h.add_child(bc)
+	elif not building and bc.get_parent() != null:
+		h.remove_child(bc)
+	if building:
+		h.move_child(bc, 0)
+	for p in PAGES_ALL:
+		((ui_page_btns[p] as Button).get_parent() as Control).visible = BUILD_TABS.has(p) or not building
+	_fit_page_bar()
+
+
 ## the page tabs narrow (their names ellipsis) when the window is too narrow for them, the Next: line and the chips:
 ## the room left after NEXT_RESERVE, split between the tabs, between TAB_MIN_W and TAB_W
 func _fit_page_bar() -> void:
 	if ui_page_btns.is_empty() or ui_page_bar == null:
 		return
 	var room := get_viewport().get_visible_rect().size.x - 16.0   # the bar's own margins
-	var w := clampf(floorf((room - NEXT_RESERVE) / ui_page_btns.size()), TAB_MIN_W, TAB_W)
+	var shown := ui_page_btns.values().filter(func(b): return (b as Button).get_parent().visible and (b as Button).get_parent().is_inside_tree()).size()
+	var w := clampf(floorf((room - NEXT_RESERVE) / maxi(shown, 1)), TAB_MIN_W, TAB_W)
 	for b in ui_page_btns.values():
 		((b as Button).get_parent() as Control).custom_minimum_size.x = w   # the tab's cell (its clip) takes the width
 
@@ -15064,6 +15118,8 @@ func _page_set(p: String, save := true) -> void:
 		return
 	if easy != null and easy.on and ExpertPages.PAGES.has(p):
 		return   # the expert pages are hidden in Easy mode (ExpertPages; the Shift+7..9 keys too)
+	if p == "BUILD" and S.kind != "building":
+		return   # the BUILD page belongs to a 3D BUILDING project
 	var was_page := cur_page
 	var was_mesh := ExpertPages.PAGES.has(cur_page)
 	var is_mesh := ExpertPages.PAGES.has(p)
@@ -15085,6 +15141,8 @@ func _page_set(p: String, save := true) -> void:
 			dummy_on = true
 			_dummy_hits()
 	cur_page = p
+	if bld != null:
+		bld.page_changed(was_page, p)
 	_mesh_show_sync()
 	if is_mesh and save and not _mesh_opening and not _mesh_open() and not (kmed != null and kmed.on) and not (ksc != null and ksc.on):
 		_mesh_auto_open(p)   # only when nothing is open: a test cube open on another page is not stopped by it   # a mesh page with nothing open: the fighter's body opens by itself (no Test cube click)
@@ -15404,7 +15462,7 @@ func _fit_top() -> void:
 		return
 	_place_caps.call_deferred()   # the captions follow whatever this pass hides
 	var all: Array = []
-	for t in RIBBON:
+	for t in RIBBON_ALL:
 		all.append_array(ui_ribbon[t].get_children())
 	all.append_array(ui_top_right)
 	for b in all:
@@ -18827,6 +18885,7 @@ func _new_scene() -> void:
 	playhead = 0.0
 	_rebuild_cards()
 	_refresh()
+	_bld_scene_changed(false)   # BUILD: no house in the new scene, and the page tabs of its kind
 
 
 func _clear_scene() -> void:
@@ -23058,6 +23117,8 @@ func _unsaved() -> bool:
 func _doc_key() -> String:
 	var H := _hero_scene()
 	var k := JSON.stringify(H.cards) + ("" if H.props.is_empty() else JSON.stringify(H.props.map(func(p): return Props.to_dict(p))))
+	if not S.building.is_empty():
+		k += "|building" + JSON.stringify(Building.to_file(S.building))   # BUILD: a drawn room is an unsaved change
 	if not H.shots.is_empty():
 		k += "|shots" + var_to_str(H.shots)   # the shots and their cameras: an unsaved change too (ROADMAP 75)
 	for a in H.actors:
@@ -23137,6 +23198,7 @@ func _open_scene_dict(path: String, d: Dictionary, work: bool, built := false) -
 			journal.trim()   # ... and its journal goes with it
 	_props_show()   # the opened scene's set is drawn now (a load used to leave the props out of the view until the next edit)
 	S.apply(B, 0.0)
+	_bld_scene_changed(true)
 
 
 # ---------------------------------------------------------------- THE SHOT CAMERA (docs/GAP_ANALYSIS.md row 21; GATES SC)
