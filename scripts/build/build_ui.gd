@@ -590,6 +590,25 @@ func _step_name(what: String) -> void:
 	m._step_hint = what
 
 
+## the status line. Expert: the tool's own words (they name keys and the side panel). Easy: those words stay out, the one plain sentence
+## of the tool shows instead (scripts/easy_build.gd), or easy_t when a refusal has its own
+func _say(t: String, easy_t := "") -> void:
+	if easy_ui():
+		m.easy.building.say(easy_t)
+	else:
+		m._say(t)
+
+
+## Easy mode is on: BUILD shows Easy's own bar and column and none of Expert's panels (scripts/easy_build.gd)
+func easy_ui() -> bool:
+	return m != null and m.easy != null and m.easy.on and m.easy.building != null
+
+
+## the width the Easy column takes from the left of the clear view (0 in Expert): the Words box and the toasts start right of it
+func easy_inset() -> float:
+	return m.easy.building.inset() if easy_ui() else 0.0
+
+
 ## a toast (main._toast) never covers the panel: it sits low in the view, right of the Snap chip, and moves left of the panel (or
 ## under it) if it would touch it
 func place_toast(t: Label) -> void:
@@ -732,7 +751,7 @@ func _layout() -> void:
 	var cl: Rect2 = m.nav_clear_rect()
 	var has: bool = not _bld().is_empty() and not _bld().get("rooms", []).is_empty()
 	var o := _opening(sel)
-	panel.visible = on and has and tool != "Words"
+	panel.visible = on and has and tool != "Words" and not easy_ui()
 	var pc := Building.piece_of(_bld(), psel) if tool == "Piece" else {}
 	panel_title.text = ("%s" % String(o.get("kind", "")).capitalize() + "   (selected)") if not o.is_empty() else {"Floor": "Floors", "Roof": "Roof", "Wall": "Wall", "Piece": "Piece"}.get(tool, "Building")
 	if not pc.is_empty():
@@ -742,7 +761,7 @@ func _layout() -> void:
 		(nr as Control).visible = tool != "Piece"
 	if tool == "Piece":
 		_piece_panel_sync(pc)
-	picker.visible = on and tool == "Piece"
+	picker.visible = on and tool == "Piece" and not easy_ui()
 	if picker.visible:
 		_picker_sync(has)
 		picker.reset_size()
@@ -762,13 +781,13 @@ func _layout() -> void:
 		for k in roof_btns:
 			(roof_btns[k] as Button).set_pressed_no_signal(k == rk)
 	remove_btn.visible = not o.is_empty()
-	hint_box.visible = on and not has and tool == "Room" and drag == ""
+	hint_box.visible = on and not has and tool == "Room" and drag == "" and not easy_ui()
 	if hint_box.visible:
 		hint_box.reset_size()
 		hint_box.position = Vector2(cl.position.x + (cl.size.x - hint_box.size.x) * 0.5, cl.position.y + cl.size.y * 0.42)
 	panel.reset_size()
 	panel.position = Vector2(cl.end.x - PANEL_W - 8.0, cl.position.y + 6.0)   # left of the view cube
-	type_box.visible = on and drag == "room"
+	type_box.visible = on and drag == "room" and not easy_ui()
 	if type_box.visible:
 		type_box.reset_size()
 		type_box.position = Vector2(cl.end.x - type_box.size.x - 8.0, cl.position.y + 6.0)
@@ -776,7 +795,7 @@ func _layout() -> void:
 		words.layout(cl)
 	if houses != null:
 		houses.layout(cl)
-	chip.visible = on
+	chip.visible = on and not easy_ui()
 	if on:
 		chip.reset_size()
 		chip.position = Vector2(cl.position.x + 12.0, cl.end.y - chip.size.y - 6.0)
@@ -807,9 +826,9 @@ func _pick_tool(t: String) -> void:
 		(tool_btns[k] as Button).set_pressed_no_signal(k == t)
 	for tl in TOOLS:
 		if tl[0] == t:
-			m._say(tl[1])
+			_say(tl[1])
 	if t == "Words":
-		m._say(WORDS_TIP)
+		_say(WORDS_TIP)
 		words.focus.call_deferred()
 	_highlights()
 	_layout()
@@ -827,7 +846,7 @@ func _set_kind(k: String) -> void:
 			o.merge({"w": "window_width", "h": "window_height", "sill": "window_sill"}, true)
 		else:
 			o.merge({"w": "door_width", "h": "door_height", "sill": 0.0}, true)
-		m._say("Opening: now a %s" % k)
+		_say("Opening: now a %s" % k)
 		sync()
 
 
@@ -839,7 +858,7 @@ func _remove_sel() -> void:
 	m._push_undo()
 	_bld()["openings"].erase(o)
 	sel = ""
-	m._say("Opening: removed, the wall is whole again")
+	_say("Opening: removed, the wall is whole again")
 	sync()
 
 
@@ -871,7 +890,7 @@ func _commit_param(key: String, v: float) -> void:
 	m._step_hint = what
 	m._push_undo()
 	bd["params"][key] = v
-	m._say(what)
+	_say(what)
 	sync()
 
 
@@ -1037,7 +1056,7 @@ func _finish_room() -> void:
 		m._push_undo()
 		var bd := _ensure()
 		Building.add_room(bd, r["x"], r["z"], r["w"], r["d"])
-		m._say("Room %.1f m x %.1f m: 4 walls (%.1f m) and a floor" % [r["w"], r["d"], Building.num(bd, "wall_height", 2.7)])
+		_say("Room %.1f m x %.1f m: 4 walls (%.1f m) and a floor" % [r["w"], r["d"], Building.num(bd, "wall_height", 2.7)])
 		_end_drag()
 		sync()
 	else:
@@ -1083,7 +1102,7 @@ func _press(p: Vector2) -> bool:
 		typed = ["", ""]
 		field = 0
 		_drag_update()
-		m._say(TOOLS[0][1])
+		_say(TOOLS[0][1])
 		return true
 	if tool == "Opening":
 		var hit := pick_opening(p)
@@ -1103,7 +1122,7 @@ func _press(p: Vector2) -> bool:
 			drag = "slide"
 			frame_wall(w["room"], w["wall"])
 			_slide_moved = true   # its undo step is this click's
-			m._say("Opening: a %s on the %s wall. Drag it along the wall to slide it" % [kind, w["wall"]])
+			_say("Opening: a %s on the %s wall. Drag it along the wall to slide it" % [kind, w["wall"]])
 			sync()
 			return true
 		sel = ""
@@ -1125,7 +1144,7 @@ func _release() -> bool:
 	if drag == "slide":
 		var o := _opening(sel)
 		if not o.is_empty() and _slide_moved:
-			m._say("Opening: at %.1f m from the wall's middle" % float(o["at"]))
+			_say("Opening: at %.1f m from the wall's middle" % float(o["at"]))
 		_end_drag()
 		return true
 	return false
@@ -1247,7 +1266,7 @@ func _key(k: InputEventKey) -> bool:
 				return true
 			KEY_ESCAPE:
 				_end_drag()
-				m._say("Room: cancelled, nothing changed")
+				_say("Room: cancelled, nothing changed")
 				return true
 		return false
 	if tool == "Opening" and sel != "" and (k.keycode == KEY_DELETE or k.keycode == KEY_BACKSPACE):
@@ -1265,13 +1284,13 @@ func _key(k: InputEventKey) -> bool:
 			psel = ""
 			_sync_cards()
 			sync()
-			m._say("Piece: nothing in hand")
+			_say("Piece: nothing in hand")
 			return true
 	if (drag == "wall" or drag == "pull") and k.keycode == KEY_ESCAPE:
 		if drag == "pull":
 			_pull_restore()
 		_end_drag()
-		m._say("cancelled, nothing changed")
+		_say("cancelled, nothing changed")
 		return true
 	return false
 
@@ -1302,12 +1321,12 @@ func _press_wall(p: Vector2) -> bool:
 		return true
 	_wall_room = _room_at(g)
 	if _wall_room == "":
-		m._say("Wall: start the drag inside a room")
+		_say("Wall: start the drag inside a room")
 		return true
 	a = _snap(g)
 	b = a
 	drag = "wall"
-	m._say(TOOLS[1][1])
+	_say(TOOLS[1][1])
 	ov.queue_redraw()
 	return true
 
@@ -1341,12 +1360,12 @@ func _finish_wall() -> void:
 	var room := _wall_room
 	_end_drag()
 	if not bool(sp["ok"]):
-		m._say("Wall: %s, nothing changed" % sp.get("why", "not a wall"))
+		_say("Wall: %s, nothing changed" % sp.get("why", "not a wall"))
 		return
 	m._step_hint = "Wall at %.1f m" % float(sp["pos"])
 	m._push_undo()
 	var id := Building.add_wall(_bld(), room, String(sp["axis"]), float(sp["pos"]))
-	m._say("Wall: %s across the room at %.1f m (%.1f m thick). Use Opening to put a door in it" % [id, float(sp["pos"]), Building.num(_bld(), "inner_wall_thickness", 0.1)])
+	_say("Wall: %s across the room at %.1f m (%.1f m thick). Use Opening to put a door in it" % [id, float(sp["pos"]), Building.num(_bld(), "inner_wall_thickness", 0.1)])
 	sync()
 
 
@@ -1390,7 +1409,7 @@ func plane_hit(p: Vector2, y: float) -> Variant:
 func _press_pull(p: Vector2) -> bool:
 	var w := pick_wall(p)
 	if w.is_empty() or not Building.WALLS.has(String(w["wall"])):
-		m._say("Pull: press on a room's outer wall and drag it in or out")
+		_say("Pull: press on a room's outer wall and drag it in or out")
 		return true
 	var r := Building.room_of(_bld(), String(w["room"]))
 	var y: float = (w["hit"] as Vector3).y
@@ -1405,7 +1424,7 @@ func _press_pull(p: Vector2) -> bool:
 		"orig": {"x": float(r["x"]), "z": float(r["z"]), "w": float(r["w"]), "d": float(r["d"])}, "walls": pos}
 	drag = "pull"
 	hover_box.visible = false
-	m._say(TOOLS[2][1])
+	_say(TOOLS[2][1])
 	return true
 
 
@@ -1473,7 +1492,7 @@ func _finish_pull() -> void:
 	var r := Building.room_of(_bld(), String(_pull.get("room", "")))
 	_end_drag()
 	if moved and not r.is_empty():
-		m._say("Pull: the room is %.1f m x %.1f m now. Doors keep their place from the wall's middle" % [float(r["w"]), float(r["d"])])
+		_say("Pull: the room is %.1f m x %.1f m now. Doors keep their place from the wall's middle" % [float(r["w"]), float(r["d"])])
 
 
 func _draw_pull_label() -> void:
@@ -1513,12 +1532,12 @@ func _frame_house() -> void:
 func _add_floor() -> void:
 	var bd := _bld()
 	if bd.is_empty() or bd.get("rooms", []).is_empty():
-		m._say("Floor: draw a room first")
+		_say("Floor: draw a room first", "Draw a room first")
 		return
 	m._step_hint = "Floor: add"
 	m._push_undo()
 	var n := Building.add_floor(bd)
-	m._say("Floor %d added: the same footprint, a floor slab between (%.1f m up)" % [n + 1, Building.num(bd, "floor_height", 2.8) * n])
+	_say("Floor %d added: the same footprint, a floor slab between (%.1f m up)" % [n + 1, Building.num(bd, "floor_height", 2.8) * n])
 	sync()
 	_frame_house()
 
@@ -1526,26 +1545,26 @@ func _add_floor() -> void:
 func _remove_floor() -> void:
 	var bd := _bld()
 	if Building.storey_count(bd) < 2:
-		m._say("Floor: the last floor stays")
+		_say("Floor: the last floor stays", "The last floor stays")
 		return
 	m._step_hint = "Floor: remove top"
 	m._push_undo()
 	Building.remove_top_floor(bd)
-	m._say("Floor: the top floor is gone")
+	_say("Floor: the top floor is gone")
 	sync()
 
 
 func _set_roof(k: String) -> void:
 	var bd := _bld()
 	if bd.is_empty() or bd.get("rooms", []).is_empty():
-		m._say("Roof: draw a room first")
+		_say("Roof: draw a room first", "Draw a room first")
 		return
 	if String(bd.get("roof", {}).get("kind", "")) == k:
 		return
 	m._step_hint = "Roof: %s" % k
 	m._push_undo()
 	Building.set_roof(bd, k)
-	m._say("Roof: %s, overhang %.2f m. The overhang is a number in the panel" % [k, Building.num(bd, bd["roof"].get("overhang"), 0.45)])
+	_say("Roof: %s, overhang %.2f m. The overhang is a number in the panel" % [k, Building.num(bd, bd["roof"].get("overhang"), 0.45)])
 	sync()
 	_frame_house()
 
@@ -1557,7 +1576,7 @@ func _remove_roof() -> void:
 	m._step_hint = "Roof: none"
 	m._push_undo()
 	bd.erase("roof")
-	m._say("Roof: taken off")
+	_say("Roof: taken off")
 	sync()
 
 
@@ -1574,7 +1593,7 @@ func _use_pressed() -> void:
 func use_in_scene() -> void:
 	var bd := _bld()
 	if bd.is_empty() or bd.get("rooms", []).is_empty() or bool(bd.get("readonly", false)):
-		m._say("Use in a scene: draw a room first")
+		_say("Use in a scene: draw a room first", "Draw a room first")
 		return
 	m._step_hint = "Use in a scene: %s" % bd.get("name", "house")
 	m._push_undo()
@@ -1585,7 +1604,7 @@ func use_in_scene() -> void:
 	_stage_sync()
 	var doors := BuildStage.door_names(bd)
 	frame_door(String(doors[0]) if not doors.is_empty() else "")
-	m._say("STAGE: the building is now a set (%s). %s Edit the house in BUILD any time" % [kind.trim_prefix("building:"),
+	_say("STAGE: the building is now a set (%s). %s Edit the house in BUILD any time" % [kind.trim_prefix("building:"),
 		"The fighter walks through the %s." % doors[0] if not doors.is_empty() else "Put a door in it and the fighter can walk in."])
 
 
@@ -1698,7 +1717,7 @@ func _layout_stage() -> void:
 func walk_through(name: String) -> void:
 	var r := BuildStage.walk_scene(m.S, m.B, name)
 	if not bool(r["ok"]):
-		m._say(String(r["why"]))
+		_say(String(r["why"]))
 		return
 	var d: Dictionary = r["scene"]
 	var n: int = d["cards"].size()
@@ -1724,7 +1743,7 @@ func walk_through(name: String) -> void:
 	if not m.undo.is_empty():
 		m.undo[-1]["swap"] = true
 	frame_door(name)
-	m._say("walking through the %s: %d cards, from outside to inside at %.1f m/s. The open scene is untouched; Ctrl+Z goes back to it in one step" % [name, n, BuildStage.WALK_SPEED])
+	_say("walking through the %s: %d cards, from outside to inside at %.1f m/s. The open scene is untouched; Ctrl+Z goes back to it in one step" % [name, n, BuildStage.WALK_SPEED])
 
 
 # ---------------------------------------------------------------- Piece: the picker, placing, the numbers
@@ -1794,7 +1813,7 @@ func _card_toggled(pressed: bool, kd: String) -> void:
 	if pressed:
 		piece_kind = kd
 		psel = ""
-		m._say("Piece: %s in hand. Click inside a room to put it down (snaps to 0.5 m); Esc puts it back" % String(BuildPieces.DEFS[kd]["label"]).to_lower())
+		_say("Piece: %s in hand. Click inside a room to put it down (snaps to 0.5 m); Esc puts it back" % String(BuildPieces.DEFS[kd]["label"]).to_lower())
 	elif piece_kind == kd:
 		piece_kind = ""
 	sync()
@@ -1938,7 +1957,7 @@ func _piece_set(key: String, v: float) -> void:
 	trial[key] = v
 	var f := BuildPieces.fit(_bld(), trial)
 	if not bool(f["ok"]):
-		m._say("Piece: %s stays %.1f m: %s" % [String(d[3]).to_lower(), old, f["why"]])
+		_say("Piece: %s stays %.1f m: %s" % [String(d[3]).to_lower(), old, f["why"]])
 		_piece_sig = ""
 		return
 	var what := "%s %s %.1f -> %.1f m" % [BuildPieces.DEFS[String(pc["kind"])]["label"], String(d[3]).to_lower(), old, v]
@@ -1947,7 +1966,7 @@ func _piece_set(key: String, v: float) -> void:
 	pc[key] = v
 	pc["x"] = f["x"]
 	pc["z"] = f["z"]
-	m._say(what)
+	_say(what)
 	sync()
 
 
@@ -1959,14 +1978,14 @@ func _piece_rotate() -> void:
 	trial["yaw"] = fposmod(float(pc.get("yaw", 0.0)) + 90.0, 360.0)
 	var f := BuildPieces.fit(_bld(), trial)
 	if not bool(f["ok"]):
-		m._say("Piece: it stays as it is: %s" % f["why"])
+		_say("Piece: it stays as it is: %s" % f["why"])
 		return
 	m._step_hint = "Piece: rotate"
 	m._push_undo()
 	pc["yaw"] = trial["yaw"]
 	pc["x"] = f["x"]
 	pc["z"] = f["z"]
-	m._say("Piece: turned to %d degrees" % int(pc["yaw"]))
+	_say("Piece: turned to %d degrees" % int(pc["yaw"]))
 	sync()
 
 
@@ -1980,7 +1999,7 @@ func _piece_flip() -> void:
 		pc.erase("flip")
 	else:
 		pc["flip"] = true
-	m._say("Piece: the L stairs turn the other way")
+	_say("Piece: the L stairs turn the other way")
 	sync()
 
 
@@ -1992,7 +2011,7 @@ func _piece_remove() -> void:
 	m._push_undo()
 	Building.remove_piece(_bld(), psel)
 	psel = ""
-	m._say("Piece: removed%s" % (", the floor above is whole again" if BuildPieces.is_stairs(pc) else ""))
+	_say("Piece: removed%s" % (", the floor above is whole again" if BuildPieces.is_stairs(pc) else ""))
 	sync()
 
 
@@ -2042,7 +2061,7 @@ func _press_piece(p: Vector2) -> bool:
 		piece_kind = ""
 		_sync_cards()
 		var pc := Building.piece_of(_bld(), hit)
-		m._say("Piece: %s picked. Change its numbers on the right, turn it, or press Delete" % String(BuildPieces.DEFS[String(pc["kind"])]["label"]).to_lower())
+		_say("Piece: %s picked. Change its numbers on the right, turn it, or press Delete" % String(BuildPieces.DEFS[String(pc["kind"])]["label"]).to_lower())
 		sync()
 		return true
 	if piece_kind == "":
@@ -2051,14 +2070,14 @@ func _press_piece(p: Vector2) -> bool:
 		return true
 	var bd := _bld()
 	if bd.is_empty() or bd.get("rooms", []).is_empty():
-		m._say("Piece: draw a room first, pieces stand inside rooms")
+		_say("Piece: draw a room first, pieces stand inside rooms", "Draw a room first")
 		return true
 	var g: Variant = plane_hit(p, _piece_floor_y())
 	if g == null:
 		return true
 	var tr := _piece_trial(g)
 	if not bool(tr["ok"]):
-		m._say("Piece: %s" % tr["why"])
+		_say("Piece: %s" % tr["why"], String(tr["why"]).substr(0, 1).to_upper() + String(tr["why"]).substr(1))
 		return true
 	var pc: Dictionary = tr["piece"]
 	m._step_hint = "Piece: %s" % String(BuildPieces.DEFS[piece_kind]["label"])
@@ -2067,10 +2086,10 @@ func _press_piece(p: Vector2) -> bool:
 	psel = id
 	var np := Building.piece_of(bd, id)
 	if BuildPieces.is_stairs(np):
-		m._say("Piece: %s on floor %d, %d risers%s. Change its numbers on the right" % [String(BuildPieces.DEFS[piece_kind]["label"]).to_lower(), piece_floor + 1,
+		_say("Piece: %s on floor %d, %d risers%s. Change its numbers on the right" % [String(BuildPieces.DEFS[piece_kind]["label"]).to_lower(), piece_floor + 1,
 			BuildPieces.stairs_numbers(bd, np)["n"], ", the floor above is open over it" if Building.storey_count(bd) > piece_floor + 1 else ""])
 	else:
-		m._say("Piece: %s placed. Change its numbers on the right" % String(BuildPieces.DEFS[piece_kind]["label"]).to_lower())
+		_say("Piece: %s placed. Change its numbers on the right" % String(BuildPieces.DEFS[piece_kind]["label"]).to_lower())
 	sync()
 	return true
 
@@ -2108,7 +2127,7 @@ func _draw_piece_labels() -> void:
 func walk_up(pid: String) -> void:
 	var r := BuildStage.stairs_scene(m.S, m.B, pid)
 	if not bool(r["ok"]):
-		m._say(String(r["why"]))
+		_say(String(r["why"]))
 		return
 	var d: Dictionary = r["scene"]
 	var n: int = d["cards"].size()
@@ -2136,7 +2155,7 @@ func walk_up(pid: String) -> void:
 	var pc := Building.piece_of(_bld(), pid)
 	var xf := BuildPieces.frame(_bld(), pc)
 	m._turn_to(rad_to_deg(xf.basis.get_euler().y) + 90.0 + 28.0, -18.0, 8.0, xf.origin + Vector3(0, float(BuildPieces.stairs_numbers(_bld(), pc)["rise"]) * 0.5, 0), false)
-	m._say("walking up the stairs: %d cards, feet on the steps, %.1f m/s. The open scene is untouched; Ctrl+Z goes back to it in one step" % [n, BuildStage.WALK_SPEED])
+	_say("walking up the stairs: %d cards, feet on the steps, %.1f m/s. The open scene is untouched; Ctrl+Z goes back to it in one step" % [n, BuildStage.WALK_SPEED])
 
 
 # ---------------------------------------------------------------- the labels over the view

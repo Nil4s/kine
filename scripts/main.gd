@@ -1111,7 +1111,7 @@ const FIT_FILL := 0.85
 
 func nav_clear_rect() -> Rect2:
 	var vs := get_viewport().get_visible_rect().size
-	var x0 := lw()
+	var x0 := lw() + (bld.easy_inset() if bld != null else 0.0)   # Easy BUILD: the column takes the left
 	var x1 := vs.x - rw() - (ViewCube.SIZE + 24)   # the cube's strip (RR4: the nav bar is at the bottom, under the say-line's band)
 	return Rect2(x0, TOP_H, x1 - x0, vs.y - bottom_h - 88 - TOP_H)   # above the say-line
 
