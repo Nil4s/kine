@@ -133,6 +133,8 @@ static func from_file(d: Variant) -> Dictionary:
 		if f is Dictionary and KINDS.has(String(f.get("t", ""))) and String(f.get("id", "")) != "":
 			out["features"].append((f as Dictionary).duplicate(true))
 			out["seq"] = maxi(int(out["seq"]), int(String(f["id"]).trim_prefix("f")))
+	if (d as Dictionary).get("easy") is Dictionary and (d as Dictionary)["easy"].has("t"):
+		out["easy"] = (d as Dictionary)["easy"].duplicate(true)   # EASY PART: the template's numbers (scripts/build/part_templates.gd)
 	return out if not out["features"].is_empty() else {}
 
 

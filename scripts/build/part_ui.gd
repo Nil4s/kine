@@ -39,6 +39,9 @@ const TIPS := {
 var bu: BuildUI
 var m: Node
 var on := false                # the Part workspace is showing (inside BUILD)
+var easy := false              # ...with EASY PART's screen (scripts/easy_part.gd) instead of the Expert chrome: the same record
+var ep: EasyPart
+var easy_open_btn: Button
 var tool := ""
 var sk := ""                   # the sketch being edited ("" = the model is showing)
 var snap_mm := 5.0
@@ -134,6 +137,10 @@ func setup(b: BuildUI) -> void:
 	finish_btn.name = "part_finish"
 	_icon(finish_btn, "part_finish")
 	row.add_child(finish_btn)
+	easy_open_btn = m._button("Easy", open_easy, "Easy Part: change a sword, axe, shield, chair or crate with sliders and big buttons, mouse only. The same part opens here again")
+	easy_open_btn.name = "part_easy_open"
+	_icon(easy_open_btn, "part_part")
+	row.add_child(easy_open_btn)
 	for c in row.get_children():
 		if not house_btns.has(c) and c != part_btn:
 			c.visible = false
@@ -174,13 +181,50 @@ func setup(b: BuildUI) -> void:
 	dim_edit.visible = false
 	dim_edit.text_submitted.connect(_dim_submitted)
 	m.ui_root.add_child(dim_edit)
+	ep = EasyPart.new()
+	ep.pu = self
+	ep.m = m
+	m.ui_root.add_child(ep)   # (PartUI itself is not in the tree: EasyPart needs its own _process)
+	ep.build(m.ui_root)
+
+
+## the Expert chrome (ribbon tools, browser, panel, timeline) shows
+func chrome() -> bool:
+	return bu.on and on and not easy and not bu.easy_ui()
+
+
+## the Part workspace has the page, in Expert or in Easy's screen
+func shows() -> bool:
+	return bu.on and on and (easy or not bu.easy_ui())
+
+
+## EASY PART: the same record on Easy's screen. A part drawn in Expert stays as it is (the chips start a template over it, as one undo step);
+## nothing there yet = a sword to begin with (one undo step)
+func open_easy() -> void:
+	if sk != "":
+		finish_sketch()
+	close_dialog()
+	tool = ""
+	if not on:
+		on = true
+		part_btn.set_pressed_no_signal(true)
+	easy = true
+	if m.S.part.is_empty() and Part.available():
+		m._step_hint = "Start a sword"
+		m._push_undo()
+		m.S.part = PartTemplates.make("sword")
+	upto = -1
+	_rec_sig = ""
+	bu.sync()
+	ep.entered()
+	m._fit_top.call_deferred()
 
 
 ## main._fit_top shows a ribbon row's buttons by this: the BUILD row holds the house tools AND the Part workspace's, and only one set shows
 func ribbon_shows(b: Node, tab: String) -> bool:
 	if tab != "BUILD":
 		return true
-	var show: bool = bu.on and on and not bu.easy_ui()
+	var show := chrome()
 	if b == part_btn:
 		return bu.on and not bu.easy_ui()
 	if b is VSeparator:
@@ -583,6 +627,8 @@ func _close_chain() -> void:
 # ---------------------------------------------------------------- input (BuildUI.input hands every event here while the workspace is on)
 
 func input(ev: InputEvent) -> bool:
+	if easy:
+		return ep.input(ev)
 	if not Part.available():
 		return false
 	if ev is InputEventMouseButton:
@@ -1301,7 +1347,8 @@ func _tool_sync() -> void:
 
 
 func sync() -> void:
-	var show: bool = bu.on and on and not bu.easy_ui()
+	var show := chrome()
+	var up := shows()
 	part_btn.visible = bu.on and not bu.easy_ui()
 	part_btn.set_pressed_no_signal(on)
 	for c in house_btns:
@@ -1309,6 +1356,7 @@ func sync() -> void:
 	for t in tool_btns:
 		(tool_btns[t] as Control).visible = show
 	finish_btn.visible = show
+	easy_open_btn.visible = show
 	for c in my_seps:
 		(c as Control).visible = show
 	if show != _was_show:
@@ -1326,12 +1374,12 @@ func sync() -> void:
 		dim_edit.visible = false
 	if show and not dlg.is_empty() and int(dlg["edit"]) >= _feats().size():
 		close_dialog()
-	_rebuild(show)
+	_rebuild(up)
 	pov.visible = show
-	part_mesh.visible = show and sk == "" and prev.is_empty() and part_mesh.mesh != null
+	part_mesh.visible = up and sk == "" and prev.is_empty() and part_mesh.mesh != null
 	prev_mesh.visible = show and not prev.is_empty() and prev_mesh.mesh != null
-	bu.house.visible = not show
-	if show:
+	bu.house.visible = not up
+	if up:
 		bu.grid.visible = false
 		bu.person.visible = false
 	browser.visible = show
@@ -1369,7 +1417,7 @@ func _rebuild(show: bool) -> void:
 	var up := upto
 	if not dlg.is_empty() and int(dlg["edit"]) >= 0:
 		up = int(dlg["edit"]) - 1
-	res = Part.replay(_rec(), up, {"edges": true})
+	res = Part.replay(_rec(), up, {"edges": not easy})
 	if sk == "":
 		part_mesh.mesh = res["mesh"]
 	edge_cache = res["edges"]
@@ -1412,19 +1460,22 @@ func _profile_text(f: Dictionary) -> String:
 
 
 func layout(cl: Rect2) -> void:
-	var show: bool = bu.on and on and not bu.easy_ui()
+	var show := chrome()
+	var up := shows()
 	part_btn.visible = bu.on and not bu.easy_ui()   # (a project started from the start screen reaches BUILD without a sync)
-	if show:
+	if up:
 		for l in m.axis_tags:
 			(l as Node3D).visible = false
 	if bu.panel != null:
-		if show:
+		if up:
 			bu.panel.visible = false
 			bu.picker.visible = false
 			bu.hint_box.visible = false
 			bu.chip.visible = false
 			bu.type_box.visible = false
 			bu.words.plan_panel.visible = false
+	if up and easy:
+		ep.layout(cl)
 	if not show:
 		return
 	tl.reset_size()

@@ -1074,7 +1074,7 @@ func _finish_room() -> void:
 func input(ev: InputEvent) -> bool:
 	if not on:
 		return false
-	if part != null and part.on and not easy_ui():
+	if part != null and part.shows():
 		return part.input(ev)   # the Part workspace has the page: the house tools do not see the event
 	if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 		var mb := ev as InputEventMouseButton
