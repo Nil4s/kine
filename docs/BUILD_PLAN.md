@@ -167,3 +167,15 @@ outlines with openings), **section** (a vertical cut). Output SVG first (pure GD
    expect outer; game makers often think in inner floor size. Keep outer?
 3. **Scope**: sets for fights (rooms, arenas, a house; tens of openings) or whole levels? This decides when the KineCAD /
    per-room path must replace the single grid.
+
+## 11. The Part workspace (Expert, phase 1: `scripts/build/part.gd`, `part_ui.gd`; suite `partws`)
+
+A **Part** (`Scene.part`, in the file as `"part"` only when there is one; `MIRROR_SCENE` says free) is a TIMELINE of features, millimetres in the record:
+sketch(plane, entities, dimensions) / extrude / revolve / fillet / chamfer / mirror. Rebuild = replay the list through `KCad` into solids and a preview mesh
+(`Part.replay`; every shape it makes is released). A fillet stores the edge's centre, its place in the body's bounding box (0..1) and its direction, and a
+rebuild picks the best match, so the fillet survives a sketch made bigger (a step that no longer finds its edge fails alone, its message on the red icon).
+UI: the **Part** button on the BUILD ribbon swaps the house tools for SKETCH Line, Rectangle, Circle, Arc, Dimension | CREATE Extrude, Revolve, Mirror |
+MODIFY Fillet, Chamfer | Finish sketch; a browser left (Bodies, Sketches, Planes: a click on a plane starts a sketch), the numbers / dialog panel right,
+the timeline strip below (single click selects, double click edits and the later steps replay; the arrows move the marker). Sketch grid 5 mm / 1 mm, typed
+dimensions. Every feature, and every sketch from its start to Finish sketch, is ONE undo step. No CAD DLL: the tools are greyed with one line why.
+Not in phase 1: constraints, spline, sweep / loft, shell, pattern (the kernel has them), several bodies in one dialog, Use in a scene for a part.

@@ -245,7 +245,8 @@ const RIBBON_GROUPS := {
 	"MODEL": [["MESH", ["Test cube", "Edit body", "Save to body", "Save", "Open...", "Use in scene"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Proportional", "Modifiers", "Validate", "Repair"]]],
 	"SCULPT": [["SPHERE", ["Test sphere"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
 	"SURFACE": [["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]], ["MATERIAL", ["Material from photo"]]],
-	"BUILD": [["DRAW", ["Room", "Wall", "Pull"]], ["ADD", ["Opening", "Floor", "Roof", "Piece"]], ["SAY", ["Words"]], ["SHEET", ["Blueprint"]]],
+	"BUILD": [["DRAW", ["Room", "Wall", "Pull"]], ["ADD", ["Opening", "Floor", "Roof", "Piece"]], ["SAY", ["Words"]], ["SHEET", ["Blueprint"]],
+		["PART", ["Part"]], ["SKETCH", ["Line", "Rectangle", "Circle", "Arc", "Dimension"]], ["CREATE", ["Extrude", "Revolve", "Mirror"]], ["MODIFY", ["Fillet", "Chamfer"]], ["DONE", ["Finish sketch"]]],   # the last five are the Part workspace's (scripts/build/part_ui.gd)
 	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped"]]],
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag", "Keep balance"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
@@ -6282,7 +6283,7 @@ func _snapshot() -> Dictionary:
 	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
 	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
 		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps, "bcol": body_colour, "bsm": Overlays.smooth,
-		"props": S.props.map(func(p): return Props.to_dict(p)), "building": _bld_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
+		"props": S.props.map(func(p): return Props.to_dict(p)), "building": _bld_file(), "part": _part_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
@@ -6344,6 +6345,11 @@ func _bld_scene_changed(opened: bool, caller_follows := false) -> void:   # call
 ## the open scene's BUILD record as the file holds it ({} = none): the undo snapshot's "building"
 func _bld_file() -> Dictionary:
 	return {} if S.building.is_empty() else Building.to_file(S.building)
+
+
+## the open scene's PART record as the file holds it ({} = none): the undo snapshot's "part"
+func _part_file() -> Dictionary:
+	return {} if S.part.is_empty() else Part.to_file(S.part)
 
 
 func _restore(u: Dictionary) -> void:
@@ -6452,6 +6458,10 @@ func _restore(u: Dictionary) -> void:
 		_props_show()
 	if u["scene"] == S and u.has("building") and JSON.stringify(u["building"]) != JSON.stringify(_bld_file()):
 		S.building = Building.from_file(u["building"])   # BUILD: the house, undone like a card
+		if bld != null:
+			bld.sync()
+	if u["scene"] == S and u.has("part") and JSON.stringify(u["part"]) != JSON.stringify(_part_file()):
+		S.part = Part.from_file(u["part"])   # PART: the feature timeline, undone like a card
 		if bld != null:
 			bld.sync()
 	if u.has("bcol") and int(u["bcol"]) != body_colour:
@@ -15597,9 +15607,9 @@ func _fit_top() -> void:
 	for b in all:
 		if b is Button and b.has_meta("full"):
 			b.text = b.get_meta("full")
-	var tools: Array = ui_ribbon[_ribbon_tab].get_children().filter(func(c): return c is Button)
 	for b in ui_ribbon[_ribbon_tab].get_children():
-		(b as Control).visible = true
+		(b as Control).visible = bld == null or bld.part == null or bld.part.ribbon_shows(b, _ribbon_tab)   # BUILD: the house tools or the Part workspace's, never both
+	var tools: Array = ui_ribbon[_ribbon_tab].get_children().filter(func(c): return c is Button and (c as Control).visible)
 	ui_more.visible = false
 	_more_tools = []
 	if _top_fits():
@@ -23317,7 +23327,7 @@ static func _rm_tree(dir: String) -> void:
 
 func _unsaved() -> bool:
 	var H := _hero_scene()   # TC3: the file is the hero's scene, whoever is active
-	return (not H.cards.is_empty() or not H.props.is_empty() or not S.building.is_empty()) and _doc_key() != _clean   # a drawn house is work too
+	return (not H.cards.is_empty() or not H.props.is_empty() or not S.building.is_empty() or not S.part.is_empty()) and _doc_key() != _clean   # a drawn house (or a sketched part) is work too
 
 
 ## what "saved" compares: the cards, and the set when there is one (no props: the same string as before round 37); with
@@ -23327,6 +23337,8 @@ func _doc_key() -> String:
 	var k := JSON.stringify(H.cards) + ("" if H.props.is_empty() else JSON.stringify(H.props.map(func(p): return Props.to_dict(p))))
 	if not S.building.is_empty():
 		k += "|building" + JSON.stringify(Building.to_file(S.building))   # BUILD: a drawn room is an unsaved change
+	if not S.part.is_empty():
+		k += "|part" + JSON.stringify(Part.to_file(S.part))   # PART: a sketched feature is an unsaved change
 	if not H.shots.is_empty():
 		k += "|shots" + var_to_str(H.shots)   # the shots and their cameras: an unsaved change too (ROADMAP 75)
 	for a in H.actors:
