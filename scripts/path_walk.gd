@@ -27,6 +27,7 @@ const SWING := 0.7            # the share of a step period the stepping foot is 
 const PIVOTS := 3             # double-support cards before each step: the facing is keyed every 1/(PIVOTS+1) of a step, not once per step
 const MIN_RADIUS := 0.8        # m: a tighter arc than this is refused (the walk steps can't turn it: the facing lags past 10 deg, the feet slide)
 const SWING_LIFT := 0.06       # m: how high the stepping foot's toe base lifts = walk_bat's own "lift" (the Scene's default 0.08 gave a 70.7 deg swing knee here, walk_bat's 0.06 gives 67.5; its 60 is at a 0.30 m step)
+const TWIST_KEEP := 0.7        # the share of the donor's pelvis twist kept (donor +-5.8 deg -> +-4.1: people walk with ~+-4 deg of pelvic rotation; turn gap 0 -> 5.7, 0.5 -> 7.8, 0.6 -> 8.3, 0.7 -> 8.9 deg)
 const YAW_LAG := 0.12          # m: a card's facing is the tangent this far BEHIND its hips (sweep on the 90 deg arc, donor twist removed: 0 -> 9.7 deg, 0.08 -> 6.9, 0.10 -> 6.3, 0.12 -> 5.7, 0.14 -> 6.1, 0.16 -> 6.7)
 
 
@@ -218,7 +219,7 @@ static func _card(B: Body, c: Dictionary, donor: Dictionary, name: String, steps
 	# the facing was tangent + lag + twist: the swing's twist change read as a 10 deg gap on a bend. Take the donor's yaw out first.
 	var fwd0: Vector3 = (B.G["pelvis"] as Quaternion) * Vector3(0, 0, 1)
 	var want := heading(c, (s_hip if is_nan(s_yaw_in) else s_yaw_in) - YAW_LAG)
-	B.turn_world("pelvis", Quaternion(Vector3.UP, wrapf(want - atan2(fwd0.x, fwd0.z), -PI, PI)))
+	B.turn_world("pelvis", Quaternion(Vector3.UP, wrapf(want - (1.0 - TWIST_KEEP) * atan2(fwd0.x, fwd0.z), -PI, PI)))
 	var o: Vector3 = at(c, s_hip)
 	B.offset = Vector3(o.x, B.offset.y, o.z)
 	if surf.is_valid():
