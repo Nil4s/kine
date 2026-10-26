@@ -10569,7 +10569,10 @@ func _hands_refresh() -> void:
 			var x0 := float(LEFT_W) + 12.0
 			var x1 := vs.x - float(RIGHT_W) - 12.0 - ps.x
 			var y0 := float(TOP_H) + 8.0
-			var y1 := vs.y - float(BOTTOM_H) - ps.y - 64.0   # above the mouse-hint line
+			var y1 := vs.y - float(BOTTOM_H) - ps.y - 64.0   # above the mouse-hint line...
+			for lb in [ui_mouse, ui_status]:   # ...and above where that line and the status line really are (the scene panel
+				if lb != null and is_instance_valid(lb) and lb.is_visible_in_tree():   # can be taller than BOTTOM_H: the strip covered them)
+					y1 = minf(y1, lb.get_global_rect().position.y - ps.y - 8.0)
 			var body := _body_screen_rect().grow(12.0)
 			var pick := Vector2(x1, y1)
 			for c in [Vector2(x1, y1), Vector2(x0, y0), Vector2(x0, y1), Vector2(x1, y0)]:
