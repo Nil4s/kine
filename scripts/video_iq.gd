@@ -61,6 +61,55 @@ const TORSO_WIDTH := 0.25     # fraction of the neighbours' mean width
 const WIDTH_MIN := 0.05       # m: a shoulder width under this is too narrow to read a ratio from
 
 
+## MOCAP QUALITY: LEFT / RIGHT LIMB FLIPS, repaired by continuity. A tracker that loses which leg is which for a few frames swaps the
+## two limbs' labels (a seeded 4-frame ankle/knee/heel/toe swap on the turn clip put 8 flips through the whole pipeline and took the
+## body jitter from 4.1 to 10.9). Per limb group (the legs) a frame is a FLIP EVENT when keeping the labels
+## moves the pair by more than FLIP_JUMP on average while swapping them moves it less than half as far (continuity says swapped). A
+## flip is an event IN and an event OUT within FLIP_MAX frames: those frames' two labels are exchanged. An event with no partner is a
+## label swap that stays (or a leg crossing the other): left alone, so a real crossing step is never "repaired".
+const FLIP_JUMP := 0.10   # m: the average jump per pair of the labels as they are
+const FLIP_MAX := 12      # frames: a swap that lasts longer than this is not a tracker blip
+const FLIP_GROUPS := [[[25, 26], [27, 28], [29, 30], [31, 32]]]   # the legs only: arms and hands cross in a push-up, a pick-up, a bat swing (peak hand speed moved 20-70 % on them)
+static var flip_fix := true
+static func fix_flips(frames: Array) -> int:
+	var fixed := 0
+	for g in FLIP_GROUPS:
+		var ev := []
+		for i in range(1, frames.size()):
+			var w0: Array = frames[i - 1]["w"]
+			var w1: Array = frames[i]["w"]
+			var same := 0.0
+			var swap := 0.0
+			for pr in g:
+				var l0: Vector3 = w0[pr[0]]
+				var r0: Vector3 = w0[pr[1]]
+				var l1: Vector3 = w1[pr[0]]
+				var r1: Vector3 = w1[pr[1]]
+				same += l1.distance_to(l0) + r1.distance_to(r0)
+				swap += l1.distance_to(r0) + r1.distance_to(l0)
+			if same / float(g.size()) > FLIP_JUMP and swap < 0.5 * same:
+				ev.append(i)
+		var k := 0
+		while k + 1 < ev.size():
+			if int(ev[k + 1]) - int(ev[k]) <= FLIP_MAX:
+				for i in range(int(ev[k]), int(ev[k + 1])):
+					var w: Array = frames[i]["w"]
+					var vis: Array = frames[i].get("vis", [])
+					for pr in g:
+						var tmp: Vector3 = w[pr[0]]
+						w[pr[0]] = w[pr[1]]
+						w[pr[1]] = tmp
+						if vis.size() > int(pr[1]):
+							var tv: Variant = vis[pr[0]]
+							vis[pr[0]] = vis[pr[1]]
+							vis[pr[1]] = tv
+					fixed += 1
+				k += 2
+			else:
+				k += 1
+	return fixed
+
+
 static func torso_filter(frames: Array) -> int:
 	var n := frames.size()
 	var done := 0
@@ -195,6 +244,12 @@ const INV_TRANS := 3        # frames: at most this many frames between the last 
 const INV_MAX_LEN := 1.0    # s: first to last inverted frame
 const INV_MIN_FRAMES := 3  # frames: inverted readings in the run; one or two are blips (the pick-up has single-frame ones)
 const INV_MIRROR := 0.10    # m: the shoulders' left-right axis this far on the wrong side (the tracker swapped left and right): not an upright anchor
+static var stage_ms := {}   # MOCAP QUALITY: ms per stage of the last process() ("prep", "cleanup", "contacts", "fit", "cards", "plants"), tests/mocapq_test.gd
+static var _lap_t := 0
+static func _lap(stage: String) -> void:
+	var now := Time.get_ticks_usec()
+	stage_ms[stage] = float(stage_ms.get(stage, 0.0)) + (now - _lap_t) / 1000.0
+	_lap_t = now
 static var reach_applies := 0   # Scene.apply calls the last VideoCleanup.reachable made (tests/vidspeed_test.gd 3c)
 static var INVERSION_FILL := true
 
@@ -1422,14 +1477,90 @@ static func stance_height(B: Body, fitted: Array, plants: Array, fps: float) -> 
 	return {"frames": lowered, "worst": worst}
 
 
+## MOCAP QUALITY: JOINT-ANGLE SMOOTHING. The landmarks are smoothed (VideoCleanup One Euro) but the fit turns each frame's noise into
+## angles again: the arms' twist and the feet's turn, where a near-straight limb has no plane to read, carried most of the jitter
+## (turn clip: upperarm 12 and 11 of a body RMS 4.1, in 1000 deg/s^2). Each series (bend, side, twist, unwrapped) goes
+## through the same zero-lag One Euro as the landmarks, in DEGREES, tuned per joint group: slow trunk and head hardest, the arms
+## and hands keep their fast peaks (beta). The legs' thighs, calves, feet and toes are left alone: the floor, the plants and the stance
+## height are solved on them (smoothing a foot's turn lifted or sank it 4-11 cm off the floor: the fit grounded the raw angle)
+static var angle_smooth := false   # the keys are CHOSEN on the unsmoothed dense scene (the legs, the plants and the floor contact stay as they were); see _smooth_cards
+const SMOOTH_JUMP := 60.0   # deg: a joint whose reading jumps this far in a frame is not smoothed
+const SMOOTH_DEV := 8.0     # deg: nor one the smoothing would move this far from its fit anywhere
+static var smooth_off := []   # joint-name prefixes left out (the test's before/after rows)
+const SMOOTH := {"upperarm": Vector2(1.2, 0.012), "lowerarm": Vector2(1.5, 0.015), "clavicle": Vector2(0.8, 0.01), "spine": Vector2(0.8, 0.008), "neck": Vector2(0.8, 0.008), "head": Vector2(1.0, 0.01), "hand": Vector2(1.5, 0.02)}
+## the smart cards (chosen on the unsmoothed dense scene, so the keys, the legs and everything the plants read are exactly what they
+## were) take their values from the SMOOTHED fit: sk["scene"] becomes the same keys over the smoothed angles
+static func _smooth_cards(B: Body, sk: Dictionary, fitted: Array, fps: float, scene_name: String) -> void:
+	if (sk["keys"] as Array).size() >= fitted.size():
+		return
+	var fs: Array = fitted.duplicate(true)
+	smooth_angles(fs, fps)
+	var ex := {}
+	for i in sk["keys"]:
+		ex[i] = true
+	var ds := VideoImport.to_scene(B, fs, fps, 1, scene_name)
+	var V := VideoImport.thin(ds, 1000000, ex)
+	V.spline = bool(sk["spline"])
+	V.memo_slopes = true
+	sk["scene"] = V
+	sk["dense_scene"] = ds   # the dense scene the cards now replay (the same keys over the smoothed angles)
+
+
+static func _amax(v: Vector3) -> float:
+	return maxf(absf(v.x), maxf(absf(v.y), absf(v.z)))
+
+
+static func smooth_angles(fitted: Array, fps: float) -> void:
+	var n := fitted.size()
+	if n < 3:
+		return
+	for j in (fitted[0]["ang"] as Dictionary):
+		var prm := Vector2.ZERO
+		for k in SMOOTH:
+			if String(j).begins_with(k) and not k in smooth_off:
+				prm = SMOOTH[k]
+		if prm == Vector2.ZERO:
+			continue
+		var xs := []
+		var prev := Vector3.ZERO
+		var steady := true
+		for i in n:
+			var v: Vector3 = fitted[i]["ang"][j]
+			if i > 0:
+				for c in 3:
+					while v[c] - prev[c] > 180.0:
+						v[c] -= 360.0
+					while v[c] - prev[c] < -180.0:
+						v[c] += 360.0
+				# an Euler triple can jump between two readings of ONE turn (a limb through its gimbal: bend near 90, side near 180);
+				# averaging the two readings is a different rotation (14 cm mean on walk_bat's cards). Such a joint is left as it is
+				if _amax(v - prev) > SMOOTH_JUMP:
+					steady = false
+			prev = v
+			xs.append(v / 100.0)   # one_euro_zero_lag works in cm: a /100 here makes its units degrees
+		if not steady:
+			continue
+		var ys := VideoCleanup.one_euro_zero_lag(xs, fps, prm.x, prm.y)
+		var dev := 0.0
+		for i in n:
+			dev = maxf(dev, _amax((ys[i] as Vector3) - (xs[i] as Vector3)) * 100.0)
+		if dev > SMOOTH_DEV:   # smoothing that moves a joint this far is cutting a real move, not noise
+			continue
+		for i in n:
+			fitted[i]["ang"][j] = (ys[i] as Vector3)
+
+
 ## parse -> confidence -> repair -> depth -> cleanup -> contacts -> fit -> smart cards -> plants. P = VideoImport.parse's result
 ## (its frames are changed). Returns {"scene", "iq", "text", "conf", "depth", "contacts", "keys", "fitted", "frames", "dense",
 ## "repaired"}. retarget = true fits with VideoRetarget (GMR-style IK, feet pinned on the contacts) instead of VideoImport.solve
 static func process(B: Body, P: Dictionary, held := "", scene_name := "video_import", retarget := false) -> Dictionary:
 	var fps := float(P["fps"])
 	progress = 0.0
+	stage_ms = {}
+	_lap_t = Time.get_ticks_usec()
 	var frames: Array = VideoIQ.fill_gaps(P["frames"], fps)
 	var inverted := VideoIQ.inversion_filter(frames, fps)   # a tracker flip about the hips (3d INVERTED BODY): lost, a straight line between the upright frames
+	var flipped_limbs := VideoIQ.fix_flips(frames) if flip_fix else 0   # a limb pair whose labels swapped for a few frames: swapped back by continuity
 	VideoIQ.torso_filter(frames)   # a glitch on the shoulders or hips (3b TORSO SPIKES), before anything reads the body
 	VideoIQ.dip_filter(frames, fps)   # a glitch that moves the whole upper body for 1-5 frames (3c UPPER-BODY DIPS)
 	# FLIGHT: read from the tracker's image on the file's own frames, carried to the filled frames by time
@@ -1447,9 +1578,12 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 	if cancelled():
 		return {}
 	progress = 0.1
+	_lap("prep")
 	var C := VideoCleanup.run(frames, fps, float(P.get("tilt", 0.0)))
 	normalize_lengths(C["frames"])
+	_lap("cleanup")
 	var K := contacts(C["frames"], fps, fly, seen_feet(conf, frames, C["frames"]))
+	_lap("contacts")
 	if cancelled():
 		return {}
 	progress = 0.2
@@ -1461,21 +1595,27 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 	if cancelled():
 		return {}
 	progress = 0.7
+	_lap("fit")
 	if stance_fix and not fitted.is_empty():
 		stance_height(B, fitted, plants_of(K["list"], fps, K["heeloff"]), fps)
 	if toe_fix and not fitted.is_empty():
 		settle_toes(B, fitted)
 	var dense := VideoImport.to_scene(B, fitted, fps, 1, scene_name)
 	var sk := smart_cards(B, dense, fitted)
+	if angle_smooth and not fitted.is_empty():
+		_smooth_cards(B, sk, fitted, fps, scene_name)
 	if cancelled():
 		return {}
 	progress = 0.95
+	_lap("cards")
 	var V: Scene = sk["scene"]
 	V.memo_slopes = true   # VIDEO SPEED: this scene's cards are fixed from here to the return below (reachable and the located pass only read it)
 	var reach_n0 := Scene.apply_calls
 	V.plants = VideoCleanup.reachable(V, B, FootPlant.from_file(plants_of(K["list"], fps, K["heeloff"])), V.fps)
 	reach_applies = Scene.apply_calls - reach_n0   # the Scene.apply calls reachable made (tests/vidspeed_test.gd 3c)
+	_lap("plants")
 	var located := locate_played(B, V, K["list"])
+	_lap("locate")
 	_unmemo(sk)
 	var feet := 0
 	var hands := 0
@@ -1493,7 +1633,7 @@ static func process(B: Body, P: Dictionary, held := "", scene_name := "video_imp
 		located.size(), feet, hands, V.plants.size(), fitted.size(), int(sk["cards"]), "spline" if sk["spline"] else "linear", float(sk["mean"]) * 100.0,
 		int(dp["flipped"]), int(dp["frames"]), (conf["spans"] as Array).size(), ("; " + "; ".join((conf["spans"] as Array).map(func(s): return s["text"]))) if not (conf["spans"] as Array).is_empty() else ""]
 	return {"scene": V, "iq": iq, "text": txt, "conf": conf, "depth": dp, "contacts": K, "keys": sk, "fitted": fitted, "frames": C["frames"],
-		"dense": dense, "repaired": repaired, "located": located, "inverted": inverted}
+		"dense": sk.get("dense_scene", dense), "repaired": repaired, "located": located, "inverted": inverted, "limb_flips": flipped_limbs}
 
 
 ## the iq dict of a scene file, kept only if it is well formed (a hand-edited file never crashes the timeline)
