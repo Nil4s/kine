@@ -140,7 +140,7 @@ func _stage(host: Node, n: int) -> void:
 		_vp.name = "safety_stage"
 		_vp.size = THUMB
 		_vp.own_world_3d = true
-		_vp.msaa_3d = Viewport.MSAA_4X
+		_vp.msaa_3d = Quality.thumb_msaa() as Viewport.MSAA
 		_vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
 		host.add_child(_vp)
 		var env := Environment.new()

@@ -97,7 +97,7 @@ func capture(path: String) -> void:
 	vp.size = THUMB
 	vp.world_3d = m.get_viewport().world_3d
 	vp.transparent_bg = false
-	vp.msaa_3d = Viewport.MSAA_4X
+	vp.msaa_3d = Quality.thumb_msaa() as Viewport.MSAA
 	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	var c := Camera3D.new()
 	c.fov = m.cam.fov
