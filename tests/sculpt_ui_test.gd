@@ -93,8 +93,8 @@ func _init() -> void:
 	ui = m.ksc
 	var why := ""
 	for b in m.ui_ribbon["SCULPT"].get_children():
-		if b is Button:   # the row's group separators are not buttons
-			why += String(b.text) + ", "
+		if b is Button:   # the row's group separators are not buttons; ribbon standard 5f40546c/6bde3d2d, Nick OK 2026-10-26: icon-only, so the name is label_of, not .text
+			why += m.label_of(b) + ", "
 	ok(ui.on and ui.mesh.vert_count() == 3458 and ui.mesh.is_closed() and why.contains("Test sphere"),
 		"(1) the command opens the sphere: %d verts, closed %s; the SCULPT ribbon has: %s" % [ui.mesh.vert_count(), ui.mesh.is_closed(), why.left(200)])
 	var wc: Vector3 = ui.view.global_position

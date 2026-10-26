@@ -56,8 +56,8 @@ func key(k: int, ctrl := false) -> void:
 	await idle(3)
 
 func ribbon_button(m: Node, p: String, label: String) -> Button:
-	for b in m.ui_ribbon[p].get_children():
-		if b is Button and String(b.text) == label:
+	for b in m.ui_ribbon[p].get_children():   # ribbon standard 5f40546c/6bde3d2d, Nick OK 2026-10-26: icon-only, so the label is the meta (label_of), not .text; a rest tool is still found (under its caption)
+		if b is Button and m.label_of(b) == label:
 			return b
 	return null
 

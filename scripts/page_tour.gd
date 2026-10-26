@@ -12,7 +12,7 @@ extends Onboarding
 const SEC := "pagetour"
 const TOURED := ["BODY", "MODEL", "SCULPT", "SURFACE"]
 ## per page: [title, text, target]; a target is a node name under the window (a | b = both, merged), or one of
-## "page:<PAGE>" (that page's button on the page bar), "ribbon:<PAGE>:<label>" (that page's ribbon button with that text),
+## "page:<PAGE>" (that page's button on the page bar), "ribbon:<PAGE>:<label>" (that page's ribbon button with that label),
 ## "status" (the status line), "search" (the Search button), "undo"
 const TOUR := {
 	"BODY": [
@@ -188,9 +188,9 @@ func _rect_of(t: String) -> Rect2:
 func _controls(t: String) -> Array:
 	var out := []
 	if t.begins_with("ribbon:"):
-		var parts := t.split(":")   # ribbon:<PAGE>:<label>: the button on that page's ribbon row with that text
+		var parts := t.split(":")   # ribbon:<PAGE>:<label>: the button on that page's ribbon row with that label (icon-only since ribbon standard 5f40546c/6bde3d2d: label_of, not .text)
 		for b in m.ui_ribbon[parts[1]].get_children():
-			if b is Button and String(b.text) == parts[2]:
+			if b is Button and m.label_of(b) == parts[2]:
 				out.append(b)
 	elif t.begins_with("page:"):
 		var p := t.trim_prefix("page:")
