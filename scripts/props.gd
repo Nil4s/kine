@@ -144,11 +144,15 @@ static func register(kind: String, aabb: AABB, glb: String, factor := 1.0) -> vo
 ## its supports the floor slabs' tops. "hidden": the house itself is drawn by BUILD (build_ui.gd), so the prop's node is empty.
 ## Re-registered after every BUILD edit, so the set follows the house. boxes: [{"xf", "half"}] (a room turned by a yaw is a
 ## box of its bounding size: BUILD draws rooms without yaw)
-static func register_building(kind: String, boxes: Array, supports: Array) -> void:
+## 1f: ramps = [{"origin": Vector3 (on the floor), "yaw": deg, "poly": PackedVector2Array in (z, y) from the origin, counter-clockwise and
+## convex, "w": half width}]: the stairs' walkable slopes (a wedge with its own profile; solids() turns each into a "poly" solid)
+static func register_building(kind: String, boxes: Array, supports: Array, ramps := []) -> void:
 	var sol := []
 	for bx in boxes:
 		sol.append([(bx["xf"] as Transform3D).origin, (bx["half"] as Vector3) * 2.0])
 	EXTRA[kind] = {"label": "%s (from BUILD)" % kind.trim_prefix("building:"), "solids": sol, "supports": supports, "hidden": true, "building": true}
+	if not ramps.is_empty():
+		EXTRA[kind]["ramps"] = ramps
 
 
 static func has_kind(kind: String) -> bool:
@@ -278,6 +282,12 @@ static func solids(p: Dictionary) -> Array:
 		var size: Vector3 = (w[1] as Vector3) * k
 		out.append({"xf": (p["xf"] as Transform3D) * leaf_xf(p) * Transform3D(Basis(), (w[0] as Vector3) * k), "half": size * 0.5,
 			"poly": wedge_profile(size), "w": size.x * 0.5})
+	for rp in kd.get("ramps", []):   # BUILD stairs: a convex profile on its own frame
+		var poly := PackedVector2Array()
+		for q in (rp["poly"] as PackedVector2Array):
+			poly.append(q * k)
+		out.append({"xf": (p["xf"] as Transform3D) * Transform3D(Basis(Vector3.UP, deg_to_rad(float(rp["yaw"]))), (rp["origin"] as Vector3) * k),
+			"half": Vector3(float(rp["w"]) * k, 1.0, 1.0), "poly": poly, "w": float(rp["w"]) * k})
 	return out
 
 

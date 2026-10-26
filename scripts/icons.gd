@@ -50,6 +50,19 @@ const DRAW := {
 	"build_roof": [["seg", Vector2(3, 12), Vector2(12, 4), 1.9], ["seg", Vector2(12, 4), Vector2(21, 12), 1.9], ["box", Rect2(6, 12, 12, 8), 1.8]],
 	"build_piece": [["seg", Vector2(12, 3), Vector2(20, 7.5), 1.7], ["seg", Vector2(20, 7.5), Vector2(20, 16.5), 1.7], ["seg", Vector2(20, 16.5), Vector2(12, 21), 1.7], ["seg", Vector2(12, 21), Vector2(4, 16.5), 1.7],
 		["seg", Vector2(4, 16.5), Vector2(4, 7.5), 1.7], ["seg", Vector2(4, 7.5), Vector2(12, 3), 1.7], ["seg", Vector2(4, 7.5), Vector2(12, 12), 1.5], ["seg", Vector2(20, 7.5), Vector2(12, 12), 1.5], ["seg", Vector2(12, 12), Vector2(12, 21), 1.5]],
+	# BUILD > Piece: the picker's big cards (Icons.big) and the rotate arrow
+	"piece_stairs": [["seg", Vector2(3, 20), Vector2(3, 16), 2.0], ["seg", Vector2(3, 16), Vector2(8, 16), 2.0], ["seg", Vector2(8, 16), Vector2(8, 12), 2.0], ["seg", Vector2(8, 12), Vector2(13, 12), 2.0],
+		["seg", Vector2(13, 12), Vector2(13, 8), 2.0], ["seg", Vector2(13, 8), Vector2(18, 8), 2.0], ["seg", Vector2(18, 8), Vector2(18, 4), 2.0], ["seg", Vector2(18, 4), Vector2(21, 4), 2.0], ["seg", Vector2(3, 20), Vector2(21, 20), 2.0], ["seg", Vector2(21, 4), Vector2(21, 20), 2.0]],
+	"piece_stairs_l": [["seg", Vector2(3, 21), Vector2(3, 17), 2.0], ["seg", Vector2(3, 17), Vector2(7, 17), 2.0], ["seg", Vector2(7, 17), Vector2(7, 13), 2.0], ["seg", Vector2(7, 13), Vector2(11, 13), 2.0],
+		["box", Rect2(11, 8, 6, 5), 1.8], ["seg", Vector2(17, 9), Vector2(21, 9), 2.0], ["seg", Vector2(17, 9), Vector2(17, 5), 2.0], ["seg", Vector2(21, 9), Vector2(21, 5), 2.0], ["seg", Vector2(3, 21), Vector2(11, 21), 2.0], ["seg", Vector2(11, 13), Vector2(11, 21), 2.0]],
+	"piece_table": [["box", Rect2(3, 8, 18, 3), 0], ["seg", Vector2(5.5, 11), Vector2(5.5, 20), 2.2], ["seg", Vector2(18.5, 11), Vector2(18.5, 20), 2.2]],
+	"piece_bench": [["box", Rect2(3, 12, 18, 3), 0], ["seg", Vector2(5.5, 15), Vector2(5.5, 20), 2.2], ["seg", Vector2(18.5, 15), Vector2(18.5, 20), 2.2]],
+	"piece_crate": [["box", Rect2(4, 5, 16, 15), 1.9], ["seg", Vector2(4, 5), Vector2(20, 20), 1.5], ["seg", Vector2(20, 5), Vector2(4, 20), 1.5]],
+	"piece_pillar": [["box", Rect2(8.5, 6, 7, 13), 1.8], ["seg", Vector2(6, 4.5), Vector2(18, 4.5), 2.2], ["seg", Vector2(6, 20.5), Vector2(18, 20.5), 2.2]],
+	"piece_fence": [["seg", Vector2(4.5, 5), Vector2(4.5, 20), 2.4], ["seg", Vector2(12, 5), Vector2(12, 20), 2.4], ["seg", Vector2(19.5, 5), Vector2(19.5, 20), 2.4], ["seg", Vector2(3, 9), Vector2(21, 9), 1.8], ["seg", Vector2(3, 15), Vector2(21, 15), 1.8]],
+	"piece_ramp": [["seg", Vector2(3, 20), Vector2(21, 20), 2.0], ["seg", Vector2(21, 20), Vector2(21, 6), 2.0], ["seg", Vector2(21, 6), Vector2(3, 20), 2.0]],
+	"piece_platform": [["box", Rect2(3, 11, 18, 9), 1.9], ["seg", Vector2(3, 11), Vector2(7, 6.5), 1.6], ["seg", Vector2(21, 11), Vector2(17, 6.5), 1.6], ["seg", Vector2(7, 6.5), Vector2(17, 6.5), 1.6]],
+	"piece_rotate": [["arc", Vector2(12, 12), 7.5, 2.2, 40, 330], ["seg", Vector2(17.5, 3.5), Vector2(19.8, 9.2), 2.2], ["seg", Vector2(19.8, 9.2), Vector2(13.6, 8.6), 2.2]],
 	"build_words": [["box", Rect2(3.5, 4, 17, 12), 1.8], ["seg", Vector2(8, 16), Vector2(8, 20.5), 1.8], ["seg", Vector2(8, 20.5), Vector2(12.5, 16), 1.8], ["seg", Vector2(7.5, 8.5), Vector2(16.5, 8.5), 1.5], ["seg", Vector2(7.5, 11.5), Vector2(14, 11.5), 1.5]],
 	"shade_wire": [["box", Rect2(4, 4, 16, 16), 1.4], ["seg", Vector2(4, 12), Vector2(20, 12), 1.2], ["seg", Vector2(12, 4), Vector2(12, 20), 1.2]],
 	"shade_solid": [["disc", Vector2(12, 12), 8.5]],
@@ -331,6 +344,14 @@ static func tex(name: String) -> ImageTexture:
 	if not _cache.has(name):
 		_cache[name] = ImageTexture.create_from_image(paint(DRAW[name]))
 	return _cache[name]
+
+
+## the icon at any size (the Piece picker's cards): painted at px, not scaled
+static func sized(name: String, px: int) -> ImageTexture:
+	var k := "%s@sized%d" % [name, px]
+	if not _cache.has(k):
+		_cache[k] = ImageTexture.create_from_image(paint(DRAW[name], px))
+	return _cache[k]
 
 
 ## the icon at 16 px (the Browser's rows: room for the part's name); scaled down from the 22 px drawing

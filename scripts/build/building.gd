@@ -28,6 +28,9 @@
 ## metres from that wall's middle, toward +X / +Z). THE ROOF: "roof": {"kind": "gable"|"flat"|"shed", "pitch": degrees,
 ## "overhang": number or param name ("roof_overhang")}: ONE more closed convex solid on the top storey's footprint (its own
 ## vertices, added to the mesh when roles has "roof"; the fighter's collision has no roof).
+## 1f: PIECES: "pieces": [{"id", "kind", "x", "z" (the middle of its footprint), "yaw" (0 / 90 / 180 / 270), "storey", + the kind's named
+## numbers}] (scripts/build/build_pieces.gd): STAIRS (the rise follows floor_height; they cut the floor above, the stairwell) and the
+## furniture-blocks of a fight set; each is ONE more closed solid (role "piece") with an exact volume.
 ## Faces are grid-cell quads (coplanar neighbours not merged: phase 2 swaps this mesher for KineCAD, see the plan).
 class_name Building
 extends RefCounted
@@ -106,6 +109,11 @@ static func remove_top_floor(b: Dictionary) -> bool:
 		if int(r.get("storey", 0)) == top:
 			gone.append(String(r["id"]))
 			b["rooms"].erase(r)
+	for p in b.get("pieces", []).duplicate():
+		if int(p.get("storey", 0)) >= top:
+			b["pieces"].erase(p)
+	if b.has("pieces") and b["pieces"].is_empty():
+		b.erase("pieces")
 	for list in ["walls", "openings"]:
 		for e in b.get(list, []).duplicate():
 			if gone.has(String(e["room"])):
@@ -128,6 +136,34 @@ static func add_wall(b: Dictionary, room: String, axis: String, pos: float) -> S
 	var id := _new_id(b["walls"], "i")
 	b["walls"].append({"id": id, "room": room, "axis": axis, "pos": pos, "thickness": "inner_wall_thickness"})
 	return id
+
+
+## a piece (BuildPieces.DEFS kind) with its middle at (x, z) on a floor; its numbers at their defaults. Returns its id ("" for an unknown kind)
+static func add_piece(b: Dictionary, kind: String, x: float, z: float, yaw := 0.0, storey := 0) -> String:
+	if not BuildPieces.DEFS.has(kind):
+		return ""
+	if not b.has("pieces"):
+		b["pieces"] = []
+	var id := _new_id(b["pieces"], "p")
+	b["pieces"].append(BuildPieces.make(id, kind, x, z, yaw, storey))
+	return id
+
+
+static func piece_of(b: Dictionary, id: String) -> Dictionary:
+	for p in b.get("pieces", []):
+		if String(p["id"]) == id:
+			return p
+	return {}
+
+
+static func remove_piece(b: Dictionary, id: String) -> bool:
+	var p := piece_of(b, id)
+	if p.is_empty():
+		return false
+	b["pieces"].erase(p)
+	if b["pieces"].is_empty():
+		b.erase("pieces")
+	return true
 
 
 static func wall_of(b: Dictionary, id: String) -> Dictionary:
@@ -320,14 +356,20 @@ static func _groups(b: Dictionary) -> Dictionary:
 
 
 ## the building as ONE closed KMesh (every room, every yaw group); roles picks the parts ("wall", "floor")
-static func to_kmesh(b: Dictionary, roles := ["wall", "floor", "roof"]) -> KMesh:
+static func to_kmesh(b: Dictionary, roles := ["wall", "floor", "roof", "piece"]) -> KMesh:
 	var acc := {"verts": [], "faces": []}   # a Dictionary: the mesher's lambdas share it (a captured packed array is a copy)
 	var g := _groups(b)
 	for yaw in g:
 		var boxes := []
 		for r in g[yaw]:
 			boxes.append_array(_room_boxes(b, r))
+		if yaw == 0.0:
+			for cut in BuildPieces.all_stairwells(b):   # the stairwell: the floor above is open over the stairs
+				boxes.append([cut, "stairwell", -1])
 		_mesh_grid(_grid(boxes, roles), Basis(Vector3.UP, deg_to_rad(yaw)), acc)
+	if roles.has("piece"):
+		for p in b.get("pieces", []):
+			BuildPieces.mesh_into(b, p, acc)
 	if roles.has("roof"):
 		var rf := roof_solid(b)
 		if not rf.is_empty():
@@ -452,7 +494,7 @@ static func _mesh_grid(G: Dictionary, basis: Basis, acc: Dictionary) -> void:
 
 
 ## the drawable mesh (flat-shaded: a building's faces are planes)
-static func to_array_mesh(b: Dictionary, roles := ["wall", "floor", "roof"]) -> ArrayMesh:
+static func to_array_mesh(b: Dictionary, roles := ["wall", "floor", "roof", "piece"]) -> ArrayMesh:
 	return to_kmesh(b, roles).to_array_mesh(false)
 
 
@@ -465,6 +507,9 @@ static func collision_boxes(b: Dictionary, roles := ["wall", "floor"]) -> Array:
 		var boxes := []
 		for r in g[yaw]:
 			boxes.append_array(_room_boxes(b, r))
+		if yaw == 0.0:
+			for cut in BuildPieces.all_stairwells(b):   # the stairwell is open for the fighter too
+				boxes.append([cut, "stairwell", -1])
 		var G := _grid(boxes, roles)
 		var basis := Basis(Vector3.UP, deg_to_rad(yaw))
 		var nx: int = G["nx"]
@@ -560,6 +605,8 @@ static func to_file(b: Dictionary) -> Dictionary:
 		out["walls"] = b["walls"].map(func(w): return _snapped_copy(w))
 	if not b.get("roof", {}).is_empty():
 		out["roof"] = _snapped_copy(b["roof"])
+	if not b.get("pieces", []).is_empty():
+		out["pieces"] = b["pieces"].map(func(p): return _snapped_copy(p))
 	return out
 
 
@@ -609,6 +656,15 @@ static func from_file(d: Variant) -> Dictionary:
 			b["walls"] = []
 		b["walls"].append({"id": String(iw.get("id", _new_id(b["walls"], "i"))), "room": String(iw["room"]), "axis": String(iw["axis"]), "pos": float(pos),
 			"thickness": th if ok_num.call(th) else "inner_wall_thickness"})
+	for pd in d.get("pieces", []):
+		var pc := BuildPieces.clean(pd)
+		if pc.is_empty():
+			continue
+		if not b.has("pieces"):
+			b["pieces"] = []
+		if not (pd as Dictionary).has("id") or not piece_of(b, String(pc["id"])).is_empty():
+			pc["id"] = _new_id(b["pieces"], "p")
+		b["pieces"].append(pc)
 	var rf = d.get("roof", {})
 	if rf is Dictionary and ROOFS.has(String(rf.get("kind", ""))):
 		var pitch = rf.get("pitch", ROOF_PITCH)
@@ -644,6 +700,14 @@ static func mirror_file(d: Dictionary) -> Dictionary:
 		r["x"] = -far.x
 		r["z"] = far.z
 		r["yaw"] = -float(r.get("yaw", 0.0))
+	for pc in out.get("pieces", []):
+		pc["x"] = -float(pc["x"])
+		pc["yaw"] = fposmod(-float(pc.get("yaw", 0.0)), 360.0)
+		if String(pc.get("kind", "")) == "stairs_l":
+			if bool(pc.get("flip", false)):
+				pc.erase("flip")
+			else:
+				pc["flip"] = true
 	var inner := {}
 	for iw in out.get("walls", []):
 		var rm := {}
