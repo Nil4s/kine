@@ -6274,7 +6274,7 @@ func _snapshot() -> Dictionary:
 	# TC3: tagged with the actor it was taken on, and the actors as they are (the same Body / Scene objects: an add or a
 	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
 	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
-		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps, "bcol": body_colour,
+		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps, "bcol": body_colour, "bsm": Overlays.smooth,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "building": _bld_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
@@ -6450,6 +6450,8 @@ func _restore(u: Dictionary) -> void:
 	if u.has("bcol") and int(u["bcol"]) != body_colour:
 		body_colour = int(u["bcol"])   # His colour, undone like the photo materials
 		_body_colour_show()
+	if u.has("bsm") and bool(u["bsm"]) != Overlays.smooth:
+		_body_smooth_set(bool(u["bsm"]))   # Body: smooth, undone like His colour
 	if u.has("bmats") and var_to_str(u["bmats"]) != var_to_str(body_mats):
 		body_mats = u["bmats"].duplicate()   # the photo materials on body parts, undone like a card (E15)
 		photomat.sync_body()
@@ -12302,6 +12304,8 @@ func _ui() -> void:
 	ui_ribbon["BODY"].add_child(_button("Body: proportions...", _proportions_dialog, "a small dialog: an ANSUR II preset (5th / 50th / 95th, woman or man) or a stature in cm. The sliders on the left do the same by percentile"))
 	ui_ribbon["BODY"].add_child(_button("Body: fighter archetype...", _archetype_dialog, "a list of fighters and athletes built from published measurements (boxers by weight class, sumo, judo, sprinter, ...): stature, mass and arm span; one undo step; the status line names the source"))
 	ui_ribbon["BODY"].add_child(_button("Body: from height, weight, sex, age, build", _body_nums_dialog, "five numbers (height cm, weight kg, sex, age, build) make a whole plausible body from ANSUR II and Winter's segment ratios, and say which percentile you are. Ctrl+Z undoes"))
+	tog.call("BODY", "Body: smooth", _body_smooth_toggle, func(): return Overlays.smooth,
+		"the figure drawn as a smooth human (Quaternius Universal Base Characters, CC0) on the same skeleton and the same egg head and face; off = the mannequin (the default). One undo step. Saved bodies and painted weights stay the mannequin's")
 	ui_ribbon["BODY"].add_child(_button("Mannequin as shipped", func(): proportions_set({}), "the body back to the 183 cm mannequin; the cards keep their angles. Ctrl+Z undoes"))
 	# POSE
 	ui_ribbon["POSE"].add_child(_button("CLIP this pose (Enter)", _card_add, "the body as it is now becomes the next clip in the scene"))
@@ -20734,6 +20738,65 @@ func _body_colour_next() -> void:
 		_say_plain("His colour is %s now. Press again for the next one; Undo gives the old one back." % BODY_COLOURS[body_colour][0])
 	else:
 		_say("his colour is %s now (Ctrl+Z gives the old one back)" % BODY_COLOURS[body_colour][0])
+
+
+## BODY: SMOOTH (BODY tab "Body: smooth", Easy's "Smooth body"): the figure is drawn by a smooth human mesh on the same
+## skeleton (assets/body_smooth.glb, Quaternius UBC, CC0) instead of the mannequin; the mannequin is the default.
+## One undo step (the choice is view state, undone like His colour). Saved bodies stay the mannequin's: a body mesh
+## applied with Model > Apply, and the painted weights, belong to the mannequin's vertices (weights: their own sidecar).
+func _body_smooth_toggle() -> void:
+	if body_skin == null:
+		_say("body: the body is not there yet")
+		return
+	if wp_on:
+		_say("Body: smooth cannot change while Weight paint is on: leave it first")
+		return
+	if _body_edited():
+		_say("Body: this body's mesh was changed with Model > Apply: it belongs to the mannequin. Undo the change first (Ctrl+Z) to switch")
+		return
+	_step_hint = "Body: smooth" if not Overlays.smooth else "Body: mannequin"
+	_push_undo()
+	_body_smooth_set(not Overlays.smooth)
+	_doc_line()
+	if easy.on:
+		_say_plain("The body is %s now. Press again to switch; Undo gives the old one back." % ("smooth" if Overlays.smooth else "the mannequin"))
+	else:
+		_say("body: %s (Ctrl+Z gives the old one back)" % ("smooth" if Overlays.smooth else "the mannequin"))
+
+
+## true when Model > Apply wrote a mesh onto the fighter (BaseBody keeps generations; 0 = the shipped one)
+func _body_edited() -> bool:
+	return has_meta(BaseBody.META_GENS) and BaseBody.gen(self) != 0
+
+
+## the figure rebuilt on the chosen mesh (the same lines as _body: the pieces, the weights, the corrective, DQ skinning,
+## the pick). No undo step: _body_smooth_toggle and _restore make it.
+func _body_smooth_set(on: bool) -> void:
+	if body_skin == null or man_root == null or on == Overlays.smooth:
+		return
+	Overlays.smooth = on
+	var shown := man_root.visible
+	man_root.get_parent().remove_child(man_root)
+	man_root.free()
+	var mq := Overlays.mannequin(self, body_skin)
+	man_root = mq[0]
+	skel = mq[1]
+	bone_idx = mq[2]
+	man_root.visible = shown
+	pieces = Overlays.split_parts(mq[0], skel, bone_idx)
+	face_geo = {}   # the face's anchors are read again from the new head piece
+	_outline_off.clear()
+	wp_key = "body_smooth" if on else "mannequin"   # the painted weights are the mesh's own: a sidecar per body
+	wp_bind = -1
+	_wp_setup()
+	corr.attach(pieces.values(), skel)
+	dq_skin_pass.skin = null   # (DqSkin keeps the first skin it saw)
+	dq_skin_pass.attach(pieces.values(), skel)
+	_skp_build()
+	if shading.mode != "solid":
+		shading.set_mode(self, shading.mode)
+	photomat.sync_body()
+	_refresh()
 
 
 ## the outline's colour is a token (the light palette has a deeper one); _retheme calls this

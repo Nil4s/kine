@@ -200,13 +200,14 @@ func _build_views(root: Control) -> void:
 	views.add_theme_stylebox_override("panel", st)
 	root.add_child(views)
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 6)
+	col.add_theme_constant_override("separation", 2)   # six buttons (38 px by the theme) + 2 apart: the panel stays about as tall as with five of 40 + 6 (240 -> 254 px), clear of the save toast and the prop bar below it
 	views.add_child(col)
 	var acts := [
 		["easy_view_front", "Front", "the view from the front", func(): m._view(1, true)],
 		["easy_view_side", "Side", "the view from the side: the camera turns 90 degrees", func(): m._view(2, true)],
 		["easy_view_back", "Back", "the view from the back", func(): m._view(4, true)],
 		["easy_view_reset", "Reset view", "the first view: the body from the front, a little from above", func(): m._view_home(true)],
+		["easy_body_smooth", "Smooth body", "draw the body as a smooth person instead of the mannequin; press again for the mannequin (one undo step; the Undo button gives the old one back)", func(): m._body_smooth_toggle()],
 		["easy_body_colour", "His colour", "change his colour: skin, white, grey, blue, red, dark, then skin again (one undo step; the Undo button gives the old one back)", func(): m._body_colour_next()],
 	]
 	for a in acts:
@@ -215,7 +216,7 @@ func _build_views(root: Control) -> void:
 		b.text = a[1]
 		b.tooltip_text = a[2]
 		b.focus_mode = Control.FOCUS_NONE
-		b.custom_minimum_size = Vector2(120, 40)
+		b.custom_minimum_size = Vector2(120, 34)
 		b.add_theme_font_size_override("font_size", 18)
 		b.pressed.connect(a[3])
 		col.add_child(b)
