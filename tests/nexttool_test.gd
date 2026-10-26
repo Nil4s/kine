@@ -149,4 +149,5 @@ func _init() -> void:
 	ok(m.nt.counts.is_empty() and m.nt.tick == 0, "Help: forget my command habits empties the table")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(FILE))
 	print("nexttool_test: ", "PASS" if fails == 0 else "FAIL (%d)" % fails)
+	TestFiles.cleanup()
 	quit(fails)

@@ -292,6 +292,7 @@ func _init() -> void:
 		"(6) mask dab: centre %.3f, worst |m - falloff| %s, verts unmoved %s; erase dab leaves sum %s" % [centre6, worst6, p6.verts == a6, msum(KMeshMask.values(p6))])
 	await _ui()
 	print("MASK ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)
 
 

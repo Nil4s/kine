@@ -322,4 +322,5 @@ func _init() -> void:
 			DirAccess.remove_absolute(ProjectSettings.globalize_path("res://scenes/_wip/" + fn))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://zz_r7.cfg"))
 	print("R7 %s (%d fails): %d steps, %d dead ends" % ["PASS" if fails == 0 else "FAIL", fails, steps, dead_ends.size()])
+	TestFiles.cleanup()
 	quit(fails)

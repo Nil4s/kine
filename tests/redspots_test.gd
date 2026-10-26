@@ -300,4 +300,5 @@ func _init() -> void:
 		sv.queue_free()
 	HumanLimits.on = false
 	print("REDSPOTS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -295,6 +295,7 @@ func _init() -> void:
 	for b in ["_cut"]:
 		_rm(ProjectSettings.globalize_path(base + b))
 	print("CAMSEQ TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)
 
 

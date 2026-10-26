@@ -168,4 +168,5 @@ func _init() -> void:
 	print("PASTE 0.5: upperarm_r from %s toward %s gives %s; gap to the independent midpoint %.6f deg" % [h0, full.ang["upperarm_r"], H.ang["upperarm_r"], hw])
 	ok(hw < 1e-3, "paste flipped 50%% = the slerp midpoint of now and flipped (%.6f deg)" % hw)
 	print("BREAKDOWNER TEST %s %d (ok %d)" % ["PASS" if fails == 0 else "FAIL", fails, n_ok])
+	TestFiles.cleanup()
 	quit(fails)

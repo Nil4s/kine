@@ -194,4 +194,5 @@ func _init() -> void:
 	ok(begins[0] == 4, "4e one undo step per range item (begin called %d times for 4)" % begins[0])
 
 	print("GRAPH RANGE: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -128,4 +128,5 @@ func _init() -> void:
 	ok(not dot0 and m.ui_doc_dot.visible, "the unsaved dot: %s after opening, %s after an edit" % [dot0, m.ui_doc_dot.visible])
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("TOOLBAR TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

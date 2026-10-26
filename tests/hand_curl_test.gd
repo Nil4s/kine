@@ -113,4 +113,5 @@ func _init() -> void:
 	var order: bool = mcp.max() == mcp[1] and pip.max() == pip[2] and dip.max() == dip[3]
 	ok(rel and order, "9 Relaxed = the resting cascade of 250 hands, every joint (1e-4); most curl at the middle finger's knuckle %.1f, the ring's middle joint %.1f, the little finger's tip %.1f (as the paper finds)" % [mcp[1], pip[2], dip[3]])
 	print("HAND CURL TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

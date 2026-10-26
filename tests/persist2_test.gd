@@ -207,4 +207,5 @@ func _init() -> void:
 
 	wipe()
 	print("persist2: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

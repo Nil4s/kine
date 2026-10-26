@@ -139,6 +139,7 @@ func _init() -> void:
 		"(1) one contact, fighter 2 guards; closing speed %.2f m/s at %.3f s" % [res[0]["close"] if res.size() > 0 else -1.0, res[0]["t"] if res.size() > 0 else -1.0])
 	if res.size() != 1:
 		print("RESULT i40: FAIL (no contact, %d fails)" % fails)
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var ll: Dictionary = res[0]
@@ -315,4 +316,5 @@ func _init() -> void:
 	ok(state_json([{"S": scenes[0]}, {"S": scenes[1]}]) == snap, "(8) Ctrl+Z restores both fighters' scenes byte for byte")
 
 	print("RESULT i40: %s (%d fails)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

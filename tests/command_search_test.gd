@@ -199,4 +199,5 @@ func _init() -> void:
 	ok(String(m.get("last_shell")).ends_with("cheat_sheet.html"), "the sweep's opens go through _shell_open (last: '%s'), nothing launched" % str(m.get("last_shell")))
 	print("COMMAND SEARCH %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	stamp("quit(%d)" % fails)
+	TestFiles.cleanup()
 	quit(fails)

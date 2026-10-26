@@ -351,4 +351,5 @@ func _init() -> void:
 	var gone: bool = LimbIK.LIMBS.all(func(tip): return not (m._ikh_nodes[tip][0] as Node3D).visible and not (m._ikh_nodes[tip][1] as Node3D).visible)
 	ok(gone, "1 the IK keys gone: every handle hidden")
 	print("IK HANDLES TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

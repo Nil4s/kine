@@ -277,6 +277,7 @@ func only78() -> void:
 ".join(lines) + "
 ")
 	f2.close()
+	TestFiles.cleanup()
 	quit(0)
 
 
@@ -438,4 +439,5 @@ func _init() -> void:
 	var f := FileAccess.open(OUT + "log.txt", FileAccess.WRITE)
 	f.store_string("\n".join(lines) + "\n")
 	f.close()
+	TestFiles.cleanup()
 	quit(0)

@@ -177,4 +177,5 @@ func _init() -> void:
 		"(6) combo3 STRIKE (step) is flagged with hand %.1f m/s (> 25 m/s) and the file and body state are untouched" % strike_hand)
 
 	print("I47 SPEED ENVELOPE %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

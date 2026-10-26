@@ -167,4 +167,5 @@ func _init() -> void:
 	ok(absf(m.playhead - 3.0) < 0.02, "drag along the ruler 2 -> 3 s: playhead %.2f s" % m.playhead)
 	ok(FileAccess.get_file_as_string(src) == file0, "combo3.json byte-identical (nothing was saved)")
 	print("TIMELINE %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

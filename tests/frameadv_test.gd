@@ -262,4 +262,5 @@ func _init() -> void:
 	DirAccess.remove_absolute(hp)
 	DirAccess.remove_absolute(bp)
 	print("FRAMEADV TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

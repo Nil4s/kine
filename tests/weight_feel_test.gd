@@ -130,4 +130,5 @@ func _init() -> void:
 	ok(JSON.stringify(m.S.cards) == before, "(6) one Ctrl+Z: every card byte for byte as before")
 
 	print("WEIGHT FEEL %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

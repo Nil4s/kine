@@ -136,4 +136,5 @@ func _init() -> void:
 	ui.stop()
 	ok(not ui.prim_panel.visible, "(5) the panel goes with the test cube")
 	print("PRIMS ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)

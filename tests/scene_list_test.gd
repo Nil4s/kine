@@ -76,4 +76,5 @@ func _init() -> void:
 		var stray: bool = k[0] != "metal_bat" and (how.replace("'Lock bat to hand'", "").contains("bat") or row.contains("bat"))
 		ok(not stray and (how.contains(noun) or how.begins_with("FREE")) and row.begins_with(noun), "  its words: '%s' / '%s'" % [how.left(60), row])
 	print("SCENE LIST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

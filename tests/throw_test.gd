@@ -139,4 +139,5 @@ func _init() -> void:
 	S3.props = [Props.make("table", Props.xf_at(Vector3.ZERO, 0.0))]
 	ok(is_same(S3.props_at(0.5, B), S3.props), "no carry: props_at returns the set itself")
 	print("THROW TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

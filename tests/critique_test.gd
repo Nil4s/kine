@@ -156,4 +156,5 @@ func _init() -> void:
 		"9 a fall that eases in (0.2 s at a tenth of g, then g): noted as an ease-in: %s" % (eu[0]["msg"] if eu.size() > 0 else "none"))
 
 	print("CRITIQUE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

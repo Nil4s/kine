@@ -74,4 +74,5 @@ func _init() -> void:
 	var err := img.save_png(SHOT)
 	ok(err == OK, "(4) screenshot saved to %s (%s)" % [SHOT.get_file(), error_string(err)])
 
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

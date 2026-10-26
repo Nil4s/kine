@@ -56,4 +56,5 @@ func _init() -> void:
 				bad.append(u)
 	ok(bad.is_empty(), "%d web links, each a rulebook URL, in MOTION_RULES.md or [background] (stray: %s)" % [n, bad])
 	print("PEOPLE DOC TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

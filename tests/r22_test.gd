@@ -228,4 +228,5 @@ func _init() -> void:
 		sheet.save_png(shot)
 		ok(FileAccess.file_exists(shot), "7 five expressions saved to %s" % shot)
 	print("R22 TEST %s" % ["PASS" if fails == 0 else "FAIL %d" % fails])
+	TestFiles.cleanup()
 	quit(fails)

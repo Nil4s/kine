@@ -121,4 +121,5 @@ func _init() -> void:
 	ok(str(names.call(fs)) == str(names.call(fs0)), "  and Check grades it the same: %s" % str(names.call(fs)))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(out))
 	print("TOOLS WINDOW %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -283,4 +283,5 @@ func _init() -> void:
 		print("     after: %s" % String(after.get("text", "")).left(400))
 		DirAccess.remove_absolute(tmp)
 	print("%s explain: %d failures (%.1f s)" % ["PASS" if fails == 0 else "FAIL", fails, (Time.get_ticks_msec() - t_all) / 1000.0])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -243,4 +243,5 @@ func _init() -> void:
 	ok(miss.is_empty() and float(acc.get("value", 0.0)) == 10.0 and acc["trust"] == Trust.M and noval.is_empty() and (tr["bars"] as Array).size() >= 10,
 		"8 facts %s; BODY ACCEL trust %s over %d bars (without a value: %s)" % ["all answered" if miss.is_empty() else str(miss), tr["status"], (tr["bars"] as Array).size(), noval])
 	print("BODYCAPS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

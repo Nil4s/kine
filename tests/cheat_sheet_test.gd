@@ -27,6 +27,7 @@ func _init() -> void:
 	ok(src_has_cmd(), "(4) palette has Help: printable cheat sheet")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
 	print("CHEAT SHEET ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)
 func src_has_cmd() -> bool:
 	return FileAccess.get_file_as_string("res://scripts/main.gd").contains('add.call("Help: printable cheat sheet"')

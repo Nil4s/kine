@@ -291,4 +291,5 @@ func _init() -> void:
 	DirAccess.remove_absolute(dir_t + "_empty")
 	DirAccess.remove_absolute(cache_t)
 	print("I32 MY CAMERA %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -167,4 +167,5 @@ func _init() -> void:
 	ok(real_journal_now == real_journal_was and real_auto_now == real_auto_was,
 		"17 user://journal and user://autosave.json untouched by the test")
 	print("JOURNAL: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

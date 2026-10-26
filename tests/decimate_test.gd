@@ -258,4 +258,5 @@ func _init() -> void:
 	ok(it0 == 20480 and sec < 10.0 and absf(ico.face_count() - it) <= 0.01 * it and KMeshValidate.report(ico)["ok"],
 		"bar 6: %d triangles -> %d (target %d) in %.2f s (bar 10 s), clean %s, %d collapses" % [it0, ico.face_count(), it, sec, KMeshValidate.report(ico)["ok"], r6["collapses"]])
 	print("DECIMATE ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)

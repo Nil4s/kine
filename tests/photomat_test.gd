@@ -254,4 +254,5 @@ func _run() -> void:
 	ok(not m.photomat.apply(photo_path, "x", 3.0), "with nothing picked, apply refuses (and says to pick a prop or a part)")
 	ok(scenes_listing() == before, "scenes/ is unchanged")
 	print("FAILS: %d" % fails if fails > 0 else "photomat ok")
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

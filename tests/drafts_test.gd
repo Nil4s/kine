@@ -163,4 +163,5 @@ func _init() -> void:
 	UserPaths.force = false
 	UserPaths.root = ""
 	print("DRAFTS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

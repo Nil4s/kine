@@ -253,6 +253,7 @@ func _init() -> void:
 	vx.stats_toggle()
 
 	print("RESULT: ", "FAIL (%d)" % fails if fails > 0 else "PASS")
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

@@ -179,4 +179,5 @@ func _init() -> void:
 			var rn := Feasible.check(N, B)
 			print("     scene %-18s %-10s %s" % [fn, rn["verdict"], (rn["findings"] as Array).map(func(f): return "%s %.2f-%.2f" % [f["rule"].replace("FEASIBLE ", ""), f["t"], f.get("t1", 0.0)])])
 	print("FEASIBLE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

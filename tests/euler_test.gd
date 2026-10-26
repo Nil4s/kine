@@ -329,4 +329,5 @@ func _init() -> void:
 		man.free()
 
 	print("EULER: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

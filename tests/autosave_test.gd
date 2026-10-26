@@ -139,4 +139,5 @@ func _init() -> void:
 	ok(real_now == real_was, "15 the real user://autosave.json untouched (%s)" % ("absent" if real_now == -1 else str(real_now)))
 	OS.set_environment("POSER_AUTOSAVE", "")
 	print("AUTOSAVE: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

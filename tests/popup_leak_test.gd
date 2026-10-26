@@ -102,4 +102,5 @@ func _init() -> void:
 		ok(b[0] <= a[0] and b[1] <= a[1] and b[2] <= a[2] + 5 and c[0] == b[0] and c[1] == b[1] and c[2] <= b[2] + 5,
 			"%-6s opened and closed 100 + 100 times: nodes %d -> %d -> %d, orphan nodes %d -> %d -> %d, objects %d -> %d -> %d" % [what, a[0], b[0], c[0], a[1], b[1], c[1], a[2], b[2], c[2]])
 	print("POPUP LEAK: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

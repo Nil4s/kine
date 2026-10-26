@@ -242,4 +242,5 @@ func _init() -> void:
 		sr, cl, cl.encloses(sr), sph, not sr.intersects(sph), tall, clicked, tmp("matcap_ui.png")])
 	SculptMatcap.chosen = "clay"
 	print("MATCAP ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)

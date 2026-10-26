@@ -99,4 +99,5 @@ func _init() -> void:
 
 	print("")
 	print("ALL PASS" if fails == 0 else "%d FAILED" % fails)
+	TestFiles.cleanup()
 	quit(fails)

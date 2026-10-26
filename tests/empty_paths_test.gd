@@ -77,4 +77,5 @@ func _init() -> void:
 	ok(m.S.cards.size() >= 2 and m.scene_path == "" and m.S.name.ends_with("_mine"), "4 a real click on '%s': %d cards, opened as a copy '%s' (no file path)" % [et, m.S.cards.size(), m.S.name])
 	ok(paths().is_empty(), "5 with cards in the scene no way-in shows (%d)" % paths().size())
 	print("EMPTY PATHS: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

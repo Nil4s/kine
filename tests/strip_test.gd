@@ -163,4 +163,5 @@ func _init() -> void:
 	ok(m.grid_node.visible != g0, "  Grid: %s -> %s" % [g0, m.grid_node.visible])
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("STRIP TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

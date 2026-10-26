@@ -184,4 +184,5 @@ func _init() -> void:
 	ok(FileAccess.file_exists(SHOT), "13 screenshot saved (%s)" % SHOT)
 
 	print("MARKER NOTES: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

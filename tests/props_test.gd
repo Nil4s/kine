@@ -163,4 +163,5 @@ func _init() -> void:
 	for k in m:
 		m[k].free()
 	print("PROPS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

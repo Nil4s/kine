@@ -65,4 +65,5 @@ func _init() -> void:
 	V.show_body(B)
 	ok(V._im.get_surface_count() == 0 and V.last.is_empty() and V.words() == "", "8 off: nothing drawn, nothing read")
 	print("BALANCE VIEW TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

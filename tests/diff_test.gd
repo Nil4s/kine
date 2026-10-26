@@ -54,4 +54,5 @@ func _init() -> void:
 			sides[jd["joint"].right(2)] = true
 	ok(d["cards"].size() >= a["cards"].size() - 1 and sides.has("_l") and sides.has("_r"), "mirrored: %d of %d cards differ, on both sides' joints" % [d["cards"].size(), a["cards"].size()])
 	print("DIFF TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -208,4 +208,5 @@ func _init() -> void:
 	DirAccess.remove_absolute(cache)
 	DirAccess.remove_absolute(m.cm_ui.cache)
 	print("I23 MY COMBOS %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

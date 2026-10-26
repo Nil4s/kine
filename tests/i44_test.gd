@@ -283,4 +283,5 @@ func _init() -> void:
 	while ui.fat_pending() and Time.get_ticks_msec() - w1 < 30000:   # a worker still reading must finish before the engine quits
 		await idle(2)
 	print("i44: %s" % ("PASS" if fails == 0 else "FAIL (%d)" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

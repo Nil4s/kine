@@ -107,4 +107,5 @@ func _init() -> void:
 	m._rebuild_cards()
 	await check("5 New empty scene")
 	print("GHOSTS FOLLOW: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

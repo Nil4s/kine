@@ -150,4 +150,5 @@ func _init() -> void:
 	ok(absf(float(again["offset"][1]) - float(snapped["offset"][1])) < 0.00001, "snapping a snapped pose again changes it by less than 0.01 mm")
 
 	print("floorsnap: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

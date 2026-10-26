@@ -62,6 +62,7 @@ func _init() -> void:
 	ok(g != null, "the gizmo is attached under the main node")
 	if g == null:
 		print("CAMERA GIZMO TEST FAIL (no gizmo)")
+		TestFiles.cleanup()
 		quit(1)
 		return
 
@@ -106,4 +107,5 @@ func _init() -> void:
 		ok(absf(m.playhead - t) < 1e-6, "  a click on it puts the playhead at %.2f s (now %.2f)" % [t, m.playhead])
 
 	print("CAMERA GIZMO TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

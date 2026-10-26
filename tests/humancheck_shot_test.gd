@@ -57,4 +57,5 @@ func _init() -> void:
 	root.get_texture().get_image().save_png("user://zz_humancheck.png")
 	print("shot: ", ProjectSettings.globalize_path("user://zz_humancheck.png"))
 	print("HUMANCHECK SHOT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

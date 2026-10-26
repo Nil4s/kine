@@ -330,4 +330,5 @@ func _init() -> void:
 	print("CROWD: %d fails" % fails)
 	m.queue_free()
 	await idle(2)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

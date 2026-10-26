@@ -75,4 +75,5 @@ func _init() -> void:
 	DirAccess.make_dir_recursive_absolute("C:/Users/Nick/.claude/jobs/9afc22db/tmp")
 	root.get_texture().get_image().save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/feasible.png")
 	print("FEASIBLE SHOT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

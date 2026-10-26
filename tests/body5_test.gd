@@ -134,4 +134,5 @@ func _init() -> void:
 	out.save_png(OUT)
 	print("     screenshot: %s: 160 cm woman (left) and 190 cm heavy man (right), one camera" % OUT)
 	print("BODY5 %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

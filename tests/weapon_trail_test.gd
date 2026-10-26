@@ -127,4 +127,5 @@ func _init() -> void:
 	ok(dmax < 1e-4, "exported base and tip equal the body's weapon points on every held frame (worst %.4f mm)" % (dmax * 1000.0))
 	W.free()
 	print("weapon_trail: %d FAILS" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

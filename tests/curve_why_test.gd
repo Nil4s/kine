@@ -124,4 +124,5 @@ func _init() -> void:
 	ok(Why.spans(S5, B).is_empty() and ce.why.is_empty(), "5 control: two equal cards -> %d spans, the editor paints %d" % [Why.spans(S5, B).size(), ce.why.size()])
 	m.queue_free()
 	print("CURVE WHY TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

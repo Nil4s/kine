@@ -132,4 +132,5 @@ func _init() -> void:
 	ok(med <= 0.6, "median ratio new/legacy %.3f <= 0.6" % med)
 	Body.legacy_ground = false
 	print("GROUNDSPEED %s" % ("FAIL" if fails > 0 else "ok"))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

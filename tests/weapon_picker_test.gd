@@ -140,4 +140,5 @@ func _init() -> void:
 	ok(bad.is_empty(), "5 after every other path both pickers show what the body holds: %s (bad: %s)" % [paths, bad])
 	ok(fired == 0, "6 no refresh fired a picker (%d item_selected outside the real picks)" % fired)
 	print("WEAPON PICKER: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -148,4 +148,5 @@ func _run() -> void:
 			await idle(1)
 
 	print("intro: %d fail(s)" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

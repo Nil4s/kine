@@ -198,4 +198,5 @@ func _init() -> void:
 	ok(flagged.is_empty(), "9 Nick's scenes + the templates (%d files): flagged %s" % [names.size(), flagged])
 
 	print("COUPLED TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

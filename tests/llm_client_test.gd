@@ -181,4 +181,5 @@ func _init() -> void:
 		and not safe.has(false), "6 a key to plain http on another machine is refused before sending: \"%s\"; key_safe on https / 127.0.0.1 / localhost / 10.x http / remote http: %s (want all true)" % [w6, safe])
 	srv.stop()
 	print("LLM CLIENT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

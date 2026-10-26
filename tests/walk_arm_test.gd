@@ -26,6 +26,7 @@ func _init() -> void:
 	for path in paths:
 		one(path)
 	print("WALK ARM TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)
 
 

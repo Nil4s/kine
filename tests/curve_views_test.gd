@@ -184,4 +184,5 @@ func _init() -> void:
 	ok(ce.view == "plain" and same and JSON.stringify(PartKeys.to_file(S.part_keys)) == before, "6 three clicks: %s -> %s -> %s; back in degrees every dot where it was (%s); keys as before" % [v1, v2, ce.view, same])
 	m.queue_free()
 	print("CURVE VIEWS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

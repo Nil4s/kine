@@ -146,4 +146,5 @@ func _init() -> void:
 	S.moving_holds = false
 	ok(not S.to_dict(B).has("moving_holds"), "  off: not written (older scenes save byte-identical)")
 	print("MIRROR TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

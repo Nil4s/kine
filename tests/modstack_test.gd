@@ -295,6 +295,7 @@ func _init() -> void:
 	mstk.queue_free()
 	await idle(2)
 
+	TestFiles.cleanup()
 	quit(1 if fails else 0)
 
 

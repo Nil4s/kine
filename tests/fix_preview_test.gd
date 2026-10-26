@@ -98,4 +98,5 @@ func _init() -> void:
 			total += await run("res://scenes/" + f, false)
 	ok(total >= 2, "%d scenes had a Fix to preview" % total)
 	print("FIX PREVIEW TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

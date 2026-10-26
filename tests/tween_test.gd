@@ -55,4 +55,5 @@ func _init() -> void:
 	var m := Scene.mix_flat(p, q, 0.5)
 	ok(absf(absf((m["ang"]["pelvis"] as Vector3).z) - 180.0) < 1e-3, "pelvis 170 -> -170 at 0.5 = 180 (short way): %.2f" % (m["ang"]["pelvis"] as Vector3).z)
 	print("TWEEN %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

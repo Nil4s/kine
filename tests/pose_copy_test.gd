@@ -149,4 +149,5 @@ func _init() -> void:
 	ok(TS.cards.size() == n1, "6: two Ctrl+Z take both copies back (cards %d)" % TS.cards.size())
 
 	print("done: %d failure(s)" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -396,4 +396,5 @@ func _init() -> void:
 	ok(h_loop >= 4, "(H) Alt+click after the extrude and with Mirror on selects the loop: %d edges (want >= 4)" % h_loop)
 
 	print("kmesh_grs: %d failures" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

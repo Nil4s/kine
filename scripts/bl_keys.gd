@@ -42,6 +42,7 @@ var _centre := Vector3.ZERO
 var _p0 := Vector3.ZERO
 var _pc := {}              # B14: individual origins, vertex -> its island's centre (KMeshPivot.origins)
 var last_readout := ""
+var _mpp_at := 0.0         # mesh: metres per screen pixel at the selection's depth (set in _begin_mesh; 0 = the camera's distance)
 var _floor_pivot := false  # walk-through 6, friction 6: S about the floor point under the middle (the selection reaches the floor)
 var _z_said := false       # walk-through 6, friction 7: "Z is depth here; Y is up" is said once per session
 
@@ -181,6 +182,11 @@ func _begin_mesh(which: String) -> void:
 		_centre.y = 0.0
 		_floor_pivot = true
 	_pc = ui.pivot.origins(_idx, _verts)
+	# the mouse moves the selection as far as it moves on screen at the selection's own depth (walk13 goal 2: a 90 px drag
+	# moved the chest 406 mm, because the scale came from the camera's distance, not the chest's)
+	var wc: Vector3 = ui.view.global_transform * _centre
+	var zc := maxf(-(m.cam.global_transform.affine_inverse() * wc).z, 0.01)
+	_mpp_at = zc * 2.0 * tan(deg_to_rad(m.cam.fov * 0.5)) / m.get_viewport().get_visible_rect().size.y
 	if ui.prop.on:
 		ui.prop.begin(ui.mesh, _idx, _verts)
 	where = "mesh"
@@ -275,6 +281,8 @@ func value() -> float:
 
 
 func _mpp() -> float:
+	if where == "mesh" and _mpp_at > 0.0:
+		return _mpp_at
 	return 2.0 * m.dist * tan(deg_to_rad(m.cam.fov * 0.5)) / m.get_viewport().get_visible_rect().size.y
 
 

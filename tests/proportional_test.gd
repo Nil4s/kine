@@ -232,6 +232,7 @@ func _init() -> void:
 	ok(ui.prop.last_circle.is_empty(), "4c the circle is gone after Esc")
 	m.blk.set_on(false, false)
 	print("PROPORTIONAL: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

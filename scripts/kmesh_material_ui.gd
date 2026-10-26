@@ -152,6 +152,7 @@ func _ready() -> void:
 
 ## E02: the material library picker, left of this panel
 func open_library() -> MaterialLibraryPanel:
+	_base_if_empty()
 	if lib_panel == null:
 		lib_panel = MaterialLibraryPanel.new(self)
 		get_parent().add_child(lib_panel)
@@ -218,7 +219,11 @@ func refresh() -> void:
 	for i in m.materials.size():
 		list.add_item("%s  (%d faces)" % [m.materials[i]["name"], c[i]])
 		list.set_item_icon(i, _swatch(m.materials[i]["albedo"]))
-	if m.materials.size() > 0:
+	if m.materials.is_empty() and m.face_count() > 0:
+		# no slot yet: the whole mesh shows as one slot (its real slot is made by Library..., Add material or a field)
+		list.add_item("%s  (%d faces)" % [_base_name(), m.face_count()])
+		list.set_item_icon(0, _swatch(Color(0.8, 0.8, 0.8)))
+	if list.item_count > 0:
 		list.select(cur)
 	_box.visible = not m.materials.is_empty()
 	_fill()
@@ -263,14 +268,40 @@ func _after(say: String) -> void:
 
 # ---------------------------------------------------------------- the edits (one undo step each)
 
-## Add material: the new slot takes the SELECTED faces (one undo step). With no slot yet and only some faces selected, the
-## rest go to a base slot made first, so the selection is not the whole mesh. Nothing selected: an empty slot.
+## the mesh with no slot yet: the panel LISTS the whole mesh as one slot (refresh), and the first real slot is made here, by
+## Library... (open_library), by Add material (add_slot) or by a field. ONE slot holding every face (a slot with no index
+## channel draws every face), one undo step. Does nothing when a slot exists or the mesh has no faces.
+func _base_if_empty(over := {}) -> bool:
+	var m := mesh()
+	if m == null or not m.materials.is_empty() or m.face_count() == 0:
+		return false
+	var o := over.duplicate()
+	if not o.has("name"):
+		o["name"] = _base_name()
+	var nm: String = o["name"]
+	ui.undo.begin(m)
+	cur = KMeshMaterial.add(m, o)
+	ui.undo.commit("Add material")
+	_after("the whole mesh is one material '%s' (every face): Library... or the fields change all of it (Ctrl+Z takes it back)" % nm)
+	return true
+
+
+## the name of that first slot: "Skin" on the fighter's body, "Material 1" otherwise
+func _base_name() -> String:
+	return "Skin" if BaseBody.is_open(ui.m) else "Material 1"
+
+
+## Add material: the new slot takes the SELECTED faces (one undo step; pbrmat R2). With no slot yet and only some faces
+## selected, the rest go to a base slot made first, so the selection is not the whole mesh. No slot and nothing selected:
+## the whole mesh becomes the first slot (_base_if_empty). A slot exists and nothing selected: an empty slot.
 func add_slot(over := {}) -> int:
 	var fs := selected_faces()
+	if mesh().materials.is_empty() and fs.is_empty():
+		return 0 if _base_if_empty(over) else -1
 	ui.undo.begin(mesh())
 	var base := false
-	if mesh().materials.is_empty() and not fs.is_empty() and fs.size() < mesh().face_count():
-		KMeshMaterial.add(mesh())
+	if mesh().materials.is_empty() and fs.size() < mesh().face_count():
+		KMeshMaterial.add(mesh(), {"name": _base_name()})
 		base = true
 	var i := KMeshMaterial.add(mesh(), over)
 	var n := KMeshMaterial.assign(mesh(), fs, i) if not fs.is_empty() else 0
@@ -278,7 +309,7 @@ func add_slot(over := {}) -> int:
 	cur = i
 	var nm: String = mesh().materials[i]["name"]
 	if not fs.is_empty():
-		_after("material '%s' added and given the %d selected faces%s (Ctrl+Z takes it back; its colour is the swatch under Base colour)" % [nm, n, "; the other faces went to a new '%s' slot" % mesh().materials[0]["name"] if base else ""])
+		_after("material '%s' added and given the %d selected faces%s (Ctrl+Z takes it back; its colour is the swatch under Base colour)" % [nm, n, "; the other faces stay in '%s'" % mesh().materials[0]["name"] if base else ""])
 	else:
 		_after("material '%s' added, empty: select faces and press Assign to give it faces (Ctrl+Z takes it back)" % nm)
 	return i
@@ -404,6 +435,7 @@ func pick_texture(key: String) -> void:
 
 ## E15: the picked slot takes a photo material's maps, one step
 func use_photo(name: String) -> void:
+	_base_if_empty()   # no slot yet: the whole mesh becomes the first slot (its name is "Skin" or "Material 1")
 	if cur >= mesh().materials.size():
 		return
 	ui.undo.begin(mesh())

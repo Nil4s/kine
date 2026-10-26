@@ -26,6 +26,7 @@ func _run() -> void:
 	var r := PathRun.build(pts, 3.5)
 	if not r["ok"]:
 		print("FAIL did not build: ", r["why"])
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var S := Scene.new()
@@ -91,4 +92,5 @@ func _run() -> void:
 	var bad2 := PathRun.build(bend, 3.5)
 	ok(not bad["ok"] and not bad2["ok"] and String(bad2["why"]).contains("Widen"), "6 refusals: '%s' / '%s'" % [bad["why"], bad2.get("why", "built")])
 	print("PATH RUN TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

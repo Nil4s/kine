@@ -168,4 +168,5 @@ func _init() -> void:
 	ok(m.undo.size() == u6, "6 a press on a handle with no move left no undo step (%d -> %d)" % [u6, m.undo.size()])
 
 	print("FOOT HANDLES TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

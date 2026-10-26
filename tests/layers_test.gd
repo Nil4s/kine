@@ -165,4 +165,5 @@ func _init() -> void:
 	var mir := Scene.mirror_layer({"spine_03": [6, 3, 0]}, M)
 	ok(rt and none and Scene.MIRROR_SCENE.has("layers") and mir.has("spine_03"), "7 save/load plays bit for bit the same %s; no further layer writes no \"layers\" %s; Mirror's list names \"layers\"" % [rt, none])
 	print("LAYERS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

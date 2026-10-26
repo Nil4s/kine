@@ -451,6 +451,7 @@ func _init() -> void:
 		await idle(4)
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 		print("EASY OVERLAP TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+		TestFiles.cleanup()
 		quit(fails)
 		return
 
@@ -1291,4 +1292,5 @@ func _init() -> void:
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("EASY MODE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

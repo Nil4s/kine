@@ -218,4 +218,5 @@ func _init() -> void:
 	await press_bar()
 	falloff_guard()
 	print("paintfix: %d failing" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

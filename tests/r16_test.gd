@@ -220,4 +220,5 @@ func _init() -> void:
 	await idle()
 	ok(sj(m.actors_rt[1]["S"]) == f1 and sj(m.actors_rt[0]["S"]) == h1, "5 one undo puts fighter 2 back exactly (floor rule too) and the hero is unchanged")
 	print("R16 TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

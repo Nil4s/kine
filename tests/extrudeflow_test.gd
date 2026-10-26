@@ -175,4 +175,5 @@ func _init() -> void:
 
 	ui.stop()
 	print("extrudeflow: %d failures" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -91,4 +91,5 @@ func _init() -> void:
 	ok(back.size() >= 1, "4 one undo step brings the finding back")
 
 	print("TWINNING TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

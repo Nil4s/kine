@@ -84,4 +84,5 @@ func _init() -> void:
 	ok(bad.is_empty() and n > 5 and dd.get("breath", 0.0) == 14.0 and S3.breath == 14.0 and not S4.to_dict(B2).has("breath"),
 		"5 files: %d scenes load with breathing off and none holds the key %s; on writes \"breath\": 14 and reads it back; off writes nothing" % [n, bad])
 	print("BREATH TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

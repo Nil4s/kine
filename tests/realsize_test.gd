@@ -127,6 +127,7 @@ func _init() -> void:
 		"(6) guess: names wrong %s; on the head %s (%s); 40 cm off %s; findings %s" % [str(wrong_g), gw["kind"], gw["why"], gf["kind"], str(fs.map(func(f): return [f["id"], f["level"]]))])
 	await _app()
 	print("REAL SIZE ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)
 
 

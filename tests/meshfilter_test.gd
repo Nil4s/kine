@@ -241,4 +241,5 @@ func _init() -> void:
 	fmn.free()
 
 	print("MESHFILTER %s (%d failures)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

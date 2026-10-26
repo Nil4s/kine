@@ -308,4 +308,5 @@ func _init() -> void:
 	root.remove_child(m)
 	m.free()
 	await process_frame
+	TestFiles.cleanup()
 	quit(fails)

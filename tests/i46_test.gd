@@ -229,4 +229,5 @@ func _init() -> void:
 	for f in files:
 		DirAccess.remove_absolute(dir + "/" + f)
 	DirAccess.remove_absolute(dir)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

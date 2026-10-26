@@ -92,6 +92,7 @@ func _init() -> void:
 	ok(b != null and b.visible, "ANIMATE has an Airborne button")
 	if b == null:
 		print("JUMP UI TEST FAIL %d" % fails)
+		TestFiles.cleanup()
 		quit(fails)
 		return
 	var u0: int = m.undo.size()
@@ -113,4 +114,5 @@ func _init() -> void:
 	await click_ctl(b)
 	ok(not m.S.cards[0].has("air") and m.undo.size() == u1 and String(m.ui_status.text).contains("card before it"), "card 1: refused, nothing changed ('%s')" % m.ui_status.text)
 	print("JUMP UI TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

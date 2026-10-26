@@ -55,4 +55,5 @@ func _init() -> void:
 	else:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(out))
 	print("MONKEY %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

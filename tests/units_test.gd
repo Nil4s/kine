@@ -637,4 +637,5 @@ func _init() -> void:
 		print("FAIL %s:%d  %s  [%s]  %s" % [v[0], v[1], v[4], v[3], v[2]])
 	ok(found.is_empty(), "every number shown carries a unit or is a listed count/index: %d specs on UI lines, %d with a unit, %d counts or indices, %d allowed, %d unitless or bare m (must be 0)" % [scanned, with_unit, counted, allowed, found.size()])
 	print("units: %d fail(s)" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

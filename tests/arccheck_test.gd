@@ -146,4 +146,5 @@ func _init() -> void:
 		ok(pm.distance_to(pw) <= 30.0, "(5) PLACEMENT: the dot is %.1f px from the wrist (<= 30)" % pm.distance_to(pw))
 		ok(Rect2(Vector2.ZERO, vp).has_point(pm) and not pr.has_point(pm) and m.arc_view.visible, "(5) the dot is inside the view, clear of the panel, and the drawing is visible")
 	print("ARCCHECK RESULT: ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(fails)

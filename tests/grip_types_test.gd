@@ -59,6 +59,7 @@ func _init() -> void:
 	ok(tips_ok and prox_prec >= prox_power + 0.005, "4 precision: every fingertip touches (%s), the proximal phalanges %.1f mm off the handle (power: %.1f)" % [tips_ok, prox_prec * 1000, prox_power * 1000])
 	m.queue_free()
 	print("GRIP TYPES TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)
 
 

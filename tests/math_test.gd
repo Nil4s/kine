@@ -74,4 +74,5 @@ func _init() -> void:
 	var kn: Vector3 = B.P["calf_r"]
 	check("thigh bend 90 = knee forward at hip height", kn.z > 0.35 and absf(kn.y - B.P["thigh_r"].y) < 0.08, str(kn))
 	print("MATH %s %d/%d" % ["PASS" if ok == n else "FAIL", ok, n])
+	TestFiles.cleanup()
 	quit(0 if ok == n else 1)

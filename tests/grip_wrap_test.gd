@@ -131,6 +131,7 @@ func _init() -> void:
 	ok(ratio <= WRAP_RATIO, "5 the slowest wrap of one hand: %.1f x one whole-body penetration() timed beside it (bar %.0f, load-proof; idle that is under Nielsen's 0.1 s for a response felt as instant); %.1f ms here" % [ratio, WRAP_RATIO, ms])
 	m.queue_free()
 	print("GRIP WRAP TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)
 
 

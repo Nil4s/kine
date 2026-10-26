@@ -112,6 +112,7 @@ func _init() -> void:
 	ok(not avi.is_empty(), "RIFF 'AVI ' headers parse")
 	if avi.is_empty():
 		print("PLAYBLAST TEST FAIL %d" % fails)
+		TestFiles.cleanup()
 		quit(fails)
 		return
 	var fr: Array = avi["frames"]
@@ -151,4 +152,5 @@ func _init() -> void:
 	DirAccess.remove_absolute(DIR)
 	ok(not DirAccess.dir_exists_absolute(DIR), "outputs deleted")
 	print("PLAYBLAST TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

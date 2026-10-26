@@ -79,4 +79,5 @@ func _init() -> void:
 	ok(found.size() == 3 and found.values().all(func(f): return f[0] and f[1] == 2 and f[2]),
 		"3 the origin's axes: %s (each: its colour right, 2 arrowhead strokes, its letter beside its tip in its colour)" % found)
 	print("FLOOR FADE: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

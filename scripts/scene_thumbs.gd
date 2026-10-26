@@ -15,6 +15,7 @@ const SIZE := Vector2i(96, 64)
 const DIR := "user://thumbs"
 const STRIKE_WORDS := ["strike", "contact", "thrust", "hit"]
 
+static var _pk_memo := {}   # pose hash -> [a copy of the pose, its pose_key] (pose_key)
 var pick_on := false      # K29 (scripts/thumb_pick.gd): draw the clip's most readable frame instead of its strike / middle card
 var picked := {}          # scene path -> the time (s) the picker chose (the test reads it)
 var renders := 0          # pictures drawn this session (the test counts them)
@@ -140,7 +141,17 @@ func _pump() -> void:
 ## so a card that is moved, renamed, retimed or duplicated never draws again; only an Update (a new pose) does. Drawn one
 ## per frame like the scene pictures, after the frame that asked, so a rebuild of the strip never waits for them.
 static func pose_key(pose: Dictionary) -> String:
-	return (JSON.stringify(pose, "", true) + "|" + FRAME_VER).sha256_text()
+	# the key of a pose is a JSON dump and a hash: a card row asks for it on every rebuild, so the key is kept by the pose's
+	# hash and checked with == (a copy of the pose sits beside it): the same key as the dump would give, for the same pose
+	var h := hash(pose)
+	var e = _pk_memo.get(h)
+	if e != null and e[0] == pose:
+		return e[1]
+	var k := (JSON.stringify(pose, "", true) + "|" + FRAME_VER).sha256_text()
+	if _pk_memo.size() > 4000:
+		_pk_memo.clear()
+	_pk_memo[h] = [pose.duplicate(true), k]
+	return k
 
 
 ## the picture of this pose if it is at hand (memory), else null

@@ -157,4 +157,5 @@ func _init() -> void:
 	ok(n_same >= 9 and n_same + skipped.size() == GOLDEN.size(), "5b the golden scenes present all hashed: %d of %d (%d skipped; bar: at least 9)" % [n_same, GOLDEN.size(), skipped.size()])
 
 	print("FOOT JOINTS: %d FAIL" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

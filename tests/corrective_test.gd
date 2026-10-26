@@ -334,6 +334,7 @@ func _init() -> void:
 	if DisplayServer.get_name() != "headless":
 		_setup_shot()
 	else:
+		TestFiles.cleanup()
 		quit(1 if fails > 0 else 0)
 
 
@@ -392,6 +393,7 @@ func _process(_delta: float) -> bool:
 		var img := root.get_texture().get_image()
 		img.save_png(SHOT)
 		print("screenshot saved: %s (%d x %d)" % [SHOT, img.get_width(), img.get_height()])
+		TestFiles.cleanup()
 		quit(1 if fails > 0 else 0)
 	return false
 

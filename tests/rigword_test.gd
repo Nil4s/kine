@@ -209,4 +209,5 @@ func _init() -> void:
 	root.get_texture().get_image().save_png(shot)
 	print("   (picture: %s)" % shot)
 	print("rigword_test: %s (%d failing)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(0 if fails == 0 else 1)

@@ -200,4 +200,5 @@ func _run() -> void:
 	g.queue_free()
 	await idle(2)
 	print("CO EDIT: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

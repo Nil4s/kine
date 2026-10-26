@@ -317,6 +317,7 @@ func _init() -> void:
 	for b in ["_none", "_cam"]:
 		_rm(ProjectSettings.globalize_path(base + b))
 	print("SHOT CAMERA TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)
 
 

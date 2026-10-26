@@ -118,4 +118,5 @@ func _init() -> void:
 	ok(m.hover_fighter == -1 and fp._state.is_empty(), "3: the mouse over empty space: no fighter hover, the light off")
 
 	print("fighter_hover: %d fail(s)" % fails)
+	TestFiles.cleanup()
 	quit(fails)

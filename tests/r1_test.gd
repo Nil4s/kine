@@ -295,4 +295,5 @@ func _init() -> void:
 	if png != "":
 		(imgs[0] as Image).save_png(png)
 	print("r1_test: %s (%d failed)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(0 if fails == 0 else 1)

@@ -243,4 +243,5 @@ func _init() -> void:
 
 func _done() -> void:
 	print("USD LAYERS TEST %s %d" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(fails)

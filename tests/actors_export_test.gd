@@ -328,6 +328,7 @@ func _init() -> void:
 	await process_frame
 	clean()
 	print("ACTORS EXPORT: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

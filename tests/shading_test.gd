@@ -215,6 +215,7 @@ func _init() -> void:
 	ok(txt.begins_with("playing ") and txt.ends_with(" dropped"), "the readout beside the time says: '%s'" % txt)
 
 	print("SHADING TEST ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(fails)
 
 

@@ -317,4 +317,5 @@ func _init() -> void:
 	got_r2.sort()
 	ok(got_r2 == sel_fs, "R2 Add material with faces %s selected: the new slot holds %s (bar: exactly those faces)" % [str(sel_fs), str(got_r2)])
 
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

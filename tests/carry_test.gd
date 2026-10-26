@@ -166,4 +166,5 @@ func _init() -> void:
 	ok(not m.S.cards[0].has("take") and m.undo.size() == u1 and m.ui_status.text.contains("the hands are"), "a box out of reach: refused ('%s'), nothing changed" % m.ui_status.text.left(80))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("CARRY TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

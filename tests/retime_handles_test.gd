@@ -184,4 +184,5 @@ func _init() -> void:
 	ok(m.undo.size() == u0 and CoEdit.hash_of(m.S.cards) == hash0, "a click on the handle that moves nothing: no undo step, scene unchanged")
 
 	print("%s: %d failures" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(0 if fails == 0 else 1)

@@ -118,4 +118,5 @@ func _init() -> void:
 	ok(n == 0, "shipped scenes combo3, bo_spin, dodge_side: %d LIFT FORM findings" % n)
 	ok(Rulebook.SRC.has("LIFT FORM") and Rulebook.WHY.has("LIFT FORM") and Rulebook.URL.has("LIFT FORM"), "LIFT FORM has its SRC, WHY and URL")
 	print("LIFT FORM TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

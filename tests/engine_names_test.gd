@@ -43,6 +43,7 @@ func _init() -> void:
 	var st := GLTFState.new()
 	if err != OK or doc.append_from_file(ProjectSettings.globalize_path(path), st) != OK:
 		ok(false, "1 the .glb could not be written and read back")
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var sk: Skeleton3D = doc.generate_scene(st).find_children("*", "Skeleton3D", true, false)[0]
@@ -66,4 +67,5 @@ func _init() -> void:
 	var lacking := need.filter(func(w): return not md.contains(w))
 	ok(md.length() > 2000 and lacking.is_empty(), "2 docs/EXPORT.md (%d chars) covers every engine and says what was not tested (lacking: %s)" % [md.length(), lacking])
 	print("ENGINE NAMES: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

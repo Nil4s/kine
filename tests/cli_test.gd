@@ -94,4 +94,5 @@ func _init() -> void:
 	ok(FileAccess.get_md5("res://scenes/combo3.json") == nick, "Nick's combo3.json byte-identical after every call")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(OUT))
 	print("CLI TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

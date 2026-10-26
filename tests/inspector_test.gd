@@ -137,4 +137,5 @@ func _init() -> void:
 	ok(m.ui_insp.is_visible_in_tree(), "the rail opens it again")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("INSPECTOR TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

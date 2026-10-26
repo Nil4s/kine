@@ -117,4 +117,5 @@ func _init() -> void:
 		"4 a NOT message is a problem, a pose report is not, and an unlisted refusal still gets a why")
 	m.queue_free()
 	print("WHYWRONG TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

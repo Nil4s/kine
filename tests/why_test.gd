@@ -62,4 +62,5 @@ func _init() -> void:
 			break
 	ok(m.last_source == Rulebook.URL[first["rule"]], "the first source button opens %s's source (%s)" % [first["rule"], m.last_source])
 	print("WHY TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

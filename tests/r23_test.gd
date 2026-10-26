@@ -130,6 +130,7 @@ func _init() -> void:
 		img_on_peak.save_png(path)
 	m._shot_blast_end(shot)
 	print("r23: ", "ALL OK" if fails == 0 else "%d FAILED" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)
 
 

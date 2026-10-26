@@ -139,6 +139,7 @@ func _init() -> void:
 		ok(bool(blow["ok"]) and bool(res["ok"]), "bat to the head at %.0f m/s: measured and simulated (%s)" % [v, res["why"]])
 		if not res["ok"]:
 			print("PHYSICS FAIL")
+			TestFiles.cleanup()
 			quit(1)
 			return
 		var rp: Dictionary = res["report"]
@@ -209,6 +210,7 @@ func _init() -> void:
 	ok(not m.hit_info.is_empty(), "4 the physics reaction landed (%s)" % [m.hit_info.get("text", "no result")])
 	if m.hit_info.is_empty():
 		print("I2 TEST FAIL (no result)")
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var vs: Scene = m.actors_rt[1]["S"]
@@ -298,4 +300,5 @@ func _init() -> void:
 	else:
 		ok(false, "9 simulated (%s %s)" % [rh["why"], ru["why"]])
 	print("I2 TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -182,4 +182,5 @@ func _init() -> void:
 		"  the cap held (%d nodes; cap 12 unless the current branch and its redo are longer: %d)" % [m._tree.nodes.size(), kept])
 	ok(prune_check(), "12 prune check again (pure tree)")
 	print("UNDO TREE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

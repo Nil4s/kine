@@ -161,4 +161,5 @@ func _init() -> void:
 		DirAccess.remove_absolute(gp(Recents.thumb_path(scene_path(i))))
 	DirAccess.remove_absolute(gp(DIRP))
 	print("recents_test: %s (%d fails)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(0 if fails == 0 else 1)

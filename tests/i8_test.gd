@@ -395,4 +395,5 @@ func _init() -> void:
 	root.get_viewport().get_texture().get_image().save_png("C:/Users/Nick/.claude/jobs/9afc22db/tmp/i8d.png")
 
 	print("RESULT: %s (%d failed)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

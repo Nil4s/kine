@@ -203,4 +203,5 @@ func _run() -> void:
 		print("     jumping jack: no tracker json at %s (skipped, not a pass)" % JJ)
 
 	print("LOST SPAN TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

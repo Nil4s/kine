@@ -57,4 +57,5 @@ func _init() -> void:
 			"%s: range %.0f..%.0f deg; sum = ask %s, limits %s, share by range %s, ends all at their limits %s, other axes kept %s, idempotent %s" % [axis, r.x, r.y, sum_ok, lim_ok, share_ok, ends_ok, other_ok, again_ok])
 	print("     people (Apti 2023): lumbar flex 69.9 / ext 40.0 / lateral 36 / rotation 38; cervical 57.7 / 59.1 / 42 / 71")
 	print("BACK BEND TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

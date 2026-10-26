@@ -45,6 +45,9 @@ static func build(m: Node) -> void:
 	row.add_child(m._button("Use in scene", m._mesh_use_in_scene, "put the open mesh into the scene next to the body as a prop, on the floor at its real size with its material (one undo step); the POSE page shows it"))
 	row.add_child(m._button("Extrude", _quick.bind(m, "extrude"), "lift the picked faces 10 cm along their normal, now (one undo step; E then a drag sizes it differently)"))
 	row.add_child(m._button("Inset", _quick.bind(m, "inset"), "inset the picked faces by 20 % of their size, now (one undo step; I then a drag sizes it differently)"))
+	row.add_child(tool.call("mesh_grab", "Move"))
+	row.add_child(tool.call("mesh_rotate", "Rotate"))
+	row.add_child(tool.call("mesh_scale", "Scale"))
 	row.add_child(tool.call("mesh_loopcut", "Loop cut"))
 	row.add_child(tool.call("mesh_knife", "Knife"))
 	row.add_child(tool.call("mesh_bevel", "Bevel"))
@@ -54,6 +57,7 @@ static func build(m: Node) -> void:
 	row.add_child(tool.call("mesh_repair", "Repair"))
 	row = m.ui_ribbon["SCULPT"]
 	row.add_child(m._button("Test sphere", m._sculpt_start, "a sphere on the stage to sculpt (nothing is saved)"))
+	row.add_child(m._button("Sculpt the body", _sculpt_body.bind(m), "sculpt the fighter's body mesh (the one MODEL edits) with the brushes below; each stroke one undo step, Esc goes back to MODEL (Apply body writes it to the fighter)"))
 	for b in BRUSHES:
 		var key: Key = b[1]
 		row.add_child(m._button(b[0], _brush.bind(m, key), "sculpt with %s: drag on the sphere (key %s)" % [String(b[0]).to_lower(), OS.get_keycode_string(key)]))
@@ -64,6 +68,45 @@ static func build(m: Node) -> void:
 	row.add_child(tool.call("mesh_uvpack", "Pack UVs"))
 	row.add_child(m._button("Export UVs", m._kmesh_uv_export, "the UV layout as PNG and SVG (Model: export UV layout)"))
 	row.add_child(m._button("Material from photo", m.photomat.ask, "a picture becomes a PBR material: albedo, roughness, normal map (Surface: material from a photo...)"))
+
+
+## SCULPT, "Sculpt the body": the body mesh MODEL edits (BaseBody.start opens it when it is not open) is the sculpt UI's
+## mesh (KMeshSculpt takes any KMesh through the source callable, as the pose sculpt does). Its undo is the body's own, so
+## a stroke is one step on the body (Ctrl+Z, and Apply body still writes it). Esc (the sculpt's leave) puts the body back.
+static func _sculpt_body(m) -> void:
+	if not BaseBody.is_open(m):
+		BaseBody.start(m)
+	if not BaseBody.is_open(m):
+		return   # BaseBody.start said why (no skinned body)
+	if m.get("ksc") == null:
+		m.ksc = load("res://scripts/kmesh_sculpt_ui.gd").new()
+		m.add_child(m.ksc)
+		m.ksc.setup(m)
+	if m.ksc.on:
+		m._say("Sculpt: leave the sculpt first (Esc), then Sculpt the body")
+		return
+	var kmed = m.kmed
+	var at: Transform3D = kmed.view.transform
+	var say := "Model: sculpting the BODY mesh (the one MODEL edits): every brush works on it, one undo step per stroke (Ctrl+Z). D C I S F P E G K brushes, [ ] radius, Esc back to the body on MODEL"
+	m.ksc.source = func(): return {"mesh": kmed.mesh, "at": at, "undo": kmed.undo, "say": say}
+	m.ksc.left = func(): _sculpt_body_left(m)
+	kmed.on = false            # the body mesh stands in for the sculpt; its keys and clicks wait until Esc
+	kmed.view.visible = false
+	m._mesh_page_for("SCULPT")
+	m.ksc.start()
+	m._mesh_show_sync()
+
+
+## Esc in the sculpt of the body: the body mesh back on MODEL (its strokes are on its undo stack)
+static func _sculpt_body_left(m) -> void:
+	var kmed = m.kmed
+	m.ksc.source = Callable()
+	m.ksc.left = Callable()
+	if kmed != null and kmed.view != null:
+		kmed.on = true
+		kmed.view.visible = true
+		kmed.view.mark_dirty()
+	m._say("Model: left the sculpt; back on the body mesh (Ctrl+Z takes the strokes back one by one; Apply body writes it to the fighter)")
 
 
 ## a sculpt brush: the test sphere opens first if it is not on, then the brush key goes to it the way a real key does

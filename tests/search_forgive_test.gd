@@ -73,4 +73,5 @@ func _init() -> void:
 	m.ui_cmd.open()
 	ok(top("", 3) == ["Onion skin on/off", "Speed graph on/off", "Motion trail on/off"] and m.ui_cmd.recent.size() == 3, "run one again: it moves to the top, no duplicate %s" % [top("", 3)])
 	print("SEARCH FORGIVE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

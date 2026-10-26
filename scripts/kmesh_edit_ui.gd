@@ -597,13 +597,18 @@ func _subdiv_key(levels: int) -> void:
 		subdivide(levels)
 
 
+## Ctrl+Z / Ctrl+Y, and the top bar's Undo / Redo buttons while this page shows (walk13: they only knew pose undo)
+func undo_redo(back: bool) -> void:
+	var lb := undo.undo() if back else undo.redo()
+	sel.restore(undo.last_sel)
+	view.mark_dirty()
+	m._say("Model: %s %s" % ["undone:" if back else "redone:", lb] if lb != "" else "Model: nothing to %s on the test cube" % ("undo" if back else "redo"))
+
+
 ## B02 / B03 (scripts/kmesh_extrude.gd): E extrude, I inset, Ctrl+E bridge, Ctrl+Z / Ctrl+Y undo / redo; true = used
 func _edit_key(k: InputEventKey) -> bool:
 	if k.ctrl_pressed and (k.keycode == KEY_Z or k.keycode == KEY_Y):
-		var lb := undo.undo() if k.keycode == KEY_Z else undo.redo()
-		sel.restore(undo.last_sel)
-		view.mark_dirty()
-		m._say("Model: %s %s" % ["undone:" if k.keycode == KEY_Z else "redone:", lb] if lb != "" else "Model: nothing to %s on the test cube" % ("undo" if k.keycode == KEY_Z else "redo"))
+		undo_redo(k.keycode == KEY_Z)
 		return true
 	if not (k.keycode == KEY_E or k.keycode == KEY_I) or k.alt_pressed or (k.ctrl_pressed and k.keycode == KEY_I):
 		return false

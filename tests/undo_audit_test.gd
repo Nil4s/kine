@@ -713,6 +713,7 @@ func _init() -> void:
 	ok(vacuous.is_empty(), "every edit command was seen to change something (%d of %d tested; vacuous: %s)" % [tested, n_edit, vacuous])
 	if nsh > 1 and shard != 0:   # the checks after the walk run once, in shard 0
 		print("UNDO AUDIT %s (shard %d of %d)" % ["PASS" if fails == 0 else "FAIL %d" % fails, shard, nsh])
+		TestFiles.cleanup()
 		quit(fails)
 		return
 	# a pass that keeps the live body aside and puts it back (Fix moves through the body; Save / Polish / Mirror do
@@ -737,4 +738,5 @@ func _init() -> void:
 		ok(changed and m.undo.size() == u0 and fp() == f, "card button: changed %s, one Ctrl+Z puts it back exactly: %s" % [changed, fp() == f])
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(LIP_WAV))
 	print("UNDO AUDIT %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

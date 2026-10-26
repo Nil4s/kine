@@ -228,4 +228,5 @@ func _init() -> void:
 	ok(ui.undo.steps.size() == n0 + 1 and absf(yhi() - 0.35) < 1e-4, "12 Enter on the Model row extrudes the top: top y %.5f, %d step" % [yhi(), ui.undo.steps.size() - n0])
 
 	print("meshwords_test: %s (%d failing)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(0 if fails == 0 else 1)

@@ -223,4 +223,5 @@ func _init() -> void:
 	rm_tree(TMP)
 	ok(not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(TMP)), "the test's temp folder is removed")
 	print("PLUGINS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

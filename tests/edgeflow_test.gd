@@ -339,6 +339,7 @@ func _init() -> void:
 	mn.free()
 
 	print("edgeflow: %d failures" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

@@ -87,4 +87,5 @@ func _init() -> void:
 	ok(m.settings == path and m.ui_status.text != m.WELCOME and not m._teach_pending, "a second start on the same settings: no teaching strip ('%s')" % m.ui_status.text)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("QUIET TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

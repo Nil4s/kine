@@ -137,4 +137,5 @@ func _init() -> void:
 	await key(KEY_ESCAPE)
 	m.ui_cmd.close()
 	print("SEARCH ONE LIST: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

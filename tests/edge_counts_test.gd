@@ -112,4 +112,5 @@ func _init() -> void:
 				"%-7s %2d cards: at every arrival, before 0 and past the end the pose is that card (worst %.5f deg, %.6f m at %.0f ms); no NaN over %d frames (sample and the body); length %.3f s = the sum %.3f%s" % [
 				mode, n, worst[0], worst[1], at, frames + 3, L, sum, "; still throughout" if n == 1 else ""])
 	print("EDGE COUNTS: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

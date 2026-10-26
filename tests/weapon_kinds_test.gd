@@ -74,4 +74,5 @@ func _init() -> void:
 	await idle(2)
 	ok(off and m.B.grip, "(5) longsword: G takes the second hand off (%s) and puts it back (%s)" % [off, m.B.grip])
 	print("WEAPON KINDS ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

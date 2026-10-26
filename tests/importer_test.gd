@@ -174,4 +174,5 @@ func _init() -> void:
 	remove_tree(base)
 	ok(not DirAccess.dir_exists_absolute(abs_of(base)), "12 test folder removed")
 	print("IMPORTER TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

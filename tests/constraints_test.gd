@@ -331,6 +331,7 @@ func _init() -> void:
 
 	ok(lim_w <= 1e-4, "LIMITS: no joint past its limits on any frame of 1, 2, 3, 6 (the most any angle sits outside: %.6f deg)" % lim_w)
 	print("CONSTRAINTS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)
 
 

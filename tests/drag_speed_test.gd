@@ -110,4 +110,5 @@ func _init() -> void:
 	var miss2 := C.reach("hand_l", tgt)   # rounds after it, from where it stopped
 	ok(absf(miss - miss2) < 0.001 and miss > 0.01, "3 a blocked reach stops at %.3f m off in %.1f ms; reaching again from there gets %.3f m (the rounds it skipped would not have helped, 1 mm)" % [miss, ms, miss2])
 	print("DRAG SPEED TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

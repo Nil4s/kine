@@ -118,4 +118,5 @@ func _init() -> void:
 	ok(m.undo.size() == u2 and (m.B.ang["hand_r"] as Vector3) == pel, "5 NO HAND PICKED: a pose with the pelvis picked adds no undo step (%d -> %d) and changes nothing" % [u2, m.undo.size()])
 
 	print("hand_pose_ui_test: %s (%d failures)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(fails)

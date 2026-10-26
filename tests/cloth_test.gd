@@ -247,6 +247,7 @@ func _init() -> void:
 	var shot := OS.get_environment("CLOTH_SHOT")
 	if shot != "":
 		await _shot(shot, turn_scene(), peak_t)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

@@ -167,4 +167,5 @@ func _init() -> void:
 		await idle()
 		ok(JSON.stringify(m.S.cards) == before, "(4) Ctrl+Z restores the cards byte for byte")
 	print("i45: ", "ALL OK" if fails == 0 else "%d FAILED" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

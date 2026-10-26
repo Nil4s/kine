@@ -165,4 +165,5 @@ func _init() -> void:
 	pt.finish(true, false)
 	ok(und < 0 or (m.undo as Array).size() == und, "(4) no undo step added (%d)" % und)
 	print("PAGE TOUR ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)

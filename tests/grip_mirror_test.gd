@@ -126,4 +126,5 @@ func _init() -> void:
 	await idle()
 	ok(m.B.wep_hand == before and near(m.B.wep_lpos, lp_b, 1e-6), "8 'Paste to this part' and a pose copied with no weapon leave it in %s, the grip the same (%s)" % [m.B.wep_hand, near(m.B.wep_lpos, lp_b, 1e-6)])
 	print("GRIP MIRROR: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -143,4 +143,5 @@ func _init() -> void:
 	ok(m.label_of(trail) == "Trail (T)" and not m.ui_more.visible, "13 back at 1600 x 900: the label '%s', no More" % m.label_of(trail))
 	print("     screenshots: " + shots)
 	print("SMALL WINDOW: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

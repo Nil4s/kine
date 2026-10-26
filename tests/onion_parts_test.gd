@@ -133,4 +133,5 @@ func _init() -> void:
 	await at(mid)
 	ok(ov.onion_mesh_count() == 0 and not ov.has_rigs(), "10 onion off: ghost meshes 0, rigs %d" % ov._rigs.size())
 	print("ONION PARTS: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

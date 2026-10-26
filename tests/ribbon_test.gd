@@ -116,4 +116,5 @@ func _init() -> void:
 	var pm: PopupMenu = (find("Animator tools")[0] as MenuButton).get_popup()
 	ok(pm.is_item_checked(pm.get_item_index(2)), "  the Animator tools menu agrees (its Speed graph item checked)")
 	print("RIBBON %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

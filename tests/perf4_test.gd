@@ -323,6 +323,7 @@ func _init() -> void:
 		report("full", await timed_run())
 		root.remove_child(m)
 		m.free()
+		TestFiles.cleanup()
 		quit(0)
 		return
 	# (A) pose hashes: bake off / bake complete / bake running
@@ -411,4 +412,5 @@ func _init() -> void:
 	print("PERF4 TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	root.remove_child(m)
 	m.free()   # the bake tasks end first (Main._exit_tree)
+	TestFiles.cleanup()
 	quit(fails)

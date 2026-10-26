@@ -308,4 +308,5 @@ func _init() -> void:
 		print("     %.2f s  %s" % [float(line["t"]), line["text"]])
 
 	print("CHOREO: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -162,4 +162,5 @@ func _init() -> void:
 	ok(not real_after and real_before == (DirAccess.open("res://scenes/_versions") != null), "8 nothing written under res://scenes/_versions (zz_r20 folder there: %s)" % real_after)
 	rm_tree(DIR)
 	print("r20: %d failure(s)" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

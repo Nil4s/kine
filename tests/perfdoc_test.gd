@@ -115,4 +115,5 @@ func _init() -> void:
 	ok(per < 0.05, "doctor off: 20 brackets cost %.5f ms/frame (bar 0.05)" % per)
 	ok(PerfDoc.acc.is_empty() or not PerfDoc.on, "nothing accumulates while off")
 	print("perfdoc_test: %s" % ("PASS" if fails == 0 else "%d FAIL" % fails))
+	TestFiles.cleanup()
 	quit(0 if fails == 0 else 1)

@@ -280,6 +280,7 @@ func _init() -> void:
 	var u := ArmourUI.of(m)
 	ok(BaseBody.is_open(m) and u.panel != null and u.panel.visible, "the op opens the body in the model preview and the armour panel")
 	if u.panel == null:
+		TestFiles.cleanup()
 		quit(1)
 		return
 	ok(u.panel.find_child("btn_armour_make", true, false) != null, "the panel has its Make plate button")
@@ -290,6 +291,7 @@ func _init() -> void:
 	await process_frame
 	ok(r["ok"], "Make plate made the plate (%s)" % String(r.get("said", r.get("error", ""))))
 	if not r["ok"]:
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var k: KMesh = r["mesh"]
@@ -495,4 +497,5 @@ func _init() -> void:
 		ok(false, "INSTRUMENT: the 8 mm plate: %s" % r8["error"])
 	ok(float(r["ms"]) < 4000.0, "TIMING: the vambrace built in %.0f ms (< 4000)" % float(r["ms"]))
 	print("armour: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

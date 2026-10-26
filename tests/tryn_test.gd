@@ -124,4 +124,5 @@ func _init() -> void:
 		(cj["ranked"] as Array).map(func(x): return x["steps"]) if cj is Dictionary else null, md0 == md1])
 
 	print("TRYN: %s (%d failed)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(0 if fails == 0 else 1)

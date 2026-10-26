@@ -154,4 +154,5 @@ func _init() -> void:
 	await process_frame
 	ok(f1 == 96 * 4 and cl and steps == 1 and used and f0 == 96, "(9) Model: subdivide the test cube: 96 -> %d faces (closed %s) in %d undo step, Ctrl+Z back to %d" % [f1, cl, steps, f0])
 	print("SUBDIV ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)

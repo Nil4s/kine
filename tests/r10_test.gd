@@ -146,4 +146,5 @@ func _init() -> void:
 	var bad: Dictionary = (await A.request(5, "ask", {"text": "joint=elbo axis=flex value=1"}))
 	ok(bad.has("error") and String(bad["error"]["message"]).contains("say a part"), "errors name the next step: " + String(bad.get("error", {}).get("message", "")).left(80))
 	print("R10 TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

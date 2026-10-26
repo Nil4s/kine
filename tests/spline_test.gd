@@ -83,4 +83,5 @@ func _init() -> void:
 		n += 1 if s.has("weapon") and s["ang"].size() > 20 else 0
 	ok(n == int(S.length() * S.fps) + 1, "every frame samples a full pose (%d frames)" % n)
 	print("SPLINE %s  (%s, %d cards, %.2f s)" % ["PASS" if fails == 0 else "FAIL %d" % fails, f.get_file(), S.cards.size(), S.length()])
+	TestFiles.cleanup()
 	quit(fails)

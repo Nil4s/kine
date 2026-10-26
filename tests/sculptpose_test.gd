@@ -424,6 +424,7 @@ func _init() -> void:
 		"(9) Esc: back in the model preview on the same rest body %s, its undo stack %d -> %d (the %d pose strokes)" % [m.kmed.mesh == R, k_steps, m.kmed.undo.steps.size(), n_steps])
 	print("info: a re-skin of the %d-vertex body takes %.1f ms" % [R.verts.size(), _time_reskin()])
 	print("SCULPT POSE ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)
 
 

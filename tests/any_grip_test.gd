@@ -143,4 +143,5 @@ func _init() -> void:
 	ok(w1 == w2, "3 the weapon wrap is bit-identical before and after the prop wraps")
 	B.set_state(keep)
 	print("FAILS %d" % [fails])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -128,4 +128,5 @@ func _init() -> void:
 	var c3: Vector3 = GameExport.slot_angles(B)["Chest"]
 	ok(down and c3.z > 5.0 and absf(c3.x) < 1.0 and absf(c3.y) < 1.0, "3c the right shoulder down (%s): Chest %s (+roll)" % [down, c3])
 	print("GAME FOLD: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

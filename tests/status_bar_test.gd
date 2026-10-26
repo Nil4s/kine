@@ -81,4 +81,5 @@ func _init() -> void:
 	t = await shown()
 	ok(t.contains("no cards") and t.contains("Check: not run"), "8 a new empty scene: '%s'" % t)
 	print("STATUS BAR TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

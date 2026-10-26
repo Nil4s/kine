@@ -344,4 +344,5 @@ func _init() -> void:
 		DirAccess.remove_absolute(DIR + "/" + f)
 	DirAccess.remove_absolute(DIR)
 	print("proportions: %d FAIL" % fails if fails > 0 else "proportions: all ok")
+	TestFiles.cleanup()
 	quit(fails)

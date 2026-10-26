@@ -248,4 +248,5 @@ func _init() -> void:
 	await process_frame
 	_rm(tmp)
 	print("%s" % ("ALL OK" if fails == 0 else "%d FAILED" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

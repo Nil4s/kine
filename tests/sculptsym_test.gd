@@ -257,4 +257,5 @@ func _init() -> void:
 	fm.free()
 
 	print("SCULPTSYM %s (%d failures)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

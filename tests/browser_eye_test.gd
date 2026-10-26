@@ -127,6 +127,7 @@ func _init() -> void:
 	if not m.pieces.has("head"):
 		ok(false, "1 the mannequin is not split into pieces (%d)" % m.pieces.size())
 		print("BROWSER EYE: %d failed" % fails)
+		TestFiles.cleanup()
 		quit(1)
 		return
 	var orig: MeshInstance3D = null
@@ -225,4 +226,5 @@ func _init() -> void:
 	ok(all_hid and fingers_in and all_back and gone[1] > 100 and m.undo.size() == u0,
 		"5 the Left arm folder's eye: all %d parts under it hidden %s (fingers, hand, shoulder in it: %s), %d pixels changed; again: all shown %s; +%d undo" % [under.size(), all_hid, fingers_in, gone[1], all_back, m.undo.size() - u0])
 	print("BROWSER EYE: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

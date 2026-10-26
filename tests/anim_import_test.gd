@@ -230,4 +230,5 @@ func _init() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(DIR))
 	print("     %.1f s" % ((Time.get_ticks_msec() - t0) / 1000.0))
 	print("ANIM IMPORT %s (%d fails)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(fails)

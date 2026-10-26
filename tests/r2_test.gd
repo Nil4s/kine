@@ -229,4 +229,5 @@ func _init() -> void:
 		print("R2 TEST PASS")
 	else:
 		print("R2 TEST FAIL (%d)" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

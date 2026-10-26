@@ -303,6 +303,7 @@ func _init() -> void:
 	# 7
 	await app()
 	print("uvpack: %d failures" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

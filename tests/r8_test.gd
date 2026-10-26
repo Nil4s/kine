@@ -173,4 +173,5 @@ func _init() -> void:
 	ok(not can_out and hid and scene_json() == base and m.undo.size() == u1, "drop outside the strip: no line, same JSON, same undo depth (%d)" % (m.undo.size() - u1))
 
 	print("R8 FAILS: %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

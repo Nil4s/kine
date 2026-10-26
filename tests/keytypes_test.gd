@@ -136,4 +136,5 @@ func _init() -> void:
 
 	print("%d ok" % (nok - fails))
 	print("KEYTYPES TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -139,4 +139,5 @@ func _init() -> void:
 
 	print("")
 	print("RESULT %s (%d fail%s)" % ["PASS" if fails == 0 else "FAIL", fails, "" if fails == 1 else "s"])
+	TestFiles.cleanup()
 	quit(fails)

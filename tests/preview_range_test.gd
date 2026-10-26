@@ -191,4 +191,5 @@ func _init() -> void:
 	ok(PreviewRange.span(1.5, 0.5, 2.0).is_empty(), "28 in after out is no range")
 
 	print("PREVIEW RANGE TEST %s %d" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(fails)

@@ -173,4 +173,5 @@ func _init() -> void:
 	ok("FRONT" in txt and "Weight" in txt and last != "" and JSON.parse_string(last) is Dictionary and JSON.parse_string(last).get("ok", false),
 		"6 CLI textview combo3 card=2 prints the view and ends with ok: %s" % last.left(80))
 	print("TEXTVIEW %s: %d failed" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -323,4 +323,5 @@ func _init() -> void:
 	m.ds_ui.clear()
 	ok(tl.ph.is_empty(), "(6) 'off' takes the lane away")
 	print("DEFORMSCENE RESULT: ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(fails)

@@ -513,4 +513,5 @@ func _init() -> void:
 		ok(false, "(n) the test cube opened")
 
 	print("fails: %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

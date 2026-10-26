@@ -138,9 +138,15 @@ var wep_r_barrel := 0.033
 var wep_pos := Vector3(-0.45, 0.0, 0.25)     # free: the knob's world position ...
 var wep_rot := Quaternion.IDENTITY           # ... and the bat's world rotation (standing upright)
 var wep_hand := ""                           # locked to "hand_r" / "hand_l", or "" = free
+## BLADE TURN / HEAD TILT (w4-bladeturn): the weapon turned INSIDE its hand (radians, 0 at the saved grip). turn = it rolls
+## about its own length (the knob stays put); tilt = it tips about the palm's side axis (the hand's x) through the shaft at
+## the palm, so the handle stays in the palm. The hand itself does not move. wep_lrot holds both (see turn_in_hand).
+var wep_turn := 0.0
+var wep_tilt := 0.0
 var wep_lpos := Vector3.ZERO                 # locked: the knob in the hand's frame:  pos = P[h] + G[h] * lpos
 var wep_lrot := Quaternion.IDENTITY          #                                         rot = G[h] * lrot
 var grip := false      # the OTHER hand holds the bat too
+var free_hand := ""   # HANDS (w4-handlock): the off hand let go of the weapon ("hand_l"/"hand_r"): the magnet does not re-snap it
 var fast := false      # true while a scene plays: set_ang_safe skips the contact bisection (10-13: 300 ms -> ~ms a frame)
 var grip_u := 0.18     # where it holds it: metres up the bat from the knob
 ## the off-hand weapon: locked in wep2_hand (pos = P[h] + G[h] * wep2_lpos, rot = G[h] * wep2_lrot), a dagger
@@ -631,6 +637,38 @@ func lock_weapon(h: String) -> void:
 	wep_lrot = g.inverse() * wep_rot
 	wep_lpos = lpos_from_knob(g.inverse() * (wep_pos - (P[h] as Vector3)), wep_lrot, h)
 	wep_hand = h
+	wep_turn = 0.0   # a new grip is the new rest: the blade turn and head tilt start from it
+	wep_tilt = 0.0
+
+
+## TURN IN HAND (w4-bladeturn): the weapon turns in its hand by d_tilt about the palm's side axis (the hand's x, through the
+## point of the shaft nearest the palm: that point does not move), then by d_turn about its own length (the knob does not
+## move). The hand, its angles and the grip stay; only wep_lrot / wep_lpos change (the knob stays where it is). Radians.
+func turn_in_hand(d_turn: float, d_tilt: float) -> void:
+	if wep_hand == "":
+		return
+	var h := wep_hand
+	var g: Quaternion = G[h]
+	var k := knob_in_hand(wep_lpos, wep_lrot, h)
+	var lr := wep_lrot
+	if d_tilt != 0.0:
+		var a := lr * Vector3.UP
+		var pal: Vector3 = g.inverse() * (palm_point(h) - (P[h] as Vector3))
+		var pv := k + a * (pal - k).dot(a)
+		var q := Quaternion(Vector3.RIGHT, d_tilt)
+		lr = (q * lr).normalized()
+		k = pv + q * (k - pv)
+		wep_tilt += d_tilt
+	if d_turn != 0.0:
+		lr = (lr * Quaternion(Vector3.UP, d_turn)).normalized()
+		wep_turn = wrapf(wep_turn + d_turn, -PI, PI)
+	wep_lrot = lr
+	wep_lpos = lpos_from_knob(k, lr, h)
+
+
+## the blade turn and head tilt set to these values (radians), from where they are now
+func set_blade(turn: float, tilt: float) -> void:
+	turn_in_hand(wrapf(turn - wep_turn, -PI, PI), tilt - wep_tilt)
 
 
 func unlock_weapon() -> void:
@@ -2297,7 +2335,7 @@ static func twin(j: String) -> String:
 func pose_copy() -> Dictionary:
 	var c := {"ang": ang.duplicate(), "offset": offset}
 	if wep_on:
-		c["wep"] = {"hand": wep_hand, "lpos": wep_lpos, "lrot": wep_lrot, "pos": wep_pos, "rot": wep_rot}
+		c["wep"] = {"hand": wep_hand, "lpos": wep_lpos, "lrot": wep_lrot, "pos": wep_pos, "rot": wep_rot, "turn": wep_turn, "tilt": wep_tilt}
 	if wep2_on:
 		c["wep2"] = {"hand": wep2_hand, "lpos": wep2_lpos, "lrot": wep2_lrot}
 	return c
@@ -2342,6 +2380,8 @@ func pose_paste(p: Dictionary, mirrored := false, only := []) -> void:
 			wep_lrot = Quaternion(lr.x, -lr.y, -lr.z, lr.w) if mirrored else lr
 			wep_pos = Vector3(-wp.x, wp.y, wp.z) if mirrored else wp
 			wep_rot = Quaternion(wr.x, -wr.y, -wr.z, wr.w) if mirrored else wr
+			wep_turn = float(w.get("turn", 0.0)) * (-1.0 if mirrored else 1.0)   # a mirror turns a roll the other way
+			wep_tilt = float(w.get("tilt", 0.0))
 		if wep2_on and p.has("wep2"):
 			var w2: Dictionary = p["wep2"]
 			var lp2: Vector3 = w2["lpos"]
@@ -2364,6 +2404,7 @@ func mirror_pose() -> void:
 		wep_hand = twin(wep_hand)
 		wep_lpos.x = -wep_lpos.x
 		wep_lrot = Quaternion(wep_lrot.x, -wep_lrot.y, -wep_lrot.z, wep_lrot.w)
+		wep_turn = -wep_turn
 	else:
 		wep_pos.x = -wep_pos.x
 		wep_rot = Quaternion(wep_rot.x, -wep_rot.y, -wep_rot.z, wep_rot.w)
@@ -2394,8 +2435,29 @@ func mirror_pose() -> void:
 ## two Lock-both-hands grips blended (round 47: between two cards that both lock, the second hand's turn, place and
 ## fingers move from one grip to the next instead of snapping at the card: a finger turned 97 deg in one frame)
 ## THE WRAP (round 47, GATES CC1/CC2): the fingers of hand h closed round the handle a-b of radius r (scripts/grip_wrap.gd)
-func wrap_fingers(h: String, a: Vector3, b: Vector3, r: float, kind := "") -> Dictionary:
-	return GripWrap.wrap(self, h, a, b, r, kind if kind != "" else GripWrap.type_of(wep_kind))
+func wrap_fingers(h: String, a: Vector3, b: Vector3, r: float, kind := "", free_thumb := false) -> Dictionary:
+	return GripWrap.wrap(self, h, a, b, r, kind if kind != "" else GripWrap.type_of(wep_kind), free_thumb)
+
+
+## THE FINGERS AFTER A HEAD TILT (w4-fingertilt): a tilt moves the shaft, not the hands, so the fingers that held the old
+## shaft float or cut in. The holding hand's fingers close round the shaft again (the same wrap the magnet uses), and so do
+## the second hand's when it is still on the shaft: its stored grip takes the new fingers, so a later apply keeps them.
+func refit_fingers() -> void:
+	if wep_hand == "":
+		return
+	var sp := GripMagnet.span(self)
+	wrap_fingers(wep_hand, wep_point(sp.x), wep_point(sp.y), wep_r_handle, "", true)
+	fk()
+	var o := "hand_l" if wep_hand == "hand_r" else "hand_r"
+	if grip and String(grip2.get("hand", "")) == o:
+		wrap_fingers(o, wep_point(sp.x), wep_point(sp.y), wep_r_handle, "", true)
+		fk()
+		var fing := {}
+		for j in FINGERS:
+			if j.ends_with(o.right(2)):
+				var v: Vector3 = ang[j]
+				fing[j] = [snappedf(v.x, 0.1), snappedf(v.y, 0.1), snappedf(v.z, 0.1)]
+		grip2["fingers"] = fing
 
 
 static func grip2_mix(a: Dictionary, b: Dictionary, e: float) -> Dictionary:
@@ -2434,6 +2496,10 @@ func to_dict() -> Dictionary:
 		var x := wep_xform()
 		w = {"kind": wep_kind, "length": wep_len, "hand": wep_hand, "knob": _p(x[0]), "tip": _p(wep_point(wep_len)),
 			"rot": _q(x[1]), "local_pos": _p(wep_lpos), "local_rot": _q(wep_lrot), "two_hand_grip": grip, "grip_m": grip_u}
+		if wep_turn != 0.0:   # the blade turn and head tilt (w4-bladeturn): only where set, so older files are unchanged
+			w["turn"] = wep_turn
+		if wep_tilt != 0.0:
+			w["tilt"] = wep_tilt
 		# Lock both hands' grip (the second hand's turn round the shaft + its fingers) goes into the file (round 47, Nick
 		# 10-18 "lock hands in place ... so it can work": before, it lived in memory only and a reopened scene re-solved
 		# the second arm its own way)
@@ -2458,6 +2524,8 @@ func from_dict(d: Dictionary) -> void:
 	fk()
 	var w: Dictionary = d.get("weapon", {})
 	wep_on = not w.is_empty()
+	wep_turn = 0.0   # w4-fingertilt: no turn / tilt key means 0 (set again below when the weapon has them)
+	wep_tilt = 0.0
 	if wep_on:
 		set_kind(String(w.get("kind", "metal_bat")))
 		set_weapon_len(float(w.get("length", wep_len)))
@@ -2468,6 +2536,8 @@ func from_dict(d: Dictionary) -> void:
 		var lr: Array = w.get("local_rot", [0, 0, 0, 1])
 		wep_lrot = Quaternion(lr[0], lr[1], lr[2], lr[3])
 		wep_lpos = _v(w.get("local_pos", [0, 0, 0]))
+		wep_turn = float(w.get("turn", 0.0))
+		wep_tilt = float(w.get("tilt", 0.0))
 		grip = bool(w.get("two_hand_grip", false))
 		grip_u = float(w.get("grip_m", grip_u))
 		if w.get("grip2") is Dictionary and not (w["grip2"] as Dictionary).is_empty():
@@ -2502,7 +2572,7 @@ func set_proportions(d: Dictionary) -> void:
 func _state0() -> Dictionary:
 	return {"ang": ang.duplicate(), "offset": offset, "wep_on": wep_on, "wep_kind": wep_kind, "wep_len": wep_len,
 		"wep_pos": wep_pos, "wep_rot": wep_rot, "wep_hand": wep_hand, "wep_lpos": wep_lpos, "wep_lrot": wep_lrot,
-		"grip": grip, "grip_u": grip_u, "grip2": grip2.duplicate(true), "wep2_on": wep2_on, "wep2_kind": wep2_kind,
+		"wep_turn": wep_turn, "wep_tilt": wep_tilt, "grip": grip, "grip_u": grip_u, "grip2": grip2.duplicate(true), "free_hand": free_hand, "wep2_on": wep2_on, "wep2_kind": wep2_kind,
 		"wep2_hand": wep2_hand, "wep2_lpos": wep2_lpos, "wep2_lrot": wep2_lrot}
 
 
@@ -2522,9 +2592,12 @@ func _set_state0(s: Dictionary, do_fk := true) -> void:
 	wep_hand = s["wep_hand"]
 	wep_lpos = s["wep_lpos"]
 	wep_lrot = s["wep_lrot"]
+	wep_turn = float(s.get("wep_turn", 0.0))
+	wep_tilt = float(s.get("wep_tilt", 0.0))
 	grip = s["grip"]
 	grip_u = s["grip_u"]
 	grip2 = (s["grip2"] as Dictionary).duplicate(true)
+	free_hand = s.get("free_hand", "")
 	wep2_on = s.get("wep2_on", false)
 	wep2_kind = s.get("wep2_kind", "dagger")
 	wep2_hand = s.get("wep2_hand", "hand_l")

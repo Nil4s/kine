@@ -162,4 +162,5 @@ func _init() -> void:
 		k2 += 1
 	ok(same, "the figure's materials and layers are put back")
 	print("silsheet: %d failures" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

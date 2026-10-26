@@ -103,4 +103,5 @@ func _init() -> void:
 			ok(best_new <= 0.8 * best_old, "combo3: new frame at most 80%% of old (%.0f%%; target 50%%)" % (100.0 * best_new / best_old))
 	set_legacy(false)
 	print("PERF1 %s" % ("FAIL" if fails > 0 else "ok"))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

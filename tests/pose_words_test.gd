@@ -83,4 +83,5 @@ func _init() -> void:
 	m.ui_cmd._filter()
 	ok(not String(m.ui_cmd.shown[0]["name"]).begins_with("Pose:"), "search 'mirror': no pose offered (top: %s)" % m.ui_cmd.shown[0]["name"])
 	print("POSE WORDS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

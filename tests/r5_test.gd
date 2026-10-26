@@ -302,6 +302,7 @@ func _init() -> void:
 	for p in [base + "_a", base + "_b", base + "_none", dec]:
 		_rm(ProjectSettings.globalize_path(p) if p.begins_with("user://") else p)
 	print("R5 %s (%d fail)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(fails)
 
 

@@ -153,4 +153,5 @@ func _init() -> void:
 		var back := B.state()
 		ok(str(back) == str(state0), "%s: Ctrl+Z restores the whole body state" % part)
 	print("DRAG ANY %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

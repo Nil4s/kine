@@ -192,4 +192,5 @@ func _init() -> void:
 	ok(worst["mir"] <= 0.0005, "4 mirror: the twin limb is the reflection within 0.5 mm")
 	ok(worst["rt_tip"] <= 0.0005 and worst["rt_ang"] <= 0.1, "5 save round trip within 0.5 mm / 0.1 deg")
 	print("ikfk_test: %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

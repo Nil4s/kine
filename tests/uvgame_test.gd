@@ -265,6 +265,7 @@ func _init() -> void:
 	ok(rc["seams"] == "yours" and int(rc["islands"]) == 1, "bar 3: your seams kept, 1 island")
 	await app()
 	print("uvgame: %d failures" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

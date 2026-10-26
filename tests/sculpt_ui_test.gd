@@ -218,4 +218,5 @@ func _init() -> void:
 	await idle(3)
 	ok(gone and ui.on, "(5) Esc leaves (view gone %s), the command opens it again %s" % [gone, ui.on])
 	print("SCULPT UI ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)

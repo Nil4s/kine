@@ -130,4 +130,5 @@ func _init() -> void:
 	DirAccess.remove_absolute(dir + "/elsewhere")
 	DirAccess.remove_absolute(dir)
 	print("LAUNCHER TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

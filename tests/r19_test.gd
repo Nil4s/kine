@@ -270,4 +270,5 @@ func _init() -> void:
 	await idle(2)
 	ok(scene_json() == js0, "undo restores the scene JSON exactly (back at the start)")
 	print("R19 %s (%d fails)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

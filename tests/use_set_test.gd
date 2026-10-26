@@ -150,4 +150,5 @@ func _init() -> void:
 	ok(hits.is_empty(), "  nothing into the box %s" % [hits])
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(m.settings))
 	print("USE SET TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

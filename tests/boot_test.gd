@@ -95,4 +95,5 @@ func _init() -> void:
 		ok(rows == [m.PAGE_ROW[p]] and lit == [p] and shown, "3 %s opens: row %s, lit %s, a control shown: %s" % [p, rows, lit, shown])
 
 	print("boot_test: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(fails)

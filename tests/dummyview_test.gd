@@ -172,4 +172,5 @@ func _init() -> void:
 		ok(panel_empty == (n_cards == 0) and hdr_empty == (n_cards == 0) and (hdr_empty or hdr_n == n_cards) and m.ui_cards.get_child_count() >= (7 if n_cards == 0 else 1),
 			"%s: header count and panel agree (%d)" % [tag, n_cards])
 	print("RESULT dummyview: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

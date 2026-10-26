@@ -61,4 +61,5 @@ func _init() -> void:
 	else:
 		ok(false, "(6) no body mesh found")
 	print("KMESH VALIDATE ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)

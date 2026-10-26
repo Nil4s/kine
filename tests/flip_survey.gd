@@ -74,4 +74,5 @@ func _init() -> void:
 	var c := turn(B, "lowerarm_r", v, v + Vector3(0, 0, 180))
 	print("control: a 180 deg twist in one frame reads %.0f deg/frame (bar %.0f): %s" % [c, BAR, "CAUGHT" if c > BAR else "MISSED"])
 	print("FLIPS: %d runs (%d scenes + their mirrors), worst %.1f deg/frame = %.0f deg/s; %d over the bar (%.0f deg/frame); mirrors off their original by > 1 deg: %s" % [runs.size(), runs.size() / 2, worst_all, worst_all * 60.0, over, BAR, mirror_bad])
+	TestFiles.cleanup()
 	quit(1 if over > 0 or not mirror_bad.is_empty() or c <= BAR else 0)

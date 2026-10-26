@@ -143,4 +143,5 @@ func _init() -> void:
 	print("     with combo3 itself in the database: %.1f ms" % (float(Time.get_ticks_usec() - t1) / 1000.0))
 
 	print("I4 TIMING COACH %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -115,4 +115,5 @@ func _init() -> void:
 	await idle(2)
 	ok(JSON.stringify(m._scene_dict(false)).hash() == h0, "two undos bring the scene hash back to the start")
 	print("MIRROR IN PLACE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

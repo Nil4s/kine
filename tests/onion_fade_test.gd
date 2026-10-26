@@ -113,4 +113,5 @@ func _init() -> void:
 	await at(0.0)
 	ok(s2 == [0, 1] and shown().is_empty(), "6 two cards, at the middle: one each side (%s); one card: none (%s)" % [s2, shown()])
 	print("ONION FADE: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

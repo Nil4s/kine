@@ -96,4 +96,5 @@ func _init() -> void:
 	ok(not DirAccess.dir_exists_absolute(ProjectSettings.globalize_path(d)), "4 the test folder is removed")
 
 	print("body_cache_test: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(fails)

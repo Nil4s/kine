@@ -151,6 +151,7 @@ func _init() -> void:
 	ok(bool(st.get("ok", false)) and named, "6 a jab at 1.15 m, no planted contact: ok %s, repairs %s, unmet %s" % [st.get("ok"), st.get("repairs"), (st.get("unmet", []) as Array).map(func(u): return String(u["why"]).left(100))])
 
 	print("spec_test: %d failure(s)" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

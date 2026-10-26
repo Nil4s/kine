@@ -107,4 +107,5 @@ func _init() -> void:
 	ok(m.find_child("check_loop", true, false) != null and m.ui_loop.text == "Loop", "9 the Loop box is in the window")
 	m.B.set_state(keep)
 	print("LOOP: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

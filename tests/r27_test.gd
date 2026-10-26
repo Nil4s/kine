@@ -276,6 +276,7 @@ func _init() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(dir))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(cache))
 	print("R27: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

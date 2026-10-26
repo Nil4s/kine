@@ -127,6 +127,7 @@ func _init() -> void:
 			fa.store_string(had[f])
 			fa.close()
 	print("BRUSH PRESETS ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)
 
 

@@ -36,4 +36,5 @@ func _init() -> void:
 			out.store_line(",".join(row))
 			ptip = tip
 	out.close()
+	TestFiles.cleanup()
 	quit()

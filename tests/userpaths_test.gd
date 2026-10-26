@@ -94,4 +94,5 @@ func _init() -> void:
 	UserPaths.root = ""
 	OS.move_to_trash(ProjectSettings.globalize_path(R))
 	print("USERPATHS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

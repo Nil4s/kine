@@ -119,4 +119,5 @@ func _init() -> void:
 	m._refresh()
 	ok(m.ui_ease.disabled, "Smooth (spline) on: the dropdown is off (the spline has its own curve)")
 	print("EASE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

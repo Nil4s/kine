@@ -69,4 +69,5 @@ func _init() -> void:
 				print(line)
 	ok(code == 0, "3 tests/py/fbx_check.py (python -I) reads the FBX back and passes every check above (exit %d)" % code)
 	print("FBX EXPORT: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

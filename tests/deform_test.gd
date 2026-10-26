@@ -187,4 +187,5 @@ func _init() -> void:
 	m._close_findings()
 	ok(not m.deform_view.visible, "(5) closing the panel hides the dots")
 	print("DEFORM RESULT: ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(fails)

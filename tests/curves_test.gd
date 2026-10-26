@@ -121,4 +121,5 @@ func _init() -> void:
 	var corner := [[0.0, 0.0], [1.0, 10.0], [2.0, 0.0]]
 	ok(Curves.clean(corner, 0.1)["report"]["keys_after"] == 3 and Curves.decimate(corner, 0.1)["report"]["keys_after"] == 3, "21 a real corner is kept by both")
 	print("CURVES TEST %s %d (ok %d)" % ["PASS" if fails == 0 else "FAIL", fails, n_ok])
+	TestFiles.cleanup()
 	quit(fails)

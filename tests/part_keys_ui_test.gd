@@ -78,4 +78,5 @@ func _init() -> void:
 	await key(KEY_K)
 	ok(m.S.part_keys.is_empty() and m.undo.size() == u1 and String(m.ui_status.text).contains("BODY part"), "the weapon picked: refused, nothing changed ('%s')" % m.ui_status.text)
 	print("PART KEYS UI TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

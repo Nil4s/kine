@@ -189,4 +189,5 @@ func _init() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://meshfile_junk.kmesh"))
 
 	print("meshfile_test: %s (%d fails)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

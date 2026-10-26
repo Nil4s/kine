@@ -199,4 +199,5 @@ func _init() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(WAV120))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(WAV97))
 	print("BEAT TRACK TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

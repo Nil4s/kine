@@ -275,6 +275,7 @@ func _init() -> void:
 		print("placement: skipped (needs the app's window to read the rendered bones)")
 
 	print("RESULT %s (%d failed)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(0 if fails == 0 else 1)
 
 

@@ -582,6 +582,7 @@ func _init() -> void:
 		OS.kill(m._video_pid)
 	say("\nlast video: " + str(m.easy.home.last_video))
 	m.queue_free()
+	TestFiles.cleanup()
 	quit(0)
 
 

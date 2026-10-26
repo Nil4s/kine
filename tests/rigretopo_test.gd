@@ -440,4 +440,5 @@ func _init() -> void:
 	key(KEY_ESCAPE)
 	await process_frame
 	print("rigretopo: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -190,4 +190,5 @@ func _init() -> void:
 	ok(inside, "(7) in a side view the whole body (head, hand, both feet) is inside the view and clear of the panel")
 	root.get_texture().get_image().save_png(SHOT)
 	print("I36 ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

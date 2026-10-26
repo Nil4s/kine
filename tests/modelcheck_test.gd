@@ -266,6 +266,7 @@ func _init() -> void:
 	ok(ui.visible and int(rm["score"]) >= 0 and int(rm["score"]) <= 100 and not fs.is_empty() and sum_ok(rm), "(8) the mannequin is graded: %d / 100, %d findings, points add up" % [int(rm["score"]), fs.size()])
 	ok(rm["joints"].size() >= 8, "(8) instrument: %d bend zones found on the body (bar >= 8 of the 10)" % rm["joints"].size())
 	await show_all(ui, mini(5, fs.size()), "(8) mannequin")
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

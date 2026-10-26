@@ -235,4 +235,5 @@ func _init() -> void:
 	m.S.cards = cards_keep
 
 	print("r26: %d fails" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

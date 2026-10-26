@@ -158,4 +158,5 @@ func _init() -> void:
 	ok(not was_on and KMeshVPaintUI.of(m).on, "d2 pressing Paint turns vertex paint on (was %s, now %s)" % [str(was_on), str(KMeshVPaintUI.of(m).on)])
 
 	print("modelfix4: %d failing" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

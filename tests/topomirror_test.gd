@@ -323,4 +323,5 @@ func _init() -> void:
 
 	tms.on = false
 	print("TOPOMIRROR: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

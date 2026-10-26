@@ -206,4 +206,5 @@ func _init() -> void:
 	ok(in_sel and off <= 0.05, "c MODEL: Numpad . frames the picked face on the view's centre (%.1f %% of the height off; the window's middle %.1f %% off)" % [off * 100.0, off_win * 100.0])
 
 	print("modelview4: %d fail(s)" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

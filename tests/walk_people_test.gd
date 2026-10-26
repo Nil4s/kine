@@ -98,4 +98,5 @@ func _init() -> void:
 	var asd: float = GaitBand.table()["joints"]["ankle"]["sd"][0]
 	ok(ank.all(func(x): return absf(x - am) <= 2.0 * asd), "5 the ankle at initial contact %s deg (people %.1f +- %.1f; bar within 2 SD; it was -20, the foot landing flat)" % [ank, am, asd])
 	print("WALK PEOPLE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

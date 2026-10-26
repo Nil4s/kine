@@ -234,4 +234,5 @@ func _init() -> void:
 		"(7) preview keys: Delete %d -> %d faces, F -> %d clean %s, Ctrl+Z -> %d, Alt+F -> %d clean %s, Ctrl+Z, Ctrl+F -> %d clean %s, net undo steps %d; S box row live %s; status: %s" % [f0, after_del, after_f, clean_f, after_z, after_alt, clean_alt, after_ctrl, clean_ctrl, steps, MeshTools.why({"tool": row, "host": mn}) == "", mn.ui_status.text.left(80)])
 	ui.stop()
 	print("fill: %d failures" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

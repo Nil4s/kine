@@ -141,4 +141,5 @@ func _init() -> void:
 	await key(KEY_TAB)
 	ok(side_view and bv1 != bv0 and m.big_view == bv0, "9 outside a drag: 2 = the side view (yaw %.0f), Tab = the big view (%s -> %s)" % [m.yaw, bv0, bv1])
 	print("NUM ENTRY: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

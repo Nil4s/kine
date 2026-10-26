@@ -287,4 +287,5 @@ func _init() -> void:
 
 	print("EVENTS %s (%d fails)" % ["PASS" if fails == 0 else "FAIL", fails])
 	m.queue_free()
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

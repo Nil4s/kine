@@ -201,4 +201,5 @@ func _init() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(WAV20))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(BAD))
 	print("LIP SYNC TEST %s" % ["PASS" if fails == 0 else "FAIL %d" % fails])
+	TestFiles.cleanup()
 	quit(fails)

@@ -95,4 +95,5 @@ func _init() -> void:
 	await mouse(Vector2(gr.position.x + 30.0, mid.y), "up")
 	ok(m.playhead == 0.0, "4 a press in the label margin (left of the plot): 0, not a negative time (%.4f)" % m.playhead)
 	print("SCRUB BOUNDS: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

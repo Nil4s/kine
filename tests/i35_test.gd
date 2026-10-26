@@ -324,4 +324,5 @@ func _init() -> void:
 	img.save_png(SHOT)
 	print("     screenshot: ", SHOT)
 	print("RESULT: ", "ALL PASS" if fails == 0 else "%d FAILED" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -194,6 +194,7 @@ func _init() -> void:
 	var lo_v := overlaps(v.labels, Rect2(Vector2.ZERO, v.size))
 	ok(lo_v[0] == 0 and lo_v[1] == 0 and v.labels.size() > 10, "(7b) panel: %d labels, %d overlapping pairs, %d outside the view, %d time labels dropped" % [v.labels.size(), lo_v[0], lo_v[1], v.dropped])
 	print("i42: %d failures" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 
 

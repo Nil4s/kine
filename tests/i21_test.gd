@@ -259,4 +259,5 @@ func _init() -> void:
 		"(4) a contact (3D %.1f cm): UNSAFE with the contact flag, both fixes refuse, the badge is red" % [float(r4["miss"]) * 100.0])
 
 	print("I21 SELL THE HIT %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

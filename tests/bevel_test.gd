@@ -219,4 +219,5 @@ func _init() -> void:
 		"(8c) the S box line '%s' (%s, key %s): %d faces; said: %s" % [t["label"], t["do"], t["keys"], m.face_count(), String(mn.ui_status.text).left(60)])
 	ui.stop()
 	print("bevel: %d failures" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -183,5 +183,6 @@ func _init() -> void:
 	DirAccess.make_dir_recursive_absolute(SHOT.get_base_dir())
 	var e := img.save_png(SHOT)
 	ok(e == OK and img.get_width() > 0, "a reaction frame saved to %s (error %d, %dx%d)" % [SHOT, e, img.get_width(), img.get_height()])
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
 

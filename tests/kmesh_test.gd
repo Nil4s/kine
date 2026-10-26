@@ -112,4 +112,5 @@ func _init() -> void:
 	ok(sph.triangle_count() >= 50000 and ms < 2000.0 and sph.euler() == 2 and sph.is_closed(), "bar 5: sphere >= 50k tris builds < 2 s, euler 2, closed")
 	root.free()
 	print("kmesh_test: %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails else 0)

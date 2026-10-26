@@ -141,4 +141,5 @@ func _init() -> void:
 	ok(m.play_clock.mode == PlaySpeed.REAL and m.ui_mode_lbl.text.begins_with("Real speed"), "4g the second click returns to real speed: '%s'" % m.ui_mode_lbl.text)
 
 	print("RESULT " + ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(0 if fails == 0 else 1)

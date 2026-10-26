@@ -274,4 +274,5 @@ func _init() -> void:
 		"(8) a selected cube vertex makes the cube (96 faces) the operand: %s" % str(pk.keys()))
 	ui.stop()
 	print("BOOLEAN ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)

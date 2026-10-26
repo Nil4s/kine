@@ -312,4 +312,5 @@ func _init() -> void:
 	await part4()
 	print("     people: lumbar flexion 69.9 / extension 40.0 / lateral 36 / rotation 38 deg (Apti 2023); this body's 3 spine joints: 60 / 21 / 21 / 51")
 	print("SPINE IK TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

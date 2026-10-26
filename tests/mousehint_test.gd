@@ -365,4 +365,5 @@ func _init() -> void:
 	img.save_png(shot)
 	print("shot: %s  strip text: %s  rect %s" % [ProjectSettings.globalize_path(shot), strip.shown_text(), strip.get_global_rect()])
 	print("MOUSEHINT %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

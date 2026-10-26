@@ -358,4 +358,5 @@ func _init() -> void:
 	ok(nh >= 2 and hit_ok, "(6) each of the %d incoming strikes has a blink starting 30-60 ms after it lands" % nh)
 
 	print("I08 LIVING EYES %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

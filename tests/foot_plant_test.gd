@@ -256,4 +256,5 @@ func _init() -> void:
 	ok(not fire_1.is_empty() and only_r, "10 with only the left foot planted, FOOT SLIDE fires on the right foot alone (%d findings)" % fire_1.size())
 
 	print("FOOT PLANT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

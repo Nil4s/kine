@@ -54,6 +54,7 @@ func _init() -> void:
 		for i in 15:
 			await process_frame
 		print("child: busy=%s progress=%.2f, quitting at %d ms" % [m._imp_busy(), VideoIQ.progress, Time.get_ticks_msec()])
+		TestFiles.cleanup()
 		quit(0)
 		return
 	var before_files := _wip_files()
@@ -151,4 +152,5 @@ func _init() -> void:
 			DirAccess.remove_absolute(ProjectSettings.globalize_path("res://scenes/_wip/" + f))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(POSE))
 	print("r13: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

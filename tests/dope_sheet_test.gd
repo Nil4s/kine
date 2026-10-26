@@ -262,4 +262,5 @@ func _init() -> void:
 	m._ktype_set("key")
 	ok(m.undo.size() == u3 and String(m.ui_status.text).contains("already"), "setting the type it already has: no undo step, says why ('%s')" % m.ui_status.text)
 	print("DOPE SHEET TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

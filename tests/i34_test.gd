@@ -221,4 +221,5 @@ func _init() -> void:
 	await idle()
 	ok(cards_json() == before and m.undo.size() == u0, "(3) Ctrl+Z restores both fighters' cards exactly")
 	print("I34 ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

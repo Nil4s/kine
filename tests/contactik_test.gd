@@ -173,4 +173,5 @@ func _init() -> void:
 	ok(absf(ContactIK.palm_gap(B, h, tc, tn)) <= 0.003 and absf(hp_after.y - (top_y + d_wrist)) <= 0.002, "placement: after the card, the hand is still on the table top (gap %.2f mm)" % (ContactIK.palm_gap(B, h, tc, tn) * 1000.0))
 
 	print("%s  (%d fail)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(fails)

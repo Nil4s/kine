@@ -183,4 +183,5 @@ func _init() -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(DIR + "/" + f))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(DIR))
 	print("BVH EXPORT: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

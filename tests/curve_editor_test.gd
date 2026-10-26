@@ -108,6 +108,7 @@ func _init() -> void:
 	ok(ce != null and ce.visible, "the registry command 'Curve editor' opens the panel")
 	if ce == null:
 		print("CURVE EDITOR TEST FAIL %d" % fails)
+		TestFiles.cleanup()
 		quit(fails)
 		return
 	ok(ce.keys().is_empty() and ce.polyline(0).is_empty(), "a scene with no part keys: the editor is empty (%d keys, %d polyline points)" % [ce.keys().size(), ce.polyline(0).size()])
@@ -212,4 +213,5 @@ func _init() -> void:
 	await command("curve_editor")
 	ok(not ce.visible, "the same command closes it")
 	print("CURVE EDITOR TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

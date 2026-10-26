@@ -195,4 +195,5 @@ func _init() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(copy))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(COPY_DIR))
 	print("SCENE THUMBS %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

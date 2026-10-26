@@ -141,4 +141,5 @@ func _init() -> void:
 		"6 walk_bat with knees keyed straight lists %s (walk_bat lists %d); its shares %s" % [names, rw.get("listed", []).size(),
 			rs.get("all", []).map(func(x): return "%s %d%%" % [x["part"], int(round(x["out"] * 100))])])
 	print("GAIT BAND TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -163,6 +163,7 @@ func _init() -> void:
 	ok(B.grip and String(B.grip2.get("hand", "")) == "hand_l" and m.ui_status.text.contains("SNAPPED"), "7 a real hand drag in the app snaps it on: grip %s, the line says \"%s\"" % [B.grip, m.ui_status.text.left(60)])
 	m.queue_free()
 	print("GRIP MAGNET TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)
 
 

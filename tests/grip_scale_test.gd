@@ -61,6 +61,7 @@ func _init() -> void:
 	B.set_proportions({})
 	m.queue_free()
 	print("GRIP SCALE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)
 
 

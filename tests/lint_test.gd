@@ -182,4 +182,5 @@ func _init() -> void:
 	for f in ["clean.bvh", "broken.bvh", "broken.glb", "clean.glb", "ten.bvh", "nope.bvh"] + bad.keys():
 		DirAccess.remove_absolute(DIR.path_join(f))
 	print("LINT %s: %d failed" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(0 if fails == 0 else 1)

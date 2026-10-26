@@ -22,4 +22,5 @@ func _init() -> void:
 		print("FAIL the driver ran %d of 14 checks (exit %d): %s" % [oks + fails, code, text.right(600)])
 		fails += 1
 	print("SERVE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

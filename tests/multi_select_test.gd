@@ -146,4 +146,5 @@ func _init() -> void:
 	await idle()
 	ok(members() == ["head"], "8 a group of the thighs, then the ring opened on the head: the group ends %s" % [members()])
 	print("MULTI SELECT: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

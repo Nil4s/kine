@@ -172,4 +172,5 @@ func _init() -> void:
 		await idle(4)
 		root.get_texture().get_image().save_png(SHOT % ("%s_%s" % sh))
 	print("GRIP BOOK ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

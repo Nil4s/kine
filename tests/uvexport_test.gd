@@ -272,4 +272,5 @@ func _init() -> void:
 	ok(di != null and di.get_pixelv(Vector2i(at(centroid(fu[0]), 2048))).a > 0.4, "8b ... with the island fill it was given")
 	cleanup(before)
 	print("UVEXPORT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

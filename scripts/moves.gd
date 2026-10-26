@@ -78,7 +78,9 @@ static func _flat(p: Dictionary) -> Dictionary:
 		w = {"hand": pw.get("hand", ""), "pos": Vector3(k[0], k[1], k[2]), "rot": Quaternion(r[0], r[1], r[2], r[3]),
 			"local_pos": Vector3(lp[0], lp[1], lp[2]), "local_rot": Quaternion(lr[0], lr[1], lr[2], lr[3]),
 			"length": float(pw.get("length", 0.84)), "kind": String(pw.get("kind", "metal_bat")), "grip": bool(pw.get("two_hand_grip", false)), "grip_m": float(pw.get("grip_m", 0.18)),
-			"grip2": pw.get("grip2", {}) if pw.get("grip2") is Dictionary else {}}
+			"grip2": pw.get("grip2", {}) if pw.get("grip2") is Dictionary else {},
+			# w4-fingertilt: a pose with no turn / tilt keys means 0 (a card or scene that never turned the blade)
+			"turn": float(pw.get("turn", 0.0)), "tilt": float(pw.get("tilt", 0.0))}
 	return {"offset": Vector3(o[0], o[1], o[2]), "ang": ang, "weapon": w, "weapon2": Body.wep2_flat(p.get("weapon2", {}))}
 
 

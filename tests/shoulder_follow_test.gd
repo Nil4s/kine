@@ -115,4 +115,5 @@ func _init() -> void:
 	ok(pull_same, "7 a hand pull is left to reach: same angles follow on or off (clavicle %s)" % runs[0][1]["clavicle_r"])
 	m.shoulder_follow = true
 	print("SHOULDER FOLLOW TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

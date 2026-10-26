@@ -37,6 +37,7 @@ const INFO := {
 ## number found for a dir + name is remembered and the probe starts there. The first free name at or after it, as before; a file
 ## deleted below it is skipped (a gap, harmless). `probes` counts file checks (tests)
 static var _next_k := {}
+static var _read_cache := {}   # path -> [[modified time, the text's hash], the parsed file] (Templates.read)
 static var probes := 0
 
 
@@ -72,8 +73,16 @@ static func read(nm: String) -> Dictionary:
 	var p := "%s/%s.json" % [DIR, nm]
 	if not FileAccess.file_exists(p):
 		return {}
-	var d = JSON.parse_string(FileAccess.get_file_as_string(p))
-	return d if d is Dictionary else {}
+	# the parsed file is kept by path and modified time (the card click reads the same template every time): a copy goes out
+	var txt := FileAccess.get_file_as_string(p)   # the text is read every time (cheap): the modified time has 1 s steps, so a
+	var mt := [FileAccess.get_modified_time(p), txt.hash()]   # template saved twice in a second is told apart by its text
+	var hit = _read_cache.get(p)
+	if hit != null and hit[0] == mt:
+		return (hit[1] as Dictionary).duplicate(true)
+	var d = JSON.parse_string(txt)
+	var out: Dictionary = d if d is Dictionary else {}
+	_read_cache[p] = [mt, out.duplicate(true)]
+	return out.duplicate(true)
 
 
 ## a template's cards played backwards (the last card first). A card keeps its own pose and hold; the time INTO each card in the

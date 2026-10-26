@@ -16,4 +16,5 @@ func _init() -> void:
 	for k in 30:
 		B.contacts()
 	print("contacts: %.2f ms" % ((Time.get_ticks_usec() - t0) / 1000.0 / 30))
+	TestFiles.cleanup()
 	quit()

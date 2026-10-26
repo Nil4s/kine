@@ -179,4 +179,5 @@ func _init() -> void:
 		% [wr.get("words", w1), pv.distance_to(hr) * 100.0, w2.get("result", w2).get("words", w2), e3.get("error", {}).get("message", e3)])
 	m.queue_free()
 	print("BODYFRAME TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

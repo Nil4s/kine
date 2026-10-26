@@ -119,4 +119,5 @@ func _init() -> void:
 	m.export_ui.dlg.hide()
 	clean(DIR)
 	clean(REF)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

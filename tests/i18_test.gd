@@ -211,4 +211,5 @@ func _init() -> void:
 		"(3) correct spacing: all %d strikes in range, no fix offered (%s), nothing changed" % [rep["spans"].size(), fx3["why"]])
 
 	print("I18 FIGHT DISTANCE KEEPER %s" % ("FAIL" if fails > 0 else "PASS") + (" (%d failed)" % fails if fails > 0 else ""))
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

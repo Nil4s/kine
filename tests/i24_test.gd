@@ -228,4 +228,5 @@ func _init() -> void:
 	await idle(3)
 	ok(m.B.state() == state0, "4 Ctrl+Z after the squat is exact")
 	print("I24: %d failures" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

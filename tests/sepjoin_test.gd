@@ -157,6 +157,7 @@ func _init() -> void:
 	cam.free()
 	await b17()
 	print("SEPJOIN ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)
 
 

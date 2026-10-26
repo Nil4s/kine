@@ -332,4 +332,5 @@ func _init() -> void:
 		k1["drag"] * 100, k2["slide"] * 100, k2["planted"], k3["pen"] * 100, k3["pair"]])
 
 	print("POSEPATH: %s (%d failed)" % ["PASS" if fails == 0 else "FAIL", fails])
+	TestFiles.cleanup()
 	quit(0 if fails == 0 else 1)

@@ -24,6 +24,8 @@ var _side_shift := false     # the panel's view shift as the camera has it (latc
 var _cam_pending := false    # the panel changed during a body drag: the camera follows at the release
 var _lx_seen := 0.0          # the panel's left edge as the camera last framed it
 var _lib_up := false         # the Library panel open as the camera last framed (the shift keeps the body right of it)
+var _col: VBoxContainer     # the panel's column (blocks go under Reset)
+var _blocks: Array = []     # HANDS (w4-handlock): extra blocks main adds (the lock, the hands row): shown with the panel
 
 
 ## the panel's words and sliders for a joint: [title, [[label, axis], ...]], or [] for a part without sliders
@@ -80,6 +82,7 @@ func build(root: Control) -> void:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 8)
 	panel.add_child(col)
+	_col = col
 	_title = Label.new()
 	_title.name = "easy_slider_title"
 	_title.add_theme_font_size_override("font_size", 22)
@@ -120,9 +123,20 @@ func build(root: Control) -> void:
 	root.add_child(panel)
 
 
+## main's block (HANDS, w4-handlock): the lock and the hands row, under Reset; shown while the panel shows
+func add_block(c: Control) -> void:
+	_col.add_child(c)
+	_blocks.append(c)
+
+
 ## a press on the body part at px p (main's press, Easy): "" = nothing there, the panel shuts
 func part_picked(j: String) -> void:
-	part = j if not spec_of(j).is_empty() else ""
+	part = j if (not spec_of(j).is_empty() or j in Body.WEAPON) else ""   # a weapon: its blade turn and head tilt (w4-bladeturn)
+
+
+## the picked weapon is in a hand: its panel is the blade turn and head tilt (not a joint)
+func _wep() -> bool:
+	return part in Body.WEAPON and m.B != null and m.B.wep_on and m.B.wep_hand != ""
 
 
 ## a press inside the panel is the panel's (main's body press ignores it)
@@ -151,7 +165,7 @@ func _process(_dt: float) -> void:
 	if m.easy == null or not m.easy.on or m.S != _scene:
 		part = ""   # a pick does not outlive Easy, nor the scene it was made in (a new or opened scene starts with nothing picked)
 	_scene = m.S
-	var on: bool = m.easy != null and m.easy.on and part != "" and m.B != null and m.B.ang.has(part)
+	var on: bool = m.easy != null and m.easy.on and part != "" and m.B != null and (m.B.ang.has(part) or _wep())
 	var was := panel.visible
 	panel.visible = on
 	# the view centre moves left of the panel while it shows (easy_mode.offsets). Not during a body drag: the drag keeps the view it
@@ -170,6 +184,8 @@ func _process(_dt: float) -> void:
 			m._cam()
 		else:
 			_cam_pending = true
+	for b in _blocks:
+		(b as Control).visible = on
 	if not on:
 		return
 	if part != _shown_part:
@@ -192,6 +208,23 @@ func _left_x() -> float:
 ## the title and the sliders of the picked part, each in the joint's range (a locked axis gets no slider)
 func _setup() -> void:
 	_shown_part = part
+	if _wep():
+		_title.text = "Weapon in hand"
+		for i in ROWS:
+			var r: Dictionary = _rows[i]
+			var sl: HSlider = r["slider"]
+			var on_i := i < 2
+			r["on"] = on_i
+			r["axis"] = ["turn", "tilt"][i] if on_i else ""
+			if on_i:
+				sl.min_value = -180.0 if i == 0 else -45.0
+				sl.max_value = 180.0 if i == 0 else 45.0
+				(r["label"] as Label).text = "Blade turn" if i == 0 else "Head tilt"
+			(r["label"] as Control).visible = on_i
+			sl.visible = on_i
+		_reset.visible = false
+		return
+	_reset.visible = true
 	var sp := spec_of(part)
 	_title.text = String(sp[0])
 	var L: Dictionary = m.B.lim[part]
@@ -210,7 +243,6 @@ func _setup() -> void:
 			r["on"] = false
 		(r["label"] as Control).visible = r["on"]
 		sl.visible = r["on"]
-	_reset.visible = true
 
 
 ## the panel is up and the camera keeps the body left of it (easy_mode.offsets reads this; latched during a body drag)
@@ -230,6 +262,17 @@ func _place() -> void:
 
 ## the sliders show the body's angles (a drag of the body, an undo, a card's pose): the row being dragged keeps the pointer's value
 func _sync() -> void:
+	if _wep():
+		for i in 2:
+			var r: Dictionary = _rows[i]
+			var sl: HSlider = r["slider"]
+			var deg := rad_to_deg(m.B.wep_turn if i == 0 else m.B.wep_tilt)
+			if not bool(r.get("dragging", false)):
+				sl.set_value_no_signal(deg)
+			_place_rest(sl, r["tick"])
+			var nm := "Blade turn" if i == 0 else "Head tilt"
+			(r["label"] as Label).text = ("%s: rest" % nm) if absf(deg) <= 1.0 else ("%s   %d°" % [nm, roundi(deg)])
+		return
 	var a: Vector3 = m.B.ang[part]
 	for i in _rows.size():
 		var r: Dictionary = _rows[i]
@@ -280,7 +323,7 @@ func _drag_start(i: int) -> void:
 	m.playing = false
 	m._push_undo()
 	var u: Dictionary = m.undo[-1]
-	var name := "Move " + String(spec_of(part)[0]).to_lower()
+	var name := "Turn blade" if _wep() else "Move " + String(spec_of(part)[0]).to_lower()
 	u["name"] = name
 	u["easy"] = name
 	u["drag"] = true   # a + Add pose straight after this drag joins its step (easy_mode.add_pose), as a body drag does
@@ -289,6 +332,13 @@ func _drag_start(i: int) -> void:
 
 
 func _moved(v: float, i: int) -> void:
+	if _wep():
+		if i == 0:
+			m._blade_apply(deg_to_rad(v), m.B.wep_tilt)
+		else:
+			m._blade_apply(m.B.wep_turn, deg_to_rad(v))
+		m._after_edit()
+		return
 	if part == "" or not m.B.ang.has(part):
 		return
 	var a: Vector3 = m.B.ang[part]

@@ -403,6 +403,7 @@ func _init() -> void:
 		"(7) brush dab: new set %d, %d faces painted (want %d, same %s), verts unmoved %s, the hidden column untouched %s" % [b7.p["fset_id"], got7.size(), want7.size(), same_keys(got7, want7), p7.verts == a7, hid7])
 	await _ui()
 	print("FACESETS ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails else 0)
 
 

@@ -148,4 +148,5 @@ func _init() -> void:
 		print("   slide: " + o[1])
 	print("   3 (reported) inside a move, planting's worst extra leg turn in one frame: %.1f deg (%s)" % [inside, inside_at])
 	print("PLANT EDGES: %d failed" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

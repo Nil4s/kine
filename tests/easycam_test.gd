@@ -143,4 +143,5 @@ func _init() -> void:
 		await idle(4)
 
 	print("EASY CAM %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

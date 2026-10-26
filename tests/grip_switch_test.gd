@@ -103,4 +103,5 @@ func _init() -> void:
 		n += 1
 	ok(n > 5 and near > 0.20 and low == n, "(3) one-handed: the left hand at least %.0f cm off the shaft and out at shoulder height at %d of %d frames" % [near * 100.0, low, n])
 	print("GRIP SWITCH ", "PASS" if fails == 0 else "FAIL %d" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

@@ -95,4 +95,5 @@ func _init() -> void:
 	ok(not cmd.is_empty() and locked_ok and merged and back, "4 the command (found %s): locked refuses %s; merges in one undo step %s; Ctrl+Z gives cards and layers back byte for byte %s" % [not cmd.is_empty(), locked_ok, merged, back])
 	m.queue_free()
 	print("LAYER MERGE TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -251,4 +251,5 @@ func _init() -> void:
 	ok(e.has("error") and e["error"]["code"] == -32602, "7 bad params: %s" % e.get("error", {}).get("message", ""))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	print("ASSERTS TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(fails)

@@ -92,4 +92,5 @@ func _init() -> void:
 	ok(hb_total > 0 and err < 1e-5, "(4) %d hitbox capsules read back within 1e-5 m (worst %.6f m)" % [hb_total, err])
 	var wire := FrameData.wire([[(fd["frames"][int(fd["first"])]["hitboxes"]), Color(1, 0, 0)]])
 	ok(wire.get_surface_count() == 1, "wire mesh built for the first active frame")
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)

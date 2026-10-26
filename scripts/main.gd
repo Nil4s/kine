@@ -763,6 +763,19 @@ func _look_of(lk: String) -> Array:
 const LOCK_COL := Color(0.5, 0.5, 0.55)
 var locked_parts := {}
 var ui_lock_btn: Button
+## HANDS (w4-handlock; Nick: "the option to lock and unlock hands is shown nowhere"). ONLY THE PART I DRAG (default on): a drag
+## moves the part grabbed and the parts that hang from it (the weapon too): no smart follow, no balance re-centre, no shoulder
+## follow, and a second hand on the weapon lets go on the drag's first move. Off = the old drag. The hands rows (Expert's
+## inspector, Easy's side panel) are built by _hands_block; each is listed in ui_hands and kept by _hands_refresh.
+var only_part := true
+var ui_hands: Array = []
+var ui_hands_panel: PanelContainer   # the hands row (an overlay under the top bar)
+var _hands_note := ""     # the automatic let-go of a drag, said at the end of that drag (_take_note)
+
+
+## the drag's own note, once: "" or the words to add to its status line
+func _take_note() -> String:
+	return ("     " + _hands_note) if _hands_note != "" else ""
 var _drag_locks := {}
 
 
@@ -861,6 +874,7 @@ var _num_on := false
 var _num_axis := 0
 var _num_text := ""
 var _num_start := {}
+var _press_node := -1   # the undo tree node a joint press pushed: a release that left the body as it was drops that step (beginner: Undo after a click did nothing)
 
 
 ## true if the key was the typed angle's
@@ -2850,6 +2864,15 @@ func _ps() -> Scene:
 
 
 func _ready() -> void:
+	# THE QUALITY WORKER (Easy's My scenes badges): Kine --headless --kine-quality-worker <list.json> grades the list and quits
+	# before anything else starts (no UI, no autosave). Checked first, so the app's start-up never runs in that process.
+	var wargs := OS.get_cmdline_args()
+	var wi := wargs.find("--kine-quality-worker")
+	if wi >= 0 and wi + 1 < wargs.size():
+		process_mode = Node.PROCESS_MODE_DISABLED   # the app's per-frame work (autosave, auto-version) must not run in this process
+		SceneQualityWorker.run(wargs[wi + 1])
+		get_tree().quit()
+		return
 	BootProfile.start()   # KINE_BOOT_PROFILE=1 / --boot-profile: the start-up blocks, timed (scripts/boot_profile.gd)
 	RenderingServer.set_debug_generate_wireframes(true)   # K01: the wireframe view needs this before any mesh is made
 	# EVERY WIDGET BY NAME (round 14, U2): each control the window builds is named from what it says (scripts/names.gd)
@@ -3006,6 +3029,8 @@ func _ready() -> void:
 	page_tour.auto = not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour")   # P01: a test turns it on itself
 	onboard.prepare(cf, not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour"))   # R25: due on a first launch; the other tours wait for it
 	easy.build(ui_root, [ui_top_bar, ui_cube, ui_nav, ui_bh, ui_play_row, ui_side_of["left"], ui_side_of["right"], ui_page_bar, ui_mouse].filter(func(n): return n != null) + ui_rails.values())   # Easy: no page tabs, no mouse legend
+	if easy.sliders != null:
+		easy.sliders.add_block(_hands_block(true))   # HANDS (w4-handlock): the lock and the hands row in the Easy side panel
 	BootProfile.mark("easy build")
 	easy.start(cf, testing)   # EASY MODE: the saved mode (a fresh config is Easy); its own tour, once
 	BootProfile.mark("easy start")
@@ -4870,6 +4895,7 @@ func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := tru
 
 
 func _refresh() -> void:
+	_hands_refresh()   # HANDS (w4-handlock): the hands rows say the state
 	_light_apply()
 	_refimg_sync()
 	_actors_view()
@@ -5424,6 +5450,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 					_say_plain("the %s is locked: right-click it > Unlock, or S and type 'unlock'" % nice(j))
 				elif j != "":
 					_drag_locks = _lock_snap()
+					_hands_note = ""   # HANDS: a new drag says its own auto let-go, once
 					_num_start = B.state()   # Esc during the drag puts this back (HH1)
 					_num_axis = 0
 					_num_text = ""   # each drag types afresh
@@ -5433,6 +5460,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 						undo[-1]["easy"] = "Move " + easy_part(j)   # Easy's Undo: "Undo: Move hand", not "Drag left wrist .."
 						undo[-1]["drag"] = true   # Easy: a + Add pose straight after this drag joins this step (easy_mode.add_pose)
 					_tree.set_name(_tree.cur, undo[-1]["name"])
+					_press_node = _tree.cur   # the release drops this step if the body did not change
 					_undo_tips()
 					_group_press(j, mb.ctrl_pressed, mb.position)
 					sel = j
@@ -5502,7 +5530,13 @@ func _unhandled_input(ev: InputEvent) -> void:
 						_say(_grip_said(r, sel))
 				_grab = Vector3(NAN, NAN, NAN)
 				_refresh()   # the reach marker goes with the drag
-			if was == "joint" and easy != null and easy.on and sel_card >= 0 and not auto_key:
+			if was == "joint" and _tree.cur == _press_node and B.state() == _num_start:
+				# a click (press and release, the body not moved): its step goes, so Undo does not "do nothing". Checked after the
+				# group pick (a Ctrl+click that dropped its own step has moved the tree on), and before the card and auto-key
+				# lines, which would otherwise read the step under it
+				_drop_undo()
+				_press_node = -1
+			elif was == "joint" and easy != null and easy.on and sel_card >= 0 and not auto_key:
 				easy.card_follows_drag()   # walk-through 5: Easy, a card picked: the drag changes that card (one undo step, "Change pose")
 			elif was == "joint":
 				_autokey_card()   # ROADMAP 42: the drag that moved the body keys a card at the playhead (its undo step is the press's)
@@ -5670,11 +5704,16 @@ func _unhandled_input(ev: InputEvent) -> void:
 
 func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 	B.last_stop = {}
+	if only_part and B.grip and B.wep_on and B.wep_hand != "" and sel != _off_hand():
+		_hands_let_go_auto()   # HANDS: only the part dragged moves, so the second hand on the weapon lets go
 	var mpp := 2.0 * dist * tan(deg_to_rad(cam.fov * 0.5)) / get_viewport().get_visible_rect().size.y
 	var dw: Vector3 = cam.global_basis.x * rel.x * mpp - cam.global_basis.y * rel.y * mpp
 	var tip := sel in ["hand_r", "hand_l", "foot_r", "foot_l"]
 	if sel in Body.WEAPON:
 		_drag_bat(rel, dw, twist, alt)
+		var wn := _take_note()
+		if wn != "":
+			_say(ui_status.text + wn)
 		return
 	if sel == "pelvis" and move:
 		B.offset += dw
@@ -5700,7 +5739,7 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 			B.reach(sel, _grab)
 	elif not _pd.is_empty() and not is_nan(_pd_mp.x) and _pd.get("part", "") == sel:
 		var follow := Callable()
-		if shoulder_follow and sel.begins_with("upperarm"):
+		if shoulder_follow and not only_part and sel.begins_with("upperarm"):
 			follow = func(): B.shoulder_follow(sel.right(2))   # YY5, inside the rounds so the handle still lands on the mouse
 		PartDrag.move(B, _pd, cam.project_ray_origin(_pd_mp), cam.project_ray_normal(_pd_mp), follow)   # ROADMAP 41: any part, no mode
 	else:
@@ -5716,7 +5755,7 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 	if not _sd.is_empty() and not alt and not twist and not move:
 		_smart_step(tip)
 	_lb_step(tip and not alt and not move and not twist, alt)   # N066: keep him over his feet (the dragged joint untouched)
-	_arm_edit = sel if sel.begins_with("upperarm") and not move and (_pd.is_empty() or is_nan(_pd_mp.x)) else ""   # a part drag followed the shoulder itself
+	_arm_edit = sel if sel.begins_with("upperarm") and not move and not only_part and (_pd.is_empty() or is_nan(_pd_mp.x)) else ""   # a part drag followed the shoulder itself
 	_after_edit()
 	var v2: Vector3 = B.ang[sel]
 	if _magnet in ["snap", "held", "let go"] and tip and not move and not twist:
@@ -5728,16 +5767,16 @@ func _drag_joint(rel: Vector2, twist: bool, move: bool, alt: bool) -> void:
 	_magnet = ""
 	var what: String = "ROLLING" if twist else ({"look": "LOOKING WITH", "bend": "BENDING THE SPINE AT", "move": "MOVING THE BODY BY"}.get(PartDrag.kind(sel), "ROTATING") if not _pd.is_empty() and not is_nan(_pd_mp.x) else ("MOVING" if (move and sel == "pelvis") else ("SWINGING THE %s OF" % ("ELBOW" if sel.begins_with("hand") else "KNEE") if tip and move else ("PULLING" if tip and not alt else "ROTATING"))))
 	if easy != null and easy.on:   # Easy: the stop in plain words, no degree readout (stop_words says which)
-		_say("%s the %s%s%s" % [what, part_words(sel), stop_words(B.last_stop), LiveBalance.words(_lb_r)])
+		_say("%s the %s%s%s%s" % [what, part_words(sel), stop_words(B.last_stop), LiveBalance.words(_lb_r), _take_note()])
 	else:
-		_say("%s the %s     %s%s%s" % [what, nice(sel), _angles_words(sel, v2), stop_words(B.last_stop), LiveBalance.words(_lb_r)])
+		_say("%s the %s     %s%s%s%s" % [what, nice(sel), _angles_words(sel, v2), stop_words(B.last_stop), LiveBalance.words(_lb_r), _take_note()])
 
 
 ## SMART DRAG (ROADMAP I12, scripts/smart_drag.gd): the press learns (or loads) the model of how your poses co-vary and takes the
 ## conditioning for the chain this drag turns; every move then lets the rest of the body follow, the feet planted, the
 ## balance held. Alt at the press, follow 0, a weapon, a set, or a pelvis move: the old one-joint drag, exactly
 func _smart_begin(j: String, alt: bool) -> Dictionary:
-	if not smart_drag or alt or smart_follow <= 0.0 or j in Body.WEAPON or not sel_more.is_empty() or j == "pelvis":
+	if not smart_drag or alt or only_part or smart_follow <= 0.0 or j in Body.WEAPON or not sel_more.is_empty() or j == "pelvis":
 		return {}
 	if easy != null and easy.on:
 		return {}   # Easy: a drag moves only the part you drag (Nick 10-24: "while dragging an arm the whole body moves"); Expert keeps the follow
@@ -5763,7 +5802,7 @@ func _smart_step(tip: bool) -> void:
 ## planted feet. pull: a hand / foot on IK, put back on its target after the hips move. Alt during the drag: the correction is
 ## taken back and he is let fall for the rest of this drag
 func _lb_step(pull: bool, alt: bool) -> void:
-	if _lb.is_empty():
+	if _lb.is_empty() or only_part:   # HANDS: Only the part I drag: nothing else re-centres
 		_lb_r = {}
 		return
 	var redo := Callable()
@@ -6471,7 +6510,20 @@ func _push_undo() -> void:
 	_co_sync()
 
 
+## the top bar's Undo / Redo on a mesh page: the page's own mesh history (the pose's is a different list). true = taken
+func _mesh_undo(back: bool) -> bool:
+	if ksc != null and ksc.on and ksc.showing:
+		ksc.undo_redo(back)
+		return true
+	if kmed != null and kmed.on and kmed.showing:
+		kmed.undo_redo(back)
+		return true
+	return false
+
+
 func _undo() -> void:
+	if _mesh_undo(true):
+		return
 	sk.fitted = []   # I9: the faint fitted skeleton belongs to the pose that was undone
 	var sk_hist: Variant = sk.hist.back() if not sk.hist.is_empty() else null
 	sk.flips = {}   # ...and so do its flip handles, unless this undo takes back a flip (below)
@@ -6516,6 +6568,8 @@ func _undo() -> void:
 
 
 func _redo() -> void:
+	if _mesh_undo(false):
+		return
 	_tree_sync()
 	if redo.is_empty():
 		return
@@ -10027,6 +10081,7 @@ var _shape_i := {"l": 0, "r": 0}
 var ui_hand := {}   # "rcurl" / "rspread" / "lcurl" / "lspread" -> HSlider (YY3)
 var ui_finger := {}   # "rthumb" / "rindex" ... "lpinky" -> HSlider (ROADMAP 73: one curl per finger)
 var ui_back := {}   # "bend" / "side" / "twist" -> HSlider (YY4)
+var ui_blade := {}   # BLADE TURN / HEAD TILT (w4-bladeturn): "turn" / "tilt" -> {slider, label, box, tick} in the WEAPON section
 
 
 func _on_back_slider(v: float, k: String) -> void:
@@ -10328,12 +10383,275 @@ func _slide(d: float) -> void:
 		_say("the arm can't reach further that way: turn the weapon or move the body first")
 
 
+## BLADE TURN / HEAD TILT (w4-bladeturn): the weapon turns inside the hand that holds it; the hand does not move. The card
+## keeps it (one undo step per slider drag or button press). Words for the label: "Blade turn: 90° (edge forward)".
+func _turn_word(d: float) -> String:
+	var a := absf(d)
+	if a <= 22.5:
+		return "as held"
+	if a >= 157.5:
+		return "flipped"
+	return "edge forward" if d > 0.0 else "edge back"
+
+
+func _tilt_word(d: float) -> String:
+	if absf(d) < 1.0:
+		return "level"
+	return "forward" if d > 0.0 else "back"
+
+
+## the blade's turn and tilt (radians) now: the turn in the hand from the saved grip, the card keeps it, the other hand follows
+## the handle or lets go if it can't (said)
+## returns the words for the status line when the other hand let go ("" when it kept its grip)
+func _blade_apply(turn_rad: float, tilt_rad: float) -> String:
+	var tilt0 := B.wep_tilt
+	B.set_blade(turn_rad, tilt_rad)
+	var note := ""
+	if B.grip:
+		var miss := B.apply_grip()
+		if miss > 0.02:
+			B.grip = false
+			note = "the other hand let go: it can't follow the handle that far round"
+	if absf(B.wep_tilt - tilt0) > 1e-6:
+		B.refit_fingers()   # w4-fingertilt: the shaft tipped, so the fingers that hold it close round it again
+	_blade_card()
+	return note
+
+
+func _blade_by(deg: float) -> void:
+	if not B.wep_on or B.wep_hand == "":
+		_say("no weapon in a hand: put one in a hand first")
+		return
+	var note := _blade_apply(B.wep_turn + deg_to_rad(deg), B.wep_tilt)
+	var said := "the blade turned %d°: %s; the hand and its grip stay" % [roundi(rad_to_deg(B.wep_turn)), _turn_word(rad_to_deg(B.wep_turn))]
+	if note != "":
+		said = "the blade turned %d°: %s; %s" % [roundi(rad_to_deg(B.wep_turn)), _turn_word(rad_to_deg(B.wep_turn)), note]
+	_say(said)
+
+
+func _on_blade_slider(v: float, k: String) -> void:
+	if not B.wep_on or B.wep_hand == "":
+		return
+	var note := ""
+	if k == "turn":
+		note = _blade_apply(deg_to_rad(v), B.wep_tilt)
+	else:
+		note = _blade_apply(B.wep_turn, deg_to_rad(v))
+	if note != "":
+		_say(note)
+	_after_edit()
+
+
+## the picked card keeps the body's weapon (as a pose change does): the card the playhead is on when none is picked
+func _blade_card() -> void:
+	var ci := sel_card if sel_card >= 0 else LimbIK.card_at(S, playhead)
+	if ci < 0 and not S.cards.is_empty():   # the playhead between cards (walk12: Flip said "flipped" and saved nothing): the nearest card in time
+		var ts: Array = S.times()
+		var best := INF
+		for i in ts.size():
+			var dd := 0.0 if playhead >= float(ts[i][0]) and playhead <= float(ts[i][1]) else minf(absf(playhead - float(ts[i][0])), absf(playhead - float(ts[i][1])))
+			if dd < best:
+				best = dd
+				ci = i
+	if ci < 0 or ci >= S.cards.size():
+		return
+	S.cards[ci]["pose"] = B.to_dict()
+	_rebuild_cards()
+
+
+## the blade sliders read the body back (no signal); shown while a weapon is in a hand
+func _blade_sync() -> void:
+	var held: bool = B != null and B.wep_on and B.wep_hand != ""
+	for k in ui_blade:
+		var d: Dictionary = ui_blade[k]
+		if not is_instance_valid(d["box"]):
+			continue
+		(d["box"] as Control).visible = held
+		if not held:
+			continue
+		var v: float = rad_to_deg(B.wep_turn if k == "turn" else B.wep_tilt)
+		var sl := d["slider"] as HSlider
+		sl.set_value_no_signal(v)
+		EasySliders._place_rest(sl, d["tick"])
+		(d["label"] as Label).text = ("Blade turn: %d° (%s)" % [roundi(v), _turn_word(v)]) if k == "turn" else ("Head tilt: %d° (%s)" % [roundi(v), _tilt_word(v)])
+
+
+## HANDS ROW (w4-handlock). The weapon's two hands in plain buttons: both hold it / let the off hand go / the weapon
+## follows the hand (the old Free the bat). Each press is one undo step (_do); the state is said in words.
+const HAND_NAME := {"hand_r": "Right hand", "hand_l": "Left hand"}
+
+
+func _off_hand() -> String:
+	return "hand_l" if B.wep_hand == "hand_r" else "hand_r"
+
+
+## the off hand (the one not holding the weapon) is on the handle now
+func _off_on_handle() -> bool:
+	return B.wep_on and B.wep_hand != "" and B.grip and String(B.grip2.get("hand", "")) == _off_hand()
+
+
+## the hands row: an overlay under the top bar (Expert: right of the browser; Easy: at the left), shown while a weapon is in a
+## hand (Easy: and an arm or hand is picked). The Easy side panel gets only the lock (its height is fixed by the card strip).
+func _hands_block(easy_side: bool) -> VBoxContainer:
+	var box := VBoxContainer.new()
+	box.name = "easy_lock_block" if easy_side else "hands_row"
+	box.add_theme_constant_override("separation", 4)
+	var d := {"box": box, "easy": easy_side}
+	if easy_side:
+		d["lock"] = _button("Lock this part", _toggle_lock.bind(""), "a locked part keeps its pose while you change the rest: it cannot be dragged")
+		d["lock"].toggle_mode = true
+		d["lock"].name = "easy_lock_part"
+		box.add_child(d["lock"])
+	else:
+		d["state"] = _label("", 15, "info", true)
+		d["state"].name = "hands_state"
+		box.add_child(d["state"])
+		var hb := HFlowContainer.new()   # the buttons under the state line, wrapping into a second row (a column covered the body; one row ran off the view)
+		hb.custom_minimum_size = Vector2(330, 0)   # narrow: at 1280 wide the view beside a centred body is ~350 px
+		hb.add_theme_constant_override("h_separation", 4)
+		hb.add_theme_constant_override("v_separation", 4)
+		box.add_child(hb)
+		d["both"] = _button("Both hands", _do.bind(_hands_both), "puts the second hand back on the weapon's handle (one undo step)")
+		d["both"].name = "btn_both_hands"
+		hb.add_child(d["both"])
+		d["let_l"] = _button("Free left hand", _do.bind(_hands_let_go.bind("hand_l")), "takes the left hand off the weapon: it stays where it is, free to move (one undo step)")
+		d["let_l"].name = "btn_let_go_left"
+		hb.add_child(d["let_l"])
+		d["let_r"] = _button("Free right hand", _do.bind(_hands_let_go.bind("hand_r")), "takes the right hand off the weapon: it stays where it is, free to move (one undo step)")
+		d["let_r"].name = "btn_let_go_right"
+		hb.add_child(d["let_r"])
+		d["follow"] = _button("Weapon in hand", _do.bind(_bat_lock), "on: the weapon moves with the hand that holds it. Off: the weapon moves alone (the old Free the bat)")
+		d["follow"].toggle_mode = true
+		d["follow"].name = "btn_weapon_follows"
+		hb.add_child(d["follow"])
+		d["only"] = _button("Only this part", _only_part_toggle, "on (default): a drag moves only the part you grab: no smart follow, no balance re-centre, and a second hand on the weapon lets go. Off: the old follow")
+		d["only"].toggle_mode = true
+		d["only"].name = "btn_only_part"
+		hb.add_child(d["only"])
+		d["turn90"] = _button("Turn blade 90°", _do.bind(_blade_by.bind(90.0)), "the blade rolls a quarter turn about the handle, inside the hand: the hand and its grip stay (one undo step; the card keeps it)")
+		d["turn90"].name = "btn_turn_blade"
+		hb.add_child(d["turn90"])
+		d["flip"] = _button("Flip blade", _do.bind(_blade_by.bind(180.0)), "the blade turns half a turn about the handle: head the other way (one undo step; the card keeps it)")
+		d["flip"].name = "btn_flip_blade"
+		hb.add_child(d["flip"])
+	ui_hands.append(d)
+	_hands_refresh()
+	return box
+
+
+func _hands_refresh() -> void:
+	if B == null:
+		return
+	var held: bool = B.wep_on and B.wep_hand != ""
+	var on_h := _off_on_handle()
+	var o := _off_hand()
+	var wn := B.wep_kind.replace("_", " ")
+	var st := ""
+	if held:
+		st = "%s holds the %s.  %s: %s" % [HAND_NAME[B.wep_hand], wn, HAND_NAME[o], "on the handle" if on_h else "free"]
+	elif B.wep_on:
+		st = "the %s is not in a hand (Weapon follows the hand puts it in one)" % wn
+	else:
+		st = "no weapon in a hand"
+	var arm_pick := sel.begins_with("hand") or sel.begins_with("upperarm") or sel.begins_with("lowerarm")
+	var easy_on: bool = easy != null and easy.on
+	if ui_hands_panel != null and is_instance_valid(ui_hands_panel):
+		ui_hands_panel.visible = held and (not easy_on or arm_pick)
+		# the view's bottom RIGHT, over the floor, above the status line (under the top bar it covered the head; at the
+		# left it met the "Click a part" tip)
+		var vs := get_viewport().get_visible_rect().size
+		ui_hands_panel.reset_size()
+		if easy_on:   # Easy: the view's bottom left, over the floor (under its bar the "What should he do?" picker covered it: walk12;
+			# its slider panel is at the right)
+			ui_hands_panel.position = Vector2(12.0, vs.y - float(BOTTOM_H) - ui_hands_panel.size.y - 64.0)
+		else:   # Expert: the first corner of the view the body is not in (it covered the head, then a hand)
+			var ps := ui_hands_panel.size
+			var x0 := float(LEFT_W) + 12.0
+			var x1 := vs.x - float(RIGHT_W) - 12.0 - ps.x
+			var y0 := float(TOP_H) + 8.0
+			var y1 := vs.y - float(BOTTOM_H) - ps.y - 64.0   # above the mouse-hint line
+			var body := _body_screen_rect().grow(12.0)
+			var pick := Vector2(x1, y1)
+			for c in [Vector2(x1, y1), Vector2(x0, y0), Vector2(x0, y1), Vector2(x1, y0)]:
+				if not Rect2(c, ps).intersects(body):
+					pick = c
+					break
+			ui_hands_panel.position = pick
+	for d in ui_hands:
+		if not is_instance_valid(d["box"]):
+			continue
+		if d["easy"]:
+			(d["lock"] as Button).visible = sel != "" and not (sel in Body.WEAPON)
+			_set_label(d["lock"], "Unlock this part" if locked_parts.has(sel) else "Lock this part")
+			(d["lock"] as Button).set_pressed_no_signal(locked_parts.has(sel))
+			continue
+		(d["state"] as Label).text = st
+		(d["both"] as Button).disabled = on_h
+		(d["let_l"] as Button).disabled = not (on_h and o == "hand_l")
+		(d["let_r"] as Button).disabled = not (on_h and o == "hand_r")
+		(d["follow"] as Button).set_pressed_no_signal(held)
+		(d["only"] as Button).set_pressed_no_signal(only_part)
+	_blade_sync()
+
+
+## the body's box on screen (its joints projected; empty when it is behind the camera)
+func _body_screen_rect() -> Rect2:
+	var r := Rect2()
+	var first := true
+	for j in B.P:
+		var p: Vector3 = B.P[j]
+		if cam.is_position_behind(p):
+			continue
+		var q := cam.unproject_position(p)
+		if first:
+			r = Rect2(q, Vector2.ZERO)
+			first = false
+		else:
+			r = r.expand(q)
+	return r
+
+
+func _hands_both() -> void:
+	if not B.wep_on or B.wep_hand == "":
+		_say("no weapon in a hand: put one in a hand first")
+		return
+	var o := _off_hand()
+	B.free_hand = ""
+	var off := B.capture_second()
+	if off < 0.0 or off > 0.05:
+		B.grip = true   # the grip the hand had (or the fitted one) takes it back to the handle
+	_say("%s back on the %s: both hands hold it" % [HAND_NAME[o], B.wep_kind.replace("_", " ")])
+
+
+func _hands_let_go(h: String) -> void:
+	if not B.wep_on or B.wep_hand == "" or h == B.wep_hand or not B.grip:
+		return
+	B.grip = false
+	B.free_hand = h
+	_say("%s let go of the %s (Both hands hold it puts it back)" % [HAND_NAME[h], B.wep_kind.replace("_", " ")])
+
+
+## a drag of another part while both hands hold the weapon: the off hand lets go (only the part dragged moves)
+func _hands_let_go_auto() -> void:
+	var o := _off_hand()
+	B.grip = false
+	B.free_hand = o
+	_hands_note = "%s let go of the %s: only the part you drag moves (Both hands hold it puts it back)" % [HAND_NAME[o], B.wep_kind.replace("_", " ")]
+
+
+func _only_part_toggle() -> void:
+	only_part = not only_part
+	_say("only the part you drag moves: no smart follow, no balance re-centre" if only_part else "the old follow is on: a drag also moves the joints it is linked to, and the body keeps its balance")
+	_refresh()
+
+
 ## G: the second hand on / off. On: if that hand is already on the shaft, it keeps the grip it has there.
 func _toggle_second() -> void:
 	if B.grip:
 		B.grip = false
 		_say("second hand off the weapon")
 		return
+	B.free_hand = ""
 	var off := B.capture_second()
 	if off < 0.0 or off > 0.05:
 		B.grip = true   # the fitted grip of this kind (or the rough reach) takes the hand to the shaft
@@ -11790,6 +12108,8 @@ func _ui() -> void:
 		"while on, dragging a part on one side moves the same part on the other side, reflected (the middle stays)")
 	tog.call("POSE", "Smart drag", _toggle_smart_drag, func(): return smart_drag,
 		"on: dragging a joint also moves the rest of the body the way YOUR poses move together (learned from poses/ and scenes/; feet planted, balance held). Alt+drag = the one joint only. Command search: 'smart drag follow' sets the strength")
+	tog.call("POSE", "Only the part I drag", _only_part_toggle, func(): return only_part,
+		"on (default): a drag moves only the part you grab: no smart follow, no balance re-centre, and a second hand on the weapon lets go (Both hands hold it puts it back). Off: the old follow")
 	tog.call("POSE", "Keep balance", _toggle_keep_balance, func(): return keep_balance,
 		"on: while you drag a joint he stays over his feet: the hips slide (the back leans a little) so the centre of mass stays 2 cm inside the planted feet; the dragged joint keeps exactly what you gave it. Alt+drag lets him fall. Remembered")
 	tog.call("POSE", "Ouch meter", func(): ouch.set_on(not ouch.on, settings); _refresh(), func(): return ouch.on,
@@ -12218,6 +12538,12 @@ func _ui() -> void:
 	_icon_only(xb, "close", Vector2(26, 24))
 	hd.add_child(xb)
 	ui_fold_btn["right"] = xb
+	ui_hands_panel = PanelContainer.new()   # HANDS (w4-handlock): the weapon's hands row, an overlay (the inspector's height has bars)
+	ui_hands_panel.name = "hands_panel"
+	ui_hands_panel.visible = false
+	ui_hands_panel.position = Vector2(312, TOP_H + 8)
+	ui_root.add_child(ui_hands_panel)
+	ui_hands_panel.add_child(_hands_block(false))
 	ui_how = _label("", PROP_TXT, "info", true)
 	ui_how.visible = false
 	vb.add_child(ui_how)
@@ -12334,6 +12660,25 @@ func _ui() -> void:
 	_row(attrs_sec, [_label("min", PROP_TXT, "text:0.6"), ui_attr_min, _label("max", PROP_TXT, "text:0.6"), ui_attr_max])
 	_row(attrs_sec, [_label("default", PROP_TXT, "text:0.6"), ui_attr_def, _button("+ attribute", _attr_add, "add the attribute to the picked part: one undo step (Ctrl+Z takes it back)")])
 	var wep := _section(vb, "WEAPON")
+	# BLADE TURN / HEAD TILT (w4-bladeturn): the weapon turned inside its hand (the grip stays); rest tick = the saved grip
+	for k in ["turn", "tilt"]:
+		var bbox := VBoxContainer.new()
+		var bl := _prop_row(bbox)
+		var bs := HSlider.new()
+		bs.name = "slider_blade_" + k
+		bs.step = 1.0
+		bs.min_value = -180.0 if k == "turn" else -45.0
+		bs.max_value = 180.0 if k == "turn" else 45.0
+		bs.drag_started.connect(_push_undo)
+		bs.value_changed.connect(_on_blade_slider.bind(k))
+		_row_slider(bl, bs)
+		var btk := Control.new()
+		btk.name = "blade_rest_" + k
+		btk.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		btk.draw.connect(EasySliders._draw_rest.bind(btk))
+		bs.add_child(btk)
+		wep.add_child(bbox)
+		ui_blade[k] = {"slider": bs, "label": bl[0], "box": bbox, "tick": btk}
 	_row(wep, [_weapon_picker("opt_weapon_panel")])
 	_row(wep, [_button("In right hand (B)", _do.bind(_bat_put.bind("hand_r"))), _button("In left hand", _do.bind(_bat_put.bind("hand_l")))])
 	_row(wep, [_button("Main hand down (,)", _do.bind(_slide.bind(-0.03)), "the hand slides toward the lower end; the weapon stays, the arm follows"),
@@ -13383,6 +13728,8 @@ func _bat_from_sliders() -> void:
 	if B.wep_hand != "":
 		B.wep_lrot = q
 		B.wep_lpos = B.lpos_from_knob(pos, B.wep_lrot, B.wep_hand)   # stored in default-hand metres (round 52)
+		B.wep_turn = 0.0   # these set the in-hand place outright: that is the new saved grip the blade turn starts from (w4-bladeturn)
+		B.wep_tilt = 0.0
 	else:
 		B.wep_rot = q
 		B.wep_pos = pos
@@ -13521,6 +13868,9 @@ func _rebuild_cards() -> void:
 		pc.mouse_entered.connect(func(): tools.visible = true)
 		pc.mouse_exited.connect(func(): tools.visible = false)
 		# the timing as one line of text; a click opens the two boxes (move, hold) that edit it
+		if easy_on:
+			continue   # Easy: no timing line and no timing panel (the seconds and the hold are Expert's). The line's button was
+			# made and never added here before: 37 orphan buttons per rebuild of a run (10-25)
 		var tb := _button(_card_timing(i), func(): _card_time_edit(i), "")
 		tb.name = "b_timing"
 		tb.flat = true
@@ -13529,9 +13879,8 @@ func _rebuild_cards() -> void:
 		tb.add_theme_constant_override("h_separation", 0)
 		_card_flat(tb)
 		_card_timing_look(tb, i)
-		if not (easy != null and easy.on):   # Easy: no timing line (the seconds and the hold are Expert's)
-			v.add_child(tb)
-		if not easy_on:   # the timing panel (move, hold) is Expert's: Easy has no timing line to open it, so its boxes are not made
+		v.add_child(tb)
+		if not easy_on:   # the timing panel (move, hold) is Expert's (Easy continued above)
 			var pp := PanelContainer.new()   # not a popup Window (12 of them per rebuild): a panel that floats over the strip
 			pp.name = "time_edit"
 			pp.top_level = true
@@ -18370,6 +18719,12 @@ func _trash(path: String) -> void:
 
 
 func _trash_now(path: String) -> bool:
+	# a TEST run never trashes a shipped file (10-25: a run moved scenes/dodge_side.json to trash/ in a worktree): only its
+	# own work copies (_wip/) or zz_ files. The app itself (no test script) deletes what the person picks, as before
+	if Engine.get_main_loop().get_script() != null and path.begins_with("res://") and not path.contains("/_wip/") 			and not path.get_file().begins_with("zz_"):
+		push_warning("test run: refused to trash a shipped file " + path)
+		_say("couldn't delete '%s' (a test run deletes only its own files)" % path.get_file().get_basename())
+		return false
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(UserPaths.w("res://trash")))
 	var to := UserPaths.w("res://trash/%s_%s.json" % [path.get_file().get_basename(), _stamp()])
 	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(path), ProjectSettings.globalize_path(to))

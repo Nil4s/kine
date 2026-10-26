@@ -219,6 +219,7 @@ func _init() -> void:
 	ok(mt < 1000.0 and _involution(mm), "bar 5: mannequin map < 1 s (%.1f ms) and an involution" % mt)
 	root.free()
 	print("meshsel_test: %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
+	TestFiles.cleanup()
 	quit(1 if fails else 0)
 
 

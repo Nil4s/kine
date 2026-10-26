@@ -191,4 +191,5 @@ func _init() -> void:
 		ok(not M.api.running(), "the same item turns it off")
 
 	print("R9: %d failures" % fails)
+	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
