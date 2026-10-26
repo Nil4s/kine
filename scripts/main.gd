@@ -20590,7 +20590,7 @@ func _prop_menu_pick(id: int, ap: MenuButton) -> void:
 
 
 ## where a new prop goes: in front of the body, beside it first (the dummy stands straight ahead), the first spot
-## whose footprint keeps 10 cm clear of the dummy and of every other prop; none clear: the last spot tried
+## whose footprint keeps 10 cm clear of the body, the dummy and every other prop; none clear: the last spot tried
 func _prop_spot(kind: String) -> Vector3:
 	var o := Vector3(B.offset.x, 0.0, B.offset.z)
 	var spot := o
@@ -20599,6 +20599,7 @@ func _prop_spot(kind: String) -> Vector3:
 			spot = o + Vector3(dx, 0.0, dz)
 			var r := _foot(Props.make(kind, Props.xf_at(spot, 0.0))).grow(0.1)
 			var clear := not (dummy_on and r.grow(0.3).has_point(Vector2(T.xf.origin.x, T.xf.origin.z)))   # 0.3: the dummy's body
+			clear = clear and not r.intersects(Rect2(Vector2(o.x, o.z) - Vector2(0.3, 0.3), Vector2(0.6, 0.6)))   # nor on the body's own feet (a 2 m platform beside him)
 			for q in S.props:
 				clear = clear and not r.intersects(_foot(q))
 			if clear:
