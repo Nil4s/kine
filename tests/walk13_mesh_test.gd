@@ -518,6 +518,7 @@ func _init() -> void:
 	var moved_mm := 0.0
 	var moved_n := 0
 	var sel_ok := false
+	var screen_px := 0.0
 	if v2 == null or before2.is_empty():
 		note("no body mesh to select on (the MODEL page has no mesh open)")
 	else:
@@ -536,7 +537,10 @@ func _init() -> void:
 		sel_ok = true
 		if find_btn("Move") == null:
 			say("   no 'Move' button and no gizmo on the MODEL ribbon: the mesh is moved with G")
-		await press_key(KEY_G)
+			await press_key(KEY_G)
+		else:
+			await idle(5)
+			await click_text("Move")   # the MODEL ribbon's Move button: the same grab as G
 		await idle(3)
 		var cur := await move_view(box.get_center(), Vector2(90, 0))
 		await idle(3)
@@ -545,11 +549,22 @@ func _init() -> void:
 		var after2 := kmesh().verts if kmesh() != null else PackedVector3Array()
 		moved_mm = max_move_mm(before2, after2)
 		moved_n = count_moved(before2, after2)
-		say("   grab: max vertex move %.2f mm, vertices moved %d of %d | '%s'" % [moved_mm, moved_n, before2.size(), status_now()])
+		# the screen travel of the moved verts (their centroid, px): a 90 px mouse drag should move them about 90 px on screen
+		var c0 := Vector2.ZERO
+		var c1 := Vector2.ZERO
+		var nmv := 0
+		for i in mini(before2.size(), after2.size()):
+			if before2[i].distance_to(after2[i]) > 0.0005:
+				c0 += scr_of(v2, before2[i])
+				c1 += scr_of(v2, after2[i])
+				nmv += 1
+		if nmv > 0:
+			screen_px = (c1 / float(nmv) - c0 / float(nmv)).length()
+		say("   grab: max vertex move %.2f mm, vertices moved %d of %d, on screen %.1f px for the 90 px drag | '%s'" % [moved_mm, moved_n, before2.size(), screen_px, status_now()])
 		if moved_n <= 0:
 			note("the box-selected vertices did not move with G + mouse (%s)" % status_now())
 	await shot(2, "the chest part moved")
-	finish(2, sel_ok and moved_n > 0, "max vertex move %.2f mm; vertices moved %d" % [moved_mm, moved_n])
+	finish(2, sel_ok and moved_n > 0, "max vertex move %.2f mm; vertices moved %d; on screen %.1f px for 90 px of mouse" % [moved_mm, moved_n, screen_px])
 
 	# 3. UNDO RESTORES THE MESH
 	start_goal(3, "Undo (top bar): the mesh is back exactly")
@@ -578,7 +593,9 @@ func _init() -> void:
 	say("   SCULPT hint: '%s'" % hint_sc)
 	if hint_sc == "(no hint)":
 		note("no hint on SCULPT with no sphere open")
-	var sph_ok := await click_text("Test sphere")
+	# the body's own sculpt (the ribbon's "Sculpt the body") when it is there: the stroke goes on the fighter's body mesh
+	var body_sc := find_btn("Sculpt the body") != null
+	var sph_ok := await click_text("Sculpt the body" if body_sc else "Test sphere")
 	await idle(20)
 	var brush_ok := await click_text("Draw")
 	await idle(10)
@@ -595,8 +612,12 @@ func _init() -> void:
 		var cen := mean_of(sb)
 		var cscr := sbox.get_center()
 		var rx := sbox.size.x * 0.5
-		note("the sculpt target is the test sphere: SCULPT has no body and no chest (the stroke goes across the sphere)")
-		await drag_view(cscr + Vector2(-0.6 * rx, 0.0), Vector2(1.2 * rx, 0.0))
+		if not body_sc:
+			note("the sculpt target is the test sphere: SCULPT has no body and no chest (the stroke goes across the sphere)")
+		if body_sc:   # the body: a short stroke across its middle (the sphere's left edge is empty space on the body)
+			await drag_view(scr_of(sview, cen) + Vector2(-0.15 * rx, 0.0), Vector2(0.3 * rx, 0.0))
+		else:
+			await drag_view(cscr + Vector2(-0.6 * rx, 0.0), Vector2(1.2 * rx, 0.0))
 		await idle(10)
 		var sa: PackedVector3Array = sphere_mesh().verts if sphere_mesh() != null else PackedVector3Array()
 		sk_mm = max_move_mm(sb, sa)
@@ -620,6 +641,9 @@ func _init() -> void:
 		say("   after Undo: sphere %.4f mm from before the stroke" % sback_mm)
 		if sback_mm < 0.0 or sback_mm >= 0.01:
 			note("Undo did not restore the sphere: %.4f mm from before the stroke" % sback_mm)
+		if body_sc:
+			await press_key(KEY_ESCAPE)   # back to MODEL's body mesh (the Materials panel of goal 5 is the body's)
+			await idle(15)
 		finish(4, sph_ok and brush_ok and sk_moved >= 10 and sback_mm >= 0.0 and sback_mm < 0.01,
 			"stroke moved %d verts (max %.2f mm, %s); Undo back within %.4f mm" % [sk_moved, sk_mm, "outward" if outward > 0.0 else "inward", sback_mm])
 	if sk == null:
