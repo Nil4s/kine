@@ -1,0 +1,186 @@
+class_name PartTemplates
+extends RefCounted
+## EASY PART: templates = parametric feature lists in scripts/build/part.gd's terms (sword, axe, shield, chair, crate).
+## A template makes the SAME record Expert edits, from a few named numbers (mm): rec["easy"] = {"t": "sword", "p": {"blade_length": 760, ...}, "n": features it owns}.
+## The template owns the first n features (ids f1..fn, always the same ids); retemplate() rewrites exactly those when a number changes, and
+## whatever the user added after them (Draw shape, Pull it up ...) stays. Expert sees plain features: "Exact sizes? Use Expert" needs no conversion.
+## params: k (the name), label, lo / hi / def / step (mm), words (the two ends of its slider). dot_of() says which number an amber dot drags.
+
+const MM := 0.001
+const ORDER := ["sword", "axe", "shield", "chair", "crate"]
+const T := {
+	"sword": {"title": "Sword", "params": [
+		{"k": "blade_length", "label": "Blade length", "lo": 300.0, "hi": 1200.0, "def": 760.0, "step": 10.0, "words": ["Shorter", "Longer"]},
+		{"k": "width", "label": "Width", "lo": 30.0, "hi": 120.0, "def": 68.0, "step": 2.0, "words": ["Thinner", "Wider"]},
+		{"k": "guard_size", "label": "Guard size", "lo": 80.0, "hi": 240.0, "def": 130.0, "step": 10.0, "words": ["Smaller", "Bigger"]},
+		{"k": "thickness", "label": "Thickness", "lo": 4.0, "hi": 16.0, "def": 8.0, "step": 1.0, "words": ["Thinner", "Thicker"]}]},
+	"axe": {"title": "Axe", "params": [
+		{"k": "handle_length", "label": "Handle length", "lo": 300.0, "hi": 1000.0, "def": 700.0, "step": 10.0, "words": ["Shorter", "Longer"]},
+		{"k": "head_width", "label": "Blade width", "lo": 80.0, "hi": 300.0, "def": 160.0, "step": 10.0, "words": ["Narrower", "Wider"]},
+		{"k": "head_thickness", "label": "Head thickness", "lo": 10.0, "hi": 50.0, "def": 24.0, "step": 2.0, "words": ["Thinner", "Thicker"]},
+		{"k": "handle_thickness", "label": "Handle thickness", "lo": 20.0, "hi": 50.0, "def": 30.0, "step": 2.0, "words": ["Thinner", "Thicker"]}]},
+	"shield": {"title": "Shield", "params": [
+		{"k": "radius", "label": "Size", "lo": 150.0, "hi": 450.0, "def": 300.0, "step": 10.0, "words": ["Smaller", "Bigger"]},
+		{"k": "thickness", "label": "Thickness", "lo": 6.0, "hi": 30.0, "def": 14.0, "step": 1.0, "words": ["Thinner", "Thicker"]},
+		{"k": "boss", "label": "Middle bump", "lo": 20.0, "hi": 120.0, "def": 60.0, "step": 5.0, "words": ["Smaller", "Bigger"]}]},
+	"chair": {"title": "Chair", "params": [
+		{"k": "seat_height", "label": "Seat height", "lo": 300.0, "hi": 700.0, "def": 450.0, "step": 10.0, "words": ["Lower", "Higher"]},
+		{"k": "seat_width", "label": "Seat width", "lo": 300.0, "hi": 600.0, "def": 420.0, "step": 10.0, "words": ["Narrower", "Wider"]},
+		{"k": "seat_depth", "label": "Seat depth", "lo": 300.0, "hi": 600.0, "def": 420.0, "step": 10.0, "words": ["Shallower", "Deeper"]},
+		{"k": "back_height", "label": "Back height", "lo": 200.0, "hi": 800.0, "def": 450.0, "step": 10.0, "words": ["Lower", "Taller"]}]},
+	"crate": {"title": "Crate", "params": [
+		{"k": "width", "label": "Width", "lo": 200.0, "hi": 900.0, "def": 500.0, "step": 10.0, "words": ["Narrower", "Wider"]},
+		{"k": "height", "label": "Height", "lo": 200.0, "hi": 800.0, "def": 400.0, "step": 10.0, "words": ["Lower", "Taller"]},
+		{"k": "depth", "label": "Depth", "lo": 200.0, "hi": 800.0, "def": 400.0, "step": 10.0, "words": ["Shallower", "Deeper"]},
+		{"k": "lid", "label": "Lid overhang", "lo": 0.0, "hi": 60.0, "def": 20.0, "step": 5.0, "words": ["None", "More"]}]},
+}
+
+
+static func defaults(t: String) -> Dictionary:
+	var p := {}
+	for d in T[t]["params"]:
+		p[d["k"]] = d["def"]
+	return p
+
+
+static func param(t: String, k: String) -> Dictionary:
+	for d in T[t]["params"]:
+		if d["k"] == k:
+			return d
+	return {}
+
+
+## a new record of template t (numbers p: missing ones are the defaults, all clamped to their range)
+static func make(t: String, p := {}) -> Dictionary:
+	var rec := Part.make(String(T[t]["title"]))
+	var pp := defaults(t)
+	for k in p:
+		if pp.has(k):
+			pp[k] = clampf(float(p[k]), float(param(t, k)["lo"]), float(param(t, k)["hi"]))
+	var fs := features_of(t, pp)
+	rec["features"] = fs
+	rec["seq"] = fs.size()
+	rec["easy"] = {"t": t, "p": pp, "n": fs.size()}
+	return rec
+
+
+## writes numbers into the record's template and rewrites the features it owns (the user's own later features stay)
+static func retemplate(rec: Dictionary, p: Dictionary) -> void:
+	var e: Dictionary = rec.get("easy", {})
+	if e.is_empty():
+		return
+	var t := String(e["t"])
+	for k in p:
+		if (e["p"] as Dictionary).has(k):
+			e["p"][k] = clampf(float(p[k]), float(param(t, k)["lo"]), float(param(t, k)["hi"]))
+	var fs := features_of(t, e["p"])
+	var feats: Array = rec["features"]
+	for i in mini(fs.size(), feats.size()):
+		feats[i] = fs[i]
+
+
+static func _sk(fs: Array, plane_name: String, ents: Array) -> String:
+	var id := "f%d" % (fs.size() + 1)
+	var n := fs.filter(func(f): return f["t"] == "sketch").size() + 1
+	fs.append({"t": "sketch", "id": id, "name": "Sketch%d" % n, "plane": plane_name, "ents": ents, "dims": []})
+	return id
+
+
+static func _ex(fs: Array, sketch_id: String, t: String, dist: float, op: String, both := false) -> void:
+	var id := "f%d" % (fs.size() + 1)
+	var n := fs.filter(func(g): return g["t"] == t).size() + 1
+	var f := {"t": t, "id": id, "name": "%s%d" % [t.capitalize(), n], "sketch": sketch_id, "op": op}
+	if t == "extrude":
+		f["dist"] = dist
+		f["both"] = both
+	else:
+		f["axis"] = "x"
+		f["deg"] = 360.0
+	fs.append(f)
+
+
+static func _rect(a: Vector2, b: Vector2) -> Dictionary:
+	return {"k": "rect", "a": Part.arr2(a), "b": Part.arr2(b)}
+
+
+static func _poly(pts: Array) -> Array:
+	var out := []
+	for i in pts.size():
+		out.append({"k": "line", "a": Part.arr2(pts[i]), "b": Part.arr2(pts[(i + 1) % pts.size()])})
+	return out
+
+
+static func features_of(t: String, p: Dictionary) -> Array:
+	var fs: Array = []
+	match t:
+		"sword":
+			var L: float = p["blade_length"]
+			var w: float = p["width"]
+			var g: float = p["guard_size"]
+			var th: float = p["thickness"]
+			var tip := minf(w * 1.6, L * 0.3)
+			_ex(fs, _sk(fs, "front", _poly([Vector2(0, -w * 0.5), Vector2(L - tip, -w * 0.5), Vector2(L, 0), Vector2(L - tip, w * 0.5), Vector2(0, w * 0.5)])), "extrude", th, "new", true)
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(-6, -g * 0.5), Vector2(4, g * 0.5))]), "extrude", 14.0, "join", true)
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(-106, 0), Vector2(-2, 11))]), "revolve", 0.0, "join")
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(-124, 0), Vector2(-104, 15))]), "revolve", 0.0, "join")
+		"axe":
+			var H: float = p["handle_length"]
+			var hw: float = p["head_width"]
+			var ht: float = p["head_thickness"]
+			var r: float = float(p["handle_thickness"]) * 0.5
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(0, 0), Vector2(H + 10, r))]), "revolve", 0.0, "new")
+			var ey := maxf(r + 4.0, 18.0)
+			_ex(fs, _sk(fs, "front", _poly([Vector2(H - 30, -ey), Vector2(H + 5, -ey), Vector2(H + 45, -hw * 0.5), Vector2(H + 45, hw * 0.5), Vector2(H + 5, ey), Vector2(H - 30, ey)])), "extrude", ht, "join", true)
+		"shield":
+			var R: float = p["radius"]
+			var th: float = p["thickness"]
+			var bo: float = p["boss"]
+			_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": R}]), "extrude", th, "new")
+			_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": bo}]), "extrude", th + bo * 0.4, "join")
+		"crate":
+			var w: float = p["width"]
+			var h: float = p["height"]
+			var d: float = p["depth"]
+			var o: float = p["lid"]
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(0, 0), Vector2(w, h))]), "extrude", d, "new")
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(-o, h - 20), Vector2(w + o, h + 30))]), "extrude", d, "join")
+		"chair":
+			var sh: float = p["seat_height"]
+			var w: float = p["seat_width"]
+			var d: float = p["seat_depth"]
+			var bh: float = p["back_height"]
+			var st := 30.0
+			var lt := 40.0
+			_ex(fs, _sk(fs, "front", _poly([Vector2(0, sh), Vector2(w, sh), Vector2(w, 0), Vector2(w - lt, 0), Vector2(w - lt, sh - st), Vector2(lt, sh - st), Vector2(lt, 0), Vector2(0, 0)])), "extrude", d, "new")
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(0, sh - st), Vector2(w, sh + bh))]), "extrude", 30.0, "join")
+			_ex(fs, _sk(fs, "right", [_rect(Vector2(-(d - lt), 0), Vector2(-lt, sh - st))]), "extrude", w, "cut")
+	return fs
+
+
+## the amber drag dot of a template number: {"at": Vector3 (m), "axis": Vector3 (the way the number grows), "gain": mm of number per mm the dot moves}, or {}
+static func dot_of(t: String, k: String, p: Dictionary) -> Dictionary:
+	var s := MM
+	match t + "." + k:
+		"sword.blade_length":
+			return {"at": Vector3(float(p["blade_length"]) * s, 0, 0), "axis": Vector3.RIGHT, "gain": 1.0}
+		"sword.width":
+			return {"at": Vector3(float(p["blade_length"]) * 0.45 * s, float(p["width"]) * 0.5 * s, 0), "axis": Vector3.UP, "gain": 2.0}
+		"sword.guard_size":
+			return {"at": Vector3(-1.0 * s, float(p["guard_size"]) * 0.5 * s, 0), "axis": Vector3.UP, "gain": 2.0}
+		"axe.handle_length":
+			return {"at": Vector3((float(p["handle_length"]) + 45.0) * s, 0, 0), "axis": Vector3.RIGHT, "gain": 1.0}
+		"axe.head_width":
+			return {"at": Vector3((float(p["handle_length"]) + 45.0) * s, float(p["head_width"]) * 0.5 * s, 0), "axis": Vector3.UP, "gain": 2.0}
+		"shield.radius":
+			return {"at": Vector3(float(p["radius"]) * s, 0, 0), "axis": Vector3.RIGHT, "gain": 1.0}
+		"shield.boss":
+			return {"at": Vector3(0, float(p["boss"]) * s, (float(p["thickness"]) + float(p["boss"]) * 0.4) * s), "axis": Vector3.UP, "gain": 1.0}
+		"crate.width":
+			return {"at": Vector3(float(p["width"]) * s, float(p["height"]) * 0.5 * s, 0), "axis": Vector3.RIGHT, "gain": 1.0}
+		"crate.height":
+			return {"at": Vector3(float(p["width"]) * 0.5 * s, float(p["height"]) * s, 0), "axis": Vector3.UP, "gain": 1.0}
+		"chair.seat_height":
+			return {"at": Vector3(float(p["seat_width"]) * s, float(p["seat_height"]) * s, float(p["seat_depth"]) * s), "axis": Vector3.UP, "gain": 1.0}
+		"chair.back_height":
+			return {"at": Vector3(float(p["seat_width"]) * 0.5 * s, (float(p["seat_height"]) + float(p["back_height"])) * s, 0), "axis": Vector3.UP, "gain": 1.0}
+	return {}
