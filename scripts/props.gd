@@ -155,6 +155,17 @@ static func register_building(kind: String, boxes: Array, supports: Array, ramps
 		EXTRA[kind]["ramps"] = ramps
 
 
+## A Part in the set (BuildStage.use): its solid is its bounding box, standing on the floor and centred (as an imported model's); its node is
+## the part's own tessellation, placed the same way (mesh_at). Not written to the scene file: a scene that names it again loads it as a
+## last-known box, or skips it (the same as a missing model)
+static func register_part(kind: String, mesh: ArrayMesh) -> void:
+	var bx := mesh.get_aabb()
+	var sz := bx.size
+	EXTRA[kind] = {"label": "%s (from Part, %.0f x %.0f x %.0f cm)" % [kind.trim_prefix("part:"), sz.x * 100.0, sz.y * 100.0, sz.z * 100.0],
+		"solids": [[Vector3(0, sz.y * 0.5, 0), sz]], "supports": [[sz.y, Vector2.ZERO, Vector2(sz.x, sz.z)]],
+		"mesh": mesh, "mesh_at": -Vector3(bx.get_center().x, bx.position.y, bx.get_center().z)}
+
+
 static func has_kind(kind: String) -> bool:
 	return KINDS.has(kind) or EXTRA.has(kind)
 
@@ -475,6 +486,13 @@ static func mesh(p: Dictionary) -> Node3D:
 				root.add_child(n)
 				_tint_models(n, colour_of(p), p)
 				return root
+	if kd.get("mesh") is ArrayMesh:   # a Part in the set: its own tessellation (register_part), centred on the prop like a box
+		var pm := MeshInstance3D.new()
+		pm.mesh = kd["mesh"]
+		pm.material_override = mat
+		pm.position = kd["mesh_at"]
+		root.add_child(pm)
+		return root
 	var holder := root
 	if bool(kd.get("hinged", false)):   # the door: its solids under a "leaf" node turned about the hinge
 		holder = Node3D.new()

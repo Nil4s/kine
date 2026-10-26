@@ -64,6 +64,7 @@ var part_btn: Button
 var tool_btns := {}
 var finish_btn: Button
 var house_btns: Array = []     # the BUILD ribbon's own buttons, hidden while the Part workspace is on
+var reopen_btn: Button = null  # "What to build" (BuildChoose.reopen_button): kept on the Part ribbon
 var my_seps: Array = []
 var _was_show := false
 var _tag_vis: Array = []       # the floor's axis names as they were (they say "his left": not for a part)
@@ -141,9 +142,16 @@ func setup(b: BuildUI) -> void:
 	easy_open_btn.name = "part_easy_open"
 	_icon(easy_open_btn, "part_part")
 	row.add_child(easy_open_btn)
+	# the row's order: the way back, Part, Easy, Finish, then the tools. A row too long for the window sends its LAST buttons to More,
+	# so Easy and Finish stay on the bar and the advanced tools go (the words of "What to build" made the row longer)
+	row.move_child(easy_open_btn, part_btn.get_index() + 1)
+	row.move_child(finish_btn, easy_open_btn.get_index() + 1)
 	for c in row.get_children():
 		if not house_btns.has(c) and c != part_btn:
 			c.visible = false
+	for c in house_btns:
+		if c.name == "build_choose_open":
+			reopen_btn = c as Button
 	part_mesh = MeshInstance3D.new()
 	part_mesh.name = "part_mesh"
 	part_mesh.material_override = _solid_mat(Color(0.74, 0.77, 0.82))
@@ -227,6 +235,8 @@ func ribbon_shows(b: Node, tab: String) -> bool:
 	var show := chrome()
 	if b == part_btn:
 		return bu.on and not bu.easy_ui()
+	if b == reopen_btn:   # the way back to the chooser: in the Part ribbon too, with its words
+		return true
 	if b is VSeparator:
 		return show if my_seps.has(b) else not show
 	if house_btns.has(b):
@@ -1352,7 +1362,9 @@ func sync() -> void:
 	part_btn.visible = bu.on and not bu.easy_ui()
 	part_btn.set_pressed_no_signal(on)
 	for c in house_btns:
-		(c as Control).visible = not show
+		(c as Control).visible = not show or c == reopen_btn
+	if reopen_btn != null:
+		reopen_btn.text = "What to build" if show else ""   # icon only in the house ribbon (it is crowded there); with words here
 	for t in tool_btns:
 		(tool_btns[t] as Control).visible = show
 	finish_btn.visible = show

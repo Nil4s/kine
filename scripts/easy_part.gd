@@ -31,6 +31,8 @@ var bar: PanelContainer
 var title_l: Label
 var undo_btn: Button
 var redo_btn: Button
+var use_scene_btn: Button
+var whole_l: Label             # "Whole sword: N cm": the shape's biggest size, under the sliders (the blade slider is not the whole length)
 var easy_btn: Button
 var expert_btn: Button
 var make_box: HBoxContainer
@@ -94,8 +96,11 @@ func build(root: Control) -> void:
 	row.add_child(title_l)
 	undo_btn = _bar_btn("Undo", "Take back the last change", func(): m._undo())
 	redo_btn = _bar_btn("Redo", "Put back what Undo took back", func(): m._redo())
+	use_scene_btn = _bar_btn("Use in a scene", "Put this part into the scene as a prop", _use_scene)
+	use_scene_btn.custom_minimum_size.x = 150.0
 	row.add_child(undo_btn)
 	row.add_child(redo_btn)
+	row.add_child(use_scene_btn)
 	easy_btn = _bar_btn("Easy", "Sliders and big buttons", func(): pass)
 	easy_btn.toggle_mode = true
 	easy_btn.button_pressed = true
@@ -183,6 +188,10 @@ func build(root: Control) -> void:
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 4)
 	v.add_child(rows_vb)
+	whole_l = Label.new()
+	whole_l.name = "easypart_whole"
+	whole_l.add_theme_font_size_override("font_size", 16)
+	v.add_child(whole_l)
 	var foot := HFlowContainer.new()
 	foot.name = "easypart_foot"
 	foot.add_theme_constant_override("separation", 8)
@@ -512,6 +521,11 @@ func _values_sync() -> void:
 			s.set_value_no_signal(v)
 		_pill_text(r, s.value)
 		m._grey(s, Part.why_not() if off else "")
+	whole_l.visible = _tpl() != ""
+	if whole_l.visible:   # the whole shape's biggest size (the replay's box, m -> cm): the sliders move one part of it
+		var bb: AABB = pu.res.get("aabb", AABB())
+		var big := maxf(bb.size.x, maxf(bb.size.y, bb.size.z))
+		whole_l.text = "Whole %s: %d cm" % [_nm(), roundi(big * 100.0)] if big > 0.0 else "Whole %s: not made yet" % _nm()
 
 
 # ---------------------------------------------------------------- chips, Back to the first one
@@ -551,6 +565,12 @@ func _back() -> void:
 
 
 # ---------------------------------------------------------------- the six buttons
+
+## "Use in a scene": the part becomes a prop of the set (BuildUI.use_part, one undo step); the page goes to STAGE
+func _use_scene() -> void:
+	armed = ""
+	_flush_if_dirty()
+	pu.bu.use_part()
 
 func _make(which: String) -> void:
 	if not Part.available():
@@ -663,7 +683,7 @@ func _hole(rec: Dictionary) -> String:
 		return "Make something solid first"
 	var bb: AABB = res["aabb"]
 	var c := bb.get_center() / Part.MM
-	var r := clampf(minf(bb.size.x, bb.size.y) / Part.MM * 0.12, 3.0, 40.0)
+	var r := clampf(minf(bb.size.x, bb.size.y) / Part.MM * 0.12, 10.0, 40.0)   # the radius in mm: a hole 2 to 8 cm across
 	var s := Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "circle", "c": Part.arr2(Vector2(c.x, c.y)), "r": snappedf(r, 0.5)}], "dims": []})
 	rec["features"].append(s)
 	var f := Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(bb.size.z / Part.MM + 20.0, 1.0), "both": true, "op": "cut"})
@@ -672,7 +692,7 @@ func _hole(rec: Dictionary) -> String:
 	var after := float(Part.replay(rec)["volume"])
 	if after >= before - 1e-12:
 		return "The hole would miss the shape: nothing was cut"
-	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.3, "hi": 8.0, "step": 0.1, "scale": 10.0, "words": ["Smaller", "Bigger"]}
+	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}   # the slider is the hole's WIDTH (cm): radius mm = width cm * 5
 	_say("A hole through the middle: use the slider for its size")
 	return ""
 
@@ -738,6 +758,7 @@ func _chrome_sync() -> void:
 		m._grey(make_btns[k], Part.why_not() if off else "")
 	(make_btns["draw"] as Button).set_pressed_no_signal(armed == "draw" and not off)
 	m._grey(back_btn, Part.why_not() if off else ("" if t != "" else "Pick a shape above first"))
+	m._grey(use_scene_btn, Part.why_not() if off else ("" if not _rec().get("features", []).is_empty() else "Draw a shape first"))
 	easy_btn.set_pressed_no_signal(true)
 	expert_btn.set_pressed_no_signal(false)
 	_chips_sync()

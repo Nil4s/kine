@@ -687,7 +687,8 @@ func sync() -> void:
 	var has_rooms: bool = not bd.is_empty() and not bool(bd.get("readonly", false)) and not bd.get("rooms", []).is_empty()
 	if use_btn != null:
 		use_btn.visible = m.S.kind == "building"
-		m._grey(use_btn, "" if has_rooms else "draw a room first")
+		var why := "" if has_rooms or part_ready() else ("draw a part first" if part.on else "draw a room first")
+		m._grey(use_btn, why)
 		use_btn.text = "Back to BUILD" if m.cur_page == "STAGE" else "Use in a scene"
 	if bp_btn != null:
 		m._grey(bp_btn, "" if has_rooms else "draw a room first")
@@ -1606,6 +1607,9 @@ func _use_pressed() -> void:
 
 ## the house becomes a set: its kind is registered from the record, one prop is added (once), the page is STAGE. One undo step
 func use_in_scene() -> void:
+	if part_ready():   # the Part workspace on screen wins over the house (its own prop)
+		use_part()
+		return
 	var bd := _bld()
 	if bd.is_empty() or bd.get("rooms", []).is_empty() or bool(bd.get("readonly", false)):
 		_say("Use in a scene: draw a room first", "Draw a room first")
@@ -1621,6 +1625,29 @@ func use_in_scene() -> void:
 	frame_door(String(doors[0]) if not doors.is_empty() else "")
 	_say("STAGE: the building is now a set (%s). %s Edit the house in BUILD any time" % [kind.trim_prefix("building:"),
 		"The fighter walks through the %s." % doors[0] if not doors.is_empty() else "Put a door in it and the fighter can walk in."])
+
+
+## a Part is on screen (Expert or Easy) and has something in it: "Use in a scene" puts it in the set
+func part_ready() -> bool:
+	return part != null and part.on and not m.S.part.is_empty() and not m.S.part.get("features", []).is_empty()
+
+
+## the part becomes a prop of the set (BuildStage.use, its tessellation): one undo step, the page is STAGE as for a house
+func use_part() -> void:
+	var nm := String(m.S.part.get("name", "part"))
+	m._step_hint = "Use in a scene: %s" % nm
+	m._push_undo()
+	var kind := BuildStage.use(m.S, m.S.part)
+	if kind == "":
+		m._drop_undo()
+		_say("Use in a scene: make something solid first", "Make something solid first")
+		return
+	m.sel_prop = -1
+	m._props_show()
+	m._page_set("STAGE")
+	_stage_sync()
+	_frame_house()
+	_say("STAGE: the %s is in the scene as a prop. Edit it in BUILD any time" % nm, "STAGE: the %s is in the scene" % nm)
 
 
 ## the STAGE camera: the door seen from outside, a little above, the fighter's walk in view ("" = the house's middle)

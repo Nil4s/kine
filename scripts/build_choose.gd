@@ -187,6 +187,7 @@ func _sync() -> void:
 		(whys[id] as Label).text = why
 		(whys[id] as Label).visible = why != ""
 		(cards[id] as PanelContainer).modulate = Color(1, 1, 1, 0.55) if why != "" else Color.WHITE
+		(cards[id] as PanelContainer).visible = not (why != "" and m.easy != null and m.easy.on)   # Easy: the not-ready cards are left out (Expert keeps them, greyed, with why)
 		for mode in ["easy", "expert"]:
 			var b: Button = btns[id][mode]
 			b.add_theme_stylebox_override("normal", _sb(YEL if (mode == "easy" and why == "") else Color(0.2, 0.21, 0.26), 8))
@@ -255,6 +256,8 @@ func _start(id: String, easy_on: bool) -> void:
 	if why != "":
 		m._say(why)
 		return
+	if id != "part" and m.bld.part.on:   # a card that is not the Part one leaves the Part workspace (Expert's way back to the house)
+		m.bld.part.set_on(false)
 	match id:
 		"house":
 			_mode(easy_on)
@@ -275,13 +278,13 @@ func _start(id: String, easy_on: bool) -> void:
 			_mode(easy_on)
 			_ask_step(easy_on)
 		"part":
-			if easy_on:   # Easy Part (shape + sliders) is not built yet: say so, change nothing
-				m._say("Easy Part (shapes and sliders) is coming. Expert Part is ready: sketch, extrude, revolve, fillet, with a timeline")
-				return
-			_mode(false)
+			_mode(easy_on)
 			close()
 			m._page_set("BUILD")
-			m.bld.part.set_on(true)
+			if easy_on:   # Easy Part: shape + sliders (easy_part.gd); the same record Expert opens
+				m.bld.part.open_easy()
+			else:
+				m.bld.part.set_on(true)
 
 
 func _mode(easy_on: bool) -> void:

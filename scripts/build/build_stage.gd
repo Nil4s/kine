@@ -57,8 +57,17 @@ static func swap_in(S: Scene, rec: Dictionary) -> void:
 	S.building = rec
 
 
-## put the house in the set (once): registers the kind and adds the prop at the origin. Returns the kind ("" when there is no house)
-static func use(S: Scene) -> String:
+## put the house in the set (once): registers the kind and adds the prop at the origin. Returns the kind ("" when there is no house).
+## With a Part record: the part is put in the set as a prop of its own (one per call), made from its tessellation; "" when it has no solid
+static func use(S: Scene, part := {}) -> String:
+	if not part.is_empty():
+		var res := Part.replay(part)
+		if res["mesh"] == null:
+			return ""
+		var pk := "part:" + String(part.get("name", "Part"))
+		Props.register_part(pk, res["mesh"])
+		S.props.append(Props.make(pk, Transform3D.IDENTITY))
+		return pk
 	var kind := register(S.building)
 	if kind == "":
 		return ""
