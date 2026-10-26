@@ -238,7 +238,7 @@ func set_height_text(s: String, i := cur) -> String:
 		return _say("that reference image is locked: untick Lock to size it")
 	var h := KMeshRefPlanes.parse_len(s)
 	if is_nan(h):
-		return _say("'%s' is not a length: type 180 (cm), 180 cm or 1.8 m" % s)
+		return _say("'%s' is not a length: type 180 (cm), 180 cm or 1800 mm" % s)
 	KMeshRefPlanes.set_height(e, h)
 	_apply(i)
 	_refresh()
@@ -298,7 +298,7 @@ func apply_two_points(s: String) -> String:
 		return _say("that reference image is locked: untick Lock to scale it")
 	var d := KMeshRefPlanes.parse_len(s)
 	if is_nan(d):
-		return _say("'%s' is not a length: type 50 (cm), 50 cm or 0.5 m" % s)
+		return _say("'%s' is not a length: type 50 (cm), 50 cm or 500 mm" % s)
 	KMeshRefPlanes.set_height(e, KMeshRefPlanes.height_for(e, two[0], two[1], d))
 	_apply(cur)
 	_refresh()
@@ -329,7 +329,7 @@ func input(ev: InputEvent) -> bool:
 		if two.size() >= 2:
 			armed = false
 			_dist.grab_focus()
-			_say("two points marked: type their real distance (180, 50 cm, 0.5 m) in the panel and press Enter")
+			_say("two points marked: type their real distance (180, 50 cm, 500 mm) in the panel and press Enter")
 		else:
 			_say("first point marked: click the second")
 		return true
@@ -423,7 +423,7 @@ func _build_panel() -> void:
 	_h = LineEdit.new()
 	_h.name = "rp_height"
 	_h.placeholder_text = "180 cm"
-	_h.tooltip_text = "how tall the picture is in real life: 180, 180 cm or 1.8 m, then Enter"
+	_h.tooltip_text = "how tall the picture is in real life: 180, 180 cm or 1800 mm, then Enter"
 	_h.text_submitted.connect(func(t): set_height_text(t))
 	_locked_boxes.append(_h)
 	g.add_child(_h)
@@ -433,7 +433,7 @@ func _build_panel() -> void:
 	_dist = LineEdit.new()
 	_dist.name = "rp_dist"
 	_dist.placeholder_text = "their distance"
-	_dist.tooltip_text = "the two points' real distance: 50, 50 cm or 0.5 m, then Enter"
+	_dist.tooltip_text = "the two points' real distance: 50, 50 cm or 500 mm, then Enter"
 	_dist.text_submitted.connect(func(t): apply_two_points(t))
 	_locked_boxes.append(_dist)
 	g.add_child(_dist)

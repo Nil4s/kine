@@ -360,7 +360,7 @@ static func check(m: KMesh, kind := "", B: Body = null, mesh_name := "") -> Dict
 	var art := "an" if "aeiou".contains(String(r["label"]).left(1)) else "a"
 	var how := ""
 	if r.has("add"):
-		how = "%s %s needs at least the %s + %.0f cm (this fighter's %s is %s, %s), up to %.1f times it" % [art, r["label"], rw[0], float(r["add"]) * 100.0, rw[0], fmt(rg["ref_m"]), rw[1], float(r["hi"])]
+		how = "%s %s needs at least the %s + %.0f cm (this fighter's %s is %s, %s), up to %.1f× it" % [art, r["label"], rw[0], float(r["add"]) * 100.0, rw[0], fmt(rg["ref_m"]), rw[1], float(r["hi"])]
 	else:
 		how = "%s %s is usually %s-%s %s (this fighter's %s is %s, %s)" % [art, r["label"], _num(r["lo"]), _num(r["hi"]), rw[2], rw[0], fmt(rg["ref_m"]), rw[1]]
 	out["text"] = "%s %s: %s, so %s. %s" % [fmt(x), what, how, _fmt_range(rg["lo"], rg["hi"]), {"ok": "OK", "suspicious": "SUSPICIOUS", "wrong": "WRONG"}[v]]

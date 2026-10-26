@@ -21937,7 +21937,7 @@ func _gen_poll(dt: float) -> void:
 	if r == "":
 		if gen_move.busy() and int(gen_move.t / 60.0) > _gen_said:
 			_gen_said = int(gen_move.t / 60.0)
-			_say("making \"%s\": %d min so far (about 9 on an 8 GB card)" % [gen_move.words, _gen_said])
+			_say("making \"%s\": %d minutes so far (about 9 on an 8 GB card)" % [gen_move.words, _gen_said])
 		return
 	if r != "done":
 		_say("make a move: %s" % r)
