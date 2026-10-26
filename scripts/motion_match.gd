@@ -88,7 +88,9 @@ static func build_co(dirs: Array = ["res://scenes/", "res://moves/"]) -> Diction
 			clips.append(c)
 		if not await FrameMemo.pump(float(k) / float(maxi(files.size(), 1))):
 			return {}
-	var out := _pack(clips)
+	var out: Dictionary = await _pack_co(clips)
+	if out.is_empty():
+		return {}   # cancelled while the rows were packed
 	_cache.clear()
 	_cache[stamp] = out
 	return out.duplicate()
@@ -195,7 +197,16 @@ static func _loc(v: Vector3, ch: float, sh: float) -> Vector3:
 
 
 ## all clips' rows, the mean and sd per dimension, the normalised rows z
+## the rows of every clip (a plain call: never waits for a frame)
 static func _pack(clips: Array) -> Dictionary:
+	var keep := FrameMemo.suspend_slicing()   # a plain call never waits for a frame
+	var r: Dictionary = _pack_co.call(clips)
+	FrameMemo.resume_slicing(keep)
+	return r
+
+
+## _pack in slices (the build button): a few rows per frame while FrameMemo slicing is on; {} = cancelled
+static func _pack_co(clips: Array) -> Dictionary:
 	var raw := PackedFloat32Array()
 	var clip_of := PackedInt32Array()
 	var frame_of := PackedInt32Array()
@@ -209,6 +220,8 @@ static func _pack(clips: Array) -> Dictionary:
 		var c: Dictionary = clips[ci]
 		info.append({"name": c["name"], "path": c["path"], "fps": c["fps"], "n": c["n"], "first": nfr})
 		for f in c["n"]:
+			if not await FrameMemo.pump():
+				return {}
 			raw.append_array(_feat(c, f))
 			clip_of.append(ci)
 			frame_of.append(f)
@@ -222,6 +235,8 @@ static func _pack(clips: Array) -> Dictionary:
 	mean.resize(DIM)
 	sd.resize(DIM)
 	for d in DIM:
+		if not await FrameMemo.pump():
+			return {}
 		var s := 0.0
 		for i in nfr:
 			s += raw[i * DIM + d]
@@ -235,6 +250,8 @@ static func _pack(clips: Array) -> Dictionary:
 	var z := PackedFloat32Array()
 	z.resize(nfr * DIM)
 	for i in nfr:
+		if not await FrameMemo.pump():
+			return {}
 		for d in DIM:
 			z[i * DIM + d] = (raw[i * DIM + d] - mean[d]) / sd[d]
 	var db := {"n": nfr, "raw": raw, "z": z, "mean": mean, "sd": sd, "clip_of": clip_of, "frame_of": frame_of,
@@ -243,7 +260,13 @@ static func _pack(clips: Array) -> Dictionary:
 	# the rows as 9 Vector3 chunks (3 dims each), pre-scaled by the weights: a distance is then a plain squared length
 	db["zf"] = _chunks_all(db, 0)
 	db["zt"] = _chunks_all(db, 1)
-	db["ix"] = [_index(db["zf"], nfr), _index(db["zt"], nfr)]
+	var ixf: Dictionary = await _index_co(db["zf"], nfr)
+	if ixf.is_empty():
+		return {}
+	var ixt: Dictionary = await _index_co(db["zt"], nfr)
+	if ixt.is_empty():
+		return {}
+	db["ix"] = [ixf, ixt]
 	return db
 
 
@@ -257,6 +280,14 @@ const EPS := 1e-4
 
 
 static func _index(zs: PackedVector3Array, n: int) -> Dictionary:
+	var keep := FrameMemo.suspend_slicing()   # a plain call never waits for a frame
+	var r: Dictionary = _index_co.call(zs, n)
+	FrameMemo.resume_slicing(keep)
+	return r
+
+
+## _index in slices: a few rows per frame while FrameMemo slicing is on; {} = cancelled
+static func _index_co(zs: PackedVector3Array, n: int) -> Dictionary:
 	var k := clampi(int(roundf(sqrt(float(n)))), 1, 64)
 	var cen := PackedVector3Array()
 	cen.resize(k * 9)
@@ -268,6 +299,8 @@ static func _index(zs: PackedVector3Array, n: int) -> Dictionary:
 	owner.resize(n)
 	for pass_i in 3:
 		for i in n:
+			if not await FrameMemo.pump():
+				return {}
 			var bd := INF
 			var bc := 0
 			for c in k:
@@ -289,6 +322,8 @@ static func _index(zs: PackedVector3Array, n: int) -> Dictionary:
 		var cnt := PackedInt32Array()
 		cnt.resize(k)
 		for i in n:
+			if not await FrameMemo.pump():
+				return {}
 			var c := owner[i]
 			cnt[c] += 1
 			for j in 9:
@@ -315,6 +350,8 @@ static func _index(zs: PackedVector3Array, n: int) -> Dictionary:
 	var rad := PackedFloat32Array()
 	rad.resize(k)
 	for c in k:
+		if not await FrameMemo.pump():
+			return {}
 		for p in range(start[c], start[c + 1]):
 			var i := rows[p]
 			var s := 0.0
