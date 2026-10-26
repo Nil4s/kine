@@ -130,6 +130,136 @@ static func import_step(path: String) -> int:
 	return n.import_step(ProjectSettings.globalize_path(path)) if n != null else 0
 
 
+## ---- phase 2: sketch -> solid (Fusion-style PART tools). A sketch plane is (origin, x_dir, normal); (u, v) = origin + u*x + v*(normal x x).
+## Sketch items: KCad.line(a, b), KCad.arc(a, mid, b), KCad.circle(c, r), KCad.bspline(pts, closed); give them in any order, forming ONE loop.
+## Edge / face ids are positions in that shape's own list (see edges() / faces()): stable for one shape id, not across derived shapes.
+
+static func line(a: Vector2, b: Vector2) -> Dictionary:
+	return {"t": "line", "a": a, "b": b}
+
+
+## three-point arc: from a to b through m
+static func arc(a: Vector2, m: Vector2, b: Vector2) -> Dictionary:
+	return {"t": "arc", "a": a, "m": m, "b": b}
+
+
+static func circle(c: Vector2, r: float) -> Dictionary:
+	return {"t": "circle", "c": c, "r": r}
+
+
+## interpolating B-spline through pts; closed = a periodic curve (do not repeat the first point)
+static func bspline(pts: PackedVector2Array, closed := false) -> Dictionary:
+	return {"t": "bspline", "pts": pts, "closed": closed}
+
+
+## closed polygon as line items
+static func polygon(pts: PackedVector2Array) -> Array:
+	var out := []
+	for i in pts.size():
+		out.append(line(pts[i], pts[(i + 1) % pts.size()]))
+	return out
+
+
+static func sketch_wire(items: Array, origin := Vector3.ZERO, x_dir := Vector3.RIGHT, normal := Vector3.BACK) -> int:
+	var n = _n()
+	return n.sketch_wire(items, origin, x_dir, normal) if n != null else 0
+
+
+## planar face (its normal is the sketch normal whatever the winding)
+static func sketch_face(items: Array, origin := Vector3.ZERO, x_dir := Vector3.RIGHT, normal := Vector3.BACK) -> int:
+	var n = _n()
+	return n.sketch_face(items, origin, x_dir, normal) if n != null else 0
+
+
+static func path_wire(points: PackedVector3Array) -> int:
+	var n = _n()
+	return n.path_wire(points) if n != null else 0
+
+
+static func face_from_wire(wire: int) -> int:
+	var n = _n()
+	return n.face_from_wire(wire) if n != null else 0
+
+
+## along the face normal. both: symmetric about the sketch plane, `dist` is the TOTAL. taper (radians): > 0 narrows with height.
+static func extrude(face: int, dist: float, both := false, taper := 0.0) -> int:
+	var n = _n()
+	return n.extrude(face, dist, both, taper) if n != null else 0
+
+
+## radians >= TAU (or <= -TAU) is a full turn
+static func revolve(profile: int, axis_origin: Vector3, axis_dir: Vector3, radians := TAU) -> int:
+	var n = _n()
+	return n.revolve(profile, axis_origin, axis_dir, radians) if n != null else 0
+
+
+## profile face -> solid, profile wire -> shell; path = wire (sketch_wire / path_wire)
+static func sweep(profile: int, path: int) -> int:
+	var n = _n()
+	return n.sweep(profile, path) if n != null else 0
+
+
+## profiles: wires or faces, in order. ruled = straight between profiles, else smooth.
+static func loft(profiles: PackedInt32Array, ruled := false, solid := true) -> int:
+	var n = _n()
+	return n.loft(profiles, ruled, solid) if n != null else 0
+
+
+## [{id, center (mid point of the curve), a, b, length, dir (unit tangent at the middle), faces: [face ids]}]
+static func edges(id: int) -> Array:
+	var n = _n()
+	return n.edges(id) if n != null else []
+
+
+## [{id, center (centre of mass snapped onto the face), normal (outward there), mass_center, area, type}]
+static func faces(id: int) -> Array:
+	var n = _n()
+	return n.faces(id) if n != null else []
+
+
+static func fillet_edges(id: int, edge_ids: PackedInt32Array, radius: float) -> int:
+	var n = _n()
+	return n.fillet_edges(id, edge_ids, radius) if n != null else 0
+
+
+static func chamfer_edges(id: int, edge_ids: PackedInt32Array, dist: float) -> int:
+	var n = _n()
+	return n.chamfer_edges(id, edge_ids, dist) if n != null else 0
+
+
+## the reflected copy only (use mirror_join for the part + its mirror)
+static func mirror(id: int, origin := Vector3.ZERO, normal := Vector3.RIGHT) -> int:
+	var n = _n()
+	return n.mirror(id, origin, normal) if n != null else 0
+
+
+static func mirror_join(id: int, origin := Vector3.ZERO, normal := Vector3.RIGHT) -> int:
+	var m := mirror(id, origin, normal)
+	if m == 0:
+		return 0
+	var u := union(id, m)
+	release(m)
+	return u
+
+
+## count copies (the original included) spaced by `step`, fused into one shape
+static func pattern_linear(id: int, step: Vector3, count: int) -> int:
+	var n = _n()
+	return n.pattern_linear(id, step, count) if n != null else 0
+
+
+## count copies round an axis. A full turn (>= TAU) spreads them evenly; a smaller angle is the span from the first to the last copy.
+static func pattern_circular(id: int, axis_origin: Vector3, axis_dir: Vector3, count: int, total_radians := TAU) -> int:
+	var n = _n()
+	return n.pattern_circular(id, axis_origin, axis_dir, count, total_radians) if n != null else 0
+
+
+## {volume, area, center (of mass), inertia (Basis about the centre, density 1)}; empty on failure
+static func mass_properties(id: int) -> Dictionary:
+	var n = _n()
+	return n.mass_properties(id) if n != null else {}
+
+
 static func release(id: int) -> void:
 	var n = _n()
 	if n != null:

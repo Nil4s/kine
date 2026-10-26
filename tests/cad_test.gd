@@ -14,6 +14,18 @@ extends SceneTree
 ##   9 SHELL: a 1 m cube hollowed 0.1 open at +Z has volume 1 - 0.8*0.8*0.9; hollowed closed 1 - 0.8^3
 ##  10 ERRORS: bad ids, a missing STEP file and a too-big fillet return 0 / false with a non-empty last_error() and no crash
 ##  11 TIMING: every op's time is printed (ms); BAR: the whole part (build + fillet + tessellate) in under 2 s
+##  PHASE 2 (sketch -> solid; closed forms only, bars written before measuring):
+##  12 EXTRUDE: 2x1 rectangle (CCW and CW winding) by 3 -> volume 6 within 1e-9; symmetric (both) 6 and spans z -1.5..1.5; negative distance 6; tapered 1x1 by 1 at 10 deg -> frustum
+##  13 REVOLVE: rectangle x 0..1, z 0..2 about Z, full turn -> pi*2; half turn -> pi
+##  14 LOFT: squares 1 -> 0.5 over 2 m (ruled and smooth) -> frustum h/3*(A1+A2+sqrt(A1*A2)); three equal squares smooth -> box
+##  15 SWEEP: circle r 0.1 along a 1 m line -> pi*0.01; along a quarter arc R 1 -> pi*r^2*(pi/2)
+##  16 FILLET / CHAMFER on one picked edge: 2x1x1 box edge (len 2): volume - (1-pi/4)r^2*2 and - d^2/2*2, within 1e-6 relative
+##  17 MIRROR doubles volume; linear x4 -> 4V, overlapping linear x4 -> 2.5V, circular x4 -> 4V
+##  18 PICKING: faces()/edges() ids, outward unit normals, edge lengths sum 16, each edge borders 2 faces; bad edge id / solid extrude / open loop fail cleanly
+##  19 MASS: volume / area / centre of mass / box inertia of a moved box
+##  20 BLADE: sword-blade profile (lines + arc tip) extruded + edges filleted tessellates watertight, mesh volume within 1% of kernel; closed B-spline extrude volume = face area*h
+##  21 STEP: the filleted blade round-trips with the same volume (1e-6)
+##  22 RELEASE: ids made then released bring live_count back
 const KCad := preload("res://scripts/kcad.gd")
 const R_HOLE := 0.25
 const R_FIL := 0.1
@@ -114,6 +126,7 @@ func _init() -> void:
 				and KCad.volume(1) < 0.0 and not KCad.export_step(1, "user://x.step") and KCad.live_count() == 0,
 				"2 NO DLL: builders return 0, tessellate null, volume < 0, export false")
 		ok("native/CAD_BUILD.md" in KCad.last_error(), "2 NO DLL: last_error names the build note: " + KCad.last_error())
+		skip("12-22 PHASE 2 (sketch, extrude, revolve, loft, sweep, fillet/chamfer by edge, mirror, pattern, mass)")
 		for b in ["3 PRIMITIVES", "4 BOOLEANS", "5 PART", "6 MESH", "7 WATERTIGHT", "8 STEP", "9 SHELL", "10 ERRORS", "11 TIMING"]:
 			skip(b)
 		finish()
@@ -249,10 +262,217 @@ at all")
 				total += e[1]
 	ok(total < 2000.0, "11 TIMING: build + fillet + tessellate %.1f ms (< 2000)" % total)
 
+	phase2()
 	KCad.release_all()
 	ok(KCad.live_count() == 0, "release_all leaves no live shapes")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	finish()
+
+
+func nearest_edge(id: int, p: Vector3) -> int:
+	var best := 0
+	var bd := INF
+	for e in KCad.edges(id):
+		var d: float = (e["center"] as Vector3).distance_to(p)
+		if d < bd:
+			bd = d
+			best = e["id"]
+	return best
+
+
+func zrange(m: ArrayMesh) -> Vector2:
+	var v: PackedVector3Array = m.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var r := Vector2(INF, -INF)
+	for p in v:
+		r.x = minf(r.x, p.z)
+		r.y = maxf(r.y, p.z)
+	return r
+
+
+func frustum(h: float, a1: float, a2: float) -> float:
+	return h / 3.0 * (a1 + a2 + sqrt(a1 * a2))
+
+
+func square(s: float) -> PackedVector2Array:
+	return PackedVector2Array([Vector2(-s / 2, -s / 2), Vector2(s / 2, -s / 2), Vector2(s / 2, s / 2), Vector2(-s / 2, s / 2)])
+
+
+func phase2() -> void:
+	# 12 extrude
+	var rect := PackedVector2Array([Vector2(-1, -0.5), Vector2(1, -0.5), Vector2(1, 0.5), Vector2(-1, 0.5)])
+	var rect_cw := PackedVector2Array([Vector2(-1, -0.5), Vector2(-1, 0.5), Vector2(1, 0.5), Vector2(1, -0.5)])
+	var f_ccw := KCad.sketch_face(KCad.polygon(rect))
+	var f_cw := KCad.sketch_face(KCad.polygon(rect_cw))
+	ok(f_ccw > 0 and f_cw > 0, "12 EXTRUDE: sketch faces built (%s)" % KCad.last_error())
+	var e1 := KCad.extrude(f_ccw, 3.0)
+	var e2 := KCad.extrude(f_cw, 3.0)
+	ok(e1 > 0 and near(KCad.volume(e1), 6.0, 1e-9), "12 EXTRUDE: 2x1 by 3 (CCW) volume %.9f" % KCad.volume(e1))
+	ok(e2 > 0 and near(KCad.volume(e2), 6.0, 1e-9), "12 EXTRUDE: 2x1 by 3 (CW winding) volume %.9f" % KCad.volume(e2))
+	var e3 := KCad.extrude(f_ccw, 3.0, true)
+	var m3 := KCad.tessellate(e3, 0.01)
+	var zr := zrange(m3) if m3 != null else Vector2.ZERO
+	ok(e3 > 0 and near(KCad.volume(e3), 6.0, 1e-9) and absf(zr.x + 1.5) < 1e-6 and absf(zr.y - 1.5) < 1e-6, "12 EXTRUDE: symmetric volume %.9f, z %.4f..%.4f" % [KCad.volume(e3), zr.x, zr.y])
+	var e4 := KCad.extrude(f_ccw, -3.0)
+	var m4 := KCad.tessellate(e4, 0.01)
+	var zr4 := zrange(m4) if m4 != null else Vector2.ZERO
+	ok(e4 > 0 and near(KCad.volume(e4), 6.0, 1e-9) and absf(zr4.x + 3.0) < 1e-6 and absf(zr4.y) < 1e-6, "12 EXTRUDE: negative distance goes against the normal: volume %.9f, z %.4f..%.4f" % [KCad.volume(e4), zr4.x, zr4.y])
+	var sq := KCad.sketch_face(KCad.polygon(square(1.0)))
+	var ang := deg_to_rad(10.0)
+	var s_top := 1.0 - 2.0 * tan(ang) * 1.0
+	var et := KCad.extrude(sq, 1.0, false, ang)
+	ok(et > 0 and near(KCad.volume(et), frustum(1.0, 1.0, s_top * s_top), 1e-6), "12 EXTRUDE: taper 10 deg narrows: volume %.9f vs frustum %.9f (%s)" % [KCad.volume(et), frustum(1.0, 1.0, s_top * s_top), KCad.last_error()])
+	var etb := KCad.extrude(sq, 1.0, true, ang)
+	var s_end := 1.0 - 2.0 * tan(ang) * 0.5
+	var want_b := 2.0 * frustum(0.5, 1.0, s_end * s_end)
+	ok(etb > 0 and near(KCad.volume(etb), want_b, 1e-6), "12 EXTRUDE: taper both sides volume %.9f vs %.9f (%s)" % [KCad.volume(etb), want_b, KCad.last_error()])
+
+	# 13 revolve
+	var prof := KCad.sketch_face(KCad.polygon(PackedVector2Array([Vector2(0, 0), Vector2(1, 0), Vector2(1, 2), Vector2(0, 2)])), Vector3.ZERO, Vector3.RIGHT, Vector3(0, -1, 0))
+	var rv := KCad.revolve(prof, Vector3.ZERO, Vector3.BACK)
+	ok(rv > 0 and near(KCad.volume(rv), PI * 2.0, 1e-9), "13 REVOLVE: full turn volume %.9f vs %.9f (%s)" % [KCad.volume(rv), PI * 2.0, KCad.last_error()])
+	var rh := KCad.revolve(prof, Vector3.ZERO, Vector3.BACK, PI)
+	ok(rh > 0 and near(KCad.volume(rh), PI, 1e-9), "13 REVOLVE: half turn volume %.9f vs %.9f" % [KCad.volume(rh), PI])
+
+	# 14 loft
+	var sq1 := KCad.sketch_face(KCad.polygon(square(1.0)))
+	var sq2 := KCad.sketch_face(KCad.polygon(square(0.5)), Vector3(0, 0, 2))
+	var sq3 := KCad.sketch_face(KCad.polygon(square(1.0)), Vector3(0, 0, 4))
+	var want_f := frustum(2.0, 1.0, 0.25)
+	var lr := KCad.loft(PackedInt32Array([sq1, sq2]), true)
+	var ls := KCad.loft(PackedInt32Array([sq1, sq2]), false)
+	ok(lr > 0 and near(KCad.volume(lr), want_f, 1e-9), "14 LOFT: ruled frustum %.9f vs %.9f (%s)" % [KCad.volume(lr), want_f, KCad.last_error()])
+	ok(ls > 0 and near(KCad.volume(ls), want_f, 1e-9), "14 LOFT: smooth, two profiles %.9f vs %.9f (%s)" % [KCad.volume(ls), want_f, KCad.last_error()])
+	var sq1b := KCad.sketch_face(KCad.polygon(square(1.0)), Vector3(0, 0, 2))
+	var l3 := KCad.loft(PackedInt32Array([sq1, sq1b, sq3]), false)
+	ok(l3 > 0 and near(KCad.volume(l3), 4.0, 1e-9), "14 LOFT: three equal squares smooth = box %.9f vs 4 (%s)" % [KCad.volume(l3), KCad.last_error()])
+
+	# 15 sweep
+	var circ := KCad.sketch_face([KCad.circle(Vector2.ZERO, 0.1)], Vector3.ZERO, Vector3.UP, Vector3.RIGHT)
+	var line_path := KCad.path_wire(PackedVector3Array([Vector3.ZERO, Vector3(1, 0, 0)]))
+	var sw := KCad.sweep(circ, line_path)
+	ok(sw > 0 and near(KCad.volume(sw), PI * 0.01, 1e-9), "15 SWEEP: circle r .1 along 1 m: %.9f vs %.9f (%s)" % [KCad.volume(sw), PI * 0.01, KCad.last_error()])
+	var arc_path := KCad.sketch_wire([KCad.arc(Vector2(0, 0), Vector2(sin(PI / 4), 1.0 - cos(PI / 4)), Vector2(1, 1))])
+	var sw2 := KCad.sweep(circ, arc_path)
+	var want_s := PI * 0.01 * (PI / 2.0)
+	ok(sw2 > 0 and near(KCad.volume(sw2), want_s, 1e-6), "15 SWEEP: along a quarter arc R 1: %.9f vs %.9f (%s)" % [KCad.volume(sw2), want_s, KCad.last_error()])
+
+	# 16 fillet / chamfer by picked edge
+	var bx2 := KCad.box(2, 1, 1)
+	var pick := nearest_edge(bx2, Vector3(0, 0.5, 0.5))
+	var fe := KCad.fillet_edges(bx2, PackedInt32Array([pick]), 0.1)
+	var want_fe := 2.0 - (1.0 - PI / 4.0) * 0.01 * 2.0
+	ok(fe > 0 and near(KCad.volume(fe), want_fe, 1e-6), "16 FILLET: one edge r .1: %.9f vs %.9f (%s)" % [KCad.volume(fe), want_fe, KCad.last_error()])
+	var ce := KCad.chamfer_edges(bx2, PackedInt32Array([pick]), 0.1)
+	var want_ce := 2.0 - 0.01 / 2.0 * 2.0
+	ok(ce > 0 and near(KCad.volume(ce), want_ce, 1e-6), "16 CHAMFER: one edge d .1: %.9f vs %.9f (%s)" % [KCad.volume(ce), want_ce, KCad.last_error()])
+	ok(KCad.face_count(fe) == 7 and KCad.face_count(ce) == 7, "16 FILLET/CHAMFER: one extra face each (%d, %d)" % [KCad.face_count(fe), KCad.face_count(ce)])
+
+	# 17 mirror and patterns
+	var unit := KCad.translate(KCad.box(1, 1, 1), Vector3(1.5, 0, 0))
+	var mj := KCad.mirror_join(unit, Vector3.ZERO, Vector3.RIGHT)
+	ok(mj > 0 and near(KCad.volume(mj), 2.0, 1e-9), "17 MIRROR: part + mirror %.9f vs 2 (%s)" % [KCad.volume(mj), KCad.last_error()])
+	var mc := KCad.mass_properties(mj).get("center", Vector3(9, 9, 9)) as Vector3
+	ok(mc.length() < 1e-6, "17 MIRROR: the joined centre is on the mirror plane (%s)" % str(mc))
+	var cube := KCad.box(1, 1, 1)
+	var pl := KCad.pattern_linear(cube, Vector3(2, 0, 0), 4)
+	ok(pl > 0 and near(KCad.volume(pl), 4.0, 1e-9), "17 PATTERN: linear x4 %.9f vs 4 (%s)" % [KCad.volume(pl), KCad.last_error()])
+	var po := KCad.pattern_linear(cube, Vector3(0.5, 0, 0), 4)
+	ok(po > 0 and near(KCad.volume(po), 2.5, 1e-9), "17 PATTERN: overlapping linear x4 %.9f vs 2.5" % KCad.volume(po))
+	var peg := KCad.translate(KCad.box(0.2, 0.2, 0.2), Vector3(1, 0, 0))
+	var pc := KCad.pattern_circular(peg, Vector3.ZERO, Vector3.BACK, 4)
+	ok(pc > 0 and near(KCad.volume(pc), 4.0 * 0.008, 1e-9), "17 PATTERN: circular x4 %.9f vs %.9f" % [KCad.volume(pc), 4.0 * 0.008])
+	var pc2 := KCad.pattern_circular(peg, Vector3.ZERO, Vector3.BACK, 3, PI)
+	var cm := KCad.mass_properties(pc2).get("center", Vector3.ZERO) as Vector3
+	ok(pc2 > 0 and near(KCad.volume(pc2), 3.0 * 0.008, 1e-9) and absf(cm.x) < 1e-6 and absf(cm.y - 1.0 / 3.0) < 1e-6, "17 PATTERN: circular x3 over 180 deg %.9f, centre %s (0, 1/3)" % [KCad.volume(pc2), str(cm)])
+
+	# 18 picking data
+	var fl := KCad.faces(bx2)
+	var el := KCad.edges(bx2)
+	var out_ok := fl.size() == 6
+	var top_id := 0
+	for f in fl:
+		var n: Vector3 = f["normal"]
+		var c: Vector3 = f["center"]
+		if absf(n.length() - 1.0) > 1e-9 or n.dot(c) <= 0.0 or f["type"] != "plane":
+			out_ok = false
+		if n.dot(Vector3.BACK) > 0.99:
+			top_id = f["id"]
+	ok(out_ok and top_id > 0, "18 PICKING: 6 planar faces, unit normals pointing out of the box, a +Z face found")
+	var tot := 0.0
+	var two := true
+	for e in el:
+		tot += float(e["length"])
+		if (e["faces"] as PackedInt32Array).size() != 2:
+			two = false
+	ok(el.size() == 12 and absf(tot - 16.0) < 1e-9 and two, "18 PICKING: 12 edges, total length %.6f vs 16, each borders 2 faces" % tot)
+	ok(KCad.fillet_edges(bx2, PackedInt32Array([999]), 0.1) == 0 and KCad.last_error() != "", "18 PICKING: a bad edge id -> 0 + message (%s)" % KCad.last_error())
+	ok(KCad.extrude(e1, 1.0) == 0 and KCad.last_error() != "", "18 PICKING: extruding a solid -> 0 + message (%s)" % KCad.last_error())
+	ok(KCad.sketch_face([KCad.line(Vector2(0, 0), Vector2(1, 0)), KCad.line(Vector2(1, 0), Vector2(1, 1))]) == 0 and KCad.last_error() != "", "18 PICKING: an open loop is no face (%s)" % KCad.last_error())
+
+	# 19 mass properties
+	var mb := KCad.translate(KCad.box(2, 1, 1), Vector3(1, 2, 3))
+	var mp := KCad.mass_properties(mb)
+	var ctr: Vector3 = mp.get("center", Vector3.ZERO)
+	var inertia: Basis = mp.get("inertia", Basis())
+	ok(near(mp.get("volume", 0.0), 2.0, 1e-9) and near(mp.get("area", 0.0), 10.0, 1e-9) and ctr.distance_to(Vector3(1, 2, 3)) < 1e-6,
+			"19 MASS: volume %.9f area %.9f centre %s" % [mp.get("volume", 0.0), mp.get("area", 0.0), str(ctr)])
+	ok(near(inertia.x.x, 2.0 * 2.0 / 12.0, 1e-6) and near(inertia.y.y, 2.0 * 5.0 / 12.0, 1e-6) and near(inertia.z.z, 2.0 * 5.0 / 12.0, 1e-6),
+			"19 MASS: box inertia about the centre %.6f %.6f %.6f vs %.6f %.6f %.6f" % [inertia.x.x, inertia.y.y, inertia.z.z, 4.0 / 12.0, 10.0 / 12.0, 10.0 / 12.0])
+
+	# 20 blade: lines + arc tip, extruded, edges filleted
+	var blade_items := [
+		KCad.line(Vector2(-0.05, 0.0), Vector2(0.05, 0.0)),
+		KCad.line(Vector2(0.05, 0.0), Vector2(0.04, 0.8)),
+		KCad.arc(Vector2(0.04, 0.8), Vector2(0.0, 0.85), Vector2(-0.04, 0.8)),
+		KCad.line(Vector2(-0.04, 0.8), Vector2(-0.05, 0.0)),
+	]
+	var bf := KCad.sketch_face(blade_items)
+	var blade := KCad.extrude(bf, 0.012)
+	ok(bf > 0 and blade > 0 and KCad.volume(blade) > 0.0005 and KCad.volume(blade) < 0.001, "20 BLADE: extruded, volume %.9f (%s)" % [KCad.volume(blade), KCad.last_error()])
+	var vert := PackedInt32Array()
+	for e in KCad.edges(blade):
+		if absf((e["dir"] as Vector3).z) > 0.99:
+			vert.append(e["id"])
+	ok(vert.size() == 4, "20 BLADE: 4 edges run along the extrusion (%d)" % vert.size())
+	var bl := KCad.fillet_edges(blade, vert, 0.002)
+	ok(bl > 0, "20 BLADE: the 4 edges along the extrusion filleted 2 mm (%s)" % KCad.last_error())
+	if bl > 0:
+		var bm := KCad.tessellate(bl, 0.0002, 0.3)
+		var wt := watertight(bm) if bm != null else [-1, 0, 0]
+		ok(bm != null and wt[0] == 0, "20 BLADE: tessellated blade is watertight (%d open/flipped edges, %d welded verts)" % [wt[0], wt[1]])
+		ok(bm != null and near(mesh_volume(bm), KCad.volume(bl), 0.01), "20 BLADE: mesh volume %.9f vs kernel %.9f" % [mesh_volume(bm) if bm != null else 0.0, KCad.volume(bl)])
+	var pts := PackedVector2Array()
+	for i in 8:
+		var a := TAU * i / 8.0
+		var r := 1.0 + 0.25 * cos(3.0 * a)
+		pts.append(Vector2(cos(a), sin(a)) * r)
+	var blob_f := KCad.sketch_face([KCad.bspline(pts, true)])
+	var blob := KCad.extrude(blob_f, 0.5)
+	var area := float(KCad.mass_properties(blob_f).get("area", -1.0))
+	ok(blob_f > 0 and blob > 0 and area > 2.0 and near(KCad.volume(blob), area * 0.5, 1e-9), "20 BLADE: closed B-spline outline extruded: volume %.9f = area %.9f * 0.5 (%s)" % [KCad.volume(blob), area, KCad.last_error()])
+	var blob_m := KCad.tessellate(blob, 0.002, 0.3)
+	var wtb := watertight(blob_m) if blob_m != null else [-1, 0, 0]
+	ok(blob_m != null and wtb[0] == 0, "20 BLADE: B-spline solid is watertight (%d bad edges)" % wtb[0])
+
+	# 21 STEP
+	if bl > 0:
+		var sp := "user://cad_test_blade.step"
+		var wrote := KCad.export_step(bl, sp)
+		var back := KCad.import_step(sp) if wrote else 0
+		ok(back > 0 and near(KCad.volume(back), KCad.volume(bl), 1e-6), "21 STEP: filleted blade round trip volume %.9f vs %.9f" % [KCad.volume(back), KCad.volume(bl)])
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(sp))
+
+	# 22 release
+	var before := KCad.live_count()
+	var made := []
+	for i in 20:
+		made.append(KCad.extrude(KCad.sketch_face(KCad.polygon(square(1.0))), 1.0))
+	ok(KCad.live_count() == before + 40, "22 RELEASE: 20 faces + 20 solids live (%d)" % (KCad.live_count() - before))
+	for i in 20:
+		KCad.release(made[i])
+	ok(KCad.live_count() - before == 20, "22 RELEASE: solids released, the 20 sketch faces remain (%d)" % (KCad.live_count() - before))
+	KCad.release_all()
+	ok(KCad.live_count() == 0, "22 RELEASE: release_all frees everything")
 
 
 func finish() -> void:
