@@ -806,6 +806,10 @@ static func put(B: Body, s: Dictionary, free := false) -> void:
 	B.put_wep2(s.get("weapon2", {}))
 	var w: Dictionary = s["weapon"]
 	B.wep_on = not w.is_empty()
+	# w4-fingertilt: the card's blade turn / tilt are the base the next turn works from; no key (or no weapon) means 0. Without
+	# this a turn on one scene stayed in B.wep_turn for the next one (the slider read 90 and sent the blade 90 off)
+	B.wep_turn = float(w.get("turn", 0.0))
+	B.wep_tilt = float(w.get("tilt", 0.0))
 	if B.wep_on:
 		if B.wep_kind != String(w.get("kind", "metal_bat")):
 			B.set_kind(String(w.get("kind", "metal_bat")))

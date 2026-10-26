@@ -2435,8 +2435,29 @@ func mirror_pose() -> void:
 ## two Lock-both-hands grips blended (round 47: between two cards that both lock, the second hand's turn, place and
 ## fingers move from one grip to the next instead of snapping at the card: a finger turned 97 deg in one frame)
 ## THE WRAP (round 47, GATES CC1/CC2): the fingers of hand h closed round the handle a-b of radius r (scripts/grip_wrap.gd)
-func wrap_fingers(h: String, a: Vector3, b: Vector3, r: float, kind := "") -> Dictionary:
-	return GripWrap.wrap(self, h, a, b, r, kind if kind != "" else GripWrap.type_of(wep_kind))
+func wrap_fingers(h: String, a: Vector3, b: Vector3, r: float, kind := "", free_thumb := false) -> Dictionary:
+	return GripWrap.wrap(self, h, a, b, r, kind if kind != "" else GripWrap.type_of(wep_kind), free_thumb)
+
+
+## THE FINGERS AFTER A HEAD TILT (w4-fingertilt): a tilt moves the shaft, not the hands, so the fingers that held the old
+## shaft float or cut in. The holding hand's fingers close round the shaft again (the same wrap the magnet uses), and so do
+## the second hand's when it is still on the shaft: its stored grip takes the new fingers, so a later apply keeps them.
+func refit_fingers() -> void:
+	if wep_hand == "":
+		return
+	var sp := GripMagnet.span(self)
+	wrap_fingers(wep_hand, wep_point(sp.x), wep_point(sp.y), wep_r_handle, "", true)
+	fk()
+	var o := "hand_l" if wep_hand == "hand_r" else "hand_r"
+	if grip and String(grip2.get("hand", "")) == o:
+		wrap_fingers(o, wep_point(sp.x), wep_point(sp.y), wep_r_handle, "", true)
+		fk()
+		var fing := {}
+		for j in FINGERS:
+			if j.ends_with(o.right(2)):
+				var v: Vector3 = ang[j]
+				fing[j] = [snappedf(v.x, 0.1), snappedf(v.y, 0.1), snappedf(v.z, 0.1)]
+		grip2["fingers"] = fing
 
 
 static func grip2_mix(a: Dictionary, b: Dictionary, e: float) -> Dictionary:
@@ -2503,6 +2524,8 @@ func from_dict(d: Dictionary) -> void:
 	fk()
 	var w: Dictionary = d.get("weapon", {})
 	wep_on = not w.is_empty()
+	wep_turn = 0.0   # w4-fingertilt: no turn / tilt key means 0 (set again below when the weapon has them)
+	wep_tilt = 0.0
 	if wep_on:
 		set_kind(String(w.get("kind", "metal_bat")))
 		set_weapon_len(float(w.get("length", wep_len)))
