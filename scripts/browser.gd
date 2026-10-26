@@ -245,6 +245,14 @@ func follow() -> void:
 	var picked_now: bool = m.sel != _followed
 	_followed = m.sel
 	_wep.visible = m.B.wep_on
+	var wh: TreeItem = rows.get("bat_handle")   # the weapon's row: a Part weapon names itself (the other kinds keep "handle")
+	if wh != null:
+		var want := "handle (drag it to swing the weapon)"
+		if PartWeapon.is_part(m.B.wep_kind):
+			want = "%s: handle (drag it to swing the weapon)" % PartWeapon.name_of(m.B.wep_kind)
+		if wh.get_text(0) != want:
+			wh.set_text(0, want)
+			wh.set_tooltip_text(0, want)
 	_sync_buttons()
 	_light(rows.get(m.hover_part) if m.hover_part != m.sel else null)
 	var it: TreeItem = rows.get(m.sel)
