@@ -1631,7 +1631,7 @@ func _stage_sync() -> void:
 	stage_panel.visible = show
 	if not show:
 		return
-	var sig := JSON.stringify(Building.to_file(_bld()))
+	var sig := str(m.easy.on) + JSON.stringify(Building.to_file(_bld()))   # Easy and Expert word it differently
 	if sig == _stage_sig and stage_body.get_child_count() > 0:
 		return
 	_stage_sig = sig
@@ -1642,7 +1642,8 @@ func _stage_sync() -> void:
 	var bd := _bld()
 	var title := Label.new()
 	title.name = "build_stage_title"
-	title.text = "Set added to STAGE"
+	var easy_on: bool = m.easy.on   # Easy: a plain title and the walk buttons only (no check list, no key names)
+	title.text = "Your house is in the scene" if easy_on else "Set added to STAGE"
 	title.add_theme_font_size_override("font_size", 17)
 	stage_body.add_child(title)
 	var lo := Vector2(INF, INF)
@@ -1662,12 +1663,13 @@ func _stage_sync() -> void:
 	var nf := Building.storey_count(bd)
 	info.text = "%s\n%.1f x %.1f m, %d floor%s\n%d door%s, %d window%s   linked to BUILD" % [bd.get("name", "House"), hi.x - lo.x, hi.y - lo.y, nf, "" if nf == 1 else "s", doors, "" if doors == 1 else "s", windows, "" if windows == 1 else "s"]
 	stage_body.add_child(info)
+	info.visible = not easy_on
 	var names := BuildStage.door_names(bd)
 	var stairs := BuildStage.stairs_list(bd)
 	var lines := ["Collision: walls and floor, doorways open", "Door points: %s" % (", ".join(names) if not names.is_empty() else "none yet (put a door in the house)")]
 	if not bd.get("pieces", []).is_empty():
 		lines.append("Pieces: %d (stairs are ramps the fighter walks up)" % bd["pieces"].size())
-	for line in lines:
+	for line in ([] if easy_on else lines):
 		var l := Label.new()
 		l.text = "[ok]  " + line
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -1676,7 +1678,7 @@ func _stage_sync() -> void:
 		stage_body.add_child(l)
 	if not names.is_empty() or not stairs.is_empty():
 		var say := Label.new()
-		say.text = "ANIMATE can now say:"
+		say.text = "He can now:" if easy_on else "ANIMATE can now say:"
 		say.add_theme_font_size_override("font_size", 12)
 		say.modulate = Color(1, 1, 1, 0.6)
 		stage_body.add_child(say)
@@ -1685,7 +1687,7 @@ func _stage_sync() -> void:
 		wb.name = "build_walk_" + String(nm).replace(" ", "_")
 		wb.text = "Walk through the %s" % nm
 		wb.focus_mode = Control.FOCUS_NONE
-		wb.tooltip_text = "walk cards from outside, through the %s, to inside (a new scene; Ctrl+Z goes back)" % nm
+		wb.tooltip_text = ("he walks from outside, through the %s, to inside (a new scene; the Undo button goes back)" if easy_on else "walk cards from outside, through the %s, to inside (a new scene; Ctrl+Z goes back)") % nm
 		wb.pressed.connect(walk_through.bind(String(nm)))
 		walk_btns[nm] = wb
 		stage_body.add_child(wb)
@@ -1694,13 +1696,13 @@ func _stage_sync() -> void:
 		ub.name = "build_walk_up_" + String(sid)
 		ub.text = "Walk up the stairs" if stairs.size() == 1 else "Walk up the stairs %s" % sid
 		ub.focus_mode = Control.FOCUS_NONE
-		ub.tooltip_text = "walk cards from outside, up the stairs, to the floor above, feet on the steps (a new scene; Ctrl+Z goes back)"
+		ub.tooltip_text = "he walks from outside, up the stairs, to the floor above (a new scene; the Undo button goes back)" if easy_on else "walk cards from outside, up the stairs, to the floor above, feet on the steps (a new scene; Ctrl+Z goes back)"
 		ub.pressed.connect(walk_up.bind(String(sid)))
 		walk_btns["stairs " + String(sid)] = ub
 		stage_body.add_child(ub)
 	var eb := Button.new()
 	eb.name = "build_edit_in_build"
-	eb.text = "Edit in BUILD"
+	eb.text = "Change the house" if easy_on else "Edit in BUILD"
 	eb.focus_mode = Control.FOCUS_NONE
 	eb.pressed.connect(func(): m._page_set("BUILD"))
 	stage_body.add_child(eb)
@@ -1710,6 +1712,10 @@ func _layout_stage() -> void:
 	var cl: Rect2 = m.nav_clear_rect()
 	stage_panel.reset_size()
 	stage_panel.position = Vector2(cl.end.x - PANEL_W - 48.0, cl.position.y + 6.0)   # left of the view cube
+	var pb: Control = m.easy.home._pbar if m.easy.on and m.easy.home != null else null
+	if pb != null and pb.is_visible_in_tree():   # Easy's prop bar (top right): the panel sits left of it
+		var pr := pb.get_global_rect()
+		stage_panel.position.x = minf(stage_panel.position.x, pr.position.x - stage_panel.size.x - 8.0)
 
 
 ## "Walk through the front door": PathWalk's cards from outside to inside, a new scene that carries the house (ONE undo step: Ctrl+Z
