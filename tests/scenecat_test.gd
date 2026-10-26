@@ -13,6 +13,10 @@
 ##  g. a star survives closing and reopening the panel, is saved in the settings file, and a star click does not open the scene.
 ##  h. Best first lists Good, then OK, then Weird; Newest first puts the saved scenes back in their own order.
 ##  i. the worker's results (in the cache file) equal the in-process Check's for walk_bat and the broken copy (same FAIL and WARN).
+##  j. DELETE by real clicks: a planted user:// copy's trash button, then Delete in the dialog: the file is gone from its folder
+##     and the list, it is in the trash folder, and the chips' counts (All, Fight) drop by 1. EASYDELETE_PNG (env) saves the tile row.
+##  k. Keep (the same dialog's Keep button) leaves the planted kick copy on disk, in the list, and the counts unchanged.
+##  l. no example tile has a trash button.
 extends SceneTree
 
 const DIR := "user://scenecat_test"
@@ -26,6 +30,7 @@ const CHIP_CATS := ["Walk & run", "Fight", "Weapons", "Jump & dodge", "Dance & o
 var fails := 0
 var m: Node
 var scenes: EasyScenes
+var TRASHED: Array = []   # the trash files this run moved (cleanup removes them: the app's trash folder, our copies only)
 
 
 func ok(c: bool, what: String) -> void:
@@ -43,6 +48,15 @@ func btn(down: bool, p: Vector2) -> void:
 	if down:
 		e.button_mask = MOUSE_BUTTON_MASK_LEFT
 	root.push_input(e, true)
+
+
+## a real click on a dialog's button: the dialog is an embedded window, so its button's rect is in the dialog's own space
+func click_in(c: Control, w: Window) -> void:
+	var p := c.get_global_rect().get_center() + (Vector2(w.position) if w.is_embedded() else Vector2.ZERO)
+	btn(true, p)
+	await process_frame
+	btn(false, p)
+	await idle(3)
 
 
 func idle(n := 4) -> void:
@@ -244,6 +258,59 @@ func _init() -> void:
 		var e: Dictionary = cached.get(p, {})
 		var same: bool = int(e.get("fails", -1)) == g[0] and int(e.get("warns", -1)) == g[1]
 		ok(same, "i: the worker's result for %s equals the in-process Check (worker %s/%s, in-process %d FAIL %d WARN, badge %s)" % [p.get_file(), str(e.get("fails", "?")), str(e.get("warns", "?")), g[0], g[1], SceneCat.grade_of(g[0], g[1])])
+	# j: DELETE (the trash button, then Delete in the dialog, both real clicks): the planted punch copy leaves the list, its file
+	# is in the trash folder, and the chips' counts drop by 1
+	await click(scenes.chip("All"))
+	var all_before := count_chip("All")
+	var fight_before := count_chip("Fight")
+	ok(scenes.tile_trash(PUNCH) != null, "j: the planted punch copy has a trash button")
+	var row_png := OS.get_environment("EASYDELETE_PNG")
+	if row_png != "":   # the tile row with the trash buttons, before anything is deleted
+		await idle(2)
+		var grid := scenes.find_child("easy_scenes_mine", true, false) as Control
+		var gr := grid.get_global_rect()
+		var shot := root.get_texture().get_image()
+		var rw := mini(int(gr.size.x), shot.get_width() - int(gr.position.x))
+		var rh := mini(int(gr.size.y), shot.get_height() - int(gr.position.y))
+		shot.get_region(Rect2i(Vector2i(gr.position), Vector2i(rw, rh))).save_png(row_png)
+		print("   tile row screenshot saved to %s" % row_png)
+	var trash_dir := UserPaths.w("res://trash")
+	var trash_before := DirAccess.get_files_at(trash_dir)
+	await click(scenes.tile_trash(PUNCH))
+	var dlg: ConfirmationDialog = m.ui_confirm
+	ok(dlg != null and dlg.visible and dlg.dialog_text.contains("You can get it back from the Trash"), "j: the trash button asks, in plain words, before anything moves")
+	await click_in(dlg.get_ok_button(), dlg)
+	await idle(4)
+	ok(not FileAccess.file_exists(PUNCH), "j: the planted copy is gone from its folder")
+	ok(not scenes.tile_paths(false).has(PUNCH) and scenes.tile_button(PUNCH) == null, "j: the tile is gone from the list")
+	ok(count_chip("All") == all_before - 1 and count_chip("Fight") == fight_before - 1, "j: the chip counts drop by 1 (All %d -> %d, Fight %d -> %d)" % [all_before, count_chip("All"), fight_before, count_chip("Fight")])
+	var trashed := []
+	for f in DirAccess.get_files_at(trash_dir):
+		if not trash_before.has(f) and f.begins_with("scenecat_punch_"):
+			trashed.append(f)
+	for f in trashed:
+		TRASHED.append(trash_dir.path_join(f))
+	ok(trashed.size() == 1, "j: the copy is in the trash folder (%s)" % str(trashed))
+	ok(scenes.visible, "j: the panel stays open after the delete")
+
+	# k: Keep leaves the file (the kick copy, its trash button then Keep)
+	var all_k := count_chip("All")
+	await click(scenes.tile_trash(KICK))
+	var dlg_k: ConfirmationDialog = m.ui_confirm
+	ok(dlg_k.visible and dlg_k.get_cancel_button().text == "Keep", "k: the dialog offers Keep")
+	await click_in(dlg_k.get_cancel_button(), dlg_k)
+	await idle(3)
+	ok(FileAccess.file_exists(KICK) and scenes.tile_paths(false).has(KICK), "k: Keep leaves the kick copy on disk and in the list")
+	ok(count_chip("All") == all_k, "k: the counts do not move on Keep")
+
+	# l: the examples have no trash button
+	var ex_tiles := scenes.tile_paths(true)
+	var ex_trash := 0
+	for p in ex_tiles:
+		if scenes.tile_trash(p) != null or (scenes.tile_button(p) != null and scenes.tile_button(p).find_child("trash", true, false) != null):
+			ex_trash += 1
+	ok(ex_tiles.size() > 0 and ex_trash == 0, "l: none of the %d examples has a trash button" % ex_tiles.size())
+
 	var png := OS.get_environment("SCENECAT_PNG")
 	if png != "":   # the picture of the panel, at 1280x720: scenes_cat's own look (a test run with SCENECAT_PNG set)
 		await click(my)
@@ -262,5 +329,5 @@ func _write(p: String, txt: String) -> void:
 
 
 func _cleanup() -> void:
-	for p in [BROKEN, PUNCH, KICK, DRAFT, SceneCat.cache_path, EasyScenes.LIST]:
+	for p in [BROKEN, PUNCH, KICK, DRAFT, SceneCat.cache_path, EasyScenes.LIST] + TRASHED:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(p))

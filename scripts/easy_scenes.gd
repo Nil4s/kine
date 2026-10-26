@@ -235,6 +235,11 @@ func tile_star(path: String) -> Button:
 	return _tiles[path]["star"] if _tiles.has(path) else null
 
 
+## the tile's trash button (null for an example, and for a path with no tile)
+func tile_trash(path: String) -> Button:
+	return _tiles[path]["trash"] if _tiles.has(path) else null
+
+
 ## the chip's button by its name (All, Walk & run, Fight, Weapons, Jump & dodge, Dance & other, Drafts, Favourites)
 func chip(key: String) -> Button:
 	return _chip_btns.get(key)
@@ -360,6 +365,17 @@ func _add_tile(path: String, nm: String, group: String) -> void:
 	star.tooltip_text = "Mark this scene as a favourite"
 	star.pressed.connect(_toggle_fav.bind(path))
 	row.add_child(star)
+	var trash: Button = null
+	if not example:   # the user's own tiles (saved scenes and drafts) get a trash button; the examples are copies and have none
+		trash = Button.new()
+		trash.name = "trash"
+		trash.flat = true
+		trash.focus_mode = Control.FOCUS_NONE
+		trash.custom_minimum_size = Vector2(38, 30)
+		trash.icon = Icons.small("trash")
+		trash.tooltip_text = "Delete"
+		trash.pressed.connect(_ask_delete.bind(path))
+		row.add_child(trash)
 	var pic := TextureRect.new()
 	pic.name = "picture"
 	pic.custom_minimum_size = PIC
@@ -376,7 +392,7 @@ func _add_tile(path: String, nm: String, group: String) -> void:
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(l)
 	_tiles[path] = {"button": b, "pic": pic, "name": nm, "example": example, "group": group,
-		"cat": String(info["cat"]), "badge": badge, "star": star}
+		"cat": String(info["cat"]), "badge": badge, "star": star, "trash": trash}
 	(_examples if example else _drafts if group == "dr" else _mine).add_child(b)
 	star.text = "★" if _fav.has(path) else "☆"
 	if info.has("fails") and info.has("warns"):
@@ -564,6 +580,34 @@ func _toggle_fav(p: String) -> void:
 		(_tiles[p]["star"] as Button).text = "★" if _fav.has(p) else "☆"
 	_update_chips()
 	_apply()
+
+
+# ---------------------------------------------------------------- delete (the trash button: asks once, then main._trash_now)
+
+## the trash button: asks in plain words, Delete or Keep (main._confirm, the app's own dialog)
+func _ask_delete(p: String) -> void:
+	if m == null or not _tiles.has(p):
+		return
+	m._confirm("Delete '%s'? You can get it back from the Trash." % String(_tiles[p]["name"]), "Delete", _delete_now.bind(p), "Keep")
+
+
+## Delete: the file moves to the trash folder (main._trash_now, the same move Expert's Delete scene makes). The tile goes,
+## its star is dropped, the chips' counts are read again. If the scene is the open one it stays open, unsaved: the file is
+## gone, so Save scene writes it back (the app's own Save, nothing new)
+func _delete_now(p: String) -> void:
+	if m == null or not _tiles.has(p):
+		return
+	var nm := String(_tiles[p]["name"])
+	var was_open := String(m.scene_path) == p
+	if not m._trash_now(p):
+		return   # _trash_now has said why on the status line
+	if _fav.has(p):
+		_fav.erase(p)
+		_save_pref("favourites", _fav)
+	if was_open:
+		m._clean = ""   # the open scene now counts as unsaved work (its file is in the trash)
+		m._say("deleted '%s' (in the trash folder if you want it back). The scene is still open, unsaved: Save scene puts it back" % nm)
+	_fill()
 
 
 ## a tile passes the chip shown and the Hide weird toggle
