@@ -291,21 +291,25 @@ func _base_name() -> String:
 	return "Skin" if BaseBody.is_open(ui.m) else "Material 1"
 
 
-## Add material: the new slot takes the SELECTED faces (one undo step). With no slot yet the first slot is the whole mesh
-## (_base_if_empty) and the selection is NOT taken: a second Add material with faces selected gives them the new slot.
-## Nothing selected: an empty slot.
+## Add material: the new slot takes the SELECTED faces (one undo step; pbrmat R2). With no slot yet and only some faces
+## selected, the rest go to a base slot made first, so the selection is not the whole mesh. No slot and nothing selected:
+## the whole mesh becomes the first slot (_base_if_empty). A slot exists and nothing selected: an empty slot.
 func add_slot(over := {}) -> int:
-	if mesh().materials.is_empty():
-		return 0 if _base_if_empty(over) else -1
 	var fs := selected_faces()
+	if mesh().materials.is_empty() and fs.is_empty():
+		return 0 if _base_if_empty(over) else -1
 	ui.undo.begin(mesh())
+	var base := false
+	if mesh().materials.is_empty() and fs.size() < mesh().face_count():
+		KMeshMaterial.add(mesh(), {"name": _base_name()})
+		base = true
 	var i := KMeshMaterial.add(mesh(), over)
 	var n := KMeshMaterial.assign(mesh(), fs, i) if not fs.is_empty() else 0
 	ui.undo.commit("Add material")
 	cur = i
 	var nm: String = mesh().materials[i]["name"]
 	if not fs.is_empty():
-		_after("material '%s' added and given the %d selected faces (Ctrl+Z takes it back; its colour is the swatch under Base colour)" % [nm, n])
+		_after("material '%s' added and given the %d selected faces%s (Ctrl+Z takes it back; its colour is the swatch under Base colour)" % [nm, n, "; the other faces stay in '%s'" % mesh().materials[0]["name"] if base else ""])
 	else:
 		_after("material '%s' added, empty: select faces and press Assign to give it faces (Ctrl+Z takes it back)" % nm)
 	return i
