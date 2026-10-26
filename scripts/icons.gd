@@ -13,6 +13,7 @@ const DRAW := {
 	"fold_down": [["seg", Vector2(5, 9), Vector2(12, 16), 2.4], ["seg", Vector2(19, 9), Vector2(12, 16), 2.4]],
 	"card_update": [["seg", Vector2(12, 3), Vector2(12, 14), 2.2], ["seg", Vector2(7, 10), Vector2(12, 15), 2.2], ["seg", Vector2(17, 10), Vector2(12, 15), 2.2], ["box", Rect2(4, 17.5, 16, 3), 1.6]],
 	"card_delete": [["seg", Vector2(6, 6), Vector2(18, 18), 2.4], ["seg", Vector2(18, 6), Vector2(6, 18), 2.4]],
+	"home": [["seg", Vector2(3, 12), Vector2(12, 4), 2.2], ["seg", Vector2(21, 12), Vector2(12, 4), 2.2], ["box", Rect2(6, 11, 12, 9), 1.8]],
 	"open": [["box", Rect2(3, 9, 18, 11), 1.8], ["box", Rect2(3, 5, 8, 4), 1.6]],
 	"trash": [["box", Rect2(6.5, 9, 11, 11), 1.8], ["seg", Vector2(4, 6.5), Vector2(20, 6.5), 2.0], ["seg", Vector2(9.5, 4), Vector2(14.5, 4), 2.0], ["seg", Vector2(10.5, 12), Vector2(10.5, 17), 1.4], ["seg", Vector2(13.5, 12), Vector2(13.5, 17), 1.4]],
 	"new_scene": [["box", Rect2(5, 3, 14, 18), 1.8], ["seg", Vector2(12, 9), Vector2(12, 16), 2.0], ["seg", Vector2(8.5, 12.5), Vector2(15.5, 12.5), 2.0]],

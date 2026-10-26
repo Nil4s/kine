@@ -51,6 +51,7 @@ var _resume_path := ""
 var _settings: PanelContainer
 var _show_check: CheckBox
 var _built := false
+var _at_boot := false
 var file_dialog_inline := false   # a test: the in-window dialog (a native one cannot be driven)
 var last_dialog: FileDialog
 var _layout: VBoxContainer     # the window's column (top bar, the scrolled body, the bottom bar)
@@ -195,8 +196,8 @@ func _card(kind: String, title: String, desc: String) -> PanelContainer:
 		expert.toggle_mode = true
 		expert.button_group = grp
 		expert.custom_minimum_size = Vector2(70, 26)
-		easy.pressed.connect(_set_card_mode.bind(kind, true))
-		expert.pressed.connect(_set_card_mode.bind(kind, false))
+		easy.pressed.connect(_start_in_mode.bind(kind, true))   # Nick 2026-10-26: Easy/Expert must start the project
+		expert.pressed.connect(_start_in_mode.bind(kind, false))
 		_easy_btn[kind] = easy
 		_expert_btn[kind] = expert
 		foot.add_child(easy)
@@ -309,7 +310,8 @@ func _settings_box() -> PanelContainer:
 ## ---- showing it
 
 ## the screen is shown: pictures asked for, the lists read again, the newest scene on Resume
-func show_screen() -> void:
+func show_screen(at_boot := false) -> void:
+	_at_boot = at_boot   # only the start-up screen has Esc = "continue where I left off"; from Home, Esc just goes back to the work
 	if not _built:
 		build()
 	_fit()
@@ -352,8 +354,10 @@ func _input(ev: InputEvent) -> void:
 	if ev is InputEventKey and (ev as InputEventKey).pressed and not (ev as InputEventKey).echo and (ev as InputEventKey).keycode == KEY_ESCAPE:
 		if _settings.visible:
 			_settings.visible = false
-		else:
+		elif _at_boot:
 			_resume()
+		else:
+			_close()   # opened from Home over real work: Esc goes back to that work, not to some other saved scene
 		get_viewport().set_input_as_handled()
 
 
@@ -361,7 +365,7 @@ func _resume() -> void:
 	var path := _resume_path
 	_close()
 	if path != "" and m != null and String(m.scene_path) != path and FileAccess.file_exists(path):
-		m._open_scene_file(path)
+		m._open_scene_file(path, _land)
 
 
 ## ---- starting a kind of project
@@ -394,6 +398,22 @@ func _start_kind_now(kind: String) -> void:
 			m.bld.reset_view()   # a new project starts on the default view, not where the last house was left
 	if m.has_method("_refresh"):
 		m._refresh()
+
+
+## a scene was opened from here: the page its kind belongs to (a modeling project: MODEL with the body open, in Expert; an animation
+## project that was opened from a mesh page or BUILD: POSE). A building scene is placed by main (_bld_scene_changed)
+func _land() -> void:
+	if m == null:
+		return
+	match String(m.S.kind):
+		"modeling":
+			if m.easy != null and m.easy.on:
+				m.easy.set_on(false)   # MODEL is Expert's page
+			if m.cur_page != "MODEL" or not BaseBody.is_open(m):
+				BaseBody.start(m)
+		"animation":
+			if ["MODEL", "SURFACE", "SCULPT", "BUILD"].has(m.cur_page):
+				m._page_set("POSE")
 
 
 func _sync_modes(kind: String) -> void:
@@ -572,13 +592,15 @@ func _made(path: String) -> void:
 func _open_tile(path: String, example: bool) -> void:
 	if m == null:
 		return
+	var asked: bool = not example and m._unsaved()   # the question is asked here, once: the open below must not ask again
 	var go := func():
 		_close()
 		if example:
 			m._open_example(path)
+			_land()
 		else:
-			m._open_scene_file(path)
-	if not example and m._unsaved():
+			m._open_scene_file(path, _land, asked)
+	if asked:
 		_close()
 		m._ask_save(m._scene_label(), go)
 	else:
@@ -688,6 +710,7 @@ func _toggle_settings() -> void:
 func _show_help() -> void:
 	if m != null and m.ui_help != null:
 		m.ui_help.visible = true
+		m.ui_help.move_to_front()   # the help page was built before this screen: without this it opens BEHIND it (Help looked dead)
 
 
 func _card_input(ev: InputEvent, kind: String) -> void:
@@ -700,9 +723,11 @@ func _tile_input(ev: InputEvent, path: String, example: bool) -> void:
 		_open_tile(path, example)
 
 
-func _set_card_mode(kind: String, easy: bool) -> void:
+## one click on Easy or Expert starts that kind of project in that mode (a card click elsewhere uses the mode last shown)
+func _start_in_mode(kind: String, easy: bool) -> void:
 	_card_easy[kind] = easy
 	_sync_modes(kind)
+	_start_kind(kind)
 
 
 ## a real file picker for a .json scene (the native dialog); the screen stays until a file is picked
@@ -726,7 +751,7 @@ func _open_file() -> void:
 func _file_picked(path: String) -> void:
 	_close()
 	if m != null and FileAccess.file_exists(path):
-		m._open_scene_file(path)
+		m._open_scene_file(path, _land)
 
 
 func _open_examples() -> void:
