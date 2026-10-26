@@ -260,6 +260,7 @@ func _build_ui() -> void:
 	tool_btns["Words"] = wb
 	row.add_child(wb)
 	bp_btn = m._button("Blueprint", func(): bp.open(), "Blueprint: plans of every floor and the front and side elevations, with dimensions; export SVG, PNG, DXF")
+	row.add_child(BuildChoose.reopen_button(m))
 	bp_btn.name = "build_blueprint"
 	_icon_word(bp_btn, "Blueprint")
 	row.add_child(bp_btn)
