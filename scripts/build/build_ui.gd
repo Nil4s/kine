@@ -592,6 +592,8 @@ func place_toast(t: Label) -> void:
 			x = maxf(cl.position.x + 12.0, pr.position.x - sz.x)
 		if Rect2(Vector2(x, y), sz).intersects(pr):
 			y = pr.end.y
+	if picker != null and picker.visible and Rect2(Vector2(x, y), sz).intersects(Rect2(picker.position, picker.size).grow(8.0)):
+		x = picker.position.x + picker.size.x + 8.0   # the Piece picker on the left: the toast goes right of it
 	if chip != null and chip.visible and Rect2(Vector2(x, y), sz).intersects(Rect2(chip.position, chip.size)):
 		y -= chip.size.y + 8.0   # still over the Snap chip: one line up
 	t.position = Vector2(x, y)
@@ -1729,7 +1731,7 @@ func _build_picker() -> void:
 	var hint := Label.new()
 	hint.name = "build_picker_hint"
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	hint.custom_minimum_size.x = 3.0 * 104.0 + 12.0
+	hint.custom_minimum_size.x = 4.0 * 104.0 + 18.0
 	hint.add_theme_font_size_override("font_size", 13)
 	hint.modulate = Color(1, 1, 1, 0.75)
 	vb.add_child(hint)
@@ -1745,7 +1747,7 @@ func _build_picker() -> void:
 		cl.modulate = Color(SKY, 0.95)
 		vb.add_child(cl)
 		var gc := GridContainer.new()
-		gc.columns = 3
+		gc.columns = 4   # four across: the fight blocks fit one row, so the picker fits a 720 px window
 		gc.add_theme_constant_override("h_separation", 6)
 		gc.add_theme_constant_override("v_separation", 6)
 		for kd in cat[1]:
