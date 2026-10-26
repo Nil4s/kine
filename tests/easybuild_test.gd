@@ -146,6 +146,7 @@ func _init() -> void:
 	ok(soon == null and ss.find_child("easy_building", true, false) != null and ss.find_child("expert_building", true, false) != null, "1 the Building card has Easy and Expert buttons, no 'Easy mode coming'")
 	await click_ctl(ss.find_child("easy_building", true, false))
 	await click_ctl(ss._cards["building"])
+	if m.ui_save_ask != null and m.ui_save_ask.visible: m._save_ask_choose("discard")   # unsaved work above: a new project asks first (startscreen bar 13)
 	await idle(8)
 	ok(not ss.visible and m.S.kind == "building" and m.cur_page == "BUILD" and bld.on and m.easy.on, "1 Building -> Easy opens BUILD in Easy (kind %s, page %s, easy %s)" % [m.S.kind, m.cur_page, m.easy.on])
 
