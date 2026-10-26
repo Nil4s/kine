@@ -77,6 +77,7 @@ var side_title: Label
 var sketch_box: VBoxContainer
 var nums_vb: VBoxContainer
 var snap_btn: Button
+var part_give: Button   # "Give it to the fighter" (PartWeapon)
 var grid_chk: CheckBox
 var dims_chk: CheckBox
 var dlg_box: VBoxContainer
@@ -430,6 +431,13 @@ func _build_timeline() -> void:
 		b.custom_minimum_size = Vector2(28, 0)
 		b.pressed.connect(_marker.bind(e[2]))
 		nb.add_child(b)
+	part_give = Button.new()   # PartWeapon (scripts/build/part_weapon.gd): this part becomes the fighter's weapon, one undo step
+	part_give.name = "part_give"
+	part_give.text = "Give to fighter"
+	part_give.focus_mode = Control.FOCUS_NONE
+	part_give.tooltip_text = "Give it to the fighter: he holds this part as his weapon; its size, weight and balance come from the part (steel unless you change the material)"
+	part_give.pressed.connect(func(): m.give_part_weapon(_rec()))
+	nb.add_child(part_give)
 	nav.add_child(nb)
 	hb.add_child(nav)
 	hb.add_child(VSeparator.new())

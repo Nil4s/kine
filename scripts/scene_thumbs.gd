@@ -25,6 +25,7 @@ var _tex := {}            # scene path -> {"sha": String, "tex": ImageTexture}
 var _queue: Array = []
 var _busy := false
 var _pending: Array = []
+var _sha_seen := {}       # scene path -> [modified time, size, sha]: a file not changed since its hash is not read again
 var _intaking := false
 const INTAKE_US := 4000
 var _vp: SubViewport
@@ -88,8 +89,25 @@ func _intake() -> void:
 	_intaking = false
 
 
-func _look(path: String) -> void:
+## the file's sha256; a file whose time and size are the same as at its last hash keeps that hash (hashing every listed
+## scene on the open frames spread the pictures over 4-5 frames, and the list grew while it was open)
+func _sha_of(path: String) -> String:
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return ""
+	var stamp := [FileAccess.get_modified_time(path), f.get_length()]
+	f.close()
+	var seen: Variant = _sha_seen.get(path)
+	if seen is Array and (seen as Array).slice(0, 2) == stamp:
+		return (seen as Array)[2]
 	var sha := FileAccess.get_sha256(path)
+	if sha != "":
+		_sha_seen[path] = [stamp[0], stamp[1], sha]
+	return sha
+
+
+func _look(path: String) -> void:
+	var sha := _sha_of(path)
 	if sha == "":
 		return
 	if pick_on:

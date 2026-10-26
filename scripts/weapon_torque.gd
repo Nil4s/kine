@@ -56,9 +56,7 @@ static func profile(kind: String, override := {}) -> Dictionary:
 		p[key] = override[key]
 	if override.size() > 0 and not override.has("src"):
 		p["src"] = "a %.1f kg weapon with the %s's shape numbers" % [float(p["mass"]), kind]
-	var hh: float = k["handle"]
-	var hl := hh if hh >= 0.0 else float(k["len"]) + hh
-	p["grip"] = minf(WeightFeel.GRIP_U, 0.5 * hl)
+	p["grip"] = WeightFeel.grip_of(k)
 	p["d"] = float(p["com"]) * float(p["len"]) - float(p["grip"])
 	p["i_grip"] = float(p["mass"]) * (float(p["d"]) * float(p["d"]) + pow(float(p["k"]) * float(p["len"]), 2.0))
 	return p
@@ -84,7 +82,7 @@ static func _pose(S: Scene, B: Body, t: float) -> Dictionary:
 	var hand := B.wep_hand if B.wep_hand != "" else "hand_r"
 	var sfx := hand.substr(4)   # "_r" / "_l"
 	return {"sh": B.P["upperarm" + sfx], "el": B.P["lowerarm" + sfx], "wr": B.P["hand" + sfx], "kn": B.wep_point(0.0), "u": B.wep_axis(),
-		"gr": B.wep_point(WeightFeel.GRIP_U), "tip": B.wep_point(B.wep_len)}
+		"gr": B.wep_point(WeightFeel.grip_u_of(B.wep_kind)), "tip": B.wep_point(B.wep_len)}
 
 
 ## the rods of a sample: [{"m", "ip" (inertia about the centre of mass, perpendicular), "c", "u"}] in order upperarm, forearm, hand, weapon

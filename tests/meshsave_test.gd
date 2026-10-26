@@ -72,6 +72,8 @@ func visible_buttons() -> Array:
 func text_of(b: Button) -> String:
 	if b.text.strip_edges() != "":
 		return b.text.strip_edges()
+	if b.has_meta("label"):   # ribbon standard 5f40546c/6bde3d2d, Nick OK 2026-10-26: an icon-only ribbon button keeps its name in the label meta
+		return String(b.get_meta("label"))
 	for n in walk(b, []):
 		if n is Label and (n as Label).text.strip_edges() != "":
 			return (n as Label).text.strip_edges()
@@ -104,6 +106,18 @@ func click_btn(txt: String) -> bool:
 		if text_of(b) == txt:
 			await click_at((b as Button).get_global_rect().get_center())
 			return true
+	return false
+
+
+## a rest tool (under its group's caption, ribbon standard 5f40546c/6bde3d2d, Nick OK 2026-10-26): the caption's menu picks it by name,
+## as a click on the caption then on the item does (false when no caption of that tab holds it)
+func caption_pick(tab: String, label: String) -> bool:
+	for pair in m.ui_caps[tab]:
+		var tools: Array = pair[1]
+		for i in tools.size():
+			if m.label_of(tools[i]) == label:
+				(pair[0] as MenuButton).get_popup().id_pressed.emit(i)
+				return true
 	return false
 
 
@@ -190,7 +204,7 @@ func _init() -> void:
 	if on_disk != null and again_p.size() == on_disk.verts.size():
 		for i in again_p.size():
 			fresh_far = maxf(fresh_far, again_p[i].distance_to(on_disk.verts[i]))
-	var opened := await click_btn("Open...")
+	var opened := caption_pick("MODEL", "Open...")   # ribbon standard 5f40546c/6bde3d2d, Nick OK 2026-10-26: Open... is under the MESH caption now
 	await idle(6)
 	var od := open_dialog()
 	var picked := false

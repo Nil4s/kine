@@ -18,6 +18,8 @@ static func build(kind: String, girth := 1.0, thumb := false) -> Node3D:
 	## girth: a visual multiplier on a long shaft's radius (staff, spear). thumb: the library picture's own look (a longsword's
 	## big pommel and wide quillons, so it reads apart from the sword). Only the thumbnails pass these; the hand is built at 1.0 / false,
 	## so the hit radii and the grip are never drawn from them.
+	if PartWeapon.is_part(kind):
+		return PartWeapon.node(kind)   # a Part (scripts/build/part_weapon.gd): its own tessellation
 	var root := Node3D.new()
 	root.name = kind
 	if kind == "two_daggers":

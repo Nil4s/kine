@@ -85,6 +85,8 @@ func _init() -> void:
 			var tools_n := 0
 			var n_more := 0
 			for t in m.PAGE_ROW.values():   # pages: VIEW is the View menu, not a row
+				if not (m.ui_ribbon_tabs[t] as Control).is_visible_in_tree():
+					continue   # 1d1c8b5b: BUILD's page tab shows for building projects only; this scene is a fighter
 				await click(m.ui_ribbon_tabs[t])
 				await idle(2)
 				var off := off_screen()
