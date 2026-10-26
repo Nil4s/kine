@@ -529,7 +529,7 @@ func _chip(t: String) -> void:
 	pu.upto = -1
 	pu.sync()
 	frame()
-	_say("A %s: move a slider or drag an amber dot" % t)
+	_say("%s %s: move a slider or drag an amber dot" % ["An" if t.substr(0, 1) in "aeiou" else "A", t])
 
 
 func _chips_sync() -> void:
