@@ -72,6 +72,7 @@ var video_root := ""           # a TEST's folder (user://...) for Save video; ""
 var last_video := {}          # the last Easy save: the playblast's result ({dir, frames, mp4, ffmpeg}); {} = none, or refused
 var _toast: PanelContainer
 var _toast_text: Label
+var _toast_short := false   # the compact toast on a short window (_process)
 var _toast_show: Button       # "Open folder": hidden when the message has no file (the empty-scene hint)
 var _toast_file := ""         # what Show the file opens: the .mp4 (its folder is shown with it)
 var _toast_at := []           # [cards, undo steps] when the saved-video message came up: it goes once the clip changes
@@ -538,6 +539,12 @@ func _process(dt: float) -> void:
 		panel.position = Vector2(PANEL_LEFT, maxf(top, top + (low - top - panel.size.y) * 0.5))
 	# the toast sits above the welcome line (which runs the width of the view), so it never covers the line, the status or the strip
 	_toast.offset_bottom = -(float(m.bottom_h) + float(m.LINE_H) + float(MouseHint.H) + 14.0)
+	var short: bool = _toast.get_viewport().get_visible_rect().size.y <= 760.0   # a 720 p window: the full-size toast reaches up into the view buttons' column
+	if short != _toast_short:
+		_toast_short = short
+		(_toast.get_theme_stylebox("panel") as StyleBoxFlat).set_content_margin_all(12 if short else 18)
+		_toast_text.add_theme_font_size_override("font_size", 20 if short else 26)
+		_toast.reset_size()
 	_copy_box.visible = on and _copying()   # the copy's bar (the strip's place while a copy runs is the bar's)
 	strip.visible = on and not (empty or _open or _gen_on or _copying()) and _built and not lib   # the open library covers the strip's place too: one at a time
 	_refresh_next()
