@@ -71,6 +71,7 @@ var beats_audio := []  # MUSIC BEATS (ROADMAP 32; scripts/beat_track.gd): [{"t" 
 var notes := []       # REVIEW (ROADMAP 29; scripts/review.gd): comments on frames [{"frame", "text"}] by frame; in the file as "notes" only when any
 var beats := []       # CHOREOGRAPHY (ROADMAP 13; scripts/choreo.gd): the exchange's named moments [{"t", "name", "by", "on"}] on the HERO's scene; in the file as "beats" only when any
 var props := []        # the SET (round 37, SS5): [Props dicts {"kind", "xf"}]; in the file as "props" (only when any)
+var building := {}     # BUILD mode (docs/BUILD_PLAN.md; scripts/build/building.gd): the parametric Building record; in the file as "building" only when there is one
 var props_skipped := []   # kinds the file named that this library does not have (from_dict)
 var part_keys := {}    # PART KEYS (round 41, WW1): {"<joint>": [{"t", "v": Vector3}]} by time; see scripts/part_keys.gd
 var iq := {}          # VIDEO IQ (scripts/video_iq.gd): what the video import knew, {"conf" lane, "spans", "contacts", "keys"...}; in the file as "iq" only when any
@@ -2292,6 +2293,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["layers"] = layers.map(func(L): return Scene.layer_to_file(L))
 	if not props.is_empty():
 		out["props"] = props.map(func(p): return Props.to_dict(p))   # the same: a scene with no set saves as before
+	if not building.is_empty():
+		out["building"] = Building.to_file(building)   # BUILD: the record only (the mesh is regenerated from it)
 	if not part_keys.is_empty():
 		out["part_keys"] = PartKeys.to_file(part_keys)   # WW1: the same, only when there is one
 	if not refimgs.is_empty():
@@ -2362,11 +2365,11 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 ## scene does with it. "free" = has no side, copied as is; anything else is SIDED and says how it changes. A key not
 ## on this list fails tests/mirror_list_test.gd: whoever adds a key decides here whether it has a side.
 const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: where it came from", "cards": "each card, below",
-	"bad_frames": "SIDED: recomputed from the mirrored motion (part names like thigh_l)", "natural": "free", "on_floor": "free",
+	"bad_frames": "SIDED: recomputed from the mirrored motion (part names like thigh_l)", "kind": "free (the project kind: animation, modeling, building)", "natural": "free", "on_floor": "free",
 	"floor_body": "free", "free_limits": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "fitness": "free", "dq_skin": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
 	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
 	"layers": "SIDED: each layer's \"v\" by Scene.mirror_layer (an override's angles reflect the same way), its \"offset\" x negated; the rest free",
-	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "refimgs": "free (a picture is not mirrored: its flip toggle does that)", "notes": "free (frames and text, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180° - yaw, swing negated; keys the same: Props.mirror_dict)",
+	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "refimgs": "free (a picture is not mirrored: its flip toggle does that)", "notes": "free (frames and text, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "building": "SIDED: Building.mirror_file (each room reflected across x = 0, its yaw negated; left <-> right walls, a front / back opening's at negated)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180° - yaw, swing negated; keys the same: Props.mirror_dict)",
 	"actors": "SIDED: each actor's scene mirrored whole (Scene.mirror_file), its xf pos x negated and its yaw negated",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
 	"iq": "SIDED: VideoIQ.mirror_file (the lost-part spans and the contacts move to their twin side: hand_l <-> hand_r, foot_l <-> foot_r, x negated; the lane and times free)",
@@ -2456,6 +2459,8 @@ static func mirror_file(d: Dictionary, M: Body) -> Dictionary:
 		d2["sets"] = PartSets.mirror_file(d2["sets"])   # selection / keying sets: parts to twins, "_l" / "_r" names swapped
 	if d2.has("boxes"):
 		d2["boxes"] = HitBoxes.mirror_file(d2["boxes"])   # HIT / HURT BOXES: parts to twins, offsets reflected
+	if d2.has("building"):
+		d2["building"] = Building.mirror_file(d2["building"])   # BUILD: the house reflected across x = 0
 	if d2.has("clips"):
 		d2["clips"] = Clips.mirror_file(d2["clips"])   # CLIPS: each source plays mirrored
 	if d2.has("layer"):
@@ -2523,6 +2528,7 @@ func from_dict(d: Dictionary) -> void:
 	lip = LipSync.from_file(d.get("lip", {}))   # ROADMAP 31: absent = none
 	props = []
 	props_skipped = []
+	building = Building.from_file(d.get("building", {}))   # BUILD: absent = none
 	part_keys = PartKeys.from_file(d.get("part_keys", {}))   # WW1: absent = none
 	ik = LimbIK.from_file(d.get("ik", {}))   # IK keys: absent = none
 	plants = FootPlant.from_file(d.get("plants", []))   # foot plants: absent = none

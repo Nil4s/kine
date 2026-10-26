@@ -127,3 +127,4 @@ EXTRA="$EXTRA perfpresets:w"   # GRAPHICS QUALITY: Auto/Low/Medium/High presets,
 EXTRA="$EXTRA cad:w"   # CAD kernel pilot: KineCAD (Open CASCADE) via scripts/kcad.gd: box - hole, fillet, shell, tessellate, STEP (tests/cad_test.gd; SKIPs without the DLL)
 EXTRA="$EXTRA crashcheck:w"   # CRASH CHECK: every realism option + every Fix + Fix all on the owner scene, real clicks, 0 script errors, one undo step each, no stale timeline index (tests/crashcheck_test.gd)
 EXTRA="$EXTRA lookd:w"   # THE BODY LOOK "D": clay token, sky outline, soft lights + SSAO, pick tint over the outline, FPS (tests/lookd_test.gd)
+EXTRA="$EXTRA build:h"   # BUILD mode phase 1 skeleton: the parametric Building record -> closed solid (4x3 room, door volume, scene save/load, collision boxes, mirror) (scripts/build/building.gd; tests/build_test.gd)
