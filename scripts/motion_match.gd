@@ -60,6 +60,40 @@ static func build(dirs: Array = ["res://scenes/", "res://moves/"]) -> Dictionary
 	return d.duplicate()
 
 
+## build() for a button: the same database, read a few files per frame (FrameMemo.slice_begin first) so the window keeps drawing;
+## {} = cancelled. A folder of a few hundred scenes was a 20 s freeze.
+static func build_co(dirs: Array = ["res://scenes/", "res://moves/"]) -> Dictionary:
+	var stamp := _stamp(dirs)
+	if _cache.has(stamp):
+		return (_cache[stamp] as Dictionary).duplicate()
+	var B := Body.new()
+	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
+	B.fk()
+	var clips: Array = []
+	var files := []
+	for dir in dirs:
+		for fn in DirAccess.get_files_at(dir):
+			if fn.ends_with(".json"):
+				files.append([dir, fn])
+	for k in files.size():
+		var dir: String = files[k][0]
+		var fn: String = files[k][1]
+		var d: Variant = JSON.parse_string(FileAccess.get_file_as_string(dir + fn))
+		if d is Dictionary and not (d.get("cards", []) as Array).is_empty():
+			var S := Scene.new()
+			S.from_dict(d)
+			var c: Dictionary = await _clip_co(S, B, fn.get_basename(), dir + fn)
+			if c.is_empty():
+				return {}
+			clips.append(c)
+		if not await FrameMemo.pump(float(k) / float(maxi(files.size(), 1))):
+			return {}
+	var out := _pack(clips)
+	_cache.clear()
+	_cache[stamp] = out
+	return out.duplicate()
+
+
 static func _build(dirs: Array) -> Dictionary:
 	var B := Body.new()
 	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
@@ -80,6 +114,14 @@ static func _build(dirs: Array) -> Dictionary:
 
 ## one clip played through Scene.apply at its own fps: the root, the heading, the feet, the hips, every joint's angle
 static func _clip(S: Scene, B: Body, cname: String, path: String) -> Dictionary:
+	var keep := FrameMemo.suspend_slicing()   # a plain call never waits for a frame
+	var r: Dictionary = _clip_co.call(S, B, cname, path)
+	FrameMemo.resume_slicing(keep)
+	return r
+
+
+## _clip() that gives the frame back inside a long clip (one 60 s scene alone was ~2 s); {} = cancelled
+static func _clip_co(S: Scene, B: Body, cname: String, path: String) -> Dictionary:
 	var fps: float = S.fps if S.fps > 0 else 30.0
 	var L: float = S.length()
 	var n: int = int(floorf(L * fps)) + 1
@@ -91,6 +133,8 @@ static func _clip(S: Scene, B: Body, cname: String, path: String) -> Dictionary:
 	var ang := PackedVector3Array()
 	var off := PackedVector3Array()
 	for f in n:
+		if FrameMemo.slicing() and not await FrameMemo.pump():
+			return {}
 		S.apply(B, minf(float(f) / fps, L))
 		B.fk()
 		root.append(Vector3(B.offset.x, 0.0, B.offset.z))

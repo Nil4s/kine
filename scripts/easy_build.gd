@@ -17,6 +17,7 @@ const HINTS := {
 	"Floor": "Each press adds a floor on top of the house",
 	"Roof": "Each press changes the roof: gable, flat, none",
 	"Stairs": "Click inside a room to put stairs there",
+	"Part": "Make a sword, axe, shield, chair or crate with sliders",
 	"Words": "Type what you want to build, then check the plan",
 }
 
@@ -48,6 +49,7 @@ func build(root: Control) -> void:
 	var acts := [
 		["Undo", "Take back the last change", func(): m._undo()],
 		["Words", "Say what you want to build in words", func(): _words()],
+		["What to build", "Pick what to build: a house, a part, a prop pack or an imported file", func(): m.build_choose.show_chooser()],
 		["Switch to Expert", "Show every tool again. The house stays as it is", func(): m.easy.set_on(false)],
 		["Done", "Finish building and go back to the start screen", _done],
 	]
@@ -83,6 +85,7 @@ func build(root: Control) -> void:
 		["Floor", "+ Floor", "build_floor", func(): _floor()],
 		["Roof", "Roof", "build_roof", func(): _roof()],
 		["Stairs", "Stairs", "piece_stairs", func(): _stairs()],
+		["Part", "Make a part", "part_part", func(): m.bld.part.open_easy()],
 	]
 	for t in tools:
 		var b := Button.new()
@@ -154,7 +157,7 @@ func _big(label: String, tip: String, f: Callable) -> Button:
 
 ## Easy is on, in a building project, on BUILD
 func is_active() -> bool:
-	return m != null and m.easy != null and m.easy.on and m.S != null and m.S.kind == "building" and m.cur_page == "BUILD" and m.bld != null and m.bld.on
+	return m != null and m.easy != null and m.easy.on and m.S != null and m.S.kind == "building" and m.cur_page == "BUILD" and m.bld != null and m.bld.on and not (m.bld.part != null and m.bld.part.on and m.bld.part.easy)
 
 
 ## the width the column takes from the left of the clear view

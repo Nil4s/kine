@@ -245,7 +245,8 @@ const RIBBON_GROUPS := {
 	"MODEL": [["MESH", ["Test cube", "Edit body", "Save to body", "Save", "Open...", "Use in scene"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Proportional", "Modifiers", "Validate", "Repair"]]],
 	"SCULPT": [["SPHERE", ["Test sphere"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
 	"SURFACE": [["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]], ["MATERIAL", ["Material from photo"]]],
-	"BUILD": [["DRAW", ["Room", "Wall", "Pull"]], ["ADD", ["Opening", "Floor", "Roof", "Piece"]], ["SAY", ["Words"]], ["SHEET", ["Blueprint"]]],
+	"BUILD": [["DRAW", ["Room", "Wall", "Pull"]], ["ADD", ["Opening", "Floor", "Roof", "Piece"]], ["SAY", ["Words"]], ["SHEET", ["Blueprint"]],
+		["PART", ["Part"]], ["SKETCH", ["Line", "Rectangle", "Circle", "Arc", "Dimension"]], ["CREATE", ["Extrude", "Revolve", "Mirror"]], ["MODIFY", ["Fillet", "Chamfer"]], ["DONE", ["Finish sketch"]]],   # the last five are the Part workspace's (scripts/build/part_ui.gd)
 	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped"]]],
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag", "Keep balance"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
@@ -320,6 +321,7 @@ var clean := false:         # recording: no highlights, no name tag, NO PANELS (
 			_sides_apply()
 var ui_side: Array = []      # the panels Tab hides
 var onboard: Onboarding     # ONBOARDING (scripts/onboarding.gd, R25): the first-launch 3-step guide
+var build_choose: BuildChoose   # BUILD's "What do you want to build?" chooser (scripts/build_choose.gd)
 var model_cards: ModelCards   # MODEL's task cards, "What do you want to do?" (scripts/model_cards.gd)
 var page_tour: PageTour     # P01 (scripts/page_tour.gd): BODY / MODEL / SCULPT / SURFACE, a 5-step tour the first time each opens
 var easy: EasyMode           # EASY MODE (scripts/easy_mode.gd): the 13-button bar; Expert = every panel and tool
@@ -2932,6 +2934,9 @@ func _ready() -> void:
 	model_cards = ModelCards.new()
 	model_cards.m = self
 	add_child(model_cards)
+	build_choose = BuildChoose.new()
+	build_choose.m = self
+	add_child(build_choose)
 	page_tour = PageTour.new()
 	page_tour.m = self
 	add_child(page_tour)
@@ -3075,7 +3080,9 @@ func _ready() -> void:
 	onboard.build(ui_root)
 	page_tour.build(ui_root)
 	model_cards.build(ui_root)
+	build_choose.build(ui_root)
 	page_tour.auto = not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour")   # P01: a test turns it on itself
+	build_choose.auto = page_tour.auto   # the chooser comes with a new 3D BUILDING project on a real launch; a test turns it on itself
 	model_cards.auto = page_tour.auto   # the cards come the first time MODEL opens on a real launch; a test turns them on itself
 	onboard.prepare(cf, not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour"))   # R25: due on a first launch; the other tours wait for it
 	easy.build(ui_root, [ui_top_bar, ui_cube, ui_nav, ui_bh, ui_play_row, ui_side_of["left"], ui_side_of["right"], ui_page_bar, ui_mouse].filter(func(n): return n != null) + ui_rails.values())   # Easy: no page tabs, no mouse legend
@@ -3893,7 +3900,7 @@ func _fd_cycle_fps() -> void:
 ## the frame data of the scene as it is now (a fresh body: the live one is not moved). Made again only when the cards,
 ## the dummy or the frame rate change
 func _fd_data() -> Dictionary:
-	var key := "%d|%s|%s|%s|%s" % [fd_fps, var_to_str(S.cards), var_to_str(T.xf) if dummy_on else "-", var_to_str(S.boxes), "" if dummy_on else FrameAdvantage.app_key(self)]
+	var key := "%d|%s|%s|%s|%s" % [fd_fps, str(S.cards.hash()), var_to_str(T.xf) if dummy_on else "-", var_to_str(S.boxes), "" if dummy_on else FrameAdvantage.app_key(self)]
 	if String(fd_cache.get("key", "")) != key:
 		if _force_body == null:   # I16b: the skeleton is read once, not at every score
 			_force_body = Body.new()
@@ -3977,7 +3984,7 @@ var _force_body: Body = null
 
 ## the clip's inverse dynamics, made once per cards + body (on its own body, like the frame data), {} with fewer than 2 cards
 func _force_data() -> Dictionary:
-	var key := "%s|%s" % [var_to_str(S.cards), var_to_str(S.body)]
+	var key := "%s|%s" % [str(S.cards.hash()), var_to_str(S.body)]
 	if String(force_cache.get("key", "")) != key:
 		if _force_body == null:   # I16b: the skeleton is read once, not at every score
 			_force_body = Body.new()
@@ -6284,7 +6291,7 @@ func _snapshot() -> Dictionary:
 	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
 	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
 		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps, "bcol": body_colour, "bsm": Overlays.smooth,
-		"props": S.props.map(func(p): return Props.to_dict(p)), "building": _bld_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
+		"props": S.props.map(func(p): return Props.to_dict(p)), "building": _bld_file(), "part": _part_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
@@ -6346,6 +6353,11 @@ func _bld_scene_changed(opened: bool, caller_follows := false) -> void:   # call
 ## the open scene's BUILD record as the file holds it ({} = none): the undo snapshot's "building"
 func _bld_file() -> Dictionary:
 	return {} if S.building.is_empty() else Building.to_file(S.building)
+
+
+## the open scene's PART record as the file holds it ({} = none): the undo snapshot's "part"
+func _part_file() -> Dictionary:
+	return {} if S.part.is_empty() else Part.to_file(S.part)
 
 
 func _restore(u: Dictionary) -> void:
@@ -6454,6 +6466,10 @@ func _restore(u: Dictionary) -> void:
 		_props_show()
 	if u["scene"] == S and u.has("building") and JSON.stringify(u["building"]) != JSON.stringify(_bld_file()):
 		S.building = Building.from_file(u["building"])   # BUILD: the house, undone like a card
+		if bld != null:
+			bld.sync()
+	if u["scene"] == S and u.has("part") and JSON.stringify(u["part"]) != JSON.stringify(_part_file()):
+		S.part = Part.from_file(u["part"])   # PART: the feature timeline, undone like a card
 		if bld != null:
 			bld.sync()
 	if u.has("bcol") and int(u["bcol"]) != body_colour:
@@ -12000,7 +12016,23 @@ func _doc_line(force := false) -> void:
 	if _dot_later or Engine.get_process_frames() < _first_hold:   # a card build's rebuild, or the frames of its first moving frame: the dot is read after them (the serialise is 20+ ms with four fighters; 31 ms in Run's first frame)
 		_after_first_frame(_dot_recheck)
 		return
-	ui_doc_dot.visible = _unsaved()
+	ui_doc_dot.visible = _unsaved_cached()
+
+
+var _unsaved_sig := -1
+var _unsaved_val := false
+
+## _unsaved() for the 400 ms strip refresh: JSON.stringify of every card cost 0.3 s a time on a 60 s scene (the whole window stuttered), so
+## the answer is kept until something _doc_key reads has changed (checked by hashes, which are a few ms)
+func _unsaved_cached() -> bool:
+	var H := _hero_scene()
+	var sig := [H.cards.hash(), H.props.map(func(p): return Props.to_dict(p)).hash(), S.building.hash(), H.shots.hash(),
+		H.actors.map(func(a): return [a["name"], a["xf"], (a["scene"] as Scene).cards.hash()]).hash(), BaseBody.gen(self),
+		ArmourFromBody.parts(self).size(), _clean.hash()].hash()
+	if sig != _unsaved_sig:
+		_unsaved_sig = sig
+		_unsaved_val = _unsaved()
+	return _unsaved_val
 
 
 ## a card build's own bookkeeping that nobody sees (the work copy's file, the recents line, the unsaved dot): it runs at the start of the
@@ -12416,7 +12448,7 @@ func _ui() -> void:
 	ui_ribbon["ANIMATE"].add_child(_button("Match the reference timing", tm_ui.show, "retime this clip's cards so its strikes and holds land when the reference video's do: both limb-speed curves are drawn with the matched events; poses are not touched; Preview, then Accept (one undo step)"))
 	ui_ribbon["ANIMATE"].add_child(_button("From several cameras", _multicam_ask, "animation from 2 to 4 videos of one person filmed at the same time: the cameras' places are solved from the person, every joint is triangulated, and it lands as ONE undo step on this scene"))
 	# CHECK
-	ui_ribbon["CHECK"].add_child(_button("Check", _check, "grade the scene against real recorded human motion; click a problem to jump to it"))
+	ui_ribbon["CHECK"].add_child(_button("Check", _check_btn, "grade the scene against real recorded human motion; click a problem to jump to it"))
 	ui_ribbon["CHECK"].add_child(_button("Polish", _polish, "smooth the scene and add the in-between detail into a NEW scene; yours is not touched"))
 	ui_ribbon["CHECK"].add_child(_button("Fix moves through the body", _clear_scene))
 	if tc_ui == null:
@@ -15624,9 +15656,9 @@ func _fit_top() -> void:
 	for b in all:
 		if b is Button and b.has_meta("full"):
 			b.text = b.get_meta("full")
-	var tools: Array = ui_ribbon[_ribbon_tab].get_children().filter(func(c): return c is Button)
 	for b in ui_ribbon[_ribbon_tab].get_children():
-		(b as Control).visible = true
+		(b as Control).visible = bld == null or bld.part == null or bld.part.ribbon_shows(b, _ribbon_tab)   # BUILD: the house tools or the Part workspace's, never both
+	var tools: Array = ui_ribbon[_ribbon_tab].get_children().filter(func(c): return c is Button and (c as Control).visible)
 	ui_more.visible = false
 	_more_tools = []
 	if _top_fits():
@@ -17671,6 +17703,39 @@ func _graph_input(ev: InputEvent) -> void:
 
 
 ## CHECK: the rulebook over the scene as it plays; the panel lists each finding as a button that jumps to it
+var _check_busy := false
+
+## the Check button (checkhunt): the same grade as _check(), played in time slices so the window keeps drawing on a long clip (a 30 s
+## clip held the main thread for ~40 s). The status line shows the percent; a second click while it runs CANCELS it; an edit made
+## meanwhile discards the result (it would grade cards that are gone).
+func _check_btn() -> void:
+	if S.cards.size() < 2:
+		_check()   # the "needs two cards" line
+		return
+	if _check_busy:
+		FrameMemo.abort = true
+		_say("check cancelled")
+		return
+	_check_busy = true
+	var key := S.cards.hash()
+	_say("checking... 0%")
+	FrameMemo.slice_begin(8.0, func(f: float): _say_plain("checking... %d%%  (click Check again to cancel)" % int(f * 100.0)))
+	_bake_validate()
+	var sm: Dictionary = await Rulebook.sample_co(S, ov.GB)
+	var fi: Array = []
+	if not sm.is_empty():
+		fi = await Rulebook.check_co(S, ov.GB, sm)
+	var aborted := FrameMemo.abort or sm.is_empty()
+	FrameMemo.slice_end()
+	_check_busy = false
+	if aborted:
+		return
+	if S.cards.hash() != key:
+		_say("check: the scene changed while it ran; press Check again")
+		return
+	_check(fi)
+	_sm = sm
+
 func _check(given = null) -> void:
 	_previews.clear()   # the previews were for the cards as they were
 	_pv_gen += 1
@@ -18438,26 +18503,60 @@ func _fix_all() -> void:
 
 ## POLISH: the detail pass (tools/detail.gd) on the open scene -> scenes/_wip/<name>_polished.json, opened. Nick's file
 ## is never written; picking it in the list brings it back.
+var _polish_gen := 0
+var _polish_busy := false
+var _polish_orphans: Array = []   # threads of cancelled runs: reaped when they end (a thread cannot be stopped)
+
 func _polish() -> void:
 	if S.cards.size() < 2:
 		_say("Polish needs a scene of two cards or more: press Enter to add the body as a card (two at least), or open a scene in the list below")
 		return
+	for th in _polish_orphans.filter(func(t): return not (t as Thread).is_alive()):
+		(th as Thread).wait_to_finish()
+		_polish_orphans.erase(th)
+	if _polish_busy:   # a second click cancels the run (its result is dropped)
+		_polish_gen += 1
+		_polish_busy = false
+		_say("polish cancelled")
+		return
 	_say("polishing '%s'..." % S.name)
-	await get_tree().process_frame
-	await get_tree().process_frame
 	var keep := B.state()   # lossless (round 8): to_dict rounds, so the live body jumped a rounding step
 	var C := Scene.new()
-	C.from_dict(S.to_dict(B))
+	C.from_dict(S.to_dict(B, false))   # false: no bad_frames scan (1.2 s on 12 cards); the copy is graded by the pass itself
 	B.set_state(keep)
 	var n0 := C.cards.size()
-	var r: Array = DetailTool.polish(ov.GB, C, 30)
-	var D: Scene = r[0]
 	var base := S.name.trim_suffix("_polished")
-	D.name = base + "_polished"
+	# the detail pass is minutes of Scene.apply on a copy: it runs on a worker thread with its OWN body, and the window keeps drawing
+	# (it held the main thread for 2.7 s on a 4.7 s clip, ~1 min on a 60 s one). Nothing it touches is shared: the copy C, the body PB.
+	_polish_busy = true
+	_polish_gen += 1
+	var gen := _polish_gen
+	var box := []
+	var thr := Thread.new()
+	thr.start(func():   # its own body, made on the thread (reading the skeleton files is not free either)
+		var PB := EventQuery._new_body()
+		var pr: Array = DetailTool.polish(PB, C, 30)
+		var D0: Scene = pr[0]
+		D0.name = base + "_polished"
+		var d0 := D0.to_dict(PB)   # the saved file's bad_frames scan (~1 s): here, not on the main thread
+		d0["plan"] = "Polish (tools/detail.gd) from " + base
+		box.append([pr, d0]))
+	var t_start := Time.get_ticks_msec()
+	while thr.is_alive():
+		await get_tree().process_frame
+		if gen != _polish_gen:
+			_polish_orphans.append(thr)
+			return
+		_say_plain("polishing '%s'... %d s  (click Polish again to cancel)" % [S.name, (Time.get_ticks_msec() - t_start) / 1000])
+	thr.wait_to_finish()
+	_polish_busy = false
+	if box.is_empty():
+		_say("polish failed: nothing came back")
+		return
+	var r: Array = box[0][0]
+	var D: Scene = r[0]
 	var path := UserPaths.w("res://scenes/_wip/%s.json" % D.name)
-	var d := D.to_dict(ov.GB)
-	d["plan"] = "Polish (tools/detail.gd) from " + base
-	_write(path, d)
+	_write(path, box[0][1])
 	_load_scene(path, true)
 	_rebuild_cards()
 	_refresh()
@@ -23344,7 +23443,7 @@ static func _rm_tree(dir: String) -> void:
 
 func _unsaved() -> bool:
 	var H := _hero_scene()   # TC3: the file is the hero's scene, whoever is active
-	return (not H.cards.is_empty() or not H.props.is_empty() or not S.building.is_empty()) and _doc_key() != _clean   # a drawn house is work too
+	return (not H.cards.is_empty() or not H.props.is_empty() or not S.building.is_empty() or not S.part.is_empty()) and _doc_key() != _clean   # a drawn house (or a sketched part) is work too
 
 
 ## what "saved" compares: the cards, and the set when there is one (no props: the same string as before round 37); with
@@ -23354,6 +23453,8 @@ func _doc_key() -> String:
 	var k := JSON.stringify(H.cards) + ("" if H.props.is_empty() else JSON.stringify(H.props.map(func(p): return Props.to_dict(p))))
 	if not S.building.is_empty():
 		k += "|building" + JSON.stringify(Building.to_file(S.building))   # BUILD: a drawn room is an unsaved change
+	if not S.part.is_empty():
+		k += "|part" + JSON.stringify(Part.to_file(S.part))   # PART: a sketched feature is an unsaved change
 	if not H.shots.is_empty():
 		k += "|shots" + var_to_str(H.shots)   # the shots and their cameras: an unsaved change too (ROADMAP 75)
 	for a in H.actors:

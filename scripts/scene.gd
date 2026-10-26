@@ -100,6 +100,7 @@ var cons_hero = null   # runtime (Constraints.link): a fighter's scene -> weakre
 var cons_me := 0       # runtime: this scene's fighter number in the hero's file (0 = the hero)
 var _cons_scratch := {}   # runtime: fighter number -> a Body another fighter's scene is posed on (actor targets)
 var name := "scene"
+var part := {}         # EXPERT PART workspace (scripts/build/part.gd): the feature timeline (sketches, extrude, revolve, fillet...); in the file as "part" only when there is one
 var kind := "animation"   # the start screen's project kind (animation, modeling, building); a file without one is an animation
 var natural := true
 var layer := {}        # YY9: ONE additive layer, joint -> Vector3 (deg) added to the played angles x layer_w; {} = none
@@ -2317,6 +2318,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["props"] = props.map(func(p): return Props.to_dict(p))   # the same: a scene with no set saves as before
 	if not building.is_empty():
 		out["building"] = Building.to_file(building)   # BUILD: the record only (the mesh is regenerated from it)
+	if not part.is_empty():
+		out["part"] = Part.to_file(part)   # PART: the features only (the solids and the mesh are replayed from them)
 	if not part_keys.is_empty():
 		out["part_keys"] = PartKeys.to_file(part_keys)   # WW1: the same, only when there is one
 	if not refimgs.is_empty():
@@ -2391,7 +2394,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 	"floor_body": "free", "free_limits": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "fitness": "free", "dq_skin": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
 	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
 	"layers": "SIDED: each layer's \"v\" by Scene.mirror_layer (an override's angles reflect the same way), its \"offset\" x negated; the rest free",
-	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "refimgs": "free (a picture is not mirrored: its flip toggle does that)", "notes": "free (frames and text, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "building": "SIDED: Building.mirror_file (each room reflected across x = 0, its yaw negated; left <-> right walls, a front / back opening's at negated)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180° - yaw, swing negated; keys the same: Props.mirror_dict)",
+	"length_s": "free", "note": "free", "markers": "free (times, not sides)", "refimgs": "free (a picture is not mirrored: its flip toggle does that)", "notes": "free (frames and text, not sides)", "beats": "free (times and names; by / on are fighter numbers, not sides)", "beats_audio": "free (sound times only; the sound is not mirrored)", "audio": "free (the sound is not mirrored)", "part": "free (a part is one solid sketched on its own planes; its Mirror feature is the tool, the scene's Mirror leaves it as it is)", "building": "SIDED: Building.mirror_file (each room reflected across x = 0, its yaw negated; left <-> right walls, a front / back opening's at negated)", "props": "SIDED: each prop's x negated and its yaw negated (the set reflected; a door: yaw 180° - yaw, swing negated; keys the same: Props.mirror_dict)",
 	"actors": "SIDED: each actor's scene mirrored whole (Scene.mirror_file), its xf pos x negated and its yaw negated",
 	"part_keys": "SIDED: PartKeys.mirror_file (each joint's keys to its twin, each value reflected as mirror_pose does)",
 	"iq": "SIDED: VideoIQ.mirror_file (the lost-part spans and the contacts move to their twin side: hand_l <-> hand_r, foot_l <-> foot_r, x negated; the lane and times free)",
@@ -2551,6 +2554,7 @@ func from_dict(d: Dictionary) -> void:
 	props = []
 	props_skipped = []
 	building = Building.from_file(d.get("building", {}))   # BUILD: absent = none
+	part = Part.from_file(d.get("part", {}))   # PART: absent = none
 	part_keys = PartKeys.from_file(d.get("part_keys", {}))   # WW1: absent = none
 	ik = LimbIK.from_file(d.get("ik", {}))   # IK keys: absent = none
 	plants = FootPlant.from_file(d.get("plants", []))   # foot plants: absent = none

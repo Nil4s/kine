@@ -108,6 +108,8 @@ func _init() -> void:
 		var cb: Array = m.ui_root.find_children("*", "Button", true, false).filter(func(b): return m.label_of(b) == "Check" and b.is_visible_in_tree())
 		ok(cb.size() >= 1, "  the Check button is on screen")
 		cb[0].pressed.emit()
+		while bool(m._check_busy):   # the Check button grades in time slices now (checkhunt)
+			await process_frame
 		await process_frame)
 	ok(not m.ui_tour.visible and not m._tour_due(), "the end: the card goes and the tour is no longer due")
 	# Skip, from a fresh settings file

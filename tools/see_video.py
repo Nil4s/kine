@@ -50,6 +50,7 @@ WRIST_DEAD_AFTER = 3  # SPEED: a wrist whose crops found no hand on this many pr
                       # sees, e.g. the left one on the small fixture) is probed only every WRIST_REPROBE sampled frames
 WRIST_REPROBE = 4     # the re-probe interval of such a wrist (a hand that comes back is found at most this many frames late)
 WRIST_STATS = [0, 0, threading.Lock()]   # [wrist crops run, visible wrists seen] over a crop pass (printed on stderr)
+CHUNK_WARM = 8       # SPEED: a chunk's tracker runs this many sampled frames before its first kept frame
 CROP_WORKERS = 3      # the crop pass in this many chunks at once (threads: MediaPipe releases the GIL; 3 measured ~1.9x)
 
 
@@ -329,17 +330,20 @@ def run_chunks(a, env, step, crop, conf, progress, pbase, workers):
     if K == 1:
         return run_track(a, env, step, crop=crop, report=lambda f: rep(0, f), conf=conf)
     bounds = [int(round(k * S / K)) for k in range(K + 1)]
+    # MOCAP SPEED: a chunk starts WARM frames early and throws those frames away: the hand tracker needs a few frames to lock on, and
+    # a cold start at the seam lost the hands on 8 frames of a 3-chunk walk (64 -> 56) while the body came out bit for bit the same
     with ThreadPoolExecutor(max_workers=K) as ex:
-        futs = [ex.submit(run_track, a, env, step, 1, crop, True, (lambda f, c=k: rep(c, f)), conf, bounds[k], bounds[k + 1])
+        futs = [ex.submit(run_track, a, env, step, 1, crop, True, (lambda f, c=k: rep(c, f)), conf, max(bounds[k] - CHUNK_WARM, 0), bounds[k + 1])
                 for k in range(K)]
         res = [f.result() for f in futs]
     frames = []
     lost = seen = with_hand = 0
-    for fr, l, s, h, _, _ in res:
-        frames += fr
-        lost += l
-        seen += s
-        with_hand += h
+    for k, (fr, _, _, _, _, _) in enumerate(res):
+        kept = [(s_, f) for s_, f in fr if s_ >= bounds[k]]
+        frames += kept
+        seen += bounds[k + 1] - bounds[k]
+        lost += bounds[k + 1] - bounds[k] - len(kept)
+        with_hand += sum(1 for _, f in kept if "hands" in f)
     return frames, lost, seen, with_hand, res[0][4], res[0][5]
 
 
@@ -348,6 +352,25 @@ def _map_point(q, x0, y0, si, W, H):
     x = min(max((x0 + q.x * si) / W, 0.0), 1.0)
     y = min(max((y0 + q.y * si) / H, 0.0), 1.0)
     return SimpleNamespace(x=x, y=y, z=q.z, visibility=q.visibility)
+
+
+SEAM_JUMP = 0.08      # a chunked whole-picture run: the hips may move at most this share of the picture between the frames of a seam
+
+
+def _seams_hold(frames_s):
+    """True when no two consecutive kept frames (sampled index s, frame) have hips further apart in the picture than SEAM_JUMP
+    per sampled frame step. Checks every pair, so it is also true for a run that was never chunked."""
+    prev = None
+    for s, fr in frames_s:
+        im = fr["image"]
+        hx = (im[23][0] + im[24][0]) / 2.0
+        hy = (im[23][1] + im[24][1]) / 2.0
+        if prev is not None:
+            ps, px, py = prev
+            if abs(hx - px) + abs(hy - py) > SEAM_JUMP * max(1, s - ps):
+                return False
+        prev = (s, hx, hy)
+    return True
 
 
 def main():
@@ -367,7 +390,7 @@ def main():
     ap.add_argument("--progress", default="",
                     help="a file rewritten as the tracker goes: the fraction of the video read (0-1), for the app's progress line")
     ap.add_argument("--workers", type=int, default=CROP_WORKERS,
-                    help="the crop pass runs in this many chunks at once (threads, each with its own detectors); 1 = one run")
+                    help="a pass runs in this many chunks at once (threads, each with its own detectors); 1 = one run")
     ap.add_argument("--hand-reach", type=float, default=0.12,
                     help="a hand's wrist within this many picture widths of a body wrist is that hand")
     a = ap.parse_args()
@@ -428,9 +451,15 @@ def main():
         print("wrist crops: %d run of %d visible wrists (a dead wrist is re-probed every %d frames)"
               % (WRIST_STATS[0], WRIST_STATS[1], WRIST_REPROBE), file=sys.stderr)
     else:
-        rep2 = _progress_writer(a.progress, pbase, 1)
-        frames_s, lost, seen, with_hand, W, H = run_track(a, env, step, every=1, crop=None, hands=True,
-                                                          report=lambda f: rep2(0, f), conf=a.detect_conf)
+        # MOCAP SPEED: the whole-picture pass is cut into chunks too (3 threads: ~1.9x on the crop pass, the same here). A chunk's
+        # follow starts from --pick, so each seam is checked: the person's hips on the two frames either side must be within
+        # SEAM_JUMP of the picture; a seam that jumped (two people, the wrong one picked) sends the whole pass back to one run
+        res = run_chunks(a, env, step, None, a.detect_conf, a.progress, pbase, a.workers)
+        if not _seams_hold(res[0]):
+            print("chunks: a seam jumped (another person?), tracked in one run", file=sys.stderr)
+            rep2 = _progress_writer(a.progress, pbase, 1)
+            res = run_track(a, env, step, every=1, crop=None, hands=True, report=lambda f: rep2(0, f), conf=a.detect_conf)
+        frames_s, lost, seen, with_hand, W, H = res
     frames = [fr for _, fr in frames_s]
     if len(frames) < 2:
         print("NO the tracker found a person in %d frames" % len(frames))

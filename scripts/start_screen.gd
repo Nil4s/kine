@@ -396,6 +396,7 @@ func _start_kind_now(kind: String) -> void:
 		"building":
 			m._page_set("BUILD")
 			m.bld.reset_view()   # a new project starts on the default view, not where the last house was left
+			m.build_choose.after_start()   # "What do you want to build?" over BUILD
 	if m.has_method("_refresh"):
 		m._refresh()
 

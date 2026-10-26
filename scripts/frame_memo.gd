@@ -26,6 +26,50 @@ static var _anch_key := ""
 static var prof := {}      # stage -> ms, summed since the last `prof = {}` (the profile of one re-score; see tick)
 static var played := 0     # frames played / re-used by the last call (for the report)
 static var reused := 0
+# TIME SLICING (checkhunt): a caller that awaits sets slice_ms > 0; a long loop then gives the frame back every slice_ms of main-thread time
+# (progress shows the fraction done). 0 = never wait: every other caller runs the loop in one go, exactly as before.
+static var slice_ms := 0.0
+static var abort := false   # a newer click cancels the run: every loop stops at its next pump and the caller returns empty
+static var progress := Callable()   # called with (done: float 0..1) at each pump
+static var _slice_t := 0
+
+## the loops call this between steps: true = go on, false = cancelled
+static func pump(done := -1.0) -> bool:
+	if not slicing():
+		return true
+	if Time.get_ticks_usec() - _slice_t < int(slice_ms * 1000.0):
+		return true
+	if progress.is_valid() and done >= 0.0:
+		progress.call(done)
+	await (Engine.get_main_loop() as SceneTree).process_frame
+	_slice_t = Time.get_ticks_usec()
+	return not abort
+
+## slicing is a main-thread thing: a worker thread (Fix all's bisection, the Polish pass) plays its loops in one go, never waits on a frame
+static func slicing() -> bool:
+	return slice_ms > 0.0 and OS.get_thread_caller_id() == OS.get_main_thread_id()
+
+## a plain (non-awaiting) call of a *_co function: no slicing for its duration, on the main thread only (another thread must not touch it)
+static func suspend_slicing() -> float:
+	if OS.get_thread_caller_id() != OS.get_main_thread_id():
+		return 0.0
+	var k := slice_ms
+	slice_ms = 0.0
+	return k
+
+static func resume_slicing(k: float) -> void:
+	if OS.get_thread_caller_id() == OS.get_main_thread_id():
+		slice_ms = k
+
+static func slice_begin(ms: float, prog := Callable()) -> void:
+	slice_ms = ms
+	abort = false
+	progress = prog
+	_slice_t = Time.get_ticks_usec()
+
+static func slice_end() -> void:
+	slice_ms = 0.0
+	progress = Callable()
 
 
 const TOL := 0.0005        # s: an old frame is re-used for a new time only if it was sampled this close to it
@@ -105,8 +149,15 @@ static func _ctx(S: Scene) -> String:
 
 ## the records of frames 0..n-1 (time min(i/hz, length)); fn.call(i, t) plays one frame and returns its record
 static func frames(tag: String, S: Scene, B: Body, n: int, hz: float, fn: Callable) -> Array:
+	var keep := suspend_slicing()   # a plain call never waits for a frame
+	var r: Array = frames_co.call(tag, S, B, n, hz, fn)
+	resume_slicing(keep)
+	return r
+
+
+static func frames_co(tag: String, S: Scene, B: Body, n: int, hz: float, fn: Callable) -> Array:
 	var tp := Time.get_ticks_usec()
-	var r := _frames(tag, S, B, n, hz, fn)
+	var r: Array = await _frames(tag, S, B, n, hz, fn)
 	tick("play " + tag, tp)
 	return r
 
@@ -115,7 +166,7 @@ static func _frames(tag: String, S: Scene, B: Body, n: int, hz: float, fn: Calla
 	var L := S.length()
 	var sigs := []
 	for c in S.cards:
-		sigs.append(var_to_str(c))
+		sigs.append(c.hash())   # var_to_str of 156 cards was 0.3 s of one frame; the hash of a card is as good a signature
 	var ts: Array = S.times()
 	var usable := on and plain(S)
 	var ctx := _ctx(S)
@@ -188,6 +239,8 @@ static func _frames(tag: String, S: Scene, B: Body, n: int, hz: float, fn: Calla
 			played += 1
 			if hc >= 0:
 				hrec[hc] = recs[i]
+			if slicing() and not await pump(float(i) / float(n)):
+				return []
 	if usable and not probe:
 		var anch := []
 		if S.pin:
