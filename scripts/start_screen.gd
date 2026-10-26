@@ -383,6 +383,7 @@ func _start_kind(kind: String) -> void:
 			BaseBody.start(m)
 		"building":
 			m._page_set("BUILD")
+			m.bld.reset_view()   # a new project starts on the default view, not where the last house was left
 	if m.has_method("_refresh"):
 		m._refresh()
 
