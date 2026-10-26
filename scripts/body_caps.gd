@@ -83,16 +83,25 @@ static func caps(kind: String) -> Array:
 
 ## the COM and the hand support at 60 Hz, played here (the fix's re-measure; Check passes HumanLimits.sample's own frames instead)
 static func sample(S: Scene, B: Body) -> Dictionary:
+	return play(S, B, 0, int(ceil(S.length() * FPS)))
+
+
+## frames lo..hi (inclusive) of the clip; the others stay zero / false (a window is all peak_in reads, see there)
+static func play(S: Scene, B: Body, lo: int, hi: int) -> Dictionary:
 	var keep: Dictionary = B.state()
 	var was := S.stepped
 	S.stepped = false
 	var n := int(ceil(S.length() * FPS)) + 1
 	var com := []
 	var sup := []
-	for i in n:
+	com.resize(n)
+	sup.resize(n)
+	com.fill(Vector3.ZERO)
+	sup.fill(false)
+	for i in range(maxi(lo, 0), mini(hi, n - 1) + 1):
 		S.apply_true(B, i / FPS)   # as HumanLimits.sample plays it (FrameMemo.pose when the memo is off)
-		com.append(Balance.com(B))
-		sup.append(HumanLimits.supported(B))
+		com[i] = Balance.com(B)
+		sup[i] = HumanLimits.supported(B)
 	S.stepped = was
 	B.set_state(keep)
 	return {"com": com, "sup": sup}
@@ -218,7 +227,11 @@ static func findings(S: Scene, B: Body, sm := {}) -> Array:
 
 ## the peak of one channel over [t0, t1] s of a scene
 static func peak_in(S: Scene, B: Body, kind: String, t0: float, t1: float) -> Array:
-	var sm := sample(S, B)
+	# only the frames the peak reads and the 2K on each side that series / _free look at: the rest of the clip is not played (the
+	# retime loop asks again after every lengthening; a full replay per ask was most of a step's time: 1e74ee6a)
+	var lo := maxi(int(floor(t0 * FPS)) - 2 * K - 2, 0)
+	var hi := mini(int(ceil(t1 * FPS)) + 2 * K + 2, int(ceil(S.length() * FPS)))
+	var sm := play(S, B, lo, hi)
 	var s: Array = series(sm["com"])[kind]
 	var free := _free(sm["sup"])
 	var pk := 0.0
@@ -261,6 +274,17 @@ static func retime(f: Dictionary, S: Scene, B: Body) -> Dictionary:
 	var cs := cards_under(S, tp)
 	var m0 := cs.map(func(i): return S.move_time(i))
 	var before := float(f["v"])
+	# the same answer for the same input: a reason the fix loop lists twice (or asks for on the same cards) replays its windows once.
+	# The key is everything the loop reads (the cards, the body, what else plays), so a hit is the answer the loop would give
+	var key := var_to_str([kind, tp, before, cap, cs, m0, S.cards, S.body, S.plants, S.props, S.clips, S.spline, S.on_floor, S.breath, S.fps])
+	if _retimes.has(key):
+		var hit: Dictionary = _retimes[key]
+		for j in cs.size():
+			if hit["moves"][j] == null:
+				S.cards[cs[j]].erase("move")
+			else:
+				S.cards[cs[j]]["move"] = hit["moves"][j]
+		return (hit["out"] as Dictionary).duplicate(true)
 	var pk := before
 	for it in MAX_ITER:
 		var ratio := pk / cap
@@ -277,5 +301,13 @@ static func retime(f: Dictionary, S: Scene, B: Body) -> Dictionary:
 	var parts := []
 	for j in cs.size():
 		parts.append("card %d '%s' move %.2f -> %.2f s" % [cs[j] + 1, S.cards[cs[j]]["name"], m0[j], to[j]])
-	return {"did": "%s; the %s peak %.1f -> %.1f m/s^2 (cap %.1f)" % [", ".join(parts), kind, before, pk, cap],
+	var out := {"did": "%s; the %s peak %.1f -> %.1f m/s^2 (cap %.1f)" % [", ".join(parts), kind, before, pk, cap],
 		"cards": cs, "from": m0, "to": to, "peak_before": before, "peak_after": pk, "cap": cap, "kind": kind}
+	if _retimes.size() >= 64:
+		_retimes.clear()   # a bound on the memory: the cache only saves repeats within a fix step
+	_retimes[key] = {"moves": cs.map(func(i): return S.cards[i].get("move", null)), "out": out.duplicate(true)}
+	return out
+
+
+## retime's answers by key (see retime): the moves each card ends with, and the returned dictionary
+static var _retimes := {}

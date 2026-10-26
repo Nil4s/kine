@@ -20,6 +20,7 @@ var _memo := {}      # {"key", "sm", "findings", "tc"}: the Check and timing ans
 var prof := {}       # ms per stage of the last refresh (FrameMemo.tick)
 var lap := {}        # ms per judge, the last gather
 var gains := {}      # {cards key + reason text: predicted gain in points, or -1.0 if the fix could not be scored}
+var _card_scores := {}   # {the cards a Check fix leaves (and the saved lines): the score on them}: two reasons whose fix leaves the same cards score once
 var gain_ms := 0.0   # what the last predictions cost
 var jcache := {}     # I45: the newer judges' answers per scene revision (judge_suite.gd)
 var jlap := {}       # ms per newer judge, the last gather (0 = from the cache)
@@ -209,7 +210,10 @@ func gain_of(r: Dictionary) -> float:
 			if Fixer.label(f, S) != "":
 				var cards: Array = Fixer.propose(f, S, m.ov.GB, m._sm)
 				if not cards.is_empty():
-					g = RealismScore.shown(_score_with([{"S": S, "cards": cards}])) - RealismScore.shown(float(res["raw"]))
+					var ck := var_to_str([cards, S.asserts])
+					if not _card_scores.has(ck):
+						_card_scores[ck] = RealismScore.shown(_score_with([{"S": S, "cards": cards}]))
+					g = float(_card_scores[ck]) - RealismScore.shown(float(res["raw"]))
 		"judge":
 			var fz := JudgeSuite.fix(m, r)
 			if not fz.is_empty():
@@ -309,6 +313,7 @@ func refresh_co() -> void:
 	res = RealismScore.compute(m.S, inp)
 	if key != str(m.S.cards.hash()):
 		gains = {}
+		_card_scores = {}
 	key = str(m.S.cards.hash())
 	if found_key != _find_key():
 		best = {}
