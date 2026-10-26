@@ -2389,7 +2389,7 @@ const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: w
 const MIRROR_CARD := {"pose": "SIDED: Body.mirror_pose (every joint to its twin, reflected; the weapon changes hands)",
 	"steps": "SIDED: _l <-> _r, the sideways x negated", "plant": "SIDED: _l <-> _r", "name": "free", "move": "free",
 	"hold": "free", "arrive_s": "free", "leave_s": "free", "flow": "free", "walk": "free", "lift": "free", "ease": "free", "ease_bias": "free", "expr": "free",
-	"take": "SIDED: the holding hands _l <-> _r (the grip is re-read from the mirrored pose)", "drop": "free", "drop_rig": "SIDED: the baked fall reflected (x negated, the turn (w, x, -y, -z))", "air": "free", "ktype": "free", "weight_i": "free"}
+	"take": "SIDED: the holding hands _l <-> _r (the grip is re-read from the mirrored pose)", "drop": "free", "drop_rig": "SIDED: the baked fall reflected (x negated, the turn (w, x, -y, -z))", "air": "free", "ktype": "free", "weight_i": "free", "from": "free (Easy: the move the card came from, \"punch|<serial>\")"}
 
 
 ## the ease_bias slider's value on one card (ROADMAP 55): clamped to -1..1 and rounded to 0.01; 0 erases the key, so a
