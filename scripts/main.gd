@@ -16,6 +16,10 @@ const TOUCH := Color(1.0, 0.25, 0.2)
 const ARMS_OUT := 25.0   # relaxed arms: degrees out from straight down (Nick 10-12)
 const LEFT_W := 240   # round 36 (RR3): the browser; was 250
 const RIGHT_W := 290   # round 36 (RR2): the inspector; was 370 (a panel of sentences)
+const CHIP_MIN_W := 64   # the page bar's next-tool chips shrink (ellipsis) down to this width, so the bar fits a 1024 px window
+const TAB_W := 96        # a page tab's width on a wide window; narrower windows shrink the tabs (_fit_page_bar) down to TAB_MIN_W
+const TAB_MIN_W := 72
+const NEXT_RESERVE := 360   # the room the page bar keeps for its chips (their floor) and the Next: line (about 108 px) before the tabs narrow
 const PAGE_H := 34   # the page bar along the very bottom (docs/PAGES_PLAN.md): the panels sit above it, so it is inside every BOTTOM_ height
 const BOTTOM_H := 248 + PAGE_H   # round 36 (RR4): the scene row 35 + the cards 161 + the ONE strip 34, separations 12, margins 8, the 6-px gap; was 321 (timeline and play row apart)
 const BOTTOM_FOLDED := 48 + PAGE_H   # RR4: the ONE strip (34) + the panel's margins (8) + the 6-px gap; was 118 (QQ4: timeline + play row); tests/fold_test.gd holds it
@@ -794,7 +798,9 @@ var wp_strength := 0.25  # per dab, at the centre
 var wp_stroke := false
 var wp_key := "mannequin"  # the sidecar's name under user://weights
 var wp_centres := []     # the brush centres of the last stroke (the test reads them)
-var wp_row: HBoxContainer   # the Bone / Brush / size / strength row, shown while Weight paint is on
+var wp_row: HBoxContainer   # the Bone / Brush / size / strength row, in the Brush popover (shown while Weight paint is on)
+var wp_pop: PopupPanel      # the popover that holds wp_row
+var wp_brush_btn: Button    # the POSE tools' Brush button, shown while Weight paint is on: it opens wp_pop
 var wp_bone_pick: OptionButton
 var wp_mode_pick: OptionButton
 var corr := Corrective.new()   # ROADMAP 71: the elbow / knee corrective on the body's pieces (View > Display)
@@ -2971,7 +2977,7 @@ func _ready() -> void:
 	# the smallest window the layout is made for (round 21, GATES BB1): at 1024 x 768 the scene row and the play row ran
 	# off the right and the view was ~390 px between the side panels; Windows now stops a drag below it
 	get_window().min_size = Vector2i(MIN_ROOM)
-	get_viewport().size_changed.connect(func(): _fit_rows.call_deferred(); _fit_top.call_deferred(); _place_nav.call_deferred(); _place_akey_frame.call_deferred(); _strip_fit.call_deferred(); _browser_fit.call_deferred())
+	get_viewport().size_changed.connect(func(): _fit_rows.call_deferred(); _fit_top.call_deferred(); _fit_page_bar.call_deferred(); _place_nav.call_deferred(); _place_akey_frame.call_deferred(); _strip_fit.call_deferred(); _browser_fit.call_deferred())
 	_world()
 	BootProfile.mark("world")
 	_body()
@@ -10584,6 +10590,7 @@ func _hands_refresh() -> void:
 					pick = c
 					break
 			ui_hands_panel.position = pick
+		ui_hands_panel.position = ui_hands_panel.position.clamp(Vector2.ZERO, (vs - ui_hands_panel.size).max(Vector2.ZERO))   # no candidate fits a short window: it still stays on the view
 	for d in ui_hands:
 		if not is_instance_valid(d["box"]):
 			continue
@@ -13145,10 +13152,19 @@ func _ui() -> void:
 	ui_help.offset_left = -360
 	ui_help.offset_right = 360
 	ui_help.offset_top = TOP_H + 30
+	ui_help.anchor_bottom = 1.0   # as tall as the window allows (the text scrolls, Got it stays in view)
+	ui_help.offset_bottom = -8
 	ui_root.add_child(ui_help)
+	var hout := VBoxContainer.new()
+	ui_help.add_child(hout)
+	var hscroll := ScrollContainer.new()
+	hscroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	hscroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	hout.add_child(hscroll)
 	var hv := VBoxContainer.new()
 	hv.custom_minimum_size = Vector2(700, 0)
-	ui_help.add_child(hv)
+	hv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hscroll.add_child(hv)
 	hv.add_child(_label("HOW IT WORKS", 22, "heading"))
 	hv.add_child(_label("1  POSE THE BODY.  Click a part, drag it.  Or use the sliders on the right, which say what each one does.  The body stops at real joint limits (yellow) and where parts meet (red).  Drag a hand or a foot and the whole arm or leg follows.  Ctrl+Z undoes.", 16, "text", true))
 	hv.add_child(_label("2  SAVE IT.  Type a name on the left, 'Save body as a pose'.  It joins the list; click it any time to get it back.", 16, "text", true))
@@ -13162,7 +13178,7 @@ func _ui() -> void:
 	hv.add_child(_label("RIGHT-CLICK a part (click, don't drag: right-DRAG still turns the view): a ring around the mouse.  Up = Reset, then clockwise: Snap 90°, Copy to the other side, CLIP this pose, Pin a trail, Snap 45°.  Click one; the middle or Esc cancels.", 16, "text", true))
 	hv.add_child(_label("S = SEARCH.  Don't remember where something is?  Press S, type a word (mirror, trail, staff, slower...), Enter.  Every button and key is in it, with its shortcut.", 16, "say", true))
 	hv.add_child(_label("View: ARROWS slide the view, Shift+ARROWS turn around the body, PageUp/PageDown or the wheel zoom, Tab = big view.  F6 = the panels by keyboard (Tab moves, Enter presses, Esc back).  Mouse: right-drag = turn around, middle-drag = slide.", 15, "text:0.7", true))
-	hv.add_child(_button("Got it", func(): ui_help.visible = false))
+	hout.add_child(_button("Got it", func(): ui_help.visible = false))
 	ui_help.visible = false
 	# ---- WHAT WENT WRONG? (ROADMAP 43): the last refusal, what was tried, why, and the one next step (scripts/whywrong.gd)
 	ui_why = PanelContainer.new()
@@ -14617,7 +14633,7 @@ func _build_page_bar() -> void:
 		b.icon = Icons.tex("page_" + p.to_lower())
 		b.focus_mode = Control.FOCUS_NONE
 		b.theme_type_variation = "RibbonTab"
-		b.custom_minimum_size = Vector2(104, PAGE_H - 10)
+		b.custom_minimum_size = Vector2(TAB_W, PAGE_H - 10)
 		if PAGE_ROW.has(p):
 			var i := PAGES.find(p)
 			b.toggle_mode = true
@@ -14626,7 +14642,13 @@ func _build_page_bar() -> void:
 			b.pressed.connect(func(): _step_hint = "Page: " + p; _page_set(p))
 			ui_page_btns[p] = b
 			ui_ribbon_tabs[PAGE_ROW[p]] = b
-		h.add_child(b)
+		var cell := Control.new()   # the tab's room: a plain Control has no minimum from its child, so the tab's own text cannot widen the bar
+		cell.name = "cell_" + b.name
+		cell.clip_contents = true
+		cell.custom_minimum_size = Vector2(TAB_W, PAGE_H - 10)
+		b.set_anchors_preset(Control.PRESET_FULL_RECT)
+		cell.add_child(b)
+		h.add_child(cell)
 		if p == "DELIVER":
 			var sep := VSeparator.new()
 			sep.custom_minimum_size.x = 14
@@ -14645,10 +14667,19 @@ func _build_page_bar() -> void:
 	ui_next.add_theme_color_override("font_color", Tok.c("say"))
 	ui_next.add_theme_color_override("font_hover_color", Tok.c("say"))
 	ui_next.pressed.connect(_next_run)
-	h.add_child(ui_next)
+	var next_box := Control.new()   # the Next: line's room: a plain Control has no minimum from its child, so the text is clipped, not the bar widened
+	next_box.name = "next_box"
+	next_box.clip_contents = true
+	next_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	next_box.size_flags_stretch_ratio = 2.0   # the Next: line gets the spare room first, the chips second
+	next_box.custom_minimum_size = Vector2(0, PAGE_H - 10)
+	ui_next.set_anchors_preset(Control.PRESET_FULL_RECT)
+	next_box.add_child(ui_next)
+	h.add_child(next_box)
 	nt.load_file()
 	ui_nt_box = HBoxContainer.new()
 	ui_nt_box.name = "nt_chips"
+	ui_nt_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ui_nt_box.add_theme_constant_override("separation", 3)
 	h.add_child(ui_nt_box)
 	for i in 3:
@@ -14657,13 +14688,26 @@ func _build_page_bar() -> void:
 		ch.focus_mode = Control.FOCUS_NONE
 		ch.clip_text = true
 		ch.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		ch.custom_minimum_size = Vector2(130, PAGE_H - 12)
+		ch.custom_minimum_size = Vector2(CHIP_MIN_W, PAGE_H - 12)
+		ch.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		ch.add_theme_font_size_override("font_size", 11)
 		ch.add_theme_color_override("font_color", Tok.c("say"))
 		ch.visible = false
 		ch.pressed.connect(_nt_run.bind(i))
 		ui_nt_box.add_child(ch)
 	_next_sync()
+	_fit_page_bar()
+
+
+## the page tabs narrow (their names ellipsis) when the window is too narrow for them, the Next: line and the chips:
+## the room left after NEXT_RESERVE, split between the tabs, between TAB_MIN_W and TAB_W
+func _fit_page_bar() -> void:
+	if ui_page_btns.is_empty() or ui_page_bar == null:
+		return
+	var room := get_viewport().get_visible_rect().size.x - 16.0   # the bar's own margins
+	var w := clampf(floorf((room - NEXT_RESERVE) / ui_page_btns.size()), TAB_MIN_W, TAB_W)
+	for b in ui_page_btns.values():
+		((b as Button).get_parent() as Control).custom_minimum_size.x = w   # the tab's cell (its clip) takes the width
 
 
 ## R6: THE ONE NEXT STEP, computed from the state; the same on every page, never empty. {text, cmd, kind}: cmd is the
@@ -22526,11 +22570,22 @@ func _wp_bind_of(j: String) -> int:
 
 ## the Bone and Brush lists and the two sliders: their own row on the toolbar, shown only while Weight paint is on
 func _wp_ui(bar: Control) -> void:
+	# the row is a popover (a window of its own: the tools bar keeps its width): one Brush button on the bar opens it
+	wp_brush_btn = Button.new()
+	wp_brush_btn.name = "weight_paint_brush"
+	wp_brush_btn.text = "Brush..."
+	wp_brush_btn.focus_mode = Control.FOCUS_NONE
+	wp_brush_btn.visible = false
+	wp_brush_btn.tooltip_text = "the bone, the brush mode, its size and strength: the Weight paint row"
+	bar.add_child(wp_brush_btn)
+	wp_pop = PopupPanel.new()
+	wp_pop.name = "weight_paint_popover"
+	bar.add_child(wp_pop)
+	wp_brush_btn.pressed.connect(func(): wp_pop.popup(Rect2i(Vector2i(wp_brush_btn.get_global_rect().position + Vector2(0, wp_brush_btn.size.y)), Vector2i(wp_pop.get_contents_minimum_size()))))
 	var pose := HBoxContainer.new()
 	pose.name = "weight_paint_row"
 	pose.add_theme_constant_override("separation", 6)
-	pose.visible = false
-	bar.add_child(pose)
+	wp_pop.add_child(pose)
 	wp_row = pose
 	wp_bone_pick = OptionButton.new()
 	wp_bone_pick.tooltip_text = "the bone the brush adds, takes or smooths. While Weight paint is on the body shows this bone's weight"
@@ -22577,8 +22632,10 @@ func _wp_toggle() -> void:
 		_say("no skin to paint: Weight paint works on a body with a skin: pick the mannequin")
 		return
 	wp_on = not wp_on
-	if wp_row != null:
-		wp_row.visible = wp_on
+	if wp_brush_btn != null:
+		wp_brush_btn.visible = wp_on
+		if not wp_on:
+			wp_pop.hide()
 	_wp_show()
 	_say("weight paint on: pick a bone in Bone, then drag on the body. The colour shows that bone's weight: dark = none, orange = all" if wp_on else "weight paint off")
 
