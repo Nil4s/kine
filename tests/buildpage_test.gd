@@ -150,10 +150,10 @@ func _init() -> void:
 	ok(tabs == ["BUILD", "STAGE", "CHECK", "DELIVER"], "1 the page bar is %s" % [tabs])
 	ok(bld.hint_box.visible and (bld.hint_box.get_child(0) as Label).text == "Drag on the floor to make a room", "1 the empty-state hint shows")
 	var later_ok := true
-	for t in ["piece", "words"]:   # (1d: Wall, Pull, Floor and Roof are tools now: bar 12)
+	for t in ["piece"]:   # (1d: Wall, Pull, Floor and Roof are tools now: bar 12; 1e: Words is a tool too)
 		var bt: Button = m.ui_ribbon["BUILD"].find_child("build_tool_" + t, true, false)
 		later_ok = later_ok and bt != null and bt.disabled and bt.tooltip_text.contains("coming next")
-	ok(later_ok, "1 Piece / Words: on the ribbon, disabled, tooltip \"coming next\"")
+	ok(later_ok, "1 Piece: on the ribbon, disabled, tooltip \"coming next\" (1e: Words is a tool now)")
 	ok(m.S.building.is_empty() and bld.house.mesh == null, "1 no building yet")
 	await shot("empty")
 
@@ -361,8 +361,8 @@ func _init() -> void:
 	# 12 WALL
 	var wbtn: Button = m.ui_ribbon["BUILD"].find_child("build_tool_wall", true, false)
 	ok(not wbtn.disabled and not (m.ui_ribbon["BUILD"].find_child("build_tool_pull", true, false) as Button).disabled and not (m.ui_ribbon["BUILD"].find_child("build_tool_floor", true, false) as Button).disabled
-		and not (m.ui_ribbon["BUILD"].find_child("build_tool_roof", true, false) as Button).disabled and (m.ui_ribbon["BUILD"].find_child("build_tool_words", true, false) as Button).disabled,
-		"12 Wall, Pull, Floor, Roof are enabled; Words stays coming next")
+		and not (m.ui_ribbon["BUILD"].find_child("build_tool_roof", true, false) as Button).disabled and not (m.ui_ribbon["BUILD"].find_child("build_tool_words", true, false) as Button).disabled,
+		"12 Wall, Pull, Floor, Roof and (1e) Words are enabled")
 	await click_ctl(wbtn)
 	n0 = m.undo.size()
 	await drag_floor(3.0, 0.8, 3.0, 3.2, false)
