@@ -266,23 +266,43 @@ func _place_item(it: Dictionary) -> bool:
 ## the weapon the body holds now into EVERY card of the scene: a card is the whole pose (Scene.put turns the weapon off on a
 ## card without one), so a weapon picked on the body alone vanished as soon as the clip played (the monkey test: "give him a
 ## sword" while the punch plays). Each card keeps its own pose; the weapon rides in its hand. The body is left as it was
+## A card's result depends on its pose, the held weapon and the body's sizes only, so it is kept (_arm_memo, found by hash and
+## checked with ==): the same clip built again with the same weapon in hand (Run twice, Start over) does not clear each card again
+static var _arm_memo := {}
+
+
 static func arm_cards(S: Scene, B: Body) -> void:
 	if S.cards.is_empty():
 		return
 	var held := PoseBake.held_of(B)
 	var keep := B.state()
 	for c in S.cards:
+		var key := [c["pose"], held, B.rad]
+		var hk := hash(key)
+		var hit = _arm_memo.get(hk)
+		if hit != null and hit[0] == key:
+			c["pose"]["weapon"] = (hit[1] as Dictionary).duplicate(true)
+			if hit[2] != null:
+				c["pose"]["weapon2"] = (hit[2] as Dictionary).duplicate(true)
+			else:
+				(c["pose"] as Dictionary).erase("weapon2")
+			continue
+		var key_copy := key.duplicate(true)
 		Scene.put(B, Moves._flat(c["pose"]))
 		var s0 := B._state0()
 		s0.merge(held, true)
 		B._set_state0(s0)
 		_clear_body(B)
-		var d := B.to_dict()
-		c["pose"]["weapon"] = d["weapon"]
-		if d.has("weapon2"):
-			c["pose"]["weapon2"] = d["weapon2"]
+		var w1 := B.weapon_dict()   # not a whole B.to_dict(): the joints and the contacts were 40 of the 64 ms per Run
+		var w2 = B.wep2_dict() if B.wep2_on else null
+		c["pose"]["weapon"] = w1
+		if w2 != null:
+			c["pose"]["weapon2"] = w2
 		else:
 			(c["pose"] as Dictionary).erase("weapon2")
+		if _arm_memo.size() > 600:
+			_arm_memo.clear()
+		_arm_memo[hk] = [key_copy, w1.duplicate(true), (w2 as Dictionary).duplicate(true) if w2 != null else null]
 	B.set_state(keep)
 	B.fk()
 
@@ -298,6 +318,28 @@ static func _clear_live(B: Body) -> void:
 ## the held weapon's contacts with the body in the pose now (Body.contacts, the test that stops a joint at the weapon):
 ## the number of body parts the weapon's parts sink into
 static func _wep_hits(B: Body) -> int:
+	# the same count as the weapon rows of B.contacts(), but only the weapon's own pairs are measured (the search below asks
+	# this up to hundreds of times per card; the body's other pairs and skin points do not move with the weapon)
+	var n := 0
+	for pr in B.pairs:
+		if not (pr[0] in Body.WEAPON or pr[1] in Body.WEAPON):
+			continue
+		if not B.wep_on or (not B.wep2_on and (pr[0] in Body.WEAPON2 or pr[1] in Body.WEAPON2)):
+			continue
+		if B.wep_on and B.grip and pr[0].begins_with("hand") and pr[1].begins_with("hand"):
+			continue
+		if B.depth(pr[0], pr[1]) - float(B.allow.get(pr[0] + "|" + pr[1], 0.0)) > 0.001:
+			n += 1
+	var mv := {}
+	for w in Body.WEAPON:
+		mv[w] = true
+	for sc in B.skin_raw(mv):
+		if String(sc[1]) in Body.WEAPON and float(sc[2]) - float(B.allow.get("skin:" + sc[0] + "|" + sc[1], 0.0)) > 0.001:
+			n += 1
+	return n
+
+
+static func _wep_hits_slow(B: Body) -> int:
 	var n := 0
 	for c in B.contacts():
 		if (String(c[0]) in Body.WEAPON or String(c[1]) in Body.WEAPON) and float(c[2]) > 0.001:
