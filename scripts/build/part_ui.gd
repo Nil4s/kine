@@ -1496,6 +1496,21 @@ func layout(cl: Rect2) -> void:
 		bu.houses.ask_box.visible = false
 
 
+## Expert's toast ("Undid: Change Blade length") goes at the top of the view, right of the browser and under the model note:
+## never over the timeline (bottom), the browser (left) or the side panel (right)
+func place_toast(t: Label) -> void:
+	var cl: Rect2 = m.nav_clear_rect()
+	t.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT, Control.PRESET_MODE_MINSIZE)
+	var sz := t.size
+	var nh := maxf(note.size.y, note.get_combined_minimum_size().y) if note.visible else 0.0
+	var x := cl.position.x + 8.0 + BROWSER_W + 12.0
+	var y := cl.position.y + 6.0 + (nh + 8.0 if nh > 0.0 else 0.0)
+	var sr := Rect2(side.position, Vector2(side.size.x, maxf(side.size.y, side.get_combined_minimum_size().y))).grow(8.0)
+	if side.visible and Rect2(Vector2(x, y), sz).intersects(sr):
+		x = maxf(cl.position.x + 8.0, sr.position.x - sz.x)
+	t.position = Vector2(x, y)
+
+
 func _view_plane(pn: String) -> void:
 	var pl := Part.plane(pn)
 	var n: Vector3 = pl["n"]
@@ -1520,10 +1535,11 @@ func _view_plane(pn: String) -> void:
 
 func _view_model() -> void:
 	var bb: AABB = res.get("aabb", AABB()) if not res.is_empty() else AABB()
+	var vw: Array = PartTemplates.view_of(String(m.S.part.get("easy", {}).get("t", "")))   # a template's own 3/4 view; Expert's own parts: 30 / -22
 	if bb.size.length() < 1e-4:
 		m._turn_to(30.0, -22.0, 0.9, Vector3(0.1, 0.0, 0.0), false)
 	else:
-		m._turn_to(30.0, -22.0, clampf(bb.size.length() * 1.5, 0.4, 6.0), bb.get_center(), false)
+		m._turn_to(vw[0], vw[1], clampf(bb.size.length() * 1.5, 0.4, 6.0), bb.get_center(), false)
 
 
 func page_changed() -> void:

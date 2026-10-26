@@ -616,6 +616,9 @@ func easy_inset() -> float:
 ## a toast (main._toast) never covers the panel: it sits low in the view, right of the Snap chip, and moves left of the panel (or
 ## under it) if it would touch it
 func place_toast(t: Label) -> void:
+	if part != null and part.chrome():
+		part.place_toast(t)   # Part (Expert): top of the view, clear of the timeline and the browser
+		return
 	var cl: Rect2 = m.nav_clear_rect()
 	t.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT, Control.PRESET_MODE_MINSIZE)
 	var sz := t.size

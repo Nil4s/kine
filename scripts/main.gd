@@ -15575,7 +15575,7 @@ func _place_caps() -> void:
 		for pair in ui_caps[t]:
 			var cap: MenuButton = pair[0]
 			var shown: Array = (pair[1] as Array).filter(func(b): return (b as Control).is_visible_in_tree())
-			cap.visible = t == _ribbon_tab and not shown.is_empty()
+			cap.visible = t == _ribbon_tab and not shown.is_empty() and not (easy != null and easy.on) and not (bld != null and bld.part != null and bld.part.easy)   # Easy has no groups: its big buttons would sit on the captions
 			if not cap.visible:
 				continue
 			var par := cap.get_parent() as Control
