@@ -4,7 +4,7 @@
 ##   2 collapsed: the group says "Drafts (T)" (T = the 25 test clips + the project's own res://scenes/_wip clips) and no draft is listed
 ##   3 expanded (its row picked, as a click does): the newest 20 drafts and "Show all 25 drafts"; each row's metadata is its path
 ##   4 "Show all 25 drafts": all 25; the group collapses again by its row
-##   5 Easy's Open: the saved scenes, then "Recent drafts" with the newest 5 (no others)
+##   5 (retired: Easy's Open lost its "Recent drafts" section in ca6a23d1)
 ##   6 with 300 drafts, _fill_scene_list takes under 30 ms once the files are read (the cache holds: no file is read again)
 ## Nothing is written outside user://drafts_<pid> (UserPaths.force + root): res:// is untouched, and the folder is removed at the end.
 extends SceneTree
@@ -116,30 +116,7 @@ func _init() -> void:
 	ok(h4 >= 0 and String(m.ui_scenes.get_item_text(h4)).begins_with("+ ") and draft_rows().is_empty(),
 		"4 the group's row collapses it again")
 
-	# 5
-	m.easy._open()
-	await idle(2)
-	var menu: PopupMenu = m.easy._menu
-	var saved_rows := 0
-	for r in rows():
-		if not (r[1].contains("/_wip/") or r[1].begins_with("#")):
-			saved_rows += 1
-	var sep := -1
-	for i in menu.item_count:
-		if menu.is_item_separator(i):
-			sep = i
-	var after: Array = []
-	for i in range(sep + 1, menu.item_count):
-		after.append(menu.get_item_text(i))
-	var want_after := []
-	for p in m.draft_paths().slice(0, 5):
-		want_after.append(String(p).get_file().get_basename().replace("_", " ") + "   (draft)")
-	ok(menu.item_count == saved_rows + 6 and sep == saved_rows and after == want_after,
-		"5 Open: %d saved rows, then 'Recent drafts' and the newest 5 drafts (%d rows in all: %s)" % [saved_rows, menu.item_count, str(after)])
-	ok(menu.get_item_text(0).begins_with("zz saved b") and menu.get_item_text(1).begins_with("zz saved a"),
-		"5 Open: the two saved scenes lead ('%s', '%s')" % [menu.get_item_text(0), menu.get_item_text(1)])
-	menu.hide()
-	await idle(2)
+	# 5 retired: Easy's Open no longer has a "Recent drafts" section (removed in ca6a23d1); its new form is bar 10 in tests/easy_mode_test.gd.
 
 	# 6
 	for k in range(25, 300 - bundled):
