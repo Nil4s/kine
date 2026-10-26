@@ -63,6 +63,19 @@ func show() -> void:
 	_panel()
 
 
+## the Breakfall check button: show() with the falls read on a worker thread (checkslice; Breakfall.analyze makes its own clone and body)
+func show_bg() -> void:
+	m._actors_sync()
+	var C: Scene = m.S.clone()
+	var r: Dictionary = await m.bg_run("breakfall check", "breakfall check: reading the falls...", func(): return Breakfall.analyze(C))
+	if not r["ok"]:
+		return
+	rep = r["v"]
+	fx = {}
+	_overlay()
+	_panel()
+
+
 ## the four verdict lines of a fall: [[class, text]]
 static func lines(f: Dictionary) -> Array:
 	var a := "%s fall: %s" % [String(f["dir"]), String(f["head_how"])]

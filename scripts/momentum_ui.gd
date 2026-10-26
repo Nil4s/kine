@@ -64,6 +64,24 @@ func show() -> void:
 	_panel()
 
 
+## the Momentum ledger button: show() with the clip read on a worker thread (checkslice)
+func show_bg() -> void:
+	if m.S.cards.size() < 2:
+		show()   # the "needs two cards" line
+		return
+	var C: Scene = m.S.clone()
+	var st: Dictionary = m.B.state()
+	var t0 := Time.get_ticks_usec()
+	var r: Dictionary = await m.bg_run("momentum ledger", "momentum ledger: reading the clip's momentum...", func(): return Momentum.analyze(C, m.bg_body(st)))
+	if not r["ok"]:
+		return
+	rep = r["v"]
+	ms = float(Time.get_ticks_usec() - t0) / 1000.0
+	plan = {}
+	_overlay()
+	_panel()
+
+
 func _panel() -> void:
 	var L: VBoxContainer = m.ui_find_list
 	for c in L.get_children():

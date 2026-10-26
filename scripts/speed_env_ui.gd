@@ -48,6 +48,23 @@ func show() -> void:
 	_panel()
 
 
+## the Speed limits button: show() with the clip read on a worker thread (checkslice)
+func show_bg() -> void:
+	if m.S.cards.size() < 2:
+		show()   # the "needs two cards" line
+		return
+	var C: Scene = m.S.clone()
+	var st: Dictionary = m.B.state()
+	var t0 := Time.get_ticks_usec()
+	var r: Dictionary = await m.bg_run("speed limits", "speed limits: reading the clip...", func(): return SpeedEnv.analyse(C, m.bg_body(st)))
+	if not r["ok"]:
+		return
+	rows = r["v"]
+	plan = {}
+	ms = float(Time.get_ticks_usec() - t0) / 1000.0
+	_panel()
+
+
 func _panel() -> void:
 	var L := _clear()
 	var fl := SpeedEnv.flagged(rows)
