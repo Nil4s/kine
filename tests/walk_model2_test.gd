@@ -725,7 +725,7 @@ func _init() -> void:
 	await click_text("POSE")
 	await shot("pose_before_body")
 	await click_text("MODEL")
-	await click_text("Body mesh")
+	await click_text("Edit body")
 	await idle(20)
 	await shot("body_mesh_open")
 	var bo: bool = kmed != null and kmed.on and kmed.mesh != null and kmed.mesh.vert_count() > 0
@@ -742,7 +742,7 @@ func _init() -> void:
 		await click_at(vs + Vector2(0, -30), "to confirm the grab")
 		body_moved = moved_count(pre8, mesh_snapshot())
 		await shot("body_edited")
-		await click_text("Apply body")
+		await click_text("Save to body")
 		await shot("body_applied")
 	await click_text("POSE")
 	await idle(10)
