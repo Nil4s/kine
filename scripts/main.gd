@@ -112,6 +112,12 @@ var ui_math_btn: Button
 var ui_status: Label
 var ui_mesh_hint: Label      # MESH PAGES: the hint in the view while MODEL / SCULPT / SURFACE have no mesh open (Expert only)
 var ui_mesh_hint_box: PanelContainer   # its dark box: the hint sits at the top centre of the clear view, under the ribbon
+var ui_mesh_edit_box: PanelContainer   # MESH PAGES: the line at the top of the view that says what is open, with Switch...
+var ui_mesh_edit: Label
+var ui_mesh_switch: Button
+var ui_mesh_switch_menu: PopupMenu
+var _leave_said := ""   # the words of the last body leave (BaseBody.leave_apply), said last on the status line
+var _mesh_opening := false   # a mesh is opened by its own call: the page switch then does not open the body as well
 var _pose_dummy_was := false  # the dummy was on when a mesh page opened (the posing overlays come back with it)
 var ui_mouse: MouseHint   # ROADMAP_400 P05: what the mouse buttons do now (scripts/mouse_hint.gd), just above the status line
 var ui_bar: Label   # STATUS BAR (round 9, GATES P4): what is picked, where you are, what Check said; always on
@@ -229,7 +235,7 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 ## THE GROUPS (round 36, GATES RR1; Fusion's CREATE / MODIFY): each tab's tools by label, in order, under a caption.
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
-	"MODEL": [["MESH", ["Test cube", "Body mesh", "Apply body", "Save", "Open...", "Use in scene"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Proportional", "Modifiers", "Validate", "Repair"]]],
+	"MODEL": [["MESH", ["Test cube", "Edit body", "Save to body", "Save", "Open...", "Use in scene"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Proportional", "Modifiers", "Validate", "Repair"]]],
 	"SCULPT": [["SPHERE", ["Test sphere"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
 	"SURFACE": [["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]], ["MATERIAL", ["Material from photo"]]],
 	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped"]]],
@@ -8800,6 +8806,8 @@ var kmed   # KMeshEditUI (scripts/kmesh_edit_ui.gd), loaded on first use: not ty
 
 
 func _kmesh_edit_start() -> void:
+	if BaseBody.is_open(self) or _body_sculpt_on():
+		_mesh_leave_apply()   # the fighter's body is open: applied and closed first, then the cube
 	if kmed == null:
 		kmed = load("res://scripts/kmesh_edit_ui.gd").new()
 		add_child(kmed)
@@ -8842,6 +8850,8 @@ var ksc   # KMeshSculptUI (scripts/kmesh_sculpt_ui.gd): loaded on the first Scul
 
 
 func _sculpt_start() -> void:
+	if _body_sculpt_on():
+		_mesh_leave_apply()   # the body sculpt is the sphere's place: the body is applied and closed first
 	if ksc == null:
 		ksc = load("res://scripts/kmesh_sculpt_ui.gd").new()
 		add_child(ksc)
@@ -10560,7 +10570,7 @@ func _hands_refresh() -> void:
 	var arm_pick := sel.begins_with("hand") or sel.begins_with("upperarm") or sel.begins_with("lowerarm")
 	var easy_on: bool = easy != null and easy.on
 	if ui_hands_panel != null and is_instance_valid(ui_hands_panel):
-		ui_hands_panel.visible = held and (not easy_on or arm_pick)
+		ui_hands_panel.visible = held and not ExpertPages.PAGES.has(cur_page) and (not easy_on or arm_pick)   # the pose pages only
 		# the view's bottom RIGHT, over the floor, above the status line (under the top bar it covered the head; at the
 		# left it met the "Click a part" tip)
 		var vs := get_viewport().get_visible_rect().size
@@ -13045,6 +13055,42 @@ func _ui() -> void:
 	ui_mesh_hint.add_theme_color_override("font_color", Tok.of("text:0.9"))
 	ui_mesh_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_mesh_hint_box.add_child(ui_mesh_hint)
+	# MESH PAGES: the line at the top of the view says what is open, and Switch... picks another object (one undo step each way)
+	ui_mesh_edit_box = PanelContainer.new()
+	ui_mesh_edit_box.name = "mesh_edit_box"
+	ui_mesh_edit_box.visible = false
+	ui_mesh_edit_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var esb := StyleBoxFlat.new()
+	esb.bg_color = Tok.c("say_bg")
+	esb.set_corner_radius_all(10)
+	esb.content_margin_left = 12.0
+	esb.content_margin_right = 8.0
+	esb.content_margin_top = 4.0
+	esb.content_margin_bottom = 4.0
+	ui_mesh_edit_box.add_theme_stylebox_override("panel", esb)
+	var eh := HBoxContainer.new()
+	ui_mesh_edit = Label.new()
+	ui_mesh_edit.name = "mesh_edit"
+	ui_mesh_edit.add_theme_font_size_override("font_size", 16)
+	ui_mesh_edit.add_theme_color_override("font_color", Tok.of("text:0.9"))
+	ui_mesh_edit.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	eh.add_child(ui_mesh_edit)
+	ui_mesh_switch = Button.new()
+	ui_mesh_switch.name = "btn_mesh_switch"
+	ui_mesh_switch.text = "Switch..."
+	ui_mesh_switch.tooltip_text = "switch what this page edits: the fighter's body, the test cube or the test sphere"
+	ui_mesh_switch.focus_mode = Control.FOCUS_NONE
+	ui_mesh_switch.pressed.connect(_mesh_switch_open)
+	eh.add_child(ui_mesh_switch)
+	ui_mesh_edit_box.add_child(eh)
+	ui_mesh_switch_menu = PopupMenu.new()
+	ui_mesh_switch_menu.name = "mesh_switch_menu"
+	ui_mesh_switch_menu.add_item("The fighter's body", 0)
+	ui_mesh_switch_menu.add_item("Test cube", 1)
+	ui_mesh_switch_menu.add_item("Test sphere", 2)
+	ui_mesh_switch_menu.id_pressed.connect(_mesh_switch_pick)
+	add_child(ui_mesh_switch_menu)
+	ui_root.add_child(ui_mesh_edit_box)
 	# COMPARE WITH (ROADMAP 28): the diff list, top left of the view, only while a version is compared (it never takes a click)
 	ui_vdiff = PanelContainer.new()
 	ui_vdiff.name = "vdiff_panel"
@@ -14858,6 +14904,11 @@ func _page_set(p: String, save := true) -> void:
 	var was_page := cur_page
 	var was_mesh := ExpertPages.PAGES.has(cur_page)
 	var is_mesh := ExpertPages.PAGES.has(p)
+	if was_mesh and p != cur_page and _body_sculpt_on():
+		ksc.stop()   # the body sculpt goes back to the body (ExpertPages._sculpt_body_left) before the page moves on
+	var leave_msg := ""
+	if was_mesh and not is_mesh:
+		leave_msg = _mesh_leave_apply()   # the fighter's body: an edit is applied as one undo step, and the body closes
 	if is_mesh and not was_mesh:   # a mesh page: the posing body's target dummy goes away (as Easy does), remembered
 		_pose_dummy_was = dummy_on
 		if dummy_on:
@@ -14872,8 +14923,16 @@ func _page_set(p: String, save := true) -> void:
 			_dummy_hits()
 	cur_page = p
 	_mesh_show_sync()
+	if is_mesh and save and not _mesh_opening and not _mesh_open() and not (kmed != null and kmed.on) and not (ksc != null and ksc.on):
+		_mesh_auto_open(p)   # only when nothing is open: a test cube open on another page is not stopped by it   # a mesh page with nothing open: the fighter's body opens by itself (no Test cube click)
+	_hands_refresh()   # the hands strip is for the pose pages only
+	var page_said := ""
 	if save and p != was_page:   # the status line says this page's own hint (it was the last page's message)
-		_say("%s page: %s" % [p, PAGE_TIPS[p]])
+		page_said = "%s page: %s" % [p, PAGE_TIPS[p]]
+	if leave_msg != "":
+		page_said = (page_said + "   " if page_said != "" else "") + leave_msg   # what the leaving did, on the same status line
+	if page_said != "":
+		_say(page_said)
 	for k in fold:
 		fold[k] = _page_want(p, k)
 	_ribbon_row(PAGE_ROW[p])
@@ -14910,7 +14969,10 @@ func _mesh_page_for(p: String) -> void:
 	if (easy != null and easy.on) or not ui_page_btns.has(p):
 		return
 	if not _mesh_page() or ((p == "SCULPT") != (cur_page == "SCULPT")):
+		var was := _mesh_opening
+		_mesh_opening = true   # the mesh opened here is the caller's: the page switch does not open the body as well
 		_page_set(p)
+		_mesh_opening = was
 
 
 ## the mesh this page shows is open: the sphere on SCULPT, the cube on MODEL and SURFACE
@@ -14925,15 +14987,18 @@ func _mesh_open() -> bool:
 func _mesh_show_sync() -> void:
 	var mesh_pg := _mesh_page()
 	if kmed != null:
-		kmed.set_showing(mesh_pg and cur_page != "SCULPT")
+		kmed.set_showing(mesh_pg and cur_page != "SCULPT", cur_page == "MODEL")
+		kmed.sync_panels()   # the MODEL panels belong to MODEL: whatever opened the mesh
 	if ksc != null:
 		ksc.set_showing(mesh_pg and cur_page == "SCULPT")
+	_mesh_edit_sync()
 
 
 ## the hint in the view while a mesh page has no mesh open; gone as soon as one is open or the page is left
 func _mesh_hint_sync() -> void:
 	if ui_mesh_hint == null:
 		return
+	_mesh_edit_sync()
 	var txt: String = ExpertPages.HINTS.get(cur_page, "") if _mesh_page() else ""
 	var show := txt != "" and not _mesh_open()
 	if ui_mesh_hint.text != txt:
@@ -14950,7 +15015,84 @@ func _mesh_hint_sync() -> void:
 func _mesh_hint_place() -> void:
 	ui_mesh_hint_box.reset_size()
 	var cl := nav_clear_rect()
-	ui_mesh_hint_box.position = Vector2(cl.position.x + (cl.size.x - ui_mesh_hint_box.size.x) * 0.5, cl.position.y + 8.0)
+	var y := cl.position.y + 8.0 + ((ui_mesh_edit_box.size.y + 6.0) if (ui_mesh_edit_box != null and ui_mesh_edit_box.visible) else 0.0)
+	ui_mesh_hint_box.position = Vector2(cl.position.x + (cl.size.x - ui_mesh_hint_box.size.x) * 0.5, y)
+
+
+## the line at the top of a mesh page: what it edits now (the body, the test cube, the test sphere, or the file's name)
+func _mesh_edit_sync() -> void:
+	if ui_mesh_edit_box == null:
+		return
+	var show := _mesh_page()
+	var txt := ""
+	if show:
+		if BaseBody.is_open(self) or _body_sculpt_on():
+			txt = "Editing: the fighter's body"
+		elif ksc != null and ksc.on:
+			txt = "Editing: Test sphere"
+		elif kmed != null and kmed.on:
+			var nm := ""
+			if kmed.files != null and String(kmed.files.path) != "":
+				nm = String(kmed.files.path).get_file().get_basename()
+			txt = "Editing: %s" % (nm if nm != "" else "Test cube")
+		else:
+			txt = "Editing: nothing open yet (Switch... picks one)"
+	if ui_mesh_edit.text != txt:
+		ui_mesh_edit.text = txt
+	if ui_mesh_edit_box.visible != show:
+		ui_mesh_edit_box.visible = show
+	if show:
+		var cl := nav_clear_rect()
+		ui_mesh_edit_box.reset_size()
+		ui_mesh_edit_box.position = Vector2(cl.position.x + (cl.size.x - ui_mesh_edit_box.size.x) * 0.5, cl.position.y + 8.0)
+
+
+func _body_sculpt_on() -> bool:
+	return ksc != null and ksc.on and ksc.source.is_valid()
+
+
+## a mesh page with nothing open: the fighter's body opens (SCULPT: the body is sculpted, as "Sculpt the body" does)
+func _mesh_auto_open(p: String) -> void:
+	var was := _mesh_opening
+	_mesh_opening = true
+	if p == "SCULPT":
+		ExpertPages._sculpt_body(self)
+	else:
+		BaseBody.start(self)
+	_mesh_opening = was
+
+
+## leaving the fighter's body (a posing page, Switch..., a test cube or sphere): an edit is applied as ONE undo step (Ctrl+Z
+## takes it back), then the body closes and the fighter is back on screen. No edit: nothing is applied and no step is made
+## -> the status line's words for what was done ("" when the body was not open). BaseBody._leave applies an edit
+func _mesh_leave_apply() -> String:
+	if _body_sculpt_on():
+		ksc.stop()   # ExpertPages._sculpt_body_left: the strokes stay on the body's mesh
+	if not BaseBody.is_open(self):
+		return ""
+	kmed.stop()   # the body is left: its edit applied (BaseBody.leave_apply), the fighter's parts back on screen
+	return _leave_said
+
+
+## the Switch... button: the menu of what this page can edit
+func _mesh_switch_open() -> void:
+	var r := ui_mesh_switch.get_global_rect()
+	ui_mesh_switch_menu.position = Vector2i(int(r.position.x), int(r.end.y))
+	ui_mesh_switch_menu.popup()
+
+
+## the Switch... pick: 0 the fighter's body, 1 the test cube, 2 the test sphere. What was open is applied and closed first
+func _mesh_switch_pick(id: int) -> void:
+	if id == 0 and BaseBody.is_open(self):
+		return
+	_mesh_leave_apply()
+	if id == 0:
+		_mesh_auto_open("MODEL")
+	elif id == 1:
+		_kmesh_edit_start()
+	else:
+		_sculpt_start()
+	_mesh_edit_sync()
 
 
 func _page_want(p: String, which: String) -> bool:

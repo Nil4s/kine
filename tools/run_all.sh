@@ -117,3 +117,4 @@ EXTRA="$EXTRA handlock:w"   # HANDS: the weapon's hands row, Only the part I dra
 EXTRA="$EXTRA bladeturn:w"   # BLADE TURN / HEAD TILT: the weapon turned inside its hand, the Expert sliders and buttons, the Easy side slider (tests/bladeturn_test.gd)
 EXTRA="$EXTRA scenecat:w"   # EASY MY SCENES CATALOG (scripts/scene_cat.gd, scripts/easy_scenes.gd): chips, quality badges, Hide weird ones, stars
 EXTRA="$EXTRA expertcat:w"   # EXPERT "Open a scene" = the Easy catalog (scripts/easy_scenes.gd expert view): chips, badges, stars, List view (tests/expertcat_test.gd)
+EXTRA="$EXTRA meshclean:w"   # MESH CLEAN-UP (Expert MODEL / SCULPT / SURFACE): hands strip on pose pages only, MODEL panels on MODEL, the body opens by itself and is applied on leaving (tests/meshclean_test.gd)

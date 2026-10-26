@@ -537,14 +537,27 @@ static func start(m: Node) -> void:
 	for f in k.faces:
 		if (f as PackedInt32Array).size() == 4:
 			quads += 1
-	m._say("Model: the fighter's body: %d verts, %d faces (%d quads: the mannequin is triangles), %d bones weighted. Every model key works; Search \"Model: apply the body mesh to the fighter\" writes it back (one undo step), Esc leaves without changing the fighter" % [k.verts.size(), k.faces.size(), quads, info.get("binds", 0)])
+	m._say("Model: the fighter's body: %d verts, %d faces (%d quads: the mannequin is triangles), %d bones weighted. Every model key works; leaving (Esc, or a page change) applies the edit as one undo step (Ctrl+Z takes it back)" % [k.verts.size(), k.faces.size(), quads, info.get("binds", 0)])
 
 
 static func is_open(m: Node) -> bool:
 	return m.get("kmed") != null and m.kmed.on and m.kmed.has_meta("base_body")
 
 
+## leaving the body (Esc, a page change, Switch..., the test cube): an edit is applied as ONE undo step first (Ctrl+Z takes it
+## back), so no way out loses an edit. -> the status line's words
+static func leave_apply(m: Node) -> String:
+	if not m.has_meta(META_BASE) or sig_of(m.kmed.mesh) == int(m.get_meta(META_BASE)):
+		return "Left the fighter's body: no edit, so nothing was applied"
+	var r := apply(m, m.kmed.mesh)
+	if not r["ok"]:
+		return "Model: " + String(r["error"]) + " (the fighter keeps its mesh as it was)"
+	m.set_meta(META_BASE, sig_of(m.kmed.mesh))
+	return "Your body edit is applied to the fighter (one undo step: Ctrl+Z takes it back)"
+
+
 static func _leave(m: Node, vis: Dictionary, cam_was: Dictionary) -> void:
+	m._leave_said = leave_apply(m)
 	for mi in vis:
 		if is_instance_valid(mi):
 			(mi as MeshInstance3D).visible = vis[mi]
@@ -555,7 +568,7 @@ static func _leave(m: Node, vis: Dictionary, cam_was: Dictionary) -> void:
 	for key in cam_was:
 		m.set(key, cam_was[key])
 	m._cam()
-	m._say("Model: left the body mesh. The fighter is %s" % ("the applied mesh (Ctrl+Z takes it back)" if gen(m) > 0 else "as it was (nothing applied)"))
+	m._say(m._leave_said)
 
 
 ## the camera on the whole edited body: centred, its height ~75 % of the free view's (its width at most 90 %)

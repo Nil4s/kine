@@ -83,6 +83,8 @@ var snap: KMeshSnap      # B08: snapping during G / R / S (Ctrl), its target (Sh
 var pivot: KMeshPivot    # B14: the pivot for R / S (.) and the 3D cursor (Shift+right-click)
 var refp: KMeshRefPlanesUI   # B21: reference images on planes + their panel (scripts/kmesh_refplanes_ui.gd)
 var files: KMeshFileUI       # the mesh file: Ctrl+S (save), Save / Open... on the MESH group (scripts/kmesh_file_ui.gd)
+var _model_page := true       # the page is MODEL (the side panels show); set_showing
+var _mp_prev := true          # the MODEL panels were shown at the last set_showing
 var showing := true          # the page shows this mesh (MODEL, SURFACE); off on the other pages: hidden, never stopped (set_showing)
 var _mods_back := false      # the Modifiers panel was open when the page left it
 var _uv_back := false        # the UV editor was open when the page left it
@@ -182,20 +184,23 @@ func stop() -> void:
 ## the page shows the cube (MODEL, SURFACE) or not (the other pages). Off: the cube, its primitive / Modifiers / UV panels and
 ## its Materials panel are hidden, and its keys and clicks wait; nothing is stopped, so the edits, the undo and the open panels
 ## come back as they were. A body-mesh edit's fighter parts (base_body.gd, meta fighter_vis) are put back on leaving and hidden again
-func set_showing(v: bool) -> void:
-	if showing == v:
+func set_showing(v: bool, model_page := true) -> void:
+	if showing == v and model_page == _model_page:
 		return
 	showing = v
+	_model_page = model_page
+	var mp := v and model_page   # the MODEL side panels (Add primitive, Modifiers) belong to MODEL only: SURFACE shows the mesh and its Materials
 	if view != null and on:
 		view.visible = v
 	if _ov != null:
 		_ov.visible = on and v
 	if prim_panel != null:
-		prim_panel.visible = on and v
+		prim_panel.visible = on and mp
 	if mods != null and mods.panel != null:
-		if not v:
-			_mods_back = mods.panel.visible
-		mods.panel.visible = v and on and _mods_back
+		if not mp and _mp_prev:
+			_mods_back = mods.panel.visible   # open when the MODEL panels go: back when MODEL comes back
+		mods.panel.visible = mp and on and _mods_back
+	_mp_prev = mp
 	if uved != null:
 		if not v:
 			_uv_back = uved.visible
@@ -208,6 +213,17 @@ func set_showing(v: bool) -> void:
 		for mi in fv:
 			if is_instance_valid(mi):
 				(mi as MeshInstance3D).visible = fv[mi] if not v else false
+
+
+## the MODEL side panels are hidden on the other pages whatever opened the mesh (BaseBody.start's mods.open shows them)
+func sync_panels() -> void:
+	if not on or (showing and _model_page):
+		return
+	if mods != null and mods.panel != null and mods.panel.visible:
+		_mods_back = true
+		mods.panel.visible = false
+	if prim_panel != null:
+		prim_panel.visible = false
 
 
 func set_mode(md: int) -> void:
