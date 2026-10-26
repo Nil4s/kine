@@ -60,6 +60,9 @@ DEFAULT_STYLE = "v3"   # comfy4 (10-25): v3 beat or tied v1m on all 10 takes (5 
 QUALITY = {"style": "v1", "steps": 30, "width": 832, "height": 480}
 # the defaults: unchanged until a speed setting and the v2 framing both pass REPORT_V2.md
 DEFAULTS = {"style": "v3", "steps": 30, "width": 832, "height": 480}
+# --portrait: a standing body fits the picture. Measured 2026-10-25 (C:/Temp/claude/portrait, Wan 1.3B, 6 takes): the head
+# stayed in frame on 6 of 6 takes (landscape 640x368: 3 of 6) and the bigvid score mean rose from +0.23 to +0.53
+PORTRAIT = {"width": 368, "height": 640}
 FPS = 16   # Wan 2.1's own rate
 
 
@@ -111,13 +114,16 @@ def main():
     ap.add_argument("--height", type=int, default=None, help="picture height (default %d)" % DEFAULTS["height"])
     ap.add_argument("--quality", action="store_true",
                     help="the old settings: v1 prompt, 30 steps, 832x480 (what the first batch used)")
+    ap.add_argument("--portrait", action="store_true",
+                    help="a portrait picture, 368x640, so a standing body fits (its width and height unless --width/--height)")
     ap.add_argument("--timeout", type=float, default=1800.0)
     a = ap.parse_args()
     base = QUALITY if a.quality else DEFAULTS
     style = a.style or base["style"]
     steps = a.steps if a.steps is not None else base["steps"]
-    width = a.width if a.width is not None else base["width"]
-    height = a.height if a.height is not None else base["height"]
+    size = PORTRAIT if a.portrait else base
+    width = a.width if a.width is not None else size["width"]
+    height = a.height if a.height is not None else size["height"]
     g, n = graph(a.prompt, a.seconds, a.seed, steps, width, height, style)
     try:
         pid = json.loads(call("/prompt", {"prompt": g}))["prompt_id"]

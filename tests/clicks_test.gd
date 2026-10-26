@@ -164,6 +164,9 @@ func _init() -> void:
 	(m.ui_scene_btn.get_popup() as PopupMenu).hide()
 	m._scene_menu_pick(1)
 	await idle(2)
+	# Scene > Open scene now shows Expert's catalog (scripts/easy_scenes.gd), which covers this window. This step and the rest of the
+	# test drive the old scene list, so its List view button is pressed first. Test plumbing: not counted in the action budgets below.
+	await click("easy_scenes_list")
 	for i in opt.item_count:   # the list is read again as it opens (a scene file made or removed meanwhile moves the rows): find combo3 afterwards
 		if String(opt.get_item_metadata(i)).ends_with("combo3.json"):
 			idx = i

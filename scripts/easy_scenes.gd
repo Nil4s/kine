@@ -17,6 +17,10 @@ const BADGE_COL := {"Good": Color(0.55, 0.92, 0.6), "OK": Color(1.0, 0.86, 0.5),
 const CFG := "easy_scenes"
 
 var m: Node                       # main (untyped: the same pattern as EasyMode)
+var expert := false               # Expert's view of the same panel ("Open a scene"): a picked scene opens without Play, and List view is shown
+var _box: PanelContainer
+var _title: Label
+var _list_btn: Button
 var extra_dirs: Array = []        # a test's own folders (user://), read with the saved scenes
 var draft_dirs: Array = []        # a test's own drafts folders, in place of res://scenes/_wip (empty = the shipped one)
 var _mine: HFlowContainer
@@ -40,7 +44,7 @@ var _base_mine: Array = []        # the same two lists, newest first (what "Newe
 var _base_dr: Array = []
 var _cache := {}                  # SceneCat's cache (path -> entry), read at each open
 var _new_entries := {}            # the categories of the files whose cache entry was stale (merged at the end of _fill)
-const LIST := "user://scene_quality_list.json"   # the worker's list of scenes to grade (written by the panel)
+static var LIST := "user://scene_quality_list_%d.json" % OS.get_process_id()   # the worker's list of scenes to grade (written by the panel); one per process: two Kines (or two tests) never share it
 const POLL_S := 0.5              # the cache file is checked this often (its modified time: cheap)
 static var workers_started := 0  # every worker process the panel started (the test counts them)
 var _grades := {}                 # path -> [fails, warns], for every scene graded (this open or cached)
@@ -74,6 +78,7 @@ func build(root: Control) -> void:
 	box.offset_top = 40.0
 	box.offset_right = -40.0
 	box.offset_bottom = -40.0
+	_box = box
 	var st := StyleBoxFlat.new()
 	st.bg_color = Tok.c("panel")
 	st.set_corner_radius_all(12)
@@ -85,11 +90,21 @@ func build(root: Control) -> void:
 	box.add_child(v)
 	var head := HBoxContainer.new()
 	v.add_child(head)
-	var title := Label.new()
-	title.text = "My scenes"
-	title.add_theme_font_size_override("font_size", 28)
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	head.add_child(title)
+	_title = Label.new()
+	_title.text = "My scenes"
+	_title.add_theme_font_size_override("font_size", 28)
+	_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	head.add_child(_title)
+	_list_btn = Button.new()
+	_list_btn.name = "easy_scenes_list"
+	_list_btn.text = "List view"
+	_list_btn.tooltip_text = "the plain list of scene names (Expert's old Open list)"
+	_list_btn.focus_mode = Control.FOCUS_NONE
+	_list_btn.custom_minimum_size = Vector2(150, 44)
+	_list_btn.add_theme_font_size_override("font_size", 18)
+	_list_btn.visible = false
+	_list_btn.pressed.connect(_to_list)
+	head.add_child(_list_btn)
 	var close := Button.new()
 	close.name = "easy_scenes_close"
 	close.text = "Close"
@@ -180,11 +195,19 @@ func _heading(text: String) -> Label:
 
 
 ## the panel: the saved scenes and the examples are read now (a scene saved since the last open is listed)
-func open_panel() -> void:
+func open_panel(as_expert := false) -> void:
 	if m == null or m.thumbs == null:
 		return
 	if not m.thumbs.made.is_connected(_made):
 		m.thumbs.made.connect(_made)
+	expert = as_expert
+	_title.text = "Open a scene" if expert else "My scenes"
+	_list_btn.visible = expert
+	var mg := 24.0 if expert else 40.0   # Expert's panel takes more of the window: the tiles get the room
+	_box.offset_left = mg
+	_box.offset_top = mg
+	_box.offset_right = -mg
+	_box.offset_bottom = -mg
 	_load_prefs()
 	_cache = SceneCat.load_cache()
 	_fill()
@@ -196,6 +219,12 @@ func close_panel() -> void:
 	visible = false
 	set_process(false)
 	_stop_worker()
+
+
+## Expert's List view: the panel shuts and the old list of scene names opens under the Scene button
+func _to_list() -> void:
+	close_panel()
+	m._open_scene_list()
 
 
 ## the paths of the tiles shown, in order: the saved scenes (example false) or the examples (example true)
@@ -233,6 +262,11 @@ func tile_shown(path: String) -> bool:
 
 func tile_star(path: String) -> Button:
 	return _tiles[path]["star"] if _tiles.has(path) else null
+
+
+## the tile's trash button (null for an example, and for a path with no tile)
+func tile_trash(path: String) -> Button:
+	return _tiles[path]["trash"] if _tiles.has(path) else null
 
 
 ## the chip's button by its name (All, Walk & run, Fight, Weapons, Jump & dodge, Dance & other, Drafts, Favourites)
@@ -360,6 +394,17 @@ func _add_tile(path: String, nm: String, group: String) -> void:
 	star.tooltip_text = "Mark this scene as a favourite"
 	star.pressed.connect(_toggle_fav.bind(path))
 	row.add_child(star)
+	var trash: Button = null
+	if not example:   # the user's own tiles (saved scenes and drafts) get a trash button; the examples are copies and have none
+		trash = Button.new()
+		trash.name = "trash"
+		trash.flat = true
+		trash.focus_mode = Control.FOCUS_NONE
+		trash.custom_minimum_size = Vector2(38, 30)
+		trash.icon = Icons.small("trash")
+		trash.tooltip_text = "Delete"
+		trash.pressed.connect(_ask_delete.bind(path))
+		row.add_child(trash)
 	var pic := TextureRect.new()
 	pic.name = "picture"
 	pic.custom_minimum_size = PIC
@@ -376,7 +421,7 @@ func _add_tile(path: String, nm: String, group: String) -> void:
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(l)
 	_tiles[path] = {"button": b, "pic": pic, "name": nm, "example": example, "group": group,
-		"cat": String(info["cat"]), "badge": badge, "star": star}
+		"cat": String(info["cat"]), "badge": badge, "star": star, "trash": trash}
 	(_examples if example else _drafts if group == "dr" else _mine).add_child(b)
 	star.text = "★" if _fav.has(path) else "☆"
 	if info.has("fails") and info.has("warns"):
@@ -398,6 +443,15 @@ func _made(path: String) -> void:
 ## a tile's click: the panel shuts, the scene opens (save-first question when the open one has unsaved work), and it plays
 func _pick(path: String, example: bool) -> void:
 	close_panel()
+	if expert:   # Expert: the scene opens and Expert stays on; nothing plays
+		if example:
+			if m._unsaved():
+				m._ask_save(m._scene_label(), func(): m._open_example(path))
+			else:
+				m._open_example(path)
+		else:
+			m._open_scene_file(path)
+		return
 	var play := func():
 		if m.S.cards.size() >= 2 and not m.playing:
 			m._toggle_play()
@@ -564,6 +618,34 @@ func _toggle_fav(p: String) -> void:
 		(_tiles[p]["star"] as Button).text = "★" if _fav.has(p) else "☆"
 	_update_chips()
 	_apply()
+
+
+# ---------------------------------------------------------------- delete (the trash button: asks once, then main._trash_now)
+
+## the trash button: asks in plain words, Delete or Keep (main._confirm, the app's own dialog)
+func _ask_delete(p: String) -> void:
+	if m == null or not _tiles.has(p):
+		return
+	m._confirm("Delete '%s'? You can get it back from the Trash." % String(_tiles[p]["name"]), "Delete", _delete_now.bind(p), "Keep")
+
+
+## Delete: the file moves to the trash folder (main._trash_now, the same move Expert's Delete scene makes). The tile goes,
+## its star is dropped, the chips' counts are read again. If the scene is the open one it stays open, unsaved: the file is
+## gone, so Save scene writes it back (the app's own Save, nothing new)
+func _delete_now(p: String) -> void:
+	if m == null or not _tiles.has(p):
+		return
+	var nm := String(_tiles[p]["name"])
+	var was_open := String(m.scene_path) == p
+	if not m._trash_now(p):
+		return   # _trash_now has said why on the status line
+	if _fav.has(p):
+		_fav.erase(p)
+		_save_pref("favourites", _fav)
+	if was_open:
+		m._clean = ""   # the open scene now counts as unsaved work (its file is in the trash)
+		m._say("deleted '%s' (in the trash folder if you want it back). The scene is still open, unsaved: Save scene puts it back" % nm)
+	_fill()
 
 
 ## a tile passes the chip shown and the Hide weird toggle

@@ -10569,7 +10569,10 @@ func _hands_refresh() -> void:
 			var x0 := float(LEFT_W) + 12.0
 			var x1 := vs.x - float(RIGHT_W) - 12.0 - ps.x
 			var y0 := float(TOP_H) + 8.0
-			var y1 := vs.y - float(BOTTOM_H) - ps.y - 64.0   # above the mouse-hint line
+			var y1 := vs.y - float(BOTTOM_H) - ps.y - 64.0   # above the mouse-hint line...
+			for lb in [ui_mouse, ui_status]:   # ...and above where that line and the status line really are (the scene panel
+				if lb != null and is_instance_valid(lb) and lb.is_visible_in_tree():   # can be taller than BOTTOM_H: the strip covered them)
+					y1 = minf(y1, lb.get_global_rect().position.y - ps.y - 8.0)
 			var body := _body_screen_rect().grow(12.0)
 			var pick := Vector2(x1, y1)
 			for c in [Vector2(x1, y1), Vector2(x0, y0), Vector2(x0, y1), Vector2(x1, y0)]:
@@ -13348,10 +13351,14 @@ func _fit_scene_list() -> void:
 	var pop := ui_scenes.get_popup()
 	if not pop.visible:
 		return
-	var cap := int(get_viewport().get_visible_rect().size.y) - 16
+	var vp := Vector2i(get_viewport().get_visible_rect().size)
+	var cap := vp.y - 16
 	pop.max_size = Vector2i(0, cap)
-	pop.size = Vector2i(pop.size.x, mini(pop.size.y, cap))
+	pop.size = Vector2i(mini(pop.size.x, vp.x), mini(pop.size.y, cap))
+	# the popup is kept inside the window: its place is clamped as well (it opened under the Scene button, low in a small window)
+	pop.position = Vector2i(clampi(pop.position.x, 0, maxi(0, vp.x - pop.size.x)), clampi(pop.position.y, 0, maxi(0, vp.y - pop.size.y)))
 	await get_tree().process_frame
+	pop.position = Vector2i(clampi(pop.position.x, 0, maxi(0, vp.x - pop.size.x)), clampi(pop.position.y, 0, maxi(0, vp.y - pop.size.y)))
 	if ui_scenes.selected >= 0:
 		pop.scroll_to_item(ui_scenes.selected)
 
@@ -14375,8 +14382,17 @@ func _scene_menu_pick(id: int) -> void:
 			_delete_scene()
 
 
-## the list of scenes, as a popup under the Scene button (the list itself is not in the row)
+## "Open scene" (the Scene menu and the ☰ strip entry, the empty-scene way-in): Expert's catalog, EasyScenes in its expert view
+## (chips, quality badges, stars; the same panel as Easy's My scenes). Its List view button opens the old list (_open_scene_list)
 func _open_scene_popup() -> void:
+	if easy != null and easy.scenes != null:
+		easy.scenes.open_panel(true)
+		return
+	_open_scene_list()
+
+
+## the old list of scenes, as a popup under the Scene button (the list itself is not in the row)
+func _open_scene_list() -> void:
 	ui_scenes.global_position = ui_scene_btn.global_position + Vector2(0, ui_scene_btn.size.y)
 	ui_scenes.size = Vector2(260, 30)
 	ui_scenes.show_popup()
@@ -18473,6 +18489,8 @@ func _stamp() -> String:
 
 func _write(path0: String, d: Dictionary) -> void:
 	var path := UserPaths.w(path0)   # an exported build's res:// is read-only: the user's folder (as run from source: unchanged)
+	if _test_keeps(path):
+		return
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	f.store_string(JSON.stringify(d, " "))
@@ -18603,7 +18621,7 @@ var ui_confirm: ConfirmationDialog
 var _confirm_do: Callable
 
 
-func _confirm(msg: String, ok_text: String, f: Callable) -> void:
+func _confirm(msg: String, ok_text: String, f: Callable, cancel_text := "Cancel") -> void:
 	if ui_confirm == null:
 		ui_confirm = ConfirmationDialog.new()
 		ui_confirm.title = "Can't be undone"
@@ -18615,6 +18633,7 @@ func _confirm(msg: String, ok_text: String, f: Callable) -> void:
 	_confirm_do = f
 	ui_confirm.dialog_text = msg
 	ui_confirm.ok_button_text = ok_text
+	ui_confirm.get_cancel_button().text = cancel_text   # Easy's Delete asks with Keep; every other caller keeps Cancel
 	ui_confirm.popup_centered()
 	_say(msg.get_slice("\n", 0))
 
@@ -18716,6 +18735,19 @@ func _save_ask_choose(how: String) -> void:
 func _trash(path: String) -> void:
 	_confirm("Move '%s' to the trash folder?\nIt is kept in trash/ (put it back by hand); Ctrl+Z can't bring it back." % path.get_file().get_basename(),
 		"Move to trash", _trash_now.bind(path))
+
+
+## a TEST run never overwrites a scene that was in res://scenes before it started (10-25: parallel suites rewrote the shipped
+## idle_bat, swing_back and strike_legs in a worktree): its own new files, _wip/ and zz_ files are fine. The app itself (no test
+## script) saves as before. true = refused
+func _test_keeps(path: String) -> bool:
+	if Engine.get_main_loop().get_script() == null or not path.begins_with("res://scenes/") or path.contains("/_wip/") 			or path.get_file().begins_with("zz_") or not FileAccess.file_exists(path):
+		return false
+	var started := Time.get_unix_time_from_system() - Time.get_ticks_msec() / 1000.0 - 2.0
+	if float(FileAccess.get_modified_time(path)) >= started:
+		return false   # written by this run
+	push_warning("test run: refused to overwrite a shipped scene " + path)
+	return true
 
 
 func _trash_now(path: String) -> bool:
@@ -18974,7 +19006,7 @@ func _drafts_row(tag: String) -> void:
 		_drafts_all = false
 	_fill_scene_list()
 	_show_open_scene()
-	_open_scene_popup()
+	_open_scene_list()
 
 
 ## opens a scene file the one way every pick does (the scene list, the S box's scene rows): at once, or asking first
