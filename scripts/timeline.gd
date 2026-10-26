@@ -1057,12 +1057,13 @@ func _draw() -> void:
 		draw_line(Vector2(xc, RULER), Vector2(xc, size.y), Color(1, 0.45, 0.35), 2.0)
 		draw_string(font, Vector2(xc + 6, y0 + h * 0.5 + 5), ("hit at %.2f s: the rest won't play (H: dummy off)" if size.x - xc > 300.0 else "hit: won't play") % P.length() if size.x - xc > 300.0 else "hit: won't play", HORIZONTAL_ALIGNMENT_LEFT, size.x - xc - 10, 12, Color(1, 0.75, 0.65))
 	# hovered edge
-	if _hover.get("kind", "") in ["move", "hold", "edge0"] and _drag.is_empty():
+	# the hover / drag index can outlive its card (a fix or a words edit rebuilt the cards under the mouse): skip it then
+	if _hover.get("kind", "") in ["move", "hold", "edge0"] and _drag.is_empty() and int(_hover.get("i", -1)) < ts.size():
 		var hi: int = _hover["i"]
 		var hxe := x_of(ts[hi][2] if _hover["kind"] == "hold" else ts[hi][1])
 		draw_line(Vector2(hxe, y0), Vector2(hxe, y0 + h), Color(1, 0.95, 0.5), 3.0)
 	# the value being dragged, beside the edge
-	if not _drag.is_empty() and _drag["kind"] in ["move", "hold"] and _drag.get("moved", false):
+	if not _drag.is_empty() and _drag["kind"] in ["move", "hold"] and _drag.get("moved", false) and int(_drag.get("i", -1)) < ts.size():
 		var di: int = _drag["i"]
 		var ex := x_of(ts[di][2] if _drag["kind"] == "hold" else ts[di][1])
 		var dd := float(_drag["d"])
