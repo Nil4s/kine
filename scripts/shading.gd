@@ -185,21 +185,39 @@ func apply_sky(m: Node) -> void:
 		e.background_color = Tok.c("world")
 
 
+## THE BODY LOOK's stage (Nick's "D"): soft lights (ambient 0.22, warm key 0.62, cool rim 0.5, a little fill) and SSAO. The stage is
+## built with it and every "back to the stage's own lights" (a lighting preset off, studio "default") puts it back, bit for bit
+static func stage_default(m: Node) -> void:
+	var e: Environment = m.world_env
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	e.ambient_light_color = Color(0.62, 0.66, 0.74)
+	e.ambient_light_energy = 0.22
+	e.ssao_enabled = true
+	e.ssao_radius = 0.35
+	e.ssao_intensity = 1.6
+	e.ssao_power = 1.5
+	e.ssao_detail = 0.0
+	var key: DirectionalLight3D = m.light_key
+	key.rotation_degrees = Vector3(-42, 38, 0)
+	key.light_energy = 0.62
+	key.light_color = Color(1.0, 0.97, 0.93)
+	key.light_angular_distance = 4.0   # a soft penumbra
+	var rim: DirectionalLight3D = m.light_rim
+	rim.rotation_degrees = Vector3(-18, 205, 0)
+	rim.light_energy = 0.5
+	rim.light_color = Color(0.82, 0.9, 1.0)
+	var fill: DirectionalLight3D = m.light_fill
+	fill.rotation_degrees = Vector3(-10, -50, 0)
+	fill.light_energy = 0.25
+	fill.light_color = Color.WHITE
+	m._light_home = [key.basis, fill.basis, rim.basis]
+
+
 ## K02: put the studio lights on (the stage's own three lights are re-aimed, never added or removed)
 func apply_lights(m: Node) -> void:
 	var e: Environment = m.world_env
 	if lights == "default" or not STUDIO.has(lights):
-		m.light_key.basis = m._light_home[0]
-		m.light_key.light_energy = 1.1
-		m.light_key.light_color = Color.WHITE
-		m.light_fill.basis = m._light_home[1]
-		m.light_fill.light_energy = 0.0
-		m.light_fill.light_color = Color.WHITE
-		m.light_rim.basis = m._light_home[2]
-		m.light_rim.light_energy = 0.45
-		m.light_rim.light_color = Color.WHITE
-		e.ambient_light_energy = 0.6
-		e.ambient_light_color = Color(0.55, 0.57, 0.62)
+		stage_default(m)
 		return
 	var st: Dictionary = STUDIO[lights]
 	for pair in [[m.light_key, "key"], [m.light_fill, "fill"], [m.light_rim, "rim"]]:

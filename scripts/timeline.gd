@@ -544,6 +544,9 @@ func _retime_to(x: float, fine: bool) -> void:
 	var S := _S()
 	var i: int = _drag["i"]
 	var n := S.cards.size()
+	if i >= n:   # the cards were rebuilt under the drag (an undo, a Fix): nothing to drag any more
+		_drag = {}
+		return
 	var dx: float = x - float(_drag["x0"])
 	if _drag["kind"] == "edge0":
 		if absf(dx) < 3.0:
@@ -951,7 +954,20 @@ func _draw_sp(font: Font, y0: float, h: float) -> void:
 		draw_string(font, Vector2(r.position.x + 3.0, r.position.y + 10.0), ("IMPOSSIBLE  " if b["flag"] else "FLIGHT  ") + String(b["txt"]), HORIZONTAL_ALIGNMENT_LEFT, maxf(r.size.x - 4.0, 8.0), 10, Tok.c("text"))
 
 
+## the hover / drag hold a CARD INDEX: any rebuild of the cards under a still mouse (a Fix, an undo, a scene opened, Polish) can leave
+## it past the end ('Out of bounds get index 28' every frame in _draw). Dropped here, at the one place that reads it, so no
+## caller of a card change has to remember to reset the timeline.
+func _drop_stale() -> void:
+	var S := _S()
+	var n := 0 if S == null else S.cards.size()
+	if _hover.get("kind", "") in ["move", "hold", "edge0"] and int(_hover.get("i", -1)) >= n:
+		_hover = {}
+	if not _drag.is_empty() and _drag.get("kind", "") in ["move", "hold", "edge0"] and int(_drag.get("i", -1)) >= n:
+		_drag = {}
+
+
 func _draw() -> void:
+	_drop_stale()
 	var S := _S()
 	draw_rect(Rect2(Vector2.ZERO, size), Tok.c("tl_bg"))
 	var font := get_theme_default_font()
@@ -1057,12 +1073,13 @@ func _draw() -> void:
 		draw_line(Vector2(xc, RULER), Vector2(xc, size.y), Color(1, 0.45, 0.35), 2.0)
 		draw_string(font, Vector2(xc + 6, y0 + h * 0.5 + 5), ("hit at %.2f s: the rest won't play (H: dummy off)" if size.x - xc > 300.0 else "hit: won't play") % P.length() if size.x - xc > 300.0 else "hit: won't play", HORIZONTAL_ALIGNMENT_LEFT, size.x - xc - 10, 12, Color(1, 0.75, 0.65))
 	# hovered edge
-	if _hover.get("kind", "") in ["move", "hold", "edge0"] and _drag.is_empty():
+	# the hover / drag index can outlive its card (a fix or a words edit rebuilt the cards under the mouse): skip it then
+	if _hover.get("kind", "") in ["move", "hold", "edge0"] and _drag.is_empty() and int(_hover.get("i", -1)) < ts.size():
 		var hi: int = _hover["i"]
 		var hxe := x_of(ts[hi][2] if _hover["kind"] == "hold" else ts[hi][1])
 		draw_line(Vector2(hxe, y0), Vector2(hxe, y0 + h), Color(1, 0.95, 0.5), 3.0)
 	# the value being dragged, beside the edge
-	if not _drag.is_empty() and _drag["kind"] in ["move", "hold"] and _drag.get("moved", false):
+	if not _drag.is_empty() and _drag["kind"] in ["move", "hold"] and _drag.get("moved", false) and int(_drag.get("i", -1)) < ts.size():
 		var di: int = _drag["i"]
 		var ex := x_of(ts[di][2] if _drag["kind"] == "hold" else ts[di][1])
 		var dd := float(_drag["d"])
@@ -1141,6 +1158,7 @@ var _ph_seen := -1.0
 func _process(_dt: float) -> void:
 	if m == null or not visible:
 		return
+	_drop_stale()
 	var t := float(m.playhead)
 	if t == _ph_seen:
 		return

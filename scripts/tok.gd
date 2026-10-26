@@ -30,6 +30,7 @@ const DARK := {
 	"mk_red": Color(0.95, 0.3, 0.25), "mk_green": Color(0.35, 0.75, 0.4), "mk_blue": Color(0.35, 0.65, 0.95), "mk_gold": Color(0.9, 0.8, 0.3),
 	"fp_1": Color(0.95, 0.62, 0.25), "fp_2": Color(0.4, 0.7, 1.0), "fp_3": Color(0.5, 0.88, 0.55), "fp_4": Color(0.95, 0.5, 0.75),   # I42 floor plan: one colour per fighter
 	"mk_panel": Color(0.09, 0.095, 0.11, 1.0), "mk_border": Color(0.5, 0.56, 0.68, 1.0),
+	"body_clay": Color("D8DCE3"), "body_outline": Color("73BFFF"),   # THE BODY LOOK (matte clay + a thin sky outline); the clay is BODY_COLOURS[0]
 }
 const LIGHT := {
 	"text": Color(0.1, 0.11, 0.13), "heading": Color(0.08, 0.3, 0.68), "info": Color(0.12, 0.27, 0.5), "say": Color(0.42, 0.27, 0.0),
@@ -55,6 +56,7 @@ const LIGHT := {
 	"mk_red": Color(0.8, 0.14, 0.1), "mk_green": Color(0.15, 0.55, 0.22), "mk_blue": Color(0.12, 0.4, 0.85), "mk_gold": Color(0.7, 0.55, 0.0),
 	"fp_1": Color(0.8, 0.4, 0.05), "fp_2": Color(0.1, 0.4, 0.8), "fp_3": Color(0.1, 0.5, 0.2), "fp_4": Color(0.75, 0.2, 0.5),
 	"mk_panel": Color(0.985, 0.985, 0.99, 1.0), "mk_border": Color(0.38, 0.42, 0.5, 1.0),
+	"body_clay": Color("D8DCE3"), "body_outline": Color(0.16, 0.45, 0.85),   # a deeper blue: the sky one vanishes on the light floor
 }
 
 static var dark := true

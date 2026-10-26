@@ -192,7 +192,7 @@ func _init() -> void:
 	var dl := ndiff(dflt, tp)
 	ok(dl > 2000, "the 3-point frame differs from the default-lights frame in %d pixels (bar: > 2000)" % dl)
 	m._lights_set("default")
-	ok(m.light_key.basis == key0 and is_equal_approx(m.light_key.light_energy, 1.1) and is_equal_approx(m.light_fill.light_energy, 0.0) and Shading.light_count(m) == 2,
+	ok(m.light_key.basis == key0 and is_equal_approx(m.light_key.light_energy, 0.62) and is_equal_approx(m.light_fill.light_energy, 0.25) and Shading.light_count(m) == 3,   # the body look's stage (Shading.stage_default)
 		"default lights put back bit for bit (%d shining)" % Shading.light_count(m))
 
 	# ---- the sky: a gradient behind the figure, off again gives the flat colour

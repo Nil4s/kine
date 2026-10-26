@@ -3051,6 +3051,8 @@ func _ready() -> void:
 		easy.sliders.add_block(_hands_block(true))   # HANDS (w4-handlock): the lock and the hands row in the Easy side panel
 	BootProfile.mark("easy build")
 	easy.start(cf, testing)   # EASY MODE: the saved mode (a fresh config is Easy); its own tour, once
+	if _mesh_page() and not _mesh_open() and not _body_sculpt_on() and not BaseBody.is_open(self):
+		_mesh_boot_open.call_deferred()   # restored on a mesh page (_pages_load does not auto-open: it saves nothing): the body opens as the page tab's click would
 	start_screen = StartScreen.new()   # THE START SCREEN: built hidden; shown at start-up (below), from the KINE logo or File > Start screen
 	start_screen.m = self
 	ui_root.add_child(start_screen)
@@ -3490,25 +3492,18 @@ func _world() -> void:
 	e.background_color = Tok.c("world")
 	world_env = e
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color(0.55, 0.57, 0.62)
-	e.ambient_light_energy = 0.6
 	env.environment = e
 	add_child(env)
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-50, 35, 0)
-	sun.light_energy = 1.1
-	sun.shadow_enabled = true
+	sun.shadow_enabled = false   # the soft look (shading.gd BODY_LOOK): a hard shadow acnes on the skinned mesh; SSAO gives the form
 	stage_root.add_child(sun)
 	light_key = sun
 	var back := DirectionalLight3D.new()
-	back.rotation_degrees = Vector3(-30, 200, 0)
-	back.light_energy = 0.45
 	stage_root.add_child(back)
 	light_rim = back
-	light_fill = DirectionalLight3D.new()   # R1: off (energy 0) until a lighting preset uses it
-	light_fill.light_energy = 0.0
-	light_fill.rotation_degrees = Vector3(-10, -50, 0)
+	light_fill = DirectionalLight3D.new()
 	stage_root.add_child(light_fill)
+	Shading.stage_default(self)   # the body look's lights, ambient and SSAO (the one place the default lives)
 	_light_home = [light_key.basis, light_fill.basis, light_rim.basis]   # exactly as built: the default is put back bit for bit
 	var im := ImmediateMesh.new()
 	var gm := MeshInstance3D.new()
@@ -3562,8 +3557,18 @@ func _world() -> void:
 func _body() -> void:
 	var skin := StandardMaterial3D.new()
 	skin.albedo_color = BODY_COLOURS[body_colour][1]
-	skin.roughness = 0.55
+	skin.roughness = 0.92   # THE BODY LOOK (Nick's "D"): matte clay, a whisper of rim, a thin sky outline
+	skin.metallic_specular = 0.25
+	skin.rim_enabled = true
+	skin.rim = 0.12
+	skin.rim_tint = 0.6
+	var outline := ShaderMaterial.new()
+	outline.shader = BODY_OUTLINE_SHADER
+	outline.set_shader_parameter("grow", 0.0045)
+	skin.next_pass = outline
+	_body_outline = outline
 	body_skin = skin
+	_body_look_tint()
 	var mq := Overlays.mannequin(self, skin)
 	skel = mq[1]
 	bone_idx = mq[2]
@@ -5015,6 +5020,7 @@ func _refresh() -> void:
 	ouch.apply(looks, B, sel, dragging == "joint" and not clean and not wp_on, get_viewport().get_mouse_position())   # N064: during a joint drag only
 	_force_looks(looks)
 	skp.set_looks(looks)
+	_body_outline_parts(looks)
 	for m in [bat_handle, bat_barrel, bat_knob]:
 		m.visible = B.wep_on
 	d2_handle.visible = B.wep2_on
@@ -11825,6 +11831,7 @@ func _retheme() -> void:
 	if shading.mode != "solid":
 		shading.set_mode(self, shading.mode)
 	floor_mat.albedo_color = Tok.c("floor")
+	_body_look_tint()
 	_grid()
 	_rebuild_cards()
 	if ui_find.visible and S.cards.size() >= 2:
@@ -15209,6 +15216,13 @@ func _mesh_auto_open(p: String) -> void:
 	_mesh_opening = was
 
 
+## the boot's own _mesh_auto_open, once the world is built: only if the page is still a mesh page with nothing open
+func _mesh_boot_open() -> void:
+	if _mesh_page() and not _mesh_open() and not _body_sculpt_on() and not BaseBody.is_open(self):
+		_mesh_auto_open(cur_page)
+		_mesh_edit_sync()
+
+
 ## leaving the fighter's body (a posing page, Switch..., a test cube or sphere): an edit is applied as ONE undo step (Ctrl+Z
 ## takes it back), then the body closes and the fighter is back on screen. No edit: nothing is applied and no step is made
 ## -> the status line's words for what was done ("" when the body was not open). BaseBody._leave applies an edit
@@ -17984,6 +17998,20 @@ func _pv_start(f: Dictionary) -> void:
 	_pv_job = job
 
 
+## a preview worker (Fixer.propose on a copy) shares STATIC caches with the main thread (FrameMemo, PoseCache, Scene's memos): a Fix, a
+## Fix all or a realism judge run on the main thread while it works is a data race (a native crash, not a script error). Every
+## main-thread run of those waits for the worker first; its answer is kept, the preview is not shown (the cards are about to change).
+func _pv_quiesce() -> void:
+	if _pv_job.is_empty():
+		return
+	WorkerThreadPool.wait_for_task_completion(_pv_job["task"])
+	_pv_job = {}
+	_previews.clear()
+	_pv_gen += 1
+	_pv_hover = {}
+	ov.fix_preview(S, [], 0.0)
+
+
 ## called every frame: collect a finished preview job, show it if the mouse is still on its button, start the next
 func _pv_poll() -> void:
 	if _pv_job.is_empty() or not WorkerThreadPool.is_task_completed(_pv_job["task"]):
@@ -18014,6 +18042,7 @@ func _fix_layer(f: Dictionary) -> void:
 	_fixing = true
 	_say("fixing %s on a layer... (it plays the scene to check the fix)" % f["rule"])
 	await get_tree().process_frame
+	_pv_quiesce()
 	var r := LayerFix.make(f, S, ov.GB, _sm)
 	if r["ok"]:
 		_step_hint = "Fix on a layer"
@@ -18045,6 +18074,7 @@ func _fix(f: Dictionary) -> void:
 	_say("fixing %s on card %d... (it plays the scene to check the fix)" % [f["rule"], f["card"] + 1])
 	await get_tree().process_frame
 	await get_tree().process_frame
+	_pv_quiesce()
 	var u := _snapshot()
 	var t0 := Time.get_ticks_msec()
 	var r: Dictionary = Fixer.apply(f, S, ov.GB, _sm)
@@ -18101,7 +18131,9 @@ func _fix_all() -> void:
 	var total := findings.filter(func(x): return Fixer.label(x, S) != "").size()
 	var tried := {}
 	var kept := 0
-	var refused := []   # "rule at t s: why" for each fix Fixer put back
+	var refused := {}   # key -> "rule at t s: why" for each fix Fixer put back (dropped again if a later try keeps it)
+	var refused_at := {}   # key -> how many fixes were kept when it was refused (a refusal is tried once more only if the scene changed since)
+	var retried := {}
 	var worst := 0      # the longest single Fixer.apply (ms): the window is frozen that long
 	var n := 0
 	var cap := total * 3 + 5   # a kept fix can surface new findings; this bounds the run
@@ -18112,9 +18144,19 @@ func _fix_all() -> void:
 				nxt = f
 				break
 		if nxt == null:
-			break
+			# a fix that was refused ("made it worse", "did not remove it") may work now that other fixes changed the clip: once more
+			# each (a refusal for "nothing could be changed" is a limit of the body, it does not move with the other cards)
+			for rk in refused.keys():
+				if not retried.has(rk) and int(refused_at[rk]) < kept and not String(refused[rk]).contains("nothing could be changed"):
+					retried[rk] = true
+					tried.erase(rk)
+					nxt = true
+			if nxt == null:
+				break
+			continue
 		var f: Dictionary = nxt
-		tried[_fix_key(f)] = true
+		var fk := _fix_key(f)
+		tried[fk] = true
 		n += 1
 		var prog := "Fixing %d of %d..." % [n, maxi(total, n)]
 		if is_instance_valid(_fixall_btn):
@@ -18126,15 +18168,19 @@ func _fix_all() -> void:
 		# the fix runs on the MAIN thread, exactly as the Fix button runs it: Fixer's sampler keeps static caches (FrameMemo,
 		# PoseCache, Rulebook) that the main thread also uses, so a worker would race them. The window waits for each fix
 		# (its worst case is in the report); the frame is given back before each one.
+		_pv_quiesce()
 		var t0 := Time.get_ticks_usec()
 		var r: Dictionary = Fixer.apply(f, S, ov.GB, _sm)
 		worst = maxi(worst, (Time.get_ticks_usec() - t0) / 1000)
 		if r["kept"]:
 			kept += 1
+			refused.erase(fk)
 			findings = r["after"]   # the scene the fix left, checked by Fixer
 			_sm = {}
 			_bake_drop()   # the cards changed in place: the bake still holds the old poses
-			refused.append("%s at %.2f s: %s" % [f["rule"], f["t"], String(r["msg"]).left(120)])
+		else:
+			refused[fk] = "%s at %.2f s: %s" % [f["rule"], f["t"], String(r["msg"]).replace("Not applied: ", "").left(170)]
+			refused_at[fk] = kept
 	var not_reached := []
 	for f in findings:
 		if Fixer.label(f, S) != "" and not tried.has(_fix_key(f)):
@@ -18150,12 +18196,13 @@ func _fix_all() -> void:
 		_ps().apply(B, playhead)
 	_fixall_on = false
 	_fixing = false
-	_fixall_last = {"tried": n, "kept": kept, "total": total, "refused": refused, "not_reached": not_reached, "no_fix": no_fix,
+	var refused_list: Array = refused.values()
+	_fixall_last = {"tried": n, "kept": kept, "total": total, "refused": refused_list, "not_reached": not_reached, "no_fix": no_fix,
 		"worst_ms": worst, "ms": Time.get_ticks_msec() - t_run, "stopped": _fixall_stop}
 	_check(findings)   # the list again, from the scene the run left (no second Check)
 	_refresh()
 	var need := []
-	need.append_array(refused.map(func(s): return "skipped, it would make the clip worse (" + s + ")"))
+	need.append_array(refused_list.map(func(s): return "could not fix: " + s))
 	need.append_array(not_reached)
 	need.append_array(no_fix.map(func(s): return "no automatic fix: " + s))
 	_say("Fix all: fixed %d of %d in %.1f s%s.  %s" % [kept, total, (Time.get_ticks_msec() - t_run) / 1000.0,
@@ -20501,9 +20548,43 @@ func _body_colour_next() -> void:
 		_say("his colour is %s now (Ctrl+Z gives the old one back)" % BODY_COLOURS[body_colour][0])
 
 
+## the outline's colour is a token (the light palette has a deeper one); _retheme calls this
+func _body_look_tint() -> void:
+	if _body_outline != null:
+		_body_outline.set_shader_parameter("colour", Tok.c("body_outline"))
+
+
+## a part wearing a pick / hover / limit tint has no outline: the tint is the line there, and its hull never covers it
+func _body_outline_parts(looks: Dictionary) -> void:
+	for j in pieces:
+		var off: bool = looks.has(j)
+		if off != _outline_off.has(j):
+			(pieces[j] as MeshInstance3D).set_instance_shader_parameter("outline_on", 0.0 if off else 1.0)
+			if off:
+				_outline_off[j] = true
+			else:
+				_outline_off.erase(j)
+
+
+## the body look is the editor view's: a shot with a lighting preset is lit as a picture, so its body wears no sky line
+func _body_outline_show(on: bool) -> void:
+	if body_skin == null:
+		return
+	body_skin.next_pass = _body_outline if on else null
+	light_key.shadow_enabled = not on   # the soft look has none (acne on the skinned mesh); a rig's key casts its own
+	body_skin.rim_enabled = on   # nor its soft rim, nor SSAO and the soft penumbra: the rig's own lights are the picture
+	_body_look_on = on
+	body_skin.roughness = 0.92 if on else 0.55   # and the skin it had before look D (the clay's brighter albedo flattens a rim light's edge)
+	body_skin.metallic_specular = 0.25 if on else 0.5
+	_body_colour_show()
+	world_env.ssao_enabled = on
+	for L in [light_key, light_rim, light_fill]:
+		L.light_angular_distance = 4.0 if (on and L == light_key) else 0.0
+
+
 func _body_colour_show() -> void:
 	if body_skin != null:
-		body_skin.albedo_color = BODY_COLOURS[body_colour][1]
+		body_skin.albedo_color = BODY_SKIN_PRE_D if (body_colour == 0 and not _body_look_on) else BODY_COLOURS[body_colour][1]
 
 
 func _prop_del() -> void:
@@ -22029,8 +22110,16 @@ const MULTI_FRAMES := 120        # the rig's least-squares stage reads at most t
 var photomat := PhotoMaterialUI.new(self)   # MATERIAL FROM A PHOTO (scripts/photo_material_ui.gd, E15)
 var body_mats := {}   # part -> the name of its photo material (user://materials/<name>); view state, undone with the rest
 var body_skin: StandardMaterial3D   # the skin material every body part without a photo material wears (_body); His colour sets its albedo
+var _body_look_on := true   # false while a lighting preset is lit (the pre-D skin: BODY_SKIN_PRE_D, roughness .55)
+const BODY_SKIN_PRE_D := Color(0.78, 0.72, 0.64)
+var _outline_off := {}   # the parts whose outline is off now (they wear a tint)
+var _body_outline: ShaderMaterial   # the skin's sky outline (its next_pass), kept to put back after a lighting preset
 var body_colour := 0               # HIS COLOUR: the index in BODY_COLOURS; view state, undone with the rest (not saved, as body_mats is not)
-const BODY_COLOURS := [["skin", Color(0.78, 0.72, 0.64)], ["white", Color(0.93, 0.93, 0.91)], ["grey", Color(0.52, 0.53, 0.55)],
+## THE BODY'S OUTLINE: an inverted hull (the back faces, grown along the normal, unshaded) pushed `push` metres away from the camera. The
+## push keeps the neighbouring part's hull from poking through a part's own skin at the seams (every part is its own mesh), so only the
+## silhouette gets the line. Costs one more draw of the skinned body; no full-screen pass
+const BODY_OUTLINE_SHADER := preload("res://scripts/body_outline.gdshader")
+const BODY_COLOURS := [["clay", Color("D8DCE3")], ["white", Color(0.93, 0.93, 0.91)], ["grey", Color(0.52, 0.53, 0.55)],
 	["blue", Color(0.25, 0.42, 0.78)], ["red", Color(0.74, 0.18, 0.16)], ["dark", Color(0.16, 0.15, 0.15)]]
 var refimg := RefImageUI.new(self)   # REFERENCE IMAGES (scripts/ref_image_ui.gd): a picture under or behind the figure, and Match
 var multicam_python := "python"  # the interpreter with mediapipe + opencv (tests point it at a stub)
@@ -23070,22 +23159,14 @@ func _light_apply() -> void:
 		return
 	_light_sig = sig
 	if k.is_empty():   # the stage's own lights (as _world builds them)
-		light_key.basis = _light_home[0]
-		light_key.light_energy = 1.1
-		light_key.light_color = Color.WHITE
-		light_rim.basis = _light_home[2]
-		light_rim.light_energy = 0.45
-		light_rim.light_color = Color.WHITE
-		light_fill.basis = _light_home[1]
-		light_fill.light_energy = 0.0
-		light_fill.light_color = Color.WHITE
-		world_env.ambient_light_energy = 0.6
-		world_env.ambient_light_color = Color(0.55, 0.57, 0.62)
+		Shading.stage_default(self)
+		_body_outline_show(true)
 		world_env.adjustment_enabled = false
 		world_env.adjustment_brightness = 1.0
 		world_env.adjustment_contrast = 1.0
 		shading.apply_lights(self)   # K02: back to the studio lights the view had chosen (none: the default above)
 		return
+	_body_outline_show(false)
 	var r := LightRig.rig(id, k["pos"], k["aim"])
 	for pair in [[light_key, "key"], [light_fill, "fill"], [light_rim, "rim"]]:
 		var L: DirectionalLight3D = pair[0]
