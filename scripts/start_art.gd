@@ -15,7 +15,7 @@ signal changed(kind: String)   # a picture is ready for this card
 
 const DIR := "user://start_art"
 const SIZE := Vector2i(640, 300)
-const VER := "sa2"   # sa2: the kick is the roundhouse template's strike card
+const VER := "sa3"   # sa3: re-rendered in body look D (sa2: the kick is the roundhouse template's strike card)
 const KINDS := ["animation", "modeling", "building"]
 const BG := Color(0.105, 0.11, 0.125)
 const SKIN := Color(0.847, 0.863, 0.89)     # #D8DCE3
