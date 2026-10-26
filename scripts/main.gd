@@ -2942,6 +2942,7 @@ func _ready() -> void:
 		settings = "user://poser_test_%d.cfg" % OS.get_process_id()
 		autosave = "user://autosave_test_%d.json" % OS.get_process_id()
 		library = "user://zz_lib_%d" % OS.get_process_id()
+		Houses.dir = "user://zz_houses_%d" % OS.get_process_id()   # a test never lists or writes the real saved houses
 		macros_file = "user://macros_test_%d.json" % OS.get_process_id()   # a test never touches the real macros file
 		sd.cache_path = "user://zz_smart_drag_%d.json" % OS.get_process_id()   # I12: a test's own model cache
 		smart_drag = false   # I12: off in a test until it turns it on (the older drag tests measure the one-joint drag)
@@ -3330,6 +3331,8 @@ func _exit_tree() -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(settings))
 	if library != LIBRARY:
 		_rm_tree(library)   # SS6: a test's own library
+	if Houses.dir == "user://zz_houses_%d" % OS.get_process_id():
+		_rm_tree(Houses.dir)
 	if journal_on:
 		if not _unsaved() or _discarding:
 			journal.trim()   # nothing unsaved (or Don't save was chosen): the journal has nothing to give back

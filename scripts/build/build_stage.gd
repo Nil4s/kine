@@ -49,6 +49,14 @@ static func refresh(S: Scene) -> bool:
 	return register(S.building) != ""
 
 
+## a saved record becomes the scene's house. A different house's prop in the set goes (a scene has one house); the same house's stays
+static func swap_in(S: Scene, rec: Dictionary) -> void:
+	var i := prop_index(S)
+	if i >= 0 and kind_of_building(S.building) != kind_of_building(rec):
+		S.props.remove_at(i)
+	S.building = rec
+
+
 ## put the house in the set (once): registers the kind and adds the prop at the origin. Returns the kind ("" when there is no house)
 static func use(S: Scene) -> String:
 	var kind := register(S.building)

@@ -47,7 +47,7 @@ const EXTRA_TIPS := {
 	"Fight blocks": "Fight blocks: pillars, fences, ramps and platforms to fight on and around. A click puts one on the floor in front of him",
 	"Build stairs": "Stairs from BUILD, with real steps he can climb. A click puts one on the floor in front of him",
 	"Build furniture": "Tables, benches and crates from BUILD. A click puts one on the floor in front of him",
-	"My houses": "The house you drew in BUILD. A click puts it in the set",
+	"My houses": "The houses you saved in BUILD, and the one you are drawing. A click puts one in the set",
 }
 const PIECE_CAT := {"Stairs": "Build stairs", "Furniture": "Build furniture", "Fight blocks": "Fight blocks"}   # BuildPieces.CATS name -> the column's name
 const RECENT := "Recent"
@@ -202,7 +202,20 @@ func extra_items() -> Array:
 			if kind == "":
 				continue
 			out.append(_item(String(PIECE_CAT.get(c[0], c[0])), String((BuildPieces.DEFS[k] as Dictionary)["label"]), "piece", kind, _prop_shapes(kind), "build:" + String(k)))
-	if m != null and m.S != null and not (m.S.building as Dictionary).is_empty() and not (m.S.building.get("rooms", []) as Array).is_empty() and not bool(m.S.building.get("readonly", false)):
+	var saved := {}   # the saved houses (Houses): My houses lists each with its picture; the house open in BUILD is listed once, by its saved name
+	for h in Houses.list():
+		var rec: Dictionary = h["record"]
+		if bool(rec.get("readonly", false)) or (rec.get("rooms", []) as Array).is_empty():
+			continue
+		saved[String(h["name"])] = true
+		var sh: Array = []
+		for bx in Building.collision_boxes(rec):
+			sh.append(["box", (bx["xf"] as Transform3D).origin, (bx["half"] as Vector3) * 2.0])
+		var si := _item("My houses", String(h["name"]), "house", BuildStage.kind_of_building(rec), sh, "house:saved:" + String(h["name"]))
+		si["saved"] = String(h["name"])
+		si["thumb"] = String(h["thumb"])
+		out.append(si)
+	if m != null and m.S != null and not (m.S.building as Dictionary).is_empty() and not (m.S.building.get("rooms", []) as Array).is_empty() and not bool(m.S.building.get("readonly", false)) 			and not saved.has(String(m.S.building.get("name", "Untitled"))):
 		var b: Dictionary = m.S.building
 		var kind := BuildStage.kind_of_building(b)
 		var boxes: Array = Building.collision_boxes(b)
@@ -386,6 +399,8 @@ func _place_item(it: Dictionary) -> bool:
 
 ## the house being drawn goes into the set (BUILD's Use in a scene: one undo step); a house already in the set is not added twice
 func _place_house(it: Dictionary) -> bool:
+	if it.has("saved"):
+		return _place_saved(String(it["saved"]), String(it["name"]))
 	if BuildStage.prop_index(m.S) >= 0:
 		_note.text = "That house is already in the set."
 		return false
@@ -398,6 +413,30 @@ func _place_house(it: Dictionary) -> bool:
 	m.sel_prop = -1
 	m._props_show()
 	_note.text = ("%s is in the set. Undo takes it away." if m.easy.on else "%s is in the set (Ctrl+Z takes it back)") % it["name"]
+	return true
+
+
+## a saved house (My houses) goes into the set exactly as Use in a scene does: it becomes the scene's house, one undo step. A scene has
+## one house: another house's prop in the set is replaced; the same house twice is refused
+func _place_saved(nm: String, label: String) -> bool:
+	var rec := Houses.load_house(nm)
+	if rec.is_empty() or bool(rec.get("readonly", false)):
+		_note.text = "%s cannot be read here." % label
+		return false
+	if BuildStage.prop_index(m.S) >= 0 and BuildStage.kind_of_building(m.S.building) == BuildStage.kind_of_building(rec):
+		_note.text = "That house is already in the set."
+		return false
+	m._push_undo()
+	BuildStage.swap_in(m.S, rec)
+	var kind := BuildStage.use(m.S)
+	if kind == "":
+		m.undo.pop_back()
+		_note.text = "%s has no room to put in the set." % label
+		return false
+	m.sel_prop = -1
+	m._props_show()
+	m.bld.sync()
+	_note.text = ("%s is in the set. Undo takes it away." if m.easy.on else "%s is in the set (Ctrl+Z takes it back)") % label
 	return true
 
 
@@ -661,7 +700,7 @@ func _rebuild() -> void:
 		empty.custom_minimum_size = Vector2(_tile_size().x * COLS, 60)
 		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		empty.text = ("Nothing matches \"%s\"." % query) if query != "" else \
-			("Nothing yet. Click a picture in any list and it shows up here." if view == RECENT else "Nothing here yet. Draw a room in BUILD and the house is listed here." if view == "My houses" else "No models of your own yet. Drop a .glb file on the window to bring it in; it is listed here." if m.easy.on else "No models of your own yet. Import model... (the SET row) brings a .glb in; it is listed here.")
+			("Nothing yet. Click a picture in any list and it shows up here." if view == RECENT else "Nothing here yet. Draw a room in BUILD, press Save house, and it is listed here." if view == "My houses" else "No models of your own yet. Drop a .glb file on the window to bring it in; it is listed here." if m.easy.on else "No models of your own yet. Import model... (the SET row) brings a .glb in; it is listed here.")
 		empty.add_theme_color_override("font_color", Tok.of("text:0.6"))
 		_grid.add_child(empty)
 	_note.text = ("%d shown. Click a picture to give it to him." if m.easy.on else "%d shown. Click a tile to place it in the set or the hand.") % shown.size()
@@ -809,6 +848,8 @@ func _tile(it: Dictionary, one := false) -> Control:
 	pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	pic.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	pic.texture = thumbs.picture(String(it["id"]))
+	if pic.texture == null and it.has("thumb"):
+		pic.texture = HousesUI.picture_of(String(it["thumb"]))   # a saved house: the picture drawn when it was saved
 	v.add_child(pic)
 	if pic.texture == null:
 		# until the picture is ready: the category, in the picture's place (never an empty box; the name is the label under it).
