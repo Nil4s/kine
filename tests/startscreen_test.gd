@@ -170,7 +170,7 @@ func _init() -> void:
 	await fit_check("1280 x 720")
 
 	# 2 cards: each opens its page in the mode its toggle shows
-	var plan := [["animation", "POSE", true], ["modeling", "MODEL", false], ["building", "STAGE", false]]
+	var plan := [["animation", "POSE", true], ["modeling", "MODEL", false], ["building", "BUILD", false]]
 	for pl in plan:
 		ss.show_screen()
 		await idle(3)
