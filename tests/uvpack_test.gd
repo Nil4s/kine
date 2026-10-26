@@ -330,6 +330,7 @@ func _init() -> void:
 	ok(eff["free"] > eff["none"] + 0.1, "bar 6: free rotation packs tighter (%.1f%% vs %.1f%%)" % [eff["free"] * 100.0, eff["none"] * 100.0])
 	# 8 (speed, wall clock): the fighter's body (6994 verts, 13744 faces) packs in under 2 s
 	var bm := await body_mesh()
+	KMeshUVPack.auto_seams(bm)
 	KMeshUV.unwrap(bm, "angle")
 	var rb := KMeshUVPack.pack(bm, {})
 	print("bar 8: body pack %d islands, %.0f ms (asked < 2000 ms)" % [int(rb.get("islands", 0)), float(rb.get("ms", -1.0))])
