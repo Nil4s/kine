@@ -54,6 +54,10 @@ var _jpending := false    # an undo step was pushed or undone since the last jou
 var journal_offer := {}   # a session that did not quit cleanly: {state, t, path, n} (File: restore unsaved work)
 var quit_clean := true    # false = the window goes without a clean quit (a test's simulated kill)
 var journal_capture_us := 0   # the scene's capture for the journal, summed (us): the numbers the journal test prints
+var crash_dir := ""          # CRASH REPORT (P25, scripts/crash_report.gd): "" = off (on with the journal; a test names its folder with POSER_CRASH)
+var crash_cmds: Array = []   # this session's last palette commands, as lines (the page, the time, the name)
+var crash_prev: Array = []   # the same lines from a session that did not quit cleanly: File > Crash report reads these first
+var crash_recent := CrashReport.Recent.new()   # the file the lines go to as they happen (a crash keeps them)
 
 var B := Body.new()
 var S := Scene.new()
@@ -2998,6 +3002,7 @@ func _ready() -> void:
 	journal_on = jenv != "" or not testing
 	journal_dir = jenv if jenv != "" else JOURNAL
 	if journal_on:
+		_crash_boot()   # before the journal: it reads the session flag the journal boot clears
 		_journal_boot()
 		BootProfile.mark("journal boot")
 	var cf := ConfigFile.new()
@@ -13531,6 +13536,7 @@ func _ui() -> void:
 	tips.attach_all(self, ui_root)
 	ui_cmd.running.connect(func(n): _step_hint = n; _why_cmd = n; _macro_note(n))
 	ui_cmd.running.connect(_hs_note)   # O15: the session log (a separate connection: its own function, scripts/histscript.gd)
+	ui_cmd.running.connect(_crash_note)   # P25: the last 20 commands for the crash report (scripts/crash_report.gd)
 	rec_label = _label("", 16, "fail")   # ROADMAP 81: the REC indicator, shown only while a macro is recorded
 	rec_label.anchor_left = 0.5
 	rec_label.anchor_right = 0.5
@@ -16425,6 +16431,7 @@ func _commands() -> Array:
 		_say("recent scenes at start: " + ("on" if recents.start_on() else "off (File: recent scenes still opens it)")), "recent scenes start panel startup show hide setting", false, "turn the recent scenes panel at start on or off (remembered; on by default, and only shown when there are recent scenes)")
 	add.call("File > Restore...", "", _restore_open, "restore autosave autosaved unsaved crash lost back earlier kept", false, "the last 5 autosaves (time, scene, cards) with a picture of each: pick one, it opens as a NEW copy in scenes/_wip (never over a file; the scene on screen asks first)")
 	add.call("File: restore unsaved work", "", _journal_restore, "journal unsaved recover restore crash lost work back", false, "bring back the work a session left unsaved when Kine did not close cleanly: the state after its last edit, still unsaved (the status line offers it at start)")
+	add.call("File > Crash report (last 20 commands)", "", _crash_report_now, "crash report bug problem error problem send lost last commands history what did i do", false, "writes the last 20 things you ran and the page you were on to a text file: you can read it and send it yourself. Nothing is sent")
 	add.call("Export...", "", _export_dialog_open, "export engine target unreal ue5 unity godot blender maya motionbuilder web three raw data format glb bvh usda game", false, "one dialog for every target: pick the engine or tool, see its format, what it needs, the frame rate and a checklist for this scene, then export")
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
 	add.call("Export animation (.glb)", "", _export_glb, "gltf glb blender unreal ue5 unity godot universal export fbx", false, "the scene as exports/<scene>.glb, the open 3D standard: the mannequin, its skeleton (UE5 bone names) and the animation, for any engine")
@@ -20651,6 +20658,52 @@ func _journal_restore() -> void:
 		journal.force_full()
 		_journal_write()
 	_say("restored the work from the journal (%d edits): it is not saved yet, Save scene keeps it" % int(o["n"]))
+
+
+## CRASH REPORT (P25): the commands of a session that did not quit cleanly are kept for the report; a clean last session
+## leaves nothing. Runs before _journal_boot, which clears the session flag this reads
+func _crash_boot() -> void:
+	var cenv := OS.get_environment("POSER_CRASH")   # a test's own folder (never user://crash)
+	crash_dir = cenv if cenv != "" else "user://crash"
+	CrashReport.ensure(crash_dir)
+	var jr := Journal.new()
+	jr.dir = journal_dir
+	if jr.session_clean():
+		CrashReport.clear_recent(crash_dir)
+	else:
+		crash_prev = CrashReport.move_old(crash_dir)
+		if not crash_prev.is_empty():
+			_crash_offer_say.call_deferred()
+	crash_recent.open(crash_dir.path_join(CrashReport.RECENT))
+
+
+func _crash_offer_say() -> void:
+	if journal_offer.is_empty():   # the journal's own offer (Restore the work from ...) says it when there is one
+		_say("Kine did not close cleanly last time. File > Crash report (last 20 commands) saves what you did then")
+
+
+## every palette command, with the page it ran on, goes to the recent list (the file the report reads after a crash)
+func _crash_note(n: String) -> void:
+	if crash_dir == "":
+		return
+	crash_cmds.append(CrashReport.line(Time.get_unix_time_from_system(), cur_page, n))
+	if crash_cmds.size() > CrashReport.KEEP:
+		crash_cmds = crash_cmds.slice(crash_cmds.size() - CrashReport.KEEP)
+	crash_recent.add(crash_cmds[-1])
+
+
+## File > Crash report: the last 20 commands (the session that did not quit, when there is one) and the page, in a text file
+func _crash_report_now() -> void:
+	if crash_dir == "":
+		_say("the crash report is off in this test run")
+		return
+	var lines: Array = crash_prev if not crash_prev.is_empty() else crash_cmds
+	var note := "The commands are from the session that did not close cleanly." if not crash_prev.is_empty() else "The commands are from this session."
+	var path := CrashReport.write(crash_dir, lines, cur_page, note)
+	if path == "":
+		_say("the crash report could not be written: check the disk, then try again")
+		return
+	_say("crash report saved (%d commands, with the page): %s. Nothing is sent; send the file yourself if you want" % [mini(lines.size(), CrashReport.KEEP), path])
 
 
 var ui_recover: ConfirmationDialog
