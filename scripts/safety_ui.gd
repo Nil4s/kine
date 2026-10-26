@@ -67,6 +67,25 @@ func show() -> void:
 	_panel()
 
 
+## the Safety sheet button: show() with the report made on a worker thread (checkslice; SafetySheet.analyze clones the scenes itself)
+func show_bg() -> void:
+	if m.S.cards.is_empty():
+		show()   # the "needs cards" line
+		return
+	var g := gather()
+	var sc: Array = (g["scenes"] as Array).map(func(s): return (s as Scene).clone())
+	var names: Array = g["names"]
+	var xfs: Array = g["xfs"]
+	var fps := maxi(1, (sc[0] as Scene).fps)
+	var r: Dictionary = await m.bg_run("safety sheet", "safety sheet: reading the clip...", func(): return SafetySheet.analyze(sc, names, xfs, fps))
+	if not r["ok"]:
+		return
+	rep = r["v"]
+	pics = []
+	imgs = []
+	_panel()
+
+
 func _title() -> String:
 	return String((gather()["scenes"][0] as Scene).name)
 
