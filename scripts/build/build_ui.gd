@@ -108,6 +108,7 @@ var tool_btns := {}
 var words: BuildWordsUI
 var houses: HousesUI           # My houses: the name box, Save house, Open house (scripts/build/houses_ui.gd)
 var bp: BlueprintUI            # the Blueprint sheet (phase 1g)
+var part: PartUI               # the Part workspace (Expert: sketch -> extrude / revolve / fillet, a timeline; scripts/build/part_ui.gd)
 var bp_btn: Button
 var fields := {}               # param -> LineEdit
 var kind_btns := {}
@@ -260,6 +261,7 @@ func _build_ui() -> void:
 	tool_btns["Words"] = wb
 	row.add_child(wb)
 	bp_btn = m._button("Blueprint", func(): bp.open(), "Blueprint: plans of every floor and the front and side elevations, with dimensions; export SVG, PNG, DXF")
+	row.add_child(BuildChoose.reopen_button(m))
 	bp_btn.name = "build_blueprint"
 	_icon_word(bp_btn, "Blueprint")
 	row.add_child(bp_btn)
@@ -471,6 +473,8 @@ func _build_ui() -> void:
 	bp.setup(self)
 	houses = HousesUI.new()
 	houses.setup(self)
+	part = PartUI.new()
+	part.setup(self)
 
 
 ## a ribbon button of this page: its icon (scripts/icons.gd, build_*) and one word
@@ -684,6 +688,8 @@ func sync() -> void:
 		use_btn.text = "Back to BUILD" if m.cur_page == "STAGE" else "Use in a scene"
 	if bp_btn != null:
 		m._grey(bp_btn, "" if has_rooms else "draw a room first")
+	if m.cur_page == "BUILD" and not m._top_fits():
+		m._fit_top.call_deferred()   # the row grew after the page's own fit (the house name, the chooser's button): else the bar runs past the window and "Use in a scene" slides under the next control
 	if BuildStage.refresh(m.S):
 		m._props_show()   # the set follows the house: its collision is the record's again
 	_stage_sync()
@@ -701,6 +707,8 @@ func sync() -> void:
 	_layout()
 	_fields_sync()
 	ov.queue_redraw()
+	if part != null:
+		part.sync()
 
 
 func _opening(id: String) -> Dictionary:
@@ -799,6 +807,8 @@ func _layout() -> void:
 	if on:
 		chip.reset_size()
 		chip.position = Vector2(cl.position.x + 12.0, cl.end.y - chip.size.y - 6.0)
+	if part != null:
+		part.layout(cl)
 
 
 func _process(_dt: float) -> void:
@@ -1067,6 +1077,8 @@ func _finish_room() -> void:
 func input(ev: InputEvent) -> bool:
 	if not on:
 		return false
+	if part != null and part.on and not easy_ui():
+		return part.input(ev)   # the Part workspace has the page: the house tools do not see the event
 	if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 		var mb := ev as InputEventMouseButton
 		if mb.pressed:
