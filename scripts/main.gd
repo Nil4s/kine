@@ -23075,7 +23075,7 @@ func _load_scene(path0: String, work := false) -> void:   # work: a copy the app
 ## (_write_later) with the same text. Same scene as _load_scene(path, true) on the written file.
 func _load_scene_built(path0: String, d: Dictionary) -> void:
 	var rt: Variant = d.duplicate(true)
-	_write.call_deferred(path0, d.duplicate(true))
+	_write.call_deferred(path0, d)   # the caller (easy_home._build) never touches d again, and the scene reads rt: no second deep copy of a 37-card clip
 	if not (rt is Dictionary):
 		_say_plain("NOT NOW: %s is not a scene file (missing, empty or not JSON)" % path0.get_file())
 		return

@@ -170,7 +170,15 @@ static func _all_finite(v: Variant) -> bool:
 		if t == TYPE_FLOAT:
 			if not is_finite(x):
 				return false
-		elif (t == TYPE_ARRAY or t == TYPE_DICTIONARY) and not _all_finite(x):
+		elif t == TYPE_ARRAY:
+			for y in x:   # a pose's leaves are short arrays of numbers (quaternions, points): looped here, a call only for a deeper container
+				var u := typeof(y)
+				if u == TYPE_FLOAT:
+					if not is_finite(y):
+						return false
+				elif (u == TYPE_ARRAY or u == TYPE_DICTIONARY) and not _all_finite(y):
+					return false
+		elif t == TYPE_DICTIONARY and not _all_finite(x):
 			return false
 	return true
 
