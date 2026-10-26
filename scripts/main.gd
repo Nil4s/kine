@@ -2986,6 +2986,7 @@ func _ready() -> void:
 	get_window().min_size = Vector2i(MIN_ROOM)
 	get_viewport().size_changed.connect(func(): _fit_rows.call_deferred(); _fit_top.call_deferred(); _fit_page_bar.call_deferred(); _place_nav.call_deferred(); _place_akey_frame.call_deferred(); _strip_fit.call_deferred(); _browser_fit.call_deferred())
 	_world()
+	_gfx_start(testing)
 	BootProfile.mark("world")
 	_body()
 	BootProfile.mark("body")
@@ -11471,6 +11472,72 @@ func _gear_open() -> void:
 	ui_gear.visible = true
 
 
+# ---------------------------------------------------------------- GRAPHICS QUALITY (scripts/quality.gd)
+var gfx_mode := "auto"   # Auto / Low / Medium / High (remembered)
+var gfx_tier := "high"   # what the mode means on this PC, applied at start
+var ui_gfx_dlg: ConfirmationDialog
+var gfx_override := ""   # a test's own override.cfg path (never the project's)
+
+
+## at start: the saved mode (a test: High = the pre-presets picture, unless it saved one) applied to the viewport and the sun
+func _gfx_start(testing: bool) -> void:
+	var cf := ConfigFile.new()
+	var saved := cf.load(settings) == OK and cf.has_section_key(Quality.CFG, "mode")
+	gfx_mode = "high" if testing and not saved else Quality.mode_load(settings)
+	var mach := Quality.machine()
+	gfx_tier = Quality.tier_for(gfx_mode, settings, mach)
+	if testing:
+		gfx_override = "user://zz_override_%d.cfg" % OS.get_process_id()
+	Quality.apply(get_viewport(), gfx_tier, light_key)
+	if not testing and gfx_mode == "auto" and not Quality.benched(settings, mach):
+		_gfx_first_run.call_deferred(mach)
+
+
+## Auto's first run: a 3 s benchmark of the live scene. Its pick is SAVED and used from the next start: the picture never
+## changes by itself in a session. Only a different renderer asks (a restart prompt).
+func _gfx_first_run(mach: Dictionary) -> void:
+	for i in 60:
+		await get_tree().process_frame
+	var ms: float = await Quality.benchmark(get_tree())
+	var tier := Quality.detect(String(mach["adapter"]), int(mach["vram_mb"]), int(mach["cores"]), int(mach["ram_mb"]), ms)
+	Quality.pick_save(settings, mach, tier, ms)
+	if gfx_mode != "auto":
+		return
+	_say("Graphics quality (Auto): %s picked for this PC (%.1f ms a frame in the test); it is used from the next start" % [tier.capitalize(), ms])
+	if tier != gfx_tier and Quality.needs_relaunch(tier, Quality.current_renderer(), OS.get_cmdline_args()):
+		_gfx_ask_restart(tier)
+
+
+func _set_gfx(mode: String) -> void:
+	gfx_mode = mode
+	Quality.mode_save(settings, mode)
+	gfx_tier = Quality.tier_for(mode, settings, Quality.machine())
+	Quality.apply(get_viewport(), gfx_tier, light_key)
+	_say("Graphics quality: %s%s (remembered)" % [mode.capitalize(), "" if mode != "auto" else " = " + gfx_tier.capitalize() + " on this PC"])
+	if Quality.needs_relaunch(gfx_tier, Quality.current_renderer(), OS.get_cmdline_args()):
+		_gfx_ask_restart(gfx_tier)
+
+
+## only a renderer change needs a restart: override.cfg is written either way, so a "Later" takes effect at the next start
+func _gfx_ask_restart(tier: String) -> void:
+	var rd := String(Quality.preset(tier)["renderer"])
+	Quality.write_override(gfx_override if gfx_override != "" else Quality.override_path(), rd)
+	if ui_gfx_dlg == null:
+		ui_gfx_dlg = ConfirmationDialog.new()
+		ui_gfx_dlg.name = "gfx_restart_dialog"
+		ui_gfx_dlg.title = "Graphics quality"
+		ui_gfx_dlg.dialog_autowrap = true
+		ui_gfx_dlg.min_size = Vector2i(460, 0)
+		ui_gfx_dlg.ok_button_text = "Restart now"
+		ui_gfx_dlg.cancel_button_text = "Later"
+		ui_gfx_dlg.confirmed.connect(func(): autosave_now(); Quality.relaunch(get_tree()))
+		add_child(ui_gfx_dlg)
+	ui_gfx_dlg.dialog_text = "%s quality uses a different drawing engine (%s). Kine has to restart to switch to it.
+Your work is autosaved first. Choose Later and it is used from the next start." % [tier.capitalize(), rd.replace("gl_compatibility", "Compatibility").replace("forward_plus", "Forward+").replace("mobile", "Mobile")]
+	ui_gfx_dlg.popup_centered()
+
+
+
 func _set_scale(pct: int) -> void:
 	if not scale_fits(pct):
 		_say("UI size %d %% needs a window of at least %d x %d px (this one is %d x %d px): make the window bigger (maximise it), then choose it again" % [pct, MIN_ROOM.x * pct / 100, MIN_ROOM.y * pct / 100, get_window().size.x, get_window().size.y])
@@ -12394,6 +12461,19 @@ func _ui() -> void:
 			us.get_popup().set_item_tooltip(k, "" if scale_fits(SCALES[k]) else GREY_TAG.strip_edges() + " %d %% needs a window of at least %d x %d px: make the window bigger (maximise it)" % [SCALES[k], MIN_ROOM.x * SCALES[k] / 100, MIN_ROOM.y * SCALES[k] / 100])
 			us.get_popup().set_item_text(k, "%d %%" % SCALES[k] + ("" if scale_fits(SCALES[k]) else "   (needs a bigger window)")))
 	ui_ribbon["VIEW"].add_child(us)
+	var gq := MenuButton.new()
+	gq.name = "gfx_quality"
+	gq.text = "Graphics quality"
+	gq.flat = false
+	gq.focus_mode = Control.FOCUS_NONE
+	gq.tooltip_text = "Auto picks for this PC; Low is for older graphics cards and 8 GB laptops (smaller picture, no smoothing, light shadows); High is the full picture. A different drawing engine asks for a restart (remembered)"
+	for k in Quality.MODES.size():
+		gq.get_popup().add_radio_check_item(Quality.MODES[k].capitalize(), k)
+	gq.get_popup().id_pressed.connect(func(id: int): _set_gfx(Quality.MODES[id]))
+	gq.about_to_popup.connect(func():
+		for k in Quality.MODES.size():
+			gq.get_popup().set_item_checked(k, Quality.MODES[k] == gfx_mode))
+	ui_ribbon["VIEW"].add_child(gq)
 	ui_ribbon["VIEW"].add_child(_button("View options", _onion_panel_open, "onion skin options: ghosts of the picked parts only, the frames before and after, the step between them (remembered)"))
 	# always there, in the strip: the scene in the middle, the small icons on the right
 	var fill := Control.new()
