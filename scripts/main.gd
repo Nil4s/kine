@@ -3318,6 +3318,14 @@ func _exit_tree() -> void:
 
 
 func _process(dt: float) -> void:
+	var _pt := Time.get_ticks_usec() if PerfDoc.probe else 0
+	_process_body(dt)
+	if PerfDoc.probe:
+		PerfDoc.proc_us += Time.get_ticks_usec() - _pt
+		PerfDoc.proc_n += 1
+
+
+func _process_body(dt: float) -> void:
 	_mesh_hint_sync()
 	if _drop_line != null and _drop_line.visible:
 		var hov := get_viewport().gui_get_hovered_control()
@@ -3868,7 +3876,8 @@ func _tl_play_redraw() -> void:
 		return
 	var key := [_dm_gen, S, S.cards.size(), S.times(), sel_card, S.length(), ui_timeline.size, ui_timeline.pps(), ui_timeline.x_of(0.0), auto_key,
 		Tok.c("tl_bg"), Tok.c("ink"), fd_cache.get("key", null), ui_timeline.fd.size(), ui_timeline.bx.size(), ui_timeline.sp.size(), ui_timeline.ph.size(), ui_timeline.bf.size(), ui_timeline.bf_grid.size(), ui_timeline.dk.size(), ui_timeline.rd.size(), ui_timeline.sh.size(), ui_timeline.bk.size(), ui_timeline.rh.size(), ui_timeline.ph_sel, fd_on,
-		vdiff.size(), pv_in, pv_out, S.markers.size(), S.audio_tracks.size(), ui_timeline.clip_px(), _tl_under_ruler()]
+		vdiff.size(), pv_in, pv_out, S.markers.size(), S.audio_tracks.size(), ui_timeline.clip_px(), _tl_under_ruler(),
+		shot_now_index(), S.clips.hash(), clips_ui.sel if clips_ui != null else -1, findings_live(), findings.size(), audio_pick, audio_envs.size()]   # what the strip draws that is not the playhead's line: the lit shot, the clips, the pick, the marks
 	if key == _tl_key:
 		ui_timeline.playhead_redraw()
 		return
@@ -13749,8 +13758,8 @@ func _panel() -> void:
 				_sync = true
 				ui_ease_bias.value = bv
 				_sync = was
-	if ui_timeline != null:
-		ui_timeline.queue_redraw()
+	if ui_timeline != null and not playing:
+		ui_timeline.queue_redraw()   # playing: _fd_refresh -> _tl_play_redraw redraws it when something but the playhead changed (the whole strip every frame cost 2 ms with 6 clips, 10 ms with 50)
 	if label_of(ui_play) != ("Stop (Space)" if playing else "Play (Space)"):
 		_set_label(ui_play, "Stop (Space)" if playing else "Play (Space)")
 		ui_play.icon = Icons.tex("stop" if playing else "play")

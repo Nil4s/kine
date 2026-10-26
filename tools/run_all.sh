@@ -124,3 +124,5 @@ EXTRA="$EXTRA startscreen:w"   # THE START SCREEN: New project cards (art from t
 
 EXTRA="$EXTRA sculptnative:w"   # first GDExtension pilot: native KineSculptNative vs GDScript sculpt (tests/sculptnative_test.gd; SKIPs the native bars without the DLL)
 EXTRA="$EXTRA perfpresets:w"   # GRAPHICS QUALITY: Auto/Low/Medium/High presets, auto-detect, override.cfg, survives a restart (scripts/quality.gd; tests/perfpresets_test.gd)
+
+EXTRA="$EXTRA animcpu:w"   # ANIMATE CPU (tests/animcpu_test.gd): a playing 6-clip scene <= 12 ms of main thread a frame, 50 clips >= 40 fps, poses bit for bit (tests/animcpu_golden.json), the timeline pixels equal a full redraw
