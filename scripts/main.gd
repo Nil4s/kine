@@ -22096,7 +22096,7 @@ func _imp_show(on: bool, text := "") -> void:
 	if on:
 		_imp_lbl.text = text if text != "" else String(_imp["label"])
 		_imp_bar.value = 0.0
-		_imp_bar.visible = true   # Easy's copy hides it while its own whole-copy bar runs (easy_home._copy_show)
+		_imp_bar.visible = not (easy != null and easy.on and easy.home != null and easy.home._vid_busy)   # Easy's copy keeps it hidden while its own whole-copy bar runs (easy_home._copy_show): one figure on screen, from the first frame of each step
 		_imp_cancel_btn.disabled = false
 
 
