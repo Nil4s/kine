@@ -163,7 +163,21 @@ static func _num(v: Variant, d: float) -> float:
 
 
 ## a copy of a loaded value with every number that is NaN / infinite made 0
+## true when no float inside v (nested arrays and dictionaries) is nan or inf: plain loops, a call only per container
+static func _all_finite(v: Variant) -> bool:
+	for x in (v.values() if v is Dictionary else v):
+		var t := typeof(x)
+		if t == TYPE_FLOAT:
+			if not is_finite(x):
+				return false
+		elif (t == TYPE_ARRAY or t == TYPE_DICTIONARY) and not _all_finite(x):
+			return false
+	return true
+
+
 static func _finite(v: Variant) -> Variant:
+	if (v is Array or v is Dictionary) and _all_finite(v):   # the usual case: one native copy, no map / lambda per number
+		return v.duplicate(true)
 	if v is float:
 		return v if is_finite(v) else 0.0
 	if v is Array:

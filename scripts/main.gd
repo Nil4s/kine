@@ -13992,8 +13992,7 @@ func _rebuild_cards() -> void:
 		pc.add_theme_stylebox_override("panel", _card_style(i))
 		pc.custom_minimum_size = Vector2(CARD_W, 0)
 		pc.set_drag_forwarding(Callable(), _card_can_drop.bind(i, pc), _card_drop.bind(i, pc))
-		ui_cards.add_child(pc)
-		var v := VBoxContainer.new()
+		var v := VBoxContainer.new()   # the card's nodes are put together first and enter the tree once (ui_cards.add_child(pc) below): 37 cards entered the tree piece by piece took 12 ms
 		v.add_theme_constant_override("separation", 0)
 		pc.add_child(v)
 		# the picture IS the pick button: the pose on the body, the number and name under it
@@ -14027,7 +14026,6 @@ func _rebuild_cards() -> void:
 		var tex := thumbs.picture_of_key(pkey)
 		if tex != null:
 			nb.icon = tex
-		v.add_child(nb)
 		# hover tools: Update and Delete (reorder is a drag, or the right-click menu)
 		var tools := HBoxContainer.new()
 		tools.name = "hover_tools"
@@ -14047,10 +14045,12 @@ func _rebuild_cards() -> void:
 			hb.custom_minimum_size = Vector2(19, 19)
 			tools.add_child(hb)
 		nb.add_child(tools)
+		v.add_child(nb)
 		pc.mouse_entered.connect(func(): tools.visible = true)
 		pc.mouse_exited.connect(func(): tools.visible = false)
 		# the timing as one line of text; a click opens the two boxes (move, hold) that edit it
 		if easy_on:
+			ui_cards.add_child(pc)
 			continue   # Easy: no timing line and no timing panel (the seconds and the hold are Expert's). The line's button was
 			# made and never added here before: 37 orphan buttons per rebuild of a run (10-25)
 		var tb := _button(_card_timing(i), func(): _card_time_edit(i), "")
@@ -14104,6 +14104,7 @@ func _rebuild_cards() -> void:
 			hs.value_changed.connect(func(x): _push_undo(); _markers_hold(); S.cards[i]["hold"] = x; _markers_follow(); _retimed(false); tb.text = _card_timing(i); _card_timing_look(tb, i))
 			hh.add_child(hs)
 			pc.add_child(pp)
+		ui_cards.add_child(pc)
 	if easy != null and easy.on and not S.cards.is_empty():
 		ui_add_slot.add_child(easy.strip_button())   # + Add pose: pinned right of the strip, so a 37-card run never scrolls it away
 	_sg_strip_sync()   # R27: the three mini thumbnails after the current card
