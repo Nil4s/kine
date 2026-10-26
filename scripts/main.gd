@@ -13348,10 +13348,14 @@ func _fit_scene_list() -> void:
 	var pop := ui_scenes.get_popup()
 	if not pop.visible:
 		return
-	var cap := int(get_viewport().get_visible_rect().size.y) - 16
+	var vp := Vector2i(get_viewport().get_visible_rect().size)
+	var cap := vp.y - 16
 	pop.max_size = Vector2i(0, cap)
-	pop.size = Vector2i(pop.size.x, mini(pop.size.y, cap))
+	pop.size = Vector2i(mini(pop.size.x, vp.x), mini(pop.size.y, cap))
+	# the popup is kept inside the window: its place is clamped as well (it opened under the Scene button, low in a small window)
+	pop.position = Vector2i(clampi(pop.position.x, 0, maxi(0, vp.x - pop.size.x)), clampi(pop.position.y, 0, maxi(0, vp.y - pop.size.y)))
 	await get_tree().process_frame
+	pop.position = Vector2i(clampi(pop.position.x, 0, maxi(0, vp.x - pop.size.x)), clampi(pop.position.y, 0, maxi(0, vp.y - pop.size.y)))
 	if ui_scenes.selected >= 0:
 		pop.scroll_to_item(ui_scenes.selected)
 
@@ -14375,8 +14379,17 @@ func _scene_menu_pick(id: int) -> void:
 			_delete_scene()
 
 
-## the list of scenes, as a popup under the Scene button (the list itself is not in the row)
+## "Open scene" (the Scene menu and the ☰ strip entry, the empty-scene way-in): Expert's catalog, EasyScenes in its expert view
+## (chips, quality badges, stars; the same panel as Easy's My scenes). Its List view button opens the old list (_open_scene_list)
 func _open_scene_popup() -> void:
+	if easy != null and easy.scenes != null:
+		easy.scenes.open_panel(true)
+		return
+	_open_scene_list()
+
+
+## the old list of scenes, as a popup under the Scene button (the list itself is not in the row)
+func _open_scene_list() -> void:
 	ui_scenes.global_position = ui_scene_btn.global_position + Vector2(0, ui_scene_btn.size.y)
 	ui_scenes.size = Vector2(260, 30)
 	ui_scenes.show_popup()
@@ -18974,7 +18987,7 @@ func _drafts_row(tag: String) -> void:
 		_drafts_all = false
 	_fill_scene_list()
 	_show_open_scene()
-	_open_scene_popup()
+	_open_scene_list()
 
 
 ## opens a scene file the one way every pick does (the scene list, the S box's scene rows): at once, or asking first
