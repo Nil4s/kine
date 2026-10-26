@@ -55,6 +55,11 @@ static func t() -> int:
 	return Time.get_ticks_usec() if on else 0
 
 
+static var probe := false   # tests (animcpu): sum the whole _process of the app, apart from the doctor's brackets
+static var proc_us := 0
+static var proc_n := 0
+
+
 static func add(k: String, t0: int) -> void:
 	if not on:
 		return
