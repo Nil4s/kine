@@ -30,8 +30,9 @@ func idle(n := 3) -> void:
 		await process_frame
 
 
+## the rect is in canvas units; push_input takes window pixels (the 1280 x 720 content scale is 1.25 here), so map it through the root's transform
 func click_ctl(c: Control) -> void:
-	var p := c.get_global_rect().get_center()
+	var p := c.get_global_rect().get_center() * root.get_final_transform()
 	await ev_move(p, false)
 	await ev_mouse(p, true)
 	await ev_mouse(p, false)
