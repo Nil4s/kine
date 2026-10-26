@@ -1,0 +1,13 @@
+#!/usr/bin/env python
+# Kine native pilot (KineSculptNative). Build (mingw, x86_64, release), from this folder:
+#   PATH=/c/msys64/ucrt64/bin:$PATH python -m SCons platform=windows use_mingw=yes target=template_release arch=x86_64 \
+#       custom_api_file=D:/kine_native/api/extension_api.json
+# godot-cpp lives outside the repo (KINE_GODOT_CPP, default D:/kine_native/godot-cpp). Output: bin/ (git-ignored).
+import os
+
+cpp = os.environ.get("KINE_GODOT_CPP", "D:/kine_native/godot-cpp")
+env = SConscript(cpp + "/SConstruct")
+env.Append(CPPPATH=["src/"])
+sources = Glob("src/*.cpp")
+library = env.SharedLibrary("bin/kine_native{}{}".format(env["suffix"], env["SHLIBSUFFIX"]), source=sources)
+Default(library)

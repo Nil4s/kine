@@ -26,6 +26,9 @@ extends RefCounted
 ##   p["only_set"] > 0, the verts of every face of another set (KMeshFaceSets.frozen, read when the stroke begins).
 ##   ALPHAS + STROKE METHODS (C08, scripts/sculpt_alpha_stroke.gd): params "alpha", "stroke_method" (dots / drag rect /
 ##   spray), "alpha_rot" ...: each dab's falloff is multiplied by the alpha in the dab's tangent frame. Off (null) by default.
+##   NATIVE (native/, KineSculptNative): when ClassDB.class_exists("KineSculptNative") the spatial hash, a dab's displacements,
+##   _apply and _renormal run in C++ (scripts/kmesh_sculpt_native.gd is the one door). Same results to ~1e-6; no DLL = the
+##   GDScript below, unchanged. KMeshSculpt.native_on = false forces the GDScript path (tests/sculptnative_test.gd).
 
 const DRAW := "draw"
 const CLAY := "clay strips"
@@ -68,6 +71,23 @@ var _lock := PackedByteArray()      # C09: 1 = a vert of a hidden face / another
 var _symx: KMeshSculptSym  # C07: Y / Z / radial symmetry (scripts/kmesh_sculpt_sym.gd), null when off
 var _pend = null           # C07: while an Array, _apply holds the deltas back for the copies of one dab
 var _alpha: SculptAlphaStroke   # C08: the alpha / stroke method of this stroke, null when plain
+var _nb = null             # the native door (scripts/kmesh_sculpt_native.gd) for this stroke, null = GDScript path
+var _nctx := {}            # the native topology + hash of this stroke
+
+static var native_on := true
+static var _door = null
+static var _door_tried := false
+
+
+## the native door, or null (no DLL, or native_on is false)
+static func native_door():
+	if not native_on:
+		return null
+	if not _door_tried:
+		_door_tried = true
+		if ClassDB.class_exists("KineSculptNative"):
+			_door = load("res://scripts/kmesh_sculpt_native.gd")
+	return _door
 
 
 static func falloff(kind: String, t: float) -> float:
@@ -101,7 +121,11 @@ func begin(m: KMesh, params := {}) -> void:
 	_grab_w = {}
 	_grab_v = {}
 	_cell = maxf(float(p["radius"]), 1e-4)
-	_build_hash()
+	_nb = native_door()
+	if _nb != null:
+		_nctx = _nb.make_ctx(m.verts, m.faces, _cell)
+	else:
+		_build_hash()
 	_sym = m.symmetry_map(0, 1e-4) if p["sym_x"] else PackedInt32Array()
 	_sax = int(p.get("sym_axis", 0))   # B22: a partner map of any axis (KMeshTopoMirror: by connectivity) replaces it
 	if p["sym_x"] and p.get("sym_map") is PackedInt32Array and (p["sym_map"] as PackedInt32Array).size() == m.verts.size():
@@ -131,6 +155,8 @@ func _key(q: Vector3) -> Vector3i:
 
 ## verts within r of c (true distance, current positions)
 func verts_in(c: Vector3, r: float) -> PackedInt32Array:
+	if _nb != null:
+		return _nb.verts_in(_nctx, mesh.verts, c, r)
 	var out := PackedInt32Array()
 	var k := _key(c)
 	var n := ceili(r / _cell)
@@ -197,6 +223,14 @@ func dab(hit: Vector3, normal: Vector3, pressure := 1.0) -> int:
 	var fk := String(p["falloff"])
 	var n := normal.normalized() if normal.length_squared() > 0.0 else Vector3.UP
 	var ids := verts_in(hit, r)
+	var br := String(p["brush"])
+	if _nb != null and _alpha == null and br != MASK and br != FSET:
+		var nd = _nb.displacements(_nctx, mesh.verts, mesh.vert_normals, ids, br, fk, hit, n, r, a, float(p["strength"]), sgn, _has_last, _last)
+		if nd != null:
+			_has_last = true
+			_last = hit
+			dabs += 1
+			return _apply(ids, nd)
 	var vp := mesh.verts
 	var w := PackedFloat32Array()
 	w.resize(ids.size())
@@ -204,7 +238,6 @@ func dab(hit: Vector3, normal: Vector3, pressure := 1.0) -> int:
 		w[i] = falloff(fk, vp[ids[i]].distance_to(hit) / r)
 	if _alpha != null:
 		w = _alpha.weigh(self, ids, w, hit, n, r)
-	var br := String(p["brush"])
 	if (br == MASK or br == FSET) and not _lock.is_empty():   # C09: nothing painted on a frozen vert
 		var ki := PackedInt32Array()
 		var kw := PackedFloat32Array()
@@ -305,6 +338,8 @@ func _apply(ids: PackedInt32Array, d: PackedVector3Array) -> int:
 	if _pend != null:
 		_pend.append([ids, d])
 		return 0
+	if _nb != null:
+		return _nb.apply(_nctx, mesh, ids, d, _sym, _sax, _mask, _lock)
 	var tot := {}
 	for i in ids.size():
 		if d[i] == Vector3.ZERO:
@@ -330,6 +365,9 @@ func _apply(ids: PackedInt32Array, d: PackedVector3Array) -> int:
 
 func _renormal(moved: Array) -> void:
 	if moved.is_empty():
+		return
+	if _nb != null:
+		_nb.renormal(_nctx, mesh, PackedInt32Array(moved))
 		return
 	var fs := {}
 	for v in moved:
