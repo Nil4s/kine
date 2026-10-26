@@ -169,7 +169,7 @@ static func catalogue() -> Array:
 	for k in KINDS:
 		out.append([k, KINDS[k]["label"]])
 	for k in EXTRA:
-		if not bool(EXTRA[k].get("hidden", false)):   # a BUILD house is a set, not a library prop
+		if not bool(EXTRA[k].get("hidden", false)) and not bool(EXTRA[k].get("piece", false)):   # a BUILD house is a set, not a library prop; a BUILD piece is the library's own tile
 			out.append([k, EXTRA[k]["label"]])
 	return out
 

@@ -20509,7 +20509,7 @@ func _pick_prop(mp: Vector2) -> Array:
 
 
 func _prop_name(i: int) -> String:
-	return String(S.props[i]["kind"]).replace("_", " ") if i >= 0 and i < S.props.size() else ""
+	return String(S.props[i]["kind"]).trim_prefix("piece:").replace("_", " ") if i >= 0 and i < S.props.size() else ""
 
 
 ## a press on a prop: picked, and a drag moves it over the floor (snapped onto what it stands over); one undo step
