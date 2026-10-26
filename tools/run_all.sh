@@ -126,3 +126,4 @@ EXTRA="$EXTRA sculptnative:w"   # first GDExtension pilot: native KineSculptNati
 EXTRA="$EXTRA perfpresets:w"   # GRAPHICS QUALITY: Auto/Low/Medium/High presets, auto-detect, override.cfg, survives a restart (scripts/quality.gd; tests/perfpresets_test.gd)
 EXTRA="$EXTRA cad:w"   # CAD kernel pilot: KineCAD (Open CASCADE) via scripts/kcad.gd: box - hole, fillet, shell, tessellate, STEP (tests/cad_test.gd; SKIPs without the DLL)
 EXTRA="$EXTRA crashcheck:w"   # CRASH CHECK: every realism option + every Fix + Fix all on the owner scene, real clicks, 0 script errors, one undo step each, no stale timeline index (tests/crashcheck_test.gd)
+EXTRA="$EXTRA lookd:w"   # THE BODY LOOK "D": clay token, sky outline, soft lights + SSAO, pick tint over the outline, FPS (tests/lookd_test.gd)
