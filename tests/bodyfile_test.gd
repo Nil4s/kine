@@ -113,6 +113,9 @@ func _init() -> void:
 	m.kmed.sel.faces = {best: true}
 	key(KEY_E)
 	await idle(1)
+	for k in [KEY_0, KEY_PERIOD, KEY_0, KEY_1, KEY_ENTER]:   # 97f6e523: E is a live drag now; a typed 0.01 m, Enter confirms (the extrude the bar counts, +3 verts)
+		key(k)
+		await idle(1)
 	cmd("Model: apply the body mesh to the fighter")
 	await idle(1)
 	key(KEY_ESCAPE)

@@ -206,7 +206,7 @@ func _init() -> void:
 	await idle(3)
 	var page0: String = m.cur_page
 	var greys_ok := true
-	for id in ["vehicle", "template"] + ([] if KCad.available() else ["step", "part"]):   # Part is live with KineCAD since the Part workspace (w4-partws)
+	for id in ["vehicle"] + ([] if KCad.available() else ["step", "part"]):   # 2a89b914: From a template opens the starter buildings now. Part is live with KineCAD since the Part workspace (w4-partws)
 		for mode in ["easy", "expert"]:
 			m._say("")
 			await click(b(id, mode))
@@ -217,7 +217,7 @@ func _init() -> void:
 			if not (card_says and still and said.contains(why.substr(0, 20))):
 				greys_ok = false
 				print("   grey %s %s: card_says %s still %s said '%s'" % [id, mode, card_says, still, said])
-	ok(greys_ok, "3 the greyed cards (Vehicle, From a template%s) do nothing but say why: the chooser stays, mode and page unchanged" % ("" if KCad.available() else ", Import STEP, Part"))
+	ok(greys_ok, "3 the greyed cards (Vehicle%s) do nothing but say why: the chooser stays, mode and page unchanged" % ("" if KCad.available() else ", Import STEP, Part"))
 	ok(not (bc.whys["house"] as Label).visible and not (bc.whys["props"] as Label).visible, "3 the live cards carry no reason")
 	if KCad.available():   # 3b PART (Expert): the card opens the Part workspace on BUILD; Easy Part is not built: it says so, nothing changes
 		await click(b("part", "easy"))
