@@ -152,7 +152,7 @@ func _init() -> void:
 	for a in bc._arts:
 		shown = shown and (a as Control).is_visible_in_tree() and bc.art.get_art((a as BuildChoose.Art).kind) != null
 	ok(shown, "1 art: the cards show their pictures")
-	var dim := (bc.cards["part"] as CanvasItem).modulate.a < 1.0 and (bc.cards["house"] as CanvasItem).modulate.a == 1.0
+	var dim := (bc.cards["vehicle"] as CanvasItem).modulate.a < 1.0 and (bc.cards["house"] as CanvasItem).modulate.a == 1.0   # Vehicle: Part went live with the Part workspace (w4-partws)
 	ok(dim, "1 art: a greyed card shows its picture dimmed, a live one at full strength")
 	await shot("choose")
 	await shot("choose_art")
@@ -206,7 +206,7 @@ func _init() -> void:
 	await idle(3)
 	var page0: String = m.cur_page
 	var greys_ok := true
-	for id in ["part", "vehicle", "template"] + ([] if KCad.available() else ["step"]):
+	for id in ["vehicle", "template"] + ([] if KCad.available() else ["step", "part"]):   # Part is live with KineCAD since the Part workspace (w4-partws)
 		for mode in ["easy", "expert"]:
 			m._say("")
 			await click(b(id, mode))
@@ -217,8 +217,17 @@ func _init() -> void:
 			if not (card_says and still and said.contains(why.substr(0, 20))):
 				greys_ok = false
 				print("   grey %s %s: card_says %s still %s said '%s'" % [id, mode, card_says, still, said])
-	ok(greys_ok, "3 the greyed cards (Part, Vehicle, From a template%s) do nothing but say why: the chooser stays, mode and page unchanged" % ("" if KCad.available() else ", Import STEP"))
+	ok(greys_ok, "3 the greyed cards (Vehicle, From a template%s) do nothing but say why: the chooser stays, mode and page unchanged" % ("" if KCad.available() else ", Import STEP, Part"))
 	ok(not (bc.whys["house"] as Label).visible and not (bc.whys["props"] as Label).visible, "3 the live cards carry no reason")
+	if KCad.available():   # 3b PART (Expert): the card opens the Part workspace on BUILD; Easy Part is not built: it says so, nothing changes
+		await click(b("part", "easy"))
+		ok(bc.open and not m.bld.part.on, "3b Part Easy: not built yet, it says so and the chooser stays")
+		await click(b("part", "expert"))
+		await idle(3)
+		ok(not bc.open and m.cur_page == "BUILD" and m.bld.part.on and not m.easy.on, "3b Part Expert opens the Part workspace (page %s, part %s)" % [m.cur_page, m.bld.part.on])
+		m.bld.part.set_on(false)
+		bc.show_chooser()
+		await idle(3)
 
 	# 2 House Easy / Expert
 	await click(b("house", "easy"))

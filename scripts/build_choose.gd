@@ -43,7 +43,8 @@ var _solid: MeshInstance3D = null   # the imported STEP solid, shown on BUILD
 func why_not(id: String) -> String:
 	match id:
 		"part":
-			return "Coming soon: the part workspace is not in yet."
+			if not KCad.available():
+				return "Needs the KineCAD add-on, which is not installed."
 		"vehicle":
 			return "Coming soon: it needs the part workspace first."
 		"template":
@@ -58,7 +59,9 @@ func why_not(id: String) -> String:
 static func reopen_button(main: Node) -> Button:
 	var b := Button.new()
 	b.name = "build_choose_open"
-	b.text = "What to build"
+	b.text = ""   # icon only (the tooltip says it): the BUILD row also holds Part since the Part workspace, and a word pushed it past 1280 px
+	b.icon = Icons.tex("build_piece")
+	b.theme_type_variation = "Ribbon"
 	b.focus_mode = Control.FOCUS_NONE
 	b.tooltip_text = "Pick what to build: a house, a part, a prop pack or an imported file"
 	b.pressed.connect(func(): if main.build_choose != null: main.build_choose.show_chooser())
@@ -271,6 +274,14 @@ func _start(id: String, easy_on: bool) -> void:
 		"step":
 			_mode(easy_on)
 			_ask_step(easy_on)
+		"part":
+			if easy_on:   # Easy Part (shape + sliders) is not built yet: say so, change nothing
+				m._say("Easy Part (shapes and sliders) is coming. Expert Part is ready: sketch, extrude, revolve, fillet, with a timeline")
+				return
+			_mode(false)
+			close()
+			m._page_set("BUILD")
+			m.bld.part.set_on(true)
 
 
 func _mode(easy_on: bool) -> void:
