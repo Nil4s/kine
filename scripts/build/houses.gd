@@ -16,20 +16,42 @@ static func _abs(p: String) -> String:
 	return ProjectSettings.globalize_path(p)
 
 
-## a house name as a file name: letters, digits, space, dash and underscore; the rest becomes "_"
+## a house name as a file name: letters (accented ones too: "Casa do João" and "Pão" / "Pêo" stay apart), digits, space, dash and
+## underscore; the rest becomes "_"
 static func file_stem(nm: String) -> String:
+	var out := ""
+	for ch in nm.strip_edges():
+		var c := ch.unicode_at(0)
+		var keep := (c < 128 and (ch.is_valid_identifier() or ch == " " or ch == "-" or ch.is_valid_int())) or (c >= 128 and ch.to_lower() != ch.to_upper())
+		out += ch if keep else "_"
+	return out if out != "" else "House"
+
+
+## the first rule (every non-ASCII letter became "_"): houses saved under it are still found by their own name
+static func _legacy_stem(nm: String) -> String:
 	var out := ""
 	for ch in nm.strip_edges():
 		out += ch if (ch.unicode_at(0) < 128 and (ch.is_valid_identifier() or ch == " " or ch == "-" or ch.is_valid_int())) else "_"
 	return out if out != "" else "House"
 
 
+## the stem on disk: the file of this name, or an older file saved under the first rule when ITS record carries this name
+static func _stem(nm: String) -> String:
+	var st := file_stem(nm)
+	var old := _legacy_stem(nm)
+	if old != st and not FileAccess.file_exists(_abs("%s/%s.json" % [dir, st])) and FileAccess.file_exists(_abs("%s/%s.json" % [dir, old])):
+		var j := JSON.new()
+		if j.parse(FileAccess.get_file_as_string("%s/%s.json" % [dir, old])) == OK and j.data is Dictionary and String((j.data as Dictionary).get("name", "")) == nm.strip_edges():
+			return old
+	return st
+
+
 static func path_of(nm: String) -> String:
-	return "%s/%s.json" % [dir, file_stem(nm)]
+	return "%s/%s.json" % [dir, _stem(nm)]
 
 
 static func thumb_of(nm: String) -> String:
-	return "%s/%s.png" % [dir, file_stem(nm)]
+	return "%s/%s.png" % [dir, _stem(nm)]
 
 
 static func exists(nm: String) -> bool:
@@ -105,15 +127,19 @@ static func save(b: Dictionary, nm: String, img: Image = null) -> String:
 ## the house under another name (its file and picture move; false when the new name is taken or the old one is not there)
 static func rename(old: String, nw: String) -> bool:
 	nw = nw.strip_edges()
-	if nw == "" or not exists(old) or (exists(nw) and file_stem(nw) != file_stem(old)):
+	if nw == "" or not exists(old) or (exists(nw) and _stem(nw).to_lower() != _stem(old).to_lower()):   # (Windows names ignore case: "dojo" -> "Dojo" is the same file)
 		return false
 	var rec := load_house(old)
 	if rec.is_empty():
 		return false
-	if file_stem(nw) != file_stem(old):
-		DirAccess.rename_absolute(_abs(path_of(old)), _abs(path_of(nw)))   # a move: the old file is never removed
-		if FileAccess.file_exists(_abs(thumb_of(old))):
-			DirAccess.rename_absolute(_abs(thumb_of(old)), _abs(thumb_of(nw)))
+	if file_stem(nw) != _stem(old):
+		var to_json := "%s/%s.json" % [dir, file_stem(nw)]
+		var to_png := "%s/%s.png" % [dir, file_stem(nw)]
+		var had_png := FileAccess.file_exists(_abs(thumb_of(old)))
+		var from_png := thumb_of(old)
+		DirAccess.rename_absolute(_abs(path_of(old)), _abs(to_json))   # a move: the old file is never removed
+		if had_png:
+			DirAccess.rename_absolute(_abs(from_png), _abs(to_png))
 	return save(rec, nw) != ""
 
 
