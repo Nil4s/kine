@@ -41,20 +41,21 @@ const DOORW := ["door", "doors", "doorway", "doorways", "entrance"]
 const WINW := ["window", "windows"]
 const FLOORW := ["floor", "floors", "storey", "storeys", "story", "stories", "level", "levels"]
 const WALLW := {"front": "front", "back": "back", "rear": "back", "left": "left", "right": "right"}
-const HOUSEW := ["house", "home", "building", "cottage", "cabin", "villa", "bungalow", "hut", "place", "residence"]
+const HOUSEW := ["house", "home", "building", "cottage", "cabin", "villa", "bungalow", "hut", "place", "residence", "dojo", "hall", "arena", "gym", "barn", "warehouse", "studio", "temple"]
 const ROOFKIND := {"gable": "gable", "gabled": "gable", "pitched": "gable", "peaked": "gable", "pointed": "gable", "triangular": "gable",
 	"flat": "flat", "shed": "shed", "sloped": "shed", "sloping": "shed", "slanted": "shed", "lean": "shed"}
 const FILLER := ["a", "an", "the", "with", "and", "of", "on", "at", "in", "to", "it", "that", "has", "have", "having", "i", "want", "need", "please",
 	"build", "make", "create", "give", "me", "us", "some", "just", "also", "plus", "each", "every", "all", "both", "side", "sides", "wall", "walls",
 	"upstairs", "downstairs", "then", "now", "would", "like", "can", "you", "could", "for", "its", "is", "be", "new", "ground", "upper", "first", "total",
 	"each.", "has", "along", "centre", "center", "middle", "one", "per", "four", "everywhere", "throughout", "my", "our", "this", "up"]
-const EDIT_VERBS := ["move", "shift", "slide", "make", "add", "put", "remove", "delete", "take", "change", "set", "raise", "lower", "insert", "get", "drop", "turn", "swap"]
+const EDIT_VERBS := ["move", "shift", "slide", "make", "add", "put", "remove", "delete", "take", "change", "set", "raise", "lower", "insert", "get", "drop", "turn", "swap", "place", "rotate"]
 const LEAD := ["please", "now", "then", "just", "also", "can", "you", "could", "and"]
 ## every word the sentences use (the typo check looks here)
 const VOCAB := ["house", "home", "building", "cottage", "cabin", "villa", "bungalow", "door", "doors", "window", "windows", "floor", "floors",
 	"storey", "storeys", "story", "roof", "gable", "gabled", "flat", "shed", "sloped", "garage", "wide", "long", "deep", "front", "back", "left", "right",
 	"overhang", "taller", "shorter", "higher", "lower", "wider", "narrower", "move", "remove", "delete", "add", "make", "centre", "second", "third",
-	"first", "metres", "meters", "sides", "walls", "build", "pitched", "floor", "level", "levels"]
+	"first", "metres", "meters", "sides", "walls", "build", "pitched", "floor", "level", "levels",
+	"stairs", "table", "bench", "crate", "pillar", "fence", "ramp", "platform", "corner", "around", "benches", "pillars", "crates", "staircase", "tables"]
 
 
 # ---------------------------------------------------------------- the sentence
@@ -131,6 +132,9 @@ const SAY_EX := "Say a size, floors, doors, windows or a roof, like: a 2-floor h
 
 ## the words -> a plan or an edit (b = the building record now: edit phrases need one)
 static func parse(text: String, b := {}) -> Dictionary:
+	var sv := _save_phrase(text, b)
+	if not sv.is_empty():
+		return sv
 	var t := tokens(text)
 	while not t.is_empty() and LEAD.has(String(t[0])):
 		t.pop_front()
@@ -144,7 +148,29 @@ static func parse(text: String, b := {}) -> Dictionary:
 			if String(ed["did"]) == "":
 				return _refuse("Kine doesn't know '%s' as a building yet. %s" % [" ".join(t), SAY_EX])
 		return ed
-	return _parse_build(t)
+	var pl := _parse_build(t)
+	if bool(pl["ok"]) and bool(pl.get("pieces_only", false)) and not b.is_empty() and not b.get("rooms", []).is_empty():
+		# only pieces were said and a building stands: they go ON it ("stairs in the corner"), the house is not rebuilt
+		return {"ok": true, "kind": "edit", "edit": {"op": "add_pieces", "specs": (pl["plan"]["pieces"] as Array).duplicate(true), "text": " ".join(t)},
+			"notes": pl["notes"], "ignored": pl["ignored"], "defaults": {}, "error": "", "did": ""}
+	return pl
+
+
+## "save it as Dojo": the house under that name (My houses). The name keeps its capitals, so this reads the typed text, not the tokens
+static func _save_phrase(text: String, b: Dictionary) -> Dictionary:
+	var re := RegEx.new()
+	re.compile("(?i)^\\s*(?:(?:please|now|then|and|ok|okay)\\s+)*save\\s+(?:(?:it|this|that|the\\s+house|my\\s+house|house)\\s+)?(?:as|to|under|called|named)\\s+(.+?)\\s*$")
+	var m := re.search(text)
+	if m == null:
+		return {}
+	var nm := m.get_string(1).strip_edges().trim_prefix("\"").trim_suffix("\"").trim_prefix("'").trim_suffix("'").trim_suffix(".").strip_edges()
+	if nm == "":
+		return _refuse("Save it as what? Say a name: 'save it as Dojo'.")
+	if nm.length() > 60:
+		return _refuse("That name is too long: 60 letters at most.")
+	if b.is_empty() or b.get("rooms", []).is_empty():
+		return _refuse("Nothing is built yet to save. Build first: a 2-floor house 8 x 6 m with a door and 4 windows.")
+	return {"ok": true, "kind": "edit", "edit": {"op": "save", "name": nm, "text": text.strip_edges()}, "notes": [], "ignored": [], "defaults": {}, "error": "", "did": ""}
 
 
 ## an edit starts with a verb and names no house and no size pair ("make a house 8 x 6" builds)
@@ -176,8 +202,9 @@ static func _n(v: float) -> String:
 
 static func _parse_build(t: Array) -> Dictionary:
 	var P := {"w": 0.0, "d": 0.0, "floors": 0, "floor_h": 0.0, "door_n": -1, "door_walls": [], "door_at": "", "door_w": 0.0,
-		"win_n": -1, "win_walls": [], "win_each": false, "roof": "", "overhang": -1.0, "garage": "", "garage_w": GARAGE_W}
-	var seen := {"size": false, "house": false, "door": false, "window": false, "roof": false, "garage": false, "floors": false}
+		"win_n": -1, "win_walls": [], "win_each": false, "roof": "", "overhang": -1.0, "garage": "", "garage_w": GARAGE_W, "pieces": []}
+	var seen := {"size": false, "house": false, "door": false, "window": false, "roof": false, "garage": false, "floors": false, "piece": false}
+	var pst := BuildWordsPieces.new_state()
 	var plural := {"door": false, "window": false}
 	var notes := []
 	var ignored := []
@@ -188,6 +215,15 @@ static func _parse_build(t: Array) -> Dictionary:
 	while i < n:
 		var w := String(t[i])
 		var nx := _at(t, i + 1)
+		# ---- pieces ("4 pillars around the room", "a crate by the door", "stairs to the second floor")
+		var used := BuildWordsPieces.feed(t, i, pst, ctx == "piece")
+		if used > 0:
+			if pst.has("error"):
+				return _refuse(String(pst["error"]))
+			seen["piece"] = true
+			ctx = "piece"
+			i += used
+			continue
 		# ---- numbers
 		if _is_num(w):
 			var val := float(w)
@@ -302,7 +338,7 @@ static func _parse_build(t: Array) -> Dictionary:
 		if w == "roofless":
 			P["roof"] = "none"
 			seen["roof"] = true
-		elif WALLW.has(w) and (DOORW + WINW + ["garage"]).has(nx):
+		elif WALLW.has(w) and (DOORW + WINW + ["garage"]).has(nx) and ctx != "piece":
 			ctx = "door" if DOORW.has(nx) else ("window" if WINW.has(nx) else "garage")
 			_attach(P, ctx, String(WALLW[w]))
 		elif WALLW.has(w):
@@ -366,7 +402,7 @@ static func _parse_build(t: Array) -> Dictionary:
 		elif HOUSEW.has(w):
 			seen["house"] = true
 			ctx = ""
-		elif FLOORW.has(w) or FILLER.has(w) or w == ",":
+		elif FLOORW.has(w) or FILLER.has(w) or w == "," or w == "room" or w == "rooms":
 			pass
 		elif w.begins_with("ord") or w == "x" or w == "by":
 			ignored.append(w.trim_prefix("ord"))
@@ -386,7 +422,14 @@ static func _parse_build(t: Array) -> Dictionary:
 		if shown.length() > 40:
 			shown = shown.substr(0, 37) + "..."
 		return _refuse("Kine doesn't know '%s' as a building yet. %s" % [shown, SAY_EX])
-	return _finish(P, seen, plural, raw, notes, ignored)
+	P["pieces"] = pst["specs"]
+	var only := bool(seen["piece"])
+	for k2 in seen:
+		if k2 != "piece" and bool(seen[k2]):
+			only = false
+	var fin := _finish(P, seen, plural, raw, notes, ignored)
+	fin["pieces_only"] = only
+	return fin
 
 
 static func _add_wall(list: Array, wall: String) -> void:
@@ -434,6 +477,14 @@ static func _finish(P: Dictionary, seen: Dictionary, plural: Dictionary, raw: Di
 		P["floors"] = 1
 	if int(P["floors"]) < 1 or int(P["floors"]) > MAX_FLOORS:
 		return _refuse("%d floors is not possible here: a house has 1 to %d floors." % [int(P["floors"]), MAX_FLOORS])
+	var stairs_note := ""
+	for ps in P["pieces"]:
+		if String(ps["kind"]) == "stairs" or String(ps["kind"]) == "stairs_l":
+			var need := maxi(2, maxi(int(ps.get("to_floor", 0)), int(ps.get("storey", -1)) + 2))
+			if bool(dflt["floors"]) and int(P["floors"]) < need:
+				P["floors"] = need
+				dflt["floors"] = false
+				stairs_note = "Stairs go up, so the house has %d floors." % need
 	dflt["floor_h"] = float(P["floor_h"]) <= 0.0
 	if float(P["floor_h"]) <= 0.0:
 		P["floor_h"] = DEF_FLOOR_H
@@ -480,6 +531,8 @@ static func _finish(P: Dictionary, seen: Dictionary, plural: Dictionary, raw: Di
 		out["notes"].append("Sizes round to the %.1f m grid (%s)." % [GRID, ", ".join(rounding)])
 	if String(P["garage"]) != "" and (P["win_walls"] as Array).has(P["garage"]):
 		out["notes"].append("No windows on the %s wall: the garage is there." % P["garage"])
+	if stairs_note != "":
+		out["notes"].append(stairs_note)
 	if not ignored.is_empty():
 		out["notes"].append("Not understood, left out: %s." % ", ".join(ignored))
 	return out
@@ -590,6 +643,11 @@ static func _clear_of_doors(at: float, wall: String, doors: Array, len: float) -
 
 ## the record. name = the building's name
 static func make_building(P: Dictionary, nm := "Untitled") -> Dictionary:
+	return make_building_full(P, nm)["b"]
+
+
+## the record and what the placing of the plan's pieces said: {"b", "res": [{"placed", "ids", "why"}] per piece spec}
+static func make_building_full(P: Dictionary, nm := "Untitled") -> Dictionary:
 	var b := Building.make(nm)
 	var pr: Dictionary = b["params"]
 	pr["floor_height"] = clampf(float(P["floor_h"]), Building.PARAMS["floor_height"][1], Building.PARAMS["floor_height"][2])
@@ -606,10 +664,13 @@ static func make_building(P: Dictionary, nm := "Untitled") -> Dictionary:
 		Building.add_opening(b, _room_on(b, int(ww["storey"])), String(ww["wall"]), "window", float(ww["at"]))
 	if String(P.get("garage", "")) != "":
 		add_garage(b, String(P["garage"]), float(P.get("garage_w", GARAGE_W)))
+	var pres := []
+	if not (P.get("pieces", []) as Array).is_empty():
+		pres = BuildWordsPieces.place(b, P["pieces"])["res"]
 	var rk := String(P["roof"])
 	if rk != "none":
 		Building.set_roof(b, rk)
-	return b
+	return {"b": b, "res": pres}
 
 
 ## the id of the room on a floor (the first one)
@@ -647,6 +708,8 @@ static func summary(P: Dictionary) -> String:
 		s += ", %s roof" % P["roof"]
 	if String(P.get("garage", "")) != "":
 		s += ", a garage on the " + String(P["garage"])
+	if not (P.get("pieces", []) as Array).is_empty():
+		s += ", " + BuildWordsPieces.summary(P["pieces"])
 	return s
 
 
@@ -704,6 +767,8 @@ static func cards(P: Dictionary, dflt: Dictionary) -> Array:
 	if String(P.get("garage", "")) != "":
 		out.append({"title": "Garage", "tag": "", "chips": [{"key": "garage", "text": "on the " + String(P["garage"]), "kind": "cycle", "value": 0.0},
 			_num("garage_w", float(P.get("garage_w", GARAGE_W))), {"text": "wide", "kind": "text"}]})
+	if not (P.get("pieces", []) as Array).is_empty():
+		out.append_array(BuildWordsPieces.cards(P["pieces"], make_building_full(P)["res"]))
 	for i in out.size():
 		out[i]["n"] = i + 1
 	return out
@@ -721,6 +786,8 @@ static func _num(key: String, v: float) -> Dictionary:
 ## a chip's typed number put into the plan (the card's own rules: sizes on the grid, counts whole, ranges kept); a note says what changed.
 ## Returns "" when it took, else why not
 static func set_chip(P: Dictionary, key: String, v: float) -> String:
+	if key.begins_with("pc"):
+		return BuildWordsPieces.set_chip(P["pieces"], key, v)
 	match key:
 		"w", "d":
 			if v < MIN_SIDE or v > MAX_SIDE:
@@ -762,6 +829,9 @@ static func set_chip(P: Dictionary, key: String, v: float) -> String:
 
 ## a click on a word chip: the next choice
 static func cycle(P: Dictionary, key: String) -> void:
+	if key.begins_with("pc"):
+		BuildWordsPieces.cycle(P["pieces"], key)
+		return
 	match key:
 		"door_wall":
 			var cur := String(((P["door_walls"] as Array)[0] if not (P["door_walls"] as Array).is_empty() else "front"))
@@ -842,7 +912,7 @@ static func _parse_edit(t: Array, b: Dictionary) -> Dictionary:
 		return false
 	# which words are left over (a typo refuses, an odd word is listed)
 	var known := EDIT_VERBS + FILLER + VOCAB + DOORW + WINW + FLOORW + WALLW.keys() + UNITS.keys() + ORD.keys() + ["x", ",", "taller", "shorter", "bigger", "smaller", "higher", "wider", "narrower",
-		"centre", "center", "middle", "another", "extra", "more", "less", "by", "all", "way", "corner", "other", "same", "no", "roof", "garage", "away", "off", "out", "of", "from", "onto", "into", "over", "under", "mine"]
+		"centre", "center", "middle", "another", "extra", "more", "less", "by", "all", "way", "corner", "other", "same", "no", "roof", "garage", "away", "off", "out", "of", "from", "onto", "into", "over", "under", "mine"] + BuildWordsPieces.WORDS.keys() + BuildWordsPieces.KNOWN
 	var ignored := []
 	for w in t:
 		var ws := String(w)
@@ -852,6 +922,8 @@ static func _parse_edit(t: Array, b: Dictionary) -> Dictionary:
 		if did != "":
 			return _unknown(ws, did)
 		ignored.append(ws)
+	if BuildWordsPieces.has_noun(t):
+		return _piece_edit(t, verb, ignored)
 	if more.call(["taller", "higher", "shorter", "lower", "bigger", "smaller"]) and not door and not win and not roof and not garage and not (more.call(["wider", "narrower"])):
 		var up: bool = not more.call(["shorter", "lower", "smaller"])
 		var all: bool = ord < 0 and (not floor_w or more.call(["floors", "storeys", "stories", "levels"]) or more.call(["house", "walls", "building", "ceilings", "ceiling"]))
@@ -928,6 +1000,39 @@ static func _parse_edit(t: Array, b: Dictionary) -> Dictionary:
 	if e.is_empty():
 		var shown := " ".join(t)
 		return _refuse("Kine doesn't know '%s' as a change to a building yet. Try: move the door to the left, make the second floor taller, add a window on the back, remove the roof, add a garage." % shown)
+	e["text"] = " ".join(t)
+	return {"ok": true, "kind": "edit", "edit": e, "notes": [], "ignored": ignored, "defaults": {}, "error": "", "did": ""}
+
+
+## "add 4 pillars around the room", "remove the crate", "turn the table", "move the stairs to the left wall"
+static func _piece_edit(t: Array, verb: String, ignored: Array) -> Dictionary:
+	var st := BuildWordsPieces.new_state()
+	var i := 1
+	var on := false
+	while i < t.size():
+		var used := BuildWordsPieces.feed(t, i, st, on)
+		if used > 0:
+			if st.has("error"):
+				return _refuse(String(st["error"]))
+			on = true
+			i += used
+		else:
+			i += 1
+	var specs: Array = st["specs"]
+	if specs.is_empty():
+		return _refuse("Kine doesn't know '%s' as a change to a building yet. Try: add 4 pillars around the room, remove the crate, turn the table, move the stairs to the left wall." % " ".join(t))
+	var e := {}
+	var first: Dictionary = specs[0]
+	if verb in ["remove", "delete", "take", "drop", "get"]:
+		e = {"op": "remove_piece", "kind": String(first["kind"]), "all": t.has("all") or int(first["n"]) > 1 or BuildWordsPieces.PLURAL.has(String(t[t.size() - 1])) or t.any(func(w): return BuildWordsPieces.PLURAL.has(String(w)))}
+	elif verb in ["turn", "rotate", "swap"]:
+		e = {"op": "turn_piece", "kind": String(first["kind"])}
+	elif verb in ["move", "shift", "slide"]:
+		if String(first["at"]) == "" and String(first["wall"]) == "":
+			return _refuse("Move it where? Say a place: 'move the %s to the left wall', 'to the middle', 'to the corner', 'by the door'." % BuildWordsPieces.label(String(first["kind"]), 1))
+		e = {"op": "move_piece", "kind": String(first["kind"]), "at": BuildWordsPieces.eff_at(first), "wall": String(first["wall"])}
+	else:
+		e = {"op": "add_pieces", "specs": specs}
 	e["text"] = " ".join(t)
 	return {"ok": true, "kind": "edit", "edit": e, "notes": [], "ignored": ignored, "defaults": {}, "error": "", "did": ""}
 
@@ -1028,6 +1133,10 @@ static func apply_edit(b: Dictionary, e: Dictionary) -> Dictionary:
 			if not Building.remove_top_floor(b):
 				return fail.call("The last floor stays.")
 			return {"ok": true, "say": "The top floor is gone"}
+		"add_pieces", "remove_piece", "turn_piece", "move_piece":
+			return BuildWordsPieces.apply(b, e)
+		"save":
+			return fail.call("Saving is done by the page (the file and its picture), not on the record.")
 	return fail.call("Kine cannot do '%s' yet." % e.get("text", ""))
 
 
@@ -1158,4 +1267,8 @@ static func describe_edit(e: Dictionary) -> String:
 			return "Add a floor on top"
 		"remove_floor":
 			return "Remove the top floor"
+		"add_pieces", "remove_piece", "turn_piece", "move_piece":
+			return BuildWordsPieces.describe(e)
+		"save":
+			return "Save this house as \"%s\"" % e["name"]
 	return String(e.get("text", ""))

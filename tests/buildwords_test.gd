@@ -12,12 +12,24 @@ extends SceneTree
 ##             redo brings it back), Build it again = "built already", no step; "Then just say" chips fill the box; an edit sentence + Build it =
 ##             ONE undo step each (move the door, remove the roof, make the second floor taller); a typo is refused with a "Did you mean" button
 ##             that fixes the word; half-understood words are listed in the plan; Piece stays greyed
-## Screenshot: C:/Temp/claude/build1e/words.png (matches build_words.png). Only user:// is written.
+##   5 PIECES  (WORDS learns pieces, scripts/build/build_words_pieces.gd) 15 piece sentences -> the exact pieces and positions (0.5 m grid, inside the
+##             room); a door's 0.9 m stays clear (a fence "along" a wall takes only the stretch the door leaves free); no two pieces overlap; a piece
+##             with no room is LEFT OUT and said plainly (never half built, the house is still whole); 10 edit phrases on a house that stands (add, bare
+##             "stairs in the corner", remove, turn, move, "remove all", "which one?"); "save it as Dojo" parses with its capitals; a typo of a piece word
+##             gets "Did you mean"; the plan's piece cards carry editable chips
+##   6 PIECES UI  real typing of the dojo sentence: its piece cards show BEFORE building (nothing built), the count chip typed and the place chip clicked
+##             change the plan, Build it = ONE undo step, then typed edit phrases (add / remove / move / turn) = ONE undo step each, "save it as Dojo" writes
+##             the file + picture under the TEST houses folder (user://buildwords_test_houses) and takes no undo step, a sentence that cannot fit is
+##             built without the piece and says so
+## Screenshot: C:/Temp/claude/wordspieces/dojo.png (the dojo built from words); C:/Temp/claude/build1e/words.png (matches build_words.png). Only user:// is written.
 var fails := 0
 var m: Node
 const SHOT := "C:/Temp/claude/build1e"
 const DIRT := "user://buildwords_test"
 const MOCK := "a 2-floor house 8 x 6 m with a door and 4 windows"
+const PSHOT := "C:/Temp/claude/wordspieces"
+const DIRH := "user://buildwords_test_houses"
+const DOJO := "a 10 x 8 dojo with a door, 4 pillars around the room, a platform in the middle and a bench by the wall"
 
 
 func ok(c: bool, w: String) -> void:
@@ -157,6 +169,103 @@ func refuse_row(s: String, b: Dictionary, want_did := "") -> void:
 	ok(good, "3 \"%s\" is refused: %s" % [s, r["error"] if not bool(r["ok"]) else "BUILT " + JSON.stringify(r.get("plan", {}))])
 
 
+## ---- 5 PIECES helpers
+func built(s: String) -> Dictionary:
+	return BuildWords.make_building_full(plan_of(s), "T")
+
+
+## [[kind, x, z, yaw]] of the pieces on a record
+func pcs(b: Dictionary) -> Array:
+	return b.get("pieces", []).map(func(p): return [p["kind"], p["x"], p["z"], p["yaw"]])
+
+
+func rect_hit(a: Rect2, c: Rect2) -> bool:
+	return a.position.x < c.end.x - 1e-4 and a.end.x > c.position.x + 1e-4 and a.position.y < c.end.y - 1e-4 and a.end.y > c.position.y + 1e-4
+
+
+## no piece stands in the 0.9 m in front of a door (measured from the door's own cut box, not from the placing code)
+func doors_clear(b: Dictionary) -> bool:
+	for o in b.get("openings", []):
+		if String(o["kind"]) == "window":
+			continue
+		var r := Building.room_of(b, String(o["room"]))
+		var bx := Building.opening_box(b, r, o)
+		var zone := Rect2()
+		match String(o["wall"]):
+			"front":
+				zone = Rect2(bx.position.x, bx.end.z, bx.size.x, 0.9)
+			"back":
+				zone = Rect2(bx.position.x, bx.position.z - 0.9, bx.size.x, 0.9)
+			"left":
+				zone = Rect2(bx.end.x, bx.position.z, 0.9, bx.size.z)
+			_:
+				zone = Rect2(bx.position.x - 0.9, bx.position.z, 0.9, bx.size.z)
+		for p in b.get("pieces", []):
+			if int(p.get("storey", 0)) == int(r.get("storey", 0)) and rect_hit(BuildPieces.footprint(b, p), zone):
+				return false
+	return true
+
+
+func no_overlap(b: Dictionary) -> bool:
+	var ps: Array = b.get("pieces", [])
+	for i in ps.size():
+		for j in range(i + 1, ps.size()):
+			if int(ps[i]["storey"]) == int(ps[j]["storey"]) and rect_hit(BuildPieces.footprint(b, ps[i]), BuildPieces.footprint(b, ps[j])):
+				return false
+	return true
+
+
+## every piece inside the interior of the first room of its floor, its middle on the 0.5 m grid
+func inside_grid(b: Dictionary) -> bool:
+	for p in b.get("pieces", []):
+		var r: Dictionary = {}
+		for rr in b["rooms"]:
+			if int(rr.get("storey", 0)) == int(p["storey"]) and String(rr["id"]) != "garage":
+				r = rr
+				break
+		var t := Building.num(b, r.get("thickness"), 0.2)
+		var inner := Rect2(float(r["x"]) + t, float(r["z"]) + t, float(r["w"]) - 2.0 * t, float(r["d"]) - 2.0 * t)
+		var fp := BuildPieces.footprint(b, p)
+		if fp.position.x < inner.position.x - 1e-4 or fp.position.y < inner.position.y - 1e-4 or fp.end.x > inner.end.x + 1e-4 or fp.end.y > inner.end.y + 1e-4:
+			return false
+		if absf(fposmod(float(p["x"]), 0.5)) > 1e-6 and absf(fposmod(float(p["x"]), 0.5) - 0.5) > 1e-6:
+			return false
+		if absf(fposmod(float(p["z"]), 0.5)) > 1e-6 and absf(fposmod(float(p["z"]), 0.5) - 0.5) > 1e-6:
+			return false
+	return true
+
+
+func piece_row(s: String, want: Array) -> void:
+	var f := built(s)
+	if f.is_empty() or f["b"].is_empty():
+		ok(false, "5 \"%s\" is a plan" % s)
+		return
+	var b: Dictionary = f["b"]
+	var good := JSON.stringify(pcs(b)) == JSON.stringify(want) and doors_clear(b) and no_overlap(b) and inside_grid(b)
+	ok(good, "5 \"%s\" -> %s, doors clear, no overlap, inside, on the grid%s" % [s, JSON.stringify(want), "" if good else "   GOT " + JSON.stringify(pcs(b))])
+
+
+## an edit phrase on a house: {"b" (after), "r" (the parse), "d" (the apply)}
+func pedit(house: Dictionary, s: String) -> Dictionary:
+	var r := BuildWords.parse(s, house)
+	var after: Dictionary = house.duplicate(true)
+	if not bool(r["ok"]) or r["kind"] != "edit":
+		return {"b": after, "r": r, "d": {"ok": false, "error": "not an edit: " + String(r.get("error", ""))}}
+	return {"b": after, "r": r, "d": BuildWords.apply_edit(after, r["edit"])}
+
+
+func without_pieces(b: Dictionary) -> String:
+	var f := Building.to_file(b)
+	f.erase("pieces")
+	return JSON.stringify(f)
+
+
+func shot_to(dir: String, nm: String) -> void:
+	await idle(3)
+	DirAccess.make_dir_recursive_absolute(dir)
+	root.get_texture().get_image().save_png("%s/%s.png" % [dir, nm])
+
+
 func _init() -> void:
 	# ---- 1 PARSE (no window needed)
 	parse_row(MOCK, {"w": 8.0, "d": 6.0, "floors": 2, "door_n": 1, "win_n": 4, "roof": "gable", "overhang": 0.45, "floor_h": 2.8})
@@ -251,6 +360,88 @@ func _init() -> void:
 	ok(not bool(d_first["ok"]) and String(d_first["error"]).contains("floors above it"), "3 \"make the first floor taller\" with a floor above: said plainly (%s)" % d_first.get("error", ""))
 	var r_g := BuildWords.parse("remove the garage", house)
 	ok(bool(r_g["ok"]) and not bool(BuildWords.apply_edit(house.duplicate(true), r_g["edit"])["ok"]), "3 \"remove the garage\" with no garage: refused when applied")
+
+	# ---- 5 PIECES (no window needed)
+	piece_row("a 2-floor house 8 x 6 m with a door and stairs in the corner", [["stairs", 1.0, 3.5, 0.0]])
+	piece_row("a 2-floor house 8 x 6 with a door and L stairs to the second floor", [["stairs_l", 2.0, 4.0, 0.0]])
+	piece_row("an 8 x 6 house with a table and 2 benches in the middle", [["table", 4.0, 3.0, 0.0], ["bench", 4.0, 2.0, 0.0], ["bench", 4.0, 4.0, 0.0]])
+	piece_row("an 8 x 6 house with a crate by the door", [["crate", 3.0, 0.5, 0.0]])
+	piece_row("an 8 x 6 house with 4 pillars around the room", [["pillar", 0.5, 5.5, 0.0], ["pillar", 7.5, 5.5, 0.0], ["pillar", 0.5, 0.5, 0.0], ["pillar", 7.5, 0.5, 0.0]])
+	piece_row("an 8 x 6 house with a fence along the back wall", [["fence", 4.0, 5.5, 0.0]])
+	piece_row("an 8 x 6 house with a platform in the middle and a ramp to the platform", [["platform", 4.0, 3.0, 0.0], ["ramp", 2.0, 3.0, 90.0]])
+	piece_row("an 8 x 6 house with a bench by the left wall", [["bench", 0.5, 3.0, 90.0]])
+	piece_row("an 8 x 6 house with 2 crates in the corner", [["crate", 0.5, 5.5, 0.0], ["crate", 7.5, 5.5, 0.0]])
+	piece_row(DOJO, [["pillar", 0.5, 7.5, 0.0], ["pillar", 9.5, 7.5, 0.0], ["pillar", 0.5, 0.5, 0.0], ["pillar", 9.5, 0.5, 0.0], ["platform", 5.0, 4.0, 0.0], ["bench", 5.0, 7.5, 0.0]])
+	piece_row("an 8 x 6 house with a table in the middle and 2 crates by the door", [["table", 4.0, 3.0, 0.0], ["crate", 3.0, 0.5, 0.0], ["crate", 5.0, 0.5, 0.0]])
+	piece_row("an 8 x 6 house with stairs on the right wall", [["stairs", 7.0, 3.0, 0.0]])
+	piece_row("a 2 floor house 8 x 6 with a door and 3 benches along the back wall", [["bench", 1.5, 5.5, 0.0], ["bench", 4.0, 5.5, 0.0], ["bench", 6.5, 5.5, 0.0]])
+	piece_row("an 8 x 6 house with a table and a bench in the back left corner", [["table", 1.0, 5.0, 0.0], ["bench", 2.0, 5.0, 90.0]])
+	piece_row("an 8 x 6 house with 6 pillars around the room", [["pillar", 0.5, 5.5, 0.0], ["pillar", 7.5, 5.5, 0.0], ["pillar", 0.5, 0.5, 0.0], ["pillar", 7.5, 0.5, 0.0], ["pillar", 4.0, 5.5, 0.0], ["pillar", 0.5, 3.0, 0.0]])
+	# the words alone: the plan has the pieces as editable specs, stairs raise a defaulted floor count and say so
+	var ps_plan := BuildWords.parse("stairs in the corner", {})
+	ok(bool(ps_plan["ok"]) and ps_plan["kind"] == "plan" and ps_plan["plan"]["floors"] == 2 and String(ps_plan["notes"][0]).contains("Stairs go up, so the house has 2 floors"), "5 'stairs in the corner' with nothing built is a plan (a default room, 2 floors for the stairs, said): %s" % [ps_plan["notes"]])
+	var sp: Array = BuildWords.parse(DOJO, {})["plan"]["pieces"]
+	ok(sp.size() == 3 and sp[0]["kind"] == "pillar" and sp[0]["n"] == 4 and sp[0]["at"] == "around" and sp[1]["kind"] == "platform" and sp[1]["at"] == "middle" and sp[2]["kind"] == "bench" and sp[2]["at"] == "wall", "5 the dojo sentence is three piece specs: 4 pillars around, a platform in the middle, a bench by the wall")
+	var dcards := BuildWords.cards(BuildWords.parse(DOJO, {})["plan"], {})
+	ok(dcards.size() == 8 and String(dcards[5]["title"]) == "Pillar" and dcards[5]["chips"][0]["key"] == "pc0_n" and dcards[5]["chips"][0]["text"] == "4" and dcards[5]["chips"][2]["text"] == "around the room" and dcards[7]["chips"][2]["text"] == "by the wall",
+		"5 the plan shows a card per piece with editable chips (4 | pillars | around the room): %s" % [dcards.slice(5).map(func(c): return c["chips"].map(func(h): return h["text"]))])
+	# doorway kept clear: a fence along the FRONT wall takes only the stretch the door leaves free; a crate, a bench and a table crowd the back door
+	var fz: Dictionary = built("an 8 x 6 house with a fence along the front wall")["b"]
+	var fw := float(fz["pieces"][0]["w"]) if not fz.get("pieces", []).is_empty() else 0.0
+	ok(not fz.get("pieces", []).is_empty() and fw < 7.5 and fw >= 3.0 and doors_clear(fz) and inside_grid(fz), "5 a fence along the front wall (the door is there) is %.1f m, not the whole 7.6: the doorway is clear" % fw)
+	var dz: Dictionary = built("an 8 x 6 house with a door on the back and a bench by the back wall and 2 crates by the door and a table by the door")["b"]
+	ok(dz["pieces"].size() == 4 and doors_clear(dz) and no_overlap(dz) and inside_grid(dz), "5 a bench, 2 crates and a table crowded round the back door: %d stand, the 0.9 m in front of the door is empty, no overlap" % dz["pieces"].size())
+	var cr := built("an 8 x 6 house with 12 crates in the corner")
+	ok(doors_clear(cr["b"]) and no_overlap(cr["b"]) and inside_grid(cr["b"]) and cr["b"]["pieces"].size() >= 4, "5 12 crates in the corner: %d stand, never through the door's space, never overlapping" % cr["b"]["pieces"].size())
+	# can't fit: said plainly, left out, the house is whole
+	var nf := built("a 4 x 3 house with stairs in the corner")
+	ok(nf["b"].get("pieces", []).is_empty() and String(nf["res"][0]["why"]).begins_with("Can't fit the stairs") and String(nf["res"][0]["why"]).contains("1 x 4.2 m") and closed(nf["b"]) and Building.storey_count(nf["b"]) == 2,
+		"5 stairs in a 4 x 3 house: left out, said plainly (\"%s\"), the house is still whole" % nf["res"][0]["why"])
+	var nfc := BuildWords.cards(plan_of("a 4 x 3 house with stairs in the corner"), {})
+	ok(String(nfc[nfc.size() - 1]["tail"]).contains("Can't fit") and String(nfc[nfc.size() - 1]["tail"]).ends_with("Left out."), "5 and its plan card says it BEFORE building: \"%s\"" % nfc[nfc.size() - 1]["tail"])
+	var nr := built("an 8 x 6 house with a ramp to the platform")
+	ok(nr["b"].get("pieces", []).is_empty() and String(nr["res"][0]["why"]).contains("no platform"), "5 a ramp with no platform to go to: left out, said (\"%s\")" % nr["res"][0]["why"])
+	var ns: Dictionary = built("an 8 x 6 house with 12 stairs in the corner")
+	ok(ns["b"].get("pieces", []).size() >= 1 and ns["b"].get("pieces", []).size() < 12 and String(ns["res"][0]["why"]).begins_with("Can't fit") and doors_clear(ns["b"]) and no_overlap(ns["b"]) and inside_grid(ns["b"]),
+		"5 12 stairs: %d stand whole, the rest are left out and said, no overlap, inside" % ns["b"].get("pieces", []).size())
+	# edits on a house that stands
+	var H := BuildWords.make_building(plan_of("a 2-floor house 8 x 6 with a door and 4 windows"), "H")
+	var e1 := pedit(H, "add 4 pillars around the room")
+	ok(bool(e1["d"]["ok"]) and e1["b"]["pieces"].size() == 4 and without_pieces(e1["b"]) == without_pieces(H) and String(e1["d"]["say"]).begins_with("Added 4 pillars"), "5 edit \"add 4 pillars around the room\": 4 pillars, the rest of the record equal: %s" % e1["d"].get("say", e1["d"].get("error", "")))
+	var e2 := pedit(H, "stairs in the corner")
+	ok(String(e2["r"]["kind"]) == "edit" and bool(e2["d"]["ok"]) and JSON.stringify(pcs(e2["b"])) == JSON.stringify([["stairs", 1.0, 3.5, 0.0]]) and without_pieces(e2["b"]) == without_pieces(H),
+		"5 edit (no verb) \"stairs in the corner\" on a house that stands ADDS the stairs, it does not rebuild: %s" % [pcs(e2["b"])])
+	var HT := BuildWords.make_building(plan_of("an 8 x 6 house with a door"), "HT")
+	var e3 := pedit(HT, "put a table in the middle and a crate by the door")
+	var H3: Dictionary = e3["b"]
+	ok(bool(e3["d"]["ok"]) and JSON.stringify(pcs(H3)) == JSON.stringify([["table", 4.0, 3.0, 0.0], ["crate", 3.0, 0.5, 0.0]]), "5 edit \"put a table in the middle and a crate by the door\": %s" % [pcs(H3)])
+	var e4 := pedit(H3, "turn the table")
+	ok(bool(e4["d"]["ok"]) and e4["b"]["pieces"][0]["yaw"] == 90.0 and e4["b"]["pieces"][1] == H3["pieces"][1] and without_pieces(e4["b"]) == without_pieces(H3), "5 edit \"turn the table\": yaw 0 -> 90, the crate and the house untouched: %s" % e4["d"].get("say", e4["d"].get("error", "")))
+	var e5 := pedit(H3, "remove the crate")
+	ok(bool(e5["d"]["ok"]) and JSON.stringify(pcs(e5["b"])) == JSON.stringify([["table", 4.0, 3.0, 0.0]]) and String(e5["d"]["say"]).begins_with("Removed 1 crate"), "5 edit \"remove the crate\": only the crate goes: %s" % e5["d"].get("say", e5["d"].get("error", "")))
+	var HS: Dictionary = pedit(H, "stairs in the corner")["b"]
+	var e6 := pedit(HS, "move the stairs to the left wall")
+	ok(bool(e6["d"]["ok"]) and JSON.stringify(pcs(e6["b"])) == JSON.stringify([["stairs", 1.0, 3.0, 0.0]]) and without_pieces(e6["b"]) == without_pieces(HS) and doors_clear(e6["b"]), "5 edit \"move the stairs to the left wall\": %s" % [pcs(e6["b"])])
+	var H2c: Dictionary = pedit(H3, "add 2 crates by the door")["b"]
+	var e7 := pedit(H2c, "remove the crate")
+	ok(not bool(e7["d"]["ok"]) and String(e7["d"]["error"]).begins_with("Which crate? There are 3"), "5 edit \"remove the crate\" with 3 crates asks which, changes nothing: %s" % e7["d"].get("error", ""))
+	var e8 := pedit(H2c, "remove all the crates")
+	ok(bool(e8["d"]["ok"]) and JSON.stringify(pcs(e8["b"])) == JSON.stringify([["table", 4.0, 3.0, 0.0]]), "5 edit \"remove all the crates\": %s" % e8["d"].get("say", e8["d"].get("error", "")))
+	var e9 := pedit(HS, "turn the stairs")
+	ok(not bool(e9["d"]["ok"]) and String(e9["d"]["error"]).contains("cannot turn here") and pcs(e9["b"]) == pcs(HS), "5 edit \"turn the stairs\" where they would not fit: refused plainly, unchanged: %s" % e9["d"].get("error", ""))
+	var e10 := pedit(H, "remove the table")
+	ok(not bool(e10["d"]["ok"]) and String(e10["d"]["error"]).contains("There is no table"), "5 edit \"remove the table\" with none: %s" % e10["d"].get("error", ""))
+	# save as + typos
+	var sv := BuildWords.parse("save it as Dojo", H)
+	ok(bool(sv["ok"]) and sv["kind"] == "edit" and sv["edit"]["op"] == "save" and sv["edit"]["name"] == "Dojo" and BuildWords.describe_edit(sv["edit"]) == "Save this house as \"Dojo\"", "5 \"save it as Dojo\" is an edit that keeps the capital: %s" % [sv["edit"]])
+	ok(BuildWords.parse("Save as 'My Dojo 2'", H)["edit"]["name"] == "My Dojo 2", "5 \"Save as 'My Dojo 2'\" -> name My Dojo 2")
+	refuse_row("save it as Dojo", {})
+	refuse_row("save it as", H)
+	refuse_row("an 8 x 6 house with a bnech by the wall", {}, "bench")
+	refuse_row("stiars in the corner", H, "stairs")
+	refuse_row("an 8 x 6 house with 13 crates", {})
+	var pdel := BuildWords.parse("a house with a purple door and a table", {})
+	ok(bool(pdel["ok"]) and (pdel["ignored"] as Array) == ["purple"], "5 unknown words next to pieces are still LISTED, not guessed: %s" % [pdel["ignored"]])
 
 	# ---- 4 UI
 	m = (load("res://main.tscn") as PackedScene).instantiate()
@@ -386,5 +577,151 @@ func _init() -> void:
 	await type_text("a purple house with a moat")
 	var ignored_live: Array = bld.words.res.get("ignored", [])
 	ok(String(bld.words.res.get("kind", "")) == "plan" and ignored_live == ["purple", "moat"] and bld.words.foot.text.contains("Not understood, left out: purple, moat."), "4 half-understood words are listed in the plan BEFORE building: %s" % bld.words.foot.text.replace("\n", " | "))
+	# ---- 6 PIECES UI: real typing + clicks
+	var houses_dir0 := Houses.dir
+	Houses.dir = DIRH
+	for ext in ["json", "png"]:
+		var old := ProjectSettings.globalize_path("%s/Dojo.%s" % [DIRH, ext])
+		if FileAccess.file_exists(old):
+			DirAccess.remove_absolute(old)
+	await click_ctl(edit)
+	await key(KEY_A, 0, true)
+	await type_text(DOJO)
+	ok(edit.text == DOJO, "6 the dojo sentence typed with real keys")
+	var rec_before := rec(m.S.building)
+	n0 = m.undo.size()
+	var cu: VBoxContainer = bld.words.cards_box
+	var scr: ScrollContainer = bld.words.cards_scroll
+	var c6 := cu.find_child("build_words_card_7", true, false)
+	ok(cu.get_child_count() == 8 and c6 != null and c6.find_children("*", "Label", true, false).any(func(l): return (l as Label).text == "Platform"), "6 BEFORE building the plan has 8 cards: the house's five and a card per piece (pillars, platform, bench)")
+	ok(rec(m.S.building) == rec_before and m.undo.size() == n0, "6 nothing built yet, no undo step")
+	var cn: LineEdit = cu.find_child("build_words_chip_pc0_n", true, false)
+	ok(cn != null and cn.text == "4", "6 the pillars card has a count chip: 4")
+	await idle(6)
+	scr.ensure_control_visible(cu.find_child("build_words_chip_pc0_n", true, false))
+	await idle(3)
+	await click_ctl(cu.find_child("build_words_chip_pc0_n", true, false))
+	ok(root.gui_get_focus_owner() is LineEdit and root.gui_get_focus_owner() != edit, "6 a click on the count chip gives the chip the keyboard")
+	await key(KEY_A, 0, true)
+	await type_text("2")
+	await key(KEY_ENTER)
+	await idle(4)
+	ok(int(bld.words.plan["pieces"][0]["n"]) == 2 and (cu.find_child("build_words_chip_pc0_n", true, false) as LineEdit).text == "2" and rec(m.S.building) == rec_before, "6 the count typed (2) changes the plan only: 2 pillars, still nothing built")
+	scr.ensure_control_visible(cu.find_child("build_words_chip_pc0_n", true, false))
+	await idle(3)
+	await click_ctl(cu.find_child("build_words_chip_pc0_n", true, false))
+	await key(KEY_A, 0, true)
+	await type_text("4")
+	await key(KEY_ENTER)
+	await idle(4)
+	ok(scr.size.y < cu.get_combined_minimum_size().y and bld.words.plan_panel.get_global_rect().end.y <= root.get_visible_rect().size.y + 1.0 and bld.words.foot.get_global_rect().end.y <= root.get_visible_rect().size.y + 1.0,
+		"6 the 8 cards are taller than the page, so they scroll: the panel (%.0f) and its footer stay inside the window (%d)" % [bld.words.plan_panel.get_global_rect().end.y, root.get_visible_rect().size.y])
+	scr.ensure_control_visible(cu.find_child("build_words_cycle_pc2_at", true, false))
+	await idle(3)
+	await click_ctl(cu.find_child("build_words_cycle_pc2_at", true, false))
+	ok(String(bld.words.plan["pieces"][2]["at"]) == "around" and (cu.find_child("build_words_cycle_pc2_at", true, false) as Button).text == "around the room", "6 a click on the bench's place chip cycles 'by the wall' -> 'around the room'")
+	for i in 8:
+		scr.ensure_control_visible(cu.find_child("build_words_cycle_pc2_at", true, false))
+		await idle(2)
+		await click_ctl(cu.find_child("build_words_cycle_pc2_at", true, false))
+	ok(String(bld.words.plan["pieces"][2]["at"]) == "wall" and (cu.find_child("build_words_cycle_pc2_at", true, false) as Button).text == "by the wall" and int(bld.words.plan["pieces"][0]["n"]) == 4, "6 and round again to 'by the wall' (the pillars still 4)")
+	n0 = m.undo.size()
+	await click_ctl(bld.words.go)
+	await idle(5)
+	var dj: Dictionary = m.S.building
+	ok(not dj.is_empty() and float(dj["rooms"][0]["w"]) == 10.0 and float(dj["rooms"][0]["d"]) == 8.0 and JSON.stringify(pcs(dj)) == JSON.stringify([["pillar", 0.5, 7.5, 0.0], ["pillar", 9.5, 7.5, 0.0], ["pillar", 0.5, 0.5, 0.0], ["pillar", 9.5, 0.5, 0.0], ["platform", 5.0, 4.0, 0.0], ["bench", 5.0, 7.5, 0.0]]) and doors_clear(dj) and no_overlap(dj),
+		"6 Build it: the dojo 10 x 8 with 4 pillars, the platform in the middle, the bench: %s" % [pcs(dj)])
+	ok(m.undo.size() == n0 + 1 and String(m.ui_status.text).begins_with("Built: 10 x 8 m, 1 floor, 1 door, 0 windows") and String(m.ui_status.text).contains("4 pillars, a platform, a bench"), "6 Build it with pieces is ONE undo step (%d -> %d): %s" % [n0, m.undo.size(), m.ui_status.text])
+	await shot_to(PSHOT, "dojo")
+	m._undo()
+	await idle(3)
+	ok(rec(m.S.building) == rec_before, "6 Undo takes the whole dojo back in one step (the house before returns exactly)")
+	m._redo()
+	await idle(3)
+	ok(JSON.stringify(pcs(m.S.building)) == JSON.stringify(pcs(dj)), "6 Redo brings the dojo and its pieces back")
+	# the same dojo with the roof off, to SEE the pieces (a typed edit phrase, one undo step, undone again)
+	n0 = m.undo.size()
+	await click_ctl(edit)
+	await key(KEY_A, 0, true)
+	await type_text("remove the roof")
+	await key(KEY_ENTER)
+	await idle(4)
+	ok(m.S.building.get("roof", {}).is_empty() and m.undo.size() == n0 + 1, "6 'remove the roof' on the dojo: ONE undo step")
+	m._turn_to(30.0, -50.0, 24.0, Vector3(5.0, 0.5, 4.0), false)
+	await idle(6)
+	await shot_to(PSHOT, "dojo_open")
+	m._undo()
+	await idle(3)
+	ok(not m.S.building.get("roof", {}).is_empty() and JSON.stringify(pcs(m.S.building)) == JSON.stringify(pcs(dj)), "6 Undo puts the roof back; the pieces are as built")
+	# typed edit phrases: ONE undo step each
+	var np0: int = m.S.building["pieces"].size()
+	n0 = m.undo.size()
+	await click_ctl(edit)
+	await key(KEY_A, 0, true)
+	await type_text("a crate by the door")
+	ok(String(bld.words.res.get("kind", "")) == "edit" and cu.find_child("build_words_chip_pc0_n", true, false) != null and m.S.building["pieces"].size() == np0, "6 'a crate by the door' on the dojo is a change with its own piece card (a count chip), nothing yet")
+	await key(KEY_ENTER)
+	await idle(3)
+	ok(m.S.building["pieces"].size() == np0 + 1 and m.undo.size() == n0 + 1 and doors_clear(m.S.building) and no_overlap(m.S.building), "6 Enter: the crate is added, ONE undo step (%d -> %d), the door still clear: %s" % [n0, m.undo.size(), m.ui_status.text])
+	n0 = m.undo.size()
+	await click_ctl(edit)
+	await type_text("remove the bench")
+	await key(KEY_ENTER)
+	await idle(3)
+	ok(m.S.building["pieces"].filter(func(p): return p["kind"] == "bench").is_empty() and m.undo.size() == n0 + 1, "6 'remove the bench': gone, ONE undo step: %s" % m.ui_status.text)
+	n0 = m.undo.size()
+	await click_ctl(edit)
+	await type_text("move the platform to the left wall")
+	await key(KEY_ENTER)
+	await idle(3)
+	var plat: Dictionary = m.S.building["pieces"].filter(func(p): return p["kind"] == "platform")[0]
+	ok(float(plat["x"]) == 1.5 and float(plat["z"]) == 4.0 and m.undo.size() == n0 + 1 and no_overlap(m.S.building), "6 'move the platform to the left wall': it stands against the left wall (%.1f, %.1f), ONE undo step" % [plat["x"], plat["z"]])
+	n0 = m.undo.size()
+	await click_ctl(edit)
+	await type_text("turn the crate")
+	await key(KEY_ENTER)
+	await idle(3)
+	var crt: Dictionary = m.S.building["pieces"].filter(func(p): return p["kind"] == "crate")[0]
+	ok(float(crt["yaw"]) == 90.0 and m.undo.size() == n0 + 1, "6 'turn the crate': yaw 90, ONE undo step: %s" % m.ui_status.text)
+	m._undo()
+	await idle(2)
+	crt = m.S.building["pieces"].filter(func(p): return p["kind"] == "crate")[0]
+	ok(float(crt["yaw"]) == 0.0, "6 Undo turns it back")
+	# save as
+	n0 = m.undo.size()
+	var rec_s2: Dictionary = Building.to_file(m.S.building).duplicate(true)
+	await click_ctl(edit)
+	await type_text("save it as Dojo")
+	ok(String(bld.words.res.get("kind", "")) == "edit" and String(bld.words.res["edit"]["op"]) == "save" and String((bld.words.cards_box.find_child("build_words_card_body", true, false) as Label).text) == "Save this house as \"Dojo\"", "6 'save it as Dojo' shows its card before it is done")
+	ok(not Houses.exists("Dojo"), "6 nothing is saved until Enter")
+	await key(KEY_ENTER)
+	await idle(8)
+	var saved := Houses.read(Houses.path_of("Dojo"))
+	ok(Houses.exists("Dojo") and Houses.path_of("Dojo").begins_with(DIRH) and not saved.is_empty() and JSON.stringify(pcs(saved)) == JSON.stringify(pcs(m.S.building)) and FileAccess.file_exists(ProjectSettings.globalize_path(Houses.thumb_of("Dojo"))),
+		"6 Enter: the house is saved as Dojo under the TEST folder (%s), its pieces in the file, its picture beside it" % Houses.path_of("Dojo"))
+	var rec_n: Dictionary = Building.to_file(m.S.building)
+	rec_n.erase("name")
+	rec_s2.erase("name")
+	ok(m.undo.size() == n0 and JSON.stringify(rec_n) == JSON.stringify(rec_s2), "6 saving takes no undo step and changes nothing in the record (but its name: the house is called Dojo now)")
+	await click_ctl(edit)
+	await type_text("save it as Dojo")
+	await key(KEY_ENTER)
+	await idle(3)
+	ok(Houses.list().size() == 1 and m.undo.size() == n0, "6 saving again under the same name (the house just saved): still one file on the test folder, no undo step: %s" % m.ui_status.text)
+	# a sentence that cannot fit is built without the piece
+	n0 = m.undo.size()
+	await click_ctl(edit)
+	await key(KEY_A, 0, true)
+	await type_text("a 4 x 3 house with stairs in the corner")
+	var tailtxt := ""
+	for lb in bld.words.cards_box.find_children("*", "Label", true, false):
+		if (lb as Label).text.contains("Left out."):
+			tailtxt = (lb as Label).text
+	ok(tailtxt.begins_with("Can't fit the stairs") and m.undo.size() == n0, "6 the plan card says it before building: \"%s\"" % tailtxt)
+	await click_ctl(bld.words.go)
+	await idle(4)
+	ok(m.S.building.get("pieces", []).is_empty() and m.undo.size() == n0 + 1 and Building.storey_count(m.S.building) == 2 and String(m.ui_status.text).contains("Left out, no room: 1 stairs (Can't fit the stairs"),
+		"6 Build it builds the house WITHOUT the stairs (never half-built), ONE undo step, and says: %s" % m.ui_status.text)
+	Houses.dir = houses_dir0
 	print("BUILDWORDS %s: %d failed" % ["PASS" if fails == 0 else "FAIL", fails])
 	quit(1 if fails > 0 else 0)
