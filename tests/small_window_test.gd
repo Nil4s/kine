@@ -95,7 +95,8 @@ func _init() -> void:
 				if m.ui_more.is_visible_in_tree():
 					for i in m.ui_more.get_popup().item_count:
 						more.append(m.ui_more.get_popup().get_item_text(i))
-				var hidden := tools.filter(func(c): return not (c as Control).is_visible_in_tree() and not m.label_of(c) in more).map(func(c): return m.label_of(c))
+				var rest: Array = m.RIBBON_REST.get(t, [])   # dc3eba23 (ribbon standard, Nick OK 2026-10-26): rarer tools live under their group caption's ▾, not in More
+				var hidden := tools.filter(func(c): return not (c as Control).is_visible_in_tree() and not m.label_of(c) in more and not m.label_of(c) in rest).map(func(c): return m.label_of(c))
 				n_more += more.size()
 				var over := []
 				for tl in tools:

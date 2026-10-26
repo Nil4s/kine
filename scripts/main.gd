@@ -254,11 +254,20 @@ const RIBBON_GROUPS := {
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial", "Match the reference timing"]], ["SOUND", ["Sound cues"]]],
 	"SET": [["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]], ["ADD", ["Add prop", "Import model"]], ["EDIT", ["Turn left", "Turn right", "Delete prop"]], ["USE", ["Sit here", "Step up", "Pick up", "Put down"]], ["THROW", ["Throw to..."]],
 		["RISE", ["Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]], ["REACT", ["Reactions", "React to the hit (physics)", "Add impact frames", "Remove impact frames"]]],
-	"CHECK": [["GRADE", ["Check", "Polish", "Fix moves through the body", "Timing coach", "Weapon weight", "Parry rebound", "What I learned from you", "Fight to the beat", "Choreograph to the song", "Fight distance", "Sell the hit", "Gaze director", "Safety sheet", "Reaction direction", "Fight rhythm", "Breakfall check", "Recovery step", "Precog check", "Auto opponent", "Fatigue", "Momentum ledger", "Airborne spin check", "Real-mocap check", "Realism score", "My style", "Use my style", "Star this clip", "My best take", "Make this one more like my best", "Speed limits", "My combos", "Auto camera", "My camera", "Frame it my way", "Make it physical", "Accept span"]], ["DUMMY", ["Dummy (H)"]], ["FRAMES", ["Frame data", "Frame boxes", "Frame rate"]]],
+	"CHECK": [["JUDGE", ["Check", "Realism score", "Safety sheet", "Real-mocap check"]], ["FIX", ["Polish", "Fix moves through the body", "Timing coach", "Speed limits"]],
+		["PHYSICS", ["Make it physical", "Accept span", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check"]],
+		["FIGHT", ["Fight distance", "Auto opponent", "Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound"]],
+		["MUSIC", ["Fight to the beat", "Choreograph to the song"]], ["STYLE", ["My style", "Use my style", "Star this clip", "My best take", "Make this one more like my best", "What I learned from you", "My combos"]],
+		["CAMERA", ["Auto camera", "My camera", "Frame it my way"]], ["SHOW", ["Dummy (H)", "Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export frame data (json)...", "Render shots (mp4)"]], ["PLAN", ["Floor plan"]], ["VERSION", ["Save version"]], ["SHARE", ["Share as QR", "Pack scene (zip)", "Unpack zip..."]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API", "Next poses"]]],
 }
+## THE RARER TOOLS (CHECK's 8 groups): a tool named here is not on the row; it lives under its group's caption menu (the caption's ▾), the
+## same tool, tooltip and key. Every group keeps at least two tools on the row. Nothing is hidden by window width: the row is the same at 1280 and 1600
+const RIBBON_REST := {"CHECK": ["Safety sheet", "Real-mocap check", "Speed limits", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check",
+	"Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound", "Star this clip", "My best take", "Make this one more like my best",
+	"What I learned from you", "My combos", "Frame it my way"]}
 ## PAGES (docs/PAGES_PLAN.md, step 1; DaVinci Resolve's page bar): one bar along the bottom, each page its own layout over
 ## the SAME scene, body and undo history. A page shows ONE ribbon row (its groups) and decides which side panels and how
 ## much of the scene strip are open; switching is a view change: no undo step, the scene untouched. The VIEW row is not a
@@ -3339,6 +3348,12 @@ func _exit_tree() -> void:
 		WorkerThreadPool.wait_for_task_completion(_pv_job["task"])
 	if not _dm_job.is_empty():   # the dummy's measurement, the same
 		WorkerThreadPool.wait_for_task_completion(_dm_job["task"])
+	for th in _bg_live + _bg_orphans + _polish_orphans:   # CHECK's worker threads (bg_run, Polish), running or cancelled: waited for, not freed mid-run
+		if (th as Thread).is_started():
+			(th as Thread).wait_to_finish()
+	_bg_live.clear()
+	_bg_orphans.clear()
+	_polish_orphans.clear()
 	if _sg_task >= 0:   # I10: the next-pose strip's MotionMatch.build worker reads scenes/Body statics; it ends before they go (else an access violation at exit)
 		WorkerThreadPool.wait_for_task_completion(_sg_task)
 	if settings != SETTINGS:
@@ -3899,8 +3914,62 @@ func _fd_cycle_fps() -> void:
 
 ## the frame data of the scene as it is now (a fresh body: the live one is not moved). Made again only when the cards,
 ## the dummy or the frame rate change
+func _fd_key() -> String:
+	return "%d|%s|%s|%s|%s" % [fd_fps, str(S.cards.hash()), var_to_str(T.xf) if dummy_on else "-", var_to_str(S.boxes), "" if dummy_on else FrameAdvantage.app_key(self)]
+
+
+## _fd_data() for the redraw (checkslice): the cached data at once; when the scene changed, a worker thread makes the new one on a clone
+## and a body of its own (the strip shows the old data meanwhile, then redraws); the dummy / two-fighter cases make it in one go as before
+var _fd_job := ""
+var _fd_gen := 0
+
+func _fd_data_bg() -> Dictionary:
+	var key := _fd_key()
+	if String(fd_cache.get("key", "")) == key:
+		return fd_cache["fd"]
+	if actors_rt.size() >= 2:
+		return _fd_data()
+	if _fd_job != key:
+		_fd_job = key
+		_fd_start(key)
+	return fd_cache.get("fd", {})
+
+
+func _fd_start(key: String) -> void:
+	_fd_gen += 1
+	var gen := _fd_gen
+	var C: Scene = S.clone()
+	var fps := fd_fps
+	var dm := {"dist": T.dist, "yaw": T.yaw, "xf": T.xf, "st": T.D.state()} if dummy_on else {}   # the dummy it stands by, copied for the thread
+	var box := []
+	var thr := Thread.new()
+	thr.start(func():
+		var Bc := EventQuery._new_body()
+		Bc.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://poses/stand.json")))
+		Bc.ground()
+		var Dm: Dummy = null
+		if not dm.is_empty():
+			Dm = Dummy.new()
+			Dm.place(dm["dist"], dm["yaw"])
+			Dm.xf = dm["xf"]
+			Dm.D.set_state(dm["st"])
+		box.append(FrameData.analyze(C, Bc, fps, Dm)))
+	_bg_live.append(thr)   # waited for if the app quits first
+	while thr.is_alive():
+		await get_tree().process_frame
+	thr.wait_to_finish()
+	_bg_live.erase(thr)
+	if gen != _fd_gen or box.is_empty() or _fd_key() != key:
+		if gen == _fd_gen:
+			_fd_job = ""
+		return
+	fd_cache = {"key": key, "fd": box[0]}
+	_fd_job = ""
+	_refresh()
+
+
 func _fd_data() -> Dictionary:
-	var key := "%d|%s|%s|%s|%s" % [fd_fps, str(S.cards.hash()), var_to_str(T.xf) if dummy_on else "-", var_to_str(S.boxes), "" if dummy_on else FrameAdvantage.app_key(self)]
+	var key := _fd_key()
 	if String(fd_cache.get("key", "")) != key:
 		if _force_body == null:   # I16b: the skeleton is read once, not at every score
 			_force_body = Body.new()
@@ -3939,7 +4008,7 @@ func _tl_play_redraw() -> void:
 func _fd_refresh() -> void:
 	if ui_timeline != null:
 		var before := _tl_under_ruler()
-		ui_timeline.fd = _fd_data() if fd_on and not S.cards.is_empty() else {}
+		ui_timeline.fd = _fd_data_bg() if fd_on and not S.cards.is_empty() else {}
 		ui_timeline.sp = LimbIK.space_lane(S.ik, S.length()) if not S.ik.is_empty() else []   # ROADMAP 63: the space segments
 		ui_timeline.bx = HitBoxes.lanes(S.boxes, float(fd_fps)) if not S.boxes.is_empty() and not S.cards.is_empty() else []   # ROADMAP 36: the boxes lane
 		if before != _tl_under_ruler() or not is_equal_approx(_iq_seen, ui_timeline.iq_px()):
@@ -3952,7 +4021,11 @@ func _fd_refresh() -> void:
 		if fd_node != null:
 			fd_node.visible = false
 		return
-	var fd := _fd_data()
+	var fd := _fd_data_bg()
+	if fd.is_empty():   # still being made: the boxes come with the redraw that ends the job
+		if fd_node != null:
+			fd_node.visible = false
+		return
 	var fr: Dictionary = FrameData.frame_at(fd, playhead)
 	var groups := [[fr["hurtboxes"], Color(0.6, 0.7, 0.85)]]
 	var auto_hits := []   # the auto-detected hitboxes (active frames) and the user's own hit boxes (any frame, ROADMAP 36)
@@ -11259,6 +11332,15 @@ func _theme() -> Theme:
 	for st in [["normal", "panel"], ["hover", "btn_hover"], ["pressed", "accent"], ["hover_pressed", "accent"], ["disabled", "panel"]]:
 		var rb: StyleBoxFlat = box.call(Tok.c(st[1]), 4, 3)
 		th.set_stylebox(st[0], "Ribbon", rb)
+	# CHECK's toggles: ON = the lit grey and a 2 px accent underline, not the amber block (amber = the page's one live action)
+	th.set_type_variation("RibbonUnder", "Ribbon")
+	for st in ["pressed", "hover_pressed"]:
+		var ub: StyleBoxFlat = box.call(Tok.c("btn_hover"), 4, 3)
+		ub.border_color = Tok.c("accent")
+		ub.border_width_bottom = 2
+		th.set_stylebox(st, "RibbonUnder", ub)
+	for ic in ["icon_pressed_color", "icon_hover_pressed_color"]:
+		th.set_color(ic, "RibbonUnder", Tok.c("btn_text"))
 	# a tab: small words, no box; the open one underlined in the accent
 	th.set_type_variation("RibbonTab", "Button")
 	for st in ["normal", "hover", "pressed", "hover_pressed"]:
@@ -12107,7 +12189,7 @@ func _iconise(b: Node) -> void:
 	b.set_meta("label", t)
 	b.icon = Icons.tex(ICON_OF[t])
 	b.text = ""
-	b.theme_type_variation = "Ribbon"
+	b.theme_type_variation = "RibbonUnder" if b.toggle_mode and b.get_parent() == ui_ribbon.get("CHECK") else "Ribbon"
 	b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	b.vertical_icon_alignment = VERTICAL_ALIGNMENT_CENTER
 	b.custom_minimum_size = Vector2(32, TOOLS_H)
@@ -12450,7 +12532,7 @@ func _ui() -> void:
 	# CHECK
 	ui_ribbon["CHECK"].add_child(_button("Check", _check_btn, "grade the scene against real recorded human motion; click a problem to jump to it"))
 	ui_ribbon["CHECK"].add_child(_button("Polish", _polish, "smooth the scene and add the in-between detail into a NEW scene; yours is not touched"))
-	ui_ribbon["CHECK"].add_child(_button("Fix moves through the body", _clear_scene))
+	ui_ribbon["CHECK"].add_child(_button("Fix moves through the body", _clear_scene_bg))
 	if tc_ui == null:
 		tc_ui = TimingCoachUI.new(self)
 	if mp_ui == null:
@@ -12466,7 +12548,7 @@ func _ui() -> void:
 	ui_ribbon["CHECK"].add_child(_button("Timing coach", tc_ui.show, "for each strike a better move time with the reason (a real clip, strike-size numbers and sources); preview, then accept one line or all"))
 	if wt_ui == null:
 		wt_ui = WeaponTorqueUI.new(self)
-	ui_ribbon["CHECK"].add_child(_button("Weapon weight", wt_ui.show, "for each weapon swing: the torque the wrist and shoulder must give against human strength, with a bar; flags too fast for the weapon and weightless swings (no wind-up, no follow-through, instant stop); one-click fix, preview, accept (one undo step)"))
+	ui_ribbon["CHECK"].add_child(_button("Weapon weight", wt_ui.show_bg, "for each weapon swing: the torque the wrist and shoulder must give against human strength, with a bar; flags too fast for the weapon and weightless swings (no wind-up, no follow-through, instant stop); one-click fix, preview, accept (one undo step)"))
 	if pr_ui == null:
 		pr_ui = WeaponReboundUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Parry rebound", pr_ui.show, "where two weapons meet: the momentum exchanged (both inertias, restitution 0.5), each weapon's change of angular velocity, the deflection of both weapons and wrists keyed over the next 0.2 s; flags a parry that stops a heavy swing dead; arcs drawn, preview, accept (one undo step)"))
@@ -12483,13 +12565,13 @@ func _ui() -> void:
 	ui_ribbon["CHECK"].add_child(_button("Star this clip", bt_ui.star, "star (or unstar) the open clip as one of your best takes; kept on this computer, not in the scene"))
 	ui_ribbon["CHECK"].add_child(_button("My best take", bt_ui.show, "what your starred clip does differently from your other clips of its kind: the five biggest differences in words with numbers"))
 	ui_ribbon["CHECK"].add_child(_button("Make this one more like my best", bt_ui.make_like, "nudge this clip's timing, guard height and stance toward your starred clip; preview, then accept (one undo step)"))
-	ui_ribbon["CHECK"].add_child(_button("Speed limits", se_ui.show, "cards whose hand, foot or joint speed is above the measured human top (boxing, kicking, throwing papers), with the number, the top and the source; the fix lengthens only those cards' move time; preview, then accept (one undo step)"))
+	ui_ribbon["CHECK"].add_child(_button("Speed limits", se_ui.show_bg, "cards whose hand, foot or joint speed is above the measured human top (boxing, kicking, throwing papers), with the number, the top and the source; the fix lengthens only those cards' move time; preview, then accept (one undo step)"))
 	if dk_ui == null:
 		dk_ui = DistanceKeeperUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Fight distance", dk_ui.show, "with two fighters: each strike's gap to the other fighter against its measured reach, jammed / out of range / in range on the timeline; Slide the defender fixes a flagged strike with steps (feet planted); preview, then accept (one undo step)"))
 	if bk_ui == null:
 		bk_ui = BreakfallUI.new(self)
-	ui_ribbon["CHECK"].add_child(_button("Breakfall check", bk_ui.show, "finds each fall or knockdown in the clip (the centre of mass drops 40% of the height in a second and a body part but the feet reaches the floor) and judges the landing like a judo / stunt coach: head clear and chin tucked, no straight-arm catch, impact spread, speed; one-click fixes (tuck the chin, bend the arm into a slap, roll the trunk); preview, then accept (one undo step)"))
+	ui_ribbon["CHECK"].add_child(_button("Breakfall check", bk_ui.show_bg, "finds each fall or knockdown in the clip (the centre of mass drops 40% of the height in a second and a body part but the feet reaches the floor) and judges the landing like a judo / stunt coach: head clear and chin tucked, no straight-arm catch, impact spread, speed; one-click fixes (tuck the chin, bend the arm into a slap, roll the trunk); preview, then accept (one undo step)"))
 	if rc_ui == null:
 		rc_ui = RecoveryUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Recovery step", rc_ui.show, "after a shove or hit: the capture point (the COM's floor point + speed / omega0, Hof 2005) against the feet; small shove: no step, medium: a step lands on the capture point in 0.25 s, huge: flagged as a fall; preview, then accept (one undo step)"))
@@ -12504,7 +12586,7 @@ func _ui() -> void:
 	ui_ribbon["CHECK"].add_child(_button("Gaze director", gz_ui.show, "with two fighters: where each fighter looks over the clip (the opponent's upper chest, a glance at each incoming weapon, an optional telegraph glance at the target 0.2 s before a strike); written as neck and head keys; preview, then accept (one undo step)"))
 	if sf_ui == null:
 		sf_ui = SafetyUI.new(self)
-	ui_ribbon["CHECK"].add_child(_button("Safety sheet", sf_ui.show, "one pre-shoot report for the stunt crew over the whole scene: real contacts and their speed, weapon tips near a head, falls, rushed strikes; click an item to jump to it; Export page writes a printable HTML sheet with a picture of each item"))
+	ui_ribbon["CHECK"].add_child(_button("Safety sheet", sf_ui.show_bg, "one pre-shoot report for the stunt crew over the whole scene: real contacts and their speed, weapon tips near a head, falls, rushed strikes; click an item to jump to it; Export page writes a printable HTML sheet with a picture of each item"))
 	if cm_ui == null:
 		cm_ui = ComboUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("My combos", cm_ui.show, "the card sequences you repeat in your own clips, named with your rhythm (jab-cross-hook, your 0.15/0.20/0.15 s, used 3 times in 2 clips); click one for a ghost after the picked card, Enter inserts it with your poses and timing (one undo step)"))
@@ -12520,14 +12602,14 @@ func _ui() -> void:
 		fa_ui = ExertionUI.new(self)
 	if ml_ui == null:
 		ml_ui = MomentumUI.new(self)
-	ui_ribbon["CHECK"].add_child(_button("Momentum ledger", ml_ui.show, "the body's linear and angular momentum going into and out of every card (60 Hz); flags a stop that drops faster than a body can brace without a step or pivot, in words with numbers, with markers on the timeline; fix = ease the stop over the time the force bar needs; preview, then accept (one undo step)"))
+	ui_ribbon["CHECK"].add_child(_button("Momentum ledger", ml_ui.show_bg, "the body's linear and angular momentum going into and out of every card (60 Hz); flags a stop that drops faster than a body can brace without a step or pivot, in words with numbers, with markers on the timeline; fix = ease the stop over the time the force bar needs; preview, then accept (one undo step)"))
 	if sp_ui == null:
 		sp_ui = SpinCheckUI.new(self)
-	ui_ribbon["CHECK"].add_child(_button("Airborne spin check", sp_ui.show, "finds each flight (both feet off the floor, nothing held), draws the centre of mass against the free-fall parabola on the timeline, flags a floaty arc and a mid-air spin the take-off momentum cannot give, and offers Fix the flights (the spin moved into the take-off, the arc put on a parabola); preview, then accept (one undo step)"))
+	ui_ribbon["CHECK"].add_child(_button("Airborne spin check", sp_ui.show_bg, "finds each flight (both feet off the floor, nothing held), draws the centre of mass against the free-fall parabola on the timeline, flags a floaty arc and a mid-air spin the take-off momentum cannot give, and offers Fix the flights (the spin moved into the take-off, the arc put on a parabola); preview, then accept (one undo step)"))
 	if rmc_ui == null:
 		rmc_ui = MocapCheckUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Real-mocap check", rmc_ui.show, "scores how typical each card's pose is of what people really do (shoulder + elbow, hip + knee, spine chain against CMU motion-capture statistics); a pose below the 1% line is flagged with the nearest real pose as a ghost beside the body and the joints that differ most, in degrees. Nothing changes"))
-	ui_ribbon["CHECK"].add_child(_button("Fatigue", fa_ui.show, "per fighter: the mechanical work done over the clip (joint power from the force view) as a green-to-red fatigue strip on the timeline; flags a fighter still at full speed or with an undropped guard late in a long exchange, and offers Tire him (slower strikes, longer recovers, lower guard); preview, then accept (one undo step)"))
+	ui_ribbon["CHECK"].add_child(_button("Fatigue", fa_ui.show_bg, "per fighter: the mechanical work done over the clip (joint power from the force view) as a green-to-red fatigue strip on the timeline; flags a fighter still at full speed or with an undropped guard late in a long exchange, and offers Tire him (slower strikes, longer recovers, lower guard); preview, then accept (one undo step)"))
 	ui_ribbon["CHECK"].add_child(_button("Fight rhythm", rh_ui.show, "with two fighters: a tempo map of the exchange (who attacks, who answers, the time between beats) as a strip on the timeline; flags monotony, dead air and rush with a one-click suggestion each (pause, change side, feint); preview, then accept (one undo step)"))
 	if ac_ui == null:
 		ac_ui = AutoCamUI.new(self)
@@ -15575,7 +15657,7 @@ func _place_caps() -> void:
 		for pair in ui_caps[t]:
 			var cap: MenuButton = pair[0]
 			var shown: Array = (pair[1] as Array).filter(func(b): return (b as Control).is_visible_in_tree())
-			cap.visible = t == _ribbon_tab and not shown.is_empty()
+			cap.visible = t == _ribbon_tab and not shown.is_empty() and not (easy != null and easy.on) and not (bld != null and bld.part != null and bld.part.easy)   # Easy has no groups: its big buttons would sit on the captions
 			if not cap.visible:
 				continue
 			var par := cap.get_parent() as Control
@@ -15656,8 +15738,9 @@ func _fit_top() -> void:
 	for b in all:
 		if b is Button and b.has_meta("full"):
 			b.text = b.get_meta("full")
+	var rest: Array = RIBBON_REST.get(_ribbon_tab, [])
 	for b in ui_ribbon[_ribbon_tab].get_children():
-		(b as Control).visible = bld == null or bld.part == null or bld.part.ribbon_shows(b, _ribbon_tab)   # BUILD: the house tools or the Part workspace's, never both
+		(b as Control).visible = (bld == null or bld.part == null or bld.part.ribbon_shows(b, _ribbon_tab)) and not (b is Button and label_of(b) in rest)   # BUILD: the house tools or the Part workspace's, never both; RIBBON_REST: under the caption only
 	var tools: Array = ui_ribbon[_ribbon_tab].get_children().filter(func(c): return c is Button and (c as Control).visible)
 	ui_more.visible = false
 	_more_tools = []
@@ -18501,6 +18584,59 @@ func _fix_all() -> void:
 		("%d need you: %s" % [need.size(), "; ".join(need)]) if not need.is_empty() else "nothing left to need you"])
 
 
+## BG RUN (checkslice): the CHECK tools that play the whole clip (Fatigue, Speed limits, Safety sheet, Breakfall check, Weapon weight, Momentum
+## ledger, Airborne spin check, Fix moves, Frame data) each held the main thread 1-3 s on a 4.7 s clip. They now hand their own analyser a
+## CLONE of the scene and a body of its own on a worker thread (the analyser is the same function: the result is the blocking call's), and the
+## window keeps drawing. A second click on the same tool cancels; an edit while it runs discards the result.
+var _bg_gen := {}          # tag -> generation of the newest run
+var _bg_busy := {}         # tag -> true while a run is waiting for its thread
+var _bg_orphans: Array = []   # threads of cancelled runs: reaped when they end (a thread cannot be stopped)
+var _bg_live: Array = []   # threads still running a bg_run / Polish: the app waits for them when it quits (a Thread freed while it runs crashes the exit)
+
+## a body for a worker thread: its own skeleton, put in the live body's state (proportions, weapon, pose)
+func bg_body(st: Dictionary) -> Body:
+	var b := EventQuery._new_body()
+	b.set_state(st)
+	return b
+
+
+## runs job() on a worker thread, a frame at a time; {"ok": true, "v": result}, or {"ok": false} when cancelled (a second call with the same
+## tag while it runs) or when the open scene changed meanwhile. `say` = the status line while it runs.
+func bg_run(tag: String, say: String, job: Callable) -> Dictionary:
+	for th in _bg_orphans.filter(func(t): return not (t as Thread).is_alive()):
+		(th as Thread).wait_to_finish()
+		_bg_orphans.erase(th)
+	if _bg_busy.get(tag, false):
+		_bg_gen[tag] = int(_bg_gen.get(tag, 0)) + 1
+		_bg_busy[tag] = false
+		_say("%s cancelled" % tag)
+		return {"ok": false}
+	var gen := int(_bg_gen.get(tag, 0)) + 1
+	_bg_gen[tag] = gen
+	_bg_busy[tag] = true
+	var key := S.cards.hash()
+	var box := []
+	var thr := Thread.new()
+	thr.start(func(): box.append(job.call()))
+	_bg_live.append(thr)
+	var t0 := Time.get_ticks_msec()
+	while thr.is_alive():
+		await get_tree().process_frame
+		if int(_bg_gen.get(tag, 0)) != gen:
+			_bg_orphans.append(thr)
+			return {"ok": false}
+		_say_plain("%s  %.1f s  (click again to cancel)" % [say, (Time.get_ticks_msec() - t0) / 1000.0])
+	thr.wait_to_finish()
+	_bg_live.erase(thr)
+	_bg_busy[tag] = false
+	if box.is_empty():
+		return {"ok": false}
+	if S.cards.hash() != key:
+		_say("%s: the scene changed while it ran; press it again" % tag)
+		return {"ok": false}
+	return {"ok": true, "v": box[0]}
+
+
 ## POLISH: the detail pass (tools/detail.gd) on the open scene -> scenes/_wip/<name>_polished.json, opened. Nick's file
 ## is never written; picking it in the list brings it back.
 var _polish_gen := 0
@@ -18541,6 +18677,7 @@ func _polish() -> void:
 		var d0 := D0.to_dict(PB)   # the saved file's bad_frames scan (~1 s): here, not on the main thread
 		d0["plan"] = "Polish (tools/detail.gd) from " + base
 		box.append([pr, d0]))
+	_bg_live.append(thr)
 	var t_start := Time.get_ticks_msec()
 	while thr.is_alive():
 		await get_tree().process_frame
@@ -18549,6 +18686,7 @@ func _polish() -> void:
 			return
 		_say_plain("polishing '%s'... %d s  (click Polish again to cancel)" % [S.name, (Time.get_ticks_msec() - t_start) / 1000])
 	thr.wait_to_finish()
+	_bg_live.erase(thr)
 	_polish_busy = false
 	if box.is_empty():
 		_say("polish failed: nothing came back")
@@ -19144,6 +19282,23 @@ func _new_scene() -> void:
 	_rebuild_cards()
 	_refresh()
 	_bld_scene_changed(false)   # BUILD: no house in the new scene, and the page tabs of its kind
+
+
+## the Fix moves through the body button: _clear_scene() with the search on a worker thread (checkslice): S.clear on a clone and a body
+## of its own, the pass-by cards it made put into the scene as one undo step
+func _clear_scene_bg() -> void:
+	var C: Scene = S.clone()
+	var st: Dictionary = B.state()
+	var r: Dictionary = await bg_run("fix moves", "fix moves: looking for moves through the body...", func(): return [C.clear(bg_body(st)), C.cards])
+	if not r["ok"]:
+		return
+	var n: int = r["v"][0]
+	if n > 0:
+		_push_undo()
+		S.cards = r["v"][1]
+	_rebuild_cards()
+	_refresh()
+	_say("added %d pass-by card(s) so nothing goes through the body" % n if n > 0 else "no move goes through the body")
 
 
 func _clear_scene() -> void:

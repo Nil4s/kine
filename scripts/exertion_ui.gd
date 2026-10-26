@@ -84,6 +84,24 @@ func show() -> void:
 	_panel()
 
 
+## the Fatigue button: show() with the clip read on a worker thread (checkslice); the same Exertion.analyze on a clone and a body of its own
+func show_bg() -> void:
+	var fs := fighters()
+	if fs.any(func(f): return (f["S"] as Scene).cards.size() < 2) and fs.size() == 1:
+		show()   # the "needs two cards" line
+		return
+	var inp := fs.map(func(f): return [(f["S"] as Scene).clone(), (f["B"] as Body).state()])
+	var t0 := Time.get_ticks_usec()
+	var r: Dictionary = await m.bg_run("fatigue", "fatigue: reading the clip's joint powers...", func(): return inp.map(func(p): return Exertion.analyze(p[0], m.bg_body(p[1]))))
+	if not r["ok"]:
+		return
+	reps = r["v"]
+	ms = float(Time.get_ticks_usec() - t0) / 1000.0
+	plan = {}
+	_overlay()
+	_panel()
+
+
 func _panel() -> void:
 	var L: VBoxContainer = m.ui_find_list
 	for c in L.get_children():

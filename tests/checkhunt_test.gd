@@ -13,7 +13,7 @@ var finish_ms := 0.0
 
 
 func ok(good: bool, what: String) -> void:
-	print(("PASS: " if good else "FAIL: ") + what)
+	print(("ok   " if good else "FAIL ") + what)   # run_par.py counts lines that start with "ok" and "FAIL"
 	if not good:
 		fails += 1
 
@@ -92,6 +92,81 @@ func open_scene(tag: String, repeat: int) -> void:
 	m._page_set("CHECK")
 	for i in 10:
 		await process_frame
+
+
+func open_src(tag: String, src: String) -> void:
+	var p := "user://checkhunt_t_%s.json" % tag
+	var f := FileAccess.open(p, FileAccess.WRITE)
+	f.store_string(FileAccess.get_file_as_string(src))
+	f.close()
+	made.append(p)
+	m._load_scene(p)
+	for i in 20:
+		await process_frame
+	m._page_set("CHECK")
+	for i in 10:
+		await process_frame
+
+
+## what the blocking call makes, as text (the data of a tool; var_to_str keeps every float)
+func blocking(t: Array) -> String:
+	var ui = m.get(t[2])
+	if t[2] == "se_ui":
+		var keep: Dictionary = m.B.state()
+		var r: Array = SpeedEnv.analyse(m.S, m.B)
+		m.B.set_state(keep)
+		return var_to_str(r)
+	ui.compute()
+	return var_to_str(ui.get(t[3]))
+
+
+## one tool: the quietest of 3 real clicks has a longest frame < 100 ms; its data == the blocking call's
+func slice_tool(t: Array, what := "") -> void:
+	var want := blocking(t)
+	var ui = m.get(t[2])
+	var best := INF
+	var got := ""
+	for run in 3:
+		ui.set(t[3], [] if ui.get(t[3]) is Array else {})
+		var held := click(tool_btn(t[0]))
+		var busy: bool = m._bg_busy.get(t[1], false)
+		var w := await frames_until(func(): return not m._bg_busy.get(t[1], false), 3000)
+		got = var_to_str(ui.get(t[3]))
+		best = minf(best, maxf(held, w))
+		if not busy:
+			break
+		if best < 100.0:
+			break
+	ok(best < 100.0, "8 %s%s: click and then longest frame %.0f ms (< 100)" % [what, t[0], best])
+	ok(got == want and want.length() > 4, "8 %s%s: the data is the blocking call's (%d chars)" % [what, t[0], want.length()])
+
+
+## Fix moves through the body: the pass-by cards are the blocking S.clear's
+func slice_fix() -> void:
+	var C: Scene = m.S.clone()
+	var n_want := C.clear(m.bg_body(m.B.state()))
+	var before: int = m.S.cards.size()
+	var held := click(tool_btn("Fix moves through the body"))
+	var busy: bool = m._bg_busy.get("fix moves", false)
+	var w := await frames_until(func(): return not m._bg_busy.get("fix moves", false), 3000)
+	ok(busy and maxf(held, w) < 100.0, "8 Fix moves through the body: ran on its thread, longest frame %.0f ms (< 100)" % maxf(held, w))
+	ok(var_to_str(m.S.cards) == var_to_str(C.cards) and m.S.cards.size() == before + n_want, "8 Fix moves: the cards are the blocking clear's (%d pass-by cards)" % n_want)
+
+
+## Frame data / Frame boxes: the data made on a thread is the blocking _fd_data's
+func slice_fd() -> void:
+	for lab in ["Frame data", "Frame boxes"]:
+		m.fd_cache = {}
+		m._fd_job = ""
+		var held := click(tool_btn(lab))
+		var w := await frames_until(func(): return String(m.fd_cache.get("key", "")) == m._fd_key() and m._fd_key() != "", 3000)
+		var got := var_to_str(m.fd_cache.get("fd", {}))
+		ok(maxf(held, w) < 100.0, "8 %s: click held %.0f ms, longest frame %.0f ms, the frame that takes the result %.0f ms (< 100)" % [lab, held, w, finish_ms])
+		m.fd_cache = {}
+		var want := var_to_str(m._fd_data())
+		ok(got == want and want.length() > 4, "8 %s: the data is the blocking call's (%d chars)" % [lab, want.length()])
+		click(tool_btn(lab))   # off again
+		await frames_until(func(): return false, 3)
 
 
 func finding_keys(a: Array) -> Array:
@@ -215,6 +290,19 @@ func _init() -> void:
 		if maxf(held7, w7) < MAX_MS:
 			break
 	ok(held7 < MAX_MS and w7 < MAX_MS, "7 long scene: click held %.0f ms, then 40 frames, longest %.0f ms (< %.0f)" % [held7, w7, MAX_MS])
+
+	# 8. THE REST OF THE CHECK PAGE (checkslice): each tool that plays the whole clip runs on a worker thread with a clone and a body of its own:
+	# the longest frame after a real click stays under 100 ms, and the result is exactly the blocking call's
+	await open_scene("d", 1)
+	var tools := [
+		["Fatigue", "fatigue", "fa_ui", "reps"], ["Speed limits", "speed limits", "se_ui", "rows"], ["Safety sheet", "safety sheet", "sf_ui", "rep"],
+		["Breakfall check", "breakfall check", "bk_ui", "rep"], ["Weapon weight", "weapon weight", "wt_ui", "rows"],
+		["Momentum ledger", "momentum ledger", "ml_ui", "rep"], ["Airborne spin check", "airborne spin check", "sp_ui", "rep"]]
+	for t in tools:
+		await slice_tool(t)
+	await open_scene("f", 1)
+	await slice_fix()
+	await slice_fd()
 
 	for p in made:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(p))
