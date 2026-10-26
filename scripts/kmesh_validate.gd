@@ -29,18 +29,28 @@ static func _area(m: KMesh, f: PackedInt32Array) -> float:
 static func _doubled(m: KMesh, dist := WELD, only: Dictionary = {}) -> Array:
 	var cell := {}
 	var out := []
+	# the 27 cell offsets, in the same order as before (the first vert in that order within dist wins)
+	var offs: Array = []
+	for dx in 3:
+		for dy in 3:
+			for dz in 3:
+				offs.append(Vector3i(dx - 1, dy - 1, dz - 1))
 	for v in m.verts.size():
 		if not only.is_empty() and not only.has(v):
 			continue
 		var p: Vector3 = m.verts[v]
 		var k := Vector3i(floori(p.x / dist), floori(p.y / dist), floori(p.z / dist))
 		var hit := -1
-		for dx in [-1, 0, 1]:
-			for dy in [-1, 0, 1]:
-				for dz in [-1, 0, 1]:
-					for o in cell.get(k + Vector3i(dx, dy, dz), []):
-						if hit < 0 and (m.verts[o] as Vector3).distance_to(p) <= dist:
-							hit = o
+		for off in offs:
+			var lst = cell.get(k + off)
+			if lst == null:
+				continue
+			for o in lst:
+				if (m.verts[o] as Vector3).distance_to(p) <= dist:
+					hit = o
+					break
+			if hit >= 0:
+				break
 		if hit >= 0:
 			out.append([v, hit])
 		else:
@@ -275,26 +285,34 @@ static func repair(m: KMesh) -> Dictionary:
 		m.attrs = saved_attrs
 		m.attr_remap(vsrc, fsrc, csrc_flat, esrc2 if m.edge_count() != esrc.size() else esrc)
 	if _holes(m).is_empty() and _volume(m) < 0.0:
+		# corner channels are copied once here (not once per face: that was quadratic); each face's corner run is
+		# disjoint from the others, so reading the original copy gives the same values as copying per face did
+		var ckeys := []
+		var ccopy := []
+		if has_a:
+			for k in m.attrs:
+				var r0: Dictionary = m.attrs[k]
+				if r0["domain"] == KMesh.AD_CORNER:
+					ckeys.append(k)
+					ccopy.append((r0["data"]).duplicate())
 		var cb := 0
 		for i in m.faces.size():
 			var r: PackedInt32Array = m.faces[i]
 			r.reverse()
 			m.faces[i] = r
 			if has_a:   # corner k of the reversed face is old corner n-1-k: the attribute stays with its vertex
-				_reverse_corner_attrs(m, cb, r.size())
+				_reverse_corner_run(m, ckeys, ccopy, cb, r.size())
 				cb += r.size()
 		m.rebuild()
 		done["inside_out"] = m.faces.size()
 	return done
 
 
-static func _reverse_corner_attrs(m: KMesh, base: int, n: int) -> void:
-	for k in m.attrs:
-		var r: Dictionary = m.attrs[k]
-		if r["domain"] != KMesh.AD_CORNER:
-			continue
+static func _reverse_corner_run(m: KMesh, keys: Array, copies: Array, base: int, n: int) -> void:
+	for c in keys.size():
+		var r: Dictionary = m.attrs[keys[c]]
 		var d = r["data"]
-		var copy = d.duplicate()
+		var copy = copies[c]
 		for i in n:
 			d[base + i] = copy[base + n - 1 - i]
 
