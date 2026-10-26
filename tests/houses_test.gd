@@ -263,6 +263,21 @@ func _init() -> void:
 	await idle(3)
 	ok(hu.grid.get_child_count() == 2 and lib.in_group("My houses").size() == 2, "H8 the cards and the library still show the 2 good houses")
 
+	# H9 names: accented letters keep their file apart, an older "_" file still opens by its own name, a case-only rename works
+	wipe(DIR)
+	var nb := {"name": "x", "rooms": [{"id": "r1", "x": 0.0, "z": 0.0, "w": 4.0, "d": 3.0}]}
+	Houses.save(nb, "Pão")
+	ok(Houses.exists("Pão") and not Houses.exists("Pêo") and Houses.file_stem("Pão") != Houses.file_stem("Pêo"), "H9 Pão and Pêo are two houses (files %s / %s)" % [Houses.file_stem("Pão"), Houses.file_stem("Pêo")])
+	var lg := nb.duplicate(true)
+	lg["name"] = "João"
+	f = FileAccess.open(Houses.dir + "/Jo_o.json", FileAccess.WRITE)   # saved under the first rule (non-ASCII -> "_")
+	f.store_string(JSON.stringify(lg))
+	f.close()
+	ok(Houses.exists("João") and not Houses.load_house("João").is_empty() and not Houses.exists("Joáo"), "H9 the older Jo_o.json opens as João, and not as Joáo")
+	Houses.save(nb, "dojo")
+	ok(Houses.rename("dojo", "Dojo") and names().has("Dojo") and not names().has("dojo"), "H9 a case-only rename: dojo -> Dojo (%s)" % [names()])
+	ok(Houses.rename("João", "Casa do João") and Houses.exists("Casa do João") and not disk(Houses.dir + "/Jo_o.json"), "H9 renaming the older João moves its file to the new name")
+
 	wipe(DIR)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(DIR))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://houses_test_recent.json"))
