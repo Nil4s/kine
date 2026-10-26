@@ -13027,7 +13027,7 @@ func _ui() -> void:
 	ui_mesh_hint_box.visible = false
 	ui_mesh_hint_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var hsb := StyleBoxFlat.new()
-	hsb.bg_color = Color(0.05, 0.06, 0.08, 0.78)
+	hsb.bg_color = Tok.c("say_bg")
 	hsb.set_corner_radius_all(10)
 	hsb.content_margin_left = 16.0
 	hsb.content_margin_right = 16.0
@@ -13042,7 +13042,7 @@ func _ui() -> void:
 	ui_mesh_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	ui_mesh_hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	ui_mesh_hint.add_theme_font_size_override("font_size", 20)
-	ui_mesh_hint.add_theme_color_override("font_color", Color(0.80, 0.84, 0.92, 0.95))
+	ui_mesh_hint.add_theme_color_override("font_color", Tok.of("text:0.9"))
 	ui_mesh_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_mesh_hint_box.add_child(ui_mesh_hint)
 	# COMPARE WITH (ROADMAP 28): the diff list, top left of the view, only while a version is compared (it never takes a click)
