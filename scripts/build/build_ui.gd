@@ -104,6 +104,8 @@ var type_box: PanelContainer
 var chip: Button
 var tool_btns := {}
 var words: BuildWordsUI
+var bp: BlueprintUI            # the Blueprint sheet (phase 1g)
+var bp_btn: Button
 var fields := {}               # param -> LineEdit
 var kind_btns := {}
 var remove_btn: Button
@@ -254,6 +256,10 @@ func _build_ui() -> void:
 	_icon_word(wb, "Words")
 	tool_btns["Words"] = wb
 	row.add_child(wb)
+	bp_btn = m._button("Blueprint", func(): bp.open(), "Blueprint: plans of every floor and the front and side elevations, with dimensions; export SVG, PNG, DXF")
+	bp_btn.name = "build_blueprint"
+	_icon_word(bp_btn, "Blueprint")
+	row.add_child(bp_btn)
 	ov = Control.new()
 	ov.name = "build_overlay"
 	ov.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -458,6 +464,8 @@ func _build_ui() -> void:
 	_build_picker()
 	words = BuildWordsUI.new()
 	words.setup(self)
+	bp = BlueprintUI.new()
+	bp.setup(self)
 
 
 ## a ribbon button of this page: its icon (scripts/icons.gd, build_*) and one word
@@ -650,6 +658,8 @@ func sync() -> void:
 		use_btn.visible = m.S.kind == "building"
 		m._grey(use_btn, "" if has_rooms else "draw a room first")
 		use_btn.text = "Back to BUILD" if m.cur_page == "STAGE" else "Use in a scene"
+	if bp_btn != null:
+		m._grey(bp_btn, "" if has_rooms else "draw a room first")
 	if BuildStage.refresh(m.S):
 		m._props_show()   # the set follows the house: its collision is the record's again
 	_stage_sync()
