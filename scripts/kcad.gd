@@ -227,6 +227,18 @@ static func chamfer_edges(id: int, edge_ids: PackedInt32Array, dist: float) -> i
 	return n.chamfer_edges(id, edge_ids, dist) if n != null else 0
 
 
+## Offset one face (ids as in faces()) along its outward normal by dist (metres): dist > 0 adds a prism fused on, dist < 0 cuts it out. 0 on failure.
+static func offset_face(id: int, face_id: int, dist: float) -> int:
+	var n = _n()
+	return n.offset_face(id, face_id, dist) if n != null else 0
+
+
+## Draft faces (ids as in faces()) by angle (radians) about the neutral plane through neutral_origin with normal pull_dir. 0 on failure.
+static func draft_faces(id: int, face_ids: PackedInt32Array, angle: float, pull_dir: Vector3, neutral_origin: Vector3) -> int:
+	var n = _n()
+	return n.draft_faces(id, face_ids, angle, pull_dir, neutral_origin) if n != null else 0
+
+
 ## the reflected copy only (use mirror_join for the part + its mirror)
 static func mirror(id: int, origin := Vector3.ZERO, normal := Vector3.RIGHT) -> int:
 	var n = _n()

@@ -18,6 +18,10 @@ extends RefCounted
 ## A HINGE (C3) turns body N (its index when the hinge comes) about the axis through o. Its angle is a Curves channel (seconds, degrees), the
 ## same as a Kine curve sampled to a list. The timeline shows the rest pose (the hinge adds no solid); hinge_sweep() walks the curve and reports the
 ## first frame the moving body meets another body (a door against its stop).
+## OFFSET FACE (GAP 10, Fusion's Offset Face): {"t": "offset_face", "id", "name", "body": N, "face": {"p": [x, y, z] (mm, the face's centre), "n": [..] (outward normal), "q": [..] (the centre inside the body's box, 0..1), "body": N}, "mm": d}:
+## the face moves along its outward normal by d mm (d > 0 adds material, d < 0 removes it). DRAFT (GAP 10): {"t": "draft", "id", "name", "body": N, "faces": [face, ...] (same descriptors),
+## "deg": angle, "dir": "x"|"y"|"z"}: the faces lean by deg about the body's bottom (the box's low end on the pull axis), pulled along +dir.
+## Faces are re-found like fillet edges (match_face: box position + normal), so the step follows a sketch that is made bigger.
 ## LOFT (E): {"t": "loft", "id", "name", "sketches": ["f1", "f4", ...] (2 or more, in order), "ruled": bool, "op": join|new|cut}: the kernel joins
 ## the profiles of those sketches into one solid (ruled = straight between them, else smooth). OFFSET PLANE (E): {"t": "plane", "id", "name",
 ## "from": "front"|"top"|"right", "mm": distance along its normal}. A sketch whose "plane" is a plane's id sits on that offset plane.
@@ -53,7 +57,8 @@ extends RefCounted
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
 const VERSION := 1
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft"]
+const DRAFT_DIRS := {"x": Vector3(1, 0, 0), "y": Vector3(0, 1, 0), "z": Vector3(0, 0, 1)}
 const PLANES := ["front", "top", "right"]
 const OPS := ["join", "new", "cut", "intersect"]
 const COMBINE_OPS := ["join", "cut", "intersect"]   # a combine step's op (the dialog's order: Join, Cut, Intersect)
@@ -413,7 +418,7 @@ static func spline_curve(pts: Array, closed: bool, steps := 16) -> PackedVector2
 ## {"mesh": ArrayMesh or null, "volume": m3 (all bodies), "bodies": n, "volumes": [m3 each], "errors": {feature id: message}, "edges": [...], "aabb": AABB, "props": [...]}.
 ## Every shape made here is released before it returns.
 static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
-	var res := {"mesh": null, "volume": 0.0, "bodies": 0, "volumes": [], "errors": {}, "edges": [], "aabb": AABB(), "props": [], "looks": [], "body_looks": []}
+	var res := {"mesh": null, "volume": 0.0, "bodies": 0, "volumes": [], "errors": {}, "edges": [], "faces": [], "aabb": AABB(), "props": [], "looks": [], "body_looks": []}
 	if not available():
 		return res
 	var feats: Array = rec.get("features", [])
@@ -462,6 +467,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var e := _edge_op(bodies, f)
 				if e != "":
 					errs[id] = e
+			"offset_face", "draft":   # GAP 10: a face moved along its normal, or leaned about the body's bottom (its own function: _face_op)
+				var fe := _face_op(bodies, f)
+				if fe != "":
+					errs[id] = fe
 			"split", "shell":   # the record's split / shell steps (their own functions: _split, _shell)
 				var e := _split(bodies, f, looks) if String(f["t"]) == "split" else _shell(bodies, f)
 				if e != "":
@@ -513,6 +522,11 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		if tm != null and tm.get_surface_count() > 0:
 			mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, tm.surface_get_arrays(0))
 			res["looks"].append(look_at(looks, bodies.find(b)))   # one surface, one look (the view paints each surface)
+		if want.get("faces", false):   # GAP 10: the faces to pick (centre, outward normal, box position, body)
+			var fs := KCad.faces(b)
+			var fb := _bbox_of_points(fs)
+			for fc in fs:
+				res["faces"].append({"c": fc["center"], "n": fc["normal"], "q": _norm(fc["center"], fb), "body": bodies.find(b), "area": fc["area"]})
 		if want.get("edges", false):
 			var es := KCad.edges(b)
 			var bb := _bbox(es)
@@ -1304,6 +1318,76 @@ static func _edge_op(bodies: Array, f: Dictionary) -> String:
 	KCad.release(bodies[bi])
 	bodies[bi] = r
 	return ""
+
+
+## GAP 10: an offset or a draft. The faces are found on the body as it is at this step (match_face), then the kernel moves them
+static func _face_op(bodies: Array, f: Dictionary) -> String:
+	var what := "offset" if String(f["t"]) == "offset_face" else "draft"
+	if bodies.is_empty():
+		return "there is no body to %s" % what
+	var bi := clampi(int(f.get("body", 0)), 0, bodies.size() - 1)
+	var fs := KCad.faces(bodies[bi])
+	var fb := _bbox_of_points(fs)
+	if String(f["t"]) == "offset_face":
+		var j := match_face(fs, fb, f.get("face", {}))
+		if j < 0:
+			return "a face it offsets is not there any more"
+		var r := KCad.offset_face(bodies[bi], int(fs[j]["id"]), float(f.get("mm", 0.0)) * MM)
+		if r == 0:
+			return KCad.last_error()
+		KCad.release(bodies[bi])
+		bodies[bi] = r
+		return ""
+	var ids := PackedInt32Array()
+	for want in f.get("faces", []):
+		var j := match_face(fs, fb, want)
+		if j < 0:
+			return "a face it drafts is not there any more"
+		if not ids.has(int(fs[j]["id"])):
+			ids.append(int(fs[j]["id"]))
+	if ids.is_empty():
+		return "no face picked"
+	var pull: Vector3 = DRAFT_DIRS.get(String(f.get("dir", "z")), Vector3(0, 0, 1))
+	var r2 := KCad.draft_faces(bodies[bi], ids, deg_to_rad(float(f.get("deg", 0.0))), pull, fb.position)
+	if r2 == 0:
+		return KCad.last_error()
+	KCad.release(bodies[bi])
+	bodies[bi] = r2
+	return ""
+
+
+## the box of a list of faces (their centres): the frame the box position "q" is taken in
+static func _bbox_of_points(fs: Array) -> AABB:
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for fc in fs:
+		lo = lo.min(fc["center"])
+		hi = hi.max(fc["center"])
+	return AABB(lo, hi - lo) if lo.x != INF else AABB()
+
+
+## the index in fs of the face that best matches a stored descriptor (box position + normal), or -1
+static func match_face(fs: Array, bb: AABB, want: Dictionary) -> int:
+	if not (want.get("q") is Array) or not (want.get("n") is Array) or (want["q"] as Array).size() < 3 or (want["n"] as Array).size() < 3:
+		return -1
+	var q := Vector3(float(want["q"][0]), float(want["q"][1]), float(want["q"][2]))
+	var n := Vector3(float(want["n"][0]), float(want["n"][1]), float(want["n"][2]))
+	var best := -1
+	var best_s := MATCH_MAX
+	for i in fs.size():
+		var s := _norm(fs[i]["center"], bb).distance_to(q) + 0.5 * (1.0 - (fs[i]["normal"] as Vector3).dot(n))
+		if s < best_s:
+			best_s = s
+			best = i
+	return best
+
+
+## the descriptor to store for a face of the replay result (see replay's "faces"); mm
+static func describe_face(face: Dictionary) -> Dictionary:
+	var c: Vector3 = face["c"]
+	var n: Vector3 = face["n"]
+	var q: Vector3 = face["q"]
+	return {"p": [snappedf(c.x / MM, 0.001), snappedf(c.y / MM, 0.001), snappedf(c.z / MM, 0.001)], "n": [n.x, n.y, n.z], "q": [q.x, q.y, q.z], "body": int(face["body"])}
 
 
 static func _bbox(es: Array) -> AABB:
