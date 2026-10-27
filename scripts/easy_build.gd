@@ -31,6 +31,7 @@ var _hint_l: Label
 var _btns := {}      # id -> Button
 var _said := "Room"   # the hint's key (a tool or an action)
 var _was := false
+var _car_was := false   # the vehicle screen was open last frame
 var _msg := ""       # a refusal's own sentence, shown until the next press
 
 
@@ -160,6 +161,11 @@ func is_active() -> bool:
 	return m != null and m.easy != null and m.easy.on and m.S != null and m.S.kind == "building" and m.cur_page == "BUILD" and m.bld != null and m.bld.on and not (m.bld.part != null and m.bld.part.on and m.bld.part.easy)
 
 
+## the vehicle screen (the Vehicle card's package) is open: it covers the BUILD page with its own top bar
+func _car_open() -> bool:
+	return m.build_choose != null and m.build_choose._car_screen != null and m.build_choose._car_screen.visible
+
+
 ## the width the column takes from the left of the clear view
 func inset() -> float:
 	return COL_W + 12.0 + PAD * 2.0 if is_active() else 0.0
@@ -173,21 +179,30 @@ func say(easy_t := "") -> void:
 func _process(_dt: float) -> void:
 	if bar == null:
 		return
-	var on := is_active()
-	if on != _was:
+	# the vehicle screen (package_screen.gd) has its own top bar in the same place: while it is open this bar and column stay away
+	var car := _car_open()
+	var on := is_active() and not car
+	if on != _was or car != _car_was:
 		_was = on
+		_car_was = car
 		if on:
 			_msg = ""
-		else:
+		elif not car:
 			m.easy.bar.visible = m.easy.on   # Easy's own bar and view buttons come back off BUILD
 			m.easy.views.visible = m.easy.on
 	bar.visible = on
-	col.visible = on
+	# the chooser (build_choose.gd) covers the column: its House and Prop cards sat under the column's buttons
+	var chooser: bool = m.build_choose != null and m.build_choose.open
+	col.visible = on and not chooser
 	if not on:
 		hint.visible = false
 		return
 	m.easy.bar.visible = false
 	m.easy.views.visible = false
+	if chooser:
+		hint.visible = false
+		col.visible = false
+		return
 	var bld: BuildUI = m.bld
 	var has: bool = not bld._bld().is_empty() and not bool(bld._bld().get("readonly", false)) and not bld._bld().get("rooms", []).is_empty()
 	redo_btn.visible = not m.redo.is_empty()
