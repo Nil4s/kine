@@ -43,6 +43,8 @@ static func from_file(d: Variant) -> Dictionary:
 		out["chassis"] = CarChassis.norm((d as Dictionary)["chassis"])
 	if (d as Dictionary).get("susp") is Dictionary and out.has("package"):     # the suspension (carsusp) belongs to a package
 		out["susp"] = CarSusp.norm((d as Dictionary)["susp"])
+	if (d as Dictionary).get("weight") is Dictionary and out.has("package"):   # the weight and balance (carweight) belongs to a package
+		out["weight"] = CarWeight.norm((d as Dictionary)["weight"], (out["package"] as Dictionary))
 	return out
 
 
@@ -57,6 +59,8 @@ static func to_file(v: Dictionary) -> Dictionary:
 		out["chassis"] = CarChassis.norm(v["chassis"])
 	if v.get("susp") is Dictionary and out.has("package"):
 		out["susp"] = CarSusp.norm(v["susp"])
+	if v.get("weight") is Dictionary and out.has("package"):
+		out["weight"] = CarWeight.norm(v["weight"], out["package"] as Dictionary)
 	return out
 
 

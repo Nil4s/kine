@@ -13,7 +13,7 @@ const AMBER := Color("#FFC933")
 const RED := Color("#FF6B6B")
 const PW := 340.0
 const STEP_NAMES := ["1 Package", "2 Chassis", "3 Suspension", "4 Weight", "5 Body"]
-const STEP_TIPS := ["the hard points: seat, wheelbase, tracks, tyres", "the steel floor structure: sills, rails, crossmembers", "the wheels on their arms: front and rear types, wheel tilt, steering axis, roll centre, bounce", "not made yet", "not made yet"]
+const STEP_TIPS := ["the hard points: seat, wheelbase, tracks, tyres", "the steel floor structure: sills, rails, crossmembers", "the wheels on their arms: front and rear types, wheel tilt, steering axis, roll centre, bounce", "the mass of every part and where it sits: the axle loads, the balance, the centre of gravity", "not made yet"]
 const BAD_WORDS := ["ctrl", "shift", "alt+", "esc", "enter", "tab ", "delete", "backspace", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12", "spacebar", "return key"]
 
 var m: Node
@@ -100,7 +100,7 @@ func build(root: Control) -> void:
 	title_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(title_l)
-	# the step bar: 1 Package and 2 Chassis are made; the later steps are greyed (not made yet)
+	# the step bar: 1 Package to 4 Weight are made; 5 Body is greyed (not made yet)
 	var steps := HBoxContainer.new()
 	steps.name = "package_steps"
 	steps.add_theme_constant_override("separation", 4)
@@ -109,9 +109,9 @@ func build(root: Control) -> void:
 		var sb := _bar_btn(STEP_NAMES[i], "Step %d: %s" % [i + 1, STEP_TIPS[i]], set_step.bind(i + 1))
 		sb.name = "package_step_%d" % (i + 1)
 		sb.toggle_mode = true
-		if i >= 3:
+		if i >= 4:
 			sb.disabled = true
-			sb.tooltip_text = "Step %d: not made yet. The weight and the body come after the suspension" % (i + 1)
+			sb.tooltip_text = "Step %d: not made yet. The body comes after the weight" % (i + 1)
 		steps.add_child(sb)
 		step_btns[i + 1] = sb
 	undo_btn = _bar_btn("Undo", "Take back the last change", func(): m._undo())
@@ -131,6 +131,12 @@ func build(root: Control) -> void:
 	susp_plan.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	susp_plan.visible = false
 	add_child(susp_plan)
+	weight_plan = CarWeightPlan.new()   # step 4: the parts over the drawings (added after the plan, so it takes the mouse first)
+	weight_plan.name = "weight_plan"
+	weight_plan.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	weight_plan.visible = false
+	weight_plan.moved.connect(_on_weight_moved)
+	add_child(weight_plan)
 	vp = SubViewport.new()
 	vp.name = "package_view"
 	vp.own_world_3d = true
@@ -273,6 +279,7 @@ func build(root: Control) -> void:
 	add_child(status)
 	_build_chassis_panel()
 	_build_susp_panel()
+	_build_weight_panel()
 	_show_tab(true)
 	set_step(1)
 	layout()
@@ -374,10 +381,10 @@ func _build_chassis_panel() -> void:
 	body.add_child(ch_compare)
 
 
-## the steps: 1 Package (the hard points), 2 Chassis (the floor structure over the package), 3 Suspension (the wheels on their arms).
-## One click switches; the package stays as it is
+## the steps: 1 Package (the hard points), 2 Chassis (the floor structure over the package), 3 Suspension (the wheels on their arms),
+## 4 Weight and balance (the parts' masses and places). One click switches; the package stays as it is
 func set_step(n: int) -> void:
-	if n < 1 or n > 3:
+	if n < 1 or n > 4:
 		return
 	if n >= 2:
 		ensure()
@@ -387,6 +394,9 @@ func set_step(n: int) -> void:
 	chassis_panel.visible = step == 2
 	susp_panel.visible = step == 3
 	susp_plan.visible = step == 3
+	weight_panel.visible = step == 4
+	weight_plan.visible = step == 4
+	weight_plan.mouse_filter = Control.MOUSE_FILTER_STOP if step == 4 else Control.MOUSE_FILTER_IGNORE
 	for i in step_btns:
 		(step_btns[i] as Button).set_pressed_no_signal(i == step)
 	layout()
@@ -1016,14 +1026,16 @@ func _sync() -> void:
 	for c in CarPackage.CLASSES:
 		(cls_btns[String(c[0])] as Button).set_pressed_no_signal(String(c[0]) == String(p.get("class", "")))
 	plan.set_points(p)
-	plan.set_chassis(chassis() if step == 2 else {})
+	plan.set_chassis(chassis() if step == 2 or step == 4 else {})
 	_build_3d(p)
 	_build_compare(p)
 	if step == 2:
 		_sync_chassis()
 	if step == 3:
 		_sync_susp()
-	title_l.text = "Vehicle: chassis, %s" % String(p.get("class", "")) if step == 2 else "Vehicle: suspension, %s" % String(p.get("class", "")) if step == 3 else "Vehicle: package, %s" % String(p.get("class", "")) if not p.is_empty() else "Vehicle: package"
+	if step == 4:
+		_sync_weight()
+	title_l.text = "Vehicle: chassis, %s" % String(p.get("class", "")) if step == 2 else "Vehicle: suspension, %s" % String(p.get("class", "")) if step == 3 else "Vehicle: weight and balance, %s" % String(p.get("class", "")) if step == 4 else "Vehicle: package, %s" % String(p.get("class", "")) if not p.is_empty() else "Vehicle: package"
 	undo_btn.disabled = m.undo.is_empty()
 	redo_btn.disabled = m.redo.is_empty()
 	var reds := 0
@@ -1035,6 +1047,8 @@ func _sync() -> void:
 		line = "Chassis: the structure weighs %.1f kg. Change a size, or type a section in mm. Each change is one undo step" % float(tot["mass"])
 	elif line == "" and step == 3:
 		line = "Front: %s. Rear: %s. One undo step per choice; Bounce is not saved" % [String(susp()["front"]), String(susp()["rear"])]
+	elif line == "" and step == 4:
+		line = _wt_status()
 	elif line == "":
 		line = "%d of %d measures are more than 10 %% off a %s: see Yours vs real cars" % [reds, CarPackage.METRICS.size(), String(p.get("class", "")).to_lower()] if reds > 0 else "Every measure is within 10 %% of the real %s cars" % String(p.get("class", "")).to_lower()
 	status_l.text = line
@@ -1047,6 +1061,8 @@ func _build_3d(p: Dictionary) -> void:
 	car3d = CarChassis.build_3d(p, chassis()) if step >= 2 else CarPackage.build_3d(p)   # steps 2 and 3: the members as boxes, over the package
 	if step == 3:
 		car3d.add_child(CarSusp.build_3d(p, chassis(), susp(), bounce))   # the arms, knuckles and tyres at the Bounce
+	if step == 4:
+		car3d.add_child(CarWeight.build_3d(p, chassis(), susp(), weight()))   # the parts as blocks at their places, the centre of gravity as a sphere
 	world.add_child(car3d)
 	built_3d += 1
 
@@ -1150,6 +1166,13 @@ func layout() -> void:
 	if susp_panel != null:
 		susp_panel.position = panel.position
 		susp_panel.size = panel.size
+	if weight_panel != null:
+		weight_panel.position = panel.position
+		weight_panel.size = panel.size
+	if weight_plan != null:
+		weight_plan.position = plan.position
+		weight_plan.size = plan.size
+		weight_plan.visible = not show_3d and step == 4
 	status.position = Vector2(12.0, top + avail + 6.0)
 	status.size = Vector2(vw - 24.0, 40.0)
 
@@ -1167,3 +1190,261 @@ func set_3d(on: bool) -> void:
 	if view_btn != null:
 		view_btn.text = "See the drawings" if on else "See it in 3D"
 	layout()
+
+
+# ---------------------------------------------------------------- step 4: weight and balance (carweight; one undo step per change)
+var weight_panel: PanelContainer      # step 4 WEIGHT AND BALANCE: the drive layout, the fuel, the passengers, the cargo, the readouts
+var weight_plan: CarWeightPlan        # the placeable parts drawn over the side and top views, dragged with the mouse (step 4)
+var wt_layout: OptionButton
+var wt_sl := {}                       # key (fuel, pax, cargo) -> HSlider
+var wt_pill := {}                     # key -> Label (the value beside the name)
+var wt_read := {}                     # readout key -> Label
+var wt_hint := {}                     # compare key -> red hint Label
+var wt_cmp := {}                      # compare key -> Label
+var wt_parts: Label                   # every part's mass, the estimates named
+var wt_held := false
+var wt_before := ""
+var wt_n := -1
+var wt_last_ms := 0
+
+
+## the step 4 panel: the drive layout, the fuel, the passengers and the cargo, the readouts, the compare
+func _build_weight_panel() -> void:
+	weight_panel = PanelContainer.new()
+	weight_panel.name = "weight_panel"
+	weight_panel.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.95), 10, 8))
+	weight_panel.position = Vector2.ZERO
+	weight_panel.visible = false
+	add_child(weight_panel)
+	var v := VBoxContainer.new()
+	v.name = "weight_panel_vb"
+	v.add_theme_constant_override("separation", 5)
+	weight_panel.add_child(v)
+	var hd := Label.new()
+	hd.text = "Weight and balance: where the mass sits"
+	hd.tooltip_text = "Every part's mass and where it sits. Drag a part on the drawings: one undo step per drag"
+	hd.add_theme_font_size_override("font_size", 14)
+	v.add_child(hd)
+	var sc := ScrollContainer.new()
+	sc.name = "weight_scroll"
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(sc)
+	var body := VBoxContainer.new()
+	body.name = "weight_body"
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 6)
+	sc.add_child(body)
+	wt_layout = _pick_row(body, "Drive", "weight_layout_pick", "Drive layout: where the engine and the fuel sit. Choosing one moves the parts to its usual places (one undo step)", CarWeight.LAYOUTS)
+	wt_layout.item_selected.connect(func(i: int): _set_layout(i))
+	_wt_slider(body, "Fuel in the tank", "weight_fuel", "Fuel: the litres in the tank. Petrol is about 0.74 kg per litre (estimate). Drag it", "fuel", 0.0, 70.0, 1.0)
+	_wt_slider(body, "Passengers", "weight_pax", "Passengers: 0 to 4 adults, each about 75 kg (estimate). They sit in the seat positions", "pax", 0.0, float(CarWeight.PAX_MAX), 1.0)
+	_wt_slider(body, "Cargo", "weight_cargo", "Cargo: a load in the boot or the bed, in kg. Drag it", "cargo", 0.0, CarWeight.KG_MAX, 5.0)
+	var rd := VBoxContainer.new()
+	rd.name = "weight_readouts"
+	body.add_child(rd)
+	for pair in [["total", "Total mass", "Total mass: the sum of every part's mass (the parts marked estimate are typed estimates)"],
+			["front", "Weight on the front wheels", "front axle load: the share of the total mass carried by the front axle, from the moments about the axles"],
+			["rear", "Weight on the rear wheels", "rear axle load: the share of the total mass carried by the rear axle"],
+			["split", "Front / rear", "Front / rear split: the front axle load as a share of the total"],
+			["side", "Left / right", "Left / right split: the share of the total on the left wheels"],
+			["cg", "Centre of gravity", "Centre of gravity height: the sum of mass times height over the total mass (height above the ground)"],
+			["fl", "Front left wheel", "Corner load: the weight on one wheel. The four add up to the total"],
+			["fr", "Front right wheel", "Corner load: the weight on one wheel. The four add up to the total"],
+			["rl", "Rear left wheel", "Corner load: the weight on one wheel. The four add up to the total"],
+			["rr", "Rear right wheel", "Corner load: the weight on one wheel. The four add up to the total"]]:
+		var l := Label.new()
+		l.name = "weight_read_" + String(pair[0])
+		l.tooltip_text = String(pair[2])
+		l.add_theme_font_size_override("font_size", 14)
+		rd.add_child(l)
+		wt_read[pair[0]] = l
+	var cm := VBoxContainer.new()
+	cm.name = "weight_compare"
+	cm.tooltip_text = "Yours vs the real cars of the class: data/real_cars.json. Red when a real car of the class is more than 10 % off"
+	body.add_child(cm)
+	for key in ["front_split", "mass"]:
+		var l := Label.new()
+		l.name = "weight_cmp_" + key
+		l.add_theme_font_size_override("font_size", 14)
+		cm.add_child(l)
+		wt_cmp[key] = l
+		var h := Label.new()
+		h.name = "weight_hint_" + key
+		h.add_theme_font_size_override("font_size", 13)
+		h.add_theme_color_override("font_color", RED)
+		h.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		cm.add_child(h)
+		wt_hint[key] = h
+	wt_parts = Label.new()
+	wt_parts.name = "weight_parts"
+	wt_parts.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	wt_parts.add_theme_font_size_override("font_size", 13)
+	wt_parts.tooltip_text = "Each part with its mass. Estimate: a typed estimate for a typical car of the class (data/car_parts.json), not a measured mass"
+	body.add_child(wt_parts)
+
+
+## one slider row (the value in its pill); its drag is one undo step, a click is one step too
+func _wt_slider(parent: Control, label: String, nm: String, tip: String, key: String, lo: float, hi: float, st: float) -> void:
+	var v := VBoxContainer.new()
+	v.name = nm + "_row"
+	v.tooltip_text = tip
+	parent.add_child(v)
+	var top := HBoxContainer.new()
+	v.add_child(top)
+	var l := Label.new()
+	l.text = label
+	l.tooltip_text = tip
+	l.add_theme_font_size_override("font_size", 15)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top.add_child(l)
+	var pill := Label.new()
+	pill.add_theme_font_size_override("font_size", 15)
+	pill.add_theme_color_override("font_color", SKY)
+	top.add_child(pill)
+	var sl := HSlider.new()
+	sl.name = nm
+	sl.min_value = lo
+	sl.max_value = hi
+	sl.step = st
+	sl.focus_mode = Control.FOCUS_NONE
+	sl.custom_minimum_size = Vector2(0, 20)
+	sl.value_changed.connect(_wt_value.bind(key))
+	sl.drag_started.connect(_wt_start.bind(key))
+	sl.drag_ended.connect(_wt_end.bind(key))
+	v.add_child(sl)
+	wt_sl[key] = sl
+	wt_pill[key] = pill
+
+
+## the weight record (S.vehicle["weight"], filled in when missing)
+func weight() -> Dictionary:
+	return CarWeight.norm(m.S.vehicle.get("weight", {}), pkg())
+
+
+## a weight change: one undo step; a change that changes nothing is no step
+func _wt_commit(label: String, rec: Dictionary) -> void:
+	ensure()
+	var r := CarWeight.norm(rec, pkg())
+	if JSON.stringify(r) == JSON.stringify(weight()):
+		_sync()
+		return
+	m._step_hint = label
+	m._push_undo()
+	m.S.vehicle["weight"] = r
+	msg = ""
+	_sync()
+
+
+func _wt_word(key: String) -> String:
+	return {"fuel": "fuel in the tank", "pax": "passengers", "cargo": "cargo"}.get(key, key)
+
+
+## a slider's drag starts: the undo step is pushed now and kept or dropped at the end
+func _wt_start(key: String) -> void:
+	wt_held = true
+	ensure()
+	wt_before = JSON.stringify(weight())
+	m._step_hint = "Change " + _wt_word(key)
+	m._push_undo()
+	wt_n = m.undo.size()
+
+
+func _wt_set(rec: Dictionary, key: String, v: float) -> void:
+	match key:
+		"fuel":
+			rec["fuel_l"] = snappedf(v, 1.0)
+		"pax":
+			rec["pax"] = int(round(v))
+		"cargo":
+			rec["cargo_kg"] = snappedf(v, 5.0)
+
+
+func _wt_value(v: float, key: String) -> void:
+	var rec := weight()
+	_wt_set(rec, key, v)
+	if not wt_held:   # a click on the track or a key: one step of its own
+		_wt_commit("Change " + _wt_word(key), rec)
+		return
+	m.S.vehicle["weight"] = CarWeight.norm(rec, pkg())
+	if Time.get_ticks_msec() - wt_last_ms >= THROTTLE_MS:
+		wt_last_ms = Time.get_ticks_msec()
+		_sync()
+
+
+func _wt_end(_changed: bool, key: String) -> void:
+	wt_held = false
+	var rec := weight()
+	_wt_set(rec, key, (wt_sl[key] as HSlider).value)
+	m.S.vehicle["weight"] = CarWeight.norm(rec, pkg())
+	if m.undo.size() == wt_n and JSON.stringify(m.S.vehicle["weight"]) == wt_before:
+		m._drop_undo()
+	_sync()
+
+
+## the drive layout (one undo step): the parts go back to the layout's usual places
+func _set_layout(i: int) -> void:
+	var rec := weight()
+	rec["layout"] = CarWeight.LAYOUTS[clampi(i, 0, CarWeight.LAYOUTS.size() - 1)]
+	rec["at"] = {}
+	_wt_commit("Drive layout: " + String(rec["layout"]).to_lower(), rec)
+
+
+## a part dragged on the drawings: its new place (one undo step)
+func _on_weight_moved(id: String, place: Vector3) -> void:
+	var rec := weight()
+	rec["at"][id] = [place.x, place.y, place.z]
+	_wt_commit("Move " + CarWeight.PLACE_WORDS.get(id, id).to_lower(), rec)
+
+
+## the step 4 panel's words and numbers from the record and the mass list
+func _sync_weight() -> void:
+	var p := pkg()
+	var rec := weight()
+	var cls := String(p.get("class", "Hatch"))
+	wt_layout.select(maxi(0, CarWeight.LAYOUTS.find(String(rec["layout"]))))
+	wt_layout.tooltip_text = String(CarWeight.LAYOUT_TIPS.get(String(rec["layout"]), ""))
+	var cap := CarWeight.fuel_cap(cls)
+	(wt_sl["fuel"] as HSlider).max_value = cap
+	(wt_sl["fuel"] as HSlider).set_value_no_signal(float(rec["fuel_l"]))
+	(wt_sl["pax"] as HSlider).set_value_no_signal(float(rec["pax"]))
+	(wt_sl["cargo"] as HSlider).set_value_no_signal(float(rec["cargo_kg"]))
+	(wt_pill["fuel"] as Label).text = "%d L of %d (%d kg)" % [int(rec["fuel_l"]), int(cap), int(round(float(rec["fuel_l"]) * float(CarWeight.data().get("fuel_kg_per_l", 0.74))))]
+	(wt_pill["pax"] as Label).text = "%d" % int(rec["pax"])
+	(wt_pill["cargo"] as Label).text = "%d kg" % int(rec["cargo_kg"])
+	var list := CarWeight.items(p, chassis(), susp(), rec)
+	var s := CarWeight.analyse(list, p)
+	var tot := float(s["total"])
+	var fsh := float(s["front_split"])
+	wt_read["total"].text = "Total mass  %d kg" % int(round(tot))
+	wt_read["front"].text = "Weight on the front wheels  %d kg" % int(round(float(s["front"])))
+	wt_read["rear"].text = "Weight on the rear wheels  %d kg" % int(round(float(s["rear"])))
+	wt_read["split"].text = "Front / rear  %d %% / %d %%" % [int(round(fsh * 100.0)), int(round((1.0 - fsh) * 100.0))]
+	wt_read["side"].text = "Left / right  %d %% / %d %%" % [int(round(float(s["left_split"]) * 100.0)), int(round((1.0 - float(s["left_split"])) * 100.0))]
+	wt_read["cg"].text = "Centre of gravity  %d mm above the ground" % int(round(float(s["cg_z"])))
+	var cn: Dictionary = s["corners"]
+	wt_read["fl"].text = "Front left wheel  %d kg" % int(round(float(cn["fl"])))
+	wt_read["fr"].text = "Front right wheel  %d kg" % int(round(float(cn["fr"])))
+	wt_read["rl"].text = "Rear left wheel  %d kg" % int(round(float(cn["rl"])))
+	wt_read["rr"].text = "Rear right wheel  %d kg" % int(round(float(cn["rr"])))
+	for row in CarWeight.compare(p, s):
+		var key: String = row["key"]
+		var mine := ("%d %%" % int(round(float(row["yours"]) * 100.0))) if key == "front_split" else ("%d kg" % int(round(float(row["yours"]))))
+		var real := ("%d %%" % int(round(float(row["real"]) * 100.0))) if key == "front_split" else ("%d kg" % int(round(float(row["real"]))))
+		(wt_cmp[key] as Label).text = "%s: yours %s, real %s (%d cars)" % [String(row["label"]), mine, real, int(row["n"])]
+		(wt_cmp[key] as Label).add_theme_color_override("font_color", RED if bool(row["red"]) else Color(1, 1, 1))
+		(wt_hint[key] as Label).text = ("  " + String(row["hint"])) if bool(row["red"]) and String(row["hint"]) != "" else ""
+	var lines := []
+	for it in list:
+		if String(it["kind"]) == "part":
+			lines.append("%s %d kg" % [String(it["name"]), int(round(float(it["kg"])))])
+	var est := "Masses are typed estimates for a typical %s (data/car_parts.json), not measured. " % CarPackage.class_row(cls)[2]
+	wt_parts.text = est + "Parts: " + "; ".join(lines)
+	weight_plan.set_data(p, chassis(), susp(), rec)
+
+
+## the status line of step 4: the front share, and how to move a part
+func _wt_status() -> String:
+	var s := CarWeight.summary(pkg(), chassis(), susp(), weight())
+	return "Front wheels carry %d kg (%d %%). Drag a part on a drawing: one undo step each" % [int(round(float(s["front"]))), int(round(float(s["front_split"]) * 100.0))]
+
