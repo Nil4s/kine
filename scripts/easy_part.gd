@@ -1032,7 +1032,7 @@ func _repeat(rec: Dictionary) -> String:
 	return ""
 
 
-## Row (linear, along X) or Ring (circular, round the up axis Y, a full turn): one undo step; Gap is for the row only
+## Row (linear, along X) or Ring (circular, round the up axis Y, a full turn): one undo step; Gap spaces both (in a Ring it sets the circle size)
 func _rep_mode(ring: bool) -> void:
 	if Part.feature(_rec(), rep_id).is_empty():
 		return
@@ -1112,7 +1112,6 @@ func _rep_sync() -> void:
 		if not bool(r.get("held", false)):
 			s.set_value_no_signal(v)
 		_pill_text(r, v)
-		s.editable = not (ring and String(r["key"]) == "gap")
 
 
 ## CURVY LINE: the drag's points (sampled to 12) become one spline sketch (Part's "bspline" entity; the kernel gets the curve it draws).
