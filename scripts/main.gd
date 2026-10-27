@@ -6572,6 +6572,8 @@ func _restore(u: Dictionary) -> void:
 		S.body = u["pbody"].duplicate(true)   # PR1: the proportions, undone like a card (the body's come back in its state)
 		ov.mark_dirty()
 		wt.mark_dirty()
+		if bld != null:
+			bld.sync()   # C2: a Part dimension bound to the body follows it back
 	B.set_state(u["body"])   # lossless (round 8): from_dict re-solved from the file's rounded numbers
 	if u["scene"] == S and u.get("holds", S.moving_holds) != S.moving_holds:   # a scene setting, undone like a card
 		S.moving_holds = u["holds"]
@@ -24711,6 +24713,8 @@ func proportions_set(d: Dictionary) -> Dictionary:
 		_dummy_hits()
 		ov.mark_dirty()
 		wt.mark_dirty()
+		if bld != null:
+			bld.sync()   # C2: a Part dimension bound to the body re-solves now
 		if not S.cards.is_empty():
 			S.apply(B, playhead))
 	var st := float(nd.get("stature", Proportions.DEFAULT_STATURE))

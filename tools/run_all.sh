@@ -157,3 +157,4 @@ EXTRA="$EXTRA ribbonsd:w"   # STAGE + DELIVER ribbons: the POSE/ANIMATE standard
 EXTRA="$EXTRA remesh:h"   # M1 VOXEL REMESH: a closed mesh to an even quad mesh (surface nets + QEF on the banded field): volume within 2 % (sphere, torus, block ring), closed and manifold, quad count within 10 % of 1.5 A / h^2, undo (tests/remesh_test.gd)
 EXTRA="$EXTRA constraints_breadth:h"   # A2 CONSTRAINT BREADTH: copy location, copy rotation (Offset), damped track, limit location; the bars and the file round trip (tests/constraints_breadth_test.gd)
 EXTRA="$EXTRA hdri:w"   # CG2: a .hdr / .exr picture as the sky and the light (scripts/shading.gd; tests/hdri_test.gd)
+EXTRA="$EXTRA bodydims:w"   # C2 BODY-DRIVEN DIMENSIONS: a sketch dimension typed =forearm+4 reads the body (forearm length + 4 mm), the solid follows a taller body, no body / unknown measure = an error; a 190 cm body on the BUILD page moves the sketch (tests/bodydims_test.gd; needs the CAD DLL)
