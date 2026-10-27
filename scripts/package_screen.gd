@@ -135,6 +135,7 @@ func build(root: Control) -> void:
 	weight_plan.name = "weight_plan"
 	weight_plan.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	weight_plan.visible = false
+	weight_plan.under = plan
 	weight_plan.moved.connect(_on_weight_moved)
 	add_child(weight_plan)
 	vp = SubViewport.new()

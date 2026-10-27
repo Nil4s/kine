@@ -24,6 +24,7 @@ extends SceneTree
 ##  19 3D UI     See it in 3D: the weight blocks and the CG sphere are in the 3D tree
 ##  20 LAYOUT1280 at 1280 x 720 the top bar, the drawings, the weight panel and the status line overlap nothing and sit in the window
 ##  21 WORDS     no key name in the weight panel or the status line
+##  22 LABELS    every weight label inside its panel, apart from the others, on no part block (the drawing placer)
 ## Shots in C:/Temp/claude/carbuild/: weight_easy.png (the drawings with the parts and the readouts), weight_3d.png (the 3D view).
 
 const SHOT := "C:/Temp/claude/carbuild"
@@ -350,6 +351,24 @@ func ui_bars() -> void:
 			if a < b and rs[a].intersects(rs[b]):
 				clash.append("%s/%s" % [a, b])
 	ok(clash.is_empty(), "20 LAYOUT1280 at 1280 x 720 weight step: nothing overlaps, all in the window %s" % str(clash))
+	# 22 LABELS: every label of the weight drawing is placed (fits), inside its panel, apart from the other labels and on no part block
+	var pl22: CarWeightPlan = ps.weight_plan
+	var bad22 := []
+	for i in pl22.labels.size():
+		var a: Dictionary = pl22.labels[i]
+		var ra: Rect2 = a["rect"]
+		var pn: Rect2 = pl22.side_r if int(a["panel"]) == 0 else pl22.top_r
+		if not bool(a["fits"]) or not pn.encloses(ra):
+			bad22.append("%s outside its panel" % String(a["text"]))
+		for j in range(i + 1, pl22.labels.size()):
+			var rb: Rect2 = pl22.labels[j]["rect"]
+			if ra.intersects(rb):
+				bad22.append("%s / %s" % [String(a["text"]), String(pl22.labels[j]["text"])])
+		for b in pl22.blocks:
+			var rbl: Rect2 = b["rect"]
+			if ra.intersects(rbl):
+				bad22.append("%s on %s" % [String(a["text"]), String(b["id"])])
+	ok(bad22.is_empty() and pl22.labels.size() >= 7, "22 LABELS %d weight labels, each inside its panel, apart, on no part block: %s" % [pl22.labels.size(), str(bad22.slice(0, 4))])
 	await shot("weight_easy")
 	# 21 WORDS
 	var tx := []

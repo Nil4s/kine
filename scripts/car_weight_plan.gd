@@ -30,6 +30,7 @@ var drag_from := Vector2.ZERO
 var drag_start := Vector3.ZERO
 var drag_now := Vector3.ZERO
 var dragging := false
+var under: CarPlan = null     # the package drawing under this one (its outlines and labels are kept off)
 
 
 func set_data(p_: Dictionary, c_: Dictionary, susp_: Dictionary, w_: Dictionary) -> void:
@@ -136,6 +137,22 @@ func _draw() -> void:
 	var list := CarWeight.items(p, c, susp, w)
 	var res := CarWeight.analyse(list, p)
 	s = res
+	var dd := CarPackage.derive(p)
+	var L := float(dd["length"])
+	var H := float(dd["height"])
+	var y0 := side_r.position.y + side_r.size.y - 40.0      # the package drawing's ground line
+	# what the labels keep off, per panel: the package drawing's outlines and labels (the same panels), the blocks, the axle arrows,
+	# the CG cross, and the leaders already drawn
+	var obs_lines := [[], []]
+	var obs_rects := [[], []]
+	if under != null:
+		for pi in 2:
+			for pl in under.outline[pi]:
+				obs_lines[pi].append(pl)
+			for l in under.labels:
+				if int(l["panel"]) == pi:
+					obs_rects[pi].append(l["rect"])
+	var parts := []
 	for it in list:
 		if String(it["kind"]) != "part":
 			continue   # the chassis, the links and the wheels are drawn by CarPlan / CarChassis, not here
@@ -159,32 +176,106 @@ func _draw() -> void:
 		draw_rect(tr, col, false, 1.5)
 		blocks.append({"id": id, "view": 0, "rect": sr, "place": pos, "drag": drag})
 		blocks.append({"id": id, "view": 1, "rect": tr, "place": pos, "drag": drag})
-		_text(sr.get_center(), nm, col)
+		obs_rects[0].append(sr)
+		obs_rects[1].append(tr)
+		parts.append({"nm": nm, "col": col, "sr": sr})
 	# the axle loads: arrows up into the body at each axle's tyre contact (length by the share of the total)
 	var tot := maxf(float(res["total"]), 1.0)
 	var wb := float(p["wheelbase"])
 	var fx := float(res["front"]) / tot
 	var rx := float(res["rear"]) / tot
-	for ax in [[0.0, fx, float(res["front"]), "Weight on the front wheels"], [wb, rx, float(res["rear"]), "Weight on the rear wheels"]]:
+	var f := ThemeDB.fallback_font
+	for ax in [[0.0, fx, float(res["front"]), 1.0], [wb, rx, float(res["rear"]), -1.0]]:
 		var base := _side_px(float(ax[0]), 0.0)
 		var ln := 40.0 + 160.0 * float(ax[1])
 		draw_line(base + Vector2(0, 24.0), base + Vector2(0, 24.0 - ln), ARROW, 2.0)
 		draw_colored_polygon(PackedVector2Array([base + Vector2(0, 24.0 - ln), base + Vector2(-5, 30.0 - ln), base + Vector2(5, 30.0 - ln)]), ARROW)
-		_text(base + Vector2(-8.0, 36.0), "%d kg" % int(round(float(ax[2]))), ARROW, true)
+		obs_lines[0].append(PackedVector2Array([base + Vector2(0, 24.0), base + Vector2(0, 24.0 - ln)]))
+		var kt := "%d kg" % int(round(float(ax[2])))
+		var kw := f.get_string_size(kt, HORIZONTAL_ALIGNMENT_LEFT, -1, LABEL_SZ).x
+		var kr := Rect2(base + Vector2(6.0 if float(ax[3]) > 0.0 else -6.0 - kw, 20.0), Vector2(kw, f.get_height(LABEL_SZ)))
+		obs_rects[0].append(kr)
+		_put(0, kt, kr, ARROW, true)
 	# the centre of gravity: a red cross in each view
 	var cg_s := _side_px(float(res["cg_x"]), float(res["cg_z"]))
 	var cg_t := _top_px(float(res["cg_x"]), float(res["cg_y"]))
 	for q in [cg_s, cg_t]:
 		draw_line(q + Vector2(-7, 0), q + Vector2(7, 0), CarWeight.CG_COL, 2.0)
 		draw_line(q + Vector2(0, -7), q + Vector2(0, 7), CarWeight.CG_COL, 2.0)
-	_text(cg_s + Vector2(10, -10), "CG %d mm high" % int(round(float(res["cg_z"]))), CarWeight.CG_COL)
-	_text(cg_t + Vector2(10, -10), "CG %d mm back from the front axle" % int(round(float(res["cg_x"]))), CarWeight.CG_COL)
+	obs_rects[0].append(Rect2(cg_s - Vector2(8, 8), Vector2(16, 16)))
+	obs_rects[1].append(Rect2(cg_t - Vector2(8, 8), Vector2(16, 16)))
+	# the labels, each outside the car: side view above the roof line or below the ground line; top view left or right of the body
+	var roof := y0 - H * mm_px
+	var above := Rect2(side_r.position.x, side_r.position.y, side_r.size.x, roof - 2.0 - side_r.position.y)
+	var below := Rect2(side_r.position.x, y0 + 2.0, side_r.size.x, side_r.end.y - y0 - 2.0)
+	var bx0 := top_r.position.x + CarPlan.LM
+	var bx1 := bx0 + L * mm_px
+	var left := Rect2(top_r.position.x, top_r.position.y, bx0 - 2.0 - top_r.position.x, top_r.size.y)
+	var right := Rect2(bx1 + 2.0, top_r.position.y, top_r.end.x - bx1 - 2.0, top_r.size.y)
+	for pt in parts:
+		var col: Color = pt["col"]
+		var sr: Rect2 = pt["sr"]
+		_place(0, [above, below], sr.get_center(), String(pt["nm"]), col.lightened(0.45), obs_lines[0], obs_rects[0], sr)
+	var cgc := CarWeight.CG_COL.lightened(0.45)
+	var cgs := Rect2(cg_s - Vector2(8, 8), Vector2(16, 16))
+	_place(0, [above, below], cg_s, "CG %d mm high" % int(round(float(res["cg_z"]))), cgc, obs_lines[0], obs_rects[0], cgs)
+	var cgt := Rect2(cg_t - Vector2(8, 8), Vector2(16, 16))
+	_place(1, [left, right], cg_t, "CG %d mm back from the front axle" % int(round(float(res["cg_x"]))), cgc, obs_lines[1], obs_rects[1], cgt)
 
 
-## a text label at a px point (the centre of the text when centred)
-func _text(at: Vector2, t: String, col: Color, centred := false) -> void:
+## the text at a rect's top-left, recorded as a label (the tests read them)
+func _put(pi: int, t: String, r: Rect2, col: Color, fits: bool) -> void:
+	var f := ThemeDB.fallback_font
+	draw_string(f, Vector2(r.position.x, r.position.y + f.get_ascent(LABEL_SZ)), t, HORIZONTAL_ALIGNMENT_LEFT, -1, LABEL_SZ, col)
+	labels.append({"rect": r, "panel": pi, "text": t, "fits": fits})
+
+
+## the label's placer (the rules of CarPlan's): the first spot nearest its block, inside one of its zones and its panel, touching no
+## outline, no block (but its own), no other label and no leader; its leader (a thin line from the label to the block) is kept
+func _place(pi: int, zones: Array, anchor: Vector2, t: String, col: Color, obs_lines: Array, obs_rects: Array, own: Rect2) -> void:
 	var f := ThemeDB.fallback_font
 	var tw := f.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, LABEL_SZ).x
-	var pos := at - Vector2(tw * 0.5, 0.0) if centred else at
-	draw_string(f, Vector2(pos.x, pos.y + f.get_ascent(LABEL_SZ)), t, HORIZONTAL_ALIGNMENT_LEFT, -1, LABEL_SZ, col)
-	labels.append({"rect": Rect2(pos, Vector2(tw, f.get_height(LABEL_SZ))), "text": t})
+	var th := f.get_height(LABEL_SZ)
+	var cands := []
+	for z in zones:
+		var zr: Rect2 = z
+		var x := zr.position.x
+		while x + tw <= zr.end.x:
+			var y := zr.position.y
+			while y + th <= zr.end.y:
+				cands.append(Rect2(x, y, tw, th))
+				y += 3.0
+			x += 6.0
+	cands.sort_custom(func(a: Rect2, b: Rect2) -> bool: return a.get_center().distance_squared_to(anchor) < b.get_center().distance_squared_to(anchor))
+	var panel: Rect2 = side_r if pi == 0 else top_r
+	var pick := Rect2(anchor, Vector2(tw, th))
+	var lead := anchor
+	var found := false
+	for cnd in cands:
+		var r: Rect2 = cnd
+		var ld := Vector2(clampf(anchor.x, r.position.x, r.end.x), clampf(anchor.y, r.position.y, r.end.y))
+		if _free(pi, r, ld, anchor, own, panel, obs_lines, obs_rects):
+			pick = r
+			lead = ld
+			found = true
+			break
+	draw_line(lead, anchor, Color(col.r, col.g, col.b, 0.8), 1.0)
+	obs_lines.append(PackedVector2Array([lead, anchor]))
+	_put(pi, t, pick, col, found)
+
+
+func _free(pi: int, r: Rect2, ld: Vector2, anchor: Vector2, own: Rect2, panel: Rect2, obs_lines: Array, obs_rects: Array) -> bool:
+	if not panel.grow(-2.0).encloses(r):
+		return false
+	for ob in obs_rects:
+		if (ob as Rect2).grow(2.0).intersects(r):
+			return false
+	for pl in obs_lines:
+		if CarPlan.line_hits(r.grow(1.0), pl):
+			return false
+	for l in labels:
+		if int(l["panel"]) == pi and (l["rect"] as Rect2).grow(2.0).intersects(r):
+			return false
+		if int(l["panel"]) == pi and CarPlan.seg_hits_rect(ld, anchor, (l["rect"] as Rect2).grow(1.0)):
+			return false
+	return true
