@@ -57,6 +57,7 @@ var stick_box: PanelContainer    # Stick together: Join / Cut away / Keep the ov
 var stick_btns := {}
 var stick_picks: Array = []      # the body indices clicked in the view (the first = the target, the second = the tool)
 var stick_tris := {}             # body index -> its triangles, for the glow of a picked piece
+var stick_edges := {}            # body index -> its crease edges (pairs of points): the glow's outline, no triangle diagonals
 const PICK_PX := 12.0            # a click this close (screen px) to a piece picks it when the ray hits nothing
 var rep_id := ""                 # the last Repeat it step's feature id ("" = none)
 var rep_rows := []               # the two slider rows of the Repeat it box (see _make_row)
@@ -1084,9 +1085,11 @@ func _stick_pick(bi: int, faces: Array) -> void:
 	if stick_picks.has(bi):
 		stick_picks.erase(bi)
 		stick_tris.erase(bi)
+		stick_edges.erase(bi)
 	elif stick_picks.size() < 2:
 		stick_picks.append(bi)
 		stick_tris[bi] = faces[bi]
+		stick_edges[bi] = _creases(faces[bi])
 	else:
 		_say("Two pieces are picked: press Join, Cut away or Keep the overlap, or click one to take it off")
 		return
@@ -1333,6 +1336,30 @@ func _near_body(p: Vector2, faces: Array) -> int:
 	return best
 
 
+## the crease edges of a triangle soup: an edge whose two triangles turn more than ~8 deg (or that has one triangle) is drawn;
+## the diagonals inside a flat face are not. Points are matched to 0.01 mm
+func _creases(tris: PackedVector3Array) -> PackedVector3Array:
+	var seen := {}   # edge key -> [a, b, normal of the first triangle, still to draw]
+	var out := PackedVector3Array()
+	for k in range(0, tris.size() - 2, 3):
+		var n := (tris[k + 1] - tris[k]).cross(tris[k + 2] - tris[k]).normalized()
+		for j in 3:
+			var a: Vector3 = tris[k + j]
+			var b: Vector3 = tris[k + (j + 1) % 3]
+			var ka := str((a * 1e5).round())
+			var kb := str((b * 1e5).round())
+			var key := ka + "|" + kb if ka < kb else kb + "|" + ka
+			if seen.has(key):
+				seen[key][3] = (seen[key][2] as Vector3).dot(n) < 0.99
+			else:
+				seen[key] = [a, b, n, true]
+	for e in seen.values():
+		if e[3]:
+			out.append(e[0])
+			out.append(e[1])
+	return out
+
+
 ## the three corners of triangle k on screen (empty when one is behind the camera)
 func _proj3(tris: PackedVector3Array, k: int) -> PackedVector2Array:
 	var out := PackedVector2Array()
@@ -1363,7 +1390,11 @@ func _draw_dots() -> void:
 			if q.is_empty():
 				continue
 			dots.draw_colored_polygon(q, Color(AMBER, 0.28))
-			dots.draw_polyline(PackedVector2Array([q[0], q[1], q[2], q[0]]), AMBER, 2.0, true)
+		var ed: PackedVector3Array = stick_edges.get(bi, PackedVector3Array())
+		for k in range(0, ed.size() - 1, 2):
+			if m.cam.is_position_behind(ed[k]) or m.cam.is_position_behind(ed[k + 1]):
+				continue
+			dots.draw_line(m.cam.unproject_position(ed[k]), m.cam.unproject_position(ed[k + 1]), AMBER, 2.0, true)
 	if not _draft.is_empty():
 		var pts := _draft_outline()
 		if pts.size() > 1:
