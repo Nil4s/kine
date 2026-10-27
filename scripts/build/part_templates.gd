@@ -13,7 +13,7 @@ const T := {
 		{"k": "blade_length", "label": "Blade length", "lo": 300.0, "hi": 1200.0, "def": 760.0, "step": 10.0, "words": ["Shorter", "Longer"]},
 		{"k": "width", "label": "Width", "lo": 30.0, "hi": 120.0, "def": 68.0, "step": 2.0, "words": ["Thinner", "Wider"]},
 		{"k": "guard_size", "label": "Guard size", "lo": 80.0, "hi": 240.0, "def": 130.0, "step": 10.0, "words": ["Smaller", "Bigger"]},
-		{"k": "thickness", "label": "Thickness", "lo": 4.0, "hi": 16.0, "def": 8.0, "step": 1.0, "words": ["Thinner", "Thicker"]}]},
+		{"k": "thickness", "label": "Thickness", "lo": 4.0, "hi": 16.0, "def": 7.0, "step": 1.0, "words": ["Thinner", "Thicker"]}]},
 	"axe": {"title": "Axe", "params": [
 		{"k": "handle_length", "label": "Handle length", "lo": 300.0, "hi": 1000.0, "def": 700.0, "step": 10.0, "words": ["Shorter", "Longer"]},
 		{"k": "head_width", "label": "Blade width", "lo": 80.0, "hi": 300.0, "def": 160.0, "step": 10.0, "words": ["Narrower", "Wider"]},
@@ -33,6 +33,15 @@ const T := {
 		{"k": "height", "label": "Height", "lo": 200.0, "hi": 800.0, "def": 400.0, "step": 10.0, "words": ["Lower", "Taller"]},
 		{"k": "depth", "label": "Depth", "lo": 200.0, "hi": 800.0, "def": 400.0, "step": 10.0, "words": ["Shallower", "Deeper"]},
 		{"k": "lid", "label": "Lid overhang", "lo": 0.0, "hi": 60.0, "def": 20.0, "step": 5.0, "words": ["None", "More"]}]},
+	# VEHICLE PARTS (B3, scripts/vehicle.gd): not in ORDER, so no Easy chip: a car body and one wheel
+	"car": {"title": "Car body", "params": [
+		{"k": "body_length", "label": "Length", "lo": 1500.0, "hi": 5000.0, "def": 2400.0, "step": 50.0, "words": ["Shorter", "Longer"]},
+		{"k": "body_width", "label": "Width", "lo": 1000.0, "hi": 2200.0, "def": 1200.0, "step": 20.0, "words": ["Narrower", "Wider"]},
+		{"k": "body_height", "label": "Height", "lo": 300.0, "hi": 1000.0, "def": 500.0, "step": 10.0, "words": ["Lower", "Taller"]},
+		{"k": "wheelbase", "label": "Wheelbase", "lo": 1000.0, "hi": 3000.0, "def": 1584.0, "step": 20.0, "words": ["Shorter", "Longer"]}]},
+	"wheel": {"title": "Wheel", "params": [
+		{"k": "radius", "label": "Radius", "lo": 100.0, "hi": 600.0, "def": 300.0, "step": 10.0, "words": ["Smaller", "Bigger"]},
+		{"k": "width", "label": "Width", "lo": 50.0, "hi": 400.0, "def": 200.0, "step": 10.0, "words": ["Thinner", "Wider"]}]},
 }
 
 
@@ -111,6 +120,14 @@ static func _rect(a: Vector2, b: Vector2) -> Dictionary:
 	return {"k": "rect", "a": Part.arr2(a), "b": Part.arr2(b)}
 
 
+## a closed outline given in the Right plane's (Y, Z) as Vector2(y, z): the plane's sketch x runs along -Z, its y is Y
+static func _yz(pts: Array) -> Array:
+	var sk := []
+	for p in pts:
+		sk.append(Vector2(-(p as Vector2).y, (p as Vector2).x))
+	return _poly(sk)
+
+
 static func _poly(pts: Array) -> Array:
 	var out := []
 	for i in pts.size():
@@ -127,8 +144,17 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var g: float = p["guard_size"]
 			var th: float = p["thickness"]
 			var tip := minf(w * 1.6, L * 0.3)
-			_ex(fs, _sk(fs, "front", _poly([Vector2(0, -w * 0.5), Vector2(L - tip, -w * 0.5), Vector2(L, 0), Vector2(L - tip, w * 0.5), Vector2(0, w * 0.5)])), "extrude", th, "new", true)
-			_ex(fs, _sk(fs, "front", [_rect(Vector2(-6, -g * 0.5), Vector2(4, g * 0.5))]), "extrude", 14.0, "join", true)
+			var hw := w * 0.5
+			# the blade tapers from the guard to 40 % of its width at the shoulder, then comes to a point
+			_ex(fs, _sk(fs, "front", _poly([Vector2(0, -hw), Vector2(L - tip, -hw * 0.4), Vector2(L, 0), Vector2(L - tip, hw * 0.4), Vector2(0, hw)])), "extrude", th, "new", true)
+			# a diamond section: the spine is th, the edges 6 % of it: the two shoulders come off each face, cut along the whole blade
+			var e := th * 0.06
+			for sg in [1.0, -1.0]:
+				var m := 2.0
+				var cut := [Vector2(-hw - m, sg * e), Vector2(-hw, sg * e), Vector2(0, sg * th * 0.5), Vector2(hw, sg * e), Vector2(hw + m, sg * e),
+					Vector2(hw + m, sg * (th * 0.5 + m)), Vector2(-hw - m, sg * (th * 0.5 + m))]
+				_ex(fs, _sk(fs, "right", _yz(cut)), "extrude", 2.0 * L + 20.0, "cut", true)
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(-6, -g * 0.5), Vector2(4, g * 0.5))]), "extrude", 8.0, "join", true)
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(-106, 0), Vector2(-2, 11))]), "revolve", 0.0, "join")
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(-124, 0), Vector2(-104, 15))]), "revolve", 0.0, "join")
 		"axe":
@@ -170,7 +196,25 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			_ex(fs, _sk(fs, "front", _poly([Vector2(0, sh), Vector2(w, sh), Vector2(w, 0), Vector2(w - lt, 0), Vector2(w - lt, sh - st), Vector2(lt, sh - st), Vector2(lt, 0), Vector2(0, 0)])), "extrude", d, "new")
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(0, sh - st), Vector2(w, sh + bh))]), "extrude", 30.0, "join")
 			_ex(fs, _sk(fs, "right", [_rect(Vector2(-(d - lt), 0), Vector2(-lt, sh - st))]), "extrude", w, "cut")
+		"car":
+			# a box on the ground: length along the Top plane's sketch y (= -Z, the car drives along +Z), width along X, height up
+			var L: float = p["body_length"]
+			var W: float = p["body_width"]
+			_ex(fs, _sk(fs, "top", [_rect(Vector2(-W * 0.5, -L * 0.5), Vector2(W * 0.5, L * 0.5))]), "extrude", float(p["body_height"]), "new")
+		"wheel":
+			# a tyre: the profile (width x radius) turned about the sketch's x axis = world X, the axle (side to side)
+			var R: float = p["radius"]
+			var w: float = p["width"]
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(-w * 0.5, 0.0), Vector2(w * 0.5, R))]), "revolve", 0.0, "new")
 	return fs
+
+
+## a handle in another material than the Part's: [material, last steel feature], or [] when all of it is one material. The sword's
+## pommel and grip (the features after its guard, index 7) are wood; its blade and guard are steel
+static func handle_mat(rec: Dictionary) -> Array:
+	if String(rec.get("easy", {}).get("t", "")) == "sword":
+		return ["wood", 7]
+	return []
 
 
 ## the handle's centre in the Part's own frame (m): the grip a hand holds (PartWeapon). A sword's grip is the revolve x -106..-2 mm; an axe's

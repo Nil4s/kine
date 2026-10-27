@@ -247,7 +247,7 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
 	"MODEL": [["MESH", ["Test cube", "Edit body", "Save", "Save to body", "Open...", "Use in scene"]], ["MOVE", ["Move", "Rotate", "Scale"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Validate", "Repair", "Proportional", "Modifiers"]]],
-	"SCULPT": [["START", ["Test sphere", "Sculpt the body"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
+	"SCULPT": [["START", ["Test sphere", "Sculpt the body", "Voxel remesh"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
 	"SURFACE": [["COLOUR", ["Paint", "Material from photo"]], ["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]]],
 	"BUILD": [["DRAW", ["Room", "Wall", "Pull"]], ["ADD", ["Opening", "Floor", "Roof", "Piece"]], ["SAY", ["Words"]], ["SHEET", ["Blueprint"]],
 		["PART", ["Part"]], ["SKETCH", ["Line", "Rectangle", "Circle", "Arc", "Dimension"]], ["CREATE", ["Extrude", "Revolve", "Mirror"]], ["MODIFY", ["Fillet", "Chamfer"]], ["DONE", ["Finish sketch"]]],   # the last five are the Part workspace's (scripts/build/part_ui.gd)
@@ -277,7 +277,9 @@ const RIBBON_REST := {"MODEL": ["Save to body", "Open...", "Use in scene", "Loop
 	"SET": ["Turn left", "Turn right", "Step up", "Throw to...", "Sit down", "Stand up", "Get up", "Add impact frames", "Remove impact frames"],
 	"EXPORT": ["Use as a prop", "Open exports folder"], "CHECK": ["Safety sheet", "Real-mocap check", "Speed limits", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check",
 	"Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound", "Star this clip", "My best take", "Make this one more like my best",
-	"What I learned from you", "My combos", "Frame it my way"]}
+	"What I learned from you", "My combos", "Frame it my way"],
+	# BUILD (the Part workspace's rarer tools): under their captions SKETCH / CREATE / MODIFY, not on the row, so Fillet fits at 1280 x 720
+	"BUILD": ["Arc", "Dimension", "Mirror", "Chamfer"]}
 ## PAGES (docs/PAGES_PLAN.md, step 1; DaVinci Resolve's page bar): one bar along the bottom, each page its own layout over
 ## the SAME scene, body and undo history. A page shows ONE ribbon row (its groups) and decides which side panels and how
 ## much of the scene strip are open; switching is a view change: no undo step, the scene untouched. The VIEW row is not a
@@ -2840,11 +2842,42 @@ func _sky_toggle() -> void:
 	_say("sky background %s (a view setting, remembered; the lights menu top right of the view toggles it)" % ("on: a gradient sky" if shading.sky else "off: the flat colour"))
 
 
+## CG2: a picture (.hdr or .exr) as the sky behind the figure and the light on it: a file dialog, then the sky is on
+func _hdri_ask() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.hdr ; Radiance picture", "*.exr ; OpenEXR picture"])
+	fd.use_native_dialog = true
+	fd.title = "Picture background (.hdr or .exr)"
+	fd.file_selected.connect(func(p): _hdri_set(p); fd.queue_free())
+	fd.canceled.connect(fd.queue_free)
+	add_child(fd)
+	fd.popup_centered(Vector2i(800, 500))
+
+
+func _hdri_set(path: String) -> void:
+	if not shading.load_hdri(self, path):
+		_say("that file is not a picture this app can read: pick a .hdr or .exr file (the view is unchanged)")
+		return
+	shading.save_cfg(self)
+	_shade_menu_sync()
+	_say("picture background: %s (it is the sky and the light on the figure; remembered)" % path.get_file())
+
+
+func _hdri_clear() -> void:
+	shading.clear_hdri(self)
+	shading.save_cfg(self)
+	_shade_menu_sync()
+	_say("picture background removed: the gradient sky again")
+
+
 var ui_shade_btn: MenuButton
 var ui_light_btn: MenuButton
 const SHADE_ITEMS := [["wireframe", "Wireframe", "shade_wire"], ["solid", "Solid", "shade_solid"], ["matcap:clay", "Matcap: clay", "shade_matcap"], ["matcap:wax", "Matcap: red wax", "shade_matcap"],
 	["matcap:skin", "Matcap: skin", "shade_matcap"], ["xray", "X-ray", "shade_xray"], ["silhouette", "Silhouette", "shade_sil"]]
-const LIGHT_ITEMS := [["default", "Stage lights", "lit_day"], ["three_point", "3-point", "lit_three"], ["rim", "Rim only", "lit_rim"], ["top", "Top light", "lit_top"], ["flat", "Flat", "lit_flat"], ["sky", "Sky background", "sky"]]
+const LIGHT_ITEMS := [["default", "Stage lights", "lit_day"], ["three_point", "3-point", "lit_three"], ["rim", "Rim only", "lit_rim"], ["top", "Top light", "lit_top"], ["flat", "Flat", "lit_flat"], ["sky", "Sky background", "sky"],
+	["hdri", "Picture background (.hdr / .exr)...", "sky"], ["hdri_clear", "Remove the picture", "sky"]]
 
 
 ## the two small menus under the ViewCube: how the figure is drawn, and the studio lights
@@ -2868,6 +2901,10 @@ func _build_shade_menus() -> void:
 			var key: String = items[id][0]
 			if key == "sky":
 				_sky_toggle()
+			elif key == "hdri":
+				_hdri_ask()
+			elif key == "hdri_clear":
+				_hdri_clear()
 			elif key.begins_with("matcap:"):
 				_matcap_set(key.substr(7))
 			elif items == SHADE_ITEMS:
@@ -2893,7 +2930,9 @@ func _shade_menu_sync() -> void:
 	var lp := ui_light_btn.get_popup()
 	for i in LIGHT_ITEMS.size():
 		var k2: String = LIGHT_ITEMS[i][0]
-		lp.set_item_checked(i, shading.sky if k2 == "sky" else k2 == shading.lights)
+		lp.set_item_checked(i, shading.sky if k2 == "sky" else (shading.hdri != "" if k2 == "hdri" else k2 == shading.lights))
+		if k2 == "hdri_clear":
+			lp.set_item_disabled(i, shading.hdri == "")
 	ui_shade_btn.icon = Icons.tex({"wireframe": "shade_wire", "matcap": "shade_matcap", "xray": "shade_xray", "silhouette": "shade_sil"}.get(shading.mode, "shade_solid"))
 
 
@@ -6381,7 +6420,7 @@ func _snapshot() -> Dictionary:
 	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
 	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
 		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps, "bcol": body_colour, "bsm": Overlays.smooth,
-		"props": S.props.map(func(p): return Props.to_dict(p)), "building": _bld_file(), "part": _part_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
+		"props": S.props.map(func(p): return Props.to_dict(p)), "building": _bld_file(), "part": _part_file(), "vehicle": _vehicle_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
@@ -6448,6 +6487,11 @@ func _bld_file() -> Dictionary:
 ## the open scene's PART record as the file holds it ({} = none): the undo snapshot's "part"
 func _part_file() -> Dictionary:
 	return {} if S.part.is_empty() else Part.to_file(S.part)
+
+
+## VEHICLE (B3): the wheel's record, as an undo snapshot holds it ({} when there is no car)
+func _vehicle_file() -> Dictionary:
+	return {} if S.vehicle.is_empty() else {"wheel": S.vehicle["wheel"].duplicate(true)}
 
 
 func _restore(u: Dictionary) -> void:
@@ -6528,6 +6572,8 @@ func _restore(u: Dictionary) -> void:
 		S.body = u["pbody"].duplicate(true)   # PR1: the proportions, undone like a card (the body's come back in its state)
 		ov.mark_dirty()
 		wt.mark_dirty()
+		if bld != null:
+			bld.sync()   # C2: a Part dimension bound to the body follows it back
 	B.set_state(u["body"])   # lossless (round 8): from_dict re-solved from the file's rounded numbers
 	if u["scene"] == S and u.get("holds", S.moving_holds) != S.moving_holds:   # a scene setting, undone like a card
 		S.moving_holds = u["holds"]
@@ -6562,6 +6608,8 @@ func _restore(u: Dictionary) -> void:
 		S.part = Part.from_file(u["part"])   # PART: the feature timeline, undone like a card
 		if bld != null:
 			bld.sync()
+	if u["scene"] == S and u.has("vehicle") and JSON.stringify(u["vehicle"]) != JSON.stringify(_vehicle_file()):
+		S.vehicle = Vehicle.from_file(u["vehicle"])   # VEHICLE: the wheel, undone like a card
 	if u.has("bcol") and int(u["bcol"]) != body_colour:
 		body_colour = int(u["bcol"])   # His colour, undone like the photo materials
 		_body_colour_show()
@@ -8466,7 +8514,7 @@ func _sk_show_handles() -> void:
 	sk.queue_redraw()
 
 
-static func _sk_flip_name(key: String) -> String:
+func _sk_flip_name(key: String) -> String:
 	return "hips" if key == "hip" else ("chest" if key == "sh" else nice(key.replace("hand", "lowerarm").replace("foot", "calf")))
 
 
@@ -9079,6 +9127,14 @@ func _sculpt_start() -> void:
 	_mesh_show_sync()
 
 
+## M1: Voxel remesh (ribbon SPHERE group; scripts/kmesh_voxel_remesh.gd): the test sphere must be open first
+func _sculpt_remesh() -> void:
+	if ksc == null or not ksc.on:
+		_say("Open the test sphere first (Test sphere), then Voxel remesh")
+		return
+	ksc.remesh()
+
+
 ## WALK ALONG A PATH (ROADMAP 92; scripts/path_walk_ui.gd, path_walk.gd, path_run.gd)
 var pwui: PathWalkUI
 
@@ -9367,7 +9423,7 @@ func _cons_tg_words(tg: Dictionary) -> String:
 
 ## the picked part's owner for an existing constraint (fade / release / remove): its limb's hand / foot, the hips, the head
 func _cons_owner_picked() -> String:
-	for ty in ["child_of", "track_to"]:
+	for ty in ["child_of", "copy_location", "copy_rotation", "damped_track", "limit_location", "track_to"]:
 		var o := Constraints.owner_of(ty, sel)
 		if o != "" and Constraints.last_on(S, o) >= 0:
 			return o
@@ -9416,6 +9472,50 @@ func _cons_child_of() -> void:
 	_do(func(): Constraints.add_child_of(S, B, owner, tg, t))
 	_dummy_hits()
 	_say("the %s now follows %s from %s, keeping where it is from it (fade it out to let go; Ctrl+Z takes it back)" % [_cons_words(owner), _cons_tg_words(tg), Units.time(t, S.fps)])
+
+
+## Copy location / Copy rotation / Damped track / Limit location: the same shape as Child Of (the target the user picked,
+## else the other hand, else the spot the owner is at); Limit keeps the owner in a box round where it stands
+func _cons_add_kind(type: String) -> void:
+	var owner := Constraints.owner_of(type, sel)
+	if owner == "":
+		_say("%s works on a hand, a foot or the hips: click one of them (or a part of that arm or leg) first" % _cons_kind_words(type))
+		return
+	if S.cards.is_empty():
+		_say("constraints live in a scene: open a scene, or press Enter to add the body as a card first")
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	if type == "limit_location":
+		_do(func(): Constraints.add_limit(S, B, owner, t))
+		_dummy_hits()
+		_say("the %s now stays in a box %d cm each side of where it is, from %s (fade it out to let go; Ctrl+Z takes it back)" % [_cons_words(owner), roundi(Constraints.LIMIT_HALF * 100.0), Units.time(t, S.fps)])
+		return
+	var tg := cons_target
+	if tg.is_empty() or Constraints.bad_target(B, owner, tg) != "":
+		tg = {"kind": "part", "part": Body.twin(owner)} if owner.begins_with("hand") or owner.begins_with("foot") else {"kind": "point", "at": B.P[owner]}
+	var why := Constraints.bad_target(B, owner, tg)
+	if why != "":
+		_say("the %s cannot use %s (%s): pick another target with 'Constraint: use the picked part as the target'" % [_cons_words(owner), _cons_tg_words(tg), why])
+		return
+	if Constraints.target_xf(S, B, tg, t) == null:
+		_say("%s is not there now: pick another target with 'Constraint: use the picked part as the target'" % _cons_tg_words(tg))
+		return
+	_do(func(): Constraints.add_copy(S, B, type, owner, tg, t))
+	_dummy_hits()
+	_say("the %s now %s from %s (fade it out to let go; Ctrl+Z takes it back)" % [_cons_words(owner), _cons_kind_done(type, tg), Units.time(t, S.fps)])
+
+
+func _cons_kind_words(type: String) -> String:
+	return {"copy_location": "Copy location", "copy_rotation": "Copy rotation", "damped_track": "Damped track", "limit_location": "Limit location"}.get(type, type)
+
+
+func _cons_kind_done(type: String, tg: Dictionary) -> String:
+	match type:
+		"copy_location":
+			return "moves to %s's place, keeping its own turn" % _cons_tg_words(tg)
+		"copy_rotation":
+			return "turns with %s, keeping the turn it has against it, and its place" % _cons_tg_words(tg)
+	return "points at %s, keeping its place" % _cons_tg_words(tg)
 
 
 func _cons_look() -> void:
@@ -10990,7 +11090,9 @@ static func side_col(j: String) -> Color:
 	return SIDE_L if j.ends_with("_l") else (SIDE_R if j.ends_with("_r") else SIDE_MID)
 
 
-static func nice(j: String) -> String:
+func nice(j: String) -> String:
+	if (j == "bat_handle" or j == "bat_barrel") and B.wep_kind.begins_with(PartWeapon.PREFIX):   # a Part weapon: its own name
+		return "%s (%s)" % [PartWeapon.name_of(B.wep_kind), "handle" if j == "bat_handle" else "barrel"]
 	var names := {"pelvis": "hips", "spine_01": "lower back", "spine_02": "middle back", "spine_03": "chest",
 		"neck_01": "neck", "head": "head", "clavicle": "shoulder", "upperarm": "upper arm", "lowerarm": "elbow / forearm",
 		"hand": "wrist / hand", "thigh": "hip joint / thigh", "calf": "knee / shin", "foot": "ankle / foot", "ball": "toes",
@@ -12104,7 +12206,7 @@ const ICON_OF := {"Library": "library", "Export model (GLB / OBJ)": "export_glb"
 	"Pose from words...": "say_it", "Sketch to pose": "sketch_pose", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong",
 	"Test cube": "mesh_cube", "Edit body": "mannequin", "Save": "save", "Save to body": "body_save", "Open...": "open", "Use in scene": "prop", "Move": "xf_move", "Rotate": "xf_rot", "Scale": "xf_scale",
 	"Extrude": "part_extrude", "Inset": "inset", "Loop cut": "loopcut", "Knife": "knife", "Bevel": "part_chamfer", "Proportional": "proportional", "Modifiers": "stack", "Validate": "validate", "Repair": "wrench",
-	"Test sphere": "sphere", "Sculpt the body": "mannequin", "Draw": "brush_draw", "Inflate": "brush_inflate", "Grab": "brush_grab", "Clay": "brush_clay", "Crease": "brush_crease", "Smooth": "smooth", "Flatten": "brush_flat", "Pinch": "brush_pinch", "Snake": "brush_snake",
+	"Test sphere": "sphere", "Sculpt the body": "mannequin", "Voxel remesh": "remesh", "Draw": "brush_draw", "Inflate": "brush_inflate", "Grab": "brush_grab", "Clay": "brush_clay", "Crease": "brush_crease", "Smooth": "smooth", "Flatten": "brush_flat", "Pinch": "brush_pinch", "Snake": "brush_snake",
 	"Paint": "vpaint", "UV editor": "uv", "Game UVs 2k": "uv_game", "Pack UVs": "uv_pack", "Export UVs": "export", "Material from photo": "photo_mat"}
 
 
@@ -16069,6 +16171,10 @@ func _commands() -> Array:
 	add.call("Door: open 15 deg (key here)", "", _door_swing.bind(15.0), "door swing open hinge push key", true, "the picked door's leaf turns 15 deg more open about its hinge, keyed at the playhead (up to 110 deg)")
 	add.call("Door: close 15 deg (key here)", "", _door_swing.bind(-15.0), "door swing close shut hinge pull key", true, "the picked door's leaf turns 15 deg back toward shut, keyed at the playhead (down to -110 deg: the other way)")
 	add.call("Constraint: child of the target", "", _cons_child_of, "constraint child of parent follow hold attach hand foot hips prop door hip blender", true, "the picked hand, foot (or the hips) follows the target from the playhead on, keeping where it is from it now; the arm / leg bends to reach")
+	add.call("Constraint: copy the target's place", "", _cons_add_kind.bind("copy_location"), "constraint copy location place position follow move target parent hand foot hips blender", true, "the picked hand, foot (or the hips) moves to the target's place from the playhead on, keeping its own turn; the arm / leg bends to reach")
+	add.call("Constraint: copy the target's turn", "", _cons_add_kind.bind("copy_rotation"), "constraint copy rotation turn angle twist follow target hand foot hips blender", true, "the picked hand, foot (or the hips) turns with the target from the playhead on, keeping the turn it has now against the target; its place stays")
+	add.call("Constraint: point the picked hand or foot at the target", "", _cons_add_kind.bind("damped_track"), "constraint damped track point aim face pointing hand foot target blender", true, "the picked hand or foot turns the least it can so it points at the target from the playhead on; it stays where it is")
+	add.call("Constraint: keep the picked part in a box here", "", _cons_add_kind.bind("limit_location"), "constraint limit location box bound keep inside stay clamp range hand foot hips blender", true, "the picked hand, foot (or the hips) may not leave a box 10 cm each side of where it is now, from the playhead on (inside the box it is untouched)")
 	add.call("Constraint: head looks at the target", "", _cons_look, "constraint track to look at aim head gaze watch face blender", true, "the head turns to the target from the playhead (over 6 frames), never past the neck's limits")
 	add.call("Constraint: keep the picked foot above the floor", "", _cons_floor, "constraint floor ground foot limit sink through blender", true, "the picked foot never goes below the floor, whatever moves it")
 	add.call("Constraint: fade out over 6 frames", "", _cons_fade.bind(0.0), "constraint influence off release let go key blend", true, "the picked part's constraint goes from what it is at the playhead to off over 6 frames (no pop)")
@@ -16238,6 +16344,7 @@ func _commands() -> Array:
 	add.call("Snap the part to 45°", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45° steps its range allows")
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
+	add.call("Voxel remesh", "", _sculpt_remesh, "remesh voxel even topology quads rebuild retopo sculpt sphere uniform", true, "the test sphere becomes an even mesh at 1.5 cm voxels: its surface is rebuilt; one undo step (Ctrl+Z takes it back)")
 	add.call("Sculpt: a test sphere (preview)", "", _sculpt_start, "sculpt brush draw clay inflate smooth flatten pinch crease grab snake hook pressure tablet zbrush", false, "add a test sphere to the stage and sculpt it: drag to stroke, D C I S F P E G K brushes, [ ] radius, Shift+[ ] strength, O falloff, X symmetry, Ctrl invert, Shift smooth, Ctrl+Z undo, Esc leaves (nothing is saved)")
 	add.call("Rig: bone editor (add / delete / parent bones)", "", func(): _bone_ui().toggle(), "bone bones rig skeleton add delete parent extrude roll rest edit armature tail chain joint", false, "open / close the bone editor: your own bones on the body (E extrude from a tail, Shift+A add, X delete, drag the end balls; name, parent, length, roll in its panel). Each edit is one undo step; the body's own skeleton is not edited")
 	add.call("Model: edit a test cube (preview)", "", _kmesh_edit_start, "model mesh cube edit select vertex edge face box lasso xray polygon modeling", false, "add a 4x4-per-side test cube to the stage and select on it: click, Shift+click, B box, L lasso, X x-ray, 1/2/3 vertex / edge / face, Esc leaves (nothing is saved)")
@@ -16552,6 +16659,8 @@ func _commands() -> Array:
 	add.call("View: show normals", "", func(): vx.normals_toggle(), "normals face orientation lines overlay vertex shading direction", false, "short lines along the skin's normals on every 12th vertex of the body, on or off")
 	add.call("View: stats", "", func(): vx.stats_toggle(), "stats statistics triangles tris vertices verts count polygons scene information", false, "the scene's triangle and vertex count at the end of the status line, on or off")
 	add.call("View: sky background", "", _sky_toggle, "sky hdri gradient background environment", false, "a procedural gradient sky behind the figure, on or off (remembered)")
+	add.call("View: picture background (HDRI)...", "", _hdri_ask, "hdri hdr exr picture background sky environment light image based lighting", false, "a .hdr or .exr picture as the sky behind the figure and the light on it (remembered); Remove the picture goes back to the gradient")
+	add.call("View: remove the picture background", "", _hdri_clear, "hdri hdr exr picture background remove clear gradient sky", false, "the sky behind the figure is the gradient again; the picture file is not deleted")
 	add.call("Light / dark theme", "", func(): _set_light(Tok.dark), "colour white bright night", false, "switch the light and dark look (remembered)")
 	for p in SCALES:
 		add.call("UI size %d %%" % p, "", _set_scale.bind(p), "zoom bigger smaller scale font text size", false, "buttons and words at %d %% (remembered)" % p)
@@ -24604,6 +24713,8 @@ func proportions_set(d: Dictionary) -> Dictionary:
 		_dummy_hits()
 		ov.mark_dirty()
 		wt.mark_dirty()
+		if bld != null:
+			bld.sync()   # C2: a Part dimension bound to the body re-solves now
 		if not S.cards.is_empty():
 			S.apply(B, playhead))
 	var st := float(nd.get("stature", Proportions.DEFAULT_STATURE))

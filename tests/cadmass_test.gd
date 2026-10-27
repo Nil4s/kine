@@ -119,6 +119,7 @@ func _init() -> void:
 	ok(ks == "part:sword" and dm > 0.05 and dcom > 0.02,
 		"2 SWORD: the Part sword %.2f kg, centre of mass %.0f%% along it (built-in: %.2f kg, %.0f%%)" % [float(ksd["mass"]), float(ksd["com"]) * 100.0, float(built["mass"]), float(built["com"]) * 100.0])
 	ok(absf(float(ksd["grip_u"]) - 0.070) < 0.005, "2 SWORD: the grip sits %.1f cm from the butt (the handle's centre, 7 cm)" % (float(ksd["grip_u"]) * 100.0))
+	ok(float(ksd["mass"]) >= 1.1 and float(ksd["mass"]) <= 1.6, "2 WEIGHT: the default Easy sword weighs %.2f kg (steel, the handle in wood; a one-hand sword 1.1-1.6 kg)" % float(ksd["mass"]))
 
 	# 3 TORQUE
 	var short := PartTemplates.make("sword", {"blade_length": 600})
@@ -148,6 +149,11 @@ func _init() -> void:
 	ok(mi != null and mi.mesh != null and mi.mesh.get_surface_count() > 0 and absf(tip_y - float(ksd["len"])) < 0.01,
 		"4 SHAPE: the drawn sword's tip is %.1f cm from the butt (length %.1f cm)" % [tip_y * 100.0, float(ksd["len"]) * 100.0])
 	node.free()
+	var held_mesh := WeaponMesh.build(ks)   # the held mesh: its AABB's longest side is the Part's length
+	var hs := (held_mesh.get_node("part") as MeshInstance3D).mesh.get_aabb().size
+	ok(absf(maxf(hs.x, maxf(hs.y, hs.z)) - float(ksd["len"])) < 0.01,
+		"4 SHAPE: the held mesh's longest side is %.1f cm (the Part's length %.1f cm, within 1 cm)" % [maxf(hs.x, maxf(hs.y, hs.z)) * 100.0, float(ksd["len"]) * 100.0])
+	held_mesh.free()
 
 	# 5 GRIP (the fighter, no window needed for the numbers)
 	var B2 := DistanceKeeper.new_body()
@@ -228,6 +234,7 @@ func _init() -> void:
 	m._refresh()
 	await shot(SHOT + "/sword_held.png")
 	ok(m.B.wep_kind == "part:sword" and m.B.wep_hand != "", "8 SHOT: the fighter holds the Part sword (%s) -> %s/sword_held.png" % [m.B.wep_kind, SHOT])
+	ok(m.nice("bat_handle") == "sword (handle)", "9 LABEL: the grip's label names the Part: \"%s\" (not \"bat (handle)\")" % m.nice("bat_handle"))
 
 	print("CADMASS ", "PASS" if fails == 0 else "FAIL %d" % fails)
 	TestFiles.cleanup()

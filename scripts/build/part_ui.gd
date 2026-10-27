@@ -64,6 +64,7 @@ var part_btn: Button
 var tool_btns := {}
 var finish_btn: Button
 var house_btns: Array = []     # the BUILD ribbon's own buttons, hidden while the Part workspace is on
+var reopen_btn: Button = null  # "What to build" (BuildChoose.reopen_button): kept on the Part ribbon
 var my_seps: Array = []
 var _was_show := false
 var _tag_vis: Array = []       # the floor's axis names as they were (they say "his left": not for a part)
@@ -142,6 +143,10 @@ func setup(b: BuildUI) -> void:
 	easy_open_btn.name = "part_easy_open"
 	_icon(easy_open_btn, "part_part")
 	row.add_child(easy_open_btn)
+	for c in house_btns:
+		if c.name == "build_choose_open":
+			reopen_btn = c as Button
+	_order_row()
 	for c in row.get_children():
 		if not house_btns.has(c) and c != part_btn:
 			c.visible = false
@@ -228,6 +233,8 @@ func ribbon_shows(b: Node, tab: String) -> bool:
 	var show := chrome()
 	if b == part_btn:
 		return bu.on and not bu.easy_ui()
+	if b == reopen_btn:   # the way back to the chooser: in the Part ribbon too, with its words
+		return true
 	if b is VSeparator:
 		return show if my_seps.has(b) else not show
 	if house_btns.has(b):
@@ -878,6 +885,9 @@ func _pick_edge(p: Vector2) -> int:
 func _open_dim_edit(pk: Dictionary) -> void:
 	var e: Dictionary = _sk()["ents"][int(pk["ent"])]
 	dim_edit.text = "%s" % snappedf(Part.measure(e, String(pk["kind"])), 0.001)
+	for d in _sk().get("dims", []):
+		if int(d["ent"]) == int(pk["ent"]) and d["kind"] == pk["kind"] and d.has("bind"):
+			dim_edit.text = Part.bind_text(d["bind"])   # a bound size shows its bind, so Enter keeps it
 	dim_edit.visible = true
 	var mid: Vector2 = (scr(pk["a"]) + scr(pk["b"])) * 0.5
 	dim_edit.reset_size()
@@ -891,18 +901,51 @@ func _dim_submitted(t: String) -> void:
 	dim_edit.visible = false
 	if dim_target.is_empty() or sk == "":
 		return
-	var v := t.replace("mm", "").strip_edges()
-	if v.is_valid_float() and float(v) > 0.0:
-		Part.set_dim(_sk(), int(dim_target["ent"]), String(dim_target["kind"]), float(v))
-		_say("Dimension set: %s mm" % v)
+	var err := _set_dim_text(int(dim_target["ent"]), String(dim_target["kind"]), t)
+	if err != "":
+		_say(err)
+	elif Part.parse_bind(t).is_empty():
+		_say("Dimension set: %s mm" % t.replace("mm", "").strip_edges())
+	else:
+		_say("Dimension set: %s" % Part.bind_text(Part.parse_bind(t)))
 	dim_target = {}
 	dim_edit.release_focus()
 	_after_sketch_edit()
 
 
+## C2: the body's segment lengths now (the scene's body; the default body when it is {})
+func _body_measures() -> Dictionary:
+	return Proportions.measures_of(m.S.body)
+
+
+## a dimension's typed text: a size in mm (plain: the dimension stops reading the body) or =forearm+4 (reads the body).
+## Returns the message to show ("" = set)
+func _set_dim_text(ent: int, kind: String, t: String) -> String:
+	var v := t.replace("mm", "").strip_edges()
+	var bind := Part.parse_bind(v)
+	if not bind.is_empty():
+		var r := Part.bound_mm(bind, _body_measures())
+		if r["err"] != "":
+			return String(r["err"])
+		Part.set_dim(_sk(), ent, kind, float(r["mm"]), bind)
+		return ""
+	if v.is_valid_float() and float(v) > 0.0:
+		Part.set_dim(_sk(), ent, kind, float(v))
+		return ""
+	return "type a size in mm, or =forearm+4 to read the body (forearm, upper_arm, thigh, shank, trunk, head ...)"
+
+
+## the number a row shows: the size now (a bound one: what the body gives)
+func _dim_field_text(d: Dictionary) -> String:
+	if d.has("bind"):
+		var r := Part.bound_mm(d["bind"], _body_measures())
+		return Part.bind_text(d["bind"]) if r["err"] != "" else "%s mm" % _fmt(float(r["mm"]))
+	return "%s mm" % _fmt(float(d["mm"]))
+
+
 func _set_dim_value(i: int, v: float) -> void:
 	var dims: Array = _sk().get("dims", [])
-	if i >= dims.size() or v <= 0.0 or absf(float(dims[i]["mm"]) - v) < 1e-9:
+	if i >= dims.size() or v <= 0.0 or (absf(float(dims[i]["mm"]) - v) < 1e-9 and not dims[i].has("bind")):   # a bound size typed as a plain number stops reading the body
 		return
 	Part.set_dim(_sk(), int(dims[i]["ent"]), String(dims[i]["kind"]), v)
 	_after_sketch_edit()
@@ -1001,7 +1044,7 @@ func _op_row(f: Dictionary) -> void:
 
 ## the model the dialog works on (the steps before the one being edited): its volume, bodies and edges
 func _base_edges(edit: int) -> void:
-	var base := Part.replay(_rec(), edit - 1 if edit >= 0 else upto, {"edges": true})
+	var base := Part.replay(_rec(), edit - 1 if edit >= 0 else upto, {"edges": true, "body": _body_measures()})
 	edge_cache = base["edges"]
 
 
@@ -1085,7 +1128,7 @@ func _preview() -> void:
 		rec["features"][edit] = f
 	else:
 		rec["features"].append(f)
-	prev = Part.replay(rec, -1)
+	prev = Part.replay(rec, -1, {"body": _body_measures()})
 	var err: String = prev["errors"].get(String(f["id"]), "")
 	dlg_info.text = ("%s. Nothing is changed until it works." % err) if err != "" else "Volume %s cm3" % snappedf(float(prev["volume"]) * 1e6, 0.01)
 	ok_btn.disabled = err != ""
@@ -1306,7 +1349,7 @@ func _nums_sync() -> void:
 	for i in dims.size():
 		var d: Dictionary = dims[i]
 		var h := HBoxContainer.new()
-		var l := _label(String(d["name"]))
+		var l := _label(String(d["name"]) + ("  " + Part.bind_text(d["bind"]) if d.has("bind") else ""))   # C2: a bound size names its source
 		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		h.add_child(l)
 		var le := LineEdit.new()
@@ -1314,7 +1357,7 @@ func _nums_sync() -> void:
 		le.custom_minimum_size.x = 92
 		le.alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		le.select_all_on_focus = true
-		le.text = "%s mm" % _fmt(float(d["mm"]))
+		le.text = _dim_field_text(d)
 		le.text_submitted.connect(func(t: String): _num_typed.call_deferred(i, t, le))   # (deferred: the rows are rebuilt by the number)
 		le.focus_exited.connect(func(): _num_typed.call_deferred(i, le.text, le))
 		h.add_child(le)
@@ -1325,13 +1368,20 @@ func _num_typed(i: int, t: String, le: LineEdit) -> void:
 	if sk == "" or not is_instance_valid(le) or not le.is_inside_tree():
 		return
 	var v := t.replace("mm", "").strip_edges()
-	if v.is_valid_float():
-		_set_dim_value(i, float(v))
+	var dims: Array = _sk().get("dims", [])
+	if i < dims.size() and (not Part.parse_bind(v).is_empty() or v.is_valid_float()):
+		if Part.parse_bind(v).is_empty():
+			_set_dim_value(i, float(v))
+		else:
+			var err := _set_dim_text(int(dims[i]["ent"]), String(dims[i]["kind"]), v)
+			if err != "":
+				_say(err)
+			_after_sketch_edit()
 	if not le.is_inside_tree():
 		return   # the number made the rows again: this field is gone
-	var dims: Array = _sk().get("dims", [])
+	dims = _sk().get("dims", [])
 	if i < dims.size():
-		le.text = "%s mm" % _fmt(float(dims[i]["mm"]))
+		le.text = _dim_field_text(dims[i])
 	le.release_focus()
 
 
@@ -1354,15 +1404,43 @@ func _tool_sync() -> void:
 	m._grey(finish_btn, why if not ok else ("" if sk != "" else "no sketch is open"))
 
 
+## Easy Part hides the top ribbon (its own bar stands in for it), so "What to build" moves into that bar while Easy Part is on, and
+## back to the ribbon when it is not
+func _place_reopen() -> void:
+	if reopen_btn == null or ep == null or ep.bar_row == null:
+		return
+	var home: Node = ep.bar_row if (easy and on and bu.on) else part_btn.get_parent()
+	if reopen_btn.get_parent() != home:
+		reopen_btn.get_parent().remove_child(reopen_btn)
+		home.add_child(reopen_btn)
+
+
+## the row's order: the way back, Part, Easy, Finish, then the tools. A row too long for the window sends its LAST buttons to More,
+## so Easy and Finish stay on the bar and the advanced tools go (the words of "What to build" made the row longer). Set again on every
+## sync: the house tools and the Part tools share the row, and something else appends to it after setup
+func _order_row() -> void:
+	var row := part_btn.get_parent() as HBoxContainer
+	if reopen_btn != null and reopen_btn.get_parent() == row and reopen_btn.get_index() != part_btn.get_index() - 1:   # (in Easy Part's bar it is not in this row)
+		row.move_child(reopen_btn, part_btn.get_index())
+	if easy_open_btn.get_index() != part_btn.get_index() + 1:
+		row.move_child(easy_open_btn, part_btn.get_index() + 1)
+	if finish_btn.get_index() != easy_open_btn.get_index() + 1:
+		row.move_child(finish_btn, easy_open_btn.get_index() + 1)
+
+
 func sync() -> void:
 	var show := chrome()
 	var up := shows()
+	_place_reopen()
+	_order_row()
 	part_btn.visible = bu.on and not bu.easy_ui()
 	part_btn.set_pressed_no_signal(on)
 	for c in house_btns:
-		(c as Control).visible = not show
+		(c as Control).visible = not show or c == reopen_btn
+	if reopen_btn != null:
+		reopen_btn.text = "What to build" if on else ""   # icon only in the house ribbon (it is crowded there); with words in Part, Expert or Easy
 	for t in tool_btns:
-		(tool_btns[t] as Control).visible = show
+		(tool_btns[t] as Control).visible = show and not (t in m.RIBBON_REST.get("BUILD", []))   # the rarer ones live under their captions (main.gd RIBBON_REST)
 	finish_btn.visible = show
 	easy_open_btn.visible = show
 	for c in my_seps:
@@ -1413,7 +1491,8 @@ func sync() -> void:
 func _rebuild(show: bool) -> void:
 	if not show:
 		return
-	var sig := "%s|%d|%d" % [JSON.stringify(_rec()), upto, int(dlg.get("edit", -1)) if not dlg.is_empty() else -2]
+	Part.refresh_bound(_rec(), _body_measures())   # C2: a dimension bound to the body shows the body's size now
+	var sig := "%s|%d|%d|%s" % [JSON.stringify(_rec()), upto, int(dlg.get("edit", -1)) if not dlg.is_empty() else -2, JSON.stringify(_body_measures())]   # the body moving re-solves the bound dimensions
 	if sig == _rec_sig:
 		return
 	_rec_sig = sig
@@ -1425,7 +1504,7 @@ func _rebuild(show: bool) -> void:
 	var up := upto
 	if not dlg.is_empty() and int(dlg["edit"]) >= 0:
 		up = int(dlg["edit"]) - 1
-	res = Part.replay(_rec(), up, {"edges": not easy})
+	res = Part.replay(_rec(), up, {"edges": not easy, "body": _body_measures()})
 	if sk == "":
 		part_mesh.mesh = res["mesh"]
 	edge_cache = res["edges"]

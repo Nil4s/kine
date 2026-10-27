@@ -357,6 +357,10 @@ const DRAW := {
 	"validate": [["box", Rect2(5, 3, 14, 18), 1.6], ["seg", Vector2(8, 9), Vector2(16, 9), 1.3], ["seg", Vector2(8, 13), Vector2(16, 13), 1.3], ["seg", Vector2(8, 17), Vector2(13, 17), 1.3]],
 	"wrench": [["seg", Vector2(5, 19), Vector2(14, 10), 3.0], ["ring", Vector2(16, 8), 4.5, 2.2]],
 	"sphere": [["ring", Vector2(12, 12), 8.5, 1.8], ["arc", Vector2(12, 12), 5.5, 1.4, 200, 340]],
+	# Voxel remesh (1e2500f5): a sphere ring with an even grid of quads inside it, each chord cut at the ring
+	"remesh": [["ring", Vector2(12, 12), 8.5, 1.8],
+		["seg", Vector2(4.6, 7.75), Vector2(19.4, 7.75), 1.2], ["seg", Vector2(3.5, 12), Vector2(20.5, 12), 1.2], ["seg", Vector2(4.6, 16.25), Vector2(19.4, 16.25), 1.2],
+		["seg", Vector2(7.75, 4.6), Vector2(7.75, 19.4), 1.2], ["seg", Vector2(12, 3.5), Vector2(12, 20.5), 1.2], ["seg", Vector2(16.25, 4.6), Vector2(16.25, 19.4), 1.2]],
 	"brush_draw": [["seg", Vector2(4, 20), Vector2(14, 10), 2.6], ["disc", Vector2(17, 7), 3.6]],
 	"brush_inflate": [["disc", Vector2(12, 12), 5.5], ["seg", Vector2(12, 1), Vector2(12, 4), 1.6], ["seg", Vector2(12, 20), Vector2(12, 23), 1.6], ["seg", Vector2(1, 12), Vector2(4, 12), 1.6], ["seg", Vector2(20, 12), Vector2(23, 12), 1.6]],
 	"brush_grab": [["disc", Vector2(12, 15), 4], ["seg", Vector2(8, 10), Vector2(8, 4), 2], ["seg", Vector2(12, 9), Vector2(12, 3), 2], ["seg", Vector2(16, 10), Vector2(16, 4), 2]],

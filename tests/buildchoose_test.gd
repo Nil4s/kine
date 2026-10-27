@@ -152,7 +152,8 @@ func _init() -> void:
 	for a in bc._arts:
 		shown = shown and (a as Control).is_visible_in_tree() and bc.art.get_art((a as BuildChoose.Art).kind) != null
 	ok(shown, "1 art: the cards show their pictures")
-	var dim := (bc.cards["vehicle"] as CanvasItem).modulate.a < 1.0 and (bc.cards["house"] as CanvasItem).modulate.a == 1.0   # Vehicle: Part went live with the Part workspace (w4-partws)
+	# Vehicle is live with KineCAD (w4-vehicle, B3 round 2, commit 6f91bea1): it is dimmed only without the DLL
+	var dim := ((bc.cards["vehicle"] as CanvasItem).modulate.a == 1.0) == KCad.available() and (bc.cards["house"] as CanvasItem).modulate.a == 1.0
 	ok(dim, "1 art: a greyed card shows its picture dimmed, a live one at full strength")
 	await shot("choose")
 	await shot("choose_art")
@@ -206,7 +207,8 @@ func _init() -> void:
 	await idle(3)
 	var page0: String = m.cur_page
 	var greys_ok := true
-	for id in ["vehicle"] + ([] if KCad.available() else ["step", "part"]):   # 2a89b914: From a template opens the starter buildings now. Part is live with KineCAD since the Part workspace (w4-partws)
+	# Vehicle is live with KineCAD since 6f91bea1 (w4-vehicle): only the no-DLL cards stay greyed here
+	for id in ([] if KCad.available() else ["vehicle", "step", "part"]):   # 2a89b914: From a template opens the starter buildings now. Part is live with KineCAD since the Part workspace (w4-partws)
 		for mode in ["easy", "expert"]:
 			m._say("")
 			await click(b(id, mode))
@@ -217,11 +219,28 @@ func _init() -> void:
 			if not (card_says and still and said.contains(why.substr(0, 20))):
 				greys_ok = false
 				print("   grey %s %s: card_says %s still %s said '%s'" % [id, mode, card_says, still, said])
-	ok(greys_ok, "3 the greyed cards (Vehicle%s) do nothing but say why: the chooser stays, mode and page unchanged" % ("" if KCad.available() else ", Import STEP, Part"))
+	ok(greys_ok, "3 the greyed cards (%s) do nothing but say why: the chooser stays, mode and page unchanged" % ("none: KineCAD is installed" if KCad.available() else "Vehicle, Import STEP, Part"))
+	if KCad.available():   # 3c VEHICLE (w4-vehicle, 6f91bea1): Easy opens the car's own screen (the chooser closes, the page stays BUILD); Expert opens the car body as a Part
+		await click(b("vehicle", "easy"))
+		var cs: EasyVehicle = bc._car_screen
+		ok(not bc.open and cs != null and cs.visible and cs.is_car(), "3c Vehicle Easy opens the car screen with a car (chooser closed %s, page %s)" % [not bc.open, m.cur_page])
+		cs.close()
+		await idle(2)
+		bc.show_chooser()
+		await idle(3)
+		await click(b("vehicle", "expert"))
+		ok(not bc.open and m.bld.part.on and not m.easy.on and String(m.S.part.get("easy", {}).get("t", "")) == "car", "3c Vehicle Expert opens the car body as a Part on BUILD (part %s)" % m.bld.part.on)
+		m.bld.part.set_on(false)
+		await idle(2)
+		bc.show_chooser()
+		await idle(3)
 	ok(not (bc.whys["house"] as Label).visible and not (bc.whys["props"] as Label).visible, "3 the live cards carry no reason")
-	if KCad.available():   # 3b PART (Expert): the card opens the Part workspace on BUILD; Easy Part is not built: it says so, nothing changes
+	if KCad.available():   # 3b PART: the card opens the Part workspace on BUILD (Expert) or Easy Part (Easy). Easy Part was "not built yet" until
+		# commit 'Easy Part from the chooser' (972f9fa6, w4-partflow): Part Easy now closes the chooser and opens Easy Part, as the same record
 		await click(b("part", "easy"))
-		ok(bc.open and not m.bld.part.on, "3b Part Easy: not built yet, it says so and the chooser stays")
+		ok(not bc.open and m.bld.part.easy and m.bld.part.on and m.easy.on and m.cur_page == "BUILD", "3b Part Easy opens Easy Part (page %s, part easy %s)" % [m.cur_page, m.bld.part.easy])
+		bc.show_chooser()
+		await idle(3)
 		await click(b("part", "expert"))
 		await idle(3)
 		ok(not bc.open and m.cur_page == "BUILD" and m.bld.part.on and not m.easy.on, "3b Part Expert opens the Part workspace (page %s, part %s)" % [m.cur_page, m.bld.part.on])
@@ -273,6 +292,50 @@ func _init() -> void:
 		ok(m.bld.root3.find_child("build_step_solid", true, false) != null and not bc.open, "6 Import STEP shows a solid on BUILD")
 	else:
 		ok(not b("step", "easy").disabled and String(bc.why_not("step")).contains("KineCAD"), "6 KineCAD is absent: Import STEP is greyed with the reason (live branch is not run here)")
+
+	# 10 PARTFLOW (w4-partflow): Easy hides the two not-ready cards (Expert keeps them with why); Part Easy opens Easy Part; a card leaves the Part
+	# workspace (Expert's way back to the house); the Part ribbon keeps "What to build" with its words
+	# 10's greying rule follows the live cards: Vehicle went live with KineCAD (6f91bea1) and From a template with its starters (2a89b914).
+	# So with KineCAD all six cards show in Easy and Expert, none greyed. Without the DLL, why_not() names the not-ready cards: Easy leaves
+	# them out, Expert keeps them greyed with the reason (build_choose.gd why_not / _refresh).
+	var ids := ["house", "part", "vehicle", "props", "template", "step"]
+	m.easy.set_on(true)
+	bc.show_chooser()
+	await idle(4)
+	var pf_vis := []
+	var pf_exp := []
+	for id in ids:
+		pf_vis.append(bc.cards[id].visible)
+		pf_exp.append(bc.why_not(id) == "")
+	ok(pf_vis == pf_exp, "10 Easy chooser: a card shows unless it is not ready (visible %s, want %s)" % [str(pf_vis), str(pf_exp)])
+	m.easy.set_on(false)
+	bc.show_chooser()
+	await idle(4)
+	var greyed_ok := true
+	for id in ids:
+		var not_ready: bool = bc.why_not(id) != ""
+		var why := bc.whys[id] as Label
+		greyed_ok = greyed_ok and bc.cards[id].visible and why.visible == not_ready and (why.text != "") == not_ready
+		greyed_ok = greyed_ok and is_equal_approx((bc.cards[id] as PanelContainer).modulate.a, 0.55 if not_ready else 1.0)
+	ok(greyed_ok, "10 Expert chooser: all six cards visible; only the not-ready ones are greyed, with why (KineCAD %s)" % KCad.available())
+	if KCad.available():
+		await click(b("part", "easy"))
+		await idle(8)
+		ok(not bc.open and m.bld.part.easy and m.bld.part.on and m.cur_page == "BUILD" and m.easy.on, "10 Part Easy from the chooser opens Easy Part (page %s, part easy %s, easy %s)" % [m.cur_page, m.bld.part.easy, m.easy.on])
+		var pf_rb: Button = m.bld.part.reopen_btn
+		ok(pf_rb != null and pf_rb.is_visible_in_tree() and pf_rb.text == "What to build" and not m.bld.part.reopen_btn.disabled, "10 Easy Part: the What to build button is there (text '%s')" % (pf_rb.text if pf_rb != null else "-"))
+		m.bld.part.ep.to_expert()
+		await idle(6)
+		var pf_rb2: Button = m.bld.part.reopen_btn
+		ok(m.bld.part.on and not m.bld.part.easy and pf_rb2.is_visible_in_tree() and pf_rb2.text == "What to build", "10 Expert Part: the ribbon keeps What to build with its words")
+		await click(pf_rb2)
+		await idle(6)
+		ok(bc.open and m.bld.part.on, "10 Expert Part: What to build reopens the chooser over the part (the Part workspace stays until a card is chosen)")
+		await click(b("house", "expert"))
+		await idle(6)
+		ok(not bc.open and not m.bld.part.on and m.bld.tool == "Room" and m.cur_page == "BUILD", "10 from Expert Part, the House card leaves the Part workspace for the house (part on %s, tool %s)" % [m.bld.part.on, m.bld.tool])
+	else:
+		print("   (no KineCAD: the Part Easy bar is not run)")
 
 	m.easy.set_on(false)
 	print("buildchoose_test: %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))

@@ -31,8 +31,11 @@ var bar: PanelContainer
 var title_l: Label
 var undo_btn: Button
 var redo_btn: Button
+var use_scene_btn: Button
+var whole_l: Label             # "Whole sword: N cm": the shape's biggest size, under the sliders (the blade slider is not the whole length)
 var easy_btn: Button
 var expert_btn: Button
+var bar_row: HBoxContainer   # the bar's row: Part's "What to build" moves in here while Easy Part is on (part_ui._place_reopen)
 var make_box: HBoxContainer
 var make_btns := {}
 var hint: PanelContainer
@@ -40,6 +43,7 @@ var hint_l: Label
 var shape_box: PanelContainer
 var shape_btns := {}
 var panel: PanelContainer
+var panel_vb: VBoxContainer   # the panel's column: it scrolls inside the panel when the window is short (1280 x 720)
 var panel_title: Label
 var chips := {}
 var rows_vb: VBoxContainer
@@ -83,6 +87,7 @@ func build(root: Control) -> void:
 	row.name = "easypart_row"
 	row.add_theme_constant_override("separation", 6)
 	bar.add_child(row)
+	bar_row = row
 	var home_b: Button = m._home_button()
 	home_b.custom_minimum_size = Vector2(110, m.TOP_H - 12)
 	home_b.add_theme_font_size_override("font_size", 15)
@@ -95,9 +100,12 @@ func build(root: Control) -> void:
 	row.add_child(title_l)
 	undo_btn = _bar_btn("Undo", "Take back the last change", func(): m._undo())
 	redo_btn = _bar_btn("Redo", "Put back what Undo took back", func(): m._redo())
+	use_scene_btn = _bar_btn("Use in a scene", "Put this part into the scene as a prop", _use_scene)
+	use_scene_btn.custom_minimum_size.x = 150.0
 	row.add_child(undo_btn)
 	row.add_child(redo_btn)
-	give_btn = _bar_btn("Give to fighter", "Give it to the fighter: he holds this shape as his weapon, with its size and weight (PartWeapon)", func(): m.give_part_weapon(_rec()))   # one undo step
+	row.add_child(use_scene_btn)
+	give_btn = _bar_btn("Give to fighter", "Give it to the fighter: the fighter holds this shape as his weapon, with its size and weight (PartWeapon)", func(): m.give_part_weapon(_rec()))   # one undo step
 	give_btn.name = "easypart_give"
 	give_btn.custom_minimum_size = Vector2(170, m.TOP_H - 12)
 	row.add_child(give_btn)
@@ -163,6 +171,7 @@ func build(root: Control) -> void:
 	var v := VBoxContainer.new()
 	v.name = "easypart_panel_vb"
 	v.add_theme_constant_override("separation", 6)
+	panel_vb = v
 	panel.add_child(v)
 	panel_title = Label.new()
 	panel_title.name = "easypart_panel_title"
@@ -188,13 +197,17 @@ func build(root: Control) -> void:
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 4)
 	v.add_child(rows_vb)
+	whole_l = Label.new()
+	whole_l.name = "easypart_whole"
+	whole_l.add_theme_font_size_override("font_size", 16)
+	v.add_child(whole_l)
 	var foot := HFlowContainer.new()
 	foot.name = "easypart_foot"
 	foot.add_theme_constant_override("separation", 8)
 	v.add_child(foot)
 	back_btn = Button.new()
 	back_btn.name = "easypart_back"
-	back_btn.text = "Back to the first one"
+	back_btn.text = "Reset"   # (was "Back to the first one": the foot wrapped to two rows and the panel ran past the clear view at 1280 x 720)
 	back_btn.focus_mode = Control.FOCUS_NONE
 	back_btn.custom_minimum_size = Vector2(0, 34)
 	back_btn.add_theme_font_size_override("font_size", 14)
@@ -518,6 +531,11 @@ func _values_sync() -> void:
 			s.set_value_no_signal(v)
 		_pill_text(r, s.value)
 		m._grey(s, Part.why_not() if off else "")
+	whole_l.visible = _tpl() != ""
+	if whole_l.visible:   # the whole shape's biggest size (the replay's box, m -> cm): the sliders move one part of it
+		var bb: AABB = pu.res.get("aabb", AABB())
+		var big := maxf(bb.size.x, maxf(bb.size.y, bb.size.z))
+		whole_l.text = "Whole %s: %d cm" % [_nm(), roundi(big * 100.0)] if big > 0.0 else "Whole %s: not made yet" % _nm()
 
 
 # ---------------------------------------------------------------- chips, Back to the first one
@@ -557,6 +575,12 @@ func _back() -> void:
 
 
 # ---------------------------------------------------------------- the six buttons
+
+## "Use in a scene": the part becomes a prop of the set (BuildUI.use_part, one undo step); the page goes to STAGE
+func _use_scene() -> void:
+	armed = ""
+	_flush_if_dirty()
+	pu.bu.use_part()
 
 func _make(which: String) -> void:
 	if not Part.available():
@@ -660,7 +684,32 @@ func _round(rec: Dictionary) -> String:
 			_say("Edges rounded: use the slider for more or less")
 			return ""
 		rec["features"].pop_back()
+	# a thin part (the sword's blade: 7 mm across the spine, edges 0.4 mm) cannot take the 0.5 mm floor on every edge: round the edges that
+	# can take a smaller radius and skip the rest. Each edge is tried with the ones already kept, so the feature that is added has no error
+	for r in [0.5, 0.3, 0.1]:
+		var good := []
+		for e in es:
+			if int(e["body"]) == 0 and float(e["len"]) / Part.MM > r * 2.5:
+				var trial := good.duplicate()
+				trial.append(Part.describe(e))
+				if _try_fillet(rec, r, trial) == "":
+					good = trial
+		if good.is_empty():
+			continue
+		var f := Part.new_feature(rec, "fillet", {"body": 0, "r": snappedf(r, 0.1), "edges": good})
+		rec["features"].append(f)
+		tweak = {"id": f["id"], "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
+		_say("Edges rounded: use the slider for more or less")
+		return ""
 	return "These edges are too small or too crowded to round"
+
+
+## the error (or "") of a fillet of these edges, tried on the end of the record without keeping it: the id is one nothing else uses
+func _try_fillet(rec: Dictionary, r: float, edges: Array) -> String:
+	rec["features"].append({"t": "fillet", "id": "try", "name": "Fillet", "body": 0, "r": snappedf(r, 0.1), "edges": edges})
+	var err := String(Part.replay(rec)["errors"].get("try", ""))
+	rec["features"].pop_back()
+	return err
 
 
 func _hole(rec: Dictionary) -> String:
@@ -669,7 +718,7 @@ func _hole(rec: Dictionary) -> String:
 		return "Make something solid first"
 	var bb: AABB = res["aabb"]
 	var c := bb.get_center() / Part.MM
-	var r := clampf(minf(bb.size.x, bb.size.y) / Part.MM * 0.12, 3.0, 40.0)
+	var r := clampf(minf(bb.size.x, bb.size.y) / Part.MM * 0.12, 10.0, 40.0)   # the radius in mm: a hole 2 to 8 cm across
 	var s := Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "circle", "c": Part.arr2(Vector2(c.x, c.y)), "r": snappedf(r, 0.5)}], "dims": []})
 	rec["features"].append(s)
 	var f := Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(bb.size.z / Part.MM + 20.0, 1.0), "both": true, "op": "cut"})
@@ -678,7 +727,7 @@ func _hole(rec: Dictionary) -> String:
 	var after := float(Part.replay(rec)["volume"])
 	if after >= before - 1e-12:
 		return "The hole would miss the shape: nothing was cut"
-	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.3, "hi": 8.0, "step": 0.1, "scale": 10.0, "words": ["Smaller", "Bigger"]}
+	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}   # the slider is the hole's WIDTH (cm): radius mm = width cm * 5
 	_say("A hole through the middle: use the slider for its size")
 	return ""
 
@@ -744,6 +793,7 @@ func _chrome_sync() -> void:
 		m._grey(make_btns[k], Part.why_not() if off else "")
 	(make_btns["draw"] as Button).set_pressed_no_signal(armed == "draw" and not off)
 	m._grey(back_btn, Part.why_not() if off else ("" if t != "" else "Pick a shape above first"))
+	m._grey(use_scene_btn, Part.why_not() if off else ("" if not _rec().get("features", []).is_empty() else "Draw a shape first"))
 	easy_btn.set_pressed_no_signal(true)
 	expert_btn.set_pressed_no_signal(false)
 	_chips_sync()
@@ -784,6 +834,11 @@ func _sync_shape() -> void:
 		(shape_btns[k] as Button).set_pressed_no_signal(k == shape)
 
 
+## the panel's height if it is not cut short: its column plus its own margins
+func _panel_need() -> float:
+	return panel_vb.get_combined_minimum_size().y + panel.get_theme_stylebox("panel").get_minimum_size().y
+
+
 ## the layout, from PartUI.layout(cl): the clear view's rectangle
 func layout(cl: Rect2) -> void:
 	if not active():
@@ -804,19 +859,19 @@ func layout(cl: Rect2) -> void:
 	# the panel on the right, as tall as it needs; the words under the sliders go first when the room is short
 	var avail := cl.end.y - top - 4.0
 	panel.reset_size()
-	var need := panel.get_combined_minimum_size().y
+	var need := _panel_need()
 	if need > avail and not _compact:
 		_compact = true
 		_rows_sig = ""
 		_rows_sync()
 		panel.reset_size()
-		need = panel.get_combined_minimum_size().y
+		need = _panel_need()
 	elif need < avail - 70.0 and _compact:
 		_compact = false
 		_rows_sig = ""
 		_rows_sync()
 		panel.reset_size()
-		need = panel.get_combined_minimum_size().y
+		need = _panel_need()
 	panel.size = Vector2(PW, minf(need, avail))
 	panel.position = Vector2(cl.end.x - PW - 8.0, top)
 	status.reset_size()

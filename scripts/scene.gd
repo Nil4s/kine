@@ -101,6 +101,7 @@ var cons_me := 0       # runtime: this scene's fighter number in the hero's file
 var _cons_scratch := {}   # runtime: fighter number -> a Body another fighter's scene is posed on (actor targets)
 var name := "scene"
 var part := {}         # EXPERT PART workspace (scripts/build/part.gd): the feature timeline (sketches, extrude, revolve, fillet...); in the file as "part" only when there is one
+var vehicle := {}      # VEHICLE (B3, scripts/vehicle.gd): {"wheel": a Part record}; the car body is `part`; in the file as "vehicle" only when there is one
 var kind := "animation"   # the start screen's project kind (animation, modeling, building); a file without one is an animation
 var natural := true
 var layer := {}        # YY9: ONE additive layer, joint -> Vector3 (deg) added to the played angles x layer_w; {} = none
@@ -2320,6 +2321,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["building"] = Building.to_file(building)   # BUILD: the record only (the mesh is regenerated from it)
 	if not part.is_empty():
 		out["part"] = Part.to_file(part)   # PART: the features only (the solids and the mesh are replayed from them)
+	if not vehicle.is_empty():
+		out["vehicle"] = vehicle.duplicate(true)   # VEHICLE: the wheel's record (its numbers and features), only when there is one
 	if not part_keys.is_empty():
 		out["part_keys"] = PartKeys.to_file(part_keys)   # WW1: the same, only when there is one
 	if not refimgs.is_empty():
@@ -2555,6 +2558,7 @@ func from_dict(d: Dictionary) -> void:
 	props_skipped = []
 	building = Building.from_file(d.get("building", {}))   # BUILD: absent = none
 	part = Part.from_file(d.get("part", {}))   # PART: absent = none
+	vehicle = Vehicle.from_file(d.get("vehicle", {}))   # VEHICLE: absent = none
 	part_keys = PartKeys.from_file(d.get("part_keys", {}))   # WW1: absent = none
 	ik = LimbIK.from_file(d.get("ik", {}))   # IK keys: absent = none
 	plants = FootPlant.from_file(d.get("plants", []))   # foot plants: absent = none
@@ -2577,6 +2581,8 @@ func from_dict(d: Dictionary) -> void:
 			BuildStage.register_named(building, String(p["kind"]))   # BUILD: the house is a kind made from its record
 		if p is Dictionary and BuildPieceKinds.is_piece_kind(String(p.get("kind", ""))):
 			BuildPieceKinds.ensure(String(p["kind"]).trim_prefix(BuildPieceKinds.PREFIX))   # a BUILD piece from the library: its kind is made on load
+		if p is Dictionary and String(p.get("kind", "")).begins_with("part:") and p.get("part_rec") is Dictionary and not Props.has_kind(String(p["kind"])):
+			BuildStage.restore_part(String(p["kind"]), p["part_rec"])   # BUILD: a Part in the set is made again from its record
 		if p is Dictionary and Props.has_kind(String(p.get("kind", ""))):
 			props.append(Props.from_dict(p))
 		elif p is Dictionary:

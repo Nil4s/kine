@@ -6,8 +6,9 @@ extends RefCounted
 ##
 ## FRAME  The Part's long axis (X: a sword's pommel -> tip) is the weapon's +Y, its butt (knob) at the lowest X of the solid. The Part's Y
 ##   (a blade's width) lies along the weapon's -X, its Z (the thickness) stays Z: a blade is broad toward +Z, as WeaponMesh draws them.
-## MASS  volume x density of ONE material per Part (rec["material"], default steel; words: steel, aluminium, wood, plastic).
-##   Centre of mass = the volume centroid. k (radius of gyration about the centre of mass, fraction of the length) from the inertia about
+## MASS  volume x density of the Part's material (rec["material"], default steel; words: steel, aluminium, wood, plastic); a body inside
+##   PartTemplates.handle_mat's span (the sword's pommel and grip) takes that material instead (wood).
+##   Centre of mass = the mass centroid. k (radius of gyration about the centre of mass, fraction of the length) from the inertia about
 ##   the two axes across the length: k = sqrt(I_perp / m) / L (a uniform rod gives 0.289). Mass properties come from KCad (kernel, density 1).
 ## GRIP  the template's handle centre (PartTemplates.handle_of) or the Part's origin; "grip_u" = its distance from the butt (m).
 ##   WeightFeel.grip_of / grip_u_of read it, so the judges swing the weapon about the same point the hand holds.
@@ -52,34 +53,65 @@ static func register(rec: Dictionary) -> String:
 	var vol := float(res["volume"])
 	if mesh == null or vol <= 0.0 or (res["props"] as Array).is_empty():
 		return ""
+	var hm := PartTemplates.handle_mat(rec)   # [material, last steel feature] of a handle in another material, or []
 	var rho: float = DENSITY[mat]
 	var bb: AABB = res["aabb"]
 	var knob := bb.position.x
 	var L := bb.size.x
-	# the centroid and the inertia about it (density 1, summed over the bodies: parallel axis)
+	# the mass centroid, then the inertia about it (summed over the bodies: parallel axis); each body has its own density
+	var bodies := _bodies(rec, res, rho, hm)
 	var c := Vector3.ZERO
-	for p in res["props"]:
-		c += (p["center"] as Vector3) * float(p["volume"])
-	c /= vol
+	var m := 0.0
+	for b in bodies:
+		var w: float = float(b["v"]) * float(b["rho"])
+		c += (b["c"] as Vector3) * w
+		m += w
+	c /= m
 	var I := Basis(Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
-	for p in res["props"]:
-		var d: Vector3 = (p["center"] as Vector3) - c
-		I = _mix(_mix(I, p["inertia"], 1.0), _parallel(d), float(p["volume"]))
-	var m := vol * rho
-	var i_perp := (I.y.y + I.z.z) * 0.5 * rho   # the two axes across the length (Part Y and Z), kg m2
+	for b in bodies:
+		I = _mix(_mix(I, b["I"], float(b["rho"])), _parallel((b["c"] as Vector3) - c), float(b["v"]) * float(b["rho"]))
+	var i_perp := (I.y.y + I.z.z) * 0.5   # the two axes across the length (Part Y and Z), kg m2
 	var grip := PartTemplates.handle_of(rec)
 	var grip_u := grip.x - knob
 	var k := sqrt(i_perp / m) / L
 	var key := key_of(rec)
 	var r_barrel := clampf(0.25 * maxf(bb.size.y, bb.size.z), 0.008, 0.06)
+	var mats := mat if hm.is_empty() else "%s, grip %s" % [mat, hm[0]]   # the status line: "steel, grip wood"
 	Body.KINDS[key] = {"len": L, "handle": minf(L, grip_u + 0.06), "r_handle": R_HANDLE, "r_barrel": r_barrel, "head": [], "aim": true,
 		"grip": "power", "mass": m, "com": (c.x - knob) / L, "k": k, "grip_u": grip_u, "parts": _parts(rec, L),
-		"knob": knob, "material": mat, "com_part": c, "rev": int(revs.get(key, 0)) + 1,
-		"src": "the Part %s: %.0f cm long, %.2f kg of %s, the grip %.0f cm from the butt" % [String(rec.get("name", "Part")), L * 100.0, m, mat, grip_u * 100.0]}
+		"knob": knob, "material": mats, "com_part": c, "rev": int(revs.get(key, 0)) + 1,
+		"src": "the Part %s: %.0f cm long, %.2f kg of %s, the grip %.0f cm from the butt" % [String(rec.get("name", "Part")), L * 100.0, m, mats, grip_u * 100.0]}
 	revs[key] = int(Body.KINDS[key]["rev"])
 	meshes[key] = mesh
 	looks[key] = {"aluminium": "metal", "plastic": "tape", "wood": "wood"}.get(mat, "steel")
 	return key
+
+
+## the Part's bodies as [{"c" centre, "v" volume, "I" inertia about its own centre (density 1), "rho" density}]. A handle in another
+## material (hm: [material, last steel feature]) is what the Part adds after that feature: the whole minus the steel part
+static func _bodies(rec: Dictionary, res: Dictionary, rho: float, hm: Array) -> Array:
+	var full: Array = res["props"]
+	if hm.is_empty() or full.size() != 1:
+		return full.map(func(p): return {"c": p["center"], "v": p["volume"], "I": p["inertia"], "rho": rho})
+	var pre: Array = Part.replay(rec, int(hm[1]), {"props": true})["props"]
+	if pre.size() != 1 or float(pre[0]["volume"]) <= 0.0:
+		return full.map(func(p): return {"c": p["center"], "v": p["volume"], "I": p["inertia"], "rho": rho})
+	var F: Dictionary = full[0]
+	var A: Dictionary = pre[0]
+	var vA := float(A["volume"])
+	var vB := float(F["volume"]) - vA
+	var cF: Vector3 = F["center"]
+	var cA: Vector3 = A["center"]
+	var cB := (cF * float(F["volume"]) - cA * vA) / vB
+	# inertia about the whole's centre is additive: the handle's own = the whole's, less the steel's (moved to that centre), moved to its own
+	var iA := _mix(A["inertia"], _parallel(cA - cF), vA)
+	var iB := _mix(_mix(F["inertia"], iA, -1.0), _parallel(cB - cF), -vB)
+	return [{"c": cA, "v": vA, "I": A["inertia"], "rho": rho}, {"c": cB, "v": vB, "I": iB, "rho": float(DENSITY[hm[0]])}]
+
+
+## the weapon's name for the browser and the viewport: a Part's own name ("sword", "steel bar")
+static func name_of(kind: String) -> String:
+	return kind.trim_prefix(PREFIX).replace("_", " ")
 
 
 ## a plain-words line about a registered kind (the status line)
@@ -87,7 +119,7 @@ static func says(kind: String) -> String:
 	if not is_part(kind) or not Body.KINDS.has(kind):   # (the drawing's status calls this for every kind: only a Part has a line here)
 		return ""
 	var k: Dictionary = Body.KINDS[kind]
-	return "%s (%.0f cm, %.2f kg, %s): the grip %.0f cm from the butt" % [kind.trim_prefix(PREFIX).replace("_", " "), float(k["len"]) * 100.0,
+	return "%s (%.0f cm, %.2f kg, %s): the grip %.0f cm from the butt" % [name_of(kind), float(k["len"]) * 100.0,
 		float(k["mass"]), String(k["material"]), float(k["grip_u"]) * 100.0]
 
 

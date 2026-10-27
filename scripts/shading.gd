@@ -67,8 +67,11 @@ var meter := Meter.new()
 var matcap := "clay"   # K01: which matcap "matcap" draws
 var lights := "default"   # K02: which studio light preset is on
 var sky := false   # K02: the procedural gradient sky behind the figure
+var hdri := ""   # CG2: a picture file (.hdr or .exr) the sky shows instead of the gradient, and that lights the figure; "" = none
 var _debug := 0
 var _sky_env: Sky
+var _hdri_tex: Texture2D
+var _hdri_sky: Sky
 
 
 static func next_mode(cur: String) -> String:
@@ -165,24 +168,69 @@ func set_mode(m: Node, want: String) -> void:
 			vp.debug_draw = Viewport.DEBUG_DRAW_WIREFRAME
 
 
-## the background: the flat world colour, or (sky on) a procedural gradient sky. The silhouette is always flat.
+## the background: the flat world colour, or (sky on) the picture (CG2) or a procedural gradient sky. The silhouette is always flat.
 func apply_sky(m: Node) -> void:
 	var e: Environment = m.world_env
 	if sky and mode != "silhouette":
-		if _sky_env == null:
-			var pm := ProceduralSkyMaterial.new()
-			pm.sky_top_color = Color(0.20, 0.34, 0.60)
-			pm.sky_horizon_color = Color(0.72, 0.78, 0.86)
-			pm.ground_horizon_color = Color(0.72, 0.78, 0.86)
-			pm.ground_bottom_color = Color(0.16, 0.17, 0.20)
-			pm.sky_curve = 0.25
-			_sky_env = Sky.new()
-			_sky_env.sky_material = pm
-		e.sky = _sky_env
+		if _hdri_tex != null:
+			if _hdri_sky == null:
+				var pa := PanoramaSkyMaterial.new()
+				pa.panorama = _hdri_tex
+				_hdri_sky = Sky.new()
+				_hdri_sky.sky_material = pa
+			e.sky = _hdri_sky
+		else:
+			if _sky_env == null:
+				var pm := ProceduralSkyMaterial.new()
+				pm.sky_top_color = Color(0.20, 0.34, 0.60)
+				pm.sky_horizon_color = Color(0.72, 0.78, 0.86)
+				pm.ground_horizon_color = Color(0.72, 0.78, 0.86)
+				pm.ground_bottom_color = Color(0.16, 0.17, 0.20)
+				pm.sky_curve = 0.25
+				_sky_env = Sky.new()
+				_sky_env.sky_material = pm
+			e.sky = _sky_env
 		e.background_mode = Environment.BG_SKY
 	else:
 		e.background_mode = Environment.BG_COLOR
 		e.background_color = Tok.c("world")
+	apply_light_source(m)
+
+
+## CG2: a picture (.hdr or .exr) as the background and the light. The file is read here; a file that is not a picture
+## is refused and nothing changes. The picture shows when the sky is on (load_hdri turns it on).
+func read_hdri(path: String) -> bool:
+	var img := Image.load_from_file(path)
+	if img == null or img.is_empty():
+		return false
+	hdri = path
+	_hdri_tex = ImageTexture.create_from_image(img)
+	_hdri_sky = null
+	return true
+
+
+func load_hdri(m: Node, path: String) -> bool:
+	if not read_hdri(path):
+		return false
+	sky = true
+	apply_sky(m)
+	return true
+
+
+func clear_hdri(m: Node) -> void:
+	hdri = ""
+	_hdri_tex = null
+	_hdri_sky = null
+	apply_sky(m)
+
+
+## the picture lights the figure only while it is the background (sky on, not silhouette): its sky is the ambient light and
+## the reflections. Otherwise the stage's own ambient colour, as before. Called wherever the background or the lights change.
+func apply_light_source(m: Node) -> void:
+	var e: Environment = m.world_env
+	var lit := _hdri_tex != null and sky and mode != "silhouette"
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY if lit else Environment.AMBIENT_SOURCE_COLOR
+	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY if lit else Environment.REFLECTION_SOURCE_BG
 
 
 ## THE BODY LOOK's stage (Nick's "D"): soft lights (ambient 0.22, warm key 0.62, cool rim 0.5, a little fill) and SSAO. The stage is
@@ -218,6 +266,7 @@ func apply_lights(m: Node) -> void:
 	var e: Environment = m.world_env
 	if lights == "default" or not STUDIO.has(lights):
 		stage_default(m)
+		apply_light_source(m)
 		return
 	var st: Dictionary = STUDIO[lights]
 	for pair in [[m.light_key, "key"], [m.light_fill, "fill"], [m.light_rim, "rim"]]:
@@ -228,6 +277,7 @@ func apply_lights(m: Node) -> void:
 		L.light_color = d[2]
 	e.ambient_light_energy = st["amb"][0]
 	e.ambient_light_color = st["amb"][1]
+	apply_light_source(m)
 
 
 ## how many of the stage's directional lights are shining
@@ -247,6 +297,7 @@ func save_cfg(m: Node) -> void:
 	cf.set_value("view", "matcap", matcap)
 	cf.set_value("view", "lights", lights)
 	cf.set_value("view", "sky", sky)
+	cf.set_value("view", "hdri", hdri)
 	cf.save(m.settings)
 
 
@@ -262,6 +313,9 @@ func load_cfg(m: Node) -> void:
 	if not lights in LIGHTS:
 		lights = "default"
 	sky = bool(cf.get_value("view", "sky", false))
+	var hp := String(cf.get_value("view", "hdri", ""))
+	if hp != "":
+		read_hdri(hp)   # a picture that has gone missing is simply not shown
 	if md in SETTABLE and md != "silhouette":
 		set_mode(m, md)
 	elif sky:

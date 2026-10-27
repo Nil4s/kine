@@ -12,13 +12,13 @@ const OUT := "C:/Temp/claude/walk6/"
 ## baseline: true = passes today (a miss is a FAIL), false = KNOWN not done (a miss is only reported)
 const BASE := {
 	"1 house in Easy": true,
-	"2 part in Easy from the chooser": false,
+	"2 part in Easy from the chooser": true,
 	"2b (detour) Part Expert, then find Easy on the ribbon": true,
 	"3 sword 1 m long": false,
 	"4 round the blade edges": true,
 	"5 cut a hole in the crate": true,
 	"6 undo my last change": true,
-	"7 put my sword in a scene": false,
+	"7 put my sword in a scene": true,
 	"8 part in Expert: draw a box, pull it up": true,
 	"9 undo in Expert": true,
 	"10 go back to the house": true,
@@ -500,6 +500,9 @@ func _init() -> void:
 
 	# 8. PART IN EXPERT: draw a box, pull it up (a fresh part)
 	begin_goal("8 part in Expert: draw a box, pull it up")
+	if m.cur_page == "STAGE":   # goal 7 left the part in the set: the way back to BUILD is the STAGE panel's own button
+		await click_text("Change the part")
+		await idle(8)
 	if m.bld.part.easy:
 		await click_text("Expert")
 		await idle(8)
@@ -515,7 +518,7 @@ func _init() -> void:
 	await shot("expert_rect")
 	var fin := await click_text("Finish sketch")
 	await idle(6)
-	var ex := await click_text("Extrude")
+	var ex := await click_text("Extrude. the newest sketch", true)   # icon-only on the ribbon since the ribbon standard: its tooltip starts "Extrude. the newest sketch"
 	await idle(8)
 	await shot("expert_extrude_dialog")
 	var okb := await click_text("OK")
@@ -568,7 +571,8 @@ func _init() -> void:
 	say("\n== SUMMARY ==")
 	for g in BASE:
 		var r: Dictionary = results.get(g, {})
-		say("%-44s %s  clicks=%s  %s" % [g, "PASS" if r.get("ok", false) else "NO  ", str(r.get("clicks", "-")), String(r.get("stuck", "")).left(140)])
+		var tag := "n/a " if not results.has(g) else ("PASS" if r.get("ok", false) else "NO  ")   # not walked: the flow skipped it (e.g. the detour when Easy Part opens)
+		say("%-44s %s  clicks=%s  %s" % [g, tag, str(r.get("clicks", "-")), String(r.get("stuck", "")).left(140)])
 	say("regressions: %d" % regress)
 	var f := FileAccess.open(OUT + "log.txt", FileAccess.WRITE)
 	f.store_string("\n".join(lines) + "\n")

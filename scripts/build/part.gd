@@ -182,17 +182,98 @@ static func measure(e: Dictionary, kind: String) -> float:
 	return 0.0
 
 
-## sets (or adds) the dimension of entity `ent` and kind, and writes its result into the entity
-static func set_dim(sk: Dictionary, ent: int, kind: String, mm: float) -> void:
+## C2: "=forearm+4", "=thigh*0.6", "=forearm*1.2-2 mm" -> {"m": segment, "k": factor, "add": mm}; {} when the text is not a bind
+static func parse_bind(t: String) -> Dictionary:
+	var rx := RegEx.new()
+	rx.compile("^=\\s*([a-z_]+)\\s*(\\*\\s*([0-9]*\\.?[0-9]+))?\\s*(([+-])\\s*([0-9]*\\.?[0-9]+))?\\s*(mm)?$")
+	var mt := rx.search(t.strip_edges().to_lower())
+	if mt == null:
+		return {}
+	var k := float(mt.get_string(3)) if mt.get_string(3) != "" else 1.0
+	var add := float(mt.get_string(6)) if mt.get_string(6) != "" else 0.0
+	if mt.get_string(5) == "-":
+		add = -add
+	return {"m": mt.get_string(1), "k": k, "add": add}
+
+
+## C2: the text a bind is typed as (the dimension's field and label show it)
+static func bind_text(bind: Dictionary) -> String:
+	var k := float(bind.get("k", 1.0))
+	var add := float(bind.get("add", 0.0))
+	var s := "=%s" % String(bind.get("m", ""))
+	if k != 1.0:
+		s += "*%s" % _short(k)
+	if add != 0.0:
+		s += "%s%s" % ["+" if add > 0.0 else "-", _short(absf(add))]
+	return s
+
+
+static func _short(x: float) -> String:   # 4.0 -> "4", 0.6 -> "0.6"
+	return ("%.3f" % x).rstrip("0").rstrip(".")
+
+
+## C2: a bound dimension's value in mm from the body's measures (m, Proportions.measures_of). {"mm", "err"}:
+## no body, or no such measure, is an ERROR (never a default)
+static func bound_mm(bind: Dictionary, measures: Variant) -> Dictionary:
+	if not (measures is Dictionary):
+		return {"mm": 0.0, "err": "it reads the body, and there is no body to read"}
+	var m := String(bind.get("m", ""))
+	if not (measures as Dictionary).has(m):
+		return {"mm": 0.0, "err": "the body has no measure called %s" % m}
+	var mm := float((measures as Dictionary)[m]) / MM * float(bind.get("k", 1.0)) + float(bind.get("add", 0.0))
+	if mm <= 0.0:
+		return {"mm": 0.0, "err": "%s gives %s mm, which is not a size" % [bind_text(bind), snappedf(mm, 0.1)]}
+	return {"mm": mm, "err": ""}
+
+
+## C2: a copy of the sketch with its bound dimensions set from the body; err = the first one that cannot be read
+static func resolved_sketch(sk: Dictionary, measures: Variant) -> Dictionary:
+	var out := sk.duplicate(true)
+	for d in out.get("dims", []):
+		if not (d as Dictionary).has("bind"):
+			continue
+		var r := bound_mm((d as Dictionary)["bind"], measures)
+		if r["err"] != "":
+			return {"sk": out, "err": "%s: %s" % [d.get("name", "dimension"), r["err"]]}
+		d["mm"] = r["mm"]
+		apply_dim(out["ents"], d)
+	return {"sk": out, "err": ""}
+
+
+## C2: the record's bound sketches take the body's sizes now (the sketch on screen shows what the solid is made of).
+## A sketch that cannot be read keeps its last numbers here: its error is the replay's (never a default)
+static func refresh_bound(rec: Dictionary, measures: Variant) -> void:
+	for f in rec.get("features", []):
+		if String(f.get("t", "")) != "sketch" or not f.has("dims"):
+			continue
+		var bound := false
+		for d in f["dims"]:
+			bound = bound or (d as Dictionary).has("bind")
+		if not bound:
+			continue
+		var rs := resolved_sketch(f, measures)
+		if rs["err"] == "":
+			f["ents"] = rs["sk"]["ents"]
+			f["dims"] = rs["sk"]["dims"]
+
+
+## sets (or adds) the dimension of entity `ent` and kind, and writes its result into the entity. bind {} = a plain size
+static func set_dim(sk: Dictionary, ent: int, kind: String, mm: float, bind := {}) -> void:
 	if not sk.has("dims"):
 		sk["dims"] = []
 	var dims: Array = sk["dims"]
 	for d in dims:
 		if int(d["ent"]) == ent and d["kind"] == kind:
 			d["mm"] = mm
+			if bind.is_empty():
+				d.erase("bind")
+			else:
+				d["bind"] = bind.duplicate()
 			apply_dim(sk["ents"], d)
 			return
 	var d := {"id": "d%d" % (dims.size() + 1), "ent": ent, "kind": kind, "mm": mm}
+	if not bind.is_empty():
+		d["bind"] = bind.duplicate()
 	var word: String = {"w": "width", "h": "height", "len": "length", "r": "radius"}[kind]
 	var same := 0
 	for o in dims:
@@ -241,11 +322,15 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		var id := String(f["id"])
 		match String(f["t"]):
 			"sketch":
-				sketches[id] = f
+				var rs := resolved_sketch(f, want.get("body", null))   # C2: bound dimensions read the body given (none = an error)
+				sketches[id] = rs["sk"]
+				if rs["err"] != "":
+					errs[id] = rs["err"]
+					sketches[id] = {}   # a sketch that cannot be read makes no solid (never its stored numbers)
 			"extrude", "revolve":
 				var sk: Dictionary = sketches.get(String(f.get("sketch", "")), {})
 				if sk.is_empty():
-					errs[id] = "its sketch is gone"
+					errs[id] = String(errs.get(String(f.get("sketch", "")), "its sketch is gone"))
 					continue
 				var solid := _solid(f, sk)
 				if solid == 0:
@@ -288,8 +373,11 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	if mesh.get_surface_count() > 0:
 		res["mesh"] = mesh
 		res["aabb"] = mesh.get_aabb()
-	for b in bodies:
-		KCad.release(b)
+	if want.get("keep", false):   # the caller owns the solids (vehicle.gd: intersect tests); release them with KCad.release
+		res["ids"] = bodies
+	else:
+		for b in bodies:
+			KCad.release(b)
 	return res
 
 
