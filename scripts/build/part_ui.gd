@@ -1389,7 +1389,7 @@ func sync() -> void:
 	if reopen_btn != null:
 		reopen_btn.text = "What to build" if on else ""   # icon only in the house ribbon (it is crowded there); with words in Part, Expert or Easy
 	for t in tool_btns:
-		(tool_btns[t] as Control).visible = show
+		(tool_btns[t] as Control).visible = show and not (t in m.RIBBON_REST.get("BUILD", []))   # the rarer ones live under their captions (main.gd RIBBON_REST)
 	finish_btn.visible = show
 	easy_open_btn.visible = show
 	for c in my_seps:

@@ -78,13 +78,20 @@ func click_ctl(c: Control) -> void:
 	await idle(2)
 
 
-## a Part tool as a user reaches it: its own button when the row shows it; else More, then the tool (1280 x 720: Fillet, Chamfer and
-## Mirror sit in More, the row is full). Clicking a hidden button's last rect hit nothing (round 10-26: Fillet never opened)
+## a Part tool as a user reaches it: its own button when the row shows it; else its group's caption ▾ (the rarer tools: RIBBON_REST);
+## else More. Clicking a hidden button's last rect hit nothing (round 10-26: Fillet never opened)
 func press_tool(pu: PartUI, t: String) -> void:
 	var b: Button = pu.tool_btns[t]
 	if b.is_visible_in_tree():
 		await click_ctl(b)
 		return
+	for pair in m.ui_caps.get("BUILD", []):
+		if (pair[1] as Array).has(b):
+			await click_ctl(pair[0])
+			(pair[0] as MenuButton).get_popup().hide()
+			m._run_tool(b, pair[0])
+			await idle(2)
+			return
 	await click_ctl(m.ui_more)
 	m.ui_more.get_popup().hide()
 	var i: int = m._more_tools.find(b)
@@ -222,7 +229,7 @@ func _init() -> void:
 	var ents: Array = pu._sk()["ents"]
 	ok(ents.size() == 1 and ents[0]["k"] == "rect" and Part.v2(ents[0]["b"]).is_equal_approx(Vector2(95, 25)), "2 a rectangle dragged 95 x 25: %s" % [ents])
 	await shot("sketch_rect")
-	await click_ctl(pu.tool_btns["Dimension"])
+	await press_tool(pu, "Dimension")   # under its caption at 1280 x 720 (not on the row)
 	await click_ctl_at(sp2(47.5, 0))
 	ok(pu.dim_edit.visible, "2 Dimension on the bottom edge opens the type box")
 	await type_in(pu.dim_edit, "100")
@@ -252,6 +259,8 @@ func _init() -> void:
 	states.append(ps())
 
 	# 4 FILLET
+	ok(pu.tool_btns["Fillet"].is_visible_in_tree(), "4 Fillet is on the Part row itself at 1280 x 720 (not in More)")
+	ok(not pu.tool_btns["Mirror"].is_visible_in_tree() and not pu.tool_btns["Chamfer"].is_visible_in_tree(), "4 the rarer Mirror and Chamfer sit under their captions, not on the row")
 	await press_tool(pu, "Fillet")
 	ok(pu.dlg.size() > 0 and pu.edge_cache.size() == 12, "4 Fillet: its dialog, %d edges to pick" % pu.edge_cache.size())
 	var target := Vector3(0.05, 0.02, 0.005)   # the long top edge on the +y side

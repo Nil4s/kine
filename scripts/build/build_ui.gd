@@ -1670,7 +1670,10 @@ func _stage_sync() -> void:
 	if stage_panel == null:
 		return
 	var show: bool = m.cur_page == "STAGE" and m.S.kind == "building" and BuildStage.prop_index(m.S) >= 0
-	stage_panel.visible = show
+	var part_in: bool = m.cur_page == "STAGE" and not show and _part_in_set()
+	stage_panel.visible = show or part_in
+	if part_in:
+		_stage_part_sync()
 	if not show:
 		return
 	var sig := str(m.easy.on) + JSON.stringify(Building.to_file(_bld()))   # Easy and Expert word it differently
@@ -1746,6 +1749,38 @@ func _stage_sync() -> void:
 	eb.name = "build_edit_in_build"
 	eb.text = "Change the house" if easy_on else "Edit in BUILD"
 	eb.focus_mode = Control.FOCUS_NONE
+	eb.pressed.connect(func(): m._page_set("BUILD"))
+	stage_body.add_child(eb)
+
+
+## a part was put in the set ("Use in a scene" from the Part workspace): its prop is in the scene (BuildStage.use)
+func _part_in_set() -> bool:
+	for p in m.S.props:
+		if String(p["kind"]).begins_with("part:"):
+			return true
+	return false
+
+
+## STAGE with a part in the set: the way back to BUILD, where the part stays on screen (Easy Part or Expert). The house
+## panel is for a house set only; without this a part set had no way back in Easy (no page tabs there)
+func _stage_part_sync() -> void:
+	if _stage_sig == "part" and stage_body.get_child_count() > 0:
+		return
+	_stage_sig = "part"
+	for c in stage_body.get_children():
+		stage_body.remove_child(c)
+		c.queue_free()
+	walk_btns.clear()
+	var title := Label.new()
+	title.name = "build_stage_title"
+	title.text = "Your part is in the scene"
+	title.add_theme_font_size_override("font_size", 17)
+	stage_body.add_child(title)
+	var eb := Button.new()
+	eb.name = "build_edit_in_build"
+	eb.text = "Change the part" if m.easy.on else "Edit in BUILD"
+	eb.focus_mode = Control.FOCUS_NONE
+	eb.tooltip_text = "back to BUILD: the part is still open there, to change it"
 	eb.pressed.connect(func(): m._page_set("BUILD"))
 	stage_body.add_child(eb)
 

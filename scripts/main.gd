@@ -267,7 +267,9 @@ const RIBBON_GROUPS := {
 ## same tool, tooltip and key. Every group keeps at least two tools on the row. Nothing is hidden by window width: the row is the same at 1280 and 1600
 const RIBBON_REST := {"CHECK": ["Safety sheet", "Real-mocap check", "Speed limits", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check",
 	"Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound", "Star this clip", "My best take", "Make this one more like my best",
-	"What I learned from you", "My combos", "Frame it my way"]}
+	"What I learned from you", "My combos", "Frame it my way"],
+	# BUILD (the Part workspace's rarer tools): under their captions SKETCH / CREATE / MODIFY, not on the row, so Fillet fits at 1280 x 720
+	"BUILD": ["Arc", "Dimension", "Mirror", "Chamfer"]}
 ## PAGES (docs/PAGES_PLAN.md, step 1; DaVinci Resolve's page bar): one bar along the bottom, each page its own layout over
 ## the SAME scene, body and undo history. A page shows ONE ribbon row (its groups) and decides which side panels and how
 ## much of the scene strip are open; switching is a view change: no undo step, the scene untouched. The VIEW row is not a

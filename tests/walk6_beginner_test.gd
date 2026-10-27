@@ -500,6 +500,9 @@ func _init() -> void:
 
 	# 8. PART IN EXPERT: draw a box, pull it up (a fresh part)
 	begin_goal("8 part in Expert: draw a box, pull it up")
+	if m.cur_page == "STAGE":   # goal 7 left the part in the set: the way back to BUILD is the STAGE panel's own button
+		await click_text("Change the part")
+		await idle(8)
 	if m.bld.part.easy:
 		await click_text("Expert")
 		await idle(8)

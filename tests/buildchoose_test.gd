@@ -219,9 +219,12 @@ func _init() -> void:
 				print("   grey %s %s: card_says %s still %s said '%s'" % [id, mode, card_says, still, said])
 	ok(greys_ok, "3 the greyed cards (Vehicle, From a template%s) do nothing but say why: the chooser stays, mode and page unchanged" % ("" if KCad.available() else ", Import STEP, Part"))
 	ok(not (bc.whys["house"] as Label).visible and not (bc.whys["props"] as Label).visible, "3 the live cards carry no reason")
-	if KCad.available():   # 3b PART (Expert): the card opens the Part workspace on BUILD; Easy Part is not built: it says so, nothing changes
+	if KCad.available():   # 3b PART: the card opens the Part workspace on BUILD (Expert) or Easy Part (Easy). Easy Part was "not built yet" until
+		# commit 'Easy Part from the chooser' (972f9fa6, w4-partflow): Part Easy now closes the chooser and opens Easy Part, as the same record
 		await click(b("part", "easy"))
-		ok(bc.open and not m.bld.part.on, "3b Part Easy: not built yet, it says so and the chooser stays")
+		ok(not bc.open and m.bld.part.easy and m.bld.part.on and m.easy.on and m.cur_page == "BUILD", "3b Part Easy opens Easy Part (page %s, part easy %s)" % [m.cur_page, m.bld.part.easy])
+		bc.show_chooser()
+		await idle(3)
 		await click(b("part", "expert"))
 		await idle(3)
 		ok(not bc.open and m.cur_page == "BUILD" and m.bld.part.on and not m.easy.on, "3b Part Expert opens the Part workspace (page %s, part %s)" % [m.cur_page, m.bld.part.on])
