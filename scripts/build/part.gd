@@ -15,7 +15,8 @@ extends RefCounted
 ## same as a Kine curve sampled to a list. The timeline shows the rest pose (the hinge adds no solid); hinge_sweep() walks the curve and reports the
 ## first frame the moving body meets another body (a door against its stop).
 ## Sketch entities (plane coordinates in mm): {"k": "line", "a", "b"}, {"k": "rect", "a", "b"} (two corners), {"k": "circle", "c", "r"},
-## {"k": "arc", "a", "m", "b"} (from a to b through m). A dimension: {"id", "ent": index, "kind": "w" | "h" | "len" | "r", "mm", "name"}; the
+## {"k": "arc", "a", "m", "b"} (from a to b through m), {"k": "bspline", "pts": [[x, y], ...], "closed"} (a smooth curve through the points; a
+## closed one joins the last point to the first). A dimension: {"id", "ent": index, "kind": "w" | "h" | "len" | "r", "mm", "name"}; the
 ## entities always hold the dimension's result (apply_dim writes it), so a rebuild needs nothing else.
 ## An EDGE IS PICKED BY ITS CENTRE: a fillet stores where the edge was (mm), where it was inside its body's bounding box (0..1 per axis) and its
 ## direction; a rebuild picks the edge that best matches the box position and direction, so the fillet follows when a sketch is dimensioned
@@ -304,6 +305,47 @@ static func items_of(ents: Array) -> Array:
 				out.append(KCad.circle(v2(e["c"]) * MM, float(e["r"]) * MM))
 			"arc":
 				out.append(KCad.arc(v2(e["a"]) * MM, v2(e["m"]) * MM, v2(e["b"]) * MM))
+			"bspline":
+				if (e.get("pts", []) as Array).size() >= 3:
+					out.append(spline_item(e))
+	return out
+
+
+## a spline entity as a kernel item (metres); items_of leaves out one with fewer than 3 points (no curve)
+## the kernel gets the curve the user SEES: the kernel's own interpolating B-spline through the clicked points alone bulged
+## away from the drawn curve (+13 percent area on a 5-point ring), so it interpolates SPLINE_KERNEL_STEPS samples per span of it
+const SPLINE_KERNEL_STEPS := 4
+
+static func spline_item(e: Dictionary) -> Dictionary:
+	var closed := bool(e.get("closed", false))
+	var c := spline_curve(e.get("pts", []), closed, SPLINE_KERNEL_STEPS)
+	if closed and c.size() > 1:
+		c.resize(c.size() - 1)   # a periodic curve: the first point is not repeated
+	var pts := PackedVector2Array()
+	for q in c:
+		pts.append(q * MM)
+	return KCad.bspline(pts, closed)
+
+
+## a smooth curve (mm) through the points (Catmull-Rom: it passes through each point); steps samples per span; closed repeats the
+## first point at the end. The sketch draws this curve and the kernel is given it (spline_item)
+static func spline_curve(pts: Array, closed: bool, steps := 16) -> PackedVector2Array:
+	var P: Array = []
+	for q in pts:
+		P.append(v2(q))
+	var n := P.size()
+	var out := PackedVector2Array()
+	if n < 2:
+		return out
+	for i in (n if closed else n - 1):
+		var p0: Vector2 = P[(i - 1 + n) % n] if closed else P[maxi(i - 1, 0)]
+		var p1: Vector2 = P[i]
+		var p2: Vector2 = P[(i + 1) % n] if closed else P[i + 1]
+		var p3: Vector2 = P[(i + 2) % n] if closed else P[mini(i + 2, n - 1)]
+		for k in steps:
+			var t := float(k) / float(steps)
+			out.append(0.5 * (2.0 * p1 + (p2 - p0) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t * t + (3.0 * p1 - p0 - 3.0 * p2 + p3) * t * t * t))
+	out.append(P[0] if closed else P[n - 1])
 	return out
 
 
