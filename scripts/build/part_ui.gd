@@ -2106,25 +2106,9 @@ func _spline_point_at(p: Vector2) -> Dictionary:
 	return {}
 
 
-## a smooth curve (mm) through the points (Catmull-Rom: it passes through each point, like the kernel's B-spline); closed repeats the first point
+## the curve drawn for a spline: the same one the kernel is given (Part.spline_curve)
 func _spline_curve(pts: Array, closed: bool) -> PackedVector2Array:
-	var P: Array = []
-	for q in pts:
-		P.append(Part.v2(q))
-	var n := P.size()
-	var out := PackedVector2Array()
-	if n < 2:
-		return out
-	for i in (n if closed else n - 1):
-		var p0: Vector2 = P[(i - 1 + n) % n] if closed else P[maxi(i - 1, 0)]
-		var p1: Vector2 = P[i]
-		var p2: Vector2 = P[(i + 1) % n] if closed else P[i + 1]
-		var p3: Vector2 = P[(i + 2) % n] if closed else P[mini(i + 2, n - 1)]
-		for k in 16:
-			var t := float(k) / 16.0
-			out.append(0.5 * (2.0 * p1 + (p2 - p0) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t * t + (3.0 * p1 - p0 - 3.0 * p2 + p3) * t * t * t))
-	out.append(P[0] if closed else P[n - 1])
-	return out
+	return Part.spline_curve(pts, closed)
 
 
 # ---------------------------------------------------------------- C3 hinge: a part turns about a line; must not touch

@@ -312,11 +312,41 @@ static func items_of(ents: Array) -> Array:
 
 
 ## a spline entity as a kernel item (metres); items_of leaves out one with fewer than 3 points (no curve)
+## the kernel gets the curve the user SEES: the kernel's own interpolating B-spline through the clicked points alone bulged
+## away from the drawn curve (+13 percent area on a 5-point ring), so it interpolates SPLINE_KERNEL_STEPS samples per span of it
+const SPLINE_KERNEL_STEPS := 4
+
 static func spline_item(e: Dictionary) -> Dictionary:
+	var closed := bool(e.get("closed", false))
+	var c := spline_curve(e.get("pts", []), closed, SPLINE_KERNEL_STEPS)
+	if closed and c.size() > 1:
+		c.resize(c.size() - 1)   # a periodic curve: the first point is not repeated
 	var pts := PackedVector2Array()
-	for p in e.get("pts", []):
-		pts.append(v2(p) * MM)
-	return KCad.bspline(pts, bool(e.get("closed", false)))
+	for q in c:
+		pts.append(q * MM)
+	return KCad.bspline(pts, closed)
+
+
+## a smooth curve (mm) through the points (Catmull-Rom: it passes through each point); steps samples per span; closed repeats the
+## first point at the end. The sketch draws this curve and the kernel is given it (spline_item)
+static func spline_curve(pts: Array, closed: bool, steps := 16) -> PackedVector2Array:
+	var P: Array = []
+	for q in pts:
+		P.append(v2(q))
+	var n := P.size()
+	var out := PackedVector2Array()
+	if n < 2:
+		return out
+	for i in (n if closed else n - 1):
+		var p0: Vector2 = P[(i - 1 + n) % n] if closed else P[maxi(i - 1, 0)]
+		var p1: Vector2 = P[i]
+		var p2: Vector2 = P[(i + 1) % n] if closed else P[i + 1]
+		var p3: Vector2 = P[(i + 2) % n] if closed else P[mini(i + 2, n - 1)]
+		for k in steps:
+			var t := float(k) / float(steps)
+			out.append(0.5 * (2.0 * p1 + (p2 - p0) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t * t + (3.0 * p1 - p0 - 3.0 * p2 + p3) * t * t * t))
+	out.append(P[0] if closed else P[n - 1])
+	return out
 
 
 # ---------------------------------------------------------------- replay: features -> solids -> mesh

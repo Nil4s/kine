@@ -6,9 +6,10 @@ extends SceneTree
 ##   1 CLICKS    the Spline ribbon button, five clicks and a click on the first point: ONE closed bspline entity with the five points
 ##   2 UNDO      the whole sketch (start, spline, drag, finish) is ONE undo step
 ##   3 DRAG      a point dragged to (110, 70) moves to it (no undo step); dragged back to (100, 60) the record is exactly as before
-##   4 REPLAY    Extrude 40 mm: errors = {}, bodies = 1, the solid is closed (0 open mesh edges), volume within 3 percent of the
-##               same ring as a line polygon (shoelace area 6500 mm2 x 40 mm = 2.6e-4 m3). KNOWN: an interpolating spline through
-##               sharp corners overshoots (kernel: 3.72e-4 m3, +43 percent), so this bar cannot pass for this ring as written
+##   4 REPLAY    Extrude 40 mm: errors = {}, bodies = 1, the solid is closed (0 open mesh edges), volume within 1 percent of the
+##               CURVE THE SKETCH DRAWS x 40 mm (the solid is what the user saw). Redefined before merge: the first version compared
+##               with the line polygon through the clicks (6500 mm2), which a smooth curve through sharp corners cannot meet, and
+##               it hid that the kernel's curve was not the drawn one (+13 percent)
 ##   4b SMOOTH   (data) a closed spline through 8 points of an ellipse 100 x 60 mm, extruded 40 mm: volume within 1 percent of pi a b h
 ##   5 FILE      save -> new scene -> load: the same record, the same replay volume
 ## Only user:// is written (the test folder) and the screenshots in C:/Temp/claude/pspline/.
@@ -217,16 +218,15 @@ func _init() -> void:
 	await press_tool(pu, "Extrude")
 	await type_in(pu.f_num, "40")
 	var r: Dictionary = Part.replay(m.S.part)
+	var drawn := Part.spline_curve(RING, true, 64)   # the curve on screen, finely sampled
 	var area := 0.0
-	for i in RING.size():
-		var a: Array = RING[i]
-		var b: Array = RING[(i + 1) % RING.size()]
-		area += float(a[0]) * float(b[1]) - float(b[0]) * float(a[1])
+	for i in drawn.size() - 1:
+		area += drawn[i].x * drawn[i + 1].y - drawn[i + 1].x * drawn[i].y
 	var want := absf(area) * 0.5 * 40.0 * 1e-9
 	var vol := float(r["volume"])
 	var eo := open_edges(pu.part_mesh.mesh)
-	ok((r["errors"] as Dictionary).is_empty() and int(r["bodies"]) == 1 and absf(vol - want) < 0.03 * want,
-		"4 replay: errors %s, bodies %d, volume %s (line polygon %s, within 3 percent)" % [r["errors"], int(r["bodies"]), vol, want])
+	ok((r["errors"] as Dictionary).is_empty() and int(r["bodies"]) == 1 and absf(vol - want) < 0.01 * want,
+		"4 replay: errors %s, bodies %d, volume %s (the drawn curve x 40 mm: %s, within 1 percent)" % [r["errors"], int(r["bodies"]), vol, want])
 	ok(eo == 0, "4 the solid is closed: %d open mesh edges" % eo)
 	await shot("spline_extruded")
 	await shot("shot")
