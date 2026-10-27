@@ -13,6 +13,8 @@ extends Node
 
 const PW := 318.0
 const MAKE_H := 76.0
+const REP_WORDS := {"count": ["Fewer", "More"], "gap": ["Closer", "Further apart"]}   # the Repeat it sliders' ends
+const STICK_OPS := [["join", "Join", "Make the two pieces one solid"], ["cut", "Cut away", "Cut the second piece out of the first"], ["intersect", "Keep the overlap", "Keep only the part where the two pieces overlap"]]
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
 const THROTTLE_MS := 100
 const SKY := Color("#73BFFF")
@@ -27,7 +29,9 @@ const MAKES := [
 	["curve", "Curvy line", "part_spline", "Drag a wobbly loop on the grid. Drag back to the start to close it"],
 	["blend", "Blend two shapes", "part_loft", "Blend the last two shapes into one solid that runs from one to the other"],
 	["split", "Cut in two", "part_split", "Cut the solid in two across its middle. Drag the slider to move the cut"],
-	["colour", "Colour", "part_appearance", "Pick a colour for the solid, or Glass or Metal"]]
+	["colour", "Colour", "part_appearance", "Pick a colour for the solid, or Glass or Metal"],
+	["repeat", "Repeat it", "part_pattern", "Copy the newest solid in a row, or round in a ring. Then move the sliders"],
+	["stick", "Stick together", "part_combine", "Click two solid pieces in the view, then pick Join, Cut away or Keep the overlap"]]
 const BAD_WORDS := ["ctrl", "shift", "alt+", "esc", "enter", "tab ", "delete", "backspace", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12", "spacebar", "return key"]
 
 var pu: PartUI
@@ -47,6 +51,13 @@ var hint: PanelContainer
 var hint_l: Label
 var shape_box: PanelContainer
 var shape_btns := {}
+var repeat_box: PanelContainer   # Repeat it: Row / Ring and the How many and Gap sliders (for the last Repeat it step, rep_id)
+var rep_btns := {}
+var stick_box: PanelContainer    # Stick together: Join / Cut away / Keep the overlap, shown once two pieces are picked
+var stick_btns := {}
+var stick_picks: Array = []      # the body indices clicked in the view (the first = the target, the second = the tool)
+var rep_id := ""                 # the last Repeat it step's feature id ("" = none)
+var rep_rows := []               # the two slider rows of the Repeat it box (see _make_row)
 var colour_box: PanelContainer   # Colour: the five colour chips and Glass / Metal, under the MAKE row (armed "colour")
 var panel: PanelContainer
 var panel_vb: VBoxContainer   # the panel's column: it scrolls inside the panel when the window is short (1280 x 720)
@@ -142,7 +153,7 @@ func build(root: Control) -> void:
 		b.custom_minimum_size = Vector2(110, MAKE_H)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.tooltip_text = String(mk[3])
-		b.toggle_mode = mk[0] in ["draw", "curve", "colour"]
+		b.toggle_mode = mk[0] in ["draw", "curve", "colour", "stick"]
 		b.pressed.connect(_make.bind(String(mk[0])))
 		make_box.add_child(b)
 		make_btns[mk[0]] = b
@@ -171,6 +182,10 @@ func build(root: Control) -> void:
 	root.add_child(shape_box)
 	colour_box = _colour_box()
 	root.add_child(colour_box)
+	repeat_box = _repeat_box()
+	root.add_child(repeat_box)
+	stick_box = _stick_box()
+	root.add_child(stick_box)
 	# the panel
 	panel = PanelContainer.new()
 	panel.name = "easypart_panel"
@@ -271,6 +286,59 @@ func _colour_box() -> PanelContainer:
 	return box
 
 
+## REPEAT IT: Row or Ring, then How many (2..12 copies, the original counts) and Gap (cm between the copies). Its sliders write the Part pattern
+## step fields (count, mm, kind): the same replay as Expert Pattern
+func _repeat_box() -> PanelContainer:
+	var box := PanelContainer.new()
+	box.name = "easypart_repeat"
+	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	box.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	box.add_child(vb)
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 6)
+	vb.add_child(h)
+	for md in [["row", "Row", false], ["ring", "Ring", true]]:
+		var tip := "Copies in a straight row" if not md[2] else "Copies round the up axis, in a full turn"
+		var b := _big_btn("easypart_rep_" + String(md[0]), String(md[1]), tip, _rep_mode.bind(bool(md[2])))
+		b.toggle_mode = true
+		h.add_child(b)
+		rep_btns[md[0]] = b
+	rep_rows.append(_make_row("How many", 2.0, 12.0, 1.0, REP_WORDS["count"], "rep", "count", "copies", vb))
+	rep_rows.append(_make_row("Gap", 0.5, 30.0, 0.5, REP_WORDS["gap"], "rep", "gap", "cm", vb))
+	return box
+
+
+## STICK TOGETHER: the three big buttons, shown once two pieces are picked in the view
+func _stick_box() -> PanelContainer:
+	var box := PanelContainer.new()
+	box.name = "easypart_stick"
+	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	box.visible = false
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 6)
+	box.add_child(h)
+	for so in STICK_OPS:
+		var b := _big_btn("easypart_stick_" + String(so[0]), String(so[1]), String(so[2]), _stick.bind(String(so[0]), String(so[1])))
+		b.custom_minimum_size = Vector2(150, 44)
+		h.add_child(b)
+		stick_btns[so[0]] = b
+	return box
+
+
+func _big_btn(nm: String, txt: String, tip: String, f: Callable) -> Button:
+	var b := Button.new()
+	b.name = nm
+	b.text = txt
+	b.tooltip_text = tip
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(110, 44)
+	b.add_theme_font_size_override("font_size", 16)
+	b.pressed.connect(f)
+	return b
+
+
 func _colour_btn(key: String, txt: String, c: Color) -> Button:
 	var b := Button.new()
 	b.name = "easypart_colour_" + key
@@ -345,6 +413,8 @@ func entered() -> void:
 	armed = ""
 	msg = ""
 	tweak = {}
+	rep_id = ""
+	stick_picks = []
 	_draft = {}
 	_drag = {}
 	_sig = ""
@@ -403,6 +473,8 @@ func _end() -> void:
 func _set_value(row: Dictionary, v: float, final: bool) -> void:
 	if row["kind"] == "tpl":
 		_pending[row["key"]] = v * 10.0   # the slider says cm, the record mm
+	elif row["kind"] == "rep":
+		_apply_rep(row, v)
 	else:
 		_apply_tweak(v)
 	_dirty = true
@@ -419,6 +491,18 @@ func _apply_tweak(v: float) -> void:
 		f["ents"][int(tweak["ent"])][tweak["field"]] = val
 	else:
 		f[tweak["field"]] = val
+
+
+## the Repeat it sliders: How many = the copies; Gap = cm between the copies (the spacing = the body width + the gap, in the record mm)
+func _apply_rep(row: Dictionary, v: float) -> void:
+	var f := Part.feature(_rec(), rep_id)
+	if f.is_empty():
+		return
+	if String(row["key"]) == "count":
+		f["count"] = int(roundf(v))
+	else:
+		f["gap"] = v * 10.0
+		f["mm"] = float(f.get("w", 10.0)) + v * 10.0
 
 
 func _flush_if_dirty() -> void:
@@ -463,6 +547,8 @@ func _on_slider_end(_changed: bool, row: Dictionary) -> void:
 func _fmt(v: float, unit: String) -> String:
 	if unit == "deg":
 		return "%d degrees" % int(roundf(v))
+	if unit == "copies":
+		return "%d copies" % int(roundf(v))
 	return "%s cm" % str(snappedf(v, 0.1))
 
 
@@ -479,7 +565,7 @@ func _knob() -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 
-func _make_row(label: String, lo: float, hi: float, step: float, words: Array, kind: String, key: String, unit: String) -> Dictionary:
+func _make_row(label: String, lo: float, hi: float, step: float, words: Array, kind: String, key: String, unit: String, into: Control = null) -> Dictionary:
 	var v := VBoxContainer.new()
 	v.name = "easypart_row_" + key
 	v.add_theme_constant_override("separation", 0)
@@ -527,7 +613,7 @@ func _make_row(label: String, lo: float, hi: float, step: float, words: Array, k
 		wl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT if i == 0 else HORIZONTAL_ALIGNMENT_RIGHT
 		w.add_child(wl)
 	v.add_child(w)
-	rows_vb.add_child(v)
+	(into if into != null else rows_vb).add_child(v)
 	var row := {"key": key, "slider": s, "pill": pill, "kind": kind, "unit": unit, "label": label, "box": v, "words": w}
 	s.value_changed.connect(_on_slider_value.bind(row))
 	s.drag_started.connect(_on_slider_start.bind(row))
@@ -581,6 +667,7 @@ func _values_sync() -> void:
 			s.set_value_no_signal(v)
 		_pill_text(r, s.value)
 		m._grey(s, Part.why_not() if off else "")
+	_rep_sync()
 	whole_l.visible = _tpl() != ""
 	if whole_l.visible:   # the whole shape's biggest size (the replay's box, m -> cm): the sliders move one part of it
 		var bb: AABB = pu.res.get("aabb", AABB())
@@ -637,6 +724,21 @@ func _make(which: String) -> void:
 		_say(Part.why_not())
 		return
 	_flush_if_dirty()
+	if which != "repeat":
+		rep_id = ""
+	if which == "stick":
+		stick_picks = []
+		if armed == "stick":
+			armed = ""
+			_say("")
+			return
+		armed = ""
+		if int(pu.res.get("bodies", 0)) < 2:
+			_say("Make two solid pieces first, then stick them together")
+			return
+		armed = "stick"
+		_say(_arm_words("stick"))
+		return
 	if which == "draw" or which == "curve" or which == "colour":
 		armed = "" if armed == which else which
 		_draft = {}
@@ -663,6 +765,8 @@ func _make(which: String) -> void:
 			why = _blend(rec)
 		"split":
 			why = _cut(rec)
+		"repeat":
+			why = _repeat(rec)
 	if why != "":
 		m.S.part = snap   # nothing changes: the step taken a moment ago goes back out
 		m._drop_undo()
@@ -678,6 +782,12 @@ func _make(which: String) -> void:
 
 func _arm_words(a: String) -> String:
 	match a:
+		"stick":
+			if stick_picks.size() == 0:
+				return "Click the first solid piece in the view"
+			if stick_picks.size() == 1:
+				return "Now click the second solid piece"
+			return "Pick Join, Cut away or Keep the overlap"
 		"draw":
 			return "Drag on the grid to draw a shape"
 		"curve":
@@ -891,6 +1001,110 @@ func _paint(label: String, c: Color, preset: String) -> void:
 	_say("Colour: %s%s" % [label, " (you can see through it)" if preset == "Glass" else ""])
 
 
+## REPEAT IT: Part's pattern step (Expert Pattern) on the newest solid: a row along X, spacing = the body's width + a 1 cm gap
+func _repeat(rec: Dictionary) -> String:
+	var res := Part.replay(rec)
+	var nb := int(res["bodies"])
+	if nb == 0:
+		return "Make something solid first, then repeat it"
+	var bi := nb - 1
+	var w_mm := 10.0
+	var faces := Part.body_faces(rec, -1)
+	if bi < faces.size() and (faces[bi] as PackedVector3Array).size() > 0:
+		var pts: PackedVector3Array = faces[bi]
+		var bb := AABB(pts[0], Vector3.ZERO)
+		for q in pts:
+			bb = bb.expand(q)
+		w_mm = maxf(bb.size.x / Part.MM, 1.0)
+	var f := Part.new_feature(rec, "pattern", {"kind": "linear", "body": bi, "count": 3, "dir": "x", "axis": "y", "deg": 360.0,
+		"mm": w_mm + 10.0, "w": w_mm, "gap": 10.0, "op": "join"})
+	rec["features"].append(f)
+	if _last_error(rec, String(f["id"])) != "":
+		return "The copies would not fit: nothing was changed"
+	rep_id = String(f["id"])
+	tweak = {}
+	_say("Repeated in a row: move the sliders for how many and the gap, or pick Ring")
+	return ""
+
+
+## Row (linear, along X) or Ring (circular, round the up axis Y, a full turn): one undo step; Gap is for the row only
+func _rep_mode(ring: bool) -> void:
+	if Part.feature(_rec(), rep_id).is_empty():
+		return
+	_flush_if_dirty()
+	_begin("Ring" if ring else "Row")
+	var cur := Part.feature(_rec(), rep_id)
+	cur["kind"] = "circular" if ring else "linear"
+	cur["axis"] = "y"
+	cur["deg"] = 360.0
+	cur["dir"] = "x"
+	cur["mm"] = float(cur.get("w", 10.0)) + float(cur.get("gap", 10.0))
+	_end()
+	pu.sync()
+	_values_sync()
+	_say("Ring: the copies go round the up axis" if ring else "Row: the copies go in a straight line")
+
+
+## STICK TOGETHER: Part's combine step (Expert Combine): the first picked piece is the target, the second the tool; one undo step
+func _stick(op: String, label: String) -> void:
+	if stick_picks.size() < 2:
+		_say("Click two solid pieces first")
+		return
+	_flush_if_dirty()
+	var snap := _rec().duplicate(true)
+	_begin(label)
+	var rec := pu._ensure()
+	var f := Part.new_feature(rec, "combine", {"target": int(stick_picks[0]), "tools": [int(stick_picks[1])], "op": op, "keep": false})
+	rec["features"].append(f)
+	armed = ""
+	var why := _last_error(rec, String(f["id"]))
+	stick_picks = []
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("Those two pieces cannot do that: " + why)
+	else:
+		_end()
+		_say("%s: the two pieces are one solid now" % label)
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+
+
+## a click in the view while Stick together is armed: the body under the pointer is picked (a second click takes it off)
+func _stick_pick(bi: int) -> void:
+	if stick_picks.has(bi):
+		stick_picks.erase(bi)
+	elif stick_picks.size() < 2:
+		stick_picks.append(bi)
+	else:
+		_say("Two pieces are picked: press Join, Cut away or Keep the overlap, or click one to take it off")
+		return
+	_say(_arm_words("stick"))
+
+
+## the repeat box follows the last Repeat it step (its count, its gap, Row or Ring)
+func _rep_sync() -> void:
+	if repeat_box == null:
+		return
+	var f := Part.feature(_rec(), rep_id)
+	if f.is_empty():
+		return
+	var ring := String(f.get("kind", "linear")) == "circular"
+	(rep_btns["row"] as Button).set_pressed_no_signal(not ring)
+	(rep_btns["ring"] as Button).set_pressed_no_signal(ring)
+	for r in rep_rows:
+		var s: HSlider = r["slider"]
+		var v := float(f.get("count", 3)) if String(r["key"]) == "count" else float(f.get("gap", 10.0)) / 10.0
+		if not bool(r.get("held", false)):
+			s.set_value_no_signal(v)
+		_pill_text(r, v)
+		s.editable = not (ring and String(r["key"]) == "gap")
+
+
 ## CURVY LINE: the drag's points (sampled to 12) become one spline sketch (Part's "bspline" entity; the kernel gets the curve it draws).
 ## Closed when the drag comes back to its start
 func _finish_curve() -> void:
@@ -937,6 +1151,8 @@ func _process(_dt: float) -> void:
 	dots.visible = on
 	shape_box.visible = on and armed == "draw"
 	colour_box.visible = on and armed == "colour"
+	repeat_box.visible = on and armed == "" and rep_id != "" and not Part.feature(_rec(), rep_id).is_empty()
+	stick_box.visible = on and armed == "stick" and stick_picks.size() == 2
 	if not on:
 		return
 	if m.easy != null:
@@ -967,6 +1183,7 @@ func _chrome_sync() -> void:
 	(make_btns["draw"] as Button).set_pressed_no_signal(armed == "draw" and not off)
 	(make_btns["curve"] as Button).set_pressed_no_signal(armed == "curve" and not off)
 	(make_btns["colour"] as Button).set_pressed_no_signal(armed == "colour" and not off)
+	(make_btns["stick"] as Button).set_pressed_no_signal(armed == "stick" and not off)
 	m._grey(back_btn, Part.why_not() if off else ("" if t != "" else "Pick a shape above first"))
 	m._grey(use_scene_btn, Part.why_not() if off else ("" if not _rec().get("features", []).is_empty() else "Draw a shape first"))
 	easy_btn.set_pressed_no_signal(true)
@@ -1019,11 +1236,12 @@ func layout(cl: Rect2) -> void:
 	if not active():
 		return
 	var w := cl.size.x - 16.0
-	var bw := minf(176.0, (w - 9.0 * 8.0) / 10.0)
+	var n := float(MAKES.size())   # twelve buttons in one row: each takes its share (the row is as wide as the clear view allows)
+	var bw := minf(176.0, (w - (n - 1.0) * 8.0) / n)
 	make_box.reset_size()
 	for b in make_btns.values():
 		(b as Control).custom_minimum_size.x = bw
-	make_box.size = Vector2(bw * 10.0 + 72.0, MAKE_H)
+	make_box.size = Vector2(bw * n + (n - 1.0) * 8.0, MAKE_H)
 	make_box.position = Vector2(cl.position.x + 8.0, cl.position.y + 4.0)
 	var top := make_box.position.y + maxf(MAKE_H, make_box.size.y) + 8.0
 	hint.reset_size()
@@ -1033,6 +1251,11 @@ func layout(cl: Rect2) -> void:
 	shape_box.position = Vector2(cl.position.x + 12.0, top + hint.size.y + 6.0)
 	colour_box.reset_size()
 	colour_box.position = shape_box.position
+	# the Repeat it and Stick together rows sit at the lower left, above the one sentence, off the model's pieces
+	repeat_box.reset_size()
+	repeat_box.position = Vector2(cl.position.x + 12.0, cl.end.y - repeat_box.size.y - 64.0)
+	stick_box.reset_size()
+	stick_box.position = Vector2(cl.position.x + 12.0, cl.end.y - stick_box.size.y - 64.0)
 	# the panel on the right, as tall as it needs; the words under the sliders go first when the room is short
 	var avail := cl.end.y - top - 4.0
 	panel.reset_size()
@@ -1146,6 +1369,12 @@ func input(ev: InputEvent) -> bool:
 				if (d["scr"] as Vector2).distance_to(p) <= 16.0:
 					_grab(d, p)
 					return true
+			if armed == "stick" and not _over_ui(p):
+				var hit: Dictionary = pu._ray_hit(p, Part.body_faces(_rec(), -1))   # the body under the pointer (Expert's combine picks the same way)
+				if hit.is_empty():
+					return false   # nothing solid there: the camera keeps the click
+				_stick_pick(int(hit["body"]))
+				return true
 			if (armed == "draw" or armed == "curve") and not _over_ui(p):
 				var g: Variant = _ground(p)
 				if g != null:
@@ -1188,7 +1417,7 @@ func input(ev: InputEvent) -> bool:
 
 
 func _over_ui(p: Vector2) -> bool:
-	for c in [bar, make_box, panel, hint, shape_box, colour_box, status]:
+	for c in [bar, make_box, panel, hint, shape_box, colour_box, repeat_box, stick_box, status]:
 		if (c as Control).visible and (c as Control).get_global_rect().has_point(p):
 			return true
 	return false

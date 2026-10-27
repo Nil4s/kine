@@ -181,7 +181,7 @@ func _init() -> void:
 	await click_ctl(pu.easy_open_btn)
 	await idle(4)
 	var ep = pu.ep
-	ok(pu.easy and ep.make_box.visible and ep.make_btns.size() == 10, "0 Easy home: Part on Easy's screen with ten big buttons (%d)" % ep.make_btns.size())
+	ok(pu.easy and ep.make_box.visible and ep.make_btns.size() == 12, "0 Easy home: Part on Easy's screen with twelve big buttons (%d; Repeat it + Stick together joined the ten in 729dbc23)" % ep.make_btns.size())
 	# 1 CURVY LINE
 	var ub: int = m.undo.size()
 	var ns := count_kind(m.S.part, "sketch")

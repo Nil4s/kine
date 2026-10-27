@@ -2073,9 +2073,10 @@ func layout(cl: Rect2) -> void:
 	browser.size = Vector2(BROWSER_W, minf(browser.get_combined_minimum_size().y, avail))
 	browser.position = Vector2(cl.position.x + 8.0, cl.position.y + 6.0)
 	side.reset_size()
-	side.size.x = PANEL_W
+	# PCUBE: a dialog's own width can be more than PANEL_W (its rows); the panel grows and stays LEFT of the cube column
+	side.size.x = maxf(PANEL_W, side.get_combined_minimum_size().x)
 	side.size.y = minf(side.get_combined_minimum_size().y, avail)
-	side.position = Vector2(cl.end.x - PANEL_W - 8.0, cl.position.y + 6.0)
+	side.position = Vector2(cl.end.x - side.size.x - 8.0, cl.position.y + 6.0)
 	note.reset_size()
 	note.position = Vector2(browser.position.x + BROWSER_W + 12.0, cl.position.y + 6.0)
 	if bu.houses != null:
