@@ -15,6 +15,11 @@ extends SceneTree
 ##  C7  EASY text (every label, button and tooltip of the library and its note) names no key (Ctrl, Shift, Alt, Esc, Enter, Del, F1..).
 ##  C8  OPENING the library again (pictures cached) takes less than OPEN_MAX_MS = 150 ms.
 ##  C9  Recent keeps the last RECENT_MAX, newest first, no repeats.
+##  D1  (BY CATEGORY) every object has exactly one category, and it is one of the fixed list: the six built-in ones and BUILD's four.
+##  D2  EASY start: the category tiles are the only tiles (the grid holds no object card, no Back tile), and every category has a tile.
+##  D3  EASY, real clicks: each category tile opens exactly that category's objects (Recent: the recent list); the Back tile returns
+##      to the start; a search for "chair" finds the chair from any category tile.
+##  D4  the shots C:/Temp/claude/libcat/easy_library.png (Easy start: the category tiles) and easy_library_open.png (one category open).
 ## Screenshots: C:/Temp/claude/libcat/expert.png and easy.png.
 const OPEN_MAX_MS := 150.0
 const SHOT_DIR := "C:/Temp/claude/libcat"
@@ -75,6 +80,14 @@ func tile(id: String) -> Button:
 
 func side(nm: String) -> Button:
 	return lib.find_child("cat_" + nm.replace(" ", "_").to_lower(), true, false) as Button
+
+
+## Easy's category tile (the column entry of the category c, by its meta)
+func cat_btn(c: String) -> Button:
+	for b in lib._cat_btns:
+		if String((b as Button).get_meta("cat")) == c:
+			return b
+	return null
 
 
 func ids_in_group(c: String) -> Array:
@@ -323,6 +336,80 @@ func _init() -> void:
 		lib.hide_panel()
 		await idle(2)
 	ok(worst < OPEN_MAX_MS, "C8 opening the library again takes %.1f ms (at most %.0f)" % [worst, OPEN_MAX_MS])
+
+	# D1 every object: one category, in the fixed list
+	var fixed_list: Array = ObjectLibrary.CATS + ObjectLibrary.EXTRA_CATS
+	var nocat := []
+	for it in lib.catalog():
+		if not fixed_list.has(String(it["cat"])):
+			nocat.append(String(it["id"]))
+	ok(nocat.is_empty() and fixed_list.size() == 10, "D1 every object has one category from the fixed list of %d (without one: %s)" % [fixed_list.size(), str(nocat.slice(0, 4))])
+
+	# D2 / D3 / D4 Easy
+	m.easy.set_on(true, false)
+	await idle(6)
+	m._new_scene()
+	await idle(4)
+	if lib.visible:
+		m._library_toggle()
+		await idle(2)
+	var eb2 := m.easy.button("Library") as Button
+	if eb2 != null:
+		await click_ctl(eb2)
+	await idle(4)
+	await lib.thumbs.settle()
+	var grid_items := lib._grid.get_children().filter(func(n): return n.name.begins_with("tile_") or n.name == "library_back")
+	ok(lib.visible and grid_items.is_empty() and shown_ids().is_empty(), "D2 Easy start: no object card and no Back tile in the grid (%d)" % grid_items.size())
+	var cat_names := []
+	for b in lib._cat_btns:
+		cat_names.append(String((b as Button).get_meta("cat")))
+	ok(cat_names.size() == fixed_list.size() + 1 and cat_names.has("Recent"), "D2 every category has a tile (%d tiles: %s)" % [cat_names.size(), str(cat_names)])
+	ok(lib._side.is_visible_in_tree() and lib._side.get_global_rect().size.x >= ObjectLibrary.EASY_SIDE_W - 1.0, "D2 Easy's category tiles are the big column")
+	await shot("easy_library")
+
+	var d3_bad := []
+	for c in cat_names:
+		var want_ids: Array = []
+		if c == "Recent":
+			want_ids = lib.recent_items().map(func(it): return String(it["id"]))
+		else:
+			want_ids = ids_in_group(c)
+		var tb := cat_btn(c)
+		if want_ids.is_empty() and tb != null and not tb.is_visible_in_tree():
+			continue   # My houses with no house drawn or saved: its entry is not listed (nothing to open)
+		if tb == null:
+			d3_bad.append("%s: no tile" % c)
+			continue
+		await click_ctl(tb)
+		await idle(3)
+		var got := shown_ids()
+		var bk := lib.find_child("library_back", true, false) as Button
+		if got != want_ids:
+			d3_bad.append("%s: shows %s, want %s" % [c, str(got.slice(0, 3)), str(want_ids.slice(0, 3))])
+		if bk == null or not bk.is_visible_in_tree():
+			d3_bad.append("%s: no Back tile" % c)
+		elif c == cat_names[0]:
+			await shot("easy_library_open")
+		if bk != null:
+			await click_ctl(bk)
+			await idle(3)
+			if not shown_ids().is_empty() or lib.find_child("library_back", true, false) != null:
+				d3_bad.append("%s: Back did not return to the start" % c)
+	ok(d3_bad.is_empty(), "D3 each Easy category tile shows exactly its objects, Back returns (%s)" % str(d3_bad.slice(0, 4)))
+
+	await click_ctl(cat_btn("Furniture"))
+	await idle(2)
+	lib._search.text = "chair"
+	lib._on_search("chair")
+	await idle(3)
+	ok(shown_ids().has("prop:chair"), "D3 a search for chair from the Furniture tile finds the chair (%s)" % str(shown_ids()))
+	lib._search.text = ""
+	lib._on_search("")
+	await idle(2)
+	m.easy.set_on(false, false)
+	await idle(3)
+	lib.hide_panel()
+	await idle(2)
 
 	DirAccess.remove_absolute(ProjectSettings.globalize_path("user://libcat_test_recent.json"))
 	print("LIBCAT TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))

@@ -58,6 +58,9 @@ const COLS := 3
 const EASY_PIC := 136              # Easy: bigger cards, same grid
 const EASY_TILE := Vector2(156, EASY_PIC + 52)
 const SIDE_W := 128.0              # the category column's width
+const EASY_SIDE_W := 336.0         # Easy: the category tiles, three across: big pictures (EASY_CAT_W x EASY_CAT_H), all in view without a scroll
+const EASY_CAT_W := 108.0
+const EASY_CAT_H := 88.0
 const CHROME := 150.0             # px of the panel that is not the grid: header, search, tabs, note, margins
 
 var m: Node                       # main (untyped, as the other panels)
@@ -68,6 +71,10 @@ var view := ""                    # "" = the built-in category tab; RECENT or on
 var recent_file := "user://library_recent.json"
 var _recent: Array = []           # ids, newest first
 var _side_btns := {}              # column entry name (RECENT, EXTRA_CATS) -> its Button
+var _cat_btns: Array = []         # every column entry (Recent, the six built-in, the BUILD ones), in column order
+var _side_col: VBoxContainer      # Expert: the thin list
+var _cat_grid: GridContainer      # Easy: the category tiles, three across (the column's other child is Expert's list)
+var _cat_req := {}                # the representative items whose picture was asked for (Easy's category tiles)
 var thumbs: LibraryThumbs
 var tab := 0                      # the category shown when no search is typed
 var query := ""                   # the search box, lower case
@@ -132,9 +139,17 @@ func setup(main: Node, weapon_list: Array) -> void:
 	_side.custom_minimum_size = Vector2(SIDE_W, 0)
 	body.add_child(_side)
 	var col := VBoxContainer.new()
+	_side_col = col
 	col.add_theme_constant_override("separation", 3)
 	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_side.add_child(col)
+	_cat_grid = GridContainer.new()
+	_cat_grid.name = "library_cats"
+	_cat_grid.columns = 3
+	_cat_grid.add_theme_constant_override("h_separation", 6)
+	_cat_grid.add_theme_constant_override("v_separation", 6)
+	_cat_grid.visible = false
+	_side.add_child(_cat_grid)
 	var grp := ButtonGroup.new()
 	var rb := _side_button(RECENT, grp)
 	rb.pressed.connect(_pick_view.bind(RECENT))
@@ -310,6 +325,7 @@ func open() -> void:
 	_armour_hash = ""
 	visible = true
 	fit(get_viewport().get_visible_rect().size if is_inside_tree() else Vector2(1280, 720))
+	_cat_req = {}
 	_refresh_tabs()
 	_rebuild()
 
@@ -627,12 +643,46 @@ func _side_button(nm: String, grp: ButtonGroup) -> Button:
 	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	if nm == RECENT or EXTRA_CATS.has(nm):
 		_side_btns[nm] = b
+	b.set_meta("cat", nm)
+	_cat_btns.append(b)
 	return b
+
+
+## Easy: the category column is the picture tiles (big, the picture on the left); Expert keeps its thin list. The grid is then
+## empty until a tile is picked (Easy start shows only the category tiles), and a Back tile returns to that.
+func _easy() -> bool:
+	return m != null and m.easy != null and m.easy.on
+
+
+func _layout_mode() -> void:
+	var easy := _easy()
+	var col: Control = _side_col
+	col.visible = not easy
+	_cat_grid.visible = easy
+	_side.custom_minimum_size = Vector2(EASY_SIDE_W if easy else SIDE_W, 0)
+	var to: Node = _cat_grid if easy else _side_col
+	for b in _cat_btns:
+		var bt := b as Button
+		if bt.get_parent() != to:
+			bt.get_parent().remove_child(bt)
+			to.add_child(bt)
+		if easy:
+			bt.custom_minimum_size = Vector2(EASY_CAT_W, EASY_CAT_H)
+			bt.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			bt.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
+			bt.expand_icon = true
+			bt.add_theme_font_size_override("font_size", 12)
+		else:
+			bt.custom_minimum_size = Vector2(0, 30)
+			bt.icon = null
+			bt.expand_icon = false
+			bt.remove_theme_font_size_override("font_size")
+	_refresh_cat_icons()
 
 
 func _pick_tab(i: int) -> void:
 	tab = i
-	view = ""
+	view = CATS[i] if _easy() else ""   # Easy: a tile opens its category (the grid is empty until then)
 	query = ""
 	_search.text = ""
 	_rebuild()
@@ -655,7 +705,7 @@ func _refresh_tabs() -> void:
 		var b: Button = _tabs[i]
 		b.text = CATS[i]   # the name alone (beginner round 8, friction 8): the count is in the tooltip
 		b.tooltip_text = "%d objects. %s" % [in_cat(CATS[i]).size(), TAB_TIPS[CATS[i]]]
-		b.button_pressed = view == "" and i == tab and query == ""
+		b.button_pressed = (view == "" and i == tab and query == "" and not _easy()) or (view == CATS[i] and query == "")
 	for nm in _side_btns:
 		var eb: Button = _side_btns[nm]
 		if nm == RECENT:
@@ -675,6 +725,8 @@ func _shown() -> Array:
 		return recent_items()
 	if view != "":
 		return in_group(view)
+	if _easy():
+		return []   # Easy's start: the category tiles only
 	return in_cat(CATS[tab])
 
 
@@ -692,12 +744,17 @@ func _rebuild() -> void:
 		_grid.remove_child(c)
 		c.queue_free()
 	_pics.clear()
+	_layout_mode()
 	_refresh_tabs()
 	var shown := _shown()
 	var one := _one_category(shown)
+	if _easy() and (view != "" or query != ""):
+		_grid.add_child(_back_tile())
 	for it in shown:
 		_grid.add_child(_tile(it, one))
-	if shown.is_empty():
+	if shown.is_empty() and _easy() and view == "" and query == "":
+		pass   # Easy's start: the note says to pick a picture; the grid stays empty
+	elif shown.is_empty():
 		var empty := Label.new()
 		empty.name = "library_empty"
 		empty.custom_minimum_size = Vector2(_tile_size().x * COLS, 60)
@@ -706,8 +763,30 @@ func _rebuild() -> void:
 			("Nothing yet. Click a picture in any list and it shows up here." if view == RECENT else "Nothing here yet. Draw a room in BUILD, press Save house, and it is listed here." if view == "My houses" else "No models of your own yet. Drop a .glb file on the window to bring it in; it is listed here." if m.easy.on else "No models of your own yet. Import model... (the SET row) brings a .glb in; it is listed here.")
 		empty.add_theme_color_override("font_color", Tok.of("text:0.6"))
 		_grid.add_child(empty)
-	_note.text = ("%d shown. Click a picture to give it to him." if m.easy.on else "%d shown. Click a tile to place it in the set or the hand.") % shown.size()
+	if _easy() and view == "" and query == "":
+		_note.text = "Pick a picture on the left to see what is in it."
+	else:
+		_note.text = ("%d shown. Click a picture to give it to him." if m.easy.on else "%d shown. Click a tile to place it in the set or the hand.") % shown.size()
 	reset_size.call_deferred()   # the panel is as tall as what it shows now (a taller tab, or a wrapping label measured before its width, left it 1572 px over a 900 px window)
+
+
+## Easy's Back tile: returns to the category tiles (view and search cleared; no key, a plain click)
+func _back_tile() -> Button:
+	var b := Button.new()
+	b.name = "library_back"
+	b.text = "Back"
+	b.custom_minimum_size = _tile_size()
+	b.focus_mode = Control.FOCUS_NONE
+	b.tooltip_text = "Back to the categories"
+	b.pressed.connect(_back)
+	return b
+
+
+func _back() -> void:
+	view = ""
+	query = ""
+	_search.text = ""
+	_rebuild()
 
 
 ## true when every tile shown is one category: the tiles then need no category caption (the tab's name is the header)
@@ -940,7 +1019,30 @@ func _armour_node(words: String) -> Node3D:
 	return root
 
 
+## Easy's category tiles: each shows a picture of one of its objects (the first; Recent its newest), asked for once
+func _refresh_cat_icons() -> void:
+	for b in _cat_btns:
+		var bt := b as Button
+		bt.icon = null
+		if not _easy() or thumbs == null:
+			continue
+		var nm := String(bt.get_meta("cat"))
+		var li: Array = recent_items() if nm == RECENT else in_group(nm)
+		if li.is_empty():
+			continue
+		var it: Dictionary = li[0]
+		var id := String(it["id"])
+		var tex := thumbs.picture(id)
+		if tex == null and it.has("thumb"):
+			tex = HousesUI.picture_of(String(it["thumb"]))
+		if tex == null and not _cat_req.has(id):
+			_cat_req[id] = true
+			thumbs.request(id, thumb_source(it))
+		bt.icon = tex
+
+
 func _made(id: String) -> void:
+	_refresh_cat_icons()
 	if _pics.has(id) and is_instance_valid(_pics[id]):
 		var pic := _pics[id] as TextureRect
 		pic.texture = thumbs.picture(id)
