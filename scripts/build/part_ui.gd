@@ -30,6 +30,10 @@ const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell"]
 const SHELL_OPEN := ["", "+x", "-x", "+y", "-y", "+z", "-z"]   # the open face of a shell (Part.SHELL_DIRS), in the dialog's order
 const SHELL_OPEN_TXT := ["Closed (no face open)", "Right face (+X)", "Left face (-X)", "Top face (+Y, up)", "Bottom face (-Y)", "Front face (+Z)", "Back face (-Z)"]
 const HINGE_TOOLS := ["Hinge"]
+const INSPECT_TOOLS := ["Measure", "Section"]   # view tools: a measure readout and a section cut (no record step, no undo)
+const SEC_PLANES := ["front", "top", "right"]
+const CAP_COL := Color("#e8833a")   # the section cap: the cut face, a hatch colour (orange)
+const SOLID_COL := Color(0.74, 0.77, 0.82)
 const HSEC := 25.0   # the frames per second of the hinge's swing check (Part.hinge_sweep)
 const TIPS := {
 	"Line": "LINE: click the start, click each corner; a typed number sets the length. Esc ends the chain. Snaps to the grid.",
@@ -47,7 +51,9 @@ const TIPS := {
 	"Offset plane": "OFFSET PLANE: pick Front, Top or Right and type a distance. The new plane is in the browser: click it to sketch on it.",
 	"Fillet": "FILLET: click edges (they turn sky blue), type a radius, press Enter or OK.",
 	"Chamfer": "CHAMFER: click edges, type a distance, press Enter or OK.",
-	"Hinge": "HINGE: click the part that turns, then the line it turns round (a straight edge, or two points on it). Type the angles and seconds, then OK."}
+	"Hinge": "HINGE: click the part that turns, then the line it turns round (a straight edge, or two points on it). Type the angles and seconds, then OK.",
+	"Measure": "MEASURE: click two points (vertex, edge or face) for a distance; one edge for its length; one face for its area. Not a step: no undo.",
+	"Section": "SECTION: cuts the solid with a plane (Front, Top or Right) and an offset; the cut face is filled. A view setting: no undo."}
 
 var bu: BuildUI
 var m: Node
@@ -156,6 +162,19 @@ var _sk_before := ""
 var _profile_ok := ""          # the sketch's own status line ("closed profile" ...)
 var _profile_sig := ""
 var _fit_sig := ""
+var meas_pts: Array = []       # MEASURE: the first point (Vector3, m) waiting for its second
+var meas_out: Array = []       # MEASURE results on the view: {"line": PackedVector3Array (m), "at": Vector3, "v": value (mm, mm2), "txt": String}
+var meas_panel: PanelContainer
+var meas_l: Label
+var sec_on := false            # SECTION (a view setting, not in the record): the cut is on
+var sec_pl := "front"          # its plane (Front, Top, Right) and offset (mm along the plane normal)
+var sec_mm := 0.0
+var sec_mat: ShaderMaterial
+var sec_box: PanelContainer
+var sec_chk: CheckBox
+var sec_opt: OptionButton
+var sec_slider: HSlider
+var sec_val: Label
 
 
 func setup(b: BuildUI) -> void:
@@ -180,6 +199,8 @@ func setup(b: BuildUI) -> void:
 		_tool_btn(row, t)
 	_sep(row)
 	for t in HINGE_TOOLS:
+		_tool_btn(row, t)
+	for t in INSPECT_TOOLS:
 		_tool_btn(row, t)
 	_sep(row)
 	finish_btn = m._button("Finish sketch", finish_sketch, "Finish sketch: the sketch is done; the steps after it replay (one undo step)")
@@ -217,6 +238,7 @@ func setup(b: BuildUI) -> void:
 	_build_browser()
 	_build_side()
 	_build_timeline()
+	_build_inspect()
 	note = PanelContainer.new()
 	note.name = "part_note"
 	note.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -655,6 +677,9 @@ func _pick(t: String) -> void:
 	if not Part.available():
 		_tool_sync()
 		return
+	if t in INSPECT_TOOLS:
+		_inspect_pick(t)
+		return
 	if t in SKETCH_TOOLS:
 		if dlg.size() > 0:
 			close_dialog()
@@ -811,6 +836,8 @@ func _press(p: Vector2) -> bool:
 		return _press_sketch(p)
 	if not pair_pick.is_empty():
 		return _pair_press(p)
+	if tool == "Measure":
+		return _measure_press(p)
 	if tool == "Hinge" and dlg.get("t", "") == "hinge":
 		return _hinge_press(p)
 	if tool == "Fillet" or tool == "Chamfer":
@@ -1751,6 +1778,7 @@ func sync() -> void:
 	else:
 		pose = {}
 	_rebuild(up)
+	_inspect_sync(show)
 	pov.visible = show
 	part_mesh.visible = up and sk == "" and prev.is_empty() and part_mesh.mesh != null
 	prev_mesh.visible = show and not prev.is_empty() and prev_mesh.mesh != null
@@ -1857,6 +1885,7 @@ func layout(cl: Rect2) -> void:
 			bu.words.plan_panel.visible = false
 	if up and easy:
 		ep.layout(cl)
+	_inspect_layout(cl)
 	if not show:
 		return
 	tl.reset_size()
@@ -1960,6 +1989,7 @@ func _draw_axes(o: Vector3, len: float) -> void:
 func _draw_model() -> void:
 	_draw_axes(Vector3.ZERO, 0.08)
 	_draw_hinge_marks()
+	_draw_measure()
 	for i in edge_cache.size():
 		var picked_now := false
 		for pe in picked:
@@ -2606,3 +2636,351 @@ func _draw_hinge_marks() -> void:
 		for e in edge_cache:
 			if int(e["body"]) == int(pr[0]) or int(e["body"]) == int(pr[1]):
 				_edge_line(e, Color("#ff5a4e"), 4.0)
+
+# ---------------------------------------------------------------- MEASURE and SECTION (view only: no record step, no undo)
+
+## the section shader: the part on the far side of the cut plane is discarded; the inside seen through the cut is the cap (one flat colour)
+const SECTION_SHADER := """shader_type spatial;
+render_mode cull_disabled, unshaded;
+uniform vec4 cut = vec4(0.0, 0.0, 1.0, 0.0);
+uniform float on = 0.0;
+uniform vec4 cap : source_color = vec4(0.91, 0.51, 0.23, 1.0);
+uniform vec4 solid : source_color = vec4(0.74, 0.77, 0.82, 1.0);
+varying vec3 wp;
+void vertex() {
+	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+}
+void fragment() {
+	if (on > 0.5 && dot(cut.xyz, wp) > cut.w) {
+		discard;
+	}
+	if (FRONT_FACING) {
+		ALBEDO = solid.rgb * (0.7 + 0.3 * abs(NORMAL.z));
+	} else {
+		ALBEDO = cap.rgb;
+	}
+}
+"""
+
+
+func _build_inspect() -> void:
+	meas_panel = PanelContainer.new()
+	meas_panel.name = "part_measure_panel"
+	meas_panel.add_theme_stylebox_override("panel", _panel_style())
+	var vb := VBoxContainer.new()
+	meas_panel.add_child(vb)
+	vb.add_child(_label("MEASURE", 14))
+	meas_l = _label("", 13, true)
+	meas_l.name = "part_measure_text"
+	meas_l.custom_minimum_size = Vector2(PANEL_W - 24.0, 0)
+	meas_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(meas_l)
+	var clr: Button = m._button("Clear measures", _measure_clear, "Clear the measures on the view (nothing in the record: no undo step)")
+	clr.name = "part_measure_clear"
+	vb.add_child(clr)
+	meas_panel.visible = false
+	m.ui_root.add_child(meas_panel)
+	sec_box = PanelContainer.new()
+	sec_box.name = "part_section_panel"
+	sec_box.add_theme_stylebox_override("panel", _panel_style())
+	var sv := VBoxContainer.new()
+	sec_box.add_child(sv)
+	sv.add_child(_label("SECTION", 14))
+	sec_chk = CheckBox.new()
+	sec_chk.name = "part_section_on"
+	sec_chk.text = "Cut the solid (view only)"
+	sec_chk.toggled.connect(_sec_toggled)
+	sv.add_child(sec_chk)
+	sec_opt = OptionButton.new()
+	sec_opt.name = "part_section_plane"
+	for pn in SEC_PLANES:
+		sec_opt.add_item(String(pn).capitalize() + " plane")
+	sec_opt.item_selected.connect(_sec_plane_picked)
+	sv.add_child(sec_opt)
+	sec_slider = HSlider.new()
+	sec_slider.name = "part_section_offset"
+	sec_slider.min_value = -300.0
+	sec_slider.max_value = 300.0
+	sec_slider.step = 0.5
+	sec_slider.custom_minimum_size = Vector2(PANEL_W - 24.0, 20.0)
+	sec_slider.value_changed.connect(_sec_slid)
+	sv.add_child(sec_slider)
+	sec_val = _label("", 13, true)
+	sec_val.name = "part_section_text"
+	sv.add_child(sec_val)
+	sec_box.visible = false
+	m.ui_root.add_child(sec_box)
+
+
+func _inspect_pick(t: String) -> void:
+	if sk != "":
+		finish_sketch()
+	tool = t
+	draft = {}
+	picked = []
+	typed = ""
+	dim_target = {}
+	dim_edit.visible = false
+	if dlg.size() > 0:
+		close_dialog()
+	meas_pts = []
+	if t == "Section":
+		_sec_set(true)
+		_sec_look()
+		_say("SECTION: the solid is cut by the plane. Pick the plane and drag the offset; the cut face is filled.")
+	else:
+		_say("MEASURE: click two points (vertex, edge or face) for a distance; one edge for its length; one face for its area.")
+	_tool_sync()
+	_inspect_sync(chrome())
+	pov.queue_redraw()
+
+
+func _measure_clear() -> void:
+	meas_out = []
+	meas_pts = []
+	_say("Measures cleared (nothing in the record: no undo step)")
+	_inspect_sync(true)
+	pov.queue_redraw()
+
+
+func _measure_press(p: Vector2) -> bool:
+	var s := _snap_at(p)
+	if s.is_empty():
+		_say("MEASURE: nothing under the click (click a vertex, an edge or a face)")
+		return true
+	var at: Vector3 = s["at"]
+	if meas_pts.is_empty():
+		if s["k"] == "vertex":
+			meas_pts = [at]
+			_say("MEASURE: first point set; click the second point (vertex, edge or face)")
+		elif s["k"] == "edge":
+			_meas_add({"line": s["line"], "at": at, "v": float(s["len"]) * 1000.0, "txt": "Edge length %.2f mm" % (float(s["len"]) * 1000.0)})
+		else:
+			var ar := _face_area(at, s["n"])
+			_meas_add({"line": PackedVector3Array([at]), "at": at, "v": ar, "txt": "Face area %.1f mm2 (%.2f cm2)" % [ar, ar * 0.01]})
+	else:
+		var p1: Vector3 = meas_pts[0]
+		_meas_add({"line": PackedVector3Array([p1, at]), "at": (p1 + at) * 0.5, "v": p1.distance_to(at) * 1000.0, "txt": "Distance %.2f mm" % (p1.distance_to(at) * 1000.0)})
+		meas_pts = []
+	_inspect_sync(true)
+	pov.queue_redraw()
+	return true
+
+
+func _meas_add(r: Dictionary) -> void:
+	meas_out.append(r)
+	while meas_out.size() > 12:
+		meas_out.pop_front()
+	_say(String(r["txt"]))
+
+
+## the thing under a click, nearest first: a vertex (12 px), then an edge (12 px), then a face (the ray hit). {} = nothing
+func _snap_at(p: Vector2) -> Dictionary:
+	var best_d := 12.0
+	var best := {}
+	for e in edge_cache:
+		for v in [e["a"], e["b"]]:
+			var vv: Vector3 = v
+			if m.cam.is_position_behind(vv):
+				continue
+			var dd := p.distance_to(m.cam.unproject_position(vv))
+			if dd < best_d:
+				best_d = dd
+				best = {"k": "vertex", "at": vv}
+	if not best.is_empty():
+		return best
+	best_d = 12.0
+	for e in edge_cache:
+		var a: Vector3 = e["a"]
+		var b: Vector3 = e["b"]
+		var c: Vector3 = e["c"]
+		if a.distance_to(b) < 1e-6 or m.cam.is_position_behind(c):
+			continue   # a closed curve: picked on its faces
+		var pts := [a, c, b]
+		for i in 2:
+			var A: Vector3 = pts[i]
+			var B: Vector3 = pts[i + 1]
+			if m.cam.is_position_behind(A) or m.cam.is_position_behind(B):
+				continue
+			var pa: Vector2 = m.cam.unproject_position(A)
+			var pb: Vector2 = m.cam.unproject_position(B)
+			var q := Geometry2D.get_closest_point_to_segment(p, pa, pb)
+			var dd := p.distance_to(q)
+			if dd < best_d:
+				best_d = dd
+				var t := 0.0 if pa.distance_to(pb) < 1e-6 else clampf(pa.distance_to(q) / pa.distance_to(pb), 0.0, 1.0)
+				best = {"k": "edge", "at": A.lerp(B, t), "len": float(e["len"]), "line": PackedVector3Array(pts)}
+	if not best.is_empty():
+		return best
+	var h := _mesh_ray(p)
+	if not h.is_empty():
+		return {"k": "face", "at": h["at"], "n": h["n"]}
+	return {}
+
+
+## the triangles of the shown part (metres), as [a, b, c] each
+func _part_tris() -> Array:
+	var out: Array = []
+	if part_mesh == null or part_mesh.mesh == null:
+		return out
+	for s in part_mesh.mesh.get_surface_count():
+		var arr: Array = part_mesh.mesh.surface_get_arrays(s)
+		var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var ix: Variant = arr[Mesh.ARRAY_INDEX]
+		var n := vs.size()
+		if ix != null:
+			n = (ix as PackedInt32Array).size()
+		for k in range(0, n - 2, 3):
+			if ix == null:
+				out.append([vs[k], vs[k + 1], vs[k + 2]])
+			else:
+				var I: PackedInt32Array = ix
+				out.append([vs[I[k]], vs[I[k + 1]], vs[I[k + 2]]])
+	return out
+
+
+## the nearest triangle the click ray hits: {"at", "n"} (unit normal), {} = none
+func _mesh_ray(p: Vector2) -> Dictionary:
+	var ro: Vector3 = m.cam.project_ray_origin(p)
+	var rd: Vector3 = m.cam.project_ray_normal(p)
+	var best := {}
+	var best_d := INF
+	for t in _part_tris():
+		var a: Vector3 = t[0]
+		var b: Vector3 = t[1]
+		var c: Vector3 = t[2]
+		var hit: Variant = Geometry3D.ray_intersects_triangle(ro, rd, a, b, c)
+		if hit != null:
+			var dd := ro.distance_to(hit as Vector3)
+			if dd < best_d:
+				best_d = dd
+				best = {"at": hit, "n": (b - a).cross(c - a).normalized()}
+	return best
+
+
+## the area (mm2) of the flat face through at with normal n: every shown triangle in that plane with that normal
+func _face_area(at: Vector3, n: Vector3) -> float:
+	var tot := 0.0
+	for t in _part_tris():
+		var a: Vector3 = t[0]
+		var b: Vector3 = t[1]
+		var c: Vector3 = t[2]
+		var cr := (b - a).cross(c - a)
+		var ar := cr.length() * 0.5
+		if ar < 1e-14:
+			continue
+		var nn := cr / (ar * 2.0)
+		if absf(nn.dot(n)) < 0.9999 or absf(nn.dot(a - at)) > 1e-6:
+			continue
+		tot += ar
+	return tot * 1e6
+
+
+func _draw_measure() -> void:
+	for r in meas_out:
+		var line: PackedVector3Array = r["line"]
+		for i in line.size() - 1:
+			if m.cam.is_position_behind(line[i]) or m.cam.is_position_behind(line[i + 1]):
+				continue
+			pov.draw_line(m.cam.unproject_position(line[i]), m.cam.unproject_position(line[i + 1]), Color("#ffc233"), 3.0)
+		for v in line:
+			if not m.cam.is_position_behind(v):
+				pov.draw_circle(m.cam.unproject_position(v), 4.0, Color("#ffc233"))
+		if not m.cam.is_position_behind(r["at"]):
+			_pill(m.cam.unproject_position(r["at"]) + Vector2(0, -22), String(r["txt"]), Color(0.06, 0.07, 0.1, 0.92), Color.WHITE, 14)
+	for v in meas_pts:
+		if not m.cam.is_position_behind(v):
+			pov.draw_circle(m.cam.unproject_position(v), 6.0, Color("#ffc233"))
+
+
+func _sec_plane() -> Dictionary:
+	var pl := Part.resolve_plane(_rec(), sec_pl)
+	var n: Vector3 = pl["n"]
+	return {"n": n, "p": (pl["o"] as Vector3) + n * sec_mm * Part.MM}
+
+
+func _sec_set(v: bool) -> void:
+	sec_on = v
+	sec_chk.set_pressed_no_signal(v)
+	_sec_apply()
+
+
+func _sec_toggled(v: bool) -> void:
+	_sec_set(v)
+	if v:
+		_sec_look()
+	_inspect_sync(chrome())
+	pov.queue_redraw()
+
+
+func _sec_plane_picked(i: int) -> void:
+	sec_pl = SEC_PLANES[i]
+	if sec_on:
+		_sec_look()
+	_sec_apply()
+
+
+func _sec_slid(v: float) -> void:
+	sec_mm = v
+	_sec_apply()
+	_inspect_sync(chrome())
+
+
+## the camera looks at the cut from the side that the cut removes (so the cap faces the eye)
+func _sec_look() -> void:
+	var d := _sec_plane()
+	var n: Vector3 = d["n"]
+	var yaw_deg := rad_to_deg(atan2(n.x, n.z))
+	m._turn_to(yaw_deg, 0.0 if sec_pl != "top" else -89.0, 0.6, d["p"], false)
+
+
+## the material of the solid: the section shader while a cut is on, the plain solid otherwise
+func _sec_apply() -> void:
+	if part_mesh == null:
+		return
+	if not sec_on:
+		part_mesh.material_override = _solid_mat(SOLID_COL)
+		return
+	if sec_mat == null:
+		sec_mat = ShaderMaterial.new()
+		var sh := Shader.new()
+		sh.code = SECTION_SHADER
+		sec_mat.shader = sh
+		sec_mat.set_shader_parameter("cap", CAP_COL)
+		sec_mat.set_shader_parameter("solid", SOLID_COL)
+	part_mesh.material_override = sec_mat
+	var d := _sec_plane()
+	var n: Vector3 = d["n"]
+	var p: Vector3 = d["p"]
+	sec_mat.set_shader_parameter("cut", Vector4(n.x, n.y, n.z, n.dot(p)))
+	sec_mat.set_shader_parameter("on", 1.0)
+
+
+func _inspect_sync(show: bool) -> void:
+	var up := show and sk == "" and dlg.is_empty()
+	meas_panel.visible = up and (tool == "Measure" or not meas_out.is_empty())
+	sec_box.visible = up and (tool == "Section" or sec_on)
+	if meas_panel.visible:
+		var lines := PackedStringArray()
+		for r in meas_out:
+			lines.append(String(r["txt"]))
+		if meas_pts.size() == 1:
+			lines.append("First point set: click the second point (vertex, edge or face).")
+		if lines.is_empty():
+			lines.append("Click a vertex, an edge or a face.")
+		meas_l.text = "\n".join(lines)
+	if sec_box.visible:
+		sec_chk.set_pressed_no_signal(sec_on)
+		sec_val.text = "%s plane, offset %.1f mm%s" % [String(sec_pl).capitalize(), sec_mm, "" if sec_on else " (off)"]
+	if sec_on:
+		_sec_apply()
+
+
+func _inspect_layout(cl: Rect2) -> void:
+	var x := cl.end.x - PANEL_W - 8.0
+	meas_panel.reset_size()
+	meas_panel.size.x = PANEL_W
+	meas_panel.position = Vector2(x, cl.position.y + 6.0)
+	sec_box.reset_size()
+	sec_box.size.x = PANEL_W
+	sec_box.position = Vector2(x, cl.position.y + 6.0 + meas_panel.get_combined_minimum_size().y + 8.0)
