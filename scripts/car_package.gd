@@ -146,7 +146,7 @@ static func derive(p: Dictionary) -> Dictionary:
 		"height": float(p["roof"]),
 		"approach": rad_to_deg(atan(clr / foh)),
 		"departure": rad_to_deg(atan(clr / roh)),
-		"head": float(p["roof"]) - (float(p["hpt_h"]) + head_stack),
+		"head": float(p["roof"]) - (clr + FLOOR + hpt_h + head_stack),   # the head above the GROUND (the roof is measured from the ground)
 		"breakover": rad_to_deg(2.0 * atan(clr / (wb * 0.5))),
 		"tyre_d": float(t["diameter"]),
 		"tyre_w": float(t["width"]),

@@ -286,6 +286,13 @@ func ui_bars() -> void:
 	ps.set_param("roof", 1450.0)
 	var h1 := CarPackage.derive(ps.pkg())["head"] as float
 	ok(absf((h1 - h0) - 50.0) <= 0.01, "6 HEADROOM the roof up 50 mm: head room up %.2f mm" % (h1 - h0))
+	# 6b the roof is measured from the ground, so the head is too: the car up 20 mm off the ground lifts the head 20 mm
+	var c0 := float(ps.pkg()["clearance"])
+	ps.set_param("clearance", c0 + 20.0)
+	var h2 := CarPackage.derive(ps.pkg())["head"] as float
+	ps.set_param("clearance", c0)
+	ok(absf((h1 - h2) - 20.0) <= 0.01, "6b HEADROOM the car 20 mm higher off the ground: head room down %.2f mm (20)" % (h1 - h2))
+	ok(h1 >= 0.0 and h1 <= 150.0, "6c HEADROOM the hatch with a 1450 roof leaves %.0f mm over the seated head (real C hatches: 0-150)" % h1)
 
 	# 7 the 3D view follows the numbers: the wheels in the view are on their axles
 	var w3: Node3D = ps.car3d.find_child("wheel_fl", false, false)
