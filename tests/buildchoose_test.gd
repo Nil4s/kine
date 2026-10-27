@@ -220,17 +220,18 @@ func _init() -> void:
 				greys_ok = false
 				print("   grey %s %s: card_says %s still %s said '%s'" % [id, mode, card_says, still, said])
 	ok(greys_ok, "3 the greyed cards (%s) do nothing but say why: the chooser stays, mode and page unchanged" % ("none: KineCAD is installed" if KCad.available() else "Vehicle, Import STEP, Part"))
-	if KCad.available():   # 3c VEHICLE (w4-vehicle, 6f91bea1): Easy opens the car's own screen (the chooser closes, the page stays BUILD); Expert opens the car body as a Part
+	if KCad.available():   # 3c VEHICLE (carpkg, w4-carpkg): the card opens the PACKAGE step (scripts/package_screen.gd, hard points); the ready-made car body
+		# (w4-vehicle, 6f91bea1) is no longer on the card. Easy: sliders; Expert: typed mm. The chooser closes, the page stays BUILD
 		await click(b("vehicle", "easy"))
-		var cs: EasyVehicle = bc._car_screen
-		ok(not bc.open and cs != null and cs.visible and cs.is_car(), "3c Vehicle Easy opens the car screen with a car (chooser closed %s, page %s)" % [not bc.open, m.cur_page])
+		var cs: PackageScreen = bc._car_screen
+		ok(not bc.open and cs != null and cs.visible and cs.easy and not cs.pkg().is_empty(), "3c Vehicle Easy opens the package screen (chooser closed %s, page %s)" % [not bc.open, m.cur_page])
 		cs.close()
 		await idle(2)
 		bc.show_chooser()
 		await idle(3)
 		await click(b("vehicle", "expert"))
-		ok(not bc.open and m.bld.part.on and not m.easy.on and String(m.S.part.get("easy", {}).get("t", "")) == "car", "3c Vehicle Expert opens the car body as a Part on BUILD (part %s)" % m.bld.part.on)
-		m.bld.part.set_on(false)
+		ok(not bc.open and cs.visible and not cs.easy and not m.easy.on, "3c Vehicle Expert opens the package with typed mm on BUILD (page %s)" % m.cur_page)
+		cs.close()
 		await idle(2)
 		bc.show_chooser()
 		await idle(3)

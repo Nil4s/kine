@@ -1,0 +1,76 @@
+{
+  "note": "ESTIMATES for the car's weight and balance (VEHICLE step 4). Every mass here is an estimate typed for a typical car of the class, NOT read from a source and NOT checked against one. Each entry names what it stands for in its note. The real cars' masses and front splits are in real_cars.json (compared, not used to set these).",
+  "fuel_kg_per_l": 0.74,
+  "fuel_note": "estimate: petrol at about 0.74 kg per litre (the density used for the fill)",
+  "driver_kg": 75,
+  "driver_note": "estimate: a 75 kg rider, used when the fighter's body has no mass of its own",
+  "passenger_kg": 75,
+  "passenger_note": "estimate: 75 kg per adult passenger",
+  "tyre_kg_per_mm2": 6.7E-05,
+  "tyre_note": "estimate: a tyre's mass from its size, 6.7e-5 kg per mm2 of (width x diameter); 225/45R17 gives about 9.5 kg",
+  "rim_kg": 6.0,
+  "rim_note": "estimate: one alloy rim, 6 kg, at the same centre as its tyre",
+  "steel_density": 7850,
+  "steel_note": "steel: 7850 kg/m3 (the density of mild steel, as the chassis step uses)",
+  "parts": {
+    "engine": {
+      "name": "Engine + gearbox",
+      "kg": 150,
+      "note": "estimate: a 1.5 L petrol engine with its gearbox"
+    },
+    "drive_unit": {
+      "name": "Electric drive unit",
+      "kg": 90,
+      "note": "estimate: an electric motor with its reduction gear"
+    },
+    "battery_12v": {
+      "name": "12 V battery",
+      "kg": 15,
+      "note": "estimate: a 12 V lead battery"
+    },
+    "ev_pack": {
+      "name": "EV battery pack",
+      "kg": 350,
+      "note": "estimate: a battery pack of about 50 to 60 kWh, under the floor"
+    },
+    "seat": {
+      "name": "Seats",
+      "kg": 15,
+      "note": "estimate: one seat frame, cushion and belts; the count is per class"
+    },
+    "cargo": {
+      "name": "Cargo",
+      "kg": 0,
+      "note": "your load: set it with the slider (0 by default)"
+    }
+  },
+  "classes": {
+    "City": {
+      "fuel_cap_l": 35,
+      "seats": 4,
+      "note": "estimate: a city car's tank and seats"
+    },
+    "Hatch": {
+      "fuel_cap_l": 50,
+      "seats": 5,
+      "note": "estimate: a hatchback's tank and seats"
+    },
+    "Sedan": {
+      "fuel_cap_l": 55,
+      "seats": 5,
+      "note": "estimate: a saloon's tank and seats"
+    },
+    "SUV": {
+      "fuel_cap_l": 65,
+      "seats": 5,
+      "note": "estimate: an SUV's tank and seats"
+    },
+    "Roadster": {
+      "fuel_cap_l": 40,
+      "seats": 2,
+      "note": "estimate: a two-seat roadster's tank and seats"
+    }
+  },
+  "tank_shell_kg": 8,
+  "tank_note": "estimate: the empty tank shell, pipes and pump, 8 kg"
+}

@@ -1,0 +1,150 @@
+{
+  "note": "Rounded published specs of a typical trim (mm, kg, m2), for comparison only, not engineering data. \"checked\" lists the fields compared with the car's Wikipedia infobox on 2026-10-27 (mass: a value inside the listed curb-weight range; Golf cd 0.275 from the article). All other fields (tracks, tyre, ground clearance, front split, cd, frontal area) are typical values, not checked.",
+  "cars": [
+    {
+      "name": "VW Golf 8 hatch",
+      "source": "Wikipedia: Volkswagen Golf Mk8",
+      "class": "C hatch",
+      "length": 4284,
+      "width": 1789,
+      "height": 1456,
+      "wheelbase": 2636,
+      "track_f": 1549,
+      "track_r": 1520,
+      "tyre": "225/45R17",
+      "ground_clearance": 140,
+      "mass": 1300,
+      "front_split": 0.61,
+      "cd": 0.275,
+      "area": 2.21,
+      "checked": [
+        "length",
+        "width",
+        "height",
+        "wheelbase",
+        "mass",
+        "cd"
+      ]
+    },
+    {
+      "name": "Toyota Corolla hatch (E210)",
+      "source": "Wikipedia: Toyota Corolla (E210)",
+      "class": "C hatch",
+      "length": 4370,
+      "width": 1790,
+      "height": 1435,
+      "wheelbase": 2640,
+      "track_f": 1530,
+      "track_r": 1540,
+      "tyre": "225/40R18",
+      "ground_clearance": 135,
+      "mass": 1350,
+      "front_split": 0.6,
+      "cd": 0.31,
+      "area": 2.18,
+      "checked": [
+        "length",
+        "width",
+        "height",
+        "wheelbase",
+        "mass"
+      ]
+    },
+    {
+      "name": "Honda Civic sedan (11th gen)",
+      "source": "Wikipedia: Honda Civic (eleventh generation)",
+      "class": "C sedan",
+      "length": 4674,
+      "width": 1801,
+      "height": 1415,
+      "wheelbase": 2736,
+      "track_f": 1537,
+      "track_r": 1565,
+      "tyre": "215/50R17",
+      "ground_clearance": 135,
+      "mass": 1340,
+      "front_split": 0.6,
+      "cd": 0.28,
+      "area": 2.17,
+      "checked": [
+        "length",
+        "width",
+        "height",
+        "wheelbase",
+        "mass"
+      ]
+    },
+    {
+      "name": "Toyota RAV4 (XA50)",
+      "source": "Wikipedia: Toyota RAV4 (XA50)",
+      "class": "C SUV",
+      "length": 4600,
+      "width": 1855,
+      "height": 1660,
+      "wheelbase": 2690,
+      "track_f": 1605,
+      "track_r": 1625,
+      "tyre": "225/60R18",
+      "ground_clearance": 200,
+      "mass": 1600,
+      "front_split": 0.58,
+      "cd": 0.33,
+      "area": 2.65,
+      "checked": [
+        "length",
+        "width",
+        "height",
+        "wheelbase",
+        "mass"
+      ]
+    },
+    {
+      "name": "Mazda MX-5 (ND)",
+      "source": "Wikipedia: Mazda MX-5 (ND)",
+      "class": "roadster",
+      "length": 3915,
+      "width": 1730,
+      "height": 1235,
+      "wheelbase": 2310,
+      "track_f": 1495,
+      "track_r": 1505,
+      "tyre": "205/45R17",
+      "ground_clearance": 135,
+      "mass": 990,
+      "front_split": 0.5,
+      "cd": 0.33,
+      "area": 1.75,
+      "checked": [
+        "length",
+        "width",
+        "height",
+        "wheelbase",
+        "mass"
+      ]
+    },
+    {
+      "name": "Fiat 500",
+      "source": "Wikipedia: Fiat 500 (2007)",
+      "class": "A city",
+      "length": 3546,
+      "width": 1627,
+      "height": 1488,
+      "wheelbase": 2300,
+      "track_f": 1414,
+      "track_r": 1408,
+      "tyre": "185/55R15",
+      "ground_clearance": 130,
+      "mass": 940,
+      "front_split": 0.62,
+      "cd": 0.33,
+      "area": 2.05,
+      "checked": [
+        "length",
+        "width",
+        "height",
+        "wheelbase",
+        "mass"
+      ]
+    }
+  ]
+}

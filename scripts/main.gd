@@ -6508,7 +6508,7 @@ func _part_file() -> Dictionary:
 
 ## VEHICLE (B3): the wheel's record, as an undo snapshot holds it ({} when there is no car)
 func _vehicle_file() -> Dictionary:
-	return {} if S.vehicle.is_empty() else {"wheel": S.vehicle["wheel"].duplicate(true)}
+	return Vehicle.to_file(S.vehicle)   # the wheel and the package (carpkg), as the file keeps them
 
 
 func _restore(u: Dictionary) -> void:
