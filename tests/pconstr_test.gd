@@ -224,11 +224,11 @@ func _init() -> void:
 	await click_at(sp2(150, 20))
 	await click_at(sp2(180, 40))
 	await key(KEY_ESCAPE)
-	await click_at(sp2(210, 0))
-	await click_at(sp2(210, 30))
+	await click_at(sp2(-60, 0))
+	await click_at(sp2(-60, 30))
 	await key(KEY_ESCAPE)
-	await click_at(sp2(230, 0))
-	await click_at(sp2(230, 40))
+	await click_at(sp2(-40, 0))
+	await click_at(sp2(-40, 40))
 	await key(KEY_ESCAPE)
 	ents = pu._sk()["ents"]
 	ok(ents.size() == 8, "3 lines A, B, C, D drawn (%d ents)" % ents.size())
@@ -253,15 +253,15 @@ func _init() -> void:
 	var da := angle_of(ents, 4, 5)
 	ok(absf(da - 30.0) < 0.01, "3 dragged the far end of B to (200, 60): the angle is still 30 within 0.01 deg (%s)" % da)
 
-	# 4 EQUAL: C (30 mm) and D (40 mm) made the same length
+	# 4 EQUAL: C (30 mm) and D (40 mm) made the same length (C and D sit at x = -60 / -40: at x = 210 they were under the side panel at 1280x720)
 	await press_tool(pu, "Constrain")
 	await press_tool(pu, "Equal")
-	await click_at(sp2(210, 15))
-	await click_at(sp2(230, 20))
+	await click_at(sp2(-60, 15))
+	await click_at(sp2(-40, 20))
 	ents = pu._sk()["ents"]
 	var lc := Part.v2(ents[6]["b"]).distance_to(Part.v2(ents[6]["a"]))
 	var ld := Part.v2(ents[7]["b"]).distance_to(Part.v2(ents[7]["a"]))
-	ok(absf(lc - ld) < 0.01, "4 Equal: C %s mm and D %s mm, the same within 0.01 mm" % [lc, ld])
+	ok(absf(lc - ld) < 0.01, "4 Equal: C %s mm and D %s mm, the same within 0.01 mm (status %s)" % [lc, ld, pu.status])
 	await press_tool(pu, "Constrain")
 
 	# 5 REFUSE: Perpendicular on A and B (30 deg apart)

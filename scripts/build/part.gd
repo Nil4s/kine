@@ -1127,16 +1127,15 @@ static func con_name(c: Dictionary) -> String:
 	return w
 
 
-## the sketch's points as one array: entity i has a = [2i] and b = [2i+1] (non-line entities keep zeros, unused)
-static func _pts_of(sk: Dictionary) -> Array:
-	var X: Array = []
+## the sketch's points as one flat array of 64-bit numbers (Vector2 is 32-bit: at 100 mm it cannot hold 1e-6 mm, so the solver never uses it):
+## entity i has a = [4i, 4i+1] and b = [4i+2, 4i+3] (non-line entities keep zeros, unused)
+static func _pts_of(sk: Dictionary) -> PackedFloat64Array:
+	var X := PackedFloat64Array()
 	for e in sk.get("ents", []):
 		if String(e.get("k", "")) == "line":
-			X.append(v2(e["a"]))
-			X.append(v2(e["b"]))
+			X.append_array([float(e["a"][0]), float(e["a"][1]), float(e["b"][0]), float(e["b"][1])])
 		else:
-			X.append(Vector2.ZERO)
-			X.append(Vector2.ZERO)
+			X.append_array([0.0, 0.0, 0.0, 0.0])
 	return X
 
 
@@ -1145,8 +1144,8 @@ static func _line_ok(sk: Dictionary, i: int) -> bool:
 	return i >= 0 and i < ents.size() and String((ents[i] as Dictionary).get("k", "")) == "line"
 
 
-## every residual, one entry per constraint or length dimension: [{"name", "r": PackedFloat64Array}]
-static func _res_all(sk: Dictionary, X: Array) -> Array:
+## every residual, one entry per constraint or length dimension: [{"name", "r": PackedFloat64Array}] (all in doubles)
+static func _res_all(sk: Dictionary, X: PackedFloat64Array) -> Array:
 	var out: Array = []
 	for c in sk.get("cons", []):
 		var a := int(c.get("a", -1))
@@ -1156,36 +1155,42 @@ static func _res_all(sk: Dictionary, X: Array) -> Array:
 		if not _line_ok(sk, a) or (two and not _line_ok(sk, b)):
 			out.append({"name": con_name(c), "r": PackedFloat64Array([1.0])})   # a reference to nothing: never holds
 			continue
-		var da: Vector2 = X[2 * a + 1] - X[2 * a]
-		var ua := da / maxf(da.length(), 1e-12)
-		var ub := Vector2.ZERO
-		var db := Vector2.ZERO
+		var ax: float = X[4 * a + 2] - X[4 * a]
+		var ay: float = X[4 * a + 3] - X[4 * a + 1]
+		var la := maxf(sqrt(ax * ax + ay * ay), 1e-12)
+		var bx := 0.0
+		var by := 0.0
+		var lb := 1.0
 		if two:
-			db = X[2 * b + 1] - X[2 * b]
-			ub = db / maxf(db.length(), 1e-12)
+			bx = X[4 * b + 2] - X[4 * b]
+			by = X[4 * b + 3] - X[4 * b + 1]
+			lb = maxf(sqrt(bx * bx + by * by), 1e-12)
 		var r := PackedFloat64Array()
 		match k:
 			"h":
-				r.append(da.y)
+				r.append(ay)
 			"v":
-				r.append(da.x)
+				r.append(ax)
 			"coin":
-				var d: Vector2 = X[2 * a + int(c.get("ap", 0))] - X[2 * b + int(c.get("bp", 0))]
-				r.append(d.x)
-				r.append(d.y)
+				var pa := 4 * a + 2 * int(c.get("ap", 0))
+				var pb := 4 * b + 2 * int(c.get("bp", 0))
+				r.append(X[pa] - X[pb])
+				r.append(X[pa + 1] - X[pb + 1])
 			"par":
-				r.append(ua.x * ub.y - ua.y * ub.x)
+				r.append((ax * by - ay * bx) / (la * lb))
 			"perp":
-				r.append(ua.dot(ub))
+				r.append((ax * bx + ay * by) / (la * lb))
 			"eq":
-				r.append(da.length() - db.length())
+				r.append(la - lb)
 			"ang":
-				r.append(ua.dot(ub) - cos(deg_to_rad(float(c.get("deg", 90.0)))))
+				r.append((ax * bx + ay * by) / (la * lb) - cos(deg_to_rad(float(c.get("deg", 90.0)))))
 		out.append({"name": con_name(c), "r": r})
 	for d in sk.get("dims", []):
 		if String(d.get("kind", "")) == "len" and _line_ok(sk, int(d.get("ent", -1))):
 			var i := int(d["ent"])
-			out.append({"name": "length %s mm" % _short(float(d["mm"])), "r": PackedFloat64Array([(X[2 * i + 1] - X[2 * i]).length() - float(d["mm"])])})
+			var dx: float = X[4 * i + 2] - X[4 * i]
+			var dy: float = X[4 * i + 3] - X[4 * i + 1]
+			out.append({"name": "length %s mm" % _short(float(d["mm"])), "r": PackedFloat64Array([sqrt(dx * dx + dy * dy) - float(d["mm"])])})
 	return out
 
 
@@ -1209,33 +1214,38 @@ static func con_fail(sk: Dictionary) -> String:
 ## precision. Returns the largest residual left (0 = all hold; above CON_TOL = some constraint cannot hold)
 static func solve(sk: Dictionary, pinned := {}) -> float:
 	var X := _pts_of(sk)
-	var free: Array = []   # [point index, coordinate 0 (x) or 1 (y)]
+	var free := PackedInt32Array()   # indices into X (one coordinate each)
 	var ents: Array = sk.get("ents", [])
 	for i in ents.size():
 		if String(ents[i].get("k", "")) != "line":
 			continue
 		for j in 2:
 			if not pinned.has("%d:%d" % [i, j]):
-				free.append([2 * i + j, 0])
-				free.append([2 * i + j, 1])
+				free.append(4 * i + 2 * j)
+				free.append(4 * i + 2 * j + 1)
 	var r := _flat(_res_all(sk, X))
 	var lam := 1e-3
-	for it in 100:
+	const H := 1e-6   # central differences in doubles: the error is ~1e-12, far under CON_TOL
+	for it in 200:
+		var cost := 0.0
 		var mx := 0.0
 		for v in r:
+			cost += v * v
 			mx = maxf(mx, absf(v))
-		if mx < 1e-11 or free.is_empty() or r.is_empty():
+		if mx < 1e-10 or free.is_empty() or r.is_empty():
 			break
 		var nf := free.size()
-		var J: Array = []   # one column per free variable (forward differences)
+		var J: Array = []   # one column per free coordinate
 		for k in nf:
 			var Xp := X.duplicate()
-			var p: int = free[k][0]
-			Xp[p] = Xp[p] + (Vector2(1e-7, 0) if int(free[k][1]) == 0 else Vector2(0, 1e-7))
+			var Xm := X.duplicate()
+			Xp[free[k]] += H
+			Xm[free[k]] -= H
 			var rp := _flat(_res_all(sk, Xp))
+			var rm := _flat(_res_all(sk, Xm))
 			var col := PackedFloat64Array()
 			for q in r.size():
-				col.append((rp[q] - r[q]) / 1e-7)
+				col.append((rp[q] - rm[q]) / (2.0 * H))
 			J.append(col)
 		var A: Array = []
 		var g := PackedFloat64Array()
@@ -1251,15 +1261,12 @@ static func solve(sk: Dictionary, pinned := {}) -> float:
 			for q in r.size():
 				gk += float(J[k][q]) * r[q]
 			g.append(gk)
-		var cost := 0.0
-		for v in r:
-			cost += v * v
 		var stepped := false
-		for tries in 12:
+		for tries in 16:
 			var M: Array = []
 			for k in nf:
 				var row := PackedFloat64Array(A[k])
-				row[k] += lam * (1.0 + float(A[k][k]))
+				row[k] += lam * (1.0 + float(A[k][k]))   # damping +lam on the diagonal: a free point no rule touches does not move
 				M.append(row)
 			var rhs := PackedFloat64Array()
 			for k in nf:
@@ -1267,8 +1274,7 @@ static func solve(sk: Dictionary, pinned := {}) -> float:
 			var dx := _lin(M, rhs)
 			var Xn := X.duplicate()
 			for k in nf:
-				var p: int = free[k][0]
-				Xn[p] = Xn[p] + (Vector2(dx[k], 0) if int(free[k][1]) == 0 else Vector2(0, dx[k]))
+				Xn[free[k]] += dx[k]
 			var rn := _flat(_res_all(sk, Xn))
 			var cn := 0.0
 			for v in rn:
@@ -1284,8 +1290,8 @@ static func solve(sk: Dictionary, pinned := {}) -> float:
 			break
 	for i in ents.size():
 		if String(ents[i].get("k", "")) == "line":
-			ents[i]["a"] = [X[2 * i].x, X[2 * i].y]
-			ents[i]["b"] = [X[2 * i + 1].x, X[2 * i + 1].y]
+			ents[i]["a"] = [X[4 * i], X[4 * i + 1]]
+			ents[i]["b"] = [X[4 * i + 2], X[4 * i + 3]]
 	var worst := 0.0
 	for v in _flat(_res_all(sk, _pts_of(sk))):
 		worst = maxf(worst, absf(v))

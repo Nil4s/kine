@@ -3651,7 +3651,8 @@ func _con_pick(t: String) -> void:
 	picked = []
 	bu.sync()   # the rule row shows (or hides) with Constrain
 	pov.queue_redraw()
-	_say(String(TIPS[t]))
+	if con_open:
+		_say(String(TIPS[t]))   # closing the row keeps the last words (a refusal says why; the tip would wipe it)
 
 
 func _ent_kind(i: int) -> String:
