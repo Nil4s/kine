@@ -21,6 +21,9 @@ extends RefCounted
 ## LOFT (E): {"t": "loft", "id", "name", "sketches": ["f1", "f4", ...] (2 or more, in order), "ruled": bool, "op": join|new|cut}: the kernel joins
 ## the profiles of those sketches into one solid (ruled = straight between them, else smooth). OFFSET PLANE (E): {"t": "plane", "id", "name",
 ## "from": "front"|"top"|"right", "mm": distance along its normal}. A sketch whose "plane" is a plane's id sits on that offset plane.
+## CANVAS (GAP 3, Fusion's Canvas): {"t": "canvas", "id", "name", "plane": "front"|"top"|"right" or an offset plane's id, "path" (the picture file),
+## "w", "h" (picture pixels), "pts": [[px, py], [px, py]] (the two calibration points on the picture, y down), "dist" (mm between them), "at": [x, y]
+## (mm, plane coordinates of the picture's top-left corner), "opacity" 0..1, "show" bool}. A picture is never a solid: replay() skips it.
 ## Sketch entities (plane coordinates in mm): {"k": "line", "a", "b"}, {"k": "rect", "a", "b"} (two corners), {"k": "circle", "c", "r"},
 ## {"k": "arc", "a", "m", "b"} (from a to b through m), {"k": "bspline", "pts": [[x, y], ...], "closed"} (a smooth curve through the points; a
 ## closed one joins the last point to the first). A dimension: {"id", "ent": index, "kind": "w" | "h" | "len" | "r", "mm", "name"}; the
@@ -33,7 +36,7 @@ extends RefCounted
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
 const VERSION := 1
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "plane"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "plane", "canvas"]
 const PLANES := ["front", "top", "right"]
 const OPS := ["join", "new", "cut", "intersect"]
 const MATCH_MAX := 0.25   # an edge matches when (box-position distance + 0.5 x direction mismatch) is below this
@@ -1010,3 +1013,37 @@ static func describe(edge: Dictionary) -> Dictionary:
 	var q: Vector3 = edge["q"]
 	var d: Vector3 = edge["d"]
 	return {"p": [snappedf(c.x / MM, 0.001), snappedf(c.y / MM, 0.001), snappedf(c.z / MM, 0.001)], "q": [q.x, q.y, q.z], "d": [d.x, d.y, d.z], "body": int(edge["body"])}
+
+
+# ---------------------------------------------------------------- canvas (GAP 3): a picture on a plane, calibrated by two points
+
+## mm per picture pixel: the two points' real distance over their distance in pixels (1 until it is calibrated)
+static func canvas_scale(f: Dictionary) -> float:
+	var pts: Array = f.get("pts", [])
+	if pts.size() < 2 or float(f.get("dist", 0.0)) <= 0.0:
+		return 1.0
+	var d := v2(pts[1]).distance_to(v2(pts[0]))
+	return float(f["dist"]) / d if d > 1e-6 else 1.0
+
+
+## the picture's corners on its plane (mm): top-left, top-right, bottom-right, bottom-left (the picture hangs down from "at")
+static func canvas_corners(f: Dictionary) -> Array:
+	var s := canvas_scale(f)
+	var at := v2(f.get("at", [0, 0]))
+	var w := float(f.get("w", 1.0))
+	var h := float(f.get("h", 1.0))
+	return [at, at + Vector2(w * s, 0.0), at + Vector2(w * s, -h * s), at + Vector2(0.0, -h * s)]
+
+
+## a picture pixel -> plane mm
+static func canvas_px_to_mm(f: Dictionary, px: Vector2) -> Vector2:
+	var s := canvas_scale(f)
+	return v2(f.get("at", [0, 0])) + Vector2(px.x * s, -px.y * s)
+
+
+## plane mm -> picture pixel
+static func canvas_mm_to_px(f: Dictionary, mm: Vector2) -> Vector2:
+	var s := canvas_scale(f)
+	var at := v2(f.get("at", [0, 0]))
+	return Vector2((mm.x - at.x) / s, (at.y - mm.y) / s)
+

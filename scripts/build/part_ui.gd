@@ -24,7 +24,7 @@ const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension"]
-const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Offset plane", "Split"]
+const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Offset plane", "Split", "Canvas"]
 const TOOL_KIND := {"Offset plane": "plane"}   # a tool's feature kind when it is not its lower-case name
 const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell"]
 const SHELL_OPEN := ["", "+x", "-x", "+y", "-y", "+z", "-z"]   # the open face of a shell (Part.SHELL_DIRS), in the dialog's order
@@ -43,6 +43,7 @@ const TIPS := {
 	"Mirror": "MIRROR: the body and its reflection across a plane become one solid.",
 	"Split": "SPLIT: pick a plane and an offset (mm). Every body the plane cuts becomes two bodies. Press Enter.",
 	"Shell": "SHELL: the newest body becomes a hollow box with the wall thickness you type. Pick the face left open, press Enter.",
+	"Canvas": "CANVAS: put a picture on the Front, Top or Right plane (or an offset plane). Click two points of known size, type the real distance, drag it to line up.",
 	"Loft": "LOFT: pick two or more sketches in order (each a closed profile); the solid runs through them. Ruled = straight, Smooth = curved.",
 	"Offset plane": "OFFSET PLANE: pick Front, Top or Right and type a distance. The new plane is in the browser: click it to sketch on it.",
 	"Fillet": "FILLET: click edges (they turn sky blue), type a radius, press Enter or OK.",
@@ -156,6 +157,14 @@ var _sk_before := ""
 var _profile_ok := ""          # the sketch's own status line ("closed profile" ...)
 var _profile_sig := ""
 var _fit_sig := ""
+var cv_drag := {}              # a canvas picture being dragged (GAP 3): {"i": record index} or {"dlg": true}, "from" (mm), "moved"
+var cv_tex := {}               # picture path -> Texture2D (the canvas view)
+var f_cv_pick: Button          # the canvas dialog's controls (built once: _canvas_ctl)
+var f_cv_plane: OptionButton
+var f_cv_show: CheckBox
+var f_cv_op: HSlider
+var f_cv_cal: Button
+var f_cv_file: FileDialog
 
 
 func setup(b: BuildUI) -> void:
@@ -809,6 +818,10 @@ func input(ev: InputEvent) -> bool:
 func _press(p: Vector2) -> bool:
 	if sk != "":
 		return _press_sketch(p)
+	if dlg.get("t", "") == "canvas":
+		return _canvas_press(p)   # GAP 3: the canvas dialog's clicks (two points) and drags
+	if dlg.is_empty() and tool == "" and _canvas_grab(p):
+		return true
 	if not pair_pick.is_empty():
 		return _pair_press(p)
 	if tool == "Hinge" and dlg.get("t", "") == "hinge":
@@ -884,6 +897,8 @@ func _press_sketch(p: Vector2) -> bool:
 
 
 func _release(p: Vector2) -> bool:
+	if not cv_drag.is_empty():
+		return _canvas_release()
 	if not spl_drag.is_empty():
 		spl_drag = {}
 		pov.queue_redraw()
@@ -913,6 +928,9 @@ func _commit_draft() -> void:
 
 
 func _motion(p: Vector2) -> bool:
+	if not cv_drag.is_empty():
+		_canvas_move(p)
+		return false
 	if sk != "":
 		var h: Variant = hit(p)
 		if not spl_drag.is_empty():
@@ -1187,10 +1205,14 @@ func open_dialog(t: String, edit: int) -> void:
 		dlg_rows.add_child(f_plane)
 		f_plane.select(PlanesIdx.find(String(f.get("plane", "right"))))
 		_row("Offset along its normal", f_num, "%s mm" % _fmt(float(f.get("at", 0.0))))
+	elif kind == "canvas":
+		pass   # its rows: _canvas_open
 	elif kind == "shell":
 		_row("Wall thickness", f_num, "%s mm" % _fmt(float(f.get("thick", 5.0))))
 		dlg_rows.add_child(f_open)
 		f_open.select(maxi(SHELL_OPEN.find(String(f.get("open", "+y"))), 0))
+	if kind == "canvas":
+		_canvas_open(f, edit)
 	f_op.visible = kind in ["extrude", "revolve", "loft"]
 	if kind == "hinge":
 		_hinge_rows()
@@ -1349,6 +1371,10 @@ func dialog_feature() -> Dictionary:
 			if ids.size() < 2:
 				return {}
 			f = {"sketches": ids.duplicate(), "ruled": f_ruled.selected == 0, "op": op}
+		"canvas":
+			f = _canvas_feature(true)
+			if f.is_empty():
+				return {}
 		"plane":
 			var pd := _num(f_num)
 			if is_nan(pd) or absf(pd) < 1e-6:
@@ -1420,6 +1446,8 @@ func _dialog_hint(kind: String) -> String:
 		return "Pick two or more sketches, in order."
 	if kind == "plane":
 		return "Type the distance from the plane (mm)."
+	if kind == "canvas":
+		return _canvas_hint()
 	return ""
 
 
@@ -1569,7 +1597,7 @@ func _timeline_sync() -> void:
 
 func _browser_sync() -> void:
 	var feats := _feats()
-	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], f["t"], f.get("mm", 0), f.get("from", "")]), sk, res.get("bodies", 0), prev.is_empty()])
+	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], f["t"], f.get("mm", 0), f.get("from", ""), f.get("show", "")]), sk, res.get("bodies", 0), prev.is_empty()])
 	if sig == _browser_sig:
 		return
 	_browser_sig = sig
@@ -1603,6 +1631,7 @@ func _browser_sync() -> void:
 		ob.tooltip_text = "start a sketch on %s" % Part.plane_words(_rec(), String(f["id"]))
 		ob.pressed.connect(func(): begin_sketch(String(f["id"])))
 		browser_vb.add_child(ob)
+	_canvas_browser_rows()   # GAP 3: the pictures (show / hide)
 
 
 func _row_btn(txt: String, nm: String) -> Button:
@@ -1958,6 +1987,7 @@ func _draw_axes(o: Vector3, len: float) -> void:
 
 
 func _draw_model() -> void:
+	_canvas_draw("")
 	_draw_axes(Vector3.ZERO, 0.08)
 	_draw_hinge_marks()
 	for i in edge_cache.size():
@@ -1993,6 +2023,7 @@ func _draw_sketch() -> void:
 		return
 	var pl := _plane()
 	var vs: Vector2 = m.get_viewport().get_visible_rect().size
+	_canvas_draw(String(f.get("plane", "front")))   # GAP 3: the picture is behind the sketch
 	if grid_on:
 		_draw_grid(pl, vs)
 	_draw_axes(Vector3.ZERO, 0.0)
@@ -2606,3 +2637,354 @@ func _draw_hinge_marks() -> void:
 		for e in edge_cache:
 			if int(e["body"]) == int(pr[0]) or int(e["body"]) == int(pr[1]):
 				_edge_line(e, Color("#ff5a4e"), 4.0)
+
+
+# ---------------------------------------------------------------- canvas (GAP 3, Fusion Canvas): a picture on a plane behind the sketch
+
+## the canvas dialog controls, made once (their rows are put in the dialog by _canvas_open)
+func _canvas_ctl() -> void:
+	f_cv_pick = Button.new()   # (new controls each time: the dialog's rows are freed when it closes)
+	f_cv_pick.name = "part_canvas_pick"
+	f_cv_pick.text = "Choose picture..."
+	f_cv_pick.pressed.connect(_canvas_choose)
+	f_cv_plane = OptionButton.new()
+	f_cv_plane.name = "part_canvas_plane"
+	f_cv_plane.item_selected.connect(func(_i): _canvas_edited())
+	f_cv_show = CheckBox.new()
+	f_cv_show.name = "part_canvas_show"
+	f_cv_show.text = "Show picture"
+	f_cv_show.toggled.connect(func(_v): _canvas_edited())
+	f_cv_op = HSlider.new()
+	f_cv_op.name = "part_canvas_opacity"
+	f_cv_op.min_value = 0.0
+	f_cv_op.max_value = 1.0
+	f_cv_op.step = 0.05
+	f_cv_op.custom_minimum_size = Vector2(140, 0)
+	f_cv_op.value_changed.connect(func(_v): _canvas_edited())
+	f_cv_cal = Button.new()
+	f_cv_cal.name = "part_canvas_recal"
+	f_cv_cal.text = "Pick the two points again"
+	f_cv_cal.pressed.connect(_canvas_recal)
+	if f_cv_file == null:   # the file chooser is made once (it lives in the UI root)
+		f_cv_file = FileDialog.new()
+		f_cv_file.name = "part_canvas_file"
+		f_cv_file.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+		f_cv_file.access = FileDialog.ACCESS_FILESYSTEM
+		f_cv_file.filters = PackedStringArray(["*.png, *.jpg, *.jpeg ; Pictures"])
+		f_cv_file.file_selected.connect(_canvas_picked)
+		m.ui_root.add_child(f_cv_file)
+
+
+## the Canvas dialog opens: its working picture (dlg["cv"]) is the saved one (Edit) or a new one on the chosen plane
+func _canvas_open(f: Dictionary, edit: int) -> void:
+	_canvas_ctl()
+	var rec := _rec()
+	var ids: Array = Part.PLANES.duplicate()
+	var names: Array = ["Front plane", "Top plane", "Right plane"]
+	for o in rec.get("features", []):
+		if o["t"] == "plane":
+			ids.append(String(o["id"]))
+			names.append(Part.plane_words(rec, String(o["id"])).capitalize())
+	dlg["plane_ids"] = ids
+	f_cv_plane.clear()
+	for n in names:
+		f_cv_plane.add_item(String(n))
+	var cv := {"plane": "front", "path": "", "w": 1, "h": 1, "pts": [], "dist": 0.0, "at": [0.0, 0.0], "opacity": 0.8, "show": true}
+	if edit >= 0:
+		cv.merge(f.duplicate(true), true)
+	dlg["cv"] = cv
+	dlg["anchor"] = Part.canvas_px_to_mm(cv, Part.v2(cv["pts"][0])) if (cv["pts"] as Array).size() == 2 else Vector2(cv["at"][0], cv["at"][1])
+	f_cv_plane.select(maxi(ids.find(String(cv["plane"])), 0))
+	f_cv_op.set_value_no_signal(float(cv["opacity"]))
+	f_cv_show.set_pressed_no_signal(bool(cv["show"]))
+	var dist := float(cv["dist"])
+	_row("Real distance", f_num, "%s mm" % _fmt(dist) if dist > 0.0 else "")
+	dlg_rows.add_child(f_cv_pick)
+	dlg_rows.move_child(f_cv_pick, 0)
+	var plr := HBoxContainer.new()
+	plr.add_child(_label("Plane"))
+	plr.add_child(f_cv_plane)
+	dlg_rows.add_child(plr)
+	dlg_rows.add_child(f_cv_show)
+	var opr := HBoxContainer.new()
+	opr.add_child(_label("Opacity"))
+	opr.add_child(f_cv_op)
+	dlg_rows.add_child(opr)
+	dlg_rows.add_child(f_cv_cal)
+	_view_plane(String(cv["plane"]))
+
+
+func _cv_plane_id() -> String:
+	var ids: Array = dlg.get("plane_ids", Part.PLANES)
+	return String(ids[clampi(f_cv_plane.selected, 0, ids.size() - 1)])
+
+
+## the working picture as a record feature. need: only a calibrated picture (two points, a distance) is returned, else {}
+func _canvas_feature(need: bool) -> Dictionary:
+	if dlg.get("t", "") != "canvas":
+		return {}
+	var cv: Dictionary = dlg["cv"]
+	var f := cv.duplicate(true)
+	f["plane"] = _cv_plane_id()
+	f["opacity"] = snappedf(f_cv_op.value, 0.01)
+	f["show"] = f_cv_show.button_pressed
+	var d := _num(f_num)
+	var dist := d if (not is_nan(d) and d > 0.0) else 0.0
+	f["dist"] = dist
+	var at := Vector2(cv["at"][0], cv["at"][1])
+	var pts: Array = cv["pts"]
+	if pts.size() == 2:
+		var s := Part.canvas_scale({"pts": pts, "dist": dist})
+		var p0 := Part.v2(pts[0])
+		at = (dlg["anchor"] as Vector2) - Vector2(p0.x * s, -p0.y * s)   # the first point stays where it was clicked
+	f["at"] = Part.arr2(at)
+	if need and (String(cv["path"]) == "" or pts.size() != 2 or dist <= 0.0):
+		return {}
+	return f
+
+
+func _canvas_hint() -> String:
+	var cv: Dictionary = dlg["cv"]
+	var n := (cv["pts"] as Array).size()
+	if String(cv["path"]) == "":
+		return "Choose a picture (png or jpg) to put on the plane."
+	if n == 0:
+		return "Click the first point on the picture (a mark whose real size you know)."
+	if n == 1:
+		return "Now click the second point."
+	var d := _num(f_num)
+	if is_nan(d) or d <= 0.0:
+		return "Type the real distance between the two points (mm). The picture follows as you type; OK keeps it."
+	return "Drag the picture to line it up. OK keeps it."
+
+
+func _canvas_choose() -> void:
+	f_cv_file.popup_centered_ratio(0.6)
+
+
+## a picture file was chosen: it shows on the plane at 1 mm per pixel until its two points are calibrated
+func _canvas_picked(path: String) -> void:
+	var img := Image.load_from_file(path)
+	if img == null or img.is_empty():
+		_say("Could not read %s: choose a png or jpg picture" % path)
+		return
+	var cv: Dictionary = dlg["cv"]
+	cv["path"] = path
+	cv["w"] = img.get_width()
+	cv["h"] = img.get_height()
+	cv["pts"] = []
+	cv_tex[path] = ImageTexture.create_from_image(img)
+	_view_plane(_cv_plane_id())
+	_say(_canvas_hint())
+	_preview()
+	pov.queue_redraw()
+
+
+func _canvas_edited() -> void:
+	if dlg.get("t", "") == "canvas":
+		_preview()
+		pov.queue_redraw()
+
+
+## pick the two points again: the picture stays where it is, the clicks start over
+func _canvas_recal() -> void:
+	var cvf := _canvas_feature(false)
+	var cv: Dictionary = dlg["cv"]
+	cv["at"] = cvf["at"]
+	cv["pts"] = []
+	_say(_canvas_hint())
+	_preview()
+	pov.queue_redraw()
+
+
+func _canvas_press(p: Vector2) -> bool:
+	var cvf := _canvas_feature(false)
+	if String(cvf["path"]) == "":
+		_say("Choose a picture first")
+		return true
+	var cv: Dictionary = dlg["cv"]
+	var pl := Part.resolve_plane(_rec(), String(cvf["plane"]))
+	if (cv["pts"] as Array).size() >= 2:
+		return _canvas_grab(p)   # calibrated: a press on the picture drags it
+	var h: Variant = _canvas_hit(p, pl)
+	if h == null:
+		return false
+	var mm: Vector2 = h
+	var px := Part.canvas_mm_to_px(cvf, mm)
+	if px.x < 0.0 or px.y < 0.0 or px.x > float(cv["w"]) or px.y > float(cv["h"]):
+		_say("Click on the picture")
+		return true
+	var pts: Array = cv["pts"]
+	pts.append(Part.arr2(px))
+	if pts.size() == 1:
+		dlg["c1"] = mm
+	else:
+		dlg["anchor"] = dlg["c1"]
+		f_num.grab_focus()
+	_say(_canvas_hint())
+	_preview()
+	pov.queue_redraw()
+	return true
+
+
+func _canvas_hit(p: Vector2, pl: Dictionary) -> Variant:
+	var ro: Vector3 = m.cam.project_ray_origin(p)
+	var rd: Vector3 = m.cam.project_ray_normal(p)
+	var n: Vector3 = pl["n"]
+	var den := rd.dot(n)
+	if absf(den) < 1e-6:
+		return null
+	var t := ((pl["o"] as Vector3) - ro).dot(n) / den
+	if t < 0.0:
+		return null
+	return Part.to_plane(pl, ro + rd * t)
+
+
+func _canvas_inside(f: Dictionary, p: Vector2) -> Variant:
+	var h: Variant = _canvas_hit(p, Part.resolve_plane(_rec(), String(f["plane"])))
+	if h == null:
+		return null
+	var px := Part.canvas_mm_to_px(f, h)
+	if px.x < 0.0 or px.y < 0.0 or px.x > float(f["w"]) or px.y > float(f["h"]):
+		return null
+	return h
+
+
+## a press on a picture (the dialog one, or a saved one with no dialog open): a drag. A saved picture move is one undo step
+func _canvas_grab(p: Vector2) -> bool:
+	if dlg.get("t", "") == "canvas":
+		var cvf := _canvas_feature(false)
+		if String(cvf["path"]) == "" or not bool(cvf["show"]):
+			return false
+		var h: Variant = _canvas_inside(cvf, p)
+		if h == null:
+			return false
+		cv_drag = {"dlg": true, "from": h, "moved": false}
+		return true
+	var fs := _feats()
+	for i in fs.size():
+		var f: Dictionary = fs[i]
+		if String(f["t"]) != "canvas" or not bool(f.get("show", true)):
+			continue
+		var h: Variant = _canvas_inside(f, p)
+		if h != null:
+			m._step_hint = "Move picture"
+			m._push_undo()
+			cv_drag = {"i": i, "from": h, "moved": false}
+			return true
+	return false
+
+
+func _canvas_move(p: Vector2) -> void:
+	var pid := ""
+	if cv_drag.get("dlg", false):
+		pid = _cv_plane_id()
+	else:
+		pid = String(_feats()[int(cv_drag["i"])]["plane"])
+	var h: Variant = _canvas_hit(p, Part.resolve_plane(_rec(), pid))
+	if h == null:
+		return
+	var d: Vector2 = (h as Vector2) - (cv_drag["from"] as Vector2)
+	cv_drag["from"] = h
+	if d.length() < 1e-9:
+		return
+	cv_drag["moved"] = true
+	if cv_drag.get("dlg", false):
+		var cv: Dictionary = dlg["cv"]
+		if (cv["pts"] as Array).size() == 2:
+			dlg["anchor"] = (dlg["anchor"] as Vector2) + d
+		else:
+			cv["at"] = Part.arr2(Vector2(cv["at"][0], cv["at"][1]) + d)
+		_preview()
+	else:
+		var f: Dictionary = _feats()[int(cv_drag["i"])]
+		f["at"] = Part.arr2(Vector2(f["at"][0], f["at"][1]) + d)
+		bu.sync()
+	pov.queue_redraw()
+
+
+func _canvas_release() -> bool:
+	if not cv_drag.get("dlg", false) and not bool(cv_drag.get("moved", false)):
+		m._drop_undo()   # a press that moved nothing is no step
+	cv_drag = {}
+	pov.queue_redraw()
+	return true
+
+
+## the pictures on the view: the saved ones shown (on this plane only, in a sketch), and the dialog one
+func _canvas_draw(only: String) -> void:
+	var list: Array = []
+	var edit := int(dlg.get("edit", -1)) if dlg.get("t", "") == "canvas" else -1
+	var fs := _feats()
+	for i in fs.size():
+		var f: Dictionary = fs[i]
+		if String(f["t"]) == "canvas" and i != edit and bool(f.get("show", true)) and (only == "" or String(f["plane"]) == only):
+			list.append(f)
+	for f in list:
+		_canvas_paint(f)
+	if dlg.get("t", "") == "canvas" and bool(_canvas_feature(false).get("show", false)) and (only == "" or String(_canvas_feature(false)["plane"]) == only):
+		_canvas_paint(_canvas_feature(false), true)   # the dialog's picture: its two calibration points on top
+
+
+func _canvas_paint(f: Dictionary, working := false) -> void:
+	if String(f.get("path", "")) == "":
+		return
+	var pl := Part.resolve_plane(_rec(), String(f["plane"]))
+	var sp := PackedVector2Array()
+	for v in Part.canvas_corners(f):
+		var w: Vector3 = Part.to_world(pl, v)
+		if m.cam.is_position_behind(w):
+			return
+		sp.append(m.cam.unproject_position(w))
+	var a := clampf(float(f.get("opacity", 0.5)), 0.0, 1.0)
+	var col := Color(1, 1, 1, a)
+	var tex := _canvas_tex(String(f["path"]))
+	if tex == null:
+		pov.draw_colored_polygon(sp, Color(0.55, 0.6, 0.7, a * 0.5))
+	else:
+		var uv := [Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1)]
+		pov.draw_primitive(PackedVector2Array([sp[0], sp[1], sp[2]]), PackedColorArray([col, col, col]), PackedVector2Array([uv[0], uv[1], uv[2]]), tex)
+		pov.draw_primitive(PackedVector2Array([sp[0], sp[2], sp[3]]), PackedColorArray([col, col, col]), PackedVector2Array([uv[0], uv[2], uv[3]]), tex)
+	pov.draw_polyline(PackedVector2Array([sp[0], sp[1], sp[2], sp[3], sp[0]]), Color(1.0, 0.76, 0.2, 0.9), 1.5)
+	if dlg.get("t", "") == "canvas" and f.has("pts") and not (f["pts"] as Array).is_empty() and working:
+		var k := 0
+		for pt in f["pts"]:
+			k += 1
+			var sc: Vector2 = m.cam.unproject_position(Part.to_world(pl, Part.canvas_px_to_mm(f, Part.v2(pt))))
+			pov.draw_circle(sc, 6.0, Color("#ffc233"))
+			pov.draw_string(ThemeDB.fallback_font, sc + Vector2(8, -8), str(k), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
+
+
+func _canvas_tex(path: String) -> Texture2D:
+	if path == "":
+		return null
+	if not cv_tex.has(path):
+		var img := Image.load_from_file(path)
+		cv_tex[path] = ImageTexture.create_from_image(img) if img != null and not img.is_empty() else null
+	return cv_tex[path]
+
+
+## the browser Pictures: one row each, a click shows or hides it (one undo step)
+func _canvas_browser_rows() -> void:
+	var cvs := _feats().filter(func(f): return f["t"] == "canvas")
+	if cvs.is_empty():
+		return
+	browser_vb.add_child(_label("Pictures (%d)" % cvs.size(), 15))
+	for f in cvs:
+		var b := _row_btn("    %s%s" % [String(f["name"]), "" if bool(f.get("show", true)) else "  (hidden)"], "part_canvas_" + String(f["id"]))
+		b.tooltip_text = "click to %s the picture" % ("hide" if bool(f.get("show", true)) else "show")
+		b.pressed.connect(_canvas_toggle.bind(String(f["id"])))
+		browser_vb.add_child(b)
+
+
+func _canvas_toggle(id: String) -> void:
+	var rec := _rec()
+	var i := Part.index_of(rec, id)
+	if i < 0:
+		return
+	var f: Dictionary = rec["features"][i]
+	m._step_hint = "Show picture" if not bool(f.get("show", true)) else "Hide picture"
+	m._push_undo()
+	f["show"] = not bool(f.get("show", true))
+	_say("%s %s" % [String(f["name"]), "is shown" if f["show"] else "is hidden"])
+	bu.sync()
