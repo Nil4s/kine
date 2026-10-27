@@ -10,6 +10,7 @@ extends SceneTree
 ##   6 BUTTONS   Easy Part's "Give it to the fighter" (real clicks) and Expert's (the timeline's button): the fighter holds the sword, ONE undo step each
 ##   7 CHANGE    the blade made 44 cm longer in Easy: the held kind is registered again (length + 0.44 m, rev up) and the fighter still holds it at the grip
 ##   8 SHOT      the fighter holding the Part sword: C:/Temp/claude/cadmass/sword_held.png
+##   10 FLAT     the Part sword and the built-in in the same pose: the blade's wide axis in the world within 10 deg of the built-in's, and the blade's screen width >= 60 % of the built-in's (projected silhouette px; shots C:/Temp/claude/swordview/)
 ## Only user:// is written (and the shots).
 
 const SHOT := "C:/Temp/claude/cadmass"
@@ -236,6 +237,76 @@ func _init() -> void:
 	ok(m.B.wep_kind == "part:sword" and m.B.wep_hand != "", "8 SHOT: the fighter holds the Part sword (%s) -> %s/sword_held.png" % [m.B.wep_kind, SHOT])
 	ok(m.nice("bat_handle") == "sword (handle)", "9 LABEL: the grip's label names the Part: \"%s\" (not \"bat (handle)\")" % m.nice("bat_handle"))
 
+	# 10 FLAT: the Part held in the same pose as the built-in (the default 3/4 view above); blade-only points, see blade_pts
+	var SV := "C:/Temp/claude/swordview"
+	DirAccess.make_dir_recursive_absolute(SV)
+	var cam: Camera3D = root.get_viewport().get_camera_3d()
+	var part_pts := blade_pts(m.wep_model, "part:sword")
+	var part_axis := width_axis(m.wep_model, part_pts)
+	var part_px := screen_width(cam, m.wep_model, part_pts)
+	root.get_texture().get_image().save_png(SV + "/sword_held.png")
+	m._do(m._kind.bind("sword"))
+	await idle(3)
+	var bi_pts := blade_pts(m.wep_model, "sword")
+	var bi_axis := width_axis(m.wep_model, bi_pts)
+	var bi_px := screen_width(cam, m.wep_model, bi_pts)
+	root.get_texture().get_image().save_png(SV + "/builtin_sword.png")
+	var ang := rad_to_deg(acos(clampf(absf(part_axis.dot(bi_axis)), 0.0, 1.0)))
+	ok(ang < 10.0, "10 FLAT: the Part's blade is wide along the same world axis as the built-in's (%.1f deg apart; within 10)" % ang)
+	ok(part_px >= 0.6 * bi_px, "10 FLAT: the Part's blade on screen is %.1f px wide, the built-in's %.1f px (%.0f %%; 60 %% or more)" % [part_px, bi_px, 100.0 * part_px / bi_px])
+
+
 	print("CADMASS ", "PASS" if fails == 0 else "FAIL %d" % fails)
 	TestFiles.cleanup()
 	quit(1 if fails > 0 else 0)
+
+## the blade's points in the weapon frame. A built-in sword: its last two pieces (the blade rods, from y 0.17 up). A Part: its mesh
+## from the guard's back (x > -6.5 mm) out to the tip, |y| < 45 mm (the blade's root corners sit under the guard, so no x cut alone works)
+func blade_pts(wm: Node3D, kind: String) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	if kind == "sword":
+		var mis: Array = wm.find_children("*", "MeshInstance3D", true, false)
+		for mi in mis.slice(mis.size() - 2):
+			for s in range((mi as MeshInstance3D).mesh.get_surface_count()):
+				for v in (mi as MeshInstance3D).mesh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX]:
+					out.append((mi as MeshInstance3D).transform * v)
+	else:
+		var mi: MeshInstance3D = wm.find_child("part", true, false)
+		for v in mi.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
+			if v.x > -0.0065 and absf(v.y) < 0.045:
+				out.append(mi.transform * v)
+	return out
+
+
+## the blade's wide axis in the world: the weapon-frame axis (X or Z; the blade's length is Y) with the larger extent, turned by the weapon's world basis
+func width_axis(wm: Node3D, pts: PackedVector3Array) -> Vector3:
+	var lo := Vector3(INF, INF, INF)
+	var hi := -lo
+	for p in pts:
+		lo = lo.min(p)
+		hi = hi.max(p)
+	var local := Vector3.RIGHT if (hi.x - lo.x) >= (hi.z - lo.z) else Vector3.BACK
+	return (wm.global_transform.basis * local).normalized()
+
+
+## the blade's width on screen (px): its points projected, measured across the projected line from the root to the tip
+func screen_width(cam: Camera3D, wm: Node3D, pts: PackedVector3Array) -> float:
+	var root_p := pts[0]
+	var tip_p := pts[0]
+	for p in pts:
+		if p.y < root_p.y:
+			root_p = p
+		if p.y > tip_p.y:
+			tip_p = p
+	var g := wm.global_transform
+	var a := cam.unproject_position(g * root_p)
+	var ax := (cam.unproject_position(g * tip_p) - a).normalized()
+	var perp := Vector2(-ax.y, ax.x)
+	var lo := INF
+	var hi := -INF
+	for p in pts:
+		var d := (cam.unproject_position(g * p) - a).dot(perp)
+		lo = minf(lo, d)
+		hi = maxf(hi, d)
+	return hi - lo
+
