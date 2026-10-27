@@ -166,6 +166,12 @@ static func register_part(kind: String, mesh: ArrayMesh) -> void:
 		"mesh": mesh, "mesh_at": -Vector3(bx.get_center().x, bx.position.y, bx.get_center().z)}
 
 
+## A VEHICLE as a kind (B3, scripts/vehicle.gd prop_solids): boxes for the body and the wheels, drawn as boxes like the rest.
+## The car is one prop: the set holds it, and STAGE walks and collides with its solids.
+static func register_solids(kind: String, sol: Dictionary) -> void:
+	EXTRA[kind] = {"label": "%s (from Vehicle)" % kind.trim_prefix("car:"), "solids": sol["solids"], "supports": sol["supports"]}
+
+
 static func has_kind(kind: String) -> bool:
 	return KINDS.has(kind) or EXTRA.has(kind)
 

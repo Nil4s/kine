@@ -10,7 +10,7 @@ extends Node
 const CARDS := [
 	{"id": "house", "title": "House / Set", "text": "Rooms, walls, stairs, roofs, and a place to act in.", "easy": "Rooms and walls", "expert": "Plans, stairs, guides"},
 	{"id": "part", "title": "Part", "text": "One solid thing: a sword, an axe, a bracket.", "easy": "Shape + sliders", "expert": "Sketch + timeline"},
-	{"id": "vehicle", "title": "Vehicle", "text": "A car body with wheels that turn. Several parts.", "easy": "Pick a body, size it", "expert": "Loft the shape"},
+	{"id": "vehicle", "title": "Vehicle", "text": "A car body with wheels that turn. Drive it.", "easy": "Change your car", "expert": "Body and wheels as Parts"},
 	{"id": "props", "title": "Prop pack", "text": "Crates, barrels, chairs: many small things, one file.", "easy": "Pick and place", "expert": "Edit each prop"},
 	{"id": "template", "title": "From a template", "text": "Start from a finished one, then change it.", "easy": "Change with sliders", "expert": "Open its timeline"},
 	{"id": "step", "title": "Import STEP", "text": "Bring in a CAD file. It stays a real solid.", "easy": "Import and tidy", "expert": "Import and edit"},
@@ -40,6 +40,7 @@ var art: BuildChooseArt   # the six rendered pictures (scripts/build_choose_art.
 var _solid: MeshInstance3D = null   # the imported STEP solid, shown on BUILD
 var _starters: PopupMenu = null     # the Template card's list of starter buildings (built on the first click)
 var _starter_easy := false          # the mode the Template card was clicked in
+var _car_screen: EasyVehicle = null  # the Vehicle card's Easy screen (built on the first click)
 
 
 ## why a card cannot start yet ("" = it can): the card says it, a click says it again
@@ -49,7 +50,8 @@ func why_not(id: String) -> String:
 			if not KCad.available():
 				return "Needs the KineCAD add-on, which is not installed."
 		"vehicle":
-			return "Coming soon: it needs the part workspace first."
+			if not KCad.available():
+				return "Needs the KineCAD add-on, which is not installed."
 		"step":
 			if not KCad.available():
 				return "Needs the KineCAD add-on, which is not installed."
@@ -283,6 +285,8 @@ func _start(id: String, easy_on: bool) -> void:
 			_ask_step(easy_on)
 		"template":
 			_pick_starter(easy_on)
+		"vehicle":
+			_vehicle(easy_on)
 		"part":
 			_mode(easy_on)
 			close()
@@ -291,6 +295,22 @@ func _start(id: String, easy_on: bool) -> void:
 				m.bld.part.open_easy()
 			else:
 				m.bld.part.set_on(true)
+
+
+## the Vehicle card: Easy is the car's own screen (scripts/easy_vehicle.gd, made on the first click); Expert opens the car body as a Part
+func _vehicle(easy_on: bool) -> void:
+	if _car_screen == null:
+		_car_screen = EasyVehicle.new()
+		_car_screen.m = m
+		_car_screen.build(m.ui_root)   # adds itself to the UI root
+	close()
+	m._page_set("BUILD")
+	if easy_on:
+		_car_screen.open()
+		return
+	_car_screen.ensure()
+	_mode(false)
+	m.bld.part.set_on(true)
 
 
 ## the Template card: a small list of the three starter buildings (a click picks one; the list is a PopupMenu, so it is mouse-only too)

@@ -288,8 +288,11 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	if mesh.get_surface_count() > 0:
 		res["mesh"] = mesh
 		res["aabb"] = mesh.get_aabb()
-	for b in bodies:
-		KCad.release(b)
+	if want.get("keep", false):   # the caller owns the solids (vehicle.gd: intersect tests); release them with KCad.release
+		res["ids"] = bodies
+	else:
+		for b in bodies:
+			KCad.release(b)
 	return res
 
 
