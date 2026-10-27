@@ -276,7 +276,7 @@ const RIBBON_STD := ["CHECK", "MODEL", "SCULPT", "SURFACE", "SET", "EXPORT"]
 ## and key. Every group keeps at least one tool on the row. Nothing is hidden by window width: the row is the same at 1280 and 1600
 const RIBBON_REST := {"MODEL": ["Save to body", "Open...", "Use in scene", "Loop cut", "Knife", "Bevel", "Proportional", "Modifiers"], "SCULPT": ["Clay", "Crease", "Pinch", "Snake"], "SURFACE": ["Export UVs"],
 	"SET": ["Turn left", "Turn right", "Step up", "Throw to...", "Sit down", "Stand up", "Get up", "Add impact frames", "Remove impact frames"],
-	"EXPORT": ["Use as a prop", "Open exports folder"], "CHECK": ["Safety sheet", "Real-mocap check", "Speed limits", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check",
+	"EXPORT": ["Use as a prop", "Open exports folder"], "CHECK": ["Fit the ring", "Safety sheet", "Real-mocap check", "Speed limits", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check",
 	"Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound", "Star this clip", "My best take", "Make this one more like my best",
 	"What I learned from you", "My combos", "Frame it my way"],
 	# BUILD (the Part workspace's rarer tools): under their captions SKETCH / CREATE / MODIFY, not on the row, so Fillet fits at 1280 x 720
