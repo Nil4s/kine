@@ -78,6 +78,7 @@ const DRAW := {
 	"part_revolve": [["arc", Vector2(12, 12), 8, 2.0, 40, 320], ["seg", Vector2(12, 2.5), Vector2(12, 21.5), 1.3], ["seg", Vector2(17.5, 4), Vector2(20, 7.5), 1.8], ["seg", Vector2(20, 7.5), Vector2(15, 8.5), 1.8]],
 	"part_loft": [["box", Rect2(3, 4, 6, 6), 1.6], ["box", Rect2(15, 14, 6, 6), 1.6], ["seg", Vector2(3, 4), Vector2(15, 14), 1.4], ["seg", Vector2(9, 4), Vector2(21, 14), 1.4], ["seg", Vector2(9, 10), Vector2(21, 20), 1.4]],
 	"part_sweep": [["box", Rect2(2, 15, 7, 7), 1.6], ["seg", Vector2(5.5, 15), Vector2(5.5, 6), 1.4], ["seg", Vector2(5.5, 6), Vector2(19, 6), 1.4], ["seg", Vector2(19, 6), Vector2(19, 20), 1.4]],
+	"part_pattern": [["box", Rect2(2, 9, 5, 5), 1.4], ["box", Rect2(9.5, 9, 5, 5), 1.4], ["box", Rect2(17, 9, 5, 5), 1.4]],   # PATTERN: three copies in a row
 	"part_canvas": [["box", Rect2(3, 4, 18, 14), 1.6], ["disc", Vector2(16, 8), 1.8], ["seg", Vector2(3, 16), Vector2(9, 10), 1.4], ["seg", Vector2(9, 10), Vector2(13, 14), 1.4], ["seg", Vector2(13, 14), Vector2(21, 8), 1.4]],
 	"part_measure": [["seg", Vector2(3, 18), Vector2(21, 6), 1.6], ["disc", Vector2(3, 18), 2.0], ["disc", Vector2(21, 6), 2.0], ["seg", Vector2(7, 14), Vector2(7, 19), 1.2]],
 	"part_section": [["box", Rect2(4, 4, 16, 16), 1.6], ["seg", Vector2(2.5, 12), Vector2(21.5, 12), 2.4]],
@@ -89,7 +90,17 @@ const DRAW := {
 	"part_hinge": [["box", Rect2(9, 4, 10, 16), 1.8], ["seg", Vector2(3, 4), Vector2(3, 20), 2.6], ["disc", Vector2(3, 4), 2.0], ["disc", Vector2(3, 20), 2.0]],   # HINGE: a leaf turning about its edge
 	"part_appearance": [["disc", Vector2(12, 12), 8.0], ["ring", Vector2(12, 12), 8.5, 1.9], ["disc", Vector2(12, 12), 3.0]],   # APPEARANCE: a colour disc with a ring
 	"part_split": [["box", Rect2(3, 5, 18, 14), 1.6], ["seg", Vector2(12, 2.5), Vector2(12, 21.5), 1.5]],   # SPLIT: a block cut by a plane
+	"part_combine": [["box", Rect2(3, 5, 11, 11), 1.6], ["box", Rect2(10, 8, 11, 11), 1.6]],   # COMBINE: two overlapping blocks
 	"part_shell": [["box", Rect2(3.5, 3.5, 17, 17), 1.9], ["box", Rect2(7.5, 7.5, 9, 9), 1.2]],   # SHELL: a hollow block
+	"part_constrain": [["ring", Vector2(8, 12), 4.2, 1.8], ["ring", Vector2(16, 12), 4.2, 1.8]],   # GAP 9 CONSTRAIN: two linked rings
+	"part_horizontal": [["seg", Vector2(3, 12), Vector2(21, 12), 2.0], ["disc", Vector2(3, 12), 1.8], ["disc", Vector2(21, 12), 1.8]],
+	"part_vertical": [["seg", Vector2(12, 3), Vector2(12, 21), 2.0], ["disc", Vector2(12, 3), 1.8], ["disc", Vector2(12, 21), 1.8]],
+	"part_coincident": [["ring", Vector2(12, 12), 6.0, 1.8], ["disc", Vector2(12, 12), 2.2]],
+	"part_parallel": [["seg", Vector2(3, 15), Vector2(16, 6), 1.9], ["seg", Vector2(8, 21), Vector2(21, 12), 1.9]],
+	"part_perpendicular": [["seg", Vector2(5, 21), Vector2(5, 3), 1.9], ["seg", Vector2(5, 21), Vector2(21, 21), 1.9]],
+	"part_equal": [["seg", Vector2(3, 8), Vector2(21, 8), 2.0], ["seg", Vector2(3, 16), Vector2(21, 16), 2.0]],
+	"part_angle": [["seg", Vector2(4, 20), Vector2(21, 5), 1.9], ["seg", Vector2(4, 20), Vector2(21, 20), 1.9], ["arc", Vector2(4, 20), 8, 1.6, 270, 325]],
+	"part_remove_constraint": [["seg", Vector2(6, 6), Vector2(18, 18), 2.2], ["seg", Vector2(18, 6), Vector2(6, 18), 2.2]],
 	"part_finish": [["seg", Vector2(4.5, 12.5), Vector2(9.5, 17.5), 2.4], ["seg", Vector2(9.5, 17.5), Vector2(19.5, 6.5), 2.4]],
 	"part_sketch": [["box", Rect2(4, 5, 16, 14), 1.4], ["seg", Vector2(7, 16), Vector2(17, 8), 2.0], ["disc", Vector2(7, 16), 1.8], ["disc", Vector2(17, 8), 1.8]],
 	"part_part": [["seg", Vector2(12, 3), Vector2(21, 8), 1.8], ["seg", Vector2(21, 8), Vector2(21, 17), 1.8], ["seg", Vector2(21, 17), Vector2(12, 22), 1.8], ["seg", Vector2(12, 22), Vector2(3, 17), 1.8], ["seg", Vector2(3, 17), Vector2(3, 8), 1.8], ["seg", Vector2(3, 8), Vector2(12, 3), 1.8], ["seg", Vector2(12, 12), Vector2(12, 22), 1.4], ["seg", Vector2(12, 12), Vector2(3, 8), 1.4], ["seg", Vector2(12, 12), Vector2(21, 8), 1.4]],

@@ -40,13 +40,21 @@ extends RefCounted
 ## "rough": 0..1, "metal": 0..1, "alpha": 0..1 (below 1 = see-through)} paints body N from that step on (the record holds the numbers, a preset
 ## only names them). A body with no appear step gets its palette colour by index (LOOK_CHIPS), so the bodies of a split read as two.
 ## A split gives both halves the look of the body it cut. No DLL: available() is false, replay() answers with an empty result and every tool says why.
+## PATTERN (GAP 30, Fusion's Pattern): {"t": "pattern", "id", "name", "body": N, "kind": "linear"|"circular", "count": copies INCLUDING the original (2..64),
+## "mm" (linear: the spacing), "dir": "x"|"y"|"z" (linear: the direction), "axis": "x"|"y"|"z" (circular: the axis through the origin), "deg" (circular:
+## the total angle; a full turn spreads the copies evenly, a smaller angle runs from the first copy to the last), "op": "join" (the copies fuse into body N)
+## | "new" (each copy is a body of its own, with body N's look). Built from the kernel's translate / rotate (one shape per copy, not one fused shape).
+## COMBINE (Fusion Combine): {"t": "combine", "id", "name", "target": N, "tools": [M, ...], "op": "join"|"cut"|"intersect", "keep": bool}: the target
+## body joins, cuts or shares volume with each tool body in turn (the tools in order). The result takes the target's place in the body list; the tool
+## bodies go (keep = true leaves them where they are, unchanged). Every other body keeps its place and its look, the target keeps its look.
 
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
 const VERSION := 1
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine"]
 const PLANES := ["front", "top", "right"]
 const OPS := ["join", "new", "cut", "intersect"]
+const COMBINE_OPS := ["join", "cut", "intersect"]   # a combine step's op (the dialog's order: Join, Cut, Intersect)
 const MATCH_MAX := 0.25   # an edge matches when (box-position distance + 0.5 x direction mismatch) is below this
 const LOOK_CHIPS := [["Grey", Color("#bdc4d0")], ["Red", Color("#c0392b")], ["Blue", Color("#3a7bd5")], ["Yellow", Color("#f2c94c")], ["Green", Color("#4caf50")]]   # the colour chips; a body with no look takes chip (its index mod 5)
 const LOOK_PRESETS := {"Paint": {"rough": 0.35, "metal": 0.0, "alpha": 1.0}, "Metal": {"rough": 0.25, "metal": 1.0, "alpha": 1.0}, "Glass": {"rough": 0.05, "metal": 0.0, "alpha": 0.4}, "Rubber": {"rough": 0.95, "metal": 0.0, "alpha": 1.0}, "Plastic": {"rough": 0.45, "metal": 0.0, "alpha": 1.0}}
@@ -286,6 +294,10 @@ static func resolved_sketch(sk: Dictionary, measures: Variant) -> Dictionary:
 			return {"sk": out, "err": "%s: %s" % [d.get("name", "dimension"), r["err"]]}
 		d["mm"] = r["mm"]
 		apply_dim(out["ents"], d)
+	solve(out)   # GAP 9: the constraints hold in the replay too (a set that cannot hold is the sketch's error)
+	var bad := con_fail(out)
+	if bad != "":
+		return {"sk": out, "err": "its constraints cannot all hold (%s would break)" % bad}
 	return {"sk": out, "err": ""}
 
 
@@ -440,6 +452,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var swe := _sweep(bodies, f, sketches)
 				if swe != "":
 					errs[id] = swe
+			"pattern":   # GAP 30: copies of body N (its own function: _pattern)
+				var pe := _pattern(bodies, looks, f)
+				if pe != "":
+					errs[id] = pe
 			"fillet", "chamfer":
 				var e := _edge_op(bodies, f)
 				if e != "":
@@ -465,6 +481,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					errs[id] = "there is no body %d to paint" % ai
 				else:
 					looks[ai] = look_of(f)
+			"combine":   # COMBINE: its own function (_combine_step): the target and the tools become one body list again
+				var ce := _combine_step(bodies, looks, f)
+				if ce != "":
+					errs[id] = ce
 			"hinge":   # C3: the rest pose is the timeline's; the swing is hinge_sweep's
 				var hb := int(f.get("body", -1))
 				if hb < 0 or hb >= bodies.size():
@@ -1106,6 +1126,67 @@ static func _combine(bodies: Array, solid: int, op: String) -> String:
 	return ""
 
 
+## COMBINE: the target body takes each tool body in turn (join = union, cut = minus, intersect = shared volume). The result sits where the
+## target was; the tools are removed unless keep. Every body keeps its look; the target keeps its own. "" or the failure message (nothing changes then)
+static func _combine_step(bodies: Array, looks: Array, f: Dictionary) -> String:
+	var tg := int(f.get("target", -1))
+	var tl: Array = []
+	for t in f.get("tools", []):
+		tl.append(int(t))
+	var op := String(f.get("op", "join"))
+	if tg < 0 or tg >= bodies.size():
+		return "there is no Body%d to combine into" % (tg + 1)
+	if tl.is_empty():
+		return "pick at least one tool body (Body2, Body3...)"
+	if not COMBINE_OPS.has(op):
+		return "combine: %s is not Join, Cut or Intersect" % op
+	for t in tl:
+		if t < 0 or t >= bodies.size():
+			return "there is no Body%d to combine" % (t + 1)
+		if t == tg or tl.count(t) > 1:
+			return "a tool body is the target itself or is picked twice"
+	var cur: int = bodies[tg]
+	for t in tl:
+		var nx := 0
+		match op:
+			"join":
+				nx = KCad.union(cur, bodies[t])
+			"cut":
+				nx = KCad.cut(cur, bodies[t])
+			_:
+				nx = KCad.intersect(cur, bodies[t])
+		if nx == 0:
+			var why := KCad.last_error()
+			if cur != bodies[tg]:
+				KCad.release(cur)
+			return why
+		if cur != bodies[tg]:
+			KCad.release(cur)
+		cur = nx
+		if op != "join" and _vol(cur) <= HIT_VOL:
+			KCad.release(cur)
+			return "nothing is left: " + ("Body%d takes all of the target" % (t + 1) if op == "cut" else "the target shares no volume with Body%d" % (t + 1))
+	var keep := bool(f.get("keep", false))
+	var nb: Array = []
+	var nl: Array = []
+	for i in bodies.size():
+		if i == tg:
+			nb.append(cur)
+			nl.append(look_at(looks, i))
+		elif tl.has(i) and not keep:
+			KCad.release(bodies[i])
+		else:
+			nb.append(bodies[i])
+			nl.append(look_at(looks, i))
+	if cur != bodies[tg]:
+		KCad.release(bodies[tg])
+	bodies.clear()
+	bodies.append_array(nb)
+	looks.clear()
+	looks.append_array(nl)
+	return ""
+
+
 ## op intersect: every body keeps only what it shares with the solid; a body with nothing in common goes (none in common at all = an error, nothing changes)
 static func _intersect_into(bodies: Array, solid: int) -> String:
 	if bodies.is_empty():
@@ -1331,3 +1412,347 @@ static func _split_looks(looks: Array, n: int, pieces: Array) -> void:
 	looks.clear()
 	looks.append_array(nl)
 
+
+## PATTERN (GAP 30): the copies of body N, one kernel move each (translate for a row, rotate about the origin for a circle). "join" unions them into
+## body N; "new" keeps each copy as a body of its own (with body N's look). "" or the failure message; a failure changes nothing.
+const AXIS_VEC := {"x": Vector3.RIGHT, "y": Vector3.UP, "z": Vector3.BACK}
+const PATTERN_MAX := 64
+
+static func _pattern(bodies: Array, looks: Array, f: Dictionary) -> String:
+	if bodies.is_empty():
+		return "there is no body to pattern"
+	var bi := int(f.get("body", -1))
+	if bi < 0 or bi >= bodies.size():
+		return "there is no body %d to pattern" % bi
+	var n := int(f.get("count", 0))
+	if n < 2 or n > PATTERN_MAX:
+		return "a pattern needs 2 to %d copies (the original counts as one)" % PATTERN_MAX
+	var copies := []
+	if String(f.get("kind", "linear")) == "circular":
+		var ax: Vector3 = AXIS_VEC.get(String(f.get("axis", "y")), Vector3.UP)
+		var total := deg_to_rad(float(f.get("deg", 360.0)))
+		if absf(total) < 1e-6:
+			return "the angle must not be zero"
+		var step := total / n if absf(total) >= TAU - 1e-9 else total / (n - 1)
+		for i in range(1, n):
+			copies.append(KCad.rotate(bodies[bi], ax, step * i))
+	else:
+		var d: Vector3 = AXIS_VEC.get(String(f.get("dir", "x")), Vector3.RIGHT) * float(f.get("mm", 0.0)) * MM
+		if d.length() < 1e-9:
+			return "the spacing must not be zero"
+		for i in range(1, n):
+			copies.append(KCad.translate(bodies[bi], d * i))
+	for k in copies.size():
+		if int(copies[k]) == 0:
+			var why := KCad.last_error()
+			for c in copies:
+				if int(c) != 0:
+					KCad.release(c)
+			return why if why != "" else "a copy could not be made"
+	if String(f.get("op", "join")) == "new":
+		var src: Variant = looks[bi] if bi < looks.size() else null
+		for c in copies:
+			bodies.append(c)
+			looks.append(src)
+		return ""
+	for k in copies.size():
+		var u := KCad.union(bodies[bi], copies[k])
+		KCad.release(copies[k])
+		if u == 0:
+			for j in range(k + 1, copies.size()):
+				KCad.release(copies[j])
+			return KCad.last_error()
+		KCad.release(bodies[bi])
+		bodies[bi] = u
+	return ""
+
+
+
+# ---------------------------------------------------------------- sketch constraints (GAP 9)
+## A sketch's "cons": [{"k": "h" | "v", "a": ent} (a line horizontal / vertical), {"k": "coin", "a", "ap", "b", "bp"} (end ap of line a is end bp of line b),
+## {"k": "par" | "perp" | "eq", "a", "b"} (two lines parallel / perpendicular / equal length), {"k": "ang", "a", "b", "deg"} (the angle between the two
+## lines, 0..180). Only LINE entities take them (a rectangle is always square to the sketch). The solver moves the line ends (Levenberg-
+## Marquardt on the sketch points) so every constraint and every typed LENGTH dimension of a line holds; a set that cannot hold is refused
+## (con_put), or its sketch makes an error in the replay (resolved_sketch). Residuals: mm, or unit-vector terms.
+const CON_TOL := 1e-6
+const CON_WORDS := {"h": "Horizontal", "v": "Vertical", "coin": "Coincident", "par": "Parallel", "perp": "Perpendicular", "eq": "Equal", "ang": "Angle"}
+
+
+## plain words for one constraint: "Angle 30 deg"
+static func con_name(c: Dictionary) -> String:
+	var w := String(CON_WORDS.get(String(c.get("k", "")), "constraint"))
+	if String(c.get("k", "")) == "ang":
+		w += " %s deg" % _short(float(c.get("deg", 0.0)))
+	return w
+
+
+## the sketch's points as one flat array of 64-bit numbers (Vector2 is 32-bit: at 100 mm it cannot hold 1e-6 mm, so the solver never uses it):
+## entity i has a = [4i, 4i+1] and b = [4i+2, 4i+3] (non-line entities keep zeros, unused)
+static func _pts_of(sk: Dictionary) -> PackedFloat64Array:
+	var X := PackedFloat64Array()
+	for e in sk.get("ents", []):
+		if String(e.get("k", "")) == "line":
+			X.append_array([float(e["a"][0]), float(e["a"][1]), float(e["b"][0]), float(e["b"][1])])
+		else:
+			X.append_array([0.0, 0.0, 0.0, 0.0])
+	return X
+
+
+static func _line_ok(sk: Dictionary, i: int) -> bool:
+	var ents: Array = sk.get("ents", [])
+	return i >= 0 and i < ents.size() and String((ents[i] as Dictionary).get("k", "")) == "line"
+
+
+## every residual, one entry per constraint or length dimension: [{"name", "r": PackedFloat64Array}] (all in doubles)
+static func _res_all(sk: Dictionary, X: PackedFloat64Array) -> Array:
+	var out: Array = []
+	for c in sk.get("cons", []):
+		var a := int(c.get("a", -1))
+		var b := int(c.get("b", -1))
+		var k := String(c.get("k", ""))
+		var two := k in ["coin", "par", "perp", "eq", "ang"]
+		if not _line_ok(sk, a) or (two and not _line_ok(sk, b)):
+			out.append({"name": con_name(c), "r": PackedFloat64Array([1.0])})   # a reference to nothing: never holds
+			continue
+		var ax: float = X[4 * a + 2] - X[4 * a]
+		var ay: float = X[4 * a + 3] - X[4 * a + 1]
+		var la := maxf(sqrt(ax * ax + ay * ay), 1e-12)
+		var bx := 0.0
+		var by := 0.0
+		var lb := 1.0
+		if two:
+			bx = X[4 * b + 2] - X[4 * b]
+			by = X[4 * b + 3] - X[4 * b + 1]
+			lb = maxf(sqrt(bx * bx + by * by), 1e-12)
+		var r := PackedFloat64Array()
+		match k:
+			"h":
+				r.append(ay)
+			"v":
+				r.append(ax)
+			"coin":
+				var pa := 4 * a + 2 * int(c.get("ap", 0))
+				var pb := 4 * b + 2 * int(c.get("bp", 0))
+				r.append(X[pa] - X[pb])
+				r.append(X[pa + 1] - X[pb + 1])
+			"par":
+				r.append((ax * by - ay * bx) / (la * lb))
+			"perp":
+				r.append((ax * bx + ay * by) / (la * lb))
+			"eq":
+				r.append(la - lb)
+			"ang":
+				r.append((ax * bx + ay * by) / (la * lb) - cos(deg_to_rad(float(c.get("deg", 90.0)))))
+		out.append({"name": con_name(c), "r": r})
+	for d in sk.get("dims", []):
+		if String(d.get("kind", "")) == "len" and _line_ok(sk, int(d.get("ent", -1))):
+			var i := int(d["ent"])
+			var dx: float = X[4 * i + 2] - X[4 * i]
+			var dy: float = X[4 * i + 3] - X[4 * i + 1]
+			out.append({"name": "length %s mm" % _short(float(d["mm"])), "r": PackedFloat64Array([sqrt(dx * dx + dy * dy) - float(d["mm"])])})
+	return out
+
+
+static func _flat(all: Array) -> PackedFloat64Array:
+	var out := PackedFloat64Array()
+	for e in all:
+		out.append_array(e["r"])
+	return out
+
+
+## the name of the first constraint (or length) that does not hold now, "" when all hold
+static func con_fail(sk: Dictionary) -> String:
+	for e in _res_all(sk, _pts_of(sk)):
+		for v in e["r"]:
+			if absf(v) > CON_TOL:
+				return String(e["name"])
+	return ""
+
+
+## moves the line ends so every constraint and length holds; pinned = {"ent:pt": true} ends that stay put. Writes the sketch's ents at full
+## precision. Returns the largest residual left (0 = all hold; above CON_TOL = some constraint cannot hold)
+static func solve(sk: Dictionary, pinned := {}) -> float:
+	var X := _pts_of(sk)
+	var free := PackedInt32Array()   # indices into X (one coordinate each)
+	var ents: Array = sk.get("ents", [])
+	for i in ents.size():
+		if String(ents[i].get("k", "")) != "line":
+			continue
+		for j in 2:
+			if not pinned.has("%d:%d" % [i, j]):
+				free.append(4 * i + 2 * j)
+				free.append(4 * i + 2 * j + 1)
+	var r := _flat(_res_all(sk, X))
+	var lam := 1e-3
+	const H := 1e-6   # central differences in doubles: the error is ~1e-12, far under CON_TOL
+	for it in 200:
+		var cost := 0.0
+		var mx := 0.0
+		for v in r:
+			cost += v * v
+			mx = maxf(mx, absf(v))
+		if mx < 1e-10 or free.is_empty() or r.is_empty():
+			break
+		var nf := free.size()
+		var J: Array = []   # one column per free coordinate
+		for k in nf:
+			var Xp := X.duplicate()
+			var Xm := X.duplicate()
+			Xp[free[k]] += H
+			Xm[free[k]] -= H
+			var rp := _flat(_res_all(sk, Xp))
+			var rm := _flat(_res_all(sk, Xm))
+			var col := PackedFloat64Array()
+			for q in r.size():
+				col.append((rp[q] - rm[q]) / (2.0 * H))
+			J.append(col)
+		var A: Array = []
+		var g := PackedFloat64Array()
+		for k in nf:
+			var row := PackedFloat64Array()
+			for l in nf:
+				var s := 0.0
+				for q in r.size():
+					s += float(J[k][q]) * float(J[l][q])
+				row.append(s)
+			A.append(row)
+			var gk := 0.0
+			for q in r.size():
+				gk += float(J[k][q]) * r[q]
+			g.append(gk)
+		var stepped := false
+		for tries in 16:
+			var M: Array = []
+			for k in nf:
+				var row := PackedFloat64Array(A[k])
+				row[k] += lam * (1.0 + float(A[k][k]))   # damping +lam on the diagonal: a free point no rule touches does not move
+				M.append(row)
+			var rhs := PackedFloat64Array()
+			for k in nf:
+				rhs.append(-g[k])
+			var dx := _lin(M, rhs)
+			var Xn := X.duplicate()
+			for k in nf:
+				Xn[free[k]] += dx[k]
+			var rn := _flat(_res_all(sk, Xn))
+			var cn := 0.0
+			for v in rn:
+				cn += v * v
+			if cn < cost:
+				X = Xn
+				r = rn
+				lam = maxf(lam / 3.0, 1e-12)
+				stepped = true
+				break
+			lam *= 4.0
+		if not stepped:
+			break
+	for i in ents.size():
+		if String(ents[i].get("k", "")) == "line":
+			ents[i]["a"] = [X[4 * i], X[4 * i + 1]]
+			ents[i]["b"] = [X[4 * i + 2], X[4 * i + 3]]
+	var worst := 0.0
+	for v in _flat(_res_all(sk, _pts_of(sk))):
+		worst = maxf(worst, absf(v))
+	return worst
+
+
+## Gaussian elimination with partial pivoting (M is n rows of n floats)
+static func _lin(M: Array, rhs: PackedFloat64Array) -> PackedFloat64Array:
+	var n := rhs.size()
+	var A: Array = []
+	for k in n:
+		A.append(PackedFloat64Array(M[k]))
+	var b := rhs.duplicate()
+	for c in n:
+		var piv := c
+		for rr in range(c + 1, n):
+			if absf(A[rr][c]) > absf(A[piv][c]):
+				piv = rr
+		var tmp = A[c]
+		A[c] = A[piv]
+		A[piv] = tmp
+		var tb: float = b[c]
+		b[c] = b[piv]
+		b[piv] = tb
+		if absf(A[c][c]) < 1e-18:
+			continue
+		for rr in range(c + 1, n):
+			var f: float = A[rr][c] / A[c][c]
+			for cc in range(c, n):
+				A[rr][cc] -= f * A[c][cc]
+			b[rr] -= f * b[c]
+	var x := PackedFloat64Array()
+	x.resize(n)
+	for c in range(n - 1, -1, -1):
+		var s: float = b[c]
+		for cc in range(c + 1, n):
+			s -= A[c][cc] * x[cc]
+		x[c] = s / A[c][c] if absf(A[c][c]) >= 1e-18 else 0.0
+	return x
+
+
+## adds a constraint to the sketch. Returns "" when it is added, else the plain words why not; a refused one changes NOTHING. An angle
+## between the same two lines replaces the old angle.
+static func con_put(sk: Dictionary, c: Dictionary) -> String:
+	var k := String(c["k"])
+	var a := int(c["a"])
+	var b := int(c.get("b", -1))
+	var word := String(CON_WORDS[k])
+	var one := k == "h" or k == "v"
+	if not _line_ok(sk, a) or (not one and not _line_ok(sk, b)):
+		return ("%s needs a line (draw it with Line first)" % word) if one else ("%s needs two lines (draw them with Line first)" % word)
+	if k == "coin" and a == b:
+		return "Coincident needs two different lines"
+	var kept: Array = []
+	for o in sk.get("cons", []):
+		var same_pair := int(o.get("a", -1)) == a and int(o.get("b", -1)) == b
+		var swap_pair := int(o.get("a", -1)) == b and int(o.get("b", -1)) == a
+		var same_kind := String(o.get("k", "")) == k
+		if same_kind and k == "ang" and (same_pair or swap_pair):
+			continue   # the new angle replaces the old one
+		if same_kind and one and int(o.get("a", -1)) == a:
+			return "%s already holds for that line" % word
+		if same_kind and not one and k != "ang" and (same_pair or swap_pair):
+			return "%s already holds for those two lines" % word
+		kept.append(o)
+	kept.append(c.duplicate())
+	var trial: Dictionary = sk.duplicate(true)
+	trial["cons"] = kept
+	solve(trial)
+	var bad := con_fail(trial)
+	if bad != "":
+		if bad == con_name(c):
+			return "Cannot add %s: the lines cannot take that rule together with the others here. Nothing changed." % con_name(c)
+		return "Cannot add %s: it would break %s. Nothing changed." % [con_name(c), bad]
+	sk["cons"] = kept
+	sk["ents"] = trial["ents"]
+	return ""
+
+
+## a dimension typed on a sketch (its size, mm): applied only when every constraint still holds (else nothing changes, and the words why)
+static func set_dim_held(sk: Dictionary, ent: int, kind: String, mm: float, bind := {}) -> String:
+	var ents0: Array = (sk["ents"] as Array).duplicate(true)
+	var dims0: Array = (sk.get("dims", []) as Array).duplicate(true)
+	set_dim(sk, ent, kind, mm, bind)
+	solve(sk)
+	var bad := con_fail(sk)
+	if bad != "":
+		sk["ents"] = ents0
+		sk["dims"] = dims0
+		return "Cannot set that size: it would break %s. Nothing changed." % bad
+	return ""
+
+
+## the constraints that point at a line no longer in the sketch are dropped (a deleted line takes its constraints with it)
+static func prune_cons(sk: Dictionary) -> void:
+	if not sk.has("cons"):
+		return
+	var keep: Array = []
+	for c in sk["cons"]:
+		var ok := _line_ok(sk, int(c.get("a", -1)))
+		if String(c.get("k", "")) not in ["h", "v"]:
+			ok = ok and _line_ok(sk, int(c.get("b", -1)))
+		if ok:
+			keep.append(c)
+	sk["cons"] = keep

@@ -251,7 +251,7 @@ const RIBBON_GROUPS := {
 	"SCULPT": [["START", ["Test sphere", "Sculpt the body", "Voxel remesh"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
 	"SURFACE": [["COLOUR", ["Paint", "Material from photo"]], ["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]]],
 	"BUILD": [["DRAW", ["Room", "Wall", "Pull"]], ["ADD", ["Opening", "Floor", "Roof", "Piece"]], ["SAY", ["Words"]], ["SHEET", ["Blueprint"]],
-		["PART", ["Part"]], ["SKETCH", ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension"]], ["CREATE", ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas"]], ["MODIFY", ["Fillet", "Chamfer", "Shell", "Appearance"]], ["VIEW", ["Measure", "Section"]], ["DONE", ["Finish sketch"]]],   # the last five are the Part workspace's (scripts/build/part_ui.gd)
+		["PART", ["Part"]], ["SKETCH", ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]], ["CREATE", ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine"]], ["MODIFY", ["Fillet", "Chamfer", "Shell", "Appearance"]], ["VIEW", ["Measure", "Section"]], ["DONE", ["Finish sketch"]]],   # the last five are the Part workspace's (scripts/build/part_ui.gd)
 	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped"]]],
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag", "Keep balance"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
@@ -280,7 +280,7 @@ const RIBBON_REST := {"MODEL": ["Save to body", "Open...", "Use in scene", "Loop
 	"Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound", "Star this clip", "My best take", "Make this one more like my best",
 	"What I learned from you", "My combos", "Frame it my way"],
 	# BUILD (the Part workspace's rarer tools): under their captions SKETCH / CREATE / MODIFY, not on the row, so Fillet fits at 1280 x 720
-	"BUILD": ["Arc", "Dimension", "Mirror", "Chamfer", "Loft", "Offset plane", "Canvas", "Appearance", "Sweep"]}
+	"BUILD": ["Arc", "Dimension", "Constrain", "Mirror", "Chamfer", "Loft", "Offset plane", "Canvas", "Appearance", "Sweep", "Pattern", "Combine"]}
 ## PAGES (docs/PAGES_PLAN.md, step 1; DaVinci Resolve's page bar): one bar along the bottom, each page its own layout over
 ## the SAME scene, body and undo history. A page shows ONE ribbon row (its groups) and decides which side panels and how
 ## much of the scene strip are open; switching is a view change: no undo step, the scene untouched. The VIEW row is not a
