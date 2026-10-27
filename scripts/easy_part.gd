@@ -1500,8 +1500,8 @@ func _draw_dots() -> void:
 		var tris: PackedVector3Array = stick_tris.get(bi, PackedVector3Array())
 		for k in range(0, tris.size() - 2, 3):
 			var q := _proj3(tris, k)
-			if q.is_empty():
-				continue
+			if q.size() < 3 or absf((q[1] - q[0]).cross(q[2] - q[0])) < 0.5:
+				continue   # a face seen edge-on is a line on screen: no polygon to fill (the triangulation refuses it)
 			dots.draw_colored_polygon(q, Color(AMBER, 0.28))
 		var ed: PackedVector3Array = stick_edges.get(bi, PackedVector3Array())
 		for k in range(0, ed.size() - 1, 2):
