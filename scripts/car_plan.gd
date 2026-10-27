@@ -154,5 +154,5 @@ func _top(r: Rect2) -> void:
 	var dx: float = X.call(L + 40.0)
 	_dim(Vector2(dx, Yc.call(-float(p["track_f"]) * 0.5)), Vector2(dx, Yc.call(float(p["track_f"]) * 0.5)), "front track %d" % int(p["track_f"]))
 	_txt(Vector2(r.position.x + 8.0, r.position.y + 14.0), "Top view (mm)", LINE, 14, HORIZONTAL_ALIGNMENT_LEFT)
-	_txt(Vector2(X.call(L) + 8.0, Yc.call(0.0)), "width %d" % int(W), DIM, 12, HORIZONTAL_ALIGNMENT_LEFT)
+	_txt(Vector2(cx, Yc.call(0.0) - 6.0), "width %d" % int(W), DIM, 12)
 	_txt(Vector2(cx, Yc.call(W * 0.5) + 16.0), "rear track %d" % int(p["track_r"]), DIM, 12)
