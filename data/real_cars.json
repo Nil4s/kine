@@ -1,0 +1,9 @@
+{"note": "Approximate published specs (manufacturer data / common references), for comparison only. mm, kg. Cd and frontal area A (m2) are typical published values.",
+ "cars": [
+  {"name": "VW Golf 8 hatch", "class": "C hatch", "length": 4284, "width": 1789, "height": 1456, "wheelbase": 2636, "track_f": 1549, "track_r": 1520, "tyre": "225/45R17", "ground_clearance": 140, "mass": 1300, "front_split": 0.61, "cd": 0.275, "area": 2.21},
+  {"name": "Toyota Corolla hatch (E210)", "class": "C hatch", "length": 4370, "width": 1790, "height": 1435, "wheelbase": 2640, "track_f": 1530, "track_r": 1540, "tyre": "225/40R18", "ground_clearance": 135, "mass": 1350, "front_split": 0.60, "cd": 0.31, "area": 2.18},
+  {"name": "Honda Civic sedan (11th gen)", "class": "C sedan", "length": 4674, "width": 1802, "height": 1415, "wheelbase": 2735, "track_f": 1537, "track_r": 1565, "tyre": "215/50R17", "ground_clearance": 135, "mass": 1340, "front_split": 0.60, "cd": 0.28, "area": 2.17},
+  {"name": "Toyota RAV4 (XA50)", "class": "C SUV", "length": 4600, "width": 1855, "height": 1685, "wheelbase": 2690, "track_f": 1605, "track_r": 1625, "tyre": "225/60R18", "ground_clearance": 200, "mass": 1600, "front_split": 0.58, "cd": 0.33, "area": 2.65},
+  {"name": "Mazda MX-5 (ND)", "class": "roadster", "length": 3915, "width": 1735, "height": 1235, "wheelbase": 2310, "track_f": 1495, "track_r": 1505, "tyre": "205/45R17", "ground_clearance": 135, "mass": 1060, "front_split": 0.50, "cd": 0.33, "area": 1.75},
+  {"name": "Fiat 500", "class": "A city", "length": 3571, "width": 1627, "height": 1488, "wheelbase": 2300, "track_f": 1414, "track_r": 1408, "tyre": "185/55R15", "ground_clearance": 130, "mass": 940, "front_split": 0.62, "cd": 0.33, "area": 2.05}
+ ]}

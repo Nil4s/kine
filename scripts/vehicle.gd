@@ -26,12 +26,29 @@ static func make_set(car_p := {}, wheel_p := {}) -> Dictionary:
 	return {"car": PartTemplates.make("car", cp), "wheel": PartTemplates.make("wheel", wheel_p)}
 
 
-## a file's vehicle: {"wheel": the wheel's Part record} or {} when there is none (the car body is the Part record)
+## a file's vehicle: {"wheel": the wheel's Part record} (when there is one) and {"package": the hard points} (the Package step, carpkg:
+## scripts/package_screen.gd); {} when there is neither. The car body is the Part record
 static func from_file(d: Variant) -> Dictionary:
-	if not (d is Dictionary) or not (d as Dictionary).has("wheel"):
+	if not (d is Dictionary):
 		return {}
-	var w := Part.from_file((d as Dictionary)["wheel"])
-	return {"wheel": w} if w.has("easy") and String(w["easy"].get("t", "")) == "wheel" else {}
+	var out := {}
+	if (d as Dictionary).has("wheel"):
+		var w := Part.from_file((d as Dictionary)["wheel"])
+		if w.has("easy") and String(w["easy"].get("t", "")) == "wheel":
+			out["wheel"] = w
+	if (d as Dictionary).get("package") is Dictionary and not ((d as Dictionary)["package"] as Dictionary).is_empty():
+		out["package"] = ((d as Dictionary)["package"] as Dictionary).duplicate(true)
+	return out
+
+
+## the file form of a vehicle (the inverse of from_file): what undo and the scene file keep
+static func to_file(v: Dictionary) -> Dictionary:
+	var out := {}
+	if v.has("wheel"):
+		out["wheel"] = (v["wheel"] as Dictionary).duplicate(true)
+	if v.get("package") is Dictionary and not (v["package"] as Dictionary).is_empty():
+		out["package"] = (v["package"] as Dictionary).duplicate(true)
+	return out
 
 
 ## the path the car drives on: a straight 10 m, then a curve to the right (metres, the ground is y = 0)
