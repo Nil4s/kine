@@ -281,6 +281,10 @@ static func resolved_sketch(sk: Dictionary, measures: Variant) -> Dictionary:
 			return {"sk": out, "err": "%s: %s" % [d.get("name", "dimension"), r["err"]]}
 		d["mm"] = r["mm"]
 		apply_dim(out["ents"], d)
+	solve(out)   # GAP 9: the constraints hold in the replay too (a set that cannot hold is the sketch's error)
+	var bad := con_fail(out)
+	if bad != "":
+		return {"sk": out, "err": "its constraints cannot all hold (%s would break)" % bad}
 	return {"sk": out, "err": ""}
 
 
@@ -1103,3 +1107,287 @@ static func _split_looks(looks: Array, n: int, pieces: Array) -> void:
 	looks.clear()
 	looks.append_array(nl)
 
+
+
+# ---------------------------------------------------------------- sketch constraints (GAP 9)
+## A sketch's "cons": [{"k": "h" | "v", "a": ent} (a line horizontal / vertical), {"k": "coin", "a", "ap", "b", "bp"} (end ap of line a is end bp of line b),
+## {"k": "par" | "perp" | "eq", "a", "b"} (two lines parallel / perpendicular / equal length), {"k": "ang", "a", "b", "deg"} (the angle between the two
+## lines, 0..180). Only LINE entities take them (a rectangle is always square to the sketch). The solver moves the line ends (Levenberg-
+## Marquardt on the sketch points) so every constraint and every typed LENGTH dimension of a line holds; a set that cannot hold is refused
+## (con_put), or its sketch makes an error in the replay (resolved_sketch). Residuals: mm, or unit-vector terms.
+const CON_TOL := 1e-6
+const CON_WORDS := {"h": "Horizontal", "v": "Vertical", "coin": "Coincident", "par": "Parallel", "perp": "Perpendicular", "eq": "Equal", "ang": "Angle"}
+
+
+## plain words for one constraint: "Angle 30 deg"
+static func con_name(c: Dictionary) -> String:
+	var w := String(CON_WORDS.get(String(c.get("k", "")), "constraint"))
+	if String(c.get("k", "")) == "ang":
+		w += " %s deg" % _short(float(c.get("deg", 0.0)))
+	return w
+
+
+## the sketch's points as one array: entity i has a = [2i] and b = [2i+1] (non-line entities keep zeros, unused)
+static func _pts_of(sk: Dictionary) -> Array:
+	var X: Array = []
+	for e in sk.get("ents", []):
+		if String(e.get("k", "")) == "line":
+			X.append(v2(e["a"]))
+			X.append(v2(e["b"]))
+		else:
+			X.append(Vector2.ZERO)
+			X.append(Vector2.ZERO)
+	return X
+
+
+static func _line_ok(sk: Dictionary, i: int) -> bool:
+	var ents: Array = sk.get("ents", [])
+	return i >= 0 and i < ents.size() and String((ents[i] as Dictionary).get("k", "")) == "line"
+
+
+## every residual, one entry per constraint or length dimension: [{"name", "r": PackedFloat64Array}]
+static func _res_all(sk: Dictionary, X: Array) -> Array:
+	var out: Array = []
+	for c in sk.get("cons", []):
+		var a := int(c.get("a", -1))
+		var b := int(c.get("b", -1))
+		var k := String(c.get("k", ""))
+		var two := k in ["coin", "par", "perp", "eq", "ang"]
+		if not _line_ok(sk, a) or (two and not _line_ok(sk, b)):
+			out.append({"name": con_name(c), "r": PackedFloat64Array([1.0])})   # a reference to nothing: never holds
+			continue
+		var da: Vector2 = X[2 * a + 1] - X[2 * a]
+		var ua := da / maxf(da.length(), 1e-12)
+		var ub := Vector2.ZERO
+		var db := Vector2.ZERO
+		if two:
+			db = X[2 * b + 1] - X[2 * b]
+			ub = db / maxf(db.length(), 1e-12)
+		var r := PackedFloat64Array()
+		match k:
+			"h":
+				r.append(da.y)
+			"v":
+				r.append(da.x)
+			"coin":
+				var d: Vector2 = X[2 * a + int(c.get("ap", 0))] - X[2 * b + int(c.get("bp", 0))]
+				r.append(d.x)
+				r.append(d.y)
+			"par":
+				r.append(ua.x * ub.y - ua.y * ub.x)
+			"perp":
+				r.append(ua.dot(ub))
+			"eq":
+				r.append(da.length() - db.length())
+			"ang":
+				r.append(ua.dot(ub) - cos(deg_to_rad(float(c.get("deg", 90.0)))))
+		out.append({"name": con_name(c), "r": r})
+	for d in sk.get("dims", []):
+		if String(d.get("kind", "")) == "len" and _line_ok(sk, int(d.get("ent", -1))):
+			var i := int(d["ent"])
+			out.append({"name": "length %s mm" % _short(float(d["mm"])), "r": PackedFloat64Array([(X[2 * i + 1] - X[2 * i]).length() - float(d["mm"])])})
+	return out
+
+
+static func _flat(all: Array) -> PackedFloat64Array:
+	var out := PackedFloat64Array()
+	for e in all:
+		out.append_array(e["r"])
+	return out
+
+
+## the name of the first constraint (or length) that does not hold now, "" when all hold
+static func con_fail(sk: Dictionary) -> String:
+	for e in _res_all(sk, _pts_of(sk)):
+		for v in e["r"]:
+			if absf(v) > CON_TOL:
+				return String(e["name"])
+	return ""
+
+
+## moves the line ends so every constraint and length holds; pinned = {"ent:pt": true} ends that stay put. Writes the sketch's ents at full
+## precision. Returns the largest residual left (0 = all hold; above CON_TOL = some constraint cannot hold)
+static func solve(sk: Dictionary, pinned := {}) -> float:
+	var X := _pts_of(sk)
+	var free: Array = []   # [point index, coordinate 0 (x) or 1 (y)]
+	var ents: Array = sk.get("ents", [])
+	for i in ents.size():
+		if String(ents[i].get("k", "")) != "line":
+			continue
+		for j in 2:
+			if not pinned.has("%d:%d" % [i, j]):
+				free.append([2 * i + j, 0])
+				free.append([2 * i + j, 1])
+	var r := _flat(_res_all(sk, X))
+	var lam := 1e-3
+	for it in 100:
+		var mx := 0.0
+		for v in r:
+			mx = maxf(mx, absf(v))
+		if mx < 1e-11 or free.is_empty() or r.is_empty():
+			break
+		var nf := free.size()
+		var J: Array = []   # one column per free variable (forward differences)
+		for k in nf:
+			var Xp := X.duplicate()
+			var p: int = free[k][0]
+			Xp[p] = Xp[p] + (Vector2(1e-7, 0) if int(free[k][1]) == 0 else Vector2(0, 1e-7))
+			var rp := _flat(_res_all(sk, Xp))
+			var col := PackedFloat64Array()
+			for q in r.size():
+				col.append((rp[q] - r[q]) / 1e-7)
+			J.append(col)
+		var A: Array = []
+		var g := PackedFloat64Array()
+		for k in nf:
+			var row := PackedFloat64Array()
+			for l in nf:
+				var s := 0.0
+				for q in r.size():
+					s += float(J[k][q]) * float(J[l][q])
+				row.append(s)
+			A.append(row)
+			var gk := 0.0
+			for q in r.size():
+				gk += float(J[k][q]) * r[q]
+			g.append(gk)
+		var cost := 0.0
+		for v in r:
+			cost += v * v
+		var stepped := false
+		for tries in 12:
+			var M: Array = []
+			for k in nf:
+				var row := PackedFloat64Array(A[k])
+				row[k] += lam * (1.0 + float(A[k][k]))
+				M.append(row)
+			var rhs := PackedFloat64Array()
+			for k in nf:
+				rhs.append(-g[k])
+			var dx := _lin(M, rhs)
+			var Xn := X.duplicate()
+			for k in nf:
+				var p: int = free[k][0]
+				Xn[p] = Xn[p] + (Vector2(dx[k], 0) if int(free[k][1]) == 0 else Vector2(0, dx[k]))
+			var rn := _flat(_res_all(sk, Xn))
+			var cn := 0.0
+			for v in rn:
+				cn += v * v
+			if cn < cost:
+				X = Xn
+				r = rn
+				lam = maxf(lam / 3.0, 1e-12)
+				stepped = true
+				break
+			lam *= 4.0
+		if not stepped:
+			break
+	for i in ents.size():
+		if String(ents[i].get("k", "")) == "line":
+			ents[i]["a"] = [X[2 * i].x, X[2 * i].y]
+			ents[i]["b"] = [X[2 * i + 1].x, X[2 * i + 1].y]
+	var worst := 0.0
+	for v in _flat(_res_all(sk, _pts_of(sk))):
+		worst = maxf(worst, absf(v))
+	return worst
+
+
+## Gaussian elimination with partial pivoting (M is n rows of n floats)
+static func _lin(M: Array, rhs: PackedFloat64Array) -> PackedFloat64Array:
+	var n := rhs.size()
+	var A: Array = []
+	for k in n:
+		A.append(PackedFloat64Array(M[k]))
+	var b := rhs.duplicate()
+	for c in n:
+		var piv := c
+		for rr in range(c + 1, n):
+			if absf(A[rr][c]) > absf(A[piv][c]):
+				piv = rr
+		var tmp = A[c]
+		A[c] = A[piv]
+		A[piv] = tmp
+		var tb: float = b[c]
+		b[c] = b[piv]
+		b[piv] = tb
+		if absf(A[c][c]) < 1e-18:
+			continue
+		for rr in range(c + 1, n):
+			var f: float = A[rr][c] / A[c][c]
+			for cc in range(c, n):
+				A[rr][cc] -= f * A[c][cc]
+			b[rr] -= f * b[c]
+	var x := PackedFloat64Array()
+	x.resize(n)
+	for c in range(n - 1, -1, -1):
+		var s: float = b[c]
+		for cc in range(c + 1, n):
+			s -= A[c][cc] * x[cc]
+		x[c] = s / A[c][c] if absf(A[c][c]) >= 1e-18 else 0.0
+	return x
+
+
+## adds a constraint to the sketch. Returns "" when it is added, else the plain words why not; a refused one changes NOTHING. An angle
+## between the same two lines replaces the old angle.
+static func con_put(sk: Dictionary, c: Dictionary) -> String:
+	var k := String(c["k"])
+	var a := int(c["a"])
+	var b := int(c.get("b", -1))
+	var word := String(CON_WORDS[k])
+	var one := k == "h" or k == "v"
+	if not _line_ok(sk, a) or (not one and not _line_ok(sk, b)):
+		return ("%s needs a line (draw it with Line first)" % word) if one else ("%s needs two lines (draw them with Line first)" % word)
+	if k == "coin" and a == b:
+		return "Coincident needs two different lines"
+	var kept: Array = []
+	for o in sk.get("cons", []):
+		var same_pair := int(o.get("a", -1)) == a and int(o.get("b", -1)) == b
+		var swap_pair := int(o.get("a", -1)) == b and int(o.get("b", -1)) == a
+		var same_kind := String(o.get("k", "")) == k
+		if same_kind and k == "ang" and (same_pair or swap_pair):
+			continue   # the new angle replaces the old one
+		if same_kind and one and int(o.get("a", -1)) == a:
+			return "%s already holds for that line" % word
+		if same_kind and not one and k != "ang" and (same_pair or swap_pair):
+			return "%s already holds for those two lines" % word
+		kept.append(o)
+	kept.append(c.duplicate())
+	var trial: Dictionary = sk.duplicate(true)
+	trial["cons"] = kept
+	solve(trial)
+	var bad := con_fail(trial)
+	if bad != "":
+		if bad == con_name(c):
+			return "Cannot add %s: the lines cannot take that rule together with the others here. Nothing changed." % con_name(c)
+		return "Cannot add %s: it would break %s. Nothing changed." % [con_name(c), bad]
+	sk["cons"] = kept
+	sk["ents"] = trial["ents"]
+	return ""
+
+
+## a dimension typed on a sketch (its size, mm): applied only when every constraint still holds (else nothing changes, and the words why)
+static func set_dim_held(sk: Dictionary, ent: int, kind: String, mm: float, bind := {}) -> String:
+	var ents0: Array = (sk["ents"] as Array).duplicate(true)
+	var dims0: Array = (sk.get("dims", []) as Array).duplicate(true)
+	set_dim(sk, ent, kind, mm, bind)
+	solve(sk)
+	var bad := con_fail(sk)
+	if bad != "":
+		sk["ents"] = ents0
+		sk["dims"] = dims0
+		return "Cannot set that size: it would break %s. Nothing changed." % bad
+	return ""
+
+
+## the constraints that point at a line no longer in the sketch are dropped (a deleted line takes its constraints with it)
+static func prune_cons(sk: Dictionary) -> void:
+	if not sk.has("cons"):
+		return
+	var keep: Array = []
+	for c in sk["cons"]:
+		var ok := _line_ok(sk, int(c.get("a", -1)))
+		if String(c.get("k", "")) not in ["h", "v"]:
+			ok = ok and _line_ok(sk, int(c.get("b", -1)))
+		if ok:
+			keep.append(c)
+	sk["cons"] = keep
