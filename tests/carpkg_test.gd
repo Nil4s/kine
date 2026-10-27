@@ -379,6 +379,9 @@ func ui_bars() -> void:
 	var vpr := Rect2(Vector2.ZERO, Vector2(1280, 720))
 	var rs := {"bar": _rect(ps.get_node("package_bar")), "plan": _rect(ps.plan), "view": _rect(ps.view), "panel": _rect(ps.panel), "status": _rect(ps.status)}
 	var clash := []
+	for vn in ["plan", "view"]:   # the drawings and the 3D view share one area, one shown at a time (replaced the stacked split: see the commit)
+		if not (ps.plan if vn == "plan" else ps.view).visible:
+			rs.erase(vn)
 	for a in rs:
 		if not vpr.encloses(rs[a]):
 			clash.append("%s outside" % a)
@@ -386,6 +389,17 @@ func ui_bars() -> void:
 			if a < b and rs[a].intersects(rs[b]):
 				clash.append("%s/%s" % [a, b])
 	ok(clash.is_empty(), "14 LAYOUT at 1280 x 720 nothing overlaps and all stays in the window: %s" % str(clash))
+	# 14b the SCREEN's own drawing (bar 22 measures a standalone 1150 x 760 plan, which the screen never gave it)
+	var sb := ps.plan.outline[1][0] as PackedVector2Array
+	var sfill := (sb[1].x - sb[0].x) / ps.plan.size.x
+	ok(ps.plan.visible and sfill >= 0.5, "14b SCREEN TOPFILL on the screen at 1280 x 720 the top view is %.0f %% of the drawing's width (>= 50 %%)" % (sfill * 100.0))
+	# 14c one click swaps the drawings for the 3D view and back
+	await click_ctl(ps.view_btn)
+	await idle(3)
+	var in3d: bool = ps.view.visible and not ps.plan.visible and ps.vp.render_target_update_mode == SubViewport.UPDATE_ALWAYS
+	await click_ctl(ps.view_btn)
+	await idle(3)
+	ok(in3d and ps.plan.visible and not ps.view.visible and ps.vp.render_target_update_mode == SubViewport.UPDATE_DISABLED, "14c VIEW one click shows the 3D view (%s), a second brings the drawings back; the hidden 3D view is not drawn" % in3d)
 
 	# 15 COMPARE: the tab, the Hatch with a short wheelbase
 	ps.set_param("wheelbase", 1800.0)

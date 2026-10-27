@@ -44,6 +44,8 @@ var sec_hp: VBoxContainer
 var sec_cmp: VBoxContainer
 var cmp_box: VBoxContainer
 var cmp_head: Label
+var show_3d := false           # the drawing area shows the 3D preview instead of the side + top views (one click on view_btn)
+var view_btn: Button
 var built_3d := 0              # the 3D preview rebuilds (the test counts them)
 var _held := false
 var _edit_n := -1
@@ -80,6 +82,9 @@ func build(root: Control) -> void:
 	row.add_child(title_l)
 	undo_btn = _bar_btn("Undo", "Take back the last change", func(): m._undo())
 	redo_btn = _bar_btn("Redo", "Put back what Undo took back", func(): m._redo())
+	view_btn = _bar_btn("See it in 3D", "Swap the side and top drawings for a 3D view of the package", func(): set_3d(not show_3d))
+	view_btn.name = "package_view_btn"
+	row.add_child(view_btn)
 	row.add_child(undo_btn)
 	row.add_child(redo_btn)
 	# the layout (side and top views), the 3D view under it
@@ -643,13 +648,17 @@ func layout() -> void:
 	var top := float(m.TOP_H)
 	var avail := vs.y - top - 52.0
 	var vw := vs.x - PW - 16.0
-	var ph := avail * 0.62
+	# the drawings and the 3D view share the whole area, one at a time: stacked, the drawings were height-bound to ~26 % of the width
 	plan.position = Vector2(0.0, top)
-	plan.size = Vector2(vw, ph)
-	view.position = Vector2(0.0, top + ph + 4.0)
-	view.size = Vector2(vw, avail - ph - 6.0)
-	if vp != null and vp.size != Vector2i(int(vw), int(avail - ph - 6.0)) and vw > 1.0 and avail - ph - 6.0 > 1.0:
-		vp.size = Vector2i(int(vw), int(avail - ph - 6.0))
+	plan.size = Vector2(vw, avail)
+	view.position = plan.position
+	view.size = plan.size
+	plan.visible = not show_3d
+	view.visible = show_3d
+	if vp != null:
+		vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if show_3d else SubViewport.UPDATE_DISABLED
+		if vp.size != Vector2i(int(vw), int(avail)) and vw > 1.0 and avail > 1.0:
+			vp.size = Vector2i(int(vw), int(avail))
 	panel.position = Vector2(vs.x - PW - 8.0, top + 6.0)
 	panel.size = Vector2(PW, vs.y - top - 12.0)
 	status.position = Vector2(12.0, top + avail + 6.0)
@@ -661,3 +670,11 @@ func _process(_dt: float) -> void:
 		return
 	if vp != null and view != null and view.size.x > 1.0 and vp.size != Vector2i(view.size):
 		layout()
+
+
+## one click swaps the drawings for the 3D view and back
+func set_3d(on: bool) -> void:
+	show_3d = on
+	if view_btn != null:
+		view_btn.text = "See the drawings" if on else "See it in 3D"
+	layout()
