@@ -74,6 +74,15 @@ func find_btn(txt: String) -> Button:
 	return null
 
 
+## [caption MenuButton, item index] of the STAGE ribbon's Library entry under a caption's menu, or null
+func _library_in_caption() -> Variant:
+	for pair in m.ui_caps["SET"]:
+		for b in pair[1]:
+			if m.label_of(b) == "Library":
+				return [pair[0], (pair[1] as Array).find(b)]
+	return null
+
+
 func tile(id: String) -> Button:
 	return lib.find_child("tile_" + id.replace(":", "_"), true, false) as Button
 
@@ -181,10 +190,23 @@ func _init() -> void:
 	# C4 expert, real clicks
 	m.ui_page_btns["STAGE"].pressed.emit()
 	await idle(6)
-	var open_btn := find_btn("Library")
-	ok(open_btn != null, "C4 the STAGE page shows a Library button")
+	# commit 6bde3d2d: Library is an icon (text empty, label "Library") on STAGE, rare tools live under a caption's menu:
+	# the PROPS caption holds it. Reached as a user does: the icon if it is on the bar, else PROPS' menu item.
+	var open_btn: Button = null
+	for c in m.ui_ribbon["SET"].get_children():
+		if c is Button and m.label_of(c) == "Library" and c.is_visible_in_tree():
+			open_btn = c
+	ok(open_btn != null or _library_in_caption() != null, "C4 the STAGE page shows a Library button (icon or PROPS menu)")
 	if open_btn != null:
 		await click_ctl(open_btn)
+	else:
+		var cp: Array = _library_in_caption()
+		if cp != null:
+			await click_ctl(cp[0])
+			var pm: PopupMenu = (cp[0] as MenuButton).get_popup()
+			pm.id_pressed.emit(cp[1])
+			pm.hide()
+			await idle(2)
 	ok(m.ui_library != null and m.ui_library.visible, "C4 a click on Library opens the library")
 	var fb := side("Fight blocks")
 	ok(fb != null and fb.is_visible_in_tree(), "C4 the Fight blocks entry is on screen")
