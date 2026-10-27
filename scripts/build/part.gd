@@ -363,6 +363,16 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var hb := int(f.get("body", -1))
 				if hb < 0 or hb >= bodies.size():
 					errs[id] = "there is no body %d to hinge" % hb
+	if want.has("pose"):   # the view of a hinge mid-swing (PartUI's Play): that body turned, the rest as it is
+		var pz: Dictionary = want["pose"]
+		for k in n:
+			var hf: Dictionary = feats[k]
+			var hbi := int(hf.get("body", -1))
+			if String(hf["id"]) == String(pz.get("f", "")) and String(hf["t"]) == "hinge" and hbi >= 0 and hbi < bodies.size():
+				var sw := _swing(int(bodies[hbi]), _pivot(hf), _axis(hf), deg_to_rad(float(pz.get("deg", 0.0))))
+				if sw != 0:
+					KCad.release(bodies[hbi])
+					bodies[hbi] = sw
 	var mesh := ArrayMesh.new()
 	for b in bodies:
 		var v := KCad.volume(b)
@@ -425,8 +435,8 @@ static func hinge_sweep(rec: Dictionary, hinge_id: String, fps := 25.0) -> Dicti
 			for b in ids:
 				KCad.release(b)
 			return {"ok": false, "why": "the must-not-touch pair %d and %d: there is no such body" % [pa, pb]}
-	var pivot := Vector3(float(f["o"][0]), float(f["o"][1]), float(f["o"][2])) * MM
-	var axis := Vector3(float(f["axis"][0]), float(f["axis"][1]), float(f["axis"][2])).normalized()
+	var pivot := _pivot(f)
+	var axis := _axis(f)
 	var rest: Array = []
 	for j in ids.size():
 		if j != bi:
@@ -506,6 +516,26 @@ static func hinge_sweep(rec: Dictionary, hinge_id: String, fps := 25.0) -> Dicti
 	out["red"] = reds
 	out["red_text"] = _runs_text(reds, fps)
 	out["secs"] = float(Time.get_ticks_usec() - t0) * 1e-6
+	return out
+
+
+## C3: a hinge's pivot (metres) and unit axis
+static func _pivot(f: Dictionary) -> Vector3:
+	return Vector3(float(f["o"][0]), float(f["o"][1]), float(f["o"][2])) * MM
+
+
+static func _axis(f: Dictionary) -> Vector3:
+	return Vector3(float(f["axis"][0]), float(f["axis"][1]), float(f["axis"][2])).normalized()
+
+
+## C3: the triangles (metres) of every body at upto, in body order (the picking of PartUI's hinge); the solids are released
+static func body_faces(rec: Dictionary, upto := -1) -> Array:
+	var out: Array = []
+	if not available():
+		return out
+	for b in replay(rec, upto, {"keep": true}).get("ids", []):
+		out.append(_tris_of(int(b)))
+		KCad.release(int(b))
 	return out
 
 
