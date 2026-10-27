@@ -392,7 +392,11 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 
 ## C3: the hinge's swing, sampled at fps. Replays the features before the hinge, turns its body about the hinge axis by the curve at each
 ## frame and intersects it with every other body. Answers {"ok": true, "frames", "first" (the first frame that overlaps, -1 = never),
-## "first_s", "deg_first", "hit_frames" (how many frames overlap), "secs" (the run, replay included)}, or {"ok": false, "why"}.
+## "first_s", "deg_first", "hit_frames" (how many frames overlap), "secs" (the run, replay included), "pairs", "red", "red_text"}, or {"ok": false, "why"}.
+## MUST NOT TOUCH (C3 collision): the hinge's "clear" list holds body pairs [a, b] (indices as the hinge finds them). Per frame each pair gets a
+## distance in mm: the smallest gap between the two solids' triangles, or -1 when the kernel says they overlap (touching; the depth is not
+## measured). "pairs" = [{"a", "b", "dist" (mm per frame), "min" (mm, -1 if any frame overlaps), "touch" (frames with dist < 0)}], "red" = the
+## frames where any pair touches (the timeline's red frames), "red_text" = the same in plain words. No pair chosen: "red" is empty.
 static func hinge_sweep(rec: Dictionary, hinge_id: String, fps := 25.0) -> Dictionary:
 	if not available():
 		return {"ok": false, "why": why_not()}
@@ -414,14 +418,29 @@ static func hinge_sweep(rec: Dictionary, hinge_id: String, fps := 25.0) -> Dicti
 		for b in ids:
 			KCad.release(b)
 		return {"ok": false, "why": "there is no body %d to hinge" % bi}
+	for p in f.get("clear", []):
+		var pa := int(p[0])
+		var pb := int(p[1])
+		if pa < 0 or pb < 0 or pa >= ids.size() or pb >= ids.size() or pa == pb:
+			for b in ids:
+				KCad.release(b)
+			return {"ok": false, "why": "the must-not-touch pair %d and %d: there is no such body" % [pa, pb]}
 	var pivot := Vector3(float(f["o"][0]), float(f["o"][1]), float(f["o"][2])) * MM
 	var axis := Vector3(float(f["axis"][0]), float(f["axis"][1]), float(f["axis"][2])).normalized()
 	var rest: Array = []
 	for j in ids.size():
 		if j != bi:
 			rest.append(ids[j])
+	var pairs: Array = []
+	for p in f.get("clear", []):
+		pairs.append({"a": int(p[0]), "b": int(p[1]), "dist": PackedFloat32Array(), "min": -1.0, "touch": []})
+	var static_tris := {}   # body index -> triangles (metres), tessellated once for the bodies that do not move
+	for j in ids.size():
+		if j != bi:
+			static_tris[j] = _tris_of(int(ids[j]))
 	var n := int(floor(float(track[-1][0]) * fps + 1e-6)) + 1
 	var out := {"ok": true, "frames": n, "first": -1, "first_s": -1.0, "deg_first": 0.0, "hit_frames": 0, "secs": 0.0}
+	var red := {}
 	for i in n:
 		var t := float(i) / fps
 		var deg := float(Curves.eval(track, t))
@@ -436,6 +455,38 @@ static func hinge_sweep(rec: Dictionary, hinge_id: String, fps := 25.0) -> Dicti
 				hit = true
 			if c != 0:
 				KCad.release(c)
+		var moving_tris := PackedVector3Array()
+		if m != 0:
+			moving_tris = _tris_of(m)
+			if moving_tris.is_empty() and bad == "":
+				bad = "could not tessellate the moving body"
+		for pr in pairs:
+			if bad != "":
+				break
+			var sa: int = m if int(pr["a"]) == bi else int(ids[int(pr["a"])])
+			var sb: int = m if int(pr["b"]) == bi else int(ids[int(pr["b"])])
+			var ta: PackedVector3Array = moving_tris if int(pr["a"]) == bi else static_tris[int(pr["a"])]
+			var tb: PackedVector3Array = moving_tris if int(pr["b"]) == bi else static_tris[int(pr["b"])]
+			var c2 := KCad.intersect(sa, sb) if m != 0 else 0
+			var d := 0.0
+			if m != 0 and c2 == 0:
+				bad = KCad.last_error()
+			elif c2 != 0 and KCad.volume(c2) > HIT_VOL:
+				d = -1.0   # overlap: touching, the depth is not measured
+			else:
+				d = _tri_dist(ta, tb) * 1000.0
+			if c2 != 0:
+				KCad.release(c2)
+			var dl: PackedFloat32Array = pr["dist"]
+			dl.append(d)
+			pr["dist"] = dl
+			if d < 0.0:
+				var tl: Array = pr["touch"]
+				tl.append(i)
+				pr["touch"] = tl
+				red[i] = true
+			if float(pr["min"]) < 0.0 or (d >= 0.0 and d < float(pr["min"])):
+				pr["min"] = d
 		KCad.release(m)
 		if bad != "":
 			for b in ids:
@@ -449,8 +500,174 @@ static func hinge_sweep(rec: Dictionary, hinge_id: String, fps := 25.0) -> Dicti
 				out["deg_first"] = deg
 	for b in ids:
 		KCad.release(b)
+	var reds: Array = red.keys()
+	reds.sort()
+	out["pairs"] = pairs
+	out["red"] = reds
+	out["red_text"] = _runs_text(reds, fps)
 	out["secs"] = float(Time.get_ticks_usec() - t0) * 1e-6
 	return out
+
+
+## C3 MUST NOT TOUCH: the body pair [a, b] goes on the hinge's "clear" list (on = true) or off it. Stored with a < b, once.
+## Answers "" or why not. One call is one undo step for the caller.
+static func clear_pair_set(rec: Dictionary, hinge_id: String, a: int, b: int, on := true) -> String:
+	var fi := index_of(rec, hinge_id)
+	if fi < 0 or String(rec["features"][fi]["t"]) != "hinge":
+		return "there is no hinge %s" % hinge_id
+	if a < 0 or b < 0 or a == b:
+		return "a pair needs two different bodies"
+	var lo := mini(a, b)
+	var hi := maxi(a, b)
+	var f: Dictionary = rec["features"][fi]
+	var kept: Array = []
+	for p in f.get("clear", []):
+		if not (int(p[0]) == lo and int(p[1]) == hi):
+			kept.append(p)
+	if on:
+		kept.append([lo, hi])
+	f["clear"] = kept
+	return ""
+
+
+## the pairs on a hinge's list, as [a, b] body indices
+static func clear_pairs(rec: Dictionary, hinge_id: String) -> Array:
+	var fi := index_of(rec, hinge_id)
+	if fi < 0:
+		return []
+	return (rec["features"][fi] as Dictionary).get("clear", []).duplicate(true)
+
+
+## "frames 6-75" / "frames 3, 5-7" from a sorted frame list at fps: the plain words for the timeline's red frames ("" = none)
+static func _runs_text(frames: Array, fps: float) -> String:
+	if frames.is_empty():
+		return ""
+	var parts: Array = []
+	var s := int(frames[0])
+	var p := s
+	for k in range(1, frames.size() + 1):
+		var cur := int(frames[k]) if k < frames.size() else -99
+		if cur == p + 1:
+			p = cur
+			continue
+		parts.append(str(s) if s == p else "%d-%d" % [s, p])
+		if k < frames.size():
+			s = cur
+			p = cur
+	var word := "frame" if frames.size() == 1 else "frames"
+	return "%s %s (%.2f s to %.2f s)" % [word, ", ".join(parts), float(frames[0]) / fps, float(frames[-1]) / fps]
+
+
+## a body's triangles in metres (flat triples), from its tessellation at the sweep's deflection
+static func _tris_of(id: int) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	var tm := KCad.tessellate(id, 0.0003, 0.25)
+	if tm == null:
+		return out
+	for s in tm.get_surface_count():
+		var arr := tm.surface_get_arrays(s)
+		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var idx = arr[Mesh.ARRAY_INDEX]
+		if idx == null:
+			out.append_array(verts)
+		else:
+			for k in (idx as PackedInt32Array):
+				out.append(verts[k])
+	return out
+
+
+## the smallest distance (metres) between two triangle soups; a triangle pair is skipped when its boxes are farther apart than the best so far
+static func _tri_dist(A: PackedVector3Array, B: PackedVector3Array) -> float:
+	var best := INF
+	if A.is_empty() or B.is_empty():
+		return best
+	for i in range(0, A.size(), 3):
+		var ta := AABB(A[i], Vector3.ZERO).expand(A[i + 1]).expand(A[i + 2])
+		for j in range(0, B.size(), 3):
+			var tb := AABB(B[j], Vector3.ZERO).expand(B[j + 1]).expand(B[j + 2])
+			if best < INF and not ta.grow(best).intersects(tb):
+				continue
+			best = minf(best, _tri_tri(A[i], A[i + 1], A[i + 2], B[j], B[j + 1], B[j + 2]))
+	return best
+
+
+static func _tri_tri(a0: Vector3, a1: Vector3, a2: Vector3, b0: Vector3, b1: Vector3, b2: Vector3) -> float:
+	var d := INF
+	for p in [a0, a1, a2]:
+		d = minf(d, p.distance_to(_closest_on_tri(p, b0, b1, b2)))
+	for q in [b0, b1, b2]:
+		d = minf(d, q.distance_to(_closest_on_tri(q, a0, a1, a2)))
+	var ea := [[a0, a1], [a1, a2], [a2, a0]]
+	var eb := [[b0, b1], [b1, b2], [b2, b0]]
+	for x in ea:
+		for y in eb:
+			d = minf(d, _seg_seg(x[0], x[1], y[0], y[1]))
+	return d
+
+
+## the point of triangle abc nearest p (Ericson, Real-Time Collision Detection 5.1.5)
+static func _closest_on_tri(p: Vector3, a: Vector3, b: Vector3, c: Vector3) -> Vector3:
+	var ab := b - a
+	var ac := c - a
+	var ap := p - a
+	var d1 := ab.dot(ap)
+	var d2 := ac.dot(ap)
+	if d1 <= 0.0 and d2 <= 0.0:
+		return a
+	var bp := p - b
+	var d3 := ab.dot(bp)
+	var d4 := ac.dot(bp)
+	if d3 >= 0.0 and d4 <= d3:
+		return b
+	var vc := d1 * d4 - d3 * d2
+	if vc <= 0.0 and d1 >= 0.0 and d3 <= 0.0:
+		return a + ab * (d1 / (d1 - d3))
+	var cp := p - c
+	var d5 := ab.dot(cp)
+	var d6 := ac.dot(cp)
+	if d6 >= 0.0 and d5 <= d6:
+		return c
+	var vb := d5 * d2 - d1 * d6
+	if vb <= 0.0 and d2 >= 0.0 and d6 <= 0.0:
+		return a + ac * (d2 / (d2 - d6))
+	var va := d3 * d6 - d5 * d4
+	if va <= 0.0 and (d4 - d3) >= 0.0 and (d5 - d6) >= 0.0:
+		return b + (c - b) * ((d4 - d3) / ((d4 - d3) + (d5 - d6)))
+	var denom := 1.0 / (va + vb + vc)
+	return a + ab * (vb * denom) + ac * (vc * denom)
+
+
+## the distance between two segments (Ericson 5.1.9)
+static func _seg_seg(p1: Vector3, q1: Vector3, p2: Vector3, q2: Vector3) -> float:
+	var d1 := q1 - p1
+	var d2 := q2 - p2
+	var r := p1 - p2
+	var a := d1.dot(d1)
+	var e := d2.dot(d2)
+	var f := d2.dot(r)
+	var s := 0.0
+	var t := 0.0
+	var eps := 1e-12
+	if a <= eps and e <= eps:
+		pass
+	elif a <= eps:
+		t = clampf(f / e, 0.0, 1.0)
+	else:
+		var c := d1.dot(r)
+		if e <= eps:
+			s = clampf(-c / a, 0.0, 1.0)
+		else:
+			var b := d1.dot(d2)
+			var denom := a * e - b * b
+			s = clampf((b * f - c * e) / denom, 0.0, 1.0) if denom > eps else 0.0
+			t = (b * s + f) / e
+			if t < 0.0:
+				t = 0.0
+				s = clampf(-c / a, 0.0, 1.0)
+			elif t > 1.0:
+				t = 1.0
+				s = clampf((b - c) / a, 0.0, 1.0)
+	return (p1 + d1 * s).distance_to(p2 + d2 * t)
 
 
 ## a body turned about a hinge: the kernel rotates about the origin only, so the body goes to the origin, turns and comes back
