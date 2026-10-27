@@ -24,7 +24,7 @@ const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension"]
-const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas"]
+const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern"]
 const TOOL_KIND := {"Offset plane": "plane"}   # a tool's feature kind when it is not its lower-case name
 const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell", "Appearance"]
 const LOOK_TOOLS := ["Appearance"]   # APPEARANCE (GAP 5): picks a body for the side panel; the panel is _build_look / _look_sync
@@ -52,6 +52,7 @@ const TIPS := {
 	"Shell": "SHELL: the newest body becomes a hollow box with the wall thickness you type. Pick the face left open, press Enter.",
 	"Canvas": "CANVAS: put a picture on the Front, Top or Right plane (or an offset plane). Click two points of known size, type the real distance, drag it to line up.",
 	"Loft": "LOFT: pick two or more sketches in order (each a closed profile); the solid runs through them. Ruled = straight, Smooth = curved.",
+	"Pattern": "PATTERN: copies of a body in a row (linear) or round an axis through the origin (circular). Join them into the body or make them new bodies. Live preview.",
 	"Sweep": "SWEEP: pick a closed profile sketch and an open path sketch (lines, arcs, splines, one chain). The profile must sit in the middle of the path's start and square to it. Corners are rounded.",
 	"Offset plane": "OFFSET PLANE: pick Front, Top or Right and type a distance. The new plane is in the browser: click it to sketch on it.",
 	"Fillet": "FILLET: click edges (they turn sky blue), type a radius, press Enter or OK.",
@@ -158,6 +159,7 @@ var f_prof_clear: Button
 var f_ruled: OptionButton      # the loft dialog: ruled (straight) or smooth
 var f_sw_prof: OptionButton    # the sweep dialog: the closed profile sketch
 var f_sw_path: OptionButton    # the sweep dialog: the open path sketch
+var pat := {}                  # PATTERN dialog: its controls by name (built each time it opens, see _pattern_open)
 var dim_edit: LineEdit
 var note: PanelContainer
 var note_l: Label
@@ -1219,6 +1221,8 @@ func open_dialog(t: String, edit: int) -> void:
 		_op_row(f)
 	elif kind == "sweep":
 		_sweep_open(f, edit)
+	elif kind == "pattern":
+		_pattern_open(f, edit)
 	elif kind == "plane":
 		_row("Distance", f_num, "%s mm" % _fmt(float(f.get("mm", 20.0))))
 		dlg_rows.add_child(f_plane)
@@ -1461,6 +1465,10 @@ func dialog_feature() -> Dictionary:
 			if sp_id == sa_id:
 				return {}
 			f = {"profile": sp_id, "path": sa_id, "op": op}
+		"pattern":
+			f = _pattern_feature()
+			if f.is_empty():
+				return {}
 		"canvas":
 			f = _canvas_feature(true)
 			if f.is_empty():
@@ -1516,6 +1524,8 @@ func _preview() -> void:
 	prev = Part.replay(rec, -1, {"body": _body_measures()})
 	var err: String = prev["errors"].get(String(f["id"]), "")
 	dlg_info.text = ("%s. Nothing is changed until it works." % err) if err != "" else "Volume %s cm3" % snappedf(float(prev["volume"]) * 1e6, 0.01)
+	if kind == "pattern" and err == "":
+		dlg_info.text = _pattern_info()
 	ok_btn.disabled = err != ""
 	prev_mesh.mesh = prev["mesh"]
 	prev_mesh.visible = prev["mesh"] != null
@@ -1540,6 +1550,8 @@ func _dialog_hint(kind: String) -> String:
 		return "Type the distance from the plane (mm)."
 	if kind == "canvas":
 		return _canvas_hint()
+	if kind == "pattern":
+		return "Type the copies (the original counts) and the spacing or the angle."
 	return ""
 
 
@@ -1572,7 +1584,7 @@ func ok_pressed() -> void:
 	tool = ""
 	_tool_sync()
 	bu.sync()
-	if kind == "extrude" or kind == "revolve" or kind == "loft" or kind == "sweep":
+	if kind == "extrude" or kind == "revolve" or kind == "loft" or kind == "sweep" or kind == "pattern":
 		_view_model()
 
 
@@ -1817,7 +1829,7 @@ func _tool_sync() -> void:
 			w = "sketch two profiles first (a loft joins them)"
 		elif ok and t == "Sweep" and _feats().filter(func(f): return f["t"] == "sketch").size() < 2:
 			w = "sketch a profile and a path first (a sweep joins them)"
-		elif ok and (t == "Mirror" or t == "Fillet" or t == "Chamfer" or t == "Hinge" or t == "Split" or t == "Shell" or t == "Appearance") and not has_body:
+		elif ok and (t == "Mirror" or t == "Fillet" or t == "Chamfer" or t == "Hinge" or t == "Split" or t == "Shell" or t == "Appearance" or t == "Pattern") and not has_body:
 			w = "make a solid first (Extrude or Revolve)"
 		m._grey(b, w)
 		b.set_pressed_no_signal(t == tool and w == "")
@@ -3618,3 +3630,135 @@ func _look_surfaces() -> void:
 		if a < 1.0:
 			mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		part_mesh.set_surface_override_material(s, mt)
+
+
+# ---------------------------------------------------------------- PATTERN (GAP 30)
+
+const PAT_AXES := ["x", "y", "z"]
+
+
+## the PATTERN dialog: a kind (linear or circular), the body, the copies (the original counts), the spacing and direction or the axis and angle,
+## and the op (join into the body, or new bodies). Every field re-previews as it is typed (_field connects text_changed to _preview)
+func _pattern_open(f: Dictionary, edit: int) -> void:
+	pat = {}
+	var nb := maxi(int(res.get("bodies", 0)), 1)
+	var circ := edit >= 0 and String(f.get("kind", "linear")) == "circular"
+	var kind_o := OptionButton.new()
+	kind_o.name = "part_pattern_kind"
+	kind_o.focus_mode = Control.FOCUS_NONE
+	kind_o.add_item("Linear (a row of copies)")
+	kind_o.add_item("Circular (round an axis through the origin)")
+	kind_o.select(1 if circ else 0)
+	kind_o.item_selected.connect(func(_i): _pattern_kind_picked())
+	pat["kind"] = kind_o
+	dlg_rows.add_child(kind_o)
+	var body_o := OptionButton.new()
+	body_o.name = "part_pattern_body"
+	body_o.focus_mode = Control.FOCUS_NONE
+	for i in nb:
+		body_o.add_item("Body %d" % (i + 1))
+	body_o.select(clampi(int(f.get("body", nb - 1)) if edit >= 0 else nb - 1, 0, nb - 1))
+	body_o.item_selected.connect(func(_i): _preview())
+	pat["body"] = body_o
+	dlg_rows.add_child(_pat_row("Body to copy", body_o, ""))
+	var cnt := _field("part_pattern_count")
+	cnt.text = str(int(f.get("count", 3))) if edit >= 0 else "3"
+	pat["count"] = cnt
+	var mm := _field("part_pattern_mm")
+	mm.text = _fmt(float(f.get("mm", 150.0))) if edit >= 0 else "150"
+	pat["mm"] = mm
+	var dir_o := _pat_axis_option("part_pattern_dir", String(f.get("dir", "x")))
+	pat["dir"] = dir_o
+	var ax_o := _pat_axis_option("part_pattern_axis", String(f.get("axis", "y")))
+	pat["axis"] = ax_o
+	var deg := _field("part_pattern_deg")
+	deg.text = _fmt(float(f.get("deg", 360.0))) if edit >= 0 else "360"
+	pat["deg"] = deg
+	dlg_rows.add_child(_pat_row("Copies (the original counts)", cnt, ""))
+	var lin: Array = [_pat_row("Spacing", mm, "mm"), _pat_row("Direction", dir_o, "")]
+	var circ_rows: Array = [_pat_row("Axis (through the origin)", ax_o, ""), _pat_row("Total angle", deg, "deg")]
+	for r in lin + circ_rows:
+		dlg_rows.add_child(r)
+	pat["lin"] = lin
+	pat["circ"] = circ_rows
+	var op_o := OptionButton.new()
+	op_o.name = "part_pattern_op"
+	op_o.focus_mode = Control.FOCUS_NONE
+	op_o.add_item("Join into the body")
+	op_o.add_item("New bodies")
+	op_o.select(1 if edit >= 0 and String(f.get("op", "join")) == "new" else 0)
+	op_o.item_selected.connect(func(_i): _preview())
+	pat["op"] = op_o
+	dlg_rows.add_child(_pat_row("Result", op_o, ""))
+	_pattern_sync()
+	(pat["count"] as LineEdit).grab_focus()
+
+
+## one labelled row of the pattern dialog (its unit in plain words at the right)
+func _pat_row(label: String, ctl: Control, unit: String) -> HBoxContainer:
+	var h := HBoxContainer.new()
+	var l := _label(label)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(l)
+	h.add_child(ctl)
+	if unit != "":
+		h.add_child(_label(unit, 13, true))
+	return h
+
+
+func _pat_axis_option(nm: String, cur: String) -> OptionButton:
+	var o := OptionButton.new()
+	o.name = nm
+	o.focus_mode = Control.FOCUS_NONE
+	for a in PAT_AXES:
+		o.add_item(a.to_upper())
+	o.select(maxi(PAT_AXES.find(cur), 0))
+	o.item_selected.connect(func(_i): _preview())
+	return o
+
+
+func _pattern_kind_picked() -> void:
+	_pattern_sync()
+	_preview()
+
+
+## shows the linear rows or the circular rows, by the kind picked
+func _pattern_sync() -> void:
+	if pat.is_empty():
+		return
+	var circ := int((pat["kind"] as OptionButton).selected) == 1
+	for r in pat["lin"]:
+		(r as Control).visible = not circ
+	for r in pat["circ"]:
+		(r as Control).visible = circ
+
+
+## the feature the PATTERN dialog describes now ({} when a number is missing or wrong)
+func _pattern_feature() -> Dictionary:
+	if pat.is_empty():
+		return {}
+	var circ := int((pat["kind"] as OptionButton).selected) == 1
+	var nd := _num(pat["count"])
+	if is_nan(nd) or nd != floorf(nd) or nd < 2.0 or nd > float(Part.PATTERN_MAX):
+		return {}
+	var nb := maxi(int(res.get("bodies", 0)), 1)
+	var f := {"kind": "circular" if circ else "linear", "count": int(nd), "body": clampi(int((pat["body"] as OptionButton).selected), 0, nb - 1),
+		"op": "new" if int((pat["op"] as OptionButton).selected) == 1 else "join"}
+	if circ:
+		var a := _num(pat["deg"])
+		if is_nan(a) or absf(a) < 1e-6:
+			return {}
+		f["axis"] = PAT_AXES[int((pat["axis"] as OptionButton).selected)]
+		f["deg"] = a
+	else:
+		var s := _num(pat["mm"])
+		if is_nan(s) or absf(s) < 1e-6:
+			return {}
+		f["dir"] = PAT_AXES[int((pat["dir"] as OptionButton).selected)]
+		f["mm"] = s
+	return f
+
+
+## the PATTERN dialog's answer under the preview: how many bodies and the volume the copies make
+func _pattern_info() -> String:
+	return "%d bodies, volume %s cm3" % [int(prev.get("bodies", 0)), snappedf(float(prev.get("volume", 0.0)) * 1e6, 0.01)]

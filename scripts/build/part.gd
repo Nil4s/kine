@@ -40,11 +40,15 @@ extends RefCounted
 ## "rough": 0..1, "metal": 0..1, "alpha": 0..1 (below 1 = see-through)} paints body N from that step on (the record holds the numbers, a preset
 ## only names them). A body with no appear step gets its palette colour by index (LOOK_CHIPS), so the bodies of a split read as two.
 ## A split gives both halves the look of the body it cut. No DLL: available() is false, replay() answers with an empty result and every tool says why.
+## PATTERN (GAP 30, Fusion's Pattern): {"t": "pattern", "id", "name", "body": N, "kind": "linear"|"circular", "count": copies INCLUDING the original (2..64),
+## "mm" (linear: the spacing), "dir": "x"|"y"|"z" (linear: the direction), "axis": "x"|"y"|"z" (circular: the axis through the origin), "deg" (circular:
+## the total angle; a full turn spreads the copies evenly, a smaller angle runs from the first copy to the last), "op": "join" (the copies fuse into body N)
+## | "new" (each copy is a body of its own, with body N's look). Built from the kernel's translate / rotate (one shape per copy, not one fused shape).
 
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
 const VERSION := 1
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern"]
 const PLANES := ["front", "top", "right"]
 const OPS := ["join", "new", "cut", "intersect"]
 const MATCH_MAX := 0.25   # an edge matches when (box-position distance + 0.5 x direction mismatch) is below this
@@ -440,6 +444,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var swe := _sweep(bodies, f, sketches)
 				if swe != "":
 					errs[id] = swe
+			"pattern":   # GAP 30: copies of body N (its own function: _pattern)
+				var pe := _pattern(bodies, looks, f)
+				if pe != "":
+					errs[id] = pe
 			"fillet", "chamfer":
 				var e := _edge_op(bodies, f)
 				if e != "":
@@ -1331,3 +1339,56 @@ static func _split_looks(looks: Array, n: int, pieces: Array) -> void:
 	looks.clear()
 	looks.append_array(nl)
 
+
+## PATTERN (GAP 30): the copies of body N, one kernel move each (translate for a row, rotate about the origin for a circle). "join" unions them into
+## body N; "new" keeps each copy as a body of its own (with body N's look). "" or the failure message; a failure changes nothing.
+const AXIS_VEC := {"x": Vector3.RIGHT, "y": Vector3.UP, "z": Vector3.BACK}
+const PATTERN_MAX := 64
+
+static func _pattern(bodies: Array, looks: Array, f: Dictionary) -> String:
+	if bodies.is_empty():
+		return "there is no body to pattern"
+	var bi := int(f.get("body", -1))
+	if bi < 0 or bi >= bodies.size():
+		return "there is no body %d to pattern" % bi
+	var n := int(f.get("count", 0))
+	if n < 2 or n > PATTERN_MAX:
+		return "a pattern needs 2 to %d copies (the original counts as one)" % PATTERN_MAX
+	var copies := []
+	if String(f.get("kind", "linear")) == "circular":
+		var ax: Vector3 = AXIS_VEC.get(String(f.get("axis", "y")), Vector3.UP)
+		var total := deg_to_rad(float(f.get("deg", 360.0)))
+		if absf(total) < 1e-6:
+			return "the angle must not be zero"
+		var step := total / n if absf(total) >= TAU - 1e-9 else total / (n - 1)
+		for i in range(1, n):
+			copies.append(KCad.rotate(bodies[bi], ax, step * i))
+	else:
+		var d: Vector3 = AXIS_VEC.get(String(f.get("dir", "x")), Vector3.RIGHT) * float(f.get("mm", 0.0)) * MM
+		if d.length() < 1e-9:
+			return "the spacing must not be zero"
+		for i in range(1, n):
+			copies.append(KCad.translate(bodies[bi], d * i))
+	for k in copies.size():
+		if int(copies[k]) == 0:
+			var why := KCad.last_error()
+			for c in copies:
+				if int(c) != 0:
+					KCad.release(c)
+			return why if why != "" else "a copy could not be made"
+	if String(f.get("op", "join")) == "new":
+		var src: Variant = looks[bi] if bi < looks.size() else null
+		for c in copies:
+			bodies.append(c)
+			looks.append(src)
+		return ""
+	for k in copies.size():
+		var u := KCad.union(bodies[bi], copies[k])
+		KCad.release(copies[k])
+		if u == 0:
+			for j in range(k + 1, copies.size()):
+				KCad.release(copies[j])
+			return KCad.last_error()
+		KCad.release(bodies[bi])
+		bodies[bi] = u
+	return ""
