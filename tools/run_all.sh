@@ -162,3 +162,4 @@ EXTRA="$EXTRA instancing:w"   # M3 INSTANCING: 200 still copies of a 5k-face mod
 EXTRA="$EXTRA physlane:w"   # A1 MAKE IT PHYSICAL lane: a priority card ("Keep this pose") is untouched by Make it physical and kept by Accept span, a fix drops the red span count, blue = edited since the judge, gray = not processed (tests/physlane_test.gd)
 EXTRA="$EXTRA renderq:w"   # CG4 render queue: scene files in order (glb/bvh/fbx), each job timed in its log line, a broken job named and skipped, the batch dialog shows the times; tests/renderq_test.gd
 EXTRA="$EXTRA hinge:w"   # C3 HINGE: a Part hinge turns a leaf about an axis by a curve; hinge_sweep reports the first frame it meets the stop (tests/hinge_test.gd; needs the CAD DLL, no-DLL bar still runs)
+EXTRA="$EXTRA arenafit:w"   # ARENA FIT (ROADMAP I1): a 3 m and a 5 m ring against a measured 3.40 m fight: the wall, the room in metres and steps, the panel words (tests/arenafit_test.gd)

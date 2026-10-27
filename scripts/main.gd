@@ -207,6 +207,7 @@ var rh_ui: FightRhythmUI   # FIGHT RHYTHM (ROADMAP I19): scripts/fight_rhythm_ui
 var cm_ui: ComboUI   # MY COMBOS (ROADMAP I23): scripts/combo_ui.gd + combo_mine.gd
 var rd_ui: ReactionDirUI   # REACTION DIRECTION (ROADMAP I33): scripts/reaction_dir_ui.gd
 var dk_ui: DistanceKeeperUI   # FIGHT DISTANCE KEEPER (ROADMAP I18): scripts/distance_keeper_ui.gd
+var arena_ui: ArenaFitUI   # ARENA FIT (ROADMAP I1): scripts/arena_fit_ui.gd
 var cg_ui: ChoreographUI   # CHOREOGRAPH TO THE SONG (ROADMAP I22): scripts/choreograph_ui.gd
 var bf_ui: BeatFightUI   # FIGHT TO THE BEAT (ROADMAP I15): scripts/beat_fight_ui.gd
 var rs_ui: RealismUI   # REALISM SCORE (ROADMAP I16): one 0-100 number from the existing judges (scripts/realism_ui.gd)
@@ -261,7 +262,7 @@ const RIBBON_GROUPS := {
 		["REACT", ["Reactions", "React to the hit (physics)", "Add impact frames", "Remove impact frames"]]],
 	"CHECK": [["JUDGE", ["Check", "Realism score", "Safety sheet", "Real-mocap check"]], ["FIX", ["Polish", "Fix moves through the body", "Timing coach", "Speed limits"]],
 		["PHYSICS", ["Make it physical", "Accept span", "Keep this pose", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check"]],
-		["FIGHT", ["Fight distance", "Auto opponent", "Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound"]],
+		["FIGHT", ["Fight distance", "Fit the ring", "Auto opponent", "Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound"]],
 		["MUSIC", ["Fight to the beat", "Choreograph to the song"]], ["STYLE", ["My style", "Use my style", "Star this clip", "My best take", "Make this one more like my best", "What I learned from you", "My combos"]],
 		["CAMERA", ["Auto camera", "My camera", "Frame it my way"]], ["SHOW", ["Dummy (H)", "Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export model (GLB / OBJ)", "Export frame data (json)...", "Render shots (mp4)", "Use as a prop", "Open exports folder"]], ["PLAN", ["Floor plan", "Save version"]], ["SHARE", ["Share as QR", "Pack scene (zip)", "Unpack zip..."]]],
@@ -12196,7 +12197,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
 const ICON_OF := {"Library": "library", "Export model (GLB / OBJ)": "export_glb", "Throw to...": "throw","Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Pack scene (zip)": "pack", "Unpack zip...": "unpack", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Keep balance": "keep_balance", "Ouch meter": "ouch", "Show problems on the body": "red_spots", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
-	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "Parry rebound": "parry", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Reaction direction": "reactdir", "Sell the hit": "sellhit", "Gaze director": "gaze", "Safety sheet": "safety", "Floor plan": "floorplan", "Breakfall check": "breakfall", "Recovery step": "recovery", "Fight rhythm": "rhythm", "Precog check": "precog", "Auto opponent": "autoopp", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Momentum ledger": "momentum", "Airborne spin check": "spin", "Real-mocap check": "mocapchk", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "Star this clip": "star_clip", "My best take": "best_take", "Make this one more like my best": "best_nudge", "Speed limits": "speed_env", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Keep this pose": "keep", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix",
+	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "Parry rebound": "parry", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Reaction direction": "reactdir", "Sell the hit": "sellhit", "Gaze director": "gaze", "Safety sheet": "safety", "Floor plan": "floorplan", "Breakfall check": "breakfall", "Recovery step": "recovery", "Fight rhythm": "rhythm", "Precog check": "precog", "Auto opponent": "autoopp", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Momentum ledger": "momentum", "Airborne spin check": "spin", "Real-mocap check": "mocapchk", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "Star this clip": "star_clip", "My best take": "best_take", "Make this one more like my best": "best_nudge", "Speed limits": "speed_env", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Keep this pose": "keep", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix", "Fit the ring": "arena",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Body: fighter archetype...": "archetype", "Body: from height, weight, sex, age, build": "body_nums", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
@@ -12715,6 +12716,9 @@ func _ui() -> void:
 	if dk_ui == null:
 		dk_ui = DistanceKeeperUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Fight distance", dk_ui.show, "with two fighters: each strike's gap to the other fighter against its measured reach, jammed / out of range / in range on the timeline; Slide the defender fixes a flagged strike with steps (feet planted); preview, then accept (one undo step)"))
+	if arena_ui == null:
+		arena_ui = ArenaFitUI.new(self)
+	ui_ribbon["CHECK"].add_child(_button("Fit the ring", arena_ui.show, "with two fighters: does the fight fit a ring of the size you set (3 m to 20 m): the wall or corner each fighter is pushed toward and the steps of room left"))
 	if bk_ui == null:
 		bk_ui = BreakfallUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Breakfall check", bk_ui.show_bg, "finds each fall or knockdown in the clip (the centre of mass drops 40% of the height in a second and a body part but the feet reaches the floor) and judges the landing like a judo / stunt coach: head clear and chin tucked, no straight-arm catch, impact spread, speed; one-click fixes (tuck the chin, bend the arm into a slap, roll the trunk); preview, then accept (one undo step)"))
@@ -16252,6 +16256,9 @@ func _commands() -> Array:
 	if dk_ui == null:
 		dk_ui = DistanceKeeperUI.new(self)
 	dk_ui.commands(add)   # FIGHT DISTANCE KEEPER (ROADMAP I18)
+	if arena_ui == null:
+		arena_ui = ArenaFitUI.new(self)
+	arena_ui.commands(add)   # ARENA FIT (ROADMAP I1)
 	if rd_ui == null:
 		rd_ui = ReactionDirUI.new(self)
 	rd_ui.commands(add)   # REACTION DIRECTION (ROADMAP I33)
