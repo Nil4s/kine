@@ -27,11 +27,19 @@ var labels := []          # the placed labels: {rect (px, the plan's), panel (0 
 var outline := [[], []]   # per panel: polylines the labels keep off (the body edges, wheels, box, floor, fighter, dimension lines)
 var mm_px := 0.0          # the one scale of both views (px per mm), for the tests
 var solids := [[], []]    # per panel: closed body polygons a dimension label keeps out of (the labels in the body: annotations only)
+var ch := {}              # the chassis record (carchassis): its members are drawn over both views when set
+const CH_WORD := {"sills": "sills", "rails": "rails", "cross": "crossmembers"}
 
 
 func set_points(hp: Dictionary) -> void:
 	p = hp.duplicate()
 	d = CarPackage.derive(p)
+	queue_redraw()
+
+
+## the chassis to draw over the package ({} = none: the package layout alone)
+func set_chassis(c: Dictionary) -> void:
+	ch = c.duplicate(true)
 	queue_redraw()
 
 
@@ -167,6 +175,38 @@ func _draw() -> void:
 	draw_rect(top_r, Color(0.09, 0.1, 0.13), true)
 	_side(0, side_r, mm_px)
 	_top(1, top_r, mm_px)
+	if not ch.is_empty():
+		_chassis()
+
+
+## the chassis members (carchassis) over both views: each group its own colour, the sizes labelled once per group (the left sill, the
+## front rail, the first crossmember). Same scale and origins as _side and _top
+func _chassis() -> void:
+	var sx0 := side_r.position.x + LM
+	var sy0 := side_r.position.y + side_r.size.y - 40.0
+	var tx0 := top_r.position.x + LM
+	var tcy := top_r.position.y + top_r.size.y * 0.5
+	var done := {}
+	for m in CarChassis.members(p, ch):
+		var lo: Vector3 = m["lo"]
+		var hi: Vector3 = m["hi"]
+		var g := String(m["group"])
+		var col: Color = CarChassis.GROUP_COL[g]
+		var sr := _min_px(Rect2(sx0 + lo.z * mm_px, sy0 - hi.y * mm_px, (hi.z - lo.z) * mm_px, (hi.y - lo.y) * mm_px))
+		var tr := _min_px(Rect2(tx0 + lo.z * mm_px, tcy + lo.x * mm_px, (hi.z - lo.z) * mm_px, (hi.x - lo.x) * mm_px))
+		draw_rect(sr, Color(col.r, col.g, col.b, 0.55), true)
+		draw_rect(sr, col, false, 1.0)
+		draw_rect(tr, Color(col.r, col.g, col.b, 0.55), true)
+		draw_rect(tr, col, false, 1.0)
+		if not done.has(g):
+			done[g] = true
+			var word: String = CH_WORD[g]
+			var t := "%s %d x %d x %s" % [word, int(m["w"]), int(m["h"]), str(snappedf(float(m["t"]), 0.1))]
+			_label(1, t, tr.get_center(), LABEL_SZ, col, ["above", "below", "left", "right"], true)
+
+
+static func _min_px(r: Rect2) -> Rect2:
+	return Rect2(r.position, Vector2(maxf(r.size.x, 1.0), maxf(r.size.y, 1.0)))
 
 
 func _side(pi: int, r: Rect2, s: float) -> void:

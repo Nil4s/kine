@@ -12,6 +12,8 @@ const SKY := Color("#73BFFF")
 const AMBER := Color("#FFC933")
 const RED := Color("#FF6B6B")
 const PW := 340.0
+const STEP_NAMES := ["1 Package", "2 Chassis", "3 Suspension", "4 Weight", "5 Body"]
+const STEP_TIPS := ["the hard points: seat, wheelbase, tracks, tyres", "the steel floor structure: sills, rails, crossmembers", "not made yet", "not made yet", "not made yet"]
 const BAD_WORDS := ["ctrl", "shift", "alt+", "esc", "enter", "tab ", "delete", "backspace", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12", "spacebar", "return key"]
 
 var m: Node
@@ -47,6 +49,13 @@ var cmp_head: Label
 var show_3d := false           # the drawing area shows the 3D preview instead of the side + top views (one click on view_btn)
 var view_btn: Button
 var built_3d := 0              # the 3D preview rebuilds (the test counts them)
+var step := 1                  # 1 Package (the hard points), 2 Chassis (the floor structure, carchassis)
+var step_btns := {}            # step number -> its bar button
+var chassis_panel: PanelContainer
+var ch_rows := {}              # group -> {"btns": {word: Button}, "edits": [w, h, t LineEdit]}
+var ch_mat: OptionButton
+var ch_read: Label             # the chassis readouts (mass per group, the structure, I, E I, the body in white)
+var ch_compare: Label
 var _held := false
 var _edit_n := -1
 var _edit_before := ""
@@ -80,6 +89,20 @@ func build(root: Control) -> void:
 	title_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(title_l)
+	# the step bar: 1 Package and 2 Chassis are made; the later steps are greyed (not made yet)
+	var steps := HBoxContainer.new()
+	steps.name = "package_steps"
+	steps.add_theme_constant_override("separation", 4)
+	row.add_child(steps)
+	for i in STEP_NAMES.size():
+		var sb := _bar_btn(STEP_NAMES[i], "Step %d: %s" % [i + 1, STEP_TIPS[i]], set_step.bind(i + 1))
+		sb.name = "package_step_%d" % (i + 1)
+		sb.toggle_mode = true
+		if i >= 2:
+			sb.disabled = true
+			sb.tooltip_text = "Step %d: not made yet. The chassis comes first, then the suspension, the weight and the body" % (i + 1)
+		steps.add_child(sb)
+		step_btns[i + 1] = sb
 	undo_btn = _bar_btn("Undo", "Take back the last change", func(): m._undo())
 	redo_btn = _bar_btn("Redo", "Put back what Undo took back", func(): m._redo())
 	view_btn = _bar_btn("See it in 3D", "Swap the side and top drawings for a 3D view of the package", func(): set_3d(not show_3d))
@@ -232,8 +255,122 @@ func build(root: Control) -> void:
 	status_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status.add_child(status_l)
 	add_child(status)
+	_build_chassis_panel()
 	_show_tab(true)
+	set_step(1)
 	layout()
+
+
+## STEP 2 CHASSIS: the right panel of the chassis (carchassis): each member group's section (Easy: a size word; Expert: w, h, wall in mm),
+## the material, and the readouts (mass, I, E I, the body in white). Shown instead of the hard points on step 2
+func _build_chassis_panel() -> void:
+	chassis_panel = PanelContainer.new()
+	chassis_panel.name = "chassis_panel"
+	chassis_panel.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.95), 10, 8))
+	chassis_panel.position = Vector2.ZERO
+	chassis_panel.visible = false
+	add_child(chassis_panel)
+	var v := VBoxContainer.new()
+	v.name = "chassis_panel_vb"
+	v.add_theme_constant_override("separation", 5)
+	chassis_panel.add_child(v)
+	var hd := Label.new()
+	hd.text = "Chassis: the steel floor structure"
+	hd.tooltip_text = "The floor structure is drawn from the package: box sections (a closed tube with a wall) along the sills, rails and crossmembers"
+	hd.add_theme_font_size_override("font_size", 14)
+	v.add_child(hd)
+	var sc := ScrollContainer.new()
+	sc.name = "chassis_scroll"
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(sc)
+	var body := VBoxContainer.new()
+	body.name = "chassis_body"
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 6)
+	sc.add_child(body)
+	for g in CarChassis.GROUPS:
+		var box := VBoxContainer.new()
+		box.name = "chassis_row_" + g
+		box.tooltip_text = String(CarChassis.GROUP_TIPS[g])
+		box.add_theme_constant_override("separation", 2)
+		body.add_child(box)
+		var lab := Label.new()
+		lab.text = String(CarChassis.GROUP_NAMES[g])
+		lab.tooltip_text = box.tooltip_text
+		lab.add_theme_font_size_override("font_size", 15)
+		box.add_child(lab)
+		var bd := {"btns": {}, "edits": []}
+		var btns := HBoxContainer.new()
+		btns.add_theme_constant_override("separation", 3)
+		box.add_child(btns)
+		for word in CarChassis.SIZE_WORDS:
+			var s: Array = CarChassis.SIZES[word]
+			var b := _small_btn(String(word), "%s: %d x %d mm, wall %s mm (width x height x wall)" % [word, int(s[0]), int(s[1]), str(s[2])], set_group_size.bind(g, String(word)))
+			b.toggle_mode = true
+			b.name = "chassis_%s_%s" % [g, String(word).to_lower()]
+			btns.add_child(b)
+			(bd["btns"] as Dictionary)[word] = b
+		var ed_row := HBoxContainer.new()
+		ed_row.add_theme_constant_override("separation", 3)
+		box.add_child(ed_row)
+		for part in [["w", "width (w)"], ["h", "height (h)"], ["t", "wall (t)"]]:
+			var e := LineEdit.new()
+			e.name = "chassis_edit_%s_%s" % [g, part[0]]
+			e.custom_minimum_size = Vector2(0, 30)
+			e.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			e.placeholder_text = "%s mm" % part[0]
+			e.tooltip_text = "%s of the box section, mm. Type a number, then click away from the box" % part[1]
+			e.text_submitted.connect(func(_t: String): _typed_chassis(g))
+			e.focus_exited.connect(func(): _typed_chassis(g))
+			ed_row.add_child(e)
+			(bd["edits"] as Array).append(e)
+		ch_rows[g] = bd
+	var mrow := HBoxContainer.new()
+	mrow.name = "chassis_row_mat"
+	mrow.tooltip_text = "Material: density sets the mass; Young modulus E sets the stiffness (steel 210 GPa, aluminium 70 GPa)"
+	body.add_child(mrow)
+	var ml := Label.new()
+	ml.text = "Material"
+	ml.tooltip_text = mrow.tooltip_text
+	ml.add_theme_font_size_override("font_size", 15)
+	mrow.add_child(ml)
+	ch_mat = OptionButton.new()
+	ch_mat.name = "chassis_mat_pick"
+	ch_mat.focus_mode = Control.FOCUS_NONE
+	ch_mat.tooltip_text = mrow.tooltip_text
+	for mt in CarChassis.MATS:
+		ch_mat.add_item(String(mt[0]))
+	ch_mat.item_selected.connect(func(i: int): _set_mat(String(CarChassis.MATS[i][0])))
+	mrow.add_child(ch_mat)
+	ch_read = Label.new()
+	ch_read.name = "chassis_read"
+	ch_read.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ch_read.add_theme_font_size_override("font_size", 14)
+	ch_read.tooltip_text = "mass: density x wall area x length (the wall area is 2 x wall x (width + height - 2 x wall)). second moment of area I: the section's stiffness against bending, mm4. E I: Young modulus x I, the sill's bending stiffness in N m2. body in white: the structure x 1.6 for the panels"
+	body.add_child(ch_read)
+	ch_compare = Label.new()
+	ch_compare.name = "chassis_compare"
+	ch_compare.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ch_compare.add_theme_font_size_override("font_size", 14)
+	ch_compare.tooltip_text = "Yours vs the real cars: a real car's body-in-white mass is compared only where data/real_cars.json gives one with a source"
+	body.add_child(ch_compare)
+
+
+## the steps: 1 Package (the hard points) and 2 Chassis (the floor structure over the package). One click switches; the package stays as it is
+func set_step(n: int) -> void:
+	if n < 1 or n > 2:
+		return
+	if n == 2:
+		ensure()
+	step = n
+	msg = ""
+	panel.visible = step == 1
+	chassis_panel.visible = step == 2
+	for i in step_btns:
+		(step_btns[i] as Button).set_pressed_no_signal(i == step)
+	layout()
+	_sync()
 
 
 ## the screen shows: the package is made if there is none, the view framed. easy_on: sliders; else the numbers typed in mm
@@ -513,6 +650,106 @@ func _apply_mode() -> void:
 		(rows[k]["edit"] as LineEdit).visible = not easy
 	tyre_opt.visible = easy
 	tyre_edit.visible = not easy
+	for g in ch_rows:
+		for b in (ch_rows[g]["btns"] as Dictionary).values():
+			(b as Button).visible = easy
+		for e in ch_rows[g]["edits"]:
+			(e as LineEdit).visible = not easy
+
+
+# ---------------------------------------------------------------- step 2: the chassis (one undo step per change)
+
+## the chassis record (S.vehicle["chassis"], filled in when missing): {mat, g: {group: {size, w, h, t}}}
+func chassis() -> Dictionary:
+	return CarChassis.norm(m.S.vehicle.get("chassis", {}))
+
+
+## a chassis change: one undo step; a change that changes nothing is no step
+func _set_chassis(label: String, c: Dictionary) -> void:
+	ensure()
+	if JSON.stringify(c) == JSON.stringify(chassis()):
+		_sync()
+		return
+	m._step_hint = label
+	m._push_undo()
+	m.S.vehicle["chassis"] = c
+	msg = ""
+	_sync()
+
+
+## one group's section by its size word (Easy)
+func set_group_size(g: String, word: String) -> void:
+	var c := chassis()
+	c["g"][g] = CarChassis.sec_of_word(word)
+	_set_chassis("Change %s to %s" % [String(CarChassis.GROUP_NAMES[g]).to_lower(), word.to_lower()], c)
+
+
+## one group's section typed in mm (Expert): the width, height and wall; a size that matches a word keeps the word
+func _typed_chassis(g: String) -> void:
+	if not is_instance_valid(chassis_panel) or not m.S.vehicle.has("package"):
+		return
+	var vals := []
+	for e in ch_rows[g]["edits"]:
+		var t := (e as LineEdit).text.strip_edges()
+		if not t.is_valid_float():
+			msg = "Type the width, height and wall in mm, like 80, 60 and 1.5"
+			_sync()
+			return
+		vals.append(float(t))
+	if not CarChassis.valid(vals[0], vals[1], vals[2]):
+		msg = "A section needs sides of 20 to 300 mm and a wall from 0.8 to 6 mm, less than half the smaller side"
+		_sync()
+		return
+	var word := "Custom"
+	for w in CarChassis.SIZE_WORDS:
+		var s: Array = CarChassis.SIZES[w]
+		if absf(float(s[0]) - vals[0]) < 1e-6 and absf(float(s[1]) - vals[1]) < 1e-6 and absf(float(s[2]) - vals[2]) < 1e-6:
+			word = String(w)
+	var c := chassis()
+	c["g"][g] = {"size": word, "w": vals[0], "h": vals[1], "t": vals[2]}
+	_set_chassis("Change %s section" % String(CarChassis.GROUP_NAMES[g]).to_lower(), c)
+
+
+## the material (one undo step)
+func _set_mat(name: String) -> void:
+	var c := chassis()
+	c["mat"] = name
+	_set_chassis("Change material to %s" % name.to_lower(), c)
+
+
+## the chassis panel's words and numbers from the record
+func _sync_chassis() -> void:
+	var c := chassis()
+	var p := pkg()
+	for g in ch_rows:
+		var sec: Dictionary = c["g"][g]
+		for word in (ch_rows[g]["btns"] as Dictionary):
+			(ch_rows[g]["btns"][word] as Button).set_pressed_no_signal(String(sec["size"]) == String(word))
+		var keys := ["w", "h", "t"]
+		for i in 3:
+			var e: LineEdit = ch_rows[g]["edits"][i]
+			if not e.has_focus():
+				e.text = _num(float(sec[keys[i]]))
+	for i in CarChassis.MATS.size():
+		if String(CarChassis.MATS[i][0]) == String(c["mat"]):
+			ch_mat.select(i)
+	var tot := CarChassis.totals(p, c)
+	var mem := CarChassis.members(p, c)
+	var lines := []
+	for g in CarChassis.GROUPS:
+		var n := 0
+		for mm in mem:
+			n += 1 if String(mm["group"]) == g else 0
+		var sec: Dictionary = c["g"][g]
+		lines.append("%s: %.1f kg (%d members, %s x %s x %s mm)" % [CarChassis.GROUP_NAMES[g], float(tot["by"][g]), n, _num(float(sec["w"])), _num(float(sec["h"])), _num(float(sec["t"]))])
+	lines.append("Structure: %.1f kg (floor pan drawn, not weighed)" % float(tot["mass"]))
+	lines.append("Sill (rocker), one: I %d mm4, E I %.0f N m2 (both sills %.0f N m2)" % [int(round(float(tot["sill_I"]))), float(tot["sill_EI"]), float(tot["sill_EI_pair"])])
+	ch_read.text = "\n".join(lines)
+	ch_compare.text = CarChassis.biw_compare(p, c)
+
+
+func _num(v: float) -> String:
+	return str(int(v)) if absf(v - round(v)) < 1e-6 else str(snappedf(v, 0.01))
 
 
 # ---------------------------------------------------------------- the views
@@ -558,16 +795,22 @@ func _sync() -> void:
 	for c in CarPackage.CLASSES:
 		(cls_btns[String(c[0])] as Button).set_pressed_no_signal(String(c[0]) == String(p.get("class", "")))
 	plan.set_points(p)
+	plan.set_chassis(chassis() if step == 2 else {})
 	_build_3d(p)
 	_build_compare(p)
-	title_l.text = "Vehicle: package, %s" % String(p.get("class", "")) if not p.is_empty() else "Vehicle: package"
+	if step == 2:
+		_sync_chassis()
+	title_l.text = "Vehicle: chassis, %s" % String(p.get("class", "")) if step == 2 else "Vehicle: package, %s" % String(p.get("class", "")) if not p.is_empty() else "Vehicle: package"
 	undo_btn.disabled = m.undo.is_empty()
 	redo_btn.disabled = m.redo.is_empty()
 	var reds := 0
 	for r in CarPackage.rows(p):
 		reds += 1 if r["red"] else 0
 	var line := msg
-	if line == "":
+	if line == "" and step == 2:
+		var tot := CarChassis.totals(p, chassis())
+		line = "Chassis: the structure weighs %.1f kg. Change a size, or type a section in mm. Each change is one undo step" % float(tot["mass"])
+	elif line == "":
 		line = "%d of %d measures are more than 10 %% off a %s: see Yours vs real cars" % [reds, CarPackage.METRICS.size(), String(p.get("class", "")).to_lower()] if reds > 0 else "Every measure is within 10 %% of the real %s cars" % String(p.get("class", "")).to_lower()
 	status_l.text = line
 
@@ -576,7 +819,7 @@ func _build_3d(p: Dictionary) -> void:
 	if car3d != null:
 		world.remove_child(car3d)
 		car3d.free()
-	car3d = CarPackage.build_3d(p)
+	car3d = CarChassis.build_3d(p, chassis()) if step == 2 else CarPackage.build_3d(p)   # step 2: the members as boxes, over the package
 	world.add_child(car3d)
 	built_3d += 1
 
@@ -661,6 +904,9 @@ func layout() -> void:
 			vp.size = Vector2i(int(vw), int(avail))
 	panel.position = Vector2(vs.x - PW - 8.0, top + 6.0)
 	panel.size = Vector2(PW, vs.y - top - 12.0)
+	if chassis_panel != null:
+		chassis_panel.position = panel.position
+		chassis_panel.size = panel.size
 	status.position = Vector2(12.0, top + avail + 6.0)
 	status.size = Vector2(vw - 24.0, 40.0)
 

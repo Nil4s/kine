@@ -26,8 +26,9 @@ static func make_set(car_p := {}, wheel_p := {}) -> Dictionary:
 	return {"car": PartTemplates.make("car", cp), "wheel": PartTemplates.make("wheel", wheel_p)}
 
 
-## a file's vehicle: {"wheel": the wheel's Part record} (when there is one) and {"package": the hard points} (the Package step, carpkg:
-## scripts/package_screen.gd); {} when there is neither. The car body is the Part record
+## a file's vehicle: {"wheel": the wheel's Part record} (when there is one), {"package": the hard points} (the Package step, carpkg:
+## scripts/package_screen.gd) and {"chassis": the chassis record} (step 2, carchassis: scripts/car_chassis.gd, only with a package);
+## {} when there is none. The car body is the Part record
 static func from_file(d: Variant) -> Dictionary:
 	if not (d is Dictionary):
 		return {}
@@ -38,6 +39,8 @@ static func from_file(d: Variant) -> Dictionary:
 			out["wheel"] = w
 	if (d as Dictionary).get("package") is Dictionary and not ((d as Dictionary)["package"] as Dictionary).is_empty():
 		out["package"] = ((d as Dictionary)["package"] as Dictionary).duplicate(true)
+	if (d as Dictionary).get("chassis") is Dictionary and out.has("package"):   # the chassis (carchassis) belongs to a package
+		out["chassis"] = CarChassis.norm((d as Dictionary)["chassis"])
 	return out
 
 
@@ -48,6 +51,8 @@ static func to_file(v: Dictionary) -> Dictionary:
 		out["wheel"] = (v["wheel"] as Dictionary).duplicate(true)
 	if v.get("package") is Dictionary and not (v["package"] as Dictionary).is_empty():
 		out["package"] = (v["package"] as Dictionary).duplicate(true)
+	if v.get("chassis") is Dictionary and out.has("package"):
+		out["chassis"] = CarChassis.norm(v["chassis"])
 	return out
 
 
