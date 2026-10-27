@@ -10,6 +10,10 @@ extends RefCounted
 ##     {"t": "revolve", "id": "f3", "name": "Revolve1", "sketch": "f4", "axis": "x"|"y", "deg": 360.0, "op": "join"},
 ##     {"t": "fillet",  "id": "f5", "name": "Fillet1", "body": 0, "r": 2.0, "edges": [{"p": [x, y, z], "q": [..], "d": [..]}]},
 ##     {"t": "chamfer", ... "dist": 1.0 ...},  {"t": "mirror", "id": ..., "plane": "front"|"top"|"right", "op": "join"},
+##     extrude also has "taper": degrees (>0 narrows as it goes) and op "intersect" (keeps only the part inside the new solid);
+##     {"t": "split", "id": ..., "plane": "front"|"top"|"right", "at": mm (offset along the plane's normal)} cuts EVERY body the plane crosses in two;
+##     {"t": "shell", "id": ..., "body": N, "thick": mm, "open": "" | "+x" | "-x" | "+y" | "-y" | "+z" | "-z"} hollows body N with walls thick mm,
+##     the planar face that points that way open ("" = no face open: a closed cavity),
 ##     {"t": "hinge", "id": ..., "name": "Hinge1", "body": 0, "o": [x, y, z] (mm), "axis": [x, y, z], "track": [[t_s, deg], ...]}]}
 ## A HINGE (C3) turns body N (its index when the hinge comes) about the axis through o. Its angle is a Curves channel (seconds, degrees), the
 ## same as a Kine curve sampled to a list. The timeline shows the rest pose (the hinge adds no solid); hinge_sweep() walks the curve and reports the
@@ -26,9 +30,9 @@ extends RefCounted
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
 const VERSION := 1
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell"]
 const PLANES := ["front", "top", "right"]
-const OPS := ["join", "new", "cut"]
+const OPS := ["join", "new", "cut", "intersect"]
 const MATCH_MAX := 0.25   # an edge matches when (box-position distance + 0.5 x direction mismatch) is below this
 const HIT_VOL := 1e-9     # m3 (1 mm3): an overlap this small is contact, not interference (the kernel's boolean noise is far below it)
 
@@ -388,6 +392,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					errs[id] = e
 			"fillet", "chamfer":
 				var e := _edge_op(bodies, f)
+				if e != "":
+					errs[id] = e
+			"split", "shell":   # the record's split / shell steps (their own functions: _split, _shell)
+				var e := _split(bodies, f) if String(f["t"]) == "split" else _shell(bodies, f)
 				if e != "":
 					errs[id] = e
 			"mirror":
@@ -759,7 +767,7 @@ static func _solid(f: Dictionary, sk: Dictionary) -> int:
 		return 0
 	var s := 0
 	if f["t"] == "extrude":
-		s = KCad.extrude(face, float(f["dist"]) * MM, bool(f.get("both", false)))
+		s = KCad.extrude(face, float(f["dist"]) * MM, bool(f.get("both", false)), deg_to_rad(float(f.get("taper", 0.0))))
 	else:
 		var axis: Vector3 = pl["x"] if String(f.get("axis", "x")) == "x" else pl["y"]
 		s = KCad.revolve(face, pl["o"], axis, deg_to_rad(float(f.get("deg", 360.0))))
@@ -769,6 +777,8 @@ static func _solid(f: Dictionary, sk: Dictionary) -> int:
 
 ## puts a new solid into the body list as the op says; "" or the failure message
 static func _combine(bodies: Array, solid: int, op: String) -> String:
+	if op == "intersect":
+		return _intersect_into(bodies, solid)
 	if op == "new" or bodies.is_empty():
 		bodies.append(solid)
 		return ""
@@ -786,6 +796,95 @@ static func _combine(bodies: Array, solid: int, op: String) -> String:
 		return KCad.last_error()
 	KCad.release(bodies[-1])
 	bodies[-1] = u
+	return ""
+
+
+## op intersect: every body keeps only what it shares with the solid; a body with nothing in common goes (none in common at all = an error, nothing changes)
+static func _intersect_into(bodies: Array, solid: int) -> String:
+	if bodies.is_empty():
+		KCad.release(solid)
+		return "there is no body to intersect with"
+	var parts := []
+	for b in bodies:
+		var c := KCad.intersect(b, solid)
+		if _vol(c) > HIT_VOL:
+			parts.append(c)
+		else:
+			KCad.release(c)
+	KCad.release(solid)
+	if parts.is_empty():
+		return "nothing is shared: the solid misses every body"
+	for b in bodies:
+		KCad.release(b)
+	bodies.clear()
+	bodies.append_array(parts)
+	return ""
+
+
+## volume in m3 of a shape id (0 for no shape)
+static func _vol(id: int) -> float:
+	return KCad.volume(id) if id != 0 else 0.0
+
+
+## a box 20 m on a side with one face on the plane at offset o, lying on the side n points to
+static func _half(o: Vector3, n: Vector3) -> int:
+	var id := KCad.box(20.0, 20.0, 20.0)
+	var t := KCad.translate(id, o + n * 10.0)
+	KCad.release(id)
+	return t
+
+
+## split: every body the plane crosses becomes two bodies (the side it points to first); a plane that crosses none is an error
+static func _split(bodies: Array, f: Dictionary) -> String:
+	if bodies.is_empty():
+		return "there is no body to split"
+	var pl := plane(String(f.get("plane", "right")))
+	var n: Vector3 = pl["n"]
+	var o: Vector3 = (pl["o"] as Vector3) + n * float(f.get("at", 0.0)) * MM
+	var pos := _half(o, n)
+	var neg := _half(o, -n)
+	var pieces := []   # [index, the piece on n's side, the piece on the other side]
+	for i in bodies.size():
+		var a := KCad.intersect(bodies[i], pos)
+		var c := KCad.intersect(bodies[i], neg)
+		if _vol(a) > HIT_VOL and _vol(c) > HIT_VOL:
+			pieces.append([i, a, c])
+		else:
+			KCad.release(a)
+			KCad.release(c)
+	KCad.release(pos)
+	KCad.release(neg)
+	if pieces.is_empty():
+		return "the plane does not cut the body"
+	var out := []
+	var k := 0
+	for i in bodies.size():
+		if k < pieces.size() and int(pieces[k][0]) == i:
+			out.append(pieces[k][1])
+			out.append(pieces[k][2])
+			KCad.release(bodies[i])
+			k += 1
+		else:
+			out.append(bodies[i])
+	bodies.clear()
+	bodies.append_array(out)
+	return ""
+
+
+const SHELL_DIRS := {"+x": Vector3.RIGHT, "-x": Vector3.LEFT, "+y": Vector3.UP, "-y": Vector3.DOWN, "+z": Vector3.BACK, "-z": Vector3.FORWARD}
+
+
+## shell: body N hollowed with walls `thick` mm; the planar face in direction "open" is left open (the kernel: one face)
+static func _shell(bodies: Array, f: Dictionary) -> String:
+	if bodies.is_empty():
+		return "there is no body to shell"
+	var bi := clampi(int(f.get("body", bodies.size() - 1)), 0, bodies.size() - 1)
+	var dir: Vector3 = SHELL_DIRS.get(String(f.get("open", "")), Vector3.ZERO)
+	var s := KCad.shell(bodies[bi], float(f.get("thick", 1.0)) * MM, dir)
+	if s == 0:
+		return KCad.last_error()
+	KCad.release(bodies[bi])
+	bodies[bi] = s
 	return ""
 
 

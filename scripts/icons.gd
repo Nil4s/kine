@@ -80,6 +80,8 @@ const DRAW := {
 	"part_fillet": [["seg", Vector2(5, 3.5), Vector2(5, 14), 2.0], ["seg", Vector2(5, 14), Vector2(6.3, 17.2), 2.0], ["seg", Vector2(6.3, 17.2), Vector2(9.5, 19), 2.0], ["seg", Vector2(9.5, 19), Vector2(13, 19.5), 2.0], ["seg", Vector2(13, 19.5), Vector2(20.5, 19.5), 2.0]],
 	"part_chamfer": [["seg", Vector2(5, 3.5), Vector2(5, 12), 2.0], ["seg", Vector2(5, 12), Vector2(12.5, 19.5), 2.0], ["seg", Vector2(12.5, 19.5), Vector2(20.5, 19.5), 2.0]],
 	"part_hinge": [["box", Rect2(9, 4, 10, 16), 1.8], ["seg", Vector2(3, 4), Vector2(3, 20), 2.6], ["disc", Vector2(3, 4), 2.0], ["disc", Vector2(3, 20), 2.0]],   # HINGE: a leaf turning about its edge
+	"part_split": [["box", Rect2(3, 5, 18, 14), 1.6], ["seg", Vector2(12, 2.5), Vector2(12, 21.5), 1.5]],   # SPLIT: a block cut by a plane
+	"part_shell": [["box", Rect2(3.5, 3.5, 17, 17), 1.9], ["box", Rect2(7.5, 7.5, 9, 9), 1.2]],   # SHELL: a hollow block
 	"part_finish": [["seg", Vector2(4.5, 12.5), Vector2(9.5, 17.5), 2.4], ["seg", Vector2(9.5, 17.5), Vector2(19.5, 6.5), 2.4]],
 	"part_sketch": [["box", Rect2(4, 5, 16, 14), 1.4], ["seg", Vector2(7, 16), Vector2(17, 8), 2.0], ["disc", Vector2(7, 16), 1.8], ["disc", Vector2(17, 8), 1.8]],
 	"part_part": [["seg", Vector2(12, 3), Vector2(21, 8), 1.8], ["seg", Vector2(21, 8), Vector2(21, 17), 1.8], ["seg", Vector2(21, 17), Vector2(12, 22), 1.8], ["seg", Vector2(12, 22), Vector2(3, 17), 1.8], ["seg", Vector2(3, 17), Vector2(3, 8), 1.8], ["seg", Vector2(3, 8), Vector2(12, 3), 1.8], ["seg", Vector2(12, 12), Vector2(12, 22), 1.4], ["seg", Vector2(12, 12), Vector2(3, 8), 1.4], ["seg", Vector2(12, 12), Vector2(21, 8), 1.4]],

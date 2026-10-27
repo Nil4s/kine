@@ -7,8 +7,10 @@ extends Node
 ##   SKETCH   a click on a plane in the browser (or any sketch tool) starts a sketch and turns the view square onto its plane. Lines, rectangles
 ##            and circles snap to the grid (5 mm, or 1 mm with the Snap button; Alt = free). Dimension: click a line, an edge of a rectangle or a
 ##            circle, type its size, Enter. The sketch panel lists every dimension as a number to retype.
-##   CREATE   Extrude / Revolve take the newest unused sketch: a dialog on the right (distance / angle, both sides, join / new body / cut) with a live
-##            preview; Enter or OK makes the feature.   Mirror reflects the body across a plane.
+##   CREATE   Extrude / Revolve take the newest unused sketch: a dialog on the right (distance / angle, both sides, taper angle, join / new body /
+##            cut / intersect) with a live preview; Enter or OK makes the feature.   Mirror reflects the body across a plane.
+##            Split cuts every body the plane crosses into two (a plane and an offset).
+##   MODIFY   Shell hollows the newest body: wall thickness and the face left open (one face, or none).
 ##   MODIFY   Fillet / Chamfer: click edges (sky blue), type the radius / distance, OK. The edge is remembered by where it sits on the body, so it
 ##            survives a sketch that is made bigger.
 ##   TIMELINE a step is selected by a click and EDITED by a double click (a sketch re-opens, a dialog re-opens with its numbers); the later steps
@@ -22,8 +24,10 @@ const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension"]
-const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror"]
-const MODIFY_TOOLS := ["Fillet", "Chamfer"]
+const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Split"]
+const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell"]
+const SHELL_OPEN := ["", "+x", "-x", "+y", "-y", "+z", "-z"]   # the open face of a shell (Part.SHELL_DIRS), in the dialog's order
+const SHELL_OPEN_TXT := ["Closed (no face open)", "Right face (+X)", "Left face (-X)", "Top face (+Y, up)", "Bottom face (-Y)", "Front face (+Z)", "Back face (-Z)"]
 const HINGE_TOOLS := ["Hinge"]
 const HSEC := 25.0   # the frames per second of the hinge's swing check (Part.hinge_sweep)
 const TIPS := {
@@ -36,6 +40,8 @@ const TIPS := {
 	"Extrude": "EXTRUDE: the newest sketch becomes a solid. Type a distance and press Enter.",
 	"Revolve": "REVOLVE: the newest sketch turns round its horizontal or vertical axis. Type the angle and press Enter.",
 	"Mirror": "MIRROR: the body and its reflection across a plane become one solid.",
+	"Split": "SPLIT: pick a plane and an offset (mm). Every body the plane cuts becomes two bodies. Press Enter.",
+	"Shell": "SHELL: the newest body becomes a hollow box with the wall thickness you type. Pick the face left open, press Enter.",
 	"Fillet": "FILLET: click edges (they turn sky blue), type a radius, press Enter or OK.",
 	"Chamfer": "CHAMFER: click edges, type a distance, press Enter or OK.",
 	"Hinge": "HINGE: click the part that turns, then the line it turns round (a straight edge, or two points on it). Type the angles and seconds, then OK."}
@@ -122,6 +128,8 @@ var f_both: CheckBox
 var f_op: OptionButton
 var f_axis: OptionButton
 var f_plane: OptionButton
+var f_taper: LineEdit
+var f_open: OptionButton
 var f_edges: Label
 var dim_edit: LineEdit
 var note: PanelContainer
@@ -466,7 +474,7 @@ func _build_side() -> void:
 	f_both.toggled.connect(func(_v): _preview())
 	f_op = OptionButton.new()
 	f_op.name = "part_op"
-	for o in ["Join", "New body", "Cut"]:
+	for o in ["Join", "New body", "Cut", "Intersect"]:
 		f_op.add_item(o)
 	f_op.item_selected.connect(func(_i): _preview())
 	f_axis = OptionButton.new()
@@ -480,6 +488,12 @@ func _build_side() -> void:
 		f_plane.add_item(o)
 	f_plane.selected = 2
 	f_plane.item_selected.connect(func(_i): _preview())
+	f_taper = _field("part_taper")
+	f_open = OptionButton.new()
+	f_open.name = "part_shell_open"
+	for o in SHELL_OPEN_TXT:
+		f_open.add_item(o)
+	f_open.item_selected.connect(func(_i): _preview())
 	f_edges = _label("")
 	f_edges.name = "part_edges_label"
 	dlg_info = _label("", 12, true)
@@ -1111,6 +1125,7 @@ func open_dialog(t: String, edit: int) -> void:
 		_row("Distance", f_num, "%s mm" % _fmt(float(f.get("dist", 10.0))))
 		f_both.set_pressed_no_signal(bool(f.get("both", false)))
 		dlg_rows.add_child(f_both)
+		_row("Taper angle", f_taper, "%s deg" % _fmt(float(f.get("taper", 0.0))))
 		_op_row(f)
 	elif kind == "revolve":
 		dlg_rows.add_child(f_axis)
@@ -1134,6 +1149,14 @@ func open_dialog(t: String, edit: int) -> void:
 		dlg_rows.add_child(f_plane)
 		f_plane.select(PlanesIdx.find(String(f.get("plane", "right"))))
 		_op_row(f)
+	elif kind == "split":
+		dlg_rows.add_child(f_plane)
+		f_plane.select(PlanesIdx.find(String(f.get("plane", "right"))))
+		_row("Offset along its normal", f_num, "%s mm" % _fmt(float(f.get("at", 0.0))))
+	elif kind == "shell":
+		_row("Wall thickness", f_num, "%s mm" % _fmt(float(f.get("thick", 5.0))))
+		dlg_rows.add_child(f_open)
+		f_open.select(maxi(SHELL_OPEN.find(String(f.get("open", "+y"))), 0))
 	f_op.visible = kind in ["extrude", "revolve"]
 	if kind == "hinge":
 		_hinge_rows()
@@ -1153,7 +1176,7 @@ const PlanesIdx := ["front", "top", "right"]
 
 ## the dialog's rows go; the field controls are kept (they are re-parented into the next dialog)
 func _clear_rows() -> void:
-	for c in [f_num, f_ang, f_both, f_op, f_axis, f_plane, f_edges, f_from, f_to, f_dur, f_dial]:
+	for c in [f_num, f_ang, f_both, f_op, f_axis, f_plane, f_taper, f_open, f_edges, f_from, f_to, f_dur, f_dial]:
 		if (c as Node).get_parent() != null:
 			(c as Node).get_parent().remove_child(c)
 	for c in dlg_rows.get_children():
@@ -1219,13 +1242,14 @@ func dialog_feature() -> Dictionary:
 	var kind := String(dlg["t"])
 	var edit := int(dlg["edit"])
 	var f := {}
-	var op: String = Part.OPS[clampi(f_op.selected, 0, 2)]
+	var op: String = Part.OPS[clampi(f_op.selected, 0, Part.OPS.size() - 1)]
 	match kind:
 		"extrude":
 			var d := _num(f_num)
 			if is_nan(d) or absf(d) < 1e-6 or String(dlg.get("sketch", "")) == "":
 				return {}
-			f = {"sketch": dlg["sketch"], "dist": d, "both": f_both.button_pressed, "op": op}
+			var tp := _num(f_taper)
+			f = {"sketch": dlg["sketch"], "dist": d, "both": f_both.button_pressed, "op": op, "taper": 0.0 if is_nan(tp) else tp}
 		"revolve":
 			var a := _num(f_ang)
 			if is_nan(a) or absf(a) < 1e-6 or String(dlg.get("sketch", "")) == "":
@@ -1242,6 +1266,16 @@ func dialog_feature() -> Dictionary:
 			f["r" if kind == "fillet" else "dist"] = r
 		"mirror":
 			f = {"plane": PlanesIdx[clampi(f_plane.selected, 0, 2)], "op": "join"}
+		"split":
+			var at := _num(f_num)
+			if is_nan(at):
+				return {}
+			f = {"plane": PlanesIdx[clampi(f_plane.selected, 0, 2)], "at": at}
+		"shell":
+			var th := _num(f_num)
+			if is_nan(th) or th <= 0.0:
+				return {}
+			f = {"body": maxi(int(res.get("bodies", 0)) - 1, 0), "thick": th, "open": SHELL_OPEN[clampi(f_open.selected, 0, SHELL_OPEN.size() - 1)]}
 		"hinge":
 			var a0 := _num(f_from)
 			var a1 := _num(f_to)
@@ -1300,6 +1334,8 @@ func _dialog_hint(kind: String) -> String:
 		return "Sketch a closed profile first, then type a number." if String(dlg.get("sketch", "")) == "" else "Type a number."
 	if kind == "fillet" or kind == "chamfer":
 		return "Click an edge on the model, then type a size."
+	if kind == "shell":
+		return "Type a wall thickness (mm), then press Enter."
 	if kind == "hinge":
 		return _hinge_next()
 	return ""
@@ -1558,7 +1594,7 @@ func _tool_sync() -> void:
 		var w := why
 		if ok and (t == "Extrude" or t == "Revolve") and not has_sketch:
 			w = "sketch a closed profile first"
-		elif ok and (t == "Mirror" or t == "Fillet" or t == "Chamfer" or t == "Hinge") and not has_body:
+		elif ok and (t == "Mirror" or t == "Fillet" or t == "Chamfer" or t == "Hinge" or t == "Split" or t == "Shell") and not has_body:
 			w = "make a solid first (Extrude or Revolve)"
 		m._grey(b, w)
 		b.set_pressed_no_signal(t == tool and w == "")
