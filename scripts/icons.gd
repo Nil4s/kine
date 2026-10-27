@@ -71,6 +71,7 @@ const DRAW := {
 	"part_line": [["seg", Vector2(4, 19), Vector2(20, 5), 2.2], ["disc", Vector2(4, 19), 2.2], ["disc", Vector2(20, 5), 2.2]],
 	"part_rectangle": [["box", Rect2(3.5, 6, 17, 12), 1.9]],
 	"part_circle": [["ring", Vector2(12, 12), 8.5, 1.9]],
+	"part_spline": [["seg", Vector2(4, 17), Vector2(9, 7), 2.0], ["seg", Vector2(9, 7), Vector2(15, 17), 2.0], ["seg", Vector2(15, 17), Vector2(20, 7), 2.0], ["disc", Vector2(4, 17), 1.8], ["disc", Vector2(9, 7), 1.8], ["disc", Vector2(15, 17), 1.8], ["disc", Vector2(20, 7), 1.8]],
 	"part_arc": [["arc", Vector2(12, 19), 10, 2.0, 215, 325], ["disc", Vector2(4.2, 12.8), 1.8], ["disc", Vector2(19.8, 12.8), 1.8]],
 	"part_dimension": [["seg", Vector2(3.5, 7), Vector2(20.5, 7), 1.6], ["seg", Vector2(3.5, 4), Vector2(3.5, 11), 1.5], ["seg", Vector2(20.5, 4), Vector2(20.5, 11), 1.5], ["box", Rect2(4, 13.5, 16, 6), 1.5]],
 	"part_extrude": [["box", Rect2(4.5, 10, 12, 10), 1.8], ["seg", Vector2(4.5, 10), Vector2(8.5, 6), 1.7], ["seg", Vector2(16.5, 10), Vector2(20.5, 6), 1.7], ["seg", Vector2(8.5, 6), Vector2(20.5, 6), 1.7], ["seg", Vector2(20.5, 6), Vector2(20.5, 16), 1.7], ["seg", Vector2(16.5, 20), Vector2(20.5, 16), 1.7]],

@@ -15,7 +15,8 @@ extends RefCounted
 ## same as a Kine curve sampled to a list. The timeline shows the rest pose (the hinge adds no solid); hinge_sweep() walks the curve and reports the
 ## first frame the moving body meets another body (a door against its stop).
 ## Sketch entities (plane coordinates in mm): {"k": "line", "a", "b"}, {"k": "rect", "a", "b"} (two corners), {"k": "circle", "c", "r"},
-## {"k": "arc", "a", "m", "b"} (from a to b through m). A dimension: {"id", "ent": index, "kind": "w" | "h" | "len" | "r", "mm", "name"}; the
+## {"k": "arc", "a", "m", "b"} (from a to b through m), {"k": "bspline", "pts": [[x, y], ...], "closed"} (a smooth curve through the points; a
+## closed one joins the last point to the first). A dimension: {"id", "ent": index, "kind": "w" | "h" | "len" | "r", "mm", "name"}; the
 ## entities always hold the dimension's result (apply_dim writes it), so a rebuild needs nothing else.
 ## An EDGE IS PICKED BY ITS CENTRE: a fillet stores where the edge was (mm), where it was inside its body's bounding box (0..1 per axis) and its
 ## direction; a rebuild picks the edge that best matches the box position and direction, so the fillet follows when a sketch is dimensioned
@@ -304,7 +305,18 @@ static func items_of(ents: Array) -> Array:
 				out.append(KCad.circle(v2(e["c"]) * MM, float(e["r"]) * MM))
 			"arc":
 				out.append(KCad.arc(v2(e["a"]) * MM, v2(e["m"]) * MM, v2(e["b"]) * MM))
+			"bspline":
+				if (e.get("pts", []) as Array).size() >= 3:
+					out.append(spline_item(e))
 	return out
+
+
+## a spline entity as a kernel item (metres); items_of leaves out one with fewer than 3 points (no curve)
+static func spline_item(e: Dictionary) -> Dictionary:
+	var pts := PackedVector2Array()
+	for p in e.get("pts", []):
+		pts.append(v2(p) * MM)
+	return KCad.bspline(pts, bool(e.get("closed", false)))
 
 
 # ---------------------------------------------------------------- replay: features -> solids -> mesh

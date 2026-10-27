@@ -21,7 +21,7 @@ const PANEL_W := 250.0
 const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
-const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Dimension"]
+const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension"]
 const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror"]
 const MODIFY_TOOLS := ["Fillet", "Chamfer"]
 const HINGE_TOOLS := ["Hinge"]
@@ -31,6 +31,7 @@ const TIPS := {
 	"Rectangle": "RECTANGLE: drag from one corner to the other (or click both corners). Then Dimension it.",
 	"Circle": "CIRCLE: press the centre, drag out the radius.",
 	"Arc": "ARC: click the start, click the end, then click a point the arc passes through.",
+	"Spline": "SPLINE: click points for a smooth curve. Click the first point (or double-click) to close it; double-click ends an open curve. Drag a point to move it.",
 	"Dimension": "DIMENSION: pick a line, an edge of a rectangle or a circle, type its size, press Enter.",
 	"Extrude": "EXTRUDE: the newest sketch becomes a solid. Type a distance and press Enter.",
 	"Revolve": "REVOLVE: the newest sketch turns round its horizontal or vertical axis. Type the angle and press Enter.",
@@ -58,6 +59,9 @@ var edge_cache: Array = []     # the pickable edges of the model as the dialog s
 var res := {}                  # the last replay of the record (Part.replay)
 var prev := {}                 # the dialog's preview replay
 var hover_edge := -1
+var spl_drag := {}             # a spline point being dragged: {"ent", "pt"} (sketch Spline tool)
+var spl_last_ms := -100000     # the last Spline click (ms) and its screen point: a double-click ends the curve
+var spl_last_p := Vector2.ZERO
 var hover_ent := {}
 var draft := {}                # a shape in progress: {"k", "a", "b", "down", "pts"}
 var typed := ""
@@ -738,6 +742,9 @@ func _after_sketch_edit() -> void:
 
 
 func _close_chain() -> void:
+	if String(draft.get("k", "")) == "spline" and (draft.get("pts", []) as Array).size() >= 3:
+		_spline_add(false)   # an open curve of three or more points is kept
+		return
 	draft = {}
 	typed = ""
 	pov.queue_redraw()
@@ -795,7 +802,14 @@ func _press_sketch(p: Vector2) -> bool:
 	if h == null:
 		return true
 	var a := snap(h as Vector2)
+	if tool == "Spline" and draft.is_empty():
+		var hp := _spline_point_at(p)
+		if not hp.is_empty():
+			spl_drag = hp   # a point of a curve on the sheet: drag it (the release keeps it)
+			return true
 	match tool:
+		"Spline":
+			_spline_click(p, a)
 		"Line":
 			if draft.is_empty():
 				draft = {"k": "line", "a": a, "b": a, "start": a}
@@ -836,6 +850,10 @@ func _press_sketch(p: Vector2) -> bool:
 
 
 func _release(p: Vector2) -> bool:
+	if not spl_drag.is_empty():
+		spl_drag = {}
+		pov.queue_redraw()
+		return true
 	if sk == "" or draft.is_empty() or not draft.get("down", false):
 		return false
 	var h: Variant = hit(p)
@@ -863,6 +881,12 @@ func _commit_draft() -> void:
 func _motion(p: Vector2) -> bool:
 	if sk != "":
 		var h: Variant = hit(p)
+		if not spl_drag.is_empty():
+			if h != null:
+				var pts: Array = _sk()["ents"][int(spl_drag["ent"])]["pts"]
+				pts[int(spl_drag["pt"])] = Part.arr2(snap(h as Vector2))
+				pov.queue_redraw()
+			return false
 		if h != null and not draft.is_empty():
 			draft["b"] = snap(h as Vector2)
 		if tool == "Dimension":
@@ -960,6 +984,10 @@ func pick_ent(p: Vector2) -> Dictionary:
 			"arc":
 				segs.append([Part.v2(e["a"]), Part.v2(e["m"]), ""])
 				segs.append([Part.v2(e["m"]), Part.v2(e["b"]), ""])
+			"bspline":
+				var sp: Array = e["pts"]
+				for j in sp.size() - 1 + (1 if bool(e.get("closed", false)) else 0):
+					segs.append([Part.v2(sp[j]), Part.v2(sp[(j + 1) % sp.size()]), ""])
 		for sg in segs:
 			var q := Geometry2D.get_closest_point_to_segment(p, scr(sg[0]), scr(sg[1]))
 			var d := p.distance_to(q)
@@ -1875,6 +1903,16 @@ func _draw_sketch() -> void:
 				pov.draw_circle(scr(cc), 3.5, Color.WHITE)
 			"arc":
 				_draw_arc_ent(Part.v2(e["a"]), Part.v2(e["m"]), Part.v2(e["b"]), c)
+			"bspline":
+				var closed := bool(e.get("closed", false))
+				var curve := PackedVector2Array()
+				for q in _spline_curve(e["pts"], closed):
+					curve.append(scr(q))
+				if closed:
+					pov.draw_colored_polygon(curve, Color(SKY, 0.12))
+				pov.draw_polyline(curve, c, 2.5)
+				for q in e["pts"]:
+					pov.draw_circle(scr(Part.v2(q)), 4.0, Color.WHITE)
 	if show_dims:
 		for d in f.get("dims", []):
 			_draw_dim(ents, d)
@@ -2013,6 +2051,80 @@ func _draw_draft() -> void:
 				pov.draw_line(scr(pts[0]), scr(b), c, 1.5)
 			elif pts.size() == 2:
 				_draw_arc_ent(pts[0], b, pts[1], c)
+		"spline":
+			var sp: Array = (draft.get("pts", []) as Array).duplicate()
+			for q in sp:
+				pov.draw_circle(scr(q), 5.0, c)
+			sp.append(b)
+			var curve := PackedVector2Array()
+			for q in _spline_curve(sp, false):
+				curve.append(scr(q))
+			pov.draw_polyline(curve, c, 2.0)
+
+
+# ---------------------------------------------------------------- sketch splines (Spline tool)
+
+## a Spline click: a point is added; a click on the first point (3 or more points) closes the curve; a double-click ends an open one
+func _spline_click(p: Vector2, a: Vector2) -> void:
+	var pts: Array = draft.get("pts", [])
+	var now := Time.get_ticks_msec()
+	var dbl := now - spl_last_ms < DOUBLE_MS and p.distance_to(spl_last_p) < 8.0
+	spl_last_ms = now
+	spl_last_p = p
+	if not pts.is_empty() and scr(pts[0]).distance_to(p) < 12.0:
+		if pts.size() >= 3:
+			_spline_add(true)
+		return
+	if dbl and pts.size() >= 3:
+		_spline_add(false)
+		return
+	if not pts.is_empty() and (pts.back() as Vector2).distance_to(a) < 0.5:
+		return
+	pts.append(a)
+	draft = {"k": "spline", "pts": pts, "b": a}
+
+
+func _spline_add(closed: bool) -> void:
+	var out := []
+	for q in draft.get("pts", []):
+		out.append(Part.arr2(q))
+	_add_ent({"k": "bspline", "pts": out, "closed": closed})
+	draft = {}
+	typed = ""
+
+
+## the point of a curve on the sheet under a screen point (within 10 px): {"ent", "pt"} or {}
+func _spline_point_at(p: Vector2) -> Dictionary:
+	var ents: Array = _sk().get("ents", [])
+	for i in ents.size():
+		if String(ents[i]["k"]) != "bspline":
+			continue
+		var sp: Array = ents[i]["pts"]
+		for j in sp.size():
+			if scr(Part.v2(sp[j])).distance_to(p) < 10.0:
+				return {"ent": i, "pt": j}
+	return {}
+
+
+## a smooth curve (mm) through the points (Catmull-Rom: it passes through each point, like the kernel's B-spline); closed repeats the first point
+func _spline_curve(pts: Array, closed: bool) -> PackedVector2Array:
+	var P: Array = []
+	for q in pts:
+		P.append(Part.v2(q))
+	var n := P.size()
+	var out := PackedVector2Array()
+	if n < 2:
+		return out
+	for i in (n if closed else n - 1):
+		var p0: Vector2 = P[(i - 1 + n) % n] if closed else P[maxi(i - 1, 0)]
+		var p1: Vector2 = P[i]
+		var p2: Vector2 = P[(i + 1) % n] if closed else P[i + 1]
+		var p3: Vector2 = P[(i + 2) % n] if closed else P[mini(i + 2, n - 1)]
+		for k in 16:
+			var t := float(k) / 16.0
+			out.append(0.5 * (2.0 * p1 + (p2 - p0) * t + (2.0 * p0 - 5.0 * p1 + 4.0 * p2 - p3) * t * t + (3.0 * p1 - p0 - 3.0 * p2 + p3) * t * t * t))
+	out.append(P[0] if closed else P[n - 1])
+	return out
 
 
 # ---------------------------------------------------------------- C3 hinge: a part turns about a line; must not touch
