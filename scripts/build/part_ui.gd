@@ -23,7 +23,7 @@ const PANEL_W := 250.0
 const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
-const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension"]
+const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]   # Constrain: the rule row (CON_TOOLS, below)
 const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine"]
 const TOOL_KIND := {"Offset plane": "plane"}   # a tool's feature kind when it is not its lower-case name
 const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell", "Appearance"]
@@ -44,6 +44,15 @@ const TIPS := {
 	"Arc": "ARC: click the start, click the end, then click a point the arc passes through.",
 	"Spline": "SPLINE: click points for a smooth curve. Click the first point (or double-click) to close it; double-click ends an open curve. Drag a point to move it.",
 	"Dimension": "DIMENSION: pick a line, an edge of a rectangle or a circle, type its size, press Enter.",
+	"Constrain": "CONSTRAIN: opens the rule row: Horiz, Vert, Coinc, Parallel, Perp, Equal, Angle, Remove. The rules are kept when you drag an end.",
+	"Horizontal": "HORIZONTAL: click a line; it is made level, and stays level.",
+	"Vertical": "VERTICAL: click a line; it is made upright, and stays upright.",
+	"Coincident": "COINCIDENT: click an end of a line, then an end of another line; the two ends meet and stay met.",
+	"Parallel": "PARALLEL: click two lines; the second turns to run parallel to the first.",
+	"Perpendicular": "PERPENDICULAR: click two lines; they meet at a right angle (90 deg).",
+	"Equal": "EQUAL: click two lines; the second is made the same length as the first.",
+	"Angle": "ANGLE: click two lines, type the angle in degrees, press Enter. The angle is kept when you drag.",
+	"Remove constraint": "REMOVE CONSTRAINT: click a glyph (H, V, //, the square, =, the angle) to delete that rule.",
 	"Extrude": "EXTRUDE: the newest sketch becomes a solid. Type a distance and press Enter.",
 	"Revolve": "REVOLVE: the newest sketch turns round its horizontal or vertical axis. Type the angle and press Enter.",
 	"Mirror": "MIRROR: the body and its reflection across a plane become one solid.",
@@ -266,6 +275,7 @@ func setup(b: BuildUI) -> void:
 	m.ui_root.add_child(pov)
 	_build_browser()
 	_build_side()
+	_con_row(sketch_box)   # GAP 9: the rule choices, a small row in the SKETCH PALETTE (shown while Constrain is open)
 	_build_timeline()
 	_build_inspect()
 	note = PanelContainer.new()
@@ -721,6 +731,12 @@ func _pick(t: String) -> void:
 	if t in INSPECT_TOOLS:
 		_inspect_pick(t)
 		return
+	if t == "Constrain" or t in CON_TOOLS:
+		_con_pick(t)
+		return
+	if con_open:
+		con_open = false
+		bu.sync()   # the rule row hides with any other tool
 	if t in SKETCH_TOOLS:
 		if dlg.size() > 0:
 			close_dialog()
@@ -794,8 +810,11 @@ func finish_sketch() -> void:
 	typed = ""
 	dim_target = {}
 	dim_edit.visible = false
-	if tool in SKETCH_TOOLS:
+	if tool in SKETCH_TOOLS or tool in CON_TOOLS:
 		tool = ""
+	con_open = false
+	con_pick = {}
+	con_drag = {}
 	_say("%s finished%s" % [nm, "" if not empty else " (it was empty, so it is not a step)"])
 	_view_model()
 	bu.sync()
@@ -906,6 +925,9 @@ func _press(p: Vector2) -> bool:
 
 
 func _press_sketch(p: Vector2) -> bool:
+	if _con_press(p):   # GAP 9: a rule's click, or an end picked up to drag
+		pov.queue_redraw()
+		return true
 	var h: Variant = hit(p)
 	if h == null:
 		return true
@@ -960,6 +982,10 @@ func _press_sketch(p: Vector2) -> bool:
 func _release(p: Vector2) -> bool:
 	if not cv_drag.is_empty():
 		return _canvas_release()
+	if not con_drag.is_empty():
+		con_drag = {}
+		pov.queue_redraw()
+		return true
 	if not spl_drag.is_empty():
 		spl_drag = {}
 		pov.queue_redraw()
@@ -993,6 +1019,9 @@ func _motion(p: Vector2) -> bool:
 		_canvas_move(p)
 		return false
 	if sk != "":
+		if not con_drag.is_empty():
+			_con_drag_move(p)
+			return false
 		var h: Variant = hit(p)
 		if not spl_drag.is_empty():
 			if h != null:
@@ -1046,6 +1075,11 @@ func _key(k: InputEventKey) -> bool:
 			draft["b"] = b
 			typed = ""
 			return true
+	if k.keycode == KEY_ESCAPE and not con_pick.is_empty():
+		con_pick = {}
+		_say("Rule cancelled")
+		pov.queue_redraw()
+		return true
 	if k.keycode == KEY_ESCAPE:
 		if not draft.is_empty():
 			_close_chain()
@@ -1065,6 +1099,7 @@ func _key(k: InputEventKey) -> bool:
 		ents.pop_back()
 		var dims: Array = _sk().get("dims", [])
 		_sk()["dims"] = dims.filter(func(d): return int(d["ent"]) < ents.size())
+		Part.prune_cons(_sk())   # GAP 9: a deleted line takes its rules
 		_after_sketch_edit()
 		return true
 	return false
@@ -1153,6 +1188,9 @@ func _open_dim_edit(pk: Dictionary) -> void:
 
 func _dim_submitted(t: String) -> void:
 	dim_edit.visible = false
+	if dim_target.has("con") and sk != "":
+		_con_angle_typed(t)
+		return
 	if dim_target.is_empty() or sk == "":
 		return
 	var err := _set_dim_text(int(dim_target["ent"]), String(dim_target["kind"]), t)
@@ -1181,11 +1219,9 @@ func _set_dim_text(ent: int, kind: String, t: String) -> String:
 		var r := Part.bound_mm(bind, _body_measures())
 		if r["err"] != "":
 			return String(r["err"])
-		Part.set_dim(_sk(), ent, kind, float(r["mm"]), bind)
-		return ""
+		return Part.set_dim_held(_sk(), ent, kind, float(r["mm"]), bind)   # GAP 9: a size that breaks a rule is refused (its words)
 	if v.is_valid_float() and float(v) > 0.0:
-		Part.set_dim(_sk(), ent, kind, float(v))
-		return ""
+		return Part.set_dim_held(_sk(), ent, kind, float(v))
 	return "type a size in mm, or =forearm+4 to read the body (forearm, upper_arm, thigh, shank, trunk, head ...)"
 
 
@@ -1201,7 +1237,9 @@ func _set_dim_value(i: int, v: float) -> void:
 	var dims: Array = _sk().get("dims", [])
 	if i >= dims.size() or v <= 0.0 or (absf(float(dims[i]["mm"]) - v) < 1e-9 and not dims[i].has("bind")):   # a bound size typed as a plain number stops reading the body
 		return
-	Part.set_dim(_sk(), int(dims[i]["ent"]), String(dims[i]["kind"]), v)
+	var err := Part.set_dim_held(_sk(), int(dims[i]["ent"]), String(dims[i]["kind"]), v)
+	if err != "":
+		_say(err)
 	_after_sketch_edit()
 
 
@@ -1850,7 +1888,7 @@ func _tool_sync() -> void:
 		elif ok and (t == "Mirror" or t == "Fillet" or t == "Chamfer" or t == "Hinge" or t == "Split" or t == "Shell" or t == "Appearance" or t == "Pattern") and not has_body:
 			w = "make a solid first (Extrude or Revolve)"
 		m._grey(b, w)
-		b.set_pressed_no_signal(t == tool and w == "")
+		b.set_pressed_no_signal(con_open if t == "Constrain" else (t == tool and w == ""))
 	m._grey(finish_btn, why if not ok else ("" if sk != "" else "no sketch is open"))
 
 
@@ -1890,7 +1928,7 @@ func sync() -> void:
 	if reopen_btn != null:
 		reopen_btn.text = "What to build" if on else ""   # icon only in the house ribbon (it is crowded there); with words in Part, Expert or Easy
 	for t in tool_btns:
-		(tool_btns[t] as Control).visible = show and not (t in m.RIBBON_REST.get("BUILD", []))   # the rarer ones live under their captions (main.gd RIBBON_REST)
+		(tool_btns[t] as Control).visible = show and not (t in m.RIBBON_REST.get("BUILD", [])) and (con_open or not (t in CON_TOOLS))   # the rarer ones live under their captions (main.gd RIBBON_REST); the rule row shows while Constrain is open
 	finish_btn.visible = show
 	easy_open_btn.visible = show
 	for c in my_seps:
@@ -2212,6 +2250,7 @@ func _draw_sketch() -> void:
 	if show_dims:
 		for d in f.get("dims", []):
 			_draw_dim(ents, d)
+	_con_draw()   # GAP 9: the rule glyphs
 	_draw_draft()
 
 
@@ -3892,3 +3931,292 @@ func _combine_feature(_edit: int) -> Dictionary:
 	if tg < 0 or tl.is_empty():
 		return {}
 	return {"target": tg, "tools": tl.duplicate(), "op": Part.COMBINE_OPS[clampi(f_cmb_op.selected, 0, Part.COMBINE_OPS.size() - 1)], "keep": f_cmb_keep.button_pressed}
+
+
+# ---------------------------------------------------------------- constraints (GAP 9): the SKETCH Constrain row, clicks, drags, glyphs
+## Constrain opens a row of small rule buttons (Horiz, Vert, Coinc, Parallel, Perp, Equal, Angle, Remove) beside it. A rule is one undo step; a
+## rule that cannot hold is refused in words (Part.con_put). Drag an end of a line (no tool picked) and the lines keep their rules and lengths.
+const CON_TOOLS := ["Horizontal", "Vertical", "Coincident", "Parallel", "Perpendicular", "Equal", "Angle", "Remove constraint"]
+const CON_LABEL := {"Horizontal": "Horiz", "Vertical": "Vert", "Coincident": "Coinc", "Parallel": "Parallel", "Perpendicular": "Perp", "Equal": "Equal", "Angle": "Angle", "Remove constraint": "Remove"}
+var con_open := false          # the Constrain row shows
+var con_pick: Dictionary = {}  # the first pick of a two-pick rule: {"ent"} (lines) or {"ent", "pt"} (a coincident end)
+var con_drag: Dictionary = {}  # an end being dragged: {"ent", "pt"}
+var con_marks: Array = []      # the glyphs on screen: {"i" (constraint index), "at" (screen point)}
+
+
+func _con_row(box: Node) -> void:
+	var flow := HFlowContainer.new()   # small rule buttons that wrap in the side panel (the ribbon row is full at 1280 x 720)
+	flow.name = "part_con_row"
+	box.add_child(flow)
+	for t in CON_TOOLS:
+		var btn: Button = m._button(String(CON_LABEL[t]), _pick.bind(t), "%s. %s" % [t, String(TIPS[t]).get_slice(": ", 1)])
+		btn.name = "part_tool_" + t.to_lower().replace(" ", "_")
+		btn.toggle_mode = true
+		_icon(btn, "part_" + t.to_lower().replace(" ", "_"))
+		btn.visible = false
+		tool_btns[t] = btn
+		flow.add_child(btn)
+
+
+func _con_pick(t: String) -> void:
+	if dlg.size() > 0:
+		close_dialog()
+	if t == "Constrain":
+		con_open = not con_open
+		tool = ""
+	else:
+		con_open = true
+		tool = t
+	if sk == "" and con_open:
+		begin_sketch("front")
+	con_pick = {}
+	con_drag = {}
+	draft = {}
+	typed = ""
+	dim_target = {}
+	dim_edit.visible = false
+	picked = []
+	bu.sync()   # the rule row shows (or hides) with Constrain
+	pov.queue_redraw()
+	if con_open:
+		_say(String(TIPS[t]))   # closing the row keeps the last words (a refusal says why; the tip would wipe it)
+
+
+func _ent_kind(i: int) -> String:
+	var ents: Array = _sk().get("ents", [])
+	return String(ents[i]["k"]) if i >= 0 and i < ents.size() else ""
+
+
+## the sketch line nearest a screen point (-1 = none)
+func _con_line_at(p: Vector2) -> int:
+	var pk := pick_ent(p)
+	if pk.is_empty() or _ent_kind(int(pk["ent"])) != "line":
+		return -1
+	return int(pk["ent"])
+
+
+## the end of a line or rectangle corner nearest a screen point (within 12 px): {"ent", "pt"} or {}
+func _con_point_at(p: Vector2, skip := -1) -> Dictionary:
+	var best := {}
+	var best_d := 12.0
+	var ents: Array = _sk().get("ents", [])
+	for i in ents.size():
+		var e: Dictionary = ents[i]
+		if i == skip or (String(e["k"]) != "line" and String(e["k"]) != "rect"):
+			continue
+		for j in 2:
+			var d := p.distance_to(scr(Part.v2(e["a" if j == 0 else "b"])))
+			if d < best_d:
+				best_d = d
+				best = {"ent": i, "pt": j}
+	return best
+
+
+## a press in the sketch while a constraint rule or nothing is picked: a rule's click, or the start of an end's drag
+func _con_press(p: Vector2) -> bool:
+	if tool in CON_TOOLS:
+		return _con_click(p)
+	if tool != "" or not draft.is_empty():
+		return false
+	var pt := _con_point_at(p)
+	if pt.is_empty():
+		return false
+	con_drag = pt
+	return true
+
+
+func _con_click(p: Vector2) -> bool:
+	if tool == "Remove constraint":
+		for mk in con_marks:
+			if p.distance_to(mk["at"]) < 14.0:
+				_con_remove(int(mk["i"]))
+				return true
+		_say("REMOVE CONSTRAINT: click a glyph (H, V, //, the square, =, the angle) to delete that rule")
+		return true
+	if tool == "Coincident":
+		var pt := _con_point_at(p)
+		if pt.is_empty() or _ent_kind(int(pt["ent"])) != "line":
+			_say("COINCIDENT: click an end of a line")
+			return true
+		if con_pick.is_empty():
+			con_pick = pt
+			_say("Coincident: now click the end it should meet")
+			pov.queue_redraw()
+			return true
+		pt = _con_point_at(p, int(con_pick["ent"]))   # the other line's end (the first line's own end is not a choice)
+		if pt.is_empty() or _ent_kind(int(pt["ent"])) != "line":
+			_say("COINCIDENT: click an end of the OTHER line")
+			return true
+		_con_commit({"k": "coin", "a": int(con_pick["ent"]), "ap": int(con_pick["pt"]), "b": int(pt["ent"]), "bp": int(pt["pt"])})
+		return true
+	var ln := _con_line_at(p)
+	if tool == "Horizontal" or tool == "Vertical":
+		if ln < 0:
+			_say("%s: click a line" % tool.to_upper())
+			return true
+		_con_commit({"k": "h" if tool == "Horizontal" else "v", "a": ln})
+		return true
+	if ln < 0:
+		_say("%s: click a line (then a second line)" % tool.to_upper())
+		return true
+	if con_pick.is_empty():
+		con_pick = {"ent": ln}
+		_say("%s: now click the second line" % tool.to_upper())
+		pov.queue_redraw()
+		return true
+	var a := int(con_pick["ent"])
+	if a == ln:
+		_say("Pick a different line for the second one")
+		return true
+	con_pick = {}
+	if tool == "Angle":
+		_con_open_angle(a, ln, p)
+		return true
+	var k: String = {"Parallel": "par", "Perpendicular": "perp", "Equal": "eq"}[tool]
+	_con_commit({"k": k, "a": a, "b": ln})
+	return true
+
+
+## the angle now between two lines (degrees, 0..180)
+func _con_angle_now(a: int, b: int) -> float:
+	var ents: Array = _sk().get("ents", [])
+	var da := Part.v2(ents[a]["b"]) - Part.v2(ents[a]["a"])
+	var db := Part.v2(ents[b]["b"]) - Part.v2(ents[b]["a"])
+	if da.length() < 1e-9 or db.length() < 1e-9:
+		return 90.0
+	return rad_to_deg(acos(clampf(da.normalized().dot(db.normalized()), -1.0, 1.0)))
+
+
+## the Angle tool's second pick: the number box opens where the click was (its value is the angle now, or the angle already set)
+func _con_open_angle(a: int, b: int, p: Vector2) -> void:
+	var cur := _con_angle_now(a, b)
+	for c in _sk().get("cons", []):
+		if String(c["k"]) == "ang" and ((int(c["a"]) == a and int(c["b"]) == b) or (int(c["a"]) == b and int(c["b"]) == a)):
+			cur = float(c["deg"])
+	dim_target = {"con": "ang", "a": a, "b": b}
+	dim_edit.text = _fmt(snappedf(cur, 0.01))
+	dim_edit.visible = true
+	dim_edit.reset_size()
+	dim_edit.position = p + Vector2(-48, 14)
+	dim_edit.grab_focus()
+	dim_edit.select_all()
+	_say("Angle: type the angle in degrees (1 to 179) and press Enter")
+
+
+## the typed angle (Enter in the number box)
+func _con_angle_typed(t: String) -> void:
+	dim_edit.visible = false
+	var a := int(dim_target["a"])
+	var b := int(dim_target["b"])
+	dim_target = {}
+	dim_edit.release_focus()
+	var v := t.replace("deg", "").strip_edges()
+	if not v.is_valid_float() or float(v) <= 0.0 or float(v) >= 180.0:
+		_say("Angle: type a number of degrees between 0 and 180")
+		_after_sketch_edit()
+		return
+	_con_commit({"k": "ang", "a": a, "b": b, "deg": float(v)})
+
+
+## one rule = one undo step: taken before the change, dropped again when the rule is refused (the sketch is then as it was)
+func _con_commit(c: Dictionary) -> void:
+	var words := Part.con_name(c)
+	m._step_hint = "Constraint: " + words
+	m._push_undo()
+	var err := Part.con_put(_sk(), c)
+	if err != "":
+		m._drop_undo()
+		_say(err)
+	else:
+		_say("%s: it holds now, and it is kept when you drag" % words)
+	con_pick = {}
+	_after_sketch_edit()
+
+
+func _con_remove(i: int) -> void:
+	var cons: Array = _sk().get("cons", [])
+	if i < 0 or i >= cons.size():
+		return
+	var words := Part.con_name(cons[i])
+	m._step_hint = "Remove constraint: " + words
+	m._push_undo()
+	cons.remove_at(i)
+	_say("Removed: %s" % words)
+	_after_sketch_edit()
+
+
+## an end dragged to the cursor: the lines keep their rules and lengths (the solver moves the others); a place where a rule cannot hold is refused
+func _con_drag_move(p: Vector2) -> void:
+	var h: Variant = hit(p)
+	if h == null:
+		return
+	var target: Vector2 = snap(h as Vector2)
+	var ent := int(con_drag["ent"])
+	var key := "a" if int(con_drag["pt"]) == 0 else "b"
+	var start := Part.v2(_sk()["ents"][ent][key])
+	var cur: Dictionary = _sk().duplicate(true)
+	var bad := ""
+	for s in range(1, 9):   # the move in 8 steps, each solved: the lines follow the end instead of jumping
+		var trial: Dictionary = cur.duplicate(true)
+		var e: Dictionary = trial["ents"][ent]
+		e[key] = Part.arr2(start.lerp(target, s / 8.0))
+		if String(e["k"]) == "line":
+			Part.solve(trial, {"%d:%d" % [ent, int(con_drag["pt"])]: true})
+		bad = Part.con_fail(trial)
+		if bad != "":
+			break
+		cur = trial
+	if bad != "":
+		_say("Cannot move the end there: it would break %s." % bad)
+		pov.queue_redraw()
+		return
+	_sk()["ents"] = cur["ents"]
+	pov.queue_redraw()
+
+
+func _con_mid(ents: Array, i: int) -> Vector2:
+	return (scr(Part.v2(ents[i]["a"])) + scr(Part.v2(ents[i]["b"]))) * 0.5
+
+
+## the glyphs of the sketch rules (small pills; a coincident end is a ring) and the marks the Remove tool clicks
+func _con_draw() -> void:
+	con_marks = []
+	var f := _sk()
+	var ents: Array = f.get("ents", [])
+	var cons: Array = f.get("cons", [])
+	for i in cons.size():
+		var c: Dictionary = cons[i]
+		var k := String(c["k"])
+		var a := int(c.get("a", -1))
+		if a < 0 or a >= ents.size() or String(ents[a]["k"]) != "line":
+			continue
+		var at := _con_mid(ents, a) + Vector2(0, -14)
+		var txt := ""
+		match k:
+			"h":
+				txt = "H"
+			"v":
+				txt = "V"
+			"par":
+				txt = "//"
+			"perp":
+				txt = "_|_"
+			"eq":
+				txt = "="
+			"coin":
+				var q := scr(Part.v2(ents[a]["a" if int(c["ap"]) == 0 else "b"]))
+				pov.draw_arc(q, 7.0, 0.0, TAU, 20, SKY, 2.0)
+				con_marks.append({"i": i, "at": q})
+				continue
+			"ang":
+				var b := int(c.get("b", -1))
+				if b < 0 or b >= ents.size() or String(ents[b]["k"]) != "line":
+					continue
+				at = (_con_mid(ents, a) + _con_mid(ents, b)) * 0.5 + Vector2(0, -14)
+				txt = "%s deg" % _fmt(float(c["deg"]))
+		_pill(at, txt, Color(0.06, 0.07, 0.1, 0.94), SKY, 12)
+		con_marks.append({"i": i, "at": at})
+	if not con_pick.is_empty() and ents.size() > int(con_pick.get("ent", -1)):
+		var pe: Dictionary = ents[int(con_pick["ent"])]
+		if String(pe["k"]) == "line":
+			pov.draw_circle(_con_mid(ents, int(con_pick["ent"])), 6.0, Color("#ffc233"))
