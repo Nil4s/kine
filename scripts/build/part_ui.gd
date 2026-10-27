@@ -24,7 +24,7 @@ const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension"]
-const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Offset plane", "Split", "Canvas"]
+const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas"]
 const TOOL_KIND := {"Offset plane": "plane"}   # a tool's feature kind when it is not its lower-case name
 const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell", "Appearance"]
 const LOOK_TOOLS := ["Appearance"]   # APPEARANCE (GAP 5): picks a body for the side panel; the panel is _build_look / _look_sync
@@ -52,6 +52,7 @@ const TIPS := {
 	"Shell": "SHELL: the newest body becomes a hollow box with the wall thickness you type. Pick the face left open, press Enter.",
 	"Canvas": "CANVAS: put a picture on the Front, Top or Right plane (or an offset plane). Click two points of known size, type the real distance, drag it to line up.",
 	"Loft": "LOFT: pick two or more sketches in order (each a closed profile); the solid runs through them. Ruled = straight, Smooth = curved.",
+	"Sweep": "SWEEP: pick a closed profile sketch and an open path sketch (lines, arcs, splines, one chain). The profile must sit in the middle of the path's start and square to it. Corners are rounded.",
 	"Offset plane": "OFFSET PLANE: pick Front, Top or Right and type a distance. The new plane is in the browser: click it to sketch on it.",
 	"Fillet": "FILLET: click edges (they turn sky blue), type a radius, press Enter or OK.",
 	"Chamfer": "CHAMFER: click edges, type a distance, press Enter or OK.",
@@ -155,6 +156,8 @@ var f_edges: Label
 var f_prof: OptionButton       # the loft dialog: "Add a sketch..." then each sketch (its picks, in order, are dlg["sketches"])
 var f_prof_clear: Button
 var f_ruled: OptionButton      # the loft dialog: ruled (straight) or smooth
+var f_sw_prof: OptionButton    # the sweep dialog: the closed profile sketch
+var f_sw_path: OptionButton    # the sweep dialog: the open path sketch
 var dim_edit: LineEdit
 var note: PanelContainer
 var note_l: Label
@@ -556,6 +559,14 @@ func _build_side() -> void:
 	for o in ["Ruled (straight)", "Smooth (curved)"]:
 		f_ruled.add_item(o)
 	f_ruled.item_selected.connect(func(_i): _preview())
+	f_sw_prof = OptionButton.new()
+	f_sw_prof.name = "part_sweep_profile"
+	f_sw_prof.focus_mode = Control.FOCUS_NONE
+	f_sw_prof.item_selected.connect(func(_i): _preview())
+	f_sw_path = OptionButton.new()
+	f_sw_path.name = "part_sweep_path"
+	f_sw_path.focus_mode = Control.FOCUS_NONE
+	f_sw_path.item_selected.connect(func(_i): _preview())
 	f_edges = _label("")
 	f_edges.name = "part_edges_label"
 	dlg_info = _label("", 12, true)
@@ -1206,6 +1217,8 @@ func open_dialog(t: String, edit: int) -> void:
 		dlg_rows.add_child(f_ruled)
 		f_ruled.select(0 if bool(f.get("ruled", true)) else 1)
 		_op_row(f)
+	elif kind == "sweep":
+		_sweep_open(f, edit)
 	elif kind == "plane":
 		_row("Distance", f_num, "%s mm" % _fmt(float(f.get("mm", 20.0))))
 		dlg_rows.add_child(f_plane)
@@ -1254,7 +1267,7 @@ func open_dialog(t: String, edit: int) -> void:
 		f_open.select(maxi(SHELL_OPEN.find(String(f.get("open", "+y"))), 0))
 	if kind == "canvas":
 		_canvas_open(f, edit)
-	f_op.visible = kind in ["extrude", "revolve", "loft"]
+	f_op.visible = kind in ["extrude", "revolve", "loft", "sweep"]
 	if kind == "hinge":
 		_hinge_rows()
 	side_title.text = ("EDIT " if edit >= 0 else "") + kind.to_upper()
@@ -1269,6 +1282,33 @@ func open_dialog(t: String, edit: int) -> void:
 
 
 const PlanesIdx := ["front", "top", "right"]
+
+
+## GAP 6 SWEEP dialog: the two pickers (profile, path) list every sketch; the newest sketch is the path and the one before it the profile (an edit shows its own)
+func _sweep_open(f: Dictionary, edit: int) -> void:
+	var rec := _rec()
+	var ids := _sketch_ids(rec)
+	dlg["pick"] = ids
+	f_sw_prof.clear()
+	f_sw_path.clear()
+	for sid in ids:
+		var nm := String(Part.feature(rec, sid).get("name", sid))
+		f_sw_prof.add_item(nm)
+		f_sw_path.add_item(nm)
+	var pid := String(f.get("profile", "")) if edit >= 0 else ""
+	var aid := String(f.get("path", "")) if edit >= 0 else ""
+	if ids.size() >= 2:
+		if pid == "":
+			pid = String(ids[ids.size() - 2])
+		if aid == "":
+			aid = String(ids[ids.size() - 1])
+	f_sw_prof.select(maxi(ids.find(pid), 0))
+	f_sw_path.select(maxi(ids.find(aid), 0))
+	dlg_rows.add_child(_label("Profile (closed sketch)"))
+	dlg_rows.add_child(f_sw_prof)
+	dlg_rows.add_child(_label("Path (open sketch: lines, arcs, splines)"))
+	dlg_rows.add_child(f_sw_path)
+	_op_row(f)
 
 
 ## the sketches a loft can take, by id (the order of the picker's items after its first "Add a sketch..." row)
@@ -1307,7 +1347,7 @@ func _prof_picked(i: int) -> void:
 
 ## the dialog's rows go; the field controls are kept (they are re-parented into the next dialog)
 func _clear_rows() -> void:
-	for c in [f_num, f_ang, f_both, f_op, f_axis, f_plane, f_taper, f_open, f_edges, f_from, f_to, f_dur, f_dial, f_prof, f_prof_clear, f_ruled]:
+	for c in [f_num, f_ang, f_both, f_op, f_axis, f_plane, f_taper, f_open, f_edges, f_from, f_to, f_dur, f_dial, f_prof, f_prof_clear, f_ruled, f_sw_prof, f_sw_path]:
 		if (c as Node).get_parent() != null:
 			(c as Node).get_parent().remove_child(c)
 	for c in dlg_rows.get_children():
@@ -1331,7 +1371,7 @@ func _row(label: String, le: LineEdit, txt: String) -> void:
 
 
 func _op_row(f: Dictionary) -> void:
-	if String(dlg["t"]) == "extrude" or String(dlg["t"]) == "revolve" or String(dlg["t"]) == "loft":
+	if String(dlg["t"]) == "extrude" or String(dlg["t"]) == "revolve" or String(dlg["t"]) == "loft" or String(dlg["t"]) == "sweep":
 		var h := HBoxContainer.new()
 		var l := _label("Operation")
 		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1412,6 +1452,15 @@ func dialog_feature() -> Dictionary:
 			if ids.size() < 2:
 				return {}
 			f = {"sketches": ids.duplicate(), "ruled": f_ruled.selected == 0, "op": op}
+		"sweep":
+			var ids: Array = dlg.get("pick", [])
+			if ids.size() < 2:
+				return {}
+			var sp_id := String(ids[clampi(f_sw_prof.selected, 0, ids.size() - 1)])
+			var sa_id := String(ids[clampi(f_sw_path.selected, 0, ids.size() - 1)])
+			if sp_id == sa_id:
+				return {}
+			f = {"profile": sp_id, "path": sa_id, "op": op}
 		"canvas":
 			f = _canvas_feature(true)
 			if f.is_empty():
@@ -1485,6 +1534,8 @@ func _dialog_hint(kind: String) -> String:
 		return _hinge_next()
 	if kind == "loft":
 		return "Pick two or more sketches, in order."
+	if kind == "sweep":
+		return "Pick the profile (closed) and the path (open), two different sketches."
 	if kind == "plane":
 		return "Type the distance from the plane (mm)."
 	if kind == "canvas":
@@ -1521,7 +1572,7 @@ func ok_pressed() -> void:
 	tool = ""
 	_tool_sync()
 	bu.sync()
-	if kind == "extrude" or kind == "revolve" or kind == "loft":
+	if kind == "extrude" or kind == "revolve" or kind == "loft" or kind == "sweep":
 		_view_model()
 
 
@@ -1764,6 +1815,8 @@ func _tool_sync() -> void:
 			w = "sketch a closed profile first"
 		elif ok and t == "Loft" and _feats().filter(func(f): return f["t"] == "sketch").size() < 2:
 			w = "sketch two profiles first (a loft joins them)"
+		elif ok and t == "Sweep" and _feats().filter(func(f): return f["t"] == "sketch").size() < 2:
+			w = "sketch a profile and a path first (a sweep joins them)"
 		elif ok and (t == "Mirror" or t == "Fillet" or t == "Chamfer" or t == "Hinge" or t == "Split" or t == "Shell" or t == "Appearance") and not has_body:
 			w = "make a solid first (Extrude or Revolve)"
 		m._grey(b, w)
