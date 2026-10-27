@@ -191,6 +191,17 @@ static func default_lengths() -> Dictionary:
 		"foot": TOE_Z - HEEL_Z, "trunk": 1.4408 - 0.9321, "head": MESH_TOP - 1.4408}
 
 
+## C2: the body's segment lengths (m) from its scene dict: default_lengths x the segment scales, the same numbers
+## BodyFromNumbers.body_for solves for. {} = the default body. A Part dimension bound to a body reads these (part.gd).
+static func measures_of(body: Dictionary) -> Dictionary:
+	var L := default_lengths()
+	var sc: Dictionary = body.get("scale", {})
+	var out := {}
+	for s in SEGS:
+		out[s] = float(L[s]) * float(sc.get(s, 1.0))
+	return out
+
+
 ## a preset's body dict: its stature, mass and sex, and the segment scales that make seven segments Drillis &
 ## Contini's fractions of THAT stature exactly. This mannequin's ankle stands higher than the table's 0.039 H, so one
 ## segment must give: the TRUNK takes what is left (then the shoulder and the head, the reach's root, stand at the

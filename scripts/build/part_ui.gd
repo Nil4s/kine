@@ -878,6 +878,9 @@ func _pick_edge(p: Vector2) -> int:
 func _open_dim_edit(pk: Dictionary) -> void:
 	var e: Dictionary = _sk()["ents"][int(pk["ent"])]
 	dim_edit.text = "%s" % snappedf(Part.measure(e, String(pk["kind"])), 0.001)
+	for d in _sk().get("dims", []):
+		if int(d["ent"]) == int(pk["ent"]) and d["kind"] == pk["kind"] and d.has("bind"):
+			dim_edit.text = Part.bind_text(d["bind"])   # a bound size shows its bind, so Enter keeps it
 	dim_edit.visible = true
 	var mid: Vector2 = (scr(pk["a"]) + scr(pk["b"])) * 0.5
 	dim_edit.reset_size()
@@ -891,18 +894,51 @@ func _dim_submitted(t: String) -> void:
 	dim_edit.visible = false
 	if dim_target.is_empty() or sk == "":
 		return
-	var v := t.replace("mm", "").strip_edges()
-	if v.is_valid_float() and float(v) > 0.0:
-		Part.set_dim(_sk(), int(dim_target["ent"]), String(dim_target["kind"]), float(v))
-		_say("Dimension set: %s mm" % v)
+	var err := _set_dim_text(int(dim_target["ent"]), String(dim_target["kind"]), t)
+	if err != "":
+		_say(err)
+	elif Part.parse_bind(t).is_empty():
+		_say("Dimension set: %s mm" % t.replace("mm", "").strip_edges())
+	else:
+		_say("Dimension set: %s" % Part.bind_text(Part.parse_bind(t)))
 	dim_target = {}
 	dim_edit.release_focus()
 	_after_sketch_edit()
 
 
+## C2: the body's segment lengths now (the scene's body; the default body when it is {})
+func _body_measures() -> Dictionary:
+	return Proportions.measures_of(m.S.body)
+
+
+## a dimension's typed text: a size in mm (plain: the dimension stops reading the body) or =forearm+4 (reads the body).
+## Returns the message to show ("" = set)
+func _set_dim_text(ent: int, kind: String, t: String) -> String:
+	var v := t.replace("mm", "").strip_edges()
+	var bind := Part.parse_bind(v)
+	if not bind.is_empty():
+		var r := Part.bound_mm(bind, _body_measures())
+		if r["err"] != "":
+			return String(r["err"])
+		Part.set_dim(_sk(), ent, kind, float(r["mm"]), bind)
+		return ""
+	if v.is_valid_float() and float(v) > 0.0:
+		Part.set_dim(_sk(), ent, kind, float(v))
+		return ""
+	return "type a size in mm, or =forearm+4 to read the body (forearm, upper_arm, thigh, shank, trunk, head ...)"
+
+
+## the number a row shows: the size now (a bound one: what the body gives)
+func _dim_field_text(d: Dictionary) -> String:
+	if d.has("bind"):
+		var r := Part.bound_mm(d["bind"], _body_measures())
+		return Part.bind_text(d["bind"]) if r["err"] != "" else "%s mm" % _fmt(float(r["mm"]))
+	return "%s mm" % _fmt(float(d["mm"]))
+
+
 func _set_dim_value(i: int, v: float) -> void:
 	var dims: Array = _sk().get("dims", [])
-	if i >= dims.size() or v <= 0.0 or absf(float(dims[i]["mm"]) - v) < 1e-9:
+	if i >= dims.size() or v <= 0.0 or (absf(float(dims[i]["mm"]) - v) < 1e-9 and not dims[i].has("bind")):   # a bound size typed as a plain number stops reading the body
 		return
 	Part.set_dim(_sk(), int(dims[i]["ent"]), String(dims[i]["kind"]), v)
 	_after_sketch_edit()
@@ -1001,7 +1037,7 @@ func _op_row(f: Dictionary) -> void:
 
 ## the model the dialog works on (the steps before the one being edited): its volume, bodies and edges
 func _base_edges(edit: int) -> void:
-	var base := Part.replay(_rec(), edit - 1 if edit >= 0 else upto, {"edges": true})
+	var base := Part.replay(_rec(), edit - 1 if edit >= 0 else upto, {"edges": true, "body": _body_measures()})
 	edge_cache = base["edges"]
 
 
@@ -1085,7 +1121,7 @@ func _preview() -> void:
 		rec["features"][edit] = f
 	else:
 		rec["features"].append(f)
-	prev = Part.replay(rec, -1)
+	prev = Part.replay(rec, -1, {"body": _body_measures()})
 	var err: String = prev["errors"].get(String(f["id"]), "")
 	dlg_info.text = ("%s. Nothing is changed until it works." % err) if err != "" else "Volume %s cm3" % snappedf(float(prev["volume"]) * 1e6, 0.01)
 	ok_btn.disabled = err != ""
@@ -1306,7 +1342,7 @@ func _nums_sync() -> void:
 	for i in dims.size():
 		var d: Dictionary = dims[i]
 		var h := HBoxContainer.new()
-		var l := _label(String(d["name"]))
+		var l := _label(String(d["name"]) + ("  " + Part.bind_text(d["bind"]) if d.has("bind") else ""))   # C2: a bound size names its source
 		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		h.add_child(l)
 		var le := LineEdit.new()
@@ -1314,7 +1350,7 @@ func _nums_sync() -> void:
 		le.custom_minimum_size.x = 92
 		le.alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		le.select_all_on_focus = true
-		le.text = "%s mm" % _fmt(float(d["mm"]))
+		le.text = _dim_field_text(d)
 		le.text_submitted.connect(func(t: String): _num_typed.call_deferred(i, t, le))   # (deferred: the rows are rebuilt by the number)
 		le.focus_exited.connect(func(): _num_typed.call_deferred(i, le.text, le))
 		h.add_child(le)
@@ -1325,13 +1361,20 @@ func _num_typed(i: int, t: String, le: LineEdit) -> void:
 	if sk == "" or not is_instance_valid(le) or not le.is_inside_tree():
 		return
 	var v := t.replace("mm", "").strip_edges()
-	if v.is_valid_float():
-		_set_dim_value(i, float(v))
+	var dims: Array = _sk().get("dims", [])
+	if i < dims.size() and (not Part.parse_bind(v).is_empty() or v.is_valid_float()):
+		if Part.parse_bind(v).is_empty():
+			_set_dim_value(i, float(v))
+		else:
+			var err := _set_dim_text(int(dims[i]["ent"]), String(dims[i]["kind"]), v)
+			if err != "":
+				_say(err)
+			_after_sketch_edit()
 	if not le.is_inside_tree():
 		return   # the number made the rows again: this field is gone
-	var dims: Array = _sk().get("dims", [])
+	dims = _sk().get("dims", [])
 	if i < dims.size():
-		le.text = "%s mm" % _fmt(float(dims[i]["mm"]))
+		le.text = _dim_field_text(dims[i])
 	le.release_focus()
 
 
@@ -1413,7 +1456,8 @@ func sync() -> void:
 func _rebuild(show: bool) -> void:
 	if not show:
 		return
-	var sig := "%s|%d|%d" % [JSON.stringify(_rec()), upto, int(dlg.get("edit", -1)) if not dlg.is_empty() else -2]
+	Part.refresh_bound(_rec(), _body_measures())   # C2: a dimension bound to the body shows the body's size now
+	var sig := "%s|%d|%d|%s" % [JSON.stringify(_rec()), upto, int(dlg.get("edit", -1)) if not dlg.is_empty() else -2, JSON.stringify(_body_measures())]   # the body moving re-solves the bound dimensions
 	if sig == _rec_sig:
 		return
 	_rec_sig = sig
@@ -1425,7 +1469,7 @@ func _rebuild(show: bool) -> void:
 	var up := upto
 	if not dlg.is_empty() and int(dlg["edit"]) >= 0:
 		up = int(dlg["edit"]) - 1
-	res = Part.replay(_rec(), up, {"edges": not easy})
+	res = Part.replay(_rec(), up, {"edges": not easy, "body": _body_measures()})
 	if sk == "":
 		part_mesh.mesh = res["mesh"]
 	edge_cache = res["edges"]
