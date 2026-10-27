@@ -9,7 +9,11 @@ extends RefCounted
 ##     {"t": "extrude", "id": "f2", "name": "Extrude1", "sketch": "f1", "dist": 5.0, "both": false, "op": "new"|"join"|"cut"},
 ##     {"t": "revolve", "id": "f3", "name": "Revolve1", "sketch": "f4", "axis": "x"|"y", "deg": 360.0, "op": "join"},
 ##     {"t": "fillet",  "id": "f5", "name": "Fillet1", "body": 0, "r": 2.0, "edges": [{"p": [x, y, z], "q": [..], "d": [..]}]},
-##     {"t": "chamfer", ... "dist": 1.0 ...},  {"t": "mirror", "id": ..., "plane": "front"|"top"|"right", "op": "join"}]}
+##     {"t": "chamfer", ... "dist": 1.0 ...},  {"t": "mirror", "id": ..., "plane": "front"|"top"|"right", "op": "join"},
+##     {"t": "hinge", "id": ..., "name": "Hinge1", "body": 0, "o": [x, y, z] (mm), "axis": [x, y, z], "track": [[t_s, deg], ...]}]}
+## A HINGE (C3) turns body N (its index when the hinge comes) about the axis through o. Its angle is a Curves channel (seconds, degrees), the
+## same as a Kine curve sampled to a list. The timeline shows the rest pose (the hinge adds no solid); hinge_sweep() walks the curve and reports the
+## first frame the moving body meets another body (a door against its stop).
 ## Sketch entities (plane coordinates in mm): {"k": "line", "a", "b"}, {"k": "rect", "a", "b"} (two corners), {"k": "circle", "c", "r"},
 ## {"k": "arc", "a", "m", "b"} (from a to b through m). A dimension: {"id", "ent": index, "kind": "w" | "h" | "len" | "r", "mm", "name"}; the
 ## entities always hold the dimension's result (apply_dim writes it), so a rebuild needs nothing else.
@@ -21,10 +25,11 @@ extends RefCounted
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
 const VERSION := 1
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge"]
 const PLANES := ["front", "top", "right"]
 const OPS := ["join", "new", "cut"]
 const MATCH_MAX := 0.25   # an edge matches when (box-position distance + 0.5 x direction mismatch) is below this
+const HIT_VOL := 1e-9     # m3 (1 mm3): an overlap this small is contact, not interference (the kernel's boolean noise is far below it)
 
 static var force_off := false   # a test's "no DLL"
 
@@ -354,6 +359,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				else:
 					KCad.release(bodies[-1])
 					bodies[-1] = u
+			"hinge":   # C3: the rest pose is the timeline's; the swing is hinge_sweep's
+				var hb := int(f.get("body", -1))
+				if hb < 0 or hb >= bodies.size():
+					errs[id] = "there is no body %d to hinge" % hb
 	var mesh := ArrayMesh.new()
 	for b in bodies:
 		var v := KCad.volume(b)
@@ -379,6 +388,79 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		for b in bodies:
 			KCad.release(b)
 	return res
+
+
+## C3: the hinge's swing, sampled at fps. Replays the features before the hinge, turns its body about the hinge axis by the curve at each
+## frame and intersects it with every other body. Answers {"ok": true, "frames", "first" (the first frame that overlaps, -1 = never),
+## "first_s", "deg_first", "hit_frames" (how many frames overlap), "secs" (the run, replay included)}, or {"ok": false, "why"}.
+static func hinge_sweep(rec: Dictionary, hinge_id: String, fps := 25.0) -> Dictionary:
+	if not available():
+		return {"ok": false, "why": why_not()}
+	var feats: Array = rec.get("features", [])
+	var hi := -1
+	for i in feats.size():
+		if String(feats[i]["id"]) == hinge_id and String(feats[i]["t"]) == "hinge":
+			hi = i
+	if hi < 0:
+		return {"ok": false, "why": "there is no hinge %s" % hinge_id}
+	var f: Dictionary = feats[hi]
+	var track: Array = f.get("track", [])
+	if track.is_empty() or hi == 0:
+		return {"ok": false, "why": "the hinge has no body or no curve"}
+	var t0 := Time.get_ticks_usec()
+	var ids: Array = replay(rec, hi - 1, {"keep": true}).get("ids", [])
+	var bi := int(f.get("body", -1))
+	if bi < 0 or bi >= ids.size():
+		for b in ids:
+			KCad.release(b)
+		return {"ok": false, "why": "there is no body %d to hinge" % bi}
+	var pivot := Vector3(float(f["o"][0]), float(f["o"][1]), float(f["o"][2])) * MM
+	var axis := Vector3(float(f["axis"][0]), float(f["axis"][1]), float(f["axis"][2])).normalized()
+	var rest: Array = []
+	for j in ids.size():
+		if j != bi:
+			rest.append(ids[j])
+	var n := int(floor(float(track[-1][0]) * fps + 1e-6)) + 1
+	var out := {"ok": true, "frames": n, "first": -1, "first_s": -1.0, "deg_first": 0.0, "hit_frames": 0, "secs": 0.0}
+	for i in n:
+		var t := float(i) / fps
+		var deg := float(Curves.eval(track, t))
+		var m := _swing(int(ids[bi]), pivot, axis, deg_to_rad(deg))
+		var hit := false
+		var bad := KCad.last_error() if m == 0 else ""
+		for r in rest:
+			var c := KCad.intersect(m, int(r)) if m != 0 else 0
+			if m != 0 and c == 0:
+				bad = KCad.last_error()   # a kernel failure is an error, never a clear frame
+			elif c != 0 and KCad.volume(c) > HIT_VOL:
+				hit = true
+			if c != 0:
+				KCad.release(c)
+		KCad.release(m)
+		if bad != "":
+			for b in ids:
+				KCad.release(b)
+			return {"ok": false, "why": "frame %d: %s" % [i, bad]}
+		if hit:
+			out["hit_frames"] = int(out["hit_frames"]) + 1
+			if int(out["first"]) < 0:
+				out["first"] = i
+				out["first_s"] = t
+				out["deg_first"] = deg
+	for b in ids:
+		KCad.release(b)
+	out["secs"] = float(Time.get_ticks_usec() - t0) * 1e-6
+	return out
+
+
+## a body turned about a hinge: the kernel rotates about the origin only, so the body goes to the origin, turns and comes back
+static func _swing(id: int, pivot: Vector3, axis: Vector3, radians: float) -> int:
+	var a := KCad.translate(id, -pivot)
+	var b := KCad.rotate(a, axis, radians)
+	KCad.release(a)
+	var c := KCad.translate(b, pivot)
+	KCad.release(b)
+	return c
 
 
 static func _solid(f: Dictionary, sk: Dictionary) -> int:
