@@ -44,13 +44,17 @@ extends RefCounted
 ## "mm" (linear: the spacing), "dir": "x"|"y"|"z" (linear: the direction), "axis": "x"|"y"|"z" (circular: the axis through the origin), "deg" (circular:
 ## the total angle; a full turn spreads the copies evenly, a smaller angle runs from the first copy to the last), "op": "join" (the copies fuse into body N)
 ## | "new" (each copy is a body of its own, with body N's look). Built from the kernel's translate / rotate (one shape per copy, not one fused shape).
+## COMBINE (Fusion Combine): {"t": "combine", "id", "name", "target": N, "tools": [M, ...], "op": "join"|"cut"|"intersect", "keep": bool}: the target
+## body joins, cuts or shares volume with each tool body in turn (the tools in order). The result takes the target's place in the body list; the tool
+## bodies go (keep = true leaves them where they are, unchanged). Every other body keeps its place and its look, the target keeps its look.
 
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
 const VERSION := 1
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine"]
 const PLANES := ["front", "top", "right"]
 const OPS := ["join", "new", "cut", "intersect"]
+const COMBINE_OPS := ["join", "cut", "intersect"]   # a combine step's op (the dialog's order: Join, Cut, Intersect)
 const MATCH_MAX := 0.25   # an edge matches when (box-position distance + 0.5 x direction mismatch) is below this
 const LOOK_CHIPS := [["Grey", Color("#bdc4d0")], ["Red", Color("#c0392b")], ["Blue", Color("#3a7bd5")], ["Yellow", Color("#f2c94c")], ["Green", Color("#4caf50")]]   # the colour chips; a body with no look takes chip (its index mod 5)
 const LOOK_PRESETS := {"Paint": {"rough": 0.35, "metal": 0.0, "alpha": 1.0}, "Metal": {"rough": 0.25, "metal": 1.0, "alpha": 1.0}, "Glass": {"rough": 0.05, "metal": 0.0, "alpha": 0.4}, "Rubber": {"rough": 0.95, "metal": 0.0, "alpha": 1.0}, "Plastic": {"rough": 0.45, "metal": 0.0, "alpha": 1.0}}
@@ -473,6 +477,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					errs[id] = "there is no body %d to paint" % ai
 				else:
 					looks[ai] = look_of(f)
+			"combine":   # COMBINE: its own function (_combine_step): the target and the tools become one body list again
+				var ce := _combine_step(bodies, looks, f)
+				if ce != "":
+					errs[id] = ce
 			"hinge":   # C3: the rest pose is the timeline's; the swing is hinge_sweep's
 				var hb := int(f.get("body", -1))
 				if hb < 0 or hb >= bodies.size():
@@ -1111,6 +1119,67 @@ static func _combine(bodies: Array, solid: int, op: String) -> String:
 		return KCad.last_error()
 	KCad.release(bodies[-1])
 	bodies[-1] = u
+	return ""
+
+
+## COMBINE: the target body takes each tool body in turn (join = union, cut = minus, intersect = shared volume). The result sits where the
+## target was; the tools are removed unless keep. Every body keeps its look; the target keeps its own. "" or the failure message (nothing changes then)
+static func _combine_step(bodies: Array, looks: Array, f: Dictionary) -> String:
+	var tg := int(f.get("target", -1))
+	var tl: Array = []
+	for t in f.get("tools", []):
+		tl.append(int(t))
+	var op := String(f.get("op", "join"))
+	if tg < 0 or tg >= bodies.size():
+		return "there is no Body%d to combine into" % (tg + 1)
+	if tl.is_empty():
+		return "pick at least one tool body (Body2, Body3...)"
+	if not COMBINE_OPS.has(op):
+		return "combine: %s is not Join, Cut or Intersect" % op
+	for t in tl:
+		if t < 0 or t >= bodies.size():
+			return "there is no Body%d to combine" % (t + 1)
+		if t == tg or tl.count(t) > 1:
+			return "a tool body is the target itself or is picked twice"
+	var cur: int = bodies[tg]
+	for t in tl:
+		var nx := 0
+		match op:
+			"join":
+				nx = KCad.union(cur, bodies[t])
+			"cut":
+				nx = KCad.cut(cur, bodies[t])
+			_:
+				nx = KCad.intersect(cur, bodies[t])
+		if nx == 0:
+			var why := KCad.last_error()
+			if cur != bodies[tg]:
+				KCad.release(cur)
+			return why
+		if cur != bodies[tg]:
+			KCad.release(cur)
+		cur = nx
+		if op != "join" and _vol(cur) <= HIT_VOL:
+			KCad.release(cur)
+			return "nothing is left: " + ("Body%d takes all of the target" % (t + 1) if op == "cut" else "the target shares no volume with Body%d" % (t + 1))
+	var keep := bool(f.get("keep", false))
+	var nb: Array = []
+	var nl: Array = []
+	for i in bodies.size():
+		if i == tg:
+			nb.append(cur)
+			nl.append(look_at(looks, i))
+		elif tl.has(i) and not keep:
+			KCad.release(bodies[i])
+		else:
+			nb.append(bodies[i])
+			nl.append(look_at(looks, i))
+	if cur != bodies[tg]:
+		KCad.release(bodies[tg])
+	bodies.clear()
+	bodies.append_array(nb)
+	looks.clear()
+	looks.append_array(nl)
 	return ""
 
 

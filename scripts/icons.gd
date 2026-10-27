@@ -90,6 +90,7 @@ const DRAW := {
 	"part_hinge": [["box", Rect2(9, 4, 10, 16), 1.8], ["seg", Vector2(3, 4), Vector2(3, 20), 2.6], ["disc", Vector2(3, 4), 2.0], ["disc", Vector2(3, 20), 2.0]],   # HINGE: a leaf turning about its edge
 	"part_appearance": [["disc", Vector2(12, 12), 8.0], ["ring", Vector2(12, 12), 8.5, 1.9], ["disc", Vector2(12, 12), 3.0]],   # APPEARANCE: a colour disc with a ring
 	"part_split": [["box", Rect2(3, 5, 18, 14), 1.6], ["seg", Vector2(12, 2.5), Vector2(12, 21.5), 1.5]],   # SPLIT: a block cut by a plane
+	"part_combine": [["box", Rect2(3, 5, 11, 11), 1.6], ["box", Rect2(10, 8, 11, 11), 1.6]],   # COMBINE: two overlapping blocks
 	"part_shell": [["box", Rect2(3.5, 3.5, 17, 17), 1.9], ["box", Rect2(7.5, 7.5, 9, 9), 1.2]],   # SHELL: a hollow block
 	"part_finish": [["seg", Vector2(4.5, 12.5), Vector2(9.5, 17.5), 2.4], ["seg", Vector2(9.5, 17.5), Vector2(19.5, 6.5), 2.4]],
 	"part_sketch": [["box", Rect2(4, 5, 16, 14), 1.4], ["seg", Vector2(7, 16), Vector2(17, 8), 2.0], ["disc", Vector2(7, 16), 1.8], ["disc", Vector2(17, 8), 1.8]],
