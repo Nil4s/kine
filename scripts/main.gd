@@ -20887,7 +20887,17 @@ func _props_show() -> void:
 	tint.albedo_color = Color(Tok.c("accent"), 0.35)
 	tint.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	tint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var carried_props := []
+	for cr in S.carries():
+		carried_props.append(int(cr["prop"]))
+	var shared := PropInstances.plan(S.props, sel_prop, carried_props)   # M3: the still copies of one kind share one drawn mesh
+	var in_shared := {}
+	for g in shared:
+		for i in g:
+			in_shared[i] = true
 	for i in S.props.size():
+		if in_shared.has(i):
+			continue
 		var n := Props.mesh(S.props[i])
 		if Props.model_missing(S.props[i]) and not _gone_said.has(S.props[i]["kind"]):
 			_gone_said[S.props[i]["kind"]] = true
@@ -20897,6 +20907,11 @@ func _props_show() -> void:
 			for mi in n.find_children("*", "MeshInstance3D", true, false):
 				(mi as MeshInstance3D).material_overlay = tint
 		ui_props_root.add_child(n)
+	for g in shared:   # M3: one MultiMeshInstance3D per mesh of the kind, one instance per copy (scripts/prop_instances.gd)
+		var parts_mm := PropInstances.build(S.props, g)
+		for j in parts_mm.size():
+			parts_mm[j].name = "shared_%d_%d" % [g[0], j]
+			ui_props_root.add_child(parts_mm[j])
 	for k in ui_prop_btns:
 		_grey(ui_prop_btns[k], "" if sel_prop >= 0 else "pick a prop first: click it in the view, or add one with Add prop")
 	var kind := String(S.props[sel_prop]["kind"]) if sel_prop >= 0 and sel_prop < S.props.size() else ""
@@ -21017,12 +21032,18 @@ func _prop_menu_fill(ap: MenuButton) -> void:
 	for k in cat.size():
 		pm.add_item("%s   (%s)" % [String(cat[k][0]).replace("_", " "), cat[k][1]], k)
 		pm.set_item_metadata(k, cat[k][0])
+	pm.add_separator()   # M3: the picked prop's copies in a row (the SET ribbon's fixed tool list stays as it is)
+	pm.add_item("Copies in a row of the picked prop", cat.size())
+	pm.set_item_metadata(pm.get_item_index(cat.size()), "row")
 
 
 func _prop_menu_pick(id: int, ap: MenuButton) -> void:
 	var pm := ap.get_popup()
 	_step_hint = "Add prop"
 	_tour_inputs += 1
+	if String(pm.get_item_metadata(pm.get_item_index(id))) == "row":
+		_prop_copies_row()
+		return
 	_prop_add(String(pm.get_item_metadata(pm.get_item_index(id))))
 
 
@@ -21254,6 +21275,23 @@ func _body_outline_show(on: bool) -> void:
 func _body_colour_show() -> void:
 	if body_skin != null:
 		body_skin.albedo_color = BODY_SKIN_PRE_D if (body_colour == 0 and not _body_look_on) else BODY_COLOURS[body_colour][1]
+
+
+## Copies in a row (M3): ROW_N copies of the picked prop beside it, along its own x axis, on the floor; one undo step. Still
+## copies of a kind are drawn as one shape (scripts/prop_instances.gd); a moving prop is refused (its copies would not move)
+func _prop_copies_row() -> void:
+	if sel_prop < 0 or sel_prop >= S.props.size():
+		_say_plain("pick a prop first: click it in the view (or Add prop), then Copies in a row")
+		return
+	if Props.animated(S.props[sel_prop]) or Props.hinged(S.props[sel_prop]):
+		_say_plain("a moving prop (keys or a hinge) is not copied in a row: its copies would not move with it")
+		return
+	_push_undo()
+	var copies := PropInstances.row(S.props, sel_prop)
+	S.props.append_array(copies)
+	_props_show()
+	_doc_line()
+	_say_plain("%d copies of the %s in a row beside it, on the floor; Ctrl+Z takes them back" % [copies.size(), _prop_name(sel_prop)])
 
 
 func _prop_del() -> void:

@@ -153,3 +153,4 @@ EXTRA="$EXTRA realismslice:w"   # REALISM / TIMING COACH SLICES: the scene datab
 EXTRA="$EXTRA starters:w"   # B1 starter buildings in the Template card (scripts/build/build_starters.gd)
 EXTRA="$EXTRA ribbonmesh:w"   # RIBBON STANDARD on MODEL / SCULPT / SURFACE: icon-only groups with captions, <= 20 icons, nothing in More, every old tool by real clicks at 1280x720 + 1600x900 (tests/ribbonmesh_test.gd)
 EXTRA="$EXTRA ribbonsd:w"   # STAGE + DELIVER ribbons: the POSE/ANIMATE standard (captioned groups, 9-20 icons, nothing in More, every tool by real clicks), 1280x720 + 1600x900 (tests/ribbonsd_test.gd)
+EXTRA="$EXTRA instancing:w"   # M3 INSTANCING: 200 still copies of a 5k-face model drawn as one MultiMeshInstance3D (>= 60 fps, 1 draw call, memory <= 1.5x), the app's "Copies in a row" (scripts/prop_instances.gd; tests/instancing_test.gd)
