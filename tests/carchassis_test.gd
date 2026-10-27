@@ -12,7 +12,7 @@ extends SceneTree
 ##  --- the UI (a window, 1280 x 720, real mouse through root.push_input):
 ##   8 STEPS     the step bar: "2 Chassis" is one click (chassis panel shown, package panel hidden); "1 Package" is one click back;
 ##               the package numbers are the same after the round trip
-##   9 GREY      "4 Weight", "5 Body" are greyed (disabled); "3 Suspension" is live since d1071487 (the step that replaced the greyed tab)
+##   9 GREY      "3 Suspension" is live since d1071487; "4 Weight" is live since 8f2ab9f7 (redefined: it was greyed here); "5 Body" is greyed (disabled)
 ##  10 UNDO      Easy size click = one undo step; the same size again = none; a typed section = one step
 ##  11 WORDS     no key name in any text of the chassis panel or the status line
 ##  12 LAYOUT    at 1280 x 720 the top bar, the layout, the 3D view, the chassis panel and the status line overlap nothing
@@ -221,9 +221,10 @@ func ui_bars() -> void:
 	ok(on2 and on1 and pk0 == JSON.stringify(ps.pkg()) and pk0 == pk_mid, "8 STEPS 2 Chassis: chassis panel %s; 1 Package back: package panel %s; package unchanged %s" % [on2, on1, pk0 == JSON.stringify(ps.pkg())])
 	# 9 GREY
 	var g3: bool = (ps.step_btns[3] as Button).visible and not (ps.step_btns[3] as Button).disabled   # d1071487 made 3 Suspension live (was: greyed)
-	var g45: bool = (ps.step_btns[4] as Button).disabled and (ps.step_btns[5] as Button).disabled
-	ok(g3 and g45 and String(ps.step_btns[3].text) == "3 Suspension" and String(ps.step_btns[4].text) == "4 Weight" and String(ps.step_btns[5].text) == "5 Body",
-		"9 GREY 3 Suspension is live (%s); 4 Weight, 5 Body are greyed (disabled): %s" % [g3, g45])
+	var g4: bool = (ps.step_btns[4] as Button).visible and not (ps.step_btns[4] as Button).disabled   # 8f2ab9f7 made 4 Weight live (it was greyed here)
+	var g5: bool = (ps.step_btns[5] as Button).disabled
+	ok(g3 and g4 and g5 and String(ps.step_btns[3].text) == "3 Suspension" and String(ps.step_btns[4].text) == "4 Weight" and String(ps.step_btns[5].text) == "5 Body",
+		"9 GREY 3 Suspension and 4 Weight are live (%s, %s); 5 Body is greyed (disabled): %s" % [g3, g4, g5])
 	await click_ctl(b2)
 	# 10 UNDO: an Easy size click, the same again, then a typed section
 	var u0: int = m.undo.size()

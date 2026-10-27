@@ -15,7 +15,7 @@ extends SceneTree
 ##   9 NORM      a junk front choice falls back to MacPherson strut, a known one is kept
 ##  --- the UI (a window, 1280 x 720, signals and real clicks):
 ##  10 STEPS     the 3 Suspension step is live (not greyed): one click shows the suspension panel; 2 Chassis and 1 Package click back; the package and the chassis unchanged
-##  11 GREY      4 Weight and 5 Body stay greyed
+##  11 GREY      5 Body stays greyed; 4 Weight is live since 8f2ab9f7 (redefined: it was greyed here)
 ##  12 UNDO      a front choice = one undo step; the same choice again = none; the rear = one step; Bounce = none
 ##  13 BOUNCE    Bounce +80 lifts the 3D front-left tyre by the travel (within 2 mm) and back at 0
 ##  14 WORDS     no key name in the suspension panel or the status line
@@ -280,8 +280,8 @@ func ui_bars() -> void:
 	var same := pk0 == JSON.stringify(ps.pkg()) and ch0 == JSON.stringify(ps.chassis())
 	ok(on3 and back1 and same, "10 STEPS 3 Suspension live: panel %s; back to 1 Package %s; package and chassis unchanged %s" % [on3, back1, same])
 	# 11 GREY
-	var g45: bool = (ps.step_btns[4] as Button).disabled and (ps.step_btns[5] as Button).disabled
-	ok(g45 and String(b3.text) == "3 Suspension", "11 GREY 4 Weight and 5 Body stay greyed: %s" % g45)
+	var g5: bool = (ps.step_btns[5] as Button).disabled and not (ps.step_btns[4] as Button).disabled   # 8f2ab9f7: 4 Weight is live, 5 Body stays greyed
+	ok(g5 and String(b3.text) == "3 Suspension", "11 GREY 5 Body stays greyed; 4 Weight is live (8f2ab9f7): %s" % g5)
 	await click_ctl(b3)
 	# 12 UNDO: one step per choice; Bounce is none
 	var u0: int = m.undo.size()
