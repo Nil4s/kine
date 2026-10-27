@@ -7,8 +7,10 @@ extends Node
 ##   SKETCH   a click on a plane in the browser (or any sketch tool) starts a sketch and turns the view square onto its plane. Lines, rectangles
 ##            and circles snap to the grid (5 mm, or 1 mm with the Snap button; Alt = free). Dimension: click a line, an edge of a rectangle or a
 ##            circle, type its size, Enter. The sketch panel lists every dimension as a number to retype.
-##   CREATE   Extrude / Revolve take the newest unused sketch: a dialog on the right (distance / angle, both sides, join / new body / cut) with a live
-##            preview; Enter or OK makes the feature.   Mirror reflects the body across a plane.
+##   CREATE   Extrude / Revolve take the newest unused sketch: a dialog on the right (distance / angle, both sides, taper angle, join / new body /
+##            cut / intersect) with a live preview; Enter or OK makes the feature.   Mirror reflects the body across a plane.
+##            Split cuts every body the plane crosses into two (a plane and an offset).
+##   MODIFY   Shell hollows the newest body: wall thickness and the face left open (one face, or none).
 ##   MODIFY   Fillet / Chamfer: click edges (sky blue), type the radius / distance, OK. The edge is remembered by where it sits on the body, so it
 ##            survives a sketch that is made bigger.
 ##   TIMELINE a step is selected by a click and EDITED by a double click (a sketch re-opens, a dialog re-opens with its numbers); the later steps
@@ -21,9 +23,12 @@ const PANEL_W := 250.0
 const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
-const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Dimension"]
-const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror"]
-const MODIFY_TOOLS := ["Fillet", "Chamfer"]
+const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension"]
+const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Offset plane", "Split"]
+const TOOL_KIND := {"Offset plane": "plane"}   # a tool's feature kind when it is not its lower-case name
+const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell"]
+const SHELL_OPEN := ["", "+x", "-x", "+y", "-y", "+z", "-z"]   # the open face of a shell (Part.SHELL_DIRS), in the dialog's order
+const SHELL_OPEN_TXT := ["Closed (no face open)", "Right face (+X)", "Left face (-X)", "Top face (+Y, up)", "Bottom face (-Y)", "Front face (+Z)", "Back face (-Z)"]
 const HINGE_TOOLS := ["Hinge"]
 const HSEC := 25.0   # the frames per second of the hinge's swing check (Part.hinge_sweep)
 const TIPS := {
@@ -31,10 +36,15 @@ const TIPS := {
 	"Rectangle": "RECTANGLE: drag from one corner to the other (or click both corners). Then Dimension it.",
 	"Circle": "CIRCLE: press the centre, drag out the radius.",
 	"Arc": "ARC: click the start, click the end, then click a point the arc passes through.",
+	"Spline": "SPLINE: click points for a smooth curve. Click the first point (or double-click) to close it; double-click ends an open curve. Drag a point to move it.",
 	"Dimension": "DIMENSION: pick a line, an edge of a rectangle or a circle, type its size, press Enter.",
 	"Extrude": "EXTRUDE: the newest sketch becomes a solid. Type a distance and press Enter.",
 	"Revolve": "REVOLVE: the newest sketch turns round its horizontal or vertical axis. Type the angle and press Enter.",
 	"Mirror": "MIRROR: the body and its reflection across a plane become one solid.",
+	"Split": "SPLIT: pick a plane and an offset (mm). Every body the plane cuts becomes two bodies. Press Enter.",
+	"Shell": "SHELL: the newest body becomes a hollow box with the wall thickness you type. Pick the face left open, press Enter.",
+	"Loft": "LOFT: pick two or more sketches in order (each a closed profile); the solid runs through them. Ruled = straight, Smooth = curved.",
+	"Offset plane": "OFFSET PLANE: pick Front, Top or Right and type a distance. The new plane is in the browser: click it to sketch on it.",
 	"Fillet": "FILLET: click edges (they turn sky blue), type a radius, press Enter or OK.",
 	"Chamfer": "CHAMFER: click edges, type a distance, press Enter or OK.",
 	"Hinge": "HINGE: click the part that turns, then the line it turns round (a straight edge, or two points on it). Type the angles and seconds, then OK."}
@@ -58,6 +68,9 @@ var edge_cache: Array = []     # the pickable edges of the model as the dialog s
 var res := {}                  # the last replay of the record (Part.replay)
 var prev := {}                 # the dialog's preview replay
 var hover_edge := -1
+var spl_drag := {}             # a spline point being dragged: {"ent", "pt"} (sketch Spline tool)
+var spl_last_ms := -100000     # the last Spline click (ms) and its screen point: a double-click ends the curve
+var spl_last_p := Vector2.ZERO
 var hover_ent := {}
 var draft := {}                # a shape in progress: {"k", "a", "b", "down", "pts"}
 var typed := ""
@@ -118,7 +131,12 @@ var f_both: CheckBox
 var f_op: OptionButton
 var f_axis: OptionButton
 var f_plane: OptionButton
+var f_taper: LineEdit
+var f_open: OptionButton
 var f_edges: Label
+var f_prof: OptionButton       # the loft dialog: "Add a sketch..." then each sketch (its picks, in order, are dlg["sketches"])
+var f_prof_clear: Button
+var f_ruled: OptionButton      # the loft dialog: ruled (straight) or smooth
 var dim_edit: LineEdit
 var note: PanelContainer
 var note_l: Label
@@ -302,9 +320,9 @@ func _icon(btn: Button, icon: String) -> void:
 
 func _tool_btn(row: HBoxContainer, t: String) -> void:
 	var btn: Button = m._button(t, _pick.bind(t), "%s. %s" % [t, String(TIPS[t]).get_slice(": ", 1)])
-	btn.name = "part_tool_" + t.to_lower()
+	btn.name = "part_tool_" + t.to_lower().replace(" ", "_")
 	btn.toggle_mode = true
-	_icon(btn, "part_" + t.to_lower())
+	_icon(btn, "part_" + t.to_lower().replace(" ", "_"))
 	tool_btns[t] = btn
 	row.add_child(btn)
 
@@ -462,7 +480,7 @@ func _build_side() -> void:
 	f_both.toggled.connect(func(_v): _preview())
 	f_op = OptionButton.new()
 	f_op.name = "part_op"
-	for o in ["Join", "New body", "Cut"]:
+	for o in ["Join", "New body", "Cut", "Intersect"]:
 		f_op.add_item(o)
 	f_op.item_selected.connect(func(_i): _preview())
 	f_axis = OptionButton.new()
@@ -476,6 +494,26 @@ func _build_side() -> void:
 		f_plane.add_item(o)
 	f_plane.selected = 2
 	f_plane.item_selected.connect(func(_i): _preview())
+	f_taper = _field("part_taper")
+	f_open = OptionButton.new()
+	f_open.name = "part_shell_open"
+	for o in SHELL_OPEN_TXT:
+		f_open.add_item(o)
+	f_open.item_selected.connect(func(_i): _preview())
+	f_prof = OptionButton.new()
+	f_prof.name = "part_profiles"
+	f_prof.focus_mode = Control.FOCUS_NONE
+	f_prof.item_selected.connect(_prof_picked)
+	f_prof_clear = Button.new()
+	f_prof_clear.name = "part_profiles_clear"
+	f_prof_clear.text = "Start the profiles again"
+	f_prof_clear.focus_mode = Control.FOCUS_NONE
+	f_prof_clear.pressed.connect(func(): dlg["sketches"] = []; _prof_sync(); _preview())
+	f_ruled = OptionButton.new()
+	f_ruled.name = "part_ruled"
+	for o in ["Ruled (straight)", "Smooth (curved)"]:
+		f_ruled.add_item(o)
+	f_ruled.item_selected.connect(func(_i): _preview())
 	f_edges = _label("")
 	f_edges.name = "part_edges_label"
 	dlg_info = _label("", 12, true)
@@ -664,7 +702,7 @@ func begin_sketch(plane_name: String, edit_id := "") -> void:
 	draft = {}
 	typed = ""
 	_view_plane(plane_name)
-	_say("%s on the %s plane. Draw with Line, Rectangle, Circle or Arc, then Dimension it." % [String(_sk().get("name", "Sketch")), plane_name.capitalize()])
+	_say("%s on the %s. Draw with Line, Rectangle, Circle or Arc, then Dimension it." % [String(_sk().get("name", "Sketch")), Part.plane_words(rec, plane_name)])
 	bu.sync()
 
 
@@ -698,7 +736,7 @@ func finish_sketch() -> void:
 
 
 func _plane() -> Dictionary:
-	return Part.plane(String(_sk().get("plane", "front")))
+	return Part.resolve_plane(_rec(), String(_sk().get("plane", "front")))
 
 
 ## the sketch plane point (mm) under a screen point, or null
@@ -738,6 +776,9 @@ func _after_sketch_edit() -> void:
 
 
 func _close_chain() -> void:
+	if String(draft.get("k", "")) == "spline" and (draft.get("pts", []) as Array).size() >= 3:
+		_spline_add(false)   # an open curve of three or more points is kept
+		return
 	draft = {}
 	typed = ""
 	pov.queue_redraw()
@@ -795,7 +836,14 @@ func _press_sketch(p: Vector2) -> bool:
 	if h == null:
 		return true
 	var a := snap(h as Vector2)
+	if tool == "Spline" and draft.is_empty():
+		var hp := _spline_point_at(p)
+		if not hp.is_empty():
+			spl_drag = hp   # a point of a curve on the sheet: drag it (the release keeps it)
+			return true
 	match tool:
+		"Spline":
+			_spline_click(p, a)
 		"Line":
 			if draft.is_empty():
 				draft = {"k": "line", "a": a, "b": a, "start": a}
@@ -836,6 +884,10 @@ func _press_sketch(p: Vector2) -> bool:
 
 
 func _release(p: Vector2) -> bool:
+	if not spl_drag.is_empty():
+		spl_drag = {}
+		pov.queue_redraw()
+		return true
 	if sk == "" or draft.is_empty() or not draft.get("down", false):
 		return false
 	var h: Variant = hit(p)
@@ -863,6 +915,12 @@ func _commit_draft() -> void:
 func _motion(p: Vector2) -> bool:
 	if sk != "":
 		var h: Variant = hit(p)
+		if not spl_drag.is_empty():
+			if h != null:
+				var pts: Array = _sk()["ents"][int(spl_drag["ent"])]["pts"]
+				pts[int(spl_drag["pt"])] = Part.arr2(snap(h as Vector2))
+				pov.queue_redraw()
+			return false
 		if h != null and not draft.is_empty():
 			draft["b"] = snap(h as Vector2)
 		if tool == "Dimension":
@@ -960,6 +1018,10 @@ func pick_ent(p: Vector2) -> Dictionary:
 			"arc":
 				segs.append([Part.v2(e["a"]), Part.v2(e["m"]), ""])
 				segs.append([Part.v2(e["m"]), Part.v2(e["b"]), ""])
+			"bspline":
+				var sp: Array = e["pts"]
+				for j in sp.size() - 1 + (1 if bool(e.get("closed", false)) else 0):
+					segs.append([Part.v2(sp[j]), Part.v2(sp[(j + 1) % sp.size()]), ""])
 		for sg in segs:
 			var q := Geometry2D.get_closest_point_to_segment(p, scr(sg[0]), scr(sg[1]))
 			var d := p.distance_to(q)
@@ -1071,10 +1133,24 @@ func open_dialog(t: String, edit: int) -> void:
 	var f: Dictionary = {}
 	if edit >= 0:
 		f = (rec["features"][edit] as Dictionary).duplicate(true)
-	dlg = {"t": t.to_lower(), "edit": edit}
+	dlg = {"t": String(TOOL_KIND.get(t, t.to_lower())), "edit": edit}
 	_clear_rows()
 	picked = []
 	var kind := String(dlg["t"])
+	if kind == "loft":
+		dlg["sketches"] = (f.get("sketches", []) as Array).duplicate() if edit >= 0 else []
+		dlg["pick"] = _sketch_ids(rec)
+		dlg_rows.add_child(f_prof)
+		dlg_rows.add_child(f_edges)
+		dlg_rows.add_child(f_prof_clear)
+		_prof_sync()
+		dlg_rows.add_child(f_ruled)
+		f_ruled.select(0 if bool(f.get("ruled", true)) else 1)
+		_op_row(f)
+	elif kind == "plane":
+		_row("Distance", f_num, "%s mm" % _fmt(float(f.get("mm", 20.0))))
+		dlg_rows.add_child(f_plane)
+		f_plane.select(PlanesIdx.find(String(f.get("from", "front"))))
 	if kind == "extrude" or kind == "revolve":
 		var sid: String = String(f.get("sketch", "")) if edit >= 0 else Part.profile_sketch(rec)
 		dlg["sketch"] = sid
@@ -1083,6 +1159,7 @@ func open_dialog(t: String, edit: int) -> void:
 		_row("Distance", f_num, "%s mm" % _fmt(float(f.get("dist", 10.0))))
 		f_both.set_pressed_no_signal(bool(f.get("both", false)))
 		dlg_rows.add_child(f_both)
+		_row("Taper angle", f_taper, "%s deg" % _fmt(float(f.get("taper", 0.0))))
 		_op_row(f)
 	elif kind == "revolve":
 		dlg_rows.add_child(f_axis)
@@ -1106,7 +1183,15 @@ func open_dialog(t: String, edit: int) -> void:
 		dlg_rows.add_child(f_plane)
 		f_plane.select(PlanesIdx.find(String(f.get("plane", "right"))))
 		_op_row(f)
-	f_op.visible = kind in ["extrude", "revolve"]
+	elif kind == "split":
+		dlg_rows.add_child(f_plane)
+		f_plane.select(PlanesIdx.find(String(f.get("plane", "right"))))
+		_row("Offset along its normal", f_num, "%s mm" % _fmt(float(f.get("at", 0.0))))
+	elif kind == "shell":
+		_row("Wall thickness", f_num, "%s mm" % _fmt(float(f.get("thick", 5.0))))
+		dlg_rows.add_child(f_open)
+		f_open.select(maxi(SHELL_OPEN.find(String(f.get("open", "+y"))), 0))
+	f_op.visible = kind in ["extrude", "revolve", "loft"]
 	if kind == "hinge":
 		_hinge_rows()
 	side_title.text = ("EDIT " if edit >= 0 else "") + kind.to_upper()
@@ -1123,9 +1208,43 @@ func open_dialog(t: String, edit: int) -> void:
 const PlanesIdx := ["front", "top", "right"]
 
 
+## the sketches a loft can take, by id (the order of the picker's items after its first "Add a sketch..." row)
+func _sketch_ids(rec: Dictionary) -> Array:
+	var out := []
+	for f in rec.get("features", []):
+		if f["t"] == "sketch":
+			out.append(String(f["id"]))
+	return out
+
+
+## the loft's picker and profile list: "Add a sketch..." then each sketch; the picked ones are named in order
+func _prof_sync() -> void:
+	var rec := _rec()
+	var names := []
+	for sid in dlg.get("sketches", []):
+		names.append(String(Part.feature(rec, String(sid)).get("name", sid)))
+	f_edges.text = "Profiles:  %s" % (" , ".join(names) if not names.is_empty() else "none yet (pick two or more)")
+	f_prof.clear()
+	f_prof.add_item("Add a sketch...")
+	for sid in dlg.get("pick", []):
+		f_prof.add_item(String(Part.feature(rec, String(sid)).get("name", sid)))
+	f_prof.select(0)
+
+
+func _prof_picked(i: int) -> void:
+	var pick: Array = dlg.get("pick", [])
+	if i > 0 and i - 1 < pick.size() and dlg.get("t", "") == "loft":
+		var sid := String(pick[i - 1])
+		var ids: Array = dlg["sketches"]
+		if not ids.has(sid):
+			ids.append(sid)
+	_prof_sync()
+	_preview()
+
+
 ## the dialog's rows go; the field controls are kept (they are re-parented into the next dialog)
 func _clear_rows() -> void:
-	for c in [f_num, f_ang, f_both, f_op, f_axis, f_plane, f_edges, f_from, f_to, f_dur, f_dial]:
+	for c in [f_num, f_ang, f_both, f_op, f_axis, f_plane, f_taper, f_open, f_edges, f_from, f_to, f_dur, f_dial, f_prof, f_prof_clear, f_ruled]:
 		if (c as Node).get_parent() != null:
 			(c as Node).get_parent().remove_child(c)
 	for c in dlg_rows.get_children():
@@ -1149,7 +1268,7 @@ func _row(label: String, le: LineEdit, txt: String) -> void:
 
 
 func _op_row(f: Dictionary) -> void:
-	if String(dlg["t"]) == "extrude" or String(dlg["t"]) == "revolve":
+	if String(dlg["t"]) == "extrude" or String(dlg["t"]) == "revolve" or String(dlg["t"]) == "loft":
 		var h := HBoxContainer.new()
 		var l := _label("Operation")
 		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1191,13 +1310,14 @@ func dialog_feature() -> Dictionary:
 	var kind := String(dlg["t"])
 	var edit := int(dlg["edit"])
 	var f := {}
-	var op: String = Part.OPS[clampi(f_op.selected, 0, 2)]
+	var op: String = Part.OPS[clampi(f_op.selected, 0, Part.OPS.size() - 1)]
 	match kind:
 		"extrude":
 			var d := _num(f_num)
 			if is_nan(d) or absf(d) < 1e-6 or String(dlg.get("sketch", "")) == "":
 				return {}
-			f = {"sketch": dlg["sketch"], "dist": d, "both": f_both.button_pressed, "op": op}
+			var tp := _num(f_taper)
+			f = {"sketch": dlg["sketch"], "dist": d, "both": f_both.button_pressed, "op": op, "taper": 0.0 if is_nan(tp) else tp}
 		"revolve":
 			var a := _num(f_ang)
 			if is_nan(a) or absf(a) < 1e-6 or String(dlg.get("sketch", "")) == "":
@@ -1214,6 +1334,26 @@ func dialog_feature() -> Dictionary:
 			f["r" if kind == "fillet" else "dist"] = r
 		"mirror":
 			f = {"plane": PlanesIdx[clampi(f_plane.selected, 0, 2)], "op": "join"}
+		"split":
+			var at := _num(f_num)
+			if is_nan(at):
+				return {}
+			f = {"plane": PlanesIdx[clampi(f_plane.selected, 0, 2)], "at": at}
+		"shell":
+			var th := _num(f_num)
+			if is_nan(th) or th <= 0.0:
+				return {}
+			f = {"body": maxi(int(res.get("bodies", 0)) - 1, 0), "thick": th, "open": SHELL_OPEN[clampi(f_open.selected, 0, SHELL_OPEN.size() - 1)]}
+		"loft":
+			var ids: Array = dlg.get("sketches", [])
+			if ids.size() < 2:
+				return {}
+			f = {"sketches": ids.duplicate(), "ruled": f_ruled.selected == 0, "op": op}
+		"plane":
+			var pd := _num(f_num)
+			if is_nan(pd) or absf(pd) < 1e-6:
+				return {}
+			f = {"from": PlanesIdx[clampi(f_plane.selected, 0, 2)], "mm": pd}
 		"hinge":
 			var a0 := _num(f_from)
 			var a1 := _num(f_to)
@@ -1272,8 +1412,14 @@ func _dialog_hint(kind: String) -> String:
 		return "Sketch a closed profile first, then type a number." if String(dlg.get("sketch", "")) == "" else "Type a number."
 	if kind == "fillet" or kind == "chamfer":
 		return "Click an edge on the model, then type a size."
+	if kind == "shell":
+		return "Type a wall thickness (mm), then press Enter."
 	if kind == "hinge":
 		return _hinge_next()
+	if kind == "loft":
+		return "Pick two or more sketches, in order."
+	if kind == "plane":
+		return "Type the distance from the plane (mm)."
 	return ""
 
 
@@ -1306,7 +1452,7 @@ func ok_pressed() -> void:
 	tool = ""
 	_tool_sync()
 	bu.sync()
-	if kind == "extrude" or kind == "revolve":
+	if kind == "extrude" or kind == "revolve" or kind == "loft":
 		_view_model()
 
 
@@ -1366,7 +1512,7 @@ func edit_step(i: int) -> void:
 		tool = ""
 		begin_sketch(String(f["plane"]), String(f["id"]))
 	else:
-		tool = String(f["t"]).capitalize()
+		tool = "Offset plane" if f["t"] == "plane" else String(f["t"]).capitalize()
 		open_dialog(tool, i)
 	_say("Editing step %d of %d: the later steps update when you finish." % [i + 1, _feats().size()])
 
@@ -1423,7 +1569,7 @@ func _timeline_sync() -> void:
 
 func _browser_sync() -> void:
 	var feats := _feats()
-	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], f["t"]]), sk, res.get("bodies", 0), prev.is_empty()])
+	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], f["t"], f.get("mm", 0), f.get("from", "")]), sk, res.get("bodies", 0), prev.is_empty()])
 	if sig == _browser_sig:
 		return
 	_browser_sig = sig
@@ -1452,6 +1598,11 @@ func _browser_sync() -> void:
 		b.tooltip_text = "start a sketch on the %s plane" % pn
 		b.pressed.connect(func(): begin_sketch(pn))
 		browser_vb.add_child(b)
+	for f in feats.filter(func(f): return f["t"] == "plane"):   # E: offset planes, after the three
+		var ob := _row_btn("    %s" % String(f["name"]), "part_plane_" + String(f["id"]))
+		ob.tooltip_text = "start a sketch on %s" % Part.plane_words(_rec(), String(f["id"]))
+		ob.pressed.connect(func(): begin_sketch(String(f["id"])))
+		browser_vb.add_child(ob)
 
 
 func _row_btn(txt: String, nm: String) -> Button:
@@ -1530,7 +1681,9 @@ func _tool_sync() -> void:
 		var w := why
 		if ok and (t == "Extrude" or t == "Revolve") and not has_sketch:
 			w = "sketch a closed profile first"
-		elif ok and (t == "Mirror" or t == "Fillet" or t == "Chamfer" or t == "Hinge") and not has_body:
+		elif ok and t == "Loft" and _feats().filter(func(f): return f["t"] == "sketch").size() < 2:
+			w = "sketch two profiles first (a loft joins them)"
+		elif ok and (t == "Mirror" or t == "Fillet" or t == "Chamfer" or t == "Hinge" or t == "Split" or t == "Shell") and not has_body:
 			w = "make a solid first (Extrude or Revolve)"
 		m._grey(b, w)
 		b.set_pressed_no_signal(t == tool and w == "")
@@ -1740,7 +1893,7 @@ func place_toast(t: Label) -> void:
 
 
 func _view_plane(pn: String) -> void:
-	var pl := Part.plane(pn)
+	var pl := Part.resolve_plane(_rec(), pn)
 	var n: Vector3 = pl["n"]
 	var yaw_deg := rad_to_deg(atan2(n.x, n.z))
 	var pitch_deg := -89.0 if pn == "top" else 0.0
@@ -1875,6 +2028,16 @@ func _draw_sketch() -> void:
 				pov.draw_circle(scr(cc), 3.5, Color.WHITE)
 			"arc":
 				_draw_arc_ent(Part.v2(e["a"]), Part.v2(e["m"]), Part.v2(e["b"]), c)
+			"bspline":
+				var closed := bool(e.get("closed", false))
+				var curve := PackedVector2Array()
+				for q in _spline_curve(e["pts"], closed):
+					curve.append(scr(q))
+				if closed:
+					pov.draw_colored_polygon(curve, Color(SKY, 0.12))
+				pov.draw_polyline(curve, c, 2.5)
+				for q in e["pts"]:
+					pov.draw_circle(scr(Part.v2(q)), 4.0, Color.WHITE)
 	if show_dims:
 		for d in f.get("dims", []):
 			_draw_dim(ents, d)
@@ -2013,6 +2176,64 @@ func _draw_draft() -> void:
 				pov.draw_line(scr(pts[0]), scr(b), c, 1.5)
 			elif pts.size() == 2:
 				_draw_arc_ent(pts[0], b, pts[1], c)
+		"spline":
+			var sp: Array = (draft.get("pts", []) as Array).duplicate()
+			for q in sp:
+				pov.draw_circle(scr(q), 5.0, c)
+			sp.append(b)
+			var curve := PackedVector2Array()
+			for q in _spline_curve(sp, false):
+				curve.append(scr(q))
+			pov.draw_polyline(curve, c, 2.0)
+
+
+# ---------------------------------------------------------------- sketch splines (Spline tool)
+
+## a Spline click: a point is added; a click on the first point (3 or more points) closes the curve; a double-click ends an open one
+func _spline_click(p: Vector2, a: Vector2) -> void:
+	var pts: Array = draft.get("pts", [])
+	var now := Time.get_ticks_msec()
+	var dbl := now - spl_last_ms < DOUBLE_MS and p.distance_to(spl_last_p) < 8.0
+	spl_last_ms = now
+	spl_last_p = p
+	if not pts.is_empty() and scr(pts[0]).distance_to(p) < 12.0:
+		if pts.size() >= 3:
+			_spline_add(true)
+		return
+	if dbl and pts.size() >= 3:
+		_spline_add(false)
+		return
+	if not pts.is_empty() and (pts.back() as Vector2).distance_to(a) < 0.5:
+		return
+	pts.append(a)
+	draft = {"k": "spline", "pts": pts, "b": a}
+
+
+func _spline_add(closed: bool) -> void:
+	var out := []
+	for q in draft.get("pts", []):
+		out.append(Part.arr2(q))
+	_add_ent({"k": "bspline", "pts": out, "closed": closed})
+	draft = {}
+	typed = ""
+
+
+## the point of a curve on the sheet under a screen point (within 10 px): {"ent", "pt"} or {}
+func _spline_point_at(p: Vector2) -> Dictionary:
+	var ents: Array = _sk().get("ents", [])
+	for i in ents.size():
+		if String(ents[i]["k"]) != "bspline":
+			continue
+		var sp: Array = ents[i]["pts"]
+		for j in sp.size():
+			if scr(Part.v2(sp[j])).distance_to(p) < 10.0:
+				return {"ent": i, "pt": j}
+	return {}
+
+
+## the curve drawn for a spline: the same one the kernel is given (Part.spline_curve)
+func _spline_curve(pts: Array, closed: bool) -> PackedVector2Array:
+	return Part.spline_curve(pts, closed)
 
 
 # ---------------------------------------------------------------- C3 hinge: a part turns about a line; must not touch
