@@ -3,7 +3,7 @@ extends SceneTree
 ## Bars (real clicks and drags through root.push_input at 1280 x 720, from Easy home: a 3D BUILDING project, Part, Easy; no keyboard):
 ##   1 REPEAT IT   refused in plain words with no solid; then a shape pulled up, Repeat it: ONE undo step, a Part pattern step (row, 3 copies),
 ##                 the volume is 3 times the shape (within 3 pct), no failed step; the How many slider drag to 5: ONE undo step, 5 copies
-##   2 RING        Ring: ONE undo step, the pattern turns circular round the up axis (Y), no failed step; the Gap slider is off in Ring
+##   2 RING        Ring: ONE undo step, the pattern turns circular round the up axis (Y), no failed step; the Gap slider sizes the circle (bar redefined f9791999)
 ##   3 STICK       Cut in two (two pieces), Stick together, click each piece in the view, Keep the overlap: refused in words, no undo step;
 ##                 then Join: ONE undo step, one solid left, a combine step; with one piece left Stick together is refused in words
 ##   4 WORDS       no key name in any visible Easy text (labels, tooltips, hints, status) with the MAKE row, the repeat row and the stick row open
@@ -276,7 +276,16 @@ func _init() -> void:
 	ok(src.length() < 1e-6 and hits == 0, "2 the original stays at the origin (%s) and no copy is closer than one piece width (%d too close)" % [src, hits])
 	var c_or: Vector3 = (ring_vol[false]["props"][1] as Dictionary).get("center", Vector3.ONE)
 	ok(c_or.length() < 1e-6, "2 (the instrument can move: round the origin the first copy sits ON the original, centre %s)" % [c_or])
-	ok(not (row_gap["slider"] as HSlider).editable, "2 the Gap slider is off in Ring")
+	# bar redefined (f9791999, PR #69: the Ring's circle is sized by the piece width + the gap, so Gap is no longer row-only): the Gap slider is
+	# ON in Ring and moving it widens the circle, one undo step
+	var ubg: int = m.undo.size()
+	var a_before: AABB = pu.res.get("aabb", AABB())
+	await drag_slider(row_gap["slider"], 20.0)
+	await idle(2)
+	var a_after: AABB = pu.res.get("aabb", AABB())
+	ok((row_gap["slider"] as HSlider).editable and a_after.size.x > a_before.size.x + 0.05 and m.undo.size() == ubg + 1
+		and (pu.res.get("errors", {}) as Dictionary).is_empty(),
+		"2 the Gap slider works in Ring: Further apart widens the circle (%.3f -> %.3f m), ONE undo step (%d -> %d)" % [a_before.size.x, a_after.size.x, ubg, m.undo.size()])
 	await click_ctl(ep.rep_btns["row"])
 	ok(String(last_of(m.S.part, "pattern").get("kind", "")) == "linear", "2 Row again: the copies go back in a straight line")
 	# 3 STICK TOGETHER: two pieces from Cut in two
