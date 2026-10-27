@@ -247,6 +247,35 @@ func _init() -> void:
 	var r3: Dictionary = pu.res
 	ok(String(pt3.get("kind", "")) == "circular" and String(pt3.get("axis", "")) == "y" and float(pt3.get("deg", 0.0)) == 360.0 and m.undo.size() == ub4 + 1 and (r3.get("errors", {}) as Dictionary).is_empty(),
 		"2 Ring: a full turn round the up axis (Y), no failed step, ONE undo step (%d -> %d)" % [ub4, m.undo.size()])
+	ok(absf(float(r3.get("volume", 0.0)) - int(pt3.get("count", 0)) * vol0) < 1e-3 * vol0 and int(pt3.get("count", 0)) == 5,
+		"2 Ring copies do not pile up: volume %.3f cm3 = %d x %.3f (a ring round the origin overlapped them)" % [float(r3.get("volume", 0.0)) * 1e6, int(pt3.get("count", 0)), vol0 * 1e6])
+	var a3: AABB = r3.get("aabb", AABB())
+	ok(a3.size.x > 2.0 * a3.size.y or a3.size.z > 0.0 and a3.size.x * a3.size.z > 4.0 * vol0 / maxf(a3.size.y, 1e-9),
+		"2 the ring spreads out round the piece (box %s m)" % [a3.size])
+	# a 40 x 40 x 20 mm block centred on the origin (where Easy's pieces start), ringed 6 times: round the origin the copies pile onto one another;
+	# beside the piece (Easy's Ring) they are six apart pieces and the original has not moved
+	var ring_vol := {}
+	for bs in [false, true]:
+		var rr := Part.make("Ring at the origin")
+		rr["features"] = [
+			{"t": "sketch", "id": "f1", "name": "Sketch1", "plane": "front", "ents": [{"k": "rect", "a": [-20.0, -20.0], "b": [20.0, 20.0]}], "dims": []},
+			{"t": "extrude", "id": "f2", "name": "Extrude1", "sketch": "f1", "dist": 20.0, "both": true, "op": "new"},
+			{"t": "pattern", "id": "f3", "name": "Pattern1", "body": 0, "kind": "circular", "count": 6, "axis": "y", "deg": 360.0, "w": 40.0, "gap": 10.0, "op": "new", "beside": bs}]
+		rr["seq"] = 3
+		var q := Part.replay(rr, -1, {"props": true})
+		ring_vol[bs] = q
+	var v1: float = 3.2e-5   # 40 x 40 mm, 20 mm thick (both sides: 10 + 10)
+	ok(float(ring_vol[true].get("volume", 0.0)) > 5.99 * v1 and int(ring_vol[true].get("bodies", 0)) == 6,
+		"2 Ring beside a cube at the origin: 6 pieces, %.3f cm3 = 6 x 32" % (float(ring_vol[true].get("volume", 0.0)) * 1e6))
+	var hits := 0
+	var src: Vector3 = (ring_vol[true]["props"][0] as Dictionary).get("center", Vector3.ONE)
+	for k in range(1, 6):
+		var ck: Vector3 = (ring_vol[true]["props"][k] as Dictionary).get("center", Vector3.ZERO)
+		if ck.distance_to(src) < 0.0399:
+			hits += 1
+	ok(src.length() < 1e-6 and hits == 0, "2 the original stays at the origin (%s) and no copy is closer than one piece width (%d too close)" % [src, hits])
+	var c_or: Vector3 = (ring_vol[false]["props"][1] as Dictionary).get("center", Vector3.ONE)
+	ok(c_or.length() < 1e-6, "2 (the instrument can move: round the origin the first copy sits ON the original, centre %s)" % [c_or])
 	ok(not (row_gap["slider"] as HSlider).editable, "2 the Gap slider is off in Ring")
 	await click_ctl(ep.rep_btns["row"])
 	ok(String(last_of(m.S.part, "pattern").get("kind", "")) == "linear", "2 Row again: the copies go back in a straight line")

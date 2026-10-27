@@ -44,6 +44,8 @@ extends RefCounted
 ## "mm" (linear: the spacing), "dir": "x"|"y"|"z" (linear: the direction), "axis": "x"|"y"|"z" (circular: the axis through the origin), "deg" (circular:
 ## the total angle; a full turn spreads the copies evenly, a smaller angle runs from the first copy to the last), "op": "join" (the copies fuse into body N)
 ## | "new" (each copy is a body of its own, with body N's look). Built from the kernel's translate / rotate (one shape per copy, not one fused shape).
+## "beside": true (circular, Easy's Ring): the axis runs through a point beside the body, not the origin, so the original stays and the ring
+## is just wide enough that neighbours sit "w" + "gap" mm apart.
 ## COMBINE (Fusion Combine): {"t": "combine", "id", "name", "target": N, "tools": [M, ...], "op": "join"|"cut"|"intersect", "keep": bool}: the target
 ## body joins, cuts or shares volume with each tool body in turn (the tools in order). The result takes the target's place in the body list; the tool
 ## bodies go (keep = true leaves them where they are, unchanged). Every other body keeps its place and its look, the target keeps its look.
@@ -1434,8 +1436,23 @@ static func _pattern(bodies: Array, looks: Array, f: Dictionary) -> String:
 		if absf(total) < 1e-6:
 			return "the angle must not be zero"
 		var step := total / n if absf(total) >= TAU - 1e-9 else total / (n - 1)
+		var pivot := Vector3.ZERO   # the axis runs through the origin (Expert), or through a point BESIDE the body ("beside": Easy's Ring)
+		if bool(f.get("beside", false)):
+			var mp := KCad.mass_properties(bodies[bi])
+			var side: Vector3 = Vector3.RIGHT if absf(ax.dot(Vector3.RIGHT)) < 0.9 else Vector3.BACK
+			var chord := (float(f.get("w", 10.0)) + float(f.get("gap", 10.0))) * MM   # neighbours sit a piece width plus the gap apart
+			var r := chord / (2.0 * sin(absf(step) * 0.5))
+			pivot = (mp.get("center", Vector3.ZERO) as Vector3) - side * r
 		for i in range(1, n):
-			copies.append(KCad.rotate(bodies[bi], ax, step * i))
+			if pivot.length() < 1e-12:
+				copies.append(KCad.rotate(bodies[bi], ax, step * i))
+				continue
+			var t0 := KCad.translate(bodies[bi], -pivot)
+			var t1 := KCad.rotate(t0, ax, step * i)
+			KCad.release(t0)
+			copies.append(KCad.translate(t1, pivot) if t1 != 0 else 0)
+			if t1 != 0:
+				KCad.release(t1)
 	else:
 		var d: Vector3 = AXIS_VEC.get(String(f.get("dir", "x")), Vector3.RIGHT) * float(f.get("mm", 0.0)) * MM
 		if d.length() < 1e-9:

@@ -1035,6 +1035,7 @@ func _rep_mode(ring: bool) -> void:
 	_begin("Ring" if ring else "Row")
 	var cur := Part.feature(_rec(), rep_id)
 	cur["kind"] = "circular" if ring else "linear"
+	cur["beside"] = ring   # round a point beside the piece: a ring round the origin piles copies of a piece AT the origin onto each other
 	cur["axis"] = "y"
 	cur["deg"] = 360.0
 	cur["dir"] = "x"
@@ -1042,7 +1043,7 @@ func _rep_mode(ring: bool) -> void:
 	_end()
 	pu.sync()
 	_values_sync()
-	_say("Ring: the copies go round the up axis" if ring else "Row: the copies go in a straight line")
+	_say("Ring: the copies go round in a circle beside it" if ring else "Row: the copies go in a straight line")
 
 
 ## STICK TOGETHER: Part's combine step (Expert Combine): the first picked piece is the target, the second the tool; one undo step
