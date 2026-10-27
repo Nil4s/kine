@@ -1,6 +1,6 @@
 ## BATCH DIALOG (ROADMAP 80): the Batch... button of the Export dialog. Tick scenes from scenes/, pick one format and one folder,
-## Export batch: each scene is exported in turn (scripts/batch_export.gd), a progress line before each, and a summary at the end
-## (n done, failures named with a next step). It reads the scene files only; the open scene is never touched.
+## Export batch: each scene is a job of the render queue (scripts/render_queue.gd), in turn, a progress line before each, and a summary
+## at the end (n done, each job with its time; failures named with a next step). It reads the scene files only; the open scene is never touched.
 class_name BatchDialog
 extends RefCounted
 
@@ -170,22 +170,22 @@ func _on_run() -> void:
 	ui_run.disabled = true
 	ui_summary.text = ""
 	var n := scenes.size()
-	var res := {"done": 0, "files": [], "failed": [], "lines": []}
 	var dir := ui_dir.text
+	var folder := RenderQueue.out_dir(dir)
 	var taken := {}
 	var fmt := _fmt()
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir.strip_edges().replace("\\", "/").trim_suffix("/")))
+	var results := []
+	var done := 0
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(folder))
 	for i in n:
 		ui_status.text = "exporting %d of %d: %s ..." % [i + 1, n, String(scenes[i]).get_file()]
 		await host.get_tree().process_frame
-		var r := BatchExport.export_one(String(scenes[i]), fmt, dir, taken)
+		var r := RenderQueue.run_one(RenderQueue.job(String(scenes[i]), fmt), folder, taken)
+		results.append(r)
 		if r["ok"]:
-			(res["files"] as Array).append(r["file"])
-		else:
-			(res["failed"] as Array).append(r)
+			done += 1
 		ui_status.text = "%d of %d: %s" % [i + 1, n, String(r["msg"])]
-	var done := (res["files"] as Array).size()
-	ui_summary.text = "\n".join(BatchExport.summary_lines(done, res["failed"]))
+	ui_summary.text = "\n".join(RenderQueue.summary_lines(done, results))
 	ui_status.text = "Batch finished: %d of %d written to %s" % [done, n, dir]
 	running = false
 	ui_run.disabled = false

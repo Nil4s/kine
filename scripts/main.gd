@@ -260,7 +260,7 @@ const RIBBON_GROUPS := {
 		["ACT", ["Sit here", "Pick up", "Put down", "Step up", "Throw to...", "Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]],
 		["REACT", ["Reactions", "React to the hit (physics)", "Add impact frames", "Remove impact frames"]]],
 	"CHECK": [["JUDGE", ["Check", "Realism score", "Safety sheet", "Real-mocap check"]], ["FIX", ["Polish", "Fix moves through the body", "Timing coach", "Speed limits"]],
-		["PHYSICS", ["Make it physical", "Accept span", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check"]],
+		["PHYSICS", ["Make it physical", "Accept span", "Keep this pose", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check"]],
 		["FIGHT", ["Fight distance", "Auto opponent", "Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound"]],
 		["MUSIC", ["Fight to the beat", "Choreograph to the song"]], ["STYLE", ["My style", "Use my style", "Star this clip", "My best take", "Make this one more like my best", "What I learned from you", "My combos"]],
 		["CAMERA", ["Auto camera", "My camera", "Frame it my way"]], ["SHOW", ["Dummy (H)", "Frame data", "Frame boxes", "Frame rate"]]],
@@ -12196,7 +12196,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
 const ICON_OF := {"Library": "library", "Export model (GLB / OBJ)": "export_glb", "Throw to...": "throw","Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Pack scene (zip)": "pack", "Unpack zip...": "unpack", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Keep balance": "keep_balance", "Ouch meter": "ouch", "Show problems on the body": "red_spots", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
-	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "Parry rebound": "parry", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Reaction direction": "reactdir", "Sell the hit": "sellhit", "Gaze director": "gaze", "Safety sheet": "safety", "Floor plan": "floorplan", "Breakfall check": "breakfall", "Recovery step": "recovery", "Fight rhythm": "rhythm", "Precog check": "precog", "Auto opponent": "autoopp", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Momentum ledger": "momentum", "Airborne spin check": "spin", "Real-mocap check": "mocapchk", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "Star this clip": "star_clip", "My best take": "best_take", "Make this one more like my best": "best_nudge", "Speed limits": "speed_env", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix",
+	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "Parry rebound": "parry", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Reaction direction": "reactdir", "Sell the hit": "sellhit", "Gaze director": "gaze", "Safety sheet": "safety", "Floor plan": "floorplan", "Breakfall check": "breakfall", "Recovery step": "recovery", "Fight rhythm": "rhythm", "Precog check": "precog", "Auto opponent": "autoopp", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Momentum ledger": "momentum", "Airborne spin check": "spin", "Real-mocap check": "mocapchk", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "Star this clip": "star_clip", "My best take": "best_take", "Make this one more like my best": "best_nudge", "Speed limits": "speed_env", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Keep this pose": "keep", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Body: fighter archetype...": "archetype", "Body: from height, weight, sex, age, build": "body_nums", "Mannequin as shipped": "mannequin", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
@@ -12684,6 +12684,7 @@ func _ui() -> void:
 		mp_ui = MakePhysicalUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Make it physical", mp_ui.run, "judge the motion with a 75 kg body in a physics engine: red on the timeline where no human can do it, with the reason; the physical version is a ghost you scrub"))
 	ui_ribbon["CHECK"].add_child(_button("Accept span", mp_ui.accept, "replace the cards inside the picked red span (click it on the timeline) with the physical version; one undo step"))
+	ui_ribbon["CHECK"].add_child(_button("Keep this pose", mp_ui.keep_toggle, "keep the picked card as it is: Make it physical and Accept span never change a kept card; press again to clear it"))
 	if rs_ui == null:
 		rs_ui = RealismUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Realism score", rs_ui.show, "one score 0-100 for the clip from the judges the app already has (Check, timing coach, push limits, force view, the physics judge if it ran), the 3 biggest reasons with their seconds, and a one-click fix for each"))
@@ -20996,7 +20997,17 @@ func _props_show() -> void:
 	tint.albedo_color = Color(Tok.c("accent"), 0.35)
 	tint.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	tint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var carried_props := []
+	for cr in S.carries():
+		carried_props.append(int(cr["prop"]))
+	var shared := PropInstances.plan(S.props, sel_prop, carried_props)   # M3: the still copies of one kind share one drawn mesh
+	var in_shared := {}
+	for g in shared:
+		for i in g:
+			in_shared[i] = true
 	for i in S.props.size():
+		if in_shared.has(i):
+			continue
 		var n := Props.mesh(S.props[i])
 		if Props.model_missing(S.props[i]) and not _gone_said.has(S.props[i]["kind"]):
 			_gone_said[S.props[i]["kind"]] = true
@@ -21006,6 +21017,11 @@ func _props_show() -> void:
 			for mi in n.find_children("*", "MeshInstance3D", true, false):
 				(mi as MeshInstance3D).material_overlay = tint
 		ui_props_root.add_child(n)
+	for g in shared:   # M3: one MultiMeshInstance3D per mesh of the kind, one instance per copy (scripts/prop_instances.gd)
+		var parts_mm := PropInstances.build(S.props, g)
+		for j in parts_mm.size():
+			parts_mm[j].name = "shared_%d_%d" % [g[0], j]
+			ui_props_root.add_child(parts_mm[j])
 	for k in ui_prop_btns:
 		_grey(ui_prop_btns[k], "" if sel_prop >= 0 else "pick a prop first: click it in the view, or add one with Add prop")
 	var kind := String(S.props[sel_prop]["kind"]) if sel_prop >= 0 and sel_prop < S.props.size() else ""
@@ -21126,12 +21142,18 @@ func _prop_menu_fill(ap: MenuButton) -> void:
 	for k in cat.size():
 		pm.add_item("%s   (%s)" % [String(cat[k][0]).replace("_", " "), cat[k][1]], k)
 		pm.set_item_metadata(k, cat[k][0])
+	pm.add_separator()   # M3: the picked prop's copies in a row (the SET ribbon's fixed tool list stays as it is)
+	pm.add_item("Copies in a row of the picked prop", cat.size())
+	pm.set_item_metadata(pm.get_item_index(cat.size()), "row")
 
 
 func _prop_menu_pick(id: int, ap: MenuButton) -> void:
 	var pm := ap.get_popup()
 	_step_hint = "Add prop"
 	_tour_inputs += 1
+	if String(pm.get_item_metadata(pm.get_item_index(id))) == "row":
+		_prop_copies_row()
+		return
 	_prop_add(String(pm.get_item_metadata(pm.get_item_index(id))))
 
 
@@ -21363,6 +21385,23 @@ func _body_outline_show(on: bool) -> void:
 func _body_colour_show() -> void:
 	if body_skin != null:
 		body_skin.albedo_color = BODY_SKIN_PRE_D if (body_colour == 0 and not _body_look_on) else BODY_COLOURS[body_colour][1]
+
+
+## Copies in a row (M3): ROW_N copies of the picked prop beside it, along its own x axis, on the floor; one undo step. Still
+## copies of a kind are drawn as one shape (scripts/prop_instances.gd); a moving prop is refused (its copies would not move)
+func _prop_copies_row() -> void:
+	if sel_prop < 0 or sel_prop >= S.props.size():
+		_say_plain("pick a prop first: click it in the view (or Add prop), then Copies in a row")
+		return
+	if Props.animated(S.props[sel_prop]) or Props.hinged(S.props[sel_prop]):
+		_say_plain("a moving prop (keys or a hinge) is not copied in a row: its copies would not move with it")
+		return
+	_push_undo()
+	var copies := PropInstances.row(S.props, sel_prop)
+	S.props.append_array(copies)
+	_props_show()
+	_doc_line()
+	_say_plain("%d copies of the %s in a row beside it, on the floor; Ctrl+Z takes them back" % [copies.size(), _prop_name(sel_prop)])
 
 
 func _prop_del() -> void:

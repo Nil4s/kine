@@ -27,6 +27,10 @@ var phys: Array = []       # per frame {"pelvis": [x,y,z], "ang": {joint: [bend,
 var offs: Array = []       # per frame: the clip's own pelvis offset (Vector3) and position (Vector3), to turn the physical pelvis into an offset
 var fps := FPS
 var t_started := 0
+var judged := []          # A1: the cards as the judge read them (see _sim); [] = no finished judge on this scene
+var judged_scene: Scene = null
+var judged_len := 0.0     # A1: the clip's length the judge read
+var _pending := {}        # A1: the same three, taken when the judge starts; they become `judged` when its result lands
 var tweak := Callable()   # TESTS ONLY: f(frames, offs) edits the sampled clip before it is judged (the app cannot author a hover: it grounds the body)
 
 
@@ -75,6 +79,8 @@ func begin(S: Scene, Bx: Body, python := "python") -> String:
 	failed = ""
 	progress = 0.0
 	t_started = Time.get_ticks_msec()
+	if pid >= 0:
+		_pending = {"scene": S, "cards": S.cards.map(func(c): return _sim(c)), "len": S.length()}
 	if pid < 0:
 		return "could not start Python (\"%s\"): install Python 3 with mujoco and scipy (pip install mujoco scipy), then press Make it physical again" % python
 	return ""
@@ -96,6 +102,8 @@ func poll() -> bool:
 ## read a result file (also used by the test with a precomputed one)
 func load_result(path: String) -> bool:
 	done = true
+	judged = []
+	judged_scene = null
 	if not FileAccess.file_exists(path):
 		failed = "the judge ended without a result: run `python tools/physics/judge.py` by hand to see why (it needs mujoco and scipy)"
 		return false
@@ -103,6 +111,10 @@ func load_result(path: String) -> bool:
 	if not (d is Dictionary):
 		failed = "the judge's result could not be read: press Make it physical again"
 		return false
+	judged = _pending.get("cards", [])
+	judged_scene = _pending.get("scene", null)
+	judged_len = float(_pending.get("len", 0.0))
+	_pending = {}
 	spans = d.get("spans", [])
 	notes = d.get("notes", [])
 	summary = d.get("summary", {})
@@ -122,13 +134,36 @@ func running() -> bool:
 	return pid >= 0 and not done
 
 
-## the lane's blocks for the timeline: [{"t0","t1","kind","reason","yellow"}]
-func lane() -> Array:
+## a card as the judge sees it: the priority flag ("keep", Keep this pose) is not physics, so it is not part of the key
+static func _sim(c: Dictionary) -> Dictionary:
+	var d := c.duplicate(true)
+	d.erase("keep")
+	return d
+
+
+## the lane's blocks for the timeline: [{"t0","t1","kind","reason","yellow","tone"}]. tone: red (no solution, the one you can pick),
+## yellow (the clip's own slide, a note), blue (a card edited since the judge read it), gray (not processed yet)
+func lane(S: Scene) -> Array:
 	var out := []
 	for s in spans:
-		out.append({"t0": float(s["t0"]), "t1": float(s["t1"]), "kind": s["kind"], "reason": s["reason"], "yellow": false})
+		out.append({"t0": float(s["t0"]), "t1": float(s["t1"]), "kind": s["kind"], "reason": s["reason"], "yellow": false, "tone": "red"})
 	for s in notes:
-		out.append({"t0": float(s["t0"]), "t1": float(s["t1"]), "kind": s["kind"], "reason": s["reason"], "yellow": true})
+		out.append({"t0": float(s["t0"]), "t1": float(s["t1"]), "kind": s["kind"], "reason": s["reason"], "yellow": true, "tone": "yellow"})
+	if S == null or judged_scene != S:
+		return out
+	var ts: Array = S.times()
+	for i in S.cards.size():
+		if i < judged.size() and _sim(S.cards[i]) == judged[i]:
+			continue
+		out.append({"t0": float(ts[i][0]), "t1": float(ts[i][2]), "kind": "edited", "reason": "edited since the last physics run: not simulated yet (Make it physical checks it)", "yellow": false, "tone": "blue"})
+	var t0 := judged_len
+	var t1 := maxf(judged_len, S.length())
+	var why := "added after the last physics run: not processed yet"
+	if running():
+		t0 = progress * judged_len   # the judge reads the clip up to judged_len, its progress along that; the time added after it waits too
+		why = "not processed yet: the physics run has not reached this part of the motion"
+	if t1 - t0 > 0.001:
+		out.append({"t0": t0, "t1": t1, "kind": "not run", "reason": why, "yellow": false, "tone": "gray"})
 	return out
 
 
@@ -175,6 +210,11 @@ static func density(S: Scene) -> float:
 	return clampf(float(gaps[gaps.size() / 2]), 0.1, 0.5)
 
 
+## how many cards in the span Accept span may replace (the priority cards are kept)
+static func replaceable(S: Scene, sp: Dictionary) -> int:
+	return cards_in(S, sp).filter(func(i): return not bool(S.cards[i].get("keep", false))).size()
+
+
 ## indices of the cards whose arrival lies in the span
 static func cards_in(S: Scene, sp: Dictionary) -> Array:
 	var ts: Array = S.times()
@@ -199,31 +239,46 @@ func accept(S: Scene, Bx: Body, si: int) -> int:
 		failed = "no card lies inside this span (the red part is between two cards): drag the playhead there and add a card, then accept"
 		return 0
 	var ts: Array = S.times()
-	var i0: int = idx[0]
-	var i1: int = idx[idx.size() - 1]
-	var t_prev := float(ts[i0 - 1][2]) if i0 > 0 else 0.0   # the end of the previous card's hold
-	var t_end := float(ts[i1][1])                            # where the last replaced card landed
+	# PRIORITY cards ("keep") inside the span are fixed points: the span's other cards are replaced in the runs between them
+	var runs := []   # [first, last] card indices, each a run of replaceable cards
+	for i in idx:
+		if bool(S.cards[i].get("keep", false)):
+			continue
+		if runs.is_empty() or runs[-1][1] != i - 1:
+			runs.append([i, i])
+		else:
+			runs[-1][1] = i
+	if runs.is_empty():
+		failed = "every card in this span is a priority card (Keep this pose): there is nothing here to replace"
+		return 0
 	var dt := density(S)
-	var n := maxi(1, int(round((t_end - t_prev) / dt)))
 	var keep := Bx.state()
-	var fresh := []
-	for j in n:
-		var t := t_prev + (t_end - t_prev) * float(j + 1) / float(n)
-		var k := clampi(int(round(t * fps)), 0, phys.size() - 1)
-		var f: Dictionary = phys[k]
-		for jn in Body.ORDER:
-			var a: Array = f["ang"].get(jn, [0, 0, 0])
-			Bx.ang[jn] = Bx.clamp_ang(jn, Vector3(a[0], a[1], a[2]))
-		Bx.offset = _offset_at(k)
-		Bx.fk()
-		var hold := float(S.cards[i1]["hold"]) if j == n - 1 else 0.0
-		fresh.append({"name": "physical %d" % (j + 1), "pose": Bx.to_dict(), "move": (t_end - t_prev) / float(n), "hold": hold})
-	Bx.set_state(keep)
 	var cards: Array = S.cards.duplicate()
-	for j in range(i1, i0 - 1, -1):
-		cards.remove_at(j)
-	for j in fresh.size():
-		cards.insert(i0 + j, fresh[j])
+	var total := 0
+	for r in range(runs.size() - 1, -1, -1):   # last run first: the indices of the runs before it do not move
+		var i0: int = runs[r][0]
+		var i1: int = runs[r][1]
+		var t_prev := float(ts[i0 - 1][2]) if i0 > 0 else 0.0   # the end of the previous card's hold
+		var t_end := float(ts[i1][1])                            # where the last replaced card landed
+		var n := maxi(1, int(round((t_end - t_prev) / dt)))
+		var fresh := []
+		for j in n:
+			var t := t_prev + (t_end - t_prev) * float(j + 1) / float(n)
+			var k := clampi(int(round(t * fps)), 0, phys.size() - 1)
+			var f: Dictionary = phys[k]
+			for jn in Body.ORDER:
+				var a: Array = f["ang"].get(jn, [0, 0, 0])
+				Bx.ang[jn] = Bx.clamp_ang(jn, Vector3(a[0], a[1], a[2]))
+			Bx.offset = _offset_at(k)
+			Bx.fk()
+			var hold := float(S.cards[i1]["hold"]) if j == n - 1 else 0.0
+			fresh.append({"name": "physical %d" % (j + 1), "pose": Bx.to_dict(), "move": (t_end - t_prev) / float(n), "hold": hold})
+		Bx.set_state(keep)
+		for j in range(i1, i0 - 1, -1):
+			cards.remove_at(j)
+		for j in fresh.size():
+			cards.insert(i0 + j, fresh[j])
+		total += fresh.size()
 	S.cards = cards
-	# the card after is untouched: its move starts where the last replaced card's hold ended, and so does the new last card's
-	return fresh.size()
+	# the cards after a run are untouched: each run's last new card gets the hold of the card it replaced, so the next arrival holds
+	return total

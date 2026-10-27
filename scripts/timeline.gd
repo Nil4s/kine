@@ -93,10 +93,13 @@ func _draw_ph_lane(font: Font) -> void:
 		var b: Dictionary = ph[i]
 		var x0 := x_of(float(b["t0"]))
 		var x1 := maxf(x_of(float(b["t1"])), x0 + 3.0)
-		if bool(b["yellow"]):
+		var tone := String(b.get("tone", "yellow" if bool(b["yellow"]) else "red"))
+		if tone == "yellow":
 			draw_rect(Rect2(x0, y + PH_H - 4.0, x1 - x0, 3.0), Tok.c("beat_down"))
 			continue
-		draw_rect(Rect2(x0, y, x1 - x0, PH_H - 1.0), Tok.c("fd_active"))
+		# A1: red = no solution, blue = edited since the judge read it (not simulated), gray = not processed yet
+		var col: String = {"red": "fd_active", "blue": "fd_recovery", "gray": "pick_lock"}[tone]
+		draw_rect(Rect2(x0, y, x1 - x0, PH_H - 1.0), Tok.c(col))
 		if i == ph_sel:
 			draw_rect(Rect2(x0, y, x1 - x0, PH_H - 1.0), Tok.c("focus"), false, 2.0)
 		if x1 - x0 > 40.0:
@@ -154,7 +157,7 @@ func _get_tooltip(at: Vector2) -> String:
 	var pi := ph_at(at)   # I1: a red block says why the body cannot do it
 	if pi >= 0:
 		var pb: Dictionary = ph[pi]
-		return "%s (%.2f to %.2f s)%s" % [pb["reason"], float(pb["t0"]), float(pb["t1"]), "" if bool(pb["yellow"]) else "
+		return "%s (%.2f to %.2f s)%s" % [pb["reason"], float(pb["t0"]), float(pb["t1"]), "" if String(pb["tone"]) != "red" else "
 click to pick this span; 'Accept span' (CHECK page) replaces its cards with the physical version"]
 	if _in_shots_lane(at):   # ROADMAP 75: a shot on the lane names itself in full (its label may be cut to fit)
 		var si := _shot_at_x(at.x)
@@ -421,7 +424,7 @@ func _gui_input(ev: InputEvent) -> void:
 				return
 			var pbi := ph_at(ev.position)   # I1: a click on a red block picks the span and moves the playhead to its start
 			if pbi >= 0:
-				ph_picked.emit(pbi if not bool(ph[pbi]["yellow"]) else -1)
+				ph_picked.emit(pbi if String(ph[pbi].get("tone", "red")) == "red" else -1)
 				scrubbed.emit(float(ph[pbi]["t0"]))
 				_drag = {"kind": "scrub"}
 				accept_event()

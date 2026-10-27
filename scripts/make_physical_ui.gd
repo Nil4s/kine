@@ -17,6 +17,7 @@ var gbody: Body = null
 var sel := -1                # the red span picked (an index into mp.spans)
 var _say_t := 0.0
 var _hooked := false
+var _seen: Array = []        # what the lane was last drawn from (scene, cards, length, run state): a change redraws it
 
 
 func _init(main: Node) -> void:
@@ -28,6 +29,8 @@ func commands(add: Callable) -> void:
 		"judge the motion with a 75 kg body in a physics engine: red on the timeline where no human body can do it (a jump with no push, a fall, a joint over its strength, a slipping foot), with the reason; the physical version stands as a ghost you can scrub")
 	add.call("Accept span", "", accept, "accept span physical replace cards red", false,
 		"replace the cards inside the picked red span (click it on the timeline) with the physical version, keyed as densely as your cards; one undo step")
+	add.call("Keep this pose", "", keep_toggle, "keep this pose priority card protect freeze physical accept span", false,
+		"the picked card becomes a priority card: Make it physical never changes it and Accept span keeps it as it is; press again to clear it")
 	add.call("Physical ghost off", "", clear, "physical ghost off clear red spans make it physical", false, "remove the red lane and the ghost body")
 
 
@@ -51,6 +54,11 @@ func run() -> void:
 
 
 func tick(dt: float) -> void:
+	# A1: the lane follows the cards and the judge: a card edit turns its frames blue, the run's progress moves the gray
+	var seen := [m.S.get_instance_id(), m.S.cards.hash(), m.S.length(), mp.progress if mp.running() else -1.0]
+	if m.ui_timeline != null and seen != _seen:
+		_seen = seen
+		_lane()
 	if mp.running():
 		_say_t += dt
 		if _say_t > 2.0:
@@ -79,7 +87,7 @@ func _landed() -> void:
 func _lane() -> void:
 	var tl: Timeline = m.ui_timeline
 	var before := tl.ph_px()
-	tl.ph = mp.lane()
+	tl.ph = mp.lane(m.S)
 	tl.ph_sel = sel
 	if not _hooked:
 		_hooked = true
@@ -132,6 +140,9 @@ func accept() -> void:
 	if MakePhysical.cards_in(m.S, mp.spans[sel]).is_empty():
 		m._say("no card lies inside this red span (it is between two cards): add a card at the playhead inside it, then Accept span")
 		return
+	if MakePhysical.replaceable(m.S, mp.spans[sel]) == 0:
+		m._say("every card inside this red span is kept (Keep this pose): none is replaced; press Keep this pose again on one to clear it")
+		return
 	m._step_hint = "Accept physical span"
 	m._push_undo()
 	m._markers_hold()
@@ -143,6 +154,23 @@ func accept() -> void:
 	m._refresh()
 	m._say("accepted: the span's cards are now %d physical cards; Ctrl+Z puts them back. Run Make it physical again to judge the new motion" % n)
 	clear()
+
+
+## A1: the picked card is a priority card ("keep"): Make it physical never changes it, Accept span keeps it. A second press clears it
+func keep_toggle() -> void:
+	var i: int = m.sel_card
+	if i < 0 or i >= m.S.cards.size():
+		m._say("pick a card first: click it on the timeline, then press Keep this pose")
+		return
+	m._push_undo()
+	var c: Dictionary = m.S.cards[i]
+	if bool(c.get("keep", false)):
+		c.erase("keep")
+	else:
+		c["keep"] = true
+	m._rebuild_cards()
+	m._refresh()
+	m._say("card %d is kept: Make it physical and Accept span leave it as it is" % (i + 1) if c.has("keep") else "card %d is no longer kept" % (i + 1))
 
 
 func clear() -> void:
