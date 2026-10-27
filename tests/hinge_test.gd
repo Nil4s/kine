@@ -12,6 +12,11 @@ extends SceneTree
 ##   6 ERRORS    a hinge naming body 5 (there are 2): the replay names the hinge, hinge_sweep answers ok false with the reason
 ##   7 NO DLL    Part.force_off: hinge_sweep answers ok false and says KineCAD (runs with or without the DLL)
 ##   8 RELEASE   the sweep frees every shape it made: KCad.live_count() is the same after it as before
+## MUST NOT TOUCH (C3 collision, bars 9-11), the leaf and a box stop 100 mm apart at rest (stop face at y = 120; the leaf's top face is at y = 20):
+##   9 PAIR      the pair (0, 1) on the hinge's list: the first touching frame is F2 +- 1, F2 = ceil(theta_c / 1.2) with
+##               theta_c = asin(120 / R) - phi (the far corner (800, 20) reaches y = 120; the same geometry as bar 2): F2 = 6
+##   10 GAP0     the distance of the pair at frame 0 is 100 mm +- 0.5 (the closed form: 120 - 20)
+##   11 NOPAIR   the same door with no pair chosen: no red frames, no pair reported
 ## Nothing is written to disk.
 const KCad := preload("res://scripts/kcad.gd")
 const DOOR_W := 800.0
@@ -27,14 +32,14 @@ func ok(c: bool, w: String) -> void:
 
 
 ## the door record: the leaf (body 0), the stop wall (body 1) at y = stop_y, and the hinge (f5) on body `body` with the given track
-func door(stop_y: float, track: Array, body := 0) -> Dictionary:
+func door(stop_y: float, track: Array, body := 0, clear: Array = []) -> Dictionary:
 	var rec := Part.make("Door")
 	rec["features"] = [
 		{"t": "sketch", "id": "f1", "name": "Sketch1", "plane": "front", "ents": [{"k": "rect", "a": [0, -DOOR_T / 2], "b": [DOOR_W, DOOR_T / 2]}], "dims": []},
 		{"t": "extrude", "id": "f2", "name": "Extrude1", "sketch": "f1", "dist": DOOR_H, "both": false, "op": "new"},
 		{"t": "sketch", "id": "f3", "name": "Sketch2", "plane": "front", "ents": [{"k": "rect", "a": [-1600, stop_y], "b": [1600, stop_y + 10]}], "dims": []},
 		{"t": "extrude", "id": "f4", "name": "Extrude2", "sketch": "f3", "dist": DOOR_H, "both": false, "op": "new"},
-		{"t": "hinge", "id": "f5", "name": "Hinge1", "body": body, "o": [0, 0, 0], "axis": [0, 0, 1], "track": track},
+		{"t": "hinge", "id": "f5", "name": "Hinge1", "body": body, "o": [0, 0, 0], "axis": [0, 0, 1], "track": track, "clear": clear},
 	]
 	return rec
 
@@ -93,6 +98,23 @@ func _init() -> void:
 	var bs := Part.hinge_sweep(bad, "f5", FPS)
 	ok((be["errors"] as Dictionary).has("f5") and not bool(bs["ok"]) and "body 5" in String(bs["why"]),
 			"6 ERRORS: replay: %s / sweep: %s" % [be["errors"], bs.get("why", "")])
+
+	# 9-11 MUST NOT TOUCH: a box stop 100 mm off the leaf's rest face; the pair (0, 1) on the list
+	var gap := door(120.0, swing, 0, [[0, 1]])
+	var gs := Part.hinge_sweep(gap, "f5", FPS)
+	var theta_c := rad_to_deg(asin(120.0 / R) - phi)
+	var F2 := int(ceil(theta_c / 1.2 - 1e-9))
+	var touch: Array = []
+	var d0 := -1.0
+	if bool(gs["ok"]) and (gs["pairs"] as Array).size() == 1:
+		touch = (gs["pairs"][0] as Dictionary)["touch"]
+		d0 = float((gs["pairs"][0] as Dictionary)["dist"][0])
+	var first_touch := int(touch[0]) if not touch.is_empty() else -1
+	ok(first_touch >= 0 and absi(first_touch - F2) <= 1, "9 PAIR: first touching frame %d (hand F2 = %d, theta_c %.3f deg, within 1); red: %s" % [first_touch, F2, theta_c, gs.get("red_text", "")])
+	ok(absf(d0 - 100.0) <= 0.5, "10 GAP0: distance at frame 0 = %.3f mm (100 within 0.5)" % d0)
+	var np := Part.hinge_sweep(door(120.0, swing), "f5", FPS)
+	ok(bool(np["ok"]) and (np["red"] as Array).is_empty() and (np["pairs"] as Array).is_empty() and int(np["hit_frames"]) >= 1,
+			"11 NOPAIR: no pair chosen: %d red frames, %d pairs (the stop is still hit: %d frames)" % [(np["red"] as Array).size(), (np["pairs"] as Array).size(), int(np["hit_frames"])])
 
 	# 8 RELEASE: the sweeps freed everything they made
 	ok(KCad.live_count() == live0, "8 RELEASE: live shapes %d before, %d after" % [live0, KCad.live_count()])
