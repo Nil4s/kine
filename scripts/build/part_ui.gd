@@ -2693,6 +2693,8 @@ func _draw_hinge_marks() -> void:
 	for pr in Part.clear_pairs(_rec(), String(f["id"])):
 		for e in edge_cache:
 			if int(e["body"]) == int(pr[0]) or int(e["body"]) == int(pr[1]):
+				_edge_line(e, Color("#ff5a4e"), 4.0)
+
 
 # ---------------------------------------------------------------- MEASURE and SECTION (view only: no record step, no undo)
 
@@ -3041,7 +3043,6 @@ func _inspect_layout(cl: Rect2) -> void:
 	sec_box.reset_size()
 	sec_box.size.x = PANEL_W
 	sec_box.position = Vector2(x, cl.position.y + 6.0 + meas_panel.get_combined_minimum_size().y + 8.0)
-				_edge_line(e, Color("#ff5a4e"), 4.0)
 
 
 # ---------------------------------------------------------------- canvas (GAP 3, Fusion Canvas): a picture on a plane behind the sketch
