@@ -518,7 +518,7 @@ func _init() -> void:
 	await shot("expert_rect")
 	var fin := await click_text("Finish sketch")
 	await idle(6)
-	var ex := await click_text("Extrude")
+	var ex := await click_text("Extrude. the newest sketch", true)   # icon-only on the ribbon since the ribbon standard: its tooltip starts "Extrude. the newest sketch"
 	await idle(8)
 	await shot("expert_extrude_dialog")
 	var okb := await click_text("OK")

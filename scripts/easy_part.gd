@@ -684,7 +684,32 @@ func _round(rec: Dictionary) -> String:
 			_say("Edges rounded: use the slider for more or less")
 			return ""
 		rec["features"].pop_back()
+	# a thin part (the sword's blade: 7 mm across the spine, edges 0.4 mm) cannot take the 0.5 mm floor on every edge: round the edges that
+	# can take a smaller radius and skip the rest. Each edge is tried with the ones already kept, so the feature that is added has no error
+	for r in [0.5, 0.3, 0.1]:
+		var good := []
+		for e in es:
+			if int(e["body"]) == 0 and float(e["len"]) / Part.MM > r * 2.5:
+				var trial := good.duplicate()
+				trial.append(Part.describe(e))
+				if _try_fillet(rec, r, trial) == "":
+					good = trial
+		if good.is_empty():
+			continue
+		var f := Part.new_feature(rec, "fillet", {"body": 0, "r": snappedf(r, 0.1), "edges": good})
+		rec["features"].append(f)
+		tweak = {"id": f["id"], "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
+		_say("Edges rounded: use the slider for more or less")
+		return ""
 	return "These edges are too small or too crowded to round"
+
+
+## the error (or "") of a fillet of these edges, tried on the end of the record without keeping it: the id is one nothing else uses
+func _try_fillet(rec: Dictionary, r: float, edges: Array) -> String:
+	rec["features"].append({"t": "fillet", "id": "try", "name": "Fillet", "body": 0, "r": snappedf(r, 0.1), "edges": edges})
+	var err := String(Part.replay(rec)["errors"].get("try", ""))
+	rec["features"].pop_back()
+	return err
 
 
 func _hole(rec: Dictionary) -> String:

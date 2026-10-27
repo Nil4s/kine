@@ -295,17 +295,29 @@ func _init() -> void:
 
 	# 10 PARTFLOW (w4-partflow): Easy hides the two not-ready cards (Expert keeps them with why); Part Easy opens Easy Part; a card leaves the Part
 	# workspace (Expert's way back to the house); the Part ribbon keeps "What to build" with its words
+	# 10's greying rule follows the live cards: Vehicle went live with KineCAD (6f91bea1) and From a template with its starters (2a89b914).
+	# So with KineCAD all six cards show in Easy and Expert, none greyed. Without the DLL, why_not() names the not-ready cards: Easy leaves
+	# them out, Expert keeps them greyed with the reason (build_choose.gd why_not / _refresh).
+	var ids := ["house", "part", "vehicle", "props", "template", "step"]
 	m.easy.set_on(true)
 	bc.show_chooser()
 	await idle(4)
 	var pf_vis := []
-	for id in ["house", "part", "vehicle", "props", "template", "step"]:
+	var pf_exp := []
+	for id in ids:
 		pf_vis.append(bc.cards[id].visible)
-	ok(pf_vis == [true, true, false, true, false, true] and bc.whys["vehicle"].visible == false, "10 Easy chooser: the not-ready Vehicle and From a template cards are gone (visible %s)" % str(pf_vis))
+		pf_exp.append(bc.why_not(id) == "")
+	ok(pf_vis == pf_exp, "10 Easy chooser: a card shows unless it is not ready (visible %s, want %s)" % [str(pf_vis), str(pf_exp)])
 	m.easy.set_on(false)
 	bc.show_chooser()
 	await idle(4)
-	ok(bc.cards["vehicle"].visible and bc.cards["template"].visible and (bc.whys["vehicle"] as Label).visible and (bc.whys["vehicle"] as Label).text != "", "10 Expert chooser: Vehicle and From a template stay, greyed, with why")
+	var greyed_ok := true
+	for id in ids:
+		var not_ready: bool = bc.why_not(id) != ""
+		var why := bc.whys[id] as Label
+		greyed_ok = greyed_ok and bc.cards[id].visible and why.visible == not_ready and (why.text != "") == not_ready
+		greyed_ok = greyed_ok and is_equal_approx((bc.cards[id] as PanelContainer).modulate.a, 0.55 if not_ready else 1.0)
+	ok(greyed_ok, "10 Expert chooser: all six cards visible; only the not-ready ones are greyed, with why (KineCAD %s)" % KCad.available())
 	if KCad.available():
 		await click(b("part", "easy"))
 		await idle(8)

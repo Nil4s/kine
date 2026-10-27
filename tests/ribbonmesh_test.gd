@@ -5,11 +5,12 @@
 ## At 1280x720 and 1600x900. Shots: C:/Temp/claude/ribbonmesh/ (the row, and one caption menu, per page at 1280x720).
 extends SceneTree
 
-## the old rows (18 / 11 / 6 tools): every one must still be on the page
+## the old rows (18 / 12 / 6 tools): every one must still be on the page
 const OLD := {
 	"MODEL": ["Test cube", "Edit body", "Save to body", "Save", "Open...", "Use in scene", "Extrude", "Inset", "Move", "Rotate", "Scale", "Loop cut", "Knife", "Bevel",
 		"Proportional", "Modifiers", "Validate", "Repair"],
-	"SCULPT": ["Test sphere", "Sculpt the body", "Draw", "Inflate", "Grab", "Clay", "Crease", "Smooth", "Flatten", "Pinch", "Snake"],
+	# SCULPT has 12 tools since Voxel remesh joined its START group (remesh, commit 1e2500f5): a count, not a quality bar
+	"SCULPT": ["Test sphere", "Sculpt the body", "Voxel remesh", "Draw", "Inflate", "Grab", "Clay", "Crease", "Smooth", "Flatten", "Pinch", "Snake"],
 	"SURFACE": ["Paint", "UV editor", "Game UVs 2k", "Pack UVs", "Export UVs", "Material from photo"],
 }
 ## the key each tool keeps (the tooltip carries it, as before)
