@@ -1450,14 +1450,30 @@ func _export_engine(id: String, dir := "res://exports") -> String:
 		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
 		return ""
 	var keep := B.state()
-	var r: Dictionary = EngineExport.export(S, B, id, dir, func(lines): for l in lines: print(l))   # every line to the console (the log)
+	var blows := _impact_blows()   # I3: the impact feel file (the blows of the two fighters; [] with one)
+	var r: Dictionary = EngineExport.export(S, B, id, dir, func(lines): for l in lines: print(l), blows)   # every line to the console (the log)
 	B.set_state(keep)
 	_refresh()
 	if r["err"] != OK:
 		_say_plain("NOT DONE: the file could not be written (%s)" % error_string(r["err"]))
 		return ""
-	_say_plain("exported %s for %s: %d checks, %d WRONG. %s" % [String(r["path"]).get_file(), EngineExport.preset(id)["label"], (r["lines"] as Array).size(), r["wrong"], EngineExport.preset(id)["needs"]])
+	var feel := "" if String(r["feel"]) == "" else " Impact feel: %d hits in %s, a rumble strength and length for each, for the game's controller." % [int(r["feel_n"]), String(r["feel"]).get_file()]
+	_say_plain("exported %s for %s: %d checks, %d WRONG. %s%s" % [String(r["path"]).get_file(), EngineExport.preset(id)["label"], (r["lines"] as Array).size(), r["wrong"], EngineExport.preset(id)["needs"], feel])
 	return r["path"]
+
+
+## the blows of the fighters as ImpactFrames.blows gives them (each contact measured on the fighters' own copies, so nothing here
+## changes a scene): [] with one fighter. Used by the impact frames (impact_frames_ui) and the engine export's impact feel file (I3).
+func _impact_blows() -> Array:
+	_actors_sync()
+	if not _fighters_on():
+		return []
+	var hs: Scene = (actors_rt[0]["S"] as Scene).clone()
+	var others := []
+	for i in range(1, actors_rt.size()):
+		others.append({"name": actors_rt[i]["name"], "S": (actors_rt[i]["S"] as Scene).clone(), "xf": actors_rt[i]["xf"]})
+	var rows: Array = _fighters_measure(hs, others)["hits"]
+	return ImpactFrames.blows(actors_rt, rows)
 
 
 ## EXPORT... (ROADMAP 57): the one dialog for every target (scripts/export_dialog.gd). The old commands stay in the palette.
