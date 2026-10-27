@@ -6,6 +6,8 @@ extends Control
 ## label is placed by a checker: it goes where it fits (inside its panel, clear of the outline, the dimension lines and the other labels),
 ## trying the sides in order. Labels are kept in labels (for the tests); the outline polylines and the body polygons are kept too.
 ## Draws only; the numbers are CarPackage.derive's. Set p (the hard points) and call queue_redraw.
+## One scale (px per mm) for both views, the largest that fits the panel: the side and top views share the nose x, and the two
+## panels split the height in proportion to what each needs (so both fill it). See layout().
 
 const LINE := Color(0.75, 0.85, 0.95)
 const DIM := Color(1.0, 0.79, 0.2)
@@ -13,6 +15,8 @@ const FIGURE := Color(0.95, 0.75, 0.55)
 const GROUND := Color(0.5, 0.75, 1.0)
 const M := 46.0           # px margin inside each view (sideways)
 const GAP := 6.0          # px between a dimension line and its label
+const LM := 200.0         # px left of the nose in both views (the H-point, head room and clearance labels sit there)
+const RM := 220.0         # px right of the tail in both views (the height and width dimensions and their labels)
 const TITLE_SZ := 14
 const LABEL_SZ := 12
 var p := {}
@@ -21,6 +25,7 @@ var side_r := Rect2()     # the side view's rectangle (px), for the tests
 var top_r := Rect2()
 var labels := []          # the placed labels: {rect (px, the plan's), panel (0 side, 1 top), text, fits}
 var outline := [[], []]   # per panel: polylines the labels keep off (the body edges, wheels, box, floor, fighter, dimension lines)
+var mm_px := 0.0          # the one scale of both views (px per mm), for the tests
 var solids := [[], []]    # per panel: closed body polygons a dimension label keeps out of (the labels in the body: annotations only)
 
 
@@ -57,6 +62,21 @@ static func solid_hits(r: Rect2, poly: PackedVector2Array) -> bool:
 		if Geometry2D.is_point_in_polygon(c, poly):
 			return true
 	return false
+
+
+## the layout of both views in a w x h box: the shared px per mm s (the largest that fits the width and the two heights) and the two
+## panel rectangles (the side view's panel and the top view's, stacked, 4 px apart, filling h)
+static func layout(d: Dictionary, w: float, h: float) -> Dictionary:
+	var L := float(d["length"])
+	var H := float(d["height"])
+	var W := float(d["width"])
+	var avail := h - 4.0
+	var s := maxf(minf((w - LM - RM) / L, (avail - 188.0) / (H + W)), 0.001)
+	var hs := H * s + 92.0    # 52 px above the roof, 40 px under the ground line
+	var ts := W * s + 96.0    # 48 px above and below the body
+	var side_r := Rect2(0.0, 0.0, w, avail * hs / (hs + ts))
+	var top_r := Rect2(0.0, side_r.end.y + 4.0, w, avail * ts / (hs + ts))
+	return {"s": s, "side_r": side_r, "top_r": top_r, "x0": LM, "side_len": L * s, "top_len": L * s}
 
 
 func _panel(pi: int) -> Rect2:
@@ -139,20 +159,20 @@ func _draw() -> void:
 	labels = []
 	outline = [[], []]
 	solids = [[], []]
-	var h := size.y
-	side_r = Rect2(0.0, 0.0, size.x, h * 0.6)
-	top_r = Rect2(0.0, h * 0.6 + 4.0, size.x, h * 0.4 - 4.0)
+	var lay := layout(d, size.x, size.y)
+	side_r = lay["side_r"]
+	top_r = lay["top_r"]
+	mm_px = float(lay["s"])
 	draw_rect(side_r, Color(0.09, 0.1, 0.13), true)
 	draw_rect(top_r, Color(0.09, 0.1, 0.13), true)
-	_side(0, side_r)
-	_top(1, top_r)
+	_side(0, side_r, mm_px)
+	_top(1, top_r, mm_px)
 
 
-func _side(pi: int, r: Rect2) -> void:
+func _side(pi: int, r: Rect2, s: float) -> void:
 	var L := float(d["length"])
 	var H := float(d["height"])
-	var s := minf((r.size.x - 2.0 * M) / L, (r.size.y - 92.0) / H)   # 52 px above the roof: the length line and its label
-	var x0 := r.position.x + (r.size.x - L * s) * 0.5
+	var x0 := r.position.x + LM
 	var y0 := r.position.y + r.size.y - 40.0          # the ground line: 40 px left under it for the bottom dimensions
 	var X := func(mm: float) -> float:
 		return x0 + mm * s
@@ -196,7 +216,7 @@ func _side(pi: int, r: Rect2) -> void:
 		draw_arc(Vector2(X.call(ax), Y.call(rr)), rr * s * 0.45, 0.0, TAU, 20, LINE, 1.0)
 		outline[pi].append(ring)
 	# the seated fighter: H-point, seat back, thigh, shin, head
-	var hx := foh + float(p["hpt_x"])   # the H-point: back from the front axle
+	var hx := foh + float(p["hpt_x"])   # the H-point: back from the front axle (its side offset shows in the top view and the title)
 	var a := deg_to_rad(float(p["seat_a"]))
 	var back := Vector2(sin(a), cos(a))
 	var hp := Vector2(X.call(hx), Y.call(hg))
@@ -256,14 +276,13 @@ func _title(pi: int, r: Rect2, t: String) -> void:
 	_put(pi, t, rect, TITLE_SZ, LINE, _fits(pi, rect, false))
 
 
-func _top(pi: int, r: Rect2) -> void:
+func _top(pi: int, r: Rect2, s: float) -> void:
 	var L := float(d["length"])
 	var W := float(d["width"])
-	var s := minf((r.size.x - 2.0 * M) / L, (r.size.y - 96.0) / W)   # 48 px above the body: the wheelbase line and its label
-	var cx := r.position.x + r.size.x * 0.5
 	var cy := r.position.y + r.size.y * 0.5
+	var x0 := r.position.x + LM
 	var X := func(mm: float) -> float:
-		return cx - L * s * 0.5 + mm * s
+		return x0 + mm * s
 	var Yc := func(mm: float) -> float:
 		return cy + mm * s
 	var body := PackedVector2Array([Vector2(X.call(0.0), Yc.call(-W * 0.5)), Vector2(X.call(L), Yc.call(-W * 0.5)),
@@ -282,6 +301,16 @@ func _top(pi: int, r: Rect2) -> void:
 			var wr := Rect2(c - Vector2(td * 0.5 * s, tw * 0.5 * s), Vector2(td * s, tw * s))
 			draw_rect(wr, LINE, true)
 			outline[pi].append(PackedVector2Array([wr.position, Vector2(wr.end.x, wr.position.y), wr.end, Vector2(wr.position.x, wr.end.y), wr.position]))
+	# the seated driver's footprint: 500 mm wide, centred on the H-point's side offset, from the heel-side knee to the back
+	var hx := foh + float(p["hpt_x"])
+	var hy := float(d["hip_y"])
+	var reach := float(d["reach"])
+	var fp := PackedVector2Array([Vector2(X.call(hx - reach), Yc.call(hy - CarPackage.SEAT_HALF)), Vector2(X.call(hx + 100.0), Yc.call(hy - CarPackage.SEAT_HALF)),
+		Vector2(X.call(hx + 100.0), Yc.call(hy + CarPackage.SEAT_HALF)), Vector2(X.call(hx - reach), Yc.call(hy + CarPackage.SEAT_HALF)),
+		Vector2(X.call(hx - reach), Yc.call(hy - CarPackage.SEAT_HALF))])
+	draw_polyline(fp, FIGURE, 1.5)
+	draw_circle(Vector2(X.call(hx), Yc.call(hy)), 3.0, DIM)
+	outline[pi].append(fp)
 	# dimensions: wheelbase above the body (between the axles), front track on the nose side, rear track on the tail side, width outside both
 	var wy: float = Yc.call(-W * 0.5) - 12.0
 	_dim(pi, Vector2(X.call(foh), wy), Vector2(X.call(foh + wb), wy), "wheelbase %d" % int(wb), ["above", "below"])
@@ -292,3 +321,9 @@ func _top(pi: int, r: Rect2) -> void:
 	var wx: float = X.call(L) + 140.0
 	_dim(pi, Vector2(wx, Yc.call(-W * 0.5)), Vector2(wx, Yc.call(W * 0.5)), "width %d" % int(W), ["right", "left"])
 	_title(pi, r, "Top view (mm)")
+	# the driver's side, in the panel's bottom-left corner (clear of the title and the dimensions)
+	var side_word := "left" if float(d["hip_y"]) > 0.0 else "right"
+	var note := "driver %d mm %s of centre" % [int(absf(float(d["hip_y"]))), side_word]
+	var nr := Rect2(r.position + Vector2(8.0, r.size.y - 22.0), ThemeDB.fallback_font.get_string_size(note, HORIZONTAL_ALIGNMENT_LEFT, -1, LABEL_SZ))
+	nr.size.y = ThemeDB.fallback_font.get_height(LABEL_SZ)
+	_put(pi, note, nr, LABEL_SZ, FIGURE, _fits(pi, nr, false))

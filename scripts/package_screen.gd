@@ -31,6 +31,8 @@ var easy := true
 var msg := ""
 var rows := {}                 # key -> {"slider": HSlider, "pill": Label, "edit": LineEdit, "row": VBoxContainer}
 var tyre_opt: OptionButton
+var drive_opt: OptionButton      # the drive side: Left drive / Right drive
+var door_hint: Label             # red under the door readout when the seat is too close to the door
 var tyre_edit: LineEdit
 var tyre_row: VBoxContainer
 var readouts := {}             # key -> Label
@@ -170,6 +172,7 @@ func build(root: Control) -> void:
 		sec_hp.add_child(_make_row(prm))
 	tyre_row = _tyre_row()
 	sec_hp.add_child(tyre_row)
+	sec_hp.add_child(_drive_row())
 	sec_hp.add_child(HSeparator.new())
 	var rd := GridContainer.new()
 	rd.columns = 1
@@ -181,6 +184,7 @@ func build(root: Control) -> void:
 			["head", "Head room", "Head clearance: the roof minus the seated fighter's head top (the seat back angle counts)"],
 			["breakover", "Ramp angle", "Breakover angle: 2 x atan(height off the ground / half the wheelbase): the largest hump the middle clears"],
 			["hpt", "H-point above ground", "H-point above ground: the ground clearance + the floor (150 mm) + the seat height above the floor"],
+			["door", "Seat to the door", "Door room: half the body width minus the seat from the middle and half a seat width (250 mm); needs 100 mm"],
 			["feet", "Feet clear of the front wheel", "Feet clear: the heel point (seat from the front wheel minus the seated thigh + shin reach along the floor) must be behind the front axle by the tyre radius + 100 mm"]]:
 		var l := Label.new()
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART   # the long feet line wraps instead of widening the panel
@@ -189,6 +193,12 @@ func build(root: Control) -> void:
 		l.add_theme_font_size_override("font_size", 15)
 		rd.add_child(l)
 		readouts[String(rr[0])] = l
+	door_hint = Label.new()
+	door_hint.name = "package_hint_door"
+	door_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	door_hint.add_theme_font_size_override("font_size", 13)
+	door_hint.add_theme_color_override("font_color", RED)
+	rd.add_child(door_hint)
 	feet_hint = Label.new()
 	feet_hint.name = "package_hint_feet"
 	feet_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -395,6 +405,37 @@ func _set_tyre(t: String) -> void:
 	_sync()
 
 
+## the drive side (Left / Right), one undo step; a side that is already set is no step
+func _drive_row() -> VBoxContainer:
+	var v := VBoxContainer.new()
+	v.name = "package_row_drive"
+	v.tooltip_text = "Drive side: the side the driver sits on. Left drive puts the driver's hip on the car's left, Right drive on the right"
+	var lab := Label.new()
+	lab.text = "Drive side"
+	lab.tooltip_text = v.tooltip_text
+	lab.add_theme_font_size_override("font_size", 15)
+	v.add_child(lab)
+	drive_opt = OptionButton.new()
+	drive_opt.name = "package_drive_pick"
+	drive_opt.focus_mode = Control.FOCUS_NONE
+	drive_opt.add_item("Left drive")
+	drive_opt.add_item("Right drive")
+	drive_opt.item_selected.connect(func(i: int): _set_drive(String(CarPackage.DRIVES[i])))
+	v.add_child(drive_opt)
+	return v
+
+
+func _set_drive(side: String) -> void:
+	ensure()
+	if String(pkg().get("drive", "Left")) == side:
+		_sync()
+		return
+	_begin("Change drive side")
+	pkg()["drive"] = side
+	_end()
+	_sync()
+
+
 func _typed_tyre(t: String) -> void:
 	if not CarPackage.tyre(t)["ok"]:
 		msg = "Type a tyre size like 225/45R17 (width, aspect, R, rim in inches)"
@@ -488,6 +529,7 @@ func _sync() -> void:
 		if not ed.has_focus():
 			ed.text = str(int(v))
 	tyre_opt.select(maxi(0, CarPackage.TYRES.find(String(p.get("tyre", "")))))
+	drive_opt.select(maxi(0, CarPackage.DRIVES.find(String(p.get("drive", "Left")))))
 	if not tyre_edit.has_focus():
 		tyre_edit.text = String(p.get("tyre", ""))
 	readouts["length"].text = "Length  %d mm" % int(d["length"])
@@ -503,6 +545,11 @@ func _sync() -> void:
 	readouts["feet"].add_theme_color_override("font_color", Color(1, 1, 1) if fok else RED)
 	feet_hint.text = "" if fok else "  the driver's feet hit the front wheel"
 	feet_hint.visible = not fok
+	var dok := bool(d["door_ok"])
+	readouts["door"].text = "Seat to the door  %d mm (needs 100)" % int(d["door_gap"])
+	readouts["door"].add_theme_color_override("font_color", Color(1, 1, 1) if dok else RED)
+	door_hint.text = "" if dok else "  the driver is too close to the door"
+	door_hint.visible = not dok
 	for c in CarPackage.CLASSES:
 		(cls_btns[String(c[0])] as Button).set_pressed_no_signal(String(c[0]) == String(p.get("class", "")))
 	plan.set_points(p)

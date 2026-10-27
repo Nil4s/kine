@@ -19,6 +19,10 @@ extends SceneTree
 ##  13 WORDS     no key name in any text of the package screen (labels, buttons, tooltips, status)
 ##  14 LAYOUT    at 1280 x 720 the top bar, the layout, the 3D view, the panel and the status line overlap nothing and stay inside the window
 ##  15 COMPARE   the Yours vs real cars tab lists the 8 measures, the nearest car, and a red row with a hint (Hatch, wheelbase short)
+##  20 SEATSIDE  the seat from the middle: the 3D fighter's hip is at the offset on the chosen side (Left +, Right -), within 1 mm
+##  21 DOOR      a 1600 mm wide body with the seat 500 mm out: the door check is red; the default 370 is clear
+##  22 TOPFILL   the top view's outline is >= 60 % of its panel's width (drawn geometry, a 1150 px wide plan)
+##  23 SCALE     the side and the top view draw at the same scale (their drawn lengths per mm within 1 %), top at the same x as the side
 ## Shots in C:/Temp/claude/carbuild/: package_easy.png, package_expert.png, compare.png.
 
 const SHOT := "C:/Temp/claude/carbuild"
@@ -41,6 +45,7 @@ func idle(n := 3) -> void:
 func _init() -> void:
 	headless_bars()
 	more_bars()
+	await seat_bars()
 	await ui_bars()
 	print("carpkg: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
@@ -124,6 +129,54 @@ func more_bars() -> void:
 	ok(fi != null and fwd.dot(Vector3(0.0, 0.0, 1.0)) > 0.9 and fi.position.distance_to(hip_want) <= 0.005 and front_ok,
 		"19 FIGHTER faces the front: forward . package forward %.3f (> 0.9), hip %.4f m from the H-point (<= 0.005), knees and feet to the front axle" % [fwd.dot(Vector3(0.0, 0.0, 1.0)), fi.position.distance_to(hip_want) if fi != null else -1.0])
 	p3.free()
+
+
+## the seat from the middle, the door check, the top view's fill and the one scale of the two views (the drawn geometry)
+func seat_bars() -> void:
+	var hp := CarPackage.start("Hatch")
+	var off := float(hp["seat_off"])
+	var L := CarPackage.build_3d(hp)
+	var fi := L.find_child("fighter", true, false) as Node3D
+	var sb := L.find_child("fighter_seat", true, false) as Node3D
+	var hipx := fi.position.x + sb.position.x if sb != null else INF
+	var rp := hp.duplicate()
+	rp["drive"] = "Right"
+	var R := CarPackage.build_3d(rp)
+	var rsb := R.find_child("fighter_seat", true, false) as Node3D
+	var rfi := R.find_child("fighter", true, false) as Node3D
+	var rhipx := rfi.position.x + rsb.position.x if rsb != null else INF
+	ok(absf(hipx - off * 0.001) <= 0.001 and absf(rhipx + off * 0.001) <= 0.001 and absf(float(CarPackage.derive(hp)["hip_y"]) - off) < 0.001 and absf(float(CarPackage.derive(rp)["hip_y"]) + off) < 0.001,
+		"20 SEATSIDE hip %.1f mm Left (want +%d), %.1f mm Right (want -%d), within 1 mm" % [hipx * 1000.0, int(off), rhipx * 1000.0, int(off)])
+	L.free()
+	R.free()
+	var wide := hp.duplicate()
+	wide["track_f"] = 1375.0
+	wide["track_r"] = 1375.0
+	wide["seat_off"] = 500.0
+	var wd := CarPackage.derive(wide)
+	var dok := CarPackage.derive(hp)
+	ok(absf(float(wd["width"]) - 1600.0) < 0.01 and not bool(wd["door_ok"]) and bool(dok["door_ok"]),
+		"21 DOOR body %d mm, seat 500: door room %d mm (needs 100): red; the default 370 clear (room %d mm)" % [int(wd["width"]), int(wd["door_gap"]), int(dok["door_gap"])])
+	var plan := CarPlan.new()
+	plan.name = "carpkg_test_plan"
+	plan.position = Vector2(0.0, 0.0)
+	plan.size = Vector2(1150.0, 760.0)
+	root.add_child(plan)
+	plan.set_points(hp)
+	await idle(4)
+	var top_body := plan.outline[1][0] as PackedVector2Array
+	var side_box := plan.outline[0][1] as PackedVector2Array
+	var top_len := top_body[1].x - top_body[0].x
+	var panel_w := plan.top_r.size.x
+	var side_len := side_box[1].x - side_box[0].x
+	var Lmm := float(CarPackage.derive(hp)["length"])
+	var fill := top_len / panel_w
+	ok(fill >= 0.6, "22 TOPFILL top outline %.0f px of a %.0f px panel: %.0f %% (>= 60 %%)" % [top_len, panel_w, fill * 100.0])
+	var sc_side := side_len / Lmm
+	var sc_top := top_len / Lmm
+	ok(absf(sc_side - sc_top) <= 0.01 * sc_top and absf(side_box[0].x - top_body[0].x) < 0.5,
+		"23 SCALE side %.4f px/mm, top %.4f px/mm (within 1 %%), nose x side %.1f top %.1f" % [sc_side, sc_top, side_box[0].x, top_body[0].x])
+	plan.free()
 
 
 func _rect(c: Control) -> Rect2:
