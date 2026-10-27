@@ -221,6 +221,7 @@ const DRAW := {
 	"autoopp": [["ring", Vector2(7, 8), 3.2, 1.8], ["seg", Vector2(7, 11), Vector2(7, 19), 2.0], ["seg", Vector2(17, 5), Vector2(17, 19), 2.0], ["seg", Vector2(11, 12), Vector2(20, 12), 1.6]],
 	"precog": [["ring", Vector2(12, 12), 8, 2.0], ["seg", Vector2(12, 12), Vector2(12, 6), 2.0], ["seg", Vector2(12, 12), Vector2(16, 14), 2.0]],
 	"keeper": [["seg", Vector2(3, 12), Vector2(21, 12), 2.0], ["seg", Vector2(3, 7), Vector2(3, 17), 2.0], ["seg", Vector2(21, 7), Vector2(21, 17), 2.0], ["disc", Vector2(12, 12), 2.6]],
+	"arena": [["seg", Vector2(3, 3), Vector2(21, 3), 2.0], ["seg", Vector2(21, 3), Vector2(21, 21), 2.0], ["seg", Vector2(21, 21), Vector2(3, 21), 2.0], ["seg", Vector2(3, 21), Vector2(3, 3), 2.0], ["disc", Vector2(12, 12), 3.0]],
 	"breakfall": [["seg", Vector2(3, 5), Vector2(11, 13), 2.0], ["seg", Vector2(11, 13), Vector2(21, 13), 2.0], ["disc", Vector2(3, 4), 2.6], ["seg", Vector2(3, 20), Vector2(21, 20), 1.6]],
 	"recovery": [["seg", Vector2(4, 19), Vector2(10, 19), 2.0], ["seg", Vector2(10, 19), Vector2(10, 11), 2.0], ["seg", Vector2(10, 11), Vector2(7, 5), 2.0], ["ring", Vector2(18, 18), 3.0, 1.8], ["seg", Vector2(11, 15), Vector2(15, 17), 1.6]],
 	"reactdir": [["seg", Vector2(3, 18), Vector2(13, 12), 2.0], ["seg", Vector2(13, 12), Vector2(10, 12), 2.0], ["seg", Vector2(13, 12), Vector2(12, 15), 2.0], ["seg", Vector2(21, 6), Vector2(15, 9), 2.0], ["disc", Vector2(13, 12), 2.0]],
