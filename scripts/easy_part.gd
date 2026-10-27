@@ -56,6 +56,9 @@ var rep_btns := {}
 var stick_box: PanelContainer    # Stick together: Join / Cut away / Keep the overlap, shown once two pieces are picked
 var stick_btns := {}
 var stick_picks: Array = []      # the body indices clicked in the view (the first = the target, the second = the tool)
+var stick_tris := {}             # body index -> its triangles, for the glow of a picked piece
+var stick_edges := {}            # body index -> its crease edges (pairs of points): the glow's outline, no triangle diagonals
+const PICK_PX := 12.0            # a click this close (screen px) to a piece picks it when the ray hits nothing
 var rep_id := ""                 # the last Repeat it step's feature id ("" = none)
 var rep_rows := []               # the two slider rows of the Repeat it box (see _make_row)
 var colour_box: PanelContainer   # Colour: the five colour chips and Glass / Metal, under the MAKE row (armed "colour")
@@ -786,7 +789,7 @@ func _arm_words(a: String) -> String:
 			if stick_picks.size() == 0:
 				return "Click the first solid piece in the view"
 			if stick_picks.size() == 1:
-				return "Now click the second solid piece"
+				return "Now click the other piece"
 			return "Pick Join, Cut away or Keep the overlap"
 		"draw":
 			return "Drag on the grid to draw a shape"
@@ -916,7 +919,9 @@ func _mirror(rec: Dictionary) -> String:
 	if _last_error(rec, String(f["id"])) != "":
 		return "That shape cannot be mirrored"
 	tweak = {}
-	_say("Mirrored across the middle line")
+	var after := Part.replay(rec)
+	var gap := int(after["bodies"]) == 1 and _lumps(after) > 1   # the mirror left a gap: the same test as the status line
+	_say("Mirrored across the middle line" + (": the two halves do not touch. Push them together with Stick together" if gap else ""))
 	return ""
 
 
@@ -1076,11 +1081,15 @@ func _stick(op: String, label: String) -> void:
 
 
 ## a click in the view while Stick together is armed: the body under the pointer is picked (a second click takes it off)
-func _stick_pick(bi: int) -> void:
+func _stick_pick(bi: int, faces: Array) -> void:
 	if stick_picks.has(bi):
 		stick_picks.erase(bi)
+		stick_tris.erase(bi)
+		stick_edges.erase(bi)
 	elif stick_picks.size() < 2:
 		stick_picks.append(bi)
+		stick_tris[bi] = faces[bi]
+		stick_edges[bi] = _creases(faces[bi])
 	else:
 		_say("Two pieces are picked: press Join, Cut away or Keep the overlap, or click one to take it off")
 		return
@@ -1310,8 +1319,82 @@ func dot_screen(k: String) -> Vector2:
 	return Vector2(-1, -1)
 
 
+## the body whose projected triangles are nearest the screen point, within PICK_PX; -1 when none is that close
+func _near_body(p: Vector2, faces: Array) -> int:
+	var best := -1
+	var best_d := PICK_PX
+	for bi in faces.size():
+		var tris: PackedVector3Array = faces[bi]
+		for k in range(0, tris.size() - 2, 3):
+			var q := _proj3(tris, k)
+			if q.is_empty():
+				continue
+			var d := _tri_px(p, q)
+			if d < best_d:
+				best_d = d
+				best = bi
+	return best
+
+
+## the crease edges of a triangle soup: an edge whose two triangles turn more than ~8 deg (or that has one triangle) is drawn;
+## the diagonals inside a flat face are not. Points are matched to 0.01 mm
+func _creases(tris: PackedVector3Array) -> PackedVector3Array:
+	var seen := {}   # edge key -> [a, b, normal of the first triangle, still to draw]
+	var out := PackedVector3Array()
+	for k in range(0, tris.size() - 2, 3):
+		var n := (tris[k + 1] - tris[k]).cross(tris[k + 2] - tris[k]).normalized()
+		for j in 3:
+			var a: Vector3 = tris[k + j]
+			var b: Vector3 = tris[k + (j + 1) % 3]
+			var ka := str((a * 1e5).round())
+			var kb := str((b * 1e5).round())
+			var key := ka + "|" + kb if ka < kb else kb + "|" + ka
+			if seen.has(key):
+				seen[key][3] = (seen[key][2] as Vector3).dot(n) < 0.99
+			else:
+				seen[key] = [a, b, n, true]
+	for e in seen.values():
+		if e[3]:
+			out.append(e[0])
+			out.append(e[1])
+	return out
+
+
+## the three corners of triangle k on screen (empty when one is behind the camera)
+func _proj3(tris: PackedVector3Array, k: int) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for j in 3:
+		var w: Vector3 = tris[k + j]
+		if m.cam.is_position_behind(w):
+			return PackedVector2Array()
+		out.append(m.cam.unproject_position(w))
+	return out
+
+
+## the screen distance from p to a triangle (0 inside it)
+func _tri_px(p: Vector2, q: PackedVector2Array) -> float:
+	if Geometry2D.is_point_in_polygon(p, q):
+		return 0.0
+	var d := INF
+	for j in 3:
+		d = minf(d, p.distance_to(Geometry2D.get_closest_point_to_segment(p, q[j], q[(j + 1) % 3])))
+	return d
+
+
 func _draw_dots() -> void:
 	var font := ThemeDB.fallback_font
+	for bi in stick_picks:   # the picked piece glows: its faces tinted, its edges amber
+		var tris: PackedVector3Array = stick_tris.get(bi, PackedVector3Array())
+		for k in range(0, tris.size() - 2, 3):
+			var q := _proj3(tris, k)
+			if q.is_empty():
+				continue
+			dots.draw_colored_polygon(q, Color(AMBER, 0.28))
+		var ed: PackedVector3Array = stick_edges.get(bi, PackedVector3Array())
+		for k in range(0, ed.size() - 1, 2):
+			if m.cam.is_position_behind(ed[k]) or m.cam.is_position_behind(ed[k + 1]):
+				continue
+			dots.draw_line(m.cam.unproject_position(ed[k]), m.cam.unproject_position(ed[k + 1]), AMBER, 2.0, true)
 	if not _draft.is_empty():
 		var pts := _draft_outline()
 		if pts.size() > 1:
@@ -1373,10 +1456,12 @@ func input(ev: InputEvent) -> bool:
 					_grab(d, p)
 					return true
 			if armed == "stick" and not _over_ui(p):
-				var hit: Dictionary = pu._ray_hit(p, Part.body_faces(_rec(), -1))   # the body under the pointer (Expert's combine picks the same way)
-				if hit.is_empty():
+				var faces: Array = Part.body_faces(_rec(), -1)
+				var hit: Dictionary = pu._ray_hit(p, faces)   # the body under the pointer (Expert's combine picks the same way)
+				var bi := int(hit["body"]) if not hit.is_empty() else _near_body(p, faces)   # a miss within 12 px of a piece still picks it (thin plates)
+				if bi < 0:
 					return false   # nothing solid there: the camera keeps the click
-				_stick_pick(int(hit["body"]))
+				_stick_pick(bi, faces)
 				return true
 			if (armed == "draw" or armed == "curve") and not _over_ui(p):
 				var g: Variant = _ground(p)
