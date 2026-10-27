@@ -126,7 +126,7 @@ func setup(main: Node, weapon_list: Array) -> void:
 	_search.name = "library_search"
 	_search.placeholder_text = "Search: sword, chair, football..."
 	_search.clear_button_enabled = true
-	_search.tooltip_text = "filters every category by name while it has words; clicking a tab clears it"
+	_search.tooltip_text = "filters every category by name while it has words; clicking a category button clears it"
 	_search.text_changed.connect(_on_search)
 	v.add_child(_search)
 	var body := HBoxContainer.new()
