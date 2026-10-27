@@ -31,15 +31,21 @@ extends RefCounted
 ## An EDGE IS PICKED BY ITS CENTRE: a fillet stores where the edge was (mm), where it was inside its body's bounding box (0..1 per axis) and its
 ## direction; a rebuild picks the edge that best matches the box position and direction, so the fillet follows when a sketch is dimensioned
 ## bigger and the ids of the new shape are different. No match = that step fails (its message in the result), the later steps carry on.
-## No DLL: available() is false, replay() answers with an empty result and every tool says why.
+## APPEARANCE (GAP 5): {"t": "appear", "id", "name", "body": N, "preset": "Paint"|"Metal"|"Glass"|"Rubber"|"Plastic"|"Custom", "color": [r, g, b] (0..1),
+## "rough": 0..1, "metal": 0..1, "alpha": 0..1 (below 1 = see-through)} paints body N from that step on (the record holds the numbers, a preset
+## only names them). A body with no appear step gets its palette colour by index (LOOK_CHIPS), so the bodies of a split read as two.
+## A split gives both halves the look of the body it cut. No DLL: available() is false, replay() answers with an empty result and every tool says why.
 
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
 const VERSION := 1
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "plane", "canvas"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "plane", "canvas", "appear"]
 const PLANES := ["front", "top", "right"]
 const OPS := ["join", "new", "cut", "intersect"]
 const MATCH_MAX := 0.25   # an edge matches when (box-position distance + 0.5 x direction mismatch) is below this
+const LOOK_CHIPS := [["Grey", Color("#bdc4d0")], ["Red", Color("#c0392b")], ["Blue", Color("#3a7bd5")], ["Yellow", Color("#f2c94c")], ["Green", Color("#4caf50")]]   # the colour chips; a body with no look takes chip (its index mod 5)
+const LOOK_PRESETS := {"Paint": {"rough": 0.35, "metal": 0.0, "alpha": 1.0}, "Metal": {"rough": 0.25, "metal": 1.0, "alpha": 1.0}, "Glass": {"rough": 0.05, "metal": 0.0, "alpha": 0.4}, "Rubber": {"rough": 0.95, "metal": 0.0, "alpha": 1.0}, "Plastic": {"rough": 0.45, "metal": 0.0, "alpha": 1.0}}
+const LOOK_DEFAULT := {"rough": 0.5, "metal": 0.15, "alpha": 1.0}   # the look a body has before any appear step (the old fixed grey)
 const HIT_VOL := 1e-9     # m3 (1 mm3): an overlap this small is contact, not interference (the kernel's boolean noise is far below it)
 
 static var force_off := false   # a test's "no DLL"
@@ -388,17 +394,19 @@ static func spline_curve(pts: Array, closed: bool, steps := 16) -> PackedVector2
 ## {"mesh": ArrayMesh or null, "volume": m3 (all bodies), "bodies": n, "volumes": [m3 each], "errors": {feature id: message}, "edges": [...], "aabb": AABB, "props": [...]}.
 ## Every shape made here is released before it returns.
 static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
-	var res := {"mesh": null, "volume": 0.0, "bodies": 0, "volumes": [], "errors": {}, "edges": [], "aabb": AABB(), "props": []}
+	var res := {"mesh": null, "volume": 0.0, "bodies": 0, "volumes": [], "errors": {}, "edges": [], "aabb": AABB(), "props": [], "looks": [], "body_looks": []}
 	if not available():
 		return res
 	var feats: Array = rec.get("features", [])
 	var n := feats.size() if upto < 0 else mini(upto + 1, feats.size())
 	var bodies: Array = []
+	var looks: Array = []   # APPEARANCE: one look per body (null = the default for its index), kept beside bodies
 	var errs: Dictionary = res["errors"]
 	var sketches := {}
 	for i in n:
 		var f: Dictionary = feats[i]
 		var id := String(f["id"])
+		look_fit(looks, bodies.size())
 		match String(f["t"]):
 			"sketch":
 				var rs := resolved_sketch(f, want.get("body", null))   # C2: bound dimensions read the body given (none = an error)
@@ -428,7 +436,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				if e != "":
 					errs[id] = e
 			"split", "shell":   # the record's split / shell steps (their own functions: _split, _shell)
-				var e := _split(bodies, f) if String(f["t"]) == "split" else _shell(bodies, f)
+				var e := _split(bodies, f, looks) if String(f["t"]) == "split" else _shell(bodies, f)
 				if e != "":
 					errs[id] = e
 			"mirror":
@@ -442,6 +450,12 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				else:
 					KCad.release(bodies[-1])
 					bodies[-1] = u
+			"appear":   # APPEARANCE: the body's look from this step on (its own numbers; no kernel)
+				var ai := int(f.get("body", -1))
+				if ai < 0 or ai >= bodies.size():
+					errs[id] = "there is no body %d to paint" % ai
+				else:
+					looks[ai] = look_of(f)
 			"hinge":   # C3: the rest pose is the timeline's; the swing is hinge_sweep's
 				var hb := int(f.get("body", -1))
 				if hb < 0 or hb >= bodies.size():
@@ -456,6 +470,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				if sw != 0:
 					KCad.release(bodies[hbi])
 					bodies[hbi] = sw
+	look_fit(looks, bodies.size())
 	var mesh := ArrayMesh.new()
 	for b in bodies:
 		var v := KCad.volume(b)
@@ -466,12 +481,15 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		var tm := KCad.tessellate(b, 0.0003, 0.25)
 		if tm != null and tm.get_surface_count() > 0:
 			mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, tm.surface_get_arrays(0))
+			res["looks"].append(look_at(looks, bodies.find(b)))   # one surface, one look (the view paints each surface)
 		if want.get("edges", false):
 			var es := KCad.edges(b)
 			var bb := _bbox(es)
 			for ed in es:
 				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb)})
 	res["bodies"] = bodies.size()
+	for bi in bodies.size():
+		res["body_looks"].append(look_at(looks, bi))
 	if mesh.get_surface_count() > 0:
 		res["mesh"] = mesh
 		res["aabb"] = mesh.get_aabb()
@@ -896,7 +914,7 @@ static func _half(o: Vector3, n: Vector3) -> int:
 
 
 ## split: every body the plane crosses becomes two bodies (the side it points to first); a plane that crosses none is an error
-static func _split(bodies: Array, f: Dictionary) -> String:
+static func _split(bodies: Array, f: Dictionary, looks: Array = []) -> String:
 	if bodies.is_empty():
 		return "there is no body to split"
 	var pl := plane(String(f.get("plane", "right")))
@@ -927,6 +945,7 @@ static func _split(bodies: Array, f: Dictionary) -> String:
 			k += 1
 		else:
 			out.append(bodies[i])
+	_split_looks(looks, bodies.size(), pieces)
 	bodies.clear()
 	bodies.append_array(out)
 	return ""
@@ -1046,4 +1065,41 @@ static func canvas_mm_to_px(f: Dictionary, mm: Vector2) -> Vector2:
 	var s := canvas_scale(f)
 	var at := v2(f.get("at", [0, 0]))
 	return Vector2((mm.x - at.x) / s, (at.y - mm.y) / s)
+
+
+## APPEARANCE helpers (GAP 5): the look of each body, kept beside the bodies in replay()
+static func look_of(f: Dictionary) -> Dictionary:
+	var c: Array = f.get("color", [0.74, 0.77, 0.82])
+	return {"c": Color(float(c[0]), float(c[1]), float(c[2])), "rough": float(f.get("rough", 0.5)), "metal": float(f.get("metal", 0.15)),
+		"alpha": clampf(float(f.get("alpha", 1.0)), 0.0, 1.0), "preset": String(f.get("preset", "Custom"))}
+
+
+## the look of body i: its last appear step, else its chip (by index) with the default numbers
+static func look_at(looks: Array, i: int) -> Dictionary:
+	if i >= 0 and i < looks.size() and looks[i] != null:
+		return looks[i]
+	var c: Color = (LOOK_CHIPS[maxi(i, 0) % LOOK_CHIPS.size()][1] as Color)
+	return {"c": c, "rough": float(LOOK_DEFAULT["rough"]), "metal": float(LOOK_DEFAULT["metal"]), "alpha": 1.0, "preset": "Default"}
+
+
+static func look_fit(looks: Array, n: int) -> void:
+	while looks.size() < n:
+		looks.append(null)
+	while looks.size() > n:
+		looks.pop_back()
+
+
+## a split: the piece pair of each cut body takes the look of the body it came from (a default look stays a default: by index)
+static func _split_looks(looks: Array, n: int, pieces: Array) -> void:
+	if looks.size() != n:
+		return
+	var nl := []
+	var k := 0
+	for i in n:
+		nl.append(looks[i])
+		if k < pieces.size() and int(pieces[k][0]) == i:
+			nl.append(looks[i])
+			k += 1
+	looks.clear()
+	looks.append_array(nl)
 

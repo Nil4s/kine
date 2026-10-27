@@ -174,3 +174,4 @@ EXTRA="$EXTRA pspline:h"   # GAP 1 SPLINE: a sketch Spline (click points, close 
 EXTRA="$EXTRA psplit:h"   # GAP 4 + 7: split by a plane, intersect op, shell (open face), extrude taper (tests/psplit_test.gd)
 EXTRA="$EXTRA ploft:w"   # GAP 2 LOFT: a loft of two sketches (one on an Offset plane typed 50 mm) by real ribbon clicks, one undo step, closed mesh, smooth 3-profile record, save and reload (tests/ploft_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA pcanvas:w"   # GAP 3 CANVAS: a reference picture on the Front plane in Part (Canvas, two clicks + typed mm, OK = one undo, drag, hide, opacity, saved in the record, 1 mm line-up at 1280x720); tests/pcanvas_test.gd; needs the CAD DLL
+EXTRA="$EXTRA pappear:w"   # GAP 5 APPEARANCE: per-body colour chips, picker and Paint / Metal / Glass / Rubber / Plastic in the record (appear step) and the Appearance tool; glass shows the body behind it, split bodies differ (tests/pappear_test.gd; needs the CAD DLL)
