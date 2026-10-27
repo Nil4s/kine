@@ -824,7 +824,7 @@ func _pull(rec: Dictionary) -> String:
 func _spin(rec: Dictionary) -> String:
 	var sid := Part.profile_sketch(rec)
 	if sid == "" or Part.sketch_used(rec, sid):
-		return "Draw a shape first, then spin it round"
+		return "That shape is solid already. Draw a new one, then Spin it round"
 	var f := Part.new_feature(rec, "revolve", {"sketch": sid, "axis": "x", "deg": 360.0, "op": "join"})
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
@@ -837,7 +837,7 @@ func _spin(rec: Dictionary) -> String:
 func _round(rec: Dictionary) -> String:
 	var res := Part.replay(rec, -1, {"edges": true})
 	if int(res["bodies"]) == 0:
-		return "Make something solid first"
+		return "Nothing solid to round yet. Press Pull it up first"
 	var es: Array = res["edges"]
 	var aabb: AABB = res["aabb"]
 	var small := minf(aabb.size.x, minf(aabb.size.y, aabb.size.z)) / Part.MM
@@ -890,7 +890,7 @@ func _try_fillet(rec: Dictionary, r: float, edges: Array) -> String:
 func _hole(rec: Dictionary) -> String:
 	var res := Part.replay(rec)
 	if int(res["bodies"]) == 0:
-		return "Make something solid first"
+		return "Nothing solid to cut a hole in yet. Press Pull it up first"
 	var bb: AABB = res["aabb"]
 	var c := bb.get_center() / Part.MM
 	var r := clampf(minf(bb.size.x, bb.size.y) / Part.MM * 0.12, 10.0, 40.0)   # the radius in mm: a hole 2 to 8 cm across
@@ -910,7 +910,7 @@ func _hole(rec: Dictionary) -> String:
 func _mirror(rec: Dictionary) -> String:
 	var res := Part.replay(rec)
 	if int(res["bodies"]) == 0:
-		return "Make something solid first"
+		return "Nothing solid to mirror yet. Press Pull it up first"
 	var f := Part.new_feature(rec, "mirror", {"plane": "right", "op": "join"})
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
@@ -951,7 +951,7 @@ func _blend(rec: Dictionary) -> String:
 func _cut(rec: Dictionary) -> String:
 	var res := Part.replay(rec)
 	if int(res["bodies"]) == 0:
-		return "Make something solid first"
+		return "Nothing solid to cut yet. Press Pull it up first"
 	var bb: AABB = res["aabb"]
 	var ax := 0
 	if bb.size.y > bb.size.x and bb.size.y >= bb.size.z:

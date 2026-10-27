@@ -550,7 +550,8 @@ func _process(dt: float) -> void:
 	if red_on and m.ui_mouse != null:   # the line sits just above the mouse strip, at its left
 		note.global_position = m.ui_mouse.global_position + Vector2(0, -note.size.y - 6)
 	var lib: bool = m.ui_library != null and m.ui_library.visible   # the open library sits where the panel's left half is: one at a time
-	panel.visible = on and (empty or _open or _gen_on) and not (lib and not _gen_on) and not _copying()
+	var part_on: bool = m.bld != null and m.bld.part != null and m.bld.part.ep != null and m.bld.part.ep.active()   # Easy Part has the view: this animate panel would cover its MAKE row, colour chips and draw area
+	panel.visible = on and (empty or _open or _gen_on) and not (lib and not _gen_on) and not _copying() and not part_on
 	if panel.visible:   # centred between the top bar and the welcome line (a short window must not run the picker into the line)
 		var vs := panel.get_viewport().get_visible_rect().size
 		var top := float(m.TOP_H) + 12.0
