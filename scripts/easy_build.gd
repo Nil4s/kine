@@ -193,6 +193,7 @@ func _process(_dt: float) -> void:
 	bar.visible = on
 	# the chooser (build_choose.gd) covers the column: its House and Prop cards sat under the column's buttons
 	var chooser: bool = m.build_choose != null and m.build_choose.open
+	chooser = chooser or (m.ui_library != null and m.ui_library.visible)   # the library (Props) opens over the same corner: the column steps aside the same way
 	col.visible = on and not chooser
 	if not on:
 		hint.visible = false

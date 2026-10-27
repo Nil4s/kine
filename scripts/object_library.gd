@@ -824,6 +824,8 @@ var _pd_on := false               # the press has become a drag
 var _drag_frame := -1             # the frame a drag ended on: the release's own Button press is not a second placement
 var _ghost_layer: CanvasLayer = null
 var _ghost: PanelContainer = null
+var _see_through := false         # the drag has left its tile: the panel is see-through and the floor under it takes the drop
+const SEE_PX := 60.0
 
 
 func _input(ev: InputEvent) -> void:
@@ -836,16 +838,22 @@ func _input(ev: InputEvent) -> void:
 				return
 			_pd_on = true
 			_ghost_start(String(_pd["id"]))
+		if not _see_through and mp.distance_to(_pd["p"]) >= SEE_PX:   # the panel covers half the view: out of the way while dragging
+			_see_through = true
+			modulate.a = 0.2
 		_ghost_move(mp)
 	elif ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and not (ev as InputEventMouseButton).pressed:
 		var id := String(_pd["id"])
 		var was := _pd_on
+		var through := _see_through
 		_pd = {}
 		_pd_on = false
+		_see_through = false
+		modulate.a = 1.0
 		if was:
 			_drag_frame = Engine.get_process_frames()
 			_ghost_stop()
-			_drop(id, (ev as InputEventMouseButton).global_position)
+			_drop(id, (ev as InputEventMouseButton).global_position, through)
 
 
 func _tile_input(ev: InputEvent, id: String) -> void:
@@ -864,9 +872,10 @@ func _tile_pressed(id: String) -> void:
 
 
 ## the release of a drag at mouse position mp: a prop goes on the floor point under it (the camera's ray meets y = 0); other
-## kinds (weapons, armour) are placed as a click places them. Over this panel nothing is placed.
-func _drop(id: String, mp: Vector2) -> void:
-	if get_global_rect().has_point(mp):
+## kinds (weapons, armour) are placed as a click places them. Over this panel nothing is placed, unless the drag went see-through
+## (it left its tile): then the floor under the panel takes it too
+func _drop(id: String, mp: Vector2, through := false) -> void:
+	if get_global_rect().has_point(mp) and not through:
 		return
 	var it := item(id)
 	if it.is_empty() or m == null:

@@ -3165,7 +3165,7 @@ func _ready() -> void:
 	build_choose.auto = page_tour.auto   # the chooser comes with a new 3D BUILDING project on a real launch; a test turns it on itself
 	model_cards.auto = page_tour.auto   # the cards come the first time MODEL opens on a real launch; a test turns them on itself
 	onboard.prepare(cf, not testing and not OS.get_cmdline_user_args().has("--shot") and not OS.get_cmdline_user_args().has("--tour"))   # R25: due on a first launch; the other tours wait for it
-	easy.build(ui_root, [ui_top_bar, ui_cube, ui_nav, ui_bh, ui_play_row, ui_side_of["left"], ui_side_of["right"], ui_page_bar, ui_mouse].filter(func(n): return n != null) + ui_rails.values())   # Easy: no page tabs, no mouse legend
+	easy.build(ui_root, [ui_top_bar, ui_cube, ui_shade_btn, ui_light_btn, ui_nav, ui_bh, ui_play_row, ui_side_of["left"], ui_side_of["right"], ui_page_bar, ui_mouse].filter(func(n): return n != null) + ui_rails.values())   # Easy: no page tabs, no mouse legend; the cube's Shading and Studio lights menus go with it (they lay under Easy's Reset view)
 	if easy.sliders != null:
 		easy.sliders.add_block(_hands_block(true))   # HANDS (w4-handlock): the lock and the hands row in the Easy side panel
 	BootProfile.mark("easy build")
