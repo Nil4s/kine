@@ -153,3 +153,4 @@ EXTRA="$EXTRA realismslice:w"   # REALISM / TIMING COACH SLICES: the scene datab
 EXTRA="$EXTRA starters:w"   # B1 starter buildings in the Template card (scripts/build/build_starters.gd)
 EXTRA="$EXTRA ribbonmesh:w"   # RIBBON STANDARD on MODEL / SCULPT / SURFACE: icon-only groups with captions, <= 20 icons, nothing in More, every old tool by real clicks at 1280x720 + 1600x900 (tests/ribbonmesh_test.gd)
 EXTRA="$EXTRA ribbonsd:w"   # STAGE + DELIVER ribbons: the POSE/ANIMATE standard (captioned groups, 9-20 icons, nothing in More, every tool by real clicks), 1280x720 + 1600x900 (tests/ribbonsd_test.gd)
+EXTRA="$EXTRA remesh:h"   # M1 VOXEL REMESH: a closed mesh to an even quad mesh (surface nets + QEF on the banded field): volume within 2 % (sphere, torus, block ring), closed and manifold, quad count within 10 % of 1.5 A / h^2, undo (tests/remesh_test.gd)

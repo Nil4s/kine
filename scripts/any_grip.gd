@@ -17,6 +17,8 @@ const PALM_GAP := 0.005    # place_hand: the palm rests 5 mm off the surface
 const GRID_MARGIN := 0.01  # the voxel grid reaches 1 cm past the mesh
 const CELL_MIN := 0.004    # voxel size for a mesh field (4 mm); coarser for a big mesh (work bound below)
 const WORK_MAX := 1.5e6    # voxel x triangle tests allowed in one field build
+const ON_SURFACE := 1e-7   # M1: a voxel this close to a triangle is outside (a grid plane lying on a face has no sign of its own)
+const BAND := 3.0              # M1: a banded field (MeshField.build_banded) reaches 3 cells from each triangle
 const RATIO := [28.0 / 43.0, 1.0, 26.0 / 43.0]   # Gulke 2010 MCP : PIP : DIP
 const THUMB_RATIO := [18.0 / 32.0, 1.0]          # the thumb's two flexing joints (as grip_wrap.gd)
 
@@ -658,6 +660,104 @@ class MeshField:
 					var w := (tx if dx == 1 else 1.0 - tx) * (ty if dy == 1 else 1.0 - ty) * (tz if dz == 1 else 1.0 - tz)
 					s += w * d[(ix + dx) + nx * ((iy + dy) + ny * (iz + dz))]
 		return s
+
+	## M1 (voxel remesh, scripts/kmesh_voxel_remesh.gd): the same field on a grid of `cell` metres, for a closed mesh
+	## of any size. build() tests every voxel against every triangle and coarsens the grid to a work cap; here each
+	## triangle only visits the voxels within BAND cells of its box, so a 1 cm grid over a sculpt is quick. A voxel no
+	## triangle reaches is inside or outside by a flood fill from the grid's edge (the band cuts the grid in two).
+	## build() itself is unchanged: the grips' field is the same as before.
+	static func build_banded(tris: PackedVector3Array, cell: float) -> MeshField:
+		var f := MeshField.new()
+		var ntri := tris.size() / 3
+		if ntri == 0 or cell <= 0.0:
+			return f
+		var lo := tris[0]
+		var hi := tris[0]
+		for p in tris:
+			lo = lo.min(p)
+			hi = hi.max(p)
+		f.size = hi - lo
+		f.h = cell
+		var pad := Vector3.ONE * (AnyGrip.BAND + 2.0) * cell
+		f.gmin = lo - pad + Vector3(0.3719, 0.2841, 0.4137) * cell   # off the grid's planes: a plane of voxels lying on a face has no sign of its own
+		var span := hi + pad - f.gmin
+		f.nx = int(ceilf(span.x / cell)) + 1
+		f.ny = int(ceilf(span.y / cell)) + 1
+		f.nz = int(ceilf(span.z / cell)) + 1
+		f.gmax = f.gmin + Vector3(f.nx - 1, f.ny - 1, f.nz - 1) * cell
+		var n := f.nx * f.ny * f.nz
+		var vol := 0.0
+		for t in ntri:
+			vol += tris[3 * t].dot(tris[3 * t + 1].cross(tris[3 * t + 2]))
+		var flip := -1.0 if vol < 0.0 else 1.0
+		f.d.resize(n)
+		var dist := PackedFloat32Array()
+		dist.resize(n)
+		dist.fill(INF)
+		var touched := PackedByteArray()
+		touched.resize(n)
+		var reach := AnyGrip.BAND * cell
+		for t in ntri:
+			var a := tris[3 * t]
+			var b := tris[3 * t + 1]
+			var c := tris[3 * t + 2]
+			var nrm := (b - a).cross(c - a)
+			var nt := nrm.normalized() * flip if nrm.length() > 1e-12 else Vector3.UP
+			var amin := a.min(b).min(c) - Vector3.ONE * reach
+			var amax := a.max(b).max(c) + Vector3.ONE * reach
+			var i0 := clampi(int(floorf((amin.x - f.gmin.x) / cell)), 0, f.nx - 1)
+			var j0 := clampi(int(floorf((amin.y - f.gmin.y) / cell)), 0, f.ny - 1)
+			var k0 := clampi(int(floorf((amin.z - f.gmin.z) / cell)), 0, f.nz - 1)
+			var i1 := clampi(int(ceilf((amax.x - f.gmin.x) / cell)), 0, f.nx - 1)
+			var j1 := clampi(int(ceilf((amax.y - f.gmin.y) / cell)), 0, f.ny - 1)
+			var k1 := clampi(int(ceilf((amax.z - f.gmin.z) / cell)), 0, f.nz - 1)
+			for k in range(k0, k1 + 1):
+				for j in range(j0, j1 + 1):
+					for i in range(i0, i1 + 1):
+						var idx := i + f.nx * (j + f.ny * k)
+						var p := f.gmin + Vector3(i, j, k) * cell
+						var q := closest(p, a, b, c)
+						var dd := (p - q).length()
+						if dd < dist[idx]:
+							dist[idx] = dd
+							f.d[idx] = dd * (1.0 if dd < AnyGrip.ON_SURFACE or (p - q).dot(nt) >= 0.0 else -1.0)
+							touched[idx] = 1
+		# the voxels no triangle reached: outside if a walk over untouched voxels reaches the grid's edge, else inside
+		var outside := PackedByteArray()
+		outside.resize(n)
+		var queue := PackedInt32Array()
+		for k in f.nz:
+			for j in f.ny:
+				for i in f.nx:
+					if i > 0 and j > 0 and k > 0 and i < f.nx - 1 and j < f.ny - 1 and k < f.nz - 1:
+						continue
+					var idx := i + f.nx * (j + f.ny * k)
+					if touched[idx] == 0:
+						outside[idx] = 1
+						queue.append(idx)
+		var head := 0
+		var slab := f.nx * f.ny
+		var steps := [Vector3i(1, 0, 0), Vector3i(-1, 0, 0), Vector3i(0, 1, 0), Vector3i(0, -1, 0), Vector3i(0, 0, 1), Vector3i(0, 0, -1)]
+		while head < queue.size():
+			var c := queue[head]
+			head += 1
+			var i := c % f.nx
+			var j := (c / f.nx) % f.ny
+			var k := floori(float(c) / float(slab))
+			for st in steps:
+				var ni: int = i + st.x
+				var nj: int = j + st.y
+				var nk: int = k + st.z
+				if ni < 0 or nj < 0 or nk < 0 or ni >= f.nx or nj >= f.ny or nk >= f.nz:
+					continue
+				var nidx := ni + f.nx * (nj + f.ny * nk)
+				if touched[nidx] == 0 and outside[nidx] == 0:
+					outside[nidx] = 1
+					queue.append(nidx)
+		for idx in n:
+			if touched[idx] == 0:
+				f.d[idx] = reach if outside[idx] == 1 else -reach
+		return f
 
 
 # ---------------------------------------------------------------- a small ball: the search for the hand's place

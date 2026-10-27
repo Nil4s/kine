@@ -247,7 +247,7 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
 	"MODEL": [["MESH", ["Test cube", "Edit body", "Save", "Save to body", "Open...", "Use in scene"]], ["MOVE", ["Move", "Rotate", "Scale"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Validate", "Repair", "Proportional", "Modifiers"]]],
-	"SCULPT": [["START", ["Test sphere", "Sculpt the body"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
+	"SCULPT": [["START", ["Test sphere", "Sculpt the body", "Voxel remesh"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
 	"SURFACE": [["COLOUR", ["Paint", "Material from photo"]], ["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]]],
 	"BUILD": [["DRAW", ["Room", "Wall", "Pull"]], ["ADD", ["Opening", "Floor", "Roof", "Piece"]], ["SAY", ["Words"]], ["SHEET", ["Blueprint"]],
 		["PART", ["Part"]], ["SKETCH", ["Line", "Rectangle", "Circle", "Arc", "Dimension"]], ["CREATE", ["Extrude", "Revolve", "Mirror"]], ["MODIFY", ["Fillet", "Chamfer"]], ["DONE", ["Finish sketch"]]],   # the last five are the Part workspace's (scripts/build/part_ui.gd)
@@ -9081,6 +9081,14 @@ func _sculpt_start() -> void:
 	_mesh_show_sync()
 
 
+## M1: Voxel remesh (ribbon SPHERE group; scripts/kmesh_voxel_remesh.gd): the test sphere must be open first
+func _sculpt_remesh() -> void:
+	if ksc == null or not ksc.on:
+		_say("Open the test sphere first (Test sphere), then Voxel remesh")
+		return
+	ksc.remesh()
+
+
 ## WALK ALONG A PATH (ROADMAP 92; scripts/path_walk_ui.gd, path_walk.gd, path_run.gd)
 var pwui: PathWalkUI
 
@@ -16242,6 +16250,7 @@ func _commands() -> Array:
 	add.call("Snap the part to 45°", "Shift+Q", _press.bind(KEY_Q, true), "round", true, "round the picked part's angles to the 45° steps its range allows")
 	add.call("Copy right side to left", "M", _press.bind(KEY_M), "mirror symmetry", true, "the left arm and leg take the right ones' pose, reflected")
 	add.call("Copy left side to right", "N", _press.bind(KEY_N), "mirror symmetry", true, "the right arm and leg take the left ones' pose, reflected")
+	add.call("Voxel remesh", "", _sculpt_remesh, "remesh voxel even topology quads rebuild retopo sculpt sphere uniform", true, "the test sphere becomes an even mesh at 1.5 cm voxels: its surface is rebuilt; one undo step (Ctrl+Z takes it back)")
 	add.call("Sculpt: a test sphere (preview)", "", _sculpt_start, "sculpt brush draw clay inflate smooth flatten pinch crease grab snake hook pressure tablet zbrush", false, "add a test sphere to the stage and sculpt it: drag to stroke, D C I S F P E G K brushes, [ ] radius, Shift+[ ] strength, O falloff, X symmetry, Ctrl invert, Shift smooth, Ctrl+Z undo, Esc leaves (nothing is saved)")
 	add.call("Rig: bone editor (add / delete / parent bones)", "", func(): _bone_ui().toggle(), "bone bones rig skeleton add delete parent extrude roll rest edit armature tail chain joint", false, "open / close the bone editor: your own bones on the body (E extrude from a tail, Shift+A add, X delete, drag the end balls; name, parent, length, roll in its panel). Each edit is one undo step; the body's own skeleton is not edited")
 	add.call("Model: edit a test cube (preview)", "", _kmesh_edit_start, "model mesh cube edit select vertex edge face box lasso xray polygon modeling", false, "add a 4x4-per-side test cube to the stage and select on it: click, Shift+click, B box, L lasso, X x-ray, 1/2/3 vertex / edge / face, Esc leaves (nothing is saved)")
