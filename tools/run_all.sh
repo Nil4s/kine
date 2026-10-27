@@ -153,3 +153,4 @@ EXTRA="$EXTRA realismslice:w"   # REALISM / TIMING COACH SLICES: the scene datab
 EXTRA="$EXTRA starters:w"   # B1 starter buildings in the Template card (scripts/build/build_starters.gd)
 EXTRA="$EXTRA ribbonmesh:w"   # RIBBON STANDARD on MODEL / SCULPT / SURFACE: icon-only groups with captions, <= 20 icons, nothing in More, every old tool by real clicks at 1280x720 + 1600x900 (tests/ribbonmesh_test.gd)
 EXTRA="$EXTRA ribbonsd:w"   # STAGE + DELIVER ribbons: the POSE/ANIMATE standard (captioned groups, 9-20 icons, nothing in More, every tool by real clicks), 1280x720 + 1600x900 (tests/ribbonsd_test.gd)
+EXTRA="$EXTRA renderq:w"   # CG4 render queue: scene files in order (glb/bvh/fbx), each job timed in its log line, a broken job named and skipped, the batch dialog shows the times; tests/renderq_test.gd
