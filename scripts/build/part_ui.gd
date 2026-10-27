@@ -2026,7 +2026,7 @@ func _sel_hinge() -> Dictionary:
 
 
 func _part_name(i: int) -> String:
-	return "Part %d" % (i + 1)
+	return "Body%d" % (i + 1)   # the browser's name for the same body (Bodies: Body1, Body2)
 
 
 ## the panel's words for a hinge: turns Part 1 from 0 deg to 90 deg in 3 s
