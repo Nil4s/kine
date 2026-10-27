@@ -1,7 +1,7 @@
 class_name CarChassis
 extends RefCounted
 ## VEHICLE, STEP 2 CHASSIS: a steel unibody floor structure generated from the PACKAGE (CarPackage hard points). Taught layout: two side
-## sills (rockers) along the wheelbase at the body sides; two front rails from the front crossmember to the firewall, inboard of the front
+## sills (rockers) at the body sides between the wheel openings (behind the front tyre, ahead of the rear tyre); two front rails from the front crossmember to the firewall, inboard of the front
 ## wheels (rail centre y = front track / 2 - tyre width / 2 - 60 mm); two rear rails over the rear axle; crossmembers at the front bumper,
 ## the firewall (behind the front wheels), under the seats (the H-point x), the rear seat and the rear bumper; a floor pan between the sills
 ## (drawn, not weighed). Every member is a closed box section: w x h x wall (mm). Mass = density x perimeter-area x length, where the
@@ -14,7 +14,7 @@ extends RefCounted
 const GROUPS := ["sills", "rails", "cross"]
 const GROUP_NAMES := {"sills": "Sills (rockers)", "rails": "Front and rear rails", "cross": "Crossmembers"}
 const GROUP_TIPS := {
-	"sills": "Sill (rocker): the long side member under the doors, from the front axle to the rear axle",
+	"sills": "Sill (rocker): the long side member under the doors, between the front and the rear wheel openings",
 	"rails": "Rails: the long members of the front (bumper to firewall, inboard of the front wheels) and the rear (over the rear axle)",
 	"cross": "Crossmember: a box section across the floor: front bumper, firewall, under the seats, rear seat, rear bumper",
 }
@@ -123,7 +123,7 @@ static func members(p: Dictionary, c: Dictionary) -> Array:
 		var h: float = sill["h"]
 		var t: float = sill["t"]
 		var xc: float = s * (W * 0.5 - w * 0.5)
-		out.append(_mem("sill_" + sd, "Sill (rocker) " + sd, "sills", Vector3(xc - w * 0.5, fl - h, foh), Vector3(xc + w * 0.5, fl, foh + wb), rho, e_gpa, w, h, t))
+		out.append(_mem("sill_" + sd, "Sill (rocker) " + sd, "sills", Vector3(xc - w * 0.5, fl - h, zfw), Vector3(xc + w * 0.5, fl, foh + wb - r - FIREWALL_GAP), rho, e_gpa, w, h, t))
 	for s in [1.0, -1.0]:
 		var sd := "left" if s > 0.0 else "right"
 		var w: float = rail["w"]

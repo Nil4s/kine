@@ -87,6 +87,14 @@ func headless_bars() -> void:
 		if String(mm["id"]).begins_with("sill"):
 			s1 = float(mm["len"])
 	ok(absf((s1 - s0) - 100.0) <= 1.0, "4 WHEELBASE +100 mm: sill %.1f -> %.1f mm (+%.1f, within 1)" % [s0, s1, s1 - s0])
+	# 4b the sills run between the wheel openings: no sill reaches into a tyre's length (front tyre ends at nose + r, rear starts at nose + wb - r)
+	var into := []
+	var rr := float(CarPackage.derive(p0)["r"])
+	var fo := float(p0["front_oh"])
+	for mm in CarChassis.members(p0, st):
+		if String(mm["id"]).begins_with("sill") and ((mm["lo"] as Vector3).z < fo + rr or (mm["hi"] as Vector3).z > fo + float(p0["wheelbase"]) - rr):
+			into.append("%s %.0f..%.0f" % [mm["id"], (mm["lo"] as Vector3).z, (mm["hi"] as Vector3).z])
+	ok(into.is_empty(), "4b SILLS between the wheel openings %.0f..%.0f mm from the nose (into a tyre: %s)" % [fo + rr, fo + float(p0["wheelbase"]) - rr, into])
 	var steel := CarChassis.totals(p0, st)
 	var alu_c := st.duplicate(true)
 	alu_c["mat"] = "Aluminium"
