@@ -100,9 +100,29 @@ func fresh_house(w: float, d: float, nm := "Untitled") -> void:
 	await idle(2)
 
 
+## a ribbon tool as a user reaches it: the button when it is on the bar, else from More (the bar puts its last tools there
+## when the row is too long for the window; the BUILD row grew past it, and Open house went into More)
+func tool_click(b: Button) -> void:
+	await idle(2)   # the bar refits a frame after a change (a tool can be shown for that frame, past the window's edge)
+	if b.is_visible_in_tree() and root.get_visible_rect().encloses(b.get_global_rect()):
+		await click_ctl(b)
+		return
+	var i: int = m._more_tools.find(b)
+	if i < 0:
+		return
+	await click_ctl(m.ui_more)
+	m.ui_more.get_popup().hide()
+	m._more_pick(i)
+	await idle(2)
+
+
 func save_by_click() -> void:
-	await click_ctl(m.bld.houses.save_btn)
+	await tool_click(m.bld.houses.save_btn)
 	await idle(12)   # the picture is drawn once, on this click
+	for _i in 120:   # the save awaits its picture: done when the status line says so (or the ask is up)
+		if String(m.ui_status.text).begins_with("House saved") or m.bld.houses.ask_box.visible:
+			break
+		await idle(1)
 
 
 func rec_of(b: Dictionary) -> String:
@@ -148,12 +168,12 @@ func _init() -> void:
 	await fresh_house(6.0, 6.0)
 	hu.name_edit.text = "House 1"
 	var before := FileAccess.get_file_as_string(Houses.path_of("House 1"))
-	await click_ctl(hu.save_btn)
+	await tool_click(hu.save_btn)
 	await idle(6)
 	ok(hu.ask_box.visible and FileAccess.get_file_as_string(Houses.path_of("House 1")) == before, "H2 a taken name asks in the panel and touches nothing")
 	await click_ctl(hu.ask_box.find_child("build_house_keep", true, false) as Button)
 	ok(not hu.ask_box.visible and FileAccess.get_file_as_string(Houses.path_of("House 1")) == before, "H2 Cancel leaves the file as it was")
-	await click_ctl(hu.save_btn)
+	await tool_click(hu.save_btn)
 	await idle(2)
 	await click_ctl(hu.ask_box.find_child("build_house_replace", true, false) as Button)
 	await idle(12)
@@ -207,7 +227,7 @@ func _init() -> void:
 	# H5 open, edit, save
 	m._page_set("BUILD")
 	await idle(3)
-	await click_ctl(hu.open_btn)
+	await tool_click(hu.open_btn)
 	await idle(3)
 	var card := hu.open_panel.find_child("house_card_House 3", true, false) as Button
 	ok(hu.open_panel.visible and card != null, "H5 Open house shows the saved houses as cards")
@@ -224,7 +244,7 @@ func _init() -> void:
 	ok(not hu.ask_box.visible and names().size() == 3 and (Houses.load_house("House 3")["rooms"] as Array).size() == rooms0 + 1, "H5 Save house updates the same file without asking (rooms %d -> %d, %d houses)" % [rooms0, (Houses.load_house("House 3")["rooms"] as Array).size(), names().size()])
 
 	# H6 rename
-	await click_ctl(hu.open_btn)
+	await tool_click(hu.open_btn)
 	await idle(3)
 	var rn := hu.open_panel.find_child("house_rename_House 2", true, false) as Button
 	if rn != null:

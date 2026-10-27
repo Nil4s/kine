@@ -93,6 +93,11 @@ func build(root: Control) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	top.add_child(row)
+	var home_b: Button = m._home_button()   # the way back to the start screen, as on every bar (the Easy BUILD bar is hidden under this screen)
+	home_b.custom_minimum_size = Vector2(110, m.TOP_H - 12)
+	home_b.add_theme_font_size_override("font_size", 15)
+	home_b.pressed.connect(close)   # Home leaves the package too: the BUILD bar comes back when BUILD is shown again
+	row.add_child(home_b)
 	row.add_child(_bar_btn("Back to BUILD", "Leave the package: the numbers stay as they are", close))
 	title_l = Label.new()
 	title_l.name = "package_title"

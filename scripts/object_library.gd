@@ -50,6 +50,7 @@ const EXTRA_TIPS := {
 	"My houses": "The houses you saved in BUILD, and the one you are drawing. A click puts one in the set",
 }
 const PIECE_CAT := {"Stairs": "Build stairs", "Furniture": "Build furniture", "Fight blocks": "Fight blocks"}   # BuildPieces.CATS name -> the column's name
+const CAT_PIC := {"Furniture": "prop:chair", "Build furniture": "build:crate"}   # the category tile's picture, where the first object would repeat another category's
 const RECENT := "Recent"
 const RECENT_MAX := 12
 const PIC := 112                   # the picture as shown (the 128 px render, scaled): the tile holds it and its name
@@ -85,9 +86,12 @@ var _side: ScrollContainer
 var _grid: GridContainer
 var _note: Label
 var _pics := {}                   # item id -> TextureRect of its tile (the tiles on screen)
-var _armour_body := []            # the fighter body the armour pictures are cut from: read once per open, not once per tile
 var _armour_hash := ""            # the hash of its rest vertices, once per open (the spec of every armour tile)
 var _fit_key := ""                # the window size and the bottom panel's height the panel was last fitted to
+var _tile_cache := {}             # tile key (id, Easy, placeholder caption) -> its built Button: a tab's tiles are kept, not rebuilt
+var _tile_sig := ""               # what the cached tiles were built from (every object's id, name, category, picture): a change clears them
+var _armour_sb: Array = []        # the fighter body the plates are cut from, read once per open (body_source)
+var _armour_built := {}           # the plate words -> its built node's mesh, once per open
 
 
 ## main: the app; weapon_list: main's WEAPONS (the Weapons tab reads the kinds the picker reads)
@@ -101,6 +105,7 @@ func setup(main: Node, weapon_list: Array) -> void:
 	thumbs.name = "library_thumbs"
 	add_child(thumbs)
 	thumbs.made.connect(_made)
+	thumbs.warm.call_deferred()   # the stage and its first render are paid at start, not in the first open's frames
 	name = "object_library"
 	mouse_filter = Control.MOUSE_FILTER_STOP   # a click on the panel never reaches the view behind it
 	add_theme_stylebox_override("panel", _box_style())
@@ -321,7 +326,8 @@ func open() -> void:
 	more = extra_items()   # ... and the house as BUILD has it now
 	if m != null:
 		_recent = _recent_read()
-	_armour_body = []
+	_armour_sb = []
+	_armour_built = {}
 	_armour_hash = ""
 	visible = true
 	fit(get_viewport().get_visible_rect().size if is_inside_tree() else Vector2(1280, 720))
@@ -351,7 +357,7 @@ func fit(vp: Vector2) -> void:
 	var left := float(m.lw()) + 12.0 if m != null else 12.0
 	var low := low_edge(vp, float(m.bottom_h), float(m.LINE_H)) if m != null else vp.y - 120.0
 	var h := clampf(low - top - CHROME, 160.0, 460.0)
-	_scroll.custom_minimum_size = Vector2(float(COLS) * (_tile_size().x + 8.0) + 24.0, h)
+	_scroll.custom_minimum_size = Vector2(_grid_min_w(), h)
 	reset_size()
 	var over := top + size.y - low   # the panel's own rows (header, search, tabs, note) are more than CHROME on a short window: the grid gives way
 	if over > 0.0 and h > 160.0:
@@ -730,6 +736,13 @@ func _shown() -> Array:
 	return in_cat(CATS[tab])
 
 
+## the grid's width: three cards across, or nothing at Easy's start (only the category tiles show, so the panel is as wide as they are)
+func _grid_min_w() -> float:
+	if _easy() and view == "" and query == "":
+		return 0.0
+	return float(COLS) * (_tile_size().x + 8.0) + 24.0
+
+
 ## the card's size and picture: Easy's are bigger
 func _tile_size() -> Vector2:
 	return EASY_TILE if m != null and m.easy != null and m.easy.on else TILE
@@ -740,9 +753,11 @@ func _pic_size() -> int:
 
 
 func _rebuild() -> void:
+	_check_tile_cache()
 	for c in _grid.get_children():
-		_grid.remove_child(c)
-		c.queue_free()
+		_grid.remove_child(c)   # a tile is kept (cached) and shown again; the Back tile and the empty note are made each time
+		if not c.has_meta("item"):
+			c.queue_free()
 	_pics.clear()
 	_layout_mode()
 	_refresh_tabs()
@@ -767,6 +782,9 @@ func _rebuild() -> void:
 		_note.text = "Pick a picture on the left to see what is in it."
 	else:
 		_note.text = ("%d shown. Click a picture to give it to him." if m.easy.on else "%d shown. Click a tile to place it in the set or the hand.") % shown.size()
+	if _scroll != null and _scroll.custom_minimum_size.x != _grid_min_w() and is_inside_tree():
+		_scroll.custom_minimum_size.x = _grid_min_w()   # the panel shrinks or widens with the grid (Easy's start: the category tiles' width)
+		fit(get_viewport().get_visible_rect().size)
 	reset_size.call_deferred()   # the panel is as tall as what it shows now (a taller tab, or a wrapping label measured before its width, left it 1572 px over a 900 px window)
 
 
@@ -806,6 +824,8 @@ var _pd_on := false               # the press has become a drag
 var _drag_frame := -1             # the frame a drag ended on: the release's own Button press is not a second placement
 var _ghost_layer: CanvasLayer = null
 var _ghost: PanelContainer = null
+var _see_through := false         # the drag has left its tile: the panel is see-through and the floor under it takes the drop
+const SEE_PX := 60.0
 
 
 func _input(ev: InputEvent) -> void:
@@ -818,16 +838,22 @@ func _input(ev: InputEvent) -> void:
 				return
 			_pd_on = true
 			_ghost_start(String(_pd["id"]))
+		if not _see_through and mp.distance_to(_pd["p"]) >= SEE_PX:   # the panel covers half the view: out of the way while dragging
+			_see_through = true
+			modulate.a = 0.2
 		_ghost_move(mp)
 	elif ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and not (ev as InputEventMouseButton).pressed:
 		var id := String(_pd["id"])
 		var was := _pd_on
+		var through := _see_through
 		_pd = {}
 		_pd_on = false
+		_see_through = false
+		modulate.a = 1.0
 		if was:
 			_drag_frame = Engine.get_process_frames()
 			_ghost_stop()
-			_drop(id, (ev as InputEventMouseButton).global_position)
+			_drop(id, (ev as InputEventMouseButton).global_position, through)
 
 
 func _tile_input(ev: InputEvent, id: String) -> void:
@@ -846,9 +872,10 @@ func _tile_pressed(id: String) -> void:
 
 
 ## the release of a drag at mouse position mp: a prop goes on the floor point under it (the camera's ray meets y = 0); other
-## kinds (weapons, armour) are placed as a click places them. Over this panel nothing is placed.
-func _drop(id: String, mp: Vector2) -> void:
-	if get_global_rect().has_point(mp):
+## kinds (weapons, armour) are placed as a click places them. Over this panel nothing is placed, unless the drag went see-through
+## (it left its tile): then the floor under the panel takes it too
+func _drop(id: String, mp: Vector2, through := false) -> void:
+	if get_global_rect().has_point(mp) and not through:
 		return
 	var it := item(id)
 	if it.is_empty() or m == null:
@@ -909,7 +936,61 @@ func _ghost_stop() -> void:
 	_ghost = null
 
 
+## the tiles are built once per list: when the objects (or their pictures) change, the cache is cleared
+func _check_tile_cache() -> void:
+	var parts := PackedStringArray()
+	for it in catalog():
+		parts.append("%s|%s|%s|%s" % [it["id"], it["name"], it["cat"], it.get("thumb", "")])
+	var sig := "
+".join(parts)
+	if sig == _tile_sig:
+		return
+	_tile_sig = sig
+	for k in _tile_cache:
+		var old: Button = _tile_cache[k]
+		if is_instance_valid(old):
+			if old.get_parent() != null:
+				old.get_parent().remove_child(old)
+			old.queue_free()
+	_tile_cache = {}
+
+
 func _tile(it: Dictionary, one := false) -> Control:
+	var key := "%s|%s|%s" % [it["id"], _easy(), one]
+	if _tile_cache.has(key) and is_instance_valid(_tile_cache[key]):
+		var kept := _tile_cache[key] as Button
+		_refresh_tile(kept, it, one)
+		return kept
+	var b := _make_tile(it, one)
+	_tile_cache[key] = b
+	return b
+
+
+## a kept tile shows the picture that is ready now (its own placeholder until then)
+func _refresh_tile(b: Button, it: Dictionary, one: bool) -> void:
+	var tr: TextureRect = null
+	for c in b.get_children():
+		if c is VBoxContainer:
+			for d in c.get_children():
+				if d is TextureRect:
+					tr = d
+	if tr == null:
+		return
+	var id := String(it["id"])
+	var tex := thumbs.picture(id)
+	if tex == null and it.has("thumb"):
+		tex = HousesUI.picture_of(String(it["thumb"]))
+	tr.texture = tex
+	var ph := tr.get_node_or_null("placeholder")
+	if ph != null:
+		ph.visible = tex == null
+		(ph as Label).text = "" if one else String(it["cat"])
+	_pics[id] = tr
+	if tex == null and not thumbs.has_asked(id):
+		thumbs.request(id, thumb_source(it))
+
+
+func _make_tile(it: Dictionary, one := false) -> Control:
 	var b := Button.new()
 	b.name = "tile_" + String(it["id"]).replace(":", "_")
 	b.custom_minimum_size = _tile_size()
@@ -1005,15 +1086,23 @@ static func body_hash(m: Node, read_file := true) -> String:
 	return var_to_str((load("res://scripts/armour_from_body.gd").body_source(m)[0] as KMesh).verts).sha256_text()
 
 
+## a plate's mesh on the fighter, built once per open: the body is read once (_armour_sb), and each plate's mesh is kept (_armour_built)
 func _armour_node(words: String) -> Node3D:
 	if m == null or m.pieces.is_empty() or BaseBody.skin_of(m) == null:
 		return null
-	var sb: Array = load("res://scripts/armour_from_body.gd").body_source(m)
-	var r: Dictionary = load("res://scripts/armour_from_body.gd").build(sb[0], m.skel, sb[1], words, {})
-	if not bool(r.get("ok", false)):
+	if not _armour_built.has(words):
+		if _armour_sb.is_empty():
+			_armour_sb = load("res://scripts/armour_from_body.gd").body_source(m)
+		var r: Dictionary = load("res://scripts/armour_from_body.gd").build(_armour_sb[0], m.skel, _armour_sb[1], words, {})
+		if not bool(r.get("ok", false)):
+			_armour_built[words] = null
+		else:
+			_armour_built[words] = load("res://scripts/armour_from_body.gd").array_mesh(r["mesh"])
+	var am = _armour_built[words]
+	if am == null:
 		return null
 	var mi := MeshInstance3D.new()
-	mi.mesh = load("res://scripts/armour_from_body.gd").array_mesh(r["mesh"])
+	mi.mesh = am
 	var root := Node3D.new()
 	root.add_child(mi)
 	return root
@@ -1031,6 +1120,10 @@ func _refresh_cat_icons() -> void:
 		if li.is_empty():
 			continue
 		var it: Dictionary = li[0]
+		if CAT_PIC.has(nm):   # two categories whose first object looks alike (a table in both) show different pictures
+			var rep := item(String(CAT_PIC[nm]))
+			if not rep.is_empty() and group_of(rep) == nm:
+				it = rep
 		var id := String(it["id"])
 		var tex := thumbs.picture(id)
 		if tex == null and it.has("thumb"):

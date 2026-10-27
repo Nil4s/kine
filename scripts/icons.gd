@@ -378,6 +378,24 @@ const DRAW := {
 	"uv_game": [["box", Rect2(4, 4, 16, 16), 1.6], ["box", Rect2(8, 8, 8, 8), 1.4]],
 	"uv_pack": [["box", Rect2(3, 3, 8, 8), 1.4], ["box", Rect2(13, 3, 8, 8), 1.4], ["box", Rect2(8, 13, 8, 8), 1.4]],
 	"photo_mat": [["box", Rect2(3, 4, 18, 16), 1.6], ["disc", Vector2(8, 9), 2.0], ["seg", Vector2(4, 18), Vector2(10, 12), 1.6], ["seg", Vector2(10, 12), Vector2(14, 16), 1.6], ["seg", Vector2(14, 16), Vector2(21, 10), 1.6]],
+	# BODY: SMOOTH (the body's outline with soft, rounded flanks, not the boxy mannequin)
+	"body_smooth": [["ring", Vector2(12, 4.5), 2.6, 1.8], ["seg", Vector2(7, 9.5), Vector2(17, 9.5), 1.8], ["seg", Vector2(7, 9.5), Vector2(9, 15), 1.8], ["seg", Vector2(9, 15), Vector2(8.5, 21), 1.8], ["seg", Vector2(17, 9.5), Vector2(15, 15), 1.8], ["seg", Vector2(15, 15), Vector2(15.5, 21), 1.8], ["seg", Vector2(12, 15), Vector2(12, 21), 1.2]],
+	# POSE: ONLY THE PART I DRAG (one box lit up, a pointer on it; the rest of the figure is left out)
+	"only_part": [["box", Rect2(4, 4, 10, 10), 1.8], ["seg", Vector2(21, 21), Vector2(14.5, 14.5), 2.2], ["seg", Vector2(14.5, 14.5), Vector2(14.5, 19.5), 2.0], ["seg", Vector2(14.5, 14.5), Vector2(19.5, 14.5), 2.0]],
+	# EXPORT: USE AS A PROP (a box dropped down onto the floor line)
+	"use_prop": [["box", Rect2(7, 3, 10, 8), 1.6], ["seg", Vector2(12, 12), Vector2(12, 18), 2.0], ["seg", Vector2(8.5, 15), Vector2(12, 18.5), 2.0], ["seg", Vector2(15.5, 15), Vector2(12, 18.5), 2.0], ["seg", Vector2(3, 21), Vector2(21, 21), 1.8]],
+	# EXPORT: OPEN EXPORTS FOLDER (a folder with its tab, an arrow leaving it)
+	"open_folder": [["box", Rect2(3, 5, 8, 3), 1.6], ["box", Rect2(3, 7.5, 18, 13), 1.6], ["seg", Vector2(9, 16), Vector2(15, 10), 1.8], ["seg", Vector2(10.5, 10), Vector2(15, 10), 1.8], ["seg", Vector2(15, 10), Vector2(15, 14.5), 1.8]],
+	# VIEW: GRAPHICS QUALITY (three bars climbing: the picture gets finer)
+	"gfx": [["box", Rect2(3, 14, 4, 7), 0], ["box", Rect2(10, 10, 4, 11), 0], ["box", Rect2(17, 5, 4, 16), 0]],
+	# BODY: MANNEQUIN AS SHIPPED (the mannequin standing on its display plinth)
+	"mannequin_ship": [["ring", Vector2(12, 4.5), 2.6, 1.8], ["box", Rect2(8.5, 8.5, 7, 5.5), 1.8], ["seg", Vector2(10, 14), Vector2(10, 18), 1.8], ["seg", Vector2(14, 14), Vector2(14, 18), 1.8], ["seg", Vector2(3.5, 21.5), Vector2(20.5, 21.5), 2.6]],
+	# SCULPT: SCULPT THE BODY (a figure's torso with a brush stroke curling over it)
+	"sculpt_body": [["ring", Vector2(7, 4.5), 2.2, 1.6], ["box", Rect2(3, 8, 8, 12), 1.6], ["arc", Vector2(16, 14), 4, 2.2, 180, 360], ["seg", Vector2(20, 14), Vector2(20, 20), 2.2]],
+	# MODEL: USE IN SCENE (a scene frame with the model put into it from the side)
+	"use_scene": [["box", Rect2(3, 4, 18, 15), 1.6], ["box", Rect2(6, 8, 5, 6), 1.4], ["seg", Vector2(21, 21), Vector2(15, 15), 1.9], ["seg", Vector2(15, 15), Vector2(15, 19.5), 1.9], ["seg", Vector2(15, 15), Vector2(19.5, 15), 1.9]],
+	# SURFACE: EXPORT UVS (a UV square with its grid, an arrow out of it)
+	"uv_export": [["box", Rect2(3, 3, 12, 12), 1.4], ["seg", Vector2(7, 3), Vector2(7, 15), 1.0], ["seg", Vector2(3, 9), Vector2(15, 9), 1.0], ["seg", Vector2(18, 10), Vector2(18, 21), 2.0], ["seg", Vector2(14.5, 17), Vector2(18, 21), 2.0], ["seg", Vector2(21.5, 17), Vector2(18, 21), 2.0]],
 }
 
 static var _cache := {}
