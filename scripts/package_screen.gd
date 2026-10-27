@@ -13,7 +13,7 @@ const AMBER := Color("#FFC933")
 const RED := Color("#FF6B6B")
 const PW := 340.0
 const STEP_NAMES := ["1 Package", "2 Chassis", "3 Suspension", "4 Weight", "5 Body"]
-const STEP_TIPS := ["the hard points: seat, wheelbase, tracks, tyres", "the steel floor structure: sills, rails, crossmembers", "not made yet", "not made yet", "not made yet"]
+const STEP_TIPS := ["the hard points: seat, wheelbase, tracks, tyres", "the steel floor structure: sills, rails, crossmembers", "the wheels on their arms: front and rear types, wheel tilt, steering axis, roll centre, bounce", "not made yet", "not made yet"]
 const BAD_WORDS := ["ctrl", "shift", "alt+", "esc", "enter", "tab ", "delete", "backspace", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12", "spacebar", "return key"]
 
 var m: Node
@@ -56,6 +56,17 @@ var ch_rows := {}              # group -> {"btns": {word: Button}, "edits": [w, 
 var ch_mat: OptionButton
 var ch_read: Label             # the chassis readouts (mass per group, the structure, I, E I, the body in white)
 var ch_compare: Label
+var susp_panel: PanelContainer     # step 3 SUSPENSION (carsusp): the types, Bounce, the readouts with their typical ranges
+var susp_plan: CarSuspPlan         # the front view and the side view of the suspension (step 3)
+var sp_front: OptionButton
+var sp_rear: OptionButton
+var sp_bounce: HSlider
+var sp_pill: Label
+var sp_read := {}                  # readout key -> Label
+var sp_hint := {}                  # readout key -> red hint Label (hidden when inside the typical range)
+var sp_travel: Label               # the wheel travel: tilt and track at full bump and full rebound
+var sp_clear: Label                # the clearance to the chassis at full bump
+var bounce := 0.0                  # Bounce, mm (+ = the wheel lifts). A view control: not saved, not an undo step
 var _held := false
 var _edit_n := -1
 var _edit_before := ""
@@ -98,9 +109,9 @@ func build(root: Control) -> void:
 		var sb := _bar_btn(STEP_NAMES[i], "Step %d: %s" % [i + 1, STEP_TIPS[i]], set_step.bind(i + 1))
 		sb.name = "package_step_%d" % (i + 1)
 		sb.toggle_mode = true
-		if i >= 2:
+		if i >= 3:
 			sb.disabled = true
-			sb.tooltip_text = "Step %d: not made yet. The chassis comes first, then the suspension, the weight and the body" % (i + 1)
+			sb.tooltip_text = "Step %d: not made yet. The weight and the body come after the suspension" % (i + 1)
 		steps.add_child(sb)
 		step_btns[i + 1] = sb
 	undo_btn = _bar_btn("Undo", "Take back the last change", func(): m._undo())
@@ -115,6 +126,11 @@ func build(root: Control) -> void:
 	plan.name = "package_plan"
 	plan.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(plan)
+	susp_plan = CarSuspPlan.new()
+	susp_plan.name = "suspension_plan"
+	susp_plan.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	susp_plan.visible = false
+	add_child(susp_plan)
 	vp = SubViewport.new()
 	vp.name = "package_view"
 	vp.own_world_3d = true
@@ -256,6 +272,7 @@ func build(root: Control) -> void:
 	status.add_child(status_l)
 	add_child(status)
 	_build_chassis_panel()
+	_build_susp_panel()
 	_show_tab(true)
 	set_step(1)
 	layout()
@@ -357,16 +374,19 @@ func _build_chassis_panel() -> void:
 	body.add_child(ch_compare)
 
 
-## the steps: 1 Package (the hard points) and 2 Chassis (the floor structure over the package). One click switches; the package stays as it is
+## the steps: 1 Package (the hard points), 2 Chassis (the floor structure over the package), 3 Suspension (the wheels on their arms).
+## One click switches; the package stays as it is
 func set_step(n: int) -> void:
-	if n < 1 or n > 2:
+	if n < 1 or n > 3:
 		return
-	if n == 2:
+	if n >= 2:
 		ensure()
 	step = n
 	msg = ""
 	panel.visible = step == 1
 	chassis_panel.visible = step == 2
+	susp_panel.visible = step == 3
+	susp_plan.visible = step == 3
 	for i in step_btns:
 		(step_btns[i] as Button).set_pressed_no_signal(i == step)
 	layout()
@@ -752,6 +772,207 @@ func _num(v: float) -> String:
 	return str(int(v)) if absf(v - round(v)) < 1e-6 else str(snappedf(v, 0.01))
 
 
+# ---------------------------------------------------------------- step 3: the suspension (carsusp; one undo step per choice)
+
+
+## the step 3 panel: the front and rear types, Bounce, the readouts with their typical ranges (red with a plain hint outside), the travel and the clearance
+func _build_susp_panel() -> void:
+	susp_panel = PanelContainer.new()
+	susp_panel.name = "susp_panel"
+	susp_panel.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.95), 10, 8))
+	susp_panel.position = Vector2.ZERO
+	susp_panel.visible = false
+	add_child(susp_panel)
+	var v := VBoxContainer.new()
+	v.name = "susp_panel_vb"
+	v.add_theme_constant_override("separation", 5)
+	susp_panel.add_child(v)
+	var hd := Label.new()
+	hd.text = "Suspension: the wheels on their arms"
+	hd.tooltip_text = "The hard points hang each wheel from the body: the arms and the knuckle, drawn in the front view and the side view"
+	hd.add_theme_font_size_override("font_size", 14)
+	v.add_child(hd)
+	var sc := ScrollContainer.new()
+	sc.name = "susp_scroll"
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(sc)
+	var body := VBoxContainer.new()
+	body.name = "susp_body"
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	body.add_theme_constant_override("separation", 6)
+	sc.add_child(body)
+	sp_front = _pick_row(body, "Front", "susp_front_pick", "Front: a MacPherson strut (a spring strut that is also the steering axis, compact and cheap) or double wishbones (two arms per wheel, the most tuning room)", CarSusp.FRONT_OPTS)
+	sp_front.item_selected.connect(func(i: int): _set_front(i))
+	sp_rear = _pick_row(body, "Rear", "susp_rear_pick", "Rear: a twist beam (one trailing arm per side, simple and cheap) or multilink (several links per wheel, the wheel keeps its tilt better)", CarSusp.REAR_OPTS)
+	sp_rear.item_selected.connect(func(i: int): _set_rear(i))
+	var brow := HBoxContainer.new()
+	brow.name = "susp_bounce_row"
+	brow.tooltip_text = "Bounce: lift the wheel (plus) or let it drop (minus) with the body held still, up to %d mm. A view only: not saved, not an undo step" % int(CarSusp.TRAVEL)
+	body.add_child(brow)
+	var bl := Label.new()
+	bl.text = "Bounce"
+	bl.tooltip_text = brow.tooltip_text
+	bl.add_theme_font_size_override("font_size", 15)
+	brow.add_child(bl)
+	sp_bounce = HSlider.new()
+	sp_bounce.name = "susp_bounce"
+	sp_bounce.min_value = -CarSusp.TRAVEL
+	sp_bounce.max_value = CarSusp.TRAVEL
+	sp_bounce.step = 1.0
+	sp_bounce.focus_mode = Control.FOCUS_NONE
+	sp_bounce.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sp_bounce.custom_minimum_size = Vector2(120, 22)
+	sp_bounce.tooltip_text = brow.tooltip_text
+	sp_bounce.value_changed.connect(func(f: float): _on_bounce(f))
+	brow.add_child(sp_bounce)
+	sp_pill = Label.new()
+	sp_pill.name = "susp_bounce_pill"
+	sp_pill.custom_minimum_size = Vector2(70, 0)
+	sp_pill.add_theme_font_size_override("font_size", 14)
+	brow.add_child(sp_pill)
+	var rows_def := [
+		["camber", "Wheel tilt (camber)", "Camber: the lean of the wheel from vertical, seen from the front; top leaning in is minus. camber = atan2(W_y - C_y, W_z - C_z): W the wheel centre, C the contact patch. Typical -2 to 0 deg"],
+		["kpi", "Steering tilt (KPI)", "Kingpin inclination (KPI): the steering axis from vertical, seen from the front; top leaning in is plus. KPI = atan2(L_y - T_y, T_z - L_z): L the lower ball joint, T the top. Typical 8 to 16 deg"],
+		["scrub", "Scrub radius", "Scrub radius: on the ground, the distance from the steering axis to the middle of the tyre contact patch; plus = the axis is inboard. scrub = C_y - G_y, G where the axis meets the ground. Typical -20 to +60 mm"],
+		["caster", "Caster (steering lean)", "Caster: the steering axis from vertical, seen from the side; top leaning back is plus. caster = atan2(L_x - T_x, T_z - L_z). Typical 2 to 8 deg"],
+		["trail", "Trail (mechanical)", "Mechanical trail: the ground trail (G_x - C_x, G from the steering axis) times cos(caster), along the wheel plane. A bigger trail gives more self-centring"],
+		["rc", "Roll centre height", "Roll centre (front): where the body rolls about, from the instant centre IC of the arms; the line C to IC crosses the centreline. Typical 0 to 150 mm"],
+	]
+	for rd in rows_def:
+		var key: String = rd[0]
+		var l := Label.new()
+		l.name = "susp_read_" + key
+		l.tooltip_text = String(rd[2])
+		l.add_theme_font_size_override("font_size", 14)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		body.add_child(l)
+		sp_read[key] = l
+		var h := Label.new()
+		h.name = "susp_hint_" + key
+		h.add_theme_font_size_override("font_size", 13)
+		h.add_theme_color_override("font_color", RED)
+		h.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		h.visible = false
+		body.add_child(h)
+		sp_hint[key] = h
+	sp_travel = Label.new()
+	sp_travel.name = "susp_travel"
+	sp_travel.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	sp_travel.add_theme_font_size_override("font_size", 13)
+	sp_travel.tooltip_text = "Wheel travel: the wheel moves up and down by Bounce with the body held still. Wheel tilt and track (the spacing of the contact patches) change through the travel"
+	body.add_child(sp_travel)
+	sp_clear = Label.new()
+	sp_clear.name = "susp_clear"
+	sp_clear.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	sp_clear.add_theme_font_size_override("font_size", 13)
+	sp_clear.tooltip_text = "Clearance: the smallest gap between a tyre and any chassis member (sill, rail, crossmember) at full bump and full rebound. Red when they touch"
+	body.add_child(sp_clear)
+	var typ := Label.new()
+	typ.name = "susp_typical"
+	typ.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	typ.add_theme_font_size_override("font_size", 12)
+	typ.modulate = Color(1, 1, 1, 0.7)
+	typ.text = "Typical road car: wheel tilt -2 to 0 deg, steering tilt 8 to 16 deg, scrub -20 to +60 mm, caster 2 to 8 deg, roll centre 0 to 150 mm."
+	typ.tooltip_text = "Ranges from Milliken and Milliken, Race Car Vehicle Dynamics (1995), and Reimpell, Stoll and Betzler, The Automotive Chassis (2001); as recalled, not checked against the books"
+	body.add_child(typ)
+
+
+## one choice row: a label and a pick list (mouse only). Returns the list
+func _pick_row(parent: Control, label: String, nm: String, tip: String, items: Array) -> OptionButton:
+	var row := HBoxContainer.new()
+	row.name = nm + "_row"
+	row.tooltip_text = tip
+	parent.add_child(row)
+	var l := Label.new()
+	l.text = label
+	l.tooltip_text = tip
+	l.custom_minimum_size = Vector2(60, 0)
+	l.add_theme_font_size_override("font_size", 15)
+	row.add_child(l)
+	var ob := OptionButton.new()
+	ob.name = nm
+	ob.focus_mode = Control.FOCUS_NONE
+	ob.tooltip_text = tip
+	ob.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for it in items:
+		ob.add_item(String(it))
+	row.add_child(ob)
+	return ob
+
+
+## the suspension record (S.vehicle["susp"], filled in when missing)
+func susp() -> Dictionary:
+	return CarSusp.norm(m.S.vehicle.get("susp", {}))
+
+
+## a suspension change: one undo step; a change that changes nothing is no step
+func _set_susp(label: String, rec: Dictionary) -> void:
+	ensure()
+	if JSON.stringify(rec) == JSON.stringify(susp()):
+		_sync()
+		return
+	m._step_hint = label
+	m._push_undo()
+	m.S.vehicle["susp"] = rec
+	msg = ""
+	_sync()
+
+
+func _set_front(i: int) -> void:
+	var rec := susp()
+	rec["front"] = CarSusp.FRONT_OPTS[clampi(i, 0, CarSusp.FRONT_OPTS.size() - 1)]
+	_set_susp("Front suspension: %s" % String(rec["front"]), rec)
+
+
+func _set_rear(i: int) -> void:
+	var rec := susp()
+	rec["rear"] = CarSusp.REAR_OPTS[clampi(i, 0, CarSusp.REAR_OPTS.size() - 1)]
+	_set_susp("Rear suspension: %s" % String(rec["rear"]), rec)
+
+
+## Bounce: the view only (no undo step, not saved); the drawings and the 3D follow
+func _on_bounce(v: float) -> void:
+	bounce = clampf(round(v), -CarSusp.TRAVEL, CarSusp.TRAVEL)
+	_sync()
+
+
+func _num_or_none(v: float, unit: String) -> String:
+	return "none" if is_nan(v) else "%d %s" % [int(round(v)), unit]
+
+
+## the step 3 panel's words and numbers: the static readouts (Bounce 0) with their ranges, the travel and the clearance
+func _sync_susp() -> void:
+	var rec := susp()
+	var p := pkg()
+	var cc := chassis()
+	sp_front.select(maxi(0, CarSusp.FRONT_OPTS.find(String(rec["front"]))))
+	sp_rear.select(maxi(0, CarSusp.REAR_OPTS.find(String(rec["rear"]))))
+	sp_bounce.set_value_no_signal(bounce)
+	sp_pill.text = "%+d mm" % int(bounce)
+	var r := CarSusp.readouts(p, cc, rec, 0.0)
+	var units := {"camber": "deg", "kpi": "deg", "scrub": "mm", "caster": "deg", "rc": "mm"}
+	for row in CarSusp.checks(p, cc, rec):
+		var key := String(row["key"])
+		var v := float(row["value"])
+		var red := bool(row["red"]) and not is_nan(v)
+		var shown := "none" if is_nan(v) else "%s %s" % [str(snappedf(v, 0.1)), units[key]]
+		var nm := "Steering tilt (KPI)" if key == "kpi" else String(CarSusp.RANGE_WORDS[key])
+		(sp_read[key] as Label).text = "%s  %s" % [nm, shown]
+		(sp_read[key] as Label).add_theme_color_override("font_color", RED if red else Color(1, 1, 1))
+		(sp_hint[key] as Label).text = "  " + String(row["hint"]) if red else ""
+		(sp_hint[key] as Label).visible = red
+	sp_read["trail"].text = "Trail (mechanical)  %s" % _num_or_none(float(r["trail"]), "mm")
+	var up := CarSusp.readouts(p, cc, rec, CarSusp.TRAVEL)
+	var dn := CarSusp.readouts(p, cc, rec, -CarSusp.TRAVEL)
+	sp_travel.text = "Full bump (+%d mm): wheel tilt %s deg, track %d mm. Full rebound (-%d mm): wheel tilt %s deg, track %d mm." % [int(CarSusp.TRAVEL),
+		str(snappedf(float(up["camber"]), 0.1)), int(round(float(up["track"]))), int(CarSusp.TRAVEL), str(snappedf(float(dn["camber"]), 0.1)), int(round(float(dn["track"])))]
+	var clr := minf(CarSusp.clearance(p, cc, rec, CarSusp.TRAVEL), CarSusp.clearance(p, cc, rec, -CarSusp.TRAVEL))
+	sp_clear.text = "Clearance to the chassis at full bump or rebound: %d mm%s" % [int(round(clr)), "" if clr >= 0.0 else ": the tyre hits the chassis"]
+	sp_clear.add_theme_color_override("font_color", RED if clr < 0.0 else Color(1, 1, 1))
+	susp_plan.set_data(p, cc, rec, bounce)
+
+
 # ---------------------------------------------------------------- the views
 
 ## the screen's words and numbers from the hard points: every control reads the record
@@ -800,7 +1021,9 @@ func _sync() -> void:
 	_build_compare(p)
 	if step == 2:
 		_sync_chassis()
-	title_l.text = "Vehicle: chassis, %s" % String(p.get("class", "")) if step == 2 else "Vehicle: package, %s" % String(p.get("class", "")) if not p.is_empty() else "Vehicle: package"
+	if step == 3:
+		_sync_susp()
+	title_l.text = "Vehicle: chassis, %s" % String(p.get("class", "")) if step == 2 else "Vehicle: suspension, %s" % String(p.get("class", "")) if step == 3 else "Vehicle: package, %s" % String(p.get("class", "")) if not p.is_empty() else "Vehicle: package"
 	undo_btn.disabled = m.undo.is_empty()
 	redo_btn.disabled = m.redo.is_empty()
 	var reds := 0
@@ -810,6 +1033,8 @@ func _sync() -> void:
 	if line == "" and step == 2:
 		var tot := CarChassis.totals(p, chassis())
 		line = "Chassis: the structure weighs %.1f kg. Change a size, or type a section in mm. Each change is one undo step" % float(tot["mass"])
+	elif line == "" and step == 3:
+		line = "Front: %s. Rear: %s. One undo step per choice; Bounce is not saved" % [String(susp()["front"]), String(susp()["rear"])]
 	elif line == "":
 		line = "%d of %d measures are more than 10 %% off a %s: see Yours vs real cars" % [reds, CarPackage.METRICS.size(), String(p.get("class", "")).to_lower()] if reds > 0 else "Every measure is within 10 %% of the real %s cars" % String(p.get("class", "")).to_lower()
 	status_l.text = line
@@ -819,7 +1044,9 @@ func _build_3d(p: Dictionary) -> void:
 	if car3d != null:
 		world.remove_child(car3d)
 		car3d.free()
-	car3d = CarChassis.build_3d(p, chassis()) if step == 2 else CarPackage.build_3d(p)   # step 2: the members as boxes, over the package
+	car3d = CarChassis.build_3d(p, chassis()) if step >= 2 else CarPackage.build_3d(p)   # steps 2 and 3: the members as boxes, over the package
+	if step == 3:
+		car3d.add_child(CarSusp.build_3d(p, chassis(), susp(), bounce))   # the arms, knuckles and tyres at the Bounce
 	world.add_child(car3d)
 	built_3d += 1
 
@@ -896,7 +1123,10 @@ func layout() -> void:
 	plan.size = Vector2(vw, avail)
 	view.position = plan.position
 	view.size = plan.size
-	plan.visible = not show_3d
+	plan.visible = not show_3d and step != 3
+	susp_plan.position = plan.position
+	susp_plan.size = plan.size
+	susp_plan.visible = not show_3d and step == 3
 	view.visible = show_3d
 	if vp != null:
 		vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS if show_3d else SubViewport.UPDATE_DISABLED
@@ -907,6 +1137,9 @@ func layout() -> void:
 	if chassis_panel != null:
 		chassis_panel.position = panel.position
 		chassis_panel.size = panel.size
+	if susp_panel != null:
+		susp_panel.position = panel.position
+		susp_panel.size = panel.size
 	status.position = Vector2(12.0, top + avail + 6.0)
 	status.size = Vector2(vw - 24.0, 40.0)
 

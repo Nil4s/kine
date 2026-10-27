@@ -41,6 +41,8 @@ static func from_file(d: Variant) -> Dictionary:
 		out["package"] = ((d as Dictionary)["package"] as Dictionary).duplicate(true)
 	if (d as Dictionary).get("chassis") is Dictionary and out.has("package"):   # the chassis (carchassis) belongs to a package
 		out["chassis"] = CarChassis.norm((d as Dictionary)["chassis"])
+	if (d as Dictionary).get("susp") is Dictionary and out.has("package"):     # the suspension (carsusp) belongs to a package
+		out["susp"] = CarSusp.norm((d as Dictionary)["susp"])
 	return out
 
 
@@ -53,6 +55,8 @@ static func to_file(v: Dictionary) -> Dictionary:
 		out["package"] = (v["package"] as Dictionary).duplicate(true)
 	if v.get("chassis") is Dictionary and out.has("package"):
 		out["chassis"] = CarChassis.norm(v["chassis"])
+	if v.get("susp") is Dictionary and out.has("package"):
+		out["susp"] = CarSusp.norm(v["susp"])
 	return out
 
 
