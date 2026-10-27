@@ -65,6 +65,10 @@ public:
 	static Array faces(int p_id); // [{id, center (of mass), normal (outward at the centre point), area, type, point (a point on the face)}]
 	static int fillet_edges(int p_id, const PackedInt32Array &p_edge_ids, double p_radius);
 	static int chamfer_edges(int p_id, const PackedInt32Array &p_edge_ids, double p_dist);
+	// offset a face: a prism of it along its outward normal by p_dist (> 0 fused outside, < 0 cut inside). 0 on failure.
+	static int offset_face(int p_id, int p_face_id, double p_dist);
+	// draft faces (ids as in faces()) by p_angle (radians) about the neutral plane through p_neutral_origin with normal p_pull_dir
+	static int draft_faces(int p_id, const PackedInt32Array &p_face_ids, double p_angle, const Vector3 &p_pull_dir, const Vector3 &p_neutral_origin);
 	static int mirror(int p_id, const Vector3 &p_origin, const Vector3 &p_normal); // the reflected copy only
 	static int pattern_linear(int p_id, const Vector3 &p_step, int p_count); // copies fused with the original
 	static int pattern_circular(int p_id, const Vector3 &p_axis_origin, const Vector3 &p_axis_dir, int p_count, double p_total_radians);

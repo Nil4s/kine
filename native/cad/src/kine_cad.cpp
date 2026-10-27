@@ -41,6 +41,8 @@
 #include <BRepLib_ToolTriangulatedShape.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
+#include <BRepOffsetAPI_DraftAngle.hxx>
+#include <ShapeUpgrade_UnifySameDomain.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeCylinder.hxx>
 #include <BRepPrimAPI_MakeSphere.hxx>
@@ -161,6 +163,8 @@ void KineCAD::_bind_methods() {
 	ClassDB::bind_static_method("KineCAD", D_METHOD("faces", "id"), &KineCAD::faces);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("fillet_edges", "id", "edge_ids", "radius"), &KineCAD::fillet_edges);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("chamfer_edges", "id", "edge_ids", "dist"), &KineCAD::chamfer_edges);
+	ClassDB::bind_static_method("KineCAD", D_METHOD("offset_face", "id", "face_id", "dist"), &KineCAD::offset_face);
+	ClassDB::bind_static_method("KineCAD", D_METHOD("draft_faces", "id", "face_ids", "angle", "pull_dir", "neutral_origin"), &KineCAD::draft_faces);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("mirror", "id", "origin", "normal"), &KineCAD::mirror);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("pattern_linear", "id", "step", "count"), &KineCAD::pattern_linear);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("pattern_circular", "id", "axis_origin", "axis_dir", "count", "total_radians"), &KineCAD::pattern_circular);
@@ -171,7 +175,7 @@ void KineCAD::_bind_methods() {
 }
 
 int KineCAD::version() {
-	return 2;
+	return 3;
 }
 String KineCAD::occt_version() {
 	return String(OCC_VERSION_COMPLETE);
@@ -1007,6 +1011,118 @@ int KineCAD::chamfer_edges(int id, const PackedInt32Array &ids, double dist) {
 	}
 	return kc_put(mk.Shape());
 	KCAD_CATCH("chamfer_edges", 0)
+}
+
+// outward unit normal of a face at its centre of mass (same rule as faces())
+static bool kc_face_outward(const TopoDS_Face &f, gp_Dir &out) {
+	GProp_GProps sp;
+	BRepGProp::SurfaceProperties(f, sp);
+	gp_Pnt cm = sp.CentreOfMass();
+	Handle(Geom_Surface) surf = BRep_Tool::Surface(f);
+	GeomAPI_ProjectPointOnSurf proj(cm, surf);
+	double u = 0, v = 0;
+	if (proj.NbPoints() > 0) {
+		proj.LowerDistanceParameters(u, v);
+	}
+	BRepGProp_Face gf(f);
+	gp_Pnt p2;
+	gp_Vec nv;
+	gf.Normal(u, v, p2, nv);
+	if (nv.Magnitude() < 1e-12) {
+		return false;
+	}
+	out = gp_Dir(nv);
+	return true;
+}
+
+int KineCAD::offset_face(int id, int face_id, double dist) {
+	TopoDS_Shape s;
+	if (!kc_get(id, s)) {
+		return 0;
+	}
+	if (dist == 0.0) {
+		g_err = "offset_face: distance is zero";
+		return 0;
+	}
+	KCAD_TRY
+	TopTools_IndexedMapOfShape fm;
+	TopExp::MapShapes(s, TopAbs_FACE, fm);
+	if (face_id < 1 || face_id > fm.Extent()) {
+		g_err = "offset_face: no such face id";
+		return 0;
+	}
+	TopoDS_Face f = TopoDS::Face(fm(face_id));
+	gp_Dir n;
+	if (!kc_face_outward(f, n)) {
+		g_err = "offset_face: the face has no normal";
+		return 0;
+	}
+	// the slab from the face along its outward normal (dist > 0: outside, fused) or along the inward normal (dist < 0: cut out)
+	BRepPrimAPI_MakePrism slab(f, gp_Vec(n) * dist);
+	slab.Build();
+	if (!slab.IsDone()) {
+		g_err = "offset_face: the prism failed";
+		return 0;
+	}
+	TopoDS_Shape tool = slab.Shape();
+	if (dist > 0) {
+		BRepAlgoAPI_Fuse op(s, tool);
+		if (!op.IsDone() || op.HasErrors()) {
+			g_err = "offset_face: fuse failed";
+			return 0;
+		}
+		ShapeUpgrade_UnifySameDomain unify(op.Shape(), true, true, true);
+		unify.Build();
+		return kc_put(unify.Shape());
+	}
+	BRepAlgoAPI_Cut op(s, tool);
+	if (!op.IsDone() || op.HasErrors()) {
+		g_err = "offset_face: cut failed";
+		return 0;
+	}
+	ShapeUpgrade_UnifySameDomain unify(op.Shape(), true, true, true);
+	unify.Build();
+	return kc_put(unify.Shape());
+	KCAD_CATCH("offset_face", 0)
+}
+
+int KineCAD::draft_faces(int id, const PackedInt32Array &face_ids, double angle, const Vector3 &pull_dir, const Vector3 &neutral_origin) {
+	TopoDS_Shape s;
+	if (!kc_get(id, s)) {
+		return 0;
+	}
+	if (face_ids.is_empty()) {
+		g_err = "draft_faces: no faces given";
+		return 0;
+	}
+	if (pull_dir.length_squared() < 1e-12) {
+		g_err = "draft_faces: pull direction is zero";
+		return 0;
+	}
+	KCAD_TRY
+	TopTools_IndexedMapOfShape fm;
+	TopExp::MapShapes(s, TopAbs_FACE, fm);
+	gp_Dir pd(pull_dir.x, pull_dir.y, pull_dir.z);
+	gp_Pln neutral(gp_Pnt(neutral_origin.x, neutral_origin.y, neutral_origin.z), pd);
+	BRepOffsetAPI_DraftAngle mk(s);
+	for (int i = 0; i < face_ids.size(); i++) {
+		if (face_ids[i] < 1 || face_ids[i] > fm.Extent()) {
+			g_err = "draft_faces: no such face id";
+			return 0;
+		}
+		mk.Add(TopoDS::Face(fm(face_ids[i])), pd, angle, neutral);
+		if (!mk.AddDone()) {
+			g_err = "draft_faces: this face cannot take a draft";
+			return 0;
+		}
+	}
+	mk.Build();
+	if (!mk.IsDone()) {
+		g_err = "draft failed (angle too big, or the faces do not meet the neutral plane?)";
+		return 0;
+	}
+	return kc_put(mk.Shape());
+	KCAD_CATCH("draft_faces", 0)
 }
 
 int KineCAD::mirror(int id, const Vector3 &origin, const Vector3 &normal) {
