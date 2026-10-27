@@ -1,5 +1,5 @@
 ## godot --path . -s tests/checkribbon_test.gd     (CHECK page ribbon redo; needs a window)
-## CHECK's 40 tools are 8 captioned groups like POSE / ANIMATE: <= 20 icons on the row, the rest under each group's caption (its
+## CHECK's 41 tools (40, plus A1's Keep this pose) are 8 captioned groups like POSE / ANIMATE: <= 20 icons on the row, the rest under each group's caption (its
 ## menu). Every old tool is reached by REAL clicks (its icon, or its caption then its menu item) and runs the same button's action.
 ## At 1280x720 and 1600x900: nothing clipped, nothing in More, captions there.
 extends SceneTree
@@ -7,7 +7,7 @@ extends SceneTree
 const OLD := ["Check", "Polish", "Fix moves through the body", "Timing coach", "Weapon weight", "Parry rebound", "What I learned from you", "Fight to the beat", "Choreograph to the song",
 	"Fight distance", "Sell the hit", "Gaze director", "Safety sheet", "Reaction direction", "Fight rhythm", "Breakfall check", "Recovery step", "Precog check", "Auto opponent", "Fatigue",
 	"Momentum ledger", "Airborne spin check", "Real-mocap check", "Realism score", "My style", "Use my style", "Star this clip", "My best take", "Make this one more like my best", "Speed limits",
-	"My combos", "Auto camera", "My camera", "Frame it my way", "Make it physical", "Accept span", "Dummy (H)", "Frame data", "Frame boxes", "Frame rate"]
+	"My combos", "Auto camera", "My camera", "Frame it my way", "Make it physical", "Accept span", "Keep this pose", "Dummy (H)", "Frame data", "Frame boxes", "Frame rate"]
 
 var fails := 0
 var m: Node
@@ -72,7 +72,7 @@ func _init() -> void:
 	m.tour_step = -1
 	if m.ui_tour != null:
 		m.ui_tour.visible = false
-	ok(OLD.size() == 40, "the old CHECK list has 40 tools")
+	ok(OLD.size() == 41, "the old CHECK list has 41 tools")
 	for sz in [Vector2i(1600, 900), Vector2i(1280, 720)]:
 		await size_to(sz.x, sz.y)
 		await click(m.ui_page_btns["CHECK"])
@@ -101,7 +101,7 @@ func _init() -> void:
 			var menu_n: int = cap.get_popup().item_count
 			ok(menu_n == (pair[1] as Array).size(), "%s: %s menu lists all %d of its tools" % [tag, cap.text, menu_n])
 			seen += menu_n
-		ok(seen == 40, "%s: the groups hold all 40 tools (%d)" % [tag, seen])
+		ok(seen == 41, "%s: the groups hold all 41 tools (%d)" % [tag, seen])
 		ok(shown[0] is Button and m.label_of(shown[0]) == "Check", "%s: the main Check is first" % tag)
 		# every tool: reached by real clicks, its own button fires
 		var direct := 0
@@ -129,7 +129,7 @@ func _init() -> void:
 				await process_frame
 				via += 1
 			ok(hits.get(t, 0) == 1, "%s: '%s' runs its own action once" % [tag, t])
-		ok(direct + via == 40, "%s: %d by its icon + %d via a caption = 40" % [tag, direct, via])
+		ok(direct + via == 41, "%s: %d by its icon + %d via a caption = 41" % [tag, direct, via])
 		var sh: String = "C:/Temp/claude/checkribbon/test_%s.png" % tag
 		DirAccess.make_dir_recursive_absolute("C:/Temp/claude/checkribbon")
 		root.get_texture().get_image().save_png(sh)

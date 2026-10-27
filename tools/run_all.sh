@@ -153,3 +153,4 @@ EXTRA="$EXTRA realismslice:w"   # REALISM / TIMING COACH SLICES: the scene datab
 EXTRA="$EXTRA starters:w"   # B1 starter buildings in the Template card (scripts/build/build_starters.gd)
 EXTRA="$EXTRA ribbonmesh:w"   # RIBBON STANDARD on MODEL / SCULPT / SURFACE: icon-only groups with captions, <= 20 icons, nothing in More, every old tool by real clicks at 1280x720 + 1600x900 (tests/ribbonmesh_test.gd)
 EXTRA="$EXTRA ribbonsd:w"   # STAGE + DELIVER ribbons: the POSE/ANIMATE standard (captioned groups, 9-20 icons, nothing in More, every tool by real clicks), 1280x720 + 1600x900 (tests/ribbonsd_test.gd)
+EXTRA="$EXTRA physlane:w"   # A1 MAKE IT PHYSICAL lane: a priority card ("Keep this pose") is untouched by Make it physical and kept by Accept span, a fix drops the red span count, blue = edited since the judge, gray = not processed (tests/physlane_test.gd)

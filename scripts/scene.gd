@@ -2256,6 +2256,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 			cs[-1]["flow"] = true
 		if c.get("walk", false):
 			cs[-1]["walk"] = true
+		if c.get("keep", false):
+			cs[-1]["keep"] = true   # A1: a priority card ("Keep this pose"), only when set: Make it physical and Accept span leave it as it is
 		if c.has("steps"):
 			var st := {}
 			for sd in _steps(i):
@@ -2596,6 +2598,8 @@ func from_dict(d: Dictionary) -> void:
 			cards[-1]["expr"] = String(c["expr"])   # R22: absent = neutral
 		if c.get("walk", false):
 			cards[-1]["walk"] = true
+		if c.get("keep", false):
+			cards[-1]["keep"] = true   # A1: the priority flag (absent = not kept)
 		if c.has("from"):
 			cards[-1]["from"] = String(c["from"])   # Easy: the move the card came from, absent = none
 		if String(c.get("ease", "smooth")) in ALL_EASES and c.get("ease", "smooth") != "smooth":
