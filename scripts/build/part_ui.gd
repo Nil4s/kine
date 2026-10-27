@@ -24,7 +24,7 @@ const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension"]
-const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas"]
+const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Combine"]
 const TOOL_KIND := {"Offset plane": "plane"}   # a tool's feature kind when it is not its lower-case name
 const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell", "Appearance"]
 const LOOK_TOOLS := ["Appearance"]   # APPEARANCE (GAP 5): picks a body for the side panel; the panel is _build_look / _look_sync
@@ -50,6 +50,7 @@ const TIPS := {
 	"Split": "SPLIT: pick a plane and an offset (mm). Every body the plane cuts becomes two bodies. Press Enter.",
 	"Appearance": "APPEARANCE: click a body in the browser (Body1, Body2...). Pick a colour chip, the picker or a preset (Paint, Metal, Glass, Rubber, Plastic). Each change is one undo step.",
 	"Shell": "SHELL: the newest body becomes a hollow box with the wall thickness you type. Pick the face left open, press Enter.",
+	"Combine": "COMBINE: click the target body (it stays), then the tool bodies, in the view or the browser. Pick Join, Cut or Intersect. Keep tools leaves them.",
 	"Canvas": "CANVAS: put a picture on the Front, Top or Right plane (or an offset plane). Click two points of known size, type the real distance, drag it to line up.",
 	"Loft": "LOFT: pick two or more sketches in order (each a closed profile); the solid runs through them. Ruled = straight, Smooth = curved.",
 	"Sweep": "SWEEP: pick a closed profile sketch and an open path sketch (lines, arcs, splines, one chain). The profile must sit in the middle of the path's start and square to it. Corners are rounded.",
@@ -158,6 +159,10 @@ var f_prof_clear: Button
 var f_ruled: OptionButton      # the loft dialog: ruled (straight) or smooth
 var f_sw_prof: OptionButton    # the sweep dialog: the closed profile sketch
 var f_sw_path: OptionButton    # the sweep dialog: the open path sketch
+var f_cmb_op: OptionButton     # the combine dialog: Join, Cut or Intersect
+var f_cmb_keep: CheckBox       # the combine dialog: keep the tool bodies
+var cmb := {}                  # the combine dialog's picks: {"target": body or -1, "tools": [bodies]} (the bodies of the steps before)
+var cmb_faces: Array = []      # the combine dialog: the triangles of each body before it (a view click picks by them)
 var dim_edit: LineEdit
 var note: PanelContainer
 var note_l: Label
@@ -869,7 +874,9 @@ func _press(p: Vector2) -> bool:
 	if sk != "":
 		return _press_sketch(p)
 	if dlg.get("t", "") == "canvas":
-		return _canvas_press(p)   # GAP 3: the canvas dialog's clicks (two points) and drags
+		return _canvas_press(p)
+	if dlg.get("t", "") == "combine":
+		return _combine_press(p)   # COMBINE: a click on a body picks it (its own functions, at the end of this file)   # GAP 3: the canvas dialog's clicks (two points) and drags
 	if dlg.is_empty() and tool == "" and _canvas_grab(p):
 		return true
 	if not pair_pick.is_empty():
@@ -1265,6 +1272,8 @@ func open_dialog(t: String, edit: int) -> void:
 		_row("Wall thickness", f_num, "%s mm" % _fmt(float(f.get("thick", 5.0))))
 		dlg_rows.add_child(f_open)
 		f_open.select(maxi(SHELL_OPEN.find(String(f.get("open", "+y"))), 0))
+	if kind == "combine":
+		_combine_open(f, edit)
 	if kind == "canvas":
 		_canvas_open(f, edit)
 	f_op.visible = kind in ["extrude", "revolve", "loft", "sweep"]
@@ -1347,7 +1356,8 @@ func _prof_picked(i: int) -> void:
 
 ## the dialog's rows go; the field controls are kept (they are re-parented into the next dialog)
 func _clear_rows() -> void:
-	for c in [f_num, f_ang, f_both, f_op, f_axis, f_plane, f_taper, f_open, f_edges, f_from, f_to, f_dur, f_dial, f_prof, f_prof_clear, f_ruled, f_sw_prof, f_sw_path]:
+	_combine_controls()   # COMBINE's two controls exist before the list below takes them off their parent
+	for c in [f_num, f_ang, f_both, f_op, f_axis, f_plane, f_taper, f_open, f_edges, f_from, f_to, f_dur, f_dial, f_prof, f_prof_clear, f_ruled, f_sw_prof, f_sw_path, f_cmb_op, f_cmb_keep]:
 		if (c as Node).get_parent() != null:
 			(c as Node).get_parent().remove_child(c)
 	for c in dlg_rows.get_children():
@@ -1461,6 +1471,10 @@ func dialog_feature() -> Dictionary:
 			if sp_id == sa_id:
 				return {}
 			f = {"profile": sp_id, "path": sa_id, "op": op}
+		"combine":
+			f = _combine_feature(edit)
+			if f.is_empty():
+				return {}
 		"canvas":
 			f = _canvas_feature(true)
 			if f.is_empty():
@@ -1540,6 +1554,8 @@ func _dialog_hint(kind: String) -> String:
 		return "Type the distance from the plane (mm)."
 	if kind == "canvas":
 		return _canvas_hint()
+	if kind == "combine":
+		return _combine_next()
 	return ""
 
 
@@ -1696,7 +1712,7 @@ func _timeline_sync() -> void:
 
 func _browser_sync() -> void:
 	var feats := _feats()
-	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], f["t"], f.get("mm", 0), f.get("from", ""), f.get("show", "")]), sk, res.get("bodies", 0), prev.is_empty(), sel_body])
+	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], f["t"], f.get("mm", 0), f.get("from", ""), f.get("show", "")]), sk, res.get("bodies", 0), prev.is_empty(), sel_body, cmb])
 	if sig == _browser_sig:
 		return
 	_browser_sig = sig
@@ -1709,10 +1725,12 @@ func _browser_sync() -> void:
 	for i in nb:
 		var bb := _row_btn("    Body%d" % (i + 1), "part_body_%d" % i)   # APPEARANCE: a click picks the body for the side panel
 		bb.tooltip_text = "Body%d: click to change its colour and material (Appearance)" % (i + 1)
-		if i == sel_body:
+		if _combine_has(i):
+			bb.tooltip_text = "Body%d: picked for the combine" % (i + 1)
+		if i == sel_body or _combine_has(i):
 			bb.add_theme_color_override("font_color", SKY)
 			bb.add_theme_color_override("font_hover_color", SKY)
-		bb.pressed.connect(func(): _sel_body_pick(i))
+		bb.pressed.connect(func(): _body_row_pressed(i))
 		browser_vb.add_child(bb)
 	var sketches := feats.filter(func(f): return f["t"] == "sketch")
 	browser_vb.add_child(_label("Sketches (%d)" % sketches.size(), 15))
@@ -1817,6 +1835,8 @@ func _tool_sync() -> void:
 			w = "sketch two profiles first (a loft joins them)"
 		elif ok and t == "Sweep" and _feats().filter(func(f): return f["t"] == "sketch").size() < 2:
 			w = "sketch a profile and a path first (a sweep joins them)"
+		elif ok and t == "Combine" and int(res.get("bodies", 0)) < 2:
+			w = "make two solids first (a combine joins, cuts or shares them)"
 		elif ok and (t == "Mirror" or t == "Fillet" or t == "Chamfer" or t == "Hinge" or t == "Split" or t == "Shell" or t == "Appearance") and not has_body:
 			w = "make a solid first (Extrude or Revolve)"
 		m._grey(b, w)
@@ -3618,3 +3638,115 @@ func _look_surfaces() -> void:
 		if a < 1.0:
 			mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		part_mesh.set_surface_override_material(s, mt)
+
+
+# ---------------------------------------------------------------- COMBINE (Fusion Combine: a target body and tool bodies, Join / Cut / Intersect)
+# A click on a body (in the view, or its browser row) picks it: the first pick is the target (it stays); the next picks are the tools.
+# A click on a picked body takes it off again (the target, or a tool). The dialog's preview is the result; OK = one undo step.
+
+func _combine_controls() -> void:
+	if f_cmb_op != null:
+		return
+	f_cmb_op = OptionButton.new()
+	f_cmb_op.name = "part_combine_op"
+	for o in ["Join", "Cut", "Intersect"]:
+		f_cmb_op.add_item(o)
+	f_cmb_op.item_selected.connect(func(_i): _preview())
+	f_cmb_keep = CheckBox.new()
+	f_cmb_keep.name = "part_combine_keep"
+	f_cmb_keep.text = "Keep the tool bodies"
+	f_cmb_keep.focus_mode = Control.FOCUS_NONE
+	f_cmb_keep.toggled.connect(func(_v): _preview())
+
+
+## the combine dialog opens: its picks (an edit shows the step's own), the bodies as they are before the step
+func _combine_open(f: Dictionary, edit: int) -> void:
+	_combine_controls()
+	cmb_faces = Part.body_faces(_rec(), -1)
+	cmb = {"target": -1, "tools": []}
+	if edit >= 0:
+		cmb["target"] = int(f.get("target", -1))
+		cmb["tools"] = (f.get("tools", []) as Array).duplicate()
+	f_cmb_op.select(maxi(Part.COMBINE_OPS.find(String(f.get("op", "join"))), 0))
+	f_cmb_keep.set_pressed_no_signal(bool(f.get("keep", false)))
+	_combine_rows()
+
+
+## the dialog's rows: the target, the tools, the operation, keep
+func _combine_rows() -> void:
+	_clear_rows()
+	var tg := int(cmb.get("target", -1))
+	var tl: Array = cmb.get("tools", [])
+	dlg_rows.add_child(_label("Target (stays):  %s" % _part_name(tg) if tg >= 0 else "Target (stays):  not yet"))
+	var names: Array = []
+	for t in tl:
+		names.append(_part_name(int(t)))
+	dlg_rows.add_child(_label("Tools:  %s" % ", ".join(PackedStringArray(names)) if not tl.is_empty() else "Tools:  not yet"))
+	var h := HBoxContainer.new()
+	var l := _label("Operation")
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(l)
+	h.add_child(f_cmb_op)
+	dlg_rows.add_child(h)
+	dlg_rows.add_child(f_cmb_keep)
+	_preview()
+	pov.queue_redraw()
+
+
+func _combine_next() -> String:
+	if int(cmb.get("target", -1)) < 0:
+		return "Click the target body (the one that stays), in the view or the browser."
+	if (cmb.get("tools", []) as Array).is_empty():
+		return "Now click the tool bodies (one or more). A click on a picked body takes it off."
+	return "Pick Join, Cut or Intersect, then OK."
+
+
+## is body i picked by the combine dialog (its target or a tool)
+func _combine_has(i: int) -> bool:
+	if String(dlg.get("t", "")) != "combine":
+		return false
+	return int(cmb.get("target", -1)) == i or (cmb.get("tools", []) as Array).has(i)
+
+
+## a browser row: the combine dialog takes the body, else the body is picked for the side panel
+func _body_row_pressed(i: int) -> void:
+	if String(dlg.get("t", "")) == "combine":
+		_combine_pick(i)
+	else:
+		_sel_body_pick(i)
+
+
+## one pick: the target if none yet, else a tool; a click on the target clears it, a click on a tool takes it off
+func _combine_pick(bi: int) -> void:
+	var tg := int(cmb.get("target", -1))
+	var tl: Array = (cmb.get("tools", []) as Array).duplicate()
+	if bi == tg:
+		tg = -1
+	elif tl.has(bi):
+		tl.erase(bi)
+	elif tg < 0:
+		tg = bi
+	else:
+		tl.append(bi)
+	cmb = {"target": tg, "tools": tl}
+	_combine_rows()
+	_say(_combine_next())
+	bu.sync()
+
+
+## a view click: the body under the pointer (by the triangles before the step); nothing under it = the camera keeps the click
+func _combine_press(p: Vector2) -> bool:
+	var h := _ray_hit(p, cmb_faces)
+	if h.is_empty():
+		return false
+	_combine_pick(int(h["body"]))
+	return true
+
+
+## the feature the dialog makes (its id and name are given by dialog_feature); {} = no target or no tool yet
+func _combine_feature(_edit: int) -> Dictionary:
+	var tg := int(cmb.get("target", -1))
+	var tl: Array = cmb.get("tools", [])
+	if tg < 0 or tl.is_empty():
+		return {}
+	return {"target": tg, "tools": tl.duplicate(), "op": Part.COMBINE_OPS[clampi(f_cmb_op.selected, 0, Part.COMBINE_OPS.size() - 1)], "keep": f_cmb_keep.button_pressed}
