@@ -276,7 +276,15 @@ func shot(nm: String) -> void:
 	root.get_texture().get_image().save_png("%s/%s.png" % [SHOT, nm])
 
 
+## RETIRED by 46d24c49 (w4-carpkg, Nick's standing OK for replaced designs): the Vehicle card no longer opens the ready-made car body
+## (EasyVehicle). UI bars 9-14 assert that screen (is_car, the car's sliders, Drive it, the car in the set), so they do not run here.
+## The package screen and its card bars are in tests/carpkg_test.gd (11, 12, 13, 14, 15).
+const RETIRED_UI := true
+
 func ui_bars() -> void:
+	if RETIRED_UI:
+		print("vehicle: UI bars 9-14 retired by 46d24c49 (see tests/carpkg_test.gd)")
+		return
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
 	await idle(8)
@@ -304,7 +312,7 @@ func ui_bars() -> void:
 	ok(bc.why_not("vehicle") == "" and (bc.cards["vehicle"] as CanvasItem).modulate.a == 1.0, "9 CARD the Vehicle card is live (why_not empty, not dimmed)")
 	await click_ctl(vb)
 	await idle(6)
-	var ev: EasyVehicle = bc._car_screen
+	var ev = bc._car_screen   # retired 46d24c49: untyped (the card's screen is the package now)
 	ok(ev != null and ev.visible and ev.is_car(), "9 CARD Easy opens the car screen with a car (S.part car %s, wheel %s)" % [ev != null and ev.is_car(), not m.S.vehicle.is_empty()])
 	await shot("s0_easy")
 
@@ -340,8 +348,8 @@ func ui_bars() -> void:
 	while ev.driving and Time.get_ticks_msec() - t0 < 30000:
 		await process_frame
 		frames += 1
-		var root3 := ev.car_root
-		var want := ev.drive_s / float(root3.get_meta("r"))
+		var root3: Node3D = ev.car_root
+		var want: float = ev.drive_s / float(root3.get_meta("r"))
 		var pv: Array = root3.get_meta("wheels")
 		for p in pv:
 			var got := -(p as Node3D).rotation.x
@@ -439,6 +447,6 @@ func _xz_span(pts: PackedVector3Array, lo: float, hi: float) -> Vector2:
 	return b - a
 
 
-func _front_z(ev: EasyVehicle) -> float:
+func _front_z(ev) -> float:
 	var pv: Array = ev.car_root.get_meta("wheels")
 	return (pv[0] as Node3D).position.z
