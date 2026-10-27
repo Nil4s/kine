@@ -24,6 +24,8 @@ const DOUBLE_MS := 650
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Dimension"]
 const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror"]
 const MODIFY_TOOLS := ["Fillet", "Chamfer"]
+const HINGE_TOOLS := ["Hinge"]
+const HSEC := 25.0   # the frames per second of the hinge's swing check (Part.hinge_sweep)
 const TIPS := {
 	"Line": "LINE: click the start, click each corner; a typed number sets the length. Esc ends the chain. Snaps to the grid.",
 	"Rectangle": "RECTANGLE: drag from one corner to the other (or click both corners). Then Dimension it.",
@@ -34,7 +36,8 @@ const TIPS := {
 	"Revolve": "REVOLVE: the newest sketch turns round its horizontal or vertical axis. Type the angle and press Enter.",
 	"Mirror": "MIRROR: the body and its reflection across a plane become one solid.",
 	"Fillet": "FILLET: click edges (they turn sky blue), type a radius, press Enter or OK.",
-	"Chamfer": "CHAMFER: click edges, type a distance, press Enter or OK."}
+	"Chamfer": "CHAMFER: click edges, type a distance, press Enter or OK.",
+	"Hinge": "HINGE: click the part that turns, then the line it turns round (a straight edge, or two points on it). Type the angles and seconds, then OK."}
 
 var bu: BuildUI
 var m: Node
@@ -59,6 +62,29 @@ var hover_ent := {}
 var draft := {}                # a shape in progress: {"k", "a", "b", "down", "pts"}
 var typed := ""
 var dim_target := {}
+var hp := {}                   # the hinge dialog's picks: {"body", "faces", "pts", "o", "d" (the line, once picked)}
+var hsw := {}                  # the selected hinge's swing check (Part.hinge_sweep), kept while its record is the same
+var hsw_sig := ""
+var pair_pick := {}            # must not touch: {"id", "first", "faces"} while two parts are being picked
+var pose := {}                 # {"f": hinge id, "deg": angle} while the hinge is shown turned (Play / the slider)
+var play_on := false
+var play_t := 0.0
+var play_pct := 0.0
+var hinge_box: VBoxContainer
+var hinge_title: Label
+var hinge_info: Label
+var hinge_play_btn: Button
+var hinge_slider: HSlider
+var hinge_pct_l: Label
+var hinge_strip: Control
+var hinge_red_l: Label
+var hinge_pair_btn: Button
+var hinge_pairs_vb: VBoxContainer
+var hinge_sig := ""
+var f_from: LineEdit
+var f_to: LineEdit
+var f_dur: LineEdit
+var f_dial: Control
 var status := ""
 var part_btn: Button
 var tool_btns := {}
@@ -135,6 +161,9 @@ func setup(b: BuildUI) -> void:
 	for t in MODIFY_TOOLS:
 		_tool_btn(row, t)
 	_sep(row)
+	for t in HINGE_TOOLS:
+		_tool_btn(row, t)
+	_sep(row)
 	finish_btn = m._button("Finish sketch", finish_sketch, "Finish sketch: the sketch is done; the steps after it replay (one undo step)")
 	finish_btn.name = "part_finish"
 	_icon(finish_btn, "part_finish")
@@ -179,6 +208,12 @@ func setup(b: BuildUI) -> void:
 	note.add_child(note_l)
 	note.visible = false
 	m.ui_root.add_child(note)
+	var play_tmr := Timer.new()   # C3 Play: the hinge turns while it runs (PartUI is not in the tree; the overlay is)
+	play_tmr.name = "part_hinge_timer"
+	play_tmr.wait_time = 0.05
+	play_tmr.timeout.connect(_play_tick)
+	pov.add_child(play_tmr)
+	play_tmr.start()
 	dim_edit = LineEdit.new()
 	dim_edit.name = "part_dim_edit"
 	dim_edit.custom_minimum_size = Vector2(96, 0)
@@ -345,6 +380,72 @@ func _build_side() -> void:
 	nums_vb.name = "part_nums"
 	nums_vb.add_theme_constant_override("separation", 4)
 	sketch_box.add_child(nums_vb)
+	hinge_box = VBoxContainer.new()
+	hinge_box.name = "part_hinge_box"
+	hinge_box.add_theme_constant_override("separation", 6)
+	hinge_box.visible = false
+	vb.add_child(hinge_box)
+	hinge_title = _label("", 13, true)
+	hinge_title.name = "part_hinge_title"
+	hinge_box.add_child(hinge_title)
+	hinge_info = _label("", 12, true)
+	hinge_info.name = "part_hinge_info"
+	hinge_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hinge_info.custom_minimum_size.x = PANEL_W - 24.0
+	hinge_box.add_child(hinge_info)
+	var pr := HBoxContainer.new()
+	hinge_play_btn = Button.new()
+	hinge_play_btn.name = "part_hinge_play"
+	hinge_play_btn.text = "Play"
+	hinge_play_btn.focus_mode = Control.FOCUS_NONE
+	hinge_play_btn.tooltip_text = "Play: the part turns from its first angle to its last, in the seconds you typed"
+	hinge_play_btn.pressed.connect(_hinge_play_toggle)
+	pr.add_child(hinge_play_btn)
+	hinge_pct_l = _label("0 %", 12, true)
+	hinge_pct_l.name = "part_hinge_pct"
+	pr.add_child(hinge_pct_l)
+	hinge_box.add_child(pr)
+	hinge_slider = HSlider.new()
+	hinge_slider.name = "part_hinge_slider"
+	hinge_slider.min_value = 0.0
+	hinge_slider.max_value = 100.0
+	hinge_slider.step = 1.0
+	hinge_slider.focus_mode = Control.FOCUS_NONE
+	hinge_slider.custom_minimum_size.x = PANEL_W - 24.0
+	hinge_slider.value_changed.connect(hinge_set_pct)
+	hinge_box.add_child(hinge_slider)
+	hinge_box.add_child(_label("MUST NOT TOUCH", 13, true))
+	hinge_pair_btn = Button.new()
+	hinge_pair_btn.name = "part_hinge_pair"
+	hinge_pair_btn.text = "Add a pair of parts"
+	hinge_pair_btn.focus_mode = Control.FOCUS_NONE
+	hinge_pair_btn.tooltip_text = "Must not touch: click two parts; the swing shows the frames where they touch"
+	hinge_pair_btn.pressed.connect(_pair_start)
+	hinge_box.add_child(hinge_pair_btn)
+	hinge_pairs_vb = VBoxContainer.new()
+	hinge_pairs_vb.name = "part_hinge_pairs"
+	hinge_pairs_vb.add_theme_constant_override("separation", 2)
+	hinge_box.add_child(hinge_pairs_vb)
+	hinge_strip = Control.new()
+	hinge_strip.name = "part_hinge_strip"
+	hinge_strip.custom_minimum_size = Vector2(PANEL_W - 24.0, 14)
+	hinge_strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hinge_strip.draw.connect(_draw_strip)
+	hinge_box.add_child(hinge_strip)
+	hinge_red_l = _label("", 12, true)
+	hinge_red_l.name = "part_hinge_red"
+	hinge_red_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hinge_red_l.custom_minimum_size.x = PANEL_W - 24.0
+	hinge_box.add_child(hinge_red_l)
+	f_from = _field("part_from")
+	f_to = _field("part_to")
+	f_dur = _field("part_seconds")
+	f_dial = Control.new()
+	f_dial.name = "part_dial"
+	f_dial.custom_minimum_size = Vector2(120, 120)
+	f_dial.mouse_filter = Control.MOUSE_FILTER_STOP
+	f_dial.draw.connect(_draw_dial)
+	f_dial.gui_input.connect(_dial_input)
 	dlg_box = VBoxContainer.new()
 	dlg_box.name = "part_dialog"
 	dlg_box.add_theme_constant_override("separation", 6)
@@ -501,6 +602,9 @@ func set_on(v: bool) -> void:
 		finish_sketch()
 		close_dialog()
 		tool = ""
+		pair_pick = {}
+		play_on = false
+		pose = {}
 	on = v
 	part_btn.set_pressed_no_signal(v)
 	if v:
@@ -526,7 +630,7 @@ func _pick(t: String) -> void:
 	dim_target = {}
 	dim_edit.visible = false
 	picked = []
-	if t in CREATE_TOOLS or t in MODIFY_TOOLS:
+	if t in CREATE_TOOLS or t in MODIFY_TOOLS or t in HINGE_TOOLS:
 		open_dialog(t, -1)
 	else:
 		if dlg.size() > 0:
@@ -664,6 +768,10 @@ func input(ev: InputEvent) -> bool:
 func _press(p: Vector2) -> bool:
 	if sk != "":
 		return _press_sketch(p)
+	if not pair_pick.is_empty():
+		return _pair_press(p)
+	if tool == "Hinge" and dlg.get("t", "") == "hinge":
+		return _hinge_press(p)
 	if tool == "Fillet" or tool == "Chamfer":
 		var i := _pick_edge(p)
 		if i >= 0:
@@ -770,6 +878,11 @@ func _motion(p: Vector2) -> bool:
 
 
 func _key(k: InputEventKey) -> bool:
+	if not pair_pick.is_empty() and k.keycode == KEY_ESCAPE:
+		pair_pick = {}
+		_hinge_sync()
+		_say("Must not touch: cancelled.")
+		return true
 	if sk != "" and tool == "Line" and not draft.is_empty():
 		var ch := ""
 		if k.keycode >= KEY_0 and k.keycode <= KEY_9:
@@ -987,11 +1100,15 @@ func open_dialog(t: String, edit: int) -> void:
 					picked.append(edge_cache[j])
 		if edit < 0 and not _feats().is_empty() and res.get("bodies", 0) == 0:
 			dlg_info.text = "Nothing to round yet."
+	elif kind == "hinge":
+		_hinge_open(f, edit)
 	elif kind == "mirror":
 		dlg_rows.add_child(f_plane)
 		f_plane.select(PlanesIdx.find(String(f.get("plane", "right"))))
 		_op_row(f)
 	f_op.visible = kind in ["extrude", "revolve"]
+	if kind == "hinge":
+		_hinge_rows()
 	side_title.text = ("EDIT " if edit >= 0 else "") + kind.to_upper()
 	_preview()
 	_tool_sync()
@@ -1008,7 +1125,7 @@ const PlanesIdx := ["front", "top", "right"]
 
 ## the dialog's rows go; the field controls are kept (they are re-parented into the next dialog)
 func _clear_rows() -> void:
-	for c in [f_num, f_ang, f_both, f_op, f_axis, f_plane, f_edges]:
+	for c in [f_num, f_ang, f_both, f_op, f_axis, f_plane, f_edges, f_from, f_to, f_dur, f_dial]:
 		if (c as Node).get_parent() != null:
 			(c as Node).get_parent().remove_child(c)
 	for c in dlg_rows.get_children():
@@ -1097,6 +1214,18 @@ func dialog_feature() -> Dictionary:
 			f["r" if kind == "fillet" else "dist"] = r
 		"mirror":
 			f = {"plane": PlanesIdx[clampi(f_plane.selected, 0, 2)], "op": "join"}
+		"hinge":
+			var a0 := _num(f_from)
+			var a1 := _num(f_to)
+			var du := _num(f_dur)
+			if int(hp.get("body", -1)) < 0 or not hp.has("d") or is_nan(a0) or is_nan(a1) or is_nan(du) or du <= 0.0 or absf(a1 - a0) < 1e-6:
+				return {}
+			var o: Vector3 = hp["o"]
+			var d: Vector3 = hp["d"]
+			var keep: Array = []
+			if edit >= 0:
+				keep = (rec["features"][edit] as Dictionary).get("clear", [])
+			f = {"body": int(hp["body"]), "o": [o.x / Part.MM, o.y / Part.MM, o.z / Part.MM], "axis": [d.x, d.y, d.z], "track": [[0.0, a0], [du, a1]], "clear": keep}
 	if edit >= 0:
 		var old: Dictionary = rec["features"][edit]
 		f["id"] = old["id"]
@@ -1143,6 +1272,8 @@ func _dialog_hint(kind: String) -> String:
 		return "Sketch a closed profile first, then type a number." if String(dlg.get("sketch", "")) == "" else "Type a number."
 	if kind == "fillet" or kind == "chamfer":
 		return "Click an edge on the model, then type a size."
+	if kind == "hinge":
+		return _hinge_next()
 	return ""
 
 
@@ -1169,6 +1300,8 @@ func ok_pressed() -> void:
 		upto = -1
 	_say("%s made. It is a step on the timeline; double-click it to change it." % String(f["name"]))
 	var kind := String(dlg["t"])
+	if kind == "hinge" and edit < 0:
+		sel_step = _feats().size() - 1   # the new hinge: its panel (Play, must not touch) opens
 	close_dialog()
 	tool = ""
 	_tool_sync()
@@ -1185,7 +1318,7 @@ func close_dialog() -> void:
 	prev = {}
 	prev_mesh.visible = false
 	_clear_rows()
-	if tool in CREATE_TOOLS or tool in MODIFY_TOOLS:
+	if tool in CREATE_TOOLS or tool in MODIFY_TOOLS or tool in HINGE_TOOLS:
 		tool = ""
 	_tool_sync()
 	_rec_sig = ""
@@ -1397,7 +1530,7 @@ func _tool_sync() -> void:
 		var w := why
 		if ok and (t == "Extrude" or t == "Revolve") and not has_sketch:
 			w = "sketch a closed profile first"
-		elif ok and (t == "Mirror" or t == "Fillet" or t == "Chamfer") and not has_body:
+		elif ok and (t == "Mirror" or t == "Fillet" or t == "Chamfer" or t == "Hinge") and not has_body:
 			w = "make a solid first (Extrude or Revolve)"
 		m._grey(b, w)
 		b.set_pressed_no_signal(t == tool and w == "")
@@ -1460,6 +1593,10 @@ func sync() -> void:
 		dim_edit.visible = false
 	if show and not dlg.is_empty() and int(dlg["edit"]) >= _feats().size():
 		close_dialog()
+	if show:
+		_hinge_sync()
+	else:
+		pose = {}
 	_rebuild(up)
 	pov.visible = show
 	part_mesh.visible = up and sk == "" and prev.is_empty() and part_mesh.mesh != null
@@ -1469,10 +1606,11 @@ func sync() -> void:
 		bu.grid.visible = false
 		bu.person.visible = false
 	browser.visible = show
-	side.visible = show and (sk != "" or not dlg.is_empty())
+	side.visible = show and (sk != "" or not dlg.is_empty() or not _sel_hinge().is_empty())
 	tl.visible = show
 	sketch_box.visible = sk != "" and dlg.is_empty()
 	dlg_box.visible = not dlg.is_empty()
+	hinge_box.visible = show and dlg.is_empty() and sk == "" and not _sel_hinge().is_empty()
 	if sk != "" and dlg.is_empty():
 		side_title.text = "SKETCH PALETTE"
 	if show:
@@ -1492,7 +1630,7 @@ func _rebuild(show: bool) -> void:
 	if not show:
 		return
 	Part.refresh_bound(_rec(), _body_measures())   # C2: a dimension bound to the body shows the body's size now
-	var sig := "%s|%d|%d|%s" % [JSON.stringify(_rec()), upto, int(dlg.get("edit", -1)) if not dlg.is_empty() else -2, JSON.stringify(_body_measures())]   # the body moving re-solves the bound dimensions
+	var sig := "%s|%d|%d|%s|%s" % [JSON.stringify(_rec()), upto, int(dlg.get("edit", -1)) if not dlg.is_empty() else -2, JSON.stringify(_body_measures()), JSON.stringify(pose)]   # the body moving re-solves the bound dimensions
 	if sig == _rec_sig:
 		return
 	_rec_sig = sig
@@ -1504,7 +1642,10 @@ func _rebuild(show: bool) -> void:
 	var up := upto
 	if not dlg.is_empty() and int(dlg["edit"]) >= 0:
 		up = int(dlg["edit"]) - 1
-	res = Part.replay(_rec(), up, {"edges": not easy, "body": _body_measures()})
+	var want := {"edges": not easy, "body": _body_measures()}
+	if not pose.is_empty():
+		want["pose"] = pose   # a hinge turned by Play / the slider (the record is the same; only the view turns)
+	res = Part.replay(_rec(), up, want)
 	if sk == "":
 		part_mesh.mesh = res["mesh"]
 	edge_cache = res["edges"]
@@ -1665,6 +1806,7 @@ func _draw_axes(o: Vector3, len: float) -> void:
 
 func _draw_model() -> void:
 	_draw_axes(Vector3.ZERO, 0.08)
+	_draw_hinge_marks()
 	for i in edge_cache.size():
 		var picked_now := false
 		for pe in picked:
@@ -1871,3 +2013,375 @@ func _draw_draft() -> void:
 				pov.draw_line(scr(pts[0]), scr(b), c, 1.5)
 			elif pts.size() == 2:
 				_draw_arc_ent(pts[0], b, pts[1], c)
+
+
+# ---------------------------------------------------------------- C3 hinge: a part turns about a line; must not touch
+
+## the hinge the side panel shows: the selected step when it is a hinge and nothing else is open, else {}
+func _sel_hinge() -> Dictionary:
+	if not chrome() or sk != "" or not dlg.is_empty() or sel_step < 0 or sel_step >= _feats().size():
+		return {}
+	var f: Dictionary = _feats()[sel_step]
+	return f if String(f["t"]) == "hinge" else {}
+
+
+func _part_name(i: int) -> String:
+	return "Body%d" % (i + 1)   # the browser's name for the same body (Bodies: Body1, Body2)
+
+
+## the panel's words for a hinge: turns Part 1 from 0 deg to 90 deg in 3 s
+func _hinge_words(f: Dictionary) -> String:
+	var tr: Array = f.get("track", [])
+	if tr.size() < 2:
+		return "Its angles are not set yet."
+	return "Turns %s from %s deg to %s deg in %s s, round the line it was given." % [_part_name(int(f["body"])), _fmt(float(tr[0][1])), _fmt(float(tr[-1][1])), _fmt(float(tr[-1][0]))]
+
+
+## the dialog's next step, in words
+func _hinge_next() -> String:
+	if int(hp.get("body", -1)) < 0:
+		return "Click the part that turns."
+	if not hp.has("d"):
+		return "Click a straight edge of it (the line it turns round), or two points on it." if (hp.get("pts", []) as Array).is_empty() else "Click a second point on that line."
+	return "Type the start and end angles and the seconds, then click OK."
+
+
+func _hinge_open(f: Dictionary, edit: int) -> void:
+	hp = {"body": -1, "faces": Part.body_faces(_rec(), -1), "pts": []}
+	if edit >= 0:
+		hp["body"] = int(f.get("body", -1))
+		hp["o"] = Part._pivot(f)
+		hp["d"] = Part._axis(f)
+		var tr: Array = f.get("track", [])
+		if tr.size() >= 2:
+			f_from.text = _fmt(float(tr[0][1]))
+			f_to.text = _fmt(float(tr[-1][1]))
+			f_dur.text = _fmt(float(tr[-1][0]))
+	else:
+		f_from.text = "0"
+		f_to.text = "90"
+		f_dur.text = "3"
+	_hinge_rows()
+
+
+## the hinge dialog's rows: the part, the line, then (once there is a line) the angles, the dial and the seconds
+func _hinge_rows() -> void:
+	_clear_rows()
+	var bi := int(hp.get("body", -1))
+	dlg_rows.add_child(_label("Turning part:  %s" % _part_name(bi) if bi >= 0 else "Turning part:  not yet"))
+	dlg_rows.add_child(_label("Line:  picked" if hp.has("d") else "Line:  not yet"))
+	if hp.has("d"):
+		_hrow("From", f_from, "deg")
+		_hrow("To", f_to, "deg")
+		_hrow("Seconds", f_dur, "s")
+		dlg_rows.add_child(f_dial)
+		f_dial.queue_redraw()
+
+
+func _hrow(label: String, le: LineEdit, unit: String) -> void:
+	var h := HBoxContainer.new()
+	var l := _label(label)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(l)
+	h.add_child(le)
+	h.add_child(_label(unit, 13, true))
+	dlg_rows.add_child(h)
+
+
+## a screen point over the parts: the nearest part hit and the hit point ({} = none)
+func _ray_hit(p: Vector2, faces: Array) -> Dictionary:
+	var ro: Vector3 = m.cam.project_ray_origin(p)
+	var rd: Vector3 = m.cam.project_ray_normal(p)
+	var best := {}
+	var best_d := INF
+	for bi in faces.size():
+		var tris: PackedVector3Array = faces[bi]
+		for k in range(0, tris.size() - 2, 3):
+			var hit: Variant = Geometry3D.ray_intersects_triangle(ro, rd, tris[k], tris[k + 1], tris[k + 2])
+			if hit != null:
+				var dd := ro.distance_to(hit as Vector3)
+				if dd < best_d:
+					best_d = dd
+					best = {"body": bi, "at": hit}
+	return best
+
+
+## the straight edge of part bi nearest a screen point (within 12 px), an index of edge_cache or -1
+func _pick_edge_of(p: Vector2, bi: int) -> int:
+	var best := -1
+	var best_d := 12.0
+	for i in edge_cache.size():
+		var e: Dictionary = edge_cache[i]
+		if int(e["body"]) != bi or (e["a"] as Vector3).distance_to(e["b"] as Vector3) < 1e-6:
+			continue
+		if m.cam.is_position_behind(e["a"]) or m.cam.is_position_behind(e["b"]):
+			continue
+		var pa: Vector2 = m.cam.unproject_position(e["a"])
+		var pb: Vector2 = m.cam.unproject_position(e["b"])
+		var d := p.distance_to(Geometry2D.get_closest_point_to_segment(p, pa, pb))
+		if d < best_d:
+			best_d = d
+			best = i
+	return best
+
+
+func _hinge_press(p: Vector2) -> bool:
+	var h := _ray_hit(p, hp.get("faces", []))
+	var bi := int(h.get("body", -1))
+	if bi >= 0 and bi != int(hp["body"]):   # another part: it is the one that turns (its line is picked again)
+		hp["body"] = bi
+		hp.erase("d")
+		hp["pts"] = []
+	elif int(hp["body"]) < 0:
+		return true
+	else:
+		var i := _pick_edge_of(p, int(hp["body"]))
+		if i >= 0:
+			var e: Dictionary = edge_cache[i]
+			hp["o"] = e["a"]
+			hp["d"] = ((e["b"] as Vector3) - (e["a"] as Vector3)).normalized()
+			hp["pts"] = []
+		elif bi == int(hp["body"]):
+			var pts: Array = hp.get("pts", [])
+			pts.append(h["at"])
+			if pts.size() >= 2:
+				var dv: Vector3 = (pts[1] as Vector3) - (pts[0] as Vector3)
+				if dv.length() > 1e-6:
+					hp["o"] = pts[0]
+					hp["d"] = dv.normalized()
+					pts = []
+				else:
+					pts = [pts[0]]
+			hp["pts"] = pts
+		else:
+			return true
+	_hinge_rows()
+	_preview()
+	pov.queue_redraw()
+	_say(_hinge_next())
+	return true
+
+
+## MUST NOT TOUCH: the pair picking begins (the selected hinge's list gets the pair)
+func _pair_start() -> void:
+	var f := _sel_hinge()
+	if f.is_empty() or not Part.available():
+		return
+	pair_pick = {"id": String(f["id"]), "first": -1, "faces": Part.body_faces(_rec(), -1)}
+	_say("Must not touch: click the first part (Esc cancels).")
+	_hinge_sync()
+	pov.queue_redraw()
+
+
+func _pair_press(p: Vector2) -> bool:
+	var h := _ray_hit(p, pair_pick["faces"])
+	var bi := int(h.get("body", -1))
+	if bi < 0:
+		return true
+	var a := int(pair_pick["first"])
+	if a < 0:
+		pair_pick["first"] = bi
+		_say("Must not touch: now click the part it must not touch (%s is picked)." % _part_name(bi))
+		pov.queue_redraw()
+		return true
+	if bi == a:
+		return true
+	m._push_undo()
+	var err := Part.clear_pair_set(_rec(), String(pair_pick["id"]), a, bi, true)
+	pair_pick = {}
+	_say(err if err != "" else "Must not touch: %s and %s." % [_part_name(a), _part_name(bi)])
+	bu.sync()
+	return true
+
+
+func _pair_remove(a: int, b: int) -> void:
+	var f := _sel_hinge()
+	if f.is_empty():
+		return
+	m._push_undo()
+	var err := Part.clear_pair_set(_rec(), String(f["id"]), a, b, false)
+	_say(err if err != "" else "Removed: %s and %s may touch." % [_part_name(a), _part_name(b)])
+	bu.sync()
+
+
+## the side panel of a selected hinge: its words, Play and the slider, the pairs, the swing's frame strip and its words
+func _hinge_sync() -> void:
+	var f := _sel_hinge()
+	if f.is_empty():
+		play_on = false
+		pose = {}
+		hinge_sig = ""
+		return
+	var id := String(f["id"])
+	if not pose.is_empty() and String(pose["f"]) != id:
+		pose = {}
+		play_on = false
+	if not pair_pick.is_empty() and String(pair_pick["id"]) != id:
+		pair_pick = {}
+	side_title.text = "HINGE"
+	var sig := JSON.stringify(f)
+	if sig != hinge_sig:
+		hinge_sig = sig
+		hinge_title.text = String(f["name"])
+		hinge_info.text = _hinge_words(f)
+		_pairs_rows(f)
+		hsw = Part.hinge_sweep(_rec(), id, HSEC) if Part.available() else {"ok": false, "why": Part.why_not()}
+	var pairs := Part.clear_pairs(_rec(), id)
+	if pairs.is_empty():
+		hinge_red_l.text = "Add a pair to see where the parts touch while it turns."
+	elif not bool(hsw.get("ok", false)):
+		hinge_red_l.text = "Cannot check the turn: %s" % String(hsw.get("why", ""))
+	elif (hsw["red"] as Array).is_empty():
+		hinge_red_l.text = "Never touching while it turns."
+	else:
+		hinge_red_l.text = "Touching at %s" % String(hsw["red_text"])
+	hinge_play_btn.text = "Stop" if play_on else "Play"
+	hinge_pair_btn.disabled = not Part.available()
+	hinge_slider.set_value_no_signal(play_pct)
+	hinge_strip.queue_redraw()
+
+
+func _pairs_rows(f: Dictionary) -> void:
+	for c in hinge_pairs_vb.get_children():
+		hinge_pairs_vb.remove_child(c)
+		c.queue_free()
+	for pr in Part.clear_pairs(_rec(), String(f["id"])):
+		var h := HBoxContainer.new()
+		var l := _label("%s and %s" % [_part_name(int(pr[0])), _part_name(int(pr[1]))], 12)
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		h.add_child(l)
+		var x := Button.new()
+		x.name = "part_pair_x_%d_%d" % [int(pr[0]), int(pr[1])]
+		x.text = "x"
+		x.focus_mode = Control.FOCUS_NONE
+		x.tooltip_text = "Remove this pair"
+		x.pressed.connect(_pair_remove.bind(int(pr[0]), int(pr[1])))
+		h.add_child(x)
+		hinge_pairs_vb.add_child(h)
+
+
+func _draw_strip() -> void:
+	var r := hinge_strip.size
+	hinge_strip.draw_rect(Rect2(Vector2.ZERO, r), Color(0.2, 0.22, 0.27))
+	if not bool(hsw.get("ok", false)):
+		return
+	var n := int(hsw["frames"])
+	if n <= 0:
+		return
+	var red := {}
+	for i in hsw["red"]:
+		red[int(i)] = true
+	var cw := r.x / float(n)
+	for i in n:
+		hinge_strip.draw_rect(Rect2(i * cw, 0.0, cw + 0.5, r.y), Color("#ff5a4e") if red.has(i) else Color("#7f8a99"))
+	var f := _sel_hinge()
+	if not pose.is_empty() and not f.is_empty():
+		var cur := play_pct / 100.0 * float(f["track"][-1][0]) * HSEC
+		hinge_strip.draw_line(Vector2(cur * cw, 0.0), Vector2(cur * cw, r.y), Color.WHITE, 2.0)
+
+
+## Play: the slider's share of the swing, in real time
+func _hinge_play_toggle() -> void:
+	var f := _sel_hinge()
+	if f.is_empty():
+		return
+	if play_on:
+		play_on = false
+	else:
+		if play_pct >= 100.0:
+			play_pct = 0.0
+		play_t = play_pct / 100.0 * float(f["track"][-1][0])
+		play_on = true
+	hinge_play_btn.text = "Stop" if play_on else "Play"
+
+
+func _play_tick() -> void:
+	if not play_on:
+		return
+	var f := _sel_hinge()
+	if f.is_empty():
+		play_on = false
+		return
+	var dur := maxf(float(f["track"][-1][0]), 1e-6)
+	play_t += 0.05
+	var pct := minf(play_t / dur * 100.0, 100.0)
+	hinge_set_pct(pct)
+	if pct >= 100.0:
+		play_on = false
+		hinge_play_btn.text = "Play"
+
+
+## the hinge shows at pct % of its swing (0 = its first angle, 100 = its last): the body turns in the view
+func hinge_set_pct(v: float) -> void:
+	var f := _sel_hinge()
+	if f.is_empty():
+		return
+	play_pct = clampf(v, 0.0, 100.0)
+	var tr: Array = f["track"]
+	var deg := float(Curves.eval(tr, play_pct / 100.0 * float(tr[-1][0])))
+	pose = {"f": String(f["id"]), "deg": deg}
+	hinge_pct_l.text = "%d %%   %s deg" % [roundi(play_pct), _fmt(deg)]
+	hinge_slider.set_value_no_signal(play_pct)
+	_rebuild(true)
+	hinge_strip.queue_redraw()
+	pov.queue_redraw()
+
+
+func _draw_dial() -> void:
+	var c := f_dial.size * 0.5
+	var r := minf(c.x, c.y) - 8.0
+	f_dial.draw_arc(c, r, 0.0, TAU, 48, Color(0.5, 0.55, 0.62), 2.0)
+	var fr := _num(f_from)
+	var to := _num(f_to)
+	if not is_nan(fr):
+		var v := Vector2(cos(deg_to_rad(fr)), -sin(deg_to_rad(fr)))
+		f_dial.draw_line(c, c + v * r, Color(0.6, 0.6, 0.6), 2.0)
+	if not is_nan(to):
+		var w := Vector2(cos(deg_to_rad(to)), -sin(deg_to_rad(to)))
+		f_dial.draw_line(c, c + w * r, SKY, 3.0)
+		f_dial.draw_circle(c + w * r, 5.0, SKY)
+	f_dial.draw_circle(c, 3.0, Color.WHITE)
+
+
+## the dial: drag to set the end angle (counter-clockwise from the right, -180..180)
+func _dial_input(ev: InputEvent) -> void:
+	var pos := Vector2.ZERO
+	var on_it := false
+	if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and (ev as InputEventMouseButton).pressed:
+		pos = (ev as InputEventMouseButton).position
+		on_it = true
+	elif ev is InputEventMouseMotion and ((ev as InputEventMouseMotion).button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+		pos = (ev as InputEventMouseMotion).position
+		on_it = true
+	if not on_it:
+		return
+	var v := pos - f_dial.size * 0.5
+	f_to.text = "%d" % roundi(rad_to_deg(atan2(-v.y, v.x)))
+	f_dial.queue_redraw()
+	_preview()
+	f_dial.accept_event()
+
+
+func _draw_line3(o: Vector3, d: Vector3, c: Color) -> void:
+	var a := o - d * 0.6
+	var b := o + d * 0.6
+	if m.cam.is_position_behind(a) or m.cam.is_position_behind(b):
+		return
+	pov.draw_line(m.cam.unproject_position(a), m.cam.unproject_position(b), c, 2.0)
+
+
+## the line being picked (gold), the selected hinge's line (sky blue), and the parts of its must-not-touch pairs (red)
+func _draw_hinge_marks() -> void:
+	if not dlg.is_empty() and String(dlg.get("t", "")) == "hinge":
+		for q in hp.get("pts", []):
+			pov.draw_circle(m.cam.unproject_position(q), 5.0, Color("#ffc233"))
+		if hp.has("d"):
+			_draw_line3(hp["o"], hp["d"], Color("#ffc233"))
+	var f := _sel_hinge()
+	if f.is_empty():
+		return
+	_draw_line3(Part._pivot(f), Part._axis(f), SKY)
+	for pr in Part.clear_pairs(_rec(), String(f["id"])):
+		for e in edge_cache:
+			if int(e["body"]) == int(pr[0]) or int(e["body"]) == int(pr[1]):
+				_edge_line(e, Color("#ff5a4e"), 4.0)

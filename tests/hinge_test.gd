@@ -44,6 +44,217 @@ func door(stop_y: float, track: Array, body := 0, clear: Array = []) -> Dictiona
 	return rec
 
 
+## UI bars (windowed: the Part workspace on a building project, real clicks through root.push_input at 1280 x 720):
+##   12 MAKE     Hinge tool, click the lid (Part 1), click one of its straight edges, OK: ONE step; the feature's line is the clicked edge within 1 mm
+##   13 PLAY     the slider at 50 % turns the lid by half its range (45 deg +- 1); the view's lid is turned (its box moved)
+##   14 PAIR     Add a pair of parts, click the lid, click the block in its path: one step; red frames = hinge_sweep's red; the words say so
+##   15 REMOVE   the pair's x: one step, no red frames left, the words say no pair
+##   16 WORDS    no key name (Enter, Esc, Ctrl, Shift, Alt, Tab, Backspace, Delete) and no record key (track, clear, axis) in the new texts
+const SHOT_UI := "C:/Temp/claude/hingecol"
+const DIR_UI := "user://hinge_test"
+
+
+func idle(n := 3) -> void:
+	for i in n:
+		await process_frame
+
+
+func ev_mouse(p: Vector2, down: bool) -> void:
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_LEFT
+	e.pressed = down
+	e.position = p
+	e.global_position = p
+	if down:
+		e.button_mask = MOUSE_BUTTON_MASK_LEFT
+	root.push_input(e, true)
+	await process_frame
+
+
+func ev_move(p: Vector2, held := false) -> void:
+	var e := InputEventMouseMotion.new()
+	e.position = p
+	e.global_position = p
+	if held:
+		e.button_mask = MOUSE_BUTTON_MASK_LEFT
+	root.push_input(e, true)
+	await process_frame
+
+
+func click_at(p: Vector2) -> void:
+	await ev_move(p)
+	await ev_mouse(p, true)
+	await ev_mouse(p, false)
+	await idle(2)
+
+
+func click_ctl(c: Control) -> void:
+	await click_at(c.get_global_rect().get_center())
+
+
+## a Part tool as a user reaches it: its ribbon button when shown, else through More
+func press_tool(m: Node, pu: PartUI, t: String) -> void:
+	var b: Button = pu.tool_btns[t]
+	if b.is_visible_in_tree():
+		await click_ctl(b)
+		return
+	await click_ctl(m.ui_more)
+	m.ui_more.get_popup().hide()
+	var i: int = m._more_tools.find(b)
+	if i >= 0:
+		m._more_pick(i)
+	await idle(2)
+
+
+func key_names_in(txt: String) -> Array:
+	var bad := []
+	for w in ["Enter", "Esc", "Ctrl", "Shift", "Alt", "Tab", "Backspace", "Delete", "track", "clear", "axis"]:
+		if txt.contains(w):
+			bad.append(w)
+	return bad
+
+
+func ui_bars() -> void:
+	if not Part.available():
+		print("SKIP 12-16: the CAD kernel is not available")
+		return
+	var m: Node = (load("res://main.tscn") as PackedScene).instantiate()
+	root.add_child(m)
+	await idle(8)
+	m.tour_step = -1
+	if m.ui_tour != null:
+		m.ui_tour.visible = false
+	root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	root.content_scale_size = Vector2i(1280, 720)
+	await idle(4)
+	var ss: StartScreen = m.start_screen
+	var pu: PartUI = m.bld.part
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(DIR_UI))
+	ss.dirs_override = [DIR_UI]
+	ss.show_screen()
+	await idle(3)
+	await click_ctl(ss._cards["building"])
+	if m.ui_save_ask != null and m.ui_save_ask.visible:
+		m._save_ask_choose("discard")
+	await idle(6)
+	# the record: a lid (a box 800 x 40 x 2000 mm, Part 1) and a block (300..500 x 100..120 x 2000 mm, Part 2) in its path
+	m.S.part = Part.make("Lid")
+	m.S.part["features"] = [
+		{"t": "sketch", "id": "f1", "name": "Sketch1", "plane": "front", "ents": [{"k": "rect", "a": [0, -20], "b": [800, 20]}], "dims": []},
+		{"t": "extrude", "id": "f2", "name": "Extrude1", "sketch": "f1", "dist": 2000.0, "both": false, "op": "new"},
+		{"t": "sketch", "id": "f3", "name": "Sketch2", "plane": "front", "ents": [{"k": "rect", "a": [300, 100], "b": [500, 120]}], "dims": []},
+		{"t": "extrude", "id": "f4", "name": "Extrude2", "sketch": "f3", "dist": 2000.0, "both": false, "op": "new"},
+	]
+	m.S.part["seq"] = 4
+	await click_ctl(pu.part_btn)
+	await idle(3)
+	bu_sync(m)
+	await idle(3)
+	pu._view_model()   # the model is framed (what Part does when the model is there)
+	await idle(3)
+	var rec_before: int = (m.S.part["features"] as Array).size()
+	var n0: int = m.undo.size()
+	await press_tool(m, pu, "Hinge")
+	ok(pu.tool == "Hinge" and pu.dlg.get("t", "") == "hinge", "12 MAKE: the Hinge tool opens its dialog (tool %s)" % pu.tool)
+	# click Part 1 (the lid): its face, from the camera, through its middle
+	var lid_tris: PackedVector3Array = Part.body_faces(m.S.part, -1)[0]
+	var lid_pt: Vector3 = Vector3.ZERO
+	for v in lid_tris:
+		lid_pt += v / float(lid_tris.size())   # the lid's centre (of its corners): inside it, in front of the camera once framed
+	await click_at(m.cam.unproject_position(lid_pt))
+	ok(int(pu.hp.get("body", -1)) == 0, "12 MAKE: clicking the lid picks Part 1 (picked %s)" % pu.hp.get("body", -1))
+	# click a straight edge of the lid nearest to its corner (0, -20 mm, z 0..2000 mm)
+	var best := -1
+	var best_d := INF
+	for i in pu.edge_cache.size():
+		var e: Dictionary = pu.edge_cache[i]
+		if int(e["body"]) != 0 or (e["a"] as Vector3).distance_to(e["b"] as Vector3) < 1e-6:
+			continue
+		var dd := (e["c"] as Vector3).distance_to(Vector3(0.0, -0.02, 1.0))
+		if dd < best_d:
+			best_d = dd
+			best = i
+	var pick_e: Dictionary = pu.edge_cache[best] if best >= 0 else {}
+	if not pick_e.is_empty():
+		await click_at(m.cam.unproject_position(pick_e["c"]))
+	ok(pu.hp.has("d") and not pick_e.is_empty(), "12 MAKE: the line is picked by clicking an edge of the lid (%s)" % ("yes" if pu.hp.has("d") else "no"))
+	await shot_ui("hinge_make")
+	await click_ctl(pu.ok_btn)
+	await idle(3)
+	var feats: Array = m.S.part["features"]
+	var hf: Dictionary = feats[-1] if not feats.is_empty() else {}
+	var made := feats.size() == rec_before + 1 and String(hf.get("t", "")) == "hinge"
+	var line_ok := false
+	if made and not pick_e.is_empty():
+		var o := Vector3(float(hf["o"][0]), float(hf["o"][1]), float(hf["o"][2])) * Part.MM
+		var ax := Vector3(float(hf["axis"][0]), float(hf["axis"][1]), float(hf["axis"][2])).normalized()
+		var ea: Vector3 = pick_e["a"]
+		var dv: Vector3 = ea - o
+		var off := (dv - ax * dv.dot(ax)).length() / Part.MM
+		line_ok = off < 1.0 and absf(absf(ax.dot(((pick_e["b"] as Vector3) - ea).normalized())) - 1.0) < 1e-4
+	ok(made and line_ok and m.undo.size() == n0 + 1, "12 MAKE: one hinge step (%d -> %d features, %d undo step), its line is the clicked edge within 1 mm" % [rec_before, feats.size(), m.undo.size() - n0])
+	m._undo()
+	await idle(2)
+	var back: bool = (m.S.part["features"] as Array).size() == rec_before
+	m._redo()
+	await idle(2)
+	ok(back and (m.S.part["features"] as Array).size() == rec_before + 1, "12 MAKE: one undo takes the hinge away, redo gives it back")
+
+	# 13 PLAY: the slider at 50 %
+	var rest_box: AABB = pu.part_mesh.mesh.get_aabb() if pu.part_mesh.mesh != null else AABB()
+	pu.hinge_slider.value = 50.0
+	await idle(3)
+	var deg := float(pu.pose.get("deg", -999.0))
+	var turned: AABB = pu.part_mesh.mesh.get_aabb() if pu.part_mesh.mesh != null else AABB()
+	ok(absf(deg - 45.0) <= 1.0 and not turned.is_equal_approx(rest_box), "13 PLAY: 50 %% turns the lid to %.2f deg (45 within 1); the view moved (%s -> %s)" % [deg, rest_box.size, turned.size])
+
+	# 14 PAIR: the lid and the block
+	var n1: int = m.undo.size()
+	await click_ctl(pu.hinge_pair_btn)
+	await click_at(m.cam.unproject_position(lid_pt))
+	await click_at(m.cam.unproject_position(Vector3(0.4, 0.11, 1.0)))
+	await idle(3)
+	var hid := String(hf.get("id", ""))
+	var pairs: Array = Part.clear_pairs(m.S.part, hid)
+	var want := Part.hinge_sweep(m.S.part, hid, 25.0)
+	var same := bool(want.get("ok", false)) and (pu.hsw.get("red", []) as Array) == (want.get("red", []) as Array)
+	ok(pairs == [[0, 1]] and m.undo.size() == n1 + 1, "14 PAIR: one step, the pair Part 1 and Part 2 is on the list (%s)" % str(pairs))
+	ok(same and not (want["red"] as Array).is_empty() and pu.hinge_red_l.text == "Touching at " + String(want["red_text"]), "14 PAIR: red frames %s = hinge_sweep's; the words: %s" % [str(want.get("red", [])), pu.hinge_red_l.text])
+	await idle(2)
+	await shot_ui("hinge_red")
+
+	# 15 REMOVE: the x of the pair
+	var n2: int = m.undo.size()
+	var x: Button = pu.hinge_pairs_vb.get_child(0).get_child(1) if pu.hinge_pairs_vb.get_child_count() > 0 else null
+	var had_x := x != null
+	if had_x:
+		await click_ctl(x)
+	await idle(3)
+	var gone: bool = Part.clear_pairs(m.S.part, hid).is_empty() and (pu.hsw.get("red", []) as Array).is_empty()
+	ok(had_x and gone and m.undo.size() == n2 + 1, "15 REMOVE: the x takes the pair off in one step; no red frames left")
+
+	# 16 WORDS: every new text
+	var texts := [pu.hinge_info.text, pu.hinge_red_l.text, pu.dlg_info.text, pu.status, String(PartUI.TIPS["Hinge"]), "Turning part:  Part 1", "Must not touch: now click the part it must not touch (Part 1 is picked)."]
+	var bad := []
+	for t in texts:
+		bad.append_array(key_names_in(String(t)))
+	ok(bad.is_empty(), "16 WORDS: no key name in the new texts (found %s)" % str(bad))
+
+	m.queue_free()
+	await idle(3)
+
+
+func shot_ui(nm: String) -> void:
+	await idle(3)
+	DirAccess.make_dir_recursive_absolute(SHOT_UI)
+	root.get_texture().get_image().save_png("%s/%s.png" % [SHOT_UI, nm])
+
+
+## the building's Build ribbon refresh after a direct record change (what a file load does)
+func bu_sync(m: Node) -> void:
+	m.bld.sync()
+
+
 func _init() -> void:
 	var swing := [[0.0, 0.0], [3.0, 90.0]]
 	var clear := door(810.0, swing)
@@ -119,6 +330,7 @@ func _init() -> void:
 	# 8 RELEASE: the sweeps freed everything they made
 	ok(KCad.live_count() == live0, "8 RELEASE: live shapes %d before, %d after" % [live0, KCad.live_count()])
 	KCad.release_all()
+	await ui_bars()   # 12-16: the Part workspace's clicks (windowed; the no-DLL run skips them)
 
 	print("HINGE ", "PASS" if fails == 0 else "FAIL %d" % fails)
 	quit(1 if fails > 0 else 0)
