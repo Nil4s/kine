@@ -7,9 +7,8 @@ extends RefCounted
 ## params: k (the name), label, lo / hi / def / step (mm), words (the two ends of its slider). dot_of() says which number an amber dot drags.
 
 const MM := 0.001
-const ARCH_R := 330.0   # mm: a car's wheel arch (the default wheel's 300 mm radius + 30 mm clearance), centred on the axle
-const AXLE_Y := 150.0   # mm: the axle height in the car body's own frame (the wheel's 300 mm less the 150 mm clearance)
-const ARCH_D := 120.0   # mm: how deep the arches go into the car's sides (the middle of the chassis is kept whole)
+const ARCH_GAP := 40.0   # mm: a car's wheel arch top sits this far above the tyre's top (the arch is the wheel radius + 40 mm)
+const CAB_W := 0.88     # the glasshouse is this share of the body's width (narrower than the lower body, so the cabin reads as a cabin)
 const ORDER :=["sword", "axe", "shield", "chair", "crate"]
 const T := {
 	"sword": {"title": "Sword", "params": [
@@ -38,12 +37,14 @@ const T := {
 		{"k": "lid", "label": "Lid overhang", "lo": 0.0, "hi": 60.0, "def": 20.0, "step": 5.0, "words": ["None", "More"]}]},
 	# VEHICLE PARTS (B3, scripts/vehicle.gd): not in ORDER, so no Easy chip: a car body and one wheel
 	"car": {"title": "Car body", "params": [
-		{"k": "body_length", "label": "Length", "lo": 1500.0, "hi": 5000.0, "def": 2400.0, "step": 50.0, "words": ["Shorter", "Longer"]},
-		{"k": "body_width", "label": "Width", "lo": 1000.0, "hi": 2200.0, "def": 1200.0, "step": 20.0, "words": ["Narrower", "Wider"]},
-		{"k": "body_height", "label": "Height", "lo": 300.0, "hi": 1000.0, "def": 500.0, "step": 10.0, "words": ["Lower", "Taller"]},
-		{"k": "wheelbase", "label": "Wheelbase", "lo": 1000.0, "hi": 3000.0, "def": 1584.0, "step": 20.0, "words": ["Shorter", "Longer"]}]},
+		{"k": "body_length", "label": "Length", "lo": 1500.0, "hi": 5000.0, "def": 4000.0, "step": 50.0, "words": ["Shorter", "Longer"]},
+		{"k": "body_width", "label": "Width", "lo": 1000.0, "hi": 2200.0, "def": 1750.0, "step": 20.0, "words": ["Narrower", "Wider"]},
+		{"k": "body_height", "label": "Height", "lo": 900.0, "hi": 1800.0, "def": 1450.0, "step": 10.0, "words": ["Lower", "Taller"]},
+		{"k": "wheelbase", "label": "Wheelbase", "lo": 1000.0, "hi": 3000.0, "def": 2500.0, "step": 20.0, "words": ["Shorter", "Longer"]},
+		# the wheel's radius, copied in by Vehicle.make_set and the Easy screen (the arches follow it); no slider of its own on the car
+		{"k": "wheel_r", "label": "Wheel size", "lo": 100.0, "hi": 600.0, "def": 320.0, "step": 10.0, "words": ["Smaller", "Bigger"]}]},
 	"wheel": {"title": "Wheel", "params": [
-		{"k": "radius", "label": "Radius", "lo": 100.0, "hi": 600.0, "def": 300.0, "step": 10.0, "words": ["Smaller", "Bigger"]},
+		{"k": "radius", "label": "Radius", "lo": 100.0, "hi": 600.0, "def": 320.0, "step": 10.0, "words": ["Smaller", "Bigger"]},
 		{"k": "width", "label": "Width", "lo": 50.0, "hi": 400.0, "def": 200.0, "step": 10.0, "words": ["Thinner", "Wider"]}]},
 }
 
@@ -232,28 +233,40 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			_ex(fs, _sk(fs, "right", [_rect(Vector2(-(d - lt), 0), Vector2(-lt, sh - st))]), "extrude", w, "cut")
 		"car":
 			# a car in side profile (the Right plane: sketch x = -Z, the car drives along +Z; sketch y = Y), extruded across the width.
-			# Order matters: the chassis, the two wheel arches cut through it, the chassis again across the middle (so the arches keep
-			# only their sides), then the cabin (set back, narrower, sloped glass) on top. Corners are rounded with arcs in the sketch.
-			var L: float = p["body_length"]
-			var W: float = p["body_width"]
-			var H: float = float(p["body_height"])
-			var wb: float = p["wheelbase"]
-			var h1 := H * 0.5           # the chassis top: the cabin's floor
-			var zf := 0.08 * L          # the cabin's front foot (the bonnet runs from here to the nose)
-			var zr := -0.18 * L         # the cabin's rear foot (the boot runs from here to the tail)
-			var chassis := [Vector2(0, -L * 0.5), Vector2(0, L * 0.5), Vector2(H * 0.36, L * 0.5), Vector2(h1, zf), Vector2(h1, zr), Vector2(H * 0.42, -L * 0.5)]
-			var cabin := [Vector2(h1, zf), Vector2(H, 0.02 * L), Vector2(H, -0.14 * L), Vector2(h1, zr)]
-			_ex(fs, _sk(fs, "right", _rounded(chassis, [40.0, 40.0, 40.0, 0.0, 0.0, 40.0])), "extrude", W, "new", true)
-			for zc in [wb * 0.5, -wb * 0.5]:
-				_ex(fs, _sk(fs, "right", [{"k": "circle", "c": [-zc, AXLE_Y], "r": ARCH_R}]), "extrude", 2.0 * W, "cut", true)
-			_ex(fs, _sk(fs, "right", _rounded(chassis, [40.0, 40.0, 40.0, 0.0, 0.0, 40.0])), "extrude", W - 2.0 * ARCH_D, "join", true)
-			_ex(fs, _sk(fs, "right", _rounded(cabin, [0.0, 40.0, 40.0, 0.0])), "extrude", W * 0.84, "join", true)
+			# The lower body (sills at the wheel centre's height, the belt at 55 % of the height, nose and tail rounded) is one extrusion
+			# across the full width; each wheel arch is a circle of the wheel radius + 40 mm cut through it at its axle; the glasshouse
+			# (windscreen 30 deg from horizontal, roof, rear hatch) is a narrower extrusion on the belt.
+			var g := car_geom(p)
+			var S: float = g["S"]
+			var yb: float = g["yb"]
+			var zn: float = g["zn"]
+			var zt: float = g["zt"]
+			var lower := [Vector2(S, zt), Vector2(yb, zt), Vector2(yb, g["zwb"]), Vector2(g["yn"], zn), Vector2(S, zn)]
+			_ex(fs, _sk(fs, "right", _rounded(lower, [60.0, 80.0, 0.0, 120.0, 60.0])), "extrude", g["W"], "new", true)
+			for zc in [float(p["wheelbase"]) * 0.5, -float(p["wheelbase"]) * 0.5]:
+				_ex(fs, _sk(fs, "right", [{"k": "circle", "c": [-zc, S], "r": g["A"]}]), "extrude", 2.0 * g["W"], "cut", true)
+			var cabin := [Vector2(yb, g["zwb"]), Vector2(g["H"], g["zrf"]), Vector2(g["H"], g["zrr"]), Vector2(yb, g["zrh"])]
+			_ex(fs, _sk(fs, "right", _rounded(cabin, [0.0, 150.0, 150.0, 0.0])), "extrude", g["wc"], "join", true)
 		"wheel":
 			# a tyre: the profile (width x radius) turned about the sketch's x axis = world X, the axle (side to side)
 			var R: float = p["radius"]
 			var w: float = p["width"]
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(-w * 0.5, 0.0), Vector2(w * 0.5, R))]), "revolve", 0.0, "new")
 	return fs
+
+
+## the car body's side-profile numbers (mm, the body's own frame: Y up from the ground, Z forward; the car's wheel radius is p.wheel_r):
+## S the sill (the wheel centre's height), A the arch radius (the wheel + ARCH_GAP), yb the belt (55 % of H), yn the nose top, zn / zt the nose
+## and tail, zrf / zrr the roof's front and rear edges, zrh the hatch's foot on the belt, zwb the windscreen's foot (30 deg from horizontal)
+static func car_geom(p: Dictionary) -> Dictionary:
+	var L: float = p["body_length"]
+	var W: float = p["body_width"]
+	var H: float = p["body_height"]
+	var R: float = p.get("wheel_r", 320.0)
+	var yb := H * 0.55
+	var zrr := -0.375 * L
+	return {"L": L, "W": W, "H": H, "S": R, "A": R + ARCH_GAP, "yb": yb, "yn": 0.48 * H, "zn": L * 0.5, "zt": -L * 0.5,
+		"zrf": 0.0, "zrr": zrr, "zrh": zrr - 0.075 * L, "zwb": (H - yb) * sqrt(3.0), "wc": W * CAB_W}
 
 
 ## a handle in another material than the Part's: [material, last steel feature], or [] when all of it is one material. The sword's

@@ -362,6 +362,8 @@ func _row_index(r: Array) -> int:
 
 func _set_value(r: Array, v: float) -> void:
 	_pending[String(r[2])][String(r[0])] = v * 10.0   # the slider says cm, the record mm
+	if String(r[0]) == "radius":   # the arches follow the wheel: the car body gets the radius too (73229623)
+		_pending["car"]["wheel_r"] = v * 10.0
 	_dirty = true
 
 

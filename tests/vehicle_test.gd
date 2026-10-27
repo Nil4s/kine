@@ -3,15 +3,18 @@ extends SceneTree
 ## Bars, written before measuring (every size in the Part records is mm; the numbers below are m and m3):
 ##   0 KCad is available (the DLL is there; without it nothing can be measured and the suite fails)
 ##   1 WHEEL     the wheel (r 0.30 m, 0.20 m wide, a revolve) has volume pi r^2 w = 0.056549 m3 within 1 %
-##   2 BODY      the car body (2.4 x 1.2 x 0.5 m box) has volume 1.44 m3 within 1 %
+##   2 BODY      (REDEFINED for 73229623: the body is a side profile extruded across the width, not a box) its volume is between 45 % and
+##               80 % of L W H, and equals the extruded profiles' areas x widths within 1 % (the lower body and the glasshouse, the arch
+##               half-discs taken out of the lower body)
 ##   3 STRAIGHT  a car driven 10 m on a straight path: every 0.5 m, each of the four wheels has turned s / r within 1 %
 ##               (10 / 0.3 = 33.33 rad at the end); the pivots read back the same angle; the car ends at (0, 0, 10) within 1 mm
 ##   4 CURVE     an S-shaped path: each wheel turns (smoothed arc length) / r within 1 %, and that arc is more than 5 % longer than
 ##               the chord (so the bar tells arc from chord)
 ##   5 GROUND    every wheel's centre is r above the ground (the tyre touches y = 0 within 1 um)
 ##   6 CLEAR     the four wheels and the body share no volume (KCad intersect volume = 0; all 4 body-wheel pairs and the 6 wheel pairs)
-##   7 CONTROL   a wheel moved 5 cm into the body DOES share volume (> 0.005 m3, a 5 cm slice of the tyre): the intersect check can fail
-##   8 WHEELBASE a wheelbase of 1.80 m (from 1.584 m): the front axles and the back axles move 108 mm each (the change / 2), and the
+##   7 CONTROL   (REDEFINED for 73229623) a wheel moved 5 cm UP into the arch top DOES share volume with the body (> 0.00005 m3, a 10 mm
+##               slice of the tyre above the arch): the intersect check can fail
+##   8 WHEELBASE a wheelbase of 1.80 m (from 1.584 m; the baseline is pinned to 1584 mm, the old default: 73229623): the front axles and the back axles move 108 mm each (the change / 2), and the
 ##               front-to-back distance is the wheelbase within 1 mm
 ##  15 CABIN    the body's top 30 % of height (the cabin) is narrower and shorter than its bottom 30 % (the chassis)
 ##  16 ARCHES   each wheel centre is inside the body's length, and each tyre's top is above the chassis bottom
@@ -73,10 +76,27 @@ func headless_bars() -> void:
 	var wanted := PI * r * r * w
 	ok(near(wv, wanted, 0.01), "1 WHEEL volume %.6f m3, pi r^2 w = %.6f (within 1 %%)" % [wv, wanted])
 
-	# 2 body volume
+	# 2 body volume (redefined, 73229623): the body is extruded side profiles: the lower body (full width, its arch half-discs out)
+	# and the glasshouse (CAB_W of the width); the volume is 45-80 % of L W H and equals those profiles' areas x widths within 1 %
 	var bv := Part.replay(car)["volume"] as float
 	var bw := float(cp["body_length"]) * float(cp["body_width"]) * float(cp["body_height"]) * Part.MM * Part.MM * Part.MM
-	ok(near(bv, bw, 0.01), "2 BODY volume %.6f m3, L W H = %.6f (within 1 %%)" % [bv, bw])
+	var sks := {}
+	for f in car["features"]:
+		if f["t"] == "sketch":
+			sks[f["id"]] = f
+	var prof_v := 0.0
+	for f in car["features"]:
+		if f["t"] != "extrude" or f["op"] == "cut":
+			continue
+		var area := sk_area(sks[f["sketch"]]["ents"])
+		var wide := float(f["dist"]) * Part.MM
+		if f["op"] == "new":   # the lower body: less the two arch half-discs (the circles of the cut sketches, centred on the sills)
+			for g in car["features"]:
+				if g["t"] == "extrude" and g["op"] == "cut":
+					for e in sks[g["sketch"]]["ents"]:
+						area -= PI * float(e["r"]) * float(e["r"]) * 0.5
+		prof_v += area * Part.MM * Part.MM * wide
+	ok(near(bv, prof_v, 0.01) and bv > 0.45 * bw and bv < 0.8 * bw, "2 BODY volume %.4f m3 = the profiles' area x width %.4f m3 (within 1 %%), %.0f %% of L W H = %.4f m3 (45-80 %%)" % [bv, prof_v, 100.0 * bv / bw, bw])
 
 	var lay := Vehicle.layout(cp, wp)
 
@@ -125,23 +145,27 @@ func headless_bars() -> void:
 			pairs += 1
 	ok(pairs == 10 and worst_v == 0.0, "6 CLEAR: %d body/wheel pairs share no volume (worst %.6f m3)" % [pairs, worst_v])
 
-	# 7 control: a wheel 5 cm into the body must overlap
+	# 7 control (redefined, 73229623): a wheel moved 5 cm UP into the arch top must overlap the body (the arch is 40 mm above the tyre)
 	var into := lay["wheels"][1] as Vector3
-	into.x -= 0.05
+	into.y += 0.05
 	var inside := Vehicle.solid_at(wh, into)
 	var bad := Vehicle.overlap(body, inside)
-	ok(bad > 0.005, "7 CONTROL: a wheel 5 cm into the body shares %.4f m3 (must be > 0.005: a 5 cm slice of the tyre)" % bad)
+	ok(bad > 0.00005, "7 CONTROL: a wheel 5 cm up into the arch top shares %.6f m3 (must be > 0.00005: a 10 mm slice of the tyre above the arch)" % bad)
 	for id in ids:
 		KCad.release(id)
 	KCad.release(inside)
 	root.free()
 
-	# 8 wheelbase: 1.80 m from the default 1.584 m moves each axle pair by 108 mm (216 mm of wheelbase, half each way)
-	var cp2 := cp.duplicate()
+	# 8 wheelbase: 1.80 m from 1.584 m moves each axle pair by 108 mm (216 mm of wheelbase, half each way). The baseline is the old
+	# default 1584 mm (73229623 moved the default to 2500 mm; the bar's numbers are unchanged)
+	var cp1 := cp.duplicate()
+	cp1["wheelbase"] = 1584.0
+	var lay1 := Vehicle.layout(cp1, wp)
+	var cp2 := cp1.duplicate()
 	cp2["wheelbase"] = 1800.0
 	var lay2 := Vehicle.layout(cp2, wp)
-	var d_front: float = (lay2["wheels"][0] as Vector3).z - (lay["wheels"][0] as Vector3).z
-	var d_back: float = (lay2["wheels"][2] as Vector3).z - (lay["wheels"][2] as Vector3).z
+	var d_front: float = (lay2["wheels"][0] as Vector3).z - (lay1["wheels"][0] as Vector3).z
+	var d_back: float = (lay2["wheels"][2] as Vector3).z - (lay1["wheels"][2] as Vector3).z
 	var sep: float = (lay2["wheels"][0] as Vector3).z - (lay2["wheels"][2] as Vector3).z
 	ok(absf(d_front - 0.108) < 0.001 and absf(d_back + 0.108) < 0.001 and absf(sep - 1.8) < 0.001,
 		"8 WHEELBASE 1.80 m: front axles +%.1f mm, back axles %.1f mm, front-to-back %.1f mm" % [d_front * 1000.0, d_back * 1000.0, sep * 1000.0])
@@ -286,7 +310,8 @@ func ui_bars() -> void:
 
 	# 10 SLIDER: Wheelbase 158 -> 178 cm by a real drag: one undo step, the axles move 0.10 m each
 	var sl: HSlider = ev.find_child("easyvehicle_slider_wheelbase", true, false)
-	sl.set_value_no_signal(158.4)
+	PartTemplates.retemplate(ev.car(), {"wheelbase": 1584.0})   # the bar starts at 158.4 cm (the default is 250 cm now: 73229623)
+	ev._rebuild_view()
 	ev._sync()
 	var front0 := _front_z(ev)
 	var u0: int = m.undo.size()
@@ -299,7 +324,7 @@ func ui_bars() -> void:
 	var lsl: HSlider = ev.find_child("easyvehicle_slider_body_length", true, false)
 	var before_len := float(m.S.part["easy"]["p"]["body_length"])
 	var u1: int = m.undo.size()
-	await drag_to(lsl, 0.7)
+	await drag_to(lsl, 0.3)   # the length starts at 400 cm (the default now), so the second drag goes down
 	ok(m.undo.size() - u1 == 1, "10 SLIDER a second release is a second undo step (%d)" % (m.undo.size() - u1))
 	m._undo()
 	await idle(4)
@@ -365,6 +390,42 @@ func ui_bars() -> void:
 	for p in m.S.props:
 		has_car = has_car or String(p["kind"]) == "car:Vehicle"
 	ok(has_car and m.cur_page == "STAGE" and m.undo.size() == u2 + 1 and not ev.visible, "14 USE the car is a prop of the set, STAGE opens, one undo step (page %s)" % m.cur_page)
+
+
+## the area (mm2) of a closed sketch made of lines and 3-point arcs: the arcs sampled, then the shoelace formula (73229623)
+func sk_area(ents: Array) -> float:
+	var pts := PackedVector2Array()
+	for e in ents:
+		var a := Vector2(float(e["a"][0]), float(e["a"][1]))
+		pts.append(a)
+		if e["k"] == "arc":
+			pts.append_array(arc_pts(a, Vector2(float(e["m"][0]), float(e["m"][1])), Vector2(float(e["b"][0]), float(e["b"][1]))))
+	var s := 0.0
+	for i in pts.size():
+		var p := pts[i]
+		var q := pts[(i + 1) % pts.size()]
+		s += p.x * q.y - q.x * p.y
+	return absf(s) * 0.5
+
+
+## the points strictly between a and b on the circle through a, m, b (the arc that passes m)
+func arc_pts(a: Vector2, m: Vector2, b: Vector2) -> PackedVector2Array:
+	var d := 2.0 * (a.x * (m.y - b.y) + m.x * (b.y - a.y) + b.x * (a.y - m.y))
+	var a2 := a.length_squared()
+	var m2 := m.length_squared()
+	var b2 := b.length_squared()
+	var c := Vector2((a2 * (m.y - b.y) + m2 * (b.y - a.y) + b2 * (a.y - m.y)) / d, (a2 * (b.x - m.x) + m2 * (a.x - b.x) + b2 * (m.x - a.x)) / d)
+	var rad := (a - c).length()
+	var ta := (a - c).angle()
+	var full := fposmod((b - c).angle() - ta, TAU)
+	var mid := fposmod((m - c).angle() - ta, TAU)
+	if mid > full:
+		full -= TAU
+	var out := PackedVector2Array()
+	for i in range(1, 16):
+		var t := ta + full * float(i) / 16.0
+		out.append(c + Vector2(cos(t), sin(t)) * rad)
+	return out
 
 
 ## the x and z extents (m) of the points whose height is in [lo, hi]: Vector2(x span, z span)
