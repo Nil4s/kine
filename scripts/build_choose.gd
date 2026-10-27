@@ -123,6 +123,20 @@ func build(parent: Control) -> void:
 	_col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_col.add_theme_constant_override("separation", 6)
 	root_box.add_child(_col)
+	# a way back: the chooser covers the bar (its Home and Done), so it needs its own (it was a dead end without a card pick)
+	var back := Button.new()   # added to the box after the column (below, on top)
+	back.name = "build_choose_back"
+	back.text = "Back"
+	back.tooltip_text = "Close this and go back to the building"
+	back.focus_mode = Control.FOCUS_NONE
+	back.custom_minimum_size = Vector2(120, 40)
+	back.pressed.connect(close)
+	back.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	back.offset_left = -140.0
+	back.offset_right = -20.0
+	back.offset_top = 14.0
+	back.offset_bottom = 54.0
+	root_box.add_child(back)
 	_title = _label("What do you want to build?", 30, Color(0.93, 0.94, 0.96))
 	_title.name = "choose_title"
 	_col.add_child(_title)

@@ -402,7 +402,7 @@ func _add_tile(path: String, nm: String, group: String) -> void:
 		trash.focus_mode = Control.FOCUS_NONE
 		trash.custom_minimum_size = Vector2(38, 30)
 		trash.icon = Icons.small("trash")
-		trash.tooltip_text = "Delete"
+		trash.tooltip_text = "Move to the trash"
 		trash.pressed.connect(_ask_delete.bind(path))
 		row.add_child(trash)
 	var pic := TextureRect.new()

@@ -2031,8 +2031,8 @@ func _init() -> void:
 	var lib72 = m.ui_library
 	lib72._search.text = ""   # the search of section 27 ("chair") is still in the box: the tab shows its own category
 	lib72._on_search("")
-	lib72.tab = ObjectLibrary.CATS.find("Furniture")
-	lib72._rebuild()
+	# bf1bec9b (library by category): in Easy the grid is empty until a category tile is clicked, so open Furniture the way a click does
+	lib72._pick_tab(ObjectLibrary.CATS.find("Furniture"))
 	await idle(3)
 	var tiles72 := 0
 	var rep72 := 0
