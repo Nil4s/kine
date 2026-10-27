@@ -26,7 +26,9 @@ const DOUBLE_MS := 650
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension"]
 const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Offset plane", "Split"]
 const TOOL_KIND := {"Offset plane": "plane"}   # a tool's feature kind when it is not its lower-case name
-const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell"]
+const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell", "Appearance"]
+const LOOK_TOOLS := ["Appearance"]   # APPEARANCE (GAP 5): picks a body for the side panel; the panel is _build_look / _look_sync
+const LOOK_PRESET_ORDER := ["Paint", "Metal", "Glass", "Rubber", "Plastic"]
 const SHELL_OPEN := ["", "+x", "-x", "+y", "-y", "+z", "-z"]   # the open face of a shell (Part.SHELL_DIRS), in the dialog's order
 const SHELL_OPEN_TXT := ["Closed (no face open)", "Right face (+X)", "Left face (-X)", "Top face (+Y, up)", "Bottom face (-Y)", "Front face (+Z)", "Back face (-Z)"]
 const HINGE_TOOLS := ["Hinge"]
@@ -42,6 +44,7 @@ const TIPS := {
 	"Revolve": "REVOLVE: the newest sketch turns round its horizontal or vertical axis. Type the angle and press Enter.",
 	"Mirror": "MIRROR: the body and its reflection across a plane become one solid.",
 	"Split": "SPLIT: pick a plane and an offset (mm). Every body the plane cuts becomes two bodies. Press Enter.",
+	"Appearance": "APPEARANCE: click a body in the browser (Body1, Body2...). Pick a colour chip, the picker or a preset (Paint, Metal, Glass, Rubber, Plastic). Each change is one undo step.",
 	"Shell": "SHELL: the newest body becomes a hollow box with the wall thickness you type. Pick the face left open, press Enter.",
 	"Loft": "LOFT: pick two or more sketches in order (each a closed profile); the solid runs through them. Ruled = straight, Smooth = curved.",
 	"Offset plane": "OFFSET PLANE: pick Front, Top or Right and type a distance. The new plane is in the browser: click it to sketch on it.",
@@ -79,6 +82,14 @@ var hp := {}                   # the hinge dialog's picks: {"body", "faces", "pt
 var hsw := {}                  # the selected hinge's swing check (Part.hinge_sweep), kept while its record is the same
 var hsw_sig := ""
 var pair_pick := {}            # must not touch: {"id", "first", "faces"} while two parts are being picked
+var sel_body := -1             # APPEARANCE: the body the side panel paints (-1 = none); a browser row or the Appearance tool sets it
+var look_box: VBoxContainer
+var look_title: Label
+var look_info: Label
+var look_picker: ColorPickerButton
+var look_presets := {}         # preset name -> Button
+var look_chips := []           # the colour chip buttons, in Part.LOOK_CHIPS order
+var look_sig := ""
 var pose := {}                 # {"f": hinge id, "deg": angle} while the hinge is shown turned (Play / the slider)
 var play_on := false
 var play_t := 0.0
@@ -199,7 +210,6 @@ func setup(b: BuildUI) -> void:
 			c.visible = false
 	part_mesh = MeshInstance3D.new()
 	part_mesh.name = "part_mesh"
-	part_mesh.material_override = _solid_mat(Color(0.74, 0.77, 0.82))
 	part_mesh.visible = false
 	bu.root3.add_child(part_mesh)
 	prev_mesh = MeshInstance3D.new()
@@ -403,6 +413,7 @@ func _build_side() -> void:
 	hinge_box.add_theme_constant_override("separation", 6)
 	hinge_box.visible = false
 	vb.add_child(hinge_box)
+	_build_look(vb)
 	hinge_title = _label("", 13, true)
 	hinge_title.name = "part_hinge_title"
 	hinge_box.add_child(hinge_title)
@@ -652,6 +663,9 @@ func set_on(v: bool) -> void:
 
 
 func _pick(t: String) -> void:
+	if t in LOOK_TOOLS:
+		_look_tool()
+		return
 	if not Part.available():
 		_tool_sync()
 		return
@@ -1505,6 +1519,11 @@ func step_clicked(i: int) -> void:
 
 func edit_step(i: int) -> void:
 	var f: Dictionary = _feats()[i]
+	if String(f["t"]) == "appear":   # APPEARANCE: its body's panel opens (no dialog)
+		sel_body = int(f.get("body", 0))
+		sel_step = -1
+		bu.sync()
+		return
 	if sk != "":
 		finish_sketch()
 	close_dialog()
@@ -1518,6 +1537,8 @@ func edit_step(i: int) -> void:
 
 
 func _step_icon(f: Dictionary) -> String:
+	if String(f["t"]) == "appear":
+		return "part_appearance"
 	return "part_" + String(f["t"]) if String(f["t"]) != "sketch" else "part_sketch"
 
 
@@ -1569,7 +1590,7 @@ func _timeline_sync() -> void:
 
 func _browser_sync() -> void:
 	var feats := _feats()
-	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], f["t"], f.get("mm", 0), f.get("from", "")]), sk, res.get("bodies", 0), prev.is_empty()])
+	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], f["t"], f.get("mm", 0), f.get("from", "")]), sk, res.get("bodies", 0), prev.is_empty(), sel_body])
 	if sig == _browser_sig:
 		return
 	_browser_sig = sig
@@ -1580,9 +1601,13 @@ func _browser_sync() -> void:
 	var nb: int = res.get("bodies", 0)
 	browser_vb.add_child(_label("Bodies (%d)" % nb, 15))
 	for i in nb:
-		var l := _label("    Body%d" % (i + 1), 14)
-		l.name = "part_body_%d" % i
-		browser_vb.add_child(l)
+		var bb := _row_btn("    Body%d" % (i + 1), "part_body_%d" % i)   # APPEARANCE: a click picks the body for the side panel
+		bb.tooltip_text = "Body%d: click to change its colour and material (Appearance)" % (i + 1)
+		if i == sel_body:
+			bb.add_theme_color_override("font_color", SKY)
+			bb.add_theme_color_override("font_hover_color", SKY)
+		bb.pressed.connect(func(): _sel_body_pick(i))
+		browser_vb.add_child(bb)
 	var sketches := feats.filter(func(f): return f["t"] == "sketch")
 	browser_vb.add_child(_label("Sketches (%d)" % sketches.size(), 15))
 	for f in sketches:
@@ -1683,7 +1708,7 @@ func _tool_sync() -> void:
 			w = "sketch a closed profile first"
 		elif ok and t == "Loft" and _feats().filter(func(f): return f["t"] == "sketch").size() < 2:
 			w = "sketch two profiles first (a loft joins them)"
-		elif ok and (t == "Mirror" or t == "Fillet" or t == "Chamfer" or t == "Hinge" or t == "Split" or t == "Shell") and not has_body:
+		elif ok and (t == "Mirror" or t == "Fillet" or t == "Chamfer" or t == "Hinge" or t == "Split" or t == "Shell" or t == "Appearance") and not has_body:
 			w = "make a solid first (Extrude or Revolve)"
 		m._grey(b, w)
 		b.set_pressed_no_signal(t == tool and w == "")
@@ -1751,6 +1776,7 @@ func sync() -> void:
 	else:
 		pose = {}
 	_rebuild(up)
+	_look_sync(show)   # after the replay: the panel reads this record's looks
 	pov.visible = show
 	part_mesh.visible = up and sk == "" and prev.is_empty() and part_mesh.mesh != null
 	prev_mesh.visible = show and not prev.is_empty() and prev_mesh.mesh != null
@@ -1759,7 +1785,7 @@ func sync() -> void:
 		bu.grid.visible = false
 		bu.person.visible = false
 	browser.visible = show
-	side.visible = show and (sk != "" or not dlg.is_empty() or not _sel_hinge().is_empty())
+	side.visible = show and (sk != "" or not dlg.is_empty() or not _sel_hinge().is_empty() or _sel_look() >= 0)
 	tl.visible = show
 	sketch_box.visible = sk != "" and dlg.is_empty()
 	dlg_box.visible = not dlg.is_empty()
@@ -1801,6 +1827,7 @@ func _rebuild(show: bool) -> void:
 	res = Part.replay(_rec(), up, want)
 	if sk == "":
 		part_mesh.mesh = res["mesh"]
+		_look_surfaces()
 	edge_cache = res["edges"]
 
 
@@ -2606,3 +2633,174 @@ func _draw_hinge_marks() -> void:
 		for e in edge_cache:
 			if int(e["body"]) == int(pr[0]) or int(e["body"]) == int(pr[1]):
 				_edge_line(e, Color("#ff5a4e"), 4.0)
+
+
+# ---------------------------------------------------------------- APPEARANCE (GAP 5): colour, presets, per body; one undo step per change
+
+## the body the side panel paints: a body row or the Appearance tool picked it; -1 when a sketch, a dialog or a hinge is open
+func _sel_look() -> int:
+	if not chrome() or sk != "" or not dlg.is_empty() or sel_body < 0 or not _sel_hinge().is_empty():
+		return -1
+	return sel_body if sel_body < int(res.get("bodies", 0)) else -1
+
+
+func _sel_body_pick(i: int) -> void:
+	sel_body = i
+	sel_step = -1
+	pov.queue_redraw()
+	bu.sync()
+
+
+## the Appearance tool: the first body if none is picked yet (it says so when there is no body)
+func _look_tool() -> void:
+	var nb := int(res.get("bodies", 0))
+	if nb == 0:
+		_say("Appearance: make a solid first (Extrude or Revolve), then pick a body")
+	else:
+		sel_body = clampi(sel_body, 0, nb - 1)
+		sel_step = -1
+		_say("Appearance: %s is picked. Pick a colour or a material for it." % _part_name(sel_body))
+	bu.sync()
+
+
+func _build_look(vb: VBoxContainer) -> void:
+	look_box = VBoxContainer.new()
+	look_box.name = "part_look_box"
+	look_box.add_theme_constant_override("separation", 6)
+	look_box.visible = false
+	vb.add_child(look_box)
+	look_title = _label("", 13, true)
+	look_title.name = "part_look_title"
+	look_box.add_child(look_title)
+	look_info = _label("", 13)
+	look_info.name = "part_look_info"
+	look_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	look_info.custom_minimum_size.x = PANEL_W - 24.0
+	look_box.add_child(look_info)
+	look_box.add_child(_label("Colour", 12, true))
+	var chips := HBoxContainer.new()
+	chips.name = "part_look_chips"
+	chips.add_theme_constant_override("separation", 4)
+	look_box.add_child(chips)
+	for ch in Part.LOOK_CHIPS:
+		var cb := Button.new()
+		cb.name = "part_look_chip_" + String(ch[0]).to_lower()
+		cb.tooltip_text = "Colour: %s" % String(ch[0])
+		cb.custom_minimum_size = Vector2(38, 28)
+		cb.focus_mode = Control.FOCUS_NONE
+		var c: Color = ch[1]
+		for st in ["normal", "hover", "pressed", "focus"]:
+			var sb := StyleBoxFlat.new()
+			sb.bg_color = c
+			sb.border_color = Color.WHITE
+			sb.set_border_width_all(1)
+			sb.set_corner_radius_all(3)
+			cb.add_theme_stylebox_override(st, sb)
+		cb.pressed.connect(func(): _look_set(c, "Custom"))
+		chips.add_child(cb)
+		look_chips.append(cb)
+	look_picker = ColorPickerButton.new()
+	look_picker.name = "part_look_picker"
+	look_picker.text = "Pick a colour..."
+	look_picker.tooltip_text = "Any colour: one undo step when the picker closes"
+	look_picker.focus_mode = Control.FOCUS_NONE
+	look_picker.popup_closed.connect(_look_picked)
+	look_box.add_child(look_picker)
+	look_box.add_child(_label("Material", 12, true))
+	var pr := GridContainer.new()
+	pr.name = "part_look_presets"
+	pr.columns = 3
+	pr.add_theme_constant_override("h_separation", 4)
+	pr.add_theme_constant_override("v_separation", 4)
+	look_box.add_child(pr)
+	for pn in LOOK_PRESET_ORDER:
+		var pb := Button.new()
+		pb.name = "part_look_" + String(pn).to_lower()
+		pb.text = pn
+		pb.toggle_mode = true
+		pb.focus_mode = Control.FOCUS_NONE
+		var pv: Dictionary = Part.LOOK_PRESETS[pn]
+		pb.tooltip_text = "%s: roughness %s, metal %s, opacity %d%%" % [pn, _fmt(float(pv["rough"])), _fmt(float(pv["metal"])), roundi(float(pv["alpha"]) * 100.0)]
+		pb.pressed.connect(func(): _look_set(_look_now()["c"], pn))
+		pr.add_child(pb)
+		look_presets[pn] = pb
+
+
+## the look of the picked body now (from the replay); a default when none is picked
+func _look_now() -> Dictionary:
+	var bi := _sel_look()
+	if bi < 0:
+		return {"c": Color.WHITE, "rough": 0.5, "metal": 0.15, "alpha": 1.0, "preset": "Default"}
+	return Part.look_at(res.get("body_looks", []), bi)
+
+
+## the picker closed: one step, only when the colour really changed
+func _look_picked() -> void:
+	if _sel_look() < 0:
+		return
+	var cur: Color = _look_now()["c"]
+	if not look_picker.color.is_equal_approx(cur):
+		_look_set(look_picker.color, "Custom")
+
+
+## one appear step on the timeline (one undo step): a colour, or a preset's numbers (with the colour the body has now)
+func _look_set(c: Color, preset: String) -> void:
+	var bi := _sel_look()
+	if bi < 0 or not Part.available():
+		return
+	var cur := _look_now()
+	var nums: Dictionary = Part.LOOK_PRESETS.get(preset, {"rough": cur["rough"], "metal": cur["metal"], "alpha": cur["alpha"]})
+	var rec := _rec()
+	var n := Part.count_of(rec, "appear") + 1
+	m._step_hint = "Appearance"
+	m._push_undo()
+	var f := Part.new_feature(rec, "appear", {"name": "Appearance%d" % n, "body": bi, "preset": preset,
+		"color": [c.r, c.g, c.b], "rough": float(nums["rough"]), "metal": float(nums["metal"]), "alpha": float(nums["alpha"])})
+	(rec["features"] as Array).append(f)
+	upto = -1
+	_say("%s: %s is now %s (%s). Undo takes it back." % [String(f["name"]), _part_name(bi), preset, _look_words(Part.look_of(f))])
+	bu.sync()
+
+
+## the panel's words for a look, in plain words
+func _look_words(l: Dictionary) -> String:
+	var see := "you can see the parts behind it" if float(l["alpha"]) < 1.0 else "solid"
+	return "roughness %s, metal %s, opacity %d%%: %s" % [_fmt(float(l["rough"])), _fmt(float(l["metal"])), roundi(float(l["alpha"]) * 100.0), see]
+
+
+func _look_sync(show: bool) -> void:
+	var bi := _sel_look() if show else -1
+	look_box.visible = bi >= 0
+	if bi < 0:
+		look_sig = ""
+		return
+	var l := _look_now()
+	var sig := JSON.stringify([bi, (l["c"] as Color).to_html(), l["rough"], l["metal"], l["alpha"], l["preset"]])
+	if sig == look_sig:
+		return
+	look_sig = sig
+	side_title.text = "APPEARANCE"
+	look_title.text = _part_name(bi)
+	look_info.text = "Now: %s, %s." % [String(l["preset"]), _look_words(l)]
+	look_picker.color = l["c"]
+	for pn in look_presets:
+		(look_presets[pn] as Button).set_pressed_no_signal(String(l["preset"]) == pn)
+
+
+## the view: one surface per body, each with its own look (alpha below 1 = see-through)
+func _look_surfaces() -> void:
+	if part_mesh.mesh == null:
+		return
+	var ls: Array = res.get("looks", [])
+	for s in mini(ls.size(), part_mesh.mesh.get_surface_count()):
+		var l: Dictionary = ls[s]
+		var mt := StandardMaterial3D.new()
+		var c: Color = l["c"]
+		var a := float(l["alpha"])
+		mt.albedo_color = Color(c.r, c.g, c.b, a)
+		mt.roughness = float(l["rough"])
+		mt.metallic = float(l["metal"])
+		mt.cull_mode = BaseMaterial3D.CULL_DISABLED
+		if a < 1.0:
+			mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		part_mesh.set_surface_override_material(s, mt)
