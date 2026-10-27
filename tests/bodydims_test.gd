@@ -80,6 +80,22 @@ func click_ctl(c: Control) -> void:
 	await idle(2)
 
 
+## a Part tool: on the row, or under its caption's dropdown (1c0e86b4: Dimension moved under SKETCH at 1280 x 720)
+func press_tool(pu: PartUI, t: String) -> void:
+	var b: Button = pu.tool_btns[t]
+	if b.is_visible_in_tree():
+		await click_ctl(b)
+		return
+	for pair in m.ui_caps.get("BUILD", []):
+		if (pair[1] as Array).has(b):
+			await click_ctl(pair[0])
+			(pair[0] as MenuButton).get_popup().hide()
+			m._run_tool(b, pair[0])
+			await idle(2)
+			return
+	ok(false, "%s is on the row or under its caption" % t)
+
+
 func click_ctl_at(p: Vector2) -> void:
 	await ev_move(p, false)
 	await ev_mouse(p, true)
@@ -157,7 +173,7 @@ func ui_part() -> void:
 	await click_ctl(pu.browser.find_child("part_plane_front", true, false))
 	await click_ctl(pu.tool_btns["Rectangle"])
 	await drag2(0, 0, 95, 25)
-	await click_ctl(pu.tool_btns["Dimension"])
+	await press_tool(pu, "Dimension")
 	await click_ctl_at(sp2(47.5, 0))
 	ok(pu.dim_edit.visible, "9 TYPED Dimension on the bottom edge opens the type box")
 	await type_in(pu.dim_edit, "=forearm+4")
