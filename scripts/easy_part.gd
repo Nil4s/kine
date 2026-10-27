@@ -172,6 +172,7 @@ func build(root: Control) -> void:
 	# the one sentence, and the shape choice that goes with Draw shape
 	hint = _pill("easypart_hint", 19)
 	hint_l = hint.get_child(0)
+	hint_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART   # long words (Mirror's gap) wrap inside the room left of the panel, not under it (layout)
 	root.add_child(hint)
 	shape_box = PanelContainer.new()
 	shape_box.name = "easypart_shapes"
@@ -917,7 +918,7 @@ func _hole(rec: Dictionary) -> String:
 	if after >= before - 1e-12:
 		return "The hole would miss the shape: nothing was cut"
 	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}   # the slider is the hole's WIDTH (cm): radius mm = width cm * 5
-	_say("A hole through the middle: use the slider for its size")
+	_say("A hole straight through: use the slider for its size")
 	return ""
 
 
@@ -1337,7 +1338,7 @@ func _chrome_sync() -> void:
 	elif not errs.is_empty():
 		status_l.text = "One step could not follow the new sizes. Undo takes it back"
 	elif bodies == 1 and _lumps(res) > 1:
-		status_l.text = "%d pieces that do not touch: they move together as one" % _lumps(res)   # a join of copies with a gap is one body of apart pieces
+		status_l.text = "%d pieces that do not touch: Stick together joins them" % _lumps(res)   # a join of copies with a gap is one body of apart pieces
 	elif bodies == 1:
 		status_l.text = "Looks good: one solid, no gaps"
 	elif bodies == 0:
@@ -1370,8 +1371,10 @@ func layout(cl: Rect2) -> void:
 	make_box.size = Vector2(bw * n + (n - 1.0) * 8.0, MAKE_H)
 	make_box.position = Vector2(cl.position.x + 8.0, cl.position.y + 4.0)
 	var top := make_box.position.y + maxf(MAKE_H, make_box.size.y) + 8.0
-	hint.reset_size()
-	hint.size.x = minf(hint.get_combined_minimum_size().x, cl.size.x - PW - 40.0)
+	var fnt: Font = hint_l.get_theme_font("font")   # the words' width on one line (a label that wraps reports no width)
+	var one_line := fnt.get_string_size(hint_l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, hint_l.get_theme_font_size("font_size")).x + 40.0
+	hint.size.x = minf(one_line, cl.size.x - PW - 40.0)
+	hint.size.y = hint.get_combined_minimum_size().y   # the height of the words wrapped to that width
 	hint.position = Vector2(cl.position.x + 12.0, top)
 	shape_box.reset_size()
 	shape_box.position = Vector2(cl.position.x + 12.0, top + hint.size.y + 6.0)
