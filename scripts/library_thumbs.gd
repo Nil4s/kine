@@ -76,6 +76,11 @@ func picture(id: String) -> Texture2D:
 	return _tex.get(id)
 
 
+## true once an object has been asked for (its picture is queued, drawn, or read)
+func has_asked(id: String) -> bool:
+	return _asked.has(id)
+
+
 ## ask for an object's picture; made(id) says when it is there. src: {"shapes": schematic shapes, "spec": String ("" = no real
 ## mesh), "build": Callable -> Node3D (the real mesh, built on the main thread; null when it cannot be built)}.
 ## An object already asked for is not asked twice.
@@ -91,60 +96,92 @@ func _frame() -> Signal:
 	return (Engine.get_main_loop() as SceneTree).process_frame
 
 
+## THE QUEUE: the requests are served in order, a step at a time. A step that only reads a picture (disk, shipped) or draws nothing
+## costs little, so several run in one frame until BUDGET_MS of the frame is used; a step that draws (a render, its read back,
+## a mesh build) ends the frame. So the tiles land in the order they were asked, and no frame is held by a long run of them.
+const BUDGET_MS := 8.0
+var _warmed := false
+
+
 func _pump() -> void:
 	if _busy:
 		return
 	_busy = true
 	await _frame()   # never on the frame that asked
+	var t0 := Time.get_ticks_usec()
 	while not _queue.is_empty():
 		var q: Dictionary = _queue.pop_front()
-		var id: String = q["id"]
-		var src: Dictionary = q["src"]
-		var spec := String(src.get("spec", ""))
-		var real := real_path(id, spec) if spec != "" else ""
-		if real != "" and FileAccess.file_exists(abs_path(real)):
-			var disk := Image.load_from_file(abs_path(real))
-			if disk != null and not disk.is_empty():
-				disk_hits += 1
-				_show_picture(id, disk)
-				await _frame()
-				continue
-		var shipped := String(src.get("shipped", ""))
-		if real != "" and shipped != "" and FileAccess.file_exists(shipped):
-			var sh := Image.load_from_file(abs_path(shipped))
-			if sh != null and not sh.is_empty():
-				disk_hits += 1
-				_write(sh, real)   # a copy in the user cache, so the next open reads it there
-				_show_picture(id, sh)
-				await _frame()
-				continue
-		if not _tex.has(id):   # the schematic first, until the real one is ready
-			var sch := await _schematic(src.get("shapes", []))
-			if not is_instance_valid(self):
-				return
-			if sch != null and not sch.is_empty():
-				_show_picture(id, sch)
-		if real != "" and not _failed.has(real) and src.get("build") is Callable and (src["build"] as Callable).is_valid():
-			var t0 := Time.get_ticks_usec()
-			var node: Node3D = (src["build"] as Callable).call()
-			build_ms_max = maxf(build_ms_max, (Time.get_ticks_usec() - t0) / 1000.0)
-			var img: Image = null
-			if node != null:
-				t0 = Time.get_ticks_usec()
-				img = await draw_node(node, SIZE)
-				draw_ms_max = maxf(draw_ms_max, (Time.get_ticks_usec() - t0) / 1000.0)
-				if not is_instance_valid(self):
-					return
-			if img != null and not img.is_empty():
-				_write(img, real)
-				renders += 1
-				real_renders += 1
-				_show_picture(id, img)
-			else:
-				_failed[real] = true
-				failed_real.append(real)
-		await _frame()
+		var r: int = await _one(q)
+		if not is_instance_valid(self):
+			return
+		if r == 1 or float(Time.get_ticks_usec() - t0) / 1000.0 > BUDGET_MS:
+			await _frame()
+			t0 = Time.get_ticks_usec()
 	_busy = false
+
+
+## the stage made and warmed before the first panel open: the first render's shader compile and the first read back cost tens of
+## ms, and are paid here (at start, one frame, no picture) rather than inside the panel's first frames
+func warm() -> void:
+	if _busy or _warmed:
+		return
+	_busy = true
+	_warmed = true
+	await draw_node(shapes_node([["box", Vector3.ZERO, Vector3(0.2, 0.2, 0.2)]]), Vector2i(16, 16))
+	_busy = false
+	if not _queue.is_empty():
+		_pump()
+
+
+## one request: 1 when it drew a picture (the frame ends after it), 0 otherwise, -1 when this object is gone
+func _one(q: Dictionary) -> int:
+	var id: String = q["id"]
+	var src: Dictionary = q["src"]
+	var spec := String(src.get("spec", ""))
+	var real := real_path(id, spec) if spec != "" else ""
+	if real != "" and FileAccess.file_exists(abs_path(real)):
+		var disk := Image.load_from_file(abs_path(real))
+		if disk != null and not disk.is_empty():
+			disk_hits += 1
+			_show_picture(id, disk)
+			return 0
+	var shipped := String(src.get("shipped", ""))
+	if real != "" and shipped != "" and FileAccess.file_exists(shipped):
+		var sh := Image.load_from_file(abs_path(shipped))
+		if sh != null and not sh.is_empty():
+			disk_hits += 1
+			_write(sh, real)   # a copy in the user cache, so the next open reads it there
+			_show_picture(id, sh)
+			return 0
+	var drew := 0
+	if not _tex.has(id):   # the schematic first, until the real one is ready
+		var sch := await _schematic(src.get("shapes", []))
+		if not is_instance_valid(self):
+			return -1
+		drew = 1
+		if sch != null and not sch.is_empty():
+			_show_picture(id, sch)
+	if real != "" and not _failed.has(real) and src.get("build") is Callable and (src["build"] as Callable).is_valid():
+		var t0 := Time.get_ticks_usec()
+		var node: Node3D = (src["build"] as Callable).call()
+		build_ms_max = maxf(build_ms_max, (Time.get_ticks_usec() - t0) / 1000.0)
+		var img: Image = null
+		if node != null:
+			t0 = Time.get_ticks_usec()
+			img = await draw_node(node, SIZE)
+			draw_ms_max = maxf(draw_ms_max, (Time.get_ticks_usec() - t0) / 1000.0)
+			if not is_instance_valid(self):
+				return -1
+		if img != null and not img.is_empty():
+			_write(img, real)
+			renders += 1
+			real_renders += 1
+			_show_picture(id, img)
+		else:
+			_failed[real] = true
+			failed_real.append(real)
+		drew = 1
+	return drew
 
 
 ## the one writer of this file: a picture under user://thumbs/lib (the folder made first)
