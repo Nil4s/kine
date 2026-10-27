@@ -6820,7 +6820,7 @@ func _undo() -> void:
 	sk.queue_redraw()
 	_tree_sync()
 	if undo.is_empty():
-		_say("nothing to undo yet: click a part and drag it, and Ctrl+Z will take that back")
+		_say("nothing to undo yet: move a part of the body, and Undo takes that back" if (easy != null and easy.on) else "nothing to undo yet: click a part and drag it, and Ctrl+Z will take that back")
 		return
 	var u: Dictionary = undo.pop_back()
 	_actor_set(int(u.get("actor", 0)))   # TC3: the redo step is taken on the actor this step changes
