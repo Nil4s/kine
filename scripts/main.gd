@@ -20721,7 +20721,11 @@ func _home_button() -> Button:
 	b.icon = Icons.tex("home")
 	b.focus_mode = Control.FOCUS_NONE
 	b.tooltip_text = "Back to the start screen: new project, open, recent work"
-	b.pressed.connect(func(): start_screen.show_screen())
+	# the Part workspace is a mode of one project: Home leaves it, so the next project's BUILD bar (What to build) is not hidden under it
+	b.pressed.connect(func():
+		if bld != null and bld.part != null and bld.part.on:
+			bld.part.set_on(false)
+		start_screen.show_screen())
 	return b
 
 

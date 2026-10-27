@@ -247,22 +247,33 @@ func build_visit(id: String) -> void:
 		await leave()
 		return
 	await record("BUILD chooser (open)")
-	var pc := m.ui_root.find_child("easy_" + id, true, false) as Control   # the Easy card of the chooser
+	# the chooser's own Easy card: ui_root also holds a node named easy_part (easy_part.gd), which find_child returned first (a probe error)
+	var pc := m.build_choose.root_box.find_child("easy_" + id, true, false) as Control
 	var b0 := bar_snapshot()
+	# Import STEP opens a native file dialog (not a button in the snapshot): the test answers the ask with a no-op and counts the ask as the change
+	var asked := [false]
+	m.build_choose.step_picker = func(_cb: Callable): asked[0] = true
 	if not await click_ctl(pc):
 		await record("BUILD " + id, "card choose_%s not found" % id)
 		await leave()
 		return
 	await idle(8)
-	await record("BUILD " + id, "" if bar_snapshot() != b0 else "card %s changed nothing" % id)
+	# the Template card opens a PopupMenu of the starter buildings (not a Button in the snapshot): an open list is the change
+	var listed: bool = m.build_choose._starters != null and m.build_choose._starters.visible
+	await record("BUILD " + id, "" if (bar_snapshot() != b0 or asked[0] or listed) else "card %s changed nothing" % id)
+	if listed:
+		m.build_choose._starters.hide()
 	if id == "vehicle" and m.build_choose._car_screen != null:
 		var car: PackageScreen = m.build_choose._car_screen
 		for i in range(1, 6):
 			var sb: Button = car.step_btns.get(i, null)
+			if sb.disabled:   # step 5 Body is greyed on purpose (not made yet, its tooltip says so): a disabled button takes no press, so it is not a dead button
+				continue
 			var s0 := bar_snapshot()
+			var was_on := car.step == i   # the step the screen is already on: a press changes nothing, and that is right
 			await click_ctl(sb)
 			await idle(6)
-			await record("VEHICLE step %d" % i, "" if bar_snapshot() != s0 else "step %d changed nothing" % i)
+			await record("VEHICLE step %d" % i, "" if (bar_snapshot() != s0 or was_on) else "step %d changed nothing" % i)
 			if i == 1:
 				root.get_texture().get_image().save_png(SHOT + "/vehicle_step1.png")
 	await leave()
