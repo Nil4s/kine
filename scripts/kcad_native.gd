@@ -144,6 +144,14 @@ static func chamfer_edges(id: int, edge_ids: PackedInt32Array, dist: float) -> i
 	return KineCAD.chamfer_edges(id, edge_ids, dist)
 
 
+static func offset_face(id: int, face_id: int, dist: float) -> int:
+	return KineCAD.offset_face(id, face_id, dist)
+
+
+static func draft_faces(id: int, face_ids: PackedInt32Array, angle: float, pull_dir: Vector3, neutral_origin: Vector3) -> int:
+	return KineCAD.draft_faces(id, face_ids, angle, pull_dir, neutral_origin)
+
+
 static func mirror(id: int, origin: Vector3, normal: Vector3) -> int:
 	return KineCAD.mirror(id, origin, normal)
 

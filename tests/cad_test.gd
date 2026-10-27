@@ -45,6 +45,14 @@ func skip(what: String) -> void:
 	skips += 1
 
 
+## id of the face whose outward normal points along want (the first one found), 0 if none
+func _face_with_normal(id: int, want: Vector3) -> int:
+	for f in KCad.faces(id):
+		if f["normal"].dot(want) > 0.999:
+			return f["id"]
+	return 0
+
+
 func tm(label: String, t0: int) -> void:
 	times.append([label, (Time.get_ticks_usec() - t0) / 1000.0])
 
@@ -473,6 +481,25 @@ func phase2() -> void:
 	ok(KCad.live_count() - before == 20, "22 RELEASE: solids released, the 20 sketch faces remain (%d)" % (KCad.live_count() - before))
 	KCad.release_all()
 	ok(KCad.live_count() == 0, "22 RELEASE: release_all frees everything")
+
+	# 23 OFFSET FACE / DRAFT (added with KineCAD version 3). Closed forms; faces picked by faces() (outward normal).
+	var ob := KCad.box(1.0, 1.0, 1.0)
+	var top := _face_with_normal(ob, Vector3.UP)
+	var up := KCad.offset_face(ob, top, 0.2)
+	ok(up > 0 and near(KCad.volume(up), 1.2, 1e-9), "23 OFFSET: +0.2 on a unit cube's top face: volume %.9f vs 1.2 (%s)" % [KCad.volume(up), KCad.last_error()])
+	var down := KCad.offset_face(ob, _face_with_normal(ob, Vector3.UP), -0.2)
+	ok(down > 0 and near(KCad.volume(down), 0.8, 1e-9), "23 OFFSET: -0.2 on the top face: volume %.9f vs 0.8 (%s)" % [KCad.volume(down), KCad.last_error()])
+	ok(KCad.offset_face(ob, 999, 0.1) == 0 and KCad.last_error() != "", "23 OFFSET: bad face id fails cleanly")
+	var wb := KCad.translate(KCad.box(0.1, 0.06, 0.04), Vector3(0, 0, 0.02))
+	var wall := _face_with_normal(wb, Vector3.RIGHT)
+	var dr := KCad.draft_faces(wb, PackedInt32Array([wall]), deg_to_rad(5.0), Vector3(0, 0, 1), Vector3.ZERO)
+	var wn := KCad.faces(dr)
+	var lean := -1.0
+	for f in wn:
+		if f.get("normal", Vector3.ZERO).x > 0.9:
+			lean = rad_to_deg(asin(absf(f["normal"].z)))
+	ok(dr > 0 and absf(lean - 5.0) <= 0.1, "23 DRAFT: 5 deg on one wall of a 100x60x40 box: wall lean %.4f deg (%s)" % [lean, KCad.last_error()])
+	ok(KCad.draft_faces(wb, PackedInt32Array([999]), 0.1, Vector3(0, 0, 1), Vector3.ZERO) == 0 and KCad.last_error() != "", "23 DRAFT: bad face id fails cleanly")
 
 
 func finish() -> void:

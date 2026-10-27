@@ -25,8 +25,8 @@ const TL_H := 84.0
 const DOUBLE_MS := 650
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]   # Constrain: the rule row (CON_TOOLS, below)
 const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine"]
-const TOOL_KIND := {"Offset plane": "plane"}   # a tool's feature kind when it is not its lower-case name
-const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell", "Appearance"]
+const TOOL_KIND := {"Offset plane": "plane", "Offset face": "offset_face", "Draft": "draft"}   # a tool's feature kind when it is not its lower-case name
+const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell", "Appearance", "Offset face", "Draft"]
 const LOOK_TOOLS := ["Appearance"]   # APPEARANCE (GAP 5): picks a body for the side panel; the panel is _build_look / _look_sync
 const LOOK_PRESET_ORDER := ["Paint", "Metal", "Glass", "Rubber", "Plastic"]
 const SHELL_OPEN := ["", "+x", "-x", "+y", "-y", "+z", "-z"]   # the open face of a shell (Part.SHELL_DIRS), in the dialog's order
@@ -67,6 +67,8 @@ const TIPS := {
 	"Offset plane": "OFFSET PLANE: pick Front, Top or Right and type a distance. The new plane is in the browser: click it to sketch on it.",
 	"Fillet": "FILLET: click edges (they turn sky blue), type a radius, press Enter or OK.",
 	"Chamfer": "CHAMFER: click edges, type a distance, press Enter or OK.",
+	"Offset face": "OFFSET FACE: click a face on the model, type a distance (mm): plus adds material, minus takes it away. Press Enter or OK.",
+	"Draft": "DRAFT: click the faces to lean (they turn sky blue), type the angle (deg), pick the pull direction X, Y or Z, then OK.",
 	"Hinge": "HINGE: click the part that turns, then the line it turns round (a straight edge, or two points on it). Type the angles and seconds, then OK.",
 	"Measure": "MEASURE: click two points (vertex, edge or face) for a distance; one edge for its length; one face for its area. Not a step: no undo.",
 	"Section": "SECTION: cuts the solid with a plane (Front, Top or Right) and an offset; the cut face is filled. A view setting: no undo."}
@@ -90,6 +92,8 @@ var edge_cache: Array = []     # the pickable edges of the model as the dialog s
 var res := {}                  # the last replay of the record (Part.replay)
 var prev := {}                 # the dialog's preview replay
 var hover_edge := -1
+var hover_face := -1           # offset face / draft: the face under the pointer (an index into face_cache)
+var face_cache: Array = []     # the pickable faces of the model as the dialog sees it (Part.replay "faces")
 var spl_drag := {}             # a spline point being dragged: {"ent", "pt"} (sketch Spline tool)
 var spl_last_ms := -100000     # the last Spline click (ms) and its screen point: a double-click ends the curve
 var spl_last_p := Vector2.ZERO
@@ -160,6 +164,7 @@ var f_ang: LineEdit
 var f_both: CheckBox
 var f_op: OptionButton
 var f_axis: OptionButton
+var f_pull: OptionButton       # draft: the pull direction X / Y / Z
 var f_plane: OptionButton
 var f_taper: LineEdit
 var f_open: OptionButton
@@ -557,6 +562,11 @@ func _build_side() -> void:
 	f_plane.selected = 2
 	f_plane.item_selected.connect(func(_i): _preview())
 	f_taper = _field("part_taper")
+	f_pull = OptionButton.new()
+	f_pull.name = "part_pull"
+	for o in ["X", "Y", "Z"]:
+		f_pull.add_item(o)
+	f_pull.item_selected.connect(func(_i): _preview())
 	f_open = OptionButton.new()
 	f_open.name = "part_shell_open"
 	for o in SHELL_OPEN_TXT:
@@ -906,6 +916,26 @@ func _press(p: Vector2) -> bool:
 		return _measure_press(p)
 	if tool == "Hinge" and dlg.get("t", "") == "hinge":
 		return _hinge_press(p)
+	if tool == "Offset face" or tool == "Draft":   # GAP 10: a click picks a face (its centre; the front-facing ones)
+		var fi := _pick_face(p)
+		if fi >= 0:
+			var fc: Dictionary = face_cache[fi]
+			if tool == "Offset face":
+				picked = [fc]
+			else:
+				if not picked.is_empty() and int(picked[0]["body"]) != int(fc["body"]):
+					picked = []   # one body's faces at a time
+				var at := -1
+				for j in picked.size():
+					if (picked[j]["c"] as Vector3).distance_to(fc["c"]) < 1e-6:
+						at = j
+				if at >= 0:
+					picked.remove_at(at)
+				else:
+					picked.append(fc)
+			_preview()
+			pov.queue_redraw()
+		return true
 	if tool == "Fillet" or tool == "Chamfer":
 		var i := _pick_edge(p)
 		if i >= 0:
@@ -1040,6 +1070,11 @@ func _motion(p: Vector2) -> bool:
 		if i != hover_edge:
 			hover_edge = i
 			pov.queue_redraw()
+	if tool == "Offset face" or tool == "Draft":
+		var fi := _pick_face(p)
+		if fi != hover_face:
+			hover_face = fi
+			pov.queue_redraw()
 	return false
 
 
@@ -1146,6 +1181,47 @@ func pick_ent(p: Vector2) -> Dictionary:
 
 
 ## the index in edge_cache of the model edge nearest a screen point (within 12 px), or -1
+## GAP 10: the face whose centre is nearest the pointer (within 14 px), facing the camera; -1 if none
+func _pick_face(p: Vector2) -> int:
+	var best := -1
+	var best_d := 14.0
+	for i in face_cache.size():
+		var c: Vector3 = face_cache[i]["c"]
+		if m.cam.is_position_behind(c) or (face_cache[i]["n"] as Vector3).dot(m.cam.global_position - c) <= 0.0:
+			continue
+		var d := p.distance_to(m.cam.unproject_position(c))
+		if d < best_d:
+			best_d = d
+			best = i
+	return best
+
+
+func _face_picked(fc: Dictionary) -> bool:
+	for pe in picked:
+		if (pe["c"] as Vector3).distance_to(fc["c"]) < 1e-6:
+			return true
+	return false
+
+
+## the face_cache index of a stored face descriptor (box position + normal), or -1
+func _match_face_cache(d: Dictionary) -> int:
+	var q := Vector3(float(d["q"][0]), float(d["q"][1]), float(d["q"][2]))
+	var n := Vector3(float(d["n"][0]), float(d["n"][1]), float(d["n"][2]))
+	var best := -1
+	var best_s := Part.MATCH_MAX
+	for i in face_cache.size():
+		var sc: float = (face_cache[i]["q"] as Vector3).distance_to(q) + 0.5 * (1.0 - (face_cache[i]["n"] as Vector3).dot(n))
+		if sc < best_s:
+			best_s = sc
+			best = i
+	return best
+
+
+func _base_faces(edit: int) -> void:
+	var base := Part.replay(_rec(), edit - 1 if edit >= 0 else upto, {"faces": true, "body": _body_measures()})
+	face_cache = base["faces"]
+
+
 func _pick_edge(p: Vector2) -> int:
 	var best := -1
 	var best_d := 12.0
@@ -1298,6 +1374,29 @@ func open_dialog(t: String, edit: int) -> void:
 					picked.append(edge_cache[j])
 		if edit < 0 and not _feats().is_empty() and res.get("bodies", 0) == 0:
 			dlg_info.text = "Nothing to round yet."
+	elif kind == "offset_face":   # GAP 10: click a face, type the distance (minus cuts in)
+		_base_faces(edit)
+		dlg_rows.add_child(f_edges)
+		_row("Distance", f_num, "%s mm" % _fmt(float(f.get("mm", 2.0))))
+		if edit >= 0:
+			var fj := _match_face_cache(f.get("face", {}))
+			if fj >= 0:
+				picked.append(face_cache[fj])
+		if edit < 0 and res.get("bodies", 0) == 0:
+			dlg_info.text = "Nothing to offset yet."
+	elif kind == "draft":   # GAP 10: click the faces, type the angle, pick the pull direction
+		_base_faces(edit)
+		dlg_rows.add_child(f_edges)
+		_row("Angle", f_num, "%s deg" % _fmt(float(f.get("deg", 5.0))))
+		dlg_rows.add_child(f_pull)
+		f_pull.select(maxi(["x", "y", "z"].find(String(f.get("dir", "z"))), 0))
+		if edit >= 0:
+			for d in f.get("faces", []):
+				var dj := _match_face_cache(d)
+				if dj >= 0 and not picked.has(face_cache[dj]):
+					picked.append(face_cache[dj])
+		if edit < 0 and res.get("bodies", 0) == 0:
+			dlg_info.text = "Nothing to draft yet."
 	elif kind == "hinge":
 		_hinge_open(f, edit)
 	elif kind == "mirror":
@@ -1399,7 +1498,7 @@ func _prof_picked(i: int) -> void:
 ## the dialog's rows go; the field controls are kept (they are re-parented into the next dialog)
 func _clear_rows() -> void:
 	_combine_controls()   # COMBINE's two controls exist before the list below takes them off their parent
-	for c in [f_num, f_ang, f_both, f_op, f_axis, f_plane, f_taper, f_open, f_edges, f_from, f_to, f_dur, f_dial, f_prof, f_prof_clear, f_ruled, f_sw_prof, f_sw_path, f_cmb_op, f_cmb_keep]:
+	for c in [f_num, f_ang, f_both, f_op, f_axis, f_pull, f_plane, f_taper, f_open, f_edges, f_from, f_to, f_dur, f_dial, f_prof, f_prof_clear, f_ruled, f_sw_prof, f_sw_path, f_cmb_op, f_cmb_keep]:
 		if (c as Node).get_parent() != null:
 			(c as Node).get_parent().remove_child(c)
 	for c in dlg_rows.get_children():
@@ -1487,6 +1586,19 @@ func dialog_feature() -> Dictionary:
 				ds.append(Part.describe(e))
 			f = {"body": int(ds[0]["body"]), "edges": ds}
 			f["r" if kind == "fillet" else "dist"] = r
+		"offset_face":
+			var od := _num(f_num)
+			if is_nan(od) or absf(od) < 1e-6 or picked.is_empty():
+				return {}
+			f = {"body": int(picked[0]["body"]), "face": Part.describe_face(picked[0]), "mm": od}
+		"draft":
+			var dg := _num(f_num)
+			if is_nan(dg) or absf(dg) < 1e-6 or picked.is_empty():
+				return {}
+			var fds: Array = []
+			for e in picked:
+				fds.append(Part.describe_face(e))
+			f = {"body": int(picked[0]["body"]), "faces": fds, "deg": dg, "dir": ["x", "y", "z"][clampi(f_pull.selected, 0, 2)]}
 		"mirror":
 			f = {"plane": PlanesIdx[clampi(f_plane.selected, 0, 2)], "op": "join"}
 		"split":
@@ -1557,6 +1669,8 @@ func _preview() -> void:
 	var kind := String(dlg["t"])
 	if f_edges != null and (kind == "fillet" or kind == "chamfer"):
 		f_edges.text = "Edges:  %s" % ("%d picked" % picked.size() if not picked.is_empty() else "click an edge")
+	if f_edges != null and (kind == "offset_face" or kind == "draft"):
+		f_edges.text = "Faces:  %s" % ("%d picked" % picked.size() if not picked.is_empty() else "click a face")
 	var f := dialog_feature()
 	prev = {}
 	if f.is_empty():
@@ -1588,6 +1702,10 @@ func _dialog_hint(kind: String) -> String:
 		return "Sketch a closed profile first, then type a number." if String(dlg.get("sketch", "")) == "" else "Type a number."
 	if kind == "fillet" or kind == "chamfer":
 		return "Click an edge on the model, then type a size."
+	if kind == "offset_face":
+		return "Click a face on the model, then type a distance (mm)."
+	if kind == "draft":
+		return "Click the faces to draft, then type an angle (deg) and pick the pull direction."
 	if kind == "shell":
 		return "Type a wall thickness (mm), then press Enter."
 	if kind == "hinge":
@@ -1885,7 +2003,7 @@ func _tool_sync() -> void:
 			w = "sketch a profile and a path first (a sweep joins them)"
 		elif ok and t == "Combine" and int(res.get("bodies", 0)) < 2:
 			w = "make two solids first (a combine joins, cuts or shares them)"
-		elif ok and (t == "Mirror" or t == "Fillet" or t == "Chamfer" or t == "Hinge" or t == "Split" or t == "Shell" or t == "Appearance" or t == "Pattern") and not has_body:
+		elif ok and (t == "Mirror" or t == "Fillet" or t == "Chamfer" or t == "Hinge" or t == "Split" or t == "Shell" or t == "Appearance" or t == "Pattern" or t == "Offset face" or t == "Draft") and not has_body:
 			w = "make a solid first (Extrude or Revolve)"
 		m._grey(b, w)
 		b.set_pressed_no_signal(con_open if t == "Constrain" else (t == tool and w == ""))
@@ -1995,11 +2113,12 @@ func _rebuild(show: bool) -> void:
 		res = {"bodies": 0, "volume": 0.0, "errors": {}}
 		part_mesh.mesh = null
 		edge_cache = []
+		face_cache = []
 		return
 	var up := upto
 	if not dlg.is_empty() and int(dlg["edit"]) >= 0:
 		up = int(dlg["edit"]) - 1
-	var want := {"edges": not easy, "body": _body_measures()}
+	var want := {"edges": not easy, "faces": not easy, "body": _body_measures()}
 	if not pose.is_empty():
 		want["pose"] = pose   # a hinge turned by Play / the slider (the record is the same; only the view turns)
 	res = Part.replay(_rec(), up, want)
@@ -2007,6 +2126,7 @@ func _rebuild(show: bool) -> void:
 		part_mesh.mesh = res["mesh"]
 		_look_surfaces()
 	edge_cache = res["edges"]
+	face_cache = res["faces"]
 
 
 func _note_sync() -> void:
@@ -2176,12 +2296,31 @@ func _draw_model() -> void:
 				picked_now = true
 		if picked_now or i == hover_edge:
 			_edge_line(edge_cache[i], SKY if picked_now else Color(SKY, 0.6), 5.0 if picked_now else 3.0)
+	if tool == "Offset face" or tool == "Draft" or (not dlg.is_empty() and String(dlg["t"]) in ["offset_face", "draft"]):
+		_draw_faces()
 	if not dlg.is_empty() and picked.size() > 0 and String(dlg["t"]) in ["fillet", "chamfer"]:
 		var e: Dictionary = picked[0]
 		var lab := "%s %s mm" % ["Radius" if dlg["t"] == "fillet" else "Distance", f_num.text]
 		_pill(m.cam.unproject_position(e["c"]) + Vector2(60, -40), lab, Color(0.06, 0.07, 0.1, 0.92), Color.WHITE, 14)
 		pov.draw_line(m.cam.unproject_position(e["c"]), m.cam.unproject_position(e["c"]) + Vector2(40, -30), Color("#ffc233"), 1.5)
 		pov.draw_circle(m.cam.unproject_position(e["c"]), 5.0, Color("#ffc233"))
+
+
+## GAP 10: each pickable face is a dot at its centre with its normal (sky blue when picked or under the pointer)
+func _draw_faces() -> void:
+	for i in face_cache.size():
+		var fc: Dictionary = face_cache[i]
+		var c: Vector3 = fc["c"]
+		var n: Vector3 = fc["n"]
+		if m.cam.is_position_behind(c) or n.dot(m.cam.global_position - c) <= 0.0:
+			continue
+		var on := _face_picked(fc)
+		if not on and i != hover_face:
+			continue
+		var sp: Vector2 = m.cam.unproject_position(c)
+		pov.draw_circle(sp, 7.0 if on else 5.0, SKY if on else Color(SKY, 0.6))
+		if not m.cam.is_position_behind(c + n * 0.01):
+			pov.draw_line(sp, m.cam.unproject_position(c + n * 0.01), SKY, 2.0)
 
 
 func _edge_line(e: Dictionary, c: Color, w: float) -> void:
