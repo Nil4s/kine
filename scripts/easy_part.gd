@@ -90,6 +90,15 @@ var _rows_sig := ""
 var _hover := ""
 var _was := false
 var _compact := false
+var _cl := Rect2()              # the clear view's rectangle of the last layout (free_rect)
+const FRAME_FILL := 0.55        # EFRAME: the part's box fills this share of the free view (its bigger side)
+const FRAME_EASE := 0.3         # seconds the camera eases to a new framing (never a jump)
+const FRAME_CHANGE := 0.25      # the box's diagonal must change this much to frame again (a small nudge moves nothing)
+var _fr_ref := AABB()           # the bounds the camera last framed (or the bounds on entry)
+var _fr_has := false
+var _near_saved := -1.0         # the camera's near plane before Easy Part (put back when it is left)
+const FRAME_NEAR := 0.004
+var _ease := {}                 # the camera ease in progress: {"t0", "d0", "t1", "d1", "s"}
 var flushes := 0                # rebuilds made by sliders and dots (the tests count them against the clock)
 
 
@@ -427,6 +436,8 @@ func entered() -> void:
 
 ## the model in the clear part of the view (left of the panel), as Expert's own framing, then moved off the panel
 func frame() -> void:
+	_fr_has = false   # the bounds on entry are the reference: no framing ease for them
+	_ease = {}
 	pu._view_model()
 	var vs: Vector2 = m.get_viewport().get_visible_rect().size
 	var span := 2.0 * float(m.dist) * tan(deg_to_rad(m.cam.fov * 0.5)) * vs.x / vs.y
@@ -1153,6 +1164,12 @@ func _process(_dt: float) -> void:
 			armed = ""
 			_drag = {}
 			_draft = {}
+	if on and _near_saved < 0.0 and m.cam != null:
+		_near_saved = m.cam.near
+		m.cam.near = minf(_near_saved, FRAME_NEAR)   # EFRAME: a small part framed close (the plate's corners stay in front of the lens)
+	elif not on and _near_saved >= 0.0 and m.cam != null:
+		m.cam.near = _near_saved
+		_near_saved = -1.0
 	bar.visible = on
 	make_box.visible = on
 	panel.visible = on
@@ -1179,6 +1196,101 @@ func _process(_dt: float) -> void:
 		dots.queue_redraw()
 	if m.cam != null:
 		dots.queue_redraw()
+	_frame_step()
+
+
+## EFRAME: after a step that changes the part's box a lot, the camera eases so the box fills FRAME_FILL of the free view.
+## Never while the mouse is held (a drag, an orbit, a pan) and never for a small edit: the reference box moves only when framed.
+func _frame_step() -> void:
+	if m.cam == null or pu.res.is_empty():
+		return
+	var held := Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) or Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE) or not _drag.is_empty() or not _draft.is_empty()
+	if held:
+		_ease = {}   # the user has the view: the ease stops where it is
+		return
+	if not _ease.is_empty():
+		_ease["s"] = minf(float(_ease["s"]) + get_process_delta_time(), FRAME_EASE)
+		var k: float = float(_ease["s"]) / FRAME_EASE
+		k = k * k * (3.0 - 2.0 * k)
+		m.target = (_ease["t0"] as Vector3).lerp(_ease["t1"] as Vector3, k)
+		m.dist = lerpf(float(_ease["d0"]), float(_ease["d1"]), k)
+		m._cam()
+		if float(_ease["s"]) >= FRAME_EASE:
+			_ease = {}
+		return
+	var bb: AABB = pu.res.get("aabb", AABB())
+	var len := bb.size.length()
+	if not _fr_has:
+		_fr_ref = bb
+		_fr_has = true
+		return
+	var ref_len := _fr_ref.size.length()
+	if len < 1e-4:
+		_fr_ref = bb   # an empty part: nothing to frame yet
+		return
+	if ref_len >= 1e-4 and absf(len - ref_len) <= FRAME_CHANGE * ref_len:
+		return
+	_fr_ref = bb
+	var pose := _frame_pose(bb)
+	if pose.is_empty():
+		return
+	_ease = {"t0": m.target, "d0": float(m.dist), "t1": pose[0], "d1": pose[1], "s": 0.0}
+
+
+## the free view: the clear view minus the MAKE row above and the side panel at the right, minus the status line at the bottom
+func free_rect() -> Rect2:
+	var top := _cl.position.y + 4.0 + MAKE_H + 8.0
+	var x1 := _cl.end.x - PW - 16.0
+	return Rect2(_cl.position.x + 12.0, top, x1 - _cl.position.x - 12.0, _cl.end.y - 70.0 - top)
+
+
+## the look-at point and distance that put the box (its eight corners) at FRAME_FILL of the free view; the view angle is kept.
+## The look-at point is the box's middle, moved so the box sits in the free view's middle (as Easy's frame() moves it); the distance
+## is found by a few steps: the box's size on screen goes as 1 / distance, so each step scales the distance by the size ratio.
+func _frame_pose(bb: AABB) -> Array:
+	var fr := free_rect()
+	if fr.size.x < 40.0 or fr.size.y < 40.0:
+		return []
+	var vs: Vector2 = m.get_viewport().get_visible_rect().size
+	var t0: Vector3 = m.target
+	var d0 := float(m.dist)
+	var d := d0
+	var t := bb.get_center()
+	for it in 40:
+		var b := Basis.from_euler(Vector3(deg_to_rad(float(m.pitch)), deg_to_rad(float(m.yaw)), 0))
+		var span := 2.0 * d * tan(deg_to_rad(m.cam.fov * 0.5)) * vs.x / vs.y
+		var tt := bb.get_center() + b.x * (span * (vs.x * 0.5 - fr.get_center().x) / vs.x) + b.y * (span * (fr.get_center().y - vs.y * 0.5) / vs.y)
+		var r := _box_at(bb, tt, d)
+		if r.size == Vector2.ZERO:
+			d *= 1.5   # a corner behind the lens: back off
+			continue
+		t = tt
+		var need := maxf(r.size.x / fr.size.x, r.size.y / fr.size.y) / FRAME_FILL
+		if absf(need - 1.0) < 0.01:
+			break
+		d = clampf(d * clampf(need, 0.5, 2.0), 0.02, 40.0)
+	m.target = t0
+	m.dist = d0
+	m._cam()
+	return [t, d]
+
+
+## the box's screen rectangle seen from look-at point t at distance d (the camera is put back by the caller).
+## Zero size when a corner is behind the lens.
+func _box_at(bb: AABB, t: Vector3, d: float) -> Rect2:
+	m.target = t
+	m.dist = d
+	m._cam()
+	var r := Rect2()
+	var first := true
+	for i in 8:
+		var q := bb.get_endpoint(i)
+		if m.cam.is_position_behind(q):
+			return Rect2()
+		var sp: Vector2 = m.cam.unproject_position(q)
+		r = Rect2(sp, Vector2.ZERO) if first else r.expand(sp)
+		first = false
+	return r
 
 
 func _chrome_sync() -> void:
@@ -1247,6 +1359,7 @@ func _panel_need() -> float:
 func layout(cl: Rect2) -> void:
 	if not active():
 		return
+	_cl = cl
 	var w := cl.size.x - 16.0
 	var n := float(MAKES.size())   # twelve buttons in one row: each takes its share (the row is as wide as the clear view allows)
 	var bw := minf(176.0, (w - (n - 1.0) * 8.0) / n)
