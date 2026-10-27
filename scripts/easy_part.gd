@@ -12,7 +12,8 @@ extends Node
 ## No CAD DLL: the buttons and sliders are greyed with the reason.
 
 const PW := 318.0
-const MAKE_H := 60.0
+const MAKE_H := 76.0
+const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
 const THROTTLE_MS := 100
 const SKY := Color("#73BFFF")
 const AMBER := Color("#FFC933")
@@ -22,7 +23,11 @@ const MAKES := [
 	["spin", "Spin it round", "part_revolve", "Turn the newest shape round the middle line into a solid"],
 	["round", "Round the edges", "part_fillet", "Soften the sharp edges"],
 	["hole", "Cut a hole", "part_circle", "Cut a round hole through the middle"],
-	["mirror", "Mirror that", "part_mirror", "Add a mirror copy on the other side of the middle line"]]
+	["mirror", "Mirror that", "part_mirror", "Add a mirror copy on the other side of the middle line"],
+	["curve", "Curvy line", "part_spline", "Drag a wobbly loop on the grid. Drag back to the start to close it"],
+	["blend", "Blend two shapes", "part_loft", "Blend the last two shapes into one solid that runs from one to the other"],
+	["split", "Cut in two", "part_split", "Cut the solid in two across its middle. Drag the slider to move the cut"],
+	["colour", "Colour", "part_appearance", "Pick a colour for the solid, or Glass or Metal"]]
 const BAD_WORDS := ["ctrl", "shift", "alt+", "esc", "enter", "tab ", "delete", "backspace", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12", "spacebar", "return key"]
 
 var pu: PartUI
@@ -42,6 +47,7 @@ var hint: PanelContainer
 var hint_l: Label
 var shape_box: PanelContainer
 var shape_btns := {}
+var colour_box: PanelContainer   # Colour: the five colour chips and Glass / Metal, under the MAKE row (armed "colour")
 var panel: PanelContainer
 var panel_vb: VBoxContainer   # the panel's column: it scrolls inside the panel when the window is short (1280 x 720)
 var panel_title: Label
@@ -127,15 +133,16 @@ func build(root: Control) -> void:
 		b.name = "easypart_make_" + String(mk[0])
 		b.text = String(mk[1])
 		b.focus_mode = Control.FOCUS_NONE
-		b.icon = Icons.sized(String(mk[2]), 28)
+		b.icon = Icons.sized(String(mk[2]), 26)
 		b.expand_icon = false
 		b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		b.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
-		b.add_theme_font_size_override("font_size", 15)
+		b.add_theme_font_size_override("font_size", 14)
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		b.custom_minimum_size = Vector2(110, MAKE_H)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.tooltip_text = String(mk[3])
-		b.toggle_mode = mk[0] == "draw"
+		b.toggle_mode = mk[0] in ["draw", "curve", "colour"]
 		b.pressed.connect(_make.bind(String(mk[0])))
 		make_box.add_child(b)
 		make_btns[mk[0]] = b
@@ -162,6 +169,8 @@ func build(root: Control) -> void:
 		sh.add_child(b)
 		shape_btns[s[0]] = b
 	root.add_child(shape_box)
+	colour_box = _colour_box()
+	root.add_child(colour_box)
 	# the panel
 	panel = PanelContainer.new()
 	panel.name = "easypart_panel"
@@ -172,7 +181,12 @@ func build(root: Control) -> void:
 	v.name = "easypart_panel_vb"
 	v.add_theme_constant_override("separation", 6)
 	panel_vb = v
-	panel.add_child(v)
+	var sc := ScrollContainer.new()   # the panel's column scrolls inside the panel when it is taller than the room (a Where-to-cut row adds one)
+	sc.name = "easypart_panel_scroll"
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	panel.add_child(sc)
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(v)
 	panel_title = Label.new()
 	panel_title.name = "easypart_panel_title"
 	panel_title.add_theme_font_size_override("font_size", 22)
@@ -235,6 +249,42 @@ func build(root: Control) -> void:
 	dots.draw.connect(_draw_dots)
 	dots.visible = false
 	root.add_child(dots)
+
+
+## COLOUR: the five colour chips (Part.LOOK_CHIPS) and Glass / Metal: one button each, the same look-numbers Expert's Appearance uses
+func _colour_box() -> PanelContainer:
+	var box := PanelContainer.new()
+	box.name = "easypart_colour"
+	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	box.visible = false
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 6)
+	box.add_child(h)
+	for chip in Part.LOOK_CHIPS:
+		var b := _colour_btn(String(chip[0]).to_lower(), String(chip[0]), chip[1] as Color)
+		b.pressed.connect(_paint.bind(String(chip[0]), chip[1] as Color, "Paint"))
+		h.add_child(b)
+	for pr in COLOUR_PRESETS:
+		var b := _colour_btn(pr.to_lower(), pr, Color(0.85, 0.88, 0.92, 0.5) if pr == "Glass" else Color(0.7, 0.72, 0.76))
+		b.pressed.connect(_paint.bind(pr, Color.WHITE, pr))
+		h.add_child(b)
+	return box
+
+
+func _colour_btn(key: String, txt: String, c: Color) -> Button:
+	var b := Button.new()
+	b.name = "easypart_colour_" + key
+	b.text = txt
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(92, 44)
+	b.add_theme_font_size_override("font_size", 16)
+	b.add_theme_color_override("font_color", Color(0.08, 0.08, 0.1))
+	var st := StyleBoxFlat.new()
+	st.bg_color = c
+	st.set_corner_radius_all(8)
+	for sn in ["normal", "hover", "pressed", "focus"]:
+		b.add_theme_stylebox_override(sn, st)
+	return b
 
 
 func _style(c: Color, r: int, margin: int) -> StyleBoxFlat:
@@ -587,10 +637,10 @@ func _make(which: String) -> void:
 		_say(Part.why_not())
 		return
 	_flush_if_dirty()
-	if which == "draw":
-		armed = "" if armed == "draw" else "draw"
+	if which == "draw" or which == "curve" or which == "colour":
+		armed = "" if armed == which else which
 		_draft = {}
-		_say("Drag on the grid to draw a shape" if armed == "draw" else "")
+		_say(_arm_words(armed))
 		return
 	armed = ""
 	var snap := _rec().duplicate(true)
@@ -609,6 +659,10 @@ func _make(which: String) -> void:
 			why = _hole(rec)
 		"mirror":
 			why = _mirror(rec)
+		"blend":
+			why = _blend(rec)
+		"split":
+			why = _cut(rec)
 	if why != "":
 		m.S.part = snap   # nothing changes: the step taken a moment ago goes back out
 		m._drop_undo()
@@ -620,6 +674,17 @@ func _make(which: String) -> void:
 	pu.sync()
 	_rows_sync()
 	_values_sync()
+
+
+func _arm_words(a: String) -> String:
+	match a:
+		"draw":
+			return "Drag on the grid to draw a shape"
+		"curve":
+			return "Drag a wobbly loop on the grid. Drag back to the start to close it"
+		"colour":
+			return "Pick a colour below, or Glass or Metal"
+	return ""
 
 
 func _last_error(rec: Dictionary, fid: String) -> String:
@@ -745,6 +810,113 @@ func _mirror(rec: Dictionary) -> String:
 	return ""
 
 
+## BLEND TWO SHAPES: a loft of the two last sketches (Part's "loft" feature, the same one Expert's Loft makes). Two shapes on the same plane
+## cannot be blended, so the newer one moves 40 mm behind the older one (an offset plane, in the same undo step)
+func _blend(rec: Dictionary) -> String:
+	var sks: Array = []
+	for f in rec.get("features", []):
+		if f["t"] == "sketch":
+			sks.append(f)
+	if sks.size() < 2:
+		return "Draw two shapes first, then blend them"
+	var a: Dictionary = sks[sks.size() - 2]
+	var b: Dictionary = sks[sks.size() - 1]
+	if String(a["plane"]) == String(b["plane"]):
+		if not (String(a["plane"]) in Part.PLANES):
+			return "Those two shapes sit on the same plane: draw them on different planes"
+		var pl := Part.new_feature(rec, "plane", {"from": String(a["plane"]), "mm": 40.0})
+		rec["features"].insert(Part.index_of(rec, String(b["id"])), pl)
+		b["plane"] = String(pl["id"])
+	var f := Part.new_feature(rec, "loft", {"sketches": [a["id"], b["id"]], "ruled": true, "op": "join"})
+	rec["features"].append(f)
+	if _last_error(rec, String(f["id"])) != "":
+		return "Those two shapes cannot be blended into one solid"
+	tweak = {}
+	_say("Blended the two last shapes into one solid")
+	return ""
+
+
+## CUT IN TWO: a split across the middle of the solid's longest side (Part's "split" feature, the one Expert's Split makes). The slider
+## moves the cut along that side: its step is the split, its field the offset in mm (the slider says cm)
+func _cut(rec: Dictionary) -> String:
+	var res := Part.replay(rec)
+	if int(res["bodies"]) == 0:
+		return "Make something solid first"
+	var bb: AABB = res["aabb"]
+	var ax := 0
+	if bb.size.y > bb.size.x and bb.size.y >= bb.size.z:
+		ax = 1
+	elif bb.size.z > bb.size.x and bb.size.z > bb.size.y:
+		ax = 2
+	var lo_mm: float = bb.position[ax] / Part.MM
+	var hi_mm: float = bb.end[ax] / Part.MM
+	var mid := snappedf((lo_mm + hi_mm) * 0.5, 1.0)
+	var f := Part.new_feature(rec, "split", {"plane": ["right", "top", "front"][ax], "at": mid})
+	rec["features"].append(f)
+	if _last_error(rec, String(f["id"])) != "" or int(Part.replay(rec)["bodies"]) < 2:
+		return "The cut would miss the solid: nothing was cut"
+	tweak = {"id": f["id"], "field": "at", "label": "Where to cut", "unit": "cm", "lo": snappedf(lo_mm * 0.1 + 0.2, 0.1), "hi": snappedf(hi_mm * 0.1 - 0.2, 0.1), "step": 0.1, "scale": 10.0, "words": ["Toward one end", "Toward the other end"]}
+	_say("Cut in two across the middle: drag the slider to move the cut")
+	return ""
+
+
+## COLOUR: one appear step per body (Part's "appear" feature, the look Expert's Appearance writes), all in ONE undo step. A material
+## (Glass, Metal) keeps each body's own colour; a colour chip sets Paint's numbers with that colour
+func _paint(label: String, c: Color, preset: String) -> void:
+	armed = ""
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	var nb := int(pu.res.get("bodies", 0))
+	if nb == 0:
+		_say("Make something solid first, then pick a colour")
+		return
+	_begin("Colour")
+	var rec := pu._ensure()
+	var looks: Array = pu.res.get("body_looks", [])
+	var nums: Dictionary = Part.LOOK_PRESETS.get(preset, Part.LOOK_DEFAULT)
+	for i in nb:
+		var cur := Part.look_at(looks, i)
+		var col: Color = cur["c"] if COLOUR_PRESETS.has(preset) else c
+		var n := Part.count_of(rec, "appear") + 1
+		var f := Part.new_feature(rec, "appear", {"name": "Appearance%d" % n, "body": i, "preset": preset,
+			"color": [col.r, col.g, col.b], "rough": float(nums["rough"]), "metal": float(nums["metal"]), "alpha": float(nums["alpha"])})
+		(rec["features"] as Array).append(f)
+	_end()
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	_say("Colour: %s%s" % [label, " (you can see through it)" if preset == "Glass" else ""])
+
+
+## CURVY LINE: the drag's points (sampled to 12) become one spline sketch (Part's "bspline" entity; the kernel gets the curve it draws).
+## Closed when the drag comes back to its start
+func _finish_curve() -> void:
+	var pts: Array = _draft.get("pts", [])
+	_draft = {}
+	if pts.size() < 4:
+		_say("Drag a bit further to draw a curve")
+		return
+	var n := mini(pts.size(), 12)
+	var out := []
+	for i in n:
+		var k := roundi(float(i) * float(pts.size() - 1) / float(n - 1))
+		out.append(Part.arr2(pts[k]))
+	var closed := (pts[pts.size() - 1] as Vector2).distance_to(pts[0] as Vector2) <= 12.0
+	_begin("Curvy line")
+	var rec := pu._ensure()
+	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "bspline", "pts": out, "closed": closed}], "dims": []}))
+	_end()
+	armed = ""
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_say("Curvy line drawn: Pull it up makes it solid" if closed else "Curvy line drawn: drag back to the start to close it")
+
+
 # ---------------------------------------------------------------- every frame
 
 func _process(_dt: float) -> void:
@@ -764,6 +936,7 @@ func _process(_dt: float) -> void:
 	status.visible = on
 	dots.visible = on
 	shape_box.visible = on and armed == "draw"
+	colour_box.visible = on and armed == "colour"
 	if not on:
 		return
 	if m.easy != null:
@@ -792,6 +965,8 @@ func _chrome_sync() -> void:
 	for k in make_btns:
 		m._grey(make_btns[k], Part.why_not() if off else "")
 	(make_btns["draw"] as Button).set_pressed_no_signal(armed == "draw" and not off)
+	(make_btns["curve"] as Button).set_pressed_no_signal(armed == "curve" and not off)
+	(make_btns["colour"] as Button).set_pressed_no_signal(armed == "colour" and not off)
 	m._grey(back_btn, Part.why_not() if off else ("" if t != "" else "Pick a shape above first"))
 	m._grey(use_scene_btn, Part.why_not() if off else ("" if not _rec().get("features", []).is_empty() else "Draw a shape first"))
 	easy_btn.set_pressed_no_signal(true)
@@ -806,8 +981,8 @@ func _chrome_sync() -> void:
 		text = Part.why_not()
 	elif msg != "":
 		text = msg
-	elif armed == "draw":
-		text = "Drag on the grid to draw a shape"
+	elif armed != "":
+		text = _arm_words(armed)
 	elif t != "":
 		text = "Drag an amber dot, or use the sliders"
 	else:
@@ -844,11 +1019,11 @@ func layout(cl: Rect2) -> void:
 	if not active():
 		return
 	var w := cl.size.x - 16.0
-	var bw := minf(176.0, (w - 5.0 * 8.0) / 6.0)
+	var bw := minf(176.0, (w - 9.0 * 8.0) / 10.0)
 	make_box.reset_size()
 	for b in make_btns.values():
 		(b as Control).custom_minimum_size.x = bw
-	make_box.size = Vector2(bw * 6.0 + 40.0, MAKE_H)
+	make_box.size = Vector2(bw * 10.0 + 72.0, MAKE_H)
 	make_box.position = Vector2(cl.position.x + 8.0, cl.position.y + 4.0)
 	var top := make_box.position.y + maxf(MAKE_H, make_box.size.y) + 8.0
 	hint.reset_size()
@@ -856,6 +1031,8 @@ func layout(cl: Rect2) -> void:
 	hint.position = Vector2(cl.position.x + 12.0, top)
 	shape_box.reset_size()
 	shape_box.position = Vector2(cl.position.x + 12.0, top + hint.size.y + 6.0)
+	colour_box.reset_size()
+	colour_box.position = shape_box.position
 	# the panel on the right, as tall as it needs; the words under the sliders go first when the room is short
 	var avail := cl.end.y - top - 4.0
 	panel.reset_size()
@@ -934,6 +1111,10 @@ func _draft_outline() -> PackedVector2Array:
 	var a: Vector2 = _draft["a"]
 	var b: Vector2 = _draft["b"]
 	var pts := PackedVector2Array()
+	if String(_draft["shape"]) == "curve":
+		for q in _draft["pts"]:
+			pts.append(m.cam.unproject_position(Vector3((q as Vector2).x * Part.MM, (q as Vector2).y * Part.MM, 0.0)))
+		return pts
 	if String(_draft["shape"]) == "box":
 		for q in [a, Vector2(b.x, a.y), b, Vector2(a.x, b.y), a]:
 			pts.append(m.cam.unproject_position(Vector3(q.x * Part.MM, q.y * Part.MM, 0.0)))
@@ -965,10 +1146,10 @@ func input(ev: InputEvent) -> bool:
 				if (d["scr"] as Vector2).distance_to(p) <= 16.0:
 					_grab(d, p)
 					return true
-			if armed == "draw" and not _over_ui(p):
+			if (armed == "draw" or armed == "curve") and not _over_ui(p):
 				var g: Variant = _ground(p)
 				if g != null:
-					_draft = {"a": g, "b": g, "shape": shape}
+					_draft = {"a": g, "b": g, "shape": "curve" if armed == "curve" else shape, "pts": [g]}
 					return true
 			return false
 		if not _drag.is_empty():
@@ -977,7 +1158,10 @@ func input(ev: InputEvent) -> bool:
 			_end()
 			return true
 		if not _draft.is_empty():
-			_finish_draw()
+			if String(_draft["shape"]) == "curve":
+				_finish_curve()
+			else:
+				_finish_draw()
 			return true
 		return false
 	if ev is InputEventMouseMotion:
@@ -989,6 +1173,8 @@ func input(ev: InputEvent) -> bool:
 			var g: Variant = _ground(p)
 			if g != null:
 				_draft["b"] = g
+				if String(_draft["shape"]) == "curve" and (g as Vector2).distance_to((_draft["pts"] as Array).back()) >= 5.0:
+					(_draft["pts"] as Array).append(g)
 			dots.queue_redraw()
 			return true
 		var h := ""
@@ -1002,7 +1188,7 @@ func input(ev: InputEvent) -> bool:
 
 
 func _over_ui(p: Vector2) -> bool:
-	for c in [bar, make_box, panel, hint, shape_box, status]:
+	for c in [bar, make_box, panel, hint, shape_box, colour_box, status]:
 		if (c as Control).visible and (c as Control).get_global_rect().has_point(p):
 			return true
 	return false

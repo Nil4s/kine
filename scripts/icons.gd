@@ -77,6 +77,7 @@ const DRAW := {
 	"part_extrude": [["box", Rect2(4.5, 10, 12, 10), 1.8], ["seg", Vector2(4.5, 10), Vector2(8.5, 6), 1.7], ["seg", Vector2(16.5, 10), Vector2(20.5, 6), 1.7], ["seg", Vector2(8.5, 6), Vector2(20.5, 6), 1.7], ["seg", Vector2(20.5, 6), Vector2(20.5, 16), 1.7], ["seg", Vector2(16.5, 20), Vector2(20.5, 16), 1.7]],
 	"part_revolve": [["arc", Vector2(12, 12), 8, 2.0, 40, 320], ["seg", Vector2(12, 2.5), Vector2(12, 21.5), 1.3], ["seg", Vector2(17.5, 4), Vector2(20, 7.5), 1.8], ["seg", Vector2(20, 7.5), Vector2(15, 8.5), 1.8]],
 	"part_loft": [["box", Rect2(3, 4, 6, 6), 1.6], ["box", Rect2(15, 14, 6, 6), 1.6], ["seg", Vector2(3, 4), Vector2(15, 14), 1.4], ["seg", Vector2(9, 4), Vector2(21, 14), 1.4], ["seg", Vector2(9, 10), Vector2(21, 20), 1.4]],
+	"part_sweep": [["box", Rect2(2, 15, 7, 7), 1.6], ["seg", Vector2(5.5, 15), Vector2(5.5, 6), 1.4], ["seg", Vector2(5.5, 6), Vector2(19, 6), 1.4], ["seg", Vector2(19, 6), Vector2(19, 20), 1.4]],
 	"part_canvas": [["box", Rect2(3, 4, 18, 14), 1.6], ["disc", Vector2(16, 8), 1.8], ["seg", Vector2(3, 16), Vector2(9, 10), 1.4], ["seg", Vector2(9, 10), Vector2(13, 14), 1.4], ["seg", Vector2(13, 14), Vector2(21, 8), 1.4]],
 	"part_measure": [["seg", Vector2(3, 18), Vector2(21, 6), 1.6], ["disc", Vector2(3, 18), 2.0], ["disc", Vector2(21, 6), 2.0], ["seg", Vector2(7, 14), Vector2(7, 19), 1.2]],
 	"part_section": [["box", Rect2(4, 4, 16, 16), 1.6], ["seg", Vector2(2.5, 12), Vector2(21.5, 12), 2.4]],

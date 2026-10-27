@@ -21,6 +21,11 @@ extends RefCounted
 ## LOFT (E): {"t": "loft", "id", "name", "sketches": ["f1", "f4", ...] (2 or more, in order), "ruled": bool, "op": join|new|cut}: the kernel joins
 ## the profiles of those sketches into one solid (ruled = straight between them, else smooth). OFFSET PLANE (E): {"t": "plane", "id", "name",
 ## "from": "front"|"top"|"right", "mm": distance along its normal}. A sketch whose "plane" is a plane's id sits on that offset plane.
+## SWEEP (GAP 6): {"t": "sweep", "id", "name", "profile": "f1" (a closed sketch), "path": "f4" (an OPEN chain sketch: lines, arcs and splines,
+## each piece starting where the last one ended), "op": join|new|cut}: the profile is swept along the path. The path must start in the middle of the
+## profile and leave it square to the profile's plane. Corners of the path are rounded (radius 1.5 x the profile's size, see sweep_path): the kernel's
+## pipe along a path with a corner leaves its second leg open (volume = the first leg only), so the kernel gets ONE smooth curve.
+
 ## CANVAS (GAP 3, Fusion's Canvas): {"t": "canvas", "id", "name", "plane": "front"|"top"|"right" or an offset plane's id, "path" (the picture file),
 ## "w", "h" (picture pixels), "pts": [[px, py], [px, py]] (the two calibration points on the picture, y down), "dist" (mm between them), "at": [x, y]
 ## (mm, plane coordinates of the picture's top-left corner), "opacity" 0..1, "show" bool}. A picture is never a solid: replay() skips it.
@@ -39,7 +44,7 @@ extends RefCounted
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
 const VERSION := 1
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "plane", "canvas", "appear"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear"]
 const PLANES := ["front", "top", "right"]
 const OPS := ["join", "new", "cut", "intersect"]
 const MATCH_MAX := 0.25   # an edge matches when (box-position distance + 0.5 x direction mismatch) is below this
@@ -124,7 +129,7 @@ static func new_feature(rec: Dictionary, t: String, fields := {}) -> Dictionary:
 
 static func sketch_used(rec: Dictionary, id: String) -> bool:
 	for f in rec.get("features", []):
-		if String(f.get("sketch", "")) == id or (f.get("sketches", []) as Array).has(id):
+		if String(f.get("sketch", "")) == id or (f.get("sketches", []) as Array).has(id) or String(f.get("profile", "")) == id or String(f.get("path", "")) == id:
 			return true
 	return false
 
@@ -431,6 +436,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var le := _loft(bodies, f, sketches)
 				if le != "":
 					errs[id] = le
+			"sweep":   # GAP 6: a closed profile along an open path (its own functions: _sweep, sweep_path)
+				var swe := _sweep(bodies, f, sketches)
+				if swe != "":
+					errs[id] = swe
 			"fillet", "chamfer":
 				var e := _edge_op(bodies, f)
 				if e != "":
@@ -851,6 +860,225 @@ static func _loft(bodies: Array, f: Dictionary, sketches: Dictionary) -> String:
 		KCad.release(fc)
 	if solid == 0:
 		return KCad.last_error()
+	return _combine(bodies, solid, String(f.get("op", "join")))
+
+## GAP 6 SWEEP: the path sketch as kernel items (lines, arcs, splines) in its sketch plane, one connected chain. A corner between two lines or
+## arcs (a kink) is rounded with a fillet arc of radius rc, tangent to both pieces: the kernel's pipe along a path with a kink leaves its second
+## leg open (volume = the first leg only), a smooth path is exact. A corner next to a spline is an error (make it smooth).
+const SWEEP_CORNER := 0.01    # radians: a turn smaller than this is not a corner
+const SWEEP_TOL := 0.01       # mm: pieces that must join end to end
+
+## Answers {"err": "" or the message, "items": kernel items (metres), "len": mm, "start": mm, "dir": 2D travel direction at the start}.
+static func sweep_path(ents: Array, rc: float) -> Dictionary:
+	var P: Array = []
+	for e in ents:
+		match String(e["k"]):
+			"line":
+				var la := v2(e["a"])
+				var lb := v2(e["b"])
+				if la.distance_to(lb) < SWEEP_TOL:
+					return {"err": "a line in the path has no length"}
+				P.append({"k": "line", "a": la, "b": lb})
+			"arc":
+				var g := _arc_geom(v2(e["a"]), v2(e["m"]), v2(e["b"]))
+				if g.is_empty():
+					return {"err": "an arc in the path has no curve (its three points lie on a line)"}
+				P.append(g)
+			"bspline":
+				if (e.get("pts", []) as Array).size() < 2:
+					return {"err": "a spline in the path needs two or more points"}
+				P.append({"k": "spline", "curve": spline_curve(e.get("pts", []), false, 16), "item": spline_item(e)})
+			_:
+				return {"err": "the path takes lines, arcs and splines only (not %s)" % String(e["k"])}
+	for p in P:
+		_fill_ends(p)
+	for i in range(1, P.size()):
+		var gap: float = (P[i - 1]["b"] as Vector2).distance_to(P[i]["a"])
+		if gap > SWEEP_TOL:
+			return {"err": "the path pieces do not join end to end (a gap of %.2f mm)" % gap}
+	var i := 0
+	while i < P.size() - 1:
+		var u: Vector2 = P[i]["t1"]
+		var w: Vector2 = P[i + 1]["t0"]
+		var th := acos(clampf(u.dot(w), -1.0, 1.0))
+		if th >= SWEEP_CORNER:
+			if P[i]["k"] == "spline" or P[i + 1]["k"] == "spline":
+				return {"err": "a corner next to a spline: make the spline join its neighbour smoothly"}
+			var t := rc * tan(th / 2.0)
+			if float(P[i]["len"]) < t * 1.001 or float(P[i + 1]["len"]) < t * 1.001:
+				return {"err": "a corner of the path needs a piece of %.1f mm or more beside it" % t}
+			_trim(P[i], false, t)
+			_trim(P[i + 1], true, t)
+			var left := u.x * w.y - u.y * w.x > 0.0
+			var nl := Vector2(-u.y, u.x) if left else Vector2(u.y, -u.x)
+			var cen: Vector2 = (P[i]["b"] as Vector2) + nl * rc
+			var s0 := ((P[i]["b"] as Vector2) - cen).angle()
+			var dl := fposmod(((P[i + 1]["a"] as Vector2) - cen).angle() - s0, TAU)
+			if not left:
+				dl -= TAU
+			var fil := {"k": "arc", "c": cen, "R": rc, "s": s0, "ds": dl}
+			_fill_ends(fil)
+			P.insert(i + 1, fil)
+		i += 1
+	var items := []
+	var total := 0.0
+	for p in P:
+		total += float(p["len"])
+		match String(p["k"]):
+			"line":
+				items.append(KCad.line((p["a"] as Vector2) * MM, (p["b"] as Vector2) * MM))
+			"arc":
+				items.append(KCad.arc((p["a"] as Vector2) * MM, _arc_mid(p) * MM, (p["b"] as Vector2) * MM))
+			"spline":
+				items.append(p["item"])
+	return {"err": "", "items": items, "len": total, "start": P[0]["a"], "dir": P[0]["t0"]}
+
+
+## a three-point arc (mm) as a piece: centre c, radius R, start angle s, signed sweep ds; empty when the points lie on a line
+static func _arc_geom(a: Vector2, m: Vector2, b: Vector2) -> Dictionary:
+	var d := 2.0 * (a.x * (m.y - b.y) + m.x * (b.y - a.y) + b.x * (a.y - m.y))
+	if absf(d) < 1e-9:
+		return {}
+	var a2 := a.length_squared()
+	var m2 := m.length_squared()
+	var b2 := b.length_squared()
+	var c := Vector2((a2 * (m.y - b.y) + m2 * (b.y - a.y) + b2 * (a.y - m.y)) / d, (a2 * (b.x - m.x) + m2 * (a.x - b.x) + b2 * (m.x - a.x)) / d)
+	var sa := (a - c).angle()
+	var sm := fposmod((m - c).angle() - sa, TAU)
+	var sb := fposmod((b - c).angle() - sa, TAU)
+	return {"k": "arc", "c": c, "R": a.distance_to(c), "s": sa, "ds": sb if sm < sb else sb - TAU}
+
+
+## the piece's ends (a, b), its travel direction at each end (t0, t1) and its length (mm)
+static func _fill_ends(p: Dictionary) -> void:
+	match String(p["k"]):
+		"line":
+			var d := ((p["b"] as Vector2) - (p["a"] as Vector2)).normalized()
+			p["t0"] = d
+			p["t1"] = d
+			p["len"] = (p["a"] as Vector2).distance_to(p["b"])
+		"arc":
+			var c: Vector2 = p["c"]
+			var R := float(p["R"])
+			var s := float(p["s"])
+			var ds := float(p["ds"])
+			var sg := 1.0 if ds >= 0.0 else -1.0
+			p["a"] = c + Vector2.from_angle(s) * R
+			p["b"] = c + Vector2.from_angle(s + ds) * R
+			p["t0"] = Vector2(-sin(s), cos(s)) * sg
+			p["t1"] = Vector2(-sin(s + ds), cos(s + ds)) * sg
+			p["len"] = R * absf(ds)
+		"spline":
+			var cv: PackedVector2Array = p["curve"]
+			var n := cv.size()
+			var len_s := 0.0
+			for i in range(n - 1):
+				len_s += cv[i].distance_to(cv[i + 1])
+			p["a"] = cv[0]
+			p["b"] = cv[n - 1]
+			p["t0"] = (cv[1] - cv[0]).normalized()
+			p["t1"] = (cv[n - 1] - cv[n - 2]).normalized()
+			p["len"] = len_s
+
+
+## the arc's middle point (mm)
+static func _arc_mid(p: Dictionary) -> Vector2:
+	return (p["c"] as Vector2) + Vector2.from_angle(float(p["s"]) + float(p["ds"]) * 0.5) * float(p["R"])
+
+
+## takes length t (mm) off one end of a line or arc piece (at_start: the start, else the end)
+static func _trim(p: Dictionary, at_start: bool, t: float) -> void:
+	if String(p["k"]) == "line":
+		var d := ((p["b"] as Vector2) - (p["a"] as Vector2)).normalized()
+		if at_start:
+			p["a"] = (p["a"] as Vector2) + d * t
+		else:
+			p["b"] = (p["b"] as Vector2) - d * t
+	else:
+		var sg := 1.0 if float(p["ds"]) >= 0.0 else -1.0
+		var dth := sg * t / float(p["R"])
+		if at_start:
+			p["s"] = float(p["s"]) + dth
+		p["ds"] = float(p["ds"]) - dth
+	_fill_ends(p)
+
+
+## the profile's reach (mm) from the path's start point: the furthest its outline is from it
+static func _profile_reach(ents: Array, from: Vector2) -> float:
+	var reach := 0.0
+	for e in ents:
+		var pts: Array = []
+		match String(e["k"]):
+			"line", "rect": pts = [e["a"], e["b"]]
+			"circle": reach = maxf(reach, v2(e["c"]).distance_to(from) + float(e["r"]))
+			"arc": pts = [e["a"], e["m"], e["b"]]
+			"bspline": pts = e.get("pts", [])
+		for q in pts:
+			reach = maxf(reach, v2(q).distance_to(from))
+	return reach
+
+
+## the profile's centre (mm, plane 2D): the middle of its bounding box
+static func _profile_centre(ents: Array) -> Vector2:
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for e in ents:
+		var pts: Array = []
+		match String(e["k"]):
+			"line", "rect": pts = [e["a"], e["b"]]
+			"circle":
+				var c := v2(e["c"])
+				var r := float(e["r"])
+				pts = [c - Vector2(r, r), c + Vector2(r, r)]
+			"arc": pts = [e["a"], e["m"], e["b"]]
+			"bspline": pts = e.get("pts", [])
+		for q in pts:
+			lo = lo.min(v2(q))
+			hi = hi.max(v2(q))
+	return (lo + hi) * 0.5
+
+
+## SWEEP: the profile face (on its sketch's plane) along the path's kernel chain; the solid goes in as the op says.
+## Checks: the path starts in the middle of the profile, square to its plane; the kernel volume must equal profile area x path length (2 percent),
+## else the sweep folded on itself and nothing is made. "" or the failure message.
+static func _sweep(bodies: Array, f: Dictionary, sketches: Dictionary) -> String:
+	var ps: Dictionary = sketches.get(String(f.get("profile", "")), {})
+	var pk: Dictionary = sketches.get(String(f.get("path", "")), {})
+	if ps.is_empty() or pk.is_empty():
+		return "the profile or the path sketch is gone or cannot be read"
+	if (pk["ents"] as Array).is_empty():
+		return "the path sketch has no lines, arcs or splines"
+	var pl: Dictionary = ps.get("_pl", plane(String(ps.get("plane", "front"))))
+	var pa: Dictionary = pk.get("_pl", plane(String(pk.get("plane", "front"))))
+	var centre := _profile_centre(ps["ents"])
+	var rc := maxf(2.0, 1.5 * _profile_reach(ps["ents"], centre))
+	var sp := sweep_path(pk["ents"], rc)
+	if String(sp["err"]) != "":
+		return String(sp["err"])
+	var start: Vector2 = sp["start"]
+	var dir: Vector2 = sp["dir"]
+	var p0 := to_world(pa, start)
+	var tan := ((pa["x"] as Vector3) * dir.x + (pa["y"] as Vector3) * dir.y).normalized()
+	if absf(tan.dot(pl["n"])) < 0.999 or absf((p0 - pl["o"]).dot(pl["n"])) > 1e-6:
+		return "the path must leave the profile square to it (its first piece runs along the profile's normal)"
+	if (to_plane(pl, p0) - centre).length() > 0.5:
+		return "the path must start in the middle of the profile"
+	var wire := KCad.sketch_wire(sp["items"], pa["o"], pa["x"], pa["n"])
+	if wire == 0:
+		return KCad.last_error()
+	var face := KCad.sketch_face(items_of(ps["ents"]), pl["o"], pl["x"], pl["n"])
+	if face == 0:
+		KCad.release(wire)
+		return "%s is not a closed profile" % String(ps.get("name", "the profile"))
+	var solid := KCad.sweep(face, wire)
+	var want := KCad.area(face) * float(sp["len"]) * MM
+	KCad.release(face)
+	KCad.release(wire)
+	if solid == 0:
+		return KCad.last_error()
+	if absf(KCad.volume(solid) - want) > 0.02 * want:
+		KCad.release(solid)
+		return "the sweep folds on itself: the path bends too sharply for this profile"
 	return _combine(bodies, solid, String(f.get("op", "join")))
 
 
