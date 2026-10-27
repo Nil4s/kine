@@ -18,6 +18,9 @@ extends RefCounted
 ## A HINGE (C3) turns body N (its index when the hinge comes) about the axis through o. Its angle is a Curves channel (seconds, degrees), the
 ## same as a Kine curve sampled to a list. The timeline shows the rest pose (the hinge adds no solid); hinge_sweep() walks the curve and reports the
 ## first frame the moving body meets another body (a door against its stop).
+## LOFT (E): {"t": "loft", "id", "name", "sketches": ["f1", "f4", ...] (2 or more, in order), "ruled": bool, "op": join|new|cut}: the kernel joins
+## the profiles of those sketches into one solid (ruled = straight between them, else smooth). OFFSET PLANE (E): {"t": "plane", "id", "name",
+## "from": "front"|"top"|"right", "mm": distance along its normal}. A sketch whose "plane" is a plane's id sits on that offset plane.
 ## Sketch entities (plane coordinates in mm): {"k": "line", "a", "b"}, {"k": "rect", "a", "b"} (two corners), {"k": "circle", "c", "r"},
 ## {"k": "arc", "a", "m", "b"} (from a to b through m), {"k": "bspline", "pts": [[x, y], ...], "closed"} (a smooth curve through the points; a
 ## closed one joins the last point to the first). A dimension: {"id", "ent": index, "kind": "w" | "h" | "len" | "r", "mm", "name"}; the
@@ -30,7 +33,7 @@ extends RefCounted
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
 const VERSION := 1
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "plane"]
 const PLANES := ["front", "top", "right"]
 const OPS := ["join", "new", "cut", "intersect"]
 const MATCH_MAX := 0.25   # an edge matches when (box-position distance + 0.5 x direction mismatch) is below this
@@ -112,9 +115,31 @@ static func new_feature(rec: Dictionary, t: String, fields := {}) -> Dictionary:
 
 static func sketch_used(rec: Dictionary, id: String) -> bool:
 	for f in rec.get("features", []):
-		if String(f.get("sketch", "")) == id:
+		if String(f.get("sketch", "")) == id or (f.get("sketches", []) as Array).has(id):
 			return true
 	return false
+
+
+## the plane a sketch sits on: a base plane's name, or an offset plane's id (its base plane moved along the normal by its mm)
+static func resolve_plane(rec: Dictionary, name: String) -> Dictionary:
+	if PLANES.has(name):
+		return plane(name)
+	var f := feature(rec, name)
+	if String(f.get("t", "")) != "plane":
+		return plane("front")
+	var pl := plane(String(f.get("from", "front")))
+	pl["o"] = (pl["o"] as Vector3) + (pl["n"] as Vector3) * float(f.get("mm", 0.0)) * MM
+	return pl
+
+
+## the plane's name in plain words ("Front plane", "Plane1 (20 mm from the Front plane)")
+static func plane_words(rec: Dictionary, name: String) -> String:
+	if PLANES.has(name):
+		return "%s plane" % name.capitalize()
+	var f := feature(rec, name)
+	if String(f.get("t", "")) != "plane":
+		return "plane"
+	return "%s (%s mm from the %s plane)" % [f["name"], _short(float(f.get("mm", 0.0))), String(f.get("from", "front")).capitalize()]
 
 
 ## the sketch a new Extrude / Revolve takes: the newest one nothing has used yet, else the newest
@@ -374,6 +399,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		match String(f["t"]):
 			"sketch":
 				var rs := resolved_sketch(f, want.get("body", null))   # C2: bound dimensions read the body given (none = an error)
+				rs["sk"]["_pl"] = resolve_plane(rec, String(f.get("plane", "front")))   # transient: the replay's own copy of the sketch's plane
 				sketches[id] = rs["sk"]
 				if rs["err"] != "":
 					errs[id] = rs["err"]
@@ -390,6 +416,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var e := _combine(bodies, solid, String(f.get("op", "join")))
 				if e != "":
 					errs[id] = e
+			"loft":   # E: the picked profiles, in order, through the kernel's loft
+				var le := _loft(bodies, f, sketches)
+				if le != "":
+					errs[id] = le
 			"fillet", "chamfer":
 				var e := _edge_op(bodies, f)
 				if e != "":
@@ -761,7 +791,7 @@ static func _swing(id: int, pivot: Vector3, axis: Vector3, radians: float) -> in
 
 
 static func _solid(f: Dictionary, sk: Dictionary) -> int:
-	var pl := plane(String(sk.get("plane", "front")))
+	var pl: Dictionary = sk["_pl"] if sk.has("_pl") else plane(String(sk.get("plane", "front")))
 	var face := KCad.sketch_face(items_of(sk["ents"]), pl["o"], pl["x"], pl["n"])
 	if face == 0:
 		return 0
@@ -773,6 +803,34 @@ static func _solid(f: Dictionary, sk: Dictionary) -> int:
 		s = KCad.revolve(face, pl["o"], axis, deg_to_rad(float(f.get("deg", 360.0))))
 	KCad.release(face)
 	return s
+
+
+## E LOFT: every picked sketch becomes a profile face (on its own plane), the kernel lofts them in order; the solid goes in as the op says.
+## "" or the failure message
+static func _loft(bodies: Array, f: Dictionary, sketches: Dictionary) -> String:
+	var ids: Array = f.get("sketches", [])
+	if ids.size() < 2:
+		return "a loft needs two or more sketches"
+	var faces := PackedInt32Array()
+	for sid in ids:
+		var sk: Dictionary = sketches.get(String(sid), {})
+		if sk.is_empty():
+			for fc in faces:
+				KCad.release(fc)
+			return "its sketch %s is gone or cannot be read" % String(sid)
+		var pl: Dictionary = sk.get("_pl", plane(String(sk.get("plane", "front"))))
+		var face := KCad.sketch_face(items_of(sk["ents"]), pl["o"], pl["x"], pl["n"])
+		if face == 0:
+			for fc in faces:
+				KCad.release(fc)
+			return "%s is not a closed profile" % String(sk.get("name", sid))
+		faces.append(face)
+	var solid := KCad.loft(faces, bool(f.get("ruled", true)), true)
+	for fc in faces:
+		KCad.release(fc)
+	if solid == 0:
+		return KCad.last_error()
+	return _combine(bodies, solid, String(f.get("op", "join")))
 
 
 ## puts a new solid into the body list as the op says; "" or the failure message

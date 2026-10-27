@@ -172,3 +172,4 @@ EXTRA="$EXTRA monkeywalk:w"   # MONKEY WALK (Easy): real clicks through the star
 EXTRA="$EXTRA mocapspeed:h"   # MOCAP SPEED: the linear card sample memo + the plants-stage timing, same tracks as the old path (tests/mocapspeed_test.gd)
 EXTRA="$EXTRA pspline:h"   # GAP 1 SPLINE: a sketch Spline (click points, close on the first, drag a point) in the Part record and the Expert SKETCH ribbon; closed ring extrudes closed, one undo step, file round trip (tests/pspline_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA psplit:h"   # GAP 4 + 7: split by a plane, intersect op, shell (open face), extrude taper (tests/psplit_test.gd)
+EXTRA="$EXTRA ploft:w"   # GAP 2 LOFT: a loft of two sketches (one on an Offset plane typed 50 mm) by real ribbon clicks, one undo step, closed mesh, smooth 3-profile record, save and reload (tests/ploft_test.gd; needs the CAD DLL)
