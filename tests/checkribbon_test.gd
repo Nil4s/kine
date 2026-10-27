@@ -101,7 +101,7 @@ func _init() -> void:
 			var menu_n: int = cap.get_popup().item_count
 			ok(menu_n == (pair[1] as Array).size(), "%s: %s menu lists all %d of its tools" % [tag, cap.text, menu_n])
 			seen += menu_n
-		ok(seen == 40, "%s: the groups hold all 40 tools (%d)" % [tag, seen])
+		ok(seen == 41, "%s: the groups hold all 41 tools (%d; 41 = the 40 old + Fit the ring, fc084079, its click is in arenafit_test)" % [tag, seen])
 		ok(shown[0] is Button and m.label_of(shown[0]) == "Check", "%s: the main Check is first" % tag)
 		# every tool: reached by real clicks, its own button fires
 		var direct := 0
