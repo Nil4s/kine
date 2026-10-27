@@ -237,6 +237,9 @@ func _init() -> void:
 	var r2: Dictionary = pu.res
 	ok(int(pt2.get("count", 0)) == 5 and m.undo.size() == ub3 + 1 and (r2.get("errors", {}) as Dictionary).is_empty() and float(r2.get("volume", 0.0)) > 4.9 * vol0,
 		"1 How many slider drag to 5: 5 copies, ONE undo step (%d -> %d), volume %.3f cm3" % [ub3, m.undo.size(), float(r2.get("volume", 0.0)) * 1e6])
+	await idle(2)
+	ok(int(r2.get("bodies", 0)) != 1 or ep.status_l.text.begins_with("5 pieces that do not touch"),
+		"1 five joined copies with a gap are not called \"one solid, no gaps\": [%s]" % ep.status_l.text)
 	# 2 RING
 	var ub4: int = m.undo.size()
 	await click_ctl(ep.rep_btns["ring"])

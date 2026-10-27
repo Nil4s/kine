@@ -1161,7 +1161,7 @@ func _process(_dt: float) -> void:
 	if _dirty and Time.get_ticks_msec() - _last_ms >= THROTTLE_MS:
 		_flush()
 	var rec := _rec()
-	var sig := JSON.stringify(rec.get("easy", {})) + str(rec.get("features", []).size()) + str(m.redo.size()) + str(Part.available()) + str(armed) + msg
+	var sig := JSON.stringify(rec.get("easy", {})) + str(rec.get("features", []).size()) + str(m.redo.size()) + str(m.undo.size()) + str(pu.res.get("bodies", 0)) + str(pu.res.get("volume", 0.0)) + str(Part.available()) + str(armed) + msg   # undo depth + the result: a slider edit of a step changes no step count
 	if sig != _sig and _drag.is_empty() and not _dirty:
 		_sig = sig
 		_chrome_sync()
@@ -1213,6 +1213,8 @@ func _chrome_sync() -> void:
 		status_l.text = "Nothing here yet"
 	elif not errs.is_empty():
 		status_l.text = "One step could not follow the new sizes. Undo takes it back"
+	elif bodies == 1 and _lumps(res) > 1:
+		status_l.text = "%d pieces that do not touch: they move together as one" % _lumps(res)   # a join of copies with a gap is one body of apart pieces
 	elif bodies == 1:
 		status_l.text = "Looks good: one solid, no gaps"
 	elif bodies == 0:
@@ -1479,3 +1481,50 @@ func _finish_draw() -> void:
 	pu.sync()
 	_rows_sync()
 	_say("Shape drawn. Now press Pull it up or Spin it round")
+
+
+## the pieces of the replay's mesh that do not touch (vertices welded at 0.01 mm, then joined by triangles), counted once per replay mesh
+var _lump_mesh: Object = null   # the mesh it was counted on (the replay result dictionary is reused; each replay makes a new mesh)
+var _lump_n := 1
+
+
+func _lumps(r: Dictionary) -> int:
+	var mesh: ArrayMesh = r.get("mesh")
+	if is_same(mesh, _lump_mesh):
+		return _lump_n
+	_lump_mesh = mesh
+	_lump_n = 1
+	if mesh == null or mesh.get_surface_count() == 0:
+		return _lump_n
+	var weld := {}
+	var parent := PackedInt32Array()
+	var find := func(i: int) -> int:
+		while parent[i] != i:
+			parent[i] = parent[parent[i]]
+			i = parent[i]
+		return i
+	for s in mesh.get_surface_count():
+		var arr := mesh.surface_get_arrays(s)
+		var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+		var ids := PackedInt32Array()
+		for v in vs:
+			var key := Vector3i(roundi(v.x * 1e5), roundi(v.y * 1e5), roundi(v.z * 1e5))
+			if not weld.has(key):
+				weld[key] = parent.size()
+				parent.append(parent.size())
+			ids.append(int(weld[key]))
+		var tri := idx.size() if idx.size() > 0 else vs.size()
+		for t in range(0, tri - 2, 3):
+			var a: int = ids[idx[t] if idx.size() > 0 else t]
+			for k in [1, 2]:
+				var b: int = ids[idx[t + k] if idx.size() > 0 else t + k]
+				var ra: int = find.call(a)
+				var rb: int = find.call(b)
+				if ra != rb:
+					parent[ra] = rb
+	var roots := {}
+	for i in parent.size():
+		roots[find.call(i)] = true
+	_lump_n = maxi(roots.size(), 1)
+	return _lump_n
