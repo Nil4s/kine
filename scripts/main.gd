@@ -2840,11 +2840,42 @@ func _sky_toggle() -> void:
 	_say("sky background %s (a view setting, remembered; the lights menu top right of the view toggles it)" % ("on: a gradient sky" if shading.sky else "off: the flat colour"))
 
 
+## CG2: a picture (.hdr or .exr) as the sky behind the figure and the light on it: a file dialog, then the sky is on
+func _hdri_ask() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.hdr ; Radiance picture", "*.exr ; OpenEXR picture"])
+	fd.use_native_dialog = true
+	fd.title = "Picture background (.hdr or .exr)"
+	fd.file_selected.connect(func(p): _hdri_set(p); fd.queue_free())
+	fd.canceled.connect(fd.queue_free)
+	add_child(fd)
+	fd.popup_centered(Vector2i(800, 500))
+
+
+func _hdri_set(path: String) -> void:
+	if not shading.load_hdri(self, path):
+		_say("that file is not a picture this app can read: pick a .hdr or .exr file (the view is unchanged)")
+		return
+	shading.save_cfg(self)
+	_shade_menu_sync()
+	_say("picture background: %s (it is the sky and the light on the figure; remembered)" % path.get_file())
+
+
+func _hdri_clear() -> void:
+	shading.clear_hdri(self)
+	shading.save_cfg(self)
+	_shade_menu_sync()
+	_say("picture background removed: the gradient sky again")
+
+
 var ui_shade_btn: MenuButton
 var ui_light_btn: MenuButton
 const SHADE_ITEMS := [["wireframe", "Wireframe", "shade_wire"], ["solid", "Solid", "shade_solid"], ["matcap:clay", "Matcap: clay", "shade_matcap"], ["matcap:wax", "Matcap: red wax", "shade_matcap"],
 	["matcap:skin", "Matcap: skin", "shade_matcap"], ["xray", "X-ray", "shade_xray"], ["silhouette", "Silhouette", "shade_sil"]]
-const LIGHT_ITEMS := [["default", "Stage lights", "lit_day"], ["three_point", "3-point", "lit_three"], ["rim", "Rim only", "lit_rim"], ["top", "Top light", "lit_top"], ["flat", "Flat", "lit_flat"], ["sky", "Sky background", "sky"]]
+const LIGHT_ITEMS := [["default", "Stage lights", "lit_day"], ["three_point", "3-point", "lit_three"], ["rim", "Rim only", "lit_rim"], ["top", "Top light", "lit_top"], ["flat", "Flat", "lit_flat"], ["sky", "Sky background", "sky"],
+	["hdri", "Picture background (.hdr / .exr)...", "sky"], ["hdri_clear", "Remove the picture", "sky"]]
 
 
 ## the two small menus under the ViewCube: how the figure is drawn, and the studio lights
@@ -2868,6 +2899,10 @@ func _build_shade_menus() -> void:
 			var key: String = items[id][0]
 			if key == "sky":
 				_sky_toggle()
+			elif key == "hdri":
+				_hdri_ask()
+			elif key == "hdri_clear":
+				_hdri_clear()
 			elif key.begins_with("matcap:"):
 				_matcap_set(key.substr(7))
 			elif items == SHADE_ITEMS:
@@ -2893,7 +2928,9 @@ func _shade_menu_sync() -> void:
 	var lp := ui_light_btn.get_popup()
 	for i in LIGHT_ITEMS.size():
 		var k2: String = LIGHT_ITEMS[i][0]
-		lp.set_item_checked(i, shading.sky if k2 == "sky" else k2 == shading.lights)
+		lp.set_item_checked(i, shading.sky if k2 == "sky" else (shading.hdri != "" if k2 == "hdri" else k2 == shading.lights))
+		if k2 == "hdri_clear":
+			lp.set_item_disabled(i, shading.hdri == "")
 	ui_shade_btn.icon = Icons.tex({"wireframe": "shade_wire", "matcap": "shade_matcap", "xray": "shade_xray", "silhouette": "shade_sil"}.get(shading.mode, "shade_solid"))
 
 
@@ -16552,6 +16589,8 @@ func _commands() -> Array:
 	add.call("View: show normals", "", func(): vx.normals_toggle(), "normals face orientation lines overlay vertex shading direction", false, "short lines along the skin's normals on every 12th vertex of the body, on or off")
 	add.call("View: stats", "", func(): vx.stats_toggle(), "stats statistics triangles tris vertices verts count polygons scene information", false, "the scene's triangle and vertex count at the end of the status line, on or off")
 	add.call("View: sky background", "", _sky_toggle, "sky hdri gradient background environment", false, "a procedural gradient sky behind the figure, on or off (remembered)")
+	add.call("View: picture background (HDRI)...", "", _hdri_ask, "hdri hdr exr picture background sky environment light image based lighting", false, "a .hdr or .exr picture as the sky behind the figure and the light on it (remembered); Remove the picture goes back to the gradient")
+	add.call("View: remove the picture background", "", _hdri_clear, "hdri hdr exr picture background remove clear gradient sky", false, "the sky behind the figure is the gradient again; the picture file is not deleted")
 	add.call("Light / dark theme", "", func(): _set_light(Tok.dark), "colour white bright night", false, "switch the light and dark look (remembered)")
 	for p in SCALES:
 		add.call("UI size %d %%" % p, "", _set_scale.bind(p), "zoom bigger smaller scale font text size", false, "buttons and words at %d %% (remembered)" % p)
