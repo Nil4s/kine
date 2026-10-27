@@ -155,6 +155,17 @@ static func register_building(kind: String, boxes: Array, supports: Array, ramps
 		EXTRA[kind]["ramps"] = ramps
 
 
+## A Part in the set (BuildStage.use): its solid is its bounding box, standing on the floor and centred (as an imported model's); its node is
+## the part's own tessellation, placed the same way (mesh_at). Its kind carries a hash of its record ("part:<name>#<hash>"), and the prop
+## keeps the record ("part_rec" in the scene file): a load replays it (BuildStage.restore_part), so the part is not skipped
+static func register_part(kind: String, mesh: ArrayMesh) -> void:
+	var bx := mesh.get_aabb()
+	var sz := bx.size
+	EXTRA[kind] = {"label": "%s (from Part, %.0f x %.0f x %.0f cm)" % [kind.trim_prefix("part:").get_slice("#", 0), sz.x * 100.0, sz.y * 100.0, sz.z * 100.0],
+		"solids": [[Vector3(0, sz.y * 0.5, 0), sz]], "supports": [[sz.y, Vector2.ZERO, Vector2(sz.x, sz.z)]],
+		"mesh": mesh, "mesh_at": -Vector3(bx.get_center().x, bx.position.y, bx.get_center().z)}
+
+
 static func has_kind(kind: String) -> bool:
 	return KINDS.has(kind) or EXTRA.has(kind)
 
@@ -194,6 +205,8 @@ static func to_dict(p: Dictionary) -> Dictionary:
 		"yaw": snappedf(yaw, 0.0001)}
 	if p.has("mat"):
 		d["mat"] = String(p["mat"])   # a photo material (user://materials/<name>, E15)
+	if p.get("part_rec") is Dictionary:
+		d["part_rec"] = p["part_rec"]   # a Part in the set: its record, replayed on load (BuildStage.restore_part)
 	if scale_of(p) != 1.0:
 		d["scale"] = snappedf(scale_of(p), 0.0001)
 	if colour_of(p) != "grey":
@@ -218,6 +231,8 @@ static func from_dict(d: Dictionary) -> Dictionary:
 	var p := make(String(d["kind"]), xf_at(Vector3(float(a[0]), float(a[1]), float(a[2])), float(d.get("yaw", 0.0))))
 	if d.has("mat") and String(d["mat"]) != "":
 		p["mat"] = String(d["mat"])
+	if d.get("part_rec") is Dictionary:
+		p["part_rec"] = d["part_rec"]
 	if d.has("scale"):
 		p["scale"] = clampf(float(d["scale"]), SIZE_MIN, SIZE_MAX)
 	if d.has("colour") and COLOURS.has(String(d["colour"])):
@@ -475,6 +490,13 @@ static func mesh(p: Dictionary) -> Node3D:
 				root.add_child(n)
 				_tint_models(n, colour_of(p), p)
 				return root
+	if kd.get("mesh") is ArrayMesh:   # a Part in the set: its own tessellation (register_part), centred on the prop like a box
+		var pm := MeshInstance3D.new()
+		pm.mesh = kd["mesh"]
+		pm.material_override = mat
+		pm.position = kd["mesh_at"]
+		root.add_child(pm)
+		return root
 	var holder := root
 	if bool(kd.get("hinged", false)):   # the door: its solids under a "leaf" node turned about the hinge
 		holder = Node3D.new()

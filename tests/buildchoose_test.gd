@@ -219,9 +219,12 @@ func _init() -> void:
 				print("   grey %s %s: card_says %s still %s said '%s'" % [id, mode, card_says, still, said])
 	ok(greys_ok, "3 the greyed cards (Vehicle%s) do nothing but say why: the chooser stays, mode and page unchanged" % ("" if KCad.available() else ", Import STEP, Part"))
 	ok(not (bc.whys["house"] as Label).visible and not (bc.whys["props"] as Label).visible, "3 the live cards carry no reason")
-	if KCad.available():   # 3b PART (Expert): the card opens the Part workspace on BUILD; Easy Part is not built: it says so, nothing changes
+	if KCad.available():   # 3b PART: the card opens the Part workspace on BUILD (Expert) or Easy Part (Easy). Easy Part was "not built yet" until
+		# commit 'Easy Part from the chooser' (972f9fa6, w4-partflow): Part Easy now closes the chooser and opens Easy Part, as the same record
 		await click(b("part", "easy"))
-		ok(bc.open and not m.bld.part.on, "3b Part Easy: not built yet, it says so and the chooser stays")
+		ok(not bc.open and m.bld.part.easy and m.bld.part.on and m.easy.on and m.cur_page == "BUILD", "3b Part Easy opens Easy Part (page %s, part easy %s)" % [m.cur_page, m.bld.part.easy])
+		bc.show_chooser()
+		await idle(3)
 		await click(b("part", "expert"))
 		await idle(3)
 		ok(not bc.open and m.cur_page == "BUILD" and m.bld.part.on and not m.easy.on, "3b Part Expert opens the Part workspace (page %s, part %s)" % [m.cur_page, m.bld.part.on])
@@ -273,6 +276,38 @@ func _init() -> void:
 		ok(m.bld.root3.find_child("build_step_solid", true, false) != null and not bc.open, "6 Import STEP shows a solid on BUILD")
 	else:
 		ok(not b("step", "easy").disabled and String(bc.why_not("step")).contains("KineCAD"), "6 KineCAD is absent: Import STEP is greyed with the reason (live branch is not run here)")
+
+	# 10 PARTFLOW (w4-partflow): Easy hides the two not-ready cards (Expert keeps them with why); Part Easy opens Easy Part; a card leaves the Part
+	# workspace (Expert's way back to the house); the Part ribbon keeps "What to build" with its words
+	m.easy.set_on(true)
+	bc.show_chooser()
+	await idle(4)
+	var pf_vis := []
+	for id in ["house", "part", "vehicle", "props", "template", "step"]:
+		pf_vis.append(bc.cards[id].visible)
+	ok(pf_vis == [true, true, false, true, false, true] and bc.whys["vehicle"].visible == false, "10 Easy chooser: the not-ready Vehicle and From a template cards are gone (visible %s)" % str(pf_vis))
+	m.easy.set_on(false)
+	bc.show_chooser()
+	await idle(4)
+	ok(bc.cards["vehicle"].visible and bc.cards["template"].visible and (bc.whys["vehicle"] as Label).visible and (bc.whys["vehicle"] as Label).text != "", "10 Expert chooser: Vehicle and From a template stay, greyed, with why")
+	if KCad.available():
+		await click(b("part", "easy"))
+		await idle(8)
+		ok(not bc.open and m.bld.part.easy and m.bld.part.on and m.cur_page == "BUILD" and m.easy.on, "10 Part Easy from the chooser opens Easy Part (page %s, part easy %s, easy %s)" % [m.cur_page, m.bld.part.easy, m.easy.on])
+		var pf_rb: Button = m.bld.part.reopen_btn
+		ok(pf_rb != null and pf_rb.is_visible_in_tree() and pf_rb.text == "What to build" and not m.bld.part.reopen_btn.disabled, "10 Easy Part: the What to build button is there (text '%s')" % (pf_rb.text if pf_rb != null else "-"))
+		m.bld.part.ep.to_expert()
+		await idle(6)
+		var pf_rb2: Button = m.bld.part.reopen_btn
+		ok(m.bld.part.on and not m.bld.part.easy and pf_rb2.is_visible_in_tree() and pf_rb2.text == "What to build", "10 Expert Part: the ribbon keeps What to build with its words")
+		await click(pf_rb2)
+		await idle(6)
+		ok(bc.open and m.bld.part.on, "10 Expert Part: What to build reopens the chooser over the part (the Part workspace stays until a card is chosen)")
+		await click(b("house", "expert"))
+		await idle(6)
+		ok(not bc.open and not m.bld.part.on and m.bld.tool == "Room" and m.cur_page == "BUILD", "10 from Expert Part, the House card leaves the Part workspace for the house (part on %s, tool %s)" % [m.bld.part.on, m.bld.tool])
+	else:
+		print("   (no KineCAD: the Part Easy bar is not run)")
 
 	m.easy.set_on(false)
 	print("buildchoose_test: %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))

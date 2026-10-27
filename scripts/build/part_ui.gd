@@ -64,6 +64,7 @@ var part_btn: Button
 var tool_btns := {}
 var finish_btn: Button
 var house_btns: Array = []     # the BUILD ribbon's own buttons, hidden while the Part workspace is on
+var reopen_btn: Button = null  # "What to build" (BuildChoose.reopen_button): kept on the Part ribbon
 var my_seps: Array = []
 var _was_show := false
 var _tag_vis: Array = []       # the floor's axis names as they were (they say "his left": not for a part)
@@ -142,6 +143,10 @@ func setup(b: BuildUI) -> void:
 	easy_open_btn.name = "part_easy_open"
 	_icon(easy_open_btn, "part_part")
 	row.add_child(easy_open_btn)
+	for c in house_btns:
+		if c.name == "build_choose_open":
+			reopen_btn = c as Button
+	_order_row()
 	for c in row.get_children():
 		if not house_btns.has(c) and c != part_btn:
 			c.visible = false
@@ -228,6 +233,8 @@ func ribbon_shows(b: Node, tab: String) -> bool:
 	var show := chrome()
 	if b == part_btn:
 		return bu.on and not bu.easy_ui()
+	if b == reopen_btn:   # the way back to the chooser: in the Part ribbon too, with its words
+		return true
 	if b is VSeparator:
 		return show if my_seps.has(b) else not show
 	if house_btns.has(b):
@@ -1354,15 +1361,43 @@ func _tool_sync() -> void:
 	m._grey(finish_btn, why if not ok else ("" if sk != "" else "no sketch is open"))
 
 
+## Easy Part hides the top ribbon (its own bar stands in for it), so "What to build" moves into that bar while Easy Part is on, and
+## back to the ribbon when it is not
+func _place_reopen() -> void:
+	if reopen_btn == null or ep == null or ep.bar_row == null:
+		return
+	var home: Node = ep.bar_row if (easy and on and bu.on) else part_btn.get_parent()
+	if reopen_btn.get_parent() != home:
+		reopen_btn.get_parent().remove_child(reopen_btn)
+		home.add_child(reopen_btn)
+
+
+## the row's order: the way back, Part, Easy, Finish, then the tools. A row too long for the window sends its LAST buttons to More,
+## so Easy and Finish stay on the bar and the advanced tools go (the words of "What to build" made the row longer). Set again on every
+## sync: the house tools and the Part tools share the row, and something else appends to it after setup
+func _order_row() -> void:
+	var row := part_btn.get_parent() as HBoxContainer
+	if reopen_btn != null and reopen_btn.get_parent() == row and reopen_btn.get_index() != part_btn.get_index() - 1:   # (in Easy Part's bar it is not in this row)
+		row.move_child(reopen_btn, part_btn.get_index())
+	if easy_open_btn.get_index() != part_btn.get_index() + 1:
+		row.move_child(easy_open_btn, part_btn.get_index() + 1)
+	if finish_btn.get_index() != easy_open_btn.get_index() + 1:
+		row.move_child(finish_btn, easy_open_btn.get_index() + 1)
+
+
 func sync() -> void:
 	var show := chrome()
 	var up := shows()
+	_place_reopen()
+	_order_row()
 	part_btn.visible = bu.on and not bu.easy_ui()
 	part_btn.set_pressed_no_signal(on)
 	for c in house_btns:
-		(c as Control).visible = not show
+		(c as Control).visible = not show or c == reopen_btn
+	if reopen_btn != null:
+		reopen_btn.text = "What to build" if on else ""   # icon only in the house ribbon (it is crowded there); with words in Part, Expert or Easy
 	for t in tool_btns:
-		(tool_btns[t] as Control).visible = show
+		(tool_btns[t] as Control).visible = show and not (t in m.RIBBON_REST.get("BUILD", []))   # the rarer ones live under their captions (main.gd RIBBON_REST)
 	finish_btn.visible = show
 	easy_open_btn.visible = show
 	for c in my_seps:

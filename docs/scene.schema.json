@@ -467,6 +467,26 @@
       "additionalProperties": false
      }
     },
+    "props": {
+     "type": "array",
+     "description": "THE SET (scripts/props.gd): the props placed in the scene (furniture, a house, an imported model, a Part). Props.to_dict writes kind, pos (m), yaw (deg) and the optional fields below; written only when there is one. A kind is a library name, or part:<name>#<hash> for a Part in the set: its record is part_rec, and a load makes the kind again from it (BuildStage.restore_part), so the part is not skipped. Any other kind that is not in this library is skipped on load and said",
+     "items": {
+      "type": "object",
+      "required": ["kind", "pos", "yaw"],
+      "properties": {
+       "kind": {"type": "string"},
+       "pos": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number"}},
+       "yaw": {"type": "number"},
+       "mat": {"type": "string", "description": "a photo material (user://materials/<name>)"},
+       "scale": {"type": "number"},
+       "colour": {"type": "string"},
+       "swing": {"type": "number", "description": "a door's swing, degrees (hinged props only)"},
+       "keys": {"type": "array", "description": "animated props: t (s), pos, yaw and swing (hinged only)", "items": {"type": "object"}},
+       "part_rec": {"type": "object", "description": "a Part in the set (kind part:...): the Part record, Part.to_file (the features; the solid is replayed from them)"}
+      },
+      "additionalProperties": false
+     }
+    },
     "moving_holds": {
      "type": "boolean"
     },

@@ -11,7 +11,11 @@ extends SceneTree
 ##                right way; a refusal (Pull it up with no new shape) says why and leaves no step
 ##   7 DOTS       an amber dot dragged with the mouse changes its number (sword tip: Blade length) as the slider does, one undo step
 ##   8 NO DLL     Part.force_off: the buttons and sliders greyed with the reason, nothing changes
+##   10 PARTFLOW (w4-partflow)  the sword's whole length under the sliders follows the blade slider; the Cut a hole default is a hole (2-10 cm across,
+##                not 0.3 cm); "Use in a scene" on the Easy Part bar puts the part in the set as its own prop (page STAGE, ONE undo step); the Expert
+##                strip's "Use in a scene" does the same for an Expert part
 ##   9 POLISH     axe head face > 2500 px2 from the default camera, its edge thinner than its eye; every template framed 3/4; Expert toast clear of timeline/browser/side panel; no group caption on the Easy buttons
+##  11 PART FILE the Part props of the set saved to a file and reopened: each is there, its mesh has the same vertex count
 ## Shots in C:/Temp/claude/easypart/ (each template, a slider mid-drag). Only user:// is written (and the shots).
 var fails := 0
 var m: Node
@@ -448,6 +452,26 @@ func _init() -> void:
 	var last_t := String(m.S.part["features"][-1]["t"])
 	ok(m.undo.size() == ub + 2 and last_t == "revolve" and rs["errors"].is_empty(), "6 Draw shape + Spin it round: a revolve, two steps in all (%d -> %d), last %s, failed %s, volume %.1f -> %.1f" % [ub, m.undo.size(), last_t, rs["errors"], vol_s * 1e6, float(rs["volume"]) * 1e6])
 
+	# 10 PARTFLOW: the whole length, the hole's size (the crate, its default hole)
+	await click_ctl(ep.chips["sword"])
+	await idle(3)
+	var pf_sw := solid(m.S.part)
+	var pf_cm := roundi(float(pf_sw["aabb"].size.x) * 100.0)
+	ok(ep.whole_l.visible and pf_cm > 0 and ep.whole_l.text == "Whole sword: %d cm" % pf_cm, "10 whole length: under the sliders, '%s' (the solid is %d cm long)" % [ep.whole_l.text, pf_cm])
+	await drag_slider(ep.rows[0]["slider"], 90.0)
+	await idle(2)
+	var pf_sw2 := solid(m.S.part)
+	ok(float(pf_sw2["aabb"].size.x) > float(pf_sw["aabb"].size.x) and ep.whole_l.text == "Whole sword: %d cm" % roundi(float(pf_sw2["aabb"].size.x) * 100.0), "10 whole length follows the blade slider: '%s'" % ep.whole_l.text)
+	await click_ctl(ep.chips["crate"])
+	await idle(3)
+	var pf_v0 := float(solid(m.S.part)["volume"])
+	await click_ctl(ep.make_btns["hole"])
+	await idle(3)
+	var pf_hole := ep.rows[-1]["slider"] as HSlider
+	var pf_r := solid(m.S.part)
+	ok(String(ep.tweak.get("label", "")) == "Hole size" and pf_hole.value >= 2.0 and pf_hole.value <= 10.0 and pf_hole.value != 0.3, "10 hole: the default Hole size reads %.1f cm across (2 to 10 cm, not 0.3)" % pf_hole.value)
+	ok(float(pf_r["volume"]) < pf_v0 and pf_r["errors"].is_empty() and int(pf_r["bodies"]) == 1, "10 hole: the default cuts the crate (volume %.1f -> %.1f cm3, failed steps %d)" % [pf_v0 * 1e6, float(pf_r["volume"]) * 1e6, pf_r["errors"].size()])
+
 	# 8 NO DLL
 	var snap := JSON.stringify(m.S.part)
 	ub = m.undo.size()
@@ -467,5 +491,66 @@ func _init() -> void:
 	await shot("no_dll")
 	Part.force_off = false
 	await idle(3)
+	# 10 USE IN A SCENE: the Easy Part bar, then the Expert part's strip button (BuildUI.use_part: the part is a prop of its own)
+	var pf_bld: BuildUI = m.bld
+	ok(ep.use_scene_btn.visible and not ep.use_scene_btn.disabled, "10 Use in a scene is on the Easy Part bar, enabled with a solid")
+	var pf_ub: int = m.undo.size()
+	await click_ctl(ep.use_scene_btn)
+	await idle(8)
+	var pf_parts := 0
+	for p in m.S.props:
+		if String(p["kind"]).begins_with("part:"):
+			pf_parts += 1
+	var pf_node: Node3D = Props.mesh(m.S.props[-1]) if not m.S.props.is_empty() else null
+	var pf_has_mesh: bool = pf_node != null and pf_node.find_children("*", "MeshInstance3D", true, false).size() == 1
+	ok(m.cur_page == "STAGE" and pf_parts == 1 and m.undo.size() == pf_ub + 1 and pf_has_mesh, "10 Easy Use in a scene: the part is a prop of the set (page %s, part props %d, undo +%d, its own mesh %s)" % [m.cur_page, pf_parts, m.undo.size() - pf_ub, str(pf_has_mesh)])
+	await shot("use_in_scene_part")
+	m._page_set("BUILD")
+	await idle(6)
+	ep.to_expert()
+	await idle(6)
+	ok(pf_bld.part.on and not pf_bld.part.easy and pf_bld.part_ready(), "10 Expert part with a solid: the Expert strip's Use in a scene is live")
+	pf_ub = m.undo.size()
+	await click_ctl(pf_bld.use_btn)
+	await idle(8)
+	pf_parts = 0
+	for p in m.S.props:
+		if String(p["kind"]).begins_with("part:"):
+			pf_parts += 1
+	ok(m.cur_page == "STAGE" and pf_parts == 2 and m.undo.size() == pf_ub + 1, "10 Expert Use in a scene: a second part prop (page %s, part props %d, undo +%d)" % [m.cur_page, pf_parts, m.undo.size() - pf_ub])
+	# 11 PART PROP FILE: the Part props in the set are saved with their record; reopened, each one is there with the same vertex count
+	var pv_before := _part_props()
+	var pv_n := pv_before.map(func(p): return _verts(p))
+	var pv_path := DIRT + "/part_props.json"
+	var pv_f := FileAccess.open(pv_path, FileAccess.WRITE)
+	pv_f.store_string(JSON.stringify(m.S.to_dict(m.B, false)))
+	pv_f.close()
+	m._new_scene()
+	await idle(3)
+	if m.ui_save_ask != null and m.ui_save_ask.visible:
+		m._save_ask_choose("discard")
+	await idle(2)
+	m._load_scene(pv_path)
+	await idle(6)
+	var pv_after := _part_props()
+	var pv_m := pv_after.map(func(p): return _verts(p))
+	ok(pv_before.size() >= 1 and pv_after.size() == pv_before.size() and pv_m == pv_n, "11 Part props saved and reopened: %d prop(s), vertices %s (before %s)" % [pv_after.size(), str(pv_m), str(pv_n)])
 	print("easypart: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
+
+
+## the Part props of the open scene
+func _part_props() -> Array:
+	return m.S.props.filter(func(p): return String(p["kind"]).begins_with("part:"))
+
+
+## the vertex count of a prop's meshes (what it draws)
+func _verts(p: Dictionary) -> int:
+	var n := Props.mesh(p)
+	var c := 0
+	for mi in n.find_children("*", "MeshInstance3D", true, false):
+		var msh: ArrayMesh = (mi as MeshInstance3D).mesh
+		for s in msh.get_surface_count():
+			c += (msh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+	n.free()
+	return c
