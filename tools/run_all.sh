@@ -158,3 +158,4 @@ EXTRA="$EXTRA remesh:h"   # M1 VOXEL REMESH: a closed mesh to an even quad mesh 
 EXTRA="$EXTRA constraints_breadth:h"   # A2 CONSTRAINT BREADTH: copy location, copy rotation (Offset), damped track, limit location; the bars and the file round trip (tests/constraints_breadth_test.gd)
 EXTRA="$EXTRA hdri:w"   # CG2: a .hdr / .exr picture as the sky and the light (scripts/shading.gd; tests/hdri_test.gd)
 EXTRA="$EXTRA bodydims:w"   # C2 BODY-DRIVEN DIMENSIONS: a sketch dimension typed =forearm+4 reads the body (forearm length + 4 mm), the solid follows a taller body, no body / unknown measure = an error; a 190 cm body on the BUILD page moves the sketch (tests/bodydims_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA instancing:w"   # M3 INSTANCING: 200 still copies of a 5k-face model drawn as one MultiMeshInstance3D (>= 60 fps, 1 draw call, memory <= 1.5x), the app's "Copies in a row" (scripts/prop_instances.gd; tests/instancing_test.gd)

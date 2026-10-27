@@ -48,6 +48,7 @@ var _pbar: PanelContainer      # THE PROP BAR (top right, Easy only, shown while
 var _pbar_name: Label
 var _pbar_turn_l: Button
 var _pbar_turn_r: Button
+var _pbar_row: Button               # "Copies in a row": ROW_N copies of the picked prop beside it (M3)
 var _pbar_remove: Button
 var _pbar_next: Button
 var _pbar_size: HBoxContainer      # Bigger | Smaller side by side (one row keeps the column short at 1280x720)
@@ -441,6 +442,8 @@ func build(root: Control) -> void:
 	pr.add_child(_pbar_turn_l)
 	_pbar_turn_r = _strip_button("eh_prop_turn_r", "Turn right", "turn the picked prop 15 degrees to the right (one undo step)", func(): m._prop_turn(15.0), Vector2(150, 40), 18)
 	pr.add_child(_pbar_turn_r)
+	_pbar_row = _strip_button("eh_prop_row", "Copies in a row", "%d copies of the picked prop in a row beside it, on the floor (one undo step)" % PropInstances.ROW_N, func(): m._prop_copies_row(), Vector2(150, 40), 18)
+	pr.add_child(_pbar_row)
 	_pbar_size = HBoxContainer.new()
 	_pbar_size.name = "eh_prop_size_row"
 	_pbar_size.add_theme_constant_override("separation", 6)
@@ -619,6 +622,7 @@ func _prop_bar_update() -> void:
 	_pbar_name.text = ("Picked: the %s" % m._prop_name(i)) if have else "Click an object to pick it. Then Remove takes it out."
 	_pbar_turn_l.visible = have
 	_pbar_turn_r.visible = have
+	_pbar_row.visible = have
 	_pbar_size.visible = have
 	_pbar_colour.visible = have
 	_pbar_remove.visible = have
