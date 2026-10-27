@@ -340,6 +340,17 @@ static func _box_gap(alo: Vector3, ahi: Vector3, blo: Vector3, bhi: Vector3) -> 
 
 # ---------------------------------------------------------------- the 3D view
 
+const LOWER_COL := Color(1.0, 0.12, 0.3)       # lower arms: bright crimson (the chassis rails are green and pink)
+const UPPER_COL := Color(0.0, 0.95, 0.95)      # upper arms: bright cyan
+const STRUT_COL := Color(1.0, 0.55, 0.1)       # the MacPherson strut: bright orange
+const KNUCKLE_COL := Color(1.0, 0.9, 0.2)      # the knuckle block: yellow
+const TWIST_COL := Color(1.0, 0.3, 0.9)        # the rear trailing arms and the twist beam: magenta
+const PIVOT_COL := Color(0.95, 0.95, 0.95)     # the pivot spheres: white
+const ARM_R := 0.0175                          # m, the links are 35 mm thick
+const KNUCKLE_HALF := 0.0225                   # m, the knuckle block is 45 mm square
+const PIVOT_R := 0.013                         # m, the pivot sphere radius
+
+
 ## a car point (mm) in the 3D frame (m): the car left = +X, up = +Y, front = +Z, the axles midpoint at the origin (like CarPackage.build_3d)
 static func to3(v: Vector3, wb: float) -> Vector3:
 	return Vector3(v.y, v.z, v.x + wb * 0.5) * 0.001
@@ -350,7 +361,55 @@ static func _mir(v: Vector3, sd: float) -> Vector3:
 	return Vector3(v.x, sd * v.y, v.z)
 
 
-## the suspension node (arms, knuckles, tyres) for both sides of both axles at a Bounce s. The right side is the mirror of the left
+## every link and pivot of one corner at a pose, for one side (sd = +1 left, -1 right), in car mm. [{name, type, a, b}]
+## type: "lower", "upper", "strut", "twist" (rear trailing arm), "knuckle" (a block between the ball joints) or "pivot" (a sphere, a == b)
+static func link_list(cn: Dictionary, po: Dictionary, sd: float) -> Array:
+	var out := []
+	var L := _mir(po["L"], sd)
+	var W := _mir(po["W"], sd)
+	var lf := _mir(cn["lf"], sd)
+	var lr := _mir(cn["lr"], sd)
+	var pv := [["pivot_lf", lf], ["pivot_lr", lr], ["pivot_ball", L]]
+	if String(cn["kind"]) == "trail":
+		out.append({"name": "link_trail_f", "type": "twist", "a": L, "b": lf})
+		out.append({"name": "link_trail_r", "type": "twist", "a": L, "b": lr})
+		out.append({"name": "link_knuckle", "type": "knuckle", "a": L, "b": W})
+	else:
+		var T := _mir(po["T"], sd)
+		out.append({"name": "link_lower_f", "type": "lower", "a": lf, "b": L})
+		out.append({"name": "link_lower_r", "type": "lower", "a": lr, "b": L})
+		if String(cn["kind"]) == "strut":
+			var S := _mir(po["S"], sd)
+			out.append({"name": "link_strut", "type": "strut", "a": T, "b": S})
+			out.append({"name": "link_knuckle", "type": "knuckle", "a": L, "b": S})
+			pv.append(["pivot_strut_top", T])
+			pv.append(["pivot_strut_mount", S])
+		else:
+			var uf := _mir(cn["uf"], sd)
+			var ur := _mir(cn["ur"], sd)
+			out.append({"name": "link_upper_f", "type": "upper", "a": uf, "b": T})
+			out.append({"name": "link_upper_r", "type": "upper", "a": ur, "b": T})
+			out.append({"name": "link_knuckle", "type": "knuckle", "a": L, "b": T})
+			pv.append(["pivot_upper_f", uf])
+			pv.append(["pivot_upper_r", ur])
+			pv.append(["pivot_ball_top", T])
+	for q in pv:
+		out.append({"name": String(q[0]), "type": "pivot", "a": q[1], "b": q[1]})
+	return out
+
+
+## the two ends (m, 3D frame) of a link node built by build_3d, read from its transform and its mesh
+static func ends(mi: MeshInstance3D) -> Array:
+	var h := 0.0
+	if mi.mesh is CylinderMesh:
+		h = (mi.mesh as CylinderMesh).height
+	elif mi.mesh is BoxMesh:
+		h = (mi.mesh as BoxMesh).size.y
+	var d := mi.quaternion * Vector3.UP
+	return [mi.position - d * h * 0.5, mi.position + d * h * 0.5]
+
+
+## the suspension node (arms, knuckles, pivots, tyres) for both sides of both axles at a Bounce s. The right side is the mirror of the left
 static func build_3d(p: Dictionary, c: Dictionary, susp: Dictionary, s: float) -> Node3D:
 	var root := Node3D.new()
 	root.name = "suspension3d"
@@ -364,9 +423,6 @@ static func build_3d(p: Dictionary, c: Dictionary, susp: Dictionary, s: float) -
 			node.name = "%s_%s" % [axle, "left" if sd > 0.0 else "right"]
 			root.add_child(node)
 			var W := _mir(po["W"], sd)
-			var C := _mir(po["C"], sd)
-			var L := _mir(po["L"], sd)
-			var T := _mir(po["T"], sd)
 			var tyre := MeshInstance3D.new()
 			tyre.name = "tyre"
 			var cy := CylinderMesh.new()
@@ -375,42 +431,76 @@ static func build_3d(p: Dictionary, c: Dictionary, susp: Dictionary, s: float) -
 			cy.height = float(cn["tw"]) * 0.001
 			tyre.mesh = cy
 			# the wheel axle is the normal of the wheel plane, which leans with the camber (the plane holds the contact patch and the centre)
+			var C := _mir(po["C"], sd)
 			var up := to3(W - C, wb).normalized()
 			var nrm := Vector3.FORWARD.cross(up).normalized()
 			tyre.quaternion = Quaternion(Vector3.UP, nrm)
 			tyre.position = to3(W, wb)
 			tyre.material_override = _mat(Color(0.06, 0.06, 0.07))
 			node.add_child(tyre)
-			if String(cn["kind"]) == "trail":
-				_stick(node, to3(L, wb), to3(_mir(cn["lf"], sd), wb), 0.012)
-				_stick(node, to3(L, wb), to3(_mir(cn["lr"], sd), wb), 0.012)
-			else:
-				_stick(node, to3(_mir(cn["lf"], sd), wb), to3(L, wb), 0.012)
-				_stick(node, to3(_mir(cn["lr"], sd), wb), to3(L, wb), 0.012)
-				if String(cn["kind"]) == "strut":
-					_stick(node, to3(T, wb), to3(L, wb), 0.02)
-				else:
-					_stick(node, to3(_mir(cn["uf"], sd), wb), to3(T, wb), 0.012)
-					_stick(node, to3(_mir(cn["ur"], sd), wb), to3(T, wb), 0.012)
-			_stick(node, to3(L, wb), to3(W, wb), 0.015)
-			_stick(node, to3(W, wb), to3(C, wb), 0.015)
+			for li in link_list(cn, po, sd):
+				var a := to3(li["a"], wb)
+				var b := to3(li["b"], wb)
+				match String(li["type"]):
+					"pivot":
+						_ball(node, String(li["name"]), a)
+					"knuckle":
+						_bar(node, String(li["name"]), a, b, KNUCKLE_HALF, KNUCKLE_COL, true)
+					"lower":
+						_bar(node, String(li["name"]), a, b, ARM_R, LOWER_COL, false)
+					"upper":
+						_bar(node, String(li["name"]), a, b, ARM_R, UPPER_COL, false)
+					"strut":
+						_bar(node, String(li["name"]), a, b, ARM_R, STRUT_COL, false)
+					"twist":
+						_bar(node, String(li["name"]), a, b, ARM_R, TWIST_COL, false)
+		if String(cn["kind"]) == "trail":
+			# the twist beam: the cross member joining the two trailing arms (the left and right ball points)
+			var poL := _mir(po["L"], 1.0)
+			var poR := _mir(po["L"], -1.0)
+			_bar(root, "link_twist_beam_%s" % axle, to3(poL, wb), to3(poR, wb), ARM_R, TWIST_COL, false)
 	return root
 
 
-static func _stick(parent: Node3D, a: Vector3, b: Vector3, rad: float) -> void:
+## a link between two points: a cylinder (or a box) ARM_R thick along a -> b, named so the bars find it
+static func _bar(parent: Node3D, nm: String, a: Vector3, b: Vector3, rad: float, col: Color, box: bool) -> void:
 	var mi := MeshInstance3D.new()
-	mi.name = "link"
-	var cm := CapsuleMesh.new()
-	cm.radius = rad
-	cm.height = maxf(a.distance_to(b), 0.005) + 2.0 * rad
-	mi.mesh = cm
+	mi.name = nm
+	var len := maxf(a.distance_to(b), 0.001)
+	if box:
+		var bm := BoxMesh.new()
+		bm.size = Vector3(rad * 2.0, len, rad * 2.0)
+		mi.mesh = bm
+	else:
+		var cm := CylinderMesh.new()
+		cm.top_radius = rad
+		cm.bottom_radius = rad
+		cm.height = len
+		mi.mesh = cm
 	mi.position = (a + b) * 0.5
 	mi.quaternion = Quaternion(Vector3.UP, (b - a).normalized())
-	mi.material_override = _mat(Color(0.85, 0.55, 0.2))
+	mi.material_override = _mat(col, true)
 	parent.add_child(mi)
 
 
-static func _mat(col: Color) -> StandardMaterial3D:
+## a pivot: a small sphere at a ball joint or a bush
+static func _ball(parent: Node3D, nm: String, at: Vector3) -> void:
+	var mi := MeshInstance3D.new()
+	mi.name = nm
+	var sm := SphereMesh.new()
+	sm.radius = PIVOT_R
+	sm.height = PIVOT_R * 2.0
+	mi.mesh = sm
+	mi.position = at
+	mi.material_override = _mat(PIVOT_COL, true)
+	parent.add_child(mi)
+
+
+## a material; on_top: drawn over the chassis floor pan (the arms run under the floor, at the subframe height), so they read in the 3D view
+static func _mat(col: Color, on_top := false) -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = col
+	if on_top:
+		m.no_depth_test = true
+		m.render_priority = 1
 	return m

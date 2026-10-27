@@ -21,6 +21,9 @@ extends SceneTree
 ##  14 WORDS     no key name in the suspension panel or the status line
 ##  15 LAYOUT    at 1280 x 720 the top bar, the drawings, the suspension panel and the status line overlap nothing
 ##  16 SAVE      the file form (Vehicle.to_file, JSON text, Vehicle.from_file) keeps the suspension choices, the package and the chassis
+##  17 LINKS3D   every link and pivot of all 4 choices, both axles, both sides, at Bounce 0 and +80: the 3D node exists and both its ends are within 1 mm of the solved pivots
+##  18 TRAVEL3D  Bounce +80: the front-left wheel mesh centre is 80 +- 1 mm higher than at 0 (relative to the body), and the links follow (ends within 1 mm)
+##  19 PLAN FILL at 1280 x 720 the front view and the side view drawn geometry (top to bottom in px) are >= 70 % of each panel's height, one scale for both
 ## Shots in C:/Temp/claude/carbuild/: susp_front.png (the front and side views at Bounce 0), susp_3d.png (the 3D view at Bounce +80).
 
 const SHOT := "C:/Temp/claude/carbuild"
@@ -43,6 +46,7 @@ func idle(n := 3) -> void:
 
 func _init() -> void:
 	headless_bars()
+	link_bars()
 	await ui_bars()
 	print("carsusp: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
@@ -127,6 +131,50 @@ func headless_bars() -> void:
 	ok(cl > 0.0, "8 CLEAR smallest gap to the chassis at full bump or rebound, all 4 choices: %.1f mm (above 0)" % cl)
 	# 9 NORM
 	ok(String(CS.norm({"front": "junk"})["front"]) == "MacPherson strut" and String(CS.norm({"front": "Double wishbone"})["front"]) == "Double wishbone", "9 NORM junk falls back, a known choice is kept")
+
+
+## bars 17 and 18: the 3D links against the solved pivots (headless: the nodes are built, not shown)
+func link_bars() -> void:
+	var p := CarPackage.start("Hatch")
+	var c := CarChassis.start()
+	var wb := float(p["wheelbase"])
+	var worst := 0.0
+	var n_links := 0
+	var n_ok := 0
+	for combo in _combos():
+		for sb in [0.0, CS.TRAVEL]:
+			var sus: Node3D = CS.build_3d(p, c, combo, sb)
+			var g := CS.geo(p, c, combo)
+			for axle in ["front", "rear"]:
+				var cn: Dictionary = g[axle]
+				var po := CS.pose(cn, sb)
+				for sd in [1.0, -1.0]:
+					var side_name := "%s_%s" % [axle, "left" if sd > 0.0 else "right"]
+					var node := sus.get_node_or_null(side_name)
+					for li in CS.link_list(cn, po, sd):
+						n_links += 1
+						var mi: MeshInstance3D = node.get_node_or_null(String(li["name"])) if node != null else null
+						if mi == null:
+							continue
+						var e := CS.ends(mi)
+						var want_a := CS.to3(li["a"], wb)
+						var want_b := CS.to3(li["b"], wb)
+						var d := maxf((e[0] as Vector3).distance_to(want_a), (e[1] as Vector3).distance_to(want_b))
+						worst = maxf(worst, d)
+						if d <= 0.001:
+							n_ok += 1
+	ok(n_links > 0 and n_ok == n_links and worst <= 0.001, "17 LINKS3D %d links and pivots of 4 choices x both axles x both sides x Bounce 0 and +80: %d within 1 mm, worst end error %.4f mm" % [n_links, n_ok, worst * 1000.0])
+	# 18: the front-left wheel centre rises by the travel
+	var cb := CS.build_3d(p, c, CS.start(), 0.0)
+	var ca := CS.build_3d(p, c, CS.start(), CS.TRAVEL)
+	var dz := ((ca.get_node("front_left/tyre") as Node3D).position.y - (cb.get_node("front_left/tyre") as Node3D).position.y) * 1000.0
+	var lk_ok := true
+	for nm in ["link_lower_f", "link_strut", "link_knuckle"]:
+		var a := CS.ends(cb.get_node("front_left/" + nm) as MeshInstance3D)
+		var b := CS.ends(ca.get_node("front_left/" + nm) as MeshInstance3D)
+		var moved := (a[0] as Vector3).distance_to(b[0] as Vector3) > 0.005 or (a[1] as Vector3).distance_to(b[1] as Vector3) > 0.005
+		lk_ok = lk_ok and moved
+	ok(absf(dz - CS.TRAVEL) <= 1.0 and lk_ok, "18 TRAVEL3D front-left wheel centre rises %.3f mm at +80 (80 within 1), the links move %s" % [dz, lk_ok])
 
 
 func _rect(ctl: Control) -> Rect2:
@@ -300,9 +348,17 @@ func ui_bars() -> void:
 	ps.sp_rear.item_selected.emit(0)
 	await idle(2)
 	await shot("susp_front")
+	# 19 PLAN FILL: the drawn geometry of both views, in px of the plan, against the plan's height
+	var pl: CarSuspPlan = ps.susp_plan
+	var ph := pl.size.y
+	var fr := float(pl.ext["front"][1]) - float(pl.ext["front"][0])
+	var sr := float(pl.ext["side"][1]) - float(pl.ext["side"][0])
+	ok(fr >= 0.7 * ph and sr >= 0.7 * ph and absf(pl.size.y - 720.0) < 200.0,
+		"19 PLAN FILL at 1280 x 720: front view %.0f %% of the panel height, side view %.0f %% (both >= 70 %%), one scale k %.3f px/mm" % [100.0 * fr / ph, 100.0 * sr / ph, pl.k])
 	ps.set_3d(true)
 	await idle(3)
 	ps.sp_bounce.value = 80.0
+	ps.frame_corner()
 	await shot("susp_3d")
 	ps.sp_bounce.value = 0.0
 	ps.set_3d(false)

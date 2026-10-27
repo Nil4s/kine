@@ -1113,6 +1113,16 @@ func frame() -> void:
 	cam.look_at(at, Vector3.UP)
 
 
+## the camera close to the front-left corner (step 3): the arms, the knuckle and the wheel read clearly
+func frame_corner() -> void:
+	var p := pkg()
+	if p.is_empty():
+		return
+	var at := Vector3(float(p["track_f"]) * 0.5 * 0.001 - 0.15, 0.25, float(p["wheelbase"]) * 0.5 * 0.001 - 0.05)   # the front-left arms, 3D metres
+	cam.position = at + Vector3(0.8, 0.9, 1.6)   # close to the corner, above and in front
+	cam.look_at(at, Vector3.UP)
+
+
 func layout() -> void:
 	var vs := get_viewport_rect().size
 	var top := float(m.TOP_H)
