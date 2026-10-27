@@ -383,6 +383,16 @@ func _sample_cards(t: float) -> Dictionary:
 		if not _sample_memo.has(t):
 			_sample_memo[t] = _spline_sample(t)
 		return _sample_memo[t]
+	if memo_slopes and sample_memo_linear:
+		# VIDEO SPEED (PROFILE.md): the linear blend is as fixed as the spline within the scope (cards, flats and drifts are read-only
+		# here), and a plant's scans and the apply's two reads walk the same times: the sample is read once per time
+		if not _sample_memo.has(t):
+			_sample_memo[t] = _linear_sample(t)
+		return _sample_memo[t]
+	return _linear_sample(t)
+
+
+func _linear_sample(t: float) -> Dictionary:
 	var ts := times()
 	for i in cards.size():
 		if t < ts[i][1] and i > 0 and (_flow(i) or _flow(i - 1)):
@@ -871,6 +881,7 @@ func apply_true(B: Body, t: float) -> void:
 	baker = bk
 
 
+static var sample_memo_linear := true   # false: the pre-speed-up linear sample (tests/mocapspeed_test.gd compares the two)
 static var apply_calls := 0   # every Scene.apply call (nested ones too): the speed bars count the calls a stage makes
 
 func apply(B: Body, t: float) -> void:
