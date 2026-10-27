@@ -118,6 +118,10 @@ func _init() -> void:
 	ok(free_ok and box != null and frac >= 0.40 and frac <= 0.70,
 		"1 FRAME a 3 mm x 20 mm plate spans %.0f%% of the free view (40-70%%) [free_rect %s]" % [frac * 100.0, str(ep.free_rect()) if free_ok else "missing"])
 	await shot("shot")
+	# 5 HINT: a part of the user's own (no template) is not met with the empty-part words "press Draw shape"
+	await idle(2)
+	ok(not ep.hint_l.text.begins_with("Pick a shape on the right") and ep.hint_l.text.contains("change it"),
+		"5 HINT a part with a solid gets words about changing it [%s]" % ep.hint_l.text)
 	# 3 ANGLE: the same view angle as before the framing
 	ok(absf(float(m.pitch) - pitch0) < 1e-4 and absf(float(m.yaw) - yaw0) < 1e-4,
 		"3 ANGLE the view angle is kept (pitch %.2f -> %.2f, yaw %.2f -> %.2f)" % [pitch0, float(m.pitch), yaw0, float(m.yaw)])

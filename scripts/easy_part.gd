@@ -1323,6 +1323,8 @@ func _chrome_sync() -> void:
 		text = _arm_words(armed)
 	elif t != "":
 		text = "Drag an amber dot, or use the sliders"
+	elif not res.is_empty() and int(res.get("bodies", 0)) > 0:
+		text = "Press a button above to change it, or pick a shape on the right"   # a part of the user's own (no template): not "draw a shape"
 	else:
 		text = "Pick a shape on the right, or press Draw shape"
 	hint_l.text = text
