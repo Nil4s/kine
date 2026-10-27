@@ -8468,7 +8468,7 @@ func _sk_show_handles() -> void:
 	sk.queue_redraw()
 
 
-static func _sk_flip_name(key: String) -> String:
+func _sk_flip_name(key: String) -> String:
 	return "hips" if key == "hip" else ("chest" if key == "sh" else nice(key.replace("hand", "lowerarm").replace("foot", "calf")))
 
 
@@ -10992,7 +10992,9 @@ static func side_col(j: String) -> Color:
 	return SIDE_L if j.ends_with("_l") else (SIDE_R if j.ends_with("_r") else SIDE_MID)
 
 
-static func nice(j: String) -> String:
+func nice(j: String) -> String:
+	if (j == "bat_handle" or j == "bat_barrel") and B.wep_kind.begins_with(PartWeapon.PREFIX):   # a Part weapon: its own name
+		return "%s (%s)" % [PartWeapon.name_of(B.wep_kind), "handle" if j == "bat_handle" else "barrel"]
 	var names := {"pelvis": "hips", "spine_01": "lower back", "spine_02": "middle back", "spine_03": "chest",
 		"neck_01": "neck", "head": "head", "clavicle": "shoulder", "upperarm": "upper arm", "lowerarm": "elbow / forearm",
 		"hand": "wrist / hand", "thigh": "hip joint / thigh", "calf": "knee / shin", "foot": "ankle / foot", "ball": "toes",
