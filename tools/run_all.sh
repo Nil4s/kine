@@ -170,3 +170,4 @@ EXTRA="$EXTRA carsusp:w"   # VEHICLE STEP 3 SUSPENSION: front MacPherson or doub
 EXTRA="$EXTRA carweight:w"   # VEHICLE STEP 4 WEIGHT AND BALANCE: parts as blocks on the side and top views (drag, one undo step each), axle loads, left / right, CG height, corners, compare with real cars (red), estimates in data/car_parts.json, 3D blocks and CG sphere (scripts/car_weight.gd, car_weight_plan.gd, package_screen.gd; tests/carweight_test.gd)
 EXTRA="$EXTRA monkeywalk:w"   # MONKEY WALK (Easy): real clicks through the start screen, BUILD cards, vehicle steps, Easy bar; errors, key words, back, fit, overlap, dead buttons; FINDINGS in C:/Temp/claude/monkeywalk (tests/monkeywalk_test.gd)
 EXTRA="$EXTRA mocapspeed:h"   # MOCAP SPEED: the linear card sample memo + the plants-stage timing, same tracks as the old path (tests/mocapspeed_test.gd)
+EXTRA="$EXTRA psplit:h"   # GAP 4 + 7: split by a plane, intersect op, shell (open face), extrude taper (tests/psplit_test.gd)
