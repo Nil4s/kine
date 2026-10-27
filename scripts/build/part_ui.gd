@@ -24,12 +24,18 @@ const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension"]
-const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Offset plane", "Split"]
+const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Offset plane", "Split", "Canvas"]
 const TOOL_KIND := {"Offset plane": "plane"}   # a tool's feature kind when it is not its lower-case name
-const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell"]
+const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell", "Appearance"]
+const LOOK_TOOLS := ["Appearance"]   # APPEARANCE (GAP 5): picks a body for the side panel; the panel is _build_look / _look_sync
+const LOOK_PRESET_ORDER := ["Paint", "Metal", "Glass", "Rubber", "Plastic"]
 const SHELL_OPEN := ["", "+x", "-x", "+y", "-y", "+z", "-z"]   # the open face of a shell (Part.SHELL_DIRS), in the dialog's order
 const SHELL_OPEN_TXT := ["Closed (no face open)", "Right face (+X)", "Left face (-X)", "Top face (+Y, up)", "Bottom face (-Y)", "Front face (+Z)", "Back face (-Z)"]
 const HINGE_TOOLS := ["Hinge"]
+const INSPECT_TOOLS := ["Measure", "Section"]   # view tools: a measure readout and a section cut (no record step, no undo)
+const SEC_PLANES := ["front", "top", "right"]
+const CAP_COL := Color("#e8833a")   # the section cap: the cut face, a hatch colour (orange)
+const SOLID_COL := Color(0.74, 0.77, 0.82)
 const HSEC := 25.0   # the frames per second of the hinge's swing check (Part.hinge_sweep)
 const TIPS := {
 	"Line": "LINE: click the start, click each corner; a typed number sets the length. Esc ends the chain. Snaps to the grid.",
@@ -42,12 +48,16 @@ const TIPS := {
 	"Revolve": "REVOLVE: the newest sketch turns round its horizontal or vertical axis. Type the angle and press Enter.",
 	"Mirror": "MIRROR: the body and its reflection across a plane become one solid.",
 	"Split": "SPLIT: pick a plane and an offset (mm). Every body the plane cuts becomes two bodies. Press Enter.",
+	"Appearance": "APPEARANCE: click a body in the browser (Body1, Body2...). Pick a colour chip, the picker or a preset (Paint, Metal, Glass, Rubber, Plastic). Each change is one undo step.",
 	"Shell": "SHELL: the newest body becomes a hollow box with the wall thickness you type. Pick the face left open, press Enter.",
+	"Canvas": "CANVAS: put a picture on the Front, Top or Right plane (or an offset plane). Click two points of known size, type the real distance, drag it to line up.",
 	"Loft": "LOFT: pick two or more sketches in order (each a closed profile); the solid runs through them. Ruled = straight, Smooth = curved.",
 	"Offset plane": "OFFSET PLANE: pick Front, Top or Right and type a distance. The new plane is in the browser: click it to sketch on it.",
 	"Fillet": "FILLET: click edges (they turn sky blue), type a radius, press Enter or OK.",
 	"Chamfer": "CHAMFER: click edges, type a distance, press Enter or OK.",
-	"Hinge": "HINGE: click the part that turns, then the line it turns round (a straight edge, or two points on it). Type the angles and seconds, then OK."}
+	"Hinge": "HINGE: click the part that turns, then the line it turns round (a straight edge, or two points on it). Type the angles and seconds, then OK.",
+	"Measure": "MEASURE: click two points (vertex, edge or face) for a distance; one edge for its length; one face for its area. Not a step: no undo.",
+	"Section": "SECTION: cuts the solid with a plane (Front, Top or Right) and an offset; the cut face is filled. A view setting: no undo."}
 
 var bu: BuildUI
 var m: Node
@@ -79,6 +89,14 @@ var hp := {}                   # the hinge dialog's picks: {"body", "faces", "pt
 var hsw := {}                  # the selected hinge's swing check (Part.hinge_sweep), kept while its record is the same
 var hsw_sig := ""
 var pair_pick := {}            # must not touch: {"id", "first", "faces"} while two parts are being picked
+var sel_body := -1             # APPEARANCE: the body the side panel paints (-1 = none); a browser row or the Appearance tool sets it
+var look_box: VBoxContainer
+var look_title: Label
+var look_info: Label
+var look_picker: ColorPickerButton
+var look_presets := {}         # preset name -> Button
+var look_chips := []           # the colour chip buttons, in Part.LOOK_CHIPS order
+var look_sig := ""
 var pose := {}                 # {"f": hinge id, "deg": angle} while the hinge is shown turned (Play / the slider)
 var play_on := false
 var play_t := 0.0
@@ -148,6 +166,19 @@ var _sig := ""
 var _rec_sig := ""
 var _browser_sig := ""
 var _tl_sig := ""
+var meas_pts: Array = []       # MEASURE: the first point (Vector3, m) waiting for its second
+var meas_out: Array = []       # MEASURE results on the view: {"line": PackedVector3Array (m), "at": Vector3, "v": value (mm, mm2), "txt": String}
+var meas_panel: PanelContainer
+var meas_l: Label
+var sec_on := false            # SECTION (a view setting, not in the record): the cut is on
+var sec_pl := "front"          # its plane (Front, Top, Right) and offset (mm along the plane normal)
+var sec_mm := 0.0
+var sec_mat: ShaderMaterial
+var sec_box: PanelContainer
+var sec_chk: CheckBox
+var sec_opt: OptionButton
+var sec_slider: HSlider
+var sec_val: Label
 var _nums_sig := ""
 var _last_step := -1
 var _last_ms := 0
@@ -156,6 +187,14 @@ var _sk_before := ""
 var _profile_ok := ""          # the sketch's own status line ("closed profile" ...)
 var _profile_sig := ""
 var _fit_sig := ""
+var cv_drag := {}              # a canvas picture being dragged (GAP 3): {"i": record index} or {"dlg": true}, "from" (mm), "moved"
+var cv_tex := {}               # picture path -> Texture2D (the canvas view)
+var f_cv_pick: Button          # the canvas dialog's controls (built once: _canvas_ctl)
+var f_cv_plane: OptionButton
+var f_cv_show: CheckBox
+var f_cv_op: HSlider
+var f_cv_cal: Button
+var f_cv_file: FileDialog
 
 
 func setup(b: BuildUI) -> void:
@@ -181,6 +220,8 @@ func setup(b: BuildUI) -> void:
 	_sep(row)
 	for t in HINGE_TOOLS:
 		_tool_btn(row, t)
+	for t in INSPECT_TOOLS:
+		_tool_btn(row, t)
 	_sep(row)
 	finish_btn = m._button("Finish sketch", finish_sketch, "Finish sketch: the sketch is done; the steps after it replay (one undo step)")
 	finish_btn.name = "part_finish"
@@ -199,7 +240,6 @@ func setup(b: BuildUI) -> void:
 			c.visible = false
 	part_mesh = MeshInstance3D.new()
 	part_mesh.name = "part_mesh"
-	part_mesh.material_override = _solid_mat(Color(0.74, 0.77, 0.82))
 	part_mesh.visible = false
 	bu.root3.add_child(part_mesh)
 	prev_mesh = MeshInstance3D.new()
@@ -217,6 +257,7 @@ func setup(b: BuildUI) -> void:
 	_build_browser()
 	_build_side()
 	_build_timeline()
+	_build_inspect()
 	note = PanelContainer.new()
 	note.name = "part_note"
 	note.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -403,6 +444,7 @@ func _build_side() -> void:
 	hinge_box.add_theme_constant_override("separation", 6)
 	hinge_box.visible = false
 	vb.add_child(hinge_box)
+	_build_look(vb)
 	hinge_title = _label("", 13, true)
 	hinge_title.name = "part_hinge_title"
 	hinge_box.add_child(hinge_title)
@@ -652,8 +694,14 @@ func set_on(v: bool) -> void:
 
 
 func _pick(t: String) -> void:
+	if t in LOOK_TOOLS:
+		_look_tool()
+		return
 	if not Part.available():
 		_tool_sync()
+		return
+	if t in INSPECT_TOOLS:
+		_inspect_pick(t)
 		return
 	if t in SKETCH_TOOLS:
 		if dlg.size() > 0:
@@ -809,8 +857,14 @@ func input(ev: InputEvent) -> bool:
 func _press(p: Vector2) -> bool:
 	if sk != "":
 		return _press_sketch(p)
+	if dlg.get("t", "") == "canvas":
+		return _canvas_press(p)   # GAP 3: the canvas dialog's clicks (two points) and drags
+	if dlg.is_empty() and tool == "" and _canvas_grab(p):
+		return true
 	if not pair_pick.is_empty():
 		return _pair_press(p)
+	if tool == "Measure":
+		return _measure_press(p)
 	if tool == "Hinge" and dlg.get("t", "") == "hinge":
 		return _hinge_press(p)
 	if tool == "Fillet" or tool == "Chamfer":
@@ -884,6 +938,8 @@ func _press_sketch(p: Vector2) -> bool:
 
 
 func _release(p: Vector2) -> bool:
+	if not cv_drag.is_empty():
+		return _canvas_release()
 	if not spl_drag.is_empty():
 		spl_drag = {}
 		pov.queue_redraw()
@@ -913,6 +969,9 @@ func _commit_draft() -> void:
 
 
 func _motion(p: Vector2) -> bool:
+	if not cv_drag.is_empty():
+		_canvas_move(p)
+		return false
 	if sk != "":
 		var h: Variant = hit(p)
 		if not spl_drag.is_empty():
@@ -1187,10 +1246,14 @@ func open_dialog(t: String, edit: int) -> void:
 		dlg_rows.add_child(f_plane)
 		f_plane.select(PlanesIdx.find(String(f.get("plane", "right"))))
 		_row("Offset along its normal", f_num, "%s mm" % _fmt(float(f.get("at", 0.0))))
+	elif kind == "canvas":
+		pass   # its rows: _canvas_open
 	elif kind == "shell":
 		_row("Wall thickness", f_num, "%s mm" % _fmt(float(f.get("thick", 5.0))))
 		dlg_rows.add_child(f_open)
 		f_open.select(maxi(SHELL_OPEN.find(String(f.get("open", "+y"))), 0))
+	if kind == "canvas":
+		_canvas_open(f, edit)
 	f_op.visible = kind in ["extrude", "revolve", "loft"]
 	if kind == "hinge":
 		_hinge_rows()
@@ -1349,6 +1412,10 @@ func dialog_feature() -> Dictionary:
 			if ids.size() < 2:
 				return {}
 			f = {"sketches": ids.duplicate(), "ruled": f_ruled.selected == 0, "op": op}
+		"canvas":
+			f = _canvas_feature(true)
+			if f.is_empty():
+				return {}
 		"plane":
 			var pd := _num(f_num)
 			if is_nan(pd) or absf(pd) < 1e-6:
@@ -1420,6 +1487,8 @@ func _dialog_hint(kind: String) -> String:
 		return "Pick two or more sketches, in order."
 	if kind == "plane":
 		return "Type the distance from the plane (mm)."
+	if kind == "canvas":
+		return _canvas_hint()
 	return ""
 
 
@@ -1505,6 +1574,11 @@ func step_clicked(i: int) -> void:
 
 func edit_step(i: int) -> void:
 	var f: Dictionary = _feats()[i]
+	if String(f["t"]) == "appear":   # APPEARANCE: its body's panel opens (no dialog)
+		sel_body = int(f.get("body", 0))
+		sel_step = -1
+		bu.sync()
+		return
 	if sk != "":
 		finish_sketch()
 	close_dialog()
@@ -1518,6 +1592,8 @@ func edit_step(i: int) -> void:
 
 
 func _step_icon(f: Dictionary) -> String:
+	if String(f["t"]) == "appear":
+		return "part_appearance"
 	return "part_" + String(f["t"]) if String(f["t"]) != "sketch" else "part_sketch"
 
 
@@ -1569,7 +1645,7 @@ func _timeline_sync() -> void:
 
 func _browser_sync() -> void:
 	var feats := _feats()
-	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], f["t"], f.get("mm", 0), f.get("from", "")]), sk, res.get("bodies", 0), prev.is_empty()])
+	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], f["t"], f.get("mm", 0), f.get("from", ""), f.get("show", "")]), sk, res.get("bodies", 0), prev.is_empty(), sel_body])
 	if sig == _browser_sig:
 		return
 	_browser_sig = sig
@@ -1580,9 +1656,13 @@ func _browser_sync() -> void:
 	var nb: int = res.get("bodies", 0)
 	browser_vb.add_child(_label("Bodies (%d)" % nb, 15))
 	for i in nb:
-		var l := _label("    Body%d" % (i + 1), 14)
-		l.name = "part_body_%d" % i
-		browser_vb.add_child(l)
+		var bb := _row_btn("    Body%d" % (i + 1), "part_body_%d" % i)   # APPEARANCE: a click picks the body for the side panel
+		bb.tooltip_text = "Body%d: click to change its colour and material (Appearance)" % (i + 1)
+		if i == sel_body:
+			bb.add_theme_color_override("font_color", SKY)
+			bb.add_theme_color_override("font_hover_color", SKY)
+		bb.pressed.connect(func(): _sel_body_pick(i))
+		browser_vb.add_child(bb)
 	var sketches := feats.filter(func(f): return f["t"] == "sketch")
 	browser_vb.add_child(_label("Sketches (%d)" % sketches.size(), 15))
 	for f in sketches:
@@ -1603,6 +1683,7 @@ func _browser_sync() -> void:
 		ob.tooltip_text = "start a sketch on %s" % Part.plane_words(_rec(), String(f["id"]))
 		ob.pressed.connect(func(): begin_sketch(String(f["id"])))
 		browser_vb.add_child(ob)
+	_canvas_browser_rows()   # GAP 3: the pictures (show / hide)
 
 
 func _row_btn(txt: String, nm: String) -> Button:
@@ -1683,7 +1764,7 @@ func _tool_sync() -> void:
 			w = "sketch a closed profile first"
 		elif ok and t == "Loft" and _feats().filter(func(f): return f["t"] == "sketch").size() < 2:
 			w = "sketch two profiles first (a loft joins them)"
-		elif ok and (t == "Mirror" or t == "Fillet" or t == "Chamfer" or t == "Hinge" or t == "Split" or t == "Shell") and not has_body:
+		elif ok and (t == "Mirror" or t == "Fillet" or t == "Chamfer" or t == "Hinge" or t == "Split" or t == "Shell" or t == "Appearance") and not has_body:
 			w = "make a solid first (Extrude or Revolve)"
 		m._grey(b, w)
 		b.set_pressed_no_signal(t == tool and w == "")
@@ -1751,6 +1832,8 @@ func sync() -> void:
 	else:
 		pose = {}
 	_rebuild(up)
+	_inspect_sync(show)
+	_look_sync(show)   # after the replay: the panel reads this record's looks
 	pov.visible = show
 	part_mesh.visible = up and sk == "" and prev.is_empty() and part_mesh.mesh != null
 	prev_mesh.visible = show and not prev.is_empty() and prev_mesh.mesh != null
@@ -1759,7 +1842,7 @@ func sync() -> void:
 		bu.grid.visible = false
 		bu.person.visible = false
 	browser.visible = show
-	side.visible = show and (sk != "" or not dlg.is_empty() or not _sel_hinge().is_empty())
+	side.visible = show and (sk != "" or not dlg.is_empty() or not _sel_hinge().is_empty() or _sel_look() >= 0)
 	tl.visible = show
 	sketch_box.visible = sk != "" and dlg.is_empty()
 	dlg_box.visible = not dlg.is_empty()
@@ -1801,6 +1884,7 @@ func _rebuild(show: bool) -> void:
 	res = Part.replay(_rec(), up, want)
 	if sk == "":
 		part_mesh.mesh = res["mesh"]
+		_look_surfaces()
 	edge_cache = res["edges"]
 
 
@@ -1857,6 +1941,7 @@ func layout(cl: Rect2) -> void:
 			bu.words.plan_panel.visible = false
 	if up and easy:
 		ep.layout(cl)
+	_inspect_layout(cl)
 	if not show:
 		return
 	tl.reset_size()
@@ -1958,8 +2043,10 @@ func _draw_axes(o: Vector3, len: float) -> void:
 
 
 func _draw_model() -> void:
+	_canvas_draw("")
 	_draw_axes(Vector3.ZERO, 0.08)
 	_draw_hinge_marks()
+	_draw_measure()
 	for i in edge_cache.size():
 		var picked_now := false
 		for pe in picked:
@@ -1993,6 +2080,7 @@ func _draw_sketch() -> void:
 		return
 	var pl := _plane()
 	var vs: Vector2 = m.get_viewport().get_visible_rect().size
+	_canvas_draw(String(f.get("plane", "front")))   # GAP 3: the picture is behind the sketch
 	if grid_on:
 		_draw_grid(pl, vs)
 	_draw_axes(Vector3.ZERO, 0.0)
@@ -2606,3 +2694,874 @@ func _draw_hinge_marks() -> void:
 		for e in edge_cache:
 			if int(e["body"]) == int(pr[0]) or int(e["body"]) == int(pr[1]):
 				_edge_line(e, Color("#ff5a4e"), 4.0)
+
+
+# ---------------------------------------------------------------- MEASURE and SECTION (view only: no record step, no undo)
+
+## the section shader: the part on the far side of the cut plane is discarded; the inside seen through the cut is the cap (one flat colour)
+const SECTION_SHADER := """shader_type spatial;
+render_mode cull_disabled, unshaded;
+uniform vec4 cut = vec4(0.0, 0.0, 1.0, 0.0);
+uniform float on = 0.0;
+uniform vec4 cap : source_color = vec4(0.91, 0.51, 0.23, 1.0);
+uniform vec4 solid : source_color = vec4(0.74, 0.77, 0.82, 1.0);
+varying vec3 wp;
+void vertex() {
+	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+}
+void fragment() {
+	if (on > 0.5 && dot(cut.xyz, wp) > cut.w) {
+		discard;
+	}
+	if (FRONT_FACING) {
+		ALBEDO = solid.rgb * (0.7 + 0.3 * abs(NORMAL.z));
+	} else {
+		ALBEDO = cap.rgb;
+	}
+}
+"""
+
+
+func _build_inspect() -> void:
+	meas_panel = PanelContainer.new()
+	meas_panel.name = "part_measure_panel"
+	meas_panel.add_theme_stylebox_override("panel", _panel_style())
+	var vb := VBoxContainer.new()
+	meas_panel.add_child(vb)
+	vb.add_child(_label("MEASURE", 14))
+	meas_l = _label("", 13, true)
+	meas_l.name = "part_measure_text"
+	meas_l.custom_minimum_size = Vector2(PANEL_W - 24.0, 0)
+	meas_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(meas_l)
+	var clr: Button = m._button("Clear measures", _measure_clear, "Clear the measures on the view (nothing in the record: no undo step)")
+	clr.name = "part_measure_clear"
+	vb.add_child(clr)
+	meas_panel.visible = false
+	m.ui_root.add_child(meas_panel)
+	sec_box = PanelContainer.new()
+	sec_box.name = "part_section_panel"
+	sec_box.add_theme_stylebox_override("panel", _panel_style())
+	var sv := VBoxContainer.new()
+	sec_box.add_child(sv)
+	sv.add_child(_label("SECTION", 14))
+	sec_chk = CheckBox.new()
+	sec_chk.name = "part_section_on"
+	sec_chk.text = "Cut the solid (view only)"
+	sec_chk.toggled.connect(_sec_toggled)
+	sv.add_child(sec_chk)
+	sec_opt = OptionButton.new()
+	sec_opt.name = "part_section_plane"
+	for pn in SEC_PLANES:
+		sec_opt.add_item(String(pn).capitalize() + " plane")
+	sec_opt.item_selected.connect(_sec_plane_picked)
+	sv.add_child(sec_opt)
+	sec_slider = HSlider.new()
+	sec_slider.name = "part_section_offset"
+	sec_slider.min_value = -300.0
+	sec_slider.max_value = 300.0
+	sec_slider.step = 0.5
+	sec_slider.custom_minimum_size = Vector2(PANEL_W - 24.0, 20.0)
+	sec_slider.value_changed.connect(_sec_slid)
+	sv.add_child(sec_slider)
+	sec_val = _label("", 13, true)
+	sec_val.name = "part_section_text"
+	sv.add_child(sec_val)
+	sec_box.visible = false
+	m.ui_root.add_child(sec_box)
+
+
+func _inspect_pick(t: String) -> void:
+	if sk != "":
+		finish_sketch()
+	tool = t
+	draft = {}
+	picked = []
+	typed = ""
+	dim_target = {}
+	dim_edit.visible = false
+	if dlg.size() > 0:
+		close_dialog()
+	meas_pts = []
+	if t == "Section":
+		_sec_set(true)
+		_sec_look()
+		_say("SECTION: the solid is cut by the plane. Pick the plane and drag the offset; the cut face is filled.")
+	else:
+		_say("MEASURE: click two points (vertex, edge or face) for a distance; one edge for its length; one face for its area.")
+	_tool_sync()
+	_inspect_sync(chrome())
+	pov.queue_redraw()
+
+
+func _measure_clear() -> void:
+	meas_out = []
+	meas_pts = []
+	_say("Measures cleared (nothing in the record: no undo step)")
+	_inspect_sync(true)
+	pov.queue_redraw()
+
+
+func _measure_press(p: Vector2) -> bool:
+	var s := _snap_at(p)
+	if s.is_empty():
+		_say("MEASURE: nothing under the click (click a vertex, an edge or a face)")
+		return true
+	var at: Vector3 = s["at"]
+	if meas_pts.is_empty():
+		if s["k"] == "vertex":
+			meas_pts = [at]
+			_say("MEASURE: first point set; click the second point (vertex, edge or face)")
+		elif s["k"] == "edge":
+			_meas_add({"line": s["line"], "at": at, "v": float(s["len"]) * 1000.0, "txt": "Edge length %.2f mm" % (float(s["len"]) * 1000.0)})
+		else:
+			var ar := _face_area(at, s["n"])
+			_meas_add({"line": PackedVector3Array([at]), "at": at, "v": ar, "txt": "Face area %.1f mm2 (%.2f cm2)" % [ar, ar * 0.01]})
+	else:
+		var p1: Vector3 = meas_pts[0]
+		_meas_add({"line": PackedVector3Array([p1, at]), "at": (p1 + at) * 0.5, "v": p1.distance_to(at) * 1000.0, "txt": "Distance %.2f mm" % (p1.distance_to(at) * 1000.0)})
+		meas_pts = []
+	_inspect_sync(true)
+	pov.queue_redraw()
+	return true
+
+
+func _meas_add(r: Dictionary) -> void:
+	meas_out.append(r)
+	while meas_out.size() > 12:
+		meas_out.pop_front()
+	_say(String(r["txt"]))
+
+
+## the thing under a click, nearest first: a vertex (12 px), then an edge (12 px), then a face (the ray hit). {} = nothing
+func _snap_at(p: Vector2) -> Dictionary:
+	var best_d := 12.0
+	var best := {}
+	for e in edge_cache:
+		for v in [e["a"], e["b"]]:
+			var vv: Vector3 = v
+			if m.cam.is_position_behind(vv):
+				continue
+			var dd := p.distance_to(m.cam.unproject_position(vv))
+			if dd < best_d:
+				best_d = dd
+				best = {"k": "vertex", "at": vv}
+	if not best.is_empty():
+		return best
+	best_d = 12.0
+	for e in edge_cache:
+		var a: Vector3 = e["a"]
+		var b: Vector3 = e["b"]
+		var c: Vector3 = e["c"]
+		if a.distance_to(b) < 1e-6 or m.cam.is_position_behind(c):
+			continue   # a closed curve: picked on its faces
+		var pts := [a, c, b]
+		for i in 2:
+			var A: Vector3 = pts[i]
+			var B: Vector3 = pts[i + 1]
+			if m.cam.is_position_behind(A) or m.cam.is_position_behind(B):
+				continue
+			var pa: Vector2 = m.cam.unproject_position(A)
+			var pb: Vector2 = m.cam.unproject_position(B)
+			var q := Geometry2D.get_closest_point_to_segment(p, pa, pb)
+			var dd := p.distance_to(q)
+			if dd < best_d:
+				best_d = dd
+				var t := 0.0 if pa.distance_to(pb) < 1e-6 else clampf(pa.distance_to(q) / pa.distance_to(pb), 0.0, 1.0)
+				best = {"k": "edge", "at": A.lerp(B, t), "len": float(e["len"]), "line": PackedVector3Array(pts)}
+	if not best.is_empty():
+		return best
+	var h := _mesh_ray(p)
+	if not h.is_empty():
+		return {"k": "face", "at": h["at"], "n": h["n"]}
+	return {}
+
+
+## the triangles of the shown part (metres), as [a, b, c] each
+func _part_tris() -> Array:
+	var out: Array = []
+	if part_mesh == null or part_mesh.mesh == null:
+		return out
+	for s in part_mesh.mesh.get_surface_count():
+		var arr: Array = part_mesh.mesh.surface_get_arrays(s)
+		var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var ix: Variant = arr[Mesh.ARRAY_INDEX]
+		var n := vs.size()
+		if ix != null:
+			n = (ix as PackedInt32Array).size()
+		for k in range(0, n - 2, 3):
+			if ix == null:
+				out.append([vs[k], vs[k + 1], vs[k + 2]])
+			else:
+				var I: PackedInt32Array = ix
+				out.append([vs[I[k]], vs[I[k + 1]], vs[I[k + 2]]])
+	return out
+
+
+## the nearest triangle the click ray hits: {"at", "n"} (unit normal), {} = none
+func _mesh_ray(p: Vector2) -> Dictionary:
+	var ro: Vector3 = m.cam.project_ray_origin(p)
+	var rd: Vector3 = m.cam.project_ray_normal(p)
+	var best := {}
+	var best_d := INF
+	for t in _part_tris():
+		var a: Vector3 = t[0]
+		var b: Vector3 = t[1]
+		var c: Vector3 = t[2]
+		var hit: Variant = Geometry3D.ray_intersects_triangle(ro, rd, a, b, c)
+		if hit != null:
+			var dd := ro.distance_to(hit as Vector3)
+			if dd < best_d:
+				best_d = dd
+				best = {"at": hit, "n": (b - a).cross(c - a).normalized()}
+	return best
+
+
+## the area (mm2) of the flat face through at with normal n: every shown triangle in that plane with that normal
+func _face_area(at: Vector3, n: Vector3) -> float:
+	var tot := 0.0
+	for t in _part_tris():
+		var a: Vector3 = t[0]
+		var b: Vector3 = t[1]
+		var c: Vector3 = t[2]
+		var cr := (b - a).cross(c - a)
+		var ar := cr.length() * 0.5
+		if ar < 1e-14:
+			continue
+		var nn := cr / (ar * 2.0)
+		if absf(nn.dot(n)) < 0.9999 or absf(nn.dot(a - at)) > 1e-6:
+			continue
+		tot += ar
+	return tot * 1e6
+
+
+func _draw_measure() -> void:
+	for r in meas_out:
+		var line: PackedVector3Array = r["line"]
+		for i in line.size() - 1:
+			if m.cam.is_position_behind(line[i]) or m.cam.is_position_behind(line[i + 1]):
+				continue
+			pov.draw_line(m.cam.unproject_position(line[i]), m.cam.unproject_position(line[i + 1]), Color("#ffc233"), 3.0)
+		for v in line:
+			if not m.cam.is_position_behind(v):
+				pov.draw_circle(m.cam.unproject_position(v), 4.0, Color("#ffc233"))
+		if not m.cam.is_position_behind(r["at"]):
+			_pill(m.cam.unproject_position(r["at"]) + Vector2(0, -22), String(r["txt"]), Color(0.06, 0.07, 0.1, 0.92), Color.WHITE, 14)
+	for v in meas_pts:
+		if not m.cam.is_position_behind(v):
+			pov.draw_circle(m.cam.unproject_position(v), 6.0, Color("#ffc233"))
+
+
+func _sec_plane() -> Dictionary:
+	var pl := Part.resolve_plane(_rec(), sec_pl)
+	var n: Vector3 = pl["n"]
+	return {"n": n, "p": (pl["o"] as Vector3) + n * sec_mm * Part.MM}
+
+
+func _sec_set(v: bool) -> void:
+	sec_on = v
+	sec_chk.set_pressed_no_signal(v)
+	_sec_apply()
+
+
+func _sec_toggled(v: bool) -> void:
+	_sec_set(v)
+	if v:
+		_sec_look()
+	_inspect_sync(chrome())
+	pov.queue_redraw()
+
+
+func _sec_plane_picked(i: int) -> void:
+	sec_pl = SEC_PLANES[i]
+	if sec_on:
+		_sec_look()
+	_sec_apply()
+
+
+func _sec_slid(v: float) -> void:
+	sec_mm = v
+	_sec_apply()
+	_inspect_sync(chrome())
+
+
+## the camera looks at the cut from the side that the cut removes (so the cap faces the eye)
+func _sec_look() -> void:
+	var d := _sec_plane()
+	var n: Vector3 = d["n"]
+	var yaw_deg := rad_to_deg(atan2(n.x, n.z))
+	m._turn_to(yaw_deg, 0.0 if sec_pl != "top" else -89.0, 0.6, d["p"], false)
+
+
+## the material of the solid: the section shader while a cut is on, the plain solid otherwise
+func _sec_apply() -> void:
+	if part_mesh == null:
+		return
+	if not sec_on:
+		part_mesh.material_override = null   # each body keeps its own look (_look_surfaces); an override would paint them all one grey
+		return
+	if sec_mat == null:
+		sec_mat = ShaderMaterial.new()
+		var sh := Shader.new()
+		sh.code = SECTION_SHADER
+		sec_mat.shader = sh
+		sec_mat.set_shader_parameter("cap", CAP_COL)
+		sec_mat.set_shader_parameter("solid", SOLID_COL)
+	part_mesh.material_override = sec_mat
+	var d := _sec_plane()
+	var n: Vector3 = d["n"]
+	var p: Vector3 = d["p"]
+	sec_mat.set_shader_parameter("cut", Vector4(n.x, n.y, n.z, n.dot(p)))
+	sec_mat.set_shader_parameter("on", 1.0)
+
+
+func _inspect_sync(show: bool) -> void:
+	var up := show and sk == "" and dlg.is_empty()
+	meas_panel.visible = up and (tool == "Measure" or not meas_out.is_empty())
+	sec_box.visible = up and (tool == "Section" or sec_on)
+	if meas_panel.visible:
+		var lines := PackedStringArray()
+		for r in meas_out:
+			lines.append(String(r["txt"]))
+		if meas_pts.size() == 1:
+			lines.append("First point set: click the second point (vertex, edge or face).")
+		if lines.is_empty():
+			lines.append("Click a vertex, an edge or a face.")
+		meas_l.text = "\n".join(lines)
+	if sec_box.visible:
+		sec_chk.set_pressed_no_signal(sec_on)
+		sec_val.text = "%s plane, offset %.1f mm%s" % [String(sec_pl).capitalize(), sec_mm, "" if sec_on else " (off)"]
+	if sec_on:
+		_sec_apply()
+
+
+func _inspect_layout(cl: Rect2) -> void:
+	var x := cl.end.x - PANEL_W - 8.0
+	meas_panel.reset_size()
+	meas_panel.size.x = PANEL_W
+	meas_panel.position = Vector2(x, cl.position.y + 6.0)
+	sec_box.reset_size()
+	sec_box.size.x = PANEL_W
+	sec_box.position = Vector2(x, cl.position.y + 6.0 + meas_panel.get_combined_minimum_size().y + 8.0)
+
+
+# ---------------------------------------------------------------- canvas (GAP 3, Fusion Canvas): a picture on a plane behind the sketch
+
+## the canvas dialog controls, made once (their rows are put in the dialog by _canvas_open)
+func _canvas_ctl() -> void:
+	f_cv_pick = Button.new()   # (new controls each time: the dialog's rows are freed when it closes)
+	f_cv_pick.name = "part_canvas_pick"
+	f_cv_pick.text = "Choose picture..."
+	f_cv_pick.pressed.connect(_canvas_choose)
+	f_cv_plane = OptionButton.new()
+	f_cv_plane.name = "part_canvas_plane"
+	f_cv_plane.item_selected.connect(func(_i): _canvas_edited())
+	f_cv_show = CheckBox.new()
+	f_cv_show.name = "part_canvas_show"
+	f_cv_show.text = "Show picture"
+	f_cv_show.toggled.connect(func(_v): _canvas_edited())
+	f_cv_op = HSlider.new()
+	f_cv_op.name = "part_canvas_opacity"
+	f_cv_op.min_value = 0.0
+	f_cv_op.max_value = 1.0
+	f_cv_op.step = 0.05
+	f_cv_op.custom_minimum_size = Vector2(140, 0)
+	f_cv_op.value_changed.connect(func(_v): _canvas_edited())
+	f_cv_cal = Button.new()
+	f_cv_cal.name = "part_canvas_recal"
+	f_cv_cal.text = "Pick the two points again"
+	f_cv_cal.pressed.connect(_canvas_recal)
+	if f_cv_file == null:   # the file chooser is made once (it lives in the UI root)
+		f_cv_file = FileDialog.new()
+		f_cv_file.name = "part_canvas_file"
+		f_cv_file.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+		f_cv_file.access = FileDialog.ACCESS_FILESYSTEM
+		f_cv_file.filters = PackedStringArray(["*.png, *.jpg, *.jpeg ; Pictures"])
+		f_cv_file.file_selected.connect(_canvas_picked)
+		m.ui_root.add_child(f_cv_file)
+
+
+## the Canvas dialog opens: its working picture (dlg["cv"]) is the saved one (Edit) or a new one on the chosen plane
+func _canvas_open(f: Dictionary, edit: int) -> void:
+	_canvas_ctl()
+	var rec := _rec()
+	var ids: Array = Part.PLANES.duplicate()
+	var names: Array = ["Front plane", "Top plane", "Right plane"]
+	for o in rec.get("features", []):
+		if o["t"] == "plane":
+			ids.append(String(o["id"]))
+			names.append(Part.plane_words(rec, String(o["id"])).capitalize())
+	dlg["plane_ids"] = ids
+	f_cv_plane.clear()
+	for n in names:
+		f_cv_plane.add_item(String(n))
+	var cv := {"plane": "front", "path": "", "w": 1, "h": 1, "pts": [], "dist": 0.0, "at": [0.0, 0.0], "opacity": 0.8, "show": true}
+	if edit >= 0:
+		cv.merge(f.duplicate(true), true)
+	dlg["cv"] = cv
+	dlg["anchor"] = Part.canvas_px_to_mm(cv, Part.v2(cv["pts"][0])) if (cv["pts"] as Array).size() == 2 else Vector2(cv["at"][0], cv["at"][1])
+	f_cv_plane.select(maxi(ids.find(String(cv["plane"])), 0))
+	f_cv_op.set_value_no_signal(float(cv["opacity"]))
+	f_cv_show.set_pressed_no_signal(bool(cv["show"]))
+	var dist := float(cv["dist"])
+	_row("Real distance", f_num, "%s mm" % _fmt(dist) if dist > 0.0 else "")
+	dlg_rows.add_child(f_cv_pick)
+	dlg_rows.move_child(f_cv_pick, 0)
+	var plr := HBoxContainer.new()
+	plr.add_child(_label("Plane"))
+	plr.add_child(f_cv_plane)
+	dlg_rows.add_child(plr)
+	dlg_rows.add_child(f_cv_show)
+	var opr := HBoxContainer.new()
+	opr.add_child(_label("Opacity"))
+	opr.add_child(f_cv_op)
+	dlg_rows.add_child(opr)
+	dlg_rows.add_child(f_cv_cal)
+	_view_plane(String(cv["plane"]))
+
+
+func _cv_plane_id() -> String:
+	var ids: Array = dlg.get("plane_ids", Part.PLANES)
+	return String(ids[clampi(f_cv_plane.selected, 0, ids.size() - 1)])
+
+
+## the working picture as a record feature. need: only a calibrated picture (two points, a distance) is returned, else {}
+func _canvas_feature(need: bool) -> Dictionary:
+	if dlg.get("t", "") != "canvas":
+		return {}
+	var cv: Dictionary = dlg["cv"]
+	var f := cv.duplicate(true)
+	f["plane"] = _cv_plane_id()
+	f["opacity"] = snappedf(f_cv_op.value, 0.01)
+	f["show"] = f_cv_show.button_pressed
+	var d := _num(f_num)
+	var dist := d if (not is_nan(d) and d > 0.0) else 0.0
+	f["dist"] = dist
+	var at := Vector2(cv["at"][0], cv["at"][1])
+	var pts: Array = cv["pts"]
+	if pts.size() == 2:
+		var s := Part.canvas_scale({"pts": pts, "dist": dist})
+		var p0 := Part.v2(pts[0])
+		at = (dlg["anchor"] as Vector2) - Vector2(p0.x * s, -p0.y * s)   # the first point stays where it was clicked
+	f["at"] = Part.arr2(at)
+	if need and (String(cv["path"]) == "" or pts.size() != 2 or dist <= 0.0):
+		return {}
+	return f
+
+
+func _canvas_hint() -> String:
+	var cv: Dictionary = dlg["cv"]
+	var n := (cv["pts"] as Array).size()
+	if String(cv["path"]) == "":
+		return "Choose a picture (png or jpg) to put on the plane."
+	if n == 0:
+		return "Click the first point on the picture (a mark whose real size you know)."
+	if n == 1:
+		return "Now click the second point."
+	var d := _num(f_num)
+	if is_nan(d) or d <= 0.0:
+		return "Type the real distance between the two points (mm). The picture follows as you type; OK keeps it."
+	return "Drag the picture to line it up. OK keeps it."
+
+
+func _canvas_choose() -> void:
+	f_cv_file.popup_centered_ratio(0.6)
+
+
+## a picture file was chosen: it shows on the plane at 1 mm per pixel until its two points are calibrated
+func _canvas_picked(path: String) -> void:
+	var img := Image.load_from_file(path)
+	if img == null or img.is_empty():
+		_say("Could not read %s: choose a png or jpg picture" % path)
+		return
+	var cv: Dictionary = dlg["cv"]
+	cv["path"] = path
+	cv["w"] = img.get_width()
+	cv["h"] = img.get_height()
+	cv["pts"] = []
+	cv_tex[path] = ImageTexture.create_from_image(img)
+	_view_plane(_cv_plane_id())
+	_say(_canvas_hint())
+	_preview()
+	pov.queue_redraw()
+
+
+func _canvas_edited() -> void:
+	if dlg.get("t", "") == "canvas":
+		_preview()
+		pov.queue_redraw()
+
+
+## pick the two points again: the picture stays where it is, the clicks start over
+func _canvas_recal() -> void:
+	var cvf := _canvas_feature(false)
+	var cv: Dictionary = dlg["cv"]
+	cv["at"] = cvf["at"]
+	cv["pts"] = []
+	_say(_canvas_hint())
+	_preview()
+	pov.queue_redraw()
+
+
+func _canvas_press(p: Vector2) -> bool:
+	var cvf := _canvas_feature(false)
+	if String(cvf["path"]) == "":
+		_say("Choose a picture first")
+		return true
+	var cv: Dictionary = dlg["cv"]
+	var pl := Part.resolve_plane(_rec(), String(cvf["plane"]))
+	if (cv["pts"] as Array).size() >= 2:
+		return _canvas_grab(p)   # calibrated: a press on the picture drags it
+	var h: Variant = _canvas_hit(p, pl)
+	if h == null:
+		return false
+	var mm: Vector2 = h
+	var px := Part.canvas_mm_to_px(cvf, mm)
+	if px.x < 0.0 or px.y < 0.0 or px.x > float(cv["w"]) or px.y > float(cv["h"]):
+		_say("Click on the picture")
+		return true
+	var pts: Array = cv["pts"]
+	pts.append(Part.arr2(px))
+	if pts.size() == 1:
+		dlg["c1"] = mm
+	else:
+		dlg["anchor"] = dlg["c1"]
+		f_num.grab_focus()
+	_say(_canvas_hint())
+	_preview()
+	pov.queue_redraw()
+	return true
+
+
+func _canvas_hit(p: Vector2, pl: Dictionary) -> Variant:
+	var ro: Vector3 = m.cam.project_ray_origin(p)
+	var rd: Vector3 = m.cam.project_ray_normal(p)
+	var n: Vector3 = pl["n"]
+	var den := rd.dot(n)
+	if absf(den) < 1e-6:
+		return null
+	var t := ((pl["o"] as Vector3) - ro).dot(n) / den
+	if t < 0.0:
+		return null
+	return Part.to_plane(pl, ro + rd * t)
+
+
+func _canvas_inside(f: Dictionary, p: Vector2) -> Variant:
+	var h: Variant = _canvas_hit(p, Part.resolve_plane(_rec(), String(f["plane"])))
+	if h == null:
+		return null
+	var px := Part.canvas_mm_to_px(f, h)
+	if px.x < 0.0 or px.y < 0.0 or px.x > float(f["w"]) or px.y > float(f["h"]):
+		return null
+	return h
+
+
+## a press on a picture (the dialog one, or a saved one with no dialog open): a drag. A saved picture move is one undo step
+func _canvas_grab(p: Vector2) -> bool:
+	if dlg.get("t", "") == "canvas":
+		var cvf := _canvas_feature(false)
+		if String(cvf["path"]) == "" or not bool(cvf["show"]):
+			return false
+		var h: Variant = _canvas_inside(cvf, p)
+		if h == null:
+			return false
+		cv_drag = {"dlg": true, "from": h, "moved": false}
+		return true
+	var fs := _feats()
+	for i in fs.size():
+		var f: Dictionary = fs[i]
+		if String(f["t"]) != "canvas" or not bool(f.get("show", true)):
+			continue
+		var h: Variant = _canvas_inside(f, p)
+		if h != null:
+			m._step_hint = "Move picture"
+			m._push_undo()
+			cv_drag = {"i": i, "from": h, "moved": false}
+			return true
+	return false
+
+
+func _canvas_move(p: Vector2) -> void:
+	var pid := ""
+	if cv_drag.get("dlg", false):
+		pid = _cv_plane_id()
+	else:
+		pid = String(_feats()[int(cv_drag["i"])]["plane"])
+	var h: Variant = _canvas_hit(p, Part.resolve_plane(_rec(), pid))
+	if h == null:
+		return
+	var d: Vector2 = (h as Vector2) - (cv_drag["from"] as Vector2)
+	cv_drag["from"] = h
+	if d.length() < 1e-9:
+		return
+	cv_drag["moved"] = true
+	if cv_drag.get("dlg", false):
+		var cv: Dictionary = dlg["cv"]
+		if (cv["pts"] as Array).size() == 2:
+			dlg["anchor"] = (dlg["anchor"] as Vector2) + d
+		else:
+			cv["at"] = Part.arr2(Vector2(cv["at"][0], cv["at"][1]) + d)
+		_preview()
+	else:
+		var f: Dictionary = _feats()[int(cv_drag["i"])]
+		f["at"] = Part.arr2(Vector2(f["at"][0], f["at"][1]) + d)
+		bu.sync()
+	pov.queue_redraw()
+
+
+func _canvas_release() -> bool:
+	if not cv_drag.get("dlg", false) and not bool(cv_drag.get("moved", false)):
+		m._drop_undo()   # a press that moved nothing is no step
+	cv_drag = {}
+	pov.queue_redraw()
+	return true
+
+
+## the pictures on the view: the saved ones shown (on this plane only, in a sketch), and the dialog one
+func _canvas_draw(only: String) -> void:
+	var list: Array = []
+	var edit := int(dlg.get("edit", -1)) if dlg.get("t", "") == "canvas" else -1
+	var fs := _feats()
+	for i in fs.size():
+		var f: Dictionary = fs[i]
+		if String(f["t"]) == "canvas" and i != edit and bool(f.get("show", true)) and (only == "" or String(f["plane"]) == only):
+			list.append(f)
+	for f in list:
+		_canvas_paint(f)
+	if dlg.get("t", "") == "canvas" and bool(_canvas_feature(false).get("show", false)) and (only == "" or String(_canvas_feature(false)["plane"]) == only):
+		_canvas_paint(_canvas_feature(false), true)   # the dialog's picture: its two calibration points on top
+
+
+func _canvas_paint(f: Dictionary, working := false) -> void:
+	if String(f.get("path", "")) == "":
+		return
+	var pl := Part.resolve_plane(_rec(), String(f["plane"]))
+	var sp := PackedVector2Array()
+	for v in Part.canvas_corners(f):
+		var w: Vector3 = Part.to_world(pl, v)
+		if m.cam.is_position_behind(w):
+			return
+		sp.append(m.cam.unproject_position(w))
+	var a := clampf(float(f.get("opacity", 0.5)), 0.0, 1.0)
+	var col := Color(1, 1, 1, a)
+	var tex := _canvas_tex(String(f["path"]))
+	if tex == null:
+		pov.draw_colored_polygon(sp, Color(0.55, 0.6, 0.7, a * 0.5))
+	else:
+		var uv := [Vector2(0, 0), Vector2(1, 0), Vector2(1, 1), Vector2(0, 1)]
+		pov.draw_primitive(PackedVector2Array([sp[0], sp[1], sp[2]]), PackedColorArray([col, col, col]), PackedVector2Array([uv[0], uv[1], uv[2]]), tex)
+		pov.draw_primitive(PackedVector2Array([sp[0], sp[2], sp[3]]), PackedColorArray([col, col, col]), PackedVector2Array([uv[0], uv[2], uv[3]]), tex)
+	pov.draw_polyline(PackedVector2Array([sp[0], sp[1], sp[2], sp[3], sp[0]]), Color(1.0, 0.76, 0.2, 0.9), 1.5)
+	if dlg.get("t", "") == "canvas" and f.has("pts") and not (f["pts"] as Array).is_empty() and working:
+		var k := 0
+		for pt in f["pts"]:
+			k += 1
+			var sc: Vector2 = m.cam.unproject_position(Part.to_world(pl, Part.canvas_px_to_mm(f, Part.v2(pt))))
+			pov.draw_circle(sc, 6.0, Color("#ffc233"))
+			pov.draw_string(ThemeDB.fallback_font, sc + Vector2(8, -8), str(k), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color.WHITE)
+
+
+func _canvas_tex(path: String) -> Texture2D:
+	if path == "":
+		return null
+	if not cv_tex.has(path):
+		var img := Image.load_from_file(path)
+		cv_tex[path] = ImageTexture.create_from_image(img) if img != null and not img.is_empty() else null
+	return cv_tex[path]
+
+
+## the browser Pictures: one row each, a click shows or hides it (one undo step)
+func _canvas_browser_rows() -> void:
+	var cvs := _feats().filter(func(f): return f["t"] == "canvas")
+	if cvs.is_empty():
+		return
+	browser_vb.add_child(_label("Pictures (%d)" % cvs.size(), 15))
+	for f in cvs:
+		var b := _row_btn("    %s%s" % [String(f["name"]), "" if bool(f.get("show", true)) else "  (hidden)"], "part_canvas_" + String(f["id"]))
+		b.tooltip_text = "click to %s the picture" % ("hide" if bool(f.get("show", true)) else "show")
+		b.pressed.connect(_canvas_toggle.bind(String(f["id"])))
+		browser_vb.add_child(b)
+
+
+func _canvas_toggle(id: String) -> void:
+	var rec := _rec()
+	var i := Part.index_of(rec, id)
+	if i < 0:
+		return
+	var f: Dictionary = rec["features"][i]
+	m._step_hint = "Show picture" if not bool(f.get("show", true)) else "Hide picture"
+	m._push_undo()
+	f["show"] = not bool(f.get("show", true))
+	_say("%s %s" % [String(f["name"]), "is shown" if f["show"] else "is hidden"])
+	bu.sync()
+
+
+# ---------------------------------------------------------------- APPEARANCE (GAP 5): colour, presets, per body; one undo step per change
+
+## the body the side panel paints: a body row or the Appearance tool picked it; -1 when a sketch, a dialog or a hinge is open
+func _sel_look() -> int:
+	if not chrome() or sk != "" or not dlg.is_empty() or sel_body < 0 or not _sel_hinge().is_empty():
+		return -1
+	return sel_body if sel_body < int(res.get("bodies", 0)) else -1
+
+
+func _sel_body_pick(i: int) -> void:
+	sel_body = i
+	sel_step = -1
+	pov.queue_redraw()
+	bu.sync()
+
+
+## the Appearance tool: the first body if none is picked yet (it says so when there is no body)
+func _look_tool() -> void:
+	var nb := int(res.get("bodies", 0))
+	if nb == 0:
+		_say("Appearance: make a solid first (Extrude or Revolve), then pick a body")
+	else:
+		sel_body = clampi(sel_body, 0, nb - 1)
+		sel_step = -1
+		_say("Appearance: %s is picked. Pick a colour or a material for it." % _part_name(sel_body))
+	bu.sync()
+
+
+func _build_look(vb: VBoxContainer) -> void:
+	look_box = VBoxContainer.new()
+	look_box.name = "part_look_box"
+	look_box.add_theme_constant_override("separation", 6)
+	look_box.visible = false
+	vb.add_child(look_box)
+	look_title = _label("", 13, true)
+	look_title.name = "part_look_title"
+	look_box.add_child(look_title)
+	look_info = _label("", 13)
+	look_info.name = "part_look_info"
+	look_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	look_info.custom_minimum_size.x = PANEL_W - 24.0
+	look_box.add_child(look_info)
+	look_box.add_child(_label("Colour", 12, true))
+	var chips := HBoxContainer.new()
+	chips.name = "part_look_chips"
+	chips.add_theme_constant_override("separation", 4)
+	look_box.add_child(chips)
+	for ch in Part.LOOK_CHIPS:
+		var cb := Button.new()
+		cb.name = "part_look_chip_" + String(ch[0]).to_lower()
+		cb.tooltip_text = "Colour: %s" % String(ch[0])
+		cb.custom_minimum_size = Vector2(38, 28)
+		cb.focus_mode = Control.FOCUS_NONE
+		var c: Color = ch[1]
+		for st in ["normal", "hover", "pressed", "focus"]:
+			var sb := StyleBoxFlat.new()
+			sb.bg_color = c
+			sb.border_color = Color.WHITE
+			sb.set_border_width_all(1)
+			sb.set_corner_radius_all(3)
+			cb.add_theme_stylebox_override(st, sb)
+		cb.pressed.connect(func(): _look_set(c, "Custom"))
+		chips.add_child(cb)
+		look_chips.append(cb)
+	look_picker = ColorPickerButton.new()
+	look_picker.name = "part_look_picker"
+	look_picker.text = "Pick a colour..."
+	look_picker.tooltip_text = "Any colour: one undo step when the picker closes"
+	look_picker.focus_mode = Control.FOCUS_NONE
+	look_picker.popup_closed.connect(_look_picked)
+	look_box.add_child(look_picker)
+	look_box.add_child(_label("Material", 12, true))
+	var pr := GridContainer.new()
+	pr.name = "part_look_presets"
+	pr.columns = 3
+	pr.add_theme_constant_override("h_separation", 4)
+	pr.add_theme_constant_override("v_separation", 4)
+	look_box.add_child(pr)
+	for pn in LOOK_PRESET_ORDER:
+		var pb := Button.new()
+		pb.name = "part_look_" + String(pn).to_lower()
+		pb.text = pn
+		pb.toggle_mode = true
+		pb.focus_mode = Control.FOCUS_NONE
+		var pv: Dictionary = Part.LOOK_PRESETS[pn]
+		pb.tooltip_text = "%s: roughness %s, metal %s, opacity %d%%" % [pn, _fmt(float(pv["rough"])), _fmt(float(pv["metal"])), roundi(float(pv["alpha"]) * 100.0)]
+		pb.pressed.connect(func(): _look_set(_look_now()["c"], pn))
+		pr.add_child(pb)
+		look_presets[pn] = pb
+
+
+## the look of the picked body now (from the replay); a default when none is picked
+func _look_now() -> Dictionary:
+	var bi := _sel_look()
+	if bi < 0:
+		return {"c": Color.WHITE, "rough": 0.5, "metal": 0.15, "alpha": 1.0, "preset": "Default"}
+	return Part.look_at(res.get("body_looks", []), bi)
+
+
+## the picker closed: one step, only when the colour really changed
+func _look_picked() -> void:
+	if _sel_look() < 0:
+		return
+	var cur: Color = _look_now()["c"]
+	if not look_picker.color.is_equal_approx(cur):
+		_look_set(look_picker.color, "Custom")
+
+
+## one appear step on the timeline (one undo step): a colour, or a preset's numbers (with the colour the body has now)
+func _look_set(c: Color, preset: String) -> void:
+	var bi := _sel_look()
+	if bi < 0 or not Part.available():
+		return
+	var cur := _look_now()
+	var nums: Dictionary = Part.LOOK_PRESETS.get(preset, {"rough": cur["rough"], "metal": cur["metal"], "alpha": cur["alpha"]})
+	var rec := _rec()
+	var n := Part.count_of(rec, "appear") + 1
+	m._step_hint = "Appearance"
+	m._push_undo()
+	var f := Part.new_feature(rec, "appear", {"name": "Appearance%d" % n, "body": bi, "preset": preset,
+		"color": [c.r, c.g, c.b], "rough": float(nums["rough"]), "metal": float(nums["metal"]), "alpha": float(nums["alpha"])})
+	(rec["features"] as Array).append(f)
+	upto = -1
+	_say("%s: %s is now %s (%s). Undo takes it back." % [String(f["name"]), _part_name(bi), preset, _look_words(Part.look_of(f))])
+	bu.sync()
+
+
+## the panel's words for a look, in plain words
+func _look_words(l: Dictionary) -> String:
+	var see := "you can see the parts behind it" if float(l["alpha"]) < 1.0 else "solid"
+	return "roughness %s, metal %s, opacity %d%%: %s" % [_fmt(float(l["rough"])), _fmt(float(l["metal"])), roundi(float(l["alpha"]) * 100.0), see]
+
+
+func _look_sync(show: bool) -> void:
+	var bi := _sel_look() if show else -1
+	look_box.visible = bi >= 0
+	if bi < 0:
+		look_sig = ""
+		return
+	var l := _look_now()
+	var sig := JSON.stringify([bi, (l["c"] as Color).to_html(), l["rough"], l["metal"], l["alpha"], l["preset"]])
+	if sig == look_sig:
+		return
+	look_sig = sig
+	side_title.text = "APPEARANCE"
+	look_title.text = _part_name(bi)
+	look_info.text = "Now: %s, %s." % [String(l["preset"]), _look_words(l)]
+	look_picker.color = l["c"]
+	for pn in look_presets:
+		(look_presets[pn] as Button).set_pressed_no_signal(String(l["preset"]) == pn)
+
+
+## the view: one surface per body, each with its own look (alpha below 1 = see-through)
+func _look_surfaces() -> void:
+	if part_mesh.mesh == null:
+		return
+	var ls: Array = res.get("looks", [])
+	for s in mini(ls.size(), part_mesh.mesh.get_surface_count()):
+		var l: Dictionary = ls[s]
+		var mt := StandardMaterial3D.new()
+		var c: Color = l["c"]
+		var a := float(l["alpha"])
+		mt.albedo_color = Color(c.r, c.g, c.b, a)
+		mt.roughness = float(l["rough"])
+		mt.metallic = float(l["metal"])
+		mt.cull_mode = BaseMaterial3D.CULL_DISABLED
+		if a < 1.0:
+			mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		part_mesh.set_surface_override_material(s, mt)
