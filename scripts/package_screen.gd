@@ -34,6 +34,7 @@ var tyre_opt: OptionButton
 var tyre_edit: LineEdit
 var tyre_row: VBoxContainer
 var readouts := {}             # key -> Label
+var feet_hint: Label           # red under the feet readout when the heel point hits the front wheel
 var cls_btns := {}
 var tab_hp: Button
 var tab_cmp: Button
@@ -178,13 +179,22 @@ func build(root: Control) -> void:
 			["height", "Height", "Overall height: the roof above the ground"], ["approach", "Approach angle", "Approach angle: atan(height off the ground / nose length): how steep a kerb the nose clears"],
 			["departure", "Departure angle", "Departure angle: atan(height off the ground / tail length): how steep a slope the tail clears"],
 			["head", "Head room", "Head clearance: the roof minus the seated fighter's head top (the seat back angle counts)"],
-			["breakover", "Ramp angle", "Breakover angle: 2 x atan(height off the ground / half the wheelbase): the largest hump the middle clears"]]:
+			["breakover", "Ramp angle", "Breakover angle: 2 x atan(height off the ground / half the wheelbase): the largest hump the middle clears"],
+			["hpt", "H-point above ground", "H-point above ground: the ground clearance + the floor (150 mm) + the seat height above the floor"],
+			["feet", "Feet clear of the front wheel", "Feet clear: the heel point (seat from the front wheel minus the seated thigh + shin reach along the floor) must be behind the front axle by the tyre radius + 100 mm"]]:
 		var l := Label.new()
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART   # the long feet line wraps instead of widening the panel
 		l.name = "package_read_" + String(rr[0])
 		l.tooltip_text = String(rr[2])
 		l.add_theme_font_size_override("font_size", 15)
 		rd.add_child(l)
 		readouts[String(rr[0])] = l
+	feet_hint = Label.new()
+	feet_hint.name = "package_hint_feet"
+	feet_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	feet_hint.add_theme_font_size_override("font_size", 13)
+	feet_hint.add_theme_color_override("font_color", RED)
+	rd.add_child(feet_hint)
 	sec_cmp = VBoxContainer.new()
 	sec_cmp.name = "package_section_compare"
 	sec_cmp.add_theme_constant_override("separation", 4)
@@ -487,6 +497,12 @@ func _sync() -> void:
 	readouts["departure"].text = "Departure angle  %s deg" % str(snappedf(float(d["departure"]), 0.1))
 	readouts["head"].text = "Head room  %d mm" % int(d["head"])
 	readouts["breakover"].text = "Ramp angle  %s deg" % str(snappedf(float(d["breakover"]), 0.1))
+	readouts["hpt"].text = "H-point above ground  %d mm" % int(d["hpt_ground"])
+	var fok := bool(d["feet_ok"])
+	readouts["feet"].text = "Feet clear of the front wheel  %d mm (needs %d)" % [int(d["heel"]), int(d["feet_min"])]
+	readouts["feet"].add_theme_color_override("font_color", Color(1, 1, 1) if fok else RED)
+	feet_hint.text = "" if fok else "  the driver's feet hit the front wheel"
+	feet_hint.visible = not fok
 	for c in CarPackage.CLASSES:
 		(cls_btns[String(c[0])] as Button).set_pressed_no_signal(String(c[0]) == String(p.get("class", "")))
 	plan.set_points(p)
@@ -580,7 +596,7 @@ func layout() -> void:
 	var top := float(m.TOP_H)
 	var avail := vs.y - top - 52.0
 	var vw := vs.x - PW - 16.0
-	var ph := avail * 0.56
+	var ph := avail * 0.62
 	plan.position = Vector2(0.0, top)
 	plan.size = Vector2(vw, ph)
 	view.position = Vector2(0.0, top + ph + 4.0)

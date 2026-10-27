@@ -40,6 +40,7 @@ func idle(n := 3) -> void:
 
 func _init() -> void:
 	headless_bars()
+	more_bars()
 	await ui_bars()
 	print("carpkg: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
@@ -87,6 +88,41 @@ func headless_bars() -> void:
 	var gl := p3.find_child("ground_line", false, false) as MeshInstance3D
 	var top_y := gl.position.y + (gl.mesh as BoxMesh).size.y * 0.5
 	ok(worst <= 1.0 and touch < 1e-6 and absf(top_y) < 1e-6, "7 WHEELS the four wheels within %.3f mm of their axle points; bottoms within %.6f m of y = 0, ground line top at %.6f m" % [worst, touch, top_y])
+	p3.free()
+
+
+## the driver position, the floor, the feet and the 3D fighter (the bars added with the layout fix)
+func more_bars() -> void:
+	var want := {"City": 1000.0, "Hatch": 1150.0, "Sedan": 1200.0, "SUV": 1150.0, "Roadster": 1250.0}
+	var bad := []
+	for cls in want:
+		var sp := CarPackage.start(cls)
+		if absf(float(sp["hpt_x"]) - float(want[cls])) > 0.01:
+			bad.append("%s %d" % [cls, int(sp["hpt_x"])])
+	var rng := CarPackage.PARAMS[7]
+	ok(bad.is_empty() and rng[0] == "hpt_x" and float(rng[4]) == 700.0 and float(rng[5]) == 1800.0, "16 SEAT the class seat from the front wheel: City 1000, Hatch 1150, Sedan 1200, SUV 1150, Roadster 1250 (range 700-1800) %s" % str(bad))
+	var hp := CarPackage.start("Hatch")
+	var dh := CarPackage.derive(hp)
+	var hg := float(hp["clearance"]) + 150.0 + float(hp["hpt_h"])
+	ok(absf(float(dh["hpt_ground"]) - hg) < 1e-6 and String(CarPackage.PARAMS[6][1]) == "Seat height above the floor", "17 SEAT HEIGHT H-point above ground = clearance %d + floor 150 + seat %d = %.0f mm (readout %.0f)" % [int(hp["clearance"]), int(hp["hpt_h"]), hg, float(dh["hpt_ground"])])
+	var reach := 450.0 + sqrt(430.0 * 430.0 - (260.0 - 90.0) * (260.0 - 90.0))
+	var front := float(dh["r"]) + 100.0
+	var f1 := CarPackage.derive(hp)
+	var f2 := hp.duplicate()
+	f2["hpt_x"] = 1300.0
+	var f2d := CarPackage.derive(f2)
+	ok(absf(float(f1["heel"]) - (1150.0 - reach)) < 0.01 and absf(float(f1["feet_min"]) - front) < 0.01 and not bool(f1["feet_ok"]) and bool(f2d["feet_ok"]),
+		"18 FEET heel point %.0f mm behind the front axle (seat 1150 - reach %.0f), needs %.0f: red at 1150, clear at 1300" % [float(f1["heel"]), reach, front])
+	var p3 := CarPackage.build_3d(hp)
+	var fi := p3.find_child("fighter", false, false) as Node3D
+	var zf := float(hp["wheelbase"]) * 0.0005
+	var hip_want := Vector3(0.0, hg * 0.001, zf - float(hp["hpt_x"]) * 0.001)
+	var fwd := fi.transform.basis.z.normalized() if fi != null else Vector3.ZERO
+	var th := p3.find_child("fighter_thigh", true, false) as Node3D
+	var sh := p3.find_child("fighter_shin", true, false) as Node3D
+	var front_ok := th != null and sh != null and th.position.z > 0.0 and sh.position.z > 0.0
+	ok(fi != null and fwd.dot(Vector3(0.0, 0.0, 1.0)) > 0.9 and fi.position.distance_to(hip_want) <= 0.005 and front_ok,
+		"19 FIGHTER faces the front: forward . package forward %.3f (> 0.9), hip %.4f m from the H-point (<= 0.005), knees and feet to the front axle" % [fwd.dot(Vector3(0.0, 0.0, 1.0)), fi.position.distance_to(hip_want) if fi != null else -1.0])
 	p3.free()
 
 
@@ -158,6 +194,9 @@ func key_in(t: String) -> String:
 
 func shot(nm: String) -> void:
 	await idle(3)
+	if m.ui_toast != null:   # the undo toast is not in the shots: taken down before the save
+		m.ui_toast.visible = false
+	await idle(2)
 	DirAccess.make_dir_recursive_absolute(SHOT)
 	root.get_texture().get_image().save_png("%s/%s.png" % [SHOT, nm])
 
@@ -298,6 +337,33 @@ func ui_bars() -> void:
 	ok(ps.sec_cmp.visible and ps.cmp_box.get_child_count() >= 9 and cmp_red >= 1, "15 COMPARE the tab lists the measures (%d rows, %d red), nearest in the header" % [ps.cmp_box.get_child_count() - 1, cmp_red])
 	await shot("compare")
 	ps.set_param("wheelbase", 2635.0)
+
+	# 20 LABELS: every label of the layout is placed (fits), inside its panel, clear of the others and of the outline; the dimension
+	# labels also stay out of the body (the annotations H-point and head room sit inside the cabin)
+	var plan: CarPlan = ps.plan
+	var lbad := []
+	for i in plan.labels.size():
+		var l1: Dictionary = plan.labels[i]
+		var r1: Rect2 = l1["rect"]
+		var pi := int(l1["panel"])
+		var pn: Rect2 = plan.side_r if pi == 0 else plan.top_r
+		var tn := String(l1["text"])
+		if not bool(l1["fits"]) or not pn.encloses(r1):
+			lbad.append("%s outside its panel" % tn)
+		for j in range(i + 1, plan.labels.size()):
+			var l2: Dictionary = plan.labels[j]
+			if int(l2["panel"]) == pi and r1.intersects(l2["rect"]):
+				lbad.append("%s / %s" % [tn, String(l2["text"])])
+		for pl in plan.outline[pi]:
+			if CarPlan.line_hits(r1, pl):
+				lbad.append("%s on the outline" % tn)
+				break
+		if not tn.begins_with("H-point") and not tn.begins_with("head room"):
+			for so in plan.solids[pi]:
+				if CarPlan.solid_hits(r1, so):
+					lbad.append("%s in the body" % tn)
+					break
+	ok(lbad.is_empty() and plan.labels.size() >= 14, "20 LABELS %d labels, all placed, inside their panel, none on another or the outline: %s" % [plan.labels.size(), str(lbad.slice(0, 4))])
 
 	# 10 SAVE: the file form keeps the package
 	var f := Vehicle.to_file(m.S.vehicle)

@@ -14,17 +14,20 @@ const NECK := 120.0     # mm, base of the neck to the head's centre-line base
 const HEAD := 230.0     # mm, head: chin to crown
 const THIGH := 450.0    # mm, H-point to the knee (horizontal: the seat cushion)
 const SHIN := 430.0     # mm, knee to the ankle
-const PEDAL_H := 90.0   # mm, the ankle's height above the floor line (where the foot rests)
+const PEDAL_H := 90.0   # mm, the ankle's height above the floor (where the foot rests)
+const FLOOR := 150.0    # mm, the floor's thickness: the seat base sits on the floor, so H-point above ground = clearance + FLOOR + seat height
+const FEET := 100.0     # mm, the heel point must be this far behind the front tyre's radius (the front axle + tyre radius + FEET)
 const RED := 0.10       # a metric more than this share off any car of the class is red
 const DEFAULT_TYRE := "225/45R17"
 const TYRES := ["185/55R15", "205/45R17", "215/50R17", "225/40R18", "225/45R17", "225/60R18", "235/35R19"]
-## the chooser: [name on the card, real cars' class (data/real_cars.json), the word for a car of that class in the hints, H-point height mm]
+## the chooser: [name on the card, real cars' class (data/real_cars.json), the word for a car of that class in the hints, seat height above the floor (mm), H-point x: back from the front axle (mm)]
+## (the H-point x is the driver's hip about 1000-1300 mm behind the front axle centre in C-segment cars: the heel sits behind the front tyre)
 const CLASSES := [
-	["City", "A city", "city car", 240.0],
-	["Hatch", "C hatch", "hatchback", 260.0],
-	["Sedan", "C sedan", "sedan", 260.0],
-	["SUV", "C SUV", "SUV", 300.0],
-	["Roadster", "roadster", "roadster", 200.0],
+	["City", "A city", "city car", 240.0, 1000.0],
+	["Hatch", "C hatch", "hatchback", 260.0, 1150.0],
+	["Sedan", "C sedan", "sedan", 260.0, 1200.0],
+	["SUV", "C SUV", "SUV", 300.0, 1150.0],
+	["Roadster", "roadster", "roadster", 200.0, 1250.0],
 ]
 ## the sliders and typed fields: [key, label (plain words), tooltip (the engineering term), unit, lo, hi, step]
 const PARAMS := [
@@ -34,8 +37,8 @@ const PARAMS := [
 	["front_oh", "Nose length", "Front overhang: from the front axle to the front bumper", "mm", 500.0, 1200.0, 5.0],
 	["rear_oh", "Tail length", "Rear overhang: from the rear axle to the back bumper", "mm", 450.0, 1200.0, 5.0],
 	["clearance", "Height off the ground", "Ground clearance: the lowest point under the car, above the ground", "mm", 60.0, 280.0, 5.0],
-	["hpt_h", "Seat height", "H-point height: the hip point of the seated fighter, above the ground", "mm", 150.0, 450.0, 5.0],
-	["hpt_x", "Seat from the front wheel", "H-point x: the hip point's distance back from the front axle", "mm", 150.0, 900.0, 5.0],
+	["hpt_h", "Seat height above the floor", "Seat height: the H-point (hip point) of the seated fighter, above the car's floor", "mm", 150.0, 450.0, 5.0],
+	["hpt_x", "Seat from the front wheel", "H-point x: the hip point's distance back from the front axle centre (the heel point must clear the front tyre)", "mm", 700.0, 1800.0, 5.0],
 	["seat_a", "Seat back angle", "Seat back angle: the lean of the seat back from straight up (seat-back recline)", "deg", 10.0, 40.0, 1.0],
 	["roof", "Roof height", "Overall height: the roof's height above the ground", "mm", 1100.0, 2000.0, 5.0],
 ]
@@ -98,7 +101,7 @@ static func start(cls: String) -> Dictionary:
 	var cc := class_cars(cls)
 	if cc.is_empty():
 		return {"wheelbase": 2640.0, "track_f": 1540.0, "track_r": 1540.0, "front_oh": 820.0, "rear_oh": 820.0, "clearance": 135.0,
-			"hpt_h": 260.0, "hpt_x": 380.0, "seat_a": 25.0, "roof": 1450.0, "tyre": DEFAULT_TYRE, "class": cls}
+			"hpt_h": 260.0, "hpt_x": 1150.0, "seat_a": 25.0, "roof": 1450.0, "tyre": DEFAULT_TYRE, "class": cls}
 	var avg := func(k: String) -> float:
 		var s := 0.0
 		for c in cc:
@@ -109,7 +112,7 @@ static func start(cls: String) -> Dictionary:
 	var oh := roundf((L - wb) * 0.5 / 5.0) * 5.0
 	return {"wheelbase": roundf(wb / 5.0) * 5.0, "track_f": roundf(avg.call("track_f") / 5.0) * 5.0,
 		"track_r": roundf(avg.call("track_r") / 5.0) * 5.0, "front_oh": oh, "rear_oh": oh,
-		"clearance": roundf(avg.call("ground_clearance") / 5.0) * 5.0, "hpt_h": float(class_row(cls)[3]), "hpt_x": 380.0,
+		"clearance": roundf(avg.call("ground_clearance") / 5.0) * 5.0, "hpt_h": float(class_row(cls)[3]), "hpt_x": float(class_row(cls)[4]),
 		"seat_a": 25.0, "roof": roundf(avg.call("height") / 5.0) * 5.0, "tyre": String(cc[0]["tyre"]), "class": cls}
 
 
@@ -128,7 +131,16 @@ static func derive(p: Dictionary) -> Dictionary:
 	var foh := float(p["front_oh"])
 	var roh := float(p["rear_oh"])
 	var head_stack := (TORSO + NECK + HEAD) * cos(deg_to_rad(float(p["seat_a"])))
+	var hpt_h := float(p["hpt_h"])
+	var reach := THIGH + sqrt(maxf(0.0, pow(SHIN, 2.0) - pow(hpt_h - PEDAL_H, 2.0)))   # the seated leg along the floor: thigh + shin
+	var feet_min := float(t["diameter"]) * 0.5 + FEET
+	var heel := float(p["hpt_x"]) - reach                                              # the heel point, back from the front axle
 	return {
+		"hpt_ground": float(p["clearance"]) + FLOOR + hpt_h,
+		"reach": reach,
+		"heel": heel,
+		"feet_min": feet_min,
+		"feet_ok": heel >= feet_min,
 		"length": foh + wb + roh,
 		"width": maxf(float(p["track_f"]), float(p["track_r"])) + float(t["width"]),
 		"height": float(p["roof"]),
@@ -206,7 +218,8 @@ static func rows(p: Dictionary) -> Array:
 
 
 ## the 3D preview from the same numbers (m): the wheels on their axle points, the ground line under them (its top is y = 0), the package
-## box, the seated fighter at the H-point and its envelope. The car's front is +Z; the wheel centre is r above the ground (touching it)
+## box, the seated fighter at the H-point and its envelope. The car's front is +Z; the wheel centre is r above the ground (touching it).
+## The fighter is one Node3D "fighter" at the hip (the H-point): its +Z is forward (the thighs and feet point to the front axle)
 static func build_3d(p: Dictionary) -> Node3D:
 	var d := derive(p)
 	var s := 0.001
@@ -255,19 +268,24 @@ static func build_3d(p: Dictionary) -> Node3D:
 	box.mesh = _wire_box(Vector3(-W * 0.5, 0.0, zr - float(p["rear_oh"]) * s), Vector3(W * 0.5, H, zf + float(p["front_oh"]) * s))
 	box.material_override = _mat(Color(1.0, 0.79, 0.2), true)
 	root.add_child(box)
-	var hpt := Vector3(0.0, float(p["hpt_h"]) * s, zf - float(p["hpt_x"]) * s)
+	# the fighter: one node at the hip (the H-point, above the floor: clearance + floor + seat height); its +Z is the car's forward
+	var hpt := Vector3(0.0, float(d["hpt_ground"]) * s, zf - float(p["hpt_x"]) * s)
+	var fi := Node3D.new()
+	fi.name = "fighter"
+	fi.position = hpt
+	root.add_child(fi)
 	var a := deg_to_rad(float(p["seat_a"]))
 	var back := Vector3(0.0, cos(a), -sin(a))
-	var torso := hpt + back * TORSO * s
-	var neck := hpt + back * (TORSO + NECK) * s
-	var head := hpt + back * (TORSO + NECK + HEAD * 0.5) * s
-	var knee := hpt + Vector3(0.0, 0.0, THIGH * s)
+	var torso := back * TORSO * s
+	var neck := back * (TORSO + NECK) * s
+	var head := back * (TORSO + NECK + HEAD * 0.5) * s
+	var knee := Vector3(0.0, 0.0, THIGH * s)
 	var dy := float(p["hpt_h"]) - PEDAL_H
-	var foot := Vector3(0.0, PEDAL_H * s, knee.z + sqrt(maxf(0.0, pow(SHIN, 2.0) - pow(dy, 2.0))) * s)
-	_stick(root, hpt, torso, 0.16, "fighter_torso")
-	_stick(root, torso, neck, 0.05, "fighter_neck")
-	_stick(root, hpt, knee, 0.09, "fighter_thigh")
-	_stick(root, knee, foot, 0.07, "fighter_shin")
+	var foot := Vector3(0.0, -dy * s, knee.z + sqrt(maxf(0.0, pow(SHIN, 2.0) - pow(dy, 2.0))) * s)
+	_stick(fi, Vector3.ZERO, torso, 0.16, "fighter_torso")
+	_stick(fi, torso, neck, 0.05, "fighter_neck")
+	_stick(fi, Vector3.ZERO, knee, 0.09, "fighter_thigh")
+	_stick(fi, knee, foot, 0.07, "fighter_shin")
 	var hd := MeshInstance3D.new()
 	hd.name = "fighter_head"
 	var sp := SphereMesh.new()
@@ -276,12 +294,12 @@ static func build_3d(p: Dictionary) -> Node3D:
 	hd.mesh = sp
 	hd.position = head
 	hd.material_override = _mat(Color(0.85, 0.7, 0.55))
-	root.add_child(hd)
+	fi.add_child(hd)
 	var lo := Vector3(INF, INF, INF)
 	var hi := Vector3(-INF, -INF, -INF)
-	for v in [hpt, torso, neck, head, knee, foot]:
-		lo = lo.min(v)
-		hi = hi.max(v)
+	for v in [Vector3.ZERO, torso, neck, head, knee, foot]:
+		lo = lo.min(hpt + v)
+		hi = hi.max(hpt + v)
 	lo -= Vector3(0.1, 0.1, 0.1)
 	hi += Vector3(0.1, 0.1, 0.1)
 	var env := MeshInstance3D.new()
@@ -295,7 +313,7 @@ static func build_3d(p: Dictionary) -> Node3D:
 	return root
 
 
-static func _stick(root: Node3D, a: Vector3, b: Vector3, rad: float, nm: String) -> void:
+static func _stick(parent: Node3D, a: Vector3, b: Vector3, rad: float, nm: String) -> void:
 	var mi := MeshInstance3D.new()
 	mi.name = nm
 	var cm := CapsuleMesh.new()
@@ -305,7 +323,7 @@ static func _stick(root: Node3D, a: Vector3, b: Vector3, rad: float, nm: String)
 	mi.position = (a + b) * 0.5
 	mi.quaternion = Quaternion(Vector3.UP, (b - a).normalized())
 	mi.material_override = _mat(Color(0.85, 0.7, 0.55))
-	root.add_child(mi)
+	parent.add_child(mi)
 
 
 static func _mat(c: Color, clear := false) -> StandardMaterial3D:
