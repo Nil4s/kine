@@ -41,13 +41,14 @@ const BAND := 1.5            # the turn may be this many times what H0 gives (mi
 const FREE_DEG := 25.0       # degrees of arm / hip reorientation without momentum (mine; Yeadon 1993, Kane & Scher 1969)
 const GROW_K := 1.6          # the spin momentum in flight may reach this x the take-off value ... (mine)
 const GROW_ADD := 3.0        # ... plus this many kg m^2/s (mine)
-const PIVOT := 0.3           # share of the turn moved into the take-off card
+const PIVOT := 0.3           # share of the turn moved into the take-off card (the first try)
+const PIVOTS := [0.3, 0.25, 0.2, 0.15, 0.1, 0.05, 0.0]   # the shares tried in turn, falling, until the fixed flight is under its bar (mine): less on the take-off means more spin in the air, and a faster take-off rate carries more momentum H0 (so a larger allowed turn)
 const TRUNK_J := ["pelvis", "spine_01", "spine_02", "spine_03", "neck_01"]
 const SOURCE := "g = 9.81 m/s^2, H conserved about the COM; reorientation bar from Yeadon 1993 / Kane & Scher 1969 (heuristic constants)"
 
 
 static func constants_text() -> String:
-	return "a/g in %.2f-%.2f, turn <= %.1f x (H0 / I) integrated + %.0f deg free (arm action), take-off pivot %.0f %% of the turn (heuristic constants)" % [A_LO, A_HI, BAND, FREE_DEG, 100.0 * PIVOT]
+	return "a/g in %.2f-%.2f, turn <= %.1f x (H0 / I) integrated + %.0f deg free (arm action), take-off pivot from %.0f %% of the turn down until the flight is in bar (heuristic constants)" % [A_LO, A_HI, BAND, FREE_DEG, 100.0 * PIVOT]
 
 
 ## world angular velocity (rad/s) track of quaternions at FPS, central difference
@@ -368,7 +369,22 @@ static func cards_of(S: Scene, f: Dictionary) -> Dictionary:
 
 
 ## the fix on a CLONE: {"scene","msg","spin","float","k": changes}. Spin: the take-off pivot + a constant rate. Float: the COM on the parabola.
+## The spin pivot starts at PIVOT; if the fixed flight still turns past its own bar (analyze on the clone), the next lower share in PIVOTS is tried.
 static func fix(S: Scene, B: Body, rep: Dictionary) -> Dictionary:
+	var r := {}
+	for p in PIVOTS:
+		r = _fix_once(S, B, rep, p)
+		var again := analyze(r["scene"], B)
+		var still := false
+		for f in again["flights"]:
+			still = still or bool(f["spin"])
+		if not still:
+			return r
+	r["msg"] = String(r["msg"]) + "; the flight still turns past its bar at every take-off share: check it by hand"
+	return r
+
+
+static func _fix_once(S: Scene, B: Body, rep: Dictionary, pivot: float) -> Dictionary:
 	var C := S.clone()
 	var keep: Dictionary = B.state()
 	var ts := S.times()
@@ -415,9 +431,9 @@ static func fix(S: Scene, B: Body, rep: Dictionary) -> Dictionary:
 			var T1: float = cc["T1"]
 			var done := []
 			for c in range(k, l):   # k (pivot) and the air cards; the landing card is the target as it stands
-				var fr := PIVOT
+				var fr := pivot
 				if c > k:
-					fr = PIVOT + (1.0 - PIVOT) * (float(ts[c][1]) - T0) / maxf(T1 - T0, 1e-6)
+					fr = pivot + (1.0 - pivot) * (float(ts[c][1]) - T0) / maxf(T1 - T0, 1e-6)
 				B.from_dict(C.cards[c]["pose"])
 				B.fk()
 				var want := Quaternion(ax, ang * fr) * Rk
@@ -431,7 +447,7 @@ static func fix(S: Scene, B: Body, rep: Dictionary) -> Dictionary:
 			n_spin += 1
 			if rad_to_deg(widest) > 170.0:
 				notes.append("a gap of %.0f deg between two cards is too wide for a slerp: add a card between them" % rad_to_deg(widest))
-			notes.append("spin %.0f deg (authored direction kept): %.0f deg moved into the take-off card %d, then a constant %.0f deg/s through the air" % [absf(rad_to_deg(ang)), absf(rad_to_deg(ang)) * PIVOT, k + 1, absf(rad_to_deg(ang)) * (1.0 - PIVOT) / maxf(T1 - T0, 1e-6)])
+			notes.append("spin %.0f deg (authored direction kept): %.0f deg moved into the take-off card %d, then a constant %.0f deg/s through the air" % [absf(rad_to_deg(ang)), absf(rad_to_deg(ang)) * pivot, k + 1, absf(rad_to_deg(ang)) * (1.0 - pivot) / maxf(T1 - T0, 1e-6)])
 		if bool(f["float"]) or bool(f["dive"]):
 			var T0b: float = cc["T0"]
 			var T1b: float = cc["T1"]
