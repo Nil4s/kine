@@ -72,6 +72,7 @@ func _init() -> void:
 	m.tour_step = -1
 	if m.ui_tour != null:
 		m.ui_tour.visible = false
+	# 41 = 40 + "Keep this pose" (A1, commit 78efc4f2: the priority flag on the PHYSICS group)
 	ok(OLD.size() == 41, "the old CHECK list has 41 tools")
 	for sz in [Vector2i(1600, 900), Vector2i(1280, 720)]:
 		await size_to(sz.x, sz.y)
