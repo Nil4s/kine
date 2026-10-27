@@ -79,6 +79,7 @@ static func build_node(car: Dictionary, wheel: Dictionary) -> Node3D:
 	var body := MeshInstance3D.new()
 	body.name = "body"
 	body.mesh = Part.replay(car)["mesh"]
+	body.material_override = body_material(car["easy"]["p"])
 	body.position = lay["body"]
 	root.add_child(body)
 	var pivots := []
@@ -88,12 +89,101 @@ static func build_node(car: Dictionary, wheel: Dictionary) -> Node3D:
 		pv.position = lay["wheels"][i]
 		var m := MeshInstance3D.new()
 		m.mesh = Part.replay(wheel)["mesh"]
+		m.material_override = wheel_material(wheel["easy"]["p"])
 		pv.add_child(m)
 		root.add_child(pv)
 		pivots.append(pv)
 	root.set_meta("wheels", pivots)
 	root.set_meta("r", lay["r"])
 	return root
+
+
+## MATERIALS (shaders, so the Part's single mesh per body keeps its one solid): the body is amber paint with the cabin's glass dark
+## (glass = the cabin's faces above its floor that are not roof), the tyre is black with a silver hub (the side faces inside 60 % of the radius).
+## The floor is a grid on the ground. The shaders read the mesh's own positions, so they follow every slider.
+const BODY_SHADER := "shader_type spatial;
+uniform vec4 body_color : source_color = vec4(0.92, 0.55, 0.12, 1.0);
+uniform vec4 glass_color : source_color = vec4(0.03, 0.05, 0.07, 1.0);
+uniform float cabin_base = 0.25;
+uniform float cabin_top = 0.5;
+varying vec3 lpos;
+varying vec3 lnrm;
+void vertex() {
+	lpos = VERTEX;
+	lnrm = NORMAL;
+}
+void fragment() {
+	bool glass = lpos.y > cabin_base + 0.02 && lpos.y < cabin_top - 0.01 && lnrm.y < 0.7;
+	ALBEDO = glass ? glass_color.rgb : body_color.rgb;
+	METALLIC = glass ? 0.0 : 0.5;
+	ROUGHNESS = glass ? 0.05 : 0.35;
+	SPECULAR = glass ? 0.9 : 0.5;
+}
+"
+
+const WHEEL_SHADER := "shader_type spatial;
+uniform vec4 tyre_color : source_color = vec4(0.05, 0.05, 0.06, 1.0);
+uniform vec4 hub_color : source_color = vec4(0.72, 0.74, 0.78, 1.0);
+uniform float hub_r = 0.18;
+varying vec3 lpos;
+varying vec3 lnrm;
+void vertex() {
+	lpos = VERTEX;
+	lnrm = NORMAL;
+}
+void fragment() {
+	bool hub = abs(lnrm.x) > 0.7 && length(lpos.yz) < hub_r;
+	ALBEDO = hub ? hub_color.rgb : tyre_color.rgb;
+	METALLIC = hub ? 0.9 : 0.0;
+	ROUGHNESS = hub ? 0.3 : 0.9;
+}
+"
+
+const FLOOR_SHADER := "shader_type spatial;
+uniform vec4 floor_color : source_color = vec4(0.32, 0.34, 0.38, 1.0);
+uniform vec4 line_color : source_color = vec4(0.5, 0.6, 0.75, 1.0);
+uniform float cell = 0.5;
+varying vec3 wpos;
+void vertex() {
+	wpos = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+}
+void fragment() {
+	vec2 g = wpos.xz / cell;
+	vec2 l = abs(fract(g - 0.5) - 0.5) / max(fwidth(g), vec2(1e-4));
+	float line = 1.0 - clamp(min(l.x, l.y), 0.0, 1.0);
+	ALBEDO = mix(floor_color.rgb, line_color.rgb, line * 0.5);
+	ROUGHNESS = 0.9;
+}
+"
+
+
+static func _shader_mat(code: String) -> ShaderMaterial:
+	var sh := Shader.new()
+	sh.code = code
+	var m := ShaderMaterial.new()
+	m.shader = sh
+	return m
+
+
+## the car body's paint and glass: the cabin's floor and roof (m, body frame) are the chassis top and the body's height
+static func body_material(cp: Dictionary) -> ShaderMaterial:
+	var m := _shader_mat(BODY_SHADER)
+	m.set_shader_parameter("body_color", Color(0.92, 0.55, 0.12))
+	m.set_shader_parameter("cabin_base", float(cp["body_height"]) * 0.5 * Part.MM)
+	m.set_shader_parameter("cabin_top", float(cp["body_height"]) * Part.MM)
+	return m
+
+
+## the tyre (black) with its hub (silver): the hub is 60 % of the wheel's radius
+static func wheel_material(wp: Dictionary) -> ShaderMaterial:
+	var m := _shader_mat(WHEEL_SHADER)
+	m.set_shader_parameter("hub_r", float(wp["radius"]) * Part.MM * 0.6)
+	return m
+
+
+## the ground: a grid of 0.5 m cells
+static func floor_material() -> ShaderMaterial:
+	return _shader_mat(FLOOR_SHADER)
 
 
 ## the car on path c (PathWalk.curve) once it has covered s metres of it: the root sits on the path at s and faces the tangent;

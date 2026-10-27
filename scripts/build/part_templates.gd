@@ -7,7 +7,10 @@ extends RefCounted
 ## params: k (the name), label, lo / hi / def / step (mm), words (the two ends of its slider). dot_of() says which number an amber dot drags.
 
 const MM := 0.001
-const ORDER := ["sword", "axe", "shield", "chair", "crate"]
+const ARCH_R := 330.0   # mm: a car's wheel arch (the default wheel's 300 mm radius + 30 mm clearance), centred on the axle
+const AXLE_Y := 150.0   # mm: the axle height in the car body's own frame (the wheel's 300 mm less the 150 mm clearance)
+const ARCH_D := 120.0   # mm: how deep the arches go into the car's sides (the middle of the chassis is kept whole)
+const ORDER :=["sword", "axe", "shield", "chair", "crate"]
 const T := {
 	"sword": {"title": "Sword", "params": [
 		{"k": "blade_length", "label": "Blade length", "lo": 300.0, "hi": 1200.0, "def": 760.0, "step": 10.0, "words": ["Shorter", "Longer"]},
@@ -128,6 +131,37 @@ static func _yz(pts: Array) -> Array:
 	return _poly(sk)
 
 
+## a closed outline given as Vector2(y, z) points (the car's side profile) with each corner rounded to its radius (mm, 0 = sharp):
+## lines and arcs in the Right plane's sketch (x = -Z, y = Y). A corner's arc runs between the two tangent points.
+static func _rounded(yz: Array, radii: Array) -> Array:
+	var n := yz.size()
+	var pts := []
+	for p in yz:
+		pts.append(Vector2(-(p as Vector2).y, (p as Vector2).x))
+	var tp := []   # per corner: [tangent 1, arc middle, tangent 2] (a sharp corner: the corner three times)
+	for i in n:
+		var P: Vector2 = pts[i]
+		var r: float = radii[i]
+		if r <= 0.0:
+			tp.append([P, P, P])
+			continue
+		var u1: Vector2 = (pts[(i - 1 + n) % n] - P).normalized()
+		var u2: Vector2 = (pts[(i + 1) % n] - P).normalized()
+		var th := acos(clampf(u1.dot(u2), -1.0, 1.0)) * 0.5   # half the corner's angle
+		var bis := (u1 + u2).normalized()
+		var c := P + bis * (r / sin(th))
+		tp.append([P + u1 * (r / tan(th)), c - bis * r, P + u2 * (r / tan(th))])
+	var out := []
+	for i in n:
+		var cur: Array = tp[i]
+		if float(radii[i]) > 0.0:
+			out.append({"k": "arc", "a": Part.arr2(cur[0]), "m": Part.arr2(cur[1]), "b": Part.arr2(cur[2])})
+		var nx: Vector2 = tp[(i + 1) % n][0]
+		if (cur[2] as Vector2).distance_to(nx) > 1e-3:
+			out.append({"k": "line", "a": Part.arr2(cur[2]), "b": Part.arr2(nx)})
+	return out
+
+
 static func _poly(pts: Array) -> Array:
 	var out := []
 	for i in pts.size():
@@ -197,10 +231,23 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(0, sh - st), Vector2(w, sh + bh))]), "extrude", 30.0, "join")
 			_ex(fs, _sk(fs, "right", [_rect(Vector2(-(d - lt), 0), Vector2(-lt, sh - st))]), "extrude", w, "cut")
 		"car":
-			# a box on the ground: length along the Top plane's sketch y (= -Z, the car drives along +Z), width along X, height up
+			# a car in side profile (the Right plane: sketch x = -Z, the car drives along +Z; sketch y = Y), extruded across the width.
+			# Order matters: the chassis, the two wheel arches cut through it, the chassis again across the middle (so the arches keep
+			# only their sides), then the cabin (set back, narrower, sloped glass) on top. Corners are rounded with arcs in the sketch.
 			var L: float = p["body_length"]
 			var W: float = p["body_width"]
-			_ex(fs, _sk(fs, "top", [_rect(Vector2(-W * 0.5, -L * 0.5), Vector2(W * 0.5, L * 0.5))]), "extrude", float(p["body_height"]), "new")
+			var H: float = float(p["body_height"])
+			var wb: float = p["wheelbase"]
+			var h1 := H * 0.5           # the chassis top: the cabin's floor
+			var zf := 0.08 * L          # the cabin's front foot (the bonnet runs from here to the nose)
+			var zr := -0.18 * L         # the cabin's rear foot (the boot runs from here to the tail)
+			var chassis := [Vector2(0, -L * 0.5), Vector2(0, L * 0.5), Vector2(H * 0.36, L * 0.5), Vector2(h1, zf), Vector2(h1, zr), Vector2(H * 0.42, -L * 0.5)]
+			var cabin := [Vector2(h1, zf), Vector2(H, 0.02 * L), Vector2(H, -0.14 * L), Vector2(h1, zr)]
+			_ex(fs, _sk(fs, "right", _rounded(chassis, [40.0, 40.0, 40.0, 0.0, 0.0, 40.0])), "extrude", W, "new", true)
+			for zc in [wb * 0.5, -wb * 0.5]:
+				_ex(fs, _sk(fs, "right", [{"k": "circle", "c": [-zc, AXLE_Y], "r": ARCH_R}]), "extrude", 2.0 * W, "cut", true)
+			_ex(fs, _sk(fs, "right", _rounded(chassis, [40.0, 40.0, 40.0, 0.0, 0.0, 40.0])), "extrude", W - 2.0 * ARCH_D, "join", true)
+			_ex(fs, _sk(fs, "right", _rounded(cabin, [0.0, 40.0, 40.0, 0.0])), "extrude", W * 0.84, "join", true)
 		"wheel":
 			# a tyre: the profile (width x radius) turned about the sketch's x axis = world X, the axle (side to side)
 			var R: float = p["radius"]

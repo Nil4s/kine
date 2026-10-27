@@ -13,6 +13,9 @@ extends SceneTree
 ##   7 CONTROL   a wheel moved 5 cm into the body DOES share volume (> 0.005 m3, a 5 cm slice of the tyre): the intersect check can fail
 ##   8 WHEELBASE a wheelbase of 1.80 m (from 1.584 m): the front axles and the back axles move 108 mm each (the change / 2), and the
 ##               front-to-back distance is the wheelbase within 1 mm
+##  15 CABIN    the body's top 30 % of height (the cabin) is narrower and shorter than its bottom 30 % (the chassis)
+##  16 ARCHES   each wheel centre is inside the body's length, and each tyre's top is above the chassis bottom
+##  17 PAINT    the body is amber paint (red well above blue), not the default grey
 ##  --- the UI (a window, 1280 x 720, real mouse through root.push_input; the chooser's Vehicle card, Easy):
 ##   9 CARD      the Vehicle card is live (Easy and Expert start it), not greyed
 ##  10 SLIDER    a real drag of Wheelbase 158 -> 178 cm: the car's axles move by 0.10 m each within 1 mm; ONE undo step per release
@@ -142,6 +145,36 @@ func headless_bars() -> void:
 	var sep: float = (lay2["wheels"][0] as Vector3).z - (lay2["wheels"][2] as Vector3).z
 	ok(absf(d_front - 0.108) < 0.001 and absf(d_back + 0.108) < 0.001 and absf(sep - 1.8) < 0.001,
 		"8 WHEELBASE 1.80 m: front axles +%.1f mm, back axles %.1f mm, front-to-back %.1f mm" % [d_front * 1000.0, d_back * 1000.0, sep * 1000.0])
+
+	# 15 CABIN: the body mesh's top 30 % of height (the cabin) is narrower and shorter than its bottom 30 % (the chassis)
+	var bm: Mesh = Part.replay(car)["mesh"]
+	var bvs := PackedVector3Array()
+	for si in bm.get_surface_count():
+		bvs.append_array(bm.surface_get_arrays(si)[Mesh.ARRAY_VERTEX] as PackedVector3Array)
+	var ylo := INF
+	var yhi := -INF
+	for v in bvs:
+		ylo = minf(ylo, v.y)
+		yhi = maxf(yhi, v.y)
+	var cab := _xz_span(bvs, yhi - 0.3 * (yhi - ylo), INF)
+	var chs := _xz_span(bvs, -INF, ylo + 0.3 * (yhi - ylo))
+	ok(cab.x < 0.9 * chs.x and cab.y < 0.6 * chs.y, "15 CABIN top 30 %% of the body: %.0f x %.0f mm, bottom 30 %%: %.0f x %.0f mm (width x length; the cabin must be narrower and shorter)" % [cab.x * 1000.0, cab.y * 1000.0, chs.x * 1000.0, chs.y * 1000.0])
+
+	# 16 ARCHES: each wheel centre is inside the body's length, and each tyre's top is above the chassis bottom (the body's underside)
+	var lay4 := Vehicle.layout(cp, wp)
+	var in_len := true
+	var top_ok := true
+	for p in lay4["wheels"]:
+		in_len = in_len and absf((p as Vector3).z) < float(cp["body_length"]) * Part.MM * 0.5
+		top_ok = top_ok and (p as Vector3).y + r > (lay4["body"] as Vector3).y
+	ok(in_len and top_ok, "16 ARCHES each wheel centre is inside the body's length and each tyre's top (%.0f mm) is above the chassis bottom (%.0f mm)" % [(r * 2.0) * 1000.0, (lay4["body"] as Vector3).y * 1000.0])
+
+	# 17 PAINT: the body is painted (not the default grey): its body colour is amber (red well above blue) and its glass is dark
+	var bnode := Vehicle.build_node(car, wh)
+	var bmat := (bnode.get_node("body") as MeshInstance3D).material_override as ShaderMaterial
+	var paint := Color(bmat.get_shader_parameter("body_color")) if bmat != null else Color()
+	ok(bmat != null and paint.r - paint.b > 0.5 and paint.r > 0.5, "17 PAINT the body is amber paint (r %.2f g %.2f b %.2f), not the default grey" % [paint.r, paint.g, paint.b])
+	bnode.free()
 
 
 # ---------------------------------------------------------------- the UI (windowed)
@@ -332,6 +365,17 @@ func ui_bars() -> void:
 	for p in m.S.props:
 		has_car = has_car or String(p["kind"]) == "car:Vehicle"
 	ok(has_car and m.cur_page == "STAGE" and m.undo.size() == u2 + 1 and not ev.visible, "14 USE the car is a prop of the set, STAGE opens, one undo step (page %s)" % m.cur_page)
+
+
+## the x and z extents (m) of the points whose height is in [lo, hi]: Vector2(x span, z span)
+func _xz_span(pts: PackedVector3Array, lo: float, hi: float) -> Vector2:
+	var a := Vector2(INF, INF)
+	var b := Vector2(-INF, -INF)
+	for v in pts:
+		if v.y >= lo and v.y <= hi:
+			a = a.min(Vector2(v.x, v.z))
+			b = b.max(Vector2(v.x, v.z))
+	return b - a
 
 
 func _front_z(ev: EasyVehicle) -> float:

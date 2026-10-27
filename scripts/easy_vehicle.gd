@@ -107,14 +107,13 @@ func build(root: Control) -> void:
 	world.add_child(env)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-50, 30, 0)
+	sun.shadow_enabled = true   # the car casts its shadow on the floor
 	world.add_child(sun)
 	var ground := MeshInstance3D.new()
 	var pl := PlaneMesh.new()
 	pl.size = Vector2(60, 60)
 	ground.mesh = pl
-	var gm := StandardMaterial3D.new()
-	gm.albedo_color = Color(0.32, 0.34, 0.38)
-	ground.material_override = gm
+	ground.material_override = Vehicle.floor_material()   # the floor grid
 	world.add_child(ground)
 	cam = Camera3D.new()
 	cam.name = "easyvehicle_cam"
