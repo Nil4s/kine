@@ -9384,7 +9384,7 @@ func _cons_tg_words(tg: Dictionary) -> String:
 
 ## the picked part's owner for an existing constraint (fade / release / remove): its limb's hand / foot, the hips, the head
 func _cons_owner_picked() -> String:
-	for ty in ["child_of", "track_to"]:
+	for ty in ["child_of", "copy_location", "copy_rotation", "damped_track", "limit_location", "track_to"]:
 		var o := Constraints.owner_of(ty, sel)
 		if o != "" and Constraints.last_on(S, o) >= 0:
 			return o
@@ -9433,6 +9433,50 @@ func _cons_child_of() -> void:
 	_do(func(): Constraints.add_child_of(S, B, owner, tg, t))
 	_dummy_hits()
 	_say("the %s now follows %s from %s, keeping where it is from it (fade it out to let go; Ctrl+Z takes it back)" % [_cons_words(owner), _cons_tg_words(tg), Units.time(t, S.fps)])
+
+
+## Copy location / Copy rotation / Damped track / Limit location: the same shape as Child Of (the target the user picked,
+## else the other hand, else the spot the owner is at); Limit keeps the owner in a box round where it stands
+func _cons_add_kind(type: String) -> void:
+	var owner := Constraints.owner_of(type, sel)
+	if owner == "":
+		_say("%s works on a hand, a foot or the hips: click one of them (or a part of that arm or leg) first" % _cons_kind_words(type))
+		return
+	if S.cards.is_empty():
+		_say("constraints live in a scene: open a scene, or press Enter to add the body as a card first")
+		return
+	var t := clampf(playhead, 0.0, S.length())
+	if type == "limit_location":
+		_do(func(): Constraints.add_limit(S, B, owner, t))
+		_dummy_hits()
+		_say("the %s now stays in a box %d cm each side of where it is, from %s (fade it out to let go; Ctrl+Z takes it back)" % [_cons_words(owner), roundi(Constraints.LIMIT_HALF * 100.0), Units.time(t, S.fps)])
+		return
+	var tg := cons_target
+	if tg.is_empty() or Constraints.bad_target(B, owner, tg) != "":
+		tg = {"kind": "part", "part": Body.twin(owner)} if owner.begins_with("hand") or owner.begins_with("foot") else {"kind": "point", "at": B.P[owner]}
+	var why := Constraints.bad_target(B, owner, tg)
+	if why != "":
+		_say("the %s cannot use %s (%s): pick another target with 'Constraint: use the picked part as the target'" % [_cons_words(owner), _cons_tg_words(tg), why])
+		return
+	if Constraints.target_xf(S, B, tg, t) == null:
+		_say("%s is not there now: pick another target with 'Constraint: use the picked part as the target'" % _cons_tg_words(tg))
+		return
+	_do(func(): Constraints.add_copy(S, B, type, owner, tg, t))
+	_dummy_hits()
+	_say("the %s now %s from %s (fade it out to let go; Ctrl+Z takes it back)" % [_cons_words(owner), _cons_kind_done(type, tg), Units.time(t, S.fps)])
+
+
+func _cons_kind_words(type: String) -> String:
+	return {"copy_location": "Copy location", "copy_rotation": "Copy rotation", "damped_track": "Damped track", "limit_location": "Limit location"}.get(type, type)
+
+
+func _cons_kind_done(type: String, tg: Dictionary) -> String:
+	match type:
+		"copy_location":
+			return "moves to %s's place, keeping its own turn" % _cons_tg_words(tg)
+		"copy_rotation":
+			return "turns with %s, keeping the turn it has against it, and its place" % _cons_tg_words(tg)
+	return "points at %s, keeping its place" % _cons_tg_words(tg)
 
 
 func _cons_look() -> void:
@@ -16088,6 +16132,10 @@ func _commands() -> Array:
 	add.call("Door: open 15 deg (key here)", "", _door_swing.bind(15.0), "door swing open hinge push key", true, "the picked door's leaf turns 15 deg more open about its hinge, keyed at the playhead (up to 110 deg)")
 	add.call("Door: close 15 deg (key here)", "", _door_swing.bind(-15.0), "door swing close shut hinge pull key", true, "the picked door's leaf turns 15 deg back toward shut, keyed at the playhead (down to -110 deg: the other way)")
 	add.call("Constraint: child of the target", "", _cons_child_of, "constraint child of parent follow hold attach hand foot hips prop door hip blender", true, "the picked hand, foot (or the hips) follows the target from the playhead on, keeping where it is from it now; the arm / leg bends to reach")
+	add.call("Constraint: copy the target's place", "", _cons_add_kind.bind("copy_location"), "constraint copy location place position follow move target parent hand foot hips blender", true, "the picked hand, foot (or the hips) moves to the target's place from the playhead on, keeping its own turn; the arm / leg bends to reach")
+	add.call("Constraint: copy the target's turn", "", _cons_add_kind.bind("copy_rotation"), "constraint copy rotation turn angle twist follow target hand foot hips blender", true, "the picked hand, foot (or the hips) turns with the target from the playhead on, keeping the turn it has now against the target; its place stays")
+	add.call("Constraint: point the picked hand or foot at the target", "", _cons_add_kind.bind("damped_track"), "constraint damped track point aim face pointing hand foot target blender", true, "the picked hand or foot turns the least it can so it points at the target from the playhead on; it stays where it is")
+	add.call("Constraint: keep the picked part in a box here", "", _cons_add_kind.bind("limit_location"), "constraint limit location box bound keep inside stay clamp range hand foot hips blender", true, "the picked hand, foot (or the hips) may not leave a box 10 cm each side of where it is now, from the playhead on (inside the box it is untouched)")
 	add.call("Constraint: head looks at the target", "", _cons_look, "constraint track to look at aim head gaze watch face blender", true, "the head turns to the target from the playhead (over 6 frames), never past the neck's limits")
 	add.call("Constraint: keep the picked foot above the floor", "", _cons_floor, "constraint floor ground foot limit sink through blender", true, "the picked foot never goes below the floor, whatever moves it")
 	add.call("Constraint: fade out over 6 frames", "", _cons_fade.bind(0.0), "constraint influence off release let go key blend", true, "the picked part's constraint goes from what it is at the playhead to off over 6 frames (no pop)")

@@ -7,6 +7,10 @@
 ##   "type":   "child_of"  the owner follows a target, keeping the offset it had when the constraint was set
 ##             "track_to"  the head aims at a target (LookAt's neck + head solve), never past the neck's limits
 ##             "floor"     a foot never below the floor (+ "height"); it pushes up, it never pulls down
+##             "copy_location"   the owner moves to the target's place, keeps its turn (no offset: Blender's default)
+##             "copy_rotation"   the owner keeps the turn it had against the target (Offset, taken when made), keeps its place
+##             "damped_track"    a hand / foot turns the least it can so its pointing direction aims at the target
+##             "limit_location"  the owner's place kept inside the box "min".."max" (m, world); inside it: untouched
 ##   "owner":  child_of: "hand_l" "hand_r" "foot_l" "foot_r" (the limb reaches it with LimbIK.solve, so the arm bends
 ##             instead of the hand detaching) or "pelvis" (the whole body moves: the root); track_to: "head";
 ##             floor: "foot_l" "foot_r"
@@ -38,8 +42,12 @@
 class_name Constraints
 extends RefCounted
 
-const TYPES := ["child_of", "track_to", "floor"]
+const TYPES := ["child_of", "track_to", "floor", "copy_location", "copy_rotation", "damped_track", "limit_location"]
 const CHILD_OWNERS := ["hand_l", "hand_r", "foot_l", "foot_r", "pelvis"]
+const LIMB_OWNERS := ["hand_l", "hand_r", "foot_l", "foot_r"]
+## the types that move the owner (a limb or the hips): they set the other hand on a held bat and count as "owned"
+const MOVERS := ["child_of", "copy_location", "copy_rotation", "damped_track", "limit_location"]
+const LIMIT_HALF := 0.10   # m: a new limit_location box is this far each side of the owner where it stands
 const KINDS := ["part", "weapon", "point", "prop", "actor"]
 const SAME_T := 0.001   # influence keys closer than this are the same key (keying there again replaces it)
 const FADE_FRAMES := 6  # the commands' fade length (frames)
@@ -62,6 +70,10 @@ static func owner_of(type: String, part: String) -> String:
 		"floor":
 			var l := LimbIK.limb_of(part)
 			return l if l.begins_with("foot") else ""
+		"copy_location", "copy_rotation", "limit_location":
+			return owner_of("child_of", part)
+		"damped_track":
+			return LimbIK.limb_of(part)
 	return ""
 
 
@@ -189,17 +201,24 @@ static func play(S: Scene, B: Body, t: float) -> Array:
 		match String(c.get("type", "")):
 			"child_of":
 				r = _child_of(S, B, c, w, t)
-				if not r.is_empty() and c["owner"] != "pelvis":
-					limb_moved = true
-					owned[c["owner"]] = true
-				elif not r.is_empty():
-					limb_moved = true
 			"track_to":
 				r = _track_to(S, B, c, w, t)
 			"floor":
 				r = _floor(B, c, w)
+			"copy_location":
+				r = _copy_location(S, B, c, w, t)
+			"copy_rotation":
+				r = _copy_rotation(S, B, c, w, t)
+			"damped_track":
+				r = _damped_track(S, B, c, w, t)
+			"limit_location":
+				r = _limit_location(B, c, w)
 		if r.is_empty():
 			continue
+		if String(c["type"]) in MOVERS:
+			limb_moved = true
+			if c["owner"] != "pelvis":
+				owned[c["owner"]] = true
 		r["i"] = i
 		r["type"] = c["type"]
 		r["owner"] = c["owner"]
@@ -349,6 +368,154 @@ static func _floor(B: Body, c: Dictionary, w: float) -> Dictionary:
 	return {"miss": maxf(0.0, h - B.foot_sole_low(sd)), "rot_miss": 0.0, "clamped": r["clamped"]}
 
 
+# ---------------------------------------------------------------- copy location, copy rotation, damped track, limit location
+## COPY LOCATION moves the owner to the target's place and keeps its turn; COPY ROTATION turns it to the target's turn and
+## keeps its place. Both are Blender's defaults (Offset off): no stored offset, so the owner sits on the target itself.
+static func _copy_location(S: Scene, B: Body, c: Dictionary, w: float, t: float) -> Dictionary:
+	var owner: String = c["owner"]
+	var tg: Dictionary = c.get("target", {})
+	if bad_target(B, owner, tg) != "":
+		return {}
+	var T = target_xf(S, B, tg, t)
+	if T == null:
+		return {}
+	var at: Vector3 = (T as Transform3D).origin
+	if owner == "pelvis":
+		var pos: Vector3 = (B.P["pelvis"] as Vector3).lerp(at, w) if w < 1.0 else at
+		B.offset = pos - (B.p0["pelvis"] as Vector3)
+		B.fk()
+		return {"miss": ((B.P["pelvis"] as Vector3) - at).length(), "rot_miss": 0.0, "clamped": []}
+	return _limb_to(B, owner, at, B.G[owner], w)
+
+
+static func _copy_rotation(S: Scene, B: Body, c: Dictionary, w: float, t: float) -> Dictionary:
+	var owner: String = c["owner"]
+	var tg: Dictionary = c.get("target", {})
+	if bad_target(B, owner, tg) != "":
+		return {}
+	var T = target_xf(S, B, tg, t)
+	if T == null:
+		return {}
+	var cq := (T as Transform3D).basis.get_rotation_quaternion().normalized()
+	if c.has("offset"):   # Copy Rotation's Offset (Blender): the turn it had against the target when made, kept
+		cq = (cq * (c["offset"]["rot"] as Quaternion)).normalized()
+	if owner == "pelvis":
+		var q := (B.G["pelvis"] as Quaternion).slerp(cq, w) if w < 1.0 else cq
+		var v := B.decompose("pelvis", q.normalized())
+		var old: Vector3 = B.ang["pelvis"]
+		while v.z - old.z > 180.0:
+			v.z -= 360.0
+		while v.z - old.z < -180.0:
+			v.z += 360.0
+		var cv := B.clamp_ang("pelvis", v)
+		B.ang["pelvis"] = cv
+		B.fk()
+		return {"miss": 0.0, "rot_miss": rad_to_deg((B.G["pelvis"] as Quaternion).angle_to(cq)),
+			"clamped": ["pelvis"] if (cv - v).length() > 1e-4 else []}
+	return _limb_to(B, owner, B.P[owner], cq, w)
+
+
+## a hand / foot put at `at` with the turn `rot` (null: its FK turn kept) by LimbIK.solve (the arm / leg bends to reach),
+## the angles mixed with the animated ones by the influence. The report's "miss" is the place left, "rot_miss" the turn
+static func _limb_to(B: Body, owner: String, at: Vector3, rot, w: float) -> Dictionary:
+	var was := {}
+	for j in _chain_of(B, owner):
+		was[j] = B.ang[j]
+	var r := LimbIK.solve(B, owner, at, LimbIK.pole_from_pose(B, owner), rot)
+	_mix(B, was, w)
+	var rm := 0.0
+	if rot != null:
+		rm = rad_to_deg((B.G[owner] as Quaternion).angle_to(rot as Quaternion))
+	return {"miss": ((B.P[owner] as Vector3) - at).length(), "rot_miss": rm, "clamped": r["clamped"]}
+
+
+## the direction a hand / foot points along now: from the owner to its first child joint (a hand: its first knuckle)
+static func _track_dir(B: Body, owner: String) -> Vector3:
+	for j in Body.ORDER:
+		if String(B.parent.get(j, "")) == owner:
+			return ((B.P[j] as Vector3) - (B.P[owner] as Vector3)).normalized()
+	return (B.G[owner] as Quaternion) * Vector3.UP
+
+
+## the shortest turn that takes unit direction a onto unit direction b
+static func _arc(a: Vector3, b: Vector3) -> Quaternion:
+	if a.dot(b) < -0.999999:
+		var ax := a.cross(Vector3.UP)
+		if ax.length() < 1e-4:
+			ax = a.cross(Vector3.RIGHT)
+		return Quaternion(ax.normalized(), PI)
+	return Quaternion(a, b).normalized()
+
+
+## DAMPED TRACK: the hand / foot turns, the least it can, so its pointing direction aims at the target; its place kept
+static func _damped_track(S: Scene, B: Body, c: Dictionary, w: float, t: float) -> Dictionary:
+	var owner: String = c["owner"]
+	var tg: Dictionary = c.get("target", {})
+	if bad_target(B, owner, tg) != "":
+		return {}
+	var T = target_xf(S, B, tg, t)
+	if T == null:
+		return {}
+	var P0: Vector3 = B.P[owner]
+	var to: Vector3 = (T as Transform3D).origin - P0
+	if to.length() < 1e-6:
+		return {}
+	to = to.normalized()
+	var turn := _arc(_track_dir(B, owner), to)
+	var rot := (turn * (B.G[owner] as Quaternion)).normalized()
+	var r := _limb_to(B, owner, P0, rot, w)
+	r["rot_miss"] = rad_to_deg(acos(clampf(_track_dir(B, owner).dot(to), -1.0, 1.0)))
+	return r
+
+
+## LIMIT LOCATION: the owner's place kept inside the box "min".."max" (m, world). Inside the box nothing is touched
+static func _limit_location(B: Body, c: Dictionary, w: float) -> Dictionary:
+	var owner: String = c["owner"]
+	var p: Vector3 = B.P[owner]
+	var to := p.clamp(c["min"], c["max"])
+	if (to - p).length() < 1e-9:
+		return {}
+	if owner == "pelvis":
+		var pos := p.lerp(to, w) if w < 1.0 else to
+		B.offset += pos - p
+		B.fk()
+		return {"miss": ((B.P["pelvis"] as Vector3) - to).length(), "rot_miss": 0.0, "clamped": []}
+	return _limb_to(B, owner, to, B.G[owner], w)
+
+
+## COPY LOCATION / COPY ROTATION / DAMPED TRACK from the body as it is NOW: no offset (Blender's defaults), influence keyed
+## 0 one frame before t and 1 at t, like Child Of. Damped Track is for a hand or foot only. Appended; returns it ({} = refused)
+static func add_copy(S: Scene, B: Body, type: String, owner: String, tg: Dictionary, t: float) -> Dictionary:
+	if not type in ["copy_location", "copy_rotation", "damped_track"]:
+		return {}
+	var owners: Array = LIMB_OWNERS if type == "damped_track" else CHILD_OWNERS
+	if not owner in owners or bad_target(B, owner, tg) != "" or target_xf(S, B, tg, t) == null:
+		return {}
+	var c := {"type": type, "owner": owner, "target": tg.duplicate(true), "w": 1.0, "wk": []}
+	if type == "copy_rotation":   # the owner's turn against the target's, taken now (Offset on): what it keeps
+		var O: Transform3D = (target_xf(S, B, tg, t) as Transform3D).affine_inverse() * owner_xf(B, owner)
+		c["offset"] = {"pos": Vector3.ZERO, "rot": O.basis.get_rotation_quaternion().normalized()}
+	return _append_on(S, c, t)
+
+
+## LIMIT LOCATION on a hand, foot or the hips: a box LIMIT_HALF m each side of where the owner stands at t, from t on
+static func add_limit(S: Scene, B: Body, owner: String, t: float) -> Dictionary:
+	if not owner in CHILD_OWNERS:
+		return {}
+	var p: Vector3 = B.P[owner]
+	var h := Vector3.ONE * LIMIT_HALF
+	var c := {"type": "limit_location", "owner": owner, "min": p - h, "max": p + h, "w": 1.0, "wk": []}
+	return _append_on(S, c, t)
+
+
+static func _append_on(S: Scene, c: Dictionary, t: float) -> Dictionary:
+	var dt := 1.0 / maxf(float(S.fps), 1.0)
+	if t - dt > -1e-9:
+		c["wk"] = [[t - dt, 0.0], [t, 1.0]]
+	S.cons.append(c)
+	return c
+
+
 # ---------------------------------------------------------------- making and keying them (main.gd's commands)
 
 ## CHILD OF from the body as it is NOW (B, posed at t): offset = target^-1 x owner, so at t nothing moves. Influence
@@ -491,6 +658,9 @@ static func to_file(cons: Array) -> Array:
 				"rot": [snappedf(q.x, 0.000001), snappedf(q.y, 0.000001), snappedf(q.z, 0.000001), snappedf(q.w, 0.000001)]}
 		if c["type"] == "floor":
 			d["height"] = snappedf(float(c.get("height", 0.0)), 0.0001)
+		if c["type"] == "limit_location":
+			d["min"] = Body._p(c["min"])
+			d["max"] = Body._p(c["max"])
 		d["w"] = snappedf(clampf(float(c.get("w", 1.0)), 0.0, 1.0), 0.0001)
 		if not (c.get("wk", []) as Array).is_empty():
 			d["wk"] = (c["wk"] as Array).map(func(k): return [snappedf(float(k[0]), 0.0001), snappedf(clampf(float(k[1]), 0.0, 1.0), 0.0001)])
@@ -540,6 +710,9 @@ static func from_file(a: Variant) -> Array:
 				"rot": Quaternion(float(r[0]), float(r[1]), float(r[2]), float(r[3])).normalized()}
 		if c["type"] == "floor":
 			c["height"] = float(d.get("height", 0.0))
+		if c["type"] == "limit_location":
+			c["min"] = Body._v(d.get("min", [0, 0, 0]))
+			c["max"] = Body._v(d.get("max", [0, 0, 0]))
 		for k in d.get("wk", []):
 			c["wk"].append([float(k[0]), clampf(float(k[1]), 0.0, 1.0)])
 		c["wk"].sort_custom(func(x, y): return x[0] < y[0])
@@ -562,6 +735,11 @@ static func mirror_file(a: Array) -> Array:
 			if m["target"].has("at"):
 				var p: Array = m["target"]["at"]
 				m["target"]["at"] = [-float(p[0]), float(p[1]), float(p[2])]
+		if m.has("min"):   # the box mirrors: x runs the other way
+			var lo: Array = m["min"]
+			var hi: Array = m["max"]
+			m["min"] = [-float(hi[0]), float(lo[1]), float(lo[2])]
+			m["max"] = [-float(lo[0]), float(hi[1]), float(hi[2])]
 		if m.has("offset"):
 			var p: Array = m["offset"]["pos"]
 			var q: Array = m["offset"]["rot"]
