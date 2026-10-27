@@ -46,7 +46,8 @@ static func preflight(S: Scene, B: Body, id: String, anim_name: String) -> Array
 
 ## the whole delivery: pre-flight lines go to report (a Callable taking the Array) BEFORE the file is written.
 ## Returns {"path", "err", "lines", "wrong"}.
-static func export(S: Scene, B: Body, id: String, dir: String, report := Callable()) -> Dictionary:
+## blows: the fighters' blows (ImpactFrames.blows; [] with one fighter), written as the impact feel file beside the .glb (I3)
+static func export(S: Scene, B: Body, id: String, dir: String, report := Callable(), blows: Array = []) -> Dictionary:
 	var p := preset(id)
 	if p.is_empty():
 		return {"path": "", "err": ERR_INVALID_PARAMETER, "lines": [], "wrong": 0}
@@ -77,8 +78,12 @@ static func export(S: Scene, B: Body, id: String, dir: String, report := Callabl
 			else:
 				f.store_string(JSON.stringify(sc, "	"))
 				f.close()
+	# IMPACT FEEL (ROADMAP I3): the blows as rumble events, next to the .glb (an empty list when there is no blow)
+	var feel := ""
+	if err == OK:
+		feel = ImpactFeel.write(path, ImpactFeel.sidecar(blows, int(S.fps), an))
 	B.set_state(keep)
-	return {"path": path, "err": err, "lines": lines, "wrong": wrong, "trail": trail}
+	return {"path": path, "err": err, "lines": lines, "wrong": wrong, "trail": trail, "feel": feel, "feel_n": blows.size()}
 
 
 static func _bone(sk: Skeleton3D, nm: String) -> int:

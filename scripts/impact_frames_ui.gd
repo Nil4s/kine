@@ -55,12 +55,7 @@ func compute() -> Array:
 	if ImpactFrames.already(m._hero_scene()):
 		m._say("this scene already has impact frames: use 'Remove impact frames' first, then add them again")
 		return []
-	var hs: Scene = (m.actors_rt[0]["S"] as Scene).clone()
-	var others := []
-	for i in range(1, m.actors_rt.size()):
-		others.append({"name": m.actors_rt[i]["name"], "S": (m.actors_rt[i]["S"] as Scene).clone(), "xf": m.actors_rt[i]["xf"]})
-	var rows: Array = m._fighters_measure(hs, others)["hits"]
-	var out := ImpactFrames.plan(ImpactFrames.blows(m.actors_rt, rows))
+	var out := ImpactFrames.plan(m._impact_blows())
 	if out.is_empty():
 		m._say("no weapon or fist touches a fighter's body in this scene: swing into the other fighter (Check > Dummy lists the contacts), then try again")
 	return out
