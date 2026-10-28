@@ -207,7 +207,7 @@ func _init() -> void:
 	# 3 HOUSE: a Box on the floor pulled up 60 mm, a Pointy on its front face, pulled out 60 mm
 	await fresh_part(pu)
 	m.target = Vector3(0.0, 0.03, 0.0)
-	m.pitch = 5.0
+	m.pitch = -35.0   # looking down: an empty-space press draws on the floor (side-on, |pitch| < 15, draws upright since PR #81)
 	m.yaw = 0.0
 	m._cam()
 	await idle(60)
