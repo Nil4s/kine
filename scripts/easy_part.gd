@@ -578,6 +578,9 @@ func _flush() -> void:
 	if not _pending.is_empty():
 		PartTemplates.retemplate(_rec(), _pending)
 		_pending = {}
+	var note := PartTemplates.fit_rounds(_rec())   # a new size (or the How round slider) can leave a round too big for its edges: it shrinks, and says so
+	if note != "":
+		_say(note)
 	pu.sync()
 	m.part_weapon_changed(_rec())   # a held Part weapon takes the new numbers and shape
 	_values_sync()
@@ -1390,9 +1393,13 @@ func _blend(rec: Dictionary) -> String:
 	if same:
 		var base := String(a["plane"]) if String(a["plane"]) in Part.PLANES else _base_plane(rec, String(a["plane"]))
 		var mm_a := 0.0 if String(a["plane"]) in Part.PLANES else float(Part.feature(rec, String(a["plane"])).get("mm", 0.0))
+		# the offset plane and a copy of the newer shape go at the END: a template owns its first features and rewrites them by index
+		# (PartTemplates.retemplate), so a step inserted among them was overwritten by a slider (nfillet, chaos seed 5)
 		var pl := Part.new_feature(rec, "plane", {"from": base, "mm": mm_a + 40.0})   # the newer shape 40 mm off the older one, along the normal
-		rec["features"].insert(Part.index_of(rec, String(b["id"])), pl)
-		b["plane"] = String(pl["id"])
+		rec["features"].append(pl)
+		var nb := Part.new_feature(rec, "sketch", {"plane": String(pl["id"]), "ents": (b["ents"] as Array).duplicate(true), "dims": (b.get("dims", []) as Array).duplicate(true)})
+		rec["features"].append(nb)
+		b = nb
 	var f := Part.new_feature(rec, "loft", {"sketches": [a["id"], b["id"]], "ruled": true, "op": "join"})
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
