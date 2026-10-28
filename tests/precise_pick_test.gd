@@ -171,13 +171,20 @@ func all_tris() -> Array:
 	return out
 
 
+## ray vs triangle at mm (rayeps): Geometry3D.ray_intersects_triangle returns null when |edge1 . (dir x edge2)| < 1e-5, so a
+## triangle with mm-sized edges given in metres is silently missed. The same ray on the x1000 triangle has 1e6 the determinant.
+func ray_mm(o: Vector3, d: Vector3, a: Vector3, b: Vector3, c: Vector3) -> Variant:
+	var h: Variant = Geometry3D.ray_intersects_triangle(o * 1000.0, d, a * 1000.0, b * 1000.0, c * 1000.0)
+	return null if h == null else (h as Vector3) / 1000.0
+
+
 ## the brute force: the nearest skin hit along the ray (distance, INF none)
 func brute(o: Vector3, d: Vector3, tris: Array) -> float:
 	var best := INF
 	var skp: SkinPick = m.skp
 	for t in tris:
 		var pos: PackedVector3Array = skp.surfs[t[0]]["pos"]
-		var r = Geometry3D.ray_intersects_triangle(o, d, pos[t[1]], pos[t[2]], pos[t[3]])
+		var r = ray_mm(o, d, pos[t[1]], pos[t[2]], pos[t[3]])
 		if r != null:
 			best = minf(best, ((r as Vector3) - o).dot(d))
 	return best
@@ -190,7 +197,7 @@ func brute_hit(o: Vector3, d: Vector3, tris: Array) -> Array:
 	var skp: SkinPick = m.skp
 	for t in tris:
 		var pos: PackedVector3Array = skp.surfs[t[0]]["pos"]
-		var r = Geometry3D.ray_intersects_triangle(o, d, pos[t[1]], pos[t[2]], pos[t[3]])
+		var r = ray_mm(o, d, pos[t[1]], pos[t[2]], pos[t[3]])
 		if r != null and ((r as Vector3) - o).dot(d) < best:
 			best = ((r as Vector3) - o).dot(d)
 			out = t
