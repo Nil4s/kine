@@ -1329,6 +1329,9 @@ func _process(_dt: float) -> void:
 			armed = ""
 			_drag = {}
 			_draft = {}
+		elif m.cam != null and _side_on():
+			m.pitch = ENTRY_PITCH   # Easy Part opens LOOKING DOWN: the app's level start view (-8 deg) would make every first drawing upright
+			m._cam()
 	if on and _near_saved < 0.0 and m.cam != null:
 		_near_saved = m.cam.near
 		m.cam.near = minf(_near_saved, FRAME_NEAR)   # EFRAME: a small part framed close (the plate's corners stay in front of the lens)
@@ -1740,10 +1743,14 @@ func _floor_sync(on: bool) -> void:
 	floor_mi.visible = on
 
 
-## UPRIGHT THROUGH THE MIDDLE (side-on): the camera looks along a horizontal line (|pitch| < 25 deg), so a press on empty space draws on
+## UPRIGHT THROUGH THE MIDDLE (side-on): the camera looks along a horizontal line (|pitch| < SIDE_ON), so a press on empty space draws on
 ## the upright plane through the part's middle that faces the camera: Front (+Z) or Right (+X), whichever the yaw is nearer to.
+const SIDE_ON := 15.0       # deg: the camera within this of level looks side-on (the ViewCube's FRONT / RIGHT); Easy opens at ENTRY_PITCH
+const ENTRY_PITCH := -30.0
+
+
 func _side_on() -> bool:
-	return absf(float(m.pitch)) < 25.0
+	return absf(float(m.pitch)) < SIDE_ON
 
 
 ## {"pl": the plane (offset to the part box's middle), "base": "front"|"right", "mm": the offset along its normal, "through": true}

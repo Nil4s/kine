@@ -1,8 +1,8 @@
 extends SceneTree
 ## godot --path . --position 4000,4000 -s tests/eside_test.gd     (ESIDE: Easy Part draws UPRIGHT through the middle when the camera looks side-on; scripts/easy_part.gd; needs the CAD DLL and a window)
-## Monkey-brain direction: "you draw on what you look at". Side-on (|pitch| < 25) a Draw shape / Curvy line press on EMPTY space draws on the upright
+## Monkey-brain direction: "you draw on what you look at". Side-on (|pitch| < 15, Easy opens at -30) a Draw shape / Curvy line press on EMPTY space draws on the upright
 ## plane through the part's middle that faces the camera (Front or Right by yaw); Pull it up pulls BOTH ways so the handle is centred on the mug.
-## Looking down (|pitch| >= 25) still draws on the floor. Real clicks and drags at 1280 x 720.
+## Looking down (|pitch| >= 15) still draws on the floor. Real clicks and drags at 1280 x 720.
 ## Bars (bar 1 FAILED on the old code: the side-on press drew on the floor, so the handle lay flat and one-sided):
 ##   1 HANDLE  a mug (round r 40 on the floor, Pull to 80, Cut a hole > Hollow inside), camera side-on by a ViewCube FRONT click, a closed Curvy loop
 ##             overlapping the wall at two places and bulging out to +X, Pull it up 10 mm: ONE body, volume grows, the box grows on the +X side only,
@@ -199,6 +199,8 @@ func _init() -> void:
 	await click_ctl(pu().part_btn)
 	await click_ctl(pu().easy_open_btn)
 	await idle(4)
+	# 0 ENTRY: the app starts level (main.gd pitch -8, side-on by the rule): Easy Part must open LOOKING DOWN, or every first drawing is upright
+	ok(not ep()._side_on() and float(m.pitch) <= -15.0, "0 ENTRY Easy Part opens looking down (pitch %.1f): a first drawing goes on the floor" % float(m.pitch))
 
 	# 0 + the mug: round r 40, Pull to 80 mm, Cut a hole > Hollow inside
 	await round_cup(8.0)
@@ -222,7 +224,7 @@ func _init() -> void:
 	ev.position = cen
 	cube._gui_input(ev)
 	await idle(60)
-	ok(absf(float(m.pitch)) < 25.0, "1a SIDE the ViewCube FRONT click looks side-on (yaw %.1f, pitch %.1f)" % [float(m.yaw), float(m.pitch)])
+	ok(ep()._side_on(), "1a SIDE the ViewCube FRONT click looks side-on (yaw %.1f, pitch %.1f)" % [float(m.yaw), float(m.pitch)])
 
 	# 1 HANDLE: a closed Curvy loop on the wall: in at the top and bottom of the wall, out to +X
 	var v0 := vol()
