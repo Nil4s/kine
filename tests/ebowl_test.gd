@@ -128,15 +128,16 @@ func down_hits() -> Array:
 	var arr: Array = mesh.surface_get_arrays(0)
 	var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 	var ix = arr[Mesh.ARRAY_INDEX]
-	var from := Vector3(0.0005, 1.0, 0.0003)   # 0.5 mm off the axis, off the seam (a ray ON a triangle edge can miss)
+	var from := Vector3(0.5, 1000.0, 0.3)   # in MM, 0.5 mm off the axis, off the seam (a ray ON a triangle edge can miss). MM, not metres: Godot's
+	                                        # ray_intersects_triangle drops a triangle whose determinant is under 1e-5, i.e. every mm-sized one in metres
 	var n: int = (ix.size() if ix != null else vs.size()) / 3
 	for t in n:
 		var a: Vector3 = vs[ix[3 * t]] if ix != null else vs[3 * t]
 		var b: Vector3 = vs[ix[3 * t + 1]] if ix != null else vs[3 * t + 1]
 		var c: Vector3 = vs[ix[3 * t + 2]] if ix != null else vs[3 * t + 2]
-		var h = Geometry3D.ray_intersects_triangle(from, Vector3.DOWN, a, b, c)
+		var h = Geometry3D.ray_intersects_triangle(from, Vector3.DOWN, a / Part.MM, b / Part.MM, c / Part.MM)
 		if h != null:
-			out.append((h as Vector3).y / Part.MM)
+			out.append((h as Vector3).y)
 	out.sort()
 	return out
 
