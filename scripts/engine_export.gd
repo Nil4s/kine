@@ -135,6 +135,7 @@ static func _checks(root: Node3D, S: Scene, B: Body, id: String, an: String) -> 
 	var P0 := Vector3.ZERO
 	var travel := 0.0
 	var drift := 0.0
+	var local0 := Vector3.ZERO
 	for k in n + 1:
 		var t := minf(k / fps, L)
 		S.apply(B, t)
@@ -142,9 +143,15 @@ static func _checks(root: Node3D, S: Scene, B: Body, id: String, an: String) -> 
 			P0 = B.P["pelvis"]
 		var D: Vector3 = B.P["pelvis"] - P0
 		travel = maxf(travel, Vector2(D.x, D.z).length())
-		# the pelvis after the travel is taken off it (UE5): its horizontal place against frame 0
-		var left: Vector3 = B.P["pelvis"] - Vector3(D.x, 0.0, D.z) - P0
-		drift = maxf(drift, Vector2(left.x, left.z).length())
+		# the pelvis as the file holds it (GltfExport._animate): its place with the travel taken off, against frame 0.
+		# (Measured on the same formula the writer uses; the old check subtracted the travel from its own source and
+		# was always zero, so the line said "drift 0 mm" whatever the file held.)
+		var T := Vector3(D.x, 0.0, D.z)
+		var local: Vector3 = B.gltf_pelvis_pos() - B.root_rot.inverse() * T
+		if k == 0:
+			local0 = local
+		var dl: Vector3 = local - local0
+		drift = maxf(drift, Vector2(dl.x, dl.z).length())
 	if bool(p.get("root_motion", false)):
 		if sk.find_bone("root") >= 0:
 			out.append("OK    root motion: the pelvis travels %s sideways; it is on the root bone, and the pelvis keeps its place (drift %s)" % [Units.len(travel), Units.len(drift)])
