@@ -550,10 +550,6 @@ func _say(t: String) -> void:
 	msg = t
 
 
-func _refuse_no_dll() -> bool:
-	return not Part.available()
-
-
 # ---------------------------------------------------------------- undo steps
 
 func _begin(label: String) -> void:
