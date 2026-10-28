@@ -76,7 +76,14 @@ func _build() -> void:
 		col.add_child(row)
 		_sl[ch] = sl
 		_lb[ch] = lb
-	dlg.add_child(col)
+	# BODYWALK: the 17 sliders scroll inside a 430 px box, so the dialog's own buttons (Key at playhead, Mirror, Cancel) fit a 720 px window
+	var scroll := ScrollContainer.new()
+	scroll.name = "face_scroll"
+	scroll.custom_minimum_size = Vector2(440, 430)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(col)
+	dlg.add_child(scroll)
 	dlg.confirmed.connect(_ok)
 	dlg.custom_action.connect(_action)
 	dlg.visibility_changed.connect(_vis)
@@ -114,14 +121,13 @@ func _changed() -> void:
 
 func open() -> void:
 	var S: Scene = m.S
-	if S.cards.is_empty():
-		m._say("the face is keyed at the playhead: open a scene with cards first (or press Enter to clip the body)")
-		return
 	if dlg == null:
 		_build()
 	_set_values(Face.values_at(S.face, float(m.playhead)))
 	_note.text = ("Lip sync is baked on this scene: it drives the jaw and the visemes at the playhead, so OK keys only the brows, eyes and blink for them."
 		if not S.lip.is_empty() else "Sliders preview on the head. OK keys all of them at the playhead as one undo step.")
+	if S.cards.is_empty():   # BODYWALK: a body with no clips is one still face for the whole scene (time 0)
+		_note.text = "No clips yet: this face is the body's face for the whole scene. Sliders preview on the head; OK keys it (one undo step)."
 	dlg.title = "Face at %.2f s" % float(m.playhead)
 	dlg.popup_centered()
 	for ch in Face.CHANNELS:
