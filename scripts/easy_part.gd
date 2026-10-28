@@ -501,7 +501,7 @@ func _apply_tweak(v: float) -> void:
 	var f := Part.feature(_rec(), String(tweak["id"]))
 	if f.is_empty():
 		return
-	var val: float = v * float(tweak.get("scale", 1.0))
+	var val: float = v * float(tweak.get("scale", 1.0)) * float(tweak.get("sgn", 1.0))
 	if tweak.has("ent"):
 		f["ents"][int(tweak["ent"])][tweak["field"]] = val
 	else:
@@ -665,7 +665,7 @@ func _tweak_value() -> float:
 	if f.is_empty():
 		return float(tweak["lo"])
 	var raw: float = float(f["ents"][int(tweak["ent"])][tweak["field"]]) if tweak.has("ent") else float(f.get(tweak["field"], 0.0))
-	return raw / float(tweak.get("scale", 1.0))
+	return raw * float(tweak.get("sgn", 1.0)) / float(tweak.get("scale", 1.0))
 
 
 func _values_sync() -> void:
@@ -826,13 +826,16 @@ func _pull(rec: Dictionary) -> String:
 		for k in ["a", "b", "c"]:
 			if e.has(k):
 				ext = maxf(ext, maxf(absf(float(e[k][0])), absf(float(e[k][1]))))
-	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": 20.0, "both": false, "op": "join"})
+	var pf := Part.feature(rec, String(sk.get("plane", "front")))
+	var on_face := String(pf.get("t", "")) == "plane" and pf.has("out")   # a sketch on a face: the pull goes OUTWARD from it
+	var sg := float(pf["out"]) if on_face else 1.0
+	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": 20.0 * sg, "both": false, "op": "join"})
 	rec["features"].append(f)
 	var err := _last_error(rec, String(f["id"]))
 	if err != "":
 		return "That shape is not closed, so it cannot be pulled up"
-	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": 40.0, "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"]}
-	_say("Pulled up 2 cm: use the slider to change it")
+	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": 40.0, "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
+	_say("Pulled out of the face: use the slider to change it" if on_face else "Pulled up 2 cm: use the slider to change it")
 	return ""
 
 
@@ -1130,6 +1133,7 @@ func _rep_sync() -> void:
 ## Closed when the drag comes back to its start
 func _finish_curve() -> void:
 	var pts: Array = _draft.get("pts", [])
+	var fc: Dictionary = _draft.get("face", {})
 	_draft = {}
 	if pts.size() < 4:
 		_say("Drag a bit further to draw a curve")
@@ -1142,7 +1146,7 @@ func _finish_curve() -> void:
 	var closed := (pts[pts.size() - 1] as Vector2).distance_to(pts[0] as Vector2) <= 12.0
 	_begin("Curvy line")
 	var rec := pu._ensure()
-	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "bspline", "pts": out, "closed": closed}], "dims": []}))
+	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": [{"k": "bspline", "pts": out, "closed": closed}], "dims": []}))
 	_end()
 	armed = ""
 	tweak = {}
@@ -1539,22 +1543,103 @@ func _draft_outline() -> PackedVector2Array:
 	var pts := PackedVector2Array()
 	if String(_draft["shape"]) == "curve":
 		for q in _draft["pts"]:
-			pts.append(m.cam.unproject_position(Vector3((q as Vector2).x * Part.MM, (q as Vector2).y * Part.MM, 0.0)))
+			pts.append(m.cam.unproject_position(_pw(q as Vector2)))
 		return pts
 	if String(_draft["shape"]) == "box":
 		for q in [a, Vector2(b.x, a.y), b, Vector2(a.x, b.y), a]:
-			pts.append(m.cam.unproject_position(Vector3(q.x * Part.MM, q.y * Part.MM, 0.0)))
+			pts.append(m.cam.unproject_position(_pw(q)))
 	else:
 		var r := a.distance_to(b)
 		for i in 33:
 			var q := a + Vector2.from_angle(TAU * i / 32.0) * r
-			pts.append(m.cam.unproject_position(Vector3(q.x * Part.MM, q.y * Part.MM, 0.0)))
+			pts.append(m.cam.unproject_position(_pw(q)))
 	return pts
 
 
-func _ground(p: Vector2) -> Variant:
+## DRAW ON A FACE: the world point of a draft coordinate (the draft plane, else the front plane)
+func _pw(q: Vector2) -> Vector3:
+	return Part.to_world(_draft.get("pl", Part.plane("front")), q)
+
+
+## DRAW ON A FACE: the flat face under a press, or {} (none, a curved face, or not within 5 deg of +-X, +-Y or +-Z).
+## {"pl": the plane through the face, "base": "right"|"top"|"front", "mm": distance along the base normal, "out": +1 or -1 (the face normal side)}
+func _face_hit(p: Vector2) -> Dictionary:
+	if not Part.available():
+		return {}
+	var faces: Array = Part.body_faces(_rec(), -1)
+	var ro: Vector3 = m.cam.project_ray_origin(p)
+	var rd: Vector3 = m.cam.project_ray_normal(p)
+	var best_d := INF
+	var bi := -1
+	var bk := -1
+	var bh := Vector3.ZERO
+	for b in faces.size():
+		var tris: PackedVector3Array = faces[b]
+		for k in range(0, tris.size() - 2, 3):
+			var hit: Variant = Geometry3D.ray_intersects_triangle(ro, rd, tris[k], tris[k + 1], tris[k + 2])
+			if hit != null and ro.distance_to(hit as Vector3) < best_d:
+				best_d = ro.distance_to(hit as Vector3)
+				bi = b
+				bk = k
+				bh = hit
+	if bi < 0:
+		return {}
+	var tris: PackedVector3Array = faces[bi]
+	var a: Vector3 = tris[bk]
+	var c1: Vector3 = tris[bk + 1]
+	var c2: Vector3 = tris[bk + 2]
+	var nrm := (c1 - a).cross(c2 - a)
+	if nrm.length() < 1e-12:
+		return {}
+	nrm = nrm.normalized()
+	if nrm.dot(rd) > 0.0:
+		nrm = -nrm   # the side the camera sees: the outward normal of a front face
+	var ax := -1
+	for i in 3:
+		if absf(nrm.dot(FACE_N[i])) >= cos(deg_to_rad(5.0)):
+			ax = i
+	if ax < 0:
+		return {}
+	# flat: a triangle across an edge that bends by 1 to 40 deg means a curved face (a cylinder, a sphere): no face
+	for j in range(0, tris.size() - 2, 3):
+		if j == bk:
+			continue
+		var shared := 0
+		for v in [tris[j], tris[j + 1], tris[j + 2]]:
+			if v.is_equal_approx(a) or v.is_equal_approx(c1) or v.is_equal_approx(c2):
+				shared += 1
+		if shared != 2:
+			continue
+		var nj := (tris[j + 1] - tris[j]).cross(tris[j + 2] - tris[j])
+		if nj.length() < 1e-12:
+			continue
+		var ang := nrm.angle_to(nj.normalized())
+		if ang > deg_to_rad(1.0) and ang < deg_to_rad(40.0):
+			return {}
+	var mm := snappedf(bh.dot(FACE_N[ax]) / Part.MM, 0.01)
+	var out := 1 if nrm.dot(FACE_N[ax]) > 0.0 else -1
+	var pl := Part.plane(FACE_BASE[ax])
+	pl["o"] = (pl["o"] as Vector3) + (pl["n"] as Vector3) * mm * Part.MM
+	return {"pl": pl, "base": FACE_BASE[ax], "mm": mm, "out": out}
+
+
+const FACE_BASE := ["right", "top", "front"]   # the Part plane each axis is drawn on (+X, +Y, +Z)
+const FACE_N := [Vector3.RIGHT, Vector3.UP, Vector3.BACK]
+
+
+func _ground(p: Vector2, pl: Dictionary = {}) -> Variant:
 	var o: Vector3 = m.cam.project_ray_origin(p)
 	var d: Vector3 = m.cam.project_ray_normal(p)
+	if not pl.is_empty():   # DRAW ON A FACE: the ray hit on that plane, in its own mm
+		var pn: Vector3 = pl["n"]
+		var den := d.dot(pn)
+		if absf(den) < 1e-5:
+			return null
+		var t := ((pl["o"] as Vector3) - o).dot(pn) / den
+		if t < 0.0:
+			return null
+		var q := Part.to_plane(pl, o + d * t)
+		return Vector2(snappedf(q.x, 5.0), snappedf(q.y, 5.0))
 	if absf(d.z) < 1e-5:
 		return null
 	var w := o + d * (-o.z / d.z)
@@ -1581,6 +1666,13 @@ func input(ev: InputEvent) -> bool:
 				_stick_pick(bi, faces)
 				return true
 			if (armed == "draw" or armed == "curve") and not _over_ui(p):
+				var fc := _face_hit(p)   # DRAW ON A FACE: a press on a flat face of a solid puts the sketch on that face
+				if not fc.is_empty():
+					var fg: Variant = _ground(p, fc["pl"])
+					if fg != null:
+						_draft = {"a": fg, "b": fg, "shape": "curve" if armed == "curve" else shape, "pts": [fg], "pl": fc["pl"], "face": fc}
+						_say("Drawing on that face")
+						return true
 				var g: Variant = _ground(p)
 				if g != null:
 					_draft = {"a": g, "b": g, "shape": "curve" if armed == "curve" else shape, "pts": [g]}
@@ -1604,7 +1696,7 @@ func input(ev: InputEvent) -> bool:
 			_drag_to(p, false)
 			return true
 		if not _draft.is_empty():
-			var g: Variant = _ground(p)
+			var g: Variant = _ground(p, _draft.get("pl", {}))
 			if g != null:
 				_draft["b"] = g
 				if String(_draft["shape"]) == "curve" and (g as Vector2).distance_to((_draft["pts"] as Array).back()) >= 5.0:
@@ -1661,6 +1753,7 @@ func _finish_draw() -> void:
 	var a: Vector2 = _draft["a"]
 	var b: Vector2 = _draft["b"]
 	var sh := String(_draft["shape"])
+	var fc: Dictionary = _draft.get("face", {})
 	_draft = {}
 	var ent := {}
 	if sh == "box":
@@ -1676,7 +1769,7 @@ func _finish_draw() -> void:
 		ent = {"k": "circle", "c": Part.arr2(a), "r": snappedf(r, 0.5)}
 	_begin("Draw shape")
 	var rec := pu._ensure()
-	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": "front", "ents": [ent], "dims": []}))
+	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": [ent], "dims": []}))
 	_end()
 	armed = ""
 	tweak = {}
@@ -1684,6 +1777,15 @@ func _finish_draw() -> void:
 	pu.sync()
 	_rows_sync()
 	_say("Shape drawn. Now press Pull it up or Spin it round")
+
+
+## DRAW ON A FACE: the sketch's plane id. A face press adds ONE Part "plane" feature (from the base plane, mm = the face distance, out = the face side) to rec; no face = "front"
+func _face_plane(rec: Dictionary, fc: Dictionary) -> String:
+	if fc.is_empty():
+		return "front"
+	var pf := Part.new_feature(rec, "plane", {"from": String(fc["base"]), "mm": float(fc["mm"]), "out": int(fc["out"])})
+	rec["features"].append(pf)
+	return String(pf["id"])
 
 
 ## the pieces of the replay's mesh that do not touch (vertices welded at 0.01 mm, then joined by triangles), counted once per replay mesh
