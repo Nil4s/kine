@@ -1083,7 +1083,7 @@ func _arm_words(a: String) -> String:
 
 
 func _last_error(rec: Dictionary, fid: String) -> String:
-	return String(Part.replay(rec)["errors"].get(fid, ""))
+	return String(pu.replay_full(rec)["errors"].get(fid, ""))
 
 
 func _pull(rec: Dictionary) -> String:
@@ -1386,7 +1386,7 @@ func _hole(rec: Dictionary) -> String:
 		f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.z), absf(bb.end.z)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
 	rec["features"].append(f)
 	var before := float(res["volume"])
-	var after := float(Part.replay(rec)["volume"])
+	var after := float(pu.replay_full(rec)["volume"])
 	if after >= before - 1e-12:
 		return "The hole would miss the shape: nothing was cut"
 	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}   # the slider is the hole's WIDTH (cm): radius mm = width cm * 5
@@ -1434,7 +1434,7 @@ func _face_hole(rec: Dictionary) -> String:
 	var sgn := -out   # the cut goes INTO the body, against the face's normal side
 	var f := Part.new_feature(rec, "extrude", {"sketch": sk["id"], "dist": sgn * snappedf(depth + 0.5, 0.1), "both": false, "op": "cut"})
 	rec["features"].append(f)
-	if _last_error(rec, String(f["id"])) != "" or float(Part.replay(rec)["volume"]) >= float(before["volume"]) - 1e-12:
+	if _last_error(rec, String(f["id"])) != "" or float(pu.replay_full(rec)["volume"]) >= float(before["volume"]) - 1e-12:
 		return "The hole would miss the shape: nothing was cut"
 	tweak = {"id": f["id"], "field": "dist", "label": "How deep", "unit": "cm", "lo": 0.1, "hi": 40.0, "step": 0.1, "scale": 10.0, "words": ["Shallower", "Deeper"], "sgn": sgn}
 	_say("A hole in the wall: use the slider for how deep")
@@ -1627,7 +1627,7 @@ func _mirror(rec: Dictionary) -> String:
 	if _last_error(rec, String(f["id"])) != "":
 		return "That shape cannot be mirrored"
 	tweak = {}
-	var after := Part.replay(rec)
+	var after: Dictionary = pu.replay_full(rec)
 	var gap := int(after["bodies"]) == 1 and _lumps(after) > 1   # the mirror left a gap: the same test as the status line
 	var where := "across the middle of the part" if off else "across the middle line"
 	_say("Mirrored %s" % where + (": the two halves do not touch. Push them together with Stick together" if gap else ": press Repeat it or Cut a hole next"))
@@ -1697,7 +1697,7 @@ func _cut(rec: Dictionary) -> String:
 	var mid := snappedf((lo_mm + hi_mm) * 0.5, 1.0)
 	var f := Part.new_feature(rec, "split", {"plane": ["right", "top", "front"][ax], "at": mid})
 	rec["features"].append(f)
-	if _last_error(rec, String(f["id"])) != "" or int(Part.replay(rec)["bodies"]) < 2:
+	if _last_error(rec, String(f["id"])) != "" or int(pu.replay_full(rec)["bodies"]) < 2:
 		return "The cut would miss the solid: nothing was cut"
 	tweak = {"id": f["id"], "field": "at", "label": "Where to cut", "unit": "cm", "lo": snappedf(lo_mm * 0.1 + 0.2, 0.1), "hi": snappedf(hi_mm * 0.1 - 0.2, 0.1), "step": 0.1, "scale": 10.0, "words": ["Toward one end", "Toward the other end"]}
 	_say("Cut in two across the middle: drag the slider to move the cut")
@@ -1820,7 +1820,7 @@ func _rep_corners() -> void:
 	_end()
 	pu.sync()
 	_rep_sync()
-	var err: String = Part.replay(_rec())["errors"].get(rep_id, "")
+	var err: String = pu.replay_full(_rec())["errors"].get(rep_id, "")
 	if err != "":
 		_say(_plain(err) + ". Move the piece onto a corner of the piece it sits on, then press Corners again, or undo")
 	else:
@@ -1995,6 +1995,7 @@ func _curve_keep(pts: Array, maxn: int) -> Array:
 func _process(_dt: float) -> void:
 	if bar == null or pu == null:
 		return
+	pu.replay_forget()   # the same-frame replay reuse (PartUI.replay_once) ends with the frame
 	var on := active()
 	if on != _was:
 		_was = on
