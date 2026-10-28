@@ -1711,7 +1711,15 @@ func _finish_curve() -> void:
 	pu.upto = -1
 	pu.sync()
 	_rows_sync()
-	_say("Curvy line drawn: Pull it up makes it solid" if closed else "Curvy line drawn: drag back to the start to close it")
+	# a curve that touches or crosses the middle line (x = 0) is a profile to spin: the words point to Spin it round
+	var spin_ok := false
+	for q in pts:
+		if (q as Vector2).x <= 1.0:
+			spin_ok = true
+	if spin_ok:
+		_say("Curvy line drawn: Spin it round makes a bowl, or Pull it up makes it solid" if closed else "Curvy line drawn: Spin it round for a bowl, or drag back to the start to close it")
+	else:
+		_say("Curvy line drawn: Pull it up makes it solid" if closed else "Curvy line drawn: drag back to the start to close it")
 
 
 # ---------------------------------------------------------------- every frame
@@ -2245,6 +2253,19 @@ func _pw(q: Vector2) -> Vector3:
 ## DRAW ON A FACE: the flat face under a press, or {} (none, a curved face, or not within 5 deg of +-X, +-Y or +-Z).
 ## {"pl": the plane through the face, "base": "right"|"top"|"front", "mm": distance along the base normal, "out": +1 or -1 (the face normal side)}
 func _face_hit(p: Vector2) -> Dictionary:
+	var fc := _face_hit_at(p)
+	if fc.is_empty() or String(fc.get("base", "")) == "top":
+		return fc
+	# a press on a solid's top edge or corner (a chair leg's corner, seen from the side) lands on the side face just below the top:
+	# a tip-of-the-top press a few px higher takes the TOP face there, so a seat drawn on the leg tops sits on them
+	for off in [Vector2(0.0, -6.0), Vector2(-6.0, -6.0), Vector2(6.0, -6.0)]:
+		var up := _face_hit_at(p + off)
+		if String(up.get("base", "")) == "top":
+			return up
+	return fc
+
+
+func _face_hit_at(p: Vector2) -> Dictionary:
 	if not Part.available():
 		return {}
 	var faces: Array = Part.body_faces(_rec(), -1)
