@@ -235,3 +235,4 @@ EXTRA="$EXTRA ehelp:w"   # EHELP: Easy Part first steps: Empty says one line (Dr
 EXTRA="$EXTRA ehelp2:w"   # EHELP2: the same first steps in plain words (no body / sketch / profile / extrude / fillet): Pull it up and Mirror that name the next button (tests/ehelp2_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA replaygap:w"   # REPLAYGAP: real Easy Part presses (30 steps from the start screen): no record is replayed twice in one press, the part is the same as before the fix (tests/replaygap_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA deadcode:w"   # DEADCODE: Easy Part still works after its unused functions were removed: opens from the start screen, one template chip makes a part as one undo step, undo and redo restore it (tests/deadcode_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA animwalk:w"   # ANIMWALK: a beginner, real clicks from the start screen: Easy, type a punch, drag the time slider, type a left punch, one Undo (tests/animwalk_test.gd)
