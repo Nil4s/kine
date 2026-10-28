@@ -778,6 +778,7 @@ func _empty() -> void:
 	m._step_hint = "Start an empty part"
 	m._push_undo()
 	m.S.part = Part.make("Part")
+	m.S.part["kept"] = true   # the user chose an empty part: undo and redo keep it (Part.from_file); a feature-less record otherwise means no part
 	tweak = {}
 	pu.upto = -1
 	pu.sync()
@@ -1077,6 +1078,8 @@ func _spin(rec: Dictionary) -> String:
 		# vertical axis, x = 0), so the profile must lie on one side of that line. Its lowest point goes down to the floor.
 		_lift_to_floor(sk)
 		axis = "y"
+	if axis == "y" and _past_axis(sk) < -3.0 and _on_left(sk):
+		_flip_x(sk)   # a drawing wholly on the -X side is the same solid as its mirror image on the +X side (a lathe is symmetric): flip it, then spin
 	if axis == "y" and _past_axis(sk) < -3.0:
 		sk.clear()
 		sk.merge(before, true)
@@ -1130,6 +1133,22 @@ func _past_axis(sk: Dictionary) -> float:
 			for q in _ent_pts(e):
 				lo = minf(lo, float(q[0]))
 	return lo
+
+
+## true when no point of the drawing is on the +X side of the middle line (x <= 0.5 mm everywhere)
+func _on_left(sk: Dictionary) -> bool:
+	for e in sk["ents"]:
+		for q in _ent_pts(e):
+			if float(q[0]) > 0.5:
+				return false
+	return true
+
+
+## every point of the drawing reflects across the middle line (x = -x, mm); a circle's centre moves with it, its radius does not
+func _flip_x(sk: Dictionary) -> void:
+	for e in sk["ents"]:
+		for q in _ent_pts(e):
+			q[0] = -float(q[0])
 
 
 ## every point of the drawing moves down by lo (mm) in its own plane
