@@ -68,6 +68,9 @@ var hole_btns := {}
 var hole_base: Dictionary = {}   # the record before the last Cut a hole press: each chip rebuilds the hole from it ({} = no hole chips)
 var hole_id := ""                # the feature id of the last hole step (the hole's sketch, or the hollow's shell): its slider's step
 var hole_mode := "through"       # "through" | "hollow": the chip that is on
+var split_box: PanelContainer   # ECUT2: Cut in two's keep chips (both halves / the lower half / the upper half), after a Cut in two press (see _split_on)
+var split_btns := {}
+var split_id := ""              # the feature id of the last Cut in two step: the keep chips edit its "keep" field
 var colour_box: PanelContainer   # Colour: the five colour chips and Glass / Metal, under the MAKE row (armed "colour")
 var panel: PanelContainer
 var panel_vb: VBoxContainer   # the panel's column: it scrolls inside the panel when the window is short (1280 x 720)
@@ -206,6 +209,8 @@ func build(root: Control) -> void:
 	root.add_child(shape_box)
 	hole_box = _hole_box()
 	root.add_child(hole_box)
+	split_box = _split_box()
+	root.add_child(split_box)
 	colour_box = _colour_box()
 	root.add_child(colour_box)
 	repeat_box = _repeat_box()
@@ -321,6 +326,25 @@ func _hole_box() -> PanelContainer:
 		b.custom_minimum_size = Vector2(150, 44)
 		h.add_child(b)
 		hole_btns[hm[0]] = b
+	return box
+
+
+## ECUT2: Cut in two keeps ONE half: three toggle chips after a Cut in two press. Both halves is the default (two bodies); the lower or upper half
+## keeps only that side of the cut (one body). Each chip is one undo step; the slider still moves the cut
+func _split_box() -> PanelContainer:
+	var box := PanelContainer.new()
+	box.name = "easypart_split"
+	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	box.visible = false
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 6)
+	box.add_child(h)
+	for sk in [["both", "Keep both halves", "Keep both pieces of the cut (two bodies)"], ["lower", "Keep the lower half", "Keep only the half on the lower side of the cut (one body)"], ["upper", "Keep the upper half", "Keep only the half on the upper side of the cut (one body)"]]:
+		var b := _big_btn("easypart_split_" + String(sk[0]), String(sk[1]), String(sk[2]), _split_keep.bind(String(sk[0])))
+		b.toggle_mode = true
+		b.custom_minimum_size = Vector2(190, 44)
+		h.add_child(b)
+		split_btns[sk[0]] = b
 	return box
 
 
@@ -477,6 +501,7 @@ func entered() -> void:
 	tweak = {}
 	rep_id = ""
 	hole_base = {}
+	split_id = ""
 	stick_picks = []
 	_draft = {}
 	_drag = {}
@@ -769,6 +794,7 @@ func _chip(t: String) -> void:
 		return
 	armed = ""
 	hole_base = {}
+	split_id = ""
 	_flush_if_dirty()
 	m._step_hint = "Start a " + t
 	m._push_undo()
@@ -864,6 +890,8 @@ func _make(which: String) -> void:
 		hole_base = {}   # any other press ends the hole choice: its chips go
 	if which != "repeat":
 		rep_id = ""
+	if which != "split":
+		split_id = ""
 	if which == "stick":
 		stick_picks = []
 		if armed == "stick":
@@ -915,6 +943,8 @@ func _make(which: String) -> void:
 		_say(why)
 	else:
 		_end()
+		if which == "split":
+			split_id = String(tweak.get("id", ""))   # the keep chips edit this cut step
 		if which == "hole":   # the chips rebuild the hole from the record before this press
 			hole_base = snap
 			hole_id = String(tweak.get("id", ""))
@@ -1572,6 +1602,53 @@ func _cut(rec: Dictionary) -> String:
 	return ""
 
 
+## ECUT2: the keep chips are shown while the newest step is the cut (its slider's step) and nothing is armed
+func _split_on() -> bool:
+	return split_id != "" and armed == "" and String(tweak.get("id", "")) == split_id and not Part.feature(_rec(), split_id).is_empty()
+
+
+func _split_sync() -> void:
+	var keep := _split_keep_of()
+	for k in split_btns:
+		(split_btns[k] as Button).set_pressed_no_signal(k == keep)
+
+
+func _split_keep_of() -> String:
+	var f := Part.feature(_rec(), split_id)
+	var kp := int(f.get("keep", 0))
+	return "upper" if kp > 0 else ("lower" if kp < 0 else "both")
+
+
+## a keep chip: the cut step's "keep" field changes (one undo step). A chip that is already on changes nothing; a refusal changes nothing
+func _split_keep(key: String) -> void:
+	if not _split_on() or not Part.available() or key == _split_keep_of():
+		_split_sync()
+		return
+	_flush_if_dirty()
+	armed = ""
+	var snap := _rec().duplicate(true)
+	_begin("Keep " + String(split_btns[key].text).trim_prefix("Keep ").to_lower())
+	var rec := _rec()
+	var kp := 0 if key == "both" else (1 if key == "upper" else -1)
+	Part.feature(rec, split_id)["keep"] = kp
+	var why := _last_error(rec, split_id)
+	if why == "" and kp != 0 and int(Part.replay(rec)["bodies"]) == 0:
+		why = "Nothing would be left: keep both halves"
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("That half cannot be kept: " + why)
+	else:
+		_end()
+		_say("Kept the upper half: the other half is gone (Undo brings it back)" if kp > 0 else ("Kept the lower half: the other half is gone (Undo brings it back)" if kp < 0 else "Kept both halves of the cut"))
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	_split_sync()
+
+
 ## COLOUR: one appear step per body (Part's "appear" feature, the look Expert's Appearance writes), all in ONE undo step. A material
 ## (Glass, Metal) keeps each body's own colour; a colour chip sets Paint's numbers with that colour
 func _paint(label: String, c: Color, preset: String) -> void:
@@ -1830,6 +1907,9 @@ func _process(_dt: float) -> void:
 	dots.visible = on
 	shape_box.visible = on and armed == "draw"
 	hole_box.visible = on and _hole_on()
+	split_box.visible = on and _split_on()
+	if split_box.visible:
+		_split_sync()
 	colour_box.visible = on and armed == "colour"
 	repeat_box.visible = on and armed == "" and rep_id != "" and not Part.feature(_rec(), rep_id).is_empty()
 	stick_box.visible = on and armed == "stick" and stick_picks.size() == 2
@@ -1893,7 +1973,7 @@ func _frame_step() -> void:
 ## the free view: the clear view minus the MAKE row above and the side panel at the right, minus the status line at the bottom
 func free_rect() -> Rect2:
 	var top := _cl.position.y + 4.0 + MAKE_H + 8.0
-	for c in [hint, hole_box, shape_box, colour_box, repeat_box, stick_box]:   # the words and the chip rows under the MAKE row: the part sits below them
+	for c in [hint, hole_box, split_box, shape_box, colour_box, repeat_box, stick_box]:   # the words and the chip rows under the MAKE row: the part sits below them
 		if c != null and (c as Control).visible:                               # (ewalk4: the Through / Hollow inside chips covered the mug's rim)
 			top = maxf(top, (c as Control).get_global_rect().end.y + 8.0)
 	var x1 := _cl.end.x - PW - 16.0
@@ -2037,6 +2117,8 @@ func layout(cl: Rect2) -> void:
 	shape_box.position = Vector2(cl.position.x + 12.0, top + hint.size.y + 6.0)
 	hole_box.reset_size()
 	hole_box.position = shape_box.position
+	split_box.reset_size()
+	split_box.position = shape_box.position
 	colour_box.reset_size()
 	colour_box.position = shape_box.position
 	# the Repeat it and Stick together rows sit at the lower left, above the one sentence, off the model's pieces
