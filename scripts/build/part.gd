@@ -11,7 +11,7 @@ extends RefCounted
 ##     {"t": "fillet",  "id": "f5", "name": "Fillet1", "body": 0, "r": 2.0, "edges": [{"p": [x, y, z], "q": [..], "d": [..]}]},
 ##     {"t": "chamfer", ... "dist": 1.0 ...},  {"t": "mirror", "id": ..., "plane": "front"|"top"|"right", "op": "join"},
 ##     extrude also has "taper": degrees (>0 narrows as it goes) and op "intersect" (keeps only the part inside the new solid);
-##     {"t": "split", "id": ..., "plane": "front"|"top"|"right", "at": mm (offset along the plane's normal)} cuts EVERY body the plane crosses in two;
+##     {"t": "split", "id": ..., "plane": "front"|"top"|"right", "at": mm (offset along the plane's normal), "keep": 0 | 1 | -1} cuts EVERY body the plane crosses in two (keep 1 / -1: only the half on the normal's side / the other half stays);
 ##     {"t": "shell", "id": ..., "body": N, "thick": mm, "open": "" | "+x" | "-x" | "+y" | "-y" | "+z" | "-z"} hollows body N with walls thick mm,
 ##     the planar face that points that way open ("" = no face open: a closed cavity),
 ##     {"t": "hinge", "id": ..., "name": "Hinge1", "body": 0, "o": [x, y, z] (mm), "axis": [x, y, z], "track": [[t_s, deg], ...]}]}
@@ -1454,15 +1454,23 @@ static func _split(bodies: Array, f: Dictionary, looks: Array = []) -> String:
 		return "the plane does not cut the body"
 	var out := []
 	var k := 0
+	var keep := int(f.get("keep", 0))   # ECUT2: 0 both halves, 1 only the half on n's side (upper), -1 only the other (lower)
 	for i in bodies.size():
 		if k < pieces.size() and int(pieces[k][0]) == i:
-			out.append(pieces[k][1])
-			out.append(pieces[k][2])
+			if keep > 0:
+				KCad.release(pieces[k][2])
+				out.append(pieces[k][1])
+			elif keep < 0:
+				KCad.release(pieces[k][1])
+				out.append(pieces[k][2])
+			else:
+				out.append(pieces[k][1])
+				out.append(pieces[k][2])
 			KCad.release(bodies[i])
 			k += 1
 		else:
 			out.append(bodies[i])
-	_split_looks(looks, bodies.size(), pieces)
+	_split_looks(looks, bodies.size(), pieces if keep == 0 else [])   # a kept half is one body: its look is the cut body's, not two
 	bodies.clear()
 	bodies.append_array(out)
 	return ""
