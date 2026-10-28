@@ -72,6 +72,7 @@ var panel: PanelContainer
 var panel_vb: VBoxContainer   # the panel's column: it scrolls inside the panel when the window is short (1280 x 720)
 var panel_title: Label
 var chips := {}
+var empty_chip: Button   # "Empty": start from nothing (not in chips: those are the templates)
 var rows_vb: VBoxContainer
 var rows := []                 # [{"key", "slider", "pill", "kind": "tpl" | "tweak", "def": row dict}]
 var give_btn: Button
@@ -226,7 +227,21 @@ func build(root: Control) -> void:
 	panel_title = Label.new()
 	panel_title.name = "easypart_panel_title"
 	panel_title.add_theme_font_size_override("font_size", 22)
-	v.add_child(panel_title)
+	panel_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var th := HBoxContainer.new()   # the title line: "Change your part" and, at its end, Empty (the template chips stay on one line below)
+	th.name = "easypart_title_row"
+	v.add_child(th)
+	th.add_child(panel_title)
+	empty_chip = Button.new()   # EMPTY first: Easy Part opens on a sword, and a beginner building their own thing needs a clean floor
+	empty_chip.name = "easypart_chip_empty"
+	empty_chip.text = "Empty"
+	empty_chip.tooltip_text = "Start from nothing: draw your own shape on the grid"
+	empty_chip.toggle_mode = true
+	empty_chip.focus_mode = Control.FOCUS_NONE
+	empty_chip.custom_minimum_size = Vector2(0, 34)
+	empty_chip.add_theme_font_size_override("font_size", 15)
+	empty_chip.pressed.connect(_empty)
+	th.add_child(empty_chip)
 	var cr := HFlowContainer.new()
 	cr.name = "easypart_chips"
 	cr.add_theme_constant_override("h_separation", 4)
@@ -520,6 +535,8 @@ func _set_value(row: Dictionary, v: float, final: bool) -> void:
 		_apply_rep(row, v)
 	else:
 		_apply_tweak(v)
+		if final and tweak.has("say"):
+			_say(String(tweak["say"]) % _fmt(v, String(tweak.get("unit", "cm"))))
 	_dirty = true
 	if final:
 		_flush()
@@ -739,7 +756,28 @@ func _chip(t: String) -> void:
 	_say("%s %s: move a slider or drag an amber dot" % ["An" if t.substr(0, 1) in "aeiou" else "A", t])
 
 
+## EMPTY: a part with no steps (one undo step); Draw shape on the grid starts it
+func _empty() -> void:
+	if (_rec().get("features", []) as Array).is_empty() or not Part.available():
+		_chips_sync()
+		return
+	armed = ""
+	hole_base = {}
+	_flush_if_dirty()
+	m._step_hint = "Start an empty part"
+	m._push_undo()
+	m.S.part = Part.make("Part")
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	_say("Empty: press Draw shape, then drag on the grid")
+
+
 func _chips_sync() -> void:
+	if empty_chip != null:
+		empty_chip.set_pressed_no_signal((_rec().get("features", []) as Array).is_empty())
+		m._grey(empty_chip, Part.why_not() if not Part.available() else "")
 	for t in chips:
 		(chips[t] as Button).set_pressed_no_signal(t == _tpl())
 		m._grey(chips[t], Part.why_not() if not Part.available() else "")
@@ -945,7 +983,8 @@ func _pull(rec: Dictionary) -> String:
 	elif on_face:
 		_say("Pulled into the body: use the slider to change it" if inward else "Pulled out of the face: use the slider to change it")
 	else:
-		_say("Pulled up 2 cm: use the slider to change it")
+		tweak["say"] = "Pulled up %s: use the slider to change it"   # the words follow the slider (a beginner walk: "2 cm" stayed at 8 cm)
+		_say(String(tweak["say"]) % _fmt(2.0, "cm"))
 	return ""
 
 
