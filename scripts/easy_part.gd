@@ -16,6 +16,7 @@ const MAKE_H := 76.0
 const REP_WORDS := {"count": ["Fewer", "More"], "gap": ["Closer", "Further apart"]}   # the Repeat it sliders' ends
 const STICK_OPS := [["join", "Join", "Make the two pieces one solid"], ["cut", "Cut away", "Cut the second piece out of the first"], ["intersect", "Keep the overlap", "Keep only the part where the two pieces overlap"]]
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
+const HOLLOW_MM := 3.0           # Hollow inside: the wall the shell starts with (the Wall slider moves it: 1 to 10 mm)
 const THROTTLE_MS := 100
 const SKY := Color("#73BFFF")
 const AMBER := Color("#FFC933")
@@ -24,7 +25,7 @@ const MAKES := [
 	["pull", "Pull it up", "part_extrude", "Make the newest shape into a solid, then say how far"],
 	["spin", "Spin it round", "part_revolve", "Turn the newest shape round the middle line into a solid"],
 	["round", "Round the edges", "part_fillet", "Soften the sharp edges"],
-	["hole", "Cut a hole", "part_circle", "Cut a round hole through the middle"],
+	["hole", "Cut a hole", "part_circle", "Cut a round hole through the middle, or hollow the solid out (Hollow inside)"],
 	["mirror", "Mirror that", "part_mirror", "Add a mirror copy on the other side of the middle line"],
 	["curve", "Curvy line", "part_spline", "Drag a wobbly loop on the grid. Drag back to the start to close it"],
 	["blend", "Blend two shapes", "part_loft", "Blend the last two shapes into one solid that runs from one to the other"],
@@ -61,6 +62,11 @@ var stick_edges := {}            # body index -> its crease edges (pairs of poin
 const PICK_PX := 12.0            # a click this close (screen px) to a piece picks it when the ray hits nothing
 var rep_id := ""                 # the last Repeat it step's feature id ("" = none)
 var rep_rows := []               # the two slider rows of the Repeat it box (see _make_row)
+var hole_box: PanelContainer     # Cut a hole: the Through / Hollow inside chips, under the MAKE row, after a Cut a hole press (see _hole_on)
+var hole_btns := {}
+var hole_base: Dictionary = {}   # the record before the last Cut a hole press: each chip rebuilds the hole from it ({} = no hole chips)
+var hole_id := ""                # the feature id of the last hole step (the hole's sketch, or the hollow's shell): its slider's step
+var hole_mode := "through"       # "through" | "hollow": the chip that is on
 var colour_box: PanelContainer   # Colour: the five colour chips and Glass / Metal, under the MAKE row (armed "colour")
 var panel: PanelContainer
 var panel_vb: VBoxContainer   # the panel's column: it scrolls inside the panel when the window is short (1280 x 720)
@@ -193,6 +199,8 @@ func build(root: Control) -> void:
 		sh.add_child(b)
 		shape_btns[s[0]] = b
 	root.add_child(shape_box)
+	hole_box = _hole_box()
+	root.add_child(hole_box)
 	colour_box = _colour_box()
 	root.add_child(colour_box)
 	repeat_box = _repeat_box()
@@ -277,6 +285,24 @@ func build(root: Control) -> void:
 	dots.draw.connect(_draw_dots)
 	dots.visible = false
 	root.add_child(dots)
+
+
+## CUT A HOLE: Through (the round hole, the default) or Hollow inside (the shell: open at the top, a Wall slider). Two toggle chips like Draw shape's
+func _hole_box() -> PanelContainer:
+	var box := PanelContainer.new()
+	box.name = "easypart_hole"
+	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	box.visible = false
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 6)
+	box.add_child(h)
+	for hm in [["through", "Through", "A round hole straight through the middle"], ["hollow", "Hollow inside", "Hollow the solid out, open at the top, with a wall (the Wall slider)"]]:
+		var b := _big_btn("easypart_hole_" + String(hm[0]), String(hm[1]), String(hm[2]), _hole_mode.bind(String(hm[0])))
+		b.toggle_mode = true
+		b.custom_minimum_size = Vector2(150, 44)
+		h.add_child(b)
+		hole_btns[hm[0]] = b
+	return box
 
 
 ## COLOUR: the five colour chips (Part.LOOK_CHIPS) and Glass / Metal: one button each, the same look-numbers Expert's Appearance uses
@@ -427,6 +453,7 @@ func entered() -> void:
 	msg = ""
 	tweak = {}
 	rep_id = ""
+	hole_base = {}
 	stick_picks = []
 	_draft = {}
 	_drag = {}
@@ -488,6 +515,7 @@ func _end() -> void:
 func _set_value(row: Dictionary, v: float, final: bool) -> void:
 	if row["kind"] == "tpl":
 		_pending[row["key"]] = v * 10.0   # the slider says cm, the record mm
+		hole_base = {}                    # the template's sizes changed: the hole chips would rebuild on an old shape
 	elif row["kind"] == "rep":
 		_apply_rep(row, v)
 	else:
@@ -564,6 +592,8 @@ func _fmt(v: float, unit: String) -> String:
 		return "%d degrees" % int(roundf(v))
 	if unit == "copies":
 		return "%d copies" % int(roundf(v))
+	if unit == "mm":
+		return "%s mm" % str(snappedf(v, 0.1))
 	return "%s cm" % str(snappedf(v, 0.1))
 
 
@@ -697,6 +727,7 @@ func _chip(t: String) -> void:
 		_chips_sync()
 		return
 	armed = ""
+	hole_base = {}
 	_flush_if_dirty()
 	m._step_hint = "Start a " + t
 	m._push_undo()
@@ -718,6 +749,7 @@ func _back() -> void:
 	var e: Dictionary = _rec().get("easy", {})
 	if e.is_empty() or not Part.available():
 		return
+	hole_base = {}
 	_begin("Back to the first one")
 	PartTemplates.retemplate(_rec(), PartTemplates.defaults(String(e["t"])))
 	_end()
@@ -739,6 +771,8 @@ func _make(which: String) -> void:
 		_say(Part.why_not())
 		return
 	_flush_if_dirty()
+	if which != "hole":
+		hole_base = {}   # any other press ends the hole choice: its chips go
 	if which != "repeat":
 		rep_id = ""
 	if which == "stick":
@@ -789,10 +823,74 @@ func _make(which: String) -> void:
 		_say(why)
 	else:
 		_end()
+		if which == "hole":   # the chips rebuild the hole from the record before this press
+			hole_base = snap
+			hole_id = String(tweak.get("id", ""))
+			hole_mode = "through"
 	pu.upto = -1
 	pu.sync()
 	_rows_sync()
 	_values_sync()
+
+
+## the hole chips show after a Cut a hole press, while its step is the newest hole and nothing is armed
+func _hole_on() -> bool:
+	return not hole_base.is_empty() and armed == "" and not Part.feature(_rec(), hole_id).is_empty()
+
+
+func _hole_sync() -> void:
+	for k in hole_btns:
+		(hole_btns[k] as Button).set_pressed_no_signal(k == hole_mode)
+
+
+## a Through / Hollow inside chip: the hole step is REPLACED (one undo step): the record from before the hole press, then the chosen hole.
+## A hollow that fails (a body too thin for the wall) says so and changes nothing
+func _hole_mode(mode: String) -> void:
+	if not _hole_on() or not Part.available() or mode == hole_mode:
+		_hole_sync()
+		return
+	_flush_if_dirty()
+	armed = ""
+	var snap := _rec().duplicate(true)
+	_begin("Hollow inside" if mode == "hollow" else "Cut a hole")
+	var rec: Dictionary = hole_base.duplicate(true)
+	m.S.part = rec
+	var why := _hollow(rec) if mode == "hollow" else _hole(rec)
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+	else:
+		_end()
+		hole_mode = mode
+		hole_id = String(tweak.get("id", ""))
+	pu.upto = -1
+	pu.sync()
+	_rows_sig = ""   # the step's id can repeat the last one (the chips rebuild from an older record): the slider box is rebuilt anyway
+	_rows_sync()
+	_values_sync()
+
+
+## HOLLOW INSIDE: Part's shell on the newest solid, open at its TOP face ("+y": the planar face with the largest +Y centre),
+## a HOLLOW_MM wall. The Wall slider moves the thickness (mm)
+func _hollow(rec: Dictionary) -> String:
+	var res := Part.replay(rec)
+	var n := int(res["bodies"])
+	if n == 0:
+		return "Nothing solid to hollow out yet. Press Pull it up first"
+	var bb: AABB = res["aabb"]
+	var thin := minf(bb.size.x, minf(bb.size.y, bb.size.z)) / Part.MM   # the body's smallest size (mm): a wall needs room on both sides
+	var too_thin := "That body is too thin to hollow out with a 3 mm wall: Pull it up taller, then press Cut a hole again"
+	if thin <= 2.0 * HOLLOW_MM:
+		return too_thin
+	var f := Part.new_feature(rec, "shell", {"body": n - 1, "open": "+y", "thick": HOLLOW_MM})
+	rec["features"].append(f)
+	if _last_error(rec, String(f["id"])) != "":
+		return too_thin
+	tweak = {"id": f["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
+	_say("Hollowed out, open at the top: use the slider for the wall")
+	return ""
 
 
 func _arm_words(a: String) -> String:
@@ -1207,6 +1305,7 @@ func _process(_dt: float) -> void:
 	status.visible = on
 	dots.visible = on
 	shape_box.visible = on and armed == "draw"
+	hole_box.visible = on and _hole_on()
 	colour_box.visible = on and armed == "colour"
 	repeat_box.visible = on and armed == "" and rep_id != "" and not Part.feature(_rec(), rep_id).is_empty()
 	stick_box.visible = on and armed == "stick" and stick_picks.size() == 2
@@ -1344,6 +1443,7 @@ func _chrome_sync() -> void:
 	_rows_sync()
 	_values_sync()
 	_sync_shape()
+	_hole_sync()
 	var res: Dictionary = pu.res
 	var text := ""
 	if off:
@@ -1408,6 +1508,8 @@ func layout(cl: Rect2) -> void:
 	hint.position = Vector2(cl.position.x + 12.0, top)
 	shape_box.reset_size()
 	shape_box.position = Vector2(cl.position.x + 12.0, top + hint.size.y + 6.0)
+	hole_box.reset_size()
+	hole_box.position = shape_box.position
 	colour_box.reset_size()
 	colour_box.position = shape_box.position
 	# the Repeat it and Stick together rows sit at the lower left, above the one sentence, off the model's pieces
