@@ -941,13 +941,45 @@ func _spin(rec: Dictionary) -> String:
 	var sid := Part.profile_sketch(rec)
 	if sid == "" or Part.sketch_used(rec, sid):
 		return "That shape is solid already. Draw a new one, then Spin it round"
-	var f := Part.new_feature(rec, "revolve", {"sketch": sid, "axis": "x", "deg": 360.0, "op": "join"})
+	var axis := "x"
+	var sk := Part.feature(rec, sid)
+	if String(sk.get("plane", "")) == "top":
+		_stand_up(sk)   # a floor drawing is flat: spun round the up axis it has no volume, so it stands up first (a lathe profile)
+		axis = "y"
+	var f := Part.new_feature(rec, "revolve", {"sketch": sid, "axis": axis, "deg": 360.0, "op": "join"})
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
 		return "A shape that crosses the middle line cannot be spun: draw it on one side"
 	tweak = {"id": f["id"], "field": "deg", "label": "How far round", "unit": "deg", "lo": 10.0, "hi": 360.0, "step": 5.0, "scale": 1.0, "words": ["A bit", "All the way"]}
 	_say("Spun all the way round: use the slider for less")
 	return ""
+
+
+
+## SPIN A FLOOR DRAWING: the sketch moves from the floor (top plane) to the front plane, its far edge up, and slides so its nearest point
+## sits on the floor: spun round the up axis it is a lathe piece (a ring, a vase) standing on the floor beside the middle line
+func _stand_up(sk: Dictionary) -> void:
+	var lo := INF
+	for e in sk["ents"]:
+		for q in _ent_pts(e):
+			lo = minf(lo, float(q[1]) - (float(e["r"]) if e.has("r") and String(e["k"]) == "circle" else 0.0))
+	if lo == INF:
+		lo = 0.0
+	for e in sk["ents"]:
+		for q in _ent_pts(e):
+			q[1] = snappedf(float(q[1]) - lo, 0.0001)
+	sk["plane"] = "front"
+
+
+## the [x, y] points of a sketch entity (the arrays themselves: writing them moves the entity)
+func _ent_pts(e: Dictionary) -> Array:
+	var out := []
+	for k in ["a", "b", "m", "c"]:
+		if e.has(k) and e[k] is Array:
+			out.append(e[k])
+	if e.has("pts"):
+		out.append_array(e["pts"])
+	return out
 
 
 func _round(rec: Dictionary) -> String:
