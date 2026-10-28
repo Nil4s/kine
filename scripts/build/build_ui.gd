@@ -1679,11 +1679,7 @@ func _part_picture(rec: Dictionary, nm: String) -> void:
 		return
 	var mi := MeshInstance3D.new()
 	mi.mesh = res["mesh"]
-	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color(0.86, 0.84, 0.8)
-	mat.roughness = 0.9
-	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	mi.material_override = mat
+	Part.paint(res["mesh"], res["looks"])   # the picture shows the part's colour (a grey part keeps its default grey look)
 	var node := Node3D.new()
 	node.add_child(mi)
 	if _part_lt == null:

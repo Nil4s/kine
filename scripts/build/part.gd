@@ -1681,6 +1681,23 @@ static func canvas_mm_to_px(f: Dictionary, mm: Vector2) -> Vector2:
 
 
 ## APPEARANCE helpers (GAP 5): the look of each body, kept beside the bodies in replay()
+## COLOUR KEPT (Use in a scene, My parts picture): each surface of a replayed mesh gets its body's look as its own material, so a
+## prop or a picture drawn from the bare mesh keeps the colour (the view's override would paint them all one grey)
+static func paint(mesh: ArrayMesh, looks: Array) -> void:
+	for s in mini(looks.size(), mesh.get_surface_count()):
+		var l: Dictionary = looks[s]
+		var c: Color = l["c"]
+		var a := float(l["alpha"])
+		var mt := StandardMaterial3D.new()
+		mt.albedo_color = Color(c.r, c.g, c.b, a)
+		mt.roughness = float(l["rough"])
+		mt.metallic = float(l["metal"])
+		mt.cull_mode = BaseMaterial3D.CULL_DISABLED
+		if a < 1.0:
+			mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mesh.surface_set_material(s, mt)
+
+
 static func look_of(f: Dictionary) -> Dictionary:
 	var c: Array = f.get("color", [0.74, 0.77, 0.82])
 	return {"c": Color(float(c[0]), float(c[1]), float(c[2])), "rough": float(f.get("rough", 0.5)), "metal": float(f.get("metal", 0.15)),
