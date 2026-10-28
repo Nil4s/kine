@@ -1,5 +1,6 @@
 class_name ObjectLibrary
 extends PanelContainer
+const MyParts := preload("res://scripts/build/myparts.gd")
 ## OBJECT LIBRARY (Nick, the owner: "an easy way to reach a library of objects in categories, for Easy and Expert users").
 ## One panel: category tabs (Weapons, Furniture, Sports, Everyday, Armour, My models), a search box that filters by name
 ## (across every tab while it has words), and a grid of tiles, each a thumbnail and a name. A click places the object the
@@ -42,12 +43,13 @@ const PROP_NAME := {"ball": "Football", "sword": "Sword (on the floor)", "step":
 ## [name, region word]: a plate over the body region (KMeshBody.REGIONS); the words are the ones ArmourFromBody.make reads
 const ARMOUR := [["Chest plate", "chest"], ["Abdomen plate", "abdomen"], ["Helmet", "head"], ["Upper arm plate (left)", "upperarm_l"],
 	["Forearm plate (right)", "forearm_r"], ["Thigh plate (left)", "thigh_l"], ["Shin plate (right)", "shin_r"]]
-const EXTRA_CATS := ["Fight blocks", "Build stairs", "Build furniture", "My houses"]   # BUILD's categories (BuildPieces.CATS), after the built-in ones
+const EXTRA_CATS := ["Fight blocks", "Build stairs", "Build furniture", "My houses", "My parts"]   # BUILD's categories (BuildPieces.CATS), after the built-in ones
 const EXTRA_TIPS := {
 	"Fight blocks": "Fight blocks: pillars, fences, ramps and platforms to fight on and around. A click puts one on the floor in front of him",
 	"Build stairs": "Stairs from BUILD, with real steps he can climb. A click puts one on the floor in front of him",
 	"Build furniture": "Tables, benches and crates from BUILD. A click puts one on the floor in front of him",
 	"My houses": "The houses you saved in BUILD, and the one you are drawing. A click puts one in the set",
+	"My parts": "The parts you put in a scene with Use in a scene (Easy Part or Expert). A click puts one in the set",
 }
 const PIECE_CAT := {"Stairs": "Build stairs", "Furniture": "Build furniture", "Fight blocks": "Fight blocks"}   # BuildPieces.CATS name -> the column's name
 const CAT_PIC := {"Furniture": "prop:chair", "Build furniture": "build:crate"}   # the category tile's picture, where the first object would repeat another category's
@@ -235,6 +237,12 @@ func extra_items() -> Array:
 		si["saved"] = String(h["name"])
 		si["thumb"] = String(h["thumb"])
 		out.append(si)
+	for pt in MyParts.list():   # My parts: each saved part with its picture (a click puts it in the set, as Use in a scene does)
+		var pr: Dictionary = pt["record"]
+		var pi := _item("My parts", String(pt["name"]), "mypart", String(pt["name"]), [["box", Vector3.ZERO, Vector3(0.1, 0.1, 0.1)]], "mypart:saved:" + String(pt["name"]))
+		pi["saved"] = String(pt["name"])
+		pi["thumb"] = String(pt["thumb"])
+		out.append(pi)
 	if m != null and m.S != null and not (m.S.building as Dictionary).is_empty() and not (m.S.building.get("rooms", []) as Array).is_empty() and not bool(m.S.building.get("readonly", false)) 			and not saved.has(String(m.S.building.get("name", "Untitled"))):
 		var b: Dictionary = m.S.building
 		var kind := BuildStage.kind_of_building(b)
@@ -403,6 +411,8 @@ func _place_item(it: Dictionary) -> bool:
 		return true
 	if how == "house":
 		return _place_house(it)
+	if how == "mypart":
+		return _place_part(String(it["saved"]), String(it["name"]))
 	if how == "prop" or how == "piece":
 		m._prop_add(String(it["key"]))   # main pushes its own undo step, as the Add prop menu does
 		_note.text = ("%s is on the floor. Undo takes it away." if m.easy.on else "%s: on the floor, Ctrl+Z undoes") % it["name"]
@@ -435,6 +445,25 @@ func _place_house(it: Dictionary) -> bool:
 	m.sel_prop = -1
 	m._props_show()
 	_note.text = ("%s is in the set. Undo takes it away." if m.easy.on else "%s is in the set (Ctrl+Z takes it back)") % it["name"]
+	return true
+
+
+## a saved part (My parts) goes into the set exactly as Use in a scene does: a prop of the set, the page STAGE, ONE undo step
+func _place_part(nm: String, label: String) -> bool:
+	var rec := MyParts.load_part(nm)
+	if rec.is_empty():
+		_note.text = "%s cannot be read here." % label
+		return false
+	m._push_undo()
+	var kind: String = m.bld.put_part(rec, label)
+	if kind == "":
+		m.undo.pop_back()
+		_note.text = "%s has no solid to put in the set." % label
+		return false
+	m.sel_prop = -1
+	m._props_show()
+	m.bld.sync()
+	_note.text = ("%s is in the set. Undo takes it away." if m.easy.on else "%s is in the set (Ctrl+Z takes it back)") % label
 	return true
 
 
@@ -719,8 +748,8 @@ func _refresh_tabs() -> void:
 		else:
 			eb.tooltip_text = "%d objects. %s" % [in_group(nm).size(), EXTRA_TIPS[nm]]
 		eb.button_pressed = view == nm and query == ""
-		if nm == "My houses":
-			eb.visible = view == nm or not in_group(nm).is_empty()   # no house drawn yet: no empty entry in the column
+		if nm == "My houses" or nm == "My parts":
+			eb.visible = view == nm or not in_group(nm).is_empty()   # none saved yet: no empty entry in the column
 
 
 ## the tiles on screen: the search's matches across the whole catalog, else Recent, a BUILD category, or the current built-in tab
@@ -775,7 +804,7 @@ func _rebuild() -> void:
 		empty.custom_minimum_size = Vector2(_tile_size().x * COLS, 60)
 		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		empty.text = ("Nothing matches \"%s\"." % query) if query != "" else \
-			("Nothing yet. Click a picture in any list and it shows up here." if view == RECENT else "Nothing here yet. Draw a room in BUILD, press Save house, and it is listed here." if view == "My houses" else "No models of your own yet. Drop a .glb file on the window to bring it in; it is listed here." if m.easy.on else "No models of your own yet. Import model... (the SET row) brings a .glb in; it is listed here.")
+			("Nothing yet. Click a picture in any list and it shows up here." if view == RECENT else "Nothing here yet. Draw a room in BUILD, press Save house, and it is listed here." if view == "My houses" else "Nothing saved yet. Make a part in Easy Part or Expert and press Use in a scene; it is listed here." if view == "My parts" else "No models of your own yet. Drop a .glb file on the window to bring it in; it is listed here." if m.easy.on else "No models of your own yet. Import model... (the SET row) brings a .glb in; it is listed here.")
 		empty.add_theme_color_override("font_color", Tok.of("text:0.6"))
 		_grid.add_child(empty)
 	if _easy() and view == "" and query == "":
