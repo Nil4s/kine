@@ -1107,10 +1107,15 @@ func _blend(rec: Dictionary) -> String:
 		return "Draw two shapes first, then blend them"
 	var a: Dictionary = sks[sks.size() - 2]
 	var b: Dictionary = sks[sks.size() - 1]
-	if String(a["plane"]) == String(b["plane"]):
-		if not (String(a["plane"]) in Part.PLANES):
-			return "Those two shapes sit on the same plane: draw them on different planes"
-		var pl := Part.new_feature(rec, "plane", {"from": String(a["plane"]), "mm": 40.0})
+	var same := String(a["plane"]) == String(b["plane"])
+	if not same:   # two offset planes (an upright sketch through the middle is one) at the same spot are the same plane
+		var pa := Part.resolve_plane(rec, String(a["plane"]))
+		var pb := Part.resolve_plane(rec, String(b["plane"]))
+		same = (pa["n"] as Vector3).dot(pb["n"] as Vector3) > 0.999 and ((pa["o"] as Vector3) - (pb["o"] as Vector3)).length() < 0.01 * Part.MM
+	if same:
+		var base := String(a["plane"]) if String(a["plane"]) in Part.PLANES else _base_plane(rec, String(a["plane"]))
+		var mm_a := 0.0 if String(a["plane"]) in Part.PLANES else float(Part.feature(rec, String(a["plane"])).get("mm", 0.0))
+		var pl := Part.new_feature(rec, "plane", {"from": base, "mm": mm_a + 40.0})   # the newer shape 40 mm off the older one, along the normal
 		rec["features"].insert(Part.index_of(rec, String(b["id"])), pl)
 		b["plane"] = String(pl["id"])
 	var f := Part.new_feature(rec, "loft", {"sketches": [a["id"], b["id"]], "ruled": true, "op": "join"})
