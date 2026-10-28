@@ -1013,14 +1013,15 @@ func _hole(rec: Dictionary) -> String:
 	var r := clampf(minf(bb.size.x, bb.size.z if floor_made else bb.size.y) / Part.MM * 0.12, 10.0, 40.0)   # the radius in mm: a hole 2 to 8 cm across
 	var s: Dictionary
 	var f: Dictionary
+	# "both" splits dist half each way from the sketch plane: twice the body's farthest reach + 1 cm, so a tall body is cut all the way
 	if floor_made:
 		s = Part.new_feature(rec, "sketch", {"plane": "top", "ents": [{"k": "circle", "c": Part.arr2(Vector2(c.x, -c.z)), "r": snappedf(r, 0.5)}], "dims": []})   # the top plane's v axis is -Z
 		rec["features"].append(s)
-		f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(bb.size.y / Part.MM + 20.0, 1.0), "both": true, "op": "cut"})
+		f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.y), absf(bb.end.y)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
 	else:
 		s = Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "circle", "c": Part.arr2(Vector2(c.x, c.y)), "r": snappedf(r, 0.5)}], "dims": []})
 		rec["features"].append(s)
-		f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(bb.size.z / Part.MM + 20.0, 1.0), "both": true, "op": "cut"})
+		f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.z), absf(bb.end.z)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
 	rec["features"].append(f)
 	var before := float(res["volume"])
 	var after := float(Part.replay(rec)["volume"])

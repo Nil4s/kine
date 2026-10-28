@@ -5,7 +5,7 @@ extends SceneTree
 ##   1 HOLLOW  Hollow inside: one body, volume = outer - inner within 2 pct (inner = a 3 mm wall, open at the top: r-3 wide, h-3 deep)
 ##   2 OPEN    the top is open: a ray down the middle hits the INSIDE floor at y about 3 mm
 ##   3 WALL    the Wall slider to 6 mm: volume = outer - inner (6 mm wall) within 2 pct, more solid than at 3 mm (a thicker wall), and ONE undo step for the drag
-##   4 THROUGH Through (the default after Cut a hole) still makes today's hole: a 10 mm radius cut, reaching h/2 + 10 mm up the 80 mm body (the floor hole's both-ways depth, as the old code), within 10 pct
+##   4 THROUGH Through (the default after Cut a hole) cuts a 10 mm radius hole all the way up the 80 mm body (the old depth stopped at h/2 + 10), within 10 pct
 ##   5 REFUSE  a 2 mm body cannot take a 3 mm wall: Hollow inside says so in words ("too thin") and leaves no undo step
 ## Shot: C:/Temp/claude/ehollow/shot.png, the hollow cup seen from above at an angle (LOOK at it)
 const SHOT := "C:/Temp/claude/ehollow"
@@ -277,7 +277,7 @@ func _init() -> void:
 	await click_ctl(ep().make_btns["hole"])
 	await idle(2)
 	var drop := outer - vol()
-	var want_t := PI * 10.0 * 10.0 * (80.0 / 2.0 + 10.0)   # today's floor hole: dist h+20 cut both ways = h/2+10 up from the floor
+	var want_t := PI * 10.0 * 10.0 * 80.0   # a hole ALL the way up the 80 mm body (the old both-ways depth h+20 stopped at h/2+10 = 50 mm: 15708)
 	ok(absf(drop - want_t) / want_t < 0.10 and int(pu().res.get("bodies", 0)) == 1,
 		"4 THROUGH Cut a hole still makes the through hole: volume drop %.0f mm3 vs a 10 mm hole %.0f" % [drop, want_t])
 	ok(ep().hint_l.text.contains("straight through"), "4b THROUGH the words say so [%s]" % ep().hint_l.text)
