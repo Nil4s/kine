@@ -47,6 +47,8 @@ var _angs := []             # per sampled frame: the scratch body's angles (the 
 var _mx := Mutex.new()
 var _P := {}
 var _out := []
+var _w := {}                # the set-up's work between its slices (begin_clash)
+var _steps := []            # the set-up's slices, one per step()
 
 
 ## the ROM test as a Scene the H17 sampler can play: frame f = poses[f] on the zero pose
@@ -179,17 +181,42 @@ func begin_clash(m: Node, how: String, o := {}) -> String:
 	var skin := BaseBody.skin_of(m)
 	if skin == null or m.wp.is_empty():
 		return "The clash check needs a body with a skin: pick the mannequin"
+	if how != "rom" and m._ps().cards.is_empty():
+		return "The clash check over the scene needs a scene: add a card first"
 	stop()
 	mode = how
 	opts = o
-	var skel: Skeleton3D = m.skel
-	var idx: Dictionary = m.bone_idx
+	# the set-up is cut into slices of one step each (step(), state "setup"): the same work in the same order as one
+	# call would do, so the start of a check is not one long main-thread stall (a tick of the UI's sampler, measured)
+	_w = {"m": m, "how": how, "o": o, "plist": plist, "skin": skin, "skel": m.skel, "idx": m.bone_idx}
+	_steps = [_setup_bind, _setup_parts, _setup_sweep, _setup_rest, _setup_body]
+	slice_ms = []
+	res = {}
+	progress = 0.0
+	_done = 0
+	_per_frame = 0.0
+	state = "setup"
+	return ""
+
+
+func _setup_bind() -> void:
+	var skin: Skin = _w["skin"]
+	var skel: Skeleton3D = _w["skel"]
 	var bob := PackedInt32Array()
 	for k in skin.get_bind_count():
 		bob.append(SkinPaint.bind_bone(skin, skel, k))
-	var pdata := []
-	var pbones := {}
-	for mi in plist:
+	_w["bob"] = bob
+	_w["pdata"] = []
+	_w["pbones"] = {}
+
+
+func _setup_parts() -> void:
+	var skin: Skin = _w["skin"]
+	var skel: Skeleton3D = _w["skel"]
+	var bob: PackedInt32Array = _w["bob"]
+	var pbones: Dictionary = _w["pbones"]
+	var pdata: Array = _w["pdata"]
+	for mi in _w["plist"]:
 		var k := part_kmesh(mi, skin)
 		var inf := infl4(k, skin, skel)
 		var IW: PackedFloat32Array = inf[1]
@@ -198,9 +225,18 @@ func begin_clash(m: Node, how: String, o := {}) -> String:
 			if IW[i] > 0.0:
 				pbones[bob[IB[i]]] = true
 		pdata.append({"name": part_name(mi), "verts": k.verts, "IB": IB, "IW": IW, "T": fan(k.faces), "closed": k.is_closed()})
-	var scene: Scene
+
+
+## the ROM sweep's poses (or the open scene), the joints that move the parts
+func _setup_sweep() -> void:
+	var how: String = _w["how"]
+	var o: Dictionary = _w["o"]
+	var m: Node = _w["m"]
+	var skel: Skeleton3D = _w["skel"]
+	var idx: Dictionary = _w["idx"]
+	var rel := relevant(skel, idx, _w["pbones"])
+	_w["rel"] = rel
 	var poses := []
-	var rel := relevant(skel, idx, pbones)
 	if how == "rom":
 		var G0 := Body.new()
 		G0.load_files("res://data/skeleton.json", "res://data/body_limits.json")
@@ -213,27 +249,54 @@ func begin_clash(m: Node, how: String, o := {}) -> String:
 		rs.fps = ROM_FPS
 		rs.body = m._ps().body
 		rs.poses = poses
-		scene = rs
+		_w["scene"] = rs
 	else:
-		scene = m._ps()
-		if scene.cards.is_empty():
-			return "The clash check over the scene needs a scene: add a card first"
-	# the body: its surfaces read one per slice ("read", below: one read is a GPU-side copy, all at once stalled the window
-	# ~95 ms), the painted weights laid on, welded on the worker
+		_w["scene"] = m._ps()
+	_w["poses"] = poses
+
+
+## the body's rest surfaces are listed one per slice ("read", below); a surface the corrective holds its arrays for is read from
+## those (CPU-side, no GPU readback in the job), the rest pose's bind matrices
+func _setup_rest() -> void:
+	var m: Node = _w["m"]
+	var skin: Skin = _w["skin"]
+	var skel: Skeleton3D = _w["skel"]
+	var bob: PackedInt32Array = _w["bob"]
 	var rq := []
 	var rest := BaseBody.rest_meshes(m)
+	# the rest surfaces' arrays are the corrective's own copies (taken when it attached to these meshes: the same
+	# arrays a read gives, CPU-side): the clash job reads them from here, not from the GPU (no readback in the job)
+	var held := {}
+	for e in m.corr._entries:
+		held[e[1]] = e[2]
 	for j in m.pieces:
 		var am := rest[m.pieces[j]] as ArrayMesh
 		if am != null:
+			var have: Array = held.get(am, [])
 			for si in am.get_surface_count():
-				rq.append([am, si])
+				rq.append([am, si, have[si] if si < have.size() else null])
+	_w["rq"] = rq
 	# the words of a site: the A19 rule at the rest pose (skeleton space), per bind the rest skinning matrix
 	var rest_m := []
 	for k in skin.get_bind_count():
 		rest_m.append(skel.get_bone_global_rest(bob[k]) * skin.get_bind_pose(k))
+	_w["rest_m"] = rest_m
 	var names := PackedStringArray()
 	for b in skel.get_bone_count():
 		names.append(skel.get_bone_name(b))
+	_w["names"] = names
+
+
+## the scene's frames and the body's copy: the job is ready for the "read" slices
+func _setup_body() -> void:
+	var m: Node = _w["m"]
+	var skin: Skin = _w["skin"]
+	var skel: Skeleton3D = _w["skel"]
+	var idx: Dictionary = _w["idx"]
+	var how: String = _w["how"]
+	var scene: Scene = _w["scene"]
+	var bob: PackedInt32Array = _w["bob"]
+	var poses: Array = _w["poses"]
 	_skin_ref = skin
 	_scene = scene
 	_skel = skel
@@ -243,23 +306,25 @@ func begin_clash(m: Node, how: String, o := {}) -> String:
 	_nf = maxi(1, roundi(scene.length() * _fps) + 1)
 	_frames = []
 	_angs = []
-	slice_ms = []
-	res = {}
-	progress = 0.0
-	_done = 0
-	_per_frame = 0.0
 	_G = Body.new()
 	_G.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	_G.set_proportions(scene.body)
-	_d = {"bob": bob, "gt": skel.global_transform, "k": clampf(float(m.S.dq_skin), 0.0, 1.0), "parts": pdata,
-		"srcs": [], "rq": rq, "wps": (m.wp as Dictionary).get("surfs", []), "skin": skin, "mode": how, "poses": poses, "fps": _fps, "rest_m": rest_m,
-		"seg": KMeshAnatomy.body_from_skeleton(skel)["seg"], "names": names, "rel": rel, "angs": _angs}
+	_d = {"bob": bob, "gt": skel.global_transform, "k": clampf(float(m.S.dq_skin), 0.0, 1.0), "parts": _w["pdata"],
+		"srcs": [], "rq": _w["rq"], "wps": (m.wp as Dictionary).get("surfs", []), "skin": skin, "mode": how, "poses": poses, "fps": _fps, "rest_m": _w["rest_m"],
+		"seg": KMeshAnatomy.body_from_skeleton(skel)["seg"], "names": _w["names"], "rel": _w["rel"], "angs": _angs}
+	_w = {}
+	_steps = []
 	state = "read"
-	return ""
 
 
 ## the "read" slices (one surface or more per call, as the budget allows), then DeformScene's own
 func step(budget_ms := BUDGET_MS) -> bool:
+	if state == "setup":
+		var t0 := Time.get_ticks_usec()
+		var f: Callable = _steps.pop_front()
+		f.call()
+		slice_ms.append(float(Time.get_ticks_usec() - t0) / 1000.0)
+		return false
 	if state != "read":
 		return super.step(budget_ms)
 	var t0 := Time.get_ticks_usec()
@@ -267,7 +332,7 @@ func step(budget_ms := BUDGET_MS) -> bool:
 	var srcs: Array = _d["srcs"]
 	while not rq.is_empty():
 		var it: Array = rq.pop_front()
-		read_into(srcs, it[0], it[1])
+		read_into(srcs, it[0], it[1], it[2])
 		if float(Time.get_ticks_usec() - t0) / 1000.0 * 2.0 >= budget_ms:
 			break
 	if rq.is_empty():
@@ -283,8 +348,8 @@ func step(budget_ms := BUDGET_MS) -> bool:
 
 
 ## one surface into the source list as BaseBody.sources does it (a surface sharing another's vertices adds its triangles)
-static func read_into(srcs: Array, am: ArrayMesh, si: int) -> void:
-	var arr := am.surface_get_arrays(si)
+static func read_into(srcs: Array, am: ArrayMesh, si: int, held = null) -> void:
+	var arr: Array = (held as Array).duplicate() if held != null else am.surface_get_arrays(si)
 	var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 	var k := -1
 	for q in srcs.size():
@@ -302,7 +367,7 @@ static func read_into(srcs: Array, am: ArrayMesh, si: int) -> void:
 
 
 func running() -> bool:
-	return state == "read" or super.running()
+	return state == "setup" or state == "read" or super.running()
 
 
 func _sampled(_f: int) -> void:
