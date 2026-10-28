@@ -354,6 +354,22 @@ func open_easy() -> void:
 	m._fit_top.call_deferred()
 
 
+## the BUILDING card (Nick 2026-10-28: free 3D building, no forced house): a new project starts on an empty part named "Part N"
+## (MyParts.free_name; no template, no house, no name asked), in Easy Part or in Expert. A part already in the scene (the last one) is kept
+func open_blank(easy_on: bool) -> void:
+	if m.S.part.is_empty():
+		var rec := Part.make(MyParts.free_name("Part"))
+		rec["kept"] = true   # an empty part is a part the user chose: undo and redo keep it (as Empty does)
+		m.S.part = rec
+	if easy_on:
+		open_easy()   # S.part is not empty now, so open_easy keeps it (no sword)
+	else:
+		if sk != "":
+			finish_sketch()
+		close_dialog()
+		set_on(true)
+
+
 ## main._fit_top shows a ribbon row's buttons by this: the BUILD row holds the house tools AND the Part workspace's, and only one set shows
 func ribbon_shows(b: Node, tab: String) -> bool:
 	if tab != "BUILD":

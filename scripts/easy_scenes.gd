@@ -9,10 +9,10 @@ extends Control
 ## Weird, from Kine's own Check, graded one scene per frame and cached); "Hide weird ones" and "Best first" / "Newest first";
 ## a star on each tile for a favourite. The toggles and the stars are kept in the settings file.
 
-const TILE := Vector2(224, 196)
+const TILE := Vector2(224, 232)   # 196 + a row of two buttons (Rename, Duplicate; Put back in the trash chip)
 const PIC := Vector2(208, 130)
 const CHIPS := [["All", "chip_all"], ["Walk & run", "chip_walk"], ["Fight", "chip_fight"], ["Weapons", "chip_weapons"],
-	["Jump & dodge", "chip_jump"], ["Dance & other", "chip_dance"], ["Drafts", "chip_drafts"], ["Favourites", "chip_favs"]]
+	["Jump & dodge", "chip_jump"], ["Dance & other", "chip_dance"], ["Drafts", "chip_drafts"], ["Favourites", "chip_favs"], ["Trash", "chip_trash"]]
 const BADGE_COL := {"Good": Color(0.55, 0.92, 0.6), "OK": Color(1.0, 0.86, 0.5), "Weird": Color(1.0, 0.55, 0.5)}
 const CFG := "easy_scenes"
 
@@ -26,6 +26,12 @@ var draft_dirs: Array = []        # a test's own drafts folders, in place of res
 var _mine: HFlowContainer
 var _examples: HFlowContainer
 var _drafts: HFlowContainer
+var _trashg: HFlowContainer       # the Trash chip's tiles: the files Delete moved to trash/ (Put back brings one back)
+var _trash_head: Label
+var _order_tr: Array = []         # the trash files' paths, newest first
+var _rename_dlg: ConfirmationDialog   # Rename: a name box (its OK or Enter renames the file)
+var _rename_edit: LineEdit
+var _rename_path := ""
 var _mine_head: Label
 var _ex_head: Label
 var _drafts_head: Label
@@ -174,6 +180,10 @@ func build(root: Control) -> void:
 	body.add_child(_drafts_head)
 	_drafts = _grid("easy_scenes_drafts")
 	body.add_child(_drafts)
+	_trash_head = _heading("Trash: deleted scenes, kept until you put one back (newest first)")
+	body.add_child(_trash_head)
+	_trashg = _grid("easy_scenes_trash")
+	body.add_child(_trashg)
 	root.add_child(self)
 	set_process(false)
 
@@ -288,7 +298,7 @@ func pending() -> int:
 
 
 func _fill() -> void:
-	for g in [_mine, _examples, _drafts]:
+	for g in [_mine, _examples, _drafts, _trashg]:
 		for c in g.get_children():
 			g.remove_child(c)
 			c.queue_free()
@@ -296,6 +306,7 @@ func _fill() -> void:
 	_order_mine = []
 	_order_ex = []
 	_order_dr = []
+	_order_tr = []
 	_base_mine = []
 	_base_dr = []
 	_missing = []
@@ -326,13 +337,21 @@ func _fill() -> void:
 		_order_dr.append(p)
 		_base_dr.append(p)
 		_add_tile(p, p.get_file().get_basename().replace("_", " "), "dr")
+	# the trash: the files Delete moved out (trash/, newest first); each tile is a Put back
+	var trash_dirs: Array = UserPaths.dirs("res://trash")
+	for f in m._scene_files(trash_dirs):
+		var tp := String(f[0])
+		if _tiles.has(tp):
+			continue
+		_order_tr.append(tp)
+		_add_tile(tp, _trash_name(tp), "tr")
 	if _order_mine.is_empty():
 		_mine.add_child(_heading("No saved scenes yet: press New scene, then Save the scene, and it is listed here."))
 	if not _new_entries.is_empty():
 		SceneCat.merge_cache(_new_entries)
 		_new_entries = {}
 	if m.thumbs != null:
-		for p in _order_mine + _order_ex + _order_dr:
+		for p in _order_mine + _order_ex + _order_dr + _order_tr:
 			m.thumbs.request(p)
 			_made(p)
 	_resort()
@@ -364,12 +383,15 @@ func _add_tile(path: String, nm: String, group: String) -> void:
 	var example := group == "ex"
 	var info := _info(path)
 	var b := Button.new()
-	var idx := (_order_mine if group == "mine" else _order_ex if example else _order_dr).size() - 1
+	var idx := (_order_mine if group == "mine" else _order_ex if example else _order_tr if group == "tr" else _order_dr).size() - 1
 	b.name = "tile_%s_%d" % [group, idx]
 	b.custom_minimum_size = TILE
 	b.focus_mode = Control.FOCUS_NONE
 	b.tooltip_text = ("Open the example '%s' as a copy: Save makes a new file" if example else "Open '%s' and play it") % nm
-	b.pressed.connect(_pick.bind(path, example))
+	if group == "tr":
+		b.pressed.connect(_restore.bind(path))   # a trash tile: a click puts it back
+	else:
+		b.pressed.connect(_pick.bind(path, example))
 	var col := VBoxContainer.new()
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -395,7 +417,7 @@ func _add_tile(path: String, nm: String, group: String) -> void:
 	star.pressed.connect(_toggle_fav.bind(path))
 	row.add_child(star)
 	var trash: Button = null
-	if not example:   # the user's own tiles (saved scenes and drafts) get a trash button; the examples are copies and have none
+	if group == "mine" or group == "dr":   # the user's own tiles (saved scenes and drafts) get a trash button; the examples are copies and have none; a trash tile is already in the trash
 		trash = Button.new()
 		trash.name = "trash"
 		trash.flat = true
@@ -420,9 +442,19 @@ func _add_tile(path: String, nm: String, group: String) -> void:
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	col.add_child(l)
+	if group == "mine" or group == "tr":   # the row of words under the name: Rename and Duplicate (a saved scene); Put back (a trash file)
+		var r2 := HBoxContainer.new()
+		r2.name = "tile_actions"
+		r2.add_theme_constant_override("separation", 6)
+		col.add_child(r2)
+		if group == "mine":
+			r2.add_child(_tile_word("Rename", "rename", _rename_ask.bind(path), "rename this scene (its file gets the new name)"))
+			r2.add_child(_tile_word("Duplicate", "duplicate", _duplicate.bind(path), "a copy of this scene, saved beside it under a new name"))
+		else:
+			r2.add_child(_tile_word("Put back", "put_back", _restore.bind(path), "put this scene back in My scenes (its name, or the next free one)"))
 	_tiles[path] = {"button": b, "pic": pic, "name": nm, "example": example, "group": group,
 		"cat": String(info["cat"]), "badge": badge, "star": star, "trash": trash}
-	(_examples if example else _drafts if group == "dr" else _mine).add_child(b)
+	(_examples if example else _drafts if group == "dr" else _trashg if group == "tr" else _mine).add_child(b)
 	star.text = "★" if _fav.has(path) else "☆"
 	if info.has("fails") and info.has("warns"):
 		_grades[path] = [int(info["fails"]), int(info["warns"])]
@@ -648,9 +680,149 @@ func _delete_now(p: String) -> void:
 	_fill()
 
 
+## ---------------------------------------------------------------- rename, duplicate, put back (the tile's words; the files only)
+
+## a small text button under a tile's name (the tile is a Button: this one takes its own press)
+func _tile_word(text: String, nm: String, f: Callable, tip: String) -> Button:
+	var b := Button.new()
+	b.name = nm
+	b.text = text
+	b.tooltip_text = tip
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(0, 30)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.add_theme_font_size_override("font_size", 15)
+	b.pressed.connect(f)
+	return b
+
+
+## the name a trash file shows: its file name without the time stamp Delete adds (walk_20261028_135600 -> walk)
+func _trash_name(p: String) -> String:
+	var stem := p.get_file().get_basename()
+	var rx := RegEx.create_from_string("_\\d{8}_\\d{6}$")
+	return rx.sub(stem, "").replace("_", " ")
+
+
+## the file name a typed name becomes: letters, digits, _ and -; a space is an _
+func _clean_name(typed: String) -> String:
+	var rx := RegEx.create_from_string("[^A-Za-z0-9_\\-]")
+	return rx.sub(typed.strip_edges().replace(" ", "_"), "", true)
+
+
+## Rename: a name box with the scene's name typed in; OK (or Enter) renames the file
+func _rename_ask(p: String) -> void:
+	if m == null or not _tiles.has(p):
+		return
+	if p.begins_with("res://"):
+		m._say("the shipped scenes keep their names: Open it, then Save the scene under a new name")
+		return
+	if _rename_dlg == null:
+		_rename_dlg = ConfirmationDialog.new()
+		_rename_dlg.name = "easy_rename_dlg"
+		_rename_dlg.title = "Rename the scene"
+		_rename_dlg.ok_button_text = "Rename"
+		_rename_dlg.dialog_text = "Type the new name (letters, digits and _)."
+		_rename_edit = LineEdit.new()
+		_rename_edit.name = "easy_rename_edit"
+		_rename_edit.custom_minimum_size = Vector2(380, 40)
+		_rename_edit.add_theme_font_size_override("font_size", 20)
+		_rename_dlg.add_child(_rename_edit)
+		_rename_dlg.confirmed.connect(_rename_do)
+		_rename_edit.text_submitted.connect(func(_t: String): _rename_do())
+		m.add_child(_rename_dlg)
+	_rename_path = p
+	_rename_edit.text = p.get_file().get_basename().replace("_", " ")
+	_rename_dlg.popup_centered(Vector2i(440, 150))
+	_rename_edit.grab_focus()
+	_rename_edit.select_all()
+
+
+func _rename_do() -> void:
+	if _rename_dlg != null:
+		_rename_dlg.hide()
+	_rename_now(_rename_path, _rename_edit.text)
+
+
+## the file moves to its new name in its own folder; the open scene follows it; the favourite star follows it
+func _rename_now(p: String, typed: String) -> void:
+	var nm := _clean_name(typed)
+	if nm == "":
+		m._say("type a name for the scene (letters, digits and _)")
+		return
+	var to := p.get_base_dir().path_join(nm + ".json")
+	if to == p:
+		return
+	if FileAccess.file_exists(to):
+		m._say("a scene called '%s' is already here: type another name" % nm.replace("_", " "))
+		return
+	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(p), ProjectSettings.globalize_path(to))
+	if err != OK:
+		m._say("couldn't rename (error %d): close any program that has the file open" % err)
+		return
+	if String(m.scene_path) == p:
+		m.scene_path = to
+	if _fav.has(p):
+		_fav[_fav.find(p)] = to
+		_save_pref("favourites", _fav)
+	m._lists()
+	m._say("renamed to '%s'" % nm.replace("_", " "))
+	_fill()
+
+
+## Duplicate: a copy of the scene's file, beside it, under the next free name (name_copy, name_copy_2 ...)
+func _duplicate(p: String) -> void:
+	if m == null or not _tiles.has(p):
+		return
+	if p.begins_with("res://"):
+		m._say("the shipped scenes are not copied here: Open it, then Save the scene under a new name")
+		return
+	var stem := p.get_file().get_basename()
+	var n := 1
+	var to := ""
+	while true:
+		to = p.get_base_dir().path_join(stem + ("_copy" if n == 1 else "_copy_%d" % n) + ".json")
+		if not FileAccess.file_exists(to):
+			break
+		n += 1
+	var f := FileAccess.open(to, FileAccess.WRITE)
+	if f == null:
+		m._say("couldn't copy '%s': the folder is not writable" % stem.replace("_", " "))
+		return
+	f.store_string(FileAccess.get_file_as_string(p))
+	f.close()
+	m._lists()
+	m._say("copied as '%s'" % to.get_file().get_basename().replace("_", " "))
+	_fill()
+
+
+## Put back: the trash file goes back to the scenes folder under its own name (the next free one if that name is taken)
+func _restore(p: String) -> void:
+	if m == null or not _tiles.has(p):
+		return
+	var dest := UserPaths.w("res://scenes")
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dest))
+	var stem := _trash_name(p).replace(" ", "_")
+	var to := dest.path_join(stem + ".json")
+	var n := 1
+	while FileAccess.file_exists(to):
+		n += 1
+		to = dest.path_join("%s_%d.json" % [stem, n])
+	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(p), ProjectSettings.globalize_path(to))
+	if err != OK:
+		m._say("couldn't put it back (error %d): close any program that has the file open" % err)
+		return
+	m._lists()
+	m._say("put back '%s' in My scenes" % to.get_file().get_basename().replace("_", " "))
+	_fill()
+
+
 ## a tile passes the chip shown and the Hide weird toggle
 func _passes(p: String) -> bool:
 	var t: Dictionary = _tiles[p]
+	if String(t["group"]) == "tr":   # the trash tiles show only under the Trash chip
+		return _cat == "Trash"
+	if _cat == "Trash":
+		return false
 	var draft := String(t["group"]) == "dr"
 	var ok := true
 	if _cat == "All":
@@ -665,7 +837,7 @@ func _passes(p: String) -> bool:
 
 
 func _apply() -> void:
-	var shown := {"mine": 0, "ex": 0, "dr": 0}
+	var shown := {"mine": 0, "ex": 0, "dr": 0, "tr": 0}
 	var hidden := 0
 	for p in _tiles:
 		var t: Dictionary = _tiles[p]
@@ -678,7 +850,8 @@ func _apply() -> void:
 	_mine_head.visible = int(shown["mine"]) > 0
 	_ex_head.visible = int(shown["ex"]) > 0
 	_drafts_head.visible = int(shown["dr"]) > 0
-	var total := int(shown["mine"]) + int(shown["ex"]) + int(shown["dr"])
+	_trash_head.visible = int(shown["tr"]) > 0
+	var total := int(shown["mine"]) + int(shown["ex"]) + int(shown["dr"]) + int(shown["tr"])
 	_empty.visible = total == 0
 	if total == 0:
 		_empty.text = ("Every scene in this group is marked Weird. Turn Hide weird ones off to see them." if hidden > 0
@@ -696,6 +869,7 @@ func _update_chips() -> void:
 		n[String(k[0])] = 0
 	n["All"] = _order_mine.size()
 	n["Drafts"] = _order_dr.size()
+	n["Trash"] = _order_tr.size()
 	for p in _order_mine:
 		var c: String = String(_tiles[p]["cat"])
 		n[c] = int(n.get(c, 0)) + 1

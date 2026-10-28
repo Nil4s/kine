@@ -252,7 +252,7 @@ const RIBBON_GROUPS := {
 	"SURFACE": [["COLOUR", ["Paint", "Material from photo"]], ["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]]],
 	"BUILD": [["DRAW", ["Room", "Wall", "Pull"]], ["ADD", ["Opening", "Floor", "Roof", "Piece"]], ["SAY", ["Words"]], ["SHEET", ["Blueprint"]],
 		["PART", ["Part"]], ["SKETCH", ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]], ["CREATE", ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine"]], ["MODIFY", ["Fillet", "Chamfer", "Shell", "Appearance", "Offset face", "Draft"]], ["VIEW", ["Measure", "Section"]], ["DONE", ["Finish sketch"]]],   # the last five are the Part workspace's (scripts/build/part_ui.gd)
-	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped"]]],
+	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped", "Face: brows, eyes, jaw, mouth...", "Hair: add a ponytail", "Hair: take the hair off"]]],
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag", "Keep balance"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)", "Force view"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
@@ -12620,6 +12620,10 @@ func _ui() -> void:
 	tog.call("BODY", "Body: smooth", _body_smooth_toggle, func(): return Overlays.smooth,
 		"the figure drawn as a smooth human (Quaternius Universal Base Characters, CC0) on the same skeleton and the same egg head and face; off = the mannequin (the default). One undo step. Saved bodies and painted weights stay the mannequin's")
 	ui_ribbon["BODY"].add_child(_button("Mannequin as shipped", func(): proportions_set({}), "the body back to the 183 cm mannequin; the cards keep their angles. Ctrl+Z undoes"))
+	# BODYWALK: the face and the hair were only in the search (Ctrl+S "face", "hair"); a beginner on BODY now sees them as words
+	ui_ribbon["BODY"].add_child(_button("Face: brows, eyes, jaw, mouth...", func(): face_ui.open(), "the face of the body: brows, eyes, jaw and mouth as sliders; OK keys it (one undo step). Works on a body with no clips too: it is the face for the whole scene"))
+	ui_ribbon["BODY"].add_child(_button("Hair: add a ponytail", _hair_add, "a ponytail of 8 strands on the back of the head, with gravity and collision (Ctrl+Z takes it back). Works with no clips too"))
+	ui_ribbon["BODY"].add_child(_button("Hair: take the hair off", _hair_clear, "removes the hair from the scene (Ctrl+Z puts it back)"))
 	# POSE
 	ui_ribbon["POSE"].add_child(_button("CLIP this pose (Enter)", _card_add, "the body as it is now becomes the next clip in the scene"))
 	ui_ribbon["POSE"].add_child(_button("Reset body", _do.bind(_reset_all)))
@@ -14585,13 +14589,12 @@ static func easy_is_jargon(n: String) -> bool:
 
 
 ## EASY: the place of a copied-video card in its run of copied cards (the v<frame> cards in a row), 1 for the run's first
-func _copy_place(i: int) -> int:
-	var k := 1
-	var j := i - 1
-	while j >= 0 and _is_copy_name(String(S.cards[j]["name"])):
-		k += 1
-		j -= 1
-	return k
+func _copy_place(i: int) -> int:   # the copied cards up to and including card i: unique even when a pose or a cut sits between them
+	var k := 0
+	for j in range(0, i + 1):
+		if _is_copy_name(String(S.cards[j]["name"])):
+			k += 1
+	return maxi(k, 1)
 
 
 static func _is_copy_name(n: String) -> bool:
@@ -15108,7 +15111,10 @@ func _card_pick(i: int) -> void:
 	Scene.put(B, Moves._flat(S.cards[i]["pose"]))
 	_rebuild_cards()
 	_refresh()
-	_say("card %d '%s': change the body, then 'Update' on the card to keep it" % [i + 1, S.cards[i]["name"]])
+	if easy != null and easy.on:   # Easy shows no 'Update': the card's words, and the button that is on screen
+		_say("%s is picked: drag his arms and legs to change this moment, then + Add pose adds it as a new card after it." % _easy_card_name(String(S.cards[i]["name"]), i))
+	else:
+		_say("card %d '%s': change the body, then 'Update' on the card to keep it" % [i + 1, S.cards[i]["name"]])
 
 
 ## the ViewCube sits in the view's top-right corner: left of the right panel, or the screen's corner in big view
@@ -19850,7 +19856,9 @@ func _load_pose(path: String) -> void:
 
 ## then (round 8): what goes on once the scene is saved (New scene, Open): it waits for a Replace / Save as a new name answer
 func _save_scene(then := Callable()) -> void:
-	if _hero_scene().cards.is_empty():
+	var H0: Scene = _hero_scene()
+	# BODYWALK: a body (or its face or hair) with no clips is a scene worth saving; an untouched empty scene still is not
+	if H0.cards.is_empty() and H0.body.is_empty() and H0.face.is_empty() and H0.hair.is_empty():
 		_say("the scene is empty: press Enter to add the body as a card, then Save scene")
 		return
 	var nm := ui_scene_name.text.strip_edges()
@@ -23910,7 +23918,8 @@ static func _rm_tree(dir: String) -> void:
 
 func _unsaved() -> bool:
 	var H := _hero_scene()   # TC3: the file is the hero's scene, whoever is active
-	return (not H.cards.is_empty() or not H.props.is_empty() or not S.building.is_empty() or not S.part.is_empty()) and _doc_key() != _clean   # a drawn house (or a sketched part) is work too
+	# a drawn house (or a part with steps) is work too; a blank part (no steps: the BUILDING card's start, Nick 2026-10-28) is not
+	return (not H.cards.is_empty() or not H.props.is_empty() or not S.building.is_empty() or not (S.part.get("features", []) as Array).is_empty()) and _doc_key() != _clean
 
 
 ## what "saved" compares: the cards, and the set when there is one (no props: the same string as before round 37); with

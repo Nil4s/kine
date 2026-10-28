@@ -141,6 +141,11 @@ func _init() -> void:
 	if m.ui_save_ask != null and m.ui_save_ask.visible:
 		m._save_ask_choose("discard")
 	await idle(6)
+	# Nick 2026-10-28: free 3D building, no forced house. The BUILDING card now opens a blank part on Part; this bar opens the
+	# Part itself from BUILD, as it did before, so it starts from the same state (Part off, no part) it always did
+	pu.set_on(false)
+	m.S.part = {}
+	await idle(8)   # the ribbon moves once Part is off: let it settle before a click
 	var ep: EasyPart = pu.ep
 	if sc == null or not Part.available():
 		ok(false, "M0 the store module and the CAD DLL load (store %s, DLL %s)" % [sc != null, Part.available()])

@@ -266,6 +266,16 @@ func shot_to(dir: String, nm: String) -> void:
 	root.get_texture().get_image().save_png("%s/%s.png" % [dir, nm])
 
 
+## Nick 2026-10-28: free 3D building, no forced house. The BUILDING card now opens a free Easy Part (no house, no chooser). The house
+## this suite builds is one step further: What to build -> House (Expert), the same Expert house these bars always drove
+func to_house() -> void:
+	await click_ctl(m.bld.part.reopen_btn)
+	await idle(6)
+	await click_ctl(m.build_choose.btns["house"]["expert"])
+	m.bld.reset_view()   # the house view the card gave before (the Easy Part framed the camera)
+	await idle(10)
+
+
 func _init() -> void:
 	# ---- 1 PARSE (no window needed)
 	parse_row(MOCK, {"w": 8.0, "d": 6.0, "floors": 2, "door_n": 1, "win_n": 4, "roof": "gable", "overhang": 0.45, "floor_h": 2.8})
@@ -462,6 +472,7 @@ func _init() -> void:
 	await click_ctl(ss._cards["building"])
 	if m.ui_save_ask != null and m.ui_save_ask.visible: m._save_ask_choose("discard")   # unsaved work above: a new project asks first (startscreen bar 13)
 	await idle(6)
+	await to_house()   # Nick 2026-10-28: free 3D building, no forced house (see to_house)
 	var wbtn: Button = m.ui_ribbon["BUILD"].find_child("build_tool_words", true, false)
 	var pbtn: Button = m.ui_ribbon["BUILD"].find_child("build_tool_piece", true, false)
 	ok(wbtn != null and not wbtn.disabled and wbtn.text == "Words" and wbtn.icon != null and not pbtn.disabled, "4 Words is a tool on the ribbon (1f: so is Piece, it is no longer greyed)")

@@ -71,12 +71,6 @@ static func reopen_button(main: Node) -> Button:
 	return b
 
 
-## the start screen, last thing of a new 3D BUILDING project
-func after_start() -> void:
-	if auto:
-		show_chooser()
-
-
 func show_chooser() -> void:
 	if root_box == null:
 		return

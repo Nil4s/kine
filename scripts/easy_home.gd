@@ -2180,6 +2180,9 @@ func trim(start: bool) -> void:
 	if picked and (on_pick or nothing_before or all_of_it):
 		_trim_card(start, i)
 		return
+	if m.playing and not (nothing_before or all_of_it):   # the playhead moves on while the clip plays: a cut now would land wherever it is
+		m._say_plain("Cut %s: the clip is playing, so the cut would land wherever it is now. Press Stop, drag the slider to where the good part %s, then press Cut %s." % ["start" if start else "end", "starts" if start else "ends", "start" if start else "end"])
+		return
 	if nothing_before or all_of_it:
 		if start:
 			m._say_plain("Cut start: the playhead is at the %s, so %s. Drag the slider to where the good part starts, then press Cut start." % ["start" if nothing_before else "end", "nothing is before it" if nothing_before else "Cut start would drop the whole clip"])
