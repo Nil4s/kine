@@ -11108,8 +11108,13 @@ static func side_col(j: String) -> Color:
 
 
 func nice(j: String) -> String:
-	if (j == "bat_handle" or j == "bat_barrel") and B.wep_kind.begins_with(PartWeapon.PREFIX):   # a Part weapon: its own name
-		return "%s (%s)" % [PartWeapon.name_of(B.wep_kind), "handle" if j == "bat_handle" else "barrel"]
+	return nice_of(j, B.wep_kind)
+
+
+## a joint's plain name; static so a check that has no main (Rulebook's loop seam) names it the same way. wep: the held weapon kind
+static func nice_of(j: String, wep: String) -> String:
+	if (j == "bat_handle" or j == "bat_barrel") and wep.begins_with(PartWeapon.PREFIX):   # a Part weapon: its own name
+		return "%s (%s)" % [PartWeapon.name_of(wep), "handle" if j == "bat_handle" else "barrel"]
 	var names := {"pelvis": "hips", "spine_01": "lower back", "spine_02": "middle back", "spine_03": "chest",
 		"neck_01": "neck", "head": "head", "clavicle": "shoulder", "upperarm": "upper arm", "lowerarm": "elbow / forearm",
 		"hand": "wrist / hand", "thigh": "hip joint / thigh", "calf": "knee / shin", "foot": "ankle / foot", "ball": "toes",
