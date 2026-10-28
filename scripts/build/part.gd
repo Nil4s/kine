@@ -353,7 +353,7 @@ static func set_dim(sk: Dictionary, ent: int, kind: String, mm: float, bind := {
 
 
 ## the kernel items of the entities (metres)
-static func items_of(ents: Array) -> Array:
+static func items_of(ents: Array, clamp_x := false) -> Array:   # clamp_x: a SPIN's profile (its splines become polygons on the middle line)
 	var out := []
 	for e in ents:
 		match String(e["k"]):
@@ -369,8 +369,45 @@ static func items_of(ents: Array) -> Array:
 				out.append(KCad.arc(v2(e["a"]) * MM, v2(e["m"]) * MM, v2(e["b"]) * MM))
 			"bspline":
 				if (e.get("pts", []) as Array).size() >= 3:
-					out.append(spline_item(e))
+					if clamp_x:
+						out.append_array(spin_poly(e))
+					else:
+						out.append(spline_item(e))
 	return out
+
+
+## a spline of a SPIN's profile as a closed polygon of its curve (lines: a spline that runs along the middle line gives a
+## degenerate revolve, a hole or no solid). The curve is sampled, cut back onto the middle line where it dips past it or comes near it (within 15 pct of its width, 2..8 mm),
+## a run of samples on the line keeps its two ends, and repeated samples go.
+static func spin_poly(e: Dictionary) -> Array:
+	var closed := bool(e.get("closed", false))
+	var c := spline_curve(e.get("pts", []), closed, SPLINE_KERNEL_STEPS)
+	if closed and c.size() > 1:
+		c.resize(c.size() - 1)
+	var wx := 0.0
+	for q in c:
+		wx = maxf(wx, q.x)
+	var snap := clampf(0.15 * wx, 2.0, 8.0)   # near the line IS on the line: the curve rounds a drawn corner at the axis (a bowl's flat bottom) into a
+	var d := PackedVector2Array()            # diagonal that pinches to a point, a pinhole in the bottom; a hand-drawn side stops 2-3 mm short (a ring hole)
+	if closed:   # start OFF the line: a run on the line that wraps round the loop's start is then one run (two ends), not two that zig-zag
+		for i in c.size():
+			if c[i].x >= snap:
+				c = c.slice(i) + c.slice(0, i)
+				break
+	for q in c:
+		var v := Vector2(0.0 if q.x < snap else q.x, q.y)
+		if d.size() > 0 and d[d.size() - 1].distance_to(v) < 0.0005:
+			continue
+		if v.x == 0.0 and d.size() >= 2 and d[d.size() - 1].x == 0.0 and d[d.size() - 2].x == 0.0:
+			d[d.size() - 1] = v
+		else:
+			d.append(v)
+	while closed and d.size() > 2 and d[d.size() - 1].distance_to(d[0]) < 0.0005:
+		d.resize(d.size() - 1)
+	var mm := PackedVector2Array()
+	for q in d:
+		mm.append(q * MM)
+	return KCad.polygon(mm)
 
 
 ## a spline entity as a kernel item (metres); items_of leaves out one with fewer than 3 points (no curve)
@@ -858,7 +895,7 @@ static func _swing(id: int, pivot: Vector3, axis: Vector3, radians: float) -> in
 
 static func _solid(f: Dictionary, sk: Dictionary) -> int:
 	var pl: Dictionary = sk["_pl"] if sk.has("_pl") else plane(String(sk.get("plane", "front")))
-	var face := KCad.sketch_face(items_of(sk["ents"]), pl["o"], pl["x"], pl["n"])
+	var face := KCad.sketch_face(items_of(sk["ents"], f["t"] == "revolve" and bool(f.get("onside", false))), pl["o"], pl["x"], pl["n"])
 	if face == 0:
 		return 0
 	var s := 0
