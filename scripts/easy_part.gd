@@ -927,9 +927,9 @@ func _pull(rec: Dictionary) -> String:
 	var pf := Part.feature(rec, String(sk.get("plane", "front")))
 	var on_face := String(pf.get("t", "")) == "plane" and pf.has("out")   # a sketch on a face: the pull goes OUTWARD from it
 	var sg := float(pf["out"]) if on_face else 1.0
-	var inward := on_face and _is_pointy(sk)
+	var inward := on_face and _overhangs(rec, sk)
 	if inward:
-		sg = -sg   # POINTY on a face (the house roof): the pull goes back INTO the solid, so the roof lies across the walls, not out in front of them
+		sg = -sg   # a face drawing that hangs past the body (a roof above the walls) pulls back INTO it: it extends the body's outline; one inside the face (a leg) pulls out
 	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": 20.0 * sg, "both": false, "op": "join"})
 	rec["features"].append(f)
 	var err := _last_error(rec, String(f["id"]))
@@ -940,15 +940,21 @@ func _pull(rec: Dictionary) -> String:
 	return ""
 
 
-## POINTY: a sketch of three lines (the triangle Draw shape makes in Easy Part)
-func _is_pointy(sk: Dictionary) -> bool:
-	var ents: Array = sk.get("ents", [])
-	if ents.size() != 3:
+## a face sketch hangs past the body when one of its points lies outside the body's box (by more than 0.5 mm) along the face's own axes
+func _overhangs(rec: Dictionary, sk: Dictionary) -> bool:
+	var bb: AABB = Part.replay(rec).get("aabb", AABB())
+	if bb.size == Vector3.ZERO:
 		return false
-	for e in ents:
-		if String((e as Dictionary).get("k", "")) != "line":
-			return false
-	return true
+	var pl := Part.resolve_plane(rec, String(sk.get("plane", "front")))
+	var g := bb.grow(0.5 * Part.MM)
+	var n: Vector3 = pl["n"]
+	for e in sk["ents"]:
+		for q in _ent_pts(e):
+			var w := Part.to_world(pl, Vector2(float(q[0]), float(q[1])))
+			w -= n * n.dot(w - bb.get_center())   # onto the body's middle along the normal: only the in-face position counts
+			if not g.has_point(w):
+				return true
+	return false
 
 
 func _spin(rec: Dictionary) -> String:
