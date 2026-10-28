@@ -1313,8 +1313,9 @@ func _round(rec: Dictionary) -> String:
 
 ## EROUND: the round on body (a kept solid of the record's end). True when a fillet step was added to rec
 func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: float) -> bool:
+	# EBACK: the default never sits below the slider's own low end (1 mm, "Barely"): a thin part's 0.5 mm default looked square
 	for attempt in [[1.0, 0.0], [0.5, 0.0], [0.5, 0.2]]:
-		var r := clampf(small * 0.01 * float(attempt[0]), 0.5, 6.0)
+		var r := clampf(small * 0.01 * float(attempt[0]), 1.0, 6.0)
 		var list := []
 		for e in es:
 			if int(e["body"]) == 0 and float(e["len"]) >= longest * float(attempt[1]) and float(e["len"]) / Part.MM > r * 2.5:
@@ -1333,7 +1334,7 @@ func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: flo
 	# can take a smaller radius and skip the rest. Each edge is tried with the ones already kept, so the feature that is added has no error
 	var out_of_time := false
 	var t1 := Time.get_ticks_usec()   # the budget is for this search (the three tries above are one kernel fillet each)
-	for r0 in [0.5, 0.3, 0.1]:
+	for r0 in [1.0, 0.5, 0.3, 0.1]:   # EBACK: 1 mm first (the slider's low end), then the smaller radii
 		var r := snappedf(r0, 0.1)
 		var good := []
 		for e in es:
