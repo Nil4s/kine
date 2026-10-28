@@ -1686,6 +1686,9 @@ func _frame_step() -> void:
 ## the free view: the clear view minus the MAKE row above and the side panel at the right, minus the status line at the bottom
 func free_rect() -> Rect2:
 	var top := _cl.position.y + 4.0 + MAKE_H + 8.0
+	for c in [hint, hole_box, shape_box, colour_box, repeat_box, stick_box]:   # the words and the chip rows under the MAKE row: the part sits below them
+		if c != null and (c as Control).visible:                               # (ewalk4: the Through / Hollow inside chips covered the mug's rim)
+			top = maxf(top, (c as Control).get_global_rect().end.y + 8.0)
 	var x1 := _cl.end.x - PW - 16.0
 	return Rect2(_cl.position.x + 12.0, top, x1 - _cl.position.x - 12.0, _cl.end.y - 70.0 - top)
 
