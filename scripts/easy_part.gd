@@ -1478,14 +1478,19 @@ func _mirror(rec: Dictionary) -> String:
 	var res := Part.replay(rec)
 	if int(res["bodies"]) == 0:
 		return "Nothing solid to mirror yet. Press Pull it up first"
+	var bb: AABB = res["aabb"]
+	var off := bb.position.x > 0.0005 or bb.end.x < -0.0005   # EMIRROR: the solid does not touch the middle line (x = 0)
 	var f := Part.new_feature(rec, "mirror", {"plane": "right", "op": "join"})
+	if off:
+		f["mid"] = true   # the mirror plane goes through the middle of the part, not the world line
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
 		return "That shape cannot be mirrored"
 	tweak = {}
 	var after := Part.replay(rec)
 	var gap := int(after["bodies"]) == 1 and _lumps(after) > 1   # the mirror left a gap: the same test as the status line
-	_say("Mirrored across the middle line" + (": the two halves do not touch. Push them together with Stick together" if gap else ""))
+	var where := "across the middle of the part" if off else "across the middle line"
+	_say("Mirrored %s" % where + (": the two halves do not touch. Push them together with Stick together" if gap else ""))
 	return ""
 
 
