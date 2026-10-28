@@ -198,3 +198,4 @@ EXTRA="$EXTRA myparts:w"   # MY PARTS: a part made in Easy Part, Use in a scene 
 EXTRA="$EXTRA ehandle:w"   # EHANDLE: Cut a hole goes THROUGH the newest piece (a handle pulled upright or on a face): centred on its sticking-out part, the mug wall untouched, one undo, the slider; a plain floor body keeps its vertical hole (tests/ehandle_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA ebowl:w"   # EBOWL: Easy Part bowl by clicks (a closed Curvy profile on the middle line spins into a bowl on the floor, hollow), Draw shape starts on Box, a drag under the words bar draws (tests/ebowl_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA eempty:w"
+EXTRA="$EXTRA efar:w"   # EFAR: Easy Part far-floor presses: a drag that starts on the words pill (under the far floor) still draws a box or a curve; a press that goes off Mirror and back is no click, a plain click still mirrors (tests/efar_test.gd; needs the CAD DLL)

@@ -173,7 +173,8 @@ func build(root: Control) -> void:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.tooltip_text = String(mk[3])
 		b.toggle_mode = mk[0] in ["draw", "curve", "colour", "stick"]
-		b.pressed.connect(_make.bind(String(mk[0])))
+		b.gui_input.connect(_tap_track.bind(String(mk[0])))
+		b.pressed.connect(_tap_click.bind(String(mk[0])))
 		make_box.add_child(b)
 		make_btns[mk[0]] = b
 	# the one sentence, and the shape choice that goes with Draw shape
@@ -803,6 +804,33 @@ func _use_scene() -> void:
 	armed = ""
 	_flush_if_dirty()
 	pu.bu.use_part()
+
+## A MAKE press is a TAP: the button fires on release, so a press that the pointer took off the button and back on (a drag from the far floor
+## under the row) would click it. _tap_track notes where the press began and whether the pointer went more than TAP_PX away while held.
+const TAP_PX := 6.0
+var _tap_at := {}     # button name -> the press point (local to the button)
+var _tap_moved := {}  # button name -> true when the held pointer went past TAP_PX
+
+
+func _tap_track(ev: InputEvent, nm: String) -> void:
+	if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		if (ev as InputEventMouseButton).pressed:
+			_tap_at[nm] = (ev as InputEventMouseButton).position
+			_tap_moved[nm] = false
+	elif ev is InputEventMouseMotion and (ev as InputEventMouseMotion).button_mask & MOUSE_BUTTON_MASK_LEFT != 0 and _tap_at.has(nm):
+		if (ev as InputEventMouseMotion).position.distance_to(_tap_at[nm]) > TAP_PX:
+			_tap_moved[nm] = true
+
+
+func _tap_click(which: String) -> void:
+	if bool(_tap_moved.get(which, false)):   # a drag, not a tap: the MAKE button does nothing
+		_tap_moved[which] = false
+		var b: Button = make_btns[which]
+		if b.toggle_mode:   # a toggle button flipped itself on the release: put it back, or it shows lit while nothing is armed
+			b.set_pressed_no_signal(not b.button_pressed)
+		return
+	_make(which)
+
 
 func _make(which: String) -> void:
 	if not Part.available():
