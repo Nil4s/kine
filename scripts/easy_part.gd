@@ -360,6 +360,10 @@ func _repeat_box() -> PanelContainer:
 		b.toggle_mode = true
 		h.add_child(b)
 		rep_btns[md[0]] = b
+	var cb := _big_btn("easypart_rep_corners", "Corners", "Four copies, one at each corner of the piece it sits on (the legs of a chair or table)", _rep_corners)
+	cb.toggle_mode = true
+	h.add_child(cb)
+	rep_btns["corners"] = cb
 	rep_rows.append(_make_row("How many", 2.0, 12.0, 1.0, REP_WORDS["count"], "rep", "count", "copies", vb))
 	rep_rows.append(_make_row("Gap", 0.5, 30.0, 0.5, REP_WORDS["gap"], "rep", "gap", "cm", vb))
 	return box
@@ -1179,6 +1183,8 @@ func _hole(rec: Dictionary) -> String:
 	var res := Part.replay(rec)
 	if int(res["bodies"]) == 0:
 		return "Nothing solid to cut a hole in yet. Press Pull it up first"
+	if _face_sketch_last(rec):   # a shape drawn on a face and not pulled yet: the hole IS that shape (a door or a window)
+		return _face_hole(rec)
 	if _piece_hole(rec):   # the newest piece is an upright or a face sketch: the hole goes through IT
 		return ""
 	var bb: AABB = res["aabb"]
@@ -1204,6 +1210,76 @@ func _hole(rec: Dictionary) -> String:
 	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}   # the slider is the hole's WIDTH (cm): radius mm = width cm * 5
 	_say("A hole straight through: use the slider for its size")
 	return ""
+
+
+## EDOOR: the newest step is a sketch drawn ON A FACE (a plane feature with "out") that no pull uses yet
+func _face_sketch_last(rec: Dictionary) -> bool:
+	var feats: Array = rec.get("features", [])
+	if feats.is_empty() or String(feats[feats.size() - 1]["t"]) != "sketch":
+		return false
+	var sk: Dictionary = feats[feats.size() - 1]
+	if Part.sketch_used(rec, String(sk["id"])):
+		return false
+	var pf := Part.feature(rec, String(sk.get("plane", "")))
+	return String(pf.get("t", "")) == "plane" and pf.has("out") and not bool(pf.get("through", false))
+
+
+## EDOOR: CUT A HOLE IN THE DRAWN SHAPE. The shape (a rectangle, circle, or any closed sketch on the face) is cut INWARD from its face,
+## as one extrude-cut. Depth = the first inside surface along the shape (3 by 3 points over it): a hollow house stops at the far side of the
+## one wall it sits on; a solid body is cut all the way through. The slider is the depth (cm). The old circle is not used for a face shape.
+func _face_hole(rec: Dictionary) -> String:
+	var sk: Dictionary = rec["features"][rec["features"].size() - 1]
+	var pid := String(sk["plane"])
+	var out := float(Part.feature(rec, pid)["out"])   # +1 / -1: the face's normal side (a pull goes this way)
+	var before := Part.replay(rec)
+	var pl := Part.resolve_plane(rec, pid)
+	var tris := _tris_local(before, pl)
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for e in sk["ents"]:
+		var rr := float(e.get("r", 0.0))
+		for q in _ent_pts(e):
+			var v := Vector2(float(q[0]), float(q[1]))
+			lo = lo.min(v - Vector2(rr, rr))
+			hi = hi.max(v + Vector2(rr, rr))
+	var depth := INF
+	for i in 3:
+		for j in 3:
+			var p := Vector2(lerpf(lo.x, hi.x, i / 2.0), lerpf(lo.y, hi.y, j / 2.0))
+			depth = minf(depth, _first_inside(tris, p, out))
+	if depth == INF:
+		return "The shape is not on the body: nothing was cut"
+	var sgn := -out   # the cut goes INTO the body, against the face's normal side
+	var f := Part.new_feature(rec, "extrude", {"sketch": sk["id"], "dist": sgn * snappedf(depth + 0.5, 0.1), "both": false, "op": "cut"})
+	rec["features"].append(f)
+	if _last_error(rec, String(f["id"])) != "" or float(Part.replay(rec)["volume"]) >= float(before["volume"]) - 1e-12:
+		return "The hole would miss the shape: nothing was cut"
+	tweak = {"id": f["id"], "field": "dist", "label": "How deep", "unit": "cm", "lo": 0.1, "hi": 40.0, "step": 0.1, "scale": 10.0, "words": ["Shallower", "Deeper"], "sgn": sgn}
+	_say("A hole in the wall: use the slider for how deep")
+	return ""
+
+
+## EDOOR: the distance (mm) from the local point q (the face's plane, z = 0 at the face) to the first surface of the mesh tris going
+## INTO the body (direction -out): the smallest hit beyond the face itself (0.05 mm). INF = no surface under q
+func _first_inside(tris: PackedVector3Array, q: Vector2, out: float) -> float:
+	var best := INF
+	var d := -out
+	for i in range(0, tris.size() - 2, 3):
+		var a := tris[i]
+		var b := tris[i + 1]
+		var c := tris[i + 2]
+		var den := (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y)
+		if absf(den) < 1e-12:
+			continue
+		var l1 := ((b.y - c.y) * (q.x - c.x) + (c.x - b.x) * (q.y - c.y)) / den
+		var l2 := ((c.y - a.y) * (q.x - c.x) + (a.x - c.x) * (q.y - c.y)) / den
+		var l3 := 1.0 - l1 - l2
+		if l1 < -1e-9 or l2 < -1e-9 or l3 < -1e-9:
+			continue
+		var t := (l1 * a.z + l2 * b.z + l3 * c.z) * d   # the hit's depth along the inward direction
+		if t > 0.05 and t < best:
+			best = t
+	return best
 
 
 ## A HOLE THROUGH THE NEW PIECE: when the last step is a Pull (extrude) of a sketch on a plane feature (an upright through the middle, or a face),
@@ -1483,6 +1559,25 @@ func _repeat(rec: Dictionary) -> String:
 	return ""
 
 
+## Corners (EREPEAT): the newest piece goes to the four corners of the body it touches, one undo step; the four become one body with it
+func _rep_corners() -> void:
+	if Part.feature(_rec(), rep_id).is_empty():
+		return
+	_flush_if_dirty()
+	_begin("Corners")
+	var cur := Part.feature(_rec(), rep_id)
+	cur["kind"] = "corners"
+	cur["count"] = 4
+	_end()
+	pu.sync()
+	_rep_sync()
+	var err: String = Part.replay(_rec())["errors"].get(rep_id, "")
+	if err != "":
+		_say(err + ". Move the piece onto a corner of the piece it sits on, then press Corners again, or undo")
+	else:
+		_say("Corners: four copies, one at each corner of the piece it sits on")
+
+
 ## Row (linear, along X) or Ring (circular, round the up axis Y, a full turn): one undo step; Gap spaces both (in a Ring it sets the circle size)
 func _rep_mode(ring: bool) -> void:
 	if Part.feature(_rec(), rep_id).is_empty():
@@ -1555,8 +1650,9 @@ func _rep_sync() -> void:
 	if f.is_empty():
 		return
 	var ring := String(f.get("kind", "linear")) == "circular"
-	(rep_btns["row"] as Button).set_pressed_no_signal(not ring)
+	(rep_btns["row"] as Button).set_pressed_no_signal(String(f.get("kind", "linear")) == "linear")
 	(rep_btns["ring"] as Button).set_pressed_no_signal(ring)
+	(rep_btns["corners"] as Button).set_pressed_no_signal(String(f.get("kind", "")) == "corners")
 	for r in rep_rows:
 		var s: HSlider = r["slider"]
 		var v := float(f.get("count", 3)) if String(r["key"]) == "count" else float(f.get("gap", 10.0)) / 10.0
