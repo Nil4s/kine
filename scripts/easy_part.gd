@@ -2561,9 +2561,75 @@ func _ground(p: Vector2, pl: Dictionary = {}) -> Variant:
 	return Vector2(snappedf(q.x, 5.0), snappedf(q.y, 5.0))
 
 
+## EKEYS: a key press on the Easy screen. Escape cancels a half-drawn shape or a drag in hand (nothing is written, no step is left);
+## Delete takes out the newest piece as one undo step. Ctrl+Z / Ctrl+Y are main's (_undo / _redo) and need nothing here
+func _key(k: InputEventKey) -> void:
+	if not k.pressed or k.echo or not active() or not Part.available():
+		return
+	var fo := get_viewport().gui_get_focus_owner()
+	if fo is LineEdit or fo is SpinBox:
+		return   # a typed number keeps its keys
+	if k.keycode == KEY_ESCAPE:
+		if not _draft.is_empty():
+			_draft = {}
+			_bar_press = null
+			_press_btn = null
+			dots.queue_redraw()
+			_say("Drawing cancelled. Draw it again")
+			get_viewport().set_input_as_handled()
+		elif not _drag.is_empty():
+			_cancel_drag()
+			get_viewport().set_input_as_handled()
+	elif k.keycode == KEY_DELETE and not k.ctrl_pressed and not k.alt_pressed:
+		_delete_newest()
+		get_viewport().set_input_as_handled()
+
+
+## a drag in hand let go with Escape: the amber dot goes back where it was; the drag moved nothing in the record (it writes on the release), so its step goes
+func _cancel_drag() -> void:
+	_drag = {}
+	_pending = {}
+	_dirty = false
+	_end()
+	_rows_sync()
+	_say("Drag cancelled")
+
+
+## Delete: the newest piece goes (its sketch and a face plane made for it, or its pull, spin, round, hole ...), one undo step. A template part keeps its own pieces (its sliders make them): it says so
+func _delete_newest() -> void:
+	if not _drag.is_empty() or not _draft.is_empty():
+		return
+	if _tpl() != "":
+		_say("A template's pieces come from its sliders: move a slider, or Undo takes a change back")
+		return
+	var fs: Array = _rec().get("features", [])
+	if fs.is_empty():
+		_say("Nothing to delete yet")
+		return
+	_flush_if_dirty()
+	var newest: Dictionary = fs.back()
+	_begin("Delete " + String(newest.get("name", "piece")))
+	var rec := _rec()
+	var gone: Dictionary = (rec["features"] as Array).pop_back()
+	var fs2: Array = rec["features"]
+	var back_f: Dictionary = fs2.back() if not fs2.is_empty() else {}
+	if String(gone.get("t", "")) != "plane" and not back_f.is_empty() and String(back_f.get("t", "")) == "plane":
+		fs2.pop_back()   # the face plane made for that sketch goes with it
+	armed = ""
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_end()
+	_say("Took out the newest piece. Undo puts it back")
+
+
 ## a press on the top bar's BUTTONS never reaches input() (the button takes it in the GUI pass first): this sees it before the GUI,
 ## notes it, and lets the button have it. A drag that then leaves the bar starts the sketch (input() below, from the noted press)
 func _input(ev: InputEvent) -> void:
+	if ev is InputEventKey:
+		_key(ev as InputEventKey)   # EKEYS: Escape and Delete (Ctrl+Z / Ctrl+Y are main's undo and redo)
+		return
 	# a sketch in progress follows the pointer and ends on the release even over a control (a chip row, the bar): the controls
 	# take those events before the unhandled pass, so a roof's apex under the chips would stop the drag
 	if ev is InputEventMouseMotion:
