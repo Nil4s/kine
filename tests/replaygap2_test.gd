@@ -132,6 +132,11 @@ func _init() -> void:
 	if not Part.available():
 		quit(1)
 		return
+	# Nick 2026-10-28 (free 3D building, #100): the BUILDING card now opens a blank Easy Part itself. Start from the
+	# state the card gave before (Part off, no part), so the clicks below drive the same opening they always did
+	pu().set_on(false)
+	pu().m.S.part = {}
+	await process_frame
 	await press(pu().part_btn)
 	await idle(3)
 	await press(pu().easy_open_btn)

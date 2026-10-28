@@ -112,6 +112,11 @@ func _init() -> void:
 		print("FAIL: no KineCAD DLL, the test cannot run")
 		quit(1)
 		return
+	# Nick 2026-10-28 (free 3D building, #100): the BUILDING card now opens a blank Easy Part itself. Start from the
+	# state the card gave before (Part off, no part), so the clicks below drive the same opening they always did
+	pu().set_on(false)
+	pu().m.S.part = {}
+	await process_frame
 	await click_ctl(pu().part_btn)
 	await click_ctl(pu().easy_open_btn)
 	await idle(4)

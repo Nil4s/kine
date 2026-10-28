@@ -175,6 +175,11 @@ func _init() -> void:
 	if m.ui_save_ask != null and m.ui_save_ask.visible:
 		m._save_ask_choose("discard")
 	await idle(6)
+	# Nick 2026-10-28 (free 3D building, #100): the BUILDING card now opens a blank Easy Part itself. Start from the
+	# state the card gave before (Part off, no part), so the clicks below drive the same opening they always did
+	pu.set_on(false)
+	pu.m.S.part = {}
+	await process_frame
 	await click_ctl(pu.part_btn)
 	await idle(3)
 	ok(pu.on, "0 Part workspace on")

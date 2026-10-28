@@ -180,6 +180,11 @@ func _init() -> void:
 	await click_ctl(ss._cards["building"])
 	if m.ui_save_ask != null and m.ui_save_ask.visible: m._save_ask_choose("discard")
 	await idle(6)
+	# Nick 2026-10-28 (free 3D building, #100): the BUILDING card now opens a blank Easy Part itself. Start from the
+	# state the card gave before (Part off, no part), so the clicks below drive the same opening they always did
+	pu.set_on(false)
+	pu.m.S.part = {}
+	await process_frame
 	await click_ctl(pu.part_btn)
 	await idle(3)
 	ok((pu.tool_btns["Loft"] as Button).disabled and String((pu.tool_btns["Loft"] as Button).tooltip_text).contains("two"), "0 Loft greyed with no profiles (tip: %s)" % String((pu.tool_btns["Loft"] as Button).tooltip_text).left(70))

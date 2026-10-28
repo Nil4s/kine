@@ -138,6 +138,11 @@ func ui_bars() -> void:
 		m._save_ask_choose("discard")
 	await idle(6)
 	# the record: a lid (a box 800 x 40 x 2000 mm, Part 1) and a block (300..500 x 100..120 x 2000 mm, Part 2) in its path
+	# Nick 2026-10-28 (free 3D building, #100): the BUILDING card now opens a blank Easy Part itself. Start from the
+	# state the card gave before (Part off, no part), so the clicks below drive the same opening they always did
+	pu.set_on(false)
+	pu.m.S.part = {}
+	await process_frame
 	m.S.part = Part.make("Lid")
 	m.S.part["features"] = [
 		{"t": "sketch", "id": "f1", "name": "Sketch1", "plane": "front", "ents": [{"k": "rect", "a": [0, -20], "b": [800, 20]}], "dims": []},

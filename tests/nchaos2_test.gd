@@ -84,6 +84,11 @@ func open_easy() -> bool:
 		m._save_ask_choose("discard")
 	await idle(6)
 	var pu = m.bld.part
+	# Nick 2026-10-28 (free 3D building, #100): the BUILDING card now opens a blank Easy Part itself. Start from the
+	# state the card gave before (Part off, no part), so the clicks below drive the same opening they always did
+	pu.set_on(false)
+	pu.m.S.part = {}
+	await process_frame
 	await click_node(pu.part_btn)
 	await click_node(pu.easy_open_btn)
 	await idle(4)
