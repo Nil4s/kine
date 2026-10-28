@@ -220,3 +220,4 @@ EXTRA="$EXTRA esave:w"   # ESAVE: a mug made in Easy Part, Use in a scene saves 
 EXTRA="$EXTRA eundo:w"   # EUNDO: Easy Part: every MAKE button and chip pressed once (real clicks): each press is one undo step, Undo all and Redo all restore each part identically (tests/eundo_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA ekeys:w"   # EKEYS: Easy Part keyboard: Ctrl+Z / Ctrl+Y undo and redo, Escape cancels a drag or a half-drawn shape, Delete removes the newest piece as one undo step (tests/ekeys_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA escene:w"   # ESCENE: an Easy Part made by clicks, Use in a scene: a part prop on the floor at its real size, selected and moved by real clicks, and back after a scene save and load (tests/escene_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA animwalk:w"   # ANIMWALK: a beginner, real clicks from the start screen: Easy, type a punch, drag the time slider, type a left punch, one Undo (tests/animwalk_test.gd)
