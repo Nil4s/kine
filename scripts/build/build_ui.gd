@@ -1639,10 +1639,9 @@ func use_part() -> void:
 	var nm := String(m.S.part.get("name", "part"))
 	m._step_hint = "Use in a scene: %s" % nm
 	m._push_undo()
-	var typed: String = m.ui_scene_name.text.strip_edges() if m.ui_scene_name != null else ""   # the name typed in the top box names the part
-	if typed != "":
-		m.S.part["name"] = typed
-		nm = typed
+	if nm.strip_edges().to_lower() in ["", "part"]:   # a part still on the default name gets the next free one ("Part 3"), kept in the record:
+		nm = MyParts.free_name("Part")                 # using it again replaces its own entry; two new parts never replace each other
+		m.S.part["name"] = nm
 	var kind := put_part(m.S.part, nm)
 	if kind == "":
 		m._drop_undo()

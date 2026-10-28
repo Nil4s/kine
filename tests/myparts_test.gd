@@ -150,7 +150,8 @@ func _init() -> void:
 	await click_ctl(pu.part_btn)
 	await click_ctl(pu.easy_open_btn)
 	await idle(4)
-	m.ui_scene_name.text = "Crank"   # the name box at the top: the name the part is saved under
+	m.S.part["name"] = "Crank"   # the part's own name (a template's, or one given earlier): the name it is saved under
+	m.ui_scene_name.text = "Fight scene"   # the SCENE's name box: it must NOT name the part (every part would replace the last one)
 	# make the part by clicks: draw a box on the grid, pull it up, round its edges
 	await click_ctl(ep.make_btns["draw"])
 	var cam: Camera3D = m.cam
@@ -257,6 +258,24 @@ func _init() -> void:
 	await idle(4)
 	ok(tile3 != null and m.S.props.size() == p2 + 1 and m.undo.size() == u2 + 1 and m.cur_page == "STAGE",
 		"M6 Expert: the card click puts Crank in the set: props %d -> %d, undo +%d, page %s" % [p2, m.S.props.size(), m.undo.size() - u2, m.cur_page])
+
+	# M7 two new parts on the default name are saved apart ("Part 1", "Part 2"), and the scene's name never names them
+	ok(not sc.exists("Fight scene"), "M7a the scene's name box did not name a saved part")
+	var names: Array = []
+	for i in 2:
+		m._page_set("BUILD")
+		m.S.part = Part.make("Part")
+		m.easy.set_on(true, false)
+		pu.open_easy()
+		await idle(4)
+		await click_ctl(ep.make_btns["draw"])
+		await drag_screen(cam.unproject_position(Vector3(1.4, 0.0, 0.0)), cam.unproject_position(Vector3(1.5, 0.1, 0.0)))
+		await click_ctl(ep.make_btns["pull"])
+		await idle(3)
+		await click_ctl(ep.use_scene_btn)
+		await idle(60)
+		names.append(String(m.S.part.get("name", "")))
+	ok(names == ["Part 1", "Part 2"] and sc.exists("Part 1") and sc.exists("Part 2"), "M7b two new parts are saved apart: %s, %d saved" % [str(names), sc.list().size()])
 
 	wipe(DIRT)
 	print("myparts: %d fail" % fails)

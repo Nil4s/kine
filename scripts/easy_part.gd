@@ -1065,6 +1065,8 @@ func _hole(rec: Dictionary) -> String:
 	var res := Part.replay(rec)
 	if int(res["bodies"]) == 0:
 		return "Nothing solid to cut a hole in yet. Press Pull it up first"
+	if _piece_hole(rec):   # the newest piece is an upright or a face sketch: the hole goes through IT
+		return ""
 	var bb: AABB = res["aabb"]
 	var c := bb.get_center() / Part.MM
 	var floor_made := _base_plane(rec, _newest_sketch_plane(rec)) == "top"   # a body drawn on the floor is cut DOWN through (its hole runs up/down)
@@ -1088,6 +1090,139 @@ func _hole(rec: Dictionary) -> String:
 	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}   # the slider is the hole's WIDTH (cm): radius mm = width cm * 5
 	_say("A hole straight through: use the slider for its size")
 	return ""
+
+
+## A HOLE THROUGH THE NEW PIECE: when the last step is a Pull (extrude) of a sketch on a plane feature (an upright through the middle, or a face),
+## the hole is a circle on that same plane, cut along the pull, centred on the part of the piece that sticks OUT of the rest of the body,
+## radius 0.6 x the half-size of that part (min 3 mm). The cut must take only the piece's own material (checked by volume). false = no such piece
+func _piece_hole(rec: Dictionary) -> bool:
+	var feats: Array = rec.get("features", [])
+	if feats.is_empty() or String(feats[feats.size() - 1]["t"]) != "extrude":
+		return false
+	var last: Dictionary = feats[feats.size() - 1]
+	var sk := Part.feature(rec, String(last.get("sketch", "")))
+	if sk.is_empty():
+		return false
+	var pid := String(sk.get("plane", ""))
+	var k := Part.index_of(rec, pid)
+	if k < 0 or String(feats[k]["t"]) != "plane":
+		return false
+	var through := bool(feats[k].get("through", false))
+	var sg := -1.0 if float(last.get("dist", 0.0)) < 0.0 else 1.0
+	var before := Part.replay(rec)
+	if int(before["bodies"]) == 0:
+		return false
+	var body_before := float(before["volume"])
+	var pl := Part.resolve_plane(rec, pid)
+	var tail: Array = feats.slice(k)
+	var piece_rec := rec.duplicate(true)
+	piece_rec["features"] = tail.duplicate(true)
+	var pre_rec := rec.duplicate(true)
+	pre_rec["features"] = feats.slice(0, k).duplicate(true)
+	var ptris := _tris_local(Part.replay(piece_rec), pl)
+	if ptris.is_empty():
+		return false
+	var rtris := _tris_local(Part.replay(pre_rec), pl) if k > 0 else PackedVector3Array()
+	var zmin := INF
+	var zmax := -INF
+	for v in ptris:
+		zmin = minf(zmin, v.z)
+		zmax = maxf(zmax, v.z)
+	# the sticking-out part: the piece's outline points (its mesh vertices) that are NOT inside the rest of the body. The kernel's volume
+	# check below keeps the hole out of the rest either way
+	var zc := (zmin + zmax) * 0.5   # the rest is read at the piece's middle height
+	var smin := Vector2(INF, INF)
+	var smax := Vector2(-INF, -INF)
+	var nst := 0
+	for v in ptris:
+		var q := Vector2(v.x, v.y)
+		if not _inside(rtris, q, zc):
+			smin = smin.min(q)
+			smax = smax.max(q)
+			nst += 1
+	if nst == 0:
+		return false
+	var c2 := (smin + smax) * 0.5
+	var half := minf(smax.x - smin.x, smax.y - smin.y) * 0.5
+	var r0 := maxf(3.0, 0.6 * half)
+	var reach := maxf(absf(zmin), absf(zmax)) + 1.0
+	var rest_before := float(Part.replay(pre_rec)["volume"]) if k > 0 else 0.0
+	var n0 := feats.size()
+	for scale in [1.0, 0.75, 0.5]:
+		var r := snappedf(maxf(3.0, r0 * scale), 0.1)
+		var s := Part.new_feature(rec, "sketch", {"plane": pid, "ents": [{"k": "circle", "c": Part.arr2(c2), "r": r}], "dims": []})
+		rec["features"].append(s)
+		var f: Dictionary
+		if through:
+			f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * reach, 0.1), "both": true, "op": "cut"})
+		else:
+			f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(sg * reach, 0.1), "both": false, "op": "cut"})
+		rec["features"].append(f)
+		var after := float(Part.replay(rec)["volume"])
+		var removed := body_before - after
+		# the rest of the body (the features before the piece) must lose nothing to the same cut: only the piece is cut
+		var pre_after := rest_before
+		if k > 0:
+			var pr: Dictionary = pre_rec.duplicate(true)
+			pr["features"] = (pre_rec["features"] as Array).duplicate(true)
+			pr["features"].append(s.duplicate(true))
+			pr["features"].append(f.duplicate(true))
+			pre_after = float(Part.replay(pr)["volume"])
+		var rest_removed := rest_before - pre_after
+		if removed > 1e-12 and rest_removed <= 0.005 * body_before and removed - rest_removed > 1e-12:
+			tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}
+			_say("A hole through the new piece: use the slider for its size")
+			return true
+		rec["features"].resize(n0)
+	return false
+
+
+## a mesh's triangles in the plane's own axes (mm): x along the plane, y up it, z along its normal
+func _tris_local(r: Dictionary, pl: Dictionary) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	var mesh: ArrayMesh = r.get("mesh")
+	if mesh == null:
+		return out
+	var o: Vector3 = pl["o"]
+	var px: Vector3 = pl["x"]
+	var py: Vector3 = pl["y"]
+	var pn: Vector3 = pl["n"]
+	for si in mesh.get_surface_count():
+		var arr := mesh.surface_get_arrays(si)
+		var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var ix = arr[Mesh.ARRAY_INDEX]
+		var idx: PackedInt32Array
+		if ix == null:
+			idx = PackedInt32Array()
+			for i in vs.size():
+				idx.append(i)
+		else:
+			idx = ix
+		for i in idx:
+			var d := vs[i] - o
+			out.append(Vector3(d.dot(px), d.dot(py), d.dot(pn)) / Part.MM)
+	return out
+
+
+## is the point (q, zq) inside the closed mesh t (local tris)? Odd number of crossings of the ray from it up along +z
+func _inside(t: PackedVector3Array, q: Vector2, zq: float) -> bool:
+	var hits := 0
+	for i in range(0, t.size() - 2, 3):
+		var a := t[i]
+		var b := t[i + 1]
+		var c := t[i + 2]
+		var d1 := (b.x - a.x) * (q.y - a.y) - (b.y - a.y) * (q.x - a.x)
+		var d2 := (c.x - b.x) * (q.y - b.y) - (c.y - b.y) * (q.x - b.x)
+		var d3 := (a.x - c.x) * (q.y - c.y) - (a.y - c.y) * (q.x - c.x)
+		if (d1 < 0.0 or d2 < 0.0 or d3 < 0.0) and (d1 > 0.0 or d2 > 0.0 or d3 > 0.0):
+			continue
+		var nrm := (b - a).cross(c - a)
+		if absf(nrm.z) < 1e-12:
+			continue
+		var z := a.z - (nrm.x * (q.x - a.x) + nrm.y * (q.y - a.y)) / nrm.z
+		if z > zq:
+			hits += 1
+	return hits % 2 == 1
 
 
 ## the plane id of the newest sketch (the front plane when there is none)

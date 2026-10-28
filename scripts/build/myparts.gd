@@ -48,6 +48,14 @@ static func exists(nm: String) -> bool:
 	return FileAccess.file_exists(_abs(path_of(nm)))
 
 
+## the first "<base> N" (N from 1) not saved yet
+static func free_name(base: String) -> String:
+	var i := 1
+	while exists("%s %d" % [base, i]):
+		i += 1
+	return "%s %d" % [base, i]
+
+
 ## the record in a file ({} when missing, not JSON, or without a solid record)
 static func read(path: String) -> Dictionary:
 	if not FileAccess.file_exists(_abs(path)):
