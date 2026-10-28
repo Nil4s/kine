@@ -187,13 +187,13 @@ func build(root: Control) -> void:
 	var sh := HBoxContainer.new()
 	sh.add_theme_constant_override("separation", 6)
 	shape_box.add_child(sh)
-	for s in [["box", "Box"], ["round", "Round"]]:
+	for s in [["box", "Box"], ["round", "Round"], ["pointy", "Pointy"]]:
 		var b := Button.new()
 		b.name = "easypart_shape_" + String(s[0])
 		b.text = String(s[1])
 		b.toggle_mode = true
 		b.focus_mode = Control.FOCUS_NONE
-		b.custom_minimum_size = Vector2(90, 40)
+		b.custom_minimum_size = Vector2(76, 40)   # three chips narrow enough that the panel stays clear of a floor drag at the grid edge (efloor)
 		b.add_theme_font_size_override("font_size", 16)
 		b.pressed.connect(func(): shape = String(s[0]); _sync_shape())
 		sh.add_child(b)
@@ -927,17 +927,40 @@ func _pull(rec: Dictionary) -> String:
 	var pf := Part.feature(rec, String(sk.get("plane", "front")))
 	var on_face := String(pf.get("t", "")) == "plane" and pf.has("out")   # a sketch on a face: the pull goes OUTWARD from it
 	var sg := float(pf["out"]) if on_face else 1.0
-	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": 20.0 * sg, "both": bool(pf.get("through", false)), "op": "join"})   # an upright sketch (through the middle) pulls BOTH ways
+	var through := bool(pf.get("through", false))   # an upright sketch (through the middle) pulls BOTH ways
+	var inward := on_face and not through and _overhangs(rec, sk)
+	if inward:
+		sg = -sg   # a face drawing that hangs past the body (a roof above the walls) pulls back INTO it: it extends the body's outline; one inside the face (a leg) pulls out
+	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": 20.0 * sg, "both": through, "op": "join"})
 	rec["features"].append(f)
 	var err := _last_error(rec, String(f["id"]))
 	if err != "":
 		return "That shape is not closed, so it cannot be pulled up: drag back to the start to close it"
 	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": 40.0, "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
-	if bool(pf.get("through", false)):
+	if through:
 		_say("Pulled out both ways from the middle: use the slider for how thick")
+	elif on_face:
+		_say("Pulled into the body: use the slider to change it" if inward else "Pulled out of the face: use the slider to change it")
 	else:
-		_say("Pulled out of the face: use the slider to change it" if on_face else "Pulled up 2 cm: use the slider to change it")
+		_say("Pulled up 2 cm: use the slider to change it")
 	return ""
+
+
+## a face sketch hangs past the body when one of its points lies outside the body's box (by more than 0.5 mm) along the face's own axes
+func _overhangs(rec: Dictionary, sk: Dictionary) -> bool:
+	var bb: AABB = Part.replay(rec).get("aabb", AABB())
+	if bb.size == Vector3.ZERO:
+		return false
+	var pl := Part.resolve_plane(rec, String(sk.get("plane", "front")))
+	var g := bb.grow(0.5 * Part.MM)
+	var n: Vector3 = pl["n"]
+	for e in sk["ents"]:
+		for q in _ent_pts(e):
+			var w := Part.to_world(pl, Vector2(float(q[0]), float(q[1])))
+			w -= n * n.dot(w - bb.get_center())   # onto the body's middle along the normal: only the in-face position counts
+			if not g.has_point(w):
+				return true
+	return false
 
 
 func _spin(rec: Dictionary) -> String:
@@ -1824,12 +1847,20 @@ func _draft_outline() -> PackedVector2Array:
 	if String(_draft["shape"]) == "box":
 		for q in [a, Vector2(b.x, a.y), b, Vector2(a.x, b.y), a]:
 			pts.append(m.cam.unproject_position(_pw(q)))
+	elif String(_draft["shape"]) == "pointy":
+		for q in _pointy_pts(a, b) + [a]:
+			pts.append(m.cam.unproject_position(_pw(q)))
 	else:
 		var r := a.distance_to(b)
 		for i in 33:
 			var q := a + Vector2.from_angle(TAU * i / 32.0) * r
 			pts.append(m.cam.unproject_position(_pw(q)))
 	return pts
+
+
+## POINTY: the drag's corners a and b make an isoceles triangle: the base is a's side of the box (a to (b.x, a.y)), the point is at the middle of the far edge (b's side: (middle x, b.y))
+func _pointy_pts(a: Vector2, b: Vector2) -> Array:
+	return [a, Vector2(b.x, a.y), Vector2((a.x + b.x) * 0.5, b.y)]
 
 
 ## the world point of a draft coordinate (the draft plane, else the FLOOR: the Part top plane, y = 0)
@@ -2036,11 +2067,16 @@ func _finish_draw() -> void:
 	var fc: Dictionary = _draft.get("face", {})
 	_draft = {}
 	var ent := {}
-	if sh == "box":
+	var ents: Array = []
+	if sh == "box" or sh == "pointy":
 		if absf(b.x - a.x) < 5.0 or absf(b.y - a.y) < 5.0:
 			_say("Drag a bit further to draw a shape")
 			return
-		ent = {"k": "rect", "a": Part.arr2(a), "b": Part.arr2(b)}
+		if sh == "box":
+			ent = {"k": "rect", "a": Part.arr2(a), "b": Part.arr2(b)}
+		else:   # POINTY: three lines, the closed outline of the triangle (Expert's line tool records the same)
+			var tp := _pointy_pts(a, b)
+			ents = [{"k": "line", "a": Part.arr2(tp[0]), "b": Part.arr2(tp[1])}, {"k": "line", "a": Part.arr2(tp[1]), "b": Part.arr2(tp[2])}, {"k": "line", "a": Part.arr2(tp[2]), "b": Part.arr2(tp[0])}]
 	else:
 		var r := a.distance_to(b)
 		if r < 5.0:
@@ -2049,7 +2085,7 @@ func _finish_draw() -> void:
 		ent = {"k": "circle", "c": Part.arr2(a), "r": snappedf(r, 0.5)}
 	_begin("Draw shape")
 	var rec := pu._ensure()
-	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": [ent], "dims": []}))
+	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": ents if sh == "pointy" else [ent], "dims": []}))
 	_end()
 	armed = ""
 	tweak = {}
