@@ -158,11 +158,17 @@ func _init() -> void:
 		return
 	ss.show_screen()
 	await idle(3)
+	# 5c735d53 (Nick 2026-10-28, freebuild): the BUILDING card opens an Easy Part when the card's Easy button is on.
+	# This suite drives the Expert Part tools, so the card's Easy button is turned off first (navigation only).
+	if ss._easy_btn["building"].button_pressed:
+		await click_ctl(ss._easy_btn["building"])
 	await click_ctl(ss._cards["building"])
 	if m.ui_save_ask != null and m.ui_save_ask.visible:
 		m._save_ask_choose("discard")
 	await idle(6)
-	await click_ctl(pu.part_btn)
+	# the card now turns Part on (5c735d53): the Part button is clicked only when it is still off
+	if not pu.on:
+		await click_ctl(pu.part_btn)
 	await idle(3)
 	ok(pu.on and pu.tool_btns.has("Rectangle"), "start: Part tools on (page %s)" % m.cur_page)
 

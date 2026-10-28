@@ -164,11 +164,16 @@ func ui_part() -> void:
 	ss.dirs_override = [DIRT]
 	ss.show_screen()
 	await idle(3)
+	# 5c735d53 (Nick 2026-10-28, freebuild): the BUILDING card opens an Easy Part when the card's Easy button is on.
+	# This suite drives the Expert Part tools, so the card's Easy button is turned off first (navigation only).
+	if ss._easy_btn["building"].button_pressed:
+		await click_ctl(ss._easy_btn["building"])
 	await click_ctl(ss._cards["building"])
 	if m.ui_save_ask != null and m.ui_save_ask.visible:
 		m._save_ask_choose("discard")
 	await idle(6)
-	await click_ctl(pu.part_btn)
+	if not pu.on:   # the card turns Part on (5c735d53)
+		await click_ctl(pu.part_btn)
 	await idle(3)
 	await click_ctl(pu.browser.find_child("part_plane_front", true, false))
 	await click_ctl(pu.tool_btns["Rectangle"])
