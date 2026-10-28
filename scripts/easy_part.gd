@@ -360,6 +360,10 @@ func _repeat_box() -> PanelContainer:
 		b.toggle_mode = true
 		h.add_child(b)
 		rep_btns[md[0]] = b
+	var cb := _big_btn("easypart_rep_corners", "Corners", "Four copies, one at each corner of the piece it sits on (the legs of a chair or table)", _rep_corners)
+	cb.toggle_mode = true
+	h.add_child(cb)
+	rep_btns["corners"] = cb
 	rep_rows.append(_make_row("How many", 2.0, 12.0, 1.0, REP_WORDS["count"], "rep", "count", "copies", vb))
 	rep_rows.append(_make_row("Gap", 0.5, 30.0, 0.5, REP_WORDS["gap"], "rep", "gap", "cm", vb))
 	return box
@@ -1483,6 +1487,25 @@ func _repeat(rec: Dictionary) -> String:
 	return ""
 
 
+## Corners (EREPEAT): the newest piece goes to the four corners of the body it touches, one undo step; the four become one body with it
+func _rep_corners() -> void:
+	if Part.feature(_rec(), rep_id).is_empty():
+		return
+	_flush_if_dirty()
+	_begin("Corners")
+	var cur := Part.feature(_rec(), rep_id)
+	cur["kind"] = "corners"
+	cur["count"] = 4
+	_end()
+	pu.sync()
+	_rep_sync()
+	var err: String = Part.replay(_rec())["errors"].get(rep_id, "")
+	if err != "":
+		_say(err + ". Move the piece onto a corner of the piece it sits on, then press Corners again, or undo")
+	else:
+		_say("Corners: four copies, one at each corner of the piece it sits on")
+
+
 ## Row (linear, along X) or Ring (circular, round the up axis Y, a full turn): one undo step; Gap spaces both (in a Ring it sets the circle size)
 func _rep_mode(ring: bool) -> void:
 	if Part.feature(_rec(), rep_id).is_empty():
@@ -1555,8 +1578,9 @@ func _rep_sync() -> void:
 	if f.is_empty():
 		return
 	var ring := String(f.get("kind", "linear")) == "circular"
-	(rep_btns["row"] as Button).set_pressed_no_signal(not ring)
+	(rep_btns["row"] as Button).set_pressed_no_signal(String(f.get("kind", "linear")) == "linear")
 	(rep_btns["ring"] as Button).set_pressed_no_signal(ring)
+	(rep_btns["corners"] as Button).set_pressed_no_signal(String(f.get("kind", "")) == "corners")
 	for r in rep_rows:
 		var s: HSlider = r["slider"]
 		var v := float(f.get("count", 3)) if String(r["key"]) == "count" else float(f.get("gap", 10.0)) / 10.0
