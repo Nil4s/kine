@@ -520,6 +520,8 @@ func _set_value(row: Dictionary, v: float, final: bool) -> void:
 		_apply_rep(row, v)
 	else:
 		_apply_tweak(v)
+		if final and tweak.has("say"):
+			_say(String(tweak["say"]) % _fmt(v, String(tweak.get("unit", "cm"))))
 	_dirty = true
 	if final:
 		_flush()
@@ -942,7 +944,8 @@ func _pull(rec: Dictionary) -> String:
 	elif on_face:
 		_say("Pulled into the body: use the slider to change it" if inward else "Pulled out of the face: use the slider to change it")
 	else:
-		_say("Pulled up 2 cm: use the slider to change it")
+		tweak["say"] = "Pulled up %s: use the slider to change it"   # the words follow the slider (a beginner walk: "2 cm" stayed at 8 cm)
+		_say(String(tweak["say"]) % _fmt(2.0, "cm"))
 	return ""
 
 
