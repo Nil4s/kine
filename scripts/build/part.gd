@@ -466,10 +466,15 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	var looks: Array = []   # APPEARANCE: one look per body (null = the default for its index), kept beside bodies
 	var errs: Dictionary = res["errors"]
 	var sketches := {}
+	var off_ids := {}   # XTIME: the sketches the timeline suppressed
 	for i in n:
 		var f: Dictionary = feats[i]
 		var id := String(f["id"])
 		look_fit(looks, bodies.size())
+		if bool(f.get("off", false)):   # XTIME: a suppressed step is skipped (no solid, no error); a later step that needs it says so
+			if String(f["t"]) == "sketch":
+				off_ids[id] = true
+			continue
 		match String(f["t"]):
 			"sketch":
 				var rs := resolved_sketch(f, want.get("body", null))   # C2: bound dimensions read the body given (none = an error)
@@ -481,7 +486,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 			"extrude", "revolve":
 				var sk: Dictionary = sketches.get(String(f.get("sketch", "")), {})
 				if sk.is_empty():
-					errs[id] = String(errs.get(String(f.get("sketch", "")), "its sketch is gone"))
+					errs[id] = _no_sketch_words(rec, f, String(f.get("sketch", "")), errs, off_ids)
 					continue
 				var sols := _solids(f, sk)
 				if String(sols["err"]) != "":
@@ -596,6 +601,19 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		for b in bodies:
 			KCad.release(b)
 	return res
+
+
+## XTIME: why an extrude / revolve has no sketch to read, in plain words: its sketch was deleted (the name it had: sketch_was, set when the
+## step was deleted), suppressed, or it cannot be read (its own error)
+static func _no_sketch_words(rec: Dictionary, f: Dictionary, sid: String, errs: Dictionary, off_ids: Dictionary) -> String:
+	var nm := String(f.get("name", "This step"))
+	if sid != "" and errs.has(sid):
+		return String(errs[sid])
+	if sid != "" and off_ids.has(sid):
+		var sn := String(feature(rec, sid).get("name", "its sketch"))
+		return "%s needs %s, which is suppressed: click Suppress on %s to bring it back, or delete %s" % [nm, sn, sn, nm]
+	var was := String(f.get("sketch_was", "its sketch"))
+	return "%s needs %s, which was deleted: Undo brings it back, or delete %s" % [nm, was, nm]
 
 
 ## C3: the hinge's swing, sampled at fps. Replays the features before the hinge, turns its body about the hinge axis by the curve at each

@@ -190,6 +190,8 @@ var tl: PanelContainer
 var tl_row: HBoxContainer
 var tl_info: Label
 var tl_btns: Array = []
+var sup_btn: Button   # XTIME: Suppress / Unsuppress the selected step (one undo step)
+var del_btn: Button   # XTIME: Delete step (one undo step; the later steps replay, and say why when they cannot)
 var _sig := ""
 var _rec_sig := ""
 var _browser_sig := ""
@@ -644,6 +646,32 @@ func _field(nm: String) -> LineEdit:
 	return le
 
 
+## XTIME: the Suppress and Delete step buttons (built once, beside the step count)
+func _xtime_buttons() -> Control:
+	var ab := VBoxContainer.new()
+	ab.custom_minimum_size.x = 150
+	ab.add_theme_constant_override("separation", 0)
+	sup_btn = Button.new()
+	sup_btn.name = "part_suppress"
+	sup_btn.text = "Suppress"
+	sup_btn.focus_mode = Control.FOCUS_NONE
+	sup_btn.custom_minimum_size = Vector2(150, 22)
+	sup_btn.add_theme_font_size_override("font_size", 11)
+	sup_btn.tooltip_text = "Suppress: the selected step is skipped by the replay (Suppress again, or Undo, puts it back)"
+	sup_btn.pressed.connect(_suppress_toggle)
+	ab.add_child(sup_btn)
+	del_btn = Button.new()
+	del_btn.name = "part_delete_step"
+	del_btn.text = "Delete step"
+	del_btn.focus_mode = Control.FOCUS_NONE
+	del_btn.custom_minimum_size = Vector2(150, 22)
+	del_btn.add_theme_font_size_override("font_size", 11)
+	del_btn.tooltip_text = "Delete step: removes the selected step; the steps after it replay, and a step that needs it says why (one undo step)"
+	del_btn.pressed.connect(_delete_step)
+	ab.add_child(del_btn)
+	return ab
+
+
 func _build_timeline() -> void:
 	tl = PanelContainer.new()
 	tl.name = "part_timeline"
@@ -685,7 +713,10 @@ func _build_timeline() -> void:
 	tl_info.name = "part_timeline_info"
 	tl_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	tl_info.custom_minimum_size.x = 150
-	hb.add_child(tl_info)
+	var info_col := VBoxContainer.new()
+	info_col.add_child(tl_info)
+	info_col.add_child(_xtime_buttons())
+	hb.add_child(info_col)
 	tl.visible = false
 	m.ui_root.add_child(tl)
 
@@ -1051,7 +1082,7 @@ func _release(p: Vector2) -> bool:
 	if (draft["a"] as Vector2).distance_to(draft["b"]) < maxf(snap_mm * 0.9, 0.5):
 		if String(draft.get("k", "")) == "circle":   # XFIX: a short circle drag cancels in words (no half circle for the next click)
 			draft = {}
-			_say("Drag further to set the size")
+			_say("Drag further to set the size (or hold on the centre and type the radius, then Enter)")   # XDIM: the typed radius is the exact way
 			pov.queue_redraw()
 			return true
 		draft["down"] = false   # a click, not a drag: the second click is the other corner
@@ -1111,20 +1142,71 @@ func _motion(p: Vector2) -> bool:
 	return false
 
 
+## XDIM: a typed digit / point / x (x only for a rectangle's WxH), or "" for any other key
+func _typed_key(k: InputEventKey, x_too: bool) -> String:
+	if k.keycode >= KEY_0 and k.keycode <= KEY_9:
+		return str(k.keycode - KEY_0)
+	if k.keycode >= KEY_KP_0 and k.keycode <= KEY_KP_9:
+		return str(k.keycode - KEY_KP_0)
+	if k.keycode in [KEY_PERIOD, KEY_KP_PERIOD]:
+		return "."
+	if x_too and k.keycode == KEY_X:
+		return "x"
+	return ""
+
+
+## XDIM: Enter on a typed size: a rectangle "40x30" (width x height, from its first corner, on the side the pointer is on),
+## a circle "12" (its radius, from the centre). A size that is no number above 0 says what to type and adds nothing.
+func _typed_size() -> bool:
+	var a: Vector2 = draft["a"]
+	var cur: Vector2 = draft.get("b", a)
+	var sx := 1.0 if cur.x >= a.x else -1.0
+	var sy := 1.0 if cur.y >= a.y else -1.0
+	if String(draft["k"]) == "rect":
+		var wh := typed.split("x")
+		if wh.size() != 2 or not wh[0].is_valid_float() or not wh[1].is_valid_float() or float(wh[0]) <= 0.0 or float(wh[1]) <= 0.0:
+			_say("Type width x height in mm, like 40x30")
+			return true
+		var w := float(wh[0])
+		var h := float(wh[1])
+		_add_ent({"k": "rect", "a": Part.arr2(a), "b": Part.arr2(a + Vector2(sx * w, sy * h))})
+	else:
+		if not typed.is_valid_float() or float(typed) <= 0.0:
+			_say("Type the radius in mm, above 0 (like 12)")
+			return true
+		_add_ent({"k": "circle", "c": Part.arr2(a), "r": float(typed)})
+	typed = ""
+	draft = {}
+	pov.queue_redraw()
+	return true
+
+
 func _key(k: InputEventKey) -> bool:
 	if not pair_pick.is_empty() and k.keycode == KEY_ESCAPE:
 		pair_pick = {}
 		_hinge_sync()
 		_say("Must not touch: cancelled.")
 		return true
+	# XDIM: a size typed before the first point says what to click first (the digits are the size's, not the view's: they do not turn the camera)
+	if sk != "" and tool in ["Line", "Rectangle", "Circle"] and draft.is_empty() and not dim_edit.visible and _typed_key(k, false) != "":
+		_say({"Line": "Click the start first, then type the length", "Rectangle": "Click a corner first, then type the size: 40x30",
+			"Circle": "Click the centre first, then type the radius"}[tool])
+		return true
+	# XDIM: a rectangle or circle with its first point takes a typed size (Enter makes it)
+	if sk != "" and tool in ["Rectangle", "Circle"] and not draft.is_empty() and not dim_edit.visible:
+		var tk := _typed_key(k, tool == "Rectangle")
+		if tk != "":
+			typed += tk
+			pov.queue_redraw()
+			return true
+		if k.keycode == KEY_BACKSPACE and typed != "":
+			typed = typed.left(-1)
+			pov.queue_redraw()
+			return true
+		if k.keycode in [KEY_ENTER, KEY_KP_ENTER] and typed != "":
+			return _typed_size()
 	if sk != "" and tool == "Line" and not draft.is_empty():
-		var ch := ""
-		if k.keycode >= KEY_0 and k.keycode <= KEY_9:
-			ch = str(k.keycode - KEY_0)
-		elif k.keycode >= KEY_KP_0 and k.keycode <= KEY_KP_9:
-			ch = str(k.keycode - KEY_KP_0)
-		elif k.keycode in [KEY_PERIOD, KEY_KP_PERIOD]:
-			ch = "."
+		var ch := _typed_key(k, false)
 		if ch != "":
 			typed += ch
 			pov.queue_redraw()
@@ -1142,6 +1224,9 @@ func _key(k: InputEventKey) -> bool:
 			draft["a"] = b
 			draft["b"] = b
 			typed = ""
+			return true
+		if k.keycode in [KEY_ENTER, KEY_KP_ENTER] and typed != "":
+			_say("A length must be above 0 mm: type a number, then Enter")   # XDIM: "0" said nothing before
 			return true
 	if k.keycode == KEY_ESCAPE and not con_pick.is_empty():
 		con_pick = {}
@@ -1329,9 +1414,30 @@ func _set_dim_text(ent: int, kind: String, t: String) -> String:
 		if r["err"] != "":
 			return String(r["err"])
 		return Part.set_dim_held(_sk(), ent, kind, float(r["mm"]), bind)   # GAP 9: a size that breaks a rule is refused (its words)
-	if v.is_valid_float() and float(v) > 0.0:
-		return Part.set_dim_held(_sk(), ent, kind, float(v))
-	return "type a size in mm, or =forearm+4 to read the body (forearm, upper_arm, thigh, shank, trunk, head ...)"
+	var mm := typed_mm(v)
+	if mm > 0.0:
+		return Part.set_dim_held(_sk(), ent, kind, mm)
+	return _size_words(v)
+
+
+## XDIM: a typed size in mm: "40", "40 mm", or "4 cm" (= 40 mm). -1 when the text is no size above 0
+static func typed_mm(t: String) -> float:
+	var v := t.strip_edges().to_lower().replace("mm", "").strip_edges()
+	var mul := 1.0
+	if v.ends_with("cm"):
+		v = v.trim_suffix("cm").strip_edges()
+		mul = 10.0
+	if not v.is_valid_float() or float(v) <= 0.0:
+		return -1.0
+	return float(v) * mul
+
+
+## XDIM: the words for a size that is not one: a number at or below 0, or anything else
+func _size_words(t: String) -> String:
+	var v := t.strip_edges().to_lower().replace("mm", "").replace("cm", "").strip_edges()
+	if v.is_valid_float():
+		return "A size must be above 0 mm"
+	return "type a size in mm (40 or 4 cm), or =forearm+4 to read the body (forearm, upper_arm, thigh, shank, trunk, head ...)"
 
 
 ## the number a row shows: the size now (a bound one: what the body gives)
@@ -1836,6 +1942,59 @@ func _marker(which: String) -> void:
 	bu.sync()
 
 
+## XTIME: Suppress / Unsuppress the selected step: the replay skips it (no solid, no error). One undo step.
+func _suppress_toggle() -> void:
+	var feats := _feats()
+	if sel_step < 0 or sel_step >= feats.size():
+		_say("Click a step on the timeline first, then Suppress it")
+		return
+	if sk != "":
+		_say("Finish the sketch first, then Suppress the step")
+		return
+	close_dialog()
+	m._push_undo()
+	var f: Dictionary = feats[sel_step]
+	var nm := String(f["name"])
+	if bool(f.get("off", false)):
+		f.erase("off")
+		_say("%s is back on: the steps after it replay with it" % nm)
+	else:
+		f["off"] = true
+		_say("%s is suppressed: the replay skips it. Suppress it again to put it back." % nm)
+	bu.sync()
+
+
+## XTIME: Delete the selected step (one undo step). A sketch's later steps keep its name (sketch_was) and say plainly why they broke.
+func _delete_step() -> void:
+	var rec := _rec()
+	var feats := _feats()
+	if sel_step < 0 or sel_step >= feats.size():
+		_say("Click a step on the timeline first, then Delete step")
+		return
+	if sk != "":
+		_say("Finish the sketch first, then delete the step")
+		return
+	close_dialog()
+	var f: Dictionary = feats[sel_step]
+	var nm := String(f["name"])
+	m._push_undo()
+	rec["features"].remove_at(sel_step)
+	if String(f["t"]) == "sketch":
+		for g in rec["features"]:
+			if String(g.get("sketch", "")) == String(f["id"]):
+				g["sketch_was"] = nm
+	sel_step = -1
+	if upto >= _feats().size():
+		upto = -1
+	var errs: Dictionary = Part.replay(rec).get("errors", {})
+	if errs.is_empty():
+		_say("Deleted %s. The steps after it still make a solid." % nm)
+	else:
+		var first := String(errs.values()[0])
+		_say("Deleted %s. %d step%s cannot be made: %s" % [nm, errs.size(), "" if errs.size() == 1 else "s", first])
+	bu.sync()
+
+
 func step_clicked(i: int) -> void:
 	var now := Time.get_ticks_msec()
 	if i == _last_step and now - _last_ms < DOUBLE_MS:
@@ -1876,7 +2035,7 @@ func _step_icon(f: Dictionary) -> String:
 func _timeline_sync() -> void:
 	var feats := _feats()
 	var errs: Dictionary = res.get("errors", {})
-	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"]]), upto, sel_step, sk, dlg.get("edit", -2), errs.keys()])
+	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], bool(f.get("off", false))]), upto, sel_step, sk, dlg.get("edit", -2), errs.keys()])
 	if sig != _tl_sig:
 		_tl_sig = sig
 		for c in tl_row.get_children():
@@ -1895,10 +2054,14 @@ func _timeline_sync() -> void:
 			b.toggle_mode = true
 			b.button_pressed = i == sel_step or (sk != "" and String(f["id"]) == sk) or (int(dlg.get("edit", -1)) == i)
 			b.tooltip_text = "%s. Double-click to change it; the steps after it replay." % f["name"]
+			if bool(f.get("off", false)):
+				b.tooltip_text = "%s is suppressed: the replay skips it. Click Suppress to put it back." % f["name"]
 			b.pressed.connect(step_clicked.bind(i))
 			var failed: bool = errs.has(String(f["id"]))
 			var beyond: bool = upto >= 0 and i > upto
 			b.modulate = Color(1, 0.55, 0.5) if failed else (Color(1, 1, 1, 0.35) if beyond else Color.WHITE)
+			if bool(f.get("off", false)):
+				b.modulate = Color(0.6, 0.6, 0.6, 0.5)
 			if failed:
 				b.tooltip_text += " Failed: " + String(errs[String(f["id"])])
 			vb.add_child(b)
@@ -1917,6 +2080,11 @@ func _timeline_sync() -> void:
 		tl_info.text = "Marker at step %d of %d\nnew steps go at the end" % [upto + 1, n]
 	else:
 		tl_info.text = "%d step%s" % [n, "" if n == 1 else "s"] if n > 0 else "No steps yet"
+	var sel_f: Dictionary = feats[sel_step] if sel_step >= 0 and sel_step < n else {}
+	if sup_btn != null:
+		sup_btn.text = "Unsuppress" if bool(sel_f.get("off", false)) else "Suppress"
+		sup_btn.disabled = sel_f.is_empty() or String(sel_f.get("t", "")) == "appear"
+		del_btn.disabled = sel_f.is_empty()
 
 
 func _browser_sync() -> void:
@@ -2012,14 +2180,17 @@ func _num_typed(i: int, t: String, le: LineEdit) -> void:
 		return
 	var v := t.replace("mm", "").strip_edges()
 	var dims: Array = _sk().get("dims", [])
-	if i < dims.size() and (not Part.parse_bind(v).is_empty() or v.is_valid_float()):
-		if Part.parse_bind(v).is_empty():
-			_set_dim_value(i, float(v))
+	if i < dims.size() and not Part.parse_bind(v).is_empty():
+		var err := _set_dim_text(int(dims[i]["ent"]), String(dims[i]["kind"]), v)
+		if err != "":
+			_say(err)
+		_after_sketch_edit()
+	elif i < dims.size():   # XDIM: a plain size (40, 4 cm) sets it; anything else says what to type (it was silent)
+		var mm := typed_mm(v)
+		if mm > 0.0:
+			_set_dim_value(i, mm)
 		else:
-			var err := _set_dim_text(int(dims[i]["ent"]), String(dims[i]["kind"]), v)
-			if err != "":
-				_say(err)
-			_after_sketch_edit()
+			_say(_size_words(v))
 	if not le.is_inside_tree():
 		return   # the number made the rows again: this field is gone
 	dims = _sk().get("dims", [])
@@ -2575,13 +2746,19 @@ func _draw_draft() -> void:
 			_readout((typed + " mm") if typed != "" else "%s mm%s" % [_fmt(len), _snap_words()])
 		"rect":
 			pov.draw_polyline(PackedVector2Array([scr(a), scr(Vector2(b.x, a.y)), scr(b), scr(Vector2(a.x, b.y)), scr(a)]), c, 2.0)
-			_readout("%s x %s mm%s" % [_fmt(absf(b.x - a.x)), _fmt(absf(b.y - a.y)), _snap_words()])
+			if typed != "":   # XDIM: a typed 40x30 reads as typed
+				_readout("%s mm (Enter)" % typed)
+			else:
+				_readout("%s x %s mm%s" % [_fmt(absf(b.x - a.x)), _fmt(absf(b.y - a.y)), _snap_words()])
 		"circle":
 			var pts := PackedVector2Array()
 			for j in 65:
 				pts.append(scr(a + Vector2.from_angle(TAU * j / 64.0) * a.distance_to(b)))
 			pov.draw_polyline(pts, c, 2.0)
-			_readout("R %s mm%s" % [_fmt(a.distance_to(b)), _snap_words()])
+			if typed != "":   # XDIM: a typed radius reads as typed
+				_readout("R %s mm (Enter)" % typed)
+			else:
+				_readout("R %s mm%s" % [_fmt(a.distance_to(b)), _snap_words()])
 		"arc":
 			var pts: Array = draft.get("pts", [])
 			for q in pts:

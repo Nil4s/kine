@@ -5866,7 +5866,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 				KEY_Z: _undo()
 				KEY_K: _toggle_autokey()   # ROADMAP 42: auto-key on / off (Ctrl+K)
 				KEY_Y: _redo()
-				KEY_S: _save_scene() if k.shift_pressed else _save_pose()   # Ctrl+Shift+S = the scene (round 15, V3)
+				KEY_S: _save_scene() if k.shift_pressed or (easy != null and easy.on) else _save_pose()   # Ctrl+Shift+S = the scene (round 15, V3); Easy: Ctrl+S too (startwalk bar 8: a beginner's Ctrl+S wrote a pose into moves/)
 				KEY_E: _inbetween("push")   # Ctrl+E push from the in-between (WW3)
 				KEY_C: _copy_pose()
 				KEY_V: _paste_pose("mirrored" if k.shift_pressed else "")
