@@ -1098,9 +1098,10 @@ func _pull(rec: Dictionary) -> String:
 	var on_face := String(pf.get("t", "")) == "plane" and pf.has("out")   # a sketch on a face: the pull goes OUTWARD from it
 	var sg := float(pf["out"]) if on_face else 1.0
 	var through := bool(pf.get("through", false))   # an upright sketch (through the middle) pulls BOTH ways
-	var inward := on_face and not through and _overhangs(rec, sk)
+	var inward := on_face and not through and _overhangs(rec, sk) and not _top_face(pf)
 	if inward:
 		sg = -sg   # a face drawing that hangs past the body (a roof above the walls) pulls back INTO it: it extends the body's outline; one inside the face (a leg) pulls out
+	# ETABLE: a top drawn on the TOP of the legs hangs past them, but it stands ON them: a top face pulls up (out), never into the legs
 	var dist := 20.0 * sg
 	if through and _sits_on_body(rec, sk):
 		# A ROOF: pulled out both ways from the middle to the box's depth (the slider changes it from there)
@@ -1133,6 +1134,11 @@ func _sits_on_body(rec: Dictionary, sk: Dictionary) -> bool:
 		for q in _ent_pts(e):
 			low = minf(low, float(q[1]))
 	return low >= bb.end.y / Part.MM - 1.0
+
+
+## ETABLE: a face plane on the top of a solid (the floor-facing normal is up: out +1 on the Part top plane)
+func _top_face(pf: Dictionary) -> bool:
+	return String(pf.get("from", "")) == "top" and int(pf.get("out", 0)) > 0
 
 
 ## a face sketch hangs past the body when one of its points lies outside the body's box (by more than 0.5 mm) along the face's own axes
