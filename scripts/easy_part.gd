@@ -1639,6 +1639,7 @@ func _rep_mode(ring: bool) -> void:
 	cur["mm"] = float(cur.get("w", 10.0)) + float(cur.get("gap", 10.0))
 	_end()
 	pu.sync()
+	_rep_sync()
 	_values_sync()
 	_say("Ring: the copies go round in a circle beside it" if ring else "Row: the copies go in a straight line")
 
@@ -1699,6 +1700,9 @@ func _rep_sync() -> void:
 	(rep_btns["row"] as Button).set_pressed_no_signal(String(f.get("kind", "linear")) == "linear")
 	(rep_btns["ring"] as Button).set_pressed_no_signal(ring)
 	(rep_btns["corners"] as Button).set_pressed_no_signal(String(f.get("kind", "")) == "corners")
+	var rows_on := String(f.get("kind", "")) != "corners"   # CORNERS: four copies at the corners, no How many or Gap to set
+	for r in rep_rows:
+		(r["box"] as Control).visible = rows_on
 	for r in rep_rows:
 		var s: HSlider = r["slider"]
 		var v := float(f.get("count", 3)) if String(r["key"]) == "count" else float(f.get("gap", 10.0)) / 10.0
