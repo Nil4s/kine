@@ -133,6 +133,10 @@ var f_to: LineEdit
 var f_dur: LineEdit
 var f_dial: Control
 var status := ""
+var pill_text := ""   # XFIX2: the last size readout drawn next to the cursor (its words, and where it sits)
+var pill_at := Vector2.ZERO
+var cur_px := Vector2.ZERO   # the last pointer place on the view (the readout follows it)
+var grey_why := {}   # XFIX2: greyed button -> why (a click on it says that)
 var part_btn: Button
 var tool_btns := {}
 var finish_btn: Button
@@ -248,6 +252,7 @@ func setup(b: BuildUI) -> void:
 		_tool_btn(row, t)
 	_sep(row)
 	finish_btn = m._button("Finish sketch", finish_sketch, "Finish sketch: the sketch is done; the steps after it replay (one undo step)")
+	finish_btn.gui_input.connect(_grey_click.bind(finish_btn))   # XFIX2
 	finish_btn.name = "part_finish"
 	_icon(finish_btn, "part_finish")
 	row.add_child(finish_btn)
@@ -390,6 +395,7 @@ func _tool_btn(row: HBoxContainer, t: String) -> void:
 	btn.toggle_mode = true
 	_icon(btn, "part_" + t.to_lower().replace(" ", "_"))
 	tool_btns[t] = btn
+	btn.gui_input.connect(_grey_click.bind(btn))   # XFIX2
 	row.add_child(btn)
 
 
@@ -706,6 +712,7 @@ func _sk() -> Dictionary:
 
 func _say(t: String) -> void:
 	status = t
+	m._toast_clear()   # XFIX2: the next action's words replace an older toast ("Undid: ...")
 	m._say(t)
 
 
@@ -889,6 +896,8 @@ func input(ev: InputEvent) -> bool:
 	if ev is InputEventMouseButton:
 		var mb := ev as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT:
+			if mb.pressed:
+				m._toast_clear()   # XFIX2: a press is an action: an older "Undid" toast goes
 			return _press(mb.position) if mb.pressed else _release(mb.position)
 		if mb.button_index == MOUSE_BUTTON_RIGHT and mb.pressed and not draft.is_empty():
 			_close_chain()
@@ -902,6 +911,7 @@ func input(ev: InputEvent) -> bool:
 
 
 func _press(p: Vector2) -> bool:
+	cur_px = p
 	if sk != "":
 		return _press_sketch(p)
 	if dlg.get("t", "") == "canvas":
@@ -935,6 +945,8 @@ func _press(p: Vector2) -> bool:
 					picked.append(fc)
 			_preview()
 			pov.queue_redraw()
+		else:
+			_say("No face there: click a face of the solid (the front-facing ones)")   # XFIX2
 		return true
 	if tool == "Fillet" or tool == "Chamfer":
 		var i := _pick_edge(p)
@@ -950,8 +962,17 @@ func _press(p: Vector2) -> bool:
 				picked.append(e)
 			_preview()
 			pov.queue_redraw()
+		else:
+			_say("No edge there: click an edge of the solid (it turns sky blue), then type the size")   # XFIX2: a miss says why
 		return true
 	return false
+
+
+## XFIX2: a press on a greyed tool or Finish button says why (a disabled button takes the press itself, so it is read on its gui_input)
+func _grey_click(ev: InputEvent, b: Button) -> void:
+	if b.disabled and ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and (ev as InputEventMouseButton).pressed:
+		if grey_why.has(b):
+			_say(String(grey_why[b]))
 
 
 func _press_sketch(p: Vector2) -> bool:
@@ -960,6 +981,7 @@ func _press_sketch(p: Vector2) -> bool:
 		return true
 	var h: Variant = hit(p)
 	if h == null:
+		_say("Nothing to draw there: turn the view onto the sketch plane (its name is in the browser)")   # XFIX2: a press off the plane says why
 		return true
 	var a := snap(h as Vector2)
 	if tool == "Spline" and draft.is_empty():
@@ -976,6 +998,7 @@ func _press_sketch(p: Vector2) -> bool:
 			else:
 				var b: Vector2 = a
 				if (draft["a"] as Vector2).distance_to(b) < 0.5:
+					_say("Pick a different point: that is where the line starts (a line needs two ends)")   # XFIX2
 					return true
 				_add_ent({"k": "line", "a": Part.arr2(draft["a"]), "b": Part.arr2(b)})
 				if b.distance_to(draft["start"]) < 0.5:
@@ -1044,12 +1067,17 @@ func _commit_draft() -> void:
 	if draft["k"] == "rect":
 		if absf(a.x - b.x) > 0.01 and absf(a.y - b.y) > 0.01:
 			_add_ent({"k": "rect", "a": Part.arr2(a), "b": Part.arr2(b)})
+		else:
+			_say("Drag further to set the size: a rectangle needs width and height")   # XFIX2: a flat rectangle is no shape
 	elif a.distance_to(b) > 0.01:
 		_add_ent({"k": "circle", "c": Part.arr2(a), "r": snappedf(a.distance_to(b), 0.0001)})
+	else:
+		_say("Drag further to set the size")   # XFIX2
 	draft = {}
 
 
 func _motion(p: Vector2) -> bool:
+	cur_px = p   # XFIX2: the size readout follows the pointer
 	if not cv_drag.is_empty():
 		_canvas_move(p)
 		return false
@@ -2004,6 +2032,7 @@ func _num_typed(i: int, t: String, le: LineEdit) -> void:
 
 func _tool_sync() -> void:
 	var ok := Part.available()
+	grey_why = {}
 	var has_sketch: bool = not _feats().filter(func(f): return f["t"] == "sketch").is_empty()
 	var has_body: bool = res.get("bodies", 0) > 0
 	var why := "" if ok else Part.why_not()
@@ -2021,8 +2050,13 @@ func _tool_sync() -> void:
 		elif ok and (t == "Mirror" or t == "Fillet" or t == "Chamfer" or t == "Hinge" or t == "Split" or t == "Shell" or t == "Appearance" or t == "Pattern" or t == "Offset face" or t == "Draft") and not has_body:
 			w = "make a solid first (Extrude or Revolve)"
 		m._grey(b, w)
+		if w != "":
+			grey_why[b] = w   # XFIX2
 		b.set_pressed_no_signal(con_open if t == "Constrain" else (t == tool and w == ""))
-	m._grey(finish_btn, why if not ok else ("" if sk != "" else "no sketch is open"))
+	var fw := why if not ok else ("" if sk != "" else "no sketch is open")
+	m._grey(finish_btn, fw)
+	if fw != "":
+		grey_why[finish_btn] = fw   # XFIX2: a click on a greyed button says this
 
 
 ## Easy Part hides the top ribbon (its own bar stands in for it), so "What to build" moves into that bar while Easy Part is on, and
@@ -2513,6 +2547,21 @@ func _draw_dim(ents: Array, d: Dictionary) -> void:
 	_pill((pa + pb) * 0.5, txt, Color(0.06, 0.07, 0.1, 0.94), Color.WHITE, 14)
 
 
+## XFIX2: what a drawn size says about the snap: ", snapped to 5 mm" while the grid is on (Alt = free, no note)
+func _snap_words() -> String:
+	if snap_mm <= 0.0 or Input.is_key_pressed(KEY_ALT):
+		return ""
+	return ", snapped to %s mm" % _fmt(snap_mm)
+
+
+## XFIX2: the size readout sits next to the pointer (it follows it), in the dark pill
+func _readout(txt: String) -> void:
+	var c := cur_px + Vector2(24, -22)
+	pill_text = txt
+	pill_at = c
+	_pill(c, txt, Color(0.06, 0.07, 0.1, 0.94), Color.WHITE, 14)
+
+
 func _draw_draft() -> void:
 	if draft.is_empty():
 		return
@@ -2523,16 +2572,16 @@ func _draw_draft() -> void:
 		"line":
 			pov.draw_line(scr(a), scr(b), c, 2.0)
 			var len := a.distance_to(b)
-			_pill((scr(a) + scr(b)) * 0.5 + Vector2(0, -18), (typed + " mm") if typed != "" else "%s mm" % _fmt(len), Color(0.06, 0.07, 0.1, 0.94), Color.WHITE, 14)
+			_readout((typed + " mm") if typed != "" else "%s mm%s" % [_fmt(len), _snap_words()])
 		"rect":
 			pov.draw_polyline(PackedVector2Array([scr(a), scr(Vector2(b.x, a.y)), scr(b), scr(Vector2(a.x, b.y)), scr(a)]), c, 2.0)
-			_pill(scr(b) + Vector2(40, 18), "%s x %s mm" % [_fmt(absf(b.x - a.x)), _fmt(absf(b.y - a.y))], Color(0.06, 0.07, 0.1, 0.94), Color.WHITE, 14)
+			_readout("%s x %s mm%s" % [_fmt(absf(b.x - a.x)), _fmt(absf(b.y - a.y)), _snap_words()])
 		"circle":
 			var pts := PackedVector2Array()
 			for j in 65:
 				pts.append(scr(a + Vector2.from_angle(TAU * j / 64.0) * a.distance_to(b)))
 			pov.draw_polyline(pts, c, 2.0)
-			_pill(scr(b) + Vector2(40, 18), "R %s mm" % _fmt(a.distance_to(b)), Color(0.06, 0.07, 0.1, 0.94), Color.WHITE, 14)
+			_readout("R %s mm%s" % [_fmt(a.distance_to(b)), _snap_words()])
 		"arc":
 			var pts: Array = draft.get("pts", [])
 			for q in pts:
