@@ -201,3 +201,5 @@ EXTRA="$EXTRA eempty:w"
 EXTRA="$EXTRA efar:w"   # EFAR: Easy Part far-floor presses: a drag that starts on the words pill (under the far floor) still draws a box or a curve; a press that goes off Mirror and back is no click, a plain click still mirrors (tests/efar_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA edoor:w"   # EDOOR: Cut a hole cuts the DRAWN shape (a Box on a face, not yet pulled) through its wall: a door or window, depth by the slider, one undo (tests/edoor_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA erepeat:w"   # EREPEAT: Easy Part Repeat it gets a Corners chip: the newest piece goes to the four corners of the seat it sits on, one body, one undo step (tests/erepeat_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA eround:w"   # EROUND: Easy Part Round the edges on a part of 25+ steps (real clicks): the press takes under 2 s, no failed step, one undo step (tests/eround_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA nfillet:w"   # NFILLET: Easy Part rounds and blends survive a size change: a round too big for its edges shrinks and says so (3), a blend is not overwritten by a slider (4, 5) (tests/nfillet_test.gd; needs the CAD DLL)
