@@ -583,8 +583,30 @@ static func _wep_hits_slow(B: Body) -> int:
 ## 2 degrees; each size is tried in 10-degree steps round the shaft's two cross axes. No clear angle: the weapon stays
 ## as it was (the blade then stays in the body, and the Check tests show it)
 static func _clear_body(B: Body) -> void:
-	if not B.wep_on or B.wep_hand == "" or _wep_hits(B) == 0:
+	if not B.wep_on or B.wep_hand == "":
 		return
+	if _wep_hits(B) == 0 and _tip_z(B) >= 0.0:
+		return
+	# a blade pointing back (or into the body) is turned to a FORWARD clear angle first (the tip at least FWD_Z out in front);
+	# only with none does the first clear angle of any direction count, and only when the blade is in the body (as before)
+	if _clear_roll(B, FWD_Z):
+		return
+	if _wep_hits(B) > 0:
+		_clear_roll(B, -1.0)
+
+
+## a blade's forward reach that a clear turn must keep (the tip's world z); before this, a sword turned mid-punch swung back
+const FWD_Z := 0.4
+
+
+## the blade tip's world z (the blade's axis: a clear turn keeps it in front of the body)
+static func _tip_z(B: Body) -> float:
+	return ((B.wep_xform()[1] as Quaternion) * Vector3.UP).z
+
+
+## turn the held weapon in its hand to the smallest angle that clears the body and keeps the tip at least zmin forward;
+## true when one was found (the weapon is left turned), false (the weapon is left as it was)
+static func _clear_roll(B: Body, zmin: float) -> bool:
 	var h := B.wep_hand
 	var pivot := B.palm_point(h)
 	var x := B.wep_xform()
@@ -605,8 +627,8 @@ static func _clear_body(B: Body) -> void:
 				B.wep_rot = (rr * r0).normalized()
 				B.lock_weapon(h)
 				B.fk()
-				if _wep_hits(B) == 0:
-					return
+				if _wep_hits(B) == 0 and _tip_z(B) >= zmin:
+					return true
 	var mag := 2.0
 	while mag <= 180.0:
 		for k in 36:
@@ -618,14 +640,15 @@ static func _clear_body(B: Body) -> void:
 			B.wep_rot = (rw * r0).normalized()
 			B.lock_weapon(h)
 			B.fk()
-			if _wep_hits(B) == 0:
-				return
+			if _wep_hits(B) == 0 and _tip_z(B) >= zmin:
+				return true
 		mag += 2.0
 	B.wep_hand = ""
 	B.wep_pos = keep[0]
 	B.wep_rot = keep[1]
 	B.lock_weapon(h)
 	B.fk()
+	return false
 
 
 func _item(cat: String, nm: String, how: String, key: String, shapes: Array, id: String) -> Dictionary:
