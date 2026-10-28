@@ -240,7 +240,7 @@ func pick(o: Vector3, d: Vector3, hidden := {}) -> Array:
 				continue
 			var tris: PackedInt32Array = c["tris"]
 			for t in range(0, tris.size(), 3):
-				var r = Geometry3D.ray_intersects_triangle(o, dn, pos[tris[t]], pos[tris[t + 1]], pos[tris[t + 2]])
+				var r = ray_tri_mm(o, dn, pos[tris[t]], pos[tris[t + 1]], pos[tris[t + 2]])
 				if r == null:
 					continue
 				var dist := ((r as Vector3) - o).dot(dn)
@@ -252,6 +252,14 @@ func pick(o: Vector3, d: Vector3, hidden := {}) -> Array:
 	if hk < 0:
 		return ["", INF, Vector3.ZERO]
 	return [part_at(hk, htri, hit), best, hit]
+
+
+## ray vs triangle for metre-scale geometry. Geometry3D.ray_intersects_triangle returns null when
+## |edge1 . (dir x edge2)| < 1e-5, so a mm-sized triangle given in metres is silently missed. The same ray on the
+## x1000 triangle has 1e6 the determinant: scale in, cast, scale the hit back (the result stays in metres).
+static func ray_tri_mm(o: Vector3, d: Vector3, a: Vector3, b: Vector3, c: Vector3) -> Variant:
+	var h: Variant = Geometry3D.ray_intersects_triangle(o * 1000.0, d, a * 1000.0, b * 1000.0, c * 1000.0)
+	return null if h == null else (h as Vector3) / 1000.0
 
 
 ## the ray enters the box nearer than best (or starts inside it)

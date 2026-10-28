@@ -153,6 +153,13 @@ func near_tris(pts: PackedVector3Array, T: PackedInt32Array, lo: Vector3, hi: Ve
 	return out
 
 
+## ray vs triangle at mm (rayeps): Geometry3D.ray_intersects_triangle returns null when |edge1 . (dir x edge2)| < 1e-5, so a
+## triangle with mm-sized edges given in metres is silently missed. The same ray on the x1000 triangle has 1e6 the determinant.
+func ray_mm(o: Vector3, d: Vector3, a: Vector3, b: Vector3, c: Vector3) -> Variant:
+	var h: Variant = Geometry3D.ray_intersects_triangle(o * 1000.0, d, a * 1000.0, b * 1000.0, c * 1000.0)
+	return null if h == null else (h as Vector3) / 1000.0
+
+
 ## signed distance of p to the posed body (pts): - inside (own signed crossings, every triangle, 3 rays majority),
 ## distance to the nearest triangle of `cand` (triangle numbers; brute force)
 func signed_dist(p: Vector3, pts: PackedVector3Array, T: PackedInt32Array, sg: PackedFloat32Array, cand: PackedInt32Array) -> float:
@@ -167,7 +174,7 @@ func signed_dist(p: Vector3, pts: PackedVector3Array, T: PackedInt32Array, sg: P
 			var a := pts[T[t]]
 			var b := pts[T[t + 1]]
 			var c := pts[T[t + 2]]
-			if Geometry3D.ray_intersects_triangle(p, dn, a, b, c) != null:
+			if ray_mm(p, dn, a, b, c) != null:
 				w += 1 if dn.dot((b - a).cross(c - a)) * sg[t / 3] > 0.0 else -1
 		if w > 0:
 			votes += 1

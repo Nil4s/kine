@@ -476,7 +476,7 @@ static func thin_verts(mesh: KMesh, wp: PackedVector3Array, thick: float) -> Dic
 						if tn.dot(-wn) <= 0.0:
 							continue   # faces the ray: not the far side's inside
 						# the ray, not the segment: segment_intersects_triangle misses at millimetre scale (its epsilon)
-						var hit = Geometry3D.ray_intersects_triangle(o, -wn, a, b, c)
+						var hit = SkinPick.ray_tri_mm(o, -wn, a, b, c)
 						if hit != null and (hit as Vector3).distance_to(o) <= thick:
 							best = minf(best, (hit as Vector3).distance_to(wp[v]))
 		if best <= thick:
