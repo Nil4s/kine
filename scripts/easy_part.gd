@@ -825,6 +825,9 @@ func _tap_track(ev: InputEvent, nm: String) -> void:
 func _tap_click(which: String) -> void:
 	if bool(_tap_moved.get(which, false)):   # a drag, not a tap: the MAKE button does nothing
 		_tap_moved[which] = false
+		var b: Button = make_btns[which]
+		if b.toggle_mode:   # a toggle button flipped itself on the release: put it back, or it shows lit while nothing is armed
+			b.set_pressed_no_signal(not b.button_pressed)
 		return
 	_make(which)
 
