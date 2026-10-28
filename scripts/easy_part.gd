@@ -106,6 +106,8 @@ var _fr_ref := AABB()           # the bounds the camera last framed (or the boun
 var _fr_has := false
 var _near_saved := -1.0         # the camera's near plane before Easy Part (put back when it is left)
 const FRAME_NEAR := 0.004
+var _bar_press = null           # a draw press that began on the top bar (Vector2), or null: a drag starts the sketch there, a click is the button's
+var _press_btn: BaseButton = null # the button under that press (its click when the press is not a drag)
 var _ease := {}                 # the camera ease in progress: {"t0", "d0", "t1", "d1", "s"}
 var flushes := 0                # rebuilds made by sliders and dots (the tests count them against the clock)
 
@@ -1008,7 +1010,13 @@ func _pull(rec: Dictionary) -> String:
 	var inward := on_face and not through and _overhangs(rec, sk)
 	if inward:
 		sg = -sg   # a face drawing that hangs past the body (a roof above the walls) pulls back INTO it: it extends the body's outline; one inside the face (a leg) pulls out
-	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": 20.0 * sg, "both": through, "op": "join"})
+	var dist := 20.0 * sg
+	if through and _sits_on_body(rec, sk):
+		# A ROOF: pulled out both ways from the middle to the box's depth (the slider changes it from there)
+		var bb: AABB = Part.replay(rec).get("aabb", AABB())
+		var depth := bb.size.z if String(pf.get("from", "front")) == "front" else bb.size.x
+		dist = snappedf(depth / Part.MM, 1.0)
+	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": "join"})
 	rec["features"].append(f)
 	var err := _last_error(rec, String(f["id"]))
 	if err != "":
@@ -1022,6 +1030,18 @@ func _pull(rec: Dictionary) -> String:
 		tweak["say"] = "Pulled up %s: use the slider to change it"   # the words follow the slider (a beginner walk: "2 cm" stayed at 8 cm)
 		_say(String(tweak["say"]) % _fmt(2.0, "cm"))
 	return ""
+
+
+## an upright sketch whose lowest point is at or above the body's top (a roof on the box)
+func _sits_on_body(rec: Dictionary, sk: Dictionary) -> bool:
+	var bb: AABB = Part.replay(rec).get("aabb", AABB())
+	if bb.size == Vector3.ZERO:
+		return false
+	var low := INF
+	for e in sk["ents"]:
+		for q in _ent_pts(e):
+			low = minf(low, float(q[1]))
+	return low >= bb.end.y / Part.MM - 1.0
 
 
 ## a face sketch hangs past the body when one of its points lies outside the body's box (by more than 0.5 mm) along the face's own axes
@@ -1696,10 +1716,8 @@ func _finish_curve() -> void:
 	if pts.size() < 4:
 		_say("Drag a bit further to draw a curve")
 		return
-	var n := mini(pts.size(), 12)
 	var out := []
-	for i in n:
-		var k := roundi(float(i) * float(pts.size() - 1) / float(n - 1))
+	for k in _curve_keep(pts, 12):
 		out.append(Part.arr2(pts[k]))
 	var closed := (pts[pts.size() - 1] as Vector2).distance_to(pts[0] as Vector2) <= 12.0
 	_begin("Curvy line")
@@ -1720,6 +1738,37 @@ func _finish_curve() -> void:
 		_say("Curvy line drawn: Spin it round makes a bowl, or Pull it up makes it solid" if closed else "Curvy line drawn: Spin it round for a bowl, or drag back to the start to close it")
 	else:
 		_say("Curvy line drawn: Pull it up makes it solid" if closed else "Curvy line drawn: drag back to the start to close it")
+
+
+## the drawn points kept for the spline (at most maxn, first and last always): the points that bend the line most, so a rim or a
+## corner the user drew stays a point the spline passes through (an even pick by index rounded the cup's rim down 5 mm)
+func _curve_keep(pts: Array, maxn: int) -> Array:
+	var n := pts.size()
+	if n <= maxn:
+		var all := []
+		for i in n:
+			all.append(i)
+		return all
+	var keep := [0, n - 1]
+	while keep.size() < maxn:
+		keep.sort()
+		var best := -1
+		var best_d := 0.0
+		for j in range(keep.size() - 1):
+			var a: Vector2 = pts[keep[j]]
+			var b: Vector2 = pts[keep[j + 1]]
+			for i in range(keep[j] + 1, keep[j + 1]):
+				var q: Vector2 = pts[i]
+				var ln := a.distance_to(b)
+				var d := q.distance_to(a) if ln < 1e-6 else absf((b - a).cross(q - a)) / ln   # a closed line's ends meet: the far point is the bend
+				if d > best_d:
+					best_d = d
+					best = i
+		if best < 0 or best_d < 0.3:
+			break   # the rest of the line is straight: the points already kept carry it
+		keep.append(best)
+	keep.sort()
+	return keep
 
 
 # ---------------------------------------------------------------- every frame
@@ -2345,6 +2394,59 @@ func _ground(p: Vector2, pl: Dictionary = {}) -> Variant:
 	return Vector2(snappedf(q.x, 5.0), snappedf(q.y, 5.0))
 
 
+## a press on the top bar's BUTTONS never reaches input() (the button takes it in the GUI pass first): this sees it before the GUI,
+## notes it, and lets the button have it. A drag that then leaves the bar starts the sketch (input() below, from the noted press)
+func _input(ev: InputEvent) -> void:
+	# a sketch in progress follows the pointer and ends on the release even over a control (a chip row, the bar): the controls
+	# take those events before the unhandled pass, so a roof's apex under the chips would stop the drag
+	if ev is InputEventMouseMotion:
+		var mm := ev as InputEventMouseMotion
+		if _bar_press != null and mm.button_mask & MOUSE_BUTTON_MASK_LEFT != 0 and _draft.is_empty() and _drag.is_empty() and mm.position.distance_to(_bar_press) >= 6.0:
+			var bp: Vector2 = _bar_press
+			_bar_press = null
+			_press_btn = null
+			if _start_draft(bp):   # the drag started on the bar: a sketch from where the press was (the button never got it)
+				_draft_move(mm.position)
+		elif not _draft.is_empty() and _drag.is_empty() and mm.button_mask & MOUSE_BUTTON_MASK_LEFT != 0:
+			_draft_move(mm.position)
+		return
+	if not (ev is InputEventMouseButton) or (ev as InputEventMouseButton).button_index != MOUSE_BUTTON_LEFT:
+		return
+	var mb := ev as InputEventMouseButton
+	if not mb.pressed:
+		if not _draft.is_empty() and _drag.is_empty():
+			_bar_press = null
+			_draft_end()
+			get_viewport().set_input_as_handled()
+		elif _bar_press != null:
+			# a press on a bar button that did not turn into a sketch: the click the button would have had
+			var btn: BaseButton = _press_btn
+			_bar_press = null
+			_press_btn = null
+			if btn != null and is_instance_valid(btn) and btn.is_visible_in_tree() and not btn.disabled:
+				btn.pressed.emit()
+			get_viewport().set_input_as_handled()
+		return
+	var p := mb.position
+	if active() and Part.available() and (armed == "draw" or armed == "curve") and _drag.is_empty() and _draft.is_empty() and _on_bar(p):
+		# a press on the top bar (a far leg under the Mirror button): the sketch takes it if the drag leaves it on the grid, a click is the button's
+		_bar_press = p
+		_press_btn = _bar_button_at(p)
+		get_viewport().set_input_as_handled()
+
+
+## the visible button under p on the top bar or its MAKE row, or null
+func _bar_button_at(p: Vector2) -> BaseButton:
+	for root_c in [bar, make_box]:
+		if root_c == null:
+			continue
+		for c in (root_c as Node).find_children("*", "BaseButton", true, false):
+			var b := c as BaseButton
+			if b.is_visible_in_tree() and b.get_global_rect().has_point(p):
+				return b
+	return null
+
+
 ## BUILD's input when the Easy screen has the page: true = taken
 func input(ev: InputEvent) -> bool:
 	if not active() or not Part.available():
@@ -2365,35 +2467,16 @@ func input(ev: InputEvent) -> bool:
 				_stick_pick(bi, faces)
 				return true
 			if (armed == "draw" or armed == "curve") and not _over_ui(p):
-				var fc := _face_hit(p)   # DRAW ON A FACE: a press on a flat face of a solid puts the sketch on that face
-				if not fc.is_empty():
-					var fg: Variant = _ground(p, fc["pl"])
-					if fg != null:
-						_draft = {"a": fg, "b": fg, "shape": "curve" if armed == "curve" else shape, "pts": [fg], "pl": fc["pl"], "face": fc}
-						_say("Drawing on that face")
-						return true
-				if _side_on():
-					var up := _upright()
-					var gu: Variant = _ground(p, up["pl"])
-					if gu != null:
-						_draft = {"a": gu, "b": gu, "shape": "curve" if armed == "curve" else shape, "pts": [gu], "pl": up["pl"], "face": up}
-						_say("Drawing upright, through the middle")
-						return true
-				var g: Variant = _ground(p)
-				if g != null:
-					_draft = {"a": g, "b": g, "shape": "curve" if armed == "curve" else shape, "pts": [g], "pl": Part.plane("top")}
-					return true
+				return _start_draft(p)
 			return false
 		if not _drag.is_empty():
 			_drag_to(p, true)
 			_drag = {}
 			_end()
 			return true
+		_bar_press = null
 		if not _draft.is_empty():
-			if String(_draft["shape"]) == "curve":
-				_finish_curve()
-			else:
-				_finish_draw()
+			_draft_end()
 			return true
 		return false
 	if ev is InputEventMouseMotion:
@@ -2402,12 +2485,7 @@ func input(ev: InputEvent) -> bool:
 			_drag_to(p, false)
 			return true
 		if not _draft.is_empty():
-			var g: Variant = _ground(p, _draft.get("pl", {}))
-			if g != null:
-				_draft["b"] = g
-				if String(_draft["shape"]) == "curve" and (g as Vector2).distance_to((_draft["pts"] as Array).back()) >= 5.0:
-					(_draft["pts"] as Array).append(g)
-			dots.queue_redraw()
+			_draft_move(p)
 			return true
 		var h := ""
 		for d in _dot_list():
@@ -2416,6 +2494,76 @@ func input(ev: InputEvent) -> bool:
 		if h != _hover:
 			_hover = h
 			dots.queue_redraw()
+	return false
+
+
+## a press on the top bar only (not the side panel or the chip rows)
+func _on_bar(p: Vector2) -> bool:
+	for c in [bar, make_box]:   # the bar and its MAKE row (the buttons sit in the row)
+		if c != null and (c as Control).visible and (c as Control).get_global_rect().has_point(p):
+			return true
+	return false
+
+
+## the sketch in progress follows the pointer p (the draft's second corner, or the curve's next point)
+func _draft_move(p: Vector2) -> void:
+	var g: Variant = _ground(p, _draft.get("pl", {}))
+	if g != null:
+		_draft["b"] = g
+		if String(_draft["shape"]) == "curve" and (g as Vector2).distance_to((_draft["pts"] as Array).back()) >= 5.0:
+			(_draft["pts"] as Array).append(g)
+	dots.queue_redraw()
+
+
+func _draft_end() -> void:
+	if String(_draft["shape"]) == "curve":
+		_finish_curve()
+	else:
+		_finish_draw()
+
+
+## a press on the upright plane through the middle at or above the body's top (within 1 cm of it), between the body's two side walls
+func _above_body(p: Vector2) -> bool:
+	var bb: AABB = pu.res.get("aabb", AABB()) if pu != null else AABB()
+	if bb.size == Vector3.ZERO:
+		return false
+	var up := _upright()
+	var g: Variant = _ground(p, up["pl"])
+	if g == null:
+		return false
+	var q: Vector2 = g
+	var xr := Vector2(bb.position.x, bb.end.x) / Part.MM if String(up["base"]) == "front" else Vector2(-bb.end.z, -bb.position.z) / Part.MM   # the right plane's 2D x runs along -Z
+	return q.y >= bb.end.y / Part.MM - 10.0 and q.x >= xr.x - 1.0 and q.x <= xr.y + 1.0
+
+
+## a draw / curve press on the grid at p: a sketch on the face under it, the upright plane, or the floor. true = taken
+func _start_draft(p: Vector2) -> bool:
+	# A POINTY UPRIGHT ABOVE A BOX TOP is a roof: the side-on upright plane through the middle (not the box's front face), so it pulls both ways to the box depth
+	if shape == "pointy" and armed != "curve" and _side_on() and _above_body(p):
+		var ur := _upright()
+		var gr: Variant = _ground(p, ur["pl"])
+		if gr != null:
+			_draft = {"a": gr, "b": gr, "shape": "pointy", "pts": [gr], "pl": ur["pl"], "face": ur}
+			_say("Drawing a roof on the box top, through the middle")
+			return true
+	var fc := _face_hit(p)   # DRAW ON A FACE: a press on a flat face of a solid puts the sketch on that face
+	if not fc.is_empty():
+		var fg: Variant = _ground(p, fc["pl"])
+		if fg != null:
+			_draft = {"a": fg, "b": fg, "shape": "curve" if armed == "curve" else shape, "pts": [fg], "pl": fc["pl"], "face": fc}
+			_say("Drawing on that face")
+			return true
+	if _side_on():
+		var up := _upright()
+		var gu: Variant = _ground(p, up["pl"])
+		if gu != null:
+			_draft = {"a": gu, "b": gu, "shape": "curve" if armed == "curve" else shape, "pts": [gu], "pl": up["pl"], "face": up}
+			_say("Drawing upright, through the middle")
+			return true
+	var g: Variant = _ground(p)
+	if g != null:
+		_draft = {"a": g, "b": g, "shape": "curve" if armed == "curve" else shape, "pts": [g], "pl": Part.plane("top")}
+		return true
 	return false
 
 
