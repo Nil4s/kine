@@ -100,6 +100,53 @@ static func retemplate(rec: Dictionary, p: Dictionary) -> void:
 		feats[i] = fs[i]
 
 
+## a round (fillet) that no longer replays after a size changed: its radius shrinks to the biggest of 0.5 / 0.3 / 0.2 / 0.1 mm (or 1 mm and
+## less than the old one) that works; when none does, the edges that still take 0.1 mm are kept and the rest left out; a round with no edge
+## left is taken off. Returns the words for the user ("" when every round replays). Only fillets with an error are touched.
+static func fit_rounds(rec: Dictionary) -> String:
+	var note := ""
+	var i := 0
+	while i < (rec["features"] as Array).size():
+		var f: Dictionary = rec["features"][i]
+		if String(f["t"]) != "fillet" or String(Part.replay(rec)["errors"].get(String(f["id"]), "")) == "":
+			i += 1
+			continue
+		var r0 := float(f["r"])
+		var cands := []
+		for c in [r0 * 0.5, 1.0, 0.5, 0.3, 0.2, 0.1]:
+			var cc := snappedf(float(c), 0.1)
+			if cc < r0 - 1e-6 and cc >= 0.1 - 1e-6 and not cands.has(cc):
+				cands.append(cc)
+		cands.sort()
+		cands.reverse()
+		var done := false
+		for c in cands:
+			f["r"] = c
+			if String(Part.replay(rec)["errors"].get(String(f["id"]), "")) == "":
+				note = "The round is now %s mm: the part is too small for %s mm" % [str(c), str(r0)]
+				done = true
+				break
+		if not done:
+			var all_edges: Array = (f["edges"] as Array).duplicate(true)
+			var good := []
+			f["r"] = 0.1
+			f["edges"] = []
+			for e in all_edges:
+				var trial := good.duplicate(true)
+				trial.append(e)
+				f["edges"] = trial
+				if String(Part.replay(rec)["errors"].get(String(f["id"]), "")) == "":
+					good = trial
+			f["edges"] = good
+			if good.is_empty():
+				(rec["features"] as Array).remove_at(i)
+				note = "Too thin to round now: the round was taken off"
+				continue
+			note = "Some edges are too small to round now: the others are rounded"
+		i += 1
+	return note
+
+
 static func _sk(fs: Array, plane_name: String, ents: Array) -> String:
 	var id := "f%d" % (fs.size() + 1)
 	var n := fs.filter(func(f): return f["t"] == "sketch").size() + 1
