@@ -2668,7 +2668,7 @@ func _ray_hit(p: Vector2, faces: Array) -> Dictionary:
 	for bi in faces.size():
 		var tris: PackedVector3Array = faces[bi]
 		for k in range(0, tris.size() - 2, 3):
-			var hit: Variant = Geometry3D.ray_intersects_triangle(ro, rd, tris[k], tris[k + 1], tris[k + 2])
+			var hit: Variant = SkinPick.ray_tri_mm(ro, rd, tris[k], tris[k + 1], tris[k + 2])
 			if hit != null:
 				var dd := ro.distance_to(hit as Vector3)
 				if dd < best_d:
@@ -3170,7 +3170,7 @@ func _mesh_ray(p: Vector2) -> Dictionary:
 		var a: Vector3 = t[0]
 		var b: Vector3 = t[1]
 		var c: Vector3 = t[2]
-		var hit: Variant = Geometry3D.ray_intersects_triangle(ro, rd, a, b, c)
+		var hit: Variant = SkinPick.ray_tri_mm(ro, rd, a, b, c)
 		if hit != null:
 			var dd := ro.distance_to(hit as Vector3)
 			if dd < best_d:
