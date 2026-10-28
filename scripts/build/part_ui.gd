@@ -190,6 +190,8 @@ var tl: PanelContainer
 var tl_row: HBoxContainer
 var tl_info: Label
 var tl_btns: Array = []
+var sup_btn: Button   # XTIME: Suppress / Unsuppress the selected step (one undo step)
+var del_btn: Button   # XTIME: Delete step (one undo step; the later steps replay, and say why when they cannot)
 var _sig := ""
 var _rec_sig := ""
 var _browser_sig := ""
@@ -644,6 +646,32 @@ func _field(nm: String) -> LineEdit:
 	return le
 
 
+## XTIME: the Suppress and Delete step buttons (built once, beside the step count)
+func _xtime_buttons() -> Control:
+	var ab := VBoxContainer.new()
+	ab.custom_minimum_size.x = 150
+	ab.add_theme_constant_override("separation", 0)
+	sup_btn = Button.new()
+	sup_btn.name = "part_suppress"
+	sup_btn.text = "Suppress"
+	sup_btn.focus_mode = Control.FOCUS_NONE
+	sup_btn.custom_minimum_size = Vector2(150, 22)
+	sup_btn.add_theme_font_size_override("font_size", 11)
+	sup_btn.tooltip_text = "Suppress: the selected step is skipped by the replay (Suppress again, or Undo, puts it back)"
+	sup_btn.pressed.connect(_suppress_toggle)
+	ab.add_child(sup_btn)
+	del_btn = Button.new()
+	del_btn.name = "part_delete_step"
+	del_btn.text = "Delete step"
+	del_btn.focus_mode = Control.FOCUS_NONE
+	del_btn.custom_minimum_size = Vector2(150, 22)
+	del_btn.add_theme_font_size_override("font_size", 11)
+	del_btn.tooltip_text = "Delete step: removes the selected step; the steps after it replay, and a step that needs it says why (one undo step)"
+	del_btn.pressed.connect(_delete_step)
+	ab.add_child(del_btn)
+	return ab
+
+
 func _build_timeline() -> void:
 	tl = PanelContainer.new()
 	tl.name = "part_timeline"
@@ -685,7 +713,10 @@ func _build_timeline() -> void:
 	tl_info.name = "part_timeline_info"
 	tl_info.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	tl_info.custom_minimum_size.x = 150
-	hb.add_child(tl_info)
+	var info_col := VBoxContainer.new()
+	info_col.add_child(tl_info)
+	info_col.add_child(_xtime_buttons())
+	hb.add_child(info_col)
 	tl.visible = false
 	m.ui_root.add_child(tl)
 
@@ -1911,6 +1942,59 @@ func _marker(which: String) -> void:
 	bu.sync()
 
 
+## XTIME: Suppress / Unsuppress the selected step: the replay skips it (no solid, no error). One undo step.
+func _suppress_toggle() -> void:
+	var feats := _feats()
+	if sel_step < 0 or sel_step >= feats.size():
+		_say("Click a step on the timeline first, then Suppress it")
+		return
+	if sk != "":
+		_say("Finish the sketch first, then Suppress the step")
+		return
+	close_dialog()
+	m._push_undo()
+	var f: Dictionary = feats[sel_step]
+	var nm := String(f["name"])
+	if bool(f.get("off", false)):
+		f.erase("off")
+		_say("%s is back on: the steps after it replay with it" % nm)
+	else:
+		f["off"] = true
+		_say("%s is suppressed: the replay skips it. Suppress it again to put it back." % nm)
+	bu.sync()
+
+
+## XTIME: Delete the selected step (one undo step). A sketch's later steps keep its name (sketch_was) and say plainly why they broke.
+func _delete_step() -> void:
+	var rec := _rec()
+	var feats := _feats()
+	if sel_step < 0 or sel_step >= feats.size():
+		_say("Click a step on the timeline first, then Delete step")
+		return
+	if sk != "":
+		_say("Finish the sketch first, then delete the step")
+		return
+	close_dialog()
+	var f: Dictionary = feats[sel_step]
+	var nm := String(f["name"])
+	m._push_undo()
+	rec["features"].remove_at(sel_step)
+	if String(f["t"]) == "sketch":
+		for g in rec["features"]:
+			if String(g.get("sketch", "")) == String(f["id"]):
+				g["sketch_was"] = nm
+	sel_step = -1
+	if upto >= _feats().size():
+		upto = -1
+	var errs: Dictionary = Part.replay(rec).get("errors", {})
+	if errs.is_empty():
+		_say("Deleted %s. The steps after it still make a solid." % nm)
+	else:
+		var first := String(errs.values()[0])
+		_say("Deleted %s. %d step%s cannot be made: %s" % [nm, errs.size(), "" if errs.size() == 1 else "s", first])
+	bu.sync()
+
+
 func step_clicked(i: int) -> void:
 	var now := Time.get_ticks_msec()
 	if i == _last_step and now - _last_ms < DOUBLE_MS:
@@ -1951,7 +2035,7 @@ func _step_icon(f: Dictionary) -> String:
 func _timeline_sync() -> void:
 	var feats := _feats()
 	var errs: Dictionary = res.get("errors", {})
-	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"]]), upto, sel_step, sk, dlg.get("edit", -2), errs.keys()])
+	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], bool(f.get("off", false))]), upto, sel_step, sk, dlg.get("edit", -2), errs.keys()])
 	if sig != _tl_sig:
 		_tl_sig = sig
 		for c in tl_row.get_children():
@@ -1970,10 +2054,14 @@ func _timeline_sync() -> void:
 			b.toggle_mode = true
 			b.button_pressed = i == sel_step or (sk != "" and String(f["id"]) == sk) or (int(dlg.get("edit", -1)) == i)
 			b.tooltip_text = "%s. Double-click to change it; the steps after it replay." % f["name"]
+			if bool(f.get("off", false)):
+				b.tooltip_text = "%s is suppressed: the replay skips it. Click Suppress to put it back." % f["name"]
 			b.pressed.connect(step_clicked.bind(i))
 			var failed: bool = errs.has(String(f["id"]))
 			var beyond: bool = upto >= 0 and i > upto
 			b.modulate = Color(1, 0.55, 0.5) if failed else (Color(1, 1, 1, 0.35) if beyond else Color.WHITE)
+			if bool(f.get("off", false)):
+				b.modulate = Color(0.6, 0.6, 0.6, 0.5)
 			if failed:
 				b.tooltip_text += " Failed: " + String(errs[String(f["id"])])
 			vb.add_child(b)
@@ -1992,6 +2080,11 @@ func _timeline_sync() -> void:
 		tl_info.text = "Marker at step %d of %d\nnew steps go at the end" % [upto + 1, n]
 	else:
 		tl_info.text = "%d step%s" % [n, "" if n == 1 else "s"] if n > 0 else "No steps yet"
+	var sel_f: Dictionary = feats[sel_step] if sel_step >= 0 and sel_step < n else {}
+	if sup_btn != null:
+		sup_btn.text = "Unsuppress" if bool(sel_f.get("off", false)) else "Suppress"
+		sup_btn.disabled = sel_f.is_empty() or String(sel_f.get("t", "")) == "appear"
+		del_btn.disabled = sel_f.is_empty()
 
 
 func _browser_sync() -> void:
