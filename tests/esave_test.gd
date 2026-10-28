@@ -6,7 +6,7 @@ extends SceneTree
 ##   2 EMPTY    the Empty chip: a new part with no steps (features empty)
 ##   3 REOPEN   the saved Mug from My parts, its prop picked, Change the part: the part is the saved record again (JSON equal), one body, same volume (0.1 pct)
 ##   4 UNDO     the reopen is one undo step
-##   5 EDIT     the cup height slider on the reopened mug: dragged 8 -> 10 cm, the volume grows, one body, ONE undo step
+##   5 EDIT     the Wall slider of the reopened mug (its newest step): dragged 3 -> 10 mm, the volume grows, one body, ONE undo step
 ##   6 SAVE2    Use in a scene again: still one saved Mug, its record is the edited one
 ## Shot: C:/Temp/claude/esave/shot.png
 const SHOT := "C:/Temp/claude/esave"
@@ -227,6 +227,9 @@ func _init() -> void:
 	m._props_show()
 	await idle(2)
 	var eb: Button = root.find_child("build_edit_in_build", true, false) as Button
+	if lib.visible:
+		lib.hide_panel()   # the library is open over the stage panel: close it (as its own close button does)
+	await idle(3)
 	if eb != null:
 		await click_ctl(eb)
 	await idle(6)
@@ -237,7 +240,7 @@ func _init() -> void:
 	# 4 UNDO: the reopen is one undo step
 	ok(m.undo.size() - u0 == 1, "4 UNDO the reopen is one undo step (undo %d -> %d)" % [u0, m.undo.size()])
 
-	# 5 EDIT: the cup height slider on the reopened mug
+	# 5 EDIT: the Wall slider (the newest step of the reopened mug)
 	var sl := tweak_slider()
 	var v1 := vol()
 	var u1: int = m.undo.size()
@@ -246,7 +249,7 @@ func _init() -> void:
 	await idle(4)
 	var v2 := vol()
 	ok(sl != null and v2 > v1 * 1.02 and m.undo.size() == u1 + 1 and int(pu().res.get("bodies", 0)) == 1,
-		"5 EDIT the mug's height slider 8 -> 10 cm: volume %.0f -> %.0f mm3, undo +%d" % [v1, v2, m.undo.size() - u1])
+		"5 EDIT the Wall slider 10 mm: volume %.0f -> %.0f mm3, undo +%d" % [v1, v2, m.undo.size() - u1])
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(SHOT))
 	root.get_texture().get_image().save_png(SHOT + "/shot.png")
 

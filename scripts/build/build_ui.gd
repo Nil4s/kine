@@ -1828,9 +1828,33 @@ func _stage_part_sync() -> void:
 	eb.name = "build_edit_in_build"
 	eb.text = "Change the part" if m.easy.on else "Edit in BUILD"
 	eb.focus_mode = Control.FOCUS_NONE
-	eb.tooltip_text = "back to BUILD: the part is still open there, to change it"
-	eb.pressed.connect(func(): m._page_set("BUILD"))
+	eb.tooltip_text = "back to BUILD: the part is open there, to change it (the picked part comes back as it was saved)"
+	eb.pressed.connect(_reopen_part)
 	stage_body.add_child(eb)
+
+
+## ESAVE: the part in the set (the one picked, else the last one) becomes the part being edited: its saved record comes back whole,
+## one undo step. Without that, the editor kept whatever part it had (an Empty one after a new start)
+func _reopen_part() -> void:
+	var rec := {}
+	var i: int = m.sel_prop
+	if i >= 0 and i < m.S.props.size() and String(m.S.props[i]["kind"]).begins_with("part:") and m.S.props[i].get("part_rec") is Dictionary:
+		rec = m.S.props[i]["part_rec"]
+	else:
+		for p in m.S.props:
+			if String(p["kind"]).begins_with("part:") and p.get("part_rec") is Dictionary:
+				rec = p["part_rec"]
+	if not rec.is_empty() and JSON.stringify(rec) != JSON.stringify(m.S.part):
+		m._step_hint = "Open the part %s" % String(rec.get("name", "Part"))
+		m._push_undo()
+		m.S.part = rec.duplicate(true)
+		part.upto = -1
+		part._rec_sig = ""
+		part.sync()
+		part.ep.entered()   # the Easy panel starts clean on this record (as open_easy does)
+		part.ep.tweak_last()   # its newest step's slider comes back (a wall, a how far, a hole size)
+		part.ep._values_sync()
+	m._page_set("BUILD")
 
 
 func _layout_stage() -> void:

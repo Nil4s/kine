@@ -718,6 +718,27 @@ func _rows_sync() -> void:
 	_values_sync()
 
 
+## ESAVE: a record opened again (My parts, Change the part): the slider of its NEWEST step comes back (a Wall of a hollow, a How far of a
+## pull up, a Hole size of a hole); none when the newest step has no slider (the record is shown without one, as a fresh start)
+func tweak_last() -> void:
+	tweak = {}
+	var fs: Array = _rec().get("features", [])
+	if fs.is_empty():
+		return
+	var f: Dictionary = fs[-1]
+	var t := String(f.get("t", ""))
+	if t == "shell":
+		tweak = {"id": f["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
+	elif t == "extrude" and not bool(f.get("both", false)) and String(f.get("op", "join")) == "join" and f.has("dist"):
+		var dist := float(f["dist"])
+		tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": 40.0, "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": -1.0 if dist < 0.0 else 1.0}
+	elif t == "extrude" and bool(f.get("both", false)) and String(f.get("op", "")) == "cut":
+		var sk := Part.feature(_rec(), String(f.get("sketch", "")))
+		var ents: Array = sk.get("ents", [])
+		if ents.size() == 1 and String(ents[0].get("k", "")) == "circle" and sk.has("plane") and String(sk.get("plane", "")) in ["front", "top"]:
+			tweak = {"id": sk["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}
+
+
 func _tweak_value() -> float:
 	var f := Part.feature(_rec(), String(tweak["id"]))
 	if f.is_empty():
