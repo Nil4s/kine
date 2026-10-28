@@ -224,6 +224,7 @@ func _init() -> void:
 	var bb_wall: AABB = pu.res.get("aabb", AABB())
 	var wall_top := bb_wall.end.y / Part.MM
 	ok(absf(wall_top - 60.0) < 0.6, "3a HOUSE the box is pulled up to 60 mm (top %.1f mm)" % wall_top)
+	ok(ep.hint_l.text.begins_with("Pulled up 6.0 cm"), "3a2 HOUSE the words follow the slider [%s]" % ep.hint_l.text)
 	# the front face: +Z (the camera side at yaw 0); its top edge is at y = 60 mm
 	await arm_draw(ep)
 	await click_ctl(ep.shape_btns["pointy"])
