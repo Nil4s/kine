@@ -931,7 +931,7 @@ func _pull(rec: Dictionary) -> String:
 	rec["features"].append(f)
 	var err := _last_error(rec, String(f["id"]))
 	if err != "":
-		return "That shape is not closed, so it cannot be pulled up"
+		return "That shape is not closed, so it cannot be pulled up: drag back to the start to close it"
 	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": 40.0, "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
 	_say("Pulled out of the face: use the slider to change it" if on_face else "Pulled up 2 cm: use the slider to change it")
 	return ""
@@ -992,7 +992,7 @@ func _round(rec: Dictionary) -> String:
 		tweak = {"id": f["id"], "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
 		_say("Edges rounded: use the slider for more or less")
 		return ""
-	return "These edges are too small or too crowded to round"
+	return "These edges are too small or too crowded to round: Pull it up taller, then press Round the edges again"
 
 
 ## the error (or "") of a fillet of these edges, tried on the end of the record without keeping it: the id is one nothing else uses
@@ -1084,7 +1084,7 @@ func _blend(rec: Dictionary) -> String:
 	var f := Part.new_feature(rec, "loft", {"sketches": [a["id"], b["id"]], "ruled": true, "op": "join"})
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
-		return "Those two shapes cannot be blended into one solid"
+		return "Those two shapes cannot be blended into one solid: draw both as closed shapes, then press Blend two shapes again"
 	tweak = {}
 	_say("Blended the two last shapes into one solid")
 	return ""
