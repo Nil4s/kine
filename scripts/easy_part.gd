@@ -828,6 +828,9 @@ func _make(which: String) -> void:
 		return
 	if which == "draw" or which == "curve" or which == "colour":
 		armed = "" if armed == which else which
+		if armed == "draw":
+			shape = "box"   # every Draw shape press starts on Box: the Round chip of the last shape (a mug) does not carry over (a chair leg is a box)
+			_sync_shape()
 		_draft = {}
 		_say(_arm_words(armed))
 		return
@@ -1008,13 +1011,32 @@ func _spin(rec: Dictionary) -> String:
 		return "That shape is solid already. Draw a new one, then Spin it round"
 	var axis := "x"
 	var sk := Part.feature(rec, sid)
+	var before := sk.duplicate(true)   # a refused spin gives the drawing back as it was (it is not used up)
+	var pf := Part.feature(rec, String(sk.get("plane", "")))
 	if String(sk.get("plane", "")) == "top":
 		_stand_up(sk)   # a floor drawing is flat: spun round the up axis it has no volume, so it stands up first (a lathe profile)
 		axis = "y"
-	var f := Part.new_feature(rec, "revolve", {"sketch": sid, "axis": axis, "deg": 360.0, "op": "join"})
+	elif String(pf.get("t", "")) == "plane" and bool(pf.get("through", false)):
+		# an UPRIGHT drawing (side-on, through the middle): the bowl turns round the UP line through the middle (the sketch's
+		# vertical axis, x = 0), so the profile must lie on one side of that line. Its lowest point goes down to the floor.
+		_lift_to_floor(sk)
+		axis = "y"
+	if axis == "y" and _past_axis(sk) < -3.0:
+		sk.clear()
+		sk.merge(before, true)
+		return "A shape that crosses the middle line cannot be spun: draw it on one side"
+	var f := Part.new_feature(rec, "revolve", {"sketch": sid, "axis": axis, "deg": 360.0, "op": "join", "onside": axis == "y"})
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
+		rec["features"].pop_back()
+		sk.clear()
+		sk.merge(before, true)
 		return "A shape that crosses the middle line cannot be spun: draw it on one side"
+	if axis == "y":
+		# a spline dips a little below its points: the solid's real lowest point goes onto the floor (a bowl's foot is on the floor, not in it)
+		var low := float(Part.replay(rec)["aabb"].position.y) / Part.MM
+		if absf(low) > 0.001:
+			_shift_y(sk, low)
 	tweak = {"id": f["id"], "field": "deg", "label": "How far round", "unit": "deg", "lo": 10.0, "hi": 360.0, "step": 5.0, "scale": 1.0, "words": ["A bit", "All the way"]}
 	_say("Spun all the way round: use the slider for less")
 	return ""
@@ -1024,16 +1046,41 @@ func _spin(rec: Dictionary) -> String:
 ## SPIN A FLOOR DRAWING: the sketch moves from the floor (top plane) to the front plane, its far edge up, and slides so its nearest point
 ## sits on the floor: spun round the up axis it is a lathe piece (a ring, a vase) standing on the floor beside the middle line
 func _stand_up(sk: Dictionary) -> void:
+	_lift_to_floor(sk)
+	sk["plane"] = "front"
+
+
+## the drawing slides up or down (in its own plane) so its lowest point sits on the floor (y = 0)
+func _lift_to_floor(sk: Dictionary) -> void:
 	var lo := INF
 	for e in sk["ents"]:
 		for q in _ent_pts(e):
 			lo = minf(lo, float(q[1]) - (float(e["r"]) if e.has("r") and String(e["k"]) == "circle" else 0.0))
 	if lo == INF:
 		lo = 0.0
+	_shift_y(sk, lo)
+
+
+## how far the drawing reaches past the middle line (x < 0, mm; 0 when it stays on the +X side). A spline counts where its curve goes, not only its points
+func _past_axis(sk: Dictionary) -> float:
+	var lo := 0.0
+	for e in sk["ents"]:
+		if String(e["k"]) == "bspline":
+			for q in Part.spline_curve(e.get("pts", []), bool(e.get("closed", false)), 16):
+				lo = minf(lo, q.x)
+		elif String(e["k"]) == "circle":
+			lo = minf(lo, float(e["c"][0]) - float(e["r"]))
+		else:
+			for q in _ent_pts(e):
+				lo = minf(lo, float(q[0]))
+	return lo
+
+
+## every point of the drawing moves down by lo (mm) in its own plane
+func _shift_y(sk: Dictionary, lo: float) -> void:
 	for e in sk["ents"]:
 		for q in _ent_pts(e):
 			q[1] = snappedf(float(q[1]) - lo, 0.0001)
-	sk["plane"] = "front"
 
 
 ## the [x, y] points of a sketch entity (the arrays themselves: writing them moves the entity)
@@ -2199,7 +2246,8 @@ func input(ev: InputEvent) -> bool:
 
 
 func _over_ui(p: Vector2) -> bool:
-	for c in [bar, make_box, panel, hint, shape_box, colour_box, repeat_box, stick_box, status]:
+	# hint and status are WORDS only (a _pill: mouse_filter IGNORE, one Label, no button): a press under them is the grid's, not eaten
+	for c in [bar, make_box, panel, shape_box, colour_box, repeat_box, stick_box]:
 		if (c as Control).visible and (c as Control).get_global_rect().has_point(p):
 			return true
 	return false
