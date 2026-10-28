@@ -108,6 +108,8 @@ var tool_btns := {}
 var words: BuildWordsUI
 var houses: HousesUI           # My houses: the name box, Save house, Open house (scripts/build/houses_ui.gd)
 var bp: BlueprintUI            # the Blueprint sheet (phase 1g)
+const MyParts := preload("res://scripts/build/myparts.gd")
+var _part_lt: LibraryThumbs = null   # My parts: draws the pictures of saved parts (made once, on the first save)
 var part: PartUI               # the Part workspace (Expert: sketch -> extrude / revolve / fillet, a timeline; scripts/build/part_ui.gd)
 var bp_btn: Button
 var fields := {}               # param -> LineEdit
@@ -1637,17 +1639,60 @@ func use_part() -> void:
 	var nm := String(m.S.part.get("name", "part"))
 	m._step_hint = "Use in a scene: %s" % nm
 	m._push_undo()
-	var kind := BuildStage.use(m.S, m.S.part)
+	if nm.strip_edges().to_lower() in ["", "part"]:   # a part still on the default name gets the next free one ("Part 3"), kept in the record:
+		nm = MyParts.free_name("Part")                 # using it again replaces its own entry; two new parts never replace each other
+		m.S.part["name"] = nm
+	var kind := put_part(m.S.part, nm)
 	if kind == "":
 		m._drop_undo()
 		_say("Use in a scene: make something solid first", "Make something solid first")
 		return
+	_save_part(m.S.part)   # My parts: the same name replaces the saved part
+	_say("STAGE: the %s is in the scene as a prop. Edit it in BUILD any time" % nm, "STAGE: the %s is in the scene" % nm)
+
+
+## the part record as a prop of the set (BuildStage.use), the page is STAGE, the camera frames the house. "" when it has no solid. No undo
+## step here: the caller pushes one (Use in a scene, or a My parts card)
+func put_part(rec: Dictionary, label: String) -> String:
+	var kind := BuildStage.use(m.S, rec)
+	if kind == "":
+		return ""
 	m.sel_prop = -1
 	m._props_show()
 	m._page_set("STAGE")
 	_stage_sync()
 	_frame_house()
-	_say("STAGE: the %s is in the scene as a prop. Edit it in BUILD any time" % nm, "STAGE: the %s is in the scene" % nm)
+	return kind
+
+
+## My parts: the record as JSON now (the same name replaces it), its picture drawn after (a small render of the part's mesh)
+func _save_part(rec: Dictionary) -> void:
+	var nm := String(rec.get("name", "Part"))
+	if MyParts.save(rec, nm) == "":
+		return
+	_part_picture(rec, nm)
+
+
+func _part_picture(rec: Dictionary, nm: String) -> void:
+	var res := Part.replay(rec)
+	if res["mesh"] == null:
+		return
+	var mi := MeshInstance3D.new()
+	mi.mesh = res["mesh"]
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.86, 0.84, 0.8)
+	mat.roughness = 0.9
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mi.material_override = mat
+	var node := Node3D.new()
+	node.add_child(mi)
+	if _part_lt == null:
+		_part_lt = LibraryThumbs.new()
+		_part_lt.name = "myparts_thumbs"
+		m.ui_root.add_child(_part_lt)
+	var img: Image = await _part_lt.draw_node(node, LibraryThumbs.SIZE)
+	if img != null and not img.is_empty():
+		MyParts.save(rec, nm, img)
 
 
 ## the STAGE camera: the door seen from outside, a little above, the fighter's walk in view ("" = the house's middle)
