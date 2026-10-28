@@ -1,13 +1,13 @@
 extends SceneTree
 ## godot --path . --position 4000,4000 -s tests/eface_test.gd     (EFACE: Easy Part DRAW ON A FACE: scripts/easy_part.gd; needs the CAD DLL and a window)
 ## A press with Draw shape on a flat face of a solid (normal within 5 deg of +-X, +-Y, +-Z) puts the sketch on that face:
-## one Part "plane" feature + the sketch, one undo step; Pull it up pulls OUTWARD from the face and joins. A press on empty grid draws on the front plane.
+## one Part "plane" feature + the sketch, one undo step; Pull it up pulls OUTWARD from the face and joins. A press on empty grid draws on the floor (top plane).
 ## Real clicks and drags at 1280 x 720. The top is a record (a 100 x 100 x 20 mm slab on the Top plane, its bottom face at y = 0); the rest is clicks.
 ## Bars (bar 1 FAILED on the old code: the press on the bottom face drew on the front plane, so no piece went below the top):
 ##   1 UNDER   a 20 x 20 mm square drawn ON THE BOTTOM face, pulled 60 mm: one body, the new piece is below the top (box min y 60 mm lower),
 ##             volume adds 24 000 mm3 within 1 pct
 ##   2 SIDE    a 10 x 10 mm square drawn on the +X side face pulls 40 mm sideways (box max x 40 mm larger), volume adds within 1 pct
-##   3 GRID    a press on empty grid still draws on the front plane (no plane feature)
+##   3 GRID    a press on empty grid draws on the FLOOR (top plane, y = 0; no plane feature) (bar redefined 23c8a916: empty-space sketches go on the floor, Nick monkey-brain direction)
 ##   4 UNDO    the draw is one undo step, the pull another; two undos take the plane and the pull away, two redos bring them back
 ##   5 FILE    save and reopen keeps the plane and the same volume
 ## Shots: C:/Temp/claude/eface/shot.png (a table top with one leg under it), C:/Temp/claude/eface/draw_face.png (the outline on the face)
@@ -250,18 +250,18 @@ func _init() -> void:
 	ok(absf((bb3.end.x - bb2.end.x) / Part.MM - 40.0) < 0.5, "2b SIDE the piece is pulled 40 mm out to +X (max x %.1f -> %.1f mm)" % [bb2.end.x / Part.MM, bb3.end.x / Part.MM])
 	ok(absf((v3 - v2) - 4000.0) <= 40.0, "2c SIDE volume adds 4000 mm3 within 1 pct (+%.0f)" % (v3 - v2))
 
-	# 3 GRID: a press on empty grid draws on the front plane, no plane feature
+	# 3 GRID: a press on empty grid draws on the floor (top plane, y = 0), no plane feature (bar redefined 23c8a916: empty-space sketches go on the floor, Nick monkey-brain direction)
 	m.yaw = 0.0
 	m._cam()
 	await idle(60)   # the Easy camera eases to its view: the screen points below are taken after it settles
 	var pl_before := planes()
 	await click_ctl(ep.make_btns["draw"])
-	var g0 := scr(Vector3(0.4, 0.4, 0.0))
-	var g1 := scr(Vector3(0.45, 0.45, 0.0))
+	var g0 := scr(Vector3(0.4, 0.0, 0.4))
+	var g1 := scr(Vector3(0.45, 0.0, 0.45))
 	await drag_screen(g0, g1)
 	var last_sk: Dictionary = m.S.part["features"].back()
-	ok(String(last_sk["t"]) == "sketch" and String(last_sk["plane"]) == "front" and planes() == pl_before,
-		"3 GRID an empty-grid press draws on the front plane (sketch plane %s, planes %d -> %d)" % [str(last_sk.get("plane", "")), pl_before, planes()])
+	ok(String(last_sk["t"]) == "sketch" and String(last_sk["plane"]) == "top" and planes() == pl_before,
+		"3 GRID an empty-grid press draws on the floor (sketch plane %s, planes %d -> %d)" % [str(last_sk.get("plane", "")), pl_before, planes()])
 
 	# 5 FILE: save, reopen, the plane and the volume are still there
 	var nf := Part.count_of(m.S.part, "plane")
