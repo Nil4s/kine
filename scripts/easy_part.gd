@@ -551,6 +551,8 @@ func _set_value(row: Dictionary, v: float, final: bool) -> void:
 
 
 func _apply_tweak(v: float) -> void:
+	if _tweak_stale():
+		return
 	var f := Part.feature(_rec(), String(tweak["id"]))
 	if f.is_empty():
 		return
@@ -699,6 +701,7 @@ func _make_row(label: String, lo: float, hi: float, step: float, words: Array, k
 
 ## the rows follow the record: the template's own numbers (cm) and the last step's slider
 func _rows_sync() -> void:
+	_tweak_stale()
 	var t := _tpl()
 	var sig := "%s|%s|%s" % [t, JSON.stringify(tweak.get("id", "")), _compact]
 	if sig == _rows_sig:
@@ -721,7 +724,27 @@ func _rows_sync() -> void:
 	_values_sync()
 
 
+## the last step's own slider belongs to ONE entity of its feature. Undo can bring back a record where that id is another sketch
+## (a box, with no radius): the slider is then dropped (its rows rebuild) instead of reading a field the entity does not have
+func _tweak_stale() -> bool:
+	if tweak.is_empty() or not tweak.has("ent"):
+		return false
+	var f := Part.feature(_rec(), String(tweak["id"]))
+	if f.is_empty():
+		return false
+	var ents: Array = f.get("ents", [])
+	var ei := int(tweak["ent"])
+	var ok_ent := ei >= 0 and ei < ents.size() and typeof(ents[ei]) == TYPE_DICTIONARY and (ents[ei] as Dictionary).has(String(tweak["field"]))
+	if ok_ent:
+		return false
+	tweak = {}
+	_rows_sig = ""
+	return true
+
+
 func _tweak_value() -> float:
+	if _tweak_stale() or tweak.is_empty():
+		return 0.0
 	var f := Part.feature(_rec(), String(tweak["id"]))
 	if f.is_empty():
 		return float(tweak["lo"])
@@ -730,6 +753,9 @@ func _tweak_value() -> float:
 
 
 func _values_sync() -> void:
+	if _tweak_stale():   # the stale slider goes: its row is rebuilt without it, then the values are set
+		_rows_sync()
+		return
 	var e: Dictionary = _rec().get("easy", {})
 	var off := not Part.available()
 	for r in rows:
