@@ -1117,11 +1117,11 @@ func _pull(rec: Dictionary) -> String:
 		return "That shape is not closed, so it cannot be pulled up: drag back to the start to close it"
 	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": 40.0, "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
 	if through:
-		_say("Pulled out both ways from the middle: use the slider for how thick")
+		_say("Pulled out both ways from the middle: use the slider for how thick, or press Mirror that or Cut a hole next")
 	elif on_face:
-		_say("Pulled into the solid: use the slider to change it" if inward else "Pulled out of the face: use the slider to change it")
+		_say("Pulled into the solid: use the slider to change it, or press Cut a hole next" if inward else "Pulled out of the face: use the slider to change it, or press Mirror that next")
 	else:
-		tweak["say"] = "Pulled up %s: use the slider to change it"   # the words follow the slider (a beginner walk: "2 cm" stayed at 8 cm)
+		tweak["say"] = "Pulled up %s: use the slider to change it, or press Round the edges or Cut a hole next"   # the words follow the slider (a beginner walk: "2 cm" stayed at 8 cm); the next button too (ehelp2)
 		_say(String(tweak["say"]) % _fmt(2.0, "cm"))
 	return ""
 
@@ -1199,7 +1199,7 @@ func _spin(rec: Dictionary) -> String:
 		if absf(low) > 0.001:
 			_shift_y(sk, low)
 	tweak = {"id": f["id"], "field": "deg", "label": "How far round", "unit": "deg", "lo": 10.0, "hi": 360.0, "step": 5.0, "scale": 1.0, "words": ["A bit", "All the way"]}
-	_say("Spun all the way round: use the slider for less")
+	_say("Spun all the way round: use the slider for less, or press Cut a hole or Mirror that next")
 	return ""
 
 
@@ -1358,7 +1358,7 @@ func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: flo
 
 func _round_done(f: Dictionary) -> void:
 	tweak = {"id": f["id"], "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
-	_say("Edges rounded: use the slider for more or less")
+	_say("Edges rounded: use the slider for more or less, or press Cut a hole next")
 
 
 func _hole(rec: Dictionary) -> String:
@@ -1390,7 +1390,7 @@ func _hole(rec: Dictionary) -> String:
 	if after >= before - 1e-12:
 		return "The hole would miss the shape: nothing was cut"
 	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}   # the slider is the hole's WIDTH (cm): radius mm = width cm * 5
-	_say("A hole straight through: use the slider for its size")
+	_say("A hole straight through: use the slider for its size, or press Mirror that or Repeat it next")
 	return ""
 
 
@@ -1630,7 +1630,7 @@ func _mirror(rec: Dictionary) -> String:
 	var after := Part.replay(rec)
 	var gap := int(after["bodies"]) == 1 and _lumps(after) > 1   # the mirror left a gap: the same test as the status line
 	var where := "across the middle of the part" if off else "across the middle line"
-	_say("Mirrored %s" % where + (": the two halves do not touch. Push them together with Stick together" if gap else ""))
+	_say("Mirrored %s" % where + (": the two halves do not touch. Push them together with Stick together" if gap else ": press Repeat it or Cut a hole next"))
 	return ""
 
 
@@ -1676,7 +1676,7 @@ func _blend(rec: Dictionary) -> String:
 	if int(sr["bodies"]) != 1 or float(sr["volume"]) <= 1e-12:
 		return "Those two shapes cannot be blended into one solid: draw both as closed shapes that face the same way, then press Blend two shapes again"
 	tweak = {}
-	_say("Blended the two last shapes into one solid")
+	_say("Blended the two last shapes into one solid: press Colour or Round the edges next")
 	return ""
 
 
