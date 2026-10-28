@@ -1168,13 +1168,17 @@ func _spin(rec: Dictionary) -> String:
 	var sk := Part.feature(rec, sid)
 	var before := sk.duplicate(true)   # a refused spin gives the drawing back as it was (it is not used up)
 	var pf := Part.feature(rec, String(sk.get("plane", "")))
+	var on_piece := false   # ELAMP: a profile drawn ABOVE a solid already in the part (a shade on a lamp stick) keeps the height it was drawn
 	if String(sk.get("plane", "")) == "top":
 		_stand_up(sk)   # a floor drawing is flat: spun round the up axis it has no volume, so it stands up first (a lathe profile)
 		axis = "y"
 	elif String(pf.get("t", "")) == "plane" and bool(pf.get("through", false)):
 		# an UPRIGHT drawing (side-on, through the middle): the bowl turns round the UP line through the middle (the sketch's
-		# vertical axis, x = 0), so the profile must lie on one side of that line. Its lowest point goes down to the floor.
-		_lift_to_floor(sk)
+		# vertical axis, x = 0), so the profile must lie on one side of that line. Its lowest point goes down to the floor,
+		# unless it starts on a piece already standing (then it stays where it was drawn, joined to that piece).
+		on_piece = _starts_on_piece(rec, sk)
+		if not on_piece:
+			_lift_to_floor(sk)
 		axis = "y"
 	if axis == "y" and _past_axis(sk) < -3.0 and _on_left(sk):
 		_flip_x(sk)   # a drawing wholly on the -X side is the same solid as its mirror image on the +X side (a lathe is symmetric): flip it, then spin
@@ -1189,7 +1193,7 @@ func _spin(rec: Dictionary) -> String:
 		sk.clear()
 		sk.merge(before, true)
 		return "A shape that crosses the middle line cannot be spun: draw it on one side"
-	if axis == "y":
+	if axis == "y" and not on_piece:
 		# a spline dips a little below its points: the solid's real lowest point goes onto the floor (a bowl's foot is on the floor, not in it)
 		var low := float(Part.replay(rec)["aabb"].position.y) / Part.MM
 		if absf(low) > 0.001:
@@ -1198,6 +1202,24 @@ func _spin(rec: Dictionary) -> String:
 	_say("Spun all the way round: use the slider for less")
 	return ""
 
+
+
+## ELAMP: true when the upright drawing starts ABOVE the floor and on a solid already in the part: its lowest point (mm) lies within
+## the solid's height range (a shade whose first point is on a stick top). A drawing on the floor, or in the air over nothing, is not on a piece
+func _starts_on_piece(rec: Dictionary, sk: Dictionary) -> bool:
+	var res := Part.replay(rec)
+	if int(res["bodies"]) == 0:
+		return false
+	var bb: AABB = res["aabb"]
+	var bot := bb.position.y / Part.MM
+	var top := bb.end.y / Part.MM
+	var low := INF
+	for e in sk["ents"]:
+		for q in _ent_pts(e):
+			low = minf(low, float(q[1]))
+	if low == INF:
+		return false
+	return low > 0.5 and low >= bot - 0.5 and low <= top + 0.5
 
 
 ## SPIN A FLOOR DRAWING: the sketch moves from the floor (top plane) to the front plane, its far edge up, and slides so its nearest point
