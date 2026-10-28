@@ -4,7 +4,7 @@ extends SceneTree
 ## Bars:
 ##   1 FLOOR   a 40 x 40 mm square drawn on empty space, pulled up: one body, box min y = 0, box max y = the pull height (FAILED on the old code: the square sat on the front plane and pulled toward the viewer)
 ##   2 HOLE    Cut a hole on that floor body goes DOWN through it: the body keeps its height, volume drops by a vertical cylinder (pi r^2 h within 10 pct)
-##   3 SPIN    Spin it round on a floor profile: a valid solid with volume, no failed step
+##   3 SPIN    Spin it round on a floor profile: a valid solid with volume, no failed step; it stands up and turns round the UP axis (a ring on the floor)
 ##   4 BLEND   two floor squares, Blend two shapes: one solid, the newer one offset UP 40 mm (box max y 40 mm)
 ##   5 REPEAT  Repeat it on a floor body: three copies, no failed step
 ##   6 MIRROR  Mirror that on a floor body at +X: a valid solid, no failed step
@@ -204,6 +204,12 @@ func _init() -> void:
 	await click_ctl(ep().make_btns["spin"])
 	var hs: String = ep().hint_l.text
 	ok(errors_of(m.S.part) == 0 and int(pu().res.get("bodies", 0)) >= 1 and vol() > 0.0, "3a SPIN a valid solid, no failed step: bodies %d, volume %.0f, words [%s]" % [int(pu().res.get("bodies", 0)), vol(), hs])
+	# 3b: the floor drawing stands up and turns round the UP axis (a lathe piece on the floor): x 20..40, depth 0..20 -> a ring r 20..40,
+	# 20 tall, from the floor up (spun round the floor line, half of it went under the floor)
+	var sb := bbox()
+	var ring := PI * (40.0 * 40.0 - 20.0 * 20.0) * 20.0
+	ok(absf(sb.position.y) < 0.5 and absf(sb.end.y - 20.0) < 0.5 and absf(sb.size.x - 80.0) < 1.0 and absf(sb.size.z - 80.0) < 1.0 and absf(vol() - ring) < 0.01 * ring,
+		"3b SPIN round the up axis, standing on the floor: box %s mm, volume %.0f vs a ring %.0f" % [sb, vol(), ring])
 
 	# 4 BLEND: two floor squares, the newer one offset up 40 mm
 	await fresh(-40.0)
