@@ -90,6 +90,8 @@ var shape := "box"
 var msg := ""                  # the sentence of the last press, until the next one
 var tweak := {}                # the last step's own slider: {"id", "ent", "field", "label", "unit", "lo", "hi", "step", "scale"}
 var _pending := {}
+var _draft_px0 := Vector2.ZERO   # the draft's raw pointer pixels, first press and last move (the sides are read from these when the grid folds them)
+var _draft_px1 := Vector2.ZERO
 var _dirty := false
 var _last_ms := 0
 var _drag := {}                # an amber dot in hand: {"k", "mouse", "val", "dir", "pxmm", "gain"}
@@ -1908,7 +1910,7 @@ func _finish_curve() -> void:
 	var fc: Dictionary = _draft.get("face", {})
 	_draft = {}
 	if pts.size() < 4:
-		_say("Drag a bit further to draw a curve")
+		_say("Drag a bit further to draw a curve: keep the button held and move at least 5 mm")
 		return
 	var out := []
 	for k in _curve_keep(pts, 12):
@@ -2577,7 +2579,7 @@ const FACE_BASE := ["right", "top", "front"]   # the Part plane each axis is dra
 const FACE_N := [Vector3.RIGHT, Vector3.UP, Vector3.BACK]
 
 
-func _ground(p: Vector2, pl: Dictionary = {}) -> Variant:
+func _ground(p: Vector2, pl: Dictionary = {}, snap := true) -> Variant:
 	var o: Vector3 = m.cam.project_ray_origin(p)
 	var d: Vector3 = m.cam.project_ray_normal(p)
 	if pl.is_empty():   # an empty-space press draws on the FLOOR (the Part top plane, y = 0; monkey-brain direction)
@@ -2590,6 +2592,8 @@ func _ground(p: Vector2, pl: Dictionary = {}) -> Variant:
 	if t < 0.0:
 		return null
 	var q := Part.to_plane(pl, o + d * t)
+	if not snap:
+		return Vector2(q.x, q.y)
 	return Vector2(snappedf(q.x, 5.0), snappedf(q.y, 5.0))
 
 
@@ -2772,6 +2776,7 @@ func _on_bar(p: Vector2) -> bool:
 
 ## the sketch in progress follows the pointer p (the draft's second corner, or the curve's next point)
 func _draft_move(p: Vector2) -> void:
+	_draft_px1 = p
 	var g: Variant = _ground(p, _draft.get("pl", {}))
 	if g != null:
 		_draft["b"] = g
@@ -2803,6 +2808,8 @@ func _above_body(p: Vector2) -> bool:
 
 ## a draw / curve press on the grid at p: a sketch on the face under it, the upright plane, or the floor. true = taken
 func _start_draft(p: Vector2) -> bool:
+	_draft_px0 = p
+	_draft_px1 = p
 	# A POINTY UPRIGHT ABOVE A BOX TOP is a roof: the side-on upright plane through the middle (not the box's front face), so it pulls both ways to the box depth
 	if shape == "pointy" and armed != "curve" and _side_on() and _above_body(p):
 		var ur := _upright()
@@ -2869,18 +2876,46 @@ func _drag_to(p: Vector2, final: bool) -> void:
 				_pill_text(r, v / 10.0)
 
 
+## the least side a drawn shape may have (mm): a long thin blade draws when BOTH sides are at least this
+const MIN_SIDE := 2.0
+
+
+## the two corners of a box or pointy draft. Each side is the 5 mm grid's, unless the grid folds it under MIN_SIDE: then the raw pointer side is kept (a 5 mm blade is not refused for snapping to one grid line). {} = a side under MIN_SIDE, refused (the words say how wide)
+func _sides(a: Vector2, b: Vector2, pl: Dictionary) -> Dictionary:
+	var ra: Variant = _ground(_draft_px0, pl, false)
+	var rb: Variant = _ground(_draft_px1, pl, false)
+	var raw_a: Vector2 = ra if ra != null else a
+	var raw_b: Vector2 = rb if rb != null else b
+	var out := b
+	for ax in 2:
+		if absf(b[ax] - a[ax]) < MIN_SIDE:
+			var rs: float = raw_b[ax] - raw_a[ax]
+			if absf(rs) < MIN_SIDE:
+				return {"thin": absf(rs)}
+			out[ax] = a[ax] + rs
+	return {"b": out}
+
+
+## a length in mm for the words: 0 -> "0", 2.5 -> "2.5"
+static func _mm_words(x: float) -> String:
+	return ("%.1f" % x).trim_suffix(".0")
+
+
 func _finish_draw() -> void:
 	var a: Vector2 = _draft["a"]
 	var b: Vector2 = _draft["b"]
 	var sh := String(_draft["shape"])
 	var fc: Dictionary = _draft.get("face", {})
+	var pl: Dictionary = _draft.get("pl", Part.plane("top"))
 	_draft = {}
 	var ent := {}
 	var ents: Array = []
 	if sh == "box" or sh == "pointy":
-		if absf(b.x - a.x) < 5.0 or absf(b.y - a.y) < 5.0:
-			_say("Drag a bit further to draw a shape")
+		var sd := _sides(a, b, pl)
+		if sd.has("thin"):
+			_say("Drag a bit wider: both sides must be at least 2 mm (now %s mm)" % _mm_words(float(sd["thin"])))
 			return
+		b = sd["b"]
 		if sh == "box":
 			ent = {"k": "rect", "a": Part.arr2(a), "b": Part.arr2(b)}
 		else:   # POINTY: three lines, the closed outline of the triangle (Expert's line tool records the same)
@@ -2889,7 +2924,7 @@ func _finish_draw() -> void:
 	else:
 		var r := a.distance_to(b)
 		if r < 5.0:
-			_say("Drag a bit further to draw a shape")
+			_say("Drag a bit further from the centre: a circle needs a radius of at least 5 mm (now %s mm)" % _mm_words(r))
 			return
 		ent = {"k": "circle", "c": Part.arr2(a), "r": snappedf(r, 0.5)}
 	_begin("Draw shape")
