@@ -199,7 +199,9 @@ static func from_file(d: Variant) -> Dictionary:
 			out["seq"] = maxi(int(out["seq"]), int(String(f["id"]).trim_prefix("f")))
 	if (d as Dictionary).get("easy") is Dictionary and (d as Dictionary)["easy"].has("t"):
 		out["easy"] = (d as Dictionary)["easy"].duplicate(true)   # EASY PART: the template's numbers (scripts/build/part_templates.gd)
-	return out if not out["features"].is_empty() else {}
+	if bool((d as Dictionary).get("kept", false)):
+		out["kept"] = true   # an EMPTY part the user chose (Easy's Empty): a part with no steps that undo and redo bring back as it was
+	return out if not out["features"].is_empty() or out.has("kept") else {}
 
 
 # ---------------------------------------------------------------- sketch entities and dimensions
