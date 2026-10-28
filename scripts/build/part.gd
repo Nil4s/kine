@@ -1357,6 +1357,32 @@ static func _edge_op(bodies: Array, f: Dictionary) -> String:
 	return ""
 
 
+## EROUND: the kept solids of a replay (replay(rec, -1, {"keep": true}).ids) are the caller's: this releases them
+static func release_kept(ids: Array) -> void:
+	for b in ids:
+		KCad.release(int(b))
+
+
+## EROUND: the error (or "") of a fillet of these edges on body (one of the kept solids: it is not changed, the trial result is released).
+## The same picking and kernel call as _edge_op; r_mm is the radius in mm as the step stores it (snapped)
+static func fillet_trial(body: int, r_mm: float, edges: Array) -> String:
+	var es := KCad.edges(body)
+	var bb := _bbox(es)
+	var ids := PackedInt32Array()
+	for want in edges:
+		var j := match_edge(es, bb, want)
+		if j < 0:
+			return "an edge it rounded is not there any more"
+		if not ids.has(int(es[j]["id"])):
+			ids.append(int(es[j]["id"]))
+	if ids.is_empty():
+		return "no edge picked"
+	var r := KCad.fillet_edges(body, ids, r_mm * MM)
+	if r == 0:
+		return KCad.last_error()
+	KCad.release(r)
+	return ""
+
 ## GAP 10: an offset or a draft. The faces are found on the body as it is at this step (match_face), then the kernel moves them
 static func _face_op(bodies: Array, f: Dictionary) -> String:
 	var what := "offset" if String(f["t"]) == "offset_face" else "draft"

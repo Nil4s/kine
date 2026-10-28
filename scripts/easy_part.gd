@@ -12,6 +12,7 @@ extends Node
 ## No CAD DLL: the buttons and sliders are greyed with the reason.
 
 const PW := 318.0
+const ROUND_BUDGET_US := 300000   # EROUND: the Round press stops trying edges after this (usec) and keeps the best found
 const MAKE_H := 76.0
 const REP_WORDS := {"count": ["Fewer", "More"], "gap": ["Closer", "Further apart"]}   # the Repeat it sliders' ends
 const STICK_OPS := [["join", "Join", "Make the two pieces one solid"], ["cut", "Cut away", "Cut the second piece out of the first"], ["intersect", "Keep the overlap", "Keep only the part where the two pieces overlap"]]
@@ -1136,6 +1137,20 @@ func _round(rec: Dictionary) -> String:
 	var longest := 0.0
 	for e in es:
 		longest = maxf(longest, float(e["len"]))
+	# EROUND: the edges are tried on ONE kept replay of the body as it is before the round (a kernel fillet per try), not a replay of the whole
+	# record per try: a press on a part of 25+ steps took minutes that way. The search stops at ROUND_BUDGET_US and keeps the best found
+	var kept: Array = Part.replay(rec, -1, {"keep": true}).get("ids", [])
+	var done := false
+	if not kept.is_empty():
+		done = _round_on(rec, int(kept[0]), es, small, longest)
+	Part.release_kept(kept)
+	if done:
+		return ""
+	return "These edges are too small or too crowded to round: Pull it up taller, then press Round the edges again"
+
+
+## EROUND: the round on body (a kept solid of the record's end). True when a fillet step was added to rec
+func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: float) -> bool:
 	for attempt in [[1.0, 0.0], [0.5, 0.0], [0.5, 0.2]]:
 		var r := clampf(small * 0.01 * float(attempt[0]), 0.5, 6.0)
 		var list := []
@@ -1144,39 +1159,43 @@ func _round(rec: Dictionary) -> String:
 				list.append(Part.describe(e))
 		if list.is_empty():
 			continue
+		if Part.fillet_trial(body, snappedf(r, 0.1), list) != "":
+			continue
 		var f := Part.new_feature(rec, "fillet", {"body": 0, "r": snappedf(r, 0.1), "edges": list})
 		rec["features"].append(f)
 		if _last_error(rec, String(f["id"])) == "":
-			tweak = {"id": f["id"], "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
-			_say("Edges rounded: use the slider for more or less")
-			return ""
+			_round_done(f)
+			return true
 		rec["features"].pop_back()
 	# a thin part (the sword's blade: 7 mm across the spine, edges 0.4 mm) cannot take the 0.5 mm floor on every edge: round the edges that
 	# can take a smaller radius and skip the rest. Each edge is tried with the ones already kept, so the feature that is added has no error
-	for r in [0.5, 0.3, 0.1]:
+	var out_of_time := false
+	var t1 := Time.get_ticks_usec()   # the budget is for this search (the three tries above are one kernel fillet each)
+	for r0 in [0.5, 0.3, 0.1]:
+		var r := snappedf(r0, 0.1)
 		var good := []
 		for e in es:
+			if Time.get_ticks_usec() - t1 > ROUND_BUDGET_US:
+				out_of_time = true
+				break
 			if int(e["body"]) == 0 and float(e["len"]) / Part.MM > r * 2.5:
 				var trial := good.duplicate()
 				trial.append(Part.describe(e))
-				if _try_fillet(rec, r, trial) == "":
+				if Part.fillet_trial(body, r, trial) == "":
 					good = trial
-		if good.is_empty():
-			continue
-		var f := Part.new_feature(rec, "fillet", {"body": 0, "r": snappedf(r, 0.1), "edges": good})
-		rec["features"].append(f)
-		tweak = {"id": f["id"], "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
-		_say("Edges rounded: use the slider for more or less")
-		return ""
-	return "These edges are too small or too crowded to round: Pull it up taller, then press Round the edges again"
+		if not good.is_empty():
+			var f := Part.new_feature(rec, "fillet", {"body": 0, "r": r, "edges": good})
+			rec["features"].append(f)
+			_round_done(f)
+			return true
+		if out_of_time:
+			break
+	return false
 
 
-## the error (or "") of a fillet of these edges, tried on the end of the record without keeping it: the id is one nothing else uses
-func _try_fillet(rec: Dictionary, r: float, edges: Array) -> String:
-	rec["features"].append({"t": "fillet", "id": "try", "name": "Fillet", "body": 0, "r": snappedf(r, 0.1), "edges": edges})
-	var err := String(Part.replay(rec)["errors"].get("try", ""))
-	rec["features"].pop_back()
-	return err
+func _round_done(f: Dictionary) -> void:
+	tweak = {"id": f["id"], "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
+	_say("Edges rounded: use the slider for more or less")
 
 
 func _hole(rec: Dictionary) -> String:
