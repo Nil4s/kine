@@ -128,6 +128,9 @@ func warm() -> void:
 	_busy = true
 	_warmed = true
 	await draw_node(shapes_node([["box", Vector3.ZERO, Vector3(0.2, 0.2, 0.2)]]), Vector2i(16, 16))
+	await draw_node(shapes_node([["box", Vector3.ZERO, Vector3(0.2, 0.2, 0.2)]]), SCHEM)   # the schematic's and the picture's own sizes: their render targets exist before the first panel frame
+	await draw_node(shapes_node([["box", Vector3.ZERO, Vector3(0.2, 0.2, 0.2)]]), SIZE)
+	await draw_node(Props.mesh(Props.make("box")), SIZE)   # a prop's mesh: its first draw (shader, readback) is paid here too
 	_busy = false
 	if not _queue.is_empty():
 		_pump()
