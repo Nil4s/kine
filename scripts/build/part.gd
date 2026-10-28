@@ -522,7 +522,13 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					errs[id] = "there is nothing to mirror"
 					continue
 				var pl := plane(String(f.get("plane", "right")))
-				var u: int = KCad.mirror_join(bodies[-1], Vector3.ZERO, pl["n"])
+				var mo := Vector3.ZERO   # EMIRROR: a piece off the middle line is mirrored across the middle of the PART (its box centre), not the world line
+				if bool(f.get("mid", false)):
+					var pbb := AABB()
+					for pb in bodies:
+						pbb = pbb.merge(_piece_box(int(pb))) if pbb.size != Vector3.ZERO else _piece_box(int(pb))
+					mo = Vector3(pbb.get_center().x, 0.0, 0.0)
+				var u: int = KCad.mirror_join(bodies[-1], mo, pl["n"])
 				if u == 0:
 					errs[id] = KCad.last_error()
 				else:
