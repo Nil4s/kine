@@ -104,6 +104,8 @@ static func retemplate(rec: Dictionary, p: Dictionary) -> void:
 ## less than the old one) that works; when none does, the edges that still take 0.1 mm are kept and the rest left out; a round with no edge
 ## left is taken off. Returns the words for the user ("" when every round replays). Only fillets with an error are touched.
 static func fit_rounds(rec: Dictionary) -> String:
+	if not rec.has("features"):   # no part at all (the {} record: Expert took its empty sketch out): no round to fit
+		return ""
 	var note := ""
 	var i := 0
 	while i < (rec["features"] as Array).size():

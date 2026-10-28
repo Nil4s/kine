@@ -92,8 +92,9 @@ func fresh(mn, fi_pick := 0) -> int:
 
 ## the MODEL ribbon's button with this label
 func ribbon_button(mn, label: String) -> Button:
-	for c in mn.ui_ribbon["MODEL"].get_children():
-		if c is Button and (c as Button).text == label:
+	# the MODEL row is icon-only since 5f40546c (RIBBON STANDARD): the caption lives in meta "label", buttons sit inside icon groups
+	for c in mn.ui_ribbon["MODEL"].find_children("*", "Button", true, false):
+		if (c as Button).text == label or String(c.get_meta("label", "")) == label:
 			return c
 	return null
 
