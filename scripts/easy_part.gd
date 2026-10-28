@@ -927,16 +927,22 @@ func _pull(rec: Dictionary) -> String:
 	var pf := Part.feature(rec, String(sk.get("plane", "front")))
 	var on_face := String(pf.get("t", "")) == "plane" and pf.has("out")   # a sketch on a face: the pull goes OUTWARD from it
 	var sg := float(pf["out"]) if on_face else 1.0
-	var inward := on_face and _overhangs(rec, sk)
+	var through := bool(pf.get("through", false))   # an upright sketch (through the middle) pulls BOTH ways
+	var inward := on_face and not through and _overhangs(rec, sk)
 	if inward:
 		sg = -sg   # a face drawing that hangs past the body (a roof above the walls) pulls back INTO it: it extends the body's outline; one inside the face (a leg) pulls out
-	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": 20.0 * sg, "both": false, "op": "join"})
+	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": 20.0 * sg, "both": through, "op": "join"})
 	rec["features"].append(f)
 	var err := _last_error(rec, String(f["id"]))
 	if err != "":
 		return "That shape is not closed, so it cannot be pulled up: drag back to the start to close it"
 	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": 40.0, "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
-	_say(("Pulled into the face: use the slider to change it" if inward else "Pulled out of the face: use the slider to change it") if on_face else "Pulled up 2 cm: use the slider to change it")
+	if through:
+		_say("Pulled out both ways from the middle: use the slider for how thick")
+	elif on_face:
+		_say("Pulled into the body: use the slider to change it" if inward else "Pulled out of the face: use the slider to change it")
+	else:
+		_say("Pulled up 2 cm: use the slider to change it")
 	return ""
 
 
@@ -961,13 +967,45 @@ func _spin(rec: Dictionary) -> String:
 	var sid := Part.profile_sketch(rec)
 	if sid == "" or Part.sketch_used(rec, sid):
 		return "That shape is solid already. Draw a new one, then Spin it round"
-	var f := Part.new_feature(rec, "revolve", {"sketch": sid, "axis": "x", "deg": 360.0, "op": "join"})
+	var axis := "x"
+	var sk := Part.feature(rec, sid)
+	if String(sk.get("plane", "")) == "top":
+		_stand_up(sk)   # a floor drawing is flat: spun round the up axis it has no volume, so it stands up first (a lathe profile)
+		axis = "y"
+	var f := Part.new_feature(rec, "revolve", {"sketch": sid, "axis": axis, "deg": 360.0, "op": "join"})
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
 		return "A shape that crosses the middle line cannot be spun: draw it on one side"
 	tweak = {"id": f["id"], "field": "deg", "label": "How far round", "unit": "deg", "lo": 10.0, "hi": 360.0, "step": 5.0, "scale": 1.0, "words": ["A bit", "All the way"]}
 	_say("Spun all the way round: use the slider for less")
 	return ""
+
+
+
+## SPIN A FLOOR DRAWING: the sketch moves from the floor (top plane) to the front plane, its far edge up, and slides so its nearest point
+## sits on the floor: spun round the up axis it is a lathe piece (a ring, a vase) standing on the floor beside the middle line
+func _stand_up(sk: Dictionary) -> void:
+	var lo := INF
+	for e in sk["ents"]:
+		for q in _ent_pts(e):
+			lo = minf(lo, float(q[1]) - (float(e["r"]) if e.has("r") and String(e["k"]) == "circle" else 0.0))
+	if lo == INF:
+		lo = 0.0
+	for e in sk["ents"]:
+		for q in _ent_pts(e):
+			q[1] = snappedf(float(q[1]) - lo, 0.0001)
+	sk["plane"] = "front"
+
+
+## the [x, y] points of a sketch entity (the arrays themselves: writing them moves the entity)
+func _ent_pts(e: Dictionary) -> Array:
+	var out := []
+	for k in ["a", "b", "m", "c"]:
+		if e.has(k) and e[k] is Array:
+			out.append(e[k])
+	if e.has("pts"):
+		out.append_array(e["pts"])
+	return out
 
 
 func _round(rec: Dictionary) -> String:
@@ -1095,10 +1133,15 @@ func _blend(rec: Dictionary) -> String:
 		return "Draw two shapes first, then blend them"
 	var a: Dictionary = sks[sks.size() - 2]
 	var b: Dictionary = sks[sks.size() - 1]
-	if String(a["plane"]) == String(b["plane"]):
-		if not (String(a["plane"]) in Part.PLANES):
-			return "Those two shapes sit on the same plane: draw them on different planes"
-		var pl := Part.new_feature(rec, "plane", {"from": String(a["plane"]), "mm": 40.0})
+	var same := String(a["plane"]) == String(b["plane"])
+	if not same:   # two offset planes (an upright sketch through the middle is one) at the same spot are the same plane
+		var pa := Part.resolve_plane(rec, String(a["plane"]))
+		var pb := Part.resolve_plane(rec, String(b["plane"]))
+		same = (pa["n"] as Vector3).dot(pb["n"] as Vector3) > 0.999 and ((pa["o"] as Vector3) - (pb["o"] as Vector3)).length() < 0.01 * Part.MM
+	if same:
+		var base := String(a["plane"]) if String(a["plane"]) in Part.PLANES else _base_plane(rec, String(a["plane"]))
+		var mm_a := 0.0 if String(a["plane"]) in Part.PLANES else float(Part.feature(rec, String(a["plane"])).get("mm", 0.0))
+		var pl := Part.new_feature(rec, "plane", {"from": base, "mm": mm_a + 40.0})   # the newer shape 40 mm off the older one, along the normal
 		rec["features"].insert(Part.index_of(rec, String(b["id"])), pl)
 		b["plane"] = String(pl["id"])
 	var f := Part.new_feature(rec, "loft", {"sketches": [a["id"], b["id"]], "ruled": true, "op": "join"})
@@ -1312,6 +1355,9 @@ func _process(_dt: float) -> void:
 			armed = ""
 			_drag = {}
 			_draft = {}
+		elif m.cam != null and _side_on():
+			m.pitch = ENTRY_PITCH   # Easy Part opens LOOKING DOWN: the app's level start view (-8 deg) would make every first drawing upright
+			m._cam()
 	if on and _near_saved < 0.0 and m.cam != null:
 		_near_saved = m.cam.near
 		m.cam.near = minf(_near_saved, FRAME_NEAR)   # EFRAME: a small part framed close (the plate's corners stay in front of the lens)
@@ -1319,6 +1365,7 @@ func _process(_dt: float) -> void:
 		m.cam.near = _near_saved
 		_near_saved = -1.0
 	_floor_sync(on)
+	_upright_sync(on and (armed == "draw" or armed == "curve") and _side_on())
 	bar.visible = on
 	make_box.visible = on
 	panel.visible = on
@@ -1721,6 +1768,74 @@ func _floor_sync(on: bool) -> void:
 		m.cam.get_parent().add_child(floor_mi)
 	floor_mi.visible = on
 
+
+## UPRIGHT THROUGH THE MIDDLE (side-on): the camera looks along a horizontal line (|pitch| < SIDE_ON), so a press on empty space draws on
+## the upright plane through the part's middle that faces the camera: Front (+Z) or Right (+X), whichever the yaw is nearer to.
+const SIDE_ON := 15.0       # deg: the camera within this of level looks side-on (the ViewCube's FRONT / RIGHT); Easy opens at ENTRY_PITCH
+const ENTRY_PITCH := -30.0
+
+
+func _side_on() -> bool:
+	return absf(float(m.pitch)) < SIDE_ON
+
+
+## {"pl": the plane (offset to the part box's middle), "base": "front"|"right", "mm": the offset along its normal, "through": true}
+func _upright() -> Dictionary:
+	var yr := deg_to_rad(float(m.yaw))
+	var base := "right" if absf(sin(yr)) > absf(cos(yr)) else "front"
+	var bb: AABB = pu.res.get("aabb", AABB()) if pu != null else AABB()
+	var c := bb.position + bb.size * 0.5   # metres
+	var mm := snappedf((c.x if base == "right" else c.z) / Part.MM, 0.01)
+	var pl := Part.plane(base)
+	pl["o"] = (pl["o"] as Vector3) + (pl["n"] as Vector3) * mm * Part.MM
+	return {"pl": pl, "base": base, "mm": mm, "through": true}
+
+
+var upright_mi: MeshInstance3D   # THE UPRIGHT PLANE: a faint grid through the part, 3D lines in the world (shown only while drawing side-on)
+var _upright_key := ""
+
+
+func _upright_sync(on: bool) -> void:
+	if not on or m.cam == null or m.cam.get_parent() == null:
+		if upright_mi != null:
+			upright_mi.visible = false
+		return
+	var up := _upright()
+	var pl: Dictionary = up["pl"]
+	var bb: AABB = pu.res.get("aabb", AABB()) if pu != null else AABB()
+	var c2 := Part.to_plane(pl, bb.position + bb.size * 0.5)
+	var half := maxf(60.0, maxf(bb.size.x, maxf(bb.size.y, bb.size.z)) / Part.MM * 0.6 + 20.0)
+	var key := "%s %s %s" % [up["base"], str(up["mm"]), str(snappedf(half, 1.0))]
+	if upright_mi == null:
+		upright_mi = MeshInstance3D.new()
+		upright_mi.name = "EasyUprightGrid"
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.vertex_color_use_as_albedo = true
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		upright_mi.material_override = mat
+		upright_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		m.cam.get_parent().add_child(upright_mi)
+	upright_mi.visible = true
+	if key == _upright_key:
+		return
+	_upright_key = key
+	var im := ImmediateMesh.new()
+	im.surface_begin(Mesh.PRIMITIVE_LINES)
+	var col_g := Color(0.55, 0.75, 1.0, 0.14)
+	var col_e := Color(0.55, 0.75, 1.0, 0.45)
+	var n := int(roundf(half / 10.0))
+	for i in range(-n, n + 1):
+		var v := float(i) * 10.0
+		var col := col_g if i != -n and i != n else col_e
+		for ln in [[Vector2(-half, v), Vector2(half, v)], [Vector2(v, -half), Vector2(v, half)]]:
+			for q in ln:
+				im.surface_set_color(col)
+				im.surface_add_vertex(Part.to_world(pl, c2 + (q as Vector2)))
+	im.surface_end()
+	upright_mi.mesh = im
+
 func _draft_outline() -> PackedVector2Array:
 	var a: Vector2 = _draft["a"]
 	var b: Vector2 = _draft["b"]
@@ -1862,6 +1977,13 @@ func input(ev: InputEvent) -> bool:
 						_draft = {"a": fg, "b": fg, "shape": "curve" if armed == "curve" else shape, "pts": [fg], "pl": fc["pl"], "face": fc}
 						_say("Drawing on that face")
 						return true
+				if _side_on():
+					var up := _upright()
+					var gu: Variant = _ground(p, up["pl"])
+					if gu != null:
+						_draft = {"a": gu, "b": gu, "shape": "curve" if armed == "curve" else shape, "pts": [gu], "pl": up["pl"], "face": up}
+						_say("Drawing upright, through the middle")
+						return true
 				var g: Variant = _ground(p)
 				if g != null:
 					_draft = {"a": g, "b": g, "shape": "curve" if armed == "curve" else shape, "pts": [g], "pl": Part.plane("top")}
@@ -1977,6 +2099,10 @@ func _finish_draw() -> void:
 func _face_plane(rec: Dictionary, fc: Dictionary) -> String:
 	if fc.is_empty():
 		return "top"
+	if bool(fc.get("through", false)):   # UPRIGHT THROUGH THE MIDDLE: a plane with no "out" (the pull goes both ways)
+		var tf := Part.new_feature(rec, "plane", {"from": String(fc["base"]), "mm": float(fc["mm"]), "through": true})
+		rec["features"].append(tf)
+		return String(tf["id"])
 	var pf := Part.new_feature(rec, "plane", {"from": String(fc["base"]), "mm": float(fc["mm"]), "out": int(fc["out"])})
 	rec["features"].append(pf)
 	return String(pf["id"])
