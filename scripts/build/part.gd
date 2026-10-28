@@ -1547,6 +1547,8 @@ static func _pattern(bodies: Array, looks: Array, f: Dictionary) -> String:
 	var bi := int(f.get("body", -1))
 	if bi < 0 or bi >= bodies.size():
 		return "there is no body %d to pattern" % bi
+	if String(f.get("kind", "linear")) == "corners":   # EREPEAT (Easy's Corners): the piece goes to the four corners of the body it touches
+		return _corners(bodies, looks, bi)
 	var n := int(f.get("count", 0))
 	if n < 2 or n > PATTERN_MAX:
 		return "a pattern needs 2 to %d copies (the original counts as one)" % PATTERN_MAX
@@ -1602,6 +1604,50 @@ static func _pattern(bodies: Array, looks: Array, f: Dictionary) -> String:
 			return KCad.last_error()
 		KCad.release(bodies[bi])
 		bodies[bi] = u
+	return ""
+
+
+
+## EREPEAT: the body's bounding box (metres), from its triangles
+static func _piece_box(id: int) -> AABB:
+	var pts := _tris_of(id)
+	if pts.is_empty():
+		return AABB()
+	var bb := AABB(pts[0], Vector3.ZERO)
+	for q in pts:
+		bb = bb.expand(q)
+	return bb
+
+
+## EREPEAT Corners: the body is mirrored across its middle in X and in Z, and the four (the body and its three mirrors) join into one body.
+## A seat with a leg drawn at one corner gets a leg at each corner: the leg a beginner drew is the one that is copied.
+## (A leg pulled into its seat is one body with it, so the copy is of the whole body: fine for a symmetric seat and its legs.)
+static func _corners(bodies: Array, looks: Array, bi: int) -> String:
+	var bb := _piece_box(int(bodies[bi]))
+	if bb.size == Vector3.ZERO:
+		return "the piece has no size to copy"
+	var o := Vector3(bb.get_center().x, 0.0, bb.get_center().z)
+	var src := int(bodies[bi])
+	var mx := KCad.mirror(src, o, Vector3.RIGHT)
+	if mx == 0:
+		var why := KCad.last_error()
+		return why if why != "" else "the copy at the corners could not be made"
+	var acc := KCad.union(src, mx)
+	KCad.release(mx)
+	if acc == 0:
+		var why_u := KCad.last_error()
+		return why_u if why_u != "" else "the corner copies would not join"
+	var mz := KCad.mirror(acc, o, Vector3.BACK)
+	if mz == 0:
+		KCad.release(acc)
+		return "the copy at the corners could not be made"
+	var acc2 := KCad.union(acc, mz)
+	KCad.release(mz)
+	KCad.release(acc)
+	if acc2 == 0:
+		return KCad.last_error() if KCad.last_error() != "" else "the corner copies would not join"
+	KCad.release(src)
+	bodies[bi] = acc2
 	return ""
 
 

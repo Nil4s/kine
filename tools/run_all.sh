@@ -200,3 +200,4 @@ EXTRA="$EXTRA ebowl:w"   # EBOWL: Easy Part bowl by clicks (a closed Curvy profi
 EXTRA="$EXTRA eempty:w"
 EXTRA="$EXTRA efar:w"   # EFAR: Easy Part far-floor presses: a drag that starts on the words pill (under the far floor) still draws a box or a curve; a press that goes off Mirror and back is no click, a plain click still mirrors (tests/efar_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA edoor:w"   # EDOOR: Cut a hole cuts the DRAWN shape (a Box on a face, not yet pulled) through its wall: a door or window, depth by the slider, one undo (tests/edoor_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA erepeat:w"   # EREPEAT: Easy Part Repeat it gets a Corners chip: the newest piece goes to the four corners of the seat it sits on, one body, one undo step (tests/erepeat_test.gd; needs the CAD DLL)
