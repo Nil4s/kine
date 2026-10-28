@@ -911,10 +911,18 @@ func _hole(rec: Dictionary) -> String:
 		return "Nothing solid to cut a hole in yet. Press Pull it up first"
 	var bb: AABB = res["aabb"]
 	var c := bb.get_center() / Part.MM
-	var r := clampf(minf(bb.size.x, bb.size.y) / Part.MM * 0.12, 10.0, 40.0)   # the radius in mm: a hole 2 to 8 cm across
-	var s := Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "circle", "c": Part.arr2(Vector2(c.x, c.y)), "r": snappedf(r, 0.5)}], "dims": []})
-	rec["features"].append(s)
-	var f := Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(bb.size.z / Part.MM + 20.0, 1.0), "both": true, "op": "cut"})
+	var floor_made := _base_plane(rec, _newest_sketch_plane(rec)) == "top"   # a body drawn on the floor is cut DOWN through (its hole runs up/down)
+	var r := clampf(minf(bb.size.x, bb.size.z if floor_made else bb.size.y) / Part.MM * 0.12, 10.0, 40.0)   # the radius in mm: a hole 2 to 8 cm across
+	var s: Dictionary
+	var f: Dictionary
+	if floor_made:
+		s = Part.new_feature(rec, "sketch", {"plane": "top", "ents": [{"k": "circle", "c": Part.arr2(Vector2(c.x, -c.z)), "r": snappedf(r, 0.5)}], "dims": []})   # the top plane's v axis is -Z
+		rec["features"].append(s)
+		f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(bb.size.y / Part.MM + 20.0, 1.0), "both": true, "op": "cut"})
+	else:
+		s = Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "circle", "c": Part.arr2(Vector2(c.x, c.y)), "r": snappedf(r, 0.5)}], "dims": []})
+		rec["features"].append(s)
+		f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(bb.size.z / Part.MM + 20.0, 1.0), "both": true, "op": "cut"})
 	rec["features"].append(f)
 	var before := float(res["volume"])
 	var after := float(Part.replay(rec)["volume"])
@@ -923,6 +931,23 @@ func _hole(rec: Dictionary) -> String:
 	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}   # the slider is the hole's WIDTH (cm): radius mm = width cm * 5
 	_say("A hole straight through: use the slider for its size")
 	return ""
+
+
+## the plane id of the newest sketch (the front plane when there is none)
+func _newest_sketch_plane(rec: Dictionary) -> String:
+	var pid := "front"
+	for f in rec.get("features", []):
+		if f["t"] == "sketch":
+			pid = String(f.get("plane", "front"))
+	return pid
+
+
+## the Part base plane ("front" | "top" | "right") a sketch's plane id sits on: an offset plane's base is its "from"
+func _base_plane(rec: Dictionary, pid: String) -> String:
+	if pid in Part.PLANES:
+		return pid
+	var pf := Part.feature(rec, pid)
+	return String(pf.get("from", "front")) if String(pf.get("t", "")) == "plane" else "front"
 
 
 func _mirror(rec: Dictionary) -> String:
@@ -1504,6 +1529,7 @@ func _tri_px(p: Vector2, q: PackedVector2Array) -> float:
 
 func _draw_dots() -> void:
 	var font := ThemeDB.fallback_font
+	_draw_floor_grid()
 	for bi in stick_picks:   # the picked piece glows: its faces tinted, its edges amber
 		var tris: PackedVector3Array = stick_tris.get(bi, PackedVector3Array())
 		for k in range(0, tris.size() - 2, 3):
@@ -1537,6 +1563,26 @@ func _draw_dots() -> void:
 		dots.draw_string(font, tp, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
 
 
+## THE FLOOR GRID: the Part grid laid on the top plane (y = 0): a line every 5 cm (every 25 cm brighter) across 1 m, the axes tinted.
+## Drawn on the overlay: a line with an end behind the camera is skipped
+func _draw_floor_grid() -> void:
+	if m.cam == null:
+		return
+	var n := 10
+	for i in range(-n, n + 1):
+		var v := float(i) * 50.0 * Part.MM
+		var major := i % 5 == 0
+		var col := Color(0.4, 0.48, 0.6, 0.3 if major else 0.16)
+		if i == 0:
+			col = Color(0.85, 0.35, 0.35, 0.5)
+		for ln in [[Vector3(-n * 50.0 * Part.MM, 0, v), Vector3(n * 50.0 * Part.MM, 0, v)], [Vector3(v, 0, -n * 50.0 * Part.MM), Vector3(v, 0, n * 50.0 * Part.MM)]]:
+			var a: Vector3 = ln[0]
+			var b: Vector3 = ln[1]
+			if m.cam.is_position_behind(a) or m.cam.is_position_behind(b):
+				continue
+			dots.draw_line(m.cam.unproject_position(a), m.cam.unproject_position(b), col, 1.0, true)
+
+
 func _draft_outline() -> PackedVector2Array:
 	var a: Vector2 = _draft["a"]
 	var b: Vector2 = _draft["b"]
@@ -1556,9 +1602,9 @@ func _draft_outline() -> PackedVector2Array:
 	return pts
 
 
-## DRAW ON A FACE: the world point of a draft coordinate (the draft plane, else the front plane)
+## the world point of a draft coordinate (the draft plane, else the FLOOR: the Part top plane, y = 0)
 func _pw(q: Vector2) -> Vector3:
-	return Part.to_world(_draft.get("pl", Part.plane("front")), q)
+	return Part.to_world(_draft.get("pl", Part.plane("top")), q)
 
 
 ## DRAW ON A FACE: the flat face under a press, or {} (none, a curved face, or not within 5 deg of +-X, +-Y or +-Z).
@@ -1630,20 +1676,17 @@ const FACE_N := [Vector3.RIGHT, Vector3.UP, Vector3.BACK]
 func _ground(p: Vector2, pl: Dictionary = {}) -> Variant:
 	var o: Vector3 = m.cam.project_ray_origin(p)
 	var d: Vector3 = m.cam.project_ray_normal(p)
-	if not pl.is_empty():   # DRAW ON A FACE: the ray hit on that plane, in its own mm
-		var pn: Vector3 = pl["n"]
-		var den := d.dot(pn)
-		if absf(den) < 1e-5:
-			return null
-		var t := ((pl["o"] as Vector3) - o).dot(pn) / den
-		if t < 0.0:
-			return null
-		var q := Part.to_plane(pl, o + d * t)
-		return Vector2(snappedf(q.x, 5.0), snappedf(q.y, 5.0))
-	if absf(d.z) < 1e-5:
+	if pl.is_empty():   # an empty-space press draws on the FLOOR (the Part top plane, y = 0; monkey-brain direction)
+		pl = Part.plane("top")
+	var pn: Vector3 = pl["n"]   # the ray hit on that plane, in its own mm (a face's plane, or the floor)
+	var den := d.dot(pn)
+	if absf(den) < 1e-5:
 		return null
-	var w := o + d * (-o.z / d.z)
-	return Vector2(snappedf(w.x / Part.MM, 5.0), snappedf(w.y / Part.MM, 5.0))
+	var t := ((pl["o"] as Vector3) - o).dot(pn) / den
+	if t < 0.0:
+		return null
+	var q := Part.to_plane(pl, o + d * t)
+	return Vector2(snappedf(q.x, 5.0), snappedf(q.y, 5.0))
 
 
 ## BUILD's input when the Easy screen has the page: true = taken
@@ -1675,7 +1718,7 @@ func input(ev: InputEvent) -> bool:
 						return true
 				var g: Variant = _ground(p)
 				if g != null:
-					_draft = {"a": g, "b": g, "shape": "curve" if armed == "curve" else shape, "pts": [g]}
+					_draft = {"a": g, "b": g, "shape": "curve" if armed == "curve" else shape, "pts": [g], "pl": Part.plane("top")}
 					return true
 			return false
 		if not _drag.is_empty():
@@ -1779,10 +1822,10 @@ func _finish_draw() -> void:
 	_say("Shape drawn. Now press Pull it up or Spin it round")
 
 
-## DRAW ON A FACE: the sketch's plane id. A face press adds ONE Part "plane" feature (from the base plane, mm = the face distance, out = the face side) to rec; no face = "front"
+## DRAW ON A FACE: the sketch's plane id. A face press adds ONE Part "plane" feature (from the base plane, mm = the face distance, out = the face side) to rec; no face = "top" (the floor)
 func _face_plane(rec: Dictionary, fc: Dictionary) -> String:
 	if fc.is_empty():
-		return "front"
+		return "top"
 	var pf := Part.new_feature(rec, "plane", {"from": String(fc["base"]), "mm": float(fc["mm"]), "out": int(fc["out"])})
 	rec["features"].append(pf)
 	return String(pf["id"])
