@@ -1820,6 +1820,13 @@ func _stage_part_sync() -> void:
 	title.text = "Your part is in the scene"
 	title.add_theme_font_size_override("font_size", 17)
 	stage_body.add_child(title)
+	var bk := Button.new()   # EBACK: the way back to the part in Easy Part's screen (the same record; Part then Easy is not needed)
+	bk.name = "build_back_to_part"
+	bk.text = "Back to your part"
+	bk.focus_mode = Control.FOCUS_NONE
+	bk.tooltip_text = "Easy Part opens again on this part, as you left it"
+	bk.pressed.connect(_back_to_part_easy)
+	stage_body.add_child(bk)
 	var eb := Button.new()
 	eb.name = "build_edit_in_build"
 	eb.text = "Change the part" if m.easy.on else "Edit in BUILD"
@@ -1827,6 +1834,13 @@ func _stage_part_sync() -> void:
 	eb.tooltip_text = "back to BUILD: the part is open there, to change it (the picked part comes back as it was saved)"
 	eb.pressed.connect(_reopen_part)
 	stage_body.add_child(eb)
+
+
+## EBACK: "Back to your part": the part in the set comes back (as Change the part does), then Easy Part's screen opens on it. One page move
+func _back_to_part_easy() -> void:
+	_reopen_part()
+	if part != null and part.bu != null:
+		part.open_easy()
 
 
 ## ESAVE: the part in the set (the one picked, else the last one) becomes the part being edited: its saved record comes back whole,
