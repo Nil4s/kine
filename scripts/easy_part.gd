@@ -509,6 +509,16 @@ func to_expert() -> void:
 	m._fit_top.call_deferred()
 
 
+## an error the Part tools give, in words a child reads: sketch -> shape, body -> solid, and anything still technical -> a plain line
+static func _plain(e: String) -> String:
+	var t := e.replace("its sketch is gone", "its shape is gone").replace("sketch", "shape").replace("body", "solid").replace("feature", "step").replace("extrude", "pull").replace("fillet", "round").replace("loft", "blend").replace("boolean", "join").replace("profile", "shape")
+	var jargon := RegEx.new()
+	jargon.compile("(?i)\\b(kernel|manifold|mesh|primitive|kcad|revolve|shell|plane|offset|dll|cad|wire|f\\d{1,2})\\w*")
+	if jargon.search(t) != null:
+		return "That step cannot be made here: Undo takes the last step back"
+	return t
+
+
 func _say(t: String) -> void:
 	msg = t
 
@@ -963,7 +973,7 @@ func _hollow(rec: Dictionary) -> String:
 		return "Nothing solid to hollow out yet. Press Pull it up first"
 	var bb: AABB = res["aabb"]
 	var thin := minf(bb.size.x, minf(bb.size.y, bb.size.z)) / Part.MM   # the body's smallest size (mm): a wall needs room on both sides
-	var too_thin := "That body is too thin to hollow out with a 3 mm wall: Pull it up taller, then press Cut a hole again"
+	var too_thin := "That solid is too thin to hollow out with a 3 mm wall: Pull it up taller, then press Cut a hole again"
 	if thin <= 2.0 * HOLLOW_MM:
 		return too_thin
 	var f := Part.new_feature(rec, "shell", {"body": n - 1, "open": "+y", "thick": HOLLOW_MM})
@@ -1028,7 +1038,7 @@ func _pull(rec: Dictionary) -> String:
 	if through:
 		_say("Pulled out both ways from the middle: use the slider for how thick")
 	elif on_face:
-		_say("Pulled into the body: use the slider to change it" if inward else "Pulled out of the face: use the slider to change it")
+		_say("Pulled into the solid: use the slider to change it" if inward else "Pulled out of the face: use the slider to change it")
 	else:
 		tweak["say"] = "Pulled up %s: use the slider to change it"   # the words follow the slider (a beginner walk: "2 cm" stayed at 8 cm)
 		_say(String(tweak["say"]) % _fmt(2.0, "cm"))
@@ -1293,7 +1303,7 @@ func _face_hole(rec: Dictionary) -> String:
 			var p := Vector2(lerpf(lo.x, hi.x, i / 2.0), lerpf(lo.y, hi.y, j / 2.0))
 			depth = minf(depth, _first_inside(tris, p, out))
 	if depth == INF:
-		return "The shape is not on the body: nothing was cut"
+		return "The shape is not on the solid: nothing was cut"
 	var sgn := -out   # the cut goes INTO the body, against the face's normal side
 	var f := Part.new_feature(rec, "extrude", {"sketch": sk["id"], "dist": sgn * snappedf(depth + 0.5, 0.1), "both": false, "op": "cut"})
 	rec["features"].append(f)
@@ -1622,7 +1632,7 @@ func _rep_corners() -> void:
 	_rep_sync()
 	var err: String = Part.replay(_rec())["errors"].get(rep_id, "")
 	if err != "":
-		_say(err + ". Move the piece onto a corner of the piece it sits on, then press Corners again, or undo")
+		_say(_plain(err) + ". Move the piece onto a corner of the piece it sits on, then press Corners again, or undo")
 	else:
 		_say("Corners: four copies, one at each corner of the piece it sits on")
 
@@ -1665,7 +1675,7 @@ func _stick(op: String, label: String) -> void:
 		m.S.part = snap
 		m._drop_undo()
 		_edit_n = -1
-		_say("Those two pieces cannot do that: " + why)
+		_say("Those two pieces cannot do that: " + _plain(why))
 	else:
 		_end()
 		_say("%s: the two pieces are one solid now" % label)
@@ -1968,7 +1978,7 @@ func _chrome_sync() -> void:
 	var errs: Dictionary = res.get("errors", {}) if not res.is_empty() else {}
 	var bodies := int(res.get("bodies", 0)) if not res.is_empty() else 0
 	if off:
-		status_l.text = "Greyed out: the CAD part of Kine is missing"
+		status_l.text = "Greyed out: this tool is not in this copy of Kine"
 	elif rec.is_empty():
 		status_l.text = "Nothing here yet"
 	elif not errs.is_empty():
