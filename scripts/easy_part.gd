@@ -111,8 +111,11 @@ var _fr_ref := AABB()           # the bounds the camera last framed (or the boun
 var _fr_has := false
 var _near_saved := -1.0         # the camera's near plane before Easy Part (put back when it is left)
 const FRAME_NEAR := 0.004
+const GRID_FILL := 0.95         # the empty part's grid tile fills this share of the free view (a flat square seen at a slant is narrow)
+const GRID_TILE := AABB(Vector3(-0.5, 0.0, -0.5), Vector3(1.0, 0.0, 1.0))   # the 1 m grid square an empty part stands on (metres)
 var _bar_press = null           # a draw press that began on the top bar (Vector2), or null: a drag starts the sketch there, a click is the button's
 var _press_btn: BaseButton = null # the button under that press (its click when the press is not a drag)
+var _off_tried := AABB()         # the box the D2 off-screen check last framed (see _frame_step)
 var _ease := {}                 # the camera ease in progress: {"t0", "d0", "t1", "d1", "s"}
 var flushes := 0                # rebuilds made by sliders and dots (the tests count them against the clock)
 
@@ -523,6 +526,13 @@ func frame() -> void:
 	span *= 1.45
 	m.target += m.cam.global_basis.x * (span * (PW * 0.5 + 8.0) / vs.x)
 	m._cam()
+	if _rec().get("features", []).is_empty() and m.cam != null:
+		# FREEWALK D1: an empty part shows the 1 m grid tile framed in the free view (not a corner under the bar)
+		var pose := _frame_pose(GRID_TILE, GRID_FILL)
+		if not pose.is_empty():
+			m.target = pose[0]
+			m.dist = pose[1]
+			m._cam()
 	m._say("")
 
 
@@ -2072,7 +2082,11 @@ func _frame_step() -> void:
 	if len < 1e-4:
 		_fr_ref = bb   # an empty part: nothing to frame yet
 		return
-	if ref_len >= 1e-4 and absf(len - ref_len) <= FRAME_CHANGE * ref_len:
+	# FREEWALK D2: a step that keeps the box size (Cut a hole) can still leave the solid off the screen: then frame it again
+	var off := bb != _off_tried and not _centre_free(bb)   # one try per box: a view that cannot hold it is not chased every frame
+	if off:
+		_off_tried = bb
+	if not off and ref_len >= 1e-4 and absf(len - ref_len) <= FRAME_CHANGE * ref_len:
 		return
 	_fr_ref = bb
 	var pose := _frame_pose(bb)
@@ -2091,10 +2105,21 @@ func free_rect() -> Rect2:
 	return Rect2(_cl.position.x + 12.0, top, x1 - _cl.position.x - 12.0, _cl.end.y - 70.0 - top)
 
 
-## the look-at point and distance that put the box (its eight corners) at FRAME_FILL of the free view; the view angle is kept.
+## true when the box's middle projects on the screen (and is in front of the lens): the solid can be seen and clicked
+func _centre_free(bb: AABB) -> bool:
+	var c := bb.get_center()
+	if m.cam.is_position_behind(c):
+		return false
+	var vs: Vector2 = m.get_viewport().get_visible_rect().size
+	var p: Vector2 = m.cam.unproject_position(c)
+	return p.x >= 0.0 and p.y >= 0.0 and p.x <= vs.x and p.y <= vs.y
+
+
 ## The look-at point is the box's middle, moved so the box sits in the free view's middle (as Easy's frame() moves it); the distance
 ## is found by a few steps: the box's size on screen goes as 1 / distance, so each step scales the distance by the size ratio.
-func _frame_pose(bb: AABB) -> Array:
+## the look-at point and distance that put the box (its eight corners) at FRAME_FILL of the free view; the view angle is kept.
+## (fill: the share of the free view the box takes; FRAME_FILL unless an empty part's grid tile asks for more)
+func _frame_pose(bb: AABB, fill := FRAME_FILL) -> Array:
 	var fr := free_rect()
 	if fr.size.x < 40.0 or fr.size.y < 40.0:
 		return []
@@ -2112,7 +2137,7 @@ func _frame_pose(bb: AABB) -> Array:
 			d *= 1.5   # a corner behind the lens: back off
 			continue
 		t = tt
-		var need := maxf(r.size.x / fr.size.x, r.size.y / fr.size.y) / FRAME_FILL
+		var need := maxf(r.size.x / fr.size.x, r.size.y / fr.size.y) / fill
 		if absf(need - 1.0) < 0.01:
 			break
 		d = clampf(d * clampf(need, 0.5, 2.0), 0.02, 40.0)

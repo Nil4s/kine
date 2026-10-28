@@ -419,6 +419,9 @@ func frame_clip(keep_body := false) -> void:   # keep_body: the body is put back
 		if m != null:
 			m._cam()
 		return
+	if m.bld != null and m.bld.part != null and m.bld.part.easy and m.bld.part.ep != null and m.bld.part.on:
+		m.bld.part.ep.frame()   # FREEWALK D1: the Part's Easy screen frames its own part (the empty grid, the solid); the body's framing would put the grid in a corner
+		return
 	var keep: Dictionary = m.B.state() if keep_body else {}
 	var vs := get_viewport().get_visible_rect().size
 	var fr := free_rect()
