@@ -1026,6 +1026,11 @@ func _release(p: Vector2) -> bool:
 	if h != null:
 		draft["b"] = snap(h as Vector2)
 	if (draft["a"] as Vector2).distance_to(draft["b"]) < maxf(snap_mm * 0.9, 0.5):
+		if String(draft.get("k", "")) == "circle":   # XFIX: a short circle drag cancels in words (no half circle for the next click)
+			draft = {}
+			_say("Drag further to set the size")
+			pov.queue_redraw()
+			return true
 		draft["down"] = false   # a click, not a drag: the second click is the other corner
 	else:
 		_commit_draft()
@@ -1527,9 +1532,19 @@ func _op_row(f: Dictionary) -> void:
 		var l := _label("Operation")
 		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		h.add_child(l)
-		f_op.select(maxi(Part.OPS.find(String(f.get("op", "join" if not _feats().is_empty() and res.get("bodies", 0) > 0 else "new"))), 0))
+		var dflt := String(f.get("op", ""))
+		var why := ""
+		if dflt == "" and String(dlg["t"]) == "extrude":   # XFIX: a new Extrude on a body face with its shape inside it opens on Cut, and says why
+			var d := Part.extrude_default(_rec())
+			dflt = String(d["op"])
+			why = String(d["why"])
+		if dflt == "":
+			dflt = "join" if not _feats().is_empty() and res.get("bodies", 0) > 0 else "new"
+		f_op.select(maxi(Part.OPS.find(dflt), 0))
 		h.add_child(f_op)
 		dlg_rows.add_child(h)
+		if why != "":
+			dlg_rows.add_child(_label(why, 13, true))
 
 
 ## the model the dialog works on (the steps before the one being edited): its volume, bodies and edges

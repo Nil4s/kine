@@ -481,13 +481,18 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				if sk.is_empty():
 					errs[id] = String(errs.get(String(f.get("sketch", "")), "its sketch is gone"))
 					continue
-				var solid := _solid(f, sk)
-				if solid == 0:
-					errs[id] = KCad.last_error()
+				var sols := _solids(f, sk)
+				if String(sols["err"]) != "":
+					errs[id] = String(sols["err"])
 					continue
-				var e := _combine(bodies, solid, String(f.get("op", "join")))
-				if e != "":
-					errs[id] = e
+				var sids: PackedInt32Array = sols["solids"]
+				for si in sids.size():   # XFIX: one solid per separate loop of the sketch (one feature, one undo step)
+					var e := _combine(bodies, sids[si], String(f.get("op", "join")))
+					if e != "":
+						errs[id] = e
+						for sj in range(si + 1, sids.size()):
+							KCad.release(sids[sj])
+						break
 			"loft":   # E: the picked profiles, in order, through the kernel's loft
 				var le := _loft(bodies, f, sketches)
 				if le != "":
@@ -575,6 +580,8 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	if mesh.get_surface_count() > 0:
 		res["mesh"] = mesh
 		res["aabb"] = mesh.get_aabb()
+	if want.has("probe"):   # XFIX: how full the bodies make a thin slab on a sketch's face (see extrude_default)
+		res["probe"] = _probe_fill(bodies, int(want["probe"]))
 	if want.get("keep", false):   # the caller owns the solids (vehicle.gd: intersect tests); release them with KCad.release
 		res["ids"] = bodies
 	else:
@@ -891,6 +898,154 @@ static func _swing(id: int, pivot: Vector3, axis: Vector3, radians: float) -> in
 	var c := KCad.translate(b, pivot)
 	KCad.release(b)
 	return c
+
+
+## XFIX: the separate loops of a sketch's entities. A line or arc joins a line or arc whose end it meets (0.01 mm); a circle, a rectangle or a
+## closed curve is a loop by itself. Answers one Array of entity dictionaries per loop, in the sketch's order.
+static func loops_of(ents: Array) -> Array:
+	var n := ents.size()
+	var par: Array = []
+	var ends: Array = []
+	for i in n:
+		par.append(i)
+		var e: Dictionary = ents[i]
+		var k := String(e["k"])
+		if k == "line" or k == "arc":
+			ends.append([v2(e["a"]), v2(e["b"])])
+		elif k == "bspline" and not bool(e.get("closed", false)) and (e.get("pts", []) as Array).size() >= 2:
+			ends.append([v2(e["pts"][0]), v2(e["pts"][-1])])
+		else:
+			ends.append([])
+	for i in n:
+		for j in range(i + 1, n):
+			if (ends[i] as Array).is_empty() or (ends[j] as Array).is_empty():
+				continue
+			var near := false
+			for p in ends[i]:
+				for q in ends[j]:
+					near = near or (p as Vector2).distance_to(q as Vector2) < 0.01
+			if near:
+				par[_uf_root(par, i)] = _uf_root(par, j)
+	var order: Array = []
+	var groups := {}
+	for i in n:
+		var r := _uf_root(par, i)
+		if not groups.has(r):
+			groups[r] = []
+			order.append(r)
+		(groups[r] as Array).append(ents[i])
+	var out: Array = []
+	for r in order:
+		out.append(groups[r])
+	return out
+
+
+static func _uf_root(par: Array, i: int) -> int:
+	while int(par[i]) != i:
+		i = int(par[i])
+	return i
+
+
+## XFIX: the box (mm) a loop's entities reach
+static func _loop_box(g: Array) -> Rect2:
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for e in g:
+		var pts: Array = []
+		match String(e["k"]):
+			"circle":
+				var c := v2(e["c"])
+				var r := float(e["r"])
+				pts = [c - Vector2(r, r), c + Vector2(r, r)]
+			"bspline":
+				for q in e.get("pts", []):
+					pts.append(v2(q))
+			"arc":
+				pts = [v2(e["a"]), v2(e["m"]), v2(e["b"])]
+			_:
+				pts = [v2(e["a"]), v2(e["b"])]
+		for q in pts:
+			lo = lo.min(q)
+			hi = hi.max(q)
+	return Rect2(lo, hi - lo)
+
+
+## XFIX: the solids of an Extrude / Revolve of a sketch. A sketch with separate loops gives one solid per loop (each its own profile); a loop
+## inside another loop is refused (a ring needs the whole sketch as one face). Answers {"solids": PackedInt32Array, "err": "" or the words}.
+static func _solids(f: Dictionary, sk: Dictionary) -> Dictionary:
+	var groups := loops_of(sk["ents"])
+	if f["t"] != "extrude" or groups.size() <= 1:
+		var s := _solid(f, sk)
+		if s == 0:
+			return {"solids": PackedInt32Array(), "err": _plain_err(KCad.last_error())}
+		return {"solids": PackedInt32Array([s]), "err": ""}
+	for i in groups.size():
+		for j in groups.size():
+			if i != j and _loop_box(groups[j]).encloses(_loop_box(groups[i])):
+				return {"solids": PackedInt32Array(), "err": "a closed shape sits inside another one in this sketch: Extrude them one at a time"}
+	var pl: Dictionary = sk["_pl"] if sk.has("_pl") else plane(String(sk.get("plane", "front")))
+	var out := PackedInt32Array()
+	for g in groups:
+		var face := KCad.sketch_face(items_of(g), pl["o"], pl["x"], pl["n"])
+		if face == 0:
+			for s in out:
+				KCad.release(s)
+			return {"solids": PackedInt32Array(), "err": _plain_err(KCad.last_error())}
+		var sd := KCad.extrude(face, float(f["dist"]) * MM, bool(f.get("both", false)), deg_to_rad(float(f.get("taper", 0.0))))
+		KCad.release(face)
+		if sd == 0:
+			for s in out:
+				KCad.release(s)
+			return {"solids": PackedInt32Array(), "err": _plain_err(KCad.last_error())}
+		out.append(sd)
+	return {"solids": out, "err": ""}
+
+
+## XFIX: the words a user reads for a kernel failure (no kernel jargon)
+static func _plain_err(e: String) -> String:
+	if e.find("do not join into one connected wire") >= 0:
+		return "the lines do not close into one shape: drag the last end onto the first"
+	return e
+
+
+## XFIX: how full the bodies make a thin slab (0.2 mm, both sides) on the probe face: 0.5 = the face is a body's face and the shape lies inside it,
+## 1 = the plane cuts through the body, 0 = no body there. -1 when the kernel cannot tell.
+static func _probe_fill(bodies: Array, face: int) -> float:
+	var slab := KCad.extrude(face, 0.2 * MM, true, 0.0)
+	if slab == 0:
+		return -1.0
+	var tot := KCad.volume(slab)
+	var got := 0.0
+	for b in bodies:
+		var x := KCad.intersect(b, slab)
+		if x != 0:
+			got += KCad.volume(x)
+			KCad.release(x)
+	KCad.release(slab)
+	return got / tot if tot > 0.0 else -1.0
+
+
+## XFIX: the operation a NEW Extrude opens on, and the words why. Cut when its sketch lies on a body's face with its shape inside that face
+## (a hole); otherwise Join (New body while there is no body). Answers {"op": join|new|cut, "why": words}.
+static func extrude_default(rec: Dictionary) -> Dictionary:
+	var sid := profile_sketch(rec)
+	var sk := feature(rec, sid)
+	if not available() or sk.is_empty() or String(sk.get("t", "")) != "sketch":
+		return {"op": "new", "why": ""}
+	var pl := resolve_plane(rec, String(sk.get("plane", "front")))
+	var face := KCad.sketch_face(items_of(sk["ents"]), pl["o"], pl["x"], pl["n"])
+	var fill := -1.0
+	var nb := 0
+	if face != 0:
+		var r := replay(rec, -1, {"probe": face})
+		KCad.release(face)
+		fill = float(r.get("probe", -1.0))
+		nb = int(r.get("bodies", 0))
+	if nb > 0 and absf(fill - 0.5) < 0.03:
+		return {"op": "cut", "why": "Cut a hole: the sketch lies on a face of the body and its shape is inside that face"}
+	if nb > 0:
+		return {"op": "join", "why": "Join: the shape joins the body (Cut needs the shape inside a face of a body)"}
+	return {"op": "new", "why": "New body: there is no body yet"}
 
 
 static func _solid(f: Dictionary, sk: Dictionary) -> int:
