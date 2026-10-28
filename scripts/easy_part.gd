@@ -1199,6 +1199,7 @@ func _process(_dt: float) -> void:
 	elif not on and _near_saved >= 0.0 and m.cam != null:
 		m.cam.near = _near_saved
 		_near_saved = -1.0
+	_floor_sync(on)
 	bar.visible = on
 	make_box.visible = on
 	panel.visible = on
@@ -1529,7 +1530,6 @@ func _tri_px(p: Vector2, q: PackedVector2Array) -> float:
 
 func _draw_dots() -> void:
 	var font := ThemeDB.fallback_font
-	_draw_floor_grid()
 	for bi in stick_picks:   # the picked piece glows: its faces tinted, its edges amber
 		var tris: PackedVector3Array = stick_tris.get(bi, PackedVector3Array())
 		for k in range(0, tris.size() - 2, 3):
@@ -1564,24 +1564,39 @@ func _draw_dots() -> void:
 
 
 ## THE FLOOR GRID: the Part grid laid on the top plane (y = 0): a line every 5 cm (every 25 cm brighter) across 1 m, the axes tinted.
-## Drawn on the overlay: a line with an end behind the camera is skipped
-func _draw_floor_grid() -> void:
-	if m.cam == null:
-		return
-	var n := 10
-	for i in range(-n, n + 1):
-		var v := float(i) * 50.0 * Part.MM
-		var major := i % 5 == 0
-		var col := Color(0.4, 0.48, 0.6, 0.3 if major else 0.16)
-		if i == 0:
-			col = Color(0.85, 0.35, 0.35, 0.5)
-		for ln in [[Vector3(-n * 50.0 * Part.MM, 0, v), Vector3(n * 50.0 * Part.MM, 0, v)], [Vector3(v, 0, -n * 50.0 * Part.MM), Vector3(v, 0, n * 50.0 * Part.MM)]]:
-			var a: Vector3 = ln[0]
-			var b: Vector3 = ln[1]
-			if m.cam.is_position_behind(a) or m.cam.is_position_behind(b):
-				continue
-			dots.draw_line(m.cam.unproject_position(a), m.cam.unproject_position(b), col, 1.0, true)
+## Built once (an ImmediateMesh of lines beside the camera), shown only while Easy Part is on
+var floor_mi: MeshInstance3D     # THE FLOOR GRID as 3D lines in the world: the part hides it, the buttons sit above it (a 2D overlay drew over both)
 
+
+func _floor_sync(on: bool) -> void:
+	if floor_mi == null:
+		if not on or m.cam == null or m.cam.get_parent() == null:
+			return
+		var n := 10
+		var e := n * 50.0 * Part.MM
+		var im := ImmediateMesh.new()
+		im.surface_begin(Mesh.PRIMITIVE_LINES)
+		for i in range(-n, n + 1):
+			var v := float(i) * 50.0 * Part.MM
+			var col := Color(0.4, 0.48, 0.6, 0.3 if i % 5 == 0 else 0.16)
+			if i == 0:
+				col = Color(0.85, 0.35, 0.35, 0.5)
+			for ln in [[Vector3(-e, 0, v), Vector3(e, 0, v)], [Vector3(v, 0, -e), Vector3(v, 0, e)]]:
+				for q in ln:
+					im.surface_set_color(col)
+					im.surface_add_vertex(q)
+		im.surface_end()
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.vertex_color_use_as_albedo = true
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		floor_mi = MeshInstance3D.new()
+		floor_mi.name = "EasyFloorGrid"
+		floor_mi.mesh = im
+		floor_mi.material_override = mat
+		floor_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		m.cam.get_parent().add_child(floor_mi)
+	floor_mi.visible = on
 
 func _draft_outline() -> PackedVector2Array:
 	var a: Vector2 = _draft["a"]
