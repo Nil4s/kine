@@ -90,8 +90,6 @@ var dlg := {}                  # the open feature dialog: {"t", "edit": index or
 var picked: Array = []         # fillet / chamfer: the picked edges (entries of edge_cache)
 var edge_cache: Array = []     # the pickable edges of the model as the dialog sees it
 var res := {}                  # the last replay of the record (Part.replay)
-var _rp_key := ""             # replay_once: the (record, step, want) of the last replay, so one press replays a record once
-var _rp_res: Dictionary = {}
 var prev := {}                 # the dialog's preview replay
 var hover_edge := -1
 var hover_face := -1           # offset face / draft: the face under the pointer (an index into face_cache)
@@ -2343,39 +2341,12 @@ func _rebuild(show: bool) -> void:
 	var want := {"edges": not easy, "faces": not easy, "body": _body_measures()}
 	if not pose.is_empty():
 		want["pose"] = pose   # a hinge turned by Play / the slider (the record is the same; only the view turns)
-	res = replay_once(_rec(), up, want)
+	res = Part.replay(_rec(), up, want)
 	if sk == "":
 		part_mesh.mesh = res["mesh"]
 		_look_surfaces()
 	edge_cache = res["edges"]
 	face_cache = res["faces"]
-
-
-## the replay the rebuild wants (the same keys as _rebuild): a press that replays the same record in the same frame gets the result back
-func want_full() -> Dictionary:
-	var w := {"edges": not easy, "faces": not easy, "body": _body_measures()}
-	if not pose.is_empty():
-		w["pose"] = pose
-	return w
-
-
-## Part.replay, but a call with the same record, step and wants as the last one returns that result (no second replay)
-func replay_once(rec: Dictionary, up: int, want: Dictionary) -> Dictionary:
-	var key := "%s|%d|%s" % [JSON.stringify(rec), up, JSON.stringify(want)]
-	if key != _rp_key:
-		_rp_key = key
-		_rp_res = Part.replay(rec, up, want)
-	return _rp_res
-
-
-## the full replay of a record a step has just changed (errors, volume, bodies, mesh): the rebuild after the press reuses it
-func replay_full(rec: Dictionary) -> Dictionary:
-	return replay_once(rec, -1, want_full())
-
-
-func replay_forget() -> void:
-	_rp_key = ""
-	_rp_res = {}
 
 
 func _note_sync() -> void:

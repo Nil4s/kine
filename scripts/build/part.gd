@@ -456,12 +456,7 @@ static func spline_curve(pts: Array, closed: bool, steps := 16) -> PackedVector2
 ## mass properties of each body (PartWeapon). Answers
 ## {"mesh": ArrayMesh or null, "volume": m3 (all bodies), "bodies": n, "volumes": [m3 each], "errors": {feature id: message}, "edges": [...], "aabb": AABB, "props": [...]}.
 ## Every shape made here is released before it returns.
-## REPLAYGAP probe: while calls_log is an Array, each replay appends [record hash, step, want keys, caller, line] (tests/replaygap_test.gd); null = off
-static var calls_log = null
 static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
-	if calls_log != null:
-		var st := get_stack()
-		calls_log.append([str(hash(JSON.stringify(rec))), str(upto), str(want.keys()), str(st[1]["function"]), str(st[1]["line"])])
 	var res := {"mesh": null, "volume": 0.0, "bodies": 0, "volumes": [], "errors": {}, "edges": [], "faces": [], "aabb": AABB(), "props": [], "looks": [], "body_looks": []}
 	if not available():
 		return res
