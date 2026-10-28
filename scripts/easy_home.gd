@@ -343,6 +343,7 @@ func build(root: Control) -> void:
 	fix.add_child(_strip_button("eh_from_video_strip", "From a video", "turn a video of one person into a move: pick the file (the same as More > Copy a video)", copy_video, Vector2(170, 56), 22))
 	fix.add_child(_strip_button("eh_cut_start", "Cut start", "drop the cards before the picked card: the clip starts there (one undo step)", trim.bind(true), Vector2(150, 56), 22))
 	fix.add_child(_strip_button("eh_cut_end", "Cut end", "drop the cards after the picked card: the clip ends there (one undo step)", trim.bind(false), Vector2(150, 56), 22))
+	fix.add_child(_strip_button("eh_save_strip", "Save scene", "save this clip's scene as a file (the same as More > Save the scene)", save_scene, Vector2(150, 56), 22))   # the beginner's first save: on the strip, not only in More (startwalk bar 3)
 	fix.add_child(_strip_button("eh_smoother", "Smoother", "smooth the motion one step: each pose blends with its neighbours (one undo step)", smooth, Vector2(170, 56), 22))
 	# THE SCRUB (walk-through: "no scrubber in Easy"): the third row, shown with a clip built; drag to pick the moment
 	_scrub_row = HBoxContainer.new()
