@@ -1514,9 +1514,12 @@ func _blend(rec: Dictionary) -> String:
 	var a: Dictionary = sks[sks.size() - 2]
 	var b: Dictionary = sks[sks.size() - 1]
 	var same := String(a["plane"]) == String(b["plane"])
+	var pa := Part.resolve_plane(rec, String(a["plane"]))
+	var pb := Part.resolve_plane(rec, String(b["plane"]))
+	# EBLEND: a loft between two shapes whose planes are at an angle (a round on a face, a box on the side face) makes an EMPTY solid: refuse it in words
+	if absf((pa["n"] as Vector3).dot(pb["n"] as Vector3)) < 0.999:
+		return "Those two shapes sit at an angle to each other, so they cannot blend. Draw both on the floor, or both on faces that face the same way, then press Blend two shapes again"
 	if not same:   # two offset planes (an upright sketch through the middle is one) at the same spot are the same plane
-		var pa := Part.resolve_plane(rec, String(a["plane"]))
-		var pb := Part.resolve_plane(rec, String(b["plane"]))
 		same = (pa["n"] as Vector3).dot(pb["n"] as Vector3) > 0.999 and ((pa["o"] as Vector3) - (pb["o"] as Vector3)).length() < 0.01 * Part.MM
 	if same:
 		var base := String(a["plane"]) if String(a["plane"]) in Part.PLANES else _base_plane(rec, String(a["plane"]))
@@ -1532,6 +1535,14 @@ func _blend(rec: Dictionary) -> String:
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
 		return "Those two shapes cannot be blended into one solid: draw both as closed shapes, then press Blend two shapes again"
+	# EBLEND: the loft alone must be a solid with volume (a loft that comes out empty used to be reported as blended)
+	var solo := {"version": 1, "name": "blend", "seq": 0, "features": []}
+	for g in rec["features"]:
+		if String(g["t"]) == "plane" or String(g["id"]) in [String(a["id"]), String(b["id"]), String(f["id"])]:
+			solo["features"].append(g)
+	var sr := Part.replay(solo)
+	if int(sr["bodies"]) != 1 or float(sr["volume"]) <= 1e-12:
+		return "Those two shapes cannot be blended into one solid: draw both as closed shapes that face the same way, then press Blend two shapes again"
 	tweak = {}
 	_say("Blended the two last shapes into one solid")
 	return ""

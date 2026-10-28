@@ -212,3 +212,4 @@ EXTRA="$EXTRA xwalk2:w"   # XWALK2: a beginner walk of EXPERT Part from the star
 EXTRA="$EXTRA nchaos2:w"   # nchaos2: minimal repros of the Easy Part chaos monkey (empty part record {} crash)
 EXTRA="$EXTRA ecolour:w"   # ECOLOUR: Easy Part colour: Red on one piece, Blue on the whole part, Ctrl+Z steps back through both; the red survives Use in a scene (the prop is drawn red) and My parts (the record reopens red, the picture is reddish) (tests/ecolour_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA ewords:w"   # EWORDS: every string Easy Part shows in a 40-press session is plain words (no sketch, profile, extrude, fillet, body ...): real clicks on every button (tests/ewords_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA eblend:w"   # EBLEND: Easy Part Blend two shapes for a beginner: a round base and a square top blend into ONE solid (vase); two shapes on faces at an angle are refused in words, no empty loft (tests/eblend_test.gd; needs the CAD DLL)
