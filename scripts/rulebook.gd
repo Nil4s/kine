@@ -586,8 +586,8 @@ static func rule_hitch(sm: Dictionary, holds: Array) -> Array:
 ## speed: each point's velocity just before the end against just after the start (one 60 fps frame each side); a
 ## change over LOOP_JUMP is a jump every lap, even when the poses meet
 ## a part's plain name (main.gd's, loaded when asked: main uses this class, a preload would be a cycle)
-static func _nice(j: String) -> String:
-	return load("res://scripts/main.gd").nice(j)
+static func _nice(j: String, wep := "") -> String:
+	return load("res://scripts/main.gd").nice_of(j, wep)
 
 
 static func rule_loop(S: Scene, B: Body) -> Array:
@@ -629,11 +629,11 @@ static func rule_loop(S: Scene, B: Body) -> Array:
 			v_start = vs
 	if wd > LOOP_DEG or wg > LOOP_GAP:
 		out.append(_f("WARN", L, "LOOP SEAM", "the loop's end does not meet its start: the %s is %.1f deg off and the %s ends %.1f cm from where it began (over %.0f deg or %.0f cm pops every lap). Make the last card a copy of the first ('Loop: close the seam')." % [
-			_nice(wj) if wj != "" else "-", wd, _nice(wp) if wp != "" else "-", wg * 100.0, LOOP_DEG, LOOP_GAP * 100.0], maxf(wd, wg * 100.0)))
+			_nice(wj, B.wep_kind) if wj != "" else "-", wd, _nice(wp, B.wep_kind) if wp != "" else "-", wg * 100.0, LOOP_DEG, LOOP_GAP * 100.0], maxf(wd, wg * 100.0)))
 		out[-1]["joint"] = wj
 	if vjump > LOOP_JUMP:
 		out.append(_f("WARN", L, "LOOP SEAM", "across the loop's seam the %s's speed jumps %.2f m/s (%.2f m/s at the end, %.2f m/s at the start; over %.1f m/s is a hitch every lap). End and start the same way: both on a hold, or the same move through the first card." % [
-			_nice(vj), vjump, v_end.length(), v_start.length(), LOOP_JUMP], vjump))
+			_nice(vj, B.wep_kind), vjump, v_end.length(), v_start.length(), LOOP_JUMP], vjump))
 		out[-1]["joint"] = vj
 	return out
 
