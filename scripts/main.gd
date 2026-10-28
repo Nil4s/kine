@@ -23540,6 +23540,30 @@ func _export_obj(dir := "user://exports") -> String:
 	return path
 
 
+## OBJ of ONE object (DELIVER, the export dialog's OBJ with "Only the selected object"; or one entry per object): the picked
+## set piece (the chair) or the body, each as its own group at its place (metres, Y up). Same objects as the .glb choice
+func _export_obj_objects(dir := "res://exports", only_selected := false) -> String:
+	dir = UserPaths.w(dir)
+	var objs := scene_objects()
+	if only_selected:
+		var want := selected_object_name()
+		objs = objs.filter(func(o): return String(o["name"]) == want)
+	if objs.is_empty():
+		_say_plain("NOT DONE: no mesh object to export (open the test cube, or add a set piece)")
+		return ""
+	var stem := String(objs[0]["name"]) if only_selected else safe_file(S.name if S.name != "" else "scene") + "_objects"
+	var meshes := []
+	for o in objs:
+		meshes.append({"name": String(o["name"]), "mesh": o["mesh"], "xf": Transform3D.IDENTITY, "color": ObjIO.DEFAULT_COLOR})
+	var path := "%s/%s.obj" % [dir, safe_file(stem)]
+	var r := ObjIO.export(meshes, path)
+	if not r["ok"]:
+		_say_plain("NOT DONE: the .obj could not be written (%s). Check that the folder is writable" % r["why"])
+		return ""
+	_say_plain("exported %s: %d mesh object%s (%s), static, metres, Y up, no animation" % [path.get_file(), objs.size(), "" if objs.size() == 1 else "s", ", ".join(objs.map(func(o): return String(o["name"])))])
+	return path
+
+
 ## MODEL EXPORT: the open model editor's mesh (the test cube, or the body mesh) as a static .glb and .obj in res://exports
 func _export_model() -> String:
 	if kmed == null or not kmed.on or kmed.mesh == null:
@@ -23593,8 +23617,8 @@ func scene_objects() -> Array:
 	var body := _obj_posed_meshes()
 	if not body.is_empty():
 		var am := ArrayMesh.new()
-		for e in body:
-			_append_surfaces(am, (e as Dictionary)["mesh"], Transform3D.IDENTITY)
+		for e in body:   # each entry at its own place: the held weapon carries its world transform (the OBJ writer uses it too)
+			_append_surfaces(am, (e as Dictionary)["mesh"], (e as Dictionary).get("xf", Transform3D.IDENTITY))
 		out.append({"name": "body", "mesh": am, "xf": Transform3D.IDENTITY})
 	if kmed != null and kmed.on and kmed.mesh != null:
 		var cube := ArrayMesh.new()

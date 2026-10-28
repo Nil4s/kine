@@ -49,8 +49,8 @@ const TARGETS := [
 		"app": "The .bvh holds one skeleton per file: every joint on every frame, metres, Y up, rotation order Z X Y. With several fighters, one .bvh each, placed where they stand. The .usda is UsdSkel with one time sample per frame; the weapons are not in it."},
 	{"id": "web", "label": "Web / three.js", "engine": "",
 		"needs": "A web app loads the .glb with three.js (GLTFLoader) or Babylon.js: glTF 2.0, metres, Y up, the front to +Z. Unverified in-engine: no browser loaded this file.",
-		"formats": [{"name": "glTF 2.0 (.glb)", "run": "glb"}],
-		"app": "One file: the mannequin, its skin, its one animation (a key on every frame) and the weapons as animated nodes. With several fighters, each one is its own armature at its place."},
+		"formats": [{"name": "glTF 2.0 (.glb)", "run": "glb"}, {"name": "Wavefront OBJ (.obj): static mesh, no animation", "run": "obj"}],
+		"app": "One file: the mannequin, its skin, its one animation (a key on every frame) and the weapons as animated nodes. With several fighters, each one is its own armature at its place. The .obj is a static mesh (metres, Y up): the body as it stands at the playhead, or the picked object (the set piece) under What to export."},
 	{"id": "raw", "label": "Raw data", "engine": "",
 		"needs": "For your own code. BVH is text: the joint hierarchy and each frame's channels. USD is text: one time sample per frame. The PoseTable is the ARPG's keys (degrees from its rest, eased) for 11 bones; its C# is the one the ARPG's Unity 6 project reads.",
 		"formats": [{"name": "BVH (.bvh): every joint, every frame", "run": "bvh"}, {"name": "USD (.usda): UsdSkel", "run": "usda"}, {"name": "PoseTable (.json + .cs): the ARPG", "run": "game"}, {"name": "USD layers (folder): root .usda, one .usda per layer", "run": "usda_layers"}],
@@ -218,7 +218,7 @@ func _refresh() -> void:
 	ui_info.text = "%s\n\nNeeds: %s" % [d["format"], d["needs"]]
 	ui_checks.text = "Checklist for this scene\n" + "\n".join(d["checks"])
 	ui_app.text = "What the app does: %s\n\nFrame rate: %s" % [d["app"], d["fps"]]
-	var plain := _cur_run() == "glb"
+	var plain := _cur_run() == "glb" or _cur_run() == "obj"
 	ui_what.disabled = not plain
 	var names := m.scene_object_names() as Array
 	var lst := ", ".join(names) if not names.is_empty() else "none"
@@ -321,6 +321,8 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 	var run := String((fs[clampi(fi, 0, fs.size() - 1)] as Dictionary)["run"])
 	if what > 0 and run == "glb":
 		return m._export_objects(dir, what == 1)
+	if run == "obj":   # OBJ: Everything is the posed body (the old writer); a picked object or one entry per object is its own mesh
+		return m._export_obj_objects(dir, what == 1) if what > 0 else m._export_obj(dir)
 	if run.begins_with("engine:"):
 		return m._export_engine(run.trim_prefix("engine:"), dir)
 	if run.begins_with("fbx"):
