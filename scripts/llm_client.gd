@@ -197,6 +197,10 @@ func chat(system: String, convo: Array, tools: Array) -> void:
 	if not backend in BACKENDS:
 		_finish({"ok": false, "why": "no backend '%s': pick one of %s in the AI box's model row" % [backend, ", ".join(BACKENDS)]})
 		return
+	var addr := base_of(backend, base_url)
+	if not (addr.begins_with("http://") or addr.begins_with("https://")):   # a typed word is no address: refused here, not sent (the engine logged "Invalid URL scheme")
+		_finish({"ok": false, "why": "'%s' is not a web address: the address in the AI box's model row must start with http:// or https:// (empty = the usual one)" % addr})
+		return
 	if backend != "ollama" and key == "":
 		_finish({"ok": false, "why": "%s needs your API key: type it in the AI box's model row (or pick ollama, on this machine)" % backend})
 		return
