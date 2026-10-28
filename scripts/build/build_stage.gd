@@ -67,7 +67,8 @@ static func use(S: Scene, part := {}) -> String:
 		if res["mesh"] == null:
 			return ""
 		var pk := "part:%s#%s" % [String(part.get("name", "Part")), str(hash(JSON.stringify(part)))]
-		Props.register_part(pk, res["mesh"])
+		Part.paint(res["mesh"], res["looks"])
+		Props.register_part(pk, res["mesh"], true)
 		var pp := Props.make(pk, Transform3D.IDENTITY)
 		pp["part_rec"] = part.duplicate(true)
 		S.props.append(pp)
@@ -85,7 +86,8 @@ static func restore_part(kind: String, rec: Dictionary) -> String:
 	var res := Part.replay(rec)
 	if res["mesh"] == null:
 		return ""
-	Props.register_part(kind, res["mesh"])
+	Part.paint(res["mesh"], res["looks"])
+	Props.register_part(kind, res["mesh"], true)
 	return kind
 
 

@@ -11,7 +11,7 @@ extends RefCounted
 ##     {"t": "fillet",  "id": "f5", "name": "Fillet1", "body": 0, "r": 2.0, "edges": [{"p": [x, y, z], "q": [..], "d": [..]}]},
 ##     {"t": "chamfer", ... "dist": 1.0 ...},  {"t": "mirror", "id": ..., "plane": "front"|"top"|"right", "op": "join"},
 ##     extrude also has "taper": degrees (>0 narrows as it goes) and op "intersect" (keeps only the part inside the new solid);
-##     {"t": "split", "id": ..., "plane": "front"|"top"|"right", "at": mm (offset along the plane's normal)} cuts EVERY body the plane crosses in two;
+##     {"t": "split", "id": ..., "plane": "front"|"top"|"right", "at": mm (offset along the plane's normal), "keep": 0 | 1 | -1} cuts EVERY body the plane crosses in two (keep 1 / -1: only the half on the normal's side / the other half stays);
 ##     {"t": "shell", "id": ..., "body": N, "thick": mm, "open": "" | "+x" | "-x" | "+y" | "-y" | "+z" | "-z"} hollows body N with walls thick mm,
 ##     the planar face that points that way open ("" = no face open: a closed cavity),
 ##     {"t": "hinge", "id": ..., "name": "Hinge1", "body": 0, "o": [x, y, z] (mm), "axis": [x, y, z], "track": [[t_s, deg], ...]}]}
@@ -199,7 +199,9 @@ static func from_file(d: Variant) -> Dictionary:
 			out["seq"] = maxi(int(out["seq"]), int(String(f["id"]).trim_prefix("f")))
 	if (d as Dictionary).get("easy") is Dictionary and (d as Dictionary)["easy"].has("t"):
 		out["easy"] = (d as Dictionary)["easy"].duplicate(true)   # EASY PART: the template's numbers (scripts/build/part_templates.gd)
-	return out if not out["features"].is_empty() else {}
+	if bool((d as Dictionary).get("kept", false)):
+		out["kept"] = true   # an EMPTY part the user chose (Easy's Empty): a part with no steps that undo and redo bring back as it was
+	return out if not out["features"].is_empty() or out.has("kept") else {}
 
 
 # ---------------------------------------------------------------- sketch entities and dimensions
@@ -522,7 +524,13 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					errs[id] = "there is nothing to mirror"
 					continue
 				var pl := plane(String(f.get("plane", "right")))
-				var u: int = KCad.mirror_join(bodies[-1], Vector3.ZERO, pl["n"])
+				var mo := Vector3.ZERO   # EMIRROR: a piece off the middle line is mirrored across the middle of the PART (its box centre), not the world line
+				if bool(f.get("mid", false)):
+					var pbb := AABB()
+					for pb in bodies:
+						pbb = pbb.merge(_piece_box(int(pb))) if pbb.size != Vector3.ZERO else _piece_box(int(pb))
+					mo = Vector3(pbb.get_center().x, 0.0, 0.0)
+				var u: int = KCad.mirror_join(bodies[-1], mo, pl["n"])
 				if u == 0:
 					errs[id] = KCad.last_error()
 				else:
@@ -1454,15 +1462,23 @@ static func _split(bodies: Array, f: Dictionary, looks: Array = []) -> String:
 		return "the plane does not cut the body"
 	var out := []
 	var k := 0
+	var keep := int(f.get("keep", 0))   # ECUT2: 0 both halves, 1 only the half on n's side (upper), -1 only the other (lower)
 	for i in bodies.size():
 		if k < pieces.size() and int(pieces[k][0]) == i:
-			out.append(pieces[k][1])
-			out.append(pieces[k][2])
+			if keep > 0:
+				KCad.release(pieces[k][2])
+				out.append(pieces[k][1])
+			elif keep < 0:
+				KCad.release(pieces[k][1])
+				out.append(pieces[k][2])
+			else:
+				out.append(pieces[k][1])
+				out.append(pieces[k][2])
 			KCad.release(bodies[i])
 			k += 1
 		else:
 			out.append(bodies[i])
-	_split_looks(looks, bodies.size(), pieces)
+	_split_looks(looks, bodies.size(), pieces if keep == 0 else [])   # a kept half is one body: its look is the cut body's, not two
 	bodies.clear()
 	bodies.append_array(out)
 	return ""
@@ -1681,6 +1697,23 @@ static func canvas_mm_to_px(f: Dictionary, mm: Vector2) -> Vector2:
 
 
 ## APPEARANCE helpers (GAP 5): the look of each body, kept beside the bodies in replay()
+## COLOUR KEPT (Use in a scene, My parts picture): each surface of a replayed mesh gets its body's look as its own material, so a
+## prop or a picture drawn from the bare mesh keeps the colour (the view's override would paint them all one grey)
+static func paint(mesh: ArrayMesh, looks: Array) -> void:
+	for s in mini(looks.size(), mesh.get_surface_count()):
+		var l: Dictionary = looks[s]
+		var c: Color = l["c"]
+		var a := float(l["alpha"])
+		var mt := StandardMaterial3D.new()
+		mt.albedo_color = Color(c.r, c.g, c.b, a)
+		mt.roughness = float(l["rough"])
+		mt.metallic = float(l["metal"])
+		mt.cull_mode = BaseMaterial3D.CULL_DISABLED
+		if a < 1.0:
+			mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mesh.surface_set_material(s, mt)
+
+
 static func look_of(f: Dictionary) -> Dictionary:
 	var c: Array = f.get("color", [0.74, 0.77, 0.82])
 	return {"c": Color(float(c[0]), float(c[1]), float(c[2])), "rough": float(f.get("rough", 0.5)), "metal": float(f.get("metal", 0.15)),

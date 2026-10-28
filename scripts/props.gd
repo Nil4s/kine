@@ -158,12 +158,12 @@ static func register_building(kind: String, boxes: Array, supports: Array, ramps
 ## A Part in the set (BuildStage.use): its solid is its bounding box, standing on the floor and centred (as an imported model's); its node is
 ## the part's own tessellation, placed the same way (mesh_at). Its kind carries a hash of its record ("part:<name>#<hash>"), and the prop
 ## keeps the record ("part_rec" in the scene file): a load replays it (BuildStage.restore_part), so the part is not skipped
-static func register_part(kind: String, mesh: ArrayMesh) -> void:
+static func register_part(kind: String, mesh: ArrayMesh, painted := false) -> void:
 	var bx := mesh.get_aabb()
 	var sz := bx.size
 	EXTRA[kind] = {"label": "%s (from Part, %.0f x %.0f x %.0f cm)" % [kind.trim_prefix("part:").get_slice("#", 0), sz.x * 100.0, sz.y * 100.0, sz.z * 100.0],
 		"solids": [[Vector3(0, sz.y * 0.5, 0), sz]], "supports": [[sz.y, Vector2.ZERO, Vector2(sz.x, sz.z)]],
-		"mesh": mesh, "mesh_at": -Vector3(bx.get_center().x, bx.position.y, bx.get_center().z)}
+		"mesh": mesh, "mesh_at": -Vector3(bx.get_center().x, bx.position.y, bx.get_center().z), "painted": painted}
 
 
 ## A VEHICLE as a kind (B3, scripts/vehicle.gd prop_solids): boxes for the body and the wheels, drawn as boxes like the rest.
@@ -499,7 +499,8 @@ static func mesh(p: Dictionary) -> Node3D:
 	if kd.get("mesh") is ArrayMesh:   # a Part in the set: its own tessellation (register_part), centred on the prop like a box
 		var pm := MeshInstance3D.new()
 		pm.mesh = kd["mesh"]
-		pm.material_override = mat
+		if not bool(kd.get("painted", false)) or p.has("mat"):   # a painted part keeps each body's colour (Part.paint); a photo material still wins
+			pm.material_override = mat
 		pm.position = kd["mesh_at"]
 		root.add_child(pm)
 		return root

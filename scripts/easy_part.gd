@@ -68,6 +68,9 @@ var hole_btns := {}
 var hole_base: Dictionary = {}   # the record before the last Cut a hole press: each chip rebuilds the hole from it ({} = no hole chips)
 var hole_id := ""                # the feature id of the last hole step (the hole's sketch, or the hollow's shell): its slider's step
 var hole_mode := "through"       # "through" | "hollow": the chip that is on
+var split_box: PanelContainer   # ECUT2: Cut in two's keep chips (both halves / the lower half / the upper half), after a Cut in two press (see _split_on)
+var split_btns := {}
+var split_id := ""              # the feature id of the last Cut in two step: the keep chips edit its "keep" field
 var colour_box: PanelContainer   # Colour: the five colour chips and Glass / Metal, under the MAKE row (armed "colour")
 var panel: PanelContainer
 var panel_vb: VBoxContainer   # the panel's column: it scrolls inside the panel when the window is short (1280 x 720)
@@ -206,6 +209,8 @@ func build(root: Control) -> void:
 	root.add_child(shape_box)
 	hole_box = _hole_box()
 	root.add_child(hole_box)
+	split_box = _split_box()
+	root.add_child(split_box)
 	colour_box = _colour_box()
 	root.add_child(colour_box)
 	repeat_box = _repeat_box()
@@ -321,6 +326,25 @@ func _hole_box() -> PanelContainer:
 		b.custom_minimum_size = Vector2(150, 44)
 		h.add_child(b)
 		hole_btns[hm[0]] = b
+	return box
+
+
+## ECUT2: Cut in two keeps ONE half: three toggle chips after a Cut in two press. Both halves is the default (two bodies); the lower or upper half
+## keeps only that side of the cut (one body). Each chip is one undo step; the slider still moves the cut
+func _split_box() -> PanelContainer:
+	var box := PanelContainer.new()
+	box.name = "easypart_split"
+	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	box.visible = false
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 6)
+	box.add_child(h)
+	for sk in [["both", "Keep both halves", "Keep both pieces of the cut (two bodies)"], ["lower", "Keep the lower half", "Keep only the half on the lower side of the cut (one body)"], ["upper", "Keep the upper half", "Keep only the half on the upper side of the cut (one body)"]]:
+		var b := _big_btn("easypart_split_" + String(sk[0]), String(sk[1]), String(sk[2]), _split_keep.bind(String(sk[0])))
+		b.toggle_mode = true
+		b.custom_minimum_size = Vector2(190, 44)
+		h.add_child(b)
+		split_btns[sk[0]] = b
 	return box
 
 
@@ -477,6 +501,7 @@ func entered() -> void:
 	tweak = {}
 	rep_id = ""
 	hole_base = {}
+	split_id = ""
 	stick_picks = []
 	_draft = {}
 	_drag = {}
@@ -507,6 +532,16 @@ func to_expert() -> void:
 	pu.easy = false
 	pu.bu.sync()
 	m._fit_top.call_deferred()
+
+
+## an error the Part tools give, in words a child reads: sketch -> shape, body -> solid, and anything still technical -> a plain line
+static func _plain(e: String) -> String:
+	var t := e.replace("its sketch is gone", "its shape is gone").replace("sketch", "shape").replace("body", "solid").replace("feature", "step").replace("extrude", "pull").replace("fillet", "round").replace("loft", "blend").replace("boolean", "join").replace("profile", "shape")
+	var jargon := RegEx.new()
+	jargon.compile("(?i)\\b(kernel|manifold|mesh|primitive|kcad|revolve|shell|plane|offset|dll|cad|wire|f\\d{1,2})\\w*")
+	if jargon.search(t) != null:
+		return "That step cannot be made here: Undo takes the last step back"
+	return t
 
 
 func _say(t: String) -> void:
@@ -721,6 +756,27 @@ func _rows_sync() -> void:
 	_values_sync()
 
 
+## ESAVE: a record opened again (My parts, Change the part): the slider of its NEWEST step comes back (a Wall of a hollow, a How far of a
+## pull up, a Hole size of a hole); none when the newest step has no slider (the record is shown without one, as a fresh start)
+func tweak_last() -> void:
+	tweak = {}
+	var fs: Array = _rec().get("features", [])
+	if fs.is_empty():
+		return
+	var f: Dictionary = fs[-1]
+	var t := String(f.get("t", ""))
+	if t == "shell":
+		tweak = {"id": f["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
+	elif t == "extrude" and not bool(f.get("both", false)) and String(f.get("op", "join")) == "join" and f.has("dist"):
+		var dist := float(f["dist"])
+		tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": 40.0, "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": -1.0 if dist < 0.0 else 1.0}
+	elif t == "extrude" and bool(f.get("both", false)) and String(f.get("op", "")) == "cut":
+		var sk := Part.feature(_rec(), String(f.get("sketch", "")))
+		var ents: Array = sk.get("ents", [])
+		if ents.size() == 1 and String(ents[0].get("k", "")) == "circle" and sk.has("plane") and String(sk.get("plane", "")) in ["front", "top"]:
+			tweak = {"id": sk["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}
+
+
 func _tweak_value() -> float:
 	var f := Part.feature(_rec(), String(tweak["id"]))
 	if f.is_empty():
@@ -759,6 +815,7 @@ func _chip(t: String) -> void:
 		return
 	armed = ""
 	hole_base = {}
+	split_id = ""
 	_flush_if_dirty()
 	m._step_hint = "Start a " + t
 	m._push_undo()
@@ -781,6 +838,7 @@ func _empty() -> void:
 	m._step_hint = "Start an empty part"
 	m._push_undo()
 	m.S.part = Part.make("Part")
+	m.S.part["kept"] = true   # the user chose an empty part: undo and redo keep it (Part.from_file); a feature-less record otherwise means no part
 	tweak = {}
 	pu.upto = -1
 	pu.sync()
@@ -854,6 +912,8 @@ func _make(which: String) -> void:
 		hole_base = {}   # any other press ends the hole choice: its chips go
 	if which != "repeat":
 		rep_id = ""
+	if which != "split":
+		split_id = ""
 	if which == "stick":
 		stick_picks = []
 		if armed == "stick":
@@ -905,6 +965,8 @@ func _make(which: String) -> void:
 		_say(why)
 	else:
 		_end()
+		if which == "split":
+			split_id = String(tweak.get("id", ""))   # the keep chips edit this cut step
 		if which == "hole":   # the chips rebuild the hole from the record before this press
 			hole_base = snap
 			hole_id = String(tweak.get("id", ""))
@@ -963,7 +1025,7 @@ func _hollow(rec: Dictionary) -> String:
 		return "Nothing solid to hollow out yet. Press Pull it up first"
 	var bb: AABB = res["aabb"]
 	var thin := minf(bb.size.x, minf(bb.size.y, bb.size.z)) / Part.MM   # the body's smallest size (mm): a wall needs room on both sides
-	var too_thin := "That body is too thin to hollow out with a 3 mm wall: Pull it up taller, then press Cut a hole again"
+	var too_thin := "That solid is too thin to hollow out with a 3 mm wall: Pull it up taller, then press Cut a hole again"
 	if thin <= 2.0 * HOLLOW_MM:
 		return too_thin
 	var f := Part.new_feature(rec, "shell", {"body": n - 1, "open": "+y", "thick": HOLLOW_MM})
@@ -1028,7 +1090,7 @@ func _pull(rec: Dictionary) -> String:
 	if through:
 		_say("Pulled out both ways from the middle: use the slider for how thick")
 	elif on_face:
-		_say("Pulled into the body: use the slider to change it" if inward else "Pulled out of the face: use the slider to change it")
+		_say("Pulled into the solid: use the slider to change it" if inward else "Pulled out of the face: use the slider to change it")
 	else:
 		tweak["say"] = "Pulled up %s: use the slider to change it"   # the words follow the slider (a beginner walk: "2 cm" stayed at 8 cm)
 		_say(String(tweak["say"]) % _fmt(2.0, "cm"))
@@ -1080,6 +1142,8 @@ func _spin(rec: Dictionary) -> String:
 		# vertical axis, x = 0), so the profile must lie on one side of that line. Its lowest point goes down to the floor.
 		_lift_to_floor(sk)
 		axis = "y"
+	if axis == "y" and _past_axis(sk) < -3.0 and _on_left(sk):
+		_flip_x(sk)   # a drawing wholly on the -X side is the same solid as its mirror image on the +X side (a lathe is symmetric): flip it, then spin
 	if axis == "y" and _past_axis(sk) < -3.0:
 		sk.clear()
 		sk.merge(before, true)
@@ -1133,6 +1197,22 @@ func _past_axis(sk: Dictionary) -> float:
 			for q in _ent_pts(e):
 				lo = minf(lo, float(q[0]))
 	return lo
+
+
+## true when no point of the drawing is on the +X side of the middle line (x <= 0.5 mm everywhere)
+func _on_left(sk: Dictionary) -> bool:
+	for e in sk["ents"]:
+		for q in _ent_pts(e):
+			if float(q[0]) > 0.5:
+				return false
+	return true
+
+
+## every point of the drawing reflects across the middle line (x = -x, mm); a circle's centre moves with it, its radius does not
+func _flip_x(sk: Dictionary) -> void:
+	for e in sk["ents"]:
+		for q in _ent_pts(e):
+			q[0] = -float(q[0])
 
 
 ## every point of the drawing moves down by lo (mm) in its own plane
@@ -1293,7 +1373,7 @@ func _face_hole(rec: Dictionary) -> String:
 			var p := Vector2(lerpf(lo.x, hi.x, i / 2.0), lerpf(lo.y, hi.y, j / 2.0))
 			depth = minf(depth, _first_inside(tris, p, out))
 	if depth == INF:
-		return "The shape is not on the body: nothing was cut"
+		return "The shape is not on the solid: nothing was cut"
 	var sgn := -out   # the cut goes INTO the body, against the face's normal side
 	var f := Part.new_feature(rec, "extrude", {"sketch": sk["id"], "dist": sgn * snappedf(depth + 0.5, 0.1), "both": false, "op": "cut"})
 	rec["features"].append(f)
@@ -1481,14 +1561,19 @@ func _mirror(rec: Dictionary) -> String:
 	var res := Part.replay(rec)
 	if int(res["bodies"]) == 0:
 		return "Nothing solid to mirror yet. Press Pull it up first"
+	var bb: AABB = res["aabb"]
+	var off := bb.position.x > 0.0005 or bb.end.x < -0.0005   # EMIRROR: the solid does not touch the middle line (x = 0)
 	var f := Part.new_feature(rec, "mirror", {"plane": "right", "op": "join"})
+	if off:
+		f["mid"] = true   # the mirror plane goes through the middle of the part, not the world line
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
 		return "That shape cannot be mirrored"
 	tweak = {}
 	var after := Part.replay(rec)
 	var gap := int(after["bodies"]) == 1 and _lumps(after) > 1   # the mirror left a gap: the same test as the status line
-	_say("Mirrored across the middle line" + (": the two halves do not touch. Push them together with Stick together" if gap else ""))
+	var where := "across the middle of the part" if off else "across the middle line"
+	_say("Mirrored %s" % where + (": the two halves do not touch. Push them together with Stick together" if gap else ""))
 	return ""
 
 
@@ -1504,9 +1589,12 @@ func _blend(rec: Dictionary) -> String:
 	var a: Dictionary = sks[sks.size() - 2]
 	var b: Dictionary = sks[sks.size() - 1]
 	var same := String(a["plane"]) == String(b["plane"])
+	var pa := Part.resolve_plane(rec, String(a["plane"]))
+	var pb := Part.resolve_plane(rec, String(b["plane"]))
+	# EBLEND: a loft between two shapes whose planes are at an angle (a round on a face, a box on the side face) makes an EMPTY solid: refuse it in words
+	if absf((pa["n"] as Vector3).dot(pb["n"] as Vector3)) < 0.999:
+		return "Those two shapes sit at an angle to each other, so they cannot blend. Draw both on the floor, or both on faces that face the same way, then press Blend two shapes again"
 	if not same:   # two offset planes (an upright sketch through the middle is one) at the same spot are the same plane
-		var pa := Part.resolve_plane(rec, String(a["plane"]))
-		var pb := Part.resolve_plane(rec, String(b["plane"]))
 		same = (pa["n"] as Vector3).dot(pb["n"] as Vector3) > 0.999 and ((pa["o"] as Vector3) - (pb["o"] as Vector3)).length() < 0.01 * Part.MM
 	if same:
 		var base := String(a["plane"]) if String(a["plane"]) in Part.PLANES else _base_plane(rec, String(a["plane"]))
@@ -1522,6 +1610,14 @@ func _blend(rec: Dictionary) -> String:
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
 		return "Those two shapes cannot be blended into one solid: draw both as closed shapes, then press Blend two shapes again"
+	# EBLEND: the loft alone must be a solid with volume (a loft that comes out empty used to be reported as blended)
+	var solo := {"version": 1, "name": "blend", "seq": 0, "features": []}
+	for g in rec["features"]:
+		if String(g["t"]) == "plane" or String(g["id"]) in [String(a["id"]), String(b["id"]), String(f["id"])]:
+			solo["features"].append(g)
+	var sr := Part.replay(solo)
+	if int(sr["bodies"]) != 1 or float(sr["volume"]) <= 1e-12:
+		return "Those two shapes cannot be blended into one solid: draw both as closed shapes that face the same way, then press Blend two shapes again"
 	tweak = {}
 	_say("Blended the two last shapes into one solid")
 	return ""
@@ -1549,6 +1645,53 @@ func _cut(rec: Dictionary) -> String:
 	tweak = {"id": f["id"], "field": "at", "label": "Where to cut", "unit": "cm", "lo": snappedf(lo_mm * 0.1 + 0.2, 0.1), "hi": snappedf(hi_mm * 0.1 - 0.2, 0.1), "step": 0.1, "scale": 10.0, "words": ["Toward one end", "Toward the other end"]}
 	_say("Cut in two across the middle: drag the slider to move the cut")
 	return ""
+
+
+## ECUT2: the keep chips are shown while the newest step is the cut (its slider's step) and nothing is armed
+func _split_on() -> bool:
+	return split_id != "" and armed == "" and String(tweak.get("id", "")) == split_id and not Part.feature(_rec(), split_id).is_empty()
+
+
+func _split_sync() -> void:
+	var keep := _split_keep_of()
+	for k in split_btns:
+		(split_btns[k] as Button).set_pressed_no_signal(k == keep)
+
+
+func _split_keep_of() -> String:
+	var f := Part.feature(_rec(), split_id)
+	var kp := int(f.get("keep", 0))
+	return "upper" if kp > 0 else ("lower" if kp < 0 else "both")
+
+
+## a keep chip: the cut step's "keep" field changes (one undo step). A chip that is already on changes nothing; a refusal changes nothing
+func _split_keep(key: String) -> void:
+	if not _split_on() or not Part.available() or key == _split_keep_of():
+		_split_sync()
+		return
+	_flush_if_dirty()
+	armed = ""
+	var snap := _rec().duplicate(true)
+	_begin("Keep " + String(split_btns[key].text).trim_prefix("Keep ").to_lower())
+	var rec := _rec()
+	var kp := 0 if key == "both" else (1 if key == "upper" else -1)
+	Part.feature(rec, split_id)["keep"] = kp
+	var why := _last_error(rec, split_id)
+	if why == "" and kp != 0 and int(Part.replay(rec)["bodies"]) == 0:
+		why = "Nothing would be left: keep both halves"
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("That half cannot be kept: " + why)
+	else:
+		_end()
+		_say("Kept the upper half: the other half is gone (Undo brings it back)" if kp > 0 else ("Kept the lower half: the other half is gone (Undo brings it back)" if kp < 0 else "Kept both halves of the cut"))
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	_split_sync()
 
 
 ## COLOUR: one appear step per body (Part's "appear" feature, the look Expert's Appearance writes), all in ONE undo step. A material
@@ -1622,7 +1765,7 @@ func _rep_corners() -> void:
 	_rep_sync()
 	var err: String = Part.replay(_rec())["errors"].get(rep_id, "")
 	if err != "":
-		_say(err + ". Move the piece onto a corner of the piece it sits on, then press Corners again, or undo")
+		_say(_plain(err) + ". Move the piece onto a corner of the piece it sits on, then press Corners again, or undo")
 	else:
 		_say("Corners: four copies, one at each corner of the piece it sits on")
 
@@ -1660,12 +1803,14 @@ func _stick(op: String, label: String) -> void:
 	rec["features"].append(f)
 	armed = ""
 	var why := _last_error(rec, String(f["id"]))
+	if why == "" and op == "join":   # JOIN: the two picks must touch (apart pieces would "join" into one body with a gap: refused, nothing changes)
+		why = _join_gap(Part.body_faces(snap, -1), stick_picks)
 	stick_picks = []
 	if why != "":
 		m.S.part = snap
 		m._drop_undo()
 		_edit_n = -1
-		_say("Those two pieces cannot do that: " + why)
+		_say("Those two pieces cannot do that: " + _plain(why))
 	else:
 		_end()
 		_say("%s: the two pieces are one solid now" % label)
@@ -1674,6 +1819,16 @@ func _stick(op: String, label: String) -> void:
 	pu.sync()
 	_rows_sync()
 	_values_sync()
+
+
+## JOIN: the two picked pieces must touch (the smallest distance between their triangles is under 0.05 mm). "" or the words for the user
+static func _join_gap(before: Array, picked: Array) -> String:
+	if picked.size() < 2:
+		return ""
+	var gap := Part._tri_dist(before[int(picked[0])], before[int(picked[1])])
+	if gap > 0.00005:
+		return "the two pieces do not touch, so Join cannot make one solid: move one until it touches the other, then press Stick together again"
+	return ""
 
 
 ## a click in the view while Stick together is armed: the body under the pointer is picked (a second click takes it off)
@@ -1809,6 +1964,9 @@ func _process(_dt: float) -> void:
 	dots.visible = on
 	shape_box.visible = on and armed == "draw"
 	hole_box.visible = on and _hole_on()
+	split_box.visible = on and _split_on()
+	if split_box.visible:
+		_split_sync()
 	colour_box.visible = on and armed == "colour"
 	repeat_box.visible = on and armed == "" and rep_id != "" and not Part.feature(_rec(), rep_id).is_empty()
 	stick_box.visible = on and armed == "stick" and stick_picks.size() == 2
@@ -1872,7 +2030,7 @@ func _frame_step() -> void:
 ## the free view: the clear view minus the MAKE row above and the side panel at the right, minus the status line at the bottom
 func free_rect() -> Rect2:
 	var top := _cl.position.y + 4.0 + MAKE_H + 8.0
-	for c in [hint, hole_box, shape_box, colour_box, repeat_box, stick_box]:   # the words and the chip rows under the MAKE row: the part sits below them
+	for c in [hint, hole_box, split_box, shape_box, colour_box, repeat_box, stick_box]:   # the words and the chip rows under the MAKE row: the part sits below them
 		if c != null and (c as Control).visible:                               # (ewalk4: the Through / Hollow inside chips covered the mug's rim)
 			top = maxf(top, (c as Control).get_global_rect().end.y + 8.0)
 	var x1 := _cl.end.x - PW - 16.0
@@ -1968,7 +2126,7 @@ func _chrome_sync() -> void:
 	var errs: Dictionary = res.get("errors", {}) if not res.is_empty() else {}
 	var bodies := int(res.get("bodies", 0)) if not res.is_empty() else 0
 	if off:
-		status_l.text = "Greyed out: the CAD part of Kine is missing"
+		status_l.text = "Greyed out: this tool is not in this copy of Kine"
 	elif rec.is_empty():
 		status_l.text = "Nothing here yet"
 	elif not errs.is_empty():
@@ -2016,6 +2174,8 @@ func layout(cl: Rect2) -> void:
 	shape_box.position = Vector2(cl.position.x + 12.0, top + hint.size.y + 6.0)
 	hole_box.reset_size()
 	hole_box.position = shape_box.position
+	split_box.reset_size()
+	split_box.position = shape_box.position
 	colour_box.reset_size()
 	colour_box.position = shape_box.position
 	# the Repeat it and Stick together rows sit at the lower left, above the one sentence, off the model's pieces
@@ -2401,9 +2561,75 @@ func _ground(p: Vector2, pl: Dictionary = {}) -> Variant:
 	return Vector2(snappedf(q.x, 5.0), snappedf(q.y, 5.0))
 
 
+## EKEYS: a key press on the Easy screen. Escape cancels a half-drawn shape or a drag in hand (nothing is written, no step is left);
+## Delete takes out the newest piece as one undo step. Ctrl+Z / Ctrl+Y are main's (_undo / _redo) and need nothing here
+func _key(k: InputEventKey) -> void:
+	if not k.pressed or k.echo or not active() or not Part.available():
+		return
+	var fo := get_viewport().gui_get_focus_owner()
+	if fo is LineEdit or fo is SpinBox:
+		return   # a typed number keeps its keys
+	if k.keycode == KEY_ESCAPE:
+		if not _draft.is_empty():
+			_draft = {}
+			_bar_press = null
+			_press_btn = null
+			dots.queue_redraw()
+			_say("Drawing cancelled. Draw it again")
+			get_viewport().set_input_as_handled()
+		elif not _drag.is_empty():
+			_cancel_drag()
+			get_viewport().set_input_as_handled()
+	elif k.keycode == KEY_DELETE and not k.ctrl_pressed and not k.alt_pressed:
+		_delete_newest()
+		get_viewport().set_input_as_handled()
+
+
+## a drag in hand let go with Escape: the amber dot goes back where it was; the drag moved nothing in the record (it writes on the release), so its step goes
+func _cancel_drag() -> void:
+	_drag = {}
+	_pending = {}
+	_dirty = false
+	_end()
+	_rows_sync()
+	_say("Drag cancelled")
+
+
+## Delete: the newest piece goes (its sketch and a face plane made for it, or its pull, spin, round, hole ...), one undo step. A template part keeps its own pieces (its sliders make them): it says so
+func _delete_newest() -> void:
+	if not _drag.is_empty() or not _draft.is_empty():
+		return
+	if _tpl() != "":
+		_say("A template's pieces come from its sliders: move a slider, or Undo takes a change back")
+		return
+	var fs: Array = _rec().get("features", [])
+	if fs.is_empty():
+		_say("Nothing to delete yet")
+		return
+	_flush_if_dirty()
+	var newest: Dictionary = fs.back()
+	_begin("Delete " + String(newest.get("name", "piece")))
+	var rec := _rec()
+	var gone: Dictionary = (rec["features"] as Array).pop_back()
+	var fs2: Array = rec["features"]
+	var back_f: Dictionary = fs2.back() if not fs2.is_empty() else {}
+	if String(gone.get("t", "")) != "plane" and not back_f.is_empty() and String(back_f.get("t", "")) == "plane":
+		fs2.pop_back()   # the face plane made for that sketch goes with it
+	armed = ""
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_end()
+	_say("Took out the newest piece. Undo puts it back")
+
+
 ## a press on the top bar's BUTTONS never reaches input() (the button takes it in the GUI pass first): this sees it before the GUI,
 ## notes it, and lets the button have it. A drag that then leaves the bar starts the sketch (input() below, from the noted press)
 func _input(ev: InputEvent) -> void:
+	if ev is InputEventKey:
+		_key(ev as InputEventKey)   # EKEYS: Escape and Delete (Ctrl+Z / Ctrl+Y are main's undo and redo)
+		return
 	# a sketch in progress follows the pointer and ends on the release even over a control (a chip row, the bar): the controls
 	# take those events before the unhandled pass, so a roof's apex under the chips would stop the drag
 	if ev is InputEventMouseMotion:
