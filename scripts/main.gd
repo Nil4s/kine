@@ -14585,13 +14585,12 @@ static func easy_is_jargon(n: String) -> bool:
 
 
 ## EASY: the place of a copied-video card in its run of copied cards (the v<frame> cards in a row), 1 for the run's first
-func _copy_place(i: int) -> int:
-	var k := 1
-	var j := i - 1
-	while j >= 0 and _is_copy_name(String(S.cards[j]["name"])):
-		k += 1
-		j -= 1
-	return k
+func _copy_place(i: int) -> int:   # the copied cards up to and including card i: unique even when a pose or a cut sits between them
+	var k := 0
+	for j in range(0, i + 1):
+		if _is_copy_name(String(S.cards[j]["name"])):
+			k += 1
+	return maxi(k, 1)
 
 
 static func _is_copy_name(n: String) -> bool:
@@ -15108,7 +15107,10 @@ func _card_pick(i: int) -> void:
 	Scene.put(B, Moves._flat(S.cards[i]["pose"]))
 	_rebuild_cards()
 	_refresh()
-	_say("card %d '%s': change the body, then 'Update' on the card to keep it" % [i + 1, S.cards[i]["name"]])
+	if easy != null and easy.on:   # Easy shows no 'Update': the card's words, and the button that is on screen
+		_say("%s is picked: drag his arms and legs to change this moment, then + Add pose adds it as a new card after it." % _easy_card_name(String(S.cards[i]["name"]), i))
+	else:
+		_say("card %d '%s': change the body, then 'Update' on the card to keep it" % [i + 1, S.cards[i]["name"]])
 
 
 ## the ViewCube sits in the view's top-right corner: left of the right panel, or the screen's corner in big view
