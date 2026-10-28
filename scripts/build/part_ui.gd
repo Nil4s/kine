@@ -1051,7 +1051,7 @@ func _release(p: Vector2) -> bool:
 	if (draft["a"] as Vector2).distance_to(draft["b"]) < maxf(snap_mm * 0.9, 0.5):
 		if String(draft.get("k", "")) == "circle":   # XFIX: a short circle drag cancels in words (no half circle for the next click)
 			draft = {}
-			_say("Drag further to set the size")
+			_say("Drag further to set the size (or hold on the centre and type the radius, then Enter)")   # XDIM: the typed radius is the exact way
 			pov.queue_redraw()
 			return true
 		draft["down"] = false   # a click, not a drag: the second click is the other corner
@@ -1111,20 +1111,71 @@ func _motion(p: Vector2) -> bool:
 	return false
 
 
+## XDIM: a typed digit / point / x (x only for a rectangle's WxH), or "" for any other key
+func _typed_key(k: InputEventKey, x_too: bool) -> String:
+	if k.keycode >= KEY_0 and k.keycode <= KEY_9:
+		return str(k.keycode - KEY_0)
+	if k.keycode >= KEY_KP_0 and k.keycode <= KEY_KP_9:
+		return str(k.keycode - KEY_KP_0)
+	if k.keycode in [KEY_PERIOD, KEY_KP_PERIOD]:
+		return "."
+	if x_too and k.keycode == KEY_X:
+		return "x"
+	return ""
+
+
+## XDIM: Enter on a typed size: a rectangle "40x30" (width x height, from its first corner, on the side the pointer is on),
+## a circle "12" (its radius, from the centre). A size that is no number above 0 says what to type and adds nothing.
+func _typed_size() -> bool:
+	var a: Vector2 = draft["a"]
+	var cur: Vector2 = draft.get("b", a)
+	var sx := 1.0 if cur.x >= a.x else -1.0
+	var sy := 1.0 if cur.y >= a.y else -1.0
+	if String(draft["k"]) == "rect":
+		var wh := typed.split("x")
+		if wh.size() != 2 or not wh[0].is_valid_float() or not wh[1].is_valid_float() or float(wh[0]) <= 0.0 or float(wh[1]) <= 0.0:
+			_say("Type width x height in mm, like 40x30")
+			return true
+		var w := float(wh[0])
+		var h := float(wh[1])
+		_add_ent({"k": "rect", "a": Part.arr2(a), "b": Part.arr2(a + Vector2(sx * w, sy * h))})
+	else:
+		if not typed.is_valid_float() or float(typed) <= 0.0:
+			_say("Type the radius in mm, above 0 (like 12)")
+			return true
+		_add_ent({"k": "circle", "c": Part.arr2(a), "r": float(typed)})
+	typed = ""
+	draft = {}
+	pov.queue_redraw()
+	return true
+
+
 func _key(k: InputEventKey) -> bool:
 	if not pair_pick.is_empty() and k.keycode == KEY_ESCAPE:
 		pair_pick = {}
 		_hinge_sync()
 		_say("Must not touch: cancelled.")
 		return true
+	# XDIM: a size typed before the first point says what to click first (the digits are the size's, not the view's: they do not turn the camera)
+	if sk != "" and tool in ["Line", "Rectangle", "Circle"] and draft.is_empty() and not dim_edit.visible and _typed_key(k, false) != "":
+		_say({"Line": "Click the start first, then type the length", "Rectangle": "Click a corner first, then type the size: 40x30",
+			"Circle": "Click the centre first, then type the radius"}[tool])
+		return true
+	# XDIM: a rectangle or circle with its first point takes a typed size (Enter makes it)
+	if sk != "" and tool in ["Rectangle", "Circle"] and not draft.is_empty() and not dim_edit.visible:
+		var tk := _typed_key(k, tool == "Rectangle")
+		if tk != "":
+			typed += tk
+			pov.queue_redraw()
+			return true
+		if k.keycode == KEY_BACKSPACE and typed != "":
+			typed = typed.left(-1)
+			pov.queue_redraw()
+			return true
+		if k.keycode in [KEY_ENTER, KEY_KP_ENTER] and typed != "":
+			return _typed_size()
 	if sk != "" and tool == "Line" and not draft.is_empty():
-		var ch := ""
-		if k.keycode >= KEY_0 and k.keycode <= KEY_9:
-			ch = str(k.keycode - KEY_0)
-		elif k.keycode >= KEY_KP_0 and k.keycode <= KEY_KP_9:
-			ch = str(k.keycode - KEY_KP_0)
-		elif k.keycode in [KEY_PERIOD, KEY_KP_PERIOD]:
-			ch = "."
+		var ch := _typed_key(k, false)
 		if ch != "":
 			typed += ch
 			pov.queue_redraw()
@@ -1142,6 +1193,9 @@ func _key(k: InputEventKey) -> bool:
 			draft["a"] = b
 			draft["b"] = b
 			typed = ""
+			return true
+		if k.keycode in [KEY_ENTER, KEY_KP_ENTER] and typed != "":
+			_say("A length must be above 0 mm: type a number, then Enter")   # XDIM: "0" said nothing before
 			return true
 	if k.keycode == KEY_ESCAPE and not con_pick.is_empty():
 		con_pick = {}
@@ -1329,9 +1383,30 @@ func _set_dim_text(ent: int, kind: String, t: String) -> String:
 		if r["err"] != "":
 			return String(r["err"])
 		return Part.set_dim_held(_sk(), ent, kind, float(r["mm"]), bind)   # GAP 9: a size that breaks a rule is refused (its words)
-	if v.is_valid_float() and float(v) > 0.0:
-		return Part.set_dim_held(_sk(), ent, kind, float(v))
-	return "type a size in mm, or =forearm+4 to read the body (forearm, upper_arm, thigh, shank, trunk, head ...)"
+	var mm := typed_mm(v)
+	if mm > 0.0:
+		return Part.set_dim_held(_sk(), ent, kind, mm)
+	return _size_words(v)
+
+
+## XDIM: a typed size in mm: "40", "40 mm", or "4 cm" (= 40 mm). -1 when the text is no size above 0
+static func typed_mm(t: String) -> float:
+	var v := t.strip_edges().to_lower().replace("mm", "").strip_edges()
+	var mul := 1.0
+	if v.ends_with("cm"):
+		v = v.trim_suffix("cm").strip_edges()
+		mul = 10.0
+	if not v.is_valid_float() or float(v) <= 0.0:
+		return -1.0
+	return float(v) * mul
+
+
+## XDIM: the words for a size that is not one: a number at or below 0, or anything else
+func _size_words(t: String) -> String:
+	var v := t.strip_edges().to_lower().replace("mm", "").replace("cm", "").strip_edges()
+	if v.is_valid_float():
+		return "A size must be above 0 mm"
+	return "type a size in mm (40 or 4 cm), or =forearm+4 to read the body (forearm, upper_arm, thigh, shank, trunk, head ...)"
 
 
 ## the number a row shows: the size now (a bound one: what the body gives)
@@ -2012,14 +2087,17 @@ func _num_typed(i: int, t: String, le: LineEdit) -> void:
 		return
 	var v := t.replace("mm", "").strip_edges()
 	var dims: Array = _sk().get("dims", [])
-	if i < dims.size() and (not Part.parse_bind(v).is_empty() or v.is_valid_float()):
-		if Part.parse_bind(v).is_empty():
-			_set_dim_value(i, float(v))
+	if i < dims.size() and not Part.parse_bind(v).is_empty():
+		var err := _set_dim_text(int(dims[i]["ent"]), String(dims[i]["kind"]), v)
+		if err != "":
+			_say(err)
+		_after_sketch_edit()
+	elif i < dims.size():   # XDIM: a plain size (40, 4 cm) sets it; anything else says what to type (it was silent)
+		var mm := typed_mm(v)
+		if mm > 0.0:
+			_set_dim_value(i, mm)
 		else:
-			var err := _set_dim_text(int(dims[i]["ent"]), String(dims[i]["kind"]), v)
-			if err != "":
-				_say(err)
-			_after_sketch_edit()
+			_say(_size_words(v))
 	if not le.is_inside_tree():
 		return   # the number made the rows again: this field is gone
 	dims = _sk().get("dims", [])
@@ -2575,13 +2653,19 @@ func _draw_draft() -> void:
 			_readout((typed + " mm") if typed != "" else "%s mm%s" % [_fmt(len), _snap_words()])
 		"rect":
 			pov.draw_polyline(PackedVector2Array([scr(a), scr(Vector2(b.x, a.y)), scr(b), scr(Vector2(a.x, b.y)), scr(a)]), c, 2.0)
-			_readout("%s x %s mm%s" % [_fmt(absf(b.x - a.x)), _fmt(absf(b.y - a.y)), _snap_words()])
+			if typed != "":   # XDIM: a typed 40x30 reads as typed
+				_readout("%s mm (Enter)" % typed)
+			else:
+				_readout("%s x %s mm%s" % [_fmt(absf(b.x - a.x)), _fmt(absf(b.y - a.y)), _snap_words()])
 		"circle":
 			var pts := PackedVector2Array()
 			for j in 65:
 				pts.append(scr(a + Vector2.from_angle(TAU * j / 64.0) * a.distance_to(b)))
 			pov.draw_polyline(pts, c, 2.0)
-			_readout("R %s mm%s" % [_fmt(a.distance_to(b)), _snap_words()])
+			if typed != "":   # XDIM: a typed radius reads as typed
+				_readout("R %s mm (Enter)" % typed)
+			else:
+				_readout("R %s mm%s" % [_fmt(a.distance_to(b)), _snap_words()])
 		"arc":
 			var pts: Array = draft.get("pts", [])
 			for q in pts:
