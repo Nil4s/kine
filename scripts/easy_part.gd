@@ -580,6 +580,9 @@ func _flush() -> void:
 	flushes += 1
 	_dirty = false
 	_last_ms = Time.get_ticks_msec()
+	if _rec().is_empty():   # no part (the {} record): a slider has nothing to write to; the pending numbers go
+		_pending = {}
+		return
 	if not _pending.is_empty():
 		PartTemplates.retemplate(_rec(), _pending)
 		_pending = {}
