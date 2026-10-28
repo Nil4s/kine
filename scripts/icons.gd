@@ -70,6 +70,7 @@ const DRAW := {
 	# PART workspace (scripts/build/part_ui.gd): SKETCH Line Rectangle Circle Arc Dimension, CREATE Extrude Revolve Mirror, MODIFY Fillet Chamfer, Finish; the timeline's steps
 	"part_line": [["seg", Vector2(4, 19), Vector2(20, 5), 2.2], ["disc", Vector2(4, 19), 2.2], ["disc", Vector2(20, 5), 2.2]],
 	"part_rectangle": [["box", Rect2(3.5, 6, 17, 12), 1.9]],
+	"part_pointy": [["seg", Vector2(3.5, 19), Vector2(20.5, 19), 1.9], ["seg", Vector2(3.5, 19), Vector2(12, 4), 1.9], ["seg", Vector2(12, 4), Vector2(20.5, 19), 1.9]],   # POINTY: the house roof triangle (Easy Part Draw shape)
 	"part_circle": [["ring", Vector2(12, 12), 8.5, 1.9]],
 	"part_spline": [["seg", Vector2(4, 17), Vector2(9, 7), 2.0], ["seg", Vector2(9, 7), Vector2(15, 17), 2.0], ["seg", Vector2(15, 17), Vector2(20, 7), 2.0], ["disc", Vector2(4, 17), 1.8], ["disc", Vector2(9, 7), 1.8], ["disc", Vector2(15, 17), 1.8], ["disc", Vector2(20, 7), 1.8]],
 	"part_arc": [["arc", Vector2(12, 19), 10, 2.0, 215, 325], ["disc", Vector2(4.2, 12.8), 1.8], ["disc", Vector2(19.8, 12.8), 1.8]],
