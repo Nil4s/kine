@@ -1657,6 +1657,8 @@ func _stick(op: String, label: String) -> void:
 	rec["features"].append(f)
 	armed = ""
 	var why := _last_error(rec, String(f["id"]))
+	if why == "" and op == "join":   # JOIN: the two picks must touch (apart pieces would "join" into one body with a gap: refused, nothing changes)
+		why = _join_gap(Part.body_faces(snap, -1), stick_picks)
 	stick_picks = []
 	if why != "":
 		m.S.part = snap
@@ -1671,6 +1673,16 @@ func _stick(op: String, label: String) -> void:
 	pu.sync()
 	_rows_sync()
 	_values_sync()
+
+
+## JOIN: the two picked pieces must touch (the smallest distance between their triangles is under 0.05 mm). "" or the words for the user
+static func _join_gap(before: Array, picked: Array) -> String:
+	if picked.size() < 2:
+		return ""
+	var gap := Part._tri_dist(before[int(picked[0])], before[int(picked[1])])
+	if gap > 0.00005:
+		return "the two pieces do not touch, so Join cannot make one solid: move one until it touches the other, then press Stick together again"
+	return ""
 
 
 ## a click in the view while Stick together is armed: the body under the pointer is picked (a second click takes it off)
