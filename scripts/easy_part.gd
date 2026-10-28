@@ -90,6 +90,8 @@ var shape := "box"
 var msg := ""                  # the sentence of the last press, until the next one
 var tweak := {}                # the last step's own slider: {"id", "ent", "field", "label", "unit", "lo", "hi", "step", "scale"}
 var _pending := {}
+var _draft_px0 := Vector2.ZERO   # the draft's raw pointer pixels, first press and last move (the sides are read from these when the grid folds them)
+var _draft_px1 := Vector2.ZERO
 var _dirty := false
 var _last_ms := 0
 var _drag := {}                # an amber dot in hand: {"k", "mouse", "val", "dir", "pxmm", "gain"}
@@ -546,10 +548,6 @@ static func _plain(e: String) -> String:
 
 func _say(t: String) -> void:
 	msg = t
-
-
-func _refuse_no_dll() -> bool:
-	return not Part.available()
 
 
 # ---------------------------------------------------------------- undo steps
@@ -1098,9 +1096,10 @@ func _pull(rec: Dictionary) -> String:
 	var on_face := String(pf.get("t", "")) == "plane" and pf.has("out")   # a sketch on a face: the pull goes OUTWARD from it
 	var sg := float(pf["out"]) if on_face else 1.0
 	var through := bool(pf.get("through", false))   # an upright sketch (through the middle) pulls BOTH ways
-	var inward := on_face and not through and _overhangs(rec, sk)
+	var inward := on_face and not through and _overhangs(rec, sk) and not _top_face(pf)
 	if inward:
 		sg = -sg   # a face drawing that hangs past the body (a roof above the walls) pulls back INTO it: it extends the body's outline; one inside the face (a leg) pulls out
+	# ETABLE: a top drawn on the TOP of the legs hangs past them, but it stands ON them: a top face pulls up (out), never into the legs
 	var dist := 20.0 * sg
 	if through and _sits_on_body(rec, sk):
 		# A ROOF: pulled out both ways from the middle to the box's depth (the slider changes it from there)
@@ -1114,11 +1113,11 @@ func _pull(rec: Dictionary) -> String:
 		return "That shape is not closed, so it cannot be pulled up: drag back to the start to close it"
 	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": 40.0, "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
 	if through:
-		_say("Pulled out both ways from the middle: use the slider for how thick")
+		_say("Pulled out both ways from the middle: use the slider for how thick, or press Mirror that or Cut a hole next")
 	elif on_face:
-		_say("Pulled into the solid: use the slider to change it" if inward else "Pulled out of the face: use the slider to change it")
+		_say("Pulled into the solid: use the slider to change it, or press Cut a hole next" if inward else "Pulled out of the face: use the slider to change it, or press Mirror that next")
 	else:
-		tweak["say"] = "Pulled up %s: use the slider to change it"   # the words follow the slider (a beginner walk: "2 cm" stayed at 8 cm)
+		tweak["say"] = "Pulled up %s: use the slider to change it, or press Round the edges or Cut a hole next"   # the words follow the slider (a beginner walk: "2 cm" stayed at 8 cm); the next button too (ehelp2)
 		_say(String(tweak["say"]) % _fmt(2.0, "cm"))
 	return ""
 
@@ -1133,6 +1132,11 @@ func _sits_on_body(rec: Dictionary, sk: Dictionary) -> bool:
 		for q in _ent_pts(e):
 			low = minf(low, float(q[1]))
 	return low >= bb.end.y / Part.MM - 1.0
+
+
+## ETABLE: a face plane on the top of a solid (the floor-facing normal is up: out +1 on the Part top plane)
+func _top_face(pf: Dictionary) -> bool:
+	return String(pf.get("from", "")) == "top" and int(pf.get("out", 0)) > 0
 
 
 ## a face sketch hangs past the body when one of its points lies outside the body's box (by more than 0.5 mm) along the face's own axes
@@ -1160,13 +1164,17 @@ func _spin(rec: Dictionary) -> String:
 	var sk := Part.feature(rec, sid)
 	var before := sk.duplicate(true)   # a refused spin gives the drawing back as it was (it is not used up)
 	var pf := Part.feature(rec, String(sk.get("plane", "")))
+	var on_piece := false   # ELAMP: a profile drawn ABOVE a solid already in the part (a shade on a lamp stick) keeps the height it was drawn
 	if String(sk.get("plane", "")) == "top":
 		_stand_up(sk)   # a floor drawing is flat: spun round the up axis it has no volume, so it stands up first (a lathe profile)
 		axis = "y"
 	elif String(pf.get("t", "")) == "plane" and bool(pf.get("through", false)):
 		# an UPRIGHT drawing (side-on, through the middle): the bowl turns round the UP line through the middle (the sketch's
-		# vertical axis, x = 0), so the profile must lie on one side of that line. Its lowest point goes down to the floor.
-		_lift_to_floor(sk)
+		# vertical axis, x = 0), so the profile must lie on one side of that line. Its lowest point goes down to the floor,
+		# unless it starts on a piece already standing (then it stays where it was drawn, joined to that piece).
+		on_piece = _starts_on_piece(rec, sk)
+		if not on_piece:
+			_lift_to_floor(sk)
 		axis = "y"
 	if axis == "y" and _past_axis(sk) < -3.0 and _on_left(sk):
 		_flip_x(sk)   # a drawing wholly on the -X side is the same solid as its mirror image on the +X side (a lathe is symmetric): flip it, then spin
@@ -1181,15 +1189,33 @@ func _spin(rec: Dictionary) -> String:
 		sk.clear()
 		sk.merge(before, true)
 		return "A shape that crosses the middle line cannot be spun: draw it on one side"
-	if axis == "y":
+	if axis == "y" and not on_piece:
 		# a spline dips a little below its points: the solid's real lowest point goes onto the floor (a bowl's foot is on the floor, not in it)
 		var low := float(Part.replay(rec)["aabb"].position.y) / Part.MM
 		if absf(low) > 0.001:
 			_shift_y(sk, low)
 	tweak = {"id": f["id"], "field": "deg", "label": "How far round", "unit": "deg", "lo": 10.0, "hi": 360.0, "step": 5.0, "scale": 1.0, "words": ["A bit", "All the way"]}
-	_say("Spun all the way round: use the slider for less")
+	_say("Spun all the way round: use the slider for less, or press Cut a hole or Mirror that next")
 	return ""
 
+
+
+## ELAMP: true when the upright drawing starts ABOVE the floor and on a solid already in the part: its lowest point (mm) lies within
+## the solid's height range (a shade whose first point is on a stick top). A drawing on the floor, or in the air over nothing, is not on a piece
+func _starts_on_piece(rec: Dictionary, sk: Dictionary) -> bool:
+	var res := Part.replay(rec)
+	if int(res["bodies"]) == 0:
+		return false
+	var bb: AABB = res["aabb"]
+	var bot := bb.position.y / Part.MM
+	var top := bb.end.y / Part.MM
+	var low := INF
+	for e in sk["ents"]:
+		for q in _ent_pts(e):
+			low = minf(low, float(q[1]))
+	if low == INF:
+		return false
+	return low > 0.5 and low >= bot - 0.5 and low <= top + 0.5
 
 
 ## SPIN A FLOOR DRAWING: the sketch moves from the floor (top plane) to the front plane, its far edge up, and slides so its nearest point
@@ -1283,8 +1309,9 @@ func _round(rec: Dictionary) -> String:
 
 ## EROUND: the round on body (a kept solid of the record's end). True when a fillet step was added to rec
 func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: float) -> bool:
+	# EBACK: the default never sits below the slider's own low end (1 mm, "Barely"): a thin part's 0.5 mm default looked square
 	for attempt in [[1.0, 0.0], [0.5, 0.0], [0.5, 0.2]]:
-		var r := clampf(small * 0.01 * float(attempt[0]), 0.5, 6.0)
+		var r := clampf(small * 0.01 * float(attempt[0]), 1.0, 6.0)
 		var list := []
 		for e in es:
 			if int(e["body"]) == 0 and float(e["len"]) >= longest * float(attempt[1]) and float(e["len"]) / Part.MM > r * 2.5:
@@ -1303,7 +1330,7 @@ func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: flo
 	# can take a smaller radius and skip the rest. Each edge is tried with the ones already kept, so the feature that is added has no error
 	var out_of_time := false
 	var t1 := Time.get_ticks_usec()   # the budget is for this search (the three tries above are one kernel fillet each)
-	for r0 in [0.5, 0.3, 0.1]:
+	for r0 in [1.0, 0.5, 0.3, 0.1]:   # EBACK: 1 mm first (the slider's low end), then the smaller radii
 		var r := snappedf(r0, 0.1)
 		var good := []
 		for e in es:
@@ -1327,7 +1354,7 @@ func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: flo
 
 func _round_done(f: Dictionary) -> void:
 	tweak = {"id": f["id"], "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
-	_say("Edges rounded: use the slider for more or less")
+	_say("Edges rounded: use the slider for more or less, or press Cut a hole next")
 
 
 func _hole(rec: Dictionary) -> String:
@@ -1359,7 +1386,7 @@ func _hole(rec: Dictionary) -> String:
 	if after >= before - 1e-12:
 		return "The hole would miss the shape: nothing was cut"
 	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}   # the slider is the hole's WIDTH (cm): radius mm = width cm * 5
-	_say("A hole straight through: use the slider for its size")
+	_say("A hole straight through: use the slider for its size, or press Mirror that or Repeat it next")
 	return ""
 
 
@@ -1599,7 +1626,7 @@ func _mirror(rec: Dictionary) -> String:
 	var after := Part.replay(rec)
 	var gap := int(after["bodies"]) == 1 and _lumps(after) > 1   # the mirror left a gap: the same test as the status line
 	var where := "across the middle of the part" if off else "across the middle line"
-	_say("Mirrored %s" % where + (": the two halves do not touch. Push them together with Stick together" if gap else ""))
+	_say("Mirrored %s" % where + (": the two halves do not touch. Push them together with Stick together" if gap else ": press Repeat it or Cut a hole next"))
 	return ""
 
 
@@ -1645,7 +1672,7 @@ func _blend(rec: Dictionary) -> String:
 	if int(sr["bodies"]) != 1 or float(sr["volume"]) <= 1e-12:
 		return "Those two shapes cannot be blended into one solid: draw both as closed shapes that face the same way, then press Blend two shapes again"
 	tweak = {}
-	_say("Blended the two last shapes into one solid")
+	_say("Blended the two last shapes into one solid: press Colour or Round the edges next")
 	return ""
 
 
@@ -1902,7 +1929,7 @@ func _finish_curve() -> void:
 	var fc: Dictionary = _draft.get("face", {})
 	_draft = {}
 	if pts.size() < 4:
-		_say("Drag a bit further to draw a curve")
+		_say("Drag a bit further to draw a curve: keep the button held and move at least 5 mm")
 		return
 	var out := []
 	for k in _curve_keep(pts, 12):
@@ -2571,7 +2598,7 @@ const FACE_BASE := ["right", "top", "front"]   # the Part plane each axis is dra
 const FACE_N := [Vector3.RIGHT, Vector3.UP, Vector3.BACK]
 
 
-func _ground(p: Vector2, pl: Dictionary = {}) -> Variant:
+func _ground(p: Vector2, pl: Dictionary = {}, snap := true) -> Variant:
 	var o: Vector3 = m.cam.project_ray_origin(p)
 	var d: Vector3 = m.cam.project_ray_normal(p)
 	if pl.is_empty():   # an empty-space press draws on the FLOOR (the Part top plane, y = 0; monkey-brain direction)
@@ -2584,6 +2611,8 @@ func _ground(p: Vector2, pl: Dictionary = {}) -> Variant:
 	if t < 0.0:
 		return null
 	var q := Part.to_plane(pl, o + d * t)
+	if not snap:
+		return Vector2(q.x, q.y)
 	return Vector2(snappedf(q.x, 5.0), snappedf(q.y, 5.0))
 
 
@@ -2766,6 +2795,7 @@ func _on_bar(p: Vector2) -> bool:
 
 ## the sketch in progress follows the pointer p (the draft's second corner, or the curve's next point)
 func _draft_move(p: Vector2) -> void:
+	_draft_px1 = p
 	var g: Variant = _ground(p, _draft.get("pl", {}))
 	if g != null:
 		_draft["b"] = g
@@ -2797,6 +2827,8 @@ func _above_body(p: Vector2) -> bool:
 
 ## a draw / curve press on the grid at p: a sketch on the face under it, the upright plane, or the floor. true = taken
 func _start_draft(p: Vector2) -> bool:
+	_draft_px0 = p
+	_draft_px1 = p
 	# A POINTY UPRIGHT ABOVE A BOX TOP is a roof: the side-on upright plane through the middle (not the box's front face), so it pulls both ways to the box depth
 	if shape == "pointy" and armed != "curve" and _side_on() and _above_body(p):
 		var ur := _upright()
@@ -2863,18 +2895,46 @@ func _drag_to(p: Vector2, final: bool) -> void:
 				_pill_text(r, v / 10.0)
 
 
+## the least side a drawn shape may have (mm): a long thin blade draws when BOTH sides are at least this
+const MIN_SIDE := 2.0
+
+
+## the two corners of a box or pointy draft. Each side is the 5 mm grid's, unless the grid folds it under MIN_SIDE: then the raw pointer side is kept (a 5 mm blade is not refused for snapping to one grid line). {} = a side under MIN_SIDE, refused (the words say how wide)
+func _sides(a: Vector2, b: Vector2, pl: Dictionary) -> Dictionary:
+	var ra: Variant = _ground(_draft_px0, pl, false)
+	var rb: Variant = _ground(_draft_px1, pl, false)
+	var raw_a: Vector2 = ra if ra != null else a
+	var raw_b: Vector2 = rb if rb != null else b
+	var out := b
+	for ax in 2:
+		if absf(b[ax] - a[ax]) < MIN_SIDE:
+			var rs: float = raw_b[ax] - raw_a[ax]
+			if absf(rs) < MIN_SIDE:
+				return {"thin": absf(rs)}
+			out[ax] = a[ax] + rs
+	return {"b": out}
+
+
+## a length in mm for the words: 0 -> "0", 2.5 -> "2.5"
+static func _mm_words(x: float) -> String:
+	return ("%.1f" % x).trim_suffix(".0")
+
+
 func _finish_draw() -> void:
 	var a: Vector2 = _draft["a"]
 	var b: Vector2 = _draft["b"]
 	var sh := String(_draft["shape"])
 	var fc: Dictionary = _draft.get("face", {})
+	var pl: Dictionary = _draft.get("pl", Part.plane("top"))
 	_draft = {}
 	var ent := {}
 	var ents: Array = []
 	if sh == "box" or sh == "pointy":
-		if absf(b.x - a.x) < 5.0 or absf(b.y - a.y) < 5.0:
-			_say("Drag a bit further to draw a shape")
+		var sd := _sides(a, b, pl)
+		if sd.has("thin"):
+			_say("Drag a bit wider: both sides must be at least 2 mm (now %s mm)" % _mm_words(float(sd["thin"])))
 			return
+		b = sd["b"]
 		if sh == "box":
 			ent = {"k": "rect", "a": Part.arr2(a), "b": Part.arr2(b)}
 		else:   # POINTY: three lines, the closed outline of the triangle (Expert's line tool records the same)
@@ -2883,7 +2943,7 @@ func _finish_draw() -> void:
 	else:
 		var r := a.distance_to(b)
 		if r < 5.0:
-			_say("Drag a bit further to draw a shape")
+			_say("Drag a bit further from the centre: a circle needs a radius of at least 5 mm (now %s mm)" % _mm_words(r))
 			return
 		ent = {"k": "circle", "c": Part.arr2(a), "r": snappedf(r, 0.5)}
 	_begin("Draw shape")
