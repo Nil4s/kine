@@ -261,6 +261,7 @@ func _init() -> void:
 	ok(errors_of(m.S.part) == 0 and int(pu().res.get("bodies", 0)) == 1, "1e HANDLE one body, no failed step (bodies %d)" % int(pu().res.get("bodies", 0)))
 	ok(vh > v0 + 1000.0, "1f HANDLE volume grows: %.0f -> %.0f mm3" % [v0, vh])
 	ok(bh.end.x > bm.end.x + 15.0 and absf(bh.position.x - bm.position.x) < 0.5, "1g HANDLE the box grows on the +X (handle) side only: x %.1f .. %.1f -> %.1f .. %.1f" % [bm.position.x, bm.end.x, bh.position.x, bh.end.x])
+	ok(ep().hint_l.text.begins_with("Pulled out both ways"), "1i HANDLE the words say how it was pulled [%s]" % ep().hint_l.text)
 	ok(absf(bh.position.z + bh.end.z) < 2.0, "1h HANDLE centred: box z %.2f .. %.2f (symmetric within 1 mm)" % [bh.position.z, bh.end.z])
 	await shot("shot_front")
 	m.pitch = -10.0

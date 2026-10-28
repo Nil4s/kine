@@ -933,7 +933,10 @@ func _pull(rec: Dictionary) -> String:
 	if err != "":
 		return "That shape is not closed, so it cannot be pulled up: drag back to the start to close it"
 	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": 40.0, "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
-	_say("Pulled out of the face: use the slider to change it" if on_face else "Pulled up 2 cm: use the slider to change it")
+	if bool(pf.get("through", false)):
+		_say("Pulled out both ways from the middle: use the slider for how thick")
+	else:
+		_say("Pulled out of the face: use the slider to change it" if on_face else "Pulled up 2 cm: use the slider to change it")
 	return ""
 
 
