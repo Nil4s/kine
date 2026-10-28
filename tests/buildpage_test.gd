@@ -131,6 +131,16 @@ func rec() -> String:
 	return JSON.stringify(Building.to_file(m.S.building)) if not m.S.building.is_empty() else "{}"
 
 
+## Nick 2026-10-28: free 3D building, no forced house. The BUILDING card now opens a free Easy Part (no house, no chooser). The house
+## this suite builds is one step further: What to build -> House (Expert), the same Expert house these bars always drove
+func to_house() -> void:
+	await click_ctl(m.bld.part.reopen_btn)
+	await idle(6)
+	await click_ctl(m.build_choose.btns["house"]["expert"])
+	m.bld.reset_view()   # the house view the card gave before (the Easy Part framed the camera)
+	await idle(10)
+
+
 func _init() -> void:
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
@@ -152,6 +162,7 @@ func _init() -> void:
 	await click_ctl(ss._cards["building"])
 	if m.ui_save_ask != null and m.ui_save_ask.visible: m._save_ask_choose("discard")   # unsaved work above: a new project asks first (startscreen bar 13)
 	await idle(6)
+	await to_house()   # Nick 2026-10-28: free 3D building, no forced house (see to_house)
 	ok(not ss.visible and m.cur_page == "BUILD" and m.S.kind == "building" and bld.on, "1 the 3D BUILDING card: kind %s, page %s" % [m.S.kind, m.cur_page])
 	var tabs := []
 	var h: Control = (m.ui_page_btns["BUILD"] as Button).get_parent().get_parent()
@@ -365,6 +376,7 @@ func _init() -> void:
 	if m.ui_save_ask != null and m.ui_save_ask.visible:   # the house above is unsaved: a new project asks first (startscreen bar 13); this one is thrown away
 		m._save_ask_choose("discard")
 	await idle(6)
+	await to_house()   # Nick 2026-10-28: free 3D building, no forced house (see to_house)
 	await drag_floor(0, 0, 6, 4)
 	await click_ctl(m.ui_ribbon["BUILD"].find_child("build_tool_opening", true, false))
 	await click_ctl_at(sp(Vector3(3.0, 2.3, 0.1)))
@@ -587,6 +599,7 @@ func _init() -> void:
 	await click_ctl(ss._cards["building"])
 	if m.ui_save_ask != null and m.ui_save_ask.visible: m._save_ask_choose("discard")   # unsaved work above: a new project asks first (startscreen bar 13)
 	await idle(6)
+	await to_house()   # Nick 2026-10-28: free 3D building, no forced house (see to_house)
 	await drag_floor(0, 0, 8, 5)
 	await click_ctl(m.ui_ribbon["BUILD"].find_child("build_tool_floor", true, false))
 	await click_ctl(bld.panel.find_child("build_add_floor", true, false))

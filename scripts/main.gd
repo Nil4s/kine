@@ -23910,7 +23910,8 @@ static func _rm_tree(dir: String) -> void:
 
 func _unsaved() -> bool:
 	var H := _hero_scene()   # TC3: the file is the hero's scene, whoever is active
-	return (not H.cards.is_empty() or not H.props.is_empty() or not S.building.is_empty() or not S.part.is_empty()) and _doc_key() != _clean   # a drawn house (or a sketched part) is work too
+	# a drawn house (or a part with steps) is work too; a blank part (no steps: the BUILDING card's start, Nick 2026-10-28) is not
+	return (not H.cards.is_empty() or not H.props.is_empty() or not S.building.is_empty() or not (S.part.get("features", []) as Array).is_empty()) and _doc_key() != _clean
 
 
 ## what "saved" compares: the cards, and the set when there is one (no props: the same string as before round 37); with
