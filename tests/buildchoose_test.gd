@@ -74,14 +74,19 @@ func key_in(t: String) -> String:
 	return ""
 
 
-## the Building card of the start screen, clicked (a new project; unsaved work above is discarded)
-func start_building(ss: StartScreen) -> void:
+## the Building card of the start screen, clicked (a new project; unsaved work above is discarded). Nick 2026-10-28: free 3D building,
+## no forced house: the card opens a free Easy Part with no chooser. The chooser is one click away (What to build, the Part ribbon's
+## button), and these bars open it that way: reopen = false leaves the card as it is
+func start_building(ss: StartScreen, reopen := true) -> void:
 	ss.show_screen()
 	await idle(3)
 	await click(ss._cards["building"])
 	if m.ui_save_ask != null and m.ui_save_ask.visible:
 		m._save_ask_choose("discard")
 	await idle(8)
+	if reopen:
+		await click(m.bld.part.reopen_btn)
+		await idle(6)
 
 
 func b(id: String, mode: String) -> Button:
@@ -105,13 +110,15 @@ func _init() -> void:
 	ss.dirs_override = [dirt]
 
 	# 0 a test launch gets no chooser by itself
-	await start_building(ss)
+	await start_building(ss, false)
 	ok(m.S.kind == "building" and not bc.open, "0 a test launch shows no chooser by itself (it would cover the page the other tests click)")
 
 	# 1 the chooser
 	bc.auto = true
 	await start_building(ss)
-	ok(bc.open and bc.root_box.is_visible_in_tree() and m.cur_page == "BUILD" and m.S.kind == "building", "1 Building card -> the chooser over BUILD (open %s, page %s)" % [bc.open, m.cur_page])
+	# Nick 2026-10-28: REDEFINED. The card no longer opens the chooser (free 3D building, no forced house): the card opens an
+	# empty Easy Part, and What to build opens the chooser over BUILD. Before: the card itself opened the chooser
+	ok(bc.open and bc.root_box.is_visible_in_tree() and m.cur_page == "BUILD" and m.S.kind == "building", "1 What to build -> the chooser over BUILD (open %s, page %s)" % [bc.open, m.cur_page])
 	var six := bc.cards.size() == 6
 	for id in IDS:
 		six = six and bc.cards.has(id) and (bc.cards[id] as Control).is_visible_in_tree() and b(id, "easy").is_visible_in_tree() and b(id, "expert").is_visible_in_tree()

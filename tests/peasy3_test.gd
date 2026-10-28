@@ -192,6 +192,11 @@ func _init() -> void:
 	if m.ui_save_ask != null and m.ui_save_ask.visible:
 		m._save_ask_choose("discard")
 	await idle(6)
+	# Nick 2026-10-28: free 3D building, no forced house. The BUILDING card now opens a blank part on Part; this bar opens the
+	# Part itself from BUILD, as it did before, so it starts from the same state (Part off, no part) it always did
+	m.bld.part.set_on(false)
+	m.S.part = {}
+	await idle(8)
 	if not Part.available():
 		print("FAIL: no KineCAD DLL, the new buttons cannot run")
 		quit(1)

@@ -17,7 +17,7 @@ extends Control
 const KINDS := [
 	["animation", "ANIMATION", "Pose and animate a fighter: typed moves, cards, AI video."],
 	["modeling", "MODELING", "Shape, sculpt and colour the body: MODEL, SCULPT, SURFACE."],
-	["building", "3D BUILDING", "Build a set or stage: props, floors, walls and lights."],
+	["building", "3D BUILDING", "Free 3D building, like Fusion 360: start from an empty part and shape it."],
 ]
 const KIND_NAME := {"animation": "Animation", "modeling": "Modeling", "building": "Building"}
 const KIND_TAG := {"animation": Color(0.45, 0.75, 1.0), "modeling": Color(0.5, 0.88, 0.6), "building": Color(1.0, 0.7, 0.35)}
@@ -394,9 +394,11 @@ func _start_kind_now(kind: String) -> void:
 		"modeling":
 			BaseBody.start(m)
 		"building":
+			# Nick 2026-10-28: free 3D building, no forced house. The card opens an empty part (Easy Part, or Expert) like Fusion 360;
+			# no chooser, no house name. Houses and the other starters are in "What to build" and the library
 			m._page_set("BUILD")
 			m.bld.reset_view()   # a new project starts on the default view, not where the last house was left
-			m.build_choose.after_start()   # "What do you want to build?" over BUILD
+			m.bld.part.open_blank(want_easy)
 	if m.has_method("_refresh"):
 		m._refresh()
 
