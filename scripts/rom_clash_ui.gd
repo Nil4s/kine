@@ -31,6 +31,7 @@ var _say_t := 0.0
 var _hooked := false
 var _posed := false         # the fighter stands in a ROM pose (put back by hide_overlay / clear)
 var _parts := []            # the MeshInstance3Ds the last job measured, in its order
+var _landq := []            # the landing's steps (lane, panel, the status line), one per tick: none of them a stall
 
 
 func _init(main: Node) -> void:
@@ -59,6 +60,7 @@ func run(how := "rom") -> void:
 		return
 	var t0 := Time.get_ticks_usec()
 	hide_overlay()
+	_landq = []   # a new check: the last one's landing is not run
 	var err := job.begin_clash(m, how)
 	if err != "":
 		m._say(err)
@@ -70,6 +72,12 @@ func run(how := "rom") -> void:
 
 
 func tick(dt: float) -> void:
+	if not _landq.is_empty():
+		var t1 := Time.get_ticks_usec()
+		var f: Callable = _landq.pop_front()
+		f.call()
+		tick_ms.append(float(Time.get_ticks_usec() - t1) / 1000.0)
+		return
 	if not job.running():
 		return
 	var t0 := Time.get_ticks_usec()
@@ -99,11 +107,18 @@ func _clashing() -> int:
 	return n
 
 
+## the result is in: the lane (the scene), the panel and the status line are each their own tick (a tick each, so the
+## landing is not one long stall: the lane and the panel measured ~2 ms each, the status line's undo naming more)
 func _landed() -> void:
 	res = job.res
+	_landq = []
 	if String(res.get("mode", "")) == "scene":
-		_put_lane(res["spans"])
-	_panel()
+		_landq.append(func(): _put_lane(res["spans"]))
+	_landq.append(_panel)
+	_landq.append(_say_landed)
+
+
+func _say_landed() -> void:
 	var w: Array = res["worst"]
 	m._say("armour clash: %d of %d %s cut in%s" % [_clashing(), res["frames"].size(), "poses" if res["mode"] == "rom" else "frames",
 		"; worst " + str(w[0]["text"]) if not w.is_empty() else ""])

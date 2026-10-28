@@ -255,7 +255,8 @@ func _setup_sweep() -> void:
 	_w["poses"] = poses
 
 
-## the body's surfaces are read one per slice ("read", below: one read is a GPU-side copy), the rest pose's bind matrices
+## the body's rest surfaces are listed one per slice ("read", below); a surface the corrective holds its arrays for is read from
+## those (CPU-side, no GPU readback in the job), the rest pose's bind matrices
 func _setup_rest() -> void:
 	var m: Node = _w["m"]
 	var skin: Skin = _w["skin"]
@@ -263,11 +264,17 @@ func _setup_rest() -> void:
 	var bob: PackedInt32Array = _w["bob"]
 	var rq := []
 	var rest := BaseBody.rest_meshes(m)
+	# the rest surfaces' arrays are the corrective's own copies (taken when it attached to these meshes: the same
+	# arrays a read gives, CPU-side): the clash job reads them from here, not from the GPU (no readback in the job)
+	var held := {}
+	for e in m.corr._entries:
+		held[e[1]] = e[2]
 	for j in m.pieces:
 		var am := rest[m.pieces[j]] as ArrayMesh
 		if am != null:
+			var have: Array = held.get(am, [])
 			for si in am.get_surface_count():
-				rq.append([am, si])
+				rq.append([am, si, have[si] if si < have.size() else null])
 	_w["rq"] = rq
 	# the words of a site: the A19 rule at the rest pose (skeleton space), per bind the rest skinning matrix
 	var rest_m := []
@@ -325,7 +332,7 @@ func step(budget_ms := BUDGET_MS) -> bool:
 	var srcs: Array = _d["srcs"]
 	while not rq.is_empty():
 		var it: Array = rq.pop_front()
-		read_into(srcs, it[0], it[1])
+		read_into(srcs, it[0], it[1], it[2])
 		if float(Time.get_ticks_usec() - t0) / 1000.0 * 2.0 >= budget_ms:
 			break
 	if rq.is_empty():
@@ -341,8 +348,8 @@ func step(budget_ms := BUDGET_MS) -> bool:
 
 
 ## one surface into the source list as BaseBody.sources does it (a surface sharing another's vertices adds its triangles)
-static func read_into(srcs: Array, am: ArrayMesh, si: int) -> void:
-	var arr := am.surface_get_arrays(si)
+static func read_into(srcs: Array, am: ArrayMesh, si: int, held = null) -> void:
+	var arr: Array = (held as Array).duplicate() if held != null else am.surface_get_arrays(si)
 	var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 	var k := -1
 	for q in srcs.size():
