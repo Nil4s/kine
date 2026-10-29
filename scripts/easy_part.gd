@@ -21,6 +21,7 @@ const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the 
 const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal): a wood brown, red > green > blue
 const HOLLOW_MM := 3.0           # Hollow inside: the wall the shell starts with (the Wall slider moves it: 1 to 10 mm)
 const THROTTLE_MS := 100
+const NARROW_W := 1200.0         # FMOBILE: a window narrower than this (1024 x 600) shrinks the bar's buttons and the title
 const SKY := Color("#73BFFF")
 const AMBER := Color("#FFC933")
 const MAKES := [
@@ -366,8 +367,9 @@ func _colour_box() -> PanelContainer:
 	box.name = "easypart_colour"
 	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
 	box.visible = false
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 6)
+	var h := HFlowContainer.new()   # FMOBILE: the chips wrap onto a second row when the room left of the panel is narrow (1024 wide)
+	h.add_theme_constant_override("h_separation", 6)
+	h.add_theme_constant_override("v_separation", 6)
 	box.add_child(h)
 	for chip in Part.LOOK_CHIPS:
 		var b := _colour_btn(String(chip[0]).to_lower(), String(chip[0]), chip[1] as Color)
@@ -2482,12 +2484,23 @@ func _panel_need() -> float:
 	return panel_vb.get_combined_minimum_size().y + panel.get_theme_stylebox("panel").get_minimum_size().y
 
 
+## FMOBILE: a bottom-left box's top: its usual place, never above the sentence under the hint, and above the one sentence at the bottom when the room allows
+static func _low_box_y(want: float, h: float, low_y: float, stat_top: float) -> float:
+	return clampf(want, low_y, maxf(low_y, stat_top - h))
+
+
 ## the layout, from PartUI.layout(cl): the clear view's rectangle
 func layout(cl: Rect2) -> void:
 	if not active():
 		return
 	_cl = cl
 	var w := cl.size.x - 16.0
+	var narrow := get_viewport().get_visible_rect().size.x < NARROW_W   # FMOBILE: at 1024 wide the bar row is wider than the window: its buttons shrink, the title shortens
+	use_scene_btn.custom_minimum_size.x = 120.0 if narrow else 150.0
+	give_btn.custom_minimum_size.x = 140.0 if narrow else 170.0
+	export_btn.custom_minimum_size.x = 96.0 if narrow else 110.0
+	title_l.clip_text = narrow
+	title_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if narrow else TextServer.OVERRUN_NO_TRIMMING
 	var n := float(MAKES.size())   # twelve buttons in one row: each takes its share (the row is as wide as the clear view allows)
 	var bw := minf(176.0, (w - (n - 1.0) * 8.0) / n)
 	make_box.reset_size()
@@ -2509,11 +2522,32 @@ func layout(cl: Rect2) -> void:
 	split_box.position = shape_box.position
 	colour_box.reset_size()
 	colour_box.position = shape_box.position
-	# the Repeat it and Stick together rows sit at the lower left, above the one sentence, off the model's pieces
+	# FMOBILE: the floating boxes stay left of the panel (the colour chips wrap) and below the sentence (the hint)
+	var room := cl.end.x - PW - 32.0 - colour_box.position.x
+	var nat := 24.0   # the chips in one row (their own widths and the gaps): the box is only as wide as its chips when the room is wide
+	for c in (colour_box.get_child(0) as Control).get_children():
+		nat += (c as Control).get_combined_minimum_size().x + 6.0
+	colour_box.size.x = minf(room, nat)
+	colour_box.size.y = colour_box.get_combined_minimum_size().y
+	# the Repeat it and Stick together rows sit at the lower left, above the one sentence, off the model's pieces (and never over the sentence)
+	var low_y := hint.position.y + hint.size.y + 6.0
+	var stat_top := cl.end.y - status.get_combined_minimum_size().y - 12.0   # the one sentence at the bottom-left: the boxes end above it
+	# a short window: the Fewer / More words under the Repeat it sliders go first, so the box fits between the sentence and the one line at the bottom
+	# (hysteresis: the words toggle only when the box crosses the room, never every frame)
+	if not rep_rows.is_empty():
+		var room_h := stat_top - low_y - 4.0
+		var words_on := bool((rep_rows[0]["words"] as Control).visible)
+		var wh := float((rep_rows[0]["words"] as Control).get_combined_minimum_size().y) + 4.0
+		repeat_box.reset_size()
+		var h_now := repeat_box.get_combined_minimum_size().y
+		var want_on := (h_now + wh) <= room_h if not words_on else h_now <= room_h
+		if want_on != words_on:
+			for r in rep_rows:
+				(r["words"] as Control).visible = want_on
 	repeat_box.reset_size()
-	repeat_box.position = Vector2(cl.position.x + 12.0, cl.end.y - repeat_box.size.y - 64.0)
+	repeat_box.position = Vector2(cl.position.x + 12.0, _low_box_y(cl.end.y - repeat_box.size.y - 64.0, repeat_box.size.y, low_y, stat_top))
 	stick_box.reset_size()
-	stick_box.position = Vector2(cl.position.x + 12.0, cl.end.y - stick_box.size.y - 64.0)
+	stick_box.position = Vector2(cl.position.x + 12.0, _low_box_y(cl.end.y - stick_box.size.y - 64.0, stick_box.size.y, low_y, stat_top))
 	# the panel on the right, as tall as it needs; the words under the sliders go first when the room is short
 	var avail := cl.end.y - top - 4.0
 	panel.reset_size()
@@ -2535,6 +2569,14 @@ func layout(cl: Rect2) -> void:
 	status.reset_size()
 	status.size.x = minf(status.get_combined_minimum_size().x, cl.size.x - PW - 40.0)
 	status.position = Vector2(cl.position.x + 12.0, cl.end.y - status.size.y - 6.0)
+	# FMOBILE: a short window: when a Repeat it / Stick together box would cover the one sentence, the sentence goes under the panel on the right
+	var sbox := Rect2()
+	for bx in [repeat_box, stick_box]:
+		if (bx as Control).visible:
+			sbox = sbox.merge(Rect2((bx as Control).position, (bx as Control).size))
+	if sbox.size != Vector2.ZERO and Rect2(status.position, status.size).intersects(sbox):
+		status.size.x = PW
+		status.position = Vector2(panel.position.x, panel.position.y + panel.size.y + 8.0)
 
 
 # ---------------------------------------------------------------- amber dots and the shape being drawn
