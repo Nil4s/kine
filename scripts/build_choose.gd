@@ -337,6 +337,10 @@ func _pick_starter(easy_on: bool) -> void:
 
 ## a starter on BUILD, as the current building (one undo step, like a words build); the chooser closes
 func _load_starter(i: int) -> void:
+	# the "What to build" menu closes with the pick, however the pick arrived (a click hides it; a direct call did not, and a
+	# popup left open sits over the Easy Part panel and takes the mouse from its sliders)
+	if _starters != null:
+		_starters.hide()
 	if i >= 1000:   # FREESTART: a Part example (a sword, an axe ...): Easy Part or Expert opens it as the part (one undo step)
 		var t := String(PartTemplates.ORDER[i - 1000])
 		_mode(_starter_easy)
