@@ -326,6 +326,10 @@ func _pick_starter(easy_on: bool) -> void:
 		for i in BuildStarters.LIST.size():
 			var s: Dictionary = BuildStarters.LIST[i]
 			_starters.add_item("%s: %s" % [s["name"], s["say"]], i)
+		# FREESTART: the examples a beginner can start from, after the houses: the weapons and the props (Easy Part's templates)
+		for j in PartTemplates.ORDER.size():
+			var t := String(PartTemplates.ORDER[j])
+			_starters.add_item("Part: %s, a %s you change with sliders" % [PartTemplates.T[t]["title"], String(PartTemplates.T[t]["title"]).to_lower()], 1000 + j)
 		_starters.id_pressed.connect(func(i: int): _load_starter(i))
 		add_child(_starters)
 	_starters.popup_centered()
@@ -333,6 +337,20 @@ func _pick_starter(easy_on: bool) -> void:
 
 ## a starter on BUILD, as the current building (one undo step, like a words build); the chooser closes
 func _load_starter(i: int) -> void:
+	if i >= 1000:   # FREESTART: a Part example (a sword, an axe ...): Easy Part or Expert opens it as the part (one undo step)
+		var t := String(PartTemplates.ORDER[i - 1000])
+		_mode(_starter_easy)
+		close()
+		m._page_set("BUILD")
+		m._step_hint = "Start a " + t
+		m._push_undo()
+		m.S.part = PartTemplates.make(t)
+		if _starter_easy:   # Easy Part: sliders and amber dots (the part is not empty, so open_easy takes no step of its own)
+			m.bld.part.open_easy()
+		else:
+			m.bld.part.set_on(true)
+		m._say("A %s: move a slider or drag an amber dot" % t)
+		return
 	var s: Dictionary = BuildStarters.LIST[i]
 	var rec := BuildStarters.build(String(s["id"]))
 	if rec.is_empty():
