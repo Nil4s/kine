@@ -23,6 +23,7 @@ const TILT_DEG := 20.0           # Tilt it: the lean of the newest solid (degree
 const HOLLOW_MM := 3.0           # Hollow inside: the wall the shell starts with (the Wall slider moves it: 1 to 10 mm)
 const THROTTLE_MS := 100
 const CLIP_MM := 6.0             # FBOWL2: a spun curve that dips past the middle line by less than this (a spline overshoot) is clipped onto it
+const NARROW_W := 1200.0         # FMOBILE: a window narrower than this (1024 x 600) shrinks the bar's buttons and the title
 const SKY := Color("#73BFFF")
 const AMBER := Color("#FFC933")
 const MAKES := [
@@ -54,6 +55,7 @@ var size_l: Label              # FMEASURE: "18 x 6 x 2 cm" (wide x deep x high) 
 var whole_l: Label             # "Whole sword: N cm": the shape's biggest size, under the sliders (the blade slider is not the whole length)
 var easy_btn: Button
 var expert_btn: Button
+var bar_home: Button = null   # the bar's Home button (narrowed at 1024 wide, see layout)
 var bar_row: HBoxContainer   # the bar's row: Part's "What to build" moves in here while Easy Part is on (part_ui._place_reopen)
 var make_box: HBoxContainer
 var make_btns := {}
@@ -159,6 +161,7 @@ func build(root: Control) -> void:
 	home_b.custom_minimum_size = Vector2(110, m.TOP_H - 12)
 	home_b.add_theme_font_size_override("font_size", 15)
 	row.add_child(home_b)
+	bar_home = home_b
 	title_l = Label.new()
 	title_l.name = "easypart_title"
 	title_l.add_theme_font_size_override("font_size", 20)
@@ -417,8 +420,9 @@ func _colour_box() -> PanelContainer:
 	box.name = "easypart_colour"
 	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
 	box.visible = false
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 6)
+	var h := HFlowContainer.new()   # FMOBILE: the chips wrap onto a second row when the room left of the panel is narrow (1024 wide)
+	h.add_theme_constant_override("h_separation", 6)
+	h.add_theme_constant_override("v_separation", 6)
 	box.add_child(h)
 	for chip in Part.LOOK_CHIPS:
 		var b := _colour_btn(String(chip[0]).to_lower(), String(chip[0]), chip[1] as Color)
@@ -1456,9 +1460,18 @@ func _pull(rec: Dictionary) -> String:
 		var depth := bb.size.z if String(pf.get("from", "front")) == "front" else bb.size.x
 		dist = snappedf(depth / Part.MM, 1.0)
 	var slot := not on_face and not through and _slot_cut(rec, sk, dist)   # FWRENCH2: a jaw slot at the end of a solid CUTS it
+	var nb0 := int(Part.replay(rec).get("bodies", 0))   # FLAMP: a shape that stands apart from the solid is its own body, not one lump
+	var lk0 := _lumps(Part.replay(rec)) if nb0 > 0 else 0
 	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": "cut" if slot else "join"})
 	rec["features"].append(f)
 	var err := _last_error(rec, String(f["id"]))
+	if err == "" and nb0 > 0 and not slot:   # a slot cut never becomes a new body
+		f["into"] = Part.touching_body(rec, f)   # FLAMP5: a pull joins the body it sits on (saved on the step), not the last body
+		err = _last_error(rec, String(f["id"]))
+		var joined := Part.replay(rec)
+		if int(joined.get("bodies", 0)) == nb0 and _lumps(joined) > lk0:
+			f["op"] = "new"
+			err = _last_error(rec, String(f["id"]))
 	if err != "":
 		return "That shape is not closed, so it cannot be pulled up: drag back to the start to close it"
 	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
@@ -2265,7 +2278,7 @@ func _split_keep(key: String) -> void:
 	_split_sync()
 
 
-## COLOUR: one appear step per body (Part's "appear" feature, the look Expert's Appearance writes), all in ONE undo step. A material
+## COLOUR: one appear step on the newest body (Part's "appear" feature, the look Expert's Appearance writes), in ONE undo step. A material
 ## (Glass, Metal) keeps each body's own colour; a colour chip sets Paint's numbers with that colour
 func _paint(label: String, c: Color, preset: String) -> void:
 	armed = ""
@@ -2281,7 +2294,21 @@ func _paint(label: String, c: Color, preset: String) -> void:
 	var rec := pu._ensure()
 	var looks: Array = pu.res.get("body_looks", [])
 	var nums: Dictionary = Part.LOOK_PRESETS.get(preset, Part.LOOK_DEFAULT)
-	for i in nb:
+	# FLAMP: a colour chip paints the solids no chip has coloured yet (a new arm or shade; a lamp: base red, arm blue, shade yellow);
+	# when all are coloured, the newest one. Glass and Metal paint every solid (each keeps its own colour)
+	var chipped := {}
+	for of in rec.get("features", []):
+		if String(of.get("t", "")) == "appear" and not COLOUR_PRESETS.has(String(of.get("preset", ""))):
+			chipped[int(of.get("body", -1))] = true
+	var targets: Array = range(nb)
+	if not COLOUR_PRESETS.has(preset):
+		targets = []
+		for i in nb:
+			if not chipped.has(i):
+				targets.append(i)
+		if targets.is_empty():
+			targets = [nb - 1]
+	for i in targets:
 		var cur := Part.look_at(looks, i)
 		var col: Color = cur["c"] if COLOUR_PRESETS.has(preset) else c
 		var n := Part.count_of(rec, "appear") + 1
@@ -2514,8 +2541,8 @@ func _stick(op: String, label: String) -> void:
 static func _join_gap(before: Array, picked: Array) -> String:
 	if picked.size() < 2:
 		return ""
-	var gap := Part._tri_dist(before[int(picked[0])], before[int(picked[1])])
-	if gap > 0.00005:
+	# the same test as the gap under 0.05 mm (tris_touch finds it without the full pair scan: a Join of two big pieces froze the app)
+	if not Part.tris_touch(before[int(picked[0])], before[int(picked[1])], 0.00005):
 		return "the two pieces do not touch, so Join cannot make one solid: move one until it touches the other, then press Stick together again"
 	return ""
 
@@ -2709,7 +2736,16 @@ func _size_sync() -> void:
 	var p: Vector2 = m.cam.unproject_position(front)
 	var sz := size_l.get_combined_minimum_size()
 	size_l.size = sz
-	size_l.position = Vector2(p.x - sz.x * 0.5, p.y + 12.0)
+	# FMOBILE: the label stays on the window (a part low on a short window pushed it off the bottom) and hides rather than sit on a box or panel
+	var vp := get_viewport().get_visible_rect()
+	var pos := Vector2(clampf(p.x - sz.x * 0.5, 4.0, vp.end.x - sz.x - 4.0), minf(p.y + 12.0, vp.end.y - sz.y - 4.0))
+	size_l.position = pos
+	var r := Rect2(size_l.get_global_position(), sz)
+	for bx in [panel, repeat_box, stick_box, colour_box, hint, status]:
+		var c := bx as Control
+		if c != null and c.is_visible_in_tree() and r.intersects(c.get_global_rect()):
+			size_l.visible = false
+			return
 
 
 func _cm1(v: float) -> String:
@@ -2991,12 +3027,34 @@ func _panel_need() -> float:
 	return panel_vb.get_combined_minimum_size().y + panel.get_theme_stylebox("panel").get_minimum_size().y
 
 
+## FMOBILE: a bottom-left box's top: its usual place, never above the sentence under the hint, and above the one sentence at the bottom when the room allows
+static func _low_box_y(want: float, h: float, low_y: float, stat_top: float) -> float:
+	return clampf(want, low_y, maxf(low_y, stat_top - h))
+
+
 ## the layout, from PartUI.layout(cl): the clear view's rectangle
 func layout(cl: Rect2) -> void:
 	if not active():
 		return
 	_cl = cl
 	var w := cl.size.x - 16.0
+	var narrow := get_viewport().get_visible_rect().size.x < NARROW_W   # FMOBILE: at 1024 wide the bar row is wider than the window: its buttons shrink, the title shortens
+	use_scene_btn.custom_minimum_size.x = 96.0 if narrow else 150.0
+	var tight := get_viewport().get_visible_rect().size.x < 1300.0   # FMOBILE5: 1280 wide, the bar row (What to build at its end) needs the short words at 72 px
+	for sb in [undo_btn, redo_btn, easy_btn, expert_btn]:
+		(sb as Button).custom_minimum_size.x = 72.0 if tight else 96.0
+	give_btn.custom_minimum_size.x = 110.0 if narrow else 170.0
+	dup_btn.custom_minimum_size.x = 92.0 if narrow else 120.0   # FMOBILE2: 1024 wide, the bar row (with What to build at its end) must fit the window
+	if bar_home != null:
+		bar_home.custom_minimum_size.x = 88.0 if narrow else 110.0
+	if pu != null and pu.reopen_btn != null:
+		pu.reopen_btn.add_theme_font_size_override("font_size", 14 if narrow else 16)
+	# FMOBILE: at 1024 wide the Repeat it row (Row Up Forward Ring Corners) is narrower, so it fits left of the panel instead of under it
+	for rb in rep_btns.values():
+		(rb as Button).custom_minimum_size.x = 92.0 if narrow else 110.0
+	export_btn.custom_minimum_size.x = 84.0 if narrow else 110.0
+	title_l.clip_text = narrow
+	title_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if narrow else TextServer.OVERRUN_NO_TRIMMING
 	var n := float(MAKES.size())   # twelve buttons in one row: each takes its share (the row is as wide as the clear view allows)
 	var bw := minf(176.0, (w - (n - 1.0) * 8.0) / n)
 	make_box.reset_size()
@@ -3018,13 +3076,41 @@ func layout(cl: Rect2) -> void:
 	split_box.position = shape_box.position
 	colour_box.reset_size()
 	colour_box.position = shape_box.position
-	# the Repeat it and Stick together rows sit at the lower left, above the one sentence, off the model's pieces
+	# FMOBILE: the floating boxes stay left of the panel (the colour chips wrap) and below the sentence (the hint)
+	var room := cl.end.x - PW - 32.0 - colour_box.position.x
+	var nat := 24.0   # the chips in one row (their own widths and the gaps): the box is only as wide as its chips when the room is wide
+	for c in (colour_box.get_child(0) as Control).get_children():
+		nat += (c as Control).get_combined_minimum_size().x + 6.0
+	colour_box.size.x = minf(room, nat)
+	colour_box.size.y = colour_box.get_combined_minimum_size().y
+	# the Repeat it and Stick together rows sit at the lower left, above the one sentence, off the model's pieces (and never over the sentence)
+	var low_y := hint.position.y + hint.size.y + 6.0
+	var stat_top := cl.end.y - status.get_combined_minimum_size().y - 12.0   # the one sentence at the bottom-left: the boxes end above it
+	# a short window: the Fewer / More words under the Repeat it sliders go first, so the box fits between the sentence and the one line at the bottom
+	# (hysteresis: the words toggle only when the box crosses the room, never every frame)
+	if not rep_rows.is_empty():
+		var room_h := stat_top - low_y - 4.0
+		var words_on := bool((rep_rows[0]["words"] as Control).visible)
+		var wh := float((rep_rows[0]["words"] as Control).get_combined_minimum_size().y) + 4.0
+		repeat_box.reset_size()
+		var h_now := repeat_box.get_combined_minimum_size().y
+		var want_on := (h_now + wh) <= room_h if not words_on else h_now <= room_h
+		if want_on != words_on:
+			for r in rep_rows:
+				(r["words"] as Control).visible = want_on
 	repeat_box.reset_size()
-	repeat_box.position = Vector2(cl.position.x + 12.0, cl.end.y - repeat_box.size.y - 64.0)
+	repeat_box.position = Vector2(cl.position.x + 12.0, _low_box_y(cl.end.y - repeat_box.size.y - 64.0, repeat_box.size.y, low_y, stat_top))
 	stick_box.reset_size()
-	stick_box.position = Vector2(cl.position.x + 12.0, cl.end.y - stick_box.size.y - 64.0)
+	stick_box.position = Vector2(cl.position.x + 12.0, _low_box_y(cl.end.y - stick_box.size.y - 64.0, stick_box.size.y, low_y, stat_top))
 	tilt_box.reset_size()
-	tilt_box.position = Vector2(cl.position.x + 12.0, cl.end.y - tilt_box.size.y - 64.0)
+	var tilt_y := cl.end.y - tilt_box.size.y - 64.0
+	if repeat_box.visible:   # FMOBILE5: Tilt it and Repeat it show together (nothing armed): Tilt sits above the Repeat rows, never over their sliders
+		tilt_y = repeat_box.position.y - tilt_box.size.y - 6.0
+	var tilt_x := cl.position.x + 12.0
+	if repeat_box.visible and tilt_y < low_y:   # a short window: no room above the Repeat rows, so Tilt it stands beside them
+		tilt_x = repeat_box.position.x + repeat_box.size.x + 8.0
+		tilt_y = repeat_box.position.y + repeat_box.size.y - tilt_box.size.y
+	tilt_box.position = Vector2(tilt_x, _low_box_y(tilt_y, tilt_box.size.y, low_y, stat_top))
 	# the panel on the right, as tall as it needs; the words under the sliders go first when the room is short
 	var avail := cl.end.y - top - 4.0
 	panel.reset_size()
@@ -3046,6 +3132,14 @@ func layout(cl: Rect2) -> void:
 	status.reset_size()
 	status.size.x = minf(status.get_combined_minimum_size().x, cl.size.x - PW - 40.0)
 	status.position = Vector2(cl.position.x + 12.0, cl.end.y - status.size.y - 6.0)
+	# FMOBILE: a short window: when a Repeat it / Stick together box would cover the one sentence, the sentence goes under the panel on the right
+	var sbox := Rect2()
+	for bx in [repeat_box, stick_box]:
+		if (bx as Control).visible:
+			sbox = sbox.merge(Rect2((bx as Control).position, (bx as Control).size))
+	if sbox.size != Vector2.ZERO and Rect2(status.position, status.size).intersects(sbox):
+		status.size.x = PW
+		status.position = Vector2(panel.position.x, panel.position.y + panel.size.y + 8.0)
 
 
 # ---------------------------------------------------------------- amber dots and the shape being drawn
@@ -4013,6 +4107,8 @@ func _lumps(r: Dictionary) -> int:
 		return _lump_n
 	var weld := {}
 	var parent := PackedInt32Array()
+	var wpos := PackedVector3Array()   # FLAMP5: the welded position of each vertex id (for the touch test below)
+	var tris: Array = []               # FLAMP5: each triangle as its three welded ids
 	var find := func(i: int) -> int:
 		while parent[i] != i:
 			parent[i] = parent[parent[i]]
@@ -4028,18 +4124,74 @@ func _lumps(r: Dictionary) -> int:
 			if not weld.has(key):
 				weld[key] = parent.size()
 				parent.append(parent.size())
+				wpos.append(v)
 			ids.append(int(weld[key]))
 		var tri := idx.size() if idx.size() > 0 else vs.size()
 		for t in range(0, tri - 2, 3):
 			var a: int = ids[idx[t] if idx.size() > 0 else t]
-			for k in [1, 2]:
-				var b: int = ids[idx[t + k] if idx.size() > 0 else t + k]
+			var b1: int = ids[idx[t + 1] if idx.size() > 0 else t + 1]
+			var b2: int = ids[idx[t + 2] if idx.size() > 0 else t + 2]
+			tris.append([a, b1, b2])
+			for b in [b1, b2]:
 				var ra: int = find.call(a)
 				var rb: int = find.call(b)
 				if ra != rb:
 					parent[ra] = rb
+	# FLAMP5: a shape pulled up off a face of a solid is a separate shell that sits ON the face: the two meet on a face patch,
+	# with no vertex shared, so the welding above sees two pieces. A corner of one shell lying on a triangle of the other joins them.
+	var merged := true
+	while merged and tris.size() > 0:
+		merged = false
+		var roots := {}
+		for i in parent.size():
+			roots[find.call(i)] = true
+		if roots.size() < 2:
+			break
+		var groups := {}   # root -> {"v": vertex ids, "t": triangle indices, "bb": AABB}
+		for i in parent.size():
+			var rr: int = find.call(i)
+			if not groups.has(rr):
+				groups[rr] = {"v": PackedInt32Array(), "t": PackedInt32Array(), "bb": AABB(wpos[i], Vector3.ZERO)}
+			groups[rr]["v"].append(i)
+			groups[rr]["bb"] = (groups[rr]["bb"] as AABB).expand(wpos[i])
+		for ti in tris.size():
+			var rt: int = find.call(int(tris[ti][0]))
+			groups[rt]["t"].append(ti)
+		var keys := groups.keys()
+		for x in keys.size():
+			for y in range(x + 1, keys.size()):
+				var ga: Dictionary = groups[keys[x]]
+				var gb: Dictionary = groups[keys[y]]
+				if not (ga["bb"] as AABB).grow(1e-4).intersects(gb["bb"] as AABB):
+					continue
+				if Part.touch_patch(_group_pts(ga, wpos), _group_tri_pts(gb, wpos, tris), gb["bb"]) or Part.touch_patch(_group_pts(gb, wpos), _group_tri_pts(ga, wpos, tris), ga["bb"]):
+					parent[find.call(int(keys[x]))] = find.call(int(keys[y]))
+					merged = true
+					break
+			if merged:
+				break
 	var roots := {}
 	for i in parent.size():
 		roots[find.call(i)] = true
 	_lump_n = maxi(roots.size(), 1)
 	return _lump_n
+
+
+## FLAMP5: the points of a welded group, and the flat triangle points of the group's triangles (see Part.touch_patch)
+func _group_pts(g: Dictionary, wpos: PackedVector3Array) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for vi in g["v"]:
+		out.append(wpos[vi])
+	return out
+
+
+func _group_tri_pts(g: Dictionary, wpos: PackedVector3Array, tris: Array) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for ti in g["t"]:
+		var tr: Array = tris[ti]
+		out.append(wpos[tr[0]])
+		out.append(wpos[tr[1]])
+		out.append(wpos[tr[2]])
+	return out
+
+
