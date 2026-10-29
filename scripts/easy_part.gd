@@ -51,6 +51,7 @@ var size_l: Label              # FMEASURE: "18 x 6 x 2 cm" (wide x deep x high) 
 var whole_l: Label             # "Whole sword: N cm": the shape's biggest size, under the sliders (the blade slider is not the whole length)
 var easy_btn: Button
 var expert_btn: Button
+var bar_home: Button = null   # the bar's Home button (narrowed at 1024 wide, see layout)
 var bar_row: HBoxContainer   # the bar's row: Part's "What to build" moves in here while Easy Part is on (part_ui._place_reopen)
 var make_box: HBoxContainer
 var make_btns := {}
@@ -147,6 +148,7 @@ func build(root: Control) -> void:
 	home_b.custom_minimum_size = Vector2(110, m.TOP_H - 12)
 	home_b.add_theme_font_size_override("font_size", 15)
 	row.add_child(home_b)
+	bar_home = home_b
 	title_l = Label.new()
 	title_l.name = "easypart_title"
 	title_l.add_theme_font_size_override("font_size", 20)
@@ -2640,12 +2642,17 @@ func layout(cl: Rect2) -> void:
 	_cl = cl
 	var w := cl.size.x - 16.0
 	var narrow := get_viewport().get_visible_rect().size.x < NARROW_W   # FMOBILE: at 1024 wide the bar row is wider than the window: its buttons shrink, the title shortens
-	use_scene_btn.custom_minimum_size.x = 120.0 if narrow else 150.0
-	give_btn.custom_minimum_size.x = 140.0 if narrow else 170.0
+	use_scene_btn.custom_minimum_size.x = 96.0 if narrow else 150.0
+	give_btn.custom_minimum_size.x = 110.0 if narrow else 170.0
+	dup_btn.custom_minimum_size.x = 92.0 if narrow else 120.0   # FMOBILE2: 1024 wide, the bar row (with What to build at its end) must fit the window
+	if bar_home != null:
+		bar_home.custom_minimum_size.x = 88.0 if narrow else 110.0
+	if pu != null and pu.reopen_btn != null:
+		pu.reopen_btn.add_theme_font_size_override("font_size", 14 if narrow else 16)
 	# FMOBILE: at 1024 wide the Repeat it row (Row Up Forward Ring Corners) is narrower, so it fits left of the panel instead of under it
 	for rb in rep_btns.values():
 		(rb as Button).custom_minimum_size.x = 92.0 if narrow else 110.0
-	export_btn.custom_minimum_size.x = 96.0 if narrow else 110.0
+	export_btn.custom_minimum_size.x = 84.0 if narrow else 110.0
 	title_l.clip_text = narrow
 	title_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if narrow else TextServer.OVERRUN_NO_TRIMMING
 	var n := float(MAKES.size())   # twelve buttons in one row: each takes its share (the row is as wide as the clear view allows)
