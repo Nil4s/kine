@@ -231,12 +231,12 @@ func build(root: Control) -> void:
 	# the panel
 	panel = PanelContainer.new()
 	panel.name = "easypart_panel"
-	panel.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.95), 12, 12))
+	panel.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.95), 12, 8))   # 8 (was 12): the Use Expert foot sits in the clear view with a sword open
 	panel.visible = false
 	root.add_child(panel)
 	var v := VBoxContainer.new()
 	v.name = "easypart_panel_vb"
-	v.add_theme_constant_override("separation", 6)
+	v.add_theme_constant_override("separation", 4)
 	panel_vb = v
 	var sc := ScrollContainer.new()   # the panel's column scrolls inside the panel when it is taller than the room (a Where-to-cut row adds one)
 	sc.name = "easypart_panel_scroll"
@@ -265,7 +265,7 @@ func build(root: Control) -> void:
 	var cr := HFlowContainer.new()
 	cr.name = "easypart_chips"
 	cr.add_theme_constant_override("h_separation", 4)
-	cr.add_theme_constant_override("v_separation", 4)
+	cr.add_theme_constant_override("v_separation", 2)
 	v.add_child(cr)
 	var start_l := Label.new()   # FREESTART: a neutral row of simple shapes; nothing is forced, the Empty part is the default
 	start_l.name = "easypart_start_label"
@@ -280,7 +280,7 @@ func build(root: Control) -> void:
 		b.text = CHIP_TEXT.get(t, String(PartTemplates.T[t]["title"]))   # the chip word on the blank part is plain; the part keeps the template title
 		b.toggle_mode = true
 		b.focus_mode = Control.FOCUS_NONE
-		b.custom_minimum_size = Vector2(0, 34)
+		b.custom_minimum_size = Vector2(0, 32)
 		b.add_theme_font_size_override("font_size", 15)
 		b.pressed.connect(_chip.bind(t))
 		cr.add_child(b)
@@ -290,13 +290,13 @@ func build(root: Control) -> void:
 	more.text = "More examples"
 	more.tooltip_text = "Open What to build: a sword, an axe, a chair and more"
 	more.focus_mode = Control.FOCUS_NONE
-	more.custom_minimum_size = Vector2(0, 34)
+	more.custom_minimum_size = Vector2(0, 32)
 	more.add_theme_font_size_override("font_size", 15)
 	more.pressed.connect(_more_examples)
 	cr.add_child(more)
 	rows_vb = VBoxContainer.new()
 	rows_vb.name = "easypart_rows"
-	rows_vb.add_theme_constant_override("separation", 4)
+	rows_vb.add_theme_constant_override("separation", 2)
 	v.add_child(rows_vb)
 	whole_l = Label.new()
 	whole_l.name = "easypart_whole"
@@ -310,7 +310,7 @@ func build(root: Control) -> void:
 	back_btn.name = "easypart_back"
 	back_btn.text = "Reset"   # (was "Back to the first one": the foot wrapped to two rows and the panel ran past the clear view at 1280 x 720)
 	back_btn.focus_mode = Control.FOCUS_NONE
-	back_btn.custom_minimum_size = Vector2(0, 34)
+	back_btn.custom_minimum_size = Vector2(0, 32)
 	back_btn.add_theme_font_size_override("font_size", 14)
 	back_btn.tooltip_text = "Put every size back to how this shape started"
 	back_btn.pressed.connect(_back)
@@ -721,7 +721,7 @@ func _make_row(label: String, lo: float, hi: float, step: float, words: Array, k
 	var pill := Label.new()
 	pill.name = "easypart_pill_" + key
 	pill.add_theme_font_size_override("font_size", 16)
-	pill.add_theme_stylebox_override("normal", _style(Color(0.17, 0.18, 0.22), 14, 6))
+	pill.add_theme_stylebox_override("normal", _style(Color(0.17, 0.18, 0.22), 14, 4))
 	top.add_child(pill)
 	v.add_child(top)
 	var s := HSlider.new()
@@ -730,7 +730,7 @@ func _make_row(label: String, lo: float, hi: float, step: float, words: Array, k
 	s.max_value = hi
 	s.step = step
 	s.focus_mode = Control.FOCUS_NONE
-	s.custom_minimum_size = Vector2(0, 24)
+	s.custom_minimum_size = Vector2(0, 22)
 	var tr := _style(Color(0.2, 0.21, 0.26), 4, 0)
 	tr.content_margin_top = 4
 	tr.content_margin_bottom = 4
