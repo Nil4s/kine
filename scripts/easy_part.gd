@@ -3891,7 +3891,10 @@ func _finish_draw() -> void:
 	if not _snap_said and sh != "curve":
 		tip = " Corners snap to 1 cm (hold Alt for a free size)."   # FSNAP: said once, on the first shape
 		_snap_said = true
-	_say("Shape drawn.%s Now press Pull it up or Spin it round" % tip)
+	if _face_sketch_last(rec):   # FFRAME: a shape drawn on a face of the solid: Cut a hole is the next step (the shape IS the hole), the hint says so
+		_say("Shape drawn on the face.%s Now press Cut a hole to cut it in, or Pull it up to push it out" % tip)
+	else:
+		_say("Shape drawn.%s Now press Pull it up or Spin it round" % tip)
 
 
 ## DRAW ON A FACE: the sketch's plane id. A face press adds ONE Part "plane" feature (from the base plane, mm = the face distance, out = the face side) to rec; no face = "top" (the floor)
