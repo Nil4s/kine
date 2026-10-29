@@ -180,6 +180,7 @@ var f_prof_clear: Button
 var f_ruled: OptionButton      # the loft dialog: ruled (straight) or smooth
 var f_sw_prof: OptionButton    # the sweep dialog: the closed profile sketch
 var f_sw_path: OptionButton    # the sweep dialog: the open path sketch
+var f_sw_flange: CheckBox      # the sweep dialog: a flange ring at the line's start end (FPIPE)
 var pat := {}                  # PATTERN dialog: its controls by name (built each time it opens, see _pattern_open)
 var f_cmb_op: OptionButton     # the combine dialog: Join, Cut or Intersect
 var f_cmb_keep: CheckBox       # the combine dialog: keep the tool bodies
@@ -620,6 +621,11 @@ func _build_side() -> void:
 	f_sw_path.name = "part_sweep_path"
 	f_sw_path.focus_mode = Control.FOCUS_NONE
 	f_sw_path.item_selected.connect(func(_i): _preview())
+	f_sw_flange = CheckBox.new()
+	f_sw_flange.name = "part_sweep_flange"
+	f_sw_flange.text = "Flange ring at the start end"
+	f_sw_flange.focus_mode = Control.FOCUS_NONE
+	f_sw_flange.toggled.connect(func(_b): _preview())
 	f_edges = _label("")
 	f_edges.name = "part_edges_label"
 	dlg_info = _label("", 12, true)
@@ -1605,17 +1611,36 @@ func _sweep_open(f: Dictionary, edit: int) -> void:
 	var pid := String(f.get("profile", "")) if edit >= 0 else ""
 	var aid := String(f.get("path", "")) if edit >= 0 else ""
 	if ids.size() >= 2:
-		if pid == "":
-			pid = String(ids[ids.size() - 2])
 		if aid == "":
-			aid = String(ids[ids.size() - 1])
+			aid = String(ids[ids.size() - 1])   # the line: the newest sketch (the Curvy line)
+		if pid == "":
+			pid = _sweep_shape_default(rec, ids, aid)
 	f_sw_prof.select(maxi(ids.find(pid), 0))
 	f_sw_path.select(maxi(ids.find(aid), 0))
+	f_sw_flange.button_pressed = edit >= 0 and bool(f.get("flange", false))
 	dlg_rows.add_child(_label("Shape to sweep"))
 	dlg_rows.add_child(f_sw_prof)
 	dlg_rows.add_child(_label("Line to sweep along"))
 	dlg_rows.add_child(f_sw_path)
+	dlg_rows.add_child(f_sw_flange)
+	dlg_rows.add_child(_label("A washer ring at the line's start end, round the pipe", 13, true))
 	_op_row(f)
+
+
+## FPIPE: the shape a sweep starts from by default: the newest closed sketch that is not the line (a circle or a closed curve); else the one before the line
+func _sweep_shape_default(rec: Dictionary, ids: Array, line_id: String) -> String:
+	for i in range(ids.size() - 1, -1, -1):
+		var sid := String(ids[i])
+		if sid == line_id:
+			continue
+		for e in Part.feature(rec, sid).get("ents", []):
+			var k := String(e.get("k", ""))
+			if k == "circle" or k == "rect" or (k == "bspline" and bool(e.get("closed", false))):
+				return sid
+	for sid in ids:
+		if String(sid) != line_id:
+			return String(sid)
+	return String(ids[0])
 
 
 ## the sketches a loft can take, by id (the order of the picker's items after its first "Add a sketch..." row)
@@ -1655,7 +1680,7 @@ func _prof_picked(i: int) -> void:
 ## the dialog's rows go; the field controls are kept (they are re-parented into the next dialog)
 func _clear_rows() -> void:
 	_combine_controls()   # COMBINE's two controls exist before the list below takes them off their parent
-	for c in [f_num, f_ang, f_both, f_op, f_axis, f_pull, f_plane, f_taper, f_open, f_edges, f_from, f_to, f_dur, f_dial, f_prof, f_prof_clear, f_ruled, f_sw_prof, f_sw_path, f_cmb_op, f_cmb_keep]:
+	for c in [f_num, f_ang, f_both, f_op, f_axis, f_pull, f_plane, f_taper, f_open, f_edges, f_from, f_to, f_dur, f_dial, f_prof, f_prof_clear, f_ruled, f_sw_prof, f_sw_path, f_sw_flange, f_cmb_op, f_cmb_keep]:
 		if (c as Node).get_parent() != null:
 			(c as Node).get_parent().remove_child(c)
 	for c in dlg_rows.get_children():
@@ -1792,6 +1817,8 @@ func dialog_feature() -> Dictionary:
 			if sp_id == sa_id:
 				return {}
 			f = {"profile": sp_id, "path": sa_id, "op": op}
+			if f_sw_flange.button_pressed:
+				f["flange"] = true
 		"pattern":
 			f = _pattern_feature()
 		"combine":
