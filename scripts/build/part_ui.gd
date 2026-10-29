@@ -1612,7 +1612,7 @@ func _sweep_open(f: Dictionary, edit: int) -> void:
 	var aid := String(f.get("path", "")) if edit >= 0 else ""
 	if ids.size() >= 2:
 		if aid == "":
-			aid = String(ids[ids.size() - 1])   # the line: the newest sketch (the Curvy line)
+			aid = _sweep_path_default(rec, ids)   # the line: the newest OPEN sketch (FKETTLE: a round disc drawn after the Curvy line is not the line)
 		if pid == "":
 			pid = _sweep_shape_default(rec, ids, aid)
 	f_sw_prof.select(maxi(ids.find(pid), 0))
@@ -1627,20 +1627,46 @@ func _sweep_open(f: Dictionary, edit: int) -> void:
 	_op_row(f)
 
 
-## FPIPE: the shape a sweep starts from by default: the newest closed sketch that is not the line (a circle or a closed curve); else the one before the line
+## FPIPE: the shape a sweep starts from by default: the newest closed sketch that is not the line (a circle or a closed curve); else the one before the line.
+## FKETTLE: a closed shape no feature uses yet comes first (a loop already spun is not the pipe's round shape)
 func _sweep_shape_default(rec: Dictionary, ids: Array, line_id: String) -> String:
+	var used_ok := ""
+	var any_closed := ""
 	for i in range(ids.size() - 1, -1, -1):
 		var sid := String(ids[i])
 		if sid == line_id:
 			continue
+		var closed := false
 		for e in Part.feature(rec, sid).get("ents", []):
 			var k := String(e.get("k", ""))
 			if k == "circle" or k == "rect" or (k == "bspline" and bool(e.get("closed", false))):
+				closed = true
+		if closed:
+			if not Part.sketch_used(rec, sid):
 				return sid
+			if any_closed == "":
+				any_closed = sid
+	if any_closed != "":
+		return any_closed
 	for sid in ids:
 		if String(sid) != line_id:
 			return String(sid)
 	return String(ids[0])
+
+
+## FKETTLE: the line a sweep runs along by default: the newest sketch whose pieces are all open (a Curvy line, not a closed shape); else the newest sketch
+func _sweep_path_default(rec: Dictionary, ids: Array) -> String:
+	for i in range(ids.size() - 1, -1, -1):
+		var sid := String(ids[i])
+		var ents: Array = Part.feature(rec, sid).get("ents", [])
+		var open_only := not ents.is_empty()
+		for e in ents:
+			var k := String(e.get("k", ""))
+			if k == "circle" or k == "rect" or (k == "bspline" and bool(e.get("closed", false))):
+				open_only = false
+		if open_only:
+			return sid
+	return String(ids[ids.size() - 1])
 
 
 ## the sketches a loft can take, by id (the order of the picker's items after its first "Add a sketch..." row)
@@ -2435,6 +2461,10 @@ func _note_sync() -> void:
 	elif res.get("bodies", 0) > 0:
 		var errs: Dictionary = res.get("errors", {})
 		t = "%d bod%s, volume %s cm3" % [res["bodies"], "y" if res["bodies"] == 1 else "ies", snappedf(float(res["volume"]) * 1e6, 0.01)]
+		var bx: AABB = res.get("aabb", AABB())   # FRULER: the exact size of the whole part in mm (a 300 mm ruler reads 300 x 20 x 20 mm)
+		if bx.size != Vector3.ZERO:
+			var sz := bx.size / Part.MM
+			t += ", box %s x %s x %s mm" % [("%.1f" % sz.x).trim_suffix(".0"), ("%.1f" % sz.y).trim_suffix(".0"), ("%.1f" % sz.z).trim_suffix(".0")]
 		if not errs.is_empty():
 			t += "   (%d step%s failed: see the red icon)" % [errs.size(), "" if errs.size() == 1 else "s"]
 	elif not _feats().is_empty():

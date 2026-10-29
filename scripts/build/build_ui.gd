@@ -1834,6 +1834,10 @@ func _stage_part_sync() -> void:
 	eb.tooltip_text = "back to BUILD: the part is open there, to change it (the picked part comes back as it was saved)"
 	eb.pressed.connect(_reopen_part)
 	stage_body.add_child(eb)
+	# FSAVE: the Easy bar (with Home) is hidden on STAGE, so a saved part left a beginner with no way back to the start screen
+	var hb: Button = m._home_button()
+	hb.name = "build_stage_home"
+	stage_body.add_child(hb)
 
 
 ## EBACK: "Back to your part": the part in the set comes back (as Change the part does), then Easy Part's screen opens on it. One page move
