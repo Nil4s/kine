@@ -1403,8 +1403,14 @@ func _pull(rec: Dictionary) -> String:
 		var bb: AABB = Part.replay(rec).get("aabb", AABB())
 		var depth := bb.size.z if String(pf.get("from", "front")) == "front" else bb.size.x
 		dist = snappedf(depth / Part.MM, 1.0)
-	var slot := not on_face and not through and _slot_cut(rec, sk, dist)   # FWRENCH2: a jaw slot at the end of a solid CUTS it
-	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": "cut" if slot else "join"})
+	# FWRENCH2: a jaw slot at the end of a solid CUTS it; FFLAT: a floor shape pulled up beside the solids (not on a face, not sitting on one) is its OWN piece (op new): Stick together can join it
+	var slot := not on_face and not through and _slot_cut(rec, sk, dist)
+	var pull_op := "cut" if slot else "join"
+	# FFLAT: the sketch's 2D y is the world height only on an UPRIGHT plane. A floor drawing's panel never "sits on" a body here (its 2D y runs along the depth)
+	var floor_plane := absf((Part.resolve_plane(rec, String(sk.get("plane", "front")))["n"] as Vector3).y) > 0.5
+	if not slot and not on_face and not through and (floor_plane or not _sits_on_body(rec, sk)) and _beside_body(rec, sk) and int(Part.replay(rec).get("bodies", 0)) > 0:
+		pull_op = "new"
+	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": pull_op})
 	rec["features"].append(f)
 	var err := _last_error(rec, String(f["id"]))
 	if err != "":
@@ -1426,6 +1432,34 @@ func _pull(rec: Dictionary) -> String:
 	taper_tw = {} if (through or on_face) else {"id": f["id"], "label": "Taper", "unit": "deg", "lo": -15.0, "hi": 15.0, "step": 0.5, "words": ["Wider at the top", "Narrower at the top"]}
 	return ""
 
+
+## FFLAT: a floor shape that TOUCHES a body (its footprint in the floor's X and Z reaches a body triangle, gap at most 0.5 mm) and does not
+## overlap it is BESIDE the solids: its own piece (Stick together can join it). Shapes that overlap, or lie apart, keep the join
+func _beside_body(rec: Dictionary, sk: Dictionary) -> bool:
+	if Part.replay(rec).get("aabb", AABB()).size == Vector3.ZERO:
+		return false
+	var pl := Part.resolve_plane(rec, String(sk.get("plane", "front")))
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for e in sk["ents"]:
+		for q in _ent_pts(e):
+			var w := Part.to_world(pl, Vector2(float(q[0]), float(q[1])))
+			lo = lo.min(Vector2(w.x, w.z))
+			hi = hi.max(Vector2(w.x, w.z))
+	var eps := 0.5 * Part.MM
+	var touch := false
+	for body in Part.body_faces(rec, -1):
+		var tris: PackedVector3Array = body
+		for k in range(0, tris.size() - 2, 3):
+			var tlo := Vector2(minf(minf(tris[k].x, tris[k + 1].x), tris[k + 2].x), minf(minf(tris[k].z, tris[k + 1].z), tris[k + 2].z))
+			var thi := Vector2(maxf(maxf(tris[k].x, tris[k + 1].x), tris[k + 2].x), maxf(maxf(tris[k].z, tris[k + 1].z), tris[k + 2].z))
+			var gx := maxf(tlo.x - hi.x, lo.x - thi.x)   # the gap along X (negative: the boxes overlap there)
+			var gz := maxf(tlo.y - hi.y, lo.y - thi.y)
+			if gx < -eps and gz < -eps:
+				return false   # the footprint overlaps the body: it stays in the body
+			if gx <= eps and gz <= eps:
+				touch = true
+	return touch
 
 ## FWRENCH2: a JAW SLOT. A floor shape (on the top plane) that lies inside one solid's width and runs past one of its ends (or the other way round)
 ## cuts that solid when pulled. Only when the trial cut lowers the volume, leaves one solid and no error; else the Pull joins as before
