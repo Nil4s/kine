@@ -2931,6 +2931,9 @@ func layout(cl: Rect2) -> void:
 	var w := cl.size.x - 16.0
 	var narrow := get_viewport().get_visible_rect().size.x < NARROW_W   # FMOBILE: at 1024 wide the bar row is wider than the window: its buttons shrink, the title shortens
 	use_scene_btn.custom_minimum_size.x = 96.0 if narrow else 150.0
+	var tight := get_viewport().get_visible_rect().size.x < 1300.0   # FMOBILE5: 1280 wide, the bar row (What to build at its end) needs the short words at 72 px
+	for sb in [undo_btn, redo_btn, easy_btn, expert_btn]:
+		(sb as Button).custom_minimum_size.x = 72.0 if tight else 96.0
 	give_btn.custom_minimum_size.x = 110.0 if narrow else 170.0
 	dup_btn.custom_minimum_size.x = 92.0 if narrow else 120.0   # FMOBILE2: 1024 wide, the bar row (with What to build at its end) must fit the window
 	if bar_home != null:
