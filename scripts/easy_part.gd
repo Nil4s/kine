@@ -21,6 +21,7 @@ const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the 
 const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal): a wood brown, red > green > blue
 const HOLLOW_MM := 3.0           # Hollow inside: the wall the shell starts with (the Wall slider moves it: 1 to 10 mm)
 const THROTTLE_MS := 100
+const CLIP_MM := 6.0             # FBOWL2: a spun curve that dips past the middle line by less than this (a spline overshoot) is clipped onto it
 const SKY := Color("#73BFFF")
 const AMBER := Color("#FFC933")
 const MAKES := [
@@ -1214,6 +1215,8 @@ func _spin(rec: Dictionary) -> String:
 		if not on_piece:
 			_lift_to_floor(sk)
 		axis = "y"
+	if axis == "y" and _past_axis(sk) < -3.0 and _past_axis(sk) >= -CLIP_MM:
+		_clip_axis(sk)   # FBOWL2: a spline's overshoot past the middle line (a bowl's foot corner) is clipped onto it, not refused
 	if axis == "y" and _past_axis(sk) < -3.0 and _on_left(sk):
 		_flip_x(sk)   # a drawing wholly on the -X side is the same solid as its mirror image on the +X side (a lathe is symmetric): flip it, then spin
 	if axis == "y" and _past_axis(sk) < -3.0:
@@ -1287,6 +1290,22 @@ func _past_axis(sk: Dictionary) -> float:
 			for q in _ent_pts(e):
 				lo = minf(lo, float(q[0]))
 	return lo
+
+
+## FBOWL2: a curve drawn through corner points (a salad bowl's foot) overshoots the middle line by a few mm between its points: the curve
+## is sampled, the part past the middle line is set to x = 0 (a flat piece on the axis), and the sketch keeps the sampled points
+func _clip_axis(sk: Dictionary) -> void:
+	for e in sk["ents"]:
+		if String(e["k"]) != "bspline":
+			continue
+		var closed := bool(e.get("closed", false))
+		var dense := Part.spline_curve(e.get("pts", []), closed, 16)
+		var out := []
+		for q in dense:
+			out.append([maxf(q.x, 0.0), q.y])
+		if closed and out.size() > 1:
+			out.pop_back()   # the sample ends on the first point again: the closed line keeps one of them
+		e["pts"] = out
 
 
 ## true when no point of the drawing is on the +X side of the middle line (x <= 0.5 mm everywhere)
