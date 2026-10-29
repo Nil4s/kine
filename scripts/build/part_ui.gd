@@ -63,7 +63,7 @@ const TIPS := {
 	"Canvas": "CANVAS: put a picture on the Front, Top or Right plane (or an offset plane). Click two points of known size, type the real distance, drag it to line up.",
 	"Loft": "LOFT: pick two or more sketches in order (each a closed profile); the solid runs through them. Ruled = straight, Smooth = curved.",
 	"Pattern": "PATTERN: copies of a body in a row (linear) or round an axis through the origin (circular). Join them into the body or make them new bodies. Live preview.",
-	"Sweep": "SWEEP: pick a closed profile sketch and an open path sketch (lines, arcs, splines, one chain). The profile must sit in the middle of the path's start and square to it. Corners are rounded.",
+	"Sweep": "SWEEP: pick the shape to push along a line (a pipe: a round shape) and the line. The shape sits at the line's start, facing along it. Corners are rounded.",   # FPIPE: plain words
 	"Offset plane": "OFFSET PLANE: pick Front, Top or Right and type a distance. The new plane is in the browser: click it to sketch on it.",
 	"Fillet": "FILLET: click edges (they turn sky blue), type a radius, press Enter or OK.",
 	"Chamfer": "CHAMFER: click edges, type a distance, press Enter or OK.",
@@ -1611,9 +1611,9 @@ func _sweep_open(f: Dictionary, edit: int) -> void:
 			aid = String(ids[ids.size() - 1])
 	f_sw_prof.select(maxi(ids.find(pid), 0))
 	f_sw_path.select(maxi(ids.find(aid), 0))
-	dlg_rows.add_child(_label("Profile (closed sketch)"))
+	dlg_rows.add_child(_label("Shape to sweep"))
 	dlg_rows.add_child(f_sw_prof)
-	dlg_rows.add_child(_label("Path (open sketch: lines, arcs, splines)"))
+	dlg_rows.add_child(_label("Line to sweep along"))
 	dlg_rows.add_child(f_sw_path)
 	_op_row(f)
 

@@ -1960,9 +1960,9 @@ func _finish_curve() -> void:
 		if (q as Vector2).x <= 1.0:
 			spin_ok = true
 	if spin_ok:
-		_say("Curvy line drawn: Spin it round makes a bowl, or Pull it up makes it solid" if closed else "Curvy line drawn: Spin it round for a bowl, or drag back to the start to close it")
+		_say("Curvy line drawn: Spin it round makes a bowl, or Pull it up makes it solid" if closed else "Curvy line drawn: for a pipe, Sweep the round shape along it (Expert: CREATE, Sweep). Or drag back to the start to close it")
 	else:
-		_say("Curvy line drawn: Pull it up makes it solid" if closed else "Curvy line drawn: drag back to the start to close it")
+		_say("Curvy line drawn: Pull it up makes it solid" if closed else "Curvy line drawn: for a pipe, Sweep the round shape along it (Expert: CREATE, Sweep). Or drag back to the start to close it")   # FPIPE: an open line's next step names the pipe (a sweep), not only the closing
 
 
 ## the drawn points kept for the spline (at most maxn, first and last always): the points that bend the line most, so a rim or a

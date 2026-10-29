@@ -1319,9 +1319,9 @@ static func _sweep(bodies: Array, f: Dictionary, sketches: Dictionary) -> String
 	var p0 := to_world(pa, start)
 	var tan := ((pa["x"] as Vector3) * dir.x + (pa["y"] as Vector3) * dir.y).normalized()
 	if absf(tan.dot(pl["n"])) < 0.999 or absf((p0 - pl["o"]).dot(pl["n"])) > 1e-6:
-		return "the path must leave the profile square to it (its first piece runs along the profile's normal)"
+		return "the line must start in the middle of the shape and go straight out of it, at a right angle (like a pipe out of a flange)"   # FPIPE: plain words, no profile / normal
 	if (to_plane(pl, p0) - centre).length() > 0.5:
-		return "the path must start in the middle of the profile"
+		return "the line must start in the middle of the shape"
 	var wire := KCad.sketch_wire(sp["items"], pa["o"], pa["x"], pa["n"])
 	if wire == 0:
 		return KCad.last_error()
