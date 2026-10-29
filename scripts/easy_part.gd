@@ -21,6 +21,7 @@ const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the 
 const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal): a wood brown, red > green > blue
 const HOLLOW_MM := 3.0           # Hollow inside: the wall the shell starts with (the Wall slider moves it: 1 to 10 mm)
 const THROTTLE_MS := 100
+const CLIP_MM := 6.0             # FBOWL2: a spun curve that dips past the middle line by less than this (a spline overshoot) is clipped onto it
 const SKY := Color("#73BFFF")
 const AMBER := Color("#FFC933")
 const MAKES := [
@@ -126,6 +127,13 @@ var _bar_press = null           # a draw press that began on the top bar (Vector
 var _press_btn: BaseButton = null # the button under that press (its click when the press is not a drag)
 var _off_tried := AABB()         # the box the D2 off-screen check last framed (see _frame_step)
 var _ease := {}                 # the camera ease in progress: {"t0", "d0", "t1", "d1", "s"}
+var del_btn: Button              # FDELETE: Remove, on the bar while a piece is picked (the click on a piece; see _pick_at)
+var del_on := false              # FDELETE: a piece is picked (its step id in del_id, the features count it was picked at in del_n)
+var del_id := ""
+var del_n := -1
+var del_pt := Vector3.ZERO       # the point clicked on the piece (metres, the same units as the faces)
+var del_tris := PackedVector3Array()   # the picked piece's triangles: its glow
+var _pick_p := Vector2(-1, -1)   # a left press on the grid with nothing armed: a click (no drag) picks the piece under it on release
 var flushes := 0                # rebuilds made by sliders and dots (the tests count them against the clock)
 
 
@@ -171,8 +179,8 @@ func build(root: Control) -> void:
 	row.add_child(name_edit)
 	undo_btn = _bar_btn("Undo", "Take back the last change", func(): m._undo())
 	redo_btn = _bar_btn("Redo", "Put back what Undo took back", func(): m._redo())
-	use_scene_btn = _bar_btn("Use in a scene", "Put this part into the scene as a prop", _use_scene)
-	use_scene_btn.custom_minimum_size.x = 150.0
+	use_scene_btn = _bar_btn("Save and use in a scene", "Save this part to My parts, then put it into the scene as a prop", _use_scene)   # SAVEWORD: a beginner looks for Save; "Use in a scene" stays a substring
+	use_scene_btn.custom_minimum_size.x = 230.0
 	dup_btn = _bar_btn("Duplicate", "Make a second copy of the whole part, beside it. Undo takes the copy back", func(): _make("duplicate"))   # FDUP: beside Undo and Redo (the MAKE row stays six-plus-six)
 	dup_btn.name = "easypart_duplicate"
 	dup_btn.custom_minimum_size.x = 120.0
@@ -188,6 +196,11 @@ func build(root: Control) -> void:
 	export_btn.name = "easypart_export"
 	export_btn.custom_minimum_size = Vector2(110, m.TOP_H - 12)
 	row.add_child(export_btn)
+	del_btn = _bar_btn("Remove", "Take out the picked piece: click a piece first. Undo puts it back", func(): _remove_piece())   # FDELETE
+	del_btn.name = "easypart_remove"
+	del_btn.custom_minimum_size = Vector2(110, m.TOP_H - 12)
+	del_btn.visible = false
+	row.add_child(del_btn)
 	easy_btn = _bar_btn("Easy", "Sliders and big buttons", _easy_on)
 	easy_btn.toggle_mode = true
 	easy_btn.button_pressed = true
@@ -232,7 +245,7 @@ func build(root: Control) -> void:
 	var sh := HBoxContainer.new()
 	sh.add_theme_constant_override("separation", 6)
 	shape_box.add_child(sh)
-	for s in [["box", "Box"], ["round", "Round"], ["pointy", "Pointy"]]:
+	for s in [["box", "Box"], ["round", "Round"], ["pointy", "Pointy"], ["oval", "Oval"]]:   # FSPOON: Oval = an ellipse fitted to the drag box (a bowl, a pad)
 		var b := Button.new()
 		b.name = "easypart_shape_" + String(s[0])
 		b.text = String(s[1])
@@ -908,6 +921,8 @@ func tweak_last() -> void:
 	var t := String(f.get("t", ""))
 	if t == "shell":
 		tweak = {"id": f["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
+	elif t == "fillet" and f.has("r"):   # FSAVE: a reopened part keeps its Round slider (the same one _round_done gives a new round)
+		tweak = {"id": f["id"], "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
 	elif t == "extrude" and not bool(f.get("both", false)) and String(f.get("op", "join")) == "join" and f.has("dist"):
 		var dist := float(f["dist"])
 		tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": -1.0 if dist < 0.0 else 1.0}
@@ -1209,6 +1224,9 @@ func _hollow(rec: Dictionary) -> String:
 	var too_thin := "That solid is too thin to hollow out with a 3 mm wall: Pull it up taller, then press Cut a hole again"
 	if thin <= 2.0 * HOLLOW_MM:
 		return too_thin
+	var last: Dictionary = rec["features"][-1] if not rec["features"].is_empty() else {}
+	if String(last.get("t", "")) == "loft" and (last.get("sketches", []) as Array).size() == 2:
+		return _hollow_loft(rec, last)   # a blended bowl: Part's shell on a loft takes minutes, so the wall is an inner loft cut out instead
 	var f := Part.new_feature(rec, "shell", {"body": n - 1, "open": "+y", "thick": HOLLOW_MM})
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
@@ -1246,6 +1264,98 @@ func _hollow_cup(rec: Dictionary, too_thin: String) -> String:
 	tweak = {"id": f["id"], "field": "dist", "label": "How deep", "unit": "cm", "lo": 0.1, "hi": 40.0, "step": 0.1, "scale": 10.0, "words": ["Shallower", "Deeper"], "sgn": -1.0}
 	_say("Hollowed out, open at the top: use the slider for how deep")
 	return ""
+
+
+## HOLLOW A BLEND (FSPOON): the inner loft of the blend's two shapes, each pulled in by HOLLOW_MM (the lower one lifted HOLLOW_MM off
+## the bottom, the upper one carried past the top), cut out of the solid: open at the top, a 3 mm wall. Part's shell on the same loft
+## took about 3 minutes per replay; this cut takes a few seconds. The wall is fixed (no Wall slider)
+func _hollow_loft(rec: Dictionary, lf: Dictionary) -> String:
+	var a: Dictionary = Part.feature(rec, String(lf["sketches"][0]))
+	var b: Dictionary = Part.feature(rec, String(lf["sketches"][1]))
+	var ha := _half_mm(a["ents"])
+	var hb := _half_mm(b["ents"])
+	var height := maxf(absf(_plane_mm(rec, b) - _plane_mm(rec, a)), 1.0)
+	var taper := maxf((ha - hb) / height, 0.0)   # the blend narrows by this much per mm of height: the top of the cut follows it
+	var ia := _inner_sketch(rec, a, HOLLOW_MM, HOLLOW_MM)
+	var ib := _inner_sketch(rec, b, 20.0, HOLLOW_MM + taper * 20.0)
+	if (ia["ents"] as Array).is_empty() or (ib["ents"] as Array).is_empty():
+		return "Those two shapes are too small to hollow out with a 3 mm wall: draw bigger shapes, then press Blend two shapes again"
+	var f := Part.new_feature(rec, "loft", {"sketches": [ia["id"], ib["id"]], "ruled": true, "op": "cut"})
+	rec["features"].append(f)
+	if _last_error(rec, String(f["id"])) != "":
+		return "That blend is too thin to hollow out with a 3 mm wall: draw bigger shapes, then press Blend two shapes again"
+	tweak = {}
+	_say("Hollowed out, open at the top: the wall is 3 mm")
+	return ""
+
+
+## the offset of a sketch's plane along its normal (mm)
+func _plane_mm(rec: Dictionary, sk: Dictionary) -> float:
+	var pid := String(sk["plane"])
+	return 0.0 if pid in Part.PLANES else float(Part.feature(rec, pid).get("mm", 0.0))
+
+
+## a sketch on a plane lift mm above its own, its outline pulled in by shrink mm (a new plane and a new sketch; the sketch is returned)
+func _inner_sketch(rec: Dictionary, sk: Dictionary, lift: float, shrink: float) -> Dictionary:
+	var pid := String(sk["plane"])
+	var pl := Part.new_feature(rec, "plane", {"from": _base_plane(rec, pid), "mm": _plane_mm(rec, sk) + lift})
+	rec["features"].append(pl)
+	var s2 := Part.new_feature(rec, "sketch", {"plane": String(pl["id"]), "ents": _shrunk(sk["ents"], shrink), "dims": []})
+	rec["features"].append(s2)
+	return s2
+
+
+## the middle and the half of the smaller side (mm) of a sketch's entities: a circle's half is its radius
+func _mid_half(ents: Array) -> Array:
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	var rad := -1.0
+	for e in ents:
+		if String((e as Dictionary).get("k", "")) == "circle":
+			rad = maxf(rad, float(e["r"]))
+			lo = lo.min(Vector2(float(e["c"][0]), float(e["c"][1])))
+			hi = hi.max(Vector2(float(e["c"][0]), float(e["c"][1])))
+			continue
+		for q in _ent_pts(e):
+			lo = lo.min(Vector2(float(q[0]), float(q[1])))
+			hi = hi.max(Vector2(float(q[0]), float(q[1])))
+	if lo.x > hi.x:
+		return [Vector2.ZERO, 0.0]
+	var half := minf(hi.x - lo.x, hi.y - lo.y) * 0.5
+	if rad >= 0.0:
+		half = rad
+	return [(lo + hi) * 0.5, half]
+
+
+## the half of a sketch's smaller side (mm): the wall needs room inside it
+func _half_mm(ents: Array) -> float:
+	return float(_mid_half(ents)[1])
+
+
+## the outline pulled in by d mm: its points scale about the middle (a circle's radius less d); [] when d leaves nothing
+func _shrunk(ents: Array, d: float) -> Array:
+	var mh := _mid_half(ents)
+	var c: Vector2 = mh[0]
+	var half: float = mh[1]
+	if half <= d + 1.0:
+		return []
+	var k := (half - d) / half
+	var out := []
+	for e in ents:
+		var e2: Dictionary = (e as Dictionary).duplicate(true)
+		if String(e2.get("k", "")) == "circle":
+			e2["r"] = float(e2["r"]) - d
+		else:
+			for key in ["a", "b"]:
+				if e2.has(key) and e2[key] is Array:
+					e2[key] = Part.arr2(c + (Vector2(float(e2[key][0]), float(e2[key][1])) - c) * k)
+			if e2.has("pts"):
+				var np := []
+				for q in e2["pts"]:
+					np.append(Part.arr2(c + (Vector2(float(q[0]), float(q[1])) - c) * k))
+				e2["pts"] = np
+		out.append(e2)
+	return out
 
 
 func _arm_words(a: String) -> String:
@@ -1415,6 +1525,8 @@ func _spin(rec: Dictionary) -> String:
 		if not on_piece:
 			_lift_to_floor(sk)
 		axis = "y"
+	if axis == "y" and _past_axis(sk) < -3.0 and _past_axis(sk) >= -CLIP_MM:
+		_clip_axis(sk)   # FBOWL2: a spline's overshoot past the middle line (a bowl's foot corner) is clipped onto it, not refused
 	if axis == "y" and _past_axis(sk) < -3.0 and _on_left(sk):
 		_flip_x(sk)   # a drawing wholly on the -X side is the same solid as its mirror image on the +X side (a lathe is symmetric): flip it, then spin
 	if axis == "y" and _past_axis(sk) < -3.0:
@@ -1490,6 +1602,22 @@ func _past_axis(sk: Dictionary) -> float:
 	return lo
 
 
+## FBOWL2: a curve drawn through corner points (a salad bowl's foot) overshoots the middle line by a few mm between its points: the curve
+## is sampled, the part past the middle line is set to x = 0 (a flat piece on the axis), and the sketch keeps the sampled points
+func _clip_axis(sk: Dictionary) -> void:
+	for e in sk["ents"]:
+		if String(e["k"]) != "bspline":
+			continue
+		var closed := bool(e.get("closed", false))
+		var dense := Part.spline_curve(e.get("pts", []), closed, 16)
+		var out := []
+		for q in dense:
+			out.append([maxf(q.x, 0.0), q.y])
+		if closed and out.size() > 1:
+			out.pop_back()   # the sample ends on the first point again: the closed line keeps one of them
+		e["pts"] = out
+
+
 ## true when no point of the drawing is on the +X side of the middle line (x <= 0.5 mm everywhere)
 func _on_left(sk: Dictionary) -> bool:
 	for e in sk["ents"]:
@@ -1525,8 +1653,11 @@ func _ent_pts(e: Dictionary) -> Array:
 
 
 func _round(rec: Dictionary) -> String:
-	var res := Part.replay(rec, -1, {"edges": true})
+	# FSPOON: the edges and the kept solid come from ONE replay (each replay of a part with a hollow or a blend is seconds)
+	var res := Part.replay(rec, -1, {"edges": true, "keep": true})
+	var kept: Array = res.get("ids", [])
 	if int(res["bodies"]) == 0:
+		Part.release_kept(kept)
 		return "Nothing solid to round yet. Press Pull it up first"
 	var es: Array = res["edges"]
 	var aabb: AABB = res["aabb"]
@@ -1536,7 +1667,6 @@ func _round(rec: Dictionary) -> String:
 		longest = maxf(longest, float(e["len"]))
 	# EROUND: the edges are tried on ONE kept replay of the body as it is before the round (a kernel fillet per try), not a replay of the whole
 	# record per try: a press on a part of 25+ steps took minutes that way. The search stops at ROUND_BUDGET_US and keeps the best found
-	var kept: Array = Part.replay(rec, -1, {"keep": true}).get("ids", [])
 	var done := false
 	if not kept.is_empty():
 		done = _round_on(rec, int(kept[0]), es, small, longest)
@@ -2145,17 +2275,25 @@ func _repeat(rec: Dictionary) -> String:
 	var w_mm := 10.0
 	var h_mm := 10.0   # EREPEATUP: the body's height and depth too, so Up and Forward space the copies by their own size
 	var d_mm := 10.0
-	var faces := Part.body_faces(rec, -1)
-	if bi < faces.size() and (faces[bi] as PackedVector3Array).size() > 0:
-		var pts: PackedVector3Array = faces[bi]
+	var src := Part.pattern_piece(rec)   # REPEAT THE PIECE: the newest piece (its own size) when it is the newest step, else the whole body
+	var mrec: Dictionary = Part.pattern_src_rec(rec, src) if src != "" else rec
+	var mbi := -1 if src != "" else bi
+	var faces := Part.body_faces(mrec, -1)
+	if mbi < 0:
+		mbi = faces.size() - 1
+	if mbi >= 0 and mbi < faces.size() and (faces[mbi] as PackedVector3Array).size() > 0:
+		var pts: PackedVector3Array = faces[mbi]
 		var bb := AABB(pts[0], Vector3.ZERO)
 		for q in pts:
 			bb = bb.expand(q)
 		w_mm = maxf(bb.size.x / Part.MM, 1.0)
 		h_mm = maxf(bb.size.y / Part.MM, 1.0)
 		d_mm = maxf(bb.size.z / Part.MM, 1.0)
-	var f := Part.new_feature(rec, "pattern", {"kind": "linear", "body": bi, "count": 3, "dir": "x", "axis": "y", "deg": 360.0,
-		"mm": w_mm + 10.0, "w": w_mm, "h": h_mm, "d": d_mm, "gap": 10.0, "op": "join"})
+	var fields := {"kind": "linear", "body": bi, "count": 3, "dir": "x", "axis": "y", "deg": 360.0,
+		"mm": w_mm + 10.0, "w": w_mm, "h": h_mm, "d": d_mm, "gap": 10.0, "op": "join"}
+	if src != "":
+		fields["src"] = src
+	var f := Part.new_feature(rec, "pattern", fields)
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
 		return "The copies would not fit: nothing was changed"
@@ -2195,6 +2333,10 @@ func _rep_mode(ring: bool) -> void:
 	cur["beside"] = ring   # round a point beside the piece: a ring round the origin piles copies of a piece AT the origin onto each other
 	cur["axis"] = "y"
 	cur["deg"] = 360.0
+	if not ring and String(cur.get("dir", "x")) != "x":   # FBENCH: back from Forward or Up: the spacing is the piece's width ALONG X
+		var wx := _feat_mm(cur, "x")
+		if wx > 0.0:
+			cur["w"] = wx
 	cur["dir"] = "x"
 	cur["mm"] = _span(cur) + float(cur.get("gap", 10.0))
 	_end()
@@ -2204,7 +2346,8 @@ func _rep_mode(ring: bool) -> void:
 	_say("Ring: the copies go round in a circle" if ring else "Row: the copies go in a straight line")   # FWHEEL: "beside it" lied for a spoke (its copies go round the middle)
 
 
-## EREPEATUP: Up or Forward: the same straight copies, stacked up (y) or put one behind the other (z); spaced by the body's height or depth plus the gap. One undo step
+## EREPEATUP + FBENCH: Up or Forward: the same straight copies, stacked up (y) or put one behind the other (z); spaced by the body's
+## height or depth (its real size, measured from the body; the feature's size when the body is not there) plus the gap. One undo step
 func _rep_dir(ax: String) -> void:
 	if Part.feature(_rec(), rep_id).is_empty():
 		return
@@ -2216,12 +2359,39 @@ func _rep_dir(ax: String) -> void:
 	cur["axis"] = "y"
 	cur["deg"] = 360.0
 	cur["dir"] = ax
-	cur["mm"] = _span(cur) + float(cur.get("gap", 10.0))
+	var sp := _feat_mm(cur, ax)
+	cur["mm"] = (sp if sp > 0.0 else _span(cur)) + float(cur.get("gap", 10.0))
 	_end()
 	pu.sync()
 	_rep_sync()
 	_values_sync()
 	_say("Up: the copies stack upward, one on top of the other" if ax == "y" else ("Forward: the copies go one behind the other" if ax == "z" else "Row: the copies go sideways in a straight line"))
+
+
+## FBENCH: the size of the copied piece of a Repeat step along one way ("x" | "y" | "z") in mm; -1 when it is not there (the caller falls back)
+func _feat_mm(cur: Dictionary, dir: String) -> float:
+	var src := String(cur.get("src", ""))
+	if src != "":
+		var sub := Part.pattern_src_rec(_rec(), src)
+		if not sub.is_empty():
+			return _piece_mm(sub, -1, dir)
+	return _piece_mm(_rec(), int(cur.get("body", -1)), dir)
+
+
+## FBENCH: the size of body bi along one way ("x" | "y" | "z") in mm (bi -1: the last body); -1 when the body is not there (the caller falls back to the feature's size)
+func _piece_mm(rec: Dictionary, bi: int, dir: String) -> float:
+	var faces := Part.body_faces(rec, -1)
+	if bi < 0:
+		bi = faces.size() - 1
+	if bi < 0 or bi >= faces.size() or (faces[bi] as PackedVector3Array).size() == 0:
+		return -1.0
+	var pts: PackedVector3Array = faces[bi]
+	var bb := AABB(pts[0], Vector3.ZERO)
+	for q in pts:
+		bb = bb.expand(q)
+	var s := bb.size
+	var n := s.x if dir == "x" else (s.y if dir == "y" else s.z)
+	return maxf(n / Part.MM, 1.0)
 
 
 ## STICK TOGETHER: Part's combine step (Expert Combine): the first picked piece is the target, the second the tool; one undo step
@@ -2410,6 +2580,9 @@ func _process(_dt: float) -> void:
 	colour_box.visible = on and armed == "colour"
 	repeat_box.visible = on and armed == "" and rep_id != "" and not Part.feature(_rec(), rep_id).is_empty()
 	stick_box.visible = on and armed == "stick" and stick_picks.size() == 2
+	if del_on and (armed != "" or (_rec().get("features", []) as Array).size() != del_n):
+		_pick_clear()   # FDELETE: a pick ends with the step it was made on
+	del_btn.visible = on and del_on
 	if not on:
 		return
 	if m.easy != null:
@@ -2879,6 +3052,12 @@ func _tri_px(p: Vector2, q: PackedVector2Array) -> float:
 
 func _draw_dots() -> void:
 	var font := ThemeDB.fallback_font
+	if del_on:   # FDELETE: the picked piece glows red-amber
+		for k in range(0, del_tris.size() - 2, 3):
+			var q := _proj3(del_tris, k)
+			if q.size() < 3 or absf((q[1] - q[0]).cross(q[2] - q[0])) < 0.5:
+				continue
+			dots.draw_colored_polygon(q, Color(1.0, 0.35, 0.2, 0.3))
 	for bi in stick_picks:   # the picked piece glows: its faces tinted, its edges amber
 		var tris: PackedVector3Array = stick_tris.get(bi, PackedVector3Array())
 		for k in range(0, tris.size() - 2, 3):
@@ -3065,7 +3244,7 @@ func _face_hit(p: Vector2) -> Dictionary:
 func _face_hit_at(p: Vector2) -> Dictionary:
 	if not Part.available():
 		return {}
-	var faces: Array = Part.body_faces(_rec(), -1)
+	var faces: Array = _shown_faces()
 	var ro: Vector3 = m.cam.project_ray_origin(p)
 	var rd: Vector3 = m.cam.project_ray_normal(p)
 	var best_d := INF
@@ -3120,6 +3299,26 @@ func _face_hit_at(p: Vector2) -> Dictionary:
 	var pl := Part.plane(FACE_BASE[ax])
 	pl["o"] = (pl["o"] as Vector3) + (pl["n"] as Vector3) * mm * Part.MM
 	return {"pl": pl, "base": FACE_BASE[ax], "mm": mm, "out": out}
+
+
+## FSPOON: the triangles a press is tested against: the shown mesh of the last step's replay (a press costs no replay of a part
+## with a hollow or a blend: each one is seconds). A step not yet shown (a slider edit still pending) replays the record as before
+func _shown_faces() -> Array:
+	var mesh: Variant = pu.res.get("mesh") if pu != null else null
+	if not (mesh is ArrayMesh) or _dirty or (mesh as ArrayMesh).get_surface_count() == 0:
+		return Part.body_faces(_rec(), -1)
+	var tris := PackedVector3Array()
+	var am := mesh as ArrayMesh
+	for sf in am.get_surface_count():
+		var arr := am.surface_get_arrays(sf)
+		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var idx = arr[Mesh.ARRAY_INDEX]
+		if idx == null:
+			tris.append_array(verts)
+		else:
+			for k in (idx as PackedInt32Array):
+				tris.append(verts[k])
+	return [tris]
 
 
 const FACE_BASE := ["right", "top", "front"]   # the Part plane each axis is drawn on (+X, +Y, +Z)
@@ -3179,7 +3378,10 @@ func _key(k: InputEventKey) -> void:
 			_cancel_drag()
 			get_viewport().set_input_as_handled()
 	elif k.keycode == KEY_DELETE and not k.ctrl_pressed and not k.alt_pressed:
-		_delete_newest()
+		if del_on:
+			_remove_piece()   # FDELETE: the picked piece goes (a click picked it)
+		else:
+			_delete_newest()
 		get_viewport().set_input_as_handled()
 
 
@@ -3220,6 +3422,152 @@ func _delete_newest() -> void:
 	_rows_sync()
 	_end()
 	_say("Took out the newest piece. Undo puts it back")
+
+
+## FDELETE: a click on a piece picks it (the glow shows it; Remove or the Delete key takes it out). A click on empty grid clears the pick.
+## The piece is the step that first put the clicked surface in the solid: the first step whose result has that point on a face
+func _pick_at(p: Vector2) -> void:
+	_pick_clear()
+	if _tpl() != "" or not _drag.is_empty() or not _draft.is_empty():
+		return
+	var rec := _rec()
+	if (rec.get("features", []) as Array).is_empty():
+		return
+	var faces: Array = Part.body_faces(rec, -1)
+	var hit: Dictionary = pu._ray_hit(p, faces)
+	if hit.is_empty():
+		return
+	var pt: Vector3 = hit["at"]
+	var fs: Array = rec["features"]
+	for k in fs.size():
+		var t := String(fs[k].get("t", ""))
+		if t == "sketch" or t == "plane":
+			continue   # a sketch or a face plane adds no surface
+		if _pt_on(Part.body_faces(rec, k), pt):
+			del_on = true
+			del_id = String(fs[k].get("id", ""))
+			del_n = fs.size()
+			del_pt = pt
+			del_tris = _lump_of(faces[int(hit["body"])], pt)   # the piece: the pieces that touch the point (a join of apart pieces is one body)
+			dots.queue_redraw()
+			_say("Picked a piece: press Remove to take it out. Undo puts it back")
+			return
+	_say("That piece has no step to take out")
+
+
+func _pick_clear() -> void:
+	del_on = false
+	del_id = ""
+	del_n = -1
+	del_tris = PackedVector3Array()
+	dots.queue_redraw()
+
+
+## is the point on a triangle of the faces (within 0.05 mm; the faces are metres)
+static func _pt_on(faces: Array, pt: Vector3) -> bool:
+	for tris in faces:
+		var t: PackedVector3Array = tris
+		for k in range(0, t.size() - 2, 3):
+			if _pt_on_tri(t[k], t[k + 1], t[k + 2], pt):
+				return true
+	return false
+
+
+static func _pt_on_tri(a: Vector3, b: Vector3, c: Vector3, pt: Vector3) -> bool:
+	var n := (b - a).cross(c - a)
+	if n.length_squared() < 1e-18:
+		return false
+	n = n.normalized()
+	if absf((pt - a).dot(n)) > 0.00005:
+		return false
+	var q := pt - n * (pt - a).dot(n)
+	return (b - a).cross(q - a).dot(n) >= -0.00005 and (c - b).cross(q - b).dot(n) >= -0.00005 and (a - c).cross(q - c).dot(n) >= -0.00005
+
+
+## the triangles of the piece that holds pt: the ones joined to the triangle under pt by shared corners (a join of apart pieces is one body)
+static func _lump_of(tris: PackedVector3Array, pt: Vector3) -> PackedVector3Array:
+	var nt := tris.size() / 3
+	var by := {}
+	for t in nt:
+		for j in 3:
+			var kk := Vector3i(roundi(tris[3 * t + j].x * 1e5), roundi(tris[3 * t + j].y * 1e5), roundi(tris[3 * t + j].z * 1e5))
+			if not by.has(kk):
+				by[kk] = []
+			(by[kk] as Array).append(t)
+	var start := -1
+	for t in nt:
+		if _pt_on_tri(tris[3 * t], tris[3 * t + 1], tris[3 * t + 2], pt):
+			start = t
+			break
+	var out := PackedVector3Array()
+	if start < 0:
+		return out
+	var seen := {start: true}
+	var todo := [start]
+	while not todo.is_empty():
+		var t: int = todo.pop_back()
+		for j in 3:
+			var kk := Vector3i(roundi(tris[3 * t + j].x * 1e5), roundi(tris[3 * t + j].y * 1e5), roundi(tris[3 * t + j].z * 1e5))
+			for u in by[kk]:
+				if not seen.has(u):
+					seen[u] = true
+					todo.append(u)
+	for t in seen.keys():
+		out.append(tris[3 * int(t)])
+		out.append(tris[3 * int(t) + 1])
+		out.append(tris[3 * int(t) + 2])
+	return out
+
+
+## Remove: the picked piece's step goes out (and its sketch and face plane, if nothing else uses them), one undo step.
+## A step after it that needs it keeps it: the part says so and nothing changes
+func _remove_piece() -> void:
+	if not del_on:
+		_say("Click a piece first, then press Remove")
+		return
+	if not _drag.is_empty() or not _draft.is_empty():
+		return
+	_flush_if_dirty()
+	var rec := _rec()
+	var fs: Array = rec.get("features", [])
+	var k := Part.index_of(rec, del_id)
+	if k < 0 or fs.size() != del_n:
+		_pick_clear()
+		_say("The part changed: click the piece again")
+		return
+	var test: Dictionary = rec.duplicate(true)
+	var tfs: Array = test["features"]
+	var gone: Dictionary = tfs[k]
+	tfs.remove_at(k)
+	var extra: Array = []
+	for key in ["sketch", "plane"]:
+		if gone.has(key):
+			extra.append(String(gone[key]))
+	for sid in extra:
+		if sid == "" or JSON.stringify(tfs).contains("\"%s\"" % sid):
+			continue
+		for i in tfs.size():
+			if String(tfs[i].get("id", "")) == sid:
+				tfs.remove_at(i)
+				break
+	var errs: Dictionary = Part.replay(test).get("errors", {})
+	if not errs.is_empty():
+		_say("A step after it needs this piece, so it stays. Take those steps out first")
+		return
+	if _pt_on(Part.body_faces(test, -1), del_pt):
+		_say("That face is still there after the step: click the piece on its outside")
+		return
+	_begin("Remove piece")
+	var live := _rec()
+	live["features"] = tfs
+	armed = ""
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	_pick_clear()
+	_rows_sync()
+	_end()
+	_say("Took out the piece. Undo puts it back")
 
 
 ## a press on the top bar's BUTTONS never reaches input() (the button takes it in the GUI pass first): this sees it before the GUI,
@@ -3319,6 +3667,8 @@ func input(ev: InputEvent) -> bool:
 				return true
 			if (armed == "draw" or armed == "curve") and not _over_ui(p):
 				return _start_draft(p)
+			if armed == "" and not _over_ui(p):
+				_pick_p = p   # FDELETE: a click (no drag) on a piece picks it, on the release
 			return false
 		if not _drag.is_empty():
 			_drag_to(p, true)
@@ -3326,6 +3676,11 @@ func input(ev: InputEvent) -> bool:
 			_end()
 			return true
 		_bar_press = null
+		if _pick_p.x >= 0.0:
+			var pp := _pick_p
+			_pick_p = Vector2(-1, -1)
+			if pp.distance_to(p) < 6.0 and _drag.is_empty() and _draft.is_empty():
+				_pick_at(p)
 		if not _draft.is_empty():
 			_draft_end()
 			return true
@@ -3492,7 +3847,21 @@ func _finish_draw() -> void:
 	_draft = {}
 	var ent := {}
 	var ents: Array = []
-	if sh == "box" or sh == "pointy":
+	if sh == "oval":
+		var so := _sides(a, b, pl)
+		if so.has("thin"):
+			_say("Drag a bit wider: both sides must be at least 2 mm (now %s mm)" % _mm_words(float(so["thin"])))
+			return
+		b = so["b"]
+		var oc := (a + b) * 0.5
+		var orx := absf(b.x - a.x) * 0.5
+		var ory := absf(b.y - a.y) * 0.5
+		var opts: Array = []
+		for i in 16:   # 16 points round the ellipse: a closed spline through them is the oval outline
+			var t := TAU * float(i) / 16.0
+			opts.append(Part.arr2(Vector2(oc.x + orx * cos(t), oc.y + ory * sin(t))))
+		ents = [{"k": "bspline", "pts": opts, "closed": true}]
+	elif sh == "box" or sh == "pointy":
 		var sd := _sides(a, b, pl)
 		if sd.has("thin"):
 			_say("Drag a bit wider: both sides must be at least 2 mm (now %s mm)" % _mm_words(float(sd["thin"])))
@@ -3511,7 +3880,7 @@ func _finish_draw() -> void:
 		ent = {"k": "circle", "c": Part.arr2(a), "r": snappedf(r, 0.5)}
 	_begin("Draw shape")
 	var rec := pu._ensure()
-	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": ents if sh == "pointy" else [ent], "dims": []}))
+	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": ents if not ents.is_empty() else [ent], "dims": []}))
 	_end()
 	armed = ""
 	tweak = {}
