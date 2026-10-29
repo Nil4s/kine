@@ -9,8 +9,11 @@ extends SceneTree
 ##   3 P1 an OPEN Curvy line says how to make a pipe (Sweep), not only "drag back to the start to close it"
 ##   4 Expert is one click from Easy, and its bar has a Sweep tool
 ##   5 the Sweep tool opens its dialog with the profile and path pickers listing the sketches
-## shots: C:/Temp/claude/fpipe/
-const SHOT := "C:/Temp/claude/fpipe"
+##   5b the dialog starts on the round shape (a closed circle) and the Curvy line (open): no picking needed
+##   6 OK by a real click, with Flange ring at the start end ticked: the solid grows by the pipe (pi r^2 L) plus the ring, within 3 percent
+##   7 the sweep is ONE step with the flange flag on the record
+## shots: C:/Temp/claude/fpipe2/
+const SHOT := "C:/Temp/claude/fpipe2"
 const DIRT := "user://fpipe_test"
 
 var fails := 0
@@ -183,7 +186,49 @@ func _init() -> void:
 	var na: int = pu().f_sw_path.item_count if sw_idx >= 0 else -1
 	ok(np >= 2 and na >= 2, "5 the Sweep dialog lists the sketches in both pickers (profile %d, path %d)" % [np, na])
 
-	# 6 the Sweep words are plain: no profile, normal, chain or closed / open sketch on screen (the dialog, the tip, the error)
+	# 5b the default picks: the shape is the closed circle, the line the open curve
+	var rec_now: Dictionary = pu()._ensure()
+	var sel_prof := String(pu()._sketch_ids(rec_now)[pu().f_sw_prof.selected]) if sw_idx >= 0 else ""
+	var sel_path := String(pu()._sketch_ids(rec_now)[pu().f_sw_path.selected]) if sw_idx >= 0 else ""
+	var prof_ents: Array = Part.feature(rec_now, sel_prof).get("ents", [])
+	var path_ents: Array = Part.feature(rec_now, sel_path).get("ents", [])
+	var circ_r := -1.0
+	for e in prof_ents:
+		if String(e.get("k", "")) == "circle":
+			circ_r = float(e["r"])
+	var curve_open := path_ents.size() == 1 and String(path_ents[0].get("k", "")) == "bspline" and not bool(path_ents[0].get("closed", true))
+	ok(circ_r > 0.0 and curve_open and prof_ents.size() == 1, "5b the dialog starts on the round shape (circle r %.1f mm) and the open Curvy line" % circ_r)
+
+	# 6 OK by a real click, flange ring ticked by a real click: the solid grows by the pipe (pi r^2 L) plus the ring
+	var v0: float = float(Part.replay(rec_now)["volume"])
+	var n0 := 0
+	for f in rec_now["features"]:
+		if f["t"] == "sweep":
+			n0 += 1
+	var rc := maxf(2.0, 1.5 * circ_r)
+	var plen: float = float(Part.sweep_path(path_ents, rc)["len"]) if curve_open else 0.0
+	var ring_t := 4.0
+	var od := 2.0 * circ_r + 12.0
+	var want_add := PI * circ_r * circ_r * plen * 1e-9 + PI * (od * od * 0.25 - circ_r * circ_r) * ring_t * 1e-9
+	var flange_box = pu().get("f_sw_flange")   # null on the old code: the bar then fails (no flange tick)
+	if sw_idx >= 0 and flange_box != null:
+		await click_ctl(flange_box)
+		await idle(3)
+		await click_ctl(pu().ok_btn)
+		await idle(20)
+	await shot("08_pipe")
+	var rec2: Dictionary = pu()._ensure()
+	var sweeps: Array = []
+	for f in rec2["features"]:
+		if f["t"] == "sweep":
+			sweeps.append(f)
+	var v1: float = float(Part.replay(rec2)["volume"])
+	var add := v1 - v0
+	ok(sweeps.size() == n0 + 1 and absf(add - want_add) <= 0.03 * want_add,
+		"6 OK by click: the pipe and its flange ring add %.4e m3 (want %.4e m3 = pipe + ring, 3 percent)" % [add, want_add])
+	ok(sweeps.size() == n0 + 1 and bool(sweeps[-1].get("flange", false)), "7 the sweep is one step, flange on the record (%d new)" % (sweeps.size() - n0))
+
+	# 8 the Sweep words are plain: no profile, normal, chain or closed / open sketch on screen (the dialog, the tip, the error)
 	var seen: Array = []
 	texts_under(m, seen)
 	var bad: Array = []
@@ -192,7 +237,7 @@ func _init() -> void:
 		for w in ["profile", "normal", "chain", "closed sketch", "open sketch", "square to"]:
 			if low.find(w) >= 0:
 				bad.append(String(t))
-	ok(bad.is_empty(), "6 the Sweep words are plain (no profile / normal / chain on screen: %s)" % str(bad.slice(0, 3)))
+	ok(bad.is_empty(), "8 the Sweep words are plain (no profile / normal / chain on screen: %s)" % str(bad.slice(0, 3)))
 
 	print("fpipe: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
