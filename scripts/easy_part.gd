@@ -1172,8 +1172,9 @@ func _slot_cut(rec: Dictionary, sk: Dictionary, dist: float) -> bool:
 	var x1 := bb.end.x + eps
 	var z0 := bb.position.z - eps
 	var z1 := bb.end.z + eps
-	var in_z := lo.y >= z0 and hi.y <= z1
-	var in_x := lo.x >= x0 and hi.x <= x1
+	# FWRENCH3: a slot is INSIDE the solid's width, so it must keep clear of both sides (a strip that spans the floor's full depth is a WALL on the edge, not a jaw: the froom wall B)
+	var in_z := lo.y > bb.position.z + eps and hi.y < bb.end.z - eps
+	var in_x := lo.x > bb.position.x + eps and hi.x < bb.end.x - eps
 	var past_x := (lo.x < x0 or hi.x > x1) and hi.x > x0 and lo.x < x1   # runs past an end along x, and overlaps the solid
 	var past_z := (lo.y < z0 or hi.y > z1) and hi.y > z0 and lo.y < z1
 	if not ((in_z and past_x) or (in_x and past_z)):
