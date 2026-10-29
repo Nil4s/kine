@@ -590,8 +590,19 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		if want.get("edges", false):
 			var es := KCad.edges(b)
 			var bb := _bbox(es)
+			var fnorm := {}   # FBRACKET: face id -> outward normal, to tell a flat seam (two coplanar faces joined) from a real bend
+			for fc in KCad.faces(b):
+				fnorm[int(fc["id"])] = fc["normal"]
 			for ed in es:
-				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb)})
+				var ef: Array = ed.get("faces", [])
+				var seam := false
+				var concave := false   # a bend that goes INTO the solid (an inner corner): rounding it adds material, so it is skipped
+				if ef.size() == 2 and fnorm.has(int(ef[0])) and fnorm.has(int(ef[1])):
+					var n1: Vector3 = fnorm[int(ef[0])]
+					var n2: Vector3 = fnorm[int(ef[1])]
+					seam = n1.dot(n2) > 0.99
+					concave = not seam and (ed["center"] - bb.get_center()).dot(n1 + n2) < 0.0
+				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave})
 	res["bodies"] = bodies.size()
 	for bi in bodies.size():
 		res["body_looks"].append(look_at(looks, bi))

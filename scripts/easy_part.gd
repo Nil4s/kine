@@ -1336,7 +1336,7 @@ func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: flo
 		var r := clampf(small * 0.01 * float(attempt[0]), 1.0, 6.0)
 		var list := []
 		for e in es:
-			if int(e["body"]) == 0 and float(e["len"]) >= longest * float(attempt[1]) and float(e["len"]) / Part.MM > r * 2.5:
+			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and float(e["len"]) >= longest * float(attempt[1]) and float(e["len"]) / Part.MM > r * 2.5:
 				list.append(Part.describe(e))
 		if list.is_empty():
 			continue
@@ -1359,7 +1359,7 @@ func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: flo
 			if Time.get_ticks_usec() - t1 > ROUND_BUDGET_US:
 				out_of_time = true
 				break
-			if int(e["body"]) == 0 and float(e["len"]) / Part.MM > r * 2.5:
+			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and float(e["len"]) / Part.MM > r * 2.5:
 				var trial := good.duplicate()
 				trial.append(Part.describe(e))
 				if Part.fillet_trial(body, r, trial) == "":
@@ -1407,9 +1407,11 @@ func _hole(rec: Dictionary) -> String:
 	# FBRACKET: the middle first; when the middle already has a hole, the next press cuts to the side, along the body's two long
 	# sketch axes (30% of the span each way), and the first side spot that takes material wins
 	var had_cut := _has_cut(rec)
-	var mid := cen   # FROOM centre on the sketch plane
+	var mid := Vector2(c.x, -c.z) if floor_made else Vector2(c.x, c.y)   # the middle of the whole body (the top plane's v axis is -Z)
 	var span := Vector2(bb.size.x, bb.size.z if floor_made else bb.size.y) / Part.MM
-	var spots: Array = [mid]
+	var spots: Array = [cen]   # FROOM: the newest piece's middle first; the whole body's middle when that cut takes everything
+	if not spots.has(mid):
+		spots.append(mid)
 	if had_cut:
 		spots += [mid + Vector2(0.3 * span.x, 0.0), mid - Vector2(0.3 * span.x, 0.0), mid + Vector2(0.0, 0.3 * span.y), mid - Vector2(0.0, 0.3 * span.y)]
 	var before := float(res["volume"])
@@ -1430,9 +1432,9 @@ func _hole(rec: Dictionary) -> String:
 			f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.z), absf(bb.end.z)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
 		rec["features"].append(f)
 		after = float(pu.replay_full(rec)["volume"])
-		if after < before - 1e-12:
+		if after < before - 1e-12 and after > 1e-9:   # a cut that takes EVERYTHING is a failed cut (the kernel gave nothing back): try the next spot
 			break
-	if after >= before - 1e-12:
+	if not (after < before - 1e-12 and after > 1e-9):
 		rec["features"].resize(n0)
 		rec["seq"] = seq0
 		if had_cut:
