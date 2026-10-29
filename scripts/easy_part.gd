@@ -90,6 +90,8 @@ var dots: Control
 var armed := ""                # "draw" while the next drag draws a shape
 var shape := "box"
 var msg := ""                  # the sentence of the last press, until the next one
+var taper_tw := {}             # FPLANTER: the Taper slider of the last Pull it up (its extrude's id; shown while that pull is the newest step)
+var taper_row: Dictionary = {}  # FPLANTER: the Taper slider's row ({} = none); kept out of rows so rows[-1] is still How far
 var tweak := {}                # the last step's own slider: {"id", "ent", "field", "label", "unit", "lo", "hi", "step", "scale"}
 var _pending := {}
 var _draft_px0 := Vector2.ZERO   # the draft's raw pointer pixels, first press and last move (the sides are read from these when the grid folds them)
@@ -590,6 +592,8 @@ func _set_value(row: Dictionary, v: float, final: bool) -> void:
 		hole_base = {}                    # the template's sizes changed: the hole chips would rebuild on an old shape
 	elif row["kind"] == "rep":
 		_apply_rep(row, v)
+	elif row["kind"] == "taper":
+		_apply_taper(v)
 	else:
 		_apply_tweak(v)
 		if final and tweak.has("say"):
@@ -610,6 +614,13 @@ func _apply_tweak(v: float) -> void:
 		f["ents"][int(tweak["ent"])][tweak["field"]] = val
 	else:
 		f[tweak["field"]] = val
+
+
+## FPLANTER: the Taper slider writes the pulled shape's taper (degrees; the kernel narrows the extrude when it is positive)
+func _apply_taper(v: float) -> void:
+	var f := Part.feature(_rec(), String(taper_tw.get("id", "")))
+	if not f.is_empty():
+		f["taper"] = v
 
 
 ## the Repeat it sliders: How many = the copies; Gap = cm between the copies (the spacing = the body width + the gap, in the record mm)
@@ -753,7 +764,7 @@ func _rows_sync() -> void:
 	_tweak_stale()
 	var t := _tpl()
 	# FKEY: the label is in the signature: after an Undo a new step can take the id of the step it replaced, and its slider must still be rebuilt
-	var sig := "%s|%s|%s|%s" % [t, JSON.stringify(tweak.get("id", "")), _compact, String(tweak.get("label", ""))]
+	var sig := "%s|%s|%s|%s|%s" % [t, JSON.stringify(tweak.get("id", "")), _compact, String(tweak.get("label", "")), _taper_live()]
 	if sig == _rows_sig:
 		return
 	_rows_sig = sig
@@ -769,9 +780,21 @@ func _rows_sync() -> void:
 		var tw: Dictionary = tweak
 		var r := _make_row(String(tw["label"]), float(tw["lo"]), float(tw["hi"]), float(tw["step"]), tw.get("words", ["Less", "More"]), "tweak", "last", String(tw["unit"]))
 		rows.append(r)
+	taper_row = {}
+	if _taper_live():   # FPLANTER: the Taper row sits UNDER How far; it is not in rows (rows[-1] stays the step's own slider)
+		taper_row = _make_row(String(taper_tw["label"]), float(taper_tw["lo"]), float(taper_tw["hi"]), float(taper_tw["step"]), taper_tw["words"], "taper", "taper", String(taper_tw["unit"]))
+		(taper_row["words"] as Control).visible = not _compact
 	for r in rows:
 		(r["words"] as Control).visible = not _compact
 	_values_sync()
+
+
+## FPLANTER: the Taper row shows while its pull is the newest step (any later step hides it; an Undo that brings the pull back shows it again)
+func _taper_live() -> bool:
+	if taper_tw.is_empty():
+		return false
+	var fs: Array = _rec().get("features", [])
+	return not fs.is_empty() and String((fs[-1] as Dictionary).get("id", "")) == String(taper_tw.get("id", "")) and String((fs[-1] as Dictionary).get("t", "")) == "extrude"
 
 
 ## FROOM: the How far slider on a building project reaches 3 m (a wall is 2 m or more); the other projects keep 40 cm
@@ -834,11 +857,16 @@ func _values_sync() -> void:
 		return
 	var e: Dictionary = _rec().get("easy", {})
 	var off := not Part.available()
-	for r in rows:
+	var all_rows := rows.duplicate()
+	if not taper_row.is_empty():
+		all_rows.append(taper_row)
+	for r in all_rows:
 		var s: HSlider = r["slider"]
 		var v := 0.0
 		if r["kind"] == "tpl":
 			v = float(e.get("p", {}).get(r["key"], 0.0)) / 10.0
+		elif r["kind"] == "taper":
+			v = float(Part.feature(_rec(), String(taper_tw.get("id", ""))).get("taper", 0.0))
 		else:
 			v = _tweak_value()
 		if not bool(r.get("held", false)):
@@ -1141,6 +1169,8 @@ func _pull(rec: Dictionary) -> String:
 	else:
 		tweak["say"] = "Pulled up %s: use the slider to change it, or press Round the edges or Cut a hole next"   # the words follow the slider (a beginner walk: "2 cm" stayed at 8 cm); the next button too (ehelp2)
 		_say(String(tweak["say"]) % _fmt(2.0, "cm"))
+	# FPLANTER: a pot is wider at the top: a floor shape pulled up gets a Taper slider under How far (the extrude's taper, degrees)
+	taper_tw = {} if (through or on_face) else {"id": f["id"], "label": "Taper", "unit": "deg", "lo": -15.0, "hi": 15.0, "step": 0.5, "words": ["Wider at the top", "Narrower at the top"]}
 	return ""
 
 
