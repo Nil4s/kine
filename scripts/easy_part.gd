@@ -1499,7 +1499,7 @@ func _beside_body(rec: Dictionary, sk: Dictionary) -> bool:
 			lo = lo.min(Vector2(w.x, w.z))
 			hi = hi.max(Vector2(w.x, w.z))
 	var eps := 0.5 * Part.MM
-	var touch := false
+	var spans: Array = []   # FFLAT6: the x spans where the footprint touches the body; touches in two or more separated places (a bar across comb teeth) BRIDGE the solid: it joins
 	for body in Part.body_faces(rec, -1):
 		var tris: PackedVector3Array = body
 		for k in range(0, tris.size() - 2, 3):
@@ -1510,8 +1510,17 @@ func _beside_body(rec: Dictionary, sk: Dictionary) -> bool:
 			if gx < -eps and gz < -eps:
 				return false   # the footprint overlaps the body: it stays in the body
 			if gx <= eps and gz <= eps:
-				touch = true
-	return touch
+				spans.append(Vector2(tlo.x, thi.x))
+	if spans.is_empty():
+		return false
+	spans.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
+	var groups := 1
+	var reach: float = spans[0].y
+	for i in range(1, spans.size()):
+		if spans[i].x > reach + eps:
+			groups += 1   # a gap between two contact places: the shape spans it
+		reach = maxf(reach, spans[i].y)
+	return groups == 1
 
 ## FWRENCH2: a JAW SLOT. A floor shape (on the top plane) that lies inside one solid's width and runs past one of its ends (or the other way round)
 ## cuts that solid when pulled. Only when the trial cut lowers the volume, leaves one solid and no error; else the Pull joins as before
