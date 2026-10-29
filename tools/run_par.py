@@ -52,7 +52,7 @@ SERIAL_TIMING = set("""boot romclash lint actors_hit actors_main alphas anatomy 
 cross_contact crowd decimate deformscene dqskin drag_speed dummy_async edgeflow fix_preview gentle grip_save grip_wrap
 i1 i4 i7 i8 i12 i16 i22 i44 i45 kmesh kmesh_attrs live_layer llm_client lod meshfile meshsel modstack motion_match pages
 perf4 perfdoc photomat play_perf play_speed precise_pick r13 r21 scene_diff scene_thumbs sculpt searchall shrinkwrap
-subdiv topomirror uvexport uvunwrap""".split())
+subdiv topomirror uvexport uvunwrap fspeed""".split())
 SERIAL = SERIAL_SHARED | SERIAL_TIMING
 # --changed, when the change is too broad to map (main.gd, run_all.sh ...) or reaches no listed suite
 SMOKE = "math:h rules:h fix:h units:h cli:h timeline:w ring:w browser:w undo_tree:w theme:w status_bar:w matcap:w bevel:h".split()
