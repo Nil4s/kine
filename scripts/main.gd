@@ -6835,6 +6835,7 @@ func _undo() -> void:
 	redo.append(now)
 	_tree.step_back(now)
 	_restore(u)
+	_easy_forget_msg()
 	_rehearse_again()   # I14: the comparison is read again from the clip as it now is
 	if u.has("lib"):
 		PosePack.lib_move(u["lib"], true, library)
@@ -6856,6 +6857,12 @@ func _undo() -> void:
 	_co_sync()
 
 
+## FUNDO2: the Easy part's last sentence ("Colour: Blue") named a step that Undo or Redo just changed: it goes, and its hint shows the next thing to press
+func _easy_forget_msg() -> void:
+	if bld != null and bld.part != null and bld.part.ep != null:
+		bld.part.ep.msg = ""
+
+
 func _redo() -> void:
 	if _mesh_undo(false):
 		return
@@ -6875,6 +6882,7 @@ func _redo() -> void:
 	undo.append(now)
 	_tree.step_forward(now)
 	_restore(r)
+	_easy_forget_msg()
 	_rehearse_again()   # I14
 	if r.has("lib"):
 		PosePack.lib_move(r["lib"], false, library)
@@ -11306,7 +11314,7 @@ func _say(t: String) -> void:
 		_strip_fit()
 	# UNDO HISTORY (round 11, #75): the first thing said after a step is pushed names it ("ROTATING the right upper
 	# arm", "card 12: the right foot planted"...); its first clause, without the numbers that follow
-	if not undo.is_empty() and not undo[-1].has("name") and not t.begins_with("undone") and not t.begins_with("redone"):
+	if not undo.is_empty() and not undo[-1].has("name") and not t.begins_with("undone") and not t.begins_with("redone") and not t.begins_with("Took back") and not t.begins_with("Put back"):   # FUNDO2: Undo / Redo's own words name no step (they named the step below, and the words piled up: "Took back: Took back: ...")
 		undo[-1]["name"] = step_name(t)
 		_tree.set_name(_tree.cur, step_name(t))   # the live step's node (the tree names what the lists name)
 		_undo_tips()
