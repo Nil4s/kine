@@ -44,6 +44,7 @@ var bar: PanelContainer
 var title_l: Label
 var undo_btn: Button
 var redo_btn: Button
+var dup_btn: Button            # FDUP: the top bar's Duplicate (a second copy of the whole part beside it)
 var use_scene_btn: Button
 var whole_l: Label             # "Whole sword: N cm": the shape's biggest size, under the sliders (the blade slider is not the whole length)
 var easy_btn: Button
@@ -154,8 +155,12 @@ func build(root: Control) -> void:
 	redo_btn = _bar_btn("Redo", "Put back what Undo took back", func(): m._redo())
 	use_scene_btn = _bar_btn("Use in a scene", "Put this part into the scene as a prop", _use_scene)
 	use_scene_btn.custom_minimum_size.x = 150.0
+	dup_btn = _bar_btn("Duplicate", "Make a second copy of the whole part, beside it. Undo takes the copy back", func(): _make("duplicate"))   # FDUP: beside Undo and Redo (the MAKE row stays six-plus-six)
+	dup_btn.name = "easypart_duplicate"
+	dup_btn.custom_minimum_size.x = 120.0
 	row.add_child(undo_btn)
 	row.add_child(redo_btn)
+	row.add_child(dup_btn)
 	row.add_child(use_scene_btn)
 	give_btn = _bar_btn("Give to a character", "Give it to a character: they hold this shape in one hand, with its size and weight (PartWeapon)", func(): m.give_part_weapon(_rec()))   # one undo step
 	give_btn.name = "easypart_give"
@@ -1037,7 +1042,7 @@ func _make(which: String) -> void:
 		return
 	armed = ""
 	var snap := _rec().duplicate(true)
-	var label := String((MAKES.filter(func(x): return x[0] == which)[0])[1])
+	var label := "Duplicate" if which == "duplicate" else String((MAKES.filter(func(x): return x[0] == which)[0])[1])   # FDUP: the top bar's Duplicate is not a MAKE button
 	_begin(label)
 	var rec := pu._ensure()
 	var why := ""
@@ -1058,6 +1063,8 @@ func _make(which: String) -> void:
 			why = _cut(rec)
 		"repeat":
 			why = _repeat(rec)
+		"duplicate":
+			why = _duplicate(rec)
 	if why != "":
 		m.S.part = snap   # nothing changes: the step taken a moment ago goes back out
 		m._drop_undo()
@@ -1951,6 +1958,27 @@ func _paint(label: String, c: Color, preset: String) -> void:
 	_rows_sync()
 	_values_sync()
 	_say("Colour: %s%s" % [label, " (you can see through it)" if preset == "Glass" else ""])
+
+
+## FDUP: Duplicate: a second copy of the WHOLE part beside it (not Repeat's row of the newest solid). One Part pattern step per body, each with
+## two copies and op "new": every body is copied by the same move, the whole part's width plus a 10 mm gap, so the copy sits beside all of it
+func _duplicate(rec: Dictionary) -> String:
+	var res := Part.replay(rec)
+	var nb := int(res["bodies"])
+	if nb == 0:
+		return "Make something solid first, then duplicate it"
+	var bb: AABB = res["aabb"]
+	var gap := 10.0
+	var step_mm := maxf(bb.size.x / Part.MM, 1.0) + gap
+	for bi in nb:
+		var f := Part.new_feature(rec, "pattern", {"kind": "linear", "body": bi, "count": 2, "dir": "x", "axis": "y", "deg": 360.0,
+			"mm": step_mm, "w": bb.size.x / Part.MM, "h": bb.size.y / Part.MM, "d": bb.size.z / Part.MM, "gap": gap, "op": "new"})
+		rec["features"].append(f)
+		if _last_error(rec, String(f["id"])) != "":
+			return "The copy would not fit: nothing was changed"
+	tweak = {}
+	_say("Duplicated: a second copy of the whole part sits beside it. Undo takes the copy back")
+	return ""
 
 
 ## REPEAT IT: Part's pattern step (Expert Pattern) on the newest solid: a row along X, spacing = the body's width + a 1 cm gap

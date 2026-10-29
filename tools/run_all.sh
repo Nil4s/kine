@@ -268,3 +268,4 @@ EXTRA="$EXTRA fhelp3:w"   # FHELP3: a beginner from the BUILDING card presses ev
 EXTRA="$EXTRA fdesk:w"   # FDESK: a beginner from the BUILDING card builds an office desk by real clicks: two side panels, a top on them, a drawer box (its own piece), a handle (tests/fdesk_test.gd)
 EXTRA="$EXTRA fplanter:w"   # FPLANTER: a plant pot with a saucer, free building: round body drawn and pulled up, Hollow inside, a drain hole through the floor, a tapered pot, a separate saucer (tests/fplanter_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA fcomb:w"   # FCOMB: a beginner builds a comb from the BUILDING card by real clicks: a tooth, Repeat it Row of 20 (How many reaches 20), a bar across the tooth bases, Round the edges (tests/fcomb_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA fdup:w"   # FDUP: Easy Part Duplicate (a MAKE button, plain words): a second copy of the whole part beside it, one undo step, Undo takes it back (tests/fdup_test.gd; needs the CAD DLL)
