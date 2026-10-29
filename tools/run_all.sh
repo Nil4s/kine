@@ -258,3 +258,4 @@ EXTRA="$EXTRA fknob:w"   # FKNOB: a beginner from the BUILDING card (one click, 
 EXTRA="$EXTRA fkey:w"   # FKEY: a beginner from the BUILDING card builds a house key by real clicks: a head with a hole, a long blade, three teeth (tests/fkey_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA erepeatup:w"   # EREPEATUP: Easy Part Repeat it has Up and Forward beside Row: a plate repeated 3 times Up is three plates stacked (box 300 x 65 x 120 mm), by real clicks from the BUILDING card (tests/erepeatup_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA fsign:w"   # FSIGN: a beginner from the BUILDING card builds a door sign by real clicks: a rounded plate, a screw hole, Mirror that = the second hole (tests/fsign_test.gd)
+EXTRA="$EXTRA ftable2:w"   # FTABLE2: a beginner from the BUILDING card builds a round dining table by real clicks: round top, central post, cross foot, top coloured Wood (tests/ftable2_test.gd)
