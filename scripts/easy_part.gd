@@ -1352,7 +1352,7 @@ func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: flo
 		var r := clampf(small * 0.01 * float(attempt[0]), 1.0, 6.0)
 		var list := []
 		for e in es:
-			if int(e["body"]) == 0 and float(e["len"]) >= longest * float(attempt[1]) and float(e["len"]) / Part.MM > r * 2.5:
+			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and float(e["len"]) >= longest * float(attempt[1]) and float(e["len"]) / Part.MM > r * 2.5:
 				list.append(Part.describe(e))
 		if list.is_empty():
 			continue
@@ -1375,7 +1375,7 @@ func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: flo
 			if Time.get_ticks_usec() - t1 > ROUND_BUDGET_US:
 				out_of_time = true
 				break
-			if int(e["body"]) == 0 and float(e["len"]) / Part.MM > r * 2.5:
+			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and float(e["len"]) / Part.MM > r * 2.5:
 				var trial := good.duplicate()
 				trial.append(Part.describe(e))
 				if Part.fillet_trial(body, r, trial) == "":
@@ -1420,22 +1420,47 @@ func _hole(rec: Dictionary) -> String:
 			cen = (lo + hi) * 0.5
 	var s: Dictionary
 	var f: Dictionary
-	# "both" splits dist half each way from the sketch plane: twice the body's farthest reach + 1 cm, so a tall body is cut all the way
-	if floor_made:
-		s = Part.new_feature(rec, "sketch", {"plane": "top", "ents": [{"k": "circle", "c": Part.arr2(cen), "r": snappedf(r, 0.5)}], "dims": []})   # the top plane's v axis is -Z
-		rec["features"].append(s)
-		f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.y), absf(bb.end.y)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
-	else:
-		s = Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "circle", "c": Part.arr2(cen), "r": snappedf(r, 0.5)}], "dims": []})
-		rec["features"].append(s)
-		f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.z), absf(bb.end.z)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
-	rec["features"].append(f)
+	# FBRACKET: the middle first; when the middle already has a hole, the next press cuts to the side, along the body's two long
+	# sketch axes (30% of the span each way), and the first side spot that takes material wins
+	var had_cut := _has_cut(rec)
+	var mid := Vector2(c.x, -c.z) if floor_made else Vector2(c.x, c.y)   # the middle of the whole body (the top plane's v axis is -Z)
+	var span := Vector2(bb.size.x, bb.size.z if floor_made else bb.size.y) / Part.MM
+	var spots: Array = [cen]   # FROOM: the newest piece's middle first; the whole body's middle when that cut takes everything
+	if not spots.has(mid):
+		spots.append(mid)
+	if had_cut:
+		spots += [mid + Vector2(0.3 * span.x, 0.0), mid - Vector2(0.3 * span.x, 0.0), mid + Vector2(0.0, 0.3 * span.y), mid - Vector2(0.0, 0.3 * span.y)]
 	var before := float(res["volume"])
-	var after := float(pu.replay_full(rec)["volume"])
-	if after >= before - 1e-12:
+	var n0: int = rec["features"].size()
+	var seq0 := int(rec.get("seq", 0))
+	var after := before
+	for at in spots:
+		rec["features"].resize(n0)   # the spot before this one takes nothing: its sketch and cut go out
+		rec["seq"] = seq0
+		# "both" splits dist half each way from the sketch plane: twice the body's farthest reach + 1 cm, so a tall body is cut all the way
+		if floor_made:
+			s = Part.new_feature(rec, "sketch", {"plane": "top", "ents": [{"k": "circle", "c": Part.arr2(at), "r": snappedf(r, 0.5)}], "dims": []})
+			rec["features"].append(s)
+			f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.y), absf(bb.end.y)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
+		else:
+			s = Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "circle", "c": Part.arr2(at), "r": snappedf(r, 0.5)}], "dims": []})
+			rec["features"].append(s)
+			f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.z), absf(bb.end.z)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
+		rec["features"].append(f)
+		after = float(pu.replay_full(rec)["volume"])
+		if after < before - 1e-12 and after > 1e-9:   # a cut that takes EVERYTHING is a failed cut (the kernel gave nothing back): try the next spot
+			break
+	if not (after < before - 1e-12 and after > 1e-9):
+		rec["features"].resize(n0)
+		rec["seq"] = seq0
+		if had_cut:
+			return "The middle already has a hole, and Cut a hole always cuts the middle. For a second hole, use Expert: Circle, then Cut"
 		return "The hole would miss the shape: nothing was cut"
 	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}   # the slider is the hole's WIDTH (cm): radius mm = width cm * 5
-	_say("A hole straight through: use the slider for its size, or press Mirror that or Repeat it next")
+	if had_cut:
+		_say("The middle already has a hole, so this one is cut to the side. For exact places, use Expert: Circle, then Cut")
+	else:
+		_say("A hole straight through: use the slider for its size, or press Mirror that or Repeat it next")
 	return ""
 
 
@@ -1456,6 +1481,12 @@ func _sketch_pts(sk: Dictionary) -> Array:
 			if e.has(k):
 				out.append(Vector2(float(e[k][0]), float(e[k][1])))
 	return out
+## a cut step (an Extrude with op cut) is already in the record: the middle or a side has a hole
+func _has_cut(rec: Dictionary) -> bool:
+	for pf in rec.get("features", []):
+		if String(pf.get("t", "")) == "extrude" and String(pf.get("op", "")) == "cut":
+			return true
+	return false
 
 
 ## EDOOR: the newest step is a sketch drawn ON A FACE (a plane feature with "out") that no pull uses yet
@@ -2801,7 +2832,7 @@ func _pw(q: Vector2) -> Vector3:
 ## {"pl": the plane through the face, "base": "right"|"top"|"front", "mm": distance along the base normal, "out": +1 or -1 (the face normal side)}
 func _face_hit(p: Vector2) -> Dictionary:
 	var fc := _face_hit_at(p)
-	if fc.is_empty() or String(fc.get("base", "")) == "top":
+	if String(fc.get("base", "")) == "top":
 		return fc
 	# a press on a solid's top edge or corner (a chair leg's corner, seen from the side) lands on the side face just below the top:
 	# a tip-of-the-top press a few px higher takes the TOP face there, so a seat drawn on the leg tops sits on them
@@ -2809,6 +2840,13 @@ func _face_hit(p: Vector2) -> Dictionary:
 		var up := _face_hit_at(p + off)
 		if String(up.get("base", "")) == "top":
 			return up
+	# FBRACKET: a press that misses every face (a press on the FAR edge of a top face grazes it) is a press a few px lower,
+	# which is inside the top face; without this the flange was drawn on the floor and came out beside the plate
+	if fc.is_empty():
+		for off in [Vector2(0.0, 6.0), Vector2(-6.0, 6.0), Vector2(6.0, 6.0)]:
+			var dn := _face_hit_at(p + off)
+			if String(dn.get("base", "")) == "top":
+				return dn
 	return fc
 
 
