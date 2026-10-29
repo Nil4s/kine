@@ -45,7 +45,9 @@ var bar: PanelContainer
 var title_l: Label
 var undo_btn: Button
 var redo_btn: Button
+var dup_btn: Button            # FDUP: the top bar's Duplicate (a second copy of the whole part beside it)
 var use_scene_btn: Button
+var size_l: Label              # FMEASURE: "18 x 6 x 2 cm" (wide x deep x high) under the part, plain words, while a solid is there
 var whole_l: Label             # "Whole sword: N cm": the shape's biggest size, under the sliders (the blade slider is not the whole length)
 var easy_btn: Button
 var expert_btn: Button
@@ -92,6 +94,8 @@ var dots: Control
 var armed := ""                # "draw" while the next drag draws a shape
 var shape := "box"
 var msg := ""                  # the sentence of the last press, until the next one
+var taper_tw := {}             # FPLANTER: the Taper slider of the last Pull it up (its extrude's id; shown while that pull is the newest step)
+var taper_row: Dictionary = {}  # FPLANTER: the Taper slider's row ({} = none); kept out of rows so rows[-1] is still How far
 var tweak := {}                # the last step's own slider: {"id", "ent", "field", "label", "unit", "lo", "hi", "step", "scale"}
 var _pending := {}
 var _draft_px0 := Vector2.ZERO   # the draft's raw pointer pixels, first press and last move (the sides are read from these when the grid folds them)
@@ -153,8 +157,12 @@ func build(root: Control) -> void:
 	redo_btn = _bar_btn("Redo", "Put back what Undo took back", func(): m._redo())
 	use_scene_btn = _bar_btn("Use in a scene", "Put this part into the scene as a prop", _use_scene)
 	use_scene_btn.custom_minimum_size.x = 150.0
+	dup_btn = _bar_btn("Duplicate", "Make a second copy of the whole part, beside it. Undo takes the copy back", func(): _make("duplicate"))   # FDUP: beside Undo and Redo (the MAKE row stays six-plus-six)
+	dup_btn.name = "easypart_duplicate"
+	dup_btn.custom_minimum_size.x = 120.0
 	row.add_child(undo_btn)
 	row.add_child(redo_btn)
+	row.add_child(dup_btn)
 	row.add_child(use_scene_btn)
 	give_btn = _bar_btn("Give to a character", "Give it to a character: they hold this shape in one hand, with its size and weight (PartWeapon)", func(): m.give_part_weapon(_rec()))   # one undo step
 	give_btn.name = "easypart_give"
@@ -164,7 +172,7 @@ func build(root: Control) -> void:
 	export_btn.name = "easypart_export"
 	export_btn.custom_minimum_size = Vector2(110, m.TOP_H - 12)
 	row.add_child(export_btn)
-	easy_btn = _bar_btn("Easy", "Sliders and big buttons", func(): pass)
+	easy_btn = _bar_btn("Easy", "Sliders and big buttons", _easy_on)
 	easy_btn.toggle_mode = true
 	easy_btn.button_pressed = true
 	expert_btn = _bar_btn("Expert", "The same part with every tool and exact numbers", func(): to_expert())
@@ -322,6 +330,14 @@ func build(root: Control) -> void:
 	dots.draw.connect(_draw_dots)
 	dots.visible = false
 	root.add_child(dots)
+	size_l = Label.new()
+	size_l.name = "easypart_size"
+	size_l.add_theme_font_size_override("font_size", 14)
+	size_l.add_theme_color_override("font_color", Color(0.92, 0.94, 0.97))
+	size_l.add_theme_stylebox_override("normal", _style(Color(0.1, 0.11, 0.14, 0.85), 0, 4))
+	size_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	size_l.visible = false
+	root.add_child(size_l)
 
 
 ## CUT A HOLE: Through (the round hole, the default) or Hollow inside (the shell: open at the top, a Wall slider). Two toggle chips like Draw shape's
@@ -384,7 +400,7 @@ func _colour_box() -> PanelContainer:
 	return box
 
 
-## REPEAT IT: Row or Ring, then How many (2..12 copies, the original counts) and Gap (cm between the copies). Its sliders write the Part pattern
+## REPEAT IT: Row or Ring, then How many (2..20 copies, the original counts; FCOMB: a comb of 20 teeth) and Gap (cm between the copies). Its sliders write the Part pattern
 ## step fields (count, mm, kind): the same replay as Expert Pattern
 func _repeat_box() -> PanelContainer:
 	var box := PanelContainer.new()
@@ -413,7 +429,7 @@ func _repeat_box() -> PanelContainer:
 	cb.toggle_mode = true
 	h.add_child(cb)
 	rep_btns["corners"] = cb
-	rep_rows.append(_make_row("How many", 2.0, 12.0, 1.0, REP_WORDS["count"], "rep", "count", "copies", vb))
+	rep_rows.append(_make_row("How many", 2.0, 20.0, 1.0, REP_WORDS["count"], "rep", "count", "copies", vb))
 	rep_rows.append(_make_row("Gap", 0.5, 30.0, 0.5, REP_WORDS["gap"], "rep", "gap", "cm", vb))
 	return box
 
@@ -601,6 +617,8 @@ func _set_value(row: Dictionary, v: float, final: bool) -> void:
 		hole_base = {}                    # the template's sizes changed: the hole chips would rebuild on an old shape
 	elif row["kind"] == "rep":
 		_apply_rep(row, v)
+	elif row["kind"] == "taper":
+		_apply_taper(v)
 	else:
 		_apply_tweak(v)
 		if final and tweak.has("say"):
@@ -621,6 +639,13 @@ func _apply_tweak(v: float) -> void:
 		f["ents"][int(tweak["ent"])][tweak["field"]] = val
 	else:
 		f[tweak["field"]] = val
+
+
+## FPLANTER: the Taper slider writes the pulled shape's taper (degrees; the kernel narrows the extrude when it is positive)
+func _apply_taper(v: float) -> void:
+	var f := Part.feature(_rec(), String(taper_tw.get("id", "")))
+	if not f.is_empty():
+		f["taper"] = v
 
 
 ## the Repeat it sliders: How many = the copies; Gap = cm between the copies (the spacing = the body width + the gap, in the record mm)
@@ -770,7 +795,7 @@ func _rows_sync() -> void:
 	_tweak_stale()
 	var t := _tpl()
 	# FKEY: the label is in the signature: after an Undo a new step can take the id of the step it replaced, and its slider must still be rebuilt
-	var sig := "%s|%s|%s|%s" % [t, JSON.stringify(tweak.get("id", "")), _compact, String(tweak.get("label", ""))]
+	var sig := "%s|%s|%s|%s|%s" % [t, JSON.stringify(tweak.get("id", "")), _compact, String(tweak.get("label", "")), _taper_live()]
 	if sig == _rows_sig:
 		return
 	_rows_sig = sig
@@ -786,9 +811,21 @@ func _rows_sync() -> void:
 		var tw: Dictionary = tweak
 		var r := _make_row(String(tw["label"]), float(tw["lo"]), float(tw["hi"]), float(tw["step"]), tw.get("words", ["Less", "More"]), "tweak", "last", String(tw["unit"]))
 		rows.append(r)
+	taper_row = {}
+	if _taper_live():   # FPLANTER: the Taper row sits UNDER How far; it is not in rows (rows[-1] stays the step's own slider)
+		taper_row = _make_row(String(taper_tw["label"]), float(taper_tw["lo"]), float(taper_tw["hi"]), float(taper_tw["step"]), taper_tw["words"], "taper", "taper", String(taper_tw["unit"]))
+		(taper_row["words"] as Control).visible = not _compact
 	for r in rows:
 		(r["words"] as Control).visible = not _compact
 	_values_sync()
+
+
+## FPLANTER: the Taper row shows while its pull is the newest step (any later step hides it; an Undo that brings the pull back shows it again)
+func _taper_live() -> bool:
+	if taper_tw.is_empty():
+		return false
+	var fs: Array = _rec().get("features", [])
+	return not fs.is_empty() and String((fs[-1] as Dictionary).get("id", "")) == String(taper_tw.get("id", "")) and String((fs[-1] as Dictionary).get("t", "")) == "extrude"
 
 
 ## FROOM: the How far slider on a building project reaches 3 m (a wall is 2 m or more); the other projects keep 40 cm
@@ -851,11 +888,16 @@ func _values_sync() -> void:
 		return
 	var e: Dictionary = _rec().get("easy", {})
 	var off := not Part.available()
-	for r in rows:
+	var all_rows := rows.duplicate()
+	if not taper_row.is_empty():
+		all_rows.append(taper_row)
+	for r in all_rows:
 		var s: HSlider = r["slider"]
 		var v := 0.0
 		if r["kind"] == "tpl":
 			v = float(e.get("p", {}).get(r["key"], 0.0)) / 10.0
+		elif r["kind"] == "taper":
+			v = float(Part.feature(_rec(), String(taper_tw.get("id", ""))).get("taper", 0.0))
 		else:
 			v = _tweak_value()
 		if not bool(r.get("held", false)):
@@ -891,9 +933,19 @@ func _chip(t: String) -> void:
 
 
 ## EMPTY: a part with no steps (one undo step); Draw shape on the grid starts it
+## FHELP3: Easy is already on: the press says what the screen is and what to press, and the button stays lit
+func _easy_on() -> void:
+	easy_btn.set_pressed_no_signal(true)
+	_say("You are in Easy: big buttons and sliders. Press Expert for every tool and exact numbers")
+
+
 func _empty() -> void:
-	if (_rec().get("features", []) as Array).is_empty() or not Part.available():
+	if not Part.available():
 		_chips_sync()
+		return
+	if (_rec().get("features", []) as Array).is_empty():   # FHELP3: an empty part already: say so, not a silent press
+		_chips_sync()
+		_say("Already empty: press Draw shape, then drag on the grid")
 		return
 	armed = ""
 	hole_base = {}
@@ -1000,7 +1052,7 @@ func _make(which: String) -> void:
 		return
 	armed = ""
 	var snap := _rec().duplicate(true)
-	var label := String((MAKES.filter(func(x): return x[0] == which)[0])[1])
+	var label := "Duplicate" if which == "duplicate" else String((MAKES.filter(func(x): return x[0] == which)[0])[1])   # FDUP: the top bar's Duplicate is not a MAKE button
 	_begin(label)
 	var rec := pu._ensure()
 	var why := ""
@@ -1021,6 +1073,8 @@ func _make(which: String) -> void:
 			why = _cut(rec)
 		"repeat":
 			why = _repeat(rec)
+		"duplicate":
+			why = _duplicate(rec)
 	if why != "":
 		m.S.part = snap   # nothing changes: the step taken a moment ago goes back out
 		m._drop_undo()
@@ -1094,9 +1148,39 @@ func _hollow(rec: Dictionary) -> String:
 	var f := Part.new_feature(rec, "shell", {"body": n - 1, "open": "+y", "thick": HOLLOW_MM})
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
-		return too_thin
+		rec["features"].pop_back()   # the kernel's shell refuses a cup standing on a base (it picks the base's ring for the open top): cut the cup's inside instead
+		return _hollow_cup(rec, too_thin)
 	tweak = {"id": f["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
 	_say("Hollowed out, open at the top: use the slider for the wall")
+	return ""
+
+
+## FCANDLE: Hollow inside for a cup on a base (the newest round piece on a solid): a circle HOLLOW_MM inside the cup's own shape, cut down
+## from the top of the whole solid to HOLLOW_MM above the cup's floor. The cup keeps its floor and wall and is open at the top. "" or why not
+func _hollow_cup(rec: Dictionary, too_thin: String) -> String:
+	var sk := _last_sketch(rec)
+	if sk.is_empty() or (sk["ents"] as Array).size() != 1 or String((sk["ents"][0] as Dictionary).get("k", "")) != "circle":
+		return too_thin
+	var ent: Dictionary = sk["ents"][0]
+	var pl := Part.resolve_plane(rec, String(sk.get("plane", "top")))
+	var floor_mm: float = float(pl["o"].y) / Part.MM   # the cup's floor: the plane it was drawn on (mm)
+	var top_mm: float = Part.replay(rec).get("aabb", AABB()).end.y / Part.MM
+	var r_in := float(ent.get("r", 0.0)) - HOLLOW_MM
+	var depth := top_mm - (floor_mm + HOLLOW_MM)
+	if r_in <= 1.0 or depth <= 1.0:
+		return too_thin
+	var before := float(pu.replay_full(rec)["volume"])
+	var pf := Part.new_feature(rec, "plane", {"from": "top", "mm": snappedf(top_mm, 0.1)})
+	rec["features"].append(pf)
+	var c: Array = ent.get("c", [0.0, 0.0])
+	var s := Part.new_feature(rec, "sketch", {"plane": String(pf["id"]), "ents": [{"k": "circle", "c": c.duplicate(), "r": snappedf(r_in, 0.1)}], "dims": []})
+	rec["features"].append(s)
+	var f := Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": -snappedf(depth, 0.1), "both": false, "op": "cut"})
+	rec["features"].append(f)
+	if _last_error(rec, String(f["id"])) != "" or float(pu.replay_full(rec)["volume"]) >= before - 1e-12:
+		return too_thin
+	tweak = {"id": f["id"], "field": "dist", "label": "How deep", "unit": "cm", "lo": 0.1, "hi": 40.0, "step": 0.1, "scale": 10.0, "words": ["Shallower", "Deeper"], "sgn": -1.0}
+	_say("Hollowed out, open at the top: use the slider for how deep")
 	return ""
 
 
@@ -1158,6 +1242,8 @@ func _pull(rec: Dictionary) -> String:
 	else:
 		tweak["say"] = "Pulled up %s: use the slider to change it, or press Round the edges or Cut a hole next"   # the words follow the slider (a beginner walk: "2 cm" stayed at 8 cm); the next button too (ehelp2)
 		_say(String(tweak["say"]) % _fmt(2.0, "cm"))
+	# FPLANTER: a pot is wider at the top: a floor shape pulled up gets a Taper slider under How far (the extrude's taper, degrees)
+	taper_tw = {} if (through or on_face) else {"id": f["id"], "label": "Taper", "unit": "deg", "lo": -15.0, "hi": 15.0, "step": 0.5, "words": ["Wider at the top", "Narrower at the top"]}
 	return ""
 
 
@@ -1932,6 +2018,27 @@ func _paint(label: String, c: Color, preset: String) -> void:
 	_say("Colour: %s%s" % [label, " (you can see through it)" if preset == "Glass" else ""])
 
 
+## FDUP: Duplicate: a second copy of the WHOLE part beside it (not Repeat's row of the newest solid). One Part pattern step per body, each with
+## two copies and op "new": every body is copied by the same move, the whole part's width plus a 10 mm gap, so the copy sits beside all of it
+func _duplicate(rec: Dictionary) -> String:
+	var res := Part.replay(rec)
+	var nb := int(res["bodies"])
+	if nb == 0:
+		return "Make something solid first, then duplicate it"
+	var bb: AABB = res["aabb"]
+	var gap := 10.0
+	var step_mm := maxf(bb.size.x / Part.MM, 1.0) + gap
+	for bi in nb:
+		var f := Part.new_feature(rec, "pattern", {"kind": "linear", "body": bi, "count": 2, "dir": "x", "axis": "y", "deg": 360.0,
+			"mm": step_mm, "w": bb.size.x / Part.MM, "h": bb.size.y / Part.MM, "d": bb.size.z / Part.MM, "gap": gap, "op": "new"})
+		rec["features"].append(f)
+		if _last_error(rec, String(f["id"])) != "":
+			return "The copy would not fit: nothing was changed"
+	tweak = {}
+	_say("Duplicated: a second copy of the whole part sits beside it. Undo takes the copy back")
+	return ""
+
+
 ## REPEAT IT: Part's pattern step (Expert Pattern) on the newest solid: a row along X, spacing = the body's width + a 1 cm gap
 func _repeat(rec: Dictionary) -> String:
 	var res := Part.replay(rec)
@@ -1998,7 +2105,7 @@ func _rep_mode(ring: bool) -> void:
 	pu.sync()
 	_rep_sync()
 	_values_sync()
-	_say("Ring: the copies go round in a circle beside it" if ring else "Row: the copies go in a straight line")
+	_say("Ring: the copies go round in a circle" if ring else "Row: the copies go in a straight line")   # FWHEEL: "beside it" lied for a spoke (its copies go round the middle)
 
 
 ## EREPEATUP: Up or Forward: the same straight copies, stacked up (y) or put one behind the other (z); spaced by the body's height or depth plus the gap. One undo step
@@ -2223,7 +2330,35 @@ func _process(_dt: float) -> void:
 		dots.queue_redraw()
 	if m.cam != null:
 		dots.queue_redraw()
+	_size_sync()
 	_frame_step()
+
+
+## FMEASURE: the part's size in cm, W x D x H (wide, deep, high), a small plain label under the part's front bottom edge.
+## Shown while a solid is made (Easy Part only); the numbers are the replayed box (metres -> cm, one decimal).
+func _size_sync() -> void:
+	var res: Dictionary = pu.res if pu != null else {}
+	var bb: AABB = res.get("aabb", AABB())
+	var solid := active() and int(res.get("bodies", 0)) > 0 and bb.size.x > 0.0 and bb.size.y > 0.0 and bb.size.z > 0.0
+	size_l.visible = solid
+	if not solid or m.cam == null:
+		return
+	var w := snappedf(bb.size.x * 100.0, 0.1)
+	var d := snappedf(bb.size.z * 100.0, 0.1)
+	var h := snappedf(bb.size.y * 100.0, 0.1)
+	size_l.text = "Size: %s x %s x %s cm (wide x deep x high)" % [_cm1(w), _cm1(d), _cm1(h)]
+	var front := Vector3(bb.get_center().x, bb.position.y, bb.end.z)
+	if m.cam.is_position_behind(front):
+		size_l.visible = false
+		return
+	var p: Vector2 = m.cam.unproject_position(front)
+	var sz := size_l.get_combined_minimum_size()
+	size_l.size = sz
+	size_l.position = Vector2(p.x - sz.x * 0.5, p.y + 12.0)
+
+
+func _cm1(v: float) -> String:
+	return str(roundi(v)) if absf(v - roundf(v)) < 0.05 else str(v)
 
 
 ## EFRAME: after a step that changes the part's box a lot, the camera eases so the box fills FRAME_FILL of the free view.
@@ -2982,6 +3117,8 @@ func _input(ev: InputEvent) -> void:
 	if ev is InputEventKey:
 		_key(ev as InputEventKey)   # EKEYS: Escape and Delete (Ctrl+Z / Ctrl+Y are main's undo and redo)
 		return
+	if ev is InputEventMouseButton and (ev as InputEventMouseButton).pressed and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and active():
+		_grey_say((ev as InputEventMouseButton).position)   # FHELP3: a greyed button takes no click: its reason goes on the line
 	# a sketch in progress follows the pointer and ends on the release even over a control (a chip row, the bar): the controls
 	# take those events before the unhandled pass, so a roof's apex under the chips would stop the drag
 	if ev is InputEventMouseMotion:
@@ -3018,6 +3155,22 @@ func _input(ev: InputEvent) -> void:
 		_bar_press = p
 		_press_btn = _bar_button_at(p)
 		get_viewport().set_input_as_handled()
+
+
+## FHELP3: a press on a greyed Easy button (bar, MAKE row, panel) says the reason it is greyed, after the grey tag
+func _grey_say(p: Vector2) -> void:
+	for root_c in [bar, make_box, panel]:
+		if root_c == null:
+			continue
+		for c in (root_c as Node).find_children("*", "BaseButton", true, false):
+			var b := c as BaseButton
+			if b.is_visible_in_tree() and b.disabled and b.get_global_rect().has_point(p):
+				var tip := String(b.tooltip_text)
+				if tip.find("
+NOT NOW: ") >= 0:
+					_say(tip.get_slice("
+NOT NOW: ", 1).strip_edges())
+				return
 
 
 ## the visible button under p on the top bar or its MAKE row, or null
