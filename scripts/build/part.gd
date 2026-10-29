@@ -514,7 +514,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				if swe != "":
 					errs[id] = swe
 			"pattern":   # GAP 30: copies of body N (its own function: _pattern)
-				var pe := _pattern(bodies, looks, f)
+				var pe := _pattern(bodies, looks, f, rec)
 				if pe != "":
 					errs[id] = pe
 			"fillet", "chamfer":
@@ -1845,7 +1845,7 @@ static func _split_looks(looks: Array, n: int, pieces: Array) -> void:
 const AXIS_VEC := {"x": Vector3.RIGHT, "y": Vector3.UP, "z": Vector3.BACK}
 const PATTERN_MAX := 64
 
-static func _pattern(bodies: Array, looks: Array, f: Dictionary) -> String:
+static func _pattern(bodies: Array, looks: Array, f: Dictionary, rec: Dictionary = {}) -> String:
 	if bodies.is_empty():
 		return "there is no body to pattern"
 	var bi := int(f.get("body", -1))
@@ -1853,6 +1853,66 @@ static func _pattern(bodies: Array, looks: Array, f: Dictionary) -> String:
 		return "there is no body %d to pattern" % bi
 	if String(f.get("kind", "linear")) == "corners":   # EREPEAT (Easy's Corners): the piece goes to the four corners of the body it touches
 		return _corners(bodies, looks, bi)
+	var srcb := int(bodies[bi])   # the solid the copies are made of: the body itself, or (src) the piece its step made on its own
+	var owned := false
+	if String(f.get("src", "")) != "":   # REPEAT THE PIECE: the newest piece copied, not the whole body it has joined (Easy's Repeat)
+		var sid := _piece_solid(rec, String(f["src"]))
+		if sid == 0:
+			return KCad.last_error() if KCad.last_error() != "" else "the piece to copy could not be made"
+		srcb = sid
+		owned = true
+	var why := _pattern_copies(bodies, looks, f, bi, srcb)
+	if owned:
+		KCad.release(srcb)
+	return why
+
+
+## REPEAT THE PIECE: the solid of the step fid made alone (its own body, the body list before it as it was): 0 when it cannot be made
+static func _piece_solid(rec: Dictionary, fid: String) -> int:
+	var sub := pattern_src_rec(rec, fid)
+	if sub.is_empty():
+		return 0
+	var res := replay(sub, -1, {"keep": true})
+	var ids: Array = res.get("ids", [])
+	if not (res["errors"] as Dictionary).is_empty() or ids.is_empty():
+		for b in ids:
+			KCad.release(int(b))
+		return 0
+	for k in ids.size() - 1:
+		KCad.release(int(ids[k]))
+	return int(ids[-1])
+
+
+## REPEAT THE PIECE: the record the piece is replayed from: the steps up to fid, with fid's own solid as a body of its own ("new")
+static func pattern_src_rec(rec: Dictionary, fid: String) -> Dictionary:
+	var feats: Array = rec.get("features", [])
+	var k := -1
+	for i in feats.size():
+		if String(feats[i]["id"]) == fid:
+			k = i
+	if k < 0:
+		return {}
+	var sub_feats: Array = feats.slice(0, k + 1).duplicate(true)
+	(sub_feats[k] as Dictionary)["op"] = "new"
+	var sub := rec.duplicate(false)
+	sub["features"] = sub_feats
+	return sub
+
+
+## REPEAT THE PIECE: the newest piece's step id (the last extrude or revolve that is not a cut) when only Appearance steps came after it; "" otherwise
+static func pattern_piece(rec: Dictionary) -> String:
+	var feats: Array = rec.get("features", [])
+	for i in range(feats.size() - 1, -1, -1):
+		var f: Dictionary = feats[i]
+		if bool(f.get("off", false)) or String(f.get("t", "")) == "appear":
+			continue
+		if String(f.get("t", "")) in ["extrude", "revolve"] and String(f.get("op", "join")) != "cut":
+			return String(f["id"])
+		return ""
+	return ""
+
+
+static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int, srcb: int) -> String:
 	var n := int(f.get("count", 0))
 	if n < 2 or n > PATTERN_MAX:
 		return "a pattern needs 2 to %d copies (the original counts as one)" % PATTERN_MAX
@@ -1865,16 +1925,16 @@ static func _pattern(bodies: Array, looks: Array, f: Dictionary) -> String:
 		var step := total / n if absf(total) >= TAU - 1e-9 else total / (n - 1)
 		var pivot := Vector3.ZERO   # the axis runs through the origin (Expert), or through a point BESIDE the body ("beside": Easy's Ring)
 		if bool(f.get("beside", false)):
-			var mp := KCad.mass_properties(bodies[bi])
+			var mp := KCad.mass_properties(srcb)
 			var side: Vector3 = Vector3.RIGHT if absf(ax.dot(Vector3.RIGHT)) < 0.9 else Vector3.BACK
 			var chord := (float(f.get("w", 10.0)) + float(f.get("gap", 10.0))) * MM   # neighbours sit a piece width plus the gap apart
 			var r := chord / (2.0 * sin(absf(step) * 0.5))
 			pivot = (mp.get("center", Vector3.ZERO) as Vector3) - side * r
 		for i in range(1, n):
 			if pivot.length() < 1e-12:
-				copies.append(KCad.rotate(bodies[bi], ax, step * i))
+				copies.append(KCad.rotate(srcb, ax, step * i))
 				continue
-			var t0 := KCad.translate(bodies[bi], -pivot)
+			var t0 := KCad.translate(srcb, -pivot)
 			var t1 := KCad.rotate(t0, ax, step * i)
 			KCad.release(t0)
 			copies.append(KCad.translate(t1, pivot) if t1 != 0 else 0)
@@ -1885,7 +1945,7 @@ static func _pattern(bodies: Array, looks: Array, f: Dictionary) -> String:
 		if d.length() < 1e-9:
 			return "the spacing must not be zero"
 		for i in range(1, n):
-			copies.append(KCad.translate(bodies[bi], d * i))
+			copies.append(KCad.translate(srcb, d * i))
 	for k in copies.size():
 		if int(copies[k]) == 0:
 			var why := KCad.last_error()

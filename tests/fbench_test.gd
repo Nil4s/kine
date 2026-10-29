@@ -7,7 +7,7 @@ extends SceneTree
 ##   3 MIRROR Mirror that copies the frame to the right: the solid gains one frame volume (0.0072 m3 +- 0.0005)
 ##   4 SLAT a 620 x 60 mm board drawn on the top of the left frame, pulled up 4 cm: one body, box y 530 mm
 ##   5 REPEAT FORWARD Repeat it offers Forward (copies along the depth, Z); five slats in a row: one body, no failed step
-##   5c OPEN DEAD END: Repeat copies the newest SOLID, which after the slat joined the frames is the whole bench (640 x 400 mm stays). Not fixed.
+##   5c REPEAT copies the newest PIECE (the slat), not the whole bench it joined (640 x 400 mm stays). Was an open dead end, fixed in Part's pattern src.
 ##   6 ROUND Round the edges: one fillet step, no failed step, the box keeps its size
 ##   7 WORDS no jargon on screen during the walk
 ##   8 HINTS after the drawn shape the hint names Pull it up
@@ -278,7 +278,7 @@ func _init() -> void:
 	ok(int(pt.get("count", 0)) == 5 and String(pt.get("dir", "")) == "z" and int(pu().res.get("bodies", 0)) == 1 and (pu().res.get("errors", {}) as Dictionary).is_empty(),
 		"5 REPEAT five slats, one body, no failed step: count %s, bodies %d" % [str(pt.get("count", 0)), int(pu().res.get("bodies", 0))])
 	ok(absf(b5.size.x - 640.0) < 1.0 and absf(b5.size.z - 400.0) < 1.0,
-		"5c REPEAT copies the slat, not the whole bench (open dead end: the bench stays 640 x 400 mm), box %s" % b5)
+		"5c REPEAT copies the slat, not the whole bench (the bench stays 640 x 400 mm), box %s" % b5)
 	await shot("repeat")
 
 	# 6 ROUND: the edges of the whole bench
