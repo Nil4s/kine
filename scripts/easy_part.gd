@@ -1758,6 +1758,11 @@ func _mirror_hole(rec: Dictionary, res: Dictionary, off: bool) -> String:
 
 ## BLEND TWO SHAPES: a loft of the two last sketches (Part's "loft" feature, the same one Expert's Loft makes). Two shapes on the same plane
 ## cannot be blended, so the newer one moves 40 mm behind the older one (an offset plane, in the same undo step)
+## FPHONE: the base plane (front | top | right) a sketch's plane id sits on, a plane feature or a base plane itself
+func _plane_base(rec: Dictionary, pid: String) -> String:
+	return pid if pid in Part.PLANES else _base_plane(rec, pid)
+
+
 func _blend(rec: Dictionary) -> String:
 	var sks: Array = []
 	for f in rec.get("features", []):
@@ -1775,6 +1780,10 @@ func _blend(rec: Dictionary) -> String:
 		return "Those two shapes sit at an angle to each other, so they cannot blend. Draw both on the floor, or both on faces that face the same way, then press Blend two shapes again"
 	if not same:   # two offset planes (an upright sketch through the middle is one) at the same spot are the same plane
 		same = (pa["n"] as Vector3).dot(pb["n"] as Vector3) > 0.999 and ((pa["o"] as Vector3) - (pb["o"] as Vector3)).length() < 0.01 * Part.MM
+	# FPHONE: a shape on the top of a solid (its plane sits at the top's height) and a shape on the floor of the same base plane: the newer
+	# one still goes 40 mm above the older one (the same offset rule), not down to the floor (the back of a phone stand leans up off its plate)
+	if not same and (pa["n"] as Vector3).dot(pb["n"] as Vector3) > 0.999 and _plane_base(rec, String(a["plane"])) == _plane_base(rec, String(b["plane"])):
+		same = true
 	if same:
 		var base := String(a["plane"]) if String(a["plane"]) in Part.PLANES else _base_plane(rec, String(a["plane"]))
 		var mm_a := 0.0 if String(a["plane"]) in Part.PLANES else float(Part.feature(rec, String(a["plane"])).get("mm", 0.0))
