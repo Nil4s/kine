@@ -1165,6 +1165,17 @@ func _top_face(pf: Dictionary) -> bool:
 	return String(pf.get("from", "")) == "top" and int(pf.get("out", 0)) > 0
 
 
+## FBOX2: the newest solid step is a LID: a pull with op "new" on a hollow box (the lid is its own piece)
+func _lid_last(rec: Dictionary) -> bool:
+	if not _has_shell(rec):
+		return false
+	var last := {}
+	for f in rec.get("features", []):
+		if String(f.get("t", "")) == "extrude":
+			last = f
+	return not last.is_empty() and String(last.get("op", "")) == "new"
+
+
 ## FBOX: the record has a shell (Hollow inside) step: a hollow body whose top is open
 func _has_shell(rec: Dictionary) -> bool:
 	for f in rec.get("features", []):
@@ -1397,6 +1408,8 @@ func _hole(rec: Dictionary) -> String:
 		return "Nothing solid to cut a hole in yet. Press Pull it up first"
 	if _face_sketch_last(rec):   # a shape drawn on a face and not pulled yet: the hole IS that shape (a door or a window)
 		return _face_hole(rec)
+	if _lid_last(rec):   # FBOX2: a lid on a hollow box: the finger notch at its edge (before the piece hole: the lid is the newest piece)
+		return _lid_notch(rec, res["aabb"])
 	if _piece_hole(rec):   # the newest piece is an upright or a face sketch: the hole goes through IT
 		return ""
 	var bb: AABB = res["aabb"]
@@ -1432,6 +1445,23 @@ func _hole(rec: Dictionary) -> String:
 		return "The hole would miss the shape: nothing was cut"
 	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}   # the slider is the hole's WIDTH (cm): radius mm = width cm * 5
 	_say("A hole straight through: use the slider for its size, or press Mirror that or Repeat it next")
+	return ""
+
+
+## FBOX2: a LID (a separate piece on the rim of a hollow box) gets a FINGER NOTCH: a 16 mm half-circle bite at the middle of its +Z edge,
+## cut straight through on the top plane. The lid's corners stay, so its outline is kept, and the notch stays clear of the box wall
+func _lid_notch(rec: Dictionary, bb: AABB) -> String:
+	var c := bb.get_center() / Part.MM
+	var before := float(Part.replay(rec)["volume"])
+	var s := Part.new_feature(rec, "sketch", {"plane": "top", "ents": [{"k": "circle", "c": Part.arr2(Vector2(c.x, -bb.end.z / Part.MM)), "r": 8.0}], "dims": []})
+	rec["features"].append(s)
+	var f := Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.y), absf(bb.end.y)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
+	rec["features"].append(f)
+	var after := float(pu.replay_full(rec)["volume"])
+	if after >= before - 1e-12:
+		return "The notch would miss the lid: nothing was cut"
+	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Notch size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}
+	_say("A finger notch at the lid's edge: use the slider for its size, or press Mirror that next")
 	return ""
 
 
