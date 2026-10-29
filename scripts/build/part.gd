@@ -1924,9 +1924,22 @@ static func pattern_piece(rec: Dictionary) -> String:
 		if bool(f.get("off", false)) or String(f.get("t", "")) == "appear":
 			continue
 		if String(f.get("t", "")) in ["extrude", "revolve"] and String(f.get("op", "join")) != "cut":
-			return String(f["id"])
+			# FSHELF: the piece is the newest step only when it stands UP off a face (dist > 0, a slat on a frame) and makes ONE solid;
+			# a step pulled DOWN (a bracket hung under a plate) or several solids is part of the body: Repeat copies the whole body
+			if float(f.get("dist", 0.0)) <= 0.0:
+				return ""
+			var before := 0 if i == 0 else int(replay(_upto_rec(rec, i - 1), -1).get("bodies", 0))
+			var made := int(replay(pattern_src_rec(rec, String(f["id"])), -1).get("bodies", 0)) - before
+			return String(f["id"]) if made == 1 else ""
 		return ""
 	return ""
+
+
+## FSHELF: the record with the steps 0..k only (the first k + 1 steps; no steps when k < 0)
+static func _upto_rec(rec: Dictionary, k: int) -> Dictionary:
+	var sub := rec.duplicate(false)
+	sub["features"] = (rec.get("features", []) as Array).slice(0, k + 1).duplicate(true)
+	return sub
 
 
 static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int, srcb: int) -> String:
