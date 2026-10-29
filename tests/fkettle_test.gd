@@ -9,8 +9,8 @@ extends SceneTree
 ##   2 Spin it round: one solid and a revolve step on the record (the body)
 ##   3 an open Curvy line from the body: the hint names the spout (Sweep)
 ##   4 the spout: Sweep (Expert) adds a pipe, volume grows, one sweep step
-##   5 the lid: a box drawn apart from the body and pulled up stays a SEPARATE piece (2 bodies)
-##   6 the lid is one undo step: undo removes exactly the lid (bodies back to the spouted body)
+##   5 the lid: a box drawn apart from the body and pulled up stays a SEPARATE piece (one more loose piece, the app's count)
+##   6 the lid is one undo step: undo removes exactly the lid (the count goes back)
 ## shots: C:/Temp/claude/fkettle/
 const SHOT := "C:/Temp/claude/fkettle"
 const DIRT := "user://fkettle_test"
@@ -200,6 +200,7 @@ func _init() -> void:
 	var add := volume() - v0
 	ok(sweeps() == s0 + 1 and add > 0.0, "4 the spout: Sweep adds one pipe (sweeps %d -> %d, volume +%.3e m3)" % [s0, sweeps(), add])
 
+	var n_before: int = pu().ep._lumps(pu().res)   # the pieces before the lid (the spout may or may not touch the wall)
 	# 5 the lid: back in Easy, a box drawn APART from the body, then Pull it up: a separate piece
 	await click_ctl(pu().easy_open_btn)
 	await idle(20)
@@ -210,14 +211,14 @@ func _init() -> void:
 	await idle(20)
 	await shot("06_lid")
 	var nb2: int = pu().ep._lumps(pu().res)   # the app's own count of pieces that do not touch (a join of apart pieces is one body with two lumps)
-	ok(nb2 == 2, "5 the lid stays a separate piece: %d pieces that do not touch (want 2)" % nb2)
+	ok(nb2 == n_before + 1, "5 the lid stays a separate piece: %d pieces that do not touch (before %d, want one more)" % [nb2, n_before])
 
 	# 6 undo takes the lid off, one step: the spouted body is one piece again
 	await click_ctl(pu().ep.undo_btn)
 	await idle(20)
 	await shot("07_undo")
 	var nb3: int = pu().ep._lumps(pu().res)
-	ok(nb2 == 2 and nb3 == 1, "6 undo removes exactly the lid (pieces %d -> %d)" % [nb2, nb3])
+	ok(nb3 == n_before, "6 undo removes exactly the lid (pieces %d -> %d)" % [nb2, nb3])
 
 	print("fkettle: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
