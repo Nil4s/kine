@@ -57,6 +57,7 @@ extends RefCounted
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
 const VERSION := 1
+const RING_MIDDLE := 100.0   # mm: a Ring piece whose centre is closer than this to the middle (not on it) goes round the middle
 const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft"]
 const DRAFT_DIRS := {"x": Vector3(1, 0, 0), "y": Vector3(0, 1, 0), "z": Vector3(0, 0, 1)}
 const PLANES := ["front", "top", "right"]
@@ -1797,8 +1798,13 @@ static func _pattern(bodies: Array, looks: Array, f: Dictionary) -> String:
 			return "the angle must not be zero"
 		var step := total / n if absf(total) >= TAU - 1e-9 else total / (n - 1)
 		var pivot := Vector3.ZERO   # the axis runs through the origin (Expert), or through a point BESIDE the body ("beside": Easy's Ring)
-		if bool(f.get("beside", false)):
-			var mp := KCad.mass_properties(bodies[bi])
+		var mc: Vector3 = (KCad.mass_properties(bodies[bi]).get("center", Vector3.ZERO) as Vector3)
+		var off_mid := Vector2(mc.x, mc.z).length()
+		# FWHEEL: a piece that sits near the middle but not on it (a spoke from the hub) goes round the middle: its copies fan out round the
+		# origin. A beside-ring for it would put the circle ~0.5 m away and fling the copies out. A piece AT the origin keeps the beside ring
+		var spoke := off_mid > 0.5 * MM and off_mid < RING_MIDDLE * MM
+		if bool(f.get("beside", false)) and not spoke:
+			var mp := {"center": mc}
 			var side: Vector3 = Vector3.RIGHT if absf(ax.dot(Vector3.RIGHT)) < 0.9 else Vector3.BACK
 			var chord := (float(f.get("w", 10.0)) + float(f.get("gap", 10.0))) * MM   # neighbours sit a piece width plus the gap apart
 			var r := chord / (2.0 * sin(absf(step) * 0.5))
