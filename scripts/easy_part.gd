@@ -1116,13 +1116,17 @@ func _pull(rec: Dictionary) -> String:
 		var bb: AABB = Part.replay(rec).get("aabb", AABB())
 		var depth := bb.size.z if String(pf.get("from", "front")) == "front" else bb.size.x
 		dist = snappedf(depth / Part.MM, 1.0)
-	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": "join"})
+	# FBOX: a LID: a face drawing on the top of a hollow (shelled) body is a separate piece, not joined to the box (it rests on the rim)
+	var lid := on_face and _top_face(pf) and _has_shell(rec)
+	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": "new" if lid else "join"})
 	rec["features"].append(f)
 	var err := _last_error(rec, String(f["id"]))
 	if err != "":
 		return "That shape is not closed, so it cannot be pulled up: drag back to the start to close it"
 	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": 40.0, "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
-	if through:
+	if lid:
+		_say("A lid on the rim: a separate piece. Use the slider for how tall it is")
+	elif through:
 		_say("Pulled out both ways from the middle: use the slider for how thick, or press Mirror that or Cut a hole next")
 	elif on_face:
 		_say("Pulled into the solid: use the slider to change it, or press Cut a hole next" if inward else "Pulled out of the face: use the slider to change it, or press Mirror that next")
@@ -1147,6 +1151,14 @@ func _sits_on_body(rec: Dictionary, sk: Dictionary) -> bool:
 ## ETABLE: a face plane on the top of a solid (the floor-facing normal is up: out +1 on the Part top plane)
 func _top_face(pf: Dictionary) -> bool:
 	return String(pf.get("from", "")) == "top" and int(pf.get("out", 0)) > 0
+
+
+## FBOX: the record has a shell (Hollow inside) step: a hollow body whose top is open
+func _has_shell(rec: Dictionary) -> bool:
+	for f in rec.get("features", []):
+		if String(f.get("t", "")) == "shell":
+			return true
+	return false
 
 
 ## a face sketch hangs past the body when one of its points lies outside the body's box (by more than 0.5 mm) along the face's own axes
