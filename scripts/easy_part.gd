@@ -3106,7 +3106,11 @@ func layout(cl: Rect2) -> void:
 	var tilt_y := cl.end.y - tilt_box.size.y - 64.0
 	if repeat_box.visible:   # FMOBILE5: Tilt it and Repeat it show together (nothing armed): Tilt sits above the Repeat rows, never over their sliders
 		tilt_y = repeat_box.position.y - tilt_box.size.y - 6.0
-	tilt_box.position = Vector2(cl.position.x + 12.0, _low_box_y(tilt_y, tilt_box.size.y, low_y, stat_top))
+	var tilt_x := cl.position.x + 12.0
+	if repeat_box.visible and tilt_y < low_y:   # a short window: no room above the Repeat rows, so Tilt it stands beside them
+		tilt_x = repeat_box.position.x + repeat_box.size.x + 8.0
+		tilt_y = repeat_box.position.y + repeat_box.size.y - tilt_box.size.y
+	tilt_box.position = Vector2(tilt_x, _low_box_y(tilt_y, tilt_box.size.y, low_y, stat_top))
 	# the panel on the right, as tall as it needs; the words under the sliders go first when the room is short
 	var avail := cl.end.y - top - 4.0
 	panel.reset_size()
