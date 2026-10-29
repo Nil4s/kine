@@ -1077,6 +1077,55 @@ func _sit_typed(t: String) -> bool:
 	return true
 
 
+## JUMP OVER (ajump): a typed line with "jump" and "over" (no "then") over a crate or box in the scene: the walk to the take-off
+## and the jump over it (JumpOver), one undo step. No box in the scene: he says so. false = not this line.
+func _jump_over_typed(t: String) -> bool:
+	var low := t.to_lower()
+	if low.contains(",") or low.contains(";") or low.contains(" then "):
+		return false
+	var ws := low.replace(".", " ").replace("!", " ").split(" ", false)
+	if not (ws.has("jump") and ws.has("over")):
+		return false
+	var idx := -1
+	for i in m.S.props.size():
+		if String(m.S.props[i]["kind"]) in JumpOver.KINDS_OK:
+			idx = i
+			break
+	if idx < 0:
+		m._say_plain("Put a crate or a box in the scene first (Library > Furniture > Crate), then type 'jump over the crate'")
+		return true
+	var keep: Dictionary = m.B.state()
+	var start := Vector3.ZERO
+	if m.S.cards.is_empty():
+		start = Vector3(m.B.P["pelvis"].x, 0.0, m.B.P["pelvis"].z)
+	else:
+		m._ps().apply(m.B, m.S.length())
+		start = Vector3(m.B.P["pelvis"].x, 0.0, m.B.P["pelvis"].z)
+	m.B.set_state(keep)
+	var fwd := Vector3(0, 0, 1)
+	var pl: Vector3 = m.B.P["pelvis"]
+	var fl: Vector3 = (m.B.P["ball_l"] + m.B.P["ball_r"]) * 0.5 - pl
+	if Vector2(fl.x, fl.z).length() > 0.01:
+		fwd = Vector3(fl.x, 0.0, fl.z).normalized()   # where the feet point from the hips: his facing
+	var go := JumpOver.build(m.S.props[idx], start, fwd)
+	if String(go["why"]) != "" or (go["cards"] as Array).is_empty():
+		m._say_plain(String(go["why"]) if String(go["why"]) != "" else "Kine could not build the jump over it")
+		return true
+	m._walk_sit_add(go["cards"])
+	_note_name("jump over the %s" % String(m.S.props[idx]["kind"]), m.S.cards.size() == (go["cards"] as Array).size())
+	_built = true
+	_open = false
+	_gen_words = ""
+	_msg.text = ""
+	_hist.append([m.undo.size(), "jump"])
+	_clip_word = "the clip"
+	_refresh_next()
+	m._layout_bottom()
+	_play()
+	m._say_plain("He runs up to the %s and jumps over it. Again plays it; Undo takes it back." % String(m.S.props[idx]["kind"]))
+	return true
+
+
 func _words(text: String) -> void:
 	_drop_saved_toast()
 	_did_word = ""
@@ -1100,6 +1149,8 @@ func _words(text: String) -> void:
 	if not follow and _retime_typed(t):   # "slower", "make it faster": the whole clip retimed (G3)
 		return
 	if not follow and _sit_typed(t):   # "sit", "sit down", "sit on the chair" with a chair in the scene: he sits on it
+		return
+	if not follow and _jump_over_typed(t):   # "jump over the crate" with a crate or box in the scene: a run-up, then the jump over it
 		return
 	_t0 = Time.get_ticks_msec()
 	last_ms = -1
