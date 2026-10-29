@@ -18,6 +18,7 @@ const MAKE_H := 76.0
 const REP_WORDS := {"count": ["Fewer", "More"], "gap": ["Closer", "Further apart"]}   # the Repeat it sliders' ends
 const STICK_OPS := [["join", "Join", "Make the two pieces one solid"], ["cut", "Cut away", "Cut the second piece out of the first"], ["intersect", "Keep the overlap", "Keep only the part where the two pieces overlap"]]
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
+const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal): a wood brown, red > green > blue
 const HOLLOW_MM := 3.0           # Hollow inside: the wall the shell starts with (the Wall slider moves it: 1 to 10 mm)
 const THROTTLE_MS := 100
 const SKY := Color("#73BFFF")
@@ -376,6 +377,9 @@ func _colour_box() -> PanelContainer:
 		var b := _colour_btn(pr.to_lower(), pr, Color(0.85, 0.88, 0.92, 0.5) if pr == "Glass" else Color(0.7, 0.72, 0.76))
 		b.pressed.connect(_paint.bind(pr, Color.WHITE, pr))
 		h.add_child(b)
+	var wood := _colour_btn("wood", "Wood", WOOD_COLOUR)   # FTABLE2: a wood-brown paint (the Paint numbers), for a table top or a shelf
+	wood.pressed.connect(_paint.bind("Wood", WOOD_COLOUR, "Paint"))
+	h.add_child(wood)
 	return box
 
 
