@@ -131,10 +131,15 @@ func _init() -> void:
 	# 1 D1: the empty grid is in view at open: its middle (the origin) and its corners are on the 1280 x 720 screen
 	var corners := [scr(Vector3(-0.5, 0.0, -0.5)), scr(Vector3(0.5, 0.0, -0.5)), scr(Vector3(0.5, 0.0, 0.5)), scr(Vector3(-0.5, 0.0, 0.5))]
 	var all_in := true
-	var wide := 0.0
+	# the grid's width on screen: its corners' x span (2026-10-28 integ41: was measured from corner 0 only, which reads half the span
+	# when the 3/4 view puts corner 0 in the middle; the 400 px bar is unchanged)
+	var x0 := INF
+	var x1 := -INF
 	for p in corners:
 		all_in = all_in and on_screen(p)
-		wide = maxf(wide, absf(p.x - corners[0].x))
+		x0 = minf(x0, p.x)
+		x1 = maxf(x1, p.x)
+	var wide := x1 - x0
 	ok(all_in and wide >= 400.0, "1 D1 the empty grid (1 m square) is on screen at open and at least 400 px wide (corners %s, width %.0f)" % [corners, wide])
 
 	# 2 D3: a drag with no tool armed gives words that name Draw shape

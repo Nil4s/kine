@@ -111,7 +111,7 @@ var _fr_ref := AABB()           # the bounds the camera last framed (or the boun
 var _fr_has := false
 var _near_saved := -1.0         # the camera's near plane before Easy Part (put back when it is left)
 const FRAME_NEAR := 0.004
-const GRID_FILL := 0.95         # the empty part's grid tile fills this share of the free view (a flat square seen at a slant is narrow)
+const GRID_TILE_FILL := 0.95         # the empty part's grid tile fills this share of the free view (a flat square seen at a slant is narrow)
 const GRID_TILE := AABB(Vector3(-0.5, 0.0, -0.5), Vector3(1.0, 0.0, 1.0))   # the 1 m grid square an empty part stands on (metres)
 var _bar_press = null           # a draw press that began on the top bar (Vector2), or null: a drag starts the sketch there, a click is the button's
 var _press_btn: BaseButton = null # the button under that press (its click when the press is not a drag)
@@ -528,7 +528,7 @@ func frame() -> void:
 	m._cam()
 	if _rec().get("features", []).is_empty() and m.cam != null:
 		# FREEWALK D1: an empty part shows the 1 m grid tile framed in the free view (not a corner under the bar)
-		var pose := _frame_pose(GRID_TILE, GRID_FILL)
+		var pose := _frame_pose(GRID_TILE, GRID_TILE_FILL)
 		if not pose.is_empty():
 			m.target = pose[0]
 			m.dist = pose[1]
