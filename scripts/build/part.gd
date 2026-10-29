@@ -860,19 +860,22 @@ static func tris_touch(A: PackedVector3Array, B: PackedVector3Array, eps: float)
 		bb = bb.expand(v)
 	if not ba.grow(eps).intersects(bb):
 		return false
+	# the per-triangle boxes are built once (a Join of two dense pieces made ~10^7 box builds in the pair loop: the app froze)
 	var tb: Array = []
+	var qb: Array = []
 	for j in range(0, B.size(), 3):
-		var t := AABB(B[j], Vector3.ZERO).expand(B[j + 1]).expand(B[j + 2])
-		if t.grow(eps).intersects(ba):
+		var q := AABB(B[j], Vector3.ZERO).expand(B[j + 1]).expand(B[j + 2])
+		if q.grow(eps).intersects(ba):
 			tb.append(j)
+			qb.append(q)
 	for i in range(0, A.size(), 3):
 		var ta := AABB(A[i], Vector3.ZERO).expand(A[i + 1]).expand(A[i + 2]).grow(eps)
 		if not ta.intersects(bb):
 			continue
-		for j in tb:
-			var q := AABB(B[j], Vector3.ZERO).expand(B[j + 1]).expand(B[j + 2])
-			if not ta.intersects(q):
+		for k in tb.size():
+			if not ta.intersects(qb[k]):
 				continue
+			var j: int = tb[k]
 			if _tri_tri(A[i], A[i + 1], A[i + 2], B[j], B[j + 1], B[j + 2]) <= eps:
 				return true
 	return false
