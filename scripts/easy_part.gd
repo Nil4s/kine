@@ -1178,6 +1178,7 @@ func _make(which: String) -> void:
 		_say(_arm_words("stick"))
 		return
 	if which == "draw" or which == "curve" or which == "colour":
+		_ease_end()   # FBOLT: Draw shape lands a camera ease still running, so the press that follows lands on the shape
 		armed = "" if armed == which else which
 		if armed == "draw":
 			shape = "box"   # every Draw shape press starts on Box: the Round chip of the last shape (a mug) does not carry over (a chair leg is a box)
@@ -2814,6 +2815,16 @@ func _free_top(boxes: Array) -> float:
 	return top
 
 
+## FBOLT: a Draw shape press finishes a camera ease that is still running, so the view is where it lands before the next press
+func _ease_end() -> void:
+	if _ease.is_empty() or m.cam == null:
+		return
+	m.target = _ease["t1"]
+	m.dist = float(_ease["d1"])
+	m._cam()
+	_ease = {}
+
+
 ## the ease in progress: one step per frame toward its end pose (smoothstep), then it is cleared
 func _ease_step() -> void:
 	_ease["s"] = minf(float(_ease["s"]) + get_process_delta_time(), FRAME_EASE)
@@ -3531,7 +3542,8 @@ func _alt_held() -> bool:
 
 
 func _snap_step() -> float:
-	return 5.0 if armed == "curve" else SNAP_MM
+	# a curve (a Curvy line or a Round circle) keeps the 5 mm grid; box, pointy and hex corners snap to 1 cm
+	return 5.0 if (armed == "curve" or (armed == "draw" and shape == "round")) else SNAP_MM
 
 
 func _ground(p: Vector2, pl: Dictionary = {}, snap := true) -> Variant:
