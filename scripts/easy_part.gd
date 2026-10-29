@@ -126,6 +126,13 @@ var _bar_press = null           # a draw press that began on the top bar (Vector
 var _press_btn: BaseButton = null # the button under that press (its click when the press is not a drag)
 var _off_tried := AABB()         # the box the D2 off-screen check last framed (see _frame_step)
 var _ease := {}                 # the camera ease in progress: {"t0", "d0", "t1", "d1", "s"}
+var del_btn: Button              # FDELETE: Remove, on the bar while a piece is picked (the click on a piece; see _pick_at)
+var del_on := false              # FDELETE: a piece is picked (its step id in del_id, the features count it was picked at in del_n)
+var del_id := ""
+var del_n := -1
+var del_pt := Vector3.ZERO       # the point clicked on the piece (metres, the same units as the faces)
+var del_tris := PackedVector3Array()   # the picked piece's triangles: its glow
+var _pick_p := Vector2(-1, -1)   # a left press on the grid with nothing armed: a click (no drag) picks the piece under it on release
 var flushes := 0                # rebuilds made by sliders and dots (the tests count them against the clock)
 
 
@@ -188,6 +195,11 @@ func build(root: Control) -> void:
 	export_btn.name = "easypart_export"
 	export_btn.custom_minimum_size = Vector2(110, m.TOP_H - 12)
 	row.add_child(export_btn)
+	del_btn = _bar_btn("Remove", "Take out the picked piece: click a piece first. Undo puts it back", func(): _remove_piece())   # FDELETE
+	del_btn.name = "easypart_remove"
+	del_btn.custom_minimum_size = Vector2(110, m.TOP_H - 12)
+	del_btn.visible = false
+	row.add_child(del_btn)
 	easy_btn = _bar_btn("Easy", "Sliders and big buttons", _easy_on)
 	easy_btn.toggle_mode = true
 	easy_btn.button_pressed = true
@@ -2410,6 +2422,9 @@ func _process(_dt: float) -> void:
 	colour_box.visible = on and armed == "colour"
 	repeat_box.visible = on and armed == "" and rep_id != "" and not Part.feature(_rec(), rep_id).is_empty()
 	stick_box.visible = on and armed == "stick" and stick_picks.size() == 2
+	if del_on and (armed != "" or (_rec().get("features", []) as Array).size() != del_n):
+		_pick_clear()   # FDELETE: a pick ends with the step it was made on
+	del_btn.visible = on and del_on
 	if not on:
 		return
 	if m.easy != null:
@@ -2879,6 +2894,12 @@ func _tri_px(p: Vector2, q: PackedVector2Array) -> float:
 
 func _draw_dots() -> void:
 	var font := ThemeDB.fallback_font
+	if del_on:   # FDELETE: the picked piece glows red-amber
+		for k in range(0, del_tris.size() - 2, 3):
+			var q := _proj3(del_tris, k)
+			if q.size() < 3 or absf((q[1] - q[0]).cross(q[2] - q[0])) < 0.5:
+				continue
+			dots.draw_colored_polygon(q, Color(1.0, 0.35, 0.2, 0.3))
 	for bi in stick_picks:   # the picked piece glows: its faces tinted, its edges amber
 		var tris: PackedVector3Array = stick_tris.get(bi, PackedVector3Array())
 		for k in range(0, tris.size() - 2, 3):
@@ -3179,7 +3200,10 @@ func _key(k: InputEventKey) -> void:
 			_cancel_drag()
 			get_viewport().set_input_as_handled()
 	elif k.keycode == KEY_DELETE and not k.ctrl_pressed and not k.alt_pressed:
-		_delete_newest()
+		if del_on:
+			_remove_piece()   # FDELETE: the picked piece goes (a click picked it)
+		else:
+			_delete_newest()
 		get_viewport().set_input_as_handled()
 
 
@@ -3220,6 +3244,152 @@ func _delete_newest() -> void:
 	_rows_sync()
 	_end()
 	_say("Took out the newest piece. Undo puts it back")
+
+
+## FDELETE: a click on a piece picks it (the glow shows it; Remove or the Delete key takes it out). A click on empty grid clears the pick.
+## The piece is the step that first put the clicked surface in the solid: the first step whose result has that point on a face
+func _pick_at(p: Vector2) -> void:
+	_pick_clear()
+	if _tpl() != "" or not _drag.is_empty() or not _draft.is_empty():
+		return
+	var rec := _rec()
+	if (rec.get("features", []) as Array).is_empty():
+		return
+	var faces: Array = Part.body_faces(rec, -1)
+	var hit: Dictionary = pu._ray_hit(p, faces)
+	if hit.is_empty():
+		return
+	var pt: Vector3 = hit["at"]
+	var fs: Array = rec["features"]
+	for k in fs.size():
+		var t := String(fs[k].get("t", ""))
+		if t == "sketch" or t == "plane":
+			continue   # a sketch or a face plane adds no surface
+		if _pt_on(Part.body_faces(rec, k), pt):
+			del_on = true
+			del_id = String(fs[k].get("id", ""))
+			del_n = fs.size()
+			del_pt = pt
+			del_tris = _lump_of(faces[int(hit["body"])], pt)   # the piece: the pieces that touch the point (a join of apart pieces is one body)
+			dots.queue_redraw()
+			_say("Picked a piece: press Remove to take it out. Undo puts it back")
+			return
+	_say("That piece has no step to take out")
+
+
+func _pick_clear() -> void:
+	del_on = false
+	del_id = ""
+	del_n = -1
+	del_tris = PackedVector3Array()
+	dots.queue_redraw()
+
+
+## is the point on a triangle of the faces (within 0.05 mm; the faces are metres)
+static func _pt_on(faces: Array, pt: Vector3) -> bool:
+	for tris in faces:
+		var t: PackedVector3Array = tris
+		for k in range(0, t.size() - 2, 3):
+			if _pt_on_tri(t[k], t[k + 1], t[k + 2], pt):
+				return true
+	return false
+
+
+static func _pt_on_tri(a: Vector3, b: Vector3, c: Vector3, pt: Vector3) -> bool:
+	var n := (b - a).cross(c - a)
+	if n.length_squared() < 1e-18:
+		return false
+	n = n.normalized()
+	if absf((pt - a).dot(n)) > 0.00005:
+		return false
+	var q := pt - n * (pt - a).dot(n)
+	return (b - a).cross(q - a).dot(n) >= -0.00005 and (c - b).cross(q - b).dot(n) >= -0.00005 and (a - c).cross(q - c).dot(n) >= -0.00005
+
+
+## the triangles of the piece that holds pt: the ones joined to the triangle under pt by shared corners (a join of apart pieces is one body)
+static func _lump_of(tris: PackedVector3Array, pt: Vector3) -> PackedVector3Array:
+	var nt := tris.size() / 3
+	var by := {}
+	for t in nt:
+		for j in 3:
+			var kk := Vector3i(roundi(tris[3 * t + j].x * 1e5), roundi(tris[3 * t + j].y * 1e5), roundi(tris[3 * t + j].z * 1e5))
+			if not by.has(kk):
+				by[kk] = []
+			(by[kk] as Array).append(t)
+	var start := -1
+	for t in nt:
+		if _pt_on_tri(tris[3 * t], tris[3 * t + 1], tris[3 * t + 2], pt):
+			start = t
+			break
+	var out := PackedVector3Array()
+	if start < 0:
+		return out
+	var seen := {start: true}
+	var todo := [start]
+	while not todo.is_empty():
+		var t: int = todo.pop_back()
+		for j in 3:
+			var kk := Vector3i(roundi(tris[3 * t + j].x * 1e5), roundi(tris[3 * t + j].y * 1e5), roundi(tris[3 * t + j].z * 1e5))
+			for u in by[kk]:
+				if not seen.has(u):
+					seen[u] = true
+					todo.append(u)
+	for t in seen.keys():
+		out.append(tris[3 * int(t)])
+		out.append(tris[3 * int(t) + 1])
+		out.append(tris[3 * int(t) + 2])
+	return out
+
+
+## Remove: the picked piece's step goes out (and its sketch and face plane, if nothing else uses them), one undo step.
+## A step after it that needs it keeps it: the part says so and nothing changes
+func _remove_piece() -> void:
+	if not del_on:
+		_say("Click a piece first, then press Remove")
+		return
+	if not _drag.is_empty() or not _draft.is_empty():
+		return
+	_flush_if_dirty()
+	var rec := _rec()
+	var fs: Array = rec.get("features", [])
+	var k := Part.index_of(rec, del_id)
+	if k < 0 or fs.size() != del_n:
+		_pick_clear()
+		_say("The part changed: click the piece again")
+		return
+	var test: Dictionary = rec.duplicate(true)
+	var tfs: Array = test["features"]
+	var gone: Dictionary = tfs[k]
+	tfs.remove_at(k)
+	var extra: Array = []
+	for key in ["sketch", "plane"]:
+		if gone.has(key):
+			extra.append(String(gone[key]))
+	for sid in extra:
+		if sid == "" or JSON.stringify(tfs).contains("\"%s\"" % sid):
+			continue
+		for i in tfs.size():
+			if String(tfs[i].get("id", "")) == sid:
+				tfs.remove_at(i)
+				break
+	var errs: Dictionary = Part.replay(test).get("errors", {})
+	if not errs.is_empty():
+		_say("A step after it needs this piece, so it stays. Take those steps out first")
+		return
+	if _pt_on(Part.body_faces(test, -1), del_pt):
+		_say("That face is still there after the step: click the piece on its outside")
+		return
+	_begin("Remove piece")
+	var live := _rec()
+	live["features"] = tfs
+	armed = ""
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	_pick_clear()
+	_rows_sync()
+	_end()
+	_say("Took out the piece. Undo puts it back")
 
 
 ## a press on the top bar's BUTTONS never reaches input() (the button takes it in the GUI pass first): this sees it before the GUI,
@@ -3319,6 +3489,8 @@ func input(ev: InputEvent) -> bool:
 				return true
 			if (armed == "draw" or armed == "curve") and not _over_ui(p):
 				return _start_draft(p)
+			if armed == "" and not _over_ui(p):
+				_pick_p = p   # FDELETE: a click (no drag) on a piece picks it, on the release
 			return false
 		if not _drag.is_empty():
 			_drag_to(p, true)
@@ -3326,6 +3498,11 @@ func input(ev: InputEvent) -> bool:
 			_end()
 			return true
 		_bar_press = null
+		if _pick_p.x >= 0.0:
+			var pp := _pick_p
+			_pick_p = Vector2(-1, -1)
+			if pp.distance_to(p) < 6.0 and _drag.is_empty() and _draft.is_empty():
+				_pick_at(p)
 		if not _draft.is_empty():
 			_draft_end()
 			return true
