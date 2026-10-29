@@ -1170,6 +1170,11 @@ func _sits_on_body(rec: Dictionary, sk: Dictionary) -> bool:
 	var bb: AABB = Part.replay(rec).get("aabb", AABB())
 	if bb.size == Vector3.ZERO:
 		return false
+	# FFLAT: the sketch's 2D y is the world height only on an UPRIGHT plane (normal level). A floor drawing's 2D y runs along the depth,
+	# so a floor panel behind the shelves used to read as "sitting on" them and merge into the one solid
+	var pl := Part.resolve_plane(rec, String(sk.get("plane", "front")))
+	if absf((pl["n"] as Vector3).y) > 0.5:
+		return false
 	var low := INF
 	for e in sk["ents"]:
 		for q in _ent_pts(e):
