@@ -2030,17 +2030,25 @@ func _repeat(rec: Dictionary) -> String:
 	var w_mm := 10.0
 	var h_mm := 10.0   # EREPEATUP: the body's height and depth too, so Up and Forward space the copies by their own size
 	var d_mm := 10.0
-	var faces := Part.body_faces(rec, -1)
-	if bi < faces.size() and (faces[bi] as PackedVector3Array).size() > 0:
-		var pts: PackedVector3Array = faces[bi]
+	var src := Part.pattern_piece(rec)   # REPEAT THE PIECE: the newest piece (its own size) when it is the newest step, else the whole body
+	var mrec: Dictionary = Part.pattern_src_rec(rec, src) if src != "" else rec
+	var mbi := -1 if src != "" else bi
+	var faces := Part.body_faces(mrec, -1)
+	if mbi < 0:
+		mbi = faces.size() - 1
+	if mbi >= 0 and mbi < faces.size() and (faces[mbi] as PackedVector3Array).size() > 0:
+		var pts: PackedVector3Array = faces[mbi]
 		var bb := AABB(pts[0], Vector3.ZERO)
 		for q in pts:
 			bb = bb.expand(q)
 		w_mm = maxf(bb.size.x / Part.MM, 1.0)
 		h_mm = maxf(bb.size.y / Part.MM, 1.0)
 		d_mm = maxf(bb.size.z / Part.MM, 1.0)
-	var f := Part.new_feature(rec, "pattern", {"kind": "linear", "body": bi, "count": 3, "dir": "x", "axis": "y", "deg": 360.0,
-		"mm": w_mm + 10.0, "w": w_mm, "h": h_mm, "d": d_mm, "gap": 10.0, "op": "join"})
+	var fields := {"kind": "linear", "body": bi, "count": 3, "dir": "x", "axis": "y", "deg": 360.0,
+		"mm": w_mm + 10.0, "w": w_mm, "h": h_mm, "d": d_mm, "gap": 10.0, "op": "join"}
+	if src != "":
+		fields["src"] = src
+	var f := Part.new_feature(rec, "pattern", fields)
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
 		return "The copies would not fit: nothing was changed"
@@ -2080,6 +2088,10 @@ func _rep_mode(ring: bool) -> void:
 	cur["beside"] = ring   # round a point beside the piece: a ring round the origin piles copies of a piece AT the origin onto each other
 	cur["axis"] = "y"
 	cur["deg"] = 360.0
+	if not ring and String(cur.get("dir", "x")) != "x":   # FBENCH: back from Forward or Up: the spacing is the piece's width ALONG X
+		var wx := _feat_mm(cur, "x")
+		if wx > 0.0:
+			cur["w"] = wx
 	cur["dir"] = "x"
 	cur["mm"] = _span(cur) + float(cur.get("gap", 10.0))
 	_end()
@@ -2089,7 +2101,8 @@ func _rep_mode(ring: bool) -> void:
 	_say("Ring: the copies go round in a circle" if ring else "Row: the copies go in a straight line")   # FWHEEL: "beside it" lied for a spoke (its copies go round the middle)
 
 
-## EREPEATUP: Up or Forward: the same straight copies, stacked up (y) or put one behind the other (z); spaced by the body's height or depth plus the gap. One undo step
+## EREPEATUP + FBENCH: Up or Forward: the same straight copies, stacked up (y) or put one behind the other (z); spaced by the body's
+## height or depth (its real size, measured from the body; the feature's size when the body is not there) plus the gap. One undo step
 func _rep_dir(ax: String) -> void:
 	if Part.feature(_rec(), rep_id).is_empty():
 		return
@@ -2101,12 +2114,39 @@ func _rep_dir(ax: String) -> void:
 	cur["axis"] = "y"
 	cur["deg"] = 360.0
 	cur["dir"] = ax
-	cur["mm"] = _span(cur) + float(cur.get("gap", 10.0))
+	var sp := _feat_mm(cur, ax)
+	cur["mm"] = (sp if sp > 0.0 else _span(cur)) + float(cur.get("gap", 10.0))
 	_end()
 	pu.sync()
 	_rep_sync()
 	_values_sync()
 	_say("Up: the copies stack upward, one on top of the other" if ax == "y" else ("Forward: the copies go one behind the other" if ax == "z" else "Row: the copies go sideways in a straight line"))
+
+
+## FBENCH: the size of the copied piece of a Repeat step along one way ("x" | "y" | "z") in mm; -1 when it is not there (the caller falls back)
+func _feat_mm(cur: Dictionary, dir: String) -> float:
+	var src := String(cur.get("src", ""))
+	if src != "":
+		var sub := Part.pattern_src_rec(_rec(), src)
+		if not sub.is_empty():
+			return _piece_mm(sub, -1, dir)
+	return _piece_mm(_rec(), int(cur.get("body", -1)), dir)
+
+
+## FBENCH: the size of body bi along one way ("x" | "y" | "z") in mm (bi -1: the last body); -1 when the body is not there (the caller falls back to the feature's size)
+func _piece_mm(rec: Dictionary, bi: int, dir: String) -> float:
+	var faces := Part.body_faces(rec, -1)
+	if bi < 0:
+		bi = faces.size() - 1
+	if bi < 0 or bi >= faces.size() or (faces[bi] as PackedVector3Array).size() == 0:
+		return -1.0
+	var pts: PackedVector3Array = faces[bi]
+	var bb := AABB(pts[0], Vector3.ZERO)
+	for q in pts:
+		bb = bb.expand(q)
+	var s := bb.size
+	var n := s.x if dir == "x" else (s.y if dir == "y" else s.z)
+	return maxf(n / Part.MM, 1.0)
 
 
 ## STICK TOGETHER: Part's combine step (Expert Combine): the first picked piece is the target, the second the tool; one undo step
