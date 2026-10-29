@@ -1318,14 +1318,16 @@ static func _sweep(bodies: Array, f: Dictionary, sketches: Dictionary) -> String
 	var dir: Vector2 = sp["dir"]
 	var p0 := to_world(pa, start)
 	var tan := ((pa["x"] as Vector3) * dir.x + (pa["y"] as Vector3) * dir.y).normalized()
-	if absf(tan.dot(pl["n"])) < 0.999 or absf((p0 - pl["o"]).dot(pl["n"])) > 1e-6:
-		return "the line must start in the middle of the shape and go straight out of it, at a right angle (like a pipe out of a flange)"   # FPIPE: plain words, no profile / normal
-	if (to_plane(pl, p0) - centre).length() > 0.5:
-		return "the line must start in the middle of the shape"
+	var ents: Array = ps["ents"]
 	var wire := KCad.sketch_wire(sp["items"], pa["o"], pa["x"], pa["n"])
 	if wire == 0:
 		return KCad.last_error()
-	var face := KCad.sketch_face(items_of(ps["ents"]), pl["o"], pl["x"], pl["n"])
+	var face := 0
+	if absf(tan.dot(pl["n"])) >= 0.999 and absf((p0 - pl["o"]).dot(pl["n"])) <= 1e-6 and (to_plane(pl, p0) - centre).length() <= 0.5:
+		face = KCad.sketch_face(items_of(ents), pl["o"], pl["x"], pl["n"])
+	else:
+		# FPIPE: the shape is not at the line's start: it is moved there, centred and square to the line (the shape faces along the line)
+		face = KCad.sketch_face(items_of(_shift_ents(ents, centre)), p0, _across(pl, tan), tan)
 	if face == 0:
 		KCad.release(wire)
 		return "%s is not a closed profile" % String(ps.get("name", "the profile"))
@@ -1338,7 +1340,68 @@ static func _sweep(bodies: Array, f: Dictionary, sketches: Dictionary) -> String
 	if absf(KCad.volume(solid) - want) > 0.02 * want:
 		KCad.release(solid)
 		return "the sweep folds on itself: the path bends too sharply for this profile"
+	if bool(f.get("flange", false)):
+		solid = _flange_ring(solid, p0, tan, _across(pl, tan), _shift_ents(ents, centre), _profile_reach(ents, centre))
+		if solid == 0:
+			return KCad.last_error()
 	return _combine(bodies, solid, String(f.get("op", "join")))
+
+
+## a unit direction square to the line's direction, from the shape's own x axis (or its y axis when x lies along the line)
+static func _across(pl: Dictionary, tan: Vector3) -> Vector3:
+	var px: Vector3 = (pl["x"] as Vector3) - tan * (pl["x"] as Vector3).dot(tan)
+	if px.length() < 1e-3:
+		px = (pl["y"] as Vector3) - tan * (pl["y"] as Vector3).dot(tan)
+	return px.normalized()
+
+
+## the sweep's shape with its centre moved to the origin of the plane (ents in mm)
+static func _shift_ents(ents: Array, c: Vector2) -> Array:
+	var out := []
+	for e in ents:
+		var d: Dictionary = (e as Dictionary).duplicate(true)
+		for k in ["a", "b", "c", "m"]:
+			if d.has(k):
+				d[k] = arr2(v2(d[k]) - c)
+		if d.has("pts"):
+			var q := []
+			for p in d["pts"]:
+				q.append(arr2(v2(p) - c))
+			d["pts"] = q
+		out.append(d)
+	return out
+
+
+## FPIPE FLANGE: a washer ring at the line's start end, standing square to the line and lying behind the start: outer width 2 x the shape's reach + 12 mm, 4 mm thick, the pipe's own shape cut out of its middle. Joined to the swept solid; 0 with the kernel's error.
+static func _flange_ring(pipe: int, p0: Vector3, tan: Vector3, x: Vector3, ents: Array, reach: float) -> int:
+	var t := 4.0 * MM
+	var back := p0 - tan * t
+	var od := (2.0 * reach + 12.0) * MM
+	var outer_face := KCad.sketch_face([KCad.circle(Vector2.ZERO, od * 0.5)], back, x, tan)
+	if outer_face == 0:
+		KCad.release(pipe)
+		return 0
+	var outer := KCad.extrude(outer_face, t, false, 0.0)
+	KCad.release(outer_face)
+	var bore_face := KCad.sketch_face(items_of(ents), back, x, tan)
+	if bore_face == 0:
+		KCad.release(outer)
+		KCad.release(pipe)
+		return 0
+	var bore := KCad.extrude(bore_face, t, false, 0.0)
+	KCad.release(bore_face)
+	var ring := KCad.cut(outer, bore)
+	KCad.release(outer)
+	KCad.release(bore)
+	if ring == 0:
+		KCad.release(pipe)
+		return 0
+	var joined := KCad.union(pipe, ring)
+	KCad.release(pipe)
+	KCad.release(ring)
+	return joined
+
+
 
 
 ## puts a new solid into the body list as the op says; "" or the failure message
