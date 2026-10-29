@@ -11,6 +11,7 @@ extends RefCounted
 ##     {"t": "fillet",  "id": "f5", "name": "Fillet1", "body": 0, "r": 2.0, "edges": [{"p": [x, y, z], "q": [..], "d": [..]}]},
 ##     {"t": "chamfer", ... "dist": 1.0 ...},  {"t": "mirror", "id": ..., "plane": "front"|"top"|"right", "op": "join"},
 ##     extrude also has "taper": degrees (>0 narrows as it goes) and op "intersect" (keeps only the part inside the new solid);
+##     extrude and revolve may carry "tilt": degrees (Easy's Tilt it): the piece leans about X through its centre before it joins the body;
 ##     {"t": "split", "id": ..., "plane": "front"|"top"|"right", "at": mm (offset along the plane's normal), "keep": 0 | 1 | -1} cuts EVERY body the plane crosses in two (keep 1 / -1: only the half on the normal's side / the other half stays);
 ##     {"t": "shell", "id": ..., "body": N, "thick": mm, "open": "" | "+x" | "-x" | "+y" | "-y" | "+z" | "-z"} hollows body N with walls thick mm,
 ##     the planar face that points that way open ("" = no face open: a closed cavity),
@@ -499,7 +500,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					errs[id] = String(sols["err"])
 					continue
 				var sids: PackedInt32Array = sols["solids"]
+				var tilt_deg := float(f.get("tilt", 0.0))   # TILT (Easy's Tilt it): the piece leans about its middle, before it joins the body
 				for si in sids.size():   # XFIX: one solid per separate loop of the sketch (one feature, one undo step)
+					if absf(tilt_deg) > 1e-9:
+						sids[si] = _tilt_solid(sids[si], tilt_deg)
 					var e := _combine(bodies, sids[si], String(f.get("op", "join")))
 					if e != "":
 						errs[id] = e
@@ -920,6 +924,18 @@ static func _seg_seg(p1: Vector3, q1: Vector3, p2: Vector3, q2: Vector3) -> floa
 				t = 1.0
 				s = clampf((b - c) / a, 0.0, 1.0)
 	return (p1 + d1 * s).distance_to(p2 + d2 * t)
+
+
+## TILT (Easy's Tilt it): a solid leans about X through its centre of mass by deg degrees (the kernel's centre, metres)
+static func _tilt_solid(id: int, deg: float) -> int:
+	var mp := KCad.mass_properties(id)
+	if mp.is_empty():
+		return id
+	var t := _swing(id, mp.get("center", Vector3.ZERO) as Vector3, Vector3.RIGHT, deg_to_rad(deg))
+	if t == 0:
+		return id
+	KCad.release(id)
+	return t
 
 
 ## a body turned about a hinge: the kernel rotates about the origin only, so the body goes to the origin, turns and comes back
