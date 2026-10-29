@@ -943,6 +943,8 @@ func _drop(id: String, mp: Vector2, through := false) -> void:
 	m._step_easy = String(it["name"])
 	m._prop_add(String(it["key"]), hit)
 	m._step_easy = ""
+	# ALIB2: the search box gave up the focus on a drop, so Ctrl+Z reaches the scene (not the box, which undid its typing)
+	_search.release_focus()
 	_note.text = "%s is on the floor. Undo takes it away." % it["name"]
 
 
