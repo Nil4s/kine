@@ -1467,7 +1467,7 @@ func _pull(rec: Dictionary) -> String:
 	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": "new" if lid else ("cut" if slot else "join")})
 	rec["features"].append(f)
 	var err := _last_error(rec, String(f["id"]))
-	if err == "" and nb0 > 0 and not slot:   # a slot cut never becomes a new body
+	if err == "" and nb0 > 0 and not slot and not lid:   # a slot cut never becomes a new body; FBOX: a lid stays its own body (the join pass below would fold it back into the box)
 		f["into"] = Part.touching_body(rec, f)   # FLAMP5: a pull joins the body it sits on (saved on the step), not the last body
 		err = _last_error(rec, String(f["id"]))
 		var joined := Part.replay(rec)
@@ -3456,6 +3456,12 @@ func _face_hit(p: Vector2) -> Dictionary:
 	var fc := _face_hit_at(p)
 	if fc.is_empty() or String(fc.get("base", "")) == "top":
 		return fc
+	# FBOX: a press on a wall's top edge within 2 mm of the solid's top (a rim 3 mm wide, seen from the far side) is the TOP face there (a lid on the rim)
+	var top_m: float = (pu.res.get("aabb", AABB()) as AABB).end.y if pu != null else 0.0
+	if top_m > 0.0 and fc.has("hit") and absf((fc["hit"] as Vector3).y - top_m) <= 0.002:
+		var tp := Part.plane("top")
+		tp["o"] = (tp["o"] as Vector3) + (tp["n"] as Vector3) * top_m
+		return {"pl": tp, "base": "top", "mm": snappedf(top_m / Part.MM, 0.01), "out": 1}
 	# a press on a solid's top edge or corner (a chair leg's corner, seen from the side) lands on the side face just below the top:
 	# a tip-of-the-top press a few px higher takes the TOP face there, so a seat drawn on the leg tops sits on them
 	for off in [Vector2(0.0, -6.0), Vector2(-6.0, -6.0), Vector2(6.0, -6.0)]:
@@ -3522,7 +3528,7 @@ func _face_hit_at(p: Vector2) -> Dictionary:
 	var out := 1 if nrm.dot(FACE_N[ax]) > 0.0 else -1
 	var pl := Part.plane(FACE_BASE[ax])
 	pl["o"] = (pl["o"] as Vector3) + (pl["n"] as Vector3) * mm * Part.MM
-	return {"pl": pl, "base": FACE_BASE[ax], "mm": mm, "out": out}
+	return {"pl": pl, "base": FACE_BASE[ax], "mm": mm, "out": out, "hit": bh}
 
 
 ## FSPOON: the triangles a press is tested against: the shown mesh of the last step's replay (a press costs no replay of a part
