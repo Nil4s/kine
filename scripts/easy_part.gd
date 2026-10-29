@@ -1850,7 +1850,7 @@ func _rep_mode(ring: bool) -> void:
 	pu.sync()
 	_rep_sync()
 	_values_sync()
-	_say("Ring: the copies go round in a circle beside it" if ring else "Row: the copies go in a straight line")
+	_say("Ring: the copies go round in a circle" if ring else "Row: the copies go in a straight line")   # FWHEEL: "beside it" lied for a spoke (its copies go round the middle)
 
 
 ## STICK TOGETHER: Part's combine step (Expert Combine): the first picked piece is the target, the second the tool; one undo step
