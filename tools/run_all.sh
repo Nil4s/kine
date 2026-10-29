@@ -278,3 +278,4 @@ EXTRA="$EXTRA awave:w"   # AWAVE: a beginner makes a wave from the start screen 
 EXTRA="$EXTRA ascene2:w"   # ASCENE2: a beginner makes three scenes, renames one, duplicates one, deletes one to the trash and puts it back, reopens each; the text and card count of each scene survive every move (tests/ascene2_test.gd)
 EXTRA="$EXTRA abody2:w"   # ABODY2: an easy body by real clicks from the start screen: height, build, face, hair, save, reopen from My scenes: every change kept (tests/abody2_test.gd)
 EXTRA="$EXTRA fglasses:w"   # FGLASSES: a beginner from the BUILDING card builds a pair of glasses by real clicks: bridge, ring, Cut a hole, arm, Mirror that (tests/fglasses_test.gd)
+EXTRA="$EXTRA fhandle:w"   # FHANDLE: a beginner from the BUILDING card builds a door handle by real clicks: a back plate, a closed Curvy loop pulled up as the lever (10 mm, from the plate top), Round the edges, Mirror that; one undo step (tests/fhandle_test.gd)
