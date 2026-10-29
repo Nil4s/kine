@@ -2239,7 +2239,16 @@ func _size_sync() -> void:
 	var p: Vector2 = m.cam.unproject_position(front)
 	var sz := size_l.get_combined_minimum_size()
 	size_l.size = sz
-	size_l.position = Vector2(p.x - sz.x * 0.5, p.y + 12.0)
+	# FMOBILE: the label stays on the window (a part low on a short window pushed it off the bottom) and hides rather than sit on a box or panel
+	var vp := get_viewport().get_visible_rect()
+	var pos := Vector2(clampf(p.x - sz.x * 0.5, 4.0, vp.end.x - sz.x - 4.0), minf(p.y + 12.0, vp.end.y - sz.y - 4.0))
+	size_l.position = pos
+	var r := Rect2(size_l.get_global_position(), sz)
+	for bx in [panel, repeat_box, stick_box, colour_box, hint, status]:
+		var c := bx as Control
+		if c != null and c.is_visible_in_tree() and r.intersects(c.get_global_rect()):
+			size_l.visible = false
+			return
 
 
 func _cm1(v: float) -> String:
