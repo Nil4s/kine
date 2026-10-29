@@ -657,6 +657,8 @@ func _strip_clear_views() -> void:
 
 ## the held weapon's plain name ("sword", "2 daggers"): the picker's row for what the body holds, lower-cased
 func _held_name() -> String:
+	if m.B.wep_on and PartWeapon.is_part(String(m.B.wep_kind)):   # APROP: a Part given to him (the cup) is named by its kind, not the table of built-in weapons ("the none")
+		return PartWeapon.name_of(String(m.B.wep_kind))
 	return String(m.WEAPONS[m.weapon_shown()][0]).to_lower()
 
 
@@ -1646,7 +1648,7 @@ func _build(what: String, label: String, easy := "", add := false) -> String:
 		return _append(d, label, easy)
 	d["scene"] = path.get_file().get_basename()
 	d["plan"] = "Easy home: %s" % label
-	var seats: Array = m.S.props.filter(func(p): return String(p["kind"]) in SIT_KINDS)   # the seats stay: a chair placed, then Walk, kept the chair (round 7: it was gone, so no sit). Other props: as before
+	var seats: Array = m.S.props.filter(func(p): return String(p["kind"]) in SIT_KINDS or PartWeapon.is_part(String(p["kind"])))   # the seats stay: a chair placed, then Walk, kept the chair (round 7: it was gone, so no sit). APROP: a Part the beginner put in the scene (the cup) stays too. Other props: as before
 	if not seats.is_empty() and not d.has("props"):
 		d["props"] = seats.map(func(p): return Props.to_dict(p))
 	_ball_line = ""
