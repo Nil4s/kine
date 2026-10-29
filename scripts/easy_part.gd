@@ -46,6 +46,7 @@ var undo_btn: Button
 var redo_btn: Button
 var dup_btn: Button            # FDUP: the top bar's Duplicate (a second copy of the whole part beside it)
 var use_scene_btn: Button
+var size_l: Label              # FMEASURE: "18 x 6 x 2 cm" (wide x deep x high) under the part, plain words, while a solid is there
 var whole_l: Label             # "Whole sword: N cm": the shape's biggest size, under the sliders (the blade slider is not the whole length)
 var easy_btn: Button
 var expert_btn: Button
@@ -328,6 +329,14 @@ func build(root: Control) -> void:
 	dots.draw.connect(_draw_dots)
 	dots.visible = false
 	root.add_child(dots)
+	size_l = Label.new()
+	size_l.name = "easypart_size"
+	size_l.add_theme_font_size_override("font_size", 14)
+	size_l.add_theme_color_override("font_color", Color(0.92, 0.94, 0.97))
+	size_l.add_theme_stylebox_override("normal", _style(Color(0.1, 0.11, 0.14, 0.85), 0, 4))
+	size_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	size_l.visible = false
+	root.add_child(size_l)
 
 
 ## CUT A HOLE: Through (the round hole, the default) or Hollow inside (the shell: open at the top, a Wall slider). Two toggle chips like Draw shape's
@@ -2302,7 +2311,35 @@ func _process(_dt: float) -> void:
 		dots.queue_redraw()
 	if m.cam != null:
 		dots.queue_redraw()
+	_size_sync()
 	_frame_step()
+
+
+## FMEASURE: the part's size in cm, W x D x H (wide, deep, high), a small plain label under the part's front bottom edge.
+## Shown while a solid is made (Easy Part only); the numbers are the replayed box (metres -> cm, one decimal).
+func _size_sync() -> void:
+	var res: Dictionary = pu.res if pu != null else {}
+	var bb: AABB = res.get("aabb", AABB())
+	var solid := active() and int(res.get("bodies", 0)) > 0 and bb.size.x > 0.0 and bb.size.y > 0.0 and bb.size.z > 0.0
+	size_l.visible = solid
+	if not solid or m.cam == null:
+		return
+	var w := snappedf(bb.size.x * 100.0, 0.1)
+	var d := snappedf(bb.size.z * 100.0, 0.1)
+	var h := snappedf(bb.size.y * 100.0, 0.1)
+	size_l.text = "Size: %s x %s x %s cm (wide x deep x high)" % [_cm1(w), _cm1(d), _cm1(h)]
+	var front := Vector3(bb.get_center().x, bb.position.y, bb.end.z)
+	if m.cam.is_position_behind(front):
+		size_l.visible = false
+		return
+	var p: Vector2 = m.cam.unproject_position(front)
+	var sz := size_l.get_combined_minimum_size()
+	size_l.size = sz
+	size_l.position = Vector2(p.x - sz.x * 0.5, p.y + 12.0)
+
+
+func _cm1(v: float) -> String:
+	return str(roundi(v)) if absf(v - roundf(v)) < 0.05 else str(v)
 
 
 ## EFRAME: after a step that changes the part's box a lot, the camera eases so the box fills FRAME_FILL of the free view.
