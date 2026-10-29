@@ -281,3 +281,4 @@ EXTRA="$EXTRA fglasses:w"   # FGLASSES: a beginner from the BUILDING card builds
 EXTRA="$EXTRA fhandle:w"   # FHANDLE: a beginner from the BUILDING card builds a door handle by real clicks: a back plate, a closed Curvy loop pulled up as the lever (10 mm, from the plate top), Round the edges, Mirror that; one undo step (tests/fhandle_test.gd)
 EXTRA="$EXTRA fglasses:w"   # FGLASSES: a beginner from the BUILDING card builds a pair of glasses by real clicks: bridge, ring, Cut a hole, arm, Mirror that (tests/fglasses_test.gd)
 EXTRA="$EXTRA fnamechange:w"   # FNAMECHANGE: the BUILDING card's blank part is named Part N; a click on its title opens a name box, Bracket + Enter renames it (undo / redo), Use in a scene puts Bracket in My parts (tests/fnamechange_test.gd)
+EXTRA="$EXTRA fsnap:w"   # FSNAP: Draw shape snaps box corners to the 1 cm grid (plain drag = whole cm sides); Alt held = free; the snap words say once (tests/fsnap_test.gd)

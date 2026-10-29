@@ -3126,6 +3126,20 @@ const FACE_BASE := ["right", "top", "front"]   # the Part plane each axis is dra
 const FACE_N := [Vector3.RIGHT, Vector3.UP, Vector3.BACK]
 
 
+## FSNAP: the corners of a box or pointy shape snap to the 1 cm grid (SNAP_MM); a curve keeps its 5 mm grid. Holding Alt (_alt) turns the snap off
+const SNAP_MM := 10.0
+var _alt := false        # Alt is held (the last mouse event said so, or the key is down): corners are free
+var _snap_said := false  # the 1 cm snap words were said (once per session: the first drawn shape)
+
+
+func _alt_held() -> bool:
+	return _alt or Input.is_key_pressed(KEY_ALT)
+
+
+func _snap_step() -> float:
+	return 5.0 if armed == "curve" else SNAP_MM
+
+
 func _ground(p: Vector2, pl: Dictionary = {}, snap := true) -> Variant:
 	var o: Vector3 = m.cam.project_ray_origin(p)
 	var d: Vector3 = m.cam.project_ray_normal(p)
@@ -3139,9 +3153,10 @@ func _ground(p: Vector2, pl: Dictionary = {}, snap := true) -> Variant:
 	if t < 0.0:
 		return null
 	var q := Part.to_plane(pl, o + d * t)
-	if not snap:
+	if not snap or _alt_held():
 		return Vector2(q.x, q.y)
-	return Vector2(snappedf(q.x, 5.0), snappedf(q.y, 5.0))
+	var st := _snap_step()
+	return Vector2(snappedf(q.x, st), snappedf(q.y, st))
 
 
 ## EKEYS: a key press on the Easy screen. Escape cancels a half-drawn shape or a drag in hand (nothing is written, no step is left);
@@ -3283,6 +3298,8 @@ func _bar_button_at(p: Vector2) -> BaseButton:
 
 ## BUILD's input when the Easy screen has the page: true = taken
 func input(ev: InputEvent) -> bool:
+	if ev is InputEventMouse:
+		_alt = (ev as InputEventMouse).alt_pressed
 	if not active() or not Part.available():
 		return false
 	if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
@@ -3501,7 +3518,11 @@ func _finish_draw() -> void:
 	pu.upto = -1
 	pu.sync()
 	_rows_sync()
-	_say("Shape drawn. Now press Pull it up or Spin it round")
+	var tip := ""
+	if not _snap_said and sh != "curve":
+		tip = " Corners snap to 1 cm (hold Alt for a free size)."   # FSNAP: said once, on the first shape
+		_snap_said = true
+	_say("Shape drawn.%s Now press Pull it up or Spin it round" % tip)
 
 
 ## DRAW ON A FACE: the sketch's plane id. A face press adds ONE Part "plane" feature (from the base plane, mm = the face distance, out = the face side) to rec; no face = "top" (the floor)
