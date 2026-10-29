@@ -157,6 +157,18 @@ func named_next(said: String) -> bool:
 	return false
 
 
+## Nick 2026-10-28 (7089ca07): Easy Part opens EMPTY now (no forced sword). This bar needs a sword, so it picks one itself:
+## More examples -> What to build -> From a template -> Sword (the way a beginner gets it)
+func pick_sword() -> void:
+	await click_ctl(root.find_child("easypart_more_examples", true, false) as Control)
+	await idle(10)
+	var bc: BuildChoose = m.build_choose
+	await click_ctl(bc.btns["template"]["easy"])
+	await idle(4)
+	bc._starters.id_pressed.emit(1000 + PartTemplates.ORDER.find("sword"))
+	await idle(30)
+
+
 func _init() -> void:
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
@@ -189,6 +201,7 @@ func _init() -> void:
 	await click_ctl(pu().part_btn)
 	await click_ctl(pu().easy_open_btn)
 	await idle(30)
+	await pick_sword()
 	var chip = ep().get("empty_chip")
 	ok(chip != null and (chip as Button).is_visible_in_tree(), "0 EMPTY the Empty chip is shown")
 	if chip == null:

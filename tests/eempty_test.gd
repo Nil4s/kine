@@ -129,6 +129,18 @@ func draw_floor(a: Vector3, b: Vector3) -> void:
 
 
 
+## Nick 2026-10-28 (7089ca07): Easy Part opens EMPTY now (no forced sword). This bar needs a sword, so it picks one itself:
+## More examples -> What to build -> From a template -> Sword (the way a beginner gets it)
+func pick_sword() -> void:
+	await click_ctl(root.find_child("easypart_more_examples", true, false) as Control)
+	await idle(10)
+	var bc: BuildChoose = m.build_choose
+	await click_ctl(bc.btns["template"]["easy"])
+	await idle(4)
+	bc._starters.id_pressed.emit(1000 + PartTemplates.ORDER.find("sword"))
+	await idle(30)
+
+
 func _init() -> void:
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
@@ -161,8 +173,9 @@ func _init() -> void:
 	await click_ctl(pu().part_btn)
 	await click_ctl(pu().easy_open_btn)
 	await idle(30)
+	await pick_sword()
 	var n0: int = (m.S.part.get("features", []) as Array).size()
-	ok(n0 > 0 and int(pu().res.get("bodies", 0)) >= 1, "0 OPEN Easy Part opens on a template (%d steps)" % n0)
+	ok(n0 > 0 and int(pu().res.get("bodies", 0)) >= 1, "0 OPEN Easy Part opens empty, then the sword is picked (%d steps)" % n0)
 	var chip = ep().get("empty_chip")
 	ok(chip != null and (chip as Button).is_visible_in_tree(), "1a EMPTY the Empty chip is shown")
 	if chip == null:
