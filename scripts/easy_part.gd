@@ -956,7 +956,7 @@ func _make(which: String) -> void:
 			return
 		armed = ""
 		if int(pu.res.get("bodies", 0)) < 2:
-			_say("Make two solid pieces first, then stick them together")
+			_say("Stick together needs two separate pieces: draw a new shape apart from the solid, Pull it up, then press Stick together again")   # FWRENCH: the old words did not say how to get a second piece
 			return
 		armed = "stick"
 		_say(_arm_words("stick"))
