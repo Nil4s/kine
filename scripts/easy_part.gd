@@ -12,6 +12,7 @@ extends Node
 ## No CAD DLL: the buttons and sliders are greyed with the reason.
 
 const PW := 318.0
+const CHIP_TEXT := {"sword": "Blade"}   # template chips shown before anything is chosen (plain words)
 const ROUND_BUDGET_US := 300000   # EROUND: the Round press stops trying edges after this (usec) and keeps the best found
 const MAKE_H := 76.0
 const REP_WORDS := {"count": ["Fewer", "More"], "gap": ["Closer", "Further apart"]}   # the Repeat it sliders' ends
@@ -152,7 +153,7 @@ func build(root: Control) -> void:
 	row.add_child(undo_btn)
 	row.add_child(redo_btn)
 	row.add_child(use_scene_btn)
-	give_btn = _bar_btn("Give to fighter", "Give it to the fighter: the fighter holds this shape as his weapon, with its size and weight (PartWeapon)", func(): m.give_part_weapon(_rec()))   # one undo step
+	give_btn = _bar_btn("Give to a character", "Give it to a character: they hold this shape in one hand, with its size and weight (PartWeapon)", func(): m.give_part_weapon(_rec()))   # one undo step
 	give_btn.name = "easypart_give"
 	give_btn.custom_minimum_size = Vector2(170, m.TOP_H - 12)
 	row.add_child(give_btn)
@@ -264,7 +265,7 @@ func build(root: Control) -> void:
 	for t in PartTemplates.ORDER:
 		var b := Button.new()
 		b.name = "easypart_chip_" + t
-		b.text = String(PartTemplates.T[t]["title"])
+		b.text = CHIP_TEXT.get(t, String(PartTemplates.T[t]["title"]))   # the chip word on the blank part is plain; the part keeps the template title
 		b.toggle_mode = true
 		b.focus_mode = Control.FOCUS_NONE
 		b.custom_minimum_size = Vector2(0, 34)

@@ -10,7 +10,7 @@ extends SceneTree
 const DIRT := "user://ewords_test"
 const PRESSES := 40
 const MIN_SEEN := 15
-const LEAVES := ["Home", "Use in a scene", "Give to fighter", "Easy", "Expert", "What to build", "Undo", "Exact sizes? Use Expert"]   # buttons that leave Easy Part or open another screen
+const LEAVES := ["Home", "Use in a scene", "Give to a character", "Easy", "Expert", "What to build", "Undo", "Exact sizes? Use Expert"]   # buttons that leave Easy Part or open another screen
 const BANNED := "(?i)\\b(sketch\\w*|profile\\w*|extrud\\w*|fillet\\w*|boolean\\w*|loft\\w*|wire\\w*|kernel\\w*|manifold\\w*|features?|revolv\\w*|params?|mesh\\w*|shell\\w*|bod(y|ies)|primitive\\w*|tessel\\w*|topolog\\w*|planes?|offset\\w*|dll|cad|f\\d{1,2})\\b"
 
 var fails := 0
