@@ -57,6 +57,7 @@ var _pbar_smaller: Button
 var _pbar_colour: Button
 var _pbar_hand: VBoxContainer      # "In his hand: the sword" + Drop it, at the top of the bar while he holds a weapon (one undo step: the hand is empty)
 var _pbar_hand_name: Label
+var _pbar_pick: Button
 var _pbar_drop: Button
 var panel: PanelContainer      # the full panel: the picture cards, the text box, the message
 var strip: PanelContainer      # the strip after a clip is built: Again, Change it, Save video
@@ -455,6 +456,8 @@ func build(root: Control) -> void:
 	_pbar_size.add_child(_pbar_smaller)
 	_pbar_colour = _strip_button("eh_prop_colour", "Colour it", "change the picked prop's colour: blue, red, green, yellow, white, black, then grey (one undo step)", func(): m._prop_colour(), Vector2(150, 40), 18)
 	pr.add_child(_pbar_colour)
+	_pbar_pick = _strip_button("eh_prop_pick", "Pick up", "put the picked part in his right hand (it leaves the scene; one undo step)", func(): m._prop_pick_up(), Vector2(150, 40), 18)
+	pr.add_child(_pbar_pick)
 	_pbar_remove = _strip_button("eh_prop_remove", "Remove", "take the picked prop out of the scene (the Undo button puts it back)", func(): m._prop_del(), Vector2(150, 40), 18)
 	pr.add_child(_pbar_remove)
 	_pbar_next = _strip_button("eh_prop_next", "Next object", "pick the next object in the scene (in the order they were added)", _prop_next, Vector2(150, 40), 18)
@@ -628,6 +631,10 @@ func _prop_bar_update() -> void:
 	_pbar_size.visible = have
 	_pbar_colour.visible = have
 	_pbar_remove.visible = have
+	var any_part := false   # APROP: a built part in the scene can be picked up ; with none picked, Pick up takes the first one
+	for pr_k in m.S.props:
+		any_part = any_part or PartWeapon.is_part(String(pr_k["kind"]))
+	_pbar_pick.visible = (have and PartWeapon.is_part(String(m.S.props[i]["kind"]))) or (not have and any_part)   # a full hand is said when pressed (main._prop_pick_up)
 	_pbar_next.visible = n > 0
 	_pbar.reset_size()
 	var vs := _pbar.get_viewport().get_visible_rect().size
@@ -657,6 +664,8 @@ func _strip_clear_views() -> void:
 
 ## the held weapon's plain name ("sword", "2 daggers"): the picker's row for what the body holds, lower-cased
 func _held_name() -> String:
+	if m.B.wep_on and PartWeapon.is_part(String(m.B.wep_kind)):   # APROP: a Part given to him (the cup) is named by its kind, not the table of built-in weapons ("the none")
+		return PartWeapon.name_of(String(m.B.wep_kind))
 	return String(m.WEAPONS[m.weapon_shown()][0]).to_lower()
 
 
@@ -1697,7 +1706,7 @@ func _build(what: String, label: String, easy := "", add := false) -> String:
 		return _append(d, label, easy)
 	d["scene"] = path.get_file().get_basename()
 	d["plan"] = "Easy home: %s" % label
-	var seats: Array = m.S.props.filter(func(p): return String(p["kind"]) in SIT_KINDS)   # the seats stay: a chair placed, then Walk, kept the chair (round 7: it was gone, so no sit). Other props: as before
+	var seats: Array = m.S.props.filter(func(p): return String(p["kind"]) in SIT_KINDS or PartWeapon.is_part(String(p["kind"])))   # the seats stay: a chair placed, then Walk, kept the chair (round 7: it was gone, so no sit). APROP: a Part the beginner put in the scene (the cup) stays too. Other props: as before
 	if not seats.is_empty() and not d.has("props"):
 		d["props"] = seats.map(func(p): return Props.to_dict(p))
 	_ball_line = ""
