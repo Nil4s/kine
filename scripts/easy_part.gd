@@ -1147,7 +1147,7 @@ func _pull(rec: Dictionary) -> String:
 	# FFLAT: a floor shape pulled up beside the solids (not on a face, not sitting on one) is its OWN piece (op new): Stick together can join it
 	# to the others, and Repeat it copies this piece alone. It used to merge into the one solid, so Stick together saw a single body and refused.
 	var pull_op := "join"
-	if not on_face and not through and not _sits_on_body(rec, sk) and not _over_body(rec, sk) and int(Part.replay(rec).get("bodies", 0)) > 0:
+	if not on_face and not through and not _sits_on_body(rec, sk) and _beside_body(rec, sk) and int(Part.replay(rec).get("bodies", 0)) > 0:
 		pull_op = "new"
 	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": pull_op})
 	rec["features"].append(f)
@@ -1165,9 +1165,9 @@ func _pull(rec: Dictionary) -> String:
 	return ""
 
 
-## FFLAT: a floor shape whose footprint overlaps a body (in the floor's X and Z, by more than 0.5 mm, triangle by triangle) stays part of it:
-## only a shape that lies BESIDE the solids (touching at most along a face) is its own piece
-func _over_body(rec: Dictionary, sk: Dictionary) -> bool:
+## FFLAT: a floor shape that TOUCHES a body (its footprint in the floor's X and Z reaches a body triangle, gap at most 0.5 mm) and does not
+## overlap it is BESIDE the solids: its own piece (Stick together can join it). Shapes that overlap, or lie apart, keep the join
+func _beside_body(rec: Dictionary, sk: Dictionary) -> bool:
 	if Part.replay(rec).get("aabb", AABB()).size == Vector3.ZERO:
 		return false
 	var pl := Part.resolve_plane(rec, String(sk.get("plane", "front")))
@@ -1179,14 +1179,19 @@ func _over_body(rec: Dictionary, sk: Dictionary) -> bool:
 			lo = lo.min(Vector2(w.x, w.z))
 			hi = hi.max(Vector2(w.x, w.z))
 	var eps := 0.5 * Part.MM
+	var touch := false
 	for body in Part.body_faces(rec, -1):
 		var tris: PackedVector3Array = body
 		for k in range(0, tris.size() - 2, 3):
 			var tlo := Vector2(minf(minf(tris[k].x, tris[k + 1].x), tris[k + 2].x), minf(minf(tris[k].z, tris[k + 1].z), tris[k + 2].z))
 			var thi := Vector2(maxf(maxf(tris[k].x, tris[k + 1].x), tris[k + 2].x), maxf(maxf(tris[k].z, tris[k + 1].z), tris[k + 2].z))
-			if tlo.x < hi.x - eps and thi.x > lo.x + eps and tlo.y < hi.y - eps and thi.y > lo.y + eps:
-				return true
-	return false
+			var gx := maxf(tlo.x - hi.x, lo.x - thi.x)   # the gap along X (negative: the boxes overlap there)
+			var gz := maxf(tlo.y - hi.y, lo.y - thi.y)
+			if gx < -eps and gz < -eps:
+				return false   # the footprint overlaps the body: it stays in the body
+			if gx <= eps and gz <= eps:
+				touch = true
+	return touch
 
 
 ## an upright sketch whose lowest point is at or above the body's top (a roof on the box)
