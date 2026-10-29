@@ -273,3 +273,4 @@ EXTRA="$EXTRA fcandle:w"   # FCANDLE: a beginner from the BUILDING card builds a
 EXTRA="$EXTRA fmeasure:w"   # FMEASURE: a beginner builds a box from the BUILDING card by real clicks and reads its size on screen: a plain "Size: W x D x H cm" label under the part, no Expert (tests/fmeasure_test.gd)
 EXTRA="$EXTRA fexpert2:w"   # FEXPERT2: the BUILDING card's blank part: Easy -> Expert (one click, same record), an exact 40 mm Pull in Expert, back to Easy with every step, plain words, keep editing, Undo (tests/fexpert2_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA fchaos1:w"   # FCHAOS1: chaos monkey on the BUILDING card's blank part, seeds 31-40, 600 real inputs each: no freeze over 2 s, the view never lost (tests/fchaos1_test.gd)
+EXTRA="$EXTRA fdrone:w"   # FDRONE: free 3D building from the BUILDING card: a beginner builds a toy drone (flat body, an arm, a motor on its end, Repeat it Ring x5, Mirror that), real clicks at 1280x720 (tests/fdrone_test.gd)
