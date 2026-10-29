@@ -1460,13 +1460,19 @@ func _pull(rec: Dictionary) -> String:
 		var bb: AABB = Part.replay(rec).get("aabb", AABB())
 		var depth := bb.size.z if String(pf.get("from", "front")) == "front" else bb.size.x
 		dist = snappedf(depth / Part.MM, 1.0)
-	var slot := not on_face and not through and _slot_cut(rec, sk, dist)   # FWRENCH2: a jaw slot at the end of a solid CUTS it
+	# FWRENCH2: a jaw slot at the end of a solid CUTS it; FFLAT: a floor shape pulled up beside the solids (not on a face, not sitting on one) is its OWN piece (op new): Stick together can join it
+	var slot := not on_face and not through and _slot_cut(rec, sk, dist)
+	var pull_op := "cut" if slot else "join"
+	# FFLAT: the sketch's 2D y is the world height only on an UPRIGHT plane. A floor drawing's panel never "sits on" a body here (its 2D y runs along the depth)
+	var floor_plane := absf((Part.resolve_plane(rec, String(sk.get("plane", "front")))["n"] as Vector3).y) > 0.5
+	if not slot and not on_face and not through and (floor_plane or not _sits_on_body(rec, sk)) and _beside_body(rec, sk) and int(Part.replay(rec).get("bodies", 0)) > 0:
+		pull_op = "new"
 	var nb0 := int(Part.replay(rec).get("bodies", 0))   # FLAMP: a shape that stands apart from the solid is its own body, not one lump
 	var lk0 := _lumps(Part.replay(rec)) if nb0 > 0 else 0
-	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": "cut" if slot else "join"})
+	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": pull_op})
 	rec["features"].append(f)
 	var err := _last_error(rec, String(f["id"]))
-	if err == "" and nb0 > 0 and not slot:   # a slot cut never becomes a new body
+	if err == "" and nb0 > 0 and pull_op == "join":   # a slot cut never becomes a new body; a beside-solid pull (fflat) is its own piece
 		f["into"] = Part.touching_body(rec, f)   # FLAMP5: a pull joins the body it sits on (saved on the step), not the last body
 		err = _last_error(rec, String(f["id"]))
 		var joined := Part.replay(rec)
@@ -1492,6 +1498,43 @@ func _pull(rec: Dictionary) -> String:
 	taper_tw = {} if (through or on_face) else {"id": f["id"], "label": "Taper", "unit": "deg", "lo": -15.0, "hi": 15.0, "step": 0.5, "words": ["Wider at the top", "Narrower at the top"]}
 	return ""
 
+
+## FFLAT: a floor shape that TOUCHES a body (its footprint in the floor's X and Z reaches a body triangle, gap at most 0.5 mm) and does not
+## overlap it is BESIDE the solids: its own piece (Stick together can join it). Shapes that overlap, or lie apart, keep the join
+func _beside_body(rec: Dictionary, sk: Dictionary) -> bool:
+	if Part.replay(rec).get("aabb", AABB()).size == Vector3.ZERO:
+		return false
+	var pl := Part.resolve_plane(rec, String(sk.get("plane", "front")))
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for e in sk["ents"]:
+		for q in _ent_pts(e):
+			var w := Part.to_world(pl, Vector2(float(q[0]), float(q[1])))
+			lo = lo.min(Vector2(w.x, w.z))
+			hi = hi.max(Vector2(w.x, w.z))
+	var eps := 0.5 * Part.MM
+	var spans: Array = []   # FFLAT6: the x spans where the footprint touches the body; touches in two or more separated places (a bar across comb teeth) BRIDGE the solid: it joins
+	for body in Part.body_faces(rec, -1):
+		var tris: PackedVector3Array = body
+		for k in range(0, tris.size() - 2, 3):
+			var tlo := Vector2(minf(minf(tris[k].x, tris[k + 1].x), tris[k + 2].x), minf(minf(tris[k].z, tris[k + 1].z), tris[k + 2].z))
+			var thi := Vector2(maxf(maxf(tris[k].x, tris[k + 1].x), tris[k + 2].x), maxf(maxf(tris[k].z, tris[k + 1].z), tris[k + 2].z))
+			var gx := maxf(tlo.x - hi.x, lo.x - thi.x)   # the gap along X (negative: the boxes overlap there)
+			var gz := maxf(tlo.y - hi.y, lo.y - thi.y)
+			if gx < -eps and gz < -eps:
+				return false   # the footprint overlaps the body: it stays in the body
+			if gx <= eps and gz <= eps:
+				spans.append(Vector2(tlo.x, thi.x))
+	if spans.is_empty():
+		return false
+	spans.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
+	var groups := 1
+	var reach: float = spans[0].y
+	for i in range(1, spans.size()):
+		if spans[i].x > reach + eps:
+			groups += 1   # a gap between two contact places: the shape spans it
+		reach = maxf(reach, spans[i].y)
+	return groups == 1
 
 ## FWRENCH2: a JAW SLOT. A floor shape (on the top plane) that lies inside one solid's width and runs past one of its ends (or the other way round)
 ## cuts that solid when pulled. Only when the trial cut lowers the volume, leaves one solid and no error; else the Pull joins as before
@@ -2389,14 +2432,10 @@ func _repeat(rec: Dictionary) -> String:
 	var w_mm := 10.0
 	var h_mm := 10.0   # EREPEATUP: the body's height and depth too, so Up and Forward space the copies by their own size
 	var d_mm := 10.0
-	var src := Part.pattern_piece(rec)   # REPEAT THE PIECE: the newest piece (its own size) when it is the newest step, else the whole body
-	var mrec: Dictionary = Part.pattern_src_rec(rec, src) if src != "" else rec
-	var mbi := -1 if src != "" else bi
-	var faces := Part.body_faces(mrec, -1)
-	if mbi < 0:
-		mbi = faces.size() - 1
-	if mbi >= 0 and mbi < faces.size() and (faces[mbi] as PackedVector3Array).size() > 0:
-		var pts: PackedVector3Array = faces[mbi]
+	var piece := Part.pattern_piece(rec)   # REPEAT THE PIECE: the newest piece, kept as "piece"; Row copies the whole body (the shelf), Up / Forward / Ring copy the piece (_rep_dir, _rep_mode)
+	var faces := Part.body_faces(rec, -1)
+	if bi < faces.size() and (faces[bi] as PackedVector3Array).size() > 0:
+		var pts: PackedVector3Array = faces[bi]
 		var bb := AABB(pts[0], Vector3.ZERO)
 		for q in pts:
 			bb = bb.expand(q)
@@ -2405,8 +2444,8 @@ func _repeat(rec: Dictionary) -> String:
 		d_mm = maxf(bb.size.z / Part.MM, 1.0)
 	var fields := {"kind": "linear", "body": bi, "count": 3, "dir": "x", "axis": "y", "deg": 360.0,
 		"mm": w_mm + 10.0, "w": w_mm, "h": h_mm, "d": d_mm, "gap": 10.0, "op": "join"}
-	if src != "":
-		fields["src"] = src
+	if piece != "":
+		fields["piece"] = piece
 	var f := Part.new_feature(rec, "pattern", fields)
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
@@ -2481,6 +2520,7 @@ func _rep_mode(ring: bool) -> void:
 		var wx := _feat_mm(cur, "x")
 		if wx > 0.0:
 			cur["w"] = wx
+	_set_src(cur, ring)   # Ring copies the piece (its own size); Row copies the whole body
 	cur["dir"] = "x"
 	cur["mm"] = _span(cur) + float(cur.get("gap", 10.0))
 	_end()
@@ -2503,6 +2543,7 @@ func _rep_dir(ax: String) -> void:
 	cur["axis"] = "y"
 	cur["deg"] = 360.0
 	cur["dir"] = ax
+	_set_src(cur, ax != "x")   # Up / Forward copy the piece (FBENCH); Row copies the whole body
 	var sp := _feat_mm(cur, ax)
 	cur["mm"] = (sp if sp > 0.0 else _span(cur)) + float(cur.get("gap", 10.0))
 	_end()
@@ -2510,6 +2551,15 @@ func _rep_dir(ax: String) -> void:
 	_rep_sync()
 	_values_sync()
 	_say("Up: the copies stack upward, one on top of the other" if ax == "y" else ("Forward: the copies go one behind the other" if ax == "z" else "Row: the copies go sideways in a straight line"))
+
+
+## REPEAT THE PIECE: the step copies its newest piece ("src", set when on) or the whole body (src cleared)
+func _set_src(cur: Dictionary, on: bool) -> void:
+	var piece := String(cur.get("piece", ""))
+	if on and piece != "":
+		cur["src"] = piece
+	else:
+		cur.erase("src")
 
 
 ## FBENCH: the size of the copied piece of a Repeat step along one way ("x" | "y" | "z") in mm; -1 when it is not there (the caller falls back)
