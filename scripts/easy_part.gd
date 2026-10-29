@@ -1485,7 +1485,7 @@ func _face_hole(rec: Dictionary) -> String:
 	if _last_error(rec, String(f["id"])) != "" or float(pu.replay_full(rec)["volume"]) >= float(before["volume"]) - 1e-12:
 		return "The hole would miss the shape: nothing was cut"
 	tweak = {"id": f["id"], "field": "dist", "label": "How deep", "unit": "cm", "lo": 0.1, "hi": 40.0, "step": 0.1, "scale": 10.0, "words": ["Shallower", "Deeper"], "sgn": sgn}
-	_say("A hole in the wall: use the slider for how deep")
+	_say("A hole through: use the slider for how deep, then press Mirror that or Repeat it next")
 	return ""
 
 
@@ -1668,6 +1668,12 @@ func _mirror(rec: Dictionary) -> String:
 		return "Nothing solid to mirror yet. Press Pull it up first"
 	var bb: AABB = res["aabb"]
 	var off := bb.position.x > 0.0005 or bb.end.x < -0.0005   # EMIRROR: the solid does not touch the middle line (x = 0)
+	if _hole_last(rec):   # MSIGN: a hole is the newest step: its copy is cut on the other side (a join copy would fill the hole back in)
+		var why_h := _mirror_hole(rec, res, off)
+		if why_h == "":
+			tweak = {}
+			_say("Mirrored across the middle line: the hole is copied to the other side")
+		return why_h
 	var f := Part.new_feature(rec, "mirror", {"plane": "right", "op": "join"})
 	if off:
 		f["mid"] = true   # the mirror plane goes through the middle of the part, not the world line
@@ -1679,6 +1685,58 @@ func _mirror(rec: Dictionary) -> String:
 	var gap := int(after["bodies"]) == 1 and _lumps(after) > 1   # the mirror left a gap: the same test as the status line
 	var where := "across the middle of the part" if off else "across the middle line"
 	_say("Mirrored %s" % where + (": the two halves do not touch. Push them together with Stick together" if gap else ": press Repeat it or Cut a hole next"))
+	return ""
+
+
+## MSIGN: the newest step is a cut through a shape drawn on a face (a hole, a window): Mirror that copies the hole
+func _hole_last(rec: Dictionary) -> bool:
+	var feats: Array = rec.get("features", [])
+	if feats.is_empty():
+		return false
+	var cut: Dictionary = feats[feats.size() - 1]
+	if String(cut["t"]) != "extrude" or String(cut.get("op", "")) != "cut":
+		return false
+	var sk := Part.feature(rec, String(cut.get("sketch", "")))
+	if sk.is_empty():
+		return false
+	var pf := Part.feature(rec, String(sk.get("plane", "")))   # only a hole drawn ON A FACE (a plane with "out"): a centre hole keeps the join copy
+	if String(pf.get("t", "")) != "plane" or not pf.has("out"):
+		return false
+	return absf((Part.resolve_plane(rec, String(sk.get("plane", "")))["n"] as Vector3).x) < 0.0001
+
+
+## MSIGN: the same hole cut again, its sketch reflected across the middle line (x = mid, the same middle the join mirror uses)
+func _mirror_hole(rec: Dictionary, res: Dictionary, off: bool) -> String:
+	var cut: Dictionary = rec["features"][rec["features"].size() - 1]
+	var sk := Part.feature(rec, String(cut["sketch"]))
+	var pl := Part.resolve_plane(rec, String(sk["plane"]))
+	var bb: AABB = res["aabb"]
+	var mid := (bb.position.x + bb.end.x) * 0.5 if off else 0.0
+	var o: Vector3 = pl["o"]
+	var px: Vector3 = pl["x"]
+	var py: Vector3 = pl["y"]
+	var ents := []
+	for e in sk.get("ents", []):
+		var ne: Dictionary = e.duplicate(true)
+		for k in ["a", "b", "c"]:
+			if e.has(k):
+				var w := o + px * float(e[k][0]) * Part.MM + py * float(e[k][1]) * Part.MM
+				w.x = 2.0 * mid - w.x
+				var d := w - o
+				ne[k] = Part.arr2(Vector2(d.dot(px) / Part.MM, d.dot(py) / Part.MM))
+		ents.append(ne)
+	var fields: Dictionary = sk.duplicate(true)
+	for k in ["t", "id", "name"]:
+		fields.erase(k)
+	fields["ents"] = ents
+	var s := Part.new_feature(rec, "sketch", fields)
+	rec["features"].append(s)
+	var f := Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": cut["dist"], "both": bool(cut.get("both", false)), "op": "cut"})
+	rec["features"].append(f)
+	if _last_error(rec, String(f["id"])) != "":
+		return "That hole cannot be copied"
+	if float(pu.replay_full(rec)["volume"]) >= float(res["volume"]) - 1e-12:
+		return "The copy would miss the solid: nothing was cut"
 	return ""
 
 
