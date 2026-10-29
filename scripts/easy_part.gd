@@ -1456,6 +1456,9 @@ func _pull(rec: Dictionary) -> String:
 		sg = -sg   # a face drawing that hangs past the body (a roof above the walls) pulls back INTO it: it extends the body's outline; one inside the face (a leg) pulls out
 	# ETABLE: a top drawn on the TOP of the legs hangs past them, but it stands ON them: a top face pulls up (out), never into the legs
 	var dist := 20.0 * sg
+	# A ROUND CUP (FMUG3): the first pull of a blank part, of one circle, stands as tall as its radius (a mug, not a 2 cm puck)
+	if not through and not on_face and sk["ents"].size() == 1 and String(sk["ents"][0].get("k", "")) == "circle" and not _has_pull(rec):
+		dist = maxf(20.0, snappedf(float(sk["ents"][0]["r"]), 1.0))   # sketch units are mm: the radius is the height
 	if through and _sits_on_body(rec, sk):
 		# A ROOF: pulled out both ways from the middle to the box's depth (the slider changes it from there)
 		var bb: AABB = Part.replay(rec).get("aabb", AABB())
@@ -1488,11 +1491,18 @@ func _pull(rec: Dictionary) -> String:
 		_say("Pulled into the solid: use the slider to change it, or press Cut a hole next" if inward else "Pulled out of the %s: use the slider to change it, or press Mirror that next" % where)
 	else:
 		tweak["say"] = "Pulled up %s: use the slider to change it, or press Round the edges or Cut a hole next"   # the words follow the slider (a beginner walk: "2 cm" stayed at 8 cm); the next button too (ehelp2)
-		_say(String(tweak["say"]) % _fmt(2.0, "cm"))
+		_say(String(tweak["say"]) % _fmt(absf(dist) / 10.0, "cm"))
 	# FPLANTER: a pot is wider at the top: a floor shape pulled up gets a Taper slider under How far (the extrude's taper, degrees)
 	taper_tw = {} if (through or on_face) else {"id": f["id"], "label": "Taper", "unit": "deg", "lo": -15.0, "hi": 15.0, "step": 0.5, "words": ["Wider at the top", "Narrower at the top"]}
 	return ""
 
+
+## FMUG3: a part that already has a pull (an extrude step) in its features
+func _has_pull(rec: Dictionary) -> bool:
+	for f in rec.get("features", []):
+		if String(f.get("t", "")) == "extrude":
+			return true
+	return false
 
 ## FWRENCH2: a JAW SLOT. A floor shape (on the top plane) that lies inside one solid's width and runs past one of its ends (or the other way round)
 ## cuts that solid when pulled. Only when the trial cut lowers the volume, leaves one solid and no error; else the Pull joins as before
