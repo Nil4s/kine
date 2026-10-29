@@ -402,6 +402,12 @@ func _repeat_box() -> PanelContainer:
 	cb.toggle_mode = true
 	h.add_child(cb)
 	rep_btns["corners"] = cb
+	# FBENCH: a row can run Forward (along the depth, Z) or Up (along the height, Y), not only sideways (X)
+	for dd in [["forward", "Forward", "z", "Copies in a straight row, going forward (front to back)"], ["up", "Up", "y", "Copies in a straight row, going up"]]:
+		var db := _big_btn("easypart_rep_" + String(dd[0]), String(dd[1]), String(dd[3]), _rep_dir.bind(String(dd[2])))
+		db.toggle_mode = true
+		h.add_child(db)
+		rep_btns[dd[0]] = db
 	rep_rows.append(_make_row("How many", 2.0, 12.0, 1.0, REP_WORDS["count"], "rep", "count", "copies", vb))
 	rep_rows.append(_make_row("Gap", 0.5, 30.0, 0.5, REP_WORDS["gap"], "rep", "gap", "cm", vb))
 	return box
@@ -1886,6 +1892,8 @@ func _rep_mode(ring: bool) -> void:
 	cur["beside"] = ring   # round a point beside the piece: a ring round the origin piles copies of a piece AT the origin onto each other
 	cur["axis"] = "y"
 	cur["deg"] = 360.0
+	if not ring and String(cur.get("dir", "x")) != "x":   # FBENCH: back from Forward or Up: the spacing is the piece's width ALONG X
+		cur["w"] = _piece_mm(_rec(), int(cur.get("body", -1)), "x")
 	cur["dir"] = "x"
 	cur["mm"] = float(cur.get("w", 10.0)) + float(cur.get("gap", 10.0))
 	_end()
@@ -1893,6 +1901,40 @@ func _rep_mode(ring: bool) -> void:
 	_rep_sync()
 	_values_sync()
 	_say("Ring: the copies go round in a circle beside it" if ring else "Row: the copies go in a straight line")
+
+
+## FBENCH: Forward (dir "z") or Up (dir "y"): a straight row of copies along that way, one undo step. The spacing is the piece's
+## width along that way plus the Gap
+func _rep_dir(dir: String) -> void:
+	if Part.feature(_rec(), rep_id).is_empty():
+		return
+	_flush_if_dirty()
+	_begin("Forward" if dir == "z" else "Up")
+	var cur := Part.feature(_rec(), rep_id)
+	cur["kind"] = "linear"
+	cur["beside"] = false
+	cur["dir"] = dir
+	cur["w"] = _piece_mm(_rec(), int(cur.get("body", -1)), dir)
+	cur["mm"] = float(cur.get("w", 10.0)) + float(cur.get("gap", 10.0))
+	_end()
+	pu.sync()
+	_rep_sync()
+	_values_sync()
+	_say("Forward: the copies go in a row towards the front, Gap sets the space" if dir == "z" else "Up: the copies stack upwards, Gap sets the space")
+
+
+## FBENCH: the size of body bi along one way ("x" | "y" | "z") in mm (at least 1 mm; 10 mm when the body is not there)
+func _piece_mm(rec: Dictionary, bi: int, dir: String) -> float:
+	var faces := Part.body_faces(rec, -1)
+	if bi < 0 or bi >= faces.size() or (faces[bi] as PackedVector3Array).size() == 0:
+		return 10.0
+	var pts: PackedVector3Array = faces[bi]
+	var bb := AABB(pts[0], Vector3.ZERO)
+	for q in pts:
+		bb = bb.expand(q)
+	var s := bb.size
+	var n := s.x if dir == "x" else (s.y if dir == "y" else s.z)
+	return maxf(n / Part.MM, 1.0)
 
 
 ## STICK TOGETHER: Part's combine step (Expert Combine): the first picked piece is the target, the second the tool; one undo step
@@ -1960,7 +2002,10 @@ func _rep_sync() -> void:
 	if f.is_empty():
 		return
 	var ring := String(f.get("kind", "linear")) == "circular"
-	(rep_btns["row"] as Button).set_pressed_no_signal(String(f.get("kind", "linear")) == "linear")
+	var lin := String(f.get("kind", "linear")) == "linear"
+	(rep_btns["row"] as Button).set_pressed_no_signal(lin and String(f.get("dir", "x")) == "x")
+	(rep_btns["forward"] as Button).set_pressed_no_signal(lin and String(f.get("dir", "x")) == "z")
+	(rep_btns["up"] as Button).set_pressed_no_signal(lin and String(f.get("dir", "x")) == "y")
 	(rep_btns["ring"] as Button).set_pressed_no_signal(ring)
 	(rep_btns["corners"] as Button).set_pressed_no_signal(String(f.get("kind", "")) == "corners")
 	var rows_on := String(f.get("kind", "")) != "corners"   # CORNERS: four copies at the corners, no How many or Gap to set
