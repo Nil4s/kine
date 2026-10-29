@@ -6839,6 +6839,7 @@ func _undo() -> void:
 	redo.append(now)
 	_tree.step_back(now)
 	_restore(u)
+	_easy_forget_msg()
 	_rehearse_again()   # I14: the comparison is read again from the clip as it now is
 	if u.has("lib"):
 		PosePack.lib_move(u["lib"], true, library)
@@ -6860,6 +6861,12 @@ func _undo() -> void:
 	_co_sync()
 
 
+## FUNDO2: the Easy part's last sentence ("Colour: Blue") named a step that Undo or Redo just changed: it goes, and its hint shows the next thing to press
+func _easy_forget_msg() -> void:
+	if bld != null and bld.part != null and bld.part.ep != null:
+		bld.part.ep.msg = ""
+
+
 func _redo() -> void:
 	if _mesh_undo(false):
 		return
@@ -6879,6 +6886,7 @@ func _redo() -> void:
 	undo.append(now)
 	_tree.step_forward(now)
 	_restore(r)
+	_easy_forget_msg()
 	_rehearse_again()   # I14
 	if r.has("lib"):
 		PosePack.lib_move(r["lib"], false, library)
@@ -11310,7 +11318,7 @@ func _say(t: String) -> void:
 		_strip_fit()
 	# UNDO HISTORY (round 11, #75): the first thing said after a step is pushed names it ("ROTATING the right upper
 	# arm", "card 12: the right foot planted"...); its first clause, without the numbers that follow
-	if not undo.is_empty() and not undo[-1].has("name") and not t.begins_with("undone") and not t.begins_with("redone"):
+	if not undo.is_empty() and not undo[-1].has("name") and not t.begins_with("undone") and not t.begins_with("redone") and not t.begins_with("Took back") and not t.begins_with("Put back"):   # FUNDO2: Undo / Redo's own words name no step (they named the step below, and the words piled up: "Took back: Took back: ...")
 		undo[-1]["name"] = step_name(t)
 		_tree.set_name(_tree.cur, step_name(t))   # the live step's node (the tree names what the lists name)
 		_undo_tips()
@@ -21470,6 +21478,50 @@ func _prop_del() -> void:
 	_props_show()
 	_doc_line()
 	_say("deleted the %s: Ctrl+Z puts it back" % nm)
+
+
+## APROP: EASY PICK UP. The picked Part (a cup you built) leaves the scene and goes into his right hand, as Give to a character
+## does: one undo step. Only a Part is picked up for now (a built-in prop has no hand shape); a full hand is said, not dropped
+func _prop_pick_up() -> void:
+	if sel_prop < 0 or sel_prop >= S.props.size():   # nothing picked: the first built part in the scene is the one
+		for k in S.props.size():
+			if PartWeapon.is_part(String(S.props[k]["kind"])):
+				sel_prop = k
+				break
+	if sel_prop < 0 or sel_prop >= S.props.size():
+		_say("nothing to pick up: build a part and Give it, or Use in a scene first")
+		return
+	var kind := String(S.props[sel_prop]["kind"])
+	if not PartWeapon.is_part(kind):
+		_say("Pick up works on a part you built (a cup, a sword...) for now: the %s stays where it is" % _prop_name(sel_prop))
+		return
+	if B.wep_on:
+		_say("his hand is full: Drop it first, then Pick up")
+		return
+	_push_undo()
+	var nm := _prop_name(sel_prop)
+	var i := sel_prop
+	S.props.remove_at(i)
+	for c in S.cards:   # the cards' take / drop marks follow the props' new numbers (as Delete does)
+		if c.has("take"):
+			if int(c["take"]["prop"]) == i:
+				c.erase("take")
+			elif int(c["take"]["prop"]) > i:
+				c["take"]["prop"] = int(c["take"]["prop"]) - 1
+		if c.has("drop"):
+			if int(c["drop"]) == i:
+				c.erase("drop")
+			elif int(c["drop"]) > i:
+				c["drop"] = int(c["drop"]) - 1
+	B.wep2_on = false
+	B.set_kind(kind)
+	B.weapon_to_hand("hand_r")
+	sel = "bat_handle"
+	sel_prop = -1
+	_after_edit()
+	_props_show()
+	_doc_line()
+	_say("picked up the %s: it is in his right hand. Ctrl+Z puts it back in the scene" % nm)
 
 
 ## SIT HERE (TT3, #205): a new card after the picked one: the body faces away from the seat's back (the prop's +Z),

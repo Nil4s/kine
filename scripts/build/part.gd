@@ -11,6 +11,7 @@ extends RefCounted
 ##     {"t": "fillet",  "id": "f5", "name": "Fillet1", "body": 0, "r": 2.0, "edges": [{"p": [x, y, z], "q": [..], "d": [..]}]},
 ##     {"t": "chamfer", ... "dist": 1.0 ...},  {"t": "mirror", "id": ..., "plane": "front"|"top"|"right", "op": "join"},
 ##     extrude also has "taper": degrees (>0 narrows as it goes) and op "intersect" (keeps only the part inside the new solid);
+##     extrude and revolve may carry "tilt": degrees (Easy's Tilt it): the piece leans about X through its centre before it joins the body;
 ##     {"t": "split", "id": ..., "plane": "front"|"top"|"right", "at": mm (offset along the plane's normal), "keep": 0 | 1 | -1} cuts EVERY body the plane crosses in two (keep 1 / -1: only the half on the normal's side / the other half stays);
 ##     {"t": "shell", "id": ..., "body": N, "thick": mm, "open": "" | "+x" | "-x" | "+y" | "-y" | "+z" | "-z"} hollows body N with walls thick mm,
 ##     the planar face that points that way open ("" = no face open: a closed cavity),
@@ -57,6 +58,7 @@ extends RefCounted
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
 const VERSION := 1
+const RING_MIDDLE := 100.0   # mm: a Ring piece whose centre is closer than this to the middle (not on it) goes round the middle
 const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft"]
 const DRAFT_DIRS := {"x": Vector3(1, 0, 0), "y": Vector3(0, 1, 0), "z": Vector3(0, 0, 1)}
 const PLANES := ["front", "top", "right"]
@@ -498,8 +500,11 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					errs[id] = String(sols["err"])
 					continue
 				var sids: PackedInt32Array = sols["solids"]
+				var tilt_deg := float(f.get("tilt", 0.0))   # TILT (Easy's Tilt it): the piece leans about its middle, before it joins the body
 				for si in sids.size():   # XFIX: one solid per separate loop of the sketch (one feature, one undo step)
-					var e := _combine(bodies, sids[si], String(f.get("op", "join")))
+					if absf(tilt_deg) > 1e-9:
+						sids[si] = _tilt_solid(sids[si], tilt_deg)
+					var e := _combine(bodies, sids[si], String(f.get("op", "join")), int(f.get("into", -1)))
 					if e != "":
 						errs[id] = e
 						for sj in range(si + 1, sids.size()):
@@ -513,8 +518,8 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var swe := _sweep(bodies, f, sketches)
 				if swe != "":
 					errs[id] = swe
-			"pattern":   # GAP 30: copies of body N (its own function: _pattern)
-				var pe := _pattern(bodies, looks, f)
+			"pattern":   # GAP 30: copies of body N (its own function: _pattern); FRULER: a row of copies of a cut (a sketch with "sketch", _cut_row)
+				var pe := _cut_row(bodies, f, rec) if f.has("sketch") else _pattern(bodies, looks, f, rec)
 				if pe != "":
 					errs[id] = pe
 			"fillet", "chamfer":
@@ -842,6 +847,37 @@ static func _tri_dist(A: PackedVector3Array, B: PackedVector3Array) -> float:
 	return best
 
 
+## true when some triangle of A is within eps of some triangle of B (the same answer as _tri_dist(A, B) <= eps, found without the full
+## pair scan: the boxes of the two solids, then each triangle's box grown by eps, go first; a far pair of pieces costs one box test)
+static func tris_touch(A: PackedVector3Array, B: PackedVector3Array, eps: float) -> bool:
+	if A.is_empty() or B.is_empty():
+		return false
+	var ba := AABB(A[0], Vector3.ZERO)
+	for v in A:
+		ba = ba.expand(v)
+	var bb := AABB(B[0], Vector3.ZERO)
+	for v in B:
+		bb = bb.expand(v)
+	if not ba.grow(eps).intersects(bb):
+		return false
+	var tb: Array = []
+	for j in range(0, B.size(), 3):
+		var t := AABB(B[j], Vector3.ZERO).expand(B[j + 1]).expand(B[j + 2])
+		if t.grow(eps).intersects(ba):
+			tb.append(j)
+	for i in range(0, A.size(), 3):
+		var ta := AABB(A[i], Vector3.ZERO).expand(A[i + 1]).expand(A[i + 2]).grow(eps)
+		if not ta.intersects(bb):
+			continue
+		for j in tb:
+			var q := AABB(B[j], Vector3.ZERO).expand(B[j + 1]).expand(B[j + 2])
+			if not ta.intersects(q):
+				continue
+			if _tri_tri(A[i], A[i + 1], A[i + 2], B[j], B[j + 1], B[j + 2]) <= eps:
+				return true
+	return false
+
+
 static func _tri_tri(a0: Vector3, a1: Vector3, a2: Vector3, b0: Vector3, b1: Vector3, b2: Vector3) -> float:
 	var d := INF
 	for p in [a0, a1, a2]:
@@ -919,6 +955,18 @@ static func _seg_seg(p1: Vector3, q1: Vector3, p2: Vector3, q2: Vector3) -> floa
 				t = 1.0
 				s = clampf((b - c) / a, 0.0, 1.0)
 	return (p1 + d1 * s).distance_to(p2 + d2 * t)
+
+
+## TILT (Easy's Tilt it): a solid leans about X through its centre of mass by deg degrees (the kernel's centre, metres)
+static func _tilt_solid(id: int, deg: float) -> int:
+	var mp := KCad.mass_properties(id)
+	if mp.is_empty():
+		return id
+	var t := _swing(id, mp.get("center", Vector3.ZERO) as Vector3, Vector3.RIGHT, deg_to_rad(deg))
+	if t == 0:
+		return id
+	KCad.release(id)
+	return t
 
 
 ## a body turned about a hinge: the kernel rotates about the origin only, so the body goes to the origin, turns and comes back
@@ -1405,7 +1453,7 @@ static func _flange_ring(pipe: int, p0: Vector3, tan: Vector3, x: Vector3, ents:
 
 
 ## puts a new solid into the body list as the op says; "" or the failure message
-static func _combine(bodies: Array, solid: int, op: String) -> String:
+static func _combine(bodies: Array, solid: int, op: String, into := -1) -> String:
 	if op == "intersect":
 		return _intersect_into(bodies, solid)
 	if op == "new" or bodies.is_empty():
@@ -1419,13 +1467,82 @@ static func _combine(bodies: Array, solid: int, op: String) -> String:
 				bodies[i] = c
 		KCad.release(solid)
 		return ""
-	var u := KCad.union(bodies[-1], solid)
+	var t := into if into >= 0 and into < bodies.size() else bodies.size() - 1   # FLAMP5: a pull joins the body it sits on (see touching_body); else the last
+	var u := KCad.union(bodies[t], solid)
 	KCad.release(solid)
 	if u == 0:
 		return KCad.last_error()
-	KCad.release(bodies[-1])
-	bodies[-1] = u
+	KCad.release(bodies[t])
+	bodies[t] = u
 	return ""
+
+
+## FLAMP5: the body an Extrude (op join) sits on: its solid is replayed alone as a new body, and the body whose mesh touches it is the one.
+## -1 when it touches none. Saved on the step as "into" (set once, when the step is made), so every replay joins that body, not the last one.
+static func touching_body(rec: Dictionary, f: Dictionary) -> int:
+	var op := String(f.get("op", "join"))
+	f["op"] = "new"
+	var m: ArrayMesh = replay(rec).get("mesh")
+	f["op"] = op
+	if m == null or m.get_surface_count() < 2:
+		return -1
+	var n := m.get_surface_count() - 1   # the new solid is the last body
+	for i in n:
+		if touch_surfaces(m, i, n):
+			return i
+	return -1
+
+
+## FLAMP5: two surfaces touch when a corner of one lies on a triangle of the other (a shape standing on a face: no vertex is shared)
+static func touch_surfaces(m: ArrayMesh, i: int, j: int) -> bool:
+	var pi := _surf_pts(m, i)
+	var pj := _surf_pts(m, j)
+	return touch_patch(pi[0], pj[1], _box_of(pj[1])) or touch_patch(pj[0], pi[1], _box_of(pi[1]))
+
+
+## the vertices of a surface, and its triangles as three points each (flat)
+static func _surf_pts(m: ArrayMesh, s: int) -> Array:
+	var arr := m.surface_get_arrays(s)
+	var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+	var tp := PackedVector3Array()
+	var n := idx.size() if idx.size() > 0 else vs.size()
+	for t in range(0, n - 2, 3):
+		for k in 3:
+			tp.append(vs[idx[t + k] if idx.size() > 0 else t + k])
+	return [vs, tp]
+
+
+static func _box_of(pts: PackedVector3Array) -> AABB:
+	var bb := AABB()
+	for k in pts.size():
+		bb = AABB(pts[k], Vector3.ZERO) if k == 0 else bb.expand(pts[k])
+	return bb
+
+
+## does any point of pts lie on a triangle of tri_pts (flat, three per triangle) inside the box bb (grown a little)?
+static func touch_patch(pts: PackedVector3Array, tri_pts: PackedVector3Array, bb: AABB) -> bool:
+	var gbb := bb.grow(1e-4)
+	for p in pts:
+		if not gbb.has_point(p):
+			continue
+		for t in range(0, tri_pts.size() - 2, 3):
+			var a: Vector3 = tri_pts[t]
+			var b: Vector3 = tri_pts[t + 1]
+			var c: Vector3 = tri_pts[t + 2]
+			var nrm := (b - a).cross(c - a)
+			var ln := nrm.length()
+			if ln < 1e-12:
+				continue
+			nrm /= ln
+			if absf((p - a).dot(nrm)) > 2e-5:
+				continue
+			var c1 := (b - a).cross(p - a).dot(nrm)
+			var c2 := (c - b).cross(p - b).dot(nrm)
+			var c3 := (a - c).cross(p - c).dot(nrm)
+			if c1 >= -1e-9 and c2 >= -1e-9 and c3 >= -1e-9:
+				return true
+	return false
 
 
 ## COMBINE: the target body takes each tool body in turn (join = union, cut = minus, intersect = shared volume). The result sits where the
@@ -1845,7 +1962,7 @@ static func _split_looks(looks: Array, n: int, pieces: Array) -> void:
 const AXIS_VEC := {"x": Vector3.RIGHT, "y": Vector3.UP, "z": Vector3.BACK}
 const PATTERN_MAX := 64
 
-static func _pattern(bodies: Array, looks: Array, f: Dictionary) -> String:
+static func _pattern(bodies: Array, looks: Array, f: Dictionary, rec: Dictionary = {}) -> String:
 	if bodies.is_empty():
 		return "there is no body to pattern"
 	var bi := int(f.get("body", -1))
@@ -1853,6 +1970,79 @@ static func _pattern(bodies: Array, looks: Array, f: Dictionary) -> String:
 		return "there is no body %d to pattern" % bi
 	if String(f.get("kind", "linear")) == "corners":   # EREPEAT (Easy's Corners): the piece goes to the four corners of the body it touches
 		return _corners(bodies, looks, bi)
+	var srcb := int(bodies[bi])   # the solid the copies are made of: the body itself, or (src) the piece its step made on its own
+	var owned := false
+	if String(f.get("src", "")) != "":   # REPEAT THE PIECE: the newest piece copied, not the whole body it has joined (Easy's Repeat)
+		var sid := _piece_solid(rec, String(f["src"]))
+		if sid == 0:
+			return KCad.last_error() if KCad.last_error() != "" else "the piece to copy could not be made"
+		srcb = sid
+		owned = true
+	var why := _pattern_copies(bodies, looks, f, bi, srcb)
+	if owned:
+		KCad.release(srcb)
+	return why
+
+
+## REPEAT THE PIECE: the solid of the step fid made alone (its own body, the body list before it as it was): 0 when it cannot be made
+static func _piece_solid(rec: Dictionary, fid: String) -> int:
+	var sub := pattern_src_rec(rec, fid)
+	if sub.is_empty():
+		return 0
+	var res := replay(sub, -1, {"keep": true})
+	var ids: Array = res.get("ids", [])
+	if not (res["errors"] as Dictionary).is_empty() or ids.is_empty():
+		for b in ids:
+			KCad.release(int(b))
+		return 0
+	for k in ids.size() - 1:
+		KCad.release(int(ids[k]))
+	return int(ids[-1])
+
+
+## REPEAT THE PIECE: the record the piece is replayed from: the steps up to fid, with fid's own solid as a body of its own ("new")
+static func pattern_src_rec(rec: Dictionary, fid: String) -> Dictionary:
+	var feats: Array = rec.get("features", [])
+	var k := -1
+	for i in feats.size():
+		if String(feats[i]["id"]) == fid:
+			k = i
+	if k < 0:
+		return {}
+	var sub_feats: Array = feats.slice(0, k + 1).duplicate(true)
+	(sub_feats[k] as Dictionary)["op"] = "new"
+	var sub := rec.duplicate(false)
+	sub["features"] = sub_feats
+	return sub
+
+
+## REPEAT THE PIECE: the newest piece's step id (the last extrude or revolve that is not a cut) when only Appearance steps came after it; "" otherwise
+static func pattern_piece(rec: Dictionary) -> String:
+	var feats: Array = rec.get("features", [])
+	for i in range(feats.size() - 1, -1, -1):
+		var f: Dictionary = feats[i]
+		if bool(f.get("off", false)) or String(f.get("t", "")) == "appear":
+			continue
+		if String(f.get("t", "")) in ["extrude", "revolve"] and String(f.get("op", "join")) != "cut":
+			# FSHELF: the piece is the newest step only when it stands UP off a face (dist > 0, a slat on a frame) and makes ONE solid;
+			# a step pulled DOWN (a bracket hung under a plate) or several solids is part of the body: Repeat copies the whole body
+			if float(f.get("dist", 0.0)) <= 0.0:
+				return ""
+			var before := 0 if i == 0 else int(replay(_upto_rec(rec, i - 1), -1).get("bodies", 0))
+			var made := int(replay(pattern_src_rec(rec, String(f["id"])), -1).get("bodies", 0)) - before
+			return String(f["id"]) if made == 1 else ""
+		return ""
+	return ""
+
+
+## FSHELF: the record with the steps 0..k only (the first k + 1 steps; no steps when k < 0)
+static func _upto_rec(rec: Dictionary, k: int) -> Dictionary:
+	var sub := rec.duplicate(false)
+	sub["features"] = (rec.get("features", []) as Array).slice(0, k + 1).duplicate(true)
+	return sub
+
+
+static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int, srcb: int) -> String:
 	var n := int(f.get("count", 0))
 	if n < 2 or n > PATTERN_MAX:
 		return "a pattern needs 2 to %d copies (the original counts as one)" % PATTERN_MAX
@@ -1864,17 +2054,22 @@ static func _pattern(bodies: Array, looks: Array, f: Dictionary) -> String:
 			return "the angle must not be zero"
 		var step := total / n if absf(total) >= TAU - 1e-9 else total / (n - 1)
 		var pivot := Vector3.ZERO   # the axis runs through the origin (Expert), or through a point BESIDE the body ("beside": Easy's Ring)
-		if bool(f.get("beside", false)):
-			var mp := KCad.mass_properties(bodies[bi])
+		var mc: Vector3 = (KCad.mass_properties(bodies[bi]).get("center", Vector3.ZERO) as Vector3)
+		var off_mid := Vector2(mc.x, mc.z).length()
+		# FWHEEL: a piece that sits near the middle but not on it (a spoke from the hub) goes round the middle: its copies fan out round the
+		# origin. A beside-ring for it would put the circle ~0.5 m away and fling the copies out. A piece AT the origin keeps the beside ring
+		var spoke := off_mid > 0.5 * MM and off_mid < RING_MIDDLE * MM
+		if bool(f.get("beside", false)) and not spoke:
+			var mp := KCad.mass_properties(srcb)   # the copies are made of srcb (the newest piece for Repeat it), so the ring centres on it
 			var side: Vector3 = Vector3.RIGHT if absf(ax.dot(Vector3.RIGHT)) < 0.9 else Vector3.BACK
 			var chord := (float(f.get("w", 10.0)) + float(f.get("gap", 10.0))) * MM   # neighbours sit a piece width plus the gap apart
 			var r := chord / (2.0 * sin(absf(step) * 0.5))
 			pivot = (mp.get("center", Vector3.ZERO) as Vector3) - side * r
 		for i in range(1, n):
 			if pivot.length() < 1e-12:
-				copies.append(KCad.rotate(bodies[bi], ax, step * i))
+				copies.append(KCad.rotate(srcb, ax, step * i))
 				continue
-			var t0 := KCad.translate(bodies[bi], -pivot)
+			var t0 := KCad.translate(srcb, -pivot)
 			var t1 := KCad.rotate(t0, ax, step * i)
 			KCad.release(t0)
 			copies.append(KCad.translate(t1, pivot) if t1 != 0 else 0)
@@ -1885,7 +2080,7 @@ static func _pattern(bodies: Array, looks: Array, f: Dictionary) -> String:
 		if d.length() < 1e-9:
 			return "the spacing must not be zero"
 		for i in range(1, n):
-			copies.append(KCad.translate(bodies[bi], d * i))
+			copies.append(KCad.translate(srcb, d * i))
 	for k in copies.size():
 		if int(copies[k]) == 0:
 			var why := KCad.last_error()
@@ -1910,6 +2105,39 @@ static func _pattern(bodies: Array, looks: Array, f: Dictionary) -> String:
 		bodies[bi] = u
 	return ""
 
+
+
+## FRULER: a Row of copies of a CUT (Easy's Repeat it on a slot or hole): the cut's sketch is moved along X by "mm" (the spacing) for each copy
+## and cut into the body again, one copy after the other. The copies are made at replay, so the How many and Gap sliders just rebuild them
+static func _cut_row(bodies: Array, f: Dictionary, rec: Dictionary) -> String:
+	if bodies.is_empty():
+		return "there is no body to cut"
+	var n := int(f.get("count", 0))
+	if n < 2 or n > PATTERN_MAX:
+		return "a pattern needs 2 to %d copies (the original counts as one)" % PATTERN_MAX
+	if String(f.get("kind", "linear")) != "linear":
+		return "a ring of cuts is not made yet: use Row"
+	var sk0 := feature(rec, String(f.get("sketch", "")))
+	if sk0.is_empty():
+		return "the cut's shape is gone"
+	var step := float(f.get("mm", 0.0))
+	if absf(step) < 1e-6:
+		return "the spacing must not be zero"
+	for i in range(1, n):
+		var sk: Dictionary = sk0.duplicate(true)
+		sk["_pl"] = resolve_plane(rec, String(sk0.get("plane", "front")))
+		for e in sk["ents"]:
+			for k in ["a", "b", "c"]:
+				if e.has(k):
+					e[k] = [float(e[k][0]) + step * i, float(e[k][1])]
+		var sols := _solids({"t": "extrude", "sketch": sk0.get("id", ""), "dist": f.get("dist", -10.0), "both": bool(f.get("both", false)), "op": "cut"}, sk)
+		if String(sols["err"]) != "":
+			return String(sols["err"])
+		for sid in sols["solids"]:
+			var e2 := _combine(bodies, sid, "cut")
+			if e2 != "":
+				return e2
+	return ""
 
 
 ## EREPEAT: the body's bounding box (metres), from its triangles

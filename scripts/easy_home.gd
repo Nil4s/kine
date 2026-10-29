@@ -57,6 +57,7 @@ var _pbar_smaller: Button
 var _pbar_colour: Button
 var _pbar_hand: VBoxContainer      # "In his hand: the sword" + Drop it, at the top of the bar while he holds a weapon (one undo step: the hand is empty)
 var _pbar_hand_name: Label
+var _pbar_pick: Button
 var _pbar_drop: Button
 var panel: PanelContainer      # the full panel: the picture cards, the text box, the message
 var strip: PanelContainer      # the strip after a clip is built: Again, Change it, Save video
@@ -455,6 +456,8 @@ func build(root: Control) -> void:
 	_pbar_size.add_child(_pbar_smaller)
 	_pbar_colour = _strip_button("eh_prop_colour", "Colour it", "change the picked prop's colour: blue, red, green, yellow, white, black, then grey (one undo step)", func(): m._prop_colour(), Vector2(150, 40), 18)
 	pr.add_child(_pbar_colour)
+	_pbar_pick = _strip_button("eh_prop_pick", "Pick up", "put the picked part in his right hand (it leaves the scene; one undo step)", func(): m._prop_pick_up(), Vector2(150, 40), 18)
+	pr.add_child(_pbar_pick)
 	_pbar_remove = _strip_button("eh_prop_remove", "Remove", "take the picked prop out of the scene (the Undo button puts it back)", func(): m._prop_del(), Vector2(150, 40), 18)
 	pr.add_child(_pbar_remove)
 	_pbar_next = _strip_button("eh_prop_next", "Next object", "pick the next object in the scene (in the order they were added)", _prop_next, Vector2(150, 40), 18)
@@ -628,6 +631,10 @@ func _prop_bar_update() -> void:
 	_pbar_size.visible = have
 	_pbar_colour.visible = have
 	_pbar_remove.visible = have
+	var any_part := false   # APROP: a built part in the scene can be picked up ; with none picked, Pick up takes the first one
+	for pr_k in m.S.props:
+		any_part = any_part or PartWeapon.is_part(String(pr_k["kind"]))
+	_pbar_pick.visible = (have and PartWeapon.is_part(String(m.S.props[i]["kind"]))) or (not have and any_part)   # a full hand is said when pressed (main._prop_pick_up)
 	_pbar_next.visible = n > 0
 	_pbar.reset_size()
 	var vs := _pbar.get_viewport().get_visible_rect().size
@@ -657,6 +664,8 @@ func _strip_clear_views() -> void:
 
 ## the held weapon's plain name ("sword", "2 daggers"): the picker's row for what the body holds, lower-cased
 func _held_name() -> String:
+	if m.B.wep_on and PartWeapon.is_part(String(m.B.wep_kind)):   # APROP: a Part given to him (the cup) is named by its kind, not the table of built-in weapons ("the none")
+		return PartWeapon.name_of(String(m.B.wep_kind))
 	return String(m.WEAPONS[m.weapon_shown()][0]).to_lower()
 
 
@@ -1077,6 +1086,55 @@ func _sit_typed(t: String) -> bool:
 	return true
 
 
+## JUMP OVER (ajump): a typed line with "jump" and "over" (no "then") over a crate or box in the scene: the walk to the take-off
+## and the jump over it (JumpOver), one undo step. No box in the scene: he says so. false = not this line.
+func _jump_over_typed(t: String) -> bool:
+	var low := t.to_lower()
+	if low.contains(",") or low.contains(";") or low.contains(" then "):
+		return false
+	var ws := low.replace(".", " ").replace("!", " ").split(" ", false)
+	if not (ws.has("jump") and ws.has("over")):
+		return false
+	var idx := -1
+	for i in m.S.props.size():
+		if String(m.S.props[i]["kind"]) in JumpOver.KINDS_OK:
+			idx = i
+			break
+	if idx < 0:
+		m._say_plain("Put a crate or a box in the scene first (Library > Furniture > Crate), then type 'jump over the crate'")
+		return true
+	var keep: Dictionary = m.B.state()
+	var start := Vector3.ZERO
+	if m.S.cards.is_empty():
+		start = Vector3(m.B.P["pelvis"].x, 0.0, m.B.P["pelvis"].z)
+	else:
+		m._ps().apply(m.B, m.S.length())
+		start = Vector3(m.B.P["pelvis"].x, 0.0, m.B.P["pelvis"].z)
+	m.B.set_state(keep)
+	var fwd := Vector3(0, 0, 1)
+	var pl: Vector3 = m.B.P["pelvis"]
+	var fl: Vector3 = (m.B.P["ball_l"] + m.B.P["ball_r"]) * 0.5 - pl
+	if Vector2(fl.x, fl.z).length() > 0.01:
+		fwd = Vector3(fl.x, 0.0, fl.z).normalized()   # where the feet point from the hips: his facing
+	var go := JumpOver.build(m.S.props[idx], start, fwd)
+	if String(go["why"]) != "" or (go["cards"] as Array).is_empty():
+		m._say_plain(String(go["why"]) if String(go["why"]) != "" else "Kine could not build the jump over it")
+		return true
+	m._walk_sit_add(go["cards"])
+	_note_name("jump over the %s" % String(m.S.props[idx]["kind"]), m.S.cards.size() == (go["cards"] as Array).size())
+	_built = true
+	_open = false
+	_gen_words = ""
+	_msg.text = ""
+	_hist.append([m.undo.size(), "jump"])
+	_clip_word = "the clip"
+	_refresh_next()
+	m._layout_bottom()
+	_play()
+	m._say_plain("He runs up to the %s and jumps over it. Again plays it; Undo takes it back." % String(m.S.props[idx]["kind"]))
+	return true
+
+
 func _words(text: String) -> void:
 	_drop_saved_toast()
 	_did_word = ""
@@ -1100,6 +1158,8 @@ func _words(text: String) -> void:
 	if not follow and _retime_typed(t):   # "slower", "make it faster": the whole clip retimed (G3)
 		return
 	if not follow and _sit_typed(t):   # "sit", "sit down", "sit on the chair" with a chair in the scene: he sits on it
+		return
+	if not follow and _jump_over_typed(t):   # "jump over the crate" with a crate or box in the scene: a run-up, then the jump over it
 		return
 	_t0 = Time.get_ticks_msec()
 	last_ms = -1
@@ -1646,7 +1706,7 @@ func _build(what: String, label: String, easy := "", add := false) -> String:
 		return _append(d, label, easy)
 	d["scene"] = path.get_file().get_basename()
 	d["plan"] = "Easy home: %s" % label
-	var seats: Array = m.S.props.filter(func(p): return String(p["kind"]) in SIT_KINDS)   # the seats stay: a chair placed, then Walk, kept the chair (round 7: it was gone, so no sit). Other props: as before
+	var seats: Array = m.S.props.filter(func(p): return String(p["kind"]) in SIT_KINDS or PartWeapon.is_part(String(p["kind"])))   # the seats stay: a chair placed, then Walk, kept the chair (round 7: it was gone, so no sit). APROP: a Part the beginner put in the scene (the cup) stays too. Other props: as before
 	if not seats.is_empty() and not d.has("props"):
 		d["props"] = seats.map(func(p): return Props.to_dict(p))
 	_ball_line = ""
