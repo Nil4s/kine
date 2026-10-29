@@ -248,3 +248,4 @@ EXTRA="$EXTRA libchaos:w"   # LIBCHAOS: the object library chaos monkey, seeds 1
 EXTRA="$EXTRA freegrid:w"   # FREEGRID: the BUILDING card opens an empty Easy Part whose floor grid is centred in the free view and fills most of it, from a 3/4 view (GRIDFRAME; tests/freegrid_test.gd)
 EXTRA="$EXTRA freewalk:w"   # FREEWALK: a beginner from the BUILDING card (Easy, empty part): the empty grid is on screen at open (D1), a drag with no tool names Draw shape (D3), after Cut a hole the solid is still on screen (D2) (tests/freewalk_test.gd)
 EXTRA="$EXTRA fshelf:w"   # FSHELF: a wall shelf by real clicks from the BUILDING card (Easy, blank): a plate, two brackets, Repeat it for three shelves, Round the edges; jargon and hints checked (tests/fshelf_test.gd)
+EXTRA="$EXTRA froom:w"   # FROOM: a beginner builds a small room from the BUILDING card by real clicks: floor plate, two 2 m walls, a table, a door cut and a window cut; dead ends are bars (tests/froom_test.gd)
