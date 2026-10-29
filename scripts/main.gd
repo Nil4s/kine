@@ -23608,6 +23608,9 @@ func scene_object_names() -> Array:
 		out.append("body")
 	if kmed != null and kmed.on and kmed.mesh != null:
 		out.append("body_mesh" if BaseBody.is_open(self) else "test_cube")
+	var fp := _free_part_object()   # FEXPORT: the free part is listed by its name (scene_objects has it too)
+	if not fp.is_empty():
+		out.append(String(fp["name"]))
 	out.append_array(_prop_object_names())
 	return out
 
@@ -23637,6 +23640,9 @@ func scene_objects() -> Array:
 		var cube := ArrayMesh.new()
 		_append_surfaces(cube, kmed.mesh.to_array_mesh(), kmed.view.transform)   # where it stands beside the body, not at the origin
 		out.append({"name": "body_mesh" if BaseBody.is_open(self) else "test_cube", "mesh": cube, "xf": Transform3D.IDENTITY})
+	var fp := _free_part_object()
+	if not fp.is_empty():   # FEXPORT: a free BUILDING part (Easy Part, no set piece): its solid is a mesh object, named by the part
+		out.append(fp)
 	var pnames := _prop_object_names()
 	for i in S.props.size():
 		var pd := S.props[i] as Dictionary
@@ -23681,7 +23687,18 @@ static func _append_surfaces(am: ArrayMesh, mesh: Mesh, xf: Transform3D) -> void
 
 ## the selected object's name: the test cube (or body mesh) while the model editor has it open, else the set piece
 ## picked (sel_prop), else the body
+## FEXPORT: the free part on screen (Easy Part, a building project) as one mesh object named by the part ({} = none)
+func _free_part_object() -> Dictionary:
+	if bld == null or bld.part == null or not bld.part.on or bld.part.part_mesh == null or bld.part.part_mesh.mesh == null:
+		return {}
+	var pm := ArrayMesh.new()
+	_append_surfaces(pm, bld.part.part_mesh.mesh, Transform3D.IDENTITY)
+	return {"name": String(S.part.get("name", "Part")), "mesh": pm, "xf": Transform3D.IDENTITY}
+
+
 func selected_object_name() -> String:
+	if not _free_part_object().is_empty():
+		return String(S.part.get("name", "Part"))
 	if kmed != null and kmed.on and kmed.mesh != null:
 		return "body_mesh" if BaseBody.is_open(self) else "test_cube"
 	if sel_prop >= 0 and sel_prop < S.props.size():
