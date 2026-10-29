@@ -1460,13 +1460,15 @@ func _pull(rec: Dictionary) -> String:
 		var bb: AABB = Part.replay(rec).get("aabb", AABB())
 		var depth := bb.size.z if String(pf.get("from", "front")) == "front" else bb.size.x
 		dist = snappedf(depth / Part.MM, 1.0)
+	# FBOX: a LID: a face drawing on the top of a hollow (shelled) body is a separate piece, not joined to the box (it rests on the rim)
+	var lid := on_face and _top_face(pf) and _has_shell(rec)
 	var slot := not on_face and not through and _slot_cut(rec, sk, dist)   # FWRENCH2: a jaw slot at the end of a solid CUTS it
 	var nb0 := int(Part.replay(rec).get("bodies", 0))   # FLAMP: a shape that stands apart from the solid is its own body, not one lump
 	var lk0 := _lumps(Part.replay(rec)) if nb0 > 0 else 0
-	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": "cut" if slot else "join"})
+	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": "new" if lid else ("cut" if slot else "join")})
 	rec["features"].append(f)
 	var err := _last_error(rec, String(f["id"]))
-	if err == "" and nb0 > 0 and not slot:   # a slot cut never becomes a new body
+	if err == "" and nb0 > 0 and not slot and not lid:   # a slot cut never becomes a new body; FBOX: a lid stays its own body (the join pass below would fold it back into the box)
 		f["into"] = Part.touching_body(rec, f)   # FLAMP5: a pull joins the body it sits on (saved on the step), not the last body
 		err = _last_error(rec, String(f["id"]))
 		var joined := Part.replay(rec)
@@ -1476,7 +1478,9 @@ func _pull(rec: Dictionary) -> String:
 	if err != "":
 		return "That shape is not closed, so it cannot be pulled up: drag back to the start to close it"
 	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
-	if slot:
+	if lid:
+		_say("A lid on the rim: a separate piece. Use the slider for how tall it is")
+	elif slot:
 		tweak["say"] = "Cut a slot %s deep into the solid: use the slider to change it, or press Round the edges or Cut a hole next"
 		_say(String(tweak["say"]) % _fmt(2.0, "cm"))
 	elif through:
@@ -1552,6 +1556,25 @@ func _sits_on_body(rec: Dictionary, sk: Dictionary) -> bool:
 ## ETABLE: a face plane on the top of a solid (the floor-facing normal is up: out +1 on the Part top plane)
 func _top_face(pf: Dictionary) -> bool:
 	return String(pf.get("from", "")) == "top" and int(pf.get("out", 0)) > 0
+
+
+## FBOX2: the newest solid step is a LID: a pull with op "new" on a hollow box (the lid is its own piece)
+func _lid_last(rec: Dictionary) -> bool:
+	if not _has_shell(rec):
+		return false
+	var last := {}
+	for f in rec.get("features", []):
+		if String(f.get("t", "")) == "extrude":
+			last = f
+	return not last.is_empty() and String(last.get("op", "")) == "new"
+
+
+## FBOX: the record has a shell (Hollow inside) step: a hollow body whose top is open
+func _has_shell(rec: Dictionary) -> bool:
+	for f in rec.get("features", []):
+		if String(f.get("t", "")) == "shell":
+			return true
+	return false
 
 
 ## a face sketch hangs past the body when one of its points lies outside the body's box (by more than 0.5 mm) along the face's own axes
@@ -1798,6 +1821,8 @@ func _hole(rec: Dictionary) -> String:
 		return "Nothing solid to cut a hole in yet. Press Pull it up first"
 	if _face_sketch_last(rec):   # a shape drawn on a face and not pulled yet: the hole IS that shape (a door or a window)
 		return _face_hole(rec)
+	if _lid_last(rec):   # FBOX2: a lid on a hollow box: the finger notch at its edge (before the piece hole: the lid is the newest piece)
+		return _lid_notch(rec, res["aabb"])
 	if _piece_hole(rec):   # the newest piece is an upright or a face sketch: the hole goes through IT
 		return ""
 	var bb: AABB = res["aabb"]
@@ -1858,6 +1883,23 @@ func _hole(rec: Dictionary) -> String:
 		_say("The middle already has a hole, so this one is cut to the side. For exact places, use Expert: Circle, then Cut")
 	else:
 		_say("A hole straight through: use the slider for its size, or press Mirror that or Repeat it next")
+	return ""
+
+
+## FBOX2: a LID (a separate piece on the rim of a hollow box) gets a FINGER NOTCH: a 16 mm half-circle bite at the middle of its +Z edge,
+## cut straight through on the top plane. The lid's corners stay, so its outline is kept, and the notch stays clear of the box wall
+func _lid_notch(rec: Dictionary, bb: AABB) -> String:
+	var c := bb.get_center() / Part.MM
+	var before := float(Part.replay(rec)["volume"])
+	var s := Part.new_feature(rec, "sketch", {"plane": "top", "ents": [{"k": "circle", "c": Part.arr2(Vector2(c.x, -bb.end.z / Part.MM)), "r": 8.0}], "dims": []})
+	rec["features"].append(s)
+	var f := Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.y), absf(bb.end.y)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
+	rec["features"].append(f)
+	var after := float(pu.replay_full(rec)["volume"])
+	if after >= before - 1e-12:
+		return "The notch would miss the lid: nothing was cut"
+	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Notch size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}
+	_say("A finger notch at the lid's edge: use the slider for its size, or press Mirror that next")
 	return ""
 
 
@@ -3455,6 +3497,12 @@ func _face_hit(p: Vector2) -> Dictionary:
 	var fc := _face_hit_at(p)
 	if String(fc.get("base", "")) == "top":
 		return fc
+	# FBOX: a press on a wall's top edge within 2 mm of the solid's top (a rim 3 mm wide, seen from the far side) is the TOP face there (a lid on the rim)
+	var top_m: float = (pu.res.get("aabb", AABB()) as AABB).end.y if pu != null else 0.0
+	if top_m > 0.0 and fc.has("hit") and absf((fc["hit"] as Vector3).y - top_m) <= 0.002:
+		var tp := Part.plane("top")
+		tp["o"] = (tp["o"] as Vector3) + (tp["n"] as Vector3) * top_m
+		return {"pl": tp, "base": "top", "mm": snappedf(top_m / Part.MM, 0.01), "out": 1}
 	# a press on a solid's top edge or corner (a chair leg's corner, seen from the side) lands on the side face just below the top:
 	# a tip-of-the-top press a few px higher takes the TOP face there, so a seat drawn on the leg tops sits on them
 	for off in [Vector2(0.0, -6.0), Vector2(-6.0, -6.0), Vector2(6.0, -6.0)]:
@@ -3528,7 +3576,7 @@ func _face_hit_at(p: Vector2) -> Dictionary:
 	var out := 1 if nrm.dot(FACE_N[ax]) > 0.0 else -1
 	var pl := Part.plane(FACE_BASE[ax])
 	pl["o"] = (pl["o"] as Vector3) + (pl["n"] as Vector3) * mm * Part.MM
-	return {"pl": pl, "base": FACE_BASE[ax], "mm": mm, "out": out}
+	return {"pl": pl, "base": FACE_BASE[ax], "mm": mm, "out": out, "hit": bh}
 
 
 ## FSPOON: the triangles a press is tested against: the shown mesh of the last step's replay (a press costs no replay of a part
