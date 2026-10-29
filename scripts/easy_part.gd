@@ -1144,7 +1144,12 @@ func _pull(rec: Dictionary) -> String:
 		var bb: AABB = Part.replay(rec).get("aabb", AABB())
 		var depth := bb.size.z if String(pf.get("from", "front")) == "front" else bb.size.x
 		dist = snappedf(depth / Part.MM, 1.0)
-	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": "join"})
+	# FFLAT: a floor shape pulled up beside the solids (not on a face, not sitting on one) is its OWN piece (op new): Stick together can join it
+	# to the others, and Repeat it copies this piece alone. It used to merge into the one solid, so Stick together saw a single body and refused.
+	var pull_op := "join"
+	if not on_face and not through and not _sits_on_body(rec, sk) and int(Part.replay(rec).get("bodies", 0)) > 0:
+		pull_op = "new"
+	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": pull_op})
 	rec["features"].append(f)
 	var err := _last_error(rec, String(f["id"]))
 	if err != "":
