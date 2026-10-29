@@ -42,6 +42,8 @@ var pu: PartUI
 var m: Node
 var bar: PanelContainer
 var title_l: Label
+var name_edit: LineEdit   # FNAMECHANGE: the name box that a click on the title opens (hidden otherwise)
+var _renaming := false
 var undo_btn: Button
 var redo_btn: Button
 var use_scene_btn: Button
@@ -147,7 +149,22 @@ func build(root: Control) -> void:
 	title_l.add_theme_font_size_override("font_size", 20)
 	title_l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	title_l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	title_l.mouse_filter = Control.MOUSE_FILTER_STOP   # FNAMECHANGE: a click on the title renames the part
+	title_l.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	title_l.tooltip_text = "Click to rename the part"
+	title_l.gui_input.connect(_title_gui)
 	row.add_child(title_l)
+	name_edit = LineEdit.new()
+	name_edit.name = "easypart_name"
+	name_edit.placeholder_text = "Name the part"
+	name_edit.max_length = 40
+	name_edit.add_theme_font_size_override("font_size", 20)
+	name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_edit.visible = false
+	name_edit.text_submitted.connect(func(_t: String): _rename_close(true))
+	name_edit.focus_exited.connect(func(): _rename_close(true))
+	name_edit.gui_input.connect(_name_edit_gui)
+	row.add_child(name_edit)
 	undo_btn = _bar_btn("Undo", "Take back the last change", func(): m._undo())
 	redo_btn = _bar_btn("Redo", "Put back what Undo took back", func(): m._redo())
 	use_scene_btn = _bar_btn("Use in a scene", "Put this part into the scene as a prop", _use_scene)
@@ -504,6 +521,54 @@ func active() -> bool:
 
 func _rec() -> Dictionary:
 	return m.S.part
+
+
+## FNAMECHANGE: a click on the title opens the name box with the name in it, all selected
+func _title_gui(ev: InputEvent) -> void:
+	if ev is InputEventMouseButton and (ev as InputEventMouseButton).pressed and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		_rename_open()
+
+
+func _rename_open() -> void:
+	if _renaming or _rec().is_empty():
+		return
+	_renaming = true
+	name_edit.text = String(_rec().get("name", "Part"))
+	title_l.hide()
+	name_edit.show()
+	name_edit.grab_focus()
+	name_edit.select_all()
+
+
+func _name_edit_gui(ev: InputEvent) -> void:
+	if ev is InputEventKey and (ev as InputEventKey).pressed and (ev as InputEventKey).keycode == KEY_ESCAPE:
+		_rename_close(false)
+		get_viewport().set_input_as_handled()
+
+
+## the box closes (Enter, a click away: commit; Escape: keep the old name). The title shows again
+func _rename_close(commit: bool) -> void:
+	if not _renaming:
+		return
+	_renaming = false
+	var txt := name_edit.text
+	name_edit.hide()
+	title_l.show()
+	if commit:
+		_rename(txt)
+	_chrome_sync()
+
+
+## one undo step; an empty name keeps the old one; the name is plain text, at most 40 letters
+func _rename(txt: String) -> void:
+	var nm := txt.strip_edges().substr(0, 40)
+	if nm == "" or nm == String(_rec().get("name", "")):
+		return
+	m._step_hint = "Renamed the part: %s" % nm
+	m._push_undo()
+	m.S.part["name"] = nm
+	_say("Renamed: the part is %s" % nm)
+	_chrome_sync()
 
 
 func _tpl() -> String:
