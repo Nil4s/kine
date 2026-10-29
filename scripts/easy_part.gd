@@ -385,7 +385,7 @@ func _colour_box() -> PanelContainer:
 	return box
 
 
-## REPEAT IT: Row or Ring, then How many (2..12 copies, the original counts) and Gap (cm between the copies). Its sliders write the Part pattern
+## REPEAT IT: Row or Ring, then How many (2..20 copies, the original counts; FCOMB: a comb of 20 teeth) and Gap (cm between the copies). Its sliders write the Part pattern
 ## step fields (count, mm, kind): the same replay as Expert Pattern
 func _repeat_box() -> PanelContainer:
 	var box := PanelContainer.new()
@@ -414,7 +414,7 @@ func _repeat_box() -> PanelContainer:
 	cb.toggle_mode = true
 	h.add_child(cb)
 	rep_btns["corners"] = cb
-	rep_rows.append(_make_row("How many", 2.0, 12.0, 1.0, REP_WORDS["count"], "rep", "count", "copies", vb))
+	rep_rows.append(_make_row("How many", 2.0, 20.0, 1.0, REP_WORDS["count"], "rep", "count", "copies", vb))
 	rep_rows.append(_make_row("Gap", 0.5, 30.0, 0.5, REP_WORDS["gap"], "rep", "gap", "cm", vb))
 	return box
 
