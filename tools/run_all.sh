@@ -251,3 +251,4 @@ EXTRA="$EXTRA fshelf:w"   # FSHELF: a wall shelf by real clicks from the BUILDIN
 EXTRA="$EXTRA froom:w"   # FROOM: a beginner builds a small room from the BUILDING card by real clicks: floor plate, two 2 m walls, a table, a door cut and a window cut; dead ends are bars (tests/froom_test.gd)
 EXTRA="$EXTRA fwords:w"   # FWORDS: on a blank part every shown word and tooltip is plain (no house/sword/weapon/fighter unless chosen, no sketch/extrude/fillet/boolean) (tests/fwords_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA fexport:w"   # FEXPORT: a free BUILDING part (Easy Part, Draw shape, Pull it up) from the start screen, then DELIVER > Export...: the part is in the list, its OBJ and GLB sizes equal the part in mm (tests/fexport_test.gd)
+EXTRA="$EXTRA fspeed:w"   # FSPEED: each Easy Part step (Draw, Pull, Round, Cut a hole, Cut in two, Repeat, Blend, Mirror) on a blank part: click to painted frame, median of 5 under 300 ms (tests/fspeed_test.gd; needs the CAD DLL)
