@@ -25,10 +25,11 @@ func idle(n := 3) -> void:
 		await process_frame
 
 
-func ev_mouse(p: Vector2, down: bool) -> void:
+func ev_mouse(p: Vector2, down: bool, alt := false) -> void:
 	var e := InputEventMouseButton.new()
 	e.button_index = MOUSE_BUTTON_LEFT
 	e.pressed = down
+	e.alt_pressed = alt
 	e.position = p
 	e.global_position = p
 	if down:
@@ -37,9 +38,10 @@ func ev_mouse(p: Vector2, down: bool) -> void:
 	await process_frame
 
 
-func ev_move(p: Vector2, held := true) -> void:
+func ev_move(p: Vector2, held := true, alt := false) -> void:
 	var e := InputEventMouseMotion.new()
 	e.position = p
+	e.alt_pressed = alt
 	e.global_position = p
 	if held:
 		e.button_mask = MOUSE_BUTTON_MASK_LEFT
@@ -55,12 +57,12 @@ func click_ctl(c: Control) -> void:
 	await idle(3)
 
 
-func drag_screen(a: Vector2, b: Vector2) -> void:
-	await ev_move(a, false)
-	await ev_mouse(a, true)
+func drag_screen(a: Vector2, b: Vector2, alt := false) -> void:
+	await ev_move(a, false, alt)
+	await ev_mouse(a, true, alt)
 	for i in range(1, 13):
-		await ev_move(a.lerp(b, i / 12.0))
-	await ev_mouse(b, false)
+		await ev_move(a.lerp(b, i / 12.0), true, alt)
+	await ev_mouse(b, false, alt)
 	await idle(3)
 
 
@@ -169,7 +171,7 @@ func _init() -> void:
 	m._cam()
 	await idle(60)
 	await click_ctl(ep().make_btns["draw"])
-	await drag_screen(scr(Vector3(-0.14, 0.02, -0.005)), scr(Vector3(-0.135, 0.02, 0.005)))   # inside the top face (the edge hits the side)
+	await drag_screen(scr(Vector3(-0.14, 0.02, -0.005)), scr(Vector3(-0.135, 0.02, 0.005)), true)   # inside the top face (the edge hits the side); Alt = free size (FSNAP: no 1 cm snap)
 	await click_ctl(ep().make_btns["hole"])
 	await idle(10)
 	var v1 := vol()
