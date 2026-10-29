@@ -2319,6 +2319,9 @@ func _duplicate(rec: Dictionary) -> String:
 
 ## REPEAT IT: Part's pattern step (Expert Pattern) on the newest solid: a row along X, spacing = the body's width + a 1 cm gap
 func _repeat(rec: Dictionary) -> String:
+	var fs: Array = rec.get("features", [])
+	if not fs.is_empty() and String(fs[-1].get("t", "")) == "extrude" and String(fs[-1].get("op", "")) == "cut" and not bool(fs[-1].get("off", false)):
+		return _repeat_cut(rec, fs[-1])   # FRULER: the newest step is a cut (a slot or hole): the row copies the cut, not the body
 	var res := Part.replay(rec)
 	var nb := int(res["bodies"])
 	if nb == 0:
@@ -2352,6 +2355,36 @@ func _repeat(rec: Dictionary) -> String:
 	rep_id = String(f["id"])
 	tweak = {}
 	_say("Repeated in a row: move the sliders for how many and the gap, or pick Up, Forward or Ring")
+	return ""
+
+
+## FRULER: Repeat it on a newest cut: a Row pattern step over that cut (Part _cut_row replays the copies). The spacing = the cut's width + the gap
+func _repeat_cut(rec: Dictionary, ext: Dictionary) -> String:
+	var sk := Part.feature(rec, String(ext.get("sketch", "")))
+	if sk.is_empty():
+		return "Draw the cut first, then repeat it"
+	var lo := INF
+	var hi := -INF
+	for e in sk.get("ents", []):
+		for k in ["a", "b"]:
+			if e.has(k):
+				lo = minf(lo, float(e[k][0]))
+				hi = maxf(hi, float(e[k][0]))
+		if e.has("c"):
+			lo = minf(lo, float(e["c"][0]) - float(e.get("r", 0.0)))
+			hi = maxf(hi, float(e["c"][0]) + float(e.get("r", 0.0)))
+	if lo == INF or hi - lo < 1e-6:
+		return "Draw the cut first, then repeat it"
+	var w_mm := hi - lo
+	var nb := int(Part.replay(rec)["bodies"])
+	var f := Part.new_feature(rec, "pattern", {"kind": "linear", "body": maxi(nb - 1, 0), "count": 3, "dir": "x", "axis": "y", "deg": 360.0,
+		"mm": w_mm + 10.0, "w": w_mm, "h": 10.0, "d": 10.0, "gap": 10.0, "op": "cut", "sketch": sk["id"], "dist": float(ext.get("dist", -10.0)), "both": bool(ext.get("both", false))})
+	rec["features"].append(f)
+	if _last_error(rec, String(f["id"])) != "":
+		return "The copies would not fit: nothing was changed"
+	rep_id = String(f["id"])
+	tweak = {}
+	_say("Repeated in a row: move the sliders for how many and the gap")
 	return ""
 
 
