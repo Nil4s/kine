@@ -280,3 +280,4 @@ EXTRA="$EXTRA abody2:w"   # ABODY2: an easy body by real clicks from the start s
 EXTRA="$EXTRA fglasses:w"   # FGLASSES: a beginner from the BUILDING card builds a pair of glasses by real clicks: bridge, ring, Cut a hole, arm, Mirror that (tests/fglasses_test.gd)
 EXTRA="$EXTRA fhandle:w"   # FHANDLE: a beginner from the BUILDING card builds a door handle by real clicks: a back plate, a closed Curvy loop pulled up as the lever (10 mm, from the plate top), Round the edges, Mirror that; one undo step (tests/fhandle_test.gd)
 EXTRA="$EXTRA fglasses:w"   # FGLASSES: a beginner from the BUILDING card builds a pair of glasses by real clicks: bridge, ring, Cut a hole, arm, Mirror that (tests/fglasses_test.gd)
+EXTRA="$EXTRA fnamechange:w"   # FNAMECHANGE: the BUILDING card's blank part is named Part N; a click on its title opens a name box, Bracket + Enter renames it (undo / redo), Use in a scene puts Bracket in My parts (tests/fnamechange_test.gd)
