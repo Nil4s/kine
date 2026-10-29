@@ -6436,7 +6436,7 @@ func _snapshot() -> Dictionary:
 	# TC3: tagged with the actor it was taken on, and the actors as they are (the same Body / Scene objects: an add or a
 	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
 	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
-		"body": B.state(), "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps, "bcol": body_colour, "bsm": Overlays.smooth,
+		"body": B.state(), "playhead": playhead, "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps, "bcol": body_colour, "bsm": Overlays.smooth,
 		"props": S.props.map(func(p): return Props.to_dict(p)), "building": _bld_file(), "part": _part_file(), "vehicle": _vehicle_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
@@ -6717,6 +6717,10 @@ func _restore(u: Dictionary) -> void:
 		_rebuild_cards()
 		if ui_find != null and ui_find.visible:
 			_check()   # the findings were for the cards just put back
+	if u.has("playhead") and not is_equal_approx(float(u["playhead"]), playhead):
+		playhead = float(u["playhead"])   # the clock's time is undone too: the body is posed at the time the step was taken at
+		if ui_timeline != null:
+			ui_timeline.queue_redraw()
 	for e in u.get("others", []):   # ROADMAP 53: the other fighters' cards, undone as well; re-posed at the playhead
 		var oS: Scene = e["S"]
 		if oS != S and var_to_str(e["cards"]) != var_to_str(oS.cards):
