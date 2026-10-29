@@ -2098,12 +2098,23 @@ func _frame_step() -> void:
 
 ## the free view: the clear view minus the MAKE row above and the side panel at the right, minus the status line at the bottom
 func free_rect() -> Rect2:
-	var top := _cl.position.y + 4.0 + MAKE_H + 8.0
-	for c in [hint, hole_box, split_box, shape_box, colour_box, repeat_box, stick_box]:   # the words and the chip rows under the MAKE row: the part sits below them
-		if c != null and (c as Control).visible:                               # (ewalk4: the Through / Hollow inside chips covered the mug's rim)
-			top = maxf(top, (c as Control).get_global_rect().end.y + 8.0)
+	var boxes := [hint, hole_box, split_box, shape_box, colour_box, repeat_box, stick_box]   # the words and the chip rows under the MAKE row: the part sits below them
+	var top := _free_top(boxes)                                                              # (ewalk4: the Through / Hollow inside chips covered the mug's rim)
+	# FSHELF: the Repeat row sits at the left under the words; open, its bottom left the free view under 0 px high (no framing, the copies
+	# of a row stayed off screen). When that happens the row does not push the view down (it floats over the left of the grid)
+	if _cl.end.y - 70.0 - top < 120.0:
+		top = _free_top(boxes.filter(func(c): return c != repeat_box))
 	var x1 := _cl.end.x - PW - 16.0
 	return Rect2(_cl.position.x + 12.0, top, x1 - _cl.position.x - 12.0, _cl.end.y - 70.0 - top)
+
+
+## the top edge of the free view: under the MAKE row and under each visible panel in boxes
+func _free_top(boxes: Array) -> float:
+	var top := _cl.position.y + 4.0 + MAKE_H + 8.0
+	for c in boxes:
+		if c != null and (c as Control).visible:
+			top = maxf(top, (c as Control).get_global_rect().end.y + 8.0)
+	return top
 
 
 ## the ease in progress: one step per frame toward its end pose (smoothstep), then it is cleared
