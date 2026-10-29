@@ -752,7 +752,8 @@ func _make_row(label: String, lo: float, hi: float, step: float, words: Array, k
 func _rows_sync() -> void:
 	_tweak_stale()
 	var t := _tpl()
-	var sig := "%s|%s|%s" % [t, JSON.stringify(tweak.get("id", "")), _compact]
+	# FKEY: the label is in the signature: after an Undo a new step can take the id of the step it replaced, and its slider must still be rebuilt
+	var sig := "%s|%s|%s|%s" % [t, JSON.stringify(tweak.get("id", "")), _compact, String(tweak.get("label", ""))]
 	if sig == _rows_sig:
 		return
 	_rows_sig = sig
@@ -2341,7 +2342,7 @@ func _chrome_sync() -> void:
 	elif not res.is_empty() and int(res.get("bodies", 0)) > 0:
 		text = "Press a button above to change it, or pick a shape on the right"   # a part of the user's own (no template): not "draw a shape"
 	else:
-		text = "Pick a shape on the right, or press Draw shape"
+		text = "Press Draw shape, then drag on the grid (or pick a template on the right)"   # FKEY: a beginner sees the verb first, not a shape that is not there
 	hint_l.text = text
 	var errs: Dictionary = res.get("errors", {}) if not res.is_empty() else {}
 	var bodies := int(res.get("bodies", 0)) if not res.is_empty() else 0
