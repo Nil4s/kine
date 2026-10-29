@@ -233,14 +233,16 @@ func _init() -> void:
 	var bb3 := bbox()
 	var st_ok: bool = String(pt.get("kind", "")) == "stairs" and int(pt.get("count", 0)) == 8 and int(pu().res.get("bodies", 0)) == 1 \
 		and (pu().res.get("errors", {}) as Dictionary).is_empty()
-	ok(st_ok and absf(bb3.size.y - 1400.0) < 2.0 and absf(bb3.size.z - 2000.0) < 2.0,
-		"3 STAIRS 8 steps, one body, no failed step: %s, box %s" % [str(pt.get("kind", "")), bb3])
+	ok(st_ok and absf(bb3.size.y - 8.0 * bp.size.y) < 2.0 and absf(bb3.size.z - 8.0 * bp.size.z) < 2.0,
+		"3 STAIRS 8 steps (8 x the block: %.0f x %.0f mm), one body, no failed step: %s, box %s" % [8.0 * bp.size.y, 8.0 * bp.size.z, str(pt.get("kind", "")), bb3])
 	hints.append(["stairs", ep().hint_l.text])
 	check_words("stairs")
 
 	# 4 VIEW: the whole stair on screen from a 3/4 view
+	m.target = bb3.get_center() * Part.MM   # the camera looks at the middle of the stair (a view for the screenshot; the on-screen bar is the check)
+	m.dist = maxf(bb3.size.length() * Part.MM * 2.5, 5.0)
 	m.pitch = -25.0
-	m.yaw = 30.0
+	m.yaw = 80.0
 	m._cam()
 	await settle(1.5)
 	ok(box_on_screen(bb3), "4 VIEW the whole stair is on screen from the 3/4 view (box %s)" % bb3)

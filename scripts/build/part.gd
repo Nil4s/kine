@@ -52,7 +52,9 @@ extends RefCounted
 ## is just wide enough that neighbours sit "w" + "gap" mm apart.
 ## COMBINE (Fusion Combine): {"t": "combine", "id", "name", "target": N, "tools": [M, ...], "op": "join"|"cut"|"intersect", "keep": bool}: the target
 ## body joins, cuts or shares volume with each tool body in turn (the tools in order). The result takes the target's place in the body list; the tool
-## bodies go (keep = true leaves them where they are, unchanged). Every other body keeps its place and its look, the target keeps its look.
+## bodies go (keep = true leaves them where they are, unchanged).
+## FSTAIRS: "kind": "stairs" (Easy's Up and Forward): "count" steps, "rise" and "run" mm: step i is the body moved i rises up and i runs forward; the
+## space under each step is filled (a solid staircase, n(n+1)/2 blocks of the body), so the stair is one body. Every other body keeps its place and its look, the target keeps its look.
 
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
@@ -1817,6 +1819,16 @@ static func _pattern(bodies: Array, looks: Array, f: Dictionary) -> String:
 			copies.append(KCad.translate(t1, pivot) if t1 != 0 else 0)
 			if t1 != 0:
 				KCad.release(t1)
+	elif String(f.get("kind", "linear")) == "stairs":   # FSTAIRS (Easy's Up and Forward): copy i sits i steps up and i steps forward; each step is filled down to the floor (a solid stair)
+		var rise := float(f.get("rise", 0.0)) * MM
+		var run_d := float(f.get("run", 0.0)) * MM
+		if rise < 1e-9 or run_d < 1e-9:
+			return "the steps need a height and a depth"
+		for i in range(0, n):
+			for j in range(0, i + 1):
+				if i == 0 and j == 0:
+					continue   # the original piece is step 0
+				copies.append(KCad.translate(bodies[bi], Vector3(0.0, float(j) * rise, float(i) * run_d)))
 	else:
 		var d: Vector3 = AXIS_VEC.get(String(f.get("dir", "x")), Vector3.RIGHT) * float(f.get("mm", 0.0)) * MM
 		if d.length() < 1e-9:

@@ -402,6 +402,10 @@ func _repeat_box() -> PanelContainer:
 	cb.toggle_mode = true
 	h.add_child(cb)
 	rep_btns["corners"] = cb
+	var sb := _big_btn("easypart_rep_stairs", "Up and Forward", "Steps: each copy goes up one step and forward one step, a staircase of 8", _rep_stairs)
+	sb.toggle_mode = true
+	h.add_child(sb)
+	rep_btns["stairs"] = sb
 	rep_rows.append(_make_row("How many", 2.0, 12.0, 1.0, REP_WORDS["count"], "rep", "count", "copies", vb))
 	rep_rows.append(_make_row("Gap", 0.5, 30.0, 0.5, REP_WORDS["gap"], "rep", "gap", "cm", vb))
 	return box
@@ -1838,6 +1842,8 @@ func _repeat(rec: Dictionary) -> String:
 		return "Make something solid first, then repeat it"
 	var bi := nb - 1
 	var w_mm := 10.0
+	var h_mm := 100.0   # the piece's height and depth: an Up and Forward step rises by its height and runs by its depth
+	var d_mm := 100.0
 	var faces := Part.body_faces(rec, -1)
 	if bi < faces.size() and (faces[bi] as PackedVector3Array).size() > 0:
 		var pts: PackedVector3Array = faces[bi]
@@ -1845,8 +1851,10 @@ func _repeat(rec: Dictionary) -> String:
 		for q in pts:
 			bb = bb.expand(q)
 		w_mm = maxf(bb.size.x / Part.MM, 1.0)
+		h_mm = maxf(bb.size.y / Part.MM, 1.0)
+		d_mm = maxf(bb.size.z / Part.MM, 1.0)
 	var f := Part.new_feature(rec, "pattern", {"kind": "linear", "body": bi, "count": 3, "dir": "x", "axis": "y", "deg": 360.0,
-		"mm": w_mm + 10.0, "w": w_mm, "gap": 10.0, "op": "join"})
+		"mm": w_mm + 10.0, "w": w_mm, "gap": 10.0, "op": "join", "rise": h_mm, "run": d_mm})
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
 		return "The copies would not fit: nothing was changed"
@@ -1854,6 +1862,27 @@ func _repeat(rec: Dictionary) -> String:
 	tweak = {}
 	_say("Repeated in a row: move the sliders for how many and the gap, or pick Ring")
 	return ""
+
+
+## Up and Forward (FSTAIRS): a staircase of 8 steps, each one rise up and one run forward from the last (the piece's own height and depth)
+func _rep_stairs() -> void:
+	if Part.feature(_rec(), rep_id).is_empty():
+		return
+	_flush_if_dirty()
+	_begin("Up and Forward")
+	var cur := Part.feature(_rec(), rep_id)
+	cur["kind"] = "stairs"
+	cur["count"] = 8
+	cur["beside"] = false
+	_end()
+	pu.sync()
+	_rep_sync()
+	_values_sync()
+	var err: String = pu.replay_full(_rec())["errors"].get(rep_id, "")
+	if err != "":
+		_say(_plain(err) + ". Press Repeat it again, or undo")
+	else:
+		_say("Up and Forward: 8 steps. Move How many for more or fewer steps")
 
 
 ## Corners (EREPEAT): the newest piece goes to the four corners of the body it touches, one undo step; the four become one body with it
@@ -1963,9 +1992,12 @@ func _rep_sync() -> void:
 	(rep_btns["row"] as Button).set_pressed_no_signal(String(f.get("kind", "linear")) == "linear")
 	(rep_btns["ring"] as Button).set_pressed_no_signal(ring)
 	(rep_btns["corners"] as Button).set_pressed_no_signal(String(f.get("kind", "")) == "corners")
-	var rows_on := String(f.get("kind", "")) != "corners"   # CORNERS: four copies at the corners, no How many or Gap to set
+	(rep_btns["stairs"] as Button).set_pressed_no_signal(String(f.get("kind", "")) == "stairs")
+	var kind := String(f.get("kind", ""))
+	var rows_on := kind != "corners"   # CORNERS: four copies at the corners, no How many or Gap to set
 	for r in rep_rows:
-		(r["box"] as Control).visible = rows_on
+		# UP AND FORWARD: the steps are a count (How many); a Gap would mean nothing between the steps, so it is not shown
+		(r["box"] as Control).visible = rows_on and not (kind == "stairs" and String(r["key"]) == "gap")
 	for r in rep_rows:
 		var s: HSlider = r["slider"]
 		var v := float(f.get("count", 3)) if String(r["key"]) == "count" else float(f.get("gap", 10.0)) / 10.0
