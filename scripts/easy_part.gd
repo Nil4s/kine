@@ -149,8 +149,8 @@ func build(root: Control) -> void:
 	row.add_child(title_l)
 	undo_btn = _bar_btn("Undo", "Take back the last change", func(): m._undo())
 	redo_btn = _bar_btn("Redo", "Put back what Undo took back", func(): m._redo())
-	use_scene_btn = _bar_btn("Use in a scene", "Put this part into the scene as a prop", _use_scene)
-	use_scene_btn.custom_minimum_size.x = 150.0
+	use_scene_btn = _bar_btn("Save and use in a scene", "Save this part to My parts, then put it into the scene as a prop", _use_scene)   # SAVEWORD: a beginner looks for Save; "Use in a scene" stays a substring
+	use_scene_btn.custom_minimum_size.x = 230.0
 	row.add_child(undo_btn)
 	row.add_child(redo_btn)
 	row.add_child(use_scene_btn)
