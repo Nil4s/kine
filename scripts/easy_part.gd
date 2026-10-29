@@ -251,7 +251,7 @@ func build(root: Control) -> void:
 	var sh := HBoxContainer.new()
 	sh.add_theme_constant_override("separation", 6)
 	shape_box.add_child(sh)
-	for s in [["box", "Box"], ["round", "Round"], ["pointy", "Pointy"], ["oval", "Oval"]]:   # FSPOON: Oval = an ellipse fitted to the drag box (a bowl, a pad)
+	for s in [["box", "Box"], ["round", "Round"], ["pointy", "Pointy"], ["oval", "Oval"], ["hex", "Hex"]]:   # FSPOON: Oval = an ellipse fitted to the drag box (a bowl, a pad); FBOLT: Hex = a regular hexagon in the drag box (bolt head, nut)
 		var b := Button.new()
 		b.name = "easypart_shape_" + String(s[0])
 		b.text = String(s[1])
@@ -3390,6 +3390,9 @@ func _draft_outline() -> PackedVector2Array:
 	elif String(_draft["shape"]) == "pointy":
 		for q in _pointy_pts(a, b) + [a]:
 			pts.append(m.cam.unproject_position(_pw(q)))
+	elif String(_draft["shape"]) == "hex":
+		for q in _hex_pts(a, b) + [a]:
+			pts.append(m.cam.unproject_position(_pw(q)))
 	else:
 		var r := a.distance_to(b)
 		for i in 33:
@@ -3401,6 +3404,16 @@ func _draft_outline() -> PackedVector2Array:
 ## POINTY: the drag's corners a and b make an isoceles triangle: the base is a's side of the box (a to (b.x, a.y)), the point is at the middle of the far edge (b's side: (middle x, b.y))
 func _pointy_pts(a: Vector2, b: Vector2) -> Array:
 	return [a, Vector2(b.x, a.y), Vector2((a.x + b.x) * 0.5, b.y)]
+
+
+## HEX: a regular hexagon in the drag box, centred on its middle, flat top and bottom (the box's width is the corner-to-corner, its height the across-flats); the drag takes the smaller of the two sizes
+func _hex_pts(a: Vector2, b: Vector2) -> Array:
+	var c := (a + b) * 0.5
+	var r := minf(absf(b.x - a.x) * 0.5, absf(b.y - a.y) * 0.5 / 0.8660254)
+	var out := []
+	for i in 6:
+		out.append(c + Vector2.from_angle(PI / 3.0 * i) * r)
+	return out
 
 
 ## the world point of a draft coordinate (the draft plane, else the FLOOR: the Part top plane, y = 0)
@@ -4043,7 +4056,7 @@ func _finish_draw() -> void:
 			var t := TAU * float(i) / 16.0
 			opts.append(Part.arr2(Vector2(oc.x + orx * cos(t), oc.y + ory * sin(t))))
 		ents = [{"k": "bspline", "pts": opts, "closed": true}]
-	elif sh == "box" or sh == "pointy":
+	elif sh == "box" or sh == "pointy" or sh == "hex":
 		var sd := _sides(a, b, pl)
 		if sd.has("thin"):
 			_say("Drag a bit wider: both sides must be at least 2 mm (now %s mm)" % _mm_words(float(sd["thin"])))
@@ -4051,6 +4064,10 @@ func _finish_draw() -> void:
 		b = sd["b"]
 		if sh == "box":
 			ent = {"k": "rect", "a": Part.arr2(a), "b": Part.arr2(b)}
+		elif sh == "hex":   # HEX: six lines, the closed outline of the hexagon (Expert's line tool records the same)
+			var hp := _hex_pts(a, b)
+			for i in 6:
+				ents.append({"k": "line", "a": Part.arr2(hp[i]), "b": Part.arr2(hp[(i + 1) % 6])})
 		else:   # POINTY: three lines, the closed outline of the triangle (Expert's line tool records the same)
 			var tp := _pointy_pts(a, b)
 			ents = [{"k": "line", "a": Part.arr2(tp[0]), "b": Part.arr2(tp[1])}, {"k": "line", "a": Part.arr2(tp[1]), "b": Part.arr2(tp[2])}, {"k": "line", "a": Part.arr2(tp[2]), "b": Part.arr2(tp[0])}]
