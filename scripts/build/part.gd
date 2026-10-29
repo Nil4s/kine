@@ -500,7 +500,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					continue
 				var sids: PackedInt32Array = sols["solids"]
 				for si in sids.size():   # XFIX: one solid per separate loop of the sketch (one feature, one undo step)
-					var e := _combine(bodies, sids[si], String(f.get("op", "join")))
+					var e := _combine(bodies, sids[si], String(f.get("op", "join")), int(f.get("into", -1)))
 					if e != "":
 						errs[id] = e
 						for sj in range(si + 1, sids.size()):
@@ -1406,7 +1406,7 @@ static func _flange_ring(pipe: int, p0: Vector3, tan: Vector3, x: Vector3, ents:
 
 
 ## puts a new solid into the body list as the op says; "" or the failure message
-static func _combine(bodies: Array, solid: int, op: String) -> String:
+static func _combine(bodies: Array, solid: int, op: String, into := -1) -> String:
 	if op == "intersect":
 		return _intersect_into(bodies, solid)
 	if op == "new" or bodies.is_empty():
@@ -1420,13 +1420,82 @@ static func _combine(bodies: Array, solid: int, op: String) -> String:
 				bodies[i] = c
 		KCad.release(solid)
 		return ""
-	var u := KCad.union(bodies[-1], solid)
+	var t := into if into >= 0 and into < bodies.size() else bodies.size() - 1   # FLAMP5: a pull joins the body it sits on (see touching_body); else the last
+	var u := KCad.union(bodies[t], solid)
 	KCad.release(solid)
 	if u == 0:
 		return KCad.last_error()
-	KCad.release(bodies[-1])
-	bodies[-1] = u
+	KCad.release(bodies[t])
+	bodies[t] = u
 	return ""
+
+
+## FLAMP5: the body an Extrude (op join) sits on: its solid is replayed alone as a new body, and the body whose mesh touches it is the one.
+## -1 when it touches none. Saved on the step as "into" (set once, when the step is made), so every replay joins that body, not the last one.
+static func touching_body(rec: Dictionary, f: Dictionary) -> int:
+	var op := String(f.get("op", "join"))
+	f["op"] = "new"
+	var m: ArrayMesh = replay(rec).get("mesh")
+	f["op"] = op
+	if m == null or m.get_surface_count() < 2:
+		return -1
+	var n := m.get_surface_count() - 1   # the new solid is the last body
+	for i in n:
+		if touch_surfaces(m, i, n):
+			return i
+	return -1
+
+
+## FLAMP5: two surfaces touch when a corner of one lies on a triangle of the other (a shape standing on a face: no vertex is shared)
+static func touch_surfaces(m: ArrayMesh, i: int, j: int) -> bool:
+	var pi := _surf_pts(m, i)
+	var pj := _surf_pts(m, j)
+	return touch_patch(pi[0], pj[1], _box_of(pj[1])) or touch_patch(pj[0], pi[1], _box_of(pi[1]))
+
+
+## the vertices of a surface, and its triangles as three points each (flat)
+static func _surf_pts(m: ArrayMesh, s: int) -> Array:
+	var arr := m.surface_get_arrays(s)
+	var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+	var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+	var tp := PackedVector3Array()
+	var n := idx.size() if idx.size() > 0 else vs.size()
+	for t in range(0, n - 2, 3):
+		for k in 3:
+			tp.append(vs[idx[t + k] if idx.size() > 0 else t + k])
+	return [vs, tp]
+
+
+static func _box_of(pts: PackedVector3Array) -> AABB:
+	var bb := AABB()
+	for k in pts.size():
+		bb = AABB(pts[k], Vector3.ZERO) if k == 0 else bb.expand(pts[k])
+	return bb
+
+
+## does any point of pts lie on a triangle of tri_pts (flat, three per triangle) inside the box bb (grown a little)?
+static func touch_patch(pts: PackedVector3Array, tri_pts: PackedVector3Array, bb: AABB) -> bool:
+	var gbb := bb.grow(1e-4)
+	for p in pts:
+		if not gbb.has_point(p):
+			continue
+		for t in range(0, tri_pts.size() - 2, 3):
+			var a: Vector3 = tri_pts[t]
+			var b: Vector3 = tri_pts[t + 1]
+			var c: Vector3 = tri_pts[t + 2]
+			var nrm := (b - a).cross(c - a)
+			var ln := nrm.length()
+			if ln < 1e-12:
+				continue
+			nrm /= ln
+			if absf((p - a).dot(nrm)) > 2e-5:
+				continue
+			var c1 := (b - a).cross(p - a).dot(nrm)
+			var c2 := (c - b).cross(p - b).dot(nrm)
+			var c3 := (a - c).cross(p - c).dot(nrm)
+			if c1 >= -1e-9 and c2 >= -1e-9 and c3 >= -1e-9:
+				return true
+	return false
 
 
 ## COMBINE: the target body takes each tool body in turn (join = union, cut = minus, intersect = shared volume). The result sits where the

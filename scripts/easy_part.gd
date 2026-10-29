@@ -1410,6 +1410,8 @@ func _pull(rec: Dictionary) -> String:
 	rec["features"].append(f)
 	var err := _last_error(rec, String(f["id"]))
 	if err == "" and nb0 > 0 and not slot:   # a slot cut never becomes a new body
+		f["into"] = Part.touching_body(rec, f)   # FLAMP5: a pull joins the body it sits on (saved on the step), not the last body
+		err = _last_error(rec, String(f["id"]))
 		var joined := Part.replay(rec)
 		if int(joined.get("bodies", 0)) == nb0 and _lumps(joined) > lk0:
 			f["op"] = "new"
@@ -3943,6 +3945,8 @@ func _lumps(r: Dictionary) -> int:
 		return _lump_n
 	var weld := {}
 	var parent := PackedInt32Array()
+	var wpos := PackedVector3Array()   # FLAMP5: the welded position of each vertex id (for the touch test below)
+	var tris: Array = []               # FLAMP5: each triangle as its three welded ids
 	var find := func(i: int) -> int:
 		while parent[i] != i:
 			parent[i] = parent[parent[i]]
@@ -3958,18 +3962,74 @@ func _lumps(r: Dictionary) -> int:
 			if not weld.has(key):
 				weld[key] = parent.size()
 				parent.append(parent.size())
+				wpos.append(v)
 			ids.append(int(weld[key]))
 		var tri := idx.size() if idx.size() > 0 else vs.size()
 		for t in range(0, tri - 2, 3):
 			var a: int = ids[idx[t] if idx.size() > 0 else t]
-			for k in [1, 2]:
-				var b: int = ids[idx[t + k] if idx.size() > 0 else t + k]
+			var b1: int = ids[idx[t + 1] if idx.size() > 0 else t + 1]
+			var b2: int = ids[idx[t + 2] if idx.size() > 0 else t + 2]
+			tris.append([a, b1, b2])
+			for b in [b1, b2]:
 				var ra: int = find.call(a)
 				var rb: int = find.call(b)
 				if ra != rb:
 					parent[ra] = rb
+	# FLAMP5: a shape pulled up off a face of a solid is a separate shell that sits ON the face: the two meet on a face patch,
+	# with no vertex shared, so the welding above sees two pieces. A corner of one shell lying on a triangle of the other joins them.
+	var merged := true
+	while merged and tris.size() > 0:
+		merged = false
+		var roots := {}
+		for i in parent.size():
+			roots[find.call(i)] = true
+		if roots.size() < 2:
+			break
+		var groups := {}   # root -> {"v": vertex ids, "t": triangle indices, "bb": AABB}
+		for i in parent.size():
+			var rr: int = find.call(i)
+			if not groups.has(rr):
+				groups[rr] = {"v": PackedInt32Array(), "t": PackedInt32Array(), "bb": AABB(wpos[i], Vector3.ZERO)}
+			groups[rr]["v"].append(i)
+			groups[rr]["bb"] = (groups[rr]["bb"] as AABB).expand(wpos[i])
+		for ti in tris.size():
+			var rt: int = find.call(int(tris[ti][0]))
+			groups[rt]["t"].append(ti)
+		var keys := groups.keys()
+		for x in keys.size():
+			for y in range(x + 1, keys.size()):
+				var ga: Dictionary = groups[keys[x]]
+				var gb: Dictionary = groups[keys[y]]
+				if not (ga["bb"] as AABB).grow(1e-4).intersects(gb["bb"] as AABB):
+					continue
+				if Part.touch_patch(_group_pts(ga, wpos), _group_tri_pts(gb, wpos, tris), gb["bb"]) or Part.touch_patch(_group_pts(gb, wpos), _group_tri_pts(ga, wpos, tris), ga["bb"]):
+					parent[find.call(int(keys[x]))] = find.call(int(keys[y]))
+					merged = true
+					break
+			if merged:
+				break
 	var roots := {}
 	for i in parent.size():
 		roots[find.call(i)] = true
 	_lump_n = maxi(roots.size(), 1)
 	return _lump_n
+
+
+## FLAMP5: the points of a welded group, and the flat triangle points of the group's triangles (see Part.touch_patch)
+func _group_pts(g: Dictionary, wpos: PackedVector3Array) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for vi in g["v"]:
+		out.append(wpos[vi])
+	return out
+
+
+func _group_tri_pts(g: Dictionary, wpos: PackedVector3Array, tris: Array) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for ti in g["t"]:
+		var tr: Array = tris[ti]
+		out.append(wpos[tr[0]])
+		out.append(wpos[tr[1]])
+		out.append(wpos[tr[2]])
+	return out
+
+
