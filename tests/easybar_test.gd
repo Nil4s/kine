@@ -1,11 +1,11 @@
-## godot --path . -s tests/easybar_test.gd     (EASY BAR: at most 8 visible buttons (7 until My scenes, 66ca81b9); every action reachable by its text in at most 2 clicks; needs a window)
+## godot --path . -s tests/easybar_test.gd     (EASY BAR: at most 9 visible buttons (7 until My scenes, 66ca81b9; 8 until Home, db702573); every action reachable by its text in at most 2 clicks; needs a window)
 ## The bar: 8 buttons at most (More counts). Each action that was on the old 13-button bar is found by its text: on the
 ## bar = 1 click, under More = 2 clicks (More, then the entry). Every bar button and More entry has a tooltip, and every
 ## action is still wired. MEASURES only: it does not run the actions (Save scene and Open would open dialogs).
 ## --bar-shot=<png> (after --): saves the viewport picture of the bar, for the screenshot in the task log.
 extends SceneTree
 
-const BAR_MAX := 8   # My scenes was added in 66ca81b9 (was 7)
+const BAR_MAX := 9   # My scenes was added in 66ca81b9 (was 7); the Home button in db702573 (was 8: Nick 2026-10-28 OK to 9)
 # the old bar's 13 actions, by the label they had -> the label they have now (Export video is Save video; Save is Save scene)
 const OLD13 := {
 	"Pose (drag parts)": "Move his arms and legs", "Key this pose": "Save this pose as a card", "Play / Stop": "Play / Stop",
