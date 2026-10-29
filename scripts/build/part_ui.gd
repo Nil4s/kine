@@ -63,7 +63,7 @@ const TIPS := {
 	"Canvas": "CANVAS: put a picture on the Front, Top or Right plane (or an offset plane). Click two points of known size, type the real distance, drag it to line up.",
 	"Loft": "LOFT: pick two or more sketches in order (each a closed profile); the solid runs through them. Ruled = straight, Smooth = curved.",
 	"Pattern": "PATTERN: copies of a body in a row (linear) or round an axis through the origin (circular). Join them into the body or make them new bodies. Live preview.",
-	"Sweep": "SWEEP: pick a closed profile sketch and an open path sketch (lines, arcs, splines, one chain). The profile must sit in the middle of the path's start and square to it. Corners are rounded.",
+	"Sweep": "SWEEP: pick the shape to push along a line (a pipe: a round shape) and the line. The shape sits at the line's start, facing along it. Corners are rounded.",   # FPIPE: plain words
 	"Offset plane": "OFFSET PLANE: pick Front, Top or Right and type a distance. The new plane is in the browser: click it to sketch on it.",
 	"Fillet": "FILLET: click edges (they turn sky blue), type a radius, press Enter or OK.",
 	"Chamfer": "CHAMFER: click edges, type a distance, press Enter or OK.",
@@ -712,9 +712,9 @@ func _build_timeline() -> void:
 		nb.add_child(b)
 	part_give = Button.new()   # PartWeapon (scripts/build/part_weapon.gd): this part becomes the fighter's weapon, one undo step
 	part_give.name = "part_give"
-	part_give.text = "Give to fighter"
+	part_give.text = "Give to a character"
 	part_give.focus_mode = Control.FOCUS_NONE
-	part_give.tooltip_text = "Give it to the fighter: he holds this part as his weapon; its size, weight and balance come from the part (steel unless you change the material)"
+	part_give.tooltip_text = "Give it to a character: they hold this part in one hand; its size, weight and balance come from the part (steel unless you change the material)"
 	part_give.pressed.connect(func(): m.give_part_weapon(_rec()))
 	nb.add_child(part_give)
 	nav.add_child(nb)
@@ -1612,9 +1612,9 @@ func _sweep_open(f: Dictionary, edit: int) -> void:
 			aid = String(ids[ids.size() - 1])
 	f_sw_prof.select(maxi(ids.find(pid), 0))
 	f_sw_path.select(maxi(ids.find(aid), 0))
-	dlg_rows.add_child(_label("Profile (closed sketch)"))
+	dlg_rows.add_child(_label("Shape to sweep"))
 	dlg_rows.add_child(f_sw_prof)
-	dlg_rows.add_child(_label("Path (open sketch: lines, arcs, splines)"))
+	dlg_rows.add_child(_label("Line to sweep along"))
 	dlg_rows.add_child(f_sw_path)
 	_op_row(f)
 
@@ -2415,7 +2415,7 @@ func _note_sync() -> void:
 		var errs: Dictionary = res.get("errors", {})
 		t = "No solid yet" + ("   (%s)" % String(errs.values()[0]) if not errs.is_empty() else "")
 	else:
-		t = "Press a plane in the browser or a Sketch tool to begin"
+		t = "Press Easy at the top for big buttons, or a plane in the browser to sketch on"   # FKNOB: a beginner at the blank part is told the Easy button (it used to say only Sketch and Plane words)
 	note_l.text = t
 	note.visible = on and bu.on and t != ""
 

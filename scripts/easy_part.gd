@@ -12,6 +12,7 @@ extends Node
 ## No CAD DLL: the buttons and sliders are greyed with the reason.
 
 const PW := 318.0
+const CHIP_TEXT := {"sword": "Blade"}   # template chips shown before anything is chosen (plain words)
 const ROUND_BUDGET_US := 300000   # EROUND: the Round press stops trying edges after this (usec) and keeps the best found
 const MAKE_H := 76.0
 const REP_WORDS := {"count": ["Fewer", "More"], "gap": ["Closer", "Further apart"]}   # the Repeat it sliders' ends
@@ -80,6 +81,7 @@ var empty_chip: Button   # "Empty": start from nothing (not in chips: those are 
 var rows_vb: VBoxContainer
 var rows := []                 # [{"key", "slider", "pill", "kind": "tpl" | "tweak", "def": row dict}]
 var give_btn: Button
+var export_btn: Button          # FEXPORT: Export on the Easy Part bar (the export dialog, the free part picked)
 var back_btn: Button
 var use_btn: Button
 var status: PanelContainer
@@ -152,10 +154,14 @@ func build(root: Control) -> void:
 	row.add_child(undo_btn)
 	row.add_child(redo_btn)
 	row.add_child(use_scene_btn)
-	give_btn = _bar_btn("Give to fighter", "Give it to the fighter: the fighter holds this shape as his weapon, with its size and weight (PartWeapon)", func(): m.give_part_weapon(_rec()))   # one undo step
+	give_btn = _bar_btn("Give to a character", "Give it to a character: they hold this shape in one hand, with its size and weight (PartWeapon)", func(): m.give_part_weapon(_rec()))   # one undo step
 	give_btn.name = "easypart_give"
 	give_btn.custom_minimum_size = Vector2(170, m.TOP_H - 12)
 	row.add_child(give_btn)
+	export_btn = _bar_btn("Export", "Save this part as an OBJ or a GLB file: the export dialog, with this part picked", func(): m._export_dialog_open())   # FEXPORT
+	export_btn.name = "easypart_export"
+	export_btn.custom_minimum_size = Vector2(110, m.TOP_H - 12)
+	row.add_child(export_btn)
 	easy_btn = _bar_btn("Easy", "Sliders and big buttons", func(): pass)
 	easy_btn.toggle_mode = true
 	easy_btn.button_pressed = true
@@ -271,7 +277,7 @@ func build(root: Control) -> void:
 	for t in PartTemplates.START:
 		var b := Button.new()
 		b.name = "easypart_chip_" + t
-		b.text = String(PartTemplates.T[t]["title"])
+		b.text = CHIP_TEXT.get(t, String(PartTemplates.T[t]["title"]))   # the chip word on the blank part is plain; the part keeps the template title
 		b.toggle_mode = true
 		b.focus_mode = Control.FOCUS_NONE
 		b.custom_minimum_size = Vector2(0, 34)
@@ -762,7 +768,8 @@ func _make_row(label: String, lo: float, hi: float, step: float, words: Array, k
 func _rows_sync() -> void:
 	_tweak_stale()
 	var t := _tpl()
-	var sig := "%s|%s|%s" % [t, JSON.stringify(tweak.get("id", "")), _compact]
+	# FKEY: the label is in the signature: after an Undo a new step can take the id of the step it replaced, and its slider must still be rebuilt
+	var sig := "%s|%s|%s|%s" % [t, JSON.stringify(tweak.get("id", "")), _compact, String(tweak.get("label", ""))]
 	if sig == _rows_sig:
 		return
 	_rows_sig = sig
@@ -783,6 +790,11 @@ func _rows_sync() -> void:
 	_values_sync()
 
 
+## FROOM: the How far slider on a building project reaches 3 m (a wall is 2 m or more); the other projects keep 40 cm
+func _pull_hi() -> float:
+	return 300.0 if m != null and m.S != null and m.S.kind == "building" else 40.0
+
+
 ## ESAVE: a record opened again (My parts, Change the part): the slider of its NEWEST step comes back (a Wall of a hollow, a How far of a
 ## pull up, a Hole size of a hole); none when the newest step has no slider (the record is shown without one, as a fresh start)
 func tweak_last() -> void:
@@ -796,7 +808,7 @@ func tweak_last() -> void:
 		tweak = {"id": f["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
 	elif t == "extrude" and not bool(f.get("both", false)) and String(f.get("op", "join")) == "join" and f.has("dist"):
 		var dist := float(f["dist"])
-		tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": 40.0, "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": -1.0 if dist < 0.0 else 1.0}
+		tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": -1.0 if dist < 0.0 else 1.0}
 	elif t == "extrude" and bool(f.get("both", false)) and String(f.get("op", "")) == "cut":
 		var sk := Part.feature(_rec(), String(f.get("sketch", "")))
 		var ents: Array = sk.get("ents", [])
@@ -978,7 +990,7 @@ func _make(which: String) -> void:
 			return
 		armed = ""
 		if int(pu.res.get("bodies", 0)) < 2:
-			_say("Make two solid pieces first, then stick them together")
+			_say("Stick together needs two separate pieces: draw a new shape apart from the solid, Pull it up, then press Stick together again")   # FWRENCH: the old words did not say how to get a second piece
 			return
 		armed = "stick"
 		_say(_arm_words("stick"))
@@ -1143,7 +1155,7 @@ func _pull(rec: Dictionary) -> String:
 	var err := _last_error(rec, String(f["id"]))
 	if err != "":
 		return "That shape is not closed, so it cannot be pulled up: drag back to the start to close it"
-	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": 40.0, "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
+	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
 	if through:
 		_say("Pulled out both ways from the middle: use the slider for how thick, or press Mirror that or Cut a hole next")
 	elif on_face:
@@ -1401,15 +1413,26 @@ func _hole(rec: Dictionary) -> String:
 	var c := bb.get_center() / Part.MM
 	var floor_made := _base_plane(rec, _newest_sketch_plane(rec)) == "top"   # a body drawn on the floor is cut DOWN through (its hole runs up/down)
 	var r := clampf(minf(bb.size.x, bb.size.z if floor_made else bb.size.y) / Part.MM * 0.12, 10.0, 40.0)   # the radius in mm: a hole 2 to 8 cm across
+	var cen := Vector2(c.x, -c.z) if floor_made else Vector2(c.x, c.y)   # the hole's middle on the sketch plane
+	if m != null and m.S != null and m.S.kind == "building":   # FROOM: on a building the hole goes through the middle of the newest piece (a wall gets its hole in the wall), not the middle of the whole room
+		var ls := _last_sketch(rec)
+		var pts := _sketch_pts(ls)
+		if not pts.is_empty():
+			var lo: Vector2 = pts[0]
+			var hi: Vector2 = pts[0]
+			for q in pts:
+				lo = lo.min(q)
+				hi = hi.max(q)
+			cen = (lo + hi) * 0.5
 	var s: Dictionary
 	var f: Dictionary
 	# "both" splits dist half each way from the sketch plane: twice the body's farthest reach + 1 cm, so a tall body is cut all the way
 	if floor_made:
-		s = Part.new_feature(rec, "sketch", {"plane": "top", "ents": [{"k": "circle", "c": Part.arr2(Vector2(c.x, -c.z)), "r": snappedf(r, 0.5)}], "dims": []})   # the top plane's v axis is -Z
+		s = Part.new_feature(rec, "sketch", {"plane": "top", "ents": [{"k": "circle", "c": Part.arr2(cen), "r": snappedf(r, 0.5)}], "dims": []})   # the top plane's v axis is -Z
 		rec["features"].append(s)
 		f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.y), absf(bb.end.y)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
 	else:
-		s = Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "circle", "c": Part.arr2(Vector2(c.x, c.y)), "r": snappedf(r, 0.5)}], "dims": []})
+		s = Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "circle", "c": Part.arr2(cen), "r": snappedf(r, 0.5)}], "dims": []})
 		rec["features"].append(s)
 		f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.z), absf(bb.end.z)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
 	rec["features"].append(f)
@@ -1420,6 +1443,25 @@ func _hole(rec: Dictionary) -> String:
 	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}   # the slider is the hole's WIDTH (cm): radius mm = width cm * 5
 	_say("A hole straight through: use the slider for its size, or press Mirror that or Repeat it next")
 	return ""
+
+
+## FROOM: the newest sketch step of a record ({} when none)
+func _last_sketch(rec: Dictionary) -> Dictionary:
+	var out := {}
+	for f in rec.get("features", []):
+		if f["t"] == "sketch":
+			out = f
+	return out
+
+
+## FROOM: the corner and centre points of a sketch's shapes (sketch units), [] for none
+func _sketch_pts(sk: Dictionary) -> Array:
+	var out := []
+	for e in sk.get("ents", []):
+		for k in ["a", "b", "c"]:
+			if e.has(k):
+				out.append(Vector2(float(e[k][0]), float(e[k][1])))
+	return out
 
 
 ## EDOOR: the newest step is a sketch drawn ON A FACE (a plane feature with "out") that no pull uses yet
@@ -1982,9 +2024,9 @@ func _finish_curve() -> void:
 		if (q as Vector2).x <= 1.0:
 			spin_ok = true
 	if spin_ok:
-		_say("Curvy line drawn: Spin it round makes a bowl, or Pull it up makes it solid" if closed else "Curvy line drawn: Spin it round for a bowl, or drag back to the start to close it")
+		_say("Curvy line drawn: Spin it round makes a bowl, or Pull it up makes it solid" if closed else "Curvy line drawn: for a pipe, Sweep the round shape along it (Expert: CREATE, Sweep). Or drag back to the start to close it")
 	else:
-		_say("Curvy line drawn: Pull it up makes it solid" if closed else "Curvy line drawn: drag back to the start to close it")
+		_say("Curvy line drawn: Pull it up makes it solid" if closed else "Curvy line drawn: for a pipe, Sweep the round shape along it (Expert: CREATE, Sweep). Or drag back to the start to close it")   # FPIPE: an open line's next step names the pipe (a sweep), not only the closing
 
 
 ## the drawn points kept for the spline (at most maxn, first and last always): the points that bend the line most, so a rim or a
@@ -2120,12 +2162,23 @@ func _frame_step() -> void:
 
 ## the free view: the clear view minus the MAKE row above and the side panel at the right, minus the status line at the bottom
 func free_rect() -> Rect2:
-	var top := _cl.position.y + 4.0 + MAKE_H + 8.0
-	for c in [hint, hole_box, split_box, shape_box, colour_box, repeat_box, stick_box]:   # the words and the chip rows under the MAKE row: the part sits below them
-		if c != null and (c as Control).visible:                               # (ewalk4: the Through / Hollow inside chips covered the mug's rim)
-			top = maxf(top, (c as Control).get_global_rect().end.y + 8.0)
+	var boxes := [hint, hole_box, split_box, shape_box, colour_box, repeat_box, stick_box]   # the words and the chip rows under the MAKE row: the part sits below them
+	var top := _free_top(boxes)                                                              # (ewalk4: the Through / Hollow inside chips covered the mug's rim)
+	# FSHELF: the Repeat row sits at the left under the words; open, its bottom left the free view under 0 px high (no framing, the copies
+	# of a row stayed off screen). When that happens the row does not push the view down (it floats over the left of the grid)
+	if _cl.end.y - 70.0 - top < 120.0:
+		top = _free_top(boxes.filter(func(c): return c != repeat_box))
 	var x1 := _cl.end.x - PW - 16.0
 	return Rect2(_cl.position.x + 12.0, top, x1 - _cl.position.x - 12.0, _cl.end.y - 70.0 - top)
+
+
+## the top edge of the free view: under the MAKE row and under each visible panel in boxes
+func _free_top(boxes: Array) -> float:
+	var top := _cl.position.y + 4.0 + MAKE_H + 8.0
+	for c in boxes:
+		if c != null and (c as Control).visible:
+			top = maxf(top, (c as Control).get_global_rect().end.y + 8.0)
+	return top
 
 
 ## the ease in progress: one step per frame toward its end pose (smoothstep), then it is cleared
@@ -2311,7 +2364,7 @@ func _chrome_sync() -> void:
 	elif not res.is_empty() and int(res.get("bodies", 0)) > 0:
 		text = "Press a button above to change it, or pick a shape on the right"   # a part of the user's own (no template): not "draw a shape"
 	else:
-		text = "Pick a shape on the right, or press Draw shape"
+		text = "Press Draw shape, then drag on the grid (or pick a template on the right)"   # FKEY: a beginner sees the verb first, not a shape that is not there
 	hint_l.text = text
 	var errs: Dictionary = res.get("errors", {}) if not res.is_empty() else {}
 	var bodies := int(res.get("bodies", 0)) if not res.is_empty() else 0
