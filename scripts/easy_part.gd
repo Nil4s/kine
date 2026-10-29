@@ -1193,7 +1193,13 @@ func _slot_cut(rec: Dictionary, sk: Dictionary, dist: float) -> bool:
 	var in_x := lo.x > bb.position.x + eps and hi.x < bb.end.x - eps
 	var past_x := (lo.x < x0 or hi.x > x1) and hi.x > x0 and lo.x < x1   # runs past an end along x, and overlaps the solid
 	var past_z := (lo.y < z0 or hi.y > z1) and hi.y > z0 and lo.y < z1
-	if not ((in_z and past_x) or (in_x and past_z)):
+	# FWRENCH4: a slot must go DEEP into the solid (a third of its length inside it). A box that mostly sticks OUT past an end and only
+	# clips the edge (the glasses arm at the ring's outer edge) is a pull that goes out: it adds, it does not cut
+	var reach_x := (minf(hi.x, bb.end.x) - maxf(lo.x, bb.position.x)) / maxf(hi.x - lo.x, 1e-9)
+	var reach_z := (minf(hi.y, bb.end.z) - maxf(lo.y, bb.position.z)) / maxf(hi.y - lo.y, 1e-9)
+	var deep_x := in_z and past_x and reach_x >= 1.0 / 3.0
+	var deep_z := in_x and past_z and reach_z >= 1.0 / 3.0
+	if not (deep_x or deep_z):
 		return false
 	var v0 := float(res["volume"])
 	var trial := rec.duplicate(true)
