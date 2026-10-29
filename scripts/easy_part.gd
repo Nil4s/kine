@@ -19,6 +19,7 @@ const REP_WORDS := {"count": ["Fewer", "More"], "gap": ["Closer", "Further apart
 const STICK_OPS := [["join", "Join", "Make the two pieces one solid"], ["cut", "Cut away", "Cut the second piece out of the first"], ["intersect", "Keep the overlap", "Keep only the part where the two pieces overlap"]]
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
 const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal): a wood brown, red > green > blue
+const TILT_DEG := 20.0           # Tilt it: the lean of the newest solid (degrees, sideways about its middle)
 const HOLLOW_MM := 3.0           # Hollow inside: the wall the shell starts with (the Wall slider moves it: 1 to 10 mm)
 const THROTTLE_MS := 100
 const SKY := Color("#73BFFF")
@@ -61,6 +62,8 @@ var shape_box: PanelContainer
 var shape_btns := {}
 var repeat_box: PanelContainer   # Repeat it: Row / Ring and the How many and Gap sliders (for the last Repeat it step, rep_id)
 var rep_btns := {}
+var tilt_box: PanelContainer     # Tilt it: one chip under the newest solid (a Spin or a Pull), leans it 20 degrees once
+var tilt_btn: Button
 var stick_box: PanelContainer    # Stick together: Join / Cut away / Keep the overlap, shown once two pieces are picked
 var stick_btns := {}
 var stick_picks: Array = []      # the body indices clicked in the view (the first = the target, the second = the tool)
@@ -254,6 +257,8 @@ func build(root: Control) -> void:
 	root.add_child(repeat_box)
 	stick_box = _stick_box()
 	root.add_child(stick_box)
+	tilt_box = _tilt_box()
+	root.add_child(tilt_box)
 	# the panel
 	panel = PanelContainer.new()
 	panel.name = "easypart_panel"
@@ -465,6 +470,53 @@ func _stick_box() -> PanelContainer:
 		h.add_child(b)
 		stick_btns[so[0]] = b
 	return box
+
+
+## TILT IT: the newest solid (a Pull it up or a Spin it round, not yet tilted) leans TILT_DEG about X through its middle. One step, once
+func _tilt_box() -> PanelContainer:
+	var box := PanelContainer.new()
+	box.name = "easypart_tilt"
+	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	box.visible = false
+	tilt_btn = _big_btn("easypart_tilt_it", "Tilt it 20 degrees", "Lean the newest solid 20 degrees, sideways, about its middle", _tilt_press)
+	tilt_btn.custom_minimum_size = Vector2(230, 44)
+	box.add_child(tilt_btn)
+	return box
+
+
+## the newest feature is a solid piece with no tilt yet: the Tilt it chip shows for it
+func _tilt_ok(rec: Dictionary) -> bool:
+	var feats: Array = rec.get("features", [])
+	if feats.is_empty():
+		return false
+	var f: Dictionary = feats[feats.size() - 1]
+	return String(f.get("t", "")) in ["extrude", "revolve"] and not bool(f.get("off", false)) and absf(float(f.get("tilt", 0.0))) < 1e-9 and String(f.get("op", "join")) != "cut"
+
+
+func _tilt_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	armed = ""
+	if not _tilt_ok(_rec()):
+		return
+	var snap := _rec().duplicate(true)
+	_begin("Tilt it")
+	var f: Dictionary = _rec()["features"][-1]
+	f["tilt"] = TILT_DEG
+	if _last_error(_rec(), String(f["id"])) != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("That piece cannot lean: it would not stay on the model")
+		return
+	_end()
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	_say("Tilted 20 degrees: the piece leans about its middle")
 
 
 func _big_btn(nm: String, txt: String, tip: String, f: Callable) -> Button:
@@ -2410,6 +2462,7 @@ func _process(_dt: float) -> void:
 	colour_box.visible = on and armed == "colour"
 	repeat_box.visible = on and armed == "" and rep_id != "" and not Part.feature(_rec(), rep_id).is_empty()
 	stick_box.visible = on and armed == "stick" and stick_picks.size() == 2
+	tilt_box.visible = on and armed == "" and _tilt_ok(_rec())
 	if not on:
 		return
 	if m.easy != null:
@@ -2764,6 +2817,8 @@ func layout(cl: Rect2) -> void:
 	repeat_box.position = Vector2(cl.position.x + 12.0, cl.end.y - repeat_box.size.y - 64.0)
 	stick_box.reset_size()
 	stick_box.position = Vector2(cl.position.x + 12.0, cl.end.y - stick_box.size.y - 64.0)
+	tilt_box.reset_size()
+	tilt_box.position = Vector2(cl.position.x + 12.0, cl.end.y - tilt_box.size.y - 64.0)
 	# the panel on the right, as tall as it needs; the words under the sliders go first when the room is short
 	var avail := cl.end.y - top - 4.0
 	panel.reset_size()
@@ -3423,7 +3478,7 @@ func _start_draft(p: Vector2) -> bool:
 
 func _over_ui(p: Vector2) -> bool:
 	# hint and status are WORDS only (a _pill: mouse_filter IGNORE, one Label, no button): a press under them is the grid's, not eaten
-	for c in [bar, make_box, panel, shape_box, colour_box, repeat_box, stick_box]:
+	for c in [bar, make_box, panel, shape_box, colour_box, repeat_box, stick_box, tilt_box]:
 		if (c as Control).visible and (c as Control).get_global_rect().has_point(p):
 			return true
 	return false
