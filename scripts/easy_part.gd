@@ -1296,7 +1296,9 @@ func _pull(rec: Dictionary) -> String:
 	# FWRENCH2: a jaw slot at the end of a solid CUTS it; FFLAT: a floor shape pulled up beside the solids (not on a face, not sitting on one) is its OWN piece (op new): Stick together can join it
 	var slot := not on_face and not through and _slot_cut(rec, sk, dist)
 	var pull_op := "cut" if slot else "join"
-	if not slot and not on_face and not through and not _sits_on_body(rec, sk) and _beside_body(rec, sk) and int(Part.replay(rec).get("bodies", 0)) > 0:
+	# FFLAT: the sketch's 2D y is the world height only on an UPRIGHT plane. A floor drawing's panel never "sits on" a body here (its 2D y runs along the depth)
+	var floor_plane := absf((Part.resolve_plane(rec, String(sk.get("plane", "front")))["n"] as Vector3).y) > 0.5
+	if not slot and not on_face and not through and (floor_plane or not _sits_on_body(rec, sk)) and _beside_body(rec, sk) and int(Part.replay(rec).get("bodies", 0)) > 0:
 		pull_op = "new"
 	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": pull_op})
 	rec["features"].append(f)
@@ -1397,11 +1399,6 @@ func _slot_cut(rec: Dictionary, sk: Dictionary, dist: float) -> bool:
 func _sits_on_body(rec: Dictionary, sk: Dictionary) -> bool:
 	var bb: AABB = Part.replay(rec).get("aabb", AABB())
 	if bb.size == Vector3.ZERO:
-		return false
-	# FFLAT: the sketch's 2D y is the world height only on an UPRIGHT plane (normal level). A floor drawing's 2D y runs along the depth,
-	# so a floor panel behind the shelves used to read as "sitting on" them and merge into the one solid
-	var pl := Part.resolve_plane(rec, String(sk.get("plane", "front")))
-	if absf((pl["n"] as Vector3).y) > 0.5:
 		return false
 	var low := INF
 	for e in sk["ents"]:
