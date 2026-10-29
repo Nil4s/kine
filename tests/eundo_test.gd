@@ -23,6 +23,15 @@ func idle(n := 3) -> void:
 		await process_frame
 
 
+## navigation only: wait until the camera has stopped easing (the Easy framing ease and the view tween), so a pick is read at the view it lands on
+func settle_view(cap_ms := 6000) -> void:
+	# the ease runs on real time (0.3 s), so the wait is in real milliseconds, not frames
+	var t0 := Time.get_ticks_msec()
+	while Time.get_ticks_msec() - t0 < cap_ms and (not m.bld.part.ep._ease.is_empty() or (m._view_tw != null and m._view_tw.is_valid() and m._view_tw.is_running())):
+		await process_frame
+	await idle(2)
+
+
 func ev_mouse(p: Vector2, down: bool) -> void:
 	var e := InputEventMouseButton.new()
 	e.button_index = MOUSE_BUTTON_LEFT
@@ -46,6 +55,7 @@ func ev_move(p: Vector2, held := true) -> void:
 
 
 func click_at(p: Vector2) -> void:
+	await settle_view()   # the camera's ease must end before a click lands: the shapes are drawn where the view is, not where it is on the way
 	await ev_move(p, false)
 	await ev_mouse(p, true)
 	await ev_mouse(p, false)
@@ -120,6 +130,7 @@ func press_drag(nm: String, pts: Array) -> void:
 	var pre_n: int = m.undo.size()
 	var pv := vol()
 	var pb := bodies()
+	await settle_view()   # navigation only: the drag's points are read at the settled view
 	await drag_pts(pts)
 	var dn: int = m.undo.size() - pre_n
 	var post := JSON.stringify(rec())
@@ -267,6 +278,7 @@ func _init() -> void:
 		for fx in [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9]:
 			if picks.size() >= 2:
 				break
+			await settle_view()   # navigation only: the camera ease (time-based, 0.3 s) must end before the hit is read, or the click misses
 			var p := Vector2(cl.position.x + cl.size.x * fx, cl.position.y + cl.size.y * fy)
 			if ep._over_ui(p):
 				continue
