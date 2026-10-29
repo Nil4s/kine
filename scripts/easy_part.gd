@@ -245,7 +245,7 @@ func build(root: Control) -> void:
 	var sh := HBoxContainer.new()
 	sh.add_theme_constant_override("separation", 6)
 	shape_box.add_child(sh)
-	for s in [["box", "Box"], ["round", "Round"], ["pointy", "Pointy"]]:
+	for s in [["box", "Box"], ["round", "Round"], ["pointy", "Pointy"], ["oval", "Oval"]]:   # FSPOON: Oval = an ellipse fitted to the drag box (a bowl, a pad)
 		var b := Button.new()
 		b.name = "easypart_shape_" + String(s[0])
 		b.text = String(s[1])
@@ -1224,6 +1224,9 @@ func _hollow(rec: Dictionary) -> String:
 	var too_thin := "That solid is too thin to hollow out with a 3 mm wall: Pull it up taller, then press Cut a hole again"
 	if thin <= 2.0 * HOLLOW_MM:
 		return too_thin
+	var last: Dictionary = rec["features"][-1] if not rec["features"].is_empty() else {}
+	if String(last.get("t", "")) == "loft" and (last.get("sketches", []) as Array).size() == 2:
+		return _hollow_loft(rec, last)   # a blended bowl: Part's shell on a loft takes minutes, so the wall is an inner loft cut out instead
 	var f := Part.new_feature(rec, "shell", {"body": n - 1, "open": "+y", "thick": HOLLOW_MM})
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
@@ -1261,6 +1264,98 @@ func _hollow_cup(rec: Dictionary, too_thin: String) -> String:
 	tweak = {"id": f["id"], "field": "dist", "label": "How deep", "unit": "cm", "lo": 0.1, "hi": 40.0, "step": 0.1, "scale": 10.0, "words": ["Shallower", "Deeper"], "sgn": -1.0}
 	_say("Hollowed out, open at the top: use the slider for how deep")
 	return ""
+
+
+## HOLLOW A BLEND (FSPOON): the inner loft of the blend's two shapes, each pulled in by HOLLOW_MM (the lower one lifted HOLLOW_MM off
+## the bottom, the upper one carried past the top), cut out of the solid: open at the top, a 3 mm wall. Part's shell on the same loft
+## took about 3 minutes per replay; this cut takes a few seconds. The wall is fixed (no Wall slider)
+func _hollow_loft(rec: Dictionary, lf: Dictionary) -> String:
+	var a: Dictionary = Part.feature(rec, String(lf["sketches"][0]))
+	var b: Dictionary = Part.feature(rec, String(lf["sketches"][1]))
+	var ha := _half_mm(a["ents"])
+	var hb := _half_mm(b["ents"])
+	var height := maxf(absf(_plane_mm(rec, b) - _plane_mm(rec, a)), 1.0)
+	var taper := maxf((ha - hb) / height, 0.0)   # the blend narrows by this much per mm of height: the top of the cut follows it
+	var ia := _inner_sketch(rec, a, HOLLOW_MM, HOLLOW_MM)
+	var ib := _inner_sketch(rec, b, 20.0, HOLLOW_MM + taper * 20.0)
+	if (ia["ents"] as Array).is_empty() or (ib["ents"] as Array).is_empty():
+		return "Those two shapes are too small to hollow out with a 3 mm wall: draw bigger shapes, then press Blend two shapes again"
+	var f := Part.new_feature(rec, "loft", {"sketches": [ia["id"], ib["id"]], "ruled": true, "op": "cut"})
+	rec["features"].append(f)
+	if _last_error(rec, String(f["id"])) != "":
+		return "That blend is too thin to hollow out with a 3 mm wall: draw bigger shapes, then press Blend two shapes again"
+	tweak = {}
+	_say("Hollowed out, open at the top: the wall is 3 mm")
+	return ""
+
+
+## the offset of a sketch's plane along its normal (mm)
+func _plane_mm(rec: Dictionary, sk: Dictionary) -> float:
+	var pid := String(sk["plane"])
+	return 0.0 if pid in Part.PLANES else float(Part.feature(rec, pid).get("mm", 0.0))
+
+
+## a sketch on a plane lift mm above its own, its outline pulled in by shrink mm (a new plane and a new sketch; the sketch is returned)
+func _inner_sketch(rec: Dictionary, sk: Dictionary, lift: float, shrink: float) -> Dictionary:
+	var pid := String(sk["plane"])
+	var pl := Part.new_feature(rec, "plane", {"from": _base_plane(rec, pid), "mm": _plane_mm(rec, sk) + lift})
+	rec["features"].append(pl)
+	var s2 := Part.new_feature(rec, "sketch", {"plane": String(pl["id"]), "ents": _shrunk(sk["ents"], shrink), "dims": []})
+	rec["features"].append(s2)
+	return s2
+
+
+## the middle and the half of the smaller side (mm) of a sketch's entities: a circle's half is its radius
+func _mid_half(ents: Array) -> Array:
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	var rad := -1.0
+	for e in ents:
+		if String((e as Dictionary).get("k", "")) == "circle":
+			rad = maxf(rad, float(e["r"]))
+			lo = lo.min(Vector2(float(e["c"][0]), float(e["c"][1])))
+			hi = hi.max(Vector2(float(e["c"][0]), float(e["c"][1])))
+			continue
+		for q in _ent_pts(e):
+			lo = lo.min(Vector2(float(q[0]), float(q[1])))
+			hi = hi.max(Vector2(float(q[0]), float(q[1])))
+	if lo.x > hi.x:
+		return [Vector2.ZERO, 0.0]
+	var half := minf(hi.x - lo.x, hi.y - lo.y) * 0.5
+	if rad >= 0.0:
+		half = rad
+	return [(lo + hi) * 0.5, half]
+
+
+## the half of a sketch's smaller side (mm): the wall needs room inside it
+func _half_mm(ents: Array) -> float:
+	return float(_mid_half(ents)[1])
+
+
+## the outline pulled in by d mm: its points scale about the middle (a circle's radius less d); [] when d leaves nothing
+func _shrunk(ents: Array, d: float) -> Array:
+	var mh := _mid_half(ents)
+	var c: Vector2 = mh[0]
+	var half: float = mh[1]
+	if half <= d + 1.0:
+		return []
+	var k := (half - d) / half
+	var out := []
+	for e in ents:
+		var e2: Dictionary = (e as Dictionary).duplicate(true)
+		if String(e2.get("k", "")) == "circle":
+			e2["r"] = float(e2["r"]) - d
+		else:
+			for key in ["a", "b"]:
+				if e2.has(key) and e2[key] is Array:
+					e2[key] = Part.arr2(c + (Vector2(float(e2[key][0]), float(e2[key][1])) - c) * k)
+			if e2.has("pts"):
+				var np := []
+				for q in e2["pts"]:
+					np.append(Part.arr2(c + (Vector2(float(q[0]), float(q[1])) - c) * k))
+				e2["pts"] = np
+		out.append(e2)
+	return out
 
 
 func _arm_words(a: String) -> String:
@@ -1558,8 +1653,11 @@ func _ent_pts(e: Dictionary) -> Array:
 
 
 func _round(rec: Dictionary) -> String:
-	var res := Part.replay(rec, -1, {"edges": true})
+	# FSPOON: the edges and the kept solid come from ONE replay (each replay of a part with a hollow or a blend is seconds)
+	var res := Part.replay(rec, -1, {"edges": true, "keep": true})
+	var kept: Array = res.get("ids", [])
 	if int(res["bodies"]) == 0:
+		Part.release_kept(kept)
 		return "Nothing solid to round yet. Press Pull it up first"
 	var es: Array = res["edges"]
 	var aabb: AABB = res["aabb"]
@@ -1569,7 +1667,6 @@ func _round(rec: Dictionary) -> String:
 		longest = maxf(longest, float(e["len"]))
 	# EROUND: the edges are tried on ONE kept replay of the body as it is before the round (a kernel fillet per try), not a replay of the whole
 	# record per try: a press on a part of 25+ steps took minutes that way. The search stops at ROUND_BUDGET_US and keeps the best found
-	var kept: Array = Part.replay(rec, -1, {"keep": true}).get("ids", [])
 	var done := false
 	if not kept.is_empty():
 		done = _round_on(rec, int(kept[0]), es, small, longest)
@@ -3147,7 +3244,7 @@ func _face_hit(p: Vector2) -> Dictionary:
 func _face_hit_at(p: Vector2) -> Dictionary:
 	if not Part.available():
 		return {}
-	var faces: Array = Part.body_faces(_rec(), -1)
+	var faces: Array = _shown_faces()
 	var ro: Vector3 = m.cam.project_ray_origin(p)
 	var rd: Vector3 = m.cam.project_ray_normal(p)
 	var best_d := INF
@@ -3202,6 +3299,26 @@ func _face_hit_at(p: Vector2) -> Dictionary:
 	var pl := Part.plane(FACE_BASE[ax])
 	pl["o"] = (pl["o"] as Vector3) + (pl["n"] as Vector3) * mm * Part.MM
 	return {"pl": pl, "base": FACE_BASE[ax], "mm": mm, "out": out}
+
+
+## FSPOON: the triangles a press is tested against: the shown mesh of the last step's replay (a press costs no replay of a part
+## with a hollow or a blend: each one is seconds). A step not yet shown (a slider edit still pending) replays the record as before
+func _shown_faces() -> Array:
+	var mesh: Variant = pu.res.get("mesh") if pu != null else null
+	if not (mesh is ArrayMesh) or _dirty or (mesh as ArrayMesh).get_surface_count() == 0:
+		return Part.body_faces(_rec(), -1)
+	var tris := PackedVector3Array()
+	var am := mesh as ArrayMesh
+	for sf in am.get_surface_count():
+		var arr := am.surface_get_arrays(sf)
+		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var idx = arr[Mesh.ARRAY_INDEX]
+		if idx == null:
+			tris.append_array(verts)
+		else:
+			for k in (idx as PackedInt32Array):
+				tris.append(verts[k])
+	return [tris]
 
 
 const FACE_BASE := ["right", "top", "front"]   # the Part plane each axis is drawn on (+X, +Y, +Z)
@@ -3730,7 +3847,21 @@ func _finish_draw() -> void:
 	_draft = {}
 	var ent := {}
 	var ents: Array = []
-	if sh == "box" or sh == "pointy":
+	if sh == "oval":
+		var so := _sides(a, b, pl)
+		if so.has("thin"):
+			_say("Drag a bit wider: both sides must be at least 2 mm (now %s mm)" % _mm_words(float(so["thin"])))
+			return
+		b = so["b"]
+		var oc := (a + b) * 0.5
+		var orx := absf(b.x - a.x) * 0.5
+		var ory := absf(b.y - a.y) * 0.5
+		var opts: Array = []
+		for i in 16:   # 16 points round the ellipse: a closed spline through them is the oval outline
+			var t := TAU * float(i) / 16.0
+			opts.append(Part.arr2(Vector2(oc.x + orx * cos(t), oc.y + ory * sin(t))))
+		ents = [{"k": "bspline", "pts": opts, "closed": true}]
+	elif sh == "box" or sh == "pointy":
 		var sd := _sides(a, b, pl)
 		if sd.has("thin"):
 			_say("Drag a bit wider: both sides must be at least 2 mm (now %s mm)" % _mm_words(float(sd["thin"])))
@@ -3749,7 +3880,7 @@ func _finish_draw() -> void:
 		ent = {"k": "circle", "c": Part.arr2(a), "r": snappedf(r, 0.5)}
 	_begin("Draw shape")
 	var rec := pu._ensure()
-	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": ents if sh == "pointy" else [ent], "dims": []}))
+	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": ents if not ents.is_empty() else [ent], "dims": []}))
 	_end()
 	armed = ""
 	tweak = {}
