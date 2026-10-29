@@ -843,6 +843,37 @@ static func _tri_dist(A: PackedVector3Array, B: PackedVector3Array) -> float:
 	return best
 
 
+## true when some triangle of A is within eps of some triangle of B (the same answer as _tri_dist(A, B) <= eps, found without the full
+## pair scan: the boxes of the two solids, then each triangle's box grown by eps, go first; a far pair of pieces costs one box test)
+static func tris_touch(A: PackedVector3Array, B: PackedVector3Array, eps: float) -> bool:
+	if A.is_empty() or B.is_empty():
+		return false
+	var ba := AABB(A[0], Vector3.ZERO)
+	for v in A:
+		ba = ba.expand(v)
+	var bb := AABB(B[0], Vector3.ZERO)
+	for v in B:
+		bb = bb.expand(v)
+	if not ba.grow(eps).intersects(bb):
+		return false
+	var tb: Array = []
+	for j in range(0, B.size(), 3):
+		var t := AABB(B[j], Vector3.ZERO).expand(B[j + 1]).expand(B[j + 2])
+		if t.grow(eps).intersects(ba):
+			tb.append(j)
+	for i in range(0, A.size(), 3):
+		var ta := AABB(A[i], Vector3.ZERO).expand(A[i + 1]).expand(A[i + 2]).grow(eps)
+		if not ta.intersects(bb):
+			continue
+		for j in tb:
+			var q := AABB(B[j], Vector3.ZERO).expand(B[j + 1]).expand(B[j + 2])
+			if not ta.intersects(q):
+				continue
+			if _tri_tri(A[i], A[i + 1], A[i + 2], B[j], B[j + 1], B[j + 2]) <= eps:
+				return true
+	return false
+
+
 static func _tri_tri(a0: Vector3, a1: Vector3, a2: Vector3, b0: Vector3, b1: Vector3, b2: Vector3) -> float:
 	var d := INF
 	for p in [a0, a1, a2]:

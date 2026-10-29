@@ -2429,8 +2429,8 @@ func _stick(op: String, label: String) -> void:
 static func _join_gap(before: Array, picked: Array) -> String:
 	if picked.size() < 2:
 		return ""
-	var gap := Part._tri_dist(before[int(picked[0])], before[int(picked[1])])
-	if gap > 0.00005:
+	# the same test as the gap under 0.05 mm (tris_touch finds it without the full pair scan: a Join of two big pieces froze the app)
+	if not Part.tris_touch(before[int(picked[0])], before[int(picked[1])], 0.00005):
 		return "the two pieces do not touch, so Join cannot make one solid: move one until it touches the other, then press Stick together again"
 	return ""
 
