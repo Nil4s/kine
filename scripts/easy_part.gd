@@ -207,7 +207,7 @@ func build(root: Control) -> void:
 	var sh := HBoxContainer.new()
 	sh.add_theme_constant_override("separation", 6)
 	shape_box.add_child(sh)
-	for s in [["box", "Box"], ["round", "Round"], ["pointy", "Pointy"]]:
+	for s in [["box", "Box"], ["round", "Round"], ["pointy", "Pointy"], ["oval", "Oval"]]:   # FSPOON: Oval = an ellipse fitted to the drag box (a bowl, a pad)
 		var b := Button.new()
 		b.name = "easypart_shape_" + String(s[0])
 		b.text = String(s[1])
@@ -3207,7 +3207,21 @@ func _finish_draw() -> void:
 	_draft = {}
 	var ent := {}
 	var ents: Array = []
-	if sh == "box" or sh == "pointy":
+	if sh == "oval":
+		var so := _sides(a, b, pl)
+		if so.has("thin"):
+			_say("Drag a bit wider: both sides must be at least 2 mm (now %s mm)" % _mm_words(float(so["thin"])))
+			return
+		b = so["b"]
+		var oc := (a + b) * 0.5
+		var orx := absf(b.x - a.x) * 0.5
+		var ory := absf(b.y - a.y) * 0.5
+		var opts: Array = []
+		for i in 16:   # 16 points round the ellipse: a closed spline through them is the oval outline
+			var t := TAU * float(i) / 16.0
+			opts.append(Part.arr2(Vector2(oc.x + orx * cos(t), oc.y + ory * sin(t))))
+		ents = [{"k": "bspline", "pts": opts, "closed": true}]
+	elif sh == "box" or sh == "pointy":
 		var sd := _sides(a, b, pl)
 		if sd.has("thin"):
 			_say("Drag a bit wider: both sides must be at least 2 mm (now %s mm)" % _mm_words(float(sd["thin"])))
@@ -3226,7 +3240,7 @@ func _finish_draw() -> void:
 		ent = {"k": "circle", "c": Part.arr2(a), "r": snappedf(r, 0.5)}
 	_begin("Draw shape")
 	var rec := pu._ensure()
-	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": ents if sh == "pointy" else [ent], "dims": []}))
+	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": ents if not ents.is_empty() else [ent], "dims": []}))
 	_end()
 	armed = ""
 	tweak = {}
