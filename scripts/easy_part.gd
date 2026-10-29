@@ -2498,6 +2498,9 @@ func layout(cl: Rect2) -> void:
 	var narrow := get_viewport().get_visible_rect().size.x < NARROW_W   # FMOBILE: at 1024 wide the bar row is wider than the window: its buttons shrink, the title shortens
 	use_scene_btn.custom_minimum_size.x = 120.0 if narrow else 150.0
 	give_btn.custom_minimum_size.x = 140.0 if narrow else 170.0
+	# FMOBILE: at 1024 wide the Repeat it row (Row Up Forward Ring Corners) is narrower, so it fits left of the panel instead of under it
+	for rb in rep_btns.values():
+		(rb as Button).custom_minimum_size.x = 92.0 if narrow else 110.0
 	export_btn.custom_minimum_size.x = 96.0 if narrow else 110.0
 	title_l.clip_text = narrow
 	title_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if narrow else TextServer.OVERRUN_NO_TRIMMING
