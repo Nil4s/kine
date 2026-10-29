@@ -2124,6 +2124,8 @@ func _frame_grid() -> void:
 	if _grid_framed:
 		if fr.is_equal_approx(_grid_fr) or not _grid_auto():
 			return   # framed already, or the user has the view
+		if armed != "":
+			return   # a tool is armed (Draw, Curvy, Pull ...): the free view changes as its panel opens, and the view must not move under the clicks that follow
 	var e := 10 * 50.0 * Part.MM   # the floor grid's half side (scripts: _floor_sync, n = 10 lines of 5 cm)
 	var pose := _grid_pose(AABB(Vector3(-e, 0.0, -e), Vector3(2.0 * e, 0.0, 2.0 * e)), GRID_FILL)
 	if pose.is_empty():
