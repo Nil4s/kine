@@ -124,6 +124,7 @@ const FRAME_EASE := 0.3         # seconds the camera eases to a new framing (nev
 const FRAME_CHANGE := 0.25      # the box's diagonal must change this much to frame again (a small nudge moves nothing)
 var _fr_ref := AABB()           # the bounds the camera last framed (or the bounds on entry)
 var _fr_has := false
+var _fr_lk := ""               # EPANELVIEW: the left boxes shown when the camera last framed (see _frame_step)
 var _near_saved := -1.0         # the camera's near plane before Easy Part (put back when it is left)
 const FRAME_NEAR := 0.004
 const GRID_TILE_FILL := 0.95         # the empty part's grid tile fills this share of the free view (a flat square seen at a slant is narrow)
@@ -2774,6 +2775,11 @@ func _frame_step() -> void:
 		_fr_has = true
 		return
 	var ref_len := _fr_ref.size.length()
+	var lk := str(repeat_box.visible) + str(stick_box.visible)   # EPANELVIEW: a Repeat it / Stick together box opening or closing changes the free view: frame again
+	if lk != _fr_lk:
+		_fr_lk = lk
+		_fr_ref = AABB()
+		ref_len = 0.0
 	if len < 1e-4:
 		_fr_ref = bb   # an empty part: nothing to frame yet
 		_frame_grid()  # GRIDFRAME: its floor grid is framed instead (once per visit)
@@ -2801,8 +2807,14 @@ func free_rect() -> Rect2:
 	# of a row stayed off screen). When that happens the row does not push the view down (it floats over the left of the grid)
 	if _cl.end.y - 70.0 - top < 120.0:
 		top = _free_top(boxes.filter(func(c): return c != repeat_box))
+	var x0 := _cl.position.x + 12.0
 	var x1 := _cl.end.x - PW - 16.0
-	return Rect2(_cl.position.x + 12.0, top, x1 - _cl.position.x - 12.0, _cl.end.y - 70.0 - top)
+	# EPANELVIEW: an open Repeat it / Stick together box at the lower left takes its columns out of the free view (the part is framed to its right)
+	for bx in [repeat_box, stick_box]:
+		var c := bx as Control
+		if c != null and c.visible and c.position.y < _cl.end.y - 70.0 and c.position.y + c.size.y > top:
+			x0 = maxf(x0, c.position.x + c.size.x + 8.0)
+	return Rect2(x0, top, x1 - x0, _cl.end.y - 70.0 - top)
 
 
 ## the top edge of the free view: under the MAKE row and under each visible panel in boxes
