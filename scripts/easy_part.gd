@@ -1138,9 +1138,39 @@ func _hollow(rec: Dictionary) -> String:
 	var f := Part.new_feature(rec, "shell", {"body": n - 1, "open": "+y", "thick": HOLLOW_MM})
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
-		return too_thin
+		rec["features"].pop_back()   # the kernel's shell refuses a cup standing on a base (it picks the base's ring for the open top): cut the cup's inside instead
+		return _hollow_cup(rec, too_thin)
 	tweak = {"id": f["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
 	_say("Hollowed out, open at the top: use the slider for the wall")
+	return ""
+
+
+## FCANDLE: Hollow inside for a cup on a base (the newest round piece on a solid): a circle HOLLOW_MM inside the cup's own shape, cut down
+## from the top of the whole solid to HOLLOW_MM above the cup's floor. The cup keeps its floor and wall and is open at the top. "" or why not
+func _hollow_cup(rec: Dictionary, too_thin: String) -> String:
+	var sk := _last_sketch(rec)
+	if sk.is_empty() or (sk["ents"] as Array).size() != 1 or String((sk["ents"][0] as Dictionary).get("k", "")) != "circle":
+		return too_thin
+	var ent: Dictionary = sk["ents"][0]
+	var pl := Part.resolve_plane(rec, String(sk.get("plane", "top")))
+	var floor_mm: float = float(pl["o"].y) / Part.MM   # the cup's floor: the plane it was drawn on (mm)
+	var top_mm: float = Part.replay(rec).get("aabb", AABB()).end.y / Part.MM
+	var r_in := float(ent.get("r", 0.0)) - HOLLOW_MM
+	var depth := top_mm - (floor_mm + HOLLOW_MM)
+	if r_in <= 1.0 or depth <= 1.0:
+		return too_thin
+	var before := float(pu.replay_full(rec)["volume"])
+	var pf := Part.new_feature(rec, "plane", {"from": "top", "mm": snappedf(top_mm, 0.1)})
+	rec["features"].append(pf)
+	var c: Array = ent.get("c", [0.0, 0.0])
+	var s := Part.new_feature(rec, "sketch", {"plane": String(pf["id"]), "ents": [{"k": "circle", "c": c.duplicate(), "r": snappedf(r_in, 0.1)}], "dims": []})
+	rec["features"].append(s)
+	var f := Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": -snappedf(depth, 0.1), "both": false, "op": "cut"})
+	rec["features"].append(f)
+	if _last_error(rec, String(f["id"])) != "" or float(pu.replay_full(rec)["volume"]) >= before - 1e-12:
+		return too_thin
+	tweak = {"id": f["id"], "field": "dist", "label": "How deep", "unit": "cm", "lo": 0.1, "hi": 40.0, "step": 0.1, "scale": 10.0, "words": ["Shallower", "Deeper"], "sgn": -1.0}
+	_say("Hollowed out, open at the top: use the slider for how deep")
 	return ""
 
 
