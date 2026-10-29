@@ -154,8 +154,8 @@ func build(root: Control) -> void:
 	row.add_child(title_l)
 	undo_btn = _bar_btn("Undo", "Take back the last change", func(): m._undo())
 	redo_btn = _bar_btn("Redo", "Put back what Undo took back", func(): m._redo())
-	use_scene_btn = _bar_btn("Use in a scene", "Put this part into the scene as a prop", _use_scene)
-	use_scene_btn.custom_minimum_size.x = 150.0
+	use_scene_btn = _bar_btn("Save and use in a scene", "Save this part to My parts, then put it into the scene as a prop", _use_scene)   # SAVEWORD: a beginner looks for Save; "Use in a scene" stays a substring
+	use_scene_btn.custom_minimum_size.x = 230.0
 	dup_btn = _bar_btn("Duplicate", "Make a second copy of the whole part, beside it. Undo takes the copy back", func(): _make("duplicate"))   # FDUP: beside Undo and Redo (the MAKE row stays six-plus-six)
 	dup_btn.name = "easypart_duplicate"
 	dup_btn.custom_minimum_size.x = 120.0
@@ -843,6 +843,8 @@ func tweak_last() -> void:
 	var t := String(f.get("t", ""))
 	if t == "shell":
 		tweak = {"id": f["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
+	elif t == "fillet" and f.has("r"):   # FSAVE: a reopened part keeps its Round slider (the same one _round_done gives a new round)
+		tweak = {"id": f["id"], "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
 	elif t == "extrude" and not bool(f.get("both", false)) and String(f.get("op", "join")) == "join" and f.has("dist"):
 		var dist := float(f["dist"])
 		tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": -1.0 if dist < 0.0 else 1.0}
