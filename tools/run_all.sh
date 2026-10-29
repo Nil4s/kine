@@ -279,3 +279,4 @@ EXTRA="$EXTRA ascene2:w"   # ASCENE2: a beginner makes three scenes, renames one
 EXTRA="$EXTRA abody2:w"   # ABODY2: an easy body by real clicks from the start screen: height, build, face, hair, save, reopen from My scenes: every change kept (tests/abody2_test.gd)
 EXTRA="$EXTRA fglasses:w"   # FGLASSES: a beginner from the BUILDING card builds a pair of glasses by real clicks: bridge, ring, Cut a hole, arm, Mirror that (tests/fglasses_test.gd)
 EXTRA="$EXTRA fhandle:w"   # FHANDLE: a beginner from the BUILDING card builds a door handle by real clicks: a back plate, a closed Curvy loop pulled up as the lever (10 mm, from the plate top), Round the edges, Mirror that; one undo step (tests/fhandle_test.gd)
+EXTRA="$EXTRA fflat:w"   # FFLAT: a beginner builds a flat-pack shelf unit from the BUILDING card: base shelf, Repeat it Up x4, two sides and a back pulled beside it, Stick together to one body (tests/fflat_test.gd)
