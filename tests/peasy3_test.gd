@@ -294,7 +294,7 @@ func _init() -> void:
 	await click_ctl(ep.rep_btns["row"])
 	ok(String(last_of(m.S.part, "pattern").get("kind", "")) == "linear", "2 Row again: the copies go back in a straight line")
 	# 3 STICK TOGETHER: two pieces from Cut in two
-	# two apart pieces: a new part, two boxes drawn and pulled up (the ring above sent copies far off)
+	# a new part, one box drawn and pulled up (the ring above sent copies far off)
 	m.S.part = {}
 	pu.upto = -1
 	pu.sync()
@@ -303,14 +303,11 @@ func _init() -> void:
 	await drag_pts([pa, pa + Vector2(40, 40), pa + Vector2(80, 80)])
 	await click_ctl(ep.make_btns["draw"])
 	await click_ctl(ep.make_btns["pull"])
-	await click_ctl(ep.make_btns["draw"])
-	var pb := free_at(0.6, 0.3)
-	await drag_pts([pb, pb + Vector2(40, 40), pb + Vector2(80, 80)])
-	await click_ctl(ep.make_btns["draw"])
-	await click_ctl(ep.make_btns["pull"])
-	await click_ctl(ep.make_btns["split"])   # the two boxes fuse into one body (one solid): Cut in two gives two pieces, one box each
+	# FLAMP (fixed): a second Pull that stands apart from the first is its own body now, and Join refuses two pieces that do not
+	# touch; so the stick bar cuts ONE box in two (two touching pieces, as before)
+	await click_ctl(ep.make_btns["split"])
 	var nb := int(pu.res.get("bodies", 0))
-	ok(nb == 2, "3 Cut in two between the two boxes: two pieces (%d) [%s]" % [nb, ep.hint_l.text])
+	ok(nb == 2, "3 Cut in two: two pieces (%d) [%s]" % [nb, ep.hint_l.text])
 	var ub5: int = m.undo.size()
 	await click_ctl(ep.make_btns["stick"])
 	ok(ep.armed == "stick" and not ep.stick_box.visible, "3 Stick together: armed, the three buttons wait for two picks [%s]" % ep.hint_l.text)
