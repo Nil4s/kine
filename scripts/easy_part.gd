@@ -18,6 +18,7 @@ const MAKE_H := 76.0
 const REP_WORDS := {"count": ["Fewer", "More"], "gap": ["Closer", "Further apart"]}   # the Repeat it sliders' ends
 const STICK_OPS := [["join", "Join", "Make the two pieces one solid"], ["cut", "Cut away", "Cut the second piece out of the first"], ["intersect", "Keep the overlap", "Keep only the part where the two pieces overlap"]]
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
+const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal): a wood brown, red > green > blue
 const HOLLOW_MM := 3.0           # Hollow inside: the wall the shell starts with (the Wall slider moves it: 1 to 10 mm)
 const THROTTLE_MS := 100
 const SKY := Color("#73BFFF")
@@ -376,6 +377,9 @@ func _colour_box() -> PanelContainer:
 		var b := _colour_btn(pr.to_lower(), pr, Color(0.85, 0.88, 0.92, 0.5) if pr == "Glass" else Color(0.7, 0.72, 0.76))
 		b.pressed.connect(_paint.bind(pr, Color.WHITE, pr))
 		h.add_child(b)
+	var wood := _colour_btn("wood", "Wood", WOOD_COLOUR)   # FTABLE2: a wood-brown paint (the Paint numbers), for a table top or a shelf
+	wood.pressed.connect(_paint.bind("Wood", WOOD_COLOUR, "Paint"))
+	h.add_child(wood)
 	return box
 
 
@@ -393,11 +397,17 @@ func _repeat_box() -> PanelContainer:
 	h.add_theme_constant_override("separation", 6)
 	vb.add_child(h)
 	for md in [["row", "Row", false], ["ring", "Ring", true]]:
-		var tip := "Copies in a straight row" if not md[2] else "Copies round the up axis, in a full turn"
+		var tip := "Copies sideways in a straight row" if not md[2] else "Copies round the up axis, in a full turn"
 		var b := _big_btn("easypart_rep_" + String(md[0]), String(md[1]), tip, _rep_mode.bind(bool(md[2])))
 		b.toggle_mode = true
 		h.add_child(b)
 		rep_btns[md[0]] = b
+		if md[0] == "row":   # EREPEATUP: Up and Forward sit beside Row (the same straight line, another direction)
+			for dd in [["up", "Up", "y", "Copies stacked upward, one on top of the other (a shelf stack)"], ["forward", "Forward", "z", "Copies straight forward, one behind the other"]]:
+				var ub := _big_btn("easypart_rep_" + String(dd[0]), String(dd[1]), String(dd[3]), _rep_dir.bind(String(dd[2])))
+				ub.toggle_mode = true
+				h.add_child(ub)
+				rep_btns[dd[0]] = ub
 	var cb := _big_btn("easypart_rep_corners", "Corners", "Four copies, one at each corner of the piece it sits on (the legs of a chair or table)", _rep_corners)
 	cb.toggle_mode = true
 	h.add_child(cb)
@@ -441,7 +451,7 @@ func _colour_btn(key: String, txt: String, c: Color) -> Button:
 	b.name = "easypart_colour_" + key
 	b.text = txt
 	b.focus_mode = Control.FOCUS_NONE
-	b.custom_minimum_size = Vector2(92, 44)
+	b.custom_minimum_size = Vector2(84, 44)   # 84 (was 92): eight chips with Wood still end left of the panel at 1280 x 720
 	b.add_theme_font_size_override("font_size", 16)
 	b.add_theme_color_override("font_color", Color(0.08, 0.08, 0.1))
 	var st := StyleBoxFlat.new()
@@ -621,7 +631,13 @@ func _apply_rep(row: Dictionary, v: float) -> void:
 		f["count"] = int(roundf(v))
 	else:
 		f["gap"] = v * 10.0
-		f["mm"] = float(f.get("w", 10.0)) + v * 10.0
+		f["mm"] = _span(f) + v * 10.0
+
+
+## EREPEATUP: the size of the body along the copy direction (a row: its width, Up: its height, Forward: its depth), in mm
+func _span(f: Dictionary) -> float:
+	var ax := String(f.get("dir", "x"))
+	return float(f.get("h" if ax == "y" else ("d" if ax == "z" else "w"), f.get("w", 10.0)))
 
 
 func _flush_if_dirty() -> void:
@@ -1485,7 +1501,7 @@ func _face_hole(rec: Dictionary) -> String:
 	if _last_error(rec, String(f["id"])) != "" or float(pu.replay_full(rec)["volume"]) >= float(before["volume"]) - 1e-12:
 		return "The hole would miss the shape: nothing was cut"
 	tweak = {"id": f["id"], "field": "dist", "label": "How deep", "unit": "cm", "lo": 0.1, "hi": 40.0, "step": 0.1, "scale": 10.0, "words": ["Shallower", "Deeper"], "sgn": sgn}
-	_say("A hole in the wall: use the slider for how deep")
+	_say("A hole through: use the slider for how deep, then press Mirror that or Repeat it next")
 	return ""
 
 
@@ -1668,6 +1684,12 @@ func _mirror(rec: Dictionary) -> String:
 		return "Nothing solid to mirror yet. Press Pull it up first"
 	var bb: AABB = res["aabb"]
 	var off := bb.position.x > 0.0005 or bb.end.x < -0.0005   # EMIRROR: the solid does not touch the middle line (x = 0)
+	if _hole_last(rec):   # MSIGN: a hole is the newest step: its copy is cut on the other side (a join copy would fill the hole back in)
+		var why_h := _mirror_hole(rec, res, off)
+		if why_h == "":
+			tweak = {}
+			_say("Mirrored across the middle line: the hole is copied to the other side")
+		return why_h
 	var f := Part.new_feature(rec, "mirror", {"plane": "right", "op": "join"})
 	if off:
 		f["mid"] = true   # the mirror plane goes through the middle of the part, not the world line
@@ -1682,8 +1704,65 @@ func _mirror(rec: Dictionary) -> String:
 	return ""
 
 
+## MSIGN: the newest step is a cut through a shape drawn on a face (a hole, a window): Mirror that copies the hole
+func _hole_last(rec: Dictionary) -> bool:
+	var feats: Array = rec.get("features", [])
+	if feats.is_empty():
+		return false
+	var cut: Dictionary = feats[feats.size() - 1]
+	if String(cut["t"]) != "extrude" or String(cut.get("op", "")) != "cut":
+		return false
+	var sk := Part.feature(rec, String(cut.get("sketch", "")))
+	if sk.is_empty():
+		return false
+	var pf := Part.feature(rec, String(sk.get("plane", "")))   # only a hole drawn ON A FACE (a plane with "out"): a centre hole keeps the join copy
+	if String(pf.get("t", "")) != "plane" or not pf.has("out"):
+		return false
+	return absf((Part.resolve_plane(rec, String(sk.get("plane", "")))["n"] as Vector3).x) < 0.0001
+
+
+## MSIGN: the same hole cut again, its sketch reflected across the middle line (x = mid, the same middle the join mirror uses)
+func _mirror_hole(rec: Dictionary, res: Dictionary, off: bool) -> String:
+	var cut: Dictionary = rec["features"][rec["features"].size() - 1]
+	var sk := Part.feature(rec, String(cut["sketch"]))
+	var pl := Part.resolve_plane(rec, String(sk["plane"]))
+	var bb: AABB = res["aabb"]
+	var mid := (bb.position.x + bb.end.x) * 0.5 if off else 0.0
+	var o: Vector3 = pl["o"]
+	var px: Vector3 = pl["x"]
+	var py: Vector3 = pl["y"]
+	var ents := []
+	for e in sk.get("ents", []):
+		var ne: Dictionary = e.duplicate(true)
+		for k in ["a", "b", "c"]:
+			if e.has(k):
+				var w := o + px * float(e[k][0]) * Part.MM + py * float(e[k][1]) * Part.MM
+				w.x = 2.0 * mid - w.x
+				var d := w - o
+				ne[k] = Part.arr2(Vector2(d.dot(px) / Part.MM, d.dot(py) / Part.MM))
+		ents.append(ne)
+	var fields: Dictionary = sk.duplicate(true)
+	for k in ["t", "id", "name"]:
+		fields.erase(k)
+	fields["ents"] = ents
+	var s := Part.new_feature(rec, "sketch", fields)
+	rec["features"].append(s)
+	var f := Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": cut["dist"], "both": bool(cut.get("both", false)), "op": "cut"})
+	rec["features"].append(f)
+	if _last_error(rec, String(f["id"])) != "":
+		return "That hole cannot be copied"
+	if float(pu.replay_full(rec)["volume"]) >= float(res["volume"]) - 1e-12:
+		return "The copy would miss the solid: nothing was cut"
+	return ""
+
+
 ## BLEND TWO SHAPES: a loft of the two last sketches (Part's "loft" feature, the same one Expert's Loft makes). Two shapes on the same plane
 ## cannot be blended, so the newer one moves 40 mm behind the older one (an offset plane, in the same undo step)
+## FPHONE: the base plane (front | top | right) a sketch's plane id sits on, a plane feature or a base plane itself
+func _plane_base(rec: Dictionary, pid: String) -> String:
+	return pid if pid in Part.PLANES else _base_plane(rec, pid)
+
+
 func _blend(rec: Dictionary) -> String:
 	var sks: Array = []
 	for f in rec.get("features", []):
@@ -1701,6 +1780,10 @@ func _blend(rec: Dictionary) -> String:
 		return "Those two shapes sit at an angle to each other, so they cannot blend. Draw both on the floor, or both on faces that face the same way, then press Blend two shapes again"
 	if not same:   # two offset planes (an upright sketch through the middle is one) at the same spot are the same plane
 		same = (pa["n"] as Vector3).dot(pb["n"] as Vector3) > 0.999 and ((pa["o"] as Vector3) - (pb["o"] as Vector3)).length() < 0.01 * Part.MM
+	# FPHONE: a shape on the top of a solid (its plane sits at the top's height) and a shape on the floor of the same base plane: the newer
+	# one still goes 40 mm above the older one (the same offset rule), not down to the floor (the back of a phone stand leans up off its plate)
+	if not same and (pa["n"] as Vector3).dot(pb["n"] as Vector3) > 0.999 and _plane_base(rec, String(a["plane"])) == _plane_base(rec, String(b["plane"])):
+		same = true
 	if same:
 		var base := String(a["plane"]) if String(a["plane"]) in Part.PLANES else _base_plane(rec, String(a["plane"]))
 		var mm_a := 0.0 if String(a["plane"]) in Part.PLANES else float(Part.feature(rec, String(a["plane"])).get("mm", 0.0))
@@ -1838,6 +1921,8 @@ func _repeat(rec: Dictionary) -> String:
 		return "Make something solid first, then repeat it"
 	var bi := nb - 1
 	var w_mm := 10.0
+	var h_mm := 10.0   # EREPEATUP: the body's height and depth too, so Up and Forward space the copies by their own size
+	var d_mm := 10.0
 	var faces := Part.body_faces(rec, -1)
 	if bi < faces.size() and (faces[bi] as PackedVector3Array).size() > 0:
 		var pts: PackedVector3Array = faces[bi]
@@ -1845,14 +1930,16 @@ func _repeat(rec: Dictionary) -> String:
 		for q in pts:
 			bb = bb.expand(q)
 		w_mm = maxf(bb.size.x / Part.MM, 1.0)
+		h_mm = maxf(bb.size.y / Part.MM, 1.0)
+		d_mm = maxf(bb.size.z / Part.MM, 1.0)
 	var f := Part.new_feature(rec, "pattern", {"kind": "linear", "body": bi, "count": 3, "dir": "x", "axis": "y", "deg": 360.0,
-		"mm": w_mm + 10.0, "w": w_mm, "gap": 10.0, "op": "join"})
+		"mm": w_mm + 10.0, "w": w_mm, "h": h_mm, "d": d_mm, "gap": 10.0, "op": "join"})
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
 		return "The copies would not fit: nothing was changed"
 	rep_id = String(f["id"])
 	tweak = {}
-	_say("Repeated in a row: move the sliders for how many and the gap, or pick Ring")
+	_say("Repeated in a row: move the sliders for how many and the gap, or pick Up, Forward or Ring")
 	return ""
 
 
@@ -1887,12 +1974,32 @@ func _rep_mode(ring: bool) -> void:
 	cur["axis"] = "y"
 	cur["deg"] = 360.0
 	cur["dir"] = "x"
-	cur["mm"] = float(cur.get("w", 10.0)) + float(cur.get("gap", 10.0))
+	cur["mm"] = _span(cur) + float(cur.get("gap", 10.0))
 	_end()
 	pu.sync()
 	_rep_sync()
 	_values_sync()
 	_say("Ring: the copies go round in a circle beside it" if ring else "Row: the copies go in a straight line")
+
+
+## EREPEATUP: Up or Forward: the same straight copies, stacked up (y) or put one behind the other (z); spaced by the body's height or depth plus the gap. One undo step
+func _rep_dir(ax: String) -> void:
+	if Part.feature(_rec(), rep_id).is_empty():
+		return
+	_flush_if_dirty()
+	_begin("Up" if ax == "y" else ("Forward" if ax == "z" else "Row"))
+	var cur := Part.feature(_rec(), rep_id)
+	cur["kind"] = "linear"
+	cur["beside"] = false
+	cur["axis"] = "y"
+	cur["deg"] = 360.0
+	cur["dir"] = ax
+	cur["mm"] = _span(cur) + float(cur.get("gap", 10.0))
+	_end()
+	pu.sync()
+	_rep_sync()
+	_values_sync()
+	_say("Up: the copies stack upward, one on top of the other" if ax == "y" else ("Forward: the copies go one behind the other" if ax == "z" else "Row: the copies go sideways in a straight line"))
 
 
 ## STICK TOGETHER: Part's combine step (Expert Combine): the first picked piece is the target, the second the tool; one undo step
@@ -1960,7 +2067,10 @@ func _rep_sync() -> void:
 	if f.is_empty():
 		return
 	var ring := String(f.get("kind", "linear")) == "circular"
-	(rep_btns["row"] as Button).set_pressed_no_signal(String(f.get("kind", "linear")) == "linear")
+	var lin := String(f.get("kind", "linear")) == "linear"
+	(rep_btns["row"] as Button).set_pressed_no_signal(lin and String(f.get("dir", "x")) == "x")
+	(rep_btns["up"] as Button).set_pressed_no_signal(lin and String(f.get("dir", "x")) == "y")
+	(rep_btns["forward"] as Button).set_pressed_no_signal(lin and String(f.get("dir", "x")) == "z")
 	(rep_btns["ring"] as Button).set_pressed_no_signal(ring)
 	(rep_btns["corners"] as Button).set_pressed_no_signal(String(f.get("kind", "")) == "corners")
 	var rows_on := String(f.get("kind", "")) != "corners"   # CORNERS: four copies at the corners, no How many or Gap to set
