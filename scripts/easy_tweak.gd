@@ -77,6 +77,7 @@ static func exaggerated(S: Scene, B: Body, k: float) -> Dictionary:
 	if rest.is_empty() or not rest.has("joints"):
 		return out
 	var props := S.solid_props()
+	var keep := B.state()   # the live body is posed on each card while the poses are worked out: put it back, so an undo step taken after this still holds the body as it was
 	var ro: Array = rest.get("offset", [0, 0, 0])
 	for i in range(1, S.cards.size()):
 		var d: Dictionary = S.cards[i]["pose"]
@@ -99,6 +100,7 @@ static func exaggerated(S: Scene, B: Body, k: float) -> Dictionary:
 		if standing:
 			nd = FloorSnap.snapped_pose(B, nd, props)
 		out[i] = nd
+	B.set_state(keep)
 	return out
 
 
