@@ -50,7 +50,7 @@ func build(root: Control) -> void:
 	var acts := [
 		["Undo", "Take back the last change", func(): m._undo()],
 		["Words", "Say what you want to build in words", func(): _words()],
-		["What to build", "Pick what to build: a house, a part, a prop pack or an imported file", func(): m.build_choose.show_chooser()],
+		["What to build", "Pick what to build: a part, a prop pack, a scene piece or an imported file", func(): m.build_choose.show_chooser()],
 		["Switch to Expert", "Show every tool again. The house stays as it is", func(): m.easy.set_on(false)],
 		["Done", "Finish building and go back to the start screen", _done],
 	]

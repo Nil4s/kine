@@ -66,7 +66,7 @@ static func reopen_button(main: Node) -> Button:
 	b.icon = Icons.tex("build_piece")
 	b.theme_type_variation = "Ribbon"
 	b.focus_mode = Control.FOCUS_NONE
-	b.tooltip_text = "Pick what to build: a house, a part, a prop pack or an imported file"
+	b.tooltip_text = "Pick what to build: a part, a prop pack, a scene piece or an imported file"
 	b.pressed.connect(func(): if main.build_choose != null: main.build_choose.show_chooser())
 	return b
 
