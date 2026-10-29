@@ -3386,7 +3386,10 @@ func _finish_draw() -> void:
 	pu.upto = -1
 	pu.sync()
 	_rows_sync()
-	_say("Shape drawn. Now press Pull it up or Spin it round")
+	if _face_sketch_last(rec):   # FFRAME: a shape drawn on a face of the solid: Cut a hole is the next step (the shape IS the hole), the hint says so
+		_say("Shape drawn on the face. Now press Cut a hole to cut it in, or Pull it up to push it out")
+	else:
+		_say("Shape drawn. Now press Pull it up or Spin it round")
 
 
 ## DRAW ON A FACE: the sketch's plane id. A face press adds ONE Part "plane" feature (from the base plane, mm = the face distance, out = the face side) to rec; no face = "top" (the floor)
