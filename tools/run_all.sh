@@ -256,3 +256,4 @@ EXTRA="$EXTRA fpipe:w"   # FPIPE: a beginner from the BUILDING card: Round disc,
 EXTRA="$EXTRA fwrench:w"   # FWRENCH: a beginner builds a wrench from the BUILDING card by real clicks: a bar (draw, pull, round), a ring (round chip, pull, cut a hole), Join the ring, a jaw slot Cut away; each press says a line (tests/fwrench_test.gd)
 EXTRA="$EXTRA fknob:w"   # FKNOB: a beginner from the BUILDING card (one click, Easy opens): a box plate on the grid, a round knob drawn on its top face and pulled up onto it, Mirror that makes the second knob; the card body opens Easy (tests/fknob_test.gd)
 EXTRA="$EXTRA fkey:w"   # FKEY: a beginner from the BUILDING card builds a house key by real clicks: a head with a hole, a long blade, three teeth (tests/fkey_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA fsave:w"   # FSAVE: a free part from the BUILDING card, saved, Home, reopened from My parts, Undo/Redo across it, given to the fighter (tests/fsave_test.gd)
