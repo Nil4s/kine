@@ -297,3 +297,4 @@ EXTRA="$EXTRA fbench:w"   # FBENCH: a park bench from the BUILDING card by real 
 EXTRA="$EXTRA fframe:w"   # FFRAME: a picture frame from the BUILDING card by real clicks: outer rectangle pulled up, inner rectangle cut (Cut a hole), Round the edges, a stand under the back edge (tests/fframe_test.gd)
 EXTRA="$EXTRA alib2:w"   # ALIB2: a beginner from the start screen (ANIMATION, Easy): Library, type chair, Furniture tile, drag the chair to the floor, Colour it, Ctrl+Z (tests/alib2_test.gd)
 EXTRA="$EXTRA fruler:w"   # FRULER: a ruler 300 mm by real clicks from the BUILDING card: a tick cut into its top, Repeat it Row of the cut (12 copies, a pattern over the cut), then Expert: the same record, 300 mm (tests/fruler_test.gd)
+EXTRA="$EXTRA epanelview:w"   # EPANELVIEW: free building, a tool panel at the left of Easy Part never covers the part: real clicks from the BUILDING card at 1280 x 720, every make tool (tests/epanelview_test.gd)
