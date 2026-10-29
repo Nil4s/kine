@@ -2414,7 +2414,7 @@ func _note_sync() -> void:
 		var errs: Dictionary = res.get("errors", {})
 		t = "No solid yet" + ("   (%s)" % String(errs.values()[0]) if not errs.is_empty() else "")
 	else:
-		t = "Press Easy at the top for big buttons, or a plane in the browser to sketch on"   # FKNOB: a beginner at the blank part is told the Easy button (it used to say only Sketch and Plane words)
+		t = "Press Easy at the top for big buttons, then Draw shape"   # FKNOB: a beginner at the blank part is told the Easy button; FDESK: plain words only (no sketch, plane or browser)
 	note_l.text = t
 	note.visible = on and bu.on and t != ""
 
