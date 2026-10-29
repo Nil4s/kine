@@ -162,7 +162,7 @@ func build(root: Control) -> void:
 	export_btn.name = "easypart_export"
 	export_btn.custom_minimum_size = Vector2(110, m.TOP_H - 12)
 	row.add_child(export_btn)
-	easy_btn = _bar_btn("Easy", "Sliders and big buttons", func(): pass)
+	easy_btn = _bar_btn("Easy", "Sliders and big buttons", _easy_on)
 	easy_btn.toggle_mode = true
 	easy_btn.button_pressed = true
 	expert_btn = _bar_btn("Expert", "The same part with every tool and exact numbers", func(): to_expert())
@@ -874,9 +874,19 @@ func _chip(t: String) -> void:
 
 
 ## EMPTY: a part with no steps (one undo step); Draw shape on the grid starts it
+## FHELP3: Easy is already on: the press says what the screen is and what to press, and the button stays lit
+func _easy_on() -> void:
+	easy_btn.set_pressed_no_signal(true)
+	_say("You are in Easy: big buttons and sliders. Press Expert for every tool and exact numbers")
+
+
 func _empty() -> void:
-	if (_rec().get("features", []) as Array).is_empty() or not Part.available():
+	if not Part.available():
 		_chips_sync()
+		return
+	if (_rec().get("features", []) as Array).is_empty():   # FHELP3: an empty part already: say so, not a silent press
+		_chips_sync()
+		_say("Already empty: press Draw shape, then drag on the grid")
 		return
 	armed = ""
 	hole_base = {}
@@ -2853,6 +2863,8 @@ func _input(ev: InputEvent) -> void:
 	if ev is InputEventKey:
 		_key(ev as InputEventKey)   # EKEYS: Escape and Delete (Ctrl+Z / Ctrl+Y are main's undo and redo)
 		return
+	if ev is InputEventMouseButton and (ev as InputEventMouseButton).pressed and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and active():
+		_grey_say((ev as InputEventMouseButton).position)   # FHELP3: a greyed button takes no click: its reason goes on the line
 	# a sketch in progress follows the pointer and ends on the release even over a control (a chip row, the bar): the controls
 	# take those events before the unhandled pass, so a roof's apex under the chips would stop the drag
 	if ev is InputEventMouseMotion:
@@ -2889,6 +2901,22 @@ func _input(ev: InputEvent) -> void:
 		_bar_press = p
 		_press_btn = _bar_button_at(p)
 		get_viewport().set_input_as_handled()
+
+
+## FHELP3: a press on a greyed Easy button (bar, MAKE row, panel) says the reason it is greyed, after the grey tag
+func _grey_say(p: Vector2) -> void:
+	for root_c in [bar, make_box, panel]:
+		if root_c == null:
+			continue
+		for c in (root_c as Node).find_children("*", "BaseButton", true, false):
+			var b := c as BaseButton
+			if b.is_visible_in_tree() and b.disabled and b.get_global_rect().has_point(p):
+				var tip := String(b.tooltip_text)
+				if tip.find("
+NOT NOW: ") >= 0:
+					_say(tip.get_slice("
+NOT NOW: ", 1).strip_edges())
+				return
 
 
 ## the visible button under p on the top bar or its MAKE row, or null
