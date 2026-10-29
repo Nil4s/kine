@@ -107,22 +107,31 @@ func shot(nm: String) -> void:
 ## that needs one picks it itself, as a beginner does: the chip if it is shown, else More examples -> From a template -> the item.
 ## The panel scroll goes back to its top (the picked part's sliders sit at the top, as after a chip click). Navigation only.
 func pick_part(t: String) -> void:
+	# the pick takes one undo step in the app (the part it replaces is kept for Undo), so it is recorded like a press
+	var pre := JSON.stringify(rec())
+	var pre_n: int = m.undo.size()
+	var pv := vol()
+	var pb := bodies()
 	var chip := root.find_child("easypart_chip_" + t, true, false) as Button
 	if chip != null and chip.is_visible_in_tree():
 		await click_ctl(chip)
 		await idle(3)
-		return
-	await click_ctl(root.find_child("easypart_more_examples", true, false) as Control)
-	await idle(10)
-	var bc: BuildChoose = m.build_choose
-	await click_ctl(bc.btns["template"]["easy"])
-	await idle(4)
-	bc._starters.id_pressed.emit(1000 + PartTemplates.ORDER.find(t))
-	await idle(20)
-	var sc := root.find_child("easypart_panel_scroll", true, false) as ScrollContainer
-	if sc != null:
-		sc.scroll_vertical = 0
-		await idle(3)
+	else:
+		await click_ctl(root.find_child("easypart_more_examples", true, false) as Control)
+		await idle(10)
+		var bc: BuildChoose = m.build_choose
+		await click_ctl(bc.btns["template"]["easy"])
+		await idle(4)
+		bc._starters.id_pressed.emit(1000 + PartTemplates.ORDER.find(t))
+		await idle(20)
+		var sc := root.find_child("easypart_panel_scroll", true, false) as ScrollContainer
+		if sc != null:
+			sc.scroll_vertical = 0
+			await idle(3)
+	var dn: int = m.undo.size() - pre_n
+	var post := JSON.stringify(rec())
+	if dn == 1 and post != pre:
+		steps.append({"name": "pick " + t, "pre": pre, "post": post, "pre_vol": pv, "post_vol": vol(), "pre_bodies": pb, "post_bodies": bodies()})
 
 
 func press_drag(nm: String, pts: Array) -> void:
