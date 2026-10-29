@@ -1567,6 +1567,10 @@ static func fillet_trial(body: int, r_mm: float, edges: Array) -> String:
 		var j := match_edge(es, bb, want)
 		if j < 0:
 			return "an edge it rounded is not there any more"
+		# FKEY: an edge where three or more faces meet (a tooth joined level with a blade leaves one) crashed the kernel's fillet
+		var ef: Array = es[j].get("faces", [])
+		if ef.size() > 2:
+			return "an edge where three faces meet: no clean bend to round"
 		if not ids.has(int(es[j]["id"])):
 			ids.append(int(es[j]["id"]))
 	if ids.is_empty():
