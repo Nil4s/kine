@@ -513,8 +513,8 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var swe := _sweep(bodies, f, sketches)
 				if swe != "":
 					errs[id] = swe
-			"pattern":   # GAP 30: copies of body N (its own function: _pattern)
-				var pe := _pattern(bodies, looks, f)
+			"pattern":   # GAP 30: copies of body N (its own function: _pattern); FRULER: a row of copies of a cut (a sketch with "sketch", _cut_row)
+				var pe := _cut_row(bodies, f, rec) if f.has("sketch") else _pattern(bodies, looks, f)
 				if pe != "":
 					errs[id] = pe
 			"fillet", "chamfer":
@@ -1910,6 +1910,39 @@ static func _pattern(bodies: Array, looks: Array, f: Dictionary) -> String:
 		bodies[bi] = u
 	return ""
 
+
+
+## FRULER: a Row of copies of a CUT (Easy's Repeat it on a slot or hole): the cut's sketch is moved along X by "mm" (the spacing) for each copy
+## and cut into the body again, one copy after the other. The copies are made at replay, so the How many and Gap sliders just rebuild them
+static func _cut_row(bodies: Array, f: Dictionary, rec: Dictionary) -> String:
+	if bodies.is_empty():
+		return "there is no body to cut"
+	var n := int(f.get("count", 0))
+	if n < 2 or n > PATTERN_MAX:
+		return "a pattern needs 2 to %d copies (the original counts as one)" % PATTERN_MAX
+	if String(f.get("kind", "linear")) != "linear":
+		return "a ring of cuts is not made yet: use Row"
+	var sk0 := feature(rec, String(f.get("sketch", "")))
+	if sk0.is_empty():
+		return "the cut's shape is gone"
+	var step := float(f.get("mm", 0.0))
+	if absf(step) < 1e-6:
+		return "the spacing must not be zero"
+	for i in range(1, n):
+		var sk: Dictionary = sk0.duplicate(true)
+		sk["_pl"] = resolve_plane(rec, String(sk0.get("plane", "front")))
+		for e in sk["ents"]:
+			for k in ["a", "b", "c"]:
+				if e.has(k):
+					e[k] = [float(e[k][0]) + step * i, float(e[k][1])]
+		var sols := _solids({"t": "extrude", "sketch": sk0.get("id", ""), "dist": f.get("dist", -10.0), "both": bool(f.get("both", false)), "op": "cut"}, sk)
+		if String(sols["err"]) != "":
+			return String(sols["err"])
+		for sid in sols["solids"]:
+			var e2 := _combine(bodies, sid, "cut")
+			if e2 != "":
+				return e2
+	return ""
 
 
 ## EREPEAT: the body's bounding box (metres), from its triangles

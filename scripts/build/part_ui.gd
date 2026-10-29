@@ -2435,6 +2435,10 @@ func _note_sync() -> void:
 	elif res.get("bodies", 0) > 0:
 		var errs: Dictionary = res.get("errors", {})
 		t = "%d bod%s, volume %s cm3" % [res["bodies"], "y" if res["bodies"] == 1 else "ies", snappedf(float(res["volume"]) * 1e6, 0.01)]
+		var bx: AABB = res.get("aabb", AABB())   # FRULER: the exact size of the whole part in mm (a 300 mm ruler reads 300 x 20 x 20 mm)
+		if bx.size != Vector3.ZERO:
+			var sz := bx.size / Part.MM
+			t += ", box %s x %s x %s mm" % [("%.1f" % sz.x).trim_suffix(".0"), ("%.1f" % sz.y).trim_suffix(".0"), ("%.1f" % sz.z).trim_suffix(".0")]
 		if not errs.is_empty():
 			t += "   (%d step%s failed: see the red icon)" % [errs.size(), "" if errs.size() == 1 else "s"]
 	elif not _feats().is_empty():
