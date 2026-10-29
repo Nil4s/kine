@@ -1973,6 +1973,8 @@ func _rep_mode(ring: bool) -> void:
 	cur["beside"] = ring   # round a point beside the piece: a ring round the origin piles copies of a piece AT the origin onto each other
 	cur["axis"] = "y"
 	cur["deg"] = 360.0
+	if not ring and String(cur.get("dir", "x")) != "x":   # FBENCH: back from Forward or Up: the spacing is the piece's width ALONG X
+		cur["w"] = _piece_mm(_rec(), int(cur.get("body", -1)), "x")
 	cur["dir"] = "x"
 	cur["mm"] = _span(cur) + float(cur.get("gap", 10.0))
 	_end()
@@ -1982,7 +1984,8 @@ func _rep_mode(ring: bool) -> void:
 	_say("Ring: the copies go round in a circle beside it" if ring else "Row: the copies go in a straight line")
 
 
-## EREPEATUP: Up or Forward: the same straight copies, stacked up (y) or put one behind the other (z); spaced by the body's height or depth plus the gap. One undo step
+## EREPEATUP + FBENCH: Up or Forward: the same straight copies, stacked up (y) or put one behind the other (z); spaced by the body's
+## height or depth (its real size, measured from the body; the feature's size when the body is not there) plus the gap. One undo step
 func _rep_dir(ax: String) -> void:
 	if Part.feature(_rec(), rep_id).is_empty():
 		return
@@ -1994,12 +1997,27 @@ func _rep_dir(ax: String) -> void:
 	cur["axis"] = "y"
 	cur["deg"] = 360.0
 	cur["dir"] = ax
-	cur["mm"] = _span(cur) + float(cur.get("gap", 10.0))
+	var sp := _piece_mm(_rec(), int(cur.get("body", -1)), ax)
+	cur["mm"] = (sp if sp > 0.0 else _span(cur)) + float(cur.get("gap", 10.0))
 	_end()
 	pu.sync()
 	_rep_sync()
 	_values_sync()
 	_say("Up: the copies stack upward, one on top of the other" if ax == "y" else ("Forward: the copies go one behind the other" if ax == "z" else "Row: the copies go sideways in a straight line"))
+
+
+## FBENCH: the size of body bi along one way ("x" | "y" | "z") in mm; -1 when the body is not there (the caller falls back to the feature's size)
+func _piece_mm(rec: Dictionary, bi: int, dir: String) -> float:
+	var faces := Part.body_faces(rec, -1)
+	if bi < 0 or bi >= faces.size() or (faces[bi] as PackedVector3Array).size() == 0:
+		return -1.0
+	var pts: PackedVector3Array = faces[bi]
+	var bb := AABB(pts[0], Vector3.ZERO)
+	for q in pts:
+		bb = bb.expand(q)
+	var s := bb.size
+	var n := s.x if dir == "x" else (s.y if dir == "y" else s.z)
+	return maxf(n / Part.MM, 1.0)
 
 
 ## STICK TOGETHER: Part's combine step (Expert Combine): the first picked piece is the target, the second the tool; one undo step
