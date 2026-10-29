@@ -767,6 +767,11 @@ func _rows_sync() -> void:
 	_values_sync()
 
 
+## FROOM: the How far slider on a building project reaches 3 m (a wall is 2 m or more); the other projects keep 40 cm
+func _pull_hi() -> float:
+	return 300.0 if m != null and m.S != null and m.S.kind == "building" else 40.0
+
+
 ## ESAVE: a record opened again (My parts, Change the part): the slider of its NEWEST step comes back (a Wall of a hollow, a How far of a
 ## pull up, a Hole size of a hole); none when the newest step has no slider (the record is shown without one, as a fresh start)
 func tweak_last() -> void:
@@ -780,7 +785,7 @@ func tweak_last() -> void:
 		tweak = {"id": f["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
 	elif t == "extrude" and not bool(f.get("both", false)) and String(f.get("op", "join")) == "join" and f.has("dist"):
 		var dist := float(f["dist"])
-		tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": 40.0, "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": -1.0 if dist < 0.0 else 1.0}
+		tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": -1.0 if dist < 0.0 else 1.0}
 	elif t == "extrude" and bool(f.get("both", false)) and String(f.get("op", "")) == "cut":
 		var sk := Part.feature(_rec(), String(f.get("sketch", "")))
 		var ents: Array = sk.get("ents", [])
@@ -1121,7 +1126,7 @@ func _pull(rec: Dictionary) -> String:
 	var err := _last_error(rec, String(f["id"]))
 	if err != "":
 		return "That shape is not closed, so it cannot be pulled up: drag back to the start to close it"
-	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": 40.0, "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
+	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
 	if through:
 		_say("Pulled out both ways from the middle: use the slider for how thick, or press Mirror that or Cut a hole next")
 	elif on_face:
@@ -1379,15 +1384,26 @@ func _hole(rec: Dictionary) -> String:
 	var c := bb.get_center() / Part.MM
 	var floor_made := _base_plane(rec, _newest_sketch_plane(rec)) == "top"   # a body drawn on the floor is cut DOWN through (its hole runs up/down)
 	var r := clampf(minf(bb.size.x, bb.size.z if floor_made else bb.size.y) / Part.MM * 0.12, 10.0, 40.0)   # the radius in mm: a hole 2 to 8 cm across
+	var cen := Vector2(c.x, -c.z) if floor_made else Vector2(c.x, c.y)   # the hole's middle on the sketch plane
+	if m != null and m.S != null and m.S.kind == "building":   # FROOM: on a building the hole goes through the middle of the newest piece (a wall gets its hole in the wall), not the middle of the whole room
+		var ls := _last_sketch(rec)
+		var pts := _sketch_pts(ls)
+		if not pts.is_empty():
+			var lo: Vector2 = pts[0]
+			var hi: Vector2 = pts[0]
+			for q in pts:
+				lo = lo.min(q)
+				hi = hi.max(q)
+			cen = (lo + hi) * 0.5
 	var s: Dictionary
 	var f: Dictionary
 	# "both" splits dist half each way from the sketch plane: twice the body's farthest reach + 1 cm, so a tall body is cut all the way
 	if floor_made:
-		s = Part.new_feature(rec, "sketch", {"plane": "top", "ents": [{"k": "circle", "c": Part.arr2(Vector2(c.x, -c.z)), "r": snappedf(r, 0.5)}], "dims": []})   # the top plane's v axis is -Z
+		s = Part.new_feature(rec, "sketch", {"plane": "top", "ents": [{"k": "circle", "c": Part.arr2(cen), "r": snappedf(r, 0.5)}], "dims": []})   # the top plane's v axis is -Z
 		rec["features"].append(s)
 		f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.y), absf(bb.end.y)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
 	else:
-		s = Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "circle", "c": Part.arr2(Vector2(c.x, c.y)), "r": snappedf(r, 0.5)}], "dims": []})
+		s = Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "circle", "c": Part.arr2(cen), "r": snappedf(r, 0.5)}], "dims": []})
 		rec["features"].append(s)
 		f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.z), absf(bb.end.z)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
 	rec["features"].append(f)
@@ -1398,6 +1414,25 @@ func _hole(rec: Dictionary) -> String:
 	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}   # the slider is the hole's WIDTH (cm): radius mm = width cm * 5
 	_say("A hole straight through: use the slider for its size, or press Mirror that or Repeat it next")
 	return ""
+
+
+## FROOM: the newest sketch step of a record ({} when none)
+func _last_sketch(rec: Dictionary) -> Dictionary:
+	var out := {}
+	for f in rec.get("features", []):
+		if f["t"] == "sketch":
+			out = f
+	return out
+
+
+## FROOM: the corner and centre points of a sketch's shapes (sketch units), [] for none
+func _sketch_pts(sk: Dictionary) -> Array:
+	var out := []
+	for e in sk.get("ents", []):
+		for k in ["a", "b", "c"]:
+			if e.has(k):
+				out.append(Vector2(float(e[k][0]), float(e[k][1])))
+	return out
 
 
 ## EDOOR: the newest step is a sketch drawn ON A FACE (a plane feature with "out") that no pull uses yet
