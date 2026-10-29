@@ -4,9 +4,9 @@ extends SceneTree
 ##   BASE   ViewCube TOP: Draw shape (round) on the floor, centre to edge 60 mm, Pull it up 3 cm = the heavy round base
 ##   POLE   the round drawn on the base top face (centre to edge 12 mm), Pull it up 40 cm = the tall pole, joined to the base
 ##   SHADE  ViewCube FRONT: a closed Curvy shade profile sitting on the pole top, Spin it round = the cone shade
-##   TILT   the shade tilted 20 degrees (a Tilt step in Easy Part): the dead end, recorded as a bar (Spin joins the shade into the
-##          lamp's one body, so a tilt step would turn the whole lamp, not the shade: needs a per-piece step first)
-## Bars (run on the code as it was when this suite was added, no scripts/ change: F0 to F3 and F5 pass, F4 FAILS = dead end, no Tilt step):
+##   TILT   the shade tilted 20 degrees: the Tilt it chip under the newest solid (per piece: the spun shade leans about its middle
+##          before it joins the lamp's one body). First written as a dead end (no Tilt step, F4 red); the fix turned F4 into this bar.
+## Bars (F0 to F3 and F5 passed at the first commit; F4 FAILED = dead end, no Tilt step; F4 now asserts the fixed Tilt it):
 ##   F0 the BUILDING card, one click: page BUILD, a blank Easy part, no chooser
 ##   F1 the base: one body, a real volume, 115..125 mm across, top at 30 mm (+-3 mm)
 ##   F2 the pole stands on the base: still one body, top at 430 mm (+-8 mm)
@@ -279,13 +279,16 @@ func _init() -> void:
 	ok(nbodies() == 1 and errors_n() == 0 and absf(bb3.end.y - 490.0) < 8.0,
 		"F3 the shade spun round, joined to the pole: one body, errors %d, top %.1f mm (want 490)" % [errors_n(), bb3.end.y])
 
-	# TILT: the beginner looks for a way to tilt the shade 20 degrees (Easy Part: a Tilt it step)
-	var has_tilt: bool = ep().make_btns.has("tilt")
+	# TILT: the beginner looks for a way to tilt the shade 20 degrees (Easy Part: the Tilt it chip under the newest solid)
+	var has_tilt: bool = ep().tilt_btn != null and ep().tilt_btn.is_visible_in_tree()
 	if has_tilt:
-		await click_ctl(ep().make_btns["tilt"])
-	await note("tilt", "Tilt it 20 degrees (no Tilt step in Easy Part: dead end)")
+		await click_ctl(ep().tilt_btn)
+	await note("tilt", "Tilt it 20 degrees")
 	await shot("tilt")
-	ok(has_tilt, "F4 Tilt it: Easy Part has a Tilt step that tilts the shade 20 degrees (Tilt step present: %s)" % str(has_tilt))
+	var last: Dictionary = m.S.part["features"][-1]
+	var tilted: bool = String(last.get("t", "")) == "revolve" and absf(float(last.get("tilt", 0.0)) - 20.0) < 0.001
+	ok(has_tilt and tilted and errors_n() == 0 and nbodies() == 1,
+		"F4 Tilt it: the Tilt it chip tilts the shade 20 degrees (chip shown: %s, shade tilt %s, one body, errors %d)" % [str(has_tilt), str(last.get("tilt", 0.0)), errors_n()])
 	var jargon := []
 	for w in ["sketch", "extrude", "revolve", "loft", "boolean", "feature", "body"]:
 		if words().to_lower().find(w) >= 0:
