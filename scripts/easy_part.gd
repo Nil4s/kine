@@ -2775,7 +2775,7 @@ func _frame_step() -> void:
 		_fr_has = true
 		return
 	var ref_len := _fr_ref.size.length()
-	var lk := str(repeat_box.visible) + str(stick_box.visible)   # EPANELVIEW: a Repeat it / Stick together box opening or closing changes the free view: frame again
+	var lk := str(repeat_box.visible)   # EPANELVIEW: a Repeat it box opening or closing changes the free view: frame again (not Stick together: its picks need a still view)
 	if lk != _fr_lk:
 		_fr_lk = lk
 		_fr_ref = AABB()
@@ -2809,11 +2809,9 @@ func free_rect() -> Rect2:
 		top = _free_top(boxes.filter(func(c): return c != repeat_box))
 	var x0 := _cl.position.x + 12.0
 	var x1 := _cl.end.x - PW - 16.0
-	# EPANELVIEW: an open Repeat it / Stick together box at the lower left takes its columns out of the free view (the part is framed to its right)
-	for bx in [repeat_box, stick_box]:
-		var c := bx as Control
-		if c != null and c.visible and c.position.y < _cl.end.y - 70.0 and c.position.y + c.size.y > top:
-			x0 = maxf(x0, c.position.x + c.size.x + 8.0)
+	# EPANELVIEW: an open Repeat it box at the lower left takes its columns out of the free view (the part is framed to its right)
+	if repeat_box.visible and repeat_box.position.y < _cl.end.y - 70.0 and repeat_box.position.y + repeat_box.size.y > top:
+		x0 = maxf(x0, repeat_box.position.x + repeat_box.size.x + 8.0)
 	return Rect2(x0, top, x1 - x0, _cl.end.y - 70.0 - top)
 
 
