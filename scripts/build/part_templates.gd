@@ -9,8 +9,26 @@ extends RefCounted
 const MM := 0.001
 const ARCH_GAP := 40.0   # mm: a car's wheel arch top sits this far above the tyre's top (the arch is the wheel radius + 40 mm)
 const CAB_W := 0.88     # the glasshouse is this share of the body's width (narrower than the lower body, so the cabin reads as a cabin)
-const ORDER :=["sword", "axe", "shield", "chair", "crate"]
+const ORDER :=["sword", "axe", "shield", "chair", "crate"]   # the weapons and props: "More examples" (What to build's From a template) lists them
+const START := ["box", "cylinder", "sphere", "tube", "plate"]   # FREESTART: the neutral "Start from" row on Easy Part's panel (simple shapes, no weapon)
 const T := {
+	"box": {"title": "Box", "params": [
+		{"k": "width", "label": "Width", "lo": 50.0, "hi": 1000.0, "def": 300.0, "step": 10.0, "words": ["Narrower", "Wider"]},
+		{"k": "height", "label": "Height", "lo": 50.0, "hi": 1000.0, "def": 300.0, "step": 10.0, "words": ["Lower", "Taller"]},
+		{"k": "depth", "label": "Depth", "lo": 50.0, "hi": 1000.0, "def": 300.0, "step": 10.0, "words": ["Shallower", "Deeper"]}]},
+	"cylinder": {"title": "Cylinder", "params": [
+		{"k": "diameter", "label": "Width across", "lo": 50.0, "hi": 800.0, "def": 300.0, "step": 10.0, "words": ["Narrower", "Wider"]},
+		{"k": "height", "label": "Height", "lo": 50.0, "hi": 1000.0, "def": 400.0, "step": 10.0, "words": ["Shorter", "Taller"]}]},
+	"sphere": {"title": "Sphere", "params": [
+		{"k": "diameter", "label": "Width across", "lo": 50.0, "hi": 800.0, "def": 300.0, "step": 10.0, "words": ["Smaller", "Bigger"]}]},
+	"tube": {"title": "Tube", "params": [
+		{"k": "diameter", "label": "Width across", "lo": 50.0, "hi": 800.0, "def": 300.0, "step": 10.0, "words": ["Narrower", "Wider"]},
+		{"k": "wall", "label": "Wall", "lo": 5.0, "hi": 100.0, "def": 30.0, "step": 5.0, "words": ["Thinner", "Thicker"]},
+		{"k": "height", "label": "Length", "lo": 50.0, "hi": 1000.0, "def": 400.0, "step": 10.0, "words": ["Shorter", "Longer"]}]},
+	"plate": {"title": "Plate", "params": [
+		{"k": "width", "label": "Width", "lo": 50.0, "hi": 1000.0, "def": 400.0, "step": 10.0, "words": ["Narrower", "Wider"]},
+		{"k": "length", "label": "Length", "lo": 50.0, "hi": 1000.0, "def": 300.0, "step": 10.0, "words": ["Shorter", "Longer"]},
+		{"k": "thickness", "label": "Thickness", "lo": 2.0, "hi": 50.0, "def": 10.0, "step": 1.0, "words": ["Thinner", "Thicker"]}]},
 	"sword": {"title": "Sword", "params": [
 		{"k": "blade_length", "label": "Blade length", "lo": 300.0, "hi": 1200.0, "def": 760.0, "step": 10.0, "words": ["Shorter", "Longer"]},
 		{"k": "width", "label": "Width", "lo": 30.0, "hi": 120.0, "def": 68.0, "step": 2.0, "words": ["Thinner", "Wider"]},
@@ -50,7 +68,7 @@ const T := {
 
 
 ## the default camera of a template: [yaw, pitch] degrees, a 3/4 view in which its main shape reads (the axe turns further so its blade face shows)
-const VIEW := {"sword": [30.0, -22.0], "axe": [42.0, -20.0], "shield": [30.0, -18.0], "chair": [38.0, -22.0], "crate": [34.0, -24.0]}
+const VIEW := {"sword": [30.0, -22.0], "axe": [42.0, -20.0], "shield": [30.0, -18.0], "chair": [38.0, -22.0], "crate": [34.0, -24.0], "box": [34.0, -24.0], "cylinder": [34.0, -22.0], "sphere": [30.0, -20.0], "tube": [34.0, -22.0], "plate": [34.0, -28.0]}
 
 
 static func view_of(t: String) -> Array:
@@ -222,6 +240,21 @@ static func _poly(pts: Array) -> Array:
 static func features_of(t: String, p: Dictionary) -> Array:
 	var fs: Array = []
 	match t:
+		"box":
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(0, 0), Vector2(p["width"], p["height"]))]), "extrude", p["depth"], "new")
+		"cylinder":
+			_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": float(p["diameter"]) * 0.5}]), "extrude", p["height"], "new")
+		"sphere":
+			# a half disc about the sketch's x axis (the same as the wheel's turn): the arc from -R over the top to +R, back along the axis
+			var R: float = float(p["diameter"]) * 0.5
+			_ex(fs, _sk(fs, "front", [{"k": "arc", "a": Part.arr2(Vector2(-R, 0)), "m": Part.arr2(Vector2(0, R)), "b": Part.arr2(Vector2(R, 0))}, {"k": "line", "a": Part.arr2(Vector2(R, 0)), "b": Part.arr2(Vector2(-R, 0))}]), "revolve", 0.0, "new")
+		"tube":
+			var Ro: float = float(p["diameter"]) * 0.5
+			var h: float = p["height"]
+			_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": Ro}]), "extrude", h, "new")
+			_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": maxf(Ro - float(p["wall"]), 1.0)}]), "extrude", 2.0 * h + 20.0, "cut", true)
+		"plate":
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(0, 0), Vector2(p["width"], p["length"]))]), "extrude", p["thickness"], "new")
 		"sword":
 			var L: float = p["blade_length"]
 			var w: float = p["width"]
