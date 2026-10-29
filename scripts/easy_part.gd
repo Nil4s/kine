@@ -1394,6 +1394,10 @@ func _hole(rec: Dictionary) -> String:
 	var before := float(res["volume"])
 	var after := float(pu.replay_full(rec)["volume"])
 	if after >= before - 1e-12:
+		# FBRACKET: a second press lands on the same middle as the first hole: say so, and where the second hole is made
+		for pf in rec["features"]:
+			if String(pf.get("t", "")) == "extrude" and String(pf.get("op", "")) == "cut" and pf.get("sketch", "") != s["id"]:
+				return "The middle already has a hole, and Cut a hole always cuts the middle. For a second hole, use Expert: Circle, then Cut"
 		return "The hole would miss the shape: nothing was cut"
 	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}   # the slider is the hole's WIDTH (cm): radius mm = width cm * 5
 	_say("A hole straight through: use the slider for its size, or press Mirror that or Repeat it next")
