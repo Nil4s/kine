@@ -9,7 +9,7 @@ extends SceneTree
 ##   1 the bar: Draw shape + drag + Pull it up makes one body; Round the edges keeps one body, volume goes down
 ##   2 the ring: Round chip + drag at the far end + Pull it up: a second body; Cut a hole: volume goes down
 ##   3 Join bar and ring: ONE solid
-##   4 the jaw: a Box at the open end, Pulled up, CUTS the bar (KNOWN dead end: prints KNOWN until fixed)
+##   4 the jaw: a Box at the open end, Pulled up, CUTS the bar (volume down, one solid)
 ##   5 the words: every press says a line (no empty sentence)
 ## shots: C:/Temp/claude/fwrench/
 const SHOT := "C:/Temp/claude/fwrench"
@@ -177,10 +177,7 @@ func _init() -> void:
 	var v2: float = float(pu().res.get("volume", 0.0))
 	var pull_words: String = ep.msg
 	ok(int(pu().res.get("bodies", 0)) == 1 and v2 > v1r + 1e-9, "2b the ring joins the bar at its end: one solid, more volume (%.2f -> %.2f cm3) [%s]" % [v1r * 1e6, v2 * 1e6, pull_words])
-	if pull_words.to_lower().find("face") < 0:   # KNOWN dead end: the words say "Pulled out of the face" (eface_test pins that text). Printed until fixed
-		ok(true, "2w the words say no \"face\"")
-	else:
-		print("KNOWN 2w the words after the ring say \"face\" (a beginner does not know the word) [%s]" % pull_words)
+	ok(pull_words.to_lower().find("face") < 0, "2w the words after the ring say no \"face\" (a beginner does not know the word) [%s]" % pull_words)
 	await click_ctl(ep.make_btns["hole"])
 	note("hole ring")
 	var v2h: float = float(pu().res.get("volume", 0.0))
@@ -204,10 +201,7 @@ func _init() -> void:
 	var v4: float = float(pu().res.get("volume", 0.0))
 	var cut_ok := int(pu().res.get("bodies", 0)) == 1 and v4 < v3 - 1e-9
 	var jmsg := "a slot at the open end CUTS the jaw: one solid, volume down (%.2f -> %.2f cm3) [%s]" % [v3 * 1e6, v4 * 1e6, ep.msg]
-	if cut_ok:
-		ok(true, "4 " + jmsg)
-	else:   # KNOWN dead end (Easy has no slot cut: a box drawn over the solid Pulls up and JOINS it). Printed, not counted, until fixed
-		print("KNOWN 4 " + jmsg)
+	ok(cut_ok, "4 " + jmsg)
 	await shot("04_jaw_slot")
 
 	# 5 the words: no press leaves an empty sentence

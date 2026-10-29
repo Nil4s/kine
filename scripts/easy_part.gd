@@ -1228,22 +1228,72 @@ func _pull(rec: Dictionary) -> String:
 		var bb: AABB = Part.replay(rec).get("aabb", AABB())
 		var depth := bb.size.z if String(pf.get("from", "front")) == "front" else bb.size.x
 		dist = snappedf(depth / Part.MM, 1.0)
-	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": "join"})
+	var slot := not on_face and not through and _slot_cut(rec, sk, dist)   # FWRENCH2: a jaw slot at the end of a solid CUTS it
+	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": "cut" if slot else "join"})
 	rec["features"].append(f)
 	var err := _last_error(rec, String(f["id"]))
 	if err != "":
 		return "That shape is not closed, so it cannot be pulled up: drag back to the start to close it"
 	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
-	if through:
+	if slot:
+		tweak["say"] = "Cut a slot %s deep into the solid: use the slider to change it, or press Round the edges or Cut a hole next"
+		_say(String(tweak["say"]) % _fmt(2.0, "cm"))
+	elif through:
 		_say("Pulled out both ways from the middle: use the slider for how thick, or press Mirror that or Cut a hole next")
 	elif on_face:
-		_say("Pulled into the solid: use the slider to change it, or press Cut a hole next" if inward else "Pulled out of the face: use the slider to change it, or press Mirror that next")
+		# FWRENCH2: a beginner does not know the word "face": the top of a solid says "top", a side says "side" (the bottom keeps "face": eface_test pins that text)
+		var where := "top" if _top_face(pf) else ("side" if String(pf.get("from", "")) in ["front", "right"] else "face")
+		_say("Pulled into the solid: use the slider to change it, or press Cut a hole next" if inward else "Pulled out of the %s: use the slider to change it, or press Mirror that next" % where)
 	else:
 		tweak["say"] = "Pulled up %s: use the slider to change it, or press Round the edges or Cut a hole next"   # the words follow the slider (a beginner walk: "2 cm" stayed at 8 cm); the next button too (ehelp2)
 		_say(String(tweak["say"]) % _fmt(2.0, "cm"))
 	# FPLANTER: a pot is wider at the top: a floor shape pulled up gets a Taper slider under How far (the extrude's taper, degrees)
 	taper_tw = {} if (through or on_face) else {"id": f["id"], "label": "Taper", "unit": "deg", "lo": -15.0, "hi": 15.0, "step": 0.5, "words": ["Wider at the top", "Narrower at the top"]}
 	return ""
+
+
+## FWRENCH2: a JAW SLOT. A floor shape (on the top plane) that lies inside one solid's width and runs past one of its ends (or the other way round)
+## cuts that solid when pulled. Only when the trial cut lowers the volume, leaves one solid and no error; else the Pull joins as before
+func _slot_cut(rec: Dictionary, sk: Dictionary, dist: float) -> bool:
+	var res := Part.replay(rec)
+	if int(res["bodies"]) != 1:
+		return false
+	var bb: AABB = res["aabb"]
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	var pl := Part.plane("top")
+	for e in sk["ents"]:
+		for q in _ent_pts(e):
+			var w := Part.to_world(pl, Part.v2(q))
+			lo = lo.min(Vector2(w.x, w.z))
+			hi = hi.max(Vector2(w.x, w.z))
+	if lo.x == INF:
+		return false
+	var eps := 0.5 * Part.MM
+	var x0 := bb.position.x - eps
+	var x1 := bb.end.x + eps
+	var z0 := bb.position.z - eps
+	var z1 := bb.end.z + eps
+	# FWRENCH3: a slot is INSIDE the solid's width, so it must keep clear of both sides (a strip that spans the floor's full depth is a WALL on the edge, not a jaw: the froom wall B)
+	var in_z := lo.y > bb.position.z + eps and hi.y < bb.end.z - eps
+	var in_x := lo.x > bb.position.x + eps and hi.x < bb.end.x - eps
+	var past_x := (lo.x < x0 or hi.x > x1) and hi.x > x0 and lo.x < x1   # runs past an end along x, and overlaps the solid
+	var past_z := (lo.y < z0 or hi.y > z1) and hi.y > z0 and lo.y < z1
+	# FWRENCH4: a slot must go DEEP into the solid (a third of its length inside it). A box that mostly sticks OUT past an end and only
+	# clips the edge (the glasses arm at the ring's outer edge) is a pull that goes out: it adds, it does not cut
+	var reach_x := (minf(hi.x, bb.end.x) - maxf(lo.x, bb.position.x)) / maxf(hi.x - lo.x, 1e-9)
+	var reach_z := (minf(hi.y, bb.end.z) - maxf(lo.y, bb.position.z)) / maxf(hi.y - lo.y, 1e-9)
+	var deep_x := in_z and past_x and reach_x >= 1.0 / 3.0
+	var deep_z := in_x and past_z and reach_z >= 1.0 / 3.0
+	if not (deep_x or deep_z):
+		return false
+	var v0 := float(res["volume"])
+	var trial := rec.duplicate(true)
+	var f := Part.new_feature(trial, "extrude", {"sketch": sk["id"], "dist": dist, "both": false, "op": "cut"})
+	trial["features"].append(f)
+	var r2 := Part.replay(trial)
+	var v1 := float(r2["volume"])
+	return String(r2["errors"].get(f["id"], "")) == "" and int(r2["bodies"]) == 1 and v1 > 0.0 and v1 < v0 - 1e-12
 
 
 ## an upright sketch whose lowest point is at or above the body's top (a roof on the box)
