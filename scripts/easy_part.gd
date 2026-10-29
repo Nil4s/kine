@@ -261,7 +261,14 @@ func build(root: Control) -> void:
 	cr.add_theme_constant_override("h_separation", 4)
 	cr.add_theme_constant_override("v_separation", 4)
 	v.add_child(cr)
-	for t in PartTemplates.ORDER:
+	var start_l := Label.new()   # FREESTART: a neutral row of simple shapes; nothing is forced, the Empty part is the default
+	start_l.name = "easypart_start_label"
+	start_l.text = "Start from:"
+	start_l.add_theme_font_size_override("font_size", 15)
+	start_l.add_theme_color_override("font_color", Color(0.7, 0.73, 0.78))
+	start_l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	cr.add_child(start_l)
+	for t in PartTemplates.START:
 		var b := Button.new()
 		b.name = "easypart_chip_" + t
 		b.text = String(PartTemplates.T[t]["title"])
@@ -272,6 +279,15 @@ func build(root: Control) -> void:
 		b.pressed.connect(_chip.bind(t))
 		cr.add_child(b)
 		chips[t] = b
+	var more := Button.new()   # the weapons and props are not gone: What to build (From a template) lists them
+	more.name = "easypart_more_examples"
+	more.text = "More examples"
+	more.tooltip_text = "Open What to build: a sword, an axe, a chair and more"
+	more.focus_mode = Control.FOCUS_NONE
+	more.custom_minimum_size = Vector2(0, 34)
+	more.add_theme_font_size_override("font_size", 15)
+	more.pressed.connect(_more_examples)
+	cr.add_child(more)
 	rows_vb = VBoxContainer.new()
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 4)
@@ -859,6 +875,12 @@ func _chip(t: String) -> void:
 	pu.sync()
 	frame()
 	_say("%s %s: move a slider or drag an amber dot" % ["An" if t.substr(0, 1) in "aeiou" else "A", t])
+
+
+## MORE EXAMPLES: What to build opens (its From a template card lists the weapons and props)
+func _more_examples() -> void:
+	if m.build_choose != null:
+		m.build_choose.show_chooser()
 
 
 ## EMPTY: a part with no steps (one undo step); Draw shape on the grid starts it

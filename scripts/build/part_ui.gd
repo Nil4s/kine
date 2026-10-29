@@ -343,10 +343,11 @@ func open_easy() -> void:
 		on = true
 		part_btn.set_pressed_no_signal(true)
 	easy = true
-	if m.S.part.is_empty() and Part.available():
-		m._step_hint = "Start a sword"
+	if m.S.part.is_empty() and Part.available():   # FREESTART: a blank Easy Part is EMPTY (nothing forced); the shapes and examples are optional
+		m._step_hint = "Start an empty part"
 		m._push_undo()
-		m.S.part = PartTemplates.make("sword")
+		m.S.part = Part.make("Part")
+		m.S.part["kept"] = true   # the user's empty part: undo and redo keep it (as the Empty chip does)
 	upto = -1
 	_rec_sig = ""
 	bu.sync()
