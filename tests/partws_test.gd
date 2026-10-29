@@ -189,6 +189,10 @@ func _init() -> void:
 
 	# 1 NO DLL
 	var had := Part.available()
+	# the card turns Part on (5c735d53): turn it off first, so the next click is the no-DLL case's "on"
+	if pu.on:
+		await click_ctl(pu.part_btn)
+		await idle(2)
 	Part.force_off = true
 	# Nick 2026-10-28 (free 3D building, #100): the BUILDING card now opens a blank Easy Part itself. Start from the
 	# state the card gave before (Part off, no part), so the clicks below drive the same opening they always did
@@ -203,8 +207,9 @@ func _init() -> void:
 		grey = grey and b.disabled and b.tooltip_text.contains("KineCAD")
 	ok(pu.on and grey and pu.note.visible and pu.note_l.text.contains("KineCAD"), "1 no DLL: Part tools greyed with the reason (note: %s)" % pu.note_l.text)
 	await shot("nodll")
+	var p0 := ps()   # the card's blank "Part N" (5c735d53): asking for a tool must leave it as it is
 	pu._pick("Rectangle")   # (a greyed button cannot be clicked; the door itself also refuses)
-	ok(m.S.part.is_empty() and pu.sk == "", "1 no DLL: asking for a tool makes nothing")
+	ok(ps() == p0 and pu.sk == "", "1 no DLL: asking for a tool makes nothing")
 	Part.force_off = false
 	await click_ctl(pu.part_btn)   # off
 	await idle(2)
@@ -344,7 +349,8 @@ func _init() -> void:
 		if ps() != states[i - 1]:
 			ok7 = false
 			print("   undo of step %d did not give state %d" % [i, i - 1])
-	ok(ok7 and m.S.part.is_empty(), "7 every step undone one by one back to no part (%d steps)" % (states.size() - 1))
+	# "no part" is the card's blank "Part N" (5c735d53): the state recorded before the first step, with no features
+	ok(ok7 and ps() == states[0] and (m.S.part.get("features", []) as Array).is_empty(), "7 every step undone one by one back to no part (%d steps)" % (states.size() - 1))
 	for i in range(1, states.size()):
 		m._redo()
 		await idle(2)
