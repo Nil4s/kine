@@ -393,11 +393,17 @@ func _repeat_box() -> PanelContainer:
 	h.add_theme_constant_override("separation", 6)
 	vb.add_child(h)
 	for md in [["row", "Row", false], ["ring", "Ring", true]]:
-		var tip := "Copies in a straight row" if not md[2] else "Copies round the up axis, in a full turn"
+		var tip := "Copies sideways in a straight row" if not md[2] else "Copies round the up axis, in a full turn"
 		var b := _big_btn("easypart_rep_" + String(md[0]), String(md[1]), tip, _rep_mode.bind(bool(md[2])))
 		b.toggle_mode = true
 		h.add_child(b)
 		rep_btns[md[0]] = b
+		if md[0] == "row":   # EREPEATUP: Up and Forward sit beside Row (the same straight line, another direction)
+			for dd in [["up", "Up", "y", "Copies stacked upward, one on top of the other (a shelf stack)"], ["forward", "Forward", "z", "Copies straight forward, one behind the other"]]:
+				var ub := _big_btn("easypart_rep_" + String(dd[0]), String(dd[1]), String(dd[3]), _rep_dir.bind(String(dd[2])))
+				ub.toggle_mode = true
+				h.add_child(ub)
+				rep_btns[dd[0]] = ub
 	var cb := _big_btn("easypart_rep_corners", "Corners", "Four copies, one at each corner of the piece it sits on (the legs of a chair or table)", _rep_corners)
 	cb.toggle_mode = true
 	h.add_child(cb)
@@ -621,7 +627,13 @@ func _apply_rep(row: Dictionary, v: float) -> void:
 		f["count"] = int(roundf(v))
 	else:
 		f["gap"] = v * 10.0
-		f["mm"] = float(f.get("w", 10.0)) + v * 10.0
+		f["mm"] = _span(f) + v * 10.0
+
+
+## EREPEATUP: the size of the body along the copy direction (a row: its width, Up: its height, Forward: its depth), in mm
+func _span(f: Dictionary) -> float:
+	var ax := String(f.get("dir", "x"))
+	return float(f.get("h" if ax == "y" else ("d" if ax == "z" else "w"), f.get("w", 10.0)))
 
 
 func _flush_if_dirty() -> void:
@@ -1838,6 +1850,8 @@ func _repeat(rec: Dictionary) -> String:
 		return "Make something solid first, then repeat it"
 	var bi := nb - 1
 	var w_mm := 10.0
+	var h_mm := 10.0   # EREPEATUP: the body's height and depth too, so Up and Forward space the copies by their own size
+	var d_mm := 10.0
 	var faces := Part.body_faces(rec, -1)
 	if bi < faces.size() and (faces[bi] as PackedVector3Array).size() > 0:
 		var pts: PackedVector3Array = faces[bi]
@@ -1845,14 +1859,16 @@ func _repeat(rec: Dictionary) -> String:
 		for q in pts:
 			bb = bb.expand(q)
 		w_mm = maxf(bb.size.x / Part.MM, 1.0)
+		h_mm = maxf(bb.size.y / Part.MM, 1.0)
+		d_mm = maxf(bb.size.z / Part.MM, 1.0)
 	var f := Part.new_feature(rec, "pattern", {"kind": "linear", "body": bi, "count": 3, "dir": "x", "axis": "y", "deg": 360.0,
-		"mm": w_mm + 10.0, "w": w_mm, "gap": 10.0, "op": "join"})
+		"mm": w_mm + 10.0, "w": w_mm, "h": h_mm, "d": d_mm, "gap": 10.0, "op": "join"})
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
 		return "The copies would not fit: nothing was changed"
 	rep_id = String(f["id"])
 	tweak = {}
-	_say("Repeated in a row: move the sliders for how many and the gap, or pick Ring")
+	_say("Repeated in a row: move the sliders for how many and the gap, or pick Up, Forward or Ring")
 	return ""
 
 
@@ -1887,12 +1903,32 @@ func _rep_mode(ring: bool) -> void:
 	cur["axis"] = "y"
 	cur["deg"] = 360.0
 	cur["dir"] = "x"
-	cur["mm"] = float(cur.get("w", 10.0)) + float(cur.get("gap", 10.0))
+	cur["mm"] = _span(cur) + float(cur.get("gap", 10.0))
 	_end()
 	pu.sync()
 	_rep_sync()
 	_values_sync()
 	_say("Ring: the copies go round in a circle beside it" if ring else "Row: the copies go in a straight line")
+
+
+## EREPEATUP: Up or Forward: the same straight copies, stacked up (y) or put one behind the other (z); spaced by the body's height or depth plus the gap. One undo step
+func _rep_dir(ax: String) -> void:
+	if Part.feature(_rec(), rep_id).is_empty():
+		return
+	_flush_if_dirty()
+	_begin("Up" if ax == "y" else ("Forward" if ax == "z" else "Row"))
+	var cur := Part.feature(_rec(), rep_id)
+	cur["kind"] = "linear"
+	cur["beside"] = false
+	cur["axis"] = "y"
+	cur["deg"] = 360.0
+	cur["dir"] = ax
+	cur["mm"] = _span(cur) + float(cur.get("gap", 10.0))
+	_end()
+	pu.sync()
+	_rep_sync()
+	_values_sync()
+	_say("Up: the copies stack upward, one on top of the other" if ax == "y" else ("Forward: the copies go one behind the other" if ax == "z" else "Row: the copies go sideways in a straight line"))
 
 
 ## STICK TOGETHER: Part's combine step (Expert Combine): the first picked piece is the target, the second the tool; one undo step
@@ -1960,7 +1996,10 @@ func _rep_sync() -> void:
 	if f.is_empty():
 		return
 	var ring := String(f.get("kind", "linear")) == "circular"
-	(rep_btns["row"] as Button).set_pressed_no_signal(String(f.get("kind", "linear")) == "linear")
+	var lin := String(f.get("kind", "linear")) == "linear"
+	(rep_btns["row"] as Button).set_pressed_no_signal(lin and String(f.get("dir", "x")) == "x")
+	(rep_btns["up"] as Button).set_pressed_no_signal(lin and String(f.get("dir", "x")) == "y")
+	(rep_btns["forward"] as Button).set_pressed_no_signal(lin and String(f.get("dir", "x")) == "z")
 	(rep_btns["ring"] as Button).set_pressed_no_signal(ring)
 	(rep_btns["corners"] as Button).set_pressed_no_signal(String(f.get("kind", "")) == "corners")
 	var rows_on := String(f.get("kind", "")) != "corners"   # CORNERS: four copies at the corners, no How many or Gap to set
