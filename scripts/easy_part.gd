@@ -1979,7 +1979,7 @@ func _rep_mode(ring: bool) -> void:
 	pu.sync()
 	_rep_sync()
 	_values_sync()
-	_say("Ring: the copies go round in a circle beside it" if ring else "Row: the copies go in a straight line")
+	_say("Ring: the copies go round in a circle" if ring else "Row: the copies go in a straight line")   # FWHEEL: "beside it" lied for a spoke (its copies go round the middle)
 
 
 ## EREPEATUP: Up or Forward: the same straight copies, stacked up (y) or put one behind the other (z); spaced by the body's height or depth plus the gap. One undo step
