@@ -135,6 +135,7 @@ func _init() -> void:
 	await idle(10)
 	var v2 := vol()
 	ok(int(pu().res.get("bodies", 0)) == 1 and v2 > 1.5 * v1, "2 flange drawn on the top face and pulled: one body, L volume %.1f cm3 (plate %.1f)" % [v2 * 1e6, v1 * 1e6])
+	ok(ep.status_l.text.find("do not touch") < 0, "2b the flange touches the plate: no 'pieces that do not touch' (status: %s)" % ep.status_l.text)
 	print("     hint after the flange: %s" % ep.hint_l.text)
 	await shot("flange")
 
