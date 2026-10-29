@@ -124,6 +124,7 @@ const FRAME_EASE := 0.3         # seconds the camera eases to a new framing (nev
 const FRAME_CHANGE := 0.25      # the box's diagonal must change this much to frame again (a small nudge moves nothing)
 var _fr_ref := AABB()           # the bounds the camera last framed (or the bounds on entry)
 var _fr_has := false
+var _fr_lk := ""               # EPANELVIEW: the left boxes shown when the camera last framed (see _frame_step)
 var _near_saved := -1.0         # the camera's near plane before Easy Part (put back when it is left)
 const FRAME_NEAR := 0.004
 const GRID_TILE_FILL := 0.95         # the empty part's grid tile fills this share of the free view (a flat square seen at a slant is narrow)
@@ -251,7 +252,7 @@ func build(root: Control) -> void:
 	var sh := HBoxContainer.new()
 	sh.add_theme_constant_override("separation", 6)
 	shape_box.add_child(sh)
-	for s in [["box", "Box"], ["round", "Round"], ["pointy", "Pointy"], ["oval", "Oval"]]:   # FSPOON: Oval = an ellipse fitted to the drag box (a bowl, a pad)
+	for s in [["box", "Box"], ["round", "Round"], ["pointy", "Pointy"], ["oval", "Oval"], ["hex", "Hex"]]:   # FSPOON: Oval = an ellipse fitted to the drag box (a bowl, a pad); FBOLT: Hex = a regular hexagon in the drag box (bolt head, nut)
 		var b := Button.new()
 		b.name = "easypart_shape_" + String(s[0])
 		b.text = String(s[1])
@@ -1200,6 +1201,7 @@ func _make(which: String) -> void:
 		_say(_arm_words("stick"))
 		return
 	if which == "draw" or which == "curve" or which == "colour":
+		_ease_end()   # FBOLT: Draw shape lands a camera ease still running, so the press that follows lands on the shape
 		armed = "" if armed == which else which
 		if armed == "draw":
 			shape = "box"   # every Draw shape press starts on Box: the Round chip of the last shape (a mug) does not carry over (a chair leg is a box)
@@ -1770,7 +1772,7 @@ func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: flo
 		var r := clampf(small * 0.01 * float(attempt[0]), 1.0, 6.0)
 		var list := []
 		for e in es:
-			if int(e["body"]) == 0 and float(e["len"]) >= longest * float(attempt[1]) and float(e["len"]) / Part.MM > r * 2.5:
+			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and float(e["len"]) >= longest * float(attempt[1]) and float(e["len"]) / Part.MM > r * 2.5:
 				list.append(Part.describe(e))
 		if list.is_empty():
 			continue
@@ -1793,7 +1795,7 @@ func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: flo
 			if Time.get_ticks_usec() - t1 > ROUND_BUDGET_US:
 				out_of_time = true
 				break
-			if int(e["body"]) == 0 and float(e["len"]) / Part.MM > r * 2.5:
+			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and float(e["len"]) / Part.MM > r * 2.5:
 				var trial := good.duplicate()
 				trial.append(Part.describe(e))
 				if Part.fillet_trial(body, r, trial) == "":
@@ -1838,22 +1840,47 @@ func _hole(rec: Dictionary) -> String:
 			cen = (lo + hi) * 0.5
 	var s: Dictionary
 	var f: Dictionary
-	# "both" splits dist half each way from the sketch plane: twice the body's farthest reach + 1 cm, so a tall body is cut all the way
-	if floor_made:
-		s = Part.new_feature(rec, "sketch", {"plane": "top", "ents": [{"k": "circle", "c": Part.arr2(cen), "r": snappedf(r, 0.5)}], "dims": []})   # the top plane's v axis is -Z
-		rec["features"].append(s)
-		f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.y), absf(bb.end.y)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
-	else:
-		s = Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "circle", "c": Part.arr2(cen), "r": snappedf(r, 0.5)}], "dims": []})
-		rec["features"].append(s)
-		f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.z), absf(bb.end.z)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
-	rec["features"].append(f)
+	# FBRACKET: the middle first; when the middle already has a hole, the next press cuts to the side, along the body's two long
+	# sketch axes (30% of the span each way), and the first side spot that takes material wins
+	var had_cut := _has_cut(rec)
+	var mid := Vector2(c.x, -c.z) if floor_made else Vector2(c.x, c.y)   # the middle of the whole body (the top plane's v axis is -Z)
+	var span := Vector2(bb.size.x, bb.size.z if floor_made else bb.size.y) / Part.MM
+	var spots: Array = [cen]   # FROOM: the newest piece's middle first; the whole body's middle when that cut takes everything
+	if not spots.has(mid):
+		spots.append(mid)
+	if had_cut:
+		spots += [mid + Vector2(0.3 * span.x, 0.0), mid - Vector2(0.3 * span.x, 0.0), mid + Vector2(0.0, 0.3 * span.y), mid - Vector2(0.0, 0.3 * span.y)]
 	var before := float(res["volume"])
-	var after := float(pu.replay_full(rec)["volume"])
-	if after >= before - 1e-12:
+	var n0: int = rec["features"].size()
+	var seq0 := int(rec.get("seq", 0))
+	var after := before
+	for at in spots:
+		rec["features"].resize(n0)   # the spot before this one takes nothing: its sketch and cut go out
+		rec["seq"] = seq0
+		# "both" splits dist half each way from the sketch plane: twice the body's farthest reach + 1 cm, so a tall body is cut all the way
+		if floor_made:
+			s = Part.new_feature(rec, "sketch", {"plane": "top", "ents": [{"k": "circle", "c": Part.arr2(at), "r": snappedf(r, 0.5)}], "dims": []})
+			rec["features"].append(s)
+			f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.y), absf(bb.end.y)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
+		else:
+			s = Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "circle", "c": Part.arr2(at), "r": snappedf(r, 0.5)}], "dims": []})
+			rec["features"].append(s)
+			f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.z), absf(bb.end.z)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
+		rec["features"].append(f)
+		after = float(pu.replay_full(rec)["volume"])
+		if after < before - 1e-12 and after > 1e-9:   # a cut that takes EVERYTHING is a failed cut (the kernel gave nothing back): try the next spot
+			break
+	if not (after < before - 1e-12 and after > 1e-9):
+		rec["features"].resize(n0)
+		rec["seq"] = seq0
+		if had_cut:
+			return "The middle already has a hole, and Cut a hole always cuts the middle. For a second hole, use Expert: Circle, then Cut"
 		return "The hole would miss the shape: nothing was cut"
 	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}   # the slider is the hole's WIDTH (cm): radius mm = width cm * 5
-	_say("A hole straight through: use the slider for its size, or press Mirror that or Repeat it next")
+	if had_cut:
+		_say("The middle already has a hole, so this one is cut to the side. For exact places, use Expert: Circle, then Cut")
+	else:
+		_say("A hole straight through: use the slider for its size, or press Mirror that or Repeat it next")
 	return ""
 
 
@@ -1874,6 +1901,12 @@ func _sketch_pts(sk: Dictionary) -> Array:
 			if e.has(k):
 				out.append(Vector2(float(e[k][0]), float(e[k][1])))
 	return out
+## a cut step (an Extrude with op cut) is already in the record: the middle or a side has a hole
+func _has_cut(rec: Dictionary) -> bool:
+	for pf in rec.get("features", []):
+		if String(pf.get("t", "")) == "extrude" and String(pf.get("op", "")) == "cut":
+			return true
+	return false
 
 
 ## EDOOR: the newest step is a sketch drawn ON A FACE (a plane feature with "out") that no pull uses yet
@@ -2796,6 +2829,11 @@ func _frame_step() -> void:
 		_fr_has = true
 		return
 	var ref_len := _fr_ref.size.length()
+	var lk := str(repeat_box.visible)   # EPANELVIEW: a Repeat it box opening or closing changes the free view: frame again (not Stick together: its picks need a still view)
+	if lk != _fr_lk:
+		_fr_lk = lk
+		_fr_ref = AABB()
+		ref_len = 0.0
 	if len < 1e-4:
 		_fr_ref = bb   # an empty part: nothing to frame yet
 		_frame_grid()  # GRIDFRAME: its floor grid is framed instead (once per visit)
@@ -2823,8 +2861,12 @@ func free_rect() -> Rect2:
 	# of a row stayed off screen). When that happens the row does not push the view down (it floats over the left of the grid)
 	if _cl.end.y - 70.0 - top < 120.0:
 		top = _free_top(boxes.filter(func(c): return c != repeat_box))
+	var x0 := _cl.position.x + 12.0
 	var x1 := _cl.end.x - PW - 16.0
-	return Rect2(_cl.position.x + 12.0, top, x1 - _cl.position.x - 12.0, _cl.end.y - 70.0 - top)
+	# EPANELVIEW: an open Repeat it box at the lower left takes its columns out of the free view (the part is framed to its right)
+	if repeat_box.visible and repeat_box.position.y < _cl.end.y - 70.0 and repeat_box.position.y + repeat_box.size.y > top:
+		x0 = maxf(x0, repeat_box.position.x + repeat_box.size.x + 8.0)
+	return Rect2(x0, top, x1 - x0, _cl.end.y - 70.0 - top)
 
 
 ## the top edge of the free view: under the MAKE row and under each visible panel in boxes
@@ -2834,6 +2876,16 @@ func _free_top(boxes: Array) -> float:
 		if c != null and (c as Control).visible:
 			top = maxf(top, (c as Control).get_global_rect().end.y + 8.0)
 	return top
+
+
+## FBOLT: a Draw shape press finishes a camera ease that is still running, so the view is where it lands before the next press
+func _ease_end() -> void:
+	if _ease.is_empty() or m.cam == null:
+		return
+	m.target = _ease["t1"]
+	m.dist = float(_ease["d1"])
+	m._cam()
+	_ease = {}
 
 
 ## the ease in progress: one step per frame toward its end pose (smoothstep), then it is cleared
@@ -3412,6 +3464,9 @@ func _draft_outline() -> PackedVector2Array:
 	elif String(_draft["shape"]) == "pointy":
 		for q in _pointy_pts(a, b) + [a]:
 			pts.append(m.cam.unproject_position(_pw(q)))
+	elif String(_draft["shape"]) == "hex":
+		for q in _hex_pts(a, b) + [a]:
+			pts.append(m.cam.unproject_position(_pw(q)))
 	else:
 		var r := a.distance_to(b)
 		for i in 33:
@@ -3425,6 +3480,16 @@ func _pointy_pts(a: Vector2, b: Vector2) -> Array:
 	return [a, Vector2(b.x, a.y), Vector2((a.x + b.x) * 0.5, b.y)]
 
 
+## HEX: a regular hexagon in the drag box, centred on its middle, flat top and bottom (the box's width is the corner-to-corner, its height the across-flats); the drag takes the smaller of the two sizes
+func _hex_pts(a: Vector2, b: Vector2) -> Array:
+	var c := (a + b) * 0.5
+	var r := minf(absf(b.x - a.x) * 0.5, absf(b.y - a.y) * 0.5 / 0.8660254)
+	var out := []
+	for i in 6:
+		out.append(c + Vector2.from_angle(PI / 3.0 * i) * r)
+	return out
+
+
 ## the world point of a draft coordinate (the draft plane, else the FLOOR: the Part top plane, y = 0)
 func _pw(q: Vector2) -> Vector3:
 	return Part.to_world(_draft.get("pl", Part.plane("top")), q)
@@ -3434,7 +3499,7 @@ func _pw(q: Vector2) -> Vector3:
 ## {"pl": the plane through the face, "base": "right"|"top"|"front", "mm": distance along the base normal, "out": +1 or -1 (the face normal side)}
 func _face_hit(p: Vector2) -> Dictionary:
 	var fc := _face_hit_at(p)
-	if fc.is_empty() or String(fc.get("base", "")) == "top":
+	if String(fc.get("base", "")) == "top":
 		return fc
 	# a press on a solid's top edge or corner (a chair leg's corner, seen from the side) lands on the side face just below the top:
 	# a tip-of-the-top press a few px higher takes the TOP face there, so a seat drawn on the leg tops sits on them
@@ -3442,6 +3507,13 @@ func _face_hit(p: Vector2) -> Dictionary:
 		var up := _face_hit_at(p + off)
 		if String(up.get("base", "")) == "top":
 			return up
+	# FBRACKET: a press that misses every face (a press on the FAR edge of a top face grazes it) is a press a few px lower,
+	# which is inside the top face; without this the flange was drawn on the floor and came out beside the plate
+	if fc.is_empty():
+		for off in [Vector2(0.0, 6.0), Vector2(-6.0, 6.0), Vector2(6.0, 6.0)]:
+			var dn := _face_hit_at(p + off)
+			if String(dn.get("base", "")) == "top":
+				return dn
 	return fc
 
 
@@ -3540,7 +3612,8 @@ func _alt_held() -> bool:
 
 
 func _snap_step() -> float:
-	return 5.0 if armed == "curve" else SNAP_MM
+	# a curve (a Curvy line or a Round circle) keeps the 5 mm grid; box, pointy and hex corners snap to 1 cm
+	return 5.0 if (armed == "curve" or (armed == "draw" and shape == "round")) else SNAP_MM
 
 
 func _ground(p: Vector2, pl: Dictionary = {}, snap := true) -> Variant:
@@ -4065,7 +4138,7 @@ func _finish_draw() -> void:
 			var t := TAU * float(i) / 16.0
 			opts.append(Part.arr2(Vector2(oc.x + orx * cos(t), oc.y + ory * sin(t))))
 		ents = [{"k": "bspline", "pts": opts, "closed": true}]
-	elif sh == "box" or sh == "pointy":
+	elif sh == "box" or sh == "pointy" or sh == "hex":
 		var sd := _sides(a, b, pl)
 		if sd.has("thin"):
 			_say("Drag a bit wider: both sides must be at least 2 mm (now %s mm)" % _mm_words(float(sd["thin"])))
@@ -4073,6 +4146,10 @@ func _finish_draw() -> void:
 		b = sd["b"]
 		if sh == "box":
 			ent = {"k": "rect", "a": Part.arr2(a), "b": Part.arr2(b)}
+		elif sh == "hex":   # HEX: six lines, the closed outline of the hexagon (Expert's line tool records the same)
+			var hp := _hex_pts(a, b)
+			for i in 6:
+				ents.append({"k": "line", "a": Part.arr2(hp[i]), "b": Part.arr2(hp[(i + 1) % 6])})
 		else:   # POINTY: three lines, the closed outline of the triangle (Expert's line tool records the same)
 			var tp := _pointy_pts(a, b)
 			ents = [{"k": "line", "a": Part.arr2(tp[0]), "b": Part.arr2(tp[1])}, {"k": "line", "a": Part.arr2(tp[1]), "b": Part.arr2(tp[2])}, {"k": "line", "a": Part.arr2(tp[2]), "b": Part.arr2(tp[0])}]
