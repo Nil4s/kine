@@ -21476,6 +21476,50 @@ func _prop_del() -> void:
 	_say("deleted the %s: Ctrl+Z puts it back" % nm)
 
 
+## APROP: EASY PICK UP. The picked Part (a cup you built) leaves the scene and goes into his right hand, as Give to a character
+## does: one undo step. Only a Part is picked up for now (a built-in prop has no hand shape); a full hand is said, not dropped
+func _prop_pick_up() -> void:
+	if sel_prop < 0 or sel_prop >= S.props.size():   # nothing picked: the first built part in the scene is the one
+		for k in S.props.size():
+			if PartWeapon.is_part(String(S.props[k]["kind"])):
+				sel_prop = k
+				break
+	if sel_prop < 0 or sel_prop >= S.props.size():
+		_say("nothing to pick up: build a part and Give it, or Use in a scene first")
+		return
+	var kind := String(S.props[sel_prop]["kind"])
+	if not PartWeapon.is_part(kind):
+		_say("Pick up works on a part you built (a cup, a sword...) for now: the %s stays where it is" % _prop_name(sel_prop))
+		return
+	if B.wep_on:
+		_say("his hand is full: Drop it first, then Pick up")
+		return
+	_push_undo()
+	var nm := _prop_name(sel_prop)
+	var i := sel_prop
+	S.props.remove_at(i)
+	for c in S.cards:   # the cards' take / drop marks follow the props' new numbers (as Delete does)
+		if c.has("take"):
+			if int(c["take"]["prop"]) == i:
+				c.erase("take")
+			elif int(c["take"]["prop"]) > i:
+				c["take"]["prop"] = int(c["take"]["prop"]) - 1
+		if c.has("drop"):
+			if int(c["drop"]) == i:
+				c.erase("drop")
+			elif int(c["drop"]) > i:
+				c["drop"] = int(c["drop"]) - 1
+	B.wep2_on = false
+	B.set_kind(kind)
+	B.weapon_to_hand("hand_r")
+	sel = "bat_handle"
+	sel_prop = -1
+	_after_edit()
+	_props_show()
+	_doc_line()
+	_say("picked up the %s: it is in his right hand. Ctrl+Z puts it back in the scene" % nm)
+
+
 ## SIT HERE (TT3, #205): a new card after the picked one: the body faces away from the seat's back (the prop's +Z),
 ## its hips just behind the seat's middle, thighs level and shins down; grounding on the set lifts the thighs onto the
 ## seat; a foot left hanging is planted on the floor. One undo step; a pose that still goes into the seat is said
