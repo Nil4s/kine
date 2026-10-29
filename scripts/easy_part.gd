@@ -3555,6 +3555,39 @@ func _face_hit(p: Vector2) -> Dictionary:
 	return fc
 
 
+## FFLAT8: a press that hits a TOP face near that solid's outer edge, where the floor point under the press lies outside the solid
+## (the camera looks down at the edge, so the top face is shifted inward on screen), is a floor press: a shape drawn there stands beside the solid
+func _press_beside_top(p: Vector2, fc: Dictionary) -> bool:
+	if fc.is_empty() or String(fc.get("base", "")) != "top" or not fc.has("pl"):
+		return false
+	var g: Variant = _ground(p, {}, false)
+	var h: Variant = _ground(p, fc["pl"], false)
+	if g == null or h == null:
+		return false
+	var gw := Part.to_world(Part.plane("top"), g as Vector2)
+	var hw := Part.to_world(fc["pl"], h as Vector2)
+	if Vector2(gw.x - hw.x, gw.z - hw.z).length() > 40.0 * Part.MM:
+		return false
+	var eps := 0.5 * Part.MM
+	# the floor point must lie outside every solid's footprint (no triangle that rises above the floor covers it in X and Z)
+	for body in _shown_faces():
+		var tris: PackedVector3Array = body
+		for k in range(0, tris.size() - 2, 3):
+			var a: Vector3 = tris[k]
+			var b: Vector3 = tris[k + 1]
+			var c: Vector3 = tris[k + 2]
+			if maxf(a.y, maxf(b.y, c.y)) <= eps:
+				continue   # a floor-level sheet (a flat bottom) does not hold the press
+			var d := (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z)
+			if absf(d) < 1e-12:
+				continue
+			var u := ((b.z - c.z) * (gw.x - c.x) + (c.x - b.x) * (gw.z - c.z)) / d
+			var v := ((c.z - a.z) * (gw.x - c.x) + (a.x - c.x) * (gw.z - c.z)) / d
+			if u >= -1e-6 and v >= -1e-6 and u + v <= 1.0 + 1e-6:
+				return false   # the floor point is under the solid: an ordinary top press
+	return true
+
+
 func _face_hit_at(p: Vector2) -> Dictionary:
 	if not Part.available():
 		return {}
@@ -4071,6 +4104,8 @@ func _start_draft(p: Vector2) -> bool:
 			_say("Drawing a roof on the box top, through the middle")
 			return true
 	var fc := _face_hit(p)   # DRAW ON A FACE: a press on a flat face of a solid puts the sketch on that face
+	if _press_beside_top(p, fc):
+		fc = {}   # FFLAT8: a press on the top edge of a solid whose floor point lies beside it draws on the floor (beside the solid)
 	if not fc.is_empty():
 		var fg: Variant = _ground(p, fc["pl"])
 		if fg != null:
