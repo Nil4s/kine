@@ -14,6 +14,7 @@ static func get_plan(nm: String) -> Dictionary:
 		"sit_down": return plan_sit_down()
 		"wave": return plan_wave()
 		"fall": return plan_fall()
+		"drink": return plan_drink()
 		"dance": return plan_dance()
 		"turn_around": return plan_turn(180.0)
 		"turn_left": return plan_turn(90.0)
@@ -333,6 +334,21 @@ static func plan_wave() -> Dictionary:
 	clips.append({"name": "Hand down", "move": 0.45, "hold": 0.4, "set": rest, "relaxed": ["l", "r"]})
 	return {"name": "wave", "base": "poses/stand.json", "clips": clips, "spline": false,
 		"note": "WAVE template: the right hand raised, the forearm swung side to side 2.5 times (about 1.2 s), then lowered. Hand passes head height."}
+
+
+## DRINK. The right hand lifts a cup (or empty hand) to the mouth: the upper arm forward and a little out, the elbow folded
+## hard, held for a sip, then lowered. Typed "drink" (Templates.WORDS), not a picker card. The hand reaches about mouth height
+## (the arm length is the body's own: the lift is the elbow's fold, no reach is invented).
+static func plan_drink() -> Dictionary:
+	var rest := stand_set()
+	var up := rest.duplicate()
+	up.merge({"upperarm_r": [45, -35, 0], "lowerarm_r": [125, 0, 0]}, true)
+	var clips := [{"name": "stand", "move": -1, "hold": 0.4, "set": rest, "relaxed": ["l", "r"]},
+		{"name": "Cup up", "move": 0.6, "hold": 0.0, "set": up},
+		{"name": "Sip", "move": 0.3, "hold": 0.8, "set": up},
+		{"name": "Cup down", "move": 0.7, "hold": 0.4, "set": rest, "relaxed": ["l", "r"]}]
+	return {"name": "drink", "base": "poses/stand.json", "clips": clips, "spline": false,
+		"note": "DRINK template: the right hand lifts to the mouth, holds a sip, and goes back down."}
 
 
 ## FALL. A backward fall, judo's ushiro ukemi (a back breakfall): stand, lean back with the arms forward, one step back and a deep crouch

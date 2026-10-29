@@ -15,10 +15,10 @@ const BAKED := {"roundhouse": "roundhouse"}
 ## seat or the floor, Kine had no stand move). The reversed file is made in read(), never written to templates/.
 const DERIVED := {"stand_up": "sit_down"}
 ## files typed, not picked: "dance" (tools/template_plans.gd plan_dance) is built from its words (WORDS) and has no picker card
-const TYPED := ["dance", "turn_around", "turn_left", "turn_right"]   # the turns on the spot: tools/make_turns.gd (scripts/turn_walk.gd)
+const TYPED := ["dance", "turn_around", "turn_left", "turn_right", "drink"]   # the turns on the spot: tools/make_turns.gd (scripts/turn_walk.gd)
 ## typed words that are a file: "groove" and "boogie" are dances too (Easy's typed box reads them through _card_template)
 const WORDS := {"dance": "dance", "dancing": "dance", "groove": "dance", "boogie": "dance",
-	"turn around": "turn_around", "turn left": "turn_left", "turn right": "turn_right"}   # the turns (typed words, as the dance is)
+	"turn around": "turn_around", "turn left": "turn_left", "turn right": "turn_right", "drink": "drink"}   # the turns (typed words, as the dance is)
 ## the picker's text: [title, what you get]
 const INFO := {
 	"walk": ["Walk", "A half step, five steps at 105 a minute, feet together; arms swing against the legs."],
