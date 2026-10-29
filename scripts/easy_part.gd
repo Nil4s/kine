@@ -1144,9 +1144,16 @@ func _pull(rec: Dictionary) -> String:
 		var bb: AABB = Part.replay(rec).get("aabb", AABB())
 		var depth := bb.size.z if String(pf.get("from", "front")) == "front" else bb.size.x
 		dist = snappedf(depth / Part.MM, 1.0)
+	var nb0 := int(Part.replay(rec).get("bodies", 0))   # FLAMP: a shape that stands apart from the solid is its own body, not one lump
+	var lk0 := _lumps(Part.replay(rec)) if nb0 > 0 else 0
 	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": "join"})
 	rec["features"].append(f)
 	var err := _last_error(rec, String(f["id"]))
+	if err == "" and nb0 > 0:
+		var joined := Part.replay(rec)
+		if int(joined.get("bodies", 0)) == nb0 and _lumps(joined) > lk0:
+			f["op"] = "new"
+			err = _last_error(rec, String(f["id"]))
 	if err != "":
 		return "That shape is not closed, so it cannot be pulled up: drag back to the start to close it"
 	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
@@ -1882,7 +1889,7 @@ func _split_keep(key: String) -> void:
 	_split_sync()
 
 
-## COLOUR: one appear step per body (Part's "appear" feature, the look Expert's Appearance writes), all in ONE undo step. A material
+## COLOUR: one appear step on the newest body (Part's "appear" feature, the look Expert's Appearance writes), in ONE undo step. A material
 ## (Glass, Metal) keeps each body's own colour; a colour chip sets Paint's numbers with that colour
 func _paint(label: String, c: Color, preset: String) -> void:
 	armed = ""
@@ -1898,7 +1905,21 @@ func _paint(label: String, c: Color, preset: String) -> void:
 	var rec := pu._ensure()
 	var looks: Array = pu.res.get("body_looks", [])
 	var nums: Dictionary = Part.LOOK_PRESETS.get(preset, Part.LOOK_DEFAULT)
-	for i in nb:
+	# FLAMP: a colour chip paints the solids no chip has coloured yet (a new arm or shade; a lamp: base red, arm blue, shade yellow);
+	# when all are coloured, the newest one. Glass and Metal paint every solid (each keeps its own colour)
+	var chipped := {}
+	for of in rec.get("features", []):
+		if String(of.get("t", "")) == "appear" and not COLOUR_PRESETS.has(String(of.get("preset", ""))):
+			chipped[int(of.get("body", -1))] = true
+	var targets: Array = range(nb)
+	if not COLOUR_PRESETS.has(preset):
+		targets = []
+		for i in nb:
+			if not chipped.has(i):
+				targets.append(i)
+		if targets.is_empty():
+			targets = [nb - 1]
+	for i in targets:
 		var cur := Part.look_at(looks, i)
 		var col: Color = cur["c"] if COLOUR_PRESETS.has(preset) else c
 		var n := Part.count_of(rec, "appear") + 1
