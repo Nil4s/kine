@@ -250,3 +250,4 @@ EXTRA="$EXTRA freewalk:w"   # FREEWALK: a beginner from the BUILDING card (Easy,
 EXTRA="$EXTRA fshelf:w"   # FSHELF: a wall shelf by real clicks from the BUILDING card (Easy, blank): a plate, two brackets, Repeat it for three shelves, Round the edges; jargon and hints checked (tests/fshelf_test.gd)
 EXTRA="$EXTRA froom:w"   # FROOM: a beginner builds a small room from the BUILDING card by real clicks: floor plate, two 2 m walls, a table, a door cut and a window cut; dead ends are bars (tests/froom_test.gd)
 EXTRA="$EXTRA fwords:w"   # FWORDS: on a blank part every shown word and tooltip is plain (no house/sword/weapon/fighter unless chosen, no sketch/extrude/fillet/boolean) (tests/fwords_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA fexport:w"   # FEXPORT: a free BUILDING part (Easy Part, Draw shape, Pull it up) from the start screen, then DELIVER > Export...: the part is in the list, its OBJ and GLB sizes equal the part in mm (tests/fexport_test.gd)

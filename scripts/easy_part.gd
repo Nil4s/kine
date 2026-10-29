@@ -81,6 +81,7 @@ var empty_chip: Button   # "Empty": start from nothing (not in chips: those are 
 var rows_vb: VBoxContainer
 var rows := []                 # [{"key", "slider", "pill", "kind": "tpl" | "tweak", "def": row dict}]
 var give_btn: Button
+var export_btn: Button          # FEXPORT: Export on the Easy Part bar (the export dialog, the free part picked)
 var back_btn: Button
 var use_btn: Button
 var status: PanelContainer
@@ -157,6 +158,10 @@ func build(root: Control) -> void:
 	give_btn.name = "easypart_give"
 	give_btn.custom_minimum_size = Vector2(170, m.TOP_H - 12)
 	row.add_child(give_btn)
+	export_btn = _bar_btn("Export", "Save this part as an OBJ or a GLB file: the export dialog, with this part picked", func(): m._export_dialog_open())   # FEXPORT
+	export_btn.name = "easypart_export"
+	export_btn.custom_minimum_size = Vector2(110, m.TOP_H - 12)
+	row.add_child(export_btn)
 	easy_btn = _bar_btn("Easy", "Sliders and big buttons", func(): pass)
 	easy_btn.toggle_mode = true
 	easy_btn.button_pressed = true

@@ -188,7 +188,8 @@ func open() -> void:
 	_fill_formats()
 	_refresh()
 	ui_blur.set_pressed_no_signal(bool(m.blast_blur))
-	ui_what.select(0)
+	var free_part: bool = m.bld != null and m.bld.part != null and m.bld.part.on   # FEXPORT: a free part on screen is what the beginner made: that object by default
+	ui_what.select(1 if free_part else 0)
 	_refresh()
 	dlg.popup_centered()
 
