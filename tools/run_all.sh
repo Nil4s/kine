@@ -298,3 +298,4 @@ EXTRA="$EXTRA fframe:w"   # FFRAME: a picture frame from the BUILDING card by re
 EXTRA="$EXTRA alib2:w"   # ALIB2: a beginner from the start screen (ANIMATION, Easy): Library, type chair, Furniture tile, drag the chair to the floor, Colour it, Ctrl+Z (tests/alib2_test.gd)
 EXTRA="$EXTRA fruler:w"   # FRULER: a ruler 300 mm by real clicks from the BUILDING card: a tick cut into its top, Repeat it Row of the cut (12 copies, a pattern over the cut), then Expert: the same record, 300 mm (tests/fruler_test.gd)
 EXTRA="$EXTRA epanelview:w"   # EPANELVIEW: free building, a tool panel at the left of Easy Part never covers the part: real clicks from the BUILDING card at 1280 x 720, every make tool (tests/epanelview_test.gd)
+EXTRA="$EXTRA fbolt:w"   # FBOLT: a beginner from the BUILDING card builds a bolt and a nut by real clicks: a round shaft, a hex head (Hex chip), a hex nut apart from the bolt, a hole; Expert shows the hex as six lines (tests/fbolt_test.gd)
