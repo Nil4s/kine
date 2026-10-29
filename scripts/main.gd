@@ -3605,8 +3605,8 @@ func _process_body(dt: float) -> void:
 		if play_delay > 0.0:
 			OS.delay_msec(roundi(play_delay * 1000.0))   # the test's slow frame: this frame really costs that long
 	_audio_tick(_a_before, dt)
-	if easy != null and easy.on:
-		easy.follow_tick()   # EASY FOLLOW: the look-at point rides the body at the playhead (Expert: no follow)
+	if easy != null and easy.on and not (bld != null and bld.part != null and bld.part.shows() and bld.part.easy):
+		easy.follow_tick()   # EASY FOLLOW: the look-at point rides the body at the playhead (Expert: no follow; an Easy Part has no body on screen: its camera is its own, GRIDFRAME)
 	if sc_ui != null:
 		sc_ui.tick(_a_before, playhead, playing, dt)   # I35: the cues the playhead passed sound
 	_light_apply()   # the playhead crossed a cut: the next shot's lights

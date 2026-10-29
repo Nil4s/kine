@@ -2004,6 +2004,8 @@ func _process(_dt: float) -> void:
 			m._cam()
 	if on and _near_saved < 0.0 and m.cam != null:
 		_near_saved = m.cam.near
+		_grid_framed = false
+		_grid_cam = []
 		m.cam.near = minf(_near_saved, FRAME_NEAR)   # EFRAME: a small part framed close (the plate's corners stay in front of the lens)
 	elif not on and _near_saved >= 0.0 and m.cam != null:
 		m.cam.near = _near_saved
@@ -2047,20 +2049,16 @@ func _process(_dt: float) -> void:
 ## Never while the mouse is held (a drag, an orbit, a pan) and never for a small edit: the reference box moves only when framed.
 func _frame_step() -> void:
 	if m.cam == null or pu.res.is_empty():
+		_frame_grid()   # GRIDFRAME: an empty part has no box: its floor grid is framed instead (once per visit)
+		if not _ease.is_empty():
+			_ease_step()
 		return
 	var held := Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) or Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE) or not _drag.is_empty() or not _draft.is_empty()
 	if held:
 		_ease = {}   # the user has the view: the ease stops where it is
 		return
 	if not _ease.is_empty():
-		_ease["s"] = minf(float(_ease["s"]) + get_process_delta_time(), FRAME_EASE)
-		var k: float = float(_ease["s"]) / FRAME_EASE
-		k = k * k * (3.0 - 2.0 * k)
-		m.target = (_ease["t0"] as Vector3).lerp(_ease["t1"] as Vector3, k)
-		m.dist = lerpf(float(_ease["d0"]), float(_ease["d1"]), k)
-		m._cam()
-		if float(_ease["s"]) >= FRAME_EASE:
-			_ease = {}
+		_ease_step()
 		return
 	var bb: AABB = pu.res.get("aabb", AABB())
 	var len := bb.size.length()
@@ -2071,6 +2069,9 @@ func _frame_step() -> void:
 	var ref_len := _fr_ref.size.length()
 	if len < 1e-4:
 		_fr_ref = bb   # an empty part: nothing to frame yet
+		_frame_grid()  # GRIDFRAME: its floor grid is framed instead (once per visit)
+		if not _ease.is_empty():
+			_ease_step()
 		return
 	if ref_len >= 1e-4 and absf(len - ref_len) <= FRAME_CHANGE * ref_len:
 		return
@@ -2091,10 +2092,98 @@ func free_rect() -> Rect2:
 	return Rect2(_cl.position.x + 12.0, top, x1 - _cl.position.x - 12.0, _cl.end.y - 70.0 - top)
 
 
+## the ease in progress: one step per frame toward its end pose (smoothstep), then it is cleared
+func _ease_step() -> void:
+	_ease["s"] = minf(float(_ease["s"]) + get_process_delta_time(), FRAME_EASE)
+	var k: float = float(_ease["s"]) / FRAME_EASE
+	k = k * k * (3.0 - 2.0 * k)
+	m.target = (_ease["t0"] as Vector3).lerp(_ease["t1"] as Vector3, k)
+	m.dist = lerpf(float(_ease["d0"]), float(_ease["d1"]), k)
+	m._cam()
+	if float(_ease["s"]) >= FRAME_EASE:
+		_ease = {}
+
+
+## GRIDFRAME (Nick 2026-10-28, Fusion 360 style): an empty Easy Part opens with its 1 m floor grid centred in the free view and filling most of it.
+## Framed again when the free view itself changes (the lens shift follows it), but only while the user has not moved the camera since
+## the last automatic framing. The view angle is kept (the 3/4 entry view).
+const GRID_FILL := 0.85          # the grid's bigger side fills this share of the free view
+var _grid_framed := false
+var _grid_fr := Rect2()          # the free view the grid was last framed in
+var _grid_cam: Array = []        # the camera [target, dist, yaw, pitch] the last automatic framing left
+func _frame_grid() -> void:
+	if _ease.size() > 0 or m.cam == null:
+		return
+	if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) or Input.is_mouse_button_pressed(MOUSE_BUTTON_RIGHT) or Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE) or not _drag.is_empty() or not _draft.is_empty():
+		return   # the user has the mouse (a drag, a sketch, an orbit): the view stays where it is
+	if m._view_tw != null and m._view_tw.is_valid():
+		return   # the view tween that the card click started still moves the look-at point: framed after it ends
+	var fr := free_rect()
+	if fr.size.x < 40.0 or fr.size.y < 40.0:
+		return
+	if _grid_framed:
+		if fr.is_equal_approx(_grid_fr) or not _grid_auto():
+			return   # framed already, or the user has the view
+		if armed != "":
+			return   # a tool is armed (Draw, Curvy, Pull ...): the free view changes as its panel opens, and the view must not move under the clicks that follow
+	var e := 10 * 50.0 * Part.MM   # the floor grid's half side (scripts: _floor_sync, n = 10 lines of 5 cm)
+	var pose := _grid_pose(AABB(Vector3(-e, 0.0, -e), Vector3(2.0 * e, 0.0, 2.0 * e)), GRID_FILL)
+	if pose.is_empty():
+		return   # no pose yet: try again next frame
+	_grid_framed = true
+	_grid_fr = fr
+	_grid_cam = [pose[0], pose[1], float(m.yaw), float(m.pitch)]
+	_ease = {"t0": m.target, "d0": float(m.dist), "t1": pose[0], "d1": pose[1], "s": 0.0}
+
+
+## true while the camera is still where the last automatic grid framing left it (the user has not orbited, panned or zoomed)
+func _grid_auto() -> bool:
+	if _grid_cam.is_empty():
+		return false
+	return m.target.is_equal_approx(_grid_cam[0]) and absf(float(m.dist) - float(_grid_cam[1])) < 1e-4 and absf(float(m.yaw) - float(_grid_cam[2])) < 1e-3 and absf(float(m.pitch) - float(_grid_cam[3])) < 1e-3
+
+
+## GRIDFRAME, closed loop: the look-at point and distance that put the grid's screen box at the free view's centre and GRID_FILL of it.
+## Each step measures the box on screen (the camera's lens shift is not trusted) and moves the look-at point by the pixel error
+## (one pixel = 2 d tan(fov/2) / view height world units, the view height is kept). Returns [t, d], or [] when no pose is found.
+func _grid_pose(bb: AABB, fill: float) -> Array:
+	var fr := free_rect()
+	if fr.size.x < 40.0 or fr.size.y < 40.0:
+		return []
+	var vs: Vector2 = m.get_viewport().get_visible_rect().size
+	var t0: Vector3 = m.target
+	var d0 := float(m.dist)
+	var t := bb.get_center()
+	var d := d0
+	var ok_pose := false
+	for it in 60:
+		var b := Basis.from_euler(Vector3(deg_to_rad(float(m.pitch)), deg_to_rad(float(m.yaw)), 0))
+		var r := _box_at(bb, t, d)
+		if r.size == Vector2.ZERO:
+			d *= 1.5   # a corner behind the lens: back off
+			continue
+		var wpp := 2.0 * d * tan(deg_to_rad(m.cam.fov * 0.5)) / vs.y
+		var need := maxf(r.size.x / fr.size.x, r.size.y / fr.size.y) / fill
+		var ex := fr.get_center().x - r.get_center().x
+		var ey := fr.get_center().y - r.get_center().y
+		if absf(ex) < 1.0 and absf(ey) < 1.0 and absf(need - 1.0) < 0.01:
+			ok_pose = true
+			break
+		t += b.x * (-ex) * wpp + b.y * ey * wpp
+		if absf(need - 1.0) >= 0.01:
+			d = clampf(d * clampf(need, 0.5, 2.0), 0.02, 40.0)
+	m.target = t0
+	m.dist = d0
+	m._cam()
+	if not ok_pose:
+		return []
+	return [t, d]
+
+
 ## the look-at point and distance that put the box (its eight corners) at FRAME_FILL of the free view; the view angle is kept.
 ## The look-at point is the box's middle, moved so the box sits in the free view's middle (as Easy's frame() moves it); the distance
 ## is found by a few steps: the box's size on screen goes as 1 / distance, so each step scales the distance by the size ratio.
-func _frame_pose(bb: AABB) -> Array:
+func _frame_pose(bb: AABB, fill := FRAME_FILL) -> Array:
 	var fr := free_rect()
 	if fr.size.x < 40.0 or fr.size.y < 40.0:
 		return []
@@ -2112,7 +2201,7 @@ func _frame_pose(bb: AABB) -> Array:
 			d *= 1.5   # a corner behind the lens: back off
 			continue
 		t = tt
-		var need := maxf(r.size.x / fr.size.x, r.size.y / fr.size.y) / FRAME_FILL
+		var need := maxf(r.size.x / fr.size.x, r.size.y / fr.size.y) / fill
 		if absf(need - 1.0) < 0.01:
 			break
 		d = clampf(d * clampf(need, 0.5, 2.0), 0.02, 40.0)
