@@ -277,3 +277,4 @@ EXTRA="$EXTRA fdrone:w"   # FDRONE: free 3D building from the BUILDING card: a b
 EXTRA="$EXTRA awave:w"   # AWAVE: a beginner makes a wave from the start screen by real clicks (ANIMATION, the Wave picture), Play / Stop, Faster then Slower, Save video (an mp4 or frames), then types "wave" in a new scene; 7 bars (tests/awave_test.gd)
 EXTRA="$EXTRA ascene2:w"   # ASCENE2: a beginner makes three scenes, renames one, duplicates one, deletes one to the trash and puts it back, reopens each; the text and card count of each scene survive every move (tests/ascene2_test.gd)
 EXTRA="$EXTRA abody2:w"   # ABODY2: an easy body by real clicks from the start screen: height, build, face, hair, save, reopen from My scenes: every change kept (tests/abody2_test.gd)
+EXTRA="$EXTRA fglasses:w"   # FGLASSES: a beginner from the BUILDING card builds a pair of glasses by real clicks: bridge, ring, Cut a hole, arm, Mirror that (tests/fglasses_test.gd)
