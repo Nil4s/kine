@@ -3472,6 +3472,7 @@ func _process(_dt: float) -> void:
 	explode_box.visible = on and int(pu.res.get("bodies", 0)) >= 2 and armed == "" and not _hole_on() and not _split_on()   # EXPLODE (p103): two or more pieces; not over a hole's or a cut's keep chips
 	if not explode_box.visible and pu.explode_mm != 0.0:
 		_explode_reset()
+	align_row.visible = stick_box.visible and not smooth and stick_picks.size() == 2   # P054: the align row shows with the two picks
 	if del_on and (armed != "" or (_rec().get("features", []) as Array).size() != del_n):
 		_pick_clear()   # FDELETE: a pick ends with the step it was made on
 	del_btn.visible = on and del_on
