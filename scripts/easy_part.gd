@@ -17,6 +17,8 @@ const ROUND_BUDGET_US := 300000   # EROUND: the Round press stops trying edges a
 const MAKE_H := 76.0
 const REP_WORDS := {"count": ["Fewer", "More"], "gap": ["Closer", "Further apart"]}   # the Repeat it sliders' ends
 const STICK_OPS := [["join", "Join", "Make the two pieces one solid"], ["cut", "Cut away", "Cut the second piece out of the first"], ["intersect", "Keep the overlap", "Keep only the part where the two pieces overlap"]]
+const SCREW_DS := [3, 4, 5, 6]         # NSCREW2: the Parts category's screw sizes (M3..M6, columns of the grid)
+const SCREW_LENS := [10, 16, 20, 30]   # NSCREW2: the screw lengths in mm (rows of the grid)
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
 const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal): a wood brown, red > green > blue
 const TILT_DEG := 20.0           # Tilt it: the lean of the newest solid (degrees, sideways about its middle)
@@ -68,6 +70,10 @@ var repeat_box: PanelContainer   # Repeat it: Row / Ring and the How many and Ga
 var rep_btns := {}
 var tilt_box: PanelContainer     # Tilt it: one chip under the newest solid (a Spin or a Pull), leans it 20 degrees once
 var tilt_btn: Button
+var parts_btn: Button            # NSCREW2: the Parts category chip (opens the screw grid under the template chips)
+var screw_box: PanelContainer    # NSCREW2: the screw grid: sixteen size chips, shown while Parts is open or a screw is the part
+var screw_btns := {}             # NSCREW2: "d_L" -> the size chip (M<d> x <L>)
+var parts_open := false          # NSCREW2: the Parts category is open (the grid shows even with no screw on the floor)
 var stick_box: PanelContainer    # Stick together: Join / Cut away / Keep the overlap, shown once two pieces are picked
 var stick_btns := {}
 var stick_picks: Array = []      # the body indices clicked in the view (the first = the target, the second = the tool)
@@ -328,6 +334,15 @@ func build(root: Control) -> void:
 	cr.add_theme_constant_override("h_separation", 4)
 	cr.add_theme_constant_override("v_separation", 4)
 	v.add_child(cr)
+	parts_btn = Button.new()   # NSCREW2: Parts: the screw sizes; after the template chips on the same row
+	parts_btn.name = "easypart_chip_parts"
+	parts_btn.text = "Parts"
+	parts_btn.tooltip_text = "Small parts with a set size: screws M3 to M6, 10 to 30 mm long"
+	parts_btn.toggle_mode = true
+	parts_btn.focus_mode = Control.FOCUS_NONE
+	parts_btn.custom_minimum_size = Vector2(0, 34)
+	parts_btn.add_theme_font_size_override("font_size", 15)
+	parts_btn.pressed.connect(_parts_press)
 	for t in PartTemplates.ORDER:
 		var b := Button.new()
 		b.name = "easypart_chip_" + t
@@ -339,6 +354,8 @@ func build(root: Control) -> void:
 		b.pressed.connect(_chip.bind(t))
 		cr.add_child(b)
 		chips[t] = b
+	screw_box = _screw_box()
+	v.add_child(screw_box)
 	rows_vb = VBoxContainer.new()
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 4)
@@ -350,6 +367,7 @@ func build(root: Control) -> void:
 	var foot := HFlowContainer.new()
 	foot.name = "easypart_foot"
 	foot.add_theme_constant_override("separation", 8)
+	foot.add_child(parts_btn)   # NSCREW2: Parts sits in the foot (a button in the template row shifted the layout)
 	v.add_child(foot)
 	back_btn = Button.new()
 	back_btn.name = "easypart_back"
@@ -1003,7 +1021,7 @@ func _rows_sync() -> void:
 		rows_vb.remove_child(c)
 		c.queue_free()
 	rows = []
-	if t != "":
+	if t != "" and not PartTemplates.T[t].get("parts", false):   # NSCREW2: a screw's numbers are the Parts chips, not sliders
 		for d in PartTemplates.T[t]["params"]:
 			var r := _make_row(String(d["label"]), float(d["lo"]) / 10.0, float(d["hi"]) / 10.0, float(d["step"]) / 10.0, d["words"], "tpl", String(d["k"]), "cm")
 			rows.append(r)
@@ -1170,6 +1188,123 @@ func _chips_sync() -> void:
 	for t in chips:
 		(chips[t] as Button).set_pressed_no_signal(t == _tpl())
 		m._grey(chips[t], Part.why_not() if not Part.available() else "")
+	_screw_sync()
+
+
+## NSCREW2: the screw grid: four columns (M3 M4 M5 M6), one row per length (10 16 20 30 mm), each chip with a small screw icon
+func _screw_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_screw_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
+	var hd := Label.new()
+	hd.name = "easypart_screw_words"
+	hd.text = "Screws, socket head: pick a size. It drops on the floor"
+	hd.add_theme_font_size_override("font_size", 14)
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(hd)
+	var g := GridContainer.new()
+	g.columns = SCREW_DS.size()
+	g.add_theme_constant_override("h_separation", 4)
+	g.add_theme_constant_override("v_separation", 4)
+	vb.add_child(g)
+	for L in SCREW_LENS:
+		for d in SCREW_DS:
+			var hw: float = float(PartTemplates.SCREW_HEAD[d][0])
+			var hh: float = float(PartTemplates.SCREW_HEAD[d][1])
+			var b := Button.new()
+			b.name = "easypart_screw_M%d_%d" % [d, L]
+			b.text = "M%d x %d" % [d, L]
+			b.icon = _screw_icon(d, L)
+			b.tooltip_text = "M%d x %d: head %s mm across, %s mm high, plain shank %d mm long" % [d, L, str(hw), str(hh), L]
+			b.toggle_mode = true
+			b.focus_mode = Control.FOCUS_NONE
+			b.custom_minimum_size = Vector2(0, 34)
+			b.add_theme_font_size_override("font_size", 13)
+			b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+			b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+			b.pressed.connect(_screw_pick.bind(d, L))
+			g.add_child(b)
+			screw_btns["%d_%d" % [d, L]] = b
+	return pc
+
+
+## NSCREW2: a small screw icon, drawn from the size: head width grows with M, shank length with the length (the same 16 px box)
+func _screw_icon(d: int, L: int) -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	var hw := clampi(int(round(4.0 + 1.2 * float(d))), 6, 14)
+	img.fill_rect(Rect2i(8 - hw / 2, 0, hw, 4), col)
+	var sw := maxi(2, int(round(0.5 * float(d))))
+	var sh := clampi(int(round(0.3 * float(L))), 4, 11)
+	img.fill_rect(Rect2i(8 - sw / 2, 4, sw, sh), col)
+	return ImageTexture.create_from_image(img)
+
+
+## NSCREW2: the Parts chip opens or shuts the screw grid (a screw on the floor keeps it open)
+func _parts_press() -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	parts_open = not parts_open
+	_say("Screws: pick a size. It drops on the floor" if parts_open else "Parts shut. Press Parts to open the screws again")
+	_screw_sync()
+
+
+## NSCREW2: a size chip. No screw on the floor: a new screw of that size (one undo step). A screw already there: its size changes
+## (one undo step, the same steps). The same size again does nothing.
+func _screw_pick(d: int, L: int) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var label := "M%d x %d" % [d, L]
+	var on_floor := _tpl() == "screw" and not (_rec().get("features", []) as Array).is_empty()
+	if on_floor:
+		var cur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {})
+		if int(cur.get("d", 0)) == d and int(cur.get("L", 0)) == L:
+			_say("Already %s on the floor. Pick another size to change it" % label)
+			_screw_sync()
+			return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Change the screw size" if on_floor else "Start a screw"
+	m._push_undo()
+	if on_floor:
+		PartTemplates.retemplate(_rec(), {"d": d, "L": L})
+	else:
+		m.S.part = PartTemplates.make("screw", {"d": d, "L": L})
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("%s did not build. Press Reset, then pick a size again" % label)
+	else:
+		_say("%s on the floor. Pick another size to change it" % label)
+	_screw_sync()
+
+
+## NSCREW2: the grid's open state and the pressed size (the screw on the floor); the Parts chip is pressed while the grid shows
+func _screw_sync() -> void:
+	if screw_box == null or parts_btn == null:
+		return
+	var cur: Dictionary = {}
+	if _tpl() == "screw":
+		cur = (_rec().get("easy", {}) as Dictionary).get("p", {})
+	screw_box.visible = parts_open or _tpl() == "screw"
+	parts_btn.set_pressed_no_signal(screw_box.visible)
+	for d in SCREW_DS:
+		for L in SCREW_LENS:
+			var b: Button = screw_btns["%d_%d" % [d, L]]
+			b.set_pressed_no_signal(not cur.is_empty() and int(cur.get("d", 0)) == d and int(cur.get("L", 0)) == L)
+			m._grey(b, Part.why_not() if not Part.available() else "")
+	parts_btn.set_pressed_no_signal(screw_box.visible)
 
 
 func _back() -> void:
