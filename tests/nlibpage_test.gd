@@ -8,8 +8,8 @@ extends SceneTree
 ##   2 OPENS     opening the page and all ten categories makes no undo step (opening is not an action)                                                              (FAILS on old code)
 ##   3 SOON      Nuts, Washers, Hinges, Bearings, Springs, Handles, Wheels, Brackets each say 'coming soon' and name the next step (Screws), and build nothing   (FAILS on old code)
 ##   4 SHOWS     Screws shows the sixteen screw chips; Gears shows the Gear chip and hides 'coming soon'                                                             (FAILS on old code)
-##   5 GEAR      Gears, then the Gear chip: ONE undo step, one solid, tip diameter 64 mm (+- 0.6, teeth 30 x module 2 + 2 x module, measured from the mesh)     (FAILS on old code)
-##   6 SCREW     Screws, then M4 x 16: ONE undo step, one solid, built to ISO 4762 (head 7.0 x 4.0, shank 4.0 x 16.0 mm, volume within 1 pct)                       (FAILS on old code)
+##   5 GEAR      Gears, then the Gear chip: ONE undo step, one solid, tip diameter 64 mm (+- 0.6, teeth 30 x module 2 + 2 x module, measured from the mesh)     (passes on old code: a guard, the Gear part exists already)
+##   6 SCREW     Screws, then M4 x 16: ONE undo step, one solid, built to ISO 4762 (head 7.0 x 4.0, shank 4.0 x 16.0 mm, volume within 1 pct)                       (passes on old code: a guard)
 ##   7 WORDS     no key name in the library words, the 'coming soon' line, the hint or the status line
 ## Shots: C:/Temp/claude/nlibpage/page.png (the library page), soon.png (Hinges), gear.png (the Gear on the floor)
 const SHOT := "C:/Temp/claude/nlibpage"
