@@ -1272,6 +1272,53 @@ func _hole_mode(mode: String) -> void:
 	_values_sync()
 
 
+## NOPENTOP: after Hollow inside, a click on a flat face makes THAT face the open side (one undo step): the shell's "open" is set to the
+## face's direction and the Wall slider keeps its step (the same id). A side that cannot open says so and changes nothing. false = not a face click here
+const OPEN_WORDS := {"+x": "right", "-x": "left", "+y": "top", "-y": "bottom", "+z": "front", "-z": "back"}
+
+
+func _open_face(p: Vector2) -> bool:
+	if hole_mode != "hollow" or not _hole_on() or _tpl() != "":
+		return false
+	var sh := Part.feature(_rec(), hole_id)
+	if String(sh.get("t", "")) != "shell":
+		return false
+	var fc := _face_hit(p)
+	if fc.is_empty():
+		return false
+	var ax := ["right", "top", "front"].find(String(fc.get("base", "")))
+	if ax < 0:
+		return false
+	var dir: String = ["+x", "+y", "+z"][ax] if int(fc.get("out", 1)) > 0 else ["-x", "-y", "-z"][ax]
+	var side: String = String(OPEN_WORDS[dir])
+	if dir == String(sh.get("open", "")):
+		_say("The %s is already open. Click another flat face to open that one" % side)
+		return true
+	_flush_if_dirty()
+	armed = ""
+	var snap := _rec().duplicate(true)
+	_begin("Open the " + side)
+	var rec: Dictionary = snap.duplicate(true)
+	Part.feature(rec, hole_id)["open"] = dir
+	var why := ""
+	if _last_error(rec, hole_id) != "":
+		why = "The %s cannot be the open side: click another flat face, or Cut a hole again" % side
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+	else:
+		m.S.part = rec
+		_end()
+		_say("Open the %s: the %s is open now. The Wall slider still sets the wall" % [side, side])
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	return true
+
+
 ## HOLLOW INSIDE: Part's shell on the newest solid, open at its TOP face ("+y": the planar face with the largest +Y centre),
 ## a HOLLOW_MM wall. The Wall slider moves the thickness (mm)
 func _hollow(rec: Dictionary) -> String:
@@ -4060,7 +4107,8 @@ func input(ev: InputEvent) -> bool:
 			var pp := _pick_p
 			_pick_p = Vector2(-1, -1)
 			if pp.distance_to(p) < 6.0 and _drag.is_empty() and _draft.is_empty():
-				_pick_at(p)
+				if not _open_face(p):   # NOPENTOP: after Hollow inside, a flat face click opens that side; any other click picks a piece
+					_pick_at(p)
 		if not _draft.is_empty():
 			_draft_end()
 			return true
