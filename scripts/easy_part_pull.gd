@@ -14,6 +14,9 @@ func _hole_sync() -> void:
 	if snap_btn != null:
 		snap_btn.set_pressed_no_signal(_rec_has_lip())   # the record says it (an Undo takes the chip off with the lip)
 		snap_btn.visible = hole_mode == "lid"   # the chip only exists for a lid
+	if wall_btn != null:
+		wall_btn.set_pressed_no_signal(wall_pick)
+		wall_btn.visible = hole_mode == "hollow" and _hole_on()   # Thicker wall only exists for a hollow
 
 
 ## a Through / Hollow inside chip: the hole step is REPLACED (one undo step): the record from before the hole press, then the chosen hole.
@@ -24,6 +27,7 @@ func _hole_mode(mode: String, lip := false, rebuild := false) -> void:   # lip: 
 		return
 	_flush_if_dirty()
 	armed = ""
+	wall_pick = false
 	var snap := _rec().duplicate(true)
 	_begin("Hollow with a lid" if mode == "lid" else ("Hollow inside" if mode == "hollow" else "Cut a hole"))
 	var rec: Dictionary = hole_base.duplicate(true)
@@ -90,6 +94,105 @@ func _open_face(p: Vector2) -> bool:
 	_rows_sync()
 	_values_sync()
 	return true
+
+
+## SHELL WALLS (p022shellwalls, Friday plan 22): Thicker wall under Hollow inside arms the wall pick (the chip stays pressed); the next
+## press on the outside of a side wall makes THAT wall thicker by the Extra wall slider (WALL_EXTRA_MM at first). The other walls keep the
+## shell's thickness. Off with a second press. Only a hollow has the chip; the other shapes say what to press first
+const WALL_EXTRA_MM := 1.0   # the extra thickness a picked wall starts with (mm)
+
+
+func _wall_chip() -> void:
+	if not _hole_on() or hole_mode != "hollow" or not Part.available():
+		wall_pick = false
+		_hole_sync()
+		_say("Thicker wall needs a hollow first: press Cut a hole, then Hollow inside, then Thicker wall")
+		return
+	wall_pick = not wall_pick
+	_hole_sync()
+	_say("Click the outside of the side wall you want thicker. Press Thicker wall again to stop" if wall_pick else "Thicker wall is off")
+
+
+## the press that picks the wall (wall_pick is on): a side wall's outside, not the open side. "" or why not (one undo step)
+func _wall_press(p: Vector2) -> void:
+	wall_pick = false
+	_hole_sync()
+	var fc := _face_hit(p)
+	var ax := ["right", "top", "front"].find(String(fc.get("base", "")))
+	if ax < 0 or ax == 1:   # the top is the open side or a lid: side walls only
+		_say("Click a side wall (front, back, left or right), not the top. Then press Thicker wall again")
+		return
+	var out := int(fc.get("out", 1))
+	var bb: AABB = pu.res.get("aabb", AABB())
+	var edge: float = (bb.end[ax] if out > 0 else bb.position[ax]) / Part.MM
+	if absf(float(fc.get("mm", 0.0)) - edge) > 0.05:
+		_say("That is inside the box: click the outside of a side wall. Then press Thicker wall again")
+		return
+	var dir: String = ["+x", "+y", "+z"][ax] if out > 0 else ["-x", "-y", "-z"][ax]
+	var side: String = String(OPEN_WORDS[dir])
+	var sh := Part.feature(_rec(), hole_id)
+	if dir == String(sh.get("open", "")):
+		_say("The %s is the open side: click another side wall. Then press Thicker wall again" % side)
+		return
+	_flush_if_dirty()
+	armed = ""
+	var snap := _rec().duplicate(true)
+	_begin("Thicker %s wall" % side)
+	var rec: Dictionary = snap.duplicate(true)
+	var why := _wall_add(rec, sh, ax, out, float(fc.get("mm", 0.0)))
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+	else:
+		m.S.part = rec
+		_end()
+		_say("The %s wall is thicker now: use the Extra wall slider for how much more" % side)
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+
+
+## the thicker wall, added to rec: a plate on the wall's inside (from the shell's inner face, out to the wall's own inside),
+## joined to the body and running from the floor to the open side's rim, 0.2 mm into the other walls. The Extra wall slider
+## is that plate's depth. "" or why not
+func _wall_add(rec: Dictionary, sh: Dictionary, ax: int, out: int, outer_mm: float) -> String:
+	var t := float(sh.get("thick", HOLLOW_MM))
+	var bb: AABB = pu.res.get("aabb", AABB())
+	var lo := bb.position / Part.MM
+	var hi := bb.end / Part.MM
+	var base: String = ["right", "top", "front"][ax]
+	var inner := snappedf(outer_mm - float(out) * t, 0.01)   # the shell's inner face on this wall (mm along the axis)
+	var pf := Part.new_feature(rec, "plane", {"from": base, "mm": inner})
+	rec["features"].append(pf)
+	var pl := Part.resolve_plane(rec, String(pf["id"]))
+	var open := String(sh.get("open", ""))
+	var names := ["x", "y", "z"]
+	var w1 := Vector3.ZERO
+	var w2 := Vector3.ZERO
+	for a in 3:
+		if a == ax:
+			w1[a] = inner
+			w2[a] = inner
+			continue
+		var lo_a := lo[a] + t - 0.2   # the plate runs 0.2 mm into the walls on each side
+		var hi_a := hi[a] - t + 0.2
+		if open == "-" + names[a]:
+			lo_a = lo[a]   # an open side: the plate runs out to the rim
+		if open == "+" + names[a]:
+			hi_a = hi[a]
+		w1[a] = lo_a
+		w2[a] = hi_a
+	var sk := Part.new_feature(rec, "sketch", {"plane": String(pf["id"]), "ents": [{"k": "rect", "a": Part.arr2(Part.to_plane(pl, w1 * Part.MM)), "b": Part.arr2(Part.to_plane(pl, w2 * Part.MM))}], "dims": []})
+	rec["features"].append(sk)
+	var ex := Part.new_feature(rec, "extrude", {"sketch": sk["id"], "dist": -float(out) * WALL_EXTRA_MM, "both": false, "op": "join", "into": 0})
+	rec["features"].append(ex)
+	if _last_error(rec, String(ex["id"])) != "" or int(Part.replay(rec)["bodies"]) != 1:
+		return "That wall cannot take a thicker wall. Press Cut a hole again, then Hollow inside, and try the wall once more"
+	tweak = {"id": ex["id"], "field": "dist", "label": "Extra wall", "unit": "mm", "lo": 0.5, "hi": 20.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"], "sgn": -float(out)}
+	return ""
 
 
 ## SNAP-FIT LIP (nsnaplip): the on/off chip under Hollow with a lid. On: the lid's ridge and the box's groove are rebuilt from the same
