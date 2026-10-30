@@ -14,8 +14,10 @@ const REP_WORDS := {"count": ["Fewer", "More"], "gap": ["Closer", "Further apart
 const STICK_OPS := [["join", "Join", "Make the two pieces one solid"], ["cut", "Cut away", "Cut the second piece out of the first"], ["intersect", "Keep the overlap", "Keep only the part where the two pieces overlap"]]
 const SCREW_DS := [3, 4, 5, 6]         # NSCREW2: the Parts category's screw sizes (M3..M6, columns of the grid)
 const SCREW_LENS := [10, 16, 20, 30]   # NSCREW2: the screw lengths in mm (rows of the grid)
-const LIB_CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "Springs", "Handles", "Wheels", "Brackets"]   # NLIBPAGE: the Parts library page, in this order
-const LIB_READY := ["Screws", "Gears"]   # NLIBPAGE: the categories with parts today; the others say coming soon
+const BRACKET_CHIPS := [["L", "L-bracket", 1, "An L: a foot and an upright, two screw holes"], ["T", "T-bracket", 2, "A T: a bar on a stem, two screw holes"], ["corner", "Corner brace", 3, "An L with a gusset in the corner, two screw holes"]]   # FRIDAY 73: the Brackets page chips (key, words, kind 1 / 2 / 3)
+const LIB_CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "Springs", "Handles", "Wheels", "Brackets", "Clips and feet", "Boards"]   # NLIBPAGE: the Parts library page, in this order
+const LIB_READY := ["Screws", "Gears", "Bearings", "Brackets", "Clips and feet", "Handles", "Wheels", "Boards"]   # NLIBPAGE: the categories with parts today; the others say coming soon
+const CLIP_KINDS := ["foot", "clip", "slot"]   # P075: the Clips and feet chips: a rubber foot, a cable clip, a zip-tie slot (template kinds in part_templates.gd)
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
 const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal): a wood brown, red > green > blue
 const TILT_DEG := 20.0           # Tilt it: the lean of the newest solid (degrees, sideways about its middle)
@@ -72,25 +74,42 @@ var repeat_box: PanelContainer   # Repeat it: Row / Ring and the How many and Ga
 var rep_btns := {}
 var tilt_box: PanelContainer     # Tilt it: one chip under the newest solid (a Spin or a Pull), leans it 20 degrees once
 var steps_box: PanelContainer    # NSTEPLIST: the step list under the panel, in plain words; a click on a step reopens it (see _steps_sync)
+var flat_box: PanelContainer    # p113: the printing box under the step list (Lay it flat, Show overhangs); see _printing_box
 var steps_vb: VBoxContainer
 var _steps_sig := ""
+var scrub_sl: HSlider            # p089scrubthehi: Scrub the history, a view of the part after the first N steps (no undo step; see _scrub_to)
+var scrub_lbl: Label
 var tilt_btn: Button
 var draft_btn: Button            # p021: Draft angle, the chip beside Tilt it (the side walls lean DRAFT_DEG for a mould)
 var pull_along_btn: Button       # P026: Pull along, the same box as Tilt it: shows after a curve or a shape is drawn (the newest step is a sketch)
 var parts_btn: Button            # NSCREW2: the Parts category chip (opens the screw grid under the template chips)
+var board_box: PanelContainer     # p078makeacasef: the Boards page's two chips (Raspberry Pi, Arduino Uno): shown while Boards is open or a case is the part
+var board_btns := {}              # p078makeacasef: 1 / 2 -> the board chip
 var screw_box: PanelContainer    # NSCREW2: the screw grid: sixteen size chips, shown while Parts is open or a screw is the part
+var wheel_box: PanelContainer      # P072: the Wheels page: the Wheel and Castor chips (axle hole), shown while Parts is open on Wheels
+var wheel_btns := {}               # P072: "wheel" / "castor" -> its chip
 var screw_btns := {}             # NSCREW2: "d_L" -> the size chip (M<d> x <L>)
+var clip_box: PanelContainer     # P075: the Clips and feet chips (rubber foot, cable clip, zip-tie slot), shown while that category is open
+var clip_btns := {}              # P075: kind -> its chip
 var screw_words: Label           # the grid's one-line instruction: hidden while the library page is open (the page and the status line say it)
+var bracket_box: PanelContainer   # FRIDAY 73: the bracket chips (L-bracket, T-bracket, Corner brace), shown while Brackets is open or a bracket is the part
+var bracket_btns := {}
 var nw_btn: Button               # NNUTWASHER: "Add its nut and washer" (in the screw grid): the screw on the floor takes its nut and washer, one click
 var parts_open := false          # NSCREW2: the Parts category is open (the grid shows even with no screw on the floor)
 var lib_box: PanelContainer      # NLIBPAGE: the Parts library page: ten category chips, under the template chips while Parts is open
 var lib_btns := {}               # NLIBPAGE: category -> its chip
 var lib_soon: Label              # NLIBPAGE: "Coming soon" line for an empty category (names the next step)
+var handle_box: PanelContainer    # P071 HANDLES: the Handles grid (three kinds x three sizes), under the library page while Handles is open or a handle is the part
+var handle_btns := {}            # P071 HANDLES: "kind_size" -> its size chip
+var handle_words: Label          # P071 HANDLES: the grid's one-line instruction: hidden while the library page is open (the page says it), so the grid fits
 var lib_cat := ""                # NLIBPAGE: the category open on the page ("" = none); Screws opens when Parts opens
 var explode_box: PanelContainer  # EXPLODE (p103): the Pull apart slider, shown while the part has two or more pieces (view only, no step)
 var explode_slider: HSlider
 var explode_label: Label
 const EXPLODE_MAX_MM := 100.0   # the Pull apart slider: how far a piece can be pulled from the middle (mm)
+var bear_box: PanelContainer      # P069 BEARINGS: the bearing chips (608, 625, 688) and the seat button: shown with the Bearings page or a bearing / seat on the floor
+var bear_btns := {}              # P069 BEARINGS: "608" / "625" / "688" -> its chip
+var seat_btn: Button             # P069 BEARINGS: "Make a seat for it": cuts the seat for the bearing on the floor
 var stick_box: PanelContainer    # Stick together: Join / Cut away / Keep the overlap, shown once two pieces are picked
 var stick_btns := {}
 var smooth_btn: Button    # P035: Smooth the joints, in the stick box after a Join (the three Join / Cut / Keep buttons hide then)
