@@ -172,6 +172,11 @@ const DRAW := {
 		["seg", Vector2(21, 12), Vector2(18.5, 14.5), 1.8]],
 	"zoom_in": [["ring", Vector2(10, 10), 6.5, 1.8], ["seg", Vector2(15, 15), Vector2(21, 21), 2.4], ["seg", Vector2(7, 10), Vector2(13, 10), 1.8], ["seg", Vector2(10, 7), Vector2(10, 13), 1.8]],
 	"zoom_out": [["ring", Vector2(10, 10), 6.5, 1.8], ["seg", Vector2(15, 15), Vector2(21, 21), 2.4], ["seg", Vector2(7, 10), Vector2(13, 10), 1.8]],
+	"view_fit": [["box", Rect2(7, 7, 10, 10), 1.8], ["seg", Vector2(3, 8), Vector2(3, 3), 1.8], ["seg", Vector2(3, 3), Vector2(8, 3), 1.8], ["seg", Vector2(16, 3), Vector2(21, 3), 1.8], ["seg", Vector2(21, 3), Vector2(21, 8), 1.8], ["seg", Vector2(3, 16), Vector2(3, 21), 1.8], ["seg", Vector2(3, 21), Vector2(8, 21), 1.8], ["seg", Vector2(16, 21), Vector2(21, 21), 1.8], ["seg", Vector2(21, 16), Vector2(21, 21), 1.8]],   # P107 FITVIEW: the corners of the frame round a box
+	"view_front": [["box", Rect2(5, 5, 14, 14), 1.8]],   # P107 FITVIEW: a square face on
+	"view_top": [["box", Rect2(3, 9, 18, 6), 1.8]],   # P107 FITVIEW: a flat face, seen from above
+	"view_side": [["box", Rect2(8, 3, 8, 18), 1.8]],   # P107 FITVIEW: a tall face, seen from the side
+	"view_3q": [["seg", Vector2(4, 8), Vector2(12, 4), 1.8], ["seg", Vector2(12, 4), Vector2(20, 8), 1.8], ["seg", Vector2(4, 8), Vector2(12, 12), 1.8], ["seg", Vector2(12, 12), Vector2(20, 8), 1.8], ["seg", Vector2(12, 12), Vector2(12, 20), 1.8]],   # P107 FITVIEW: a cube's corner
 	"fit": [["seg", Vector2(3, 8), Vector2(3, 3), 1.8], ["seg", Vector2(3, 3), Vector2(8, 3), 1.8], ["seg", Vector2(16, 3), Vector2(21, 3), 1.8], ["seg", Vector2(21, 3), Vector2(21, 8), 1.8],
 		["seg", Vector2(21, 16), Vector2(21, 21), 1.8], ["seg", Vector2(21, 21), Vector2(16, 21), 1.8], ["seg", Vector2(8, 21), Vector2(3, 21), 1.8], ["seg", Vector2(3, 21), Vector2(3, 16), 1.8],
 		["box", Rect2(8.5, 8.5, 7, 7), 1.6]],
