@@ -350,6 +350,11 @@ func _hole_box() -> PanelContainer:
 	wall_btn.custom_minimum_size = Vector2(150, 44)
 	wall_btn.visible = false
 	h.add_child(wall_btn)
+	var mb := _big_btn("easypart_hole_magnet", "Magnet", "A round pocket for a 6 mm x 3 mm magnet on the top face: the magnet sits in it, flush. The Magnet size slider sets its width", _hole_mode.bind("magnet"))   # p074magnetsapo
+	mb.toggle_mode = true
+	mb.custom_minimum_size = Vector2(96, 44)
+	h.add_child(mb)
+	hole_btns["magnet"] = mb
 	for sd in SCREW_CLEAR:   # p030countersun: one chip per screw size: the hole is sized to the screw (M3 3.4 mm ... M6 6.6 mm)
 		var sb := _big_btn("easypart_hole_screw%d" % sd, "M%d screw" % sd, "A hole for an M%d socket screw: a clearance hole, and a counterbore on the top face for its head" % sd, _hole_mode.bind("screw%d" % sd))
 		sb.toggle_mode = true
