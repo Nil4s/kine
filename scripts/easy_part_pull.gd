@@ -392,6 +392,8 @@ func _pull(rec: Dictionary) -> String:
 			words = words % ("top" if _top_face(pf) else ("side" if String(pf.get("from", "")) in ["front", "right"] else "face"))
 	_say(words)
 	taper_tw = {"id": f["id"], "label": "Taper", "unit": "deg", "lo": -15.0, "hi": 15.0, "step": 0.5, "words": ["Wider at the top", "Narrower at the top"]} if bool(rule["taper"]) else {}
+	# P024: a Twist slider under the Taper one, for a one-way pull of one closed shape (the twisted post); a box or any closed shape turns, a round one looks the same
+	twist_tw = {"id": f["id"], "label": "Twist", "unit": "deg", "lo": 0.0, "hi": 120.0, "step": 5.0, "words": ["Straight", "Twisted more"]} if bool(rule["taper"]) and not through and Part.loops_of(sk["ents"]).size() == 1 else {}
 	return ""
 
 

@@ -11,6 +11,7 @@ extends RefCounted
 ##     {"t": "fillet",  "id": "f5", "name": "Fillet1", "body": 0, "r": 2.0, "edges": [{"p": [x, y, z], "q": [..], "d": [..]}]},
 ##     {"t": "chamfer", ... "dist": 1.0 ...},  {"t": "mirror", "id": ..., "plane": "front"|"top"|"right", "op": "join"},
 ##     extrude also has "taper": degrees (>0 narrows as it goes) and op "intersect" (keeps only the part inside the new solid);
+##     extrude may carry "twist": degrees (P024, Easy's Twist slider): a one-way extrude of one closed shape turns about its middle as it rises (no taper with it);
 ##     extrude and revolve may carry "tilt": degrees (Easy's Tilt it): the piece leans about X through its centre before it joins the body;
 ##     {"t": "split", "id": ..., "plane": "front"|"top"|"right", "at": mm (offset along the plane's normal), "keep": 0 | 1 | -1} cuts EVERY body the plane crosses in two (keep 1 / -1: only the half on the normal's side / the other half stays);
 ##     {"t": "shell", "id": ..., "body": N, "thick": mm, "open": "" | "+x" | "-x" | "+y" | "-y" | "+z" | "-z"} hollows body N with walls thick mm,
@@ -1155,6 +1156,8 @@ static func extrude_default(rec: Dictionary) -> Dictionary:
 
 static func _solid(f: Dictionary, sk: Dictionary) -> int:
 	var pl: Dictionary = sk["_pl"] if sk.has("_pl") else plane(String(sk.get("plane", "front")))
+	if f["t"] == "extrude" and absf(float(f.get("twist", 0.0))) > 0.01 and not bool(f.get("both", false)):
+		return _twisted(f, sk, pl)
 	var face := KCad.sketch_face(items_of(sk["ents"], f["t"] == "revolve" and bool(f.get("onside", false))), pl["o"], pl["x"], pl["n"])
 	if face == 0:
 		return 0
@@ -1165,6 +1168,37 @@ static func _solid(f: Dictionary, sk: Dictionary) -> int:
 		var axis: Vector3 = pl["x"] if String(f.get("axis", "x")) == "x" else pl["y"]
 		s = KCad.revolve(face, pl["o"], axis, deg_to_rad(float(f.get("deg", 360.0))))
 	KCad.release(face)
+	return s
+
+
+## P024 TWIST (Easy's Twist slider): a one-way pull of a single closed shape turns as it rises. The profile is turned about the middle of its
+## own box (the twist axis is the pull's direction), in steps of about 15 degrees; the kernel lofts those sections into one smooth solid.
+## Taper is not used with a twist. "" or the kernel's words are left in KCad.last_error
+static func _twisted(f: Dictionary, sk: Dictionary, pl: Dictionary) -> int:
+	var groups := loops_of(sk["ents"])
+	if groups.size() != 1:
+		return 0
+	var mid := _loop_box(groups[0]).get_center()
+	var o: Vector3 = pl["o"]
+	var x: Vector3 = pl["x"]
+	var n: Vector3 = pl["n"]
+	var c: Vector3 = o + x * (mid.x * MM) + (pl["y"] as Vector3) * (mid.y * MM)   # the twist axis: through the middle of the shape
+	var h := float(f["dist"]) * MM
+	var total := deg_to_rad(float(f["twist"]))
+	var steps := clampi(int(ceili(absf(float(f["twist"])) / 15.0)) + 4, 6, 12)
+	var faces := PackedInt32Array()
+	for i in steps + 1:
+		var t := float(i) / steps
+		var q := Quaternion(n, total * t)
+		var face := KCad.sketch_face(items_of(sk["ents"]), c + q * (o - c) + n * (h * t), q * x, n)
+		if face == 0:
+			for fc in faces:
+				KCad.release(fc)
+			return 0
+		faces.append(face)
+	var s := KCad.loft(faces, false, true)
+	for fc in faces:
+		KCad.release(fc)
 	return s
 
 

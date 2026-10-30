@@ -128,6 +128,8 @@ var sides := 6                  # NPOLY2: the Sides slider (3 to 12): a regular 
 var msg := ""                  # the sentence of the last press, until the next one
 var taper_tw := {}             # FPLANTER: the Taper slider of the last Pull it up (its extrude's id; shown while that pull is the newest step)
 var taper_row: Dictionary = {}  # FPLANTER: the Taper slider's row ({} = none); kept out of rows so rows[-1] is still How far
+var twist_tw := {}            # P024: the Twist slider of the last Pull it up (its extrude's id; shown with the Taper slider while that pull is the newest step)
+var twist_row: Dictionary = {}  # P024: the Twist slider's row ({} = none); kept out of rows like the Taper row
 var tweak := {}                # the last step's own slider: {"id", "ent", "field", "label", "unit", "lo", "hi", "step", "scale"}
 var _pending := {}
 var _draft_px0 := Vector2.ZERO   # the draft's raw pointer pixels, first press and last move (the sides are read from these when the grid folds them)
