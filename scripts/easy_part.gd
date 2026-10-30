@@ -2278,6 +2278,8 @@ func _process(_dt: float) -> void:
 	var smooth := on and _smooth_on()   # P035: after a Join the stick box holds only the Smooth the joints chip
 	stick_box.visible = (on and armed == "stick" and stick_picks.size() == 2) or smooth
 	smooth_btn.visible = smooth
+	for jb in joint_btns:   # p121: the joint words belong to the two-pieces-picked box, not to the chip after a Join
+		(jb as Button).visible = not smooth
 	for so in stick_btns:
 		(stick_btns[so] as Button).visible = not smooth
 	if del_on and (armed != "" or (_rec().get("features", []) as Array).size() != del_n):

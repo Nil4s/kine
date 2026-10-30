@@ -90,6 +90,7 @@ var lib_cat := ""                # NLIBPAGE: the category open on the page ("" =
 var stick_box: PanelContainer    # Stick together: Join / Cut away / Keep the overlap, shown once two pieces are picked
 var stick_btns := {}
 var smooth_btn: Button    # P035: Smooth the joints, in the stick box after a Join (the three Join / Cut / Keep buttons hide then)
+var joint_btns: Array = []   # p121: This turns here / This slides here, in the stick box with two pieces picked (hidden after a Join)
 var stick_picks: Array = []      # the body indices clicked in the view (the first = the target, the second = the tool)
 var stick_tris := {}             # body index -> its triangles, for the glow of a picked piece
 var stick_edges := {}            # body index -> its crease edges (pairs of points): the glow's outline, no triangle diagonals
