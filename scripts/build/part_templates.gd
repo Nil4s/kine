@@ -125,6 +125,10 @@ const T := {
 	"d_handle": {"title": "D-handle", "params": [
 		{"k": "width", "label": "Width", "lo": 64.0, "hi": 220.0, "def": 128.0, "step": 16.0, "words": ["Narrower", "Wider"], "unit": "mm"},
 		{"k": "thickness", "label": "Thickness", "lo": 6.0, "hi": 20.0, "def": 10.0, "step": 2.0, "words": ["Thinner", "Thicker"], "unit": "mm"}]},
+	# p078makeacasef: a case for a board (Parts > Boards). "board" picks the board (1 Raspberry Pi, 2 Arduino Uno): its numbers are the
+	# Boards chips (easy_part.gd), so its slider is hidden there ("parts": true). Its features are the same count for both boards.
+	"case": {"title": "Board case", "parts": true, "params": [
+		{"k": "board", "label": "Board", "lo": 1.0, "hi": 2.0, "def": 1.0, "step": 1.0, "words": ["Raspberry Pi", "Arduino Uno"], "raw": true, "unit": "board"}]},
 }
 
 ## P069 BEARINGS: [bore, outside diameter, width] in mm of the bearings 608, 625, 688 (deep groove ball bearings, ISO 15 sizes)
@@ -142,6 +146,22 @@ const PULL_W := 12.0     # mm: a drawer pull's bar height (its width across the 
 const PULL_HOLE := 2.25  # mm radius: a 4.5 mm hole, for an M4 screw
 const D_H := 36.0        # mm: a D-handle's height (outside), the loop's bar is D_BAR thick
 const D_BAR := 9.0
+
+## p078makeacasef: the boards a case fits. L x W = the board in mm (x along the board's long side, z its width); holes = the mounting holes
+## from the board's corner (mm, x and z); ports = the two port openings on the +x wall, as z ranges from the board's corner (mm).
+const CASE_BOARDS := {
+	1: {"name": "Raspberry Pi", "L": 85.0, "W": 56.0, "holes": [[3.5, 3.5], [61.5, 3.5], [3.5, 52.5], [61.5, 52.5]], "ports": [[8.0, 20.0], [26.0, 44.0]]},
+	2: {"name": "Arduino Uno", "L": 68.6, "W": 53.3, "holes": [[14.0, 2.5], [15.3, 50.7], [66.1, 7.6], [66.1, 35.5]], "ports": [[6.0, 16.0], [30.0, 42.0]]},
+}
+const CASE_WALL := 3.0        # mm: every wall and the floor
+const CASE_CLEAR := 1.0       # mm: the gap between the board's edge and the inside wall
+const CASE_H := 26.0          # mm: the box's height (open at the top)
+const CASE_STAND := 9.0       # mm: a standoff's top, above the box's outside floor
+const CASE_STAND_R := 2.5     # mm: a standoff's outside radius (5 mm across)
+const CASE_HOLE_R := 1.2      # mm: the screw hole through a standoff and the floor (and the lid)
+const CASE_LID := 3.0         # mm: the lid's thickness; it lies beside the box, not on it
+const CASE_GAP := 10.0        # mm: the gap between the box and the lid
+const CASE_PORT_Y := [11.0, 21.0]   # mm: the port openings' height on the wall
 
 ## NSCREW2: ISO 4762 socket head screws: nominal size -> [head diameter, head height] (mm). The shank is the nominal size, plain (no thread).
 const SCREW_HEAD := {3: [5.5, 3.0], 4: [7.0, 4.0], 5: [8.5, 5.0], 6: [10.0, 6.0]}
@@ -195,7 +215,7 @@ static func nw_set(rec: Dictionary, d: int) -> void:
 
 
 ## the default camera of a template: [yaw, pitch] degrees, a 3/4 view in which its main shape reads (the axe turns further so its blade face shows)
-const VIEW := {"sword": [30.0, -22.0], "axe": [42.0, -20.0], "shield": [30.0, -18.0], "chair": [38.0, -22.0], "crate": [34.0, -24.0], "box": [34.0, -24.0], "cylinder": [34.0, -22.0], "sphere": [30.0, -20.0], "tube": [34.0, -22.0], "plate": [34.0, -28.0]}
+const VIEW := {"sword": [30.0, -22.0], "axe": [42.0, -20.0], "shield": [30.0, -18.0], "chair": [38.0, -22.0], "crate": [34.0, -24.0], "box": [34.0, -24.0], "cylinder": [34.0, -22.0], "sphere": [30.0, -20.0], "tube": [34.0, -22.0], "plate": [34.0, -28.0], "case": [32.0, -24.0]}
 
 
 static func view_of(t: String) -> Array:
@@ -565,6 +585,38 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var NR := int(roundf(float(p["teeth"])))
 			var mr := float(int(roundf(float(p["module"]))))
 			_ex(fs, _sk(fs, "front", rack_outline(NR, mr)), "extrude", float(p["thickness"]), "new")
+		"case":
+			# p078makeacasef: a box for a board, open at the top: a 3 mm wall and floor, the standoffs (5 mm across, 9 mm up from the floor) at the
+			# board's holes with a screw hole through each, two port openings cut through the +x wall (an offset plane 1.5 mm inside the wall, so the
+			# cut reaches only that wall), and the lid as its own flat plate beside the box (3 mm, the same footprint, the same four holes)
+			var b: Dictionary = CASE_BOARDS[clampi(int(roundf(float(p["board"]))), 1, 2)]
+			var inset := CASE_CLEAR + CASE_WALL
+			var lo: float = float(b["L"]) + 2.0 * inset
+			var zo: float = float(b["W"]) + 2.0 * inset
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(0, 0), Vector2(lo, CASE_H))]), "extrude", zo, "new")
+			fs.append({"t": "shell", "id": "f%d" % (fs.size() + 1), "name": "Shell1", "body": 0, "thick": CASE_WALL, "open": "+y"})
+			var st := []
+			var hs := []
+			for h in b["holes"]:
+				var hc := [inset + float(h[0]), -(inset + float(h[1]))]   # the top plane's y runs toward -Z
+				st.append({"k": "circle", "c": hc, "r": CASE_STAND_R})
+				hs.append({"k": "circle", "c": hc, "r": CASE_HOLE_R})
+			_ex(fs, _sk(fs, "top", st), "extrude", CASE_STAND, "join")
+			_ex(fs, _sk(fs, "top", hs), "extrude", CASE_STAND + 1.0, "cut")
+			var pid := "f%d" % (fs.size() + 1)
+			fs.append({"t": "plane", "id": pid, "name": "Plane1", "from": "right", "mm": lo - CASE_WALL * 0.5})
+			var ports := []
+			for pr in b["ports"]:
+				var z0: float = float(pr[0]) + inset
+				var z1: float = float(pr[1]) + inset
+				ports.append(_rect(Vector2(-z1, CASE_PORT_Y[0]), Vector2(-z0, CASE_PORT_Y[1])))   # the right plane's x runs along -Z
+			_ex(fs, _sk(fs, pid, ports), "extrude", CASE_WALL + 2.0, "cut", true)
+			var lx := lo + CASE_GAP
+			_ex(fs, _sk(fs, "top", [_rect(Vector2(lx, 0), Vector2(lx + lo, -zo))]), "extrude", CASE_LID, "new")
+			var lh := []
+			for h in b["holes"]:
+				lh.append({"k": "circle", "c": [lx + inset + float(h[0]), -(inset + float(h[1]))], "r": CASE_HOLE_R})
+			_ex(fs, _sk(fs, "top", lh), "extrude", CASE_LID + 1.0, "cut")
 		"wheel":
 			# a tyre: the profile (width x radius) turned about the sketch's x axis = world X, the axle (side to side)
 			var R: float = p["radius"]

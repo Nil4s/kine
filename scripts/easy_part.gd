@@ -264,6 +264,8 @@ func build(root: Control) -> void:
 	v.add_child(handle_box)
 	wheel_box = _wheel_box()   # P072: the Wheels page's chips
 	v.add_child(wheel_box)
+	board_box = _board_box()   # p078makeacasef: the Boards chips (a case for the board)
+	v.add_child(board_box)
 	rows_vb = VBoxContainer.new()
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 2)
@@ -1539,6 +1541,8 @@ func _lib_press(cat: String) -> void:
 		_say("Handles: pick a kind and a size. It drops on the floor")
 	elif cat == "Wheels":
 		_say("Wheels: press Wheel or Castor. It drops on the floor, with its axle hole")
+	elif cat == "Boards":   # p078makeacasef
+		_say("Boards: press your board. A case for it drops on the floor")
 	else:
 		_say("%s are coming soon. Next step: press Screws or Gears" % cat)
 	_screw_sync()
@@ -1588,6 +1592,8 @@ func _lib_icon(cat: String) -> ImageTexture:
 		return _screw_icon(4, 16)
 	if cat == "Clips and feet":
 		return _clip_icon("clip")
+	if cat == "Boards":   # p078makeacasef
+		return _board_icon(1)
 	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 	var col := Tok.c("text")
@@ -1637,6 +1643,92 @@ func _lib_ring(img: Image, r_out: float, r_in: float, col: Color) -> void:
 			var d := Vector2(x + 0.5 - 8.0, y + 0.5 - 8.0).length()
 			if d <= r_out and d >= r_in:
 				img.set_pixel(x, y, col)
+
+
+## p078makeacasef: the Boards page's chips: a box with standoffs, port holes and a lid for the board. A case on the floor: its board changes
+## (one undo step, the same features). The same board again does nothing.
+func _board_pick(bd: int) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var label := String(PartTemplates.CASE_BOARDS[bd]["name"])
+	var on_floor := _tpl() == "case" and not (_rec().get("features", []) as Array).is_empty()
+	if on_floor:
+		var cur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {})
+		if int(cur.get("board", 0)) == bd:
+			_say("Already a case for the %s. Pick the other board to change it" % label)
+			_screw_sync()
+			return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Change the board" if on_floor else "Start a board case"
+	m._push_undo()
+	if on_floor:
+		PartTemplates.retemplate(_rec(), {"board": bd})
+	else:
+		m.S.part = PartTemplates.make("case", {"board": bd})
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("The %s case did not build. Press Reset, then pick a board again" % label)
+	else:
+		_say("A case for the %s: standoffs, port holes and a lid. Pick the other board to change it" % label)
+	_screw_sync()
+
+
+## p078makeacasef: the Boards page: a line of words and the two board chips (a 5 mm standoff case each, with its lid)
+func _board_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_board_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
+	var hd := Label.new()
+	hd.name = "easypart_board_words"
+	hd.text = "Boards: pick yours. You get a box for it with standoffs, port holes and a lid"
+	hd.add_theme_font_size_override("font_size", 14)
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(hd)
+	var g := HFlowContainer.new()
+	g.add_theme_constant_override("h_separation", 4)
+	g.add_theme_constant_override("v_separation", 4)
+	vb.add_child(g)
+	for bd in [1, 2]:
+		var b := Button.new()
+		b.name = "easypart_board_" + ("pi" if bd == 1 else "uno")
+		b.text = String(PartTemplates.CASE_BOARDS[bd]["name"])
+		b.icon = _board_icon(bd)
+		b.tooltip_text = "%s: a box with four standoffs, port holes on one side and a lid. One click, one undo step" % b.text
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(150, 34)
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_board_pick.bind(bd))
+		g.add_child(b)
+		board_btns[bd] = b
+	return pc
+
+
+## p078makeacasef: a 16 px board icon in the text colour (Tok): a square outline with four mounting holes
+func _board_icon(_bd: int) -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	img.fill_rect(Rect2i(1, 1, 14, 2), col)
+	img.fill_rect(Rect2i(1, 13, 14, 2), col)
+	img.fill_rect(Rect2i(1, 1, 2, 14), col)
+	img.fill_rect(Rect2i(13, 1, 2, 14), col)
+	for hp in [Vector2i(5, 5), Vector2i(10, 5), Vector2i(5, 10), Vector2i(10, 10)]:
+		img.fill_rect(Rect2i(hp, Vector2i(2, 2)), col)
+	return ImageTexture.create_from_image(img)
 
 
 ## NSCREW2: a size chip. No screw on the floor: a new screw of that size (one undo step). A screw already there: its size changes
@@ -1932,6 +2024,13 @@ func _seat_press() -> void:
 	else:
 		_say("Seat made for the %s bearing: the bearing stands beside it. Undo takes the seat back" % BEAR_CODES[k])
 	_screw_sync()
+	# p078makeacasef: the Boards chips: the case on the floor shows its board pressed
+	var bcur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {}) if _tpl() == "case" else {}
+	board_box.visible = (parts_open and lib_cat == "Boards") or _tpl() == "case"
+	for bd in board_btns:
+		var bb: Button = board_btns[bd]
+		bb.set_pressed_no_signal(not bcur.is_empty() and int(bcur.get("board", 0)) == bd)
+		m._grey(bb, Part.why_not() if not Part.available() else "")
 
 
 func _back() -> void:
