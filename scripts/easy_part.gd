@@ -192,7 +192,6 @@ func build(root: Control) -> void:
 	var th := HBoxContainer.new()   # the title line: "Change your part" and, at its end, Empty (the template chips stay on one line below)
 	th.name = "easypart_title_row"
 	v.add_child(th)
-	v.add_child(_suggest_row())   # P092: the two next-step chips, under the title
 	th.add_child(panel_title)
 	empty_chip = Button.new()   # EMPTY first: Easy Part opens on a sword, and a beginner building their own thing needs a clean floor
 	empty_chip.name = "easypart_chip_empty"
@@ -253,6 +252,7 @@ func build(root: Control) -> void:
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 2)
 	v.add_child(rows_vb)
+	v.add_child(_suggest_row())   # P092: the two next-step chips, under the slider rows (the rows above keep their places)
 	whole_l = Label.new()
 	whole_l.name = "easypart_whole"
 	whole_l.add_theme_font_size_override("font_size", 16)
@@ -445,7 +445,7 @@ func _tilt_box() -> PanelContainer:
 
 
 ## P092: the next steps after a Pull it up, in plain words (one press each, one undo step). They sit in the right panel's column under
-## the title (off the grid, the step list and the timeline), in one row that shows only while the newest step is a Pull it up
+## the slider rows (off the grid, the step list and the timeline), in one row that shows only while the newest step is a Pull it up
 func _suggest_row() -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.name = "easypart_suggest"
@@ -2355,7 +2355,7 @@ func _process(_dt: float) -> void:
 	pull_along_btn.visible = along
 	tilt_btn.visible = tilt_on
 	draft_btn.visible = draft_on
-	suggest_row.visible = on and _suggest_on()   # P092: after a Pull it up the two next-step chips show in the panel, under the title
+	suggest_row.visible = on and _suggest_on()   # P092: after a Pull it up the two next-step chips show in the panel, under the slider rows
 	tilt_box.visible = on and armed == "" and (along or tilt_on or draft_on)
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
 	if not on:
