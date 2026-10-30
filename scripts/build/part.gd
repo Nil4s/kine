@@ -65,6 +65,8 @@ const DRAFT_DIRS := {"x": Vector3(1, 0, 0), "y": Vector3(0, 1, 0), "z": Vector3(
 const PLANES := ["front", "top", "right"]
 const OPS := ["join", "new", "cut", "intersect"]
 const COMBINE_OPS := ["join", "cut", "intersect"]   # a combine step's op (the dialog's order: Join, Cut, Intersect)
+const COARSE_DEFL := 0.002   # NSLIDELOD: the slider preview tessellates at this deflection (m); full detail is 0.0003
+const COARSE_ANGLE := 0.5    # NSLIDELOD: and this angle (rad); full detail is 0.25
 const MATCH_MAX := 0.25   # an edge matches when (box-position distance + 0.5 x direction mismatch) is below this
 const LOOK_CHIPS := [["Grey", Color("#bdc4d0")], ["Red", Color("#c0392b")], ["Blue", Color("#3a7bd5")], ["Yellow", Color("#f2c94c")], ["Green", Color("#4caf50")]]   # the colour chips; a body with no look takes chip (its index mod 5)
 const LOOK_PRESETS := {"Paint": {"rough": 0.35, "metal": 0.0, "alpha": 1.0}, "Metal": {"rough": 0.25, "metal": 1.0, "alpha": 1.0}, "Glass": {"rough": 0.05, "metal": 0.0, "alpha": 0.4}, "Rubber": {"rough": 0.95, "metal": 0.0, "alpha": 1.0}, "Plastic": {"rough": 0.45, "metal": 0.0, "alpha": 1.0}}
@@ -584,7 +586,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		res["volume"] = float(res["volume"]) + v
 		if want.get("props", false):
 			res["props"].append(KCad.mass_properties(b))   # {volume, area, center, inertia} per body, density 1 (PartWeapon)
-		var tm := KCad.tessellate(b, 0.0003, 0.25)
+		var tm := KCad.tessellate(b, COARSE_DEFL, COARSE_ANGLE) if want.get("coarse", false) else KCad.tessellate(b, 0.0003, 0.25)   # NSLIDELOD: a coarse preview while a slider is dragged
 		if tm != null and tm.get_surface_count() > 0:
 			mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, tm.surface_get_arrays(0))
 			res["looks"].append(look_at(looks, bodies.find(b)))   # one surface, one look (the view paints each surface)
@@ -1815,12 +1817,44 @@ static func _shell(bodies: Array, f: Dictionary) -> String:
 		return "there is no body to shell"
 	var bi := clampi(int(f.get("body", bodies.size() - 1)), 0, bodies.size() - 1)
 	var dir: Vector3 = SHELL_DIRS.get(String(f.get("open", "")), Vector3.ZERO)
-	var s := KCad.shell(bodies[bi], float(f.get("thick", 1.0)) * MM, dir)
+	var thick := float(f.get("thick", 1.0)) * MM
+	var before := KCad.volume(bodies[bi])
+	var s := KCad.shell(bodies[bi], thick, dir)
 	if s == 0:
 		return KCad.last_error()
+	if dir != Vector3.ZERO and KCad.volume(s) >= before - 1e-12:
+		# NSLIDELOD: the kernel's shell of a rounded solid can hand back the solid unchanged (no error): cut the cavity by hand
+		KCad.release(s)
+		s = _cavity(bodies[bi], thick, dir)
+		if s == 0:
+			return "the wall is too thick for this solid: make the wall thinner"
 	KCad.release(bodies[bi])
 	bodies[bi] = s
 	return ""
+
+
+## NSLIDELOD: the box-shaped hollow of body `b` (wall `thick` m, open on the side `dir`): the body's box minus a smaller box, open on that side
+static func _cavity(b: int, thick: float, dir: Vector3) -> int:
+	var bb := _bbox(KCad.edges(b))
+	var lo := bb.position + Vector3.ONE * thick
+	var hi := bb.end - Vector3.ONE * thick
+	for i in 3:
+		if dir[i] > 0.0:
+			hi[i] = bb.end[i] + thick
+		elif dir[i] < 0.0:
+			lo[i] = bb.position[i] - thick
+	var size := hi - lo
+	if size.x <= 0.0 or size.y <= 0.0 or size.z <= 0.0:
+		return 0
+	var box := KCad.box(size.x, size.y, size.z)
+	var at := _bbox(KCad.edges(box)).position
+	var moved := KCad.translate(box, lo - at)
+	KCad.release(box)
+	if moved == 0:
+		return 0
+	var c := KCad.cut(b, moved)
+	KCad.release(moved)
+	return c
 
 
 static func _edge_op(bodies: Array, f: Dictionary) -> String:
