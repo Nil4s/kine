@@ -203,6 +203,23 @@ func build(root: Control) -> void:
 	empty_chip.add_theme_font_size_override("font_size", 15)
 	empty_chip.pressed.connect(_empty)
 	th.add_child(empty_chip)
+	var vr := HFlowContainer.new()   # P107 FITVIEW: the view row (camera only, no step): Fit view, Front, Top, Side, 3/4
+	vr.name = "easypart_views"
+	vr.add_theme_constant_override("h_separation", 4)
+	vr.add_theme_constant_override("v_separation", 4)
+	v.add_child(vr)
+	for vb in VIEW_BTNS:
+		var vbtn := Button.new()
+		vbtn.name = "easypart_view_" + String(vb[0])
+		vbtn.text = String(vb[1])
+		vbtn.icon = Icons.sized(String(vb[2]), 16)
+		vbtn.expand_icon = false
+		vbtn.tooltip_text = String(vb[3])
+		vbtn.focus_mode = Control.FOCUS_NONE
+		vbtn.custom_minimum_size = Vector2(0, 30)
+		vbtn.add_theme_font_size_override("font_size", 13)
+		vbtn.pressed.connect(_view_press.bind(String(vb[0])))
+		vr.add_child(vbtn)
 	var cr := HFlowContainer.new()
 	cr.name = "easypart_chips"
 	cr.add_theme_constant_override("h_separation", 3)
@@ -1421,6 +1438,31 @@ func _screw_sync() -> void:
 			b.set_pressed_no_signal(not cur.is_empty() and int(cur.get("d", 0)) == d and int(cur.get("L", 0)) == L)
 			m._grey(b, Part.why_not() if not Part.available() else "")
 	parts_btn.set_pressed_no_signal(parts_open)
+
+
+# P107 FITVIEW: the view row at the top of the panel. The camera only: no step, so no undo
+const VIEW_BTNS := [
+	["fit", "Fit view", "view_fit", "Fit the whole part in the clear view"],
+	["front", "Front", "view_front", "Look at the part from the front"],
+	["top", "Top", "view_top", "Look down at the part from above"],
+	["side", "Side", "view_side", "Look at the part from the right side"],
+	["3q", "3/4", "view_3q", "Look at the part from a corner, so its depth shows"],
+]
+const VIEW_ANGLES := {"front": [0.0, -8.0], "top": [0.0, -89.0], "side": [-90.0, -8.0]}   # yaw, pitch (degrees): the same numbers as Expert's views
+
+
+func _view_press(k: String) -> void:
+	if k == "fit":
+		frame()
+		_say("Fit view: the whole part is in the clear view")
+		return
+	var ang: Array = VIEW_ANGLES.get(k, PartTemplates.view_of(String(m.S.part.get("easy", {}).get("t", ""))))   # 3/4: a template's own corner view
+	var rs: Dictionary = pu.res   # the built part (part_ui's own result)
+	var bb: AABB = rs.get("aabb", AABB()) if not rs.is_empty() else AABB()
+	var empty := bb.size.length() < 1e-4
+	var c := Vector3(0.1, 0.0, 0.0) if empty else bb.get_center()
+	m._turn_to(float(ang[0]), float(ang[1]), 0.9 if empty else clampf(bb.size.length() * 1.5, 0.4, 6.0), c, true)
+	_say("Turned the view. Fit view brings the whole part back in")
 
 
 func _back() -> void:
