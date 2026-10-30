@@ -1067,6 +1067,11 @@ func tweak_last() -> void:
 	elif t == "extrude" and not bool(f.get("both", false)) and String(f.get("op", "join")) == "join" and f.has("dist"):
 		var dist := float(f["dist"])
 		tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": -1.0 if dist < 0.0 else 1.0}
+		var pk := Part.feature(_rec(), String(f.get("sketch", "")))
+		var pf := Part.feature(_rec(), String(pk.get("plane", "front")))
+		var face := String(pf.get("t", "")) == "plane" and pf.has("out")   # a pull off a face or an upright one keeps How far (as _pull does)
+		if not pk.is_empty() and not face and not bool(pf.get("through", false)) and _flat_plate(pk, dist):
+			tweak = _thickness_tweak(f["id"], -1.0 if dist < 0.0 else 1.0)   # NTHICK: a reopened flat plate keeps its Thickness slider
 	elif t == "extrude" and bool(f.get("both", false)) and String(f.get("op", "")) == "cut":
 		var sk := Part.feature(_rec(), String(f.get("sketch", "")))
 		var ents: Array = sk.get("ents", [])
@@ -1730,6 +1735,8 @@ func _pull(rec: Dictionary) -> String:
 	if err != "":
 		return "That shape is not closed, so it cannot be pulled up: drag back to the start to close it"
 	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
+	if not (lid or slot or through or on_face) and _flat_plate(sk, dist):   # NTHICK: a flat plate's slider is its Thickness: thin plate (2 mm) to thick block (40 cm)
+		tweak = _thickness_tweak(f["id"], sg)
 	if lid:
 		_say("A lid on the rim: a separate piece. Use the slider for how tall it is")
 	elif slot:
@@ -1747,6 +1754,33 @@ func _pull(rec: Dictionary) -> String:
 	# FPLANTER: a pot is wider at the top: a floor shape pulled up gets a Taper slider under How far (the extrude's taper, degrees)
 	taper_tw = {} if (through or on_face) else {"id": f["id"], "label": "Taper", "unit": "deg", "lo": -15.0, "hi": 15.0, "step": 0.5, "words": ["Wider at the top", "Narrower at the top"]}
 	return ""
+
+
+## NTHICK: a FLAT PLATE is a plain pull of a floor shape whose narrow side is at least 10 cm and whose height is at most half of it (and at most 40 cm):
+## a slab, not a wall or a pillar. Its slider reads Thickness, from a thin plate (2 mm) to a thick block (40 cm)
+func _flat_plate(sk: Dictionary, dist: float) -> bool:
+	if String(sk.get("t", "")) != "sketch":
+		return false
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	var ents: Array = sk.get("ents", [])
+	if ents.is_empty():
+		return false
+	for e in ents:
+		var k := String(e.get("k", ""))
+		if k != "rect" and k != "line":   # a circle, an arc or a curve is not a plate: the How far stays
+			return false
+		for key in ["a", "b"]:
+			var p: Array = e[key]
+			lo = Vector2(minf(lo.x, float(p[0])), minf(lo.y, float(p[1])))
+			hi = Vector2(maxf(hi.x, float(p[0])), maxf(hi.y, float(p[1])))
+	var narrow := minf(hi.x - lo.x, hi.y - lo.y)
+	return narrow >= 100.0 and absf(dist) <= minf(narrow * 0.5, 400.0)
+
+
+## NTHICK: the slider of a flat plate: its pull's dist, labelled Thickness (cm, 0.2 = 2 mm to 40 = 40 cm)
+func _thickness_tweak(id: String, sg: float) -> Dictionary:
+	return {"id": id, "field": "dist", "label": "Thickness", "unit": "cm", "lo": 0.2, "hi": 40.0, "step": 0.2, "scale": 10.0, "words": ["Thin plate", "Thick block"], "sgn": sg}
 
 
 ## FMUG3: a part that already has a pull (an extrude step) in its features
