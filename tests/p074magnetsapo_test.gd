@@ -141,8 +141,8 @@ func _init() -> void:
 	await idle(4)
 	var ep: EasyPart = pu.ep
 
-	# the walk: a crate from the Easy chips, then Cut a hole, then Magnet
-	await click_ctl(ep.chips["crate"])
+	# the walk: a box from the Easy chips (crate is under More examples, not on the row), then Cut a hole, then Magnet
+	await click_ctl(ep.chips["box"])
 	await idle(3)
 	var before_rec: Dictionary = m.S.part.duplicate(true)
 	var v0 := float(Part.replay(before_rec)["volume"])
