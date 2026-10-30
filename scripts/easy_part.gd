@@ -24,6 +24,7 @@ const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal):
 const TILT_DEG := 20.0           # Tilt it: the lean of the newest solid (degrees, sideways about its middle)
 const HOLLOW_MM := 3.0           # Hollow inside: the wall the shell starts with (the Wall slider moves it: 1 to 10 mm)
 const LID_MM := 5.0             # Hollow with a lid (nlid): the top slice that comes off as the lid (a solid plate, the box's footprint)
+const LIP_RIDGE_MM := 0.5            # Snap-fit lip (nsnaplip): the ridge sticks out of the lip by this much, and the box wall has a groove this deep
 const LID_LIP_MM := 3.0         # the lid's lip: how far it goes down inside the box (1 mm wide ring, 0.2 mm gap to the wall)
 const THROTTLE_MS := 100
 const CLIP_MM := 6.0             # FBOWL2: a spun curve that dips past the middle line by less than this (a spline overshoot) is clipped onto it
@@ -88,6 +89,7 @@ var rep_id := ""                 # the last Repeat it step's feature id ("" = no
 var rep_rows := []               # the two slider rows of the Repeat it box (see _make_row)
 var hole_box: PanelContainer     # Cut a hole: the Through / Hollow inside chips, under the MAKE row, after a Cut a hole press (see _hole_on)
 var hole_btns := {}
+var snap_btn: Button            # Snap-fit lip (nsnaplip): an on/off chip under Hollow with a lid (the lid gets a ridge, the box a groove)
 var hole_base: Dictionary = {}   # the record before the last Cut a hole press: each chip rebuilds the hole from it ({} = no hole chips)
 var hole_id := ""                # the feature id of the last hole step (the hole's sketch, or the hollow's shell): its slider's step
 var hole_mode := "through"       # "through" | "hollow": the chip that is on
@@ -434,6 +436,11 @@ func _hole_box() -> PanelContainer:
 		b.custom_minimum_size = Vector2(150, 44)
 		h.add_child(b)
 		hole_btns[hm[0]] = b
+	snap_btn = _big_btn("easypart_hole_snap", "Snap-fit lip", "Add a small ridge on the lid's lip and a matching groove in the box wall, so the lid clicks on", _snap_press)
+	snap_btn.toggle_mode = true
+	snap_btn.custom_minimum_size = Vector2(150, 44)
+	snap_btn.visible = false
+	h.add_child(snap_btn)
 	return box
 
 
@@ -1447,12 +1454,15 @@ func _hole_on() -> bool:
 func _hole_sync() -> void:
 	for k in hole_btns:
 		(hole_btns[k] as Button).set_pressed_no_signal(k == hole_mode)
+	if snap_btn != null:
+		snap_btn.set_pressed_no_signal(_rec_has_lip())   # the record says it (an Undo takes the chip off with the lip)
+		snap_btn.visible = hole_mode == "lid"   # the chip only exists for a lid
 
 
 ## a Through / Hollow inside chip: the hole step is REPLACED (one undo step): the record from before the hole press, then the chosen hole.
 ## A hollow that fails (a body too thin for the wall) says so and changes nothing
-func _hole_mode(mode: String) -> void:
-	if not _hole_on() or not Part.available() or mode == hole_mode:
+func _hole_mode(mode: String, lip := false, rebuild := false) -> void:   # lip: the lid with its Snap-fit lip; rebuild: the same chip again (the Snap-fit lip press)
+	if not _hole_on() or not Part.available() or (mode == hole_mode and not rebuild):
 		_hole_sync()
 		return
 	_flush_if_dirty()
@@ -1461,7 +1471,7 @@ func _hole_mode(mode: String) -> void:
 	_begin("Hollow with a lid" if mode == "lid" else ("Hollow inside" if mode == "hollow" else "Cut a hole"))
 	var rec: Dictionary = hole_base.duplicate(true)
 	m.S.part = rec
-	var why := _hollow_lid(rec) if mode == "lid" else (_hollow(rec) if mode == "hollow" else _hole(rec))
+	var why := _hollow_lid(rec, lip) if mode == "lid" else (_hollow(rec) if mode == "hollow" else _hole(rec))
 	if why != "":
 		m.S.part = snap
 		m._drop_undo()
@@ -1525,6 +1535,23 @@ func _open_face(p: Vector2) -> bool:
 	return true
 
 
+## SNAP-FIT LIP (nsnaplip): the on/off chip under Hollow with a lid. On: the lid's ridge and the box's groove are rebuilt from the same
+## hole base (one undo step). Only a lid has a snap; the other shapes say what to press first
+func _snap_press() -> void:
+	if hole_mode != "lid" or not _hole_on() or not Part.available():
+		_hole_sync()
+		_say("Snap-fit lip needs a lid first: press Cut a hole, then Hollow with a lid, then Snap-fit lip")
+		return
+	_hole_mode("lid", not _rec_has_lip(), true)   # on: rebuild the lid with the lip; off: rebuild it plain (the same chip, one step)
+
+## the record has a snap-fit lip (its groove step is tagged "lip")
+func _rec_has_lip() -> bool:
+	for f in _rec().get("features", []):
+		if bool((f as Dictionary).get("lip", false)):
+			return true
+	return false
+
+
 ## HOLLOW INSIDE: Part's shell on the newest solid, open at its TOP face ("+y": the planar face with the largest +Y centre),
 ## a HOLLOW_MM wall. The Wall slider moves the thickness (mm)
 func _hollow(rec: Dictionary) -> String:
@@ -1553,7 +1580,7 @@ func _hollow(rec: Dictionary) -> String:
 ## HOLLOW WITH A LID (nlid): a box (one body, a rectangle pulled up) is split at its top LID_MM: the top slice is the LID, a solid plate on
 ## the box's footprint; the rest is hollowed out (a HOLLOW_MM wall, open at the top). A lip (1 mm ring, LID_LIP_MM tall, 0.2 mm inside the
 ## walls) hangs under the lid into the box: a plug cut back to a ring. Box-shaped only; no slider (the lip is cut to the walls). "" or why not
-func _hollow_lid(rec: Dictionary) -> String:
+func _hollow_lid(rec: Dictionary, snap := false) -> String:
 	var res := Part.replay(rec)
 	if int(res["bodies"]) == 0:
 		return "Nothing solid to hollow out yet. Press Pull it up first"
@@ -1575,6 +1602,17 @@ func _hollow_lid(rec: Dictionary) -> String:
 	rec["features"].append(sp)
 	var sh := Part.new_feature(rec, "shell", {"body": 1, "thick": HOLLOW_MM, "open": "+y"})
 	rec["features"].append(sh)
+	var fids := [sp["id"], sh["id"]]
+	var band_y := top - LID_MM - LID_LIP_MM + 1.0   # the snap band: 1 mm tall, the lip's middle third (under the plate, above the lip's floor)
+	var gr: Dictionary = {}
+	if snap:   # the groove first (the box is alone on its wall here; a cut hits every body): a ring 0.5 mm deep in the wall
+		var pg := Part.new_feature(rec, "plane", {"from": "top", "mm": band_y})
+		rec["features"].append(pg)
+		var sg := Part.new_feature(rec, "sketch", {"plane": String(pg["id"]), "ents": [_rect_ent(x0 + HOLLOW_MM - LIP_RIDGE_MM, z0 + HOLLOW_MM - LIP_RIDGE_MM, x1 - HOLLOW_MM + LIP_RIDGE_MM, z1 - HOLLOW_MM + LIP_RIDGE_MM)], "dims": []})
+		rec["features"].append(sg)
+		gr = Part.new_feature(rec, "extrude", {"sketch": sg["id"], "dist": 1.0, "both": false, "op": "cut", "lip": true})
+		rec["features"].append(gr)
+		fids.append(gr["id"])
 	var pf := Part.new_feature(rec, "plane", {"from": "top", "mm": top - LID_MM - LID_LIP_MM})
 	rec["features"].append(pf)
 	var s1 := Part.new_feature(rec, "sketch", {"plane": String(pf["id"]), "ents": [_rect_ent(x0 + ins_o, z0 + ins_o, x1 - ins_o, z1 - ins_o)], "dims": []})
@@ -1585,13 +1623,27 @@ func _hollow_lid(rec: Dictionary) -> String:
 	rec["features"].append(s2)
 	var f2 := Part.new_feature(rec, "extrude", {"sketch": s2["id"], "dist": LID_LIP_MM, "both": false, "op": "cut"})
 	rec["features"].append(f2)
-	for fid in [sp["id"], sh["id"], f1["id"], f2["id"]]:
+	fids.append_array([f1["id"], f2["id"]])
+	if snap:   # the ridge: a ring 0.5 mm proud of the lip, joined to the lid (body 0) in the same band as the groove
+		var pr := Part.new_feature(rec, "plane", {"from": "top", "mm": band_y})
+		rec["features"].append(pr)
+		var ro := HOLLOW_MM + 0.2 - LIP_RIDGE_MM   # the ridge's outside: 2.7 mm in (0.5 mm proud of the lip's 3.2 mm face)
+		var ri := HOLLOW_MM + 0.2                  # the ridge's inside: the lip's own outer face
+		var bars := [[x0 + ro, z0 + ro, x1 - ro, z0 + ri], [x0 + ro, z1 - ri, x1 - ro, z1 - ro], [x0 + ro, z0 + ri, x0 + ri, z1 - ri], [x1 - ri, z0 + ri, x1 - ro, z1 - ri]]
+		fids.append(pr["id"])
+		for b in bars:   # four bars (front, back, left, right), each joined to the lid (body 0): a ring with no cut
+			var sr := Part.new_feature(rec, "sketch", {"plane": String(pr["id"]), "ents": [_rect_ent(b[0], b[1], b[2], b[3])], "dims": []})
+			rec["features"].append(sr)
+			var fr := Part.new_feature(rec, "extrude", {"sketch": sr["id"], "dist": 1.0, "both": false, "op": "join", "into": 0, "lip": true})
+			rec["features"].append(fr)
+			fids.append(fr["id"])
+	for fid in fids:
 		if _last_error(rec, String(fid)) != "":
 			return too_small
 	if Part.replay(rec)["bodies"] != 2:
 		return too_small
 	tweak = {}
-	_say("Hollowed out with a lid: the top 5 mm is the lid, sitting on the box. Ctrl+Z undoes it")
+	_say("Hollowed out with a lid and a snap-fit lip: the lid's ridge clicks into the box's groove. Ctrl+Z undoes it" if snap else "Hollowed out with a lid: the top 5 mm is the lid, sitting on the box. Ctrl+Z undoes it")
 	return ""
 
 
