@@ -303,3 +303,4 @@ EXTRA="$EXTRA epanelview:w"   # EPANELVIEW: free building, a tool panel at the l
 EXTRA="$EXTRA fbolt:w"   # FBOLT: a beginner from the BUILDING card builds a bolt and a nut by real clicks: a round shaft, a hex head (Hex chip), a hex nut apart from the bolt, a hole; Expert shows the hex as six lines (tests/fbolt_test.gd)
 EXTRA="$EXTRA npoly2:w"   # NPOLY2: a beginner makes a regular prism: the Sides slider (3-12) next to Hex, a 5-sided and a 12-sided prism by real clicks, Pulled up, measured in mm, Ctrl+Z (tests/npoly2_test.gd)
 EXTRA="$EXTRA nopentop:w"   # NOPENTOP: Hollow inside, then one click on a flat face makes that side the open one (a tray); the Wall slider still works, one undo step per action (tests/nopentop_test.gd)
+EXTRA="$EXTRA nrounddrag:w"   # NROUNDDRAG: Easy Part, drag an edge outward rounds it: the drag distance is the radius (mm, beside the cursor), release = one undo step; measured from the built volume (tests/nrounddrag_test.gd)
