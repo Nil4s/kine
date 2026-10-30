@@ -28,7 +28,11 @@ func _hole_mode(mode: String, lip := false, rebuild := false) -> void:   # lip: 
 	_begin("Hollow with a lid" if mode == "lid" else ("Hollow inside" if mode == "hollow" else "Cut a hole"))
 	var rec: Dictionary = hole_base.duplicate(true)
 	m.S.part = rec
-	var why := _hollow_lid(rec, lip) if mode == "lid" else (_hollow(rec) if mode == "hollow" else _hole(rec))
+	var why := ""
+	if mode.begins_with("screw"):   # p030countersun: a screw chip (screw3 .. screw6) cuts the hole for that screw
+		why = _screw_hole(rec, int(mode.trim_prefix("screw")))
+	else:
+		why = _hollow_lid(rec, lip) if mode == "lid" else (_hollow(rec) if mode == "hollow" else _hole(rec))
 	if why != "":
 		m.S.part = snap
 		m._drop_undo()
@@ -90,6 +94,41 @@ func _open_face(p: Vector2) -> bool:
 	_rows_sync()
 	_values_sync()
 	return true
+
+
+## p030countersun (Kine's own): the hole knows the screw. Clearance hole for an ISO 4762 socket screw, through the middle of the newest solid
+## (M3 3.4 mm, M4 4.5 mm, M5 5.5 mm, M6 6.6 mm), and a counterbore on the top face (+Z) for its head (head across and depth from
+## PartTemplates.SCREW_HEAD). Both cuts are one step. A cut that misses the solid changes nothing and says so
+const SCREW_CLEAR := {3: 3.4, 4: 4.5, 5: 5.5, 6: 6.6}
+
+
+func _screw_hole(rec: Dictionary, d: int) -> String:
+	var res := Part.replay(rec)
+	if int(res["bodies"]) == 0:
+		return "Nothing solid to cut a hole in yet. Press Pull it up first"
+	var bb: AABB = res["aabb"]
+	var c := bb.get_center() / Part.MM
+	var head: Array = PartTemplates.SCREW_HEAD[d]   # [head across mm, head depth mm]
+	var clear := float(SCREW_CLEAR[d])
+	var before := float(res["volume"])
+	var n0: int = rec["features"].size()
+	var seq0 := int(rec.get("seq", 0))
+	var top := Part.new_feature(rec, "plane", {"from": "front", "mm": bb.end.z / Part.MM})   # the top face: the plane the head's counterbore starts on
+	rec["features"].append(top)
+	var cb := Part.new_feature(rec, "sketch", {"plane": String(top["id"]), "ents": [{"k": "circle", "c": Part.arr2(Vector2(c.x, c.y)), "r": float(head[0]) / 2.0}], "dims": []})
+	rec["features"].append(cb)
+	rec["features"].append(Part.new_feature(rec, "extrude", {"sketch": cb["id"], "dist": -float(head[1]), "both": false, "op": "cut"}))   # a negative dist runs down into the solid
+	var th := Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "circle", "c": Part.arr2(Vector2(c.x, c.y)), "r": clear / 2.0}], "dims": []})
+	rec["features"].append(th)
+	rec["features"].append(Part.new_feature(rec, "extrude", {"sketch": th["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.z), absf(bb.end.z)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"}))
+	var after := float(pu.replay_full(rec)["volume"])
+	if not (after < before - 1e-12 and after > 1e-9):
+		rec["features"].resize(n0)
+		rec["seq"] = seq0
+		return "The screw hole would miss the shape: nothing was cut. Make the shape bigger, or pick a smaller screw"
+	tweak = {}   # the screw hole has no Hole size slider: its newest step keeps the chips up
+	_say("M%d screw: a %s mm hole, its %s mm head sunk %s mm deep. Mirror that or Repeat it next" % [d, _mm_words(clear), _mm_words(float(head[0])), _mm_words(float(head[1]))])
+	return ""
 
 
 ## SNAP-FIT LIP (nsnaplip): the on/off chip under Hollow with a lid. On: the lid's ridge and the box's groove are rebuilt from the same
