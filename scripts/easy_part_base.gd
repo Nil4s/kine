@@ -103,6 +103,10 @@ var handle_box: PanelContainer    # P071 HANDLES: the Handles grid (three kinds 
 var handle_btns := {}            # P071 HANDLES: "kind_size" -> its size chip
 var handle_words: Label          # P071 HANDLES: the grid's one-line instruction: hidden while the library page is open (the page says it), so the grid fits
 var lib_cat := ""                # NLIBPAGE: the category open on the page ("" = none); Screws opens when Parts opens
+var explode_box: PanelContainer  # EXPLODE (p103): the Pull apart slider, shown while the part has two or more pieces (view only, no step)
+var explode_slider: HSlider
+var explode_label: Label
+const EXPLODE_MAX_MM := 100.0   # the Pull apart slider: how far a piece can be pulled from the middle (mm)
 var bear_box: PanelContainer      # P069 BEARINGS: the bearing chips (608, 625, 688) and the seat button: shown with the Bearings page or a bearing / seat on the floor
 var bear_btns := {}              # P069 BEARINGS: "608" / "625" / "688" -> its chip
 var seat_btn: Button             # P069 BEARINGS: "Make a seat for it": cuts the seat for the bearing on the floor

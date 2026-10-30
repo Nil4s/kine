@@ -483,6 +483,8 @@ func layout(cl: Rect2) -> void:
 		tilt_x = repeat_box.position.x + repeat_box.size.x + 8.0
 		tilt_y = repeat_box.position.y + repeat_box.size.y - tilt_box.size.y
 	tilt_box.position = Vector2(tilt_x, _low_box_y(tilt_y, tilt_box.size.y, low_y, stat_top))
+	explode_box.reset_size()   # EXPLODE (p103): the Pull apart slider sits under the Round filter row (that row is up whenever a solid is), clear of the low rows and the view's drags
+	explode_box.position = Vector2(cl.position.x + 12.0, round_box.position.y + round_box.size.y + 6.0)
 	# the panel on the right, as tall as it needs; the words under the sliders go first when the room is short
 	var avail := cl.end.y - top - 4.0
 	panel.reset_size()
