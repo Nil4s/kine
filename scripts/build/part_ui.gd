@@ -95,6 +95,7 @@ var _rp_res: Dictionary = {}
 var prev := {}                 # the dialog's preview replay
 var hover_edge := -1
 var hover_face := -1           # offset face / draft: the face under the pointer (an index into face_cache)
+var coarse := false             # NSLIDELOD: a size slider is in hand: the view tessellates coarse (Easy Part clears it on release)
 var face_cache: Array = []     # the pickable faces of the model as the dialog sees it (Part.replay "faces")
 var spl_drag := {}             # a spline point being dragged: {"ent", "pt"} (sketch Spline tool)
 var spl_last_ms := -100000     # the last Spline click (ms) and its screen point: a double-click ends the curve
@@ -2396,7 +2397,7 @@ func _rebuild(show: bool) -> void:
 	if not show:
 		return
 	Part.refresh_bound(_rec(), _body_measures())   # C2: a dimension bound to the body shows the body's size now
-	var sig := "%s|%d|%d|%s|%s" % [JSON.stringify(_rec()), upto, int(dlg.get("edit", -1)) if not dlg.is_empty() else -2, JSON.stringify(_body_measures()), JSON.stringify(pose)]   # the body moving re-solves the bound dimensions
+	var sig := "%s|%d|%d|%s|%s|%s" % [JSON.stringify(_rec()), upto, int(dlg.get("edit", -1)) if not dlg.is_empty() else -2, JSON.stringify(_body_measures()), JSON.stringify(pose), coarse]   # the body moving re-solves the bound dimensions
 	if sig == _rec_sig:
 		return
 	_rec_sig = sig
@@ -2412,6 +2413,8 @@ func _rebuild(show: bool) -> void:
 	var want := {"edges": not easy, "faces": not easy, "body": _body_measures()}
 	if not pose.is_empty():
 		want["pose"] = pose   # a hinge turned by Play / the slider (the record is the same; only the view turns)
+	if coarse:
+		want["coarse"] = true   # NSLIDELOD: the slider preview (low detail)
 	res = replay_once(_rec(), up, want)
 	if sk == "":
 		part_mesh.mesh = res["mesh"]
