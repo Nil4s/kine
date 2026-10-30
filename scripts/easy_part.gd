@@ -131,7 +131,7 @@ func build(root: Control) -> void:
 	var sh := HBoxContainer.new()
 	sh.add_theme_constant_override("separation", 6)
 	shape_box.add_child(sh)
-	for s in [["box", "Box"], ["round", "Round"], ["pointy", "Pointy"], ["oval", "Oval"], ["hex", "Hex"]]:   # FSPOON: Oval = an ellipse fitted to the drag box (a bowl, a pad); FBOLT: Hex = a regular hexagon in the drag box (bolt head, nut)
+	for s in [["box", "Box"], ["round", "Round"], ["pointy", "Pointy"], ["oval", "Oval"], ["hex", "Hex"], ["line", "Line"]]:   # P040 Line: a drag of straight stretches, a stretch held with Shift is a curve. FSPOON: Oval = an ellipse fitted to the drag box (a bowl, a pad); FBOLT: Hex = a regular hexagon in the drag box (bolt head, nut)
 		var b := Button.new()
 		b.name = "easypart_shape_" + String(s[0])
 		b.text = String(s[1])
@@ -2329,6 +2329,50 @@ static func _is_corner(turn: PackedFloat32Array, i: int) -> bool:
 	return true
 
 
+## P040 LINE: a drag of stretches. A stretch drawn with Shift held is curvy (a spline through its points), any other stretch is straight.
+## Runs of the same kind become one entity each (a straight run a line, a curvy run a bspline), joined end to end. One undo step.
+func _finish_line() -> void:
+	var pts: Array = _draft.get("pts", [])
+	var segs: Array = _draft.get("segs", [false])
+	var fc: Dictionary = _draft.get("face", {})
+	_draft = {}
+	var total := 0.0
+	for i in range(1, pts.size()):
+		total += (pts[i] as Vector2).distance_to(pts[i - 1] as Vector2)
+	if pts.size() < 2 or total < 5.0:
+		_say("Drag a bit further to draw a line: keep the button held and move at least 5 mm")
+		return
+	var ents := []
+	var s := 0
+	for i in range(1, pts.size()):
+		if i == pts.size() - 1 or bool(segs[i + 1]) != bool(segs[i]):   # the run ends at point i
+			var ps: Array = pts.slice(s, i + 1)
+			if bool(segs[i]):
+				var keep := []
+				for k in _curve_keep(ps, 12):
+					keep.append(Part.arr2(ps[k]))
+				ents.append({"k": "bspline", "pts": keep, "closed": false})
+			else:
+				ents.append({"k": "line", "a": Part.arr2(ps[0]), "b": Part.arr2(ps[ps.size() - 1])})
+			s = i
+	_begin("Line")
+	var rec := pu._ensure()
+	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": ents, "dims": []}))
+	_end()
+	armed = ""
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_say("Line drawn. Straight stretches stay straight, stretches drawn with Shift curve. Draw a round or box shape, then Pull along")
+
+
+## P040: Shift is held (the last mouse event said so, or the key is down): the stretch a Line drag adds now is curvy
+var _shift := false
+func _shift_held() -> bool:
+	return _shift or Input.is_key_pressed(KEY_SHIFT)
+
+
 ## the drawn points kept for the spline (at most maxn, first and last always): the points that bend the line most, so a rim or a
 ## corner the user drew stays a point the spline passes through (an even pick by index rounded the cup's rim down 5 mm)
 func _curve_keep(pts: Array, maxn: int) -> Array:
@@ -2580,6 +2624,8 @@ func _input(ev: InputEvent) -> void:
 	if ev is InputEventKey:
 		_key(ev as InputEventKey)   # EKEYS: Escape and Delete (Ctrl+Z / Ctrl+Y are main's undo and redo)
 		return
+	if ev is InputEventMouse:
+		_shift = (ev as InputEventMouse).shift_pressed   # P040: this event's Shift (the sketch below reads it before input() runs)
 	if ev is InputEventMouseButton and (ev as InputEventMouseButton).pressed and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and active():
 		_grey_say((ev as InputEventMouseButton).position)   # FHELP3: a greyed button takes no click: its reason goes on the line
 	# a sketch in progress follows the pointer and ends on the release even over a control (a chip row, the bar): the controls
@@ -2652,6 +2698,7 @@ func _bar_button_at(p: Vector2) -> BaseButton:
 func input(ev: InputEvent) -> bool:
 	if ev is InputEventMouse:
 		_alt = (ev as InputEventMouse).alt_pressed
+		_shift = (ev as InputEventMouse).shift_pressed   # P040: Shift held on a Line stretch makes that stretch curvy
 	if not active() or not Part.available():
 		if edge_chip != null and edge_chip.visible:
 			_edge_hide()
@@ -2741,13 +2788,20 @@ func _draft_move(p: Vector2) -> void:
 	var g: Variant = _ground(p, _draft.get("pl", {}))
 	if g != null:
 		_draft["b"] = g
-		if String(_draft["shape"]) == "curve" and (g as Vector2).distance_to((_draft["pts"] as Array).back()) >= 5.0:
+		var sh := String(_draft["shape"])
+		if (sh == "curve" or sh == "line") and (g as Vector2).distance_to((_draft["pts"] as Array).back()) >= 5.0:
 			(_draft["pts"] as Array).append(g)
+			if sh == "line":   # P040: the stretch that ends here is curvy when Shift is held
+				var segs: Array = _draft.get("segs", [false])
+				segs.append(_shift_held())
+				_draft["segs"] = segs
 	dots.queue_redraw()
 
 
 func _draft_end() -> void:
-	if String(_draft["shape"]) == "curve":
+	if String(_draft["shape"]) == "line":
+		_finish_line()
+	elif String(_draft["shape"]) == "curve":
 		_finish_curve()
 	else:
 		_finish_draw()

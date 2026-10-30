@@ -747,7 +747,7 @@ func _draft_outline() -> PackedVector2Array:
 	var a: Vector2 = _draft["a"]
 	var b: Vector2 = _draft["b"]
 	var pts := PackedVector2Array()
-	if String(_draft["shape"]) == "curve":
+	if String(_draft["shape"]) == "curve" or String(_draft["shape"]) == "line":   # P040: a Line shows its points as they come
 		for q in _draft["pts"]:
 			pts.append(m.cam.unproject_position(_pw(q as Vector2)))
 		return pts
