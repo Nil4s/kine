@@ -65,6 +65,8 @@ const DRAFT_DIRS := {"x": Vector3(1, 0, 0), "y": Vector3(0, 1, 0), "z": Vector3(
 const PLANES := ["front", "top", "right"]
 const OPS := ["join", "new", "cut", "intersect"]
 const COMBINE_OPS := ["join", "cut", "intersect"]   # a combine step's op (the dialog's order: Join, Cut, Intersect)
+const COARSE_DEFL := 0.002   # NSLIDELOD: the slider preview tessellates at this deflection (m); full detail is 0.0003
+const COARSE_ANGLE := 0.5    # NSLIDELOD: and this angle (rad); full detail is 0.25
 const MATCH_MAX := 0.25   # an edge matches when (box-position distance + 0.5 x direction mismatch) is below this
 const LOOK_CHIPS := [["Grey", Color("#bdc4d0")], ["Red", Color("#c0392b")], ["Blue", Color("#3a7bd5")], ["Yellow", Color("#f2c94c")], ["Green", Color("#4caf50")]]   # the colour chips; a body with no look takes chip (its index mod 5)
 const LOOK_PRESETS := {"Paint": {"rough": 0.35, "metal": 0.0, "alpha": 1.0}, "Metal": {"rough": 0.25, "metal": 1.0, "alpha": 1.0}, "Glass": {"rough": 0.05, "metal": 0.0, "alpha": 0.4}, "Rubber": {"rough": 0.95, "metal": 0.0, "alpha": 1.0}, "Plastic": {"rough": 0.45, "metal": 0.0, "alpha": 1.0}}
@@ -584,7 +586,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		res["volume"] = float(res["volume"]) + v
 		if want.get("props", false):
 			res["props"].append(KCad.mass_properties(b))   # {volume, area, center, inertia} per body, density 1 (PartWeapon)
-		var tm := KCad.tessellate(b, 0.0003, 0.25)
+		var tm := KCad.tessellate(b, COARSE_DEFL, COARSE_ANGLE) if want.get("coarse", false) else KCad.tessellate(b, 0.0003, 0.25)   # NSLIDELOD: a coarse preview while a slider is dragged
 		if tm != null and tm.get_surface_count() > 0:
 			mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, tm.surface_get_arrays(0))
 			res["looks"].append(look_at(looks, bodies.find(b)))   # one surface, one look (the view paints each surface)

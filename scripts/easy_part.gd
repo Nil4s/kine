@@ -1004,11 +1004,13 @@ func _on_slider_value(v: float, row: Dictionary) -> void:
 
 func _on_slider_start(row: Dictionary) -> void:
 	row["held"] = true
+	pu.coarse = true   # NSLIDELOD: the part shows a coarse preview while the slider is in hand
 	_begin("Change " + String(row["label"]))
 
 
 func _on_slider_end(_changed: bool, row: Dictionary) -> void:
 	row["held"] = false
+	pu.coarse = false   # NSLIDELOD: full detail on release (the final write below rebuilds it)
 	_set_value(row, (row["slider"] as HSlider).value, true)
 	_end()
 
