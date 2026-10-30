@@ -309,7 +309,15 @@ func _hole_box() -> PanelContainer:
 	wall_btn.custom_minimum_size = Vector2(150, 44)
 	wall_btn.visible = false
 	h.add_child(wall_btn)
+	for sd in SCREW_CLEAR:   # p030countersun: one chip per screw size: the hole is sized to the screw (M3 3.4 mm ... M6 6.6 mm)
+		var sb := _big_btn("easypart_hole_screw%d" % sd, "M%d screw" % sd, "A hole for an M%d socket screw: a clearance hole, and a counterbore on the top face for its head" % sd, _hole_mode.bind("screw%d" % sd))
+		sb.toggle_mode = true
+		sb.custom_minimum_size = Vector2(96, 44)
+		h.add_child(sb)
+		hole_btns["screw%d" % sd] = sb
 	return box
+
+
 
 
 ## NROUNDFILTER: the three filter chips beside Round the edges: All edges (the default), Only the outside, Only the top. Each chip sets the
