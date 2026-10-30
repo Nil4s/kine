@@ -57,7 +57,28 @@ const T := {
 	"screw": {"title": "Screw", "parts": true, "params": [
 		{"k": "d", "label": "Size", "lo": 3.0, "hi": 6.0, "def": 4.0, "step": 1.0, "words": ["Smaller", "Bigger"]},
 		{"k": "L", "label": "Length", "lo": 10.0, "hi": 30.0, "def": 16.0, "step": 1.0, "words": ["Shorter", "Longer"]}]},
+	# P071 HANDLES: from the Parts library's Handles page (easy_part.gd), not in ORDER (no template chip). Sized by the chips (96 / 128 / 160 mm,
+	# 24 / 32 / 40 mm); the sliders then move the same handle. Holes: a drawer pull has two 4.5 mm holes (an M4 screw of the Parts page goes through).
+	"drawer_pull": {"title": "Drawer pull", "params": [
+		{"k": "spacing", "label": "Hole spacing", "lo": 64.0, "hi": 192.0, "def": 128.0, "step": 32.0, "words": ["Closer", "Further"], "unit": "mm"},
+		{"k": "thickness", "label": "Thickness", "lo": 6.0, "hi": 20.0, "def": 10.0, "step": 2.0, "words": ["Thinner", "Thicker"], "unit": "mm"}]},
+	"knob": {"title": "Knob", "params": [
+		{"k": "diameter", "label": "Width", "lo": 16.0, "hi": 60.0, "def": 32.0, "step": 4.0, "words": ["Smaller", "Bigger"], "unit": "mm"},
+		{"k": "height", "label": "Height", "lo": 10.0, "hi": 40.0, "def": 18.0, "step": 2.0, "words": ["Lower", "Taller"], "unit": "mm"}]},
+	"d_handle": {"title": "D-handle", "params": [
+		{"k": "width", "label": "Width", "lo": 64.0, "hi": 220.0, "def": 128.0, "step": 16.0, "words": ["Narrower", "Wider"], "unit": "mm"},
+		{"k": "thickness", "label": "Thickness", "lo": 6.0, "hi": 20.0, "def": 10.0, "step": 2.0, "words": ["Thinner", "Thicker"], "unit": "mm"}]},
 }
+
+## P071 HANDLES: the chip sizes (mm) by kind, in the Parts library's Handles grid: each row's three sizes, and the template number each one sets
+const HANDLE_SIZES := {"drawer_pull": [96, 128, 160], "knob": [24, 32, 40], "d_handle": [96, 128, 160]}
+const HANDLE_KEY := {"drawer_pull": "spacing", "knob": "diameter", "d_handle": "width"}
+const HANDLE_NAME := {"drawer_pull": "Drawer pull", "knob": "Knob", "d_handle": "D-handle"}
+const PULL_END := 14.0   # mm from a drawer pull's hole to its end: the bar is spacing + 2 x 14 mm long
+const PULL_W := 12.0     # mm: a drawer pull's bar height (its width across the front)
+const PULL_HOLE := 2.25  # mm radius: a 4.5 mm hole, for an M4 screw
+const D_H := 36.0        # mm: a D-handle's height (outside), the loop's bar is D_BAR thick
+const D_BAR := 9.0
 
 ## NSCREW2: ISO 4762 socket head screws: nominal size -> [head diameter, head height] (mm). The shank is the nominal size, plain (no thread).
 const SCREW_HEAD := {3: [5.5, 3.0], 4: [7.0, 4.0], 5: [8.5, 5.0], 6: [10.0, 6.0]}
@@ -377,6 +398,28 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var th: float = p["thickness"]
 			_ex(fs, _sk(fs, "front", gear_outline(N, md)), "extrude", th, "new")
 			_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": 0.12 * N * md}]), "extrude", th, "cut", true)
+		"drawer_pull":
+			# P071: a flat bar in the front plane, spacing + 28 mm long, 12 mm high, extruded by the thickness; two 4.5 mm holes at the
+			# spacing cut through (both sides), so an M4 screw from the Parts page goes in
+			var sp: float = p["spacing"]
+			var pth: float = p["thickness"]
+			var bl := sp * 0.5 + PULL_END
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(-bl, -PULL_W * 0.5), Vector2(bl, PULL_W * 0.5))]), "extrude", pth, "new")
+			for hx in [-sp * 0.5, sp * 0.5]:   # one sketch per hole: a sketch with two circles cut only one of them
+				_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [hx, 0.0], "r": PULL_HOLE}]), "extrude", 2.0 * pth, "cut", true)   # both ways: the cut is 2 x the thickness, or only half of each hole goes
+		"knob":
+			# P071: a plain round knob, turned about the up axis (like the screw): width across, height up from the floor
+			var kr: float = float(p["diameter"]) * 0.5
+			var kh: float = p["height"]
+			var kprof := [Vector2(0, 0), Vector2(kr, 0), Vector2(kr, kh), Vector2(0, kh)]
+			_ex(fs, _sk(fs, "front", _poly(kprof)), "revolve", 0.0, "new")
+			fs[fs.size() - 1]["axis"] = "y"
+		"d_handle":
+			# P071: a loop: a 36 mm high block of the width, with a window cut through it (the bar is 9 mm all round)
+			var dw: float = p["width"]
+			var dth: float = p["thickness"]
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(-dw * 0.5, -D_H * 0.5), Vector2(dw * 0.5, D_H * 0.5))]), "extrude", dth, "new")
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(-dw * 0.5 + D_BAR, -D_H * 0.5 + D_BAR), Vector2(dw * 0.5 - D_BAR, D_H * 0.5 - D_BAR))]), "extrude", 2.0 * dth, "cut", true)   # both ways (see the drawer pull)
 		"wheel":
 			# a tyre: the profile (width x radius) turned about the sketch's x axis = world X, the axle (side to side)
 			var R: float = p["radius"]

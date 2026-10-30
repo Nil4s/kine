@@ -223,6 +223,8 @@ func build(root: Control) -> void:
 	v.add_child(lib_box)
 	screw_box = _screw_box()
 	v.add_child(screw_box)
+	handle_box = _handle_box()   # P071 HANDLES: the Handles grid under the library page
+	v.add_child(handle_box)
 	rows_vb = VBoxContainer.new()
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 4)
@@ -1134,6 +1136,8 @@ func _lib_press(cat: String) -> void:
 		_say("Screws: pick a size. It drops on the floor")
 	elif cat == "Gears":
 		_say("Gears: press Gear in the chips above. It drops on the floor")
+	elif cat == "Handles":
+		_say("Handles: pick a kind and a size. It drops on the floor")
 	else:
 		_say("%s are coming soon. Next step: press Screws or Gears" % cat)
 	_screw_sync()
@@ -1268,6 +1272,90 @@ func _screw_pick(d: int, L: int) -> void:
 	_screw_sync()
 
 
+## P071 HANDLES: a size chip. No handle of that kind on the floor: a new one (one undo step). A handle of that kind already there: its size
+## changes (one undo step). The same size again does nothing. The words give the built size in mm, from the built part.
+func _handle_pick(kind: String, size: int) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var key: String = PartTemplates.HANDLE_KEY[kind]
+	var name_l := String(PartTemplates.HANDLE_NAME[kind]).to_lower()
+	var on_floor := _tpl() == kind
+	if on_floor:
+		var cur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {})
+		if int(roundf(float(cur.get(key, 0)))) == size:
+			_say("Already the %s on the floor. Pick another size to change it" % name_l)
+			_screw_sync()
+			return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Change the handle size" if on_floor else "Start a handle"
+	m._push_undo()
+	if on_floor:
+		PartTemplates.retemplate(_rec(), {key: size})
+	else:
+		m.S.part = PartTemplates.make(kind, {key: size})
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("The %s did not build. Press Reset, then pick a size again" % name_l)
+	else:
+		var bb: AABB = pu.res.get("aabb", AABB())
+		var big := roundi(maxf(bb.size.x, maxf(bb.size.y, bb.size.z)) * 1000.0)
+		var hole := ". Its two holes take an M4 screw from Parts" if kind == "drawer_pull" else ""
+		_say("A %s on the floor, %d mm across%s. Move a slider, or pick another size" % [name_l, big, hole])
+	_screw_sync()
+
+
+## P071 HANDLES: the Handles grid: a row per kind (its name, then its three sizes in mm). One click puts that handle on the floor.
+func _handle_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_handle_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
+	var hd := Label.new()
+	hd.name = "easypart_handle_words"
+	hd.text = "Handles: pick a kind and a size. It drops on the floor"
+	hd.add_theme_font_size_override("font_size", 14)
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	handle_words = hd
+	vb.add_child(hd)
+	var g := GridContainer.new()
+	g.columns = 4
+	g.add_theme_constant_override("h_separation", 4)
+	g.add_theme_constant_override("v_separation", 4)
+	vb.add_child(g)
+	for kind in PartTemplates.HANDLE_SIZES:
+		var nm := Label.new()
+		nm.text = String(PartTemplates.HANDLE_NAME[kind])
+		nm.add_theme_font_size_override("font_size", 13)
+		nm.custom_minimum_size = Vector2(96, 34)
+		nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		g.add_child(nm)
+		for size in PartTemplates.HANDLE_SIZES[kind]:
+			var b := Button.new()
+			b.name = "easypart_handle_%s_%d" % [kind, size]
+			b.text = "%d mm" % size
+			b.toggle_mode = true
+			b.focus_mode = Control.FOCUS_NONE
+			b.custom_minimum_size = Vector2(0, 34)
+			b.add_theme_font_size_override("font_size", 13)
+			b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+			b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+			b.tooltip_text = "%s, %d mm: one click puts it on the floor" % [nm.text, size]
+			b.pressed.connect(_handle_pick.bind(kind, size))
+			g.add_child(b)
+			handle_btns["%s_%d" % [kind, size]] = b
+	return pc
+
+
 ## NSCREW2: the grid's open state and the pressed size (the screw on the floor); the Parts chip is pressed while the grid shows
 func _screw_sync() -> void:
 	if lib_box != null:   # NLIBPAGE: the page shows while Parts is open; the open category is pressed; the coming-soon line names it
@@ -1280,6 +1368,15 @@ func _screw_sync() -> void:
 		if screw_words != null:   # the page is open: its chips and the status line say what to do
 			screw_words.visible = not parts_open
 		lib_soon.text = "%s are coming soon: not made yet. Next step: press Screws or Gears" % lib_cat if lib_soon.visible else ""
+		if handle_box != null:   # P071 HANDLES: the grid shows while the Handles category is open, or a handle is the part
+			handle_box.visible = parts_open and lib_cat == "Handles" or PartTemplates.HANDLE_NAME.has(_tpl())
+			handle_words.visible = not parts_open
+			var cur_h: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {}) if PartTemplates.HANDLE_NAME.has(_tpl()) else {}
+			for kind in PartTemplates.HANDLE_SIZES:
+				for size in PartTemplates.HANDLE_SIZES[kind]:
+					var hb: Button = handle_btns["%s_%d" % [kind, size]]
+					hb.set_pressed_no_signal(not cur_h.is_empty() and kind == _tpl() and int(roundf(float(cur_h.get(PartTemplates.HANDLE_KEY[kind], 0)))) == size)
+					m._grey(hb, Part.why_not() if not Part.available() else "")
 	if screw_box == null or parts_btn == null:
 		return
 	var cur: Dictionary = {}
