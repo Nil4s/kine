@@ -63,6 +63,27 @@ func click_ctl(c: Control) -> void:
 	await idle(2)
 
 
+## Nick 2026-10-28 (7089ca07): Easy Part opens EMPTY now; the weapons and props are not chips (only Box .. Plate are). A bar
+## that needs one picks it itself, as a beginner does: the chip if it is shown, else More examples -> From a template -> the item.
+## The panel scroll goes back to its top (the picked part's sliders sit at the top, as after a chip click)
+func pick_part(t: String) -> void:
+	var chip := root.find_child("easypart_chip_" + t, true, false) as Button
+	if chip != null and chip.is_visible_in_tree():
+		await click_ctl(chip)
+		await idle(3)
+		return
+	await click_ctl(root.find_child("easypart_more_examples", true, false) as Control)
+	await idle(10)
+	var bc: BuildChoose = m.build_choose
+	await click_ctl(bc.btns["template"]["easy"])
+	await idle(4)
+	bc._starters.id_pressed.emit(1000 + PartTemplates.ORDER.find(t))
+	await idle(20)
+	var sc := root.find_child("easypart_panel_scroll", true, false) as ScrollContainer
+	if sc != null:
+		sc.scroll_vertical = 0
+		await idle(3)
+
 func shot(nm: String) -> void:
 	await idle(3)
 	DirAccess.make_dir_recursive_absolute(SHOT)
@@ -219,13 +240,16 @@ func _init() -> void:
 	await click_ctl(pu.easy_open_btn)
 	await idle(4)
 	ok(pu.easy and ep.bar.visible and ep.panel.visible and ep.make_box.visible and not pu.browser.visible and not pu.tl.visible, "0 Easy button: Easy's screen (bar, MAKE row, panel), Expert's browser and timeline away")
-	ok(m.S.part.get("easy", {}).get("t", "") == "sword" and m.undo.size() == n_undo + 1, "0 a sword to begin with, ONE undo step (%d -> %d)" % [n_undo, m.undo.size()])
+	# Nick 2026-10-28, 7089ca07: Easy Part opens empty (its open takes its own undo step, as before); the sword is picked here, explicitly (was: opened on the sword)
+	n_undo = m.undo.size()
+	await pick_part("sword")
+	ok(m.S.part.get("easy", {}).get("t", "") == "sword" and m.undo.size() == n_undo + 1, "0 a sword picked explicitly (More examples), ONE undo step (%d -> %d)" % [n_undo, m.undo.size()])
 
 	# 1 TEMPLATES
 	DirAccess.make_dir_recursive_absolute(SHOT)
 	for t in PartTemplates.ORDER:
 		var before: int = m.undo.size()
-		await click_ctl(ep.chips[t])
+		await pick_part(t)
 		await idle(3)
 		var rec: Dictionary = m.S.part
 		var r := solid(rec)
@@ -236,7 +260,7 @@ func _init() -> void:
 		await shot("template_" + t)
 
 	# 9 POLISH (w4-partpolish): the axe has a real head seen from the default camera, every template is framed 3/4, no caption sits on the big buttons
-	await click_ctl(ep.chips["axe"])
+	await pick_part("axe")
 	await idle(3)
 	var ax: Dictionary = m.S.part
 	var axr := solid(ax)
@@ -267,7 +291,7 @@ func _init() -> void:
 	ok(absf(float(axr["aabb"].size.y) - pnum("head_width") * 0.001) < 0.002, "9 axe: the head is the Blade width tall (%.0f mm)" % (float(axr["aabb"].size.y) * 1000.0))
 	await shot("axe_head")
 	for t in PartTemplates.ORDER:
-		await click_ctl(ep.chips[t])
+		await pick_part(t)
 		await idle(3)
 		var yw := absf(wrapf(float(m.yaw), -180.0, 180.0))
 		var pt := float(m.pitch)
@@ -288,7 +312,8 @@ func _init() -> void:
 	ok(capclash == 0, "9 no group caption (DRAW, ADD ...) sits on the Easy buttons (%d do)" % capclash)
 
 	# 2 SLIDER: sword Blade length 76 -> 90 cm
-	await click_ctl(ep.chips["sword"])
+	await pick_part("sword")   # Nick 2026-10-28, 7089ca07: the sword is picked explicitly (no forced sword on open)
+	ep = m.bld.part.ep
 	await idle(3)
 	var row: Dictionary = ep.rows[0]
 	var sl: HSlider = row["slider"]
@@ -386,7 +411,7 @@ func _init() -> void:
 	ok(lay.is_empty(), "5 layout again, nothing armed %s" % [lay])
 
 	# 6 BUTTONS: a crate, then a drawn box
-	await click_ctl(ep.chips["crate"])
+	await pick_part("crate")
 	var vol_c: float = solid(m.S.part)["volume"]
 	var ub: int = m.undo.size()
 	await click_ctl(ep.make_btns["round"])
@@ -458,7 +483,7 @@ func _init() -> void:
 	ok(m.undo.size() == ub + 2 and last_t == "revolve" and rs["errors"].is_empty(), "6 Draw shape + Spin it round: a revolve, two steps in all (%d -> %d), last %s, failed %s, volume %.1f -> %.1f" % [ub, m.undo.size(), last_t, rs["errors"], vol_s * 1e6, float(rs["volume"]) * 1e6])
 
 	# 10 PARTFLOW: the whole length, the hole's size (the crate, its default hole)
-	await click_ctl(ep.chips["sword"])
+	await pick_part("sword")
 	await idle(3)
 	var pf_sw := solid(m.S.part)
 	var pf_cm := roundi(float(pf_sw["aabb"].size.x) * 100.0)
@@ -467,7 +492,7 @@ func _init() -> void:
 	await idle(2)
 	var pf_sw2 := solid(m.S.part)
 	ok(float(pf_sw2["aabb"].size.x) > float(pf_sw["aabb"].size.x) and ep.whole_l.text == "Whole sword: %d cm" % roundi(float(pf_sw2["aabb"].size.x) * 100.0), "10 whole length follows the blade slider: '%s'" % ep.whole_l.text)
-	await click_ctl(ep.chips["crate"])
+	await pick_part("crate")
 	await idle(3)
 	var pf_v0 := float(solid(m.S.part)["volume"])
 	await click_ctl(ep.make_btns["hole"])

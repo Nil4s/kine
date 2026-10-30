@@ -59,6 +59,27 @@ func aabb_mm(pu) -> Array:
 	return [bb.position.x / 0.001, bb.end.x / 0.001]
 
 
+## Nick 2026-10-28 (7089ca07): Easy Part opens EMPTY now; the weapons and props are not chips (only Box .. Plate are). A bar
+## that needs one picks it itself, as a beginner does: the chip if it is shown, else More examples -> From a template -> the item.
+## The panel scroll goes back to its top (the picked part's sliders sit at the top, as after a chip click)
+func pick_part(t: String) -> void:
+	var chip := root.find_child("easypart_chip_" + t, true, false) as Button
+	if chip != null and chip.is_visible_in_tree():
+		await click_ctl(chip)
+		await idle(3)
+		return
+	await click_ctl(root.find_child("easypart_more_examples", true, false) as Control)
+	await idle(10)
+	var bc: BuildChoose = m.build_choose
+	await click_ctl(bc.btns["template"]["easy"])
+	await idle(4)
+	bc._starters.id_pressed.emit(1000 + PartTemplates.ORDER.find(t))
+	await idle(20)
+	var sc := root.find_child("easypart_panel_scroll", true, false) as ScrollContainer
+	if sc != null:
+		sc.scroll_vertical = 0
+		await idle(3)
+
 func _init() -> void:
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
@@ -92,7 +113,8 @@ func _init() -> void:
 	await click_ctl(pu.easy_open_btn)
 	await idle(4)
 	var ep = pu.ep
-	await click_ctl(ep.chips["sword"])
+	# Nick 2026-10-28 (7089ca07): the sword is not a chip any more; navigation only, the bar is not about the pick
+	await pick_part("sword")
 	await idle(4)
 	var vol0 := float(pu.res.get("volume", 0.0))
 	var ub: int = m.undo.size()
