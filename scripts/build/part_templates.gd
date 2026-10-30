@@ -9,7 +9,7 @@ extends RefCounted
 const MM := 0.001
 const ARCH_GAP := 40.0   # mm: a car's wheel arch top sits this far above the tyre's top (the arch is the wheel radius + 40 mm)
 const CAB_W := 0.88     # the glasshouse is this share of the body's width (narrower than the lower body, so the cabin reads as a cabin)
-const ORDER :=["sword", "axe", "shield", "chair", "gear", "crate"]   # NGEAR: Gear sits before Crate (Crate stays the last chip); its numbers are not cm: "raw"
+const ORDER :=["sword", "axe", "shield", "chair", "gear", "rack", "crate"]   # NGEAR: Gear sits before Crate (Crate stays the last chip). P066: Rack after Gear (its pinion); its numbers are not cm: "raw"
 const START := ["box", "cylinder", "sphere", "tube", "plate"]   # FREESTART: the neutral "Start from" row on Easy Part's panel (simple shapes, no weapon)
 const T := {
 	"box": {"title": "Box", "params": [
@@ -59,6 +59,11 @@ const T := {
 		{"k": "teeth", "label": "Teeth", "lo": 8.0, "hi": 60.0, "def": 30.0, "step": 1.0, "words": ["Fewer", "More"], "raw": true, "unit": "teeth"},
 		{"k": "module", "label": "Teeth size", "lo": 1.0, "hi": 3.0, "def": 2.0, "step": 1.0, "words": ["Small teeth", "Big teeth"], "raw": true, "unit": "size"},
 		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 30.0, "def": 10.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
+	# P066: a straight rack, the Gear's partner: a bar of teeth. Length = teeth x pitch, pitch = pi x module (the Gear's pitch, so they mesh). Its numbers are raw too.
+	"rack": {"title": "Rack", "params": [
+		{"k": "teeth", "label": "Length", "lo": 4.0, "hi": 40.0, "def": 12.0, "step": 1.0, "words": ["Shorter", "Longer"], "raw": true, "unit": "teeth"},
+		{"k": "module", "label": "Teeth size", "lo": 1.0, "hi": 3.0, "def": 2.0, "step": 1.0, "words": ["Small teeth", "Big teeth"], "raw": true, "unit": "size"},
+		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 30.0, "def": 10.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
 	# VEHICLE PARTS (B3, scripts/vehicle.gd): not in ORDER, so no Easy chip: a car body and one wheel
 	"car": {"title": "Car body", "params": [
 		{"k": "body_length", "label": "Length", "lo": 1500.0, "hi": 5000.0, "def": 4000.0, "step": 50.0, "words": ["Shorter", "Longer"]},
@@ -67,15 +72,96 @@ const T := {
 		{"k": "wheelbase", "label": "Wheelbase", "lo": 1000.0, "hi": 3000.0, "def": 2500.0, "step": 20.0, "words": ["Shorter", "Longer"]},
 		# the wheel's radius, copied in by Vehicle.make_set and the Easy screen (the arches follow it); no slider of its own on the car
 		{"k": "wheel_r", "label": "Wheel size", "lo": 100.0, "hi": 600.0, "def": 320.0, "step": 10.0, "words": ["Smaller", "Bigger"]}]},
+	# P072 (Parts > Wheels): a wheel with an axle hole, not in ORDER (no template chip): the Wheel and Castor chips (easy_part.gd) make it.
+	# radius / width / hole in mm; the hole runs along the axle (world X) through the middle. Its sliders are hidden there ("parts": true).
+	"axwheel": {"title": "Wheel", "parts": true, "params": [
+		{"k": "radius", "label": "Size", "lo": 20.0, "hi": 150.0, "def": 40.0, "step": 5.0, "words": ["Smaller", "Bigger"]},
+		{"k": "width", "label": "Width", "lo": 6.0, "hi": 60.0, "def": 20.0, "step": 2.0, "words": ["Thinner", "Wider"]},
+		{"k": "hole", "label": "Axle hole", "lo": 4.0, "hi": 16.0, "def": 8.0, "step": 1.0, "words": ["Smaller", "Bigger"]}]},
+	"castor": {"title": "Castor", "parts": true, "params": [
+		{"k": "radius", "label": "Size", "lo": 20.0, "hi": 150.0, "def": 25.0, "step": 5.0, "words": ["Smaller", "Bigger"]},
+		{"k": "width", "label": "Width", "lo": 6.0, "hi": 60.0, "def": 16.0, "step": 2.0, "words": ["Thinner", "Wider"]},
+		{"k": "hole", "label": "Axle hole", "lo": 4.0, "hi": 16.0, "def": 6.0, "step": 1.0, "words": ["Smaller", "Bigger"]}]},
 	"wheel": {"title": "Wheel", "params": [
 		{"k": "radius", "label": "Radius", "lo": 100.0, "hi": 600.0, "def": 320.0, "step": 10.0, "words": ["Smaller", "Bigger"]},
 		{"k": "width", "label": "Width", "lo": 50.0, "hi": 400.0, "def": 200.0, "step": 10.0, "words": ["Thinner", "Wider"]}]},
+	# P075: Clips and feet (Parts library, not in ORDER: no template chip). Sizes in mm (raw sliders). Each is one solid on the floor.
+	# foot = a disc, d across, h tall. clip = a ring (d across, w tall, 2.5 mm wall) with a 3 mm opening cut through its wall.
+	# slot = a plate (slot length + 12 mm, 10 mm wide, t thick) with a 2.5 mm wide slot of length L cut through it (a zip tie's strap).
+	"foot": {"title": "Rubber foot", "params": [
+		{"k": "d", "label": "Width", "lo": 8.0, "hi": 30.0, "def": 16.0, "step": 2.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "mm"},
+		{"k": "h", "label": "Height", "lo": 2.0, "hi": 10.0, "def": 4.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
+	"clip": {"title": "Cable clip", "params": [
+		{"k": "d", "label": "Width", "lo": 8.0, "hi": 30.0, "def": 14.0, "step": 2.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "mm"},
+		{"k": "w", "label": "Height", "lo": 4.0, "hi": 15.0, "def": 8.0, "step": 1.0, "words": ["Lower", "Taller"], "raw": true, "unit": "mm"}]},
+	"slot": {"title": "Zip-tie slot", "params": [
+		{"k": "L", "label": "Slot length", "lo": 6.0, "hi": 30.0, "def": 14.0, "step": 2.0, "words": ["Shorter", "Longer"], "raw": true, "unit": "mm"},
+		{"k": "t", "label": "Thickness", "lo": 2.0, "hi": 6.0, "def": 3.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
 	# NSCREW2: a screw from the Parts category (not in ORDER: no template chip). d = the nominal size (M3..M6, mm), L = the length under the head (mm).
 	# Its numbers are picked by the Parts chips (easy_part.gd), so its sliders are hidden there ("parts": true).
+	# FRIDAY 73: a bracket from the Parts page's Brackets: kind 1 = L, 2 = T, 3 = corner brace (raw: the chip's own number). Its numbers are not sliders (parts: true)
+	"bracket": {"title": "Bracket", "parts": true, "params": [
+		{"k": "kind", "label": "Shape", "lo": 1.0, "hi": 3.0, "def": 1.0, "step": 1.0, "words": ["L", "Corner brace"], "raw": true, "unit": "kind"},
+		{"k": "leg", "label": "Leg", "lo": 40.0, "hi": 200.0, "def": 80.0, "step": 10.0, "words": ["Shorter", "Longer"], "raw": true, "unit": "mm"},
+		{"k": "width", "label": "Width", "lo": 10.0, "hi": 80.0, "def": 30.0, "step": 5.0, "words": ["Narrower", "Wider"], "raw": true, "unit": "mm"},
+		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 10.0, "def": 5.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
 	"screw": {"title": "Screw", "parts": true, "params": [
 		{"k": "d", "label": "Size", "lo": 3.0, "hi": 6.0, "def": 4.0, "step": 1.0, "words": ["Smaller", "Bigger"]},
 		{"k": "L", "label": "Length", "lo": 10.0, "hi": 30.0, "def": 16.0, "step": 1.0, "words": ["Shorter", "Longer"]}]},
+	# P069 BEARINGS: a deep groove ball bearing from the Parts chips (608, 625, 688). kind = 0 / 1 / 2 (BEARING_SIZE). Its numbers are the chips, so no sliders.
+	"bearing": {"title": "Bearing", "parts": true, "params": [
+		{"k": "kind", "label": "Bearing", "lo": 0.0, "hi": 2.0, "def": 0.0, "step": 1.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "size"}]},
+	# P069 BEARINGS: the seat for the bearing on the floor: a holder block with a pocket for it, and the bearing beside it (same kind)
+	"seat": {"title": "Seat", "parts": true, "params": [
+		{"k": "kind", "label": "Bearing", "lo": 0.0, "hi": 2.0, "def": 0.0, "step": 1.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "size"}]},
+	# P071 HANDLES: from the Parts library's Handles page (easy_part.gd), not in ORDER (no template chip). Sized by the chips (96 / 128 / 160 mm,
+	# 24 / 32 / 40 mm); the sliders then move the same handle. Holes: a drawer pull has two 4.5 mm holes (an M4 screw of the Parts page goes through).
+	"drawer_pull": {"title": "Drawer pull", "params": [
+		{"k": "spacing", "label": "Hole spacing", "lo": 64.0, "hi": 192.0, "def": 128.0, "step": 32.0, "words": ["Closer", "Further"], "unit": "mm"},
+		{"k": "thickness", "label": "Thickness", "lo": 6.0, "hi": 20.0, "def": 10.0, "step": 2.0, "words": ["Thinner", "Thicker"], "unit": "mm"}]},
+	"knob": {"title": "Knob", "params": [
+		{"k": "diameter", "label": "Width", "lo": 16.0, "hi": 60.0, "def": 32.0, "step": 4.0, "words": ["Smaller", "Bigger"], "unit": "mm"},
+		{"k": "height", "label": "Height", "lo": 10.0, "hi": 40.0, "def": 18.0, "step": 2.0, "words": ["Lower", "Taller"], "unit": "mm"}]},
+	"d_handle": {"title": "D-handle", "params": [
+		{"k": "width", "label": "Width", "lo": 64.0, "hi": 220.0, "def": 128.0, "step": 16.0, "words": ["Narrower", "Wider"], "unit": "mm"},
+		{"k": "thickness", "label": "Thickness", "lo": 6.0, "hi": 20.0, "def": 10.0, "step": 2.0, "words": ["Thinner", "Thicker"], "unit": "mm"}]},
+	# p078makeacasef: a case for a board (Parts > Boards). "board" picks the board (1 Raspberry Pi, 2 Arduino Uno): its numbers are the
+	# Boards chips (easy_part.gd), so its slider is hidden there ("parts": true). Its features are the same count for both boards.
+	"case": {"title": "Board case", "parts": true, "params": [
+		{"k": "board", "label": "Board", "lo": 1.0, "hi": 2.0, "def": 1.0, "step": 1.0, "words": ["Raspberry Pi", "Arduino Uno"], "raw": true, "unit": "board"}]},
 }
+
+## P069 BEARINGS: [bore, outside diameter, width] in mm of the bearings 608, 625, 688 (deep groove ball bearings, ISO 15 sizes)
+const BEARING_SIZE := [[8.0, 22.0, 7.0], [5.0, 16.0, 5.0], [8.0, 16.0, 5.0]]
+const SEAT_WALL := 6.0      # mm: the holder's wall beside the bearing, and the floor under its pocket
+const SEAT_CLEAR := 0.2     # mm: the pocket is the outside diameter + this (the bearing drops in and turns)
+const SEAT_BEAR_GAP := 15.0 # mm: the bearing stands this far beside the holder's edge (the two never touch)
+
+## P071 HANDLES: the chip sizes (mm) by kind, in the Parts library's Handles grid: each row's three sizes, and the template number each one sets
+const HANDLE_SIZES := {"drawer_pull": [96, 128, 160], "knob": [24, 32, 40], "d_handle": [96, 128, 160]}
+const HANDLE_KEY := {"drawer_pull": "spacing", "knob": "diameter", "d_handle": "width"}
+const HANDLE_NAME := {"drawer_pull": "Drawer pull", "knob": "Knob", "d_handle": "D-handle"}
+const PULL_END := 14.0   # mm from a drawer pull's hole to its end: the bar is spacing + 2 x 14 mm long
+const PULL_W := 12.0     # mm: a drawer pull's bar height (its width across the front)
+const PULL_HOLE := 2.25  # mm radius: a 4.5 mm hole, for an M4 screw
+const D_H := 36.0        # mm: a D-handle's height (outside), the loop's bar is D_BAR thick
+const D_BAR := 9.0
+
+## p078makeacasef: the boards a case fits. L x W = the board in mm (x along the board's long side, z its width); holes = the mounting holes
+## from the board's corner (mm, x and z); ports = the two port openings on the +x wall, as z ranges from the board's corner (mm).
+const CASE_BOARDS := {
+	1: {"name": "Raspberry Pi", "L": 85.0, "W": 56.0, "holes": [[3.5, 3.5], [61.5, 3.5], [3.5, 52.5], [61.5, 52.5]], "ports": [[8.0, 20.0], [26.0, 44.0]]},
+	2: {"name": "Arduino Uno", "L": 68.6, "W": 53.3, "holes": [[14.0, 2.5], [15.3, 50.7], [66.1, 7.6], [66.1, 35.5]], "ports": [[6.0, 16.0], [30.0, 42.0]]},
+}
+const CASE_WALL := 3.0        # mm: every wall and the floor
+const CASE_CLEAR := 1.0       # mm: the gap between the board's edge and the inside wall
+const CASE_H := 26.0          # mm: the box's height (open at the top)
+const CASE_STAND := 9.0       # mm: a standoff's top, above the box's outside floor
+const CASE_STAND_R := 2.5     # mm: a standoff's outside radius (5 mm across)
+const CASE_HOLE_R := 1.2      # mm: the screw hole through a standoff and the floor (and the lid)
+const CASE_LID := 3.0         # mm: the lid's thickness; it lies beside the box, not on it
+const CASE_GAP := 10.0        # mm: the gap between the box and the lid
+const CASE_PORT_Y := [11.0, 21.0]   # mm: the port openings' height on the wall
 
 ## NSCREW2: ISO 4762 socket head screws: nominal size -> [head diameter, head height] (mm). The shank is the nominal size, plain (no thread).
 const SCREW_HEAD := {3: [5.5, 3.0], 4: [7.0, 4.0], 5: [8.5, 5.0], 6: [10.0, 6.0]}
@@ -129,7 +215,7 @@ static func nw_set(rec: Dictionary, d: int) -> void:
 
 
 ## the default camera of a template: [yaw, pitch] degrees, a 3/4 view in which its main shape reads (the axe turns further so its blade face shows)
-const VIEW := {"sword": [30.0, -22.0], "axe": [42.0, -20.0], "shield": [30.0, -18.0], "chair": [38.0, -22.0], "crate": [34.0, -24.0], "box": [34.0, -24.0], "cylinder": [34.0, -22.0], "sphere": [30.0, -20.0], "tube": [34.0, -22.0], "plate": [34.0, -28.0]}
+const VIEW := {"sword": [30.0, -22.0], "axe": [42.0, -20.0], "shield": [30.0, -18.0], "chair": [38.0, -22.0], "crate": [34.0, -24.0], "box": [34.0, -24.0], "cylinder": [34.0, -22.0], "sphere": [30.0, -20.0], "tube": [34.0, -22.0], "plate": [34.0, -28.0], "case": [32.0, -24.0]}
 
 
 static func view_of(t: String) -> Array:
@@ -328,6 +414,21 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var sid := _sk(fs, "front", _poly(prof))
 			_ex(fs, sid, "revolve", 0.0, "new")
 			fs[fs.size() - 1]["axis"] = "y"
+		"bearing":
+			# P069: the ring on the floor (its bore and outside diameter from the top face, up Y), the same two steps as a washer
+			var b: Array = BEARING_SIZE[clampi(int(roundf(float(p["kind"]))), 0, 2)]
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [0.0, 0.0], "r": float(b[1]) * 0.5}]), "extrude", float(b[2]), "new")
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [0.0, 0.0], "r": float(b[0]) * 0.5}]), "extrude", float(b[2]) + 2.0, "cut")
+		"seat":
+			# P069: a holder block standing on the floor (its top face at Y 0, down to -(width + wall)), a pocket cut down from the top
+			# face: the bearing's outside diameter + 0.2 mm, as deep as the bearing is wide. The bearing stands on the floor beside it.
+			var b: Array = BEARING_SIZE[clampi(int(roundf(float(p["kind"]))), 0, 2)]
+			var h: float = float(b[1]) * 0.5 + SEAT_WALL
+			_ex(fs, _sk(fs, "top", [_rect(Vector2(-h, -h), Vector2(h, h))]), "extrude", -(float(b[2]) + SEAT_WALL), "new")
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [0.0, 0.0], "r": float(b[1]) * 0.5 + SEAT_CLEAR * 0.5}]), "extrude", -float(b[2]), "cut")
+			var cx: float = h + SEAT_BEAR_GAP + float(b[1]) * 0.5
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [cx, 0.0], "r": float(b[1]) * 0.5}]), "extrude", float(b[2]), "new")
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [cx, 0.0], "r": float(b[0]) * 0.5}]), "extrude", float(b[2]) + 2.0, "cut")
 		"sword":
 			var L: float = p["blade_length"]
 			var w: float = p["width"]
@@ -402,6 +503,30 @@ static func features_of(t: String, p: Dictionary) -> Array:
 				_ex(fs, _sk(fs, "right", [{"k": "circle", "c": [-zc, S], "r": g["A"]}]), "extrude", 2.0 * g["W"], "cut", true)
 			var cabin := [Vector2(yb, g["zwb"]), Vector2(g["H"], g["zrf"]), Vector2(g["H"], g["zrr"]), Vector2(yb, g["zrh"])]
 			_ex(fs, _sk(fs, "right", _rounded(cabin, [0.0, 150.0, 150.0, 0.0])), "extrude", g["wc"], "join", true)
+		"bracket":
+			# FRIDAY 73: a bent bracket in the front plane (sketch x = along the foot, y = up), extruded 'width' both ways from the middle, then two
+			# 6 mm screw holes cut through the legs (3 features per hole: a sketch and a cut). L: a foot and an upright; corner brace: the L with a
+			# 0.4 leg gusset in the corner; T: a bar on top of a stem (the holes: one through the bar, one through the stem)
+			var kind := int(roundf(float(p["kind"])))
+			var S: float = p["leg"]
+			var th: float = p["thickness"]
+			var prof := []
+			if kind == 2:
+				var sx := S * 0.5 - th * 0.5
+				prof = [Vector2(sx, 0), Vector2(sx + th, 0), Vector2(sx + th, S - th), Vector2(S, S - th), Vector2(S, S), Vector2(0, S), Vector2(0, S - th), Vector2(sx, S - th)]
+			elif kind == 3:
+				var g := S * 0.4
+				prof = [Vector2(0, 0), Vector2(S, 0), Vector2(S, th), Vector2(th + g, th), Vector2(th, th + g), Vector2(th, S), Vector2(0, S)]
+			else:
+				prof = [Vector2(0, 0), Vector2(S, 0), Vector2(S, th), Vector2(th, th), Vector2(th, S), Vector2(0, S)]
+			_ex(fs, _sk(fs, "front", _poly(prof)), "extrude", float(p["width"]), "new", true)
+			var hr := 3.0   # the screw hole's radius (6 mm)
+			if kind == 2:
+				_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [S * 0.2, 0.0], "r": hr}]), "extrude", 300.0, "cut", true)
+				_ex(fs, _sk(fs, "right", [{"k": "circle", "c": [0.0, S * 0.3], "r": hr}]), "extrude", 300.0, "cut", true)
+			else:
+				_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [S * 0.6, 0.0], "r": hr}]), "extrude", 300.0, "cut", true)
+				_ex(fs, _sk(fs, "right", [{"k": "circle", "c": [0.0, S * 0.6], "r": hr}]), "extrude", 300.0, "cut", true)
 		"gear":
 			# NGEAR: a spur gear in the front plane: a tooth outline of N teeth (the flanks cross the pitch circle at half a tooth pitch, so
 			# the tooth is as wide as the space there), extruded 5 mm x module, with the centre hole (0.12 x pitch diameter) cut through
@@ -410,6 +535,88 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var th: float = p["thickness"]
 			_ex(fs, _sk(fs, "front", gear_outline(N, md)), "extrude", th, "new")
 			_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": 0.12 * N * md}]), "extrude", th, "cut", true)
+		"foot":
+			# P075: a rubber foot, a disc d across and h tall, standing on the floor (Top plane: the disc lies flat, Y up)
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [0.0, 0.0], "r": float(p["d"]) * 0.5}]), "extrude", float(p["h"]), "new")
+		"clip":
+			# P075: a ring d across, w tall, 2.5 mm wall; a 3 mm opening cut through the wall on the +X side (the cable snaps in there)
+			var d: float = p["d"]
+			var w: float = p["w"]
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [0.0, 0.0], "r": d * 0.5}]), "extrude", w, "new")
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [0.0, 0.0], "r": d * 0.5 - 2.5}]), "extrude", 2.0 * w, "cut", true)
+			_ex(fs, _sk(fs, "top", [_rect(Vector2(0.0, -1.5), Vector2(d, 1.5))]), "extrude", 2.0 * w, "cut", true)
+		"slot":
+			# P075: a plate (L + 12 mm long, 10 mm wide, t thick) with a 2.5 mm wide slot L long cut through it, 6 mm in from the start
+			var L: float = p["L"]
+			var th: float = p["t"]
+			_ex(fs, _sk(fs, "top", [_rect(Vector2(0.0, 0.0), Vector2(L + 12.0, 10.0))]), "extrude", th, "new")
+			_ex(fs, _sk(fs, "top", [_rect(Vector2(6.0, 3.75), Vector2(6.0 + L, 6.25))]), "extrude", 2.0 * th, "cut", true)
+		"drawer_pull":
+			# P071: a flat bar in the front plane, spacing + 28 mm long, 12 mm high, extruded by the thickness; two 4.5 mm holes at the
+			# spacing cut through (both sides), so an M4 screw from the Parts page goes in
+			var sp: float = p["spacing"]
+			var pth: float = p["thickness"]
+			var bl := sp * 0.5 + PULL_END
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(-bl, -PULL_W * 0.5), Vector2(bl, PULL_W * 0.5))]), "extrude", pth, "new")
+			for hx in [-sp * 0.5, sp * 0.5]:   # one sketch per hole: a sketch with two circles cut only one of them
+				_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [hx, 0.0], "r": PULL_HOLE}]), "extrude", 2.0 * pth, "cut", true)   # both ways: the cut is 2 x the thickness, or only half of each hole goes
+		"knob":
+			# P071: a plain round knob, turned about the up axis (like the screw): width across, height up from the floor
+			var kr: float = float(p["diameter"]) * 0.5
+			var kh: float = p["height"]
+			var kprof := [Vector2(0, 0), Vector2(kr, 0), Vector2(kr, kh), Vector2(0, kh)]
+			_ex(fs, _sk(fs, "front", _poly(kprof)), "revolve", 0.0, "new")
+			fs[fs.size() - 1]["axis"] = "y"
+		"d_handle":
+			# P071: a loop: a 36 mm high block of the width, with a window cut through it (the bar is 9 mm all round)
+			var dw: float = p["width"]
+			var dth: float = p["thickness"]
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(-dw * 0.5, -D_H * 0.5), Vector2(dw * 0.5, D_H * 0.5))]), "extrude", dth, "new")
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(-dw * 0.5 + D_BAR, -D_H * 0.5 + D_BAR), Vector2(dw * 0.5 - D_BAR, D_H * 0.5 - D_BAR))]), "extrude", 2.0 * dth, "cut", true)   # both ways (see the drawer pull)
+		"axwheel", "castor":
+			# P072: a tyre (the profile turned about the sketch's x axis = world X, the axle), with a round axle hole of 'hole' mm cut
+			# through its middle along X (a circle on the Right plane, extruded both ways past the tyre)
+			var AR: float = p["radius"]
+			var aw: float = p["width"]
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(-aw * 0.5, 0.0), Vector2(aw * 0.5, AR))]), "revolve", 0.0, "new")
+			_ex(fs, _sk(fs, "right", [{"k": "circle", "c": [0.0, 0.0], "r": float(p["hole"]) * 0.5}]), "extrude", 2.0 * aw, "cut", true)
+		"rack":
+			# P066: a rack in the front plane: n teeth along a bar 3 x module tall, extruded thickness
+			var NR := int(roundf(float(p["teeth"])))
+			var mr := float(int(roundf(float(p["module"]))))
+			_ex(fs, _sk(fs, "front", rack_outline(NR, mr)), "extrude", float(p["thickness"]), "new")
+		"case":
+			# p078makeacasef: a box for a board, open at the top: a 3 mm wall and floor, the standoffs (5 mm across, 9 mm up from the floor) at the
+			# board's holes with a screw hole through each, two port openings cut through the +x wall (an offset plane 1.5 mm inside the wall, so the
+			# cut reaches only that wall), and the lid as its own flat plate beside the box (3 mm, the same footprint, the same four holes)
+			var b: Dictionary = CASE_BOARDS[clampi(int(roundf(float(p["board"]))), 1, 2)]
+			var inset := CASE_CLEAR + CASE_WALL
+			var lo: float = float(b["L"]) + 2.0 * inset
+			var zo: float = float(b["W"]) + 2.0 * inset
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(0, 0), Vector2(lo, CASE_H))]), "extrude", zo, "new")
+			fs.append({"t": "shell", "id": "f%d" % (fs.size() + 1), "name": "Shell1", "body": 0, "thick": CASE_WALL, "open": "+y"})
+			var st := []
+			var hs := []
+			for h in b["holes"]:
+				var hc := [inset + float(h[0]), -(inset + float(h[1]))]   # the top plane's y runs toward -Z
+				st.append({"k": "circle", "c": hc, "r": CASE_STAND_R})
+				hs.append({"k": "circle", "c": hc, "r": CASE_HOLE_R})
+			_ex(fs, _sk(fs, "top", st), "extrude", CASE_STAND, "join")
+			_ex(fs, _sk(fs, "top", hs), "extrude", CASE_STAND + 1.0, "cut")
+			var pid := "f%d" % (fs.size() + 1)
+			fs.append({"t": "plane", "id": pid, "name": "Plane1", "from": "right", "mm": lo - CASE_WALL * 0.5})
+			var ports := []
+			for pr in b["ports"]:
+				var z0: float = float(pr[0]) + inset
+				var z1: float = float(pr[1]) + inset
+				ports.append(_rect(Vector2(-z1, CASE_PORT_Y[0]), Vector2(-z0, CASE_PORT_Y[1])))   # the right plane's x runs along -Z
+			_ex(fs, _sk(fs, pid, ports), "extrude", CASE_WALL + 2.0, "cut", true)
+			var lx := lo + CASE_GAP
+			_ex(fs, _sk(fs, "top", [_rect(Vector2(lx, 0), Vector2(lx + lo, -zo))]), "extrude", CASE_LID, "new")
+			var lh := []
+			for h in b["holes"]:
+				lh.append({"k": "circle", "c": [lx + inset + float(h[0]), -(inset + float(h[1]))], "r": CASE_HOLE_R})
+			_ex(fs, _sk(fs, "top", lh), "extrude", CASE_LID + 1.0, "cut")
 		"wheel":
 			# a tyre: the profile (width x radius) turned about the sketch's x axis = world X, the axle (side to side)
 			var R: float = p["radius"]
@@ -432,6 +639,20 @@ static func gear_outline(n: int, m: float) -> Array:
 		pts.append(Vector2.from_angle(t + 0.6 * q) * ra)
 		pts.append(Vector2.from_angle(t + 1.5 * q) * rf)
 		pts.append(Vector2.from_angle(t + 4.0 * q - 1.5 * q) * rf)
+	return _poly(pts)
+
+
+## P066: the closed outline of a straight rack with n teeth of module m (mm), as lines: a bar 3 m tall whose top is a row of n teeth on the
+## root line y = 0. The pitch is pi m (the spur gear's pitch on its pitch circle, so a gear of module m meshes); each tooth is a trapezoid
+## m tall with its tip 0.4 of the pitch wide, so the tip sits 1 m above the root and the rack is 4 m tall.
+static func rack_outline(n: int, m: float) -> Array:
+	var pitch := PI * m
+	var pts := [Vector2(0.0, -3.0 * m), Vector2(n * pitch, -3.0 * m), Vector2(n * pitch, 0.0)]
+	for k in range(n - 1, -1, -1):
+		var x0 := k * pitch
+		pts.append(Vector2(x0 + 0.7 * pitch, m))
+		pts.append(Vector2(x0 + 0.3 * pitch, m))
+		pts.append(Vector2(x0, 0.0))
 	return _poly(pts)
 
 

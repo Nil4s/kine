@@ -17708,6 +17708,9 @@ func _words_build() -> void:
 		_say("'%s': %s: type a move like 'overhead axe strike, step in'" % [text, r["error"]])
 		return
 	var S2: Scene = r["scene"]
+	var wt: Dictionary = load("res://scripts/text_blocking.gd").weight_slow(S2, W)   # p133weightawar: a heavy weapon slows the swing
+	if wt["ok"]:
+		r["status"] += ". " + wt["msg"]
 	var path: String = load("res://scripts/text_blocking.gd").unique_path(UserPaths.w("res://scenes/_wip"), load("res://scripts/text_blocking.gd").slug(text))
 	var d := S2.to_dict(W)
 	d["plan"] = "Block out a move from words '%s': %s" % [text, r["status"]]

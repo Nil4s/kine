@@ -917,6 +917,8 @@ static func build(text: String, B: Body) -> Dictionary:
 	if not unk.is_empty():
 		status += ". Didn't understand: " + ", ".join(unk)
 	var n_fail := func(a: Array) -> int: return a.filter(func(f): return f["sev"] == "FAIL").size()
+	if not S.markers.any(func(mk): return String(mk["kind"]) == "hit"):
+		S.markers.append({"t": snappedf(float(S.times()[s][1]), 0.001), "name": "hit", "kind": "hit"})   # the contact: the strike card's arrival (WeightFeel reads it)
 	return {"ok": true, "scene": S, "source": e, "mirror": pk["mirror"], "roles": roles, "kind": kind, "shape": built_shape,
 		"asked_shape": shape, "row": row, "cap": cap, "cap_name": cap_name, "findings": fs, "must_fix": n_fail.call(fs),
 		"must_fix_new": _words_of(must_new), "src_must_fix": n_fail.call(src_fs), "human": human,
@@ -924,6 +926,26 @@ static func build(text: String, B: Body) -> Dictionary:
 		"window": [float(ts[s][0]), float(ts[s][2])], "strike_card": s, "grip": grip, "worst_grip": worst, "palm": palm, "worst_palm": worst_palm,
 		"aim": aim, "moved": moved, "two": two,
 		"unknown": unk, "notes": notes, "status": status, "retimes": retimes, "slowed": slowed, "foot": P["foot"], "speed": P["speed"], "side": side}
+
+
+## WEIGHT IN A TYPED MOVE (p133weightawar): the swing is slowed by the weight of the weapon it holds (WeightFeel.apply: a heavier
+## implement takes longer over the same arc; a heavy Part from its material weight counts the same way). SLOW ONLY: a lighter
+## weapon keeps its timing, because the rules' tip and joint caps were checked on the timing as built. {"ok", "msg", "factor"};
+## ok = false (nothing changed) for a fist, a weapon no heavier than the bat, or a scene with no contact
+static func weight_slow(S: Scene, W: Body) -> Dictionary:
+	var c := WeightFeel.contact_card(S)
+	if c < 0:
+		return {"ok": false, "msg": "", "factor": 1.0}
+	var kind := WeightFeel.kind_at(S, c, W)
+	if kind == "" or WeightFeel.inertia(W, kind).is_empty():
+		return {"ok": false, "msg": "", "factor": 1.0}
+	var i_from := float(S.cards[c].get("weight_i", WeightFeel.inertia(W, WeightFeel.REF_KIND)["i"]))
+	var f := WeightFeel.factor(i_from, float(WeightFeel.inertia(W, kind)["i"]))
+	if f <= 1.005:
+		return {"ok": false, "msg": "", "factor": f}
+	var r := WeightFeel.apply(S, W)
+	return {"ok": r["ok"], "msg": "the swing is slowed for the %s's weight (x%.2f): wind-up %.2f -> %.2f s, recovery %.2f -> %.2f s" % [
+		kind.replace("_", " "), r["factor"], r["windup_before"], r["windup_after"], r["recovery_before"], r["recovery_after"]], "factor": r["factor"]}
 
 
 ## a file name from the words: "overhead axe strike, step in" -> "overhead_axe_strike_step_in"
