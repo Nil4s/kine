@@ -73,6 +73,9 @@ var shape_btns := {}
 var repeat_box: PanelContainer   # Repeat it: Row / Ring and the How many and Gap sliders (for the last Repeat it step, rep_id)
 var rep_btns := {}
 var tilt_box: PanelContainer     # Tilt it: one chip under the newest solid (a Spin or a Pull), leans it 20 degrees once
+var steps_box: PanelContainer    # NSTEPLIST: the step list under the panel, in plain words; a click on a step reopens it (see _steps_sync)
+var steps_vb: VBoxContainer
+var _steps_sig := ""
 var tilt_btn: Button
 var parts_btn: Button            # NSCREW2: the Parts category chip (opens the screw grid under the template chips)
 var screw_box: PanelContainer    # NSCREW2: the screw grid: sixteen size chips, shown while Parts is open or a screw is the part
@@ -307,6 +310,8 @@ func build(root: Control) -> void:
 	root.add_child(stick_box)
 	tilt_box = _tilt_box()
 	root.add_child(tilt_box)
+	steps_box = _steps_box()   # NSTEPLIST
+	root.add_child(steps_box)
 	# the panel
 	panel = PanelContainer.new()
 	panel.name = "easypart_panel"
@@ -3245,6 +3250,7 @@ func _process(_dt: float) -> void:
 		_pick_clear()   # FDELETE: a pick ends with the step it was made on
 	del_btn.visible = on and del_on
 	tilt_box.visible = on and armed == "" and _tilt_ok(_rec())
+	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
 	if not on:
 		return
 	if m.easy != null:
@@ -3533,6 +3539,7 @@ func _box_at(bb: AABB, t: Vector3, d: float) -> Rect2:
 func _chrome_sync() -> void:
 	var t := _tpl()
 	var rec := _rec()
+	_steps_sync()   # NSTEPLIST
 	title_l.text = "Part: %s" % String(rec.get("name", "Part")) if not rec.is_empty() else "Part"
 	panel_title.text = "Change your %s" % _nm()
 	redo_btn.visible = not m.redo.is_empty()
@@ -3699,6 +3706,7 @@ func layout(cl: Rect2) -> void:
 		need = _panel_need()
 	panel.size = Vector2(PW, minf(need, avail))
 	panel.position = Vector2(cl.end.x - PW - 8.0, top)
+	_steps_place(cl, panel.position.y + panel.size.y + 8.0)   # NSTEPLIST: under the panel, on the right
 	status.reset_size()
 	status.size.x = minf(status.get_combined_minimum_size().x, cl.size.x - PW - 40.0)
 	status.position = Vector2(cl.position.x + 12.0, cl.end.y - status.size.y - 6.0)
@@ -4524,6 +4532,8 @@ func input(ev: InputEvent) -> bool:
 	if ev is InputEventMouse:
 		_alt = (ev as InputEventMouse).alt_pressed
 	if not active() or not Part.available():
+		if edge_chip != null and edge_chip.visible:
+			_edge_hide()
 		return false
 	if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 		var p := (ev as InputEventMouseButton).position
@@ -4584,6 +4594,8 @@ func input(ev: InputEvent) -> bool:
 		if h != _hover:
 			_hover = h
 			dots.queue_redraw()
+		if armed == "" and h == "":
+			_edge_hover(p)   # NEDGECHIP: a built edge under the pointer shows its chip
 	return false
 
 
@@ -4661,6 +4673,8 @@ func _start_draft(p: Vector2) -> bool:
 
 
 func _over_ui(p: Vector2) -> bool:
+	if edge_chip != null and edge_chip.visible and edge_chip.get_global_rect().has_point(p):
+		return true   # NEDGECHIP: the edge chip is a button: its press is not a pick
 	# hint and status are WORDS only (a _pill: mouse_filter IGNORE, one Label, no button): a press under them is the grid's, not eaten
 	for c in [bar, make_box, panel, shape_box, colour_box, repeat_box, stick_box, tilt_box]:
 		if (c as Control).visible and (c as Control).get_global_rect().has_point(p):
@@ -5006,3 +5020,348 @@ func _edge_round(e: Dictionary, r: float) -> void:
 	_end()
 	_say("Edge rounded %d mm: drag another edge, or use the slider for more or less" % roundi(r))
 
+
+
+# ---------------------------------------------------------------- NEDGECHIP: the edge chip and its ghost
+
+var edge_chip: PanelContainer      # the one small chip over a hovered edge: Round / Bevel (only the ones that work)
+var edge_chip_row: HBoxContainer
+var edge_ghost: MeshInstance3D     # the see-through preview of the Round result, drawn over the solid
+var _ehov := {}                    # the hovered edge: {"key", "mid" (px), "opts" {kind: {"err", "mesh", "fields"}}}
+var _ecache := {"rec": "", "edges": []}   # the built record edges (one replay per change of the record)
+
+
+func _edge_chip_ensure() -> void:
+	if edge_chip != null:
+		return
+	edge_chip = PanelContainer.new()
+	edge_chip.name = "easypart_edge_chip"
+	edge_chip.visible = false
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.1, 0.12, 0.16, 0.92)
+	sb.set_corner_radius_all(8)
+	sb.set_content_margin_all(4)
+	edge_chip.add_theme_stylebox_override("panel", sb)
+	edge_chip_row = HBoxContainer.new()
+	edge_chip_row.add_theme_constant_override("separation", 4)
+	edge_chip.add_child(edge_chip_row)
+	m.ui_root.add_child(edge_chip)
+	edge_ghost = MeshInstance3D.new()
+	edge_ghost.name = "easypart_edge_ghost"
+	edge_ghost.visible = false
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = Color(0.45, 0.85, 1.0, 0.3)   # see-through: the solid shows under it
+	mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mt.cull_mode = BaseMaterial3D.CULL_DISABLED
+	edge_ghost.material_override = mt
+	pu.bu.root3.add_child(edge_ghost)
+
+
+## the built record edges (the list Round picks from), one replay per change of the record
+func _edge_list() -> Array:
+	var rec := _rec()
+	var key := JSON.stringify(rec)
+	if key != String(_ecache["rec"]):
+		var res := Part.replay(rec, -1, {"edges": true})
+		_ecache = {"rec": key, "edges": res["edges"] if int(res["bodies"]) > 0 else []}
+	return _ecache["edges"]
+
+
+## the chip and ghost go away (no hover, or a press / draw is under way)
+func _edge_hide() -> void:
+	if edge_chip != null:
+		edge_chip.visible = false
+	if edge_ghost != null:
+		edge_ghost.visible = false
+	_ehov = {}
+
+
+## a pointer move at p (no press, nothing armed): the built edge under it shows the chip
+func _edge_hover(p: Vector2) -> void:
+	if not active() or not Part.available() or pu == null or m.cam == null or int(pu.res.get("bodies", 0)) == 0:
+		_edge_hide()
+		return
+	_edge_chip_ensure()
+	if edge_chip.visible and edge_chip.get_global_rect().has_point(p):
+		return   # the pointer is on the chip itself: it stays up for the click
+	var best := -1
+	var bd := EDGE_PX
+	var es := _edge_list()
+	for i in es.size():
+		var e: Dictionary = es[i]
+		if int(e["body"]) != 0 or bool(e.get("seam", false)):
+			continue
+		if m.cam.is_position_behind(e["a"]) or m.cam.is_position_behind(e["b"]):
+			continue
+		var a: Vector2 = m.cam.unproject_position(e["a"])
+		var b: Vector2 = m.cam.unproject_position(e["b"])
+		var d := Geometry2D.get_closest_point_to_segment(p, a, b).distance_to(p)
+		if d < bd:
+			bd = d
+			best = i
+	if best < 0:
+		_edge_hide()
+		return
+	var e: Dictionary = es[best]
+	var c: Vector3 = e["c"]
+	var key := "%.6f,%.6f,%.6f" % [c.x, c.y, c.z]
+	if key == String(_ehov.get("key", "")):
+		return   # the same edge: the chip and ghost are already up
+	var mid: Vector2 = m.cam.unproject_position(c)
+	_ehov = {"key": key, "mid": mid, "opts": _edge_options(e)}
+	_edge_show()
+
+
+## what each chip would do to this edge: Round and Bevel, each checked by a full replay (the errors name the bad steps)
+func _edge_options(e: Dictionary) -> Dictionary:
+	var bb: AABB = pu.res.get("aabb", AABB())
+	var small := minf(bb.size.x, minf(bb.size.y, bb.size.z)) / Part.MM
+	var r := snappedf(clampf(small * 0.01, 1.0, 6.0), 0.1)   # the same default as Round the edges: 1% of the smallest size, 1 to 6 mm
+	var out := {}
+	for kind in ["fillet", "chamfer"]:
+		var fields := {"body": 0, "edges": [Part.describe(e)]}
+		if kind == "fillet":
+			fields["r"] = r
+		else:
+			fields["dist"] = r
+		var rec := _rec().duplicate(true)
+		var f := Part.new_feature(rec, kind, fields)
+		rec["features"].append(f)
+		var res := Part.replay(rec, -1, {})
+		var err := String(res["errors"].get(String(f["id"]), ""))
+		out[kind] = {"err": err, "mesh": res["mesh"] if err == "" else null, "fields": fields}
+	return out
+
+
+func _edge_show() -> void:
+	var opts: Dictionary = _ehov["opts"]
+	for c in edge_chip_row.get_children():
+		edge_chip_row.remove_child(c)
+		c.queue_free()
+	var words := {"fillet": ["Round", "part_fillet", "Soften this edge into a rounded corner"], "chamfer": ["Bevel", "part_chamfer", "Cut this edge flat: a slanted edge"]}
+	var shown := 0
+	for kind in ["fillet", "chamfer"]:
+		if String(opts[kind]["err"]) != "":
+			continue
+		var b := Button.new()
+		b.name = "easypart_edge_" + ("round" if kind == "fillet" else "bevel")
+		b.text = words[kind][0]
+		b.icon = Icons.tex(words[kind][1])
+		b.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.tooltip_text = words[kind][2]
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(96, 44)
+		b.pressed.connect(_edge_do.bind(kind))
+		edge_chip_row.add_child(b)
+		shown += 1
+	if shown == 0:
+		var l := Label.new()
+		l.text = "This edge will not take a round or a bevel: Pull it up taller, or use Round the edges"
+		edge_chip_row.add_child(l)
+	var ghost_ok: bool = String(opts["fillet"]["err"]) == "" and opts["fillet"]["mesh"] != null
+	edge_ghost.mesh = opts["fillet"]["mesh"] if ghost_ok else null
+	edge_ghost.visible = ghost_ok
+	edge_chip.visible = true
+	var sz := edge_chip.get_combined_minimum_size()
+	var vp: Vector2 = m.ui_root.size
+	var at: Vector2 = _ehov["mid"] + Vector2(-sz.x * 0.5, -sz.y - 14.0)
+	at.x = clampf(at.x, 4.0, maxf(4.0, vp.x - sz.x - 4.0))
+	at.y = clampf(at.y, 4.0, maxf(4.0, vp.y - sz.y - 4.0))
+	edge_chip.position = at
+	edge_chip.size = sz
+	pu.pov.queue_redraw()
+
+
+## a chip press: the one edge becomes rounded (or bevelled), one undo step. A refusal says why and changes nothing
+func _edge_do(kind: String) -> void:
+	if _ehov.is_empty():
+		return
+	var opts: Dictionary = _ehov["opts"]
+	var fields: Dictionary = (opts[kind]["fields"] as Dictionary).duplicate(true)
+	_edge_hide()
+	_flush_if_dirty()
+	armed = ""
+	var snap := _rec().duplicate(true)
+	_begin("Round the edge" if kind == "fillet" else "Bevel the edge")
+	var rec := pu._ensure()
+	var f := Part.new_feature(rec, kind, fields)
+	rec["features"].append(f)
+	var err := String(pu.replay_full(rec)["errors"].get(String(f["id"]), ""))
+	if err != "":
+		m.S.part = snap   # nothing changes: the step taken a moment ago goes back out
+		m._drop_undo()
+		_edit_n = -1
+		_say("This edge would not take it: pick another edge, or press Round the edges on the whole part")
+		return
+	_end()
+	if kind == "fillet":
+		_round_done(f)
+	else:
+		tweak = {"id": f["id"], "field": "dist", "label": "Bevel size", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Smaller", "Bigger"]}
+		_say("Edge bevelled: use the slider for more or less, or press Cut a hole next")
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+
+
+# ---------------------------------------------------------------- the step list (NSTEPLIST)
+
+## NSTEPLIST: the step list: one row per step of the record, in plain words, with its icon. A click on a row opens that step to change
+## (its slider comes back in the panel; the change is one undo step and replays the later steps). The open step's row is pressed
+func _steps_box() -> PanelContainer:
+	var box := PanelContainer.new()
+	box.name = "easypart_steps"
+	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	box.visible = false
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 4)
+	box.add_child(v)
+	var t := Label.new()
+	t.name = "easypart_steps_title"
+	t.text = "Your steps"
+	t.add_theme_font_size_override("font_size", 16)
+	t.add_theme_color_override("font_color", Tok.c("heading"))
+	v.add_child(t)
+	var sc := ScrollContainer.new()
+	sc.name = "easypart_steps_scroll"
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.custom_minimum_size = Vector2(PW - 24.0, 40.0)
+	v.add_child(sc)
+	steps_vb = VBoxContainer.new()
+	steps_vb.name = "easypart_steps_list"
+	steps_vb.add_theme_constant_override("separation", 3)
+	steps_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(steps_vb)
+	return box
+
+
+## NSTEPLIST: the step's plain words ("" = no row: a helper plane). Pulled up N cm, Rounded N edges R mm, Drew a shape, Hollowed out
+func step_words(f: Dictionary) -> String:
+	match String(f.get("t", "")):
+		"sketch":
+			return "Drew a shape"
+		"extrude":
+			var cm := _fmt_cm(absf(float(f.get("dist", 0.0))))
+			if String(f.get("op", "")) == "cut":
+				return "Cut a slot %s deep" % cm
+			if bool(f.get("both", false)):
+				return "Pulled out both ways %s" % cm
+			return "Pulled up %s" % cm
+		"fillet":
+			var n := (f.get("edges", []) as Array).size()
+			return "Rounded %d %s %s mm" % [n, "edge" if n == 1 else "edges", _plain_num(float(f.get("r", 0.0)))]
+		"shell":
+			return "Hollowed out, wall %s mm" % _plain_num(float(f.get("thick", 0.0)))
+		"appear":
+			return "Coloured"
+		"mirror":
+			return "Mirrored it"
+		"pattern":
+			return "Repeated it"
+		"plane":
+			return ""
+	return "Changed the shape"
+
+
+static func _fmt_cm(mm_v: float) -> String:
+	return "%s cm" % _plain_num(mm_v / 10.0)
+
+
+## NSTEPLIST: a number in plain words: 3 (not 3.0), 2.5
+static func _plain_num(v: float) -> String:
+	var x := snappedf(v, 0.1)
+	return str(int(x)) if x == floorf(x) else "%.1f" % x
+
+
+## NSTEPLIST: the step's icon (the MAKES icon of its kind)
+static func step_icon(t: String) -> String:
+	match t:
+		"sketch":
+			return "part_rectangle"
+		"extrude":
+			return "part_extrude"
+		"fillet":
+			return "part_fillet"
+		"shell":
+			return "part_circle"
+		"mirror":
+			return "part_mirror"
+		"pattern":
+			return "part_pattern"
+		"appear":
+			return "part_appearance"
+	return "part_mirror"
+
+
+## NSTEPLIST: the slider that opens a step: its own field (How far, How round, Wall); {} when the step has none
+func _step_tweak(f: Dictionary) -> Dictionary:
+	var id := String(f.get("id", ""))
+	match String(f.get("t", "")):
+		"extrude":
+			var sg := -1.0 if float(f.get("dist", 0.0)) < 0.0 else 1.0
+			return {"id": id, "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
+		"fillet":
+			return {"id": id, "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
+		"shell":
+			return {"id": id, "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
+	return {}
+
+
+## NSTEPLIST: a click on a step row: its slider comes back in the panel (no undo step of its own; the slider's change is the step)
+func _step_open(id: String) -> void:
+	var f := Part.feature(_rec(), id)
+	var tw := _step_tweak(f)
+	if tw.is_empty():
+		_say("%s has no number to change: Undo takes it back" % step_words(f))
+		return
+	tweak = tw
+	taper_tw = {}
+	_rows_sig = ""
+	_rows_sync()
+	_say("Change the step: %s. The later steps are made again" % String(tw["label"]))
+	_steps_sig = ""
+	_steps_sync()
+
+
+func _steps_sync() -> void:
+	if steps_vb == null or not is_instance_valid(steps_vb):
+		return
+	var fs: Array = _rec().get("features", [])
+	var sig := "%s|%s" % [JSON.stringify(fs), String(tweak.get("id", ""))]
+	if sig == _steps_sig:
+		return
+	_steps_sig = sig
+	for c in steps_vb.get_children():
+		steps_vb.remove_child(c)
+		c.queue_free()
+	for f in fs:
+		var words := step_words(f)
+		if words == "":
+			continue
+		var b := Button.new()
+		b.name = "easypart_step_%s" % String(f.get("id", ""))
+		b.text = words
+		b.icon = Icons.sized(step_icon(String(f.get("t", ""))), 20)
+		b.expand_icon = false
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.focus_mode = Control.FOCUS_NONE
+		b.toggle_mode = true
+		b.set_pressed_no_signal(String(f.get("id", "")) == String(tweak.get("id", "")) and not tweak.is_empty())
+		b.add_theme_font_size_override("font_size", 15)
+		b.tooltip_text = "Click to change this step"
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var fid := String(f.get("id", ""))
+		b.pressed.connect(func(): _step_open(fid))
+		steps_vb.add_child(b)
+
+
+## NSTEPLIST: the list sits under the panel on the right, as tall as the room left (it scrolls past that)
+func _steps_place(cl: Rect2, y: float) -> void:
+	steps_box.reset_size()
+	var room := cl.end.y - y - 44.0
+	var sc := steps_box.find_child("easypart_steps_scroll", true, false) as ScrollContainer
+	if sc != null:
+		sc.custom_minimum_size.y = clampf(steps_vb.get_combined_minimum_size().y, 40.0, maxf(40.0, room - 40.0))
+	steps_box.reset_size()
+	steps_box.position = Vector2(cl.end.x - PW - 8.0, y)
