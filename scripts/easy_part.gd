@@ -4159,6 +4159,16 @@ func _steps_box() -> PanelContainer:
 	steps_vb.add_theme_constant_override("separation", 3)
 	steps_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sc.add_child(steps_vb)
+	var show_b := Button.new()   # P095: plays the steps as a ghost, one at a time (see _demo_start)
+	show_b.name = "easypart_show_how"
+	show_b.text = "Show me how"
+	show_b.icon = Icons.sized("play", 20)
+	show_b.expand_icon = false
+	show_b.focus_mode = Control.FOCUS_NONE
+	show_b.add_theme_font_size_override("font_size", 15)
+	show_b.tooltip_text = "Show me how: the steps of this part, one at a time as a see-through ghost, so you can copy each one on your own part. Nothing on the model changes"
+	show_b.pressed.connect(_demo_start)
+	v.add_child(show_b)
 	return box
 
 
@@ -4353,3 +4363,134 @@ func _steps_sync() -> void:
 		var fid := String(f.get("id", ""))
 		b.pressed.connect(func(): _step_open(fid))
 		steps_vb.add_child(b)
+
+
+# ---------------------------------------------------------------- P095 SHOW ME HOW: the steps as a ghost, one at a time
+## P095 (Friday plan 95, Kine's own idea): Show me how plays the part's solid steps one at a time as a see-through ghost. The user copies
+## each step on their own part; the ghost changes nothing on the model (no undo step, the record is untouched).
+var demo_box: PanelContainer      # the ghost panel: its words, Back, Next, Done (bottom left)
+var demo_words: Label
+var demo_back: Button
+var demo_next: Button
+var demo_ghost: MeshInstance3D    # the see-through solid of the step shown, in the part's own space
+var demo_steps: Array = []        # the record's feature indices that make a solid step (a sketch only draws a line; a plane is a helper)
+var demo_k := -1                  # the step shown (0-based); -1 = none yet
+
+
+## P095: the record's solid steps, in order
+func _demo_steps_of(rec: Dictionary) -> Array:
+	var out := []
+	var fs: Array = rec.get("features", [])
+	for i in fs.size():
+		var t := String(fs[i].get("t", ""))
+		if t != "sketch" and t != "plane" and step_words(fs[i]) != "":
+			out.append(i)
+	return out
+
+
+## P095: the ghost panel and the ghost mesh, made once
+func _demo_ensure() -> void:
+	if demo_box != null:
+		return
+	demo_box = PanelContainer.new()
+	demo_box.name = "easypart_demo"
+	demo_box.visible = false
+	demo_box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 8))
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 6)
+	demo_box.add_child(v)
+	demo_words = Label.new()
+	demo_words.name = "easypart_demo_words"
+	demo_words.add_theme_font_size_override("font_size", 15)
+	demo_words.add_theme_color_override("font_color", Tok.c("heading"))
+	demo_words.custom_minimum_size = Vector2(340, 0)
+	demo_words.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(demo_words)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	v.add_child(row)
+	demo_back = _demo_btn("Back", "back", "Show the step before, as a ghost (nothing on the model changes)", _demo_step.bind(-1), "easypart_demo_back")
+	row.add_child(demo_back)
+	demo_next = _demo_btn("Next", "", "Show the next step, as a ghost (nothing on the model changes)", _demo_step.bind(1), "easypart_demo_next")
+	row.add_child(demo_next)
+	row.add_child(_demo_btn("Done", "", "Close the ghost: the model is as it was", _demo_close, "easypart_demo_done"))
+	m.ui_root.add_child(demo_box)
+	demo_ghost = MeshInstance3D.new()
+	demo_ghost.name = "easypart_demo_ghost"
+	demo_ghost.visible = false
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = Color(0.45, 0.85, 1.0, 0.3)   # see-through, like the Round preview: the copy is drawn under it
+	mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mt.cull_mode = BaseMaterial3D.CULL_DISABLED
+	demo_ghost.material_override = mt
+	pu.bu.root3.add_child(demo_ghost)
+
+
+func _demo_btn(text: String, icon: String, tip: String, cb: Callable, nm: String) -> Button:
+	var b := Button.new()
+	b.name = nm
+	b.text = text
+	if icon != "":
+		b.icon = Icons.sized(icon, 20)
+		b.expand_icon = false
+	b.tooltip_text = tip
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(0, 34)
+	b.add_theme_font_size_override("font_size", 15)
+	b.pressed.connect(cb)
+	return b
+
+
+## P095: Show me how (the steps box button): opens the ghost panel before step 1; nothing on the model changes
+func _demo_start() -> void:
+	_demo_ensure()
+	demo_steps = _demo_steps_of(_rec())
+	if demo_steps.is_empty():
+		_say("Nothing to show yet: draw a shape and pull it up first")
+		return
+	demo_k = -1
+	demo_ghost.visible = false
+	demo_box.visible = true
+	var sz := demo_box.get_combined_minimum_size()
+	var vp: Vector2 = m.ui_root.size
+	demo_box.size = sz
+	demo_box.position = Vector2(12.0, maxf(4.0, vp.y - sz.y - 12.0))
+	_demo_text()
+	_say("Show me how: press Next to see step 1, then copy it on your own part")
+
+
+## P095: Back / Next: the ghost moves one solid step (Back from step 1 stays on step 1; Next past the last stays on it)
+func _demo_step(d: int) -> void:
+	if demo_steps.is_empty() or (demo_k < 0 and d < 0):
+		return
+	demo_k = clampi(demo_k + d, 0, demo_steps.size() - 1)
+	var mesh: Mesh = Part.replay(_rec(), int(demo_steps[demo_k]), {})["mesh"]
+	demo_ghost.mesh = mesh
+	demo_ghost.visible = mesh != null
+	_demo_text()
+	pu.pov.queue_redraw()
+
+
+## P095: the panel's words: the step's plain words from the record, and what to do next
+func _demo_text() -> void:
+	var n := demo_steps.size()
+	if demo_k < 0:
+		demo_words.text = "Press Next to see step 1 of %d, then copy it on your own part." % n
+		return
+	var f: Dictionary = _rec()["features"][int(demo_steps[demo_k])]
+	var head := "Step %d of %d: %s." % [demo_k + 1, n, step_words(f)]
+	var tail := "Copy it on your own part, then press Next." if demo_k < n - 1 else "That is the last step. Done closes this."
+	demo_words.text = head + "\n" + tail
+	if demo_ghost.mesh == null:
+		demo_words.text = head + "\nThis step makes no solid to show. Press Next to go on."
+
+
+## P095: Done: the ghost and its panel go away; the model was never changed
+func _demo_close() -> void:
+	demo_k = -1
+	demo_steps = []
+	if demo_box != null:
+		demo_box.visible = false
+	if demo_ghost != null:
+		demo_ghost.visible = false
+		demo_ghost.mesh = null
