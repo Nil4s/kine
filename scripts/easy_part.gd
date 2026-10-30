@@ -19,6 +19,8 @@ const REP_WORDS := {"count": ["Fewer", "More"], "gap": ["Closer", "Further apart
 const STICK_OPS := [["join", "Join", "Make the two pieces one solid"], ["cut", "Cut away", "Cut the second piece out of the first"], ["intersect", "Keep the overlap", "Keep only the part where the two pieces overlap"]]
 const SCREW_DS := [3, 4, 5, 6]         # NSCREW2: the Parts category's screw sizes (M3..M6, columns of the grid)
 const SCREW_LENS := [10, 16, 20, 30]   # NSCREW2: the screw lengths in mm (rows of the grid)
+const LIB_CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "Springs", "Handles", "Wheels", "Brackets"]   # NLIBPAGE: the Parts library page, in this order
+const LIB_READY := ["Screws", "Gears"]   # NLIBPAGE: the categories with parts today; the others say coming soon
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
 const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal): a wood brown, red > green > blue
 const TILT_DEG := 20.0           # Tilt it: the lean of the newest solid (degrees, sideways about its middle)
@@ -79,6 +81,10 @@ var screw_box: PanelContainer    # NSCREW2: the screw grid: sixteen size chips, 
 var screw_btns := {}             # NSCREW2: "d_L" -> the size chip (M<d> x <L>)
 var nw_btn: Button               # NNUTWASHER: "Add its nut and washer" (in the screw grid): the screw on the floor takes its nut and washer, one click
 var parts_open := false          # NSCREW2: the Parts category is open (the grid shows even with no screw on the floor)
+var lib_box: PanelContainer      # NLIBPAGE: the Parts library page: ten category chips, under the template chips while Parts is open
+var lib_btns := {}               # NLIBPAGE: category -> its chip
+var lib_soon: Label              # NLIBPAGE: "Coming soon" line for an empty category (names the next step)
+var lib_cat := ""                # NLIBPAGE: the category open on the page ("" = none); Screws opens when Parts opens
 var stick_box: PanelContainer    # Stick together: Join / Cut away / Keep the overlap, shown once two pieces are picked
 var stick_btns := {}
 var stick_picks: Array = []      # the body indices clicked in the view (the first = the target, the second = the tool)
@@ -343,13 +349,13 @@ func build(root: Control) -> void:
 	th.add_child(empty_chip)
 	var cr := HFlowContainer.new()
 	cr.name = "easypart_chips"
-	cr.add_theme_constant_override("h_separation", 4)
+	cr.add_theme_constant_override("h_separation", 3)
 	cr.add_theme_constant_override("v_separation", 4)
 	v.add_child(cr)
 	parts_btn = Button.new()   # NSCREW2: Parts: the screw sizes; after the template chips on the same row
 	parts_btn.name = "easypart_chip_parts"
 	parts_btn.text = "Parts"
-	parts_btn.tooltip_text = "Small parts with a set size: screws M3 to M6, 10 to 30 mm long"
+	parts_btn.tooltip_text = "Parts: a library of small parts by kind (screws and gears now, more soon)"
 	parts_btn.toggle_mode = true
 	parts_btn.focus_mode = Control.FOCUS_NONE
 	parts_btn.custom_minimum_size = Vector2(0, 34)
@@ -362,10 +368,12 @@ func build(root: Control) -> void:
 		b.toggle_mode = true
 		b.focus_mode = Control.FOCUS_NONE
 		b.custom_minimum_size = Vector2(0, 34)
-		b.add_theme_font_size_override("font_size", 15)
+		b.add_theme_font_size_override("font_size", 13)   # NGEAR: 13 (was 15) so six templates (Gear) stay on one row of the panel
 		b.pressed.connect(_chip.bind(t))
 		cr.add_child(b)
 		chips[t] = b
+	lib_box = _lib_box()
+	v.add_child(lib_box)
 	screw_box = _screw_box()
 	v.add_child(screw_box)
 	rows_vb = VBoxContainer.new()
@@ -848,7 +856,7 @@ func _end() -> void:
 
 func _set_value(row: Dictionary, v: float, final: bool) -> void:
 	if row["kind"] == "tpl":
-		_pending[row["key"]] = v * 10.0   # the slider says cm, the record mm
+		_pending[row["key"]] = v if bool(row.get("raw", false)) else v * 10.0   # the slider says cm, the record mm (NGEAR: a raw slider says its own number)
 		hole_base = {}                    # the template's sizes changed: the hole chips would rebuild on an old shape
 	elif row["kind"] == "rep":
 		_apply_rep(row, v)
@@ -951,6 +959,10 @@ func _fmt(v: float, unit: String) -> String:
 		return "%d degrees" % int(roundf(v))
 	if unit == "copies":
 		return "%d copies" % int(roundf(v))
+	if unit == "teeth":   # NGEAR
+		return "%d teeth" % int(roundf(v))
+	if unit == "size":   # NGEAR: the module 1 / 2 / 3 as Small / Medium / Big teeth
+		return ["Small", "Medium", "Big"][clampi(int(roundf(v)) - 1, 0, 2)] + " teeth"
 	if unit == "mm":
 		return "%s mm" % str(snappedf(v, 0.1))
 	return "%s cm" % str(snappedf(v, 0.1))
@@ -969,7 +981,7 @@ func _knob() -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 
-func _make_row(label: String, lo: float, hi: float, step: float, words: Array, kind: String, key: String, unit: String, into: Control = null) -> Dictionary:
+func _make_row(label: String, lo: float, hi: float, step: float, words: Array, kind: String, key: String, unit: String, into: Control = null, raw := false) -> Dictionary:
 	var v := VBoxContainer.new()
 	v.name = "easypart_row_" + key
 	v.add_theme_constant_override("separation", 0)
@@ -1018,7 +1030,7 @@ func _make_row(label: String, lo: float, hi: float, step: float, words: Array, k
 		w.add_child(wl)
 	v.add_child(w)
 	(into if into != null else rows_vb).add_child(v)
-	var row := {"key": key, "slider": s, "pill": pill, "kind": kind, "unit": unit, "label": label, "box": v, "words": w}
+	var row := {"key": key, "slider": s, "pill": pill, "kind": kind, "unit": unit, "label": label, "box": v, "words": w, "raw": raw}
 	s.value_changed.connect(_on_slider_value.bind(row))
 	s.drag_started.connect(_on_slider_start.bind(row))
 	s.drag_ended.connect(_on_slider_end.bind(row))
@@ -1040,7 +1052,8 @@ func _rows_sync() -> void:
 	rows = []
 	if t != "" and not PartTemplates.T[t].get("parts", false):   # NSCREW2: a screw's numbers are the Parts chips, not sliders
 		for d in PartTemplates.T[t]["params"]:
-			var r := _make_row(String(d["label"]), float(d["lo"]) / 10.0, float(d["hi"]) / 10.0, float(d["step"]) / 10.0, d["words"], "tpl", String(d["k"]), "cm")
+			var raw := bool(d.get("raw", false))   # NGEAR: a raw slider (teeth, a size step) keeps its own numbers and unit
+			var r := _make_row(String(d["label"]), float(d["lo"]) if raw else float(d["lo"]) / 10.0, float(d["hi"]) if raw else float(d["hi"]) / 10.0, float(d["step"]) if raw else float(d["step"]) / 10.0, d["words"], "tpl", String(d["k"]), String(d["unit"]) if raw else "cm", null, raw)
 			rows.append(r)
 	if not tweak.is_empty():
 		var tw: Dictionary = tweak
@@ -1137,7 +1150,7 @@ func _values_sync() -> void:
 		var s: HSlider = r["slider"]
 		var v := 0.0
 		if r["kind"] == "tpl":
-			v = float(e.get("p", {}).get(r["key"], 0.0)) / 10.0
+			v = float(e.get("p", {}).get(r["key"], 0.0)) if bool(r.get("raw", false)) else float(e.get("p", {}).get(r["key"], 0.0)) / 10.0
 		elif r["kind"] == "taper":
 			v = float(Part.feature(_rec(), String(taper_tw.get("id", ""))).get("taper", 0.0))
 		else:
@@ -1330,8 +1343,125 @@ func _parts_press() -> void:
 		_chips_sync()
 		return
 	parts_open = not parts_open
-	_say("Screws: pick a size. It drops on the floor" if parts_open else "Parts shut. Press Parts to open the screws again")
+	lib_cat = "Screws" if parts_open else ""   # NLIBPAGE: the page opens on Screws, its sizes showing
+	_say("Parts: pick a kind. Screws is open: pick a size. It drops on the floor" if parts_open else "Parts shut. Press Parts to open them again")
 	_screw_sync()
+
+
+## NLIBPAGE: a category chip. Screws shows the sizes, Gears says to press the Gear chip, the others say coming soon with the next step.
+## Opening a category is not an action: no undo step.
+func _lib_press(cat: String) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	parts_open = true
+	lib_cat = cat
+	if cat == "Screws":
+		_say("Screws: pick a size. It drops on the floor")
+	elif cat == "Gears":
+		_say("Gears: press Gear in the chips above. It drops on the floor")
+	else:
+		_say("%s are coming soon. Next step: press Screws or Gears" % cat)
+	_screw_sync()
+
+
+## NLIBPAGE: the library page: a header line, ten category chips (icon + plain word), and the coming-soon line
+func _lib_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_library"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
+	var hd := Label.new()
+	hd.name = "easypart_lib_words"
+	hd.text = "Parts: pick a kind. Screws and Gears are ready, the rest are coming soon"
+	hd.add_theme_font_size_override("font_size", 14)
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(hd)
+	var fl := HFlowContainer.new()
+	fl.add_theme_constant_override("h_separation", 4)
+	fl.add_theme_constant_override("v_separation", 4)
+	vb.add_child(fl)
+	for cat in LIB_CATS:
+		var b := Button.new()
+		b.name = "easypart_lib_" + cat
+		b.text = cat
+		b.icon = _lib_icon(cat)
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(0, 34)
+		b.add_theme_font_size_override("font_size", 13)
+		b.tooltip_text = ("%s: ready now" % cat) if cat in LIB_READY else ("%s: coming soon" % cat)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_lib_press.bind(cat))
+		fl.add_child(b)
+		lib_btns[cat] = b
+	lib_soon = Label.new()
+	lib_soon.name = "easypart_lib_soon"
+	lib_soon.add_theme_font_size_override("font_size", 14)
+	lib_soon.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lib_soon.visible = false
+	vb.add_child(lib_soon)
+	return pc
+
+
+## NLIBPAGE: a 16 px icon per category, drawn in the text colour (Tok): a screw, a gear ring, a nut, a washer, hinge leaves, bearing rings,
+## a spring, a handle, a wheel with spokes, a bracket
+func _lib_icon(cat: String) -> ImageTexture:
+	if cat == "Screws":
+		return _screw_icon(4, 16)
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	match cat:
+		"Gears":
+			_lib_ring(img, 7.0, 4.5, col)
+			img.fill_rect(Rect2i(7, 0, 2, 2), col)
+			img.fill_rect(Rect2i(7, 14, 2, 2), col)
+			img.fill_rect(Rect2i(0, 7, 2, 2), col)
+			img.fill_rect(Rect2i(14, 7, 2, 2), col)
+		"Nuts":
+			img.fill_rect(Rect2i(2, 4, 12, 8), col)
+			img.fill_rect(Rect2i(6, 6, 4, 4), Color(0, 0, 0, 0))
+		"Washers":
+			_lib_ring(img, 7.0, 3.5, col)
+		"Hinges":
+			img.fill_rect(Rect2i(0, 3, 7, 3), col)
+			img.fill_rect(Rect2i(9, 3, 7, 3), col)
+			img.fill_rect(Rect2i(0, 10, 7, 3), col)
+			img.fill_rect(Rect2i(9, 10, 7, 3), col)
+			img.fill_rect(Rect2i(7, 1, 2, 14), col)
+		"Bearings":
+			_lib_ring(img, 7.0, 5.0, col)
+			_lib_ring(img, 3.0, 1.0, col)
+		"Springs":
+			for y in range(16):
+				var x := 8 + int(round(4.0 * sin(float(y) * 0.9)))
+				img.fill_rect(Rect2i(x - 1, y, 2, 1), col)
+		"Handles":
+			img.fill_rect(Rect2i(1, 2, 14, 3), col)
+			img.fill_rect(Rect2i(1, 2, 3, 12), col)
+			img.fill_rect(Rect2i(12, 2, 3, 12), col)
+		"Wheels":
+			_lib_ring(img, 7.0, 5.0, col)
+			img.fill_rect(Rect2i(7, 1, 2, 14), col)
+			img.fill_rect(Rect2i(1, 7, 14, 2), col)
+		"Brackets":
+			img.fill_rect(Rect2i(2, 1, 3, 14), col)
+			img.fill_rect(Rect2i(2, 12, 13, 3), col)
+	return ImageTexture.create_from_image(img)
+
+
+## NLIBPAGE: a ring of colour between the two radii, on a 16 px icon
+func _lib_ring(img: Image, r_out: float, r_in: float, col: Color) -> void:
+	for y in range(16):
+		for x in range(16):
+			var d := Vector2(x + 0.5 - 8.0, y + 0.5 - 8.0).length()
+			if d <= r_out and d >= r_in:
+				img.set_pixel(x, y, col)
 
 
 ## NSCREW2: a size chip. No screw on the floor: a new screw of that size (one undo step). A screw already there: its size changes
@@ -1372,19 +1502,27 @@ func _screw_pick(d: int, L: int) -> void:
 
 ## NSCREW2: the grid's open state and the pressed size (the screw on the floor); the Parts chip is pressed while the grid shows
 func _screw_sync() -> void:
+	if lib_box != null:   # NLIBPAGE: the page shows while Parts is open; the open category is pressed; the coming-soon line names it
+		lib_box.visible = parts_open
+		for cat in lib_btns:
+			var lb: Button = lib_btns[cat]
+			lb.set_pressed_no_signal(parts_open and cat == lib_cat)
+			m._grey(lb, Part.why_not() if not Part.available() else "")
+		lib_soon.visible = parts_open and lib_cat != "" and not (lib_cat in LIB_READY)
+		lib_soon.text = "%s are coming soon: not made yet. Next step: press Screws or Gears" % lib_cat if lib_soon.visible else ""
 	if screw_box == null or parts_btn == null:
 		return
 	var cur: Dictionary = {}
 	if _tpl() == "screw":
 		cur = (_rec().get("easy", {}) as Dictionary).get("p", {})
-	screw_box.visible = parts_open or _tpl() == "screw"
-	parts_btn.set_pressed_no_signal(screw_box.visible)
+	screw_box.visible = (parts_open and lib_cat == "Screws") or _tpl() == "screw"
+	parts_btn.set_pressed_no_signal(parts_open)
 	for d in SCREW_DS:
 		for L in SCREW_LENS:
 			var b: Button = screw_btns["%d_%d" % [d, L]]
 			b.set_pressed_no_signal(not cur.is_empty() and int(cur.get("d", 0)) == d and int(cur.get("L", 0)) == L)
 			m._grey(b, Part.why_not() if not Part.available() else "")
-	parts_btn.set_pressed_no_signal(screw_box.visible)
+	parts_btn.set_pressed_no_signal(parts_open)
 
 
 func _back() -> void:
