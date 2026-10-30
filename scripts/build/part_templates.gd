@@ -214,6 +214,40 @@ static func nw_set(rec: Dictionary, d: int) -> void:
 	rec["features"] = head + nw_features(head.duplicate(), d) + rest
 
 
+## FRIDAY 37 BOSS CHIP: a round post beside a screw, sized by it: outside = the screw's head + 4 mm, hole = the screw's size + 0.5 mm (the screw goes in),
+## height = the screw's length L. It stands on the floor at X BO_X (the washer is at +18, the nut at +40). Four features: a sketch and its extrude for the post, then for its hole.
+const BO_N := 4   # a sketch and its extrude, twice (the post, then its hole): four features
+const BO_X := -18.0
+static func bo_features(fs: Array, d: int, L: float) -> Array:
+	var base := fs.size()
+	var sd := clampi(int(roundf(float(d))), 3, 6)
+	var outer: float = float(SCREW_HEAD[sd][0]) + 4.0
+	_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [BO_X, 0.0], "r": outer * 0.5}]), "extrude", L, "new")
+	_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [BO_X, 0.0], "r": (float(sd) + 0.5) * 0.5}]), "extrude", L + 2.0, "cut")
+	return fs.slice(base)
+
+
+## FRIDAY 37 BOSS CHIP: a screw on the floor takes its post: it goes on the END of the record ("bo" = its first index in the easy record)
+static func bo_add(rec: Dictionary, d: int, L: int) -> void:
+	var feats: Array = rec["features"]
+	var start := feats.size()
+	feats.append_array(bo_features(feats.duplicate(), d, float(L)))
+	rec["seq"] = maxi(int(rec.get("seq", 0)), feats.size())
+	(rec["easy"] as Dictionary)["bo"] = start
+
+
+## FRIDAY 37 BOSS CHIP: a size change rewrites the post too (the same count for every size, so the features after it keep their ids). Does nothing without it.
+static func bo_set(rec: Dictionary, d: int, L: int) -> void:
+	var e: Dictionary = rec.get("easy", {})
+	if e.is_empty() or int(e.get("bo", -1)) < 0:
+		return
+	var start := int(e["bo"])
+	var feats: Array = rec["features"]
+	var head: Array = feats.slice(0, start)
+	var rest: Array = feats.slice(mini(start + BO_N, feats.size()))
+	rec["features"] = head + bo_features(head.duplicate(), d, float(L)) + rest
+
+
 ## the default camera of a template: [yaw, pitch] degrees, a 3/4 view in which its main shape reads (the axe turns further so its blade face shows)
 const VIEW := {"sword": [30.0, -22.0], "axe": [42.0, -20.0], "shield": [30.0, -18.0], "chair": [38.0, -22.0], "crate": [34.0, -24.0], "box": [34.0, -24.0], "cylinder": [34.0, -22.0], "sphere": [30.0, -20.0], "tube": [34.0, -22.0], "plate": [34.0, -28.0], "case": [32.0, -24.0]}
 

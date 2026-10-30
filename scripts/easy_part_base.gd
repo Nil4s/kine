@@ -97,6 +97,7 @@ var screw_words: Label           # the grid's one-line instruction: hidden while
 var bracket_box: PanelContainer   # FRIDAY 73: the bracket chips (L-bracket, T-bracket, Corner brace), shown while Brackets is open or a bracket is the part
 var bracket_btns := {}
 var nw_btn: Button               # NNUTWASHER: "Add its nut and washer" (in the screw grid): the screw on the floor takes its nut and washer, one click
+var boss_btn: Button             # FRIDAY 37 BOSS CHIP: "Add its boss" (in the screw grid): a round post beside the screw, sized to it, one click
 var parts_open := false          # NSCREW2: the Parts category is open (the grid shows even with no screw on the floor)
 var lib_box: PanelContainer      # NLIBPAGE: the Parts library page: ten category chips, under the template chips while Parts is open
 var lib_btns := {}               # NLIBPAGE: category -> its chip
