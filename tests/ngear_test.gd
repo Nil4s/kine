@@ -5,7 +5,7 @@ extends SceneTree
 ## Every size below is measured from the BUILT geometry (the replayed mesh vertices, mm), not from the record.
 ## Bars (a bar that FAILS on the old code is marked there; the old code has no Gear chip, so every bar after 0 fails there):
 ##   0 the Gear chip is on the chips row (one click from the Easy Part chips)
-##   1 Gear: one solid; the default 20 teeth, Medium: tip radius = 2 x 22 / 2 = 22 mm (+- 0.3)
+##   1 Gear: one solid; the default 30 teeth, Medium: tip radius = 2 x 32 / 2 = 32 mm (+- 0.3)
 ##   2 Teeth slider: drag it to about 12 teeth: range 8..60 and the record holds the drag teeth; tip radius matches those teeth (+- 0.3)
 ##   3 Size: drag to the right end = Big teeth (module 3), the pill says Big; tip radius = 3 x (teeth + 2) / 2 (+- 0.3)
 ##   4 Size: drag to the left end = Small teeth (module 1); tip radius = (teeth + 2) / 2 (+- 0.3)
@@ -169,7 +169,7 @@ func _init() -> void:
 	var gear_chip: Button = ep.chips.get("gear") if ep.chips.has("gear") else null
 	ok(gear_chip != null and gear_chip.is_visible_in_tree(), "0 the Gear chip is on the Easy Part chips row (chips: %s)" % str(ep.chips.keys()))
 
-	# 1 Gear: one click on the chip makes the default gear (20 teeth, Medium = module 2)
+	# 1 Gear: one click on the chip makes the default gear (30 teeth, Medium = module 2)
 	if gear_chip != null:
 		await click_ctl(gear_chip)
 	await idle(10)
@@ -178,8 +178,8 @@ func _init() -> void:
 	var n := int(pu()._rec().get("easy", {}).get("p", {}).get("teeth", 0))
 	var mod := int(pu()._rec().get("easy", {}).get("p", {}).get("module", 0))
 	var tip := tip_of(pu().res)
-	ok(int(pu().res.get("bodies", 0)) == 1 and n == 20 and mod == 2 and absf(tip - mod * (n + 2) / 2.0) < 0.3,
-		"1 Gear: one solid, 20 teeth, Medium: tip radius %.2f mm (want %.2f) [%s]" % [tip, mod * (n + 2) / 2.0, ep.msg])
+	ok(int(pu().res.get("bodies", 0)) == 1 and n == 30 and mod == 2 and absf(tip - mod * (n + 2) / 2.0) < 0.3,
+		"1 Gear: one solid, 30 teeth, Medium: tip radius %.2f mm (want %.2f) [%s]" % [tip, mod * (n + 2) / 2.0, ep.msg])
 
 	# 2 Teeth: a real drag on the Teeth slider to about 12 teeth
 	var st: HSlider = row_of(ep, "teeth").get("slider")

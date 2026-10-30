@@ -9,7 +9,7 @@ extends RefCounted
 const MM := 0.001
 const ARCH_GAP := 40.0   # mm: a car's wheel arch top sits this far above the tyre's top (the arch is the wheel radius + 40 mm)
 const CAB_W := 0.88     # the glasshouse is this share of the body's width (narrower than the lower body, so the cabin reads as a cabin)
-const ORDER :=["sword", "axe", "shield", "chair", "crate", "gear"]   # NGEAR: the Gear chip is last (teeth and size are not cm: "raw")
+const ORDER :=["sword", "axe", "shield", "chair", "gear", "crate"]   # NGEAR: Gear sits before Crate (Crate stays the last chip); its numbers are not cm: "raw"
 const T := {
 	"sword": {"title": "Sword", "params": [
 		{"k": "blade_length", "label": "Blade length", "lo": 300.0, "hi": 1200.0, "def": 760.0, "step": 10.0, "words": ["Shorter", "Longer"]},
@@ -35,11 +35,12 @@ const T := {
 		{"k": "height", "label": "Height", "lo": 200.0, "hi": 800.0, "def": 400.0, "step": 10.0, "words": ["Lower", "Taller"]},
 		{"k": "depth", "label": "Depth", "lo": 200.0, "hi": 800.0, "def": 400.0, "step": 10.0, "words": ["Shallower", "Deeper"]},
 		{"k": "lid", "label": "Lid overhang", "lo": 0.0, "hi": 60.0, "def": 20.0, "step": 5.0, "words": ["None", "More"]}]},
-	# NGEAR: a spur gear with a centre hole. Real pitch diameter = teeth x module: tip = module x (teeth + 2), root = module x (teeth - 2.5).
-	# raw: the slider's own numbers (a tooth count, a size step 1 = Small / Medium / Big teeth = module 1 / 2 / 3), not mm
+	# NGEAR: a spur gear with a centre hole. Real pitch diameter = teeth x module: tip = module x (teeth + 2), root = module x (teeth - 2.5). Default 30 teeth: a 64 mm gear reads in the 3/4 view.
+	# raw: the slider's own numbers (a tooth count, a size step 1 = Small / Medium / Big teeth = module 1 / 2 / 3, a thickness in mm), not cm
 	"gear": {"title": "Gear", "params": [
-		{"k": "teeth", "label": "Teeth", "lo": 8.0, "hi": 60.0, "def": 20.0, "step": 1.0, "words": ["Fewer", "More"], "raw": true, "unit": "teeth"},
-		{"k": "module", "label": "Teeth size", "lo": 1.0, "hi": 3.0, "def": 2.0, "step": 1.0, "words": ["Small teeth", "Big teeth"], "raw": true, "unit": "size"}]},
+		{"k": "teeth", "label": "Teeth", "lo": 8.0, "hi": 60.0, "def": 30.0, "step": 1.0, "words": ["Fewer", "More"], "raw": true, "unit": "teeth"},
+		{"k": "module", "label": "Teeth size", "lo": 1.0, "hi": 3.0, "def": 2.0, "step": 1.0, "words": ["Small teeth", "Big teeth"], "raw": true, "unit": "size"},
+		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 30.0, "def": 10.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
 	# VEHICLE PARTS (B3, scripts/vehicle.gd): not in ORDER, so no Easy chip: a car body and one wheel
 	"car": {"title": "Car body", "params": [
 		{"k": "body_length", "label": "Length", "lo": 1500.0, "hi": 5000.0, "def": 4000.0, "step": 50.0, "words": ["Shorter", "Longer"]},
@@ -306,8 +307,9 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			# the tooth is as wide as the space there), extruded 5 mm x module, with the centre hole (0.12 x pitch diameter) cut through
 			var N := int(roundf(float(p["teeth"])))
 			var md := float(int(roundf(float(p["module"]))))
-			_ex(fs, _sk(fs, "front", gear_outline(N, md)), "extrude", 5.0 * md, "new")
-			_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": 0.12 * N * md}]), "extrude", 5.0 * md, "cut", true)
+			var th: float = p["thickness"]
+			_ex(fs, _sk(fs, "front", gear_outline(N, md)), "extrude", th, "new")
+			_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": 0.12 * N * md}]), "extrude", th, "cut", true)
 		"wheel":
 			# a tyre: the profile (width x radius) turned about the sketch's x axis = world X, the axle (side to side)
 			var R: float = p["radius"]
