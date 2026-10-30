@@ -209,6 +209,27 @@ func build(root: Control) -> void:
 	empty_chip.add_theme_font_size_override("font_size", 15)
 	empty_chip.pressed.connect(_empty)
 	th.add_child(empty_chip)
+	view_box = PanelContainer.new()   # P107 FITVIEW: the view row (camera only, no step) sits in the clear view's left column under the make row, not in the side panel (the panel grew over the step list and the grid)
+	view_box.name = "easypart_views_box"
+	view_box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	view_box.visible = false
+	root.add_child(view_box)
+	var vr := VBoxContainer.new()   # a column: narrow, so it sits beside the panel without reaching the part
+	vr.name = "easypart_views"
+	vr.add_theme_constant_override("separation", 4)
+	view_box.add_child(vr)
+	for vb in VIEW_BTNS:
+		var vbtn := Button.new()
+		vbtn.name = "easypart_view_" + String(vb[0])
+		vbtn.text = String(vb[1])
+		vbtn.icon = Icons.sized(String(vb[2]), 16)
+		vbtn.expand_icon = false
+		vbtn.tooltip_text = String(vb[3])
+		vbtn.focus_mode = Control.FOCUS_NONE
+		vbtn.custom_minimum_size = Vector2(0, 30)
+		vbtn.add_theme_font_size_override("font_size", 13)
+		vbtn.pressed.connect(_view_press.bind(String(vb[0])))
+		vr.add_child(vbtn)
 	var cr := HFlowContainer.new()
 	cr.name = "easypart_chips"
 	cr.add_theme_constant_override("h_separation", 2)
@@ -1476,6 +1497,9 @@ func _screw_box() -> PanelContainer:
 	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	screw_words = hd
 	vb.add_child(hd)
+	var row := HBoxContainer.new()   # FRIDAY 37 BOSS CHIP: the boss and nut buttons side by side, above the sizes (in view, not under the scroll)
+	row.add_theme_constant_override("separation", 4)
+	vb.add_child(row)
 	var g := GridContainer.new()
 	g.columns = SCREW_DS.size()
 	g.add_theme_constant_override("h_separation", 4)
@@ -1491,8 +1515,22 @@ func _screw_box() -> PanelContainer:
 	nw_btn.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
 	nw_btn.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
 	nw_btn.pressed.connect(_nw_add)
-	vb.add_child(nw_btn)   # above the size chips: under them it sat below the fold of a short panel (the test clicked past it)
-	vb.add_child(g)
+	nw_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(nw_btn)
+	boss_btn = Button.new()   # FRIDAY 37 BOSS CHIP: a round post beside the screw on the floor, sized to it (outside head + 4 mm, hole + 0.5 mm, height = length), one click
+	boss_btn.name = "easypart_boss_add"
+	boss_btn.text = "Add its boss"
+	boss_btn.icon = _boss_icon()
+	boss_btn.tooltip_text = "Put a round post beside this screw, sized to it: the screw goes through its hole. One click, one undo step"
+	boss_btn.focus_mode = Control.FOCUS_NONE
+	boss_btn.custom_minimum_size = Vector2(0, 28)   # 28 as the nut button: the row stays one line high and the sizes stay in the panel
+	boss_btn.add_theme_font_size_override("font_size", 13)
+	boss_btn.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+	boss_btn.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+	boss_btn.pressed.connect(_boss_add)
+	boss_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(boss_btn)
+	vb.add_child(g)   # the sizes under the nut / boss row (above them it sat below the fold of a short panel)
 	for L in SCREW_LENS:
 		for d in SCREW_DS:
 			var hw: float = float(PartTemplates.SCREW_HEAD[d][0])
@@ -1689,6 +1727,54 @@ func _nw_icon() -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 
+## FRIDAY 37 BOSS CHIP: a small ring icon (a post seen from above: a ring, Tok colour only), same 16 px box as the others
+func _boss_icon() -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	for y in 16:
+		for x in 16:
+			var r := Vector2(x + 0.5 - 8.0, y + 0.5 - 8.0).length()
+			if r <= 7.0 and r >= 4.0:
+				img.set_pixel(x, y, col)
+	return ImageTexture.create_from_image(img)
+
+
+## FRIDAY 37 BOSS CHIP: the boss button. No screw on the floor: it says what to do first. Its post already there: it says so (no undo step).
+## Else one undo step puts the post on the floor beside the screw, sized to it.
+func _boss_add() -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var on_floor := _tpl() == "screw" and not (_rec().get("features", []) as Array).is_empty()
+	if not on_floor:
+		_say("Put a screw on the floor first: pick a size above, then press Add its boss")
+		_screw_sync()
+		return
+	var e: Dictionary = _rec().get("easy", {})
+	if int(e.get("bo", -1)) >= 0:
+		_say("Its boss is on the floor already. Pick another size to change it")
+		_screw_sync()
+		return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Add the boss"
+	m._push_undo()
+	var cur: Dictionary = e["p"]
+	PartTemplates.bo_add(_rec(), int(cur["d"]), int(cur["L"]))
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("The boss did not build. Press Reset, then pick a size again")
+	else:
+		_say("Boss on the floor beside the screw. Pick another size to change it")
+	_screw_sync()
+
+
 ## NNUTWASHER: the nut button. No screw on the floor: it says what to do first. Its nut and washer already there: it says so (no undo step).
 ## Else one undo step puts them on the floor beside the screw, sized to it.
 func _nw_add() -> void:
@@ -1853,6 +1939,10 @@ func _lib_press(cat: String) -> void:
 		_say("Wheels: press Wheel or Castor. It drops on the floor, with its axle hole")
 	elif cat == "Boards":   # p078makeacasef
 		_say("Boards: press your board. A case for it drops on the floor")
+	elif cat == "Hinges":
+		_say("Hinges: press Hinge below. It drops on the floor, sized to the door")
+	elif cat == "Springs":   # p070springfix: the page shows the Spring button (opening a category builds nothing)
+		_say("Springs: press Spring below. It drops on the floor")
 	else:
 		_say("%s are coming soon. Next step: press Screws or Gears" % cat)
 	_screw_sync()
@@ -1891,6 +1981,26 @@ func _lib_box() -> PanelContainer:
 	lib_soon.add_theme_font_size_override("font_size", 14)
 	lib_soon.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lib_soon.visible = false
+	hinges_btn = Button.new()   # p067hinges: a Hinges page button (shown only on Hinges): one click, a Butt hinge at the door's height
+	hinges_btn.name = "easypart_hinge_pick"
+	hinges_btn.text = "Hinge"
+	hinges_btn.toggle_mode = true
+	hinges_btn.focus_mode = Control.FOCUS_NONE
+	hinges_btn.custom_minimum_size = Vector2(0, 34)
+	hinges_btn.add_theme_font_size_override("font_size", 13)
+	hinges_btn.visible = false
+	hinges_btn.pressed.connect(_hinges_btn_press)
+	vb.add_child(hinges_btn)
+	spring_pick = Button.new()   # p070springfix: the Springs page button (shown only on Springs): one click, a spring on the floor
+	spring_pick.name = "easypart_spring_pick"
+	spring_pick.text = "Spring"
+	spring_pick.toggle_mode = true
+	spring_pick.focus_mode = Control.FOCUS_NONE
+	spring_pick.custom_minimum_size = Vector2(0, 34)
+	spring_pick.add_theme_font_size_override("font_size", 13)
+	spring_pick.visible = false
+	spring_pick.pressed.connect(_spring_pick_press)
+	vb.add_child(spring_pick)
 	vb.add_child(lib_soon)
 	return pc
 
@@ -2064,6 +2174,7 @@ func _screw_pick(d: int, L: int) -> void:
 	if on_floor:
 		PartTemplates.retemplate(_rec(), {"d": d, "L": L})
 		PartTemplates.nw_set(_rec(), d)   # NNUTWASHER: the nut and washer (if on the floor) follow the size
+		PartTemplates.bo_set(_rec(), d, L)   # FRIDAY 37 BOSS CHIP: the post (if on the floor) follows the size too
 	else:
 		m.S.part = PartTemplates.make("screw", {"d": d, "L": L})
 	tweak = {}
@@ -2169,6 +2280,12 @@ func _screw_sync() -> void:
 			var lb: Button = lib_btns[cat]
 			lb.set_pressed_no_signal(parts_open and cat == lib_cat)
 			m._grey(lb, Part.why_not() if not Part.available() else "")
+		hinges_btn.visible = parts_open and lib_cat == "Hinges"   # p067hinges
+		hinges_btn.set_pressed_no_signal(_tpl() == "hinge")
+		m._grey(hinges_btn, Part.why_not() if not Part.available() else "")
+		spring_pick.visible = parts_open and lib_cat == "Springs"   # p070springfix
+		spring_pick.set_pressed_no_signal(_tpl() == "spring")
+		m._grey(spring_pick, Part.why_not() if not Part.available() else "")
 		lib_soon.visible = parts_open and lib_cat != "" and not (lib_cat in LIB_READY)
 		if screw_words != null:   # the page is open: its chips and the status line say what to do
 			screw_words.visible = not parts_open
@@ -2341,6 +2458,31 @@ func _seat_press() -> void:
 	else:
 		_say("Seat made for the %s bearing: the bearing stands beside it. Undo takes the seat back" % BEAR_CODES[k])
 	_screw_sync()
+
+
+# P107 FITVIEW: the view row at the top of the panel. The camera only: no step, so no undo
+const VIEW_BTNS := [
+	["fit", "Fit view", "view_fit", "Fit the whole part in the clear view"],
+	["front", "Front", "view_front", "Look at the part from the front"],
+	["top", "Top", "view_top", "Look down at the part from above"],
+	["side", "Side", "view_side", "Look at the part from the right side"],
+	["3q", "3/4", "view_3q", "Look at the part from a corner, so its depth shows"],
+]
+const VIEW_ANGLES := {"front": [0.0, -8.0], "top": [0.0, -89.0], "side": [-90.0, -8.0]}   # yaw, pitch (degrees): the same numbers as Expert's views
+
+
+func _view_press(k: String) -> void:
+	if k == "fit":
+		frame()
+		_say("Fit view: the whole part is in the clear view")
+		return
+	var ang: Array = VIEW_ANGLES.get(k, PartTemplates.view_of(String(m.S.part.get("easy", {}).get("t", ""))))   # 3/4: a template's own corner view
+	var rs: Dictionary = pu.res   # the built part (part_ui's own result)
+	var bb: AABB = rs.get("aabb", AABB()) if not rs.is_empty() else AABB()
+	var empty := bb.size.length() < 1e-4
+	var c := Vector3(0.1, 0.0, 0.0) if empty else bb.get_center()
+	m._turn_to(float(ang[0]), float(ang[1]), 0.9 if empty else clampf(bb.size.length() * 1.5, 0.4, 6.0), c, true)
+	_say("Turned the view. Fit view brings the whole part back in")
 
 
 func _back() -> void:
@@ -3228,6 +3370,7 @@ func _process(_dt: float) -> void:
 	make_box.visible = on
 	panel.visible = on
 	hint.visible = on
+	view_box.visible = on   # P107 FITVIEW
 	status.visible = on
 	dots.visible = on
 	shape_box.visible = on and armed == "draw"
@@ -3666,7 +3809,7 @@ func _over_ui(p: Vector2) -> bool:
 	if edge_chip != null and edge_chip.visible and edge_chip.get_global_rect().has_point(p):
 		return true   # NEDGECHIP: the edge chip is a button: its press is not a pick
 	# hint and status are WORDS only (a _pill: mouse_filter IGNORE, one Label, no button): a press under them is the grid's, not eaten
-	for c in [bar, make_box, panel, shape_box, colour_box, repeat_box, stick_box, explode_box, tilt_box]:
+	for c in [bar, make_box, view_box, panel, shape_box, colour_box, repeat_box, stick_box, explode_box, tilt_box]:   # P107 FITVIEW: the view row is a button row, a press on it is not the grid's
 		if (c as Control).visible and (c as Control).get_global_rect().has_point(p):
 			return true
 	return false
@@ -4536,3 +4679,19 @@ func _demo_close() -> void:
 	if demo_ghost != null:
 		demo_ghost.visible = false
 		demo_ghost.mesh = null
+
+
+## p067hinges: the Hinges page's Hinge button: the page closes (the hinge's Kind and Door height sliders take its room), then a Butt
+## hinge drops on the floor at the door's height. One undo step (the chip's).
+func _hinges_btn_press() -> void:
+	parts_open = false
+	_chip("hinge")
+	_screw_sync()
+
+
+## p070springfix: the Springs page's Spring button: the page closes (the spring's Turns, Wire and Coil size sliders take its room),
+## then the spring drops on the floor. One undo step (the chip's).
+func _spring_pick_press() -> void:
+	parts_open = false
+	_chip("spring")
+	_screw_sync()

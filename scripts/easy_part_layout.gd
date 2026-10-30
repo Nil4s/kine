@@ -427,10 +427,13 @@ func layout(cl: Rect2) -> void:
 		(b as Control).custom_minimum_size.x = bw
 	make_box.size = Vector2(bw * n + (n - 1.0) * 8.0, MAKE_H)
 	make_box.position = Vector2(cl.position.x + 8.0, cl.position.y + 4.0)
-	var top := make_box.position.y + maxf(MAKE_H, make_box.size.y) + 8.0
+	var top := make_box.position.y + maxf(MAKE_H, make_box.size.y) + 8.0   # the side panel's top
+	view_box.reset_size()   # P107 FITVIEW: the five view buttons, a narrow column at the top right of the clear view, just left of the panel: the
+	# left column keeps its place and the grid's middle and bottom (where the pieces stand) stay free; the words stop short of it
+	view_box.position = Vector2(cl.end.x - PW - 18.0 - view_box.size.x, top)
 	var fnt: Font = hint_l.get_theme_font("font")   # the words' width on one line (a label that wraps reports no width)
 	var one_line := fnt.get_string_size(hint_l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, hint_l.get_theme_font_size("font_size")).x + 40.0
-	hint.size.x = minf(one_line, cl.size.x - PW - 40.0)
+	hint.size.x = minf(one_line, minf(cl.size.x - PW - 40.0, view_box.position.x - cl.position.x - 24.0))   # P107: never under the view column
 	hint.size.y = hint.get_combined_minimum_size().y   # the height of the words wrapped to that width
 	hint.position = Vector2(cl.position.x + 12.0, top)
 	shape_box.reset_size()
