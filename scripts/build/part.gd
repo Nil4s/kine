@@ -57,6 +57,7 @@ extends RefCounted
 
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
+const SKIN_MM := 0.3   # NROUNDFILTER: a face centre this close (mm) to the box's outside counts as on the skin
 const VERSION := 1
 const RING_MIDDLE := 100.0   # mm: a Ring piece whose centre is closer than this to the middle (not on it) goes round the middle
 const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft"]
@@ -596,8 +597,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 			var es := KCad.edges(b)
 			var bb := _bbox(es)
 			var fnorm := {}   # FBRACKET: face id -> outward normal, to tell a flat seam (two coplanar faces joined) from a real bend
+			var fcen := {}   # NROUNDFILTER: face id -> its centre (the outside test: every face of an edge lies on the box's skin)
 			for fc in KCad.faces(b):
 				fnorm[int(fc["id"])] = fc["normal"]
+				fcen[int(fc["id"])] = fc["center"]
 			for ed in es:
 				var ef: Array = ed.get("faces", [])
 				var seam := false
@@ -607,7 +610,14 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					var n2: Vector3 = fnorm[int(ef[1])]
 					seam = n1.dot(n2) > 0.99
 					concave = not seam and (ed["center"] - bb.get_center()).dot(n1 + n2) < 0.0
-				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave})
+				# NROUNDFILTER: "outside" = every face the edge touches lies on the outside of the solid's box (a hole's or a cup's inside does not);
+				# "top" = both ends at the top of the box. Round's filters (Easy Part: All edges, Only the outside, Only the top) read these
+				var outside := not ef.is_empty()
+				for fi in ef:
+					if not fcen.has(int(fi)) or not _on_skin(fcen[int(fi)], bb):
+						outside = false
+				var top := float(ed["a"].y) >= bb.end.y - SKIN_MM * MM and float(ed["b"].y) >= bb.end.y - SKIN_MM * MM
+				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "outside": outside, "top": top})
 	res["bodies"] = bodies.size()
 	for bi in bodies.size():
 		res["body_looks"].append(look_at(looks, bi))
@@ -1874,6 +1884,14 @@ static func match_edge(es: Array, bb: AABB, want: Dictionary) -> int:
 			best_s = s
 			best = i
 	return best
+
+
+## NROUNDFILTER: a point lies on the skin of the box bb (one of its six faces, within SKIN_MM)
+static func _on_skin(p: Vector3, bb: AABB) -> bool:
+	for ax in 3:
+		if absf(p[ax] - bb.position[ax]) < SKIN_MM * MM or absf(p[ax] - bb.end[ax]) < SKIN_MM * MM:
+			return true
+	return false
 
 
 ## the descriptor to store for an edge of the replay result (see replay's "edges"); mm

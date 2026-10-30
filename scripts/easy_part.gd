@@ -17,10 +17,14 @@ const ROUND_BUDGET_US := 300000   # EROUND: the Round press stops trying edges a
 const MAKE_H := 76.0
 const REP_WORDS := {"count": ["Fewer", "More"], "gap": ["Closer", "Further apart"]}   # the Repeat it sliders' ends
 const STICK_OPS := [["join", "Join", "Make the two pieces one solid"], ["cut", "Cut away", "Cut the second piece out of the first"], ["intersect", "Keep the overlap", "Keep only the part where the two pieces overlap"]]
+const SCREW_DS := [3, 4, 5, 6]         # NSCREW2: the Parts category's screw sizes (M3..M6, columns of the grid)
+const SCREW_LENS := [10, 16, 20, 30]   # NSCREW2: the screw lengths in mm (rows of the grid)
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
 const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal): a wood brown, red > green > blue
 const TILT_DEG := 20.0           # Tilt it: the lean of the newest solid (degrees, sideways about its middle)
 const HOLLOW_MM := 3.0           # Hollow inside: the wall the shell starts with (the Wall slider moves it: 1 to 10 mm)
+const LID_MM := 5.0             # Hollow with a lid (nlid): the top slice that comes off as the lid (a solid plate, the box's footprint)
+const LID_LIP_MM := 3.0         # the lid's lip: how far it goes down inside the box (1 mm wide ring, 0.2 mm gap to the wall)
 const THROTTLE_MS := 100
 const CLIP_MM := 6.0             # FBOWL2: a spun curve that dips past the middle line by less than this (a spline overshoot) is clipped onto it
 const NARROW_W := 1200.0         # FMOBILE: a window narrower than this (1024 x 600) shrinks the bar's buttons and the title
@@ -39,6 +43,7 @@ const MAKES := [
 	["colour", "Colour", "part_appearance", "Pick a colour for the solid, or Glass or Metal"],
 	["repeat", "Repeat it", "part_pattern", "Copy the newest solid in a row, or round in a ring. Then move the sliders"],
 	["stick", "Stick together", "part_combine", "Click two solid pieces in the view, then pick Join, Cut away or Keep the overlap"]]
+const ROUND_FILTERS := [["all", "All edges", "part_filter_all", "Round every edge of the solid"], ["outside", "Only the outside", "part_filter_outside", "Round only the edges on the outside, not the inside of a hole or a cup"], ["top", "Only the top", "part_filter_top", "Round only the top edges of the solid"]]   # NROUNDFILTER
 const BAD_WORDS := ["ctrl", "shift", "alt+", "esc", "enter", "tab ", "delete", "backspace", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12", "spacebar", "return key"]
 
 var pu: PartUI
@@ -67,11 +72,17 @@ var repeat_box: PanelContainer   # Repeat it: Row / Ring and the How many and Ga
 var rep_btns := {}
 var tilt_box: PanelContainer     # Tilt it: one chip under the newest solid (a Spin or a Pull), leans it 20 degrees once
 var tilt_btn: Button
+var parts_btn: Button            # NSCREW2: the Parts category chip (opens the screw grid under the template chips)
+var screw_box: PanelContainer    # NSCREW2: the screw grid: sixteen size chips, shown while Parts is open or a screw is the part
+var screw_btns := {}             # NSCREW2: "d_L" -> the size chip (M<d> x <L>)
+var parts_open := false          # NSCREW2: the Parts category is open (the grid shows even with no screw on the floor)
 var stick_box: PanelContainer    # Stick together: Join / Cut away / Keep the overlap, shown once two pieces are picked
 var stick_btns := {}
 var stick_picks: Array = []      # the body indices clicked in the view (the first = the target, the second = the tool)
 var stick_tris := {}             # body index -> its triangles, for the glow of a picked piece
 var stick_edges := {}            # body index -> its crease edges (pairs of points): the glow's outline, no triangle diagonals
+const EDGE_PX := 10.0            # NROUNDDRAG: a press this close (screen px) to a solid's edge takes it in hand
+const EDGE_MAX_MM := 10.0        # NROUNDDRAG: the radius a drag can reach (mm)
 const PICK_PX := 12.0            # a click this close (screen px) to a piece picks it when the ray hits nothing
 var rep_id := ""                 # the last Repeat it step's feature id ("" = none)
 var rep_rows := []               # the two slider rows of the Repeat it box (see _make_row)
@@ -82,6 +93,10 @@ var hole_id := ""                # the feature id of the last hole step (the hol
 var hole_mode := "through"       # "through" | "hollow": the chip that is on
 var split_box: PanelContainer   # ECUT2: Cut in two's keep chips (both halves / the lower half / the upper half), after a Cut in two press (see _split_on)
 var split_btns := {}
+var round_box: PanelContainer   # NROUNDFILTER: the All edges / Only the outside / Only the top chips, beside Round the edges (see _round_box)
+var round_btns := {}
+var round_mode := "all"          # the filter the next Round the edges press uses: "all" | "outside" | "top"
+
 var split_id := ""              # the feature id of the last Cut in two step: the keep chips edit its "keep" field
 var colour_box: PanelContainer   # Colour: the five colour chips and Glass / Metal, under the MAKE row (armed "colour")
 var panel: PanelContainer
@@ -140,6 +155,8 @@ var del_id := ""
 var del_n := -1
 var del_pt := Vector3.ZERO       # the point clicked on the piece (metres, the same units as the faces)
 var del_tris := PackedVector3Array()   # the picked piece's triangles: its glow
+var _edge := {}                  # NROUNDDRAG: an edge in hand (a press within EDGE_PX of a solid's edge, dragged outward): {"e", "press", "out", "pxmm", "r"}
+var edge_num: Label             # NROUNDDRAG: the radius in mm, beside the cursor while an edge is dragged (hidden otherwise)
 var _pick_p := Vector2(-1, -1)   # a left press on the grid with nothing armed: a click (no drag) picks the piece under it on release
 var flushes := 0                # rebuilds made by sliders and dots (the tests count them against the clock)
 
@@ -270,6 +287,8 @@ func build(root: Control) -> void:
 	root.add_child(hole_box)
 	split_box = _split_box()
 	root.add_child(split_box)
+	round_box = _round_box()   # NROUNDFILTER
+	root.add_child(round_box)
 	colour_box = _colour_box()
 	root.add_child(colour_box)
 	repeat_box = _repeat_box()
@@ -317,6 +336,15 @@ func build(root: Control) -> void:
 	cr.add_theme_constant_override("h_separation", 4)
 	cr.add_theme_constant_override("v_separation", 4)
 	v.add_child(cr)
+	parts_btn = Button.new()   # NSCREW2: Parts: the screw sizes; after the template chips on the same row
+	parts_btn.name = "easypart_chip_parts"
+	parts_btn.text = "Parts"
+	parts_btn.tooltip_text = "Small parts with a set size: screws M3 to M6, 10 to 30 mm long"
+	parts_btn.toggle_mode = true
+	parts_btn.focus_mode = Control.FOCUS_NONE
+	parts_btn.custom_minimum_size = Vector2(0, 34)
+	parts_btn.add_theme_font_size_override("font_size", 15)
+	parts_btn.pressed.connect(_parts_press)
 	for t in PartTemplates.ORDER:
 		var b := Button.new()
 		b.name = "easypart_chip_" + t
@@ -328,6 +356,8 @@ func build(root: Control) -> void:
 		b.pressed.connect(_chip.bind(t))
 		cr.add_child(b)
 		chips[t] = b
+	screw_box = _screw_box()
+	v.add_child(screw_box)
 	rows_vb = VBoxContainer.new()
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 4)
@@ -339,6 +369,7 @@ func build(root: Control) -> void:
 	var foot := HFlowContainer.new()
 	foot.name = "easypart_foot"
 	foot.add_theme_constant_override("separation", 8)
+	foot.add_child(parts_btn)   # NSCREW2: Parts sits in the foot (a button in the template row shifted the layout)
 	v.add_child(foot)
 	back_btn = Button.new()
 	back_btn.name = "easypart_back"
@@ -370,6 +401,14 @@ func build(root: Control) -> void:
 	dots.draw.connect(_draw_dots)
 	dots.visible = false
 	root.add_child(dots)
+	edge_num = Label.new()   # NROUNDDRAG: the number beside the cursor (plain words, Tok colours)
+	edge_num.name = "EdgeNum"
+	edge_num.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	edge_num.add_theme_font_size_override("font_size", 16)
+	edge_num.add_theme_color_override("font_color", Color.WHITE)
+	edge_num.add_theme_stylebox_override("normal", _style(Color(0.1, 0.11, 0.14, 0.9), 4, 6))
+	edge_num.visible = false
+	root.add_child(edge_num)
 	size_l = Label.new()
 	size_l.name = "easypart_size"
 	size_l.add_theme_font_size_override("font_size", 14)
@@ -389,13 +428,58 @@ func _hole_box() -> PanelContainer:
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 6)
 	box.add_child(h)
-	for hm in [["through", "Through", "A round hole straight through the middle"], ["hollow", "Hollow inside", "Hollow the solid out, open at the top, with a wall (the Wall slider)"]]:
+	for hm in [["through", "Through", "A round hole straight through the middle"], ["hollow", "Hollow inside", "Hollow the solid out, open at the top, with a wall (the Wall slider)"], ["lid", "Hollow with a lid", "Hollow the box out with a 3 mm wall; its top 5 mm comes off as a lid with a lip that sits inside the box"]]:
 		var b := _big_btn("easypart_hole_" + String(hm[0]), String(hm[1]), String(hm[2]), _hole_mode.bind(String(hm[0])))
 		b.toggle_mode = true
 		b.custom_minimum_size = Vector2(150, 44)
 		h.add_child(b)
 		hole_btns[hm[0]] = b
 	return box
+
+
+## NROUNDFILTER: the three filter chips beside Round the edges: All edges (the default), Only the outside, Only the top. Each chip sets the
+## filter for the next Round press (no undo step of its own: the press is the one step). Shown while a solid is there and nothing is armed
+func _round_box() -> PanelContainer:
+	var box := PanelContainer.new()
+	box.name = "easypart_round"
+	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	box.visible = false
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 6)
+	box.add_child(h)
+	for rf in ROUND_FILTERS:
+		var b := _big_btn("easypart_round_" + String(rf[0]), String(rf[1]), String(rf[3]), _round_filter.bind(String(rf[0])))
+		b.toggle_mode = true
+		b.icon = Icons.sized(String(rf[2]), 22)
+		b.expand_icon = false
+		b.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.custom_minimum_size = Vector2(176, 44)
+		h.add_child(b)
+		round_btns[rf[0]] = b
+	return box
+
+
+func _round_shown() -> bool:
+	return armed == "" and int(pu.res.get("bodies", 0)) > 0 and not _hole_on() and not _split_on()
+
+
+func _round_sync() -> void:
+	for k in round_btns:
+		(round_btns[k] as Button).set_pressed_no_signal(k == round_mode)
+		m._grey(round_btns[k], Part.why_not() if not Part.available() else "")
+
+
+## a filter chip: the next Round the edges press rounds this kind of edge. Changes no step (nothing is made until Round the edges)
+func _round_filter(key: String) -> void:
+	round_mode = key
+	_round_sync()
+	match key:
+		"outside":
+			_say("Round the edges will now round only the outside edges. Press Round the edges")
+		"top":
+			_say("Round the edges will now round only the top edges. Press Round the edges")
+		_:
+			_say("Round the edges will now round every edge. Press Round the edges")
 
 
 ## ECUT2: Cut in two keeps ONE half: three toggle chips after a Cut in two press. Both halves is the default (two bodies); the lower or upper half
@@ -939,7 +1023,7 @@ func _rows_sync() -> void:
 		rows_vb.remove_child(c)
 		c.queue_free()
 	rows = []
-	if t != "":
+	if t != "" and not PartTemplates.T[t].get("parts", false):   # NSCREW2: a screw's numbers are the Parts chips, not sliders
 		for d in PartTemplates.T[t]["params"]:
 			var r := _make_row(String(d["label"]), float(d["lo"]) / 10.0, float(d["hi"]) / 10.0, float(d["step"]) / 10.0, d["words"], "tpl", String(d["k"]), "cm")
 			rows.append(r)
@@ -985,6 +1069,11 @@ func tweak_last() -> void:
 	elif t == "extrude" and not bool(f.get("both", false)) and String(f.get("op", "join")) == "join" and f.has("dist"):
 		var dist := float(f["dist"])
 		tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": -1.0 if dist < 0.0 else 1.0}
+		var pk := Part.feature(_rec(), String(f.get("sketch", "")))
+		var pf := Part.feature(_rec(), String(pk.get("plane", "front")))
+		var face := String(pf.get("t", "")) == "plane" and pf.has("out")   # a pull off a face or an upright one keeps How far (as _pull does)
+		if not pk.is_empty() and not face and not bool(pf.get("through", false)) and _flat_plate(pk, dist):
+			tweak = _thickness_tweak(f["id"], -1.0 if dist < 0.0 else 1.0)   # NTHICK: a reopened flat plate keeps its Thickness slider
 	elif t == "extrude" and bool(f.get("both", false)) and String(f.get("op", "")) == "cut":
 		var sk := Part.feature(_rec(), String(f.get("sketch", "")))
 		var ents: Array = sk.get("ents", [])
@@ -1106,6 +1195,123 @@ func _chips_sync() -> void:
 	for t in chips:
 		(chips[t] as Button).set_pressed_no_signal(t == _tpl())
 		m._grey(chips[t], Part.why_not() if not Part.available() else "")
+	_screw_sync()
+
+
+## NSCREW2: the screw grid: four columns (M3 M4 M5 M6), one row per length (10 16 20 30 mm), each chip with a small screw icon
+func _screw_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_screw_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
+	var hd := Label.new()
+	hd.name = "easypart_screw_words"
+	hd.text = "Screws, socket head: pick a size. It drops on the floor"
+	hd.add_theme_font_size_override("font_size", 14)
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(hd)
+	var g := GridContainer.new()
+	g.columns = SCREW_DS.size()
+	g.add_theme_constant_override("h_separation", 4)
+	g.add_theme_constant_override("v_separation", 4)
+	vb.add_child(g)
+	for L in SCREW_LENS:
+		for d in SCREW_DS:
+			var hw: float = float(PartTemplates.SCREW_HEAD[d][0])
+			var hh: float = float(PartTemplates.SCREW_HEAD[d][1])
+			var b := Button.new()
+			b.name = "easypart_screw_M%d_%d" % [d, L]
+			b.text = "M%d x %d" % [d, L]
+			b.icon = _screw_icon(d, L)
+			b.tooltip_text = "M%d x %d: head %s mm across, %s mm high, plain shank %d mm long" % [d, L, str(hw), str(hh), L]
+			b.toggle_mode = true
+			b.focus_mode = Control.FOCUS_NONE
+			b.custom_minimum_size = Vector2(0, 34)
+			b.add_theme_font_size_override("font_size", 13)
+			b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+			b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+			b.pressed.connect(_screw_pick.bind(d, L))
+			g.add_child(b)
+			screw_btns["%d_%d" % [d, L]] = b
+	return pc
+
+
+## NSCREW2: a small screw icon, drawn from the size: head width grows with M, shank length with the length (the same 16 px box)
+func _screw_icon(d: int, L: int) -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	var hw := clampi(int(round(4.0 + 1.2 * float(d))), 6, 14)
+	img.fill_rect(Rect2i(8 - hw / 2, 0, hw, 4), col)
+	var sw := maxi(2, int(round(0.5 * float(d))))
+	var sh := clampi(int(round(0.3 * float(L))), 4, 11)
+	img.fill_rect(Rect2i(8 - sw / 2, 4, sw, sh), col)
+	return ImageTexture.create_from_image(img)
+
+
+## NSCREW2: the Parts chip opens or shuts the screw grid (a screw on the floor keeps it open)
+func _parts_press() -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	parts_open = not parts_open
+	_say("Screws: pick a size. It drops on the floor" if parts_open else "Parts shut. Press Parts to open the screws again")
+	_screw_sync()
+
+
+## NSCREW2: a size chip. No screw on the floor: a new screw of that size (one undo step). A screw already there: its size changes
+## (one undo step, the same steps). The same size again does nothing.
+func _screw_pick(d: int, L: int) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var label := "M%d x %d" % [d, L]
+	var on_floor := _tpl() == "screw" and not (_rec().get("features", []) as Array).is_empty()
+	if on_floor:
+		var cur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {})
+		if int(cur.get("d", 0)) == d and int(cur.get("L", 0)) == L:
+			_say("Already %s on the floor. Pick another size to change it" % label)
+			_screw_sync()
+			return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Change the screw size" if on_floor else "Start a screw"
+	m._push_undo()
+	if on_floor:
+		PartTemplates.retemplate(_rec(), {"d": d, "L": L})
+	else:
+		m.S.part = PartTemplates.make("screw", {"d": d, "L": L})
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("%s did not build. Press Reset, then pick a size again" % label)
+	else:
+		_say("%s on the floor. Pick another size to change it" % label)
+	_screw_sync()
+
+
+## NSCREW2: the grid's open state and the pressed size (the screw on the floor); the Parts chip is pressed while the grid shows
+func _screw_sync() -> void:
+	if screw_box == null or parts_btn == null:
+		return
+	var cur: Dictionary = {}
+	if _tpl() == "screw":
+		cur = (_rec().get("easy", {}) as Dictionary).get("p", {})
+	screw_box.visible = parts_open or _tpl() == "screw"
+	parts_btn.set_pressed_no_signal(screw_box.visible)
+	for d in SCREW_DS:
+		for L in SCREW_LENS:
+			var b: Button = screw_btns["%d_%d" % [d, L]]
+			b.set_pressed_no_signal(not cur.is_empty() and int(cur.get("d", 0)) == d and int(cur.get("L", 0)) == L)
+			m._grey(b, Part.why_not() if not Part.available() else "")
+	parts_btn.set_pressed_no_signal(screw_box.visible)
 
 
 func _back() -> void:
@@ -1252,10 +1458,10 @@ func _hole_mode(mode: String) -> void:
 	_flush_if_dirty()
 	armed = ""
 	var snap := _rec().duplicate(true)
-	_begin("Hollow inside" if mode == "hollow" else "Cut a hole")
+	_begin("Hollow with a lid" if mode == "lid" else ("Hollow inside" if mode == "hollow" else "Cut a hole"))
 	var rec: Dictionary = hole_base.duplicate(true)
 	m.S.part = rec
-	var why := _hollow(rec) if mode == "hollow" else _hole(rec)
+	var why := _hollow_lid(rec) if mode == "lid" else (_hollow(rec) if mode == "hollow" else _hole(rec))
 	if why != "":
 		m.S.part = snap
 		m._drop_undo()
@@ -1264,12 +1470,59 @@ func _hole_mode(mode: String) -> void:
 	else:
 		_end()
 		hole_mode = mode
-		hole_id = String(tweak.get("id", ""))
+		hole_id = String(tweak.get("id", "")) if not tweak.is_empty() else String(rec["features"][-1].get("id", ""))   # the lid has no slider: its newest step keeps the chips up
 	pu.upto = -1
 	pu.sync()
 	_rows_sig = ""   # the step's id can repeat the last one (the chips rebuild from an older record): the slider box is rebuilt anyway
 	_rows_sync()
 	_values_sync()
+
+
+## NOPENTOP: after Hollow inside, a click on a flat face makes THAT face the open side (one undo step): the shell's "open" is set to the
+## face's direction and the Wall slider keeps its step (the same id). A side that cannot open says so and changes nothing. false = not a face click here
+const OPEN_WORDS := {"+x": "right", "-x": "left", "+y": "top", "-y": "bottom", "+z": "front", "-z": "back"}
+
+
+func _open_face(p: Vector2) -> bool:
+	if hole_mode != "hollow" or not _hole_on() or _tpl() != "":
+		return false
+	var sh := Part.feature(_rec(), hole_id)
+	if String(sh.get("t", "")) != "shell":
+		return false
+	var fc := _face_hit(p)
+	if fc.is_empty():
+		return false
+	var ax := ["right", "top", "front"].find(String(fc.get("base", "")))
+	if ax < 0:
+		return false
+	var dir: String = ["+x", "+y", "+z"][ax] if int(fc.get("out", 1)) > 0 else ["-x", "-y", "-z"][ax]
+	var side: String = String(OPEN_WORDS[dir])
+	if dir == String(sh.get("open", "")):
+		_say("The %s is already open. Click another flat face to open that one" % side)
+		return true
+	_flush_if_dirty()
+	armed = ""
+	var snap := _rec().duplicate(true)
+	_begin("Open the " + side)
+	var rec: Dictionary = snap.duplicate(true)
+	Part.feature(rec, hole_id)["open"] = dir
+	var why := ""
+	if _last_error(rec, hole_id) != "":
+		why = "The %s cannot be the open side: click another flat face, or Cut a hole again" % side
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+	else:
+		m.S.part = rec
+		_end()
+		_say("Open the %s: the %s is open now. The Wall slider still sets the wall" % [side, side])
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	return true
 
 
 ## HOLLOW INSIDE: Part's shell on the newest solid, open at its TOP face ("+y": the planar face with the largest +Y centre),
@@ -1295,6 +1548,56 @@ func _hollow(rec: Dictionary) -> String:
 	tweak = {"id": f["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
 	_say("Hollowed out, open at the top: use the slider for the wall")
 	return ""
+
+
+## HOLLOW WITH A LID (nlid): a box (one body, a rectangle pulled up) is split at its top LID_MM: the top slice is the LID, a solid plate on
+## the box's footprint; the rest is hollowed out (a HOLLOW_MM wall, open at the top). A lip (1 mm ring, LID_LIP_MM tall, 0.2 mm inside the
+## walls) hangs under the lid into the box: a plug cut back to a ring. Box-shaped only; no slider (the lip is cut to the walls). "" or why not
+func _hollow_lid(rec: Dictionary) -> String:
+	var res := Part.replay(rec)
+	if int(res["bodies"]) == 0:
+		return "Nothing solid to hollow out yet. Press Pull it up first"
+	var bb: AABB = res["aabb"]
+	var sz := bb.size / Part.MM
+	var too_small := "That box is too small for a lid: Pull it up at least 12 mm tall and 12 mm wide, then press Cut a hole again"
+	if int(res["bodies"]) != 1 or minf(sz.x, minf(sz.y, sz.z)) < 12.0:
+		return too_small
+	if float(res["volume"]) / (Part.MM * Part.MM * Part.MM) < 0.98 * sz.x * sz.y * sz.z:
+		return "A lid needs a box: Pull a rectangle up into a box, then press Cut a hole again"
+	var x0 := bb.position.x / Part.MM
+	var x1 := bb.end.x / Part.MM
+	var z0 := bb.position.z / Part.MM
+	var z1 := bb.end.z / Part.MM
+	var top := bb.end.y / Part.MM
+	var ins_o := HOLLOW_MM + 0.2          # the lip's outer face: 0.2 mm inside the wall
+	var ins_i := ins_o + 1.0              # the lip's inner face: a 1 mm ring
+	var sp := Part.new_feature(rec, "split", {"plane": "top", "at": top - LID_MM, "keep": 0})   # bodies: [the top slice (the lid), the box]
+	rec["features"].append(sp)
+	var sh := Part.new_feature(rec, "shell", {"body": 1, "thick": HOLLOW_MM, "open": "+y"})
+	rec["features"].append(sh)
+	var pf := Part.new_feature(rec, "plane", {"from": "top", "mm": top - LID_MM - LID_LIP_MM})
+	rec["features"].append(pf)
+	var s1 := Part.new_feature(rec, "sketch", {"plane": String(pf["id"]), "ents": [_rect_ent(x0 + ins_o, z0 + ins_o, x1 - ins_o, z1 - ins_o)], "dims": []})
+	rec["features"].append(s1)
+	var f1 := Part.new_feature(rec, "extrude", {"sketch": s1["id"], "dist": LID_LIP_MM, "both": false, "op": "join", "into": 0})
+	rec["features"].append(f1)
+	var s2 := Part.new_feature(rec, "sketch", {"plane": String(pf["id"]), "ents": [_rect_ent(x0 + ins_i, z0 + ins_i, x1 - ins_i, z1 - ins_i)], "dims": []})
+	rec["features"].append(s2)
+	var f2 := Part.new_feature(rec, "extrude", {"sketch": s2["id"], "dist": LID_LIP_MM, "both": false, "op": "cut"})
+	rec["features"].append(f2)
+	for fid in [sp["id"], sh["id"], f1["id"], f2["id"]]:
+		if _last_error(rec, String(fid)) != "":
+			return too_small
+	if Part.replay(rec)["bodies"] != 2:
+		return too_small
+	tweak = {}
+	_say("Hollowed out with a lid: the top 5 mm is the lid, sitting on the box. Ctrl+Z undoes it")
+	return ""
+
+
+## a rectangle sketch entity from its two corners in the sketch's plane (top plane: v = -Z), mm
+func _rect_ent(xa: float, za: float, xb: float, zb: float) -> Dictionary:
+	return {"k": "rect", "a": Part.arr2(Vector2(xa, -za)), "b": Part.arr2(Vector2(xb, -zb))}
 
 
 ## FCANDLE: Hollow inside for a cup on a base (the newest round piece on a solid): a circle HOLLOW_MM inside the cup's own shape, cut down
@@ -1484,6 +1787,8 @@ func _pull(rec: Dictionary) -> String:
 	if err != "":
 		return "That shape is not closed, so it cannot be pulled up: drag back to the start to close it"
 	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
+	if not (lid or slot or through or on_face) and _flat_plate(sk, dist):   # NTHICK: a flat plate's slider is its Thickness: thin plate (2 mm) to thick block (40 cm)
+		tweak = _thickness_tweak(f["id"], sg)
 	if lid:
 		_say("A lid on the rim: a separate piece. Use the slider for how tall it is")
 	elif slot:
@@ -1501,6 +1806,33 @@ func _pull(rec: Dictionary) -> String:
 	# FPLANTER: a pot is wider at the top: a floor shape pulled up gets a Taper slider under How far (the extrude's taper, degrees)
 	taper_tw = {} if (through or on_face) else {"id": f["id"], "label": "Taper", "unit": "deg", "lo": -15.0, "hi": 15.0, "step": 0.5, "words": ["Wider at the top", "Narrower at the top"]}
 	return ""
+
+
+## NTHICK: a FLAT PLATE is a plain pull of a floor shape whose narrow side is at least 10 cm and whose height is at most half of it (and at most 40 cm):
+## a slab, not a wall or a pillar. Its slider reads Thickness, from a thin plate (2 mm) to a thick block (40 cm)
+func _flat_plate(sk: Dictionary, dist: float) -> bool:
+	if String(sk.get("t", "")) != "sketch":
+		return false
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	var ents: Array = sk.get("ents", [])
+	if ents.is_empty():
+		return false
+	for e in ents:
+		var k := String(e.get("k", ""))
+		if k != "rect" and k != "line":   # a circle, an arc or a curve is not a plate: the How far stays
+			return false
+		for key in ["a", "b"]:
+			var p: Array = e[key]
+			lo = Vector2(minf(lo.x, float(p[0])), minf(lo.y, float(p[1])))
+			hi = Vector2(maxf(hi.x, float(p[0])), maxf(hi.y, float(p[1])))
+	var narrow := minf(hi.x - lo.x, hi.y - lo.y)
+	return narrow >= 100.0 and absf(dist) <= minf(narrow * 0.5, 400.0)
+
+
+## NTHICK: the slider of a flat plate: its pull's dist, labelled Thickness (cm, 0.2 = 2 mm to 40 = 40 cm)
+func _thickness_tweak(id: String, sg: float) -> Dictionary:
+	return {"id": id, "field": "dist", "label": "Thickness", "unit": "cm", "lo": 0.2, "hi": 40.0, "step": 0.2, "scale": 10.0, "words": ["Thin plate", "Thick block"], "sgn": sg}
 
 
 ## FMUG3: a part that already has a pull (an extrude step) in its features
@@ -1763,6 +2095,15 @@ func _round(rec: Dictionary) -> String:
 		return "Nothing solid to round yet. Press Pull it up first"
 	var es: Array = res["edges"]
 	var aabb: AABB = res["aabb"]
+	var flag := "" if round_mode == "all" else round_mode   # NROUNDFILTER: the edge flag of the filter ("outside" / "top")
+	if flag != "":
+		var any := false
+		for e in es:
+			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and bool(e.get(flag, false)):
+				any = true
+		if not any:
+			Part.release_kept(kept)
+			return "No %s edge to round on this solid: press All edges, then Round the edges again" % ("outside" if flag == "outside" else "top")
 	var small := minf(aabb.size.x, minf(aabb.size.y, aabb.size.z)) / Part.MM
 	var longest := 0.0
 	for e in es:
@@ -1771,7 +2112,7 @@ func _round(rec: Dictionary) -> String:
 	# record per try: a press on a part of 25+ steps took minutes that way. The search stops at ROUND_BUDGET_US and keeps the best found
 	var done := false
 	if not kept.is_empty():
-		done = _round_on(rec, int(kept[0]), es, small, longest)
+		done = _round_on(rec, int(kept[0]), es, small, longest, flag)
 	Part.release_kept(kept)
 	if done:
 		return ""
@@ -1779,13 +2120,13 @@ func _round(rec: Dictionary) -> String:
 
 
 ## EROUND: the round on body (a kept solid of the record's end). True when a fillet step was added to rec
-func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: float) -> bool:
+func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: float, flag := "") -> bool:
 	# EBACK: the default never sits below the slider's own low end (1 mm, "Barely"): a thin part's 0.5 mm default looked square
 	for attempt in [[1.0, 0.0], [0.5, 0.0], [0.5, 0.2]]:
 		var r := clampf(small * 0.01 * float(attempt[0]), 1.0, 6.0)
 		var list := []
 		for e in es:
-			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and float(e["len"]) >= longest * float(attempt[1]) and float(e["len"]) / Part.MM > r * 2.5:
+			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and (flag == "" or bool(e.get(flag, false))) and float(e["len"]) >= longest * float(attempt[1]) and float(e["len"]) / Part.MM > r * 2.5:
 				list.append(Part.describe(e))
 		if list.is_empty():
 			continue
@@ -1808,7 +2149,7 @@ func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: flo
 			if Time.get_ticks_usec() - t1 > ROUND_BUDGET_US:
 				out_of_time = true
 				break
-			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and float(e["len"]) / Part.MM > r * 2.5:
+			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and (flag == "" or bool(e.get(flag, false))) and float(e["len"]) / Part.MM > r * 2.5:
 				var trial := good.duplicate()
 				trial.append(Part.describe(e))
 				if Part.fillet_trial(body, r, trial) == "":
@@ -2774,6 +3115,9 @@ func _process(_dt: float) -> void:
 	shape_box.visible = on and armed == "draw"
 	hole_box.visible = on and _hole_on()
 	split_box.visible = on and _split_on()
+	round_box.visible = on and _round_shown()   # NROUNDFILTER
+	if round_box.visible:
+		_round_sync()
 	if split_box.visible:
 		_split_sync()
 	colour_box.visible = on and armed == "colour"
@@ -2887,7 +3231,7 @@ func _frame_step() -> void:
 
 ## the free view: the clear view minus the MAKE row above and the side panel at the right, minus the status line at the bottom
 func free_rect() -> Rect2:
-	var boxes := [hint, hole_box, split_box, shape_box, colour_box, repeat_box, stick_box]   # the words and the chip rows under the MAKE row: the part sits below them
+	var boxes := [hint, hole_box, split_box, round_box, shape_box, colour_box, repeat_box, stick_box]   # the words and the chip rows under the MAKE row: the part sits below them
 	var top := _free_top(boxes)                                                              # (ewalk4: the Through / Hollow inside chips covered the mug's rim)
 	# FSHELF: the Repeat row sits at the left under the words; open, its bottom left the free view under 0 px high (no framing, the copies
 	# of a row stayed off screen). When that happens the row does not push the view down (it floats over the left of the grid)
@@ -3180,6 +3524,8 @@ func layout(cl: Rect2) -> void:
 	hole_box.position = shape_box.position
 	split_box.reset_size()
 	split_box.position = shape_box.position
+	round_box.reset_size()   # NROUNDFILTER: the filter chips sit where the other chip rows do
+	round_box.position = shape_box.position
 	colour_box.reset_size()
 	colour_box.position = shape_box.position
 	# FMOBILE: the floating boxes stay left of the panel (the colour chips wrap) and below the sentence (the hint)
@@ -3757,6 +4103,9 @@ func _key(k: InputEventKey) -> void:
 		elif not _drag.is_empty():
 			_cancel_drag()
 			get_viewport().set_input_as_handled()
+		elif not _edge.is_empty():
+			_edge_cancel()
+			get_viewport().set_input_as_handled()
 	elif k.keycode == KEY_DELETE and not k.ctrl_pressed and not k.alt_pressed:
 		if del_on:
 			_remove_piece()   # FDELETE: the picked piece goes (a click picked it)
@@ -4047,9 +4396,14 @@ func input(ev: InputEvent) -> bool:
 				return true
 			if (armed == "draw" or armed == "curve") and not _over_ui(p):
 				return _start_draft(p)
+			if armed == "" and not _over_ui(p) and _edge_press(p):
+				return true
 			if armed == "" and not _over_ui(p):
 				_pick_p = p   # FDELETE: a click (no drag) on a piece picks it, on the release
 			return false
+		if not _edge.is_empty():
+			_edge_end()
+			return true
 		if not _drag.is_empty():
 			_drag_to(p, true)
 			_drag = {}
@@ -4060,13 +4414,17 @@ func input(ev: InputEvent) -> bool:
 			var pp := _pick_p
 			_pick_p = Vector2(-1, -1)
 			if pp.distance_to(p) < 6.0 and _drag.is_empty() and _draft.is_empty():
-				_pick_at(p)
+				if not _open_face(p):   # NOPENTOP: after Hollow inside, a flat face click opens that side; any other click picks a piece
+					_pick_at(p)
 		if not _draft.is_empty():
 			_draft_end()
 			return true
 		return false
 	if ev is InputEventMouseMotion:
 		var p := (ev as InputEventMouseMotion).position
+		if not _edge.is_empty():
+			_edge_move(p)
+			return true
 		if not _drag.is_empty():
 			_drag_to(p, false)
 			return true
@@ -4396,4 +4754,109 @@ func _group_tri_pts(g: Dictionary, wpos: PackedVector3Array, tris: Array) -> Pac
 		out.append(wpos[tr[2]])
 	return out
 
+
+## NROUNDDRAG: a press within EDGE_PX (screen px) of an edge of the solid, with nothing armed, takes the edge in hand. Dragging it OUTWARD
+## (away from the middle of the solid) rounds it: the drag distance is the radius (mm, 1 mm = pxmm screen px). Release = one undo step
+func _edge_press(p: Vector2) -> bool:
+	if _tpl() != "" or not _drag.is_empty() or not _draft.is_empty() or not Part.available() or m.cam == null:
+		return false
+	var bb: AABB = pu.res.get("aabb", AABB()) if pu != null else AABB()
+	if bb.size == Vector3.ZERO:
+		return false   # no solid yet: nothing to round (a cheap test first: a press on the empty grid never replays the part)
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for k in 8:
+		var sc: Vector2 = m.cam.unproject_position(bb.position + bb.size * Vector3(k & 1, (k >> 1) & 1, (k >> 2) & 1))
+		lo = lo.min(sc)
+		hi = hi.max(sc)
+	if not Rect2(lo, hi - lo).grow(EDGE_PX).has_point(p):
+		return false
+	var res := Part.replay(_rec(), -1, {"edges": true, "keep": true})
+	Part.release_kept(res.get("ids", []))
+	var best := {}
+	var best_d := EDGE_PX
+	for e in res.get("edges", []):
+		if int(e["body"]) != 0 or bool(e.get("seam", false)):
+			continue
+		var a: Vector3 = e["a"]
+		var b: Vector3 = e["b"]
+		if m.cam.is_position_behind(a) or m.cam.is_position_behind(b):
+			continue
+		var d := _seg_px(p, m.cam.unproject_position(a), m.cam.unproject_position(b))
+		if d < best_d:
+			best_d = d
+			best = e
+	if best.is_empty():
+		return false
+	var c: Vector3 = best["c"]
+	var ctr: Vector3 = (res["aabb"] as AABB).get_center()
+	var dir := (c - ctr).normalized() if (c - ctr).length() > 1e-9 else Vector3.UP
+	var s0: Vector2 = m.cam.unproject_position(c)
+	var outv: Vector2 = s0 - m.cam.unproject_position(ctr)
+	outv = outv.normalized() if outv.length() > 0.5 else Vector2.UP
+	var pxmm: float = maxf((m.cam.unproject_position(c + dir * Part.MM) - s0).length(), 0.001)   # screen px per mm at the edge
+	_flush_if_dirty()
+	_edge = {"e": best, "press": p, "out": outv, "pxmm": pxmm, "r": 0.0}
+	_say("Drag outward to round this edge: the drag distance is the radius")
+	return true
+
+
+## the distance in px from p to the screen segment a-b
+func _seg_px(p: Vector2, a: Vector2, b: Vector2) -> float:
+	var ab := b - a
+	var t := 0.0 if ab.length_squared() < 1e-9 else clampf((p - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
+	return p.distance_to(a + ab * t)
+
+
+func _edge_move(p: Vector2) -> void:
+	var along := (p - (_edge["press"] as Vector2)).dot(_edge["out"] as Vector2)   # only the outward part of the drag is the radius
+	var r := clampf(along / float(_edge["pxmm"]), 0.0, EDGE_MAX_MM)
+	_edge["r"] = r
+	edge_num.text = "%d mm" % roundi(r)
+	edge_num.global_position = p + Vector2(18, 14)
+	edge_num.visible = true
+
+
+func _edge_cancel() -> void:
+	_edge = {}
+	edge_num.visible = false
+	_say("Rounding cancelled")
+
+
+func _edge_end() -> void:
+	var ed := _edge
+	_edge = {}
+	edge_num.visible = false
+	var r := snappedf(float(ed["r"]), 0.1)
+	if r < 0.5:
+		_say("Drag an edge outward to round it: the drag distance is the radius")
+		return
+	_edge_round(ed["e"], r)
+
+
+## NROUNDDRAG: one fillet step on the dragged edge (the radius in mm). An edge that cannot take it says what to do next, and adds nothing
+func _edge_round(e: Dictionary, r: float) -> void:
+	_flush_if_dirty()
+	var rec := _rec()
+	var trial := Part.replay(rec, -1, {"edges": true, "keep": true})
+	var kept: Array = trial.get("ids", [])
+	var err := "Nothing solid to round yet. Pull it up first" if kept.is_empty() else Part.fillet_trial(int(kept[0]), r, [Part.describe(e)])
+	Part.release_kept(kept)
+	if err != "":
+		_say("That edge will not take a %d mm round. Drag it less, or Undo the last step" % roundi(r))
+		return
+	_begin("Round an edge by drag")
+	var f := Part.new_feature(rec, "fillet", {"body": 0, "r": r, "edges": [Part.describe(e)]})
+	rec["features"].append(f)
+	if _last_error(rec, String(f["id"])) != "":
+		rec["features"].pop_back()
+		_end()
+		_say("That edge will not take a %d mm round. Drag it less, or Undo the last step" % roundi(r))
+		return
+	_round_done(f)
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_end()
+	_say("Edge rounded %d mm: drag another edge, or use the slider for more or less" % roundi(r))
 
