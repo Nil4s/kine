@@ -15,7 +15,7 @@ extends SceneTree
 const SHOT := "C:/Temp/claude/nlibpage"
 const DIRT := "user://nlibpage_test"
 const CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "Springs", "Handles", "Wheels", "Brackets"]
-const SOON := ["Nuts", "Washers", "Hinges", "Bearings", "Springs", "Handles", "Wheels", "Brackets"]
+const LIB_READY := preload("res://scripts/easy_part_base.gd").LIB_READY   # the categories with parts today (read from the code, not copied)
 const BAD_WORDS := ["ctrl", "shift", "alt+", "esc", "enter", "tab ", "delete", "backspace", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12", "spacebar", "return key"]
 ## ISO 4762 socket head: [head diameter, head height] in mm, by the nominal size (the shank is the nominal size, plain)
 const ISO := {3: [5.5, 3.0], 4: [7.0, 4.0], 5: [8.5, 5.0], 6: [10.0, 6.0]}
@@ -248,7 +248,9 @@ func _init() -> void:
 	# 3 SOON: the eight empty categories say coming soon, name the next step, build nothing
 	var soon_bad := []
 	var ub1: int = m.undo.size()
-	for c in SOON:
+	for c in CATS:
+		if LIB_READY.has(c):
+			continue   # the ready ones (Screws, Gears, Bearings, Brackets, Handles, Wheels) are checked by 4 and in their own suites
 		await click_ctl(lib(c))
 		var sl := soon_label()
 		var txt := sl.text if sl != null else ""

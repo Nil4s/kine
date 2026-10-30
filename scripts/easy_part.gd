@@ -128,10 +128,11 @@ func build(root: Control) -> void:
 	shape_box.name = "easypart_shapes"
 	shape_box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
 	shape_box.visible = false
-	var sh := HBoxContainer.new()
-	sh.add_theme_constant_override("separation", 6)
+	var sh := HFlowContainer.new()   # wraps when the room left of the panel is short (layout clamps its width), so it never runs under the panel
+	sh.add_theme_constant_override("h_separation", 6)
+	sh.add_theme_constant_override("v_separation", 4)
 	shape_box.add_child(sh)
-	for s in [["box", "Box"], ["round", "Round"], ["pointy", "Pointy"], ["oval", "Oval"], ["hex", "Hex"]]:   # FSPOON: Oval = an ellipse fitted to the drag box (a bowl, a pad); FBOLT: Hex = a regular hexagon in the drag box (bolt head, nut)
+	for s in [["box", "Box"], ["round", "Round"], ["pointy", "Pointy"], ["oval", "Oval"], ["hex", "Hex"], ["line", "Line"]]:   # P040 Line: a drag of straight stretches, a stretch held with Shift is a curve. FSPOON: Oval = an ellipse fitted to the drag box (a bowl, a pad); FBOLT: Hex = a regular hexagon in the drag box (bolt head, nut)
 		var b := Button.new()
 		b.name = "easypart_shape_" + String(s[0])
 		b.text = String(s[1])
@@ -169,6 +170,8 @@ func build(root: Control) -> void:
 	root.add_child(tilt_box)
 	steps_box = _steps_box()   # NSTEPLIST
 	root.add_child(steps_box)
+	flat_box = _printing_box()   # p113: under the step list
+	root.add_child(flat_box)
 	# the panel
 	panel = PanelContainer.new()
 	panel.name = "easypart_panel"
@@ -205,13 +208,13 @@ func build(root: Control) -> void:
 	th.add_child(empty_chip)
 	var cr := HFlowContainer.new()
 	cr.name = "easypart_chips"
-	cr.add_theme_constant_override("h_separation", 3)
+	cr.add_theme_constant_override("h_separation", 2)
 	cr.add_theme_constant_override("v_separation", 4)
 	v.add_child(cr)
 	parts_btn = Button.new()   # NSCREW2: Parts: the screw sizes; after the template chips on the same row
 	parts_btn.name = "easypart_chip_parts"
 	parts_btn.text = "Parts"
-	parts_btn.tooltip_text = "Parts: a library of small parts by kind (screws and gears now, more soon)"
+	parts_btn.tooltip_text = "Parts: a library of small parts by kind (screws, gears and wheels now, more soon)"
 	parts_btn.toggle_mode = true
 	parts_btn.focus_mode = Control.FOCUS_NONE
 	parts_btn.custom_minimum_size = Vector2(0, 34)
@@ -224,16 +227,23 @@ func build(root: Control) -> void:
 	start_l.add_theme_color_override("font_color", Color(0.7, 0.73, 0.78))
 	start_l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	cr.add_child(start_l)
-	for t in PartTemplates.START + ["gear"]:   # the simple shapes; gear stays on the row (NGEAR); the weapons and props are under More examples
+	for t in PartTemplates.START + ["gear", "rack"]:   # the simple shapes; gear stays on the row (NGEAR), rack beside it (P066: its pinion); the weapons and props are under More examples
 		var b := Button.new()
 		b.name = "easypart_chip_" + t
 		b.text = CHIP_TEXT.get(t, String(PartTemplates.T[t]["title"]))   # the chip word on the blank part is plain; the part keeps the template title
 		b.toggle_mode = true
 		b.focus_mode = Control.FOCUS_NONE
 		b.custom_minimum_size = Vector2(0, 34)
-		b.add_theme_font_size_override("font_size", 13)   # NGEAR: 13 (was 15) so six templates (Gear) stay on one row of the panel
+		b.add_theme_font_size_override("font_size", 11)   # NGEAR: 13 (was 15) so six templates (Gear) stay on one row of the panel; P066: 11 so seven (Rack) do too
 		b.pressed.connect(_chip.bind(t))
+		b.mouse_entered.connect(_tpl_hover.bind(t, true))   # P091: hover a shape chip = see its ghost first
+		b.mouse_exited.connect(_tpl_hover.bind(t, false))
 		cr.add_child(b)
+		for sn in ["normal", "hover", "pressed", "focus", "disabled"]:   # P066: 4 px side margins (the theme's are wider) so seven chips (Rack) stay on one row
+			var sb := b.get_theme_stylebox(sn).duplicate() as StyleBox
+			sb.content_margin_left = 4.0
+			sb.content_margin_right = 4.0
+			b.add_theme_stylebox_override(sn, sb)
 		chips[t] = b
 	var more := Button.new()   # the weapons and props are not gone: What to build (From a template) lists them
 	more.name = "easypart_more_examples"
@@ -248,6 +258,18 @@ func build(root: Control) -> void:
 	v.add_child(lib_box)
 	screw_box = _screw_box()
 	v.add_child(screw_box)
+	bear_box = _bear_box()   # P069 BEARINGS: the bearing chips and the seat button, under the Parts page
+	v.add_child(bear_box)
+	bracket_box = _bracket_box()   # FRIDAY 73
+	v.add_child(bracket_box)
+	clip_box = _clip_box()
+	v.add_child(clip_box)
+	handle_box = _handle_box()   # P071 HANDLES: the Handles grid under the library page
+	v.add_child(handle_box)
+	wheel_box = _wheel_box()   # P072: the Wheels page's chips
+	v.add_child(wheel_box)
+	board_box = _board_box()   # p078makeacasef: the Boards chips (a case for the board)
+	v.add_child(board_box)
 	rows_vb = VBoxContainer.new()
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 2)
@@ -334,6 +356,11 @@ func _hole_box() -> PanelContainer:
 	wall_btn.custom_minimum_size = Vector2(150, 44)
 	wall_btn.visible = false
 	h.add_child(wall_btn)
+	var mb := _big_btn("easypart_hole_magnet", "Magnet", "A round pocket for a 6 mm x 3 mm magnet on the top face: the magnet sits in it, flush. The Magnet size slider sets its width", _hole_mode.bind("magnet"))   # p074magnetsapo
+	mb.toggle_mode = true
+	mb.custom_minimum_size = Vector2(96, 44)
+	h.add_child(mb)
+	hole_btns["magnet"] = mb
 	for sd in SCREW_CLEAR:   # p030countersun: one chip per screw size: the hole is sized to the screw (M3 3.4 mm ... M6 6.6 mm)
 		var sb := _big_btn("easypart_hole_screw%d" % sd, "M%d screw" % sd, "A hole for an M%d socket screw: a clearance hole, and a counterbore on the top face for its head" % sd, _hole_mode.bind("screw%d" % sd))
 		sb.toggle_mode = true
@@ -712,6 +739,111 @@ func _tilt_press() -> void:
 	_say("Tilted 20 degrees: the piece leans about its middle")
 
 
+var lay_btn: Button         # p113: Lay it flat, in the printing box under any solid
+var paint_btn: Button       # p113: Show overhangs (a toggle chip)
+var paint_on := false       # p113: the red overhang faces are on
+var _ov_mesh: MeshInstance3D   # p113: the red copy of the overhang faces, over the part
+var _ov_key := ""           # p113: the record the red copy was built from
+
+## p113 LAY IT FLAT: the one step turns the part so its best face (the least overhang, see Part.lay_plan) sits on the floor. One undo step
+func _lay_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	armed = ""
+	var plan := Part.lay_plan(_rec())
+	if not bool(plan["ok"]):
+		_say(String(plan["why"]))
+		return
+	var snap := _rec().duplicate(true)
+	_begin("Lay it flat")
+	var f := Part.new_feature(_rec(), "lay", {"axis": plan["axis"], "deg": plan["deg"]})
+	_rec()["features"].append(f)
+	if _last_error(_rec(), String(f["id"])) != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("That part cannot lie flat on that face")
+		return
+	_end()
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	_ov_key = ""
+	_say("Laid flat on its best face: %.1f cm2 of support under it (was %.1f). Ctrl+Z undoes it" % [float(plan["now"]) / 100.0, float(plan["was"]) / 100.0])
+
+
+## p113 SHOW OVERHANGS: the red chip. Red sits on the faces that need support when printed (see Part.overhang_faces_of)
+func _paint_press() -> void:
+	paint_on = not paint_on
+	_ov_key = ""
+	if not paint_on:
+		_say("")
+		return
+	var n := Part.overhang_faces_of(_rec()).size()
+	_say("Red: %d faces point down more than 45 degrees and need support when printed" % n if n > 0 else "Nothing is red: no face needs support when printed")
+
+
+## p113: the red copy of the faces that need support, laid over the part (rebuilt when the record changes; hidden when the chip is off)
+func _overhang_sync(show_ok: bool) -> void:
+	if _ov_mesh == null:
+		_ov_mesh = MeshInstance3D.new()
+		_ov_mesh.name = "easypart_overhangs"
+		var red := StandardMaterial3D.new()   # p113: a flat red with no light, so the mark reads the same on any face
+		red.albedo_color = Color(0.9, 0.12, 0.1)
+		red.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		red.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_ov_mesh.material_override = red
+		_ov_mesh.visible = false
+		pu.bu.root3.add_child(_ov_mesh)
+	var on_part: bool = paint_on and show_ok and pu.part_mesh != null and pu.part_mesh.mesh != null and pu.part_mesh.visible
+	if not on_part:
+		_ov_mesh.visible = false
+		return
+	var key := JSON.stringify(_rec())
+	if key != _ov_key:
+		_ov_key = key
+		_ov_mesh.mesh = _overhang_mesh()
+	_ov_mesh.global_transform = pu.part_mesh.global_transform
+	_ov_mesh.visible = _ov_mesh.mesh != null
+
+
+## the triangles of the shown result that lie in an overhang face (the face's plane and its normal), lifted 0.2 mm off the face
+func _overhang_mesh() -> ArrayMesh:
+	var faces := Part.overhang_faces_of(_rec())
+	if faces.is_empty():
+		return null
+	var tris := PackedVector3Array()   # _shown_faces: one array of triangle corners per body (or the shown mesh as one)
+	for part_tris in _shown_faces():
+		tris.append_array(part_tris)
+	var verts := PackedVector3Array()
+	for k in range(0, tris.size() - 2, 3):
+		var a: Vector3 = tris[k]
+		var b: Vector3 = tris[k + 1]
+		var c: Vector3 = tris[k + 2]
+		var tn := (b - a).cross(c - a)
+		if tn.length_squared() < 1e-18:
+			continue
+		tn = tn.normalized()
+		var cen := (a + b + c) / 3.0
+		for fc in faces:
+			var n: Vector3 = fc["n"]
+			if absf(tn.dot(n)) > 0.999 and absf((cen - (fc["c"] as Vector3)).dot(n)) < 1e-4:
+				for v in [a, b, c]:
+					verts.append(v + n * 2e-4)
+				break
+	if verts.is_empty():
+		return null
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return am
+
+
 # ---------------------------------------------------------------- autosave (NAUTOSAVE)
 
 ## every step is saved to auto_path as a Part record (the same file shape as a saved part). An empty part saves nothing, so a
@@ -876,6 +1008,7 @@ func _set_value(row: Dictionary, v: float, final: bool) -> void:
 func _apply_tweak(v: float) -> void:
 	if _tweak_stale():
 		return
+	pu.upto = -1   # p089scrubthehi: a change is made on the whole part, not on a scrubbed view
 	var f := Part.feature(_rec(), String(tweak["id"]))
 	if f.is_empty():
 		return
@@ -1135,6 +1268,7 @@ func _values_sync() -> void:
 # ---------------------------------------------------------------- chips, Back to the first one
 
 func _chip(t: String) -> void:
+	_tpl_ghost_hide()
 	if _tpl() == t or not Part.available():
 		_chips_sync()
 		return
@@ -1150,6 +1284,48 @@ func _chip(t: String) -> void:
 	pu.sync()
 	frame()
 	_say("%s %s: move a slider or drag an amber dot" % ["An" if t.substr(0, 1) in "aeiou" else "A", t])
+
+
+## P091 ghost preview: hovering a shape chip shows the shape it would build, see-through, where the part sits (the record does not change)
+var tpl_ghost: MeshInstance3D      # the see-through shape of the hovered chip
+var _tpl_mesh := {}                # shape name -> its built mesh (one replay each; null when it does not build)
+
+
+func _tpl_ghost_ensure() -> void:
+	if tpl_ghost != null:
+		return
+	tpl_ghost = MeshInstance3D.new()
+	tpl_ghost.name = "easypart_tpl_ghost"
+	tpl_ghost.visible = false
+	var mt := StandardMaterial3D.new()
+	var c := Tok.c("pick_hover")
+	mt.albedo_color = Color(c.r, c.g, c.b, 0.3)   # see-through: the part under it shows through
+	mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mt.cull_mode = BaseMaterial3D.CULL_DISABLED
+	tpl_ghost.material_override = mt
+	pu.bu.root3.add_child(tpl_ghost)
+
+
+func _tpl_ghost_hide() -> void:
+	if tpl_ghost != null:
+		tpl_ghost.visible = false
+
+
+## a chip under the pointer (on = true) or left (on = false). The chip of the shape already built shows no ghost
+func _tpl_hover(t: String, on: bool) -> void:
+	if not on or not active() or not Part.available() or pu == null or t == _tpl():
+		_tpl_ghost_hide()
+		return
+	if not _tpl_mesh.has(t):
+		var res := Part.replay(PartTemplates.make(t), -1, {})
+		_tpl_mesh[t] = res["mesh"] if int(res["bodies"]) > 0 else null
+	var mesh = _tpl_mesh[t]
+	if mesh == null:
+		_tpl_ghost_hide()   # this shape does not build: a click says why
+		return
+	_tpl_ghost_ensure()
+	tpl_ghost.mesh = mesh
+	tpl_ghost.visible = true
 
 
 ## MORE EXAMPLES: What to build opens (its From a template card lists the weapons and props)
@@ -1244,6 +1420,157 @@ func _screw_box() -> PanelContainer:
 	return pc
 
 
+## P075: the three Clips and feet chips: a row of icon + plain word each, one row under the category chips
+func _clip_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_clip_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
+	var hd := Label.new()
+	hd.name = "easypart_clip_words"
+	hd.text = "Clips and feet: pick one. It drops on the floor, then change its size with the sliders"
+	hd.add_theme_font_size_override("font_size", 14)
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(hd)
+	var fl := HFlowContainer.new()
+	fl.add_theme_constant_override("h_separation", 4)
+	fl.add_theme_constant_override("v_separation", 4)
+	vb.add_child(fl)
+	for kind in CLIP_KINDS:
+		var b := Button.new()
+		b.name = "easypart_clip_" + kind
+		b.text = String(PartTemplates.T[kind]["title"])
+		b.icon = _clip_icon(kind)
+		b.tooltip_text = "%s: %s" % [b.text, _clip_words(kind)]
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(0, 34)
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_clip_pick.bind(kind))
+		fl.add_child(b)
+		clip_btns[kind] = b
+	return pc
+
+
+## P075: the sizes a part starts with, in words: "Width 16 mm, Height 4 mm"
+func _clip_words(kind: String) -> String:
+	var p: Dictionary = PartTemplates.defaults(kind)
+	var out := []
+	for d in PartTemplates.T[kind]["params"]:
+		out.append("%s %d mm" % [String(d["label"]), roundi(float(p[d["k"]]))])
+	return ", ".join(out)
+
+
+## P075: a 16 px icon per clip kind, drawn in the text colour (Tok): a flat disc, a ring with its opening, a plate with a slot
+func _clip_icon(kind: String) -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	match kind:
+		"foot":
+			img.fill_rect(Rect2i(1, 9, 14, 5), col)
+			img.fill_rect(Rect2i(4, 6, 8, 3), col)
+		"clip":
+			_lib_ring(img, 7.0, 4.5, col)
+			img.fill_rect(Rect2i(8, 7, 8, 2), Color(0, 0, 0, 0))
+		"slot":
+			img.fill_rect(Rect2i(1, 4, 14, 8), col)
+			img.fill_rect(Rect2i(4, 7, 8, 2), Color(0, 0, 0, 0))
+	return ImageTexture.create_from_image(img)
+
+
+## P075: a clip chip: a new part of that kind on the floor (one undo step). A part already there is replaced, the same as a screw size.
+func _clip_pick(kind: String) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var title := String(PartTemplates.T[kind]["title"])
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Start a " + title.to_lower()
+	m._push_undo()
+	m.S.part = PartTemplates.make(kind)
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("%s did not build. Press Reset, then pick it again" % title)
+	else:
+		_say("%s on the floor: %s. Change its size with the sliders" % [title, _clip_words(kind)])
+	_screw_sync()   # the clip chips' open state and pressed chip are in _screw_sync
+
+
+## P072: the Wheels page: two chips, Wheel and Castor. Each is a tyre with an axle hole through its middle; the words give its size
+func _wheel_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_wheel_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
+	var hd := Label.new()
+	hd.name = "easypart_wheel_words"
+	hd.text = "Wheels: pick one. The hole in the middle takes the axle"
+	hd.add_theme_font_size_override("font_size", 14)
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(hd)
+	var fl := HFlowContainer.new()
+	fl.add_theme_constant_override("h_separation", 4)
+	fl.add_theme_constant_override("v_separation", 4)
+	vb.add_child(fl)
+	for k in ["wheel", "castor"]:
+		var d: Dictionary = PartTemplates.defaults("axwheel" if k == "wheel" else "castor")
+		var b := Button.new()
+		b.name = "easypart_wheel_" + k
+		b.text = "Wheel" if k == "wheel" else "Castor"
+		b.icon = _lib_icon("Wheels")
+		b.tooltip_text = "%s: %d mm across, %d mm wide, an axle hole %d mm through the middle" % [b.text, int(d["radius"]) * 2, int(d["width"]), int(d["hole"])]
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(0, 34)
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_wheel_pick.bind(k))
+		fl.add_child(b)
+		wheel_btns[k] = b
+	return pc
+
+
+## P072: a Wheel or a Castor on the floor (one undo step). It replaces the part on the floor, like a screw does when none is there
+func _wheel_pick(k: String) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var t := "axwheel" if k == "wheel" else "castor"
+	var label := "Wheel" if k == "wheel" else "Castor"
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Start a %s" % label.to_lower()
+	m._push_undo()
+	m.S.part = PartTemplates.make(t)
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("%s did not build. Press Reset, then pick it again" % label)
+	else:
+		_say("%s on the floor, its axle hole %d mm through the middle. Press Wheel or Castor to change it" % [label, int(PartTemplates.defaults(t)["hole"])])
+	_screw_sync()
+
+
 ## NSCREW2: a small screw icon, drawn from the size: head width grows with M, shank length with the length (the same 16 px box)
 func _screw_icon(d: int, L: int) -> ImageTexture:
 	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
@@ -1302,6 +1629,101 @@ func _nw_add() -> void:
 	_screw_sync()
 
 
+## FRIDAY 73: the bracket chips: an L, a T and a corner brace, each a click. The shape drops on the floor; a bracket on the floor changes shape
+## (one undo step, the same steps), the same shape again does nothing. Words and icons only: no key name.
+func _bracket_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_bracket_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
+	var hd := Label.new()
+	hd.name = "easypart_bracket_words"
+	hd.text = "Brackets: pick a shape. It drops on the floor"
+	hd.add_theme_font_size_override("font_size", 14)
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(hd)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	vb.add_child(row)
+	for bc in BRACKET_CHIPS:
+		var b := Button.new()
+		b.name = "easypart_bracket_" + String(bc[0])
+		b.text = String(bc[1])
+		b.icon = _bracket_icon(int(bc[2]))
+		b.tooltip_text = String(bc[3])
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(0, 34)
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_bracket_pick.bind(int(bc[2])))
+		row.add_child(b)
+		bracket_btns[bc[0]] = b
+	return pc
+
+
+## FRIDAY 73: a 16 px icon per shape, in the text colour (Tok): an L, a T, an L with a corner gusset
+func _bracket_icon(kind: int) -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	match kind:
+		1:
+			img.fill_rect(Rect2i(2, 1, 3, 14), col)
+			img.fill_rect(Rect2i(2, 12, 13, 3), col)
+		2:
+			img.fill_rect(Rect2i(1, 1, 14, 3), col)
+			img.fill_rect(Rect2i(7, 4, 3, 11), col)
+		3:
+			img.fill_rect(Rect2i(2, 1, 3, 14), col)
+			img.fill_rect(Rect2i(2, 12, 13, 3), col)
+			for i in 6:
+				img.fill_rect(Rect2i(5 + i, 11 - i, 2, 2), col)
+	return ImageTexture.create_from_image(img)
+
+
+## FRIDAY 73: a bracket shape chip (kind 1 / 2 / 3). No bracket on the floor: a new one. A bracket on the floor: its shape changes
+## (one undo step). The same shape again does nothing.
+func _bracket_pick(kind: int) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var label := ""
+	for bc in BRACKET_CHIPS:
+		if int(bc[2]) == kind:
+			label = String(bc[1])
+	var on_floor := _tpl() == "bracket" and not (_rec().get("features", []) as Array).is_empty()
+	if on_floor:
+		var cur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {})
+		if int(cur.get("kind", 0)) == kind:
+			_say("Already a %s on the floor. Pick another shape to change it" % label)
+			_screw_sync()
+			return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Change the shape" if on_floor else "Start a bracket"
+	m._push_undo()
+	if on_floor:
+		PartTemplates.retemplate(_rec(), {"kind": kind})
+	else:
+		m.S.part = PartTemplates.make("bracket", {"kind": kind})
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("%s did not build. Press Reset, then pick a shape again" % label)
+	else:
+		_say("%s on the floor. Pick another shape to change it" % label)
+	_screw_sync()
+
+
 ## NSCREW2: the Parts chip opens or shuts the screw grid (a screw on the floor keeps it open)
 func _parts_press() -> void:
 	if not Part.available():
@@ -1325,6 +1747,18 @@ func _lib_press(cat: String) -> void:
 		_say("Screws: pick a size. It drops on the floor")
 	elif cat == "Gears":
 		_say("Gears: press Gear in the chips above. It drops on the floor")
+	elif cat == "Bearings":   # P069 BEARINGS: three sizes; the seat button under them cuts the seat for the one on the floor
+		_say("Bearings: pick a size. It drops on the floor. Then Make a seat for it")
+	elif cat == "Brackets":   # FRIDAY 73: three shapes, each a click
+		_say("Brackets: pick a shape. It drops on the floor")
+	elif cat == "Clips and feet":
+		_say("Clips and feet: pick one. It drops on the floor")
+	elif cat == "Handles":
+		_say("Handles: pick a kind and a size. It drops on the floor")
+	elif cat == "Wheels":
+		_say("Wheels: press Wheel or Castor. It drops on the floor, with its axle hole")
+	elif cat == "Boards":   # p078makeacasef
+		_say("Boards: press your board. A case for it drops on the floor")
 	else:
 		_say("%s are coming soon. Next step: press Screws or Gears" % cat)
 	_screw_sync()
@@ -1339,9 +1773,9 @@ func _lib_box() -> PanelContainer:
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 4)
 	pc.add_child(vb)
-	var fl := HFlowContainer.new()
-	fl.add_theme_constant_override("h_separation", 4)
-	fl.add_theme_constant_override("v_separation", 4)
+	var fl := HFlowContainer.new()   # compact: eleven chips in three rows, so the screw grid under the page stays inside the panel at 1280 x 720
+	fl.add_theme_constant_override("h_separation", 3)
+	fl.add_theme_constant_override("v_separation", 3)
 	vb.add_child(fl)
 	for cat in LIB_CATS:
 		var b := Button.new()
@@ -1351,7 +1785,7 @@ func _lib_box() -> PanelContainer:
 		b.toggle_mode = true
 		b.focus_mode = Control.FOCUS_NONE
 		b.custom_minimum_size = Vector2(0, 34)
-		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_font_size_override("font_size", 12)
 		b.tooltip_text = ("%s: ready now" % cat) if cat in LIB_READY else ("%s: coming soon" % cat)
 		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
 		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
@@ -1372,6 +1806,10 @@ func _lib_box() -> PanelContainer:
 func _lib_icon(cat: String) -> ImageTexture:
 	if cat == "Screws":
 		return _screw_icon(4, 16)
+	if cat == "Clips and feet":
+		return _clip_icon("clip")
+	if cat == "Boards":   # p078makeacasef
+		return _board_icon(1)
 	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 	var col := Tok.c("text")
@@ -1423,6 +1861,92 @@ func _lib_ring(img: Image, r_out: float, r_in: float, col: Color) -> void:
 				img.set_pixel(x, y, col)
 
 
+## p078makeacasef: the Boards page's chips: a box with standoffs, port holes and a lid for the board. A case on the floor: its board changes
+## (one undo step, the same features). The same board again does nothing.
+func _board_pick(bd: int) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var label := String(PartTemplates.CASE_BOARDS[bd]["name"])
+	var on_floor := _tpl() == "case" and not (_rec().get("features", []) as Array).is_empty()
+	if on_floor:
+		var cur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {})
+		if int(cur.get("board", 0)) == bd:
+			_say("Already a case for the %s. Pick the other board to change it" % label)
+			_screw_sync()
+			return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Change the board" if on_floor else "Start a board case"
+	m._push_undo()
+	if on_floor:
+		PartTemplates.retemplate(_rec(), {"board": bd})
+	else:
+		m.S.part = PartTemplates.make("case", {"board": bd})
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("The %s case did not build. Press Reset, then pick a board again" % label)
+	else:
+		_say("A case for the %s: standoffs, port holes and a lid. Pick the other board to change it" % label)
+	_screw_sync()
+
+
+## p078makeacasef: the Boards page: a line of words and the two board chips (a 5 mm standoff case each, with its lid)
+func _board_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_board_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
+	var hd := Label.new()
+	hd.name = "easypart_board_words"
+	hd.text = "Boards: pick yours. You get a box for it with standoffs, port holes and a lid"
+	hd.add_theme_font_size_override("font_size", 14)
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(hd)
+	var g := HFlowContainer.new()
+	g.add_theme_constant_override("h_separation", 4)
+	g.add_theme_constant_override("v_separation", 4)
+	vb.add_child(g)
+	for bd in [1, 2]:
+		var b := Button.new()
+		b.name = "easypart_board_" + ("pi" if bd == 1 else "uno")
+		b.text = String(PartTemplates.CASE_BOARDS[bd]["name"])
+		b.icon = _board_icon(bd)
+		b.tooltip_text = "%s: a box with four standoffs, port holes on one side and a lid. One click, one undo step" % b.text
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(150, 34)
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_board_pick.bind(bd))
+		g.add_child(b)
+		board_btns[bd] = b
+	return pc
+
+
+## p078makeacasef: a 16 px board icon in the text colour (Tok): a square outline with four mounting holes
+func _board_icon(_bd: int) -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	img.fill_rect(Rect2i(1, 1, 14, 2), col)
+	img.fill_rect(Rect2i(1, 13, 14, 2), col)
+	img.fill_rect(Rect2i(1, 1, 2, 14), col)
+	img.fill_rect(Rect2i(13, 1, 2, 14), col)
+	for hp in [Vector2i(5, 5), Vector2i(10, 5), Vector2i(5, 10), Vector2i(10, 10)]:
+		img.fill_rect(Rect2i(hp, Vector2i(2, 2)), col)
+	return ImageTexture.create_from_image(img)
+
+
 ## NSCREW2: a size chip. No screw on the floor: a new screw of that size (one undo step). A screw already there: its size changes
 ## (one undo step, the same steps). The same size again does nothing.
 func _screw_pick(d: int, L: int) -> void:
@@ -1459,6 +1983,90 @@ func _screw_pick(d: int, L: int) -> void:
 	_screw_sync()
 
 
+## P071 HANDLES: a size chip. No handle of that kind on the floor: a new one (one undo step). A handle of that kind already there: its size
+## changes (one undo step). The same size again does nothing. The words give the built size in mm, from the built part.
+func _handle_pick(kind: String, size: int) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var key: String = PartTemplates.HANDLE_KEY[kind]
+	var name_l := String(PartTemplates.HANDLE_NAME[kind]).to_lower()
+	var on_floor := _tpl() == kind
+	if on_floor:
+		var cur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {})
+		if int(roundf(float(cur.get(key, 0)))) == size:
+			_say("Already the %s on the floor. Pick another size to change it" % name_l)
+			_screw_sync()
+			return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Change the handle size" if on_floor else "Start a handle"
+	m._push_undo()
+	if on_floor:
+		PartTemplates.retemplate(_rec(), {key: size})
+	else:
+		m.S.part = PartTemplates.make(kind, {key: size})
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("The %s did not build. Press Reset, then pick a size again" % name_l)
+	else:
+		var bb: AABB = pu.res.get("aabb", AABB())
+		var big := roundi(maxf(bb.size.x, maxf(bb.size.y, bb.size.z)) * 1000.0)
+		var hole := ". Its two holes take an M4 screw from Parts" if kind == "drawer_pull" else ""
+		_say("A %s on the floor, %d mm across%s. Move a slider, or pick another size" % [name_l, big, hole])
+	_screw_sync()
+
+
+## P071 HANDLES: the Handles grid: a row per kind (its name, then its three sizes in mm). One click puts that handle on the floor.
+func _handle_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_handle_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
+	var hd := Label.new()
+	hd.name = "easypart_handle_words"
+	hd.text = "Handles: pick a kind and a size. It drops on the floor"
+	hd.add_theme_font_size_override("font_size", 14)
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	handle_words = hd
+	vb.add_child(hd)
+	var g := GridContainer.new()
+	g.columns = 4
+	g.add_theme_constant_override("h_separation", 4)
+	g.add_theme_constant_override("v_separation", 4)
+	vb.add_child(g)
+	for kind in PartTemplates.HANDLE_SIZES:
+		var nm := Label.new()
+		nm.text = String(PartTemplates.HANDLE_NAME[kind])
+		nm.add_theme_font_size_override("font_size", 13)
+		nm.custom_minimum_size = Vector2(96, 34)
+		nm.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		g.add_child(nm)
+		for size in PartTemplates.HANDLE_SIZES[kind]:
+			var b := Button.new()
+			b.name = "easypart_handle_%s_%d" % [kind, size]
+			b.text = "%d mm" % size
+			b.toggle_mode = true
+			b.focus_mode = Control.FOCUS_NONE
+			b.custom_minimum_size = Vector2(0, 34)
+			b.add_theme_font_size_override("font_size", 13)
+			b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+			b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+			b.tooltip_text = "%s, %d mm: one click puts it on the floor" % [nm.text, size]
+			b.pressed.connect(_handle_pick.bind(kind, size))
+			g.add_child(b)
+			handle_btns["%s_%d" % [kind, size]] = b
+	return pc
+
+
 ## NSCREW2: the grid's open state and the pressed size (the screw on the floor); the Parts chip is pressed while the grid shows
 func _screw_sync() -> void:
 	if lib_box != null:   # NLIBPAGE: the page shows while Parts is open; the open category is pressed; the coming-soon line names it
@@ -1471,12 +2079,39 @@ func _screw_sync() -> void:
 		if screw_words != null:   # the page is open: its chips and the status line say what to do
 			screw_words.visible = not parts_open
 		lib_soon.text = "%s are coming soon: not made yet. Next step: press Screws or Gears" % lib_cat if lib_soon.visible else ""
+	if clip_box != null:   # P075: the Clips and feet chips show while that category is open
+		clip_box.visible = parts_open and lib_cat == "Clips and feet"
+		for kind in CLIP_KINDS:
+			var cb: Button = clip_btns[kind]
+			cb.set_pressed_no_signal(_tpl() == kind)
+			m._grey(cb, Part.why_not() if not Part.available() else "")
+		if handle_box != null:   # P071 HANDLES: the grid shows while the Handles category is open, or a handle is the part
+			handle_box.visible = parts_open and lib_cat == "Handles" or PartTemplates.HANDLE_NAME.has(_tpl())
+			handle_words.visible = not parts_open
+			var cur_h: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {}) if PartTemplates.HANDLE_NAME.has(_tpl()) else {}
+			for kind in PartTemplates.HANDLE_SIZES:
+				for size in PartTemplates.HANDLE_SIZES[kind]:
+					var hb: Button = handle_btns["%s_%d" % [kind, size]]
+					hb.set_pressed_no_signal(not cur_h.is_empty() and kind == _tpl() and int(roundf(float(cur_h.get(PartTemplates.HANDLE_KEY[kind], 0)))) == size)
+					m._grey(hb, Part.why_not() if not Part.available() else "")
+		if wheel_box != null:   # P072: the Wheels chips show while the Wheels category is open
+			wheel_box.visible = parts_open and lib_cat == "Wheels"
+			for k in wheel_btns:
+				m._grey(wheel_btns[k], Part.why_not() if not Part.available() else "")
 	if screw_box == null or parts_btn == null:
 		return
 	var cur: Dictionary = {}
 	if _tpl() == "screw":
 		cur = (_rec().get("easy", {}) as Dictionary).get("p", {})
 	screw_box.visible = (parts_open and lib_cat == "Screws") or _tpl() == "screw"
+	if bear_box != null:   # P069 BEARINGS: the three chips show the bearing on the floor (pressed); the seat button sits under them
+		var bk := int((_rec().get("easy", {}) as Dictionary).get("p", {}).get("kind", -1)) if _tpl() in ["bearing", "seat"] else -1
+		bear_box.visible = (parts_open and lib_cat == "Bearings") or _tpl() in ["bearing", "seat"]
+		for i in BEAR_CODES.size():
+			var bb: Button = bear_btns[BEAR_CODES[i]]
+			bb.set_pressed_no_signal(i == bk)
+			m._grey(bb, Part.why_not() if not Part.available() else "")
+		m._grey(seat_btn, Part.why_not() if not Part.available() else "")
 	parts_btn.set_pressed_no_signal(parts_open)
 	for d in SCREW_DS:
 		for L in SCREW_LENS:
@@ -1484,6 +2119,134 @@ func _screw_sync() -> void:
 			b.set_pressed_no_signal(not cur.is_empty() and int(cur.get("d", 0)) == d and int(cur.get("L", 0)) == L)
 			m._grey(b, Part.why_not() if not Part.available() else "")
 	parts_btn.set_pressed_no_signal(parts_open)
+	# FRIDAY 73: the bracket chips show while Brackets is open or a bracket is the part; the pressed one is the shape on the floor
+	var kind := int(cur.get("kind", 0)) if _tpl() == "bracket" else 0
+	bracket_box.visible = (parts_open and lib_cat == "Brackets") or _tpl() == "bracket"
+	for bc in BRACKET_CHIPS:
+		var bb: Button = bracket_btns[bc[0]]
+		bb.set_pressed_no_signal(kind == int(bc[2]))
+		m._grey(bb, Part.why_not() if not Part.available() else "")
+
+
+## P069 BEARINGS: the three bearing sizes, in the order of PartTemplates.BEARING_SIZE (608, 625, 688)
+const BEAR_CODES := ["608", "625", "688"]
+
+
+## P069 BEARINGS: the Bearings page under the Parts chips: a line, three size chips (bore, outside, width in the tip), the seat button
+func _bear_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_bear_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
+	var hd := Label.new()
+	hd.name = "easypart_bear_words"
+	hd.text = "Bearings, ball: pick a size. It drops on the floor"
+	hd.add_theme_font_size_override("font_size", 14)
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(hd)
+	var g := GridContainer.new()
+	g.columns = BEAR_CODES.size()
+	g.add_theme_constant_override("h_separation", 4)
+	g.add_theme_constant_override("v_separation", 4)
+	vb.add_child(g)
+	for i in BEAR_CODES.size():
+		var code: String = BEAR_CODES[i]
+		var sz: Array = PartTemplates.BEARING_SIZE[i]
+		var b := Button.new()
+		b.name = "easypart_bear_" + code
+		b.text = code
+		b.icon = _lib_icon("Bearings")
+		b.tooltip_text = "%s: bore %s mm, outside %s mm, %s mm wide" % [code, str(sz[0]), str(sz[1]), str(sz[2])]
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(0, 34)
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_bear_pick.bind(i))
+		g.add_child(b)
+		bear_btns[code] = b
+	seat_btn = Button.new()
+	seat_btn.name = "easypart_bear_seat"
+	seat_btn.text = "Make a seat for it"
+	seat_btn.icon = _lib_icon("Bearings")
+	seat_btn.tooltip_text = "Cut a seat for the bearing on the floor: a holder block with a pocket the bearing fits (0.2 mm loose), the bearing beside it. One undo step"
+	seat_btn.focus_mode = Control.FOCUS_NONE
+	seat_btn.custom_minimum_size = Vector2(0, 34)
+	seat_btn.add_theme_font_size_override("font_size", 13)
+	seat_btn.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+	seat_btn.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+	seat_btn.pressed.connect(_seat_press)
+	vb.add_child(seat_btn)
+	return pc
+
+
+## P069 BEARINGS: a size chip drops that bearing on the floor (it replaces what is there, as a screw does). One undo step.
+func _bear_pick(i: int) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var code: String = BEAR_CODES[i]
+	if _tpl() == "bearing" and int((_rec().get("easy", {}) as Dictionary).get("p", {}).get("kind", -1)) == i:
+		_say("Already a %s bearing on the floor. Pick another size to change it" % code)
+		_screw_sync()
+		return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Start a bearing"
+	m._push_undo()
+	m.S.part = PartTemplates.make("bearing", {"kind": i})
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("The %s bearing did not build. Press Reset, then pick a size again" % code)
+	else:
+		_say("%s bearing on the floor. Make a seat for it cuts its seat" % code)
+	_screw_sync()
+
+
+## P069 BEARINGS: Make a seat for it: the bearing on the floor gets a holder with its seat (one undo step). Refused in words with no bearing.
+func _seat_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	if _tpl() == "seat":
+		_say("The seat is on the floor already. Pick another bearing to change it")
+		return
+	if _tpl() != "bearing":
+		_say("Make a seat needs a bearing on the floor first. Press Bearings, then 608, 625 or 688")
+		return
+	var k := int((_rec().get("easy", {}) as Dictionary).get("p", {}).get("kind", 0))
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Make a seat"
+	m._push_undo()
+	m.S.part = PartTemplates.make("seat", {"kind": k})
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("The %s seat did not build. Press Reset, then pick the bearing again" % BEAR_CODES[k])
+	else:
+		_say("Seat made for the %s bearing: the bearing stands beside it. Undo takes the seat back" % BEAR_CODES[k])
+	_screw_sync()
+	# p078makeacasef: the Boards chips: the case on the floor shows its board pressed
+	var bcur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {}) if _tpl() == "case" else {}
+	board_box.visible = (parts_open and lib_cat == "Boards") or _tpl() == "case"
+	for bd in board_btns:
+		var bb: Button = board_btns[bd]
+		bb.set_pressed_no_signal(not bcur.is_empty() and int(bcur.get("board", 0)) == bd)
+		m._grey(bb, Part.why_not() if not Part.available() else "")
 
 
 func _back() -> void:
@@ -1539,6 +2302,7 @@ func _make(which: String) -> void:
 		_say(Part.why_not())
 		return
 	_flush_if_dirty()
+	hinge_pick = {}   # P068: any make press drops a door picked for a hinge
 	if which != "hole":
 		hole_base = {}   # any other press ends the hole choice: its chips go
 	if which != "repeat":
@@ -2265,6 +3029,50 @@ static func _is_corner(turn: PackedFloat32Array, i: int) -> bool:
 	return true
 
 
+## P040 LINE: a drag of stretches. A stretch drawn with Shift held is curvy (a spline through its points), any other stretch is straight.
+## Runs of the same kind become one entity each (a straight run a line, a curvy run a bspline), joined end to end. One undo step.
+func _finish_line() -> void:
+	var pts: Array = _draft.get("pts", [])
+	var segs: Array = _draft.get("segs", [false])
+	var fc: Dictionary = _draft.get("face", {})
+	_draft = {}
+	var total := 0.0
+	for i in range(1, pts.size()):
+		total += (pts[i] as Vector2).distance_to(pts[i - 1] as Vector2)
+	if pts.size() < 2 or total < 5.0:
+		_say("Drag a bit further to draw a line: keep the button held and move at least 5 mm")
+		return
+	var ents := []
+	var s := 0
+	for i in range(1, pts.size()):
+		if i == pts.size() - 1 or bool(segs[i + 1]) != bool(segs[i]):   # the run ends at point i
+			var ps: Array = pts.slice(s, i + 1)
+			if bool(segs[i]):
+				var keep := []
+				for k in _curve_keep(ps, 12):
+					keep.append(Part.arr2(ps[k]))
+				ents.append({"k": "bspline", "pts": keep, "closed": false})
+			else:
+				ents.append({"k": "line", "a": Part.arr2(ps[0]), "b": Part.arr2(ps[ps.size() - 1])})
+			s = i
+	_begin("Line")
+	var rec := pu._ensure()
+	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": ents, "dims": []}))
+	_end()
+	armed = ""
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_say("Line drawn. Straight stretches stay straight, stretches drawn with Shift curve. Draw a round or box shape, then Pull along")
+
+
+## P040: Shift is held (the last mouse event said so, or the key is down): the stretch a Line drag adds now is curvy
+var _shift := false
+func _shift_held() -> bool:
+	return _shift or Input.is_key_pressed(KEY_SHIFT)
+
+
 ## the drawn points kept for the spline (at most maxn, first and last always): the points that bend the line most, so a rim or a
 ## corner the user drew stays a point the spline passes through (an even pick by index rounded the cup's rim down 5 mm)
 func _curve_keep(pts: Array, maxn: int) -> Array:
@@ -2354,7 +3162,11 @@ func _process(_dt: float) -> void:
 	draft_btn.visible = draft_on
 	var swing_on := not along and _swing_ok(_rec())   # p123driveit
 	swing_btn.visible = swing_on
+	var flat_on := on and armed == "" and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # p113: Lay it flat and Show overhangs, under any solid, in the step list
+	flat_box.visible = flat_on
+	paint_btn.set_pressed_no_signal(paint_on)
 	tilt_box.visible = on and armed == "" and (along or tilt_on or draft_on or swing_on)
+	_overhang_sync(on)
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
 	if not on:
 		return
@@ -2518,6 +3330,8 @@ func _input(ev: InputEvent) -> void:
 	if ev is InputEventKey:
 		_key(ev as InputEventKey)   # EKEYS: Escape and Delete (Ctrl+Z / Ctrl+Y are main's undo and redo)
 		return
+	if ev is InputEventMouse:
+		_shift = (ev as InputEventMouse).shift_pressed   # P040: this event's Shift (the sketch below reads it before input() runs)
 	if ev is InputEventMouseButton and (ev as InputEventMouseButton).pressed and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT and active():
 		_grey_say((ev as InputEventMouseButton).position)   # FHELP3: a greyed button takes no click: its reason goes on the line
 	# a sketch in progress follows the pointer and ends on the release even over a control (a chip row, the bar): the controls
@@ -2590,6 +3404,7 @@ func _bar_button_at(p: Vector2) -> BaseButton:
 func input(ev: InputEvent) -> bool:
 	if ev is InputEventMouse:
 		_alt = (ev as InputEventMouse).alt_pressed
+		_shift = (ev as InputEventMouse).shift_pressed   # P040: Shift held on a Line stretch makes that stretch curvy
 	if not active() or not Part.available():
 		if edge_chip != null and edge_chip.visible:
 			_edge_hide()
@@ -2679,13 +3494,20 @@ func _draft_move(p: Vector2) -> void:
 	var g: Variant = _ground(p, _draft.get("pl", {}))
 	if g != null:
 		_draft["b"] = g
-		if String(_draft["shape"]) == "curve" and (g as Vector2).distance_to((_draft["pts"] as Array).back()) >= 5.0:
+		var sh := String(_draft["shape"])
+		if (sh == "curve" or sh == "line") and (g as Vector2).distance_to((_draft["pts"] as Array).back()) >= 5.0:
 			(_draft["pts"] as Array).append(g)
+			if sh == "line":   # P040: the stretch that ends here is curvy when Shift is held
+				var segs: Array = _draft.get("segs", [false])
+				segs.append(_shift_held())
+				_draft["segs"] = segs
 	dots.queue_redraw()
 
 
 func _draft_end() -> void:
-	if String(_draft["shape"]) == "curve":
+	if String(_draft["shape"]) == "line":
+		_finish_line()
+	elif String(_draft["shape"]) == "curve":
 		_finish_curve()
 	else:
 		_finish_draw()
@@ -2983,6 +3805,7 @@ func _edge_round(e: Dictionary, r: float) -> void:
 # ---------------------------------------------------------------- NEDGECHIP: the edge chip and its ghost
 
 var edge_chip: PanelContainer      # the one small chip over a hovered edge: Round / Bevel (only the ones that work)
+var hinge_pick := {}               # P068: the door picked by the first Hinge press: {"body", "a", "b"} (metres); {} = none
 var edge_chip_row: HBoxContainer
 var edge_ghost: MeshInstance3D     # the see-through preview of the Round result, drawn over the solid
 var _ehov := {}                    # the hovered edge: {"key", "mid" (px), "opts" {kind: {"err", "mesh", "fields"}}}
@@ -3045,9 +3868,10 @@ func _edge_hover(p: Vector2) -> void:
 	var best := -1
 	var bd := EDGE_PX
 	var es := _edge_list()
+	var pieces := int(pu.res.get("bodies", 0)) >= 2   # P068: with two pieces, the edge of either one can take a Hinge
 	for i in es.size():
 		var e: Dictionary = es[i]
-		if int(e["body"]) != 0 or bool(e.get("seam", false)):
+		if (int(e["body"]) != 0 and not pieces) or bool(e.get("seam", false)):
 			continue
 		if m.cam.is_position_behind(e["a"]) or m.cam.is_position_behind(e["b"]):
 			continue
@@ -3066,7 +3890,7 @@ func _edge_hover(p: Vector2) -> void:
 	if key == String(_ehov.get("key", "")):
 		return   # the same edge: the chip and ghost are already up
 	var mid: Vector2 = m.cam.unproject_position(c)
-	_ehov = {"key": key, "mid": mid, "opts": _edge_options(e)}
+	_ehov = {"key": key, "mid": mid, "opts": _edge_options(e) if int(e["body"]) == 0 else {}, "e": e}
 	_edge_show()
 
 
@@ -3099,7 +3923,7 @@ func _edge_show() -> void:
 	var words := {"fillet": ["Round", "part_fillet", "Soften this edge into a rounded corner"], "chamfer": ["Bevel", "part_chamfer", "Cut this edge flat: a slanted edge"]}
 	var shown := 0
 	for kind in ["fillet", "chamfer"]:
-		if String(opts[kind]["err"]) != "":
+		if not opts.has(kind) or String(opts[kind]["err"]) != "" or not hinge_pick.is_empty():
 			continue
 		var b := Button.new()
 		b.name = "easypart_edge_" + ("round" if kind == "fillet" else "bevel")
@@ -3112,11 +3936,23 @@ func _edge_show() -> void:
 		b.pressed.connect(_edge_do.bind(kind))
 		edge_chip_row.add_child(b)
 		shown += 1
+	if int(pu.res.get("bodies", 0)) >= 2 and _ehov.has("e"):   # P068: the Hinge chip: the door edge, then the frame edge
+		var hb := Button.new()
+		hb.name = "easypart_edge_hinge"
+		hb.text = "Hinge"
+		hb.icon = Icons.tex("part_hinge")
+		hb.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		hb.tooltip_text = "Hinge: click the door's edge, then the frame's edge on the other piece. The door swings about the frame edge"
+		hb.focus_mode = Control.FOCUS_NONE
+		hb.custom_minimum_size = Vector2(96, 44)
+		hb.pressed.connect(_hinge_chip)
+		edge_chip_row.add_child(hb)
+		shown += 1
 	if shown == 0:
 		var l := Label.new()
 		l.text = "This edge will not take a round or a bevel: Pull it up taller, or use Round the edges"
 		edge_chip_row.add_child(l)
-	var ghost_ok: bool = String(opts["fillet"]["err"]) == "" and opts["fillet"]["mesh"] != null
+	var ghost_ok: bool = opts.has("fillet") and String(opts["fillet"]["err"]) == "" and opts["fillet"]["mesh"] != null
 	edge_ghost.mesh = opts["fillet"]["mesh"] if ghost_ok else null
 	edge_ghost.visible = ghost_ok
 	edge_chip.visible = true
@@ -3163,6 +3999,50 @@ func _edge_do(kind: String) -> void:
 	_values_sync()
 
 
+## P068 HINGE BY CLICK: the first Hinge press takes the door (the edge's piece turns); the second, on an edge of another piece, places the hinge
+## on that edge's line (the pin): the door swings about the frame edge. One undo step. A refusal says the next step and changes nothing
+func _hinge_chip() -> void:
+	var e: Dictionary = _ehov.get("e", {})
+	_edge_hide()
+	if e.is_empty():
+		return
+	if hinge_pick.is_empty():
+		hinge_pick = {"body": int(e["body"]), "a": e["a"], "b": e["b"]}
+		_say("Door picked. Now hover the frame edge on the other piece, and press Hinge")
+		return
+	if int(e["body"]) == int(hinge_pick["body"]):
+		_say("Pick the frame edge on the other piece: a door cannot hinge on its own piece")
+		return
+	_hinge_place(e)
+
+
+func _hinge_place(frame: Dictionary) -> void:
+	_flush_if_dirty()
+	armed = ""
+	var snap := _rec().duplicate(true)
+	_begin("Hinge the door")
+	var rec := pu._ensure()
+	var a: Vector3 = frame["a"]
+	var d: Vector3 = ((frame["b"] as Vector3) - a).normalized()
+	var mm := Part.MM
+	var f := Part.new_feature(rec, "hinge", {"body": int(hinge_pick["body"]), "o": [a.x / mm, a.y / mm, a.z / mm], "axis": [d.x, d.y, d.z], "track": [[0.0, 0.0], [2.0, 90.0]], "clear": []})
+	rec["features"].append(f)
+	var why := _last_error(rec, String(f["id"]))
+	if why != "":
+		m.S.part = snap   # nothing changes: the step taken a moment ago goes back out
+		m._drop_undo()
+		_edit_n = -1
+		_say("That hinge would not work: pick the door edge again, then another frame edge. " + _plain(why))
+		return
+	_end()
+	hinge_pick = {}
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	_say("Hinge placed: the door swings about the frame edge. Press Play in Expert Part's Hinge to see it turn")
+
+
 # ---------------------------------------------------------------- the step list (NSTEPLIST)
 
 ## NSTEPLIST: the step list: one row per step of the record, in plain words, with its icon. A click on a row opens that step to change
@@ -3181,6 +4061,28 @@ func _steps_box() -> PanelContainer:
 	t.add_theme_font_size_override("font_size", 16)
 	t.add_theme_color_override("font_color", Tok.c("heading"))
 	v.add_child(t)
+	var sr := HBoxContainer.new()   # p089scrubthehi: Scrub the history, a slider that replays the build step by step
+	sr.name = "easypart_scrub_row"
+	sr.add_theme_constant_override("separation", 6)
+	v.add_child(sr)
+	var ic := TextureRect.new()
+	ic.texture = Icons.sized("part_sketch", 20)
+	ic.tooltip_text = "Scrub the history"
+	sr.add_child(ic)
+	scrub_sl = HSlider.new()
+	scrub_sl.name = "easypart_scrub"
+	scrub_sl.min_value = 1
+	scrub_sl.max_value = 1
+	scrub_sl.step = 1
+	scrub_sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scrub_sl.tooltip_text = "Drag back to see the part after fewer steps. Drag to the end to see all of it"
+	scrub_sl.value_changed.connect(func(x: float): _scrub_to(int(x)))
+	sr.add_child(scrub_sl)
+	scrub_lbl = Label.new()
+	scrub_lbl.name = "easypart_scrub_label"
+	scrub_lbl.add_theme_font_size_override("font_size", 13)
+	scrub_lbl.add_theme_color_override("font_color", Tok.c("info"))
+	v.add_child(scrub_lbl)
 	var sc := ScrollContainer.new()
 	sc.name = "easypart_steps_scroll"
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -3194,11 +4096,32 @@ func _steps_box() -> PanelContainer:
 	return box
 
 
+## p113: the two printing chips, one box under the step list (Lay it flat turns the part; Show overhangs paints red where it needs support)
+func _printing_box() -> PanelContainer:
+	var box := PanelContainer.new()
+	box.name = "easypart_printing"
+	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	box.visible = false
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 4)
+	box.add_child(v)
+	lay_btn = _big_btn("easypart_lay_flat", "Lay it flat", "Turn the part so the face that needs the least support under it sits on the floor", _lay_press)
+	lay_btn.custom_minimum_size = Vector2(PW - 40.0, 40)
+	v.add_child(lay_btn)
+	paint_btn = _big_btn("easypart_show_overhangs", "Show overhangs", "Paint red the faces a printer needs support under (they point down more than 45 degrees)", _paint_press)
+	paint_btn.toggle_mode = true
+	paint_btn.custom_minimum_size = Vector2(PW - 40.0, 40)
+	v.add_child(paint_btn)
+	return box
+
+
 ## NSTEPLIST: the step's plain words ("" = no row: a helper plane). Pulled up N cm, Rounded N edges R mm, Drew a shape, Hollowed out
 func step_words(f: Dictionary) -> String:
 	match String(f.get("t", "")):
 		"sketch":
 			return "Drew a shape"
+		"lay":
+			return "Laid it flat"
 		"loft":
 			return "Blended two shapes"
 		"extrude":
@@ -3279,7 +4202,29 @@ func _step_open(id: String) -> void:
 	_steps_sync()
 
 
+## p089scrubthehi: Scrub the history: the part as it stood after its first k steps. A view only: the record and the undo list do not change,
+## and the slider's end (all the steps) is the real part. Any other press takes the view back to the end (it sets pu.upto = -1 first)
+func _scrub_to(k: int) -> void:
+	var n := int(_rec().get("features", []).size())
+	k = clampi(k, 1, maxi(n, 1))
+	pu.upto = -1 if k >= n else k - 1
+	pu.sync()
+	_scrub_sync()
+
+
+## p089scrubthehi: the slider follows the record and the view (a new step moves its end; a press that leaves the view moves it back)
+func _scrub_sync() -> void:
+	if scrub_sl == null or not is_instance_valid(scrub_sl) or pu == null:
+		return
+	var n := int(_rec().get("features", []).size())
+	scrub_sl.max_value = maxi(n, 1)
+	var k := n if pu.upto < 0 else pu.upto + 1
+	scrub_sl.set_value_no_signal(k)
+	scrub_lbl.text = "Showing all %d steps" % n if k >= n else "Showing step %d of %d. Drag to the end to go on" % [k, n]
+
+
 func _steps_sync() -> void:
+	_scrub_sync()   # p089scrubthehi
 	if steps_vb == null or not is_instance_valid(steps_vb):
 		return
 	var fs: Array = _rec().get("features", [])
