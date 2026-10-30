@@ -610,11 +610,13 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var ef: Array = ed.get("faces", [])
 				var seam := false
 				var concave := false   # a bend that goes INTO the solid (an inner corner): rounding it adds material, so it is skipped
+				var inner := false   # P035: an inside corner by the other face: its centre lies on the outside of this face's plane (the test concave uses fails on a T joint)
 				if ef.size() == 2 and fnorm.has(int(ef[0])) and fnorm.has(int(ef[1])):
 					var n1: Vector3 = fnorm[int(ef[0])]
 					var n2: Vector3 = fnorm[int(ef[1])]
 					seam = n1.dot(n2) > 0.99
 					concave = not seam and (ed["center"] - bb.get_center()).dot(n1 + n2) < 0.0
+					inner = not seam and (fcen[int(ef[1])] - ed["center"]).dot(n1) > 0.0
 				# NROUNDFILTER: "outside" = every face the edge touches lies on the outside of the solid's box (a hole's or a cup's inside does not);
 				# "top" = both ends at the top of the box. Round's filters (Easy Part: All edges, Only the outside, Only the top) read these
 				var outside := not ef.is_empty()
@@ -622,7 +624,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					if not fcen.has(int(fi)) or not _on_skin(fcen[int(fi)], bb):
 						outside = false
 				var top := float(ed["a"].y) >= bb.end.y - SKIN_MM * MM and float(ed["b"].y) >= bb.end.y - SKIN_MM * MM
-				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "outside": outside, "top": top})
+				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "concave": concave, "inner": inner, "outside": outside, "top": top})
 	res["bodies"] = bodies.size()
 	for bi in bodies.size():
 		res["body_looks"].append(look_at(looks, bi))
