@@ -103,6 +103,37 @@ func shot(nm: String) -> void:
 
 
 ## a drag on the grid that makes a shape (one undo step): recorded like a press
+## Nick 2026-10-28 (7089ca07): Easy Part opens EMPTY now; the weapons and props are not chips (only Box .. Plate are). A bar
+## that needs one picks it itself, as a beginner does: the chip if it is shown, else More examples -> From a template -> the item.
+## The panel scroll goes back to its top (the picked part's sliders sit at the top, as after a chip click). Navigation only.
+func pick_part(t: String) -> void:
+	# the pick takes one undo step in the app (the part it replaces is kept for Undo), so it is recorded like a press
+	var pre := JSON.stringify(rec())
+	var pre_n: int = m.undo.size()
+	var pv := vol()
+	var pb := bodies()
+	var chip := root.find_child("easypart_chip_" + t, true, false) as Button
+	if chip != null and chip.is_visible_in_tree():
+		await click_ctl(chip)
+		await idle(3)
+	else:
+		await click_ctl(root.find_child("easypart_more_examples", true, false) as Control)
+		await idle(10)
+		var bc: BuildChoose = m.build_choose
+		await click_ctl(bc.btns["template"]["easy"])
+		await idle(4)
+		bc._starters.id_pressed.emit(1000 + PartTemplates.ORDER.find(t))
+		await idle(20)
+		var sc := root.find_child("easypart_panel_scroll", true, false) as ScrollContainer
+		if sc != null:
+			sc.scroll_vertical = 0
+			await idle(3)
+	var dn: int = m.undo.size() - pre_n
+	var post := JSON.stringify(rec())
+	if dn == 1 and post != pre:
+		steps.append({"name": "pick " + t, "pre": pre, "post": post, "pre_vol": pv, "post_vol": vol(), "pre_bodies": pb, "post_bodies": bodies()})
+
+
 func press_drag(nm: String, pts: Array) -> void:
 	var pre := JSON.stringify(rec())
 	var pre_n: int = m.undo.size()
@@ -196,13 +227,17 @@ func _init() -> void:
 	var start_rec := JSON.stringify(rec())
 	# every template chip (the one on the grid at the start goes last: pressing it changes nothing), then Empty
 	var first_t: String = ep._tpl()
-	var order := []
-	for t in PartTemplates.ORDER:
+	var order := []   # the Start-from chips (START), then the weapons and props (ORDER: no chip, picked by pick_part)
+	for t in PartTemplates.START + PartTemplates.ORDER:
 		if t != first_t:
 			order.append(t)
-	order.append(first_t)
+	if first_t != "":
+		order.append(first_t)
 	for t in order:
-		await press("chip " + t, ep.chips[t], true)
+		if ep.chips.has(t):
+			await press("chip " + t, ep.chips[t], true)
+		else:
+			await pick_part(t)   # Nick 2026-10-28 (7089ca07): the sword is not a chip any more; picked as a beginner does (navigation only)
 	await press("chip Empty", ep.empty_chip, true)
 	# the MAKE buttons, in an order that gives each one the shape it needs
 	await press("Draw shape (arm)", ep.make_btns["draw"], false)
