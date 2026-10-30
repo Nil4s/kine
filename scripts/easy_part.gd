@@ -203,11 +203,15 @@ func build(root: Control) -> void:
 	empty_chip.add_theme_font_size_override("font_size", 15)
 	empty_chip.pressed.connect(_empty)
 	th.add_child(empty_chip)
-	var vr := HFlowContainer.new()   # P107 FITVIEW: the view row (camera only, no step): Fit view, Front, Top, Side, 3/4
+	view_box = PanelContainer.new()   # P107 FITVIEW: the view row (camera only, no step) sits in the clear view's left column under the make row, not in the side panel (the panel grew over the step list and the grid)
+	view_box.name = "easypart_views_box"
+	view_box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	view_box.visible = false
+	root.add_child(view_box)
+	var vr := HBoxContainer.new()
 	vr.name = "easypart_views"
-	vr.add_theme_constant_override("h_separation", 4)
-	vr.add_theme_constant_override("v_separation", 4)
-	v.add_child(vr)
+	vr.add_theme_constant_override("separation", 4)
+	view_box.add_child(vr)
 	for vb in VIEW_BTNS:
 		var vbtn := Button.new()
 		vbtn.name = "easypart_view_" + String(vb[0])
@@ -2305,6 +2309,7 @@ func _process(_dt: float) -> void:
 	make_box.visible = on
 	panel.visible = on
 	hint.visible = on
+	view_box.visible = on   # P107 FITVIEW
 	status.visible = on
 	dots.visible = on
 	shape_box.visible = on and armed == "draw"

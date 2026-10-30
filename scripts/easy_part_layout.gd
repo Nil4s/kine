@@ -427,14 +427,17 @@ func layout(cl: Rect2) -> void:
 		(b as Control).custom_minimum_size.x = bw
 	make_box.size = Vector2(bw * n + (n - 1.0) * 8.0, MAKE_H)
 	make_box.position = Vector2(cl.position.x + 8.0, cl.position.y + 4.0)
-	var top := make_box.position.y + maxf(MAKE_H, make_box.size.y) + 8.0
+	var top := make_box.position.y + maxf(MAKE_H, make_box.size.y) + 8.0   # the side panel's top
+	view_box.reset_size()   # P107 FITVIEW: the view row, the first thing in the left column (camera only)
+	view_box.position = Vector2(cl.position.x + 12.0, top)
+	var ltop := top + view_box.size.y + 6.0   # the left column's top: the words, then the shape boxes
 	var fnt: Font = hint_l.get_theme_font("font")   # the words' width on one line (a label that wraps reports no width)
 	var one_line := fnt.get_string_size(hint_l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, hint_l.get_theme_font_size("font_size")).x + 40.0
 	hint.size.x = minf(one_line, cl.size.x - PW - 40.0)
 	hint.size.y = hint.get_combined_minimum_size().y   # the height of the words wrapped to that width
-	hint.position = Vector2(cl.position.x + 12.0, top)
+	hint.position = Vector2(cl.position.x + 12.0, ltop)
 	shape_box.reset_size()
-	shape_box.position = Vector2(cl.position.x + 12.0, top + hint.size.y + 6.0)
+	shape_box.position = Vector2(cl.position.x + 12.0, ltop + hint.size.y + 6.0)
 	hole_box.reset_size()
 	hole_box.position = shape_box.position
 	split_box.reset_size()
