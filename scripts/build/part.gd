@@ -79,7 +79,7 @@ static func available() -> bool:
 
 
 static func why_not() -> String:
-	return "Part tools need the KineCAD kernel (the CAD DLL is missing: see native/CAD_BUILD.md)"
+	return "Restart Kine first; if this stays, reinstall KineCAD: the part tools did not load"   # NWHYCANT: plain next step, no engine words
 
 
 static func make(name := "Part") -> Dictionary:
