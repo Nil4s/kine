@@ -325,3 +325,5 @@ EXTRA="$EXTRA fstairs:w"   # FSTAIRS: a beginner from the BUILDING card: a 300 x
 EXTRA="$EXTRA p022shellwalls:w"   # p022shellwalls (Friday plan 22): after Hollow inside, Thicker wall: one side wall gets its own thickness (Extra wall slider); measured from the built mesh (tests/p022shellwalls_test.gd)
 EXTRA="$EXTRA p027loftbetwee:w"   # P027 (Friday plan 27): Easy Part Blend two shapes gets a Twist slider (the top shape turns, -90 to +90 deg); a round on the floor and a square on the floor, real clicks, bars on the built solid (tests/p027loftbetwee_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA p030countersun:w"   # P030 COUNTERSUN: Easy Part, Cut a hole offers M3/M4/M5/M6 screw holes: a clearance hole + a counterbore for the head, volume within 3 % of the ISO numbers, one undo step (tests/p030countersun_test.gd; needs the CAD DLL)
+
+EXTRA="$EXTRA p038makeitstro:w"   # P038 MAKE IT STRONGER: Easy Part, a thin plate pulled up, then Make it stronger adds a 4 mm x 10 mm rib along its long side on the top (one undo step, a Rib height slider); bars on the built solid (tests/p038makeitstro_test.gd; needs the CAD DLL)
