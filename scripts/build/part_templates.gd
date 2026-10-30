@@ -67,6 +67,16 @@ const T := {
 		{"k": "wheelbase", "label": "Wheelbase", "lo": 1000.0, "hi": 3000.0, "def": 2500.0, "step": 20.0, "words": ["Shorter", "Longer"]},
 		# the wheel's radius, copied in by Vehicle.make_set and the Easy screen (the arches follow it); no slider of its own on the car
 		{"k": "wheel_r", "label": "Wheel size", "lo": 100.0, "hi": 600.0, "def": 320.0, "step": 10.0, "words": ["Smaller", "Bigger"]}]},
+	# P072 (Parts > Wheels): a wheel with an axle hole, not in ORDER (no template chip): the Wheel and Castor chips (easy_part.gd) make it.
+	# radius / width / hole in mm; the hole runs along the axle (world X) through the middle. Its sliders are hidden there ("parts": true).
+	"axwheel": {"title": "Wheel", "parts": true, "params": [
+		{"k": "radius", "label": "Size", "lo": 20.0, "hi": 150.0, "def": 40.0, "step": 5.0, "words": ["Smaller", "Bigger"]},
+		{"k": "width", "label": "Width", "lo": 6.0, "hi": 60.0, "def": 20.0, "step": 2.0, "words": ["Thinner", "Wider"]},
+		{"k": "hole", "label": "Axle hole", "lo": 4.0, "hi": 16.0, "def": 8.0, "step": 1.0, "words": ["Smaller", "Bigger"]}]},
+	"castor": {"title": "Castor", "parts": true, "params": [
+		{"k": "radius", "label": "Size", "lo": 20.0, "hi": 150.0, "def": 25.0, "step": 5.0, "words": ["Smaller", "Bigger"]},
+		{"k": "width", "label": "Width", "lo": 6.0, "hi": 60.0, "def": 16.0, "step": 2.0, "words": ["Thinner", "Wider"]},
+		{"k": "hole", "label": "Axle hole", "lo": 4.0, "hi": 16.0, "def": 6.0, "step": 1.0, "words": ["Smaller", "Bigger"]}]},
 	"wheel": {"title": "Wheel", "params": [
 		{"k": "radius", "label": "Radius", "lo": 100.0, "hi": 600.0, "def": 320.0, "step": 10.0, "words": ["Smaller", "Bigger"]},
 		{"k": "width", "label": "Width", "lo": 50.0, "hi": 400.0, "def": 200.0, "step": 10.0, "words": ["Thinner", "Wider"]}]},
@@ -538,6 +548,13 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var dth: float = p["thickness"]
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(-dw * 0.5, -D_H * 0.5), Vector2(dw * 0.5, D_H * 0.5))]), "extrude", dth, "new")
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(-dw * 0.5 + D_BAR, -D_H * 0.5 + D_BAR), Vector2(dw * 0.5 - D_BAR, D_H * 0.5 - D_BAR))]), "extrude", 2.0 * dth, "cut", true)   # both ways (see the drawer pull)
+		"axwheel", "castor":
+			# P072: a tyre (the profile turned about the sketch's x axis = world X, the axle), with a round axle hole of 'hole' mm cut
+			# through its middle along X (a circle on the Right plane, extruded both ways past the tyre)
+			var AR: float = p["radius"]
+			var aw: float = p["width"]
+			_ex(fs, _sk(fs, "front", [_rect(Vector2(-aw * 0.5, 0.0), Vector2(aw * 0.5, AR))]), "revolve", 0.0, "new")
+			_ex(fs, _sk(fs, "right", [{"k": "circle", "c": [0.0, 0.0], "r": float(p["hole"]) * 0.5}]), "extrude", 2.0 * aw, "cut", true)
 		"wheel":
 			# a tyre: the profile (width x radius) turned about the sketch's x axis = world X, the axle (side to side)
 			var R: float = p["radius"]

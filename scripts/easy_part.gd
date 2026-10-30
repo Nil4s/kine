@@ -211,7 +211,7 @@ func build(root: Control) -> void:
 	parts_btn = Button.new()   # NSCREW2: Parts: the screw sizes; after the template chips on the same row
 	parts_btn.name = "easypart_chip_parts"
 	parts_btn.text = "Parts"
-	parts_btn.tooltip_text = "Parts: a library of small parts by kind (screws and gears now, more soon)"
+	parts_btn.tooltip_text = "Parts: a library of small parts by kind (screws, gears and wheels now, more soon)"
 	parts_btn.toggle_mode = true
 	parts_btn.focus_mode = Control.FOCUS_NONE
 	parts_btn.custom_minimum_size = Vector2(0, 34)
@@ -256,6 +256,8 @@ func build(root: Control) -> void:
 	v.add_child(clip_box)
 	handle_box = _handle_box()   # P071 HANDLES: the Handles grid under the library page
 	v.add_child(handle_box)
+	wheel_box = _wheel_box()   # P072: the Wheels page's chips
+	v.add_child(wheel_box)
 	rows_vb = VBoxContainer.new()
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 2)
@@ -1277,6 +1279,69 @@ func _clip_pick(kind: String) -> void:
 	_screw_sync()   # the clip chips' open state and pressed chip are in _screw_sync
 
 
+## P072: the Wheels page: two chips, Wheel and Castor. Each is a tyre with an axle hole through its middle; the words give its size
+func _wheel_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_wheel_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
+	var hd := Label.new()
+	hd.name = "easypart_wheel_words"
+	hd.text = "Wheels: pick one. The hole in the middle takes the axle"
+	hd.add_theme_font_size_override("font_size", 14)
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(hd)
+	var fl := HFlowContainer.new()
+	fl.add_theme_constant_override("h_separation", 4)
+	fl.add_theme_constant_override("v_separation", 4)
+	vb.add_child(fl)
+	for k in ["wheel", "castor"]:
+		var d: Dictionary = PartTemplates.defaults("axwheel" if k == "wheel" else "castor")
+		var b := Button.new()
+		b.name = "easypart_wheel_" + k
+		b.text = "Wheel" if k == "wheel" else "Castor"
+		b.icon = _lib_icon("Wheels")
+		b.tooltip_text = "%s: %d mm across, %d mm wide, an axle hole %d mm through the middle" % [b.text, int(d["radius"]) * 2, int(d["width"]), int(d["hole"])]
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(0, 34)
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_wheel_pick.bind(k))
+		fl.add_child(b)
+		wheel_btns[k] = b
+	return pc
+
+
+## P072: a Wheel or a Castor on the floor (one undo step). It replaces the part on the floor, like a screw does when none is there
+func _wheel_pick(k: String) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var t := "axwheel" if k == "wheel" else "castor"
+	var label := "Wheel" if k == "wheel" else "Castor"
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Start a %s" % label.to_lower()
+	m._push_undo()
+	m.S.part = PartTemplates.make(t)
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("%s did not build. Press Reset, then pick it again" % label)
+	else:
+		_say("%s on the floor, its axle hole %d mm through the middle. Press Wheel or Castor to change it" % [label, int(PartTemplates.defaults(t)["hole"])])
+	_screw_sync()
+
+
 ## NSCREW2: a small screw icon, drawn from the size: head width grows with M, shank length with the length (the same 16 px box)
 func _screw_icon(d: int, L: int) -> ImageTexture:
 	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
@@ -1461,6 +1526,8 @@ func _lib_press(cat: String) -> void:
 		_say("Clips and feet: pick one. It drops on the floor")
 	elif cat == "Handles":
 		_say("Handles: pick a kind and a size. It drops on the floor")
+	elif cat == "Wheels":
+		_say("Wheels: press Wheel or Castor. It drops on the floor, with its axle hole")
 	else:
 		_say("%s are coming soon. Next step: press Screws or Gears" % cat)
 	_screw_sync()
@@ -1708,6 +1775,10 @@ func _screw_sync() -> void:
 					var hb: Button = handle_btns["%s_%d" % [kind, size]]
 					hb.set_pressed_no_signal(not cur_h.is_empty() and kind == _tpl() and int(roundf(float(cur_h.get(PartTemplates.HANDLE_KEY[kind], 0)))) == size)
 					m._grey(hb, Part.why_not() if not Part.available() else "")
+		if wheel_box != null:   # P072: the Wheels chips show while the Wheels category is open
+			wheel_box.visible = parts_open and lib_cat == "Wheels"
+			for k in wheel_btns:
+				m._grey(wheel_btns[k], Part.why_not() if not Part.available() else "")
 	if screw_box == null or parts_btn == null:
 		return
 	var cur: Dictionary = {}
