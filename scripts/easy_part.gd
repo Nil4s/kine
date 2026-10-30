@@ -398,7 +398,7 @@ func _tilt_box() -> PanelContainer:
 	box.name = "easypart_tilt"
 	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
 	box.visible = false
-	var row := HBoxContainer.new()   # p021: Tilt it and Draft angle share the one panel (only one of them shows for a given newest step)
+	var row := VBoxContainer.new()   # p021: Tilt it and Draft angle share the one panel (only one of them shows for a given newest step); stacked, the panel stays narrow so it never covers the solid under it
 	row.add_theme_constant_override("separation", 6)
 	box.add_child(row)
 	tilt_btn = _big_btn("easypart_tilt_it", "Tilt it 20 degrees", "Lean the newest solid 20 degrees, sideways, about its middle", _tilt_press)
