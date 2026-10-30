@@ -41,9 +41,14 @@ static func to_html(title: String, steps: Array, vols: Array, size_mm: Vector3) 
 	return h + "</body></html>\n"
 
 
-## the part as it stands after feature `upto`, painted, as PNG bytes. "" when it has no solid yet
+## the part as it stands after feature `upto`, painted, as PNG bytes. A step with no solid yet (a sketch) shows the part
+## as it first gets one, so every step has a picture. "" when the part never has a solid
 static func picture(lt: LibraryThumbs, rec: Dictionary, upto: int) -> PackedByteArray:
 	var res := Part.replay(rec, upto)
+	var k := upto
+	while res["mesh"] == null and k < (rec.get("features", []) as Array).size() - 1:
+		k += 1
+		res = Part.replay(rec, k)
 	if res["mesh"] == null:
 		return PackedByteArray()
 	var mi := MeshInstance3D.new()
