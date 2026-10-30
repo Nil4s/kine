@@ -57,7 +57,19 @@ const T := {
 	"screw": {"title": "Screw", "parts": true, "params": [
 		{"k": "d", "label": "Size", "lo": 3.0, "hi": 6.0, "def": 4.0, "step": 1.0, "words": ["Smaller", "Bigger"]},
 		{"k": "L", "label": "Length", "lo": 10.0, "hi": 30.0, "def": 16.0, "step": 1.0, "words": ["Shorter", "Longer"]}]},
+	# P069 BEARINGS: a deep groove ball bearing from the Parts chips (608, 625, 688). kind = 0 / 1 / 2 (BEARING_SIZE). Its numbers are the chips, so no sliders.
+	"bearing": {"title": "Bearing", "parts": true, "params": [
+		{"k": "kind", "label": "Bearing", "lo": 0.0, "hi": 2.0, "def": 0.0, "step": 1.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "size"}]},
+	# P069 BEARINGS: the seat for the bearing on the floor: a holder block with a pocket for it, and the bearing beside it (same kind)
+	"seat": {"title": "Seat", "parts": true, "params": [
+		{"k": "kind", "label": "Bearing", "lo": 0.0, "hi": 2.0, "def": 0.0, "step": 1.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "size"}]},
 }
+
+## P069 BEARINGS: [bore, outside diameter, width] in mm of the bearings 608, 625, 688 (deep groove ball bearings, ISO 15 sizes)
+const BEARING_SIZE := [[8.0, 22.0, 7.0], [5.0, 16.0, 5.0], [8.0, 16.0, 5.0]]
+const SEAT_WALL := 6.0      # mm: the holder's wall beside the bearing, and the floor under its pocket
+const SEAT_CLEAR := 0.2     # mm: the pocket is the outside diameter + this (the bearing drops in and turns)
+const SEAT_BEAR_GAP := 15.0 # mm: the bearing stands this far beside the holder's edge (the two never touch)
 
 ## NSCREW2: ISO 4762 socket head screws: nominal size -> [head diameter, head height] (mm). The shank is the nominal size, plain (no thread).
 const SCREW_HEAD := {3: [5.5, 3.0], 4: [7.0, 4.0], 5: [8.5, 5.0], 6: [10.0, 6.0]}
@@ -295,6 +307,21 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var sid := _sk(fs, "front", _poly(prof))
 			_ex(fs, sid, "revolve", 0.0, "new")
 			fs[fs.size() - 1]["axis"] = "y"
+		"bearing":
+			# P069: the ring on the floor (its bore and outside diameter from the top face, up Y), the same two steps as a washer
+			var b: Array = BEARING_SIZE[clampi(int(roundf(float(p["kind"]))), 0, 2)]
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [0.0, 0.0], "r": float(b[1]) * 0.5}]), "extrude", float(b[2]), "new")
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [0.0, 0.0], "r": float(b[0]) * 0.5}]), "extrude", float(b[2]) + 2.0, "cut")
+		"seat":
+			# P069: a holder block standing on the floor (its top face at Y 0, down to -(width + wall)), a pocket cut down from the top
+			# face: the bearing's outside diameter + 0.2 mm, as deep as the bearing is wide. The bearing stands on the floor beside it.
+			var b: Array = BEARING_SIZE[clampi(int(roundf(float(p["kind"]))), 0, 2)]
+			var h: float = float(b[1]) * 0.5 + SEAT_WALL
+			_ex(fs, _sk(fs, "top", [_rect(Vector2(-h, -h), Vector2(h, h))]), "extrude", -(float(b[2]) + SEAT_WALL), "new")
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [0.0, 0.0], "r": float(b[1]) * 0.5 + SEAT_CLEAR * 0.5}]), "extrude", -float(b[2]), "cut")
+			var cx: float = h + SEAT_BEAR_GAP + float(b[1]) * 0.5
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [cx, 0.0], "r": float(b[1]) * 0.5}]), "extrude", float(b[2]), "new")
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [cx, 0.0], "r": float(b[0]) * 0.5}]), "extrude", float(b[2]) + 2.0, "cut")
 		"sword":
 			var L: float = p["blade_length"]
 			var w: float = p["width"]

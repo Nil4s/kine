@@ -223,6 +223,8 @@ func build(root: Control) -> void:
 	v.add_child(lib_box)
 	screw_box = _screw_box()
 	v.add_child(screw_box)
+	bear_box = _bear_box()   # P069 BEARINGS: the bearing chips and the seat button, under the Parts page
+	v.add_child(bear_box)
 	rows_vb = VBoxContainer.new()
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 4)
@@ -1134,6 +1136,8 @@ func _lib_press(cat: String) -> void:
 		_say("Screws: pick a size. It drops on the floor")
 	elif cat == "Gears":
 		_say("Gears: press Gear in the chips above. It drops on the floor")
+	elif cat == "Bearings":   # P069 BEARINGS: three sizes; the seat button under them cuts the seat for the one on the floor
+		_say("Bearings: pick a size. It drops on the floor. Then Make a seat for it")
 	else:
 		_say("%s are coming soon. Next step: press Screws or Gears" % cat)
 	_screw_sync()
@@ -1286,6 +1290,14 @@ func _screw_sync() -> void:
 	if _tpl() == "screw":
 		cur = (_rec().get("easy", {}) as Dictionary).get("p", {})
 	screw_box.visible = (parts_open and lib_cat == "Screws") or _tpl() == "screw"
+	if bear_box != null:   # P069 BEARINGS: the three chips show the bearing on the floor (pressed); the seat button sits under them
+		var bk := int((_rec().get("easy", {}) as Dictionary).get("p", {}).get("kind", -1)) if _tpl() in ["bearing", "seat"] else -1
+		bear_box.visible = (parts_open and lib_cat == "Bearings") or _tpl() in ["bearing", "seat"]
+		for i in BEAR_CODES.size():
+			var bb: Button = bear_btns[BEAR_CODES[i]]
+			bb.set_pressed_no_signal(i == bk)
+			m._grey(bb, Part.why_not() if not Part.available() else "")
+		m._grey(seat_btn, Part.why_not() if not Part.available() else "")
 	parts_btn.set_pressed_no_signal(parts_open)
 	for d in SCREW_DS:
 		for L in SCREW_LENS:
@@ -1293,6 +1305,120 @@ func _screw_sync() -> void:
 			b.set_pressed_no_signal(not cur.is_empty() and int(cur.get("d", 0)) == d and int(cur.get("L", 0)) == L)
 			m._grey(b, Part.why_not() if not Part.available() else "")
 	parts_btn.set_pressed_no_signal(parts_open)
+
+
+## P069 BEARINGS: the three bearing sizes, in the order of PartTemplates.BEARING_SIZE (608, 625, 688)
+const BEAR_CODES := ["608", "625", "688"]
+
+
+## P069 BEARINGS: the Bearings page under the Parts chips: a line, three size chips (bore, outside, width in the tip), the seat button
+func _bear_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_bear_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
+	var hd := Label.new()
+	hd.name = "easypart_bear_words"
+	hd.text = "Bearings, ball: pick a size. It drops on the floor"
+	hd.add_theme_font_size_override("font_size", 14)
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(hd)
+	var g := GridContainer.new()
+	g.columns = BEAR_CODES.size()
+	g.add_theme_constant_override("h_separation", 4)
+	g.add_theme_constant_override("v_separation", 4)
+	vb.add_child(g)
+	for i in BEAR_CODES.size():
+		var code: String = BEAR_CODES[i]
+		var sz: Array = PartTemplates.BEARING_SIZE[i]
+		var b := Button.new()
+		b.name = "easypart_bear_" + code
+		b.text = code
+		b.icon = _lib_icon("Bearings")
+		b.tooltip_text = "%s: bore %s mm, outside %s mm, %s mm wide" % [code, str(sz[0]), str(sz[1]), str(sz[2])]
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(0, 34)
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_bear_pick.bind(i))
+		g.add_child(b)
+		bear_btns[code] = b
+	seat_btn = Button.new()
+	seat_btn.name = "easypart_bear_seat"
+	seat_btn.text = "Make a seat for it"
+	seat_btn.icon = _lib_icon("Bearings")
+	seat_btn.tooltip_text = "Cut a seat for the bearing on the floor: a holder block with a pocket the bearing fits (0.2 mm loose), the bearing beside it. One undo step"
+	seat_btn.focus_mode = Control.FOCUS_NONE
+	seat_btn.custom_minimum_size = Vector2(0, 34)
+	seat_btn.add_theme_font_size_override("font_size", 13)
+	seat_btn.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+	seat_btn.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+	seat_btn.pressed.connect(_seat_press)
+	vb.add_child(seat_btn)
+	return pc
+
+
+## P069 BEARINGS: a size chip drops that bearing on the floor (it replaces what is there, as a screw does). One undo step.
+func _bear_pick(i: int) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var code: String = BEAR_CODES[i]
+	if _tpl() == "bearing" and int((_rec().get("easy", {}) as Dictionary).get("p", {}).get("kind", -1)) == i:
+		_say("Already a %s bearing on the floor. Pick another size to change it" % code)
+		_screw_sync()
+		return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Start a bearing"
+	m._push_undo()
+	m.S.part = PartTemplates.make("bearing", {"kind": i})
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("The %s bearing did not build. Press Reset, then pick a size again" % code)
+	else:
+		_say("%s bearing on the floor. Make a seat for it cuts its seat" % code)
+	_screw_sync()
+
+
+## P069 BEARINGS: Make a seat for it: the bearing on the floor gets a holder with its seat (one undo step). Refused in words with no bearing.
+func _seat_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	if _tpl() == "seat":
+		_say("The seat is on the floor already. Pick another bearing to change it")
+		return
+	if _tpl() != "bearing":
+		_say("Make a seat needs a bearing on the floor first. Press Bearings, then 608, 625 or 688")
+		return
+	var k := int((_rec().get("easy", {}) as Dictionary).get("p", {}).get("kind", 0))
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Make a seat"
+	m._push_undo()
+	m.S.part = PartTemplates.make("seat", {"kind": k})
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("The %s seat did not build. Press Reset, then pick the bearing again" % BEAR_CODES[k])
+	else:
+		_say("Seat made for the %s bearing: the bearing stands beside it. Undo takes the seat back" % BEAR_CODES[k])
+	_screw_sync()
 
 
 func _back() -> void:

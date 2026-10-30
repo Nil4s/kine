@@ -15,7 +15,7 @@ const STICK_OPS := [["join", "Join", "Make the two pieces one solid"], ["cut", "
 const SCREW_DS := [3, 4, 5, 6]         # NSCREW2: the Parts category's screw sizes (M3..M6, columns of the grid)
 const SCREW_LENS := [10, 16, 20, 30]   # NSCREW2: the screw lengths in mm (rows of the grid)
 const LIB_CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "Springs", "Handles", "Wheels", "Brackets"]   # NLIBPAGE: the Parts library page, in this order
-const LIB_READY := ["Screws", "Gears"]   # NLIBPAGE: the categories with parts today; the others say coming soon
+const LIB_READY := ["Screws", "Gears", "Bearings"]   # NLIBPAGE: the categories with parts today; the others say coming soon
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
 const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal): a wood brown, red > green > blue
 const TILT_DEG := 20.0           # Tilt it: the lean of the newest solid (degrees, sideways about its middle)
@@ -87,6 +87,9 @@ var lib_box: PanelContainer      # NLIBPAGE: the Parts library page: ten categor
 var lib_btns := {}               # NLIBPAGE: category -> its chip
 var lib_soon: Label              # NLIBPAGE: "Coming soon" line for an empty category (names the next step)
 var lib_cat := ""                # NLIBPAGE: the category open on the page ("" = none); Screws opens when Parts opens
+var bear_box: PanelContainer      # P069 BEARINGS: the bearing chips (608, 625, 688) and the seat button: shown with the Bearings page or a bearing / seat on the floor
+var bear_btns := {}              # P069 BEARINGS: "608" / "625" / "688" -> its chip
+var seat_btn: Button             # P069 BEARINGS: "Make a seat for it": cuts the seat for the bearing on the floor
 var stick_box: PanelContainer    # Stick together: Join / Cut away / Keep the overlap, shown once two pieces are picked
 var stick_btns := {}
 var stick_picks: Array = []      # the body indices clicked in the view (the first = the target, the second = the tool)
