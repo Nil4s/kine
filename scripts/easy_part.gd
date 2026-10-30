@@ -727,6 +727,8 @@ func _set_value(row: Dictionary, v: float, final: bool) -> void:
 		_apply_rep(row, v)
 	elif row["kind"] == "taper":
 		_apply_taper(v)
+	elif row["kind"] == "twist":
+		_apply_twist(v)
 	else:
 		_apply_tweak(v)
 		if final and tweak.has("say"):
@@ -754,6 +756,13 @@ func _apply_taper(v: float) -> void:
 	var f := Part.feature(_rec(), String(taper_tw.get("id", "")))
 	if not f.is_empty():
 		f["taper"] = v
+
+
+## P024: the Twist slider writes the pulled shape's twist (degrees, the kernel turns the extrude as it rises)
+func _apply_twist(v: float) -> void:
+	var f := Part.feature(_rec(), String(twist_tw.get("id", "")))
+	if not f.is_empty():
+		f["twist"] = v
 
 
 func _on_slider_value(v: float, row: Dictionary) -> void:
@@ -859,9 +868,20 @@ func _rows_sync() -> void:
 		var r := _make_row(String(tw["label"]), float(tw["lo"]), float(tw["hi"]), float(tw["step"]), tw.get("words", ["Less", "More"]), "tweak", "last", String(tw["unit"]))
 		rows.append(r)
 	taper_row = {}
+	twist_row = {}
 	if _taper_live():   # FPLANTER: the Taper row sits UNDER How far; it is not in rows (rows[-1] stays the step's own slider)
-		taper_row = _make_row(String(taper_tw["label"]), float(taper_tw["lo"]), float(taper_tw["hi"]), float(taper_tw["step"]), taper_tw["words"], "taper", "taper", String(taper_tw["unit"]))
+		# P024: the Twist slider shares the Taper row's line (side by side), so a pull with a Twist costs no more height than one with a Taper
+		# alone: the side panel stays as tall, and the drawing area under it stays as clear (fdelete draws beside a piece there)
+		var pair := HBoxContainer.new()
+		pair.name = "easypart_taper_pair"
+		rows_vb.add_child(pair)
+		taper_row = _make_row(String(taper_tw["label"]), float(taper_tw["lo"]), float(taper_tw["hi"]), float(taper_tw["step"]), taper_tw["words"], "taper", "taper", String(taper_tw["unit"]), pair)
 		(taper_row["words"] as Control).visible = not _compact
+		if not twist_tw.is_empty():
+			twist_row = _make_row(String(twist_tw["label"]), float(twist_tw["lo"]), float(twist_tw["hi"]), float(twist_tw["step"]), twist_tw["words"], "twist", "twist", String(twist_tw["unit"]), pair)
+			(twist_row["words"] as Control).visible = not _compact
+			(twist_row["box"] as Control).size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		(taper_row["box"] as Control).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for r in rows:
 		(r["words"] as Control).visible = not _compact
 	_values_sync()
@@ -942,6 +962,8 @@ func _values_sync() -> void:
 	var all_rows := rows.duplicate()
 	if not taper_row.is_empty():
 		all_rows.append(taper_row)
+	if not twist_row.is_empty():
+		all_rows.append(twist_row)
 	for r in all_rows:
 		var s: HSlider = r["slider"]
 		var v := 0.0
@@ -949,12 +971,20 @@ func _values_sync() -> void:
 			v = float(e.get("p", {}).get(r["key"], 0.0)) if bool(r.get("raw", false)) else float(e.get("p", {}).get(r["key"], 0.0)) / 10.0
 		elif r["kind"] == "taper":
 			v = float(Part.feature(_rec(), String(taper_tw.get("id", ""))).get("taper", 0.0))
+		elif r["kind"] == "twist":
+			v = float(Part.feature(_rec(), String(twist_tw.get("id", ""))).get("twist", 0.0))
 		else:
 			v = _tweak_value()
 		if not bool(r.get("held", false)):
 			s.set_value_no_signal(v)
 		_pill_text(r, s.value)
 		m._grey(s, Part.why_not() if off else "")
+	# P024: a twisted shape has no taper (the kernel ignores it): the Taper row goes while the Twist is above 0. It fades in place rather than
+	# hiding, so the Twist slider beside it keeps its width (a hidden box would widen the Twist slider mid-drag)
+	if not taper_row.is_empty():
+		var twisted := not twist_row.is_empty() and float(Part.feature(_rec(), String(twist_tw.get("id", ""))).get("twist", 0.0)) > 0.0
+		(taper_row["box"] as Control).modulate.a = 0.0 if twisted else 1.0
+		(taper_row["slider"] as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE if twisted else Control.MOUSE_FILTER_STOP
 	_rep_sync()
 	whole_l.visible = _tpl() != ""
 	if whole_l.visible:   # the whole shape's biggest size (the replay's box, m -> cm): the sliders move one part of it
@@ -2970,6 +3000,7 @@ func _step_open(id: String) -> void:
 		return
 	tweak = tw
 	taper_tw = {}
+	twist_tw = {}
 	_rows_sig = ""
 	_rows_sync()
 	_say("Change the step: %s. The later steps are made again" % String(tw["label"]))
