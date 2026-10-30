@@ -2003,7 +2003,11 @@ func _process(_dt: float) -> void:
 		_split_sync()
 	colour_box.visible = on and armed == "colour"
 	repeat_box.visible = on and armed == "" and rep_id != "" and not Part.feature(_rec(), rep_id).is_empty()
-	stick_box.visible = on and armed == "stick" and stick_picks.size() == 2
+	var smooth := on and _smooth_on()   # P035: after a Join the stick box holds only the Smooth the joints chip
+	stick_box.visible = (on and armed == "stick" and stick_picks.size() == 2) or smooth
+	smooth_btn.visible = smooth
+	for so in stick_btns:
+		(stick_btns[so] as Button).visible = not smooth
 	if del_on and (armed != "" or (_rec().get("features", []) as Array).size() != del_n):
 		_pick_clear()   # FDELETE: a pick ends with the step it was made on
 	del_btn.visible = on and del_on
