@@ -1698,6 +1698,8 @@ func _lib_press(cat: String) -> void:
 		_say("Wheels: press Wheel or Castor. It drops on the floor, with its axle hole")
 	elif cat == "Boards":   # p078makeacasef
 		_say("Boards: press your board. A case for it drops on the floor")
+	elif cat == "Springs":   # p070springfix: the page shows the Spring button (opening a category builds nothing)
+		_say("Springs: press Spring below. It drops on the floor")
 	else:
 		_say("%s are coming soon. Next step: press Screws or Gears" % cat)
 	_screw_sync()
@@ -1736,6 +1738,16 @@ func _lib_box() -> PanelContainer:
 	lib_soon.add_theme_font_size_override("font_size", 14)
 	lib_soon.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lib_soon.visible = false
+	spring_pick = Button.new()   # p070springfix: the Springs page button (shown only on Springs): one click, a spring on the floor
+	spring_pick.name = "easypart_spring_pick"
+	spring_pick.text = "Spring"
+	spring_pick.toggle_mode = true
+	spring_pick.focus_mode = Control.FOCUS_NONE
+	spring_pick.custom_minimum_size = Vector2(0, 34)
+	spring_pick.add_theme_font_size_override("font_size", 13)
+	spring_pick.visible = false
+	spring_pick.pressed.connect(_spring_pick_press)
+	vb.add_child(spring_pick)
 	vb.add_child(lib_soon)
 	return pc
 
@@ -2014,6 +2026,9 @@ func _screw_sync() -> void:
 			var lb: Button = lib_btns[cat]
 			lb.set_pressed_no_signal(parts_open and cat == lib_cat)
 			m._grey(lb, Part.why_not() if not Part.available() else "")
+		spring_pick.visible = parts_open and lib_cat == "Springs"   # p070springfix
+		spring_pick.set_pressed_no_signal(_tpl() == "spring")
+		m._grey(spring_pick, Part.why_not() if not Part.available() else "")
 		lib_soon.visible = parts_open and lib_cat != "" and not (lib_cat in LIB_READY)
 		if screw_words != null:   # the page is open: its chips and the status line say what to do
 			screw_words.visible = not parts_open
@@ -4189,3 +4204,11 @@ func _steps_sync() -> void:
 		var fid := String(f.get("id", ""))
 		b.pressed.connect(func(): _step_open(fid))
 		steps_vb.add_child(b)
+
+
+## p070springfix: the Springs page's Spring button: the page closes (the spring's Turns, Wire and Coil size sliders take its room),
+## then the spring drops on the floor. One undo step (the chip's).
+func _spring_pick_press() -> void:
+	parts_open = false
+	_chip("spring")
+	_screw_sync()
