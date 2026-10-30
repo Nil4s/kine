@@ -100,6 +100,7 @@ var status_l: Label
 var dots: Control
 var armed := ""                # "draw" while the next drag draws a shape
 var shape := "box"
+var sides := 6                  # NPOLY2: the Sides slider (3 to 12): a regular prism of this many sides (shape "poly"); Hex is the 6 of it
 var msg := ""                  # the sentence of the last press, until the next one
 var taper_tw := {}             # FPLANTER: the Taper slider of the last Pull it up (its extrude's id; shown while that pull is the newest step)
 var taper_row: Dictionary = {}  # FPLANTER: the Taper slider's row ({} = none); kept out of rows so rows[-1] is still How far
@@ -263,6 +264,7 @@ func build(root: Control) -> void:
 		b.pressed.connect(func(): shape = String(s[0]); _sync_shape())
 		sh.add_child(b)
 		shape_btns[s[0]] = b
+	sh.add_child(_sides_row())   # NPOLY2: Sides, next to Hex: a regular shape with 3 to 12 sides
 	root.add_child(shape_box)
 	hole_box = _hole_box()
 	root.add_child(hole_box)
@@ -3494,8 +3496,8 @@ func _draft_outline() -> PackedVector2Array:
 	elif String(_draft["shape"]) == "pointy":
 		for q in _pointy_pts(a, b) + [a]:
 			pts.append(m.cam.unproject_position(_pw(q)))
-	elif String(_draft["shape"]) == "hex":
-		for q in _hex_pts(a, b) + [a]:
+	elif String(_draft["shape"]) == "hex" or String(_draft["shape"]) == "poly":
+		for q in _poly_pts(a, b, _draft_sides()) + [a]:
 			pts.append(m.cam.unproject_position(_pw(q)))
 	else:
 		var r := a.distance_to(b)
@@ -3508,6 +3510,71 @@ func _draft_outline() -> PackedVector2Array:
 ## POINTY: the drag's corners a and b make an isoceles triangle: the base is a's side of the box (a to (b.x, a.y)), the point is at the middle of the far edge (b's side: (middle x, b.y))
 func _pointy_pts(a: Vector2, b: Vector2) -> Array:
 	return [a, Vector2(b.x, a.y), Vector2((a.x + b.x) * 0.5, b.y)]
+
+
+## NPOLY2: the sides of the draft being drawn: a Sides shape its slider's count, a Hex 6
+func _draft_sides() -> int:
+	return sides if String(_draft.get("shape", "")) == "poly" else 6
+
+
+## NPOLY2: the Sides row: the word Sides, a slider 3 to 12 (a click or a drag), and the count in words. Moving it picks the Sides shape
+func _sides_row() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.name = "easypart_sides_row"
+	row.add_theme_constant_override("separation", 6)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	var sl_l := Label.new()
+	sl_l.name = "easypart_sides_label"
+	sl_l.text = "Sides"
+	sl_l.add_theme_font_size_override("font_size", 16)
+	row.add_child(sl_l)
+	var sl := HSlider.new()
+	sl.name = "easypart_sides"
+	sl.min_value = 3
+	sl.max_value = 12
+	sl.step = 1
+	sl.value = sides
+	sl.focus_mode = Control.FOCUS_NONE
+	sl.custom_minimum_size = Vector2(120, 40)
+	sl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	sl.tooltip_text = "Sides: how many sides the shape has (3 is a triangle, 6 a hexagon, 12 nearly round)"
+	var tr := _style(Color(0.2, 0.21, 0.26), 4, 0)
+	tr.content_margin_top = 4
+	tr.content_margin_bottom = 4
+	var fill := _style(AMBER, 4, 0)
+	fill.content_margin_top = 4
+	fill.content_margin_bottom = 4
+	sl.add_theme_stylebox_override("slider", tr)
+	sl.add_theme_stylebox_override("grabber_area", fill)
+	sl.add_theme_stylebox_override("grabber_area_highlight", fill)
+	var kn := _knob()
+	sl.add_theme_icon_override("grabber", kn)
+	sl.add_theme_icon_override("grabber_highlight", kn)
+	row.add_child(sl)
+	var rd := Label.new()
+	rd.name = "easypart_sides_value"
+	rd.add_theme_font_size_override("font_size", 16)
+	rd.text = "%d sides" % sides
+	row.add_child(rd)
+	sl.value_changed.connect(func(v: float): sides = int(v); shape = "poly"; rd.text = "%d sides" % sides; _sync_shape())
+	return row
+
+
+## POLY: a regular polygon with `n` sides in the drag box: a vertex on the box's right, the rest round, centred on the box's middle. The box's width and height are the most it can reach (a Hex is the n = 6 case)
+func _poly_pts(a: Vector2, b: Vector2, n: int) -> Array:
+	if n == 6:
+		return _hex_pts(a, b)
+	var c := (a + b) * 0.5
+	var mx := 0.0
+	var my := 0.0
+	for i in n:
+		mx = maxf(mx, absf(cos(TAU * i / n)))
+		my = maxf(my, absf(sin(TAU * i / n)))
+	var r := minf(absf(b.x - a.x) * 0.5 / mx, absf(b.y - a.y) * 0.5 / my)
+	var out := []
+	for i in n:
+		out.append(c + Vector2.from_angle(TAU * i / n) * r)
+	return out
 
 
 ## HEX: a regular hexagon in the drag box, centred on its middle, flat top and bottom (the box's width is the corner-to-corner, its height the across-flats); the drag takes the smaller of the two sizes
@@ -4174,7 +4241,7 @@ func _finish_draw() -> void:
 			var t := TAU * float(i) / 16.0
 			opts.append(Part.arr2(Vector2(oc.x + orx * cos(t), oc.y + ory * sin(t))))
 		ents = [{"k": "bspline", "pts": opts, "closed": true}]
-	elif sh == "box" or sh == "pointy" or sh == "hex":
+	elif sh == "box" or sh == "pointy" or sh == "hex" or sh == "poly":
 		var sd := _sides(a, b, pl)
 		if sd.has("thin"):
 			_say("Drag a bit wider: both sides must be at least 2 mm (now %s mm)" % _mm_words(float(sd["thin"])))
@@ -4182,10 +4249,10 @@ func _finish_draw() -> void:
 		b = sd["b"]
 		if sh == "box":
 			ent = {"k": "rect", "a": Part.arr2(a), "b": Part.arr2(b)}
-		elif sh == "hex":   # HEX: six lines, the closed outline of the hexagon (Expert's line tool records the same)
-			var hp := _hex_pts(a, b)
-			for i in 6:
-				ents.append({"k": "line", "a": Part.arr2(hp[i]), "b": Part.arr2(hp[(i + 1) % 6])})
+		elif sh == "hex" or sh == "poly":   # HEX / POLY: straight lines, the closed outline of the polygon (Expert's line tool records the same)
+			var hp := _poly_pts(a, b, 6 if sh == "hex" else sides)
+			for i in hp.size():
+				ents.append({"k": "line", "a": Part.arr2(hp[i]), "b": Part.arr2(hp[(i + 1) % hp.size()])})
 		else:   # POINTY: three lines, the closed outline of the triangle (Expert's line tool records the same)
 			var tp := _pointy_pts(a, b)
 			ents = [{"k": "line", "a": Part.arr2(tp[0]), "b": Part.arr2(tp[1])}, {"k": "line", "a": Part.arr2(tp[1]), "b": Part.arr2(tp[2])}, {"k": "line", "a": Part.arr2(tp[2]), "b": Part.arr2(tp[0])}]
