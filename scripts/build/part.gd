@@ -53,7 +53,9 @@ extends RefCounted
 ## is just wide enough that neighbours sit "w" + "gap" mm apart.
 ## COMBINE (Fusion Combine): {"t": "combine", "id", "name", "target": N, "tools": [M, ...], "op": "join"|"cut"|"intersect", "keep": bool}: the target
 ## body joins, cuts or shares volume with each tool body in turn (the tools in order). The result takes the target's place in the body list; the tool
-## bodies go (keep = true leaves them where they are, unchanged). Every other body keeps its place and its look, the target keeps its look.
+## bodies go (keep = true leaves them where they are, unchanged).
+## FSTAIRS: "kind": "stairs" (Easy's Up and Forward): "count" steps, "rise" and "run" mm: step i is the body moved i rises up and i runs forward; the
+## space under each step is filled (a solid staircase, n(n+1)/2 blocks of the body), so the stair is one body. Every other body keeps its place and its look, the target keeps its look.
 
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
@@ -1175,13 +1177,17 @@ static func _loft(bodies: Array, f: Dictionary, sketches: Dictionary) -> String:
 	if ids.size() < 2:
 		return "a loft needs two or more sketches"
 	var faces := PackedInt32Array()
-	for sid in ids:
+	var tw := deg_to_rad(float(f.get("twist", 0.0)))   # TWIST: the last (top) shape turns about its own middle by this much
+	for i in ids.size():
+		var sid = ids[i]
 		var sk: Dictionary = sketches.get(String(sid), {})
 		if sk.is_empty():
 			for fc in faces:
 				KCad.release(fc)
 			return "its sketch %s is gone or cannot be read" % String(sid)
 		var pl: Dictionary = sk.get("_pl", plane(String(sk.get("plane", "front"))))
+		if i == ids.size() - 1 and absf(tw) > 0.0001:
+			pl = twist_plane(pl, sk["ents"], tw)
 		var face := KCad.sketch_face(items_of(sk["ents"]), pl["o"], pl["x"], pl["n"])
 		if face == 0:
 			for fc in faces:
@@ -1194,6 +1200,46 @@ static func _loft(bodies: Array, f: Dictionary, sketches: Dictionary) -> String:
 	if solid == 0:
 		return KCad.last_error()
 	return _combine(bodies, solid, String(f.get("op", "join")))
+
+## TWIST (Friday 27): the plane turned by tw (radians) about its normal, through the middle of the shape on it. The shape turns where it
+## stands (it does not move), so a loft from the shape under it twists by tw. The middle is the centre of the shape's box (mm, in its plane)
+static func twist_plane(pl: Dictionary, ents: Array, tw: float) -> Dictionary:
+	var c := sketch_centre(ents) * MM
+	var o: Vector3 = pl["o"]
+	var x: Vector3 = pl["x"]
+	var n: Vector3 = pl["n"]
+	var mid := o + x * c.x + n.cross(x) * c.y
+	var q := Quaternion(n, tw)
+	var out := pl.duplicate()
+	out["o"] = mid + q * (o - mid)
+	out["x"] = q * x
+	out["y"] = q * n.cross(x)
+	return out
+
+
+## TWIST: the centre of a sketch's box (mm, in its own plane); a circle counts its whole radius
+static func sketch_centre(ents: Array) -> Vector2:
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for e in ents:
+		var pts: Array = []
+		match String(e["k"]):
+			"line", "rect":
+				pts = [v2(e["a"]), v2(e["b"])]
+			"circle":
+				var cc := v2(e["c"])
+				var r := float(e["r"])
+				pts = [cc - Vector2(r, r), cc + Vector2(r, r)]
+			"arc":
+				pts = [v2(e["a"]), v2(e["m"]), v2(e["b"])]
+			"bspline":
+				for p in e.get("pts", []):
+					pts.append(v2(p))
+		for p in pts:
+			lo = lo.min(p)
+			hi = hi.max(p)
+	return (lo + hi) * 0.5 if lo.x < INF else Vector2.ZERO
+
 
 ## GAP 6 SWEEP: the path sketch as kernel items (lines, arcs, splines) in its sketch plane, one connected chain. A corner between two lines or
 ## arcs (a kink) is rounded with a fillet arc of radius rc, tangent to both pieces: the kernel's pipe along a path with a kink leaves its second
@@ -2131,6 +2177,8 @@ static func _pattern(bodies: Array, looks: Array, f: Dictionary, rec: Dictionary
 		return "there is no body %d to pattern" % bi
 	if String(f.get("kind", "linear")) == "corners":   # EREPEAT (Easy's Corners): the piece goes to the four corners of the body it touches
 		return _corners(bodies, looks, bi)
+	if String(f.get("kind", "linear")) == "rail":   # FRAIL (Easy's Rail): a bar of 50 mm laid along the nosings of a stair
+		return _rail(bodies, f, bi)
 	var srcb := int(bodies[bi])   # the solid the copies are made of: the body itself, or (src) the piece its step made on its own
 	var owned := false
 	if String(f.get("src", "")) != "":   # REPEAT THE PIECE: the newest piece copied, not the whole body it has joined (Easy's Repeat)
@@ -2236,6 +2284,16 @@ static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int,
 			copies.append(KCad.translate(t1, pivot) if t1 != 0 else 0)
 			if t1 != 0:
 				KCad.release(t1)
+	elif String(f.get("kind", "linear")) == "stairs":   # FSTAIRS (Easy's Up and Forward): copy i sits i steps up and i steps forward; each step is filled down to the floor (a solid stair)
+		var rise := float(f.get("rise", 0.0)) * MM
+		var run_d := float(f.get("run", 0.0)) * MM
+		if rise < 1e-9 or run_d < 1e-9:
+			return "the steps need a height and a depth"
+		for i in range(0, n):
+			for j in range(0, i + 1):
+				if i == 0 and j == 0:
+					continue   # the original piece is step 0
+				copies.append(KCad.translate(bodies[bi], Vector3(0.0, float(j) * rise, float(i) * run_d)))
 	else:
 		var d: Vector3 = AXIS_VEC.get(String(f.get("dir", "x")), Vector3.RIGHT) * float(f.get("mm", 0.0)) * MM
 		if d.length() < 1e-9:
@@ -2264,6 +2322,39 @@ static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int,
 			return KCad.last_error()
 		KCad.release(bodies[bi])
 		bodies[bi] = u
+	return ""
+
+
+## FRAIL: a handrail along a stair made by Up and Forward (count steps, rise and run in mm): a 50 mm square bar laid on the
+## nosings (the line from step 1 to step n), joined into body bi. The bar is made along Z, tilted by the slope, then moved to its place
+static func _rail(bodies: Array, f: Dictionary, bi: int) -> String:
+	var n := int(f.get("count", 0))
+	var rise := float(f.get("rise", 0.0)) * MM
+	var run_d := float(f.get("run", 0.0)) * MM
+	if n < 2 or rise < 1e-9 or run_d < 1e-9:
+		return "the rail needs a stair of 2 steps or more"
+	var t := 50.0 * MM
+	var mc: Vector3 = KCad.mass_properties(bodies[bi]).get("center", Vector3.ZERO)
+	var span := (n - 1) * sqrt(rise * rise + run_d * run_d)
+	var bar := KCad.box(t, t, span)
+	if bar == 0:
+		return KCad.last_error() if KCad.last_error() != "" else "the rail could not be made"
+	var tilted := KCad.rotate(bar, Vector3.RIGHT, -atan2(rise, run_d))
+	KCad.release(bar)
+	if tilted == 0:
+		return "the rail could not be made"
+	var at := Vector3(mc.x, (n + 1) * 0.5 * rise + t * 0.5, (n + 1) * 0.5 * run_d)
+	var c_t: Vector3 = KCad.mass_properties(tilted).get("center", Vector3.ZERO)
+	var placed := KCad.translate(tilted, at - c_t)
+	KCad.release(tilted)
+	if placed == 0:
+		return "the rail could not be made"
+	var u := KCad.union(bodies[bi], placed)
+	KCad.release(placed)
+	if u == 0:
+		return KCad.last_error() if KCad.last_error() != "" else "the rail could not be joined"
+	KCad.release(bodies[bi])
+	bodies[bi] = u
 	return ""
 
 

@@ -304,7 +304,20 @@ func _hole_box() -> PanelContainer:
 	snap_btn.custom_minimum_size = Vector2(150, 44)
 	snap_btn.visible = false
 	h.add_child(snap_btn)
+	wall_btn = _big_btn("easypart_hole_wall", "Thicker wall", "Pick one side wall of the hollow: that wall gets its own thickness (the Extra wall slider)", _wall_chip)
+	wall_btn.toggle_mode = true
+	wall_btn.custom_minimum_size = Vector2(150, 44)
+	wall_btn.visible = false
+	h.add_child(wall_btn)
+	for sd in SCREW_CLEAR:   # p030countersun: one chip per screw size: the hole is sized to the screw (M3 3.4 mm ... M6 6.6 mm)
+		var sb := _big_btn("easypart_hole_screw%d" % sd, "M%d screw" % sd, "A hole for an M%d socket screw: a clearance hole, and a counterbore on the top face for its head" % sd, _hole_mode.bind("screw%d" % sd))
+		sb.toggle_mode = true
+		sb.custom_minimum_size = Vector2(96, 44)
+		h.add_child(sb)
+		hole_btns["screw%d" % sd] = sb
 	return box
+
+
 
 
 ## NROUNDFILTER: the three filter chips beside Round the edges: All edges (the default), Only the outside, Only the top. Each chip sets the
@@ -857,6 +870,8 @@ func tweak_last() -> void:
 	var t := String(f.get("t", ""))
 	if t == "shell":
 		tweak = {"id": f["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
+	elif t == "loft" and f.has("twist"):   # P027: a reopened blend keeps its Twist slider
+		tweak = _twist_tweak(String(f["id"]))
 	elif t == "fillet" and f.has("r"):   # FSAVE: a reopened part keeps its Round slider (the same one _round_done gives a new round)
 		tweak = {"id": f["id"], "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
 	elif t == "extrude" and not bool(f.get("both", false)) and String(f.get("op", "join")) == "join" and f.has("dist"):
@@ -1835,7 +1850,7 @@ func _blend(rec: Dictionary) -> String:
 		var nb := Part.new_feature(rec, "sketch", {"plane": String(pl["id"]), "ents": (b["ents"] as Array).duplicate(true), "dims": (b.get("dims", []) as Array).duplicate(true)})
 		rec["features"].append(nb)
 		b = nb
-	var f := Part.new_feature(rec, "loft", {"sketches": [a["id"], b["id"]], "ruled": true, "op": "join"})
+	var f := Part.new_feature(rec, "loft", {"sketches": [a["id"], b["id"]], "ruled": true, "op": "join", "twist": 0.0})
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
 		return "Those two shapes cannot be blended into one solid: draw both as closed shapes, then press Blend two shapes again"
@@ -1847,9 +1862,14 @@ func _blend(rec: Dictionary) -> String:
 	var sr := Part.replay(solo)
 	if int(sr["bodies"]) != 1 or float(sr["volume"]) <= 1e-12:
 		return "Those two shapes cannot be blended into one solid: draw both as closed shapes that face the same way, then press Blend two shapes again"
-	tweak = {}
-	_say("Blended the two last shapes into one solid: press Colour or Round the edges next")
+	tweak = _twist_tweak(String(f["id"]))   # P027: the Twist slider opens with the blend (0 = a straight loft)
+	_say("Blended the two last shapes into one solid: move Twist to turn the top shape, or press Colour or Round the edges next")
 	return ""
+
+
+## P027: the Twist slider of a blend: the top shape turns, -90 to +90 degrees (0 = a straight loft)
+func _twist_tweak(id: String) -> Dictionary:
+	return {"id": id, "field": "twist", "label": "Twist", "unit": "deg", "lo": -90.0, "hi": 90.0, "step": 1.0, "scale": 1.0, "words": ["Twist left", "Twist right"]}
 
 
 ## COLOUR: one appear step on the newest body (Part's "appear" feature, the look Expert's Appearance writes), in ONE undo step. A material
@@ -2288,7 +2308,9 @@ func input(ev: InputEvent) -> bool:
 			var pp := _pick_p
 			_pick_p = Vector2(-1, -1)
 			if pp.distance_to(p) < 6.0 and _drag.is_empty() and _draft.is_empty():
-				if not _open_face(p):   # NOPENTOP: after Hollow inside, a flat face click opens that side; any other click picks a piece
+				if wall_pick:   # p022shellwalls: Thicker wall is waiting for a wall: this press picks it (or says why not)
+					_wall_press(p)
+				elif not _open_face(p):   # NOPENTOP: after Hollow inside, a flat face click opens that side; any other click picks a piece
 					_pick_at(p)
 		if not _draft.is_empty():
 			_draft_end()
@@ -2851,6 +2873,8 @@ func step_words(f: Dictionary) -> String:
 	match String(f.get("t", "")):
 		"sketch":
 			return "Drew a shape"
+		"loft":
+			return "Blended two shapes"
 		"extrude":
 			var cm := _fmt_cm(absf(float(f.get("dist", 0.0))))
 			if String(f.get("op", "")) == "cut":
@@ -2905,6 +2929,8 @@ func _step_tweak(f: Dictionary) -> Dictionary:
 			return {"id": id, "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
 		"shell":
 			return {"id": id, "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
+		"loft":
+			return _twist_tweak(id) if f.has("twist") else {}
 	return {}
 
 
