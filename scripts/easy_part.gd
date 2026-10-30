@@ -465,8 +465,18 @@ func _tilt_box() -> PanelContainer:
 	tilt_btn.custom_minimum_size = Vector2(230, 44)
 	row.add_child(tilt_btn)
 	draft_btn = _big_btn("easypart_draft_angle", "Draft angle", "Easier to pull from a mould: the side walls lean 2 degrees in, the base stays put", _draft_press)
-	draft_btn.custom_minimum_size = Vector2(170, 44)
-	row.add_child(draft_btn)
+	# p123driveit: Swing it shares the Draft angle line (one row, so the panel is no taller and never climbs over the grid)
+	var draft_row := HBoxContainer.new()
+	draft_row.add_theme_constant_override("separation", 6)
+	row.add_child(draft_row)
+	draft_row.add_child(draft_btn)
+	swing_btn = _big_btn("easypart_swing_it", "Swing it", "Drive it: the newest piece swings open on a hinge at its back top edge, 90 degrees in 2 seconds, as a step on the timeline", _swing_press)
+	swing_btn.icon = Icons.sized("part_swing", 22)
+	swing_btn.expand_icon = false
+	swing_btn.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	swing_btn.custom_minimum_size = Vector2(170, 44)
+	swing_btn.visible = false
+	draft_row.add_child(swing_btn)
 	pull_along_btn = _big_btn("easypart_pull_along", "Pull along", "Pull the round shape along the open curve: a pipe in one step", _pull_along_press)
 	pull_along_btn.custom_minimum_size = Vector2(230, 44)
 	pull_along_btn.visible = false
@@ -517,6 +527,59 @@ func _draft_press() -> void:
 		return
 	_end()
 	_say("Draft angle: the side walls lean 2 degrees, so the part pulls out of a mould easier. Ctrl+Z undoes it")
+	pu.upto = -1
+	pu.sync()
+
+
+## SWING IT (p123driveit, Friday plan 123, "Drive it: a lid opens, a gear turns"): with two or more pieces, the newest one swings open on a
+## hinge step: its pivot is the back top edge of its own box (lowest Z, highest Y), the axis is X, 90 degrees in SWING_SECS seconds. The hinge
+## adds no solid (the timeline shows the rest pose, as in Expert Part); the swing is checked with Part.hinge_sweep and the words say what it hit
+const SWING_DEG := 90.0
+const SWING_SECS := 2.0
+
+
+func _swing_ok(rec: Dictionary) -> bool:
+	var feats: Array = rec.get("features", [])
+	if feats.is_empty() or int(pu.res.get("bodies", 0)) < 2:
+		return false
+	return String(feats[feats.size() - 1].get("t", "")) != "hinge"
+
+
+func _swing_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	armed = ""
+	if not _swing_ok(_rec()):
+		_say("Swing it needs two pieces: make a second piece, then press Swing it")
+		return
+	var faces: Array = Part.body_faces(_rec(), -1)
+	var bi := faces.size() - 1
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for v in faces[bi]:
+		lo = lo.min(v)
+		hi = hi.max(v)
+	var o := Vector3(lo.x, hi.y, lo.z) / Part.MM
+	var snap := _rec().duplicate(true)
+	_begin("Swing it")
+	var f := Part.new_feature(_rec(), "hinge", {"body": bi, "o": [o.x, o.y, o.z], "axis": [1.0, 0.0, 0.0], "track": [[0.0, 0.0], [SWING_SECS, SWING_DEG]]})
+	_rec()["features"].append(f)
+	if _last_error(_rec(), String(f["id"])) != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("This piece cannot swing from its back top edge: Undo, then try a different piece")
+		return
+	_end()
+	var sw := Part.hinge_sweep(_rec(), String(f["id"]))
+	if not bool(sw.get("ok", false)):
+		_say("Swing it: the step is made, but the swing cannot be checked: %s" % String(sw.get("why", "")))
+	elif int(sw.get("first", -1)) >= 0:
+		_say("Swing it: the piece hits the other piece at %s s. Undo, or move the pieces apart" % _plain_num(float(sw.get("first_s", 0.0))))
+	else:
+		_say("Swing it: the piece swings open %d degrees in %d seconds and clears the other piece. Ctrl+Z undoes it" % [int(SWING_DEG), int(SWING_SECS)])
 	pu.upto = -1
 	pu.sync()
 
@@ -3104,10 +3167,12 @@ func _process(_dt: float) -> void:
 	pull_along_btn.visible = along
 	tilt_btn.visible = tilt_on
 	draft_btn.visible = draft_on
+	var swing_on := not along and _swing_ok(_rec())   # p123driveit
+	swing_btn.visible = swing_on
 	var flat_on := on and armed == "" and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # p113: Lay it flat and Show overhangs, under any solid, in the step list
 	flat_box.visible = flat_on
 	paint_btn.set_pressed_no_signal(paint_on)
-	tilt_box.visible = on and armed == "" and (along or tilt_on or draft_on)
+	tilt_box.visible = on and armed == "" and (along or tilt_on or draft_on or swing_on)
 	_overhang_sync(on)
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
 	if not on:
@@ -4112,6 +4177,8 @@ func step_words(f: Dictionary) -> String:
 			if bool(f.get("both", false)):
 				return "Pulled out both ways %s" % cm
 			return "Pulled up %s" % cm
+		"hinge":
+			return "Swung it open %d degrees" % int(SWING_DEG)
 		"fillet":
 			var n := (f.get("edges", []) as Array).size()
 			return "Rounded %d %s %s mm" % [n, "edge" if n == 1 else "edges", _plain_num(float(f.get("r", 0.0)))]
