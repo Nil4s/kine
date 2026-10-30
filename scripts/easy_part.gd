@@ -72,6 +72,8 @@ var stick_btns := {}
 var stick_picks: Array = []      # the body indices clicked in the view (the first = the target, the second = the tool)
 var stick_tris := {}             # body index -> its triangles, for the glow of a picked piece
 var stick_edges := {}            # body index -> its crease edges (pairs of points): the glow's outline, no triangle diagonals
+const EDGE_PX := 10.0            # NROUNDDRAG: a press this close (screen px) to a solid's edge takes it in hand
+const EDGE_MAX_MM := 10.0        # NROUNDDRAG: the radius a drag can reach (mm)
 const PICK_PX := 12.0            # a click this close (screen px) to a piece picks it when the ray hits nothing
 var rep_id := ""                 # the last Repeat it step's feature id ("" = none)
 var rep_rows := []               # the two slider rows of the Repeat it box (see _make_row)
@@ -139,6 +141,8 @@ var del_id := ""
 var del_n := -1
 var del_pt := Vector3.ZERO       # the point clicked on the piece (metres, the same units as the faces)
 var del_tris := PackedVector3Array()   # the picked piece's triangles: its glow
+var _edge := {}                  # NROUNDDRAG: an edge in hand (a press within EDGE_PX of a solid's edge, dragged outward): {"e", "press", "out", "pxmm", "r"}
+var edge_num: Label             # NROUNDDRAG: the radius in mm, beside the cursor while an edge is dragged (hidden otherwise)
 var _pick_p := Vector2(-1, -1)   # a left press on the grid with nothing armed: a click (no drag) picks the piece under it on release
 var flushes := 0                # rebuilds made by sliders and dots (the tests count them against the clock)
 
@@ -368,6 +372,14 @@ func build(root: Control) -> void:
 	dots.draw.connect(_draw_dots)
 	dots.visible = false
 	root.add_child(dots)
+	edge_num = Label.new()   # NROUNDDRAG: the number beside the cursor (plain words, Tok colours)
+	edge_num.name = "EdgeNum"
+	edge_num.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	edge_num.add_theme_font_size_override("font_size", 16)
+	edge_num.add_theme_color_override("font_color", Color.WHITE)
+	edge_num.add_theme_stylebox_override("normal", _style(Color(0.1, 0.11, 0.14, 0.9), 4, 6))
+	edge_num.visible = false
+	root.add_child(edge_num)
 	size_l = Label.new()
 	size_l.name = "easypart_size"
 	size_l.add_theme_font_size_override("font_size", 14)
@@ -3690,6 +3702,9 @@ func _key(k: InputEventKey) -> void:
 		elif not _drag.is_empty():
 			_cancel_drag()
 			get_viewport().set_input_as_handled()
+		elif not _edge.is_empty():
+			_edge_cancel()
+			get_viewport().set_input_as_handled()
 	elif k.keycode == KEY_DELETE and not k.ctrl_pressed and not k.alt_pressed:
 		if del_on:
 			_remove_piece()   # FDELETE: the picked piece goes (a click picked it)
@@ -3980,9 +3995,14 @@ func input(ev: InputEvent) -> bool:
 				return true
 			if (armed == "draw" or armed == "curve") and not _over_ui(p):
 				return _start_draft(p)
+			if armed == "" and not _over_ui(p) and _edge_press(p):
+				return true
 			if armed == "" and not _over_ui(p):
 				_pick_p = p   # FDELETE: a click (no drag) on a piece picks it, on the release
 			return false
+		if not _edge.is_empty():
+			_edge_end()
+			return true
 		if not _drag.is_empty():
 			_drag_to(p, true)
 			_drag = {}
@@ -4000,6 +4020,9 @@ func input(ev: InputEvent) -> bool:
 		return false
 	if ev is InputEventMouseMotion:
 		var p := (ev as InputEventMouseMotion).position
+		if not _edge.is_empty():
+			_edge_move(p)
+			return true
 		if not _drag.is_empty():
 			_drag_to(p, false)
 			return true
@@ -4329,4 +4352,109 @@ func _group_tri_pts(g: Dictionary, wpos: PackedVector3Array, tris: Array) -> Pac
 		out.append(wpos[tr[2]])
 	return out
 
+
+## NROUNDDRAG: a press within EDGE_PX (screen px) of an edge of the solid, with nothing armed, takes the edge in hand. Dragging it OUTWARD
+## (away from the middle of the solid) rounds it: the drag distance is the radius (mm, 1 mm = pxmm screen px). Release = one undo step
+func _edge_press(p: Vector2) -> bool:
+	if _tpl() != "" or not _drag.is_empty() or not _draft.is_empty() or not Part.available() or m.cam == null:
+		return false
+	var bb: AABB = pu.res.get("aabb", AABB()) if pu != null else AABB()
+	if bb.size == Vector3.ZERO:
+		return false   # no solid yet: nothing to round (a cheap test first: a press on the empty grid never replays the part)
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for k in 8:
+		var sc: Vector2 = m.cam.unproject_position(bb.position + bb.size * Vector3(k & 1, (k >> 1) & 1, (k >> 2) & 1))
+		lo = lo.min(sc)
+		hi = hi.max(sc)
+	if not Rect2(lo, hi - lo).grow(EDGE_PX).has_point(p):
+		return false
+	var res := Part.replay(_rec(), -1, {"edges": true, "keep": true})
+	Part.release_kept(res.get("ids", []))
+	var best := {}
+	var best_d := EDGE_PX
+	for e in res.get("edges", []):
+		if int(e["body"]) != 0 or bool(e.get("seam", false)):
+			continue
+		var a: Vector3 = e["a"]
+		var b: Vector3 = e["b"]
+		if m.cam.is_position_behind(a) or m.cam.is_position_behind(b):
+			continue
+		var d := _seg_px(p, m.cam.unproject_position(a), m.cam.unproject_position(b))
+		if d < best_d:
+			best_d = d
+			best = e
+	if best.is_empty():
+		return false
+	var c: Vector3 = best["c"]
+	var ctr: Vector3 = (res["aabb"] as AABB).get_center()
+	var dir := (c - ctr).normalized() if (c - ctr).length() > 1e-9 else Vector3.UP
+	var s0: Vector2 = m.cam.unproject_position(c)
+	var outv: Vector2 = s0 - m.cam.unproject_position(ctr)
+	outv = outv.normalized() if outv.length() > 0.5 else Vector2.UP
+	var pxmm: float = maxf((m.cam.unproject_position(c + dir * Part.MM) - s0).length(), 0.001)   # screen px per mm at the edge
+	_flush_if_dirty()
+	_edge = {"e": best, "press": p, "out": outv, "pxmm": pxmm, "r": 0.0}
+	_say("Drag outward to round this edge: the drag distance is the radius")
+	return true
+
+
+## the distance in px from p to the screen segment a-b
+func _seg_px(p: Vector2, a: Vector2, b: Vector2) -> float:
+	var ab := b - a
+	var t := 0.0 if ab.length_squared() < 1e-9 else clampf((p - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
+	return p.distance_to(a + ab * t)
+
+
+func _edge_move(p: Vector2) -> void:
+	var along := (p - (_edge["press"] as Vector2)).dot(_edge["out"] as Vector2)   # only the outward part of the drag is the radius
+	var r := clampf(along / float(_edge["pxmm"]), 0.0, EDGE_MAX_MM)
+	_edge["r"] = r
+	edge_num.text = "%d mm" % roundi(r)
+	edge_num.global_position = p + Vector2(18, 14)
+	edge_num.visible = true
+
+
+func _edge_cancel() -> void:
+	_edge = {}
+	edge_num.visible = false
+	_say("Rounding cancelled")
+
+
+func _edge_end() -> void:
+	var ed := _edge
+	_edge = {}
+	edge_num.visible = false
+	var r := snappedf(float(ed["r"]), 0.1)
+	if r < 0.5:
+		_say("Drag an edge outward to round it: the drag distance is the radius")
+		return
+	_edge_round(ed["e"], r)
+
+
+## NROUNDDRAG: one fillet step on the dragged edge (the radius in mm). An edge that cannot take it says what to do next, and adds nothing
+func _edge_round(e: Dictionary, r: float) -> void:
+	_flush_if_dirty()
+	var rec := _rec()
+	var trial := Part.replay(rec, -1, {"edges": true, "keep": true})
+	var kept: Array = trial.get("ids", [])
+	var err := "Nothing solid to round yet. Pull it up first" if kept.is_empty() else Part.fillet_trial(int(kept[0]), r, [Part.describe(e)])
+	Part.release_kept(kept)
+	if err != "":
+		_say("That edge will not take a %d mm round. Drag it less, or Undo the last step" % roundi(r))
+		return
+	_begin("Round an edge by drag")
+	var f := Part.new_feature(rec, "fillet", {"body": 0, "r": r, "edges": [Part.describe(e)]})
+	rec["features"].append(f)
+	if _last_error(rec, String(f["id"])) != "":
+		rec["features"].pop_back()
+		_end()
+		_say("That edge will not take a %d mm round. Drag it less, or Undo the last step" % roundi(r))
+		return
+	_round_done(f)
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_end()
+	_say("Edge rounded %d mm: drag another edge, or use the slider for more or less" % roundi(r))
 
