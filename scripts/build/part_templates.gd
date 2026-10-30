@@ -9,7 +9,7 @@ extends RefCounted
 const MM := 0.001
 const ARCH_GAP := 40.0   # mm: a car's wheel arch top sits this far above the tyre's top (the arch is the wheel radius + 40 mm)
 const CAB_W := 0.88     # the glasshouse is this share of the body's width (narrower than the lower body, so the cabin reads as a cabin)
-const ORDER :=["sword", "axe", "shield", "chair", "gear", "crate"]   # NGEAR: Gear sits before Crate (Crate stays the last chip); its numbers are not cm: "raw"
+const ORDER :=["sword", "axe", "shield", "chair", "gear", "rack", "crate"]   # NGEAR: Gear sits before Crate (Crate stays the last chip); its numbers are not cm: "raw". P066: Rack after Gear (its pinion)
 const T := {
 	"sword": {"title": "Sword", "params": [
 		{"k": "blade_length", "label": "Blade length", "lo": 300.0, "hi": 1200.0, "def": 760.0, "step": 10.0, "words": ["Shorter", "Longer"]},
@@ -39,6 +39,11 @@ const T := {
 	# raw: the slider's own numbers (a tooth count, a size step 1 = Small / Medium / Big teeth = module 1 / 2 / 3, a thickness in mm), not cm
 	"gear": {"title": "Gear", "params": [
 		{"k": "teeth", "label": "Teeth", "lo": 8.0, "hi": 60.0, "def": 30.0, "step": 1.0, "words": ["Fewer", "More"], "raw": true, "unit": "teeth"},
+		{"k": "module", "label": "Teeth size", "lo": 1.0, "hi": 3.0, "def": 2.0, "step": 1.0, "words": ["Small teeth", "Big teeth"], "raw": true, "unit": "size"},
+		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 30.0, "def": 10.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
+	# P066: a straight rack, the Gear's partner: a bar of teeth. Length = teeth x pitch, pitch = pi x module (the Gear's pitch, so they mesh). Its numbers are raw too.
+	"rack": {"title": "Rack", "params": [
+		{"k": "teeth", "label": "Length", "lo": 4.0, "hi": 40.0, "def": 12.0, "step": 1.0, "words": ["Shorter", "Longer"], "raw": true, "unit": "teeth"},
 		{"k": "module", "label": "Teeth size", "lo": 1.0, "hi": 3.0, "def": 2.0, "step": 1.0, "words": ["Small teeth", "Big teeth"], "raw": true, "unit": "size"},
 		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 30.0, "def": 10.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
 	# VEHICLE PARTS (B3, scripts/vehicle.gd): not in ORDER, so no Easy chip: a car body and one wheel
@@ -377,6 +382,11 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var th: float = p["thickness"]
 			_ex(fs, _sk(fs, "front", gear_outline(N, md)), "extrude", th, "new")
 			_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": 0.12 * N * md}]), "extrude", th, "cut", true)
+		"rack":
+			# P066: a rack in the front plane: n teeth along a bar 3 x module tall, extruded thickness
+			var NR := int(roundf(float(p["teeth"])))
+			var mr := float(int(roundf(float(p["module"]))))
+			_ex(fs, _sk(fs, "front", rack_outline(NR, mr)), "extrude", float(p["thickness"]), "new")
 		"wheel":
 			# a tyre: the profile (width x radius) turned about the sketch's x axis = world X, the axle (side to side)
 			var R: float = p["radius"]
@@ -399,6 +409,20 @@ static func gear_outline(n: int, m: float) -> Array:
 		pts.append(Vector2.from_angle(t + 0.6 * q) * ra)
 		pts.append(Vector2.from_angle(t + 1.5 * q) * rf)
 		pts.append(Vector2.from_angle(t + 4.0 * q - 1.5 * q) * rf)
+	return _poly(pts)
+
+
+## P066: the closed outline of a straight rack with n teeth of module m (mm), as lines: a bar 3 m tall whose top is a row of n teeth on the
+## root line y = 0. The pitch is pi m (the spur gear's pitch on its pitch circle, so a gear of module m meshes); each tooth is a trapezoid
+## m tall with its tip 0.4 of the pitch wide, so the tip sits 1 m above the root and the rack is 4 m tall.
+static func rack_outline(n: int, m: float) -> Array:
+	var pitch := PI * m
+	var pts := [Vector2(0.0, -3.0 * m), Vector2(n * pitch, -3.0 * m), Vector2(n * pitch, 0.0)]
+	for k in range(n - 1, -1, -1):
+		var x0 := k * pitch
+		pts.append(Vector2(x0 + 0.7 * pitch, m))
+		pts.append(Vector2(x0 + 0.3 * pitch, m))
+		pts.append(Vector2(x0, 0.0))
 	return _poly(pts)
 
 
