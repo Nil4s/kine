@@ -224,7 +224,7 @@ func build(root: Control) -> void:
 	start_l.add_theme_color_override("font_color", Color(0.7, 0.73, 0.78))
 	start_l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	cr.add_child(start_l)
-	for t in PartTemplates.START + ["gear"]:   # the simple shapes; gear stays on the row (NGEAR); the weapons and props are under More examples
+	for t in PartTemplates.START + ["gear", "rack"]:   # the simple shapes; gear stays on the row (NGEAR), rack beside it (P066: its pinion); the weapons and props are under More examples
 		var b := Button.new()
 		b.name = "easypart_chip_" + t
 		b.text = CHIP_TEXT.get(t, String(PartTemplates.T[t]["title"]))   # the chip word on the blank part is plain; the part keeps the template title
