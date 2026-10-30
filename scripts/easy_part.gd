@@ -260,6 +260,8 @@ func build(root: Control) -> void:
 	th.add_child(more)   # on the title line beside Empty (other ways to start): on the Start row it wrapped to a second line once Rack joined, and the Parts page ran out of the panel
 	lib_box = _lib_box()
 	v.add_child(lib_box)
+	fav_box = _fav_box()   # p083favfix: the Favourites category page (its row and the star), right under the Parts chips: the screw grid of a screw on the floor sits below it, so the star stays in the scroll view
+	v.add_child(fav_box)
 	screw_box = _screw_box()
 	v.add_child(screw_box)
 	bear_box = _bear_box()   # P069 BEARINGS: the bearing chips and the seat button, under the Parts page
@@ -274,8 +276,6 @@ func build(root: Control) -> void:
 	v.add_child(wheel_box)
 	board_box = _board_box()   # p078makeacasef: the Boards chips (a case for the board)
 	v.add_child(board_box)
-	fav_box = _fav_box()   # p083favfix: the Favourites category page (its row and the star), under the Boards chips
-	v.add_child(fav_box)
 	rows_vb = VBoxContainer.new()
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 2)
