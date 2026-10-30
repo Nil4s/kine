@@ -234,6 +234,8 @@ func build(root: Control) -> void:
 		b.custom_minimum_size = Vector2(0, 34)
 		b.add_theme_font_size_override("font_size", 11)   # NGEAR: 13 (was 15) so six templates (Gear) stay on one row of the panel; P066: 11 so seven (Rack) do too
 		b.pressed.connect(_chip.bind(t))
+		b.mouse_entered.connect(_tpl_hover.bind(t, true))   # P091: hover a shape chip = see its ghost first
+		b.mouse_exited.connect(_tpl_hover.bind(t, false))
 		cr.add_child(b)
 		for sn in ["normal", "hover", "pressed", "focus", "disabled"]:   # P066: 4 px side margins (the theme's are wider) so seven chips (Rack) stay on one row
 			var sb := b.get_theme_stylebox(sn).duplicate() as StyleBox
@@ -1096,6 +1098,7 @@ func _values_sync() -> void:
 # ---------------------------------------------------------------- chips, Back to the first one
 
 func _chip(t: String) -> void:
+	_tpl_ghost_hide()
 	if _tpl() == t or not Part.available():
 		_chips_sync()
 		return
@@ -1111,6 +1114,48 @@ func _chip(t: String) -> void:
 	pu.sync()
 	frame()
 	_say("%s %s: move a slider or drag an amber dot" % ["An" if t.substr(0, 1) in "aeiou" else "A", t])
+
+
+## P091 ghost preview: hovering a shape chip shows the shape it would build, see-through, where the part sits (the record does not change)
+var tpl_ghost: MeshInstance3D      # the see-through shape of the hovered chip
+var _tpl_mesh := {}                # shape name -> its built mesh (one replay each; null when it does not build)
+
+
+func _tpl_ghost_ensure() -> void:
+	if tpl_ghost != null:
+		return
+	tpl_ghost = MeshInstance3D.new()
+	tpl_ghost.name = "easypart_tpl_ghost"
+	tpl_ghost.visible = false
+	var mt := StandardMaterial3D.new()
+	var c := Tok.c("pick_hover")
+	mt.albedo_color = Color(c.r, c.g, c.b, 0.3)   # see-through: the part under it shows through
+	mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mt.cull_mode = BaseMaterial3D.CULL_DISABLED
+	tpl_ghost.material_override = mt
+	pu.bu.root3.add_child(tpl_ghost)
+
+
+func _tpl_ghost_hide() -> void:
+	if tpl_ghost != null:
+		tpl_ghost.visible = false
+
+
+## a chip under the pointer (on = true) or left (on = false). The chip of the shape already built shows no ghost
+func _tpl_hover(t: String, on: bool) -> void:
+	if not on or not active() or not Part.available() or pu == null or t == _tpl():
+		_tpl_ghost_hide()
+		return
+	if not _tpl_mesh.has(t):
+		var res := Part.replay(PartTemplates.make(t), -1, {})
+		_tpl_mesh[t] = res["mesh"] if int(res["bodies"]) > 0 else null
+	var mesh = _tpl_mesh[t]
+	if mesh == null:
+		_tpl_ghost_hide()   # this shape does not build: a click says why
+		return
+	_tpl_ghost_ensure()
+	tpl_ghost.mesh = mesh
+	tpl_ghost.visible = true
 
 
 ## MORE EXAMPLES: What to build opens (its From a template card lists the weapons and props)
