@@ -4915,9 +4915,9 @@ func step_words(f: Dictionary) -> String:
 			return "Pulled up %s" % cm
 		"fillet":
 			var n := (f.get("edges", []) as Array).size()
-			return "Rounded %d %s %s" % [n, "edge" if n == 1 else "edges", _fmt(float(f.get("r", 0.0)), "mm")]
+			return "Rounded %d %s %s mm" % [n, "edge" if n == 1 else "edges", _plain_num(float(f.get("r", 0.0)))]
 		"shell":
-			return "Hollowed out, wall %s" % _fmt(float(f.get("thick", 0.0)), "mm")
+			return "Hollowed out, wall %s mm" % _plain_num(float(f.get("thick", 0.0)))
 		"appear":
 			return "Coloured"
 		"mirror":
@@ -4930,7 +4930,13 @@ func step_words(f: Dictionary) -> String:
 
 
 static func _fmt_cm(mm_v: float) -> String:
-	return "%s cm" % str(snappedf(mm_v / 10.0, 0.1))
+	return "%s cm" % _plain_num(mm_v / 10.0)
+
+
+## NSTEPLIST: a number in plain words: 3 (not 3.0), 2.5
+static func _plain_num(v: float) -> String:
+	var x := snappedf(v, 0.1)
+	return str(int(x)) if x == floorf(x) else "%.1f" % x
 
 
 ## NSTEPLIST: the step's icon (the MAKES icon of its kind)
