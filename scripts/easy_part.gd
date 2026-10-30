@@ -385,7 +385,79 @@ func _tilt_box() -> PanelContainer:
 	tilt_btn = _big_btn("easypart_tilt_it", "Tilt it 20 degrees", "Lean the newest solid 20 degrees, sideways, about its middle", _tilt_press)
 	tilt_btn.custom_minimum_size = Vector2(230, 44)
 	box.add_child(tilt_btn)
+	pull_along_btn = _big_btn("easypart_pull_along", "Pull along", "Pull the round shape along the open curve: a pipe in one step", _pull_along_press)
+	pull_along_btn.custom_minimum_size = Vector2(230, 44)
+	pull_along_btn.visible = false
+	box.add_child(pull_along_btn)
 	return box
+
+
+## P026 PULL ALONG: the open curve (the path: a Curvy line that does not come back to its start) and a closed shape (the round or box
+## the pipe is pulled from) are both there, and the newest step is a sketch: the chip shows. Returns the two sketch ids [profile, path] or []
+func _along_pick(rec: Dictionary) -> Array:
+	var feats: Array = rec.get("features", [])
+	var path := ""
+	var shape := ""
+	var shape_free := ""
+	for i in range(feats.size() - 1, -1, -1):
+		var f: Dictionary = feats[i]
+		if String(f.get("t", "")) != "sketch":
+			continue
+		var ents: Array = f.get("ents", [])
+		var closed := false
+		for e in ents:
+			var k := String(e.get("k", ""))
+			if k == "circle" or k == "rect" or (k == "bspline" and bool(e.get("closed", false))):
+				closed = true
+		var sid := String(f.get("id", ""))
+		if closed and shape == "":
+			shape = sid
+		if closed and shape_free == "" and not Part.sketch_used(rec, sid):
+			shape_free = sid
+		elif not closed and not ents.is_empty() and path == "":
+			path = sid
+	if shape_free != "":
+		shape = shape_free
+	if path == "" or shape == "":
+		return []
+	return [shape, path]
+
+
+## the chip shows when the newest step is a sketch and _along_pick finds both sketches
+func _along_ok(rec: Dictionary) -> bool:
+	var feats: Array = rec.get("features", [])
+	return not feats.is_empty() and String(feats[feats.size() - 1].get("t", "")) == "sketch" and not _along_pick(rec).is_empty()
+
+
+## P026: Pull along makes one sweep step (the round shape at the curve's start, pulled along it: a pipe). One step, one undo
+func _pull_along_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	armed = ""
+	var ids := _along_pick(_rec())
+	if ids.is_empty():
+		_say("Pull along needs a round or box shape and a Curvy line that is open: Draw shape, then Curvy line, and do not drag back to the start")
+		return
+	var snap := _rec().duplicate(true)
+	_begin("Pull along")
+	var rec := pu._ensure()
+	var f := Part.new_feature(rec, "sweep", {"profile": ids[0], "path": ids[1], "op": "join"})
+	rec["features"].append(f)
+	var err := _last_error(rec, String(f["id"]))
+	if err != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("Pull along did not make a pipe: %s. Draw a gentler curve, or a smaller round shape" % err)
+		return
+	_end()
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	_say("Pulled along the curve: a pipe. Undo takes it back")
 
 
 ## the newest feature is a solid piece with no tilt yet: the Tilt it chip shows for it
@@ -1800,9 +1872,9 @@ func _finish_curve() -> void:
 		if (q as Vector2).x <= 1.0:
 			spin_ok = true
 	if spin_ok:
-		_say("Curvy line drawn: Spin it round makes a bowl, or Pull it up makes it solid" if closed else "Curvy line drawn: for a pipe, Sweep the round shape along it (Expert: CREATE, Sweep). Or drag back to the start to close it")
+		_say("Curvy line drawn: Spin it round makes a bowl, or Pull it up makes it solid" if closed else "Curvy line drawn: for a pipe, Pull along (Expert: CREATE, Sweep does the same). Or drag back to the start to close it")
 	else:
-		_say("Curvy line drawn: Pull it up makes it solid" if closed else "Curvy line drawn: for a pipe, Sweep the round shape along it (Expert: CREATE, Sweep). Or drag back to the start to close it")   # FPIPE: an open line's next step names the pipe (a sweep), not only the closing
+		_say("Curvy line drawn: Pull it up makes it solid" if closed else "Curvy line drawn: for a pipe, Pull along (Expert: CREATE, Sweep does the same). Or drag back to the start to close it")   # FPIPE: an open line's next step names the pipe (a sweep), not only the closing
 
 
 ## the drawn points kept for the spline (at most maxn, first and last always): the points that bend the line most, so a rim or a
@@ -1882,7 +1954,10 @@ func _process(_dt: float) -> void:
 	if del_on and (armed != "" or (_rec().get("features", []) as Array).size() != del_n):
 		_pick_clear()   # FDELETE: a pick ends with the step it was made on
 	del_btn.visible = on and del_on
-	tilt_box.visible = on and armed == "" and _tilt_ok(_rec())
+	var along := on and _along_ok(_rec())   # P026: Pull along takes the chip's place while a curve and a shape wait
+	pull_along_btn.visible = along
+	tilt_btn.visible = not along
+	tilt_box.visible = on and armed == "" and (along or _tilt_ok(_rec()))
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
 	if not on:
 		return

@@ -74,6 +74,7 @@ var steps_box: PanelContainer    # NSTEPLIST: the step list under the panel, in 
 var steps_vb: VBoxContainer
 var _steps_sig := ""
 var tilt_btn: Button
+var pull_along_btn: Button       # P026: Pull along, the same box as Tilt it: shows after a curve or a shape is drawn (the newest step is a sketch)
 var parts_btn: Button            # NSCREW2: the Parts category chip (opens the screw grid under the template chips)
 var screw_box: PanelContainer    # NSCREW2: the screw grid: sixteen size chips, shown while Parts is open or a screw is the part
 var screw_btns := {}             # NSCREW2: "d_L" -> the size chip (M<d> x <L>)
