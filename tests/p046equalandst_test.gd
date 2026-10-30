@@ -153,7 +153,7 @@ func _init() -> void:
 	await hover_at(sp2(0, 50))
 	ok(pu.pill_text.contains("Equal to line 1"), "1 EQUAL lights while line 2 is drawn: '%s'" % pu.pill_text)
 	ok(pu.pill_text.contains("Straight: upright"), "1 STRAIGHT (upright) lights too: '%s'" % pu.pill_text)
-	var shot := pu.get_viewport().get_texture().get_image()
+	var shot := m.get_viewport().get_texture().get_image()
 	shot.save_png(ProjectSettings.globalize_path(DIRT + "/shot_equal.png"))
 	await click_at(sp2(0, 50))
 	ents = pu._sk().get("ents", [])
