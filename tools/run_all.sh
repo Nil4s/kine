@@ -331,3 +331,4 @@ EXTRA="$EXTRA p034yourownpic:w"   # P034 YOUR OWN PICTURE: Draw shape row Pictur
 EXTRA="$EXTRA p035filletinsi:w"   # P035 FILLET INSIDE: Easy Part Stick together then Smooth the joints rounds the inside corners where two pieces join (one fillet step, one undo step, undo and redo) (tests/p035filletinsi_test.gd; needs the CAD DLL)
 
 EXTRA="$EXTRA p038makeitstro:w"   # P038 MAKE IT STRONGER: Easy Part, a thin plate pulled up, then Make it stronger adds a 4 mm x 10 mm rib along its long side on the top (one undo step, a Rib height slider); bars on the built solid (tests/p038makeitstro_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA p039edgeloopsm:w"   # p039edgeloopsm (Friday plan 39): Curvy line gets a Smooth slider (0 = as drawn, 100 = wobble gone, corners kept); a wobbly hand line by real clicks, bars on the saved curve points (tests/p039edgeloopsm_test.gd)
