@@ -2309,6 +2309,7 @@ func _process(_dt: float) -> void:
 		dots.queue_redraw()
 	if m.cam != null:
 		dots.queue_redraw()
+		_draft_dims_sync()   # P044: the sides' lengths follow the held corner (none when no draft)
 	_size_sync()
 	_frame_step()
 const ENTRY_PITCH := -30.0
