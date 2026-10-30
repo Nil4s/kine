@@ -209,6 +209,11 @@ static func from_file(d: Variant) -> Dictionary:
 			out["seq"] = maxi(int(out["seq"]), int(String(f["id"]).trim_prefix("f")))
 	if (d as Dictionary).get("easy") is Dictionary and (d as Dictionary)["easy"].has("t"):
 		out["easy"] = (d as Dictionary)["easy"].duplicate(true)   # EASY PART: the template's numbers (scripts/build/part_templates.gd)
+	if (d as Dictionary).get("joints") is Array:
+		out["joints"] = []
+		for j in (d as Dictionary)["joints"]:
+			if j is Dictionary and String(j.get("kind", "")) in ["turn", "slide"]:
+				out["joints"].append((j as Dictionary).duplicate(true))   # p121 JOINTS IN WORDS: a hinge or a slide between two pieces (scripts/easy_part_stick.gd _joint_words)
 	if bool((d as Dictionary).get("kept", false)):
 		out["kept"] = true   # an EMPTY part the user chose (Easy's Empty): a part with no steps that undo and redo bring back as it was
 	return out if not out["features"].is_empty() or out.has("kept") else {}

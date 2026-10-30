@@ -3203,6 +3203,8 @@ func _process(_dt: float) -> void:
 	var smooth := on and _smooth_on()   # P035: after a Join the stick box holds only the Smooth the joints chip
 	stick_box.visible = (on and armed == "stick" and stick_picks.size() == 2) or smooth
 	smooth_btn.visible = smooth
+	for jb in joint_btns:   # p121: the joint words belong to the two-pieces-picked box, not to the chip after a Join
+		(jb as Button).visible = not smooth
 	for so in stick_btns:
 		(stick_btns[so] as Button).visible = not smooth
 	explode_box.visible = on and int(pu.res.get("bodies", 0)) >= 2 and armed == "" and not _hole_on() and not _split_on()   # EXPLODE (p103): two or more pieces; not over a hole's or a cut's keep chips

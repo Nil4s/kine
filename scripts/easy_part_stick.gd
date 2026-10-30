@@ -35,7 +35,12 @@ func _stick_box() -> PanelContainer:
 		b.custom_minimum_size = Vector2(150, 44)
 		h.add_child(b)
 		stick_btns[so[0]] = b
-	smooth_btn = _big_btn("easypart_smooth", "Smooth the joints", "Round the inside corners where the two pieces meet, 2 mm (one step)", _smooth_joints)
+	for jk in [["turn", "This turns here", "A hinge: the second piece turns on the first where they touch (saved on the part, Undo takes it off)"], ["slide", "This slides here", "A slide: the second piece slides along the first where they touch (saved on the part, Undo takes it off)"]]:
+		var jb := _big_btn("easypart_joint_" + String(jk[0]), String(jk[1]), String(jk[2]), _joint_words.bind(String(jk[0])))
+		jb.custom_minimum_size = Vector2(170, 44)
+		h.add_child(jb)
+		joint_btns.append(jb)
+	smooth_btn =_big_btn("easypart_smooth", "Smooth the joints", "Round the inside corners where the two pieces meet, 2 mm (one step)", _smooth_joints)
 	smooth_btn.custom_minimum_size = Vector2(190, 44)
 	smooth_btn.visible = false
 	h.add_child(smooth_btn)
@@ -203,6 +208,42 @@ func _stick(op: String, label: String) -> void:
 	pu.sync()
 	_rows_sync()
 	_values_sync()
+
+
+## p121 JOINT WORDS: "This turns here" (a hinge) or "This slides here" (a slide) between the two picked pieces. The place is the middle of the two
+## piece centres (mm). It is saved on the part as joints: [{kind, at}], one undo step. Pieces that do not touch are refused in words; nothing changes
+func _joint_words(kind: String) -> void:
+	if stick_picks.size() < 2:
+		_say("Click two pieces first, then press This turns here or This slides here")
+		return
+	var a: PackedVector3Array = stick_tris.get(int(stick_picks[0]), PackedVector3Array())
+	var b: PackedVector3Array = stick_tris.get(int(stick_picks[1]), PackedVector3Array())
+	if a.is_empty() or b.is_empty() or not Part.tris_touch(a, b, 0.00005):
+		_say("Those two pieces do not touch, so no joint fits between them: move one until it touches the other, then press the joint words again")
+		return
+	_flush_if_dirty()
+	var at := (_centre(a) + _centre(b)) * 0.5 / Part.MM
+	_begin("This turns here" if kind == "turn" else "This slides here")
+	var rec := _rec()
+	if not rec.has("joints"):
+		rec["joints"] = []
+	(rec["joints"] as Array).append({"kind": kind, "at": [snappedf(at.x, 0.01), snappedf(at.y, 0.01), snappedf(at.z, 0.01)]})
+	armed = ""
+	stick_picks = []
+	_end()
+	_say("Saved: one piece %s on the other where they touch, %s (Undo takes it off)" % ["turns" if kind == "turn" else "slides", "a hinge" if kind == "turn" else "a slide"])
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+
+
+## the middle of a piece's triangle corners (metres)
+static func _centre(tris: PackedVector3Array) -> Vector3:
+	var c := Vector3.ZERO
+	for v in tris:
+		c += v
+	return c / maxf(1.0, float(tris.size()))
 
 
 ## JOIN: the two picked pieces must touch (the smallest distance between their triangles is under 0.05 mm). "" or the words for the user
