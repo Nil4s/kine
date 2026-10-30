@@ -100,6 +100,8 @@ var snap_btn: Button            # Snap-fit lip (nsnaplip): an on/off chip under 
 var hole_base: Dictionary = {}   # the record before the last Cut a hole press: each chip rebuilds the hole from it ({} = no hole chips)
 var hole_id := ""                # the feature id of the last hole step (the hole's sketch, or the hollow's shell): its slider's step
 var hole_mode := "through"       # "through" | "hollow": the chip that is on
+var wall_btn: Button             # Thicker wall (p022shellwalls): under Hollow inside; the next side-wall click makes that wall thicker
+var wall_pick := false           # true while Thicker wall waits for the wall click (a press on a face then goes to _wall_press)
 var split_box: PanelContainer   # ECUT2: Cut in two's keep chips (both halves / the lower half / the upper half), after a Cut in two press (see _split_on)
 var split_btns := {}
 var round_box: PanelContainer   # NROUNDFILTER: the All edges / Only the outside / Only the top chips, beside Round the edges (see _round_box)

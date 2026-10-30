@@ -304,6 +304,11 @@ func _hole_box() -> PanelContainer:
 	snap_btn.custom_minimum_size = Vector2(150, 44)
 	snap_btn.visible = false
 	h.add_child(snap_btn)
+	wall_btn = _big_btn("easypart_hole_wall", "Thicker wall", "Pick one side wall of the hollow: that wall gets its own thickness (the Extra wall slider)", _wall_chip)
+	wall_btn.toggle_mode = true
+	wall_btn.custom_minimum_size = Vector2(150, 44)
+	wall_btn.visible = false
+	h.add_child(wall_btn)
 	return box
 
 
@@ -2157,7 +2162,9 @@ func input(ev: InputEvent) -> bool:
 			var pp := _pick_p
 			_pick_p = Vector2(-1, -1)
 			if pp.distance_to(p) < 6.0 and _drag.is_empty() and _draft.is_empty():
-				if not _open_face(p):   # NOPENTOP: after Hollow inside, a flat face click opens that side; any other click picks a piece
+				if wall_pick:   # p022shellwalls: Thicker wall is waiting for a wall: this press picks it (or says why not)
+					_wall_press(p)
+				elif not _open_face(p):   # NOPENTOP: after Hollow inside, a flat face click opens that side; any other click picks a piece
 					_pick_at(p)
 		if not _draft.is_empty():
 			_draft_end()
