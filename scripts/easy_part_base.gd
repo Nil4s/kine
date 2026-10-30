@@ -21,6 +21,7 @@ const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal):
 const TILT_DEG := 20.0           # Tilt it: the lean of the newest solid (degrees, sideways about its middle)
 const HOLLOW_MM := 3.0           # Hollow inside: the wall the shell starts with (the Wall slider moves it: 1 to 10 mm)
 const LID_MM := 5.0             # Hollow with a lid (nlid): the top slice that comes off as the lid (a solid plate, the box's footprint)
+const DRAFT_DEG := 2.0           # Draft angle (p021): the side walls of a pulled-up solid lean this many degrees, so the part comes out of a mould
 const LIP_RIDGE_MM := 0.5            # Snap-fit lip (nsnaplip): the ridge sticks out of the lip by this much, and the box wall has a groove this deep
 const LID_LIP_MM := 3.0         # the lid's lip: how far it goes down inside the box (1 mm wide ring, 0.2 mm gap to the wall)
 const THROTTLE_MS := 100
@@ -74,6 +75,8 @@ var steps_box: PanelContainer    # NSTEPLIST: the step list under the panel, in 
 var steps_vb: VBoxContainer
 var _steps_sig := ""
 var tilt_btn: Button
+var draft_btn: Button            # p021: Draft angle, the chip beside Tilt it (the side walls lean DRAFT_DEG for a mould)
+var pull_along_btn: Button       # P026: Pull along, the same box as Tilt it: shows after a curve or a shape is drawn (the newest step is a sketch)
 var parts_btn: Button            # NSCREW2: the Parts category chip (opens the screw grid under the template chips)
 var screw_box: PanelContainer    # NSCREW2: the screw grid: sixteen size chips, shown while Parts is open or a screw is the part
 var screw_btns := {}             # NSCREW2: "d_L" -> the size chip (M<d> x <L>)

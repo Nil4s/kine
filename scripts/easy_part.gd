@@ -382,10 +382,135 @@ func _tilt_box() -> PanelContainer:
 	box.name = "easypart_tilt"
 	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
 	box.visible = false
+	var row := HBoxContainer.new()   # p021: Tilt it and Draft angle share the one panel (only one of them shows for a given newest step)
+	row.add_theme_constant_override("separation", 6)
+	box.add_child(row)
 	tilt_btn = _big_btn("easypart_tilt_it", "Tilt it 20 degrees", "Lean the newest solid 20 degrees, sideways, about its middle", _tilt_press)
 	tilt_btn.custom_minimum_size = Vector2(230, 44)
-	box.add_child(tilt_btn)
+	row.add_child(tilt_btn)
+	draft_btn = _big_btn("easypart_draft_angle", "Draft angle", "Easier to pull from a mould: the side walls lean 2 degrees in, the base stays put", _draft_press)
+	draft_btn.custom_minimum_size = Vector2(170, 44)
+	row.add_child(draft_btn)
+	pull_along_btn = _big_btn("easypart_pull_along", "Pull along", "Pull the round shape along the open curve: a pipe in one step", _pull_along_press)
+	pull_along_btn.custom_minimum_size = Vector2(230, 44)
+	pull_along_btn.visible = false
+	row.add_child(pull_along_btn)
 	return box
+
+
+## DRAFT ANGLE (p021, "Easier to pull from a mould"): the newest solid is a pulled-up piece with no draft yet. Its straight side walls lean
+## DRAFT_DEG about its bottom (Part's draft step, pulled along Y: the top gets narrower). The walls are found by the replay, so the step follows them
+func _draft_ok(rec: Dictionary) -> bool:
+	var feats: Array = rec.get("features", [])
+	if feats.is_empty():
+		return false
+	var f: Dictionary = feats[feats.size() - 1]
+	return String(f.get("t", "")) == "extrude" and not bool(f.get("off", false)) and String(f.get("op", "join")) != "cut"
+
+
+func _draft_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	armed = ""
+	if not _draft_ok(_rec()):
+		_say("Draft angle leans a pulled-up solid: press Pull it up first, then Draft angle")
+		return
+	var res := Part.replay(_rec(), -1, {"faces": true})
+	if int(res["bodies"]) != 1:
+		_say("Draft angle works on one solid: press Stick together to make the pieces one solid first")
+		return
+	var walls: Array = []
+	for fc in res.get("faces", []):
+		var n: Vector3 = fc["n"]
+		if int(fc["body"]) == 0 and absf(n.y) < 0.02:   # a level normal: a side wall, not the top or the base
+			walls.append(Part.describe_face(fc))
+	if walls.is_empty():
+		_say("No straight side walls to lean: draw a box or a round shape, then Pull it up")
+		return
+	var snap := _rec().duplicate(true)
+	_begin("Draft angle")
+	var f := Part.new_feature(_rec(), "draft", {"body": 0, "faces": walls, "deg": DRAFT_DEG, "dir": "y"})
+	_rec()["features"].append(f)
+	if _last_error(_rec(), String(f["id"])) != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("Those walls cannot lean: the part would not stay on the model")
+		return
+	_end()
+	_say("Draft angle: the side walls lean 2 degrees, so the part pulls out of a mould easier. Ctrl+Z undoes it")
+	pu.upto = -1
+	pu.sync()
+
+
+## P026 PULL ALONG: the open curve (the path: a Curvy line that does not come back to its start) and a closed shape (the round or box
+## the pipe is pulled from) are both there, and the newest step is a sketch: the chip shows. Returns the two sketch ids [profile, path] or []
+func _along_pick(rec: Dictionary) -> Array:
+	var feats: Array = rec.get("features", [])
+	var path := ""
+	var shape := ""
+	var shape_free := ""
+	for i in range(feats.size() - 1, -1, -1):
+		var f: Dictionary = feats[i]
+		if String(f.get("t", "")) != "sketch":
+			continue
+		var ents: Array = f.get("ents", [])
+		var closed := false
+		for e in ents:
+			var k := String(e.get("k", ""))
+			if k == "circle" or k == "rect" or (k == "bspline" and bool(e.get("closed", false))):
+				closed = true
+		var sid := String(f.get("id", ""))
+		if closed and shape == "":
+			shape = sid
+		if closed and shape_free == "" and not Part.sketch_used(rec, sid):
+			shape_free = sid
+		elif not closed and not ents.is_empty() and path == "":
+			path = sid
+	if shape_free != "":
+		shape = shape_free
+	if path == "" or shape == "":
+		return []
+	return [shape, path]
+
+
+## the chip shows when the newest step is a sketch and _along_pick finds both sketches
+func _along_ok(rec: Dictionary) -> bool:
+	var feats: Array = rec.get("features", [])
+	return not feats.is_empty() and String(feats[feats.size() - 1].get("t", "")) == "sketch" and not _along_pick(rec).is_empty()
+
+
+## P026: Pull along makes one sweep step (the round shape at the curve's start, pulled along it: a pipe). One step, one undo
+func _pull_along_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	armed = ""
+	var ids := _along_pick(_rec())
+	if ids.is_empty():
+		_say("Pull along needs a round or box shape and a Curvy line that is open: Draw shape, then Curvy line, and do not drag back to the start")
+		return
+	var snap := _rec().duplicate(true)
+	_begin("Pull along")
+	var rec := pu._ensure()
+	var f := Part.new_feature(rec, "sweep", {"profile": ids[0], "path": ids[1], "op": "join"})
+	rec["features"].append(f)
+	var err := _last_error(rec, String(f["id"]))
+	if err != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("Pull along did not make a pipe: %s. Draw a gentler curve, or a smaller round shape" % err)
+		return
+	_end()
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	_say("Pulled along the curve: a pipe. Undo takes it back")
 
 
 ## the newest feature is a solid piece with no tilt yet: the Tilt it chip shows for it
@@ -1800,9 +1925,9 @@ func _finish_curve() -> void:
 		if (q as Vector2).x <= 1.0:
 			spin_ok = true
 	if spin_ok:
-		_say("Curvy line drawn: Spin it round makes a bowl, or Pull it up makes it solid" if closed else "Curvy line drawn: for a pipe, Sweep the round shape along it (Expert: CREATE, Sweep). Or drag back to the start to close it")
+		_say("Curvy line drawn: Spin it round makes a bowl, or Pull it up makes it solid" if closed else "Curvy line drawn: for a pipe, Pull along (Expert: CREATE, Sweep does the same). Or drag back to the start to close it")
 	else:
-		_say("Curvy line drawn: Pull it up makes it solid" if closed else "Curvy line drawn: for a pipe, Sweep the round shape along it (Expert: CREATE, Sweep). Or drag back to the start to close it")   # FPIPE: an open line's next step names the pipe (a sweep), not only the closing
+		_say("Curvy line drawn: Pull it up makes it solid" if closed else "Curvy line drawn: for a pipe, Pull along (Expert: CREATE, Sweep does the same). Or drag back to the start to close it")   # FPIPE: an open line's next step names the pipe (a sweep), not only the closing
 
 
 ## the drawn points kept for the spline (at most maxn, first and last always): the points that bend the line most, so a rim or a
@@ -1882,7 +2007,13 @@ func _process(_dt: float) -> void:
 	if del_on and (armed != "" or (_rec().get("features", []) as Array).size() != del_n):
 		_pick_clear()   # FDELETE: a pick ends with the step it was made on
 	del_btn.visible = on and del_on
-	tilt_box.visible = on and armed == "" and _tilt_ok(_rec())
+	var along := on and _along_ok(_rec())   # P026: Pull along takes the chip's place while a curve and a shape wait
+	var tilt_on := not along and _tilt_ok(_rec())
+	var draft_on := not along and _draft_ok(_rec())
+	pull_along_btn.visible = along
+	tilt_btn.visible = tilt_on
+	draft_btn.visible = draft_on
+	tilt_box.visible = on and armed == "" and (along or tilt_on or draft_on)
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
 	if not on:
 		return
