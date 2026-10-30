@@ -46,7 +46,15 @@ const T := {
 	"wheel": {"title": "Wheel", "params": [
 		{"k": "radius", "label": "Radius", "lo": 100.0, "hi": 600.0, "def": 320.0, "step": 10.0, "words": ["Smaller", "Bigger"]},
 		{"k": "width", "label": "Width", "lo": 50.0, "hi": 400.0, "def": 200.0, "step": 10.0, "words": ["Thinner", "Wider"]}]},
+	# NSCREW2: a screw from the Parts category (not in ORDER: no template chip). d = the nominal size (M3..M6, mm), L = the length under the head (mm).
+	# Its numbers are picked by the Parts chips (easy_part.gd), so its sliders are hidden there ("parts": true).
+	"screw": {"title": "Screw", "parts": true, "params": [
+		{"k": "d", "label": "Size", "lo": 3.0, "hi": 6.0, "def": 4.0, "step": 1.0, "words": ["Smaller", "Bigger"]},
+		{"k": "L", "label": "Length", "lo": 10.0, "hi": 30.0, "def": 16.0, "step": 1.0, "words": ["Shorter", "Longer"]}]},
 }
+
+## NSCREW2: ISO 4762 socket head screws: nominal size -> [head diameter, head height] (mm). The shank is the nominal size, plain (no thread).
+const SCREW_HEAD := {3: [5.5, 3.0], 4: [7.0, 4.0], 5: [8.5, 5.0], 6: [10.0, 6.0]}
 
 
 ## the default camera of a template: [yaw, pitch] degrees, a 3/4 view in which its main shape reads (the axe turns further so its blade face shows)
@@ -222,6 +230,18 @@ static func _poly(pts: Array) -> Array:
 static func features_of(t: String, p: Dictionary) -> Array:
 	var fs: Array = []
 	match t:
+		"screw":
+			# NSCREW2: one lathe profile (x = radius, y = height, mm) spun round the up axis (Y), from the floor: the shank, then the head on top
+			var sd := clampi(int(roundf(float(p["d"]))), 3, 6)
+			var hd: Array = SCREW_HEAD[sd]
+			var sl: float = float(p["L"])
+			var r := float(sd) * 0.5
+			var R: float = float(hd[0]) * 0.5
+			var hk: float = float(hd[1])
+			var prof := [Vector2(0, 0), Vector2(r, 0), Vector2(r, sl), Vector2(R, sl), Vector2(R, sl + hk), Vector2(0, sl + hk)]
+			var sid := _sk(fs, "front", _poly(prof))
+			_ex(fs, sid, "revolve", 0.0, "new")
+			fs[fs.size() - 1]["axis"] = "y"
 		"sword":
 			var L: float = p["blade_length"]
 			var w: float = p["width"]
