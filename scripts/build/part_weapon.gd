@@ -45,6 +45,21 @@ static func material_at(rec: Dictionary) -> String:
 	return m if DENSITY.has(m) else DEFAULT
 
 
+## WEIGHT READOUT (p057): the whole Part's weight if it were made of each material: volume (m3, the kernel's) x density (kg/m3).
+## {"wood": kg, "steel": kg, "plastic": kg}, or {} when the Part has no solid. Only a readout: the record is not changed
+static func weight_kg(rec: Dictionary) -> Dictionary:
+	if not Part.available():
+		return {}
+	var res := Part.replay(rec, -1, {"props": true})
+	var vol := float(res.get("volume", 0.0))
+	if vol <= 0.0 or (res.get("props", []) as Array).is_empty():
+		return {}
+	var out := {}
+	for k in ["wood", "steel", "plastic"]:
+		out[k] = vol * float(DENSITY[k])
+	return out
+
+
 ## registers rec as a weapon kind: Body.KINDS[kind] gets its numbers, meshes[kind] its shape. Returns the kind, or "" when the Part has no solid.
 static func register(rec: Dictionary) -> String:
 	var mat := material_at(rec)
