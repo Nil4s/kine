@@ -39,6 +39,7 @@ const MAKES := [
 	["colour", "Colour", "part_appearance", "Pick a colour for the solid, or Glass or Metal"],
 	["repeat", "Repeat it", "part_pattern", "Copy the newest solid in a row, or round in a ring. Then move the sliders"],
 	["stick", "Stick together", "part_combine", "Click two solid pieces in the view, then pick Join, Cut away or Keep the overlap"]]
+const ROUND_FILTERS := [["all", "All edges", "part_filter_all", "Round every edge of the solid"], ["outside", "Only the outside", "part_filter_outside", "Round only the edges on the outside, not the inside of a hole or a cup"], ["top", "Only the top", "part_filter_top", "Round only the top edges of the solid"]]   # NROUNDFILTER
 const BAD_WORDS := ["ctrl", "shift", "alt+", "esc", "enter", "tab ", "delete", "backspace", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12", "spacebar", "return key"]
 
 var pu: PartUI
@@ -82,6 +83,10 @@ var hole_id := ""                # the feature id of the last hole step (the hol
 var hole_mode := "through"       # "through" | "hollow": the chip that is on
 var split_box: PanelContainer   # ECUT2: Cut in two's keep chips (both halves / the lower half / the upper half), after a Cut in two press (see _split_on)
 var split_btns := {}
+var round_box: PanelContainer   # NROUNDFILTER: the All edges / Only the outside / Only the top chips, beside Round the edges (see _round_box)
+var round_btns := {}
+var round_mode := "all"          # the filter the next Round the edges press uses: "all" | "outside" | "top"
+
 var split_id := ""              # the feature id of the last Cut in two step: the keep chips edit its "keep" field
 var colour_box: PanelContainer   # Colour: the five colour chips and Glass / Metal, under the MAKE row (armed "colour")
 var panel: PanelContainer
@@ -268,6 +273,8 @@ func build(root: Control) -> void:
 	root.add_child(hole_box)
 	split_box = _split_box()
 	root.add_child(split_box)
+	round_box = _round_box()   # NROUNDFILTER
+	root.add_child(round_box)
 	colour_box = _colour_box()
 	root.add_child(colour_box)
 	repeat_box = _repeat_box()
@@ -394,6 +401,51 @@ func _hole_box() -> PanelContainer:
 		h.add_child(b)
 		hole_btns[hm[0]] = b
 	return box
+
+
+## NROUNDFILTER: the three filter chips beside Round the edges: All edges (the default), Only the outside, Only the top. Each chip sets the
+## filter for the next Round press (no undo step of its own: the press is the one step). Shown while a solid is there and nothing is armed
+func _round_box() -> PanelContainer:
+	var box := PanelContainer.new()
+	box.name = "easypart_round"
+	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	box.visible = false
+	var h := HBoxContainer.new()
+	h.add_theme_constant_override("separation", 6)
+	box.add_child(h)
+	for rf in ROUND_FILTERS:
+		var b := _big_btn("easypart_round_" + String(rf[0]), String(rf[1]), String(rf[3]), _round_filter.bind(String(rf[0])))
+		b.toggle_mode = true
+		b.icon = Icons.sized(String(rf[2]), 22)
+		b.expand_icon = false
+		b.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.custom_minimum_size = Vector2(176, 44)
+		h.add_child(b)
+		round_btns[rf[0]] = b
+	return box
+
+
+func _round_shown() -> bool:
+	return armed == "" and int(pu.res.get("bodies", 0)) > 0 and not _hole_on() and not _split_on()
+
+
+func _round_sync() -> void:
+	for k in round_btns:
+		(round_btns[k] as Button).set_pressed_no_signal(k == round_mode)
+		m._grey(round_btns[k], Part.why_not() if not Part.available() else "")
+
+
+## a filter chip: the next Round the edges press rounds this kind of edge. Changes no step (nothing is made until Round the edges)
+func _round_filter(key: String) -> void:
+	round_mode = key
+	_round_sync()
+	match key:
+		"outside":
+			_say("Round the edges will now round only the outside edges. Press Round the edges")
+		"top":
+			_say("Round the edges will now round only the top edges. Press Round the edges")
+		_:
+			_say("Round the edges will now round every edge. Press Round the edges")
 
 
 ## ECUT2: Cut in two keeps ONE half: three toggle chips after a Cut in two press. Both halves is the default (two bodies); the lower or upper half
@@ -1761,6 +1813,15 @@ func _round(rec: Dictionary) -> String:
 		return "Nothing solid to round yet. Press Pull it up first"
 	var es: Array = res["edges"]
 	var aabb: AABB = res["aabb"]
+	var flag := "" if round_mode == "all" else round_mode   # NROUNDFILTER: the edge flag of the filter ("outside" / "top")
+	if flag != "":
+		var any := false
+		for e in es:
+			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and bool(e.get(flag, false)):
+				any = true
+		if not any:
+			Part.release_kept(kept)
+			return "No %s edge to round on this solid: press All edges, then Round the edges again" % ("outside" if flag == "outside" else "top")
 	var small := minf(aabb.size.x, minf(aabb.size.y, aabb.size.z)) / Part.MM
 	var longest := 0.0
 	for e in es:
@@ -1769,7 +1830,7 @@ func _round(rec: Dictionary) -> String:
 	# record per try: a press on a part of 25+ steps took minutes that way. The search stops at ROUND_BUDGET_US and keeps the best found
 	var done := false
 	if not kept.is_empty():
-		done = _round_on(rec, int(kept[0]), es, small, longest)
+		done = _round_on(rec, int(kept[0]), es, small, longest, flag)
 	Part.release_kept(kept)
 	if done:
 		return ""
@@ -1777,13 +1838,13 @@ func _round(rec: Dictionary) -> String:
 
 
 ## EROUND: the round on body (a kept solid of the record's end). True when a fillet step was added to rec
-func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: float) -> bool:
+func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: float, flag := "") -> bool:
 	# EBACK: the default never sits below the slider's own low end (1 mm, "Barely"): a thin part's 0.5 mm default looked square
 	for attempt in [[1.0, 0.0], [0.5, 0.0], [0.5, 0.2]]:
 		var r := clampf(small * 0.01 * float(attempt[0]), 1.0, 6.0)
 		var list := []
 		for e in es:
-			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and float(e["len"]) >= longest * float(attempt[1]) and float(e["len"]) / Part.MM > r * 2.5:
+			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and (flag == "" or bool(e.get(flag, false))) and float(e["len"]) >= longest * float(attempt[1]) and float(e["len"]) / Part.MM > r * 2.5:
 				list.append(Part.describe(e))
 		if list.is_empty():
 			continue
@@ -1806,7 +1867,7 @@ func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: flo
 			if Time.get_ticks_usec() - t1 > ROUND_BUDGET_US:
 				out_of_time = true
 				break
-			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and float(e["len"]) / Part.MM > r * 2.5:
+			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and (flag == "" or bool(e.get(flag, false))) and float(e["len"]) / Part.MM > r * 2.5:
 				var trial := good.duplicate()
 				trial.append(Part.describe(e))
 				if Part.fillet_trial(body, r, trial) == "":
@@ -2772,6 +2833,9 @@ func _process(_dt: float) -> void:
 	shape_box.visible = on and armed == "draw"
 	hole_box.visible = on and _hole_on()
 	split_box.visible = on and _split_on()
+	round_box.visible = on and _round_shown()   # NROUNDFILTER
+	if round_box.visible:
+		_round_sync()
 	if split_box.visible:
 		_split_sync()
 	colour_box.visible = on and armed == "colour"
@@ -2885,7 +2949,7 @@ func _frame_step() -> void:
 
 ## the free view: the clear view minus the MAKE row above and the side panel at the right, minus the status line at the bottom
 func free_rect() -> Rect2:
-	var boxes := [hint, hole_box, split_box, shape_box, colour_box, repeat_box, stick_box]   # the words and the chip rows under the MAKE row: the part sits below them
+	var boxes := [hint, hole_box, split_box, round_box, shape_box, colour_box, repeat_box, stick_box]   # the words and the chip rows under the MAKE row: the part sits below them
 	var top := _free_top(boxes)                                                              # (ewalk4: the Through / Hollow inside chips covered the mug's rim)
 	# FSHELF: the Repeat row sits at the left under the words; open, its bottom left the free view under 0 px high (no framing, the copies
 	# of a row stayed off screen). When that happens the row does not push the view down (it floats over the left of the grid)
@@ -3178,6 +3242,8 @@ func layout(cl: Rect2) -> void:
 	hole_box.position = shape_box.position
 	split_box.reset_size()
 	split_box.position = shape_box.position
+	round_box.reset_size()   # NROUNDFILTER: the filter chips sit where the other chip rows do
+	round_box.position = shape_box.position
 	colour_box.reset_size()
 	colour_box.position = shape_box.position
 	# FMOBILE: the floating boxes stay left of the panel (the colour chips wrap) and below the sentence (the hint)
