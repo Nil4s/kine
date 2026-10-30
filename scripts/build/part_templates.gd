@@ -55,6 +55,53 @@ const T := {
 
 ## NSCREW2: ISO 4762 socket head screws: nominal size -> [head diameter, head height] (mm). The shank is the nominal size, plain (no thread).
 const SCREW_HEAD := {3: [5.5, 3.0], 4: [7.0, 4.0], 5: [8.5, 5.0], 6: [10.0, 6.0]}
+## NNUTWASHER: ISO 4032 nut [across flats, thickness] and ISO 7089 washer [inside, outside, thickness] (mm), by the nominal size M3..M6.
+## They stand on the floor beside the screw: the washer's centre at X 18 mm, the nut's at X 40 mm (the screw's head is under 6 mm wide).
+const NUT_ISO := {3: [5.5, 2.4], 4: [7.0, 3.2], 5: [8.0, 4.7], 6: [10.0, 5.2]}
+const WASH_ISO := {3: [3.2, 7.0, 0.5], 4: [4.3, 9.0, 0.8], 5: [5.3, 10.0, 1.0], 6: [6.4, 12.0, 1.6]}
+const NW_WASHER_X := 18.0
+const NW_NUT_X := 40.0
+const NW_N := 8   # the features the nut and washer take: a washer (a disc, a bore cut) and a nut (a hex, a bore cut)
+
+
+## NNUTWASHER: the nut and washer features for size d, appended to fs (the screw's features, so the ids go on from them). Returns only the new ones.
+## Both are sketched on the Top plane (sketch x = X, the normal is up Y), so they stand on the floor with their holes along Y.
+static func nw_features(fs: Array, d: int) -> Array:
+	var base := fs.size()
+	var sd := clampi(int(roundf(float(d))), 3, 6)
+	var w: Array = WASH_ISO[sd]
+	var wc := [NW_WASHER_X, 0.0]
+	_ex(fs, _sk(fs, "top", [{"k": "circle", "c": wc, "r": float(w[1]) * 0.5}]), "extrude", float(w[2]), "new")
+	_ex(fs, _sk(fs, "top", [{"k": "circle", "c": wc, "r": float(w[0]) * 0.5}]), "extrude", float(w[2]) + 2.0, "cut")
+	var n: Array = NUT_ISO[sd]
+	var R: float = float(n[0]) / sqrt(3.0)   # a corner's radius: the corners point along X, the flats face Z
+	var hex := []
+	for k in 6:
+		hex.append(Vector2(NW_NUT_X + R * cos(float(k) * PI / 3.0), R * sin(float(k) * PI / 3.0)))
+	_ex(fs, _sk(fs, "top", _poly(hex)), "extrude", float(n[1]), "new")
+	_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [NW_NUT_X, 0.0], "r": float(sd) * 0.5}]), "extrude", float(n[1]) + 2.0, "cut")
+	return fs.slice(base)
+
+
+## NNUTWASHER: a screw on the floor takes its nut and washer: they go on the END of the record and the easy record remembers where ("nw" = their first index)
+static func nw_add(rec: Dictionary, d: int) -> void:
+	var feats: Array = rec["features"]
+	var start := feats.size()
+	feats.append_array(nw_features(feats.duplicate(), d))
+	rec["seq"] = maxi(int(rec.get("seq", 0)), feats.size())
+	(rec["easy"] as Dictionary)["nw"] = start
+
+
+## NNUTWASHER: a size change rewrites the nut and washer too (same count for every size, so the features after them keep their ids). Does nothing without them.
+static func nw_set(rec: Dictionary, d: int) -> void:
+	var e: Dictionary = rec.get("easy", {})
+	if e.is_empty() or int(e.get("nw", -1)) < 0:
+		return
+	var start := int(e["nw"])
+	var feats: Array = rec["features"]
+	var head: Array = feats.slice(0, start)
+	var rest: Array = feats.slice(mini(start + NW_N, feats.size()))
+	rec["features"] = head + nw_features(head.duplicate(), d) + rest
 
 
 ## the default camera of a template: [yaw, pitch] degrees, a 3/4 view in which its main shape reads (the axe turns further so its blade face shows)

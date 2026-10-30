@@ -72,6 +72,7 @@ var tilt_btn: Button
 var parts_btn: Button            # NSCREW2: the Parts category chip (opens the screw grid under the template chips)
 var screw_box: PanelContainer    # NSCREW2: the screw grid: sixteen size chips, shown while Parts is open or a screw is the part
 var screw_btns := {}             # NSCREW2: "d_L" -> the size chip (M<d> x <L>)
+var nw_btn: Button               # NNUTWASHER: "Add its nut and washer" (in the screw grid): the screw on the floor takes its nut and washer, one click
 var parts_open := false          # NSCREW2: the Parts category is open (the grid shows even with no screw on the floor)
 var stick_box: PanelContainer    # Stick together: Join / Cut away / Keep the overlap, shown once two pieces are picked
 var stick_btns := {}
@@ -1147,6 +1148,18 @@ func _screw_box() -> PanelContainer:
 	g.add_theme_constant_override("h_separation", 4)
 	g.add_theme_constant_override("v_separation", 4)
 	vb.add_child(g)
+	nw_btn = Button.new()   # NNUTWASHER: the nut (ISO 4032) and washer (ISO 7089) of the screw on the floor, in one click
+	nw_btn.name = "easypart_nw_add"
+	nw_btn.text = "Add its nut and washer"
+	nw_btn.icon = _nw_icon()
+	nw_btn.tooltip_text = "Put the nut and the washer of this screw on the floor beside it. One click, one undo step"
+	nw_btn.focus_mode = Control.FOCUS_NONE
+	nw_btn.custom_minimum_size = Vector2(0, 34)
+	nw_btn.add_theme_font_size_override("font_size", 13)
+	nw_btn.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+	nw_btn.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+	nw_btn.pressed.connect(_nw_add)
+	vb.add_child(nw_btn)
 	for L in SCREW_LENS:
 		for d in SCREW_DS:
 			var hw: float = float(PartTemplates.SCREW_HEAD[d][0])
@@ -1181,6 +1194,51 @@ func _screw_icon(d: int, L: int) -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 
+## NNUTWASHER: a small nut and washer icon (the same 16 px box as the screw icon, Tok colour only)
+func _nw_icon() -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	img.fill_rect(Rect2i(1, 10, 14, 3), col)
+	img.fill_rect(Rect2i(4, 3, 8, 6), col)
+	img.fill_rect(Rect2i(6, 5, 4, 2), Color(0, 0, 0, 0))
+	return ImageTexture.create_from_image(img)
+
+
+## NNUTWASHER: the nut button. No screw on the floor: it says what to do first. Its nut and washer already there: it says so (no undo step).
+## Else one undo step puts them on the floor beside the screw, sized to it.
+func _nw_add() -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var on_floor := _tpl() == "screw" and not (_rec().get("features", []) as Array).is_empty()
+	if not on_floor:
+		_say("Put a screw on the floor first: pick a size above, then press Add its nut and washer")
+		_screw_sync()
+		return
+	var e: Dictionary = _rec().get("easy", {})
+	if int(e.get("nw", -1)) >= 0:
+		_say("Its nut and washer are on the floor already. Pick another size to change all three")
+		_screw_sync()
+		return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Add the nut and washer"
+	m._push_undo()
+	PartTemplates.nw_add(_rec(), int(e["p"]["d"]))
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("The nut and washer did not build. Press Reset, then pick a size again")
+	else:
+		_say("Nut and washer on the floor beside the screw. Pick another size to change all three")
+	_screw_sync()
+
+
 ## NSCREW2: the Parts chip opens or shuts the screw grid (a screw on the floor keeps it open)
 func _parts_press() -> void:
 	if not Part.available():
@@ -1213,6 +1271,7 @@ func _screw_pick(d: int, L: int) -> void:
 	m._push_undo()
 	if on_floor:
 		PartTemplates.retemplate(_rec(), {"d": d, "L": L})
+		PartTemplates.nw_set(_rec(), d)   # NNUTWASHER: the nut and washer (if on the floor) follow the size
 	else:
 		m.S.part = PartTemplates.make("screw", {"d": d, "L": L})
 	tweak = {}
