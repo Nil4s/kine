@@ -1134,6 +1134,8 @@ func _lib_press(cat: String) -> void:
 		_say("Screws: pick a size. It drops on the floor")
 	elif cat == "Gears":
 		_say("Gears: press Gear in the chips above. It drops on the floor")
+	elif cat == "Springs":   # p070springfix: the spring is built by this press (the same build as a template chip), not a chip on the row
+		_chip("spring")
 	else:
 		_say("%s are coming soon. Next step: press Screws or Gears" % cat)
 	_screw_sync()
