@@ -19,6 +19,7 @@ const LIB_CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "
 const LIB_READY := ["Screws", "Gears", "Bearings", "Brackets", "Clips and feet", "Handles", "Wheels", "Boards"]   # NLIBPAGE: the categories with parts today; the others say coming soon
 const CLIP_KINDS := ["foot", "clip", "slot"]   # P075: the Clips and feet chips: a rubber foot, a cable clip, a zip-tie slot (template kinds in part_templates.gd)
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
+const WEIGHT_CHIPS := [["wood", "wood"], ["steel", "metal"], ["plastic", "plastic"]]   # p057: the weight chips after Wood (PartWeapon.DENSITY key, the word on the chip)
 const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal): a wood brown, red > green > blue
 const TILT_DEG := 20.0           # Tilt it: the lean of the newest solid (degrees, sideways about its middle)
 const HOLLOW_MM := 3.0           # Hollow inside: the wall the shell starts with (the Wall slider moves it: 1 to 10 mm)
@@ -139,6 +140,9 @@ var round_mode := "all"          # the filter the next Round the edges press use
 
 var split_id := ""              # the feature id of the last Cut in two step: the keep chips edit its "keep" field
 var colour_box: PanelContainer   # Colour: the five colour chips and Glass / Metal, under the MAKE row (armed "colour")
+var weight_btns := {}   # p057: the weight chips by WEIGHT_CHIPS key (read by _weight_sync)
+var weight_kg_by := {}   # p057: the weights of the Part as last read ({} = no solid)
+var weight_key := -1   # p057: the features hash the weights were read from (read again only when the Part changes)
 var panel: PanelContainer
 var panel_vb: VBoxContainer   # the panel's column: it scrolls inside the panel when the window is short (1280 x 720)
 var panel_title: Label

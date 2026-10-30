@@ -499,7 +499,47 @@ func _colour_box() -> PanelContainer:
 	var wood := _colour_btn("wood", "Wood", WOOD_COLOUR)   # FTABLE2: a wood-brown paint (the Paint numbers), for a table top or a shelf
 	wood.pressed.connect(_paint.bind("Wood", WOOD_COLOUR, "Paint"))
 	h.add_child(wood)
+	# p057 WEIGHT: the whole Part's weight if it were made of each material (volume x density). A readout: it changes nothing in the Part
+	for wk in WEIGHT_CHIPS:
+		var wb := _colour_btn("weight_" + String(wk[0]), "", Color(0.7, 0.72, 0.76))
+		wb.name = "easypart_weight_" + String(wk[0])
+		wb.custom_minimum_size.x = 118.0
+		wb.tooltip_text = "How heavy the whole part would be if it were solid %s (its volume x the density of %s). Shows only: press it to read it out" % [wk[1], wk[1]]
+		wb.pressed.connect(_weight_press.bind(String(wk[0])))
+		h.add_child(wb)
+		weight_btns[String(wk[0])] = wb
 	return box
+
+
+## WEIGHT (p057): the weight chips show the Part's weight in each material; read again only when the Part's steps change
+func _weight_sync() -> void:
+	var key: int = _rec().get("features", []).hash()
+	if key == weight_key:
+		return
+	weight_key = key
+	weight_kg_by = PartWeapon.weight_kg(_rec())
+	for wk in WEIGHT_CHIPS:
+		var b := weight_btns[String(wk[0])] as Button
+		var kg := float(weight_kg_by.get(String(wk[0]), -1.0))
+		if kg < 0.0:
+			b.text = "%s: no solid" % wk[1]
+		elif kg < 1.0:
+			b.text = "%d g %s" % [roundi(kg * 1000.0), wk[1]]
+		else:
+			b.text = "%.2f kg %s" % [kg, wk[1]]
+
+
+## WEIGHT press: one sentence in plain words. No step, no undo
+func _weight_press(k: String) -> void:
+	_weight_sync()
+	var word := ""
+	for wk in WEIGHT_CHIPS:
+		if String(wk[0]) == k:
+			word = String(wk[1])
+	if weight_kg_by.is_empty():
+		_say("No weight yet: Pull it up or Spin it round first, then the weight shows here")
+		return
+	_say("Solid %s, this whole part would weigh %s" % [word, (weight_btns[k] as Button).text.trim_suffix(" " + word)])
 
 
 ## TILT IT: the newest solid (a Pull it up or a Spin it round, not yet tilted) leans TILT_DEG about X through its middle. One step, once
@@ -3199,6 +3239,8 @@ func _process(_dt: float) -> void:
 	if split_box.visible:
 		_split_sync()
 	colour_box.visible = on and armed == "colour"
+	if colour_box.visible:
+		_weight_sync()   # p057: the weight chips follow the Part (only read when its steps change)
 	repeat_box.visible = on and armed == "" and rep_id != "" and not Part.feature(_rec(), rep_id).is_empty()
 	var smooth := on and _smooth_on()   # P035: after a Join the stick box holds only the Smooth the joints chip
 	stick_box.visible = (on and armed == "stick" and stick_picks.size() == 2) or smooth
