@@ -102,5 +102,5 @@ func _init() -> void:
 		ok(not bool(fw2["ok"]) and same, "bar 6: '%s' (a fist) has no weight step: ok = %s, times unchanged = %s" % [FIST, str(fw2["ok"]), str(same)])
 	else:
 		ok(false, "bar 6: '%s' builds: %s" % [FIST, str(fr.get("error", ""))])
-	print("TOTAL FAILS: %d" % fails)
+	print("bars missed: %d" % fails)
 	quit(fails)
