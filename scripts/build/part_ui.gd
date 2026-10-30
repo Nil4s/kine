@@ -95,6 +95,7 @@ var _rp_res: Dictionary = {}
 var prev := {}                 # the dialog's preview replay
 var hover_edge := -1
 var hover_face := -1           # offset face / draft: the face under the pointer (an index into face_cache)
+var explode_mm := 0.0           # EXPLODE (p103): the Pull apart slider (mm): each piece is drawn this far from the middle of the part (view only, the record is not changed)
 var coarse := false             # NSLIDELOD: a size slider is in hand: the view tessellates coarse (Easy Part clears it on release)
 var face_cache: Array = []     # the pickable faces of the model as the dialog sees it (Part.replay "faces")
 var spl_drag := {}             # a spline point being dragged: {"ent", "pt"} (sketch Spline tool)
@@ -125,6 +126,8 @@ var hinge_title: Label
 var hinge_info: Label
 var hinge_play_btn: Button
 var hinge_slider: HSlider
+var limit_slider: HSlider   # P122: the hinge dialog's Joint limit slider, 0..90 deg (hp["limit"])
+var limit_lbl: Label
 var hinge_pct_l: Label
 var hinge_strip: Control
 var hinge_red_l: Label
@@ -1873,7 +1876,7 @@ func dialog_feature() -> Dictionary:
 			var keep: Array = []
 			if edit >= 0:
 				keep = (rec["features"][edit] as Dictionary).get("clear", [])
-			f = {"body": int(hp["body"]), "o": [o.x / Part.MM, o.y / Part.MM, o.z / Part.MM], "axis": [d.x, d.y, d.z], "track": [[0.0, a0], [du, a1]], "clear": keep}
+			f = {"body": int(hp["body"]), "o": [o.x / Part.MM, o.y / Part.MM, o.z / Part.MM], "axis": [d.x, d.y, d.z], "track": [[0.0, a0], [du, a1]], "clear": keep, "limit": clampf(float(hp.get("limit", 90.0)), 0.0, 90.0)}
 	if edit >= 0:
 		var old: Dictionary = rec["features"][edit]
 		f["id"] = old["id"]
@@ -2398,7 +2401,7 @@ func _rebuild(show: bool) -> void:
 	if not show:
 		return
 	Part.refresh_bound(_rec(), _body_measures())   # C2: a dimension bound to the body shows the body's size now
-	var sig := "%s|%d|%d|%s|%s|%s" % [JSON.stringify(_rec()), upto, int(dlg.get("edit", -1)) if not dlg.is_empty() else -2, JSON.stringify(_body_measures()), JSON.stringify(pose), coarse]   # the body moving re-solves the bound dimensions
+	var sig := "%s|%d|%d|%s|%s|%s|%s" % [JSON.stringify(_rec()), upto, int(dlg.get("edit", -1)) if not dlg.is_empty() else -2, JSON.stringify(_body_measures()), JSON.stringify(pose), coarse, explode_mm]   # the body moving re-solves the bound dimensions
 	if sig == _rec_sig:
 		return
 	_rec_sig = sig
@@ -2418,10 +2421,45 @@ func _rebuild(show: bool) -> void:
 		want["coarse"] = true   # NSLIDELOD: the slider preview (low detail)
 	res = replay_once(_rec(), up, want)
 	if sk == "":
-		part_mesh.mesh = res["mesh"]
+		part_mesh.mesh = _exploded(res["mesh"])
 		_look_surfaces()
 	edge_cache = res["edges"]
 	face_cache = res["faces"]
+
+
+## EXPLODE (p103): the shown mesh with each piece pushed away from the middle of the whole part (the direction from that middle to the piece's own middle).
+## One surface is one piece (the replay's looks say so), so a piece moves as a whole. Returns src itself when nothing is pulled apart
+func _exploded(src: ArrayMesh) -> ArrayMesh:
+	if src == null or explode_mm <= 0.0 or src.get_surface_count() < 2:
+		return src
+	var mids: Array = []
+	var all := Vector3.ZERO
+	for s in src.get_surface_count():
+		var vs: PackedVector3Array = src.surface_get_arrays(s)[Mesh.ARRAY_VERTEX]
+		if vs.is_empty():
+			mids.append(Vector3.ZERO)
+			continue
+		var box := AABB(vs[0], Vector3.ZERO)
+		for v in vs:
+			box = box.expand(v)
+		mids.append(box.get_center())
+		all += box.get_center()
+	all /= float(src.get_surface_count())
+	var out := ArrayMesh.new()
+	for s in src.get_surface_count():
+		var arr: Array = src.surface_get_arrays(s)
+		var dir: Vector3 = mids[s] - all
+		var off := Vector3.ZERO
+		if dir.length() > 1e-6:
+			off = dir.normalized() * explode_mm * Part.MM
+		var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var moved := PackedVector3Array()
+		moved.resize(vs.size())
+		for i in vs.size():
+			moved[i] = vs[i] + off
+		arr[Mesh.ARRAY_VERTEX] = moved
+		out.add_surface_from_arrays(src.surface_get_primitive_type(s), arr)
+	return out
 
 
 ## the replay the rebuild wants (the same keys as _rebuild): a press that replays the same record in the same frame gets the result back
@@ -2839,6 +2877,42 @@ func _readout(txt: String) -> void:
 	_pill(c, txt, Color(0.06, 0.07, 0.1, 0.94), Color.WHITE, 14)
 
 
+## P046 SMART GUIDES: what a line being drawn a->b matches in this sketch. {"words": [String], "ent": the line it matches (lit) or -1}
+## Equal: a line already there has the same length (0.05 mm). Straight: level or upright. Right angle: square to the line it runs on from.
+func _guide_of(a: Vector2, b: Vector2) -> Dictionary:
+	var ents: Array = _sk().get("ents", [])
+	var d := b - a
+	if d.length() < 0.5:
+		return {}
+	var out := {"words": [], "ent": -1}
+	var words: Array = out["words"]
+	for i in ents.size():
+		if String(ents[i]["k"]) == "line" and absf(Part.v2(ents[i]["a"]).distance_to(Part.v2(ents[i]["b"])) - d.length()) < 0.05:
+			words.append("Equal to line %d" % (i + 1))
+			out["ent"] = i
+			break
+	if absf(d.y) < 0.01:
+		words.append("Straight: level")
+	elif absf(d.x) < 0.01:
+		words.append("Straight: upright")
+	for i in ents.size():   # the line this one runs on from (a chain): square to it at 0.01 deg
+		var e: Dictionary = ents[i]
+		if String(e["k"]) == "line" and Part.v2(e["b"]).distance_to(a) < 0.01:
+			var prev := Part.v2(e["b"]) - Part.v2(e["a"])
+			if absf(prev.normalized().dot(d.normalized())) < 0.0002:
+				words.append("Right angle")
+				if int(out["ent"]) < 0:
+					out["ent"] = i
+			break
+	return out
+
+
+func _guide_words(g: Dictionary) -> String:
+	if (g.get("words", []) as Array).is_empty():
+		return ""
+	return "   " + " · ".join(PackedStringArray(g["words"]))
+
+
 func _draw_draft() -> void:
 	if draft.is_empty():
 		return
@@ -2849,7 +2923,11 @@ func _draw_draft() -> void:
 		"line":
 			pov.draw_line(scr(a), scr(b), c, 2.0)
 			var len := a.distance_to(b)
-			_readout((typed + " mm") if typed != "" else "%s mm%s" % [_fmt(len), _snap_words()])
+			var g := _guide_of(a, b)   # P046: Equal / Straight / Right angle light up while the line is drawn
+			if int(g.get("ent", -1)) >= 0:
+				var lit: Dictionary = _sk()["ents"][int(g["ent"])]
+				pov.draw_line(scr(Part.v2(lit["a"])), scr(Part.v2(lit["b"])), c, 4.0)
+			_readout(((typed + " mm") if typed != "" else "%s mm%s" % [_fmt(len), _snap_words()]) + _guide_words(g))
 		"rect":
 			pov.draw_polyline(PackedVector2Array([scr(a), scr(Vector2(b.x, a.y)), scr(b), scr(Vector2(a.x, b.y)), scr(a)]), c, 2.0)
 			if typed != "":   # XDIM: a typed 40x30 reads as typed
@@ -2979,6 +3057,7 @@ func _hinge_open(f: Dictionary, edit: int) -> void:
 		f_from.text = "0"
 		f_to.text = "90"
 		f_dur.text = "3"
+	hp["limit"] = float(f.get("limit", 90.0)) if edit >= 0 else 90.0
 	_hinge_rows()
 
 
@@ -2992,8 +3071,36 @@ func _hinge_rows() -> void:
 		_hrow("From", f_from, "deg")
 		_hrow("To", f_to, "deg")
 		_hrow("Seconds", f_dur, "s")
+		dlg_rows.add_child(_limit_row())
 		dlg_rows.add_child(f_dial)
 		f_dial.queue_redraw()
+
+
+## P122 JOINT LIMIT: a slider from 0 to 90 deg. The hinge may not swing past it either way (90 = no stop)
+func _limit_row() -> Control:
+	var h := HBoxContainer.new()
+	var l := _label("Joint limit")
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(l)
+	limit_slider = HSlider.new()
+	limit_slider.name = "part_limit_slider"
+	limit_slider.min_value = 0.0
+	limit_slider.max_value = 90.0
+	limit_slider.step = 1.0
+	limit_slider.focus_mode = Control.FOCUS_NONE
+	limit_slider.custom_minimum_size.x = 120.0
+	limit_slider.value_changed.connect(_limit_set)
+	h.add_child(limit_slider)
+	limit_lbl = _label("", 13, true)
+	h.add_child(limit_lbl)
+	limit_slider.set_value_no_signal(float(hp.get("limit", 90.0)))
+	_limit_set(float(hp.get("limit", 90.0)))
+	return h
+
+
+func _limit_set(v: float) -> void:
+	hp["limit"] = clampf(v, 0.0, 90.0)
+	limit_lbl.text = "%d deg" % roundi(float(hp["limit"]))
 
 
 func _hrow(label: String, le: LineEdit, unit: String) -> void:
@@ -3236,7 +3343,7 @@ func hinge_set_pct(v: float) -> void:
 		return
 	play_pct = clampf(v, 0.0, 100.0)
 	var tr: Array = f["track"]
-	var deg := float(Curves.eval(tr, play_pct / 100.0 * float(tr[-1][0])))
+	var deg := clampf(float(Curves.eval(tr, play_pct / 100.0 * float(tr[-1][0]))), -Part.hinge_limit(f), Part.hinge_limit(f))   # P122: the joint limit stops the swing
 	pose = {"f": String(f["id"]), "deg": deg}
 	hinge_pct_l.text = "%d %%   %s deg" % [roundi(play_pct), _fmt(deg)]
 	hinge_slider.set_value_no_signal(play_pct)

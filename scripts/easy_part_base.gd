@@ -83,6 +83,7 @@ var tilt_btn: Button
 var suggest_row: HBoxContainer   # P092: the next-step row in the right panel (after a Pull it up): the two chips below
 var suggest_round_btn: Button    # P092: "Round the edges?" under a pulled-up solid (the suggest row): one press = Round the edges
 var suggest_hollow_btn: Button   # P092: "Hollow it?" under a pulled-up solid (the suggest row): one press = Hollow inside (HOLLOW_MM wall, open at the top)
+var swing_btn: Button            # p123driveit: Swing it (Drive it), the chip in the Tilt it panel: the newest piece swings on a hinge step
 var draft_btn: Button            # p021: Draft angle, the chip beside Tilt it (the side walls lean DRAFT_DEG for a mould)
 var pull_along_btn: Button       # P026: Pull along, the same box as Tilt it: shows after a curve or a shape is drawn (the newest step is a sketch)
 var parts_btn: Button            # NSCREW2: the Parts category chip (opens the screw grid under the template chips)
@@ -106,12 +107,17 @@ var handle_box: PanelContainer    # P071 HANDLES: the Handles grid (three kinds 
 var handle_btns := {}            # P071 HANDLES: "kind_size" -> its size chip
 var handle_words: Label          # P071 HANDLES: the grid's one-line instruction: hidden while the library page is open (the page says it), so the grid fits
 var lib_cat := ""                # NLIBPAGE: the category open on the page ("" = none); Screws opens when Parts opens
+var explode_box: PanelContainer  # EXPLODE (p103): the Pull apart slider, shown while the part has two or more pieces (view only, no step)
+var explode_slider: HSlider
+var explode_label: Label
+const EXPLODE_MAX_MM := 100.0   # the Pull apart slider: how far a piece can be pulled from the middle (mm)
 var bear_box: PanelContainer      # P069 BEARINGS: the bearing chips (608, 625, 688) and the seat button: shown with the Bearings page or a bearing / seat on the floor
 var bear_btns := {}              # P069 BEARINGS: "608" / "625" / "688" -> its chip
 var seat_btn: Button             # P069 BEARINGS: "Make a seat for it": cuts the seat for the bearing on the floor
 var stick_box: PanelContainer    # Stick together: Join / Cut away / Keep the overlap, shown once two pieces are picked
 var stick_btns := {}
 var smooth_btn: Button    # P035: Smooth the joints, in the stick box after a Join (the three Join / Cut / Keep buttons hide then)
+var joint_btns: Array = []   # p121: This turns here / This slides here, in the stick box with two pieces picked (hidden after a Join)
 var stick_picks: Array = []      # the body indices clicked in the view (the first = the target, the second = the tool)
 var stick_tris := {}             # body index -> its triangles, for the glow of a picked piece
 var stick_edges := {}            # body index -> its crease edges (pairs of points): the glow's outline, no triangle diagonals
