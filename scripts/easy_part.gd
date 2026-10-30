@@ -731,6 +731,8 @@ func _apply_tweak(v: float) -> void:
 		f["ents"][int(tweak["ent"])][tweak["field"]] = val
 	else:
 		f[tweak["field"]] = val
+	if f.has("raw"):   # p039: a Curvy line's points come back from its raw stroke at the new Smooth
+		_rebuild_curve(f)
 
 
 ## FPLANTER: the Taper slider writes the pulled shape's taper (degrees; the kernel narrows the extrude when it is positive)
@@ -872,6 +874,8 @@ func tweak_last() -> void:
 		tweak = {"id": f["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
 	elif t == "loft" and f.has("twist"):   # P027: a reopened blend keeps its Twist slider
 		tweak = _twist_tweak(String(f["id"]))
+	elif t == "sketch" and f.has("raw"):   # p039: a reopened Curvy line keeps its Smooth slider
+		tweak = _smooth_tweak(String(f["id"]))
 	elif t == "fillet" and f.has("r"):   # FSAVE: a reopened part keeps its Round slider (the same one _round_done gives a new round)
 		tweak = {"id": f["id"], "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
 	elif t == "extrude" and not bool(f.get("both", false)) and String(f.get("op", "join")) == "join" and f.has("dist"):
@@ -1932,10 +1936,13 @@ func _finish_curve() -> void:
 	var closed := (pts[pts.size() - 1] as Vector2).distance_to(pts[0] as Vector2) <= 12.0
 	_begin("Curvy line")
 	var rec := pu._ensure()
-	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": [{"k": "bspline", "pts": out, "closed": closed}], "dims": []}))
+	var raw := []   # p039: the whole hand stroke, kept, so the Smooth slider can redo the curve from it
+	for p in pts:
+		raw.append(Part.arr2(p))
+	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": [{"k": "bspline", "pts": out, "closed": closed}], "dims": [], "raw": raw, "smooth": 0.0}))
 	_end()
 	armed = ""
-	tweak = {}
+	tweak = _smooth_tweak(String(rec["features"][-1]["id"]))   # p039: the Smooth slider opens with the line (0 = as drawn)
 	pu.upto = -1
 	pu.sync()
 	_rows_sync()
@@ -1948,6 +1955,53 @@ func _finish_curve() -> void:
 		_say("Curvy line drawn: Spin it round makes a bowl, or Pull it up makes it solid" if closed else "Curvy line drawn: for a pipe, Pull along (Expert: CREATE, Sweep does the same). Or drag back to the start to close it")
 	else:
 		_say("Curvy line drawn: Pull it up makes it solid" if closed else "Curvy line drawn: for a pipe, Pull along (Expert: CREATE, Sweep does the same). Or drag back to the start to close it")   # FPIPE: an open line's next step names the pipe (a sweep), not only the closing
+
+
+## p039 SMOOTH: the Smooth slider of a Curvy line (0 = the line as drawn, 100 = the wobble gone); the ends stay put
+func _smooth_tweak(id: String) -> Dictionary:
+	return {"id": id, "field": "smooth", "label": "Smooth", "unit": "pct", "lo": 0.0, "hi": 100.0, "step": 5.0, "scale": 1.0, "words": ["Wobbly", "Smooth"]}
+
+
+## p039: the curve the kernel gets, redone from the raw stroke at the feature's Smooth (the same points _finish_curve keeps)
+func _rebuild_curve(f: Dictionary) -> void:
+	var raw := []
+	for a in f["raw"]:
+		raw.append(Vector2(float(a[0]), float(a[1])))
+	var sm := smooth_pts(raw, float(f.get("smooth", 0.0)))
+	var out := []
+	for k in _curve_keep(sm, 12):
+		out.append(Part.arr2(sm[k]))
+	f["ents"][0]["pts"] = out
+
+
+## p039 EDGE LOOP SMOOTH (Kine's own rule): each round moves every hand point onto the average of its neighbours, so a zigzag of
+## wobble flattens out. A point where the line turns sharply on purpose (a corner: the turn is 60 degrees or more and its neighbours
+## do not swing back the other way) stays where the hand put it, so a drawn corner stays a corner. Up to 8 rounds at 100.
+static func smooth_pts(pts: Array, strength: float) -> Array:
+	var p := pts.duplicate()
+	var n := p.size()
+	if strength <= 0.0 or n < 3:
+		return p
+	for _r in int(roundf(strength / 100.0 * 8.0)):
+		var turn := PackedFloat32Array()
+		turn.resize(n)
+		for i in range(1, n - 1):
+			turn[i] = (p[i] - p[i - 1]).angle_to(p[i + 1] - p[i])
+		var q := p.duplicate()
+		for i in range(1, n - 1):
+			if not _is_corner(turn, i):
+				q[i] = ((p[i - 1] as Vector2) + (p[i] as Vector2) * 2.0 + (p[i + 1] as Vector2)) * 0.25
+		p = q
+	return p
+
+
+static func _is_corner(turn: PackedFloat32Array, i: int) -> bool:
+	if absf(turn[i]) < deg_to_rad(60.0):
+		return false
+	for j in [i - 1, i + 1]:
+		if j > 0 and j < turn.size() - 1 and sign(turn[j]) == -sign(turn[i]) and absf(turn[j]) >= deg_to_rad(15.0):
+			return false   # the hand swings back on one side: a wobble, not a corner
+	return true
 
 
 ## the drawn points kept for the spline (at most maxn, first and last always): the points that bend the line most, so a rim or a
