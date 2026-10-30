@@ -14,8 +14,8 @@ const REP_WORDS := {"count": ["Fewer", "More"], "gap": ["Closer", "Further apart
 const STICK_OPS := [["join", "Join", "Make the two pieces one solid"], ["cut", "Cut away", "Cut the second piece out of the first"], ["intersect", "Keep the overlap", "Keep only the part where the two pieces overlap"]]
 const SCREW_DS := [3, 4, 5, 6]         # NSCREW2: the Parts category's screw sizes (M3..M6, columns of the grid)
 const SCREW_LENS := [10, 16, 20, 30]   # NSCREW2: the screw lengths in mm (rows of the grid)
-const LIB_CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "Springs", "Handles", "Wheels", "Brackets"]   # NLIBPAGE: the Parts library page, in this order
-const LIB_READY := ["Screws", "Gears"]   # NLIBPAGE: the categories with parts today; the others say coming soon
+const LIB_CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "Springs", "Handles", "Wheels", "Brackets", "Boards"]   # NLIBPAGE: the Parts library page, in this order
+const LIB_READY := ["Screws", "Gears", "Boards"]   # NLIBPAGE: the categories with parts today; the others say coming soon
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
 const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal): a wood brown, red > green > blue
 const TILT_DEG := 20.0           # Tilt it: the lean of the newest solid (degrees, sideways about its middle)
@@ -78,6 +78,8 @@ var tilt_btn: Button
 var draft_btn: Button            # p021: Draft angle, the chip beside Tilt it (the side walls lean DRAFT_DEG for a mould)
 var pull_along_btn: Button       # P026: Pull along, the same box as Tilt it: shows after a curve or a shape is drawn (the newest step is a sketch)
 var parts_btn: Button            # NSCREW2: the Parts category chip (opens the screw grid under the template chips)
+var board_box: PanelContainer     # p078makeacasef: the Boards page's two chips (Raspberry Pi, Arduino Uno): shown while Boards is open or a case is the part
+var board_btns := {}              # p078makeacasef: 1 / 2 -> the board chip
 var screw_box: PanelContainer    # NSCREW2: the screw grid: sixteen size chips, shown while Parts is open or a screw is the part
 var screw_btns := {}             # NSCREW2: "d_L" -> the size chip (M<d> x <L>)
 var screw_words: Label           # the grid's one-line instruction: hidden while the library page is open (the page and the status line say it)
