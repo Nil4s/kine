@@ -52,6 +52,18 @@ const T := {
 	"wheel": {"title": "Wheel", "params": [
 		{"k": "radius", "label": "Radius", "lo": 100.0, "hi": 600.0, "def": 320.0, "step": 10.0, "words": ["Smaller", "Bigger"]},
 		{"k": "width", "label": "Width", "lo": 50.0, "hi": 400.0, "def": 200.0, "step": 10.0, "words": ["Thinner", "Wider"]}]},
+	# P075: Clips and feet (Parts library, not in ORDER: no template chip). Sizes in mm (raw sliders). Each is one solid on the floor.
+	# foot = a disc, d across, h tall. clip = a ring (d across, w tall, 2.5 mm wall) with a 3 mm opening cut through its wall.
+	# slot = a plate (slot length + 12 mm, 10 mm wide, t thick) with a 2.5 mm wide slot of length L cut through it (a zip tie's strap).
+	"foot": {"title": "Rubber foot", "params": [
+		{"k": "d", "label": "Width", "lo": 8.0, "hi": 30.0, "def": 16.0, "step": 2.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "mm"},
+		{"k": "h", "label": "Height", "lo": 2.0, "hi": 10.0, "def": 4.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
+	"clip": {"title": "Cable clip", "params": [
+		{"k": "d", "label": "Width", "lo": 8.0, "hi": 30.0, "def": 14.0, "step": 2.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "mm"},
+		{"k": "w", "label": "Height", "lo": 4.0, "hi": 15.0, "def": 8.0, "step": 1.0, "words": ["Lower", "Taller"], "raw": true, "unit": "mm"}]},
+	"slot": {"title": "Zip-tie slot", "params": [
+		{"k": "L", "label": "Slot length", "lo": 6.0, "hi": 30.0, "def": 14.0, "step": 2.0, "words": ["Shorter", "Longer"], "raw": true, "unit": "mm"},
+		{"k": "t", "label": "Thickness", "lo": 2.0, "hi": 6.0, "def": 3.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
 	# NSCREW2: a screw from the Parts category (not in ORDER: no template chip). d = the nominal size (M3..M6, mm), L = the length under the head (mm).
 	# Its numbers are picked by the Parts chips (easy_part.gd), so its sliders are hidden there ("parts": true).
 	"screw": {"title": "Screw", "parts": true, "params": [
@@ -377,6 +389,22 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var th: float = p["thickness"]
 			_ex(fs, _sk(fs, "front", gear_outline(N, md)), "extrude", th, "new")
 			_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": 0.12 * N * md}]), "extrude", th, "cut", true)
+		"foot":
+			# P075: a rubber foot, a disc d across and h tall, standing on the floor (Top plane: the disc lies flat, Y up)
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [0.0, 0.0], "r": float(p["d"]) * 0.5}]), "extrude", float(p["h"]), "new")
+		"clip":
+			# P075: a ring d across, w tall, 2.5 mm wall; a 3 mm opening cut through the wall on the +X side (the cable snaps in there)
+			var d: float = p["d"]
+			var w: float = p["w"]
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [0.0, 0.0], "r": d * 0.5}]), "extrude", w, "new")
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [0.0, 0.0], "r": d * 0.5 - 2.5}]), "extrude", 2.0 * w, "cut", true)
+			_ex(fs, _sk(fs, "top", [_rect(Vector2(0.0, -1.5), Vector2(d, 1.5))]), "extrude", 2.0 * w, "cut", true)
+		"slot":
+			# P075: a plate (L + 12 mm long, 10 mm wide, t thick) with a 2.5 mm wide slot L long cut through it, 6 mm in from the start
+			var L: float = p["L"]
+			var th: float = p["t"]
+			_ex(fs, _sk(fs, "top", [_rect(Vector2(0.0, 0.0), Vector2(L + 12.0, 10.0))]), "extrude", th, "new")
+			_ex(fs, _sk(fs, "top", [_rect(Vector2(6.0, 3.75), Vector2(6.0 + L, 6.25))]), "extrude", 2.0 * th, "cut", true)
 		"wheel":
 			# a tyre: the profile (width x radius) turned about the sketch's x axis = world X, the axle (side to side)
 			var R: float = p["radius"]
