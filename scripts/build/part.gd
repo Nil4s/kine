@@ -20,6 +20,8 @@ extends RefCounted
 ## A HINGE (C3) turns body N (its index when the hinge comes) about the axis through o. Its angle is a Curves channel (seconds, degrees), the
 ## same as a Kine curve sampled to a list. The timeline shows the rest pose (the hinge adds no solid); hinge_sweep() walks the curve and reports the
 ## first frame the moving body meets another body (a door against its stop).
+## P122 JOINT LIMIT: a hinge may carry "limit": degrees (0..90, Easy/Expert's Joint limit slider, default 90 = no stop). The swing never goes past
+## +-limit either way: hinge_sweep clamps the curve to it, and its answer says "limit" and "limited_frames" (the frames the curve asked past it).
 ## OFFSET FACE (GAP 10, Fusion's Offset Face): {"t": "offset_face", "id", "name", "body": N, "face": {"p": [x, y, z] (mm, the face's centre), "n": [..] (outward normal), "q": [..] (the centre inside the body's box, 0..1), "body": N}, "mm": d}:
 ## the face moves along its outward normal by d mm (d > 0 adds material, d < 0 removes it). DRAFT (GAP 10): {"t": "draft", "id", "name", "body": N, "faces": [face, ...] (same descriptors),
 ## "deg": angle, "dir": "x"|"y"|"z"}: the faces lean by deg about the body's bottom (the box's low end on the pull axis), pulled along +dir.
@@ -661,6 +663,10 @@ static func _no_sketch_words(rec: Dictionary, f: Dictionary, sid: String, errs: 
 ## distance in mm: the smallest gap between the two solids' triangles, or -1 when the kernel says they overlap (touching; the depth is not
 ## measured). "pairs" = [{"a", "b", "dist" (mm per frame), "min" (mm, -1 if any frame overlaps), "touch" (frames with dist < 0)}], "red" = the
 ## frames where any pair touches (the timeline's red frames), "red_text" = the same in plain words. No pair chosen: "red" is empty.
+static func hinge_limit(f: Dictionary) -> float:
+	return clampf(float(f.get("limit", 90.0)), 0.0, 90.0)
+
+
 static func hinge_sweep(rec: Dictionary, hinge_id: String, fps := 25.0) -> Dictionary:
 	if not available():
 		return {"ok": false, "why": why_not()}
@@ -703,11 +709,17 @@ static func hinge_sweep(rec: Dictionary, hinge_id: String, fps := 25.0) -> Dicti
 		if j != bi:
 			static_tris[j] = _tris_of(int(ids[j]))
 	var n := int(floor(float(track[-1][0]) * fps + 1e-6)) + 1
-	var out := {"ok": true, "frames": n, "first": -1, "first_s": -1.0, "deg_first": 0.0, "hit_frames": 0, "secs": 0.0}
+	var lim := hinge_limit(f)
+	var out := {"ok": true, "frames": n, "first": -1, "first_s": -1.0, "deg_first": 0.0, "hit_frames": 0, "secs": 0.0,
+		"limit": lim, "limited_frames": 0, "max_deg": 0.0}
 	var red := {}
 	for i in n:
 		var t := float(i) / fps
-		var deg := float(Curves.eval(track, t))
+		var raw := float(Curves.eval(track, t))
+		if absf(raw) > lim + 1e-6:
+			out["limited_frames"] = int(out["limited_frames"]) + 1
+		var deg := clampf(raw, -lim, lim)
+		out["max_deg"] = maxf(float(out["max_deg"]), absf(deg))
 		var m := _swing(int(ids[bi]), pivot, axis, deg_to_rad(deg))
 		var hit := false
 		var bad := KCad.last_error() if m == 0 else ""

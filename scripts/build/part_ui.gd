@@ -125,6 +125,8 @@ var hinge_title: Label
 var hinge_info: Label
 var hinge_play_btn: Button
 var hinge_slider: HSlider
+var limit_slider: HSlider   # P122: the hinge dialog's Joint limit slider, 0..90 deg (hp["limit"])
+var limit_lbl: Label
 var hinge_pct_l: Label
 var hinge_strip: Control
 var hinge_red_l: Label
@@ -1873,7 +1875,7 @@ func dialog_feature() -> Dictionary:
 			var keep: Array = []
 			if edit >= 0:
 				keep = (rec["features"][edit] as Dictionary).get("clear", [])
-			f = {"body": int(hp["body"]), "o": [o.x / Part.MM, o.y / Part.MM, o.z / Part.MM], "axis": [d.x, d.y, d.z], "track": [[0.0, a0], [du, a1]], "clear": keep}
+			f = {"body": int(hp["body"]), "o": [o.x / Part.MM, o.y / Part.MM, o.z / Part.MM], "axis": [d.x, d.y, d.z], "track": [[0.0, a0], [du, a1]], "clear": keep, "limit": clampf(float(hp.get("limit", 90.0)), 0.0, 90.0)}
 	if edit >= 0:
 		var old: Dictionary = rec["features"][edit]
 		f["id"] = old["id"]
@@ -2979,6 +2981,7 @@ func _hinge_open(f: Dictionary, edit: int) -> void:
 		f_from.text = "0"
 		f_to.text = "90"
 		f_dur.text = "3"
+	hp["limit"] = float(f.get("limit", 90.0)) if edit >= 0 else 90.0
 	_hinge_rows()
 
 
@@ -2992,8 +2995,36 @@ func _hinge_rows() -> void:
 		_hrow("From", f_from, "deg")
 		_hrow("To", f_to, "deg")
 		_hrow("Seconds", f_dur, "s")
+		dlg_rows.add_child(_limit_row())
 		dlg_rows.add_child(f_dial)
 		f_dial.queue_redraw()
+
+
+## P122 JOINT LIMIT: a slider from 0 to 90 deg. The hinge may not swing past it either way (90 = no stop)
+func _limit_row() -> Control:
+	var h := HBoxContainer.new()
+	var l := _label("Joint limit")
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(l)
+	limit_slider = HSlider.new()
+	limit_slider.name = "part_limit_slider"
+	limit_slider.min_value = 0.0
+	limit_slider.max_value = 90.0
+	limit_slider.step = 1.0
+	limit_slider.focus_mode = Control.FOCUS_NONE
+	limit_slider.custom_minimum_size.x = 120.0
+	limit_slider.value_changed.connect(_limit_set)
+	h.add_child(limit_slider)
+	limit_lbl = _label("", 13, true)
+	h.add_child(limit_lbl)
+	limit_slider.set_value_no_signal(float(hp.get("limit", 90.0)))
+	_limit_set(float(hp.get("limit", 90.0)))
+	return h
+
+
+func _limit_set(v: float) -> void:
+	hp["limit"] = clampf(v, 0.0, 90.0)
+	limit_lbl.text = "%d deg" % roundi(float(hp["limit"]))
 
 
 func _hrow(label: String, le: LineEdit, unit: String) -> void:
@@ -3236,7 +3267,7 @@ func hinge_set_pct(v: float) -> void:
 		return
 	play_pct = clampf(v, 0.0, 100.0)
 	var tr: Array = f["track"]
-	var deg := float(Curves.eval(tr, play_pct / 100.0 * float(tr[-1][0])))
+	var deg := clampf(float(Curves.eval(tr, play_pct / 100.0 * float(tr[-1][0]))), -Part.hinge_limit(f), Part.hinge_limit(f))   # P122: the joint limit stops the swing
 	pose = {"f": String(f["id"]), "deg": deg}
 	hinge_pct_l.text = "%d %%   %s deg" % [roundi(play_pct), _fmt(deg)]
 	hinge_slider.set_value_no_signal(play_pct)
