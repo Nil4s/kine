@@ -251,9 +251,18 @@ func _init() -> void:
 	# 5 WORDS: no jargon on screen during the walk
 	ok(words_bad.is_empty(), "5 WORDS no jargon on screen during the walk: %s" % [words_bad])
 
-	# 6 HANDRAIL: a rail along the stairs by the same clicks (open: no easy step makes one yet)
-	var rail_ok := false
-	var rail_how := "no rail button in the Easy steps"
+	# 6 HANDRAIL: a rail along the stairs by real clicks on the Rail button (Repeat it box, beside Up and Forward)
+	var vol3 := float(pu().res.get("volume", 0.0))
+	var rl := find_btn(ep().repeat_box, "Rail")
+	var rail_how := "no Rail button in the Repeat it box"
+	if rl != null:
+		await click_ctl(rl)
+	await settle(1.5)
+	var rf := last_of("pattern")
+	var rail_ok: bool = rl != null and String(rf.get("kind", "")) == "rail" and int(pu().res.get("bodies", 0)) == 1 \
+		and (pu().res.get("errors", {}) as Dictionary).is_empty() and float(pu().res.get("volume", 0.0)) > vol3 + 1e-9
+	if rl != null:
+		rail_how = "rail step %s, one body, no failed step, solid grew %.0f -> %.0f mm3" % [String(rf.get("kind", "")), vol3 * 1e9, float(pu().res.get("volume", 0.0)) * 1e9]
 	ok(rail_ok, "6 HANDRAIL a rail along the stairs by real clicks: %s" % rail_how)
 
 	print("fstairs: %d fail" % fails)

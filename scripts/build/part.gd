@@ -2133,6 +2133,8 @@ static func _pattern(bodies: Array, looks: Array, f: Dictionary, rec: Dictionary
 		return "there is no body %d to pattern" % bi
 	if String(f.get("kind", "linear")) == "corners":   # EREPEAT (Easy's Corners): the piece goes to the four corners of the body it touches
 		return _corners(bodies, looks, bi)
+	if String(f.get("kind", "linear")) == "rail":   # FRAIL (Easy's Rail): a bar of 50 mm laid along the nosings of a stair
+		return _rail(bodies, f, bi)
 	var srcb := int(bodies[bi])   # the solid the copies are made of: the body itself, or (src) the piece its step made on its own
 	var owned := false
 	if String(f.get("src", "")) != "":   # REPEAT THE PIECE: the newest piece copied, not the whole body it has joined (Easy's Repeat)
@@ -2276,6 +2278,39 @@ static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int,
 			return KCad.last_error()
 		KCad.release(bodies[bi])
 		bodies[bi] = u
+	return ""
+
+
+## FRAIL: a handrail along a stair made by Up and Forward (count steps, rise and run in mm): a 50 mm square bar laid on the
+## nosings (the line from step 1 to step n), joined into body bi. The bar is made along Z, tilted by the slope, then moved to its place
+static func _rail(bodies: Array, f: Dictionary, bi: int) -> String:
+	var n := int(f.get("count", 0))
+	var rise := float(f.get("rise", 0.0)) * MM
+	var run_d := float(f.get("run", 0.0)) * MM
+	if n < 2 or rise < 1e-9 or run_d < 1e-9:
+		return "the rail needs a stair of 2 steps or more"
+	var t := 50.0 * MM
+	var mc: Vector3 = KCad.mass_properties(bodies[bi]).get("center", Vector3.ZERO)
+	var span := (n - 1) * sqrt(rise * rise + run_d * run_d)
+	var bar := KCad.box(t, t, span)
+	if bar == 0:
+		return KCad.last_error() if KCad.last_error() != "" else "the rail could not be made"
+	var tilted := KCad.rotate(bar, Vector3.RIGHT, -atan2(rise, run_d))
+	KCad.release(bar)
+	if tilted == 0:
+		return "the rail could not be made"
+	var at := Vector3(mc.x, (n + 1) * 0.5 * rise + t * 0.5, (n + 1) * 0.5 * run_d)
+	var c_t: Vector3 = KCad.mass_properties(tilted).get("center", Vector3.ZERO)
+	var placed := KCad.translate(tilted, at - c_t)
+	KCad.release(tilted)
+	if placed == 0:
+		return "the rail could not be made"
+	var u := KCad.union(bodies[bi], placed)
+	KCad.release(placed)
+	if u == 0:
+		return KCad.last_error() if KCad.last_error() != "" else "the rail could not be joined"
+	KCad.release(bodies[bi])
+	bodies[bi] = u
 	return ""
 
 

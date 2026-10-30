@@ -35,6 +35,9 @@ func _repeat_box() -> PanelContainer:
 	sb.toggle_mode = true
 	h.add_child(sb)
 	rep_btns["stairs"] = sb
+	var rb := _big_btn("easypart_rep_rail", "Rail", "A handrail of square bar laid along the top of the stairs (press after Up and Forward)", _rep_rail)
+	h.add_child(rb)
+	rep_btns["rail"] = rb
 	rep_rows.append(_make_row("How many", 2.0, 20.0, 1.0, REP_WORDS["count"], "rep", "count", "copies", vb))
 	rep_rows.append(_make_row("Gap", 0.5, 30.0, 0.5, REP_WORDS["gap"], "rep", "gap", "cm", vb))
 	return box
@@ -250,6 +253,27 @@ func _rep_stairs() -> void:
 		_say("Up and Forward: 8 steps. Move How many for more or fewer steps")
 
 
+## FRAIL (Easy's Rail): a handrail along the stairs just made: one step of the Part pattern (kind "rail") on the newest body, the stair's count, rise and run
+func _rep_rail() -> void:
+	var cur := Part.feature(_rec(), rep_id)
+	if String(cur.get("kind", "")) != "stairs":
+		return
+	_flush_if_dirty()
+	var nb := int(Part.replay(_rec())["bodies"])
+	_begin("Rail")
+	var f := Part.new_feature(_rec(), "pattern", {"kind": "rail", "body": maxi(nb - 1, 0), "count": int(cur.get("count", 8)),
+		"rise": float(cur.get("rise", 10.0)), "run": float(cur.get("run", 10.0)), "op": "join"})
+	_rec()["features"].append(f)
+	_end()
+	pu.sync()
+	_rep_sync()
+	var err: String = pu.replay_full(_rec())["errors"].get(f["id"], "")
+	if err != "":
+		_say(_plain(err) + ". Undo takes the rail back")
+	else:
+		_say("Rail: a handrail runs along the top of the stairs")
+
+
 ## Corners (EREPEAT): the newest piece goes to the four corners of the body it touches, one undo step; the four become one body with it
 func _rep_corners() -> void:
 	if Part.feature(_rec(), rep_id).is_empty():
@@ -357,6 +381,7 @@ func _rep_sync() -> void:
 	(rep_btns["corners"] as Button).set_pressed_no_signal(String(f.get("kind", "")) == "corners")
 	(rep_btns["stairs"] as Button).set_pressed_no_signal(String(f.get("kind", "")) == "stairs")
 	var kind := String(f.get("kind", ""))
+	(rep_btns["rail"] as Button).visible = kind == "stairs"   # FRAIL: a rail only goes along a stair
 	var rows_on := kind != "corners"   # CORNERS: four copies at the corners, no How many or Gap to set
 	for r in rep_rows:
 		# UP AND FORWARD: the steps are a count (How many); a Gap would mean nothing between the steps, so it is not shown
