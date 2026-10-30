@@ -312,7 +312,7 @@ func build(root: Control) -> void:
 	th.add_child(empty_chip)
 	var cr := HFlowContainer.new()
 	cr.name = "easypart_chips"
-	cr.add_theme_constant_override("h_separation", 4)
+	cr.add_theme_constant_override("h_separation", 3)
 	cr.add_theme_constant_override("v_separation", 4)
 	v.add_child(cr)
 	for t in PartTemplates.ORDER:
@@ -322,7 +322,7 @@ func build(root: Control) -> void:
 		b.toggle_mode = true
 		b.focus_mode = Control.FOCUS_NONE
 		b.custom_minimum_size = Vector2(0, 34)
-		b.add_theme_font_size_override("font_size", 15)
+		b.add_theme_font_size_override("font_size", 13)   # NGEAR: 13 (was 15) so six templates (Gear) stay on one row of the panel
 		b.pressed.connect(_chip.bind(t))
 		cr.add_child(b)
 		chips[t] = b
