@@ -332,3 +332,4 @@ EXTRA="$EXTRA p035filletinsi:w"   # P035 FILLET INSIDE: Easy Part Stick together
 
 EXTRA="$EXTRA p038makeitstro:w"   # P038 MAKE IT STRONGER: Easy Part, a thin plate pulled up, then Make it stronger adds a 4 mm x 10 mm rib along its long side on the top (one undo step, a Rib height slider); bars on the built solid (tests/p038makeitstro_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA p039edgeloopsm:w"   # p039edgeloopsm (Friday plan 39): Curvy line gets a Smooth slider (0 = as drawn, 100 = wobble gone, corners kept); a wobbly hand line by real clicks, bars on the saved curve points (tests/p039edgeloopsm_test.gd)
+EXTRA="$EXTRA p046equalandst:w"   # P046 SMART GUIDES: while a sketch Line is drawn, Equal (same length as a line there), Straight (level or upright) and Right angle (square to the line before) light up in words and on the lit line; real clicks (tests/p046equalandst_test.gd; needs the CAD DLL)
