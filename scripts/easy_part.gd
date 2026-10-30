@@ -2167,8 +2167,13 @@ func input(ev: InputEvent) -> bool:
 				_pick_p = p   # FDELETE: a click (no drag) on a piece picks it, on the release
 			return false
 		if not _edge.is_empty():
-			_edge_end()
-			return true
+			if p.distance_to(_edge["press"] as Vector2) >= 6.0:
+				_edge_end()
+				return true
+			# a click (no drag) on an edge is the face or piece press: it falls through to the pick / open-face code below
+			_pick_p = _edge["press"] as Vector2
+			_edge = {}
+			edge_num.visible = false
 		if not _drag.is_empty():
 			_drag_to(p, true)
 			_drag = {}
