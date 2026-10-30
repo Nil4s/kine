@@ -167,14 +167,10 @@ func _repeat(rec: Dictionary) -> String:
 	var w_mm := 10.0
 	var h_mm := 10.0   # EREPEATUP: the body's height and depth too, so Up and Forward space the copies by their own size
 	var d_mm := 10.0
-	var src := Part.pattern_piece(rec)   # REPEAT THE PIECE: the newest piece (its own size) when it is the newest step, else the whole body
-	var mrec: Dictionary = Part.pattern_src_rec(rec, src) if src != "" else rec
-	var mbi := -1 if src != "" else bi
-	var faces := Part.body_faces(mrec, -1)
-	if mbi < 0:
-		mbi = faces.size() - 1
-	if mbi >= 0 and mbi < faces.size() and (faces[mbi] as PackedVector3Array).size() > 0:
-		var pts: PackedVector3Array = faces[mbi]
+	var piece := Part.pattern_piece(rec)   # REPEAT THE PIECE: the newest piece, kept as "piece"; Row copies the whole body (the shelf), Up / Forward / Ring copy the piece (_rep_dir, _rep_mode)
+	var faces := Part.body_faces(rec, -1)
+	if bi < faces.size() and (faces[bi] as PackedVector3Array).size() > 0:
+		var pts: PackedVector3Array = faces[bi]
 		var bb := AABB(pts[0], Vector3.ZERO)
 		for q in pts:
 			bb = bb.expand(q)
@@ -183,8 +179,8 @@ func _repeat(rec: Dictionary) -> String:
 		d_mm = maxf(bb.size.z / Part.MM, 1.0)
 	var fields := {"kind": "linear", "body": bi, "count": 3, "dir": "x", "axis": "y", "deg": 360.0,
 		"mm": w_mm + 10.0, "w": w_mm, "h": h_mm, "d": d_mm, "gap": 10.0, "op": "join"}
-	if src != "":
-		fields["src"] = src
+	if piece != "":
+		fields["piece"] = piece
 	var f := Part.new_feature(rec, "pattern", fields)
 	rec["features"].append(f)
 	if _last_error(rec, String(f["id"])) != "":
@@ -259,6 +255,7 @@ func _rep_mode(ring: bool) -> void:
 		var wx := _feat_mm(cur, "x")
 		if wx > 0.0:
 			cur["w"] = wx
+	_set_src(cur, ring)   # Ring copies the piece (its own size); Row copies the whole body
 	cur["dir"] = "x"
 	cur["mm"] = _span(cur) + float(cur.get("gap", 10.0))
 	_end()
@@ -281,6 +278,7 @@ func _rep_dir(ax: String) -> void:
 	cur["axis"] = "y"
 	cur["deg"] = 360.0
 	cur["dir"] = ax
+	_set_src(cur, ax != "x")   # Up / Forward copy the piece (FBENCH); Row copies the whole body
 	var sp := _feat_mm(cur, ax)
 	cur["mm"] = (sp if sp > 0.0 else _span(cur)) + float(cur.get("gap", 10.0))
 	_end()
@@ -288,6 +286,15 @@ func _rep_dir(ax: String) -> void:
 	_rep_sync()
 	_values_sync()
 	_say("Up: the copies stack upward, one on top of the other" if ax == "y" else ("Forward: the copies go one behind the other" if ax == "z" else "Row: the copies go sideways in a straight line"))
+
+
+## REPEAT THE PIECE: the step copies its newest piece ("src", set when on) or the whole body (src cleared)
+func _set_src(cur: Dictionary, on: bool) -> void:
+	var piece := String(cur.get("piece", ""))
+	if on and piece != "":
+		cur["src"] = piece
+	else:
+		cur.erase("src")
 
 
 ## FBENCH: the size of the copied piece of a Repeat step along one way ("x" | "y" | "z") in mm; -1 when it is not there (the caller falls back)
