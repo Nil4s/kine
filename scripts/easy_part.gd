@@ -440,7 +440,62 @@ func _tilt_box() -> PanelContainer:
 	pull_along_btn.custom_minimum_size = Vector2(230, 44)
 	pull_along_btn.visible = false
 	row.add_child(pull_along_btn)
+	# P092: the next steps after a Pull it up, in plain words (one press each, one undo step)
+	suggest_round_btn = _big_btn("easypart_suggest_round", "Round the edges?", "Next step: soften the sharp edges of this solid", _suggest_round_press)
+	suggest_round_btn.icon = Icons.tex("part_fillet")
+	suggest_round_btn.custom_minimum_size = Vector2(230, 44)
+	suggest_round_btn.visible = false
+	row.add_child(suggest_round_btn)
+	suggest_hollow_btn = _big_btn("easypart_suggest_hollow", "Hollow it?", "Next step: hollow this solid out, open at the top, with a 3 mm wall", _suggest_hollow_press)
+	suggest_hollow_btn.icon = Icons.tex("part_circle")
+	suggest_hollow_btn.custom_minimum_size = Vector2(230, 44)
+	suggest_hollow_btn.visible = false
+	row.add_child(suggest_hollow_btn)
 	return box
+
+
+## P092: the newest step is a Pull it up (a solid, not a cut, not switched off): the two next-step chips show under it
+func _suggest_on() -> bool:
+	var feats: Array = _rec().get("features", [])
+	if feats.is_empty():
+		return false
+	var f: Dictionary = feats[feats.size() - 1]
+	return String(f.get("t", "")) == "extrude" and not bool(f.get("off", false)) and String(f.get("op", "join")) != "cut"
+
+
+## P092: "Round the edges?" is the Round the edges press (same rules, same one undo step)
+func _suggest_round_press() -> void:
+	_make("round")
+
+
+## P092: "Hollow it?" is Hollow inside on the newest solid, in ONE step (no Cut a hole press first). Its wall and open top are the
+## Hollow inside ones, so the Wall slider and the hole chips work after it. A solid that is too thin says so and changes nothing
+func _suggest_hollow_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	armed = ""
+	wall_pick = false
+	var snap := _rec().duplicate(true)
+	_begin("Hollow inside")
+	var rec := pu._ensure()
+	var why := _hollow(rec)
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+	else:
+		_end()
+		hole_base = snap
+		hole_mode = "hollow"
+		hole_id = String(tweak.get("id", ""))
+		_rows_sig = ""
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
 
 
 ## DRAFT ANGLE (p021, "Easier to pull from a mould"): the newest solid is a pulled-up piece with no draft yet. Its straight side walls lean
@@ -2289,7 +2344,10 @@ func _process(_dt: float) -> void:
 	pull_along_btn.visible = along
 	tilt_btn.visible = tilt_on
 	draft_btn.visible = draft_on
-	tilt_box.visible = on and armed == "" and (along or tilt_on or draft_on)
+	var sugg := on and _suggest_on()   # P092: after a Pull it up the two next-step chips show in the Tilt it box
+	suggest_round_btn.visible = sugg
+	suggest_hollow_btn.visible = sugg
+	tilt_box.visible = on and armed == "" and (along or tilt_on or draft_on or sugg)
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
 	if not on:
 		return
