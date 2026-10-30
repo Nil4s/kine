@@ -747,7 +747,7 @@ func _end() -> void:
 
 func _set_value(row: Dictionary, v: float, final: bool) -> void:
 	if row["kind"] == "tpl":
-		_pending[row["key"]] = v * 10.0   # the slider says cm, the record mm
+		_pending[row["key"]] = v if bool(row.get("raw", false)) else v * 10.0   # the slider says cm, the record mm (NGEAR: a raw slider says its own number)
 		hole_base = {}                    # the template's sizes changed: the hole chips would rebuild on an old shape
 	elif row["kind"] == "rep":
 		_apply_rep(row, v)
@@ -850,6 +850,10 @@ func _fmt(v: float, unit: String) -> String:
 		return "%d degrees" % int(roundf(v))
 	if unit == "copies":
 		return "%d copies" % int(roundf(v))
+	if unit == "teeth":   # NGEAR
+		return "%d teeth" % int(roundf(v))
+	if unit == "size":   # NGEAR: the module 1 / 2 / 3 as Small / Medium / Big teeth
+		return ["Small", "Medium", "Big"][clampi(int(roundf(v)) - 1, 0, 2)] + " teeth"
 	if unit == "mm":
 		return "%s mm" % str(snappedf(v, 0.1))
 	return "%s cm" % str(snappedf(v, 0.1))
@@ -868,7 +872,7 @@ func _knob() -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 
-func _make_row(label: String, lo: float, hi: float, step: float, words: Array, kind: String, key: String, unit: String, into: Control = null) -> Dictionary:
+func _make_row(label: String, lo: float, hi: float, step: float, words: Array, kind: String, key: String, unit: String, into: Control = null, raw := false) -> Dictionary:
 	var v := VBoxContainer.new()
 	v.name = "easypart_row_" + key
 	v.add_theme_constant_override("separation", 0)
@@ -917,7 +921,7 @@ func _make_row(label: String, lo: float, hi: float, step: float, words: Array, k
 		w.add_child(wl)
 	v.add_child(w)
 	(into if into != null else rows_vb).add_child(v)
-	var row := {"key": key, "slider": s, "pill": pill, "kind": kind, "unit": unit, "label": label, "box": v, "words": w}
+	var row := {"key": key, "slider": s, "pill": pill, "kind": kind, "unit": unit, "label": label, "box": v, "words": w, "raw": raw}
 	s.value_changed.connect(_on_slider_value.bind(row))
 	s.drag_started.connect(_on_slider_start.bind(row))
 	s.drag_ended.connect(_on_slider_end.bind(row))
@@ -939,7 +943,8 @@ func _rows_sync() -> void:
 	rows = []
 	if t != "":
 		for d in PartTemplates.T[t]["params"]:
-			var r := _make_row(String(d["label"]), float(d["lo"]) / 10.0, float(d["hi"]) / 10.0, float(d["step"]) / 10.0, d["words"], "tpl", String(d["k"]), "cm")
+			var raw := bool(d.get("raw", false))   # NGEAR: a raw slider (teeth, a size step) keeps its own numbers and unit
+			var r := _make_row(String(d["label"]), float(d["lo"]) if raw else float(d["lo"]) / 10.0, float(d["hi"]) if raw else float(d["hi"]) / 10.0, float(d["step"]) if raw else float(d["step"]) / 10.0, d["words"], "tpl", String(d["k"]), String(d["unit"]) if raw else "cm", null, raw)
 			rows.append(r)
 	if not tweak.is_empty():
 		var tw: Dictionary = tweak
@@ -1031,7 +1036,7 @@ func _values_sync() -> void:
 		var s: HSlider = r["slider"]
 		var v := 0.0
 		if r["kind"] == "tpl":
-			v = float(e.get("p", {}).get(r["key"], 0.0)) / 10.0
+			v = float(e.get("p", {}).get(r["key"], 0.0)) if bool(r.get("raw", false)) else float(e.get("p", {}).get(r["key"], 0.0)) / 10.0
 		elif r["kind"] == "taper":
 			v = float(Part.feature(_rec(), String(taper_tw.get("id", ""))).get("taper", 0.0))
 		else:
