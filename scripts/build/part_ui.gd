@@ -2877,6 +2877,42 @@ func _readout(txt: String) -> void:
 	_pill(c, txt, Color(0.06, 0.07, 0.1, 0.94), Color.WHITE, 14)
 
 
+## P046 SMART GUIDES: what a line being drawn a->b matches in this sketch. {"words": [String], "ent": the line it matches (lit) or -1}
+## Equal: a line already there has the same length (0.05 mm). Straight: level or upright. Right angle: square to the line it runs on from.
+func _guide_of(a: Vector2, b: Vector2) -> Dictionary:
+	var ents: Array = _sk().get("ents", [])
+	var d := b - a
+	if d.length() < 0.5:
+		return {}
+	var out := {"words": [], "ent": -1}
+	var words: Array = out["words"]
+	for i in ents.size():
+		if String(ents[i]["k"]) == "line" and absf(Part.v2(ents[i]["a"]).distance_to(Part.v2(ents[i]["b"])) - d.length()) < 0.05:
+			words.append("Equal to line %d" % (i + 1))
+			out["ent"] = i
+			break
+	if absf(d.y) < 0.01:
+		words.append("Straight: level")
+	elif absf(d.x) < 0.01:
+		words.append("Straight: upright")
+	for i in ents.size():   # the line this one runs on from (a chain): square to it at 0.01 deg
+		var e: Dictionary = ents[i]
+		if String(e["k"]) == "line" and Part.v2(e["b"]).distance_to(a) < 0.01:
+			var prev := Part.v2(e["b"]) - Part.v2(e["a"])
+			if absf(prev.normalized().dot(d.normalized())) < 0.0002:
+				words.append("Right angle")
+				if int(out["ent"]) < 0:
+					out["ent"] = i
+			break
+	return out
+
+
+func _guide_words(g: Dictionary) -> String:
+	if (g.get("words", []) as Array).is_empty():
+		return ""
+	return "   " + " · ".join(PackedStringArray(g["words"]))
+
+
 func _draw_draft() -> void:
 	if draft.is_empty():
 		return
@@ -2887,7 +2923,11 @@ func _draw_draft() -> void:
 		"line":
 			pov.draw_line(scr(a), scr(b), c, 2.0)
 			var len := a.distance_to(b)
-			_readout((typed + " mm") if typed != "" else "%s mm%s" % [_fmt(len), _snap_words()])
+			var g := _guide_of(a, b)   # P046: Equal / Straight / Right angle light up while the line is drawn
+			if int(g.get("ent", -1)) >= 0:
+				var lit: Dictionary = _sk()["ents"][int(g["ent"])]
+				pov.draw_line(scr(Part.v2(lit["a"])), scr(Part.v2(lit["b"])), c, 4.0)
+			_readout(((typed + " mm") if typed != "" else "%s mm%s" % [_fmt(len), _snap_words()]) + _guide_words(g))
 		"rect":
 			pov.draw_polyline(PackedVector2Array([scr(a), scr(Vector2(b.x, a.y)), scr(b), scr(Vector2(a.x, b.y)), scr(a)]), c, 2.0)
 			if typed != "":   # XDIM: a typed 40x30 reads as typed
