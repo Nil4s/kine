@@ -92,6 +92,9 @@ const DRAW := {
 	"part_draft": [["seg", Vector2(4, 20), Vector2(8, 4), 1.9], ["seg", Vector2(20, 20), Vector2(16, 4), 1.9], ["seg", Vector2(4, 20), Vector2(20, 20), 1.9], ["seg", Vector2(8, 4), Vector2(16, 4), 1.9]],   # DRAFT: a block whose sides lean
 	"part_hinge": [["box", Rect2(9, 4, 10, 16), 1.8], ["seg", Vector2(3, 4), Vector2(3, 20), 2.6], ["disc", Vector2(3, 4), 2.0], ["disc", Vector2(3, 20), 2.0]],   # HINGE: a leaf turning about its edge
 	"part_appearance": [["disc", Vector2(12, 12), 8.0], ["ring", Vector2(12, 12), 8.5, 1.9], ["disc", Vector2(12, 12), 3.0]],   # APPEARANCE: a colour disc with a ring
+	"part_filter_all": [["box", Rect2(3, 5, 18, 14), 1.6], ["disc", Vector2(3, 5), 1.8], ["disc", Vector2(21, 5), 1.8], ["disc", Vector2(3, 19), 1.8], ["disc", Vector2(21, 19), 1.8]],   # NROUNDFILTER: every edge of the box (its four corners rounded)
+	"part_filter_outside": [["box", Rect2(3, 5, 18, 14), 2.0], ["box", Rect2(8, 9, 8, 6), 1.0]],   # NROUNDFILTER: the outside skin (a box with a thin inner line: the inside is not rounded)
+	"part_filter_top": [["seg", Vector2(3, 5), Vector2(21, 5), 3.0], ["box", Rect2(3, 8, 18, 11), 1.4]],   # NROUNDFILTER: the top rim, thick, and the box below it
 	"part_split": [["box", Rect2(3, 5, 18, 14), 1.6], ["seg", Vector2(12, 2.5), Vector2(12, 21.5), 1.5]],   # SPLIT: a block cut by a plane
 	"part_combine": [["box", Rect2(3, 5, 11, 11), 1.6], ["box", Rect2(10, 8, 11, 11), 1.6]],   # COMBINE: two overlapping blocks
 	"part_shell": [["box", Rect2(3.5, 3.5, 17, 17), 1.9], ["box", Rect2(7.5, 7.5, 9, 9), 1.2]],   # SHELL: a hollow block
