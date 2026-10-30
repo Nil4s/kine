@@ -329,3 +329,5 @@ EXTRA="$EXTRA p030countersun:w"   # P030 COUNTERSUN: Easy Part, Cut a hole offer
 EXTRA="$EXTRA p024twistapull:w"   # P024: Twist a pulled shape: a Twist slider under How far turns a pulled square (a twisted post), measured from the built mesh (tests/p024twistapull_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA p034yourownpic:w"   # P034 YOUR OWN PICTURE: Draw shape row Picture chip: a picture file becomes a raised 2 mm logo, one step, Undo, refusals in words (tests/p034yourownpic_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA p035filletinsi:w"   # P035 FILLET INSIDE: Easy Part Stick together then Smooth the joints rounds the inside corners where two pieces join (one fillet step, one undo step, undo and redo) (tests/p035filletinsi_test.gd; needs the CAD DLL)
+
+EXTRA="$EXTRA p038makeitstro:w"   # P038 MAKE IT STRONGER: Easy Part, a thin plate pulled up, then Make it stronger adds a 4 mm x 10 mm rib along its long side on the top (one undo step, a Rib height slider); bars on the built solid (tests/p038makeitstro_test.gd; needs the CAD DLL)
