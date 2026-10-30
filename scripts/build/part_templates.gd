@@ -9,7 +9,7 @@ extends RefCounted
 const MM := 0.001
 const ARCH_GAP := 40.0   # mm: a car's wheel arch top sits this far above the tyre's top (the arch is the wheel radius + 40 mm)
 const CAB_W := 0.88     # the glasshouse is this share of the body's width (narrower than the lower body, so the cabin reads as a cabin)
-const ORDER :=["sword", "axe", "shield", "chair", "gear", "rack", "crate"]   # NGEAR: Gear sits before Crate (Crate stays the last chip). P066: Rack after Gear (its pinion); its numbers are not cm: "raw"
+const ORDER :=["sword", "axe", "shield", "chair", "gear", "rack", "crate"]   # NGEAR: Gear sits before Crate (Crate stays the last chip); its numbers are not cm: "raw"   # p070: Spring is not a chip: it is built from the Parts library (Springs)
 const START := ["box", "cylinder", "sphere", "tube", "plate"]   # FREESTART: the neutral "Start from" row on Easy Part's panel (simple shapes, no weapon)
 const T := {
 	"box": {"title": "Box", "params": [
@@ -69,6 +69,11 @@ const T := {
 	"hinge": {"title": "Hinge", "params": [
 		{"k": "door", "label": "Door height", "lo": 1800.0, "hi": 2400.0, "def": 2100.0, "step": 100.0, "words": ["Shorter door", "Taller door"], "raw": true, "unit": "mm"},
 		{"k": "kind", "label": "Kind", "lo": 1.0, "hi": 3.0, "def": 1.0, "step": 1.0, "words": ["Butt", "Living"], "raw": true, "unit": "kind"}]},
+	# p070: a compression spring: turns (coils, 3..12), wire (mm, 1..4) and coil size (the mean coil width, mm, 20..60) on raw sliders. Coils 0.8 x wire apart.
+	"spring": {"title": "Spring", "params": [
+		{"k": "turns", "label": "Turns", "lo": 3.0, "hi": 12.0, "def": 6.0, "step": 1.0, "words": ["Fewer", "More"], "raw": true, "unit": "turns"},
+		{"k": "wire", "label": "Wire", "lo": 1.0, "hi": 4.0, "def": 2.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"},
+		{"k": "size", "label": "Coil size", "lo": 20.0, "hi": 60.0, "def": 40.0, "step": 5.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "mm"}]},
 	# VEHICLE PARTS (B3, scripts/vehicle.gd): not in ORDER, so no Easy chip: a car body and one wheel
 	"car": {"title": "Car body", "params": [
 		{"k": "body_length", "label": "Length", "lo": 1500.0, "hi": 5000.0, "def": 4000.0, "step": 50.0, "words": ["Shorter", "Longer"]},
@@ -668,12 +673,52 @@ static func features_of(t: String, p: Dictionary) -> Array:
 				_ex(fs, _sk(fs, "front", [_rect(Vector2(-30.0, 0.0), Vector2(30.0, L))]), "extrude", 0.8, "new")
 			else:
 				_ex(fs, _sk(fs, "front", [_rect(Vector2(-30.0, 0.0), Vector2(30.0, L))]), "extrude", 2.5, "new")
+		"spring":
+			# p070: one sketch loop (the outline of the coils' union in the front plane) turned about the up axis: one solid, two features
+			# whatever the turns (so a Turns change keeps the ids of the steps after it)
+			var prof := spring_profile(int(clampi(int(roundf(float(p["turns"]))), 3, 12)), float(p["wire"]), float(p["size"]))
+			var sid := _sk(fs, "front", _poly(prof))
+			_ex(fs, sid, "revolve", 0.0, "new")
+			fs[fs.size() - 1]["axis"] = "y"
 		"wheel":
 			# a tyre: the profile (width x radius) turned about the sketch's x axis = world X, the axle (side to side)
 			var R: float = p["radius"]
 			var w: float = p["width"]
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(-w * 0.5, 0.0), Vector2(w * 0.5, R))]), "revolve", 0.0, "new")
 	return fs
+
+
+## p070: the outline (right side up, left side down, mm, the front plane: x = radius, y = height) of n coils of wire w, mean coil diameter dia: each coil is a disk of
+## radius w / 2 at height k x 0.8 w + w / 2, the coils overlap, so the outline is their union. Sampled every 0.1 mm (the coil centres sit on
+## the 0.1 mm grid, so the widest point and the top are exact). The coil centre line is at radius dia / 2.
+static func spring_profile(n: int, w: float, dia: float) -> Array:
+	var rc := dia * 0.5
+	var h := w * 0.5
+	var pitch := 0.8 * w
+	var H := (n - 1) * pitch + w
+	var right := []
+	var left := []
+	var steps := int(roundf(H / 0.1))
+	for i in steps + 1:
+		var y := float(i) * 0.1
+		var best := -1.0
+		for k in n:
+			var d := y - (float(k) * pitch + h)
+			if absf(d) <= h + 0.000001:   # the 0.1 mm grid is not exact in floats: the top and bottom points keep their place
+				best = maxf(best, sqrt(maxf(0.0, h * h - d * d)))
+		if best < 0.0:
+			continue
+		right.append(Vector2(rc + best, y))
+		left.append(Vector2(rc - best, y))
+	left.reverse()
+	# the two ends are single points (the disk's bottom and top): one vertex each, not two
+	var out := []
+	for q in right + left:
+		if out.is_empty() or (out[-1] as Vector2).distance_to(q) > 0.001:
+			out.append(q)
+	if out.size() > 1 and (out[0] as Vector2).distance_to(out[-1]) < 0.001:
+		out.pop_back()
+	return out
 
 
 ## NGEAR: the closed tooth outline of a spur gear with n teeth of module m (mm), as lines. Angles in units of q = pi / (2 n): a tooth is
