@@ -71,6 +71,9 @@ var shape_btns := {}
 var repeat_box: PanelContainer   # Repeat it: Row / Ring and the How many and Gap sliders (for the last Repeat it step, rep_id)
 var rep_btns := {}
 var tilt_box: PanelContainer     # Tilt it: one chip under the newest solid (a Spin or a Pull), leans it 20 degrees once
+var steps_box: PanelContainer    # NSTEPLIST: the step list under the panel, in plain words; a click on a step reopens it (see _steps_sync)
+var steps_vb: VBoxContainer
+var _steps_sig := ""
 var tilt_btn: Button
 var parts_btn: Button            # NSCREW2: the Parts category chip (opens the screw grid under the template chips)
 var screw_box: PanelContainer    # NSCREW2: the screw grid: sixteen size chips, shown while Parts is open or a screw is the part
@@ -297,6 +300,8 @@ func build(root: Control) -> void:
 	root.add_child(stick_box)
 	tilt_box = _tilt_box()
 	root.add_child(tilt_box)
+	steps_box = _steps_box()   # NSTEPLIST
+	root.add_child(steps_box)
 	# the panel
 	panel = PanelContainer.new()
 	panel.name = "easypart_panel"
@@ -3127,6 +3132,7 @@ func _process(_dt: float) -> void:
 		_pick_clear()   # FDELETE: a pick ends with the step it was made on
 	del_btn.visible = on and del_on
 	tilt_box.visible = on and armed == "" and _tilt_ok(_rec())
+	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
 	if not on:
 		return
 	if m.easy != null:
@@ -3415,6 +3421,7 @@ func _box_at(bb: AABB, t: Vector3, d: float) -> Rect2:
 func _chrome_sync() -> void:
 	var t := _tpl()
 	var rec := _rec()
+	_steps_sync()   # NSTEPLIST
 	title_l.text = "Part: %s" % String(rec.get("name", "Part")) if not rec.is_empty() else "Part"
 	panel_title.text = "Change your %s" % _nm()
 	redo_btn.visible = not m.redo.is_empty()
@@ -3581,6 +3588,7 @@ func layout(cl: Rect2) -> void:
 		need = _panel_need()
 	panel.size = Vector2(PW, minf(need, avail))
 	panel.position = Vector2(cl.end.x - PW - 8.0, top)
+	_steps_place(cl, panel.position.y + panel.size.y + 8.0)   # NSTEPLIST: under the panel, on the right
 	status.reset_size()
 	status.size.x = minf(status.get_combined_minimum_size().x, cl.size.x - PW - 40.0)
 	status.position = Vector2(cl.position.x + 12.0, cl.end.y - status.size.y - 6.0)
@@ -4860,3 +4868,159 @@ func _edge_round(e: Dictionary, r: float) -> void:
 	_end()
 	_say("Edge rounded %d mm: drag another edge, or use the slider for more or less" % roundi(r))
 
+
+
+# ---------------------------------------------------------------- the step list (NSTEPLIST)
+
+## NSTEPLIST: the step list: one row per step of the record, in plain words, with its icon. A click on a row opens that step to change
+## (its slider comes back in the panel; the change is one undo step and replays the later steps). The open step's row is pressed
+func _steps_box() -> PanelContainer:
+	var box := PanelContainer.new()
+	box.name = "easypart_steps"
+	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	box.visible = false
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 4)
+	box.add_child(v)
+	var t := Label.new()
+	t.name = "easypart_steps_title"
+	t.text = "Your steps"
+	t.add_theme_font_size_override("font_size", 16)
+	t.add_theme_color_override("font_color", Tok.c("heading"))
+	v.add_child(t)
+	var sc := ScrollContainer.new()
+	sc.name = "easypart_steps_scroll"
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	sc.custom_minimum_size = Vector2(PW - 24.0, 40.0)
+	v.add_child(sc)
+	steps_vb = VBoxContainer.new()
+	steps_vb.name = "easypart_steps_list"
+	steps_vb.add_theme_constant_override("separation", 3)
+	steps_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(steps_vb)
+	return box
+
+
+## NSTEPLIST: the step's plain words ("" = no row: a helper plane). Pulled up N cm, Rounded N edges R mm, Drew a shape, Hollowed out
+func step_words(f: Dictionary) -> String:
+	match String(f.get("t", "")):
+		"sketch":
+			return "Drew a shape"
+		"extrude":
+			var cm := _fmt_cm(absf(float(f.get("dist", 0.0))))
+			if String(f.get("op", "")) == "cut":
+				return "Cut a slot %s deep" % cm
+			if bool(f.get("both", false)):
+				return "Pulled out both ways %s" % cm
+			return "Pulled up %s" % cm
+		"fillet":
+			var n := (f.get("edges", []) as Array).size()
+			return "Rounded %d %s %s" % [n, "edge" if n == 1 else "edges", _fmt(float(f.get("r", 0.0)), "mm")]
+		"shell":
+			return "Hollowed out, wall %s" % _fmt(float(f.get("thick", 0.0)), "mm")
+		"appear":
+			return "Coloured"
+		"mirror":
+			return "Mirrored it"
+		"pattern":
+			return "Repeated it"
+		"plane":
+			return ""
+	return "Changed the shape"
+
+
+static func _fmt_cm(mm_v: float) -> String:
+	return "%s cm" % str(snappedf(mm_v / 10.0, 0.1))
+
+
+## NSTEPLIST: the step's icon (the MAKES icon of its kind)
+static func step_icon(t: String) -> String:
+	match t:
+		"sketch":
+			return "part_rectangle"
+		"extrude":
+			return "part_extrude"
+		"fillet":
+			return "part_fillet"
+		"shell":
+			return "part_circle"
+		"mirror":
+			return "part_mirror"
+		"pattern":
+			return "part_pattern"
+		"appear":
+			return "part_appearance"
+	return "part_mirror"
+
+
+## NSTEPLIST: the slider that opens a step: its own field (How far, How round, Wall); {} when the step has none
+func _step_tweak(f: Dictionary) -> Dictionary:
+	var id := String(f.get("id", ""))
+	match String(f.get("t", "")):
+		"extrude":
+			var sg := -1.0 if float(f.get("dist", 0.0)) < 0.0 else 1.0
+			return {"id": id, "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
+		"fillet":
+			return {"id": id, "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
+		"shell":
+			return {"id": id, "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
+	return {}
+
+
+## NSTEPLIST: a click on a step row: its slider comes back in the panel (no undo step of its own; the slider's change is the step)
+func _step_open(id: String) -> void:
+	var f := Part.feature(_rec(), id)
+	var tw := _step_tweak(f)
+	if tw.is_empty():
+		_say("%s has no number to change: Undo takes it back" % step_words(f))
+		return
+	tweak = tw
+	taper_tw = {}
+	_rows_sig = ""
+	_rows_sync()
+	_say("Change the step: %s. The later steps are made again" % String(tw["label"]))
+	_steps_sig = ""
+	_steps_sync()
+
+
+func _steps_sync() -> void:
+	if steps_vb == null or not is_instance_valid(steps_vb):
+		return
+	var fs: Array = _rec().get("features", [])
+	var sig := "%s|%s" % [JSON.stringify(fs), String(tweak.get("id", ""))]
+	if sig == _steps_sig:
+		return
+	_steps_sig = sig
+	for c in steps_vb.get_children():
+		steps_vb.remove_child(c)
+		c.queue_free()
+	for f in fs:
+		var words := step_words(f)
+		if words == "":
+			continue
+		var b := Button.new()
+		b.name = "easypart_step_%s" % String(f.get("id", ""))
+		b.text = words
+		b.icon = Icons.sized(step_icon(String(f.get("t", ""))), 20)
+		b.expand_icon = false
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.focus_mode = Control.FOCUS_NONE
+		b.toggle_mode = true
+		b.set_pressed_no_signal(String(f.get("id", "")) == String(tweak.get("id", "")) and not tweak.is_empty())
+		b.add_theme_font_size_override("font_size", 15)
+		b.tooltip_text = "Click to change this step"
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var fid := String(f.get("id", ""))
+		b.pressed.connect(func(): _step_open(fid))
+		steps_vb.add_child(b)
+
+
+## NSTEPLIST: the list sits under the panel on the right, as tall as the room left (it scrolls past that)
+func _steps_place(cl: Rect2, y: float) -> void:
+	steps_box.reset_size()
+	var room := cl.end.y - y - 44.0
+	var sc := steps_box.find_child("easypart_steps_scroll", true, false) as ScrollContainer
+	if sc != null:
+		sc.custom_minimum_size.y = clampf(steps_vb.get_combined_minimum_size().y, 40.0, maxf(40.0, room - 40.0))
+	steps_box.reset_size()
+	steps_box.position = Vector2(cl.end.x - PW - 8.0, y)
