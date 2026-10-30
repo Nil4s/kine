@@ -75,6 +75,7 @@ var steps_box: PanelContainer    # NSTEPLIST: the step list under the panel, in 
 var steps_vb: VBoxContainer
 var _steps_sig := ""
 var tilt_btn: Button
+var swing_btn: Button            # p123driveit: Swing it (Drive it), the chip in the Tilt it panel: the newest piece swings on a hinge step
 var draft_btn: Button            # p021: Draft angle, the chip beside Tilt it (the side walls lean DRAFT_DEG for a mould)
 var pull_along_btn: Button       # P026: Pull along, the same box as Tilt it: shows after a curve or a shape is drawn (the newest step is a sketch)
 var parts_btn: Button            # NSCREW2: the Parts category chip (opens the screw grid under the template chips)
