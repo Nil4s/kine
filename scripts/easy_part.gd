@@ -196,7 +196,7 @@ func build(root: Control) -> void:
 	th.add_child(empty_chip)
 	var cr := HFlowContainer.new()
 	cr.name = "easypart_chips"
-	cr.add_theme_constant_override("h_separation", 3)
+	cr.add_theme_constant_override("h_separation", 2)
 	cr.add_theme_constant_override("v_separation", 4)
 	v.add_child(cr)
 	parts_btn = Button.new()   # NSCREW2: Parts: the screw sizes; after the template chips on the same row
@@ -215,9 +215,14 @@ func build(root: Control) -> void:
 		b.toggle_mode = true
 		b.focus_mode = Control.FOCUS_NONE
 		b.custom_minimum_size = Vector2(0, 34)
-		b.add_theme_font_size_override("font_size", 13)   # NGEAR: 13 (was 15) so six templates (Gear) stay on one row of the panel
+		b.add_theme_font_size_override("font_size", 11)   # NGEAR: 13 (was 15) so six templates (Gear) stay on one row of the panel; P066: 11 so seven (Rack) do too
 		b.pressed.connect(_chip.bind(t))
 		cr.add_child(b)
+		for sn in ["normal", "hover", "pressed", "focus", "disabled"]:   # P066: 4 px side margins (the theme's are wider) so seven chips (Rack) stay on one row
+			var sb := b.get_theme_stylebox(sn).duplicate() as StyleBox
+			sb.content_margin_left = 4.0
+			sb.content_margin_right = 4.0
+			b.add_theme_stylebox_override(sn, sb)
 		chips[t] = b
 	lib_box = _lib_box()
 	v.add_child(lib_box)
