@@ -434,15 +434,18 @@ func _tilt_box() -> PanelContainer:
 	tilt_btn.custom_minimum_size = Vector2(230, 44)
 	row.add_child(tilt_btn)
 	draft_btn = _big_btn("easypart_draft_angle", "Draft angle", "Easier to pull from a mould: the side walls lean 2 degrees in, the base stays put", _draft_press)
-	draft_btn.custom_minimum_size = Vector2(170, 44)
-	row.add_child(draft_btn)
+	# p123driveit: Swing it shares the Draft angle line (one row, so the panel is no taller and never climbs over the grid)
+	var draft_row := HBoxContainer.new()
+	draft_row.add_theme_constant_override("separation", 6)
+	row.add_child(draft_row)
+	draft_row.add_child(draft_btn)
 	swing_btn = _big_btn("easypart_swing_it", "Swing it", "Drive it: the newest piece swings open on a hinge at its back top edge, 90 degrees in 2 seconds, as a step on the timeline", _swing_press)
 	swing_btn.icon = Icons.sized("part_swing", 22)
 	swing_btn.expand_icon = false
 	swing_btn.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	swing_btn.custom_minimum_size = Vector2(230, 44)
+	swing_btn.custom_minimum_size = Vector2(170, 44)
 	swing_btn.visible = false
-	row.add_child(swing_btn)
+	draft_row.add_child(swing_btn)
 	pull_along_btn = _big_btn("easypart_pull_along", "Pull along", "Pull the round shape along the open curve: a pipe in one step", _pull_along_press)
 	pull_along_btn.custom_minimum_size = Vector2(230, 44)
 	pull_along_btn.visible = false

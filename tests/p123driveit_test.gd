@@ -7,7 +7,7 @@ extends SceneTree
 ##   2  a real click on Swing it adds one hinge step: 2 bodies still, the built volume unchanged (the hinge adds no solid)
 ##   3  Undo (a real click) takes the hinge step away: no hinge, 2 bodies (one undo step)
 ##   4  Swing it again: the hinge's body is the newest piece (piece 2: its box min x = 120 mm +-1, its top = the hinge's height +-0.5 mm)
-##   5  the hinge's swing, measured by Part.hinge_sweep: ok, 50 frames (2 s at 25 fps), first contact = -1 (it clears piece 1)
+##   5  the hinge's swing, measured by Part.hinge_sweep: ok, 51 frames (0 s and 2 s both sampled at 25 fps), first contact = -1 (it clears piece 1)
 ##   6  the timeline (the step list on the side) reads "Swung it open 90 degrees"
 ## shots: C:/Temp/claude/p123driveit/swing.png (after the press), undone.png (after Undo)
 const SHOT := "C:/Temp/claude/p123driveit"
@@ -217,7 +217,7 @@ func _init() -> void:
 
 	# 5 the swing, measured by the kernel: 50 frames, clear of piece 1
 	var sweep := Part.hinge_sweep(m.S.part, String(h[0]["id"]) if h.size() == 1 else "")
-	ok(bool(sweep.get("ok", false)) and int(sweep.get("frames", 0)) == 50 and int(sweep.get("first", 0)) == -1, "5 the swing: ok %s, frames %s (2 s at 25 fps), first contact %s (-1 = clear)" % [sweep.get("ok", false), sweep.get("frames", -1), sweep.get("first", "?")])
+	ok(bool(sweep.get("ok", false)) and int(sweep.get("frames", 0)) == 51 and int(sweep.get("first", 0)) == -1, "5 the swing: ok %s, frames %s (0 s and 2 s both sampled at 25 fps), first contact %s (-1 = clear)" % [sweep.get("ok", false), sweep.get("frames", -1), sweep.get("first", "?")])
 
 	# 6 the step list reads the step in plain words
 	var texts: Array = []
