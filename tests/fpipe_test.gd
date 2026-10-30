@@ -60,6 +60,17 @@ func click_ctl(c: Control) -> void:
 	await idle(3)
 
 
+## Easy Part's camera ease (EFRAME, 0.3 s) after a step that changes the box: a drag aimed from a camera read mid-ease lands
+## off the floor. Wait until the ease is done (the view the user sees is the view a drag is aimed at). Not a bar: a settle.
+func settle() -> void:
+	var ep = pu().ep
+	var n := 0
+	while ep != null and not ep._ease.is_empty() and n < 200:
+		await process_frame
+		n += 1
+	await idle(2)
+
+
 func drag_path(pts: Array) -> void:
 	await ev_move(pts[0], false)
 	await ev_mouse(pts[0], true)
@@ -126,6 +137,7 @@ func _init() -> void:
 	# 1 Draw shape with the Round chip, a real drag on the grid
 	await click_ctl(pu().ep.make_btns["draw"])
 	await click_ctl(pu().ep.shape_btns["round"])
+	await settle()
 	await drag_path([Vector2(860, 500), Vector2(930, 560)])
 	await shot("02_round")
 	var sk_round := false
@@ -146,6 +158,7 @@ func _init() -> void:
 
 	# 3 P1 an open Curvy line names the pipe's next step
 	await click_ctl(pu().ep.make_btns["curve"])
+	await settle()
 	await drag_path([Vector2(300, 560), Vector2(370, 520), Vector2(430, 600), Vector2(500, 540)])
 	await idle(10)
 	await shot("04_curve")
@@ -225,7 +238,7 @@ func _init() -> void:
 	var v1: float = float(Part.replay(rec2)["volume"])
 	var add := v1 - v0
 	ok(sweeps.size() == n0 + 1 and absf(add - want_add) <= 0.03 * want_add,
-		"6 OK by click: the pipe and its flange ring add %.4e m3 (want %.4e m3 = pipe + ring, 3 percent)" % [add, want_add])
+		"6 OK by click: the pipe and its flange ring add %.1f mm3 (want %.1f mm3 = pipe + ring, 3 percent)" % [add * 1e9, want_add * 1e9])
 	ok(sweeps.size() == n0 + 1 and bool(sweeps[-1].get("flange", false)), "7 the sweep is one step, flange on the record (%d new)" % (sweeps.size() - n0))
 
 	# 8 the Sweep words are plain: no profile, normal, chain or closed / open sketch on screen (the dialog, the tip, the error)

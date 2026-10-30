@@ -163,12 +163,12 @@ func build(root: Control) -> void:
 	# the panel
 	panel = PanelContainer.new()
 	panel.name = "easypart_panel"
-	panel.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.95), 12, 12))
+	panel.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.95), 12, 8))   # 8 (was 12): the Use Expert foot sits in the clear view with a sword open
 	panel.visible = false
 	root.add_child(panel)
 	var v := VBoxContainer.new()
 	v.name = "easypart_panel_vb"
-	v.add_theme_constant_override("separation", 6)
+	v.add_theme_constant_override("separation", 4)
 	panel_vb = v
 	var sc := ScrollContainer.new()   # the panel's column scrolls inside the panel when it is taller than the room (a Where-to-cut row adds one)
 	sc.name = "easypart_panel_scroll"
@@ -208,7 +208,14 @@ func build(root: Control) -> void:
 	parts_btn.custom_minimum_size = Vector2(0, 34)
 	parts_btn.add_theme_font_size_override("font_size", 15)
 	parts_btn.pressed.connect(_parts_press)
-	for t in PartTemplates.ORDER:
+	var start_l := Label.new()   # FREESTART: a neutral row of simple shapes; nothing is forced, the Empty part is the default
+	start_l.name = "easypart_start_label"
+	start_l.text = "Start from:"
+	start_l.add_theme_font_size_override("font_size", 15)
+	start_l.add_theme_color_override("font_color", Color(0.7, 0.73, 0.78))
+	start_l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	cr.add_child(start_l)
+	for t in PartTemplates.START + ["gear"]:   # the simple shapes; gear stays on the row (NGEAR); the weapons and props are under More examples
 		var b := Button.new()
 		b.name = "easypart_chip_" + t
 		b.text = CHIP_TEXT.get(t, String(PartTemplates.T[t]["title"]))   # the chip word on the blank part is plain; the part keeps the template title
@@ -219,13 +226,22 @@ func build(root: Control) -> void:
 		b.pressed.connect(_chip.bind(t))
 		cr.add_child(b)
 		chips[t] = b
+	var more := Button.new()   # the weapons and props are not gone: What to build (From a template) lists them
+	more.name = "easypart_more_examples"
+	more.text = "More examples"
+	more.tooltip_text = "Open What to build: a sword, an axe, a chair and more"
+	more.focus_mode = Control.FOCUS_NONE
+	more.custom_minimum_size = Vector2(0, 32)
+	more.add_theme_font_size_override("font_size", 15)
+	more.pressed.connect(_more_examples)
+	cr.add_child(more)
 	lib_box = _lib_box()
 	v.add_child(lib_box)
 	screw_box = _screw_box()
 	v.add_child(screw_box)
 	rows_vb = VBoxContainer.new()
 	rows_vb.name = "easypart_rows"
-	rows_vb.add_theme_constant_override("separation", 4)
+	rows_vb.add_theme_constant_override("separation", 2)
 	v.add_child(rows_vb)
 	whole_l = Label.new()
 	whole_l.name = "easypart_whole"
@@ -240,7 +256,7 @@ func build(root: Control) -> void:
 	back_btn.name = "easypart_back"
 	back_btn.text = "Reset"   # (was "Back to the first one": the foot wrapped to two rows and the panel ran past the clear view at 1280 x 720)
 	back_btn.focus_mode = Control.FOCUS_NONE
-	back_btn.custom_minimum_size = Vector2(0, 34)
+	back_btn.custom_minimum_size = Vector2(0, 32)
 	back_btn.add_theme_font_size_override("font_size", 14)
 	back_btn.tooltip_text = "Put every size back to how this shape started"
 	back_btn.pressed.connect(_back)
@@ -764,7 +780,7 @@ func _make_row(label: String, lo: float, hi: float, step: float, words: Array, k
 	var pill := Label.new()
 	pill.name = "easypart_pill_" + key
 	pill.add_theme_font_size_override("font_size", 16)
-	pill.add_theme_stylebox_override("normal", _style(Color(0.17, 0.18, 0.22), 14, 6))
+	pill.add_theme_stylebox_override("normal", _style(Color(0.17, 0.18, 0.22), 14, 4))
 	top.add_child(pill)
 	v.add_child(top)
 	var s := HSlider.new()
@@ -773,7 +789,7 @@ func _make_row(label: String, lo: float, hi: float, step: float, words: Array, k
 	s.max_value = hi
 	s.step = step
 	s.focus_mode = Control.FOCUS_NONE
-	s.custom_minimum_size = Vector2(0, 24)
+	s.custom_minimum_size = Vector2(0, 22)
 	var tr := _style(Color(0.2, 0.21, 0.26), 4, 0)
 	tr.content_margin_top = 4
 	tr.content_margin_bottom = 4
@@ -950,6 +966,12 @@ func _chip(t: String) -> void:
 	pu.sync()
 	frame()
 	_say("%s %s: move a slider or drag an amber dot" % ["An" if t.substr(0, 1) in "aeiou" else "A", t])
+
+
+## MORE EXAMPLES: What to build opens (its From a template card lists the weapons and props)
+func _more_examples() -> void:
+	if m.build_choose != null:
+		m.build_choose.show_chooser()
 
 
 func _empty() -> void:
@@ -2276,8 +2298,13 @@ func input(ev: InputEvent) -> bool:
 				_pick_p = p   # FDELETE: a click (no drag) on a piece picks it, on the release
 			return false
 		if not _edge.is_empty():
-			_edge_end()
-			return true
+			if p.distance_to(_edge["press"] as Vector2) >= 6.0:
+				_edge_end()
+				return true
+			# a click (no drag) on an edge is the face or piece press: it falls through to the pick / open-face code below
+			_pick_p = _edge["press"] as Vector2
+			_edge = {}
+			edge_num.visible = false
 		if not _drag.is_empty():
 			_drag_to(p, true)
 			_drag = {}
