@@ -107,8 +107,20 @@ func height() -> float:
 	return bb.size.y
 
 
+## Easy Part's camera ease (EFRAME, 0.3 s) after a step that changes the box: a drag aimed from a camera read mid-ease lands
+## off the floor. Wait until the ease is done (the view the user sees is the view a drag is aimed at). Not a bar: a settle.
+func settle() -> void:
+	var ep = pu().ep
+	var n := 0
+	while ep != null and not ep._ease.is_empty() and n < 200:
+		await process_frame
+		n += 1
+	await idle(2)
+
+
 func draw_on_floor(a: Vector2, b: Vector2) -> void:
 	await click_ctl(pu().ep.make_btns["draw"])
+	await settle()   # the Draw press may start an ease: aim the drag at the settled view
 	await drag_screen(scr(Vector3(a.x, 0.0, a.y)), scr(Vector3(b.x, 0.0, b.y)))
 
 

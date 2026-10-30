@@ -35,7 +35,72 @@ func _stick_box() -> PanelContainer:
 		b.custom_minimum_size = Vector2(150, 44)
 		h.add_child(b)
 		stick_btns[so[0]] = b
+	smooth_btn = _big_btn("easypart_smooth", "Smooth the joints", "Round the inside corners where the two pieces meet, 2 mm (one step)", _smooth_joints)
+	smooth_btn.custom_minimum_size = Vector2(190, 44)
+	smooth_btn.visible = false
+	h.add_child(smooth_btn)
 	return box
+
+
+## P035 SMOOTH THE JOINS: the chip shows while the newest step is a Join (nothing armed). Undo or any other step hides it
+func _smooth_on() -> bool:
+	var fs: Array = _rec().get("features", [])
+	return armed == "" and not fs.is_empty() and String(fs[-1]["t"]) == "combine" and String(fs[-1].get("op", "")) == "join"
+
+
+## P035 SMOOTH THE JOINS: a 2 mm round on the inside corners where the two joined pieces meet (one fillet step, one undo step).
+## The corners are the concave edges of the joined solid whose middle lies in the second piece's box (grown 1 mm). Nothing changes on a refusal
+func _smooth_joints() -> void:
+	if not _smooth_on() or not Part.available():
+		_say("Join two solid pieces first, then press Smooth the joints")
+		return
+	_flush_if_dirty()
+	var rec := _rec()
+	var jf: Dictionary = rec["features"][-1]
+	var pre := rec.duplicate(true)
+	(pre["features"] as Array).pop_back()
+	var before := Part.body_faces(pre, -1)
+	var tools: Array = jf.get("tools", [])
+	if tools.is_empty() or int(tools[0]) >= before.size():
+		_say("Those pieces are no longer there: Undo the join, then join them again")
+		return
+	var box := AABB()
+	var first := true
+	for w in before[int(tools[0])]:
+		box = AABB(w, Vector3.ZERO) if first else box.expand(w)
+		first = false
+	box = box.grow(0.001)
+	var trial := Part.replay(rec, -1, {"edges": true, "keep": true})
+	var kept: Array = trial.get("ids", [])
+	var list := []
+	for e in trial.get("edges", []):
+		if int(e["body"]) == 0 and bool(e.get("inner", false)) and box.has_point(e["c"]):
+			list.append(Part.describe(e))
+	if kept.is_empty() or list.is_empty():
+		Part.release_kept(kept)
+		_say("The two pieces make no inside corner here, so there is nothing to smooth")
+		return
+	var err := Part.fillet_trial(int(kept[0]), 2.0, list)
+	Part.release_kept(kept)
+	if err != "":
+		_say("The joint will not take a 2 mm smooth (%s). Undo the join, then join again" % err)
+		return
+	_begin("Smooth the joints")
+	var f := Part.new_feature(rec, "fillet", {"body": 0, "r": 2.0, "edges": list})
+	rec["features"].append(f)
+	if _last_error(rec, String(f["id"])) != "":
+		rec["features"].pop_back()
+		m.S.part = pre
+		m._drop_undo()
+		_edit_n = -1
+		_say("The joint will not take a 2 mm smooth: Undo the join, then join again")
+		return
+	_end()
+	_say("Smoothed the joint: its inside corners are rounded 2 mm (Undo takes the round away)")
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
 
 
 ## CUT IN TWO: a split across the middle of the solid's longest side (Part's "split" feature, the one Expert's Split makes). The slider

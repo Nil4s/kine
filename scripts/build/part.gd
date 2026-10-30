@@ -11,6 +11,7 @@ extends RefCounted
 ##     {"t": "fillet",  "id": "f5", "name": "Fillet1", "body": 0, "r": 2.0, "edges": [{"p": [x, y, z], "q": [..], "d": [..]}]},
 ##     {"t": "chamfer", ... "dist": 1.0 ...},  {"t": "mirror", "id": ..., "plane": "front"|"top"|"right", "op": "join"},
 ##     extrude also has "taper": degrees (>0 narrows as it goes) and op "intersect" (keeps only the part inside the new solid);
+##     extrude may carry "twist": degrees (P024, Easy's Twist slider): a one-way extrude of one closed shape turns about its middle as it rises (no taper with it);
 ##     extrude and revolve may carry "tilt": degrees (Easy's Tilt it): the piece leans about X through its centre before it joins the body;
 ##     {"t": "split", "id": ..., "plane": "front"|"top"|"right", "at": mm (offset along the plane's normal), "keep": 0 | 1 | -1} cuts EVERY body the plane crosses in two (keep 1 / -1: only the half on the normal's side / the other half stays);
 ##     {"t": "shell", "id": ..., "body": N, "thick": mm, "open": "" | "+x" | "-x" | "+y" | "-y" | "+z" | "-z"} hollows body N with walls thick mm,
@@ -609,11 +610,13 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var ef: Array = ed.get("faces", [])
 				var seam := false
 				var concave := false   # a bend that goes INTO the solid (an inner corner): rounding it adds material, so it is skipped
+				var inner := false   # P035: an inside corner by the other face: its centre lies on the outside of this face's plane (the test concave uses fails on a T joint)
 				if ef.size() == 2 and fnorm.has(int(ef[0])) and fnorm.has(int(ef[1])):
 					var n1: Vector3 = fnorm[int(ef[0])]
 					var n2: Vector3 = fnorm[int(ef[1])]
 					seam = n1.dot(n2) > 0.99
 					concave = not seam and (ed["center"] - bb.get_center()).dot(n1 + n2) < 0.0
+					inner = not seam and (fcen[int(ef[1])] - ed["center"]).dot(n1) > 0.0
 				# NROUNDFILTER: "outside" = every face the edge touches lies on the outside of the solid's box (a hole's or a cup's inside does not);
 				# "top" = both ends at the top of the box. Round's filters (Easy Part: All edges, Only the outside, Only the top) read these
 				var outside := not ef.is_empty()
@@ -621,7 +624,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					if not fcen.has(int(fi)) or not _on_skin(fcen[int(fi)], bb):
 						outside = false
 				var top := float(ed["a"].y) >= bb.end.y - SKIN_MM * MM and float(ed["b"].y) >= bb.end.y - SKIN_MM * MM
-				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "outside": outside, "top": top})
+				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "concave": concave, "inner": inner, "outside": outside, "top": top})
 	res["bodies"] = bodies.size()
 	for bi in bodies.size():
 		res["body_looks"].append(look_at(looks, bi))
@@ -1157,6 +1160,8 @@ static func extrude_default(rec: Dictionary) -> Dictionary:
 
 static func _solid(f: Dictionary, sk: Dictionary) -> int:
 	var pl: Dictionary = sk["_pl"] if sk.has("_pl") else plane(String(sk.get("plane", "front")))
+	if f["t"] == "extrude" and absf(float(f.get("twist", 0.0))) > 0.01 and not bool(f.get("both", false)):
+		return _twisted(f, sk, pl)
 	var face := KCad.sketch_face(items_of(sk["ents"], f["t"] == "revolve" and bool(f.get("onside", false))), pl["o"], pl["x"], pl["n"])
 	if face == 0:
 		return 0
@@ -1167,6 +1172,37 @@ static func _solid(f: Dictionary, sk: Dictionary) -> int:
 		var axis: Vector3 = pl["x"] if String(f.get("axis", "x")) == "x" else pl["y"]
 		s = KCad.revolve(face, pl["o"], axis, deg_to_rad(float(f.get("deg", 360.0))))
 	KCad.release(face)
+	return s
+
+
+## P024 TWIST (Easy's Twist slider): a one-way pull of a single closed shape turns as it rises. The profile is turned about the middle of its
+## own box (the twist axis is the pull's direction), in steps of about 15 degrees; the kernel lofts those sections into one smooth solid.
+## Taper is not used with a twist. "" or the kernel's words are left in KCad.last_error
+static func _twisted(f: Dictionary, sk: Dictionary, pl: Dictionary) -> int:
+	var groups := loops_of(sk["ents"])
+	if groups.size() != 1:
+		return 0
+	var mid := _loop_box(groups[0]).get_center()
+	var o: Vector3 = pl["o"]
+	var x: Vector3 = pl["x"]
+	var n: Vector3 = pl["n"]
+	var c: Vector3 = o + x * (mid.x * MM) + (pl["y"] as Vector3) * (mid.y * MM)   # the twist axis: through the middle of the shape
+	var h := float(f["dist"]) * MM
+	var total := deg_to_rad(float(f["twist"]))
+	var steps := clampi(int(ceili(absf(float(f["twist"])) / 15.0)) + 4, 6, 12)
+	var faces := PackedInt32Array()
+	for i in steps + 1:
+		var t := float(i) / steps
+		var q := Quaternion(n, total * t)
+		var face := KCad.sketch_face(items_of(sk["ents"]), c + q * (o - c) + n * (h * t), q * x, n)
+		if face == 0:
+			for fc in faces:
+				KCad.release(fc)
+			return 0
+		faces.append(face)
+	var s := KCad.loft(faces, false, true)
+	for fc in faces:
+		KCad.release(fc)
 	return s
 
 

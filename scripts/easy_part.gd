@@ -143,6 +143,15 @@ func build(root: Control) -> void:
 		sh.add_child(b)
 		shape_btns[s[0]] = b
 	sh.add_child(_sides_row())   # NPOLY2: Sides, next to Hex: a regular shape with 3 to 12 sides
+	var pic := Button.new()   # P034: Picture: your own picture becomes a raised logo (a press opens the file dialog, not a drag)
+	pic.name = "easypart_shape_picture"
+	pic.text = "Picture"
+	pic.focus_mode = Control.FOCUS_NONE
+	pic.custom_minimum_size = Vector2(96, 40)
+	pic.add_theme_font_size_override("font_size", 16)
+	pic.tooltip_text = "Your own picture: a dark shape on white becomes a raised logo, 4 cm wide and 2 mm high, in one step"
+	pic.pressed.connect(_picture_press)
+	sh.add_child(pic)
 	root.add_child(shape_box)
 	hole_box = _hole_box()
 	root.add_child(hole_box)
@@ -163,12 +172,12 @@ func build(root: Control) -> void:
 	# the panel
 	panel = PanelContainer.new()
 	panel.name = "easypart_panel"
-	panel.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.95), 12, 12))
+	panel.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.95), 12, 8))   # 8 (was 12): the Use Expert foot sits in the clear view with a sword open
 	panel.visible = false
 	root.add_child(panel)
 	var v := VBoxContainer.new()
 	v.name = "easypart_panel_vb"
-	v.add_theme_constant_override("separation", 6)
+	v.add_theme_constant_override("separation", 4)
 	panel_vb = v
 	var sc := ScrollContainer.new()   # the panel's column scrolls inside the panel when it is taller than the room (a Where-to-cut row adds one)
 	sc.name = "easypart_panel_scroll"
@@ -208,7 +217,14 @@ func build(root: Control) -> void:
 	parts_btn.custom_minimum_size = Vector2(0, 34)
 	parts_btn.add_theme_font_size_override("font_size", 15)
 	parts_btn.pressed.connect(_parts_press)
-	for t in PartTemplates.ORDER:
+	var start_l := Label.new()   # FREESTART: a neutral row of simple shapes; nothing is forced, the Empty part is the default
+	start_l.name = "easypart_start_label"
+	start_l.text = "Start from:"
+	start_l.add_theme_font_size_override("font_size", 15)
+	start_l.add_theme_color_override("font_color", Color(0.7, 0.73, 0.78))
+	start_l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	cr.add_child(start_l)
+	for t in PartTemplates.START + ["gear"]:   # the simple shapes; gear stays on the row (NGEAR); the weapons and props are under More examples
 		var b := Button.new()
 		b.name = "easypart_chip_" + t
 		b.text = CHIP_TEXT.get(t, String(PartTemplates.T[t]["title"]))   # the chip word on the blank part is plain; the part keeps the template title
@@ -219,13 +235,22 @@ func build(root: Control) -> void:
 		b.pressed.connect(_chip.bind(t))
 		cr.add_child(b)
 		chips[t] = b
+	var more := Button.new()   # the weapons and props are not gone: What to build (From a template) lists them
+	more.name = "easypart_more_examples"
+	more.text = "More examples"
+	more.tooltip_text = "Open What to build: a sword, an axe, a chair and more"
+	more.focus_mode = Control.FOCUS_NONE
+	more.custom_minimum_size = Vector2(0, 32)
+	more.add_theme_font_size_override("font_size", 15)
+	more.pressed.connect(_more_examples)
+	cr.add_child(more)
 	lib_box = _lib_box()
 	v.add_child(lib_box)
 	screw_box = _screw_box()
 	v.add_child(screw_box)
 	rows_vb = VBoxContainer.new()
 	rows_vb.name = "easypart_rows"
-	rows_vb.add_theme_constant_override("separation", 4)
+	rows_vb.add_theme_constant_override("separation", 2)
 	v.add_child(rows_vb)
 	whole_l = Label.new()
 	whole_l.name = "easypart_whole"
@@ -240,7 +265,7 @@ func build(root: Control) -> void:
 	back_btn.name = "easypart_back"
 	back_btn.text = "Reset"   # (was "Back to the first one": the foot wrapped to two rows and the panel ran past the clear view at 1280 x 720)
 	back_btn.focus_mode = Control.FOCUS_NONE
-	back_btn.custom_minimum_size = Vector2(0, 34)
+	back_btn.custom_minimum_size = Vector2(0, 32)
 	back_btn.add_theme_font_size_override("font_size", 14)
 	back_btn.tooltip_text = "Put every size back to how this shape started"
 	back_btn.pressed.connect(_back)
@@ -339,6 +364,13 @@ func _round_box() -> PanelContainer:
 		b.custom_minimum_size = Vector2(176, 44)
 		h.add_child(b)
 		round_btns[rf[0]] = b
+	# p038makeitstro: a press adds a rib where the solid is thin (no toggle: the press is the step)
+	var sb := _big_btn("easypart_stronger", "Make it stronger", "Add a rib where the solid is thin: a strip on its thin side, along its long side", _stronger_press)
+	sb.icon = Icons.sized("part_stronger", 22)
+	sb.expand_icon = false
+	sb.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	sb.custom_minimum_size = Vector2(176, 44)
+	h.add_child(sb)
 	return box
 
 
@@ -395,7 +427,7 @@ func _tilt_box() -> PanelContainer:
 	box.name = "easypart_tilt"
 	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
 	box.visible = false
-	var row := HBoxContainer.new()   # p021: Tilt it and Draft angle share the one panel (only one of them shows for a given newest step)
+	var row := VBoxContainer.new()   # p021: Tilt it and Draft angle share the one panel (only one of them shows for a given newest step); stacked, the panel stays narrow so it never covers the solid under it
 	row.add_theme_constant_override("separation", 6)
 	box.add_child(row)
 	tilt_btn = _big_btn("easypart_tilt_it", "Tilt it 20 degrees", "Lean the newest solid 20 degrees, sideways, about its middle", _tilt_press)
@@ -524,6 +556,62 @@ func _pull_along_press() -> void:
 	_rows_sync()
 	_values_sync()
 	_say("Pulled along the curve: a pipe. Undo takes it back")
+
+
+## P034 YOUR OWN PICTURE: Picture (in the Draw shape row) opens a file dialog; the picture's dark shape becomes a raised logo on the
+## floor: a closed outline sketch, pulled up 2 mm, ONE undo step. The words say the next step when the picture cannot be used
+const PICTURE_MM := 40.0   # the logo's longer side
+const PICTURE_H := 2.0     # the raised height
+
+
+func _picture_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	var fd := FileDialog.new()
+	fd.name = "easypart_picture_dialog"
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.png, *.jpg, *.jpeg, *.webp, *.bmp ; Pictures"])
+	fd.title = "Pick your picture"
+	fd.file_selected.connect(func(p: String): fd.queue_free(); _picture_chosen(p))
+	fd.canceled.connect(fd.queue_free)
+	shape_box.get_parent().add_child(fd)
+	fd.popup_centered(Vector2i(640, 480))
+	_say("Pick a picture: a dark shape on white works best")
+
+
+func _picture_chosen(path: String) -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	var got: Dictionary = PictureTrace.outline(path, PICTURE_MM)
+	if String(got["why"]) != "":
+		_say(String(got["why"]))
+		return
+	_flush_if_dirty()
+	var snap := _rec().duplicate(true)
+	_begin("Your picture")
+	var rec := pu._ensure()
+	var sk := Part.new_feature(rec, "sketch", {"plane": "top", "ents": got["ents"], "dims": []})
+	rec["features"].append(sk)
+	var f := Part.new_feature(rec, "extrude", {"sketch": String(sk["id"]), "dist": PICTURE_H, "both": false, "op": "join"})
+	rec["features"].append(f)
+	var err := _last_error(rec, String(f["id"]))
+	if err != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("Your picture did not make a raised logo: %s. Use a picture with a bigger, plainer dark shape" % err)
+		return
+	_end()
+	armed = ""
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	_say("Your picture is a raised logo 2 mm high. Undo takes it back")
 
 
 ## the newest feature is a solid piece with no tilt yet: the Tilt it chip shows for it
@@ -711,6 +799,8 @@ func _set_value(row: Dictionary, v: float, final: bool) -> void:
 		_apply_rep(row, v)
 	elif row["kind"] == "taper":
 		_apply_taper(v)
+	elif row["kind"] == "twist":
+		_apply_twist(v)
 	else:
 		_apply_tweak(v)
 		if final and tweak.has("say"):
@@ -731,6 +821,8 @@ func _apply_tweak(v: float) -> void:
 		f["ents"][int(tweak["ent"])][tweak["field"]] = val
 	else:
 		f[tweak["field"]] = val
+	if f.has("raw"):   # p039: a Curvy line's points come back from its raw stroke at the new Smooth
+		_rebuild_curve(f)
 
 
 ## FPLANTER: the Taper slider writes the pulled shape's taper (degrees; the kernel narrows the extrude when it is positive)
@@ -738,6 +830,13 @@ func _apply_taper(v: float) -> void:
 	var f := Part.feature(_rec(), String(taper_tw.get("id", "")))
 	if not f.is_empty():
 		f["taper"] = v
+
+
+## P024: the Twist slider writes the pulled shape's twist (degrees, the kernel turns the extrude as it rises)
+func _apply_twist(v: float) -> void:
+	var f := Part.feature(_rec(), String(twist_tw.get("id", "")))
+	if not f.is_empty():
+		f["twist"] = v
 
 
 func _on_slider_value(v: float, row: Dictionary) -> void:
@@ -777,7 +876,7 @@ func _make_row(label: String, lo: float, hi: float, step: float, words: Array, k
 	var pill := Label.new()
 	pill.name = "easypart_pill_" + key
 	pill.add_theme_font_size_override("font_size", 16)
-	pill.add_theme_stylebox_override("normal", _style(Color(0.17, 0.18, 0.22), 14, 6))
+	pill.add_theme_stylebox_override("normal", _style(Color(0.17, 0.18, 0.22), 14, 4))
 	top.add_child(pill)
 	v.add_child(top)
 	var s := HSlider.new()
@@ -786,7 +885,7 @@ func _make_row(label: String, lo: float, hi: float, step: float, words: Array, k
 	s.max_value = hi
 	s.step = step
 	s.focus_mode = Control.FOCUS_NONE
-	s.custom_minimum_size = Vector2(0, 24)
+	s.custom_minimum_size = Vector2(0, 22)
 	var tr := _style(Color(0.2, 0.21, 0.26), 4, 0)
 	tr.content_margin_top = 4
 	tr.content_margin_bottom = 4
@@ -843,9 +942,20 @@ func _rows_sync() -> void:
 		var r := _make_row(String(tw["label"]), float(tw["lo"]), float(tw["hi"]), float(tw["step"]), tw.get("words", ["Less", "More"]), "tweak", "last", String(tw["unit"]))
 		rows.append(r)
 	taper_row = {}
+	twist_row = {}
 	if _taper_live():   # FPLANTER: the Taper row sits UNDER How far; it is not in rows (rows[-1] stays the step's own slider)
-		taper_row = _make_row(String(taper_tw["label"]), float(taper_tw["lo"]), float(taper_tw["hi"]), float(taper_tw["step"]), taper_tw["words"], "taper", "taper", String(taper_tw["unit"]))
+		# P024: the Twist slider shares the Taper row's line (side by side), so a pull with a Twist costs no more height than one with a Taper
+		# alone: the side panel stays as tall, and the drawing area under it stays as clear (fdelete draws beside a piece there)
+		var pair := HBoxContainer.new()
+		pair.name = "easypart_taper_pair"
+		rows_vb.add_child(pair)
+		taper_row = _make_row(String(taper_tw["label"]), float(taper_tw["lo"]), float(taper_tw["hi"]), float(taper_tw["step"]), taper_tw["words"], "taper", "taper", String(taper_tw["unit"]), pair)
 		(taper_row["words"] as Control).visible = not _compact
+		if not twist_tw.is_empty():
+			twist_row = _make_row(String(twist_tw["label"]), float(twist_tw["lo"]), float(twist_tw["hi"]), float(twist_tw["step"]), twist_tw["words"], "twist", "twist", String(twist_tw["unit"]), pair)
+			(twist_row["words"] as Control).visible = not _compact
+			(twist_row["box"] as Control).size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		(taper_row["box"] as Control).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for r in rows:
 		(r["words"] as Control).visible = not _compact
 	_values_sync()
@@ -872,6 +982,8 @@ func tweak_last() -> void:
 		tweak = {"id": f["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
 	elif t == "loft" and f.has("twist"):   # P027: a reopened blend keeps its Twist slider
 		tweak = _twist_tweak(String(f["id"]))
+	elif t == "sketch" and f.has("raw"):   # p039: a reopened Curvy line keeps its Smooth slider
+		tweak = _smooth_tweak(String(f["id"]))
 	elif t == "fillet" and f.has("r"):   # FSAVE: a reopened part keeps its Round slider (the same one _round_done gives a new round)
 		tweak = {"id": f["id"], "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
 	elif t == "extrude" and not bool(f.get("both", false)) and String(f.get("op", "join")) == "join" and f.has("dist"):
@@ -926,6 +1038,8 @@ func _values_sync() -> void:
 	var all_rows := rows.duplicate()
 	if not taper_row.is_empty():
 		all_rows.append(taper_row)
+	if not twist_row.is_empty():
+		all_rows.append(twist_row)
 	for r in all_rows:
 		var s: HSlider = r["slider"]
 		var v := 0.0
@@ -933,12 +1047,20 @@ func _values_sync() -> void:
 			v = float(e.get("p", {}).get(r["key"], 0.0)) if bool(r.get("raw", false)) else float(e.get("p", {}).get(r["key"], 0.0)) / 10.0
 		elif r["kind"] == "taper":
 			v = float(Part.feature(_rec(), String(taper_tw.get("id", ""))).get("taper", 0.0))
+		elif r["kind"] == "twist":
+			v = float(Part.feature(_rec(), String(twist_tw.get("id", ""))).get("twist", 0.0))
 		else:
 			v = _tweak_value()
 		if not bool(r.get("held", false)):
 			s.set_value_no_signal(v)
 		_pill_text(r, s.value)
 		m._grey(s, Part.why_not() if off else "")
+	# P024: a twisted shape has no taper (the kernel ignores it): the Taper row goes while the Twist is above 0. It fades in place rather than
+	# hiding, so the Twist slider beside it keeps its width (a hidden box would widen the Twist slider mid-drag)
+	if not taper_row.is_empty():
+		var twisted := not twist_row.is_empty() and float(Part.feature(_rec(), String(twist_tw.get("id", ""))).get("twist", 0.0)) > 0.0
+		(taper_row["box"] as Control).modulate.a = 0.0 if twisted else 1.0
+		(taper_row["slider"] as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE if twisted else Control.MOUSE_FILTER_STOP
 	_rep_sync()
 	whole_l.visible = _tpl() != ""
 	if whole_l.visible:   # the whole shape's biggest size (the replay's box, m -> cm): the sliders move one part of it
@@ -965,6 +1087,12 @@ func _chip(t: String) -> void:
 	pu.sync()
 	frame()
 	_say("%s %s: move a slider or drag an amber dot" % ["An" if t.substr(0, 1) in "aeiou" else "A", t])
+
+
+## MORE EXAMPLES: What to build opens (its From a template card lists the weapons and props)
+func _more_examples() -> void:
+	if m.build_choose != null:
+		m.build_choose.show_chooser()
 
 
 func _empty() -> void:
@@ -1503,6 +1631,80 @@ func _round_done(f: Dictionary) -> void:
 	_say("Edges rounded: use the slider for more or less, or press Cut a hole next")
 
 
+## MAKE IT STRONGER (p038makeitstro, Friday plan 38): the solid's thinnest side is its thin side. Under RIB_MIN_MM a rib goes on that side's
+## face, along the longer of the other two sides and centred across it: a strip RIB_W_MM wide, RIB_H_MM tall (the Rib height slider).
+const RIB_MIN_MM := 25.0
+const RIB_W_MM := 4.0
+const RIB_H_MM := 10.0
+
+
+func _stronger_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	armed = ""
+	var snap := _rec().duplicate(true)
+	_begin("Make it stronger")
+	var rec: Dictionary = snap.duplicate(true)
+	var why := _stronger(rec)
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+	else:
+		m.S.part = rec
+		_end()
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+
+
+## the rib, added to rec (see above). "" or why not
+func _stronger(rec: Dictionary) -> String:
+	var res := Part.replay(rec)
+	if int(res["bodies"]) != 1:
+		return "Make one solid first: Pull it up, then press Make it stronger"
+	var bb: AABB = res["aabb"]
+	var lo := bb.position / Part.MM
+	var hi := bb.end / Part.MM
+	var sz := hi - lo
+	var thin := 0
+	for a in 3:
+		if sz[a] < sz[thin]:
+			thin = a
+	if sz[thin] >= RIB_MIN_MM:
+		return "This solid is thick enough already (%d mm at its thinnest): nothing to add" % int(roundf(sz[thin]))
+	var others := [0, 1, 2]
+	others.erase(thin)
+	var along: int = others[0] if sz[others[0]] >= sz[others[1]] else others[1]
+	var across: int = others[1] if along == others[0] else others[0]
+	var base: String = ["right", "top", "front"][thin]
+	var pf := Part.new_feature(rec, "plane", {"from": base, "mm": snappedf(hi[thin], 0.01)})
+	rec["features"].append(pf)
+	var pl := Part.resolve_plane(rec, String(pf["id"]))
+	var mid := (lo[across] + hi[across]) * 0.5
+	var w1 := Vector3.ZERO
+	var w2 := Vector3.ZERO
+	w1[thin] = hi[thin]
+	w2[thin] = hi[thin]
+	w1[along] = lo[along]
+	w2[along] = hi[along]
+	w1[across] = mid - RIB_W_MM * 0.5
+	w2[across] = mid + RIB_W_MM * 0.5
+	var sk := Part.new_feature(rec, "sketch", {"plane": String(pf["id"]), "ents": [{"k": "rect", "a": Part.arr2(Part.to_plane(pl, w1 * Part.MM)), "b": Part.arr2(Part.to_plane(pl, w2 * Part.MM))}], "dims": []})
+	rec["features"].append(sk)
+	var ex := Part.new_feature(rec, "extrude", {"sketch": sk["id"], "dist": RIB_H_MM, "both": false, "op": "join", "into": 0})
+	rec["features"].append(ex)
+	if _last_error(rec, String(ex["id"])) != "" or int(Part.replay(rec)["bodies"]) != 1:
+		return "A rib does not fit on this solid. Pull it up taller, then press Make it stronger again"
+	tweak = {"id": ex["id"], "field": "dist", "label": "Rib height", "unit": "mm", "lo": 2.0, "hi": 30.0, "step": 1.0, "scale": 1.0, "words": ["Shorter", "Taller"]}
+	_say("Ribbed the thin side: use the Rib height slider for how tall, or press Round the edges or Cut a hole next")
+	return ""
+
+
 func _hole(rec: Dictionary) -> String:
 	var res := Part.replay(rec)
 	if int(res["bodies"]) == 0:
@@ -1932,10 +2134,13 @@ func _finish_curve() -> void:
 	var closed := (pts[pts.size() - 1] as Vector2).distance_to(pts[0] as Vector2) <= 12.0
 	_begin("Curvy line")
 	var rec := pu._ensure()
-	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": [{"k": "bspline", "pts": out, "closed": closed}], "dims": []}))
+	var raw := []   # p039: the whole hand stroke, kept, so the Smooth slider can redo the curve from it
+	for p in pts:
+		raw.append(Part.arr2(p))
+	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": [{"k": "bspline", "pts": out, "closed": closed}], "dims": [], "raw": raw, "smooth": 0.0}))
 	_end()
 	armed = ""
-	tweak = {}
+	tweak = _smooth_tweak(String(rec["features"][-1]["id"]))   # p039: the Smooth slider opens with the line (0 = as drawn)
 	pu.upto = -1
 	pu.sync()
 	_rows_sync()
@@ -1948,6 +2153,53 @@ func _finish_curve() -> void:
 		_say("Curvy line drawn: Spin it round makes a bowl, or Pull it up makes it solid" if closed else "Curvy line drawn: for a pipe, Pull along (Expert: CREATE, Sweep does the same). Or drag back to the start to close it")
 	else:
 		_say("Curvy line drawn: Pull it up makes it solid" if closed else "Curvy line drawn: for a pipe, Pull along (Expert: CREATE, Sweep does the same). Or drag back to the start to close it")   # FPIPE: an open line's next step names the pipe (a sweep), not only the closing
+
+
+## p039 SMOOTH: the Smooth slider of a Curvy line (0 = the line as drawn, 100 = the wobble gone); the ends stay put
+func _smooth_tweak(id: String) -> Dictionary:
+	return {"id": id, "field": "smooth", "label": "Smooth", "unit": "pct", "lo": 0.0, "hi": 100.0, "step": 5.0, "scale": 1.0, "words": ["Wobbly", "Smooth"]}
+
+
+## p039: the curve the kernel gets, redone from the raw stroke at the feature's Smooth (the same points _finish_curve keeps)
+func _rebuild_curve(f: Dictionary) -> void:
+	var raw := []
+	for a in f["raw"]:
+		raw.append(Vector2(float(a[0]), float(a[1])))
+	var sm := smooth_pts(raw, float(f.get("smooth", 0.0)))
+	var out := []
+	for k in _curve_keep(sm, 12):
+		out.append(Part.arr2(sm[k]))
+	f["ents"][0]["pts"] = out
+
+
+## p039 EDGE LOOP SMOOTH (Kine's own rule): each round moves every hand point onto the average of its neighbours, so a zigzag of
+## wobble flattens out. A point where the line turns sharply on purpose (a corner: the turn is 60 degrees or more and its neighbours
+## do not swing back the other way) stays where the hand put it, so a drawn corner stays a corner. Up to 8 rounds at 100.
+static func smooth_pts(pts: Array, strength: float) -> Array:
+	var p := pts.duplicate()
+	var n := p.size()
+	if strength <= 0.0 or n < 3:
+		return p
+	for _r in int(roundf(strength / 100.0 * 8.0)):
+		var turn := PackedFloat32Array()
+		turn.resize(n)
+		for i in range(1, n - 1):
+			turn[i] = (p[i] - p[i - 1]).angle_to(p[i + 1] - p[i])
+		var q := p.duplicate()
+		for i in range(1, n - 1):
+			if not _is_corner(turn, i):
+				q[i] = ((p[i - 1] as Vector2) + (p[i] as Vector2) * 2.0 + (p[i + 1] as Vector2)) * 0.25
+		p = q
+	return p
+
+
+static func _is_corner(turn: PackedFloat32Array, i: int) -> bool:
+	if absf(turn[i]) < deg_to_rad(60.0):
+		return false
+	for j in [i - 1, i + 1]:
+		if j > 0 and j < turn.size() - 1 and sign(turn[j]) == -sign(turn[i]) and absf(turn[j]) >= deg_to_rad(15.0):
+			return false   # the hand swings back on one side: a wobble, not a corner
+	return true
 
 
 ## the drawn points kept for the spline (at most maxn, first and last always): the points that bend the line most, so a rim or a
@@ -2023,7 +2275,11 @@ func _process(_dt: float) -> void:
 		_split_sync()
 	colour_box.visible = on and armed == "colour"
 	repeat_box.visible = on and armed == "" and rep_id != "" and not Part.feature(_rec(), rep_id).is_empty()
-	stick_box.visible = on and armed == "stick" and stick_picks.size() == 2
+	var smooth := on and _smooth_on()   # P035: after a Join the stick box holds only the Smooth the joints chip
+	stick_box.visible = (on and armed == "stick" and stick_picks.size() == 2) or smooth
+	smooth_btn.visible = smooth
+	for so in stick_btns:
+		(stick_btns[so] as Button).visible = not smooth
 	if del_on and (armed != "" or (_rec().get("features", []) as Array).size() != del_n):
 		_pick_clear()   # FDELETE: a pick ends with the step it was made on
 	del_btn.visible = on and del_on
@@ -2296,8 +2552,13 @@ func input(ev: InputEvent) -> bool:
 				_pick_p = p   # FDELETE: a click (no drag) on a piece picks it, on the release
 			return false
 		if not _edge.is_empty():
-			_edge_end()
-			return true
+			if p.distance_to(_edge["press"] as Vector2) >= 6.0:
+				_edge_end()
+				return true
+			# a click (no drag) on an edge is the face or piece press: it falls through to the pick / open-face code below
+			_pick_p = _edge["press"] as Vector2
+			_edge = {}
+			edge_num.visible = false
 		if not _drag.is_empty():
 			_drag_to(p, true)
 			_drag = {}
@@ -2943,6 +3204,7 @@ func _step_open(id: String) -> void:
 		return
 	tweak = tw
 	taper_tw = {}
+	twist_tw = {}
 	_rows_sig = ""
 	_rows_sync()
 	_say("Change the step: %s. The later steps are made again" % String(tw["label"]))

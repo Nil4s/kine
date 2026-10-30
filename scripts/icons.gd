@@ -95,6 +95,7 @@ const DRAW := {
 	"part_filter_all": [["box", Rect2(3, 5, 18, 14), 1.6], ["disc", Vector2(3, 5), 1.8], ["disc", Vector2(21, 5), 1.8], ["disc", Vector2(3, 19), 1.8], ["disc", Vector2(21, 19), 1.8]],   # NROUNDFILTER: every edge of the box (its four corners rounded)
 	"part_filter_outside": [["box", Rect2(3, 5, 18, 14), 2.0], ["box", Rect2(8, 9, 8, 6), 1.0]],   # NROUNDFILTER: the outside skin (a box with a thin inner line: the inside is not rounded)
 	"part_filter_top": [["seg", Vector2(3, 5), Vector2(21, 5), 3.0], ["box", Rect2(3, 8, 18, 11), 1.4]],   # NROUNDFILTER: the top rim, thick, and the box below it
+	"part_stronger": [["box", Rect2(2, 16, 20, 3), 1.6], ["seg", Vector2(6, 16), Vector2(6, 5), 2.4], ["seg", Vector2(12, 16), Vector2(12, 3), 2.4], ["seg", Vector2(18, 16), Vector2(18, 5), 2.4]],   # p038makeitstro: a plate with two ribs standing on it
 	"part_split": [["box", Rect2(3, 5, 18, 14), 1.6], ["seg", Vector2(12, 2.5), Vector2(12, 21.5), 1.5]],   # SPLIT: a block cut by a plane
 	"part_combine": [["box", Rect2(3, 5, 11, 11), 1.6], ["box", Rect2(10, 8, 11, 11), 1.6]],   # COMBINE: two overlapping blocks
 	"part_shell": [["box", Rect2(3.5, 3.5, 17, 17), 1.9], ["box", Rect2(7.5, 7.5, 9, 9), 1.2]],   # SHELL: a hollow block

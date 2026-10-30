@@ -371,7 +371,7 @@ func free_rect() -> Rect2:
 	var bottom := vs.y - float(m.bottom_h) - float(m.LINE_H) - FREE_PAD
 	# the empty scene's "What should he do?" panel sits at the left: the body is framed in the room to its right
 	var left := 0.0
-	if home != null and home.panel != null and m.S.cards.is_empty():
+	if home != null and home.panel != null and home.panel.visible and m.S.cards.is_empty():   # freestart3: a hidden picture panel (a building's Easy Part) leaves no room to the left: the body was framed 530 px to the right
 		left = EasyHome.PANEL_LEFT + home.panel.get_combined_minimum_size().x + FREE_PAD
 	return Rect2(left, top, vs.x - left, maxf(bottom - top, 40.0))
 
