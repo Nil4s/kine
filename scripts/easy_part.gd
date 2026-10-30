@@ -143,6 +143,15 @@ func build(root: Control) -> void:
 		sh.add_child(b)
 		shape_btns[s[0]] = b
 	sh.add_child(_sides_row())   # NPOLY2: Sides, next to Hex: a regular shape with 3 to 12 sides
+	var pic := Button.new()   # P034: Picture: your own picture becomes a raised logo (a press opens the file dialog, not a drag)
+	pic.name = "easypart_shape_picture"
+	pic.text = "Picture"
+	pic.focus_mode = Control.FOCUS_NONE
+	pic.custom_minimum_size = Vector2(96, 40)
+	pic.add_theme_font_size_override("font_size", 16)
+	pic.tooltip_text = "Your own picture: a dark shape on white becomes a raised logo, 4 cm wide and 2 mm high, in one step"
+	pic.pressed.connect(_picture_press)
+	sh.add_child(pic)
 	root.add_child(shape_box)
 	hole_box = _hole_box()
 	root.add_child(hole_box)
@@ -511,6 +520,62 @@ func _pull_along_press() -> void:
 	_rows_sync()
 	_values_sync()
 	_say("Pulled along the curve: a pipe. Undo takes it back")
+
+
+## P034 YOUR OWN PICTURE: Picture (in the Draw shape row) opens a file dialog; the picture's dark shape becomes a raised logo on the
+## floor: a closed outline sketch, pulled up 2 mm, ONE undo step. The words say the next step when the picture cannot be used
+const PICTURE_MM := 40.0   # the logo's longer side
+const PICTURE_H := 2.0     # the raised height
+
+
+func _picture_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	var fd := FileDialog.new()
+	fd.name = "easypart_picture_dialog"
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.png, *.jpg, *.jpeg, *.webp, *.bmp ; Pictures"])
+	fd.title = "Pick your picture"
+	fd.file_selected.connect(func(p: String): fd.queue_free(); _picture_chosen(p))
+	fd.canceled.connect(fd.queue_free)
+	shape_box.get_parent().add_child(fd)
+	fd.popup_centered(Vector2i(640, 480))
+	_say("Pick a picture: a dark shape on white works best")
+
+
+func _picture_chosen(path: String) -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	var got: Dictionary = PictureTrace.outline(path, PICTURE_MM)
+	if String(got["why"]) != "":
+		_say(String(got["why"]))
+		return
+	_flush_if_dirty()
+	var snap := _rec().duplicate(true)
+	_begin("Your picture")
+	var rec := pu._ensure()
+	var sk := Part.new_feature(rec, "sketch", {"plane": "top", "ents": got["ents"], "dims": []})
+	rec["features"].append(sk)
+	var f := Part.new_feature(rec, "extrude", {"sketch": String(sk["id"]), "dist": PICTURE_H, "both": false, "op": "join"})
+	rec["features"].append(f)
+	var err := _last_error(rec, String(f["id"]))
+	if err != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("Your picture did not make a raised logo: %s. Use a picture with a bigger, plainer dark shape" % err)
+		return
+	_end()
+	armed = ""
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	_say("Your picture is a raised logo 2 mm high. Undo takes it back")
 
 
 ## the newest feature is a solid piece with no tilt yet: the Tilt it chip shows for it
