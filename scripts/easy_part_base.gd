@@ -16,7 +16,7 @@ const SCREW_DS := [3, 4, 5, 6]         # NSCREW2: the Parts category's screw siz
 const SCREW_LENS := [10, 16, 20, 30]   # NSCREW2: the screw lengths in mm (rows of the grid)
 const BRACKET_CHIPS := [["L", "L-bracket", 1, "An L: a foot and an upright, two screw holes"], ["T", "T-bracket", 2, "A T: a bar on a stem, two screw holes"], ["corner", "Corner brace", 3, "An L with a gusset in the corner, two screw holes"]]   # FRIDAY 73: the Brackets page chips (key, words, kind 1 / 2 / 3)
 const LIB_CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "Springs", "Handles", "Wheels", "Brackets", "Clips and feet", "Boards"]   # NLIBPAGE: the Parts library page, in this order
-const LIB_READY := ["Screws", "Gears", "Bearings", "Brackets", "Clips and feet", "Handles", "Wheels", "Boards"]   # NLIBPAGE: the categories with parts today; the others say coming soon
+const LIB_READY := ["Screws", "Gears", "Bearings", "Brackets", "Clips and feet", "Handles", "Wheels", "Boards", "Hinges"]   # NLIBPAGE: the categories with parts today; the others say coming soon
 const CLIP_KINDS := ["foot", "clip", "slot"]   # P075: the Clips and feet chips: a rubber foot, a cable clip, a zip-tie slot (template kinds in part_templates.gd)
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
 const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal): a wood brown, red > green > blue
@@ -102,6 +102,7 @@ var lib_soon: Label              # NLIBPAGE: "Coming soon" line for an empty cat
 var handle_box: PanelContainer    # P071 HANDLES: the Handles grid (three kinds x three sizes), under the library page while Handles is open or a handle is the part
 var handle_btns := {}            # P071 HANDLES: "kind_size" -> its size chip
 var handle_words: Label          # P071 HANDLES: the grid's one-line instruction: hidden while the library page is open (the page says it), so the grid fits
+var hinge_pick: Button           # p067hinges: the Hinge button on the Hinges page (its own row: the template chips do not move)
 var lib_cat := ""                # NLIBPAGE: the category open on the page ("" = none); Screws opens when Parts opens
 var bear_box: PanelContainer      # P069 BEARINGS: the bearing chips (608, 625, 688) and the seat button: shown with the Bearings page or a bearing / seat on the floor
 var bear_btns := {}              # P069 BEARINGS: "608" / "625" / "688" -> its chip

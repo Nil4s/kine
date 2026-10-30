@@ -64,6 +64,11 @@ const T := {
 		{"k": "teeth", "label": "Length", "lo": 4.0, "hi": 40.0, "def": 12.0, "step": 1.0, "words": ["Shorter", "Longer"], "raw": true, "unit": "teeth"},
 		{"k": "module", "label": "Teeth size", "lo": 1.0, "hi": 3.0, "def": 2.0, "step": 1.0, "words": ["Small teeth", "Big teeth"], "raw": true, "unit": "size"},
 		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 30.0, "def": 10.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
+	# p067hinges: a hinge from the Hinge chip (not in ORDER: its own button beside Parts). Sized to the door: the door's height (mm) sets the
+	# leaves (butt and living: door / 21 rounded to 5 mm, so 100 mm at 2100) or the strip (piano: the full door height). kind: 1 Butt, 2 Piano, 3 Living.
+	"hinge": {"title": "Hinge", "params": [
+		{"k": "door", "label": "Door height", "lo": 1800.0, "hi": 2400.0, "def": 2100.0, "step": 100.0, "words": ["Shorter door", "Taller door"], "raw": true, "unit": "mm"},
+		{"k": "kind", "label": "Kind", "lo": 1.0, "hi": 3.0, "def": 1.0, "step": 1.0, "words": ["Butt", "Living"], "raw": true, "unit": "kind"}]},
 	# VEHICLE PARTS (B3, scripts/vehicle.gd): not in ORDER, so no Easy chip: a car body and one wheel
 	"car": {"title": "Car body", "params": [
 		{"k": "body_length", "label": "Length", "lo": 1500.0, "hi": 5000.0, "def": 4000.0, "step": 50.0, "words": ["Shorter", "Longer"]},
@@ -617,6 +622,18 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			for h in b["holes"]:
 				lh.append({"k": "circle", "c": [lx + inset + float(h[0]), -(inset + float(h[1]))], "r": CASE_HOLE_R})
 			_ex(fs, _sk(fs, "top", lh), "extrude", CASE_LID + 1.0, "cut")
+		"hinge":
+			# p067hinges: in the front plane (x across, y up the door). Butt: a 60 mm plate, 2.5 mm thick, leaf length L. Piano: a 30 mm strip
+			# the full door height, 1.5 mm. Living: the whole 60 mm strip 0.8 mm thick (a thin flexible strip; a web with thicker leaves did not build on the kernel).
+			var door: float = p["door"]
+			var L := clampf(roundf(door / 21.0 / 5.0) * 5.0, 60.0, 150.0)
+			var kd := int(roundf(float(p["kind"])))
+			if kd == 2:
+				_ex(fs, _sk(fs, "front", [_rect(Vector2(-15.0, 0.0), Vector2(15.0, door))]), "extrude", 1.5, "new")
+			elif kd == 3:
+				_ex(fs, _sk(fs, "front", [_rect(Vector2(-30.0, 0.0), Vector2(30.0, L))]), "extrude", 0.8, "new")
+			else:
+				_ex(fs, _sk(fs, "front", [_rect(Vector2(-30.0, 0.0), Vector2(30.0, L))]), "extrude", 2.5, "new")
 		"wheel":
 			# a tyre: the profile (width x radius) turned about the sketch's x axis = world X, the axle (side to side)
 			var R: float = p["radius"]
