@@ -412,8 +412,8 @@ static func spring_profile(n: int, w: float) -> Array:
 		var best := -1.0
 		for k in n:
 			var d := y - (float(k) * pitch + h)
-			if absf(d) <= h:
-				best = maxf(best, sqrt(h * h - d * d))
+			if absf(d) <= h + 0.000001:   # the 0.1 mm grid is not exact in floats: the top and bottom points keep their place
+				best = maxf(best, sqrt(maxf(0.0, h * h - d * d)))
 		if best < 0.0:
 			continue
 		right.append(Vector2(rc + best, y))
