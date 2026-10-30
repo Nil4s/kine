@@ -332,3 +332,4 @@ EXTRA="$EXTRA p035filletinsi:w"   # P035 FILLET INSIDE: Easy Part Stick together
 
 EXTRA="$EXTRA p038makeitstro:w"   # P038 MAKE IT STRONGER: Easy Part, a thin plate pulled up, then Make it stronger adds a 4 mm x 10 mm rib along its long side on the top (one undo step, a Rib height slider); bars on the built solid (tests/p038makeitstro_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA p039edgeloopsm:w"   # p039edgeloopsm (Friday plan 39): Curvy line gets a Smooth slider (0 = as drawn, 100 = wobble gone, corners kept); a wobbly hand line by real clicks, bars on the saved curve points (tests/p039edgeloopsm_test.gd)
+EXTRA="$EXTRA p103explodedvi:w"   # P103 EXPLODED VIEW (Friday plan 103): Easy Part Pull apart slider on two or more pieces: one click at 30 % pulls the pieces apart along the joint line (gap = 100 + 2 x mm within 0.5 mm, no sideways drift), view only (no step, no undo), together at the left end (tests/p103explodedvi_test.gd; needs the CAD DLL)

@@ -87,6 +87,10 @@ var lib_box: PanelContainer      # NLIBPAGE: the Parts library page: ten categor
 var lib_btns := {}               # NLIBPAGE: category -> its chip
 var lib_soon: Label              # NLIBPAGE: "Coming soon" line for an empty category (names the next step)
 var lib_cat := ""                # NLIBPAGE: the category open on the page ("" = none); Screws opens when Parts opens
+var explode_box: PanelContainer  # EXPLODE (p103): the Pull apart slider, shown while the part has two or more pieces (view only, no step)
+var explode_slider: HSlider
+var explode_label: Label
+const EXPLODE_MAX_MM := 100.0   # the Pull apart slider: how far a piece can be pulled from the middle (mm)
 var stick_box: PanelContainer    # Stick together: Join / Cut away / Keep the overlap, shown once two pieces are picked
 var stick_btns := {}
 var smooth_btn: Button    # P035: Smooth the joints, in the stick box after a Join (the three Join / Cut / Keep buttons hide then)

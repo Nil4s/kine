@@ -165,6 +165,8 @@ func build(root: Control) -> void:
 	root.add_child(repeat_box)
 	stick_box = _stick_box()
 	root.add_child(stick_box)
+	explode_box = _explode_box()
+	root.add_child(explode_box)
 	tilt_box = _tilt_box()
 	root.add_child(tilt_box)
 	steps_box = _steps_box()   # NSTEPLIST
@@ -2280,6 +2282,9 @@ func _process(_dt: float) -> void:
 	smooth_btn.visible = smooth
 	for so in stick_btns:
 		(stick_btns[so] as Button).visible = not smooth
+	explode_box.visible = on and int(pu.res.get("bodies", 0)) >= 2 and armed == "" and not _hole_on() and not _split_on()   # EXPLODE (p103): two or more pieces; not over a hole's or a cut's keep chips
+	if not explode_box.visible and pu.explode_mm != 0.0:
+		_explode_reset()
 	if del_on and (armed != "" or (_rec().get("features", []) as Array).size() != del_n):
 		_pick_clear()   # FDELETE: a pick ends with the step it was made on
 	del_btn.visible = on and del_on
@@ -2677,7 +2682,7 @@ func _over_ui(p: Vector2) -> bool:
 	if edge_chip != null and edge_chip.visible and edge_chip.get_global_rect().has_point(p):
 		return true   # NEDGECHIP: the edge chip is a button: its press is not a pick
 	# hint and status are WORDS only (a _pill: mouse_filter IGNORE, one Label, no button): a press under them is the grid's, not eaten
-	for c in [bar, make_box, panel, shape_box, colour_box, repeat_box, stick_box, tilt_box]:
+	for c in [bar, make_box, panel, shape_box, colour_box, repeat_box, stick_box, explode_box, tilt_box]:
 		if (c as Control).visible and (c as Control).get_global_rect().has_point(p):
 			return true
 	return false

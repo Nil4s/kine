@@ -373,3 +373,43 @@ func _remove_piece() -> void:
 	_rows_sync()
 	_end()
 	_say("Took out the piece. Undo puts it back")
+
+
+## EXPLODE (p103): Pull apart, one slider from Together (0 mm) to Apart (100 mm). The pieces fly out from the middle of the whole part:
+## the view only (the record, its undo steps and the saved part do not change). Shown while the part has two or more pieces
+func _explode_box() -> PanelContainer:
+	var box := PanelContainer.new()
+	box.name = "easypart_explode"
+	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	box.visible = false
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 2)
+	box.add_child(v)
+	explode_label = Label.new()
+	explode_label.name = "easypart_explode_label"
+	explode_label.add_theme_font_size_override("font_size", 16)
+	v.add_child(explode_label)
+	explode_slider = HSlider.new()
+	explode_slider.name = "easypart_explode_slider"
+	explode_slider.min_value = 0.0
+	explode_slider.max_value = EXPLODE_MAX_MM
+	explode_slider.step = 1.0
+	explode_slider.focus_mode = Control.FOCUS_NONE
+	explode_slider.custom_minimum_size = Vector2(260, 24)
+	explode_slider.add_theme_icon_override("grabber", _knob())
+	explode_slider.value_changed.connect(_explode_set)
+	v.add_child(explode_slider)
+	_explode_reset()
+	return box
+
+
+## the slider's value: the pieces move to it (mm), and the label names it in plain words
+func _explode_set(v: float) -> void:
+	pu.explode_mm = v
+	pu.sync()   # the view draws the pieces at the new distance now (the record is not touched)
+	explode_label.text = "Pull apart: %d mm" % int(v) if v > 0.0 else "Pull apart: together"
+
+
+func _explode_reset() -> void:
+	explode_slider.set_value_no_signal(0.0)
+	_explode_set(0.0)
