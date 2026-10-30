@@ -171,6 +171,7 @@ func _init() -> void:
 		for L in LENS:
 			var c := chip(d, L)
 			if c == null:
+				off_screen.append("missing M%d x %d" % [d, L])
 				continue
 			if not vp.encloses(Rect2(c.global_position, c.size)):
 				off_screen.append(c.name)
