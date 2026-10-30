@@ -192,6 +192,7 @@ func build(root: Control) -> void:
 	var th := HBoxContainer.new()   # the title line: "Change your part" and, at its end, Empty (the template chips stay on one line below)
 	th.name = "easypart_title_row"
 	v.add_child(th)
+	v.add_child(_suggest_row())   # P092: the two next-step chips, under the title
 	th.add_child(panel_title)
 	empty_chip = Button.new()   # EMPTY first: Easy Part opens on a sword, and a beginner building their own thing needs a clean floor
 	empty_chip.name = "easypart_chip_empty"
@@ -440,18 +441,28 @@ func _tilt_box() -> PanelContainer:
 	pull_along_btn.custom_minimum_size = Vector2(230, 44)
 	pull_along_btn.visible = false
 	row.add_child(pull_along_btn)
-	# P092: the next steps after a Pull it up, in plain words (one press each, one undo step)
+	return box
+
+
+## P092: the next steps after a Pull it up, in plain words (one press each, one undo step). They sit in the right panel's column under
+## the title (off the grid, the step list and the timeline), in one row that shows only while the newest step is a Pull it up
+func _suggest_row() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.name = "easypart_suggest"
+	row.add_theme_constant_override("separation", 6)
+	row.visible = false
 	suggest_round_btn = _big_btn("easypart_suggest_round", "Round the edges?", "Next step: soften the sharp edges of this solid", _suggest_round_press)
 	suggest_round_btn.icon = Icons.tex("part_fillet")
-	suggest_round_btn.custom_minimum_size = Vector2(230, 44)
-	suggest_round_btn.visible = false
+	suggest_round_btn.custom_minimum_size = Vector2(0, 44)
+	suggest_round_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(suggest_round_btn)
 	suggest_hollow_btn = _big_btn("easypart_suggest_hollow", "Hollow it?", "Next step: hollow this solid out, open at the top, with a 3 mm wall", _suggest_hollow_press)
 	suggest_hollow_btn.icon = Icons.tex("part_circle")
-	suggest_hollow_btn.custom_minimum_size = Vector2(230, 44)
-	suggest_hollow_btn.visible = false
+	suggest_hollow_btn.custom_minimum_size = Vector2(0, 44)
+	suggest_hollow_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(suggest_hollow_btn)
-	return box
+	suggest_row = row
+	return row
 
 
 ## P092: the newest step is a Pull it up (a solid, not a cut, not switched off): the two next-step chips show under it
@@ -2344,10 +2355,8 @@ func _process(_dt: float) -> void:
 	pull_along_btn.visible = along
 	tilt_btn.visible = tilt_on
 	draft_btn.visible = draft_on
-	var sugg := on and _suggest_on()   # P092: after a Pull it up the two next-step chips show in the Tilt it box
-	suggest_round_btn.visible = sugg
-	suggest_hollow_btn.visible = sugg
-	tilt_box.visible = on and armed == "" and (along or tilt_on or draft_on or sugg)
+	suggest_row.visible = on and _suggest_on()   # P092: after a Pull it up the two next-step chips show in the panel, under the title
+	tilt_box.visible = on and armed == "" and (along or tilt_on or draft_on)
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
 	if not on:
 		return

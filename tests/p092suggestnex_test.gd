@@ -176,8 +176,8 @@ func _init() -> void:
 	await shot("box")
 
 	# S1 both chips after Pull it up: visible, plain words, not greyed
-	var rbtn: Button = ep.tilt_box.find_child("easypart_suggest_round", true, false) as Button
-	var hbtn: Button = ep.tilt_box.find_child("easypart_suggest_hollow", true, false) as Button
+	var rbtn: Button = ep.suggest_row.find_child("easypart_suggest_round", true, false) as Button
+	var hbtn: Button = ep.suggest_row.find_child("easypart_suggest_hollow", true, false) as Button
 	var r_ok := rbtn != null and rbtn.is_visible_in_tree() and not rbtn.disabled and rbtn.text == "Round the edges?"
 	var h_ok := hbtn != null and hbtn.is_visible_in_tree() and not hbtn.disabled and hbtn.text == "Hollow it?"
 	ok(r_ok and h_ok, "S1 the chips are there after Pull it up: Round the edges? (%s), Hollow it? (%s)" % [r_ok, h_ok])
@@ -205,7 +205,7 @@ func _init() -> void:
 		"S3 Ctrl+Z takes the round off: %d curved faces (want 0), undo %d -> %d" % [curved(s3), ub3, m.undo.size()])
 
 	# S4 one click on Hollow it? (the chips are back after the undo)
-	var hbtn2: Button = ep.tilt_box.find_child("easypart_suggest_hollow", true, false) as Button
+	var hbtn2: Button = ep.suggest_row.find_child("easypart_suggest_hollow", true, false) as Button
 	var h4 := hbtn2 != null and hbtn2.is_visible_in_tree() and not hbtn2.disabled
 	var c4 := clicks
 	if h4:

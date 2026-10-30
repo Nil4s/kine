@@ -75,8 +75,9 @@ var steps_box: PanelContainer    # NSTEPLIST: the step list under the panel, in 
 var steps_vb: VBoxContainer
 var _steps_sig := ""
 var tilt_btn: Button
-var suggest_round_btn: Button    # P092: "Round the edges?" under a pulled-up solid (the Tilt it box): one press = Round the edges
-var suggest_hollow_btn: Button   # P092: "Hollow it?" under a pulled-up solid: one press = Hollow inside (HOLLOW_MM wall, open at the top)
+var suggest_row: HBoxContainer   # P092: the next-step row in the right panel (after a Pull it up): the two chips below
+var suggest_round_btn: Button    # P092: "Round the edges?" under a pulled-up solid (the suggest row): one press = Round the edges
+var suggest_hollow_btn: Button   # P092: "Hollow it?" under a pulled-up solid (the suggest row): one press = Hollow inside (HOLLOW_MM wall, open at the top)
 var draft_btn: Button            # p021: Draft angle, the chip beside Tilt it (the side walls lean DRAFT_DEG for a mould)
 var pull_along_btn: Button       # P026: Pull along, the same box as Tilt it: shows after a curve or a shape is drawn (the newest step is a sketch)
 var parts_btn: Button            # NSCREW2: the Parts category chip (opens the screw grid under the template chips)
