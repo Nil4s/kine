@@ -206,7 +206,7 @@ func build(root: Control) -> void:
 	th.add_child(empty_chip)
 	var cr := HFlowContainer.new()
 	cr.name = "easypart_chips"
-	cr.add_theme_constant_override("h_separation", 3)
+	cr.add_theme_constant_override("h_separation", 2)
 	cr.add_theme_constant_override("v_separation", 4)
 	v.add_child(cr)
 	parts_btn = Button.new()   # NSCREW2: Parts: the screw sizes; after the template chips on the same row
@@ -225,16 +225,21 @@ func build(root: Control) -> void:
 	start_l.add_theme_color_override("font_color", Color(0.7, 0.73, 0.78))
 	start_l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	cr.add_child(start_l)
-	for t in PartTemplates.START + ["gear"]:   # the simple shapes; gear stays on the row (NGEAR); the weapons and props are under More examples
+	for t in PartTemplates.START + ["gear", "rack"]:   # the simple shapes; gear stays on the row (NGEAR), rack beside it (P066: its pinion); the weapons and props are under More examples
 		var b := Button.new()
 		b.name = "easypart_chip_" + t
 		b.text = CHIP_TEXT.get(t, String(PartTemplates.T[t]["title"]))   # the chip word on the blank part is plain; the part keeps the template title
 		b.toggle_mode = true
 		b.focus_mode = Control.FOCUS_NONE
 		b.custom_minimum_size = Vector2(0, 34)
-		b.add_theme_font_size_override("font_size", 13)   # NGEAR: 13 (was 15) so six templates (Gear) stay on one row of the panel
+		b.add_theme_font_size_override("font_size", 11)   # NGEAR: 13 (was 15) so six templates (Gear) stay on one row of the panel; P066: 11 so seven (Rack) do too
 		b.pressed.connect(_chip.bind(t))
 		cr.add_child(b)
+		for sn in ["normal", "hover", "pressed", "focus", "disabled"]:   # P066: 4 px side margins (the theme's are wider) so seven chips (Rack) stay on one row
+			var sb := b.get_theme_stylebox(sn).duplicate() as StyleBox
+			sb.content_margin_left = 4.0
+			sb.content_margin_right = 4.0
+			b.add_theme_stylebox_override(sn, sb)
 		chips[t] = b
 	var more := Button.new()   # the weapons and props are not gone: What to build (From a template) lists them
 	more.name = "easypart_more_examples"
