@@ -235,7 +235,7 @@ func _init() -> void:
 	var ub0: int = m.undo.size()
 	var nb := nut_btn()
 	var pressed := await click_ctl(nb)
-	var st0: String = String(ep.status_l.text).to_lower()
+	var st0: String = String(ep.hint_l.text).to_lower()   # the words of the last press show on the hint line (the status line counts solids)
 	ok(nb != null and pressed and m.undo.size() == ub0 and st0.contains("screw") and st0.contains("first"), "0 no screw yet: the nut button is there and says to put a screw on the floor first, no undo step (%d -> %d, status \"%s\")" % [ub0, m.undo.size(), st0])
 	# 1 OFFER: M4 x 16 dropped, then ONE click for its nut and washer
 	await click_ctl(chip(4, 16))
@@ -251,7 +251,7 @@ func _init() -> void:
 	# 2 AGAIN: a second click does nothing
 	var ub2: int = m.undo.size()
 	await click_ctl(nut_btn())
-	ok(m.undo.size() == ub2 and String(ep.status_l.text).to_lower().contains("already"), "2 nut and washer already on the floor: no undo step (%d -> %d), status \"%s\"" % [ub2, m.undo.size(), ep.status_l.text])
+	ok(m.undo.size() == ub2 and String(ep.hint_l.text).to_lower().contains("already"), "2 nut and washer already on the floor: no undo step (%d -> %d), status \"%s\"" % [ub2, m.undo.size(), ep.hint_l.text])
 	# 3 RESIZE: M6 x 30 after the nut: one undo step, all three follow
 	var ub3: int = m.undo.size()
 	await click_ctl(chip(6, 30))
