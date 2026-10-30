@@ -1134,6 +1134,8 @@ func _lib_press(cat: String) -> void:
 		_say("Screws: pick a size. It drops on the floor")
 	elif cat == "Gears":
 		_say("Gears: press Gear in the chips above. It drops on the floor")
+	elif cat == "Hinges":
+		_say("Hinges: press Hinge below. It drops on the floor, sized to the door")
 	else:
 		_say("%s are coming soon. Next step: press Screws or Gears" % cat)
 	_screw_sync()
@@ -1172,6 +1174,16 @@ func _lib_box() -> PanelContainer:
 	lib_soon.add_theme_font_size_override("font_size", 14)
 	lib_soon.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lib_soon.visible = false
+	hinge_pick = Button.new()   # p067hinges: a Hinges page button (shown only on Hinges): one click, a Butt hinge at the door's height
+	hinge_pick.name = "easypart_hinge_pick"
+	hinge_pick.text = "Hinge"
+	hinge_pick.toggle_mode = true
+	hinge_pick.focus_mode = Control.FOCUS_NONE
+	hinge_pick.custom_minimum_size = Vector2(0, 34)
+	hinge_pick.add_theme_font_size_override("font_size", 13)
+	hinge_pick.visible = false
+	hinge_pick.pressed.connect(_chip.bind("hinge"))
+	vb.add_child(hinge_pick)
 	vb.add_child(lib_soon)
 	return pc
 
@@ -1276,6 +1288,9 @@ func _screw_sync() -> void:
 			var lb: Button = lib_btns[cat]
 			lb.set_pressed_no_signal(parts_open and cat == lib_cat)
 			m._grey(lb, Part.why_not() if not Part.available() else "")
+		hinge_pick.visible = parts_open and lib_cat == "Hinges"   # p067hinges
+		hinge_pick.set_pressed_no_signal(_tpl() == "hinge")
+		m._grey(hinge_pick, Part.why_not() if not Part.available() else "")
 		lib_soon.visible = parts_open and lib_cat != "" and not (lib_cat in LIB_READY)
 		if screw_words != null:   # the page is open: its chips and the status line say what to do
 			screw_words.visible = not parts_open
