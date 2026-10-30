@@ -1000,6 +1000,9 @@ func _screw_box() -> PanelContainer:
 	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	screw_words = hd
 	vb.add_child(hd)
+	var row := HBoxContainer.new()   # FRIDAY 37 BOSS CHIP: the boss and nut buttons side by side, above the sizes (in view, not under the scroll)
+	row.add_theme_constant_override("separation", 4)
+	vb.add_child(row)
 	var g := GridContainer.new()
 	g.columns = SCREW_DS.size()
 	g.add_theme_constant_override("h_separation", 4)
@@ -1016,7 +1019,21 @@ func _screw_box() -> PanelContainer:
 	nw_btn.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
 	nw_btn.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
 	nw_btn.pressed.connect(_nw_add)
-	vb.add_child(nw_btn)
+	nw_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(nw_btn)
+	boss_btn = Button.new()   # FRIDAY 37 BOSS CHIP: a round post beside the screw on the floor, sized to it (outside head + 4 mm, hole + 0.5 mm, height = length), one click
+	boss_btn.name = "easypart_boss_add"
+	boss_btn.text = "Add its boss"
+	boss_btn.icon = _boss_icon()
+	boss_btn.tooltip_text = "Put a round post beside this screw, sized to it: the screw goes through its hole. One click, one undo step"
+	boss_btn.focus_mode = Control.FOCUS_NONE
+	boss_btn.custom_minimum_size = Vector2(0, 34)
+	boss_btn.add_theme_font_size_override("font_size", 13)
+	boss_btn.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+	boss_btn.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+	boss_btn.pressed.connect(_boss_add)
+	boss_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(boss_btn)
 	for L in SCREW_LENS:
 		for d in SCREW_DS:
 			var hw: float = float(PartTemplates.SCREW_HEAD[d][0])
@@ -1060,6 +1077,54 @@ func _nw_icon() -> ImageTexture:
 	img.fill_rect(Rect2i(4, 3, 8, 6), col)
 	img.fill_rect(Rect2i(6, 5, 4, 2), Color(0, 0, 0, 0))
 	return ImageTexture.create_from_image(img)
+
+
+## FRIDAY 37 BOSS CHIP: a small ring icon (a post seen from above: a ring, Tok colour only), same 16 px box as the others
+func _boss_icon() -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	for y in 16:
+		for x in 16:
+			var r := Vector2(x + 0.5 - 8.0, y + 0.5 - 8.0).length()
+			if r <= 7.0 and r >= 4.0:
+				img.set_pixel(x, y, col)
+	return ImageTexture.create_from_image(img)
+
+
+## FRIDAY 37 BOSS CHIP: the boss button. No screw on the floor: it says what to do first. Its post already there: it says so (no undo step).
+## Else one undo step puts the post on the floor beside the screw, sized to it.
+func _boss_add() -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var on_floor := _tpl() == "screw" and not (_rec().get("features", []) as Array).is_empty()
+	if not on_floor:
+		_say("Put a screw on the floor first: pick a size above, then press Add its boss")
+		_screw_sync()
+		return
+	var e: Dictionary = _rec().get("easy", {})
+	if int(e.get("bo", -1)) >= 0:
+		_say("Its boss is on the floor already. Pick another size to change it")
+		_screw_sync()
+		return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Add the boss"
+	m._push_undo()
+	var cur: Dictionary = e["p"]
+	PartTemplates.bo_add(_rec(), int(cur["d"]), int(cur["L"]))
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("The boss did not build. Press Reset, then pick a size again")
+	else:
+		_say("Boss on the floor beside the screw. Pick another size to change it")
+	_screw_sync()
 
 
 ## NNUTWASHER: the nut button. No screw on the floor: it says what to do first. Its nut and washer already there: it says so (no undo step).
@@ -1240,6 +1305,7 @@ func _screw_pick(d: int, L: int) -> void:
 	if on_floor:
 		PartTemplates.retemplate(_rec(), {"d": d, "L": L})
 		PartTemplates.nw_set(_rec(), d)   # NNUTWASHER: the nut and washer (if on the floor) follow the size
+		PartTemplates.bo_set(_rec(), d, L)   # FRIDAY 37 BOSS CHIP: the post (if on the floor) follows the size too
 	else:
 		m.S.part = PartTemplates.make("screw", {"d": d, "L": L})
 	tweak = {}
