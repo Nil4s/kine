@@ -1146,20 +1146,20 @@ func _screw_box() -> PanelContainer:
 	var g := GridContainer.new()
 	g.columns = SCREW_DS.size()
 	g.add_theme_constant_override("h_separation", 4)
-	g.add_theme_constant_override("v_separation", 4)
-	vb.add_child(g)
+	g.add_theme_constant_override("v_separation", 3)
 	nw_btn = Button.new()   # NNUTWASHER: the nut (ISO 4032) and washer (ISO 7089) of the screw on the floor, in one click
 	nw_btn.name = "easypart_nw_add"
 	nw_btn.text = "Add its nut and washer"
 	nw_btn.icon = _nw_icon()
 	nw_btn.tooltip_text = "Put the nut and the washer of this screw on the floor beside it. One click, one undo step"
 	nw_btn.focus_mode = Control.FOCUS_NONE
-	nw_btn.custom_minimum_size = Vector2(0, 34)
+	nw_btn.custom_minimum_size = Vector2(0, 28)
 	nw_btn.add_theme_font_size_override("font_size", 13)
 	nw_btn.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
 	nw_btn.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
 	nw_btn.pressed.connect(_nw_add)
-	vb.add_child(nw_btn)
+	vb.add_child(nw_btn)   # above the size chips: under them it sat below the fold of a short panel (the test clicked past it)
+	vb.add_child(g)
 	for L in SCREW_LENS:
 		for d in SCREW_DS:
 			var hw: float = float(PartTemplates.SCREW_HEAD[d][0])
@@ -1171,7 +1171,7 @@ func _screw_box() -> PanelContainer:
 			b.tooltip_text = "M%d x %d: head %s mm across, %s mm high, plain shank %d mm long" % [d, L, str(hw), str(hh), L]
 			b.toggle_mode = true
 			b.focus_mode = Control.FOCUS_NONE
-			b.custom_minimum_size = Vector2(0, 34)
+			b.custom_minimum_size = Vector2(0, 28)
 			b.add_theme_font_size_override("font_size", 13)
 			b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
 			b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
