@@ -1175,13 +1175,17 @@ static func _loft(bodies: Array, f: Dictionary, sketches: Dictionary) -> String:
 	if ids.size() < 2:
 		return "a loft needs two or more sketches"
 	var faces := PackedInt32Array()
-	for sid in ids:
+	var tw := deg_to_rad(float(f.get("twist", 0.0)))   # TWIST: the last (top) shape turns about its own middle by this much
+	for i in ids.size():
+		var sid = ids[i]
 		var sk: Dictionary = sketches.get(String(sid), {})
 		if sk.is_empty():
 			for fc in faces:
 				KCad.release(fc)
 			return "its sketch %s is gone or cannot be read" % String(sid)
 		var pl: Dictionary = sk.get("_pl", plane(String(sk.get("plane", "front"))))
+		if i == ids.size() - 1 and absf(tw) > 0.0001:
+			pl = twist_plane(pl, sk["ents"], tw)
 		var face := KCad.sketch_face(items_of(sk["ents"]), pl["o"], pl["x"], pl["n"])
 		if face == 0:
 			for fc in faces:
@@ -1194,6 +1198,46 @@ static func _loft(bodies: Array, f: Dictionary, sketches: Dictionary) -> String:
 	if solid == 0:
 		return KCad.last_error()
 	return _combine(bodies, solid, String(f.get("op", "join")))
+
+## TWIST (Friday 27): the plane turned by tw (radians) about its normal, through the middle of the shape on it. The shape turns where it
+## stands (it does not move), so a loft from the shape under it twists by tw. The middle is the centre of the shape's box (mm, in its plane)
+static func twist_plane(pl: Dictionary, ents: Array, tw: float) -> Dictionary:
+	var c := sketch_centre(ents) * MM
+	var o: Vector3 = pl["o"]
+	var x: Vector3 = pl["x"]
+	var n: Vector3 = pl["n"]
+	var mid := o + x * c.x + n.cross(x) * c.y
+	var q := Quaternion(n, tw)
+	var out := pl.duplicate()
+	out["o"] = mid + q * (o - mid)
+	out["x"] = q * x
+	out["y"] = q * n.cross(x)
+	return out
+
+
+## TWIST: the centre of a sketch's box (mm, in its own plane); a circle counts its whole radius
+static func sketch_centre(ents: Array) -> Vector2:
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for e in ents:
+		var pts: Array = []
+		match String(e["k"]):
+			"line", "rect":
+				pts = [v2(e["a"]), v2(e["b"])]
+			"circle":
+				var cc := v2(e["c"])
+				var r := float(e["r"])
+				pts = [cc - Vector2(r, r), cc + Vector2(r, r)]
+			"arc":
+				pts = [v2(e["a"]), v2(e["m"]), v2(e["b"])]
+			"bspline":
+				for p in e.get("pts", []):
+					pts.append(v2(p))
+		for p in pts:
+			lo = lo.min(p)
+			hi = hi.max(p)
+	return (lo + hi) * 0.5 if lo.x < INF else Vector2.ZERO
+
 
 ## GAP 6 SWEEP: the path sketch as kernel items (lines, arcs, splines) in its sketch plane, one connected chain. A corner between two lines or
 ## arcs (a kink) is rounded with a fillet arc of radius rc, tangent to both pieces: the kernel's pipe along a path with a kink leaves its second
