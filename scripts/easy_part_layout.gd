@@ -775,6 +775,62 @@ func _draft_outline() -> PackedVector2Array:
 	return pts
 
 
+## P044 SKETCH DIMS: the length of every side of the draft while the mouse holds it: a small label in mm beside each side's middle.
+## The labels are children of the dots canvas (made once, reused, hidden when no draft has sides). A curve or a round shape has no sides: none shown
+var dim_labels: Array = []
+
+
+func _dim_label(i: int) -> Label:
+	while dim_labels.size() <= i:
+		var l := Label.new()
+		l.name = "easypart_draft_dim_%d" % dim_labels.size()
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		l.add_theme_font_size_override("font_size", 14)
+		l.add_theme_color_override("font_color", Color.WHITE)
+		l.add_theme_stylebox_override("normal", _style(Color(0.1, 0.11, 0.14, 0.9), 4, 6))
+		dots.add_child(l)
+		dim_labels.append(l)
+	return dim_labels[i]
+
+
+## the corners (mm, on the draft's plane) of a box, pointy or polygon draft; [] for the rest
+func _draft_corners_mm() -> Array:
+	var a: Vector2 = _draft["a"]
+	var b: Vector2 = _draft["b"]
+	match String(_draft.get("shape", "")):
+		"box":
+			return [a, Vector2(b.x, a.y), b, Vector2(a.x, b.y)]
+		"pointy":
+			return _pointy_pts(a, b)
+		"hex", "poly":
+			return _poly_pts(a, b, _draft_sides())
+	return []
+
+
+## the side lengths are read from the mm corners, then each label sits just outside its side's middle (away from the shape's centre)
+func _draft_dims_sync() -> void:
+	var poly := [] if _draft.is_empty() else _draft_corners_mm()
+	var n := 0
+	if poly.size() >= 3:
+		var sc: Array = []
+		var cen := Vector2.ZERO
+		for q in poly:
+			var s: Vector2 = m.cam.unproject_position(_pw(q))
+			sc.append(s)
+			cen += s / float(poly.size())
+		for i in poly.size():
+			var j := (i + 1) % poly.size()
+			var mid: Vector2 = ((sc[i] + sc[j]) * 0.5)
+			var l := _dim_label(n)
+			l.text = _fmt((poly[i] as Vector2).distance_to(poly[j]), "mm")
+			l.reset_size()
+			l.position = mid + (mid - cen).normalized() * 18.0 - l.size * 0.5 - dots.global_position
+			l.visible = true
+			n += 1
+	for i in range(n, dim_labels.size()):
+		(dim_labels[i] as Label).visible = false
+
+
 ## POINTY: the drag's corners a and b make an isoceles triangle: the base is a's side of the box (a to (b.x, a.y)), the point is at the middle of the far edge (b's side: (middle x, b.y))
 func _pointy_pts(a: Vector2, b: Vector2) -> Array:
 	return [a, Vector2(b.x, a.y), Vector2((a.x + b.x) * 0.5, b.y)]
