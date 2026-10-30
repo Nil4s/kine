@@ -2724,7 +2724,7 @@ func _over_ui(p: Vector2) -> bool:
 	if edge_chip != null and edge_chip.visible and edge_chip.get_global_rect().has_point(p):
 		return true   # NEDGECHIP: the edge chip is a button: its press is not a pick
 	# hint and status are WORDS only (a _pill: mouse_filter IGNORE, one Label, no button): a press under them is the grid's, not eaten
-	for c in [bar, make_box, panel, shape_box, colour_box, repeat_box, stick_box, tilt_box]:
+	for c in [bar, make_box, view_box, panel, shape_box, colour_box, repeat_box, stick_box, tilt_box]:   # P107 FITVIEW: the view row is a button row, a press on it is not the grid's
 		if (c as Control).visible and (c as Control).get_global_rect().has_point(p):
 			return true
 	return false
