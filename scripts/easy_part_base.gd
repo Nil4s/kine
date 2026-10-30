@@ -19,6 +19,7 @@ const LIB_CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "
 const LIB_READY := ["Screws", "Gears", "Bearings", "Brackets", "Clips and feet", "Handles", "Wheels", "Boards"]   # NLIBPAGE: the categories with parts today; the others say coming soon
 const CLIP_KINDS := ["foot", "clip", "slot"]   # P075: the Clips and feet chips: a rubber foot, a cable clip, a zip-tie slot (template kinds in part_templates.gd)
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
+const WEIGHT_CHIPS := [["wood", "wood"], ["steel", "metal"], ["plastic", "plastic"]]   # p057: the weight chips after Wood (PartWeapon.DENSITY key, the word on the chip)
 const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal): a wood brown, red > green > blue
 const TILT_DEG := 20.0           # Tilt it: the lean of the newest solid (degrees, sideways about its middle)
 const HOLLOW_MM := 3.0           # Hollow inside: the wall the shell starts with (the Wall slider moves it: 1 to 10 mm)
@@ -80,6 +81,7 @@ var _steps_sig := ""
 var scrub_sl: HSlider            # p089scrubthehi: Scrub the history, a view of the part after the first N steps (no undo step; see _scrub_to)
 var scrub_lbl: Label
 var tilt_btn: Button
+var swing_btn: Button            # p123driveit: Swing it (Drive it), the chip in the Tilt it panel: the newest piece swings on a hinge step
 var draft_btn: Button            # p021: Draft angle, the chip beside Tilt it (the side walls lean DRAFT_DEG for a mould)
 var pull_along_btn: Button       # P026: Pull along, the same box as Tilt it: shows after a curve or a shape is drawn (the newest step is a sketch)
 var parts_btn: Button            # NSCREW2: the Parts category chip (opens the screw grid under the template chips)
@@ -103,12 +105,17 @@ var handle_box: PanelContainer    # P071 HANDLES: the Handles grid (three kinds 
 var handle_btns := {}            # P071 HANDLES: "kind_size" -> its size chip
 var handle_words: Label          # P071 HANDLES: the grid's one-line instruction: hidden while the library page is open (the page says it), so the grid fits
 var lib_cat := ""                # NLIBPAGE: the category open on the page ("" = none); Screws opens when Parts opens
+var explode_box: PanelContainer  # EXPLODE (p103): the Pull apart slider, shown while the part has two or more pieces (view only, no step)
+var explode_slider: HSlider
+var explode_label: Label
+const EXPLODE_MAX_MM := 100.0   # the Pull apart slider: how far a piece can be pulled from the middle (mm)
 var bear_box: PanelContainer      # P069 BEARINGS: the bearing chips (608, 625, 688) and the seat button: shown with the Bearings page or a bearing / seat on the floor
 var bear_btns := {}              # P069 BEARINGS: "608" / "625" / "688" -> its chip
 var seat_btn: Button             # P069 BEARINGS: "Make a seat for it": cuts the seat for the bearing on the floor
 var stick_box: PanelContainer    # Stick together: Join / Cut away / Keep the overlap, shown once two pieces are picked
 var stick_btns := {}
 var smooth_btn: Button    # P035: Smooth the joints, in the stick box after a Join (the three Join / Cut / Keep buttons hide then)
+var joint_btns: Array = []   # p121: This turns here / This slides here, in the stick box with two pieces picked (hidden after a Join)
 var stick_picks: Array = []      # the body indices clicked in the view (the first = the target, the second = the tool)
 var stick_tris := {}             # body index -> its triangles, for the glow of a picked piece
 var stick_edges := {}            # body index -> its crease edges (pairs of points): the glow's outline, no triangle diagonals
@@ -133,6 +140,9 @@ var round_mode := "all"          # the filter the next Round the edges press use
 
 var split_id := ""              # the feature id of the last Cut in two step: the keep chips edit its "keep" field
 var colour_box: PanelContainer   # Colour: the five colour chips and Glass / Metal, under the MAKE row (armed "colour")
+var weight_btns := {}   # p057: the weight chips by WEIGHT_CHIPS key (read by _weight_sync)
+var weight_kg_by := {}   # p057: the weights of the Part as last read ({} = no solid)
+var weight_key := -1   # p057: the features hash the weights were read from (read again only when the Part changes)
 var panel: PanelContainer
 var panel_vb: VBoxContainer   # the panel's column: it scrolls inside the panel when the window is short (1280 x 720)
 var panel_title: Label
