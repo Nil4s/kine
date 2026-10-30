@@ -836,6 +836,7 @@ func _set_value(row: Dictionary, v: float, final: bool) -> void:
 func _apply_tweak(v: float) -> void:
 	if _tweak_stale():
 		return
+	pu.upto = -1   # p089scrubthehi: a change is made on the whole part, not on a scrubbed view
 	var f := Part.feature(_rec(), String(tweak["id"]))
 	if f.is_empty():
 		return
@@ -3839,6 +3840,28 @@ func _steps_box() -> PanelContainer:
 	t.add_theme_font_size_override("font_size", 16)
 	t.add_theme_color_override("font_color", Tok.c("heading"))
 	v.add_child(t)
+	var sr := HBoxContainer.new()   # p089scrubthehi: Scrub the history, a slider that replays the build step by step
+	sr.name = "easypart_scrub_row"
+	sr.add_theme_constant_override("separation", 6)
+	v.add_child(sr)
+	var ic := TextureRect.new()
+	ic.texture = Icons.sized("part_sketch", 20)
+	ic.tooltip_text = "Scrub the history"
+	sr.add_child(ic)
+	scrub_sl = HSlider.new()
+	scrub_sl.name = "easypart_scrub"
+	scrub_sl.min_value = 1
+	scrub_sl.max_value = 1
+	scrub_sl.step = 1
+	scrub_sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scrub_sl.tooltip_text = "Drag back to see the part after fewer steps. Drag to the end to see all of it"
+	scrub_sl.value_changed.connect(func(x: float): _scrub_to(int(x)))
+	sr.add_child(scrub_sl)
+	scrub_lbl = Label.new()
+	scrub_lbl.name = "easypart_scrub_label"
+	scrub_lbl.add_theme_font_size_override("font_size", 13)
+	scrub_lbl.add_theme_color_override("font_color", Tok.c("info"))
+	v.add_child(scrub_lbl)
 	var sc := ScrollContainer.new()
 	sc.name = "easypart_steps_scroll"
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -3935,7 +3958,29 @@ func _step_open(id: String) -> void:
 	_steps_sync()
 
 
+## p089scrubthehi: Scrub the history: the part as it stood after its first k steps. A view only: the record and the undo list do not change,
+## and the slider's end (all the steps) is the real part. Any other press takes the view back to the end (it sets pu.upto = -1 first)
+func _scrub_to(k: int) -> void:
+	var n := int(_rec().get("features", []).size())
+	k = clampi(k, 1, maxi(n, 1))
+	pu.upto = -1 if k >= n else k - 1
+	pu.sync()
+	_scrub_sync()
+
+
+## p089scrubthehi: the slider follows the record and the view (a new step moves its end; a press that leaves the view moves it back)
+func _scrub_sync() -> void:
+	if scrub_sl == null or not is_instance_valid(scrub_sl) or pu == null:
+		return
+	var n := int(_rec().get("features", []).size())
+	scrub_sl.max_value = maxi(n, 1)
+	var k := n if pu.upto < 0 else pu.upto + 1
+	scrub_sl.set_value_no_signal(k)
+	scrub_lbl.text = "Showing all %d steps" % n if k >= n else "Showing step %d of %d. Drag to the end to go on" % [k, n]
+
+
 func _steps_sync() -> void:
+	_scrub_sync()   # p089scrubthehi
 	if steps_vb == null or not is_instance_valid(steps_vb):
 		return
 	var fs: Array = _rec().get("features", [])
