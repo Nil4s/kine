@@ -55,6 +55,7 @@ var _renaming := false
 var undo_btn: Button
 var redo_btn: Button
 var dup_btn: Button            # FDUP: the top bar's Duplicate (a second copy of the whole part beside it)
+var fix_btn: Button            # NFIXIT: the top bar's Fix it (one press = one fix: a failed step, a wall with no thickness, a loose piece)
 var use_scene_btn: Button
 var size_l: Label              # FMEASURE: "18 x 6 x 2 cm" (wide x deep x high) under the part, plain words, while a solid is there
 var whole_l: Label             # "Whole sword: N cm": the shape's biggest size, under the sliders (the blade slider is not the whole length)
@@ -209,9 +210,15 @@ func build(root: Control) -> void:
 	dup_btn = _bar_btn("Duplicate", "Make a second copy of the whole part, beside it. Undo takes the copy back", func(): _make("duplicate"))   # FDUP: beside Undo and Redo (the MAKE row stays six-plus-six)
 	dup_btn.name = "easypart_duplicate"
 	dup_btn.custom_minimum_size.x = 120.0
+	fix_btn = _bar_btn("Fix it", "Find what is wrong in this part (a step that will not build, a wall with no thickness, a loose piece) and fix it in one press. Undo takes the fix back", _fix_press)   # NFIXIT
+	fix_btn.name = "easypart_fix"
+	fix_btn.icon = Icons.sized("fix", 22)
+	fix_btn.expand_icon = false
+	fix_btn.custom_minimum_size.x = 110.0
 	row.add_child(undo_btn)
 	row.add_child(redo_btn)
 	row.add_child(dup_btn)
+	row.add_child(fix_btn)
 	row.add_child(use_scene_btn)
 	give_btn = _bar_btn("Give to a character", "Give it to a character: they hold this shape in one hand, with its size and weight (PartWeapon)", func(): m.give_part_weapon(_rec()))   # one undo step
 	give_btn.name = "easypart_give"
@@ -4250,6 +4257,34 @@ static func _lump_of(tris: PackedVector3Array, pt: Vector3) -> PackedVector3Arra
 
 ## Remove: the picked piece's step goes out (and its sketch and face plane, if nothing else uses them), one undo step.
 ## A step after it that needs it keeps it: the part says so and nothing changes
+## NFIXIT: Fix it: the first problem in the part is fixed in one press (one undo step); nothing wrong says so in words
+func _fix_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	armed = ""
+	var p := Part.find_problem(_rec())
+	if p.is_empty():
+		_say("Nothing to fix: every piece is joined and every step builds")
+		return
+	var snap := _rec().duplicate(true)
+	_begin("Fix it")
+	var why := Part.apply_fix(_rec(), p)
+	if why != "":
+		m.S.part = snap   # nothing changes: the fix is taken back out
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+	else:
+		_end()
+		_say(Part.fix_words(p))
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+
+
 func _remove_piece() -> void:
 	if not del_on:
 		_say("Click a piece first, then press Remove")
