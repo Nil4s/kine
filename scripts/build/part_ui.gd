@@ -95,6 +95,7 @@ var _rp_res: Dictionary = {}
 var prev := {}                 # the dialog's preview replay
 var hover_edge := -1
 var hover_face := -1           # offset face / draft: the face under the pointer (an index into face_cache)
+var explode_mm := 0.0           # EXPLODE (p103): the Pull apart slider (mm): each piece is drawn this far from the middle of the part (view only, the record is not changed)
 var coarse := false             # NSLIDELOD: a size slider is in hand: the view tessellates coarse (Easy Part clears it on release)
 var face_cache: Array = []     # the pickable faces of the model as the dialog sees it (Part.replay "faces")
 var spl_drag := {}             # a spline point being dragged: {"ent", "pt"} (sketch Spline tool)
@@ -2397,7 +2398,7 @@ func _rebuild(show: bool) -> void:
 	if not show:
 		return
 	Part.refresh_bound(_rec(), _body_measures())   # C2: a dimension bound to the body shows the body's size now
-	var sig := "%s|%d|%d|%s|%s|%s" % [JSON.stringify(_rec()), upto, int(dlg.get("edit", -1)) if not dlg.is_empty() else -2, JSON.stringify(_body_measures()), JSON.stringify(pose), coarse]   # the body moving re-solves the bound dimensions
+	var sig := "%s|%d|%d|%s|%s|%s|%s" % [JSON.stringify(_rec()), upto, int(dlg.get("edit", -1)) if not dlg.is_empty() else -2, JSON.stringify(_body_measures()), JSON.stringify(pose), coarse, explode_mm]   # the body moving re-solves the bound dimensions
 	if sig == _rec_sig:
 		return
 	_rec_sig = sig
@@ -2417,10 +2418,45 @@ func _rebuild(show: bool) -> void:
 		want["coarse"] = true   # NSLIDELOD: the slider preview (low detail)
 	res = replay_once(_rec(), up, want)
 	if sk == "":
-		part_mesh.mesh = res["mesh"]
+		part_mesh.mesh = _exploded(res["mesh"])
 		_look_surfaces()
 	edge_cache = res["edges"]
 	face_cache = res["faces"]
+
+
+## EXPLODE (p103): the shown mesh with each piece pushed away from the middle of the whole part (the direction from that middle to the piece's own middle).
+## One surface is one piece (the replay's looks say so), so a piece moves as a whole. Returns src itself when nothing is pulled apart
+func _exploded(src: ArrayMesh) -> ArrayMesh:
+	if src == null or explode_mm <= 0.0 or src.get_surface_count() < 2:
+		return src
+	var mids: Array = []
+	var all := Vector3.ZERO
+	for s in src.get_surface_count():
+		var vs: PackedVector3Array = src.surface_get_arrays(s)[Mesh.ARRAY_VERTEX]
+		if vs.is_empty():
+			mids.append(Vector3.ZERO)
+			continue
+		var box := AABB(vs[0], Vector3.ZERO)
+		for v in vs:
+			box = box.expand(v)
+		mids.append(box.get_center())
+		all += box.get_center()
+	all /= float(src.get_surface_count())
+	var out := ArrayMesh.new()
+	for s in src.get_surface_count():
+		var arr: Array = src.surface_get_arrays(s)
+		var dir: Vector3 = mids[s] - all
+		var off := Vector3.ZERO
+		if dir.length() > 1e-6:
+			off = dir.normalized() * explode_mm * Part.MM
+		var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var moved := PackedVector3Array()
+		moved.resize(vs.size())
+		for i in vs.size():
+			moved[i] = vs[i] + off
+		arr[Mesh.ARRAY_VERTEX] = moved
+		out.add_surface_from_arrays(src.surface_get_primitive_type(s), arr)
+	return out
 
 
 ## the replay the rebuild wants (the same keys as _rebuild): a press that replays the same record in the same frame gets the result back
