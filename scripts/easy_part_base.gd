@@ -15,8 +15,9 @@ const STICK_OPS := [["join", "Join", "Make the two pieces one solid"], ["cut", "
 const SCREW_DS := [3, 4, 5, 6]         # NSCREW2: the Parts category's screw sizes (M3..M6, columns of the grid)
 const SCREW_LENS := [10, 16, 20, 30]   # NSCREW2: the screw lengths in mm (rows of the grid)
 const BRACKET_CHIPS := [["L", "L-bracket", 1, "An L: a foot and an upright, two screw holes"], ["T", "T-bracket", 2, "A T: a bar on a stem, two screw holes"], ["corner", "Corner brace", 3, "An L with a gusset in the corner, two screw holes"]]   # FRIDAY 73: the Brackets page chips (key, words, kind 1 / 2 / 3)
-const LIB_CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "Springs", "Handles", "Wheels", "Brackets"]   # NLIBPAGE: the Parts library page, in this order
-const LIB_READY := ["Screws", "Gears", "Bearings", "Brackets"]   # NLIBPAGE: the categories with parts today; the others say coming soon
+const LIB_CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "Springs", "Handles", "Wheels", "Brackets", "Clips and feet"]   # NLIBPAGE: the Parts library page, in this order
+const LIB_READY := ["Screws", "Gears", "Bearings", "Brackets", "Clips and feet"]   # NLIBPAGE: the categories with parts today; the others say coming soon
+const CLIP_KINDS := ["foot", "clip", "slot"]   # P075: the Clips and feet chips: a rubber foot, a cable clip, a zip-tie slot (template kinds in part_templates.gd)
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
 const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal): a wood brown, red > green > blue
 const TILT_DEG := 20.0           # Tilt it: the lean of the newest solid (degrees, sideways about its middle)
@@ -81,6 +82,8 @@ var pull_along_btn: Button       # P026: Pull along, the same box as Tilt it: sh
 var parts_btn: Button            # NSCREW2: the Parts category chip (opens the screw grid under the template chips)
 var screw_box: PanelContainer    # NSCREW2: the screw grid: sixteen size chips, shown while Parts is open or a screw is the part
 var screw_btns := {}             # NSCREW2: "d_L" -> the size chip (M<d> x <L>)
+var clip_box: PanelContainer     # P075: the Clips and feet chips (rubber foot, cable clip, zip-tie slot), shown while that category is open
+var clip_btns := {}              # P075: kind -> its chip
 var screw_words: Label           # the grid's one-line instruction: hidden while the library page is open (the page and the status line say it)
 var bracket_box: PanelContainer   # FRIDAY 73: the bracket chips (L-bracket, T-bracket, Corner brace), shown while Brackets is open or a bracket is the part
 var bracket_btns := {}

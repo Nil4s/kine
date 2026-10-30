@@ -252,6 +252,8 @@ func build(root: Control) -> void:
 	v.add_child(bear_box)
 	bracket_box = _bracket_box()   # FRIDAY 73
 	v.add_child(bracket_box)
+	clip_box = _clip_box()
+	v.add_child(clip_box)
 	rows_vb = VBoxContainer.new()
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 2)
@@ -1185,6 +1187,94 @@ func _screw_box() -> PanelContainer:
 	return pc
 
 
+## P075: the three Clips and feet chips: a row of icon + plain word each, one row under the category chips
+func _clip_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_clip_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
+	var hd := Label.new()
+	hd.name = "easypart_clip_words"
+	hd.text = "Clips and feet: pick one. It drops on the floor, then change its size with the sliders"
+	hd.add_theme_font_size_override("font_size", 14)
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(hd)
+	var fl := HFlowContainer.new()
+	fl.add_theme_constant_override("h_separation", 4)
+	fl.add_theme_constant_override("v_separation", 4)
+	vb.add_child(fl)
+	for kind in CLIP_KINDS:
+		var b := Button.new()
+		b.name = "easypart_clip_" + kind
+		b.text = String(PartTemplates.T[kind]["title"])
+		b.icon = _clip_icon(kind)
+		b.tooltip_text = "%s: %s" % [b.text, _clip_words(kind)]
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(0, 34)
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_clip_pick.bind(kind))
+		fl.add_child(b)
+		clip_btns[kind] = b
+	return pc
+
+
+## P075: the sizes a part starts with, in words: "Width 16 mm, Height 4 mm"
+func _clip_words(kind: String) -> String:
+	var p: Dictionary = PartTemplates.defaults(kind)
+	var out := []
+	for d in PartTemplates.T[kind]["params"]:
+		out.append("%s %d mm" % [String(d["label"]), roundi(float(p[d["k"]]))])
+	return ", ".join(out)
+
+
+## P075: a 16 px icon per clip kind, drawn in the text colour (Tok): a flat disc, a ring with its opening, a plate with a slot
+func _clip_icon(kind: String) -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	match kind:
+		"foot":
+			img.fill_rect(Rect2i(1, 9, 14, 5), col)
+			img.fill_rect(Rect2i(4, 6, 8, 3), col)
+		"clip":
+			_lib_ring(img, 7.0, 4.5, col)
+			img.fill_rect(Rect2i(8, 7, 8, 2), Color(0, 0, 0, 0))
+		"slot":
+			img.fill_rect(Rect2i(1, 4, 14, 8), col)
+			img.fill_rect(Rect2i(4, 7, 8, 2), Color(0, 0, 0, 0))
+	return ImageTexture.create_from_image(img)
+
+
+## P075: a clip chip: a new part of that kind on the floor (one undo step). A part already there is replaced, the same as a screw size.
+func _clip_pick(kind: String) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var title := String(PartTemplates.T[kind]["title"])
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Start a " + title.to_lower()
+	m._push_undo()
+	m.S.part = PartTemplates.make(kind)
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("%s did not build. Press Reset, then pick it again" % title)
+	else:
+		_say("%s on the floor: %s. Change its size with the sliders" % [title, _clip_words(kind)])
+	_screw_sync()   # the clip chips' open state and pressed chip are in _screw_sync
+
+
 ## NSCREW2: a small screw icon, drawn from the size: head width grows with M, shank length with the length (the same 16 px box)
 func _screw_icon(d: int, L: int) -> ImageTexture:
 	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
@@ -1365,6 +1455,8 @@ func _lib_press(cat: String) -> void:
 		_say("Bearings: pick a size. It drops on the floor. Then Make a seat for it")
 	elif cat == "Brackets":   # FRIDAY 73: three shapes, each a click
 		_say("Brackets: pick a shape. It drops on the floor")
+	elif cat == "Clips and feet":
+		_say("Clips and feet: pick one. It drops on the floor")
 	else:
 		_say("%s are coming soon. Next step: press Screws or Gears" % cat)
 	_screw_sync()
@@ -1412,6 +1504,8 @@ func _lib_box() -> PanelContainer:
 func _lib_icon(cat: String) -> ImageTexture:
 	if cat == "Screws":
 		return _screw_icon(4, 16)
+	if cat == "Clips and feet":
+		return _clip_icon("clip")
 	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 	var col := Tok.c("text")
@@ -1511,6 +1605,12 @@ func _screw_sync() -> void:
 		if screw_words != null:   # the page is open: its chips and the status line say what to do
 			screw_words.visible = not parts_open
 		lib_soon.text = "%s are coming soon: not made yet. Next step: press Screws or Gears" % lib_cat if lib_soon.visible else ""
+	if clip_box != null:   # P075: the Clips and feet chips show while that category is open
+		clip_box.visible = parts_open and lib_cat == "Clips and feet"
+		for kind in CLIP_KINDS:
+			var cb: Button = clip_btns[kind]
+			cb.set_pressed_no_signal(_tpl() == kind)
+			m._grey(cb, Part.why_not() if not Part.available() else "")
 	if screw_box == null or parts_btn == null:
 		return
 	var cur: Dictionary = {}
