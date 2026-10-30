@@ -1348,6 +1348,7 @@ func _make(which: String) -> void:
 		_say(Part.why_not())
 		return
 	_flush_if_dirty()
+	hinge_pick = {}   # P068: any make press drops a door picked for a hinge
 	if which != "hole":
 		hole_base = {}   # any other press ends the hole choice: its chips go
 	if which != "repeat":
@@ -2657,6 +2658,7 @@ func _edge_round(e: Dictionary, r: float) -> void:
 # ---------------------------------------------------------------- NEDGECHIP: the edge chip and its ghost
 
 var edge_chip: PanelContainer      # the one small chip over a hovered edge: Round / Bevel (only the ones that work)
+var hinge_pick := {}               # P068: the door picked by the first Hinge press: {"body", "a", "b"} (metres); {} = none
 var edge_chip_row: HBoxContainer
 var edge_ghost: MeshInstance3D     # the see-through preview of the Round result, drawn over the solid
 var _ehov := {}                    # the hovered edge: {"key", "mid" (px), "opts" {kind: {"err", "mesh", "fields"}}}
@@ -2719,9 +2721,10 @@ func _edge_hover(p: Vector2) -> void:
 	var best := -1
 	var bd := EDGE_PX
 	var es := _edge_list()
+	var pieces := int(pu.res.get("bodies", 0)) >= 2   # P068: with two pieces, the edge of either one can take a Hinge
 	for i in es.size():
 		var e: Dictionary = es[i]
-		if int(e["body"]) != 0 or bool(e.get("seam", false)):
+		if (int(e["body"]) != 0 and not pieces) or bool(e.get("seam", false)):
 			continue
 		if m.cam.is_position_behind(e["a"]) or m.cam.is_position_behind(e["b"]):
 			continue
@@ -2740,7 +2743,7 @@ func _edge_hover(p: Vector2) -> void:
 	if key == String(_ehov.get("key", "")):
 		return   # the same edge: the chip and ghost are already up
 	var mid: Vector2 = m.cam.unproject_position(c)
-	_ehov = {"key": key, "mid": mid, "opts": _edge_options(e)}
+	_ehov = {"key": key, "mid": mid, "opts": _edge_options(e) if int(e["body"]) == 0 else {}, "e": e}
 	_edge_show()
 
 
@@ -2773,7 +2776,7 @@ func _edge_show() -> void:
 	var words := {"fillet": ["Round", "part_fillet", "Soften this edge into a rounded corner"], "chamfer": ["Bevel", "part_chamfer", "Cut this edge flat: a slanted edge"]}
 	var shown := 0
 	for kind in ["fillet", "chamfer"]:
-		if String(opts[kind]["err"]) != "":
+		if not opts.has(kind) or String(opts[kind]["err"]) != "" or not hinge_pick.is_empty():
 			continue
 		var b := Button.new()
 		b.name = "easypart_edge_" + ("round" if kind == "fillet" else "bevel")
@@ -2786,11 +2789,23 @@ func _edge_show() -> void:
 		b.pressed.connect(_edge_do.bind(kind))
 		edge_chip_row.add_child(b)
 		shown += 1
+	if int(pu.res.get("bodies", 0)) >= 2 and _ehov.has("e"):   # P068: the Hinge chip: the door edge, then the frame edge
+		var hb := Button.new()
+		hb.name = "easypart_edge_hinge"
+		hb.text = "Hinge"
+		hb.icon = Icons.tex("part_hinge")
+		hb.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		hb.tooltip_text = "Hinge: click the door's edge, then the frame's edge on the other piece. The door swings about the frame edge"
+		hb.focus_mode = Control.FOCUS_NONE
+		hb.custom_minimum_size = Vector2(96, 44)
+		hb.pressed.connect(_hinge_chip)
+		edge_chip_row.add_child(hb)
+		shown += 1
 	if shown == 0:
 		var l := Label.new()
 		l.text = "This edge will not take a round or a bevel: Pull it up taller, or use Round the edges"
 		edge_chip_row.add_child(l)
-	var ghost_ok: bool = String(opts["fillet"]["err"]) == "" and opts["fillet"]["mesh"] != null
+	var ghost_ok: bool = opts.has("fillet") and String(opts["fillet"]["err"]) == "" and opts["fillet"]["mesh"] != null
 	edge_ghost.mesh = opts["fillet"]["mesh"] if ghost_ok else null
 	edge_ghost.visible = ghost_ok
 	edge_chip.visible = true
@@ -2835,6 +2850,50 @@ func _edge_do(kind: String) -> void:
 	pu.sync()
 	_rows_sync()
 	_values_sync()
+
+
+## P068 HINGE BY CLICK: the first Hinge press takes the door (the edge's piece turns); the second, on an edge of another piece, places the hinge
+## on that edge's line (the pin): the door swings about the frame edge. One undo step. A refusal says the next step and changes nothing
+func _hinge_chip() -> void:
+	var e: Dictionary = _ehov.get("e", {})
+	_edge_hide()
+	if e.is_empty():
+		return
+	if hinge_pick.is_empty():
+		hinge_pick = {"body": int(e["body"]), "a": e["a"], "b": e["b"]}
+		_say("Door picked. Now hover the frame edge on the other piece, and press Hinge")
+		return
+	if int(e["body"]) == int(hinge_pick["body"]):
+		_say("Pick the frame edge on the other piece: a door cannot hinge on its own piece")
+		return
+	_hinge_place(e)
+
+
+func _hinge_place(frame: Dictionary) -> void:
+	_flush_if_dirty()
+	armed = ""
+	var snap := _rec().duplicate(true)
+	_begin("Hinge the door")
+	var rec := pu._ensure()
+	var a: Vector3 = frame["a"]
+	var d: Vector3 = ((frame["b"] as Vector3) - a).normalized()
+	var mm := Part.MM
+	var f := Part.new_feature(rec, "hinge", {"body": int(hinge_pick["body"]), "o": [a.x / mm, a.y / mm, a.z / mm], "axis": [d.x, d.y, d.z], "track": [[0.0, 0.0], [2.0, 90.0]], "clear": []})
+	rec["features"].append(f)
+	var why := _last_error(rec, String(f["id"]))
+	if why != "":
+		m.S.part = snap   # nothing changes: the step taken a moment ago goes back out
+		m._drop_undo()
+		_edit_n = -1
+		_say("That hinge would not work: pick the door edge again, then another frame edge. " + _plain(why))
+		return
+	_end()
+	hinge_pick = {}
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	_say("Hinge placed: the door swings about the frame edge. Press Play in Expert Part's Hinge to see it turn")
 
 
 # ---------------------------------------------------------------- the step list (NSTEPLIST)
