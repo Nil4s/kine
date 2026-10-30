@@ -276,6 +276,7 @@ func build(root: Control) -> void:
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 2)
 	v.add_child(rows_vb)
+	v.add_child(_suggest_row())   # P092: the two next-step chips, under the slider rows (the rows above keep their places)
 	whole_l = Label.new()
 	whole_l.name = "easypart_whole"
 	whole_l.add_theme_font_size_override("font_size", 16)
@@ -470,6 +471,71 @@ func _tilt_box() -> PanelContainer:
 	pull_along_btn.visible = false
 	row.add_child(pull_along_btn)
 	return box
+
+
+## P092: the next steps after a Pull it up, in plain words (one press each, one undo step). They sit in the right panel's column under
+## the slider rows (off the grid, the step list and the timeline), in one row that shows only while the newest step is a Pull it up
+func _suggest_row() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.name = "easypart_suggest"
+	row.add_theme_constant_override("separation", 6)
+	row.visible = false
+	suggest_round_btn = _big_btn("easypart_suggest_round", "Round the edges?", "Next step: soften the sharp edges of this solid", _suggest_round_press)
+	suggest_round_btn.icon = Icons.tex("part_fillet")
+	suggest_round_btn.custom_minimum_size = Vector2(0, 44)
+	suggest_round_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(suggest_round_btn)
+	suggest_hollow_btn = _big_btn("easypart_suggest_hollow", "Hollow it?", "Next step: hollow this solid out, open at the top, with a 3 mm wall", _suggest_hollow_press)
+	suggest_hollow_btn.icon = Icons.tex("part_circle")
+	suggest_hollow_btn.custom_minimum_size = Vector2(0, 44)
+	suggest_hollow_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(suggest_hollow_btn)
+	suggest_row = row
+	return row
+
+
+## P092: the newest step is a Pull it up (a solid, not a cut, not switched off): the two next-step chips show under it
+func _suggest_on() -> bool:
+	var feats: Array = _rec().get("features", [])
+	if feats.is_empty():
+		return false
+	var f: Dictionary = feats[feats.size() - 1]
+	return String(f.get("t", "")) == "extrude" and not bool(f.get("off", false)) and String(f.get("op", "join")) != "cut"
+
+
+## P092: "Round the edges?" is the Round the edges press (same rules, same one undo step)
+func _suggest_round_press() -> void:
+	_make("round")
+
+
+## P092: "Hollow it?" is Hollow inside on the newest solid, in ONE step (no Cut a hole press first). Its wall and open top are the
+## Hollow inside ones, so the Wall slider and the hole chips work after it. A solid that is too thin says so and changes nothing
+func _suggest_hollow_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	armed = ""
+	wall_pick = false
+	var snap := _rec().duplicate(true)
+	_begin("Hollow inside")
+	var rec := pu._ensure()
+	var why := _hollow(rec)
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+	else:
+		_end()
+		hole_base = snap
+		hole_mode = "hollow"
+		hole_id = String(tweak.get("id", ""))
+		_rows_sig = ""
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
 
 
 ## DRAFT ANGLE (p021, "Easier to pull from a mould"): the newest solid is a pulled-up piece with no draft yet. Its straight side walls lean
@@ -3102,6 +3168,7 @@ func _process(_dt: float) -> void:
 	var flat_on := on and armed == "" and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # p113: Lay it flat and Show overhangs, under any solid, in the step list
 	flat_box.visible = flat_on
 	paint_btn.set_pressed_no_signal(paint_on)
+	suggest_row.visible = on and _suggest_on()   # P092: after a Pull it up the two next-step chips show in the panel, under the slider rows
 	tilt_box.visible = on and armed == "" and (along or tilt_on or draft_on)
 	_overhang_sync(on)
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
