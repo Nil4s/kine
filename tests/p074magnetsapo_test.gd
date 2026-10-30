@@ -166,7 +166,7 @@ func _init() -> void:
 	await idle(4)
 	var rec: Dictionary = m.S.part
 	var r := Part.replay(rec)
-	var dv_mm3 := (v_hole - float(r["volume"])) * 1e9
+	var dv_mm3 := (v0 - float(r["volume"])) * 1e9   # the magnet REPLACES the through hole: its reference is the crate before Cut a hole
 	ok(int(r["bodies"]) == 1 and r["errors"].is_empty() and dv_mm3 > MAGNET_POCKET_MM3 * 0.85 and dv_mm3 < MAGNET_POCKET_MM3 * 1.15,
 		"2 POCKET: one closed solid, failed steps %d, the volume falls by %.1f mm3 (want %.1f within 15 %%)" % [r["errors"].size(), dv_mm3, MAGNET_POCKET_MM3])
 
@@ -179,7 +179,7 @@ func _init() -> void:
 	var verts: PackedVector3Array = (r["mesh"] as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_VERTEX] if r["mesh"] != null else PackedVector3Array()
 	for v in verts:
 		var q := v / Part.MM
-		if Vector2(q.x - cx, q.y - cy).length() < 2.0:
+		if Vector2(q.x - cx, q.y - cy).length() < 3.5:   # the pocket's floor ring is 3.1 mm out: a 3.5 mm reach takes the rim and the floor
 			floor_mm = minf(floor_mm, q.z)
 	var depth_mm := top_mm - floor_mm
 	var same_box := bb.position.distance_to(aabb0.position) < 0.00001 and bb.end.distance_to(aabb0.end) < 0.00001
