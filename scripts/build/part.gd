@@ -63,7 +63,9 @@ const MM := 0.001
 const SKIN_MM := 0.3   # NROUNDFILTER: a face centre this close (mm) to the box's outside counts as on the skin
 const VERSION := 1
 const RING_MIDDLE := 100.0   # mm: a Ring piece whose centre is closer than this to the middle (not on it) goes round the middle
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay"]
+const OVERHANG_COS := 0.7071   # p113: a face pointing down more than 45 degrees needs support when printed
+const BED_MM := 0.1            # p113: a face this close (mm) to the lowest point of the part is on the floor, not an overhang
 const DRAFT_DIRS := {"x": Vector3(1, 0, 0), "y": Vector3(0, 1, 0), "z": Vector3(0, 0, 1)}
 const PLANES := ["front", "top", "right"]
 const OPS := ["join", "new", "cut", "intersect"]
@@ -557,6 +559,30 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				else:
 					KCad.release(bodies[-1])
 					bodies[-1] = u
+			"lay":   # p113 LAY IT FLAT: every body turns about the origin (the axis and degrees the press chose), then the part drops onto the floor (its lowest point at 0)
+				if bodies.is_empty():
+					errs[id] = "there is nothing to lay flat"
+					continue
+				var lax := Vector3(float(f["axis"][0]), float(f["axis"][1]), float(f["axis"][2]))
+				var turned: Array = []
+				for b in bodies:
+					turned.append(KCad.rotate(int(b), lax, deg_to_rad(float(f.get("deg", 0.0)))))
+				if turned.has(0):
+					errs[id] = KCad.last_error() if KCad.last_error() != "" else "the part could not turn"
+					for t in turned:
+						if int(t) != 0:
+							KCad.release(int(t))
+					continue
+				var low := INF
+				for t in turned:
+					low = minf(low, _piece_box(int(t)).position.y)
+				for k in turned.size():
+					var lifted := KCad.translate(int(turned[k]), Vector3(0.0, -low, 0.0))
+					KCad.release(int(turned[k]))
+					turned[k] = lifted
+				for k in bodies.size():
+					KCad.release(int(bodies[k]))
+					bodies[k] = turned[k]
 			"appear":   # APPEARANCE: the body's look from this step on (its own numbers; no kernel)
 				var ai := int(f.get("body", -1))
 				if ai < 0 or ai >= bodies.size():
@@ -791,6 +817,78 @@ static func body_faces(rec: Dictionary, upto := -1) -> Array:
 		out.append(_tris_of(int(b)))
 		KCad.release(int(b))
 	return out
+
+
+## p113 OVERHANG PAINTER: the faces of a replay result (rotated by R) that need support when printed: they point down more than 45 degrees
+## and are not on the floor (the lowest point of the part). Each is {"n", "c", "area"} in metres / m2, after the turn
+static func _overhang_faces(faces: Array, R: Basis) -> Array:
+	var low := INF
+	for fc in faces:
+		low = minf(low, (R * (fc["c"] as Vector3)).y)
+	var out: Array = []
+	for fc in faces:
+		var n: Vector3 = R * (fc["n"] as Vector3)
+		var c: Vector3 = R * (fc["c"] as Vector3)
+		if n.y < -OVERHANG_COS and c.y - low > BED_MM * MM:
+			out.append({"n": n, "c": c, "area": float(fc.get("area", 0.0))})
+	return out
+
+
+## p113: the red faces of the record as it is now (the painter reads these; metres)
+static func overhang_faces_of(rec: Dictionary) -> Array:
+	if not available():
+		return []
+	return _overhang_faces(replay(rec, -1, {"faces": true}).get("faces", []), Basis.IDENTITY)
+
+
+static func _overhang_area(faces: Array, R: Basis) -> float:
+	var sum := 0.0
+	for fo in _overhang_faces(faces, R):
+		sum += float(fo["area"])
+	return sum
+
+
+## p113: the turn that puts face normal n on the floor: {"axis", "rad"} (an axis and the radians; a face already down gives rad 0)
+static func _turn_to_down(n: Vector3) -> Dictionary:
+	var down := Vector3.DOWN
+	var ax := n.cross(down)
+	if ax.length() < 1e-9:
+		return {"axis": Vector3.RIGHT, "rad": 0.0} if n.dot(down) > 0.0 else {"axis": Vector3.RIGHT, "rad": PI}
+	return {"axis": ax.normalized(), "rad": acos(clampf(n.dot(down), -1.0, 1.0))}
+
+
+## p113 LAY IT FLAT: the face that leaves the least overhang when it is put on the floor (ties: the bigger face). Answers
+## {"ok": true, "axis": [x, y, z], "deg", "was" (mm2 of overhang now), "now" (mm2 after)} or {"ok": false, "why": the words to say}
+static func lay_plan(rec: Dictionary) -> Dictionary:
+	if not available():
+		return {"ok": false, "why": why_not()}
+	var faces: Array = replay(rec, -1, {"faces": true}).get("faces", [])
+	if faces.is_empty():
+		return {"ok": false, "why": "Make a solid first: draw a shape and Pull it up, then Lay it flat"}
+	var was := _overhang_area(faces, Basis.IDENTITY)
+	var best_area := INF
+	var best_face := 0.0
+	var best_n := Vector3.DOWN
+	for fc in faces:
+		var fa := float(fc.get("area", 0.0))
+		var n: Vector3 = fc["n"]
+		if fa <= 0.0 or n.length_squared() < 1e-12:
+			continue
+		var t := _turn_to_down(n.normalized())
+		var now := _overhang_area(faces, Basis(t["axis"], float(t["rad"])))
+		if now < best_area - 1e-9 or (absf(now - best_area) <= 1e-9 and fa > best_face):
+			best_area = now
+			best_face = fa
+			best_n = n.normalized()
+	var was_mm := was / (MM * MM)
+	var now_mm := best_area / (MM * MM)
+	if best_area >= was - 1e-9:
+		if was <= 1e-9:
+			return {"ok": false, "why": "No face needs support now: it prints as it is"}
+		return {"ok": false, "why": "No turn helps: the part already sits on its best face (%.1f cm2 of overhang)" % (was_mm / 100.0)}
+	var bt := _turn_to_down(best_n)
+	var ax: Vector3 = bt["axis"]
+	return {"ok": true, "axis": [ax.x, ax.y, ax.z], "deg": rad_to_deg(float(bt["rad"])), "was": was_mm, "now": now_mm}
 
 
 ## C3 MUST NOT TOUCH: the body pair [a, b] goes on the hinge's "clear" list (on = true) or off it. Stored with a < b, once.
