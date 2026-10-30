@@ -31,6 +31,13 @@ func _repeat_box() -> PanelContainer:
 	cb.toggle_mode = true
 	h.add_child(cb)
 	rep_btns["corners"] = cb
+	var sb := _big_btn("easypart_rep_stairs", "Up and Forward", "Steps: each copy goes up one step and forward one step, a staircase of 8", _rep_stairs)
+	sb.toggle_mode = true
+	h.add_child(sb)
+	rep_btns["stairs"] = sb
+	var rb := _big_btn("easypart_rep_rail", "Rail", "A handrail of square bar laid along the top of the stairs (press after Up and Forward)", _rep_rail)
+	h.add_child(rb)
+	rep_btns["rail"] = rb
 	rep_rows.append(_make_row("How many", 2.0, 20.0, 1.0, REP_WORDS["count"], "rep", "count", "copies", vb))
 	rep_rows.append(_make_row("Gap", 0.5, 30.0, 0.5, REP_WORDS["gap"], "rep", "gap", "cm", vb))
 	return box
@@ -182,7 +189,7 @@ func _repeat(rec: Dictionary) -> String:
 		h_mm = maxf(bb.size.y / Part.MM, 1.0)
 		d_mm = maxf(bb.size.z / Part.MM, 1.0)
 	var fields := {"kind": "linear", "body": bi, "count": 3, "dir": "x", "axis": "y", "deg": 360.0,
-		"mm": w_mm + 10.0, "w": w_mm, "h": h_mm, "d": d_mm, "gap": 10.0, "op": "join"}
+		"mm": w_mm + 10.0, "w": w_mm, "h": h_mm, "d": d_mm, "rise": h_mm, "run": d_mm, "gap": 10.0, "op": "join"}
 	if src != "":
 		fields["src"] = src
 	var f := Part.new_feature(rec, "pattern", fields)
@@ -223,6 +230,48 @@ func _repeat_cut(rec: Dictionary, ext: Dictionary) -> String:
 	tweak = {}
 	_say("Repeated in a row: move the sliders for how many and the gap")
 	return ""
+
+
+## Up and Forward (FSTAIRS): a staircase of 8 steps, each one rise up and one run forward from the last (the piece's own height and depth)
+func _rep_stairs() -> void:
+	if Part.feature(_rec(), rep_id).is_empty():
+		return
+	_flush_if_dirty()
+	_begin("Up and Forward")
+	var cur := Part.feature(_rec(), rep_id)
+	cur["kind"] = "stairs"
+	cur["count"] = 8
+	cur["beside"] = false
+	_end()
+	pu.sync()
+	_rep_sync()
+	_values_sync()
+	var err: String = pu.replay_full(_rec())["errors"].get(rep_id, "")
+	if err != "":
+		_say(_plain(err) + ". Press Repeat it again, or undo")
+	else:
+		_say("Up and Forward: 8 steps. Move How many for more or fewer steps")
+
+
+## FRAIL (Easy's Rail): a handrail along the stairs just made: one step of the Part pattern (kind "rail") on the newest body, the stair's count, rise and run
+func _rep_rail() -> void:
+	var cur := Part.feature(_rec(), rep_id)
+	if String(cur.get("kind", "")) != "stairs":
+		return
+	_flush_if_dirty()
+	var nb := int(Part.replay(_rec())["bodies"])
+	_begin("Rail")
+	var f := Part.new_feature(_rec(), "pattern", {"kind": "rail", "body": maxi(nb - 1, 0), "count": int(cur.get("count", 8)),
+		"rise": float(cur.get("rise", 10.0)), "run": float(cur.get("run", 10.0)), "op": "join"})
+	_rec()["features"].append(f)
+	_end()
+	pu.sync()
+	_rep_sync()
+	var err: String = pu.replay_full(_rec())["errors"].get(f["id"], "")
+	if err != "":
+		_say(_plain(err) + ". Undo takes the rail back")
+	else:
+		_say("Rail: a handrail runs along the top of the stairs")
 
 
 ## Corners (EREPEAT): the newest piece goes to the four corners of the body it touches, one undo step; the four become one body with it
@@ -330,9 +379,13 @@ func _rep_sync() -> void:
 	(rep_btns["forward"] as Button).set_pressed_no_signal(lin and String(f.get("dir", "x")) == "z")
 	(rep_btns["ring"] as Button).set_pressed_no_signal(ring)
 	(rep_btns["corners"] as Button).set_pressed_no_signal(String(f.get("kind", "")) == "corners")
-	var rows_on := String(f.get("kind", "")) != "corners"   # CORNERS: four copies at the corners, no How many or Gap to set
+	(rep_btns["stairs"] as Button).set_pressed_no_signal(String(f.get("kind", "")) == "stairs")
+	var kind := String(f.get("kind", ""))
+	(rep_btns["rail"] as Button).visible = kind == "stairs"   # FRAIL: a rail only goes along a stair
+	var rows_on := kind != "corners"   # CORNERS: four copies at the corners, no How many or Gap to set
 	for r in rep_rows:
-		(r["box"] as Control).visible = rows_on
+		# UP AND FORWARD: the steps are a count (How many); a Gap would mean nothing between the steps, so it is not shown
+		(r["box"] as Control).visible = rows_on and not (kind == "stairs" and String(r["key"]) == "gap")
 	for r in rep_rows:
 		var s: HSlider = r["slider"]
 		var v := float(f.get("count", 3)) if String(r["key"]) == "count" else float(f.get("gap", 10.0)) / 10.0
