@@ -820,12 +820,14 @@ static func body_faces(rec: Dictionary, upto := -1) -> Array:
 
 
 ## p113 OVERHANG PAINTER: the faces of a replay result (rotated by R) that need support when printed: they point down more than 45 degrees
-## and are not on the floor (the lowest point of the part). Each is {"n", "c", "area"} in metres / m2, after the turn
-static func _overhang_faces(faces: Array, R: Basis) -> Array:
+## and are not on the floor (the lowest vertex of the part, turned by R: verts = the shown mesh's vertices). Each is {"n", "c", "area"} in metres / m2, after the turn
+static func _overhang_faces(faces: Array, R: Basis, verts: PackedVector3Array) -> Array:
 	var low := INF
-	for fc in faces:
-		low = minf(low, (R * (fc["c"] as Vector3)).y)
+	for v in verts:
+		low = minf(low, (R * v).y)
 	var out: Array = []
+	if low == INF:
+		return out
 	for fc in faces:
 		var n: Vector3 = R * (fc["n"] as Vector3)
 		var c: Vector3 = R * (fc["c"] as Vector3)
@@ -834,16 +836,28 @@ static func _overhang_faces(faces: Array, R: Basis) -> Array:
 	return out
 
 
+## every vertex of a replay's shown mesh (metres; empty when there is no mesh)
+static func _mesh_verts(mesh: Variant) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	if not (mesh is ArrayMesh):
+		return out
+	var am := mesh as ArrayMesh
+	for s in am.get_surface_count():
+		out.append_array(am.surface_get_arrays(s)[Mesh.ARRAY_VERTEX])
+	return out
+
+
 ## p113: the red faces of the record as it is now (the painter reads these; metres)
 static func overhang_faces_of(rec: Dictionary) -> Array:
 	if not available():
 		return []
-	return _overhang_faces(replay(rec, -1, {"faces": true}).get("faces", []), Basis.IDENTITY)
+	var res := replay(rec, -1, {"faces": true})
+	return _overhang_faces(res.get("faces", []), Basis.IDENTITY, _mesh_verts(res.get("mesh")))
 
 
-static func _overhang_area(faces: Array, R: Basis) -> float:
+static func _overhang_area(faces: Array, R: Basis, verts: PackedVector3Array) -> float:
 	var sum := 0.0
-	for fo in _overhang_faces(faces, R):
+	for fo in _overhang_faces(faces, R, verts):
 		sum += float(fo["area"])
 	return sum
 
@@ -862,10 +876,12 @@ static func _turn_to_down(n: Vector3) -> Dictionary:
 static func lay_plan(rec: Dictionary) -> Dictionary:
 	if not available():
 		return {"ok": false, "why": why_not()}
-	var faces: Array = replay(rec, -1, {"faces": true}).get("faces", [])
+	var res := replay(rec, -1, {"faces": true})
+	var faces: Array = res.get("faces", [])
 	if faces.is_empty():
 		return {"ok": false, "why": "Make a solid first: draw a shape and Pull it up, then Lay it flat"}
-	var was := _overhang_area(faces, Basis.IDENTITY)
+	var verts := _mesh_verts(res.get("mesh"))
+	var was := _overhang_area(faces, Basis.IDENTITY, verts)
 	var best_area := INF
 	var best_face := 0.0
 	var best_n := Vector3.DOWN
@@ -875,7 +891,7 @@ static func lay_plan(rec: Dictionary) -> Dictionary:
 		if fa <= 0.0 or n.length_squared() < 1e-12:
 			continue
 		var t := _turn_to_down(n.normalized())
-		var now := _overhang_area(faces, Basis(t["axis"], float(t["rad"])))
+		var now := _overhang_area(faces, Basis(t["axis"], float(t["rad"])), verts)
 		if now < best_area - 1e-9 or (absf(now - best_area) <= 1e-9 and fa > best_face):
 			best_area = now
 			best_face = fa

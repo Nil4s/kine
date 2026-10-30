@@ -440,15 +440,6 @@ func _tilt_box() -> PanelContainer:
 	pull_along_btn.custom_minimum_size = Vector2(230, 44)
 	pull_along_btn.visible = false
 	row.add_child(pull_along_btn)
-	lay_btn = _big_btn("easypart_lay_flat", "Lay it flat", "Turn the part so the face that needs the least support under it sits on the floor", _lay_press)   # p113
-	lay_btn.custom_minimum_size = Vector2(230, 44)
-	lay_btn.visible = false
-	row.add_child(lay_btn)
-	paint_btn = _big_btn("easypart_show_overhangs", "Show overhangs", "Paint red the faces a printer needs support under (they point down more than 45 degrees)", _paint_press)   # p113
-	paint_btn.toggle_mode = true
-	paint_btn.custom_minimum_size = Vector2(230, 44)
-	paint_btn.visible = false
-	row.add_child(paint_btn)
 	return box
 
 
@@ -2398,14 +2389,14 @@ func _process(_dt: float) -> void:
 	var along := on and _along_ok(_rec())   # P026: Pull along takes the chip's place while a curve and a shape wait
 	var tilt_on := not along and _tilt_ok(_rec())
 	var draft_on := not along and _draft_ok(_rec())
-	var flat_on := on and armed == "" and not along and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # p113: Lay it flat and Show overhangs, under any solid
 	pull_along_btn.visible = along
 	tilt_btn.visible = tilt_on
 	draft_btn.visible = draft_on
+	var flat_on := on and armed == "" and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # p113: Lay it flat and Show overhangs, under any solid, in the step list
 	lay_btn.visible = flat_on
 	paint_btn.visible = flat_on
 	paint_btn.set_pressed_no_signal(paint_on)
-	tilt_box.visible = on and armed == "" and (along or tilt_on or draft_on or flat_on)
+	tilt_box.visible = on and armed == "" and (along or tilt_on or draft_on)
 	_overhang_sync(on)
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
 	if not on:
@@ -3243,6 +3234,16 @@ func _steps_box() -> PanelContainer:
 	steps_vb.add_theme_constant_override("separation", 3)
 	steps_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sc.add_child(steps_vb)
+	# p113: the two printing chips sit under the step list (Lay it flat turns the part; Show overhangs paints red where it needs support)
+	lay_btn = _big_btn("easypart_lay_flat", "Lay it flat", "Turn the part so the face that needs the least support under it sits on the floor", _lay_press)
+	lay_btn.custom_minimum_size = Vector2(PW - 40.0, 40)
+	lay_btn.visible = false
+	v.add_child(lay_btn)
+	paint_btn = _big_btn("easypart_show_overhangs", "Show overhangs", "Paint red the faces a printer needs support under (they point down more than 45 degrees)", _paint_press)
+	paint_btn.toggle_mode = true
+	paint_btn.custom_minimum_size = Vector2(PW - 40.0, 40)
+	paint_btn.visible = false
+	v.add_child(paint_btn)
 	return box
 
 
