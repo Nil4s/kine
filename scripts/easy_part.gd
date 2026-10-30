@@ -339,6 +339,13 @@ func _round_box() -> PanelContainer:
 		b.custom_minimum_size = Vector2(176, 44)
 		h.add_child(b)
 		round_btns[rf[0]] = b
+	# p038makeitstro: a press adds a rib where the solid is thin (no toggle: the press is the step)
+	var sb := _big_btn("easypart_stronger", "Make it stronger", "Add a rib where the solid is thin: a strip on its thin side, along its long side", _stronger_press)
+	sb.icon = Icons.sized("part_stronger", 22)
+	sb.expand_icon = false
+	sb.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	sb.custom_minimum_size = Vector2(176, 44)
+	h.add_child(sb)
 	return box
 
 
@@ -1501,6 +1508,80 @@ func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: flo
 func _round_done(f: Dictionary) -> void:
 	tweak = {"id": f["id"], "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
 	_say("Edges rounded: use the slider for more or less, or press Cut a hole next")
+
+
+## MAKE IT STRONGER (p038makeitstro, Friday plan 38): the solid's thinnest side is its thin side. Under RIB_MIN_MM a rib goes on that side's
+## face, along the longer of the other two sides and centred across it: a strip RIB_W_MM wide, RIB_H_MM tall (the Rib height slider).
+const RIB_MIN_MM := 25.0
+const RIB_W_MM := 4.0
+const RIB_H_MM := 10.0
+
+
+func _stronger_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	armed = ""
+	var snap := _rec().duplicate(true)
+	_begin("Make it stronger")
+	var rec: Dictionary = snap.duplicate(true)
+	var why := _stronger(rec)
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+	else:
+		m.S.part = rec
+		_end()
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+
+
+## the rib, added to rec (see above). "" or why not
+func _stronger(rec: Dictionary) -> String:
+	var res := Part.replay(rec)
+	if int(res["bodies"]) != 1:
+		return "Make one solid first: Pull it up, then press Make it stronger"
+	var bb: AABB = res["aabb"]
+	var lo := bb.position / Part.MM
+	var hi := bb.end / Part.MM
+	var sz := hi - lo
+	var thin := 0
+	for a in 3:
+		if sz[a] < sz[thin]:
+			thin = a
+	if sz[thin] >= RIB_MIN_MM:
+		return "This solid is thick enough already (%d mm at its thinnest): nothing to add" % int(roundf(sz[thin]))
+	var others := [0, 1, 2]
+	others.erase(thin)
+	var along: int = others[0] if sz[others[0]] >= sz[others[1]] else others[1]
+	var across: int = others[1] if along == others[0] else others[0]
+	var base: String = ["right", "top", "front"][thin]
+	var pf := Part.new_feature(rec, "plane", {"from": base, "mm": snappedf(hi[thin], 0.01)})
+	rec["features"].append(pf)
+	var pl := Part.resolve_plane(rec, String(pf["id"]))
+	var mid := (lo[across] + hi[across]) * 0.5
+	var w1 := Vector3.ZERO
+	var w2 := Vector3.ZERO
+	w1[thin] = hi[thin]
+	w2[thin] = hi[thin]
+	w1[along] = lo[along]
+	w2[along] = hi[along]
+	w1[across] = mid - RIB_W_MM * 0.5
+	w2[across] = mid + RIB_W_MM * 0.5
+	var sk := Part.new_feature(rec, "sketch", {"plane": String(pf["id"]), "ents": [{"k": "rect", "a": Part.arr2(Part.to_plane(pl, w1 * Part.MM)), "b": Part.arr2(Part.to_plane(pl, w2 * Part.MM))}], "dims": []})
+	rec["features"].append(sk)
+	var ex := Part.new_feature(rec, "extrude", {"sketch": sk["id"], "dist": RIB_H_MM, "both": false, "op": "join", "into": 0})
+	rec["features"].append(ex)
+	if _last_error(rec, String(ex["id"])) != "" or int(Part.replay(rec)["bodies"]) != 1:
+		return "A rib does not fit on this solid. Pull it up taller, then press Make it stronger again"
+	tweak = {"id": ex["id"], "field": "dist", "label": "Rib height", "unit": "mm", "lo": 2.0, "hi": 30.0, "step": 1.0, "scale": 1.0, "words": ["Shorter", "Taller"]}
+	_say("Ribbed the thin side: use the Rib height slider for how tall, or press Round the edges or Cut a hole next")
+	return ""
 
 
 func _hole(rec: Dictionary) -> String:

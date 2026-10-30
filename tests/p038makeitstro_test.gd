@@ -153,7 +153,10 @@ func _init() -> void:
 	ok(int(s1["bodies"]) == 1 and v1 > 1000.0, "plate: one body, volume %.0f mm3, size %.1f x %.1f x %.1f mm" % [v1, bb1.x, bb1.y, bb1.z])
 
 	# P0 the button is on the screen
-	var sb = ep.find_child("easypart_stronger", true, false)
+	var sb = null   # the press is the button named easypart_stronger, found the way a tester sees it: under the Round row
+	for c in ep.round_box.find_children("*", "", true, false):
+		if c.name == "easypart_stronger":
+			sb = c
 	var on := sb != null and sb is Button and (sb as Button).is_visible_in_tree()
 	ok(on, "P0 after Pull it up: a Make it stronger button is on the screen")
 	if not on:
@@ -166,6 +169,10 @@ func _init() -> void:
 	await click_ctl(sb)
 	await idle(10)
 	var n1: int = m.undo.size()
+	var words := String(ep.hint_l.text) + " " + String(ep.msg)   # the words the press leaves (read before Undo changes them)
+	var lab := []
+	labels(ep.status, lab)
+	words += " " + " ".join(lab)
 	var s2 := solid()
 	var v2 := vol_mm3(s2)
 	var bb2 := bb_mm(s2)
@@ -187,10 +194,6 @@ func _init() -> void:
 	await idle(10)
 
 	# P4 P5 the words
-	var words := String(ep.hint_l.text) + " " + String(ep.msg)
-	var lab := []
-	labels(ep.status, lab)
-	words += " " + " ".join(lab)
 	ok(words.to_lower().find("rib") >= 0 and words.to_lower().find("slider") >= 0, "P4 the words say rib and name the slider: [%s]" % words)
 	var jargon := []
 	for w in ["sketch", "extrude", "boolean", "feature", "body", "loft", "cylinder", "plane"]:
