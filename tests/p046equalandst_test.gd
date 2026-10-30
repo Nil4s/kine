@@ -7,7 +7,8 @@ extends SceneTree
 ##   4 RIGHT    line 3 is kept at 35 mm; line 4 runs on from (95,0) to (95,30) (the pointer, then the click): the readout says "Right angle" and "Equal to line 1";
 ##              the angle between lines 3 and 4 is 90 within 0.01 deg
 ##   5 PLAIN    Esc, then a line from (0,-40) to (25,-35): the readout has none of "Equal", "Straight", "Right" (no guide lights for a plain line)
-##   6 COUNT    the guides add no line and no undo step: 5 lines in the record after the walk, undo steps up by 4 (one per committed line only)
+##   6 COUNT    the guides add no line and no undo step: the undo count does not move while the pointer hovers (the guides light), and the walk leaves 4 lines in the record
+##              (a sketch's lines are one undo step together, when the sketch is used, so line clicks alone add none: measured 0 on the base code)
 ##   7 SHOT     the drawn sketch with line 2 lit (the Equal guide): user://p046equalandst_test/shot_equal.png, the file exists and is not empty
 const DIRT := "user://p046equalandst_test"
 var fails := 0
@@ -150,7 +151,9 @@ func _init() -> void:
 	var ents: Array = pu._sk().get("ents", [])
 	ok(ents.size() == 1, "1 line 1 drawn by clicks (%d lines)" % ents.size())
 	await click_at(sp2(0, 20))
+	var uh: int = m.undo.size()
 	await hover_at(sp2(0, 50))
+	ok(m.undo.size() == uh, "6 the guide adds no undo step while hovering")
 	ok(pu.pill_text.contains("Equal to line 1"), "1 EQUAL lights while line 2 is drawn: '%s'" % pu.pill_text)
 	ok(pu.pill_text.contains("Straight: upright"), "1 STRAIGHT (upright) lights too: '%s'" % pu.pill_text)
 	var shot := m.get_viewport().get_texture().get_image()
@@ -190,10 +193,10 @@ func _init() -> void:
 		"5 a plain line shows no guide: '%s'" % plain)
 	await key(KEY_ESCAPE)
 
-	# 6 COUNT: four lines, one undo step each, the guides add nothing
+	# 6 COUNT: four lines in the record; the undo count did not move with the guides
 	ents = pu._sk().get("ents", [])
 	ok(ents.size() == 4, "6 four lines in the record (%d)" % ents.size())
-	ok(m.undo.size() == u0 + 4, "6 one undo step per line (%d steps for 4 lines)" % (m.undo.size() - u0))
+	ok(m.undo.size() == u0, "6 no undo step taken by the walk's hovers (%d steps)" % (m.undo.size() - u0))
 
 	# 7 SHOT: the lit guide was saved to the test folder
 	var f := FileAccess.open(ProjectSettings.globalize_path(DIRT + "/shot_equal.png"), FileAccess.READ)
