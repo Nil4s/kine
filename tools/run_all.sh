@@ -332,3 +332,4 @@ EXTRA="$EXTRA p035filletinsi:w"   # P035 FILLET INSIDE: Easy Part Stick together
 
 EXTRA="$EXTRA p038makeitstro:w"   # P038 MAKE IT STRONGER: Easy Part, a thin plate pulled up, then Make it stronger adds a 4 mm x 10 mm rib along its long side on the top (one undo step, a Rib height slider); bars on the built solid (tests/p038makeitstro_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA p039edgeloopsm:w"   # p039edgeloopsm (Friday plan 39): Curvy line gets a Smooth slider (0 = as drawn, 100 = wobble gone, corners kept); a wobbly hand line by real clicks, bars on the saved curve points (tests/p039edgeloopsm_test.gd)
+EXTRA="$EXTRA p106oneclickin:w"   # P106 ONE-CLICK INSTRUCTION SHEET (Friday plan 106): Easy Part Instruction sheet button writes one printable page: the parts list (volumes from the built result) and each step with its picture + plain words (tests/p106oneclickin_test.gd; needs the CAD DLL)

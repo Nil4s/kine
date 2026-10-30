@@ -3115,7 +3115,13 @@ func _steps_box() -> PanelContainer:
 	t.text = "Your steps"
 	t.add_theme_font_size_override("font_size", 16)
 	t.add_theme_color_override("font_color", Tok.c("heading"))
-	v.add_child(t)
+	# P106: the sheet button sits on the title line, so the box does not grow downward (a taller box covered the grid's right side)
+	var th := HBoxContainer.new()
+	th.add_theme_constant_override("separation", 8)
+	v.add_child(th)
+	th.add_child(t)
+	var sheet := _sheet_button()
+	th.add_child(sheet)
 	var sc := ScrollContainer.new()
 	sc.name = "easypart_steps_scroll"
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -3127,6 +3133,40 @@ func _steps_box() -> PanelContainer:
 	steps_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sc.add_child(steps_vb)
 	return box
+
+
+## P106: the Instruction sheet button (on the step list's title line): one click writes the page (see _sheet_press)
+func _sheet_button() -> Button:
+	var sheet := Button.new()
+	sheet.name = "easypart_sheet"
+	sheet.text = "Instruction sheet"
+	sheet.icon = Icons.sized("export", 18)
+	sheet.expand_icon = false
+	sheet.focus_mode = Control.FOCUS_NONE
+	sheet.add_theme_font_size_override("font_size", 13)
+	sheet.tooltip_text = "Make a printable instruction sheet: the parts list and each step with its picture. It opens in your browser: print it, or Save as PDF"
+	sheet.pressed.connect(func(): _sheet_press())
+	return sheet
+
+
+## P106: the Instruction sheet button. Writes the page (PartSheet) and opens it in the browser. No undo step: the part is not changed
+func _sheet_press() -> void:
+	var rec := _rec()
+	var steps: Array = []
+	var fs: Array = rec.get("features", [])
+	for i in fs.size():
+		var w := step_words(fs[i])
+		if w != "":
+			steps.append({"upto": i, "words": w})
+	if steps.is_empty() or Part.replay(rec)["mesh"] == null:
+		_say("Make a shape first: the sheet shows each step with its picture")
+		return
+	var path := await PartSheet.write(m, rec, _nm(), steps)
+	if path == "":
+		_say("The sheet did not save: press Instruction sheet again")
+		return
+	m._shell_open(path)
+	_say("The instruction sheet is open in your browser: print it, or Save as PDF")
 
 
 ## NSTEPLIST: the step's plain words ("" = no row: a helper plane). Pulled up N cm, Rounded N edges R mm, Drew a shape, Hollowed out
