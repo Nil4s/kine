@@ -716,11 +716,18 @@ func _rows_sync() -> void:
 	taper_row = {}
 	twist_row = {}
 	if _taper_live():   # FPLANTER: the Taper row sits UNDER How far; it is not in rows (rows[-1] stays the step's own slider)
-		taper_row = _make_row(String(taper_tw["label"]), float(taper_tw["lo"]), float(taper_tw["hi"]), float(taper_tw["step"]), taper_tw["words"], "taper", "taper", String(taper_tw["unit"]))
+		# P024: the Twist slider shares the Taper row's line (side by side), so a pull with a Twist costs no more height than one with a Taper
+		# alone: the side panel stays as tall, and the drawing area under it stays as clear (fdelete draws beside a piece there)
+		var pair := HBoxContainer.new()
+		pair.name = "easypart_taper_pair"
+		rows_vb.add_child(pair)
+		taper_row = _make_row(String(taper_tw["label"]), float(taper_tw["lo"]), float(taper_tw["hi"]), float(taper_tw["step"]), taper_tw["words"], "taper", "taper", String(taper_tw["unit"]), pair)
 		(taper_row["words"] as Control).visible = not _compact
-	if _taper_live() and not twist_tw.is_empty():   # P024: the Twist row sits under the Taper row (the Taper row goes while the shape is twisted)
-		twist_row = _make_row(String(twist_tw["label"]), float(twist_tw["lo"]), float(twist_tw["hi"]), float(twist_tw["step"]), twist_tw["words"], "twist", "twist", String(twist_tw["unit"]))
-		(twist_row["words"] as Control).visible = not _compact
+		if not twist_tw.is_empty():
+			twist_row = _make_row(String(twist_tw["label"]), float(twist_tw["lo"]), float(twist_tw["hi"]), float(twist_tw["step"]), twist_tw["words"], "twist", "twist", String(twist_tw["unit"]), pair)
+			(twist_row["words"] as Control).visible = not _compact
+			(twist_row["box"] as Control).size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		(taper_row["box"] as Control).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	for r in rows:
 		(r["words"] as Control).visible = not _compact
 	_values_sync()
@@ -816,9 +823,12 @@ func _values_sync() -> void:
 			s.set_value_no_signal(v)
 		_pill_text(r, s.value)
 		m._grey(s, Part.why_not() if off else "")
-	# P024: a twisted shape has no taper (the kernel ignores it): the Taper row goes while the Twist is above 0
+	# P024: a twisted shape has no taper (the kernel ignores it): the Taper row goes while the Twist is above 0. It fades in place rather than
+	# hiding, so the Twist slider beside it keeps its width (a hidden box would widen the Twist slider mid-drag)
 	if not taper_row.is_empty():
-		(taper_row["box"] as Control).visible = not (not twist_row.is_empty() and float(Part.feature(_rec(), String(twist_tw.get("id", ""))).get("twist", 0.0)) > 0.0)
+		var twisted := not twist_row.is_empty() and float(Part.feature(_rec(), String(twist_tw.get("id", ""))).get("twist", 0.0)) > 0.0
+		(taper_row["box"] as Control).modulate.a = 0.0 if twisted else 1.0
+		(taper_row["slider"] as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE if twisted else Control.MOUSE_FILTER_STOP
 	_rep_sync()
 	whole_l.visible = _tpl() != ""
 	if whole_l.visible:   # the whole shape's biggest size (the replay's box, m -> cm): the sliders move one part of it
