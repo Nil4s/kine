@@ -9,7 +9,7 @@ extends RefCounted
 const MM := 0.001
 const ARCH_GAP := 40.0   # mm: a car's wheel arch top sits this far above the tyre's top (the arch is the wheel radius + 40 mm)
 const CAB_W := 0.88     # the glasshouse is this share of the body's width (narrower than the lower body, so the cabin reads as a cabin)
-const ORDER :=["sword", "axe", "shield", "chair", "gear", "crate"]   # NGEAR: Gear sits before Crate (Crate stays the last chip); its numbers are not cm: "raw"
+const ORDER :=["sword", "axe", "shield", "chair", "gear", "spring", "crate"]   # NGEAR: Gear sits before Crate (Crate stays the last chip); its numbers are not cm: "raw"   # p070: Spring sits after Gear
 const T := {
 	"sword": {"title": "Sword", "params": [
 		{"k": "blade_length", "label": "Blade length", "lo": 300.0, "hi": 1200.0, "def": 760.0, "step": 10.0, "words": ["Shorter", "Longer"]},
@@ -41,6 +41,10 @@ const T := {
 		{"k": "teeth", "label": "Teeth", "lo": 8.0, "hi": 60.0, "def": 30.0, "step": 1.0, "words": ["Fewer", "More"], "raw": true, "unit": "teeth"},
 		{"k": "module", "label": "Teeth size", "lo": 1.0, "hi": 3.0, "def": 2.0, "step": 1.0, "words": ["Small teeth", "Big teeth"], "raw": true, "unit": "size"},
 		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 30.0, "def": 10.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
+	# p070: a compression spring: turns (coils, 3..12) and wire (mm, 1..4) on raw sliders. Mean coil radius 10 mm, coils 0.8 x wire apart.
+	"spring": {"title": "Spring", "params": [
+		{"k": "turns", "label": "Turns", "lo": 3.0, "hi": 12.0, "def": 6.0, "step": 1.0, "words": ["Fewer", "More"], "raw": true, "unit": "turns"},
+		{"k": "wire", "label": "Wire", "lo": 1.0, "hi": 4.0, "def": 2.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
 	# VEHICLE PARTS (B3, scripts/vehicle.gd): not in ORDER, so no Easy chip: a car body and one wheel
 	"car": {"title": "Car body", "params": [
 		{"k": "body_length", "label": "Length", "lo": 1500.0, "hi": 5000.0, "def": 4000.0, "step": 50.0, "words": ["Shorter", "Longer"]},
@@ -377,12 +381,52 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var th: float = p["thickness"]
 			_ex(fs, _sk(fs, "front", gear_outline(N, md)), "extrude", th, "new")
 			_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": 0.12 * N * md}]), "extrude", th, "cut", true)
+		"spring":
+			# p070: one sketch loop (the outline of the coils' union in the front plane) turned about the up axis: one solid, two features
+			# whatever the turns (so a Turns change keeps the ids of the steps after it)
+			var prof := spring_profile(int(clampi(int(roundf(float(p["turns"]))), 3, 12)), float(p["wire"]))
+			var sid := _sk(fs, "front", _poly(prof))
+			_ex(fs, sid, "revolve", 0.0, "new")
+			fs[fs.size() - 1]["axis"] = "y"
 		"wheel":
 			# a tyre: the profile (width x radius) turned about the sketch's x axis = world X, the axle (side to side)
 			var R: float = p["radius"]
 			var w: float = p["width"]
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(-w * 0.5, 0.0), Vector2(w * 0.5, R))]), "revolve", 0.0, "new")
 	return fs
+
+
+## p070: the outline (right side up, left side down, mm, the front plane: x = radius, y = height) of n coils of wire w: each coil is a disk of
+## radius w / 2 at height k x 0.8 w + w / 2, the coils overlap, so the outline is their union. Sampled every 0.1 mm (the coil centres sit on
+## the 0.1 mm grid, so the widest point and the top are exact). The coil centre line is at radius 10 mm.
+static func spring_profile(n: int, w: float) -> Array:
+	var rc := 10.0
+	var h := w * 0.5
+	var pitch := 0.8 * w
+	var H := (n - 1) * pitch + w
+	var right := []
+	var left := []
+	var steps := int(roundf(H / 0.1))
+	for i in steps + 1:
+		var y := float(i) * 0.1
+		var best := -1.0
+		for k in n:
+			var d := y - (float(k) * pitch + h)
+			if absf(d) <= h:
+				best = maxf(best, sqrt(h * h - d * d))
+		if best < 0.0:
+			continue
+		right.append(Vector2(rc + best, y))
+		left.append(Vector2(rc - best, y))
+	left.reverse()
+	# the two ends are single points (the disk's bottom and top): one vertex each, not two
+	var out := []
+	for q in right + left:
+		if out.is_empty() or (out[-1] as Vector2).distance_to(q) > 0.001:
+			out.append(q)
+	if out.size() > 1 and (out[0] as Vector2).distance_to(out[-1]) < 0.001:
+		out.pop_back()
+	return out
 
 
 ## NGEAR: the closed tooth outline of a spur gear with n teeth of module m (mm), as lines. Angles in units of q = pi / (2 n): a tooth is
