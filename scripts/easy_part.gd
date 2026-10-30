@@ -21,6 +21,8 @@ const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the 
 const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal): a wood brown, red > green > blue
 const TILT_DEG := 20.0           # Tilt it: the lean of the newest solid (degrees, sideways about its middle)
 const HOLLOW_MM := 3.0           # Hollow inside: the wall the shell starts with (the Wall slider moves it: 1 to 10 mm)
+const LID_MM := 5.0             # Hollow with a lid (nlid): the top slice that comes off as the lid (a solid plate, the box's footprint)
+const LID_LIP_MM := 3.0         # the lid's lip: how far it goes down inside the box (1 mm wide ring, 0.2 mm gap to the wall)
 const THROTTLE_MS := 100
 const CLIP_MM := 6.0             # FBOWL2: a spun curve that dips past the middle line by less than this (a spline overshoot) is clipped onto it
 const NARROW_W := 1200.0         # FMOBILE: a window narrower than this (1024 x 600) shrinks the bar's buttons and the title
@@ -389,7 +391,7 @@ func _hole_box() -> PanelContainer:
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 6)
 	box.add_child(h)
-	for hm in [["through", "Through", "A round hole straight through the middle"], ["hollow", "Hollow inside", "Hollow the solid out, open at the top, with a wall (the Wall slider)"]]:
+	for hm in [["through", "Through", "A round hole straight through the middle"], ["hollow", "Hollow inside", "Hollow the solid out, open at the top, with a wall (the Wall slider)"], ["lid", "Hollow with a lid", "Hollow the box out with a 3 mm wall; its top 5 mm comes off as a lid with a lip that sits inside the box"]]:
 		var b := _big_btn("easypart_hole_" + String(hm[0]), String(hm[1]), String(hm[2]), _hole_mode.bind(String(hm[0])))
 		b.toggle_mode = true
 		b.custom_minimum_size = Vector2(150, 44)
@@ -1252,10 +1254,10 @@ func _hole_mode(mode: String) -> void:
 	_flush_if_dirty()
 	armed = ""
 	var snap := _rec().duplicate(true)
-	_begin("Hollow inside" if mode == "hollow" else "Cut a hole")
+	_begin("Hollow with a lid" if mode == "lid" else ("Hollow inside" if mode == "hollow" else "Cut a hole"))
 	var rec: Dictionary = hole_base.duplicate(true)
 	m.S.part = rec
-	var why := _hollow(rec) if mode == "hollow" else _hole(rec)
+	var why := _hollow_lid(rec) if mode == "lid" else (_hollow(rec) if mode == "hollow" else _hole(rec))
 	if why != "":
 		m.S.part = snap
 		m._drop_undo()
@@ -1264,7 +1266,7 @@ func _hole_mode(mode: String) -> void:
 	else:
 		_end()
 		hole_mode = mode
-		hole_id = String(tweak.get("id", ""))
+		hole_id = String(tweak.get("id", "")) if not tweak.is_empty() else String(rec["features"][-1].get("id", ""))   # the lid has no slider: its newest step keeps the chips up
 	pu.upto = -1
 	pu.sync()
 	_rows_sig = ""   # the step's id can repeat the last one (the chips rebuild from an older record): the slider box is rebuilt anyway
@@ -1295,6 +1297,56 @@ func _hollow(rec: Dictionary) -> String:
 	tweak = {"id": f["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
 	_say("Hollowed out, open at the top: use the slider for the wall")
 	return ""
+
+
+## HOLLOW WITH A LID (nlid): a box (one body, a rectangle pulled up) is split at its top LID_MM: the top slice is the LID, a solid plate on
+## the box's footprint; the rest is hollowed out (a HOLLOW_MM wall, open at the top). A lip (1 mm ring, LID_LIP_MM tall, 0.2 mm inside the
+## walls) hangs under the lid into the box: a plug cut back to a ring. Box-shaped only; no slider (the lip is cut to the walls). "" or why not
+func _hollow_lid(rec: Dictionary) -> String:
+	var res := Part.replay(rec)
+	if int(res["bodies"]) == 0:
+		return "Nothing solid to hollow out yet. Press Pull it up first"
+	var bb: AABB = res["aabb"]
+	var sz := bb.size / Part.MM
+	var too_small := "That box is too small for a lid: Pull it up at least 12 mm tall and 12 mm wide, then press Cut a hole again"
+	if int(res["bodies"]) != 1 or minf(sz.x, minf(sz.y, sz.z)) < 12.0:
+		return too_small
+	if float(res["volume"]) / (Part.MM * Part.MM * Part.MM) < 0.98 * sz.x * sz.y * sz.z:
+		return "A lid needs a box: Pull a rectangle up into a box, then press Cut a hole again"
+	var x0 := bb.position.x / Part.MM
+	var x1 := bb.end.x / Part.MM
+	var z0 := bb.position.z / Part.MM
+	var z1 := bb.end.z / Part.MM
+	var top := bb.end.y / Part.MM
+	var ins_o := HOLLOW_MM + 0.2          # the lip's outer face: 0.2 mm inside the wall
+	var ins_i := ins_o + 1.0              # the lip's inner face: a 1 mm ring
+	var sp := Part.new_feature(rec, "split", {"plane": "top", "at": top - LID_MM, "keep": 0})   # bodies: [the top slice (the lid), the box]
+	rec["features"].append(sp)
+	var sh := Part.new_feature(rec, "shell", {"body": 1, "thick": HOLLOW_MM, "open": "+y"})
+	rec["features"].append(sh)
+	var pf := Part.new_feature(rec, "plane", {"from": "top", "mm": top - LID_MM - LID_LIP_MM})
+	rec["features"].append(pf)
+	var s1 := Part.new_feature(rec, "sketch", {"plane": String(pf["id"]), "ents": [_rect_ent(x0 + ins_o, z0 + ins_o, x1 - ins_o, z1 - ins_o)], "dims": []})
+	rec["features"].append(s1)
+	var f1 := Part.new_feature(rec, "extrude", {"sketch": s1["id"], "dist": LID_LIP_MM, "both": false, "op": "join", "into": 0})
+	rec["features"].append(f1)
+	var s2 := Part.new_feature(rec, "sketch", {"plane": String(pf["id"]), "ents": [_rect_ent(x0 + ins_i, z0 + ins_i, x1 - ins_i, z1 - ins_i)], "dims": []})
+	rec["features"].append(s2)
+	var f2 := Part.new_feature(rec, "extrude", {"sketch": s2["id"], "dist": LID_LIP_MM, "both": false, "op": "cut"})
+	rec["features"].append(f2)
+	for fid in [sp["id"], sh["id"], f1["id"], f2["id"]]:
+		if _last_error(rec, String(fid)) != "":
+			return too_small
+	if Part.replay(rec)["bodies"] != 2:
+		return too_small
+	tweak = {}
+	_say("Hollowed out with a lid: the top 5 mm is the lid, sitting on the box. Ctrl+Z undoes it")
+	return ""
+
+
+## a rectangle sketch entity from its two corners in the sketch's plane (top plane: v = -Z), mm
+func _rect_ent(xa: float, za: float, xb: float, zb: float) -> Dictionary:
+	return {"k": "rect", "a": Part.arr2(Vector2(xa, -za)), "b": Part.arr2(Vector2(xb, -zb))}
 
 
 ## FCANDLE: Hollow inside for a cup on a base (the newest round piece on a solid): a circle HOLLOW_MM inside the cup's own shape, cut down

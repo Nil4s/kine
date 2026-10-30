@@ -302,3 +302,4 @@ EXTRA="$EXTRA fruler:w"   # FRULER: a ruler 300 mm by real clicks from the BUILD
 EXTRA="$EXTRA epanelview:w"   # EPANELVIEW: free building, a tool panel at the left of Easy Part never covers the part: real clicks from the BUILDING card at 1280 x 720, every make tool (tests/epanelview_test.gd)
 EXTRA="$EXTRA fbolt:w"   # FBOLT: a beginner from the BUILDING card builds a bolt and a nut by real clicks: a round shaft, a hex head (Hex chip), a hex nut apart from the bolt, a hole; Expert shows the hex as six lines (tests/fbolt_test.gd)
 EXTRA="$EXTRA npoly2:w"   # NPOLY2: a beginner makes a regular prism: the Sides slider (3-12) next to Hex, a 5-sided and a 12-sided prism by real clicks, Pulled up, measured in mm, Ctrl+Z (tests/npoly2_test.gd)
+EXTRA="$EXTRA nlid:w"   # NLID: a beginner builds a box, Cut a hole > Hollow with a lid: two pieces, the lid 8 mm tall (5 mm plate + 3 mm lip inside the box), measured from the built result (tests/nlid_test.gd)
