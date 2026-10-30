@@ -169,6 +169,8 @@ func build(root: Control) -> void:
 	root.add_child(tilt_box)
 	steps_box = _steps_box()   # NSTEPLIST
 	root.add_child(steps_box)
+	flat_box = _printing_box()   # p113: under the step list
+	root.add_child(flat_box)
 	# the panel
 	panel = PanelContainer.new()
 	panel.name = "easypart_panel"
@@ -649,7 +651,8 @@ func _tilt_press() -> void:
 	_say("Tilted 20 degrees: the piece leans about its middle")
 
 
-var lay_btn: Button         # p113: Lay it flat, in the Tilt it box under any solid
+var flat_box: PanelContainer   # p113: the printing box under the step list (Lay it flat, Show overhangs)
+var lay_btn: Button         # p113: Lay it flat, in the printing box under any solid
 var paint_btn: Button       # p113: Show overhangs (a toggle chip)
 var paint_on := false       # p113: the red overhang faces are on
 var _ov_mesh: MeshInstance3D   # p113: the red copy of the overhang faces, over the part
@@ -725,7 +728,9 @@ func _overhang_mesh() -> ArrayMesh:
 	var faces := Part.overhang_faces_of(_rec())
 	if faces.is_empty():
 		return null
-	var tris := _shown_faces()
+	var tris := PackedVector3Array()   # _shown_faces: one array of triangle corners per body (or the shown mesh as one)
+	for part_tris in _shown_faces():
+		tris.append_array(part_tris)
 	var verts := PackedVector3Array()
 	for k in range(0, tris.size() - 2, 3):
 		var a: Vector3 = tris[k]
@@ -2393,8 +2398,7 @@ func _process(_dt: float) -> void:
 	tilt_btn.visible = tilt_on
 	draft_btn.visible = draft_on
 	var flat_on := on and armed == "" and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # p113: Lay it flat and Show overhangs, under any solid, in the step list
-	lay_btn.visible = flat_on
-	paint_btn.visible = flat_on
+	flat_box.visible = flat_on
 	paint_btn.set_pressed_no_signal(paint_on)
 	tilt_box.visible = on and armed == "" and (along or tilt_on or draft_on)
 	_overhang_sync(on)
@@ -3234,15 +3238,24 @@ func _steps_box() -> PanelContainer:
 	steps_vb.add_theme_constant_override("separation", 3)
 	steps_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sc.add_child(steps_vb)
-	# p113: the two printing chips sit under the step list (Lay it flat turns the part; Show overhangs paints red where it needs support)
+	return box
+
+
+## p113: the two printing chips, one box under the step list (Lay it flat turns the part; Show overhangs paints red where it needs support)
+func _printing_box() -> PanelContainer:
+	var box := PanelContainer.new()
+	box.name = "easypart_printing"
+	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	box.visible = false
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 4)
+	box.add_child(v)
 	lay_btn = _big_btn("easypart_lay_flat", "Lay it flat", "Turn the part so the face that needs the least support under it sits on the floor", _lay_press)
 	lay_btn.custom_minimum_size = Vector2(PW - 40.0, 40)
-	lay_btn.visible = false
 	v.add_child(lay_btn)
 	paint_btn = _big_btn("easypart_show_overhangs", "Show overhangs", "Paint red the faces a printer needs support under (they point down more than 45 degrees)", _paint_press)
 	paint_btn.toggle_mode = true
 	paint_btn.custom_minimum_size = Vector2(PW - 40.0, 40)
-	paint_btn.visible = false
 	v.add_child(paint_btn)
 	return box
 
