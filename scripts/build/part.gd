@@ -1817,12 +1817,44 @@ static func _shell(bodies: Array, f: Dictionary) -> String:
 		return "there is no body to shell"
 	var bi := clampi(int(f.get("body", bodies.size() - 1)), 0, bodies.size() - 1)
 	var dir: Vector3 = SHELL_DIRS.get(String(f.get("open", "")), Vector3.ZERO)
-	var s := KCad.shell(bodies[bi], float(f.get("thick", 1.0)) * MM, dir)
+	var thick := float(f.get("thick", 1.0)) * MM
+	var before := KCad.volume(bodies[bi])
+	var s := KCad.shell(bodies[bi], thick, dir)
 	if s == 0:
 		return KCad.last_error()
+	if dir != Vector3.ZERO and KCad.volume(s) >= before - 1e-12:
+		# NSLIDELOD: the kernel's shell of a rounded solid can hand back the solid unchanged (no error): cut the cavity by hand
+		KCad.release(s)
+		s = _cavity(bodies[bi], thick, dir)
+		if s == 0:
+			return "the wall is too thick for this solid: make the wall thinner"
 	KCad.release(bodies[bi])
 	bodies[bi] = s
 	return ""
+
+
+## NSLIDELOD: the box-shaped hollow of body `b` (wall `thick` m, open on the side `dir`): the body's box minus a smaller box, open on that side
+static func _cavity(b: int, thick: float, dir: Vector3) -> int:
+	var bb := _bbox(KCad.edges(b))
+	var lo := bb.position + Vector3.ONE * thick
+	var hi := bb.end - Vector3.ONE * thick
+	for i in 3:
+		if dir[i] > 0.0:
+			hi[i] = bb.end[i] + thick
+		elif dir[i] < 0.0:
+			lo[i] = bb.position[i] - thick
+	var size := hi - lo
+	if size.x <= 0.0 or size.y <= 0.0 or size.z <= 0.0:
+		return 0
+	var box := KCad.box(size.x, size.y, size.z)
+	var at := _bbox(KCad.edges(box)).position
+	var moved := KCad.translate(box, lo - at)
+	KCad.release(box)
+	if moved == 0:
+		return 0
+	var c := KCad.cut(b, moved)
+	KCad.release(moved)
+	return c
 
 
 static func _edge_op(bodies: Array, f: Dictionary) -> String:
