@@ -1501,6 +1501,101 @@ static func _combine(bodies: Array, solid: int, op: String, into := -1) -> Strin
 	return ""
 
 
+## FIXIT: the first thing wrong with a part, for Easy Part's Fix it: {} when all is well. kind "failed": a step that does not build (id);
+## "wall": a shell with no thickness (id); "loose": a separate piece that touches nothing joined to the main piece (id: the first pull that leaves it loose)
+static func find_problem(rec: Dictionary) -> Dictionary:
+	var full := replay(rec)
+	var errs: Dictionary = full["errors"]
+	var fs: Array = rec.get("features", [])
+	for f in fs:
+		if bool(f.get("off", false)):
+			continue
+		var id := String(f["id"])
+		if errs.has(id):
+			return {"kind": "failed", "id": id}
+		if String(f["t"]) == "shell" and float(f.get("thick", 1.0)) <= 0.0:
+			return {"kind": "wall", "id": id}
+	if _loose_count(full.get("mesh")) == 0:
+		return {}
+	for k in fs.size():
+		var f: Dictionary = fs[k]
+		if bool(f.get("off", false)) or not (String(f["t"]) in ["extrude", "revolve"]):
+			continue
+		if _loose_count(replay(rec, k).get("mesh")) > 0:
+			return {"kind": "loose", "id": String(f["id"])}
+	return {}
+
+
+## FIXIT: how many pieces of a built mesh touch nothing joined to the main piece (the one with the biggest box)
+static func _loose_count(mesh: Variant) -> int:
+	if not (mesh is ArrayMesh) or (mesh as ArrayMesh).get_surface_count() < 2:
+		return 0
+	var sm: ArrayMesh = mesh
+	var n := sm.get_surface_count()
+	var main := 0
+	var best := -1.0
+	for s in n:
+		var v: PackedVector3Array = sm.surface_get_arrays(s)[Mesh.ARRAY_VERTEX]
+		var bb := AABB(v[0], Vector3.ZERO)
+		for p in v:
+			bb = bb.expand(p)
+		if bb.get_volume() > best:
+			best = bb.get_volume()
+			main = s
+	var linked := {main: true}
+	var grew := true
+	while grew:
+		grew = false
+		for j in n:
+			if linked.has(j):
+				continue
+			for i in linked.keys():
+				if touch_surfaces(sm, int(i), j):
+					linked[j] = true
+					grew = true
+					break
+	return n - linked.size()
+
+
+## FIXIT: the fix for a problem from find_problem, on the record in place. "" when done; else the words why not (the record is then left as it was)
+static func apply_fix(rec: Dictionary, p: Dictionary) -> String:
+	var k := index_of(rec, String(p.get("id", "")))
+	if k < 0:
+		return "That step is gone: press Fix it again"
+	var fs: Array = rec["features"]
+	if String(p.get("kind", "")) == "wall":
+		fs[k]["thick"] = 2.0   # a wall must have some thickness: 2 mm, the thinnest a beginner can see
+		return ""
+	var test: Dictionary = rec.duplicate(true)
+	var tfs: Array = test["features"]
+	var gone: Dictionary = tfs[k]
+	tfs.remove_at(k)
+	for key in ["sketch", "plane"]:
+		if gone.has(key):
+			var sid := String(gone[key])
+			if sid == "" or JSON.stringify(tfs).contains("\"%s\"" % sid):
+				continue
+			for i in tfs.size():
+				if String(tfs[i].get("id", "")) == sid:
+					tfs.remove_at(i)
+					break
+	if String(p.get("kind", "")) == "loose":
+		if not replay(test)["errors"].is_empty() or _loose_count(replay(test).get("mesh")) > 0:
+			return "A step after it needs this piece, so it stays. Take those steps out first"
+	rec["features"] = tfs
+	return ""
+
+
+## FIXIT: the line Easy Part says after a fix, in plain words
+static func fix_words(p: Dictionary) -> String:
+	match String(p.get("kind", "")):
+		"wall":
+			return "Gave the wall 2 mm of thickness: it had none. Undo puts it back"
+		"loose":
+			return "Took out the loose piece that touched nothing. Undo puts it back"
+	return "Took out the step that cannot be made. Undo puts it back"
+
+
 ## FLAMP5: the body an Extrude (op join) sits on: its solid is replayed alone as a new body, and the body whose mesh touches it is the one.
 ## -1 when it touches none. Saved on the step as "into" (set once, when the step is made), so every replay joins that body, not the last one.
 static func touching_body(rec: Dictionary, f: Dictionary) -> int:
