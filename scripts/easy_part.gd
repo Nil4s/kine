@@ -4524,6 +4524,8 @@ func input(ev: InputEvent) -> bool:
 	if ev is InputEventMouse:
 		_alt = (ev as InputEventMouse).alt_pressed
 	if not active() or not Part.available():
+		if edge_chip != null and edge_chip.visible:
+			_edge_hide()
 		return false
 	if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 		var p := (ev as InputEventMouseButton).position
@@ -4584,6 +4586,8 @@ func input(ev: InputEvent) -> bool:
 		if h != _hover:
 			_hover = h
 			dots.queue_redraw()
+		if armed == "" and h == "":
+			_edge_hover(p)   # NEDGECHIP: a built edge under the pointer shows its chip
 	return false
 
 
@@ -4661,6 +4665,8 @@ func _start_draft(p: Vector2) -> bool:
 
 
 func _over_ui(p: Vector2) -> bool:
+	if edge_chip != null and edge_chip.visible and edge_chip.get_global_rect().has_point(p):
+		return true   # NEDGECHIP: the edge chip is a button: its press is not a pick
 	# hint and status are WORDS only (a _pill: mouse_filter IGNORE, one Label, no button): a press under them is the grid's, not eaten
 	for c in [bar, make_box, panel, shape_box, colour_box, repeat_box, stick_box, tilt_box]:
 		if (c as Control).visible and (c as Control).get_global_rect().has_point(p):
@@ -5006,3 +5012,186 @@ func _edge_round(e: Dictionary, r: float) -> void:
 	_end()
 	_say("Edge rounded %d mm: drag another edge, or use the slider for more or less" % roundi(r))
 
+
+
+# ---------------------------------------------------------------- NEDGECHIP: the edge chip and its ghost
+
+var edge_chip: PanelContainer      # the one small chip over a hovered edge: Round / Bevel (only the ones that work)
+var edge_chip_row: HBoxContainer
+var edge_ghost: MeshInstance3D     # the see-through preview of the Round result, drawn over the solid
+var _ehov := {}                    # the hovered edge: {"key", "mid" (px), "opts" {kind: {"err", "mesh", "fields"}}}
+var _ecache := {"rec": "", "edges": []}   # the built record edges (one replay per change of the record)
+
+
+func _edge_chip_ensure() -> void:
+	if edge_chip != null:
+		return
+	edge_chip = PanelContainer.new()
+	edge_chip.name = "easypart_edge_chip"
+	edge_chip.visible = false
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.1, 0.12, 0.16, 0.92)
+	sb.set_corner_radius_all(8)
+	sb.set_content_margin_all(4)
+	edge_chip.add_theme_stylebox_override("panel", sb)
+	edge_chip_row = HBoxContainer.new()
+	edge_chip_row.add_theme_constant_override("separation", 4)
+	edge_chip.add_child(edge_chip_row)
+	m.ui_root.add_child(edge_chip)
+	edge_ghost = MeshInstance3D.new()
+	edge_ghost.name = "easypart_edge_ghost"
+	edge_ghost.visible = false
+	var mt := StandardMaterial3D.new()
+	mt.albedo_color = Color(0.45, 0.85, 1.0, 0.3)   # see-through: the solid shows under it
+	mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mt.cull_mode = BaseMaterial3D.CULL_DISABLED
+	edge_ghost.material_override = mt
+	pu.bu.root3.add_child(edge_ghost)
+
+
+## the built record edges (the list Round picks from), one replay per change of the record
+func _edge_list() -> Array:
+	var rec := _rec()
+	var key := JSON.stringify(rec)
+	if key != String(_ecache["rec"]):
+		var res := Part.replay(rec, -1, {"edges": true})
+		_ecache = {"rec": key, "edges": res["edges"] if int(res["bodies"]) > 0 else []}
+	return _ecache["edges"]
+
+
+## the chip and ghost go away (no hover, or a press / draw is under way)
+func _edge_hide() -> void:
+	if edge_chip != null:
+		edge_chip.visible = false
+	if edge_ghost != null:
+		edge_ghost.visible = false
+	_ehov = {}
+
+
+## a pointer move at p (no press, nothing armed): the built edge under it shows the chip
+func _edge_hover(p: Vector2) -> void:
+	if not active() or not Part.available() or pu == null or m.cam == null or int(pu.res.get("bodies", 0)) == 0:
+		_edge_hide()
+		return
+	_edge_chip_ensure()
+	if edge_chip.visible and edge_chip.get_global_rect().has_point(p):
+		return   # the pointer is on the chip itself: it stays up for the click
+	var best := -1
+	var bd := EDGE_PX
+	var es := _edge_list()
+	for i in es.size():
+		var e: Dictionary = es[i]
+		if int(e["body"]) != 0 or bool(e.get("seam", false)):
+			continue
+		if m.cam.is_position_behind(e["a"]) or m.cam.is_position_behind(e["b"]):
+			continue
+		var a: Vector2 = m.cam.unproject_position(e["a"])
+		var b: Vector2 = m.cam.unproject_position(e["b"])
+		var d := Geometry2D.get_closest_point_to_segment(p, a, b).distance_to(p)
+		if d < bd:
+			bd = d
+			best = i
+	if best < 0:
+		_edge_hide()
+		return
+	var e: Dictionary = es[best]
+	var c: Vector3 = e["c"]
+	var key := "%.6f,%.6f,%.6f" % [c.x, c.y, c.z]
+	if key == String(_ehov.get("key", "")):
+		return   # the same edge: the chip and ghost are already up
+	var mid: Vector2 = m.cam.unproject_position(c)
+	_ehov = {"key": key, "mid": mid, "opts": _edge_options(e)}
+	_edge_show()
+
+
+## what each chip would do to this edge: Round and Bevel, each checked by a full replay (the errors name the bad steps)
+func _edge_options(e: Dictionary) -> Dictionary:
+	var bb: AABB = pu.res.get("aabb", AABB())
+	var small := minf(bb.size.x, minf(bb.size.y, bb.size.z)) / Part.MM
+	var r := snappedf(clampf(small * 0.01, 1.0, 6.0), 0.1)   # the same default as Round the edges: 1% of the smallest size, 1 to 6 mm
+	var out := {}
+	for kind in ["fillet", "chamfer"]:
+		var fields := {"body": 0, "edges": [Part.describe(e)]}
+		if kind == "fillet":
+			fields["r"] = r
+		else:
+			fields["dist"] = r
+		var rec := _rec().duplicate(true)
+		var f := Part.new_feature(rec, kind, fields)
+		rec["features"].append(f)
+		var res := Part.replay(rec, -1, {})
+		var err := String(res["errors"].get(String(f["id"]), ""))
+		out[kind] = {"err": err, "mesh": res["mesh"] if err == "" else null, "fields": fields}
+	return out
+
+
+func _edge_show() -> void:
+	var opts: Dictionary = _ehov["opts"]
+	for c in edge_chip_row.get_children():
+		edge_chip_row.remove_child(c)
+		c.queue_free()
+	var words := {"fillet": ["Round", "part_fillet", "Soften this edge into a rounded corner"], "chamfer": ["Bevel", "part_chamfer", "Cut this edge flat: a slanted edge"]}
+	var shown := 0
+	for kind in ["fillet", "chamfer"]:
+		if String(opts[kind]["err"]) != "":
+			continue
+		var b := Button.new()
+		b.name = "easypart_edge_" + ("round" if kind == "fillet" else "bevel")
+		b.text = words[kind][0]
+		b.icon = Icons.tex(words[kind][1])
+		b.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.tooltip_text = words[kind][2]
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(96, 44)
+		b.pressed.connect(_edge_do.bind(kind))
+		edge_chip_row.add_child(b)
+		shown += 1
+	if shown == 0:
+		var l := Label.new()
+		l.text = "This edge will not take a round or a bevel: Pull it up taller, or use Round the edges"
+		edge_chip_row.add_child(l)
+	var ghost_ok: bool = String(opts["fillet"]["err"]) == "" and opts["fillet"]["mesh"] != null
+	edge_ghost.mesh = opts["fillet"]["mesh"] if ghost_ok else null
+	edge_ghost.visible = ghost_ok
+	edge_chip.visible = true
+	var sz := edge_chip.get_combined_minimum_size()
+	var vp: Vector2 = m.ui_root.size
+	var at: Vector2 = _ehov["mid"] + Vector2(-sz.x * 0.5, -sz.y - 14.0)
+	at.x = clampf(at.x, 4.0, maxf(4.0, vp.x - sz.x - 4.0))
+	at.y = clampf(at.y, 4.0, maxf(4.0, vp.y - sz.y - 4.0))
+	edge_chip.position = at
+	edge_chip.size = sz
+	pu.pov.queue_redraw()
+
+
+## a chip press: the one edge becomes rounded (or bevelled), one undo step. A refusal says why and changes nothing
+func _edge_do(kind: String) -> void:
+	if _ehov.is_empty():
+		return
+	var opts: Dictionary = _ehov["opts"]
+	var fields: Dictionary = (opts[kind]["fields"] as Dictionary).duplicate(true)
+	_edge_hide()
+	_flush_if_dirty()
+	armed = ""
+	var snap := _rec().duplicate(true)
+	_begin("Round the edge" if kind == "fillet" else "Bevel the edge")
+	var rec := pu._ensure()
+	var f := Part.new_feature(rec, kind, fields)
+	rec["features"].append(f)
+	var err := String(pu.replay_full(rec)["errors"].get(String(f["id"]), ""))
+	if err != "":
+		m.S.part = snap   # nothing changes: the step taken a moment ago goes back out
+		m._drop_undo()
+		_edit_n = -1
+		_say("This edge would not take it: pick another edge, or press Round the edges on the whole part")
+		return
+	_end()
+	if kind == "fillet":
+		_round_done(f)
+	else:
+		tweak = {"id": f["id"], "field": "dist", "label": "Bevel size", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Smaller", "Bigger"]}
+		_say("Edge bevelled: use the slider for more or less, or press Cut a hole next")
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
