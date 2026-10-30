@@ -1738,16 +1738,16 @@ func _lib_box() -> PanelContainer:
 	lib_soon.add_theme_font_size_override("font_size", 14)
 	lib_soon.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lib_soon.visible = false
-	hinge_pick = Button.new()   # p067hinges: a Hinges page button (shown only on Hinges): one click, a Butt hinge at the door's height
-	hinge_pick.name = "easypart_hinge_pick"
-	hinge_pick.text = "Hinge"
-	hinge_pick.toggle_mode = true
-	hinge_pick.focus_mode = Control.FOCUS_NONE
-	hinge_pick.custom_minimum_size = Vector2(0, 34)
-	hinge_pick.add_theme_font_size_override("font_size", 13)
-	hinge_pick.visible = false
-	hinge_pick.pressed.connect(_hinge_pick_press)
-	vb.add_child(hinge_pick)
+	hinges_btn = Button.new()   # p067hinges: a Hinges page button (shown only on Hinges): one click, a Butt hinge at the door's height
+	hinges_btn.name = "easypart_hinge_pick"
+	hinges_btn.text = "Hinge"
+	hinges_btn.toggle_mode = true
+	hinges_btn.focus_mode = Control.FOCUS_NONE
+	hinges_btn.custom_minimum_size = Vector2(0, 34)
+	hinges_btn.add_theme_font_size_override("font_size", 13)
+	hinges_btn.visible = false
+	hinges_btn.pressed.connect(_hinges_btn_press)
+	vb.add_child(hinges_btn)
 	vb.add_child(lib_soon)
 	return pc
 
@@ -2026,9 +2026,9 @@ func _screw_sync() -> void:
 			var lb: Button = lib_btns[cat]
 			lb.set_pressed_no_signal(parts_open and cat == lib_cat)
 			m._grey(lb, Part.why_not() if not Part.available() else "")
-		hinge_pick.visible = parts_open and lib_cat == "Hinges"   # p067hinges
-		hinge_pick.set_pressed_no_signal(_tpl() == "hinge")
-		m._grey(hinge_pick, Part.why_not() if not Part.available() else "")
+		hinges_btn.visible = parts_open and lib_cat == "Hinges"   # p067hinges
+		hinges_btn.set_pressed_no_signal(_tpl() == "hinge")
+		m._grey(hinges_btn, Part.why_not() if not Part.available() else "")
 		lib_soon.visible = parts_open and lib_cat != "" and not (lib_cat in LIB_READY)
 		if screw_words != null:   # the page is open: its chips and the status line say what to do
 			screw_words.visible = not parts_open
@@ -4208,7 +4208,7 @@ func _steps_sync() -> void:
 
 ## p067hinges: the Hinges page's Hinge button: the page closes (the hinge's Kind and Door height sliders take its room), then a Butt
 ## hinge drops on the floor at the door's height. One undo step (the chip's).
-func _hinge_pick_press() -> void:
+func _hinges_btn_press() -> void:
 	parts_open = false
 	_chip("hinge")
 	_screw_sync()

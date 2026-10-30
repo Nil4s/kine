@@ -102,7 +102,7 @@ var lib_soon: Label              # NLIBPAGE: "Coming soon" line for an empty cat
 var handle_box: PanelContainer    # P071 HANDLES: the Handles grid (three kinds x three sizes), under the library page while Handles is open or a handle is the part
 var handle_btns := {}            # P071 HANDLES: "kind_size" -> its size chip
 var handle_words: Label          # P071 HANDLES: the grid's one-line instruction: hidden while the library page is open (the page says it), so the grid fits
-var hinge_pick: Button           # p067hinges: the Hinge button on the Hinges page (its own row: the template chips do not move)
+var hinges_btn: Button           # p067hinges: the Hinge button on the Hinges page (its own row: the template chips do not move)
 var lib_cat := ""                # NLIBPAGE: the category open on the page ("" = none); Screws opens when Parts opens
 var bear_box: PanelContainer      # P069 BEARINGS: the bearing chips (608, 625, 688) and the seat button: shown with the Bearings page or a bearing / seat on the floor
 var bear_btns := {}              # P069 BEARINGS: "608" / "625" / "688" -> its chip
