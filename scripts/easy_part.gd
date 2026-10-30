@@ -159,6 +159,9 @@ var _edge := {}                  # NROUNDDRAG: an edge in hand (a press within E
 var edge_num: Label             # NROUNDDRAG: the radius in mm, beside the cursor while an edge is dragged (hidden otherwise)
 var _pick_p := Vector2(-1, -1)   # a left press on the grid with nothing armed: a click (no drag) picks the piece under it on release
 var flushes := 0                # rebuilds made by sliders and dots (the tests count them against the clock)
+var auto_path := "user://nautosave/part.json"   # NAUTOSAVE: the part as it is after every step (Part record, plain JSON); the next start offers it back (a test sets its own)
+var restore_btn: Button         # NAUTOSAVE: "Bring back your part", on the bar while the part is empty and a saved part is there
+var _auto_json := ""           # NAUTOSAVE: the last text written to auto_path (a step is written once)
 
 
 func build(root: Control) -> void:
@@ -212,6 +215,11 @@ func build(root: Control) -> void:
 	row.add_child(undo_btn)
 	row.add_child(redo_btn)
 	row.add_child(dup_btn)
+	restore_btn = _bar_btn("Bring back your part", "Bring back the part you were making, as it was after your last step (saved as you go)", _restore)   # NAUTOSAVE
+	restore_btn.name = "easypart_restore"
+	restore_btn.custom_minimum_size.x = 190.0
+	restore_btn.visible = false
+	row.add_child(restore_btn)
 	row.add_child(use_scene_btn)
 	give_btn = _bar_btn("Give to a character", "Give it to a character: they hold this shape in one hand, with its size and weight (PartWeapon)", func(): m.give_part_weapon(_rec()))   # one undo step
 	give_btn.name = "easypart_give"
@@ -683,6 +691,51 @@ func _bar_btn(t: String, tip: String, f: Callable) -> Button:
 	b.add_theme_font_size_override("font_size", 16)
 	b.pressed.connect(func(): m._step_hint = t; f.call())
 	return b
+
+
+# ---------------------------------------------------------------- autosave (NAUTOSAVE)
+
+## every step is saved to auto_path as a Part record (the same file shape as a saved part). An empty part saves nothing, so a
+## part that is undone to nothing keeps the last saved steps for "Bring back your part"
+func _autosave() -> void:
+	var rec := _rec()
+	if (rec.get("features", []) as Array).is_empty():
+		return
+	var txt := JSON.stringify(Part.to_file(rec))
+	if txt == _auto_json:
+		return
+	_auto_json = txt
+	DirAccess.make_dir_recursive_absolute(auto_path.get_base_dir())
+	var f := FileAccess.open(auto_path, FileAccess.WRITE)
+	if f != null:
+		f.store_string(txt)
+		f.close()
+
+
+## the button shows only on an empty part while a saved part is there (the next start)
+func _restore_sync() -> void:
+	if restore_btn == null:
+		return
+	restore_btn.visible = (_rec().get("features", []) as Array).is_empty() and FileAccess.file_exists(auto_path)
+
+
+## Bring back your part: the saved steps come back as ONE undo step (Undo takes them back, Redo puts them back)
+func _restore() -> void:
+	if not FileAccess.file_exists(auto_path):
+		_say("Nothing saved yet: draw a shape and pull it up, then it is kept here")
+		return
+	var d = JSON.parse_string(FileAccess.get_file_as_string(auto_path))
+	var rec := Part.from_file(d)
+	if rec.is_empty() or (rec.get("features", []) as Array).is_empty():
+		_say("The saved part cannot be read. Draw a new shape to start again")
+		return
+	m._push_undo()
+	m.S.part = rec
+	_auto_json = ""
+	pu.upto = -1
+	pu.sync()
+	_say("Brought back your part. Undo takes it back")
+	_restore_sync()
 
 
 # ---------------------------------------------------------------- the state
@@ -3139,6 +3192,8 @@ func _process(_dt: float) -> void:
 	if sig != _sig and _drag.is_empty() and not _dirty:
 		_sig = sig
 		_chrome_sync()
+		_autosave()
+		_restore_sync()
 	if dots.visible and (not _drag.is_empty() or not _draft.is_empty()):
 		dots.queue_redraw()
 	if m.cam != null:
