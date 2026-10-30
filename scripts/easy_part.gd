@@ -190,8 +190,9 @@ func build(root: Control) -> void:
 	sc.add_child(v)
 	panel_title = Label.new()
 	panel_title.name = "easypart_panel_title"
-	panel_title.add_theme_font_size_override("font_size", 22)
+	panel_title.add_theme_font_size_override("font_size", 20)   # 20 (was 22): the title line holds Empty and Examples too, inside the panel's width
 	panel_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel_title.clip_text = true
 	var th := HBoxContainer.new()   # the title line: "Change your part" and, at its end, Empty (the template chips stay on one line below)
 	th.name = "easypart_title_row"
 	v.add_child(th)
@@ -226,6 +227,7 @@ func build(root: Control) -> void:
 	start_l.add_theme_font_size_override("font_size", 15)
 	start_l.add_theme_color_override("font_color", Color(0.7, 0.73, 0.78))
 	start_l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	start_l.visible = false   # the row speaks for itself (Box, Cylinder ...): its 80 px let Rack stay on ONE line, so the Parts page fits the panel at 1280 x 720
 	cr.add_child(start_l)
 	for t in PartTemplates.START + ["gear", "rack"]:   # the simple shapes; gear stays on the row (NGEAR), rack beside it (P066: its pinion); the weapons and props are under More examples
 		var b := Button.new()
@@ -247,13 +249,13 @@ func build(root: Control) -> void:
 		chips[t] = b
 	var more := Button.new()   # the weapons and props are not gone: What to build (From a template) lists them
 	more.name = "easypart_more_examples"
-	more.text = "More examples"
+	more.text = "Examples"
 	more.tooltip_text = "Open What to build: a sword, an axe, a chair and more"
 	more.focus_mode = Control.FOCUS_NONE
-	more.custom_minimum_size = Vector2(0, 32)
-	more.add_theme_font_size_override("font_size", 15)
+	more.custom_minimum_size = Vector2(0, 34)
+	more.add_theme_font_size_override("font_size", 13)
 	more.pressed.connect(_more_examples)
-	cr.add_child(more)
+	th.add_child(more)   # on the title line beside Empty (other ways to start): on the Start row it wrapped to a second line once Rack joined, and the Parts page ran out of the panel
 	lib_box = _lib_box()
 	v.add_child(lib_box)
 	screw_box = _screw_box()
@@ -2063,6 +2065,13 @@ func _screw_sync() -> void:
 		var bb: Button = bracket_btns[bc[0]]
 		bb.set_pressed_no_signal(kind == int(bc[2]))
 		m._grey(bb, Part.why_not() if not Part.available() else "")
+	# p078makeacasef: the Boards chips: the case on the floor shows its board pressed
+	var bcur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {}) if _tpl() == "case" else {}
+	board_box.visible = (parts_open and lib_cat == "Boards") or _tpl() == "case"
+	for bd in board_btns:
+		var bo: Button = board_btns[bd]
+		bo.set_pressed_no_signal(not bcur.is_empty() and int(bcur.get("board", 0)) == bd)
+		m._grey(bo, Part.why_not() if not Part.available() else "")
 
 
 ## P069 BEARINGS: the three bearing sizes, in the order of PartTemplates.BEARING_SIZE (608, 625, 688)
@@ -2177,13 +2186,6 @@ func _seat_press() -> void:
 	else:
 		_say("Seat made for the %s bearing: the bearing stands beside it. Undo takes the seat back" % BEAR_CODES[k])
 	_screw_sync()
-	# p078makeacasef: the Boards chips: the case on the floor shows its board pressed
-	var bcur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {}) if _tpl() == "case" else {}
-	board_box.visible = (parts_open and lib_cat == "Boards") or _tpl() == "case"
-	for bd in board_btns:
-		var bb: Button = board_btns[bd]
-		bb.set_pressed_no_signal(not bcur.is_empty() and int(bcur.get("board", 0)) == bd)
-		m._grey(bb, Part.why_not() if not Part.available() else "")
 
 
 func _back() -> void:

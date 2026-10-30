@@ -501,7 +501,7 @@ func layout(cl: Rect2) -> void:
 		need = _panel_need()
 	panel.size = Vector2(PW, minf(need, avail))
 	panel.position = Vector2(cl.end.x - PW - 8.0, top)
-	_steps_place(cl, panel.position.y + panel.size.y + 8.0)   # NSTEPLIST: under the panel, on the right
+	_steps_place(cl, panel.position.y + maxf(panel.size.y, need) + 8.0)   # NSTEPLIST: under the panel, on the right; under its CONTENT when the Parts page runs past the clamped size (the list sat over the screw chips)
 	status.reset_size()
 	status.size.x = minf(status.get_combined_minimum_size().x, cl.size.x - PW - 40.0)
 	status.position = Vector2(cl.position.x + 12.0, cl.end.y - status.size.y - 6.0)
