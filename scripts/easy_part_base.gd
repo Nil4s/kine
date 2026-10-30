@@ -74,6 +74,8 @@ var tilt_box: PanelContainer     # Tilt it: one chip under the newest solid (a S
 var steps_box: PanelContainer    # NSTEPLIST: the step list under the panel, in plain words; a click on a step reopens it (see _steps_sync)
 var steps_vb: VBoxContainer
 var _steps_sig := ""
+var scrub_sl: HSlider            # p089scrubthehi: Scrub the history, a view of the part after the first N steps (no undo step; see _scrub_to)
+var scrub_lbl: Label
 var tilt_btn: Button
 var draft_btn: Button            # p021: Draft angle, the chip beside Tilt it (the side walls lean DRAFT_DEG for a mould)
 var pull_along_btn: Button       # P026: Pull along, the same box as Tilt it: shows after a curve or a shape is drawn (the newest step is a sketch)
