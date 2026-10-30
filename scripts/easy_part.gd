@@ -79,6 +79,7 @@ var tilt_btn: Button
 var parts_btn: Button            # NSCREW2: the Parts category chip (opens the screw grid under the template chips)
 var screw_box: PanelContainer    # NSCREW2: the screw grid: sixteen size chips, shown while Parts is open or a screw is the part
 var screw_btns := {}             # NSCREW2: "d_L" -> the size chip (M<d> x <L>)
+var screw_words: Label           # the grid's one-line instruction: hidden while the library page is open (the page and the status line say it)
 var nw_btn: Button               # NNUTWASHER: "Add its nut and washer" (in the screw grid): the screw on the floor takes its nut and washer, one click
 var parts_open := false          # NSCREW2: the Parts category is open (the grid shows even with no screw on the floor)
 var lib_box: PanelContainer      # NLIBPAGE: the Parts library page: ten category chips, under the template chips while Parts is open
@@ -1240,6 +1241,7 @@ func _screw_box() -> PanelContainer:
 	hd.text = "Screws, socket head: pick a size. It drops on the floor"
 	hd.add_theme_font_size_override("font_size", 14)
 	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	screw_words = hd
 	vb.add_child(hd)
 	var g := GridContainer.new()
 	g.columns = SCREW_DS.size()
@@ -1374,12 +1376,6 @@ func _lib_box() -> PanelContainer:
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 4)
 	pc.add_child(vb)
-	var hd := Label.new()
-	hd.name = "easypart_lib_words"
-	hd.text = "Parts: pick a kind. Screws and Gears are ready, the rest are coming soon"
-	hd.add_theme_font_size_override("font_size", 14)
-	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	vb.add_child(hd)
 	var fl := HFlowContainer.new()
 	fl.add_theme_constant_override("h_separation", 4)
 	fl.add_theme_constant_override("v_separation", 4)
@@ -1509,6 +1505,8 @@ func _screw_sync() -> void:
 			lb.set_pressed_no_signal(parts_open and cat == lib_cat)
 			m._grey(lb, Part.why_not() if not Part.available() else "")
 		lib_soon.visible = parts_open and lib_cat != "" and not (lib_cat in LIB_READY)
+		if screw_words != null:   # the page is open: its chips and the status line say what to do
+			screw_words.visible = not parts_open
 		lib_soon.text = "%s are coming soon: not made yet. Next step: press Screws or Gears" % lib_cat if lib_soon.visible else ""
 	if screw_box == null or parts_btn == null:
 		return
