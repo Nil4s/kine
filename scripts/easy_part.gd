@@ -290,8 +290,10 @@ func _hole_box() -> PanelContainer:
 	box.name = "easypart_hole"
 	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
 	box.visible = false
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 6)
+	var h := HFlowContainer.new()   # P076: a flow, so the row wraps to a second line when the What fits here? chip would run past the window's right edge
+	h.add_theme_constant_override("h_separation", 6)
+	h.add_theme_constant_override("v_separation", 6)
+	h.custom_minimum_size = Vector2(720, 0)   # P076: the chips wrap at 720 px (two short rows, clear of Change your part), not one narrow column
 	box.add_child(h)
 	for hm in [["through", "Through", "A round hole straight through the middle"], ["hollow", "Hollow inside", "Hollow the solid out, open at the top, with a wall (the Wall slider)"], ["lid", "Hollow with a lid", "Hollow the box out with a 3 mm wall; its top 5 mm comes off as a lid with a lip that sits inside the box"]]:
 		var b := _big_btn("easypart_hole_" + String(hm[0]), String(hm[1]), String(hm[2]), _hole_mode.bind(String(hm[0])))
@@ -315,7 +317,55 @@ func _hole_box() -> PanelContainer:
 		sb.custom_minimum_size = Vector2(96, 44)
 		h.add_child(sb)
 		hole_btns["screw%d" % sd] = sb
+	var fb := _big_btn("easypart_hole_fits", "What fits here?", "Ask which of My Parts go through this hole (the saved parts that fit it). No step: it only tells you", _fits_press)   # P076
+	fb.custom_minimum_size = Vector2(150, 44)
+	h.add_child(fb)
 	return box
+
+
+## P076 WHAT FITS HERE?: the hole is the newest cut's round sketch (its diameter in mm, _hole_mm). A saved part (MyParts) fits when its two
+## smallest sides, corner to corner, are at most the hole less FIT_CLEAR (0.4 mm: 0.2 mm to spare on each side). Words only: no undo step
+const FIT_CLEAR := 0.4   # mm: the diagonal of a part's two smallest sides must be this much under the hole's width
+
+
+func _fits_press() -> void:
+	var d := _hole_mm(_rec())
+	if d <= 0.0:
+		_say("Cut a hole first, then ask what fits it. This answer is for a round hole")
+		return
+	var saved := MyParts.list()
+	if saved.is_empty():
+		_say("No saved parts yet. Make a part, use Save to My Parts, then ask again")
+		return
+	var fits: Array = []
+	for it in saved:
+		var res := Part.replay(it["record"])
+		if int(res["bodies"]) == 0:
+			continue
+		var sz: Vector3 = (res["aabb"] as AABB).size / Part.MM
+		var a := [sz.x, sz.y, sz.z]
+		a.sort()
+		if sqrt(a[0] * a[0] + a[1] * a[1]) <= d - FIT_CLEAR:
+			fits.append(String(it["name"]))
+	var mm := _mm_words(d)
+	if fits.is_empty():
+		_say("Nothing saved fits this %s mm hole. Make the hole bigger, or save a thinner part" % mm)
+	else:
+		_say("Parts that fit this %s mm hole: %s" % [mm, ", ".join(fits)])
+
+
+## the diameter in mm of the newest round cut (the hole the chips made), or -1 when the newest cut is not round
+func _hole_mm(rec: Dictionary) -> float:
+	var feats: Array = rec.get("features", [])
+	for i in range(feats.size() - 1, -1, -1):
+		var f: Dictionary = feats[i]
+		if String(f.get("t", "")) == "extrude" and String(f.get("op", "")) == "cut":
+			var sk := Part.feature(rec, String(f.get("sketch", "")))
+			for e in sk.get("ents", []):
+				if String(e.get("k", "")) == "circle":
+					return 2.0 * float(e.get("r", 0.0))
+			return -1.0
+	return -1.0
 
 
 
