@@ -382,10 +382,63 @@ func _tilt_box() -> PanelContainer:
 	box.name = "easypart_tilt"
 	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
 	box.visible = false
+	var row := HBoxContainer.new()   # p021: Tilt it and Draft angle share the one panel (only one of them shows for a given newest step)
+	row.add_theme_constant_override("separation", 6)
+	box.add_child(row)
 	tilt_btn = _big_btn("easypart_tilt_it", "Tilt it 20 degrees", "Lean the newest solid 20 degrees, sideways, about its middle", _tilt_press)
 	tilt_btn.custom_minimum_size = Vector2(230, 44)
-	box.add_child(tilt_btn)
+	row.add_child(tilt_btn)
+	draft_btn = _big_btn("easypart_draft_angle", "Draft angle", "Easier to pull from a mould: the side walls lean 2 degrees in, the base stays put", _draft_press)
+	draft_btn.custom_minimum_size = Vector2(170, 44)
+	row.add_child(draft_btn)
 	return box
+
+
+## DRAFT ANGLE (p021, "Easier to pull from a mould"): the newest solid is a pulled-up piece with no draft yet. Its straight side walls lean
+## DRAFT_DEG about its bottom (Part's draft step, pulled along Y: the top gets narrower). The walls are found by the replay, so the step follows them
+func _draft_ok(rec: Dictionary) -> bool:
+	var feats: Array = rec.get("features", [])
+	if feats.is_empty():
+		return false
+	var f: Dictionary = feats[feats.size() - 1]
+	return String(f.get("t", "")) == "extrude" and not bool(f.get("off", false)) and String(f.get("op", "join")) != "cut"
+
+
+func _draft_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	armed = ""
+	if not _draft_ok(_rec()):
+		_say("Draft angle leans a pulled-up solid: press Pull it up first, then Draft angle")
+		return
+	var res := Part.replay(_rec(), -1, {"faces": true})
+	if int(res["bodies"]) != 1:
+		_say("Draft angle works on one solid: press Stick together to make the pieces one solid first")
+		return
+	var walls: Array = []
+	for fc in res.get("faces", []):
+		var n: Vector3 = fc["n"]
+		if int(fc["body"]) == 0 and absf(n.y) < 0.02:   # a level normal: a side wall, not the top or the base
+			walls.append(Part.describe_face(fc))
+	if walls.is_empty():
+		_say("No straight side walls to lean: draw a box or a round shape, then Pull it up")
+		return
+	var snap := _rec().duplicate(true)
+	_begin("Draft angle")
+	var f := Part.new_feature(_rec(), "draft", {"body": 0, "faces": walls, "deg": DRAFT_DEG, "dir": "y"})
+	_rec()["features"].append(f)
+	if _last_error(_rec(), String(f["id"])) != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("Those walls cannot lean: the part would not stay on the model")
+		return
+	_end()
+	_say("Draft angle: the side walls lean 2 degrees, so the part pulls out of a mould easier. Ctrl+Z undoes it")
+	pu.upto = -1
+	pu.sync()
 
 
 ## the newest feature is a solid piece with no tilt yet: the Tilt it chip shows for it
@@ -1882,7 +1935,11 @@ func _process(_dt: float) -> void:
 	if del_on and (armed != "" or (_rec().get("features", []) as Array).size() != del_n):
 		_pick_clear()   # FDELETE: a pick ends with the step it was made on
 	del_btn.visible = on and del_on
-	tilt_box.visible = on and armed == "" and _tilt_ok(_rec())
+	var tilt_on := _tilt_ok(_rec())
+	var draft_on := _draft_ok(_rec())
+	tilt_btn.visible = tilt_on
+	draft_btn.visible = draft_on
+	tilt_box.visible = on and armed == "" and (tilt_on or draft_on)
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
 	if not on:
 		return
