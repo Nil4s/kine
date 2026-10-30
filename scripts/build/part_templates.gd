@@ -41,10 +41,11 @@ const T := {
 		{"k": "teeth", "label": "Teeth", "lo": 8.0, "hi": 60.0, "def": 30.0, "step": 1.0, "words": ["Fewer", "More"], "raw": true, "unit": "teeth"},
 		{"k": "module", "label": "Teeth size", "lo": 1.0, "hi": 3.0, "def": 2.0, "step": 1.0, "words": ["Small teeth", "Big teeth"], "raw": true, "unit": "size"},
 		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 30.0, "def": 10.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
-	# p070: a compression spring: turns (coils, 3..12) and wire (mm, 1..4) on raw sliders. Mean coil radius 10 mm, coils 0.8 x wire apart.
+	# p070: a compression spring: turns (coils, 3..12), wire (mm, 1..4) and coil size (the mean coil width, mm, 20..60) on raw sliders. Coils 0.8 x wire apart.
 	"spring": {"title": "Spring", "params": [
 		{"k": "turns", "label": "Turns", "lo": 3.0, "hi": 12.0, "def": 6.0, "step": 1.0, "words": ["Fewer", "More"], "raw": true, "unit": "turns"},
-		{"k": "wire", "label": "Wire", "lo": 1.0, "hi": 4.0, "def": 2.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
+		{"k": "wire", "label": "Wire", "lo": 1.0, "hi": 4.0, "def": 2.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"},
+		{"k": "size", "label": "Coil size", "lo": 20.0, "hi": 60.0, "def": 40.0, "step": 5.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "mm"}]},
 	# VEHICLE PARTS (B3, scripts/vehicle.gd): not in ORDER, so no Easy chip: a car body and one wheel
 	"car": {"title": "Car body", "params": [
 		{"k": "body_length", "label": "Length", "lo": 1500.0, "hi": 5000.0, "def": 4000.0, "step": 50.0, "words": ["Shorter", "Longer"]},
@@ -384,7 +385,7 @@ static func features_of(t: String, p: Dictionary) -> Array:
 		"spring":
 			# p070: one sketch loop (the outline of the coils' union in the front plane) turned about the up axis: one solid, two features
 			# whatever the turns (so a Turns change keeps the ids of the steps after it)
-			var prof := spring_profile(int(clampi(int(roundf(float(p["turns"]))), 3, 12)), float(p["wire"]))
+			var prof := spring_profile(int(clampi(int(roundf(float(p["turns"]))), 3, 12)), float(p["wire"]), float(p["size"]))
 			var sid := _sk(fs, "front", _poly(prof))
 			_ex(fs, sid, "revolve", 0.0, "new")
 			fs[fs.size() - 1]["axis"] = "y"
@@ -396,11 +397,11 @@ static func features_of(t: String, p: Dictionary) -> Array:
 	return fs
 
 
-## p070: the outline (right side up, left side down, mm, the front plane: x = radius, y = height) of n coils of wire w: each coil is a disk of
+## p070: the outline (right side up, left side down, mm, the front plane: x = radius, y = height) of n coils of wire w, mean coil diameter dia: each coil is a disk of
 ## radius w / 2 at height k x 0.8 w + w / 2, the coils overlap, so the outline is their union. Sampled every 0.1 mm (the coil centres sit on
-## the 0.1 mm grid, so the widest point and the top are exact). The coil centre line is at radius 10 mm.
-static func spring_profile(n: int, w: float) -> Array:
-	var rc := 10.0
+## the 0.1 mm grid, so the widest point and the top are exact). The coil centre line is at radius dia / 2.
+static func spring_profile(n: int, w: float, dia: float) -> Array:
+	var rc := dia * 0.5
 	var h := w * 0.5
 	var pitch := 0.8 * w
 	var H := (n - 1) * pitch + w

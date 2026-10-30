@@ -1,14 +1,14 @@
 extends SceneTree
 ## p070springswit (Friday plan item 70: Springs (compression) with turns + wire slider). A beginner from the BUILDING card: one click on
 ## the Spring chip in the Easy Part chips row, then real mouse drags on the Turns and Wire sliders, then Ctrl+Z.
-## A compression spring: a coil of N turns (3..12) of wire (1..4 mm), mean coil radius 10 mm, coils 0.8 x wire apart (one solid).
+## A compression spring: a coil of N turns (3..12) of wire (1..4 mm), mean coil size 40 mm (20..60, a third slider), coils 0.8 x wire apart (one solid).
 ## Measured from the BUILT mesh (mm), the kernel body count and the undo stack, never from the code's own variables.
 ## Bars (all FAIL on the old code: it has no Spring chip, so nothing below can be built):
 ##   0 the Spring chip is on the Easy Part chips row
-##   1 one click on Spring: ONE undo step, ONE solid, 6 turns of 2 mm wire: height 10.0 mm (+- 0.2), width 22.0 mm (+- 0.2)
+##   1 one click on Spring: ONE undo step, ONE solid, 6 turns of 2 mm wire: height 10.0 mm (+- 0.2), width 42.0 mm (+- 0.2) = 40 + 2
 ##   2 Turns slider is 3..12; a real drag to 10 turns: ONE undo step, height 16.4 mm (+- 0.2) = 9 x 1.6 + 2
-##   3 Wire slider is 1..4; a real drag to 4 mm: ONE undo step, width 24.0 mm (+- 0.2) = 2 x (10 + 2), height 32.8 mm (+- 0.2) = 9 x 3.2 + 4
-##   4 Ctrl+Z after the wire drag: the built spring is back to 2 mm wire (width 22.0 mm +- 0.2) and 10 turns (height 16.4 mm +- 0.2)
+##   3 Wire slider is 1..4; a real drag to 4 mm: ONE undo step, width 44.0 mm (+- 0.2) = 40 + 4, height 32.8 mm (+- 0.2) = 9 x 3.2 + 4
+##   4 Ctrl+Z after the wire drag: the built spring is back to 2 mm wire (width 42.0 mm +- 0.2) and 10 turns (height 16.4 mm +- 0.2)
 ##   5 the words: no key name in the slider words, the hint or the status line
 ## shots: C:/Temp/claude/p070springswit/
 const SHOT := "C:/Temp/claude/p070springswit"
@@ -176,8 +176,8 @@ func _init() -> void:
 	await click_ctl(sp_chip)
 	await idle(10)
 	var b1 := built()
-	ok(m.undo.size() == ub0 + 1 and int(b1["bodies"]) == 1 and absf(float(b1["h"]) - 10.0) <= 0.2 and absf(float(b1["w"]) - 22.0) <= 0.2,
-		"1 Spring: one undo step (%d -> %d), %d solid, height %.2f mm (want 10.0), width %.2f mm (want 22.0)" % [ub0, m.undo.size(), int(b1["bodies"]), float(b1["h"]), float(b1["w"])])
+	ok(m.undo.size() == ub0 + 1 and int(b1["bodies"]) == 1 and absf(float(b1["h"]) - 10.0) <= 0.2 and absf(float(b1["w"]) - 42.0) <= 0.2,
+		"1 Spring: one undo step (%d -> %d), %d solid, height %.2f mm (want 10.0), width %.2f mm (want 42.0)" % [ub0, m.undo.size(), int(b1["bodies"]), float(b1["h"]), float(b1["w"])])
 	await shot("00_spring")
 
 	# 2 Turns: a real drag to 10 turns
@@ -203,14 +203,14 @@ func _init() -> void:
 	await idle(10)
 	await shot("02_wire")
 	var b3 := built()
-	ok(wrange_ok and m.undo.size() == ub2 + 1 and absf(float(b3["w"]) - 24.0) <= 0.2 and absf(float(b3["h"]) - 32.8) <= 0.2,
-		"3 Wire slider 1..4, dragged to 4 mm: one undo step (%d -> %d), width %.2f mm (want 24.0), height %.2f mm (want 32.8)" % [ub2, m.undo.size(), float(b3["w"]), float(b3["h"])])
+	ok(wrange_ok and m.undo.size() == ub2 + 1 and absf(float(b3["w"]) - 44.0) <= 0.2 and absf(float(b3["h"]) - 32.8) <= 0.2,
+		"3 Wire slider 1..4, dragged to 4 mm: one undo step (%d -> %d), width %.2f mm (want 44.0), height %.2f mm (want 32.8)" % [ub2, m.undo.size(), float(b3["w"]), float(b3["h"])])
 
 	# 4 Ctrl+Z: the wire goes back to 2 mm, the turns stay at 10
 	await ctrl_z()
 	var b4 := built()
-	ok(absf(float(b4["w"]) - 22.0) <= 0.2 and absf(float(b4["h"]) - 16.4) <= 0.2,
-		"4 Ctrl+Z after the wire drag: width %.2f mm (want 22.0), height %.2f mm (want 16.4, 10 turns)" % [float(b4["w"]), float(b4["h"])])
+	ok(absf(float(b4["w"]) - 42.0) <= 0.2 and absf(float(b4["h"]) - 16.4) <= 0.2,
+		"4 Ctrl+Z after the wire drag: width %.2f mm (want 42.0), height %.2f mm (want 16.4, 10 turns)" % [float(b4["w"]), float(b4["h"])])
 
 	# 5 the words: no key name
 	var bad_words := ["ctrl", "shift", "alt+", "esc", "enter", "tab ", "delete", "backspace", "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12", "spacebar", "return key"]
