@@ -170,6 +170,8 @@ func build(root: Control) -> void:
 	root.add_child(tilt_box)
 	steps_box = _steps_box()   # NSTEPLIST
 	root.add_child(steps_box)
+	flat_box = _printing_box()   # p113: under the step list
+	root.add_child(flat_box)
 	# the panel
 	panel = PanelContainer.new()
 	panel.name = "easypart_panel"
@@ -672,6 +674,111 @@ func _tilt_press() -> void:
 	_rows_sync()
 	_values_sync()
 	_say("Tilted 20 degrees: the piece leans about its middle")
+
+
+var lay_btn: Button         # p113: Lay it flat, in the printing box under any solid
+var paint_btn: Button       # p113: Show overhangs (a toggle chip)
+var paint_on := false       # p113: the red overhang faces are on
+var _ov_mesh: MeshInstance3D   # p113: the red copy of the overhang faces, over the part
+var _ov_key := ""           # p113: the record the red copy was built from
+
+## p113 LAY IT FLAT: the one step turns the part so its best face (the least overhang, see Part.lay_plan) sits on the floor. One undo step
+func _lay_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	armed = ""
+	var plan := Part.lay_plan(_rec())
+	if not bool(plan["ok"]):
+		_say(String(plan["why"]))
+		return
+	var snap := _rec().duplicate(true)
+	_begin("Lay it flat")
+	var f := Part.new_feature(_rec(), "lay", {"axis": plan["axis"], "deg": plan["deg"]})
+	_rec()["features"].append(f)
+	if _last_error(_rec(), String(f["id"])) != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("That part cannot lie flat on that face")
+		return
+	_end()
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	_ov_key = ""
+	_say("Laid flat on its best face: %.1f cm2 of support under it (was %.1f). Ctrl+Z undoes it" % [float(plan["now"]) / 100.0, float(plan["was"]) / 100.0])
+
+
+## p113 SHOW OVERHANGS: the red chip. Red sits on the faces that need support when printed (see Part.overhang_faces_of)
+func _paint_press() -> void:
+	paint_on = not paint_on
+	_ov_key = ""
+	if not paint_on:
+		_say("")
+		return
+	var n := Part.overhang_faces_of(_rec()).size()
+	_say("Red: %d faces point down more than 45 degrees and need support when printed" % n if n > 0 else "Nothing is red: no face needs support when printed")
+
+
+## p113: the red copy of the faces that need support, laid over the part (rebuilt when the record changes; hidden when the chip is off)
+func _overhang_sync(show_ok: bool) -> void:
+	if _ov_mesh == null:
+		_ov_mesh = MeshInstance3D.new()
+		_ov_mesh.name = "easypart_overhangs"
+		var red := StandardMaterial3D.new()   # p113: a flat red with no light, so the mark reads the same on any face
+		red.albedo_color = Color(0.9, 0.12, 0.1)
+		red.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		red.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_ov_mesh.material_override = red
+		_ov_mesh.visible = false
+		pu.bu.root3.add_child(_ov_mesh)
+	var on_part: bool = paint_on and show_ok and pu.part_mesh != null and pu.part_mesh.mesh != null and pu.part_mesh.visible
+	if not on_part:
+		_ov_mesh.visible = false
+		return
+	var key := JSON.stringify(_rec())
+	if key != _ov_key:
+		_ov_key = key
+		_ov_mesh.mesh = _overhang_mesh()
+	_ov_mesh.global_transform = pu.part_mesh.global_transform
+	_ov_mesh.visible = _ov_mesh.mesh != null
+
+
+## the triangles of the shown result that lie in an overhang face (the face's plane and its normal), lifted 0.2 mm off the face
+func _overhang_mesh() -> ArrayMesh:
+	var faces := Part.overhang_faces_of(_rec())
+	if faces.is_empty():
+		return null
+	var tris := PackedVector3Array()   # _shown_faces: one array of triangle corners per body (or the shown mesh as one)
+	for part_tris in _shown_faces():
+		tris.append_array(part_tris)
+	var verts := PackedVector3Array()
+	for k in range(0, tris.size() - 2, 3):
+		var a: Vector3 = tris[k]
+		var b: Vector3 = tris[k + 1]
+		var c: Vector3 = tris[k + 2]
+		var tn := (b - a).cross(c - a)
+		if tn.length_squared() < 1e-18:
+			continue
+		tn = tn.normalized()
+		var cen := (a + b + c) / 3.0
+		for fc in faces:
+			var n: Vector3 = fc["n"]
+			if absf(tn.dot(n)) > 0.999 and absf((cen - (fc["c"] as Vector3)).dot(n)) < 1e-4:
+				for v in [a, b, c]:
+					verts.append(v + n * 2e-4)
+				break
+	if verts.is_empty():
+		return null
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = verts
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return am
 
 
 # ---------------------------------------------------------------- autosave (NAUTOSAVE)
@@ -2990,7 +3097,11 @@ func _process(_dt: float) -> void:
 	pull_along_btn.visible = along
 	tilt_btn.visible = tilt_on
 	draft_btn.visible = draft_on
+	var flat_on := on and armed == "" and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # p113: Lay it flat and Show overhangs, under any solid, in the step list
+	flat_box.visible = flat_on
+	paint_btn.set_pressed_no_signal(paint_on)
 	tilt_box.visible = on and armed == "" and (along or tilt_on or draft_on)
+	_overhang_sync(on)
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
 	if not on:
 		return
@@ -3920,11 +4031,32 @@ func _steps_box() -> PanelContainer:
 	return box
 
 
+## p113: the two printing chips, one box under the step list (Lay it flat turns the part; Show overhangs paints red where it needs support)
+func _printing_box() -> PanelContainer:
+	var box := PanelContainer.new()
+	box.name = "easypart_printing"
+	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	box.visible = false
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 4)
+	box.add_child(v)
+	lay_btn = _big_btn("easypart_lay_flat", "Lay it flat", "Turn the part so the face that needs the least support under it sits on the floor", _lay_press)
+	lay_btn.custom_minimum_size = Vector2(PW - 40.0, 40)
+	v.add_child(lay_btn)
+	paint_btn = _big_btn("easypart_show_overhangs", "Show overhangs", "Paint red the faces a printer needs support under (they point down more than 45 degrees)", _paint_press)
+	paint_btn.toggle_mode = true
+	paint_btn.custom_minimum_size = Vector2(PW - 40.0, 40)
+	v.add_child(paint_btn)
+	return box
+
+
 ## NSTEPLIST: the step's plain words ("" = no row: a helper plane). Pulled up N cm, Rounded N edges R mm, Drew a shape, Hollowed out
 func step_words(f: Dictionary) -> String:
 	match String(f.get("t", "")):
 		"sketch":
 			return "Drew a shape"
+		"lay":
+			return "Laid it flat"
 		"loft":
 			return "Blended two shapes"
 		"extrude":

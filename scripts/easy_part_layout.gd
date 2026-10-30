@@ -979,3 +979,5 @@ func _steps_place(cl: Rect2, y: float) -> void:
 		sc.custom_minimum_size.y = clampf(steps_vb.get_combined_minimum_size().y, 40.0, maxf(40.0, room - 40.0))
 	steps_box.reset_size()
 	steps_box.position = Vector2(cl.end.x - PW - 8.0, y)
+	flat_box.reset_size()   # p113: the printing box sits under the step list
+	flat_box.position = Vector2(steps_box.position.x, y + steps_box.get_combined_minimum_size().y + 6.0)
