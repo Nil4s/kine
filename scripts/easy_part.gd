@@ -128,8 +128,9 @@ func build(root: Control) -> void:
 	shape_box.name = "easypart_shapes"
 	shape_box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
 	shape_box.visible = false
-	var sh := HBoxContainer.new()
-	sh.add_theme_constant_override("separation", 6)
+	var sh := HFlowContainer.new()   # wraps when the room left of the panel is short (layout clamps its width), so it never runs under the panel
+	sh.add_theme_constant_override("h_separation", 6)
+	sh.add_theme_constant_override("v_separation", 4)
 	shape_box.add_child(sh)
 	for s in [["box", "Box"], ["round", "Round"], ["pointy", "Pointy"], ["oval", "Oval"], ["hex", "Hex"], ["line", "Line"]]:   # P040 Line: a drag of straight stretches, a stretch held with Shift is a curve. FSPOON: Oval = an ellipse fitted to the drag box (a bowl, a pad); FBOLT: Hex = a regular hexagon in the drag box (bolt head, nut)
 		var b := Button.new()
@@ -1542,9 +1543,9 @@ func _lib_box() -> PanelContainer:
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 4)
 	pc.add_child(vb)
-	var fl := HFlowContainer.new()
-	fl.add_theme_constant_override("h_separation", 4)
-	fl.add_theme_constant_override("v_separation", 4)
+	var fl := HFlowContainer.new()   # compact: eleven chips in three rows, so the screw grid under the page stays inside the panel at 1280 x 720
+	fl.add_theme_constant_override("h_separation", 3)
+	fl.add_theme_constant_override("v_separation", 3)
 	vb.add_child(fl)
 	for cat in LIB_CATS:
 		var b := Button.new()
@@ -1554,7 +1555,7 @@ func _lib_box() -> PanelContainer:
 		b.toggle_mode = true
 		b.focus_mode = Control.FOCUS_NONE
 		b.custom_minimum_size = Vector2(0, 34)
-		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_font_size_override("font_size", 12)
 		b.tooltip_text = ("%s: ready now" % cat) if cat in LIB_READY else ("%s: coming soon" % cat)
 		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
 		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))

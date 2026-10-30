@@ -435,6 +435,11 @@ func layout(cl: Rect2) -> void:
 	hint.position = Vector2(cl.position.x + 12.0, top)
 	shape_box.reset_size()
 	shape_box.position = Vector2(cl.position.x + 12.0, top + hint.size.y + 6.0)
+	var shape_nat := 24.0   # EASYPART5: the six shapes in one row; the choice wraps to the room left of the panel, never under it
+	for c in (shape_box.get_child(0) as Control).get_children():
+		shape_nat += (c as Control).get_combined_minimum_size().x + 6.0
+	shape_box.size.x = minf(cl.end.x - PW - 32.0 - shape_box.position.x, shape_nat)
+	shape_box.size.y = shape_box.get_combined_minimum_size().y
 	hole_box.reset_size()
 	hole_box.position = shape_box.position
 	split_box.reset_size()
