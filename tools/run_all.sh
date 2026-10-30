@@ -332,3 +332,4 @@ EXTRA="$EXTRA p035filletinsi:w"   # P035 FILLET INSIDE: Easy Part Stick together
 
 EXTRA="$EXTRA p038makeitstro:w"   # P038 MAKE IT STRONGER: Easy Part, a thin plate pulled up, then Make it stronger adds a 4 mm x 10 mm rib along its long side on the top (one undo step, a Rib height slider); bars on the built solid (tests/p038makeitstro_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA p039edgeloopsm:w"   # p039edgeloopsm (Friday plan 39): Curvy line gets a Smooth slider (0 = as drawn, 100 = wobble gone, corners kept); a wobbly hand line by real clicks, bars on the saved curve points (tests/p039edgeloopsm_test.gd)
+EXTRA="$EXTRA p059printtimee:w"   # p059printtimee (Friday plan 59): the size label on Easy Part also says the print time ("about 3 h 39 min to print"), worked out from the built volume and surface (tests/p059printtimee_test.gd)
