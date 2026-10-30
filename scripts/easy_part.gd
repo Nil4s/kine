@@ -651,7 +651,6 @@ func _tilt_press() -> void:
 	_say("Tilted 20 degrees: the piece leans about its middle")
 
 
-var flat_box: PanelContainer   # p113: the printing box under the step list (Lay it flat, Show overhangs)
 var lay_btn: Button         # p113: Lay it flat, in the printing box under any solid
 var paint_btn: Button       # p113: Show overhangs (a toggle chip)
 var paint_on := false       # p113: the red overhang faces are on

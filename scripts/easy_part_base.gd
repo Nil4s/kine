@@ -72,6 +72,7 @@ var repeat_box: PanelContainer   # Repeat it: Row / Ring and the How many and Ga
 var rep_btns := {}
 var tilt_box: PanelContainer     # Tilt it: one chip under the newest solid (a Spin or a Pull), leans it 20 degrees once
 var steps_box: PanelContainer    # NSTEPLIST: the step list under the panel, in plain words; a click on a step reopens it (see _steps_sync)
+var flat_box: PanelContainer    # p113: the printing box under the step list (Lay it flat, Show overhangs); see _printing_box
 var steps_vb: VBoxContainer
 var _steps_sig := ""
 var tilt_btn: Button
