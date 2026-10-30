@@ -91,6 +91,36 @@ func gear_chip() -> Button:
 	return root.find_child("easypart_chip_gear", true, false) as Button
 
 
+## the built gear's tip diameter (mm): the thin axis of the built box is the gear's axis; the tip is the largest radius round it
+func gear_tip_d() -> float:
+	var faces: Array = Part.body_faces(m.S.part)
+	var lo := Vector3(1e9, 1e9, 1e9)
+	var hi := Vector3(-1e9, -1e9, -1e9)
+	var all: Array = []
+	for f in faces:
+		var arr: PackedVector3Array = f
+		for v in arr:
+			var p := v * 1000.0
+			all.append(p)
+			lo = lo.min(p)
+			hi = hi.max(p)
+	if all.is_empty():
+		return 0.0
+	var sz := hi - lo
+	var ax := 1
+	if sz.x <= sz.y and sz.x <= sz.z:
+		ax = 0
+	elif sz.z <= sz.x and sz.z <= sz.y:
+		ax = 2
+	var c := (lo + hi) * 0.5
+	var pa := [0, 1, 2]
+	pa.erase(ax)
+	var rmax := 0.0
+	for p in all:
+		rmax = maxf(rmax, Vector2(p[pa[0]] - c[pa[0]], p[pa[1]] - c[pa[1]]).length())
+	return 2.0 * rmax
+
+
 func screw_count_visible() -> int:
 	var n := 0
 	for d in ISO:
@@ -204,14 +234,16 @@ func _init() -> void:
 		if b != null and b.is_visible_in_tree():
 			shown += 1
 	ok(pb != null and shown == 10 and names_ok.is_empty(), "1 the Parts chip opens a page with 10 category chips shown %d/10, names %s" % [shown, str(names_ok)])
-	ok(off.is_empty() and small.is_empty() and no_icon.is_empty(), "1 every category chip is on the 1280 x 720 screen %s, 34 px or taller %s, with an icon %s" % [str(off), str(small), str(no_icon)])
+	ok(shown == 10 and off.is_empty() and small.is_empty() and no_icon.is_empty(), "1 every category chip is on the 1280 x 720 screen %s, 34 px or taller %s, with an icon %s" % [str(off), str(small), str(no_icon)])
 	await shot("page")
 
 	# 2 OPENS: the whole walk over the categories makes no undo step
 	var ub0: int = m.undo.size()
+	var opened := 0
 	for c in CATS:
-		await click_ctl(lib(c))
-	ok(m.undo.size() == ub0, "2 opening all ten categories: no undo step (%d -> %d)" % [ub0, m.undo.size()])
+		if await click_ctl(lib(c)):
+			opened += 1
+	ok(opened == 10 and m.undo.size() == ub0, "2 opening all ten categories (%d of 10 pressed): no undo step (%d -> %d)" % [opened, ub0, m.undo.size()])
 
 	# 3 SOON: the eight empty categories say coming soon, name the next step, build nothing
 	var soon_bad := []
@@ -236,14 +268,16 @@ func _init() -> void:
 	var gshown := gc != null and gc.is_visible_in_tree()
 	var sl2 := soon_label()
 	var soon_hidden := sl2 == null or not sl2.is_visible_in_tree()
-	ok(scr == 16 and gshown and soon_hidden, "4 Screws shows 16 size chips (%d), Gears shows the Gear chip (%s) and hides 'coming soon' (%s)" % [scr, str(gshown), str(soon_hidden)])
+	var scr_after := screw_count_visible()
+	ok(scr == 16 and gshown and soon_hidden and scr_after == 0, "4 Screws shows 16 size chips (%d), Gears shows the Gear chip (%s), hides the screw sizes (%d left) and 'coming soon' (%s)" % [scr, str(gshown), scr_after, str(soon_hidden)])
 
 	# 5 GEAR: the Gear chip builds one gear, one undo step, tip diameter 64 mm
 	var ub2: int = m.undo.size()
 	await click_ctl(gc)
 	var g := geom()
-	var gear_ok := not g.is_empty() and int(g["bodies"]) == 1 and absf(float(g["D"]) - 64.0) <= 0.6
-	ok(gear_ok and m.undo.size() == ub2 + 1, "5 Gear: one undo step (%d -> %d), one solid, tip diameter %.2f mm (want 64 +- 0.6)" % [ub2, m.undo.size(), float(g.get("D", 0.0))])
+	var tipd := gear_tip_d()
+	var gear_ok := not g.is_empty() and int(g["bodies"]) == 1 and absf(tipd - 64.0) <= 0.6
+	ok(gear_ok and m.undo.size() == ub2 + 1, "5 Gear: one undo step (%d -> %d), %d solid, tip diameter %.2f mm (want 64 +- 0.6)" % [ub2, m.undo.size(), int(g.get("bodies", 0)), tipd])
 	await shot("gear")
 
 	# 6 SCREW: Screws, M4 x 16: one undo step, built to ISO
