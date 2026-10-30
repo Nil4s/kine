@@ -72,6 +72,12 @@ const T := {
 		{"k": "width", "label": "Width", "lo": 50.0, "hi": 400.0, "def": 200.0, "step": 10.0, "words": ["Thinner", "Wider"]}]},
 	# NSCREW2: a screw from the Parts category (not in ORDER: no template chip). d = the nominal size (M3..M6, mm), L = the length under the head (mm).
 	# Its numbers are picked by the Parts chips (easy_part.gd), so its sliders are hidden there ("parts": true).
+	# FRIDAY 73: a bracket from the Parts page's Brackets: kind 1 = L, 2 = T, 3 = corner brace (raw: the chip's own number). Its numbers are not sliders (parts: true)
+	"bracket": {"title": "Bracket", "parts": true, "params": [
+		{"k": "kind", "label": "Shape", "lo": 1.0, "hi": 3.0, "def": 1.0, "step": 1.0, "words": ["L", "Corner brace"], "raw": true, "unit": "kind"},
+		{"k": "leg", "label": "Leg", "lo": 40.0, "hi": 200.0, "def": 80.0, "step": 10.0, "words": ["Shorter", "Longer"], "raw": true, "unit": "mm"},
+		{"k": "width", "label": "Width", "lo": 10.0, "hi": 80.0, "def": 30.0, "step": 5.0, "words": ["Narrower", "Wider"], "raw": true, "unit": "mm"},
+		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 10.0, "def": 5.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
 	"screw": {"title": "Screw", "parts": true, "params": [
 		{"k": "d", "label": "Size", "lo": 3.0, "hi": 6.0, "def": 4.0, "step": 1.0, "words": ["Smaller", "Bigger"]},
 		{"k": "L", "label": "Length", "lo": 10.0, "hi": 30.0, "def": 16.0, "step": 1.0, "words": ["Shorter", "Longer"]}]},
@@ -429,6 +435,30 @@ static func features_of(t: String, p: Dictionary) -> Array:
 				_ex(fs, _sk(fs, "right", [{"k": "circle", "c": [-zc, S], "r": g["A"]}]), "extrude", 2.0 * g["W"], "cut", true)
 			var cabin := [Vector2(yb, g["zwb"]), Vector2(g["H"], g["zrf"]), Vector2(g["H"], g["zrr"]), Vector2(yb, g["zrh"])]
 			_ex(fs, _sk(fs, "right", _rounded(cabin, [0.0, 150.0, 150.0, 0.0])), "extrude", g["wc"], "join", true)
+		"bracket":
+			# FRIDAY 73: a bent bracket in the front plane (sketch x = along the foot, y = up), extruded 'width' both ways from the middle, then two
+			# 6 mm screw holes cut through the legs (3 features per hole: a sketch and a cut). L: a foot and an upright; corner brace: the L with a
+			# 0.4 leg gusset in the corner; T: a bar on top of a stem (the holes: one through the bar, one through the stem)
+			var kind := int(roundf(float(p["kind"])))
+			var S: float = p["leg"]
+			var th: float = p["thickness"]
+			var prof := []
+			if kind == 2:
+				var sx := S * 0.5 - th * 0.5
+				prof = [Vector2(sx, 0), Vector2(sx + th, 0), Vector2(sx + th, S - th), Vector2(S, S - th), Vector2(S, S), Vector2(0, S), Vector2(0, S - th), Vector2(sx, S - th)]
+			elif kind == 3:
+				var g := S * 0.4
+				prof = [Vector2(0, 0), Vector2(S, 0), Vector2(S, th), Vector2(th + g, th), Vector2(th, th + g), Vector2(th, S), Vector2(0, S)]
+			else:
+				prof = [Vector2(0, 0), Vector2(S, 0), Vector2(S, th), Vector2(th, th), Vector2(th, S), Vector2(0, S)]
+			_ex(fs, _sk(fs, "front", _poly(prof)), "extrude", float(p["width"]), "new", true)
+			var hr := 3.0   # the screw hole's radius (6 mm)
+			if kind == 2:
+				_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [S * 0.2, 0.0], "r": hr}]), "extrude", 300.0, "cut", true)
+				_ex(fs, _sk(fs, "right", [{"k": "circle", "c": [0.0, S * 0.3], "r": hr}]), "extrude", 300.0, "cut", true)
+			else:
+				_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [S * 0.6, 0.0], "r": hr}]), "extrude", 300.0, "cut", true)
+				_ex(fs, _sk(fs, "right", [{"k": "circle", "c": [0.0, S * 0.6], "r": hr}]), "extrude", 300.0, "cut", true)
 		"gear":
 			# NGEAR: a spur gear in the front plane: a tooth outline of N teeth (the flanks cross the pitch circle at half a tooth pitch, so
 			# the tooth is as wide as the space there), extruded 5 mm x module, with the centre hole (0.12 x pitch diameter) cut through

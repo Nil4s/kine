@@ -250,6 +250,8 @@ func build(root: Control) -> void:
 	v.add_child(screw_box)
 	bear_box = _bear_box()   # P069 BEARINGS: the bearing chips and the seat button, under the Parts page
 	v.add_child(bear_box)
+	bracket_box = _bracket_box()   # FRIDAY 73
+	v.add_child(bracket_box)
 	rows_vb = VBoxContainer.new()
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 2)
@@ -1241,6 +1243,101 @@ func _nw_add() -> void:
 	_screw_sync()
 
 
+## FRIDAY 73: the bracket chips: an L, a T and a corner brace, each a click. The shape drops on the floor; a bracket on the floor changes shape
+## (one undo step, the same steps), the same shape again does nothing. Words and icons only: no key name.
+func _bracket_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_bracket_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
+	var hd := Label.new()
+	hd.name = "easypart_bracket_words"
+	hd.text = "Brackets: pick a shape. It drops on the floor"
+	hd.add_theme_font_size_override("font_size", 14)
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(hd)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	vb.add_child(row)
+	for bc in BRACKET_CHIPS:
+		var b := Button.new()
+		b.name = "easypart_bracket_" + String(bc[0])
+		b.text = String(bc[1])
+		b.icon = _bracket_icon(int(bc[2]))
+		b.tooltip_text = String(bc[3])
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(0, 34)
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_bracket_pick.bind(int(bc[2])))
+		row.add_child(b)
+		bracket_btns[bc[0]] = b
+	return pc
+
+
+## FRIDAY 73: a 16 px icon per shape, in the text colour (Tok): an L, a T, an L with a corner gusset
+func _bracket_icon(kind: int) -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	match kind:
+		1:
+			img.fill_rect(Rect2i(2, 1, 3, 14), col)
+			img.fill_rect(Rect2i(2, 12, 13, 3), col)
+		2:
+			img.fill_rect(Rect2i(1, 1, 14, 3), col)
+			img.fill_rect(Rect2i(7, 4, 3, 11), col)
+		3:
+			img.fill_rect(Rect2i(2, 1, 3, 14), col)
+			img.fill_rect(Rect2i(2, 12, 13, 3), col)
+			for i in 6:
+				img.fill_rect(Rect2i(5 + i, 11 - i, 2, 2), col)
+	return ImageTexture.create_from_image(img)
+
+
+## FRIDAY 73: a bracket shape chip (kind 1 / 2 / 3). No bracket on the floor: a new one. A bracket on the floor: its shape changes
+## (one undo step). The same shape again does nothing.
+func _bracket_pick(kind: int) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var label := ""
+	for bc in BRACKET_CHIPS:
+		if int(bc[2]) == kind:
+			label = String(bc[1])
+	var on_floor := _tpl() == "bracket" and not (_rec().get("features", []) as Array).is_empty()
+	if on_floor:
+		var cur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {})
+		if int(cur.get("kind", 0)) == kind:
+			_say("Already a %s on the floor. Pick another shape to change it" % label)
+			_screw_sync()
+			return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Change the shape" if on_floor else "Start a bracket"
+	m._push_undo()
+	if on_floor:
+		PartTemplates.retemplate(_rec(), {"kind": kind})
+	else:
+		m.S.part = PartTemplates.make("bracket", {"kind": kind})
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("%s did not build. Press Reset, then pick a shape again" % label)
+	else:
+		_say("%s on the floor. Pick another shape to change it" % label)
+	_screw_sync()
+
+
 ## NSCREW2: the Parts chip opens or shuts the screw grid (a screw on the floor keeps it open)
 func _parts_press() -> void:
 	if not Part.available():
@@ -1266,6 +1363,8 @@ func _lib_press(cat: String) -> void:
 		_say("Gears: press Gear in the chips above. It drops on the floor")
 	elif cat == "Bearings":   # P069 BEARINGS: three sizes; the seat button under them cuts the seat for the one on the floor
 		_say("Bearings: pick a size. It drops on the floor. Then Make a seat for it")
+	elif cat == "Brackets":   # FRIDAY 73: three shapes, each a click
+		_say("Brackets: pick a shape. It drops on the floor")
 	else:
 		_say("%s are coming soon. Next step: press Screws or Gears" % cat)
 	_screw_sync()
@@ -1433,6 +1532,13 @@ func _screw_sync() -> void:
 			b.set_pressed_no_signal(not cur.is_empty() and int(cur.get("d", 0)) == d and int(cur.get("L", 0)) == L)
 			m._grey(b, Part.why_not() if not Part.available() else "")
 	parts_btn.set_pressed_no_signal(parts_open)
+	# FRIDAY 73: the bracket chips show while Brackets is open or a bracket is the part; the pressed one is the shape on the floor
+	var kind := int(cur.get("kind", 0)) if _tpl() == "bracket" else 0
+	bracket_box.visible = (parts_open and lib_cat == "Brackets") or _tpl() == "bracket"
+	for bc in BRACKET_CHIPS:
+		var bb: Button = bracket_btns[bc[0]]
+		bb.set_pressed_no_signal(kind == int(bc[2]))
+		m._grey(bb, Part.why_not() if not Part.available() else "")
 
 
 ## P069 BEARINGS: the three bearing sizes, in the order of PartTemplates.BEARING_SIZE (608, 625, 688)
