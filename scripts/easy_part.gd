@@ -1698,6 +1698,8 @@ func _lib_press(cat: String) -> void:
 		_say("Wheels: press Wheel or Castor. It drops on the floor, with its axle hole")
 	elif cat == "Boards":   # p078makeacasef
 		_say("Boards: press your board. A case for it drops on the floor")
+	elif cat == "Type it":   # p085typetobuil: a line of words builds a box
+		_say("Type it: write a box in words, like: %s. Then press Build it" % PartWords.EXAMPLE)
 	else:
 		_say("%s are coming soon. Next step: press Screws or Gears" % cat)
 	_screw_sync()
@@ -1737,6 +1739,7 @@ func _lib_box() -> PanelContainer:
 	lib_soon.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lib_soon.visible = false
 	vb.add_child(lib_soon)
+	vb.add_child(_type_row())   # p085typetobuil: the Type it row (shows with that category)
 	return pc
 
 
@@ -2018,6 +2021,7 @@ func _screw_sync() -> void:
 		if screw_words != null:   # the page is open: its chips and the status line say what to do
 			screw_words.visible = not parts_open
 		lib_soon.text = "%s are coming soon: not made yet. Next step: press Screws or Gears" % lib_cat if lib_soon.visible else ""
+		type_box.visible = parts_open and lib_cat == "Type it"   # p085typetobuil
 	if clip_box != null:   # P075: the Clips and feet chips show while that category is open
 		clip_box.visible = parts_open and lib_cat == "Clips and feet"
 		for kind in CLIP_KINDS:
@@ -4189,3 +4193,106 @@ func _steps_sync() -> void:
 		var fid := String(f.get("id", ""))
 		b.pressed.connect(func(): _step_open(fid))
 		steps_vb.add_child(b)
+
+
+# ---------------------------------------------------------------- p085typetobuil: type a box in words (Parts > Type it)
+
+var type_box: HBoxContainer      # p085typetobuil: the words line under the Parts page's categories (shows with Type it)
+var type_edit: LineEdit          # the words: "a box 20 by 10 by 5 cm, hollow, 2 mm walls, lid"
+var type_go: Button              # Build it: the same as Enter in the words
+
+
+## p085typetobuil: the Type it row: a line of words and Build it. Enter in the line builds too
+func _type_row() -> HBoxContainer:
+	var hb := HBoxContainer.new()
+	hb.name = "easypart_type_row"
+	hb.visible = false
+	hb.add_theme_constant_override("separation", 4)
+	type_edit = LineEdit.new()
+	type_edit.name = "easypart_type_edit"
+	type_edit.placeholder_text = PartWords.EXAMPLE
+	type_edit.add_theme_font_size_override("font_size", 13)
+	type_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	type_edit.text_submitted.connect(func(_t: String) -> void: _type_build())
+	hb.add_child(type_edit)
+	type_go = Button.new()
+	type_go.name = "easypart_type_go"
+	type_go.text = "Build it"
+	type_go.focus_mode = Control.FOCUS_NONE
+	type_go.tooltip_text = "Build the box you typed: one press, one undo step"
+	type_go.add_theme_font_size_override("font_size", 13)
+	type_go.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+	type_go.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+	type_go.pressed.connect(_type_build)
+	hb.add_child(type_go)
+	type_box = hb
+	return hb
+
+
+## p085typetobuil: Build it (or Enter): the words become a box on the floor, its sides as typed; a hollow is open at the top with the wall;
+## a lid takes the top 5 mm off as its own piece. The newest step is the hollow, so the Wall slider edits it. One press = one undo step.
+## A refusal says what to type, and changes nothing
+func _type_build() -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var p := PartWords.parse(type_edit.text)
+	if not bool(p["ok"]):
+		_say(String(p["why"]))
+		return
+	_flush_if_dirty()
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	var snap := _rec().duplicate(true)
+	_begin("Type a box")
+	var rec := PartTemplates.make("box", {"width": p["w"], "depth": p["d"], "height": p["h"]})
+	var why := ""
+	if bool(p["hollow"]):
+		why = _type_hollow(rec, float(p["wall"]), bool(p["lid"]))
+	else:
+		tweak = {}
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+		return
+	m.S.part = rec
+	_end()
+	pu.upto = -1
+	pu.sync()
+	frame()
+	_rows_sig = ""
+	_rows_sync()
+	_values_sync()
+	var said := "%s x %s x %s cm" % [_plain_num(float(p["w"]) / 10.0), _plain_num(float(p["d"]) / 10.0), _plain_num(float(p["h"]) / 10.0)]
+	if bool(p["hollow"]):
+		_say("A box %s, hollow with a %s mm wall%s. Move the Wall slider or a size slider" % [said, "%g" % float(p["wall"]), " and a lid" if bool(p["lid"]) else ""])
+	else:
+		_say("A box %s. Move a size slider" % said)
+
+
+## p085typetobuil: Part's shell on the box (open at the top, the wall as typed) and, with a lid, the top LID_MM split off as the lid (a plate on
+## the box's footprint, as Hollow with a lid, without the snap lip). The Wall slider is set on the shell, the newest step. "" or why not
+func _type_hollow(rec: Dictionary, wall: float, lid: bool) -> String:
+	var too_small := "That box is too small for a %s mm wall%s. Type a bigger box or thinner walls: 1 to 10 mm" % ["%g" % wall, " and a lid" if lid else ""]
+	var res := Part.replay(rec)
+	if int(res["bodies"]) != 1:
+		return too_small
+	var top := (res["aabb"] as AABB).end.y / Part.MM
+	var ids := []
+	if lid:
+		var sp := Part.new_feature(rec, "split", {"plane": "top", "at": top - LID_MM, "keep": 0})   # bodies: [the top slice (the lid), the box]
+		rec["features"].append(sp)
+		ids.append(sp["id"])
+	var sh := Part.new_feature(rec, "shell", {"body": 1 if lid else 0, "open": "+y", "thick": wall})
+	rec["features"].append(sh)
+	ids.append(sh["id"])
+	for fid in ids:
+		if _last_error(rec, String(fid)) != "":
+			return too_small
+	if Part.replay(rec)["bodies"] != (2 if lid else 1):
+		return too_small
+	tweak = {"id": sh["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": PartWords.WALL_MIN, "hi": PartWords.WALL_MAX, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
+	return ""
