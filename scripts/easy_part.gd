@@ -154,6 +154,16 @@ func build(root: Control) -> void:
 	pic.pressed.connect(_picture_press)
 	sh.add_child(pic)
 	sh.add_child(_one_side_chip())   # P153: Symmetry is on by default; this chip turns it off ("One side only")
+	var photo_btn := Button.new()   # P201: Photo size: a phone photo with a coin beside the object; six clicks, the mm become a plate (easy_part_photo.gd)
+	photo_btn.name = "easypart_shape_photo"
+	photo_btn.text = "Photo size"
+	photo_btn.icon = Icons.sized("part_measure", 22)
+	photo_btn.focus_mode = Control.FOCUS_NONE
+	photo_btn.custom_minimum_size = Vector2(124, 40)
+	photo_btn.add_theme_font_size_override("font_size", 16)
+	photo_btn.tooltip_text = "Measure with a photo: the object with a coin beside it. Click the coin, then the object: its size becomes a plate"
+	photo_btn.pressed.connect(_photo_press)
+	sh.add_child(photo_btn)
 	root.add_child(shape_box)
 	hole_box = _hole_box()
 	root.add_child(hole_box)
@@ -5700,6 +5710,16 @@ func _frame_held() -> void:
 
 ## P129 LINKAGES: the Linkage panel on the Hinges page (built in _lib_box, shown by _screw_sync)
 var linkage_box: PanelContainer
+## P201 PHYSICAL TO DIGITAL: the Photo size chip (Draw shape row). The photo panel, its six clicks and Make the part are scripts/easy_part_photo.gd
+var photo = null
+
+
+func _photo_press() -> void:
+	if photo == null:
+		photo = EasyPartPhoto.new(self)
+	photo.pick()
+
+
 ## P127 DOES IT FALL OVER (scripts/build/part_stand.gd): one chip on the Colour page, after the weights. It reads whether the built
 ## solid stands on its feet (its middle over the lowest surface) and says how far, in plain words. Changes no step: no undo
 func _stand_chip() -> Button:
