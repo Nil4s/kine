@@ -394,9 +394,9 @@ func _hole_box() -> PanelContainer:
 	mb.custom_minimum_size = Vector2(96, 44)
 	h.add_child(mb)
 	hole_btns["magnet"] = mb
-	var fb := _big_btn("easypart_hole_flat", "Flat pattern", "Unfold the box into a flat sheet to laser-cut: six panels with finger joints. The model does not change", _flat_press)   # p117flatpatter
-	fb.custom_minimum_size = Vector2(120, 44)
-	h.add_child(fb)   # not a toggle: it is not in hole_btns (the row's pressed state would ignore it)
+	var flb := _big_btn("easypart_hole_flat", "Flat pattern", "Unfold the box into a flat sheet to laser-cut: six panels with finger joints. The model does not change", _flat_press)   # p117flatpatter
+	flb.custom_minimum_size = Vector2(120, 44)
+	h.add_child(flb)   # not a toggle: it is not in hole_btns (the row's pressed state would ignore it)
 	for sd in SCREW_CLEAR:   # p030countersun: one chip per screw size: the hole is sized to the screw (M3 3.4 mm ... M6 6.6 mm)
 		var sb := _big_btn("easypart_hole_screw%d" % sd, "M%d screw" % sd, "A hole for an M%d socket screw: a clearance hole, and a counterbore on the top face for its head" % sd, _hole_mode.bind("screw%d" % sd))
 		sb.toggle_mode = true
