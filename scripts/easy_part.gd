@@ -168,6 +168,8 @@ func build(root: Control) -> void:
 	root.add_child(stick_box)
 	explode_box = _explode_box()
 	root.add_child(explode_box)
+	size_box = _size_box()   # p052scalepiece: the Size % slider of a picked piece (easy_part_stick.gd)
+	root.add_child(size_box)
 	tilt_box = _tilt_box()
 	root.add_child(tilt_box)
 	steps_box = _steps_box()   # NSTEPLIST
@@ -3398,6 +3400,7 @@ func _process(_dt: float) -> void:
 	if del_on and (armed != "" or (_rec().get("features", []) as Array).size() != del_n):
 		_pick_clear()   # FDELETE: a pick ends with the step it was made on
 	del_btn.visible = on and del_on
+	_slider_box_sync(on and not _hole_on() and not _split_on())   # p052scalepiece: Size % and Taller only follow the picked piece
 	var along := on and _along_ok(_rec())   # P026: Pull along takes the chip's place while a curve and a shape wait
 	var tilt_on := not along and _tilt_ok(_rec())
 	var draft_on := not along and _draft_ok(_rec())
@@ -3809,7 +3812,7 @@ func _over_ui(p: Vector2) -> bool:
 	if edge_chip != null and edge_chip.visible and edge_chip.get_global_rect().has_point(p):
 		return true   # NEDGECHIP: the edge chip is a button: its press is not a pick
 	# hint and status are WORDS only (a _pill: mouse_filter IGNORE, one Label, no button): a press under them is the grid's, not eaten
-	for c in [bar, make_box, view_box, panel, shape_box, colour_box, repeat_box, stick_box, explode_box, tilt_box]:   # P107 FITVIEW: the view row is a button row, a press on it is not the grid's
+	for c in [bar, make_box, view_box, panel, shape_box, colour_box, repeat_box, stick_box, explode_box, tilt_box, size_box]:   # P107 FITVIEW: the view row is a button row, a press on it is not the grid's
 		if (c as Control).visible and (c as Control).get_global_rect().has_point(p):
 			return true
 	return false

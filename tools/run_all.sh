@@ -360,3 +360,4 @@ EXTRA="$EXTRA p037bosschip:w"   # FRIDAY 37 BOSS CHIP: a screw on the floor take
 EXTRA="$EXTRA p067hinges:w"   # p067hinges (Friday plan 67): Easy Part Hinge chip: a Butt, Piano or Living hinge sized to the Door height, measured from the built mesh (tests/p067hinges_test.gd)
 EXTRA="$EXTRA p070springswit:w"   # p070springswit (Friday plan 70): Easy Part Spring chip: a compression spring, Turns and Wire sliders by real drags, sizes measured from the built mesh (tests/p070springswit_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA p107fitviewfro:w"   # P107 FITVIEW: Easy Part view row (Fit view, Front, Top, Side, 3/4) under the panel title: camera only, no step (tests/p107fitviewfro_test.gd)
+EXTRA="$EXTRA p052scalepiece:w"   # p052scalepiece (Friday plan 52): Easy Part, a picked piece pulled up from a shape gets a Size % slider (50 to 200 %) and a Taller only chip, one undo step per release, measured from the built block (tests/p052scalepiece_test.gd; needs the CAD DLL)
