@@ -176,6 +176,7 @@ var clips_ui: ClipsUI   # CLIPS (GAP row 12): the commands, dialog and picked cl
 var export_ui: ExportDialog   # EXPORT... (ROADMAP 57): one dialog for every target; runs the writers below (scripts/export_dialog.gd)
 var mc_ui: MyCamUI   # MY CAMERA (ROADMAP I32): the fingerprint of his shot cameras + Frame it my way (scripts/my_camera_ui.gd)
 var ac_ui: AutoCamUI   # AUTO CAMERA (ROADMAP I7): ghost-frame shot suggestions (scripts/auto_camera_ui.gd)
+var sl_ui: ShotListUI   # SHOT LIST (Friday plan 150): type a story, a shot card per line (scripts/shot_list_ui.gd)
 var mp_ui: MakePhysicalUI   # MAKE IT PHYSICAL (ROADMAP I1): the judge, the red lane, the ghost (scripts/make_physical_ui.gd)
 var ds_ui: DeformSceneUI   # DEFORMATION OVER THE SCENE (ROADMAP_400 H17): per-frame skin grades, worst frames, red lane, ghost (scripts/deform_scene_ui.gd)
 var clash_ui: RomClashUI   # ARMOUR CLASH (ROADMAP_400 B24 / B25): ROM test + scene, worst frames, red verts, clearance heat map (scripts/rom_clash_ui.gd)
@@ -12806,6 +12807,9 @@ func _ui() -> void:
 	if ac_ui == null:
 		ac_ui = AutoCamUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Auto camera", ac_ui.show, "for the strike a shot camera per beat from film grammar (180 deg rule, lead room, closer on contact, low angle for power, hold the wide) as ghost frames; click one to keep it as a shot, or Keep all; nothing changes until you click"))
+	if sl_ui == null:
+		sl_ui = ShotListUI.new(self)
+	ui_ribbon["CHECK"].add_child(_button("Shot list", sl_ui.show, "type a short story, one line per shot: Kine makes a card per shot with its camera (wide, medium, close-up, low or high angle) and its move; Keep all writes them as shots, one undo step"))
 	if mc_ui == null:
 		mc_ui = MyCamUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("My camera", mc_ui.show, "the habits in the shot cameras of your own scenes: lens, camera height, distance, angle to the line of action, where the subject sits, how long before a contact you cut (medians, spread, counts)"))
@@ -16357,6 +16361,9 @@ func _commands() -> Array:
 	if ac_ui == null:
 		ac_ui = AutoCamUI.new(self)
 	ac_ui.commands(add)   # AUTO CAMERA (ROADMAP I7)
+	if sl_ui == null:
+		sl_ui = ShotListUI.new(self)
+	sl_ui.commands(add)   # SHOT LIST (Friday plan 150)
 	if mc_ui == null:
 		mc_ui = MyCamUI.new(self)
 	mc_ui.commands(add)   # MY CAMERA (ROADMAP I32)
@@ -16467,6 +16474,7 @@ func _commands() -> Array:
 	add.call("Pose: copy to the other fighter, mirrored", "", _pose_to_other.bind(true), "copy pose fighter actor other mirror flip left right", true, "the same, reflected left <-> right: the app's own mirror of the pose; one Ctrl+Z")
 	add.call("Actor: remove this fighter", "", _actor_remove, "actor fighter character opponent delete", true, "the active fighter leaves the scene (not the hero: the hero is the scene itself); Ctrl+Z brings it back")
 	add.call("Ragdoll: fall from here (pins: picked parts)", "", _ragdoll_fall, "ragdoll fall limp knockout drop gravity collapse faint pin hang", false, "the body goes limp and falls from the current pose under gravity, the picked parts held in place; baked as editable cards into a NEW scene in scenes/_wip (ROADMAP 27)")
+	add.call("Ragdoll: hit, fall, get back up", "", _ragdoll_hit, "ragdoll hit knock down fall limp blend back get up recover animation physics hurt punch", false, "the body at the playhead is hit (pushed), falls limp for 2 s, then blends back onto its own pose over 1 s; baked as editable cards into a NEW scene in scenes/_wip (Friday plan 147)")
 	add.call("Hits: make the struck fighter react", "", _hit_react, "hit hits react reaction struck fighter impact knock momentum recoil shove", true, "the first hit in the fighters' report on a body part turns the struck fighter by its momentum (0.3-0.6 s), baked as editable cards on its scene; one undo step (ROADMAP 14)")
 	add.call("Hit reactions: physics default / my usual", "Alt+H", _hit_physics_key, "hit reaction physics default usual habit amplitude delay recovery learned my edits plain", false, "one key: the next hit reaction is the plain physics (not shaped by your usual amplitude, start and recovery learned from your edits of earlier ones); press again for your usual (ROADMAP I46)")
 	add.call("Add marker at the playhead", "", _marker_add, "cue event hit step swoosh note flag sound", true, "a named moment (m1, m2, ...) on the timeline at the playhead; the game export lists it as an event")
@@ -25379,3 +25387,42 @@ func _import_my_part(path: String) -> void:
 		_say("could not import %s: %s" % [path.get_file(), r["why"]])
 		return
 	_say("imported %s into My parts. Open the library, pick My parts, and click it to put it in the set" % r["name"])
+
+
+## HIT AND BACK (Friday plan 147, round 54): the body at the playhead is hit (a push of HIT_V m/s on every free part, ragdoll.gd),
+## falls limp for HIT_FALL_S, then blends back onto its own pose over HIT_BLEND_S. Baked as cards into a NEW scene in scenes/_wip,
+## opened; the live body and the open scene are untouched (the same rule as the fall).
+const HIT_V := 3.0          # m/s, the push on every free part
+const HIT_FALL_S := 2.0     # s, limp on the floor before the blend
+const HIT_BLEND_S := 1.0    # s, from the fall's pose back onto the animation's pose
+func _ragdoll_hit() -> void:
+	_say("hit: falling, then back up...")
+	await get_tree().process_frame
+	var keep := B.state()
+	var keep_ang: Dictionary = B.ang.duplicate()
+	var keep_off: Vector3 = B.offset
+	var R := Ragdoll.new()
+	R.setup(B, [])
+	R.hit(Vector3(0.0, 0.0, HIT_V))
+	R.keep_going = true   # the body lies still well before the blend: the run must go on to the end
+	R.run(HIT_FALL_S + HIT_BLEND_S)
+	var cards := R.bake_back(keep_ang, keep_off, Ragdoll.CARD_FPS, HIT_FALL_S, HIT_BLEND_S)
+	B.set_state(keep)
+	var C := Scene.new()
+	var base := safe_file(S.name.trim_suffix("_ragdoll") + "_hit")
+	C.from_dict({"scene": base, "fps": Ragdoll.CARD_FPS, "cards": cards})
+	C.on_floor = false   # the solver is the floor and the feet: playback must not re-ground or re-plant them
+	C.pin = false
+	var d := C.to_dict(B)
+	d["plan"] = "Hit and back (scripts/ragdoll.gd) from %s: push %.1f m/s, fall %.1f s, blend back %.1f s" % [S.name, HIT_V, HIT_FALL_S, HIT_BLEND_S]
+	var out := UserPaths.w("res://scenes/_wip/%s.json" % base)
+	var n := 2
+	while FileAccess.file_exists(out):   # never over an earlier hit: _hit_2, _hit_3 ...
+		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
+		n += 1
+	_write(out, d)
+	_load_scene(out, true)
+	_rebuild_cards()
+	_refresh()
+	_say("hit: %d cards, back on the animation at %.1f s. Saved as %s; your '%s' is untouched." % [
+		cards.size(), HIT_FALL_S + HIT_BLEND_S, out.get_file(), S.name])

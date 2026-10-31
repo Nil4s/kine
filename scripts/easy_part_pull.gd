@@ -41,6 +41,8 @@ func _hole_mode(mode: String, lip := false, rebuild := false) -> void:   # lip: 
 		why = _screw_hole(rec, int(mode.trim_prefix("screw")))
 	elif mode == "magnet":   # p074magnetsapo: the round pocket for a magnet
 		why = _magnet_pocket(rec)
+	elif mode == "fingers":   # p118fingerjoin: a comb of notches along the top edge (see _finger_joints, at the end of this file)
+		why = _finger_joints(rec)
 	else:
 		why = _hollow_lid(rec, lip) if mode == "lid" else (_hollow(rec) if mode == "hollow" else _hole(rec))
 	if why != "":
@@ -922,3 +924,44 @@ func _without_screw_hole(rec: Dictionary) -> Dictionary:
 ## P028 ANGLE: the Spin it round slider is an Angle in degrees, 30 (a slim part of a bowl) to 360 (all the way round); its record field is deg
 func _spin_tweak(id: String) -> Dictionary:
 	return {"id": id, "field": "deg", "label": "Angle", "unit": "deg", "lo": 30.0, "hi": 360.0, "step": 5.0, "scale": 1.0, "words": ["A bit", "All the way"]}
+
+
+## p118fingerjoin: FINGER JOINTS, a comb of notches along the TOP edge of a pulled-up box, cut through its whole depth (a laser-cut box
+## joins its walls this way). Each finger and each notch is FINGER_MM wide (a fortieth of the width for a wide box), the notch is a third of
+## the height deep, and the comb is centred so a tab is left at both ends. Box-shaped only. "" or why not
+const FINGER_MM := 3.0   # p118fingerjoin: the finger width for a box up to 120 mm wide (a laser cuts sheet this thick)
+func _finger_joints(rec: Dictionary) -> String:
+	tweak = {}
+	var res := Part.replay(rec)
+	var nb := int(res["bodies"])
+	if nb == 0:
+		return "Nothing solid to cut notches in yet. Press Pull it up first"
+	if nb > 1:
+		return "Finger joints need one box, not two pieces. Press Undo, then Pull it up as one box"
+	var bb: AABB = res["aabb"]
+	var x0 := bb.position.x / Part.MM
+	var wide := bb.size.x / Part.MM
+	var top := bb.end.y / Part.MM
+	var hgt := bb.size.y / Part.MM
+	var fw := maxf(FINGER_MM, snappedf(wide / 40.0, 0.5))
+	var n := int(floor(wide / (2.0 * fw)))
+	if n < 2:
+		return "That box is too narrow for finger joints (two fingers across): Pull it up wider, then press Cut a hole again"
+	if hgt < 3.0:
+		return "That box is too short for finger joints: Pull it up taller, then press Cut a hole again"
+	var depth := snappedf(hgt / 3.0, 0.5)
+	var xs := x0 + (wide - (2.0 * n - 1.0) * fw) * 0.5   # the first notch's left edge: the comb is centred
+	var ents: Array = []
+	for i in n:
+		var xa := xs + 2.0 * i * fw
+		ents.append({"k": "rect", "a": Part.arr2(Vector2(xa, top - depth)), "b": Part.arr2(Vector2(xa + fw, top + 1.0))})
+	var before := float(res["volume"])
+	var s := Part.new_feature(rec, "sketch", {"plane": "front", "ents": ents, "dims": []})
+	rec["features"].append(s)
+	var f := Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.z), absf(bb.end.z)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
+	rec["features"].append(f)
+	var after := float(pu.replay_full(rec)["volume"])
+	if after >= before - 1e-12 or after <= 1e-9:
+		return "The notches would miss the box: nothing was cut. Press Cut a hole again"
+	_say("Finger joints: %d notches along the top edge. Use Ctrl+Z to take them out" % n)
+	return ""
