@@ -245,6 +245,8 @@ func build(root: Control) -> void:
 		vbtn.pressed.connect(_view_press.bind(String(vb[0])))
 		vr.add_child(vbtn)
 	vr.add_child(_cut_btn())   # P101 SECTION: the Cut view chip, last in the same view column (no new row)
+	meas = EasyMeasure.new(self)   # s055: the Measure chip (distance and angle readouts), also in the view column
+	meas.build(root, vr)
 	var cr := HFlowContainer.new()
 	cr.name = "easypart_chips"
 	cr.add_theme_constant_override("h_separation", 2)
@@ -3514,6 +3516,8 @@ func _process(_dt: float) -> void:
 	_grid_labels_sync()   # p108measuregri: the grid's numbers follow the zoom (view only)
 	pu.replay_forget()   # the same-frame replay reuse (PartUI.replay_once) ends with the frame
 	_cut_sync()   # P101 SECTION: the Cut view follows the built part, and goes off when Easy is left
+	if meas != null:
+		meas.sync()   # s055: the Measure readouts follow the camera
 	var on := active()
 	if on != _was:
 		_was = on
@@ -3657,6 +3661,10 @@ func _key(k: InputEventKey) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if k.keycode == KEY_ESCAPE:
+		if meas != null and meas.on:
+			meas.set_on(false)   # s055: Esc leaves Measure
+			get_viewport().set_input_as_handled()
+			return
 		if not _draft.is_empty():
 			_draft = {}
 			_bar_press = null
@@ -3834,6 +3842,8 @@ func input(ev: InputEvent) -> bool:
 		return false
 	if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 		var p := (ev as InputEventMouseButton).position
+		if meas != null and meas.on and not _over_ui(p):
+			return meas.mouse(p, (ev as InputEventMouseButton).pressed)   # s055: Measure mode: a click reads, the camera keeps the rest
 		if (ev as InputEventMouseButton).pressed:
 			for d in _dot_list():
 				if (d["scr"] as Vector2).distance_to(p) <= 16.0:
@@ -3893,6 +3903,10 @@ func input(ev: InputEvent) -> bool:
 		if not _draft.is_empty():
 			_draft_move(p)
 			return true
+		if meas != null and meas.on:
+			if edge_chip != null and edge_chip.visible:
+				_edge_hide()   # s055: no Round / Bevel chip over the part while Measure is on (a click there would be an edit)
+			return false
 		var h := ""
 		for d in _dot_list():
 			if (d["scr"] as Vector2).distance_to(p) <= 16.0:
@@ -6407,3 +6421,7 @@ func _gd_sync(on: bool) -> void:
 	gear_drive.visible = want
 	if want and is_nan(pu.gear_turn) and not gear_drive.spinning:
 		gear_drive.sync_to_record()   # an Undo of Save pose moves the slider back with the record
+
+
+# s055: Measure (scripts/easy_part_measure.gd)
+var meas: EasyMeasure
