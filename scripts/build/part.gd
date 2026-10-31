@@ -65,7 +65,7 @@ const MM := 0.001
 const SKIN_MM := 0.3   # NROUNDFILTER: a face centre this close (mm) to the box's outside counts as on the skin
 const VERSION := 1
 const RING_MIDDLE := 100.0   # mm: a Ring piece whose centre is closer than this to the middle (not on it) goes round the middle
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align"]
 const OVERHANG_COS := 0.7071   # p113: a face pointing down more than 45 degrees needs support when printed
 const BED_MM := 0.1            # p113: a face this close (mm) to the lowest point of the part is on the floor, not an overhang
 const DRAFT_DIRS := {"x": Vector3(1, 0, 0), "y": Vector3(0, 1, 0), "z": Vector3(0, 0, 1)}
@@ -600,6 +600,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var ce := _combine_step(bodies, looks, f)
 				if ce != "":
 					errs[id] = ce
+			"align":   # P054 ALIGN CHIPS: the moved piece slides so its left side, middle or top sits level with the other piece's (its own function: _align_step)
+				var al := _align_step(bodies, f)
+				if al != "":
+					errs[id] = al
 			"hinge":   # C3: the rest pose is the timeline's; the swing is hinge_sweep's
 				var hb := int(f.get("body", -1))
 				if hb < 0 or hb >= bodies.size():
@@ -1881,6 +1885,40 @@ static func touch_patch(pts: PackedVector3Array, tri_pts: PackedVector3Array, bb
 
 ## COMBINE: the target body takes each tool body in turn (join = union, cut = minus, intersect = shared volume). The result sits where the
 ## target was; the tools are removed unless keep. Every body keeps its look; the target keeps its own. "" or the failure message (nothing changes then)
+## P054 ALIGN CHIPS: {"t": "align", "id", "name", "body": N (the piece that moves), "to": M (the piece that stays), "how": "left" | "centre" | "top"}:
+## "left" puts the moved piece's left side (its least x) level with the other's, "centre" its middle on the other's middle, "top" its top (greatest y)
+## level with the other's. The other axes do not change. The moved body is a new kernel shape at the same index (the look stays with it)
+const ALIGN_HOWS := ["left", "centre", "top"]
+static func _align_step(bodies: Array, f: Dictionary) -> String:
+	var mv := int(f.get("body", -1))
+	var to := int(f.get("to", -1))
+	if mv < 0 or mv >= bodies.size() or to < 0 or to >= bodies.size() or mv == to:
+		return "pick two different pieces to line up"
+	var how := String(f.get("how", ""))
+	if not ALIGN_HOWS.has(how):
+		return "align: %s is not Line them up, Centre on that or Same height" % how
+	var a := _piece_box(int(bodies[mv]))
+	var b := _piece_box(int(bodies[to]))
+	if a.size == Vector3.ZERO or b.size == Vector3.ZERO:
+		return "those pieces have no solid to line up"
+	var d := Vector3.ZERO
+	match how:
+		"left":
+			d.x = b.position.x - a.position.x
+		"centre":
+			d = b.get_center() - a.get_center()
+		"top":
+			d.y = b.end.y - a.end.y
+	if d.length() < 1e-9:
+		return ""
+	var moved := KCad.translate(bodies[mv], d)
+	if moved == 0:
+		return KCad.last_error() if KCad.last_error() != "" else "the piece could not be moved"
+	KCad.release(bodies[mv])
+	bodies[mv] = moved
+	return ""
+
+
 static func _combine_step(bodies: Array, looks: Array, f: Dictionary) -> String:
 	var tg := int(f.get("target", -1))
 	var tl: Array = []

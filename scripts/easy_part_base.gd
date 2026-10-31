@@ -15,8 +15,8 @@ const STICK_OPS := [["join", "Join", "Make the two pieces one solid"], ["cut", "
 const SCREW_DS := [3, 4, 5, 6]         # NSCREW2: the Parts category's screw sizes (M3..M6, columns of the grid)
 const SCREW_LENS := [10, 16, 20, 30]   # NSCREW2: the screw lengths in mm (rows of the grid)
 const BRACKET_CHIPS := [["L", "L-bracket", 1, "An L: a foot and an upright, two screw holes"], ["T", "T-bracket", 2, "A T: a bar on a stem, two screw holes"], ["corner", "Corner brace", 3, "An L with a gusset in the corner, two screw holes"]]   # FRIDAY 73: the Brackets page chips (key, words, kind 1 / 2 / 3)
-const LIB_CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "Springs", "Handles", "Wheels", "Brackets", "Clips and feet", "Boards", "Favourites"]   # NLIBPAGE: the Parts library page, in this order (p083favfix: Favourites last)
-const LIB_READY := ["Screws", "Gears", "Bearings", "Brackets", "Clips and feet", "Handles", "Wheels", "Boards", "Hinges", "Springs", "Favourites"]   # NLIBPAGE: the categories with parts today; the others say coming soon
+const LIB_CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "Springs", "Handles", "Wheels", "Brackets", "Clips and feet", "Boards", "Wood boards", "Type it", "Favourites"]   # NLIBPAGE: the Parts library page, in this order (p083favfix: Favourites last; p085typetobuil: Type it before it)
+const LIB_READY := ["Screws", "Gears", "Bearings", "Brackets", "Clips and feet", "Handles", "Wheels", "Boards", "Wood boards", "Hinges", "Springs", "Type it", "Favourites"]   # NLIBPAGE: the categories with parts today; the others say coming soon
 const CLIP_KINDS := ["foot", "clip", "slot"]   # P075: the Clips and feet chips: a rubber foot, a cable clip, a zip-tie slot (template kinds in part_templates.gd)
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
 const WEIGHT_CHIPS := [["wood", "wood"], ["steel", "metal"], ["plastic", "plastic"]]   # p057: the weight chips after Wood (PartWeapon.DENSITY key, the word on the chip)
@@ -91,6 +91,8 @@ var pull_along_btn: Button       # P026: Pull along, the same box as Tilt it: sh
 var parts_btn: Button            # NSCREW2: the Parts category chip (opens the screw grid under the template chips)
 var board_box: PanelContainer     # p078makeacasef: the Boards page's two chips (Raspberry Pi, Arduino Uno): shown while Boards is open or a case is the part
 var board_btns := {}              # p078makeacasef: 1 / 2 -> the board chip
+var wood_box: PanelContainer     # P080 WOOD BOARDS: the two wood chips (2x4, MDF sheet) and the cut readout, shown with Wood boards open or a wood board on the floor
+var wood_btns := {}              # P080: "2x4" / "mdf" -> its chip
 var screw_box: PanelContainer    # NSCREW2: the screw grid: sixteen size chips, shown while Parts is open or a screw is the part
 var wheel_box: PanelContainer      # P072: the Wheels page: the Wheel and Castor chips (axle hole), shown while Parts is open on Wheels
 var wheel_btns := {}               # P072: "wheel" / "castor" -> its chip
@@ -121,6 +123,8 @@ var bear_btns := {}              # P069 BEARINGS: "608" / "625" / "688" -> its c
 var seat_btn: Button             # P069 BEARINGS: "Make a seat for it": cuts the seat for the bearing on the floor
 var stick_box: PanelContainer    # Stick together: Join / Cut away / Keep the overlap, shown once two pieces are picked
 var stick_btns := {}
+var align_row: HBoxContainer    # P054: Line them up / Centre on that / Same height, a row under the stick chips (two picks: the second moves)
+var align_btns := {}
 var smooth_btn: Button    # P035: Smooth the joints, in the stick box after a Join (the three Join / Cut / Keep buttons hide then)
 var joint_btns: Array = []   # p121: This turns here / This slides here, in the stick box with two pieces picked (hidden after a Join)
 var stick_picks: Array = []      # the body indices clicked in the view (the first = the target, the second = the tool)

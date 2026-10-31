@@ -9,7 +9,7 @@ extends RefCounted
 const MM := 0.001
 const ARCH_GAP := 40.0   # mm: a car's wheel arch top sits this far above the tyre's top (the arch is the wheel radius + 40 mm)
 const CAB_W := 0.88     # the glasshouse is this share of the body's width (narrower than the lower body, so the cabin reads as a cabin)
-const ORDER :=["sword", "axe", "shield", "chair", "gear", "rack", "crate"]   # NGEAR: Gear sits before Crate (Crate stays the last chip); its numbers are not cm: "raw"   # p070: Spring is not a chip: it is built from the Parts library (Springs)
+const ORDER :=["sword", "axe", "shield", "chair", "gear", "rack", "slothole", "crate"]   # NGEAR: Gear sits before Crate (Crate stays the last chip); its numbers are not cm: "raw"   # P032: Slot sits before Crate too (Crate stays last). p070: Spring is not a chip: it is built from the Parts library (Springs)
 const START := ["box", "cylinder", "sphere", "tube", "plate"]   # FREESTART: the neutral "Start from" row on Easy Part's panel (simple shapes, no weapon)
 const T := {
 	"box": {"title": "Box", "params": [
@@ -74,6 +74,12 @@ const T := {
 		{"k": "turns", "label": "Turns", "lo": 3.0, "hi": 12.0, "def": 6.0, "step": 1.0, "words": ["Fewer", "More"], "raw": true, "unit": "turns"},
 		{"k": "wire", "label": "Wire", "lo": 1.0, "hi": 4.0, "def": 2.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"},
 		{"k": "size", "label": "Coil size", "lo": 20.0, "hi": 60.0, "def": 40.0, "step": 5.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "mm"}]},
+	# P032: a plate with a long rounded hole (a slot) cut right through it. Length and Width are the hole's own size (the round ends
+	# are Width / 2 across); the plate is 20 mm wider than the hole on each side. Width is at most 40, so Length (at least 60) stays longer.
+	"slothole": {"title": "Slot", "params": [
+		{"k": "length", "label": "Length", "lo": 60.0, "hi": 300.0, "def": 120.0, "step": 10.0, "words": ["Shorter", "Longer"]},
+		{"k": "width", "label": "Width", "lo": 10.0, "hi": 40.0, "def": 20.0, "step": 2.0, "words": ["Narrower", "Wider"]},
+		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 30.0, "def": 8.0, "step": 1.0, "words": ["Thinner", "Thicker"]}]},
 	# VEHICLE PARTS (B3, scripts/vehicle.gd): not in ORDER, so no Easy chip: a car body and one wheel
 	"car": {"title": "Car body", "params": [
 		{"k": "body_length", "label": "Length", "lo": 1500.0, "hi": 5000.0, "def": 4000.0, "step": 50.0, "words": ["Shorter", "Longer"]},
@@ -139,6 +145,11 @@ const T := {
 	# Boards chips (easy_part.gd), so its slider is hidden there ("parts": true). Its features are the same count for both boards.
 	"case": {"title": "Board case", "parts": true, "params": [
 		{"k": "board", "label": "Board", "lo": 1.0, "hi": 2.0, "def": 1.0, "step": 1.0, "words": ["Raspberry Pi", "Arduino Uno"], "raw": true, "unit": "board"}]},
+	# P080 WOOD BOARDS: a flat wood board, mm (Parts > Wood boards): width across X, thickness up Y, length along Z. Its sliders are the board's sizes
+	"board": {"title": "Wood board", "params": [
+		{"k": "width", "label": "Width", "lo": 10.0, "hi": 1300.0, "def": 89.0, "step": 1.0, "words": ["Narrower", "Wider"]},
+		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 50.0, "def": 38.0, "step": 1.0, "words": ["Thinner", "Thicker"]},
+		{"k": "length", "label": "Length", "lo": 100.0, "hi": 2500.0, "def": 2438.0, "step": 10.0, "words": ["Shorter", "Longer"]}]},
 }
 
 ## P069 BEARINGS: [bore, outside diameter, width] in mm of the bearings 608, 625, 688 (deep groove ball bearings, ISO 15 sizes)
@@ -259,7 +270,7 @@ static func bo_set(rec: Dictionary, d: int, L: int) -> void:
 
 
 ## the default camera of a template: [yaw, pitch] degrees, a 3/4 view in which its main shape reads (the axe turns further so its blade face shows)
-const VIEW := {"sword": [30.0, -22.0], "axe": [42.0, -20.0], "shield": [30.0, -18.0], "chair": [38.0, -22.0], "crate": [34.0, -24.0], "box": [34.0, -24.0], "cylinder": [34.0, -22.0], "sphere": [30.0, -20.0], "tube": [34.0, -22.0], "plate": [34.0, -28.0], "case": [32.0, -24.0]}
+const VIEW := {"sword": [30.0, -22.0], "axe": [42.0, -20.0], "shield": [30.0, -18.0], "chair": [38.0, -22.0], "crate": [34.0, -24.0], "box": [34.0, -24.0], "cylinder": [34.0, -22.0], "sphere": [30.0, -20.0], "tube": [34.0, -22.0], "plate": [34.0, -28.0], "case": [32.0, -24.0], "slothole": [34.0, -30.0], "hinge": [35.0, -12.0]}
 
 
 static func view_of(t: String) -> Array:
@@ -521,6 +532,24 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var o: float = p["lid"]
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(0, 0), Vector2(w, h))]), "extrude", d, "new")
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(-o, h - 20), Vector2(w + o, h + 30))]), "extrude", d, "join")
+		"slothole":
+			# P032: the plate (Length + 40 by Width + 40, standing on the floor) and the hole: a stadium of Length x Width drawn
+			# with two straight sides and two round ends (three-point arcs), cut through the plate's thickness from the floor
+			var L: float = p["length"]
+			var w: float = p["width"]
+			var th: float = p["thickness"]
+			var pl := Vector2(L + 40.0, w + 40.0)
+			_ex(fs, _sk(fs, "top", [_rect(Vector2(0, 0), pl)]), "extrude", th, "new")
+			var c := pl * 0.5
+			var a := (L - w) * 0.5   # half the distance between the two round ends' centres
+			var r := w * 0.5
+			var hole := [
+				{"k": "line", "a": Part.arr2(Vector2(c.x - a, c.y + r)), "b": Part.arr2(Vector2(c.x + a, c.y + r))},
+				{"k": "arc", "a": Part.arr2(Vector2(c.x + a, c.y + r)), "m": Part.arr2(Vector2(c.x + a + r, c.y)), "b": Part.arr2(Vector2(c.x + a, c.y - r))},
+				{"k": "line", "a": Part.arr2(Vector2(c.x + a, c.y - r)), "b": Part.arr2(Vector2(c.x - a, c.y - r))},
+				{"k": "arc", "a": Part.arr2(Vector2(c.x - a, c.y - r)), "m": Part.arr2(Vector2(c.x - a - r, c.y)), "b": Part.arr2(Vector2(c.x - a, c.y + r))},
+			]
+			_ex(fs, _sk(fs, "top", hole), "extrude", th + 2.0, "cut")
 		"chair":
 			var sh: float = p["seat_height"]
 			var w: float = p["seat_width"]
@@ -629,6 +658,8 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var NR := int(roundf(float(p["teeth"])))
 			var mr := float(int(roundf(float(p["module"]))))
 			_ex(fs, _sk(fs, "front", rack_outline(NR, mr)), "extrude", float(p["thickness"]), "new")
+		"board":
+			return _board_features(p)   # P080: the wood board (end of this file)
 		"case":
 			# p078makeacasef: a box for a board, open at the top: a 3 mm wall and floor, the standoffs (5 mm across, 9 mm up from the floor) at the
 			# board's holes with a screw hole through each, two port openings cut through the +x wall (an offset plane 1.5 mm inside the wall, so the
@@ -816,3 +847,15 @@ static func dot_of(t: String, k: String, p: Dictionary) -> Dictionary:
 		"chair.back_height":
 			return {"at": Vector3(float(p["seat_width"]) * 0.5 * s, (float(p["seat_height"]) + float(p["back_height"])) * s, 0), "axis": Vector3.UP, "gain": 1.0}
 	return {}
+
+
+## P080 WOOD BOARDS: the real sizes of the two Parts > Wood boards chips, mm. 2x4 = 38 x 89 mm (1.5 x 3.5 in) in 8 ft (2438 mm) lengths;
+## an MDF sheet is 1220 x 2440 mm and 15 mm thick. The name is the chip's words.
+const WOOD_BOARDS := {"2x4": {"name": "2x4 board", "width": 89.0, "thickness": 38.0, "length": 2438.0}, "mdf": {"name": "MDF sheet 15 mm", "width": 1220.0, "thickness": 15.0, "length": 2440.0}}
+
+
+## P080: one box of wood, its cross-section (width x thickness) on the front sketch, pulled along Z by the length: it lies flat on the floor
+static func _board_features(p: Dictionary) -> Array:
+	var fs: Array = []
+	_ex(fs, _sk(fs, "front", [_rect(Vector2(0, 0), Vector2(p["width"], p["thickness"]))]), "extrude", p["length"], "new")
+	return fs

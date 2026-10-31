@@ -353,6 +353,7 @@ func build(root: Control) -> void:
 	_scrub_row.visible = false
 	sv.add_child(_scrub_row)
 	_scrub_row.add_child(_strip_button("eh_walk_style", "Walk style", "walk speed, swagger and bounce: three sliders (one undo step a drag)", walk_style_open, Vector2(150, 44), 20))  # p141walkcycles: beside the scrub, the row that shows with a clip
+	_scrub_row.add_child(_strip_button("eh_mood", "Mood", "type a mood (angry, tired, heavy, sneaky) and it blends onto this clip (one undo step; a bit = half)", mood_open, Vector2(150, 44), 20))  # p139mocapmix: beside Walk style, with the clip
 	_scrub = HSlider.new()
 	_scrub.name = "eh_scrub"
 	_scrub.min_value = 0.0
@@ -2564,3 +2565,98 @@ func _ws_released(_changed := false) -> void:
 	_ws_pushed = false
 	_play()
 	m.easy.frame_clip_next()
+
+
+## MOOD (p139mocapmix, Friday plan 139): "this walk, but angry". A typed mood word sets one of the Style dial's four sliders
+## (angry, tired, heavy = heavier, sneaky) to +1, or to +0.5 with "a bit" / "little" / "slightly", and StyleDial.style_cards
+## blends it onto the clip AS IT IS NOW: the same maths as the Style dial, one undo step. Two mood words add up (capped at +1).
+const MOODS := {"angry": "angry", "angrier": "angry", "mad": "angry", "furious": "angry", "tired": "tired", "sad": "tired",
+	"old": "tired", "older": "tired", "weary": "tired", "heavy": "heavier", "heavier": "heavier", "weighty": "heavier",
+	"sneaky": "sneaky", "sneak": "sneaky", "sneaking": "sneaky", "stealthy": "sneaky", "sly": "sneaky", "quiet": "sneaky"}
+var _mood_pop: PopupPanel              # the Mood panel (a child of this node; the Mood button opens it)
+var _mood_box: LineEdit                # the box the mood is typed in
+var _mood_msg: Label                   # what the last typed mood did, or the next step to take
+
+
+## the Mood button: the panel opens with its box ready. No clip: one sentence, nothing changes
+func mood_open() -> void:
+	if m.S.cards.size() < 2:
+		m._say_plain("Build a walk first: click Walk, then Mood blends a mood onto it.")
+		return
+	if _mood_pop == null:
+		_mood_build()
+	_mood_msg.text = "Type a mood, such as 'angry' or 'a bit tired', then Blend it."
+	_mood_pop.popup_centered()
+	_mood_box.grab_focus()
+
+
+## the panel: a title, the box with its Blend it button, the message line and a Close button. Built once, then shown again
+func _mood_build() -> void:
+	_mood_pop = PopupPanel.new()
+	_mood_pop.name = "eh_mood_panel"
+	add_child(_mood_pop)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 10)
+	_mood_pop.add_child(v)
+	var title := Label.new()
+	title.text = "Mood: type one word, such as angry, tired, heavy or sneaky. It blends onto this clip"
+	v.add_child(title)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	v.add_child(row)
+	_mood_box = LineEdit.new()
+	_mood_box.name = "eh_mood_box"
+	_mood_box.placeholder_text = "angry, a bit tired, heavy, sneaky"
+	_mood_box.custom_minimum_size = Vector2(300, 0)
+	_mood_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_mood_box.text_submitted.connect(_mood_typed)
+	row.add_child(_mood_box)
+	var go := Button.new()
+	go.name = "eh_mood_go"
+	go.text = "Blend it"
+	go.focus_mode = Control.FOCUS_NONE
+	go.tooltip_text = "blend the typed mood onto the clip (one undo step; Undo takes it back)"
+	go.pressed.connect(func(): _mood_typed(_mood_box.text))
+	row.add_child(go)
+	_mood_msg = Label.new()
+	_mood_msg.name = "eh_mood_msg"
+	_mood_msg.custom_minimum_size = Vector2(420, 0)
+	v.add_child(_mood_msg)
+	var done := Button.new()
+	done.name = "eh_mood_close"
+	done.text = "Close"
+	done.focus_mode = Control.FOCUS_NONE
+	done.tooltip_text = "back to the clip: the blend stays"
+	done.pressed.connect(_mood_pop.hide)
+	v.add_child(done)
+
+
+## a typed mood (Enter or Blend it): the mood words set the slider values, the clip is blended from the clip as it is. One undo step.
+## No mood word: refused in words, nothing changes
+func _mood_typed(txt: String) -> void:
+	var low := txt.to_lower()
+	var words := low.replace(",", " ").replace(".", " ").replace("!", " ").replace("?", " ").replace("-", " ").split(" ", false)
+	var amt := 0.5 if (low.contains("a bit") or low.contains("little") or low.contains("slightly")) else 1.0
+	var vals := StyleDial.neutral()
+	for w in words:
+		if MOODS.has(w):
+			var s: String = MOODS[w]
+			vals[s] = clampf(float(vals[s]) + amt, -1.0, 1.0)
+	if StyleDial.is_neutral(vals):
+		_mood_msg.text = "No mood in '%s'. Type one of: angry, tired, heavy, sneaky. Add 'a bit' for half." % txt.strip_edges()
+		return
+	if m.S.cards.size() < 2:
+		_mood_msg.text = "Build a walk first: click Walk, then type a mood."
+		return
+	var S: Scene = m.S
+	var res: Dictionary = StyleDial.style_cards(S, m.B, S.cards.duplicate(true), vals)
+	m._step_easy = "Mood" if m.easy.on else ""   # the undo step's Easy name
+	m._push_undo()
+	m._step_easy = ""
+	S.cards = res["cards"]
+	m._retimed()
+	_play()
+	m.easy.frame_clip_next()
+	var names: Array = StyleDial.STYLES.filter(func(k): return absf(float(vals[k])) > 1e-6).map(func(k): return "%s %+.1f" % [k, float(vals[k])])
+	_mood_msg.text = "Blended %s onto the clip: it now takes %.1f s. Undo takes it back." % [", ".join(names), S.length()]
+	m._say_plain(_mood_msg.text)

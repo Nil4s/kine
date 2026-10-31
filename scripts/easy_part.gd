@@ -74,7 +74,7 @@ func build(root: Control) -> void:
 	restore_btn.visible = false
 	row.add_child(restore_btn)
 	row.add_child(use_scene_btn)
-	give_btn = _bar_btn("Give to a character", "Give it to a character: they hold this shape in one hand, with its size and weight (PartWeapon)", func(): m.give_part_weapon(_rec()))   # one undo step
+	give_btn = _bar_btn("Give to a character", "Give it to a character: they hold this shape in one hand, with its size and weight (PartWeapon)", func(): _give_press())   # one undo step
 	give_btn.name = "easypart_give"
 	give_btn.custom_minimum_size = Vector2(170, m.TOP_H - 12)
 	row.add_child(give_btn)
@@ -255,7 +255,7 @@ func build(root: Control) -> void:
 	start_l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	start_l.visible = false   # the row speaks for itself (Box, Cylinder ...): its 80 px let Rack stay on ONE line, so the Parts page fits the panel at 1280 x 720
 	cr.add_child(start_l)
-	for t in PartTemplates.START + ["gear", "rack"]:   # the simple shapes; gear stays on the row (NGEAR), rack beside it (P066: its pinion); the weapons and props are under More examples
+	for t in PartTemplates.START + ["gear", "rack", "slothole"]:   # the simple shapes; gear stays on the row (NGEAR), rack beside it (P066: its pinion); slothole sits on the title line (P032); the weapons and props are under More examples
 		var b := Button.new()
 		b.name = "easypart_chip_" + t
 		b.text = CHIP_TEXT.get(t, String(PartTemplates.T[t]["title"]))   # the chip word on the blank part is plain; the part keeps the template title
@@ -266,7 +266,7 @@ func build(root: Control) -> void:
 		b.pressed.connect(_chip.bind(t))
 		b.mouse_entered.connect(_tpl_hover.bind(t, true))   # P091: hover a shape chip = see its ghost first
 		b.mouse_exited.connect(_tpl_hover.bind(t, false))
-		cr.add_child(b)
+		(th if t == "slothole" else cr).add_child(b)   # P032: Slot sits on the title line beside Empty: seven chips would wrap the row and push the grid area down
 		for sn in ["normal", "hover", "pressed", "focus", "disabled"]:   # P066: 4 px side margins (the theme's are wider) so seven chips (Rack) stay on one row
 			var sb := b.get_theme_stylebox(sn).duplicate() as StyleBox
 			sb.content_margin_left = 4.0
@@ -300,6 +300,8 @@ func build(root: Control) -> void:
 	v.add_child(wheel_box)
 	board_box = _board_box()   # p078makeacasef: the Boards chips (a case for the board)
 	v.add_child(board_box)
+	wood_box = _wood_box()   # P080 WOOD BOARDS: the wood chips under the library, hidden until Wood boards is open or a wood board is on the floor
+	v.add_child(wood_box)
 	rows_vb = VBoxContainer.new()
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 2)
@@ -2014,6 +2016,10 @@ func _lib_press(cat: String) -> void:
 		_say("Wheels: press Wheel or Castor. It drops on the floor, with its axle hole")
 	elif cat == "Boards":   # p078makeacasef
 		_say("Boards: press your board. A case for it drops on the floor")
+	elif cat == "Wood boards":   # P080: the two wood chips open under the library
+		_say("Wood boards: pick one by its real size. It lies on the floor, flat")
+	elif cat == "Type it":   # p085typetobuil: a line of words builds a box
+		_say("Type it: write a box in words, like: %s. Then press Build it" % PartWords.EXAMPLE)
 	elif cat == "Hinges":
 		_say("Hinges: press Hinge below. It drops on the floor, sized to the door")
 	elif cat == "Springs":   # p070springfix: the page shows the Spring button (opening a category builds nothing)
@@ -2079,6 +2085,7 @@ func _lib_box() -> PanelContainer:
 	spring_pick.pressed.connect(_spring_pick_press)
 	vb.add_child(spring_pick)
 	vb.add_child(lib_soon)
+	vb.add_child(_type_row())   # p085typetobuil: the Type it row (shows with that category)
 	return pc
 
 
@@ -2091,6 +2098,8 @@ func _lib_icon(cat: String) -> ImageTexture:
 		return _clip_icon("clip")
 	if cat == "Boards":   # p078makeacasef
 		return _board_icon(1)
+	if cat == "Wood boards":   # P080
+		return _wood_icon()
 	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 	var col := Tok.c("text")
@@ -2367,6 +2376,7 @@ func _screw_sync() -> void:
 		if screw_words != null:   # the page is open: its chips and the status line say what to do
 			screw_words.visible = not parts_open
 		lib_soon.text = "%s are coming soon: not made yet. Next step: press Screws or Gears" % lib_cat if lib_soon.visible else ""
+		type_box.visible = parts_open and lib_cat == "Type it"   # p085typetobuil
 		if fav_box != null:   # p083favfix: the Favourites page shows while its category is open; the row and the star are drawn here
 			fav_box.visible = parts_open and lib_cat == "Favourites"
 			_fav_sync()
@@ -2424,6 +2434,7 @@ func _screw_sync() -> void:
 		var bo: Button = board_btns[bd]
 		bo.set_pressed_no_signal(not bcur.is_empty() and int(bcur.get("board", 0)) == bd)
 		m._grey(bo, Part.why_not() if not Part.available() else "")
+	_wood_sync()   # P080 WOOD BOARDS: the wood chips and their cut readout follow the same state
 
 
 ## P069 BEARINGS: the three bearing sizes, in the order of PartTemplates.BEARING_SIZE (608, 625, 688)
@@ -3352,6 +3363,7 @@ func _finish_line() -> void:
 	var segs: Array = _draft.get("segs", [false])
 	var fc: Dictionary = _draft.get("face", {})
 	var cuts: Array = _draft.get("cuts", [])   # P045: the points a typed stretch starts and ends on (each is a run's end)
+	var lpl: Dictionary = _draft.get("pl", Part.plane("top"))   # P045 LINE SHOW: the plane the stretches were drawn on
 	_draft = {}
 	var total := 0.0
 	for i in range(1, pts.size()):
@@ -3374,7 +3386,9 @@ func _finish_line() -> void:
 			s = i
 	_begin("Line")
 	var rec := pu._ensure()
-	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": ents, "dims": []}))
+	var lsk := Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": ents, "dims": []})
+	rec["features"].append(lsk)
+	line_show = {"id": String(lsk["id"]), "pl": lpl, "ents": ents}   # P045 LINE SHOW: stays on the grid until another step is made
 	_end()
 	armed = ""
 	tweak = {}
@@ -3477,6 +3491,7 @@ func _process(_dt: float) -> void:
 	explode_box.visible = on and int(pu.res.get("bodies", 0)) >= 2 and armed == "" and not _hole_on() and not _split_on()   # EXPLODE (p103): two or more pieces; not over a hole's or a cut's keep chips
 	if not explode_box.visible and pu.explode_mm != 0.0:
 		_explode_reset()
+	align_row.visible = stick_box.visible and not smooth and stick_picks.size() == 2   # P054: the align row shows with the two picks
 	if del_on and (armed != "" or (_rec().get("features", []) as Array).size() != del_n):
 		_pick_clear()   # FDELETE: a pick ends with the step it was made on
 	del_btn.visible = on and del_on
@@ -4638,6 +4653,108 @@ func _steps_sync() -> void:
 		b.pressed.connect(func(): _step_open(fid))
 		steps_vb.add_child(b)
 
+
+# ---------------------------------------------------------------- p085typetobuil: type a box in words (Parts > Type it)
+
+var type_box: HBoxContainer      # p085typetobuil: the words line under the Parts page's categories (shows with Type it)
+var type_edit: LineEdit          # the words: "a box 20 by 10 by 5 cm, hollow, 2 mm walls, lid"
+var type_go: Button              # Build it: the same as Enter in the words
+
+
+## p085typetobuil: the Type it row: a line of words and Build it. Enter in the line builds too
+func _type_row() -> HBoxContainer:
+	var hb := HBoxContainer.new()
+	hb.name = "easypart_type_row"
+	hb.visible = false
+	hb.add_theme_constant_override("separation", 4)
+	type_edit = LineEdit.new()
+	type_edit.name = "easypart_type_edit"
+	type_edit.placeholder_text = PartWords.EXAMPLE
+	type_edit.add_theme_font_size_override("font_size", 13)
+	type_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	type_edit.text_submitted.connect(func(_t: String) -> void: _type_build())
+	hb.add_child(type_edit)
+	type_go = Button.new()
+	type_go.name = "easypart_type_go"
+	type_go.text = "Build it"
+	type_go.focus_mode = Control.FOCUS_NONE
+	type_go.tooltip_text = "Build the box you typed: one press, one undo step"
+	type_go.add_theme_font_size_override("font_size", 13)
+	type_go.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+	type_go.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+	type_go.pressed.connect(_type_build)
+	hb.add_child(type_go)
+	type_box = hb
+	return hb
+
+
+## p085typetobuil: Build it (or Enter): the words become a box on the floor, its sides as typed; a hollow is open at the top with the wall;
+## a lid takes the top 5 mm off as its own piece. The newest step is the hollow, so the Wall slider edits it. One press = one undo step.
+## A refusal says what to type, and changes nothing
+func _type_build() -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var p := PartWords.parse(type_edit.text)
+	if not bool(p["ok"]):
+		_say(String(p["why"]))
+		return
+	_flush_if_dirty()
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	var snap := _rec().duplicate(true)
+	_begin("Type a box")
+	var rec := PartTemplates.make("box", {"width": p["w"], "depth": p["d"], "height": p["h"]})
+	var why := ""
+	if bool(p["hollow"]):
+		why = _type_hollow(rec, float(p["wall"]), bool(p["lid"]))
+	else:
+		tweak = {}
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+		return
+	m.S.part = rec
+	_end()
+	pu.upto = -1
+	pu.sync()
+	frame()
+	_rows_sig = ""
+	_rows_sync()
+	_values_sync()
+	var said := "%s x %s x %s cm" % [_plain_num(float(p["w"]) / 10.0), _plain_num(float(p["d"]) / 10.0), _plain_num(float(p["h"]) / 10.0)]
+	if bool(p["hollow"]):
+		_say("A box %s, hollow with a %s mm wall%s. Move the Wall slider or a size slider" % [said, "%g" % float(p["wall"]), " and a lid" if bool(p["lid"]) else ""])
+	else:
+		_say("A box %s. Move a size slider" % said)
+
+
+## p085typetobuil: Part's shell on the box (open at the top, the wall as typed) and, with a lid, the top LID_MM split off as the lid (a plate on
+## the box's footprint, as Hollow with a lid, without the snap lip). The Wall slider is set on the shell, the newest step. "" or why not
+func _type_hollow(rec: Dictionary, wall: float, lid: bool) -> String:
+	var too_small := "That box is too small for a %s mm wall%s. Type a bigger box or thinner walls: 1 to 10 mm" % ["%g" % wall, " and a lid" if lid else ""]
+	var res := Part.replay(rec)
+	if int(res["bodies"]) != 1:
+		return too_small
+	var top := (res["aabb"] as AABB).end.y / Part.MM
+	var ids := []
+	if lid:
+		var sp := Part.new_feature(rec, "split", {"plane": "top", "at": top - LID_MM, "keep": 0})   # bodies: [the top slice (the lid), the box]
+		rec["features"].append(sp)
+		ids.append(sp["id"])
+	var sh := Part.new_feature(rec, "shell", {"body": 1 if lid else 0, "open": "+y", "thick": wall})
+	rec["features"].append(sh)
+	ids.append(sh["id"])
+	for fid in ids:
+		if _last_error(rec, String(fid)) != "":
+			return too_small
+	if Part.replay(rec)["bodies"] != (2 if lid else 1):
+		return too_small
+	tweak = {"id": sh["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": PartWords.WALL_MIN, "hi": PartWords.WALL_MAX, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
+	return ""
 ## p083favourites (Friday plan 83) and p083favfix: the Favourites category of the Parts library. Its page is the row. It lists the favourites (starred, first) and then the
 ## parts used lately (six at most). A chip puts that part on the floor again (one undo step, the same as the Parts chips). The star keeps
 ## the part on the floor as a favourite: a list, not a model step, so it makes no undo step. The lists live in FAV_FILE (user://).
@@ -5081,7 +5198,10 @@ func _cut_look() -> void:
 	var d := _cut_plane()
 	var n: Vector3 = d["n"]
 	var wb: AABB = d["box"]
-	m._turn_to(rad_to_deg(atan2(n.x, n.z)), 0.0, clampf(wb.size.length() * 1.5, 0.4, 6.0), wb.get_center(), true)
+	m._turn_to(rad_to_deg(atan2(n.x, n.z)), 0.0, clampf(wb.size.length() * 1.5, 0.4, 6.0), wb.get_center(), false)   # the turn at once; the framing below eases
+	var pose: Array = _frame_pose(wb)   # P101 FRAME: the whole part framed in the free view, as Fit view does (not centred under the side panel)
+	if not pose.is_empty():
+		m._turn_to(rad_to_deg(atan2(n.x, n.z)), 0.0, float(pose[1]), pose[0], true)
 
 
 ## the material: the cut shader while the chip is on and Easy is on screen; the plain look otherwise (Expert's own cut is never touched)
@@ -5148,3 +5268,165 @@ func _hold_press(p: Vector2) -> bool:
 	m.part_weapon_changed(_rec())   # a held Part weapon takes the new grip at once
 	_say("The hand holds it here, %.1f cm from the butt" % ((at.x - knob) * 100.0))
 	return true
+
+
+## P080 WOOD BOARDS: the Wood boards page's two chips (a 2x4 and an MDF sheet, real sizes in mm) and the cut readout under them
+func _wood_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_wood_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
+	var hd := Label.new()
+	hd.name = "easypart_wood_words"
+	hd.text = "Wood, lying flat, by real size: pick one. It drops on the floor"
+	hd.add_theme_font_size_override("font_size", 14)
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(hd)
+	var g := HBoxContainer.new()
+	g.add_theme_constant_override("separation", 4)
+	vb.add_child(g)
+	for k in ["2x4", "mdf"]:
+		var bp: Dictionary = PartTemplates.WOOD_BOARDS[k]
+		var b := Button.new()
+		b.name = "easypart_wood_" + k
+		b.text = String(bp["name"])
+		b.icon = _wood_icon()
+		b.tooltip_text = "%s: %d mm wide, %d mm thick, %d mm long. One click, one undo step" % [b.text, int(bp["width"]), int(bp["thickness"]), int(bp["length"])]
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(0, 34)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_wood_pick.bind(k))
+		g.add_child(b)
+		wood_btns[k] = b
+	var cut := Label.new()   # the star: how many of this board one MDF sheet cuts, from the board's own numbers
+	cut.name = "easypart_wood_cut"
+	cut.add_theme_font_size_override("font_size", 14)
+	cut.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	cut.visible = false
+	vb.add_child(cut)
+	return pc
+
+
+## P080: a flat board icon (16 px, the text colour, Tok): a plank outline
+func _wood_icon() -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	img.fill_rect(Rect2i(0, 5, 16, 6), col)
+	img.fill_rect(Rect2i(2, 7, 12, 2), Color(0, 0, 0, 0))
+	return ImageTexture.create_from_image(img)
+
+
+## P080: the wood board on the floor has this chip's three sizes (within half a mm)
+func _wood_is(k: String) -> bool:
+	if _tpl() != "board":
+		return false
+	var cur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {})
+	var bp: Dictionary = PartTemplates.WOOD_BOARDS[k]
+	for n in ["width", "thickness", "length"]:
+		if absf(float(cur.get(n, -1.0)) - float(bp[n])) >= 0.5:
+			return false
+	return true
+
+
+## P080: a wood board on the floor: how many of it one MDF sheet (1220 x 2440 mm) cuts: across the sheet's width, along its length.
+## "" when the part on the floor is not a wood board
+func _wood_cut_text() -> String:
+	if _tpl() != "board":
+		return ""
+	var p: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {})
+	var sheet: Dictionary = PartTemplates.WOOD_BOARDS["mdf"]
+	var w := float(p.get("width", 0.0))
+	var L := float(p.get("length", 0.0))
+	var across := int(floor(float(sheet["width"]) / w)) if w > 0.0 else 0
+	var along := int(floor(float(sheet["length"]) / L)) if L > 0.0 else 0
+	var size := "%d x %d mm" % [int(sheet["width"]), int(sheet["length"])]
+	if across == 0 or along == 0:
+		return "Too big for one MDF sheet (%s): none fit" % size
+	return "%d of these fit one MDF sheet (%s): %d across, %d along" % [across * along, size, across, along]
+
+
+## P080: the wood chips' pressed state and grey-out, and the cut readout; the box shows with Wood boards open or a wood board on the floor
+func _wood_sync() -> void:
+	if wood_box == null:
+		return
+	wood_box.visible = (parts_open and lib_cat == "Wood boards") or _tpl() == "board"
+	for k in wood_btns:
+		var b: Button = wood_btns[k]
+		b.set_pressed_no_signal(_wood_is(k))
+		m._grey(b, Part.why_not() if not Part.available() else "")
+	var cut := wood_box.find_child("easypart_wood_cut", true, false) as Label
+	var txt := _wood_cut_text()
+	cut.text = txt
+	cut.visible = txt != ""
+
+
+## P080: a wood chip. No board on the floor: a new board lies on the floor. A board already there takes the chip's sizes (one undo step, the same
+## features). The same size again does nothing
+func _wood_pick(k: String) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var bp: Dictionary = PartTemplates.WOOD_BOARDS[k]
+	var label := String(bp["name"])
+	var on_floor := _tpl() == "board" and not (_rec().get("features", []) as Array).is_empty()
+	if on_floor and _wood_is(k):
+		_say("Already a %s on the floor. Pick the other one to change it" % label)
+		_screw_sync()
+		return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Change the board" if on_floor else "Start a wood board"
+	m._push_undo()
+	var p := {"width": bp["width"], "thickness": bp["thickness"], "length": bp["length"]}
+	if on_floor:
+		PartTemplates.retemplate(_rec(), p)
+	else:
+		m.S.part = PartTemplates.make("board", p)
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("%s did not build. Press Reset, then pick a board again" % label)
+	else:
+		_say("%s on the floor, lying flat. Move a slider to change it" % label)
+	_screw_sync()
+
+
+## p131heldshow: Give to a character, then the frame takes him and the Part in his hand (the Part's own view left him out of the picture)
+func _give_press() -> void:
+	if m.give_part_weapon(_rec()) != "":
+		_frame_held()
+
+
+## p131heldshow: the figure and the Part in his hand fitted to the clear view (between the left chips and the view column, under the say-line and the tool row), as Fit view does
+const HELD_CLEAR := Rect2(330.0, 326.0, 360.0, 330.0)
+func _frame_held() -> void:
+	var pts: Array = m.fit_points()
+	var mid := Vector3.ZERO
+	for q in pts:
+		mid += q
+	m.target = mid / pts.size()
+	var vs: Vector2 = m.get_viewport().get_visible_rect().size
+	for it in 4:
+		m._cam()
+		var r := Rect2(m.cam.unproject_position(pts[0]), Vector2.ZERO)
+		for q in pts:
+			r = r.expand(m.cam.unproject_position(q))
+		r = r.grow(14.0)
+		var need := maxf(r.size.x / HELD_CLEAR.size.x, r.size.y / HELD_CLEAR.size.y) / 0.85
+		var mpp := 2.0 * float(m.dist) * tan(deg_to_rad(m.cam.fov * 0.5)) / vs.y
+		var d := HELD_CLEAR.get_center() - r.get_center()
+		m.target -= m.cam.global_basis.x * d.x * mpp - m.cam.global_basis.y * d.y * mpp
+		m.dist = clampf(float(m.dist) * need, 0.5, 12.0)
+	m._cam()

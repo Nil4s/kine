@@ -109,3 +109,26 @@ static func save(rec: Dictionary, nm: String, img: Image = null) -> String:
 	if img != null and not img.is_empty():
 		img.save_png(_abs(thumb_of(String(r["name"]))))
 	return path
+
+## MY PARTS, import (ROADMAP 84): a part file someone shared (its .json record, its picture beside it) is copied into the store.
+## The name it was saved under is kept; a name already saved is never replaced: the copy is saved as "<name> 1" (the first free).
+## {"ok", "name" (the name it is saved under), "why" (the next step, when refused)}
+static func import_file(src: String) -> Dictionary:
+	var rec := read(src)
+	if rec.is_empty():
+		return {"ok": false, "name": "", "why": "it is not a part file. A part file is the .json that Use in a scene saves (its features); ask for that file, or make the part in Easy Part and press Use in a scene"}
+	var base := String(rec.get("name", "")).strip_edges()
+	if base == "":
+		base = src.get_file().get_basename()
+	var nm := free_name(base) if exists(base) else base
+	rec["name"] = nm
+	DirAccess.make_dir_recursive_absolute(_abs(folder()))
+	var f := FileAccess.open(path_of(nm), FileAccess.WRITE)
+	if f == null:
+		return {"ok": false, "name": "", "why": "the My parts folder cannot be written. Check the disk has room, then drop the file again"}
+	f.store_string(JSON.stringify(rec, "\t"))
+	f.close()
+	var pic := src.get_basename() + ".png"
+	if FileAccess.file_exists(pic):
+		DirAccess.copy_absolute(_abs(pic), _abs(thumb_of(nm)))
+	return {"ok": true, "name": nm, "why": ""}

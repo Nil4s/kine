@@ -365,6 +365,8 @@ var ui_body: BodyPanel  # the BODY page's panel (scripts/body_panel.gd)
 
 ## does this kind of project hide this on this page (PAGE_KIND_HIDES)
 func _hides(what: String) -> bool:
+	if what == "figure" and B != null and B.wep_on and PartWeapon.is_part(B.wep_kind):   # p131heldshow: a Part in his hand shows him (BUILD hides the figure)
+		return false
 	return S != null and (PAGE_KIND_HIDES.get(S.kind, {}).get(cur_page, []) as Array).has(what)
 
 
@@ -21926,6 +21928,8 @@ func _on_drop(files: PackedStringArray) -> void:
 			_import_video(f)
 		elif f.to_lower().ends_with(".json") and VideoImport.load_file(f)["ok"]:
 			_import_pose(f)
+		elif f.to_lower().ends_with(".json"):   # MY PARTS (ROADMAP 84): a .json is a part file someone shared (not a pose): it goes into My parts, or is refused with the reason
+			_import_my_part(f)
 		elif kmed != null and kmed.on and KMeshRefPlanes.is_image(f):   # B21: a picture on the model preview: a reference plane
 			kmed.refp.add(f)
 		else:
@@ -25367,3 +25371,11 @@ func _ways_box() -> Control:
 	if all.size() > WAYS_SHOWN:
 		box.add_child(_label("%d more ways: the History rows above show them all" % (all.size() - WAYS_SHOWN), 13, "text:0.6", true))
 	return box
+
+## MY PARTS, import (ROADMAP 84): a shared part file dropped on the window goes into My parts (MyParts.import_file); the library lists it there
+func _import_my_part(path: String) -> void:
+	var r := MyParts.import_file(path)
+	if not r["ok"]:
+		_say("could not import %s: %s" % [path.get_file(), r["why"]])
+		return
+	_say("imported %s into My parts. Open the library, pick My parts, and click it to put it in the set" % r["name"])
