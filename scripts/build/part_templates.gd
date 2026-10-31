@@ -145,7 +145,8 @@ const T := {
 		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 10.0, "def": 5.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
 	"screw": {"title": "Screw", "parts": true, "params": [
 		{"k": "d", "label": "Size", "lo": 3.0, "hi": 6.0, "def": 4.0, "step": 1.0, "words": ["Smaller", "Bigger"]},
-		{"k": "L", "label": "Length", "lo": 10.0, "hi": 30.0, "def": 16.0, "step": 1.0, "words": ["Shorter", "Longer"]}]},
+		{"k": "L", "label": "Length", "lo": 10.0, "hi": 30.0, "def": 16.0, "step": 1.0, "words": ["Shorter", "Longer"]},
+		{"k": "h", "label": "Head", "lo": 0.0, "hi": 2.0, "def": 0.0, "step": 1.0, "words": ["Socket", "Flat"], "raw": true, "unit": "kind"}]},
 	# P069 BEARINGS: a deep groove ball bearing from the Parts chips (608, 625, 688). kind = 0 / 1 / 2 (BEARING_SIZE). Its numbers are the chips, so no sliders.
 	"bearing": {"title": "Bearing", "parts": true, "params": [
 		{"k": "kind", "label": "Bearing", "lo": 0.0, "hi": 2.0, "def": 0.0, "step": 1.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "size"}]},
@@ -220,6 +221,14 @@ const CASE_PORT_Y := [11.0, 21.0]   # mm: the port openings' height on the wall
 
 ## NSCREW2: ISO 4762 socket head screws: nominal size -> [head diameter, head height] (mm). The shank is the nominal size, plain (no thread).
 const SCREW_HEAD := {3: [5.5, 3.0], 4: [7.0, 4.0], 5: [8.5, 5.0], 6: [10.0, 6.0]}
+## P061SCREWHEADS: the other two heads, by the same nominal size, [head diameter, head height] (mm). h 1 = Button (ISO 7380, low dome, hex socket:
+## dk and k from the standard's table, M5 dk 9.5 k 2.75). h 2 = Flat (ISO 10642, 90 deg countersunk, hex socket): dk is the table's dk max (M5 10.0; the
+## theoretical 11.2 is trimmed to it); k is the cone's height, (dk - d) / 2, so the cone is 90 deg. Its length L includes the head.
+const SCREW_ALT := {
+	1: {3: [5.5, 1.65], 4: [7.0, 2.2], 5: [9.5, 2.75], 6: [12.0, 3.3]},
+	2: {3: [6.3, 1.65], 4: [8.4, 2.2], 5: [10.0, 2.5], 6: [12.0, 3.0]},
+}
+const SCREW_HEAD_CHIPS := ["Socket", "Button", "Flat"]
 ## NNUTWASHER: ISO 4032 nut [across flats, thickness] and ISO 7089 washer [inside, outside, thickness] (mm), by the nominal size M3..M6.
 ## They stand on the floor beside the screw: the washer's centre at X 18 mm, the nut's at X 40 mm (the screw's head is under 6 mm wide).
 const NUT_ISO := {3: [5.5, 2.4], 4: [7.0, 3.2], 5: [8.0, 4.7], 6: [10.0, 5.2]}
@@ -494,6 +503,8 @@ static func features_of(t: String, p: Dictionary) -> Array:
 		"plate":
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(0, 0), Vector2(p["width"], p["length"]))]), "extrude", p["thickness"], "new")
 		"screw":
+			if int(roundf(float(p.get("h", 0)))) != 0:   # P061SCREWHEADS: a button or flat head (its own builder, at the end of this file)
+				return _screw_head_feats(fs, p)
 			# NSCREW2: one lathe profile (x = radius, y = height, mm) spun round the up axis (Y), from the floor: the shank, then the head on top
 			var sd := clampi(int(roundf(float(p["d"]))), 3, 6)
 			var hd: Array = SCREW_HEAD[sd]
@@ -1041,4 +1052,36 @@ static func grip_features(p: Dictionary) -> Array:
 		var r := R if k % 2 == 0 else R - depth
 		star.append(Vector2(r * cos(ang), r * sin(ang)))
 	_ex(fs, _sk(fs, "top", _poly(star)), "extrude", p["length"], "new")
+	return fs
+
+
+## P061SCREWHEADS: a screw with a button head (h 1, ISO 7380) or a flat countersunk head (h 2, ISO 10642), the same lathe as the socket screw.
+## Button: the shank of length L, a step out to the rim (R, L), then a low dome (a circle arc, centre on the axis) up to the top (0, L + k).
+## Flat: a 90 deg cone from the shank's top up to the rim (R) at the top, which is L + k high: the shank is L - k long, so the length L includes the head.
+static func _screw_head_feats(fs: Array, p: Dictionary) -> Array:
+	var sd := clampi(int(roundf(float(p["d"]))), 3, 6)
+	var h := clampi(int(roundf(float(p["h"]))), 1, 2)
+	var hd: Array = SCREW_ALT[h][sd]
+	var r := float(sd) * 0.5
+	var R: float = float(hd[0]) * 0.5
+	var k: float = float(hd[1])
+	var L: float = float(p["L"])
+	var sl := L - k if h == 2 else L   # the shank's top
+	var ents := []
+	if h == 2:
+		ents = _poly([Vector2(0, 0), Vector2(r, 0), Vector2(r, sl), Vector2(R, sl + k), Vector2(0, sl + k)])
+	else:
+		var rho := (R * R + k * k) / (2.0 * k)   # the dome's radius: its rim is at (R, sl), its top at (0, sl + k)
+		var c := sl + k - rho                     # the dome's centre, on the axis
+		var tm := atan2(R, rho - k) * 0.5         # the arc's middle point, half way up the dome
+		var mid := Vector2(rho * sin(tm), c + rho * cos(tm))
+		ents = [
+			{"k": "line", "a": Part.arr2(Vector2(0, 0)), "b": Part.arr2(Vector2(r, 0))},
+			{"k": "line", "a": Part.arr2(Vector2(r, 0)), "b": Part.arr2(Vector2(r, sl))},
+			{"k": "line", "a": Part.arr2(Vector2(r, sl)), "b": Part.arr2(Vector2(R, sl))},
+			{"k": "arc", "a": Part.arr2(Vector2(R, sl)), "m": Part.arr2(mid), "b": Part.arr2(Vector2(0, sl + k))},
+			{"k": "line", "a": Part.arr2(Vector2(0, sl + k)), "b": Part.arr2(Vector2(0, 0))},
+		]
+	_ex(fs, _sk(fs, "front", ents), "revolve", 0.0, "new")
+	fs[fs.size() - 1]["axis"] = "y"
 	return fs
