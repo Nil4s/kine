@@ -137,7 +137,7 @@ func _frame_step() -> void:
 	if not off and ref_len >= 1e-4 and absf(len - ref_len) <= FRAME_CHANGE * ref_len:
 		return
 	_fr_ref = bb
-	var pose := _frame_pose(bb)
+	var pose := _hinge_pose(bb) if _tpl() == "hinge" else _frame_pose(bb)   # p067framefix: a hinge fills its clear-view share, not the free view
 	if pose.is_empty():
 		return
 	_ease = {"t0": m.target, "d0": float(m.dist), "t1": pose[0], "d1": pose[1], "s": 0.0}
@@ -1106,3 +1106,14 @@ func _draw_line_show() -> void:
 		var tp := (sc[0] + sc[1]) * 0.5 + Vector2(-sz.x * 0.5, -14.0)
 		dots.draw_rect(Rect2(tp + Vector2(-8, -sz.y + 1), sz + Vector2(16, 6)), Color(0.1, 0.11, 0.14, 0.9))
 		dots.draw_string(font, tp, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
+
+
+## p067framefix: a hinge (a Piano strip is the door's full height, a Butt plate is 100 mm) is framed so the solid fills HINGE_SHARE of the
+## clear view's height. The free view is shorter than the clear view (the chip rows sit above it), so a FRAME_FILL of the free view left a Piano at 17 %.
+const HINGE_SHARE := 0.34
+func _hinge_pose(bb: AABB) -> Array:
+	var fr := free_rect()
+	if fr.size.y < 40.0:
+		return []
+	var vs: Vector2 = m.get_viewport().get_visible_rect().size
+	return _frame_pose(bb, HINGE_SHARE * vs.y / fr.size.y)

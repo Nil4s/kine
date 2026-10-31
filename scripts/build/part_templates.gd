@@ -270,7 +270,7 @@ static func bo_set(rec: Dictionary, d: int, L: int) -> void:
 
 
 ## the default camera of a template: [yaw, pitch] degrees, a 3/4 view in which its main shape reads (the axe turns further so its blade face shows)
-const VIEW := {"sword": [30.0, -22.0], "axe": [42.0, -20.0], "shield": [30.0, -18.0], "chair": [38.0, -22.0], "crate": [34.0, -24.0], "box": [34.0, -24.0], "cylinder": [34.0, -22.0], "sphere": [30.0, -20.0], "tube": [34.0, -22.0], "plate": [34.0, -28.0], "case": [32.0, -24.0], "slothole": [34.0, -30.0]}
+const VIEW := {"sword": [30.0, -22.0], "axe": [42.0, -20.0], "shield": [30.0, -18.0], "chair": [38.0, -22.0], "crate": [34.0, -24.0], "box": [34.0, -24.0], "cylinder": [34.0, -22.0], "sphere": [30.0, -20.0], "tube": [34.0, -22.0], "plate": [34.0, -28.0], "case": [32.0, -24.0], "slothole": [34.0, -30.0], "hinge": [35.0, -12.0]}
 
 
 static func view_of(t: String) -> Array:
