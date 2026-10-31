@@ -2067,6 +2067,7 @@ func _lib_box() -> PanelContainer:
 		b.pressed.connect(_lib_press.bind(cat))
 		fl.add_child(b)
 		lib_btns[cat] = b
+	fl.add_child(_kids_chip_make())   # p197kidsmode: the Kids chip, last on the library page
 	lib_soon = Label.new()
 	lib_soon.name = "easypart_lib_soon"
 	lib_soon.add_theme_font_size_override("font_size", 14)
@@ -5723,3 +5724,42 @@ func _cam_icon() -> ImageTexture:
 	_lib_ring(img, 6.0, 2.5, col)
 	img.fill_rect(Rect2i(12, 0, 3, 16), col)
 	return ImageTexture.create_from_image(img)
+
+## P197 KIDS MODE: a Kids chip, last on the Parts library page. On: the category chips are taller (40 px), their words bigger (15 px) and
+## their corners rounder (14 px), so a child can press them. Off: the plain 34 px chips. A view setting only: no undo step, the model is not touched
+const KIDS_H := 40.0
+const KIDS_R := 14
+const PLAIN_H := 34.0
+const PLAIN_R := 6
+var kids_on := false
+var kids_btn: Button
+
+func _kids_chip_make() -> Button:
+	kids_btn = Button.new()
+	kids_btn.name = "easypart_kids"
+	kids_btn.text = "Kids"
+	kids_btn.tooltip_text = "Kids mode: big buttons and rounder corners on this page. Press again for normal buttons"
+	kids_btn.toggle_mode = true
+	kids_btn.focus_mode = Control.FOCUS_NONE
+	kids_btn.custom_minimum_size = Vector2(0, PLAIN_H)
+	kids_btn.add_theme_font_size_override("font_size", 12)
+	kids_btn.pressed.connect(_kids_press)
+	return kids_btn
+
+
+func _kids_press() -> void:
+	kids_on = kids_btn.button_pressed
+	_kids_sync()
+	_say("Kids mode on: big buttons, rounder corners" if kids_on else "Kids mode off: normal buttons")
+
+
+func _kids_sync() -> void:
+	kids_btn.set_pressed_no_signal(kids_on)
+	var h := KIDS_H if kids_on else PLAIN_H
+	var r := KIDS_R if kids_on else PLAIN_R
+	for cat in lib_btns:
+		var b: Button = lib_btns[cat]
+		b.custom_minimum_size = Vector2(0, h)
+		b.add_theme_font_size_override("font_size", 15 if kids_on else 12)
+		b.add_theme_stylebox_override("normal", _style(Tok.c("btn"), r, 4))
+		b.add_theme_stylebox_override("hover", _style(Tok.c("btn_hover"), r, 4))
