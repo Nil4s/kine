@@ -3684,7 +3684,8 @@ func _world() -> void:
 		l.text = lab[0]
 		l.position = lab[1]
 		l.modulate = lab[2]
-		l.pixel_size = 0.0018
+		l.pixel_size = 0.0005   # p156redtext: fixed_size, a 32 px font = about 16 px on the screen at any zoom (was world-sized: 105 px close up)
+		l.fixed_size = true
 		l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		stage_root.add_child(l)
 		axis_tags.append(l)
