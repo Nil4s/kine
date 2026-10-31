@@ -788,7 +788,7 @@ func _spin(rec: Dictionary) -> String:
 		var low := float(Part.replay(rec)["aabb"].position.y) / Part.MM
 		if absf(low) > 0.001:
 			_shift_y(sk, low)
-	tweak = {"id": f["id"], "field": "deg", "label": "How far round", "unit": "deg", "lo": 10.0, "hi": 360.0, "step": 5.0, "scale": 1.0, "words": ["A bit", "All the way"]}
+	tweak = _spin_tweak(String(f["id"]))
 	_say("Spun all the way round: use the slider for less, or press Cut a hole or Mirror that next")
 	return ""
 
@@ -893,3 +893,8 @@ func _ent_pts(e: Dictionary) -> Array:
 	if e.has("pts"):
 		out.append_array(e["pts"])
 	return out
+
+
+## P028 ANGLE: the Spin it round slider is an Angle in degrees, 30 (a slim part of a bowl) to 360 (all the way round); its record field is deg
+func _spin_tweak(id: String) -> Dictionary:
+	return {"id": id, "field": "deg", "label": "Angle", "unit": "deg", "lo": 30.0, "hi": 360.0, "step": 5.0, "scale": 1.0, "words": ["A bit", "All the way"]}

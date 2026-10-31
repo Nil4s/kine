@@ -2,18 +2,18 @@ extends SceneTree
 ## p085typetobuil (Friday plan item 85, Nick: monkey-brain easy): Type-to-build for parts. Parts > Type it: one line of words, "a box 20 by 10 by 5 cm,
 ## hollow, 2 mm walls, lid", then Build it: a box 200 x 100 x 50 mm, hollowed out with a 2 mm wall, its top 5 mm off as a lid. The steps
 ## stay editable: the Wall slider is the newest step. Real clicks at 1280 x 720 from the real start screen, on the live Easy Part.
-## Walk: BUILDING card -> Parts -> Type it -> (type the words) -> Build it -> Wall slider -> two refusals
+## Walk: BUILDING card -> Parts -> Type it -> (type the words) -> Build it -> Wall slider -> two refusals (the words read from ep.msg, the sentence of the press)
 ## Bars (each one measured from the BUILT result: the replay bbox and body count, mesh rays, the undo list and the step list, never from the
 ## code's own variables):
 ##   0 Parts > Type it, one click: the words line and Build it show
 ##   1 Build it, one click: a box with a lid: two bodies, no build error
-##   2 the bounding box: 200 x 100 x 50 mm (+-0.5)
+##   2 the bounding box: 200 long (x) x 50 tall (y) x 100 wide (z) mm (+-0.5)
 ##   3 the wall: a ray across the middle of the box at 25 mm up hits the outside of the +x wall, then its inside: 2 mm apart (+-0.2)
 ##   4 the lid: a ray down the middle hits the lid's top, then its underside 5 mm lower (+-0.2)
 ##   5 the steps are editable: the step list has at least 3 steps (the box, the split, the shell)
 ##   6 the Wall slider, moved to 4 mm, changes the built wall: the same ray pair is 4 mm apart (+-0.2)
 ##   7 the Build it press is one undo step
-##   8 a box too small for its walls: refused, the words say a size to type, and nothing changes (undo count and bodies)
+##   8 a side under 5 cm: refused, the words say a size to type, and nothing changes (undo count and bodies)
 ##   9 words with no box: refused, the words say "box", nothing changes
 ## shots: C:/Temp/claude/p085typetobuil/
 
@@ -194,8 +194,8 @@ func _init() -> void:
 
 	# 2 the bounding box: 200 x 100 x 50 mm
 	var bb: AABB = bbox()
-	ok(absf(bb.size.x - 200.0) <= 0.5 and absf(bb.size.y - 100.0) <= 0.5 and absf(bb.size.z - 50.0) <= 0.5,
-		"2 bounding box %.1f x %.1f x %.1f mm (want 200 x 100 x 50)" % [bb.size.x, bb.size.y, bb.size.z])
+	ok(absf(bb.size.x - 200.0) <= 0.5 and absf(bb.size.y - 50.0) <= 0.5 and absf(bb.size.z - 100.0) <= 0.5,
+		"2 bounding box %.1f x %.1f x %.1f mm (want 200 x 50 x 100: long, tall, wide)" % [bb.size.x, bb.size.y, bb.size.z])
 
 	# 3 the wall: a ray across the middle at 25 mm up, from past the +x side: the outside (10 mm away), then the inside 2 mm further
 	var cx := bb.position.x + bb.size.x * 0.5
@@ -235,16 +235,16 @@ func _init() -> void:
 		"6 the Wall slider at 4 mm: the built wall is %.2f mm (want 4)" % wall4)
 	await shot("02_wall_4mm")
 
-	# 8 a box too small for its walls: refused in words, nothing changes
+	# 8 a side under 5 cm: refused in words, nothing changes (the box template's smallest side is 5 cm)
 	var bodies_b: int = int(pu().res.get("bodies", 0))
 	var u2: int = m.undo.size()
 	if edit != null:
-		edit.text = "a box 5 by 5 by 5 cm, hollow, 10 mm walls"
+		edit.text = "a box 3 by 10 by 5 cm, hollow, 2 mm walls, lid"
 	if go != null:
 		await click_ctl(go)
-	var st8: String = m.bld.part.ep.status_l.text
+	var st8: String = m.bld.part.ep.msg
 	ok(m.undo.size() == u2 and int(pu().res.get("bodies", 0)) == bodies_b and st8.find("Try") >= 0,
-		"8 a box too small for its walls is refused and names a size to type (undo %d -> %d, status: %s)" % [u2, m.undo.size(), st8])
+		"8 a side under 5 cm is refused and names a size to type (undo %d -> %d, words: %s)" % [u2, m.undo.size(), st8])
 
 	# 9 words with no box: refused, nothing changes
 	var u3: int = m.undo.size()
@@ -252,9 +252,9 @@ func _init() -> void:
 		edit.text = "a sword with a long blade"
 	if go != null:
 		await click_ctl(go)
-	var st9: String = m.bld.part.ep.status_l.text
+	var st9: String = m.bld.part.ep.msg
 	ok(m.undo.size() == u3 and st9.find("box") >= 0,
-		"9 words with no box are refused and say box (undo %d -> %d, status: %s)" % [u3, m.undo.size(), st9])
+		"9 words with no box are refused and say box (undo %d -> %d, words: %s)" % [u3, m.undo.size(), st9])
 
 	print("P085TYPETOBUIL TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	quit(fails)

@@ -9,7 +9,7 @@ extends RefCounted
 const MM := 0.001
 const ARCH_GAP := 40.0   # mm: a car's wheel arch top sits this far above the tyre's top (the arch is the wheel radius + 40 mm)
 const CAB_W := 0.88     # the glasshouse is this share of the body's width (narrower than the lower body, so the cabin reads as a cabin)
-const ORDER :=["sword", "axe", "shield", "chair", "gear", "rack", "crate"]   # NGEAR: Gear sits before Crate (Crate stays the last chip). P066: Rack after Gear (its pinion); its numbers are not cm: "raw"
+const ORDER :=["sword", "axe", "shield", "chair", "gear", "rack", "crate"]   # NGEAR: Gear sits before Crate (Crate stays the last chip); its numbers are not cm: "raw"   # p070: Spring is not a chip: it is built from the Parts library (Springs)
 const START := ["box", "cylinder", "sphere", "tube", "plate"]   # FREESTART: the neutral "Start from" row on Easy Part's panel (simple shapes, no weapon)
 const T := {
 	"box": {"title": "Box", "params": [
@@ -64,6 +64,16 @@ const T := {
 		{"k": "teeth", "label": "Length", "lo": 4.0, "hi": 40.0, "def": 12.0, "step": 1.0, "words": ["Shorter", "Longer"], "raw": true, "unit": "teeth"},
 		{"k": "module", "label": "Teeth size", "lo": 1.0, "hi": 3.0, "def": 2.0, "step": 1.0, "words": ["Small teeth", "Big teeth"], "raw": true, "unit": "size"},
 		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 30.0, "def": 10.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
+	# p067hinges: a hinge from the Hinge chip (not in ORDER: its own button beside Parts). Sized to the door: the door's height (mm) sets the
+	# leaves (butt and living: door / 21 rounded to 5 mm, so 100 mm at 2100) or the strip (piano: the full door height). kind: 1 Butt, 2 Piano, 3 Living.
+	"hinge": {"title": "Hinge", "params": [
+		{"k": "door", "label": "Door height", "lo": 1800.0, "hi": 2400.0, "def": 2100.0, "step": 100.0, "words": ["Shorter door", "Taller door"], "raw": true, "unit": "mm"},
+		{"k": "kind", "label": "Kind", "lo": 1.0, "hi": 3.0, "def": 1.0, "step": 1.0, "words": ["Butt", "Living"], "raw": true, "unit": "kind"}]},
+	# p070: a compression spring: turns (coils, 3..12), wire (mm, 1..4) and coil size (the mean coil width, mm, 20..60) on raw sliders. Coils 0.8 x wire apart.
+	"spring": {"title": "Spring", "params": [
+		{"k": "turns", "label": "Turns", "lo": 3.0, "hi": 12.0, "def": 6.0, "step": 1.0, "words": ["Fewer", "More"], "raw": true, "unit": "turns"},
+		{"k": "wire", "label": "Wire", "lo": 1.0, "hi": 4.0, "def": 2.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"},
+		{"k": "size", "label": "Coil size", "lo": 20.0, "hi": 60.0, "def": 40.0, "step": 5.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "mm"}]},
 	# VEHICLE PARTS (B3, scripts/vehicle.gd): not in ORDER, so no Easy chip: a car body and one wheel
 	"car": {"title": "Car body", "params": [
 		{"k": "body_length", "label": "Length", "lo": 1500.0, "hi": 5000.0, "def": 4000.0, "step": 50.0, "words": ["Shorter", "Longer"]},
@@ -212,6 +222,40 @@ static func nw_set(rec: Dictionary, d: int) -> void:
 	var head: Array = feats.slice(0, start)
 	var rest: Array = feats.slice(mini(start + NW_N, feats.size()))
 	rec["features"] = head + nw_features(head.duplicate(), d) + rest
+
+
+## FRIDAY 37 BOSS CHIP: a round post beside a screw, sized by it: outside = the screw's head + 4 mm, hole = the screw's size + 0.5 mm (the screw goes in),
+## height = the screw's length L. It stands on the floor at X BO_X (the washer is at +18, the nut at +40). Four features: a sketch and its extrude for the post, then for its hole.
+const BO_N := 4   # a sketch and its extrude, twice (the post, then its hole): four features
+const BO_X := -18.0
+static func bo_features(fs: Array, d: int, L: float) -> Array:
+	var base := fs.size()
+	var sd := clampi(int(roundf(float(d))), 3, 6)
+	var outer: float = float(SCREW_HEAD[sd][0]) + 4.0
+	_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [BO_X, 0.0], "r": outer * 0.5}]), "extrude", L, "new")
+	_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [BO_X, 0.0], "r": (float(sd) + 0.5) * 0.5}]), "extrude", L + 2.0, "cut")
+	return fs.slice(base)
+
+
+## FRIDAY 37 BOSS CHIP: a screw on the floor takes its post: it goes on the END of the record ("bo" = its first index in the easy record)
+static func bo_add(rec: Dictionary, d: int, L: int) -> void:
+	var feats: Array = rec["features"]
+	var start := feats.size()
+	feats.append_array(bo_features(feats.duplicate(), d, float(L)))
+	rec["seq"] = maxi(int(rec.get("seq", 0)), feats.size())
+	(rec["easy"] as Dictionary)["bo"] = start
+
+
+## FRIDAY 37 BOSS CHIP: a size change rewrites the post too (the same count for every size, so the features after it keep their ids). Does nothing without it.
+static func bo_set(rec: Dictionary, d: int, L: int) -> void:
+	var e: Dictionary = rec.get("easy", {})
+	if e.is_empty() or int(e.get("bo", -1)) < 0:
+		return
+	var start := int(e["bo"])
+	var feats: Array = rec["features"]
+	var head: Array = feats.slice(0, start)
+	var rest: Array = feats.slice(mini(start + BO_N, feats.size()))
+	rec["features"] = head + bo_features(head.duplicate(), d, float(L)) + rest
 
 
 ## the default camera of a template: [yaw, pitch] degrees, a 3/4 view in which its main shape reads (the axe turns further so its blade face shows)
@@ -617,12 +661,64 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			for h in b["holes"]:
 				lh.append({"k": "circle", "c": [lx + inset + float(h[0]), -(inset + float(h[1]))], "r": CASE_HOLE_R})
 			_ex(fs, _sk(fs, "top", lh), "extrude", CASE_LID + 1.0, "cut")
+		"hinge":
+			# p067hinges: in the front plane (x across, y up the door). Butt: a 60 mm plate, 2.5 mm thick, leaf length L. Piano: a 30 mm strip
+			# the full door height, 1.5 mm. Living: the whole 60 mm strip 0.8 mm thick (a thin flexible strip; a web with thicker leaves did not build on the kernel).
+			var door: float = p["door"]
+			var L := clampf(roundf(door / 21.0 / 5.0) * 5.0, 60.0, 150.0)
+			var kd := int(roundf(float(p["kind"])))
+			if kd == 2:
+				_ex(fs, _sk(fs, "front", [_rect(Vector2(-15.0, 0.0), Vector2(15.0, door))]), "extrude", 1.5, "new")
+			elif kd == 3:
+				_ex(fs, _sk(fs, "front", [_rect(Vector2(-30.0, 0.0), Vector2(30.0, L))]), "extrude", 0.8, "new")
+			else:
+				_ex(fs, _sk(fs, "front", [_rect(Vector2(-30.0, 0.0), Vector2(30.0, L))]), "extrude", 2.5, "new")
+		"spring":
+			# p070: one sketch loop (the outline of the coils' union in the front plane) turned about the up axis: one solid, two features
+			# whatever the turns (so a Turns change keeps the ids of the steps after it)
+			var prof := spring_profile(int(clampi(int(roundf(float(p["turns"]))), 3, 12)), float(p["wire"]), float(p["size"]))
+			var sid := _sk(fs, "front", _poly(prof))
+			_ex(fs, sid, "revolve", 0.0, "new")
+			fs[fs.size() - 1]["axis"] = "y"
 		"wheel":
 			# a tyre: the profile (width x radius) turned about the sketch's x axis = world X, the axle (side to side)
 			var R: float = p["radius"]
 			var w: float = p["width"]
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(-w * 0.5, 0.0), Vector2(w * 0.5, R))]), "revolve", 0.0, "new")
 	return fs
+
+
+## p070: the outline (right side up, left side down, mm, the front plane: x = radius, y = height) of n coils of wire w, mean coil diameter dia: each coil is a disk of
+## radius w / 2 at height k x 0.8 w + w / 2, the coils overlap, so the outline is their union. Sampled every 0.1 mm (the coil centres sit on
+## the 0.1 mm grid, so the widest point and the top are exact). The coil centre line is at radius dia / 2.
+static func spring_profile(n: int, w: float, dia: float) -> Array:
+	var rc := dia * 0.5
+	var h := w * 0.5
+	var pitch := 0.8 * w
+	var H := (n - 1) * pitch + w
+	var right := []
+	var left := []
+	var steps := int(roundf(H / 0.1))
+	for i in steps + 1:
+		var y := float(i) * 0.1
+		var best := -1.0
+		for k in n:
+			var d := y - (float(k) * pitch + h)
+			if absf(d) <= h + 0.000001:   # the 0.1 mm grid is not exact in floats: the top and bottom points keep their place
+				best = maxf(best, sqrt(maxf(0.0, h * h - d * d)))
+		if best < 0.0:
+			continue
+		right.append(Vector2(rc + best, y))
+		left.append(Vector2(rc - best, y))
+	left.reverse()
+	# the two ends are single points (the disk's bottom and top): one vertex each, not two
+	var out := []
+	for q in right + left:
+		if out.is_empty() or (out[-1] as Vector2).distance_to(q) > 0.001:
+			out.append(q)
+	if out.size() > 1 and (out[0] as Vector2).distance_to(out[-1]) < 0.001:
+		out.pop_back()
+	return out
 
 
 ## NGEAR: the closed tooth outline of a spur gear with n teeth of module m (mm), as lines. Angles in units of q = pi / (2 n): a tooth is
@@ -681,6 +777,9 @@ static func handle_mat(rec: Dictionary) -> Array:
 ## the handle's centre in the Part's own frame (m): the grip a hand holds (PartWeapon). A sword's grip is the revolve x -106..-2 mm; an axe's
 ## haft runs 0..H+10 mm. Other templates, and a Part with no template, hold at its origin.
 static func handle_of(rec: Dictionary) -> Vector3:
+	var g: Array = rec.get("grip", [])   # p131grippoint: the spot Hold here picked (mm, the Part's own frame) wins over the template's
+	if g.size() == 3:
+		return Vector3(float(g[0]), float(g[1]), float(g[2])) * MM
 	var e: Dictionary = rec.get("easy", {})
 	match String(e.get("t", "")):
 		"sword":
