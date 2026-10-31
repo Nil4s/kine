@@ -74,7 +74,7 @@ func build(root: Control) -> void:
 	restore_btn.visible = false
 	row.add_child(restore_btn)
 	row.add_child(use_scene_btn)
-	give_btn = _bar_btn("Give to a character", "Give it to a character: they hold this shape in one hand, with its size and weight (PartWeapon)", func(): m.give_part_weapon(_rec()))   # one undo step
+	give_btn = _bar_btn("Give to a character", "Give it to a character: they hold this shape in one hand, with its size and weight (PartWeapon)", func(): _give_press())   # one undo step
 	give_btn.name = "easypart_give"
 	give_btn.custom_minimum_size = Vector2(170, m.TOP_H - 12)
 	row.add_child(give_btn)
@@ -5148,3 +5148,32 @@ func _hold_press(p: Vector2) -> bool:
 	m.part_weapon_changed(_rec())   # a held Part weapon takes the new grip at once
 	_say("The hand holds it here, %.1f cm from the butt" % ((at.x - knob) * 100.0))
 	return true
+
+
+## p131heldshow: Give to a character, then the frame takes him and the Part in his hand (the Part's own view left him out of the picture)
+func _give_press() -> void:
+	if m.give_part_weapon(_rec()) != "":
+		_frame_held()
+
+
+## p131heldshow: the figure and the Part in his hand fitted to the clear view (between the left chips and the view column, under the say-line and the tool row), as Fit view does
+const HELD_CLEAR := Rect2(330.0, 326.0, 360.0, 330.0)
+func _frame_held() -> void:
+	var pts: Array = m.fit_points()
+	var mid := Vector3.ZERO
+	for q in pts:
+		mid += q
+	m.target = mid / pts.size()
+	var vs: Vector2 = m.get_viewport().get_visible_rect().size
+	for it in 4:
+		m._cam()
+		var r := Rect2(m.cam.unproject_position(pts[0]), Vector2.ZERO)
+		for q in pts:
+			r = r.expand(m.cam.unproject_position(q))
+		r = r.grow(14.0)
+		var need := maxf(r.size.x / HELD_CLEAR.size.x, r.size.y / HELD_CLEAR.size.y) / 0.85
+		var mpp := 2.0 * float(m.dist) * tan(deg_to_rad(m.cam.fov * 0.5)) / vs.y
+		var d := HELD_CLEAR.get_center() - r.get_center()
+		m.target -= m.cam.global_basis.x * d.x * mpp - m.cam.global_basis.y * d.y * mpp
+		m.dist = clampf(float(m.dist) * need, 0.5, 12.0)
+	m._cam()
