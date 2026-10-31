@@ -2087,6 +2087,7 @@ func _lib_box() -> PanelContainer:
 	hinges_btn.visible = false
 	hinges_btn.pressed.connect(_hinges_btn_press)
 	vb.add_child(hinges_btn)
+	vb.add_child(_livecut_btn_make())   # p204livinghing: the Living cuts button (the Hinges page)
 	spring_pick = Button.new()   # p070springfix: the Springs page button (shown only on Springs): one click, a spring on the floor
 	spring_pick.name = "easypart_spring_pick"
 	spring_pick.text = "Spring"
@@ -2393,6 +2394,7 @@ func _screw_sync() -> void:
 		hinges_btn.visible = parts_open and lib_cat == "Hinges"   # p067hinges
 		hinges_btn.set_pressed_no_signal(_tpl() == "hinge")
 		m._grey(hinges_btn, Part.why_not() if not Part.available() else "")
+		_livecut_sync()   # p204livinghing
 		spring_pick.visible = parts_open and lib_cat == "Springs"   # p070springfix
 		spring_pick.set_pressed_no_signal(_tpl() == "spring")
 		m._grey(spring_pick, Part.why_not() if not Part.available() else "")
@@ -5874,3 +5876,36 @@ func _kids_sync() -> void:
 		b.add_theme_font_size_override("font_size", 15 if kids_on else 12)
 		b.add_theme_stylebox_override("normal", _style(Tok.c("btn"), r, 4))
 		b.add_theme_stylebox_override("hover", _style(Tok.c("btn_hover"), r, 4))
+
+
+## p204livinghing LIVING CUTS: the Living cuts button on the Hinges page (shown only there, as the Hinge button is). One click: the page
+## closes, then a strip of slots drops on the floor. One undo step (the chip's).
+var livecut_btn: Button   # p204livinghing
+
+
+func _livecut_btn_make() -> Button:
+	livecut_btn = Button.new()
+	livecut_btn.name = "easypart_livecut_pick"
+	livecut_btn.text = "Living cuts"
+	livecut_btn.icon = Icons.tex("part_livecut")
+	livecut_btn.toggle_mode = true
+	livecut_btn.focus_mode = Control.FOCUS_NONE
+	livecut_btn.custom_minimum_size = Vector2(0, 34)
+	livecut_btn.add_theme_font_size_override("font_size", 13)
+	livecut_btn.visible = false
+	livecut_btn.pressed.connect(_livecut_btn_press)
+	return livecut_btn
+
+
+func _livecut_sync() -> void:
+	livecut_btn.visible = parts_open and lib_cat == "Hinges"
+	livecut_btn.set_pressed_no_signal(_tpl() == "livecut")
+	m._grey(livecut_btn, Part.why_not() if not Part.available() else "")
+
+
+func _livecut_btn_press() -> void:
+	parts_open = false
+	_chip("livecut")
+	m._step_hint = "Living cuts"
+	_say("Living cuts: a strip with slots, so it bends. Move Length, Slot spacing or Thickness")
+	_screw_sync()

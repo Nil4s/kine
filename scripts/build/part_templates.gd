@@ -159,6 +159,12 @@ const T := {
 		{"k": "width", "label": "Width", "lo": 10.0, "hi": 1300.0, "def": 89.0, "step": 1.0, "words": ["Narrower", "Wider"]},
 		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 50.0, "def": 38.0, "step": 1.0, "words": ["Thinner", "Thicker"]},
 		{"k": "length", "label": "Length", "lo": 100.0, "hi": 2500.0, "def": 2438.0, "step": 10.0, "words": ["Shorter", "Longer"]}]},
+	# p204livinghing: the Living cuts strip from Parts > Hinges (not in ORDER: its own button). Length along Y, the slots across a 60 mm strip;
+	# slot spacing (mm, the start of one slot to the next) and thickness (mm) are raw sliders.
+	"livecut": {"title": "Living cuts", "params": [
+		{"k": "length", "label": "Length", "lo": 100.0, "hi": 600.0, "def": 300.0, "step": 10.0, "words": ["Shorter", "Longer"], "raw": true, "unit": "mm"},
+		{"k": "gap", "label": "Slot spacing", "lo": 4.0, "hi": 20.0, "def": 8.0, "step": 1.0, "words": ["Closer slots", "Wider apart"], "raw": true, "unit": "mm"},
+		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 12.0, "def": 6.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
 }
 
 ## P069 BEARINGS: [bore, outside diameter, width] in mm of the bearings 608, 625, 688 (deep groove ball bearings, ISO 15 sizes)
@@ -737,6 +743,8 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var R: float = p["radius"]
 			var w: float = p["width"]
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(-w * 0.5, 0.0), Vector2(w * 0.5, R))]), "revolve", 0.0, "new")
+		"livecut":
+			fs = _livecut_features(p)   # p204livinghing: the strip with its slots (the builder is at the end of this file)
 	return fs
 
 
@@ -895,3 +903,40 @@ static func _cam_features(p: Dictionary) -> Array:
 	_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": CAM_HOLE}]), "extrude", 2.0 * th + 2.0, "cut", true)
 	_ex(fs, _sk(fs, "front", [_rect(Vector2(lf - 8.0, CAM_R + 2.0), Vector2(lf + 8.0, CAM_R + 82.0))]), "extrude", th, "new")
 	return fs
+
+
+## p204livinghing LIVING CUTS: a plate LIVE_W mm across (x) and length mm up (y), thickness mm, in the front plane (extruded through Z).
+## Slot i is LIVE_KERF mm wide, from y = LIVE_END + i x gap, cut across the plate from its left edge (x = -1: past the edge) and stopping
+## LIVE_SPINE mm short of its right edge: the spine keeps the strip in one piece, the slots let it bend. Count = floor((length - 22) / gap) + 1.
+const LIVE_W := 60.0
+const LIVE_KERF := 2.0
+const LIVE_SPINE := 10.0
+const LIVE_END := 10.0
+
+
+static func _livecut_features(p: Dictionary) -> Array:
+	var fs: Array = []
+	var L: float = p["length"]
+	var gp: float = p["gap"]
+	var th: float = p["thickness"]
+	_ex(fs, _sk(fs, "front", [_rect(Vector2(0.0, 0.0), Vector2(LIVE_W, L))]), "extrude", th, "new")
+	var cuts := []
+	var n := int(floor((L - 2.0 * LIVE_END - LIVE_KERF) / gp)) + 1
+	for i in n:
+		var y0 := LIVE_END + float(i) * gp
+		cuts.append(_rect(Vector2(-1.0, y0), Vector2(LIVE_W - LIVE_SPINE, y0 + LIVE_KERF)))
+	_ex(fs, _sk(fs, "front", cuts), "extrude", 2.0 * th + 2.0, "cut", true)
+	return fs
+
+
+## p204livinghing: the say line when the slots are closer than 2 x Thickness (the strip may tear). Names the next step. "" otherwise.
+static func livecut_note(rec: Dictionary) -> String:
+	var e: Dictionary = rec.get("easy", {})
+	if String(e.get("t", "")) != "livecut":
+		return ""
+	var p: Dictionary = e.get("p", {})
+	var gp := float(p.get("gap", 0.0))
+	var th := float(p.get("thickness", 0.0))
+	if gp >= 2.0 * th:
+		return ""
+	return "Slots %d mm apart may tear a %d mm strip: drag Slot spacing wider, to at least %d mm" % [int(gp), int(th), int(2.0 * th)]

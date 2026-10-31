@@ -293,6 +293,8 @@ func _flush() -> void:
 		PartTemplates.retemplate(_rec(), _pending)
 		_pending = {}
 	var note := PartTemplates.fit_rounds(_rec())   # a new size (or the How round slider) can leave a round too big for its edges: it shrinks, and says so
+	if note == "":
+		note = PartTemplates.livecut_note(_rec())   # p204livinghing: slots closer than 2 x Thickness may tear the strip
 	if note != "":
 		_say(note)
 	pu.sync()
