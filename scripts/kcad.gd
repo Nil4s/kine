@@ -287,3 +287,14 @@ static func release_all() -> void:
 static func live_count() -> int:
 	var n = _n()
 	return n.live_count() if n != null else 0
+
+
+## s155: the triangles (verts in metres, tris = 3 indices each) sewn into ONE closed solid; 0 + last_error() when the mesh is open or the
+## library is older than this call (has_mesh_solid())
+static func solid_from_mesh(verts: PackedVector3Array, tris: PackedInt32Array, tol := 1e-6) -> int:
+	var n = _n()
+	return n.solid_from_mesh(verts, tris, tol) if n != null and has_mesh_solid() else 0
+
+
+static func has_mesh_solid() -> bool:
+	return ClassDB.class_exists("KineCAD") and ClassDB.class_has_method("KineCAD", "solid_from_mesh")

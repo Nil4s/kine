@@ -166,3 +166,7 @@ static func pattern_circular(id: int, axis_origin: Vector3, axis_dir: Vector3, c
 
 static func mass_properties(id: int) -> Dictionary:
 	return KineCAD.mass_properties(id)
+
+
+static func solid_from_mesh(verts: PackedVector3Array, tris: PackedInt32Array, tol: float) -> int:
+	return KineCAD.solid_from_mesh(verts, tris, tol)
