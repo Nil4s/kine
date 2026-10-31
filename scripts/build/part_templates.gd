@@ -777,6 +777,9 @@ static func handle_mat(rec: Dictionary) -> Array:
 ## the handle's centre in the Part's own frame (m): the grip a hand holds (PartWeapon). A sword's grip is the revolve x -106..-2 mm; an axe's
 ## haft runs 0..H+10 mm. Other templates, and a Part with no template, hold at its origin.
 static func handle_of(rec: Dictionary) -> Vector3:
+	var g: Array = rec.get("grip", [])   # p131grippoint: the spot Hold here picked (mm, the Part's own frame) wins over the template's
+	if g.size() == 3:
+		return Vector3(float(g[0]), float(g[1]), float(g[2])) * MM
 	var e: Dictionary = rec.get("easy", {})
 	match String(e.get("t", "")):
 		"sword":

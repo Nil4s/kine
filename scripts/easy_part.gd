@@ -535,6 +535,7 @@ func _colour_box() -> PanelContainer:
 		wb.pressed.connect(_weight_press.bind(String(wk[0])))
 		h.add_child(wb)
 		weight_btns[String(wk[0])] = wb
+	h.add_child(_hold_chip())   # p131grippoint: Hold here, the last chip of the page
 	return box
 
 
@@ -3755,6 +3756,8 @@ func input(ev: InputEvent) -> bool:
 					return false   # nothing solid there: the camera keeps the click
 				_stick_pick(bi, faces)
 				return true
+			if armed == "hold" and not _over_ui(p):
+				return _hold_press(p)   # p131grippoint: the press on the part sets the grip point
 			if (armed == "draw" or armed == "curve") and not _over_ui(p):
 				return _start_draft(p)
 			if armed == "" and not _over_ui(p) and _edge_press(p):
@@ -5101,3 +5104,47 @@ func _cut_sync() -> void:
 	cut_mat.set_shader_parameter("cut", Vector4(n.x, n.y, n.z, float(d["w"])))
 	cut_mat.set_shader_parameter("on", 1.0)
 	pu.part_mesh.material_override = cut_mat
+
+
+## HOLD HERE (p131grippoint): the Colour page's Hold here chip arms one click. The next press on the part sets the grip point there: the
+## spot is stored in the record ("grip", mm in the Part's own frame) and Give to a character holds the shape by it (PartTemplates.handle_of).
+## One undo step per click; a press off the part says so and waits for another press
+func _hold_chip() -> Button:
+	var b := _colour_btn("hold", "Hold here", Color(0.85, 0.8, 0.6))
+	b.name = "easypart_hold"
+	b.tooltip_text = "Pick where the hand holds it: press here, then click the spot on the part. Give to a character then holds it there"
+	b.pressed.connect(_hold_arm)
+	return b
+
+
+func _hold_arm() -> void:
+	armed = ""
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	if int(pu.res.get("bodies", 0)) == 0:
+		_say("Make something solid first, then pick where the hand holds it")
+		return
+	armed = "hold"
+	_say("Click the spot on the part where the hand holds it")
+
+
+func _hold_press(p: Vector2) -> bool:
+	var faces: Array = Part.body_faces(_rec(), -1)
+	var hit: Dictionary = pu._ray_hit(p, faces)
+	if hit.is_empty():
+		_say("Click on the part itself: the hand holds a spot on its solid")
+		return true
+	_flush_if_dirty()
+	armed = ""
+	var at: Vector3 = hit["at"]
+	var knob := INF   # the butt: the lowest x of the solid (metres), as PartWeapon measures it
+	for f in faces:
+		for v in f:
+			knob = minf(knob, (v as Vector3).x)
+	_begin("Hold here")
+	_rec()["grip"] = [snappedf(at.x / PartTemplates.MM, 0.1), snappedf(at.y / PartTemplates.MM, 0.1), snappedf(at.z / PartTemplates.MM, 0.1)]
+	_end()
+	m.part_weapon_changed(_rec())   # a held Part weapon takes the new grip at once
+	_say("The hand holds it here, %.1f cm from the butt" % ((at.x - knob) * 100.0))
+	return true
