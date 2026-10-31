@@ -330,6 +330,7 @@ func _chrome_sync() -> void:
 	var t := _tpl()
 	var rec := _rec()
 	_steps_sync()   # NSTEPLIST
+	call("_level_apply_buttons")   # P093
 	title_l.text = "Part: %s" % String(rec.get("name", "Part")) if not rec.is_empty() else "Part"
 	panel_title.text = "Change your %s" % _nm()
 	redo_btn.visible = not m.redo.is_empty()
@@ -420,7 +421,12 @@ func layout(cl: Rect2) -> void:
 	export_btn.custom_minimum_size.x = 84.0 if narrow else 110.0
 	title_l.clip_text = narrow
 	title_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if narrow else TextServer.OVERRUN_NO_TRIMMING
-	var n := float(MAKES.size())   # twelve buttons in one row: each takes its share (the row is as wide as the clear view allows)
+	var n := 0.0   # P093: only the visible ones share the row (Beginner hides five)
+	for b in make_btns.values():
+		if (b as Control).visible:
+			n += 1.0
+	n = maxf(n, 1.0)
+	# twelve buttons in one row: each takes its share (the row is as wide as the clear view allows)
 	var bw := minf(176.0, (w - (n - 1.0) * 8.0) / n)
 	make_box.reset_size()
 	for b in make_btns.values():
