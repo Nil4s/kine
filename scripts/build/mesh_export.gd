@@ -286,4 +286,6 @@ static func check_lines(rec: Dictionary) -> Array:
 	var bo := bodies_of(rec)
 	if (bo["bodies"] as Array).is_empty():
 		return ["WARN  " + String(bo["why"])]
-	return (report(bo["bodies"])["lines"] as Array)
+	var lines: Array = (report(bo["bodies"])["lines"] as Array).duplicate()
+	lines.append_array(PrintCheck.lines_of(rec, bo["bodies"]))   # Friday plan 112: Ready to print? (thin walls, overhangs, floating pieces)
+	return lines

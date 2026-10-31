@@ -1599,7 +1599,7 @@ func _pb_panel_make() -> void:
 	_pb_layer.visible = false
 
 
-func _save_video_playblast(root_dir := PlayblastExport.ROOT, clip := "") -> Dictionary:   # clip: the name the file takes (Easy: the clip's move words); "" = the scene's name
+func _save_video_playblast(root_dir := PlayblastExport.ROOT, clip := "", keep_frames := false) -> Dictionary:   # clip: the name the file takes (Easy: the clip's move words); "" = the scene's name; keep_frames: PNG frames kept beside the .mp4
 	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if _pb_busy:
 		_say_plain("A video is already being saved: press Cancel on the progress panel to stop it")
@@ -1650,6 +1650,8 @@ func _save_video_playblast(root_dir := PlayblastExport.ROOT, clip := "") -> Dict
 				break
 			pipe = {"stdin": io["stdio"], "pid": io["pid"]}
 			Children.add(io["pid"], io["stdio"])   # closing the app mid-save: the pipe is closed, then ffmpeg is killed
+		if keep_frames and not pipe.is_empty():
+			img.save_png("%s/frame_%04d.png" % [gdir, f])   # the story's film step keeps the frames beside the .mp4
 		if pipe.is_empty():
 			img.save_png("%s/frame_%04d.png" % [gdir, f])   # no ffmpeg: the PNG frames, as Export playblast keeps them
 		else:
@@ -3682,7 +3684,8 @@ func _world() -> void:
 		l.text = lab[0]
 		l.position = lab[1]
 		l.modulate = lab[2]
-		l.pixel_size = 0.0018
+		l.pixel_size = 0.0005   # p156redtext: fixed_size, a 32 px font = about 16 px on the screen at any zoom (was world-sized: 105 px close up)
+		l.fixed_size = true
 		l.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		stage_root.add_child(l)
 		axis_tags.append(l)
@@ -15243,7 +15246,7 @@ func _build_page_bar() -> void:
 			ui_ribbon_tabs[PAGE_ROW[p]] = b
 		var cell := Control.new()   # the tab's room: a plain Control has no minimum from its child, so the tab's own text cannot widen the bar
 		cell.name = "cell_" + b.name
-		cell.clip_contents = true
+		cell.clip_contents = false   # P172LAYOUTS: the tab button is 30 px tall (its text), the cell 26: a clip cut 4 px off the bottom of every page tab
 		cell.custom_minimum_size = Vector2(TAB_W, PAGE_H - 10)
 		b.set_anchors_preset(Control.PRESET_FULL_RECT)
 		cell.add_child(b)
@@ -15269,7 +15272,7 @@ func _build_page_bar() -> void:
 	ui_next.pressed.connect(_next_run)
 	var next_box := Control.new()   # the Next: line's room: a plain Control has no minimum from its child, so the text is clipped, not the bar widened
 	next_box.name = "next_box"
-	next_box.clip_contents = true
+	next_box.clip_contents = false   # P172LAYOUTS: the Next: button is 29 px tall, its box 26: clipped 3 px (the text is clipped inside the button)
 	next_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	next_box.size_flags_stretch_ratio = 2.0   # the Next: line gets the spare room first, the chips second
 	next_box.custom_minimum_size = Vector2(0, PAGE_H - 10)

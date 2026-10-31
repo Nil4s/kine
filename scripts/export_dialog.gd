@@ -16,6 +16,8 @@ var ui_checks: Label
 var ui_app: Label
 var ui_blur: CheckBox   # playblast motion blur (ROADMAP R3)
 var ui_what: OptionButton   # "What to export": Everything (the default) / Only the selected object / One entry per mesh object
+var ui_face: OptionButton   # laser cutting: which flat face
+var ui_face_row: HBoxContainer
 var ui_objects: Label   # the mesh objects in the scene, by name (what the choice picks from)
 var batch_ui: BatchDialog   # Batch... (ROADMAP 80), made on first use
 
@@ -68,6 +70,24 @@ const PRINT_TARGET := {"id": "print", "label": "3D printing (STL, 3MF)", "engine
 	"app": "The part as a printable solid in millimetres."}
 
 
+## LASER CUTTING (SVG, DXF; plan 116): shown with 3D printing while a free Part is on screen; scripts/build/laser_export.gd writes the outline of one flat face
+const LASER_TARGET := {"id": "laser", "label": "Laser cutting (SVG, DXF)", "engine": "",
+	"needs": "Any laser or CNC program (LightBurn, Inkscape, Fusion, LibreCAD) opens either file. Both hold millimetres, drawn flat: the outer edge and every hole of ONE flat face, at full size. Pick the face above: Top is the usual choice for a plate.",
+	"formats": [{"name": "SVG (.svg): outline in millimetres", "run": "svg",
+			"app": "An SVG whose width, height and viewBox are in millimetres: one red hairline path for the outer edge and one for each hole. Curves are cut finely (0.02 mm off the true curve at most)."},
+		{"name": "DXF (.dxf): outline in millimetres (R12)", "run": "dxf",
+			"app": "An R12 ASCII DXF in millimetres ($INSUNITS 4): LINE for straight runs, CIRCLE for a round hole, layer CUT. The lower-left corner of the outline is 0,0."}],
+	"app": "The outline of one flat face of the part, for cutting."}
+
+
+## CAD (STEP) (Friday plan 115): shown only while a free Part is on screen, just before 3D printing; scripts/build/step_export.gd writes the file
+const STEP_TARGET := {"id": "step", "label": "CAD program (STEP)", "engine": "",
+	"needs": "SolidWorks, Fusion, FreeCAD, Onshape, Inventor and CATIA open a .step as it is. It holds the exact solid (true curves and faces, not triangles), so holes can be edited and measured there. The file says its unit is the metre, so the part opens at its true size (a 20 mm box is 20 mm).",
+	"formats": [{"name": "STEP (.step): the exact solid for CAD programs", "run": "step",
+			"app": "A STEP file (ISO 10303-21) of the part: one exact solid, several pieces are joined into one file. No colour, no timeline: the shape only."}],
+	"app": "The part as an exact solid."}
+
+
 ## MY EDITED CHARACTER + ANIMATION (P149): shown only once "Apply the body mesh to the fighter" has put a sculpted body on the fighter (the other targets
 ## write the stock mannequin). One .glb: the edited body, its skin and the UE5-named skeleton, and the scene's clip. glTF has no FBX writer in Godot.
 const BODYANIM_TARGET := {"id": "bodyanim", "label": "My edited character + animation (GLB)", "engine": "",
@@ -88,6 +108,8 @@ func _tg() -> Array:
 	if m.pieces.size() > 0 and BaseBody.gen(m) > 0:
 		out.append(BODYANIM_TARGET)
 	if free_part:
+		out.append(LASER_TARGET)   # before 3D printing, so the Export button still lands on the last one: 3D printing
+		out.append(STEP_TARGET)
 		out.append(PRINT_TARGET)
 	return out
 
@@ -99,6 +121,10 @@ static func target(id: String) -> Dictionary:
 			return t
 	if id == "bodyanim":
 		return BODYANIM_TARGET
+	if id == "laser":
+		return LASER_TARGET
+	if id == "step":
+		return STEP_TARGET
 	return PRINT_TARGET if id == "print" else {}
 
 
@@ -155,6 +181,20 @@ func _build() -> void:
 	ui_what.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	rw.add_child(ui_what)
 	v.add_child(rw)
+	ui_face_row = HBoxContainer.new()   # laser cutting only: which flat face
+	ui_face_row.name = "export_face_row"
+	var lfc := Label.new()
+	lfc.text = "Face to cut"
+	ui_face_row.add_child(lfc)
+	ui_face = OptionButton.new()
+	ui_face.name = "opt_export_face"
+	for fl in LaserExport.face_labels():
+		ui_face.add_item(String(fl))
+	ui_face.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ui_face.item_selected.connect(func(_i: int): _refresh())
+	ui_face_row.add_child(ui_face)
+	ui_face_row.visible = false
+	v.add_child(ui_face_row)
 	# the text scrolls in its own box, so the dialog's buttons stay on a small window too
 	var sc := ScrollContainer.new()
 	sc.name = "export_scroll"
@@ -218,7 +258,11 @@ func open() -> void:
 	if dlg == null:
 		_build()
 	var tg := _tg()
-	if ui_target.item_count != tg.size() or (tg.size() > TARGETS.size() and ui_target.get_item_text(TARGETS.size()) != String((tg[TARGETS.size()] as Dictionary)["label"])):   # 3D printing joins the list while a free part is on screen
+	var labels_differ := ui_target.item_count != tg.size()
+	for li in mini(ui_target.item_count, tg.size()):
+		if ui_target.get_item_text(li) != String((tg[li] as Dictionary)["label"]):
+			labels_differ = true
+	if labels_differ:   # 3D printing joins the list while a free part is on screen
 		ui_target.clear()
 		for t in tg:
 			ui_target.add_item((t as Dictionary)["label"])
@@ -263,7 +307,17 @@ func _refresh() -> void:
 	var names := m.scene_object_names() as Array
 	var lst := ", ".join(names) if not names.is_empty() else "none"
 	var why := "" if plain else "\n\nThe choice is for the plain .glb (one mesh per object, no animation); this format always holds everything."
+	ui_face_row.visible = _cur_id() == "laser"
+	if _cur_id() == "laser":
+		ui_objects.text = "The part on screen is what is read. Pick the face above; its outer edge and holes are written in millimetres."
+		return
+	if _cur_id() == "step":
+		ui_objects.text = "The part on screen is what is written, as one exact solid. The file says metres, so a CAD program shows the true size."
+		return
 	if _cur_id() == "print":
+		var sc = ui_checks.get_parent().get_parent()   # the "Ready to print?" lines are last in the checklist: scroll them into view
+		if sc is ScrollContainer:
+			(func(): (sc as ScrollContainer).ensure_control_visible(ui_checks)).call_deferred()
 		ui_objects.text = "The part on screen is what is written. It holds millimetres, Z up, and the floor of the part is the print bed."
 		return
 	ui_objects.text = "Mesh objects in the scene: %s. Only the selected object writes just the one picked in the scene (the test cube when it is open, else the set piece picked, else the body); one entry per mesh object writes each by its name.%s" % [lst, why]
@@ -275,7 +329,7 @@ func _cur_run() -> String:
 
 
 func _on_export() -> void:
-	export_now(_cur_id(), maxi(ui_format.selected, 0), "res://exports", maxi(ui_what.selected, 0))
+	export_now(_cur_id(), maxi(ui_format.selected, 0), "res://exports", maxi(ui_face.selected, 0) if _cur_id() == "laser" else maxi(ui_what.selected, 0))
 
 
 ## everything the dialog shows for one target and format, for the scene now: format, needs, app, fps, checks
@@ -289,8 +343,10 @@ func text_of(id: String, fi: int) -> Dictionary:
 	var fps_s := "%d fps, the scene's own rate; the file keys every frame at it" % S.fps
 	if id == "bodyanim":
 		fps_s = "%d fps, the scene's own rate; a key on every frame" % S.fps
-	if id == "print":
+	if id == "print" or id == "step":
 		fps_s = "none: a printed part is one still shape"
+	if id == "laser":
+		fps_s = "none: a cut outline is one still shape"
 	# a format with its own "needs" / "app" replaces the target's (they describe that file type: glTF's scale is not FBX's)
 	var needs := String(f["needs"]) if f.has("needs") else needs_of(t)
 	var app := String(f["app"]) if f.has("app") else String(t["app"])
@@ -301,8 +357,12 @@ func text_of(id: String, fi: int) -> Dictionary:
 ## the checklist: each line starts "OK" or "WARN" (or "WRONG" from the engine pre-flight) and says what it means here
 func checks(id: String, run: String) -> Array:
 	var out := []
+	if id == "step":
+		return StepExport.check_lines(m.S.part)
 	if id == "print":   # the printability check of the part on screen
 		return MeshExport.check_lines(m.S.part)
+	if id == "laser":
+		return LaserExport.check_lines(m.S.part, ui_face.selected if ui_face != null else 0)
 	if id == "bodyanim":
 		var bl := []
 		var n := int(ceil(m.S.length() * m.S.fps - 1e-6)) + 1
@@ -382,10 +442,18 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 		return ""
 	var fs: Array = t["formats"]
 	var run := String((fs[clampi(fi, 0, fs.size() - 1)] as Dictionary)["run"])
+	if id == "laser":   # SVG / DXF of one flat face (what = the face's index in LaserExport.FACES)
+		var rl := LaserExport.export_part(m.S.part, run, UserPaths.w(dir), what)
+		m._say_plain(String(rl["text"]))
+		return String(rl["path"]) if bool(rl["ok"]) else ""
 	if id == "print":   # STL / 3MF of the part on screen (never blocked: an open shape still writes, with the warning in the words)
 		var r := MeshExport.export_part(m.S.part, run, UserPaths.w(dir))
 		m._say_plain(String(r["text"]))
 		return String(r["path"]) if bool(r["ok"]) else ""
+	if id == "step":   # STEP of the part on screen (the exact solid)
+		var rs := StepExport.export_part(m.S.part, UserPaths.w(dir))
+		m._say_plain(String(rs["text"]))
+		return String(rs["path"]) if bool(rs["ok"]) else ""
 	if run == "bodyanim":
 		if S_cards_short():
 			m._say_plain("NOT NOW: an animation needs at least 2 cards (a move). Make a move, then export again")
