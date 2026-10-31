@@ -281,6 +281,8 @@ func build(root: Control) -> void:
 	th.add_child(more)   # on the title line beside Empty (other ways to start): on the Start row it wrapped to a second line once Rack joined, and the Parts page ran out of the panel
 	lib_box = _lib_box()
 	v.add_child(lib_box)
+	fav_box = _fav_box()   # p083favfix: the Favourites category page (its row and the star), right under the Parts chips: the screw grid of a screw on the floor sits below it, so the star stays in the scroll view
+	v.add_child(fav_box)
 	screw_box = _screw_box()
 	v.add_child(screw_box)
 	bear_box = _bear_box()   # P069 BEARINGS: the bearing chips and the seat button, under the Parts page
@@ -1400,6 +1402,7 @@ func _chip(t: String) -> void:
 	pu.upto = -1
 	pu.sync()
 	frame()
+	_fav_sync()
 	_say("%s %s: move a slider or drag an amber dot" % ["An" if t.substr(0, 1) in "aeiou" else "A", t])
 
 
@@ -1945,6 +1948,8 @@ func _lib_press(cat: String) -> void:
 		_say("Hinges: press Hinge below. It drops on the floor, sized to the door")
 	elif cat == "Springs":   # p070springfix: the page shows the Spring button (opening a category builds nothing)
 		_say("Springs: press Spring below. It drops on the floor")
+	elif cat == "Favourites":   # p083favfix: a chip puts that part back on the floor; the star keeps a favourite
+		_say("Favourites: press a chip to put that part on the floor again. Press the star to keep one")
 	else:
 		_say("%s are coming soon. Next step: press Screws or Gears" % cat)
 	_screw_sync()
@@ -2292,6 +2297,9 @@ func _screw_sync() -> void:
 		if screw_words != null:   # the page is open: its chips and the status line say what to do
 			screw_words.visible = not parts_open
 		lib_soon.text = "%s are coming soon: not made yet. Next step: press Screws or Gears" % lib_cat if lib_soon.visible else ""
+		if fav_box != null:   # p083favfix: the Favourites page shows while its category is open; the row and the star are drawn here
+			fav_box.visible = parts_open and lib_cat == "Favourites"
+			_fav_sync()
 	if clip_box != null:   # P075: the Clips and feet chips show while that category is open
 		clip_box.visible = parts_open and lib_cat == "Clips and feet"
 		for kind in CLIP_KINDS:
@@ -4554,6 +4562,190 @@ func _steps_sync() -> void:
 		var fid := String(f.get("id", ""))
 		b.pressed.connect(func(): _step_open(fid))
 		steps_vb.add_child(b)
+
+## p083favourites (Friday plan 83) and p083favfix: the Favourites category of the Parts library. Its page is the row. It lists the favourites (starred, first) and then the
+## parts used lately (six at most). A chip puts that part on the floor again (one undo step, the same as the Parts chips). The star keeps
+## the part on the floor as a favourite: a list, not a model step, so it makes no undo step. The lists live in FAV_FILE (user://).
+const FAV_FILE := "user://easy_part_favs.json"
+const FAV_RECENT_MAX := 6
+var fav_box: PanelContainer          # the Favourites category page (_fav_box)
+var fav_row: HFlowContainer          # the row (its chips come and go; the star and the label stay)
+var fav_label: Label                 # "Favourites:" or "Favourites: none yet ..."
+var fav_star: Button                 # Add to favourites / Remove favourite, for the part on the floor
+var fav_btns := {}                   # key ("M4 x 16" or "Gear") -> its chip
+var fav_data := {}                   # {"fav": [...], "recent": [...]}, read from FAV_FILE once
+
+
+## the Favourites page: a panel with the row in it (under the Boards chips; shown by _screw_sync while the category is open)
+func _fav_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_fav_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	pc.add_child(_fav_row())
+	return pc
+
+
+## the row: a label, then the chips (added by _fav_sync), and the star last
+func _fav_row() -> HFlowContainer:
+	fav_row = HFlowContainer.new()
+	fav_row.name = "easypart_fav_row"
+	fav_row.add_theme_constant_override("h_separation", 4)
+	fav_row.add_theme_constant_override("v_separation", 4)
+	fav_label = Label.new()
+	fav_label.name = "easypart_fav_label"
+	fav_label.add_theme_font_size_override("font_size", 13)
+	fav_row.add_child(fav_label)
+	fav_star = Button.new()
+	fav_star.name = "easypart_fav_star"
+	fav_star.icon = _fav_icon()
+	fav_star.tooltip_text = "Keep the part on the floor as a favourite: it comes first in this row"
+	fav_star.focus_mode = Control.FOCUS_NONE
+	fav_star.custom_minimum_size = Vector2(0, 34)
+	fav_star.add_theme_font_size_override("font_size", 13)
+	fav_star.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+	fav_star.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+	fav_star.pressed.connect(_fav_star)
+	fav_row.add_child(fav_star)
+	return fav_row
+
+
+## a 16 px star in the accent colour (Tok), drawn from ten points
+func _fav_icon() -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var pts := PackedVector2Array()
+	for i in 10:
+		var r := 7.0 if i % 2 == 0 else 3.0
+		var a := -PI / 2.0 + float(i) * PI / 5.0
+		pts.append(Vector2(8.0, 8.5) + Vector2(cos(a), sin(a)) * r)
+	var col := Tok.c("accent")
+	for y in 16:
+		for x in 16:
+			if Geometry2D.is_point_in_polygon(Vector2(x + 0.5, y + 0.5), pts):
+				img.set_pixel(x, y, col)
+	return ImageTexture.create_from_image(img)
+
+
+## the key of the part on the floor: "Gear", "M4 x 16" (a screw), or "" when the floor has neither
+func _fav_key() -> String:
+	var t := _tpl()
+	if t == "gear":
+		return "Gear"
+	if t == "screw" and not (_rec().get("features", []) as Array).is_empty():
+		var cur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {})
+		var k := "M%d x %d" % [int(cur.get("d", 0)), int(cur.get("L", 0))]
+		return k if _fav_valid(k) else ""
+	return ""
+
+
+static func _fav_valid(k: String) -> bool:
+	if k == "Gear":
+		return true
+	for d in SCREW_DS:
+		for L in SCREW_LENS:
+			if k == "M%d x %d" % [d, L]:
+				return true
+	return false
+
+
+## the favourites file, read once; a missing or broken file is an empty list
+func _fav_load() -> void:
+	if not fav_data.is_empty():
+		return
+	fav_data = {"fav": [], "recent": []}
+	if not FileAccess.file_exists(FAV_FILE):
+		return
+	var d = JSON.parse_string(FileAccess.get_file_as_string(FAV_FILE))
+	if not (d is Dictionary):
+		return
+	for list_name in ["fav", "recent"]:
+		for n in (d as Dictionary).get(list_name, []):
+			if _fav_valid(String(n)) and not (fav_data[list_name] as Array).has(String(n)):
+				(fav_data[list_name] as Array).append(String(n))
+
+
+func _fav_save() -> void:
+	var f := FileAccess.open(FAV_FILE, FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify(fav_data))
+		f.close()
+
+
+## the part on the floor goes to the front of the recent list (six at most); then the row is drawn again
+func _fav_sync() -> void:
+	if fav_row == null:
+		return
+	_fav_load()
+	var key := _fav_key()
+	var rec: Array = fav_data["recent"]
+	if key != "" and (rec.is_empty() or rec[0] != key):
+		rec.erase(key)
+		rec.push_front(key)
+		while rec.size() > FAV_RECENT_MAX:
+			rec.pop_back()
+		_fav_save()
+	var favs: Array = fav_data["fav"]
+	var shown: Array = favs.duplicate()
+	for k in rec:
+		if not shown.has(k):
+			shown.append(k)
+	for k in fav_btns:
+		fav_row.remove_child(fav_btns[k])
+		(fav_btns[k] as Button).queue_free()
+	fav_btns = {}
+	for k in shown:
+		var b := Button.new()
+		b.name = "easypart_fav_" + String(k).replace(" ", "_")
+		b.text = String(k)
+		b.icon = _fav_icon() if favs.has(k) else null
+		b.tooltip_text = "Put %s on the floor again. One undo step" % String(k)
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(0, 34)
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_fav_use.bind(String(k)))
+		fav_row.add_child(b)
+		fav_btns[k] = b
+	fav_row.move_child(fav_star, -1)
+	fav_label.text = "Favourites:" if not shown.is_empty() else "Favourites: none yet"
+	fav_star.text = "Remove favourite" if key != "" and favs.has(key) else "Add to favourites"
+	var why := Part.why_not() if not Part.available() else ("" if key != "" else "Put a screw or a gear on the floor first")
+	m._grey(fav_star, why)
+
+
+## a favourite or recent chip: Gear puts the gear on the floor; a screw size is picked as on the Screws page (one undo step)
+func _fav_use(k: String) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	if k == "Gear":
+		if _tpl() == "gear":
+			_say("The gear is on the floor already. Pick another part to change it")
+			return
+		_chip("gear")
+		return
+	_screw_pick(int(k.substr(1, k.find(" x ") - 1)), int(k.substr(k.find(" x ") + 3)))
+
+
+## the star: the part on the floor becomes a favourite or stops being one. A list change, so no undo step
+func _fav_star() -> void:
+	var key := _fav_key()
+	if key == "":
+		_say("Put a screw or a gear on the floor first, then press the star")
+		_fav_sync()
+		return
+	_fav_load()
+	var favs: Array = fav_data["fav"]
+	var on := not favs.has(key)
+	if on:
+		favs.append(key)
+	else:
+		favs.erase(key)
+	_fav_save()
+	_say("%s is a favourite. It comes first in Favourites" % key if on else "%s is no longer a favourite" % key)
+	_fav_sync()
 
 
 # ---------------------------------------------------------------- P095 SHOW ME HOW: the steps as a ghost, one at a time
