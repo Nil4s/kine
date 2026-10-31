@@ -139,6 +139,11 @@ const T := {
 	# Boards chips (easy_part.gd), so its slider is hidden there ("parts": true). Its features are the same count for both boards.
 	"case": {"title": "Board case", "parts": true, "params": [
 		{"k": "board", "label": "Board", "lo": 1.0, "hi": 2.0, "def": 1.0, "step": 1.0, "words": ["Raspberry Pi", "Arduino Uno"], "raw": true, "unit": "board"}]},
+	# P080 WOOD BOARDS: a flat wood board, mm (Parts > Wood boards): width across X, thickness up Y, length along Z. Its sliders are the board's sizes
+	"board": {"title": "Wood board", "params": [
+		{"k": "width", "label": "Width", "lo": 10.0, "hi": 1300.0, "def": 89.0, "step": 1.0, "words": ["Narrower", "Wider"]},
+		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 50.0, "def": 38.0, "step": 1.0, "words": ["Thinner", "Thicker"]},
+		{"k": "length", "label": "Length", "lo": 100.0, "hi": 2500.0, "def": 2438.0, "step": 10.0, "words": ["Shorter", "Longer"]}]},
 }
 
 ## P069 BEARINGS: [bore, outside diameter, width] in mm of the bearings 608, 625, 688 (deep groove ball bearings, ISO 15 sizes)
@@ -629,6 +634,8 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var NR := int(roundf(float(p["teeth"])))
 			var mr := float(int(roundf(float(p["module"]))))
 			_ex(fs, _sk(fs, "front", rack_outline(NR, mr)), "extrude", float(p["thickness"]), "new")
+		"board":
+			return _board_features(p)   # P080: the wood board (end of this file)
 		"case":
 			# p078makeacasef: a box for a board, open at the top: a 3 mm wall and floor, the standoffs (5 mm across, 9 mm up from the floor) at the
 			# board's holes with a screw hole through each, two port openings cut through the +x wall (an offset plane 1.5 mm inside the wall, so the
@@ -816,3 +823,15 @@ static func dot_of(t: String, k: String, p: Dictionary) -> Dictionary:
 		"chair.back_height":
 			return {"at": Vector3(float(p["seat_width"]) * 0.5 * s, (float(p["seat_height"]) + float(p["back_height"])) * s, 0), "axis": Vector3.UP, "gain": 1.0}
 	return {}
+
+
+## P080 WOOD BOARDS: the real sizes of the two Parts > Wood boards chips, mm. 2x4 = 38 x 89 mm (1.5 x 3.5 in) in 8 ft (2438 mm) lengths;
+## an MDF sheet is 1220 x 2440 mm and 15 mm thick. The name is the chip's words.
+const WOOD_BOARDS := {"2x4": {"name": "2x4 board", "width": 89.0, "thickness": 38.0, "length": 2438.0}, "mdf": {"name": "MDF sheet 15 mm", "width": 1220.0, "thickness": 15.0, "length": 2440.0}}
+
+
+## P080: one box of wood, its cross-section (width x thickness) on the front sketch, pulled along Z by the length: it lies flat on the floor
+static func _board_features(p: Dictionary) -> Array:
+	var fs: Array = []
+	_ex(fs, _sk(fs, "front", [_rect(Vector2(0, 0), Vector2(p["width"], p["thickness"]))]), "extrude", p["length"], "new")
+	return fs
