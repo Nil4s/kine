@@ -91,6 +91,7 @@ const DRAW := {
 	"part_chamfer": [["seg", Vector2(5, 3.5), Vector2(5, 12), 2.0], ["seg", Vector2(5, 12), Vector2(12.5, 19.5), 2.0], ["seg", Vector2(12.5, 19.5), Vector2(20.5, 19.5), 2.0]],
 	"part_offset_face": [["box", Rect2(3, 13, 18, 8), 1.8], ["seg", Vector2(12, 10), Vector2(12, 2.5), 1.8], ["seg", Vector2(8.5, 6), Vector2(12, 2.5), 1.8], ["seg", Vector2(15.5, 6), Vector2(12, 2.5), 1.8]],   # OFFSET FACE: a block with its top face pushed up
 	"part_draft": [["seg", Vector2(4, 20), Vector2(8, 4), 1.9], ["seg", Vector2(20, 20), Vector2(16, 4), 1.9], ["seg", Vector2(4, 20), Vector2(20, 20), 1.9], ["seg", Vector2(8, 4), Vector2(16, 4), 1.9]],   # DRAFT: a block whose sides lean
+	"part_livecut": [["box", Rect2(5, 3, 14, 18), 1.6], ["seg", Vector2(5, 7), Vector2(14, 7), 1.2], ["seg", Vector2(9, 11), Vector2(19, 11), 1.2], ["seg", Vector2(5, 15), Vector2(14, 15), 1.2]],   # p204livinghing: a strip with slots
 	"part_hinge": [["box", Rect2(9, 4, 10, 16), 1.8], ["seg", Vector2(3, 4), Vector2(3, 20), 2.6], ["disc", Vector2(3, 4), 2.0], ["disc", Vector2(3, 20), 2.0]],   # HINGE: a leaf turning about its edge
 	"part_appearance": [["disc", Vector2(12, 12), 8.0], ["ring", Vector2(12, 12), 8.5, 1.9], ["disc", Vector2(12, 12), 3.0]],   # APPEARANCE: a colour disc with a ring
 	"part_filter_all": [["box", Rect2(3, 5, 18, 14), 1.6], ["disc", Vector2(3, 5), 1.8], ["disc", Vector2(21, 5), 1.8], ["disc", Vector2(3, 19), 1.8], ["disc", Vector2(21, 19), 1.8]],   # NROUNDFILTER: every edge of the box (its four corners rounded)
