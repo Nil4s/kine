@@ -21,6 +21,8 @@ func _hole_sync() -> void:
 	if wall_btn != null:
 		wall_btn.set_pressed_no_signal(wall_pick)
 		wall_btn.visible = hole_mode == "hollow" and _hole_on()   # Thicker wall only exists for a hollow
+	if lattice_btn != null:
+		lattice_btn.visible = _lattice_shown()   # p208latticeinf: Lattice inside shows after a hollow, not after a lattice
 
 
 ## a Through / Hollow inside chip: the hole step is REPLACED (one undo step): the record from before the hole press, then the chosen hole.
@@ -220,7 +222,7 @@ func _screw_hole(rec: Dictionary, d: int) -> String:
 	var bb: AABB = res["aabb"]
 	var c := bb.get_center() / Part.MM
 	var head: Array = PartTemplates.SCREW_HEAD[d]   # [head across mm, head depth mm]
-	var clear := float(SCREW_CLEAR[d])
+	var clear := float(PRINTER_CLEAR.get(printer, SCREW_CLEAR)[d])   # p203screwholea: resin tight, FDM loose, any = medium
 	var before := float(res["volume"])
 	var n0: int = rec["features"].size()
 	var seq0 := int(rec.get("seq", 0))
@@ -239,7 +241,7 @@ func _screw_hole(rec: Dictionary, d: int) -> String:
 		rec["seq"] = seq0
 		return "The screw hole would miss the shape: nothing was cut. Make the shape bigger, or pick a smaller screw"
 	tweak = {}   # the screw hole has no Hole size slider: its newest step keeps the chips up
-	_say("M%d screw: a %s mm hole, its %s mm head sunk %s mm deep. Mirror that or Repeat it next" % [d, _mm_words(clear), _mm_words(float(head[0])), _mm_words(float(head[1]))])
+	_say("M%d screw: a %s mm hole%s, its %s mm head sunk %s mm deep. Mirror that or Repeat it next" % [d, _mm_words(clear), _printer_tag(), _mm_words(float(head[0])), _mm_words(float(head[1]))])
 	return ""
 
 
@@ -965,3 +967,85 @@ func _finger_joints(rec: Dictionary) -> String:
 		return "The notches would miss the box: nothing was cut. Press Cut a hole again"
 	_say("Finger joints: %d notches along the top edge. Use Ctrl+Z to take them out" % n)
 	return ""
+
+
+## p208latticeinf (Friday plan 208; Kine's own idea: light and strong): Lattice inside shows under Cut a hole once the newest step is the
+## hollow (its shell). The button is hidden after the lattice, so a second press cannot stack one on top
+func _lattice_shown() -> bool:
+	var fs: Array = _rec().get("features", [])
+	return hole_mode == "hollow" and _hole_on() and not fs.is_empty() and String(fs[-1].get("t", "")) == "shell"
+
+
+## p208latticeinf: Lattice inside: ONE step ("lattice", its Gap slider: how far apart the bars are) after the hollow box. The bars fill the
+## hollow from wall to wall. Only a box-shaped hollow takes one: a shape that is not a box says so and changes nothing. One press = one undo step
+func _lattice_press() -> void:
+	var rec0 := _rec()
+	var fs: Array = rec0.get("features", [])
+	if not _lattice_shown() or not Part.available() or fs.size() < 2:
+		_say("Hollow it first: press Hollow inside, then Lattice inside")
+		_hole_sync()
+		return
+	var pre := Part.replay(rec0, fs.size() - 2)   # the solid before the hollow: a box is solid right up to its bounding box
+	var pb: AABB = pre["aabb"]
+	var box_vol := pb.size.x * pb.size.y * pb.size.z
+	if int(pre["bodies"]) == 0 or box_vol <= 0.0 or float(pre["volume"]) < box_vol * 0.99:
+		_say("The lattice fills a box-shaped hollow only: make the hollow a box first (Pull it up from a square)")
+		return
+	_flush_if_dirty()
+	armed = ""
+	wall_pick = false
+	var snap := rec0.duplicate(true)
+	_begin("Lattice inside")
+	var rec: Dictionary = snap.duplicate(true)
+	var f := Part.new_feature(rec, "lattice", {"body": int(fs[-1].get("body", 0)), "gap": 10.0, "bar": 2.0})
+	rec["features"].append(f)
+	m.S.part = rec
+	var why := _last_error(rec, String(f["id"]))
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+		return
+	_end()
+	tweak = {"id": f["id"], "field": "gap", "label": "Gap", "unit": "mm", "lo": 6.0, "hi": 20.0, "step": 1.0, "scale": 1.0, "words": ["Denser", "Airier"]}
+	pu.upto = -1
+	pu.sync()
+	_rows_sig = ""
+	_rows_sync()
+	_values_sync()
+	_say("Filled with a lattice: move the Gap slider for how far apart the bars are")
+
+
+## p203screwholea (Kine's own): THE PRINTER SETS THE HOLE. Resin prints small, so a screw hole is TIGHT (ISO 273 fine: M4 4.3 mm);
+## FDM prints loose, so it is LOOSE (ISO 273 coarse: M4 4.8 mm). Any printer = the medium hole (SCREW_CLEAR). One chip on the Cut a hole
+## panel cycles any -> resin -> FDM -> any. Pressing it while a screw hole is the newest step cuts that hole again (one undo step); the
+## counterbore for the head does not change. The choice is for this session (no record field, no undo step by itself)
+const PRINTER_CLEAR := {"resin": {3: 3.2, 4: 4.3, 5: 5.3, 6: 6.4}, "fdm": {3: 3.6, 4: 4.8, 5: 5.8, 6: 7.0}}
+var printer := ""   # "" any printer, "resin", "fdm"
+var printer_btn: Button = null
+
+
+func _printer_tag() -> String:
+	return " (resin: tight)" if printer == "resin" else (" (FDM: loose)" if printer == "fdm" else "")
+
+
+func _printer_chip(h: Control) -> void:
+	printer_btn = _big_btn("easypart_hole_printer", "", "Your printer: resin prints small, so its screw holes are tight; FDM prints loose, so they are loose. Any = the usual medium hole. Press to change it; a screw hole on the screen is cut again", _printer_press)
+	printer_btn.custom_minimum_size = Vector2(150, 44)
+	h.add_child(printer_btn)
+	_printer_sync()
+
+
+func _printer_sync() -> void:
+	if printer_btn != null:
+		printer_btn.text = "Printer: " + {"": "any", "resin": "resin", "fdm": "FDM"}[printer]
+
+
+func _printer_press() -> void:
+	printer = {"": "resin", "resin": "fdm", "fdm": ""}[printer]
+	_printer_sync()
+	if hole_mode.begins_with("screw") and _hole_on():
+		_hole_mode(hole_mode, false, true)   # the screw hole on the screen is cut again for this printer (one undo step)
+	else:
+		_say("Printer: %s. The next screw hole uses it" % ("any" if printer == "" else ("resin (tight)" if printer == "resin" else "FDM (loose)")))
