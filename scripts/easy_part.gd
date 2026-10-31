@@ -3352,6 +3352,7 @@ func _finish_line() -> void:
 	var segs: Array = _draft.get("segs", [false])
 	var fc: Dictionary = _draft.get("face", {})
 	var cuts: Array = _draft.get("cuts", [])   # P045: the points a typed stretch starts and ends on (each is a run's end)
+	var lpl: Dictionary = _draft.get("pl", Part.plane("top"))   # P045 LINE SHOW: the plane the stretches were drawn on
 	_draft = {}
 	var total := 0.0
 	for i in range(1, pts.size()):
@@ -3374,7 +3375,9 @@ func _finish_line() -> void:
 			s = i
 	_begin("Line")
 	var rec := pu._ensure()
-	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": ents, "dims": []}))
+	var lsk := Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": ents, "dims": []})
+	rec["features"].append(lsk)
+	line_show = {"id": String(lsk["id"]), "pl": lpl, "ents": ents}   # P045 LINE SHOW: stays on the grid until another step is made
 	_end()
 	armed = ""
 	tweak = {}

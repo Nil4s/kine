@@ -634,6 +634,7 @@ func _draw_dots() -> void:
 		var pts := _draft_outline()
 		if pts.size() > 1:
 			dots.draw_polyline(pts, AMBER, 3.0, true)
+	_draw_line_show()   # P045 LINE SHOW: the Line just drawn stays on the grid
 	var e: Dictionary = _rec().get("easy", {})
 	for d in _dot_list():
 		var p: Vector2 = d["scr"]
@@ -1076,3 +1077,32 @@ func _print_words() -> String:
 		else:
 			_print_text = "about %d h %d min to print" % [mins / 60, mins % 60]
 	return _print_text
+
+
+## P045 LINE SHOW: the Line just drawn stays on the grid, in the accent colour (Tok, 3 px), each straight stretch with its length in mm.
+## {"id": the sketch feature's id, "pl": its plane, "ents": its entities in plane mm}. It hides once another step is the newest (a solid pulled, an undo)
+var line_show: Dictionary = {}
+
+
+func _draw_line_show() -> void:
+	var fs: Array = _rec().get("features", [])
+	if line_show.is_empty() or fs.is_empty() or String((fs.back() as Dictionary).get("id", "")) != String(line_show["id"]):
+		line_show = {}
+		return
+	var col: Color = Tok.c("accent")
+	var font := ThemeDB.fallback_font
+	for e in line_show["ents"]:
+		var q: Array = [e["a"], e["b"]] if String(e["k"]) == "line" else e["pts"]
+		var sc := PackedVector2Array()
+		for p in q:
+			sc.append(m.cam.unproject_position(Part.to_world(line_show["pl"], Vector2(p[0], p[1]))))
+		if sc.size() < 2:
+			continue
+		dots.draw_polyline(sc, col, 3.0, true)
+		if String(e["k"]) != "line":
+			continue
+		var txt := _fmt(Vector2(e["a"][0], e["a"][1]).distance_to(Vector2(e["b"][0], e["b"][1])), "mm")
+		var sz := font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14)
+		var tp := (sc[0] + sc[1]) * 0.5 + Vector2(-sz.x * 0.5, -14.0)
+		dots.draw_rect(Rect2(tp + Vector2(-8, -sz.y + 1), sz + Vector2(16, 6)), Color(0.1, 0.11, 0.14, 0.9))
+		dots.draw_string(font, tp, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color.WHITE)
