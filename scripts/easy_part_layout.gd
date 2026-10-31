@@ -1053,6 +1053,7 @@ const GRID_LABEL_STEPS := [0.05, 0.1, 0.25, 0.5]   # m: 5, 10, 25, 50 cm (the gr
 const GRID_LABEL_PX := 70.0                         # px: the least gap between two numbers on the screen
 var _glabels: Array = []                            # the Label3D pool (grown when a step needs more)
 var _glabel_step := -1.0                            # the step the numbers are laid for (-1: not laid yet)
+var _glabel_n := 0                                  # how many pool labels the step uses (the rest stay hidden)
 
 
 func _grid_labels_sync() -> void:
@@ -1067,6 +1068,7 @@ func _grid_labels_sync() -> void:
 	if st != _glabel_step:
 		_glabel_step = st
 		_grid_labels_lay(st)
+	_grid_labels_cull()   # every frame: the camera moves, the numbers on screen follow it
 
 
 ## the finest step whose numbers are GRID_LABEL_PX apart on the screen; the wider of the two axes is measured (the other may be edge-on)
@@ -1086,7 +1088,7 @@ func _grid_label_step() -> float:
 func _grid_labels_lay(st: float) -> void:
 	var half := 10 * 50.0 * Part.MM   # the floor grid's half side (scripts: _floor_sync)
 	var k := int(roundf(half / st))
-	var want: Array = [[Vector3(0.0, 0.012, 0.0), "0"]]
+	var want: Array = [[Vector3(0.0, 0.012, 0.03), "0"]]   # the origin's 0 sits on the X axis line too, so the X axis reads -50, -25, 0, 25, 50
 	for i in range(-k, k + 1):
 		if i == 0:
 			continue
@@ -1104,12 +1106,26 @@ func _grid_labels_lay(st: float) -> void:
 		l.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y   # stands up, turns to the camera
 		m.cam.get_parent().add_child(l)
 		_glabels.append(l)
+	_glabel_n = want.size()
 	for j in _glabels.size():
 		var l := _glabels[j] as Label3D
 		l.visible = j < want.size()
 		if l.visible:
 			l.position = want[j][0]
 			l.text = want[j][1]
+
+## p108measuregri: only the numbers the lens can see are shown: one behind the camera or outside the 1280 x 720 view is hidden,
+## so the spacing on the screen is the spacing of the numbers that are there (a number far off the edge sat 40 px from its neighbour)
+func _grid_labels_cull() -> void:
+	var c: Camera3D = m.cam
+	var view := c.get_viewport().get_visible_rect()
+	for j in _glabel_n:
+		var l := _glabels[j] as Label3D
+		var p := l.global_position
+		var on := not c.is_position_behind(p)
+		if on:
+			on = view.has_point(c.unproject_position(p))
+		l.visible = on
 
 ## p059printtimee (Friday plan 59): the print time, in plain words, on the size label: "about 3 h 39 min to print". A print is mostly infill:
 ## the walls (1.2 mm over the whole surface) and 20 percent of the middle are what the printer lays down, at about 20 cm3 an hour (a typical
