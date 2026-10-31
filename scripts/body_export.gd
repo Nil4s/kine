@@ -61,6 +61,39 @@ static func write(k: KMesh, path: String, B: Body = null) -> Dictionary:
 	return out
 
 
+## P149: THE EDITED BODY WITH THE ANIMATION. The same skinned body and UE5-named skeleton as build(), plus the scene's clip:
+## GltfExport._animate's tracks (every joint's local rotation, the pelvis's position, a key on every frame at the scene's fps,
+## S.length() long), one animation named anim_name. Y up, metres (glTF's own). Godot's GLTFDocument writes it; B's state is put back.
+## -> [root, info {"verts", "tris", "unweighted"}]
+static func build_anim(k: KMesh, S: Scene, B: Body, anim_name: String) -> Array:
+	if B.body != S.body:
+		B.set_proportions(S.body)
+	var r := build(k, B)
+	var man: Node3D = r[0]
+	var anim := Animation.new()
+	anim.length = S.length()
+	GltfExport._animate(S, B, man, anim, "", S.length(), float(S.fps), "", false)
+	var ap := AnimationPlayer.new()
+	ap.name = "AnimationPlayer"
+	man.add_child(ap)
+	var lib := AnimationLibrary.new()
+	lib.add_animation(anim_name, anim)
+	ap.add_animation_library("", lib)
+	return r
+
+
+## write k with S's animation as a .glb at path. -> {"err", "path", "verts", "tris", "unweighted"}
+static func write_anim(k: KMesh, S: Scene, B: Body, path: String) -> Dictionary:
+	var keep := B.state()
+	var r := build_anim(k, S, B, S.name if S.name != "" else "scene")
+	var err := GltfExport._write(r[0], path, true)
+	B.set_state(keep)
+	var out: Dictionary = r[1]
+	out["err"] = err
+	out["path"] = path
+	return out
+
+
 ## "Model: export the body as glb (skin weights)": the fighter's body as it is drawn now
 static func export_cmd(m: Node, dir := DIR) -> String:
 	dir = UserPaths.w(dir)   # an exported build: the user's folder

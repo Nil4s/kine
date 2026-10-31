@@ -78,7 +78,7 @@ func build(root: Control) -> void:
 	give_btn.name = "easypart_give"
 	give_btn.custom_minimum_size = Vector2(170, m.TOP_H - 12)
 	row.add_child(give_btn)
-	export_btn = _bar_btn("Export", "Save this part as an OBJ or a GLB file: the export dialog, with this part picked", func(): m._export_dialog_open())   # FEXPORT
+	export_btn = _bar_btn("Export", "Save this part as a 3MF or STL file for your 3D printer (or OBJ / GLB): the export dialog, with this part picked", func(): m._export_dialog_open())   # FEXPORT
 	export_btn.name = "easypart_export"
 	export_btn.custom_minimum_size = Vector2(110, m.TOP_H - 12)
 	row.add_child(export_btn)
@@ -153,6 +153,17 @@ func build(root: Control) -> void:
 	pic.tooltip_text = "Your own picture: a dark shape on white becomes a raised logo, 4 cm wide and 2 mm high, in one step"
 	pic.pressed.connect(_picture_press)
 	sh.add_child(pic)
+	sh.add_child(_one_side_chip())   # P153: Symmetry is on by default; this chip turns it off ("One side only")
+	var photo_btn := Button.new()   # P201: Photo size: a phone photo with a coin beside the object; six clicks, the mm become a plate (easy_part_photo.gd)
+	photo_btn.name = "easypart_shape_photo"
+	photo_btn.text = "Photo size"
+	photo_btn.icon = Icons.sized("part_measure", 22)
+	photo_btn.focus_mode = Control.FOCUS_NONE
+	photo_btn.custom_minimum_size = Vector2(124, 40)
+	photo_btn.add_theme_font_size_override("font_size", 16)
+	photo_btn.tooltip_text = "Measure with a photo: the object with a coin beside it. Click the coin, then the object: its size becomes a plate"
+	photo_btn.pressed.connect(_photo_press)
+	sh.add_child(photo_btn)
 	root.add_child(shape_box)
 	hole_box = _hole_box()
 	root.add_child(hole_box)
@@ -400,6 +411,11 @@ func _hole_box() -> PanelContainer:
 	mb.custom_minimum_size = Vector2(96, 44)
 	h.add_child(mb)
 	hole_btns["magnet"] = mb
+	lattice_btn = _big_btn("easypart_hole_lattice", "Lattice inside", "Fill the hollow with a light lattice of thin bars: the Gap slider sets how far apart they are", _lattice_press)   # p208latticeinf: shown by _hole_sync
+	lattice_btn.icon = Icons.tex("part_pattern")
+	lattice_btn.custom_minimum_size = Vector2(150, 44)
+	lattice_btn.visible = false
+	h.add_child(lattice_btn)
 	var flb := _big_btn("easypart_hole_flat", "Flat pattern", "Unfold the box into a flat sheet to laser-cut: six panels with finger joints. The model does not change", _flat_press)   # p117flatpatter
 	flb.custom_minimum_size = Vector2(120, 44)
 	h.add_child(flb)   # not a toggle: it is not in hole_btns (the row's pressed state would ignore it)
@@ -409,6 +425,7 @@ func _hole_box() -> PanelContainer:
 		sb.custom_minimum_size = Vector2(96, 44)
 		h.add_child(sb)
 		hole_btns["screw%d" % sd] = sb
+	_printer_chip(h)   # p203screwholea: the printer chip (resin tight, FDM loose)
 	var fb := _big_btn("easypart_hole_fits", "What fits here?", "Ask which of My Parts go through this hole (the saved parts that fit it). No step: it only tells you", _fits_press)   # P076
 	fb.custom_minimum_size = Vector2(150, 44)
 	h.add_child(fb)
@@ -629,6 +646,12 @@ func _suggest_row() -> HBoxContainer:
 	suggest_hollow_btn.custom_minimum_size = Vector2(0, 44)
 	suggest_hollow_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(suggest_hollow_btn)
+	suggest_sculpt_btn = _big_btn("easypart_suggest_sculpt", "Sculpt details?", "Next step: turn this solid into a mesh and sculpt its details on the Sculpt page (a copy: Esc leaves, the solid stays as it is)", _suggest_sculpt_press)
+	suggest_sculpt_btn.custom_minimum_size = Vector2(0, 44)
+	suggest_sculpt_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	suggest_sculpt_btn.clip_text = true   # integ94: a third button in this row must never widen the side panel (it grew 318 -> 440 px, under the ViewCube)
+	suggest_sculpt_btn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	row.add_child(suggest_sculpt_btn)
 	suggest_row = row
 	return row
 
@@ -1373,6 +1396,8 @@ func tweak_last() -> void:
 	var t := String(f.get("t", ""))
 	if t == "shell":
 		tweak = {"id": f["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
+	elif t == "lattice":   # p208latticeinf: a reopened part keeps its Gap slider
+		tweak = _step_tweak(f)
 	elif t == "loft" and f.has("twist"):   # P027: a reopened blend keeps its Twist slider
 		tweak = _twist_tweak(String(f["id"]))
 	elif t == "sketch" and f.has("raw"):   # p039: a reopened Curvy line keeps its Smooth slider
@@ -1582,6 +1607,7 @@ func _screw_box() -> PanelContainer:
 	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	screw_words = hd
 	vb.add_child(hd)
+	vb.add_child(_head_row())   # P061SCREWHEADS: the head chips (Socket, Button, Flat) under the line, above the sizes
 	var row := HBoxContainer.new()   # FRIDAY 37 BOSS CHIP: the boss and nut buttons side by side, above the sizes (in view, not under the scroll)
 	row.add_theme_constant_override("separation", 4)
 	vb.add_child(row)
@@ -1698,6 +1724,10 @@ func _clip_icon(kind: String) -> ImageTexture:
 		"slot":
 			img.fill_rect(Rect2i(1, 4, 14, 8), col)
 			img.fill_rect(Rect2i(4, 7, 8, 2), Color(0, 0, 0, 0))
+		"snap":   # P205: a plate with a tongue cut free by a gap, and the hook on its tip
+			img.fill_rect(Rect2i(1, 5, 14, 7), col)
+			img.fill_rect(Rect2i(3, 9, 10, 1), Color(0, 0, 0, 0))
+			img.fill_rect(Rect2i(11, 3, 2, 2), col)
 	return ImageTexture.create_from_image(img)
 
 
@@ -2069,6 +2099,7 @@ func _lib_box() -> PanelContainer:
 		b.pressed.connect(_lib_press.bind(cat))
 		fl.add_child(b)
 		lib_btns[cat] = b
+	fl.add_child(_kids_chip_make())   # p197kidsmode: the Kids chip, last on the library page
 	lib_soon = Label.new()
 	lib_soon.name = "easypart_lib_soon"
 	lib_soon.add_theme_font_size_override("font_size", 14)
@@ -2084,6 +2115,7 @@ func _lib_box() -> PanelContainer:
 	hinges_btn.visible = false
 	hinges_btn.pressed.connect(_hinges_btn_press)
 	vb.add_child(hinges_btn)
+	vb.add_child(_livecut_btn_make())   # p204livinghing: the Living cuts button (the Hinges page)
 	spring_pick = Button.new()   # p070springfix: the Springs page button (shown only on Springs): one click, a spring on the floor
 	spring_pick.name = "easypart_spring_pick"
 	spring_pick.text = "Spring"
@@ -2095,8 +2127,13 @@ func _lib_box() -> PanelContainer:
 	spring_pick.pressed.connect(_spring_pick_press)
 	vb.add_child(spring_pick)
 	vb.add_child(_cam_pick_make())   # p130camandfoll: the Gears page's Cam and follower button
+	vb.add_child(_gp_pick_make())   # p065gearpairpi: the Gears page's Gear pair button
 	vb.add_child(lib_soon)
 	vb.add_child(_type_row())   # p085typetobuil: the Type it row (shows with that category)
+	vb.add_child(_photo_row())   # p192makeitlike: Like a photo, under Type it
+	linkage_box = preload("res://scripts/easy_linkage.gd").new()   # p129linkages: the Linkage panel (4 bars, a drag knob) on the Hinges page, scripts/easy_linkage.gd
+	linkage_box.say_fn = _say   # p129linkages: its words go to the status line at the top
+	vb.add_child(linkage_box)
 	return pc
 
 
@@ -2258,7 +2295,7 @@ func _screw_pick(d: int, L: int) -> void:
 	var on_floor := _tpl() == "screw" and not (_rec().get("features", []) as Array).is_empty()
 	if on_floor:
 		var cur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {})
-		if int(cur.get("d", 0)) == d and int(cur.get("L", 0)) == L:
+		if int(cur.get("d", 0)) == d and int(cur.get("L", 0)) == L and int(cur.get("h", 0)) == screw_head:
 			_say("Already %s on the floor. Pick another size to change it" % label)
 			_screw_sync()
 			return
@@ -2269,11 +2306,11 @@ func _screw_pick(d: int, L: int) -> void:
 	m._step_hint = "Change the screw size" if on_floor else "Start a screw"
 	m._push_undo()
 	if on_floor:
-		PartTemplates.retemplate(_rec(), {"d": d, "L": L})
+		PartTemplates.retemplate(_rec(), {"d": d, "L": L, "h": screw_head})
 		PartTemplates.nw_set(_rec(), d)   # NNUTWASHER: the nut and washer (if on the floor) follow the size
 		PartTemplates.bo_set(_rec(), d, L)   # FRIDAY 37 BOSS CHIP: the post (if on the floor) follows the size too
 	else:
-		m.S.part = PartTemplates.make("screw", {"d": d, "L": L})
+		m.S.part = PartTemplates.make("screw", {"d": d, "L": L, "h": screw_head})
 	tweak = {}
 	pu.upto = -1
 	pu.sync()
@@ -2387,22 +2424,28 @@ func _screw_sync() -> void:
 			lb.set_pressed_no_signal(parts_open and cat == lib_cat)
 			m._grey(lb, Part.why_not() if not Part.available() else "")
 		hinges_btn.visible = parts_open and lib_cat == "Hinges"   # p067hinges
+		if linkage_box != null:   # p129linkages: the Linkage panel shows on the Hinges page
+			linkage_box.visible = parts_open and lib_cat == "Hinges"
 		hinges_btn.set_pressed_no_signal(_tpl() == "hinge")
 		m._grey(hinges_btn, Part.why_not() if not Part.available() else "")
+		_livecut_sync()   # p204livinghing
 		spring_pick.visible = parts_open and lib_cat == "Springs"   # p070springfix
 		spring_pick.set_pressed_no_signal(_tpl() == "spring")
 		m._grey(spring_pick, Part.why_not() if not Part.available() else "")
 		_cam_pick_sync()   # p130camandfoll
+		_gp_pick_sync()   # p065gearpairpi
 		lib_soon.visible = parts_open and lib_cat != "" and not (lib_cat in LIB_READY)
 		if screw_words != null:   # the page is open: its chips and the status line say what to do
 			screw_words.visible = not parts_open
 		lib_soon.text = "%s are coming soon: not made yet. Next step: press Screws or Gears" % lib_cat if lib_soon.visible else ""
 		type_box.visible = parts_open and lib_cat == "Type it"   # p085typetobuil
+		photo_box.visible = parts_open and lib_cat == "Type it"   # p192makeitlike
 		if fav_box != null:   # p083favfix: the Favourites page shows while its category is open; the row and the star are drawn here
 			fav_box.visible = parts_open and lib_cat == "Favourites"
 			_fav_sync()
 	if clip_box != null:   # P075: the Clips and feet chips show while that category is open
 		clip_box.visible = parts_open and lib_cat == "Clips and feet"
+		_clip_scroll_once()   # integ94: the chips sat below the scroll's edge (y 594 vs 586) and took no click (p205 S1)
 		for kind in CLIP_KINDS:
 			var cb: Button = clip_btns[kind]
 			cb.set_pressed_no_signal(_tpl() == kind)
@@ -2442,6 +2485,7 @@ func _screw_sync() -> void:
 			b.set_pressed_no_signal(not cur.is_empty() and int(cur.get("d", 0)) == d and int(cur.get("L", 0)) == L)
 			m._grey(b, Part.why_not() if not Part.available() else "")
 	parts_btn.set_pressed_no_signal(parts_open)
+	_head_sync(cur)   # P061SCREWHEADS: the head chips and the size tips follow the screw on the floor
 	# FRIDAY 73: the bracket chips show while Brackets is open or a bracket is the part; the pressed one is the shape on the floor
 	var kind := int(cur.get("kind", 0)) if _tpl() == "bracket" else 0
 	bracket_box.visible = (parts_open and lib_cat == "Brackets") or _tpl() == "bracket"
@@ -3463,6 +3507,7 @@ func _curve_keep(pts: Array, maxn: int) -> Array:
 func _process(_dt: float) -> void:
 	if bar == null or pu == null:
 		return
+	_grid_labels_sync()   # p108measuregri: the grid's numbers follow the zoom (view only)
 	pu.replay_forget()   # the same-frame replay reuse (PartUI.replay_once) ends with the frame
 	_cut_sync()   # P101 SECTION: the Cut view follows the built part, and goes off when Easy is left
 	var on := active()
@@ -4038,9 +4083,10 @@ func _finish_draw() -> void:
 			_say("Drag a bit further from the centre: a circle needs a radius of at least 5 mm (now %s mm)" % _mm_words(r))
 			return
 		ent = {"k": "circle", "c": Part.arr2(a), "r": snappedf(r, 0.5)}
+	var all: Array = _with_twin(ents if not ents.is_empty() else [ent], fc, sh)   # P153: symmetry on by default: the copy on the other side, same step
 	_begin("Draw shape")
 	var rec := pu._ensure()
-	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": ents if not ents.is_empty() else [ent], "dims": []}))
+	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": all, "dims": []}))
 	_end()
 	armed = ""
 	tweak = {}
@@ -4562,6 +4608,8 @@ func step_words(f: Dictionary) -> String:
 			return "Rounded %d %s %s mm" % [n, "edge" if n == 1 else "edges", _plain_num(float(f.get("r", 0.0)))]
 		"shell":
 			return "Hollowed out, wall %s mm" % _plain_num(float(f.get("thick", 0.0)))
+		"lattice":
+			return "Filled with a lattice, bars %s mm apart" % _plain_num(float(f.get("gap", 0.0)))
 		"appear":
 			return "Coloured"
 		"mirror":
@@ -4584,6 +4632,8 @@ static func step_icon(t: String) -> String:
 			return "part_fillet"
 		"shell":
 			return "part_circle"
+		"lattice":
+			return "part_pattern"
 		"mirror":
 			return "part_mirror"
 		"pattern":
@@ -4604,6 +4654,8 @@ func _step_tweak(f: Dictionary) -> Dictionary:
 			return {"id": id, "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
 		"shell":
 			return {"id": id, "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
+		"lattice":   # p208latticeinf: the bars' spacing in mm (4 mm is the smallest the kernel makes)
+			return {"id": id, "field": "gap", "label": "Gap", "unit": "mm", "lo": 6.0, "hi": 20.0, "step": 1.0, "scale": 1.0, "words": ["Denser", "Airier"]}
 		"loft":
 			return _twist_tweak(id) if f.has("twist") else {}
 	return {}
@@ -5661,6 +5713,18 @@ func _frame_held() -> void:
 	m._cam()
 
 
+## P129 LINKAGES: the Linkage panel on the Hinges page (built in _lib_box, shown by _screw_sync)
+var linkage_box: PanelContainer
+## P201 PHYSICAL TO DIGITAL: the Photo size chip (Draw shape row). The photo panel, its six clicks and Make the part are scripts/easy_part_photo.gd
+var photo = null
+
+
+func _photo_press() -> void:
+	if photo == null:
+		photo = EasyPartPhoto.new(self)
+	photo.pick()
+
+
 ## P127 DOES IT FALL OVER (scripts/build/part_stand.gd): one chip on the Colour page, after the weights. It reads whether the built
 ## solid stands on its feet (its middle over the lowest surface) and says how far, in plain words. Changes no step: no undo
 func _stand_chip() -> Button:
@@ -5824,3 +5888,359 @@ func _rod_pick(d: int) -> void:
 	_lib_fit()
 	_screw_sync()
 	_say("M%d rod on the floor. Its thread is for printing: a printed nut turns on it" % d)
+
+
+# ---------------------------------------------------------------- p192makeitlike: "Like a photo" (Parts > Type it)
+
+var photo_box: HBoxContainer     # p192makeitlike: the photo row under the Parts page's categories (shows with Type it)
+
+
+## p192makeitlike: a row of two buttons: Mug like this photo, Chair like this photo. A press asks for the photo first
+func _photo_row() -> HBoxContainer:
+	var hb := HBoxContainer.new()
+	hb.name = "easypart_photo_row"
+	hb.visible = false
+	hb.add_theme_constant_override("separation", 4)
+	var lab := Label.new()
+	lab.text = "Like a photo:"
+	lab.add_theme_font_size_override("font_size", 13)
+	hb.add_child(lab)
+	for t in ["mug", "chair"]:
+		var b := Button.new()
+		b.name = "easypart_photo_" + t
+		b.text = "Mug like this photo" if t == "mug" else "Chair like this photo"
+		b.focus_mode = Control.FOCUS_NONE
+		b.tooltip_text = "Pick a photo, then Kine makes a %s from steps (not a mesh): slide its size after" % t
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_photo_pick.bind(t))
+		hb.add_child(b)
+	photo_box = hb
+	return hb
+
+
+## p192makeitlike: the file dialog for the photo. Only a picture file is taken; the photo is kept as the reference, the steps come from the object
+func _photo_pick(t: String) -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	var fd := FileDialog.new()
+	fd.name = "easypart_photo_dialog"
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.png, *.jpg, *.jpeg, *.webp, *.bmp ; Pictures"])
+	fd.title = "Pick a photo of a %s" % t
+	fd.file_selected.connect(func(p: String): fd.queue_free(); _photo_chosen(t, p))
+	fd.canceled.connect(fd.queue_free)
+	shape_box.get_parent().add_child(fd)
+	fd.popup_centered(Vector2i(640, 480))
+	_say("Pick a photo of a %s. Kine makes the steps for one like it" % t)
+
+
+## p192makeitlike: the photo is checked (a picture Kine can open), then the object is built from its steps in ONE press (one undo step).
+## Nothing is read from the photo's pixels: the object is the one the button names
+func _photo_chosen(t: String, path: String) -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	var img := Image.load_from_file(path)
+	if img == null or img.is_empty():
+		_say("That file is not a picture Kine can open: pick a .png or .jpg photo, then press the %s button again" % ("Mug" if t == "mug" else "Chair"))
+		return
+	_flush_if_dirty()
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	m._step_hint = "Start a " + t
+	m._push_undo()
+	m.S.part = PartTemplates.make(t)
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	_fav_sync()
+	_chips_sync()
+	_say("A %s made from steps, like your photo. Slide its size, or Undo takes it back" % t)
+
+
+## p156solidmesht: "Sculpt details?" (the suggest row, under a pulled-up solid). The built solid becomes a sculpt mesh (KMesh of its
+## shown triangles, at the floor beside the fighter) and opens on Expert's Sculpt page: Easy turns off for it. The solid itself is
+## not changed (no undo step here); Esc on the sculpt leaves and nothing is saved. Its strokes are the sculpt's own undo steps
+func _suggest_sculpt_press() -> void:
+	_flush_if_dirty()
+	armed = ""
+	var am: ArrayMesh = pu.part_mesh.mesh if pu.part_mesh != null and pu.part_mesh.mesh != null else null
+	if am == null or am.get_surface_count() == 0 or not Part.available():
+		_say("Pull it up first: a built solid is needed to sculpt its details")
+		return
+	var km: KMesh = KMesh.new().from_array_mesh(am)
+	if km == null or km.vert_count() == 0:
+		_say("This solid has no faces to sculpt: press Undo, then try again")
+		return
+	if m.ksc == null:
+		m.ksc = load("res://scripts/kmesh_sculpt_ui.gd").new()
+		m.add_child(m.ksc)
+		m.ksc.setup(m)
+	if m.ksc.on:
+		_say("Sculpt: leave the sculpt first (Esc), then Sculpt details?")
+		return
+	if m.easy != null and m.easy.on:
+		m.easy.set_on(false)   # the Sculpt page is an Expert page: Easy hides it
+	m.ksc.source = func(): return {"mesh": km, "at": Transform3D(Basis(), Vector3(1.0, 0.0, 0.0))}
+	m._sculpt_start()
+	m.ksc.source = Callable()   # the next Test sphere is a sphere again
+	m._say("Sculpt: the solid is a mesh now (a copy). Drag on it to sculpt details, Ctrl+Z takes a stroke back, Esc leaves: nothing is saved")
+
+## P197 KIDS MODE: a Kids chip, last on the Parts library page. On: the category chips are taller (40 px), their words bigger (15 px) and
+## their corners rounder (14 px), so a child can press them. Off: the plain 34 px chips. A view setting only: no undo step, the model is not touched
+const KIDS_H := 40.0
+const KIDS_R := 14
+const PLAIN_H := 34.0
+const PLAIN_R := 6
+var kids_on := false
+var kids_btn: Button
+
+func _kids_chip_make() -> Button:
+	kids_btn = Button.new()
+	kids_btn.name = "easypart_kids"
+	kids_btn.text = "Kids"
+	kids_btn.tooltip_text = "Kids mode: big buttons and rounder corners on this page. Press again for normal buttons"
+	kids_btn.toggle_mode = true
+	kids_btn.focus_mode = Control.FOCUS_NONE
+	kids_btn.custom_minimum_size = Vector2(0, PLAIN_H)
+	kids_btn.add_theme_font_size_override("font_size", 12)
+	kids_btn.pressed.connect(_kids_press)
+	return kids_btn
+
+
+func _kids_press() -> void:
+	kids_on = kids_btn.button_pressed
+	_kids_sync()
+	_say("Kids mode on: big buttons, rounder corners" if kids_on else "Kids mode off: normal buttons")
+
+
+func _kids_sync() -> void:
+	kids_btn.set_pressed_no_signal(kids_on)
+	var h := KIDS_H if kids_on else PLAIN_H
+	var r := KIDS_R if kids_on else PLAIN_R
+	for cat in lib_btns:
+		var b: Button = lib_btns[cat]
+		b.custom_minimum_size = Vector2(0, h)
+		b.add_theme_font_size_override("font_size", 15 if kids_on else 12)
+		b.add_theme_stylebox_override("normal", _style(Tok.c("btn"), r, 4))
+		b.add_theme_stylebox_override("hover", _style(Tok.c("btn_hover"), r, 4))
+
+
+## p204livinghing LIVING CUTS: the Living cuts button on the Hinges page (shown only there, as the Hinge button is). One click: the page
+## closes, then a strip of slots drops on the floor. One undo step (the chip's).
+var livecut_btn: Button   # p204livinghing
+
+
+func _livecut_btn_make() -> Button:
+	livecut_btn = Button.new()
+	livecut_btn.name = "easypart_livecut_pick"
+	livecut_btn.text = "Living cuts"
+	livecut_btn.icon = Icons.tex("part_livecut")
+	livecut_btn.toggle_mode = true
+	livecut_btn.focus_mode = Control.FOCUS_NONE
+	livecut_btn.custom_minimum_size = Vector2(0, 34)
+	livecut_btn.add_theme_font_size_override("font_size", 13)
+	livecut_btn.visible = false
+	livecut_btn.pressed.connect(_livecut_btn_press)
+	return livecut_btn
+
+
+func _livecut_sync() -> void:
+	livecut_btn.visible = parts_open and lib_cat == "Hinges"
+	livecut_btn.set_pressed_no_signal(_tpl() == "livecut")
+	m._grey(livecut_btn, Part.why_not() if not Part.available() else "")
+
+
+func _livecut_btn_press() -> void:
+	parts_open = false
+	_chip("livecut")
+	m._step_hint = "Living cuts"
+	_say("Living cuts: a strip with slots, so it bends. Move Length, Slot spacing or Thickness")
+	_screw_sync()
+
+## p065gearpairpi: the Gears page's Gear pair button (shown only while Gears is open): one click closes the page and drops two meshing gears
+## (the small one and the big one, ratio 2 : 1 by default) on the floor. One undo step (the chip's). Grey while the library cannot build.
+var gp_pick: Button   # p065gearpairpi
+func _gp_pick_make() -> Button:
+	gp_pick = Button.new()
+	gp_pick.name = "easypart_gearpair_pick"
+	gp_pick.text = "Gear pair"
+	gp_pick.icon = _gp_icon()
+	gp_pick.tooltip_text = "Gear pair: two gears that mesh. Ratio 2 : 1 = the big gear has twice the teeth"
+	gp_pick.toggle_mode = true
+	gp_pick.focus_mode = Control.FOCUS_NONE
+	gp_pick.custom_minimum_size = Vector2(0, 34)
+	gp_pick.add_theme_font_size_override("font_size", 13)
+	gp_pick.visible = false
+	gp_pick.pressed.connect(_gp_pick_press)
+	return gp_pick
+
+
+func _gp_pick_sync() -> void:
+	gp_pick.visible = parts_open and lib_cat == "Gears"
+	gp_pick.set_pressed_no_signal(_tpl() == "gearpair")
+	m._grey(gp_pick, Part.why_not() if not Part.available() else "")
+
+
+func _gp_pick_press() -> void:
+	parts_open = false
+	_chip("gearpair")
+	m._step_hint = "Start a gear pair"
+	_say("Gear pair: move Ratio to change the big gear. The gears are placed to mesh")
+	_screw_sync()
+
+
+## p065gearpairpi: 16 px, two rings side by side in the text colour (Tok): the small gear and the big one
+func _gp_icon() -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	for y in range(16):
+		for x in range(16):
+			var p := Vector2(x + 0.5, y + 0.5)
+			var d := minf(p.distance_to(Vector2(4.5, 8.0)), p.distance_to(Vector2(11.5, 8.0)))
+			if d <= 3.5 and d >= 1.3:
+				img.set_pixel(x, y, col)
+	return ImageTexture.create_from_image(img)
+
+## P153 SYMMETRY ON BY DEFAULT: the "One side only" chip sits on the shape row. Off (the default), a shape drawn on one side of the
+## middle line also gets its copy on the other side, in the same Draw shape step (one undo step). On: only the shape drawn is made.
+var one_side := false
+var one_side_btn: Button
+
+
+func _one_side_chip() -> Button:
+	one_side_btn = Button.new()
+	one_side_btn.name = "easypart_one_side"
+	one_side_btn.text = "One side only"
+	one_side_btn.toggle_mode = true
+	one_side_btn.focus_mode = Control.FOCUS_NONE
+	one_side_btn.icon = Icons.sized("symmetry", 22)
+	one_side_btn.expand_icon = false
+	one_side_btn.custom_minimum_size = Vector2(150, 40)
+	one_side_btn.add_theme_font_size_override("font_size", 16)
+	one_side_btn.tooltip_text = "Symmetry is on by default: a shape drawn on one side of the middle line gets its copy on the other side. Press to draw one side only"
+	one_side_btn.pressed.connect(_one_side_press)
+	return one_side_btn
+
+
+func _one_side_press() -> void:
+	one_side = one_side_btn.button_pressed
+	armed = ""   # the chip ends Draw shape (the shape row hides): press Draw shape again to draw
+	_draft = {}
+	_say("One side only: on. Only the shape you draw is made" if one_side else "Symmetry is on: a shape drawn on one side gets its copy on the other side")
+
+
+## P153: the shape's copy across the middle line (x = 0), added to the same Draw shape step. The shape is returned as it is when One
+## side only is on, a curve is drawn, the shape is not on the floor or the upright middle plane, or it crosses the middle line (no copy fits)
+func _with_twin(ents: Array, fc: Dictionary, sh: String) -> Array:
+	if one_side or sh == "curve" or not (fc.is_empty() or bool(fc.get("through", false))):
+		return ents
+	var lo := INF
+	var hi := -INF
+	for e in ents:
+		for k in ["a", "b", "c"]:
+			if e.has(k):
+				lo = minf(lo, float(e[k][0]))
+				hi = maxf(hi, float(e[k][0]))
+		for p in e.get("pts", []):
+			lo = minf(lo, float(p[0]))
+			hi = maxf(hi, float(p[0]))
+		if String(e["k"]) == "circle":
+			lo = minf(lo, float(e["c"][0]) - float(e["r"]))
+			hi = maxf(hi, float(e["c"][0]) + float(e["r"]))
+	if lo < -0.01 and hi > 0.01:
+		_say("This shape crosses the middle line, so it has no copy. Draw it on one side to get a copy")
+		return ents
+	var out := ents.duplicate()
+	for e in ents:
+		var ne: Dictionary = e.duplicate(true)
+		for k in ["a", "b", "c"]:
+			if e.has(k):
+				ne[k] = Part.arr2(Vector2(-float(e[k][0]), float(e[k][1])))
+		if e.has("pts"):
+			var np := []
+			for p in e["pts"]:
+				np.append(Part.arr2(Vector2(-float(p[0]), float(p[1]))))
+			ne["pts"] = np
+		out.append(ne)
+	return out
+
+
+## integ94: when the Clips and feet page opens, the panel scrolls its chips into view (once per opening, so a maker's own scroll is kept)
+var _clip_was_open := false
+func _clip_scroll_once() -> void:
+	if clip_box.visible and not _clip_was_open:
+		_scroll_into_view.call_deferred(clip_box)
+	_clip_was_open = clip_box.visible
+
+
+
+## P061SCREWHEADS: the head row of the Screws page: Socket, Button, Flat (one toggle chip each, a flat row under the one-line instruction)
+func _head_row() -> HBoxContainer:
+	var hb := HBoxContainer.new()
+	hb.name = "easypart_head_row"
+	hb.add_theme_constant_override("separation", 4)
+	var tips := ["ISO 4762 socket head (the hex socket, the flat top)", "ISO 7380 button head (a low dome, a hex socket)", "ISO 10642 countersunk head (a 90 deg flat head, a hex socket)"]
+	for i in PartTemplates.SCREW_HEAD_CHIPS.size():
+		var b := Button.new()
+		b.name = "easypart_head_" + String(PartTemplates.SCREW_HEAD_CHIPS[i]).to_lower()
+		b.text = PartTemplates.SCREW_HEAD_CHIPS[i]
+		b.tooltip_text = "Head: " + tips[i] + ". A screw on the floor takes this head, one undo step"
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(0, 26)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_head_pick.bind(i))
+		hb.add_child(b)
+		head_btns.append(b)
+	return hb
+
+
+## P061SCREWHEADS: a head chip. No screw on the floor: the next screw takes this head. A screw on the floor is rebuilt with it (its size kept), one undo step
+func _head_pick(h: int) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var on_floor := _tpl() == "screw" and not (_rec().get("features", []) as Array).is_empty()
+	if not on_floor:
+		screw_head = h
+		_screw_sync()
+		return
+	var cur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {})
+	if int(cur.get("h", 0)) == h:
+		_say("Already the %s head on the floor" % PartTemplates.SCREW_HEAD_CHIPS[h].to_lower())
+		_screw_sync()
+		return
+	screw_head = h
+	_screw_pick(int(cur.get("d", 0)), int(cur.get("L", 0)))
+
+
+## P061SCREWHEADS: the head chips show the head of the screw on the floor (or the one to come); the sizes' tips and the line name it
+func _head_sync(cur: Dictionary) -> void:
+	if not cur.is_empty():
+		screw_head = clampi(int(cur.get("h", 0)), 0, 2)
+	for i in head_btns.size():
+		(head_btns[i] as Button).set_pressed_no_signal(i == screw_head)
+	var hn := String(PartTemplates.SCREW_HEAD_CHIPS[screw_head]).to_lower()
+	if screw_words != null:
+		screw_words.text = "Screws, %s head: pick a size. It drops on the floor" % hn if screw_head != 2 else "Screws, countersunk head: pick a size. It drops on the floor"
+	for d in SCREW_DS:
+		for L in SCREW_LENS:
+			(screw_btns["%d_%d" % [d, L]] as Button).tooltip_text = _screw_tip(d, L)
+
+
+## P061SCREWHEADS: the size chip's tip: the head across and high (the chosen head's table, mm), the shank and the length
+func _screw_tip(d: int, L: int) -> String:
+	var hd: Array = PartTemplates.SCREW_HEAD[d] if screw_head == 0 else PartTemplates.SCREW_ALT[screw_head][d]
+	return "M%d x %d: %s head %s mm across, %s mm high, plain shank %d mm long" % [d, L, String(PartTemplates.SCREW_HEAD_CHIPS[screw_head]).to_lower(), str(hd[0]), str(hd[1]), L]

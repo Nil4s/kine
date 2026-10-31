@@ -17,7 +17,7 @@ const SCREW_LENS := [10, 16, 20, 30]   # NSCREW2: the screw lengths in mm (rows 
 const BRACKET_CHIPS := [["L", "L-bracket", 1, "An L: a foot and an upright, two screw holes"], ["T", "T-bracket", 2, "A T: a bar on a stem, two screw holes"], ["corner", "Corner brace", 3, "An L with a gusset in the corner, two screw holes"]]   # FRIDAY 73: the Brackets page chips (key, words, kind 1 / 2 / 3)
 const LIB_CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "Springs", "Handles", "Wheels", "Brackets", "Clips and feet", "Boards", "Wood boards", "Type it", "Favourites"]   # NLIBPAGE: the Parts library page, in this order (p083favfix: Favourites last; p085typetobuil: Type it before it)
 const LIB_READY := ["Screws", "Gears", "Bearings", "Brackets", "Clips and feet", "Handles", "Wheels", "Boards", "Wood boards", "Hinges", "Springs", "Type it", "Favourites"]   # NLIBPAGE: the categories with parts today; the others say coming soon
-const CLIP_KINDS := ["foot", "clip", "slot"]   # P075: the Clips and feet chips: a rubber foot, a cable clip, a zip-tie slot (template kinds in part_templates.gd)
+const CLIP_KINDS := ["foot", "clip", "slot", "snap"]   # P075: the Clips and feet chips: a rubber foot, a cable clip, a zip-tie slot (template kinds in part_templates.gd); P205: + the snap-fit clip
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
 const WEIGHT_CHIPS := [["wood", "wood"], ["steel", "metal"], ["plastic", "plastic"]]   # p057: the weight chips after Wood (PartWeapon.DENSITY key, the word on the chip)
 const WOOD_COLOUR := Color("#9a6b3f")   # the Wood chip (after Glass and Metal): a wood brown, red > green > blue
@@ -85,6 +85,7 @@ var tilt_btn: Button
 var suggest_row: HBoxContainer   # P092: the next-step row in the right panel (after a Pull it up): the two chips below
 var suggest_round_btn: Button    # P092: "Round the edges?" under a pulled-up solid (the suggest row): one press = Round the edges
 var suggest_hollow_btn: Button   # P092: "Hollow it?" under a pulled-up solid (the suggest row): one press = Hollow inside (HOLLOW_MM wall, open at the top)
+var suggest_sculpt_btn: Button   # p156solidmesht: "Sculpt details?" in the same suggest row: the solid becomes a sculpt mesh (a copy; see _suggest_sculpt_press)
 var swing_btn: Button            # p123driveit: Swing it (Drive it), the chip in the Tilt it panel: the newest piece swings on a hinge step
 var draft_btn: Button            # p021: Draft angle, the chip beside Tilt it (the side walls lean DRAFT_DEG for a mould)
 var pull_along_btn: Button       # P026: Pull along, the same box as Tilt it: shows after a curve or a shape is drawn (the newest step is a sketch)
@@ -100,6 +101,8 @@ var screw_btns := {}             # NSCREW2: "d_L" -> the size chip (M<d> x <L>)
 var clip_box: PanelContainer     # P075: the Clips and feet chips (rubber foot, cable clip, zip-tie slot), shown while that category is open
 var clip_btns := {}              # P075: kind -> its chip
 var screw_words: Label           # the grid's one-line instruction: hidden while the library page is open (the page and the status line say it)
+var screw_head := 0             # P061SCREWHEADS: the head the next screw gets (0 Socket, 1 Button, 2 Flat); a screw on the floor shows its own
+var head_btns := []             # P061SCREWHEADS: the three head chips, in SCREW_HEAD_CHIPS order
 var bracket_box: PanelContainer   # FRIDAY 73: the bracket chips (L-bracket, T-bracket, Corner brace), shown while Brackets is open or a bracket is the part
 var bracket_btns := {}
 var nw_btn: Button               # NNUTWASHER: "Add its nut and washer" (in the screw grid): the screw on the floor takes its nut and washer, one click
@@ -137,6 +140,7 @@ var rep_id := ""                 # the last Repeat it step's feature id ("" = no
 var rep_rows := []               # the two slider rows of the Repeat it box (see _make_row)
 var hole_box: PanelContainer     # Cut a hole: the Through / Hollow inside chips, under the MAKE row, after a Cut a hole press (see _hole_on)
 var hole_btns := {}
+var lattice_btn: Button = null   # p208latticeinf: Lattice inside (not a toggle: outside hole_btns); shown by _hole_sync (easy_part_pull.gd)
 var snap_btn: Button            # Snap-fit lip (nsnaplip): an on/off chip under Hollow with a lid (the lid gets a ridge, the box a groove)
 var hole_base: Dictionary = {}   # the record before the last Cut a hole press: each chip rebuilds the hole from it ({} = no hole chips)
 var hole_id := ""                # the feature id of the last hole step (the hole's sketch, or the hollow's shell): its slider's step
@@ -292,6 +296,8 @@ func _flush() -> void:
 		PartTemplates.retemplate(_rec(), _pending)
 		_pending = {}
 	var note := PartTemplates.fit_rounds(_rec())   # a new size (or the How round slider) can leave a round too big for its edges: it shrinks, and says so
+	if note == "":
+		note = PartTemplates.livecut_note(_rec())   # p204livinghing: slots closer than 2 x Thickness may tear the strip
 	if note != "":
 		_say(note)
 	pu.sync()
@@ -308,6 +314,8 @@ func _fmt(v: float, unit: String) -> String:
 		return "%d teeth" % int(roundf(v))
 	if unit == "size":   # NGEAR: the module 1 / 2 / 3 as Small / Medium / Big teeth
 		return ["Small", "Medium", "Big"][clampi(int(roundf(v)) - 1, 0, 2)] + " teeth"
+	if unit == "ratio":   # p065gearpairpi: the Gear pair's ratio reads 2 : 1
+		return "%d : 1" % int(roundf(v))
 	if unit == "mm":
 		return "%s mm" % str(snappedf(v, 0.1))
 	return "%s cm" % str(snappedf(v, 0.1))

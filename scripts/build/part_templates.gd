@@ -48,6 +48,10 @@ const T := {
 		{"k": "seat_width", "label": "Seat width", "lo": 300.0, "hi": 600.0, "def": 420.0, "step": 10.0, "words": ["Narrower", "Wider"]},
 		{"k": "seat_depth", "label": "Seat depth", "lo": 300.0, "hi": 600.0, "def": 420.0, "step": 10.0, "words": ["Shallower", "Deeper"]},
 		{"k": "back_height", "label": "Back height", "lo": 200.0, "hi": 800.0, "def": 450.0, "step": 10.0, "words": ["Lower", "Taller"]}]},
+	# p192makeitlike: a mug built from steps (round body, cup hollowed, floor, C handle). Not in ORDER: no chip; Easy Part's "Like a photo" row makes it
+	"mug": {"title": "Mug", "params": [
+		{"k": "cup_height", "label": "Cup height", "lo": 60.0, "hi": 140.0, "def": 95.0, "step": 5.0, "words": ["Shorter", "Taller"]},
+		{"k": "cup_width", "label": "Cup width", "lo": 60.0, "hi": 110.0, "def": 80.0, "step": 5.0, "words": ["Narrower", "Wider"]}]},
 	"crate": {"title": "Crate", "params": [
 		{"k": "width", "label": "Width", "lo": 200.0, "hi": 900.0, "def": 500.0, "step": 10.0, "words": ["Narrower", "Wider"]},
 		{"k": "height", "label": "Height", "lo": 200.0, "hi": 800.0, "def": 400.0, "step": 10.0, "words": ["Lower", "Taller"]},
@@ -79,6 +83,13 @@ const T := {
 	"cam": {"title": "Cam and follower", "params": [
 		{"k": "lift", "label": "Lift", "lo": 5.0, "hi": 20.0, "def": 10.0, "step": 1.0, "words": ["Less lift", "More lift"], "raw": true, "unit": "mm"},
 		{"k": "thickness", "label": "Thickness", "lo": 5.0, "hi": 30.0, "def": 10.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
+	# p065gearpairpi: two spur gears that mesh, not in ORDER (Parts > Gears has its button). teeth = the small gear's teeth; the big gear has
+	# teeth x ratio (ratio 2 : 1 = twice the teeth, so the small one turns twice for each turn of the big one). Raw sliders, mm and teeth.
+	"gearpair": {"title": "Gear pair", "params": [
+		{"k": "teeth", "label": "Small teeth", "lo": 8.0, "hi": 30.0, "def": 15.0, "step": 1.0, "words": ["Fewer", "More"], "raw": true, "unit": "teeth"},
+		{"k": "ratio", "label": "Ratio", "lo": 1.0, "hi": 3.0, "def": 2.0, "step": 1.0, "words": ["Same speed", "Slower out"], "raw": true, "unit": "ratio"},
+		{"k": "module", "label": "Teeth size", "lo": 1.0, "hi": 3.0, "def": 2.0, "step": 1.0, "words": ["Small teeth", "Big teeth"], "raw": true, "unit": "size"},
+		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 30.0, "def": 10.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
 	# P032: a plate with a long rounded hole (a slot) cut right through it. Length and Width are the hole's own size (the round ends
 	# are Width / 2 across); the plate is 20 mm wider than the hole on each side. Width is at most 40, so Length (at least 60) stays longer.
 	"slothole": {"title": "Slot", "params": [
@@ -118,6 +129,12 @@ const T := {
 	"slot": {"title": "Zip-tie slot", "params": [
 		{"k": "L", "label": "Slot length", "lo": 6.0, "hi": 30.0, "def": 14.0, "step": 2.0, "words": ["Shorter", "Longer"], "raw": true, "unit": "mm"},
 		{"k": "t", "label": "Thickness", "lo": 2.0, "hi": 6.0, "def": 3.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
+	# P205 (Kine's own idea): a snap-fit clip, cut from a plate. The tongue (a cantilever arm, Length long, Width wide) is free on three sides by a
+	# 0.8 mm gap: that gap is the matching slot, and the tongue's hook (3 mm long, 1.5 mm high) snaps over a lip. One solid. Sizes in mm.
+	"snap": {"title": "Snap-fit clip", "params": [
+		{"k": "w", "label": "Width", "lo": 6.0, "hi": 20.0, "def": 10.0, "step": 2.0, "words": ["Narrower", "Wider"], "raw": true, "unit": "mm"},
+		{"k": "L", "label": "Length", "lo": 10.0, "hi": 30.0, "def": 16.0, "step": 2.0, "words": ["Shorter", "Longer"], "raw": true, "unit": "mm"},
+		{"k": "t", "label": "Thickness", "lo": 2.0, "hi": 5.0, "def": 3.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
 	# NSCREW2: a screw from the Parts category (not in ORDER: no template chip). d = the nominal size (M3..M6, mm), L = the length under the head (mm).
 	# Its numbers are picked by the Parts chips (easy_part.gd), so its sliders are hidden there ("parts": true).
 	# FRIDAY 73: a bracket from the Parts page's Brackets: kind 1 = L, 2 = T, 3 = corner brace (raw: the chip's own number). Its numbers are not sliders (parts: true)
@@ -128,7 +145,8 @@ const T := {
 		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 10.0, "def": 5.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
 	"screw": {"title": "Screw", "parts": true, "params": [
 		{"k": "d", "label": "Size", "lo": 3.0, "hi": 6.0, "def": 4.0, "step": 1.0, "words": ["Smaller", "Bigger"]},
-		{"k": "L", "label": "Length", "lo": 10.0, "hi": 30.0, "def": 16.0, "step": 1.0, "words": ["Shorter", "Longer"]}]},
+		{"k": "L", "label": "Length", "lo": 10.0, "hi": 30.0, "def": 16.0, "step": 1.0, "words": ["Shorter", "Longer"]},
+		{"k": "h", "label": "Head", "lo": 0.0, "hi": 2.0, "def": 0.0, "step": 1.0, "words": ["Socket", "Flat"], "raw": true, "unit": "kind"}]},
 	# THREAD (p206threadgene): a threaded rod for printing, M8 / M10 / M12. Its numbers are the Parts chips (Screws page), so no sliders.
 	"rod": {"title": "Threaded rod", "parts": true, "params": [
 		{"k": "d", "label": "Size", "lo": 8.0, "hi": 12.0, "def": 8.0, "step": 2.0, "words": ["Smaller", "Bigger"]}]},
@@ -158,6 +176,18 @@ const T := {
 		{"k": "width", "label": "Width", "lo": 10.0, "hi": 1300.0, "def": 89.0, "step": 1.0, "words": ["Narrower", "Wider"]},
 		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 50.0, "def": 38.0, "step": 1.0, "words": ["Thinner", "Thicker"]},
 		{"k": "length", "label": "Length", "lo": 100.0, "hi": 2500.0, "def": 2438.0, "step": 10.0, "words": ["Shorter", "Longer"]}]},
+	# p204livinghing: the Living cuts strip from Parts > Hinges (not in ORDER: its own button). Length along Y, the slots across a 60 mm strip;
+	# slot spacing (mm, the start of one slot to the next) and thickness (mm) are raw sliders.
+	"livecut": {"title": "Living cuts", "params": [
+		{"k": "length", "label": "Length", "lo": 100.0, "hi": 600.0, "def": 300.0, "step": 10.0, "words": ["Shorter", "Longer"], "raw": true, "unit": "mm"},
+		{"k": "gap", "label": "Slot spacing", "lo": 4.0, "hi": 20.0, "def": 8.0, "step": 1.0, "words": ["Closer slots", "Wider apart"], "raw": true, "unit": "mm"},
+		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 12.0, "def": 6.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
+	# p207knurlingon KNURL: a knurled grip, a round handle with flutes along it. Its width is the Handles chips (24, 32, 40 mm); its length and
+	# its Grip texture (the flute depth, mm: raw, so the slider reads mm) are sliders
+	"grip": {"title": "Knurled grip", "params": [
+		{"k": "diameter", "label": "Width", "lo": 16.0, "hi": 60.0, "def": 32.0, "step": 4.0, "words": ["Thinner", "Wider"], "unit": "mm"},
+		{"k": "length", "label": "Length", "lo": 60.0, "hi": 200.0, "def": 120.0, "step": 10.0, "words": ["Shorter", "Longer"], "unit": "mm"},
+		{"k": "texture", "label": "Grip texture", "lo": 0.2, "hi": 1.5, "def": 0.6, "step": 0.1, "words": ["Smoother", "Rougher"], "raw": true, "unit": "mm"}]},
 }
 
 ## P069 BEARINGS: [bore, outside diameter, width] in mm of the bearings 608, 625, 688 (deep groove ball bearings, ISO 15 sizes)
@@ -167,9 +197,9 @@ const SEAT_CLEAR := 0.2     # mm: the pocket is the outside diameter + this (the
 const SEAT_BEAR_GAP := 15.0 # mm: the bearing stands this far beside the holder's edge (the two never touch)
 
 ## P071 HANDLES: the chip sizes (mm) by kind, in the Parts library's Handles grid: each row's three sizes, and the template number each one sets
-const HANDLE_SIZES := {"drawer_pull": [96, 128, 160], "knob": [24, 32, 40], "d_handle": [96, 128, 160]}
-const HANDLE_KEY := {"drawer_pull": "spacing", "knob": "diameter", "d_handle": "width"}
-const HANDLE_NAME := {"drawer_pull": "Drawer pull", "knob": "Knob", "d_handle": "D-handle"}
+const HANDLE_SIZES := {"drawer_pull": [96, 128, 160], "knob": [24, 32, 40], "d_handle": [96, 128, 160], "grip": [24, 32, 40]}
+const HANDLE_KEY := {"drawer_pull": "spacing", "knob": "diameter", "d_handle": "width", "grip": "diameter"}
+const HANDLE_NAME := {"drawer_pull": "Drawer pull", "knob": "Knob", "d_handle": "D-handle", "grip": "Knurled grip"}
 const PULL_END := 14.0   # mm from a drawer pull's hole to its end: the bar is spacing + 2 x 14 mm long
 const PULL_W := 12.0     # mm: a drawer pull's bar height (its width across the front)
 const PULL_HOLE := 2.25  # mm radius: a 4.5 mm hole, for an M4 screw
@@ -194,6 +224,14 @@ const CASE_PORT_Y := [11.0, 21.0]   # mm: the port openings' height on the wall
 
 ## NSCREW2: ISO 4762 socket head screws: nominal size -> [head diameter, head height] (mm). The shank is the nominal size, plain (no thread).
 const SCREW_HEAD := {3: [5.5, 3.0], 4: [7.0, 4.0], 5: [8.5, 5.0], 6: [10.0, 6.0]}
+## P061SCREWHEADS: the other two heads, by the same nominal size, [head diameter, head height] (mm). h 1 = Button (ISO 7380, low dome, hex socket:
+## dk and k from the standard's table, M5 dk 9.5 k 2.75). h 2 = Flat (ISO 10642, 90 deg countersunk, hex socket): dk is the table's dk max (M5 10.0; the
+## theoretical 11.2 is trimmed to it); k is the cone's height, (dk - d) / 2, so the cone is 90 deg. Its length L includes the head.
+const SCREW_ALT := {
+	1: {3: [5.5, 1.65], 4: [7.0, 2.2], 5: [9.5, 2.75], 6: [12.0, 3.3]},
+	2: {3: [6.3, 1.65], 4: [8.4, 2.2], 5: [10.0, 2.5], 6: [12.0, 3.0]},
+}
+const SCREW_HEAD_CHIPS := ["Socket", "Button", "Flat"]
 ## NNUTWASHER: ISO 4032 nut [across flats, thickness] and ISO 7089 washer [inside, outside, thickness] (mm), by the nominal size M3..M6.
 ## They stand on the floor beside the screw: the washer's centre at X 18 mm, the nut's at X 40 mm (the screw's head is under 6 mm wide).
 const NUT_ISO := {3: [5.5, 2.4], 4: [7.0, 3.2], 5: [8.0, 4.7], 6: [10.0, 5.2]}
@@ -450,6 +488,8 @@ static func _poly(pts: Array) -> Array:
 static func features_of(t: String, p: Dictionary) -> Array:
 	if t == "rod":   # THREAD (p206threadgene)
 		return rod_features(p)
+	if t == "grip":   # p207knurlingon
+		return grip_features(p)
 	var fs: Array = []
 	match t:
 		"box":
@@ -468,6 +508,8 @@ static func features_of(t: String, p: Dictionary) -> Array:
 		"plate":
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(0, 0), Vector2(p["width"], p["length"]))]), "extrude", p["thickness"], "new")
 		"screw":
+			if int(roundf(float(p.get("h", 0)))) != 0:   # P061SCREWHEADS: a button or flat head (its own builder, at the end of this file)
+				return _screw_head_feats(fs, p)
 			# NSCREW2: one lathe profile (x = radius, y = height, mm) spun round the up axis (Y), from the floor: the shank, then the head on top
 			var sd := clampi(int(roundf(float(p["d"]))), 3, 6)
 			var hd: Array = SCREW_HEAD[sd]
@@ -570,6 +612,16 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			_ex(fs, _sk(fs, "front", _poly([Vector2(0, sh), Vector2(w, sh), Vector2(w, 0), Vector2(w - lt, 0), Vector2(w - lt, sh - st), Vector2(lt, sh - st), Vector2(lt, 0), Vector2(0, 0)])), "extrude", d, "new")
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(0, sh - st), Vector2(w, sh + bh))]), "extrude", 30.0, "join")
 			_ex(fs, _sk(fs, "right", [_rect(Vector2(-(d - lt), 0), Vector2(-lt, sh - st))]), "extrude", w, "cut")
+		"mug":
+			# p192makeitlike: step 1 the body (a round, Y up), 2 the cup hollowed to a 4 mm wall, 3 a 4 mm floor, 4 the C handle on the
+			# right side (a bar, 8 mm thick), 5 its window cut. Sizes in mm; the handle sits at the body's side, half in the wall
+			var R: float = float(p["cup_width"]) * 0.5
+			var H: float = p["cup_height"]
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [0.0, 0.0], "r": R}]), "extrude", H, "new")
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [0.0, 0.0], "r": R - 4.0}]), "extrude", 2.0 * H + 20.0, "cut", true)
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [0.0, 0.0], "r": R}]), "extrude", 4.0, "join")
+			_ex(fs, _sk(fs, "right", [_rect(Vector2(-(R + 30.0), 0.2 * H), Vector2(-(R - 10.0), 0.8 * H))]), "extrude", 8.0, "join", true)
+			_ex(fs, _sk(fs, "right", [_rect(Vector2(-(R + 22.0), 0.3 * H), Vector2(-(R + 8.0), 0.7 * H))]), "extrude", 20.0, "cut", true)
 		"car":
 			# a car in side profile (the Right plane: sketch x = -Z, the car drives along +Z; sketch y = Y), extruded across the width.
 			# The lower body (sills at the wheel centre's height, the belt at 55 % of the height, nose and tail rounded) is one extrusion
@@ -634,6 +686,8 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var th: float = p["t"]
 			_ex(fs, _sk(fs, "top", [_rect(Vector2(0.0, 0.0), Vector2(L + 12.0, 10.0))]), "extrude", th, "new")
 			_ex(fs, _sk(fs, "top", [_rect(Vector2(6.0, 3.75), Vector2(6.0 + L, 6.25))]), "extrude", 2.0 * th, "cut", true)
+		"snap":
+			return _snap_features(p)   # P205: the snap-fit clip (its own function at the end of this file)
 		"drawer_pull":
 			# P071: a flat bar in the front plane, spacing + 28 mm long, 12 mm high, extruded by the thickness; two 4.5 mm holes at the
 			# spacing cut through (both sides), so an M4 screw from the Parts page goes in
@@ -672,6 +726,8 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			return _board_features(p)   # P080: the wood board (end of this file)
 		"cam":
 			return _cam_features(p)   # p130camandfoll: the cam and its follower (end of this file)
+		"gearpair":
+			return _gear_pair_features(p)   # p065gearpairpi: the two meshing gears (end of this file)
 		"case":
 			# p078makeacasef: a box for a board, open at the top: a 3 mm wall and floor, the standoffs (5 mm across, 9 mm up from the floor) at the
 			# board's holes with a screw hole through each, two port openings cut through the +x wall (an offset plane 1.5 mm inside the wall, so the
@@ -728,6 +784,8 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var R: float = p["radius"]
 			var w: float = p["width"]
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(-w * 0.5, 0.0), Vector2(w * 0.5, R))]), "revolve", 0.0, "new")
+		"livecut":
+			fs = _livecut_features(p)   # p204livinghing: the strip with its slots (the builder is at the end of this file)
 	return fs
 
 
@@ -922,5 +980,151 @@ static func rod_features(p: Dictionary) -> Array:
 	var fs: Array = []
 	var sid := _sk(fs, "front", _poly(rod_profile(rod_size(p))))
 	_ex(fs, sid, "revolve", 0.0, "new")
+	fs[fs.size() - 1]["axis"] = "y"
+	return fs
+
+
+## p204livinghing LIVING CUTS: a plate LIVE_W mm across (x) and length mm up (y), thickness mm, in the front plane (extruded through Z).
+## Slot i is LIVE_KERF mm wide, from y = LIVE_END + i x gap, cut across the plate from its left edge (x = -1: past the edge) and stopping
+## LIVE_SPINE mm short of its right edge: the spine keeps the strip in one piece, the slots let it bend. Count = floor((length - 22) / gap) + 1.
+const LIVE_W := 60.0
+const LIVE_KERF := 2.0
+const LIVE_SPINE := 10.0
+const LIVE_END := 10.0
+
+
+static func _livecut_features(p: Dictionary) -> Array:
+	var fs: Array = []
+	var L: float = p["length"]
+	var gp: float = p["gap"]
+	var th: float = p["thickness"]
+	_ex(fs, _sk(fs, "front", [_rect(Vector2(0.0, 0.0), Vector2(LIVE_W, L))]), "extrude", th, "new")
+	var cuts := []
+	var n := int(floor((L - 2.0 * LIVE_END - LIVE_KERF) / gp)) + 1
+	for i in n:
+		var y0 := LIVE_END + float(i) * gp
+		cuts.append(_rect(Vector2(-1.0, y0), Vector2(LIVE_W - LIVE_SPINE, y0 + LIVE_KERF)))
+	_ex(fs, _sk(fs, "front", cuts), "extrude", 2.0 * th + 2.0, "cut", true)
+	return fs
+
+
+## p204livinghing: the say line when the slots are closer than 2 x Thickness (the strip may tear). Names the next step. "" otherwise.
+static func livecut_note(rec: Dictionary) -> String:
+	var e: Dictionary = rec.get("easy", {})
+	if String(e.get("t", "")) != "livecut":
+		return ""
+	var p: Dictionary = e.get("p", {})
+	var gp := float(p.get("gap", 0.0))
+	var th := float(p.get("thickness", 0.0))
+	if gp >= 2.0 * th:
+		return ""
+	return "Slots %d mm apart may tear a %d mm strip: drag Slot spacing wider, to at least %d mm" % [int(gp), int(th), int(2.0 * th)]
+
+
+## P205 (Kine's own idea, Friday plan 205): the snap-fit clip. A plate (Length + 10 mm long, Width + 9.6 mm across, Thickness thick) with a U-shaped
+## gap cut round a tongue: the tongue is the cantilever arm (Length long from 4 mm in, Width wide), and the 0.8 mm gap around it IS the matching slot.
+## The hook (3 mm long, 1.5 mm high) sits on the tongue's tip. One solid; the sizes are the three sliders.
+const SNAP_GAP := 0.8     # mm: the gap round the tongue (the matching slot's clearance)
+const SNAP_ROOT := 4.0    # mm: the solid root the tongue grows out of
+const SNAP_HOOK := 3.0    # mm: the hook's length along the tongue (its height is HOOK_H)
+const SNAP_HOOK_H := 1.5  # mm: the hook stands this far above the tongue
+
+
+static func _snap_features(p: Dictionary) -> Array:
+	var fs: Array = []
+	var W: float = p["w"]
+	var Lt: float = p["L"]
+	var th: float = p["t"]
+	var G := SNAP_GAP
+	var R := SNAP_ROOT
+	var M := R
+	# the plate: from the root to the far end, and the margin (G + M) past the tongue's two sides
+	_ex(fs, _sk(fs, "top", [_rect(Vector2(0.0, -(G + M)), Vector2(Lt + 10.0, W + G + M))]), "extrude", th, "new")
+	# the U gap round the tongue: one side slit, the other side slit, and the slit across the tongue's tip (all through)
+	_ex(fs, _sk(fs, "top", [_rect(Vector2(R, W), Vector2(R + Lt + G, W + G))]), "extrude", 2.0 * th, "cut", true)
+	_ex(fs, _sk(fs, "top", [_rect(Vector2(R, -G), Vector2(R + Lt + G, 0.0))]), "extrude", 2.0 * th, "cut", true)
+	_ex(fs, _sk(fs, "top", [_rect(Vector2(R + Lt, -G), Vector2(R + Lt + G, W + G))]), "extrude", 2.0 * th, "cut", true)
+	# the hook on the tongue's tip: from the plate's plane up to thickness + HOOK_H, across the tongue's width
+	_ex(fs, _sk(fs, "top", [_rect(Vector2(R + Lt - SNAP_HOOK, 0.0), Vector2(R + Lt, W))]), "extrude", th + SNAP_HOOK_H, "join")
+	return fs
+
+## p065gearpairpi: two spur gears that mesh, in the front plane (x across, y up, extruded thickness through Z). The small gear (teeth N1)
+## sits at the origin, the big one (teeth N2 = N1 x ratio) at x = module x (N1 + N2) / 2, so its pitch circle touches the small one's. It is
+## turned by pi - pi / N2, so a gap of the big gear faces the small gear's tooth and the teeth interleave. Each gear: its outline, then its
+## centre hole (0.12 x its pitch diameter, as a Gear). Four features at every ratio (the record keeps its features in step). Two solids.
+static func _gear_pair_features(p: Dictionary) -> Array:
+	var fs: Array = []
+	var n1 := int(roundf(float(p["teeth"])))
+	var n2 := int(roundf(float(p["teeth"]) * float(p["ratio"])))
+	var md := float(int(roundf(float(p["module"]))))
+	var th: float = p["thickness"]
+	var d := md * float(n1 + n2) * 0.5
+	_ex(fs, _sk(fs, "front", _gear_at(n1, md, Vector2.ZERO, 0.0)), "extrude", th, "new")
+	_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": 0.12 * n1 * md}]), "extrude", th, "cut", true)
+	_ex(fs, _sk(fs, "front", _gear_at(n2, md, Vector2(d, 0.0), PI - PI / float(n2))), "extrude", th, "new")
+	_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [d, 0.0], "r": 0.12 * n2 * md}]), "extrude", th, "cut", true)
+	return fs
+
+
+## p065gearpairpi: gear_outline(n, m) turned by rot (rad) and moved to centre c (mm): the same lines, both end points moved
+static func _gear_at(n: int, m: float, c: Vector2, rot: float) -> Array:
+	var out := []
+	for l in gear_outline(n, m):
+		var a := Vector2(l["a"][0], l["a"][1]).rotated(rot) + c
+		var b := Vector2(l["b"][0], l["b"][1]).rotated(rot) + c
+		out.append({"k": "line", "a": Part.arr2(a), "b": Part.arr2(b)})
+	return out
+
+
+## p207knurlingon KNURL (Kine's own idea): a knurled grip. Its flutes are spaced about GRIP_PITCH mm round the surface, so a wider grip
+## gets more flutes, not bigger ones, and the grip feels the same in the hand at any width. The flutes are a star outline (a crest and a
+## root, the root Grip texture mm under the crest) on the Top plane, extruded up Y from the floor: one sketch, one extrude.
+const GRIP_PITCH := 3.5   # mm: about this far apart round the surface (the crest to crest)
+
+
+## KNURL: the crest count is a multiple of 4, so the crests sit on the X and Z axes: the size across is exact (2 x the crest radius)
+static func grip_features(p: Dictionary) -> Array:
+	var fs: Array = []
+	var d: float = p["diameter"]
+	var R := d * 0.5
+	var depth: float = p["texture"]
+	var n := 4 * maxi(2, roundi(PI * d / GRIP_PITCH / 4.0))
+	var star := []
+	for k in 2 * n:
+		var ang := float(k) * PI / float(n)
+		var r := R if k % 2 == 0 else R - depth
+		star.append(Vector2(r * cos(ang), r * sin(ang)))
+	_ex(fs, _sk(fs, "top", _poly(star)), "extrude", p["length"], "new")
+	return fs
+
+
+## P061SCREWHEADS: a screw with a button head (h 1, ISO 7380) or a flat countersunk head (h 2, ISO 10642), the same lathe as the socket screw.
+## Button: the shank of length L, a step out to the rim (R, L), then a low dome (a circle arc, centre on the axis) up to the top (0, L + k).
+## Flat: a 90 deg cone from the shank's top up to the rim (R) at the top, which is L + k high: the shank is L - k long, so the length L includes the head.
+static func _screw_head_feats(fs: Array, p: Dictionary) -> Array:
+	var sd := clampi(int(roundf(float(p["d"]))), 3, 6)
+	var h := clampi(int(roundf(float(p["h"]))), 1, 2)
+	var hd: Array = SCREW_ALT[h][sd]
+	var r := float(sd) * 0.5
+	var R: float = float(hd[0]) * 0.5
+	var k: float = float(hd[1])
+	var L: float = float(p["L"])
+	var sl := L - k if h == 2 else L   # the shank's top
+	var ents := []
+	if h == 2:
+		ents = _poly([Vector2(0, 0), Vector2(r, 0), Vector2(r, sl), Vector2(R, sl + k), Vector2(0, sl + k)])
+	else:
+		var rho := (R * R + k * k) / (2.0 * k)   # the dome's radius: its rim is at (R, sl), its top at (0, sl + k)
+		var c := sl + k - rho                     # the dome's centre, on the axis
+		var tm := atan2(R, rho - k) * 0.5         # the arc's middle point, half way up the dome
+		var mid := Vector2(rho * sin(tm), c + rho * cos(tm))
+		ents = [
+			{"k": "line", "a": Part.arr2(Vector2(0, 0)), "b": Part.arr2(Vector2(r, 0))},
+			{"k": "line", "a": Part.arr2(Vector2(r, 0)), "b": Part.arr2(Vector2(r, sl))},
+			{"k": "line", "a": Part.arr2(Vector2(r, sl)), "b": Part.arr2(Vector2(R, sl))},
+			{"k": "arc", "a": Part.arr2(Vector2(R, sl)), "m": Part.arr2(mid), "b": Part.arr2(Vector2(0, sl + k))},
+			{"k": "line", "a": Part.arr2(Vector2(0, sl + k)), "b": Part.arr2(Vector2(0, 0))},
+		]
+	_ex(fs, _sk(fs, "front", ents), "revolve", 0.0, "new")
 	fs[fs.size() - 1]["axis"] = "y"
 	return fs

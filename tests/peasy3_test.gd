@@ -205,6 +205,8 @@ func _init() -> void:
 	await click_ctl(pu.easy_open_btn)
 	await idle(4)
 	var ep = pu.ep
+	ep.one_side = true   # P153: symmetry is on by default; this suite's bars draw single boxes, so its Draw shape steps use One side only
+	ep.one_side_btn.set_pressed_no_signal(true)
 	ok(pu.easy and ep.make_box.visible and ep.make_btns.size() == 12, "0 Easy home: Part on Easy with twelve big buttons (%d)" % ep.make_btns.size())
 	# 1 REPEAT IT: refused with no solid
 	m.S.part = {}   # an empty part (the building project's start has a solid already): nothing to repeat yet
