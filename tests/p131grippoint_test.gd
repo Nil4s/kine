@@ -2,7 +2,7 @@ extends SceneTree
 ## p131grippoint (Friday plan 131, "Prop-aware animation: a built part knows its grip point; the character grabs it right"): Easy Part's Colour page has a Hold here chip.
 ## Press it, then click the spot on the part where the hand holds it; the spot is stored in the record, and Give to a character holds the shape by it.
 ## Real clicks at 1280x720 from the BUILDING card's Easy Part (blank): a box 12 cm long drawn on the grid and pulled up 2 cm. Every number is measured from the built result
-## (the solid's faces, Body.KINDS after Give, the undo count), never from the code's own variables. Bars (written before the code; the old code fails 1 to 5):
+## (the solid's faces, Body.KINDS after Give, the undo count), never from the code's own variables. Bars (written before the code; not yet run on the old code):
 ##   1 the Colour page (a real click on Colour) shows a Hold here chip
 ##   2 a real click on Hold here arms the grip pick: no undo step yet, the status says to click the part
 ##   3 a click off the part (empty grid) says so, takes no undo step and keeps the pick armed
