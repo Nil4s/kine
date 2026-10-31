@@ -2282,6 +2282,14 @@ func _screw_pick(d: int, L: int) -> void:
 	else:
 		_say("%s on the floor. Pick another size to change it" % label)
 	_screw_sync()
+	_scroll_into_view.call_deferred(screw_box)   # the grid stays clickable after placing (the panel grows, the scroll clipped the last row: nscrew2 bar 3)
+
+
+## the panel scrolls so the control is inside its visible part: a chip below the scroll's bottom edge is drawn clipped and takes no click
+func _scroll_into_view(c: Control) -> void:
+	var sc := panel.get_node_or_null("easypart_panel_scroll") as ScrollContainer
+	if sc != null and c != null and c.is_visible_in_tree():
+		sc.ensure_control_visible(c)
 
 
 ## P071 HANDLES: a size chip. No handle of that kind on the floor: a new one (one undo step). A handle of that kind already there: its size
