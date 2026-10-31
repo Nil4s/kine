@@ -429,6 +429,7 @@ func _hole_box() -> PanelContainer:
 	var fb := _big_btn("easypart_hole_fits", "What fits here?", "Ask which of My Parts go through this hole (the saved parts that fit it). No step: it only tells you", _fits_press)   # P076
 	fb.custom_minimum_size = Vector2(150, 44)
 	h.add_child(fb)
+	h.add_child(hpat_box)   # s029: the pattern sliders come last, so the chips above stay on their lines
 	return box
 
 

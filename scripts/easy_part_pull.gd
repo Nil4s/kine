@@ -1082,7 +1082,6 @@ func _hpat_chips(h: Control) -> void:
 	hpat_box.add_theme_constant_override("h_separation", 12)
 	hpat_box.add_theme_constant_override("v_separation", 0)
 	hpat_box.visible = false
-	h.add_child(hpat_box)   # (the box sits at the bottom of this panel)
 	hpat_rows.append(_make_row("How many", 2.0, 24.0, 1.0, ["Fewer", "More"], "hpat", "hp_count", "holes", hpat_box))
 	hpat_rows.append(_make_row("Spacing", 3.0, 200.0, 0.5, ["Closer", "Further apart"], "hpat", "hp_gap", "mm", hpat_box))
 	hpat_rows.append(_make_row("Radius", 3.0, 200.0, 0.5, ["Smaller", "Bigger"], "hpat", "hp_rad", "mm", hpat_box))

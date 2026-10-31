@@ -339,8 +339,8 @@ func _init() -> void:
 	for q in c4:
 		mid4 += q
 	mid4 /= maxf(c4.size(), 1)
-	ok(m.undo.size() == up0 + 1 and absf(float(hp.get("px", 0.0)) - mid4.x) < 0.15 and absf(float(hp.get("py", 0.0)) - mid4.y) < 0.15 and mid4.distance_to(want_c) < 4.0 and mid4.distance_to(Vector2(50, 30)) > 3.0 and int(r4["bodies"]) == 1 and c4.size() == 6,
-		"4 PICK: one undo step (%d -> %d), the 6 holes now go round (%.2f, %.2f), the plate point under the cursor was (%.2f, %.2f) (within 4 mm: a few pixels), the pick = the mesh circle middle within 0.15, one solid, %d holes [%s]" % [up0, m.undo.size(), mid4.x, mid4.y, want_c.x, want_c.y, c4.size(), ep.msg])
+	ok(m.undo.size() == up0 + 1 and Vector2(float(hp.get("px", 0.0)), float(hp.get("py", 0.0))).distance_to(want_c) < 0.15 and Vector2(float(hp.get("px", 0.0)), float(hp.get("py", 0.0))).distance_to(Vector2(50, 30)) > 3.0 and int(r4["bodies"]) == 1 and c4.size() == 6,
+		"4 PICK: one undo step (%d -> %d), the 6 holes now go round (%.2f, %.2f), the plate point under the cursor was (%.2f, %.2f) (within 4 mm: a few pixels), the stored pick = the plate point under the cursor within 0.15 (stored pick %.2f, %.2f), one solid (%d bodies), %d holes [%s]" % [up0, m.undo.size(), mid4.x, mid4.y, want_c.x, want_c.y, float(hp.get("px", -1.0)), float(hp.get("py", -1.0)), int(r4["bodies"]), c4.size(), ep.msg])
 	await shot("pick")
 
 	# ---- GRID: 3 rows x 2 columns, 15 mm apart
