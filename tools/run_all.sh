@@ -382,3 +382,5 @@ EXTRA="$EXTRA p032slotasitso:w"   # P032SLOTASITSO: Easy Part Slot chip: one cli
 EXTRA="$EXTRA p054alignchips:w"   # P054 ALIGN CHIPS: Easy Part Line them up / Centre on that / Same height on two picked pieces (the second moves, one undo step each, measured from the built faces; tests/p054alignchips_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA p067framefix:w"   # p067framefix: the Hinge chip frames the hinge (a Piano hinge fills at least 30 % of the clear view) and a Butt hinge is two leaves with a gap and a knuckle (tests/p067framefix_test.gd)
 EXTRA="$EXTRA p139mocapmix:w"   # p139mocapmix (Friday plan 139): Easy Walk style's neighbour, a Mood button on the clip strip: a typed mood word (angry, tired, heavy, sneaky; a bit = half) blends the Style dial onto the built clip, one undo step; measured from the built cards (tests/p139mocapmix_test.gd)
+
+EXTRA="$EXTRA p147physicsrag:w"   # p147physicsrag (Friday plan 147): Ragdoll: hit, fall, get back up: the body at the playhead is pushed, falls limp for 2 s, blends back onto its own pose over 1 s; baked as cards into a NEW scene (tests/p147physicsrag_test.gd)
