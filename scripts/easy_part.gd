@@ -398,6 +398,11 @@ func _hole_box() -> PanelContainer:
 	mb.custom_minimum_size = Vector2(96, 44)
 	h.add_child(mb)
 	hole_btns["magnet"] = mb
+	lattice_btn = _big_btn("easypart_hole_lattice", "Lattice inside", "Fill the hollow with a light lattice of thin bars: the Gap slider sets how far apart they are", _lattice_press)   # p208latticeinf: shown by _hole_sync
+	lattice_btn.icon = Icons.tex("part_pattern")
+	lattice_btn.custom_minimum_size = Vector2(150, 44)
+	lattice_btn.visible = false
+	h.add_child(lattice_btn)
 	var flb := _big_btn("easypart_hole_flat", "Flat pattern", "Unfold the box into a flat sheet to laser-cut: six panels with finger joints. The model does not change", _flat_press)   # p117flatpatter
 	flb.custom_minimum_size = Vector2(120, 44)
 	h.add_child(flb)   # not a toggle: it is not in hole_btns (the row's pressed state would ignore it)
@@ -1375,6 +1380,8 @@ func tweak_last() -> void:
 	var t := String(f.get("t", ""))
 	if t == "shell":
 		tweak = {"id": f["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
+	elif t == "lattice":   # p208latticeinf: a reopened part keeps its Gap slider
+		tweak = _step_tweak(f)
 	elif t == "loft" and f.has("twist"):   # P027: a reopened blend keeps its Twist slider
 		tweak = _twist_tweak(String(f["id"]))
 	elif t == "sketch" and f.has("raw"):   # p039: a reopened Curvy line keeps its Smooth slider
@@ -4569,6 +4576,8 @@ func step_words(f: Dictionary) -> String:
 			return "Rounded %d %s %s mm" % [n, "edge" if n == 1 else "edges", _plain_num(float(f.get("r", 0.0)))]
 		"shell":
 			return "Hollowed out, wall %s mm" % _plain_num(float(f.get("thick", 0.0)))
+		"lattice":
+			return "Filled with a lattice, bars %s mm apart" % _plain_num(float(f.get("gap", 0.0)))
 		"appear":
 			return "Coloured"
 		"mirror":
@@ -4591,6 +4600,8 @@ static func step_icon(t: String) -> String:
 			return "part_fillet"
 		"shell":
 			return "part_circle"
+		"lattice":
+			return "part_pattern"
 		"mirror":
 			return "part_mirror"
 		"pattern":
@@ -4611,6 +4622,8 @@ func _step_tweak(f: Dictionary) -> Dictionary:
 			return {"id": id, "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
 		"shell":
 			return {"id": id, "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
+		"lattice":   # p208latticeinf: the bars' spacing in mm (4 mm is the smallest the kernel makes)
+			return {"id": id, "field": "gap", "label": "Gap", "unit": "mm", "lo": 6.0, "hi": 20.0, "step": 1.0, "scale": 1.0, "words": ["Denser", "Airier"]}
 		"loft":
 			return _twist_tweak(id) if f.has("twist") else {}
 	return {}

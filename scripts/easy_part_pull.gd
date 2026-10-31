@@ -21,6 +21,8 @@ func _hole_sync() -> void:
 	if wall_btn != null:
 		wall_btn.set_pressed_no_signal(wall_pick)
 		wall_btn.visible = hole_mode == "hollow" and _hole_on()   # Thicker wall only exists for a hollow
+	if lattice_btn != null:
+		lattice_btn.visible = _lattice_shown()   # p208latticeinf: Lattice inside shows after a hollow, not after a lattice
 
 
 ## a Through / Hollow inside chip: the hole step is REPLACED (one undo step): the record from before the hole press, then the chosen hole.
@@ -965,3 +967,51 @@ func _finger_joints(rec: Dictionary) -> String:
 		return "The notches would miss the box: nothing was cut. Press Cut a hole again"
 	_say("Finger joints: %d notches along the top edge. Use Ctrl+Z to take them out" % n)
 	return ""
+
+
+## p208latticeinf (Friday plan 208; Kine's own idea: light and strong): Lattice inside shows under Cut a hole once the newest step is the
+## hollow (its shell). The button is hidden after the lattice, so a second press cannot stack one on top
+func _lattice_shown() -> bool:
+	var fs: Array = _rec().get("features", [])
+	return hole_mode == "hollow" and _hole_on() and not fs.is_empty() and String(fs[-1].get("t", "")) == "shell"
+
+
+## p208latticeinf: Lattice inside: ONE step ("lattice", its Gap slider: how far apart the bars are) after the hollow box. The bars fill the
+## hollow from wall to wall. Only a box-shaped hollow takes one: a shape that is not a box says so and changes nothing. One press = one undo step
+func _lattice_press() -> void:
+	var rec0 := _rec()
+	var fs: Array = rec0.get("features", [])
+	if not _lattice_shown() or not Part.available() or fs.size() < 2:
+		_say("Hollow it first: press Hollow inside, then Lattice inside")
+		_hole_sync()
+		return
+	var pre := Part.replay(rec0, fs.size() - 2)   # the solid before the hollow: a box is solid right up to its bounding box
+	var pb: AABB = pre["aabb"]
+	var box_vol := pb.size.x * pb.size.y * pb.size.z
+	if int(pre["bodies"]) == 0 or box_vol <= 0.0 or float(pre["volume"]) < box_vol * 0.99:
+		_say("The lattice fills a box-shaped hollow only: make the hollow a box first (Pull it up from a square)")
+		return
+	_flush_if_dirty()
+	armed = ""
+	wall_pick = false
+	var snap := rec0.duplicate(true)
+	_begin("Lattice inside")
+	var rec: Dictionary = snap.duplicate(true)
+	var f := Part.new_feature(rec, "lattice", {"body": int(fs[-1].get("body", 0)), "gap": 10.0, "bar": 2.0})
+	rec["features"].append(f)
+	m.S.part = rec
+	var why := _last_error(rec, String(f["id"]))
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+		return
+	_end()
+	tweak = {"id": f["id"], "field": "gap", "label": "Gap", "unit": "mm", "lo": 6.0, "hi": 20.0, "step": 1.0, "scale": 1.0, "words": ["Denser", "Airier"]}
+	pu.upto = -1
+	pu.sync()
+	_rows_sig = ""
+	_rows_sync()
+	_values_sync()
+	_say("Filled with a lattice: move the Gap slider for how far apart the bars are")
