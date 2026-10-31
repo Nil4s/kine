@@ -272,6 +272,7 @@ func build(root: Control) -> void:
 	v.add_child(wheel_box)
 	board_box = _board_box()   # p078makeacasef: the Boards chips (a case for the board)
 	v.add_child(board_box)
+	v.add_child(_scale_box())   # p110realsizech: the Hand, Coin, Phone chips (shown by For scale)
 	rows_vb = VBoxContainer.new()
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 2)
@@ -294,6 +295,7 @@ func build(root: Control) -> void:
 	back_btn.tooltip_text = "Put every size back to how this shape started"
 	back_btn.pressed.connect(_back)
 	foot.add_child(back_btn)
+	foot.add_child(_scale_btn())   # p110realsizech: For scale, between Reset and Exact sizes
 	use_btn = Button.new()
 	use_btn.name = "easypart_use_expert"
 	use_btn.text = "Exact sizes? Use Expert"
@@ -3069,6 +3071,7 @@ func _process(_dt: float) -> void:
 		_near_saved = -1.0
 	_floor_sync(on)
 	_upright_sync(on and (armed == "draw" or armed == "curve") and _side_on())
+	_scale_sync(on)   # p110realsizech: the reference beside the part follows it while Easy is on
 	bar.visible = on
 	make_box.visible = on
 	panel.visible = on
@@ -4189,3 +4192,153 @@ func _steps_sync() -> void:
 		var fid := String(f.get("id", ""))
 		b.pressed.connect(func(): _step_open(fid))
 		steps_vb.add_child(b)
+
+
+## p110realsizech (Friday plan 110, ★): a real-size check beside the part. The "For scale" button in the foot opens three chips: Hand, Coin,
+## Phone. A press lays that thing on the floor beside the part at its real size (a mesh the view draws, not the record: no undo step);
+## a second press takes it away. Shutting For scale takes it away too. The reference follows the part as it changes (_scale_sync).
+const SCALE_KINDS := ["hand", "coin", "phone"]
+const SCALE_WORDS := {"hand": "Hand", "coin": "Coin", "phone": "Phone"}
+const SCALE_GAP := 0.03   # m: the clear gap between the part and the thing beside it
+var scale_btn: Button
+var scale_box: PanelContainer
+var scale_chips := {}
+var scale_pick := ""
+var scale_ref: Node3D
+var scale_size := Vector3.ZERO
+
+
+func _scale_btn() -> Button:
+	scale_btn = Button.new()
+	scale_btn.name = "easypart_scale"
+	scale_btn.text = "For scale"
+	scale_btn.icon = Icons.sized("size", 18)
+	scale_btn.expand_icon = false
+	scale_btn.toggle_mode = true
+	scale_btn.focus_mode = Control.FOCUS_NONE
+	scale_btn.custom_minimum_size = Vector2(0, 32)
+	scale_btn.add_theme_font_size_override("font_size", 14)
+	scale_btn.tooltip_text = "Show a hand, a coin or a phone beside the part, at its real size, to see how big it is"
+	scale_btn.pressed.connect(_scale_toggle)
+	return scale_btn
+
+
+func _scale_box() -> PanelContainer:
+	scale_box = PanelContainer.new()
+	scale_box.name = "easypart_scale_box"
+	scale_box.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	scale_box.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	scale_box.add_child(vb)
+	var hd := Label.new()
+	hd.text = "Real size: press Hand, Coin or Phone. It lies on the floor beside the part at its real size. Press it again to take it away"
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hd.add_theme_font_size_override("font_size", 13)
+	vb.add_child(hd)
+	var row := HFlowContainer.new()
+	row.add_theme_constant_override("h_separation", 4)
+	vb.add_child(row)
+	for k in SCALE_KINDS:
+		var b := Button.new()
+		b.name = "easypart_scale_" + k
+		b.text = SCALE_WORDS[k]
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(90, 34)
+		b.add_theme_font_size_override("font_size", 14)
+		b.tooltip_text = "%s beside the part, at its real size" % SCALE_WORDS[k]
+		b.pressed.connect(_scale_pick.bind(k))
+		row.add_child(b)
+		scale_chips[k] = b
+	return scale_box
+
+
+func _scale_toggle() -> void:
+	scale_box.visible = scale_btn.button_pressed
+	if scale_btn.button_pressed:
+		_say("Real size: press Hand, Coin or Phone. It lies beside the part at its real size")
+	else:
+		_scale_set("")
+		_say("Real size shut")
+
+
+func _scale_pick(k: String) -> void:
+	_scale_set("" if scale_pick == k else k)
+	_say("%s beside the part at its real size. Press %s again to take it away" % [SCALE_WORDS[k], SCALE_WORDS[k]] if scale_pick == k else "Real size: take it away with its chip, or press another")
+
+
+## the one reference on screen (or none): the old one goes, the new one is built from its parts, placed by _scale_place
+func _scale_set(k: String) -> void:
+	scale_pick = k
+	if scale_ref != null:
+		scale_ref.get_parent().remove_child(scale_ref)
+		scale_ref.free()
+		scale_ref = null
+	for c in scale_chips:
+		(scale_chips[c] as Button).set_pressed_no_signal(c == k)
+	if k == "" or m.cam == null or m.cam.get_parent() == null:
+		return
+	scale_ref = _scale_build_ref(k)
+	m.cam.get_parent().add_child(scale_ref)
+	_scale_place()
+
+
+## the real size, in metres, of each piece: [size, its place with the lowest corner at the origin]. Hand: palm, four fingers, thumb (blocks);
+## Coin: a US quarter, 24.26 mm across and 1.75 mm thick; Phone: 147 x 71 x 8 mm
+func _scale_build_ref(k: String) -> Node3D:
+	var r := Node3D.new()
+	r.name = "EasyScaleRef"
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.82, 0.78, 0.7) if k == "hand" else (Color(0.8, 0.66, 0.4) if k == "coin" else Color(0.3, 0.32, 0.37))
+	var pieces: Array = []
+	if k == "coin":
+		var cy := CylinderMesh.new()
+		cy.top_radius = 0.01213
+		cy.bottom_radius = 0.01213
+		cy.height = 0.00175
+		cy.radial_segments = 32
+		pieces.append([cy, Vector3(0.01213, 0.000875, 0.01213)])
+		scale_size = Vector3(0.02426, 0.00175, 0.02426)
+	elif k == "phone":
+		var bx := BoxMesh.new()
+		bx.size = Vector3(0.071, 0.008, 0.147)
+		pieces.append([bx, Vector3(0.0355, 0.004, 0.0735)])
+		scale_size = Vector3(0.071, 0.008, 0.147)
+	else:
+		# palm 85 x 90 mm (wrist at the back), fingers 70-90 mm long, thumb out to the side: 180 mm long, 105 mm wide, 20 mm high
+		var blocks := [[Vector3(0.085, 0.02, 0.09), Vector3(0.0425, 0.01, 0.045)]]
+		for f in [[-0.0315, 0.08], [-0.0105, 0.09], [0.0105, 0.085], [0.0315, 0.07]]:
+			blocks.append([Vector3(0.018, 0.02, f[1]), Vector3(0.0425 + f[0], 0.01, 0.09 + f[1] * 0.5)])
+		blocks.append([Vector3(0.02, 0.02, 0.07), Vector3(0.095, 0.01, 0.055)])
+		for b in blocks:
+			var bx := BoxMesh.new()
+			bx.size = b[0]
+			pieces.append([bx, b[1]])
+		scale_size = Vector3(0.105, 0.02, 0.18)
+	for p in pieces:
+		var mi := MeshInstance3D.new()
+		mi.mesh = p[0]
+		mi.position = p[1]
+		mi.material_override = mat
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		r.add_child(mi)
+	return r
+
+
+## beside the part on its left (-x), on the floor, its middle on the part's middle (z); the part's box is read from the built result (metres)
+func _scale_place() -> void:
+	if scale_ref == null:
+		return
+	var bb: AABB = pu.res.get("aabb", AABB()) if pu != null and not pu.res.is_empty() else AABB()
+	var c := bb.position + bb.size * 0.5
+	scale_ref.position = Vector3(bb.position.x - SCALE_GAP - scale_size.x, 0.0, c.z - scale_size.z * 0.5)
+
+
+## a shown reference follows the part while Easy Part is on; off Easy Part it is hidden (the chip stays pressed)
+func _scale_sync(on: bool) -> void:
+	if scale_ref == null:
+		return
+	scale_ref.visible = on
+	if on:
+		_scale_place()
