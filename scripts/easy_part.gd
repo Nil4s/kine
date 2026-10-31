@@ -87,13 +87,14 @@ func build(root: Control) -> void:
 	del_btn.custom_minimum_size = Vector2(110, m.TOP_H - 12)
 	del_btn.visible = false
 	row.add_child(del_btn)
-	easy_btn = _bar_btn("Easy", "Sliders and big buttons", _easy_on)
+	easy_btn = _bar_btn("Easy", "Sliders and big buttons. Press again to choose how many buttons show: Beginner, Comfortable or Expert", _easy_on)
 	easy_btn.toggle_mode = true
 	easy_btn.button_pressed = true
 	expert_btn = _bar_btn("Expert", "The same part with every tool and exact numbers", func(): to_expert())
 	expert_btn.toggle_mode = true
 	row.add_child(easy_btn)
 	row.add_child(expert_btn)
+	_level_build(root)   # P093: the level slider opens from the Easy button (no new row)
 	# the six MAKE buttons
 	make_box = HBoxContainer.new()
 	make_box.name = "easypart_make"
@@ -6143,3 +6144,133 @@ func _head_sync(cur: Dictionary) -> void:
 func _screw_tip(d: int, L: int) -> String:
 	var hd: Array = PartTemplates.SCREW_HEAD[d] if screw_head == 0 else PartTemplates.SCREW_ALT[screw_head][d]
 	return "M%d x %d: %s head %s mm across, %s mm high, plain shank %d mm long" % [d, L, String(PartTemplates.SCREW_HEAD_CHIPS[screw_head]).to_lower(), str(hd[0]), str(hd[1]), L]
+
+
+# ---------------------------------------------------------------- P093 the level: Beginner / Comfortable / Expert
+## One slider with three stops, opened by pressing Easy (the Easy | Expert switch is where it lives; no new row). Beginner: the MAKE row without the
+## advanced buttons (LEVEL_ADV). Comfortable: the MAKE row as it was (all twelve). Expert: the Expert screen (to_expert), the same record.
+## Hiding a button deletes nothing: the record, the step list and the undo stack are untouched. The level is remembered in user://.
+const LEVEL_WORDS := ["Beginner", "Comfortable", "Expert"]
+const LEVEL_ADV := ["spin", "curve", "blend", "stick", "repeat"]   # Spin it round, Curvy line, Blend two shapes, Stick together, Repeat it
+var level := 1                 # the Easy screen's level: 0 Beginner, 1 Comfortable (the default). Expert leaves the Easy screen
+var level_file := "user://easy_part_level.cfg"
+var level_box: PanelContainer
+var level_slider: HSlider
+var level_words: Array = []
+var _level_gen := 0
+var _lv_drag := false
+
+
+func _level_build(root: Control) -> void:
+	_level_load()
+	level_box = PanelContainer.new()
+	level_box.name = "easypart_level_box"
+	level_box.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 8))
+	level_box.visible = false
+	level_box.z_index = 60
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	level_box.add_child(vb)
+	var cap := Label.new()
+	cap.text = "How many buttons?"
+	cap.add_theme_font_size_override("font_size", 15)
+	vb.add_child(cap)
+	level_slider = HSlider.new()
+	level_slider.name = "easypart_level_slider"
+	level_slider.min_value = 0
+	level_slider.max_value = 2
+	level_slider.step = 1
+	level_slider.tick_count = 3
+	level_slider.ticks_on_borders = true
+	level_slider.focus_mode = Control.FOCUS_NONE
+	level_slider.custom_minimum_size = Vector2(300, 28)
+	level_slider.tooltip_text = "Beginner: the basic buttons. Comfortable: all the make buttons. Expert: every tool and exact numbers"
+	level_slider.set_value_no_signal(level)
+	# a drag from Beginner to Expert passes Comfortable: only where the knob is let go counts
+	level_slider.drag_started.connect(func(): _lv_drag = true)
+	level_slider.drag_ended.connect(func(_c: bool): _lv_drag = false; _level_set(int(level_slider.value)))
+	level_slider.value_changed.connect(func(v: float):
+		if not _lv_drag:
+			_level_set(int(v)))
+	vb.add_child(level_slider)
+	var wr := HBoxContainer.new()
+	vb.add_child(wr)
+	level_words = []
+	for i in 3:
+		var l := Label.new()
+		l.text = LEVEL_WORDS[i]
+		l.add_theme_font_size_override("font_size", 13)
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		l.horizontal_alignment = [HORIZONTAL_ALIGNMENT_LEFT, HORIZONTAL_ALIGNMENT_CENTER, HORIZONTAL_ALIGNMENT_RIGHT][i]
+		wr.add_child(l)
+		level_words.append(l)
+	root.add_child(level_box)
+
+
+func _level_load() -> void:
+	var cf := ConfigFile.new()
+	level = 1
+	if cf.load(level_file) == OK:
+		level = clampi(int(cf.get_value("easy", "level", 1)), 0, 1)
+
+
+func _level_save(chosen: int) -> void:
+	var cf := ConfigFile.new()
+	cf.set_value("easy", "level", level)      # the Easy screen's own level (0 or 1)
+	cf.set_value("easy", "last_chosen", chosen)   # what the slider was last moved to (2 = Expert)
+	cf.save(level_file)
+
+
+## the slider moved (or a test set it): 0 / 1 change the Easy MAKE row, 2 goes to Expert (the same record)
+func _level_set(v: int) -> void:
+	v = clampi(v, 0, 2)
+	_level_gen += 1
+	if v == 2:
+		_level_save(2)
+		level_box.visible = false
+		level_slider.set_value_no_signal(level)
+		to_expert()
+		return
+	level = v
+	_level_save(v)
+	if level_slider != null:
+		level_slider.set_value_no_signal(v)
+	_level_apply()
+	_level_close_later()
+
+
+## the MAKE buttons the level shows (Beginner hides the advanced ones); the record keeps every step either way
+func _level_apply_buttons() -> void:
+	if make_btns.is_empty():
+		return
+	for k in make_btns:
+		(make_btns[k] as Button).visible = not (level == 0 and k in LEVEL_ADV)
+	if level == 0 and armed in LEVEL_ADV:
+		armed = ""
+
+
+func _level_apply() -> void:
+	_level_apply_buttons()
+	if _cl.size.x > 0.0 and active():
+		layout(_cl)
+		_chrome_sync()
+
+
+func _level_open() -> void:
+	level_slider.set_value_no_signal(level)
+	level_box.visible = not level_box.visible
+	if level_box.visible:
+		level_box.get_parent().move_child(level_box, -1)   # last in the tree: the GUI picks by tree order (z_index does not count), so the slider takes the click, not the MAKE button under it
+		level_box.reset_size()
+		var br := easy_btn.get_global_rect()
+		var vw := get_viewport().get_visible_rect().size.x
+		level_box.global_position = Vector2(clampf(br.end.x - 320.0, 4.0, vw - 330.0), bar.get_global_rect().end.y + 2.0)
+		_level_close_later()
+
+
+func _level_close_later() -> void:
+	_level_gen += 1
+	var g := _level_gen
+	await get_tree().create_timer(4.0).timeout
+	if g == _level_gen and level_box != null:
+		level_box.visible = false
