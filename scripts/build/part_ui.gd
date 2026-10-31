@@ -117,6 +117,7 @@ var look_picker: ColorPickerButton
 var look_presets := {}         # preset name -> Button
 var look_chips := []           # the colour chip buttons, in Part.LOOK_CHIPS order
 var look_sig := ""
+var gear_turn := NAN            # s124: the small gear's preview angle (deg) while Turn it is on a Gear pair; NAN = none
 var pose := {}                 # {"f": hinge id, "deg": angle} while the hinge is shown turned (Play / the slider)
 var play_on := false
 var play_t := 0.0
@@ -2401,7 +2402,7 @@ func _rebuild(show: bool) -> void:
 	if not show:
 		return
 	Part.refresh_bound(_rec(), _body_measures())   # C2: a dimension bound to the body shows the body's size now
-	var sig := "%s|%d|%d|%s|%s|%s|%s" % [JSON.stringify(_rec()), upto, int(dlg.get("edit", -1)) if not dlg.is_empty() else -2, JSON.stringify(_body_measures()), JSON.stringify(pose), coarse, explode_mm]   # the body moving re-solves the bound dimensions
+	var sig := "%s|%d|%d|%s|%s|%s|%s|%s" % [JSON.stringify(_rec()), upto, int(dlg.get("edit", -1)) if not dlg.is_empty() else -2, JSON.stringify(_body_measures()), JSON.stringify(pose), coarse, explode_mm, gear_turn]   # the body moving re-solves the bound dimensions
 	if sig == _rec_sig:
 		return
 	_rec_sig = sig
@@ -2417,6 +2418,8 @@ func _rebuild(show: bool) -> void:
 	var want := {"edges": not easy, "faces": not easy, "body": _body_measures()}
 	if not pose.is_empty():
 		want["pose"] = pose   # a hinge turned by Play / the slider (the record is the same; only the view turns)
+	if not is_nan(gear_turn):
+		want["gear_turn"] = gear_turn   # s124: the Gear pair's Turn it preview (the view only; the record is untouched)
 	if coarse:
 		want["coarse"] = true   # NSLIDELOD: the slider preview (low detail)
 	res = replay_once(_rec(), up, want)

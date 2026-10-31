@@ -1026,7 +1026,7 @@ static func _gear_pair_features(p: Dictionary) -> Array:
 ## p065gearpairpi: gear_outline(n, m) turned by rot (rad) and moved to centre c (mm): the same lines, both end points moved
 static func _gear_at(n: int, m: float, c: Vector2, rot: float) -> Array:
 	var out := []
-	for l in gear_outline(n, m):
+	for l in _pair_outline(n, m):
 		var a := Vector2(l["a"][0], l["a"][1]).rotated(rot) + c
 		var b := Vector2(l["b"][0], l["b"][1]).rotated(rot) + c
 		out.append({"k": "line", "a": Part.arr2(a), "b": Part.arr2(b)})
@@ -1085,3 +1085,19 @@ static func _screw_head_feats(fs: Array, p: Dictionary) -> Array:
 	_ex(fs, _sk(fs, "front", ents), "revolve", 0.0, "new")
 	fs[fs.size() - 1]["axis"] = "y"
 	return fs
+
+
+## s124: the Gear pair's own tooth: the same tip and root circles as gear_outline (so every size is the same) but a slimmer tooth (tip 1.0 q wide,
+## root 2.7 q wide, instead of 1.2 q and 3.0 q), which leaves the backlash straight flanks need to turn past each other without one cutting the other
+static func _pair_outline(n: int, m: float) -> Array:
+	var ra := m * (n + 2) * 0.5
+	var rf := m * (n - 2.5) * 0.5
+	var q := PI / (2.0 * n)
+	var pts := []
+	for k in n:
+		var t := TAU * k / n
+		pts.append(Vector2.from_angle(t - 0.5 * q) * ra)
+		pts.append(Vector2.from_angle(t + 0.5 * q) * ra)
+		pts.append(Vector2.from_angle(t + 1.35 * q) * rf)
+		pts.append(Vector2.from_angle(t + 4.0 * q - 1.35 * q) * rf)
+	return _poly(pts)
