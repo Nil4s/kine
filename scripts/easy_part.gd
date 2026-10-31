@@ -78,7 +78,7 @@ func build(root: Control) -> void:
 	give_btn.name = "easypart_give"
 	give_btn.custom_minimum_size = Vector2(170, m.TOP_H - 12)
 	row.add_child(give_btn)
-	export_btn = _bar_btn("Export", "Save this part as an OBJ or a GLB file: the export dialog, with this part picked", func(): m._export_dialog_open())   # FEXPORT
+	export_btn = _bar_btn("Export", "Save this part as a 3MF or STL file for your 3D printer (or OBJ / GLB): the export dialog, with this part picked", func(): m._export_dialog_open())   # FEXPORT
 	export_btn.name = "easypart_export"
 	export_btn.custom_minimum_size = Vector2(110, m.TOP_H - 12)
 	row.add_child(export_btn)
