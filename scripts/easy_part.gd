@@ -2118,6 +2118,9 @@ func _lib_box() -> PanelContainer:
 	vb.add_child(lib_soon)
 	vb.add_child(_type_row())   # p085typetobuil: the Type it row (shows with that category)
 	vb.add_child(_photo_row())   # p192makeitlike: Like a photo, under Type it
+	linkage_box = preload("res://scripts/easy_linkage.gd").new()   # p129linkages: the Linkage panel (4 bars, a drag knob) on the Hinges page, scripts/easy_linkage.gd
+	linkage_box.say_fn = _say   # p129linkages: its words go to the status line at the top
+	vb.add_child(linkage_box)
 	return pc
 
 
@@ -2408,6 +2411,8 @@ func _screw_sync() -> void:
 			lb.set_pressed_no_signal(parts_open and cat == lib_cat)
 			m._grey(lb, Part.why_not() if not Part.available() else "")
 		hinges_btn.visible = parts_open and lib_cat == "Hinges"   # p067hinges
+		if linkage_box != null:   # p129linkages: the Linkage panel shows on the Hinges page
+			linkage_box.visible = parts_open and lib_cat == "Hinges"
 		hinges_btn.set_pressed_no_signal(_tpl() == "hinge")
 		m._grey(hinges_btn, Part.why_not() if not Part.available() else "")
 		_livecut_sync()   # p204livinghing
@@ -5693,6 +5698,8 @@ func _frame_held() -> void:
 	m._cam()
 
 
+## P129 LINKAGES: the Linkage panel on the Hinges page (built in _lib_box, shown by _screw_sync)
+var linkage_box: PanelContainer
 ## P127 DOES IT FALL OVER (scripts/build/part_stand.gd): one chip on the Colour page, after the weights. It reads whether the built
 ## solid stands on its feet (its middle over the lowest surface) and says how far, in plain words. Changes no step: no undo
 func _stand_chip() -> Button:
