@@ -58,8 +58,24 @@ const TARGETS := [
 ]
 
 
+## 3D PRINTING (STL, 3MF): shown only while a free Part is on screen (so targets() stays the seven engine targets); scripts/build/mesh_export.gd writes the files
+const PRINT_TARGET := {"id": "print", "label": "3D printing (STL, 3MF)", "engine": "",
+	"needs": "A slicer (Cura, PrusaSlicer, Bambu Studio, Orca) opens either file. Both hold millimetres, and the part's floor is the print bed (z = 0, Z up). STL is the plain shape; 3MF is the same shape in a package that also keeps each separate piece as its own object and the colour you painted. If you are not sure, pick 3MF.",
+	"formats": [{"name": "3MF (.3mf): shape in millimetres, pieces and colour (best for most slicers)", "run": "3mf",
+			"app": "A 3MF package: one object for each separate piece of the part, the colour you painted, units in millimetres, the shape finely cut (0.1 mm)."},
+		{"name": "STL (.stl): the plain shape in millimetres", "run": "stl",
+			"app": "A binary STL in millimetres (an STL has no units, so the slicer reads the numbers as mm), all pieces in one mesh, the shape finely cut (0.1 mm). No colour."}],
+	"app": "The part as a printable solid in millimetres."}
+
+
 static func targets() -> Array:
 	return TARGETS
+
+
+## the targets this dialog shows now: the seven, plus 3D printing while a free part is on screen
+func _tg() -> Array:
+	var free_part: bool = m.bld != null and m.bld.part != null and m.bld.part.on
+	return TARGETS + [PRINT_TARGET] if free_part else TARGETS
 
 
 ## one target's dictionary by id ({} when unknown)
@@ -67,7 +83,7 @@ static func target(id: String) -> Dictionary:
 	for t in TARGETS:
 		if (t as Dictionary)["id"] == id:
 			return t
-	return {}
+	return PRINT_TARGET if id == "print" else {}
 
 
 ## the needs text: an engine target's comes from EngineExport (the one place the engines' needs are written)
@@ -185,6 +201,12 @@ func open_batch() -> void:
 func open() -> void:
 	if dlg == null:
 		_build()
+	var tg := _tg()
+	if ui_target.item_count != tg.size():   # 3D printing joins the list while a free part is on screen
+		ui_target.clear()
+		for t in tg:
+			ui_target.add_item((t as Dictionary)["label"])
+	ui_target.select(tg.size() - 1 if tg.size() > TARGETS.size() else 0)   # a part on screen: the Export button lands on 3D printing
 	_fill_formats()
 	_refresh()
 	ui_blur.set_pressed_no_signal(bool(m.blast_blur))
@@ -204,12 +226,12 @@ func _on_format(_i: int) -> void:
 
 
 func _cur_id() -> String:
-	return String((TARGETS[ui_target.selected] as Dictionary)["id"])
+	return String((_tg()[ui_target.selected] as Dictionary)["id"])
 
 
 func _fill_formats() -> void:
 	ui_format.clear()
-	for f in (TARGETS[ui_target.selected] as Dictionary)["formats"]:
+	for f in (_tg()[ui_target.selected] as Dictionary)["formats"]:
 		ui_format.add_item(String((f as Dictionary)["name"]))
 	ui_format.select(0)
 
@@ -224,11 +246,14 @@ func _refresh() -> void:
 	var names := m.scene_object_names() as Array
 	var lst := ", ".join(names) if not names.is_empty() else "none"
 	var why := "" if plain else "\n\nThe choice is for the plain .glb (one mesh per object, no animation); this format always holds everything."
+	if _cur_id() == "print":
+		ui_objects.text = "The part on screen is what is written. It holds millimetres, Z up, and the floor of the part is the print bed."
+		return
 	ui_objects.text = "Mesh objects in the scene: %s. Only the selected object writes just the one picked in the scene (the test cube when it is open, else the set piece picked, else the body); one entry per mesh object writes each by its name.%s" % [lst, why]
 
 
 func _cur_run() -> String:
-	var fs: Array = (TARGETS[ui_target.selected] as Dictionary)["formats"]
+	var fs: Array = (_tg()[ui_target.selected] as Dictionary)["formats"]
 	return String((fs[clampi(maxi(ui_format.selected, 0), 0, fs.size() - 1)] as Dictionary)["run"])
 
 
@@ -245,6 +270,8 @@ func text_of(id: String, fi: int) -> Dictionary:
 	var f: Dictionary = fs[clampi(fi, 0, fs.size() - 1)]
 	var S: Scene = m.S
 	var fps_s := "%d fps, the scene's own rate; the file keys every frame at it" % S.fps
+	if id == "print":
+		fps_s = "none: a printed part is one still shape"
 	# a format with its own "needs" / "app" replaces the target's (they describe that file type: glTF's scale is not FBX's)
 	var needs := String(f["needs"]) if f.has("needs") else needs_of(t)
 	var app := String(f["app"]) if f.has("app") else String(t["app"])
@@ -255,6 +282,8 @@ func text_of(id: String, fi: int) -> Dictionary:
 ## the checklist: each line starts "OK" or "WARN" (or "WRONG" from the engine pre-flight) and says what it means here
 func checks(id: String, run: String) -> Array:
 	var out := []
+	if id == "print":   # the printability check of the part on screen
+		return MeshExport.check_lines(m.S.part)
 	var S: Scene = m.S
 	var B: Body = m.B
 	if S.cards.size() < 2:
@@ -320,6 +349,10 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 		return ""
 	var fs: Array = t["formats"]
 	var run := String((fs[clampi(fi, 0, fs.size() - 1)] as Dictionary)["run"])
+	if id == "print":   # STL / 3MF of the part on screen (never blocked: an open shape still writes, with the warning in the words)
+		var r := MeshExport.export_part(m.S.part, run, UserPaths.w(dir))
+		m._say_plain(String(r["text"]))
+		return String(r["path"]) if bool(r["ok"]) else ""
 	if what > 0 and run == "glb":
 		return m._export_objects(dir, what == 1)
 	if run == "obj":   # OBJ: Everything is the posed body (the old writer); a picked object or one entry per object is its own mesh
