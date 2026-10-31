@@ -153,6 +153,7 @@ func build(root: Control) -> void:
 	pic.tooltip_text = "Your own picture: a dark shape on white becomes a raised logo, 4 cm wide and 2 mm high, in one step"
 	pic.pressed.connect(_picture_press)
 	sh.add_child(pic)
+	sh.add_child(_one_side_chip())   # P153: Symmetry is on by default; this chip turns it off ("One side only")
 	root.add_child(shape_box)
 	hole_box = _hole_box()
 	root.add_child(hole_box)
@@ -4012,9 +4013,10 @@ func _finish_draw() -> void:
 			_say("Drag a bit further from the centre: a circle needs a radius of at least 5 mm (now %s mm)" % _mm_words(r))
 			return
 		ent = {"k": "circle", "c": Part.arr2(a), "r": snappedf(r, 0.5)}
+	var all: Array = _with_twin(ents if not ents.is_empty() else [ent], fc, sh)   # P153: symmetry on by default: the copy on the other side, same step
 	_begin("Draw shape")
 	var rec := pu._ensure()
-	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": ents if not ents.is_empty() else [ent], "dims": []}))
+	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": all, "dims": []}))
 	_end()
 	armed = ""
 	tweak = {}
@@ -5430,3 +5432,65 @@ func _frame_held() -> void:
 		m.target -= m.cam.global_basis.x * d.x * mpp - m.cam.global_basis.y * d.y * mpp
 		m.dist = clampf(float(m.dist) * need, 0.5, 12.0)
 	m._cam()
+
+
+## P153 SYMMETRY ON BY DEFAULT: the "One side only" chip sits on the shape row. Off (the default), a shape drawn on one side of the
+## middle line also gets its copy on the other side, in the same Draw shape step (one undo step). On: only the shape drawn is made.
+var one_side := false
+var one_side_btn: Button
+
+
+func _one_side_chip() -> Button:
+	one_side_btn = Button.new()
+	one_side_btn.name = "easypart_one_side"
+	one_side_btn.text = "One side only"
+	one_side_btn.toggle_mode = true
+	one_side_btn.focus_mode = Control.FOCUS_NONE
+	one_side_btn.icon = Icons.sized("symmetry", 22)
+	one_side_btn.expand_icon = false
+	one_side_btn.custom_minimum_size = Vector2(150, 40)
+	one_side_btn.add_theme_font_size_override("font_size", 16)
+	one_side_btn.tooltip_text = "Symmetry is on by default: a shape drawn on one side of the middle line gets its copy on the other side. Press to draw one side only"
+	one_side_btn.pressed.connect(_one_side_press)
+	return one_side_btn
+
+
+func _one_side_press() -> void:
+	one_side = one_side_btn.button_pressed
+	_say("One side only: on. Only the shape you draw is made" if one_side else "Symmetry is on: a shape drawn on one side gets its copy on the other side")
+
+
+## P153: the shape's copy across the middle line (x = 0), added to the same Draw shape step. The shape is returned as it is when One
+## side only is on, a curve is drawn, the shape is not on the floor or the upright middle plane, or it crosses the middle line (no copy fits)
+func _with_twin(ents: Array, fc: Dictionary, sh: String) -> Array:
+	if one_side or sh == "curve" or not (fc.is_empty() or bool(fc.get("through", false))):
+		return ents
+	var lo := INF
+	var hi := -INF
+	for e in ents:
+		for k in ["a", "b", "c"]:
+			if e.has(k):
+				lo = minf(lo, float(e[k][0]))
+				hi = maxf(hi, float(e[k][0]))
+		for p in e.get("pts", []):
+			lo = minf(lo, float(p[0]))
+			hi = maxf(hi, float(p[0]))
+		if String(e["k"]) == "circle":
+			lo = minf(lo, float(e["c"][0]) - float(e["r"]))
+			hi = maxf(hi, float(e["c"][0]) + float(e["r"]))
+	if lo < -0.01 and hi > 0.01:
+		_say("This shape crosses the middle line, so it has no copy. Draw it on one side to get a copy")
+		return ents
+	var out := ents.duplicate()
+	for e in ents:
+		var ne: Dictionary = e.duplicate(true)
+		for k in ["a", "b", "c"]:
+			if e.has(k):
+				ne[k] = Part.arr2(Vector2(-float(e[k][0]), float(e[k][1])))
+		if e.has("pts"):
+			var np := []
+			for p in e["pts"]:
+				np.append(Part.arr2(Vector2(-float(p[0]), float(p[1]))))
+			ne["pts"] = np
+		out.append(ne)
+	return out
