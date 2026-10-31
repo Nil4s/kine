@@ -123,6 +123,8 @@ var bear_btns := {}              # P069 BEARINGS: "608" / "625" / "688" -> its c
 var seat_btn: Button             # P069 BEARINGS: "Make a seat for it": cuts the seat for the bearing on the floor
 var stick_box: PanelContainer    # Stick together: Join / Cut away / Keep the overlap, shown once two pieces are picked
 var stick_btns := {}
+var align_row: HBoxContainer    # P054: Line them up / Centre on that / Same height, a row under the stick chips (two picks: the second moves)
+var align_btns := {}
 var smooth_btn: Button    # P035: Smooth the joints, in the stick box after a Join (the three Join / Cut / Keep buttons hide then)
 var joint_btns: Array = []   # p121: This turns here / This slides here, in the stick box with two pieces picked (hidden after a Join)
 var stick_picks: Array = []      # the body indices clicked in the view (the first = the target, the second = the tool)

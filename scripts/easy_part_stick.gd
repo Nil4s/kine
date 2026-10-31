@@ -29,7 +29,10 @@ func _stick_box() -> PanelContainer:
 	box.visible = false
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 6)
-	box.add_child(h)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	box.add_child(col)
+	col.add_child(h)
 	for so in STICK_OPS:
 		var b := _big_btn("easypart_stick_" + String(so[0]), String(so[1]), String(so[2]), _stick.bind(String(so[0]), String(so[1])))
 		b.custom_minimum_size = Vector2(150, 44)
@@ -44,7 +47,54 @@ func _stick_box() -> PanelContainer:
 	smooth_btn.custom_minimum_size = Vector2(190, 44)
 	smooth_btn.visible = false
 	h.add_child(smooth_btn)
+	col.add_child(_align_row())
 	return box
+
+
+## P054 ALIGN CHIPS: the first pick stays, the second moves: Line them up (left sides level), Centre on that (middles on one spot), Same height (tops level)
+const ALIGN_OPS := [["left", "Line them up", "Slide the second piece so its left side lines up with the first one's (one step)"], ["centre", "Centre on that", "Slide the second piece so its middle sits on the middle of the first one (one step)"], ["top", "Same height", "Slide the second piece up or down so its top is level with the first one's (one step)"]]
+
+
+func _align_row() -> HBoxContainer:
+	align_row = HBoxContainer.new()
+	align_row.name = "easypart_align"
+	align_row.add_theme_constant_override("separation", 6)
+	align_row.visible = false
+	for al in ALIGN_OPS:
+		var b := _big_btn("easypart_align_" + String(al[0]), String(al[1]), String(al[2]), _align.bind(String(al[0]), String(al[1])))
+		b.custom_minimum_size = Vector2(150, 44)
+		align_row.add_child(b)
+		align_btns[al[0]] = b
+	return align_row
+
+
+## P054 ALIGN CHIPS: one step (one undo step) that moves the second picked piece against the first. A refusal changes nothing
+func _align(how: String, label: String) -> void:
+	if stick_picks.size() < 2:
+		_say("Click two pieces first: the first one stays, the second one moves")
+		return
+	_flush_if_dirty()
+	var snap := _rec().duplicate(true)
+	_begin(label)
+	var rec := pu._ensure()
+	var f := Part.new_feature(rec, "align", {"body": int(stick_picks[1]), "to": int(stick_picks[0]), "how": how})
+	rec["features"].append(f)
+	armed = ""
+	var why := _last_error(rec, String(f["id"]))
+	stick_picks = []
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("Those two pieces cannot line up: " + _plain(why))
+	else:
+		_end()
+		_say("%s: the second piece moved. Undo puts it back" % label)
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
 
 
 ## P035 SMOOTH THE JOINS: the chip shows while the newest step is a Join (nothing armed). Undo or any other step hides it
