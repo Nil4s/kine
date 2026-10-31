@@ -4273,7 +4273,7 @@ func _look_surfaces() -> void:
 		var l: Dictionary = ls[s]
 		var mt := StandardMaterial3D.new()
 		var c: Color = l["c"]
-		var a := float(l["alpha"])
+		var a := minf(float(l["alpha"]), PartViewTools.X_ALPHA) if xray else float(l["alpha"])   # S102: X-ray draws every body see-through
 		mt.albedo_color = Color(c.r, c.g, c.b, a)
 		mt.roughness = float(l["rough"])
 		mt.metallic = float(l["metal"])
@@ -4814,3 +4814,6 @@ func _con_draw() -> void:
 		var pe: Dictionary = ents[int(con_pick["ent"])]
 		if String(pe["k"]) == "line":
 			pov.draw_circle(_con_mid(ents, int(con_pick["ent"])), 6.0, Color("#ffc233"))
+
+
+var xray := false   # S102: the X-ray view toggle (PartViewTools); a view setting, never in the record
