@@ -3048,6 +3048,7 @@ func _curve_keep(pts: Array, maxn: int) -> Array:
 func _process(_dt: float) -> void:
 	if bar == null or pu == null:
 		return
+	_grid_labels_sync()   # p108measuregri: the grid's numbers follow the zoom (view only)
 	pu.replay_forget()   # the same-frame replay reuse (PartUI.replay_once) ends with the frame
 	var on := active()
 	if on != _was:
