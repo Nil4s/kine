@@ -1126,6 +1126,7 @@ func _grid_labels_cull() -> void:
 		if on:
 			on = view.has_point(c.unproject_position(p))
 		l.visible = on
+	_grid_labels_screen_size(c, view)   # integ95: a fixed screen size, and no two numbers on top of each other
 
 ## p059printtimee (Friday plan 59): the print time, in plain words, on the size label: "about 3 h 39 min to print". A print is mostly infill:
 ## the walls (1.2 mm over the whole surface) and 20 percent of the middle are what the printer lays down, at about 20 cm3 an hour (a typical
@@ -1200,3 +1201,25 @@ func _hinge_pose(bb: AABB) -> Array:
 		return []
 	var vs: Vector2 = m.get_viewport().get_visible_rect().size
 	return _frame_pose(bb, HINGE_SHARE * vs.y / fr.size.y)
+
+
+## integ95: the grid numbers keep one size ON THE SCREEN (GRID_LABEL_SCREEN_PX tall at any zoom: close up they were letters as tall as the view,
+## far away they shrank to specks), and a number closer than GRID_LABEL_PX to one already shown is hidden (at a low angle they piled up)
+const GRID_LABEL_SCREEN_PX := 16.0
+func _grid_labels_screen_size(c: Camera3D, view: Rect2) -> void:
+	var f := view.size.y / (2.0 * tan(deg_to_rad(c.fov) * 0.5))   # px per metre at 1 m
+	var shown: Array = []
+	for j in _glabel_n:
+		var l := _glabels[j] as Label3D
+		if not l.visible:
+			continue
+		var d := maxf(c.global_position.distance_to(l.global_position), 0.01)
+		l.pixel_size = GRID_LABEL_SCREEN_PX * d / (float(l.font_size) * f)
+		var sp := c.unproject_position(l.global_position)
+		for q in shown:
+			if sp.distance_to(q) < GRID_LABEL_PX * 0.5:   # half the step gap: only numbers really on top of each other (p108 bar 1 counts 5 on the X axis)
+				l.visible = false
+				break
+		if l.visible:
+			shown.append(sp)
+

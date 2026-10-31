@@ -154,6 +154,16 @@ func build(root: Control) -> void:
 	pic.pressed.connect(_picture_press)
 	sh.add_child(pic)
 	sh.add_child(_one_side_chip())   # P153: Symmetry is on by default; this chip turns it off ("One side only")
+	var photo_btn := Button.new()   # P201: Photo size: a phone photo with a coin beside the object; six clicks, the mm become a plate (easy_part_photo.gd)
+	photo_btn.name = "easypart_shape_photo"
+	photo_btn.text = "Photo size"
+	photo_btn.icon = Icons.sized("part_measure", 22)
+	photo_btn.focus_mode = Control.FOCUS_NONE
+	photo_btn.custom_minimum_size = Vector2(124, 40)
+	photo_btn.add_theme_font_size_override("font_size", 16)
+	photo_btn.tooltip_text = "Measure with a photo: the object with a coin beside it. Click the coin, then the object: its size becomes a plate"
+	photo_btn.pressed.connect(_photo_press)
+	sh.add_child(photo_btn)
 	root.add_child(shape_box)
 	hole_box = _hole_box()
 	root.add_child(hole_box)
@@ -1595,6 +1605,7 @@ func _screw_box() -> PanelContainer:
 	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	screw_words = hd
 	vb.add_child(hd)
+	vb.add_child(_head_row())   # P061SCREWHEADS: the head chips (Socket, Button, Flat) under the line, above the sizes
 	var row := HBoxContainer.new()   # FRIDAY 37 BOSS CHIP: the boss and nut buttons side by side, above the sizes (in view, not under the scroll)
 	row.add_theme_constant_override("separation", 4)
 	vb.add_child(row)
@@ -2118,6 +2129,9 @@ func _lib_box() -> PanelContainer:
 	vb.add_child(lib_soon)
 	vb.add_child(_type_row())   # p085typetobuil: the Type it row (shows with that category)
 	vb.add_child(_photo_row())   # p192makeitlike: Like a photo, under Type it
+	linkage_box = preload("res://scripts/easy_linkage.gd").new()   # p129linkages: the Linkage panel (4 bars, a drag knob) on the Hinges page, scripts/easy_linkage.gd
+	linkage_box.say_fn = _say   # p129linkages: its words go to the status line at the top
+	vb.add_child(linkage_box)
 	return pc
 
 
@@ -2279,7 +2293,7 @@ func _screw_pick(d: int, L: int) -> void:
 	var on_floor := _tpl() == "screw" and not (_rec().get("features", []) as Array).is_empty()
 	if on_floor:
 		var cur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {})
-		if int(cur.get("d", 0)) == d and int(cur.get("L", 0)) == L:
+		if int(cur.get("d", 0)) == d and int(cur.get("L", 0)) == L and int(cur.get("h", 0)) == screw_head:
 			_say("Already %s on the floor. Pick another size to change it" % label)
 			_screw_sync()
 			return
@@ -2290,11 +2304,11 @@ func _screw_pick(d: int, L: int) -> void:
 	m._step_hint = "Change the screw size" if on_floor else "Start a screw"
 	m._push_undo()
 	if on_floor:
-		PartTemplates.retemplate(_rec(), {"d": d, "L": L})
+		PartTemplates.retemplate(_rec(), {"d": d, "L": L, "h": screw_head})
 		PartTemplates.nw_set(_rec(), d)   # NNUTWASHER: the nut and washer (if on the floor) follow the size
 		PartTemplates.bo_set(_rec(), d, L)   # FRIDAY 37 BOSS CHIP: the post (if on the floor) follows the size too
 	else:
-		m.S.part = PartTemplates.make("screw", {"d": d, "L": L})
+		m.S.part = PartTemplates.make("screw", {"d": d, "L": L, "h": screw_head})
 	tweak = {}
 	pu.upto = -1
 	pu.sync()
@@ -2408,6 +2422,8 @@ func _screw_sync() -> void:
 			lb.set_pressed_no_signal(parts_open and cat == lib_cat)
 			m._grey(lb, Part.why_not() if not Part.available() else "")
 		hinges_btn.visible = parts_open and lib_cat == "Hinges"   # p067hinges
+		if linkage_box != null:   # p129linkages: the Linkage panel shows on the Hinges page
+			linkage_box.visible = parts_open and lib_cat == "Hinges"
 		hinges_btn.set_pressed_no_signal(_tpl() == "hinge")
 		m._grey(hinges_btn, Part.why_not() if not Part.available() else "")
 		_livecut_sync()   # p204livinghing
@@ -2466,6 +2482,7 @@ func _screw_sync() -> void:
 			b.set_pressed_no_signal(not cur.is_empty() and int(cur.get("d", 0)) == d and int(cur.get("L", 0)) == L)
 			m._grey(b, Part.why_not() if not Part.available() else "")
 	parts_btn.set_pressed_no_signal(parts_open)
+	_head_sync(cur)   # P061SCREWHEADS: the head chips and the size tips follow the screw on the floor
 	# FRIDAY 73: the bracket chips show while Brackets is open or a bracket is the part; the pressed one is the shape on the floor
 	var kind := int(cur.get("kind", 0)) if _tpl() == "bracket" else 0
 	bracket_box.visible = (parts_open and lib_cat == "Brackets") or _tpl() == "bracket"
@@ -5693,6 +5710,18 @@ func _frame_held() -> void:
 	m._cam()
 
 
+## P129 LINKAGES: the Linkage panel on the Hinges page (built in _lib_box, shown by _screw_sync)
+var linkage_box: PanelContainer
+## P201 PHYSICAL TO DIGITAL: the Photo size chip (Draw shape row). The photo panel, its six clicks and Make the part are scripts/easy_part_photo.gd
+var photo = null
+
+
+func _photo_press() -> void:
+	if photo == null:
+		photo = EasyPartPhoto.new(self)
+	photo.pick()
+
+
 ## P127 DOES IT FALL OVER (scripts/build/part_stand.gd): one chip on the Colour page, after the weights. It reads whether the built
 ## solid stands on its feet (its middle over the lowest surface) and says how far, in plain words. Changes no step: no undo
 func _stand_chip() -> Button:
@@ -6051,3 +6080,66 @@ func _clip_scroll_once() -> void:
 		_scroll_into_view.call_deferred(clip_box)
 	_clip_was_open = clip_box.visible
 
+
+
+## P061SCREWHEADS: the head row of the Screws page: Socket, Button, Flat (one toggle chip each, a flat row under the one-line instruction)
+func _head_row() -> HBoxContainer:
+	var hb := HBoxContainer.new()
+	hb.name = "easypart_head_row"
+	hb.add_theme_constant_override("separation", 4)
+	var tips := ["ISO 4762 socket head (the hex socket, the flat top)", "ISO 7380 button head (a low dome, a hex socket)", "ISO 10642 countersunk head (a 90 deg flat head, a hex socket)"]
+	for i in PartTemplates.SCREW_HEAD_CHIPS.size():
+		var b := Button.new()
+		b.name = "easypart_head_" + String(PartTemplates.SCREW_HEAD_CHIPS[i]).to_lower()
+		b.text = PartTemplates.SCREW_HEAD_CHIPS[i]
+		b.tooltip_text = "Head: " + tips[i] + ". A screw on the floor takes this head, one undo step"
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(0, 26)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_head_pick.bind(i))
+		hb.add_child(b)
+		head_btns.append(b)
+	return hb
+
+
+## P061SCREWHEADS: a head chip. No screw on the floor: the next screw takes this head. A screw on the floor is rebuilt with it (its size kept), one undo step
+func _head_pick(h: int) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var on_floor := _tpl() == "screw" and not (_rec().get("features", []) as Array).is_empty()
+	if not on_floor:
+		screw_head = h
+		_screw_sync()
+		return
+	var cur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {})
+	if int(cur.get("h", 0)) == h:
+		_say("Already the %s head on the floor" % PartTemplates.SCREW_HEAD_CHIPS[h].to_lower())
+		_screw_sync()
+		return
+	screw_head = h
+	_screw_pick(int(cur.get("d", 0)), int(cur.get("L", 0)))
+
+
+## P061SCREWHEADS: the head chips show the head of the screw on the floor (or the one to come); the sizes' tips and the line name it
+func _head_sync(cur: Dictionary) -> void:
+	if not cur.is_empty():
+		screw_head = clampi(int(cur.get("h", 0)), 0, 2)
+	for i in head_btns.size():
+		(head_btns[i] as Button).set_pressed_no_signal(i == screw_head)
+	var hn := String(PartTemplates.SCREW_HEAD_CHIPS[screw_head]).to_lower()
+	if screw_words != null:
+		screw_words.text = "Screws, %s head: pick a size. It drops on the floor" % hn if screw_head != 2 else "Screws, countersunk head: pick a size. It drops on the floor"
+	for d in SCREW_DS:
+		for L in SCREW_LENS:
+			(screw_btns["%d_%d" % [d, L]] as Button).tooltip_text = _screw_tip(d, L)
+
+
+## P061SCREWHEADS: the size chip's tip: the head across and high (the chosen head's table, mm), the shank and the length
+func _screw_tip(d: int, L: int) -> String:
+	var hd: Array = PartTemplates.SCREW_HEAD[d] if screw_head == 0 else PartTemplates.SCREW_ALT[screw_head][d]
+	return "M%d x %d: %s head %s mm across, %s mm high, plain shank %d mm long" % [d, L, String(PartTemplates.SCREW_HEAD_CHIPS[screw_head]).to_lower(), str(hd[0]), str(hd[1]), L]

@@ -223,6 +223,10 @@ func dab(hit: Vector3, normal: Vector3, pressure := 1.0) -> int:
 	var fk := String(p["falloff"])
 	var n := normal.normalized() if normal.length_squared() > 0.0 else Vector3.UP
 	var ids := verts_in(hit, r)
+	if ids.is_empty():   # p152sculptbrus: a small brush between two verts of a coarse mesh still reaches the nearest one
+		r = reach_radius(hit, r)
+		a *= clampf(0.5 / maxf(falloff(fk, 1.0 / 1.05), 1e-3), 1.0, 60.0)   # the nearest vert sits at the rim: give it half a dab
+		ids = verts_in(hit, r)
 	var br := String(p["brush"])
 	if _nb != null and _alpha == null and br != MASK and br != FSET:
 		var nd = _nb.displacements(_nctx, mesh.verts, mesh.vert_normals, ids, br, fk, hit, n, r, a, float(p["strength"]), sgn, _has_last, _last)
@@ -442,3 +446,15 @@ func _grab_move(point: Vector3) -> void:
 		vs[v] = _grab_v[v] + dv
 	mesh.verts = vs
 	_renormal(tot.keys())
+
+
+## p152sculptbrus: the radius a dab really uses when no vert is inside the brush (a 10 mm brush on a mesh with 20 mm cells): 1.05x the
+## distance to the nearest vert within 3 radii, so the dab moves only that vert, by about half a dab; the brush itself is unchanged when a vert is in reach
+func reach_radius(hit: Vector3, r: float) -> float:
+	var near := verts_in(hit, r * 3.0)
+	if near.is_empty():
+		return r
+	var best := INF
+	for u in near:
+		best = minf(best, mesh.verts[u].distance_to(hit))
+	return maxf(r, best * 1.05)
