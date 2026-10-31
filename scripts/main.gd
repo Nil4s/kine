@@ -365,6 +365,8 @@ var ui_body: BodyPanel  # the BODY page's panel (scripts/body_panel.gd)
 
 ## does this kind of project hide this on this page (PAGE_KIND_HIDES)
 func _hides(what: String) -> bool:
+	if what == "figure" and B != null and B.wep_on and PartWeapon.is_part(B.wep_kind):   # p131heldshow: a Part in his hand shows him (BUILD hides the figure)
+		return false
 	return S != null and (PAGE_KIND_HIDES.get(S.kind, {}).get(cur_page, []) as Array).has(what)
 
 
