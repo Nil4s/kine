@@ -163,8 +163,8 @@ func _init() -> void:
 	ok(sheet == null or not sheet.visible, "2 WALK: no sheet before the press")
 	var host: Node = ep.hole_box.get_parent()   # the sheet lives beside the hole row (the Easy Part panel), not under the EasyPart object
 	var fp := flat_btn.get_global_rect().get_center()
-	var f0 := Engine.get_process_frames()
 	await ev_move(fp)
+	var f0 := Engine.get_process_frames()
 	await ev_mouse(fp, true)
 	await ev_mouse(fp, false)   # a Button fires on release: the press and the release are the two frames counted
 	var frames := Engine.get_process_frames() - f0
