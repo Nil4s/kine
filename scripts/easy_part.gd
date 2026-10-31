@@ -3271,6 +3271,7 @@ func _finish_line() -> void:
 	var pts: Array = _draft.get("pts", [])
 	var segs: Array = _draft.get("segs", [false])
 	var fc: Dictionary = _draft.get("face", {})
+	var cuts: Array = _draft.get("cuts", [])   # P045: the points a typed stretch starts and ends on (each is a run's end)
 	_draft = {}
 	var total := 0.0
 	for i in range(1, pts.size()):
@@ -3281,7 +3282,7 @@ func _finish_line() -> void:
 	var ents := []
 	var s := 0
 	for i in range(1, pts.size()):
-		if i == pts.size() - 1 or bool(segs[i + 1]) != bool(segs[i]):   # the run ends at point i
+		if i == pts.size() - 1 or bool(segs[i + 1]) != bool(segs[i]) or i in cuts:   # the run ends at point i
 			var ps: Array = pts.slice(s, i + 1)
 			if bool(segs[i]):
 				var keep := []
@@ -3478,6 +3479,9 @@ func _key(k: InputEventKey) -> void:
 	var fo := get_viewport().gui_get_focus_owner()
 	if fo is LineEdit or fo is SpinBox:
 		return   # a typed number keeps its keys
+	if _line_typed_key(k):   # P045: a Line being drawn takes a typed length (digits, Backspace, Enter); the digits do not turn the camera
+		get_viewport().set_input_as_handled()
+		return
 	if k.keycode == KEY_ESCAPE:
 		if not _draft.is_empty():
 			_draft = {}
@@ -4695,3 +4699,60 @@ func _spring_pick_press() -> void:
 	parts_open = false
 	_chip("spring")
 	_screw_sync()
+
+
+## P045 TYPED LINE: while a Line is drawn (the button held), digits and "." type a length (the say line shows it), Backspace takes one back.
+## Enter draws a straight stretch of that length from the last point, in the way the pointer is going (a new run, so it stays its own line).
+## true = the key was the typed length's; any other key (Escape, Delete, Ctrl) is left to the rest of the screen
+func _line_typed_key(k: InputEventKey) -> bool:
+	if _draft.is_empty() or String(_draft.get("shape", "")) != "line" or not _draft.has("pts"):
+		return false
+	var typed := String(_draft.get("typed", ""))
+	var ch := ""
+	if k.keycode >= KEY_0 and k.keycode <= KEY_9:
+		ch = str(k.keycode - KEY_0)
+	elif k.keycode >= KEY_KP_0 and k.keycode <= KEY_KP_9:
+		ch = str(k.keycode - KEY_KP_0)
+	elif k.keycode in [KEY_PERIOD, KEY_KP_PERIOD]:
+		ch = "."
+	if ch != "":
+		if ch == "." and typed.contains("."):
+			return true
+		_draft["typed"] = typed + ch
+		_say("Length %s mm: Enter draws it, Backspace takes a digit back" % (typed + ch))
+		return true
+	if k.keycode == KEY_BACKSPACE and typed != "":
+		_draft["typed"] = typed.left(-1)
+		_say("Length %s mm: Enter draws it, Backspace takes a digit back" % typed.left(-1) if typed.length() > 1 else "Length typed: type a number, then Enter")
+		return true
+	if k.keycode in [KEY_ENTER, KEY_KP_ENTER] and typed != "":
+		return _typed_stretch(typed)
+	return false
+
+
+## P045: the typed stretch: from the last point, along the way the pointer is going (RIGHT when the pointer has not moved since)
+func _typed_stretch(typed: String) -> bool:
+	var pts: Array = _draft["pts"]
+	var last: Vector2 = pts.back()
+	var cur: Vector2 = _draft.get("b", last)
+	var dir := Vector2.RIGHT
+	if cur.distance_to(last) >= 0.5:
+		dir = (cur - last).normalized()
+	elif pts.size() >= 2:
+		dir = (last - (pts[pts.size() - 2] as Vector2)).normalized()
+	var len := float(typed)
+	if len <= 0.0:
+		_say("A length must be above 0 mm: type a number, then Enter, or Backspace to clear it")
+		return true
+	pts.append(last + dir * len)
+	var segs: Array = _draft.get("segs", [false])
+	segs.append(false)
+	_draft["segs"] = segs
+	var cuts: Array = _draft.get("cuts", [])
+	cuts.append(pts.size() - 2)
+	cuts.append(pts.size() - 1)
+	_draft["cuts"] = cuts
+	_draft["typed"] = ""
+	_say("Stretch of %s mm drawn. Keep holding to draw on, or let go to finish" % typed)
+	dots.queue_redraw()
+	return true
