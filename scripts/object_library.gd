@@ -827,7 +827,7 @@ func _rebuild() -> void:
 		empty.custom_minimum_size = Vector2(_tile_size().x * COLS, 60)
 		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		empty.text = ("Nothing matches \"%s\"." % query) if query != "" else \
-			("Nothing yet. Click a picture in any list and it shows up here." if view == RECENT else "Nothing here yet. Draw a room in BUILD, press Save house, and it is listed here." if view == "My houses" else "Nothing saved yet. Make a part in Easy Part or Expert and press Use in a scene; it is listed here." if view == "My parts" else "No models of your own yet. Drop a .glb file on the window to bring it in; it is listed here." if m.easy.on else "No models of your own yet. Import model... (the SET row) brings a .glb in; it is listed here.")
+			("Nothing yet. Click a picture in any list and it shows up here." if view == RECENT else "Nothing here yet. Draw a room in BUILD, press Save house, and it is listed here." if view == "My houses" else "Nothing saved yet. Make a part in Easy Part or Expert and press Use in a scene; it is listed here. A part a friend shared (its .json file) dropped on the window is listed here too." if view == "My parts" else "No models of your own yet. Drop a .glb file on the window to bring it in; it is listed here." if m.easy.on else "No models of your own yet. Import model... (the SET row) brings a .glb in; it is listed here.")
 		empty.add_theme_color_override("font_color", Tok.of("text:0.6"))
 		_grid.add_child(empty)
 	if _easy() and view == "" and query == "":
