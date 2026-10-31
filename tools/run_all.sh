@@ -389,3 +389,4 @@ EXTRA="$EXTRA p118fingerjoin:w"   # p118fingerjoin (Friday plan 118): Easy Part 
 EXTRA="$EXTRA p127springsand:w"   # P127 DOES IT FALL OVER (Friday plan 127, springs and gravity light physics): Easy Part Colour chip reads whether the built part stands on its feet (its middle over the lowest surface), a readout only; real clicks, bars on the mesh (tests/p127springsand_test.gd; needs the CAD DLL)
 
 EXTRA="$EXTRA p147physicsrag:w"   # p147physicsrag (Friday plan 147): Ragdoll: hit, fall, get back up: the body at the playhead is pushed, falls limp for 2 s, blends back onto its own pose over 1 s; baked as cards into a NEW scene (tests/p147physicsrag_test.gd)
+EXTRA="$EXTRA p082libframe:w"   # P082LIBFRAME: after a Parts library pick (M4 x 16) the camera frames the part: its bigger side fills at least 20 % of the view (tests/p082libframe_test.gd)
