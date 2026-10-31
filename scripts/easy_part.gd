@@ -373,7 +373,7 @@ func _hole_box() -> PanelContainer:
 	h.add_theme_constant_override("v_separation", 6)
 	h.custom_minimum_size = Vector2(720, 0)   # P076: the chips wrap at 720 px (two short rows, clear of Change your part), not one narrow column
 	box.add_child(h)
-	for hm in [["through", "Through", "A round hole straight through the middle"], ["hollow", "Hollow inside", "Hollow the solid out, open at the top, with a wall (the Wall slider)"], ["lid", "Hollow with a lid", "Hollow the box out with a 3 mm wall; its top 5 mm comes off as a lid with a lip that sits inside the box"]]:
+	for hm in [["through", "Through", "A round hole straight through the middle"], ["hollow", "Hollow inside", "Hollow the solid out, open at the top, with a wall (the Wall slider)"], ["lid", "Hollow with a lid", "Hollow the box out with a 3 mm wall; its top 5 mm comes off as a lid with a lip that sits inside the box"], ["fingers", "Finger joints", "Cut a comb of notches along the top edge of the box, for a laser-cut box: each finger is 3 mm, the notch a third of the height"]]:
 		var b := _big_btn("easypart_hole_" + String(hm[0]), String(hm[1]), String(hm[2]), _hole_mode.bind(String(hm[0])))
 		b.toggle_mode = true
 		b.custom_minimum_size = Vector2(150, 44)
