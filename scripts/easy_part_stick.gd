@@ -454,3 +454,219 @@ func _explode_set(v: float) -> void:
 func _explode_reset() -> void:
 	explode_slider.set_value_no_signal(0.0)
 	_explode_set(0.0)
+
+
+## SIZE % (p052scalepiece, Friday plan 52): a picked piece that was pulled up from a shape gets a Size % slider (50 to 200 %) and a
+## Taller only chip. One slider release is one undo step: the record from before the drag is rebuilt with the piece scaled about the
+## middle of its shape (the bottom stays on the shape's plane). Taller only scales the up axis alone (width and depth stay). The slider
+## goes back to 100 after each release, so the next drag scales the piece again from where it is now
+const SIZE_MIN := 50.0
+const SIZE_MAX := 200.0
+const SIZE_ARC_N := 48          # a circle scaled taller (not wider) becomes a closed spline of this many points
+const SIZE_AT := Vector2(520, 530)   # where the Size % box sits (1280 x 720 canvas): clear of the click spots, the block and the steps panel
+var size_box: PanelContainer
+var size_slider: HSlider
+var size_label: Label
+var size_taller: Button
+var size_base: Dictionary = {}   # the record when a Size % drag began ({} = no drag)
+
+
+func _size_box() -> PanelContainer:
+	var box := PanelContainer.new()
+	box.name = "easypart_size"
+	box.add_theme_stylebox_override("panel", _style(Tok.c("panel"), 10, 6))
+	box.visible = false
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 2)
+	box.add_child(v)
+	size_label = Label.new()
+	size_label.name = "easypart_size_label"
+	size_label.add_theme_font_size_override("font_size", 16)
+	size_label.add_theme_color_override("font_color", Tok.c("text"))
+	v.add_child(size_label)
+	size_slider = HSlider.new()
+	size_slider.name = "easypart_size_slider"
+	size_slider.min_value = SIZE_MIN
+	size_slider.max_value = SIZE_MAX
+	size_slider.step = 1.0
+	size_slider.value = 100.0
+	size_slider.focus_mode = Control.FOCUS_NONE
+	size_slider.custom_minimum_size = Vector2(260, 24)
+	size_slider.add_theme_icon_override("grabber", _knob())
+	size_slider.drag_started.connect(_size_drag_start)
+	size_slider.value_changed.connect(_size_preview)
+	size_slider.drag_ended.connect(_size_drag_end)
+	v.add_child(size_slider)
+	size_taller = Button.new()
+	size_taller.name = "easypart_size_taller"
+	size_taller.text = "Taller only"
+	size_taller.toggle_mode = true
+	size_taller.tooltip_text = "On: the Size % slider makes the piece taller only. The width and depth stay"
+	size_taller.custom_minimum_size = Vector2(0, 34)
+	size_taller.add_theme_font_size_override("font_size", 15)
+	v.add_child(size_taller)
+	_size_text()
+	return box
+
+
+## the box's words: the % the slider is at, and whether it is taller only
+func _size_text() -> void:
+	var pct := int(roundf(size_slider.value))
+	size_label.text = ("Taller only: %d %%" if size_taller.button_pressed else "Size: %d %%") % pct
+
+
+## the box shows with a picked piece (its Remove shows too) and sits in the lower middle of the grid, clear of the Tilt rows and the steps panel
+func _slider_box_sync(on: bool) -> void:
+	size_box.visible = on and _rec().get("features", []).size() > 0 and del_on and armed == ""
+	if not size_box.visible:
+		return
+	size_box.reset_size()
+	size_box.position = SIZE_AT   # the grid's lower middle: right of the Tilt and Draft rows, left of the steps panel (1280 x 720)
+
+
+func _size_drag_start() -> void:
+	size_base = _rec().duplicate(true)
+
+
+## the slider moves: the piece is shown at the new % (the record is not an undo step yet); a size that cannot be built says why
+func _size_preview(v: float) -> void:
+	_size_text()
+	if size_base.is_empty():
+		size_base = _rec().duplicate(true)
+	var out := _size_build(size_base, v / 100.0, size_taller.button_pressed)
+	if out.has("err"):
+		m.S.part = size_base.duplicate(true)
+		_say(String(out["err"]))
+	else:
+		m.S.part = out["rec"]
+	pu.upto = -1
+	pu.sync()
+
+
+## the release: one undo step from the record before the drag, to the scaled record. The slider goes back to 100
+func _size_drag_end(changed: bool) -> void:
+	var base := size_base
+	size_base = {}
+	if base.is_empty():
+		return
+	var pct := size_slider.value
+	var taller := size_taller.button_pressed
+	var out := _size_build(base, pct / 100.0, taller) if changed and absf(pct - 100.0) >= 0.5 else {}
+	m.S.part = base
+	if out.has("err"):
+		_say(String(out["err"]))
+	elif not out.is_empty():
+		_begin("Taller %d %%" % int(roundf(pct)) if taller else "Size %d %%" % int(roundf(pct)))
+		m.S.part = out["rec"]
+		_end()
+		_say("The piece is %d %% %s. Undo puts it back" % [int(roundf(pct)), "taller" if taller else "of its size"])
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	size_slider.set_value_no_signal(100.0)
+	_size_text()
+
+
+## the record with the picked piece scaled by f (1.0 = as it is): {"rec": record} or {"err": what to press next}.
+## The piece is its Pull step (an extrude): its shape's points and dimensions scale about the shape's middle, and its pull distance too
+func _size_build(base: Dictionary, f: float, taller: bool) -> Dictionary:
+	var k := Part.index_of(base, del_id)
+	if k < 0:
+		return {"err": "Click a piece first, then drag Size %"}
+	var rec: Dictionary = base.duplicate(true)
+	var ex: Dictionary = rec["features"][k]
+	if String(ex.get("t", "")) != "extrude" or not ex.has("sketch"):
+		return {"err": "Size % works on a piece you pulled up from a shape. Press Undo, or click a piece that has a Pull step"}
+	var sk := Part.feature(rec, String(ex["sketch"]))
+	if sk.is_empty():
+		return {"err": "This piece has no shape left to scale. Press Undo"}
+	var pl: Dictionary = Part.resolve_plane(rec, String(sk.get("plane", "front")))
+	# the plane's axes that point up: Taller only scales those alone (x and y of the shape, and the pull)
+	var fu := f if (not taller or absf((pl["x"] as Vector3).y) > 0.5) else 1.0
+	var fv := f if (not taller or absf((pl["y"] as Vector3).y) > 0.5) else 1.0
+	var fn := f if (not taller or absf((pl["n"] as Vector3).y) > 0.5) else 1.0
+	var ents: Array = sk.get("ents", [])
+	var c := _size_centre(ents)
+	var conv := {}   # entity index -> true when a circle became a spline (taller only: an ellipse)
+	for i in ents.size():
+		ents[i] = _size_ent(ents[i], c, fu, fv, i, conv)
+	var dims: Array = []
+	for d in sk.get("dims", []):
+		var di := int(d.get("ent", -1))
+		if conv.has(di):
+			continue   # the spline has no size of its own: its dimension goes (the points carry the shape)
+		var kind := String(d.get("kind", ""))
+		if kind == "w":
+			d["mm"] = float(d.get("mm", 0.0)) * fu
+		elif kind == "h":
+			d["mm"] = float(d.get("mm", 0.0)) * fv
+		elif kind == "r":
+			d["mm"] = float(d.get("mm", 0.0)) * fu
+		elif kind == "len" and di >= 0 and di < ents.size():
+			var e: Dictionary = ents[di]
+			var dir := _v2(e["b"]) - _v2(e["a"]) if e.has("b") else Vector2(1, 0)
+			d["mm"] = float(d.get("mm", 0.0)) * (fu if absf(dir.x) >= absf(dir.y) else fv)
+		dims.append(d)
+	sk["dims"] = dims
+	ex["dist"] = float(ex.get("dist", 0.0)) * fn
+	var before := Part.replay(base)
+	var after := Part.replay(rec)
+	var bad := (after.get("errors", {}) as Dictionary).size() > (before.get("errors", {}) as Dictionary).size()
+	if bad or int(after.get("bodies", -1)) != int(before.get("bodies", -2)):
+		return {"err": "That size does not fit the steps after this piece. Press Undo, or try a smaller size"}
+	return {"rec": rec}
+
+
+## a point as Vector2 (the record holds [x, y] arrays)
+static func _v2(p) -> Vector2:
+	return Vector2(float(p[0]), float(p[1]))
+
+
+## the middle of a shape's points (mm): the middle of its box, circles and arcs counted by their edges
+static func _size_centre(ents: Array) -> Vector2:
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for e in ents:
+		var pts: Array = []
+		for key in ["a", "b", "m", "c"]:
+			if e.has(key):
+				pts.append(_v2(e[key]))
+		for p in e.get("pts", []):
+			pts.append(_v2(p))
+		if e.has("r"):
+			for p in [_v2(e["c"]) - Vector2(float(e["r"]), 0), _v2(e["c"]) + Vector2(float(e["r"]), 0), _v2(e["c"]) - Vector2(0, float(e["r"])), _v2(e["c"]) + Vector2(0, float(e["r"]))]:
+				pts.append(p)
+		for p in pts:
+			lo = lo.min(p)
+			hi = hi.max(p)
+	return (lo + hi) * 0.5 if lo.x < INF else Vector2.ZERO
+
+
+## one entity scaled about c by (fu, fv): lines, rects, arcs and splines map their points; a circle stays a circle when the scale is even,
+## else it becomes a closed spline (recorded in conv)
+static func _size_ent(e: Dictionary, c: Vector2, fu: float, fv: float, i: int, conv: Dictionary) -> Dictionary:
+	var sc := Vector2(fu, fv)
+	var out := e.duplicate(true)
+	var k := String(e.get("k", ""))
+	if k == "circle":
+		var cc := c + (_v2(e["c"]) - c) * sc
+		var r := float(e["r"])
+		if absf(fu - fv) < 1e-9:
+			out["c"] = Part.arr2(cc)
+			out["r"] = r * fu
+			return out
+		var pts: Array = []
+		for j in SIZE_ARC_N:
+			var t := TAU * float(j) / float(SIZE_ARC_N)
+			pts.append(Part.arr2(cc + Vector2(cos(t) * r * fu, sin(t) * r * fv)))
+		conv[i] = true
+		return {"k": "bspline", "pts": pts, "closed": true}
+	for key in ["a", "m", "b"]:
+		if e.has(key):
+			out[key] = Part.arr2(c + (_v2(e[key]) - c) * sc)
+	if e.has("pts"):
+		var sp: Array = []
+		for p in e["pts"]:
+			sp.append(Part.arr2(c + (_v2(p) - c) * sc))
+		out["pts"] = sp
+	return out
