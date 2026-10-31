@@ -398,6 +398,9 @@ func _hole_box() -> PanelContainer:
 	mb.custom_minimum_size = Vector2(96, 44)
 	h.add_child(mb)
 	hole_btns["magnet"] = mb
+	var flb := _big_btn("easypart_hole_flat", "Flat pattern", "Unfold the box into a flat sheet to laser-cut: six panels with finger joints. The model does not change", _flat_press)   # p117flatpatter
+	flb.custom_minimum_size = Vector2(120, 44)
+	h.add_child(flb)   # not a toggle: it is not in hole_btns (the row's pressed state would ignore it)
 	for sd in SCREW_CLEAR:   # p030countersun: one chip per screw size: the hole is sized to the screw (M3 3.4 mm ... M6 6.6 mm)
 		var sb := _big_btn("easypart_hole_screw%d" % sd, "M%d screw" % sd, "A hole for an M%d socket screw: a clearance hole, and a counterbore on the top face for its head" % sd, _hole_mode.bind("screw%d" % sd))
 		sb.toggle_mode = true
@@ -3474,6 +3477,8 @@ func _process(_dt: float) -> void:
 	dots.visible = on
 	shape_box.visible = on and armed == "draw"
 	hole_box.visible = on and _hole_on()
+	if flat_sheet != null:
+		flat_sheet.visible = on and flat_sheet.visible   # p117flatpatter: the sheet closes with Easy Part
 	split_box.visible = on and _split_on()
 	round_box.visible = on and _round_shown()   # NROUNDFILTER
 	if round_box.visible:
@@ -4907,6 +4912,60 @@ func _scale_sync(on: bool) -> void:
 	scale_ref.visible = on
 	if on:
 		_scale_place()
+
+## p117flatpatter (Kine's own): Flat pattern, the chip under Cut a hole. It unfolds the plain box (the solid before the hole) into a flat
+## sheet for laser cutting: six panels with finger joints, drawn in a sheet over the Easy Part panel. Nothing in the model changes, so no
+## undo step. Close hides the sheet. A solid that is not a plain box says what to press first
+var flat_sheet: PanelContainer   # p117flatpatter: the sheet (made on the first press)
+var flat_view: FlatPatternView
+var flat_title: Label
+
+
+func _flat_press() -> void:
+	if not Part.available():
+		return
+	var base: Dictionary = hole_base if not hole_base.is_empty() else _rec()
+	var res := Part.replay(base)
+	if int(res["bodies"]) == 0:
+		_say("Nothing solid to unfold yet. Press Pull it up first")
+		return
+	var bb: AABB = res["aabb"]
+	if float(res["volume"]) < bb.size.x * bb.size.y * bb.size.z * 0.99:
+		_say("Flat pattern is for a plain box. Press Box, then Cut a hole, then Flat pattern")
+		return
+	if flat_sheet == null:
+		_flat_make()
+	var sz := bb.size / Part.MM
+	var net := FlatPattern.net(sz.x, sz.y, sz.z)
+	flat_title.text = "Box %.0f x %.0f x %.0f mm, %.0f mm sheet: six panels with finger joints (mm)" % [sz.x, sz.y, sz.z, FlatPattern.SHEET_MM]
+	flat_view.show_net(net)
+	flat_sheet.visible = true
+	flat_sheet.reset_size()
+	flat_sheet.position = (hole_box.get_parent().size - flat_sheet.size) / 2.0
+	_say("Flat pattern: %d panels, %d finger joints. Print it at full size to cut it, then Close" % [net["pieces"].size(), net["joints"]])
+
+
+func _flat_make() -> void:
+	flat_sheet = PanelContainer.new()
+	flat_sheet.name = "easypart_flat_sheet"
+	flat_sheet.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.97), 10, 6))
+	flat_sheet.z_index = 10
+	flat_sheet.visible = false
+	var vb := VBoxContainer.new()
+	flat_sheet.add_child(vb)
+	flat_title = Label.new()
+	flat_title.name = "easypart_flat_title"
+	flat_title.add_theme_font_size_override("font_size", 16)
+	flat_title.add_theme_color_override("font_color", Tok.c("heading"))
+	vb.add_child(flat_title)
+	flat_view = FlatPatternView.new()
+	flat_view.name = "easypart_flat_view"
+	flat_view.custom_minimum_size = Vector2(560, 360)
+	vb.add_child(flat_view)
+	var close := _big_btn("easypart_flat_close", "Close", "Hide the flat pattern", func(): flat_sheet.visible = false)
+	vb.add_child(close)
+	hole_box.get_parent().add_child(flat_sheet)
+
 ## p083favourites (Friday plan 83) and p083favfix: the Favourites category of the Parts library. Its page is the row. It lists the favourites (starred, first) and then the
 ## parts used lately (six at most). A chip puts that part on the floor again (one undo step, the same as the Parts chips). The star keeps
 ## the part on the floor as a favourite: a list, not a model step, so it makes no undo step. The lists live in FAV_FILE (user://).
