@@ -918,6 +918,7 @@ func _without_screw_hole(rec: Dictionary) -> Dictionary:
 		(r["features"] as Array).resize(g)
 	return r
 
+
 ## P028 ANGLE: the Spin it round slider is an Angle in degrees, 30 (a slim part of a bowl) to 360 (all the way round); its record field is deg
 func _spin_tweak(id: String) -> Dictionary:
 	return {"id": id, "field": "deg", "label": "Angle", "unit": "deg", "lo": 30.0, "hi": 360.0, "step": 5.0, "scale": 1.0, "words": ["A bit", "All the way"]}

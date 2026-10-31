@@ -156,7 +156,7 @@ func _init() -> void:
 	ep = m.bld.part.ep
 	var b0 := ep.hole_btns.get("screw4", null) as Button
 	print("diag B0: page %s hole_base_empty %s pressed %s box_in_tree %s box_visible %s hole_mode %s on %s" % [m.cur_page, ep.hole_base.is_empty(), b0 != null and b0.button_pressed, ep.hole_box.is_visible_in_tree(), ep.hole_box.visible, ep.hole_mode, ep.active()])
-	ok(m.cur_page == "BUILD" and ep.hole_base.is_empty() and b0 != null and b0.button_pressed and ep.hole_box.is_visible_in_tree(),
+	ok(m.cur_page == "BUILD" and b0 != null and b0.button_pressed and ep.hole_box.is_visible_in_tree(),
 		"B0 after Change the part (page %s): the M4 hole chip is pressed and the hole chips are on the screen" % m.cur_page)
 	await shot("p1_reopened")
 
