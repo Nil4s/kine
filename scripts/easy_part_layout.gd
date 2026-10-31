@@ -1230,8 +1230,8 @@ func _tilt_low(low_y: float) -> float:
 
 ## P172LAYOUTS: the panel gives up the room the step list needs when the list would otherwise run off the window's bottom
 func _panel_room(avail: float, top: float) -> float:
-	if steps_box == null or not steps_box.is_visible_in_tree():
-		return avail
+	if steps_box == null or not steps_box.is_visible_in_tree() or get_viewport().get_visible_rect().size.x >= NARROW_W:
+		return avail   # wide: unchanged (the panel keeps its full height and its foot, with Exact sizes? Use Expert)
 	var win_b := get_viewport().get_visible_rect().end.y
 	var steps_h := steps_box.get_combined_minimum_size().y
 	if top + maxf(avail, _panel_need()) + 8.0 + steps_h <= win_b - 6.0:
@@ -1241,8 +1241,9 @@ func _panel_room(avail: float, top: float) -> float:
 
 ## P172LAYOUTS: the step list under the panel's content, or under the panel's own (shorter) bottom when the content would push it off the window
 func _steps_y(content_y: float, panel_y: float) -> float:
-	if content_y + steps_box.get_combined_minimum_size().y <= get_viewport().get_visible_rect().end.y - 6.0:
-		return content_y
+	var vp := get_viewport().get_visible_rect()
+	if vp.size.x >= NARROW_W or content_y + steps_box.get_combined_minimum_size().y <= vp.end.y - 6.0:
+		return content_y   # wide: the list stays under the panel's content, as before
 	return panel_y
 
 
