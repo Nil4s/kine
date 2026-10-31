@@ -78,7 +78,7 @@ func build(root: Control) -> void:
 	give_btn.name = "easypart_give"
 	give_btn.custom_minimum_size = Vector2(170, m.TOP_H - 12)
 	row.add_child(give_btn)
-	export_btn = _bar_btn("Export", "Save this part as an OBJ or a GLB file: the export dialog, with this part picked", func(): m._export_dialog_open())   # FEXPORT
+	export_btn = _bar_btn("Export", "Save this part as a 3MF or STL file for your 3D printer (or OBJ / GLB): the export dialog, with this part picked", func(): m._export_dialog_open())   # FEXPORT
 	export_btn.name = "easypart_export"
 	export_btn.custom_minimum_size = Vector2(110, m.TOP_H - 12)
 	row.add_child(export_btn)
@@ -2427,6 +2427,7 @@ func _screw_sync() -> void:
 			_fav_sync()
 	if clip_box != null:   # P075: the Clips and feet chips show while that category is open
 		clip_box.visible = parts_open and lib_cat == "Clips and feet"
+		_clip_scroll_once()   # integ94: the chips sat below the scroll's edge (y 594 vs 586) and took no click (p205 S1)
 		for kind in CLIP_KINDS:
 			var cb: Button = clip_btns[kind]
 			cb.set_pressed_no_signal(_tpl() == kind)
@@ -6041,3 +6042,12 @@ func _with_twin(ents: Array, fc: Dictionary, sh: String) -> Array:
 			ne["pts"] = np
 		out.append(ne)
 	return out
+
+
+## integ94: when the Clips and feet page opens, the panel scrolls its chips into view (once per opening, so a maker's own scroll is kept)
+var _clip_was_open := false
+func _clip_scroll_once() -> void:
+	if clip_box.visible and not _clip_was_open:
+		_scroll_into_view.call_deferred(clip_box)
+	_clip_was_open = clip_box.visible
+
