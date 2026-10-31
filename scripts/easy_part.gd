@@ -297,10 +297,10 @@ func build(root: Control) -> void:
 	v.add_child(lib_box)
 	fav_box = _fav_box()   # p083favfix: the Favourites category page (its row and the star), right under the Parts chips: the screw grid of a screw on the floor sits below it, so the star stays in the scroll view
 	v.add_child(fav_box)
+	rod_box = _rod_box()   # THREAD (p206threadgene): the threaded rod chips, ABOVE the screw grid on the Screws page (under the grid they sat below the panel's edge)
+	v.add_child(rod_box)
 	screw_box = _screw_box()
 	v.add_child(screw_box)
-	rod_box = _rod_box()   # THREAD (p206threadgene): the threaded rod chips, under the screw grid on the Screws page
-	v.add_child(rod_box)
 	bear_box = _bear_box()   # P069 BEARINGS: the bearing chips and the seat button, under the Parts page
 	v.add_child(bear_box)
 	bracket_box = _bracket_box()   # FRIDAY 73
@@ -5806,13 +5806,7 @@ func _rod_box() -> PanelContainer:
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 4)
 	pc.add_child(vb)
-	var hd := Label.new()
-	hd.name = "easypart_rod_words"
-	hd.text = "Threaded rods, for printing: pick a size. It drops on the floor"
-	hd.add_theme_font_size_override("font_size", 14)
-	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	vb.add_child(hd)
-	var g := GridContainer.new()
+	var g := GridContainer.new()   # one line of three chips, no heading: the Screws page is full (the words are in the tooltips and the status line)
 	g.columns = PartTemplates.ROD_PITCH.size()
 	g.add_theme_constant_override("h_separation", 4)
 	g.add_theme_constant_override("v_separation", 4)
@@ -5826,6 +5820,7 @@ func _rod_box() -> PanelContainer:
 		b.toggle_mode = true
 		b.focus_mode = Control.FOCUS_NONE
 		b.custom_minimum_size = Vector2(0, 28)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.add_theme_font_size_override("font_size", 13)
 		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
 		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
@@ -5851,7 +5846,10 @@ func _rod_icon(d: int) -> ImageTexture:
 func _rod_sync() -> void:
 	if rod_box == null:
 		return
+	var was_shown := rod_box.visible
 	rod_box.visible = (parts_open and lib_cat == "Screws") or _tpl() == "rod"
+	if rod_box.visible and not was_shown and _tpl() != "rod":
+		_rod_scroll.call_deferred()   # the rod row sits above the screw grid: scroll down by its height so the screw chips stay where they were (nscrew2 clicks them unscrolled)
 	var cur := 0
 	if _tpl() == "rod":
 		cur = int(roundf(float((_rec().get("easy", {}) as Dictionary).get("p", {}).get("d", 0))))
@@ -6244,3 +6242,12 @@ func _head_sync(cur: Dictionary) -> void:
 func _screw_tip(d: int, L: int) -> String:
 	var hd: Array = PartTemplates.SCREW_HEAD[d] if screw_head == 0 else PartTemplates.SCREW_ALT[screw_head][d]
 	return "M%d x %d: %s head %s mm across, %s mm high, plain shank %d mm long" % [d, L, String(PartTemplates.SCREW_HEAD_CHIPS[screw_head]).to_lower(), str(hd[0]), str(hd[1]), L]
+
+
+## THREAD: scroll the panel down by the rod row's height (once, when the row appears on the Screws page), so the head row and the screw grid keep their places
+func _rod_scroll() -> void:
+	await panel.get_tree().process_frame   # the layout must have grown first, or the scroll clamps to 0
+	await panel.get_tree().process_frame
+	var sc := panel.get_node_or_null("easypart_panel_scroll") as ScrollContainer
+	if sc != null and rod_box != null and rod_box.visible:
+		sc.scroll_vertical = int(rod_box.get_combined_minimum_size().y) + 4
