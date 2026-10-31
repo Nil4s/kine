@@ -5,10 +5,14 @@ extends "res://scripts/easy_part_repeat.gd"
 
 ## the hole chips show after a Cut a hole press, while its step is the newest hole and nothing is armed
 func _hole_on() -> bool:
+	if _screw_group(_rec()) >= 0 and armed == "":   # P082: a screw hole the part was saved with: its chips show after Change the part
+		return true
 	return not hole_base.is_empty() and armed == "" and not Part.feature(_rec(), hole_id).is_empty()
 
 
 func _hole_sync() -> void:
+	if _screw_group(_rec()) >= 0 and hole_base.is_empty():   # P082: the chip on is the screw the hole was cut for
+		hole_mode = "screw%d" % int(_rec()["features"][_screw_group(_rec())]["screw_hole"])
 	for k in hole_btns:
 		(hole_btns[k] as Button).set_pressed_no_signal(k == hole_mode)
 	if snap_btn != null:
@@ -30,7 +34,7 @@ func _hole_mode(mode: String, lip := false, rebuild := false) -> void:   # lip: 
 	wall_pick = false
 	var snap := _rec().duplicate(true)
 	_begin("Hollow with a lid" if mode == "lid" else ("Hollow inside" if mode == "hollow" else "Cut a hole"))
-	var rec: Dictionary = hole_base.duplicate(true)
+	var rec: Dictionary = (hole_base if not hole_base.is_empty() else _without_screw_hole(_rec())).duplicate(true)   # P082: after Change the part, the chips rebuild from the record without its screw hole
 	m.S.part = rec
 	var why := ""
 	if mode.begins_with("screw"):   # p030countersun: a screw chip (screw3 .. screw6) cuts the hole for that screw
@@ -217,6 +221,7 @@ func _screw_hole(rec: Dictionary, d: int) -> String:
 	var n0: int = rec["features"].size()
 	var seq0 := int(rec.get("seq", 0))
 	var top := Part.new_feature(rec, "plane", {"from": "front", "mm": bb.end.z / Part.MM})   # the top face: the plane the head's counterbore starts on
+	top["screw_hole"] = d   # P082: the hole's five steps start here and keep the screw's size (the record remembers it after Change the part)
 	rec["features"].append(top)
 	var cb := Part.new_feature(rec, "sketch", {"plane": String(top["id"]), "ents": [{"k": "circle", "c": Part.arr2(Vector2(c.x, c.y)), "r": float(head[0]) / 2.0}], "dims": []})
 	rec["features"].append(cb)
@@ -859,3 +864,22 @@ func _ent_pts(e: Dictionary) -> Array:
 	if e.has("pts"):
 		out.append_array(e["pts"])
 	return out
+
+
+## P082 LIBRARY PARTS STAY PARAMETRIC (Kine's own): a screw hole is five steps (its plane, the counterbore, the clearance hole); the first
+## keeps the screw's size ("screw_hole"). -1 unless those five are the newest steps of the record
+func _screw_group(rec: Dictionary) -> int:
+	var fs: Array = rec.get("features", [])
+	var i := fs.size() - 5
+	if i < 0 or not (fs[i] as Dictionary).has("screw_hole"):
+		return -1
+	return i
+
+
+## P082: the record without its newest screw hole (the same record, its ids and seq kept): the base a new chip rebuilds the hole on
+func _without_screw_hole(rec: Dictionary) -> Dictionary:
+	var r := rec.duplicate(true)
+	var g := _screw_group(rec)
+	if g >= 0:
+		(r["features"] as Array).resize(g)
+	return r
