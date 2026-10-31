@@ -178,6 +178,12 @@ const T := {
 		{"k": "length", "label": "Length", "lo": 100.0, "hi": 600.0, "def": 300.0, "step": 10.0, "words": ["Shorter", "Longer"], "raw": true, "unit": "mm"},
 		{"k": "gap", "label": "Slot spacing", "lo": 4.0, "hi": 20.0, "def": 8.0, "step": 1.0, "words": ["Closer slots", "Wider apart"], "raw": true, "unit": "mm"},
 		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 12.0, "def": 6.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
+	# p207knurlingon KNURL: a knurled grip, a round handle with flutes along it. Its width is the Handles chips (24, 32, 40 mm); its length and
+	# its Grip texture (the flute depth, mm: raw, so the slider reads mm) are sliders
+	"grip": {"title": "Knurled grip", "params": [
+		{"k": "diameter", "label": "Width", "lo": 16.0, "hi": 60.0, "def": 32.0, "step": 4.0, "words": ["Thinner", "Wider"], "unit": "mm"},
+		{"k": "length", "label": "Length", "lo": 60.0, "hi": 200.0, "def": 120.0, "step": 10.0, "words": ["Shorter", "Longer"], "unit": "mm"},
+		{"k": "texture", "label": "Grip texture", "lo": 0.2, "hi": 1.5, "def": 0.6, "step": 0.1, "words": ["Smoother", "Rougher"], "raw": true, "unit": "mm"}]},
 }
 
 ## P069 BEARINGS: [bore, outside diameter, width] in mm of the bearings 608, 625, 688 (deep groove ball bearings, ISO 15 sizes)
@@ -187,9 +193,9 @@ const SEAT_CLEAR := 0.2     # mm: the pocket is the outside diameter + this (the
 const SEAT_BEAR_GAP := 15.0 # mm: the bearing stands this far beside the holder's edge (the two never touch)
 
 ## P071 HANDLES: the chip sizes (mm) by kind, in the Parts library's Handles grid: each row's three sizes, and the template number each one sets
-const HANDLE_SIZES := {"drawer_pull": [96, 128, 160], "knob": [24, 32, 40], "d_handle": [96, 128, 160]}
-const HANDLE_KEY := {"drawer_pull": "spacing", "knob": "diameter", "d_handle": "width"}
-const HANDLE_NAME := {"drawer_pull": "Drawer pull", "knob": "Knob", "d_handle": "D-handle"}
+const HANDLE_SIZES := {"drawer_pull": [96, 128, 160], "knob": [24, 32, 40], "d_handle": [96, 128, 160], "grip": [24, 32, 40]}
+const HANDLE_KEY := {"drawer_pull": "spacing", "knob": "diameter", "d_handle": "width", "grip": "diameter"}
+const HANDLE_NAME := {"drawer_pull": "Drawer pull", "knob": "Knob", "d_handle": "D-handle", "grip": "Knurled grip"}
 const PULL_END := 14.0   # mm from a drawer pull's hole to its end: the bar is spacing + 2 x 14 mm long
 const PULL_W := 12.0     # mm: a drawer pull's bar height (its width across the front)
 const PULL_HOLE := 2.25  # mm radius: a 4.5 mm hole, for an M4 screw
@@ -468,6 +474,8 @@ static func _poly(pts: Array) -> Array:
 
 
 static func features_of(t: String, p: Dictionary) -> Array:
+	if t == "grip":   # p207knurlingon
+		return grip_features(p)
 	var fs: Array = []
 	match t:
 		"box":
@@ -1012,3 +1020,25 @@ static func _gear_at(n: int, m: float, c: Vector2, rot: float) -> Array:
 		var b := Vector2(l["b"][0], l["b"][1]).rotated(rot) + c
 		out.append({"k": "line", "a": Part.arr2(a), "b": Part.arr2(b)})
 	return out
+
+
+## p207knurlingon KNURL (Kine's own idea): a knurled grip. Its flutes are spaced about GRIP_PITCH mm round the surface, so a wider grip
+## gets more flutes, not bigger ones, and the grip feels the same in the hand at any width. The flutes are a star outline (a crest and a
+## root, the root Grip texture mm under the crest) on the Top plane, extruded up Y from the floor: one sketch, one extrude.
+const GRIP_PITCH := 3.5   # mm: about this far apart round the surface (the crest to crest)
+
+
+## KNURL: the crest count is a multiple of 4, so the crests sit on the X and Z axes: the size across is exact (2 x the crest radius)
+static func grip_features(p: Dictionary) -> Array:
+	var fs: Array = []
+	var d: float = p["diameter"]
+	var R := d * 0.5
+	var depth: float = p["texture"]
+	var n := 4 * maxi(2, roundi(PI * d / GRIP_PITCH / 4.0))
+	var star := []
+	for k in 2 * n:
+		var ang := float(k) * PI / float(n)
+		var r := R if k % 2 == 0 else R - depth
+		star.append(Vector2(r * cos(ang), r * sin(ang)))
+	_ex(fs, _sk(fs, "top", _poly(star)), "extrude", p["length"], "new")
+	return fs
