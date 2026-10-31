@@ -223,7 +223,8 @@ func _init() -> void:
 	for i in ui.ui_target.item_count:
 		labels.append(ui.ui_target.get_item_text(i))
 	var si := labels.find("CAD program (STEP)")
-	ok(si >= 0 and labels.size() == 9 and String(labels[labels.size() - 1]).contains("3D printing"), "115 a part on screen: the dialog lists %s" % str(labels.slice(7)))
+	# integ96: 7 engine targets + Laser cutting (s116) + CAD program (STEP) + 3D printing = 10
+	ok(si >= 0 and labels.size() == 10 and String(labels[labels.size() - 1]).contains("3D printing"), "115 a part on screen: the dialog lists %s" % str(labels.slice(7)))
 	if si < 0:
 		print("s115: %d fail" % (fails + 1))
 		quit(1)

@@ -198,7 +198,8 @@ func _init() -> void:
 	for i in ui.ui_target.item_count:
 		if ui.ui_target.get_item_text(i).contains("Laser"):
 			li = i
-	ok(ExportDialog.targets().size() == 7 and li >= 0 and ui.ui_target.item_count == 9 and ui.ui_target.get_item_text(ui.ui_target.selected).contains("3D printing"),
+	# integ96: 7 engine targets + Laser cutting + CAD program (STEP, s115) + 3D printing = 10
+	ok(ExportDialog.targets().size() == 7 and li >= 0 and ui.ui_target.item_count == 10 and ui.ui_target.get_item_text(ui.ui_target.selected).contains("3D printing"),
 		"1 seven engine targets, the list with a part is %d (Laser cutting at %d), the Export button still lands on 3D printing" % [ui.ui_target.item_count, li])
 	ui.ui_target.select(li)
 	ui._on_target(li)
