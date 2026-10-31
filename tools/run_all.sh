@@ -361,3 +361,4 @@ EXTRA="$EXTRA p067hinges:w"   # p067hinges (Friday plan 67): Easy Part Hinge chi
 EXTRA="$EXTRA p070springswit:w"   # p070springswit (Friday plan 70): Easy Part Spring chip: a compression spring, Turns and Wire sliders by real drags, sizes measured from the built mesh (tests/p070springswit_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA p107fitviewfro:w"   # P107 FITVIEW: Easy Part view row (Fit view, Front, Top, Side, 3/4) under the panel title: camera only, no step (tests/p107fitviewfro_test.gd)
 EXTRA="$EXTRA p059printtimee:w"   # p059printtimee (Friday plan 59): the size label on Easy Part also says the print time ("about 3 h 39 min to print"), worked out from the built volume and surface (tests/p059printtimee_test.gd)
+EXTRA="$EXTRA p141walkcycles:w"   # p141walkcycles (Friday plan 141): Easy walk: a Walk style button opens three sliders (Speed, Swagger, Bounce) on the built clip; one undo a drag; measured from the cards (tests/p141walkcycles_test.gd)
