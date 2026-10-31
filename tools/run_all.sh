@@ -387,3 +387,5 @@ EXTRA="$EXTRA p139mocapmix:w"   # p139mocapmix (Friday plan 139): Easy Walk styl
 EXTRA="$EXTRA p096templatesa:w"   # p096templatesa (Friday plan 96): What to build > Template: Phone stand, Shelf bracket, Box with lid (recipes; mm from the built result, sliders keep the record editable) (tests/p096templatesa_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA p118fingerjoin:w"   # p118fingerjoin (Friday plan 118): Easy Part Cut a hole > Finger joints: a comb of notches along the top edge of a pulled-up box, measured from the built result (tests/p118fingerjoin_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA p127springsand:w"   # P127 DOES IT FALL OVER (Friday plan 127, springs and gravity light physics): Easy Part Colour chip reads whether the built part stands on its feet (its middle over the lowest surface), a readout only; real clicks, bars on the mesh (tests/p127springsand_test.gd; needs the CAD DLL)
+
+EXTRA="$EXTRA p147physicsrag:w"   # p147physicsrag (Friday plan 147): Ragdoll: hit, fall, get back up: the body at the playhead is pushed, falls limp for 2 s, blends back onto its own pose over 1 s; baked as cards into a NEW scene (tests/p147physicsrag_test.gd)
