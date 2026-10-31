@@ -423,3 +423,4 @@ EXTRA="$EXTRA s099:w"   # FRIDAY 99: Portuguese UI (pt_BR translation, Settings 
 EXTRA="$EXTRA s119:w"   # Send to slicer (Friday plan 119)
 EXTRA="$EXTRA s161:w"   # My parts: thumbnails, tags + tag chips, part versions + compare slider (161/164)
 EXTRA="$EXTRA s124:w"   # s124 (Friday plan 124): Gear pair > Turn it: the small gear turns, the big one turns -N1/N2 times as far (20:40 pair, ten angles within 0.5 deg, gap between meshes >= -0.05 mm), 2:1 chain signs, only Save pose changes the record (tests/s124_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA s102:w"   # s102 + s104 (Friday plan): X-ray and Turntable view toggles under the ViewCube (hidden holes show, material alpha < 1, off restores; camera yaw 36 deg per second at 10 s/rev; record and undo untouched) (tests/s102_test.gd; needs the CAD DLL)

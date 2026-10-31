@@ -15164,6 +15164,7 @@ func _place_cube() -> void:
 			k.offset_top = y
 			k.offset_bottom = y + NAV_H
 			r += NAV_W + 4
+	PartViewTools.place(self)   # S102 / S104: X-ray and Turntable beside them
 
 
 ## the ring for part j at screen point p: up = reset, then clockwise. The part is selected first (what the ring acts on)
