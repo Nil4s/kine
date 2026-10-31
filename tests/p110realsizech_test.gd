@@ -177,6 +177,9 @@ func _init() -> void:
 	await click_ctl(pu.easy_open_btn)
 	await idle(4)
 	ep = pu.ep
+	# setup (not a bar): a beginner builds a sphere from the Start from row first, so there is a part to compare with
+	await click_ctl(m.find_child("easypart_chip_sphere", true, false) as Button)
+	await idle(6)
 	var vp := Rect2(Vector2.ZERO, Vector2(1280, 720))
 	var ub0: int = m.undo.size()
 	var f0 := features()
