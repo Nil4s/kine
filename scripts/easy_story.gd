@@ -26,6 +26,7 @@ var easy: Node
 var card: PanelContainer
 var _words: Array = []    # the three status Labels (To do / Done)
 var _next: Label
+var _part_copy: Dictionary = {}   # the last built part record, kept while step 1 is done (a card build after it makes a new scene with no part)
 
 
 ## the card, added last to the Easy root (over the view, hidden until its More entry is picked)
@@ -43,6 +44,11 @@ func build(root: Control, e: Node) -> void:
 	sb.set_content_margin_all(14)
 	card.add_theme_stylebox_override("panel", sb)
 	root.add_child(card)
+	var keep := Timer.new()   # the built part is kept as the Build step is done, whatever the page does next (a card build replaces the scene)
+	keep.wait_time = 0.2
+	keep.timeout.connect(_keep_built)
+	card.add_child(keep)
+	keep.start()
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 10)
 	card.add_child(v)
@@ -139,9 +145,10 @@ func _press(i: int) -> void:
 			_open_build()
 		1:
 			m._step_hint = "Give it to the fighter"
-			m.give_part_weapon(m.S.part)   # one undo step; with no solid part the app says what to draw first
+			var rec: Dictionary = m.S.part if not m.S.part.is_empty() else _part_copy   # after a Walk card the scene is new: the kept copy of the built part
+			m.give_part_weapon(rec.duplicate(true))   # one undo step; with no solid part the app says what to draw first
 		2:
-			easy.home.save_video()   # names the next step itself when there is no clip
+			await easy.home.save_video(true)   # names the next step itself when there is no clip; the frames stay beside the .mp4 (the card's Done reads them)
 	refresh()
 
 
@@ -165,3 +172,11 @@ func _build_now() -> void:
 	m.bld.reset_view()
 	m.bld.part.open_blank(easy.on)
 	m._refresh()
+
+
+## the Build step's part, kept while it is built (a 0.2 s timer): the record of the scene in hand when there is one, else the kept copy
+func _keep_built() -> void:
+	if m == null or m.S == null or m.S.part.is_empty() or not _built():
+		return
+	if m.S.part != _part_copy:
+		_part_copy = m.S.part.duplicate(true)

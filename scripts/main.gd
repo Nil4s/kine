@@ -1599,7 +1599,7 @@ func _pb_panel_make() -> void:
 	_pb_layer.visible = false
 
 
-func _save_video_playblast(root_dir := PlayblastExport.ROOT, clip := "") -> Dictionary:   # clip: the name the file takes (Easy: the clip's move words); "" = the scene's name
+func _save_video_playblast(root_dir := PlayblastExport.ROOT, clip := "", keep_frames := false) -> Dictionary:   # clip: the name the file takes (Easy: the clip's move words); "" = the scene's name; keep_frames: PNG frames kept beside the .mp4
 	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if _pb_busy:
 		_say_plain("A video is already being saved: press Cancel on the progress panel to stop it")
@@ -1650,6 +1650,8 @@ func _save_video_playblast(root_dir := PlayblastExport.ROOT, clip := "") -> Dict
 				break
 			pipe = {"stdin": io["stdio"], "pid": io["pid"]}
 			Children.add(io["pid"], io["stdio"])   # closing the app mid-save: the pipe is closed, then ffmpeg is killed
+		if keep_frames and not pipe.is_empty():
+			img.save_png("%s/frame_%04d.png" % [gdir, f])   # the story's film step keeps the frames beside the .mp4
 		if pipe.is_empty():
 			img.save_png("%s/frame_%04d.png" % [gdir, f])   # no ffmpeg: the PNG frames, as Export playblast keeps them
 		else:

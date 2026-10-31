@@ -715,13 +715,13 @@ func card(i: int) -> void:
 
 ## SAVE VIDEO (Easy's strip and the bar's Export video): the playblast (PNG frames, and an .mp4 when ffmpeg is found) in the
 ## user's Videos folder, Kine/ (video_folder). A toast names the file and offers Show the file. Expert's export is not changed.
-func save_video() -> void:
+func save_video(keep_frames := false) -> void:   # keep_frames (the story's film step): the PNG frames stay beside the .mp4
 	last_video = {}
 	if m.S.cards.size() < 2:   # nothing to film yet: say what to do, render nothing
 		_show_toast(NO_MOVE, "")
 		m._say_plain(NO_MOVE)
 		return
-	var r: Dictionary = await m._save_video_playblast(video_folder(), clip_name())   # piped to ffmpeg, with the progress line and Cancel
+	var r: Dictionary = await m._save_video_playblast(video_folder(), clip_name(), keep_frames)   # piped to ffmpeg, with the progress line and Cancel
 	last_video = r
 	if r.is_empty():   # refused or cancelled: the playblast's status line says why
 		return
