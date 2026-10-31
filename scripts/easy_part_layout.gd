@@ -77,7 +77,7 @@ func _size_sync() -> void:
 	var w := snappedf(bb.size.x * 100.0, 0.1)
 	var d := snappedf(bb.size.z * 100.0, 0.1)
 	var h := snappedf(bb.size.y * 100.0, 0.1)
-	size_l.text = "Size: %s x %s x %s cm (wide x deep x high)" % [_cm1(w), _cm1(d), _cm1(h)]
+	size_l.text = "Size: %s x %s x %s cm (wide x deep x high), %s" % [_cm1(w), _cm1(d), _cm1(h), _print_words()]
 	var front := Vector3(bb.get_center().x, bb.position.y, bb.end.z)
 	if m.cam.is_position_behind(front):
 		size_l.visible = false
@@ -1042,3 +1042,37 @@ func _steps_place(cl: Rect2, y: float) -> void:
 	steps_box.position = Vector2(cl.end.x - PW - 8.0, y)
 	flat_box.reset_size()   # p113: the printing box sits under the step list
 	flat_box.position = Vector2(steps_box.position.x, y + steps_box.get_combined_minimum_size().y + 6.0)
+
+## p059printtimee (Friday plan 59): the print time, in plain words, on the size label: "about 3 h 39 min to print". A print is mostly infill:
+## the walls (1.2 mm over the whole surface) and 20 percent of the middle are what the printer lays down, at about 20 cm3 an hour (a typical
+## desktop rate). The surface is the built mesh's triangles, so the words are worked out again only when the volume changes, and not while a slider is in hand
+var _print_vol := -1.0     # the volume the print words were worked out for (m3)
+var _print_text := ""      # those words
+
+func _print_words() -> String:
+	var vol := float(pu.res.get("volume", 0.0))
+	if vol <= 0.0:
+		return ""
+	if vol != _print_vol and not pu.coarse:   # a slider in hand: the coarse mesh is no surface to count; the words follow on release
+		_print_vol = vol
+		var area := 0.0   # m2: the triangles of the built mesh (every body's outside)
+		var mesh: ArrayMesh = pu.res.get("mesh")
+		for s in (mesh.get_surface_count() if mesh != null else 0):
+			var arr := mesh.surface_get_arrays(s)
+			var vx: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var ix: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+			var n := ix.size() if ix.size() > 0 else vx.size()
+			for t in range(0, n - 2, 3):
+				var a := vx[ix[t]] if ix.size() > 0 else vx[t]
+				var b := vx[ix[t + 1]] if ix.size() > 0 else vx[t + 1]
+				var c := vx[ix[t + 2]] if ix.size() > 0 else vx[t + 2]
+				area += 0.5 * (b - a).cross(c - a).length()
+		var wall := minf(area * 0.0012, vol)   # m3 of walls
+		var mins := roundi((wall + (vol - wall) * 0.2) * 1.0e6 / 20.0 * 60.0)   # m3 -> cm3, ÷ 20 cm3 an hour, -> minutes
+		if mins < 1:
+			_print_text = "under 1 min to print"
+		elif mins < 60:
+			_print_text = "about %d min to print" % mins
+		else:
+			_print_text = "about %d h %d min to print" % [mins / 60, mins % 60]
+	return _print_text

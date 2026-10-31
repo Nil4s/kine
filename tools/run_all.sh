@@ -360,3 +360,4 @@ EXTRA="$EXTRA p037bosschip:w"   # FRIDAY 37 BOSS CHIP: a screw on the floor take
 EXTRA="$EXTRA p067hinges:w"   # p067hinges (Friday plan 67): Easy Part Hinge chip: a Butt, Piano or Living hinge sized to the Door height, measured from the built mesh (tests/p067hinges_test.gd)
 EXTRA="$EXTRA p070springswit:w"   # p070springswit (Friday plan 70): Easy Part Spring chip: a compression spring, Turns and Wire sliders by real drags, sizes measured from the built mesh (tests/p070springswit_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA p107fitviewfro:w"   # P107 FITVIEW: Easy Part view row (Fit view, Front, Top, Side, 3/4) under the panel title: camera only, no step (tests/p107fitviewfro_test.gd)
+EXTRA="$EXTRA p059printtimee:w"   # p059printtimee (Friday plan 59): the size label on Easy Part also says the print time ("about 3 h 39 min to print"), worked out from the built volume and surface (tests/p059printtimee_test.gd)
