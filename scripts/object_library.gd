@@ -91,6 +91,8 @@ var _side: ScrollContainer
 var _grid: GridContainer
 var _note: Label
 var _coll_menu: PanelContainer = null   # p163collection: the open collection menu (_coll_open), or null
+var _tag_row: HFlowContainer = null     # s161: the tag chips of My parts (and the collections)
+var _tag_filter := ""                  # s161: the tag chip pressed ("" = all)
 var _coll_name := ""                   # p163collection: the saved part the menu is for
 var _pics := {}                   # item id -> TextureRect of its tile (the tiles on screen)
 var _armour_hash := ""            # the hash of its rest vertices, once per open (the spec of every armour tile)
@@ -141,6 +143,7 @@ func setup(main: Node, weapon_list: Array) -> void:
 	_search.tooltip_text = "filters every category by name while it has words; clicking a category button clears it"
 	_search.text_changed.connect(_on_search)
 	v.add_child(_search)
+	_tag_row_make(v)
 	var body := HBoxContainer.new()
 	body.add_theme_constant_override("separation", 8)
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -247,6 +250,7 @@ func extra_items() -> Array:
 		var pi := _item(_part_cat(pr), String(pt["name"]), "mypart", String(pt["name"]), [["box", Vector3.ZERO, Vector3(0.1, 0.1, 0.1)]], "mypart:saved:" + String(pt["name"]))
 		pi["saved"] = String(pt["name"])
 		pi["thumb"] = String(pt["thumb"])
+		pi["tags"] = MyParts.tags_of(pr)
 		out.append(pi)
 	if m != null and m.S != null and not (m.S.building as Dictionary).is_empty() and not (m.S.building.get("rooms", []) as Array).is_empty() and not bool(m.S.building.get("readonly", false)) 			and not saved.has(String(m.S.building.get("name", "Untitled"))):
 		var b: Dictionary = m.S.building
@@ -787,7 +791,7 @@ func _shown() -> Array:
 	if view == RECENT:
 		return recent_items()
 	if view != "":
-		return in_group(view)
+		return _tag_filtered(in_group(view))
 	if _easy():
 		return []   # Easy's start: the category tiles only
 	return in_cat(CATS[tab])
@@ -818,6 +822,7 @@ func _rebuild() -> void:
 	_pics.clear()
 	_layout_mode()
 	_refresh_tabs()
+	_tags_refresh()
 	var shown := _shown()
 	var one := _one_category(shown)
 	if _easy() and (view != "" or query != ""):
@@ -1239,10 +1244,13 @@ func _coll_open(nm: String, gp: Vector2) -> void:
 	for c in COLLECTIONS:
 		col.add_child(_coll_button("Put in " + c, c))
 	col.add_child(_coll_button("Take out of its collection", ""))
+	_menu_extras(col, nm)
 	var host: Node = get_parent() if get_parent() is Control else get_tree().root   # the UI layer the panel sits in, not the panel: a container would move it
 	host.add_child(pc)
 	pc.move_to_front()
-	pc.global_position = gp
+	var vs := get_viewport().get_visible_rect().size
+	var ms := pc.get_combined_minimum_size()
+	pc.global_position = Vector2(clampf(gp.x, 4.0, maxf(4.0, vs.x - ms.x - 4.0)), clampf(gp.y, 4.0, maxf(4.0, vs.y - ms.y - 4.0)))
 	_coll_menu = pc
 
 
@@ -1280,3 +1288,184 @@ func _coll_pick(coll: String) -> void:
 		view = "My parts"
 	_refresh_tabs()
 	_rebuild()
+
+
+## ---- s161 MY PARTS: tags and a tag chip row; s164 PART VERSIONS: a compare slider ----
+
+func _tag_row_make(v: VBoxContainer) -> void:
+	_tag_row = HFlowContainer.new()
+	_tag_row.name = "library_tags"
+	_tag_row.add_theme_constant_override("h_separation", 6)
+	_tag_row.add_theme_constant_override("v_separation", 4)
+	_tag_row.visible = false
+	v.add_child(_tag_row)
+
+
+func _is_part_view() -> bool:
+	return query == "" and (view == "My parts" or COLLECTIONS.has(view))
+
+
+## the saved parts of the view that carry the pressed tag (all of them when no chip is pressed)
+func _tag_filtered(list: Array) -> Array:
+	if _tag_filter == "" or not _is_part_view():
+		return list
+	return list.filter(func(it): return (it.get("tags", []) as Array).has(_tag_filter))
+
+
+## the chip row: "All" and one chip per tag the view's parts carry; hidden when none carries a tag
+func _tags_refresh() -> void:
+	if _tag_row == null:
+		return
+	for c in _tag_row.get_children():
+		_tag_row.remove_child(c)
+		c.queue_free()
+	var tags: Array = []
+	if _is_part_view():
+		for it in in_group(view):
+			for t in it.get("tags", []):
+				if not tags.has(t):
+					tags.append(t)
+		tags.sort()
+	if _tag_filter != "" and not tags.has(_tag_filter):
+		_tag_filter = ""
+	_tag_row.visible = not tags.is_empty()
+	if tags.is_empty():
+		return
+	_tag_row.add_child(_tag_chip("All", ""))
+	for t in tags:
+		_tag_row.add_child(_tag_chip(String(t), String(t)))
+
+
+func _tag_chip(txt: String, tag: String) -> Button:
+	var b := Button.new()
+	b.name = "tagchip_" + (tag if tag != "" else "all")
+	b.text = txt
+	b.toggle_mode = true
+	b.button_pressed = _tag_filter == tag
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(0, 28)
+	b.add_theme_font_size_override("font_size", 13)
+	b.tooltip_text = "show every saved part" if tag == "" else "show only the parts tagged \"%s\"" % tag
+	b.pressed.connect(_tag_pick.bind(tag))
+	return b
+
+
+func _tag_pick(tag: String) -> void:
+	_tag_filter = "" if tag == _tag_filter else tag
+	_rebuild()
+
+
+## the right-click menu's extra parts: the tags box and, when the part has two versions or more, the compare slider
+func _menu_extras(col: VBoxContainer, nm: String) -> void:
+	col.add_child(HSeparator.new())
+	var hd := Label.new()
+	hd.text = "Tags (words with commas):"
+	hd.add_theme_color_override("font_color", Tok.of("text:0.6"))
+	col.add_child(hd)
+	var le := LineEdit.new()
+	le.name = "tag_edit"
+	le.placeholder_text = "bolt, metal, M6"
+	le.custom_minimum_size = Vector2(220, 30)
+	le.text = ", ".join(MyParts.tags_of(MyParts.load_part(nm)))
+	le.text_submitted.connect(func(_t): _tag_save())
+	col.add_child(le)
+	var sv := Button.new()
+	sv.name = "tag_save"
+	sv.text = "Save tags"
+	sv.focus_mode = Control.FOCUS_NONE
+	sv.custom_minimum_size = Vector2(220, 34)
+	sv.pressed.connect(_tag_save)
+	col.add_child(sv)
+	var vs := MyParts.versions(nm)
+	if vs.size() >= 2:
+		_compare_make(col, vs[vs.size() - 2], vs[vs.size() - 1], vs.size())
+	var dn := Button.new()
+	dn.name = "menu_done"
+	dn.text = "Close"
+	dn.focus_mode = Control.FOCUS_NONE
+	dn.custom_minimum_size = Vector2(220, 30)
+	dn.pressed.connect(_coll_hide)
+	col.add_child(dn)
+
+
+func _tag_save() -> void:
+	var nm := _coll_name
+	var le: LineEdit = null
+	if _coll_menu != null:
+		le = _coll_menu.find_child("tag_edit", true, false) as LineEdit
+	var txt := le.text if le != null else ""
+	_coll_hide()
+	var done := MyParts.set_tags(nm, txt)
+	if _note != null:
+		if not done:
+			_note.text = "Could not tag %s. Save it again in Easy Part (Use in a scene), then try again" % nm
+		elif txt.strip_edges() == "":
+			_note.text = "%s has no tags now" % nm
+		else:
+			_note.text = "%s is tagged: %s" % [nm, ", ".join(MyParts.parse_tags(txt))]
+	more = extra_items()
+	_rebuild()
+
+
+func _tex_of(path: String) -> Texture2D:
+	if path == "":
+		return null
+	var img := Image.load_from_file(ProjectSettings.globalize_path(path))
+	return ImageTexture.create_from_image(img) if img != null and not img.is_empty() else null
+
+
+func _vol_mm3(rec: Dictionary) -> float:
+	return float(Part.replay(rec)["volume"]) / (Part.MM * Part.MM * Part.MM)
+
+
+## COMPARE SLIDER (164): the previous version underneath, the newest over it as a ghost whose strength is the slider (0 = old only, 1 = new only)
+func _compare_make(col: VBoxContainer, old: Dictionary, nw: Dictionary, count: int) -> void:
+	col.add_child(HSeparator.new())
+	var hd := Label.new()
+	hd.text = "Compare versions (%d saved):" % count
+	hd.add_theme_color_override("font_color", Tok.of("text:0.6"))
+	col.add_child(hd)
+	var box := Control.new()
+	box.custom_minimum_size = Vector2(128, 128)
+	box.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	col.add_child(box)
+	var a := TextureRect.new()
+	a.name = "ver_old"
+	var b := TextureRect.new()
+	b.name = "ver_new"
+	for r in [a, b]:
+		(r as TextureRect).set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		(r as TextureRect).expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		(r as TextureRect).stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		(r as TextureRect).mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(r)
+	a.texture = _tex_of(String(old["thumb"]))
+	b.texture = _tex_of(String(nw["thumb"]))
+	b.modulate.a = 0.0
+	var info := Label.new()
+	info.name = "ver_info"
+	info.custom_minimum_size = Vector2(220, 0)
+	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	info.add_theme_font_size_override("font_size", 13)
+	var vo := _vol_mm3(old["record"])
+	var vn := _vol_mm3(nw["record"])
+	var sl := HSlider.new()
+	sl.name = "ver_slider"
+	sl.min_value = 0.0
+	sl.max_value = 1.0
+	sl.step = 0.01
+	sl.custom_minimum_size = Vector2(220, 24)
+	sl.value_changed.connect(_compare_set.bind(b, info, int(old["n"]), int(nw["n"]), vo, vn))
+	col.add_child(sl)
+	col.add_child(info)
+	_compare_set(0.0, b, info, int(old["n"]), int(nw["n"]), vo, vn)
+
+
+func _compare_set(t: float, ghost: TextureRect, info: Label, n_old: int, n_new: int, vo: float, vn: float) -> void:
+	ghost.modulate.a = t
+	if t <= 0.001:
+		info.text = "Old (version %d): volume %.0f mm3" % [n_old, vo]
+	elif t >= 0.999:
+		info.text = "New (version %d): volume %.0f mm3" % [n_new, vn]
+	else:
+		info.text = "%d%% new: version %d is %.0f mm3, version %d is %.0f mm3" % [roundi(t * 100.0), n_old, vo, n_new, vn]

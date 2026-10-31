@@ -421,3 +421,4 @@ EXTRA="$EXTRA s093:w"   # s093 (Friday plan 93): Beginner / Comfortable / Expert
 EXTRA="$EXTRA s115:w"   # s115 (Friday plans 115 + 112): Export dialog "CAD program (STEP)" target (re-imported through the kernel: volume 0.1 pct, bbox 0.01 mm) and the "Ready to print?" checklist before STL/3MF: thin walls, overhangs in cm2, floating pieces (tests/s115_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA s099:w"   # FRIDAY 99: Portuguese UI (pt_BR translation, Settings > Language, remembered)
 EXTRA="$EXTRA s119:w"   # Send to slicer (Friday plan 119)
+EXTRA="$EXTRA s161:w"   # My parts: thumbnails, tags + tag chips, part versions + compare slider (161/164)
