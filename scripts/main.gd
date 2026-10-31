@@ -16729,6 +16729,7 @@ func _commands() -> Array:
 	add.call("Help: Blender / Maya keys win on / off", "", func(): kt.set_wins(not kt.wins), "blender maya keys win override shortcuts priority", false, "with the helper on: a Blender/Maya key that Kine uses for something else runs the Kine command it maps to, instead of Kine's own action")
 	add.call("Help: edit hotkeys", "", hk.open_editor, "hotkeys keys key shortcut shortcuts rebind bind change remap", false, "change any command's key: search, click its key, press the new one (a key another command has is refused until pressed again)")
 	add.call("Help: forget my command habits", "", _nt_forget, "next suggested tool chips habits learned forget reset clear history suggestions", false, "forget which commands you run after which (the grey chips after Next:); the default sequence comes back")
+	c.append_array(EasySearch.rows(self))   # p097searchboxf: the Easy Part actions (hole, round, screw) are S box rows too (scripts/easy_search.gd)
 	var rows: Array = Hotkeys.apply(c, hk.over)
 	for d in rows:   # P17: every way to run a command (palette, key, chip, macro) goes through this one wrapper, which counts it
 		var f: Callable = d["run"]
