@@ -232,6 +232,9 @@ func _init() -> void:
 	print("P201 diag coin: quarter rect %s, hovered %s, panel rect %s, viewport %s" % [str(qc.get_global_rect()), str(root.gui_get_hovered_control()), str(root.find_child("easypart_photo", true, false).get_global_rect()), str(root.get_visible_rect())])
 	await shot("pass7_before_coin")
 	await click_ctl(qc)
+	if not qc.button_pressed:   # the first button press after the photo dialog closes is lost (probe 10-31: the next press lands); press once more
+		print("P201 note: the first coin press after the dialog did not land, pressing again")
+		await click_ctl(qc)
 	print("P201 diag coin: after click pressed %s, prompt '%s'" % [str(qc.button_pressed), prompt_text()])
 	await click_at(img_to_screen(COIN_A))
 	await click_at(img_to_screen(COIN_B))
