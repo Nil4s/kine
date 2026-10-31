@@ -636,6 +636,8 @@ func _suggest_row() -> HBoxContainer:
 	suggest_sculpt_btn = _big_btn("easypart_suggest_sculpt", "Sculpt details?", "Next step: turn this solid into a mesh and sculpt its details on the Sculpt page (a copy: Esc leaves, the solid stays as it is)", _suggest_sculpt_press)
 	suggest_sculpt_btn.custom_minimum_size = Vector2(0, 44)
 	suggest_sculpt_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	suggest_sculpt_btn.clip_text = true   # integ94: a third button in this row must never widen the side panel (it grew 318 -> 440 px, under the ViewCube)
+	suggest_sculpt_btn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	row.add_child(suggest_sculpt_btn)
 	suggest_row = row
 	return row
