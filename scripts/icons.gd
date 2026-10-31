@@ -86,6 +86,7 @@ const DRAW := {
 	"part_offset_plane": [["seg", Vector2(3, 17), Vector2(14, 17), 2.0], ["seg", Vector2(5, 9), Vector2(16, 9), 1.2], ["seg", Vector2(3, 17), Vector2(5, 9), 1.2], ["seg", Vector2(14, 17), Vector2(16, 9), 1.2], ["seg", Vector2(19, 4), Vector2(19, 19), 1.6], ["seg", Vector2(17, 17), Vector2(19, 19), 1.6], ["seg", Vector2(21, 17), Vector2(19, 19), 1.6]],
 	"part_plane": [["seg", Vector2(3, 17), Vector2(14, 17), 2.0], ["seg", Vector2(5, 9), Vector2(16, 9), 1.2], ["seg", Vector2(3, 17), Vector2(5, 9), 1.2], ["seg", Vector2(14, 17), Vector2(16, 9), 1.2], ["seg", Vector2(19, 4), Vector2(19, 19), 1.6], ["seg", Vector2(17, 17), Vector2(19, 19), 1.6], ["seg", Vector2(21, 17), Vector2(19, 19), 1.6]],
 	"part_mirror": [["seg", Vector2(12, 3), Vector2(12, 21), 1.3], ["seg", Vector2(4, 18), Vector2(9, 6), 1.8], ["seg", Vector2(9, 6), Vector2(9, 18), 1.8], ["seg", Vector2(9, 18), Vector2(4, 18), 1.8], ["seg", Vector2(20, 18), Vector2(15, 6), 1.8], ["seg", Vector2(15, 6), Vector2(15, 18), 1.8], ["seg", Vector2(15, 18), Vector2(20, 18), 1.8]],
+	"part_swing": [["seg", Vector2(4, 20), Vector2(20, 20), 1.6], ["seg", Vector2(4, 20), Vector2(4, 4), 1.6], ["seg", Vector2(4, 20), Vector2(15, 7), 1.8]],   # p123driveit: a lid swung open on its hinge
 	"part_fillet": [["seg", Vector2(5, 3.5), Vector2(5, 14), 2.0], ["seg", Vector2(5, 14), Vector2(6.3, 17.2), 2.0], ["seg", Vector2(6.3, 17.2), Vector2(9.5, 19), 2.0], ["seg", Vector2(9.5, 19), Vector2(13, 19.5), 2.0], ["seg", Vector2(13, 19.5), Vector2(20.5, 19.5), 2.0]],
 	"part_chamfer": [["seg", Vector2(5, 3.5), Vector2(5, 12), 2.0], ["seg", Vector2(5, 12), Vector2(12.5, 19.5), 2.0], ["seg", Vector2(12.5, 19.5), Vector2(20.5, 19.5), 2.0]],
 	"part_offset_face": [["box", Rect2(3, 13, 18, 8), 1.8], ["seg", Vector2(12, 10), Vector2(12, 2.5), 1.8], ["seg", Vector2(8.5, 6), Vector2(12, 2.5), 1.8], ["seg", Vector2(15.5, 6), Vector2(12, 2.5), 1.8]],   # OFFSET FACE: a block with its top face pushed up
@@ -171,6 +172,11 @@ const DRAW := {
 		["seg", Vector2(21, 12), Vector2(18.5, 14.5), 1.8]],
 	"zoom_in": [["ring", Vector2(10, 10), 6.5, 1.8], ["seg", Vector2(15, 15), Vector2(21, 21), 2.4], ["seg", Vector2(7, 10), Vector2(13, 10), 1.8], ["seg", Vector2(10, 7), Vector2(10, 13), 1.8]],
 	"zoom_out": [["ring", Vector2(10, 10), 6.5, 1.8], ["seg", Vector2(15, 15), Vector2(21, 21), 2.4], ["seg", Vector2(7, 10), Vector2(13, 10), 1.8]],
+	"view_fit": [["box", Rect2(7, 7, 10, 10), 1.8], ["seg", Vector2(3, 8), Vector2(3, 3), 1.8], ["seg", Vector2(3, 3), Vector2(8, 3), 1.8], ["seg", Vector2(16, 3), Vector2(21, 3), 1.8], ["seg", Vector2(21, 3), Vector2(21, 8), 1.8], ["seg", Vector2(3, 16), Vector2(3, 21), 1.8], ["seg", Vector2(3, 21), Vector2(8, 21), 1.8], ["seg", Vector2(16, 21), Vector2(21, 21), 1.8], ["seg", Vector2(21, 16), Vector2(21, 21), 1.8]],   # P107 FITVIEW: the corners of the frame round a box
+	"view_front": [["box", Rect2(5, 5, 14, 14), 1.8]],   # P107 FITVIEW: a square face on
+	"view_top": [["box", Rect2(3, 9, 18, 6), 1.8]],   # P107 FITVIEW: a flat face, seen from above
+	"view_side": [["box", Rect2(8, 3, 8, 18), 1.8]],   # P107 FITVIEW: a tall face, seen from the side
+	"view_3q": [["seg", Vector2(4, 8), Vector2(12, 4), 1.8], ["seg", Vector2(12, 4), Vector2(20, 8), 1.8], ["seg", Vector2(4, 8), Vector2(12, 12), 1.8], ["seg", Vector2(12, 12), Vector2(20, 8), 1.8], ["seg", Vector2(12, 12), Vector2(12, 20), 1.8]],   # P107 FITVIEW: a cube's corner
 	"fit": [["seg", Vector2(3, 8), Vector2(3, 3), 1.8], ["seg", Vector2(3, 3), Vector2(8, 3), 1.8], ["seg", Vector2(16, 3), Vector2(21, 3), 1.8], ["seg", Vector2(21, 3), Vector2(21, 8), 1.8],
 		["seg", Vector2(21, 16), Vector2(21, 21), 1.8], ["seg", Vector2(21, 21), Vector2(16, 21), 1.8], ["seg", Vector2(8, 21), Vector2(3, 21), 1.8], ["seg", Vector2(3, 21), Vector2(3, 16), 1.8],
 		["box", Rect2(8.5, 8.5, 7, 7), 1.6]],
