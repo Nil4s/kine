@@ -310,6 +310,8 @@ func _fmt(v: float, unit: String) -> String:
 		return "%d degrees" % int(roundf(v))
 	if unit == "copies":
 		return "%d copies" % int(roundf(v))
+	if unit == "holes":   # s029
+		return "%d holes" % int(roundf(v))
 	if unit == "teeth":   # NGEAR
 		return "%d teeth" % int(roundf(v))
 	if unit == "size":   # NGEAR: the module 1 / 2 / 3 as Small / Medium / Big teeth

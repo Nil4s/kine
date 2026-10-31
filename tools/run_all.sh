@@ -426,3 +426,5 @@ EXTRA="$EXTRA s124:w"   # s124 (Friday plan 124): Gear pair > Turn it: the small
 EXTRA="$EXTRA s102:w"   # s102 + s104 (Friday plan): X-ray and Turntable view toggles under the ViewCube (hidden holes show, material alpha < 1, off restores; camera yaw 36 deg per second at 10 s/rev; record and undo untouched) (tests/s102_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA s055:w"   # s055 (Friday plan 55 + 56): Easy Part view column > Measure: two corner clicks read mm (40.0, diagonal 53.85), two face clicks read degrees (90.0, 30.0); record and undo unchanged; Esc leaves (tests/s055_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA s209:w"   # s209 + s210 (Friday plans 209, 210): Make it stackable (lip 0.3 mm inside the rim, no common volume of two stacked copies) and the Label maker (BOLTS tag, raised or cut in, Parts > Type it; tests/s209_test.gd; needs the CAD DLL)
+
+EXTRA="$EXTRA s029:w"   # s029 (Friday plan 29): Holes in a pattern: Cut a hole > Row / Around / Grid of holes (count, spacing, radius, rows x columns, Pick centre); 100x60x10 plate, 6 mm holes: volume within 1 pct, centres 20 mm / 60 deg / 15 mm apart (tests/s029_test.gd; needs the CAD DLL)
