@@ -97,6 +97,7 @@ func setup(main: Node) -> void:
 	readout.position = Vector2(16, float(m.TOP_H) + 64.0)   # below the top bar and the Matcap / Alpha rows (it was drawn under them)
 	readout.z_index = 10
 	_ov.add_child(readout)
+	make_sliders()   # p152sculptbrus: Size and Strength sliders under the readout (end of this file)
 	matcap = SculptMatcap.new()
 	add_child(matcap)
 	matcap.setup(self)
@@ -193,6 +194,7 @@ func _status() -> void:
 func _update_readout() -> void:
 	if readout != null:
 		readout.text = "%s   strength %.1f mm (Shift+[ ] )   radius %d mm ( [ ] )" % [brush, strength * 1000.0, roundi(radius * 1000.0)]
+	_sync_sliders()
 
 
 ## "X Z, radial 6 around Y", or "off"
@@ -389,3 +391,69 @@ func undo_redo(back: bool) -> void:
 	var lb := undo.undo() if back else undo.redo()
 	view.mark_dirty()
 	m._say("Sculpt: %s %s" % ["undo" if back else "redo", lb] if lb != "" else "Sculpt: nothing to %s" % ("undo" if back else "redo"))
+
+
+## p152sculptbrus: two sliders under the readout, in plain words: Size (the brush's radius, 10 to 300 mm) and Strength (what one
+## dab moves a vert, 0.2 to 50 mm). They set the same radius and strength as [ ] and Shift+[ ]; a slider is no undo step (the
+## strokes are the undo steps). The word beside each says what it feels like: small / medium / big, soft / firm / hard.
+var size_sl: HSlider
+var strength_sl: HSlider
+var size_lbl: Label
+var strength_lbl: Label
+
+
+func make_sliders() -> void:
+	var box := VBoxContainer.new()
+	box.name = "sculpt_sliders"
+	box.position = Vector2(16, float(m.TOP_H) + 92.0)   # under the readout line (its y is TOP_H + 64)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.z_index = 10
+	_ov.add_child(box)
+	size_lbl = Label.new()
+	size_lbl.name = "sculpt_size_label"
+	size_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(size_lbl)
+	size_sl = _slider("sculpt_size", 10.0, 300.0, 1.0, _on_size)
+	box.add_child(size_sl)
+	strength_lbl = Label.new()
+	strength_lbl.name = "sculpt_strength_label"
+	strength_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(strength_lbl)
+	strength_sl = _slider("sculpt_strength", 0.2, 50.0, 0.1, _on_strength)
+	box.add_child(strength_sl)
+	_sync_sliders()
+
+
+func _slider(nm: String, lo: float, hi: float, step: float, cb: Callable) -> HSlider:
+	var s := HSlider.new()
+	s.name = nm
+	s.min_value = lo
+	s.max_value = hi
+	s.step = step
+	s.custom_minimum_size = Vector2(240, 20)
+	s.focus_mode = Control.FOCUS_NONE   # the keys stay the brush's keys (a focused slider would take the arrows)
+	s.value_changed.connect(cb)
+	return s
+
+
+func _on_size(v: float) -> void:
+	radius = v / 1000.0
+	_status()
+	_ov.queue_redraw()
+
+
+func _on_strength(v: float) -> void:
+	strength = v / 1000.0
+	_status()
+
+
+## the sliders show the brush's current radius and strength (the keys [ ] move them too); the words say what it feels like
+func _sync_sliders() -> void:
+	if size_sl == null:
+		return
+	var r_mm := radius * 1000.0
+	var s_mm := strength * 1000.0
+	size_sl.set_value_no_signal(r_mm)
+	strength_sl.set_value_no_signal(s_mm)
+	size_lbl.text = "Size  %d mm  (%s)" % [roundi(r_mm), "small" if r_mm < 40.0 else ("medium" if r_mm < 120.0 else "big")]
+	strength_lbl.text = "Strength  %.1f mm  (%s)" % [s_mm, "soft" if s_mm < 2.0 else ("firm" if s_mm < 20.0 else "hard")]
