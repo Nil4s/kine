@@ -9,7 +9,7 @@ extends RefCounted
 const MM := 0.001
 const ARCH_GAP := 40.0   # mm: a car's wheel arch top sits this far above the tyre's top (the arch is the wheel radius + 40 mm)
 const CAB_W := 0.88     # the glasshouse is this share of the body's width (narrower than the lower body, so the cabin reads as a cabin)
-const ORDER :=["sword", "axe", "shield", "chair", "gear", "rack", "slothole", "phone", "shelf", "lidbox", "crate"]   # NGEAR: Gear sits before Crate (Crate stays the last chip). P066: Rack after Gear (its pinion); its numbers are not cm: "raw". P096: the three recipes before Crate
+const ORDER :=["sword", "axe", "shield", "chair", "gear", "rack", "slothole", "crate"]   # NGEAR: Gear sits before Crate (Crate stays the last chip); its numbers are not cm: "raw"   # P032: Slot sits before Crate too (Crate stays last). p070: Spring is not a chip: it is built from the Parts library (Springs)
 const START := ["box", "cylinder", "sphere", "tube", "plate"]   # FREESTART: the neutral "Start from" row on Easy Part's panel (simple shapes, no weapon)
 const T := {
 	"box": {"title": "Box", "params": [
@@ -53,22 +53,6 @@ const T := {
 		{"k": "height", "label": "Height", "lo": 200.0, "hi": 800.0, "def": 400.0, "step": 10.0, "words": ["Lower", "Taller"]},
 		{"k": "depth", "label": "Depth", "lo": 200.0, "hi": 800.0, "def": 400.0, "step": 10.0, "words": ["Shallower", "Deeper"]},
 		{"k": "lid", "label": "Lid overhang", "lo": 0.0, "hi": 60.0, "def": 20.0, "step": 5.0, "words": ["None", "More"]}]},
-	# P096 RECIPES (Friday 96): three starters in What to build > Template. Raw mm sliders; each is the same record Expert edits, and its sliders rewrite only its own steps.
-	# phone = a wedge (the phone leans on its slope): width across, depth = the base, height = the back. shelf = an L (a shelf leg, an upright). lidbox = a box with its lid lying beside it, 10 mm apart.
-	"phone": {"title": "Phone stand", "params": [
-		{"k": "width", "label": "Width", "lo": 40.0, "hi": 200.0, "def": 90.0, "step": 10.0, "words": ["Narrower", "Wider"], "raw": true, "unit": "mm"},
-		{"k": "depth", "label": "Depth", "lo": 60.0, "hi": 200.0, "def": 100.0, "step": 10.0, "words": ["Shallower", "Deeper"], "raw": true, "unit": "mm"},
-		{"k": "height", "label": "Height", "lo": 60.0, "hi": 200.0, "def": 100.0, "step": 10.0, "words": ["Lower", "Taller"], "raw": true, "unit": "mm"}]},
-	"shelf": {"title": "Shelf bracket", "params": [
-		{"k": "leg", "label": "Shelf leg", "lo": 100.0, "hi": 400.0, "def": 200.0, "step": 10.0, "words": ["Shorter", "Longer"], "raw": true, "unit": "mm"},
-		{"k": "upright", "label": "Upright", "lo": 80.0, "hi": 300.0, "def": 150.0, "step": 10.0, "words": ["Lower", "Taller"], "raw": true, "unit": "mm"},
-		{"k": "thickness", "label": "Thickness", "lo": 4.0, "hi": 20.0, "def": 8.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"},
-		{"k": "width", "label": "Width", "lo": 20.0, "hi": 80.0, "def": 40.0, "step": 5.0, "words": ["Narrower", "Wider"], "raw": true, "unit": "mm"}]},
-	"lidbox": {"title": "Box with lid", "params": [
-		{"k": "width", "label": "Width", "lo": 100.0, "hi": 600.0, "def": 300.0, "step": 10.0, "words": ["Narrower", "Wider"], "raw": true, "unit": "mm"},
-		{"k": "height", "label": "Height", "lo": 50.0, "hi": 400.0, "def": 150.0, "step": 10.0, "words": ["Lower", "Taller"], "raw": true, "unit": "mm"},
-		{"k": "depth", "label": "Depth", "lo": 100.0, "hi": 600.0, "def": 200.0, "step": 10.0, "words": ["Shallower", "Deeper"], "raw": true, "unit": "mm"},
-		{"k": "lid", "label": "Lid thickness", "lo": 5.0, "hi": 30.0, "def": 10.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
 	# NGEAR: a spur gear with a centre hole. Real pitch diameter = teeth x module: tip = module x (teeth + 2), root = module x (teeth - 2.5). Default 30 teeth: a 64 mm gear reads in the 3/4 view.
 	# raw: the slider's own numbers (a tooth count, a size step 1 = Small / Medium / Big teeth = module 1 / 2 / 3, a thickness in mm), not cm
 	"gear": {"title": "Gear", "params": [
@@ -291,7 +275,7 @@ static func bo_set(rec: Dictionary, d: int, L: int) -> void:
 
 
 ## the default camera of a template: [yaw, pitch] degrees, a 3/4 view in which its main shape reads (the axe turns further so its blade face shows)
-const VIEW := {"sword": [30.0, -22.0], "axe": [42.0, -20.0], "shield": [30.0, -18.0], "chair": [38.0, -22.0], "crate": [34.0, -24.0], "box": [34.0, -24.0], "cylinder": [34.0, -22.0], "sphere": [30.0, -20.0], "tube": [34.0, -22.0], "plate": [34.0, -28.0], "case": [32.0, -24.0], "slothole": [34.0, -30.0], "hinge": [35.0, -12.0], "phone": [34.0, -22.0], "shelf": [34.0, -24.0], "lidbox": [34.0, -24.0]}
+const VIEW := {"sword": [30.0, -22.0], "axe": [42.0, -20.0], "shield": [30.0, -18.0], "chair": [38.0, -22.0], "crate": [34.0, -24.0], "box": [34.0, -24.0], "cylinder": [34.0, -22.0], "sphere": [30.0, -20.0], "tube": [34.0, -22.0], "plate": [34.0, -28.0], "case": [32.0, -24.0], "slothole": [34.0, -30.0], "hinge": [35.0, -12.0]}
 
 
 static func view_of(t: String) -> Array:
@@ -571,25 +555,6 @@ static func features_of(t: String, p: Dictionary) -> Array:
 				{"k": "arc", "a": Part.arr2(Vector2(c.x - a, c.y - r)), "m": Part.arr2(Vector2(c.x - a - r, c.y)), "b": Part.arr2(Vector2(c.x - a, c.y + r))},
 			]
 			_ex(fs, _sk(fs, "top", hole), "extrude", th + 2.0, "cut")
-		"phone":
-			# P096: the wedge in the front plane (x across the base, y up), extruded by the width
-			var pd: float = p["depth"]
-			var ph: float = p["height"]
-			_ex(fs, _sk(fs, "front", _poly([Vector2(0, 0), Vector2(pd, 0), Vector2(0, ph)])), "extrude", p["width"], "new")
-		"shelf":
-			# P096: an L in the front plane: the shelf leg along the bottom, the upright on the left, both thickness t, extruded by the width
-			var sl: float = p["leg"]
-			var su: float = p["upright"]
-			var st: float = p["thickness"]
-			_ex(fs, _sk(fs, "front", _poly([Vector2(0, 0), Vector2(sl, 0), Vector2(sl, st), Vector2(st, st), Vector2(st, su), Vector2(0, su)])), "extrude", p["width"], "new")
-		"lidbox":
-			# P096: the box, and its lid lying beside it on the floor (the Board case's rule: a 10 mm gap, its own solid)
-			var bw: float = p["width"]
-			var bh: float = p["height"]
-			var bd: float = p["depth"]
-			var bl: float = p["lid"]
-			_ex(fs, _sk(fs, "front", [_rect(Vector2(0, 0), Vector2(bw, bh))]), "extrude", bd, "new")
-			_ex(fs, _sk(fs, "front", [_rect(Vector2(bw + 10.0, 0), Vector2(2.0 * bw + 10.0, bl))]), "extrude", bd, "new")
 		"chair":
 			var sh: float = p["seat_height"]
 			var w: float = p["seat_width"]
