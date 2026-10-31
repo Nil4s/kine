@@ -68,6 +68,15 @@ const PRINT_TARGET := {"id": "print", "label": "3D printing (STL, 3MF)", "engine
 	"app": "The part as a printable solid in millimetres."}
 
 
+## MY EDITED CHARACTER + ANIMATION (P149): shown only once "Apply the body mesh to the fighter" has put a sculpted body on the fighter (the other targets
+## write the stock mannequin). One .glb: the edited body, its skin and the UE5-named skeleton, and the scene's clip. glTF has no FBX writer in Godot.
+const BODYANIM_TARGET := {"id": "bodyanim", "label": "My edited character + animation (GLB)", "engine": "",
+	"needs": "Blender, Unreal 5, Godot and Unity (glTFast) open the .glb as it is: metres, Y up, the character faces +Z. FBX: Kine cannot write an FBX with a skinned body (Godot has no FBX writer). To get an FBX, open this .glb in Blender and use File > Export > FBX.",
+	"formats": [{"name": "glTF 2.0 (.glb): your body, its skeleton and the animation", "run": "bodyanim",
+			"app": "One .glb: the body you edited with its skin weights (4 per vertex), the UE5-named skeleton, and the scene's animation (a key on every frame at the scene's rate, as long as the scene). Metres, Y up. No weapons or props."}],
+	"app": "Your edited body with the animation, as one .glb."}
+
+
 static func targets() -> Array:
 	return TARGETS
 
@@ -75,7 +84,12 @@ static func targets() -> Array:
 ## the targets this dialog shows now: the seven, plus 3D printing while a free part is on screen
 func _tg() -> Array:
 	var free_part: bool = m.bld != null and m.bld.part != null and m.bld.part.on
-	return TARGETS + [PRINT_TARGET] if free_part else TARGETS
+	var out: Array = TARGETS.duplicate()
+	if m.pieces.size() > 0 and BaseBody.gen(m) > 0:
+		out.append(BODYANIM_TARGET)
+	if free_part:
+		out.append(PRINT_TARGET)
+	return out
 
 
 ## one target's dictionary by id ({} when unknown)
@@ -83,6 +97,8 @@ static func target(id: String) -> Dictionary:
 	for t in TARGETS:
 		if (t as Dictionary)["id"] == id:
 			return t
+	if id == "bodyanim":
+		return BODYANIM_TARGET
 	return PRINT_TARGET if id == "print" else {}
 
 
@@ -202,11 +218,12 @@ func open() -> void:
 	if dlg == null:
 		_build()
 	var tg := _tg()
-	if ui_target.item_count != tg.size():   # 3D printing joins the list while a free part is on screen
+	if ui_target.item_count != tg.size() or (tg.size() > TARGETS.size() and ui_target.get_item_text(TARGETS.size()) != String((tg[TARGETS.size()] as Dictionary)["label"])):   # 3D printing joins the list while a free part is on screen
 		ui_target.clear()
 		for t in tg:
 			ui_target.add_item((t as Dictionary)["label"])
-	ui_target.select(tg.size() - 1 if tg.size() > TARGETS.size() else 0)   # a part on screen: the Export button lands on 3D printing
+	var free_on: bool = m.bld != null and m.bld.part != null and m.bld.part.on
+	ui_target.select(tg.size() - 1 if free_on else 0)   # a part on screen: the Export button lands on 3D printing
 	_fill_formats()
 	_refresh()
 	ui_blur.set_pressed_no_signal(bool(m.blast_blur))
@@ -270,6 +287,8 @@ func text_of(id: String, fi: int) -> Dictionary:
 	var f: Dictionary = fs[clampi(fi, 0, fs.size() - 1)]
 	var S: Scene = m.S
 	var fps_s := "%d fps, the scene's own rate; the file keys every frame at it" % S.fps
+	if id == "bodyanim":
+		fps_s = "%d fps, the scene's own rate; a key on every frame" % S.fps
 	if id == "print":
 		fps_s = "none: a printed part is one still shape"
 	# a format with its own "needs" / "app" replaces the target's (they describe that file type: glTF's scale is not FBX's)
@@ -284,6 +303,16 @@ func checks(id: String, run: String) -> Array:
 	var out := []
 	if id == "print":   # the printability check of the part on screen
 		return MeshExport.check_lines(m.S.part)
+	if id == "bodyanim":
+		var bl := []
+		var n := int(ceil(m.S.length() * m.S.fps - 1e-6)) + 1
+		bl.append("OK    body: your edited body, skinned to the UE5-named skeleton")
+		if m.S.cards.size() < 2:
+			bl.append("WARN  no animation yet: with fewer than 2 cards there is nothing to write; make a move first")
+		else:
+			bl.append("OK    animation: %d keys at %d fps, %.2f s" % [n, m.S.fps, m.S.length()])
+		bl.append("WARN  FBX is not written: open the .glb in Blender and export FBX from there")
+		return bl
 	var S: Scene = m.S
 	var B: Body = m.B
 	if S.cards.size() < 2:
@@ -340,6 +369,10 @@ func checks(id: String, run: String) -> Array:
 	return out
 
 
+func S_cards_short() -> bool:
+	return m._hero_scene().cards.size() < 2
+
+
 ## runs the existing writer for this target and format into dir; returns what that writer returns (a path, or the
 ## PoseTable's paths). Used by the Export button and by tests/export_dialog_test.gd, so both take the same road.
 ## what: 0 Everything (the writers above, unchanged), 1 only the selected object, 2 one entry per mesh object (plain .glb only)
@@ -353,6 +386,17 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 		var r := MeshExport.export_part(m.S.part, run, UserPaths.w(dir))
 		m._say_plain(String(r["text"]))
 		return String(r["path"]) if bool(r["ok"]) else ""
+	if run == "bodyanim":
+		if S_cards_short():
+			m._say_plain("NOT NOW: an animation needs at least 2 cards (a move). Make a move, then export again")
+			return ""
+		var rb := BodyExport.write_anim(BaseBody.read(m), m._hero_scene(), m.B, "%s/%s_body_anim.glb" % [UserPaths.w(dir), m._export_base()])
+		m._refresh()
+		if int(rb["err"]) != OK:
+			m._say_plain("NOT DONE: the .glb could not be written (%s)" % error_string(int(rb["err"])))
+			return ""
+		m._say_plain("exported %s: your body (%d verts) with its skeleton and the animation. FBX: open this .glb in Blender and export FBX" % [String(rb["path"]).get_file(), int(rb["verts"])])
+		return String(rb["path"])
 	if what > 0 and run == "glb":
 		return m._export_objects(dir, what == 1)
 	if run == "obj":   # OBJ: Everything is the posed body (the old writer); a picked object or one entry per object is its own mesh
