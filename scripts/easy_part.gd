@@ -535,6 +535,7 @@ func _colour_box() -> PanelContainer:
 		wb.pressed.connect(_weight_press.bind(String(wk[0])))
 		h.add_child(wb)
 		weight_btns[String(wk[0])] = wb
+	h.add_child(_stand_chip())   # P127 STAND: "Does it fall over?" beside the weights (a readout: no step, no undo)
 	h.add_child(_hold_chip())   # p131grippoint: Hold here, the last chip of the page
 	return box
 
@@ -5148,3 +5149,19 @@ func _hold_press(p: Vector2) -> bool:
 	m.part_weapon_changed(_rec())   # a held Part weapon takes the new grip at once
 	_say("The hand holds it here, %.1f cm from the butt" % ((at.x - knob) * 100.0))
 	return true
+
+
+## P127 DOES IT FALL OVER (scripts/build/part_stand.gd): one chip on the Colour page, after the weights. It reads whether the built
+## solid stands on its feet (its middle over the lowest surface) and says how far, in plain words. Changes no step: no undo
+func _stand_chip() -> Button:
+	var sb := _colour_btn("stand_check", "Does it fall over?", Color(0.7, 0.72, 0.76))
+	sb.name = "easypart_stand_check"
+	sb.custom_minimum_size.x = 150.0
+	sb.tooltip_text = "Does the whole part stand up on its own, or fall over under its own weight? Shows only: press it to read it out"
+	sb.pressed.connect(_stand_press)
+	return sb
+
+
+func _stand_press() -> void:
+	var r := PartStand.check(_rec())
+	_say(String(r["say"]))
