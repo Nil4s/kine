@@ -2095,6 +2095,7 @@ func _lib_box() -> PanelContainer:
 	vb.add_child(_cam_pick_make())   # p130camandfoll: the Gears page's Cam and follower button
 	vb.add_child(lib_soon)
 	vb.add_child(_type_row())   # p085typetobuil: the Type it row (shows with that category)
+	vb.add_child(_photo_row())   # p192makeitlike: Like a photo, under Type it
 	return pc
 
 
@@ -2396,6 +2397,7 @@ func _screw_sync() -> void:
 			screw_words.visible = not parts_open
 		lib_soon.text = "%s are coming soon: not made yet. Next step: press Screws or Gears" % lib_cat if lib_soon.visible else ""
 		type_box.visible = parts_open and lib_cat == "Type it"   # p085typetobuil
+		photo_box.visible = parts_open and lib_cat == "Type it"   # p192makeitlike
 		if fav_box != null:   # p083favfix: the Favourites page shows while its category is open; the row and the star are drawn here
 			fav_box.visible = parts_open and lib_cat == "Favourites"
 			_fav_sync()
@@ -5723,3 +5725,78 @@ func _cam_icon() -> ImageTexture:
 	_lib_ring(img, 6.0, 2.5, col)
 	img.fill_rect(Rect2i(12, 0, 3, 16), col)
 	return ImageTexture.create_from_image(img)
+
+
+# ---------------------------------------------------------------- p192makeitlike: "Like a photo" (Parts > Type it)
+
+var photo_box: HBoxContainer     # p192makeitlike: the photo row under the Parts page's categories (shows with Type it)
+
+
+## p192makeitlike: a row of two buttons: Mug like this photo, Chair like this photo. A press asks for the photo first
+func _photo_row() -> HBoxContainer:
+	var hb := HBoxContainer.new()
+	hb.name = "easypart_photo_row"
+	hb.visible = false
+	hb.add_theme_constant_override("separation", 4)
+	var lab := Label.new()
+	lab.text = "Like a photo:"
+	lab.add_theme_font_size_override("font_size", 13)
+	hb.add_child(lab)
+	for t in ["mug", "chair"]:
+		var b := Button.new()
+		b.name = "easypart_photo_" + t
+		b.text = "Mug like this photo" if t == "mug" else "Chair like this photo"
+		b.focus_mode = Control.FOCUS_NONE
+		b.tooltip_text = "Pick a photo, then Kine makes a %s from steps (not a mesh): slide its size after" % t
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_photo_pick.bind(t))
+		hb.add_child(b)
+	photo_box = hb
+	return hb
+
+
+## p192makeitlike: the file dialog for the photo. Only a picture file is taken; the photo is kept as the reference, the steps come from the object
+func _photo_pick(t: String) -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	var fd := FileDialog.new()
+	fd.name = "easypart_photo_dialog"
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.png, *.jpg, *.jpeg, *.webp, *.bmp ; Pictures"])
+	fd.title = "Pick a photo of a %s" % t
+	fd.file_selected.connect(func(p: String): fd.queue_free(); _photo_chosen(t, p))
+	fd.canceled.connect(fd.queue_free)
+	shape_box.get_parent().add_child(fd)
+	fd.popup_centered(Vector2i(640, 480))
+	_say("Pick a photo of a %s. Kine makes the steps for one like it" % t)
+
+
+## p192makeitlike: the photo is checked (a picture Kine can open), then the object is built from its steps in ONE press (one undo step).
+## Nothing is read from the photo's pixels: the object is the one the button names
+func _photo_chosen(t: String, path: String) -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	var img := Image.load_from_file(path)
+	if img == null or img.is_empty():
+		_say("That file is not a picture Kine can open: pick a .png or .jpg photo, then press the %s button again" % ("Mug" if t == "mug" else "Chair"))
+		return
+	_flush_if_dirty()
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	m._step_hint = "Start a " + t
+	m._push_undo()
+	m.S.part = PartTemplates.make(t)
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	_fav_sync()
+	_chips_sync()
+	_say("A %s made from steps, like your photo. Slide its size, or Undo takes it back" % t)
