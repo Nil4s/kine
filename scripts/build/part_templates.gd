@@ -147,6 +147,9 @@ const T := {
 		{"k": "d", "label": "Size", "lo": 3.0, "hi": 6.0, "def": 4.0, "step": 1.0, "words": ["Smaller", "Bigger"]},
 		{"k": "L", "label": "Length", "lo": 10.0, "hi": 30.0, "def": 16.0, "step": 1.0, "words": ["Shorter", "Longer"]},
 		{"k": "h", "label": "Head", "lo": 0.0, "hi": 2.0, "def": 0.0, "step": 1.0, "words": ["Socket", "Flat"], "raw": true, "unit": "kind"}]},
+	# THREAD (p206threadgene): a threaded rod for printing, M8 / M10 / M12. Its numbers are the Parts chips (Screws page), so no sliders.
+	"rod": {"title": "Threaded rod", "parts": true, "params": [
+		{"k": "d", "label": "Size", "lo": 8.0, "hi": 12.0, "def": 8.0, "step": 2.0, "words": ["Smaller", "Bigger"]}]},
 	# P069 BEARINGS: a deep groove ball bearing from the Parts chips (608, 625, 688). kind = 0 / 1 / 2 (BEARING_SIZE). Its numbers are the chips, so no sliders.
 	"bearing": {"title": "Bearing", "parts": true, "params": [
 		{"k": "kind", "label": "Bearing", "lo": 0.0, "hi": 2.0, "def": 0.0, "step": 1.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "size"}]},
@@ -483,6 +486,8 @@ static func _poly(pts: Array) -> Array:
 
 
 static func features_of(t: String, p: Dictionary) -> Array:
+	if t == "rod":   # THREAD (p206threadgene)
+		return rod_features(p)
 	if t == "grip":   # p207knurlingon
 		return grip_features(p)
 	var fs: Array = []
@@ -938,6 +943,44 @@ static func _cam_features(p: Dictionary) -> Array:
 	_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [lf, 0.0], "r": CAM_R}]), "extrude", th, "new")
 	_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": CAM_HOLE}]), "extrude", 2.0 * th + 2.0, "cut", true)
 	_ex(fs, _sk(fs, "front", [_rect(Vector2(lf - 8.0, CAM_R + 2.0), Vector2(lf + 8.0, CAM_R + 82.0))]), "extrude", th, "new")
+	return fs
+
+
+## THREAD (p206threadgene): a threaded rod for printing. ISO coarse threads M8 M10 M12: the pitch (mm) by size. The crest sits ROD_CLEAR under the
+## nominal radius, so a printed nut turns on it; the root sits the ISO basic depth (0.6134 x pitch) under the nominal radius. The thread is a set of
+## rings (a sawtooth turned round the up axis), not a helix: it prints without support.
+const ROD_PITCH := {8: 1.25, 10: 1.5, 12: 1.75}
+const ROD_CLEAR := 0.15   # mm: the crest is this far under the nominal radius
+const ROD_L := 30.0       # mm: about this long (a whole number of pitches)
+
+
+## THREAD: the size snapped to M8, M10 or M12
+static func rod_size(p: Dictionary) -> int:
+	var s := int(roundf(float(p["d"])))
+	return 8 if s < 10 else (10 if s < 12 else 12)
+
+
+## THREAD: the thread's lathe profile (x = radius, y = height, mm), from the floor: a root, then a crest half a pitch up, and so on
+static func rod_profile(d: int) -> Array:
+	var P: float = ROD_PITCH[d]
+	var R: float = float(d) * 0.5 - ROD_CLEAR
+	var r: float = float(d) * 0.5 - 0.6134 * P
+	var n := int(roundf(ROD_L / P))
+	var out: Array = [Vector2(0, 0)]
+	for k in n:
+		out.append(Vector2(r, float(k) * P))
+		out.append(Vector2(R, (float(k) + 0.5) * P))
+	out.append(Vector2(r, float(n) * P))
+	out.append(Vector2(0, float(n) * P))
+	return out
+
+
+## THREAD: the rod's features: one sketch (the profile in the front plane) turned about the up axis (Y): one solid, two features
+static func rod_features(p: Dictionary) -> Array:
+	var fs: Array = []
+	var sid := _sk(fs, "front", _poly(rod_profile(rod_size(p))))
+	_ex(fs, sid, "revolve", 0.0, "new")
+	fs[fs.size() - 1]["axis"] = "y"
 	return fs
 
 
