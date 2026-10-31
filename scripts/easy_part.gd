@@ -288,6 +288,8 @@ func build(root: Control) -> void:
 	v.add_child(fav_box)
 	screw_box = _screw_box()
 	v.add_child(screw_box)
+	rod_box = _rod_box()   # THREAD (p206threadgene): the threaded rod chips, under the screw grid on the Screws page
+	v.add_child(rod_box)
 	bear_box = _bear_box()   # P069 BEARINGS: the bearing chips and the seat button, under the Parts page
 	v.add_child(bear_box)
 	bracket_box = _bracket_box()   # FRIDAY 73
@@ -2424,6 +2426,7 @@ func _screw_sync() -> void:
 	if _tpl() == "screw":
 		cur = (_rec().get("easy", {}) as Dictionary).get("p", {})
 	screw_box.visible = (parts_open and lib_cat == "Screws") or _tpl() == "screw"
+	_rod_sync()   # THREAD (p206threadgene)
 	if bear_box != null:   # P069 BEARINGS: the three chips show the bearing on the floor (pressed); the seat button sits under them
 		var bk := int((_rec().get("easy", {}) as Dictionary).get("p", {}).get("kind", -1)) if _tpl() in ["bearing", "seat"] else -1
 		bear_box.visible = (parts_open and lib_cat == "Bearings") or _tpl() in ["bearing", "seat"]
@@ -5723,3 +5726,101 @@ func _cam_icon() -> ImageTexture:
 	_lib_ring(img, 6.0, 2.5, col)
 	img.fill_rect(Rect2i(12, 0, 3, 16), col)
 	return ImageTexture.create_from_image(img)
+
+
+## THREAD (p206threadgene): a threaded rod for printing, M8 M10 M12. Its three chips are on the Screws page, under the screw grid.
+var rod_box: PanelContainer      # the rod chips' panel
+var rod_btns := {}               # size (8, 10, 12) -> its Button
+
+
+## THREAD: the rod row: a plain line, then one chip per size (M8 rod, M10 rod, M12 rod), each with a small rod icon
+func _rod_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_rod_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
+	var hd := Label.new()
+	hd.name = "easypart_rod_words"
+	hd.text = "Threaded rods, for printing: pick a size. It drops on the floor"
+	hd.add_theme_font_size_override("font_size", 14)
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(hd)
+	var g := GridContainer.new()
+	g.columns = PartTemplates.ROD_PITCH.size()
+	g.add_theme_constant_override("h_separation", 4)
+	g.add_theme_constant_override("v_separation", 4)
+	vb.add_child(g)
+	for d in PartTemplates.ROD_PITCH:
+		var b := Button.new()
+		b.name = "easypart_rod_M%d" % d
+		b.text = "M%d rod" % d
+		b.icon = _rod_icon(d)
+		b.tooltip_text = "M%d rod: a threaded rod, about 30 mm long, for printing. Its crest is 0.15 mm under M%d, so a printed nut turns on it. One click, one undo step" % [d, d]
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(0, 28)
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_rod_pick.bind(d))
+		g.add_child(b)
+		rod_btns[d] = b
+	return pc
+
+
+## THREAD: a 16 px rod icon (Tok text colour): a shank with three thread ridges, a little wider with the size
+func _rod_icon(d: int) -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	var w := 4 + (d - 8) / 2
+	img.fill_rect(Rect2i(8 - w / 2, 0, w, 16), col)
+	for y in range(2, 15, 4):
+		img.fill_rect(Rect2i(8 - w / 2 - 2, y, w + 4, 1), col)
+	return ImageTexture.create_from_image(img)
+
+
+## THREAD: the rod chips follow the page (open on Screws, or a rod is the part): the size on the floor is pressed
+func _rod_sync() -> void:
+	if rod_box == null:
+		return
+	rod_box.visible = (parts_open and lib_cat == "Screws") or _tpl() == "rod"
+	var cur := 0
+	if _tpl() == "rod":
+		cur = int(roundf(float((_rec().get("easy", {}) as Dictionary).get("p", {}).get("d", 0))))
+	for d in rod_btns:
+		var b: Button = rod_btns[d]
+		b.set_pressed_no_signal(d == cur)
+		m._grey(b, Part.why_not() if not Part.available() else "")
+
+
+## THREAD: one click puts a threaded rod of that size on the floor (one undo step). A rod already on the floor takes the new size, its steps kept.
+func _rod_pick(d: int) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var on_floor := _tpl() == "rod"
+	if on_floor and int(roundf(float((_rec().get("easy", {}) as Dictionary).get("p", {}).get("d", 0)))) == d:
+		_say("Already a M%d rod on the floor. Pick another size to change it" % d)
+		_rod_sync()
+		return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Change the rod size" if on_floor else "Start a threaded rod"
+	m._push_undo()
+	if on_floor:
+		PartTemplates.retemplate(_rec(), {"d": d})
+	else:
+		m.S.part = PartTemplates.make("rod", {"d": d})
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	_lib_fit()
+	_screw_sync()
+	_say("M%d rod on the floor. Its thread is for printing: a printed nut turns on it" % d)
