@@ -1696,6 +1696,10 @@ func _clip_icon(kind: String) -> ImageTexture:
 		"slot":
 			img.fill_rect(Rect2i(1, 4, 14, 8), col)
 			img.fill_rect(Rect2i(4, 7, 8, 2), Color(0, 0, 0, 0))
+		"snap":   # P205: a plate with a tongue cut free by a gap, and the hook on its tip
+			img.fill_rect(Rect2i(1, 5, 14, 7), col)
+			img.fill_rect(Rect2i(3, 9, 10, 1), Color(0, 0, 0, 0))
+			img.fill_rect(Rect2i(11, 3, 2, 2), col)
 	return ImageTexture.create_from_image(img)
 
 
