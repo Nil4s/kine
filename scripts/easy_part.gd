@@ -78,7 +78,7 @@ func build(root: Control) -> void:
 	give_btn.name = "easypart_give"
 	give_btn.custom_minimum_size = Vector2(170, m.TOP_H - 12)
 	row.add_child(give_btn)
-	export_btn = _bar_btn("Export", "Save this part as an OBJ or a GLB file: the export dialog, with this part picked", func(): m._export_dialog_open())   # FEXPORT
+	export_btn = _bar_btn("Export", "Save this part as a 3MF or STL file for your 3D printer (or OBJ / GLB): the export dialog, with this part picked", func(): m._export_dialog_open())   # FEXPORT
 	export_btn.name = "easypart_export"
 	export_btn.custom_minimum_size = Vector2(110, m.TOP_H - 12)
 	row.add_child(export_btn)
@@ -302,6 +302,7 @@ func build(root: Control) -> void:
 	v.add_child(board_box)
 	wood_box = _wood_box()   # P080 WOOD BOARDS: the wood chips under the library, hidden until Wood boards is open or a wood board is on the floor
 	v.add_child(wood_box)
+	v.add_child(_scale_box())   # p110realsizech: the Hand, Coin, Phone chips (shown by For scale)
 	rows_vb = VBoxContainer.new()
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 2)
@@ -325,6 +326,7 @@ func build(root: Control) -> void:
 	back_btn.tooltip_text = "Put every size back to how this shape started"
 	back_btn.pressed.connect(_back)
 	foot.add_child(back_btn)
+	foot.add_child(_scale_btn())   # p110realsizech: For scale, between Reset and Exact sizes
 	use_btn = Button.new()
 	use_btn.name = "easypart_use_expert"
 	use_btn.text = "Exact sizes? Use Expert"
@@ -375,7 +377,7 @@ func _hole_box() -> PanelContainer:
 	h.add_theme_constant_override("v_separation", 6)
 	h.custom_minimum_size = Vector2(720, 0)   # P076: the chips wrap at 720 px (two short rows, clear of Change your part), not one narrow column
 	box.add_child(h)
-	for hm in [["through", "Through", "A round hole straight through the middle"], ["hollow", "Hollow inside", "Hollow the solid out, open at the top, with a wall (the Wall slider)"], ["lid", "Hollow with a lid", "Hollow the box out with a 3 mm wall; its top 5 mm comes off as a lid with a lip that sits inside the box"]]:
+	for hm in [["through", "Through", "A round hole straight through the middle"], ["hollow", "Hollow inside", "Hollow the solid out, open at the top, with a wall (the Wall slider)"], ["lid", "Hollow with a lid", "Hollow the box out with a 3 mm wall; its top 5 mm comes off as a lid with a lip that sits inside the box"], ["fingers", "Finger joints", "Cut a comb of notches along the top edge of the box, for a laser-cut box: each finger is 3 mm, the notch a third of the height"]]:
 		var b := _big_btn("easypart_hole_" + String(hm[0]), String(hm[1]), String(hm[2]), _hole_mode.bind(String(hm[0])))
 		b.toggle_mode = true
 		b.custom_minimum_size = Vector2(150, 44)
@@ -396,6 +398,9 @@ func _hole_box() -> PanelContainer:
 	mb.custom_minimum_size = Vector2(96, 44)
 	h.add_child(mb)
 	hole_btns["magnet"] = mb
+	var flb := _big_btn("easypart_hole_flat", "Flat pattern", "Unfold the box into a flat sheet to laser-cut: six panels with finger joints. The model does not change", _flat_press)   # p117flatpatter
+	flb.custom_minimum_size = Vector2(120, 44)
+	h.add_child(flb)   # not a toggle: it is not in hole_btns (the row's pressed state would ignore it)
 	for sd in SCREW_CLEAR:   # p030countersun: one chip per screw size: the hole is sized to the screw (M3 3.4 mm ... M6 6.6 mm)
 		var sb := _big_btn("easypart_hole_screw%d" % sd, "M%d screw" % sd, "A hole for an M%d socket screw: a clearance hole, and a counterbore on the top face for its head" % sd, _hole_mode.bind("screw%d" % sd))
 		sb.toggle_mode = true
@@ -537,6 +542,7 @@ func _colour_box() -> PanelContainer:
 		wb.pressed.connect(_weight_press.bind(String(wk[0])))
 		h.add_child(wb)
 		weight_btns[String(wk[0])] = wb
+	h.add_child(_stand_chip())   # P127 STAND: "Does it fall over?" beside the weights (a readout: no step, no undo)
 	h.add_child(_hold_chip())   # p131grippoint: Hold here, the last chip of the page
 	return box
 
@@ -1710,6 +1716,7 @@ func _clip_pick(kind: String) -> void:
 	pu.upto = -1
 	pu.sync()
 	frame()
+	_lib_fit()   # P082LIBFRAME: a Parts library pick fills the view with its part (the camera eases onto its box)
 	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
 		_say("%s did not build. Press Reset, then pick it again" % title)
 	else:
@@ -1773,6 +1780,7 @@ func _wheel_pick(k: String) -> void:
 	pu.upto = -1
 	pu.sync()
 	frame()
+	_lib_fit()   # P082LIBFRAME: a Parts library pick fills the view with its part (the camera eases onto its box)
 	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
 		_say("%s did not build. Press Reset, then pick it again" % label)
 	else:
@@ -2003,7 +2011,7 @@ func _lib_press(cat: String) -> void:
 	if cat == "Screws":
 		_say("Screws: pick a size. It drops on the floor")
 	elif cat == "Gears":
-		_say("Gears: press Gear in the chips above. It drops on the floor")
+		_say("Gears: press Gear in the chips above, or Cam and follower below. It drops on the floor")
 	elif cat == "Bearings":   # P069 BEARINGS: three sizes; the seat button under them cuts the seat for the one on the floor
 		_say("Bearings: pick a size. It drops on the floor. Then Make a seat for it")
 	elif cat == "Brackets":   # FRIDAY 73: three shapes, each a click
@@ -2084,6 +2092,7 @@ func _lib_box() -> PanelContainer:
 	spring_pick.visible = false
 	spring_pick.pressed.connect(_spring_pick_press)
 	vb.add_child(spring_pick)
+	vb.add_child(_cam_pick_make())   # p130camandfoll: the Gears page's Cam and follower button
 	vb.add_child(lib_soon)
 	vb.add_child(_type_row())   # p085typetobuil: the Type it row (shows with that category)
 	linkage_box = preload("res://scripts/easy_linkage.gd").new()   # p129linkages: the Linkage panel (4 bars, a drag knob) on the Hinges page, scripts/easy_linkage.gd
@@ -2270,11 +2279,20 @@ func _screw_pick(d: int, L: int) -> void:
 	pu.upto = -1
 	pu.sync()
 	frame()
+	_lib_fit()   # P082LIBFRAME: a Parts library pick fills the view with its part (the camera eases onto its box)
 	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
 		_say("%s did not build. Press Reset, then pick a size again" % label)
 	else:
 		_say("%s on the floor. Pick another size to change it" % label)
 	_screw_sync()
+	_scroll_into_view.call_deferred(screw_box)   # the grid stays clickable after placing (the panel grows, the scroll clipped the last row: nscrew2 bar 3)
+
+
+## the panel scrolls so the control is inside its visible part: a chip below the scroll's bottom edge is drawn clipped and takes no click
+func _scroll_into_view(c: Control) -> void:
+	var sc := panel.get_node_or_null("easypart_panel_scroll") as ScrollContainer
+	if sc != null and c != null and c.is_visible_in_tree():
+		sc.ensure_control_visible(c)
 
 
 ## P071 HANDLES: a size chip. No handle of that kind on the floor: a new one (one undo step). A handle of that kind already there: its size
@@ -2377,6 +2395,7 @@ func _screw_sync() -> void:
 		spring_pick.visible = parts_open and lib_cat == "Springs"   # p070springfix
 		spring_pick.set_pressed_no_signal(_tpl() == "spring")
 		m._grey(spring_pick, Part.why_not() if not Part.available() else "")
+		_cam_pick_sync()   # p130camandfoll
 		lib_soon.visible = parts_open and lib_cat != "" and not (lib_cat in LIB_READY)
 		if screw_words != null:   # the page is open: its chips and the status line say what to do
 			screw_words.visible = not parts_open
@@ -2519,6 +2538,7 @@ func _bear_pick(i: int) -> void:
 	pu.upto = -1
 	pu.sync()
 	frame()
+	_lib_fit()   # P082LIBFRAME: a Parts library pick fills the view with its part (the camera eases onto its box)
 	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
 		_say("The %s bearing did not build. Press Reset, then pick a size again" % code)
 	else:
@@ -3467,6 +3487,7 @@ func _process(_dt: float) -> void:
 		_near_saved = -1.0
 	_floor_sync(on)
 	_upright_sync(on and (armed == "draw" or armed == "curve") and _side_on())
+	_scale_sync(on)   # p110realsizech: the reference beside the part follows it while Easy is on
 	bar.visible = on
 	make_box.visible = on
 	panel.visible = on
@@ -3476,6 +3497,8 @@ func _process(_dt: float) -> void:
 	dots.visible = on
 	shape_box.visible = on and armed == "draw"
 	hole_box.visible = on and _hole_on()
+	if flat_sheet != null:
+		flat_sheet.visible = on and flat_sheet.visible   # p117flatpatter: the sheet closes with Easy Part
 	split_box.visible = on and _split_on()
 	round_box.visible = on and _round_shown()   # NROUNDFILTER
 	if round_box.visible:
@@ -4760,6 +4783,209 @@ func _type_hollow(rec: Dictionary, wall: float, lid: bool) -> String:
 		return too_small
 	tweak = {"id": sh["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": PartWords.WALL_MIN, "hi": PartWords.WALL_MAX, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
 	return ""
+
+## p110realsizech (Friday plan 110, ★): a real-size check beside the part. The "For scale" button in the foot opens three chips: Hand, Coin,
+## Phone. A press lays that thing on the floor beside the part at its real size (a mesh the view draws, not the record: no undo step);
+## a second press takes it away. Shutting For scale takes it away too. The reference follows the part as it changes (_scale_sync).
+const SCALE_KINDS := ["hand", "coin", "phone"]
+const SCALE_WORDS := {"hand": "Hand", "coin": "Coin", "phone": "Phone"}
+const SCALE_GAP := 0.03   # m: the clear gap between the part and the thing beside it
+var scale_btn: Button
+var scale_box: PanelContainer
+var scale_chips := {}
+var scale_pick := ""
+var scale_ref: Node3D
+var scale_size := Vector3.ZERO
+
+
+func _scale_btn() -> Button:
+	scale_btn = Button.new()
+	scale_btn.name = "easypart_scale"
+	scale_btn.text = "For scale"
+	scale_btn.icon = Icons.sized("size", 18)
+	scale_btn.expand_icon = false
+	scale_btn.toggle_mode = true
+	scale_btn.focus_mode = Control.FOCUS_NONE
+	scale_btn.custom_minimum_size = Vector2(0, 32)
+	scale_btn.add_theme_font_size_override("font_size", 14)
+	scale_btn.tooltip_text = "Show a hand, a coin or a phone beside the part, at its real size, to see how big it is"
+	scale_btn.pressed.connect(_scale_toggle)
+	return scale_btn
+
+
+func _scale_box() -> PanelContainer:
+	scale_box = PanelContainer.new()
+	scale_box.name = "easypart_scale_box"
+	scale_box.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	scale_box.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	scale_box.add_child(vb)
+	var hd := Label.new()
+	hd.text = "Real size: press Hand, Coin or Phone. It lies on the floor beside the part at its real size. Press it again to take it away"
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hd.add_theme_font_size_override("font_size", 13)
+	vb.add_child(hd)
+	var row := HFlowContainer.new()
+	row.add_theme_constant_override("h_separation", 4)
+	vb.add_child(row)
+	for k in SCALE_KINDS:
+		var b := Button.new()
+		b.name = "easypart_scale_" + k
+		b.text = SCALE_WORDS[k]
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(90, 34)
+		b.add_theme_font_size_override("font_size", 14)
+		b.tooltip_text = "%s beside the part, at its real size" % SCALE_WORDS[k]
+		b.pressed.connect(_scale_pick.bind(k))
+		row.add_child(b)
+		scale_chips[k] = b
+	return scale_box
+
+
+func _scale_toggle() -> void:
+	scale_box.visible = scale_btn.button_pressed
+	if scale_btn.button_pressed:
+		_say("Real size: press Hand, Coin or Phone. It lies beside the part at its real size")
+	else:
+		_scale_set("")
+		_say("Real size shut")
+
+
+func _scale_pick(k: String) -> void:
+	_scale_set("" if scale_pick == k else k)
+	_say("%s beside the part at its real size. Press %s again to take it away" % [SCALE_WORDS[k], SCALE_WORDS[k]] if scale_pick == k else "Real size: take it away with its chip, or press another")
+
+
+## the one reference on screen (or none): the old one goes, the new one is built from its parts, placed by _scale_place
+func _scale_set(k: String) -> void:
+	scale_pick = k
+	if scale_ref != null:
+		scale_ref.get_parent().remove_child(scale_ref)
+		scale_ref.free()
+		scale_ref = null
+	for c in scale_chips:
+		(scale_chips[c] as Button).set_pressed_no_signal(c == k)
+	if k == "" or m.cam == null or m.cam.get_parent() == null:
+		return
+	scale_ref = _scale_build_ref(k)
+	m.cam.get_parent().add_child(scale_ref)
+	_scale_place()
+
+
+## the real size, in metres, of each piece: [size, its place with the lowest corner at the origin]. Hand: palm, four fingers, thumb (blocks);
+## Coin: a US quarter, 24.26 mm across and 1.75 mm thick; Phone: 147 x 71 x 8 mm
+func _scale_build_ref(k: String) -> Node3D:
+	var r := Node3D.new()
+	r.name = "EasyScaleRef"
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.82, 0.78, 0.7) if k == "hand" else (Color(0.8, 0.66, 0.4) if k == "coin" else Color(0.3, 0.32, 0.37))
+	var pieces: Array = []
+	if k == "coin":
+		var cy := CylinderMesh.new()
+		cy.top_radius = 0.01213
+		cy.bottom_radius = 0.01213
+		cy.height = 0.00175
+		cy.radial_segments = 32
+		pieces.append([cy, Vector3(0.01213, 0.000875, 0.01213)])
+		scale_size = Vector3(0.02426, 0.00175, 0.02426)
+	elif k == "phone":
+		var bx := BoxMesh.new()
+		bx.size = Vector3(0.071, 0.008, 0.147)
+		pieces.append([bx, Vector3(0.0355, 0.004, 0.0735)])
+		scale_size = Vector3(0.071, 0.008, 0.147)
+	else:
+		# palm 85 x 90 mm (wrist at the back), fingers 70-90 mm long, thumb out to the side: 180 mm long, 105 mm wide, 20 mm high
+		var blocks := [[Vector3(0.085, 0.02, 0.09), Vector3(0.0425, 0.01, 0.045)]]
+		for f in [[-0.0315, 0.08], [-0.0105, 0.09], [0.0105, 0.085], [0.0315, 0.07]]:
+			blocks.append([Vector3(0.018, 0.02, f[1]), Vector3(0.0425 + f[0], 0.01, 0.09 + f[1] * 0.5)])
+		blocks.append([Vector3(0.02, 0.02, 0.07), Vector3(0.095, 0.01, 0.055)])
+		for b in blocks:
+			var bx := BoxMesh.new()
+			bx.size = b[0]
+			pieces.append([bx, b[1]])
+		scale_size = Vector3(0.105, 0.02, 0.18)
+	for p in pieces:
+		var mi := MeshInstance3D.new()
+		mi.mesh = p[0]
+		mi.position = p[1]
+		mi.material_override = mat
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		r.add_child(mi)
+	return r
+
+
+## beside the part on its left (-x), on the floor, its middle on the part's middle (z); the part's box is read from the built result (metres)
+func _scale_place() -> void:
+	if scale_ref == null:
+		return
+	var bb: AABB = pu.res.get("aabb", AABB()) if pu != null and not pu.res.is_empty() else AABB()
+	var c := bb.position + bb.size * 0.5
+	scale_ref.position = Vector3(bb.position.x - SCALE_GAP - scale_size.x, 0.0, c.z - scale_size.z * 0.5)
+
+
+## a shown reference follows the part while Easy Part is on; off Easy Part it is hidden (the chip stays pressed)
+func _scale_sync(on: bool) -> void:
+	if scale_ref == null:
+		return
+	scale_ref.visible = on
+	if on:
+		_scale_place()
+
+## p117flatpatter (Kine's own): Flat pattern, the chip under Cut a hole. It unfolds the plain box (the solid before the hole) into a flat
+## sheet for laser cutting: six panels with finger joints, drawn in a sheet over the Easy Part panel. Nothing in the model changes, so no
+## undo step. Close hides the sheet. A solid that is not a plain box says what to press first
+var flat_sheet: PanelContainer   # p117flatpatter: the sheet (made on the first press)
+var flat_view: FlatPatternView
+var flat_title: Label
+
+
+func _flat_press() -> void:
+	if not Part.available():
+		return
+	var base: Dictionary = hole_base if not hole_base.is_empty() else _rec()
+	var res := Part.replay(base)
+	if int(res["bodies"]) == 0:
+		_say("Nothing solid to unfold yet. Press Pull it up first")
+		return
+	var bb: AABB = res["aabb"]
+	if float(res["volume"]) < bb.size.x * bb.size.y * bb.size.z * 0.99:
+		_say("Flat pattern is for a plain box. Press Box, then Cut a hole, then Flat pattern")
+		return
+	if flat_sheet == null:
+		_flat_make()
+	var sz := bb.size / Part.MM
+	var net := FlatPattern.net(sz.x, sz.y, sz.z)
+	flat_title.text = "Box %.0f x %.0f x %.0f mm, %.0f mm sheet: six panels with finger joints (mm)" % [sz.x, sz.y, sz.z, FlatPattern.SHEET_MM]
+	flat_view.show_net(net)
+	flat_sheet.visible = true
+	flat_sheet.reset_size()
+	flat_sheet.position = (hole_box.get_parent().size - flat_sheet.size) / 2.0
+	_say("Flat pattern: %d panels, %d finger joints. Print it at full size to cut it, then Close" % [net["pieces"].size(), net["joints"]])
+
+
+func _flat_make() -> void:
+	flat_sheet = PanelContainer.new()
+	flat_sheet.name = "easypart_flat_sheet"
+	flat_sheet.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.97), 10, 6))
+	flat_sheet.z_index = 10
+	flat_sheet.visible = false
+	var vb := VBoxContainer.new()
+	flat_sheet.add_child(vb)
+	flat_title = Label.new()
+	flat_title.name = "easypart_flat_title"
+	flat_title.add_theme_font_size_override("font_size", 16)
+	flat_title.add_theme_color_override("font_color", Tok.c("heading"))
+	vb.add_child(flat_title)
+	flat_view = FlatPatternView.new()
+	flat_view.name = "easypart_flat_view"
+	flat_view.custom_minimum_size = Vector2(560, 360)
+	vb.add_child(flat_view)
+	var close := _big_btn("easypart_flat_close", "Close", "Hide the flat pattern", func(): flat_sheet.visible = false)
+	vb.add_child(close)
+	hole_box.get_parent().add_child(flat_sheet)
+
 ## p083favourites (Friday plan 83) and p083favfix: the Favourites category of the Parts library. Its page is the row. It lists the favourites (starred, first) and then the
 ## parts used lately (six at most). A chip puts that part on the floor again (one undo step, the same as the Parts chips). The star keeps
 ## the part on the floor as a favourite: a list, not a model step, so it makes no undo step. The lists live in FAV_FILE (user://).
@@ -5439,3 +5665,68 @@ func _frame_held() -> void:
 
 ## P129 LINKAGES: the Linkage panel on the Hinges page (built in _lib_box, shown by _screw_sync)
 var linkage_box: PanelContainer
+## P127 DOES IT FALL OVER (scripts/build/part_stand.gd): one chip on the Colour page, after the weights. It reads whether the built
+## solid stands on its feet (its middle over the lowest surface) and says how far, in plain words. Changes no step: no undo
+func _stand_chip() -> Button:
+	var sb := _colour_btn("stand_check", "Does it fall over?", Color(0.7, 0.72, 0.76))
+	sb.name = "easypart_stand_check"
+	sb.custom_minimum_size.x = 150.0
+	sb.tooltip_text = "Does the whole part stand up on its own, or fall over under its own weight? Shows only: press it to read it out"
+	sb.pressed.connect(_stand_press)
+	return sb
+
+
+func _stand_press() -> void:
+	var r := PartStand.check(_rec())
+	_say(String(r["say"]))
+
+
+## P082LIBFRAME: after a Parts library pick the camera eases so the built part's box fills FRAME_FILL of the free view (frame() only
+## dollies out, and the box-change ease does not run after a pick, so a 20 mm screw stayed a speck near the centre)
+func _lib_fit() -> void:
+	var bb: AABB = pu.res.get("aabb", AABB())
+	if m.cam == null or bb.size.length() < 1e-4:
+		return
+	var pose := _frame_pose(bb)
+	if pose.is_empty():
+		return
+	_ease = {"t0": m.target, "d0": float(m.dist), "t1": pose[0], "d1": pose[1], "s": 0.0}
+
+## p130camandfoll: the Gears page's Cam and follower button (shown only while Gears is open): one click closes the page and drops the cam
+## and its follower on the floor. One undo step (the chip's). The button is grey while the library cannot build (Part.why_not).
+var cam_pick: Button   # p130camandfoll
+func _cam_pick_make() -> Button:
+	cam_pick = Button.new()
+	cam_pick.name = "easypart_cam_pick"
+	cam_pick.text = "Cam and follower"
+	cam_pick.icon = _cam_icon()
+	cam_pick.tooltip_text = "Cam and follower: a disc turned off its axle, with a rod that rides on its rim"
+	cam_pick.toggle_mode = true
+	cam_pick.focus_mode = Control.FOCUS_NONE
+	cam_pick.custom_minimum_size = Vector2(0, 34)
+	cam_pick.add_theme_font_size_override("font_size", 13)
+	cam_pick.visible = false
+	cam_pick.pressed.connect(_cam_pick_press)
+	return cam_pick
+
+
+func _cam_pick_sync() -> void:
+	cam_pick.visible = parts_open and lib_cat == "Gears"
+	cam_pick.set_pressed_no_signal(_tpl() == "cam")
+	m._grey(cam_pick, Part.why_not() if not Part.available() else "")
+
+
+func _cam_pick_press() -> void:
+	parts_open = false
+	_chip("cam")
+	_screw_sync()
+
+
+## a 16 px icon in the text colour (Tok): a disc with its axle hole and a rod beside it
+func _cam_icon() -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	_lib_ring(img, 6.0, 2.5, col)
+	img.fill_rect(Rect2i(12, 0, 3, 16), col)
+	return ImageTexture.create_from_image(img)
