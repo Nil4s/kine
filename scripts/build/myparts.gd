@@ -101,6 +101,9 @@ static func save(rec: Dictionary, nm: String, img: Image = null) -> String:
 	var r := rec.duplicate(true)
 	r["name"] = nm.strip_edges() if nm.strip_edges() != "" else "Part"
 	var path := path_of(String(r["name"]))
+	var kept := read(path)   # p163collection: saving the part again keeps its collection
+	if not r.has("collection") and kept.has("collection"):
+		r["collection"] = kept["collection"]
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		return ""
@@ -132,3 +135,26 @@ static func import_file(src: String) -> Dictionary:
 	if FileAccess.file_exists(pic):
 		DirAccess.copy_absolute(_abs(pic), _abs(thumb_of(nm)))
 	return {"ok": true, "name": nm, "why": ""}
+
+## COLLECTIONS (Friday plan 163, Kine's own: a saved part belongs to one collection, My workshop or My game props, so the library
+## shows it there). The name is kept in the part's own record ("collection"); "" = none. false when the part is not saved.
+static func set_collection(nm: String, coll: String) -> bool:
+	var path := path_of(nm)
+	var rec := read(path)
+	if rec.is_empty():
+		return false
+	if coll == "":
+		rec.erase("collection")
+	else:
+		rec["collection"] = coll
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		return false
+	f.store_string(JSON.stringify(rec, "	"))
+	f.close()
+	return true
+
+
+## the collection a saved part's record belongs to ("" = none)
+static func collection_of(rec: Dictionary) -> String:
+	return String(rec.get("collection", ""))

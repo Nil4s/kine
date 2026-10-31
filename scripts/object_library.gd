@@ -43,14 +43,17 @@ const PROP_NAME := {"ball": "Football", "sword": "Sword (on the floor)", "step":
 ## [name, region word]: a plate over the body region (KMeshBody.REGIONS); the words are the ones ArmourFromBody.make reads
 const ARMOUR := [["Chest plate", "chest"], ["Abdomen plate", "abdomen"], ["Helmet", "head"], ["Upper arm plate (left)", "upperarm_l"],
 	["Forearm plate (right)", "forearm_r"], ["Thigh plate (left)", "thigh_l"], ["Shin plate (right)", "shin_r"]]
-const EXTRA_CATS := ["Fight blocks", "Build stairs", "Build furniture", "My houses", "My parts"]   # BUILD's categories (BuildPieces.CATS), after the built-in ones
+const EXTRA_CATS := ["Fight blocks", "Build stairs", "Build furniture", "My houses", "My parts", "My workshop", "My game props"]   # BUILD's categories (BuildPieces.CATS), after the built-in ones
 const EXTRA_TIPS := {
 	"Fight blocks": "Fight blocks: pillars, fences, ramps and platforms to fight on and around. A click puts one on the floor in front of him",
 	"Build stairs": "Stairs from BUILD, with real steps he can climb. A click puts one on the floor in front of him",
 	"Build furniture": "Tables, benches and crates from BUILD. A click puts one on the floor in front of him",
 	"My houses": "The houses you saved in BUILD, and the one you are drawing. A click puts one in the set",
 	"My parts": "The parts you put in a scene with Use in a scene (Easy Part or Expert). A click puts one in the set",
+	"My workshop": "Saved parts you put in the collection My workshop (right-click a part in My parts). A click puts one in the set",
+	"My game props": "Saved parts you put in the collection My game props (right-click a part in My parts). A click puts one in the set",
 }
+const COLLECTIONS := ["My workshop", "My game props"]   # p163collection: the collections a saved part can be put in (plain names, no typing)
 const PIECE_CAT := {"Stairs": "Build stairs", "Furniture": "Build furniture", "Fight blocks": "Fight blocks"}   # BuildPieces.CATS name -> the column's name
 const CAT_PIC := {"Furniture": "prop:chair", "Build furniture": "build:crate"}   # the category tile's picture, where the first object would repeat another category's
 const RECENT := "Recent"
@@ -87,6 +90,8 @@ var _scroll: ScrollContainer
 var _side: ScrollContainer
 var _grid: GridContainer
 var _note: Label
+var _coll_menu: PanelContainer = null   # p163collection: the open collection menu (_coll_open), or null
+var _coll_name := ""                   # p163collection: the saved part the menu is for
 var _pics := {}                   # item id -> TextureRect of its tile (the tiles on screen)
 var _armour_hash := ""            # the hash of its rest vertices, once per open (the spec of every armour tile)
 var _fit_key := ""                # the window size and the bottom panel's height the panel was last fitted to
@@ -239,7 +244,7 @@ func extra_items() -> Array:
 		out.append(si)
 	for pt in MyParts.list():   # My parts: each saved part with its picture (a click puts it in the set, as Use in a scene does)
 		var pr: Dictionary = pt["record"]
-		var pi := _item("My parts", String(pt["name"]), "mypart", String(pt["name"]), [["box", Vector3.ZERO, Vector3(0.1, 0.1, 0.1)]], "mypart:saved:" + String(pt["name"]))
+		var pi := _item(_part_cat(pr), String(pt["name"]), "mypart", String(pt["name"]), [["box", Vector3.ZERO, Vector3(0.1, 0.1, 0.1)]], "mypart:saved:" + String(pt["name"]))
 		pi["saved"] = String(pt["name"])
 		pi["thumb"] = String(pt["thumb"])
 		out.append(pi)
@@ -771,7 +776,7 @@ func _refresh_tabs() -> void:
 		else:
 			eb.tooltip_text = "%d objects. %s" % [in_group(nm).size(), EXTRA_TIPS[nm]]
 		eb.button_pressed = view == nm and query == ""
-		if nm == "My houses" or nm == "My parts":
+		if nm == "My houses" or nm == "My parts" or COLLECTIONS.has(nm):
 			eb.visible = view == nm or not in_group(nm).is_empty()   # none saved yet: no empty entry in the column
 
 
@@ -1053,6 +1058,7 @@ func _make_tile(it: Dictionary, one := false) -> Control:
 	b.set_meta("item", it["id"])
 	b.pressed.connect(_tile_pressed.bind(String(it["id"])))
 	b.gui_input.connect(_tile_input.bind(String(it["id"])))
+	b.gui_input.connect(_coll_input.bind(String(it["id"])))   # p163collection: a right-click on a saved part opens its collection menu
 	var v := VBoxContainer.new()
 	v.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	v.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -1196,3 +1202,81 @@ func _made(id: String) -> void:
 		var ph := pic.get_node_or_null("placeholder")
 		if ph != null:
 			ph.queue_free()
+
+
+## COLLECTIONS (Friday plan 163, p163collection): a saved part in a collection is listed under the collection's name, not My parts
+func _part_cat(rec: Dictionary) -> String:
+	var c := MyParts.collection_of(rec)
+	return c if COLLECTIONS.has(c) else "My parts"
+
+
+## a right-click on a saved part (My parts): the small menu under the mouse, one button per collection and one to take it out
+func _coll_input(ev: InputEvent, id: String) -> void:
+	if not (ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT and (ev as InputEventMouseButton).pressed):
+		return
+	if not id.begins_with("mypart:saved:"):
+		return
+	_coll_open(id.trim_prefix("mypart:saved:"), (ev as InputEventMouseButton).global_position)
+
+
+func _coll_open(nm: String, gp: Vector2) -> void:
+	_coll_hide()
+	_coll_name = nm
+	var pc := PanelContainer.new()
+	pc.name = "library_collection_menu"
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Tok.c("float")
+	sb.set_corner_radius_all(8)
+	sb.set_content_margin_all(8)
+	pc.add_theme_stylebox_override("panel", sb)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	pc.add_child(col)
+	var hd := Label.new()
+	hd.text = "Put \"%s\" in:" % nm
+	hd.add_theme_color_override("font_color", Tok.of("text:0.6"))
+	col.add_child(hd)
+	for c in COLLECTIONS:
+		col.add_child(_coll_button("Put in " + c, c))
+	col.add_child(_coll_button("Take out of its collection", ""))
+	var host: Node = get_parent() if get_parent() is Control else get_tree().root   # the UI layer the panel sits in, not the panel: a container would move it
+	host.add_child(pc)
+	pc.move_to_front()
+	pc.global_position = gp
+	_coll_menu = pc
+
+
+func _coll_button(txt: String, coll: String) -> Button:
+	var b := Button.new()
+	b.name = "coll_" + (coll if coll != "" else "none").replace(" ", "_").to_lower()
+	b.text = txt
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(220, 34)
+	b.add_theme_font_size_override("font_size", 14)
+	b.pressed.connect(_coll_pick.bind(coll))
+	return b
+
+
+func _coll_hide() -> void:
+	if _coll_menu != null and is_instance_valid(_coll_menu):
+		_coll_menu.queue_free()
+	_coll_menu = null
+
+
+## a menu button: the saved part goes into the collection (or out of it). A list change, not a scene edit, so no undo step
+func _coll_pick(coll: String) -> void:
+	var nm := _coll_name
+	_coll_hide()
+	var done := MyParts.set_collection(nm, coll)
+	if _note != null:
+		if not done:
+			_note.text = "Could not change the collection of %s. Save it again in Easy Part (Use in a scene), then try again" % nm
+		elif coll == "":
+			_note.text = "%s is back in My parts" % nm
+		else:
+			_note.text = "%s is in %s. Open %s to see it" % [nm, coll, coll]
+	more = extra_items()
+	if COLLECTIONS.has(view) and in_group(view).is_empty():   # the collection just emptied: back to My parts, no empty column entry
+		view = "My parts"
+	_refresh_tabs()
+	_rebuild()
