@@ -85,6 +85,7 @@ var tilt_btn: Button
 var suggest_row: HBoxContainer   # P092: the next-step row in the right panel (after a Pull it up): the two chips below
 var suggest_round_btn: Button    # P092: "Round the edges?" under a pulled-up solid (the suggest row): one press = Round the edges
 var suggest_hollow_btn: Button   # P092: "Hollow it?" under a pulled-up solid (the suggest row): one press = Hollow inside (HOLLOW_MM wall, open at the top)
+var suggest_sculpt_btn: Button   # p156solidmesht: "Sculpt details?" in the same suggest row: the solid becomes a sculpt mesh (a copy; see _suggest_sculpt_press)
 var swing_btn: Button            # p123driveit: Swing it (Drive it), the chip in the Tilt it panel: the newest piece swings on a hinge step
 var draft_btn: Button            # p021: Draft angle, the chip beside Tilt it (the side walls lean DRAFT_DEG for a mould)
 var pull_along_btn: Button       # P026: Pull along, the same box as Tilt it: shows after a curve or a shape is drawn (the newest step is a sketch)

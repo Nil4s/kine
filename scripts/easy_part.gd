@@ -627,6 +627,10 @@ func _suggest_row() -> HBoxContainer:
 	suggest_hollow_btn.custom_minimum_size = Vector2(0, 44)
 	suggest_hollow_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(suggest_hollow_btn)
+	suggest_sculpt_btn = _big_btn("easypart_suggest_sculpt", "Sculpt details?", "Next step: turn this solid into a mesh and sculpt its details on the Sculpt page (a copy: Esc leaves, the solid stays as it is)", _suggest_sculpt_press)
+	suggest_sculpt_btn.custom_minimum_size = Vector2(0, 44)
+	suggest_sculpt_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(suggest_sculpt_btn)
 	suggest_row = row
 	return row
 
@@ -5801,3 +5805,32 @@ func _photo_chosen(t: String, path: String) -> void:
 	_fav_sync()
 	_chips_sync()
 	_say("A %s made from steps, like your photo. Slide its size, or Undo takes it back" % t)
+
+
+## p156solidmesht: "Sculpt details?" (the suggest row, under a pulled-up solid). The built solid becomes a sculpt mesh (KMesh of its
+## shown triangles, at the floor beside the fighter) and opens on Expert's Sculpt page: Easy turns off for it. The solid itself is
+## not changed (no undo step here); Esc on the sculpt leaves and nothing is saved. Its strokes are the sculpt's own undo steps
+func _suggest_sculpt_press() -> void:
+	_flush_if_dirty()
+	armed = ""
+	var am: ArrayMesh = pu.part_mesh.mesh if pu.part_mesh != null and pu.part_mesh.mesh != null else null
+	if am == null or am.get_surface_count() == 0 or not Part.available():
+		_say("Pull it up first: a built solid is needed to sculpt its details")
+		return
+	var km: KMesh = KMesh.new().from_array_mesh(am)
+	if km == null or km.vert_count() == 0:
+		_say("This solid has no faces to sculpt: press Undo, then try again")
+		return
+	if m.ksc == null:
+		m.ksc = load("res://scripts/kmesh_sculpt_ui.gd").new()
+		m.add_child(m.ksc)
+		m.ksc.setup(m)
+	if m.ksc.on:
+		_say("Sculpt: leave the sculpt first (Esc), then Sculpt details?")
+		return
+	if m.easy != null and m.easy.on:
+		m.easy.set_on(false)   # the Sculpt page is an Expert page: Easy hides it
+	m.ksc.source = func(): return {"mesh": km, "at": Transform3D(Basis(), Vector3(1.0, 0.0, 0.0))}
+	m._sculpt_start()
+	m.ksc.source = Callable()   # the next Test sphere is a sphere again
+	m._say("Sculpt: the solid is a mesh now (a copy). Drag on it to sculpt details, Ctrl+Z takes a stroke back, Esc leaves: nothing is saved")
