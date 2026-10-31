@@ -252,7 +252,7 @@ func build(root: Control) -> void:
 	start_l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	start_l.visible = false   # the row speaks for itself (Box, Cylinder ...): its 80 px let Rack stay on ONE line, so the Parts page fits the panel at 1280 x 720
 	cr.add_child(start_l)
-	for t in PartTemplates.START + ["gear", "rack"]:   # the simple shapes; gear stays on the row (NGEAR), rack beside it (P066: its pinion); the weapons and props are under More examples
+	for t in PartTemplates.START + ["gear", "rack", "slothole"]:   # the simple shapes; gear stays on the row (NGEAR), rack beside it (P066: its pinion); slothole sits on the title line (P032); the weapons and props are under More examples
 		var b := Button.new()
 		b.name = "easypart_chip_" + t
 		b.text = CHIP_TEXT.get(t, String(PartTemplates.T[t]["title"]))   # the chip word on the blank part is plain; the part keeps the template title
@@ -263,7 +263,7 @@ func build(root: Control) -> void:
 		b.pressed.connect(_chip.bind(t))
 		b.mouse_entered.connect(_tpl_hover.bind(t, true))   # P091: hover a shape chip = see its ghost first
 		b.mouse_exited.connect(_tpl_hover.bind(t, false))
-		cr.add_child(b)
+		(th if t == "slothole" else cr).add_child(b)   # P032: Slot sits on the title line beside Empty: seven chips would wrap the row and push the grid area down
 		for sn in ["normal", "hover", "pressed", "focus", "disabled"]:   # P066: 4 px side margins (the theme's are wider) so seven chips (Rack) stay on one row
 			var sb := b.get_theme_stylebox(sn).duplicate() as StyleBox
 			sb.content_margin_left = 4.0
