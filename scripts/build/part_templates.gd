@@ -79,6 +79,13 @@ const T := {
 	"cam": {"title": "Cam and follower", "params": [
 		{"k": "lift", "label": "Lift", "lo": 5.0, "hi": 20.0, "def": 10.0, "step": 1.0, "words": ["Less lift", "More lift"], "raw": true, "unit": "mm"},
 		{"k": "thickness", "label": "Thickness", "lo": 5.0, "hi": 30.0, "def": 10.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
+	# p065gearpairpi: two spur gears that mesh, not in ORDER (Parts > Gears has its button). teeth = the small gear's teeth; the big gear has
+	# teeth x ratio (ratio 2 : 1 = twice the teeth, so the small one turns twice for each turn of the big one). Raw sliders, mm and teeth.
+	"gearpair": {"title": "Gear pair", "params": [
+		{"k": "teeth", "label": "Small teeth", "lo": 8.0, "hi": 30.0, "def": 15.0, "step": 1.0, "words": ["Fewer", "More"], "raw": true, "unit": "teeth"},
+		{"k": "ratio", "label": "Ratio", "lo": 1.0, "hi": 3.0, "def": 2.0, "step": 1.0, "words": ["Same speed", "Slower out"], "raw": true, "unit": "ratio"},
+		{"k": "module", "label": "Teeth size", "lo": 1.0, "hi": 3.0, "def": 2.0, "step": 1.0, "words": ["Small teeth", "Big teeth"], "raw": true, "unit": "size"},
+		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 30.0, "def": 10.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
 	# P032: a plate with a long rounded hole (a slot) cut right through it. Length and Width are the hole's own size (the round ends
 	# are Width / 2 across); the plate is 20 mm wider than the hole on each side. Width is at most 40, so Length (at least 60) stays longer.
 	"slothole": {"title": "Slot", "params": [
@@ -667,6 +674,8 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			return _board_features(p)   # P080: the wood board (end of this file)
 		"cam":
 			return _cam_features(p)   # p130camandfoll: the cam and its follower (end of this file)
+		"gearpair":
+			return _gear_pair_features(p)   # p065gearpairpi: the two meshing gears (end of this file)
 		"case":
 			# p078makeacasef: a box for a board, open at the top: a 3 mm wall and floor, the standoffs (5 mm across, 9 mm up from the floor) at the
 			# board's holes with a screw hole through each, two port openings cut through the +x wall (an offset plane 1.5 mm inside the wall, so the
@@ -881,3 +890,30 @@ static func _cam_features(p: Dictionary) -> Array:
 	_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": CAM_HOLE}]), "extrude", 2.0 * th + 2.0, "cut", true)
 	_ex(fs, _sk(fs, "front", [_rect(Vector2(lf - 8.0, CAM_R + 2.0), Vector2(lf + 8.0, CAM_R + 82.0))]), "extrude", th, "new")
 	return fs
+
+## p065gearpairpi: two spur gears that mesh, in the front plane (x across, y up, extruded thickness through Z). The small gear (teeth N1)
+## sits at the origin, the big one (teeth N2 = N1 x ratio) at x = module x (N1 + N2) / 2, so its pitch circle touches the small one's. It is
+## turned by pi - pi / N2, so a gap of the big gear faces the small gear's tooth and the teeth interleave. Each gear: its outline, then its
+## centre hole (0.12 x its pitch diameter, as a Gear). Four features at every ratio (the record keeps its features in step). Two solids.
+static func _gear_pair_features(p: Dictionary) -> Array:
+	var fs: Array = []
+	var n1 := int(roundf(float(p["teeth"])))
+	var n2 := int(roundf(float(p["teeth"]) * float(p["ratio"])))
+	var md := float(int(roundf(float(p["module"]))))
+	var th: float = p["thickness"]
+	var d := md * float(n1 + n2) * 0.5
+	_ex(fs, _sk(fs, "front", _gear_at(n1, md, Vector2.ZERO, 0.0)), "extrude", th, "new")
+	_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": 0.12 * n1 * md}]), "extrude", th, "cut", true)
+	_ex(fs, _sk(fs, "front", _gear_at(n2, md, Vector2(d, 0.0), PI - PI / float(n2))), "extrude", th, "new")
+	_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [d, 0.0], "r": 0.12 * n2 * md}]), "extrude", th, "cut", true)
+	return fs
+
+
+## p065gearpairpi: gear_outline(n, m) turned by rot (rad) and moved to centre c (mm): the same lines, both end points moved
+static func _gear_at(n: int, m: float, c: Vector2, rot: float) -> Array:
+	var out := []
+	for l in gear_outline(n, m):
+		var a := Vector2(l["a"][0], l["a"][1]).rotated(rot) + c
+		var b := Vector2(l["b"][0], l["b"][1]).rotated(rot) + c
+		out.append({"k": "line", "a": Part.arr2(a), "b": Part.arr2(b)})
+	return out

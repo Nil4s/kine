@@ -2093,6 +2093,7 @@ func _lib_box() -> PanelContainer:
 	spring_pick.pressed.connect(_spring_pick_press)
 	vb.add_child(spring_pick)
 	vb.add_child(_cam_pick_make())   # p130camandfoll: the Gears page's Cam and follower button
+	vb.add_child(_gp_pick_make())   # p065gearpairpi: the Gears page's Gear pair button
 	vb.add_child(lib_soon)
 	vb.add_child(_type_row())   # p085typetobuil: the Type it row (shows with that category)
 	return pc
@@ -2391,6 +2392,7 @@ func _screw_sync() -> void:
 		spring_pick.set_pressed_no_signal(_tpl() == "spring")
 		m._grey(spring_pick, Part.why_not() if not Part.available() else "")
 		_cam_pick_sync()   # p130camandfoll
+		_gp_pick_sync()   # p065gearpairpi
 		lib_soon.visible = parts_open and lib_cat != "" and not (lib_cat in LIB_READY)
 		if screw_words != null:   # the page is open: its chips and the status line say what to do
 			screw_words.visible = not parts_open
@@ -5722,4 +5724,49 @@ func _cam_icon() -> ImageTexture:
 	var col := Tok.c("text")
 	_lib_ring(img, 6.0, 2.5, col)
 	img.fill_rect(Rect2i(12, 0, 3, 16), col)
+	return ImageTexture.create_from_image(img)
+
+## p065gearpairpi: the Gears page's Gear pair button (shown only while Gears is open): one click closes the page and drops two meshing gears
+## (the small one and the big one, ratio 2 : 1 by default) on the floor. One undo step (the chip's). Grey while the library cannot build.
+var gp_pick: Button   # p065gearpairpi
+func _gp_pick_make() -> Button:
+	gp_pick = Button.new()
+	gp_pick.name = "easypart_gearpair_pick"
+	gp_pick.text = "Gear pair"
+	gp_pick.icon = _gp_icon()
+	gp_pick.tooltip_text = "Gear pair: two gears that mesh. Ratio 2 : 1 = the big gear has twice the teeth"
+	gp_pick.toggle_mode = true
+	gp_pick.focus_mode = Control.FOCUS_NONE
+	gp_pick.custom_minimum_size = Vector2(0, 34)
+	gp_pick.add_theme_font_size_override("font_size", 13)
+	gp_pick.visible = false
+	gp_pick.pressed.connect(_gp_pick_press)
+	return gp_pick
+
+
+func _gp_pick_sync() -> void:
+	gp_pick.visible = parts_open and lib_cat == "Gears"
+	gp_pick.set_pressed_no_signal(_tpl() == "gearpair")
+	m._grey(gp_pick, Part.why_not() if not Part.available() else "")
+
+
+func _gp_pick_press() -> void:
+	parts_open = false
+	_chip("gearpair")
+	m._step_hint = "Start a gear pair"
+	_say("Gear pair: move Ratio to change the big gear. The gears are placed to mesh")
+	_screw_sync()
+
+
+## p065gearpairpi: 16 px, two rings side by side in the text colour (Tok): the small gear and the big one
+func _gp_icon() -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	for y in range(16):
+		for x in range(16):
+			var p := Vector2(x + 0.5, y + 0.5)
+			var d := minf(p.distance_to(Vector2(4.5, 8.0)), p.distance_to(Vector2(11.5, 8.0)))
+			if d <= 3.5 and d >= 1.3:
+				img.set_pixel(x, y, col)
 	return ImageTexture.create_from_image(img)
