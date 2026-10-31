@@ -96,6 +96,7 @@ func build(root: Control, e: Node) -> void:
 ## More > Make a story: the card, its words read from the built state now
 func show_card() -> void:
 	refresh()
+	card.get_parent().move_child(card, -1)   # over the panels added after it (the clip's save strip took the clicks of the card's buttons)
 	var vw: Vector2 = easy.get_viewport().get_visible_rect().size
 	card.position = Vector2(maxf(8.0, (vw.x - 500.0) * 0.5), 110.0)
 	card.visible = true
@@ -135,11 +136,32 @@ func _filmed() -> bool:
 func _press(i: int) -> void:
 	match i:
 		0:
-			card.visible = false
-			m._page_set("BUILD")
+			_open_build()
 		1:
 			m._step_hint = "Give it to the fighter"
 			m.give_part_weapon(m.S.part)   # one undo step; with no solid part the app says what to draw first
 		2:
 			easy.home.save_video()   # names the next step itself when there is no clip
 	refresh()
+
+
+## step 1: BUILD is the page of a 3D building project only (main.gd _page_set), so an animation scene starts one the way the
+## start screen's building card does (_start_kind): a new scene, the blank part open on BUILD. Unsaved work is asked about first
+## (Save / Don't save / Cancel), as the start screen does (_unsaved, not _clean != _doc_key: that key always differs from "[]").
+func _open_build() -> void:
+	if m.S.kind != "building" and m._unsaved():
+		card.visible = false
+		m._ask_save(m._scene_label(), _build_now)
+		return
+	_build_now()
+
+
+func _build_now() -> void:
+	if m.S.kind != "building":
+		m._new_scene()
+		m.S.kind = "building"
+	card.visible = false
+	m._page_set("BUILD")
+	m.bld.reset_view()
+	m.bld.part.open_blank(easy.on)
+	m._refresh()
