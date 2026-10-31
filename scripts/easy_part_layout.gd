@@ -1217,7 +1217,7 @@ func _grid_labels_screen_size(c: Camera3D, view: Rect2) -> void:
 		l.pixel_size = GRID_LABEL_SCREEN_PX * d / (float(l.font_size) * f)
 		var sp := c.unproject_position(l.global_position)
 		for q in shown:
-			if sp.distance_to(q) < GRID_LABEL_PX:
+			if sp.distance_to(q) < GRID_LABEL_PX * 0.5:   # half the step gap: only numbers really on top of each other (p108 bar 1 counts 5 on the X axis)
 				l.visible = false
 				break
 		if l.visible:
