@@ -23,6 +23,7 @@ func _hole_sync() -> void:
 		wall_btn.visible = hole_mode == "hollow" and _hole_on()   # Thicker wall only exists for a hollow
 	if lattice_btn != null:
 		lattice_btn.visible = _lattice_shown()   # p208latticeinf: Lattice inside shows after a hollow, not after a lattice
+	_hpat_sync()   # s029
 
 
 ## a Through / Hollow inside chip: the hole step is REPLACED (one undo step): the record from before the hole press, then the chosen hole.
@@ -1049,3 +1050,267 @@ func _printer_press() -> void:
 		_hole_mode(hole_mode, false, true)   # the screw hole on the screen is cut again for this printer (one undo step)
 	else:
 		_say("Printer: %s. The next screw hole uses it" % ("any" if printer == "" else ("resin (tight)" if printer == "resin" else "FDM (loose)")))
+
+
+## s029 HOLES IN A PATTERN (Friday plan 29): after Cut a hole, Row / Around / Grid copy the round hole into one pattern. It is still ONE build step:
+## the hole's own sketch gets more circles (the first circle keeps the Hole size slider; the others follow it) and the sketch carries the
+## pattern ("hpat": kind, count, gap, rows, columns, radius, the centres), so a slider only rewrites the circles. Each press and each slider
+## change is one undo step. The holes are real cuts: the same pull-through cut as the single hole
+const HPAT_WORDS := {"row": "Holes in a row", "around": "Holes around", "grid": "Holes in a grid"}
+var hpat_btns := {}          # "row" / "around" / "grid" / "pick": the chips
+var hpat_rows := []          # the slider rows (How many, Spacing, Radius, Rows, Columns)
+var hpat_box: HFlowContainer  # the slider rows' column (hidden while no pattern is on)
+var hpat_pick := false       # true while Pick centre waits for the click on the part
+
+
+func _hpat_chips(h: Control) -> void:
+	for kd in [["row", "Holes: Row", "Copy the hole into a straight row: set how many and the spacing in mm"], ["around", "Holes: Around", "Copy the hole round a circle: set how many and the radius in mm. The circle is round the middle of the part, or a point you pick"], ["grid", "Holes: Grid", "Copy the hole into a grid: set the rows, the columns and the spacing in mm"]]:
+		var b := _big_btn("easypart_hole_" + String(kd[0]), String(kd[1]), String(kd[2]), _hpat_mode.bind(String(kd[0])))
+		b.toggle_mode = true
+		b.custom_minimum_size = Vector2(130, 44)
+		h.add_child(b)
+		hpat_btns[kd[0]] = b
+	var pb := _big_btn("easypart_hole_pickc", "Pick centre", "Then click the part: the holes go round that point instead of the middle", _hpat_pick_press)
+	pb.toggle_mode = true
+	pb.custom_minimum_size = Vector2(120, 44)
+	pb.visible = false
+	h.add_child(pb)
+	hpat_btns["pick"] = pb
+	hpat_box = HFlowContainer.new()
+	hpat_box.name = "easypart_hole_pattern"
+	hpat_box.custom_minimum_size = Vector2(700, 0)
+	hpat_box.add_theme_constant_override("h_separation", 12)
+	hpat_box.add_theme_constant_override("v_separation", 0)
+	hpat_box.visible = false
+	h.add_child(hpat_box)   # (the box sits at the bottom of this panel)
+	hpat_rows.append(_make_row("How many", 2.0, 24.0, 1.0, ["Fewer", "More"], "hpat", "hp_count", "holes", hpat_box))
+	hpat_rows.append(_make_row("Spacing", 3.0, 200.0, 0.5, ["Closer", "Further apart"], "hpat", "hp_gap", "mm", hpat_box))
+	hpat_rows.append(_make_row("Radius", 3.0, 200.0, 0.5, ["Smaller", "Bigger"], "hpat", "hp_rad", "mm", hpat_box))
+	hpat_rows.append(_make_row("Rows", 2.0, 10.0, 1.0, ["Fewer", "More"], "hpat", "hp_rows", "holes", hpat_box))
+	hpat_rows.append(_make_row("Columns", 2.0, 10.0, 1.0, ["Fewer", "More"], "hpat", "hp_cols", "holes", hpat_box))
+	for r in hpat_rows:   # three sliders to a line, no words under them: the panel stays low
+		(r["words"] as Control).visible = false
+		(r["box"] as Control).custom_minimum_size = Vector2(225, 0)
+
+
+## the hole's round sketch while the chips are up on a single round hole (a screw, hollow or lid is not copied); {} if not
+func _hpat_sketch() -> Dictionary:
+	if hole_mode in ["hollow", "lid", "fingers"] or hole_mode.begins_with("screw") or hole_id == "":
+		return {}
+	var sk := Part.feature(_rec(), hole_id)
+	if String(sk.get("t", "")) != "sketch":
+		return {}
+	var ents: Array = sk.get("ents", [])
+	if ents.is_empty() or String(ents[0].get("k", "")) != "circle":
+		return {}
+	return sk
+
+
+## the centres a pattern puts its holes at (sketch mm)
+static func hpat_centres(h: Dictionary) -> Array:
+	var out: Array = []
+	var cx := float(h.get("hx", 0.0))
+	var cy := float(h.get("hy", 0.0))
+	var gap := float(h.get("gap", 20.0))
+	match String(h.get("kind", "")):
+		"row":
+			var n := int(h.get("n", 3))
+			for i in n:
+				out.append(Vector2(cx + (float(i) - float(n - 1) * 0.5) * gap, cy))
+		"grid":
+			var rs := int(h.get("rows", 2))
+			var cs := int(h.get("cols", 3))
+			for r in rs:
+				for c in cs:
+					out.append(Vector2(cx + (float(c) - float(cs - 1) * 0.5) * gap, cy + (float(r) - float(rs - 1) * 0.5) * gap))
+		"around":
+			var n2 := int(h.get("n", 6))
+			var px := float(h.get("px", cx))
+			var py := float(h.get("py", cy))
+			var rad := float(h.get("rad", 20.0))
+			for i in n2:
+				var a := TAU * float(i) / float(n2)
+				out.append(Vector2(px + rad * cos(a), py + rad * sin(a)))
+	return out
+
+
+## the sketch's circles from its pattern: the first circle's size is the Hole size slider's
+func _hpat_write(sk: Dictionary) -> void:
+	var ents: Array = sk["ents"]
+	var r := float(ents[0].get("r", 3.0))
+	var out: Array = []
+	for c in hpat_centres(sk["hpat"]):
+		out.append({"k": "circle", "c": Part.arr2(c), "r": r})
+	sk["ents"] = out
+
+
+## a Hole size slider move (easy_part.gd _apply_tweak): the copies follow the first circle
+func _hpat_follow(sk: Dictionary) -> void:
+	if sk.has("hpat") and not (sk["ents"] as Array).is_empty():
+		_hpat_write(sk)
+
+
+func _hpat_span(rec: Dictionary, sk: Dictionary) -> Vector2:
+	var bb: AABB = Part.replay(rec)["aabb"]
+	var s := bb.size / Part.MM
+	return Vector2(s.x, s.y) if String(sk.get("plane", "front")) == "front" else Vector2(s.x, s.z)
+
+
+## the middle of the part on the hole's sketch plane (mm)
+func _hpat_middle(rec: Dictionary, sk: Dictionary) -> Vector2:
+	var bb: AABB = Part.replay(rec)["aabb"]
+	var c := bb.get_center() / Part.MM
+	return Vector2(c.x, c.y) if String(sk.get("plane", "front")) == "front" else Vector2(c.x, -c.z)
+
+
+func _hpat_mode(kind: String) -> void:
+	hpat_pick = false
+	if not _hole_on() or not Part.available():
+		_hpat_sync()
+		_say("Press Cut a hole first, then pick Row, Around or Grid")
+		return
+	var sk0 := _hpat_sketch()
+	if sk0.is_empty():
+		_hpat_sync()
+		_say("Row, Around and Grid copy the round Through hole: press Through first")
+		return
+	_flush_if_dirty()
+	armed = ""
+	wall_pick = false
+	var snap := _rec().duplicate(true)
+	_begin(String(HPAT_WORDS[kind]))
+	var rec := _rec()
+	var sk := Part.feature(rec, hole_id)
+	var why := ""
+	var floor_v := float(Part.replay(hole_base)["volume"]) if not hole_base.is_empty() else INF
+	if sk.has("hpat") and String(sk["hpat"]["kind"]) == kind:   # the same chip again: the pattern goes, the one hole stays
+		sk["ents"] = [(sk["ents"] as Array)[0]]
+		sk["ents"][0]["c"] = Part.arr2(Vector2(float(sk["hpat"]["hx"]), float(sk["hpat"]["hy"])))
+		sk.erase("hpat")
+	else:
+		var h: Dictionary = sk["hpat"] if sk.has("hpat") else {}
+		if h.is_empty():
+			var c0 := Part.v2(sk["ents"][0]["c"])
+			var mid := _hpat_middle(rec, sk)
+			var span := _hpat_span(rec, sk)
+			var d := 2.0 * float(sk["ents"][0].get("r", 3.0))
+			var gap := maxf(snappedf(d * 2.5, 1.0), 8.0)
+			h = {"hx": c0.x, "hy": c0.y, "px": mid.x, "py": mid.y, "n": 3, "gap": gap, "rows": 2, "cols": 3, "rad": clampf(snappedf(minf(span.x, span.y) * 0.3, 1.0), 3.0, 200.0)}
+			if 2.0 * gap > 0.9 * span.x:
+				h["gap"] = maxf(snappedf(0.9 * span.x / 2.0, 1.0), 3.0)
+		h["kind"] = kind
+		if kind == "around":
+			h["n"] = maxi(int(h["n"]), 3)
+		sk["hpat"] = h
+		_hpat_write(sk)
+	var res := pu.replay_full(rec)
+	var after := float(res["volume"])
+	if not (res["errors"].is_empty() and after > 1e-9 and after < floor_v - 1e-12):
+		why = "That pattern does not cut the part: nothing was changed"
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+	else:
+		_end()
+		if sk.has("hpat"):
+			_say("%s: %d holes. The sliders set how many and how far apart. Hole size sets their width" % [HPAT_WORDS[kind], hpat_centres(sk["hpat"]).size()])
+		else:
+			_say("One hole again")
+	pu.upto = -1
+	pu.sync()
+	_rows_sig = ""
+	_rows_sync()
+	_values_sync()
+	_hpat_sync()
+
+
+func _hpat_pick_press() -> void:
+	var sk := _hpat_sketch()
+	if sk.is_empty() or not sk.has("hpat") or String(sk["hpat"]["kind"]) != "around":
+		hpat_pick = false
+		_hpat_sync()
+		_say("Pick centre goes with Holes around: press Holes around first")
+		return
+	hpat_pick = not hpat_pick
+	_hpat_sync()
+	_say("Click the part where the circle of holes should be centred. Press Pick centre again to stop" if hpat_pick else "Pick centre is off")
+
+
+## the click that picks the centre (hpat_pick is on): the point on the part under the mouse is the circle's middle (one undo step)
+func _hpat_press(p: Vector2) -> void:
+	hpat_pick = false
+	var fc := _face_hit_at(p)
+	var sk0 := _hpat_sketch()
+	if fc.is_empty() or not fc.has("hit") or sk0.is_empty() or not sk0.has("hpat"):
+		_hpat_sync()
+		_say("Click on the part itself to pick the centre. Press Pick centre to try again")
+		return
+	_flush_if_dirty()
+	_begin("Pick the centre")
+	var sk := Part.feature(_rec(), hole_id)
+	var pt := Part.to_plane(Part.resolve_plane(_rec(), String(sk.get("plane", "front"))), fc["hit"] as Vector3)
+	sk["hpat"]["px"] = snappedf(pt.x, 0.1)
+	sk["hpat"]["py"] = snappedf(pt.y, 0.1)
+	_hpat_write(sk)
+	_end()
+	pu.upto = -1
+	pu.sync()
+	_values_sync()
+	_hpat_sync()
+	_say("The holes go round the point you picked")
+
+
+## the sliders of the pattern box write the sketch's pattern (kind "hpat" in _set_value); the caller flushes
+func _apply_hpat(row: Dictionary, v: float) -> void:
+	var sk := Part.feature(_rec(), hole_id)
+	if not sk.has("hpat"):
+		return
+	pu.upto = -1
+	var h: Dictionary = sk["hpat"]
+	match String(row["key"]):
+		"hp_count":
+			h["n"] = int(roundf(v))
+		"hp_gap":
+			h["gap"] = v
+		"hp_rad":
+			h["rad"] = v
+		"hp_rows":
+			h["rows"] = int(roundf(v))
+		"hp_cols":
+			h["cols"] = int(roundf(v))
+	_hpat_write(sk)
+
+
+## the chips and sliders follow the hole's pattern
+func _hpat_sync() -> void:
+	if hpat_box == null:
+		return
+	var sk := _hpat_sketch() if _hole_on() else {}
+	var kind := "" if sk.is_empty() or not sk.has("hpat") else String(sk["hpat"]["kind"])
+	for k in ["row", "around", "grid"]:
+		(hpat_btns[k] as Button).set_pressed_no_signal(k == kind)
+	(hpat_btns["pick"] as Button).visible = kind == "around"
+	(hpat_btns["pick"] as Button).set_pressed_no_signal(hpat_pick and kind == "around")
+	hpat_box.visible = kind != ""
+	var show := {"row": ["hp_count", "hp_gap"], "around": ["hp_count", "hp_rad"], "grid": ["hp_rows", "hp_cols", "hp_gap"]}
+	for r in hpat_rows:
+		var on: bool = kind != "" and (show[kind] as Array).has(String(r["key"]))
+		(r["box"] as Control).visible = on
+		if on and not bool(r.get("held", false)):
+			var h: Dictionary = sk["hpat"]
+			var v := 0.0
+			match String(r["key"]):
+				"hp_count":
+					v = float(h.get("n", 3))
+				"hp_gap":
+					v = float(h.get("gap", 20.0))
+				"hp_rad":
+					v = float(h.get("rad", 20.0))
+				"hp_rows":
+					v = float(h.get("rows", 2))
+				"hp_cols":
+					v = float(h.get("cols", 3))
+			(r["slider"] as HSlider).set_value_no_signal(v)
+			_pill_text(r, v)

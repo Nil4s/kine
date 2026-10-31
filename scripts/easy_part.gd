@@ -424,6 +424,7 @@ func _hole_box() -> PanelContainer:
 		sb.custom_minimum_size = Vector2(96, 44)
 		h.add_child(sb)
 		hole_btns["screw%d" % sd] = sb
+	_hpat_chips(h)   # s029: Row / Around / Grid of holes
 	_printer_chip(h)   # p203screwholea: the printer chip (resin tight, FDM loose)
 	var fb := _big_btn("easypart_hole_fits", "What fits here?", "Ask which of My Parts go through this hole (the saved parts that fit it). No step: it only tells you", _fits_press)   # P076
 	fb.custom_minimum_size = Vector2(150, 44)
@@ -1211,6 +1212,8 @@ func _set_value(row: Dictionary, v: float, final: bool) -> void:
 		hole_base = {}                    # the template's sizes changed: the hole chips would rebuild on an old shape
 	elif row["kind"] == "rep":
 		_apply_rep(row, v)
+	elif row["kind"] == "hpat":
+		_apply_hpat(row, v)
 	elif row["kind"] == "taper":
 		_apply_taper(v)
 	elif row["kind"] == "twist":
@@ -1236,6 +1239,7 @@ func _apply_tweak(v: float) -> void:
 		f["ents"][int(tweak["ent"])][tweak["field"]] = val
 	else:
 		f[tweak["field"]] = val
+	_hpat_follow(f)   # s029: the pattern's other circles follow the first
 	if f.has("raw"):   # p039: a Curvy line's points come back from its raw stroke at the new Smooth
 		_rebuild_curve(f)
 
@@ -3869,6 +3873,8 @@ func input(ev: InputEvent) -> bool:
 			if pp.distance_to(p) < 6.0 and _drag.is_empty() and _draft.is_empty():
 				if wall_pick:   # p022shellwalls: Thicker wall is waiting for a wall: this press picks it (or says why not)
 					_wall_press(p)
+				elif hpat_pick:   # s029: Pick centre is waiting for the click
+					_hpat_press(p)
 				elif not _open_face(p):   # NOPENTOP: after Hollow inside, a flat face click opens that side; any other click picks a piece
 					_pick_at(p)
 		if not _draft.is_empty():
