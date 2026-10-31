@@ -5081,7 +5081,10 @@ func _cut_look() -> void:
 	var d := _cut_plane()
 	var n: Vector3 = d["n"]
 	var wb: AABB = d["box"]
-	m._turn_to(rad_to_deg(atan2(n.x, n.z)), 0.0, clampf(wb.size.length() * 1.5, 0.4, 6.0), wb.get_center(), true)
+	m._turn_to(rad_to_deg(atan2(n.x, n.z)), 0.0, clampf(wb.size.length() * 1.5, 0.4, 6.0), wb.get_center(), false)   # the turn at once; the framing below eases
+	var pose: Array = _frame_pose(wb)   # P101 FRAME: the whole part framed in the free view, as Fit view does (not centred under the side panel)
+	if not pose.is_empty():
+		m._turn_to(rad_to_deg(atan2(n.x, n.z)), 0.0, float(pose[1]), pose[0], true)
 
 
 ## the material: the cut shader while the chip is on and Easy is on screen; the plain look otherwise (Expert's own cut is never touched)
