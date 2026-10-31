@@ -1710,6 +1710,7 @@ func _clip_pick(kind: String) -> void:
 	pu.upto = -1
 	pu.sync()
 	frame()
+	_lib_fit()   # P082LIBFRAME: a Parts library pick fills the view with its part (the camera eases onto its box)
 	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
 		_say("%s did not build. Press Reset, then pick it again" % title)
 	else:
@@ -1773,6 +1774,7 @@ func _wheel_pick(k: String) -> void:
 	pu.upto = -1
 	pu.sync()
 	frame()
+	_lib_fit()   # P082LIBFRAME: a Parts library pick fills the view with its part (the camera eases onto its box)
 	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
 		_say("%s did not build. Press Reset, then pick it again" % label)
 	else:
@@ -2267,6 +2269,7 @@ func _screw_pick(d: int, L: int) -> void:
 	pu.upto = -1
 	pu.sync()
 	frame()
+	_lib_fit()   # P082LIBFRAME: a Parts library pick fills the view with its part (the camera eases onto its box)
 	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
 		_say("%s did not build. Press Reset, then pick a size again" % label)
 	else:
@@ -2514,6 +2517,7 @@ func _bear_pick(i: int) -> void:
 	pu.upto = -1
 	pu.sync()
 	frame()
+	_lib_fit()   # P082LIBFRAME: a Parts library pick fills the view with its part (the camera eases onto its box)
 	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
 		_say("The %s bearing did not build. Press Reset, then pick a size again" % code)
 	else:
@@ -5430,3 +5434,15 @@ func _frame_held() -> void:
 		m.target -= m.cam.global_basis.x * d.x * mpp - m.cam.global_basis.y * d.y * mpp
 		m.dist = clampf(float(m.dist) * need, 0.5, 12.0)
 	m._cam()
+
+
+## P082LIBFRAME: after a Parts library pick the camera eases so the built part's box fills FRAME_FILL of the free view (frame() only
+## dollies out, and the box-change ease does not run after a pick, so a 20 mm screw stayed a speck near the centre)
+func _lib_fit() -> void:
+	var bb: AABB = pu.res.get("aabb", AABB())
+	if m.cam == null or bb.size.length() < 1e-4:
+		return
+	var pose := _frame_pose(bb)
+	if pose.is_empty():
+		return
+	_ease = {"t0": m.target, "d0": float(m.dist), "t1": pose[0], "d1": pose[1], "s": 0.0}
