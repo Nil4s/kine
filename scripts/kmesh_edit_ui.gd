@@ -117,6 +117,9 @@ func setup(main: Node) -> void:
 	files = KMeshFileUI.new()   # the mesh file: Ctrl+S, Save, Open... (scripts/kmesh_file_ui.gd)
 	add_child(files)
 	files.setup(self)
+	var steps := MeshSteps.new()   # P151 model from words: the typed steps panel (scripts/mesh_steps.gd), shown on the MODEL page only
+	m.ui_root.add_child(steps)
+	steps.setup(self)
 
 
 func start() -> void:
