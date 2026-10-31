@@ -42,6 +42,7 @@ var _moved := false         # step 4: the body changed since the step began
 static var start_fresh := false   # a TEST only: start as a fresh install does (no settings file = Easy), not as a test (Expert)
 var scenes: EasyScenes      # MY SCENES (scripts/easy_scenes.gd): the saved scenes and the examples as big tiles, from the bar's My scenes
 var home: EasyHome          # EASY HOME (scripts/easy_home.gd): the empty scene's picture panel, Easy only
+var story: EasyStory        # p199storymode: More > Make a story, the build -> give -> film card (scripts/easy_story.gd)
 var building: EasyBuild      # EASY BUILDING (scripts/easy_build.gd): the BUILD page's big bar and column, Easy only
 var sliders: EasySliders    # EASY SIDE SLIDERS (scripts/easy_sliders.gd): a picked body part's sliders at the right, Easy only
 var _saved_cam := {}        # Expert's camera (yaw, pitch, dist, target) when Easy came on: Expert gets exactly this back
@@ -117,6 +118,7 @@ func build(root: Control, expert: Array) -> void:
 		["Save the scene", "Save the scene", func(): home.save_scene()],
 		["Flip left and right", "The whole body reflected left and right", m._press.bind(KEY_M, true)],
 		["Put his feet on the floor", "Plant the feet that slide over the cards, so they stay on the floor", m._plant_all],
+		["Make a story", "Build a prop, give it to the fighter, film a scene: three steps on one card (p199storymode)", func(): story.show_card()],
 	]
 	var home_b: Button = m._home_button()   # the way back to the start screen; not in _btns (the bar's numbered buttons stay as they were)
 	home_b.custom_minimum_size = Vector2(110, m.TOP_H - 12)
@@ -168,6 +170,8 @@ func build(root: Control, expert: Array) -> void:
 	scenes = EasyScenes.new()   # MY SCENES: its panel is over the bar (added last), hidden until its button is pressed
 	scenes.m = m
 	scenes.build(root)
+	story = EasyStory.new()   # p199storymode: More > Make a story, the three-step card (scripts/easy_story.gd)
+	story.build(root, self)
 	_build_tour_card(root)
 	get_viewport().size_changed.connect(_resized)   # EASY CAMERA: a window resize re-frames the clip (frame_clip)
 	home = EasyHome.new()   # the empty scene's "What should he do?" panel: a child of Easy, so Expert never shows it

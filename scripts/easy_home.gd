@@ -2660,3 +2660,8 @@ func _mood_typed(txt: String) -> void:
 	var names: Array = StyleDial.STYLES.filter(func(k): return absf(float(vals[k])) > 1e-6).map(func(k): return "%s %+.1f" % [k, float(vals[k])])
 	_mood_msg.text = "Blended %s onto the clip: it now takes %.1f s. Undo takes it back." % [", ".join(names), S.length()]
 	m._say_plain(_mood_msg.text)
+
+
+## the picture button of one move card (the test's and the Walk picture's handle; the cards are built in build() above)
+func card_btn(i: int) -> Button:
+	return panel.find_child("eh_card_%d" % i, true, false) as Button
