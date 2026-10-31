@@ -300,6 +300,8 @@ func build(root: Control) -> void:
 	v.add_child(wheel_box)
 	board_box = _board_box()   # p078makeacasef: the Boards chips (a case for the board)
 	v.add_child(board_box)
+	wood_box = _wood_box()   # P080 WOOD BOARDS: the wood chips under the library, hidden until Wood boards is open or a wood board is on the floor
+	v.add_child(wood_box)
 	rows_vb = VBoxContainer.new()
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 2)
@@ -2014,6 +2016,8 @@ func _lib_press(cat: String) -> void:
 		_say("Wheels: press Wheel or Castor. It drops on the floor, with its axle hole")
 	elif cat == "Boards":   # p078makeacasef
 		_say("Boards: press your board. A case for it drops on the floor")
+	elif cat == "Wood boards":   # P080: the two wood chips open under the library
+		_say("Wood boards: pick one by its real size. It lies on the floor, flat")
 	elif cat == "Hinges":
 		_say("Hinges: press Hinge below. It drops on the floor, sized to the door")
 	elif cat == "Springs":   # p070springfix: the page shows the Spring button (opening a category builds nothing)
@@ -2091,6 +2095,8 @@ func _lib_icon(cat: String) -> ImageTexture:
 		return _clip_icon("clip")
 	if cat == "Boards":   # p078makeacasef
 		return _board_icon(1)
+	if cat == "Wood boards":   # P080
+		return _wood_icon()
 	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 	var col := Tok.c("text")
@@ -2424,6 +2430,7 @@ func _screw_sync() -> void:
 		var bo: Button = board_btns[bd]
 		bo.set_pressed_no_signal(not bcur.is_empty() and int(bcur.get("board", 0)) == bd)
 		m._grey(bo, Part.why_not() if not Part.available() else "")
+	_wood_sync()   # P080 WOOD BOARDS: the wood chips and their cut readout follow the same state
 
 
 ## P069 BEARINGS: the three bearing sizes, in the order of PartTemplates.BEARING_SIZE (608, 625, 688)
@@ -5151,3 +5158,136 @@ func _hold_press(p: Vector2) -> bool:
 	m.part_weapon_changed(_rec())   # a held Part weapon takes the new grip at once
 	_say("The hand holds it here, %.1f cm from the butt" % ((at.x - knob) * 100.0))
 	return true
+
+
+## P080 WOOD BOARDS: the Wood boards page's two chips (a 2x4 and an MDF sheet, real sizes in mm) and the cut readout under them
+func _wood_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_wood_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
+	var hd := Label.new()
+	hd.name = "easypart_wood_words"
+	hd.text = "Wood, lying flat, by real size: pick one. It drops on the floor"
+	hd.add_theme_font_size_override("font_size", 14)
+	hd.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(hd)
+	var g := HBoxContainer.new()
+	g.add_theme_constant_override("separation", 4)
+	vb.add_child(g)
+	for k in ["2x4", "mdf"]:
+		var bp: Dictionary = PartTemplates.WOOD_BOARDS[k]
+		var b := Button.new()
+		b.name = "easypart_wood_" + k
+		b.text = String(bp["name"])
+		b.icon = _wood_icon()
+		b.tooltip_text = "%s: %d mm wide, %d mm thick, %d mm long. One click, one undo step" % [b.text, int(bp["width"]), int(bp["thickness"]), int(bp["length"])]
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(0, 34)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_wood_pick.bind(k))
+		g.add_child(b)
+		wood_btns[k] = b
+	var cut := Label.new()   # the star: how many of this board one MDF sheet cuts, from the board's own numbers
+	cut.name = "easypart_wood_cut"
+	cut.add_theme_font_size_override("font_size", 14)
+	cut.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	cut.visible = false
+	vb.add_child(cut)
+	return pc
+
+
+## P080: a flat board icon (16 px, the text colour, Tok): a plank outline
+func _wood_icon() -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	img.fill_rect(Rect2i(0, 5, 16, 6), col)
+	img.fill_rect(Rect2i(2, 7, 12, 2), Color(0, 0, 0, 0))
+	return ImageTexture.create_from_image(img)
+
+
+## P080: the wood board on the floor has this chip's three sizes (within half a mm)
+func _wood_is(k: String) -> bool:
+	if _tpl() != "board":
+		return false
+	var cur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {})
+	var bp: Dictionary = PartTemplates.WOOD_BOARDS[k]
+	for n in ["width", "thickness", "length"]:
+		if absf(float(cur.get(n, -1.0)) - float(bp[n])) >= 0.5:
+			return false
+	return true
+
+
+## P080: a wood board on the floor: how many of it one MDF sheet (1220 x 2440 mm) cuts: across the sheet's width, along its length.
+## "" when the part on the floor is not a wood board
+func _wood_cut_text() -> String:
+	if _tpl() != "board":
+		return ""
+	var p: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {})
+	var sheet: Dictionary = PartTemplates.WOOD_BOARDS["mdf"]
+	var w := float(p.get("width", 0.0))
+	var L := float(p.get("length", 0.0))
+	var across := int(floor(float(sheet["width"]) / w)) if w > 0.0 else 0
+	var along := int(floor(float(sheet["length"]) / L)) if L > 0.0 else 0
+	var size := "%d x %d mm" % [int(sheet["width"]), int(sheet["length"])]
+	if across == 0 or along == 0:
+		return "Too big for one MDF sheet (%s): none fit" % size
+	return "%d of these fit one MDF sheet (%s): %d across, %d along" % [across * along, size, across, along]
+
+
+## P080: the wood chips' pressed state and grey-out, and the cut readout; the box shows with Wood boards open or a wood board on the floor
+func _wood_sync() -> void:
+	if wood_box == null:
+		return
+	wood_box.visible = (parts_open and lib_cat == "Wood boards") or _tpl() == "board"
+	for k in wood_btns:
+		var b: Button = wood_btns[k]
+		b.set_pressed_no_signal(_wood_is(k))
+		m._grey(b, Part.why_not() if not Part.available() else "")
+	var cut := wood_box.find_child("easypart_wood_cut", true, false) as Label
+	var txt := _wood_cut_text()
+	cut.text = txt
+	cut.visible = txt != ""
+
+
+## P080: a wood chip. No board on the floor: a new board lies on the floor. A board already there takes the chip's sizes (one undo step, the same
+## features). The same size again does nothing
+func _wood_pick(k: String) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var bp: Dictionary = PartTemplates.WOOD_BOARDS[k]
+	var label := String(bp["name"])
+	var on_floor := _tpl() == "board" and not (_rec().get("features", []) as Array).is_empty()
+	if on_floor and _wood_is(k):
+		_say("Already a %s on the floor. Pick the other one to change it" % label)
+		_screw_sync()
+		return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Change the board" if on_floor else "Start a wood board"
+	m._push_undo()
+	var p := {"width": bp["width"], "thickness": bp["thickness"], "length": bp["length"]}
+	if on_floor:
+		PartTemplates.retemplate(_rec(), p)
+	else:
+		m.S.part = PartTemplates.make("board", p)
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("%s did not build. Press Reset, then pick a board again" % label)
+	else:
+		_say("%s on the floor, lying flat. Move a slider to change it" % label)
+	_screw_sync()
