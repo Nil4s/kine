@@ -78,6 +78,10 @@ func _size_sync() -> void:
 	var d := snappedf(bb.size.z * 100.0, 0.1)
 	var h := snappedf(bb.size.y * 100.0, 0.1)
 	size_l.text = "Size: %s x %s x %s cm (wide x deep x high), %s" % [_cm1(w), _cm1(d), _cm1(h), _print_words()]
+	var tipw := _tip_words()   # P128: "It will tip over: ..." when the weight is past the feet
+	if tipw != "":
+		size_l.text += "
+" + tipw
 	var front := Vector3(bb.get_center().x, bb.position.y, bb.end.z)
 	if m.cam.is_position_behind(front):
 		size_l.visible = false
@@ -1297,3 +1301,58 @@ func _grid_labels_screen_size(c: Camera3D, view: Rect2) -> void:
 		if l.visible:
 			shown.append(sp)
 
+
+
+## P128 CENTRE OF MASS (scripts/build/part_com.gd): a small red dot at the whole part's centre of mass (shown after "Does it fall over?" is pressed,
+## and always while the part would tip over), and "It will tip over: its weight is N mm outside its feet" in the size line. A reading only: no step, no undo.
+var com_on := false              # P128: the dot was asked for (the Colour page's "Does it fall over?" chip toggles it)
+var com_key := -1                # P128: hash of the features the reading was made from
+var com_t := 0                  # P128: msec of the last reading
+var com_res := {}                # P128: PartCom.read of the shown Part (re-read only when its steps change)
+var _com_mesh: MeshInstance3D    # P128: the dot, a child of the shown part
+
+
+## the reading for the Part as it is now (cached on its steps)
+func _com_read() -> Dictionary:
+	var key: int = _rec().get("features", []).hash()
+	if key == com_key:
+		return com_res
+	# a change just happened: re-read at most every 300 ms (a slider drag changes the Part every frame; each reading replays it)
+	var now := Time.get_ticks_msec()
+	if not com_res.is_empty() and (now - com_t < 300 or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)):
+		return com_res
+	com_key = key
+	com_t = now
+	com_res = PartCom.read(_rec())
+	return com_res
+
+
+## the tip-over sentence for the size line ("" when it stands or there is no solid)
+func _tip_words() -> String:
+	if not Part.available() or int(pu.res.get("bodies", 0)) <= 0:
+		return ""
+	return String(_com_read().get("warn", ""))
+
+
+func _com_sync(show_ok: bool) -> void:
+	if _com_mesh == null:
+		_com_mesh = MeshInstance3D.new()
+		_com_mesh.name = "easypart_com_dot"
+		var red := StandardMaterial3D.new()
+		red.albedo_color = Color(0.9, 0.15, 0.12)
+		red.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		red.no_depth_test = true
+		_com_mesh.material_override = red
+		var sph := SphereMesh.new()
+		sph.radius = 0.004
+		sph.height = 0.008
+		_com_mesh.mesh = sph
+		_com_mesh.visible = false
+		pu.bu.root3.add_child(_com_mesh)
+	var on_part: bool = show_ok and pu.part_mesh != null and pu.part_mesh.mesh != null and pu.part_mesh.visible and Part.available()
+	if on_part:
+		var r := _com_read()
+		on_part = bool(r.get("ok", false)) and (com_on or bool(r.get("tips", false)))
+		if on_part:
+			_com_mesh.global_transform = pu.part_mesh.global_transform * Transform3D(Basis.IDENTITY, r["com"] as Vector3)
+	_com_mesh.visible = on_part

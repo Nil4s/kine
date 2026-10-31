@@ -3579,6 +3579,7 @@ func _process(_dt: float) -> void:
 	suggest_row.visible = on and _suggest_on()   # P092: after a Pull it up the two next-step chips show in the panel, under the slider rows
 	tilt_box.visible = on and armed == "" and (along or tilt_on or draft_on or swing_on)
 	_overhang_sync(on)
+	_com_sync(on)   # P128: the centre-of-mass dot
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
 	if not on:
 		return
@@ -5735,6 +5736,7 @@ func _stand_chip() -> Button:
 
 
 func _stand_press() -> void:
+	com_on = not com_on   # P128: the same press shows (or hides) the centre-of-mass dot
 	var r := PartStand.check(_rec())
 	_say(String(r["say"]))
 
