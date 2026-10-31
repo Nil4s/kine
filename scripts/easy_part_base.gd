@@ -100,6 +100,8 @@ var screw_btns := {}             # NSCREW2: "d_L" -> the size chip (M<d> x <L>)
 var clip_box: PanelContainer     # P075: the Clips and feet chips (rubber foot, cable clip, zip-tie slot), shown while that category is open
 var clip_btns := {}              # P075: kind -> its chip
 var screw_words: Label           # the grid's one-line instruction: hidden while the library page is open (the page and the status line say it)
+var screw_head := 0             # P061SCREWHEADS: the head the next screw gets (0 Socket, 1 Button, 2 Flat); a screw on the floor shows its own
+var head_btns := []             # P061SCREWHEADS: the three head chips, in SCREW_HEAD_CHIPS order
 var bracket_box: PanelContainer   # FRIDAY 73: the bracket chips (L-bracket, T-bracket, Corner brace), shown while Brackets is open or a bracket is the part
 var bracket_btns := {}
 var nw_btn: Button               # NNUTWASHER: "Add its nut and washer" (in the screw grid): the screw on the floor takes its nut and washer, one click
