@@ -15,8 +15,8 @@ const STICK_OPS := [["join", "Join", "Make the two pieces one solid"], ["cut", "
 const SCREW_DS := [3, 4, 5, 6]         # NSCREW2: the Parts category's screw sizes (M3..M6, columns of the grid)
 const SCREW_LENS := [10, 16, 20, 30]   # NSCREW2: the screw lengths in mm (rows of the grid)
 const BRACKET_CHIPS := [["L", "L-bracket", 1, "An L: a foot and an upright, two screw holes"], ["T", "T-bracket", 2, "A T: a bar on a stem, two screw holes"], ["corner", "Corner brace", 3, "An L with a gusset in the corner, two screw holes"]]   # FRIDAY 73: the Brackets page chips (key, words, kind 1 / 2 / 3)
-const LIB_CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "Springs", "Handles", "Wheels", "Brackets", "Clips and feet", "Boards"]   # NLIBPAGE: the Parts library page, in this order
-const LIB_READY := ["Screws", "Gears", "Bearings", "Brackets", "Clips and feet", "Handles", "Wheels", "Boards", "Hinges", "Springs"]   # NLIBPAGE: the categories with parts today; the others say coming soon
+const LIB_CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "Springs", "Handles", "Wheels", "Brackets", "Clips and feet", "Boards", "Favourites"]   # NLIBPAGE: the Parts library page, in this order (p083favfix: Favourites last)
+const LIB_READY := ["Screws", "Gears", "Bearings", "Brackets", "Clips and feet", "Handles", "Wheels", "Boards", "Hinges", "Springs", "Favourites"]   # NLIBPAGE: the categories with parts today; the others say coming soon
 const CLIP_KINDS := ["foot", "clip", "slot"]   # P075: the Clips and feet chips: a rubber foot, a cable clip, a zip-tie slot (template kinds in part_templates.gd)
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
 const WEIGHT_CHIPS := [["wood", "wood"], ["steel", "metal"], ["plastic", "plastic"]]   # p057: the weight chips after Wood (PartWeapon.DENSITY key, the word on the chip)
@@ -82,6 +82,9 @@ var _steps_sig := ""
 var scrub_sl: HSlider            # p089scrubthehi: Scrub the history, a view of the part after the first N steps (no undo step; see _scrub_to)
 var scrub_lbl: Label
 var tilt_btn: Button
+var suggest_row: HBoxContainer   # P092: the next-step row in the right panel (after a Pull it up): the two chips below
+var suggest_round_btn: Button    # P092: "Round the edges?" under a pulled-up solid (the suggest row): one press = Round the edges
+var suggest_hollow_btn: Button   # P092: "Hollow it?" under a pulled-up solid (the suggest row): one press = Hollow inside (HOLLOW_MM wall, open at the top)
 var swing_btn: Button            # p123driveit: Swing it (Drive it), the chip in the Tilt it panel: the newest piece swings on a hinge step
 var draft_btn: Button            # p021: Draft angle, the chip beside Tilt it (the side walls lean DRAFT_DEG for a mould)
 var pull_along_btn: Button       # P026: Pull along, the same box as Tilt it: shows after a curve or a shape is drawn (the newest step is a sketch)

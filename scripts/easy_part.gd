@@ -281,6 +281,8 @@ func build(root: Control) -> void:
 	th.add_child(more)   # on the title line beside Empty (other ways to start): on the Start row it wrapped to a second line once Rack joined, and the Parts page ran out of the panel
 	lib_box = _lib_box()
 	v.add_child(lib_box)
+	fav_box = _fav_box()   # p083favfix: the Favourites category page (its row and the star), right under the Parts chips: the screw grid of a screw on the floor sits below it, so the star stays in the scroll view
+	v.add_child(fav_box)
 	screw_box = _screw_box()
 	v.add_child(screw_box)
 	bear_box = _bear_box()   # P069 BEARINGS: the bearing chips and the seat button, under the Parts page
@@ -299,6 +301,7 @@ func build(root: Control) -> void:
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 2)
 	v.add_child(rows_vb)
+	v.add_child(_suggest_row())   # P092: the two next-step chips, under the slider rows (the rows above keep their places)
 	whole_l = Label.new()
 	whole_l.name = "easypart_whole"
 	whole_l.add_theme_font_size_override("font_size", 16)
@@ -593,6 +596,71 @@ func _tilt_box() -> PanelContainer:
 	pull_along_btn.visible = false
 	row.add_child(pull_along_btn)
 	return box
+
+
+## P092: the next steps after a Pull it up, in plain words (one press each, one undo step). They sit in the right panel's column under
+## the slider rows (off the grid, the step list and the timeline), in one row that shows only while the newest step is a Pull it up
+func _suggest_row() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.name = "easypart_suggest"
+	row.add_theme_constant_override("separation", 6)
+	row.visible = false
+	suggest_round_btn = _big_btn("easypart_suggest_round", "Round the edges?", "Next step: soften the sharp edges of this solid", _suggest_round_press)
+	suggest_round_btn.icon = Icons.tex("part_fillet")
+	suggest_round_btn.custom_minimum_size = Vector2(0, 44)
+	suggest_round_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(suggest_round_btn)
+	suggest_hollow_btn = _big_btn("easypart_suggest_hollow", "Hollow it?", "Next step: hollow this solid out, open at the top, with a 3 mm wall", _suggest_hollow_press)
+	suggest_hollow_btn.icon = Icons.tex("part_circle")
+	suggest_hollow_btn.custom_minimum_size = Vector2(0, 44)
+	suggest_hollow_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(suggest_hollow_btn)
+	suggest_row = row
+	return row
+
+
+## P092: the newest step is a Pull it up (a solid, not a cut, not switched off): the two next-step chips show under it
+func _suggest_on() -> bool:
+	var feats: Array = _rec().get("features", [])
+	if feats.is_empty():
+		return false
+	var f: Dictionary = feats[feats.size() - 1]
+	return String(f.get("t", "")) == "extrude" and not bool(f.get("off", false)) and String(f.get("op", "join")) != "cut"
+
+
+## P092: "Round the edges?" is the Round the edges press (same rules, same one undo step)
+func _suggest_round_press() -> void:
+	_make("round")
+
+
+## P092: "Hollow it?" is Hollow inside on the newest solid, in ONE step (no Cut a hole press first). Its wall and open top are the
+## Hollow inside ones, so the Wall slider and the hole chips work after it. A solid that is too thin says so and changes nothing
+func _suggest_hollow_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	armed = ""
+	wall_pick = false
+	var snap := _rec().duplicate(true)
+	_begin("Hollow inside")
+	var rec := pu._ensure()
+	var why := _hollow(rec)
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+	else:
+		_end()
+		hole_base = snap
+		hole_mode = "hollow"
+		hole_id = String(tweak.get("id", ""))
+		_rows_sig = ""
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
 
 
 ## DRAFT ANGLE (p021, "Easier to pull from a mould"): the newest solid is a pulled-up piece with no draft yet. Its straight side walls lean
@@ -1297,6 +1365,8 @@ func tweak_last() -> void:
 		tweak = _smooth_tweak(String(f["id"]))
 	elif t == "fillet" and f.has("r"):   # FSAVE: a reopened part keeps its Round slider (the same one _round_done gives a new round)
 		tweak = {"id": f["id"], "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
+	elif t == "revolve" and f.has("onside"):   # P028: a reopened Spin it round keeps its Angle slider
+		tweak = _spin_tweak(String(f["id"]))
 	elif t == "extrude" and not bool(f.get("both", false)) and String(f.get("op", "join")) == "join" and f.has("dist"):
 		var dist := float(f["dist"])
 		tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": -1.0 if dist < 0.0 else 1.0}
@@ -1398,6 +1468,7 @@ func _chip(t: String) -> void:
 	pu.upto = -1
 	pu.sync()
 	frame()
+	_fav_sync()
 	_say("%s %s: move a slider or drag an amber dot" % ["An" if t.substr(0, 1) in "aeiou" else "A", t])
 
 
@@ -1943,6 +2014,8 @@ func _lib_press(cat: String) -> void:
 		_say("Hinges: press Hinge below. It drops on the floor, sized to the door")
 	elif cat == "Springs":   # p070springfix: the page shows the Spring button (opening a category builds nothing)
 		_say("Springs: press Spring below. It drops on the floor")
+	elif cat == "Favourites":   # p083favfix: a chip puts that part back on the floor; the star keeps a favourite
+		_say("Favourites: press a chip to put that part on the floor again. Press the star to keep one")
 	else:
 		_say("%s are coming soon. Next step: press Screws or Gears" % cat)
 	_screw_sync()
@@ -2290,6 +2363,9 @@ func _screw_sync() -> void:
 		if screw_words != null:   # the page is open: its chips and the status line say what to do
 			screw_words.visible = not parts_open
 		lib_soon.text = "%s are coming soon: not made yet. Next step: press Screws or Gears" % lib_cat if lib_soon.visible else ""
+		if fav_box != null:   # p083favfix: the Favourites page shows while its category is open; the row and the star are drawn here
+			fav_box.visible = parts_open and lib_cat == "Favourites"
+			_fav_sync()
 	if clip_box != null:   # P075: the Clips and feet chips show while that category is open
 		clip_box.visible = parts_open and lib_cat == "Clips and feet"
 		for kind in CLIP_KINDS:
@@ -3271,6 +3347,7 @@ func _finish_line() -> void:
 	var pts: Array = _draft.get("pts", [])
 	var segs: Array = _draft.get("segs", [false])
 	var fc: Dictionary = _draft.get("face", {})
+	var cuts: Array = _draft.get("cuts", [])   # P045: the points a typed stretch starts and ends on (each is a run's end)
 	_draft = {}
 	var total := 0.0
 	for i in range(1, pts.size()):
@@ -3281,7 +3358,7 @@ func _finish_line() -> void:
 	var ents := []
 	var s := 0
 	for i in range(1, pts.size()):
-		if i == pts.size() - 1 or bool(segs[i + 1]) != bool(segs[i]):   # the run ends at point i
+		if i == pts.size() - 1 or bool(segs[i + 1]) != bool(segs[i]) or i in cuts:   # the run ends at point i
 			var ps: Array = pts.slice(s, i + 1)
 			if bool(segs[i]):
 				var keep := []
@@ -3409,6 +3486,7 @@ func _process(_dt: float) -> void:
 	var flat_on := on and armed == "" and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # p113: Lay it flat and Show overhangs, under any solid, in the step list
 	flat_box.visible = flat_on
 	paint_btn.set_pressed_no_signal(paint_on)
+	suggest_row.visible = on and _suggest_on()   # P092: after a Pull it up the two next-step chips show in the panel, under the slider rows
 	tilt_box.visible = on and armed == "" and (along or tilt_on or draft_on or swing_on)
 	_overhang_sync(on)
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
@@ -3478,6 +3556,9 @@ func _key(k: InputEventKey) -> void:
 	var fo := get_viewport().gui_get_focus_owner()
 	if fo is LineEdit or fo is SpinBox:
 		return   # a typed number keeps its keys
+	if _line_typed_key(k):   # P045: a Line being drawn takes a typed length (digits, Backspace, Enter); the digits do not turn the camera
+		get_viewport().set_input_as_handled()
+		return
 	if k.keycode == KEY_ESCAPE:
 		if not _draft.is_empty():
 			_draft = {}
@@ -4549,6 +4630,190 @@ func _steps_sync() -> void:
 		b.pressed.connect(func(): _step_open(fid))
 		steps_vb.add_child(b)
 
+## p083favourites (Friday plan 83) and p083favfix: the Favourites category of the Parts library. Its page is the row. It lists the favourites (starred, first) and then the
+## parts used lately (six at most). A chip puts that part on the floor again (one undo step, the same as the Parts chips). The star keeps
+## the part on the floor as a favourite: a list, not a model step, so it makes no undo step. The lists live in FAV_FILE (user://).
+const FAV_FILE := "user://easy_part_favs.json"
+const FAV_RECENT_MAX := 6
+var fav_box: PanelContainer          # the Favourites category page (_fav_box)
+var fav_row: HFlowContainer          # the row (its chips come and go; the star and the label stay)
+var fav_label: Label                 # "Favourites:" or "Favourites: none yet ..."
+var fav_star: Button                 # Add to favourites / Remove favourite, for the part on the floor
+var fav_btns := {}                   # key ("M4 x 16" or "Gear") -> its chip
+var fav_data := {}                   # {"fav": [...], "recent": [...]}, read from FAV_FILE once
+
+
+## the Favourites page: a panel with the row in it (under the Boards chips; shown by _screw_sync while the category is open)
+func _fav_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_fav_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	pc.add_child(_fav_row())
+	return pc
+
+
+## the row: a label, then the chips (added by _fav_sync), and the star last
+func _fav_row() -> HFlowContainer:
+	fav_row = HFlowContainer.new()
+	fav_row.name = "easypart_fav_row"
+	fav_row.add_theme_constant_override("h_separation", 4)
+	fav_row.add_theme_constant_override("v_separation", 4)
+	fav_label = Label.new()
+	fav_label.name = "easypart_fav_label"
+	fav_label.add_theme_font_size_override("font_size", 13)
+	fav_row.add_child(fav_label)
+	fav_star = Button.new()
+	fav_star.name = "easypart_fav_star"
+	fav_star.icon = _fav_icon()
+	fav_star.tooltip_text = "Keep the part on the floor as a favourite: it comes first in this row"
+	fav_star.focus_mode = Control.FOCUS_NONE
+	fav_star.custom_minimum_size = Vector2(0, 34)
+	fav_star.add_theme_font_size_override("font_size", 13)
+	fav_star.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+	fav_star.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+	fav_star.pressed.connect(_fav_star)
+	fav_row.add_child(fav_star)
+	return fav_row
+
+
+## a 16 px star in the accent colour (Tok), drawn from ten points
+func _fav_icon() -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var pts := PackedVector2Array()
+	for i in 10:
+		var r := 7.0 if i % 2 == 0 else 3.0
+		var a := -PI / 2.0 + float(i) * PI / 5.0
+		pts.append(Vector2(8.0, 8.5) + Vector2(cos(a), sin(a)) * r)
+	var col := Tok.c("accent")
+	for y in 16:
+		for x in 16:
+			if Geometry2D.is_point_in_polygon(Vector2(x + 0.5, y + 0.5), pts):
+				img.set_pixel(x, y, col)
+	return ImageTexture.create_from_image(img)
+
+
+## the key of the part on the floor: "Gear", "M4 x 16" (a screw), or "" when the floor has neither
+func _fav_key() -> String:
+	var t := _tpl()
+	if t == "gear":
+		return "Gear"
+	if t == "screw" and not (_rec().get("features", []) as Array).is_empty():
+		var cur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {})
+		var k := "M%d x %d" % [int(cur.get("d", 0)), int(cur.get("L", 0))]
+		return k if _fav_valid(k) else ""
+	return ""
+
+
+static func _fav_valid(k: String) -> bool:
+	if k == "Gear":
+		return true
+	for d in SCREW_DS:
+		for L in SCREW_LENS:
+			if k == "M%d x %d" % [d, L]:
+				return true
+	return false
+
+
+## the favourites file, read once; a missing or broken file is an empty list
+func _fav_load() -> void:
+	if not fav_data.is_empty():
+		return
+	fav_data = {"fav": [], "recent": []}
+	if not FileAccess.file_exists(FAV_FILE):
+		return
+	var d = JSON.parse_string(FileAccess.get_file_as_string(FAV_FILE))
+	if not (d is Dictionary):
+		return
+	for list_name in ["fav", "recent"]:
+		for n in (d as Dictionary).get(list_name, []):
+			if _fav_valid(String(n)) and not (fav_data[list_name] as Array).has(String(n)):
+				(fav_data[list_name] as Array).append(String(n))
+
+
+func _fav_save() -> void:
+	var f := FileAccess.open(FAV_FILE, FileAccess.WRITE)
+	if f != null:
+		f.store_string(JSON.stringify(fav_data))
+		f.close()
+
+
+## the part on the floor goes to the front of the recent list (six at most); then the row is drawn again
+func _fav_sync() -> void:
+	if fav_row == null:
+		return
+	_fav_load()
+	var key := _fav_key()
+	var rec: Array = fav_data["recent"]
+	if key != "" and (rec.is_empty() or rec[0] != key):
+		rec.erase(key)
+		rec.push_front(key)
+		while rec.size() > FAV_RECENT_MAX:
+			rec.pop_back()
+		_fav_save()
+	var favs: Array = fav_data["fav"]
+	var shown: Array = favs.duplicate()
+	for k in rec:
+		if not shown.has(k):
+			shown.append(k)
+	for k in fav_btns:
+		fav_row.remove_child(fav_btns[k])
+		(fav_btns[k] as Button).queue_free()
+	fav_btns = {}
+	for k in shown:
+		var b := Button.new()
+		b.name = "easypart_fav_" + String(k).replace(" ", "_")
+		b.text = String(k)
+		b.icon = _fav_icon() if favs.has(k) else null
+		b.tooltip_text = "Put %s on the floor again. One undo step" % String(k)
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(0, 34)
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_fav_use.bind(String(k)))
+		fav_row.add_child(b)
+		fav_btns[k] = b
+	fav_row.move_child(fav_star, -1)
+	fav_label.text = "Favourites:" if not shown.is_empty() else "Favourites: none yet"
+	fav_star.text = "Remove favourite" if key != "" and favs.has(key) else "Add to favourites"
+	var why := Part.why_not() if not Part.available() else ("" if key != "" else "Put a screw or a gear on the floor first")
+	m._grey(fav_star, why)
+
+
+## a favourite or recent chip: Gear puts the gear on the floor; a screw size is picked as on the Screws page (one undo step)
+func _fav_use(k: String) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	if k == "Gear":
+		if _tpl() == "gear":
+			_say("The gear is on the floor already. Pick another part to change it")
+			return
+		_chip("gear")
+		return
+	_screw_pick(int(k.substr(1, k.find(" x ") - 1)), int(k.substr(k.find(" x ") + 3)))
+
+
+## the star: the part on the floor becomes a favourite or stops being one. A list change, so no undo step
+func _fav_star() -> void:
+	var key := _fav_key()
+	if key == "":
+		_say("Put a screw or a gear on the floor first, then press the star")
+		_fav_sync()
+		return
+	_fav_load()
+	var favs: Array = fav_data["fav"]
+	var on := not favs.has(key)
+	if on:
+		favs.append(key)
+	else:
+		favs.erase(key)
+	_fav_save()
+	_say("%s is a favourite. It comes first in Favourites" % key if on else "%s is no longer a favourite" % key)
+	_fav_sync()
+
 
 # ---------------------------------------------------------------- P095 SHOW ME HOW: the steps as a ghost, one at a time
 ## P095 (Friday plan 95, Kine's own idea): Show me how plays the part's solid steps one at a time as a see-through ghost. The user copies
@@ -4695,3 +4960,60 @@ func _spring_pick_press() -> void:
 	parts_open = false
 	_chip("spring")
 	_screw_sync()
+
+
+## P045 TYPED LINE: while a Line is drawn (the button held), digits and "." type a length (the say line shows it), Backspace takes one back.
+## Enter draws a straight stretch of that length from the last point, in the way the pointer is going (a new run, so it stays its own line).
+## true = the key was the typed length's; any other key (Escape, Delete, Ctrl) is left to the rest of the screen
+func _line_typed_key(k: InputEventKey) -> bool:
+	if _draft.is_empty() or String(_draft.get("shape", "")) != "line" or not _draft.has("pts"):
+		return false
+	var typed := String(_draft.get("typed", ""))
+	var ch := ""
+	if k.keycode >= KEY_0 and k.keycode <= KEY_9:
+		ch = str(k.keycode - KEY_0)
+	elif k.keycode >= KEY_KP_0 and k.keycode <= KEY_KP_9:
+		ch = str(k.keycode - KEY_KP_0)
+	elif k.keycode in [KEY_PERIOD, KEY_KP_PERIOD]:
+		ch = "."
+	if ch != "":
+		if ch == "." and typed.contains("."):
+			return true
+		_draft["typed"] = typed + ch
+		_say("Length %s mm: Enter draws it, Backspace takes a digit back" % (typed + ch))
+		return true
+	if k.keycode == KEY_BACKSPACE and typed != "":
+		_draft["typed"] = typed.left(-1)
+		_say("Length %s mm: Enter draws it, Backspace takes a digit back" % typed.left(-1) if typed.length() > 1 else "Length typed: type a number, then Enter")
+		return true
+	if k.keycode in [KEY_ENTER, KEY_KP_ENTER] and typed != "":
+		return _typed_stretch(typed)
+	return false
+
+
+## P045: the typed stretch: from the last point, along the way the pointer is going (RIGHT when the pointer has not moved since)
+func _typed_stretch(typed: String) -> bool:
+	var pts: Array = _draft["pts"]
+	var last: Vector2 = pts.back()
+	var cur: Vector2 = _draft.get("b", last)
+	var dir := Vector2.RIGHT
+	if cur.distance_to(last) >= 0.5:
+		dir = (cur - last).normalized()
+	elif pts.size() >= 2:
+		dir = (last - (pts[pts.size() - 2] as Vector2)).normalized()
+	var len := float(typed)
+	if len <= 0.0:
+		_say("A length must be above 0 mm: type a number, then Enter, or Backspace to clear it")
+		return true
+	pts.append(last + dir * len)
+	var segs: Array = _draft.get("segs", [false])
+	segs.append(false)
+	_draft["segs"] = segs
+	var cuts: Array = _draft.get("cuts", [])
+	cuts.append(pts.size() - 2)
+	cuts.append(pts.size() - 1)
+	_draft["cuts"] = cuts
+	_draft["typed"] = ""
+	_say("Stretch of %s mm drawn. Keep holding to draw on, or let go to finish" % typed)
+	dots.queue_redraw()
+	return true
