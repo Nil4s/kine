@@ -3440,6 +3440,7 @@ func _curve_keep(pts: Array, maxn: int) -> Array:
 func _process(_dt: float) -> void:
 	if bar == null or pu == null:
 		return
+	_grid_labels_sync()   # p108measuregri: the grid's numbers follow the zoom (view only)
 	pu.replay_forget()   # the same-frame replay reuse (PartUI.replay_once) ends with the frame
 	_cut_sync()   # P101 SECTION: the Cut view follows the built part, and goes off when Easy is left
 	var on := active()

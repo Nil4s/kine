@@ -1044,6 +1044,73 @@ func _steps_place(cl: Rect2, y: float) -> void:
 	flat_box.reset_size()   # p113: the printing box sits under the step list
 	flat_box.position = Vector2(steps_box.position.x, y + steps_box.get_combined_minimum_size().y + 6.0)
 
+
+
+## p108measuregri, Friday plan 108: THE GRID'S NUMBERS. The floor grid (_floor_sync) gets plain cm numbers along its two axes, standing
+## up to face the camera. The step picks itself from the zoom: the finest of GRID_LABEL_STEPS whose neighbours sit at least GRID_LABEL_PX apart
+## on the screen, so zooming in gives finer numbers, zooming out coarser, and they never pile up. A view only: no build step, no undo.
+const GRID_LABEL_STEPS := [0.05, 0.1, 0.25, 0.5]   # m: 5, 10, 25, 50 cm (the grid's lines are every 5 cm, across 1 m)
+const GRID_LABEL_PX := 70.0                         # px: the least gap between two numbers on the screen
+var _glabels: Array = []                            # the Label3D pool (grown when a step needs more)
+var _glabel_step := -1.0                            # the step the numbers are laid for (-1: not laid yet)
+
+
+func _grid_labels_sync() -> void:
+	if floor_mi == null or m.cam == null:
+		return
+	if not floor_mi.visible:
+		for l in _glabels:
+			(l as Label3D).visible = false
+		_glabel_step = -1.0   # laid again when the grid comes back
+		return
+	var st := _grid_label_step()
+	if st != _glabel_step:
+		_glabel_step = st
+		_grid_labels_lay(st)
+
+
+## the finest step whose numbers are GRID_LABEL_PX apart on the screen; the wider of the two axes is measured (the other may be edge-on)
+func _grid_label_step() -> float:
+	var c: Camera3D = m.cam
+	if c.is_position_behind(Vector3.ZERO):
+		return GRID_LABEL_STEPS[-1]
+	var o := c.unproject_position(Vector3.ZERO)
+	for s in GRID_LABEL_STEPS:
+		var px := maxf(o.distance_to(c.unproject_position(Vector3(s, 0.0, 0.0))), o.distance_to(c.unproject_position(Vector3(0.0, 0.0, s))))
+		if px >= GRID_LABEL_PX:
+			return s
+	return GRID_LABEL_STEPS[-1]
+
+
+## lays the numbers for step st (metres): "0" once, then each step out to the grid's edge on both axes, in whole cm
+func _grid_labels_lay(st: float) -> void:
+	var half := 10 * 50.0 * Part.MM   # the floor grid's half side (scripts: _floor_sync)
+	var k := int(roundf(half / st))
+	var want: Array = [[Vector3(0.0, 0.012, 0.0), "0"]]
+	for i in range(-k, k + 1):
+		if i == 0:
+			continue
+		var txt := "%d cm" % roundi(float(i) * st * 100.0)
+		want.append([Vector3(float(i) * st, 0.012, 0.03), txt])   # the X axis: just in front of it (+Z)
+		want.append([Vector3(0.03, 0.012, float(i) * st), txt])   # the Z axis: just beside it (+X)
+	while _glabels.size() < want.size():
+		var l := Label3D.new()
+		l.name = "EasyGridLabel%d" % _glabels.size()
+		l.pixel_size = 0.0004   # the size goes with the zoom: the numbers grow and shrink with the grid
+		l.font_size = 48
+		l.outline_size = 8
+		l.modulate = Tok.of("info")
+		l.outline_modulate = Tok.c("panel")
+		l.billboard = BaseMaterial3D.BILLBOARD_FIXED_Y   # stands up, turns to the camera
+		m.cam.get_parent().add_child(l)
+		_glabels.append(l)
+	for j in _glabels.size():
+		var l := _glabels[j] as Label3D
+		l.visible = j < want.size()
+		if l.visible:
+			l.position = want[j][0]
+			l.text = want[j][1]
+
 ## p059printtimee (Friday plan 59): the print time, in plain words, on the size label: "about 3 h 39 min to print". A print is mostly infill:
 ## the walls (1.2 mm over the whole surface) and 20 percent of the middle are what the printer lays down, at about 20 cm3 an hour (a typical
 ## desktop rate). The surface is the built mesh's triangles, so the words are worked out again only when the volume changes, and not while a slider is in hand
