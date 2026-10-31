@@ -255,16 +255,16 @@ func _fill_formats() -> void:
 
 func _refresh() -> void:
 	var d := text_of(_cur_id(), maxi(ui_format.selected, 0))
-	ui_info.text = "%s\n\nNeeds: %s" % [d["format"], d["needs"]]
-	ui_checks.text = "Checklist for this scene\n" + "\n".join(d["checks"])
-	ui_app.text = "What the app does: %s\n\nFrame rate: %s" % [d["app"], d["fps"]]
+	ui_info.text = "%s\n\n%s %s" % [dlg.tr(d["format"]), dlg.tr("Needs:"), dlg.tr(d["needs"])]   # FRIDAY 99: each piece through the translation (English is unchanged)
+	ui_checks.text = dlg.tr("Checklist for this scene") + "\n" + "\n".join(d["checks"])
+	ui_app.text = "%s %s\n\n%s %s" % [dlg.tr("What the app does:"), dlg.tr(d["app"]), dlg.tr("Frame rate:"), dlg.tr(d["fps"])]
 	var plain := _cur_run() == "glb" or _cur_run() == "obj"
 	ui_what.disabled = not plain
 	var names := m.scene_object_names() as Array
 	var lst := ", ".join(names) if not names.is_empty() else "none"
 	var why := "" if plain else "\n\nThe choice is for the plain .glb (one mesh per object, no animation); this format always holds everything."
 	if _cur_id() == "print":
-		ui_objects.text = "The part on screen is what is written. It holds millimetres, Z up, and the floor of the part is the print bed."
+		ui_objects.text = dlg.tr("The part on screen is what is written. It holds millimetres, Z up, and the floor of the part is the print bed.")
 		return
 	ui_objects.text = "Mesh objects in the scene: %s. Only the selected object writes just the one picked in the scene (the test cube when it is open, else the set piece picked, else the body); one entry per mesh object writes each by its name.%s" % [lst, why]
 

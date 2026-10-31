@@ -301,6 +301,7 @@ func _settings_box() -> PanelContainer:
 	_show_check.text = "Show start screen"
 	_show_check.toggled.connect(_show_toggled)
 	v.add_child(_show_check)
+	v.add_child(_lang_row())   # FRIDAY 99: Language: English / Português
 	var close_btn := _button("Close", "settings_close")
 	close_btn.pressed.connect(_close)
 	v.add_child(close_btn)
@@ -707,6 +708,7 @@ func _box(bg: Color, r: int, border: Color) -> StyleBoxFlat:
 
 func _toggle_settings() -> void:
 	_settings.visible = not _settings.visible
+	_lang_sync()
 	_show_check.button_pressed = setting_on(_cf())
 
 
@@ -767,3 +769,32 @@ func _show_toggled(on: bool) -> void:
 	var cf := _cf()
 	cf.set_value("look", "start_screen", on)
 	_save(cf)
+
+
+## FRIDAY 99: the Language row of Settings (the words of the app: English or Português; remembered, scripts/kine_lang.gd)
+var _lang_pick: OptionButton
+
+
+func _lang_row() -> HBoxContainer:
+	var h := HBoxContainer.new()
+	h.name = "settings_lang_row"
+	h.add_theme_constant_override("separation", 10)
+	h.add_child(_label("Language", 14, "text"))
+	_lang_pick = OptionButton.new()
+	_lang_pick.name = "settings_language"
+	_lang_pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	for l in KineLang.LANGS:
+		_lang_pick.add_item(String(l[1]))
+		_lang_pick.set_item_metadata(_lang_pick.item_count - 1, String(l[0]))
+	_lang_pick.item_selected.connect(func(i: int): KineLang.set_lang(String(_lang_pick.get_item_metadata(i))))
+	h.add_child(_lang_pick)
+	_lang_sync()
+	return h
+
+
+func _lang_sync() -> void:
+	if _lang_pick == null:
+		return
+	for i in _lang_pick.item_count:
+		if String(_lang_pick.get_item_metadata(i)) == KineLang.current():
+			_lang_pick.select(i)
