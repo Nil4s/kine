@@ -230,6 +230,7 @@ func build(root: Control) -> void:
 		vbtn.add_theme_font_size_override("font_size", 13)
 		vbtn.pressed.connect(_view_press.bind(String(vb[0])))
 		vr.add_child(vbtn)
+	vr.add_child(_cut_btn())   # P101 SECTION: the Cut view chip, last in the same view column (no new row)
 	var cr := HFlowContainer.new()
 	cr.name = "easypart_chips"
 	cr.add_theme_constant_override("h_separation", 2)
@@ -3346,6 +3347,7 @@ func _process(_dt: float) -> void:
 	if bar == null or pu == null:
 		return
 	pu.replay_forget()   # the same-frame replay reuse (PartUI.replay_once) ends with the frame
+	_cut_sync()   # P101 SECTION: the Cut view follows the built part, and goes off when Easy is left
 	var on := active()
 	if on != _was:
 		_was = on
@@ -4695,3 +4697,82 @@ func _spring_pick_press() -> void:
 	parts_open = false
 	_chip("spring")
 	_screw_sync()
+
+
+# ---------------------------------------------------------------- P101 SECTION: Cut view (view only: no record step, no undo)
+# The Cut view chip (last in the view column) cuts the built part in half across the Front normal, through its middle,
+# and shows the inside in orange (PartUI's section shader). The camera turns to the cut side. Nothing goes in the record.
+
+var cut_on := false   # P101: the Cut view chip is on
+var cut_btn: Button
+var cut_mat: ShaderMaterial
+
+
+func _cut_btn() -> Button:
+	cut_btn = Button.new()
+	cut_btn.name = "easypart_view_cut"
+	cut_btn.text = "Cut view"
+	cut_btn.icon = Icons.sized("part_section", 16)
+	cut_btn.expand_icon = false
+	cut_btn.toggle_mode = true
+	cut_btn.tooltip_text = "Cut the part in half to look inside. View only: no undo step"
+	cut_btn.focus_mode = Control.FOCUS_NONE
+	cut_btn.custom_minimum_size = Vector2(0, 30)
+	cut_btn.add_theme_font_size_override("font_size", 13)
+	cut_btn.toggled.connect(_cut_press)
+	return cut_btn
+
+
+func _cut_press(on: bool) -> void:
+	if on and not _cut_ready():
+		cut_btn.set_pressed_no_signal(false)
+		_say("Nothing to cut yet: pull a shape up first, then press Cut view")
+		return
+	cut_on = on
+	if on:
+		_cut_look()
+		_say("Cut view on: the part is cut in half and the inside shows in orange. Press Cut view again to see all of it (no undo step)")
+	else:
+		_say("Cut view off: the whole part shows again (no undo step)")
+	_cut_sync()
+
+
+func _cut_ready() -> bool:
+	return pu != null and pu.part_mesh != null and pu.part_mesh.mesh != null and pu.part_mesh.mesh.get_surface_count() > 0
+
+
+## the built solid in world space (from its mesh), and the Front normal: the cut goes through its middle
+func _cut_plane() -> Dictionary:
+	var wb: AABB = pu.part_mesh.global_transform * pu.part_mesh.mesh.get_aabb()
+	var n: Vector3 = Part.resolve_plane(_rec(), "front")["n"]
+	return {"n": n, "w": n.dot(wb.get_center()), "box": wb}
+
+
+## the camera turns to the side the cut removes (the cap faces the eye), as Expert's section does
+func _cut_look() -> void:
+	var d := _cut_plane()
+	var n: Vector3 = d["n"]
+	var wb: AABB = d["box"]
+	m._turn_to(rad_to_deg(atan2(n.x, n.z)), 0.0, clampf(wb.size.length() * 1.5, 0.4, 6.0), wb.get_center(), true)
+
+
+## the material: the cut shader while the chip is on and Easy is on screen; the plain look otherwise (Expert's own cut is never touched)
+func _cut_sync() -> void:
+	if pu == null or pu.part_mesh == null:
+		return
+	if not (cut_on and active() and _cut_ready()):
+		if cut_mat != null and pu.part_mesh.material_override == cut_mat:
+			pu.part_mesh.material_override = null
+		return
+	if cut_mat == null:
+		cut_mat = ShaderMaterial.new()
+		var sh := Shader.new()
+		sh.code = PartUI.SECTION_SHADER
+		cut_mat.shader = sh
+		cut_mat.set_shader_parameter("cap", PartUI.CAP_COL)
+		cut_mat.set_shader_parameter("solid", PartUI.SOLID_COL)
+	var d := _cut_plane()
+	var n: Vector3 = d["n"]
+	cut_mat.set_shader_parameter("cut", Vector4(n.x, n.y, n.z, float(d["w"])))
+	cut_mat.set_shader_parameter("on", 1.0)
+	pu.part_mesh.material_override = cut_mat
