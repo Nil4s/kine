@@ -70,6 +70,7 @@ var com: Array = []       # per recorded substep: centre of mass (m)
 var t_contact := -1.0     # s, the first floor contact (-1 = none)
 var t_rest := -1.0        # s, when the body came to rest (-1 = it did not within the run)
 var bake_ok := false
+var keep_going := false   # true: run() records the whole run even after the body is at rest (HIT AND BACK needs the blend)
 var lift := 0.0          # m: how far setup lifted the body off the floor (its deepest start penetration)
 
 
@@ -226,7 +227,8 @@ func run(secs: float) -> void:
 		still = still + 1 if vmax < REST_V else 0
 		if still >= need:
 			t_rest = float(k + 1) * DT
-			break
+			if not keep_going:
+				break
 
 
 func _record() -> void:
@@ -490,3 +492,43 @@ func angles_at(k: int) -> Dictionary:
 		if s != "":
 			out[s] = B.decompose(s, (rec_A[k] as Array)[i] as Quaternion)
 	return out
+
+
+## HIT AND BACK (Friday plan 147, round 54): the hit is a push of the same speed on every free particle, set before run()
+func hit(push: Vector3) -> void:
+	for i in n:
+		if float(im[i]) > 0.0:
+			V[i] = (V[i] as Vector3) + push
+
+
+## HIT AND BACK: bake() for a fall that ends back on the body's own animation. For t < fall_s the cards are the fall; from
+## fall_s to fall_s + blend_s every joint angle and the pelvis offset blend (smoothstep) onto keep_ang and keep_off, so the
+## last card is the animation's pose at the playhead (the body gets back up onto it: the solver does not model the rise).
+func bake_back(keep_ang: Dictionary, keep_off: Vector3, fps: int, fall_s: float, blend_s: float) -> Array:
+	var cards: Array = []
+	var stride := maxi(1, int(round(float(HZ) / float(fps))))
+	var last := rec_X.size() - 1
+	var ks: Array = []
+	for k in range(0, last + 1, stride):
+		ks.append(k)
+	if ks[-1] != last:
+		ks.append(last)
+	bake_ok = true
+	for q in ks.size():
+		var k: int = ks[q]
+		var t := float(k) * DT
+		var w := smoothstep(fall_s, fall_s + blend_s, t)
+		var ang: Dictionary = keep_ang.duplicate()
+		for i in n:
+			var s := String(jn[i])
+			if s == "":
+				continue
+			var fallen: Vector3 = B.decompose(s, (rec_A[k] as Array)[i] as Quaternion)
+			ang[s] = fallen.lerp(keep_ang.get(s, fallen) as Vector3, w)
+		B.ang = ang
+		var x0: Vector3 = (rec_X[k] as Array)[0]
+		B.offset = (x0 - (B.p0["pelvis"] as Vector3)).lerp(keep_off, w)
+		B.fk()
+		var move := -1.0 if q == 0 else float(ks[q] - ks[q - 1]) * DT
+		cards.append({"name": "hit %.2f s" % t, "pose": B.to_dict(), "move": move, "hold": 0.0, "ease": "linear"})
+	return cards
