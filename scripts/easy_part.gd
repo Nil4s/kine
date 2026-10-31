@@ -321,6 +321,9 @@ func build(root: Control) -> void:
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 2)
 	v.add_child(rows_vb)
+	gear_drive = preload("res://scripts/easy_geardrive.gd").new()   # s124: Turn it under the Gear pair's sliders
+	gear_drive.ep = self
+	v.add_child(gear_drive)
 	v.add_child(_suggest_row())   # P092: the two next-step chips, under the slider rows (the rows above keep their places)
 	whole_l = Label.new()
 	whole_l.name = "easypart_whole"
@@ -3574,6 +3577,7 @@ func _process(_dt: float) -> void:
 	pull_along_btn.visible = along
 	tilt_btn.visible = tilt_on
 	draft_btn.visible = draft_on
+	_gd_sync(on)   # s124
 	var swing_on := not along and _swing_ok(_rec())   # p123driveit
 	swing_btn.visible = swing_on
 	var flat_on := on and armed == "" and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # p113: Lay it flat and Show overhangs, under any solid, in the step list
@@ -6382,3 +6386,24 @@ func _rod_scroll() -> void:
 	var sc := panel.get_node_or_null("easypart_panel_scroll") as ScrollContainer
 	if sc != null and rod_box != null and rod_box.visible:
 		sc.scroll_vertical = int(rod_box.get_combined_minimum_size().y) + 4
+
+
+## s124 GEARS DRIVE EACH OTHER: Turn it shows under the Gear pair's sliders (not while the Parts page is open). When it hides, the view's preview is dropped
+var gear_drive: PanelContainer
+var _gd_was := false
+
+
+func _gd_sync(on: bool) -> void:
+	if gear_drive == null:
+		return
+	var want: bool = on and _tpl() == "gearpair" and not parts_open and armed == ""
+	if want and not _gd_was:
+		gear_drive.sync_to_record()
+	if not want and (_gd_was or not is_nan(pu.gear_turn)):
+		gear_drive.spinning = false
+		gear_drive.spin_btn.set_pressed_no_signal(false)
+		pu.gear_turn = NAN
+	_gd_was = want
+	gear_drive.visible = want
+	if want and is_nan(pu.gear_turn) and not gear_drive.spinning:
+		gear_drive.sync_to_record()   # an Undo of Save pose moves the slider back with the record
