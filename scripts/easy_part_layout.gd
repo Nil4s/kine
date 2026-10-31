@@ -450,6 +450,7 @@ func layout(cl: Rect2) -> void:
 	split_box.position = shape_box.position
 	round_box.reset_size()   # NROUNDFILTER: the filter chips sit where the other chip rows do
 	round_box.position = shape_box.position
+	_round_narrow()   # P172LAYOUTS: at 1024 wide the filter row fits left of the view column (it ran under it and the panel's first slider)
 	colour_box.reset_size()
 	colour_box.position = shape_box.position
 	# FMOBILE: the floating boxes stay left of the panel (the colour chips wrap) and below the sentence (the hint)
@@ -1251,3 +1252,18 @@ func _flat_narrow() -> void:
 	var vp := get_viewport().get_visible_rect()
 	if vp.size.x < NARROW_W and flat_box.visible:
 		flat_box.position = Vector2(260.0, vp.end.y - 6.0 - flat_box.size.y)
+
+
+## P172LAYOUTS: the round filter row (four 176 px chips) at 1024 wide: the chips share the room left of the view column, so the row
+## stops short of the views and the panel's sliders. The chips narrow and their words trim (the tooltips have the full words); wide, nothing changes
+func _round_narrow() -> void:
+	var btns := (round_box.get_child(0) as Control).get_children()
+	var narrow := get_viewport().get_visible_rect().size.x < NARROW_W
+	var room := view_box.position.x - 8.0 - round_box.position.x - 14.0 - 6.0 * float(btns.size() - 1)
+	var bw := clampf(floorf(room / float(btns.size())), 96.0, 176.0) if narrow else 176.0
+	for b in btns:
+		(b as Button).custom_minimum_size.x = bw
+		(b as Button).clip_text = narrow
+		(b as Button).text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if narrow else TextServer.OVERRUN_NO_TRIMMING
+		(b as Button).add_theme_font_size_override("font_size", 14 if narrow else 16)
+	round_box.reset_size()
