@@ -412,6 +412,7 @@ func _hole_box() -> PanelContainer:
 		sb.custom_minimum_size = Vector2(96, 44)
 		h.add_child(sb)
 		hole_btns["screw%d" % sd] = sb
+	_printer_chip(h)   # p203screwholea: the printer chip (resin tight, FDM loose)
 	var fb := _big_btn("easypart_hole_fits", "What fits here?", "Ask which of My Parts go through this hole (the saved parts that fit it). No step: it only tells you", _fits_press)   # P076
 	fb.custom_minimum_size = Vector2(150, 44)
 	h.add_child(fb)
