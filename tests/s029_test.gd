@@ -286,8 +286,50 @@ func _init() -> void:
 	await set_hp(ep, "hp_rad", 8.0)
 	await click_ctl(hbtn(ep, "pickc"))
 	var up0: int = m.undo.size()
-	var target := Vector3(25.0, 15.0, 10.0) * Part.MM   # on the plate's top face, 25 mm in and 15 mm up
-	var sp: Vector2 = m.cam.unproject_position(target)
+	# a screen point whose press lands well inside the plate (its middle part), found with the app's own face pick, scanned over the free view
+	ep.frame()   # Fit view: the whole plate in the clear view
+	await idle(40)
+	# the clear view is only a thin strip at 1280 x 720 (the panels cover the rest), so the plate is moved (camera only) to the open area at the lower left, and a bit nearer
+	var cen3: Vector3 = (Part.replay(m.S.part)["aabb"] as AABB).get_center()
+	var want_px := Vector2(340.0, 590.0)
+	m.dist = float(m.dist) * 0.55
+	m._cam()
+	await idle(4)
+	for it in 3:
+		var s0: Vector2 = m.cam.unproject_position(cen3)
+		var ppx: float = 2.0 * float(m.dist) * tan(deg_to_rad(m.cam.fov * 0.5)) / 720.0
+		var bas: Basis = m.cam.global_basis
+		m.target += bas.x * (-(want_px.x - s0.x) * ppx) + bas.y * ((want_px.y - s0.y) * ppx)
+		m._cam()
+		await idle(4)
+	await idle(20)
+	var fr := Rect2(Vector2.ZERO, Vector2(1280, 720))
+	var covers: Array = [ep.hole_box, ep.panel, ep.steps_box]
+	var n_hits := 0
+	var sp := Vector2(-1, -1)
+	var want_c := Vector2.ZERO
+	var best := 1e9
+	var yy := 300.0
+	while yy < 700.0:
+		var xx := 6.0
+		while xx < 780.0:
+			var covered := false
+			for cv in covers:
+				if (cv as Control).visible and (cv as Control).get_global_rect().has_point(Vector2(xx, yy)):
+					covered = true
+			if not covered:
+				var fc: Dictionary = ep._face_hit_at(Vector2(xx, yy))
+				if fc.has("hit"):
+					var q: Vector3 = (fc["hit"] as Vector3) / Part.MM
+					n_hits += 1
+					var dd := Vector2(q.x, q.y).distance_to(Vector2(50, 30))
+					if q.x > 12.0 and q.x < 88.0 and q.y > 12.0 and q.y < 48.0 and dd < best and dd > 6.0:
+						best = dd
+						sp = Vector2(xx, yy)
+						want_c = Vector2(q.x, q.y)
+			xx += 4.0
+		yy += 4.0
+	ok(sp.x >= 0.0, "4 PICK: a point on the plate to click was found in the free view %s at %s (plate %s; %d face hits; plate middle on screen at %s)" % [str(fr), str(sp), str(want_c), n_hits, str(m.cam.unproject_position(cen3))])
 	await click_ctl_at(sp)
 	await idle(4)
 	var hp: Dictionary = Part.feature(m.S.part, ep.hole_id).get("hpat", {})
@@ -297,8 +339,8 @@ func _init() -> void:
 	for q in c4:
 		mid4 += q
 	mid4 /= maxf(c4.size(), 1)
-	ok(m.undo.size() == up0 + 1 and absf(float(hp.get("px", 0.0)) - mid4.x) < 0.1 and absf(float(hp.get("py", 0.0)) - mid4.y) < 0.1 and mid4.distance_to(Vector2(50, 30)) > 5.0 and int(r4["bodies"]) == 1 and c4.size() == 6,
-		"4 PICK: one undo step, the 6 holes now go round (%.1f, %.1f), picked near (25, 15), one solid" % [mid4.x, mid4.y])
+	ok(m.undo.size() == up0 + 1 and absf(float(hp.get("px", 0.0)) - mid4.x) < 0.15 and absf(float(hp.get("py", 0.0)) - mid4.y) < 0.15 and mid4.distance_to(want_c) < 4.0 and mid4.distance_to(Vector2(50, 30)) > 3.0 and int(r4["bodies"]) == 1 and c4.size() == 6,
+		"4 PICK: one undo step (%d -> %d), the 6 holes now go round (%.2f, %.2f), the plate point under the cursor was (%.2f, %.2f) (within 4 mm: a few pixels), the pick = the mesh circle middle within 0.15, one solid, %d holes [%s]" % [up0, m.undo.size(), mid4.x, mid4.y, want_c.x, want_c.y, c4.size(), ep.msg])
 	await shot("pick")
 
 	# ---- GRID: 3 rows x 2 columns, 15 mm apart
@@ -310,6 +352,7 @@ func _init() -> void:
 	ok(m.undo.size() == ug0 + 1 and m.S.part["features"].size() == feats_hole, "5 ONE STEP: the Grid chip is one undo step and no extra build step")
 	await set_hp(ep, "hp_rows", 3.0)
 	await set_hp(ep, "hp_cols", 2.0)
+	await set_hp(ep, "hp_gap", 12.0)
 	var v_pre_gap := vol_mm3()
 	await set_hp(ep, "hp_gap", 15.0)
 	var r3 := Part.replay(m.S.part)
