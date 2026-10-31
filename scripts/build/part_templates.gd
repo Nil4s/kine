@@ -122,6 +122,12 @@ const T := {
 	"slot": {"title": "Zip-tie slot", "params": [
 		{"k": "L", "label": "Slot length", "lo": 6.0, "hi": 30.0, "def": 14.0, "step": 2.0, "words": ["Shorter", "Longer"], "raw": true, "unit": "mm"},
 		{"k": "t", "label": "Thickness", "lo": 2.0, "hi": 6.0, "def": 3.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
+	# P205 (Kine's own idea): a snap-fit clip, cut from a plate. The tongue (a cantilever arm, Length long, Width wide) is free on three sides by a
+	# 0.8 mm gap: that gap is the matching slot, and the tongue's hook (3 mm long, 1.5 mm high) snaps over a lip. One solid. Sizes in mm.
+	"snap": {"title": "Snap-fit clip", "params": [
+		{"k": "w", "label": "Width", "lo": 6.0, "hi": 20.0, "def": 10.0, "step": 2.0, "words": ["Narrower", "Wider"], "raw": true, "unit": "mm"},
+		{"k": "L", "label": "Length", "lo": 10.0, "hi": 30.0, "def": 16.0, "step": 2.0, "words": ["Shorter", "Longer"], "raw": true, "unit": "mm"},
+		{"k": "t", "label": "Thickness", "lo": 2.0, "hi": 5.0, "def": 3.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
 	# NSCREW2: a screw from the Parts category (not in ORDER: no template chip). d = the nominal size (M3..M6, mm), L = the length under the head (mm).
 	# Its numbers are picked by the Parts chips (easy_part.gd), so its sliders are hidden there ("parts": true).
 	# FRIDAY 73: a bracket from the Parts page's Brackets: kind 1 = L, 2 = T, 3 = corner brace (raw: the chip's own number). Its numbers are not sliders (parts: true)
@@ -649,6 +655,8 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var th: float = p["t"]
 			_ex(fs, _sk(fs, "top", [_rect(Vector2(0.0, 0.0), Vector2(L + 12.0, 10.0))]), "extrude", th, "new")
 			_ex(fs, _sk(fs, "top", [_rect(Vector2(6.0, 3.75), Vector2(6.0 + L, 6.25))]), "extrude", 2.0 * th, "cut", true)
+		"snap":
+			return _snap_features(p)   # P205: the snap-fit clip (its own function at the end of this file)
 		"drawer_pull":
 			# P071: a flat bar in the front plane, spacing + 28 mm long, 12 mm high, extruded by the thickness; two 4.5 mm holes at the
 			# spacing cut through (both sides), so an M4 screw from the Parts page goes in
@@ -940,3 +948,31 @@ static func livecut_note(rec: Dictionary) -> String:
 	if gp >= 2.0 * th:
 		return ""
 	return "Slots %d mm apart may tear a %d mm strip: drag Slot spacing wider, to at least %d mm" % [int(gp), int(th), int(2.0 * th)]
+
+
+## P205 (Kine's own idea, Friday plan 205): the snap-fit clip. A plate (Length + 10 mm long, Width + 9.6 mm across, Thickness thick) with a U-shaped
+## gap cut round a tongue: the tongue is the cantilever arm (Length long from 4 mm in, Width wide), and the 0.8 mm gap around it IS the matching slot.
+## The hook (3 mm long, 1.5 mm high) sits on the tongue's tip. One solid; the sizes are the three sliders.
+const SNAP_GAP := 0.8     # mm: the gap round the tongue (the matching slot's clearance)
+const SNAP_ROOT := 4.0    # mm: the solid root the tongue grows out of
+const SNAP_HOOK := 3.0    # mm: the hook's length along the tongue (its height is HOOK_H)
+const SNAP_HOOK_H := 1.5  # mm: the hook stands this far above the tongue
+
+
+static func _snap_features(p: Dictionary) -> Array:
+	var fs: Array = []
+	var W: float = p["w"]
+	var Lt: float = p["L"]
+	var th: float = p["t"]
+	var G := SNAP_GAP
+	var R := SNAP_ROOT
+	var M := R
+	# the plate: from the root to the far end, and the margin (G + M) past the tongue's two sides
+	_ex(fs, _sk(fs, "top", [_rect(Vector2(0.0, -(G + M)), Vector2(Lt + 10.0, W + G + M))]), "extrude", th, "new")
+	# the U gap round the tongue: one side slit, the other side slit, and the slit across the tongue's tip (all through)
+	_ex(fs, _sk(fs, "top", [_rect(Vector2(R, W), Vector2(R + Lt + G, W + G))]), "extrude", 2.0 * th, "cut", true)
+	_ex(fs, _sk(fs, "top", [_rect(Vector2(R, -G), Vector2(R + Lt + G, 0.0))]), "extrude", 2.0 * th, "cut", true)
+	_ex(fs, _sk(fs, "top", [_rect(Vector2(R + Lt, -G), Vector2(R + Lt + G, W + G))]), "extrude", 2.0 * th, "cut", true)
+	# the hook on the tongue's tip: from the plate's plane up to thickness + HOOK_H, across the tongue's width
+	_ex(fs, _sk(fs, "top", [_rect(Vector2(R + Lt - SNAP_HOOK, 0.0), Vector2(R + Lt, W))]), "extrude", th + SNAP_HOOK_H, "join")
+	return fs
