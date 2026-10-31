@@ -218,8 +218,9 @@ func _init() -> void:
 	var s2: int = ui.undo.steps.size()
 	var v0: PackedVector3Array = ui.mesh.verts.duplicate()
 	await key(KEY_I)
-	# a longer sweep: the test sphere's cells are ~25 mm, so a 10 mm brush needs a path that crosses a vert
-	await drag(cs + Vector2(-60, 0), cs + Vector2(60, 0), 12)
+	# a short stroke (about 10 mm on the sphere): a real beginner's 10 mm dab. The brush now reaches the nearest vert of the coarse
+	# sphere (cells ~25 mm), so the stroke needs no long sweep to touch one (the old 120 px sweep spanned ~130 mm by itself).
+	await drag(cs + Vector2(-5, 0), cs + Vector2(5, 0), 3)
 	var idx_s: Array = moved(v0)
 	var span_s := span_of(v0, idx_s)
 	ok(idx_s.size() >= 1 and span_s <= 0.05,
