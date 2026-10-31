@@ -9,7 +9,7 @@ extends RefCounted
 const MM := 0.001
 const ARCH_GAP := 40.0   # mm: a car's wheel arch top sits this far above the tyre's top (the arch is the wheel radius + 40 mm)
 const CAB_W := 0.88     # the glasshouse is this share of the body's width (narrower than the lower body, so the cabin reads as a cabin)
-const ORDER :=["sword", "axe", "shield", "chair", "gear", "rack", "crate"]   # NGEAR: Gear sits before Crate (Crate stays the last chip); its numbers are not cm: "raw"   # p070: Spring is not a chip: it is built from the Parts library (Springs)
+const ORDER :=["sword", "axe", "shield", "chair", "gear", "rack", "slothole", "crate"]   # NGEAR: Gear sits before Crate (Crate stays the last chip); its numbers are not cm: "raw"   # P032: Slot sits before Crate too (Crate stays last). p070: Spring is not a chip: it is built from the Parts library (Springs)
 const START := ["box", "cylinder", "sphere", "tube", "plate"]   # FREESTART: the neutral "Start from" row on Easy Part's panel (simple shapes, no weapon)
 const T := {
 	"box": {"title": "Box", "params": [
@@ -74,6 +74,12 @@ const T := {
 		{"k": "turns", "label": "Turns", "lo": 3.0, "hi": 12.0, "def": 6.0, "step": 1.0, "words": ["Fewer", "More"], "raw": true, "unit": "turns"},
 		{"k": "wire", "label": "Wire", "lo": 1.0, "hi": 4.0, "def": 2.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"},
 		{"k": "size", "label": "Coil size", "lo": 20.0, "hi": 60.0, "def": 40.0, "step": 5.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "mm"}]},
+	# P032: a plate with a long rounded hole (a slot) cut right through it. Length and Width are the hole's own size (the round ends
+	# are Width / 2 across); the plate is 20 mm wider than the hole on each side. Width is at most 40, so Length (at least 60) stays longer.
+	"slothole": {"title": "Slot", "params": [
+		{"k": "length", "label": "Length", "lo": 60.0, "hi": 300.0, "def": 120.0, "step": 10.0, "words": ["Shorter", "Longer"]},
+		{"k": "width", "label": "Width", "lo": 10.0, "hi": 40.0, "def": 20.0, "step": 2.0, "words": ["Narrower", "Wider"]},
+		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 30.0, "def": 8.0, "step": 1.0, "words": ["Thinner", "Thicker"]}]},
 	# VEHICLE PARTS (B3, scripts/vehicle.gd): not in ORDER, so no Easy chip: a car body and one wheel
 	"car": {"title": "Car body", "params": [
 		{"k": "body_length", "label": "Length", "lo": 1500.0, "hi": 5000.0, "def": 4000.0, "step": 50.0, "words": ["Shorter", "Longer"]},
@@ -264,7 +270,7 @@ static func bo_set(rec: Dictionary, d: int, L: int) -> void:
 
 
 ## the default camera of a template: [yaw, pitch] degrees, a 3/4 view in which its main shape reads (the axe turns further so its blade face shows)
-const VIEW := {"sword": [30.0, -22.0], "axe": [42.0, -20.0], "shield": [30.0, -18.0], "chair": [38.0, -22.0], "crate": [34.0, -24.0], "box": [34.0, -24.0], "cylinder": [34.0, -22.0], "sphere": [30.0, -20.0], "tube": [34.0, -22.0], "plate": [34.0, -28.0], "case": [32.0, -24.0]}
+const VIEW := {"sword": [30.0, -22.0], "axe": [42.0, -20.0], "shield": [30.0, -18.0], "chair": [38.0, -22.0], "crate": [34.0, -24.0], "box": [34.0, -24.0], "cylinder": [34.0, -22.0], "sphere": [30.0, -20.0], "tube": [34.0, -22.0], "plate": [34.0, -28.0], "case": [32.0, -24.0], "slothole": [34.0, -30.0]}
 
 
 static func view_of(t: String) -> Array:
@@ -526,6 +532,24 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			var o: float = p["lid"]
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(0, 0), Vector2(w, h))]), "extrude", d, "new")
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(-o, h - 20), Vector2(w + o, h + 30))]), "extrude", d, "join")
+		"slothole":
+			# P032: the plate (Length + 40 by Width + 40, standing on the floor) and the hole: a stadium of Length x Width drawn
+			# with two straight sides and two round ends (three-point arcs), cut through the plate's thickness from the floor
+			var L: float = p["length"]
+			var w: float = p["width"]
+			var th: float = p["thickness"]
+			var pl := Vector2(L + 40.0, w + 40.0)
+			_ex(fs, _sk(fs, "top", [_rect(Vector2(0, 0), pl)]), "extrude", th, "new")
+			var c := pl * 0.5
+			var a := (L - w) * 0.5   # half the distance between the two round ends' centres
+			var r := w * 0.5
+			var hole := [
+				{"k": "line", "a": Part.arr2(Vector2(c.x - a, c.y + r)), "b": Part.arr2(Vector2(c.x + a, c.y + r))},
+				{"k": "arc", "a": Part.arr2(Vector2(c.x + a, c.y + r)), "m": Part.arr2(Vector2(c.x + a + r, c.y)), "b": Part.arr2(Vector2(c.x + a, c.y - r))},
+				{"k": "line", "a": Part.arr2(Vector2(c.x + a, c.y - r)), "b": Part.arr2(Vector2(c.x - a, c.y - r))},
+				{"k": "arc", "a": Part.arr2(Vector2(c.x - a, c.y - r)), "m": Part.arr2(Vector2(c.x - a - r, c.y)), "b": Part.arr2(Vector2(c.x - a, c.y + r))},
+			]
+			_ex(fs, _sk(fs, "top", hole), "extrude", th + 2.0, "cut")
 		"chair":
 			var sh: float = p["seat_height"]
 			var w: float = p["seat_width"]
