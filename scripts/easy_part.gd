@@ -5749,6 +5749,8 @@ func _one_side_chip() -> Button:
 
 func _one_side_press() -> void:
 	one_side = one_side_btn.button_pressed
+	armed = ""   # the chip ends Draw shape (the shape row hides): press Draw shape again to draw
+	_draft = {}
 	_say("One side only: on. Only the shape you draw is made" if one_side else "Symmetry is on: a shape drawn on one side gets its copy on the other side")
 
 

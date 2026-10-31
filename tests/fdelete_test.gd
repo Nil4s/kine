@@ -179,6 +179,8 @@ func _init() -> void:
 
 	# two separate pieces: piece 1 on the grid in the middle, piece 2 on the grid at x = +15 cm
 	var draw = pu().ep.make_btns["draw"]
+	pu().ep.one_side = true   # P153: symmetry is on by default; this suite's bars draw single pieces, so they use One side only
+	pu().ep.one_side_btn.set_pressed_no_signal(true)
 	await click_ctl(draw)
 	await drag_screen(scr(Vector3(-0.03, 0.0, -0.03)), scr(Vector3(0.03, 0.0, 0.03)))
 	await click_ctl(pu().ep.make_btns["pull"])
