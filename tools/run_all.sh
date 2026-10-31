@@ -390,3 +390,4 @@ EXTRA="$EXTRA p127springsand:w"   # P127 DOES IT FALL OVER (Friday plan 127, spr
 
 EXTRA="$EXTRA p147physicsrag:w"   # p147physicsrag (Friday plan 147): Ragdoll: hit, fall, get back up: the body at the playhead is pushed, falls limp for 2 s, blends back onto its own pose over 1 s; baked as cards into a NEW scene (tests/p147physicsrag_test.gd)
 EXTRA="$EXTRA p082libframe:w"   # P082LIBFRAME: after a Parts library pick (M4 x 16) the camera frames the part: its bigger side fills at least 20 % of the view (tests/p082libframe_test.gd)
+EXTRA="$EXTRA p150shotlist:w"   # p150shotlist (Friday plan 150): Shot list on the CHECK row: a typed story, one line per shot, makes a card per shot (camera size, lens, low or high angle, move); Keep all writes the shots, one undo step (scripts/shot_list.gd, shot_list_ui.gd; tests/p150shotlist_test.gd)
