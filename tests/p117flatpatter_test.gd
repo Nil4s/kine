@@ -159,18 +159,23 @@ func _init() -> void:
 
 	var undo_before: int = m.undo.size()
 	var v_before := float(Part.replay(m.S.part)["volume"])
-	var sheet: PanelContainer = ep.find_child("easypart_flat_sheet", true, false)
+	var sheet: PanelContainer = ep.hole_box.get_parent().find_child("easypart_flat_sheet", true, false)
 	ok(sheet == null or not sheet.visible, "2 WALK: no sheet before the press")
+	var host: Node = ep.hole_box.get_parent()   # the sheet lives beside the hole row (the Easy Part panel), not under the EasyPart object
+	var fp := flat_btn.get_global_rect().get_center()
 	var f0 := Engine.get_process_frames()
-	await click_ctl(flat_btn)
+	await ev_move(fp)
+	await ev_mouse(fp, true)
+	await ev_mouse(fp, false)   # a Button fires on release: the press and the release are the two frames counted
 	var frames := Engine.get_process_frames() - f0
-	sheet = ep.find_child("easypart_flat_sheet", true, false)
+	await idle(2)
+	sheet = host.find_child("easypart_flat_sheet", true, false)
 	var v_after := float(Part.replay(m.S.part)["volume"])
-	ok(sheet != null and sheet.visible and frames <= 4 and m.undo.size() == undo_before and absf(v_after - v_before) < 1e-12,
+	ok(sheet != null and sheet.visible and frames <= 2 and m.undo.size() == undo_before and absf(v_after - v_before) < 1e-12,
 		"2 WALK: the sheet opens in %d frames; undo steps %d -> %d; volume %.9f -> %.9f m3" % [frames, undo_before, m.undo.size(), v_before, v_after])
 	await shot("flat_sheet")
 
-	var view: FlatPatternView = ep.find_child("easypart_flat_view", true, false)
+	var view: FlatPatternView = host.find_child("easypart_flat_view", true, false)
 	var pieces: Array = view.pieces if view != null else []
 	var closed := true
 	for p in pieces:

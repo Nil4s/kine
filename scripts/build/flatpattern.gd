@@ -84,5 +84,16 @@ static func net(sx: float, sy: float, sz: float, t := SHEET_MM) -> Dictionary:
 			var sd1: Array = sides[nx]
 			var corner: Vector2 = sd0[1] + sd0[2] * float(sd0[4])
 			outline.append(corner + sd0[3] * float(last_o[si]) + sd1[3] * float(first_o[nx]))
-		pieces.append({"name": nm, "pts": outline, "rect": r})
+		pieces.append({"name": nm, "pts": _no_repeats(outline), "rect": r})   # a square corner with no tab repeats its point: Godot cannot draw that
 	return {"pieces": pieces, "sheet": Vector2(2.0 * sz + 2.0 * sx, 2.0 * sz + sy), "joints": JOINTS.size(), "tabs": tabs, "slots": slots, "finger_mm": finger_mm, "t": t}
+
+
+## the outline without a point that repeats the one before it (a corner with no tab gives three points at one spot)
+static func _no_repeats(pts: PackedVector2Array) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for v in pts:
+		if out.is_empty() or out[out.size() - 1].distance_to(v) > 1e-6:
+			out.append(v)
+	while out.size() > 1 and out[0].distance_to(out[out.size() - 1]) <= 1e-6:
+		out.remove_at(out.size() - 1)
+	return out
