@@ -409,6 +409,7 @@ func layout(cl: Rect2) -> void:
 	for sb in [undo_btn, redo_btn, easy_btn, expert_btn]:
 		(sb as Button).custom_minimum_size.x = 72.0 if tight else 96.0
 	give_btn.custom_minimum_size.x = 110.0 if narrow else 170.0
+	_narrow_bar_text(narrow)   # P172LAYOUTS: the long bar words trim at 1024 wide instead of setting the row wider than the window
 	dup_btn.custom_minimum_size.x = 92.0 if narrow else 120.0   # FMOBILE2: 1024 wide, the bar row (with What to build at its end) must fit the window
 	if bar_home != null:
 		bar_home.custom_minimum_size.x = 88.0 if narrow else 110.0
@@ -449,6 +450,7 @@ func layout(cl: Rect2) -> void:
 	split_box.position = shape_box.position
 	round_box.reset_size()   # NROUNDFILTER: the filter chips sit where the other chip rows do
 	round_box.position = shape_box.position
+	_round_narrow()   # P172LAYOUTS: at 1024 wide the filter row fits left of the view column (it ran under it and the panel's first slider)
 	colour_box.reset_size()
 	colour_box.position = shape_box.position
 	# FMOBILE: the floating boxes stay left of the panel (the colour chips wrap) and below the sentence (the hint)
@@ -460,7 +462,7 @@ func layout(cl: Rect2) -> void:
 	colour_box.size.y = colour_box.get_combined_minimum_size().y
 	# the Repeat it and Stick together rows sit at the lower left, above the one sentence, off the model's pieces (and never over the sentence)
 	var low_y := hint.position.y + hint.size.y + 6.0
-	var stat_top := cl.end.y - status.get_combined_minimum_size().y - 12.0   # the one sentence at the bottom-left: the boxes end above it
+	var stat_top := _low_end(cl) - status.get_combined_minimum_size().y - 12.0   # the one sentence at the bottom-left: the boxes end above it
 	# a short window: the Fewer / More words under the Repeat it sliders go first, so the box fits between the sentence and the one line at the bottom
 	# (hysteresis: the words toggle only when the box crosses the room, never every frame)
 	if not rep_rows.is_empty():
@@ -485,11 +487,11 @@ func layout(cl: Rect2) -> void:
 	if repeat_box.visible and tilt_y < low_y:   # a short window: no room above the Repeat rows, so Tilt it stands beside them
 		tilt_x = repeat_box.position.x + repeat_box.size.x + 8.0
 		tilt_y = repeat_box.position.y + repeat_box.size.y - tilt_box.size.y
-	tilt_box.position = Vector2(tilt_x, _low_box_y(tilt_y, tilt_box.size.y, low_y, stat_top))
+	tilt_box.position = Vector2(tilt_x, _low_box_y(tilt_y, tilt_box.size.y, _tilt_low(low_y), stat_top))
 	explode_box.reset_size()   # EXPLODE (p103): the Pull apart slider sits under the Round filter row (that row is up whenever a solid is), clear of the low rows and the view's drags
 	explode_box.position = Vector2(cl.position.x + 12.0, round_box.position.y + round_box.size.y + 6.0)
 	# the panel on the right, as tall as it needs; the words under the sliders go first when the room is short
-	var avail := cl.end.y - top - 4.0
+	var avail := _panel_room(cl.end.y - top - 4.0, top)   # P172LAYOUTS: the step list keeps the window's bottom edge (narrow)
 	panel.reset_size()
 	var need := _panel_need()
 	if need > avail and not _compact:
@@ -506,10 +508,11 @@ func layout(cl: Rect2) -> void:
 		need = _panel_need()
 	panel.size = Vector2(PW, minf(need, avail))
 	panel.position = Vector2(cl.end.x - PW - 8.0, top)
-	_steps_place(cl, panel.position.y + maxf(panel.size.y, need) + 8.0)   # NSTEPLIST: under the panel, on the right; under its CONTENT when the Parts page runs past the clamped size (the list sat over the screw chips)
+	_steps_place(cl, _steps_y(panel.position.y + maxf(panel.size.y, need) + 8.0, panel.position.y + panel.size.y + 8.0))   # NSTEPLIST: under the panel, on the right; under its CONTENT when the Parts page runs past the clamped size (the list sat over the screw chips)
+	_flat_narrow()   # P172LAYOUTS: the Lay it flat box beside the sentence at 1024 wide, not under the step list (off the window)
 	status.reset_size()
 	status.size.x = minf(status.get_combined_minimum_size().x, cl.size.x - PW - 40.0)
-	status.position = Vector2(cl.position.x + 12.0, cl.end.y - status.size.y - 6.0)
+	status.position = Vector2(cl.position.x + 12.0, _low_end(cl) - status.size.y - 6.0)
 	# FMOBILE: a short window: when a Repeat it / Stick together box would cover the one sentence, the sentence goes under the panel on the right
 	var sbox := Rect2()
 	for bx in [repeat_box, stick_box]:
@@ -1201,6 +1204,71 @@ func _hinge_pose(bb: AABB) -> Array:
 		return []
 	var vs: Vector2 = m.get_viewport().get_visible_rect().size
 	return _frame_pose(bb, HINGE_SHARE * vs.y / fr.size.y)
+
+
+## P172LAYOUTS: at 1024 wide the two long words of the Easy bar row ("Save and use in a scene" 193 px, "Give to a character" 157 px)
+## took their width from their text, so What to build ran off the right edge. Narrow, they keep their set width and trim the words
+## (the tooltip has the full words); wide, nothing changes.
+func _narrow_bar_text(narrow: bool) -> void:
+	for b in [use_scene_btn, give_btn]:
+		(b as Button).clip_text = narrow
+		(b as Button).text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if narrow else TextServer.OVERRUN_NO_TRIMMING
+
+
+## P172LAYOUTS: at 1024 wide the one sentence at the bottom-left and the Tilt box go to the window's bottom edge: the clear view is too
+## short for the words, the round filter row, Tilt and the sentence together (the Tilt box sat on the round row)
+func _low_end(cl: Rect2) -> float:
+	var vp := get_viewport().get_visible_rect()
+	return vp.end.y - 6.0 if vp.size.x < NARROW_W else cl.end.y
+
+
+## P172LAYOUTS: at 1024 wide Tilt it goes under the round filter row (it was placed on the row's line)
+func _tilt_low(low_y: float) -> float:
+	if get_viewport().get_visible_rect().size.x < NARROW_W and round_box.visible:
+		return maxf(low_y, round_box.position.y + round_box.size.y + 6.0)
+	return low_y
+
+
+## P172LAYOUTS: the panel gives up the room the step list needs when the list would otherwise run off the window's bottom
+func _panel_room(avail: float, top: float) -> float:
+	if steps_box == null or not steps_box.is_visible_in_tree() or get_viewport().get_visible_rect().size.x >= NARROW_W:
+		return avail   # wide: unchanged (the panel keeps its full height and its foot, with Exact sizes? Use Expert)
+	var win_b := get_viewport().get_visible_rect().end.y
+	var steps_h := steps_box.get_combined_minimum_size().y
+	if top + maxf(avail, _panel_need()) + 8.0 + steps_h <= win_b - 6.0:
+		return avail
+	return minf(avail, win_b - 6.0 - steps_h - 8.0 - top)
+
+
+## P172LAYOUTS: the step list under the panel's content, or under the panel's own (shorter) bottom when the content would push it off the window
+func _steps_y(content_y: float, panel_y: float) -> float:
+	var vp := get_viewport().get_visible_rect()
+	if vp.size.x >= NARROW_W or content_y + steps_box.get_combined_minimum_size().y <= vp.end.y - 6.0:
+		return content_y   # wide: the list stays under the panel's content, as before
+	return panel_y
+
+
+## P172LAYOUTS: at 1024 wide the printing box (Lay it flat, Show overhangs) sat under the step list, off the window's bottom: it goes
+## to the bottom edge between the sentence and the step list
+func _flat_narrow() -> void:
+	var vp := get_viewport().get_visible_rect()
+	if vp.size.x < NARROW_W and flat_box.visible:
+		flat_box.position = Vector2(260.0, vp.end.y - 6.0 - flat_box.size.y)
+
+
+## P172LAYOUTS: the round filter row (four 176 px chips) at 1024 wide: the chips share the room left of the view column, so the row
+## stops short of the views and the panel's sliders. The chips narrow and their words trim (the tooltips have the full words); wide, nothing changes
+func _round_narrow() -> void:
+	var btns := (round_box.get_child(0) as Control).get_children()
+	var narrow := get_viewport().get_visible_rect().size.x < NARROW_W
+	var room := view_box.position.x - 8.0 - round_box.position.x - 14.0 - 6.0 * float(btns.size() - 1)
+	var bw := clampf(floorf(room / float(btns.size())), 96.0, 176.0) if narrow else 176.0
+	for b in btns:
+		(b as Button).custom_minimum_size.x = bw
+		(b as Button).clip_text = narrow
+		(b as Button).text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if narrow else TextServer.OVERRUN_NO_TRIMMING
+		(b as Button).add_theme_font_size_override("font_size", 14 if narrow else 16)
+	round_box.reset_size()
 
 
 ## integ95: the grid numbers keep one size ON THE SCREEN (GRID_LABEL_SCREEN_PX tall at any zoom: close up they were letters as tall as the view,

@@ -15245,7 +15245,7 @@ func _build_page_bar() -> void:
 			ui_ribbon_tabs[PAGE_ROW[p]] = b
 		var cell := Control.new()   # the tab's room: a plain Control has no minimum from its child, so the tab's own text cannot widen the bar
 		cell.name = "cell_" + b.name
-		cell.clip_contents = true
+		cell.clip_contents = false   # P172LAYOUTS: the tab button is 30 px tall (its text), the cell 26: a clip cut 4 px off the bottom of every page tab
 		cell.custom_minimum_size = Vector2(TAB_W, PAGE_H - 10)
 		b.set_anchors_preset(Control.PRESET_FULL_RECT)
 		cell.add_child(b)
@@ -15271,7 +15271,7 @@ func _build_page_bar() -> void:
 	ui_next.pressed.connect(_next_run)
 	var next_box := Control.new()   # the Next: line's room: a plain Control has no minimum from its child, so the text is clipped, not the bar widened
 	next_box.name = "next_box"
-	next_box.clip_contents = true
+	next_box.clip_contents = false   # P172LAYOUTS: the Next: button is 29 px tall, its box 26: clipped 3 px (the text is clipped inside the button)
 	next_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	next_box.size_flags_stretch_ratio = 2.0   # the Next: line gets the spare room first, the chips second
 	next_box.custom_minimum_size = Vector2(0, PAGE_H - 10)
