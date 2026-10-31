@@ -220,7 +220,7 @@ func _screw_hole(rec: Dictionary, d: int) -> String:
 	var bb: AABB = res["aabb"]
 	var c := bb.get_center() / Part.MM
 	var head: Array = PartTemplates.SCREW_HEAD[d]   # [head across mm, head depth mm]
-	var clear := float(SCREW_CLEAR[d])
+	var clear := float(PRINTER_CLEAR.get(printer, SCREW_CLEAR)[d])   # p203screwholea: resin tight, FDM loose, any = medium
 	var before := float(res["volume"])
 	var n0: int = rec["features"].size()
 	var seq0 := int(rec.get("seq", 0))
@@ -239,7 +239,7 @@ func _screw_hole(rec: Dictionary, d: int) -> String:
 		rec["seq"] = seq0
 		return "The screw hole would miss the shape: nothing was cut. Make the shape bigger, or pick a smaller screw"
 	tweak = {}   # the screw hole has no Hole size slider: its newest step keeps the chips up
-	_say("M%d screw: a %s mm hole, its %s mm head sunk %s mm deep. Mirror that or Repeat it next" % [d, _mm_words(clear), _mm_words(float(head[0])), _mm_words(float(head[1]))])
+	_say("M%d screw: a %s mm hole%s, its %s mm head sunk %s mm deep. Mirror that or Repeat it next" % [d, _mm_words(clear), _printer_tag(), _mm_words(float(head[0])), _mm_words(float(head[1]))])
 	return ""
 
 
@@ -965,3 +965,37 @@ func _finger_joints(rec: Dictionary) -> String:
 		return "The notches would miss the box: nothing was cut. Press Cut a hole again"
 	_say("Finger joints: %d notches along the top edge. Use Ctrl+Z to take them out" % n)
 	return ""
+
+
+## p203screwholea (Kine's own): THE PRINTER SETS THE HOLE. Resin prints small, so a screw hole is TIGHT (ISO 273 fine: M4 4.3 mm);
+## FDM prints loose, so it is LOOSE (ISO 273 coarse: M4 4.8 mm). Any printer = the medium hole (SCREW_CLEAR). One chip on the Cut a hole
+## panel cycles any -> resin -> FDM -> any. Pressing it while a screw hole is the newest step cuts that hole again (one undo step); the
+## counterbore for the head does not change. The choice is for this session (no record field, no undo step by itself)
+const PRINTER_CLEAR := {"resin": {3: 3.2, 4: 4.3, 5: 5.3, 6: 6.4}, "fdm": {3: 3.6, 4: 4.8, 5: 5.8, 6: 7.0}}
+var printer := ""   # "" any printer, "resin", "fdm"
+var printer_btn: Button = null
+
+
+func _printer_tag() -> String:
+	return " (resin: tight)" if printer == "resin" else (" (FDM: loose)" if printer == "fdm" else "")
+
+
+func _printer_chip(h: Control) -> void:
+	printer_btn = _big_btn("easypart_hole_printer", "", "Your printer: resin prints small, so its screw holes are tight; FDM prints loose, so they are loose. Any = the usual medium hole. Press to change it; a screw hole on the screen is cut again", _printer_press)
+	printer_btn.custom_minimum_size = Vector2(150, 44)
+	h.add_child(printer_btn)
+	_printer_sync()
+
+
+func _printer_sync() -> void:
+	if printer_btn != null:
+		printer_btn.text = "Printer: " + {"": "any", "resin": "resin", "fdm": "FDM"}[printer]
+
+
+func _printer_press() -> void:
+	printer = {"": "resin", "resin": "fdm", "fdm": ""}[printer]
+	_printer_sync()
+	if hole_mode.begins_with("screw") and _hole_on():
+		_hole_mode(hole_mode, false, true)   # the screw hole on the screen is cut again for this printer (one undo step)
+	else:
+		_say("Printer: %s. The next screw hole uses it" % ("any" if printer == "" else ("resin (tight)" if printer == "resin" else "FDM (loose)")))
