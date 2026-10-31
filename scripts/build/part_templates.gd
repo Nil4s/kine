@@ -48,6 +48,10 @@ const T := {
 		{"k": "seat_width", "label": "Seat width", "lo": 300.0, "hi": 600.0, "def": 420.0, "step": 10.0, "words": ["Narrower", "Wider"]},
 		{"k": "seat_depth", "label": "Seat depth", "lo": 300.0, "hi": 600.0, "def": 420.0, "step": 10.0, "words": ["Shallower", "Deeper"]},
 		{"k": "back_height", "label": "Back height", "lo": 200.0, "hi": 800.0, "def": 450.0, "step": 10.0, "words": ["Lower", "Taller"]}]},
+	# p192makeitlike: a mug built from steps (round body, cup hollowed, floor, C handle). Not in ORDER: no chip; Easy Part's "Like a photo" row makes it
+	"mug": {"title": "Mug", "params": [
+		{"k": "cup_height", "label": "Cup height", "lo": 60.0, "hi": 140.0, "def": 95.0, "step": 5.0, "words": ["Shorter", "Taller"]},
+		{"k": "cup_width", "label": "Cup width", "lo": 60.0, "hi": 110.0, "def": 80.0, "step": 5.0, "words": ["Narrower", "Wider"]}]},
 	"crate": {"title": "Crate", "params": [
 		{"k": "width", "label": "Width", "lo": 200.0, "hi": 900.0, "def": 500.0, "step": 10.0, "words": ["Narrower", "Wider"]},
 		{"k": "height", "label": "Height", "lo": 200.0, "hi": 800.0, "def": 400.0, "step": 10.0, "words": ["Lower", "Taller"]},
@@ -560,6 +564,16 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			_ex(fs, _sk(fs, "front", _poly([Vector2(0, sh), Vector2(w, sh), Vector2(w, 0), Vector2(w - lt, 0), Vector2(w - lt, sh - st), Vector2(lt, sh - st), Vector2(lt, 0), Vector2(0, 0)])), "extrude", d, "new")
 			_ex(fs, _sk(fs, "front", [_rect(Vector2(0, sh - st), Vector2(w, sh + bh))]), "extrude", 30.0, "join")
 			_ex(fs, _sk(fs, "right", [_rect(Vector2(-(d - lt), 0), Vector2(-lt, sh - st))]), "extrude", w, "cut")
+		"mug":
+			# p192makeitlike: step 1 the body (a round, Y up), 2 the cup hollowed to a 4 mm wall, 3 a 4 mm floor, 4 the C handle on the
+			# right side (a bar, 8 mm thick), 5 its window cut. Sizes in mm; the handle sits at the body's side, half in the wall
+			var R: float = float(p["cup_width"]) * 0.5
+			var H: float = p["cup_height"]
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [0.0, 0.0], "r": R}]), "extrude", H, "new")
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [0.0, 0.0], "r": R - 4.0}]), "extrude", 2.0 * H + 20.0, "cut", true)
+			_ex(fs, _sk(fs, "top", [{"k": "circle", "c": [0.0, 0.0], "r": R}]), "extrude", 4.0, "join")
+			_ex(fs, _sk(fs, "right", [_rect(Vector2(-(R + 30.0), 0.2 * H), Vector2(-(R - 10.0), 0.8 * H))]), "extrude", 8.0, "join", true)
+			_ex(fs, _sk(fs, "right", [_rect(Vector2(-(R + 22.0), 0.3 * H), Vector2(-(R + 8.0), 0.7 * H))]), "extrude", 20.0, "cut", true)
 		"car":
 			# a car in side profile (the Right plane: sketch x = -Z, the car drives along +Z; sketch y = Y), extruded across the width.
 			# The lower body (sills at the wheel centre's height, the belt at 55 % of the height, nose and tail rounded) is one extrusion
