@@ -176,6 +176,7 @@ var clips_ui: ClipsUI   # CLIPS (GAP row 12): the commands, dialog and picked cl
 var export_ui: ExportDialog   # EXPORT... (ROADMAP 57): one dialog for every target; runs the writers below (scripts/export_dialog.gd)
 var mc_ui: MyCamUI   # MY CAMERA (ROADMAP I32): the fingerprint of his shot cameras + Frame it my way (scripts/my_camera_ui.gd)
 var ac_ui: AutoCamUI   # AUTO CAMERA (ROADMAP I7): ghost-frame shot suggestions (scripts/auto_camera_ui.gd)
+var sl_ui: ShotListUI   # SHOT LIST (Friday plan 150): type a story, a shot card per line (scripts/shot_list_ui.gd)
 var mp_ui: MakePhysicalUI   # MAKE IT PHYSICAL (ROADMAP I1): the judge, the red lane, the ghost (scripts/make_physical_ui.gd)
 var ds_ui: DeformSceneUI   # DEFORMATION OVER THE SCENE (ROADMAP_400 H17): per-frame skin grades, worst frames, red lane, ghost (scripts/deform_scene_ui.gd)
 var clash_ui: RomClashUI   # ARMOUR CLASH (ROADMAP_400 B24 / B25): ROM test + scene, worst frames, red verts, clearance heat map (scripts/rom_clash_ui.gd)
@@ -12806,6 +12807,9 @@ func _ui() -> void:
 	if ac_ui == null:
 		ac_ui = AutoCamUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Auto camera", ac_ui.show, "for the strike a shot camera per beat from film grammar (180 deg rule, lead room, closer on contact, low angle for power, hold the wide) as ghost frames; click one to keep it as a shot, or Keep all; nothing changes until you click"))
+	if sl_ui == null:
+		sl_ui = ShotListUI.new(self)
+	ui_ribbon["CHECK"].add_child(_button("Shot list", sl_ui.show, "type a short story, one line per shot: Kine makes a card per shot with its camera (wide, medium, close-up, low or high angle) and its move; Keep all writes them as shots, one undo step"))
 	if mc_ui == null:
 		mc_ui = MyCamUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("My camera", mc_ui.show, "the habits in the shot cameras of your own scenes: lens, camera height, distance, angle to the line of action, where the subject sits, how long before a contact you cut (medians, spread, counts)"))
@@ -16357,6 +16361,9 @@ func _commands() -> Array:
 	if ac_ui == null:
 		ac_ui = AutoCamUI.new(self)
 	ac_ui.commands(add)   # AUTO CAMERA (ROADMAP I7)
+	if sl_ui == null:
+		sl_ui = ShotListUI.new(self)
+	sl_ui.commands(add)   # SHOT LIST (Friday plan 150)
 	if mc_ui == null:
 		mc_ui = MyCamUI.new(self)
 	mc_ui.commands(add)   # MY CAMERA (ROADMAP I32)
