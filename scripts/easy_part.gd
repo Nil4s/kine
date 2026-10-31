@@ -6351,7 +6351,12 @@ func _label_build() -> void:
 		pu.sync()
 		_say("That label did not build: try other letters")
 		return
-	frame()
-	_lib_fit()
+	var lb: AABB = pu.res.get("aabb", AABB())   # the tag is small: the camera comes in close and looks down on it, left of the panel
+	m.pitch = -42.0
+	m.dist = clampf(lb.size.x * 3.0, 0.08, 0.5)
+	m.target = lb.get_center()
+	m._cam()
+	m.target += m.cam.global_basis.x * (float(m.dist) * 0.22)
+	m._cam()
 	_say("Label %s x %s mm, %s. Make another to replace it" % [_plain_num(float(d["w"])), _plain_num(float(d["h"])), "letters cut in" if cut else "letters raised"])
 	_screw_sync()

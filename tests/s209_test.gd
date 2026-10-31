@@ -165,34 +165,45 @@ func lum(c: Color) -> float:
 	return 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
 
 
-## the share of pixels in the label's screen box that differ from the tag's flat colour (the median) by more than 0.05
-func ink_share(img: Image) -> float:
+## the share of pixels in the label's screen box (all eight corners of its box, projected) that differ from the same view of the PLAIN tag (no letters) by more than 0.02 in brightness
+func ink_share(img: Image, plain: Image) -> float:
 	var bb: AABB = bbox()
 	var lo := Vector2(1e9, 1e9)
 	var hi := Vector2(-1e9, -1e9)
 	for cx in [bb.position.x, bb.end.x]:
-		for cz in [bb.position.z, bb.end.z]:
-			var s := scr(Vector3(cx, bb.end.y, cz) * Part.MM)
-			lo = lo.min(s)
-			hi = hi.max(s)
-	var shrink := (hi - lo) * 0.12
-	lo += shrink
-	hi -= shrink
-	var vals := []
-	for y in range(int(lo.y), int(hi.y)):
-		for x in range(int(lo.x), int(hi.x)):
-			if x >= 0 and y >= 0 and x < img.get_width() and y < img.get_height():
-				vals.append(lum(img.get_pixel(x, y)))
-	if vals.size() < 100:
-		return 0.0
-	var sorted := vals.duplicate()
-	sorted.sort()
-	var med: float = sorted[sorted.size() / 2]
+		for cy in [bb.position.y, bb.end.y]:
+			for cz in [bb.position.z, bb.end.z]:
+				var s := scr(Vector3(cx, cy, cz) * Part.MM)
+				lo = lo.min(s)
+				hi = hi.max(s)
+	var k := float(img.get_width()) / root.get_visible_rect().size.x
 	var n := 0
-	for v in vals:
-		if absf(float(v) - med) > 0.05:
-			n += 1
-	return float(n) / vals.size()
+	var tot := 0
+	for y in range(int(lo.y * k), int(hi.y * k)):
+		for x in range(int(lo.x * k), int(hi.x * k)):
+			if x < 0 or y < 0 or x >= img.get_width() or y >= img.get_height():
+				continue
+			tot += 1
+			if absf(lum(img.get_pixel(x, y)) - lum(plain.get_pixel(x, y))) > 0.02:
+				n += 1
+	return float(n) / maxf(tot, 1)
+
+
+## the same view with only the tag (the label record's first two steps: the plate), then the label back
+func plain_shot() -> Image:
+	var full: Dictionary = m.S.part
+	var plate: Dictionary = full.duplicate(true)
+	(plate["features"] as Array).resize(2)
+	m.S.part = plate
+	pu().upto = -1
+	pu().sync()
+	await idle(20)
+	var img := root.get_texture().get_image()
+	m.S.part = full
+	pu().upto = -1
+	pu().sync()
+	await idle(20)
+	return img
 
 
 func make_label(txt: String, cut: bool) -> void:
@@ -203,7 +214,7 @@ func make_label(txt: String, cut: bool) -> void:
 	if md.button_pressed != cut:
 		await click_ctl(md)
 	await click_ctl(go)
-	await idle(120)
+	await idle(300)
 
 
 func _init() -> void:
@@ -331,9 +342,11 @@ func _init() -> void:
 			top_pts += 1
 	ok(top_pts >= 60, "8 the letters' tops: %d mesh points at the top height" % top_pts)
 	await idle(10)
-	var share5 := ink_share(root.get_texture().get_image())
+	var img5 := root.get_texture().get_image()
+	var plain5: Image = await plain_shot()
+	var share5 := ink_share(img5, plain5)
 	await shot("03_bolts")
-	ok(share5 >= 0.04, "9 the text shows in the screenshot: %.1f pct of the tag's pixels are not its flat colour (>= 4)" % (share5 * 100.0))
+	ok(share5 >= 0.03, "9 the text shows in the screenshot: %.1f pct of the tag's pixels differ from the plain tag in the same view (>= 3)" % (share5 * 100.0))
 	await make_label("BOLTSBOLTS", false)
 	var bb10: AABB = bbox()
 	ok(int(pu().res.get("bodies", 0)) == 1 and bb10.size.x > bb5.size.x * 1.6 and bb10.size.x < bb5.size.x * 2.1,
@@ -346,8 +359,10 @@ func _init() -> void:
 	ok(int(pu().res.get("bodies", 0)) == 1 and absf(bbc.size.y - 3.0) <= 0.05 and platec - vc > 20.0 and platec - vc < 0.5 * platec and absf(bbc.size.x - bb5.size.x) <= 0.2,
 		"11 BOLTS cut in: one solid, 3 mm tag, letters cut away %.0f mm3 of %.0f, same width %.1f" % [platec - vc, platec, bbc.size.x])
 	await idle(10)
-	var sharec := ink_share(root.get_texture().get_image())
+	var imgc := root.get_texture().get_image()
+	var plainc: Image = await plain_shot()
+	var sharec := ink_share(imgc, plainc)
 	await shot("05_bolts_cut")
-	ok(sharec >= 0.04, "12 the cut-in text shows in the screenshot: %.1f pct (>= 4)" % (sharec * 100.0))
+	ok(sharec >= 0.03, "12 the cut-in text shows in the screenshot: %.1f pct of the tag pixels differ from the plain tag (>= 3)" % (sharec * 100.0))
 	print("s209: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
