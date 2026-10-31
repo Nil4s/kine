@@ -13767,6 +13767,7 @@ func _ui() -> void:
 	hv.add_child(_label("RIGHT-CLICK a part (click, don't drag: right-DRAG still turns the view): a ring around the mouse.  Up = Reset, then clockwise: Snap 90°, Copy to the other side, CLIP this pose, Pin a trail, Snap 45°.  Click one; the middle or Esc cancels.", 16, "text", true))
 	hv.add_child(_label("S = SEARCH.  Don't remember where something is?  Press S, type a word (mirror, trail, staff, slower...), Enter.  Every button and key is in it, with its shortcut.", 16, "say", true))
 	hv.add_child(_label("View: ARROWS slide the view, Shift+ARROWS turn around the body, PageUp/PageDown or the wheel zoom, Tab = big view.  F6 = the panels by keyboard (Tab moves, Enter presses, Esc back).  Mouse: right-drag = turn around, middle-drag = slide.", 15, "text:0.7", true))
+	hout.add_child(_button("Send feedback", _feedback_open, "what went wrong or what you wish it did: saved on this computer only, nothing is sent"))
 	hout.add_child(_button("Got it", func(): ui_help.visible = false))
 	ui_help.visible = false
 	# ---- WHAT WENT WRONG? (ROADMAP 43): the last refusal, what was tried, why, and the one next step (scripts/whywrong.gd)
@@ -16726,6 +16727,7 @@ func _commands() -> Array:
 	for p in SCALES:
 		add.call("UI size %d %%" % p, "", _set_scale.bind(p), "zoom bigger smaller scale font text size", false, "buttons and words at %d %% (remembered)" % p)
 	add.call("Help", "", func(): ui_help.visible = not ui_help.visible, "how manual", false, "show or hide the help panel")
+	add.call("Help: send feedback", "", _feedback_open, "feedback report bug problem wrong wish saved log send", false, "a box to say what went wrong or what you wish it did: saved to a log on this computer only (nothing is sent)")
 	add.call("Start screen", "", func(): start_screen.show_screen(), "start screen home new project open recent resume", false, "the start screen: New project (Animation, Modeling, 3D Building), Open, recent scenes, Resume")
 	add.call("What went wrong?", "", _why_toggle, "why error wrong refused refusal explain not work failed stuck", false, "says what the last refusal or error meant in plain words: what you tried, why it did not work, and the one next step (a button runs it)")
 	add.call("Pick a part", "", _select_set.bind(["upperarm_r"]), "pick select choose part body click", false, "picks the right upper arm, so the next command has a part to act on")
@@ -25427,3 +25429,12 @@ func _ragdoll_hit() -> void:
 	_refresh()
 	_say("hit: %d cards, back on the animation at %.1f s. Saved as %s; your '%s' is untouched." % [
 		cards.size(), HIT_FALL_S + HIT_BLEND_S, out.get_file(), S.name])
+
+# P190 FEEDBACK (Friday plan 190): the Send feedback window (scripts/p190feedback.gd), built the first time it opens; writes a local log only
+var feedback: AppFeedback
+
+func _feedback_open() -> void:
+	if feedback == null:
+		feedback = AppFeedback.new(self)
+	ui_help.visible = false
+	feedback.show_window()
