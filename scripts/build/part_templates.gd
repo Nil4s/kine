@@ -90,6 +90,11 @@ const T := {
 		{"k": "turns", "label": "Turns", "lo": 3.0, "hi": 12.0, "def": 6.0, "step": 1.0, "words": ["Fewer", "More"], "raw": true, "unit": "turns"},
 		{"k": "wire", "label": "Wire", "lo": 1.0, "hi": 4.0, "def": 2.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"},
 		{"k": "size", "label": "Coil size", "lo": 20.0, "hi": 60.0, "def": 40.0, "step": 5.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "mm"}]},
+	# p130camandfoll: a cam and its follower, not in ORDER (Parts > Gears has its button). lift = how far the disc's centre sits off the axle
+	# (mm), thickness = the disc and the rod (mm). Fixed: the disc is CAM_R across the radius, the rod 80 mm long, its foot 2 mm above the rim.
+	"cam": {"title": "Cam and follower", "params": [
+		{"k": "lift", "label": "Lift", "lo": 5.0, "hi": 20.0, "def": 10.0, "step": 1.0, "words": ["Less lift", "More lift"], "raw": true, "unit": "mm"},
+		{"k": "thickness", "label": "Thickness", "lo": 5.0, "hi": 30.0, "def": 10.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
 	# P032: a plate with a long rounded hole (a slot) cut right through it. Length and Width are the hole's own size (the round ends
 	# are Width / 2 across); the plate is 20 mm wider than the hole on each side. Width is at most 40, so Length (at least 60) stays longer.
 	"slothole": {"title": "Slot", "params": [
@@ -695,6 +700,8 @@ static func features_of(t: String, p: Dictionary) -> Array:
 			_ex(fs, _sk(fs, "front", rack_outline(NR, mr)), "extrude", float(p["thickness"]), "new")
 		"board":
 			return _board_features(p)   # P080: the wood board (end of this file)
+		"cam":
+			return _cam_features(p)   # p130camandfoll: the cam and its follower (end of this file)
 		"case":
 			# p078makeacasef: a box for a board, open at the top: a 3 mm wall and floor, the standoffs (5 mm across, 9 mm up from the floor) at the
 			# board's holes with a screw hole through each, two port openings cut through the +x wall (an offset plane 1.5 mm inside the wall, so the
@@ -893,4 +900,19 @@ const WOOD_BOARDS := {"2x4": {"name": "2x4 board", "width": 89.0, "thickness": 3
 static func _board_features(p: Dictionary) -> Array:
 	var fs: Array = []
 	_ex(fs, _sk(fs, "front", [_rect(Vector2(0, 0), Vector2(p["width"], p["thickness"]))]), "extrude", p["length"], "new")
+	return fs
+
+
+## p130camandfoll: a cam and its follower, in the front plane (x across, y up, extruded thickness through Z). The cam is a disc of CAM_R
+## (40 mm) whose centre sits lift mm off the axle, so the axle hole (CAM_HOLE, 4 mm radius, at the origin) is cut through it. The follower is
+## a 16 mm rod on the rim: from 2 mm above the top of the disc, 80 mm up, centred over the disc's top (lift). Two solids: the cam, the follower.
+const CAM_R := 40.0
+const CAM_HOLE := 4.0
+static func _cam_features(p: Dictionary) -> Array:
+	var fs: Array = []
+	var lf: float = p["lift"]
+	var th: float = p["thickness"]
+	_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [lf, 0.0], "r": CAM_R}]), "extrude", th, "new")
+	_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": CAM_HOLE}]), "extrude", 2.0 * th + 2.0, "cut", true)
+	_ex(fs, _sk(fs, "front", [_rect(Vector2(lf - 8.0, CAM_R + 2.0), Vector2(lf + 8.0, CAM_R + 82.0))]), "extrude", th, "new")
 	return fs

@@ -2011,7 +2011,7 @@ func _lib_press(cat: String) -> void:
 	if cat == "Screws":
 		_say("Screws: pick a size. It drops on the floor")
 	elif cat == "Gears":
-		_say("Gears: press Gear in the chips above. It drops on the floor")
+		_say("Gears: press Gear in the chips above, or Cam and follower below. It drops on the floor")
 	elif cat == "Bearings":   # P069 BEARINGS: three sizes; the seat button under them cuts the seat for the one on the floor
 		_say("Bearings: pick a size. It drops on the floor. Then Make a seat for it")
 	elif cat == "Brackets":   # FRIDAY 73: three shapes, each a click
@@ -2092,6 +2092,7 @@ func _lib_box() -> PanelContainer:
 	spring_pick.visible = false
 	spring_pick.pressed.connect(_spring_pick_press)
 	vb.add_child(spring_pick)
+	vb.add_child(_cam_pick_make())   # p130camandfoll: the Gears page's Cam and follower button
 	vb.add_child(lib_soon)
 	vb.add_child(_type_row())   # p085typetobuil: the Type it row (shows with that category)
 	return pc
@@ -2381,6 +2382,7 @@ func _screw_sync() -> void:
 		spring_pick.visible = parts_open and lib_cat == "Springs"   # p070springfix
 		spring_pick.set_pressed_no_signal(_tpl() == "spring")
 		m._grey(spring_pick, Part.why_not() if not Part.available() else "")
+		_cam_pick_sync()   # p130camandfoll
 		lib_soon.visible = parts_open and lib_cat != "" and not (lib_cat in LIB_READY)
 		if screw_words != null:   # the page is open: its chips and the status line say what to do
 			screw_words.visible = not parts_open
@@ -5674,3 +5676,42 @@ func _lib_fit() -> void:
 	if pose.is_empty():
 		return
 	_ease = {"t0": m.target, "d0": float(m.dist), "t1": pose[0], "d1": pose[1], "s": 0.0}
+
+## p130camandfoll: the Gears page's Cam and follower button (shown only while Gears is open): one click closes the page and drops the cam
+## and its follower on the floor. One undo step (the chip's). The button is grey while the library cannot build (Part.why_not).
+var cam_pick: Button   # p130camandfoll
+func _cam_pick_make() -> Button:
+	cam_pick = Button.new()
+	cam_pick.name = "easypart_cam_pick"
+	cam_pick.text = "Cam and follower"
+	cam_pick.icon = _cam_icon()
+	cam_pick.tooltip_text = "Cam and follower: a disc turned off its axle, with a rod that rides on its rim"
+	cam_pick.toggle_mode = true
+	cam_pick.focus_mode = Control.FOCUS_NONE
+	cam_pick.custom_minimum_size = Vector2(0, 34)
+	cam_pick.add_theme_font_size_override("font_size", 13)
+	cam_pick.visible = false
+	cam_pick.pressed.connect(_cam_pick_press)
+	return cam_pick
+
+
+func _cam_pick_sync() -> void:
+	cam_pick.visible = parts_open and lib_cat == "Gears"
+	cam_pick.set_pressed_no_signal(_tpl() == "cam")
+	m._grey(cam_pick, Part.why_not() if not Part.available() else "")
+
+
+func _cam_pick_press() -> void:
+	parts_open = false
+	_chip("cam")
+	_screw_sync()
+
+
+## a 16 px icon in the text colour (Tok): a disc with its axle hole and a rod beside it
+func _cam_icon() -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	_lib_ring(img, 6.0, 2.5, col)
+	img.fill_rect(Rect2i(12, 0, 3, 16), col)
+	return ImageTexture.create_from_image(img)
