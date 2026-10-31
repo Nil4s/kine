@@ -23,6 +23,10 @@ func _hole_sync() -> void:
 		wall_btn.visible = hole_mode == "hollow" and _hole_on()   # Thicker wall only exists for a hollow
 	if lattice_btn != null:
 		lattice_btn.visible = _lattice_shown()   # p208latticeinf: Lattice inside shows after a hollow, not after a lattice
+	if stack_btn != null:
+		stack_btn.visible = _stack_shown()   # s209: Make it stackable shows after a hollow, not after the lip
+		if _rec_has_stack() and wall_btn != null:
+			wall_btn.visible = false
 
 
 ## a Through / Hollow inside chip: the hole step is REPLACED (one undo step): the record from before the hole press, then the chosen hole.
@@ -1049,3 +1053,124 @@ func _printer_press() -> void:
 		_hole_mode(hole_mode, false, true)   # the screw hole on the screen is cut again for this printer (one undo step)
 	else:
 		_say("Printer: %s. The next screw hole uses it" % ("any" if printer == "" else ("resin (tight)" if printer == "resin" else "FDM (loose)")))
+
+
+## s209 MAKE IT STACKABLE (Friday plan 209): on a hollow box (open top), a lip on the bottom that fits inside the rim of an identical box,
+## STACK_CLEAR mm of play on every side: the lip's outside = the rim's inside - 2 x 0.3 mm. A ring STACK_RING mm thick, STACK_LIP mm tall
+## (less on a shallow box), hanging under the floor. Two steps (sketch + pull) tagged "stack"; one press = one undo step.
+## The stacked pair: the second box is raised by the box's height (its rim to rim), its lip stands in the first box's rim.
+const STACK_CLEAR := 0.3
+const STACK_LIP := 4.0
+const STACK_RING := 1.5
+var stack_btn: Button = null
+
+
+func _rec_has_stack() -> bool:
+	for f in _rec().get("features", []):
+		if bool((f as Dictionary).get("stack", false)):
+			return true
+	return false
+
+
+func _stack_shell() -> Dictionary:
+	for f in _rec().get("features", []):
+		if String((f as Dictionary).get("t", "")) == "shell" and String(f.get("open", "")) == "+y" and not bool(f.get("off", false)):
+			return f
+	return {}
+
+
+func _stack_shown() -> bool:
+	return hole_mode == "hollow" and _hole_on() and not _stack_shell().is_empty() and not _rec_has_stack()
+
+
+## the rim's inside (mm): [x0, z0, x1, z1] read from the built mesh (the top ring's vertices that are not on the outside box), or []
+func _stack_inner(res: Dictionary) -> Array:
+	var mesh: ArrayMesh = res.get("mesh")
+	if mesh == null:
+		return []
+	var bb: AABB = res["aabb"]
+	var lo := bb.position / Part.MM
+	var hi := bb.end / Part.MM
+	var x0 := INF
+	var z0 := INF
+	var x1 := -INF
+	var z1 := -INF
+	for s in mesh.get_surface_count():
+		for v in (mesh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX] as PackedVector3Array):
+			var p := v / Part.MM
+			if absf(p.y - hi.y) > 0.05 or p.x < lo.x + 0.05 or p.x > hi.x - 0.05 or p.z < lo.z + 0.05 or p.z > hi.z - 0.05:
+				continue
+			x0 = minf(x0, p.x)
+			x1 = maxf(x1, p.x)
+			z0 = minf(z0, p.z)
+			z1 = maxf(z1, p.z)
+	return [] if x0 > x1 or z0 > z1 else [x0, z0, x1, z1]
+
+
+func _stack_press() -> void:
+	var sh := _stack_shell()
+	if sh.is_empty() or hole_mode != "hollow" or not _hole_on() or not Part.available():
+		_hole_sync()
+		_say("Make it stackable needs a hollow box first: press Cut a hole, then Hollow inside, then Make it stackable")
+		return
+	if _rec_has_stack():
+		_say("It is stackable already. Undo to take the lip off")
+		return
+	var rec0 := _rec()
+	var res := Part.replay(rec0)
+	var why := ""
+	var inner: Array = []
+	if int(res["bodies"]) != 1:
+		why = "Make it stackable works on one hollow box: stick the pieces together first"
+	else:
+		inner = _stack_inner(res)
+		if inner.is_empty():
+			why = "Make it stackable needs a box that is open at the top"
+	var bb: AABB = res["aabb"]
+	var bot := bb.position.y / Part.MM
+	var top := bb.end.y / Part.MM
+	var lip := minf(STACK_LIP, top - bot - float(sh.get("thick", 3.0)) - 1.0)
+	if why == "" and (lip < 2.0 or float(inner[2]) - float(inner[0]) - 2.0 * STACK_CLEAR < 2.0 * STACK_RING + 2.0 or float(inner[3]) - float(inner[1]) - 2.0 * STACK_CLEAR < 2.0 * STACK_RING + 2.0):
+		why = "That box is too small or too shallow for a stacking lip: make it taller (at least 7 mm inside) and wider"
+	if why != "":
+		_say(why)
+		return
+	_flush_if_dirty()
+	armed = ""
+	wall_pick = false
+	var snap := rec0.duplicate(true)
+	_begin("Make it stackable")
+	var rec: Dictionary = snap.duplicate(true)
+	var o := STACK_CLEAR
+	var r := STACK_CLEAR + STACK_RING
+	var pf := Part.new_feature(rec, "plane", {"from": "top", "mm": bot - lip})
+	rec["features"].append(pf)
+	var s1 := Part.new_feature(rec, "sketch", {"plane": String(pf["id"]), "ents": [_rect_ent(float(inner[0]) + o, float(inner[1]) + o, float(inner[2]) - o, float(inner[3]) - o)], "dims": []})
+	rec["features"].append(s1)
+	var f1 := Part.new_feature(rec, "extrude", {"sketch": s1["id"], "dist": lip + 0.5, "both": false, "op": "join", "into": 0, "stack": true})
+	rec["features"].append(f1)
+	var s2 := Part.new_feature(rec, "sketch", {"plane": String(pf["id"]), "ents": [_rect_ent(float(inner[0]) + r, float(inner[1]) + r, float(inner[2]) - r, float(inner[3]) - r)], "dims": []})
+	rec["features"].append(s2)
+	var f2 := Part.new_feature(rec, "extrude", {"sketch": s2["id"], "dist": lip, "both": false, "op": "cut", "stack": true})
+	rec["features"].append(f2)
+	m.S.part = rec
+	var err := _last_error(rec, String(f1["id"]))
+	if err == "":
+		err = _last_error(rec, String(f2["id"]))
+	if err == "" and int(Part.replay(rec)["bodies"]) != 1:
+		err = "the lip split the box in two"
+	if err != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("The lip did not build: " + err)
+		return
+	_end()
+	tweak = {}   # the Wall slider would make the box fit the lip no more
+	pu.upto = -1
+	pu.sync()
+	_rows_sig = ""
+	_rows_sync()
+	_values_sync()
+	_hole_sync()
+	_say("Stackable: a lip %s mm tall under the floor fits inside the rim of another one, with %s mm of play" % [_plain_num(lip), _plain_num(STACK_CLEAR)])

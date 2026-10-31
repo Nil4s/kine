@@ -422,6 +422,10 @@ func _hole_box() -> PanelContainer:
 	lattice_btn.custom_minimum_size = Vector2(150, 44)
 	lattice_btn.visible = false
 	h.add_child(lattice_btn)
+	stack_btn = _big_btn("easypart_hole_stack", "Make it stackable", "Add a lip under the floor that fits inside the rim of another one like it, with 0.3 mm of play: boxes stack. One click, one undo step", _stack_press)   # s209
+	stack_btn.custom_minimum_size = Vector2(150, 44)
+	stack_btn.visible = false
+	h.add_child(stack_btn)
 	var flb := _big_btn("easypart_hole_flat", "Flat pattern", "Unfold the box into a flat sheet to laser-cut: six panels with finger joints. The model does not change", _flat_press)   # p117flatpatter
 	flb.custom_minimum_size = Vector2(120, 44)
 	h.add_child(flb)   # not a toggle: it is not in hole_btns (the row's pressed state would ignore it)
@@ -2137,6 +2141,7 @@ func _lib_box() -> PanelContainer:
 	vb.add_child(lib_soon)
 	vb.add_child(_type_row())   # p085typetobuil: the Type it row (shows with that category)
 	vb.add_child(_photo_row())   # p192makeitlike: Like a photo, under Type it
+	vb.add_child(_label_row())   # s210: Label, under Like a photo
 	linkage_box = preload("res://scripts/easy_linkage.gd").new()   # p129linkages: the Linkage panel (4 bars, a drag knob) on the Hinges page, scripts/easy_linkage.gd
 	linkage_box.say_fn = _say   # p129linkages: its words go to the status line at the top
 	vb.add_child(linkage_box)
@@ -2446,6 +2451,7 @@ func _screw_sync() -> void:
 		lib_soon.text = "%s are coming soon: not made yet. Next step: press Screws or Gears" % lib_cat if lib_soon.visible else ""
 		type_box.visible = parts_open and lib_cat == "Type it"   # p085typetobuil
 		photo_box.visible = parts_open and lib_cat == "Type it"   # p192makeitlike
+		label_box.visible = parts_open and lib_cat == "Type it"   # s210
 		if fav_box != null:   # p083favfix: the Favourites page shows while its category is open; the row and the star are drawn here
 			fav_box.visible = parts_open and lib_cat == "Favourites"
 			_fav_sync()
@@ -6425,3 +6431,83 @@ func _gd_sync(on: bool) -> void:
 
 # s055: Measure (scripts/easy_part_measure.gd)
 var meas: EasyMeasure
+
+
+const PartLabel := preload("res://scripts/build/part_label.gd")
+## s210 LABEL MAKER: a word and Raised / Cut in, then Make label: a flat tag sized to the word, the word on it (scripts/build/part_label.gd)
+var label_box: HBoxContainer = null
+var label_edit: LineEdit = null
+var label_mode: Button = null
+var label_go: Button = null
+
+
+func _label_row() -> HBoxContainer:
+	var hb := HBoxContainer.new()
+	hb.name = "easypart_label_row"
+	hb.visible = false
+	hb.add_theme_constant_override("separation", 4)
+	label_edit = LineEdit.new()
+	label_edit.name = "easypart_label_edit"
+	label_edit.placeholder_text = "A label: BOLTS"
+	label_edit.max_length = PartLabel.MAX_CHARS
+	label_edit.add_theme_font_size_override("font_size", 13)
+	label_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label_edit.text_submitted.connect(func(_t: String) -> void: _label_build())
+	hb.add_child(label_edit)
+	label_mode = Button.new()
+	label_mode.name = "easypart_label_mode"
+	label_mode.text = "Raised"
+	label_mode.toggle_mode = true
+	label_mode.focus_mode = Control.FOCUS_NONE
+	label_mode.tooltip_text = "Raised: the letters stand out of the tag. Press for Cut in: the letters are cut into it"
+	label_mode.add_theme_font_size_override("font_size", 13)
+	label_mode.toggled.connect(func(on: bool) -> void: label_mode.text = "Cut in" if on else "Raised")
+	hb.add_child(label_mode)
+	label_go = Button.new()
+	label_go.name = "easypart_label_go"
+	label_go.text = "Make label"
+	label_go.focus_mode = Control.FOCUS_NONE
+	label_go.tooltip_text = "Make a flat tag with your word on it, sized to the word: one press, one undo step"
+	label_go.add_theme_font_size_override("font_size", 13)
+	label_go.pressed.connect(_label_build)
+	hb.add_child(label_go)
+	label_box = hb
+	return hb
+
+
+func _label_build() -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var cut := label_mode.button_pressed
+	var d := PartLabel.build(label_edit.text.strip_edges(), cut)
+	if not bool(d["ok"]):
+		_say(String(d["why"]))
+		return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	var snap := _rec().duplicate(true)
+	m._step_hint = "Make a label"
+	m._push_undo()
+	m.S.part = d["rec"]
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty() or int(pu.res.get("bodies", 0)) != 1:
+		m.S.part = snap
+		m._drop_undo()
+		pu.upto = -1
+		pu.sync()
+		_say("That label did not build: try other letters")
+		return
+	var lb: AABB = pu.res.get("aabb", AABB())   # the tag is small: the camera comes in close and looks down on it, left of the panel
+	m.pitch = -42.0
+	m.dist = clampf(lb.size.x * 3.0, 0.08, 0.5)
+	m.target = lb.get_center()
+	m._cam()
+	m.target += m.cam.global_basis.x * (float(m.dist) * 0.22)
+	m._cam()
+	_say("Label %s x %s mm, %s. Make another to replace it" % [_plain_num(float(d["w"])), _plain_num(float(d["h"])), "letters cut in" if cut else "letters raised"])
+	_screw_sync()
