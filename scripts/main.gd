@@ -11438,6 +11438,8 @@ func _history_rows() -> void:
 	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	head.add_child(title)
 	head.add_child(_button("Close", _toggle_history))
+	ui_hist_list.add_child(_try_row())   # P090: the Try another way button, on its own row
+	ui_hist_list.add_child(_ways_box())   # P090: the Ways list, under it (the first way is always in view)
 	var on_path := {}
 	for id in _tree.path():
 		on_path[id] = true
@@ -11446,14 +11448,14 @@ func _history_rows() -> void:
 		var pad := ""
 		for _i in int(r["col"]):
 			pad += "   "   # em spaces: a branch is visibly indented (four ASCII spaces are a few pixels)
-		var b := _button(pad + ("> " if id == _tree.cur else "   ") + _step_label(_tree.node(id)) + "   " + String(_tree.node(id)["time"]), _tree_go.bind(id))
+		var b := _button(pad + ("> " if id == _tree.cur else "   ") + _step_label(_tree.node(id)) + "   " + String(_tree.node(id)["time"]), (_try_pick.bind(id) if _hist_try else _tree_go.bind(id)))
 		b.name = "step_%d" % id   # U2: the step it goes to
 		if not on_path.has(id) and not _tree.forward().has(id):
 			b.modulate.a = 0.55   # a branch off the current one
 		_hist_row(b)
 	if rows.is_empty():
 		ui_hist_list.add_child(_label("nothing yet: every change you make shows up here", 13, "text:0.6", true))
-	(ui_hist.get_child(0) as ScrollContainer).custom_minimum_size.y = clampf(70.0 + 40.0 * rows.size(), 110.0, 420.0)
+	(ui_hist.get_child(0) as ScrollContainer).custom_minimum_size.y = clampf(70.0 + 40.0 * (rows.size() + mini(_ways().size(), WAYS_SHOWN) + 1), 110.0, 420.0)
 	ui_hist.reset_size()
 
 
@@ -25282,3 +25284,87 @@ func _sg_poll() -> void:
 			np.set_motion(_sg_res["db"], _sg_res["bank"])
 		_sg_sig = []
 		_sg_tick()
+
+
+# ---------------------------------------------------------------- P090 try another way (Friday plan 90)
+
+var _hist_try := false   # TRY ANOTHER WAY: the picker is on; the next History row click goes to that step and starts a new way
+const WAYS_SHOWN := 6    # the Ways list shows the oldest six ways (the first way is always row 1)
+
+
+## the Try another way button (Cancel while the picker is on), on a row of its own under the History title
+func _try_row() -> Control:
+	var h := HBoxContainer.new()
+	var b := _button("Cancel" if _hist_try else "Try another way", _try_toggle, "go back to an earlier step and change it: the change starts a NEW way, the old way stays under Ways")
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(b)
+	return h
+
+
+## the button: the picker goes on (the next row click picks the step), or off again
+func _try_toggle() -> void:
+	if _hist_try:
+		_hist_try = false
+		_say("Cancelled: click Try another way again to pick a step")
+		_history_rows()
+		return
+	_tree_sync()
+	if _tree.listing().size() < 2:
+		_say("Nothing to try another way from yet: make two changes first, then go back to the earlier one")
+		return
+	_hist_try = true
+	_say("Click the earlier step you want to try another way from (in History). Press Cancel to stop")
+	_history_rows()
+
+
+## the picked step: the work goes there (as a History click does: one action, no undo step) and the picker is off.
+## The next change made from there is a new way; the old one is still in the tree
+func _try_pick(id: int) -> void:
+	_tree_sync()
+	if id == _tree.cur:
+		_say("You are already on that step: click an earlier one, or press Cancel")
+		return
+	_hist_try = false
+	_tree_go(id)
+	_say("Now change something: it starts a new way. The old way stays under Ways")
+
+
+## every way: the tree's last steps (a branch's end), oldest first. The live way is the one the live step's redo follows
+func _ways() -> Array:
+	var out := []
+	for id in _tree.nodes:
+		if id != _tree.root and (_tree.node(id)["kids"] as Array).is_empty():
+			out.append(id)
+	out.sort()
+	return out
+
+
+## the way the work is on: from the live step, down the "last" children to the end of that branch
+func _now_way() -> int:
+	var id: int = _tree.cur
+	while _tree.node(id)["last"] != -1:
+		id = _tree.node(id)["last"]
+	return id
+
+
+## the Ways list: one row per way, the first way (the oldest) first, its name = its last step. A row goes back to that way
+func _ways_box() -> Control:
+	_tree_sync()
+	var box := VBoxContainer.new()
+	var all := _ways()
+	box.add_child(_label("WAYS  -  %d way%s" % [all.size(), "" if all.size() == 1 else "s"], 16, "heading"))
+	var now := _now_way()
+	for i in mini(all.size(), WAYS_SHOWN):
+		var id: int = all[i]
+		var t: String = ("Way %d%s: " % [i + 1, " (first)" if i == 0 else ""]) + _step_label(_tree.node(id)) + "   " + String(_tree.node(id)["time"])
+		var b := _button(("> " if id == now else "   ") + t, _tree_go.bind(id), "go back to this way: its last step is %s" % _step_label(_tree.node(id)))
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.clip_text = true
+		b.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		b.custom_minimum_size.x = 260
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.disabled = id == now
+		box.add_child(b)
+	if all.size() > WAYS_SHOWN:
+		box.add_child(_label("%d more ways: the History rows above show them all" % (all.size() - WAYS_SHOWN), 13, "text:0.6", true))
+	return box

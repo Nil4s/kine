@@ -77,7 +77,7 @@ func _size_sync() -> void:
 	var w := snappedf(bb.size.x * 100.0, 0.1)
 	var d := snappedf(bb.size.z * 100.0, 0.1)
 	var h := snappedf(bb.size.y * 100.0, 0.1)
-	size_l.text = "Size: %s x %s x %s cm (wide x deep x high)" % [_cm1(w), _cm1(d), _cm1(h)]
+	size_l.text = "Size: %s x %s x %s cm (wide x deep x high), %s" % [_cm1(w), _cm1(d), _cm1(h), _print_words()]
 	var front := Vector3(bb.get_center().x, bb.position.y, bb.end.z)
 	if m.cam.is_position_behind(front):
 		size_l.visible = false
@@ -427,10 +427,13 @@ func layout(cl: Rect2) -> void:
 		(b as Control).custom_minimum_size.x = bw
 	make_box.size = Vector2(bw * n + (n - 1.0) * 8.0, MAKE_H)
 	make_box.position = Vector2(cl.position.x + 8.0, cl.position.y + 4.0)
-	var top := make_box.position.y + maxf(MAKE_H, make_box.size.y) + 8.0
+	var top := make_box.position.y + maxf(MAKE_H, make_box.size.y) + 8.0   # the side panel's top
+	view_box.reset_size()   # P107 FITVIEW: the five view buttons, a narrow column at the top right of the clear view, just left of the panel: the
+	# left column keeps its place and the grid's middle and bottom (where the pieces stand) stay free; the words stop short of it
+	view_box.position = Vector2(cl.end.x - PW - 18.0 - view_box.size.x, top)
 	var fnt: Font = hint_l.get_theme_font("font")   # the words' width on one line (a label that wraps reports no width)
 	var one_line := fnt.get_string_size(hint_l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, hint_l.get_theme_font_size("font_size")).x + 40.0
-	hint.size.x = minf(one_line, cl.size.x - PW - 40.0)
+	hint.size.x = minf(one_line, minf(cl.size.x - PW - 40.0, view_box.position.x - cl.position.x - 24.0))   # P107: never under the view column
 	hint.size.y = hint.get_combined_minimum_size().y   # the height of the words wrapped to that width
 	hint.position = Vector2(cl.position.x + 12.0, top)
 	shape_box.reset_size()
@@ -483,6 +486,8 @@ func layout(cl: Rect2) -> void:
 		tilt_x = repeat_box.position.x + repeat_box.size.x + 8.0
 		tilt_y = repeat_box.position.y + repeat_box.size.y - tilt_box.size.y
 	tilt_box.position = Vector2(tilt_x, _low_box_y(tilt_y, tilt_box.size.y, low_y, stat_top))
+	explode_box.reset_size()   # EXPLODE (p103): the Pull apart slider sits under the Round filter row (that row is up whenever a solid is), clear of the low rows and the view's drags
+	explode_box.position = Vector2(cl.position.x + 12.0, round_box.position.y + round_box.size.y + 6.0)
 	# the panel on the right, as tall as it needs; the words under the sliders go first when the room is short
 	var avail := cl.end.y - top - 4.0
 	panel.reset_size()
@@ -773,6 +778,62 @@ func _draft_outline() -> PackedVector2Array:
 	return pts
 
 
+## P044 SKETCH DIMS: the length of every side of the draft while the mouse holds it: a small label in mm beside each side's middle.
+## The labels are children of the dots canvas (made once, reused, hidden when no draft has sides). A curve or a round shape has no sides: none shown
+var dim_labels: Array = []
+
+
+func _dim_label(i: int) -> Label:
+	while dim_labels.size() <= i:
+		var l := Label.new()
+		l.name = "easypart_draft_dim_%d" % dim_labels.size()
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		l.add_theme_font_size_override("font_size", 14)
+		l.add_theme_color_override("font_color", Color.WHITE)
+		l.add_theme_stylebox_override("normal", _style(Color(0.1, 0.11, 0.14, 0.9), 4, 6))
+		dots.add_child(l)
+		dim_labels.append(l)
+	return dim_labels[i]
+
+
+## the corners (mm, on the draft's plane) of a box, pointy or polygon draft; [] for the rest
+func _draft_corners_mm() -> Array:
+	var a: Vector2 = _draft["a"]
+	var b: Vector2 = _draft["b"]
+	match String(_draft.get("shape", "")):
+		"box":
+			return [a, Vector2(b.x, a.y), b, Vector2(a.x, b.y)]
+		"pointy":
+			return _pointy_pts(a, b)
+		"hex", "poly":
+			return _poly_pts(a, b, _draft_sides())
+	return []
+
+
+## the side lengths are read from the mm corners, then each label sits just outside its side's middle (away from the shape's centre)
+func _draft_dims_sync() -> void:
+	var poly := [] if _draft.is_empty() else _draft_corners_mm()
+	var n := 0
+	if poly.size() >= 3:
+		var sc: Array = []
+		var cen := Vector2.ZERO
+		for q in poly:
+			var s: Vector2 = m.cam.unproject_position(_pw(q))
+			sc.append(s)
+			cen += s / float(poly.size())
+		for i in poly.size():
+			var j := (i + 1) % poly.size()
+			var mid: Vector2 = ((sc[i] + sc[j]) * 0.5)
+			var l := _dim_label(n)
+			l.text = _fmt((poly[i] as Vector2).distance_to(poly[j]), "mm")
+			l.reset_size()
+			l.position = mid + (mid - cen).normalized() * 18.0 - l.size * 0.5 - dots.global_position
+			l.visible = true
+			n += 1
+	for i in range(n, dim_labels.size()):
+		(dim_labels[i] as Label).visible = false
+
+
 ## POINTY: the drag's corners a and b make an isoceles triangle: the base is a's side of the box (a to (b.x, a.y)), the point is at the middle of the far edge (b's side: (middle x, b.y))
 func _pointy_pts(a: Vector2, b: Vector2) -> Array:
 	return [a, Vector2(b.x, a.y), Vector2((a.x + b.x) * 0.5, b.y)]
@@ -981,3 +1042,37 @@ func _steps_place(cl: Rect2, y: float) -> void:
 	steps_box.position = Vector2(cl.end.x - PW - 8.0, y)
 	flat_box.reset_size()   # p113: the printing box sits under the step list
 	flat_box.position = Vector2(steps_box.position.x, y + steps_box.get_combined_minimum_size().y + 6.0)
+
+## p059printtimee (Friday plan 59): the print time, in plain words, on the size label: "about 3 h 39 min to print". A print is mostly infill:
+## the walls (1.2 mm over the whole surface) and 20 percent of the middle are what the printer lays down, at about 20 cm3 an hour (a typical
+## desktop rate). The surface is the built mesh's triangles, so the words are worked out again only when the volume changes, and not while a slider is in hand
+var _print_vol := -1.0     # the volume the print words were worked out for (m3)
+var _print_text := ""      # those words
+
+func _print_words() -> String:
+	var vol := float(pu.res.get("volume", 0.0))
+	if vol <= 0.0:
+		return ""
+	if vol != _print_vol and not pu.coarse:   # a slider in hand: the coarse mesh is no surface to count; the words follow on release
+		_print_vol = vol
+		var area := 0.0   # m2: the triangles of the built mesh (every body's outside)
+		var mesh: ArrayMesh = pu.res.get("mesh")
+		for s in (mesh.get_surface_count() if mesh != null else 0):
+			var arr := mesh.surface_get_arrays(s)
+			var vx: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+			var ix: PackedInt32Array = arr[Mesh.ARRAY_INDEX] if arr[Mesh.ARRAY_INDEX] != null else PackedInt32Array()
+			var n := ix.size() if ix.size() > 0 else vx.size()
+			for t in range(0, n - 2, 3):
+				var a := vx[ix[t]] if ix.size() > 0 else vx[t]
+				var b := vx[ix[t + 1]] if ix.size() > 0 else vx[t + 1]
+				var c := vx[ix[t + 2]] if ix.size() > 0 else vx[t + 2]
+				area += 0.5 * (b - a).cross(c - a).length()
+		var wall := minf(area * 0.0012, vol)   # m3 of walls
+		var mins := roundi((wall + (vol - wall) * 0.2) * 1.0e6 / 20.0 * 60.0)   # m3 -> cm3, ÷ 20 cm3 an hour, -> minutes
+		if mins < 1:
+			_print_text = "under 1 min to print"
+		elif mins < 60:
+			_print_text = "about %d min to print" % mins
+		else:
+			_print_text = "about %d h %d min to print" % [mins / 60, mins % 60]
+	return _print_text

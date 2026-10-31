@@ -352,6 +352,7 @@ func build(root: Control) -> void:
 	_scrub_row.add_theme_constant_override("separation", 12)
 	_scrub_row.visible = false
 	sv.add_child(_scrub_row)
+	_scrub_row.add_child(_strip_button("eh_walk_style", "Walk style", "walk speed, swagger and bounce: three sliders (one undo step a drag)", walk_style_open, Vector2(150, 44), 20))  # p141walkcycles: beside the scrub, the row that shows with a clip
 	_scrub = HSlider.new()
 	_scrub.name = "eh_scrub"
 	_scrub.min_value = 0.0
@@ -2465,3 +2466,101 @@ func _label(text: String, size: int, tok: String) -> Label:
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", Tok.c(tok))
 	return l
+
+
+## WALK STYLE (p141walkcycles): a panel with three sliders over the built clip (WalkStyle.styled). Each slider is a percent of the
+## clip as it was when the panel opened (100 = as built). The first change of a drag is one undo step: Undo takes the whole drag back.
+var _ws_pop: PopupPanel                # the panel (a child of this node; the Walk style button opens it)
+var _ws_base: Array = []               # the cards as they were when the panel opened: every change is worked out from them
+var _ws_pushed := false                # true from a drag's first change to its release (one undo step per drag)
+var _ws_sliders := {}                  # "speed" / "swagger" / "bounce" -> HSlider
+var _ws_vals := {}                     # the same keys -> the Label that reads the percent
+const WS_ROWS := [["speed", "Speed", "how fast the steps go (200 % = twice as fast)"],
+	["swagger", "Swagger", "how far the hips sway from side to side, one way then the other (0 % = none)"],
+	["bounce", "Bounce", "how far the chest dips and lifts on each step (0 % = none)"]]
+
+
+## the Walk style button: the panel opens at 100 % over the clip as it is now. No clip: one sentence, nothing changes
+func walk_style_open() -> void:
+	if m.S.cards.size() < 2:
+		m._say_plain("Build a walk first: click Walk, then Walk style changes its speed, swagger and bounce.")
+		return
+	if _ws_pop == null:
+		_ws_build()
+	_ws_base = m.S.cards.duplicate(true)
+	_ws_pushed = false
+	for r in WS_ROWS:
+		_ws_sliders[r[0]].set_value_no_signal(100.0)
+		_ws_vals[r[0]].text = "100 %"
+	_ws_pop.popup_centered()
+
+
+## the panel: a title, three rows (name, slider, percent) and a Done button. Built once, then shown again
+func _ws_build() -> void:
+	_ws_pop = PopupPanel.new()
+	_ws_pop.name = "eh_walk_style_panel"
+	add_child(_ws_pop)
+	var v := VBoxContainer.new()
+	v.add_theme_constant_override("separation", 10)
+	_ws_pop.add_child(v)
+	var title := Label.new()
+	title.text = "Walk style: drag a slider. 100 % = the walk as it was. Undo takes a drag back"
+	v.add_child(title)
+	for r in WS_ROWS:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		v.add_child(row)
+		var nm := Label.new()
+		nm.text = r[1]
+		nm.tooltip_text = r[2]
+		nm.custom_minimum_size = Vector2(90, 0)
+		row.add_child(nm)
+		var s := HSlider.new()
+		s.name = "ws_" + r[0]
+		s.tooltip_text = r[2]
+		s.custom_minimum_size = Vector2(260, 28)
+		s.min_value = WalkStyle.SPEED_MIN if r[0] == "speed" else 0.0
+		s.max_value = WalkStyle.SPEED_MAX if r[0] == "speed" else WalkStyle.AMOUNT_MAX
+		s.step = 1.0
+		s.value = 100.0
+		s.value_changed.connect(_ws_changed)
+		s.drag_ended.connect(_ws_released)
+		row.add_child(s)
+		var pct := Label.new()
+		pct.text = "100 %"
+		pct.custom_minimum_size = Vector2(60, 0)
+		row.add_child(pct)
+		_ws_sliders[r[0]] = s
+		_ws_vals[r[0]] = pct
+	var done := Button.new()
+	done.name = "ws_done"
+	done.text = "Done"
+	done.focus_mode = Control.FOCUS_NONE
+	done.pressed.connect(_ws_pop.hide)
+	v.add_child(done)
+
+
+## a slider moved: the clip is worked out again from the base cards. The first move of a drag takes the one undo step
+func _ws_changed(_v: float) -> void:
+	var sp: float = _ws_sliders["speed"].value
+	var sw: float = _ws_sliders["swagger"].value
+	var bo: float = _ws_sliders["bounce"].value
+	_ws_vals["speed"].text = "%d %%" % roundi(sp)
+	_ws_vals["swagger"].text = "%d %%" % roundi(sw)
+	_ws_vals["bounce"].text = "%d %%" % roundi(bo)
+	var S: Scene = m.S
+	if not _ws_pushed:
+		m._step_easy = "Walk style" if m.easy.on else ""   # the undo step's Easy name
+		m._push_undo()
+		m._step_easy = ""
+		_ws_pushed = true
+	S.cards = WalkStyle.styled(_ws_base, m.B, S.solid_props(), sp, sw, bo)
+	m._retimed()
+	m._say_plain("Walk style: speed %d %%, swagger %d %%, bounce %d %%. The clip now takes %.1f s." % [roundi(sp), roundi(sw), roundi(bo), S.length()])
+
+
+## a drag let go: the next drag takes its own undo step, and the clip plays once from its start
+func _ws_released(_changed := false) -> void:
+	_ws_pushed = false
+	_play()
+	m.easy.frame_clip_next()
