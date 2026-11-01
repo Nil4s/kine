@@ -437,11 +437,13 @@ func _hole_box() -> PanelContainer:
 		h.add_child(sb)
 		hole_btns["screw%d" % sd] = sb
 	_hpat_chips(h)   # s029: Row / Around / Grid of holes
+	_fill_chips(h)   # s051: Fill the face
 	_printer_chip(h)   # p203screwholea: the printer chip (resin tight, FDM loose)
 	var fb := _big_btn("easypart_hole_fits", "What fits here?", "Ask which of My Parts go through this hole (the saved parts that fit it). No step: it only tells you", _fits_press)   # P076
 	fb.custom_minimum_size = Vector2(150, 44)
 	h.add_child(fb)
 	h.add_child(hpat_box)   # s029: the pattern sliders come last, so the chips above stay on their lines
+	h.add_child(fill_box)   # s051: the Fill the face shapes and sliders
 	return box
 
 
@@ -1242,6 +1244,8 @@ func _set_value(row: Dictionary, v: float, final: bool) -> void:
 		_apply_rep(row, v)
 	elif row["kind"] == "hpat":
 		_apply_hpat(row, v)
+	elif row["kind"] == "fill":
+		_apply_fill(row, v)   # s051
 	elif row["kind"] == "taper":
 		_apply_taper(v)
 	elif row["kind"] == "twist":
@@ -3940,6 +3944,8 @@ func input(ev: InputEvent) -> bool:
 					_hpat_press(p)
 				elif bulge_pick and armed == "":   # plan 23: Pinch / Bulge is waiting for a flat face
 					_bulge_click(p)
+				elif fill_pick:   # s051: Fill the face is waiting for the face
+					_fill_click(p)
 				elif not _open_face(p):   # NOPENTOP: after Hollow inside, a flat face click opens that side; any other click picks a piece
 					_pick_at(p)
 		if not _draft.is_empty():
