@@ -2132,6 +2132,7 @@ func _lib_box() -> PanelContainer:
 		fl.add_child(b)
 		lib_btns[cat] = b
 	fl.add_child(_kids_chip_make())   # p197kidsmode: the Kids chip, last on the library page
+	fl.add_child(_challenge_chip_make())   # s165: Challenges, after Kids
 	lib_soon = Label.new()
 	lib_soon.name = "easypart_lib_soon"
 	lib_soon.add_theme_font_size_override("font_size", 14)
@@ -7007,3 +7008,24 @@ func _theme_sync() -> void:
 	for lone in [size_l, edge_num]:   # these two sit under a wrapper that is not named easypart
 		if lone != null:
 			EPTheme.retint(lone)
+
+
+## s165 BUILD-ALONG CHALLENGES: the Challenges chip on the Parts library page opens a card (scripts/easy_challenge.gd) at the bottom left of the clear view
+var challenge_btn: Button
+var challenge_card: EasyChallenge
+
+
+func _challenge_chip_make() -> Button:
+	challenge_card = EasyChallenge.new()
+	challenge_card.ep = self
+	panel.get_parent().add_child(challenge_card)   # the panel is already in the Easy Part root
+	challenge_btn = Button.new()
+	challenge_btn.name = "easypart_challenges"
+	challenge_btn.text = "Challenges"
+	challenge_btn.tooltip_text = "Challenges: a target picture to build, and a score for how close you got"
+	challenge_btn.toggle_mode = true
+	challenge_btn.focus_mode = Control.FOCUS_NONE
+	challenge_btn.custom_minimum_size = Vector2(0, PLAIN_H)
+	challenge_btn.add_theme_font_size_override("font_size", 12)
+	challenge_btn.pressed.connect(challenge_card.toggle)
+	return challenge_btn
