@@ -500,3 +500,7 @@ EXTRA="$EXTRA s097:w"   # s097 (Friday plan 97): Ctrl+K / the bar icon opens one
 
 
 EXTRA="$EXTRA s016:w"   # s016: Wall slider shows the part cut in half (a contrasting band) while held and 1.5 s after
+
+
+EXTRA="$EXTRA s018:w"   # S018 (Friday 18): Thinner / thicker everywhere slider under How far offsets every face of the whole part (box +-1 mm, plate hole 10 -> 8 mm); one undo step; Pull it up still edits (tests/s018_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA s018:w"   # S018 (Friday 18): Thinner / thicker everywhere slider under How far offsets every face of the whole part (box +-1 mm, plate hole 10 -> 8 mm); one undo step; Pull it up still edits (tests/s018_test.gd; needs the CAD DLL)
