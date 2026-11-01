@@ -121,17 +121,17 @@ func _init() -> void:
 	both("calf", V(10, 0, 0), o)
 	pose("tired_heavy_arms", "Tired: bent forward, arms swinging heavy and forward, knees soft", o)
 	# ---------------------------------------------------------------- proud
-	o = {"spine_01": V(-3, 0, 0), "spine_02": V(-3, 0, 0), "spine_03": V(-3, 0, 0), "neck_01": V(-8, 0, 0), "head": V(-8, 0, 0)}
+	o = {"spine_01": V(-2.3, 0, 0), "spine_02": V(-2.3, 0, 0), "spine_03": V(-2.3, 0, 0), "neck_01": V(-4, 0, 0), "head": V(-6, 0, 0)}
 	both("clavicle", V(4, -10, 0), o)
 	both("upperarm", V(0, -60, 0), o)
 	both("lowerarm", V(10, 0, 0), o)
 	pose("proud_chest_out", "Proud: chest up, chin up, shoulders back, arms easy at the sides", o)
-	o = {"spine_01": V(-3, 0, 0), "spine_02": V(-3, 0, 0), "spine_03": V(-3, 0, 0), "neck_01": V(-8, 0, 0), "head": V(-8, 0, 0)}
+	o = {"spine_01": V(-2.3, 0, 0), "spine_02": V(-2.3, 0, 0), "spine_03": V(-2.3, 0, 0), "neck_01": V(-4, 0, 0), "head": V(-6, 0, 0)}
 	both("clavicle", V(4, -10, 0), o)
 	both("upperarm", V(-15, -40, 0), o)
 	both("lowerarm", V(100, 0, 0), o)
 	pose("proud_hands_on_hips", "Proud: fists on the hips, elbows out, chest up, chin up", o, 0.6)
-	o = {"spine_01": V(-3, 0, 0), "spine_02": V(-3, 0, 0), "spine_03": V(-3, 0, 0), "neck_01": V(-10, 0, 0), "head": V(-10, 0, 0)}
+	o = {"spine_01": V(-2.3, 0, 0), "spine_02": V(-2.3, 0, 0), "spine_03": V(-2.3, 0, 0), "neck_01": V(-5, 0, 0), "head": V(-7, 0, 0)}
 	both("clavicle", V(8, -10, 0), o)
 	both("upperarm", V(0, 55, 0), o)
 	both("lowerarm", V(10, 0, 0), o)

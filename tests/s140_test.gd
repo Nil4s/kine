@@ -304,28 +304,47 @@ func _init() -> void:
 	var low := PoseMood.MOODS.filter(func(md): return counts[md] < 2)
 	ok(low.is_empty() and mism == 0, "EIGHT: poses per mood %s (moods under 2: %s; tags the fresh-body rule rejects: %d)" % [counts, low, mism])
 	# ---------------------------------------------------------------- 7 REAL HUMANS
-	for nm in ["calm_easy", "tired_slump", "tired_droop", "proud_chest_out", "scared_shield"]:
-		var d := load_pose("res://poses/lib/%s.json" % nm)
-		var bd := fresh(d)
-		var c7: Vector3 = bd.P["neck_01"]
-		var ear: Vector3 = (bd.P["head"] as Vector3).lerp(bd.E["head"], 0.35)   # the ear canal sits ~ a third of the way up the skull
-		var fwd: Vector3 = ((bd.P["upperarm_l"] - bd.P["upperarm_r"]) as Vector3).cross(Vector3.UP)
-		fwd.y = 0.0
-		fwd = fwd.normalized()
-		var cva := rad_to_deg(atan2(ear.y - c7.y, (ear - c7).dot(fwd)))
-		print("     REAL %-16s craniovertebral angle %.1f deg (published: normal >= 53, forward head < 50, standing mean 48.1 +- 6.5 elderly, 37.2 young women), head pitch %.0f deg, cervical flexion range of the mannequin: neck+head bend %.0f of 60 deg" % [nm, cva, pitch(bd, fwd), bd.ang["neck_01"].x + bd.ang["head"].x])
-		if nm == "calm_easy":
-			ok(cva >= 53.0 - 8.0, "REAL calm_easy: CVA %.1f deg is in the normal range (>= 53 - 1 SD 8)" % cva)
-		elif nm.begins_with("tired"):
-			ok(cva < 50.0, "REAL %s: CVA %.1f deg is a forward-head posture (< 50), as a slump is" % [nm, cva])
-		elif nm == "proud_chest_out":
-			ok(cva >= 53.0 - 8.0, "REAL proud_chest_out: CVA %.1f deg is not forward-head (>= 45): chin up, head over the shoulders" % cva)
-	# scared_shield against arm anthropometry: the hand must be reachable: shoulder to wrist <= arm length (upper arm + forearm of the same mannequin) and elbow in its range
-	var dg := load_pose("res://poses/lib/scared_shield.json")
-	var bg := fresh(dg)
-	var reach: float = (bg.P["hand_l"] as Vector3).distance_to(bg.P["upperarm_l"])
-	var arm_len: float = (bg.P["lowerarm_l"] as Vector3).distance_to(bg.P["upperarm_l"]) + (bg.P["hand_l"] as Vector3).distance_to(bg.P["lowerarm_l"])
-	print("     REAL scared_shield: shoulder-to-wrist %.2f m of a %.2f m arm, elbow %.0f deg (human range 0-145), hand to face centre %.2f m" % [reach, arm_len, bg.ang["lowerarm_l"].x, (bg.P["hand_l"] as Vector3).distance_to(((bg.P["head"] as Vector3) + (bg.E["head"] as Vector3)) * 0.5)])
-	ok(reach <= arm_len + 0.001 and bg.ang["lowerarm_l"].x <= 145.0, "REAL scared_shield: the guard is within the arm's reach and the elbow's range")
+	# CRANIOVERTEBRAL ANGLE (CVA): the angle between the horizontal and the line from C7 to the tragion, in the sagittal plane.
+	# Landmarks in the mannequin's own scale: C7 = the spinous process, the base of the neck bone (neck_01) moved BACK by 0.8 x the neck's
+	# radius (0.06 m, data/body_limits.json) along the neck's own forward axis (the process sits behind the vertebral body the joint marks);
+	# tragion = the head joint (skull base, 8.1 cm above the neck base) + 1 cm up the head's axis + 1 cm in front of the head's centre line,
+	# turned with the head (the ear is about level with the eyes, ~ 8.6 cm above C7 in a neutral adult). Published: normal >= 53 (some >= 55),
+	# forward head < 50, standing means 48.1 +- 6.5 (elderly sample), 37.2 (young women, standing), neutral adult standing 48 to 55.
+	var cva_of := func(bd: Body) -> float:
+		var fw: Vector3 = ((bd.P["upperarm_l"] - bd.P["upperarm_r"]) as Vector3).cross(Vector3.UP)
+		fw.y = 0.0
+		fw = fw.normalized()
+		var nf: Vector3 = (bd.G["neck_01"] as Quaternion) * Vector3(0, 0, 1)
+		var c7: Vector3 = (bd.P["neck_01"] as Vector3) - nf * 0.8 * 0.06
+		var ax: Vector3 = ((bd.E["head"] as Vector3) - (bd.P["head"] as Vector3)).normalized()
+		var hf: Vector3 = (bd.G["head"] as Quaternion) * Vector3(0, 0, 1)
+		var tr: Vector3 = (bd.P["head"] as Vector3) + ax * 0.01 + hf * 0.01
+		return rad_to_deg(atan2(tr.y - c7.y, (tr - c7).dot(fw)))
+	var cva := {}
+	for nm in ["stand", "tired_slump", "tired_droop", "calm_easy", "proud_chest_out"]:
+		var path := "res://poses/stand.json" if nm == "stand" else "res://poses/lib/%s.json" % nm
+		var bd := fresh(load_pose(path))
+		cva[nm] = cva_of.call(bd)
+		print("     CVA %-16s %.1f deg" % [nm, cva[nm]])
+	ok(cva["stand"] >= 48.0 and cva["stand"] <= 55.0, "REAL stand: CVA %.1f deg is in the neutral adult range 48-55 (the landmark check)" % cva["stand"])
+	ok(cva["tired_slump"] < 50.0 and cva["tired_droop"] < 50.0, "REAL tired: CVA %.1f / %.1f deg are forward-head (< 50)" % [cva["tired_slump"], cva["tired_droop"]])
+	ok(cva["tired_droop"] < cva["tired_slump"] and cva["tired_slump"] < cva["stand"], "REAL tired: the deeper slump has the smaller CVA (%.1f < %.1f < stand %.1f)" % [cva["tired_droop"], cva["tired_slump"], cva["stand"]])
+	ok(cva["calm_easy"] >= 50.0 and cva["calm_easy"] <= 65.0, "REAL calm_easy: CVA %.1f deg is normal (50-65)" % cva["calm_easy"])
+	ok(cva["proud_chest_out"] >= 50.0 and cva["proud_chest_out"] <= 65.0, "REAL proud_chest_out: CVA %.1f deg is normal-to-high (50-65)" % cva["proud_chest_out"])
+	# SCARED reach: per scared pose, the guarding arm (the hand nearest the face): shoulder-to-wrist reach against the arm's length, elbow, hand-to-face
+	var reach_n := 0
+	for nm in ["scared_shield", "scared_hand_to_mouth", "scared_back_away"]:
+		var bg := fresh(load_pose("res://poses/lib/%s.json" % nm))
+		var fc: Vector3 = ((bg.P["head"] as Vector3) + (bg.E["head"] as Vector3)) * 0.5
+		var sd := "l" if (bg.P["hand_l"] as Vector3).distance_to(fc) < (bg.P["hand_r"] as Vector3).distance_to(fc) else "r"
+		var rch: float = (bg.P["hand_" + sd] as Vector3).distance_to(bg.P["upperarm_" + sd])
+		var alen: float = (bg.P["lowerarm_" + sd] as Vector3).distance_to(bg.P["upperarm_" + sd]) + (bg.P["hand_" + sd] as Vector3).distance_to(bg.P["lowerarm_" + sd])
+		var elb: float = bg.ang["lowerarm_" + sd].x
+		var hf: float = (bg.P["hand_" + sd] as Vector3).distance_to(fc)
+		print("     REACH %-22s arm %s: shoulder-to-wrist %.3f m of a %.3f m arm (%.0f %%), elbow %.0f deg, hand to face centre %.2f m" % [nm, sd, rch, alen, rch / alen * 100.0, elb, hf])
+		# not vacuous: the arm is really bent (reach clearly under its length, elbow >= 60) and the hand is at the face
+		ok(rch <= alen + 0.001 and rch < 0.9 * alen and rch > 0.15 and elb >= 60.0 and elb <= 145.0 and hf <= 0.40, "REACH %s: %.3f m of %.3f m, elbow %.0f deg, %.2f m from the face" % [nm, rch, alen, elb, hf])
+		reach_n += 1
+	ok(reach_n == 3, "REACH: %d scared poses measured" % reach_n)
 	print("s140: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
