@@ -29,6 +29,12 @@ var strength := 1.0
 var falloff := KMeshSculpt.F_SMOOTH
 var sym_x := false
 var blur := false
+var softness := 1.0     # Friday plan 158: 1 = the falloff over the whole radius (as before), 0 = a hard-edged round brush
+var sticker_on := false # armed: the next left click places the sticker instead of painting
+var sticker_name := "star"
+var sticker_img: Image  # a loaded PNG (sticker_name "file") or the built-in
+var sticker_size := 0.2 # metres across
+var sticker_rot := 0.0  # degrees
 var dropper := false    # the panel's eyedropper: the next click on the mesh picks its colour
 var _stroking := false
 var _hover := {}        # {"point" (world), "face"} under the mouse, or {}
@@ -141,7 +147,7 @@ func params(ev: InputEvent = null) -> Dictionary:
 	var b := blur
 	if ev is InputEventWithModifiers and (ev as InputEventWithModifiers).shift_pressed:
 		b = true
-	return {"color": color, "mode": mode, "radius": radius, "strength": strength, "falloff": falloff, "blur": b, "sym_x": sym_x}
+	return {"color": color, "mode": mode, "radius": radius, "strength": strength, "falloff": falloff, "blur": b, "sym_x": sym_x, "hardness": 1.0 - softness}
 
 
 func _status() -> void:
@@ -235,6 +241,9 @@ func input(ev: InputEvent) -> bool:
 			if mb.ctrl_pressed or dropper:
 				pick_color(KMeshVPaint.sample(mesh, s["face"], _local(s["point"])))
 				return true
+			if sticker_on:
+				place_sticker(int(s["face"]), _local(s["point"]))
+				return true
 			ui.undo.begin(mesh)
 			vp.begin(mesh, params(mb))
 			vp.to(_local(s["point"]), 1.0, int(s["face"]))
@@ -242,7 +251,7 @@ func input(ev: InputEvent) -> bool:
 			view.mark_dirty()
 			return true
 		if not _stroking:
-			return false
+			return sticker_on   # a sticker click is used on press; its release is too
 		_stroking = false
 		vp.end()
 		var st: Dictionary = ui.undo.commit("vertex paint " + ("blur" if vp.p["blur"] else String(vp.p["mode"])))
@@ -271,6 +280,10 @@ func _draw_overlay() -> void:
 		return
 	var sc := cam.unproject_position(c)
 	var rp := cam.unproject_position(c + cam.global_transform.basis.x * radius * view.global_transform.basis.get_scale().x)
+	if sticker_on:
+		var hr := sc.distance_to(cam.unproject_position(c + cam.global_transform.basis.x * sticker_size * 0.5 * view.global_transform.basis.get_scale().x))
+		_ov.draw_rect(Rect2(sc - Vector2.ONE * hr, Vector2.ONE * hr * 2.0), Tok.c("pick_hover"), false, 1.5)
+		return
 	_ov.draw_arc(sc, sc.distance_to(rp), 0.0, TAU, 48, color if not blur else Tok.c("pick_hover"), 1.5, true)
 
 
@@ -324,6 +337,22 @@ func _build_panel() -> void:
 	bl.toggled.connect(_panel_set.bind("blur"))
 	box.add_child(bl)
 	_w["blur"] = bl
+	var so := HBoxContainer.new()
+	box.add_child(so)
+	var sl := Label.new()
+	sl.text = "soft"
+	so.add_child(sl)
+	var ss := HSlider.new()
+	ss.name = "softness"
+	ss.min_value = 0.0
+	ss.max_value = 100.0
+	ss.step = 1.0
+	ss.custom_minimum_size = Vector2(130, 18)
+	ss.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ss.value_changed.connect(_panel_set.bind("softness"))
+	so.add_child(ss)
+	_w["softness"] = ss
+	_build_sticker_panel(box)
 	var row := HBoxContainer.new()
 	box.add_child(row)
 	for b in [["eyedropper", arm_dropper], ["fill", fill_selection], ["done", stop]]:
@@ -354,6 +383,15 @@ func _panel_set(v, what: String) -> void:
 			radius = float(v) / 1000.0
 		"strength":
 			strength = float(v) / 100.0
+		"softness":
+			softness = float(v) / 100.0
+		"sticker_name":
+			sticker_name = String(sticker_options()[v])
+			sticker_img = null if sticker_name == "file" else KMeshSticker.builtin(sticker_name)
+		"sticker_size":
+			sticker_size = float(v) / 1000.0
+		"sticker_rot":
+			sticker_rot = float(v)
 		_:
 			set(what, v)
 	_ov.queue_redraw()
@@ -368,6 +406,154 @@ func _sync_panel() -> void:
 	_w["falloff"].select(KMeshSculpt.FALLOFFS.find(falloff))
 	_w["radius"].value = radius * 1000.0
 	_w["strength"].value = strength * 100.0
+	_w["softness"].value = softness * 100.0
+	_w["sticker_size"].value = sticker_size * 1000.0
+	_w["sticker_rot"].value = sticker_rot
+	_w["sticker_on"].button_pressed = sticker_on
 	_w["sym_x"].button_pressed = sym_x
 	_w["blur"].button_pressed = blur
 	_sync = false
+
+
+# ---------------------------------------------------------------- stickers (Friday plan 158)
+
+func sticker_options() -> Array:
+	return KMeshSticker.NAMES + ["file"]
+
+
+func _build_sticker_panel(box: VBoxContainer) -> void:
+	box.add_child(HSeparator.new())
+	var row := HBoxContainer.new()
+	box.add_child(row)
+	var so := OptionButton.new()
+	for n in sticker_options():
+		so.add_item(String(n) if n != "file" else "PNG file")
+	so.item_selected.connect(_panel_set.bind("sticker_name"))
+	row.add_child(so)
+	_w["sticker_name"] = so
+	var on_b := Button.new()
+	on_b.text = "Sticker"
+	on_b.toggle_mode = true
+	on_b.focus_mode = Control.FOCUS_NONE
+	on_b.toggled.connect(func(v: bool):
+		if not _sync:
+			set_sticker_on(v))
+	row.add_child(on_b)
+	_w["sticker_on"] = on_b
+	var pb := Button.new()
+	pb.text = "PNG..."
+	pb.focus_mode = Control.FOCUS_NONE
+	pb.pressed.connect(_pick_png)
+	row.add_child(pb)
+	_w["sticker_png"] = pb
+	var r1 := HBoxContainer.new()
+	box.add_child(r1)
+	for f in [["sticker_size", "size", 10.0, 1000.0, "mm"], ["sticker_rot", "turn", -180.0, 180.0, "deg"]]:
+		var sb := SpinBox.new()
+		sb.min_value = f[2]
+		sb.max_value = f[3]
+		sb.step = 1.0
+		sb.prefix = f[1]
+		sb.suffix = f[4]
+		sb.custom_minimum_size = Vector2(112, 0)
+		sb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		sb.value_changed.connect(_panel_set.bind(f[0]))
+		r1.add_child(sb)
+		_w[f[0]] = sb
+	var r2 := HBoxContainer.new()
+	box.add_child(r2)
+	for b in [["denser", densify], ["save", save_colours]]:
+		var bt := Button.new()
+		bt.text = b[0]
+		bt.focus_mode = Control.FOCUS_NONE
+		bt.pressed.connect(b[1])
+		r2.add_child(bt)
+		_w[b[0]] = bt
+
+
+func set_sticker_on(v: bool) -> void:
+	sticker_on = v
+	dropper = false
+	if v and sticker_img == null:
+		sticker_img = KMeshSticker.builtin(sticker_name if sticker_name != "file" else "star")
+	_ov.queue_redraw()
+	_sync_panel()
+	if v:
+		m._say("Paint: sticker armed (%s, %d mm). Click the mesh to place it; size and turn in the panel; Ctrl+Z takes the last one back" % [sticker_name, roundi(sticker_size * 1000.0)])
+
+
+func _pick_png() -> void:
+	var fd := FileDialog.new()
+	fd.file_mode = FileDialog.FILE_MODE_OPEN_FILE
+	fd.access = FileDialog.ACCESS_FILESYSTEM
+	fd.filters = PackedStringArray(["*.png ; PNG image"])
+	fd.title = "Sticker image (PNG)"
+	fd.size = Vector2i(560, 380)
+	fd.file_selected.connect(func(path: String):
+		use_png(path)
+		fd.queue_free())
+	fd.canceled.connect(fd.queue_free)
+	m.add_child(fd)
+	fd.popup_centered()
+
+
+## a PNG as the sticker; true when it loaded
+func use_png(path: String) -> bool:
+	var img := KMeshSticker.load_png(path)
+	if img == null:
+		m._say("Paint: could not read '%s' as a PNG sticker" % path)
+		return false
+	sticker_img = img
+	sticker_name = "file"
+	_sync = true
+	_w["sticker_name"].select(sticker_options().find("file"))
+	_sync = false
+	m._say("Paint: sticker image %s (%d x %d)" % [path.get_file(), img.get_width(), img.get_height()])
+	return true
+
+
+## place the sticker at a surface point of face `face` (mesh-local): ONE undo step. Returns the corners coloured.
+func place_sticker(face: int, point: Vector3) -> int:
+	if sticker_img == null:
+		sticker_img = KMeshSticker.builtin(sticker_name if sticker_name != "file" else "star")
+	ui.undo.begin(mesh)
+	var n := KMeshSticker.place(mesh, face, point, sticker_img, sticker_size, deg_to_rad(sticker_rot))
+	var st: Dictionary = ui.undo.commit("sticker " + sticker_name)
+	view.show_color = true
+	view.mark_dirty()
+	if not st.is_empty():
+		m._say("Paint: sticker %s placed (%d corners coloured), one undo step (Ctrl+Z takes it back)" % [sticker_name, n])
+	return n
+
+
+## "denser": one subdivision level so a small brush or a sticker has vertices to colour (Ctrl+Z takes it back)
+func densify() -> void:
+	if not on or ui == null:
+		return
+	if mesh.domain_count(KMesh.AD_CORNER) > 60000:
+		m._say("Paint: the mesh is already dense (%d faces)" % mesh.face_count())
+		return
+	if not (mesh.shapes.get("keys", []) as Array).is_empty():
+		m._say("Paint: this mesh has shape keys, which a split would break. Delete them first")
+		return
+	ui.undo.begin(mesh)
+	var r := KMeshSubdiv.subdivide(mesh, 1, INF)   # every edge sharp: the faces split, the shape stays (no rounding)
+	mesh.attrs = {}
+	mesh.from_arrays(r.verts, r.faces)
+	mesh.attrs = r.attrs
+	if not mesh.shapes.is_empty():
+		mesh.shapes["basis"] = mesh.verts.duplicate()   # no keys: the basis is the mesh as it is now (the file loads again)
+	ui.undo.commit("denser")
+	ui.sel.clear()
+	view.mark_dirty()
+	m._say("Paint: the mesh is denser, %d faces (each face split in four, same shape). Ctrl+Z takes it back" % mesh.face_count())
+
+
+## "save": the mesh with its colours as a .kmesh in the exports folder; returns its path
+func save_colours() -> String:
+	var dir := UserPaths.w("res://exports")
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(dir))
+	var path := ProjectSettings.globalize_path(dir) + "/painted_model.kmesh"
+	var e := mesh.save(path)
+	m._say("Paint: saved the colours with the mesh to %s" % path if e == OK else "Paint: NOT saved (%s)" % KMesh.last_error)
+	return path if e == OK else ""

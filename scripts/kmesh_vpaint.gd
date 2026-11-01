@@ -32,7 +32,7 @@ const DARKEN := "darken"
 const MODES := [MIX, ADD, SUB, MUL, LIGHTEN, DARKEN]
 
 const DEFAULTS := {"color": Color(0.9, 0.15, 0.1, 1.0), "mode": MIX, "radius": 0.1, "strength": 1.0,
-	"falloff": KMeshSculpt.F_SMOOTH, "spacing": 0.1, "blur": false, "sym_x": false}
+	"falloff": KMeshSculpt.F_SMOOTH, "spacing": 0.1, "blur": false, "sym_x": false, "hardness": 0.0}
 
 var mesh: KMesh
 var p := {}
@@ -237,7 +237,7 @@ func weights(hit: Vector3, pressure := 1.0, face := -1) -> Dictionary:
 	var fk := String(p["falloff"])
 	var out := {}
 	for v in _sc.verts_in(hit, r):
-		var w := a * KMeshSculpt.falloff(fk, mesh.verts[v].distance_to(hit) / r)
+		var w := a * KMeshSculpt.falloff(fk, _soft_t(mesh.verts[v].distance_to(hit) / r))
 		if w <= 0.0:
 			continue
 		_put(out, v, w)
@@ -323,3 +323,12 @@ static func export_glb(m: KMesh, path: String, node_name := "kmesh") -> Error:
 		err = doc.write_to_filesystem(st, abs)
 	root.free()
 	return err
+
+
+## SOFTNESS (Friday plan 158): hardness 0 = the falloff curve over the whole radius (as it always was); hardness h = full
+## weight out to h * radius, the curve over the rest. t is distance / radius; returns the t the curve is read at.
+func _soft_t(t: float) -> float:
+	var h := clampf(float(p.get("hardness", 0.0)), 0.0, 0.999)
+	if h <= 0.0 or t <= h:
+		return 0.0 if h > 0.0 else t
+	return (t - h) / (1.0 - h)
