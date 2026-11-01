@@ -62,6 +62,7 @@ extends RefCounted
 
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
+const PBULGE := preload("res://scripts/build/part_bulge.gd")   # plan 23: Pinch / Bulge a face
 const GEAR_DRIVE := preload("res://scripts/gear_drive.gd")   # s124: the Gear pair turned for the view
 const SKIN_MM := 0.3   # NROUNDFILTER: a face centre this close (mm) to the box's outside counts as on the skin
 const VERSION := 1
@@ -546,6 +547,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var fe := _face_op(bodies, f)
 				if fe != "":
 					errs[id] = fe
+			"bulge":   # plan 23: the middle of a flat face moved in or out (scripts/build/part_bulge.gd)
+				var bue := PBULGE.apply(bodies, f, match_face, _bbox_of_points)
+				if bue != "":
+					errs[id] = bue
 			"split", "shell":   # the record's split / shell steps (their own functions: _split, _shell)
 				var e := _split(bodies, f, looks) if String(f["t"]) == "split" else _shell(bodies, f)
 				if e != "":

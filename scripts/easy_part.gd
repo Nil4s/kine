@@ -649,6 +649,10 @@ func _tilt_box() -> PanelContainer:
 	pull_along_btn.custom_minimum_size = Vector2(230, 44)
 	pull_along_btn.visible = false
 	row.add_child(pull_along_btn)
+	bulge_btn = _big_btn("easypart_bulge", "Pinch / Bulge a face", "Click a flat face: its middle moves out (a dome) or in (a dish), the rim stays. A slider -1..1 sets how much", _bulge_press)   # plan 23: under any solid, in the box of the newest-step chips
+	bulge_btn.toggle_mode = true
+	bulge_btn.custom_minimum_size = Vector2(230, 44)
+	row.add_child(bulge_btn)
 	return box
 
 
@@ -1422,7 +1426,7 @@ func tweak_last() -> void:
 	var t := String(f.get("t", ""))
 	if t == "shell":
 		tweak = {"id": f["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
-	elif t == "lattice":   # p208latticeinf: a reopened part keeps its Gap slider
+	elif t == "lattice" or t == "bulge":   # p208latticeinf: a reopened part keeps its Gap slider; plan 23: and its Pinch / Bulge slider
 		tweak = _step_tweak(f)
 	elif t == "loft" and f.has("twist"):   # P027: a reopened blend keeps its Twist slider
 		tweak = _twist_tweak(String(f["id"]))
@@ -3538,6 +3542,7 @@ func _curve_keep(pts: Array, maxn: int) -> Array:
 func _process(_dt: float) -> void:
 	if bar == null or pu == null:
 		return
+	_theme_sync()   # plan 109: the boxes follow Light / Dark
 	_grid_labels_sync()   # p108measuregri: the grid's numbers follow the zoom (view only)
 	pu.replay_forget()   # the same-frame replay reuse (PartUI.replay_once) ends with the frame
 	_cut_sync()   # P101 SECTION: the Cut view follows the built part, and goes off when Easy is left
@@ -3613,7 +3618,8 @@ func _process(_dt: float) -> void:
 	flat_box.visible = flat_on
 	paint_btn.set_pressed_no_signal(paint_on)
 	suggest_row.visible = on and _suggest_on()   # P092: after a Pull it up the two next-step chips show in the panel, under the slider rows
-	tilt_box.visible = on and armed == "" and (along or tilt_on or draft_on or swing_on)
+	var bulge_on := on and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # plan 23: Pinch / Bulge a face is offered under any solid
+	tilt_box.visible = on and (armed == "" or bulge_pick) and (along or tilt_on or draft_on or swing_on or bulge_on)
 	_overhang_sync(on)
 	_com_sync(on)   # P128: the centre-of-mass dot
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
@@ -3916,6 +3922,8 @@ func input(ev: InputEvent) -> bool:
 					_wall_press(p)
 				elif hpat_pick:   # s029: Pick centre is waiting for the click
 					_hpat_press(p)
+				elif bulge_pick and armed == "":   # plan 23: Pinch / Bulge is waiting for a flat face
+					_bulge_click(p)
 				elif not _open_face(p):   # NOPENTOP: after Hollow inside, a flat face click opens that side; any other click picks a piece
 					_pick_at(p)
 		if not _draft.is_empty():
@@ -4651,6 +4659,8 @@ func _step_words_plain(f: Dictionary) -> String:
 			return "Drew a shape"
 		"lay":
 			return "Laid it flat"
+		"bulge":
+			return "Bulged a face %s" % _plain_num(float(f.get("k", 0.0)))
 		"loft":
 			return "Blended two shapes"
 		"extrude":
@@ -4717,6 +4727,8 @@ func _step_tweak(f: Dictionary) -> Dictionary:
 			return {"id": id, "field": "gap", "label": "Gap", "unit": "mm", "lo": 6.0, "hi": 20.0, "step": 1.0, "scale": 1.0, "words": ["Denser", "Airier"]}
 		"loft":
 			return _twist_tweak(id) if f.has("twist") else {}
+		"bulge":
+			return {"id": id, "field": "k", "label": "Pinch / Bulge", "unit": "bulge", "lo": -1.0, "hi": 1.0, "step": 0.05, "scale": 1.0, "words": ["Pinch", "Bulge"]}
 	return {}
 
 
@@ -6362,6 +6374,7 @@ func _level_build(root: Control) -> void:
 		l.horizontal_alignment = [HORIZONTAL_ALIGNMENT_LEFT, HORIZONTAL_ALIGNMENT_CENTER, HORIZONTAL_ALIGNMENT_RIGHT][i]
 		wr.add_child(l)
 		level_words.append(l)
+	vb.add_child(_theme_row())   # plan 109: Light / Dark, in the same small settings popup
 	root.add_child(level_box)
 
 
@@ -6875,3 +6888,122 @@ func _rib_sync() -> void:
 	rib_t_sl.set_value_no_signal(rib_t)
 	_rib_loading = false
 	_rib_labels()
+
+
+## PINCH / BULGE a face (Friday plan 23): the chip under the step list arms a face pick; the next click on a flat face adds ONE step
+## (scripts/build/part_bulge.gd, one undo step) at Bulge 0.5, and the usual slider (-1 pinch .. +1 bulge) edits that step
+var bulge_btn: Button
+var bulge_pick := false
+
+
+func _bulge_press() -> void:
+	if not Part.available():
+		bulge_btn.set_pressed_no_signal(false)
+		_say(Part.why_not())
+		return
+	armed = ""
+	bulge_pick = bulge_btn.button_pressed
+	_say("Click a flat face: its middle will bulge out. The slider then goes from Pinch to Bulge" if bulge_pick else "Pinch / Bulge is off")
+
+
+func _bulge_click(p: Vector2) -> void:
+	bulge_pick = false
+	bulge_btn.set_pressed_no_signal(false)
+	var fc := _face_hit(p)
+	if fc.is_empty():
+		_say("That is not a flat face: press Pinch / Bulge a face and click a flat one")
+		return
+	_flush_if_dirty()
+	var res := Part.replay(_rec(), -1, {"faces": true})
+	var ax := FACE_BASE.find(String(fc["base"]))
+	var want: Vector3 = FACE_N[ax] * float(fc["out"])
+	var best: Variant = null
+	var best_d := INF
+	for cand in res.get("faces", []):
+		if (cand["n"] as Vector3).dot(want) < 0.99:
+			continue
+		var d: float = (cand["c"] as Vector3).distance_to(fc["hit"])
+		if d < best_d:
+			best_d = d
+			best = cand
+	if best == null:
+		_say("That face cannot be bent")
+		return
+	armed = ""
+	var snap := _rec().duplicate(true)
+	_begin("Bulge a face")
+	var f := Part.new_feature(_rec(), "bulge", {"body": int(best["body"]), "face": Part.describe_face(best), "k": 0.5})
+	_rec()["features"].append(f)
+	var why := _last_error(_rec(), String(f["id"]))
+	if why == "" and int(Part.replay(_rec())["bodies"]) != int(res.get("bodies", 1)):
+		why = "the part would break into pieces"
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("That face cannot be bent: " + why)
+		return
+	tweak = _step_tweak(f)
+	_end()
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	_say("Bulged the face: use the slider, Pinch to Bulge")
+
+
+## LIGHT / DARK (Friday plan 109): two toggle buttons in the "How many buttons?" popup. They call the app's own switch (VIEW > Light), which
+## remembers the choice in settings.cfg and re-reads it at start; the Easy Part boxes then follow (scripts/easy_part_theme.gd)
+var theme_btns := {}
+var _themed_dark := true
+var _theme_ms := 0
+
+
+func _theme_row() -> HBoxContainer:
+	var hb := HBoxContainer.new()
+	hb.name = "easypart_theme_row"
+	hb.add_theme_constant_override("separation", 6)
+	var cap := Label.new()
+	cap.text = "Look:"
+	cap.add_theme_font_size_override("font_size", 15)
+	hb.add_child(cap)
+	for k in ["Dark", "Light"]:
+		var b := Button.new()
+		b.name = "easypart_theme_" + k.to_lower()
+		b.text = k
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(90, 32)
+		b.button_pressed = (k == "Dark") == Tok.dark
+		b.tooltip_text = "%s look for the Part page, the panel, the step list and the view. Remembered" % k
+		b.pressed.connect(_theme_pick.bind(k == "Light"))
+		hb.add_child(b)
+		theme_btns[k] = b
+	return hb
+
+
+func _theme_pick(light: bool) -> void:
+	if Tok.dark == not light:
+		_theme_sync()
+		return
+	m._set_light(light)
+	_theme_sync()
+	_level_close_later()
+
+
+## the boxes take the palette now (once per change; a new box built in Light already has it from _style)
+func _theme_sync() -> void:
+	for k in theme_btns:
+		(theme_btns[k] as Button).set_pressed_no_signal((k == "Dark") == Tok.dark)
+	if _themed_dark == Tok.dark:
+		if Tok.dark or Time.get_ticks_msec() - _theme_ms < 400:
+			return   # Light: boxes built since (slider rows, chips) are tinted a few times a second
+	_themed_dark = Tok.dark
+	_theme_ms = Time.get_ticks_msec()
+	var rt := bar.get_parent()
+	for c in rt.get_children():
+		if String(c.name).to_lower().begins_with("easypart"):
+			EPTheme.retint(c)
+	for lone in [size_l, edge_num]:   # these two sit under a wrapper that is not named easypart
+		if lone != null:
+			EPTheme.retint(lone)
