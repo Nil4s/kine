@@ -464,7 +464,14 @@ func _build_browser() -> void:
 	browser.add_theme_stylebox_override("panel", _panel_style())
 	browser_vb = VBoxContainer.new()
 	browser_vb.add_theme_constant_override("separation", 2)
-	browser.add_child(browser_vb)
+	browser_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	browser.clip_contents = true   # s228: a part with many bodies (patterns make many) scrolls inside its own box, never over the timeline
+	var bsc := ScrollContainer.new()
+	bsc.name = "part_browser_scroll"
+	bsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	bsc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	browser.add_child(bsc)
+	bsc.add_child(browser_vb)
 	browser.visible = false
 	m.ui_root.add_child(browser)
 
@@ -2622,7 +2629,8 @@ func layout(cl: Rect2) -> void:
 	tl.position = Vector2(cl.position.x + 8.0, cl.end.y - TL_H - 4.0)
 	var avail := tl.position.y - cl.position.y - 12.0
 	browser.reset_size()
-	browser.size = Vector2(BROWSER_W, minf(browser.get_combined_minimum_size().y, avail))
+	var browser_need := browser_vb.get_combined_minimum_size().y + browser.get_theme_stylebox("panel").get_minimum_size().y
+	browser.size = Vector2(BROWSER_W, minf(browser_need, avail))
 	browser.position = Vector2(cl.position.x + 8.0, cl.position.y + 6.0)
 	side.reset_size()
 	# PCUBE: a dialog's own width can be more than PANEL_W (its rows); the panel grows and stays LEFT of the cube column
@@ -4397,6 +4405,7 @@ func _look_surfaces() -> void:
 # ---------------------------------------------------------------- PATTERN (GAP 30)
 
 const PAT_AXES := ["x", "y", "z"]
+const PArrayUI := preload("res://scripts/build/part_array_ui.gd")   # s228
 
 
 ## the PATTERN dialog: a kind (linear or circular), the body, the copies (the original counts), the spacing and direction or the axis and angle,
@@ -4453,6 +4462,7 @@ func _pattern_open(f: Dictionary, edit: int) -> void:
 	op_o.item_selected.connect(func(_i): _preview())
 	pat["op"] = op_o
 	dlg_rows.add_child(_pat_row("Result", op_o, ""))
+	PArrayUI.attach(self, f, edit)   # s228: Grid and Along a path (part_array_ui.gd)
 	_pattern_sync()
 	(pat["count"] as LineEdit).grab_focus()
 
@@ -4494,6 +4504,7 @@ func _pattern_sync() -> void:
 		(r as Control).visible = not circ
 	for r in pat["circ"]:
 		(r as Control).visible = circ
+	PArrayUI.sync(self)   # s228
 
 
 ## the feature the PATTERN dialog describes now ({} when a number is missing or wrong)
@@ -4512,6 +4523,8 @@ func _pattern_feature() -> Dictionary:
 		grp.sort()
 		f["bodies"] = grp
 		f["body"] = int(grp[0])
+	if int((pat["kind"] as OptionButton).selected) >= 2:   # s228: Grid / Along a path
+		return PArrayUI.finish(self, f, int((pat["kind"] as OptionButton).selected))
 	if circ:
 		var a := _num(pat["deg"])
 		if is_nan(a) or absf(a) < 1e-6:
