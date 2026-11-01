@@ -61,6 +61,24 @@ func click_ctl(c: Control) -> void:
 	await ev_mouse(p, true)
 	await ev_mouse(p, false)
 	await idle(3)
+	await settle_view()
+
+
+## s178: wait on a CONDITION, not a frame count: the camera has not moved for 10 frames and no ease is running (the EFRAME ease is 0.3 s of wall time,
+## a fixed idle(3) is shorter than that on a fast machine, so a drag aimed from scr() landed on a view still moving). Not a bar.
+func settle_view() -> void:
+	var last := [m.target, m.dist, m.yaw, m.pitch]
+	var stable := 0
+	var n := 0
+	while stable < 10 and n < 400:
+		await process_frame
+		var cur := [m.target, m.dist, m.yaw, m.pitch]
+		if cur == last and ep()._ease.is_empty():
+			stable += 1
+		else:
+			stable = 0
+		last = cur
+		n += 1
 
 
 func drag_screen(a: Vector2, b: Vector2) -> void:

@@ -452,3 +452,4 @@ EXTRA="$EXTRA s166:w"   # s166 (Friday plans 43 + 166): Trace a picture into a s
 EXTRA="$EXTRA s173:w"   # s173 (Friday plans 173 + 174): touch (one finger draws, two fingers orbit / pinch / tap = undo), pen pressure and gamepad (left stick orbit, triggers zoom, right stick pan, A fit, B back) (tests/s173_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA s175:w"   # Friday 175: undo memory budget (old steps packed, oldest forgotten with a note)
 EXTRA="$EXTRA s167:w"   # Friday 167: Easy Part start under 1 s from the BUILDING card (median of 5)
+EXTRA="$EXTRA s176:w"   # S176: one walk per Parts library category (read from LIB_CATS): first and last chip, real clicks; a solid, bbox inside 1 m (wood stock 2.5 m), one undo step, chip on screen and not under the view column (tests/s176_test.gd; needs the CAD DLL)
