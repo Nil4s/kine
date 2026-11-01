@@ -452,6 +452,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# N006 CONFLICT EXPLAINER (scripts/conflict_explain.gd): the smallest clashing set of wishes + the cost to free each; scene untouched
 			var cx := ConflictExplain.serve(m, p)
 			return _ok(id, cx) if cx["ok"] else _err(id, -32602, cx["error"], {"grammar": cx["grammar"]} if cx.has("grammar") else null)
+		"ornament":   # s227: an ornament step on the part (scripts/build/part_ornament.gd). Not in METHODS (the transcript ready line)
+			var orr := PartOrnament.serve(m, p)
+			return _ok(id, orr["result"]) if orr["ok"] else _err(id, -32602, String(orr["error"]))
 		"quit":
 			return _ok(id, {"bye": true})
 		"events":

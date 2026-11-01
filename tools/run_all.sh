@@ -600,3 +600,6 @@ EXTRA="$EXTRA s228:w"   # s228: patterns along paths and grids: Part pattern kin
 
 
 EXTRA="$EXTRA s230:w"   # s230: GPU tiers: adapter -> tier (RTX30 here), NVENC video export vs libx264, Fast view (FSR 2) fps; tests/s230_test.gd
+
+
+EXTRA="$EXTRA s227:w"   # s227: ornaments library + sculpt-into-part road

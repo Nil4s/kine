@@ -24,7 +24,7 @@ const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]   # Constrain: the rule row (CON_TOOLS, below)
-const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Primitive"]
+const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Primitive", "Ornament"]
 const PPRIMUI := preload("res://scripts/build/part_prim_ui.gd")   # s229: the Primitive dialog and the plane modes
 const TOOL_KIND := {"Primitive": "prim", "Offset plane": "plane", "Offset face": "offset_face", "Draft": "draft"}   # a tool's feature kind when it is not its lower-case name
 const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell", "Appearance", "Offset face", "Draft"]
@@ -63,6 +63,7 @@ const TIPS := {
 	"Combine": "COMBINE: click the target body (it stays), then the tool bodies, in the view or the browser. Pick Join, Cut or Intersect. Keep tools leaves them.",
 	"Canvas": "CANVAS: put a picture on the Front, Top or Right plane (or an offset plane). Click two points of known size, type the real distance, drag it to line up.",
 	"Loft": "LOFT: pick two or more sketches in order (each a closed profile); the solid runs through them. Ruled = straight, Smooth = curved.",
+	"Ornament": "ORNAMENT: a ridge beast, corner beasts, a lion, a finial, a dragon head, a scroll, a lotus base or a dome. Pick one, give its box in mm, say where: a point, both ends of the ridge, or spread along it. Each is a solid you can cut and join.",
 	"Pattern": "PATTERN: copies of a body in a row (linear) or round an axis through the origin (circular). Join them into the body or make them new bodies. Live preview.",
 	"Sweep": "SWEEP: pick the shape to push along a line (a pipe: a round shape) and the line. The shape sits at the line's start, facing along it. Corners are rounded.",   # FPIPE: plain words
 	"Offset plane": "PLANE: a distance from Front, Top or Right, or through 3 points, angled about an edge, through an edge at an angle, or on a face. The new plane is in the browser: click it to sketch on it.",
@@ -1554,6 +1555,8 @@ func open_dialog(t: String, edit: int) -> void:
 		_sweep_open(f, edit)
 	elif kind == "pattern":
 		_pattern_open(f, edit)
+	elif kind == "ornament":   # s227 (scripts/build/part_ornament_ui.gd)
+		PartOrnamentUI.open(self, f, edit)
 	elif kind == "plane":
 		_row("Distance", f_num, "%s mm" % _fmt(float(f.get("mm", 20.0))))
 		dlg_rows.add_child(f_plane)
@@ -1897,6 +1900,10 @@ func dialog_feature() -> Dictionary:
 				f["flange"] = true
 		"pattern":
 			f = _pattern_feature()
+		"ornament":   # s227
+			f = PartOrnamentUI.feature(self)
+			if f.is_empty():
+				return {}
 		"combine":
 			f = _combine_feature(edit)
 			if f.is_empty():
@@ -2005,6 +2012,8 @@ func _dialog_hint(kind: String) -> String:
 		return "Type the copies (the original counts) and the spacing or the angle."
 	if kind == "combine":
 		return _combine_next()
+	if kind == "ornament":
+		return "Pick an ornament, its size in mm and where it goes."
 	return ""
 
 
