@@ -14,7 +14,7 @@ const FOOT := 0.0005   # m: a vertex this close to the lowest height is a foot (
 static func check(rec: Dictionary) -> Dictionary:
 	if not Part.available():
 		return {"ok": false, "margin_mm": 0.0, "say": Part.why_not()}
-	var res := Part.replay(rec, -1, {"props": true})
+	var res := Part.replay_memo(rec, {"props": true, "inc": true})   # s168: from the cached steps
 	var mesh: ArrayMesh = res["mesh"]
 	var props: Array = res["props"]
 	if mesh == null or props.is_empty() or float(res["volume"]) <= 0.0:

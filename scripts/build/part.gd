@@ -3329,3 +3329,15 @@ static func tessellate_job(ids: Array, out: Array, coarse: bool) -> void:
 ## s168: the errors of a replay ({step id: message}) without the mesh, from the cached prefix (a check that only asks "does every step hold?")
 static func errors_of(rec: Dictionary) -> Dictionary:
 	return replay(rec, -1, {"inc": true, "errors_only": true})["errors"]
+
+
+## s168: the replay of the same record and wants as the last call returns that result (PartCom.read and PartStand.check ask for the same props
+## replay one after the other: one tessellation, not two). Read-only callers only (no "keep")
+static var _memo_key := ""
+static var _memo_res := {}
+static func replay_memo(rec: Dictionary, want: Dictionary) -> Dictionary:
+	var k := JSON.stringify(rec.get("features", [])) + JSON.stringify(want)
+	if k != _memo_key:
+		_memo_res = replay(rec, -1, want)
+		_memo_key = k
+	return _memo_res
