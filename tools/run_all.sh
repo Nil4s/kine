@@ -468,3 +468,5 @@ EXTRA="$EXTRA s191:w"   # Friday 191: Sketch with sizes (AI): Trace box option, 
 
 
 EXTRA="$EXTRA s193:w"   # s193 (Friday plan 193): Fit to an object, Parts > Boards: a phone scan (.obj, 1/1000 scale, noisy, tumbled) -> real size -> Holder / Case by the CAD kernel; ray-cast pocket, wall and enclosure bars (tests/s193_test.gd)
+
+EXTRA="$EXTRA s031:w"   # s031 (Friday plan 31): Thread look on a round hole: a helix drawn in the bore at the ISO pitch (radius / pitch / same-STL / sheet line / one undo bars; tests/s031_test.gd)

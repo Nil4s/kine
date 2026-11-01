@@ -326,6 +326,8 @@ static func check_lines(rec: Dictionary) -> Array:
 		return ["WARN  " + String(bo["why"])]
 	var lines: Array = (report(bo["bodies"])["lines"] as Array).duplicate()
 	lines.append_array(PrintCheck.lines_of(rec, bo["bodies"]))   # Friday plan 112: Ready to print? (thin walls, overhangs, floating pieces)
+	for row in Part.thread_look_rows(rec, AABB()):   # s031: a threaded hole says how to make the thread
+		lines.append("OK  " + Part.thread_look_words(int(row["M"]), float(row["pitch"])))
 	return lines
 
 

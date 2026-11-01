@@ -142,6 +142,7 @@ var hole_box: PanelContainer     # Cut a hole: the Through / Hollow inside chips
 var hole_btns := {}
 var lattice_btn: Button = null   # p208latticeinf: Lattice inside (not a toggle: outside hole_btns); shown by _hole_sync (easy_part_pull.gd)
 var snap_btn: Button            # Snap-fit lip (nsnaplip): an on/off chip under Hollow with a lid (the lid gets a ridge, the box a groove)
+var thread_btn: Button = null   # s031: Thread look (a helix drawn in a round Through hole); shown by _hole_sync
 var hole_base: Dictionary = {}   # the record before the last Cut a hole press: each chip rebuilds the hole from it ({} = no hole chips)
 var hole_id := ""                # the feature id of the last hole step (the hole's sketch, or the hollow's shell): its slider's step
 var hole_mode := "through"       # "through" | "hollow": the chip that is on
