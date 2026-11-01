@@ -21153,6 +21153,8 @@ func _pick_prop(mp: Vector2) -> Array:
 
 
 func _prop_name(i: int) -> String:
+	if i >= 0 and i < S.props.size() and String(S.props[i]["kind"]).begins_with("part:"):
+		return PartScene.name_of(String(S.props[i]["kind"]))   # F146: a built part shows by its own name
 	return String(S.props[i]["kind"]).trim_prefix("piece:").replace("_", " ") if i >= 0 and i < S.props.size() else ""
 
 
@@ -21716,6 +21718,8 @@ func _prop_take() -> void:
 		return
 	var p: Dictionary = S.props[sel_prop]
 	_ps().apply(B, S.times()[sel_card][1])
+	if PartScene.pick_up_card(self, sel_prop):   # F146: a built part out of his hands: a card where his right hand goes to its grip
+		return
 	var gap := {}
 	for sd in ["_l", "_r"]:
 		var c := B.cap("hand" + sd)

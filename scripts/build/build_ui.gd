@@ -1654,7 +1654,7 @@ func use_part() -> void:
 ## the part record as a prop of the set (BuildStage.use), the page is STAGE, the camera frames the house. "" when it has no solid. No undo
 ## step here: the caller pushes one (Use in a scene, or a My parts card)
 func put_part(rec: Dictionary, label: String) -> String:
-	var kind := BuildStage.use(m.S, rec)
+	var kind := PartScene.put(m.S, m.B, rec)   # F146: beside him on the floor; the same name replaces its prop
 	if kind == "":
 		return ""
 	m.sel_prop = -1
@@ -1845,6 +1845,8 @@ func _back_to_part_easy() -> void:
 	_reopen_part()
 	if part != null and part.bu != null:
 		part.open_easy()
+		part.ep.tweak_last()   # F146: the newest step's slider is there again (How far of the pull), so the part can be changed at once
+		part.ep._values_sync()
 
 
 ## ESAVE: the part in the set (the one picked, else the last one) becomes the part being edited: its saved record comes back whole,
@@ -1858,6 +1860,8 @@ func _reopen_part() -> void:
 		for p in m.S.props:
 			if String(p["kind"]).begins_with("part:") and p.get("part_rec") is Dictionary:
 				rec = p["part_rec"]
+	if not rec.is_empty():
+		PartScene.editing = String(rec.get("name", ""))   # F146: its next Use in a scene updates this prop
 	if not rec.is_empty() and JSON.stringify(rec) != JSON.stringify(m.S.part):
 		m._step_hint = "Open the part %s" % String(rec.get("name", "Part"))
 		m._push_undo()

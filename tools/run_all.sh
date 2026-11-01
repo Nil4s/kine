@@ -450,3 +450,4 @@ EXTRA="$EXTRA s051:w"   # s051 (Friday plan 51): Array fill: Cut a hole > Fill t
 EXTRA="$EXTRA s168:w"   # s168+s169: incremental replay (a slider change rebuilds only the changed steps) and background tessellation of the slider preview
 
 EXTRA="$EXTRA s202:w"   # s202 (Friday plan 202): Smart tolerances: Fit chip on Cut a hole (Tight 0.0 / Snug 0.1 / Slides 0.2 / Loose 0.4 mm per side): 10 mm peg hole measures 10.40 at Slides, lid lip gap per side, one undo step
+EXTRA="$EXTRA s146:w"   # F146: a part built in Easy Part becomes a prop with a grip; Pick up goes to the grip (tests/s146_test.gd)
