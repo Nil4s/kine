@@ -482,3 +482,6 @@ EXTRA="$EXTRA s012:w"   # s012 (Friday plan 12): Bevel chip beside Round the edg
 
 
 EXTRA="$EXTRA s053:w"   # s053 Friday 53: drag a piece onto another piece's face, it lands flush (snap 1 mm, ghost, one undo step "Moved a piece"); real drags (tests/s053_test.gd)
+
+
+EXTRA="$EXTRA s042:w"   # s042 (Friday plan 42): Draw shape > More shapes: star, gear outline (Teeth slider), heart, arrow drawn by clicks, pulled up 10 mm; tips/radii/mirror/angle measured from the mesh (tests/s042_test.gd)
