@@ -603,3 +603,6 @@ EXTRA="$EXTRA s230:w"   # s230: GPU tiers: adapter -> tier (RTX30 here), NVENC v
 
 
 EXTRA="$EXTRA s227:w"   # s227: ornaments library + sculpt-into-part road
+
+
+EXTRA="$EXTRA sbug2:w"   # sbug2: a broken painted-weights sidecar (right forearm weight over the whole body) tore the body apart in every clip; refused at load now; per-clip stretch bar x4, planted control must fail it (tests/sbug2_test.gd; run with APPDATA on a temp dir)

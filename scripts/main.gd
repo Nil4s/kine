@@ -860,6 +860,7 @@ var wp_radius := 0.08    # metres, on the skin
 var wp_strength := 0.25  # per dab, at the centre
 var wp_stroke := false
 var wp_key := "mannequin"  # the sidecar's name under user://weights
+var wp_notice := ""        # SBUG2: why the last sidecar was refused ("" = none)
 var wp_centres := []     # the brush centres of the last stroke (the test reads them)
 var wp_row: HBoxContainer   # the Bone / Brush / size / strength row, in the Brush popover (shown while Weight paint is on)
 var wp_pop: PopupPanel      # the popover that holds wp_row
@@ -23944,7 +23945,12 @@ func _wp_setup() -> void:
 	if wp.is_empty() or wp["skin"] == null:
 		wp = {}
 		return
-	SkinPaint.load_into(wp, wp_key)
+	if not SkinPaint.load_into(wp, wp_key) and wp.has("rejected"):   # SBUG2: a broken sidecar is set aside, never applied
+		var moved := SkinPaint.quarantine(wp_key)
+		wp_notice = "the saved skin weights (%s) are broken: %s. They were not used; the file is kept as %s. The body has its own weights." % [wp_key, wp["rejected"], moved.get_file() if moved != "" else "(could not be moved)"]
+		push_warning(wp_notice)
+		if ui_status != null:   # (at boot the status line does not exist yet: wp_notice stays for the first look)
+			_say(wp_notice)
 	SkinPaint.apply(wp)
 	if wp_bind < 0:
 		wp_bind = _wp_bind_of("lowerarm_r")
