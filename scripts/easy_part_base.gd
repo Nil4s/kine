@@ -219,6 +219,7 @@ var del_btn: Button              # FDELETE: Remove, on the bar while a piece is 
 var del_on := false              # FDELETE: a piece is picked (its step id in del_id, the features count it was picked at in del_n)
 var del_id := ""
 var del_n := -1
+var del_bi := -1                 # HEIGHT: the picked piece's body index
 var del_pt := Vector3.ZERO       # the point clicked on the piece (metres, the same units as the faces)
 var del_tris := PackedVector3Array()   # the picked piece's triangles: its glow
 var _edge := {}                  # NROUNDDRAG: an edge in hand (a press within EDGE_PX of a solid's edge, dragged outward): {"e", "press", "out", "pxmm", "r"}

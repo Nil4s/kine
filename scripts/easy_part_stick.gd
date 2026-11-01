@@ -245,6 +245,8 @@ func _stick(op: String, label: String) -> void:
 	var why := _last_error(rec, String(f["id"]))
 	if why == "" and op == "join":   # JOIN: the two picks must touch (apart pieces would "join" into one body with a gap: refused, nothing changes)
 		why = _join_gap(Part.body_faces(snap, -1), stick_picks)
+		if why != "" and _join_overlaps(snap, rec):
+			why = ""   # one piece passes through the other (a brace round the legs): they share volume, so Join makes one solid
 	stick_picks = []
 	if why != "":
 		m.S.part = snap
@@ -347,6 +349,7 @@ func _pick_at(p: Vector2) -> void:
 			del_id = String(fs[k].get("id", ""))
 			del_n = fs.size()
 			del_pt = pt
+			del_bi = int(hit["body"])   # HEIGHT: the picked piece's body (a "move" step takes it up or down)
 			del_tris = _lump_of(faces[int(hit["body"])], pt)   # the piece: the pieces that touch the point (a join of apart pieces is one body)
 			dots.queue_redraw()
 			_say("Picked a piece: press Remove to take it out. Undo puts it back")
@@ -556,6 +559,25 @@ func _size_box() -> PanelContainer:
 	size_taller.custom_minimum_size = Vector2(0, 34)
 	size_taller.add_theme_font_size_override("font_size", 15)
 	v.add_child(size_taller)
+	# HEIGHT (fstool 4b, Nick 11-01): the picked piece slides up or down, one slider in this same box (shown with two or more pieces)
+	height_label = Label.new()
+	height_label.name = "easypart_height_label"
+	height_label.add_theme_font_size_override("font_size", 16)
+	height_label.add_theme_color_override("font_color", Tok.c("text"))
+	v.add_child(height_label)
+	height_slider = HSlider.new()
+	height_slider.name = "easypart_height_slider"
+	height_slider.min_value = -500.0
+	height_slider.max_value = 500.0
+	height_slider.step = 1.0
+	height_slider.value = 0.0
+	height_slider.focus_mode = Control.FOCUS_NONE
+	height_slider.custom_minimum_size = Vector2(260, 24)
+	height_slider.add_theme_icon_override("grabber", _knob())
+	height_slider.drag_started.connect(_height_start)
+	height_slider.value_changed.connect(_height_preview)
+	height_slider.drag_ended.connect(_height_end)
+	v.add_child(height_slider)
 	_size_text()
 	return box
 
@@ -564,6 +586,8 @@ func _size_box() -> PanelContainer:
 func _size_text() -> void:
 	var pct := int(roundf(size_slider.value))
 	size_label.text = ("Taller only: %d %%" if size_taller.button_pressed else "Size: %d %%") % pct
+	if height_label != null:
+		height_label.text = "Height: %d mm" % int(roundf(height_slider.value))
 
 
 ## the box shows with a picked piece (its Remove shows too) and sits in the lower middle of the grid, clear of the Tilt rows and the steps panel
@@ -571,6 +595,7 @@ func _slider_box_sync(on: bool) -> void:
 	size_box.visible = on and _rec().get("features", []).size() > 0 and del_on and armed == ""
 	if not size_box.visible:
 		return
+	_height_sync()
 	size_box.reset_size()
 	size_box.position = SIZE_AT   # the grid's lower middle: right of the Tilt and Draft rows, left of the steps panel (1280 x 720)
 
@@ -791,3 +816,105 @@ func _fasten_two() -> void:
 	pu.sync()
 	_rows_sync()
 	_values_sync()
+
+
+## HEIGHT (fstool 4b): the picked piece (a body of its own) moves up or down along the world vertical. The slider is the piece's lowest point in
+## mm, from the part's lowest point to its top, 1 mm steps; one drag = one undo step, recorded as a "move" step (Your steps lists it, a save keeps it)
+var height_label: Label
+var height_slider: HSlider
+var height_base: Dictionary = {}   # the record when a Height drag began ({} = no drag)
+var height_from := 0.0             # mm: the piece's lowest point when the drag began
+
+
+## the piece's lowest and highest point (mm) and the part's (mm); empty when the pick cannot move
+func _height_range(rec: Dictionary) -> Dictionary:
+	var faces: Array = Part.body_faces(rec, -1)
+	if faces.size() < 2 or del_bi < 0 or del_bi >= faces.size():
+		return {}
+	var lo := INF
+	var hi := -INF
+	for w in faces[del_bi]:
+		lo = minf(lo, (w as Vector3).y)
+		hi = maxf(hi, (w as Vector3).y)
+	var plo := INF
+	var phi := -INF
+	for b in faces:
+		for w in b:
+			plo = minf(plo, (w as Vector3).y)
+			phi = maxf(phi, (w as Vector3).y)
+	return {"lo": lo / Part.MM, "hi": hi / Part.MM, "plo": plo / Part.MM, "phi": phi / Part.MM}
+
+
+## the row shows with a picked piece that is one of two or more; its range follows the part
+func _height_sync() -> void:
+	var on := false
+	if height_base.is_empty():
+		var r := _height_range(_rec())
+		on = not r.is_empty()
+		if on:
+			height_slider.min_value = floorf(float(r["plo"]))
+			height_slider.max_value = maxf(ceilf(float(r["phi"])), height_slider.min_value + 1.0)
+			height_slider.set_value_no_signal(roundf(float(r["lo"])))
+			_size_text()
+	else:
+		on = true
+	height_label.visible = on
+	height_slider.visible = on
+
+
+func _height_start() -> void:
+	height_base = _rec().duplicate(true)
+	var r := _height_range(height_base)
+	height_from = float(r["lo"]) if not r.is_empty() else 0.0
+
+
+## the record with the picked piece moved dy mm up (or down) as one more step
+func _height_build(base: Dictionary, dy: float) -> Dictionary:
+	var rec: Dictionary = base.duplicate(true)
+	var f := Part.new_feature(rec, "move", {"body": del_bi, "d": [0.0, dy, 0.0]})
+	rec["features"].append(f)
+	var why := String(Part.replay(rec).get("errors", {}).get(String(f["id"]), ""))
+	if why != "":
+		return {"err": "That piece cannot move there: " + _plain(why)}
+	return {"rec": rec}
+
+
+func _height_preview(v: float) -> void:
+	_size_text()
+	if height_base.is_empty():
+		return
+	var out := _height_build(height_base, v - height_from)
+	m.S.part = (out["rec"] if out.has("rec") else height_base.duplicate(true))
+	del_n = (m.S.part["features"] as Array).size()   # the preview's extra step must not clear the pick (that would hide this slider mid-drag)
+	pu.upto = -1
+	pu.sync()
+
+
+func _height_end(changed: bool) -> void:
+	var base := height_base
+	height_base = {}
+	if base.is_empty():
+		return
+	var dy := height_slider.value - height_from
+	var out := _height_build(base, dy) if changed and absf(dy) >= 0.5 else {}
+	m.S.part = base
+	del_n = (base["features"] as Array).size()
+	if out.has("err"):
+		_say(String(out["err"]))
+	elif not out.is_empty():
+		_begin("Height %d mm" % int(roundf(height_slider.value)))
+		m.S.part = out["rec"]
+		_end()
+		del_n = (m.S.part["features"] as Array).size()
+		_say("The piece is %d mm up from the floor. Undo puts it back" % int(roundf(height_slider.value)))
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_size_text()
+
+
+## JOIN: true when joining made the solid smaller than the two pieces were together: they overlap (an edge of one passes through a face of the other), which the touch test above does not see
+static func _join_overlaps(before: Dictionary, after: Dictionary) -> bool:
+	var v0 := float(Part.replay(before).get("volume", 0.0))
+	var v1 := float(Part.replay(after).get("volume", 0.0))
+	return v0 > 0.0 and v1 < v0 * (1.0 - 1e-6)
