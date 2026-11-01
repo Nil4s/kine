@@ -529,3 +529,8 @@ EXTRA="$EXTRA s140:w"   # s140 (Friday plan 140): Pose library by mood: moods me
 
 
 EXTRA="$EXTRA s094:w"   # p094: Easy Part MAKE buttons show a looping 14-frame clip tooltip (assets/tips/easy, made by tools/make_easy_tips.gd)
+
+EXTRA="$EXTRA fdice:w"   # FDICE: a beginner builds a 40 mm die from the BUILDING card by real clicks: cube, Round the edges, 21 pips (round drawn on each face, Cut a hole, 2 mm deep); one Undo takes a pip away (tests/fdice_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA fmonitor:w"   # FMONITOR: a beginner from the BUILDING card builds a computer monitor by real clicks: a thin screen, Round the edges, Dark colour, a neck, a base; the oval base is drawn with the Oval chip (tests/fmonitor_test.gd)
+EXTRA="$EXTRA fhanger:w"   # FHANGER: a beginner from the BUILDING card builds a clothes hanger by real clicks: a round disc, a Curvy line wire, Pull along, a Curvy hook, Pull along, one Undo (tests/fhanger_test.gd)
+EXTRA="$EXTRA fstool:w"   # FSTOOL: a beginner from the BUILDING card builds a three-legged stool by real clicks: a round seat, a leg under it, Repeat it in a Ring (three legs), a ring brace (bar 4b is a recorded dead end: no way to lower it to leg height) (tests/fstool_test.gd)
