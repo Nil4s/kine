@@ -1776,9 +1776,10 @@ func _fill_press() -> void:
 	armed = ""
 	wall_pick = false
 	hpat_pick = false
-	bulge_pick = false   # one pick mode at a time: a Bulge pick left on would take the face click
-	if bulge_btn != null:
-		bulge_btn.set_pressed_no_signal(false)
+	set("bulge_pick", false)   # one pick mode at a time: a Bulge pick left on would take the face click (declared further down the chain)
+	var bb: Variant = get("bulge_btn")
+	if bb != null:
+		(bb as Button).set_pressed_no_signal(false)
 	fill_pick = true
 	_hole_sync()
 	_say("Click the flat face you want to fill. First set the shape, Hole size, Spacing and Edge margin below")
