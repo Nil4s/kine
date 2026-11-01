@@ -460,4 +460,7 @@ func _process(_d: float) -> void:
 	var bb: Variant = ep.get("bulge_btn")   # the Pinch / Bulge chip sits low in this column when a solid is on the floor: stop above it
 	if bb != null and (bb as Control).is_visible_in_tree():
 		bottom = minf(bottom, (bb as Control).global_position.y - 6.0)
+	var tb: Variant = ep.get("tilt_box")   # bug5: the whole chip column (Tilt it, Draft angle, Pinch) keeps its place: the card stands above all of it
+	if tb != null and (tb as Control).is_visible_in_tree():
+		bottom = minf(bottom, (tb as Control).global_position.y - 6.0)
 	position = Vector2(cl.position.x + 12.0, bottom - size.y)
