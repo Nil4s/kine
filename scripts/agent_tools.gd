@@ -447,6 +447,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# N006 CONFLICT EXPLAINER (scripts/conflict_explain.gd): the smallest clashing set of wishes + the cost to free each; scene untouched
 			var cx := ConflictExplain.serve(m, p)
 			return _ok(id, cx) if cx["ok"] else _err(id, -32602, cx["error"], {"grammar": cx["grammar"]} if cx.has("grammar") else null)
+		"nature":   # FRIDAY 225: trees, hedges, shrubs, grass, flowers, paths, scatter (scripts/build/nature_agent.gd); not in METHODS (the transcript's ready line)
+			var na := NatureAgent.serve(m, p)
+			return _ok(id, na) if bool(na["ok"]) else _err(id, -32602, String(na["error"]))
 		"quit":
 			return _ok(id, {"bye": true})
 		"events":
