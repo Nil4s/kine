@@ -537,3 +537,7 @@ EXTRA="$EXTRA s155b:w"   # s155b: KineCAD 5 kernel solid offset (volumes vs clos
 EXTRA="$EXTRA s211:w"   # s211: Draw on a curved face (cylinder, sphere): the sketch sits on the tangent plane at the click; tests/s211_test.gd
 
 EXTRA="$EXTRA fpen:w"   # FPEN: a beginner builds a pen from the BUILDING card by real clicks (parked test from w4-fpenyrfix; bars 5 CLIP and 7 UNDO need Draw on a curved face, s211); tests/fpen_test.gd
+
+
+
+EXTRA="$EXTRA bug3:w"   # bug3: a metal block is lit by a studio reflection sky, not black

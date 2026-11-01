@@ -230,7 +230,12 @@ func apply_light_source(m: Node) -> void:
 	var e: Environment = m.world_env
 	var lit := _hdri_tex != null and sky and mode != "silhouette"
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_SKY if lit else Environment.AMBIENT_SOURCE_COLOR
-	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY if lit else Environment.REFLECTION_SOURCE_BG
+	if lit:
+		e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	elif e.background_mode == Environment.BG_COLOR:
+		studio_reflection(e)   # bug3: a flat background has nothing to reflect: a metal block went black
+	else:
+		e.reflected_light_source = Environment.REFLECTION_SOURCE_BG
 
 
 ## THE BODY LOOK's stage (Nick's "D"): soft lights (ambient 0.22, warm key 0.62, cool rim 0.5, a little fill) and SSAO. The stage is
@@ -240,6 +245,8 @@ static func stage_default(m: Node) -> void:
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	e.ambient_light_color = Color(0.62, 0.66, 0.74)
 	e.ambient_light_energy = 0.22
+	if e.background_mode == Environment.BG_COLOR:
+		studio_reflection(e)
 	e.ssao_enabled = true
 	e.ssao_radius = 0.35
 	e.ssao_intensity = 1.6
@@ -369,3 +376,29 @@ class Meter extends RefCounted:
 
 	func stats() -> Array:
 		return [float(frames) / total if total > 0.0 else 0.0, dropped, frames]
+
+
+## bug3: a studio gradient sky used ONLY for reflections (the background stays the flat colour; the ambient stays its colour).
+## A metallic surface shows nothing but reflections, so with a flat background it rendered nearly black.
+static var _studio_sky: Sky = null
+
+
+static func studio_sky() -> Sky:
+	if _studio_sky == null:
+		var pm := ProceduralSkyMaterial.new()
+		pm.sky_top_color = Color(1.0, 1.0, 1.0)
+		pm.sky_horizon_color = Color(0.62, 0.62, 0.60)
+		pm.ground_horizon_color = Color(0.50, 0.49, 0.47)
+		pm.ground_bottom_color = Color(0.25, 0.25, 0.24)
+		pm.sky_curve = 0.3
+		pm.sun_angle_max = 0.0
+		pm.sky_energy_multiplier = 1.2
+		_studio_sky = Sky.new()
+		_studio_sky.sky_material = pm
+		_studio_sky.radiance_size = Sky.RADIANCE_SIZE_128
+	return _studio_sky
+
+
+static func studio_reflection(e: Environment) -> void:
+	e.sky = studio_sky()
+	e.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
