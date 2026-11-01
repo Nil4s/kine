@@ -709,6 +709,7 @@ func _tilt_box() -> PanelContainer:
 	bulge_btn.toggle_mode = true
 	bulge_btn.custom_minimum_size = Vector2(230, 44)
 	row.add_child(bulge_btn)
+	row.add_child(_motion_btn())   # p126motionmp4: Save the motion as a video, after Swing it
 	return box
 
 
@@ -3731,13 +3732,15 @@ func _process(_dt: float) -> void:
 	draft_btn.visible = draft_on
 	_gd_sync(on)   # s124
 	var swing_on := not along and _swing_ok(_rec())   # p123driveit
+	var motion_on := not along and _motion_ok(_rec())   # p126motionmp4: the video chip shows after Swing it
 	swing_btn.visible = swing_on
+	motion_btn.visible = motion_on
 	var flat_on := on and armed == "" and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # p113: Lay it flat and Show overhangs, under any solid, in the step list
 	flat_box.visible = flat_on
 	paint_btn.set_pressed_no_signal(paint_on)
 	suggest_row.visible = on and _suggest_on()   # P092: after a Pull it up the two next-step chips show in the panel, under the slider rows
 	var bulge_on := on and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # plan 23: Pinch / Bulge a face is offered under any solid
-	tilt_box.visible = on and (armed == "" or bulge_pick) and (along or tilt_on or draft_on or swing_on or bulge_on) and not _fill_open() and not (hpat_box != null and hpat_box.visible)   # lay1: the open Holes Row / Around / Grid sliders are as tall as the low-left chips too; s051: the open Fill the face box is as tall as the low-left chips: they would sit over its Square chip and sliders
+	tilt_box.visible = on and (armed == "" or bulge_pick) and (along or tilt_on or draft_on or swing_on or bulge_on or motion_on) and not _fill_open() and not (hpat_box != null and hpat_box.visible)   # lay1: the open Holes Row / Around / Grid sliders are as tall as the low-left chips too; s051: the open Fill the face box is as tall as the low-left chips: they would sit over its Square chip and sliders
 	_overhang_sync(on)
 	_com_sync(on)   # P128: the centre-of-mass dot
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
@@ -7981,3 +7984,53 @@ func _apply_grow(v: float) -> void:
 		_say("Thicker everywhere by %s mm: every face moved out" % str(snappedf(v2, 0.1)))
 	else:
 		_say("Thinner everywhere by %s mm: every face moved in" % str(snappedf(-v2, 0.1)))
+
+
+## P126 MOTION VIDEO: the chip "Save the motion as a video", a row under Pull along in the tilt panel (it shows after Swing it)
+func _motion_btn() -> Button:
+	motion_btn = _big_btn("easypart_motion_video", "Save the motion as a video", "Film the swing (2 seconds) as an .mp4 video in your Videos folder (Kine). The part does not change", _motion_press)
+	motion_btn.icon = Icons.sized("video", 22)
+	motion_btn.expand_icon = false
+	motion_btn.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	motion_btn.custom_minimum_size = Vector2(230, 44)
+	motion_btn.visible = false
+	return motion_btn
+
+
+## P126 MOTION VIDEO: the newest step is the hinge (Swing it has just made it): the swing can be filmed. A suppressed hinge is not
+func _motion_ok(rec: Dictionary) -> bool:
+	var feats: Array = rec.get("features", [])
+	return not feats.is_empty() and String(feats[feats.size() - 1].get("t", "")) == "hinge" and not bool(feats[feats.size() - 1].get("off", false))
+
+
+## P126 MOTION VIDEO, Save the motion as a video: the hinge's 2 s swing filmed into an .mp4 in the Videos folder (Kine), through the ffmpeg
+## that Save video uses (PartMotion.render). Only reads the part: no step, so no undo step. The status line names the file, or says the next step
+func _motion_press() -> void:
+	if motion_busy:
+		_say("The motion video is still being saved: wait for it to finish")
+		return
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	var rec := _rec()
+	if not _motion_ok(rec):
+		_say("Save the motion as a video needs a swing: press Swing it first, then this")
+		return
+	var ff := PlayblastExport.find_ffmpeg()
+	if ff == "":
+		_say("No video: ffmpeg was not found. Install it (winget install Gyan.FFmpeg), then press Save the motion as a video again")
+		return
+	var folder: String = m.easy.home.video_folder()
+	var gdir := ProjectSettings.globalize_path(folder)
+	if DirAccess.make_dir_recursive_absolute(gdir) != OK:
+		_say("NOT DONE: the folder %s could not be made: close anything using it, then press Save the motion as a video again" % folder)
+		return
+	var mp4 := "%s/swing_%s.mp4" % [gdir, m._stamp()]
+	motion_busy = true
+	_say("Saving the motion as a video...")
+	var made: bool = await PartMotion.render(m, rec, String(rec["features"][-1]["id"]), mp4, ff)
+	motion_busy = false
+	if not made:
+		_say("NOT DONE: ffmpeg could not make the video: close anything using %s, then press Save the motion as a video again" % folder)
+		return
+	_say("Motion video saved: %s, in %s" % [mp4.get_file(), m.easy.home.folder_line(mp4)])

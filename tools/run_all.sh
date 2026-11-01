@@ -504,3 +504,7 @@ EXTRA="$EXTRA s016:w"   # s016: Wall slider shows the part cut in half (a contra
 
 EXTRA="$EXTRA s018:w"   # S018 (Friday 18): Thinner / thicker everywhere slider under How far offsets every face of the whole part (box +-1 mm, plate hole 10 -> 8 mm); one undo step; Pull it up still edits (tests/s018_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA s018:w"   # S018 (Friday 18): Thinner / thicker everywhere slider under How far offsets every face of the whole part (box +-1 mm, plate hole 10 -> 8 mm); one undo step; Pull it up still edits (tests/s018_test.gd; needs the CAD DLL)
+
+
+
+EXTRA="$EXTRA s126:w"   # s126 (Friday plan 126, Motion study to video): Easy Part, Swing it, then Save the motion as a video films the swing into a 1280 x 720 30 fps h264 .mp4; size, ffprobe, decoded frames and a half-angle still measured from the file (tests/s126_test.gd); needs the CAD DLL and ffmpeg
