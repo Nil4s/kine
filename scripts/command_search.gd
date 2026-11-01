@@ -272,6 +272,16 @@ func matches(kind: String, q: String) -> Array:
 			var pb: bool = String(b[2].get("name", "")).to_lower().contains(phr)
 			if pa != pb:
 				return pa
+			# p097searchboxf: still a tie: an Easy Part action ("Easy Part: Round the edges") before a command that only shares the word
+			var ea: bool = String(a[2].get("id", "")).begins_with("easy_")
+			var eb: bool = String(b[2].get("id", "")).begins_with("easy_")
+			if ea != eb:
+				return ea
+			if ea and eb:   # two Easy Part actions: the one whose name holds the phrase nearer its start ("Round the edges" before "Spin it round")
+				var ia: int = String(a[2].get("name", "")).to_lower().find(phr)
+				var ib: int = String(b[2].get("name", "")).to_lower().find(phr)
+				if ia != ib:
+					return ia < ib
 			return a[1] < b[1])
 	return hits.map(func(h): return h[2])
 
