@@ -3,6 +3,9 @@ extends "res://scripts/easy_part_base.gd"
 ## _chrome_sync), the camera framing (it eases, never jumps), the amber drag dots, the floor grid and the upright plane, the outline of a
 ## shape being drawn, and the face of a solid under the pointer.
 
+const EPTheme := preload("res://scripts/easy_part_theme.gd")   # plan 109: Light / Dark for the Easy Part boxes
+
+
 func _big_btn(nm: String, txt: String, tip: String, f: Callable) -> Button:
 	var b := Button.new()
 	b.name = nm
@@ -33,7 +36,8 @@ func _colour_btn(key: String, txt: String, c: Color) -> Button:
 
 func _style(c: Color, r: int, margin: int) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = c
+	s.bg_color = EPTheme.map_fill(c)   # plan 109: Light maps the dark fill; the original is kept for Dark
+	s.set_meta("ep_orig", c)
 	s.set_corner_radius_all(r)
 	s.set_content_margin_all(margin)
 	return s
