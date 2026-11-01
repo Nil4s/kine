@@ -55,7 +55,13 @@ static func build(be: String, mdl: String, url: String, k: String, system: Strin
 			for it in convo:
 				match it["role"]:
 					"user":
-						msgs.append({"role": "user", "content": it["text"]})
+						var um := {"role": "user", "content": it["text"]}
+						if it.has("image"):   # a picture on the turn (round s191): Ollama takes "images", OpenAI a data URL part
+							if be == "ollama":
+								um["images"] = [it["image"]]
+							else:
+								um["content"] = [{"type": "text", "text": it["text"]}, {"type": "image_url", "image_url": {"url": "data:image/png;base64," + String(it["image"])}}]
+						msgs.append(um)
 					"assistant":
 						var am := {"role": "assistant", "content": it.get("text", "")}
 						var cs: Array = it.get("calls", [])
@@ -70,8 +76,9 @@ static func build(be: String, mdl: String, url: String, k: String, system: Strin
 							msgs.append({"role": "tool", "content": it["result"], "tool_name": it["name"]})
 						else:
 							msgs.append({"role": "tool", "tool_call_id": it["id"], "content": it["result"]})
-			body = {"model": mdl, "messages": msgs,
-				"tools": tools.map(func(t): return {"type": "function", "function": {"name": t["name"], "description": t["description"], "parameters": t["schema"]}})}
+			body = {"model": mdl, "messages": msgs}
+			if not tools.is_empty():   # a turn with no tools (a picture to read) sends none
+				body["tools"] = tools.map(func(t): return {"type": "function", "function": {"name": t["name"], "description": t["description"], "parameters": t["schema"]}})
 			if be == "ollama":
 				body["stream"] = false
 				return {"url": b + "/api/chat", "headers": h, "body": body}
@@ -82,7 +89,10 @@ static func build(be: String, mdl: String, url: String, k: String, system: Strin
 			for it in convo:
 				match it["role"]:
 					"user":
-						msgs.append({"role": "user", "content": it["text"]})
+						if it.has("image"):
+							msgs.append({"role": "user", "content": [{"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": it["image"]}}, {"type": "text", "text": it["text"]}]})
+						else:
+							msgs.append({"role": "user", "content": it["text"]})
 					"assistant":
 						var blocks := []
 						if String(it.get("text", "")) != "":
@@ -96,8 +106,9 @@ static func build(be: String, mdl: String, url: String, k: String, system: Strin
 							msgs[-1]["content"].append(tr)
 						else:
 							msgs.append({"role": "user", "content": [tr]})
-			body = {"model": mdl, "max_tokens": 4096, "system": system, "messages": msgs,
-				"tools": tools.map(func(t): return {"name": t["name"], "description": t["description"], "input_schema": t["schema"]})}
+			body = {"model": mdl, "max_tokens": 4096, "system": system, "messages": msgs}
+			if not tools.is_empty():
+				body["tools"] = tools.map(func(t): return {"name": t["name"], "description": t["description"], "input_schema": t["schema"]})
 			h.append("x-api-key: " + k)
 			h.append("anthropic-version: 2023-06-01")
 			return {"url": b + "/v1/messages", "headers": h, "body": body}
@@ -106,7 +117,10 @@ static func build(be: String, mdl: String, url: String, k: String, system: Strin
 			for it in convo:
 				match it["role"]:
 					"user":
-						cts.append({"role": "user", "parts": [{"text": it["text"]}]})
+						var up := [{"text": it["text"]}]
+						if it.has("image"):
+							up.push_front({"inlineData": {"mimeType": "image/png", "data": it["image"]}})
+						cts.append({"role": "user", "parts": up})
 					"assistant":
 						var parts := []
 						if String(it.get("text", "")) != "":
@@ -126,7 +140,9 @@ static func build(be: String, mdl: String, url: String, k: String, system: Strin
 				if not (t["schema"].get("properties", {}) as Dictionary).is_empty():
 					d["parameters"] = _gemini_schema(t["schema"])
 				decl.append(d)
-			body = {"systemInstruction": {"parts": [{"text": system}]}, "contents": cts, "tools": [{"functionDeclarations": decl}]}
+			body = {"systemInstruction": {"parts": [{"text": system}]}, "contents": cts}
+			if not tools.is_empty():
+				body["tools"] = [{"functionDeclarations": decl}]
 			h.append("x-goog-api-key: " + k)
 			return {"url": b + "/v1beta/models/%s:generateContent" % mdl, "headers": h, "body": body}
 	return {}

@@ -18,6 +18,7 @@ var go_btn: Button
 var info: Label
 var node: MeshInstance3D = null   # the picture on the floor (a view node, not in the record)
 var image: Image = null
+var ai = null                # FRIDAY 191: Sketch with sizes (AI), easy_part_sketch_ai.gd
 var last: Dictionary = {}    # what the last trace made: {"loops", "corners", "holes"}
 
 
@@ -113,6 +114,8 @@ func _build() -> void:
 	info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	info.custom_minimum_size = Vector2(330, 0)
 	vb.add_child(info)
+	ai = EasyPartSketchAI.new(self)   # FRIDAY 191: the AI option sits in this box
+	ai.attach(vb)
 
 
 func _btn(row: HBoxContainer, nm: String, text: String, tip: String, fn: Callable) -> Button:
@@ -225,6 +228,8 @@ func trace() -> void:
 func close() -> void:
 	if panel != null:
 		panel.visible = false
+	if go_btn != null:
+		go_btn.modulate = Color.WHITE
 	if node != null and is_instance_valid(node):
 		node.queue_free()
 	node = null
