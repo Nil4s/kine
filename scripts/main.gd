@@ -25563,7 +25563,7 @@ func _gpu_menu_build(pm: PopupMenu) -> void:
 	pm.add_separator("Saving video")
 	for k in GpuTier.ENCODERS.size():
 		pm.add_radio_check_item(GpuTier.ENCODER_NAMES[GpuTier.ENCODERS[k]], 110 + k)
-		pm.set_item_tooltip(pm.get_item_index(110 + k), "which chip makes the .mp4. Auto and "on the CPU" use the processor. The graphics card (NVENC) frees the processor but was not measurably faster in Kine's own exports; a choice it cannot do here falls back to the processor (remembered)")
+		pm.set_item_tooltip(pm.get_item_index(110 + k), "which chip makes the .mp4. Auto and 'on the CPU' use the processor. The graphics card (NVENC) frees the processor but was not measurably faster in Kine's own exports; a choice it cannot do here falls back to the processor (remembered)")
 	_gpu_menu_sync(pm)
 
 

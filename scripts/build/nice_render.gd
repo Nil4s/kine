@@ -107,11 +107,11 @@ static func draw(host: Node, rec: Dictionary, size := SIZE, cut := {}) -> Image:
 	var box: AABB = res["aabb"]
 	var looks: Array = res["looks"]
 	Part.paint(mesh, looks)
-	return await draw_mesh(host, mesh, box, looks, size)
+	return await draw_mesh(host, mesh, box, looks, size, rec, cut)
 
 
 ## the same picture of an already painted mesh (a part, or a test's own scene): box = its bounds, looks = one look per surface
-static func draw_mesh(host: Node, mesh: ArrayMesh, box: AABB, looks: Array, size := SIZE) -> Image:
+static func draw_mesh(host: Node, mesh: ArrayMesh, box: AABB, looks: Array, size := SIZE, rec := {}, cut := {}) -> Image:   # rec, cut: the s218 section colours (a split in rec, or a cut that is on)
 	if look == "real":
 		return await draw_real(host, mesh, box, size)
 	var floor_y := box.position.y
