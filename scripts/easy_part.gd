@@ -4367,6 +4367,9 @@ func _edge_hover(p: Vector2) -> void:
 	if not active() or not Part.available() or pu == null or m.cam == null or int(pu.res.get("bodies", 0)) == 0:
 		_edge_hide()
 		return
+	if hole_box != null and hole_box.visible and hole_box.get_global_rect().has_point(p):   # s051: the pointer is on the Cut a hole chips: no Round / Bevel chip pops up over them (it took the click meant for Staggered / Hex)
+		_edge_hide()
+		return
 	_edge_chip_ensure()
 	if edge_chip.visible and edge_chip.get_global_rect().has_point(p):
 		return   # the pointer is on the chip itself: it stays up for the click
