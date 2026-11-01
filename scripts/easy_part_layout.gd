@@ -86,6 +86,7 @@ func _size_sync() -> void:
 	if tipw != "":
 		size_l.text += "
 " + tipw
+	size_l.text += _cost_words()   # s081: ", about R$ 2,98"
 	var front := Vector3(bb.get_center().x, bb.position.y, bb.end.z)
 	if m.cam.is_position_behind(front):
 		size_l.visible = false
@@ -96,6 +97,10 @@ func _size_sync() -> void:
 	# FMOBILE: the label stays on the window (a part low on a short window pushed it off the bottom) and hides rather than sit on a box or panel
 	var vp := get_viewport().get_visible_rect()
 	var pos := Vector2(clampf(p.x - sz.x * 0.5, 4.0, vp.end.x - sz.x - 4.0), minf(p.y + 12.0, vp.end.y - sz.y - 4.0))
+	if view_box != null and view_box.is_visible_in_tree():   # s081: the longer line (with the cost) slides left of the view column instead of drawing over it
+		var vr := view_box.get_global_rect()
+		if pos.y < vr.end.y and pos.y + sz.y > vr.position.y:
+			pos.x = minf(pos.x, vr.position.x - sz.x - 4.0)
 	size_l.position = pos
 	var r := Rect2(size_l.get_global_position(), sz)
 	for bx in [panel, repeat_box, stick_box, colour_box, hint, status]:
@@ -468,7 +473,7 @@ func layout(cl: Rect2) -> void:
 	colour_box.reset_size()
 	colour_box.position = shape_box.position
 	# FMOBILE: the floating boxes stay left of the panel (the colour chips wrap) and below the sentence (the hint)
-	var room := cl.end.x - PW - 32.0 - colour_box.position.x
+	var room := minf(cl.end.x - PW - 32.0, view_box.position.x - 8.0) - colour_box.position.x   # s081: and left of the view column (the Wood chip sat under it, so a click there hit the view buttons)
 	var nat := 24.0   # the chips in one row (their own widths and the gaps): the box is only as wide as its chips when the room is wide
 	for c in (colour_box.get_child(0) as Control).get_children():
 		nat += (c as Control).get_combined_minimum_size().x + 6.0
@@ -1360,3 +1365,17 @@ func _com_sync(show_ok: bool) -> void:
 		if on_part:
 			_com_mesh.global_transform = pu.part_mesh.global_transform * Transform3D(Basis.IDENTITY, r["com"] as Vector3)
 	_com_mesh.visible = on_part
+
+## s081 COST READOUT (plan 58): ", about R$ 2,98" for the Size line: PLA by volume, wood by board length, prices from CutList.prices() (BRL).
+## Read again only when the part's steps or the price table change.
+var _cost_key := -1
+var _cost_txt := ""
+func _cost_words() -> String:
+	if pu == null or not Part.available() or pu.coarse:
+		return _cost_txt
+	var key: int = [_rec().get("features", []).hash(), CutList.prices_key()].hash()
+	if key != _cost_key:
+		_cost_key = key
+		var c := CutList.cost(_rec())
+		_cost_txt = ", " + String(c["text"]) if not c.is_empty() else ""
+	return _cost_txt
