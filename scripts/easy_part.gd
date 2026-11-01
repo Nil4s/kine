@@ -1350,11 +1350,16 @@ func _on_slider_start(row: Dictionary) -> void:
 	row["held"] = true
 	pu.coarse = true   # NSLIDELOD: the part shows a coarse preview while the slider is in hand
 	_begin("Change " + String(row["label"]))
+	if _is_wall_row(row):
+		_cutaway_get().hold()   # S016: the part shows cut in half while the Wall is held
+		_say("Cut in half: the coloured band is the wall. Let go to see the whole part")
 
 
 func _on_slider_end(_changed: bool, row: Dictionary) -> void:
 	row["held"] = false
 	pu.coarse = false   # NSLIDELOD: full detail on release (the final write below rebuilds it)
+	if _is_wall_row(row):
+		_cutaway_get().release()   # S016: the whole part comes back 1.5 s after
 	_set_value(row, (row["slider"] as HSlider).value, true)
 	_end()
 
@@ -3606,6 +3611,8 @@ func _process(_dt: float) -> void:
 	_theme_sync()   # plan 109: the boxes follow Light / Dark
 	_grid_labels_sync()   # p108measuregri: the grid's numbers follow the zoom (view only)
 	pu.replay_forget()   # the same-frame replay reuse (PartUI.replay_once) ends with the frame
+	if not pu._tess_run.is_empty():
+		pu._tess_poll()   # S016: a slider preview that finishes while the slider is held still lands now, not at the next move (the cut-away shows the wall as it is)
 	_cut_sync()   # P101 SECTION: the Cut view follows the built part, and goes off when Easy is left
 	if meas != null:
 		meas.sync()   # s055: the Measure readouts follow the camera
@@ -7596,3 +7603,18 @@ func _fit_row() -> HBoxContainer:
 	fit_row = preload("res://scripts/easy_fit.gd").new()
 	fit_row.setup(self)
 	return fit_row
+
+
+## S016: the Wall slider (a hollow's wall thickness) is the one that shows the cut-away
+const PartCutaway := preload("res://scripts/build/part_cutaway.gd")
+var _cutaway: RefCounted = null
+
+
+func _is_wall_row(row: Dictionary) -> bool:
+	return String(row.get("kind", "")) == "tweak" and String(tweak.get("label", "")) == "Wall"
+
+
+func _cutaway_get() -> RefCounted:
+	if _cutaway == null:
+		_cutaway = PartCutaway.new(pu)
+	return _cutaway
