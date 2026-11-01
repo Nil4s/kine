@@ -310,7 +310,9 @@ func _init() -> void:
 	var lf: Dictionary = pu().ep._rec()["features"][-1]
 	# the held knob edits the step at once (its size reads 2 mm) and starts the coarse preview job; in this off-screen run that background
 	# tessellation does not land before the release (12 s waited), the same async path every size slider uses, so the MESH bar is the release (3c)
-	ok(absf(float(lf.get("dist", 0.0)) - 2.0) < 0.01 and not pu()._tess_run.is_empty(), "3b live: with the knob still held the step already reads %s mm and the preview job runs (the mesh lands on release: top face %.2f mm until then)" % [str(lf.get("dist")), top_face_mm(verts()).x])
+	# s016 lands a finished preview while the knob is held still, so the held mesh may already show the 2 mm bevel (top face 36.00)
+	var held_top := top_face_mm(verts()).x
+	ok(absf(float(lf.get("dist", 0.0)) - 2.0) < 0.01 and (not pu()._tess_run.is_empty() or absf(held_top - 36.0) < 0.05), "3b live: with the knob still held the step already reads %s mm and the preview job runs or has landed (held top face %.2f mm)" % [str(lf.get("dist")), held_top])
 	var rr := tw.get_global_rect()
 	await ev_mouse(Vector2(rr.position.x + 12.0 + (tw.value - tw.min_value) / (tw.max_value - tw.min_value) * (rr.size.x - 24.0), rr.get_center().y), false)
 	await idle(30)
