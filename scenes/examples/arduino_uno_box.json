@@ -1,0 +1,291 @@
+{
+	"cards": [],
+	"floor_body": false,
+	"fps": 30,
+	"kind": "building",
+	"length_s": 0.0,
+	"name": "Arduino Uno box",
+	"natural": true,
+	"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other.",
+	"on_floor": true,
+	"part": {
+		"easy": {
+			"n": 14,
+			"p": {
+				"clear": 1.0,
+				"wall": 3.0
+			},
+			"t": "bc_uno"
+		},
+		"features": [
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							0.0,
+							0.0
+						],
+						"b": [
+							76.6,
+							23.6
+						],
+						"k": "rect"
+					}
+				],
+				"id": "f1",
+				"name": "Sketch1",
+				"plane": "front",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 61.3,
+				"id": "f2",
+				"name": "Extrude1",
+				"op": "new",
+				"sketch": "f1",
+				"t": "extrude"
+			},
+			{
+				"body": 0,
+				"id": "f3",
+				"name": "Shell1",
+				"open": "+y",
+				"t": "shell",
+				"thick": 3.0
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"c": [
+							18.0,
+							-6.5
+						],
+						"k": "circle",
+						"r": 3.0
+					},
+					{
+						"c": [
+							19.3,
+							-54.7
+						],
+						"k": "circle",
+						"r": 3.0
+					},
+					{
+						"c": [
+							70.1,
+							-11.6
+						],
+						"k": "circle",
+						"r": 3.0
+					},
+					{
+						"c": [
+							70.1,
+							-39.5
+						],
+						"k": "circle",
+						"r": 3.0
+					}
+				],
+				"id": "f4",
+				"name": "Sketch2",
+				"plane": "top",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 9.0,
+				"id": "f5",
+				"name": "Extrude2",
+				"op": "join",
+				"sketch": "f4",
+				"t": "extrude"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"c": [
+							18.0,
+							-6.5
+						],
+						"k": "circle",
+						"r": 1.6
+					},
+					{
+						"c": [
+							19.3,
+							-54.7
+						],
+						"k": "circle",
+						"r": 1.6
+					},
+					{
+						"c": [
+							70.1,
+							-11.6
+						],
+						"k": "circle",
+						"r": 1.6
+					},
+					{
+						"c": [
+							70.1,
+							-39.5
+						],
+						"k": "circle",
+						"r": 1.6
+					}
+				],
+				"id": "f6",
+				"name": "Sketch3",
+				"plane": "top",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 10.0,
+				"id": "f7",
+				"name": "Extrude3",
+				"op": "cut",
+				"sketch": "f6",
+				"t": "extrude"
+			},
+			{
+				"from": "right",
+				"id": "f8",
+				"mm": 1.5,
+				"name": "Plane1",
+				"t": "plane"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							-48.6,
+							10.1
+						],
+						"b": [
+							-35.6,
+							22.1
+						],
+						"k": "rect"
+					},
+					{
+						"a": [
+							-15.5,
+							10.1
+						],
+						"b": [
+							-5.5,
+							22.1
+						],
+						"k": "rect"
+					}
+				],
+				"id": "f9",
+				"name": "Sketch4",
+				"plane": "f8",
+				"t": "sketch"
+			},
+			{
+				"both": true,
+				"dist": 4.0,
+				"id": "f10",
+				"name": "Extrude4",
+				"op": "cut",
+				"sketch": "f9",
+				"t": "extrude"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							86.6,
+							0.0
+						],
+						"b": [
+							163.2,
+							-61.3
+						],
+						"k": "rect"
+					}
+				],
+				"id": "f11",
+				"name": "Sketch5",
+				"plane": "top",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 3.0,
+				"id": "f12",
+				"name": "Extrude5",
+				"op": "new",
+				"sketch": "f11",
+				"t": "extrude"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"c": [
+							104.6,
+							-6.5
+						],
+						"k": "circle",
+						"r": 1.6
+					},
+					{
+						"c": [
+							105.9,
+							-54.7
+						],
+						"k": "circle",
+						"r": 1.6
+					},
+					{
+						"c": [
+							156.7,
+							-11.6
+						],
+						"k": "circle",
+						"r": 1.6
+					},
+					{
+						"c": [
+							156.7,
+							-39.5
+						],
+						"k": "circle",
+						"r": 1.6
+					}
+				],
+				"id": "f13",
+				"name": "Sketch6",
+				"plane": "top",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 4.0,
+				"id": "f14",
+				"name": "Extrude6",
+				"op": "cut",
+				"sketch": "f13",
+				"t": "extrude"
+			}
+		],
+		"name": "Arduino Uno R3 box",
+		"seq": 14,
+		"version": 1
+	},
+	"pin": true,
+	"scene": "Arduino Uno box"
+}

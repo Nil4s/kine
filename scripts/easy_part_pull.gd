@@ -822,7 +822,12 @@ func _overhangs(rec: Dictionary, sk: Dictionary) -> bool:
 	var g := bb.grow(0.5 * Part.MM)
 	var n: Vector3 = pl["n"]
 	for e in sk["ents"]:
-		for q in _ent_pts(e):
+		var qs := _ent_pts(e)
+		if String(e.get("k", "")) == "circle":   # FMONITOR: a round hangs past the body by its rim, not by its centre (a neck on a screen's bottom face)
+			var cc: Array = e["c"]
+			var cr := float(e["r"])
+			qs = [[cc[0] + cr, cc[1]], [cc[0] - cr, cc[1]], [cc[0], cc[1] + cr], [cc[0], cc[1] - cr]]
+		for q in qs:
 			var w := Part.to_world(pl, Vector2(float(q[0]), float(q[1])))
 			w -= n * n.dot(w - bb.get_center())   # onto the body's middle along the normal: only the in-face position counts
 			if not g.has_point(w):

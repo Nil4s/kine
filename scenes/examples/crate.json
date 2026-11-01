@@ -1,0 +1,88 @@
+{
+	"cards": [],
+	"floor_body": false,
+	"fps": 30,
+	"kind": "building",
+	"length_s": 0.0,
+	"name": "Crate",
+	"natural": true,
+	"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other.",
+	"on_floor": true,
+	"part": {
+		"easy": {
+			"n": 4,
+			"p": {
+				"depth": 400.0,
+				"height": 400.0,
+				"lid": 20.0,
+				"width": 500.0
+			},
+			"t": "crate"
+		},
+		"features": [
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							0.0,
+							0.0
+						],
+						"b": [
+							500.0,
+							400.0
+						],
+						"k": "rect"
+					}
+				],
+				"id": "f1",
+				"name": "Sketch1",
+				"plane": "front",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 400.0,
+				"id": "f2",
+				"name": "Extrude1",
+				"op": "new",
+				"sketch": "f1",
+				"t": "extrude"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							-20.0,
+							380.0
+						],
+						"b": [
+							520.0,
+							430.0
+						],
+						"k": "rect"
+					}
+				],
+				"id": "f3",
+				"name": "Sketch2",
+				"plane": "front",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 400.0,
+				"id": "f4",
+				"name": "Extrude2",
+				"op": "join",
+				"sketch": "f3",
+				"t": "extrude"
+			}
+		],
+		"name": "Crate",
+		"seq": 4,
+		"version": 1
+	},
+	"pin": true,
+	"scene": "Crate"
+}

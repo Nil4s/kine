@@ -113,6 +113,11 @@ func _init() -> void:
 		{"t": "sketch", "id": "f1", "name": "Sketch1", "plane": "front", "ents": [{"k": "rect", "a": [30.0, -10.0], "b": [50.0, 10.0]}], "dims": []},
 		{"t": "extrude", "id": "f2", "name": "Extrude1", "sketch": "f1", "dist": 20.0, "both": false, "op": "new"}]
 	gb["seq"] = 2
+	# design changed in 7c6bcd55 EMIRROR: Easy Part Mirror on a piece off the middle line goes across the middle of the part; bar rewritten 11-01 per Nick:
+	# one box off the line no longer leaves a gap, so the fixture is two boxes JOINED with a gap between them (one body, two lumps)
+	gb["features"].append({"t": "sketch", "id": "f3", "name": "Sketch2", "plane": "front", "ents": [{"k": "rect", "a": [70.0, -10.0], "b": [90.0, 10.0]}], "dims": []})
+	gb["features"].append({"t": "extrude", "id": "f4", "name": "Extrude2", "sketch": "f3", "dist": 20.0, "both": false, "op": "join"})
+	gb["seq"] = 4
 	m.S.part = gb
 	pu.upto = -1
 	pu.sync()
