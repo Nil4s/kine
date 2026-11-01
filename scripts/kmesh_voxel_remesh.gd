@@ -15,6 +15,11 @@ const CORNERS := [Vector3i(0, 0, 0), Vector3i(1, 0, 0), Vector3i(0, 1, 0), Vecto
 const EDGES := [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]]
 
 
+## n03: the field build and the surface nets in C++ (MeshOpsDoor.door().voxel_remesh); KINE_NO_NATIVE=1 forces the GDScript path
+static func native_on() -> bool:
+	return MeshOpsDoor.on()
+
+
 ## the remeshed copy of m at `voxel` metres (m itself is not changed)
 static func remesh(m: KMesh, voxel: float) -> Dictionary:
 	if m == null or m.faces.is_empty() or m.verts.is_empty():
@@ -23,13 +28,6 @@ static func remesh(m: KMesh, voxel: float) -> Dictionary:
 		return {"ok": false, "why": "the voxel size must be more than 0 m"}
 	if not m.is_closed():
 		return {"ok": false, "why": "the mesh has a hole: close it first (Repair), then remesh"}
-	var tris := PackedVector3Array()
-	for f in m.faces:
-		var fa := f as PackedInt32Array
-		for k in range(1, fa.size() - 1):
-			tris.append(m.verts[fa[0]])
-			tris.append(m.verts[fa[k]])
-			tris.append(m.verts[fa[k + 1]])
 	var lo := m.verts[0]
 	var hi := m.verts[0]
 	for p in m.verts:
@@ -40,6 +38,17 @@ static func remesh(m: KMesh, voxel: float) -> Dictionary:
 	if count > MAX_VOXELS:
 		var need := maxf((hi - lo).x, maxf((hi - lo).y, (hi - lo).z)) / pow(float(MAX_VOXELS), 1.0 / 3.0)
 		return {"ok": false, "why": "too fine for this mesh: use a voxel of %.1f mm or bigger" % (need * 1000.0)}
+	if native_on():
+		var nr: Dictionary = MeshOpsDoor.door().voxel_remesh(m.verts, m.faces, voxel)
+		var nout := KMesh.new().from_arrays(nr["verts"], nr["faces"])
+		return {"ok": true, "mesh": nout, "voxels": int(nr["voxels"]), "cell": float(nr["cell"])}
+	var tris := PackedVector3Array()
+	for f in m.faces:
+		var fa := f as PackedInt32Array
+		for k in range(1, fa.size() - 1):
+			tris.append(m.verts[fa[0]])
+			tris.append(m.verts[fa[k]])
+			tris.append(m.verts[fa[k + 1]])
 	var field := AnyGrip.MeshField.build_banded(tris, voxel)
 	var verts := PackedVector3Array()
 	var faces: Array = []
