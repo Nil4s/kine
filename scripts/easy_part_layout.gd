@@ -510,6 +510,11 @@ func layout(cl: Rect2) -> void:
 		var room_h := stat_top - low_y - 4.0
 		var words_on := bool((rep_rows[0]["words"] as Control).visible)
 		var wh := float((rep_rows[0]["words"] as Control).get_combined_minimum_size().y) + 4.0
+		var rows_up := 0   # s228: the words stand under EACH shown slider (How many, Rows, Gap...): counting one made the box flip the words on and off every frame when the room was tight
+		for rr in rep_rows:
+			if (rr["box"] as Control).visible:
+				rows_up += 1
+		wh *= float(maxi(rows_up, 1))
 		repeat_box.reset_size()
 		var h_now := repeat_box.get_combined_minimum_size().y
 		var want_on := (h_now + wh) <= room_h if not words_on else h_now <= room_h
