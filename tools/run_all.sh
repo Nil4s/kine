@@ -572,3 +572,6 @@ EXTRA="$EXTRA s215:w"   # s215: Pipe through points (Parts > Pipes): a tube swep
 
 
 EXTRA="$EXTRA s218:w"   # s218: section colour: per-body cap colours on Section view, Split results and Nice picture
+
+
+EXTRA="$EXTRA s216:w"   # s216 SWEEP BEND RADIUS: Pull along has a Bend radius control (slider + typed mm, default 1.5 x tube width, least the tube radius); L path, 30 mm tube at 60 mm: one solid, mesh circle-fit radius 60 +-1, Pappus volume, slider/typed changes, undo (tests/s216_test.gd; needs the CAD DLL)

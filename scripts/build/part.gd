@@ -1670,6 +1670,8 @@ static func _sweep(bodies: Array, f: Dictionary, sketches: Dictionary) -> String
 	var pa: Dictionary = pk.get("_pl", plane(String(pk.get("plane", "front"))))
 	var centre := _profile_centre(ps["ents"])
 	var rc := maxf(2.0, 1.5 * _profile_reach(ps["ents"], centre))
+	if f.has("bend"):   # S216 BEND RADIUS: the centre line's radius (mm) at every corner, never below the profile's own reach (a tighter bend folds)
+		rc = maxf(float(f["bend"]), _profile_reach(ps["ents"], centre))
 	var sp := sweep_path(pk["ents"], rc)
 	if String(sp["err"]) != "":
 		return String(sp["err"])
