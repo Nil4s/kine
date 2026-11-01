@@ -330,6 +330,9 @@ func _pick_starter(easy_on: bool) -> void:
 		for j in PartTemplates.ORDER.size():
 			var t := String(PartTemplates.ORDER[j])
 			_starters.add_item("Part: %s, a %s you change with sliders" % [PartTemplates.T[t]["title"], String(PartTemplates.T[t]["title"]).to_lower()], 1000 + j)
+		for j in PartTemplates.RECIPES.size():   # P096: the recipes (a part that opens as its steps), ids 2000+
+			var rt := String(PartTemplates.RECIPES[j])
+			_starters.add_item("Part: %s, a recipe: its steps you change one by one" % PartTemplates.T[rt]["title"], 2000 + j)
 		_starters.id_pressed.connect(func(i: int): _load_starter(i))
 		add_child(_starters)
 	_starters.popup_centered()
@@ -341,8 +344,11 @@ func _load_starter(i: int) -> void:
 	# popup left open sits over the Easy Part panel and takes the mouse from its sliders)
 	if _starters != null:
 		_starters.hide()
+	if i >= 2000:   # P096: a recipe: opens as its steps
+		i = 1000 + PartTemplates.ORDER.size() + (i - 2000)
 	if i >= 1000:   # FREESTART: a Part example (a sword, an axe ...): Easy Part or Expert opens it as the part (one undo step)
-		var t := String(PartTemplates.ORDER[i - 1000])
+		var all: Array = PartTemplates.ORDER + PartTemplates.RECIPES
+		var t := String(all[i - 1000])
 		_mode(_starter_easy)
 		close()
 		m._page_set("BUILD")

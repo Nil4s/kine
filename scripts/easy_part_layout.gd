@@ -3,6 +3,9 @@ extends "res://scripts/easy_part_base.gd"
 ## _chrome_sync), the camera framing (it eases, never jumps), the amber drag dots, the floor grid and the upright plane, the outline of a
 ## shape being drawn, and the face of a solid under the pointer.
 
+const EPTheme := preload("res://scripts/easy_part_theme.gd")   # plan 109: Light / Dark for the Easy Part boxes
+
+
 func _big_btn(nm: String, txt: String, tip: String, f: Callable) -> Button:
 	var b := Button.new()
 	b.name = nm
@@ -33,7 +36,8 @@ func _colour_btn(key: String, txt: String, c: Color) -> Button:
 
 func _style(c: Color, r: int, margin: int) -> StyleBoxFlat:
 	var s := StyleBoxFlat.new()
-	s.bg_color = c
+	s.bg_color = EPTheme.map_fill(c)   # plan 109: Light maps the dark fill; the original is kept for Dark
+	s.set_meta("ep_orig", c)
 	s.set_corner_radius_all(r)
 	s.set_content_margin_all(margin)
 	return s
@@ -78,6 +82,11 @@ func _size_sync() -> void:
 	var d := snappedf(bb.size.z * 100.0, 0.1)
 	var h := snappedf(bb.size.y * 100.0, 0.1)
 	size_l.text = "Size: %s x %s x %s cm (wide x deep x high), %s" % [_cm1(w), _cm1(d), _cm1(h), _print_words()]
+	var tipw := _tip_words()   # P128: "It will tip over: ..." when the weight is past the feet
+	if tipw != "":
+		size_l.text += "
+" + tipw
+	size_l.text += _cost_words()   # s081: ", about R$ 2,98"
 	var front := Vector3(bb.get_center().x, bb.position.y, bb.end.z)
 	if m.cam.is_position_behind(front):
 		size_l.visible = false
@@ -88,6 +97,10 @@ func _size_sync() -> void:
 	# FMOBILE: the label stays on the window (a part low on a short window pushed it off the bottom) and hides rather than sit on a box or panel
 	var vp := get_viewport().get_visible_rect()
 	var pos := Vector2(clampf(p.x - sz.x * 0.5, 4.0, vp.end.x - sz.x - 4.0), minf(p.y + 12.0, vp.end.y - sz.y - 4.0))
+	if view_box != null and view_box.is_visible_in_tree():   # s081: the longer line (with the cost) slides left of the view column instead of drawing over it
+		var vr := view_box.get_global_rect()
+		if pos.y < vr.end.y and pos.y + sz.y > vr.position.y:
+			pos.x = minf(pos.x, vr.position.x - sz.x - 4.0)
 	size_l.position = pos
 	var r := Rect2(size_l.get_global_position(), sz)
 	for bx in [panel, repeat_box, stick_box, colour_box, hint, status]:
@@ -460,7 +473,7 @@ func layout(cl: Rect2) -> void:
 	colour_box.reset_size()
 	colour_box.position = shape_box.position
 	# FMOBILE: the floating boxes stay left of the panel (the colour chips wrap) and below the sentence (the hint)
-	var room := cl.end.x - PW - 32.0 - colour_box.position.x
+	var room := minf(cl.end.x - PW - 32.0, view_box.position.x - 8.0) - colour_box.position.x   # s081: and left of the view column (the Wood chip sat under it, so a click there hit the view buttons)
 	var nat := 24.0   # the chips in one row (their own widths and the gaps): the box is only as wide as its chips when the room is wide
 	for c in (colour_box.get_child(0) as Control).get_children():
 		nat += (c as Control).get_combined_minimum_size().x + 6.0
@@ -1265,7 +1278,7 @@ func _flat_narrow() -> void:
 ## P172LAYOUTS: the round filter row (four 176 px chips) at 1024 wide: the chips share the room left of the view column, so the row
 ## stops short of the views and the panel's sliders. The chips narrow and their words trim (the tooltips have the full words); wide, nothing changes
 func _round_narrow() -> void:
-	var btns := (round_box.get_child(0) as Control).get_children()
+	var btns := ((round_box.get_child(0).get_child(0)) as Control).get_children()   # s013: box > column > the chip row
 	var narrow := get_viewport().get_visible_rect().size.x < NARROW_W
 	var room := view_box.position.x - 8.0 - round_box.position.x - 14.0 - 6.0 * float(btns.size() - 1)
 	var bw := clampf(floorf(room / float(btns.size())), 96.0, 176.0) if narrow else 176.0
@@ -1297,3 +1310,72 @@ func _grid_labels_screen_size(c: Camera3D, view: Rect2) -> void:
 		if l.visible:
 			shown.append(sp)
 
+
+
+## P128 CENTRE OF MASS (scripts/build/part_com.gd): a small red dot at the whole part's centre of mass (shown after "Does it fall over?" is pressed,
+## and always while the part would tip over), and "It will tip over: its weight is N mm outside its feet" in the size line. A reading only: no step, no undo.
+var com_on := false              # P128: the dot was asked for (the Colour page's "Does it fall over?" chip toggles it)
+var com_key := -1                # P128: hash of the features the reading was made from
+var com_t := 0                  # P128: msec of the last reading
+var com_res := {}                # P128: PartCom.read of the shown Part (re-read only when its steps change)
+var _com_mesh: MeshInstance3D    # P128: the dot, a child of the shown part
+
+
+## the reading for the Part as it is now (cached on its steps)
+func _com_read() -> Dictionary:
+	var key: int = _rec().get("features", []).hash()
+	if key == com_key:
+		return com_res
+	# a change just happened: re-read at most every 300 ms (a slider drag changes the Part every frame; each reading replays it)
+	var now := Time.get_ticks_msec()
+	if not com_res.is_empty() and (now - com_t < 300 or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT)):
+		return com_res
+	com_key = key
+	com_t = now
+	com_res = PartCom.read(_rec())
+	return com_res
+
+
+## the tip-over sentence for the size line ("" when it stands or there is no solid)
+func _tip_words() -> String:
+	if not Part.available() or int(pu.res.get("bodies", 0)) <= 0:
+		return ""
+	return String(_com_read().get("warn", ""))
+
+
+func _com_sync(show_ok: bool) -> void:
+	if _com_mesh == null:
+		_com_mesh = MeshInstance3D.new()
+		_com_mesh.name = "easypart_com_dot"
+		var red := StandardMaterial3D.new()
+		red.albedo_color = Color(0.9, 0.15, 0.12)
+		red.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		red.no_depth_test = true
+		_com_mesh.material_override = red
+		var sph := SphereMesh.new()
+		sph.radius = 0.004
+		sph.height = 0.008
+		_com_mesh.mesh = sph
+		_com_mesh.visible = false
+		pu.bu.root3.add_child(_com_mesh)
+	var on_part: bool = show_ok and pu.part_mesh != null and pu.part_mesh.mesh != null and pu.part_mesh.visible and Part.available()
+	if on_part:
+		var r := _com_read()
+		on_part = bool(r.get("ok", false)) and (com_on or bool(r.get("tips", false)))
+		if on_part:
+			_com_mesh.global_transform = pu.part_mesh.global_transform * Transform3D(Basis.IDENTITY, r["com"] as Vector3)
+	_com_mesh.visible = on_part
+
+## s081 COST READOUT (plan 58): ", about R$ 2,98" for the Size line: PLA by volume, wood by board length, prices from CutList.prices() (BRL).
+## Read again only when the part's steps or the price table change.
+var _cost_key := -1
+var _cost_txt := ""
+func _cost_words() -> String:
+	if pu == null or not Part.available() or pu.coarse:
+		return _cost_txt
+	var key: int = [_rec().get("features", []).hash(), CutList.prices_key()].hash()
+	if key != _cost_key:
+		_cost_key = key
+		var c := CutList.cost(_rec())
+		_cost_txt = ", " + String(c["text"]) if not c.is_empty() else ""
+	return _cost_txt

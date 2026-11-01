@@ -38,8 +38,30 @@ func _repeat_box() -> PanelContainer:
 	var rb := _big_btn("easypart_rep_rail", "Rail", "A handrail of square bar laid along the top of the stairs (press after Up and Forward)", _rep_rail)
 	h.add_child(rb)
 	rep_btns["rail"] = rb
+	# s048: the second line: Around an axis (X, Y, Z) or a picked edge, Along the Curvy line, and Grow (each copy bigger)
+	var h2 := HBoxContainer.new()
+	h2.add_theme_constant_override("separation", 6)
+	vb.add_child(h2)
+	for ad in [["x", "Around X", "Copies round the X line through the middle (left to right), evenly in a full turn"], ["y", "Around Y", "Copies round the up line through the middle, evenly in a full turn"], ["z", "Around Z", "Copies round the Z line through the middle (front to back), evenly in a full turn"]]:
+		var xb := _big_btn("easypart_rep_around_" + String(ad[0]), String(ad[1]), String(ad[2]), _rep_around.bind(String(ad[0])))
+		xb.toggle_mode = true
+		h2.add_child(xb)
+		rep_btns["around_" + String(ad[0])] = xb
+	var eb := _big_btn("easypart_rep_around_edge", "Around edge", "Click an edge of the part: the copies go round that edge, evenly in a full turn", _rep_edge_arm)
+	eb.toggle_mode = true
+	h2.add_child(eb)
+	rep_btns["around_edge"] = eb
+	var ab := _big_btn("easypart_rep_along", "Along line", "Copies spaced along the Curvy line you drew (draw it first, then press Repeat it, then this)", _rep_along)
+	ab.toggle_mode = true
+	h2.add_child(ab)
+	rep_btns["along"] = ab
+	var gb := _big_btn("easypart_rep_grow", "Grow", "Each copy bigger than the one before (move Grow by for how much). Pull a shape up first", _rep_grow)
+	gb.toggle_mode = true
+	h2.add_child(gb)
+	rep_btns["grow"] = gb
 	rep_rows.append(_make_row("How many", 2.0, 20.0, 1.0, REP_WORDS["count"], "rep", "count", "copies", vb))
 	rep_rows.append(_make_row("Gap", 0.5, 30.0, 0.5, REP_WORDS["gap"], "rep", "gap", "cm", vb))
+	rep_rows.append(_make_row("Grow by", 5.0, 100.0, 1.0, ["Slightly", "A lot"], "rep", "grow", "pct", vb))
 	return box
 
 
@@ -50,9 +72,11 @@ func _apply_rep(row: Dictionary, v: float) -> void:
 		return
 	if String(row["key"]) == "count":
 		f["count"] = int(roundf(v))
+	elif String(row["key"]) == "grow":   # s048: Grow by 20 % = each copy 1.2 times the one before
+		f["factor"] = 1.0 + v / 100.0
 	else:
 		f["gap"] = v * 10.0
-		f["mm"] = _span(f) + v * 10.0
+		f["mm"] = (_side_mm(f) if String(f.get("kind", "")) == "path" else _span(f)) + v * 10.0
 
 
 func _mirror(rec: Dictionary) -> String:
@@ -293,6 +317,63 @@ func _rep_corners() -> void:
 		_say("Corners: four copies, one at each corner of the piece it sits on")
 
 
+## p049 REPEAT ALONG: the newest Repeat it step copies its piece along the open Curvy line drawn before it (one undo step). The spacing = the piece's
+## width (its larger side across the floor) plus the Gap; the copies follow the curve from its start
+func _rep_along() -> void:
+	if Part.feature(_rec(), rep_id).is_empty():
+		_say("Repeat it first: make a solid, draw a Curvy line, press Repeat it, then Along the line")
+		return
+	var path := _curve_id()
+	if path == "":
+		_say("Along the line needs an open Curvy line: draw one from the piece, not back to its start, then press Along the line")
+		return
+	_flush_if_dirty()
+	_begin("Along the line")
+	var cur := Part.feature(_rec(), rep_id)
+	cur["kind"] = "path"
+	cur["path"] = path
+	cur["beside"] = false
+	cur["about"] = ""
+	cur["op"] = "join"
+	cur["mm"] = _side_mm(cur) + float(cur.get("gap", 10.0))
+	var pts := Part._curve_pts(Part.feature(_rec(), path).get("ents", []))   # s048: How many starts at as many as the curve holds (the original counts)
+	var len_mm := 0.0
+	for i in range(1, pts.size()):
+		len_mm += pts[i - 1].distance_to(pts[i])
+	cur["count"] = clampi(1 + int(floorf(len_mm / maxf(float(cur["mm"]), 1.0) + 1e-6)), 2, 20)
+	_end()
+	pu.sync()
+	_rep_sync()
+	_values_sync()
+	var err: String = pu.replay_full(_rec())["errors"].get(rep_id, "")
+	if err != "":
+		_say(_plain(err) + ". Draw a longer or gentler Curvy line, or undo")
+	else:
+		_say("Along the line: the copies follow the curve. Move Gap for the spacing")
+
+
+## p049: the newest open sketch (a Curvy line that does not come back to its start), "" when there is none
+func _curve_id() -> String:
+	var feats: Array = _rec().get("features", [])
+	for i in range(feats.size() - 1, -1, -1):
+		var f: Dictionary = feats[i]
+		if String(f.get("t", "")) != "sketch" or (f.get("ents", []) as Array).is_empty():
+			continue
+		var closed := false
+		for e in f["ents"]:
+			if String(e.get("k", "")) in ["circle", "rect"] or (String(e.get("k", "")) == "bspline" and bool(e.get("closed", false))):
+				closed = true
+		if not closed:
+			return String(f.get("id", ""))
+	return ""
+
+
+## p049: the copied piece's size across the floor (its larger side, X or Z, mm), as Repeat it measured it before its copies were made; 10 mm when it is not there
+func _side_mm(cur: Dictionary) -> float:
+	var side := maxf(float(cur.get("w", 0.0)), float(cur.get("d", 0.0)))
+	return side if side > 0.0 else 10.0
+
+
 ## Row (linear, along X) or Ring (circular, round the up axis Y, a full turn): one undo step; Gap spaces both (in a Ring it sets the circle size)
 func _rep_mode(ring: bool) -> void:
 	if Part.feature(_rec(), rep_id).is_empty():
@@ -377,18 +458,151 @@ func _rep_sync() -> void:
 	(rep_btns["row"] as Button).set_pressed_no_signal(lin and String(f.get("dir", "x")) == "x")
 	(rep_btns["up"] as Button).set_pressed_no_signal(lin and String(f.get("dir", "x")) == "y")
 	(rep_btns["forward"] as Button).set_pressed_no_signal(lin and String(f.get("dir", "x")) == "z")
-	(rep_btns["ring"] as Button).set_pressed_no_signal(ring)
+	(rep_btns["ring"] as Button).set_pressed_no_signal(ring and String(f.get("about", "")) == "")
 	(rep_btns["corners"] as Button).set_pressed_no_signal(String(f.get("kind", "")) == "corners")
 	(rep_btns["stairs"] as Button).set_pressed_no_signal(String(f.get("kind", "")) == "stairs")
 	var kind := String(f.get("kind", ""))
 	(rep_btns["rail"] as Button).visible = kind == "stairs"   # FRAIL: a rail only goes along a stair
+	(rep_btns["along"] as Button).set_pressed_no_signal(kind == "path")
+	var about := String(f.get("about", "")) if kind == "circular" else ""   # s048: Around X / Y / Z / edge (a Ring has no "about")
+	for ax in ["x", "y", "z"]:
+		(rep_btns["around_" + ax] as Button).set_pressed_no_signal(about == ax)
+	(rep_btns["around_edge"] as Button).set_pressed_no_signal(about == "edge" or armed == "aredge")
+	(rep_btns["grow"] as Button).set_pressed_no_signal(kind == "grow")
 	var rows_on := kind != "corners"   # CORNERS: four copies at the corners, no How many or Gap to set
 	for r in rep_rows:
 		# UP AND FORWARD: the steps are a count (How many); a Gap would mean nothing between the steps, so it is not shown
-		(r["box"] as Control).visible = rows_on and not (kind == "stairs" and String(r["key"]) == "gap")
+		# ALONG THE LINE: the copies follow the curve, so the count comes from its length (only the Gap is shown)
+		var key := String(r["key"])
+		var show := rows_on and not (kind == "stairs" and key == "gap") 
+		if about != "":
+			show = show and key == "count"   # s048: round an axis: only How many (the copies are spread evenly in the turn)
+		if key == "grow":
+			show = kind == "grow"
+		(r["box"] as Control).visible = show
 	for r in rep_rows:
 		var s: HSlider = r["slider"]
-		var v := float(f.get("count", 3)) if String(r["key"]) == "count" else float(f.get("gap", 10.0)) / 10.0
+		var v := float(f.get("count", 3)) if String(r["key"]) == "count" else (float(f.get("gap", 10.0)) / 10.0 if String(r["key"]) == "gap" else (float(f.get("factor", 1.1)) - 1.0) * 100.0)
 		if not bool(r.get("held", false)):
 			s.set_value_no_signal(v)
 		_pill_text(r, v)
+
+
+## s048 AROUND AN AXIS: the newest Repeat it step becomes a full turn of copies round the X, Y or Z line through the middle (the world origin), evenly spaced,
+## fused into one solid where they touch. One undo step; How many sets the copies (the original counts)
+func _rep_around(ax: String) -> void:
+	if Part.feature(_rec(), rep_id).is_empty():
+		return
+	_flush_if_dirty()
+	_begin("Around " + ax.to_upper())
+	var cur := Part.feature(_rec(), rep_id)
+	_around_fields(cur, ax)
+	cur.erase("pivot")
+	cur.erase("adir")
+	_end()
+	_around_done("Around " + ax.to_upper() + ": the copies go round the " + ax.to_upper() + " line through the middle. Move How many for more or fewer")
+
+
+## s048: the pattern step's fields for a full turn round an axis (the same for X, Y, Z and a picked edge)
+func _around_fields(cur: Dictionary, about: String) -> void:
+	if String(cur.get("about", "")) == "" and int(cur.get("count", 3)) <= 3:
+		cur["count"] = 6   # a first Around starts at six round (the slider is at its Row start, 3)
+	cur["kind"] = "circular"
+	cur["about"] = about
+	cur["beside"] = false
+	cur["op"] = "join"
+	cur["deg"] = 360.0
+	if about in ["x", "y", "z"]:
+		cur["axis"] = about
+
+
+func _around_done(words: String) -> void:
+	pu.sync()
+	_rep_sync()
+	_values_sync()
+	var err: String = pu.replay_full(_rec())["errors"].get(rep_id, "")
+	_say(_plain(err) + ". Undo takes it back" if err != "" else words)
+
+
+## s048 AROUND AN EDGE, step 1: the next click on the part picks the edge the copies go round
+func _rep_edge_arm() -> void:
+	if Part.feature(_rec(), rep_id).is_empty():
+		return
+	_flush_if_dirty()
+	armed = "aredge"
+	(rep_btns["around_edge"] as Button).set_pressed_no_signal(true)
+	_say("Click an edge of the part: the copies go round it")
+
+
+## s048 AROUND AN EDGE, step 2: a press at p picks the nearest built edge of the solid, one undo step. true = taken
+func _aredge_press(p: Vector2) -> bool:
+	if m.cam == null or not Part.available():
+		return false
+	var res := Part.replay(_rec(), -1, {"edges": true, "keep": true})
+	Part.release_kept(res.get("ids", []))
+	var best := {}
+	var best_d := 24.0
+	var best_near := INF
+	for e in res.get("edges", []):
+		if bool(e.get("seam", false)):
+			continue
+		var a: Vector3 = e["a"]
+		var b: Vector3 = e["b"]
+		if m.cam.is_position_behind(a) or m.cam.is_position_behind(b):
+			continue
+		var d := _seg_px_r(p, m.cam.unproject_position(a), m.cam.unproject_position(b))
+		var near := ((a + b) * 0.5).distance_to(m.cam.global_position)
+		if d < best_d - 1.5 or (d < best_d + 1.5 and not best.is_empty() and near < best_near):   # edges that line up on the screen: the one nearer the camera (the one in front)
+			best_d = minf(d, best_d)
+			best_near = near
+			best = e
+	if best.is_empty():
+		_say("No edge there: click right on a line of the part")
+		return true
+	var a2: Vector3 = best["a"]
+	var b2: Vector3 = best["b"]
+	if a2.distance_to(b2) < 1e-6:
+		_say("That edge is a point: click a straight edge")
+		return true
+	armed = ""
+	_begin("Around edge")
+	var cur := Part.feature(_rec(), rep_id)
+	_around_fields(cur, "edge")
+	var dv := (b2 - a2).normalized()
+	cur["pivot"] = [snappedf(a2.x / Part.MM, 0.01), snappedf(a2.y / Part.MM, 0.01), snappedf(a2.z / Part.MM, 0.01)]
+	cur["adir"] = [snappedf(dv.x, 0.000001), snappedf(dv.y, 0.000001), snappedf(dv.z, 0.000001)]
+	_end()
+	_around_done("Around that edge: the copies go round it. Move How many for more or fewer")
+	return true
+
+
+## s048 REPEAT WITH GROWTH: the newest Repeat it step makes each copy "Grow by" percent bigger than the one before, in the row's direction
+## (Row, Up or Forward), the near side of each a Gap past the far side of the last. One undo step
+func _rep_grow() -> void:
+	if Part.feature(_rec(), rep_id).is_empty():
+		return
+	_flush_if_dirty()
+	_begin("Grow")
+	var cur := Part.feature(_rec(), rep_id)
+	cur["kind"] = "grow"
+	cur["about"] = ""
+	cur["beside"] = false
+	cur["op"] = "join"
+	cur["factor"] = float(cur.get("factor", 1.1))   # a first Grow is 10 pct bigger each copy
+	if String(cur.get("dir", "x")) not in ["x", "y", "z"]:
+		cur["dir"] = "x"
+	if int(cur.get("count", 3)) <= 3:
+		cur["count"] = 4
+	_end()
+	pu.sync()
+	_rep_sync()
+	_values_sync()
+	var err: String = pu.replay_full(_rec())["errors"].get(rep_id, "")
+	_say(_plain(err) + ". Pull a shape up first, then Repeat it and Grow; or undo" if err != "" else "Grow: each copy is bigger than the one before. Move Grow by and How many")
+
+
+## s048: the distance in px from p to the screen segment a-b
+func _seg_px_r(p: Vector2, a: Vector2, b: Vector2) -> float:
+	var ab := b - a
+	var t := 0.0 if ab.length_squared() < 1e-9 else clampf((p - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
+	return p.distance_to(a + ab * t)

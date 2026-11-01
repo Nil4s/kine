@@ -176,6 +176,7 @@ var clips_ui: ClipsUI   # CLIPS (GAP row 12): the commands, dialog and picked cl
 var export_ui: ExportDialog   # EXPORT... (ROADMAP 57): one dialog for every target; runs the writers below (scripts/export_dialog.gd)
 var mc_ui: MyCamUI   # MY CAMERA (ROADMAP I32): the fingerprint of his shot cameras + Frame it my way (scripts/my_camera_ui.gd)
 var ac_ui: AutoCamUI   # AUTO CAMERA (ROADMAP I7): ghost-frame shot suggestions (scripts/auto_camera_ui.gd)
+var ssl_ui: SceneScriptUI   # SCENE LINES (Friday plan 135/136, scripts/scene_script_ui.gd)
 var sl_ui: ShotListUI   # SHOT LIST (Friday plan 150): type a story, a shot card per line (scripts/shot_list_ui.gd)
 var mp_ui: MakePhysicalUI   # MAKE IT PHYSICAL (ROADMAP I1): the judge, the red lane, the ghost (scripts/make_physical_ui.gd)
 var ds_ui: DeformSceneUI   # DEFORMATION OVER THE SCENE (ROADMAP_400 H17): per-frame skin grades, worst frames, red lane, ghost (scripts/deform_scene_ui.gd)
@@ -12814,6 +12815,9 @@ func _ui() -> void:
 	if sl_ui == null:
 		sl_ui = ShotListUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Shot list", sl_ui.show, "type a short story, one line per shot: Kine makes a card per shot with its camera (wide, medium, close-up, low or high angle) and its move; Keep all writes them as shots, one undo step"))
+	if ssl_ui == null:
+		ssl_ui = SceneScriptUI.new(self)
+	ui_ribbon["CHECK"].add_child(_button("Scene lines", ssl_ui.show, "type one line for the scene: 'A punches, then B falls', 'while A waves, B jumps', 'after 2 seconds, B sits', 'close up on A', 'wide shot', 'follow B', 'orbit slowly'"))
 	if mc_ui == null:
 		mc_ui = MyCamUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("My camera", mc_ui.show, "the habits in the shot cameras of your own scenes: lens, camera height, distance, angle to the line of action, where the subject sits, how long before a contact you cut (medians, spread, counts)"))
@@ -16370,6 +16374,9 @@ func _commands() -> Array:
 	if sl_ui == null:
 		sl_ui = ShotListUI.new(self)
 	sl_ui.commands(add)   # SHOT LIST (Friday plan 150)
+	if ssl_ui == null:
+		ssl_ui = SceneScriptUI.new(self)
+	ssl_ui.commands(add)   # SCENE LINES (Friday plan 135/136)
 	if mc_ui == null:
 		mc_ui = MyCamUI.new(self)
 	mc_ui.commands(add)   # MY CAMERA (ROADMAP I32)
@@ -23621,21 +23628,21 @@ func _obj_color(mi: MeshInstance3D) -> Color:
 	return ObjIO.DEFAULT_COLOR
 
 
-func _export_obj(dir := "user://exports") -> String:
-	var ms := _obj_posed_meshes()
+func _export_obj(dir := "user://exports", budget := 0) -> String:
+	var ms := ExportBudget.apply_list(_obj_posed_meshes(), budget)
 	var nm := safe_file(S.name if S.name != "" else "scene")
 	var path := "%s/%s.obj" % [dir, nm]
 	var r := ObjIO.export(ms, path)
 	if not r["ok"]:
 		_say_plain("NOT DONE: the .obj could not be written (%s). Check that the folder is writable, then run Deliver again" % r["why"])
 		return ""
-	_say_plain("exported %s.obj: %d triangles in %d groups at the playhead (metres, Y up)%s. A static mesh: for the animation use Export animation" % [nm, r["tris"], ms.size(), ", the held weapon included" if B.wep_on else ""])
+	_say_plain("exported %s.obj: %d triangles in %d groups at the playhead (metres, Y up)%s. A static mesh: for the animation use Export animation%s" % [nm, r["tris"], ms.size(), ", the held weapon included" if B.wep_on else "", ExportBudget.words() if budget > 0 else ""])
 	return path
 
 
 ## OBJ of ONE object (DELIVER, the export dialog's OBJ with "Only the selected object"; or one entry per object): the picked
 ## set piece (the chair) or the body, each as its own group at its place (metres, Y up). Same objects as the .glb choice
-func _export_obj_objects(dir := "res://exports", only_selected := false) -> String:
+func _export_obj_objects(dir := "res://exports", only_selected := false, budget := 0) -> String:
 	dir = UserPaths.w(dir)
 	var objs := scene_objects()
 	if only_selected:
@@ -23646,14 +23653,14 @@ func _export_obj_objects(dir := "res://exports", only_selected := false) -> Stri
 		return ""
 	var stem := String(objs[0]["name"]) if only_selected else safe_file(S.name if S.name != "" else "scene") + "_objects"
 	var meshes := []
-	for o in objs:
+	for o in ExportBudget.apply_list(objs, budget):
 		meshes.append({"name": String(o["name"]), "mesh": o["mesh"], "xf": Transform3D.IDENTITY, "color": ObjIO.DEFAULT_COLOR})
 	var path := "%s/%s.obj" % [dir, safe_file(stem)]
 	var r := ObjIO.export(meshes, path)
 	if not r["ok"]:
 		_say_plain("NOT DONE: the .obj could not be written (%s). Check that the folder is writable" % r["why"])
 		return ""
-	_say_plain("exported %s: %d mesh object%s (%s), static, metres, Y up, no animation" % [path.get_file(), objs.size(), "" if objs.size() == 1 else "s", ", ".join(objs.map(func(o): return String(o["name"])))])
+	_say_plain("exported %s: %d mesh object%s (%s), static, metres, Y up, no animation%s" % [path.get_file(), objs.size(), "" if objs.size() == 1 else "s", ", ".join(objs.map(func(o): return String(o["name"]))), ExportBudget.words() if budget > 0 else ""])
 	return path
 
 
@@ -23686,6 +23693,8 @@ func scene_object_names() -> Array:
 	var out := []
 	if not _obj_posed_meshes().is_empty():
 		out.append("body")
+	if _sculpt_sphere_open():
+		out.append("sculpt_sphere")
 	if kmed != null and kmed.on and kmed.mesh != null:
 		out.append("body_mesh" if BaseBody.is_open(self) else "test_cube")
 	var fp := _free_part_object()   # FEXPORT: the free part is listed by its name (scene_objects has it too)
@@ -23720,6 +23729,10 @@ func scene_objects() -> Array:
 		var cube := ArrayMesh.new()
 		_append_surfaces(cube, kmed.mesh.to_array_mesh(), kmed.view.transform)   # where it stands beside the body, not at the origin
 		out.append({"name": "body_mesh" if BaseBody.is_open(self) else "test_cube", "mesh": cube, "xf": Transform3D.IDENTITY})
+	if _sculpt_sphere_open():   # plan 157: the sculpt page's own sphere is a mesh object (where it stands on the stage)
+		var sph := ArrayMesh.new()
+		_append_surfaces(sph, ksc.mesh.to_array_mesh(), ksc.view.transform)
+		out.append({"name": "sculpt_sphere", "mesh": sph, "xf": Transform3D.IDENTITY})
 	var fp := _free_part_object()
 	if not fp.is_empty():   # FEXPORT: a free BUILDING part (Easy Part, no set piece): its solid is a mesh object, named by the part
 		out.append(fp)
@@ -23779,6 +23792,8 @@ func _free_part_object() -> Dictionary:
 func selected_object_name() -> String:
 	if not _free_part_object().is_empty():
 		return String(S.part.get("name", "Part"))
+	if _sculpt_sphere_open() and ksc.showing:
+		return "sculpt_sphere"
 	if kmed != null and kmed.on and kmed.mesh != null:
 		return "body_mesh" if BaseBody.is_open(self) else "test_cube"
 	if sel_prop >= 0 and sel_prop < S.props.size():
@@ -23788,7 +23803,7 @@ func selected_object_name() -> String:
 
 ## EXPORT DIALOG "What to export" (only_selected: the one object; else every object by its name): a static .glb of the
 ## mesh objects in the scene at res:// dir (user's folder in an exported build). Everything is _export_glb, not this.
-func _export_objects(dir := "res://exports", only_selected := false) -> String:
+func _export_objects(dir := "res://exports", only_selected := false, budget := 0) -> String:
 	dir = UserPaths.w(dir)
 	var objs := scene_objects()
 	if only_selected:
@@ -23799,11 +23814,11 @@ func _export_objects(dir := "res://exports", only_selected := false) -> String:
 		return ""
 	var stem := String(objs[0]["name"]) if only_selected else safe_file(S.name if S.name != "" else "scene") + "_objects"
 	var path := "%s/%s.glb" % [dir, stem]
-	var err := GltfExport.write_meshes(objs, path)
+	var err := GltfExport.write_meshes(ExportBudget.apply_list(objs, budget), path)
 	if err != OK:
 		_say_plain("NOT DONE: the .glb could not be written (%s)" % error_string(err))
 		return ""
-	_say_plain("exported %s: %d mesh object%s (%s), static, no animation" % [path.get_file(), objs.size(), "" if objs.size() == 1 else "s", ", ".join(objs.map(func(o): return String(o["name"])))])
+	_say_plain("exported %s: %d mesh object%s (%s), static, no animation%s" % [path.get_file(), objs.size(), "" if objs.size() == 1 else "s", ", ".join(objs.map(func(o): return String(o["name"]))), ExportBudget.words() if budget > 0 else ""])
 	return path
 
 
@@ -25442,3 +25457,8 @@ func _feedback_open() -> void:
 		feedback = AppFeedback.new(self)
 	ui_help.visible = false
 	feedback.show_window()
+
+
+## plan 157: the sculpt page's own test sphere is open (the body sculpt is the body, already an export object)
+func _sculpt_sphere_open() -> bool:
+	return ksc != null and ksc.on and ksc.mesh != null and ksc.view != null and not ksc.source.is_valid()

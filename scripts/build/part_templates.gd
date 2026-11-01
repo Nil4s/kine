@@ -10,6 +10,7 @@ const MM := 0.001
 const ARCH_GAP := 40.0   # mm: a car's wheel arch top sits this far above the tyre's top (the arch is the wheel radius + 40 mm)
 const CAB_W := 0.88     # the glasshouse is this share of the body's width (narrower than the lower body, so the cabin reads as a cabin)
 const ORDER :=["sword", "axe", "shield", "chair", "gear", "rack", "slothole", "crate"]   # NGEAR: Gear sits before Crate (Crate stays the last chip); its numbers are not cm: "raw"   # P032: Slot sits before Crate too (Crate stays last). p070: Spring is not a chip: it is built from the Parts library (Springs)
+const RECIPES := ["phone", "shelf", "lidbox"]   # P096: templates that open as named steps (no slider record), so they are not in ORDER (ORDER = the slider templates)
 const START := ["box", "cylinder", "sphere", "tube", "plate"]   # FREESTART: the neutral "Start from" row on Easy Part's panel (simple shapes, no weapon)
 const T := {
 	"box": {"title": "Box", "params": [
@@ -57,6 +58,20 @@ const T := {
 		{"k": "height", "label": "Height", "lo": 200.0, "hi": 800.0, "def": 400.0, "step": 10.0, "words": ["Lower", "Taller"]},
 		{"k": "depth", "label": "Depth", "lo": 200.0, "hi": 800.0, "def": 400.0, "step": 10.0, "words": ["Shallower", "Deeper"]},
 		{"k": "lid", "label": "Lid overhang", "lo": 0.0, "hi": 60.0, "def": 20.0, "step": 5.0, "words": ["None", "More"]}]},
+	# P096 RECIPES (Friday 96): a template that opens as its STEPS (no "easy" record, so no sliders: each step is changed from the step list). The numbers here are the first
+	# sizes of each step (recipe_features); "recipe" makes make() leave out the slider record.
+	"phone": {"title": "Phone stand", "recipe": true, "params": [
+		{"k": "base", "label": "Base plate", "lo": 3.0, "hi": 20.0, "def": 6.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"},
+		{"k": "lip", "label": "Front lip", "lo": 8.0, "hi": 40.0, "def": 18.0, "step": 1.0, "words": ["Lower", "Taller"], "raw": true, "unit": "mm"},
+		{"k": "width", "label": "Back wedge", "lo": 40.0, "hi": 200.0, "def": 80.0, "step": 10.0, "words": ["Narrower", "Wider"], "raw": true, "unit": "mm"}]},
+	"shelf": {"title": "Shelf bracket", "recipe": true, "params": [
+		{"k": "plate", "label": "Shelf plate", "lo": 4.0, "hi": 20.0, "def": 8.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"},
+		{"k": "upright", "label": "Upright", "lo": 40.0, "hi": 300.0, "def": 150.0, "step": 10.0, "words": ["Lower", "Taller"], "raw": true, "unit": "mm"},
+		{"k": "width", "label": "Brace", "lo": 10.0, "hi": 80.0, "def": 40.0, "step": 5.0, "words": ["Narrower", "Wider"], "raw": true, "unit": "mm"}]},
+	"lidbox": {"title": "Box with lid", "recipe": true, "params": [
+		{"k": "depth", "label": "Box", "lo": 100.0, "hi": 600.0, "def": 200.0, "step": 10.0, "words": ["Shallower", "Deeper"], "raw": true, "unit": "mm"},
+		{"k": "lid", "label": "Lid", "lo": 5.0, "hi": 30.0, "def": 10.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"},
+		{"k": "grip", "label": "Lid handle", "lo": 12.0, "hi": 60.0, "def": 25.0, "step": 1.0, "words": ["Lower", "Taller"], "raw": true, "unit": "mm"}]},
 	# NGEAR: a spur gear with a centre hole. Real pitch diameter = teeth x module: tip = module x (teeth + 2), root = module x (teeth - 2.5). Default 30 teeth: a 64 mm gear reads in the 3/4 view.
 	# raw: the slider's own numbers (a tooth count, a size step 1 = Small / Medium / Big teeth = module 1 / 2 / 3, a thickness in mm), not cm
 	"gear": {"title": "Gear", "params": [
@@ -347,6 +362,9 @@ static func make(t: String, p := {}) -> Dictionary:
 	var fs := features_of(t, pp)
 	rec["features"] = fs
 	rec["seq"] = fs.size()
+	if bool(T[t].get("recipe", false)):   # P096: a recipe is plain steps (the step list changes each one); a slider record would overwrite them by index
+		rec["recipe"] = t
+		return rec
 	rec["easy"] = {"t": t, "p": pp, "n": fs.size()}
 	return rec
 
@@ -490,6 +508,8 @@ static func features_of(t: String, p: Dictionary) -> Array:
 		return rod_features(p)
 	if t == "grip":   # p207knurlingon
 		return grip_features(p)
+	if bool(T[t].get("recipe", false)):   # P096
+		return recipe_features(t, p)
 	var fs: Array = []
 	match t:
 		"box":
@@ -1144,3 +1164,32 @@ static func _pair_outline(n: int, m: float) -> Array:
 		pts.append(Vector2.from_angle(t + 1.35 * q) * rf)
 		pts.append(Vector2.from_angle(t + 4.0 * q - 1.35 * q) * rf)
 	return _poly(pts)
+
+
+## P096 RECIPES: the steps of a recipe template, each named (feature "label") so the step list reads "Base plate: pulled up 6 mm". A step's size is its
+## own "How far" in the step list. Sketches on Top run (x, -z) and are pulled UP; sketches on Front run (x, y) and are pulled along +z (the width).
+static func recipe_features(t: String, p: Dictionary) -> Array:
+	var fs: Array = []
+	match t:
+		"phone":
+			# base plate 100 x 80, a front lip on it, and a wedge at the back the phone leans on (its slope is the stand's back)
+			_step(fs, "Base plate", "top", [_rect(Vector2(0, -80), Vector2(100, 0))], float(p["base"]), "new")
+			_step(fs, "Front lip", "top", [_rect(Vector2(62, -80), Vector2(74, 0))], float(p["lip"]), "join")
+			_step(fs, "Back wedge", "front", _poly([Vector2(0, 6), Vector2(50, 6), Vector2(0, 100)]), float(p["width"]), "join")
+		"shelf":
+			_step(fs, "Shelf plate", "top", [_rect(Vector2(0, -40), Vector2(200, 0))], float(p["plate"]), "new")
+			_step(fs, "Upright", "top", [_rect(Vector2(0, -40), Vector2(8, 0))], float(p["upright"]), "join")
+			_step(fs, "Brace", "front", _poly([Vector2(8, 8), Vector2(68, 8), Vector2(8, 68)]), float(p["width"]), "join")
+		"lidbox":
+			_step(fs, "Box", "front", [_rect(Vector2(0, 0), Vector2(300, 150))], float(p["depth"]), "new")
+			_step(fs, "Lid", "top", [_rect(Vector2(310, -200), Vector2(610, 0))], float(p["lid"]), "new")
+			_step(fs, "Lid handle", "top", [_rect(Vector2(445, -110), Vector2(475, -90))], float(p["grip"]), "join")
+	return fs
+
+
+## one named recipe step: a sketch and the pull of it, both carrying the step's name
+static func _step(fs: Array, label: String, plane_name: String, ents: Array, dist: float, op: String) -> void:
+	var sid := _sk(fs, plane_name, ents)
+	_ex(fs, sid, "extrude", dist, op)
+	(fs[fs.size() - 2] as Dictionary)["label"] = label
+	(fs[fs.size() - 1] as Dictionary)["label"] = label
