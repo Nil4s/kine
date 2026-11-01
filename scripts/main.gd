@@ -176,6 +176,7 @@ var clips_ui: ClipsUI   # CLIPS (GAP row 12): the commands, dialog and picked cl
 var export_ui: ExportDialog   # EXPORT... (ROADMAP 57): one dialog for every target; runs the writers below (scripts/export_dialog.gd)
 var mc_ui: MyCamUI   # MY CAMERA (ROADMAP I32): the fingerprint of his shot cameras + Frame it my way (scripts/my_camera_ui.gd)
 var ac_ui: AutoCamUI   # AUTO CAMERA (ROADMAP I7): ghost-frame shot suggestions (scripts/auto_camera_ui.gd)
+var ssl_ui: SceneScriptUI   # SCENE LINES (Friday plan 135/136, scripts/scene_script_ui.gd)
 var sl_ui: ShotListUI   # SHOT LIST (Friday plan 150): type a story, a shot card per line (scripts/shot_list_ui.gd)
 var mp_ui: MakePhysicalUI   # MAKE IT PHYSICAL (ROADMAP I1): the judge, the red lane, the ghost (scripts/make_physical_ui.gd)
 var ds_ui: DeformSceneUI   # DEFORMATION OVER THE SCENE (ROADMAP_400 H17): per-frame skin grades, worst frames, red lane, ghost (scripts/deform_scene_ui.gd)
@@ -12814,6 +12815,9 @@ func _ui() -> void:
 	if sl_ui == null:
 		sl_ui = ShotListUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("Shot list", sl_ui.show, "type a short story, one line per shot: Kine makes a card per shot with its camera (wide, medium, close-up, low or high angle) and its move; Keep all writes them as shots, one undo step"))
+	if ssl_ui == null:
+		ssl_ui = SceneScriptUI.new(self)
+	ui_ribbon["CHECK"].add_child(_button("Scene lines", ssl_ui.show, "type one line for the scene: 'A punches, then B falls', 'while A waves, B jumps', 'after 2 seconds, B sits', 'close up on A', 'wide shot', 'follow B', 'orbit slowly'"))
 	if mc_ui == null:
 		mc_ui = MyCamUI.new(self)
 	ui_ribbon["CHECK"].add_child(_button("My camera", mc_ui.show, "the habits in the shot cameras of your own scenes: lens, camera height, distance, angle to the line of action, where the subject sits, how long before a contact you cut (medians, spread, counts)"))
@@ -16370,6 +16374,9 @@ func _commands() -> Array:
 	if sl_ui == null:
 		sl_ui = ShotListUI.new(self)
 	sl_ui.commands(add)   # SHOT LIST (Friday plan 150)
+	if ssl_ui == null:
+		ssl_ui = SceneScriptUI.new(self)
+	ssl_ui.commands(add)   # SCENE LINES (Friday plan 135/136)
 	if mc_ui == null:
 		mc_ui = MyCamUI.new(self)
 	mc_ui.commands(add)   # MY CAMERA (ROADMAP I32)
