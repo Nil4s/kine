@@ -216,6 +216,9 @@ func _init() -> void:
 		m.ui_tour.visible = false
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(DIRT))
 	m.start_screen.dirs_override = [DIRT]
+	m.B.wep_on = true   # the fighter holds the bat from the start: every building mode below must show nothing of it
+	m.B.wep_hand = "hand_r"
+	m.sel = "hand_r"
 	for mode in ["easy", "easy_part", "expert", "after_anim"]:
 		if mode == "after_anim":
 			await start("animation", true)
@@ -238,6 +241,15 @@ func _init() -> void:
 			ok(lk.is_empty(), "1 %s %s: no grip panel / facing label / figure %s" % [mode, sz, lk])
 			var eb := empty_buttons()
 			ok(eb.is_empty(), "2 %s %s: no visible Button without text and icon %s" % [mode, sz, eb])
+			if mode == "easy_part":   # a press in the free view must reach Easy Part: no Control (a grip panel) may sit there and eat it
+				var eaten := []
+				for pt in [Vector2(427, 554), Vector2(600, 500), Vector2(500, 350), Vector2(700, 450)]:
+					var q: Vector2 = pt * Vector2(sz) / Vector2(1280, 720)
+					await ev_move(q)
+					var hv: Control = root.gui_get_hovered_control()
+					if hv != null and not (hv is Label):
+						eaten.append("%s at %s" % [hv.name, q])
+				ok(eaten.is_empty(), "5 %s %s: free-view points of Easy Part hover no Control (a press reaches it) %s" % [mode, sz, eaten])
 			var nh := 0
 			for hb in m.find_children("home_btn", "Button", true, false):
 				if (hb as Button).is_visible_in_tree():
