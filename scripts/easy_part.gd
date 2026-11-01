@@ -635,6 +635,11 @@ func _colour_box() -> PanelContainer:
 	var wood := _colour_btn("wood", "Wood", WOOD_COLOUR)   # FTABLE2: a wood-brown paint (the Paint numbers), for a table top or a shelf
 	wood.pressed.connect(_paint.bind("Wood", WOOD_COLOUR, "Paint"))
 	h.add_child(wood)
+	# FMONITOR: a screen is dark: the five chips were all light (no black), so a monitor's screen could not be made dark
+	var dk := _colour_btn("dark", "Dark", Color("#1e2226"))
+	dk.add_theme_color_override("font_color", Color(0.9, 0.92, 0.95))
+	dk.pressed.connect(_paint.bind("Dark", Color("#1e2226"), "Paint"))
+	h.add_child(dk)
 	# p057 WEIGHT: the whole Part's weight if it were made of each material (volume x density). A readout: it changes nothing in the Part
 	for wk in WEIGHT_CHIPS:
 		var wb := _colour_btn("weight_" + String(wk[0]), "", Color(0.7, 0.72, 0.76))
@@ -1356,6 +1361,9 @@ func _apply_twist(v: float) -> void:
 
 func _on_slider_value(v: float, row: Dictionary) -> void:
 	var s: HSlider = row["slider"]
+	if _merge_now() and String(row.get("kind", "")) == "tweak":
+		_set_value(row, v, true)   # FDICE: the hole's slider joins its press's undo step
+		return
 	if not bool(row.get("held", false)):
 		_begin("Change " + String(row["label"]))   # a click on the track or a nudge: its own step
 		_set_value(row, v, true)
@@ -1367,6 +1375,9 @@ func _on_slider_value(v: float, row: Dictionary) -> void:
 
 func _on_slider_start(row: Dictionary) -> void:
 	row["held"] = true
+	if _merge_now() and String(row.get("kind", "")) == "tweak":
+		_edit_n = -1   # FDICE: no step of its own: the press's step takes these changes too
+		return
 	pu.coarse = true   # NSLIDELOD: the part shows a coarse preview while the slider is in hand
 	_begin("Change " + String(row["label"]))
 	if _is_wall_row(row):
@@ -2915,6 +2926,7 @@ func _make(which: String) -> void:
 			hole_base = snap
 			hole_id = String(tweak.get("id", ""))
 			hole_mode = "through"
+			_merge_id = hole_id   # FDICE: its slider joins this press's undo step
 	pu.upto = -1
 	pu.sync()
 	_rows_sync()
@@ -2957,8 +2969,10 @@ func _round(rec: Dictionary) -> String:
 ## EROUND: the round on body (a kept solid of the record's end). True when a fillet step was added to rec
 func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: float, flag := "") -> bool:
 	# EBACK: the default never sits below the slider's own low end (1 mm, "Barely"): a thin part's 0.5 mm default looked square
+	# FMONITOR: a thin part (under 3 cm across its smallest side, a screen or a plate) gets a 10 pct default: 1 pct of 2 cm was 0.2 mm, so the floor (1 mm) took 0.06 pct off it and the corners looked square
+	var pct := 0.1 if small < 30.0 else 0.01
 	for attempt in [[1.0, 0.0], [0.5, 0.0], [0.5, 0.2]]:
-		var r := clampf(small * 0.01 * float(attempt[0]), 1.0, 6.0)
+		var r := clampf(small * pct * float(attempt[0]), 1.0, 6.0)
 		var list := []
 		for e in es:
 			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and (flag == "" or bool(e.get(flag, false))) and float(e["len"]) >= longest * float(attempt[1]) and float(e["len"]) / Part.MM > r * 2.5:
