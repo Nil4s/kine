@@ -2164,6 +2164,7 @@ func _lib_box() -> PanelContainer:
 	vb.add_child(lib_soon)
 	vb.add_child(_type_row())   # p085typetobuil: the Type it row (shows with that category)
 	vb.add_child(_photo_row())   # p192makeitlike: Like a photo, under Type it
+	vb.add_child(_text_row())   # FRIDAY 33: Text on a face, under Like a photo
 	vb.add_child(_label_row())   # s210: Label, under Like a photo
 	linkage_box = preload("res://scripts/easy_linkage.gd").new()   # p129linkages: the Linkage panel (4 bars, a drag knob) on the Hinges page, scripts/easy_linkage.gd
 	linkage_box.say_fn = _say   # p129linkages: its words go to the status line at the top
@@ -2474,6 +2475,8 @@ func _screw_sync() -> void:
 		lib_soon.text = "%s are coming soon: not made yet. Next step: press Screws or Gears" % lib_cat if lib_soon.visible else ""
 		type_box.visible = parts_open and lib_cat == "Type it"   # p085typetobuil
 		photo_box.visible = parts_open and lib_cat == "Type it"   # p192makeitlike
+		if text_box != null:
+			text_box.visible = parts_open and lib_cat == "Type it"   # FRIDAY 33
 		label_box.visible = parts_open and lib_cat == "Type it"   # s210
 		if fav_box != null:   # p083favfix: the Favourites page shows while its category is open; the row and the star are drawn here
 			fav_box.visible = parts_open and lib_cat == "Favourites"
@@ -3886,6 +3889,8 @@ func input(ev: InputEvent) -> bool:
 				if (d["scr"] as Vector2).distance_to(p) <= 16.0:
 					_grab(d, p)
 					return true
+			if text_pick and not _over_ui(p):
+				return _text_press(p)   # FRIDAY 33: the press picks the face the words go on
 			if armed == "stick" and not _over_ui(p):
 				var faces: Array = Part.body_faces(_rec(), -1)
 				var hit: Dictionary = pu._ray_hit(p, faces)   # the body under the pointer (Expert's combine picks the same way)
@@ -6328,6 +6333,264 @@ func _head_sync(cur: Dictionary) -> void:
 func _screw_tip(d: int, L: int) -> String:
 	var hd: Array = PartTemplates.SCREW_HEAD[d] if screw_head == 0 else PartTemplates.SCREW_ALT[screw_head][d]
 	return "M%d x %d: %s head %s mm across, %s mm high, plain shank %d mm long" % [d, L, String(PartTemplates.SCREW_HEAD_CHIPS[screw_head]).to_lower(), str(hd[0]), str(hd[1]), L]
+
+
+# ---------------------------------------------------------------- FRIDAY 33: text on a face (Parts > Type it): words cut into or stand out of a face
+
+const PText := preload("res://scripts/build/part_text.gd")
+var text_box: VBoxContainer       # the Text on a face rows under Like a photo (shown with Type it)
+var text_edit: LineEdit           # the words
+var text_size: SpinBox            # how tall the letters are, mm
+var text_depth: SpinBox           # how deep / how tall, mm
+var text_cut_btn: Button          # Cut in
+var text_out_btn: Button          # Stand out
+var text_top_btn: Button          # Put on the top face
+var text_face_btn: Button         # Pick a face
+var text_pick := false            # the next press on the solid picks the face
+var text_cut := true              # Cut in (true) or Stand out (false)
+
+
+func _text_chip(nm: String, txt: String, tip: String, f: Callable) -> Button:
+	var b := Button.new()
+	b.name = nm
+	b.text = txt
+	b.tooltip_text = tip
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", 13)
+	b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+	b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+	b.pressed.connect(f)
+	return b
+
+
+func _text_row() -> VBoxContainer:
+	var vb := VBoxContainer.new()
+	vb.name = "easypart_text_box"
+	vb.visible = false
+	vb.add_theme_constant_override("separation", 3)
+	var r1 := HBoxContainer.new()
+	r1.add_theme_constant_override("separation", 4)
+	vb.add_child(r1)
+	var lab := Label.new()
+	lab.text = "Text on a face:"
+	lab.add_theme_font_size_override("font_size", 13)
+	r1.add_child(lab)
+	text_edit = LineEdit.new()
+	text_edit.name = "easypart_text_edit"
+	text_edit.placeholder_text = "KINE"
+	text_edit.max_length = PText.MAX_CHARS
+	text_edit.add_theme_font_size_override("font_size", 13)
+	text_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text_edit.text_submitted.connect(func(_t: String) -> void: _text_top())
+	r1.add_child(text_edit)
+	var r2 := HBoxContainer.new()
+	r2.add_theme_constant_override("separation", 4)
+	vb.add_child(r2)
+	text_cut_btn = _text_chip("easypart_text_cut", "Cut in", "The letters are cut into the face (engraved)", func(): _text_mode(true))
+	text_cut_btn.toggle_mode = true
+	text_cut_btn.button_pressed = true
+	r2.add_child(text_cut_btn)
+	text_out_btn = _text_chip("easypart_text_out", "Raise", "The letters stand out of the face (embossed)", func(): _text_mode(false))
+	text_out_btn.toggle_mode = true
+	r2.add_child(text_out_btn)
+	var dl := Label.new()
+	dl.text = "Depth mm"
+	dl.add_theme_font_size_override("font_size", 13)
+	r2.add_child(dl)
+	text_depth = SpinBox.new()
+	text_depth.name = "easypart_text_depth"
+	text_depth.min_value = 0.2
+	text_depth.max_value = 20.0
+	text_depth.step = 0.1
+	text_depth.value = 1.0
+	text_depth.tooltip_text = "How deep the letters go in, or how far they stand out, in mm"
+	r2.add_child(text_depth)
+	var r3 := HBoxContainer.new()
+	r3.add_theme_constant_override("separation", 4)
+	vb.add_child(r3)
+	var sl := Label.new()
+	sl.text = "Size mm"
+	sl.add_theme_font_size_override("font_size", 13)
+	r3.add_child(sl)
+	text_size = SpinBox.new()
+	text_size.name = "easypart_text_size"
+	text_size.min_value = 2.0
+	text_size.max_value = 100.0
+	text_size.step = 0.5
+	text_size.value = 10.0
+	text_size.tooltip_text = "How tall the letters are, in mm"
+	r3.add_child(text_size)
+	text_top_btn = _text_chip("easypart_text_top", "On the top", "Put the words on the top face of the solid: one step, one undo", _text_top)
+	r3.add_child(text_top_btn)
+	text_face_btn = _text_chip("easypart_text_face", "Pick a face", "Then click the face of the solid the words go on", _text_arm)
+	text_face_btn.toggle_mode = true
+	r3.add_child(text_face_btn)
+	text_box = vb
+	return vb
+
+
+func _text_mode(cut: bool) -> void:
+	text_cut = cut
+	text_cut_btn.set_pressed_no_signal(cut)
+	text_out_btn.set_pressed_no_signal(not cut)
+
+
+func _text_arm() -> void:
+	text_pick = text_face_btn.button_pressed
+	if text_pick:
+		armed = ""
+		_say("Click the face of the solid the words go on")
+	else:
+		_say("Pick a face cancelled")
+
+
+## the press on a face (text_pick): true = taken
+func _text_press(p: Vector2) -> bool:
+	var fc := _face_hit(p)
+	if fc.is_empty():
+		_say("No flat face there: click a flat face of the solid")
+		return true
+	text_pick = false
+	text_face_btn.set_pressed_no_signal(false)
+	_text_apply(fc)
+	return true
+
+
+func _text_top() -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var faces: Array = _shown_faces()
+	var ymax := -INF
+	var seed_tri := Vector3.ZERO
+	for tris in faces:
+		var t: PackedVector3Array = tris
+		for k in range(0, t.size() - 2, 3):
+			var n := (t[k + 1] - t[k]).cross(t[k + 2] - t[k])
+			if n.length() < 1e-12 or absf(n.normalized().y) < 0.999:
+				continue
+			if t[k].y > ymax:
+				ymax = t[k].y
+				seed_tri = (t[k] + t[k + 1] + t[k + 2]) / 3.0
+	if ymax == -INF:
+		_say("Make a solid first: the words need a face to go on")
+		return
+	var pl := Part.plane("top")
+	pl["o"] = (pl["o"] as Vector3) + (pl["n"] as Vector3) * ymax
+	_text_apply({"pl": pl, "base": "top", "mm": snappedf(ymax / Part.MM, 0.01), "out": 1, "hit": seed_tri})
+
+
+## the 2D box (mm, plane coordinates) of the connected flat face the point `hit` is on
+func _text_face_box(fc: Dictionary) -> Rect2:
+	var pl: Dictionary = fc["pl"]
+	var n: Vector3 = pl["n"]
+	var d := (pl["o"] as Vector3).dot(n)
+	var hit: Vector3 = fc["hit"]
+	var tris: Array = []
+	for fa in _shown_faces():
+		var t: PackedVector3Array = fa
+		for k in range(0, t.size() - 2, 3):
+			if absf(t[k].dot(n) - d) < 2e-5 and absf(t[k + 1].dot(n) - d) < 2e-5 and absf(t[k + 2].dot(n) - d) < 2e-5:
+				tris.append([t[k], t[k + 1], t[k + 2]])
+	var seed_i := -1
+	var h2 := Part.to_plane(pl, hit)
+	for i in tris.size():
+		var tr: Array = tris[i]
+		if Geometry2D.point_is_inside_triangle(h2, Part.to_plane(pl, tr[0]), Part.to_plane(pl, tr[1]), Part.to_plane(pl, tr[2])):
+			seed_i = i
+			break
+	if seed_i < 0:
+		return Rect2()
+	var by_v := {}
+	for i in tris.size():
+		for v in tris[i]:
+			var kk := _text_key(v)
+			if not by_v.has(kk):
+				by_v[kk] = []
+			(by_v[kk] as Array).append(i)
+	var seen := {seed_i: true}
+	var todo := [seed_i]
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	while not todo.is_empty():
+		var i: int = todo.pop_back()
+		for v in tris[i]:
+			var q := Part.to_plane(pl, v)
+			lo = lo.min(q)
+			hi = hi.max(q)
+			for j in by_v[_text_key(v)]:
+				if not seen.has(j):
+					seen[j] = true
+					todo.append(j)
+	return Rect2(lo, hi - lo)
+
+
+func _text_key(v: Vector3) -> String:
+	return "%d,%d,%d" % [roundi(v.x * 1e6), roundi(v.y * 1e6), roundi(v.z * 1e6)]
+
+
+## put the words on face fc: a plane step, a sketch of the letters, a pull (cut or join): ONE undo step. Nothing changes when it cannot be done
+func _text_apply(fc: Dictionary) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	_flush_if_dirty()
+	var rw := PText.raw(text_edit.text)
+	if not bool(rw["ok"]):
+		_say(String(rw["why"]))
+		return
+	var box := _text_face_box(fc)
+	if box.size.x < 4.0 or box.size.y < 4.0:
+		_say("That face is too small for words")
+		return
+	var bb: Rect2 = rw["bb"]
+	var turn := box.size.y > box.size.x   # the words run along the face's longest edge
+	var along := box.size.y if turn else box.size.x
+	var across := box.size.x if turn else box.size.y
+	var h := text_size.value
+	var fit := minf(across * 0.9 / h, along * 0.92 / (bb.size.x / bb.size.y * h))
+	if fit < 1.0:
+		h *= fit   # too big for the face: made smaller to fit, and said so
+	if h < 1.5:
+		_say("That face is too small for these words: use fewer letters or a bigger face")
+		return
+	var sc := h / bb.size.y
+	var out := int(fc["out"])
+	var depth := snappedf(text_depth.value, 0.1)
+	var polys := PText.polygons(rw, sc, bb.get_center(), box.get_center(), out < 0, turn)
+	var ents := PText.ents_of(polys)
+	var snap := _rec().duplicate(true)
+	var before := Part.replay(snap)
+	_begin("Text on a face")
+	var rec := pu._ensure()
+	var pid := _face_plane(rec, fc)
+	var sk := Part.new_feature(rec, "sketch", {"plane": pid, "ents": ents, "dims": []})
+	rec["features"].append(sk)
+	var sgn := float(-out if text_cut else out)
+	var ex := Part.new_feature(rec, "extrude", {"sketch": sk["id"], "dist": sgn * depth, "both": false, "op": "cut" if text_cut else "join"})
+	rec["features"].append(ex)
+	var res := pu.replay_full(rec)
+	var why := ""
+	if _last_error(rec, String(ex["id"])) != "":
+		why = "The words could not be made on that face"
+	elif text_cut and float(res["volume"]) >= float(before["volume"]) - 1e-12:
+		why = "The words miss the solid: nothing was cut"
+	elif not text_cut and float(res["volume"]) <= float(before["volume"]) + 1e-12:
+		why = "The words did not join the solid"
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+		return
+	tweak = {"id": ex["id"], "field": "dist", "label": "Depth", "unit": "mm", "lo": 0.2, "hi": 20.0, "step": 0.1, "scale": 1.0, "words": ["Shallower", "Deeper"], "sgn": sgn}
+	_end()
+	armed = ""
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	_say("The words are %s the face, %s mm tall%s, %s mm deep. Use the slider for the depth" % ["cut into" if text_cut else "standing out of", str(snappedf(h, 0.1)), " (made smaller to fit the face)" if fit < 1.0 else "", str(depth)])
 
 
 # ---------------------------------------------------------------- P093 the level: Beginner / Comfortable / Expert
