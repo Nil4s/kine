@@ -3203,6 +3203,10 @@ func _face_hole(rec: Dictionary) -> String:
 	var pid := String(sk["plane"])
 	var out := float(Part.feature(rec, pid)["out"])   # +1 / -1: the face's normal side (a pull goes this way)
 	var before := Part.replay(rec)
+	var tan_pl := String(Part.feature(rec, pid).get("from", "")) == "tan"
+	if tan_pl:
+		_tan_sink(rec, Part.feature(rec, pid), sk)
+		Part.feature(rec, pid)["sink"] = 0.0   # s211: a cut needs no sink: a convex face falls away from its tangent plane, so the tool already starts outside it
 	var pl := Part.resolve_plane(rec, pid)
 	var tris := _tris_local(before, pl)
 	var lo := Vector2(INF, INF)
@@ -3217,9 +3221,12 @@ func _face_hole(rec: Dictionary) -> String:
 	for i in 3:
 		for j in 3:
 			var p := Vector2(lerpf(lo.x, hi.x, i / 2.0), lerpf(lo.y, hi.y, j / 2.0))
-			depth = minf(depth, _first_inside(tris, p, out))
+			var dd := _first_inside(tris, p, out)
+			depth = (minf(depth, dd) if not tan_pl else (dd if depth == INF else (depth if dd == INF else maxf(depth, dd))))   # s211: a curved face is cut as deep as its middle goes
 	if depth == INF:
 		return "The shape is not on the solid: nothing was cut"
+	if tan_pl:
+		depth = minf(depth, maxf(5.0, maxf(hi.x - lo.x, hi.y - lo.y)))   # s211: a hole in a curved face is as deep as the shape is wide (the slider changes it); the far side's pole or tangent is no place for the tool to end
 	var sgn := -out   # the cut goes INTO the body, against the face's normal side
 	var f := Part.new_feature(rec, "extrude", {"sketch": sk["id"], "dist": sgn * snappedf(depth + 0.5, 0.1), "both": false, "op": "cut"})
 	rec["features"].append(f)
@@ -4127,6 +4134,8 @@ func _draft_move(p: Vector2) -> void:
 	var g: Variant = _ground(p, _draft.get("pl", {}))
 	if g != null:
 		_draft["b"] = g
+		if _draft.has("curved") and String(_draft["shape"]) in CURVED_CENTRED:
+			_draft["a"] = -(g as Vector2)   # s211: on a curved face the shape grows from the click (its middle), so it sits flat on it
 		var sh := String(_draft["shape"])
 		if (sh == "curve" or sh == "line") and not _draft.has("clicks") and (g as Vector2).distance_to((_draft["pts"] as Array).back()) >= 5.0:
 			(_draft["pts"] as Array).append(g)
@@ -4224,10 +4233,13 @@ func _start_draft(p: Vector2) -> bool:
 			_draft = {"a": gr, "b": gr, "shape": "pointy", "pts": [gr], "pl": ur["pl"], "face": ur}
 			_say("Drawing a roof on the box top, through the middle")
 			return true
+	if _start_curved(p, true):
+		return true   # s211: a cylinder or a sphere under the press: the tangent plane there
 	var fc := _face_hit(p)   # DRAW ON A FACE: a press on a flat face of a solid puts the sketch on that face
 	# FFLAT8: a press on the top edge of a solid whose floor point lies beside it draws on the floor (beside the solid); the top face stays the fallback
 	# when the floor shape then lies over the solid (_draft_end)
 	var top_fc: Dictionary = fc if _press_beside_top(p, fc) else {}
+	var no_flat := fc.is_empty()   # s211: nothing flat under the press: a curved face may be
 	if not top_fc.is_empty():
 		fc = {}
 	if not fc.is_empty():
@@ -4236,6 +4248,8 @@ func _start_draft(p: Vector2) -> bool:
 			_draft = {"a": fg, "b": fg, "shape": "curve" if armed == "curve" else shape, "pts": [fg], "pl": fc["pl"], "face": fc}
 			_say("Drawing on that face")
 			return true
+	if no_flat and top_fc.is_empty() and _start_curved(p):
+		return true
 	if _side_on():
 		var up := _upright()
 		var gu: Variant = _ground(p, up["pl"])
@@ -4321,6 +4335,8 @@ func _finish_draw() -> void:
 	var sh := String(_draft["shape"])
 	var fc: Dictionary = _draft.get("face", {})
 	var pl: Dictionary = _draft.get("pl", Part.plane("top"))
+	if _draft.has("curved") and sh in CURVED_CENTRED:
+		a = -b   # s211: centred on the click
 	_draft = {}
 	var ent := {}
 	var ents: Array = []
@@ -4395,6 +4411,10 @@ func _finish_draw() -> void:
 func _face_plane(rec: Dictionary, fc: Dictionary) -> String:
 	if fc.is_empty():
 		return "top"
+	if fc.has("tan"):   # s211 DRAW ON A CURVED FACE: one plane feature, the tangent plane at the click
+		var tf0 := Part.new_feature(rec, "plane", (fc["tan"] as Dictionary).duplicate(true))
+		rec["features"].append(tf0)
+		return String(tf0["id"])
 	if bool(fc.get("through", false)):   # UPRIGHT THROUGH THE MIDDLE: a plane with no "out" (the pull goes both ways)
 		var tf := Part.new_feature(rec, "plane", {"from": String(fc["base"]), "mm": float(fc["mm"]), "through": true})
 		rec["features"].append(tf)

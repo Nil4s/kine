@@ -529,3 +529,7 @@ EXTRA="$EXTRA s140:w"   # s140 (Friday plan 140): Pose library by mood: moods me
 
 
 EXTRA="$EXTRA s094:w"   # p094: Easy Part MAKE buttons show a looping 14-frame clip tooltip (assets/tips/easy, made by tools/make_easy_tips.gd)
+
+EXTRA="$EXTRA s211:w"   # s211: Draw on a curved face (cylinder, sphere): the sketch sits on the tangent plane at the click; tests/s211_test.gd
+
+EXTRA="$EXTRA fpen:w"   # FPEN: a beginner builds a pen from the BUILDING card by real clicks (parked test from w4-fpenyrfix; bars 5 CLIP and 7 UNDO need Draw on a curved face, s211); tests/fpen_test.gd
