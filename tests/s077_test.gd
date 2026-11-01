@@ -159,6 +159,12 @@ func slider_row(key: String) -> Dictionary:
 ## a REAL click on the slider's track at the share f (0..1) of its width: press, release
 func click_slider(row: Dictionary, f: float) -> void:
 	var s: HSlider = row["slider"]
+	var sc := root.find_child("easypart_panel_scroll", true, false) as ScrollContainer
+	if sc != null:
+		sc.ensure_control_visible(s)   # a user scrolls the panel down to the sliders
+		await idle(4)
+		sc.ensure_control_visible(s)
+		await idle(4)
 	var rc := s.get_global_rect()
 	var p := Vector2(rc.position.x + rc.size.x * f, rc.position.y + rc.size.y * 0.5)
 	await ev_move(p)
