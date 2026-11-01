@@ -674,6 +674,7 @@ func _draw_dots() -> void:
 		var pts := _draft_outline()
 		if pts.size() > 1:
 			dots.draw_polyline(pts, AMBER, 3.0, true)
+		_draw_tangent_square()
 	_draw_mirror_live()   # s047: a mirrored Line shows its other half and the middle line while the points are clicked
 	_draw_line_show()   # P045 LINE SHOW: the Line just drawn stays on the grid
 	var e: Dictionary = _rec().get("easy", {})
@@ -1582,3 +1583,52 @@ func _quick_sync() -> void:
 	quick_box.visible = quick_open and shape_box.visible
 	quick_box.reset_size()
 	quick_box.position = shape_box.position + Vector2(0.0, shape_box.size.y + 4.0)
+
+
+# ---------------------------------------------------------------- s211 DRAW ON A CURVED FACE
+
+const CURVED_CENTRED := ["box", "pointy", "hex", "poly", "oval", "star", "gear", "heart", "arrow"]   # shapes that grow from the click on a curved face (a round one already does)
+
+
+## a press on a CURVED face (the flat ones are _face_hit's): the sketch goes on the tangent plane at the clicked point. true = taken
+func _start_curved(p: Vector2, strict := false) -> bool:
+	if not Part.available() or m.cam == null or pu == null:
+		return false
+	var cb: Basis = m.cam.global_transform.basis
+	var ro: Vector3 = m.cam.project_ray_origin(p)
+	var rd: Vector3 = m.cam.project_ray_normal(p)
+	var best := {}
+	for tris in _shown_faces():
+		var h: Dictionary = CurvedFace.hit(tris, ro, rd, cb.x, cb.y)
+		if not h.is_empty() and (best.is_empty() or float(h["dist"]) < float(best["dist"])):
+			best = h
+	if best.is_empty() or (strict and not (String(best["kind"]) in ["cyl", "sph"])):
+		return false   # strict: only a fitted cylinder or sphere (the mesh winding hides a gentle curve from the flat test of _face_hit_at)
+	var o: Vector3 = best["o"]
+	var n: Vector3 = best["n"]
+	var x: Vector3 = best["x"]
+	var pl := {"o": o, "x": x, "n": n, "y": n.cross(x)}
+	var tan := {"from": "tan", "o": [snappedf(o.x / Part.MM, 0.0001), snappedf(o.y / Part.MM, 0.0001), snappedf(o.z / Part.MM, 0.0001)],
+		"x": [snappedf(x.x, 0.000001), snappedf(x.y, 0.000001), snappedf(x.z, 0.000001)],
+		"n": [snappedf(n.x, 0.000001), snappedf(n.y, 0.000001), snappedf(n.z, 0.000001)], "out": 1, "sink": 0.5,
+		"surf": {"k": String(best["kind"]), "r": snappedf(float(best["r"]) / Part.MM, 0.0001), "cv": bool(best["convex"])}}
+	var fc := {"pl": pl, "base": "tan", "mm": 0.0, "out": 1, "hit": o, "tan": tan, "curved": true}
+	_draft = {"a": Vector2.ZERO, "b": Vector2.ZERO, "shape": "curve" if armed == "curve" else shape, "pts": [Vector2.ZERO], "pl": pl, "face": fc, "curved": true}
+	_say("Drawing on the curved side: the shape sits flat where you clicked")
+	return true
+
+
+## the light square of the tangent plane under the click while a shape is drawn on a curved face
+func _draw_tangent_square() -> void:
+	if not _draft.has("curved"):
+		return
+	var half := 14.0
+	for q in [_draft["a"], _draft["b"]]:
+		half = maxf(half, maxf(absf((q as Vector2).x), absf((q as Vector2).y)) * 1.3)
+	var pl: Dictionary = _draft["pl"]
+	var sq := PackedVector2Array()
+	for c in [Vector2(-half, -half), Vector2(half, -half), Vector2(half, half), Vector2(-half, half)]:
+		sq.append(m.cam.unproject_position(Part.to_world(pl, c)))
+	dots.draw_colored_polygon(sq, Color(1.0, 1.0, 1.0, 0.16))
+	sq.append(sq[0])
+	dots.draw_polyline(sq, Color(1.0, 1.0, 1.0, 0.55), 1.5, true)

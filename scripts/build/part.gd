@@ -70,7 +70,7 @@ const PFIT := preload("res://scripts/build/part_fit.gd")   # s193: Fit to an obj
 const SKIN_MM := 0.3   # NROUNDFILTER: a face centre this close (mm) to the box's outside counts as on the skin
 const VERSION := 1
 const RING_MIDDLE := 100.0   # mm: a Ring piece whose centre is closer than this to the middle (not on it) goes round the middle
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "lattice", "fitobj", "move", "offset"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "lattice", "fitobj", "move", "offset", "meshsolid"]
 const OVERHANG_COS := 0.7071   # p113: a face pointing down more than 45 degrees needs support when printed
 const BED_MM := 0.1            # p113: a face this close (mm) to the lowest point of the part is on the floor, not an overhang
 const DRAFT_DIRS := {"x": Vector3(1, 0, 0), "y": Vector3(0, 1, 0), "z": Vector3(0, 0, 1)}
@@ -173,6 +173,8 @@ static func resolve_plane(rec: Dictionary, name: String) -> Dictionary:
 	var f := feature(rec, name)
 	if String(f.get("t", "")) != "plane":
 		return plane("front")
+	if String(f.get("from", "")) == "tan":   # s211 DRAW ON A CURVED FACE: the tangent plane at a clicked point of a curved face (o, x, n in the record, o in mm)
+		return tangent_plane(f)
 	var pl := plane(String(f.get("from", "front")))
 	pl["o"] = (pl["o"] as Vector3) + (pl["n"] as Vector3) * float(f.get("mm", 0.0)) * MM
 	return pl
@@ -185,6 +187,8 @@ static func plane_words(rec: Dictionary, name: String) -> String:
 	var f := feature(rec, name)
 	if String(f.get("t", "")) != "plane":
 		return "plane"
+	if String(f.get("from", "")) == "tan":
+		return "%s (flat where you clicked the curved side)" % f["name"]
 	return "%s (%s mm from the %s plane)" % [f["name"], _short(float(f.get("mm", 0.0))), String(f.get("from", "front")).capitalize()]
 
 
@@ -589,6 +593,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var fo := PFIT.apply(bodies, f)
 				if fo != "":
 					errs[id] = fo
+			"meshsolid":   # s155: a sculpt mesh sewn into one solid (its own file: part_meshsolid.gd)
+				var mse := PartMeshSolid.add(bodies, f)
+				if mse != "":
+					errs[id] = mse
 			"lattice":   # p208latticeinf: thin bars inside a hollow box (its own function: _lattice)
 				var le := _lattice(bodies, f)
 				if le != "":
@@ -1287,12 +1295,12 @@ static func _solids(f: Dictionary, sk: Dictionary) -> Dictionary:
 	var pl: Dictionary = sk["_pl"] if sk.has("_pl") else plane(String(sk.get("plane", "front")))
 	var out := PackedInt32Array()
 	for g in groups:
-		var face := KCad.sketch_face(items_of(g), pl["o"], pl["x"], pl["n"])
+		var face := KCad.sketch_face(items_of(g), sunk_origin(pl, f), pl["x"], pl["n"])
 		if face == 0:
 			for s in out:
 				KCad.release(s)
 			return {"solids": PackedInt32Array(), "err": _plain_err(KCad.last_error())}
-		var sd := KCad.extrude(face, float(f["dist"]) * MM, bool(f.get("both", false)), deg_to_rad(float(f.get("taper", 0.0))))
+		var sd := KCad.extrude(face, sunk_dist(pl, f) * MM, bool(f.get("both", false)), deg_to_rad(float(f.get("taper", 0.0))))
 		KCad.release(face)
 		if sd == 0:
 			for s in out:
@@ -1353,12 +1361,12 @@ static func _solid(f: Dictionary, sk: Dictionary) -> int:
 	var pl: Dictionary = sk["_pl"] if sk.has("_pl") else plane(String(sk.get("plane", "front")))
 	if f["t"] == "extrude" and absf(float(f.get("twist", 0.0))) > 0.01 and not bool(f.get("both", false)):
 		return _twisted(f, sk, pl)
-	var face := KCad.sketch_face(items_of(sk["ents"], f["t"] == "revolve" and bool(f.get("onside", false))), pl["o"], pl["x"], pl["n"])
+	var face := KCad.sketch_face(items_of(sk["ents"], f["t"] == "revolve" and bool(f.get("onside", false))), sunk_origin(pl, f) if f["t"] == "extrude" else pl["o"], pl["x"], pl["n"])
 	if face == 0:
 		return 0
 	var s := 0
 	if f["t"] == "extrude":
-		s = KCad.extrude(face, float(f["dist"]) * MM, bool(f.get("both", false)), deg_to_rad(float(f.get("taper", 0.0))))
+		s = KCad.extrude(face, sunk_dist(pl, f) * MM, bool(f.get("both", false)), deg_to_rad(float(f.get("taper", 0.0))))
 	else:
 		var axis: Vector3 = pl["x"] if String(f.get("axis", "x")) == "x" else pl["y"]
 		s = KCad.revolve(face, pl["o"], axis, deg_to_rad(float(f.get("deg", 360.0))))
@@ -3458,3 +3466,34 @@ static func thread_look_words(m: int, pitch: float) -> String:
 	if p.ends_with("0"):
 		p = p.substr(0, p.length() - 1)
 	return "M%d thread (%s mm pitch): tap it or use a heat-set insert" % [m, p]
+
+
+# ---------------------------------------------------------------- s211 DRAW ON A CURVED FACE
+
+## the tangent plane of a plane feature {"from": "tan", "o": [x, y, z] mm, "x": [..], "n": [..], "sink": mm}: o is the clicked point ON the curved surface.
+## "sink": the extrude starts that many mm on the far side of the pull (a pull out begins inside the solid, a cut begins outside it), so the
+## shape reaches the curved surface all over its width and fuses with it (a flat plane only touches a cylinder along one line)
+static func tangent_plane(f: Dictionary) -> Dictionary:
+	var n := _v3(f["n"]).normalized()
+	var x := _v3(f["x"]).normalized()
+	return {"o": _v3(f["o"]) * MM, "x": x, "n": n, "y": n.cross(x), "sink": float(f.get("sink", 0.0))}
+
+
+static func _v3(a: Variant) -> Vector3:
+	return Vector3(float(a[0]), float(a[1]), float(a[2]))
+
+
+## where an extrude's sketch face starts: the plane's origin, moved back by the plane's sink against the pull
+static func sunk_origin(pl: Dictionary, f: Dictionary) -> Vector3:
+	var sink := float(pl.get("sink", 0.0))
+	if sink <= 0.0 or bool(f.get("both", false)):
+		return pl["o"]
+	return (pl["o"] as Vector3) - (pl["n"] as Vector3) * (signf(float(f["dist"])) * sink * MM)
+
+
+## and its length: the pull plus the sink (mm)
+static func sunk_dist(pl: Dictionary, f: Dictionary) -> float:
+	var sink := float(pl.get("sink", 0.0))
+	if sink <= 0.0 or bool(f.get("both", false)):
+		return float(f["dist"])
+	return float(f["dist"]) + signf(float(f["dist"])) * sink

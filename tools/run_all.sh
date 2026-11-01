@@ -529,3 +529,11 @@ EXTRA="$EXTRA s140:w"   # s140 (Friday plan 140): Pose library by mood: moods me
 
 
 EXTRA="$EXTRA s094:w"   # p094: Easy Part MAKE buttons show a looping 14-frame clip tooltip (assets/tips/easy, made by tools/make_easy_tips.gd)
+EXTRA="$EXTRA s155:w"   # s155: Sculpt page Make it a solid part (needs KineCAD v4)
+EXTRA="$EXTRA s155b:w"   # s155b: KineCAD 5 kernel solid offset (volumes vs closed forms, hole 8.00/12.00, timing vs the 26-copy path; tests/s155b_test.gd; needs the CAD DLL)
+
+
+
+EXTRA="$EXTRA s211:w"   # s211: Draw on a curved face (cylinder, sphere): the sketch sits on the tangent plane at the click; tests/s211_test.gd
+
+EXTRA="$EXTRA fpen:w"   # FPEN: a beginner builds a pen from the BUILDING card by real clicks (parked test from w4-fpenyrfix; bars 5 CLIP and 7 UNDO need Draw on a curved face, s211); tests/fpen_test.gd
