@@ -2185,6 +2185,7 @@ func _lib_box() -> PanelContainer:
 	vb.add_child(_photo_row())   # p192makeitlike: Like a photo, under Type it
 	vb.add_child(_text_row())   # FRIDAY 33: Text on a face, under Like a photo
 	vb.add_child(_label_row())   # s210: Label, under Like a photo
+	vb.add_child(_fit_row())   # s193: Fit to an object, on the Boards page
 	linkage_box = preload("res://scripts/easy_linkage.gd").new()   # p129linkages: the Linkage panel (4 bars, a drag knob) on the Hinges page, scripts/easy_linkage.gd
 	linkage_box.say_fn = _say   # p129linkages: its words go to the status line at the top
 	vb.add_child(linkage_box)
@@ -2554,6 +2555,8 @@ func _screw_sync() -> void:
 	# p078makeacasef: the Boards chips: the case on the floor shows its board pressed
 	var bcur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {}) if _tpl() == "case" else {}
 	board_box.visible = (parts_open and lib_cat == "Boards") or _tpl() == "case"
+	if fit_row != null:
+		fit_row.visible = parts_open and lib_cat == "Boards"   # s193
 	for bd in board_btns:
 		var bo: Button = board_btns[bd]
 		bo.set_pressed_no_signal(not bcur.is_empty() and int(bcur.get("board", 0)) == bd)
@@ -7490,3 +7493,13 @@ func touch_cancel() -> void:
 	_press_btn = null
 	_pick_p = Vector2(-1, -1)
 	dots.queue_redraw()
+
+
+# ---------------------------------------------------------------- s193: Fit to an object (Parts > Boards; scripts/easy_fit.gd)
+var fit_row: HBoxContainer = null
+
+
+func _fit_row() -> HBoxContainer:
+	fit_row = preload("res://scripts/easy_fit.gd").new()
+	fit_row.setup(self)
+	return fit_row

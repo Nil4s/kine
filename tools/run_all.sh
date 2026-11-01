@@ -455,3 +455,4 @@ EXTRA="$EXTRA s167:w"   # Friday 167: Easy Part start under 1 s from the BUILDIN
 EXTRA="$EXTRA s176:w"   # S176: one walk per Parts library category (read from LIB_CATS): first and last chip, real clicks; a solid, bbox inside 1 m (wood stock 2.5 m), one undo step, chip on screen and not under the view column (tests/s176_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA s200:w"   # s200 (Friday plan 200): Export dialog > Godot 4 > Playable game (Godot project folder): project.godot + main.tscn, run headless with Godot (tests/s200_test.gd + s200_sim.gd)
 EXTRA="$EXTRA n03:w"   # n03: KineMeshOpsNative, native decimate / voxel remesh / STL, 3MF, OBJ packing, byte-identical to the GDScript writers (tests/n03_test.gd)
+EXTRA="$EXTRA s193:w"   # s193 (Friday plan 193): Fit to an object, Parts > Boards: a phone scan (.obj, 1/1000 scale, noisy, tumbled) -> real size -> Holder / Case by the CAD kernel; ray-cast pocket, wall and enclosure bars (tests/s193_test.gd)
