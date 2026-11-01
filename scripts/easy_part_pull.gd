@@ -28,6 +28,7 @@ func _hole_sync() -> void:
 		if _rec_has_stack() and wall_btn != null:
 			wall_btn.visible = false
 	_hpat_sync()   # s029
+	_lighter_sync()   # p195generative
 
 
 ## a Through / Hollow inside chip: the hole step is REPLACED (one undo step): the record from before the hole press, then the chosen hole.
@@ -48,6 +49,8 @@ func _hole_mode(mode: String, lip := false, rebuild := false) -> void:   # lip: 
 		why = _screw_hole(rec, int(mode.trim_prefix("screw")))
 	elif mode == "magnet":   # p074magnetsapo: the round pocket for a magnet
 		why = _magnet_pocket(rec)
+	elif mode == "lighter":   # p195generative: round holes in the regions away from the load path (the end of this file)
+		why = _lighter(rec)
 	elif mode == "fingers":   # p118fingerjoin: a comb of notches along the top edge (see _finger_joints, at the end of this file)
 		why = _finger_joints(rec)
 	else:
@@ -1438,3 +1441,96 @@ func _hpat_sync() -> void:
 					v = float(h.get("cols", 3))
 			(r["slider"] as HSlider).set_value_no_signal(v)
 			_pill_text(r, v)
+
+
+## p195generative MAKE IT LIGHTER (Friday plan 195): the Make it lighter chip in the Cut a hole row, with a Held and a Pushed chip beside it (a side each,
+## the bottom and the top at first) and the "How much lighter" slider. A rule of thumb, NOT a stress simulation: see scripts/build/lighter.gd. The holes
+## replace the Cut a hole step (one undo step); the slider and the two chips change the same step's holes
+var lighter_held := "bottom"
+var lighter_push := "top"
+var lighter_level := 0.7
+var lighter_held_btn: Button
+var lighter_push_btn: Button
+
+
+func _lighter_chip(h: Container) -> void:
+	var lb := _big_btn("easypart_hole_lighter", "Make it lighter", "Take material out where it is not needed: round holes away from the line between the held side and the pushed side, a solid rim left round the edges. A rule of thumb, not a stress test", _hole_mode.bind("lighter"))
+	lb.toggle_mode = true
+	lb.icon = Icons.tex("part_shell")
+	lb.custom_minimum_size = Vector2(150, 44)
+	h.add_child(lb)
+	hole_btns["lighter"] = lb
+	lighter_held_btn = _big_btn("easypart_lighter_held", "", "Where the part is held (it does not move). Press to pick the next side", _lighter_pick.bind(true))
+	lighter_push_btn = _big_btn("easypart_lighter_push", "", "Where the part is pushed (the load). Press to pick the next side", _lighter_pick.bind(false))
+	for b in [lighter_held_btn, lighter_push_btn]:
+		(b as Button).custom_minimum_size = Vector2(150, 44)
+		(b as Button).visible = false
+		h.add_child(b)
+	_lighter_sync()
+
+
+func _lighter_sync() -> void:
+	if lighter_held_btn == null:
+		return
+	var on := hole_mode == "lighter" and _hole_on()
+	lighter_held_btn.visible = on
+	lighter_push_btn.visible = on
+	lighter_held_btn.text = "Held: " + Lighter.side_word(lighter_held)
+	lighter_push_btn.text = "Pushed: " + Lighter.side_word(lighter_push)
+
+
+## a Held / Pushed press: the next side that is not the other chip's; the holes are made again (one undo step)
+func _lighter_pick(held: bool) -> void:
+	var cur := lighter_held if held else lighter_push
+	var other := lighter_push if held else lighter_held
+	var i := Lighter.SIDES.find(cur)
+	for k in range(1, Lighter.SIDES.size() + 1):
+		var nx: String = Lighter.SIDES[(i + k) % Lighter.SIDES.size()]
+		if nx != other:
+			if held:
+				lighter_held = nx
+			else:
+				lighter_push = nx
+			break
+	_hole_mode("lighter", false, true)
+
+
+func _lighter(rec: Dictionary) -> String:
+	var res := Part.replay(rec)
+	if int(res["bodies"]) == 0:
+		return "Nothing solid to make lighter yet. Press Pull it up first"
+	if int(res["bodies"]) > 1:
+		return "Make it lighter works on one solid: press Stick together to make the pieces one solid first"
+	var bb: AABB = res["aabb"]
+	var sz := bb.size / Part.MM
+	if sz.z > minf(sz.x, sz.y) + 1e-6:
+		return "Make it lighter works on a flat part seen from the front (thin front to back). Turn it flat first"
+	var lt := {"x0": bb.position.x / Part.MM, "y0": bb.position.y / Part.MM, "w": sz.x, "h": sz.y, "held": lighter_held, "push": lighter_push}
+	var pl := Lighter.plan(lt, lighter_level)
+	if int(pl["n"]) == 0:
+		return "Too small to make lighter: it needs room for a hole with a solid rim round it. Pull it up bigger, then press Make it lighter again"
+	var before := float(res["volume"])
+	var n0: int = rec["features"].size()
+	var seq0 := int(rec.get("seq", 0))
+	var s := Part.new_feature(rec, "sketch", {"plane": "front", "ents": pl["ents"], "dims": [], "lt": lt, "light": lighter_level})
+	rec["features"].append(s)
+	rec["features"].append(Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.z), absf(bb.end.z)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"}))
+	var rr := pu.replay_full(rec)
+	var after := float(rr["volume"])
+	if not (after < before - 1e-12 and after > 1e-9) or int(rr["bodies"]) != 1:
+		rec["features"].resize(n0)
+		rec["seq"] = seq0
+		return "The holes would not leave one solid: nothing was cut. Press Make it lighter again after a bigger pull"
+	tweak = {"id": s["id"], "field": "light", "label": "How much lighter", "unit": "pct", "lo": 20.0, "hi": 100.0, "step": 10.0, "scale": 0.01, "words": ["A little", "A lot"]}
+	_say("Lighter: %d round holes, a %d mm rim left round every edge and %d mm between holes. A rule of thumb, not a stress test. Held %s, pushed %s" % [int(pl["n"]), int(Lighter.MARGIN), int(Lighter.RIB), Lighter.side_word(lighter_held), Lighter.side_word(lighter_push)])
+	return ""
+
+
+## the slider moved: the holes of the sketch are made again at the new lightness (called from _apply_tweak)
+func _lighter_follow(sk: Dictionary) -> void:
+	if not sk.has("lt"):
+		return
+	lighter_level = clampf(float(sk.get("light", lighter_level)), 0.0, 1.0)
+	var pl := Lighter.plan(sk["lt"], lighter_level)
+	if int(pl["n"]) > 0:
+		sk["ents"] = pl["ents"]

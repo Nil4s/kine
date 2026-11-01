@@ -428,3 +428,5 @@ EXTRA="$EXTRA s055:w"   # s055 (Friday plan 55 + 56): Easy Part view column > Me
 EXTRA="$EXTRA s209:w"   # s209 + s210 (Friday plans 209, 210): Make it stackable (lip 0.3 mm inside the rim, no common volume of two stacked copies) and the Label maker (BOLTS tag, raised or cut in, Parts > Type it; tests/s209_test.gd; needs the CAD DLL)
 
 EXTRA="$EXTRA s029:w"   # s029 (Friday plan 29): Holes in a pattern: Cut a hole > Row / Around / Grid of holes (count, spacing, radius, rows x columns, Pick centre); 100x60x10 plate, 6 mm holes: volume within 1 pct, centres 20 mm / 60 deg / 15 mm apart (tests/s029_test.gd; needs the CAD DLL)
+
+EXTRA="$EXTRA s195:w"   # s195 (Friday plan 195): Cut a hole > Make it lighter (rule of thumb, not a stress test): Held / Pushed chips, How much lighter slider; 120x40x10 bracket drops 20-50 pct, 3 mm rim probed solid (tests/s195_test.gd; needs the CAD DLL)

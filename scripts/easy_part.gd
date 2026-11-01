@@ -417,6 +417,7 @@ func _hole_box() -> PanelContainer:
 	mb.custom_minimum_size = Vector2(96, 44)
 	h.add_child(mb)
 	hole_btns["magnet"] = mb
+	_lighter_chip(h)   # p195generative: Make it lighter + its Held / Pushed chips (the end of easy_part_pull.gd)
 	lattice_btn = _big_btn("easypart_hole_lattice", "Lattice inside", "Fill the hollow with a light lattice of thin bars: the Gap slider sets how far apart they are", _lattice_press)   # p208latticeinf: shown by _hole_sync
 	lattice_btn.icon = Icons.tex("part_pattern")
 	lattice_btn.custom_minimum_size = Vector2(150, 44)
@@ -1252,6 +1253,7 @@ func _apply_tweak(v: float) -> void:
 	else:
 		f[tweak["field"]] = val
 	_hpat_follow(f)   # s029: the pattern's other circles follow the first
+	_lighter_follow(f)   # p195generative: Make it lighter's holes follow the slider
 	if f.has("raw"):   # p039: a Curvy line's points come back from its raw stroke at the new Smooth
 		_rebuild_curve(f)
 

@@ -318,6 +318,8 @@ func _fmt(v: float, unit: String) -> String:
 		return ["Small", "Medium", "Big"][clampi(int(roundf(v)) - 1, 0, 2)] + " teeth"
 	if unit == "ratio":   # p065gearpairpi: the Gear pair's ratio reads 2 : 1
 		return "%d : 1" % int(roundf(v))
+	if unit == "pct":   # p195generative
+		return "%d %%" % int(roundf(v))
 	if unit == "mm":
 		return "%s mm" % str(snappedf(v, 0.1))
 	return "%s cm" % str(snappedf(v, 0.1))
