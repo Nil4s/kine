@@ -437,3 +437,4 @@ EXTRA="$EXTRA s096:w"   # P096 templates as recipes: phone stand / shelf bracket
 
 EXTRA="$EXTRA s023:w"   # s023 (Friday plans 23 + 109): Pinch / Bulge a face (chip under the step list, slider -1..1, 40x40x20 box top centre +-4 mm at 0.5, rim at 20 mm, 0 = original) and Light / Dark for the Easy Part boxes (popup under Easy, contrast, remembered) (tests/s023_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA s081:w"   # s081 (Friday plans 81 + 58): Cut list CSV from wood boards in the Export dialog (2 rows, counts 2 and 1, 2.1 m) and the BRL cost on the Size line (20 cm3 PLA = R$ 2,98; price edit changes it)
+EXTRA="$EXTRA s173:w"   # s173 (Friday plans 173 + 174): touch (one finger draws, two fingers orbit / pinch / tap = undo), pen pressure and gamepad (left stick orbit, triggers zoom, right stick pan, A fit, B back) (tests/s173_test.gd; needs the CAD DLL)

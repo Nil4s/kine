@@ -7007,3 +7007,17 @@ func _theme_sync() -> void:
 	for lone in [size_l, edge_num]:   # these two sit under a wrapper that is not named easypart
 		if lone != null:
 			EPTheme.retint(lone)
+
+
+## Friday 173: a second finger landed after the first had started a sketch / drag: put it away like Escape, nothing is written
+func touch_cancel() -> void:
+	if not _draft.is_empty():
+		_draft = {}
+	if not _drag.is_empty():
+		_cancel_drag()
+	if not _edge.is_empty():
+		_edge_cancel()
+	_bar_press = null
+	_press_btn = null
+	_pick_p = Vector2(-1, -1)
+	dots.queue_redraw()
