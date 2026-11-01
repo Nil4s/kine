@@ -10,7 +10,9 @@ extends RefCounted
 
 const KCad := preload("res://scripts/kcad.gd")
 const DEFAULT_BED := Vector3(220.0, 220.0, 250.0)
-const DOWEL_D := 5.0   # mm
+const DOWEL_D := 5.0   # mm, the hole
+const CLEARANCE := 0.2   # mm, hole diameter minus pin diameter
+const PIN_D := DOWEL_D - CLEARANCE   # mm, the separate dowel pins
 const DOWEL_DEPTH := 10.0   # mm, in each piece
 const DOWEL_COUNT := 2
 const DEFLECT_M := 0.00005   # pieces are cut finer than a plain export (0.05 mm), so a 5 mm hole is a round hole
@@ -71,7 +73,7 @@ static func size_lines(rec: Dictionary, bed: Vector3, split_on: bool) -> Array:
 	if big == 0:
 		out.append("OK    fits the printer bed (%s): nothing to cut" % bedw)
 	elif split_on:
-		out.append("OK    too big for the %s bed, so Split to fit cuts it into %d pieces, with %d dowel holes (%.0f mm wide, %.0f mm deep) on each cut face to glue them aligned" % [bedw, pieces, DOWEL_COUNT, DOWEL_D, DOWEL_DEPTH])
+		out.append("OK    too big for the %s bed, so Split to fit cuts it into %d pieces, with %d dowel holes (%.0f mm wide, %.0f mm deep) on each cut face, and a separate %.1f mm dowel pin for each pair, to glue them aligned" % [bedw, pieces, DOWEL_COUNT, DOWEL_D, DOWEL_DEPTH, PIN_D])
 	else:
 		out.append("WARN  bigger than the printer bed (%s): tick Split to fit to cut it into pieces that fit, or your slicer will refuse it" % bedw)
 	return out
@@ -106,7 +108,32 @@ static func split_rec(rec: Dictionary, bed: Vector3) -> Dictionary:
 			out.append(pb)
 	for id in ids:
 		KCad.release(int(id))
-	return {"bodies": out, "split": true, "pieces": out.size(), "cuts": cuts, "why": ""}
+	var np := _add_pins(out, cuts, bodies)
+	return {"bodies": out, "split": true, "pins": np, "pieces": out.size() - np, "cuts": cuts, "why": ""}
+
+
+## one separate dowel pin (PIN_D wide, 2 x depth - 1 mm long) per hole pair, stood upright in a row beside the part so it prints on its own; appended to out
+static func _add_pins(out: Array, cuts: Array, orig: Array) -> int:
+	var box := AABB()
+	for i in orig.size():
+		box = bbox_of(orig[i]) if i == 0 else box.merge(bbox_of(orig[i]))
+	var n := 0
+	var total := 0
+	for c in cuts:
+		total += (c["holes"] as Array).size()
+	for c in cuts:
+		var len := 2.0 * float(c["depth"]) - 1.0
+		for h in (c["holes"] as Array):
+			n += 1
+			var at := Vector3(box.end.x + 10.0 + float(n - 1) * (PIN_D + 4.0), box.get_center().y, box.position.z + len * 0.5)
+			var id := _kcyl(at, 2, PIN_D * 0.5, len)
+			var tb := _tess(id)
+			KCad.release(id)
+			if (tb["t"] as PackedInt32Array).size() > 0:
+				tb["name"] = "Dowel pin %d of %d" % [n, total]
+				tb["color"] = (orig[0] as Dictionary).get("color", Color(0.8, 0.8, 0.8))
+				out.append(tb)
+	return n
 
 
 static func _kbox(lo: Vector3, hi: Vector3) -> int:
@@ -281,6 +308,6 @@ static func export_part(rec: Dictionary, fmt: String, dir: String, bed: Vector3)
 	var nh := 0
 	for c in (sp["cuts"] as Array):
 		nh += (c["holes"] as Array).size()
-	var msg := "exported %s: cut into %d pieces to fit the %.0f x %.0f x %.0f mm bed, with %d dowel holes (%.0f mm wide, %.0f mm deep) on the cut faces, to glue the pieces aligned" % [
-		(paths[0] as String).get_file() if fmt != "stl" else "%d STL files" % paths.size(), bodies.size(), bed.x, bed.y, bed.z, nh * 2, DOWEL_D, DOWEL_DEPTH]
-	return {"ok": true, "path": paths[0], "paths": paths, "why": "", "report": rep, "text": msg, "pieces": bodies.size(), "split": true, "cuts": sp["cuts"]}
+	var msg := "exported %s: cut into %d pieces to fit the %.0f x %.0f x %.0f mm bed, with %d dowel holes (%.1f mm wide, 10 mm deep) on the cut faces and %d separate dowel pins (%.1f mm wide, %.1f mm clearance) to glue the pieces aligned" % [
+		(paths[0] as String).get_file() if fmt != "stl" else "%d STL files" % paths.size(), int(sp["pieces"]), bed.x, bed.y, bed.z, nh * 2, DOWEL_D, int(sp.get("pins", 0)), PIN_D, CLEARANCE]
+	return {"ok": true, "path": paths[0], "paths": paths, "why": "", "report": rep, "text": msg, "pieces": int(sp["pieces"]), "pins": int(sp.get("pins", 0)), "split": true, "cuts": sp["cuts"]}

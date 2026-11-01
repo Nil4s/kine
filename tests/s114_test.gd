@@ -59,6 +59,10 @@ func click_ctl(c: Control) -> void:
 ## a real click inside the embedded Export dialog: its controls' rects are in the dialog window's own coordinates, so the events go to that window
 func click_dlg(w: Window, c: Control) -> void:
 	var p := c.get_global_rect().get_center()
+	var target: Window = w
+	if w.is_embedded():   # an embedded dialog takes its mouse from the root window, in root coordinates
+		p += Vector2(w.position)
+		target = root
 	for st in [[false, false], [true, true], [true, false]]:
 		var e: InputEvent
 		if st[0]:
@@ -71,7 +75,7 @@ func click_dlg(w: Window, c: Control) -> void:
 			e = InputEventMouseMotion.new()
 		(e as InputEventMouse).position = p
 		(e as InputEventMouse).global_position = p
-		w.push_input(e, true)
+		target.push_input(e, true)
 		await process_frame
 	await idle(3)
 
@@ -142,6 +146,13 @@ func read_3mf(path: String) -> Array:
 		elif t == XMLParser.NODE_ELEMENT_END and xp.get_node_name() == "object":
 			out.append({"v": cv, "t": ct})
 	return out
+
+
+func sum_all(a: Array) -> float:
+	var t := 0.0
+	for o in a:
+		t += vol(o)
+	return t
 
 
 func vol(mesh: Dictionary) -> float:
@@ -281,6 +292,7 @@ func _init() -> void:
 	await click_dlg(ui.dlg, chk)
 	await idle(4)
 	var after := String(ui.ui_checks.text)
+	print("DBG emb=%s pos=%s size=%s cs=%s pressed=%s" % [str(ui.dlg.is_embedded()), str(ui.dlg.position), str(ui.dlg.size), str(ui.dlg.content_scale_factor), str(chk.button_pressed)])
 	ok(chk.button_pressed and ui.split_fit and before.contains("bigger than the printer bed") and after.contains("cuts it into 2 pieces"),
 		"1 ticking Split to fit by a real click changes the checklist (before: bigger than the printer bed; after: cuts it into 2 pieces)")
 	shot("dialog_split")
@@ -291,7 +303,14 @@ func _init() -> void:
 	if not FileAccess.file_exists(p3) and FileAccess.file_exists(ProjectSettings.globalize_path(p3r)):
 		p3 = ProjectSettings.globalize_path(p3r)
 	ok(FileAccess.file_exists(p3), "1 the dialog's Export button wrote %s" % p3)
-	var objs := read_3mf(p3)
+	var all3 := read_3mf(p3)
+	var objs := []
+	var pins3 := []
+	for o in all3:
+		if box_of(o).size.x > 20.0:
+			objs.append(o)
+		else:
+			pins3.append(o)
 	var bed := Vector3(220, 220, 250)
 	ok(objs.size() == 2 and fit_all(objs, bed), "2 the 3MF holds %d objects, sizes %s" % [objs.size(), str(objs.map(func(o): return box_of(o).size))])
 	var nt := 0
@@ -302,6 +321,17 @@ func _init() -> void:
 	for o in objs:
 		sum += vol(o)
 	var want := 800000.0 - 4.0 * PI * 2.5 * 2.5 * 10.0
+	var pin_len := 19.0
+	var psum := 0.0
+	var pin_dia_ok := pins3.size() == 2
+	var pdia := 0.0
+	for pn in pins3:
+		psum += vol(pn)
+		pdia = maxf(box_of(pn).size.x, box_of(pn).size.y)
+		pin_dia_ok = pin_dia_ok and absf(pdia - 4.8) <= 0.02 and absf(box_of(pn).size.z - pin_len) <= 0.05
+	ok(pin_dia_ok and all3.size() == 4, "3 the 3MF holds 2 pieces + %d separate pins, pin diameter %.3f mm, length %.2f mm" % [pins3.size(), pdia, box_of(pins3[0]).size.z if pins3.size() > 0 else 0.0])
+	var total_want := want + 2.0 * PI * 2.4 * 2.4 * pin_len
+	ok(absf(sum_all(all3) - total_want) <= 0.005 * total_want, "3 pieces + pins %.1f mm3 = original - holes + pins %.1f within 0.5 pct" % [sum_all(all3), total_want])
 	ok(absf(sum - want) <= 0.005 * want and absf((800000.0 - sum) - 785.4) <= 60.0, "3 pieces add to %.1f mm3 (want %.1f within 0.5 pct); the loss %.1f mm3 is the holes (785.4)" % [sum, want, 800000.0 - sum])
 	if objs.size() == 2:
 		objs.sort_custom(func(a, b): return box_of(a).position.x < box_of(b).position.x)
@@ -321,6 +351,7 @@ func _init() -> void:
 			for h in hb:
 				if absf(float(h["d"]) - 5.0) > 0.1:
 					dia_ok = false
+		ok(dia_ok and pins3.size() == 2 and absf((float(ha[0]["d"]) - pdia) - 0.2) <= 0.02, "4 hole diameter %.3f = pin diameter %.3f + 0.2 (within 0.02)" % [float(ha[0]["d"]) if ha.size() > 0 else 0.0, pdia])
 		ok(dia_ok, "4 the cut face at x = %.2f has %d holes in piece 1 and %d in piece 2, diameters %s mm" % [cutx, ha.size(), hb.size(), str(ha.map(func(h): return snappedf(float(h["d"]), 0.01)))])
 		ok(dia_ok and worst <= 0.05, "4 hole centres match across the cut within %.4f mm (centres %s)" % [worst, str(ha.map(func(h): return h["c"]))])
 		var deep := 0
@@ -341,7 +372,7 @@ func _init() -> void:
 	var snt := 0
 	for o in sm:
 		snt += not_two(o)
-	ok(stls.size() == 2 and fit_all(sm, bed) and snt == 0 and stl_first != "", "5 STL: %s, each fits the bed, %d edges not shared twice" % [str(stls), snt])
+	ok(stls.size() == 4 and fit_all(sm.slice(0, 2), bed) and snt == 0 and stl_first != "", "5 STL: %s (2 pieces + 2 pins), each piece fits the bed, %d edges not shared twice" % [str(stls), snt])
 
 	# 6 a part that fits is not split
 	var r6 := PrintSplit.export_part(m.S.part, "3mf", DIR, Vector3(450, 450, 250))
@@ -357,11 +388,15 @@ func _init() -> void:
 		nh += (c["holes"] as Array).size()
 	var s7 := 0.0
 	var f7 := true
+	var np7 := 0
 	for b in r7["bodies"]:
+		if String(b["name"]).begins_with("Dowel pin"):
+			np7 += 1
+			continue
 		s7 += MeshExport.signed_volume(b)
 		f7 = f7 and PrintSplit.fits(PrintSplit.bbox_of(b).size, bed)
 	var want7 := 300.0 * 300.0 * 20.0 - 8.0 * 2.0 * PI * 2.5 * 2.5 * 10.0
-	ok((r7["bodies"] as Array).size() == 4 and nh == 8 and f7 and absf(s7 - want7) <= 0.005 * want7, "7 300 x 300 plate: %d pieces, %d dowel sites, volume %.1f (want %.1f)" % [(r7["bodies"] as Array).size(), nh, s7, want7])
+	ok(int(r7["pieces"]) == 4 and np7 == 8 and nh == 8 and f7 and absf(s7 - want7) <= 0.005 * want7, "7 300 x 300 plate: %d pieces, %d pins, %d dowel sites, volume %.1f (want %.1f)" % [int(r7["pieces"]), np7, nh, s7, want7])
 
 	# screenshot of the 4-piece case in the dialog
 	m.S.part = plate(300, 300, 20)
