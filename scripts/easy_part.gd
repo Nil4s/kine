@@ -4011,6 +4011,18 @@ func _draft_end() -> void:
 	if _draft.has("clicks"):
 		_mirror_release()   # s047: a click places a point; the same point twice finishes
 		return
+
+
+	# FFLAT8: a floor drawing that lies over a solid was a press on its top face: it draws on that top (the floor shape is beside the solid only when it lies clear of it)
+	if _draft.has("top") and String(_draft["shape"]) != "curve" and _under_solid(Part.to_world(Part.plane("top"), ((_draft["a"] as Vector2) + (_draft["b"] as Vector2)) * 0.5)):
+		var tp: Dictionary = _draft["top"]
+		tp["shape"] = _draft["shape"]
+		tp["b"] = tp["a"]
+		tp["pts"] = [tp["a"]]
+		var tb: Variant = _ground(_draft_px1, tp["pl"])
+		if tb != null:
+			tp["b"] = tb
+		_draft = tp
 	if String(_draft["shape"]) == "line":
 		_finish_line()
 	elif String(_draft["shape"]) == "curve":
@@ -4033,6 +4045,43 @@ func _above_body(p: Vector2) -> bool:
 	return q.y >= bb.end.y / Part.MM - 10.0 and q.x >= xr.x - 1.0 and q.x <= xr.y + 1.0
 
 
+## FFLAT8: a press that hits a TOP face near that solid's outer edge, where the floor point under the press lies outside the solid
+## (the camera looks down at the edge, so the top face is shifted inward on screen), is a floor press: a shape drawn there stands beside the solid
+func _press_beside_top(p: Vector2, fc: Dictionary) -> bool:
+	if fc.is_empty() or String(fc.get("base", "")) != "top" or not fc.has("pl"):
+		return false
+	var g: Variant = _ground(p, {}, false)
+	var h: Variant = _ground(p, fc["pl"], false)
+	if g == null or h == null:
+		return false
+	var gw := Part.to_world(Part.plane("top"), g as Vector2)
+	var hw := Part.to_world(fc["pl"], h as Vector2)
+	if Vector2(gw.x - hw.x, gw.z - hw.z).length() > 40.0 * Part.MM:
+		return false
+	return not _under_solid(gw)   # the floor point is under the solid: an ordinary top press
+
+
+## true when the world point w lies under a solid's top (a triangle that rises above the floor covers it in X and Z)
+func _under_solid(w: Vector3) -> bool:
+	var eps := 0.5 * Part.MM
+	for body in _shown_faces():
+		var tris: PackedVector3Array = body
+		for k in range(0, tris.size() - 2, 3):
+			var a: Vector3 = tris[k]
+			var b: Vector3 = tris[k + 1]
+			var c: Vector3 = tris[k + 2]
+			if maxf(a.y, maxf(b.y, c.y)) <= eps:
+				continue   # a floor-level sheet (a flat bottom) does not hold the press
+			var d := (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z)
+			if absf(d) < 1e-12:
+				continue
+			var u := ((b.z - c.z) * (w.x - c.x) + (c.x - b.x) * (w.z - c.z)) / d
+			var v := ((c.z - a.z) * (w.x - c.x) + (a.x - c.x) * (w.z - c.z)) / d
+			if u >= -1e-6 and v >= -1e-6 and u + v <= 1.0 + 1e-6:
+				return true
+	return false
+
+
 ## a draw / curve press on the grid at p: a sketch on the face under it, the upright plane, or the floor. true = taken
 func _start_draft(p: Vector2) -> bool:
 	_draft_px0 = p
@@ -4046,6 +4095,11 @@ func _start_draft(p: Vector2) -> bool:
 			_say("Drawing a roof on the box top, through the middle")
 			return true
 	var fc := _face_hit(p)   # DRAW ON A FACE: a press on a flat face of a solid puts the sketch on that face
+	# FFLAT8: a press on the top edge of a solid whose floor point lies beside it draws on the floor (beside the solid); the top face stays the fallback
+	# when the floor shape then lies over the solid (_draft_end)
+	var top_fc: Dictionary = fc if _press_beside_top(p, fc) else {}
+	if not top_fc.is_empty():
+		fc = {}
 	if not fc.is_empty():
 		var fg: Variant = _ground(p, fc["pl"])
 		if fg != null:
@@ -4062,6 +4116,10 @@ func _start_draft(p: Vector2) -> bool:
 	var g: Variant = _ground(p)
 	if g != null:
 		_draft = {"a": g, "b": g, "shape": "curve" if armed == "curve" else shape, "pts": [g], "pl": Part.plane("top")}
+		if not top_fc.is_empty():
+			var tg: Variant = _ground(p, top_fc["pl"])
+			if tg != null:
+				_draft["top"] = {"a": tg, "pl": top_fc["pl"], "face": top_fc}
 		return true
 	return false
 

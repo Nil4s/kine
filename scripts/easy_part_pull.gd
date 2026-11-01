@@ -558,8 +558,13 @@ func _pull(rec: Dictionary) -> String:
 	# FBOX: a LID: a face drawing on the top of a hollow (shelled) body is a separate piece, not joined to the box (it rests on the rim)
 	var lid := on_face and _top_face(pf) and _has_shell(rec)
 	var slot := not on_face and not through and _slot_cut(rec, sk, dist)   # FWRENCH2: a jaw slot at the end of a solid CUTS it
+	# FFLAT: a floor shape pulled up beside the solids (not on a face, not sitting on one) is its OWN piece (op new): Stick together can join it.
+	# The sketch's 2D y is the world height only on an UPRIGHT plane, so a floor drawing never "sits on" a body here (its 2D y runs along the depth)
+	var floor_plane := absf((Part.resolve_plane(rec, String(sk.get("plane", "front")))["n"] as Vector3).y) > 0.5
+	var beside := not (lid or slot or through or on_face) and (floor_plane or not _sits_on_body(rec, sk)) and _beside_body(rec, sk) and int(Part.replay(rec).get("bodies", 0)) > 0
+	var flat := not (lid or slot or through or on_face) and _flat_plate(sk, dist)
 	var rule := _pull_rule({"lid": lid, "slot": slot, "through": through, "inward": inward, "on_face": on_face,
-		"flat": not (lid or slot or through or on_face) and _flat_plate(sk, dist)})
+		"beside": beside, "beside_flat": beside and flat, "flat": flat})
 	var nb0 := int(Part.replay(rec).get("bodies", 0))   # FLAMP: a shape that stands apart from the solid is its own body, not one lump
 	var lk0 := _lumps(Part.replay(rec)) if nb0 > 0 else 0
 	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": String(rule["op"])})
@@ -622,8 +627,14 @@ const PULL_RULES := [
 	{"name": "A shape drawn on a face: pulled out of that face, joined to the body it sits on", "when": "on_face",
 		"op": "join", "sits_on": true, "slider": "how far", "taper": false, "fill": "where", "slider_says": false,
 		"say": "Pulled out of the %s: use the slider to change it, or press Mirror that next"},
+	{"name": "A flat plate on the floor beside the solids (FFLAT + NTHICK): its own piece, its slider is Thickness", "when": "beside_flat",
+		"op": "new", "sits_on": false, "slider": "thickness", "taper": true, "fill": "how far", "slider_says": true,
+		"say": "Pulled up %s: use the slider to change it, or press Round the edges or Cut a hole next"},
 	{"name": "A flat plate on the floor (NTHICK): a slab, its slider is Thickness", "when": "flat",
 		"op": "join", "sits_on": true, "slider": "thickness", "taper": true, "fill": "how far", "slider_says": true,
+		"say": "Pulled up %s: use the slider to change it, or press Round the edges or Cut a hole next"},
+	{"name": "A floor shape beside the solids (FFLAT): its own piece, Stick together can join it", "when": "beside",
+		"op": "new", "sits_on": false, "slider": "how far", "taper": true, "fill": "how far", "slider_says": true,
 		"say": "Pulled up %s: use the slider to change it, or press Round the edges or Cut a hole next"},
 	{"name": "A shape on the floor: pulled up, joined to the body it sits on, or its own body when it stands apart", "when": "",
 		"op": "join", "sits_on": true, "slider": "how far", "taper": true, "fill": "how far", "slider_says": true,
@@ -637,6 +648,44 @@ func _pull_rule(facts: Dictionary) -> Dictionary:
 		if String(r["when"]) == "" or bool(facts.get(r["when"], false)):
 			return r
 	return PULL_RULES[-1]
+
+
+## FFLAT: a floor shape that TOUCHES a body (its footprint in the floor's X and Z reaches a body triangle, gap at most 0.5 mm) and does not
+## overlap it is BESIDE the solids: its own piece (Stick together can join it). Shapes that overlap, or lie apart, keep the join
+func _beside_body(rec: Dictionary, sk: Dictionary) -> bool:
+	if Part.replay(rec).get("aabb", AABB()).size == Vector3.ZERO:
+		return false
+	var pl := Part.resolve_plane(rec, String(sk.get("plane", "front")))
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for e in sk["ents"]:
+		for q in _ent_pts(e):
+			var w := Part.to_world(pl, Vector2(float(q[0]), float(q[1])))
+			lo = lo.min(Vector2(w.x, w.z))
+			hi = hi.max(Vector2(w.x, w.z))
+	var eps := 0.5 * Part.MM
+	var spans: Array = []   # FFLAT6: the x spans where the footprint touches the body; touches in two or more separated places (a bar across comb teeth) BRIDGE the solid: it joins
+	for body in Part.body_faces(rec, -1):
+		var tris: PackedVector3Array = body
+		for k in range(0, tris.size() - 2, 3):
+			var tlo := Vector2(minf(minf(tris[k].x, tris[k + 1].x), tris[k + 2].x), minf(minf(tris[k].z, tris[k + 1].z), tris[k + 2].z))
+			var thi := Vector2(maxf(maxf(tris[k].x, tris[k + 1].x), tris[k + 2].x), maxf(maxf(tris[k].z, tris[k + 1].z), tris[k + 2].z))
+			var gx := maxf(tlo.x - hi.x, lo.x - thi.x)   # the gap along X (negative: the boxes overlap there)
+			var gz := maxf(tlo.y - hi.y, lo.y - thi.y)
+			if gx < -eps and gz < -eps:
+				return false   # the footprint overlaps the body: it stays in the body
+			if gx <= eps and gz <= eps:
+				spans.append(Vector2(tlo.x, thi.x))
+	if spans.is_empty():
+		return false
+	spans.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
+	var groups := 1
+	var reach: float = spans[0].y
+	for i in range(1, spans.size()):
+		if spans[i].x > reach + eps:
+			groups += 1   # a gap between two contact places: the shape spans it
+		reach = maxf(reach, spans[i].y)
+	return groups == 1
 
 
 ## NTHICK: a FLAT PLATE is a plain pull of a floor shape whose narrow side is at least 10 cm and whose height is at most half of it (and at most 40 cm):
