@@ -128,6 +128,26 @@ func _btn(row: HBoxContainer, nm: String, text: String, tip: String, fn: Callabl
 	return b
 
 
+const SHOW_ALPHA := 0.7
+
+
+## lay1: what is drawn on the floor (the traced pixels are the picture's own, untouched). The floor is dark, so a black shape was black on black: the dark
+## shape is drawn light (white), the light background nearly clear, so the picture reads as a pale silhouette. At most 256 px on a side
+static func display_image(src: Image) -> Image:
+	var im := src.duplicate() as Image
+	im.convert(Image.FORMAT_RGBA8)
+	var big := maxi(im.get_width(), im.get_height())
+	if big > 256:
+		var k := 256.0 / float(big)
+		im.resize(maxi(1, int(im.get_width() * k)), maxi(1, int(im.get_height() * k)), Image.INTERPOLATE_BILINEAR)
+	for y in im.get_height():
+		for x in im.get_width():
+			var c := im.get_pixel(x, y)
+			var dark := 1.0 - (c.r * 0.299 + c.g * 0.587 + c.b * 0.114)   # 1 = black, 0 = white
+			im.set_pixel(x, y, Color(0.95, 0.96, 0.98, c.a * clampf(0.12 + 0.88 * dark, 0.0, 1.0)))
+	return im
+
+
 ## (re)lay the picture flat on the floor, centred on the origin, width_mm wide (the height follows its shape)
 func _lay() -> void:
 	if image == null:
@@ -142,9 +162,8 @@ func _lay() -> void:
 	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-	var im := image.duplicate() as Image
-	im.convert(Image.FORMAT_RGBA8)
-	mat.albedo_texture = ImageTexture.create_from_image(im)
+	mat.albedo_texture = ImageTexture.create_from_image(display_image(image))
+	mat.albedo_color = Color(1, 1, 1, SHOW_ALPHA)   # lay1: 70 % opaque, so the floor grid shows through
 	q.material = mat
 	node = MeshInstance3D.new()
 	node.name = "easypart_trace_backdrop"

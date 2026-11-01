@@ -101,9 +101,18 @@ func _size_sync() -> void:
 		var vr := view_box.get_global_rect()
 		if pos.y < vr.end.y and pos.y + sz.y > vr.position.y:
 			pos.x = minf(pos.x, vr.position.x - sz.x - 4.0)
+	var cc: Variant = get("challenge_card")   # lay1: the Challenges card (score line, hint) sits at the bottom left: the Size line moves up above it instead of running into the score line
+	if cc != null and (cc as Control).visible and (cc as Control).modulate.a > 0.5:
+		var ccr := (cc as Control).get_global_rect()
+		if Rect2(pos, sz).intersects(ccr):
+			pos.y = ccr.position.y - sz.y - 4.0
+			for ob in [round_box, shape_box, hint, view_box]:   # moved up: it must not land on the chip rows there either (then it hides, as it does for the other boxes)
+				if (ob as Control).is_visible_in_tree() and Rect2(pos, sz).intersects((ob as Control).get_global_rect()):
+					size_l.visible = false
+					return
 	size_l.position = pos
 	var r := Rect2(size_l.get_global_position(), sz)
-	for bx in [panel, repeat_box, stick_box, colour_box, hint, status]:
+	for bx in [panel, hole_box, tilt_box, explode_box, get("challenge_card"), repeat_box, stick_box, colour_box, hint, status]:
 		var c := bx as Control
 		if c != null and c.is_visible_in_tree() and r.intersects(c.get_global_rect()):
 			size_l.visible = false
@@ -223,8 +232,11 @@ func _frame_grid() -> void:
 	if _grid_framed:
 		if fr.is_equal_approx(_grid_fr) or not _grid_auto():
 			return   # framed already, or the user has the view
-		if armed != "":
+		if armed != "" and armed != "draw":
 			return   # a tool is armed (Draw, Curvy, Pull ...): the free view changes as its panel opens, and the view must not move under the clicks that follow
+		# lay1: Draw shape opens its shape row over the framed grid (its back corner sat under the chips: a Draw drag from there hit a chip). While Draw is armed
+		# and the camera is still where the last framing left it, the grid is framed again in what is left of the view (the 0.3 s ease that follows the Draw press;
+		# it stops as soon as the free view stops changing, or the user moves the camera)
 	var e := 10 * 50.0 * Part.MM   # the floor grid's half side (scripts: _floor_sync, n = 10 lines of 5 cm)
 	var pose := _grid_pose(AABB(Vector3(-e, 0.0, -e), Vector3(2.0 * e, 0.0, 2.0 * e)), GRID_FILL)
 	if pose.is_empty():
@@ -463,6 +475,7 @@ func layout(cl: Rect2) -> void:
 		shape_nat += (c as Control).get_combined_minimum_size().x + 6.0
 	shape_box.size.x = minf(cl.end.x - PW - 32.0 - shape_box.position.x, shape_nat)
 	shape_box.size.y = shape_box.get_combined_minimum_size().y
+	call("_hole_fit", clampf(view_box.position.x - 8.0 - shape_box.position.x - 12.0, 300.0, 720.0))   # lay1: the chips wrap in the room left of the view column
 	hole_box.reset_size()
 	hole_box.position = shape_box.position
 	split_box.reset_size()
