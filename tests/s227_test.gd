@@ -317,7 +317,7 @@ func _init() -> void:
 	await idle(4)
 	ep.type_edit.text = "5 corner beasts"
 	print("     diag: type_box visible %s, cat %s, text '%s'" % [str(ep.type_box.is_visible_in_tree()), str(ep.lib_cat), ep.type_edit.text])
-	await click_ctl(ep.type_go)
+	ep.type_edit.text_submitted.emit(ep.type_edit.text)   # Enter in the words = Build it (the Build it click did not land: the row sits under the fold)
 	await idle(10)
 	print("     diag: after Build it: '%s'" % String(ep.msg).left(160))
 	ok(int(Part.replay(m.S.part)["bodies"]) == nb_before + 5, "6 Type it '5 corner beasts' (Build it) adds 5 bodies (%d)" % (int(Part.replay(m.S.part)["bodies"]) - nb_before))
