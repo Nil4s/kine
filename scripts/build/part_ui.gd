@@ -2412,6 +2412,7 @@ func _rebuild(show: bool) -> void:
 		part_mesh.mesh = null
 		edge_cache = []
 		face_cache = []
+		thread_look_sync()
 		return
 	var up := upto
 	if not dlg.is_empty() and int(dlg["edit"]) >= 0:
@@ -2432,6 +2433,7 @@ func _rebuild(show: bool) -> void:
 		_look_surfaces()
 	edge_cache = res["edges"]
 	face_cache = res["faces"]
+	thread_look_sync()
 
 
 ## EXPLODE (p103): the shown mesh with each piece pushed away from the middle of the whole part (the direction from that middle to the piece's own middle).
@@ -4899,3 +4901,50 @@ func _tess_poll() -> void:
 			_tess_start(nx)
 		else:
 			_tess_free(nx)
+
+
+## THREAD LOOK (s031): the helix of each threaded hole, a line mesh under the part's mesh (the solid is not changed). The material pulls the lines
+## toward the eye a little (view-space bias), so the bore wall in front of the helix does not hide it; outside the part the bias is far smaller than the wall
+const THREAD_SHADER := "shader_type spatial;
+render_mode unshaded, cull_disabled;
+uniform vec4 col : source_color = vec4(1.0, 0.6, 0.1, 1.0);
+uniform float bias = 0.001;
+void vertex() { VERTEX.z += bias; }
+void fragment() { ALBEDO = col.rgb; }
+"
+static var _thread_sh: Shader = null
+
+
+func thread_look_sync() -> void:
+	var tl := part_mesh.get_node_or_null("thread_look") as MeshInstance3D
+	var rows: Array = Part.thread_look_rows(_rec(), res.get("aabb", AABB())) if (part_mesh.mesh != null and not _rec().is_empty()) else []
+	var all := PackedVector3Array()
+	var pitch_u := 0.001
+	for row in rows:
+		all.append_array(row["lines"])
+		pitch_u = float(row.get("pitch_u", pitch_u))
+	if all.is_empty():
+		if tl != null:
+			tl.mesh = null
+			tl.visible = false
+		return
+	if tl == null:
+		tl = MeshInstance3D.new()
+		tl.name = "thread_look"
+		tl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		part_mesh.add_child(tl)
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = all
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_LINES, arr)
+	if _thread_sh == null:
+		_thread_sh = Shader.new()
+		_thread_sh.code = THREAD_SHADER
+	var mat := ShaderMaterial.new()
+	mat.shader = _thread_sh
+	mat.set_shader_parameter("col", Tok.c("accent"))
+	mat.set_shader_parameter("bias", maxf(0.0015, 1.5 * pitch_u))
+	am.surface_set_material(0, mat)
+	tl.mesh = am
+	tl.visible = true

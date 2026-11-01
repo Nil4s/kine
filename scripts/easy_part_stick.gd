@@ -48,6 +48,7 @@ func _stick_box() -> PanelContainer:
 	smooth_btn.visible = false
 	h.add_child(smooth_btn)
 	col.add_child(_align_row())
+	col.add_child(_fasten_row())   # p063: Fasten these two, under the align chips
 	return box
 
 
@@ -720,3 +721,73 @@ static func _size_ent(e: Dictionary, c: Vector2, fu: float, fv: float, i: int, c
 			sp.append(Part.arr2(c + (_v2(p) - c) * sc))
 		out["pts"] = sp
 	return out
+
+
+## p063 FASTEN THESE TWO (Friday plan 63): with two pieces picked in Stick together, one press picks the screw (size from the thinner piece, length from
+## both, rounded down to a stock length), two places along the overlap, cuts the holes and puts the screws in: one undo step. The rule is printed
+## beside the button. The maths and the features are PartFasten (scripts/build/part_fasten.gd).
+var fasten_btn: Button
+var fasten_row: HBoxContainer
+
+
+func _fasten_row() -> HBoxContainer:
+	fasten_row = HBoxContainer.new()
+	fasten_row.name = "easypart_fasten_row"
+	fasten_row.add_theme_constant_override("separation", 8)
+	fasten_row.visible = false
+	fasten_btn = _big_btn("easypart_fasten", "Fasten these two", "Screws for the two picked pieces: Kine picks the screw size and length and the hole places (one step, Undo takes it back)", _fasten_two)
+	fasten_btn.custom_minimum_size = Vector2(170, 44)
+	fasten_row.add_child(fasten_btn)
+	var rule := Label.new()
+	rule.name = "easypart_fasten_rule"
+	rule.text = PartFasten.RULE_WORDS
+	rule.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rule.custom_minimum_size = Vector2(520, 0)
+	rule.add_theme_font_size_override("font_size", 11)
+	rule.add_theme_color_override("font_color", Color(0.8, 0.82, 0.86))
+	fasten_row.add_child(rule)
+	return fasten_row
+
+
+func _fasten_two() -> void:
+	if stick_picks.size() < 2:
+		_say("Click two pieces first, one lying on the other, then press Fasten these two")
+		return
+	if not Part.available():
+		_say("Fasten these two needs the CAD engine, which is not here")
+		return
+	var ia := int(stick_picks[0])
+	var ib := int(stick_picks[1])
+	var plan := PartFasten.plan(stick_tris.get(ia, PackedVector3Array()), stick_tris.get(ib, PackedVector3Array()))
+	if String(plan["why"]) != "":
+		_say(String(plan["why"]))
+		return
+	_flush_if_dirty()
+	var snap := _rec().duplicate(true)
+	_begin("Fasten these two")
+	var rec := pu._ensure()
+	var d: int = plan["d"]
+	var sc = load("res://scripts/easy_part_pull.gd")   # the Cut a hole chips' clearance table (a subclass of this script: read by its resource)
+	var pr := String(get("printer")) if get("printer") != null else ""
+	var clear := float((sc.PRINTER_CLEAR as Dictionary).get(pr, sc.SCREW_CLEAR)[d])
+	var head_i := ib if bool(plan["swap"]) else ia
+	var far_i := ia if bool(plan["swap"]) else ib
+	var why := PartFasten.build(rec, plan, head_i, far_i, clear, float(rec.get("fit_mm", 0.0)))
+	armed = ""
+	stick_picks = []
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+	else:
+		if not rec.has("fasteners"):
+			rec["fasteners"] = []
+		(rec["fasteners"] as Array).append({"d": d, "L": int(plan["L"]), "n": (plan["pts"] as Array).size()})
+		_end()
+		_say("%dx M%d x %d: %s hole%s through the first piece, a pilot in the second, the screws in (Undo takes it all back)" % [(plan["pts"] as Array).size(), d, int(plan["L"]), _mm_words(clear), "" if (plan["pts"] as Array).size() == 1 else "s"])
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()

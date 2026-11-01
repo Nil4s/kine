@@ -1743,6 +1743,8 @@ static func _combine(bodies: Array, solid: int, op: String, into := -1) -> Strin
 		return ""
 	if op == "cut":
 		for i in bodies.size():
+			if into >= 0 and i != into:   # p063: a cut with "into" touches only that body (Fasten these two: the screw hole of one piece)
+				continue
 			var c := KCad.cut(bodies[i], solid)
 			if c != 0:
 				KCad.release(bodies[i])
@@ -3348,3 +3350,77 @@ static func replay_memo(rec: Dictionary, want: Dictionary) -> Dictionary:
 		_memo_res = replay(rec, -1, want)
 		_memo_key = k
 	return _memo_res
+
+
+## THREAD LOOK (s031, Friday plan 31): a cosmetic thread. A cut step with "thread": true whose sketch is one circle gets ONE helix drawn along its bore, at the
+## ISO coarse pitch of the nearest metric size (M3..M12, by the bore's diameter). The solid is NOT changed (the key is not read by the kernel), so an export
+## is the same with or without it. The helix sits THREAD_LOOK_DEPTH x pitch OUTSIDE the bore wall, inside the material: the groove of an internal thread
+## (so its radius is between bore/2 and bore/2 + 0.6 pitch); the view draws it with a small bias toward the eye so the wall does not hide it.
+const THREAD_LOOK_M := [[3, 0.5], [4, 0.7], [5, 0.8], [6, 1.0], [8, 1.25], [10, 1.5], [12, 1.75]]   # ISO 262 coarse pitches (mm)
+const THREAD_LOOK_DEPTH := 0.3   # the helix radius = bore radius + this x pitch
+const THREAD_LOOK_SEG := 24      # segments per turn
+const THREAD_LOOK_TURNS := 600   # a very long bore stops here
+
+
+## the metric size nearest a bore of diameter d (mm): [nominal mm, pitch mm]
+static func thread_look_size(d: float) -> Array:
+	var best: Array = THREAD_LOOK_M[0]
+	for t in THREAD_LOOK_M:
+		if absf(float(t[0]) - d) < absf(float(best[0]) - d):
+			best = t
+	return best
+
+
+## one row per threaded cut: {"id": feature id, "M": nominal mm, "pitch": mm, "d": bore diameter mm, "r": bore radius (engine units), "rad": helix radius
+## (engine units), "pitch_u": pitch (engine units), "axis": unit vector, "lines": point pairs (engine units)}. aabb = the built part's box (the helix runs its length)
+static func thread_look_rows(rec: Dictionary, aabb: AABB) -> Array:
+	var out := []
+	for f in rec.get("features", []):
+		if String(f.get("t", "")) != "extrude" or not bool(f.get("thread", false)) or String(f.get("op", "")) != "cut":
+			continue
+		var sk := feature(rec, String(f.get("sketch", "")))
+		var ents: Array = sk.get("ents", [])
+		if ents.size() != 1 or String(ents[0].get("k", "")) != "circle":
+			continue
+		var pl := plane(String(sk.get("plane", "front")))
+		var rmm := float(ents[0]["r"])
+		var best := thread_look_size(2.0 * rmm)
+		var row := {"id": String(f.get("id", "")), "M": int(best[0]), "pitch": float(best[1]), "d": 2.0 * rmm, "lines": PackedVector3Array()}
+		if aabb.size == Vector3.ZERO:
+			out.append(row)
+			continue
+		var n: Vector3 = pl["n"]
+		var ax: Vector3 = pl["x"]
+		var ay: Vector3 = pl["y"]
+		var c := to_world(pl, v2(ents[0]["c"]))
+		var t0 := INF
+		var t1 := -INF
+		for k in 8:   # the body's reach along the bore: its 8 corners on the hole's axis
+			var dt := (aabb.position + aabb.size * Vector3(k & 1, (k >> 1) & 1, (k >> 2) & 1)).dot(n)
+			t0 = minf(t0, dt)
+			t1 = maxf(t1, dt)
+		var pitch := float(best[1]) * MM
+		var rad := (rmm + THREAD_LOOK_DEPTH * float(best[1])) * MM
+		var turns := minf((t1 - t0) / pitch, float(THREAD_LOOK_TURNS))
+		var segs := int(floor(turns * THREAD_LOOK_SEG))
+		var lines := PackedVector3Array()
+		for i in segs:
+			for q in 2:
+				var s := float(i + q) / THREAD_LOOK_SEG   # turns so far
+				var a := TAU * s
+				lines.append(c + n * (t0 + s * pitch - c.dot(n)) + (ax * cos(a) + ay * sin(a)) * rad)
+		row["r"] = rmm * MM
+		row["rad"] = rad
+		row["pitch_u"] = pitch
+		row["axis"] = n
+		row["lines"] = lines
+		out.append(row)
+	return out
+
+
+## the plain words of a threaded hole, for the instruction sheet and the checklist
+static func thread_look_words(m: int, pitch: float) -> String:
+	var p := "%.2f" % pitch
+	if p.ends_with("0"):
+		p = p.substr(0, p.length() - 1)
+	return "M%d thread (%s mm pitch): tap it or use a heat-set insert" % [m, p]

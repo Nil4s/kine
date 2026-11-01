@@ -12,6 +12,9 @@ const CAB_W := 0.88     # the glasshouse is this share of the body's width (narr
 const ORDER :=["sword", "axe", "shield", "chair", "gear", "rack", "slothole", "crate"]   # NGEAR: Gear sits before Crate (Crate stays the last chip); its numbers are not cm: "raw"   # P032: Slot sits before Crate too (Crate stays last). p070: Spring is not a chip: it is built from the Parts library (Springs)
 const RECIPES := ["phone", "shelf", "lidbox"]   # P096: templates that open as named steps (no slider record), so they are not in ORDER (ORDER = the slider templates)
 const START := ["box", "cylinder", "sphere", "tube", "plate"]   # FREESTART: the neutral "Start from" row on Easy Part's panel (simple shapes, no weapon)
+const BC_PARAMS := [
+	{"k": "wall", "label": "Wall", "lo": 1.5, "hi": 6.0, "def": 3.0, "step": 0.5, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"},
+	{"k": "clear", "label": "Gap round the board", "lo": 0.5, "hi": 4.0, "def": 1.0, "step": 0.5, "words": ["Snug", "Roomy"], "raw": true, "unit": "mm"}]   # s077
 const T := {
 	"box": {"title": "Box", "params": [
 		{"k": "width", "label": "Width", "lo": 50.0, "hi": 1000.0, "def": 300.0, "step": 10.0, "words": ["Narrower", "Wider"]},
@@ -186,6 +189,12 @@ const T := {
 	# Boards chips (easy_part.gd), so its slider is hidden there ("parts": true). Its features are the same count for both boards.
 	"case": {"title": "Board case", "parts": true, "params": [
 		{"k": "board", "label": "Board", "lo": 1.0, "hi": 2.0, "def": 1.0, "step": 1.0, "words": ["Raspberry Pi", "Arduino Uno"], "raw": true, "unit": "board"}]},
+	# s077 (Friday plan 77): a box for a real board with the standoffs at its datasheet holes and the port cut-outs on the right walls (Parts > Boards).
+	# One template per board (bc_*): the same two sliders, Wall and Gap (the clearance between the board's edge and the inside wall), both mm.
+	"bc_uno": {"title": "Arduino Uno R3 box", "params": BC_PARAMS},
+	"bc_esp51": {"title": "ESP32 51 x 28 box", "params": BC_PARAMS},
+	"bc_esp55": {"title": "ESP32 DevKitC 55 x 28 box", "params": BC_PARAMS},
+	"bc_pi4": {"title": "Raspberry Pi 4B box", "params": BC_PARAMS},
 	# P080 WOOD BOARDS: a flat wood board, mm (Parts > Wood boards): width across X, thickness up Y, length along Z. Its sliders are the board's sizes
 	"board": {"title": "Wood board", "params": [
 		{"k": "width", "label": "Width", "lo": 10.0, "hi": 1300.0, "def": 89.0, "step": 1.0, "words": ["Narrower", "Wider"]},
@@ -510,6 +519,8 @@ static func features_of(t: String, p: Dictionary) -> Array:
 		return grip_features(p)
 	if bool(T[t].get("recipe", false)):   # P096
 		return recipe_features(t, p)
+	if t.begins_with("bc_"):   # s077: a box for a real board (end of this file)
+		return bcase_features(t, p)
 	var fs: Array = []
 	match t:
 		"box":
@@ -1193,3 +1204,102 @@ static func _step(fs: Array, label: String, plane_name: String, ents: Array, dis
 	_ex(fs, sid, "extrude", dist, op)
 	(fs[fs.size() - 2] as Dictionary)["label"] = label
 	(fs[fs.size() - 1] as Dictionary)["label"] = label
+
+
+# ---------------------------------------------------------------- s077: boxes for real boards (Parts > Boards)
+## Sizes in mm, x along the board's long side, y across (the box's Z), measured from the board's lower-left corner. "hd" = the mounting hole
+## diameter. SOURCES: Arduino Uno R3 = Arduino's mechanical drawing (68.6 x 53.3 mm, four 3.2 mm holes at (14.0, 2.5) (15.3, 50.7) (66.1, 7.6)
+## (66.1, 35.5)). Raspberry Pi 4B = the Raspberry Pi mechanical drawing (85 x 56 mm, four 2.7 mm holes on a 58 x 49 mm grid, 3.5 mm in from the
+## left and bottom edges). ESP32: the DevKitC has NO mounting holes (Espressif's ESP32-DevKitC V4 guide: about 55 x 28 mm; the common 30-pin
+## "DevKit V1" clone is about 51 x 28 mm), so each gets four support posts (no hole) clear of the pin rows; hd 0 = no hole.
+## Ports: "w" = the wall ("+x" right end, "-x" left end, "-z" the bottom edge of the drawing), a..b = where along that wall from the board's
+## corner (mm), y0..y1 = height above the board's top face (mm). Port places are from the same drawings, +-0.5 mm: check your own board.
+const BC_BOARDS := {
+	"bc_uno": {"name": "Arduino Uno R3", "L": 68.6, "W": 53.3, "hd": 3.2, "holes": [[14.0, 2.5], [15.3, 50.7], [66.1, 7.6], [66.1, 35.5]],
+		"ports": [{"w": "-x", "a": 32.1, "b": 44.1, "y0": 0.0, "y1": 11.0, "n": "USB-B"}, {"w": "-x", "a": 2.0, "b": 11.0, "y0": 0.0, "y1": 11.0, "n": "power jack"}]},
+	"bc_esp51": {"name": "ESP32 51 x 28", "L": 51.0, "W": 28.0, "hd": 0.0, "holes": [[3.0, 7.0], [3.0, 21.0], [48.0, 7.0], [48.0, 21.0]],
+		"ports": [{"w": "-x", "a": 10.0, "b": 18.0, "y0": 0.0, "y1": 3.0, "n": "micro-USB"}]},
+	"bc_esp55": {"name": "ESP32 DevKitC 55 x 28", "L": 55.0, "W": 28.0, "hd": 0.0, "holes": [[3.0, 7.0], [3.0, 21.0], [52.0, 7.0], [52.0, 21.0]],
+		"ports": [{"w": "-x", "a": 10.0, "b": 18.0, "y0": 0.0, "y1": 3.0, "n": "micro-USB"}]},
+	"bc_pi4": {"name": "Raspberry Pi 4B", "L": 85.0, "W": 56.0, "hd": 2.7, "holes": [[3.5, 3.5], [61.5, 3.5], [3.5, 52.5], [61.5, 52.5]],
+		"ports": [{"w": "-z", "a": 6.7, "b": 15.7, "y0": 0.0, "y1": 3.3, "n": "USB-C"}, {"w": "-z", "a": 22.5, "b": 29.5, "y0": 0.0, "y1": 3.1, "n": "micro HDMI 0"},
+			{"w": "-z", "a": 36.0, "b": 43.0, "y0": 0.0, "y1": 3.1, "n": "micro HDMI 1"},
+			{"w": "+x", "a": 2.25, "b": 18.25, "y0": 0.0, "y1": 13.5, "n": "Ethernet"}, {"w": "+x", "a": 22.4, "b": 35.6, "y0": 0.0, "y1": 15.6, "n": "USB 3 pair"},
+			{"w": "+x", "a": 40.4, "b": 53.6, "y0": 0.0, "y1": 15.6, "n": "USB 2 pair"}]},
+}
+const BC_ORDER := ["bc_uno", "bc_esp51", "bc_esp55", "bc_pi4"]
+const BC_PCB := 1.6          # mm: the board's own thickness
+const BC_RISE := 6.0         # mm: a standoff stands this far above the inside of the floor (the board sits on it)
+const BC_STAND_R := 3.0      # mm: a standoff's outside radius (6 mm across)
+const BC_TOL := 0.5          # mm: a port opening is this much bigger than the port, all round
+const BC_HEAD := 12.0        # mm: room above the board for its parts when no port is taller
+const BC_LID := 3.0
+const BC_GAP := 10.0
+
+
+## the box's outside numbers for a board and its wall / gap (mm): inset = wall + gap (the board's corner sits at (inset, inset) from the box's
+## corner); lo x zo = the footprint; h = the height; stand = a standoff's top above the outside floor
+static func bc_dims(t: String, p: Dictionary) -> Dictionary:
+	var b: Dictionary = BC_BOARDS[t]
+	var wall: float = p["wall"]
+	var inset: float = wall + float(p["clear"])
+	var top := BC_HEAD
+	for pr in b["ports"]:
+		top = maxf(top, float(pr["y1"]) + BC_TOL + 1.5)
+	var stand := wall + BC_RISE
+	return {"inset": inset, "lo": float(b["L"]) + 2.0 * inset, "zo": float(b["W"]) + 2.0 * inset, "stand": stand, "h": stand + BC_PCB + top}
+
+
+static func bcase_features(t: String, p: Dictionary) -> Array:
+	var fs: Array = []
+	var b: Dictionary = BC_BOARDS[t]
+	var d := bc_dims(t, p)
+	var wall: float = p["wall"]
+	var inset: float = d["inset"]
+	var lo: float = d["lo"]
+	var zo: float = d["zo"]
+	var stand: float = d["stand"]
+	var hd: float = b["hd"]
+	# the box: open at the top, a floor and four walls of 'wall' mm
+	_ex(fs, _sk(fs, "front", [_rect(Vector2(0, 0), Vector2(lo, d["h"]))]), "extrude", zo, "new")
+	fs.append({"t": "shell", "id": "f%d" % (fs.size() + 1), "name": "Shell1", "body": 0, "thick": wall, "open": "+y"})
+	# the standoffs at the board's holes (the top plane's y runs toward -Z), each with the board's own hole size through it and the floor
+	var st := []
+	var hs := []
+	for h in b["holes"]:
+		var hc := [inset + float(h[0]), -(inset + float(h[1]))]
+		st.append({"k": "circle", "c": hc, "r": BC_STAND_R})
+		hs.append({"k": "circle", "c": hc, "r": hd * 0.5})
+	_ex(fs, _sk(fs, "top", st), "extrude", stand, "join")
+	if hd > 0.0:
+		_ex(fs, _sk(fs, "top", hs), "extrude", stand + 1.0, "cut")
+	# the port openings: one cut per wall that has ports, from a plane in the middle of that wall, wall + 1 mm deep both ways
+	var y0 := stand + BC_PCB
+	for w in ["+x", "-x", "-z"]:
+		var rs := []
+		for pr in b["ports"]:
+			if String(pr["w"]) != w:
+				continue
+			var a0: float = inset + float(pr["a"]) - BC_TOL
+			var a1: float = inset + float(pr["b"]) + BC_TOL
+			var ya: float = y0 + float(pr["y0"]) - BC_TOL
+			var yb: float = y0 + float(pr["y1"]) + BC_TOL
+			if w == "-z":
+				rs.append(_rect(Vector2(a0, ya), Vector2(a1, yb)))
+			else:
+				rs.append(_rect(Vector2(-a1, ya), Vector2(-a0, yb)))   # the right plane's x runs along -Z
+		if rs.is_empty():
+			continue
+		var pid := "f%d" % (fs.size() + 1)
+		var nplane := fs.filter(func(f): return f["t"] == "plane").size() + 1
+		fs.append({"t": "plane", "id": pid, "name": "Plane%d" % nplane, "from": "front" if w == "-z" else "right", "mm": lo - wall * 0.5 if w == "+x" else wall * 0.5})
+		_ex(fs, _sk(fs, pid, rs), "extrude", wall + 1.0, "cut", true)
+	# the lid: a flat plate beside the box, the same footprint, the same holes
+	var lx := lo + BC_GAP
+	_ex(fs, _sk(fs, "top", [_rect(Vector2(lx, 0), Vector2(lx + lo, -zo))]), "extrude", BC_LID, "new")
+	if hd > 0.0:
+		var lh := []
+		for h in b["holes"]:
+			lh.append({"k": "circle", "c": [lx + inset + float(h[0]), -(inset + float(h[1]))], "r": hd * 0.5})
+		_ex(fs, _sk(fs, "top", lh), "extrude", BC_LID + 1.0, "cut")
+	return fs
