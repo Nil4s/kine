@@ -487,6 +487,14 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# the source (scripts/coupled_limits.gd); not in METHODS (the transcript's ready line)
 			var cl := CoupledLimits.serve(m, p)
 			return _ok(id, cl) if cl["ok"] else _err(id, -32602, cl["error"])
+		"material":   # s223 MATERIAL WORDS (scripts/material_words.gd): {words, base?} -> the spec ("dark oak", "red lacquer, a bit worn"), unknown words listed; {library: true} lists the library. Not in METHODS
+			if p.get("library", false) == true:
+				return _ok(id, {"library": MaterialMaker.library_ids(), "colours": MaterialWords.colour_names().size()})
+			var mw := MaterialWords.parse(String(p.get("words", "")), p.get("base", {}) if p.get("base") is Dictionary else {})
+			if not bool(mw["ok"]):
+				return _err(id, -32602, "material needs {\"words\": \"dark oak\"}: a material or a colour (not known: %s)" % ", ".join(mw["unknown"]), mw)
+			mw["describe"] = MaterialWords.describe(mw["spec"])
+			return _ok(id, mw)
 		"who_could":   # N027: the minimum body that could do the clip / card / span, per capacity (scripts/who_could.gd); not in METHODS
 			var wc := WhoCould.serve(m, p)
 			return _ok(id, wc) if wc["ok"] else _err(id, -32602, wc["error"])

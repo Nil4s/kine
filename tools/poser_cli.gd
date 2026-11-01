@@ -203,6 +203,13 @@ func _init() -> void:
 				cs.append({"id": c["id"], "name": c["name"], "keys": c["keys"], "edits": c["edits"], "desc": c["desc"]})
 				say("%-38s %-8s %s  %s" % [c["id"], c["keys"], "EDIT" if c["edits"] else "    ", c["desc"]])
 			done({"ok": true, "commands": cs})
+		"material":   # s223: material "dark oak" | material list (scripts/material_words.gd)
+			var mq := " ".join(a.slice(1))
+			var mr := {"ok": true, "library": MaterialMaker.library_ids()} if mq == "list" else MaterialWords.parse(mq)
+			if mr.get("ok", false) and mr.has("spec"):
+				mr["describe"] = MaterialWords.describe(mr["spec"])
+			say(String(mr.get("describe", "%d materials" % mr.get("library", []).size())) if mr.get("ok", false) else "material \"<words>\" | material list (not known: %s)" % ", ".join(mr.get("unknown", [])))
+			done(mr)
 		"facts":   # N022: facts "how fast is a real jab?" | facts list
 			var fq := " ".join(a.slice(1))
 			var fr := HumanFacts.serve({"list": true} if fq == "list" else {"q": fq})

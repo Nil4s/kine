@@ -641,6 +641,10 @@ func _colour_box() -> PanelContainer:
 	dk.add_theme_color_override("font_color", Color(0.9, 0.92, 0.95))
 	dk.pressed.connect(_paint.bind("Dark", Color("#1e2226"), "Paint"))
 	h.add_child(dk)
+	var mb := _colour_btn("materials", "Materials", Color(0.78, 0.74, 0.66))   # s223: oak, steel, tile, marble... and a words box, on a page under the chips
+	mb.tooltip_text = "Wood, metal, tile, stone, leather and more, drawn in code. Pick one or say it: dark oak, red lacquer a bit worn"
+	mb.pressed.connect(_mat_toggle)
+	h.add_child(mb)
 	# p057 WEIGHT: the whole Part's weight if it were made of each material (volume x density). A readout: it changes nothing in the Part
 	for wk in WEIGHT_CHIPS:
 		var wb := _colour_btn("weight_" + String(wk[0]), "", Color(0.7, 0.72, 0.76))
@@ -3473,7 +3477,7 @@ func _twist_tweak(id: String) -> Dictionary:
 
 ## COLOUR: one appear step on the newest body (Part's "appear" feature, the look Expert's Appearance writes), in ONE undo step. A material
 ## (Glass, Metal) keeps each body's own colour; a colour chip sets Paint's numbers with that colour
-func _paint(label: String, c: Color, preset: String) -> void:
+func _paint(label: String, c: Color, preset: String, mat := {}) -> void:
 	armed = ""
 	if not Part.available():
 		_say(Part.why_not())
@@ -3505,8 +3509,11 @@ func _paint(label: String, c: Color, preset: String) -> void:
 		var cur := Part.look_at(looks, i)
 		var col: Color = cur["c"] if COLOUR_PRESETS.has(preset) else c
 		var n := Part.count_of(rec, "appear") + 1
-		var f := Part.new_feature(rec, "appear", {"name": "Appearance%d" % n, "body": i, "preset": preset,
-			"color": [col.r, col.g, col.b], "rough": float(nums["rough"]), "metal": float(nums["metal"]), "alpha": float(nums["alpha"])})
+		var fields := {"name": "Appearance%d" % n, "body": i, "preset": preset,
+			"color": [col.r, col.g, col.b], "rough": float(nums["rough"]), "metal": float(nums["metal"]), "alpha": float(nums["alpha"])}
+		if not (mat as Dictionary).is_empty():   # s223: a made material (oak, tile, marble...): its numbers and its spec
+			fields.merge(MaterialMaker.appear_fields(mat), true)
+		var f := Part.new_feature(rec, "appear", fields)
 		(rec["features"] as Array).append(f)
 	_end()
 	pu.upto = -1
@@ -3738,6 +3745,7 @@ func _process(_dt: float) -> void:
 	if split_box.visible:
 		_split_sync()
 	colour_box.visible = on and armed == "colour"
+	_mat_sync()
 	if colour_box.visible:
 		_weight_sync()   # p057: the weight chips follow the Part (only read when its steps change)
 	repeat_box.visible = on and armed == "" and rep_id != "" and not Part.feature(_rec(), rep_id).is_empty()
@@ -4292,8 +4300,8 @@ func _over_ui(p: Vector2) -> bool:
 	if edge_chip != null and edge_chip.visible and edge_chip.get_global_rect().has_point(p):
 		return true   # NEDGECHIP: the edge chip is a button: its press is not a pick
 	# hint and status are WORDS only (a _pill: mouse_filter IGNORE, one Label, no button): a press under them is the grid's, not eaten
-	for c in [bar, make_box, view_box, panel, shape_box, colour_box, repeat_box, stick_box, explode_box, tilt_box, size_box]:   # P107 FITVIEW: the view row is a button row, a press on it is not the grid's
-		if (c as Control).visible and (c as Control).get_global_rect().has_point(p):
+	for c in [bar, make_box, view_box, panel, shape_box, colour_box, repeat_box, stick_box, explode_box, tilt_box, size_box, mat_box]:   # P107 FITVIEW: the view row is a button row, a press on it is not the grid's
+		if c != null and (c as Control).visible and (c as Control).get_global_rect().has_point(p):
 			return true
 	return false
 
@@ -8204,3 +8212,50 @@ func _lib_scroll_top() -> void:
 func _lib_bar_sync() -> void:
 	if lib_bar_btn != null:
 		lib_bar_btn.set_pressed_no_signal(parts_open)
+
+
+# ---------------------------------------------------------------- MATERIALS (s223)
+
+var mat_box: PanelContainer
+var mat_w := {}
+var mat_on := false
+
+
+## the Materials page under the colour chips: swatch chips for the library and a words line (scripts/material_picker.gd)
+func _mat_make() -> void:
+	mat_box = PanelContainer.new()
+	mat_box.name = "easypart_materials"
+	mat_box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	mat_box.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 6)
+	mat_box.add_child(vb)
+	var t := Label.new()
+	t.text = "Materials: pick one for the newest solid"
+	t.add_theme_font_size_override("font_size", 13)
+	vb.add_child(t)
+	mat_w = MaterialPicker.build(vb, "easypart_", Callable(self, "_mat_pick"), 40)
+	colour_box.get_parent().add_child(mat_box)
+
+
+func _mat_toggle() -> void:
+	mat_on = not mat_on
+	_say("Materials: pick a swatch or type what you want" if mat_on else "Materials closed")
+	_mat_sync()
+
+
+func _mat_pick(spec: Dictionary, label: String) -> void:
+	_paint(label, Color.WHITE, "Material", spec)
+
+
+func _mat_sync() -> void:
+	if mat_box == null:
+		_mat_make()
+	var show := colour_box.visible and mat_on
+	mat_box.visible = show
+	if show:
+		MaterialPicker.fill(mat_w)
+		mat_box.reset_size()
+		mat_box.position = Vector2(colour_box.position.x, colour_box.position.y + colour_box.size.y + 6.0)
+		mat_box.size.x = maxf(colour_box.size.x, 300.0)
+		mat_box.size.y = mat_box.get_combined_minimum_size().y

@@ -4216,6 +4216,8 @@ func _build_look(vb: VBoxContainer) -> void:
 		pb.pressed.connect(func(): _look_set(_look_now()["c"], pn))
 		pr.add_child(pb)
 		look_presets[pn] = pb
+	look_box.add_child(_label("Made materials", 12, true))   # s223: oak, steel, tile, marble... drawn in code; or say it in words
+	look_mat = MaterialPicker.build(look_box, "part_look_", Callable(self, "_look_set_mat"))
 
 
 ## the look of the picked body now (from the replay); a default when none is picked
@@ -4266,6 +4268,7 @@ func _look_sync(show: bool) -> void:
 	if bi < 0:
 		look_sig = ""
 		return
+	MaterialPicker.fill(look_mat)
 	var l := _look_now()
 	var sig := JSON.stringify([bi, (l["c"] as Color).to_html(), l["rough"], l["metal"], l["alpha"], l["preset"]])
 	if sig == look_sig:
@@ -4286,6 +4289,10 @@ func _look_surfaces() -> void:
 	var ls: Array = res.get("looks", [])
 	for s in mini(ls.size(), part_mesh.mesh.get_surface_count()):
 		var l: Dictionary = ls[s]
+		var mm := MaterialMaker.look_material(l, PartViewTools.X_ALPHA if xray else 1.0)   # s223: a made material, triplanar in mm
+		if mm != null:
+			part_mesh.set_surface_override_material(s, mm)
+			continue
 		var mt := StandardMaterial3D.new()
 		var c: Color = l["c"]
 		var a := minf(float(l["alpha"]), PartViewTools.X_ALPHA) if xray else float(l["alpha"])   # S102: X-ray draws every body see-through
@@ -4957,3 +4964,29 @@ func thread_look_sync() -> void:
 	am.surface_set_material(0, mat)
 	tl.mesh = am
 	tl.visible = true
+
+
+# ---------------------------------------------------------------- MADE MATERIALS (s223)
+
+var look_mat := {}   # the MaterialPicker widgets of the Appearance panel
+
+
+## one appear step with a made material (one undo step): the spec, and the look numbers it stands for
+func _look_set_mat(spec: Dictionary, label := "") -> void:
+	var bi := _sel_look()
+	if bi < 0 or not Part.available():
+		return
+	var fields := MaterialMaker.appear_fields(spec)
+	if fields.is_empty():
+		return
+	var rec := _rec()
+	var n := Part.count_of(rec, "appear") + 1
+	m._step_hint = "Appearance"
+	m._push_undo()
+	fields["name"] = "Appearance%d" % n
+	fields["body"] = bi
+	var f := Part.new_feature(rec, "appear", fields)
+	(rec["features"] as Array).append(f)
+	upto = -1
+	_say("%s: %s is now %s. Undo takes it back." % [String(f["name"]), _part_name(bi), MaterialWords.describe(spec)])
+	bu.sync()
