@@ -23693,11 +23693,11 @@ func _export_obj_objects(dir := "res://exports", only_selected := false, budget 
 	var objs := scene_objects()
 	if only_selected:
 		var want := selected_object_name()
-		objs = objs.filter(func(o): return String(o["name"]) == want)
+		objs = objs.filter(func(o): return String(o["name"]) == want or String(o.get("group", "")) == want)
 	if objs.is_empty():
 		_say_plain("NOT DONE: no mesh object to export (open the test cube, or add a set piece)")
 		return ""
-	var stem := String(objs[0]["name"]) if only_selected else safe_file(S.name if S.name != "" else "scene") + "_objects"
+	var stem := PartNames.stem_of(objs[0]) if only_selected else safe_file(S.name if S.name != "" else "scene") + "_objects"
 	var meshes := []
 	for o in ExportBudget.apply_list(objs, budget):
 		meshes.append({"name": String(o["name"]), "mesh": o["mesh"], "xf": Transform3D.IDENTITY, "color": ObjIO.DEFAULT_COLOR})
@@ -23781,7 +23781,7 @@ func scene_objects() -> Array:
 		out.append({"name": "sculpt_sphere", "mesh": sph, "xf": Transform3D.IDENTITY})
 	var fp := _free_part_object()
 	if not fp.is_empty():   # FEXPORT: a free BUILDING part (Easy Part, no set piece): its solid is a mesh object, named by the part
-		out.append(fp)
+		out.append_array(PartNames.objects(fp, bld.part))   # s212: a part with named bodies is one object per body, each called by its name
 	var pnames := _prop_object_names()
 	for i in S.props.size():
 		var pd := S.props[i] as Dictionary
@@ -23854,11 +23854,11 @@ func _export_objects(dir := "res://exports", only_selected := false, budget := 0
 	var objs := scene_objects()
 	if only_selected:
 		var want := selected_object_name()
-		objs = objs.filter(func(o): return String(o["name"]) == want)
+		objs = objs.filter(func(o): return String(o["name"]) == want or String(o.get("group", "")) == want)
 	if objs.is_empty():
 		_say_plain("NOT DONE: no mesh object to export (open the test cube, or add a set piece)")
 		return ""
-	var stem := String(objs[0]["name"]) if only_selected else safe_file(S.name if S.name != "" else "scene") + "_objects"
+	var stem := PartNames.stem_of(objs[0]) if only_selected else safe_file(S.name if S.name != "" else "scene") + "_objects"
 	var path := "%s/%s.glb" % [dir, stem]
 	var err := GltfExport.write_meshes(ExportBudget.apply_list(objs, budget), path)
 	if err != OK:

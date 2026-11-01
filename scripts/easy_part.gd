@@ -4962,6 +4962,8 @@ func _step_words_plain(f: Dictionary) -> String:
 			return "Filled with a lattice, bars %s mm apart" % _plain_num(float(f.get("gap", 0.0)))
 		"appear":
 			return "Coloured"
+		"bname":
+			return "Named piece %d %s" % [int(f.get("body", 0)) + 1, String(f.get("called", "")) if String(f.get("called", "")) != "" else "Body%d again" % (int(f.get("body", 0)) + 1)]
 		"mirror":
 			return "Mirrored it"
 		"pattern":
@@ -4988,7 +4990,7 @@ static func step_icon(t: String) -> String:
 			return "part_mirror"
 		"pattern":
 			return "part_pattern"
-		"appear":
+		"appear", "bname":
 			return "part_appearance"
 	return "part_mirror"
 

@@ -2086,9 +2086,11 @@ func step_clicked(i: int) -> void:
 
 func edit_step(i: int) -> void:
 	var f: Dictionary = _feats()[i]
-	if String(f["t"]) == "appear":   # APPEARANCE: its body's panel opens (no dialog)
+	if String(f["t"]) == "appear" or String(f["t"]) == "bname":   # APPEARANCE: its body's panel opens (no dialog); s212: a naming step opens the name field
 		sel_body = int(f.get("body", 0))
 		sel_step = -1
+		if String(f["t"]) == "bname":
+			ren_begin(sel_body)
 		bu.sync()
 		return
 	if sk != "":
@@ -2104,7 +2106,7 @@ func edit_step(i: int) -> void:
 
 
 func _step_icon(f: Dictionary) -> String:
-	if String(f["t"]) == "appear":
+	if String(f["t"]) == "appear" or String(f["t"]) == "bname":
 		return "part_appearance"
 	return "part_" + String(f["t"]) if String(f["t"]) != "sketch" else "part_sketch"
 
@@ -2112,7 +2114,7 @@ func _step_icon(f: Dictionary) -> String:
 func _timeline_sync() -> void:
 	var feats := _feats()
 	var errs: Dictionary = res.get("errors", {})
-	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], bool(f.get("off", false))]), upto, sel_step, sk, dlg.get("edit", -2), errs.keys()])
+	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], bool(f.get("off", false))]), upto, sel_step, sk, dlg.get("edit", -2), errs.keys(), res.get("body_names", [])])
 	if sig != _tl_sig:
 		_tl_sig = sig
 		for c in tl_row.get_children():
@@ -2131,6 +2133,11 @@ func _timeline_sync() -> void:
 			b.toggle_mode = true
 			b.button_pressed = i == sel_step or (sk != "" and String(f["id"]) == sk) or (int(dlg.get("edit", -1)) == i)
 			b.tooltip_text = "%s. Double-click to change it; the steps after it replay." % f["name"]
+			if f.has("body") and int(f.get("body", -1)) >= 0 and int(f.get("body", -1)) < int(res.get("bodies", 0)):   # s212: the hover names the body the step is about
+				b.tooltip_text += " Body: %s." % Part.body_name(res, int(f["body"]))
+			if String(f["t"]) == "bname":
+				var lab_s := String(f.get("called", ""))
+				b.tooltip_text = "%s: Body%d is called %s. Double-click to rename it. Body: %s." % [f["name"], int(f["body"]) + 1, ("\"%s\"" % lab_s) if lab_s != "" else "Body%d again" % (int(f["body"]) + 1), Part.body_name(res, int(f["body"]))]
 			if bool(f.get("off", false)):
 				b.tooltip_text = "%s is suppressed: the replay skips it. Click Suppress to put it back." % f["name"]
 			b.pressed.connect(step_clicked.bind(i))
@@ -2160,13 +2167,13 @@ func _timeline_sync() -> void:
 	var sel_f: Dictionary = feats[sel_step] if sel_step >= 0 and sel_step < n else {}
 	if sup_btn != null:
 		sup_btn.text = "Unsuppress" if bool(sel_f.get("off", false)) else "Suppress"
-		sup_btn.disabled = sel_f.is_empty() or String(sel_f.get("t", "")) == "appear"
+		sup_btn.disabled = sel_f.is_empty() or String(sel_f.get("t", "")) == "appear" or String(sel_f.get("t", "")) == "bname"
 		del_btn.disabled = sel_f.is_empty()
 
 
 func _browser_sync() -> void:
 	var feats := _feats()
-	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], f["t"], f.get("mm", 0), f.get("from", ""), f.get("show", "")]), sk, res.get("bodies", 0), prev.is_empty(), sel_body, cmb])
+	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], f["t"], f.get("mm", 0), f.get("from", ""), f.get("show", "")]), sk, res.get("bodies", 0), prev.is_empty(), sel_body, cmb, res.get("body_names", []), ren_i])
 	if sig == _browser_sig:
 		return
 	_browser_sig = sig
@@ -2177,10 +2184,15 @@ func _browser_sync() -> void:
 	var nb: int = res.get("bodies", 0)
 	browser_vb.add_child(_label("Bodies (%d)" % nb, 15))
 	for i in nb:
-		var bb := _row_btn("    Body%d" % (i + 1), "part_body_%d" % i)   # APPEARANCE: a click picks the body for the side panel
-		bb.tooltip_text = "Body%d: click to change its colour and material (Appearance)" % (i + 1)
+		var bnm := Part.body_name(res, i)
+		if i == ren_i:   # s212: this row is being renamed: the name field stands in its place
+			browser_vb.add_child(_ren_field(i, bnm))
+			continue
+		var bb := _row_btn("    " + bnm, "part_body_%d" % i)   # APPEARANCE: a click picks the body for the side panel
+		bb.tooltip_text = "%s: click to change its colour and material (Appearance). Double-click or right-click to rename it" % bnm
 		if _combine_has(i):
-			bb.tooltip_text = "Body%d: picked for the combine" % (i + 1)
+			bb.tooltip_text = "%s: picked for the combine" % bnm
+		bb.gui_input.connect(_body_row_input.bind(i))
 		if i == sel_body or _combine_has(i):
 			bb.add_theme_color_override("font_color", SKY)
 			bb.add_theme_color_override("font_hover_color", SKY)
@@ -2519,6 +2531,7 @@ func _note_sync() -> void:
 		if bx.size != Vector3.ZERO:
 			var sz := bx.size / Part.MM
 			t += ", box %s x %s x %s mm" % [("%.1f" % sz.x).trim_suffix(".0"), ("%.1f" % sz.y).trim_suffix(".0"), ("%.1f" % sz.z).trim_suffix(".0")]
+		t += ren_stats()   # s212: the picked body's own name and volume, once it has a name
 		if not errs.is_empty():
 			t += "   (%d step%s failed: see the red icon)" % [errs.size(), "" if errs.size() == 1 else "s"]
 	elif not _feats().is_empty():
@@ -3036,7 +3049,7 @@ func _sel_hinge() -> Dictionary:
 
 
 func _part_name(i: int) -> String:
-	return "Body%d" % (i + 1)   # the browser's name for the same body (Bodies: Body1, Body2)
+	return Part.body_name(res, i)   # the browser's name for the same body (Bodies: Body1, Body2, or the name it was given: s212)
 
 
 ## the panel's words for a hinge: turns Part 1 from 0 deg to 90 deg in 3 s
@@ -4324,7 +4337,7 @@ func _pattern_open(f: Dictionary, edit: int) -> void:
 	body_o.name = "part_pattern_body"
 	body_o.focus_mode = Control.FOCUS_NONE
 	for i in nb:
-		body_o.add_item("Body %d" % (i + 1))
+		body_o.add_item(Part.body_name(res, i) if Part.body_name(res, i) != "Body%d" % (i + 1) else "Body %d" % (i + 1))
 	body_o.select(clampi(int(f.get("body", nb - 1)) if edit >= 0 else nb - 1, 0, nb - 1))
 	body_o.item_selected.connect(func(_i): _preview())
 	pat["body"] = body_o
@@ -4957,3 +4970,101 @@ func thread_look_sync() -> void:
 	am.surface_set_material(0, mat)
 	tl.mesh = am
 	tl.visible = true
+
+
+# ---------------------------------------------------------------- s212 NAME A BODY
+
+var ren_i := -1                  # the browser row whose name field is open (-1 = none)
+var ren_menu: PopupMenu          # the right-click menu of a body row (Rename)
+var ren_menu_i := -1
+
+
+## a mouse event on a Bodies row: a double-click or the menu's Rename opens the name field
+func _body_row_input(ev: InputEvent, i: int) -> void:
+	if not (ev is InputEventMouseButton) or not (ev as InputEventMouseButton).pressed:
+		return
+	var mb := ev as InputEventMouseButton
+	if mb.button_index == MOUSE_BUTTON_LEFT and mb.double_click:
+		ren_begin(i)
+	elif mb.button_index == MOUSE_BUTTON_RIGHT:
+		if ren_menu == null:
+			ren_menu = PopupMenu.new()
+			ren_menu.name = "part_body_menu"
+			ren_menu.add_item("Rename", 0)
+			ren_menu.id_pressed.connect(func(_id): ren_begin(ren_menu_i))
+			m.add_child(ren_menu)
+		ren_menu_i = i
+		var w: Window = m.get_window()
+		ren_menu.popup(Rect2i(Vector2i(mb.global_position) + (w.position if not w.is_embedded() else Vector2i.ZERO), Vector2i.ZERO))
+
+
+## open the name field of body i (the Bodies row turns into a text box holding its name)
+func ren_begin(i: int) -> void:
+	if not dlg.is_empty() or sk != "" or i < 0 or i >= int(res.get("bodies", 0)):
+		return
+	ren_i = i
+	sel_body = i
+	_browser_sig = ""
+	_browser_sync()
+	_say("Type the new name for %s and press Enter. Undo takes it back." % Part.body_name(res, i))
+
+
+func _ren_field(i: int, cur: String) -> LineEdit:
+	var le := LineEdit.new()
+	le.name = "part_body_rename"
+	le.text = cur
+	le.max_length = 40
+	le.placeholder_text = "Body%d" % (i + 1)
+	le.tooltip_text = "Type a name and press Enter. Empty gives Body%d back. Escape leaves it as it is" % (i + 1)
+	le.text_submitted.connect(func(t: String):
+		le.accept_event()   # the Enter is the field's: the rebuild below takes the field out of the tree, and a loose Enter adds a pose card
+		_ren_end(i, t, true))
+	le.focus_exited.connect(func(): _ren_end(i, le.text, true))
+	le.gui_input.connect(func(ev: InputEvent):
+		if ev is InputEventKey and (ev as InputEventKey).pressed and (ev as InputEventKey).keycode == KEY_ESCAPE:
+			le.accept_event()
+			_ren_end(i, le.text, false))
+	le.tree_entered.connect(func():
+		le.grab_focus.call_deferred()
+		le.select_all.call_deferred())
+	return le
+
+
+func _ren_end(i: int, text: String, commit: bool) -> void:
+	if ren_i != i:
+		return
+	ren_i = -1
+	if commit:
+		body_rename(i, text)
+	_browser_sig = ""
+	_browser_sync()
+
+
+## the one road every rename takes (the browser's field, Easy Part's name field): ONE undo step. false when nothing changed
+func body_rename(bi: int, text: String) -> bool:
+	if not Part.available() or bi < 0 or bi >= int(res.get("bodies", 0)):
+		return false
+	var cur := Part.body_name(res, bi)
+	var lab := Part.clean_name(text)
+	if lab == cur or (lab == "" and cur == "Body%d" % (bi + 1)):
+		return false
+	var rec := _rec()
+	m._step_hint = "Name"
+	m._push_undo()
+	var f := Part.set_body_name(rec, bi, lab, cur)
+	upto = -1
+	_say("%s is now called %s. Undo takes it back." % [cur, lab if lab != "" else "Body%d" % (bi + 1)])
+	bu.sync()
+	return not f.is_empty()
+
+
+## the note line's tail: the picked body's name and volume, once the body has a name of its own
+func ren_stats() -> String:
+	var bi := sel_body
+	var nb := int(res.get("bodies", 0))
+	if bi < 0 or bi >= nb or Part.body_name(res, bi) == "Body%d" % (bi + 1):
+		return ""
+	var vols: Array = res.get("volumes", [])
+	if bi >= vols.size():
+		return ""
+	return ", %s %s cm3" % [Part.body_name(res, bi), snappedf(float(vols[bi]) * 1e6, 0.01)]
