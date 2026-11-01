@@ -485,7 +485,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	if calls_log != null:
 		var st := get_stack()
 		calls_log.append([str(hash(JSON.stringify(rec))), str(upto), str(want.keys()), str(st[1]["function"]), str(st[1]["line"])])
-	var res := {"mesh": null, "volume": 0.0, "bodies": 0, "volumes": [], "errors": {}, "edges": [], "faces": [], "aabb": AABB(), "props": [], "looks": [], "body_looks": [], "tess_ids": [], "tess_looks": []}
+	var res := {"mesh": null, "volume": 0.0, "bodies": 0, "volumes": [], "errors": {}, "edges": [], "faces": [], "aabb": AABB(), "props": [], "looks": [], "body_looks": [], "tess_ids": [], "tess_looks": [], "surf_body": []}
 	if not available():
 		return res
 	var feats: Array = rec.get("features", [])
@@ -671,6 +671,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		if tm != null and tm.get_surface_count() > 0:
 			mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, tm.surface_get_arrays(0))
 			res["looks"].append(look_at(looks, bodies.find(b)))   # one surface, one look (the view paints each surface)
+			res["surf_body"].append(bodies.find(b))   # P125: the body each surface is (the collision flash paints two of them)
 		if want.get("faces", false):   # GAP 10: the faces to pick (centre, outward normal, box position, body)
 			var fs := KCad.faces(b)
 			var fb := _bbox_of_points(fs)

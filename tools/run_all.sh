@@ -488,3 +488,6 @@ EXTRA="$EXTRA s042:w"   # s042 (Friday plan 42): Draw shape > More shapes: star,
 
 
 EXTRA="$EXTRA s079:w"   # s079 (Friday plan 79): Parts > Pipes: PVC pipe by real outside width, elbows 90 and 45, T-piece, sleeve with the Fit clearance; ray-cast widths, opening angles, Stick together (tests/s079_test.gd)
+
+
+EXTRA="$EXTRA s125:w"   # s125 (Friday plan 125): Easy Part Swing it checks every step against the other pieces; at the first touch the turn stops at the last free angle, both flash red 0.3 s, words say what hit; lid 0-120 deg analytic; 2k-triangle timing (tests/s125_test.gd; needs the CAD DLL)
