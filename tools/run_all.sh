@@ -511,3 +511,6 @@ EXTRA="$EXTRA s126:w"   # s126 (Friday plan 126, Motion study to video): Easy Pa
 
 
 EXTRA="$EXTRA s132:w"   # Hold it here: grip spot + Long axis / Face axis chips, the palm on the spot, kept in the scene file
+
+
+EXTRA="$EXTRA s105:w"   # S105 Nice picture button in the Export dialog: 1920x1080 PNG, shadow, reflection, gradient
