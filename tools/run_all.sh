@@ -565,3 +565,6 @@ EXTRA="$EXTRA bug6:w"   # bug6: animation-only UI (grip panel, facing label) nev
 
 
 EXTRA="$EXTRA s219:w"   # s219: every Part step kind has a timeline icon; unknown names fall back to a generic icon
+
+
+EXTRA="$EXTRA s215:w"   # s215: Pipe through points (Parts > Pipes): a tube swept along 3D points with smooth bends

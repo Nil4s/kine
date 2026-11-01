@@ -4043,6 +4043,8 @@ func input(ev: InputEvent) -> bool:
 				if (d["scr"] as Vector2).distance_to(p) <= 16.0:
 					_grab(d, p)
 					return true
+			if pipes_box != null and pipes_box.p3_pick and not _over_ui(p):
+				return pipes_box._p3_press(p)   # s215: Pick on the part
 			if text_pick and not _over_ui(p):
 				return _text_press(p)   # FRIDAY 33: the press picks the face the words go on
 			if armed == "stick" and not _over_ui(p):
