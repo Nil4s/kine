@@ -220,6 +220,8 @@ func _init() -> void:
 	m._cam()
 	await idle(60)
 
+	ep().one_side = true   # P153 draws the mirror twin of a one-sided shape by default; this fixture draws each side panel itself
+
 	# 1 SHELF: the base shelf on the floor, 280 x 200 mm, pulled up 15 mm (drawn first: nothing solid around it yet)
 	await draw_floor(Vector3(-0.14, 0.0, -0.10), Vector3(0.14, 0.0, 0.10))
 	await pull(1.5)
