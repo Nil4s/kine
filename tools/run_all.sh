@@ -468,3 +468,5 @@ EXTRA="$EXTRA s191:w"   # Friday 191: Sketch with sizes (AI): Trace box option, 
 
 
 EXTRA="$EXTRA s193:w"   # s193 (Friday plan 193): Fit to an object, Parts > Boards: a phone scan (.obj, 1/1000 scale, noisy, tumbled) -> real size -> Holder / Case by the CAD kernel; ray-cast pocket, wall and enclosure bars (tests/s193_test.gd)
+
+EXTRA="$EXTRA s126:w"   # s126 (Friday plan 126, Motion study to video): Easy Part, Swing it, then Save the motion as a video films the swing into a 1280 x 720 30 fps h264 .mp4; size, ffprobe, decoded frames and a half-angle still measured from the file (tests/s126_test.gd); needs the CAD DLL and ffmpeg
