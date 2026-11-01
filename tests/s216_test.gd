@@ -279,6 +279,7 @@ func _init() -> void:
 	if ep.pull_along_btn.is_visible_in_tree():
 		await click_ctl(ep.pull_along_btn)
 	await idle(25)
+	ok(ep.bend_spin.get_line_edit().text.begins_with("60"), "3a the typed box shows the text '%s' (the pipe is at 60 mm)" % ep.bend_spin.get_line_edit().text)
 	await shot("02_bend60")
 	var bodies := int(pu().res.get("bodies", 0))
 	ok(n_sweeps() == s0 + 1 and bodies == 1, "3 Pull along: one sweep step, one solid (sweeps %d, solids %d)" % [n_sweeps(), bodies])
@@ -312,6 +313,7 @@ func _init() -> void:
 	var fit2 := fit_bend(b2, 15.0)
 	ok(absf(b2 - 30.0) < 0.01 and absf(float(fit2[0]) - 30.0) <= 1.0 and absf(vol_mm3() - pappus(30.0)) <= 0.01 * pappus(30.0) and m.undo.size() == u0 + 2 and int(pu().res.get("bodies", 0)) == 1,
 		"4c typed 30 mm: record %.1f, mesh radius %.2f mm, volume %.0f vs %.0f mm3, one solid, undo steps %d" % [b2, fit2[0], vol_mm3(), pappus(30.0), m.undo.size() - u0])
+	ok(ep.bend_spin.get_line_edit().text.begins_with("30") and ep.bend_slider.value > 29.0 and ep.bend_slider.value < 31.0, "4d the typed box shows the text '%s' and the slider %.1f (the pipe is at 30 mm)" % [ep.bend_spin.get_line_edit().text, ep.bend_slider.value])
 	await shot("03_bend30")
 
 	# 5 a radius the legs cannot hold (200 mm on 150 mm legs) is refused in words, the pipe stays as it was, no undo step

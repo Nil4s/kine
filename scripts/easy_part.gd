@@ -8243,7 +8243,7 @@ func _bend_row() -> HBoxContainer:
 	bend_slider.value_changed.connect(func(v: float):
 		if not _bend_busy:
 			_bend_busy = true
-			bend_spin.set_value_no_signal(v)
+			bend_spin.value = v
 			_bend_busy = false)
 	bend_slider.drag_started.connect(func(): _bend_drag = true)
 	bend_slider.drag_ended.connect(func(changed: bool):
@@ -8317,9 +8317,9 @@ func _bend_sync(along: bool) -> void:
 	bend_spin.min_value = reach
 	bend_spin.max_value = hi
 	if not _bend_drag:
-		bend_slider.set_value_no_signal(cur)
+		bend_slider.value = cur   # set_value (not no_signal): the typed box redraws its text from the change; _bend_busy keeps the handlers out
 		if not bend_spin.get_line_edit().has_focus():
-			bend_spin.set_value_no_signal(cur)
+			bend_spin.value = cur
 	_bend_busy = false
 	bend_row.tooltip_text = "Bend radius %.1f to %.0f mm" % [reach, hi]
 
