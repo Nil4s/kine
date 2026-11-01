@@ -478,7 +478,7 @@ func layout(cl: Rect2) -> void:
 	var shape_nat := 24.0   # EASYPART5: the six shapes in one row; the choice wraps to the room left of the panel, never under it
 	for c in (shape_box.get_child(0) as Control).get_children():
 		shape_nat += (c as Control).get_combined_minimum_size().x + 6.0
-	shape_box.size.x = minf(minf(cl.end.x - PW - 32.0, view_box.position.x - 8.0) - shape_box.position.x, shape_nat)   # bug5: and left of the view column (the Picture chip ran under it)
+	shape_box.size.x = minf(cl.end.x - PW - 32.0 - shape_box.position.x, shape_nat)
 	shape_box.size.y = shape_box.get_combined_minimum_size().y
 	call("_hole_fit", clampf(view_box.position.x - 8.0 - shape_box.position.x - 12.0, 300.0, 720.0))   # lay1: the chips wrap in the room left of the view column
 	hole_box.reset_size()
@@ -521,7 +521,10 @@ func layout(cl: Rect2) -> void:
 	repeat_box.reset_size()
 	stick_box.reset_size()
 	var cover := false
-	var tilt_up := true
+	var cc2: Variant = get("challenge_card")
+	if cc2 != null and (cc2 as Control).visible:
+		cover = true   # the Challenges card stands where the chips are
+	var tilt_up := not cover
 	for bx in [repeat_box, stick_box]:
 		if (bx as Control).visible and tilt_at - (bx as Control).size.y - 6.0 < low_y:
 			cover = true
@@ -555,7 +558,7 @@ func layout(cl: Rect2) -> void:
 		need = _panel_need()
 	panel.size = Vector2(PW, minf(need, avail))
 	panel.position = Vector2(cl.end.x - PW - 8.0, top)
-	_steps_place(cl, 0.0)   # NSTEPLIST: under the panel, on the right; under its CONTENT when the Parts page runs past the clamped size (the list sat over the screw chips)
+	_steps_place(cl, panel.position.y + panel.size.y + 8.0)   # NSTEPLIST: under the panel, on the right; under its CONTENT when the Parts page runs past the clamped size (the list sat over the screw chips)
 	status.reset_size()
 	status.size.x = minf(status.get_combined_minimum_size().x, cl.size.x - PW - 40.0)
 	status.position = Vector2(cl.position.x + 12.0, _low_end(cl) - status.size.y - 6.0)
@@ -1129,7 +1132,7 @@ func _steps_place(cl: Rect2, _y: float) -> void:
 	if sc != null:
 		sc.custom_minimum_size.y = float(g["list_h"])
 	steps_box.reset_size()
-	steps_box.position = Vector2(cl.end.x - PW - 8.0, float(g["steps_y"]))
+	steps_box.position = Vector2(cl.end.x - PW - 8.0, maxf(float(g["steps_y"]), _y))   # bug5: under the panel when the panel needs more than the room above the anchored foot (a short window)
 	flat_box.reset_size()   # p113: the printing box sits under the step list
 	flat_box.position = Vector2(cl.position.x + 12.0, float(g["flat_y"]))
 
@@ -1346,7 +1349,7 @@ func _flat_narrow() -> void:
 func _round_narrow() -> void:
 	var btns := ((round_box.get_child(0).get_child(0)) as Control).get_children()   # s013: box > column > the chip row
 	var room := view_box.position.x - 8.0 - round_box.position.x - 14.0 - 6.0 * float(btns.size() - 1)
-	var narrow := get_viewport().get_visible_rect().size.x < NARROW_W or room < 176.0 * float(btns.size())   # bug5: whenever the four chips would run under the view column
+	var narrow := get_viewport().get_visible_rect().size.x < NARROW_W
 	var bw := clampf(floorf(room / float(btns.size())), 96.0, 176.0) if narrow else 176.0
 	for b in btns:
 		(b as Button).custom_minimum_size.x = bw
@@ -1648,7 +1651,9 @@ func _col_geom(cl: Rect2) -> Dictionary:
 ## bug5: the panel's room: from its top to the step list's top (the list never moves for it)
 func _col_avail(cl: Rect2, top: float) -> float:
 	var g := _col_geom(cl)
-	return maxf(160.0, float(g["steps_y"]) - 8.0 - top)
+	var anchored := maxf(160.0, float(g["steps_y"]) - 8.0 - top)
+	# a short window: the panel keeps the room it needs (its sliders and chips must be reachable without a scroll); the foot then stands under it
+	return maxf(anchored, minf(_panel_need(), cl.end.y - top - 4.0))
 
 
 var _tilt_cover := false   # bug5: a Repeat it / Stick together row or the Challenges card stands where the Tilt chips are: the chips hide (the sync reads this)
@@ -1729,3 +1734,4 @@ func _lib_bar_fit(tight: bool, narrow: bool) -> void:
 	if tight:
 		title_l.clip_text = true
 		title_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+
