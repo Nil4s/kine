@@ -246,7 +246,11 @@ func _init() -> void:
 
 	# B8 the app view is unchanged outside the dialog
 	var drect_b := Rect2(dlg.position, dlg.size)
-	var skip := drect_a.merge(drect_b).grow(4.0)
+	# the dialog's rectangle is in the 1280 x 720 layout units, the screenshots are in window pixels: bring it into pixels first
+	var sc := float(before.get_width()) / float(root.content_scale_size.x)
+	var dm := drect_a.merge(drect_b).grow(4.0)
+	var skip := Rect2(dm.position * sc, dm.size * sc)
+	print("B8 screenshot %s, scale %.3f, dialog rect in pixels %s" % [before.get_size(), sc, skip])
 	var diff := 0
 	var tot := 0
 	var dlo := Vector2i(99999, 99999)

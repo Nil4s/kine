@@ -11,7 +11,7 @@ const SIZE := Vector2i(1920, 1080)
 const FILL_H := 0.70          # the part's height in the frame (a share), so the shadow and the reflection fit under it
 const FILL_W := 0.62          # the part's width in the frame (a share) for wide parts
 const FRAMES := 2             # frames to let the render settle
-const SHADOW_A := 0.85        # the contact shadow's darkest alpha
+const SHADOW_A := 0.74        # the contact shadow's darkest alpha
 const MIRROR_A := 0.30        # the reflection's strength at the floor line; it fades to nothing over FADE_OF_HEIGHT x the part height
 const FADE_OF_HEIGHT := 0.9
 const BG_TOP := Color(0.80, 0.83, 0.88)
@@ -60,6 +60,7 @@ static func _blob(span: Vector2, alpha: float, y: float, prio: int) -> MeshInsta
 	var g := Gradient.new()
 	g.set_color(0, Color(0, 0, 0, alpha))
 	g.set_color(1, Color(0, 0, 0, 0.0))
+	g.add_point(0.45, Color(0, 0, 0, alpha * 0.8))   # holds dark past the part's edge, then falls off softly
 	var gt := GradientTexture2D.new()
 	gt.gradient = g
 	gt.fill = GradientTexture2D.FILL_RADIAL
@@ -141,11 +142,11 @@ static func draw(host: Node, rec: Dictionary, size := SIZE) -> Image:
 	var c := box.get_center()
 	var fx := maxf(box.size.x, 0.001)
 	var fz := maxf(box.size.z, 0.001)
-	var wide := _blob(Vector2(fx * 2.4, fz * 2.4), SHADOW_A * 0.5, 0.0, 1)
+	var wide := _blob(Vector2(fx * 3.0, fz * 3.0), SHADOW_A * 0.5, 0.0, 1)
 	wide.position = Vector3(c.x, floor_y + 0.0004, c.z)
 	if not part_only:
 		world.add_child(wide)
-	var tight := _blob(Vector2(fx * 1.6, fz * 1.6), SHADOW_A, 0.0, 2)
+	var tight := _blob(Vector2(fx * 2.1, fz * 2.1), SHADOW_A, 0.0, 2)
 	tight.position = Vector3(c.x, floor_y + 0.0006, c.z)
 	if not part_only:
 		world.add_child(tight)
