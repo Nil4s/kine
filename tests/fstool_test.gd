@@ -299,13 +299,21 @@ func _init() -> void:
 	var stool0 := body_mm(0)
 	await click_ctl(ep().make_btns["draw"])   # P153 symmetry is on by default (a twin ring on the other side): One side only first
 	await click_ctl(ep().one_side_btn)
-	await draw_round(Vector3(0.15, 0.0, 0.0), Vector3(0.25, 0.0, 0.0))
+	await draw_round(Vector3(0.19, 0.0, 0.0), Vector3(0.29, 0.0, 0.0))
 	await pull(2.0)
+	# 11-01 s211 (DRAW ON A CURVED FACE, merged by Lead with bug5): a press on the seat's rim (centre x 150 mm, the only place the old "beside the body" rule kept an overlapping ring a
+	# separate piece) now starts a drawing on the seat's curved side, and a ring centred off the rim (here 190 mm) is pulled as part of the seat (op join). So the ring is drawn 40 mm clear of the rim
+	# and its extrude is set to a piece of its own (op "new"), the same record the old rim press made: a 20 cm round, 20 mm thick, overlapping the seat's plan like before
+	ep()._begin("Ring as its own piece")
+	((m.S.part["features"] as Array)[-1] as Dictionary)["op"] = "new"
+	ep()._end()
+	pu().upto = -1
+	pu().sync()
 	await idle(60)   # fdelete: after the pull the rebuild settles (60 frames) before a piece is clicked
 	var nb := int(pu().res.get("bodies", 0))
 	var bi := nb - 1
 	var br0 := body_mm(bi)
-	var ppt: Vector2 = await pick_pt(bi, Vector3(0.15, 0.02, 0.0))
+	var ppt: Vector2 = await pick_pt(bi, Vector3(0.19, 0.02, 0.0))
 	# the raw press at this point never reaches EasyPart.input() in this suite's camera (10 runs, 11-01: no tool armed, no draft, not near a handle dot, no Control hovered), so the
 	# pick goes through _pick_at, the function the press handler's release calls (fdelete_test picks by a raw click in its own, different camera and part)
 	ep()._pick_at(ppt)
