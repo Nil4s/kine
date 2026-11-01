@@ -80,6 +80,8 @@ const DRAW := {
 	"part_loft": [["box", Rect2(3, 4, 6, 6), 1.6], ["box", Rect2(15, 14, 6, 6), 1.6], ["seg", Vector2(3, 4), Vector2(15, 14), 1.4], ["seg", Vector2(9, 4), Vector2(21, 14), 1.4], ["seg", Vector2(9, 10), Vector2(21, 20), 1.4]],
 	"part_sweep": [["box", Rect2(2, 15, 7, 7), 1.6], ["seg", Vector2(5.5, 15), Vector2(5.5, 6), 1.4], ["seg", Vector2(5.5, 6), Vector2(19, 6), 1.4], ["seg", Vector2(19, 6), Vector2(19, 20), 1.4]],
 	"part_pattern": [["box", Rect2(2, 9, 5, 5), 1.4], ["box", Rect2(9.5, 9, 5, 5), 1.4], ["box", Rect2(17, 9, 5, 5), 1.4]],   # PATTERN: three copies in a row
+	"part_ornament": [["arc", Vector2(13, 9), 6.0, 2.4, 200.0, 520.0], ["seg", Vector2(7, 9), Vector2(6, 18), 2.4], ["seg", Vector2(3, 20), Vector2(20, 20), 1.8], ["disc", Vector2(18, 5), 1.6]],   # s227 ORNAMENT: a curled tail on a base
+	"part_meshsolid": [["ring", Vector2(12, 12), 7.5, 1.6], ["seg", Vector2(5, 12), Vector2(19, 12), 1.2], ["seg", Vector2(12, 4), Vector2(12, 20), 1.2]],   # s155 mesh solid: a sphere
 	"part_canvas": [["box", Rect2(3, 4, 18, 14), 1.6], ["disc", Vector2(16, 8), 1.8], ["seg", Vector2(3, 16), Vector2(9, 10), 1.4], ["seg", Vector2(9, 10), Vector2(13, 14), 1.4], ["seg", Vector2(13, 14), Vector2(21, 8), 1.4]],
 	"part_measure": [["seg", Vector2(3, 18), Vector2(21, 6), 1.6], ["disc", Vector2(3, 18), 2.0], ["disc", Vector2(21, 6), 2.0], ["seg", Vector2(7, 14), Vector2(7, 19), 1.2]],
 	"part_section": [["box", Rect2(4, 4, 16, 16), 1.6], ["seg", Vector2(2.5, 12), Vector2(21.5, 12), 2.4]],

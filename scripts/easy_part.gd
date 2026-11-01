@@ -327,6 +327,8 @@ func build(root: Control) -> void:
 	v.add_child(bracket_box)
 	clip_box = _clip_box()
 	v.add_child(clip_box)
+	orn_box = PartOrnamentEasy.make_box(self)   # s227: Parts > Ornaments
+	v.add_child(orn_box)
 	handle_box = _handle_box()   # P071 HANDLES: the Handles grid under the library page
 	v.add_child(handle_box)
 	wheel_box = _wheel_box()   # P072: the Wheels page's chips
@@ -1792,6 +1794,9 @@ func _screw_box() -> PanelContainer:
 
 
 ## P075: the three Clips and feet chips: a row of icon + plain word each, one row under the category chips
+var orn_box: PanelContainer   # s227 (scripts/build/part_ornament_easy.gd)
+
+
 func _clip_box() -> PanelContainer:
 	var pc := PanelContainer.new()
 	pc.name = "easypart_clip_box"
@@ -2194,6 +2199,9 @@ func _lib_press(cat: String) -> void:
 		_scroll_into_view.call_deferred(pipes_box)
 	elif cat == "Wood boards":   # P080: the two wood chips open under the library
 		_say("Wood boards: pick one by its real size. It lies on the floor, flat")
+	elif cat == "Ornaments":   # s227
+		_say("Ornaments: press one to add it to the part. On a roof, the chiwen go on the ridge ends")
+		_scroll_into_view.call_deferred(orn_box)
 	elif cat == "Type it":   # p085typetobuil: a line of words builds a box
 		_say("Type it: write a box in words, like: %s. Then press Build it" % PartWords.EXAMPLE)
 	elif cat == "Hinges":
@@ -2599,6 +2607,8 @@ func _screw_sync() -> void:
 		if fav_box != null:   # p083favfix: the Favourites page shows while its category is open; the row and the star are drawn here
 			fav_box.visible = parts_open and lib_cat == "Favourites"
 			_fav_sync()
+	if orn_box != null:   # s227
+		orn_box.visible = parts_open and lib_cat == "Ornaments"
 	if clip_box != null:   # P075: the Clips and feet chips show while that category is open
 		clip_box.visible = parts_open and lib_cat == "Clips and feet"
 		_clip_scroll_once()   # integ94: the chips sat below the scroll's edge (y 594 vs 586) and took no click (p205 S1)
@@ -5126,6 +5136,9 @@ func _type_row() -> HBoxContainer:
 func _type_build() -> void:
 	if not Part.available():
 		_chips_sync()
+		return
+	if bool(PartOrnament.parse(type_edit.text)["ok"]):   # s227: "2 chiwen on the ridge ends"
+		PartOrnamentEasy.words(self, type_edit.text)
 		return
 	var p := PartWords.parse(type_edit.text)
 	if not bool(p["ok"]):
