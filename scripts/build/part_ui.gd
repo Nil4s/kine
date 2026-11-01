@@ -388,9 +388,9 @@ func ribbon_shows(b: Node, tab: String) -> bool:
 	if b == reopen_btn:   # the way back to the chooser: in the Part ribbon too, with its words
 		return true
 	if b is VSeparator:
-		return show if my_seps.has(b) else not show
+		return show if my_seps.has(b) else (not show and not asm_on)   # s213: the assembly screen shows neither the house tools' dividers nor the Part tools'
 	if house_btns.has(b):
-		return not show
+		return not show and not asm_on
 	return show
 
 
@@ -2376,7 +2376,7 @@ func sync() -> void:
 	prev_mesh.visible = show and not prev.is_empty() and prev_mesh.mesh != null
 	bu.house.visible = not up
 	if up:
-		bu.grid.visible = false
+		bu.grid.visible = asm_on and bu.on   # s213: the assembly stands on the floor grid (the Part workspace draws its own)
 		bu.person.visible = false
 	else:
 		bu.grid.visible = bu.on   # bug2: the house floor comes back when the Part workspace closes (it was hidden above and never restored: a blank dark view)

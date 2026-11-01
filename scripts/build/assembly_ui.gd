@@ -285,6 +285,7 @@ func _begin() -> void:
 	_refresh(true)
 	_layout()
 	_frame()
+	m._fit_top.call_deferred()
 	_say("ASSEMBLY: Add part puts a part in; drag the arrows or type numbers to place it")
 
 
@@ -309,6 +310,7 @@ func close() -> void:
 	if pu.on:
 		pu.set_on(false)
 	bu.sync()
+	m._fit_top.call_deferred()
 
 
 func _say(t: String) -> void:
@@ -456,6 +458,9 @@ func open_saved(path: String) -> void:
 func select(id: String) -> void:
 	sel = id
 	_refresh(false)
+	var p := _sel_part()
+	if not p.is_empty():
+		_say("%s is at %s mm" % [String(p["name"]), _pos_words(p)])
 
 
 func remove_sel() -> void:
@@ -502,6 +507,7 @@ func _apply_fields() -> void:
 		rot[i] = _num((rot_edits[i] as LineEdit).text, float(p["rot"][i]))
 	Assembly.set_pose(p, pos, rot)
 	_refresh(false)
+	_say("%s is at %s mm" % [String(p["name"]), _pos_words(p)])
 
 
 func _num(t: String, fallback: float) -> float:
@@ -699,7 +705,7 @@ func _input(ev: InputEvent) -> void:
 				m.get_viewport().set_input_as_handled()
 		elif not drag.is_empty():
 			drag = {}
-			_say("%s placed at %s mm" % [String(_sel_part().get("name", "")), _pos_words(_sel_part())])
+			_say("%s is at %s mm" % [String(_sel_part().get("name", "")), _pos_words(_sel_part())])
 			m.get_viewport().set_input_as_handled()
 	elif ev is InputEventMouseMotion and not drag.is_empty():
 		var mv := ev as InputEventMouseMotion
@@ -804,6 +810,7 @@ func back_to_assembly() -> void:
 	pu._rec_sig = ""
 	pu.sync()
 	bu.sync()
+	m._fit_top.call_deferred()
 	_refresh(false)
 	_sync_src()
 	_say("Back in the assembly: %s has your changes" % nm)

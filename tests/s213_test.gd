@@ -230,6 +230,38 @@ func _init() -> void:
 	var x1 := box_mm(id1).position
 	var moved := x1 - x0
 	ok(moved.x > 5.0 and absf(moved.y) < 0.01 and absf(moved.z) < 0.01 and absf(float(ps[0]["pos"][0]) - moved.x) < 0.01, "4 dragging the X arrow 50 px moved the screw %.1f mm along X only (y %.3f, z %.3f), the field says %s" % [moved.x, moved.y, moved.z, (nd("asm_pos_x") as LineEdit).text])
+	# the Move fields, the part's real offset and the status line say the same number (after the drag, and after another row and back)
+	var f_now := [(nd("asm_pos_x") as LineEdit).text, (nd("asm_pos_y") as LineEdit).text, (nd("asm_pos_z") as LineEdit).text]
+	var said := A.status_l.text
+	var want_words := "%s, %s, %s" % f_now
+	ok(is_equal_approx(float(f_now[0]), float(ps[0]["pos"][0])) and said.ends_with("is at %s mm" % want_words) and said.begins_with("Screw M4 x 16"), "4 after the drag the fields read %s, the part's offset is %s, the line says [%s]" % [want_words, str(ps[0]["pos"]), said])
+	await click_ctl(row_btn(1))
+	var f_br := [(nd("asm_pos_x") as LineEdit).text, (nd("asm_pos_y") as LineEdit).text, (nd("asm_pos_z") as LineEdit).text]
+	var said_br := A.status_l.text
+	ok(is_equal_approx(float(f_br[0]), 100.0) and said_br == "Test bracket is at %s, %s, %s mm" % f_br, "4 selecting the bracket: fields %s, line [%s]" % [str(f_br), said_br])
+	await click_ctl(row_btn(0))
+	var f_back := [(nd("asm_pos_x") as LineEdit).text, (nd("asm_pos_y") as LineEdit).text, (nd("asm_pos_z") as LineEdit).text]
+	ok(f_back == f_now and A.status_l.text == said, "4 and back on the screw: fields %s = before %s, line [%s]" % [str(f_back), str(f_now), A.status_l.text])
+	# the floor grid is there, and the ribbon has no empty divider slots
+	var stray := 0
+	var row: Array = m.ui_ribbon["BUILD"].get_children()
+	for i in row.size():
+		var c := row[i] as Control
+		if c is VSeparator and c.is_visible_in_tree():
+			var l := false
+			var r := false
+			for j in range(i - 1, -1, -1):
+				if row[j].visible:
+					l = not (row[j] is VSeparator)
+					break
+			for j in range(i + 1, row.size()):
+				if row[j].visible:
+					r = not (row[j] is VSeparator)
+					break
+			if not (l and r):
+				stray += 1
+	var shown: int = row.filter(func(c): return c is Control and c.visible and not (c is VSeparator)).size()
+	ok(m.bld.grid.is_visible_in_tree() and stray == 0, "4 the floor grid is visible (%s) and no empty divider slot in the BUILD ribbon (%d stray, %d tools shown)" % [str(m.bld.grid.is_visible_in_tree()), stray, shown])
 	await click_ctl(nd("asm_mode_turn") as Button)
 	hs = A.handles()
 	var hy: Dictionary = hs[1]
