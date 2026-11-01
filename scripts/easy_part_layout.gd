@@ -656,6 +656,7 @@ func _draw_dots() -> void:
 		var pts := _draft_outline()
 		if pts.size() > 1:
 			dots.draw_polyline(pts, AMBER, 3.0, true)
+	_draw_mirror_live()   # s047: a mirrored Line shows its other half and the middle line while the points are clicked
 	_draw_line_show()   # P045 LINE SHOW: the Line just drawn stays on the grid
 	var e: Dictionary = _rec().get("easy", {})
 	for d in _dot_list():
@@ -1379,3 +1380,55 @@ func _cost_words() -> String:
 		var c := CutList.cost(_rec())
 		_cost_txt = ", " + String(c["text"]) if not c.is_empty() else ""
 	return _cost_txt
+
+## s047 MIRROR WHILE DRAWING: a point (mm) reflected across the middle line. "x": left-right (x -> -x); "y": front-back (y -> -y)
+static func _mirror_pt(q: Vector2, mode: String) -> Vector2:
+	return Vector2(-q.x, q.y) if mode == "x" else Vector2(q.x, -q.y)
+
+
+## s047: the points of a mirrored Line draft as clicked so far, plus the pointer's (mm)
+func _mirror_pts() -> Array:
+	var vx: Array = (_draft.get("vx", []) as Array).duplicate()
+	if _draft.has("b"):
+		var b: Vector2 = _draft["b"]
+		if vx.is_empty() or (vx.back() as Vector2).distance_to(b) > 0.5:
+			vx.append(b)
+	return vx
+
+
+## s047: the whole closed outline of a mirrored Line draft (the clicked points, then their mirrors back): the half drawn and the half made
+func _mirror_outline(vx: Array, mode: String) -> Array:
+	var out: Array = vx.duplicate()
+	for i in range(vx.size() - 1, -1, -1):
+		var q: Vector2 = _mirror_pt(vx[i], mode)
+		if q.distance_to(out.back()) > 0.01 and q.distance_to(out[0]) > 0.01:
+			out.append(q)
+	return out
+
+
+func _draw_mirror_live() -> void:
+	if _draft.is_empty() or not _draft.has("clicks") or m.cam == null:
+		return
+	var mode := String(_draft.get("mirror", "x"))
+	var vx := _mirror_pts()
+	# the middle line
+	var ax_a := Vector2(0, -400) if mode == "x" else Vector2(-400, 0)
+	var ax_b := Vector2(0, 400) if mode == "x" else Vector2(400, 0)
+	dots.draw_line(m.cam.unproject_position(_pw(ax_a)), m.cam.unproject_position(_pw(ax_b)), Color(0.85, 0.35, 0.35, 0.8), 2.0, true)
+	if vx.is_empty():
+		return
+	var half := PackedVector2Array()
+	for q in vx:
+		half.append(m.cam.unproject_position(_pw(q)))
+	var other := PackedVector2Array()
+	for q in vx:
+		other.append(m.cam.unproject_position(_pw(_mirror_pt(q, mode))))
+	var col := Color(1.0, 0.75, 0.2)
+	if half.size() > 1:
+		dots.draw_polyline(half, col, 3.0, true)
+		dots.draw_polyline(other, Color(col, 0.7), 3.0, true)
+	dots.draw_line(half[0], other[0], Color(col, 0.45), 2.0, true)
+	dots.draw_line(half[half.size() - 1], other[other.size() - 1], Color(col, 0.45), 2.0, true)
+	for i in half.size():
+		dots.draw_circle(half[i], 5.0, col)
+		dots.draw_circle(other[i], 5.0, Color(col, 0.7))
