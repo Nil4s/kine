@@ -1,0 +1,71 @@
+{
+	"building": {
+		"name": "Room",
+		"openings": [
+			{
+				"at": 0.0,
+				"h": "door_height",
+				"id": "o1",
+				"kind": "door",
+				"room": "r1",
+				"sill": 0.0,
+				"w": "door_width",
+				"wall": "front"
+			},
+			{
+				"at": 0.0,
+				"h": "window_height",
+				"id": "o2",
+				"kind": "window",
+				"room": "r1",
+				"sill": "window_sill",
+				"w": "window_width",
+				"wall": "front"
+			}
+		],
+		"params": {
+			"door_height": 2.1,
+			"door_width": 0.9,
+			"floor_height": 2.8,
+			"floor_thickness": 0.2,
+			"grid": 0.5,
+			"inner_wall_thickness": 0.1,
+			"roof_overhang": 0.45,
+			"wall_height": 2.7,
+			"wall_thickness": 0.2,
+			"window_height": 1.2,
+			"window_sill": 0.9,
+			"window_width": 1.2
+		},
+		"roof": {
+			"kind": "flat",
+			"overhang": "roof_overhang",
+			"pitch": 25.0
+		},
+		"rooms": [
+			{
+				"d": 3.0,
+				"floor": true,
+				"height": "wall_height",
+				"id": "r1",
+				"thickness": "wall_thickness",
+				"w": 4.0,
+				"x": 0.0,
+				"yaw": 0.0,
+				"z": 0.0
+			}
+		],
+		"version": 1
+	},
+	"cards": [],
+	"floor_body": false,
+	"fps": 30,
+	"kind": "building",
+	"length_s": 0.0,
+	"name": "Room",
+	"natural": true,
+	"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other.",
+	"on_floor": true,
+	"pin": true,
+	"scene": "Room"
+}

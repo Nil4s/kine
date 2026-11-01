@@ -1,0 +1,164 @@
+{
+	"cards": [],
+	"floor_body": false,
+	"fps": 30,
+	"kind": "building",
+	"length_s": 0.0,
+	"name": "Mug",
+	"natural": true,
+	"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other.",
+	"on_floor": true,
+	"part": {
+		"easy": {
+			"n": 10,
+			"p": {
+				"cup_height": 95.0,
+				"cup_width": 80.0
+			},
+			"t": "mug"
+		},
+		"features": [
+			{
+				"dims": [],
+				"ents": [
+					{
+						"c": [
+							0.0,
+							0.0
+						],
+						"k": "circle",
+						"r": 40.0
+					}
+				],
+				"id": "f1",
+				"name": "Sketch1",
+				"plane": "top",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 95.0,
+				"id": "f2",
+				"name": "Extrude1",
+				"op": "new",
+				"sketch": "f1",
+				"t": "extrude"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"c": [
+							0.0,
+							0.0
+						],
+						"k": "circle",
+						"r": 36.0
+					}
+				],
+				"id": "f3",
+				"name": "Sketch2",
+				"plane": "top",
+				"t": "sketch"
+			},
+			{
+				"both": true,
+				"dist": 210.0,
+				"id": "f4",
+				"name": "Extrude2",
+				"op": "cut",
+				"sketch": "f3",
+				"t": "extrude"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"c": [
+							0.0,
+							0.0
+						],
+						"k": "circle",
+						"r": 40.0
+					}
+				],
+				"id": "f5",
+				"name": "Sketch3",
+				"plane": "top",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 4.0,
+				"id": "f6",
+				"name": "Extrude3",
+				"op": "join",
+				"sketch": "f5",
+				"t": "extrude"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							-70.0,
+							19.0
+						],
+						"b": [
+							-30.0,
+							76.0
+						],
+						"k": "rect"
+					}
+				],
+				"id": "f7",
+				"name": "Sketch4",
+				"plane": "right",
+				"t": "sketch"
+			},
+			{
+				"both": true,
+				"dist": 8.0,
+				"id": "f8",
+				"name": "Extrude4",
+				"op": "join",
+				"sketch": "f7",
+				"t": "extrude"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							-62.0,
+							28.5
+						],
+						"b": [
+							-48.0,
+							66.5
+						],
+						"k": "rect"
+					}
+				],
+				"id": "f9",
+				"name": "Sketch5",
+				"plane": "right",
+				"t": "sketch"
+			},
+			{
+				"both": true,
+				"dist": 20.0,
+				"id": "f10",
+				"name": "Extrude5",
+				"op": "cut",
+				"sketch": "f9",
+				"t": "extrude"
+			}
+		],
+		"name": "Mug",
+		"seq": 10,
+		"version": 1
+	},
+	"pin": true,
+	"scene": "Mug"
+}

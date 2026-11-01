@@ -65,6 +65,7 @@ func build(root: Control) -> void:
 	fix_btn.expand_icon = false
 	fix_btn.custom_minimum_size.x = 110.0
 	row.add_child(EasySearch.bar_button(m))   # s097: the search icon (Ctrl+K)
+	row.add_child(_lib_bar_make())   # bug4: Library, a big labelled button in the always-visible bar (opens the Parts library page)
 	row.add_child(undo_btn)
 	row.add_child(redo_btn)
 	row.add_child(dup_btn)
@@ -635,6 +636,11 @@ func _colour_box() -> PanelContainer:
 	var wood := _colour_btn("wood", "Wood", WOOD_COLOUR)   # FTABLE2: a wood-brown paint (the Paint numbers), for a table top or a shelf
 	wood.pressed.connect(_paint.bind("Wood", WOOD_COLOUR, "Paint"))
 	h.add_child(wood)
+	# FMONITOR: a screen is dark: the five chips were all light (no black), so a monitor's screen could not be made dark
+	var dk := _colour_btn("dark", "Dark", Color("#1e2226"))
+	dk.add_theme_color_override("font_color", Color(0.9, 0.92, 0.95))
+	dk.pressed.connect(_paint.bind("Dark", Color("#1e2226"), "Paint"))
+	h.add_child(dk)
 	# p057 WEIGHT: the whole Part's weight if it were made of each material (volume x density). A readout: it changes nothing in the Part
 	for wk in WEIGHT_CHIPS:
 		var wb := _colour_btn("weight_" + String(wk[0]), "", Color(0.7, 0.72, 0.76))
@@ -1356,6 +1362,9 @@ func _apply_twist(v: float) -> void:
 
 func _on_slider_value(v: float, row: Dictionary) -> void:
 	var s: HSlider = row["slider"]
+	if _merge_now() and String(row.get("kind", "")) == "tweak":
+		_set_value(row, v, true)   # FDICE: the hole's slider joins its press's undo step
+		return
 	if not bool(row.get("held", false)):
 		_begin("Change " + String(row["label"]))   # a click on the track or a nudge: its own step
 		_set_value(row, v, true)
@@ -1367,6 +1376,9 @@ func _on_slider_value(v: float, row: Dictionary) -> void:
 
 func _on_slider_start(row: Dictionary) -> void:
 	row["held"] = true
+	if _merge_now() and String(row.get("kind", "")) == "tweak":
+		_edit_n = -1   # FDICE: no step of its own: the press's step takes these changes too
+		return
 	pu.coarse = true   # NSLIDELOD: the part shows a coarse preview while the slider is in hand
 	_begin("Change " + String(row["label"]))
 	if _is_wall_row(row):
@@ -2629,6 +2641,7 @@ func _screw_sync() -> void:
 			b.set_pressed_no_signal(not cur.is_empty() and int(cur.get("d", 0)) == d and int(cur.get("L", 0)) == L)
 			m._grey(b, Part.why_not() if not Part.available() else "")
 	parts_btn.set_pressed_no_signal(parts_open)
+	_lib_bar_sync()   # bug4
 	_head_sync(cur)   # P061SCREWHEADS: the head chips and the size tips follow the screw on the floor
 	# FRIDAY 73: the bracket chips show while Brackets is open or a bracket is the part; the pressed one is the shape on the floor
 	var kind := int(cur.get("kind", 0)) if _tpl() == "bracket" else 0
@@ -2915,6 +2928,7 @@ func _make(which: String) -> void:
 			hole_base = snap
 			hole_id = String(tweak.get("id", ""))
 			hole_mode = "through"
+			_merge_id = hole_id   # FDICE: its slider joins this press's undo step
 	pu.upto = -1
 	pu.sync()
 	_rows_sync()
@@ -2957,8 +2971,10 @@ func _round(rec: Dictionary) -> String:
 ## EROUND: the round on body (a kept solid of the record's end). True when a fillet step was added to rec
 func _round_on(rec: Dictionary, body: int, es: Array, small: float, longest: float, flag := "") -> bool:
 	# EBACK: the default never sits below the slider's own low end (1 mm, "Barely"): a thin part's 0.5 mm default looked square
+	# FMONITOR: a thin part (under 3 cm across its smallest side, a screen or a plate) gets a 10 pct default: 1 pct of 2 cm was 0.2 mm, so the floor (1 mm) took 0.06 pct off it and the corners looked square
+	var pct := 0.1 if small < 30.0 else 0.01
 	for attempt in [[1.0, 0.0], [0.5, 0.0], [0.5, 0.2]]:
-		var r := clampf(small * 0.01 * float(attempt[0]), 1.0, 6.0)
+		var r := clampf(small * pct * float(attempt[0]), 1.0, 6.0)
 		var list := []
 		for e in es:
 			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and (flag == "" or bool(e.get(flag, false))) and float(e["len"]) >= longest * float(attempt[1]) and float(e["len"]) / Part.MM > r * 2.5:
@@ -3203,6 +3219,10 @@ func _face_hole(rec: Dictionary) -> String:
 	var pid := String(sk["plane"])
 	var out := float(Part.feature(rec, pid)["out"])   # +1 / -1: the face's normal side (a pull goes this way)
 	var before := Part.replay(rec)
+	var tan_pl := String(Part.feature(rec, pid).get("from", "")) == "tan"
+	if tan_pl:
+		_tan_sink(rec, Part.feature(rec, pid), sk)
+		Part.feature(rec, pid)["sink"] = 0.0   # s211: a cut needs no sink: a convex face falls away from its tangent plane, so the tool already starts outside it
 	var pl := Part.resolve_plane(rec, pid)
 	var tris := _tris_local(before, pl)
 	var lo := Vector2(INF, INF)
@@ -3217,9 +3237,12 @@ func _face_hole(rec: Dictionary) -> String:
 	for i in 3:
 		for j in 3:
 			var p := Vector2(lerpf(lo.x, hi.x, i / 2.0), lerpf(lo.y, hi.y, j / 2.0))
-			depth = minf(depth, _first_inside(tris, p, out))
+			var dd := _first_inside(tris, p, out)
+			depth = (minf(depth, dd) if not tan_pl else (dd if depth == INF else (depth if dd == INF else maxf(depth, dd))))   # s211: a curved face is cut as deep as its middle goes
 	if depth == INF:
 		return "The shape is not on the solid: nothing was cut"
+	if tan_pl:
+		depth = minf(depth, maxf(5.0, maxf(hi.x - lo.x, hi.y - lo.y)))   # s211: a hole in a curved face is as deep as the shape is wide (the slider changes it); the far side's pole or tangent is no place for the tool to end
 	var sgn := -out   # the cut goes INTO the body, against the face's normal side
 	var f := Part.new_feature(rec, "extrude", {"sketch": sk["id"], "dist": sgn * snappedf(depth + 0.5, 0.1), "both": false, "op": "cut"})
 	rec["features"].append(f)
@@ -3690,6 +3713,8 @@ func _process(_dt: float) -> void:
 	_upright_sync(on and (armed == "draw" or armed == "curve") and _side_on())
 	_scale_sync(on)   # p110realsizech: the reference beside the part follows it while Easy is on
 	bar.visible = on
+	if m.ui_top_bar != null and m.easy != null and not m.easy.on:
+		m.ui_top_bar.visible = not on   # bug6: Expert's strip (KINE, Home, View, What to build) lay under this bar: two Home buttons, a button off the right edge
 	make_box.visible = on
 	panel.visible = on
 	hint.visible = on
@@ -4127,6 +4152,8 @@ func _draft_move(p: Vector2) -> void:
 	var g: Variant = _ground(p, _draft.get("pl", {}))
 	if g != null:
 		_draft["b"] = g
+		if _draft.has("curved") and String(_draft["shape"]) in CURVED_CENTRED:
+			_draft["a"] = -(g as Vector2)   # s211: on a curved face the shape grows from the click (its middle), so it sits flat on it
 		var sh := String(_draft["shape"])
 		if (sh == "curve" or sh == "line") and not _draft.has("clicks") and (g as Vector2).distance_to((_draft["pts"] as Array).back()) >= 5.0:
 			(_draft["pts"] as Array).append(g)
@@ -4224,10 +4251,13 @@ func _start_draft(p: Vector2) -> bool:
 			_draft = {"a": gr, "b": gr, "shape": "pointy", "pts": [gr], "pl": ur["pl"], "face": ur}
 			_say("Drawing a roof on the box top, through the middle")
 			return true
+	if _start_curved(p, true):
+		return true   # s211: a cylinder or a sphere under the press: the tangent plane there
 	var fc := _face_hit(p)   # DRAW ON A FACE: a press on a flat face of a solid puts the sketch on that face
 	# FFLAT8: a press on the top edge of a solid whose floor point lies beside it draws on the floor (beside the solid); the top face stays the fallback
 	# when the floor shape then lies over the solid (_draft_end)
 	var top_fc: Dictionary = fc if _press_beside_top(p, fc) else {}
+	var no_flat := fc.is_empty()   # s211: nothing flat under the press: a curved face may be
 	if not top_fc.is_empty():
 		fc = {}
 	if not fc.is_empty():
@@ -4236,6 +4266,8 @@ func _start_draft(p: Vector2) -> bool:
 			_draft = {"a": fg, "b": fg, "shape": "curve" if armed == "curve" else shape, "pts": [fg], "pl": fc["pl"], "face": fc}
 			_say("Drawing on that face")
 			return true
+	if no_flat and top_fc.is_empty() and _start_curved(p):
+		return true
 	if _side_on():
 		var up := _upright()
 		var gu: Variant = _ground(p, up["pl"])
@@ -4321,6 +4353,8 @@ func _finish_draw() -> void:
 	var sh := String(_draft["shape"])
 	var fc: Dictionary = _draft.get("face", {})
 	var pl: Dictionary = _draft.get("pl", Part.plane("top"))
+	if _draft.has("curved") and sh in CURVED_CENTRED:
+		a = -b   # s211: centred on the click
 	_draft = {}
 	var ent := {}
 	var ents: Array = []
@@ -4395,6 +4429,10 @@ func _finish_draw() -> void:
 func _face_plane(rec: Dictionary, fc: Dictionary) -> String:
 	if fc.is_empty():
 		return "top"
+	if fc.has("tan"):   # s211 DRAW ON A CURVED FACE: one plane feature, the tangent plane at the click
+		var tf0 := Part.new_feature(rec, "plane", (fc["tan"] as Dictionary).duplicate(true))
+		rec["features"].append(tf0)
+		return String(tf0["id"])
 	if bool(fc.get("through", false)):   # UPRIGHT THROUGH THE MIDDLE: a plane with no "out" (the pull goes both ways)
 		var tf := Part.new_feature(rec, "plane", {"from": String(fc["base"]), "mm": float(fc["mm"]), "through": true})
 		rec["features"].append(tf)
@@ -8137,3 +8175,32 @@ func _kt_letter(k: InputEventKey) -> bool:
 		return false
 	_make(String(KT_LETTERS[int(k.keycode)]))
 	return true
+
+
+## BUG4 (Nick 11-01: "I have no access to our library with things yet"): the Parts chip sits in the FOOT of the scrolling side panel, below the
+## fold at 1280 x 720 and tiny (50 x 34). Library is a big labelled button in the always-visible bar (62 px tall) that does what Parts does:
+## opens the Parts library page (categories, Screws open) at the top of the panel, and a second press shuts it. No new row: it is a bar slot.
+func _lib_bar_make() -> Button:
+	lib_bar_btn = _bar_btn("Library", "Library: screws, boards, pipes, wood, gears and more. Press a part and it drops on the floor. Press again to shut it", _lib_bar_press)
+	lib_bar_btn.name = "easypart_library_btn"
+	lib_bar_btn.toggle_mode = true
+	lib_bar_btn.icon = Icons.sized("part_part", 22)
+	lib_bar_btn.expand_icon = false
+	lib_bar_btn.custom_minimum_size.x = 112.0
+	return lib_bar_btn
+
+
+func _lib_bar_press() -> void:
+	_parts_press()
+	if parts_open:
+		_lib_scroll_top.call_deferred()
+
+
+func _lib_scroll_top() -> void:
+	if panel != null and panel.get_child_count() > 0 and panel.get_child(0) is ScrollContainer:
+		(panel.get_child(0) as ScrollContainer).scroll_vertical = 0
+
+
+func _lib_bar_sync() -> void:
+	if lib_bar_btn != null:
+		lib_bar_btn.set_pressed_no_signal(parts_open)

@@ -1,0 +1,167 @@
+{
+	"cards": [],
+	"floor_body": false,
+	"fps": 30,
+	"kind": "building",
+	"length_s": 0.0,
+	"name": "Pipe T-piece",
+	"natural": true,
+	"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other.",
+	"on_floor": true,
+	"part": {
+		"easy": {
+			"n": 10,
+			"p": {
+				"d": 25.0
+			},
+			"t": "tee"
+		},
+		"features": [
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							0.0,
+							0.0
+						],
+						"b": [
+							0.0,
+							75.0
+						],
+						"k": "line"
+					}
+				],
+				"id": "f1",
+				"name": "Sketch1",
+				"plane": "top",
+				"t": "sketch"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"c": [
+							0.0,
+							0.0
+						],
+						"k": "circle",
+						"r": 12.5
+					}
+				],
+				"id": "f2",
+				"name": "Sketch2",
+				"plane": "front",
+				"t": "sketch"
+			},
+			{
+				"id": "f3",
+				"name": "Sweep1",
+				"op": "new",
+				"path": "f1",
+				"profile": "f2",
+				"t": "sweep"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							0.0,
+							37.5
+						],
+						"b": [
+							37.5,
+							37.5
+						],
+						"k": "line"
+					}
+				],
+				"id": "f4",
+				"name": "Sketch3",
+				"plane": "top",
+				"t": "sketch"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"c": [
+							0.0,
+							0.0
+						],
+						"k": "circle",
+						"r": 12.5
+					}
+				],
+				"id": "f5",
+				"name": "Sketch4",
+				"plane": "front",
+				"t": "sketch"
+			},
+			{
+				"id": "f6",
+				"name": "Sweep2",
+				"op": "join",
+				"path": "f4",
+				"profile": "f5",
+				"t": "sweep"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"c": [
+							0.0,
+							0.0
+						],
+						"k": "circle",
+						"r": 10.6
+					}
+				],
+				"id": "f7",
+				"name": "Sketch5",
+				"plane": "front",
+				"t": "sketch"
+			},
+			{
+				"id": "f8",
+				"name": "Sweep3",
+				"op": "cut",
+				"path": "f1",
+				"profile": "f7",
+				"t": "sweep"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"c": [
+							0.0,
+							0.0
+						],
+						"k": "circle",
+						"r": 10.6
+					}
+				],
+				"id": "f9",
+				"name": "Sketch6",
+				"plane": "front",
+				"t": "sketch"
+			},
+			{
+				"id": "f10",
+				"name": "Sweep4",
+				"op": "cut",
+				"path": "f4",
+				"profile": "f9",
+				"t": "sweep"
+			}
+		],
+		"name": "T-piece",
+		"seq": 10,
+		"version": 1
+	},
+	"pin": true,
+	"scene": "Pipe T-piece"
+}

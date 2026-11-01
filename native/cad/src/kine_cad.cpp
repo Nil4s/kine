@@ -16,6 +16,11 @@
 #include <BRepPrimAPI_MakePrism.hxx>
 #include <BRepPrimAPI_MakeRevol.hxx>
 #include <BRepTools.hxx>
+#include <BRepBuilderAPI_Sewing.hxx>
+#include <BRepBuilderAPI_MakePolygon.hxx>
+#include <BRepBuilderAPI_MakeSolid.hxx>
+#include <BRepLib.hxx>
+#include <BRepCheck_Analyzer.hxx>
 #include <GC_MakeArcOfCircle.hxx>
 #include <GeomAPI_Interpolate.hxx>
 #include <GeomAPI_ProjectPointOnSurf.hxx>
@@ -41,6 +46,8 @@
 #include <BRepLib_ToolTriangulatedShape.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
+#include <BRepOffsetAPI_MakeOffsetShape.hxx>
+#include <GeomAbs_JoinType.hxx>
 #include <BRepOffsetAPI_DraftAngle.hxx>
 #include <ShapeUpgrade_UnifySameDomain.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
@@ -159,6 +166,8 @@ void KineCAD::_bind_methods() {
 	ClassDB::bind_static_method("KineCAD", D_METHOD("revolve", "profile", "axis_origin", "axis_dir", "radians"), &KineCAD::revolve);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("sweep", "profile", "path"), &KineCAD::sweep);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("loft", "profiles", "ruled", "solid"), &KineCAD::loft);
+	ClassDB::bind_static_method("KineCAD", D_METHOD("solid_from_mesh", "verts", "tris", "tol"), &KineCAD::solid_from_mesh);
+	ClassDB::bind_static_method("KineCAD", D_METHOD("offset", "id", "distance"), &KineCAD::offset);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("edges", "id"), &KineCAD::edges);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("faces", "id"), &KineCAD::faces);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("fillet_edges", "id", "edge_ids", "radius"), &KineCAD::fillet_edges);
@@ -175,7 +184,7 @@ void KineCAD::_bind_methods() {
 }
 
 int KineCAD::version() {
-	return 3;
+	return 5;
 }
 String KineCAD::occt_version() {
 	return String(OCC_VERSION_COMPLETE);
@@ -1224,4 +1233,157 @@ void KineCAD::release_all() {
 int KineCAD::live_count() {
 	std::lock_guard<std::mutex> lk(g_mu);
 	return (int)g_shapes.size();
+}
+
+
+// s155 MESH -> SOLID: every triangle becomes a planar face, the faces are sewn into one shell (shared vertices, tolerance p_tol metres),
+// the shell must be CLOSED and be the only one, then it becomes a solid with its faces pointing outward. 0 + last_error() otherwise.
+int KineCAD::solid_from_mesh(const PackedVector3Array &p_verts, const PackedInt32Array &p_tris, double p_tol) {
+	if (p_tris.size() < 12 || p_tris.size() % 3 != 0) {
+		g_err = "mesh: needs at least 4 triangles";
+		return 0;
+	}
+	KCAD_TRY
+	BRepBuilderAPI_Sewing sew(p_tol > 0.0 ? p_tol : 1e-6, true, true, true, false);
+	int added = 0;
+	for (int t = 0; t + 2 < p_tris.size(); t += 3) {
+		int ia = p_tris[t], ib = p_tris[t + 1], ic = p_tris[t + 2];
+		if (ia < 0 || ib < 0 || ic < 0 || ia >= p_verts.size() || ib >= p_verts.size() || ic >= p_verts.size()) {
+			g_err = "mesh: a triangle names a corner that is not there";
+			return 0;
+		}
+		if (ia == ib || ib == ic || ia == ic) {
+			continue;
+		}
+		Vector3 a = p_verts[ia], b = p_verts[ib], c = p_verts[ic];
+		BRepBuilderAPI_MakePolygon poly(gp_Pnt(a.x, a.y, a.z), gp_Pnt(b.x, b.y, b.z), gp_Pnt(c.x, c.y, c.z), true);
+		if (!poly.IsDone()) {
+			continue; // a zero-area sliver: the sewing closes over it or the shell stays open (checked below)
+		}
+		BRepBuilderAPI_MakeFace mf(poly.Wire(), true);
+		if (!mf.IsDone()) {
+			continue;
+		}
+		sew.Add(mf.Face());
+		added++;
+	}
+	if (added < 4) {
+		g_err = "mesh: no usable triangles";
+		return 0;
+	}
+	sew.Perform();
+	TopoDS_Shape sewn = sew.SewedShape();
+	if (sewn.IsNull()) {
+		g_err = "mesh: the triangles could not be joined";
+		return 0;
+	}
+	if (sew.NbFreeEdges() > 0 || sew.NbMultipleEdges() > 0 || sew.NbDegeneratedShapes() > 0) {
+		g_err = std::string("mesh: not closed (") + std::to_string(sew.NbFreeEdges()) + " open edges, " + std::to_string(sew.NbMultipleEdges()) + " shared by 3+ faces)";
+		return 0;
+	}
+	TopoDS_Shell shell;
+	int shells = 0;
+	for (TopExp_Explorer ex(sewn, TopAbs_SHELL); ex.More(); ex.Next()) {
+		shell = TopoDS::Shell(ex.Current());
+		shells++;
+	}
+	if (shells != 1) {
+		g_err = "mesh: it is " + std::to_string(shells) + " separate shells, a solid part needs exactly one";
+		return 0;
+	}
+	BRepBuilderAPI_MakeSolid ms(shell);
+	if (!ms.IsDone()) {
+		g_err = "mesh: the shell could not become a solid";
+		return 0;
+	}
+	TopoDS_Solid sol = ms.Solid();
+	BRepLib::OrientClosedSolid(sol);
+	return kc_put_solid(sol);
+	KCAD_CATCH("solid_from_mesh", 0)
+}
+
+
+// s155b SOLID OFFSET (KineCAD version 5): every face of the solid moves along its outward normal by p_dist metres (> 0 thicker, < 0 thinner:
+// holes shrink when it grows). First the sharp-corner join (GeomAbs_Intersection: a box +1 mm is exactly 2 mm wider on each axis, edges stay sharp),
+// and when the kernel refuses that or returns something invalid, the rounded join (GeomAbs_Arc). 0 + last_error() when both fail
+// (a wall thinner than 2 x |d|, a feature that would vanish).
+int KineCAD::offset(int p_id, double p_dist) {
+	TopoDS_Shape s;
+	if (!kc_get(p_id, s)) {
+		return 0;
+	}
+	KCAD_TRY
+	if (std::fabs(p_dist) < 1e-9) {
+		return kc_put(s);
+	}
+	double vol0 = 0.0;
+	{
+		GProp_GProps gp;
+		BRepGProp::VolumeProperties(s, gp);
+		vol0 = gp.Mass();
+	}
+	std::string why;
+	const GeomAbs_JoinType joins[2] = { GeomAbs_Intersection, GeomAbs_Arc };
+	for (int j = 0; j < 2; j++) {
+		try {
+			BRepOffsetAPI_MakeOffsetShape mk;
+			mk.PerformByJoin(s, p_dist, 1e-6, BRepOffset_Skin, j == 0, false, joins[j]);
+			if (!mk.IsDone()) {
+				why += " [join " + std::to_string(j) + ": not done]";
+				continue;
+			}
+			TopoDS_Shape r = mk.Shape();
+			if (r.IsNull()) {
+				why += " [join " + std::to_string(j) + ": null]";
+				continue;
+			}
+			// take the one solid (the result may be wrapped in a compound)
+			TopoDS_Shape sol;
+			int n = 0;
+			for (TopExp_Explorer ex(r, TopAbs_SOLID); ex.More(); ex.Next()) {
+				sol = ex.Current();
+				n++;
+			}
+			if (n == 0) {   // the kernel sometimes hands back the closed shell without wrapping it in a solid
+				int shn = 0;
+				TopoDS_Shell shl;
+				for (TopExp_Explorer ex(r, TopAbs_SHELL); ex.More(); ex.Next()) {
+					shl = TopoDS::Shell(ex.Current());
+					shn++;
+				}
+				if (shn == 1) {
+					BRepBuilderAPI_MakeSolid ms(shl);
+					if (ms.IsDone()) {
+						TopoDS_Solid so = ms.Solid();
+						BRepLib::OrientClosedSolid(so);
+						sol = so;
+						n = 1;
+					}
+				}
+			}
+			if (n != 1) {
+				why += " [join " + std::to_string(j) + ": " + std::to_string(n) + " solids]";
+				continue;
+			}
+			BRepCheck_Analyzer an(sol);
+			if (!an.IsValid()) {
+				why += " [join " + std::to_string(j) + ": invalid]";
+				continue;
+			}
+			GProp_GProps gp;
+			BRepGProp::VolumeProperties(sol, gp);
+			double v = gp.Mass();
+			if (v <= 1e-15 || (p_dist > 0.0 && v <= vol0) || (p_dist < 0.0 && v >= vol0)) {
+				why += " [join " + std::to_string(j) + ": volume " + std::to_string(v) + " vs " + std::to_string(vol0) + "]";
+				continue;
+			}
+			return kc_put(sol);
+		} catch (Standard_Failure &e) {
+			why += std::string(" [join ") + std::to_string(j) + ": threw " + e.what() + "]";
+			continue;
+		}
+	}
+	g_err = "offset: the kernel could not move every face by that distance" + why;
+	return 0;
+	KCAD_CATCH("offset", 0)
 }

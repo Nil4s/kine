@@ -48,9 +48,14 @@ var _empty_note: Label
 var _resume_text: Label
 var _resume_btn: Button
 var _resume_path := ""
+var _examples_mode := false      # bug7: the Examples gallery is showing in the Open grid (the screen and the mode do not change)
+var _open_title: Label
+var _back_btn: Button
+var ex_thumbs: StartExampleThumbs   # the pictures of the building examples
 var _settings: PanelContainer
 var _show_check: CheckBox
 var _built := false
+var _lib_after := false          # bug4: the Parts library button asked for the library page to open with Easy Part
 var _at_boot := false
 var file_dialog_inline := false   # a test: the in-window dialog (a native one cannot be driven)
 var last_dialog: FileDialog
@@ -202,6 +207,12 @@ func _card(kind: String, title: String, desc: String) -> PanelContainer:
 		_expert_btn[kind] = expert
 		foot.add_child(easy)
 		foot.add_child(expert)
+		if kind == "building":   # bug4: the Parts library from the start screen: Easy Part opens with the library page already open
+			var lib := _button("Parts library", "lib_" + kind)
+			lib.custom_minimum_size = Vector2(110, 26)
+			lib.tooltip_text = "Screws, boards, pipes, wood, gears and more: opens Easy Part with the Library open"
+			lib.pressed.connect(_start_library)
+			foot.add_child(lib)
 	else:   # no Easy flow for this kind yet: one honest button, and the note
 		var go := _button("Start", "start_" + kind)
 		go.custom_minimum_size = Vector2(70, 26)
@@ -233,6 +244,7 @@ func _open_block() -> Control:
 	head.add_theme_constant_override("h_separation", 10)
 	head.add_theme_constant_override("v_separation", 8)
 	var t := _label("Open", 18, "text")
+	_open_title = t
 	head.add_child(t)
 	_empty_note = _label("New here? Pick a card above.", 13, "info:0.6")
 	head.add_child(_empty_note)
@@ -257,6 +269,11 @@ func _open_block() -> Control:
 	ex_btn.flat = true
 	ex_btn.pressed.connect(_open_examples)
 	head.add_child(ex_btn)
+	_back_btn = _button("< Back to my projects", "examples_back_btn")   # bug7: shown only while the Examples gallery is up
+	_back_btn.flat = true
+	_back_btn.visible = false
+	_back_btn.pressed.connect(_close_examples)
+	head.add_child(_back_btn)
 	v.add_child(head)
 	_tiles_flow = HFlowContainer.new()
 	_tiles_flow.name = "tiles"
@@ -312,6 +329,7 @@ func _settings_box() -> PanelContainer:
 
 ## the screen is shown: pictures asked for, the lists read again, the newest scene on Resume
 func show_screen(at_boot := false) -> void:
+	_examples_mode = false   # bug7: the screen always opens on the user's projects
 	_at_boot = at_boot   # only the start-up screen has Esc = "continue where I left off"; from Home, Esc just goes back to the work
 	if not _built:
 		build()
@@ -400,6 +418,8 @@ func _start_kind_now(kind: String) -> void:
 			m._page_set("BUILD")
 			m.bld.reset_view()   # a new project starts on the default view, not where the last house was left
 			m.bld.part.open_blank(want_easy)
+			if _lib_after:
+				_lib_open_now.call_deferred()
 	if m.has_method("_refresh"):
 		m._refresh()
 
@@ -493,8 +513,12 @@ func _grade(path: String) -> String:
 
 func _refresh() -> void:
 	var saved := _saved_paths()
-	var examples := saved.is_empty()
-	var paths: Array = _example_paths() if examples else saved
+	var examples := saved.is_empty() or _examples_mode
+	var paths: Array = (StartExamples.examples(m) if _examples_mode else _example_paths()) if examples else saved
+	if _open_title != null:
+		_open_title.text = "Examples" if _examples_mode else "Open"
+		_back_btn.visible = _examples_mode
+		(find_child("examples_btn", true, false) as Button).visible = not _examples_mode
 	_order = paths
 	for c in _tiles_flow.get_children():
 		_tiles_flow.remove_child(c)
@@ -502,7 +526,7 @@ func _refresh() -> void:
 	_tiles.clear()
 	for p in paths:
 		_add_tile(String(p), examples)
-	_empty_note.text = "New here? Pick a card above." if examples else "Pick a card above, or open a scene."
+	_empty_note.text = "Click an example to open a copy of it" if _examples_mode else ("New here? Pick a card above." if examples else "Pick a card above, or open a scene.")
 	var recents: Array = m._recent_list() if m != null else []
 	_resume_path = ""
 	if not saved.is_empty() or not recents.is_empty():
@@ -520,7 +544,10 @@ func _refresh() -> void:
 		_resume_btn.visible = false
 	if m != null and m.thumbs != null:
 		for p in paths:
-			m.thumbs.request(String(p))
+			if not StartExamples.entry_of_path(String(p)).is_empty():
+				_example_thumbs().request(String(p))
+			else:
+				m.thumbs.request(String(p))
 	_apply()
 
 
@@ -542,12 +569,15 @@ func _add_tile(path: String, example: bool) -> void:
 	pic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	pic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	pic.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	pic.texture = m.thumbs.picture(path) if m != null and m.thumbs != null else null
+	pic.texture = _picture_of(path)
 	pic_bg.add_child(pic)
 	v.add_child(pic_bg)
 	var nm := String(path.get_file().get_basename()).replace("_", " ")
 	if example:
 		nm = nm.capitalize()
+		var xe := StartExamples.entry_of_path(path)
+		if not xe.is_empty():
+			nm = String(xe["name"])
 	var name_l := _label(nm, 14, "text")
 	name_l.clip_text = true
 	name_l.custom_minimum_size = Vector2(PIC.x, 0)
@@ -557,7 +587,7 @@ func _add_tile(path: String, example: bool) -> void:
 	row.add_theme_constant_override("separation", 6)
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var kind := _kind_of(path)
-	var tag := _label("Example" if example else KIND_NAME[kind], 11, "text")
+	var tag := _label(KIND_NAME[kind] if (_examples_mode or not example) else "Example", 11, "text")
 	tag.name = "tag"
 	tag.add_theme_color_override("font_color", KIND_TAG[kind])
 	tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -590,7 +620,23 @@ func _add_tile(path: String, example: bool) -> void:
 
 func _made(path: String) -> void:
 	if _tiles.has(path) and m != null and m.thumbs != null:
-		(_tiles[path]["pic"] as TextureRect).texture = m.thumbs.picture(path)
+		(_tiles[path]["pic"] as TextureRect).texture = _picture_of(path)
+
+
+## the tile's picture: a building example is drawn by StartExampleThumbs, every other scene by SceneThumbs
+func _picture_of(path: String) -> Texture2D:
+	if not StartExamples.entry_of_path(path).is_empty():
+		return _example_thumbs().picture(path)
+	return m.thumbs.picture(path) if m != null and m.thumbs != null else null
+
+
+func _example_thumbs() -> StartExampleThumbs:
+	if ex_thumbs == null:
+		ex_thumbs = StartExampleThumbs.new()
+		ex_thumbs.name = "example_thumbs"
+		m.add_child(ex_thumbs)   # a plain node under main (not under this Control): its pictures draw whether or not the screen is shown
+		ex_thumbs.made.connect(_made)
+	return ex_thumbs
 
 
 func _open_tile(path: String, example: bool) -> void:
@@ -602,6 +648,7 @@ func _open_tile(path: String, example: bool) -> void:
 		if example:
 			m._open_example(path)
 			_land()
+			_land_building_example()
 		else:
 			m._open_scene_file(path, _land, asked)
 	if asked:
@@ -720,6 +767,7 @@ func _show_help() -> void:
 
 func _card_input(ev: InputEvent, kind: String) -> void:
 	if _is_click(ev):
+		_lib_after = false
 		_start_kind(kind)
 
 
@@ -731,8 +779,27 @@ func _tile_input(ev: InputEvent, path: String, example: bool) -> void:
 ## one click on Easy or Expert starts that kind of project in that mode (a card click elsewhere uses the mode last shown)
 func _start_in_mode(kind: String, easy: bool) -> void:
 	_card_easy[kind] = easy
+	_lib_after = false
 	_sync_modes(kind)
 	_start_kind(kind)
+
+
+## bug4: the Parts library button on the 3D BUILDING card: Easy Part, library page open
+func _start_library() -> void:
+	_card_easy["building"] = true
+	_sync_modes("building")
+	_lib_after = true
+	_start_kind("building")
+
+
+## (after the project is made) open the library page of Easy Part, one frame later so the part's panel has been placed
+func _lib_open_now() -> void:
+	_lib_after = false
+	if m == null or m.bld == null or m.bld.part == null or m.bld.part.ep == null:
+		return
+	var ep = m.bld.part.ep
+	if not ep.parts_open:
+		ep._lib_bar_press()
 
 
 ## a real file picker for a .json scene (the native dialog); the screen stays until a file is picked
@@ -759,10 +826,42 @@ func _file_picked(path: String) -> void:
 		m._open_scene_file(path, _land)
 
 
+## bug7: Examples only changes what the Open grid lists (the same grid, chips and search); the screen stays, the mode does not change.
+## Opening one is a separate click on its card; Back to my projects returns to the saved scenes
 func _open_examples() -> void:
-	_close()
-	if m != null and m.easy != null and m.easy.scenes != null:
-		m.easy.scenes.open_panel(false)
+	_examples_mode = true
+	_search.text = ""
+	_chip = "all"
+	_refresh()
+	_scroll_to_open.call_deferred()
+
+
+## the New project cards are tall: the Examples grid is scrolled up under the top bar so the examples are what the click shows
+func _scroll_to_open() -> void:
+	await get_tree().process_frame
+	var sc := find_child("content_scroll", true, false) as ScrollContainer
+	if sc != null and _open_title != null and visible:
+		sc.scroll_vertical = maxi(0, int(_open_title.get_global_rect().position.y - sc.get_global_rect().position.y) + sc.scroll_vertical - 8)
+
+
+func _close_examples() -> void:
+	_examples_mode = false
+	_search.text = ""
+	_chip = "all"
+	_refresh()
+
+
+## a building example opens in the mode it belongs to: Easy Part with its part (the room: BUILD with its house)
+func _land_building_example() -> void:
+	if m == null or String(m.S.kind) != "building":
+		return
+	if m.easy != null and not m.easy.on:
+		m.easy.set_on(true)
+	m._page_set("BUILD")
+	if not (m.S.part as Dictionary).is_empty():
+		m.bld.part.open_easy()
+	else:
+		m.bld._frame_house()
 
 
 func _show_toggled(on: bool) -> void:

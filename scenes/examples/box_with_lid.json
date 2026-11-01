@@ -1,0 +1,114 @@
+{
+	"cards": [],
+	"floor_body": false,
+	"fps": 30,
+	"kind": "building",
+	"length_s": 0.0,
+	"name": "Box with lid",
+	"natural": true,
+	"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other.",
+	"on_floor": true,
+	"part": {
+		"features": [
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							0.0,
+							0.0
+						],
+						"b": [
+							300.0,
+							150.0
+						],
+						"k": "rect"
+					}
+				],
+				"id": "f1",
+				"label": "Box",
+				"name": "Sketch1",
+				"plane": "front",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 200.0,
+				"id": "f2",
+				"label": "Box",
+				"name": "Extrude1",
+				"op": "new",
+				"sketch": "f1",
+				"t": "extrude"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							310.0,
+							-200.0
+						],
+						"b": [
+							610.0,
+							0.0
+						],
+						"k": "rect"
+					}
+				],
+				"id": "f3",
+				"label": "Lid",
+				"name": "Sketch2",
+				"plane": "top",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 10.0,
+				"id": "f4",
+				"label": "Lid",
+				"name": "Extrude2",
+				"op": "new",
+				"sketch": "f3",
+				"t": "extrude"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							445.0,
+							-110.0
+						],
+						"b": [
+							475.0,
+							-90.0
+						],
+						"k": "rect"
+					}
+				],
+				"id": "f5",
+				"label": "Lid handle",
+				"name": "Sketch3",
+				"plane": "top",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 25.0,
+				"id": "f6",
+				"label": "Lid handle",
+				"name": "Extrude3",
+				"op": "join",
+				"sketch": "f5",
+				"t": "extrude"
+			}
+		],
+		"name": "Box with lid",
+		"recipe": "lidbox",
+		"seq": 6,
+		"version": 1
+	},
+	"pin": true,
+	"scene": "Box with lid"
+}

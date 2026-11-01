@@ -149,6 +149,7 @@ var thread_btn: Button = null   # s031: Thread look (a helix drawn in a round Th
 var hole_base: Dictionary = {}   # the record before the last Cut a hole press: each chip rebuilds the hole from it ({} = no hole chips)
 var hole_id := ""                # the feature id of the last hole step (the hole's sketch, or the hollow's shell): its slider's step
 var hole_mode := "through"       # "through" | "hollow": the chip that is on
+var _merge_id := ""              # FDICE: the hole step whose slider edits join its press's undo step ("" = none)
 var wall_btn: Button             # Thicker wall (p022shellwalls): under Hollow inside; the next side-wall click makes that wall thicker
 var wall_pick := false           # true while Thicker wall waits for the wall click (a press on a face then goes to _wall_press)
 var split_box: PanelContainer   # ECUT2: Cut in two's keep chips (both halves / the lower half / the upper half), after a Cut in two press (see _split_on)
@@ -266,6 +267,7 @@ func _say(t: String) -> void:
 
 func _begin(label: String) -> void:
 	m._step_hint = label
+	_merge_id = ""
 	m._push_undo()
 	_edit_n = m.undo.size()
 	_edit_before = JSON.stringify(_rec())
@@ -282,6 +284,11 @@ func _end() -> void:
 func _span(f: Dictionary) -> float:
 	var ax := String(f.get("dir", "x"))
 	return float(f.get("h" if ax == "y" else ("d" if ax == "z" else "w"), f.get("w", 10.0)))
+
+
+## FDICE: the How deep / How big slider of the hole a press just made is part of THAT press's undo step (one Undo takes the whole hole away)
+func _merge_now() -> bool:
+	return _merge_id != "" and String(tweak.get("id", "")) == _merge_id
 
 
 func _flush_if_dirty() -> void:

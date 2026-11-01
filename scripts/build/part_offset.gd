@@ -6,10 +6,12 @@ extends RefCounted
 ##   thinner  = body minus its hollow shell of wall |d| (the shell with no open face is body minus the inward offset body, so the rest is it);
 ##              a solid the shell refuses (one with a hole in it) is cut down to what 26 shifted copies of it share instead (_erode);
 ##   thicker  = the body fused with 26 copies of itself moved d along the 26 directions of a 3 x 3 x 3 grid (see _swell).
+## With KineCAD 5 (KCad.has_offset()) the kernel's own offset does it exactly; the 26-copy path stays as the fallback for an older DLL.
 ## The step re-runs with the record, so the Pull it up slider of an earlier step still edits the result (the offset is replayed after it).
 ## A distance the kernel cannot do (a wall thinner than 2 x |d|, a feature that would vanish) leaves the body as it was and returns the reason.
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
+static var force_fallback := false   # s155b: tests/timing switch, true = always the 26-copy path
 
 
 ## the step's effect on `bodies` (kernel ids, replaced in place); "" = done, else the sentence for the error list
@@ -35,6 +37,11 @@ static func apply(bodies: Array, f: Dictionary) -> String:
 
 ## a new solid: `id` moved out (d > 0) or in (d < 0) on every face, d in metres. 0 when the kernel refuses; `id` stays valid
 static func grow(id: int, d: float) -> int:
+	if not force_fallback and KCad.has_offset():   # s155b: KineCAD 5 moves every face exactly (BRepOffsetAPI_MakeOffsetShape)
+		var k := KCad.offset(id, d)
+		if k != 0:
+			return k
+		# the kernel refused (a wall thinner than 2 x |d|, ...): the 26-copy path below may still manage a rough answer, or refuses too
 	if d < 0.0:
 		return _shrink(id, -d)
 	return _swell(id, d)

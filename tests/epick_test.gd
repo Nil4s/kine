@@ -153,12 +153,14 @@ func _init() -> void:
 	await click_ctl(pu.easy_open_btn)
 	await idle(4)
 	var ep = pu.ep
-	# 1 NEAR: two 3 mm plates, 40 x 40 mm, 60 mm apart (a sketch and a 3 mm both-sides extrude each)
+	# design changed in acd9cc1b estick: Stick together Join refuses pieces that do not touch; bar rewritten 11-01 per Nick:
+	# the two plates now SHARE a face (plate 2 starts at x = 20, where plate 1 ends) so the Join of two picked pieces can succeed
+	# 1 NEAR: two 3 mm plates, 40 x 40 mm, touching along x = 20 (a sketch and a 3 mm both-sides extrude each)
 	var pl := Part.make("Two plates")
 	pl["features"] = [
 		{"t": "sketch", "id": "f1", "name": "Sketch1", "plane": "front", "ents": [{"k": "rect", "a": [-20.0, -20.0], "b": [20.0, 20.0]}], "dims": []},
 		{"t": "extrude", "id": "f2", "name": "Extrude1", "sketch": "f1", "dist": 3.0, "both": true, "op": "new"},
-		{"t": "sketch", "id": "f3", "name": "Sketch2", "plane": "front", "ents": [{"k": "rect", "a": [40.0, -20.0], "b": [80.0, 20.0]}], "dims": []},
+		{"t": "sketch", "id": "f3", "name": "Sketch2", "plane": "front", "ents": [{"k": "rect", "a": [20.0, -20.0], "b": [60.0, 20.0]}], "dims": []},
 		{"t": "extrude", "id": "f4", "name": "Extrude2", "sketch": "f3", "dist": 3.0, "both": true, "op": "new"}]
 	pl["seq"] = 4
 	m.S.part = pl
@@ -191,23 +193,39 @@ func _init() -> void:
 			cb = f
 	ok(not cb.is_empty() and String(cb.get("op", "")) == "join" and int(pu.res.get("bodies", 0)) == 1 and m.undo.size() == ub1 + 1,
 		"3 Stick together Join: one solid, a combine step, ONE undo step (%d -> %d) [%s]" % [ub1, m.undo.size(), ep.hint_l.text])
-	# 4 MIRROR: a box 20 mm wide off the middle line (a gap after the mirror), then one centred on it (no gap)
-	for centred in [false, true]:
-		var a := -10.0 if centred else 30.0
+	# 4 MIRROR: a box 20 mm wide off the middle line, one centred on it, and one piece with a REAL gap
+	# design changed in 7c6bcd55 EMIRROR: Easy Part Mirror on a piece off the middle line goes across the middle of the part; bar rewritten 11-01 per Nick:
+	# an off-line box now mirrors across ITS OWN middle (no gap, words "across the middle of the part", the box keeps its place);
+	# the "Push them together" words are reached by a part that already has two pieces apart (a join of two boxes with a gap)
+	for kind in ["off", "centred", "gap"]:
+		var a := -10.0 if kind == "centred" else 30.0
 		var bx := Part.make("Box")
 		bx["features"] = [
 			{"t": "sketch", "id": "f1", "name": "Sketch1", "plane": "front", "ents": [{"k": "rect", "a": [a, -10.0], "b": [a + 20.0, 10.0]}], "dims": []},
 			{"t": "extrude", "id": "f2", "name": "Extrude1", "sketch": "f1", "dist": 20.0, "both": false, "op": "new"}]
 		bx["seq"] = 2
+		if kind == "gap":
+			bx["features"].append({"t": "sketch", "id": "f3", "name": "Sketch2", "plane": "front", "ents": [{"k": "rect", "a": [70.0, -10.0], "b": [90.0, 10.0]}], "dims": []})
+			bx["features"].append({"t": "extrude", "id": "f4", "name": "Extrude2", "sketch": "f3", "dist": 20.0, "both": false, "op": "join"})
+			bx["seq"] = 4
 		m.S.part = bx
 		pu.upto = -1
 		pu.sync()
 		await idle(2)
+		var before: Dictionary = Part.replay(m.S.part)
 		await click_ctl(ep.make_btns["mirror"])
 		var words: String = ep.hint_l.text
-		if centred:
+		var after: Dictionary = Part.replay(m.S.part)
+		var bb0: AABB = before["aabb"]
+		var bb1: AABB = after["aabb"]
+		if kind == "centred":
 			ok(not words.contains("Push them together") and count_kind(m.S.part, "mirror") == 1, "4 a box centred on the middle line: mirrored, no gap words [%s]" % words)
+		elif kind == "off":
+			ok(words.contains("across the middle of the part") and not words.contains("Push them together") and count_kind(m.S.part, "mirror") == 1
+				and int(after["bodies"]) == 1 and absf(bb1.position.x - bb0.position.x) < 0.5 and absf(bb1.end.x - bb0.end.x) < 0.5,
+				"4 Mirror that off the middle line: mirrored across the middle of the part, no gap, the box keeps its place (x %.1f..%.1f -> %.1f..%.1f) [%s]" % [bb0.position.x, bb0.end.x, bb1.position.x, bb1.end.x, words])
 		else:
-			ok(words.contains("Push them together with Stick together") and count_kind(m.S.part, "mirror") == 1, "4 Mirror that off the middle line: the words say Push them together with Stick together [%s]" % words)
+			ok(words.contains("Push them together with Stick together") and count_kind(m.S.part, "mirror") == 1 and int(after["bodies"]) == 1,
+				"4 Mirror that on two pieces with a gap: the words say Push them together with Stick together [%s]" % words)
 	print("epick: %d fail" % fails)
 	quit(1 if fails > 0 else 0)

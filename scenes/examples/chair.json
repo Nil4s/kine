@@ -1,0 +1,194 @@
+{
+	"cards": [],
+	"floor_body": false,
+	"fps": 30,
+	"kind": "building",
+	"length_s": 0.0,
+	"name": "Chair",
+	"natural": true,
+	"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other.",
+	"on_floor": true,
+	"part": {
+		"easy": {
+			"n": 6,
+			"p": {
+				"back_height": 450.0,
+				"seat_depth": 420.0,
+				"seat_height": 450.0,
+				"seat_width": 420.0
+			},
+			"t": "chair"
+		},
+		"features": [
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							0.0,
+							450.0
+						],
+						"b": [
+							420.0,
+							450.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							420.0,
+							450.0
+						],
+						"b": [
+							420.0,
+							0.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							420.0,
+							0.0
+						],
+						"b": [
+							380.0,
+							0.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							380.0,
+							0.0
+						],
+						"b": [
+							380.0,
+							420.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							380.0,
+							420.0
+						],
+						"b": [
+							40.0,
+							420.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							40.0,
+							420.0
+						],
+						"b": [
+							40.0,
+							0.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							40.0,
+							0.0
+						],
+						"b": [
+							0.0,
+							0.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							0.0,
+							0.0
+						],
+						"b": [
+							0.0,
+							450.0
+						],
+						"k": "line"
+					}
+				],
+				"id": "f1",
+				"name": "Sketch1",
+				"plane": "front",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 420.0,
+				"id": "f2",
+				"name": "Extrude1",
+				"op": "new",
+				"sketch": "f1",
+				"t": "extrude"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							0.0,
+							420.0
+						],
+						"b": [
+							420.0,
+							900.0
+						],
+						"k": "rect"
+					}
+				],
+				"id": "f3",
+				"name": "Sketch2",
+				"plane": "front",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 30.0,
+				"id": "f4",
+				"name": "Extrude2",
+				"op": "join",
+				"sketch": "f3",
+				"t": "extrude"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							-380.0,
+							0.0
+						],
+						"b": [
+							-40.0,
+							420.0
+						],
+						"k": "rect"
+					}
+				],
+				"id": "f5",
+				"name": "Sketch3",
+				"plane": "right",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 420.0,
+				"id": "f6",
+				"name": "Extrude3",
+				"op": "cut",
+				"sketch": "f5",
+				"t": "extrude"
+			}
+		],
+		"name": "Chair",
+		"seq": 6,
+		"version": 1
+	},
+	"pin": true,
+	"scene": "Chair"
+}

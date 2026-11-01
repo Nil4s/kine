@@ -1,0 +1,149 @@
+{
+	"cards": [],
+	"floor_body": false,
+	"fps": 30,
+	"kind": "building",
+	"length_s": 0.0,
+	"name": "Star",
+	"natural": true,
+	"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other.",
+	"on_floor": true,
+	"part": {
+		"features": [
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							0.0,
+							60.0
+						],
+						"b": [
+							-14.1068,
+							19.4164
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							-14.1068,
+							19.4164
+						],
+						"b": [
+							-57.0634,
+							18.541
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							-57.0634,
+							18.541
+						],
+						"b": [
+							-22.8254,
+							-7.4164
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							-22.8254,
+							-7.4164
+						],
+						"b": [
+							-35.2671,
+							-48.541
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							-35.2671,
+							-48.541
+						],
+						"b": [
+							0.0,
+							-24.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							0.0,
+							-24.0
+						],
+						"b": [
+							35.2671,
+							-48.541
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							35.2671,
+							-48.541
+						],
+						"b": [
+							22.8254,
+							-7.4164
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							22.8254,
+							-7.4164
+						],
+						"b": [
+							57.0634,
+							18.541
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							57.0634,
+							18.541
+						],
+						"b": [
+							14.1068,
+							19.4164
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							14.1068,
+							19.4164
+						],
+						"b": [
+							0.0,
+							60.0
+						],
+						"k": "line"
+					}
+				],
+				"id": "f1",
+				"name": "Sketch1",
+				"plane": "front",
+				"quick": "star",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 12.0,
+				"id": "f2",
+				"name": "Extrude1",
+				"op": "new",
+				"sketch": "f1",
+				"t": "extrude"
+			}
+		],
+		"name": "Star",
+		"seq": 2,
+		"version": 1
+	},
+	"pin": true,
+	"scene": "Star"
+}

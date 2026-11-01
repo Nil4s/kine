@@ -23,7 +23,7 @@ func _colour_btn(key: String, txt: String, c: Color) -> Button:
 	b.name = "easypart_colour_" + key
 	b.text = txt
 	b.focus_mode = Control.FOCUS_NONE
-	b.custom_minimum_size = Vector2(84, 44)   # 84 (was 92): eight chips with Wood still end left of the panel at 1280 x 720
+	b.custom_minimum_size = Vector2(72, 44)   # FMONITOR: 72 (was 84, was 92): nine chips (with Wood and Dark) still end left of the panel at 1280 x 720
 	b.add_theme_font_size_override("font_size", 16)
 	b.add_theme_color_override("font_color", Color(0.08, 0.08, 0.1))
 	var st := StyleBoxFlat.new()
@@ -451,6 +451,7 @@ func layout(cl: Rect2) -> void:
 	export_btn.custom_minimum_size.x = 84.0 if narrow else 110.0
 	title_l.clip_text = narrow
 	title_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if narrow else TextServer.OVERRUN_NO_TRIMMING
+	_lib_bar_fit(tight, narrow)   # bug4: the Library button's width, and the short words that make room for it at 1280
 	var n := 0.0   # P093: only the visible ones share the row (Beginner hides five)
 	for b in make_btns.values():
 		if (b as Control).visible:
@@ -683,6 +684,7 @@ func _draw_dots() -> void:
 		var pts := _draft_outline()
 		if pts.size() > 1:
 			dots.draw_polyline(pts, AMBER, 3.0, true)
+		_draw_tangent_square()
 	_draw_mirror_live()   # s047: a mirrored Line shows its other half and the middle line while the points are clicked
 	_draw_line_show()   # P045 LINE SHOW: the Line just drawn stays on the grid
 	var e: Dictionary = _rec().get("easy", {})
@@ -724,6 +726,7 @@ func _floor_sync(on: bool) -> void:
 				for q in ln:
 					im.surface_set_color(col)
 					im.surface_add_vertex(q)
+		_floor_outer(im, e)
 		im.surface_end()
 		var mat := StandardMaterial3D.new()
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -736,6 +739,37 @@ func _floor_sync(on: bool) -> void:
 		floor_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		m.cam.get_parent().add_child(floor_mi)
 	floor_mi.visible = on
+
+
+## bug2 (Nick 11-01: "when you open 3D the floor goes missing, only after Top / Side it appears"): the 1 m tile alone is a 7 pct sliver of the frame at the opening 3/4
+## view (it sits in the free view's 370 px); Top fills 42 pct. The floor goes on past the tile, a line every 25 cm, fading out to FLOOR_OUT metres, so the
+## floor is always on screen when Easy Part opens. Only lines OUTSIDE the tile (the tile keeps its own lines, the framing still fits the tile). Camera untouched.
+const FLOOR_OUT := 3.0          # m: where the outer floor has faded out (its lines end here)
+const FLOOR_OUT_STEP := 0.25    # m: the outer lines
+const FLOOR_OUT_ALPHA := 0.13   # the outer lines' alpha at the tile's edge (the tile's own minor lines are 0.16)
+
+
+func _floor_outer(im: ImmediateMesh, e: float) -> void:
+	var seg := FLOOR_OUT_STEP
+	var n := int(roundf(FLOOR_OUT / seg))
+	for i in range(-n, n + 1):
+		var v := float(i) * seg
+		for axis in 2:
+			var a := -float(n) * seg
+			while a < float(n) * seg - 0.0001:
+				var b := a + seg
+				var mid := (a + b) * 0.5
+				# a piece inside the tile's square is the tile's own: skip it
+				if absf(v) < e - 0.0001 and absf(mid) < e:
+					a = b
+					continue
+				for q in [a, b]:
+					var w := Vector3(q, 0.0, v) if axis == 0 else Vector3(v, 0.0, q)
+					var r := maxf(absf(w.x), absf(w.z))
+					var f := clampf(1.0 - (r - e) / (FLOOR_OUT - e), 0.0, 1.0)
+					im.surface_set_color(Color(0.4, 0.48, 0.6, FLOOR_OUT_ALPHA * f))
+					im.surface_add_vertex(w)
+				a = b
 
 
 ## UPRIGHT THROUGH THE MIDDLE (side-on): the camera looks along a horizontal line (|pitch| < SIDE_ON), so a press on empty space draws on
@@ -1618,3 +1652,80 @@ func _col_avail(cl: Rect2, top: float) -> float:
 
 
 var _tilt_cover := false   # bug5: a Repeat it / Stick together row or the Challenges card stands where the Tilt chips are: the chips hide (the sync reads this)
+
+# ---------------------------------------------------------------- s211 DRAW ON A CURVED FACE
+
+const CURVED_CENTRED := ["box", "pointy", "hex", "poly", "oval", "star", "gear", "heart", "arrow"]   # shapes that grow from the click on a curved face (a round one already does)
+
+
+## a press on a CURVED face (the flat ones are _face_hit's): the sketch goes on the tangent plane at the clicked point. true = taken
+func _start_curved(p: Vector2, strict := false) -> bool:
+	if not Part.available() or m.cam == null or pu == null:
+		return false
+	var cb: Basis = m.cam.global_transform.basis
+	var ro: Vector3 = m.cam.project_ray_origin(p)
+	var rd: Vector3 = m.cam.project_ray_normal(p)
+	var best := {}
+	for tris in _shown_faces():
+		var h: Dictionary = CurvedFace.hit(tris, ro, rd, cb.x, cb.y)
+		if not h.is_empty() and (best.is_empty() or float(h["dist"]) < float(best["dist"])):
+			best = h
+	if best.is_empty() or (strict and not (String(best["kind"]) in ["cyl", "sph"])):
+		return false   # strict: only a fitted cylinder or sphere (the mesh winding hides a gentle curve from the flat test of _face_hit_at)
+	var o: Vector3 = best["o"]
+	var n: Vector3 = best["n"]
+	var x: Vector3 = best["x"]
+	var pl := {"o": o, "x": x, "n": n, "y": n.cross(x)}
+	var tan := {"from": "tan", "o": [snappedf(o.x / Part.MM, 0.0001), snappedf(o.y / Part.MM, 0.0001), snappedf(o.z / Part.MM, 0.0001)],
+		"x": [snappedf(x.x, 0.000001), snappedf(x.y, 0.000001), snappedf(x.z, 0.000001)],
+		"n": [snappedf(n.x, 0.000001), snappedf(n.y, 0.000001), snappedf(n.z, 0.000001)], "out": 1, "sink": 0.5,
+		"surf": {"k": String(best["kind"]), "r": snappedf(float(best["r"]) / Part.MM, 0.0001), "cv": bool(best["convex"])}}
+	var fc := {"pl": pl, "base": "tan", "mm": 0.0, "out": 1, "hit": o, "tan": tan, "curved": true}
+	_draft = {"a": Vector2.ZERO, "b": Vector2.ZERO, "shape": "curve" if armed == "curve" else shape, "pts": [Vector2.ZERO], "pl": pl, "face": fc, "curved": true}
+	_say("Drawing on the curved side: the shape sits flat where you clicked")
+	return true
+
+
+## the light square of the tangent plane under the click while a shape is drawn on a curved face
+func _draw_tangent_square() -> void:
+	if not _draft.has("curved"):
+		return
+	var half := 14.0
+	for q in [_draft["a"], _draft["b"]]:
+		half = maxf(half, maxf(absf((q as Vector2).x), absf((q as Vector2).y)) * 1.3)
+	var pl: Dictionary = _draft["pl"]
+	var sq := PackedVector2Array()
+	for c in [Vector2(-half, -half), Vector2(half, -half), Vector2(half, half), Vector2(-half, half)]:
+		sq.append(m.cam.unproject_position(Part.to_world(pl, c)))
+	dots.draw_colored_polygon(sq, Color(1.0, 1.0, 1.0, 0.16))
+	sq.append(sq[0])
+	dots.draw_polyline(sq, Color(1.0, 1.0, 1.0, 0.55), 1.5, true)
+
+
+## bug4: the bar's Library button (built in easy_part.gd, _lib_bar_make)
+var lib_bar_btn: Button
+
+
+## the bar's widths with the Library button in it: at 1280 wide the row (with What to build at its end) must still fit the window, so the
+## short words take a little less and the part's title may be trimmed; wide, the Library button keeps its 112 px
+func _lib_bar_fit(tight: bool, narrow: bool) -> void:
+	if lib_bar_btn == null:
+		return
+	lib_bar_btn.custom_minimum_size.x = 92.0 if narrow else (100.0 if tight else 112.0)
+	lib_bar_btn.text = "Library"
+	if tight and not narrow:   # 1280 wide: with "Bring back your part" on the bar too (a saved part is there) the row must still end inside the window
+		dup_btn.custom_minimum_size.x = 100.0
+		export_btn.custom_minimum_size.x = 84.0
+		fix_btn.custom_minimum_size.x = 96.0
+		give_btn.custom_minimum_size.x = 130.0
+		use_scene_btn.custom_minimum_size.x = 140.0
+		if bar_home != null:
+			bar_home.custom_minimum_size.x = 88.0
+	var clip := tight and not narrow
+	for b in [use_scene_btn, give_btn, restore_btn]:   # the words trim with "..." (the tooltip has them whole); wide, nothing is trimmed
+		(b as Button).clip_text = clip or narrow
+		(b as Button).text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if (clip or narrow) else TextServer.OVERRUN_NO_TRIMMING
+	restore_btn.custom_minimum_size.x = 90.0 if clip else 190.0
+	if tight:
+		title_l.clip_text = true
+		title_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
