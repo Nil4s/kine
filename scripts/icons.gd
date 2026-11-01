@@ -79,6 +79,7 @@ const DRAW := {
 	"part_revolve": [["arc", Vector2(12, 12), 8, 2.0, 40, 320], ["seg", Vector2(12, 2.5), Vector2(12, 21.5), 1.3], ["seg", Vector2(17.5, 4), Vector2(20, 7.5), 1.8], ["seg", Vector2(20, 7.5), Vector2(15, 8.5), 1.8]],
 	"part_loft": [["box", Rect2(3, 4, 6, 6), 1.6], ["box", Rect2(15, 14, 6, 6), 1.6], ["seg", Vector2(3, 4), Vector2(15, 14), 1.4], ["seg", Vector2(9, 4), Vector2(21, 14), 1.4], ["seg", Vector2(9, 10), Vector2(21, 20), 1.4]],
 	"part_sweep": [["box", Rect2(2, 15, 7, 7), 1.6], ["seg", Vector2(5.5, 15), Vector2(5.5, 6), 1.4], ["seg", Vector2(5.5, 6), Vector2(19, 6), 1.4], ["seg", Vector2(19, 6), Vector2(19, 20), 1.4]],
+	"part_pipe3d": [["box", Rect2(2, 15, 7, 7), 1.6], ["seg", Vector2(5.5, 15), Vector2(5.5, 6), 1.4], ["seg", Vector2(5.5, 6), Vector2(19, 6), 1.4], ["seg", Vector2(19, 6), Vector2(19, 20), 1.4]],   # PIPE THROUGH POINTS (s215): the sweep drawing, a tube along a path
 	"part_pattern": [["box", Rect2(2, 9, 5, 5), 1.4], ["box", Rect2(9.5, 9, 5, 5), 1.4], ["box", Rect2(17, 9, 5, 5), 1.4]],   # PATTERN: three copies in a row
 	"part_canvas": [["box", Rect2(3, 4, 18, 14), 1.6], ["disc", Vector2(16, 8), 1.8], ["seg", Vector2(3, 16), Vector2(9, 10), 1.4], ["seg", Vector2(9, 10), Vector2(13, 14), 1.4], ["seg", Vector2(13, 14), Vector2(21, 8), 1.4]],
 	"part_measure": [["seg", Vector2(3, 18), Vector2(21, 6), 1.6], ["disc", Vector2(3, 18), 2.0], ["disc", Vector2(21, 6), 2.0], ["seg", Vector2(7, 14), Vector2(7, 19), 1.2]],
