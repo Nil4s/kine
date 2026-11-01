@@ -565,3 +565,4 @@ EXTRA="$EXTRA bug6:w"   # bug6: animation-only UI (grip panel, facing label) nev
 
 
 EXTRA="$EXTRA s224:w"   # s224: Realistic render (sky, sun, soft shadows, AO, reflections): Nice picture preset + VIEW > Realistic
+EXTRA="$EXTRA s217:w"   # Metal reads as metal in Expert, Easy Part, Nice picture and STAGE (same studio reflection sky as bug3)
