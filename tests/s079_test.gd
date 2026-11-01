@@ -95,11 +95,28 @@ func named(n: String) -> Button:
 
 
 ## every triangle corner of every body, in mm
+const KCad := preload("res://scripts/kcad.gd")
+var tess_defl := 0.0001   # the STL export's own tessellation (MeshExport.DEFLECT_M / ANGLE): the mesh that gets printed
+var tess_ang := 0.2
+
+
 func tris() -> Array:
 	var out: Array = []
-	for f in Part.body_faces(m.S.part):
-		for v in (f as PackedVector3Array):
-			out.append(v * 1000.0)
+	var w := {"keep": true, "inc": true}
+	for b in Part.replay(m.S.part, -1, w).get("ids", []):
+		var tm := KCad.tessellate(int(b), tess_defl, tess_ang)
+		if tm != null:
+			for si in tm.get_surface_count():
+				var arr := tm.surface_get_arrays(si)
+				var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+				var idx = arr[Mesh.ARRAY_INDEX]
+				if idx == null:
+					for v in verts:
+						out.append(v * 1000.0)
+				else:
+					for k in idx:
+						out.append(verts[int(k)] * 1000.0)
+		KCad.release(int(b))
 	return out
 
 
@@ -324,6 +341,13 @@ func _init() -> void:
 		var good: bool = near(float(w[0]), d, 0.05) and near(float(w[1]), float(d) - 2.0 * float(WALL[d]), 0.05) and bodies() == 1 and steps == 0 and near(float(bb[1].z) - float(bb[0].z), 300.0, 0.5)
 		if not good:
 			bad.append("%d: od %.3f id %.3f bodies %d steps %d len %.2f" % [d, w[0], w[1], bodies(), steps, float(bb[1].z) - float(bb[0].z)])
+	for tp in [[0.0003, 0.25], [0.0001, 0.2], [0.00002, 0.05]]:   # what the tessellation setting does to the 50 mm width (for the record)
+		tess_defl = tp[0]
+		tess_ang = tp[1]
+		var wq := widths_at(-150.0)
+		print("tess %s: 50 mm od %.3f id %.3f" % [str(tp), wq[0], wq[1]])
+	tess_defl = 0.0001
+	tess_ang = 0.2
 	ok(bad.is_empty(), "2 pipe 20 25 32 40 50 mm: outside and inside by ray cast within 0.05 of the PN16 table, 300 mm, one solid, one undo step each %s" % str(bad))
 	await shot("pipe50")
 
