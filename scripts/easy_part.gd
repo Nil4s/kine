@@ -1430,6 +1430,8 @@ func _rows_sync() -> void:
 	rows = []
 	if t != "" and not PartTemplates.T[t].get("parts", false):   # NSCREW2: a screw's numbers are the Parts chips, not sliders
 		for d in PartTemplates.T[t]["params"]:
+			if bool(d.get("chip", false)):   # s079: a pipe's size and fit are chips, not sliders
+				continue
 			var raw := bool(d.get("raw", false))   # NGEAR: a raw slider (teeth, a size step) keeps its own numbers and unit
 			var r := _make_row(String(d["label"]), float(d["lo"]) if raw else float(d["lo"]) / 10.0, float(d["hi"]) if raw else float(d["hi"]) / 10.0, float(d["step"]) if raw else float(d["step"]) / 10.0, d["words"], "tpl", String(d["k"]), String(d["unit"]) if raw else "cm", null, raw)
 			rows.append(r)
@@ -2138,6 +2140,9 @@ func _lib_press(cat: String) -> void:
 		_say("Wheels: press Wheel or Castor. It drops on the floor, with its axle hole")
 	elif cat == "Boards":   # p078makeacasef
 		_say("Boards: press your board. A case for it drops on the floor")
+	elif cat == "Pipes":   # s079
+		_say("Pipes: pick a kind and a size. It drops on the floor")
+		_scroll_into_view.call_deferred(pipes_box)
 	elif cat == "Wood boards":   # P080: the two wood chips open under the library
 		_say("Wood boards: pick one by its real size. It lies on the floor, flat")
 	elif cat == "Type it":   # p085typetobuil: a line of words builds a box
@@ -2220,6 +2225,9 @@ func _lib_box() -> PanelContainer:
 	vb.add_child(_text_row())   # FRIDAY 33: Text on a face, under Like a photo
 	vb.add_child(_label_row())   # s210: Label, under Like a photo
 	vb.add_child(_fit_row())   # s193: Fit to an object, on the Boards page
+	pipes_box = preload("res://scripts/easy_pipes.gd").new()   # s079: the Pipes page (scripts/easy_pipes.gd)
+	pipes_box.setup(self)
+	vb.add_child(pipes_box)
 	linkage_box = preload("res://scripts/easy_linkage.gd").new()   # p129linkages: the Linkage panel (4 bars, a drag knob) on the Hinges page, scripts/easy_linkage.gd
 	linkage_box.say_fn = _say   # p129linkages: its words go to the status line at the top
 	vb.add_child(linkage_box)
@@ -2237,6 +2245,12 @@ func _lib_icon(cat: String) -> ImageTexture:
 		return _board_icon(1)
 	if cat == "Wood boards":   # P080
 		return _wood_icon()
+	if cat == "Pipes":   # s079
+		var pi := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+		pi.fill(Color(0, 0, 0, 0))
+		pi.fill_rect(Rect2i(3, 0, 4, 12), Tok.c("text"))
+		pi.fill_rect(Rect2i(3, 9, 13, 4), Tok.c("text"))
+		return ImageTexture.create_from_image(pi)
 	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 	var col := Tok.c("text")
@@ -2596,6 +2610,9 @@ func _screw_sync() -> void:
 		bo.set_pressed_no_signal(not bcur.is_empty() and int(bcur.get("board", 0)) == bd)
 		m._grey(bo, Part.why_not() if not Part.available() else "")
 	_wood_sync()   # P080 WOOD BOARDS: the wood chips and their cut readout follow the same state
+	if pipes_box != null:   # s079
+		pipes_box.visible = parts_open and lib_cat == "Pipes"
+		pipes_box.sync()
 
 
 ## P069 BEARINGS: the three bearing sizes, in the order of PartTemplates.BEARING_SIZE (608, 625, 688)
@@ -7596,3 +7613,7 @@ func _fit_row() -> HBoxContainer:
 	fit_row = preload("res://scripts/easy_fit.gd").new()
 	fit_row.setup(self)
 	return fit_row
+
+
+# ---------------------------------------------------------------- s079: Pipes (Parts > Pipes; scripts/easy_pipes.gd, scripts/build/pipe_parts.gd)
+var pipes_box: VBoxContainer = null
