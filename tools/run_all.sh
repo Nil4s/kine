@@ -529,8 +529,36 @@ EXTRA="$EXTRA s140:w"   # s140 (Friday plan 140): Pose library by mood: moods me
 
 
 EXTRA="$EXTRA s094:w"   # p094: Easy Part MAKE buttons show a looping 14-frame clip tooltip (assets/tips/easy, made by tools/make_easy_tips.gd)
+EXTRA="$EXTRA s155:w"   # s155: Sculpt page Make it a solid part (needs KineCAD v4)
+EXTRA="$EXTRA s155b:w"   # s155b: KineCAD 5 kernel solid offset (volumes vs closed forms, hole 8.00/12.00, timing vs the 26-copy path; tests/s155b_test.gd; needs the CAD DLL)
+
+
+
+EXTRA="$EXTRA s211:w"   # s211: Draw on a curved face (cylinder, sphere): the sketch sits on the tangent plane at the click; tests/s211_test.gd
+
+EXTRA="$EXTRA fpen:w"   # FPEN: a beginner builds a pen from the BUILDING card by real clicks (parked test from w4-fpenyrfix; bars 5 CLIP and 7 UNDO need Draw on a curved face, s211); tests/fpen_test.gd
+
+
+
+EXTRA="$EXTRA bug3:w"   # bug3: a metal block is lit by a studio reflection sky, not black
+
+
+EXTRA="$EXTRA bug7:w"   # bug7: Examples only lists examples on the start screen (no mode switch), Back to my projects, 15 Building examples built by the app's own builders (scenes/examples, tools/gen_start_examples.gd)
+
+
+
+EXTRA="$EXTRA bug4:w"   # bug4 (Nick 11-01 "no access to our library"): a Library button in the Easy Part bar (2 clicks from the start screen), a Parts library button on the 3D BUILDING start card; tests/bug4_test.gd
+
+
+EXTRA="$EXTRA bug2:w"   # bug2: Easy Part opens with its floor grid at least 15 pct of the frame (looking down at -45 deg), Top / Side unchanged
+
+
 
 EXTRA="$EXTRA fdice:w"   # FDICE: a beginner builds a 40 mm die from the BUILDING card by real clicks: cube, Round the edges, 21 pips (round drawn on each face, Cut a hole, 2 mm deep); one Undo takes a pip away (tests/fdice_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA fmonitor:w"   # FMONITOR: a beginner from the BUILDING card builds a computer monitor by real clicks: a thin screen, Round the edges, Dark colour, a neck, a base; the oval base is drawn with the Oval chip (tests/fmonitor_test.gd)
 EXTRA="$EXTRA fhanger:w"   # FHANGER: a beginner from the BUILDING card builds a clothes hanger by real clicks: a round disc, a Curvy line wire, Pull along, a Curvy hook, Pull along, one Undo (tests/fhanger_test.gd)
 EXTRA="$EXTRA fstool:w"   # FSTOOL: a beginner from the BUILDING card builds a three-legged stool by real clicks: a round seat, a leg under it, Repeat it in a Ring (three legs), a ring brace (bar 4b is a recorded dead end: no way to lower it to leg height) (tests/fstool_test.gd)
+
+
+
+EXTRA="$EXTRA bug6:w"   # bug6: animation-only UI (grip panel, facing label) never shows in 3D BUILDING; no stray divider bars / empty buttons; top rows clear at 3 sizes; tests/bug6_test.gd

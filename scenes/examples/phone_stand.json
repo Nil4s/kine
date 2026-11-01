@@ -1,0 +1,136 @@
+{
+	"cards": [],
+	"floor_body": false,
+	"fps": 30,
+	"kind": "building",
+	"length_s": 0.0,
+	"name": "Phone stand",
+	"natural": true,
+	"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other.",
+	"on_floor": true,
+	"part": {
+		"features": [
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							0.0,
+							-80.0
+						],
+						"b": [
+							100.0,
+							0.0
+						],
+						"k": "rect"
+					}
+				],
+				"id": "f1",
+				"label": "Base plate",
+				"name": "Sketch1",
+				"plane": "top",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 6.0,
+				"id": "f2",
+				"label": "Base plate",
+				"name": "Extrude1",
+				"op": "new",
+				"sketch": "f1",
+				"t": "extrude"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							62.0,
+							-80.0
+						],
+						"b": [
+							74.0,
+							0.0
+						],
+						"k": "rect"
+					}
+				],
+				"id": "f3",
+				"label": "Front lip",
+				"name": "Sketch2",
+				"plane": "top",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 18.0,
+				"id": "f4",
+				"label": "Front lip",
+				"name": "Extrude2",
+				"op": "join",
+				"sketch": "f3",
+				"t": "extrude"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							0.0,
+							6.0
+						],
+						"b": [
+							50.0,
+							6.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							50.0,
+							6.0
+						],
+						"b": [
+							0.0,
+							100.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							0.0,
+							100.0
+						],
+						"b": [
+							0.0,
+							6.0
+						],
+						"k": "line"
+					}
+				],
+				"id": "f5",
+				"label": "Back wedge",
+				"name": "Sketch3",
+				"plane": "front",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 80.0,
+				"id": "f6",
+				"label": "Back wedge",
+				"name": "Extrude3",
+				"op": "join",
+				"sketch": "f5",
+				"t": "extrude"
+			}
+		],
+		"name": "Phone stand",
+		"recipe": "phone",
+		"seq": 6,
+		"version": 1
+	},
+	"pin": true,
+	"scene": "Phone stand"
+}

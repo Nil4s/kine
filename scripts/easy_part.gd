@@ -65,6 +65,7 @@ func build(root: Control) -> void:
 	fix_btn.expand_icon = false
 	fix_btn.custom_minimum_size.x = 110.0
 	row.add_child(EasySearch.bar_button(m))   # s097: the search icon (Ctrl+K)
+	row.add_child(_lib_bar_make())   # bug4: Library, a big labelled button in the always-visible bar (opens the Parts library page)
 	row.add_child(undo_btn)
 	row.add_child(redo_btn)
 	row.add_child(dup_btn)
@@ -2640,6 +2641,7 @@ func _screw_sync() -> void:
 			b.set_pressed_no_signal(not cur.is_empty() and int(cur.get("d", 0)) == d and int(cur.get("L", 0)) == L)
 			m._grey(b, Part.why_not() if not Part.available() else "")
 	parts_btn.set_pressed_no_signal(parts_open)
+	_lib_bar_sync()   # bug4
 	_head_sync(cur)   # P061SCREWHEADS: the head chips and the size tips follow the screw on the floor
 	# FRIDAY 73: the bracket chips show while Brackets is open or a bracket is the part; the pressed one is the shape on the floor
 	var kind := int(cur.get("kind", 0)) if _tpl() == "bracket" else 0
@@ -3217,6 +3219,10 @@ func _face_hole(rec: Dictionary) -> String:
 	var pid := String(sk["plane"])
 	var out := float(Part.feature(rec, pid)["out"])   # +1 / -1: the face's normal side (a pull goes this way)
 	var before := Part.replay(rec)
+	var tan_pl := String(Part.feature(rec, pid).get("from", "")) == "tan"
+	if tan_pl:
+		_tan_sink(rec, Part.feature(rec, pid), sk)
+		Part.feature(rec, pid)["sink"] = 0.0   # s211: a cut needs no sink: a convex face falls away from its tangent plane, so the tool already starts outside it
 	var pl := Part.resolve_plane(rec, pid)
 	var tris := _tris_local(before, pl)
 	var lo := Vector2(INF, INF)
@@ -3231,9 +3237,12 @@ func _face_hole(rec: Dictionary) -> String:
 	for i in 3:
 		for j in 3:
 			var p := Vector2(lerpf(lo.x, hi.x, i / 2.0), lerpf(lo.y, hi.y, j / 2.0))
-			depth = minf(depth, _first_inside(tris, p, out))
+			var dd := _first_inside(tris, p, out)
+			depth = (minf(depth, dd) if not tan_pl else (dd if depth == INF else (depth if dd == INF else maxf(depth, dd))))   # s211: a curved face is cut as deep as its middle goes
 	if depth == INF:
 		return "The shape is not on the solid: nothing was cut"
+	if tan_pl:
+		depth = minf(depth, maxf(5.0, maxf(hi.x - lo.x, hi.y - lo.y)))   # s211: a hole in a curved face is as deep as the shape is wide (the slider changes it); the far side's pole or tangent is no place for the tool to end
 	var sgn := -out   # the cut goes INTO the body, against the face's normal side
 	var f := Part.new_feature(rec, "extrude", {"sketch": sk["id"], "dist": sgn * snappedf(depth + 0.5, 0.1), "both": false, "op": "cut"})
 	rec["features"].append(f)
@@ -3704,6 +3713,8 @@ func _process(_dt: float) -> void:
 	_upright_sync(on and (armed == "draw" or armed == "curve") and _side_on())
 	_scale_sync(on)   # p110realsizech: the reference beside the part follows it while Easy is on
 	bar.visible = on
+	if m.ui_top_bar != null and m.easy != null and not m.easy.on:
+		m.ui_top_bar.visible = not on   # bug6: Expert's strip (KINE, Home, View, What to build) lay under this bar: two Home buttons, a button off the right edge
 	make_box.visible = on
 	panel.visible = on
 	hint.visible = on
@@ -3762,7 +3773,7 @@ func _process(_dt: float) -> void:
 	paint_btn.set_pressed_no_signal(paint_on)
 	suggest_row.visible = on and _suggest_on()   # P092: after a Pull it up the two next-step chips show in the panel, under the slider rows
 	var bulge_on := on and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # plan 23: Pinch / Bulge a face is offered under any solid
-	tilt_box.visible = on and (armed == "" or bulge_pick) and (along or tilt_on or draft_on or swing_on or bulge_on or motion_on) and not _fill_open() and not (hpat_box != null and hpat_box.visible)   # lay1: the open Holes Row / Around / Grid sliders are as tall as the low-left chips too; s051: the open Fill the face box is as tall as the low-left chips: they would sit over its Square chip and sliders
+	tilt_box.visible = on and not _tilt_cover and (armed == "" or bulge_pick) and (along or tilt_on or draft_on or swing_on or bulge_on or motion_on) and not _fill_open() and not (hpat_box != null and hpat_box.visible)   # lay1: the open Holes Row / Around / Grid sliders are as tall as the low-left chips too; s051: the open Fill the face box is as tall as the low-left chips: they would sit over its Square chip and sliders
 	_overhang_sync(on)
 	_com_sync(on)   # P128: the centre-of-mass dot
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
@@ -4141,6 +4152,8 @@ func _draft_move(p: Vector2) -> void:
 	var g: Variant = _ground(p, _draft.get("pl", {}))
 	if g != null:
 		_draft["b"] = g
+		if _draft.has("curved") and String(_draft["shape"]) in CURVED_CENTRED:
+			_draft["a"] = -(g as Vector2)   # s211: on a curved face the shape grows from the click (its middle), so it sits flat on it
 		var sh := String(_draft["shape"])
 		if (sh == "curve" or sh == "line") and not _draft.has("clicks") and (g as Vector2).distance_to((_draft["pts"] as Array).back()) >= 5.0:
 			(_draft["pts"] as Array).append(g)
@@ -4238,10 +4251,13 @@ func _start_draft(p: Vector2) -> bool:
 			_draft = {"a": gr, "b": gr, "shape": "pointy", "pts": [gr], "pl": ur["pl"], "face": ur}
 			_say("Drawing a roof on the box top, through the middle")
 			return true
+	if _start_curved(p, true):
+		return true   # s211: a cylinder or a sphere under the press: the tangent plane there
 	var fc := _face_hit(p)   # DRAW ON A FACE: a press on a flat face of a solid puts the sketch on that face
 	# FFLAT8: a press on the top edge of a solid whose floor point lies beside it draws on the floor (beside the solid); the top face stays the fallback
 	# when the floor shape then lies over the solid (_draft_end)
 	var top_fc: Dictionary = fc if _press_beside_top(p, fc) else {}
+	var no_flat := fc.is_empty()   # s211: nothing flat under the press: a curved face may be
 	if not top_fc.is_empty():
 		fc = {}
 	if not fc.is_empty():
@@ -4250,6 +4266,8 @@ func _start_draft(p: Vector2) -> bool:
 			_draft = {"a": fg, "b": fg, "shape": "curve" if armed == "curve" else shape, "pts": [fg], "pl": fc["pl"], "face": fc}
 			_say("Drawing on that face")
 			return true
+	if no_flat and top_fc.is_empty() and _start_curved(p):
+		return true
 	if _side_on():
 		var up := _upright()
 		var gu: Variant = _ground(p, up["pl"])
@@ -4335,6 +4353,8 @@ func _finish_draw() -> void:
 	var sh := String(_draft["shape"])
 	var fc: Dictionary = _draft.get("face", {})
 	var pl: Dictionary = _draft.get("pl", Part.plane("top"))
+	if _draft.has("curved") and sh in CURVED_CENTRED:
+		a = -b   # s211: centred on the click
 	_draft = {}
 	var ent := {}
 	var ents: Array = []
@@ -4409,6 +4429,10 @@ func _finish_draw() -> void:
 func _face_plane(rec: Dictionary, fc: Dictionary) -> String:
 	if fc.is_empty():
 		return "top"
+	if fc.has("tan"):   # s211 DRAW ON A CURVED FACE: one plane feature, the tangent plane at the click
+		var tf0 := Part.new_feature(rec, "plane", (fc["tan"] as Dictionary).duplicate(true))
+		rec["features"].append(tf0)
+		return String(tf0["id"])
 	if bool(fc.get("through", false)):   # UPRIGHT THROUGH THE MIDDLE: a plane with no "out" (the pull goes both ways)
 		var tf := Part.new_feature(rec, "plane", {"from": String(fc["base"]), "mm": float(fc["mm"]), "through": true})
 		rec["features"].append(tf)
@@ -4814,7 +4838,11 @@ func _steps_box() -> PanelContainer:
 	scrub_lbl.name = "easypart_scrub_label"
 	scrub_lbl.add_theme_font_size_override("font_size", 13)
 	scrub_lbl.add_theme_color_override("font_color", Tok.c("info"))
-	v.add_child(scrub_lbl)
+	scrub_lbl.clip_text = true
+	scrub_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	scrub_lbl.custom_minimum_size.x = 130.0
+	scrub_lbl.tooltip_text = "Drag the slider back to see the part after fewer steps"
+	sr.add_child(scrub_lbl)   # bug5: on the slider's row (one line less: the foot of the column is shorter, the panel keeps its room)
 	var sc := ScrollContainer.new()
 	sc.name = "easypart_steps_scroll"
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -4875,17 +4903,21 @@ func _sheet_press() -> void:
 func _printing_box() -> PanelContainer:
 	var box := PanelContainer.new()
 	box.name = "easypart_printing"
-	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 4))
 	box.visible = false
-	var v := VBoxContainer.new()
+	var v := HBoxContainer.new()   # bug5: the two chips side by side (one row, half the height): the column's foot stays small
 	v.add_theme_constant_override("separation", 4)
 	box.add_child(v)
 	lay_btn = _big_btn("easypart_lay_flat", "Lay it flat", "Turn the part so the face that needs the least support under it sits on the floor", _lay_press)
-	lay_btn.custom_minimum_size = Vector2(PW - 40.0, 40)
+	lay_btn.custom_minimum_size = Vector2((PW - 40.0) * 0.5, 30)
+	lay_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lay_btn.add_theme_font_size_override("font_size", 14)
 	v.add_child(lay_btn)
 	paint_btn = _big_btn("easypart_show_overhangs", "Show overhangs", "Paint red the faces a printer needs support under (they point down more than 45 degrees)", _paint_press)
 	paint_btn.toggle_mode = true
-	paint_btn.custom_minimum_size = Vector2(PW - 40.0, 40)
+	paint_btn.custom_minimum_size = Vector2((PW - 40.0) * 0.5, 30)
+	paint_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	paint_btn.add_theme_font_size_override("font_size", 14)
 	v.add_child(paint_btn)
 	return box
 
@@ -8143,3 +8175,32 @@ func _kt_letter(k: InputEventKey) -> bool:
 		return false
 	_make(String(KT_LETTERS[int(k.keycode)]))
 	return true
+
+
+## BUG4 (Nick 11-01: "I have no access to our library with things yet"): the Parts chip sits in the FOOT of the scrolling side panel, below the
+## fold at 1280 x 720 and tiny (50 x 34). Library is a big labelled button in the always-visible bar (62 px tall) that does what Parts does:
+## opens the Parts library page (categories, Screws open) at the top of the panel, and a second press shuts it. No new row: it is a bar slot.
+func _lib_bar_make() -> Button:
+	lib_bar_btn = _bar_btn("Library", "Library: screws, boards, pipes, wood, gears and more. Press a part and it drops on the floor. Press again to shut it", _lib_bar_press)
+	lib_bar_btn.name = "easypart_library_btn"
+	lib_bar_btn.toggle_mode = true
+	lib_bar_btn.icon = Icons.sized("part_part", 22)
+	lib_bar_btn.expand_icon = false
+	lib_bar_btn.custom_minimum_size.x = 112.0
+	return lib_bar_btn
+
+
+func _lib_bar_press() -> void:
+	_parts_press()
+	if parts_open:
+		_lib_scroll_top.call_deferred()
+
+
+func _lib_scroll_top() -> void:
+	if panel != null and panel.get_child_count() > 0 and panel.get_child(0) is ScrollContainer:
+		(panel.get_child(0) as ScrollContainer).scroll_vertical = 0
+
+
+func _lib_bar_sync() -> void:
+	if lib_bar_btn != null:
+		lib_bar_btn.set_pressed_no_signal(parts_open)

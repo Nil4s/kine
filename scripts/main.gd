@@ -252,7 +252,7 @@ const RIBBON_TIPS := {"BODY": "make the person: height, mass and proportions as 
 ## The caption is a menu of its group's tools by full name. A tool not named here stays after the groups
 const RIBBON_GROUPS := {
 	"MODEL": [["MESH", ["Test cube", "Edit body", "Save", "Save to body", "Open...", "Use in scene"]], ["MOVE", ["Move", "Rotate", "Scale"]], ["EDIT", ["Extrude", "Inset", "Loop cut", "Knife", "Bevel"]], ["SHAPE", ["Validate", "Repair", "Proportional", "Modifiers"]]],
-	"SCULPT": [["START", ["Test sphere", "Sculpt the body", "Voxel remesh"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
+	"SCULPT": [["START", ["Test sphere", "Sculpt the body", "Voxel remesh", "Make it a solid part"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
 	"SURFACE": [["COLOUR", ["Paint", "Material from photo"]], ["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]]],
 	"BUILD": [["DRAW", ["Room", "Wall", "Pull"]], ["ADD", ["Opening", "Floor", "Roof", "Piece"]], ["SAY", ["Words"]], ["SHEET", ["Blueprint"]],
 		["PART", ["Part"]], ["SKETCH", ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]], ["CREATE", ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine"]], ["MODIFY", ["Fillet", "Chamfer", "Shell", "Appearance", "Offset face", "Draft"]], ["VIEW", ["Measure", "Section"]], ["DONE", ["Finish sketch"]]],   # the last five are the Part workspace's (scripts/build/part_ui.gd)
@@ -5270,7 +5270,7 @@ func _refresh() -> void:
 	var c2: Array = B.cap(sel)
 	tag.visible = not clean and not quiet and not mesh_pg
 	for at in axis_tags:
-		at.visible = not (easy != null and easy.on) and not mesh_hide
+		at.visible = not (easy != null and easy.on) and not mesh_hide and not _hides("figure")   # bug6: "Z he faces this way" is the fighter's, never a house's
 	for sm in stage_marks:
 		(sm as Node3D).visible = not _hides("figure")
 	for dj in dots:
@@ -5471,7 +5471,7 @@ func _axis_labels_fit(vs: Vector2) -> void:
 	var floor_y := vs.y - bottom_h - LINE_H - 8.0
 	for c in stage_root.get_children():
 		if c is Label3D and String(c.name).begins_with("axis_"):
-			c.visible = not cam.is_position_behind((c as Label3D).global_position) and cam.unproject_position((c as Label3D).global_position).y < floor_y
+			c.visible = not _hides("figure") and not cam.is_position_behind((c as Label3D).global_position) and cam.unproject_position((c as Label3D).global_position).y < floor_y
 
 
 ## THE CUBE'S VIEWS (round 22, GATES CC2, UPGRADES #22): look FROM direction d (the camera sits at target + d * dist),
@@ -10839,7 +10839,7 @@ func _blade_card() -> void:
 
 ## the blade sliders read the body back (no signal); shown while a weapon is in a hand
 func _blade_sync() -> void:
-	var held: bool = B != null and B.wep_on and B.wep_hand != ""
+	var held: bool = B != null and B.wep_on and B.wep_hand != "" and not _hides("figure")   # bug6: a house has no fighter, so no blade rows
 	for k in ui_blade:
 		var d: Dictionary = ui_blade[k]
 		if not is_instance_valid(d["box"]):
@@ -10934,7 +10934,7 @@ func _hands_refresh() -> void:
 	var arm_pick := sel.begins_with("hand") or sel.begins_with("upperarm") or sel.begins_with("lowerarm")
 	var easy_on: bool = easy != null and easy.on
 	if ui_hands_panel != null and is_instance_valid(ui_hands_panel):
-		ui_hands_panel.visible = held and not ExpertPages.PAGES.has(cur_page) and (not easy_on or arm_pick)   # the pose pages only
+		ui_hands_panel.visible = held and not ExpertPages.PAGES.has(cur_page) and (not easy_on or arm_pick) and not _hides("figure")   # the pose pages only; bug6: never on a page that hides the figure (a 3D BUILDING project keeps the fighter's weapon state from ANIMATION)
 		# the view's bottom RIGHT, over the floor, above the status line (under the top bar it covered the head; at the
 		# left it met the "Click a part" tip)
 		var vs := get_viewport().get_visible_rect().size
@@ -10963,7 +10963,7 @@ func _hands_refresh() -> void:
 		if not is_instance_valid(d["box"]):
 			continue
 		if d["easy"]:
-			(d["lock"] as Button).visible = sel != "" and not (sel in Body.WEAPON)
+			(d["lock"] as Button).visible = sel != "" and not (sel in Body.WEAPON) and not _hides("figure")
 			_set_label(d["lock"], "Unlock this part" if locked_parts.has(sel) else "Lock this part")
 			(d["lock"] as Button).set_pressed_no_signal(locked_parts.has(sel))
 			continue
@@ -15975,6 +15975,7 @@ func _fit_top() -> void:
 	var rest: Array = RIBBON_REST.get(_ribbon_tab, [])
 	for b in ui_ribbon[_ribbon_tab].get_children():
 		(b as Control).visible = (bld == null or bld.part == null or bld.part.ribbon_shows(b, _ribbon_tab)) and not (b is Button and label_of(b) in rest)   # BUILD: the house tools or the Part workspace's, never both; RIBBON_REST: under the caption only
+	_tidy_dividers()
 	var tools: Array = ui_ribbon[_ribbon_tab].get_children().filter(func(c): return c is Button and (c as Control).visible)
 	ui_more.visible = false
 	_more_tools = []
@@ -15994,11 +15995,7 @@ func _fit_top() -> void:
 		(tools[k] as Control).visible = false
 		_more_tools.push_front(tools[k])
 		k -= 1
-	var row: Array = ui_ribbon[_ribbon_tab].get_children()
-	for i in row.size():   # a group divider after the last shown tool goes too
-		if row[i] is VSeparator:
-			var after: Array = row.slice(i + 1).filter(func(c): return c is Button and (c as Control).visible)
-			(row[i] as Control).visible = not after.is_empty()
+	_tidy_dividers()
 	if _more_tools.is_empty():
 		ui_more.visible = false
 		return
@@ -16006,6 +16003,27 @@ func _fit_top() -> void:
 	pm.clear()
 	for i in _more_tools.size():
 		pm.add_item(label_of(_more_tools[i]), i)
+
+
+## bug6: a group divider of the shown ribbon row shows only between two shown tools (never doubled, first or last: those were
+## the "empty slots" before House name), and only the dividers of the set the row shows now (house tools or the Part workspace's)
+func _tidy_dividers() -> void:
+	var row: Array = ui_ribbon[_ribbon_tab].get_children()
+	var prev_tool := false
+	var pending: Control = null
+	for c in row:
+		var ctl := c as Control
+		if ctl is VSeparator:
+			var mine: bool = bld == null or bld.part == null or bld.part.ribbon_shows(ctl, _ribbon_tab)
+			ctl.visible = false
+			if mine and prev_tool:
+				pending = ctl
+				prev_tool = false
+		elif ctl.visible:
+			if pending != null:
+				pending.visible = true
+				pending = null
+			prev_tool = true
 
 
 ## a tool picked from More: the same as pressing it (a menu tool opens its own menu where More is)

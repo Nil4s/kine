@@ -237,7 +237,8 @@ func _init() -> void:
 		await click_slider_frac(sl, 2.0 / 6.0)
 	await idle(20)
 	var h2 := hole_dia_mm()
-	ok(h2 >= 11.7 and h2 <= 12.05, "5d -1 mm: the hole measures %.2f mm (true offset 12.0; the nearest vertex of the faceted wall reads 0.2 low at most)" % h2)
+	var kern: bool = load("res://scripts/kcad.gd").has_offset()   # s155b: KineCAD 5 moves the faces exactly, so the bar is 0.05 mm; the 26-copy fallback (older DLL) keeps the old one
+	ok(h2 >= (11.95 if kern else 11.7) and h2 <= 12.05, "5d -1 mm: the hole measures %.2f mm (true offset 12.0; the nearest vertex of the faceted wall reads 0.2 low at most)" % h2)
 
 	print("s018: %d fail" % fails)
 	quit(fails)

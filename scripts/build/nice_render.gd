@@ -170,6 +170,7 @@ static func draw(host: Node, rec: Dictionary, size := SIZE) -> Image:
 	env.ambient_light_color = Color(0.9, 0.93, 1.0)
 	env.ambient_light_energy = 0.4
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	Shading.studio_reflection(env)   # bug3: the same reflection sky as the build view, so a metal part is not black in the picture
 	var we := WorldEnvironment.new()
 	we.environment = env
 	world.add_child(we)
