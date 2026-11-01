@@ -617,7 +617,7 @@ func _process(dt: float) -> void:
 func _prop_bar_update() -> void:
 	var n: int = m.S.props.size()
 	var lib: bool = m.ui_library != null and m.ui_library.visible
-	var held: bool = m.B.wep_on   # a weapon in his hand: the bar's top row names it and offers Drop it, with or without props
+	var held: bool = m.B.wep_on and not m._hides("figure")   # bug6: a house has no fighter to hold it (a Part in his hand still shows him); a weapon in his hand: the bar's top row names it and offers Drop it, with or without props
 	_pbar.visible = m.easy.on and (n > 0 or held) and not lib and not _gen_on and not _copying()
 	if not _pbar.visible:
 		return

@@ -558,3 +558,7 @@ EXTRA="$EXTRA fdice:w"   # FDICE: a beginner builds a 40 mm die from the BUILDIN
 EXTRA="$EXTRA fmonitor:w"   # FMONITOR: a beginner from the BUILDING card builds a computer monitor by real clicks: a thin screen, Round the edges, Dark colour, a neck, a base; the oval base is drawn with the Oval chip (tests/fmonitor_test.gd)
 EXTRA="$EXTRA fhanger:w"   # FHANGER: a beginner from the BUILDING card builds a clothes hanger by real clicks: a round disc, a Curvy line wire, Pull along, a Curvy hook, Pull along, one Undo (tests/fhanger_test.gd)
 EXTRA="$EXTRA fstool:w"   # FSTOOL: a beginner from the BUILDING card builds a three-legged stool by real clicks: a round seat, a leg under it, Repeat it in a Ring (three legs), a ring brace (bar 4b is a recorded dead end: no way to lower it to leg height) (tests/fstool_test.gd)
+
+
+
+EXTRA="$EXTRA bug6:w"   # bug6: animation-only UI (grip panel, facing label) never shows in 3D BUILDING; no stray divider bars / empty buttons; top rows clear at 3 sizes; tests/bug6_test.gd
