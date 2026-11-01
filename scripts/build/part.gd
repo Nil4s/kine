@@ -63,11 +63,12 @@ extends RefCounted
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
 const PBULGE := preload("res://scripts/build/part_bulge.gd")   # plan 23: Pinch / Bulge a face
-const GEAR_DRIVE := preload("res://scripts/gear_drive.gd")   # s124: the Gear pair turned for the view
+const GEAR_DRIVE := preload("res://scripts/gear_drive.gd")
+const PFIT := preload("res://scripts/build/part_fit.gd")   # s193: Fit to an object (a holder / case sunk with a phone scan)   # s124: the Gear pair turned for the view
 const SKIN_MM := 0.3   # NROUNDFILTER: a face centre this close (mm) to the box's outside counts as on the skin
 const VERSION := 1
 const RING_MIDDLE := 100.0   # mm: a Ring piece whose centre is closer than this to the middle (not on it) goes round the middle
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "lattice"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "lattice", "fitobj"]
 const OVERHANG_COS := 0.7071   # p113: a face pointing down more than 45 degrees needs support when printed
 const BED_MM := 0.1            # p113: a face this close (mm) to the lowest point of the part is on the floor, not an overhang
 const DRAFT_DIRS := {"x": Vector3(1, 0, 0), "y": Vector3(0, 1, 0), "z": Vector3(0, 0, 1)}
@@ -568,6 +569,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var e := _split(bodies, f, looks) if String(f["t"]) == "split" else _shell(bodies, f)
 				if e != "":
 					errs[id] = e
+			"fitobj":   # s193: a holder or a two-half case with the scanned object's shape sunk into it (scripts/build/part_fit.gd)
+				var fo := PFIT.apply(bodies, f)
+				if fo != "":
+					errs[id] = fo
 			"lattice":   # p208latticeinf: thin bars inside a hollow box (its own function: _lattice)
 				var le := _lattice(bodies, f)
 				if le != "":
