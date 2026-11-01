@@ -1594,6 +1594,8 @@ const CURVED_CENTRED := ["box", "pointy", "hex", "poly", "oval", "star", "gear",
 func _start_curved(p: Vector2, strict := false) -> bool:
 	if not Part.available() or m.cam == null or pu == null:
 		return false
+	if armed == "curve":
+		return false   # a Curvy line is a path (Pull along) or an outline on the working plane: a press that starts on a pipe (the hook from the wire) stays on that plane (fhanger)
 	var cb: Basis = m.cam.global_transform.basis
 	var ro: Vector3 = m.cam.project_ray_origin(p)
 	var rd: Vector3 = m.cam.project_ray_normal(p)
