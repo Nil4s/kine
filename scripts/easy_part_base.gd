@@ -67,6 +67,7 @@ var bar_home: Button = null   # the bar's Home button (narrowed at 1024 wide, se
 var bar_row: HBoxContainer   # the bar's row: Part's "What to build" moves in here while Easy Part is on (part_ui._place_reopen)
 var make_box: HBoxContainer
 var make_btns := {}
+var tips: EasyTips   # p094: the hover clips on the MAKE buttons
 var view_box: PanelContainer   # P107 FITVIEW: the view buttons' box (a column at the top right of the clear view, left of the panel)
 var hint: PanelContainer
 var hint_l: Label

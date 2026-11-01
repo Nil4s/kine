@@ -121,6 +121,9 @@ func build(root: Control) -> void:
 		b.pressed.connect(_tap_click.bind(String(mk[0])))
 		make_box.add_child(b)
 		make_btns[mk[0]] = b
+	tips = EasyTips.new()   # p094: a 0.6 s hover on a MAKE button shows a small looping clip of the action
+	tips.name = "easy_tips"
+	tips.attach(self, m)
 	# the one sentence, and the shape choice that goes with Draw shape
 	hint = _pill("easypart_hint", 19)
 	hint_l = hint.get_child(0)

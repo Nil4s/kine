@@ -526,3 +526,6 @@ EXTRA="$EXTRA s137:w"   # plan 137: impact frames on a strike (hit-stop slider, 
 
 
 EXTRA="$EXTRA s140:w"   # s140 (Friday plan 140): Pose library by mood: moods measured from the body (tired/proud/scared/happy/angry/sad/calm/excited), Poses search words + synonyms, mood chips in the Pose library; tests/s140_test.gd
+
+
+EXTRA="$EXTRA s094:w"   # p094: Easy Part MAKE buttons show a looping 14-frame clip tooltip (assets/tips/easy, made by tools/make_easy_tips.gd)
