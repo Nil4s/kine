@@ -47,7 +47,12 @@ func _hole_mode(mode: String, lip := false, rebuild := false, fit_set := -1.0) -
 	var snap := _rec().duplicate(true)
 	_begin("Change fit" if fit_set >= 0.0 else ("Hollow with a lid" if mode == "lid" else ("Hollow inside" if mode == "hollow" else "Cut a hole")))
 	var rec: Dictionary = (hole_base if not hole_base.is_empty() else _without_screw_hole(_rec())).duplicate(true)   # P082: after Change the part, the chips rebuild from the record without its screw hole
-	rec["fit_mm"] = fit_set if fit_set >= 0.0 else _fit_of(snap)   # s202: the part's fit survives the rebuild
+	if fit_set >= 0.0:   # s202: the part's fit survives the rebuild; fix102: a part whose user never chose a fit stays "Exact"
+		rec["fit_mm"] = fit_set
+	elif snap.has("fit_mm"):
+		rec["fit_mm"] = snap["fit_mm"]
+	else:
+		rec.erase("fit_mm")
 	m.S.part = rec
 	var why := ""
 	if mode.begins_with("screw"):   # p030countersun: a screw chip (screw3 .. screw6) cuts the hole for that screw
@@ -351,7 +356,7 @@ func _hollow_lid(rec: Dictionary, snap := false) -> String:
 	var z0 := bb.position.z / Part.MM
 	var z1 := bb.end.z / Part.MM
 	var top := bb.end.y / Part.MM
-	var ins_o := HOLLOW_MM + _fit_of(rec)   # the lip's outer face: the part's fit (s202: Slides = 0.2 mm) inside the wall
+	var ins_o := HOLLOW_MM + float(rec.get("fit_mm", 0.2))   # the lip's outer face: the part's fit (s202: Slides = 0.2 mm) inside the wall
 	var ins_i := ins_o + 1.0              # the lip's inner face: a 1 mm ring
 	var sp := Part.new_feature(rec, "split", {"plane": "top", "at": top - LID_MM, "keep": 0})   # bodies: [the top slice (the lid), the box]
 	rec["features"].append(sp)
@@ -2127,12 +2132,12 @@ func _fill_open() -> bool:
 
 
 ## s202 SMART TOLERANCES (Friday plan 202): "How should it fit?" One chip on the Cut a hole panel cycles Tight (0.0 mm) / Snug (0.1) /
-## Slides (0.2, the default) / Loose (0.4): the clearance on each side between a hole and what goes in it. A Through hole is its size
+## Slides (0.2) / Loose (0.4), and Exact (0.0, the default until one is chosen): the clearance on each side between a hole and what goes in it. A Through hole is its size
 ## (the Hole size slider, the peg) + the clearance on every side; a lid's lip sits that far inside the box's opening. The choice is
 ## remembered per part (rec["fit_mm"]); changing it is ONE undo step and re-cuts the hole / lid on the screen at the new fit
 const SMARTFIT_NAMES := ["Tight", "Snug", "Slides", "Loose"]
 const SMARTFIT_MM := [0.0, 0.1, 0.2, 0.4]
-const SMARTFIT_DEFAULT := 0.2
+const SMARTFIT_DEFAULT := 0.0   # fix102: Exact: a hole is the size the user typed until they pick a fit (a lid with no fit chosen keeps its 0.2 mm lip)
 var smartfit_btn: Button = null
 
 
@@ -2149,14 +2154,15 @@ func _fit_index(fit: float) -> int:
 
 func _smartfit_chip(h: Control) -> void:
 	smartfit_btn = _big_btn("easypart_hole_fit", "", "How should it fit? The gap on each side between a hole and what goes in it: Tight 0.0 mm, Snug 0.1, Slides 0.2, Loose 0.4. Press to change it; the hole or lid on the screen is made again", _smartfit_press)
-	smartfit_btn.custom_minimum_size = Vector2(150, 44)
+	smartfit_btn.custom_minimum_size = Vector2(96, 44)
 	h.add_child(smartfit_btn)
 	_smartfit_sync()
 
 
 func _smartfit_sync() -> void:
 	if smartfit_btn != null:
-		smartfit_btn.text = "Fit: " + String(SMARTFIT_NAMES[_fit_index(_fit_of(_rec()))])
+		var r := _rec()
+		smartfit_btn.text = "Fit: " + ("Exact" if not r.has("fit_mm") else String(SMARTFIT_NAMES[_fit_index(_fit_of(r))]))
 
 
 func _smartfit_press() -> void:
