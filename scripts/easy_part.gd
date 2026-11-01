@@ -175,7 +175,9 @@ func build(root: Control) -> void:
 	trace_btn.tooltip_text = "Trace a picture: it lies on the floor, set its real width, press Trace it: its dark shape becomes a sketch"
 	trace_btn.pressed.connect(_trace_press)
 	sh.add_child(trace_btn)
+	sh.add_child(_quick_chip())   # s042: More shapes: star, gear outline, heart, arrow in a small panel under the row
 	root.add_child(shape_box)
+	root.add_child(quick_box)
 	hole_box = _hole_box()
 	root.add_child(hole_box)
 	split_box = _split_box()
@@ -3638,6 +3640,7 @@ func _process(_dt: float) -> void:
 	status.visible = on
 	dots.visible = on
 	shape_box.visible = on and armed == "draw"
+	_quick_sync()
 	_s166_sync(on)   # FRIDAY 43 + 166: the traced picture and the Draw to search box show only on the Easy screen
 	hole_box.visible = on and _hole_on()
 	if hole_box.visible and edge_chip != null and edge_chip.visible and hole_box.get_global_rect().intersects(edge_chip.get_global_rect()):   # s051: a Round / Bevel chip left over the Cut a hole chips would take their clicks (Staggered, Hex)
@@ -4260,6 +4263,15 @@ func _finish_draw() -> void:
 			var t := TAU * float(i) / 16.0
 			opts.append(Part.arr2(Vector2(oc.x + orx * cos(t), oc.y + ory * sin(t))))
 		ents = [{"k": "bspline", "pts": opts, "closed": true}]
+	elif sh in QUICK_SHAPES:   # s042: star, gear outline, heart, arrow: straight lines, the closed outline (the drag box's shorter side is the size)
+		var sq := _sides(a, b, pl)
+		if sq.has("thin"):
+			_say("Drag a bit wider: both sides must be at least 2 mm (now %s mm)" % _mm_words(float(sq["thin"])))
+			return
+		b = sq["b"]
+		var qp := _quick_pts(sh, a, b)
+		for i in qp.size():
+			ents.append({"k": "line", "a": Part.arr2(qp[i]), "b": Part.arr2(qp[(i + 1) % qp.size()])})
 	elif sh == "box" or sh == "pointy" or sh == "hex" or sh == "poly":
 		var sd := _sides(a, b, pl)
 		if sd.has("thin"):
@@ -4284,7 +4296,10 @@ func _finish_draw() -> void:
 	var all: Array = _with_twin(ents if not ents.is_empty() else [ent], fc, sh)   # P153: symmetry on by default: the copy on the other side, same step
 	_begin("Draw shape")
 	var rec := pu._ensure()
-	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": all, "dims": []}))
+	var sk_fields := {"plane": _face_plane(rec, fc), "ents": all, "dims": []}
+	if sh in QUICK_SHAPES:
+		sk_fields["quick"] = sh   # s042: the steps list names it ("Drew a star")
+	rec["features"].append(Part.new_feature(rec, "sketch", sk_fields))
 	_end()
 	armed = ""
 	tweak = {}
@@ -4800,7 +4815,7 @@ func step_words(f: Dictionary) -> String:
 func _step_words_plain(f: Dictionary) -> String:
 	match String(f.get("t", "")):
 		"sketch":
-			return "Drew a shape"
+			return "Drew %s" % QUICK_WORDS[String(f["quick"])] if QUICK_WORDS.has(String(f.get("quick", ""))) else "Drew a shape"
 		"lay":
 			return "Laid it flat"
 		"bulge":
