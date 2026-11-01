@@ -3136,7 +3136,8 @@ func _ray_hit(p: Vector2, faces: Array) -> Dictionary:
 				var dd := ro.distance_to(hit as Vector3)
 				if dd < best_d:
 					best_d = dd
-					best = {"body": bi, "at": hit}
+					var nrm := (tris[k + 1] - tris[k]).cross(tris[k + 2] - tris[k]).normalized()
+					best = {"body": bi, "at": hit, "n": nrm if nrm.dot(rd) < 0.0 else -nrm}   # (s132: the face's normal, turned toward the eye)
 	return best
 
 

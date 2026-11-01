@@ -508,3 +508,6 @@ EXTRA="$EXTRA s018:w"   # S018 (Friday 18): Thinner / thicker everywhere slider 
 
 
 EXTRA="$EXTRA s126:w"   # s126 (Friday plan 126, Motion study to video): Easy Part, Swing it, then Save the motion as a video films the swing into a 1280 x 720 30 fps h264 .mp4; size, ffprobe, decoded frames and a half-angle still measured from the file (tests/s126_test.gd); needs the CAD DLL and ffmpeg
+
+
+EXTRA="$EXTRA s132:w"   # Hold it here: grip spot + Long axis / Face axis chips, the palm on the spot, kept in the scene file

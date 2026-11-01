@@ -23,6 +23,7 @@ const R_HANDLE := 0.015
 static var meshes := {}   # kind -> ArrayMesh in the Part's frame (metres); node() places it
 static var looks := {}    # kind -> the WeaponMesh material name ("steel", "wood", "metal", "tape")
 static var revs := {}     # kind -> how many times it was registered (the drawn shape is rebuilt when it changes)
+static var recs := {}     # kind -> the Part record it was made from (s132: a scene file keeps it, so a held Part comes back with its grip)
 
 
 static func is_part(kind: String) -> bool:
@@ -73,6 +74,18 @@ static func register(rec: Dictionary) -> String:
 	var bb: AABB = res["aabb"]
 	var knob := bb.position.x
 	var L := bb.size.x
+	var gdir := grip_dir(rec, bb)   # s132: the way the hand's grip axis runs through the Part (X unless Hold here chose the long axis or a face)
+	var rw := Basis(Vector3(0, 0, 1), PI * 0.5)   # the Part's frame -> the weapon's frame
+	if gdir != Vector3.RIGHT:
+		rw = rw * _arc_to_x(gdir)
+		var lo := INF
+		var hi := -INF
+		for v in mesh.get_faces():
+			var wy := (rw * v).y
+			lo = minf(lo, wy)
+			hi = maxf(hi, wy)
+		knob = lo
+		L = hi - lo
 	# the mass centroid, then the inertia about it (summed over the bodies: parallel axis); each body has its own density
 	var bodies := _bodies(rec, res, rho, hm)
 	var c := Vector3.ZERO
@@ -86,17 +99,23 @@ static func register(rec: Dictionary) -> String:
 	for b in bodies:
 		I = _mix(_mix(I, b["I"], float(b["rho"])), _parallel((b["c"] as Vector3) - c), float(b["v"]) * float(b["rho"]))
 	var i_perp := (I.y.y + I.z.z) * 0.5   # the two axes across the length (Part Y and Z), kg m2
+	if gdir != Vector3.RIGHT:   # the two axes across the grip axis: (trace - the moment about it) / 2
+		i_perp = (I.x.x + I.y.y + I.z.z - gdir.dot(I * gdir)) * 0.5
 	var grip := PartTemplates.handle_of(rec)
-	var grip_u := grip.x - knob
+	var rg := rw * grip
+	var picked: bool = (rec.get("grip", []) as Array).size() == 3
+	var grip_u := rg.y - knob
+	var c_w := rw * c
 	var k := sqrt(i_perp / m) / L
 	var key := key_of(rec)
 	var r_barrel := clampf(0.25 * maxf(bb.size.y, bb.size.z), 0.008, 0.06)
 	var mats := mat if hm.is_empty() else "%s, grip %s" % [mat, hm[0]]   # the status line: "steel, grip wood"
 	Body.KINDS[key] = {"len": L, "handle": minf(L, grip_u + 0.06), "r_handle": R_HANDLE, "r_barrel": r_barrel, "head": [], "aim": true,
-		"grip": "power", "mass": m, "com": (c.x - knob) / L, "k": k, "grip_u": grip_u, "parts": _parts(rec, L),
-		"knob": knob, "material": mats, "com_part": c, "rev": int(revs.get(key, 0)) + 1,
+		"grip": "power", "mass": m, "com": (c_w.y - knob) / L, "k": k, "grip_u": grip_u, "parts": _parts(rec, L) if gdir == Vector3.RIGHT else [["body", 0.0, L, "hold"]],
+		"knob": knob, "mesh_xf": Transform3D(rw, Vector3(-rg.x if picked else 0.0, -knob, -rg.z if picked else 0.0)), "grip_pick": picked, "material": mats, "com_part": c, "rev": int(revs.get(key, 0)) + 1,
 		"src": "the Part %s: %.0f cm long, %.2f kg of %s, the grip %.0f cm from the butt" % [String(rec.get("name", "Part")), L * 100.0, m, mats, grip_u * 100.0]}
 	revs[key] = int(Body.KINDS[key]["rev"])
+	recs[key] = rec.duplicate(true)
 	meshes[key] = mesh
 	looks[key] = {"aluminium": "metal", "plastic": "tape", "wood": "wood"}.get(mat, "steel")
 	return key
@@ -147,7 +166,7 @@ static func node(kind: String) -> Node3D:
 	mi.mesh = meshes.get(kind)
 	var mt := WeaponMesh.materials()
 	mi.material_override = mt.get(String(looks.get(kind, "steel")), mt.steel)
-	mi.transform = Transform3D(Basis(Vector3(0, 0, 1), PI * 0.5), Vector3(0, -float(Body.KINDS[kind]["knob"]), 0))
+	mi.transform = Body.KINDS[kind].get("mesh_xf", Transform3D(Basis(Vector3(0, 0, 1), PI * 0.5), Vector3(0, -float(Body.KINDS[kind]["knob"]), 0)))
 	root.add_child(mi)
 	return root
 
@@ -178,3 +197,49 @@ static func _parts(rec: Dictionary, L: float) -> Array:
 			var h := (float(e["p"]["handle_length"]) - 30.0) * PartTemplates.MM
 			return [["haft", 0.0, h, "hold"], ["head", h, L, "no"]]
 	return [["body", 0.0, L, "hold"]]
+
+
+## s132 HOLD IT HERE: the way the hand's grip axis runs through the Part (its own frame, unit). A record with no "grip_axis" is X (as it
+## always was); "long" is the longest side of the solid's box (X on a tie); "face" is the normal of the face Hold here was pressed on
+static func grip_dir(rec: Dictionary, bb: AABB) -> Vector3:
+	match String(rec.get("grip_axis", "")):
+		"long":
+			var s := bb.size
+			if s.y > s.x + 1e-6 and s.y >= s.z:
+				return Vector3.UP
+			if s.z > s.x + 1e-6 and s.z > s.y:
+				return Vector3.BACK
+		"face":
+			var n: Array = rec.get("grip_n", [])
+			if n.size() == 3 and Vector3(float(n[0]), float(n[1]), float(n[2])).length() > 0.5:
+				return Vector3(float(n[0]), float(n[1]), float(n[2])).normalized()
+	return Vector3.RIGHT
+
+
+## the turn that takes d to +X (the shortest way; a half turn about Z when d is -X)
+static func _arc_to_x(d: Vector3) -> Basis:
+	if d.dot(Vector3.RIGHT) < -0.9999:
+		return Basis(Vector3(0, 0, 1), PI)
+	return Basis(Quaternion(d, Vector3.RIGHT))
+
+
+## the records of every Part kind a scene holds: the weapon in the hand now and in each card ({kind: record}); a scene file keeps them
+static func held_recs(cards: Array, b: Body) -> Dictionary:
+	var out := {}
+	var kinds: Array = []
+	if b != null and b.wep_on:
+		kinds.append(b.wep_kind)
+	for c in cards:
+		var w: Dictionary = (c.get("pose", {}) as Dictionary).get("weapon", {})
+		kinds.append(String(w.get("kind", "")))
+	for k in kinds:
+		if is_part(String(k)) and recs.has(k):
+			out[k] = (recs[k] as Dictionary).duplicate(true)
+	return out
+
+
+## a scene file's held Parts made again from their records (so the kind exists before a card sets it in the hand)
+static func restore(held: Dictionary) -> void:
+	for k in held:
+		if held[k] is Dictionary and not Body.KINDS.has(String(k)):
+			register(held[k])

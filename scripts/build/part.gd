@@ -226,6 +226,12 @@ static func from_file(d: Variant) -> Dictionary:
 				out["joints"].append((j as Dictionary).duplicate(true))   # p121 JOINTS IN WORDS: a hinge or a slide between two pieces (scripts/easy_part_stick.gd _joint_words)
 	if (d as Dictionary).has("fit_mm"):
 		out["fit_mm"] = float((d as Dictionary)["fit_mm"])   # s202: the part's chosen fit survives save, load and undo (fix102: it was dropped here)
+	for gk in ["grip", "grip_n"]:   # s132 HOLD IT HERE: the grip spot and the clicked face's normal survive save and load (mm / unit, 3 numbers)
+		var gv: Variant = (d as Dictionary).get(gk)
+		if gv is Array and (gv as Array).size() == 3:
+			out[gk] = [float(gv[0]), float(gv[1]), float(gv[2])]
+	if String((d as Dictionary).get("grip_axis", "")) in ["long", "face"]:
+		out["grip_axis"] = String((d as Dictionary)["grip_axis"])
 	if bool((d as Dictionary).get("kept", false)):
 		out["kept"] = true   # an EMPTY part the user chose (Easy's Empty): a part with no steps that undo and redo bring back as it was
 	return out if not out["features"].is_empty() or out.has("kept") else {}

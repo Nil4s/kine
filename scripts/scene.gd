@@ -2330,6 +2330,9 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["layers"] = layers.map(func(L): return Scene.layer_to_file(L))
 	if not props.is_empty():
 		out["props"] = props.map(func(p): return Props.to_dict(p))   # the same: a scene with no set saves as before
+	var held := PartWeapon.held_recs(cards, B)   # s132: a Part in his hand keeps its record (and the grip Hold here picked in it)
+	if not held.is_empty():
+		out["held_parts"] = held
 	if not building.is_empty():
 		out["building"] = Building.to_file(building)   # BUILD: the record only (the mesh is regenerated from it)
 	if not part.is_empty():
@@ -2405,7 +2408,7 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 ## MIRROR'S LIST (round 19, GATES Z1, UPGRADES #3): every key a scene file and its cards hold, and what Mirror the
 ## scene does with it. "free" = has no side, copied as is; anything else is SIDED and says how it changes. A key not
 ## on this list fails tests/mirror_list_test.gd: whoever adds a key decides here whether it has a side.
-const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "plan": "rewritten: where it came from", "cards": "each card, below",
+const MIRROR_SCENE := {"scene": "renamed <name>_mirrored", "held_parts": "free (the records of the Parts in his hand: a part has no side, the hand it is in is the card's)", "plan": "rewritten: where it came from", "cards": "each card, below",
 	"bad_frames": "SIDED: recomputed from the mirrored motion (part names like thigh_l)", "kind": "free (the project kind: animation, modeling, building)", "natural": "free", "on_floor": "free",
 	"floor_body": "free", "free_limits": "free", "pin": "free", "fps": "free", "spline": "free", "moving_holds": "free", "loop": "free", "breath": "free", "fitness": "free", "dq_skin": "free", "body": "free (proportions have no side: both sides scale alike)", "layer_w": "free",
 	"layer": "SIDED: Scene.mirror_layer (each joint's offset to its twin, reflected as mirror_pose does)",
@@ -2589,6 +2592,8 @@ func from_dict(d: Dictionary) -> void:
 	sets = PartSets.from_file(d.get("sets", {}))   # selection / keying sets: absent = none
 	clips = Clips.from_file(d.get("clips", []))   # CLIPS: absent = none
 	boxes = HitBoxes.from_file(d.get("boxes", []))   # HIT / HURT BOXES: absent = none
+	if d.get("held_parts") is Dictionary:
+		PartWeapon.restore(d["held_parts"])   # s132: the Parts in his hand are made again before a card sets one in it
 	for p in d.get("props", []):
 		if p is Dictionary and String(p.get("kind", "")).begins_with("building:"):
 			BuildStage.register_named(building, String(p["kind"]))   # BUILD: the house is a kind made from its record
