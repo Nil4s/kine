@@ -141,6 +141,27 @@ static func bake(B: Body, n_frames: int, fps: int, pose_at: Callable, name := "c
 	return out
 
 
+static var force_gdscript := false   # true (or KINE_NO_NATIVE=1) forces the GDScript sim below
+static var _door = null
+static var _door_tried := false
+
+
+## true when the sim will run in C++
+static func native_on() -> bool:
+	return native_door() != null
+
+
+## the native door, or null (no DLL, native_on false, or KINE_NO_NATIVE set)
+static func native_door():
+	if force_gdscript or OS.get_environment("KINE_NO_NATIVE") == "1":
+		return null
+	if not _door_tried:
+		_door_tried = true
+		if NativeExt.ensure("kine_native", "KineClothNative"):
+			_door = load("res://scripts/cloth_native.gd")
+	return _door
+
+
 ## THE SIM. Pure math on the arrays (safe on a worker thread: it touches no node and no Body). A: the pins per frame,
 ## C: the capsule end points per frame. ctl (a ClothJob or null): report(f) gets the fraction done, cancelled() stops it
 ## (returns {}). The inner loop allocates nothing per step: pins, capsules, candidate pairs and state are preallocated.
@@ -183,6 +204,24 @@ static func simulate(A: Array, C: Array, rads: PackedFloat64Array, fps: int, ctl
 	var frames: Array = []
 	var m_end := (pre + n_frames - 1) * nsub
 	var total := float(m_end)
+	var door = native_door()
+	if door != null:
+		# the native door: the same substeps in C++ (native/src/kine_cloth_native.cpp), one call per baked frame so the
+		# progress report and the cancel keep their cadence; with no ctl the whole run is one call
+		var m_done := 0
+		var chunk := nsub if ctl != null else m_end
+		while m_done < m_end:
+			var m_to := mini(m_done + chunk, m_end)
+			var res: Array = door.run(x, v, A, C, rads, E, rest, pinned, nsub, pre, m_done, m_to, dt, ITER, GRAV, DRAG, MARGIN, CAND_PAD)
+			x = res[0]
+			v = res[1]
+			frames.append_array(res[2])
+			m_done = m_to
+			if ctl != null:
+				ctl.report(float(m_done) / total)
+				if ctl.cancelled():
+					return {}
+		return {"fps": fps, "frames": frames}
 	for m in range(1, m_end + 1):
 		var u := float(m) / float(nsub) - float(pre)   # the sim clock in frames (negative = the held first pose)
 		_lerp_into(A, u, pins)
