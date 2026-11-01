@@ -3629,7 +3629,7 @@ func _process(_dt: float) -> void:
 	paint_btn.set_pressed_no_signal(paint_on)
 	suggest_row.visible = on and _suggest_on()   # P092: after a Pull it up the two next-step chips show in the panel, under the slider rows
 	var bulge_on := on and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # plan 23: Pinch / Bulge a face is offered under any solid
-	tilt_box.visible = on and (armed == "" or bulge_pick) and (along or tilt_on or draft_on or swing_on or bulge_on)
+	tilt_box.visible = on and (armed == "" or bulge_pick) and (along or tilt_on or draft_on or swing_on or bulge_on) and not _fill_open()   # s051: the open Fill the face box is as tall as the low-left chips: they would sit over its Square chip and sliders
 	_overhang_sync(on)
 	_com_sync(on)   # P128: the centre-of-mass dot
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
@@ -3944,10 +3944,10 @@ func input(ev: InputEvent) -> bool:
 					_wall_press(p)
 				elif hpat_pick:   # s029: Pick centre is waiting for the click
 					_hpat_press(p)
-				elif bulge_pick and armed == "":   # plan 23: Pinch / Bulge is waiting for a flat face
-					_bulge_click(p)
 				elif fill_pick:   # s051: Fill the face is waiting for the face
 					_fill_click(p)
+				elif bulge_pick and armed == "":   # plan 23: Pinch / Bulge is waiting for a flat face
+					_bulge_click(p)
 				elif not _open_face(p):   # NOPENTOP: after Hollow inside, a flat face click opens that side; any other click picks a piece
 					_pick_at(p)
 		if not _draft.is_empty():
@@ -7187,6 +7187,7 @@ func _bulge_press() -> void:
 		_say(Part.why_not())
 		return
 	armed = ""
+	fill_pick = false   # s051: one pick mode at a time
 	bulge_pick = bulge_btn.button_pressed
 	_say("Click a flat face: its middle will bulge out. The slider then goes from Pinch to Bulge" if bulge_pick else "Pinch / Bulge is off")
 

@@ -1779,6 +1779,10 @@ func _fill_press() -> void:
 	armed = ""
 	wall_pick = false
 	hpat_pick = false
+	set("bulge_pick", false)   # one pick mode at a time: a Bulge pick left on would take the face click (declared further down the chain)
+	var bb: Variant = get("bulge_btn")
+	if bb != null:
+		(bb as Button).set_pressed_no_signal(false)
 	fill_pick = true
 	_hole_sync()
 	_say("Click the flat face you want to fill. First set the shape, Hole size, Spacing and Edge margin below")
@@ -2060,3 +2064,8 @@ func _lighter_follow(sk: Dictionary) -> void:
 	var pl := Lighter.plan(sk["lt"], lighter_level)
 	if int(pl["n"]) > 0:
 		sk["ents"] = pl["ents"]
+
+
+## the Fill the face shapes and sliders are up (waiting for the face, or the face is filled)
+func _fill_open() -> bool:
+	return fill_box != null and _hole_on() and (fill_pick or not _fill_sketch().is_empty())
