@@ -3883,6 +3883,8 @@ func input(ev: InputEvent) -> bool:
 					return false   # nothing solid there: the camera keeps the click
 				_stick_pick(bi, faces)
 				return true
+			if armed == "aredge" and not _over_ui(p):
+				return _aredge_press(p)   # s048: Around edge picks the edge under the click
 			if armed == "hold" and not _over_ui(p):
 				return _hold_press(p)   # p131grippoint: the press on the part sets the grip point
 			if (armed == "draw" or armed == "curve") and not _over_ui(p):
