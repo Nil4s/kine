@@ -633,6 +633,8 @@ func _colour_box() -> PanelContainer:
 		weight_btns[String(wk[0])] = wb
 	h.add_child(_stand_chip())   # P127 STAND: "Does it fall over?" beside the weights (a readout: no step, no undo)
 	h.add_child(_hold_chip())   # p131grippoint: Hold here, the last chip of the page
+	h.add_child(_grip_axis_chip("long"))   # s132: which way the held part lies in the hand
+	h.add_child(_grip_axis_chip("face"))
 	return box
 
 
@@ -5760,6 +5762,10 @@ func _hold_press(p: Vector2) -> bool:
 			knob = minf(knob, (v as Vector3).x)
 	_begin("Hold here")
 	_rec()["grip"] = [snappedf(at.x / PartTemplates.MM, 0.1), snappedf(at.y / PartTemplates.MM, 0.1), snappedf(at.z / PartTemplates.MM, 0.1)]
+	var fn: Vector3 = hit.get("n", Vector3.RIGHT)   # s132: the face under the click, for the Face axis chip
+	_rec()["grip_n"] = [snappedf(fn.x, 0.001), snappedf(fn.y, 0.001), snappedf(fn.z, 0.001)]
+	if String(_rec().get("grip_axis", "")) == "":
+		_rec()["grip_axis"] = "long"
 	_end()
 	m.part_weapon_changed(_rec())   # a held Part weapon takes the new grip at once
 	_say("The hand holds it here, %.1f cm from the butt" % ((at.x - knob) * 100.0))
@@ -7596,3 +7602,35 @@ func _fit_row() -> HBoxContainer:
 	fit_row = preload("res://scripts/easy_fit.gd").new()
 	fit_row.setup(self)
 	return fit_row
+
+
+## s132 HOLD IT HERE, the axis: two chips after Hold here. "Long axis" lays the part's longest side along the hand's grip axis; "Face axis" lays
+## the face that was clicked square to the palm (its normal along the grip axis). One undo step per press; the held part turns at once
+func _grip_axis_chip(mode: String) -> Button:
+	var b := _colour_btn("grip_" + mode, "Long axis" if mode == "long" else "Face axis", Color(0.85, 0.8, 0.6))
+	b.name = "easypart_grip_" + mode
+	b.custom_minimum_size.x = 100.0
+	for fc in ["font_hover_color", "font_pressed_color", "font_focus_color"]:
+		b.add_theme_color_override(fc, Color(0.08, 0.08, 0.1))   # the cream chip keeps dark words when the mouse is on it
+	b.tooltip_text = ("Hold it along its longest side (a rod lies along the hand)" if mode == "long"
+		else "Hold it with the face you clicked square to the palm (its normal along the hand's grip axis)")
+	b.pressed.connect(_grip_axis_press.bind(mode))
+	return b
+
+
+func _grip_axis_press(mode: String) -> void:
+	if int(pu.res.get("bodies", 0)) == 0:
+		_say("Make something solid first, then pick where the hand holds it")
+		return
+	if (_rec().get("grip", []) as Array).size() != 3:
+		_say("Press Hold here and click the spot first; then pick which way it lies in the hand")
+		return
+	if mode == "face" and (_rec().get("grip_n", []) as Array).size() != 3:
+		_say("Press Hold here and click the face again: this part has no face picked yet")
+		return
+	_flush_if_dirty()
+	_begin("Hold along " + ("its length" if mode == "long" else "the face"))
+	_rec()["grip_axis"] = mode
+	_end()
+	m.part_weapon_changed(_rec())
+	_say("The hand holds it along its length" if mode == "long" else "The hand holds it with the clicked face square to the palm")
