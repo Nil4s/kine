@@ -219,6 +219,7 @@ static func to_dict(p: Dictionary) -> Dictionary:
 		d["colour"] = colour_of(p)
 	if p.has("swing") and hinged(p) and float(p["swing"]) != 0.0:
 		d["swing"] = snappedf(float(p["swing"]), 0.0001)
+	PropJoints.to_file(p, d)   # s120: a moving part's joint values and keys
 	if animated(p):
 		var hg := hinged(p)
 		d["keys"] = (p["keys"] as Array).map(func(k):
@@ -245,6 +246,7 @@ static func from_dict(d: Dictionary) -> Dictionary:
 		p["colour"] = String(d["colour"])
 	if d.has("swing"):
 		p["swing"] = float(d["swing"])
+	PropJoints.from_file(d, p)   # s120
 	if d.get("keys") is Array and not (d["keys"] as Array).is_empty():
 		var ks := []
 		for k in d["keys"]:
@@ -370,7 +372,7 @@ static func animated(p: Dictionary) -> bool:
 
 static func any_animated(props: Array) -> bool:
 	for p in props:
-		if animated(p):
+		if animated(p) or p.has("jkeys"):
 			return true
 	return false
 
@@ -382,6 +384,10 @@ static func yaw_of(xf: Transform3D) -> float:
 ## the prop as it is at time t: {"kind", "xf", "swing"} (a new dict; an unkeyed prop is returned itself)
 static func posed(p: Dictionary, t: float) -> Dictionary:
 	if not animated(p):
+		if p.has("jkeys"):   # s120: a moving part's joints are keyed, its place is not
+			var jp := p.duplicate(false)
+			jp["jang"] = PropJoints.angles_at(p, t)
+			return jp
 		return p
 	var pk := []
 	var ak := []
@@ -399,6 +405,10 @@ static func posed(p: Dictionary, t: float) -> Dictionary:
 		out["colour"] = p["colour"]
 	if hinged(p):
 		out["swing"] = a.y
+	if p.has("jkeys"):
+		out["jang"] = PropJoints.angles_at(p, t)   # s120
+	elif p.has("jang"):
+		out["jang"] = p["jang"]
 	return out
 
 
@@ -496,6 +506,8 @@ static func mesh(p: Dictionary) -> Node3D:
 				root.add_child(n)
 				_tint_models(n, colour_of(p), p)
 				return root
+	if kd.has("pieces"):   # s120: a part with hinges: its bodies are child nodes, a hinged one under its joint
+		return PropJoints.build(root, p, kd, mat)
 	if kd.get("mesh") is ArrayMesh:   # a Part in the set: its own tessellation (register_part), centred on the prop like a box
 		var pm := MeshInstance3D.new()
 		pm.mesh = kd["mesh"]
@@ -590,6 +602,8 @@ static func pose_node(n: Node3D, p: Dictionary) -> void:
 	var lf := n.get_node_or_null("leaf")
 	if lf != null:
 		(lf as Node3D).transform = leaf_xf(p)
+	if p.has("jang"):
+		PropJoints.pose(n, p)   # s120
 
 
 ## signed distance from a world point to an oriented box (negative inside)

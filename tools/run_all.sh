@@ -500,3 +500,4 @@ EXTRA="$EXTRA s097:w"   # s097 (Friday plan 97): Ctrl+K / the bar icon opens one
 
 
 EXTRA="$EXTRA s016:w"   # s016: Wall slider shows the part cut in half (a contrasting band) while held and 1.5 s after
+EXTRA="$EXTRA s120:w"   # s120: a part with hinges is one moving prop on STAGE, its joints keyed (Friday plan 120)
