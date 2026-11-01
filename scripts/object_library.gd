@@ -1379,6 +1379,13 @@ func _menu_extras(col: VBoxContainer, nm: String) -> void:
 	var vs := MyParts.versions(nm)
 	if vs.size() >= 2:
 		_compare_make(col, vs[vs.size() - 2], vs[vs.size() - 1], vs.size())
+	var fb := Button.new()   # s194: Make a family (small / medium / tall)
+	fb.name = "menu_family"
+	fb.text = "Make a family..."
+	fb.focus_mode = Control.FOCUS_NONE
+	fb.custom_minimum_size = Vector2(220, 30)
+	fb.pressed.connect(_family_open)
+	col.add_child(fb)
 	var dn := Button.new()
 	dn.name = "menu_done"
 	dn.text = "Close"
@@ -1469,3 +1476,18 @@ func _compare_set(t: float, ghost: TextureRect, info: Label, n_old: int, n_new: 
 		info.text = "New (version %d): volume %.0f mm3" % [n_new, vn]
 	else:
 		info.text = "%d%% new: version %d is %.0f mm3, version %d is %.0f mm3" % [roundi(t * 100.0), n_old, vo, n_new, vn]
+
+
+## s194 PARAMETRIC FAMILIES: the menu's Make a family button swaps the menu for the family dialog (scripts/build/part_family.gd)
+func _family_open() -> void:
+	var nm := _coll_name
+	var gp := _coll_menu.global_position if _coll_menu != null else Vector2(300, 60)
+	_coll_hide()
+	var pc: PanelContainer = preload("res://scripts/build/part_family.gd").dialog(self, nm, _coll_hide)
+	var host: Node = get_parent() if get_parent() is Control else get_tree().root
+	host.add_child(pc)
+	pc.move_to_front()
+	var vs := get_viewport().get_visible_rect().size
+	var ms := pc.get_combined_minimum_size()
+	pc.global_position = Vector2(clampf(gp.x, 4.0, maxf(4.0, vs.x - ms.x - 4.0)), clampf(gp.y, 4.0, maxf(4.0, vs.y - ms.y - 4.0)))
+	_coll_menu = pc
