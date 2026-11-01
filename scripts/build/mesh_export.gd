@@ -147,6 +147,11 @@ static func report(bodies: Array) -> Dictionary:
 	return {"lines": lines, "open": open, "bad": bad, "tris": tris, "size": box.size, "closed": open == 0 and bad == 0}
 
 
+## n03: the per-triangle packing in C++ (KineMeshOpsNative); KINE_NO_NATIVE=1 forces the GDScript loops
+static func native_on() -> bool:
+	return MeshOpsDoor.on()
+
+
 ## binary STL bytes of every body (all in one mesh). Normals are computed from the winding (unit, outward).
 static func stl_bytes(bodies: Array) -> PackedByteArray:
 	var n := 0
@@ -158,9 +163,13 @@ static func stl_bytes(bodies: Array) -> PackedByteArray:
 	head.resize(80)   # padded with zeros; an STL header must not begin with "solid" (some readers then guess ASCII)
 	buf.put_data(head)
 	buf.put_u32(n)
+	var nat := native_on()
 	for b in bodies:
 		var v: PackedVector3Array = b["v"]
 		var t: PackedInt32Array = b["t"]
+		if nat:
+			buf.put_data(MeshOpsDoor.door().stl_records(v, t))
+			continue
 		for i in range(0, t.size(), 3):
 			var p0 := v[t[i]]
 			var p1 := v[t[i + 1]]
@@ -205,13 +214,21 @@ static func model_xml(bodies: Array, title: String) -> String:
 		x.append("<object id=\"%d\" name=\"%s\" type=\"model\"%s>" % [oi + 2, _xml(String(b["name"])), pid])
 		x.append("<mesh>")
 		x.append("<vertices>")
-		for p in (b["v"] as PackedVector3Array):
-			x.append("<vertex x=\"%.6f\" y=\"%.6f\" z=\"%.6f\"/>" % [p.x, p.y, p.z])
+		var t: PackedInt32Array = b["t"]
+		if native_on():
+			if not (b["v"] as PackedVector3Array).is_empty():
+				x.append(MeshOpsDoor.door().xml_vertices(b["v"]))
+		else:
+			for p in (b["v"] as PackedVector3Array):
+				x.append("<vertex x=\"%.6f\" y=\"%.6f\" z=\"%.6f\"/>" % [p.x, p.y, p.z])
 		x.append("</vertices>")
 		x.append("<triangles>")
-		var t: PackedInt32Array = b["t"]
-		for i in range(0, t.size(), 3):
-			x.append("<triangle v1=\"%d\" v2=\"%d\" v3=\"%d\"/>" % [t[i], t[i + 1], t[i + 2]])
+		if native_on():
+			if t.size() >= 3:
+				x.append(MeshOpsDoor.door().xml_triangles(t))
+		else:
+			for i in range(0, t.size(), 3):
+				x.append("<triangle v1=\"%d\" v2=\"%d\" v3=\"%d\"/>" % [t[i], t[i + 1], t[i + 2]])
 		x.append("</triangles>")
 		x.append("</mesh>")
 		x.append("</object>")
