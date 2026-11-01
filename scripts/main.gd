@@ -187,6 +187,7 @@ var knobs_ui: MoveKnobsUI   # N025 MOVE KNOBS: strike height / reach / stance / 
 var hit_harder_ui: HitHarderUI   # N065 HIT HARDER: one button under the move knobs (scripts/hit_harder_ui.gd)
 var sd_ui: StyleDialUI   # STYLE DIAL (ROADMAP I6): four sliders that restyle the whole clip (scripts/style_dial_ui.gd)
 var tcat_ui: ThrowCatchUI   # THROW AND CATCH (ROADMAP I27): "Throw to...", the plan, its arc drawing and preview (scripts/throw_catch_ui.gd)
+var ic_ui: ImpactClipUI   # IMPACT FRAMES ON A STRIKE (plan 137): the toggle, sliders and the flash (scripts/impact_clip_ui.gd)
 var if_ui: ImpactFramesUI   # IMPACT FRAMES (ROADMAP I13): the commands, the plan and its preview (scripts/impact_frames_ui.gd)
 var se_ui: SpeedEnvUI = SpeedEnvUI.new(self)   # SPEED LIMITS (ROADMAP I47): scripts/speed_env_ui.gd + speed_env.gd
 var bt_ui: BestTakeUI = BestTakeUI.new(self)   # MY BEST TAKE (ROADMAP I38): scripts/best_take_ui.gd + best_take.gd
@@ -262,7 +263,7 @@ const RIBBON_GROUPS := {
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial", "Match the reference timing"]], ["SOUND", ["Sound cues"]]],
 	"SET": [["PROPS", ["Library", "Add prop", "Import model", "Turn left", "Turn right", "Delete prop"]], ["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]],
 		["ACT", ["Sit here", "Pick up", "Put down", "Step up", "Throw to...", "Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]],
-		["REACT", ["Reactions", "React to the hit (physics)", "Add impact frames", "Remove impact frames"]]],
+		["REACT", ["Reactions", "React to the hit (physics)", "Impact frames", "Add impact frames", "Remove impact frames"]]],
 	"CHECK": [["JUDGE", ["Check", "Realism score", "Safety sheet", "Real-mocap check"]], ["FIX", ["Polish", "Fix moves through the body", "Timing coach", "Speed limits"]],
 		["PHYSICS", ["Make it physical", "Accept span", "Keep this pose", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check"]],
 		["FIGHT", ["Fight distance", "Fit the ring", "Auto opponent", "Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound"]],
@@ -3505,6 +3506,8 @@ func _process_body(dt: float) -> void:
 		tcat_ui.tick(dt)   # THROW AND CATCH preview (nothing otherwise)
 	if if_ui != null:
 		if_ui.tick(dt)   # IMPACT FRAMES preview (nothing otherwise)
+	if ic_ui != null:
+		ic_ui.sync()   # plan 137: the flash follows the playhead every frame (a rebuilt prop node loses it otherwise)
 	if bf_ui != null:
 		bf_ui.tick(dt)
 	if cg_ui != null:
@@ -5135,6 +5138,8 @@ func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := tru
 
 
 func _refresh() -> void:
+	if ic_ui != null:
+		ic_ui.sync()   # plan 137: the target's flash on its 2 frames
 	_hands_refresh()   # HANDS (w4-handlock): the hands rows say the state
 	_light_apply()
 	_refimg_sync()
@@ -12244,7 +12249,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Library": "library", "Export model (GLB / OBJ)": "export_glb", "Throw to...": "throw","Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Pack scene (zip)": "pack", "Unpack zip...": "unpack", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Keep balance": "keep_balance", "Ouch meter": "ouch", "Show problems on the body": "red_spots", "Collision (C)": "collision",
+const ICON_OF := {"Library": "library", "Export model (GLB / OBJ)": "export_glb", "Throw to...": "throw","Reactions": "react", "React to the hit (physics)": "react_hit", "Impact frames": "impact", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Pack scene (zip)": "pack", "Unpack zip...": "unpack", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Keep balance": "keep_balance", "Ouch meter": "ouch", "Show problems on the body": "red_spots", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "Parry rebound": "parry", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Reaction direction": "reactdir", "Sell the hit": "sellhit", "Gaze director": "gaze", "Safety sheet": "safety", "Floor plan": "floorplan", "Breakfall check": "breakfall", "Recovery step": "recovery", "Fight rhythm": "rhythm", "Precog check": "precog", "Auto opponent": "autoopp", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Momentum ledger": "momentum", "Airborne spin check": "spin", "Real-mocap check": "mocapchk", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "Star this clip": "star_clip", "My best take": "best_take", "Make this one more like my best": "best_nudge", "Speed limits": "speed_env", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Keep this pose": "keep", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix", "Fit the ring": "arena",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Body: fighter archetype...": "archetype", "Body: from height, weight, sex, age, build": "body_nums", "Mannequin as shipped": "mannequin_ship", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
@@ -12864,6 +12869,9 @@ func _ui() -> void:
 	ui_ribbon["SET"].add_child(_button("React to the hit (physics)", _react_physics, "where a weapon or fist touches a fighter, Kine measures the blow (where, direction, impulse = effective mass x speed) and the MuJoCo humanoid reacts to it from the contact; runs in the background, one Ctrl+Z (ROADMAP I2)"))
 	if if_ui == null:
 		if_ui = ImpactFramesUI.new(self)
+	if ic_ui == null:
+		ic_ui = ImpactClipUI.new(self)
+	ui_ribbon["SET"].add_child(_button("Impact frames", ic_ui.show, "the Impact frames toggle: where a hand or weapon first touches a prop, the clip holds 0-6 frames, the target flashes white for 2 frames and the shot camera shakes for 0.25 s; the panel has the sliders (plan 137)"))
 	ui_ribbon["SET"].add_child(_button("Add impact frames", if_ui.show, "at every contact: a hit-stop of 2 to 6 frames scaled by the blow's impulse, a shot-camera shake and a squash on the struck part; Preview first, Accept is one undo step (ROADMAP I13)"))
 	ui_ribbon["SET"].add_child(_button("Remove impact frames", if_ui.remove, "takes the impact frames out by their tags and shifts the scene back; one undo step"))
 	ui_ribbon["SET"].add_child(_button("Crowd: remove", _crowd_remove, "the copies go and the fighter stays. Ctrl+Z undoes"))
@@ -16309,6 +16317,9 @@ func _commands() -> Array:
 	if if_ui == null:
 		if_ui = ImpactFramesUI.new(self)
 	if_ui.commands(add)   # IMPACT FRAMES (ROADMAP I13)
+	if ic_ui == null:
+		ic_ui = ImpactClipUI.new(self)
+	ic_ui.commands(add)
 	if bf_ui == null:
 		bf_ui = BeatFightUI.new(self)
 	bf_ui.commands(add)   # FIGHT TO THE BEAT (ROADMAP I15)

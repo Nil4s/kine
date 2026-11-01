@@ -476,3 +476,4 @@ EXTRA="$EXTRA s063:w"   # s063 FASTEN THESE TWO (Friday plan 63): Stick together
 
 
 EXTRA="$EXTRA s031:w"   # s031 (Friday plan 31): Thread look on a round hole: a helix drawn in the bore at the ISO pitch (radius / pitch / same-STL / sheet line / one undo bars; tests/s031_test.gd)
+EXTRA="$EXTRA s137:w"   # plan 137: impact frames on a strike (hit-stop slider, 2-frame target flash, 0.25 s camera shake, toggle off = original)
