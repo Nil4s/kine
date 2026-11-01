@@ -18,6 +18,8 @@ var ui_blur: CheckBox   # playblast motion blur (ROADMAP R3)
 var ui_what: OptionButton   # "What to export": Everything (the default) / Only the selected object / One entry per mesh object
 var ui_face: OptionButton   # laser cutting: which flat face
 var ui_face_row: HBoxContainer
+var ui_budget: OptionButton   # plan 157: Triangle budget (Full / 50 000 / 10 000 / 2 000) for the mesh files (.glb objects, .obj, .stl, .3mf)
+var ui_budget_row: HBoxContainer
 var ui_objects: Label   # the mesh objects in the scene, by name (what the choice picks from)
 var batch_ui: BatchDialog   # Batch... (ROADMAP 80), made on first use
 var ui_slicer_box: VBoxContainer   # 3D printing only (plan 119): the slicers found + the Send to slicer button
@@ -203,6 +205,19 @@ func _build() -> void:
 	ui_face_row.add_child(ui_face)
 	ui_face_row.visible = false
 	v.add_child(ui_face_row)
+	ui_budget_row = HBoxContainer.new()   # plan 157: the file gets a decimated copy; the model on screen is not changed
+	ui_budget_row.name = "export_budget_row"
+	var lbu := Label.new()
+	lbu.text = "Triangle budget"
+	ui_budget_row.add_child(lbu)
+	ui_budget = OptionButton.new()
+	ui_budget.name = "opt_export_budget"
+	for bl in ExportBudget.LABELS:
+		ui_budget.add_item(String(bl))
+	ui_budget.tooltip_text = "Write a lighter copy of the mesh: the file gets at most this many triangles (volume and size kept); the model on screen is not changed. Applies to the mesh files (.glb objects, .obj, .stl, .3mf)."
+	ui_budget.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ui_budget_row.add_child(ui_budget)
+	v.add_child(ui_budget_row)
 	ui_slicer_box = VBoxContainer.new()   # plan 119: Send to slicer (3D printing only)
 	ui_slicer_box.name = "export_slicer_box"
 	ui_slicer_txt = Label.new()
@@ -301,7 +316,8 @@ func open() -> void:
 	_refresh()
 	ui_blur.set_pressed_no_signal(bool(m.blast_blur))
 	var free_part: bool = m.bld != null and m.bld.part != null and m.bld.part.on   # FEXPORT: a free part on screen is what the beginner made: that object by default
-	ui_what.select(1 if free_part else 0)
+	ui_what.select(1 if (free_part or m._sculpt_sphere_open()) else 0)
+	ui_budget.select(0)   # a budget is chosen each time: never a silent decimation
 	_refresh()
 	dlg.popup_centered()
 
@@ -337,6 +353,7 @@ func _refresh() -> void:
 	var lst := ", ".join(names) if not names.is_empty() else "none"
 	var why := "" if plain else "\n\nThe choice is for the plain .glb (one mesh per object, no animation); this format always holds everything."
 	ui_face_row.visible = _cur_id() == "laser"
+	ui_budget_row.visible = _cur_run() in ["glb", "obj", "stl", "3mf"]
 	_refresh_slicer()
 	if _cur_id() == "laser":
 		ui_objects.text = "The part on screen is what is read. Pick the face above; its outer edge and holes are written in millimetres."
@@ -467,6 +484,7 @@ func S_cards_short() -> bool:
 ## PoseTable's paths). Used by the Export button and by tests/export_dialog_test.gd, so both take the same road.
 ## what: 0 Everything (the writers above, unchanged), 1 only the selected object, 2 one entry per mesh object (plain .glb only)
 func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
+	var budget: int = ExportBudget.BUDGETS[ui_budget.selected] if ui_budget != null and ui_budget.selected >= 0 else 0   # plan 157
 	var t := target(id)
 	if t.is_empty():
 		return ""
@@ -477,7 +495,7 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 		m._say_plain(String(rl["text"]))
 		return String(rl["path"]) if bool(rl["ok"]) else ""
 	if id == "print":   # STL / 3MF of the part on screen (never blocked: an open shape still writes, with the warning in the words)
-		var r := MeshExport.export_part(m.S.part, run, UserPaths.w(dir))
+		var r := MeshExport.export_part(m.S.part, run, UserPaths.w(dir), budget)
 		m._say_plain(String(r["text"]))
 		return String(r["path"]) if bool(r["ok"]) else ""
 	if id == "step":   # STEP of the part on screen (the exact solid)
@@ -496,9 +514,9 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 		m._say_plain("exported %s: your body (%d verts) with its skeleton and the animation. FBX: open this .glb in Blender and export FBX" % [String(rb["path"]).get_file(), int(rb["verts"])])
 		return String(rb["path"])
 	if what > 0 and run == "glb":
-		return m._export_objects(dir, what == 1)
+		return m._export_objects(dir, what == 1, budget)
 	if run == "obj":   # OBJ: Everything is the posed body (the old writer); a picked object or one entry per object is its own mesh
-		return m._export_obj_objects(dir, what == 1) if what > 0 else m._export_obj(dir)
+		return m._export_obj_objects(dir, what == 1, budget) if what > 0 else m._export_obj(dir, budget)
 	if run.begins_with("engine:"):
 		return m._export_engine(run.trim_prefix("engine:"), dir)
 	if run.begins_with("fbx"):

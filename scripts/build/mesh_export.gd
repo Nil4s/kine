@@ -262,11 +262,11 @@ static func stem(name: String) -> String:
 
 ## the Export dialog's road: the part record -> dir/<name>.stl or .3mf. fmt "stl" | "3mf". Answers
 ## {"ok", "path", "why", "report": the check (see report), "text": one plain sentence to say}
-static func export_part(rec: Dictionary, fmt: String, dir: String) -> Dictionary:
+static func export_part(rec: Dictionary, fmt: String, dir: String, budget := 0) -> Dictionary:
 	var bo := bodies_of(rec)
 	if (bo["bodies"] as Array).is_empty():
 		return {"ok": false, "path": "", "why": String(bo["why"]), "report": {}, "text": "NOT DONE: " + String(bo["why"])}
-	var bodies: Array = bo["bodies"]
+	var bodies: Array = ExportBudget.apply_bodies(bo["bodies"], budget)   # plan 157: a triangle budget writes a decimated copy
 	var rep := report(bodies)
 	var gdir := ProjectSettings.globalize_path(dir)
 	DirAccess.make_dir_recursive_absolute(gdir)
@@ -276,6 +276,8 @@ static func export_part(rec: Dictionary, fmt: String, dir: String) -> Dictionary
 	if e != OK:
 		return {"ok": false, "path": path, "why": error_string(e), "report": rep, "text": "NOT DONE: the file could not be written (%s). Check that the folder is writable, then export again" % error_string(e)}
 	var msg := "exported %s: %d triangles, %.1f x %.1f x %.1f mm" % [path.get_file(), int(rep["tris"]), rep["size"].x, rep["size"].y, rep["size"].z]
+	if budget > 0:
+		msg += ExportBudget.words()
 	if not bool(rep["closed"]):
 		msg += ". " + String((rep["lines"] as Array)[0]).substr(6)
 	return {"ok": true, "path": path, "why": "", "report": rep, "text": msg}
