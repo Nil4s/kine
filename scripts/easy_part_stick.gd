@@ -890,6 +890,15 @@ func _height_preview(v: float) -> void:
 	del_n = (m.S.part["features"] as Array).size()   # the preview's extra step must not clear the pick (that would hide this slider mid-drag)
 	pu.upto = -1
 	pu.sync()
+	_height_retarget()
+
+
+## the picked piece's red glow follows the piece (Lead 11-01: after a Height move the glow stayed where the piece had been, a red disc over nothing)
+func _height_retarget() -> void:
+	var faces: Array = Part.body_faces(_rec(), -1)
+	if del_on and del_bi >= 0 and del_bi < faces.size():
+		del_tris = faces[del_bi]
+		dots.queue_redraw()
 
 
 func _height_end(changed: bool) -> void:
@@ -913,6 +922,7 @@ func _height_end(changed: bool) -> void:
 	pu.sync()
 	_rows_sync()
 	_size_text()
+	_height_retarget()
 
 
 ## JOIN: true when joining made the solid smaller than the two pieces were together: they overlap (an edge of one passes through a face of the other), which the touch test above does not see

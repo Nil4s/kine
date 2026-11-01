@@ -335,6 +335,38 @@ func _init() -> void:
 	var want_dy: float = hs.value - (br0.position.y - floor_y)
 	ok(absf(above - hs.value) <= 0.05 and absf((br1.position.y - br0.position.y) - want_dy) <= 0.05 and absf(want_dy) > 100.0 and absf(br1.position.x - br0.position.x) < 0.05 and absf(br1.position.z - br0.position.z) < 0.05 and ep().hint_l.text.find("up from the floor") >= 0 and ep().hint_l.text.find("-") < 0,
 		"4i Height shows the piece's bottom above the floor and moves it exactly that: slider %.0f, measured %.3f mm above the floor, moved %.3f (want %.3f) [%s]" % [hs.value, above, br1.position.y - br0.position.y, want_dy, ep().hint_l.text])
+	# Lead 11-01 (height_1280.png: the handle looked at the far right while it read 201 of 0-450): the handle's place (ratio) is (value - min) / (max - min) and must equal
+	# bottom / (top - piece height) within 2 %, after the drag AND after a refresh (pick the stool, pick the ring again)
+	var ring_top_room: float = top_y - br1.size.y - floor_y
+	var ratio_want: float = (br1.position.y - floor_y) / ring_top_room
+	var ratio_got: float = (hs.value - hs.min_value) / (hs.max_value - hs.min_value)
+	print("HEIGHT handle after drag: min %.1f max %.1f value %.1f ratio %.4f (hs.ratio %.4f) want %.4f" % [hs.min_value, hs.max_value, hs.value, ratio_got, hs.ratio, ratio_want])
+	ok(absf(ratio_got - ratio_want) <= 0.02 and absf(hs.ratio - ratio_want) <= 0.02 and ratio_want > 0.3 and ratio_want < 0.6,
+		"4o the Height handle sits at %.1f %% of the track after the drag (bottom/room %.1f %%; min %.0f max %.0f value %.0f)" % [ratio_got * 100.0, ratio_want * 100.0, hs.min_value, hs.max_value, hs.value])
+	# the red glow belongs to the picked piece: its triangles are the ring's own, where the ring is now (not where it was before the move)
+	var glow_y := INF
+	var glow_hi := -INF
+	for v in ep().del_tris:
+		glow_y = minf(glow_y, (v as Vector3).y)
+		glow_hi = maxf(glow_hi, (v as Vector3).y)
+	ok(ep().del_tris.size() > 0 and absf(glow_y / Part.MM - br1.position.y) < 0.5 and absf(glow_hi / Part.MM - br1.end.y) < 0.5,
+		"4p the picked piece's red glow is on the ring where it is now, right after the drag (glow y %.1f to %.1f mm, ring %.1f to %.1f)" % [glow_y / Part.MM, glow_hi / Part.MM, br1.position.y, br1.end.y])
+	ep()._pick_at(await pick_pt(0, Vector3(0.0, 0.02, 0.0)))   # another piece (the stool) ...
+	await idle(6)
+	var stool_on: bool = ep().del_bi == 0
+	ep()._pick_at(await pick_pt(bi, Vector3(0.19, br1.end.y / 1000.0, 0.0)))   # ... and the ring again
+	await idle(6)
+	var r2: float = (hs.value - hs.min_value) / (hs.max_value - hs.min_value)
+	var mn := Vector2(INF, INF)
+	var mx := Vector2(-INF, -INF)
+	for k in ep().del_tris.size():
+		var q: Vector2 = scr(ep().del_tris[k])
+		mn = mn.min(q)
+		mx = mx.max(q)
+	var ring_scr := Rect2(scr(Vector3(0.19, br1.position.y / 1000.0, 0.0)) - Vector2(60, 60), Vector2(120, 120))
+	print("HEIGHT handle after refresh: min %.1f max %.1f value %.1f ratio %.4f want %.4f; glow box %s..%s" % [hs.min_value, hs.max_value, hs.value, r2, ratio_want, str(mn), str(mx)])
+	ok(stool_on and ep().del_on and ep().del_bi == bi and absf(r2 - ratio_want) <= 0.02 and absf(hs.ratio - ratio_want) <= 0.02,
+		"4o the Height handle sits at %.1f %% after a refresh (pick another piece and back; want %.1f %%; picked stool %s)" % [r2 * 100.0, ratio_want * 100.0, str(stool_on)])
 	var moves := 0
 	for f in m.S.part["features"]:
 		if String(f["t"]) == "move":
