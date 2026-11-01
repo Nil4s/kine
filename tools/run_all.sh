@@ -544,3 +544,7 @@ EXTRA="$EXTRA bug3:w"   # bug3: a metal block is lit by a studio reflection sky,
 
 
 EXTRA="$EXTRA bug7:w"   # bug7: Examples only lists examples on the start screen (no mode switch), Back to my projects, 15 Building examples built by the app's own builders (scenes/examples, tools/gen_start_examples.gd)
+
+
+
+EXTRA="$EXTRA bug4:w"   # bug4 (Nick 11-01 "no access to our library"): a Library button in the Easy Part bar (2 clicks from the start screen), a Parts library button on the 3D BUILDING start card; tests/bug4_test.gd

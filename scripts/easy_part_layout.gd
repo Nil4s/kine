@@ -451,6 +451,7 @@ func layout(cl: Rect2) -> void:
 	export_btn.custom_minimum_size.x = 84.0 if narrow else 110.0
 	title_l.clip_text = narrow
 	title_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if narrow else TextServer.OVERRUN_NO_TRIMMING
+	_lib_bar_fit(tight, narrow)   # bug4: the Library button's width, and the short words that make room for it at 1280
 	var n := 0.0   # P093: only the visible ones share the row (Beginner hides five)
 	for b in make_btns.values():
 		if (b as Control).visible:
@@ -1632,3 +1633,32 @@ func _draw_tangent_square() -> void:
 	dots.draw_colored_polygon(sq, Color(1.0, 1.0, 1.0, 0.16))
 	sq.append(sq[0])
 	dots.draw_polyline(sq, Color(1.0, 1.0, 1.0, 0.55), 1.5, true)
+
+
+## bug4: the bar's Library button (built in easy_part.gd, _lib_bar_make)
+var lib_bar_btn: Button
+
+
+## the bar's widths with the Library button in it: at 1280 wide the row (with What to build at its end) must still fit the window, so the
+## short words take a little less and the part's title may be trimmed; wide, the Library button keeps its 112 px
+func _lib_bar_fit(tight: bool, narrow: bool) -> void:
+	if lib_bar_btn == null:
+		return
+	lib_bar_btn.custom_minimum_size.x = 92.0 if narrow else (100.0 if tight else 112.0)
+	lib_bar_btn.text = "Library"
+	if tight and not narrow:   # 1280 wide: with "Bring back your part" on the bar too (a saved part is there) the row must still end inside the window
+		dup_btn.custom_minimum_size.x = 100.0
+		export_btn.custom_minimum_size.x = 84.0
+		fix_btn.custom_minimum_size.x = 96.0
+		give_btn.custom_minimum_size.x = 130.0
+		use_scene_btn.custom_minimum_size.x = 140.0
+		if bar_home != null:
+			bar_home.custom_minimum_size.x = 88.0
+	var clip := tight and not narrow
+	for b in [use_scene_btn, give_btn, restore_btn]:   # the words trim with "..." (the tooltip has them whole); wide, nothing is trimmed
+		(b as Button).clip_text = clip or narrow
+		(b as Button).text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if (clip or narrow) else TextServer.OVERRUN_NO_TRIMMING
+	restore_btn.custom_minimum_size.x = 90.0 if clip else 190.0
+	if tight:
+		title_l.clip_text = true
+		title_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
