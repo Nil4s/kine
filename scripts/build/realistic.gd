@@ -12,6 +12,7 @@ extends RefCounted
 ## every one of them back (off = the view it was, bit for bit). Radii and distances scale with `size` (the metres of what is shown).
 
 const OUTDOOR_MIN := 2.0   # metres: what is shown at least this big is a building (outdoor), smaller is a part (studio)
+const ATLAS := 8192   # the directional shadow atlas for the Nice picture (a bigger map = smaller texels = a smoother shadow edge)
 const SUN_ELEVATION := 46.0
 const SUN_AZIMUTH := -30.0   # the sun's yaw: it stands on the left of the 3/4 camera (so the shadows fall to the right, in view)
 
@@ -127,11 +128,11 @@ static func sun_props(kind: String, size: float, ov := {}) -> Dictionary:
 		"light_angular_distance": float(ov.get("angular", 1.8)),   # the sun's size in degrees: the penumbra (PCSS-style, with the soft filter on)
 		"light_specular": 1.0,
 		"shadow_enabled": bool(ov.get("shadow", true)),
-		"shadow_bias": minf(0.004 * s, 0.02),   # scales with what is shown (a fixed bias floats a small part off its floor)
-		"shadow_normal_bias": 1.5,
-		"shadow_blur": 1.0,
+		"shadow_bias": float(ov.get("bias", minf(0.004 * s, 0.02))),   # scales with what is shown (a fixed bias floats a small part off its floor)
+		"shadow_normal_bias": float(ov.get("nbias", 1.5)),
+		"shadow_blur": float(ov.get("blur", 1.0)),
 		"directional_shadow_mode": DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS,
-		"directional_shadow_max_distance": s * (5.0 if outdoor else 6.0),   # the cascades are fitted to what is shown, not the world
+		"directional_shadow_max_distance": s * float(ov.get("maxd", 2.0 if outdoor else 6.0)),   # the cascades are fitted to what is shown, not the world
 		"directional_shadow_split_1": 0.06,
 		"directional_shadow_split_2": 0.18,
 		"directional_shadow_split_3": 0.45,
@@ -153,8 +154,8 @@ static func snapshot_props(o: Object, names: Array) -> Dictionary:
 	return out
 
 
-static func set_soft_shadows(on: bool) -> void:
-	RenderingServer.directional_soft_shadow_filter_set_quality(RenderingServer.SHADOW_QUALITY_SOFT_HIGH if on else RenderingServer.SHADOW_QUALITY_SOFT_LOW)
+static func set_soft_shadows(on: bool, level := RenderingServer.SHADOW_QUALITY_SOFT_HIGH) -> void:
+	RenderingServer.directional_soft_shadow_filter_set_quality(level if on else RenderingServer.SHADOW_QUALITY_SOFT_LOW)
 
 
 ## the fill and the rim: no shadows, soft, from the other side (studio) / the sky fills it all (outdoor: a faint bounce from the ground side)

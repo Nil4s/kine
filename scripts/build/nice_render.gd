@@ -281,7 +281,6 @@ static func draw_real(host: Node, mesh: ArrayMesh, box: AABB, size := SIZE, ov :
 	world.add_child(cam)
 	cam.current = true
 	host.add_child(vp)
-	await host.get_tree().process_frame   # the viewport takes its size on its first frame: unproject_position needs it to centre the part
 	var dir := Vector3(0.6, 0.16 if outdoor else 0.42, 1.0).normalized()
 	var target := box.get_center()
 	var dist := diag * 2.0
@@ -297,12 +296,15 @@ static func draw_real(host: Node, mesh: ArrayMesh, box: AABB, size := SIZE, ov :
 		dist /= scale_to
 	cam.look_at_from_position(target + dir * dist, target, Vector3.UP)
 	last_view = {"xf": cam.global_transform, "fov": cam.fov, "kind": kind}   # the test projects world points with it
-	Realistic.set_soft_shadows(true)
+	Realistic.set_soft_shadows(true, int(ov.get("quality", RenderingServer.SHADOW_QUALITY_SOFT_ULTRA)))
+	var atlas := int(ov.get("atlas", Realistic.ATLAS))
+	RenderingServer.directional_shadow_atlas_set_size(atlas, true)
 	for i in REAL_FRAMES:
 		await RenderingServer.frame_post_draw
 	var img := vp.get_texture().get_image()
 	vp.queue_free()
 	Realistic.set_soft_shadows(Realistic.live_on)
+	RenderingServer.directional_shadow_atlas_set_size(int(ProjectSettings.get_setting("rendering/lights_and_shadows/directional_shadow/size", 4096)), true)
 	if img == null or img.is_empty():
 		return null
 	img.convert(Image.FORMAT_RGBA8)

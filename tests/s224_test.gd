@@ -97,6 +97,36 @@ func proj(p: Vector3, size: Vector2i) -> Vector2:
 	return Vector2(size.x * 0.5 + f * q.x / -q.z, size.y * 0.5 - f * q.y / -q.z)
 
 
+## the jaggedness of an edge in the picture: for each column of a world x range on the wall plane z, the (sub-pixel) row where the luminance
+## crosses the middle between the rows at y_top and y_bot; the mean |second difference| of those rows (px). A straight edge scores near 0
+func edge_jag(img: Image, x0: float, x1: float, y_top: float, y_bot: float, z: float, size: Vector2i) -> float:
+	var ys: Array = []
+	var a := proj(Vector3(x0, y_top, z), size)
+	var b := proj(Vector3(x1, y_top, z), size)
+	for x in range(int(a.x), int(b.x)):
+		var wx := lerpf(x0, x1, float(x - a.x) / (b.x - a.x))
+		var ya := int(proj(Vector3(wx, y_top, z), size).y)
+		var yb := int(proj(Vector3(wx, y_bot, z), size).y)
+		var dk := lum(img.get_pixel(x, ya + 2))
+		var lt := lum(img.get_pixel(x, yb - 2))
+		var th := (dk + lt) * 0.5
+		var ey := -1.0
+		for y in range(ya + 3, yb):
+			var l0 := lum(img.get_pixel(x, y))
+			if (l0 - th) * (lt - th) > 0.0:
+				var l1 := lum(img.get_pixel(x, y - 1))
+				ey = y - 1 + (th - l1) / maxf(l0 - l1, 0.0001)
+				break
+		ys.append(ey)
+	var s2 := 0.0
+	var n := 0
+	for i in range(1, ys.size() - 1):
+		if ys[i] >= 0 and ys[i - 1] >= 0 and ys[i + 1] >= 0:
+			s2 += absf(ys[i - 1] - 2.0 * ys[i] + ys[i + 1])
+			n += 1
+	return s2 / n if n >= 40 else 999.0
+
+
 func win(img: Image, c: Vector2, r: int) -> float:
 	var s := 0.0
 	var n := 0
@@ -209,6 +239,23 @@ func _init() -> void:
 	print("sphere top/bottom: sky %.3f none %.3f" % [rr["sky"], rr["none"]])
 	ok(float(rr["sky"]) >= 1.15, "R sky reflection: top of the glossy sphere is %.2f x its bottom (bar 1.15)" % rr["sky"])
 	ok(not (float(rr["none"]) >= 1.15), "R control: with the reflection off the bar FAILS (%.2f x)" % rr["none"])
+
+	# ---- J: the shadow of the eave on the front wall has a clean edge (no shadow-map sawtooth)
+	var hs := scene_house()
+	var jag := {}
+	for arm in ["tuned", "planted"]:
+		var ovj := {"kind": "outdoor"}
+		if arm == "planted":   # no bias, no blur, a point sun, the cheapest filter and a tiny map: the settings the fix replaced
+			ovj.merge({"bias": 0.0, "nbias": 0.0, "blur": 0.0, "angular": 0.0, "quality": 1, "atlas": 1024})
+		var imj: Image = await NiceRender.draw_real(root, hs[0], hs[1], SZ, ovj)
+		imj.save_png("%s/eave_%s.png" % [SHOT, arm])
+		jag[arm] = edge_jag(imj, -3.8, -2.4, 2.95, 2.3, 2.5, SZ)   # the shadow edge on the wall's left end (over the window)
+		if arm == "tuned":
+			jag["ref"] = edge_jag(imj, 0.7, 2.0, 2.95, 2.3, 2.5, SZ)   # the same shadow edge where it is smooth (the right half of the same wall): the measure's own noise floor
+	var jbar := 1.5 * float(jag["ref"])
+	print("J eave edge jaggedness (px): tuned %.3f, planted %.3f, smooth part of the edge %.3f, bar < %.3f" % [jag["tuned"], jag["planted"], jag["ref"], jbar])
+	ok(float(jag["tuned"]) < jbar, "J the eave shadow edge is clean: jaggedness %.3f px < %.3f (1.5 x the same edge's smooth part, %.3f)" % [jag["tuned"], jbar, jag["ref"]])
+	ok(not (float(jag["planted"]) < jbar), "J control: the planted no-bias, no-blur setting FAILS the bar (%.3f px)" % jag["planted"])
 
 	# ---- F + D: the live view
 	var m: Node = (load("res://main.tscn") as PackedScene).instantiate()
