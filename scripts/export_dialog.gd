@@ -18,6 +18,11 @@ var ui_blur: CheckBox   # playblast motion blur (ROADMAP R3)
 var ui_what: OptionButton   # "What to export": Everything (the default) / Only the selected object / One entry per mesh object
 var ui_face: OptionButton   # laser cutting: which flat face
 var ui_face_row: HBoxContainer
+var ui_bed_row: HBoxContainer   # 3D printing only: the printer bed size and Split to fit (Friday plan 114)
+var ui_bed: Array = []   # three SpinBoxes: bed X, Y, Z in mm
+var ui_split: CheckBox
+var split_fit := false
+var bed_mm := Vector3(220.0, 220.0, 250.0)
 var ui_objects: Label   # the mesh objects in the scene, by name (what the choice picks from)
 var batch_ui: BatchDialog   # Batch... (ROADMAP 80), made on first use
 
@@ -195,6 +200,7 @@ func _build() -> void:
 	ui_face_row.add_child(ui_face)
 	ui_face_row.visible = false
 	v.add_child(ui_face_row)
+	_build_bed_row(v)
 	# the text scrolls in its own box, so the dialog's buttons stay on a small window too
 	var sc := ScrollContainer.new()
 	sc.name = "export_scroll"
@@ -308,6 +314,8 @@ func _refresh() -> void:
 	var lst := ", ".join(names) if not names.is_empty() else "none"
 	var why := "" if plain else "\n\nThe choice is for the plain .glb (one mesh per object, no animation); this format always holds everything."
 	ui_face_row.visible = _cur_id() == "laser"
+	if ui_bed_row != null:
+		ui_bed_row.visible = _cur_id() == "print"
 	if _cur_id() == "laser":
 		ui_objects.text = "The part on screen is what is read. Pick the face above; its outer edge and holes are written in millimetres."
 		return
@@ -360,7 +368,10 @@ func checks(id: String, run: String) -> Array:
 	if id == "step":
 		return StepExport.check_lines(m.S.part)
 	if id == "print":   # the printability check of the part on screen
-		return MeshExport.check_lines(m.S.part)
+		var pl: Array = MeshExport.check_lines(m.S.part)
+		if not (m.S.part as Dictionary).is_empty() and Part.available():
+			pl.append_array(PrintSplit.size_lines(m.S.part, bed_mm, split_fit))
+		return pl
 	if id == "laser":
 		return LaserExport.check_lines(m.S.part, ui_face.selected if ui_face != null else 0)
 	if id == "bodyanim":
@@ -447,7 +458,7 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 		m._say_plain(String(rl["text"]))
 		return String(rl["path"]) if bool(rl["ok"]) else ""
 	if id == "print":   # STL / 3MF of the part on screen (never blocked: an open shape still writes, with the warning in the words)
-		var r := MeshExport.export_part(m.S.part, run, UserPaths.w(dir))
+		var r := PrintSplit.export_part(m.S.part, run, UserPaths.w(dir), bed_mm) if split_fit else MeshExport.export_part(m.S.part, run, UserPaths.w(dir))
 		m._say_plain(String(r["text"]))
 		return String(r["path"]) if bool(r["ok"]) else ""
 	if id == "step":   # STEP of the part on screen (the exact solid)
@@ -485,3 +496,36 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 		"game":
 			return m._export_game(dir)
 	return ""
+
+
+## the "Printer bed" size boxes and the "Split to fit" tick (Friday plan 114), in the 3D printing target only
+func _build_bed_row(v: VBoxContainer) -> void:
+	ui_bed_row = HBoxContainer.new()
+	ui_bed_row.name = "export_bed_row"
+	var l := Label.new()
+	l.text = "Printer bed (mm)"
+	ui_bed_row.add_child(l)
+	ui_bed = []
+	for a in 3:
+		var sb := SpinBox.new()
+		sb.name = "spin_export_bed_%s" % ["x", "y", "z"][a]
+		sb.min_value = 10.0
+		sb.max_value = 2000.0
+		sb.step = 1.0
+		sb.value = bed_mm[a]
+		sb.custom_minimum_size = Vector2(80, 0)
+		sb.value_changed.connect(func(x: float):
+			bed_mm[a] = x
+			_refresh())
+		ui_bed_row.add_child(sb)
+		ui_bed.append(sb)
+	ui_split = CheckBox.new()
+	ui_split.name = "chk_export_split"
+	ui_split.text = "Split to fit (cut into pieces, with dowel holes)"
+	ui_split.button_pressed = split_fit
+	ui_split.toggled.connect(func(on: bool):
+		split_fit = on
+		_refresh())
+	ui_bed_row.add_child(ui_split)
+	ui_bed_row.visible = false
+	v.add_child(ui_bed_row)
