@@ -23,7 +23,7 @@ func _colour_btn(key: String, txt: String, c: Color) -> Button:
 	b.name = "easypart_colour_" + key
 	b.text = txt
 	b.focus_mode = Control.FOCUS_NONE
-	b.custom_minimum_size = Vector2(84, 44)   # 84 (was 92): eight chips with Wood still end left of the panel at 1280 x 720
+	b.custom_minimum_size = Vector2(72, 44)   # FMONITOR: 72 (was 84, was 92): nine chips (with Wood and Dark) still end left of the panel at 1280 x 720
 	b.add_theme_font_size_override("font_size", 16)
 	b.add_theme_color_override("font_color", Color(0.08, 0.08, 0.1))
 	var st := StyleBoxFlat.new()
