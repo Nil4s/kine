@@ -41,10 +41,10 @@ func img() -> Image:
 
 
 ## the share of the frame the floor grid covers: its four corners projected, clipped to the window (a corner behind the lens: 0)
-func grid_share(nm: String) -> float:
+func grid_share(nm: String, half := -1.0) -> float:
 	await idle(2)
 	img().save_png("%s/%s.png" % [SHOT, nm])
-	var e: float = ep_floor_half()
+	var e: float = ep_floor_half() if half < 0.0 else half
 	var vs: Vector2 = m.get_viewport().get_visible_rect().size
 	var hit := 0
 	var tot := 0
@@ -86,6 +86,38 @@ func floor_pixels() -> float:
 			if absf(ca.r - cb.r) + absf(ca.g - cb.g) + absf(ca.b - cb.b) > 0.02:
 				n += 1
 	return float(n) / float(((a.get_height() + 1) / 2) * ((a.get_width() + 1) / 2))
+
+
+## the house builder's own floor grid (BuildUI.grid, 12 m each side): visible, and the share of the frame it covers
+func house_floor(tag: String) -> void:
+	var g: MeshInstance3D = m.bld.grid
+	var s := await grid_share("house_" + tag, 12.0)
+	var a := img()
+	g.layers = 0
+	await idle(3)
+	var b := img()
+	g.layers = 1
+	await idle(2)
+	var n := 0
+	for y in range(0, a.get_height(), 2):
+		for x in range(0, a.get_width(), 2):
+			var ca := a.get_pixel(x, y)
+			var cb := b.get_pixel(x, y)
+			if absf(ca.r - cb.r) + absf(ca.g - cb.g) + absf(ca.b - cb.b) > 0.02:
+				n += 1
+	var px := float(n) / float(((a.get_height() + 1) / 2) * ((a.get_width() + 1) / 2))
+	print("     house %s: grid visible %s, floor %.1f pct of the frame, lines %.1f pct of the pixels, easy %s, part on %s, %s" % [tag, g.is_visible_in_tree(), s * 100.0, px * 100.0, m.easy.on, m.bld.part.on, cam_s()])
+	ok(g.is_visible_in_tree() and s >= 0.15 and px > 0.005, "H %s: house grid visible, floor %.1f pct of the frame (>= 15), lines %.2f pct of the pixels" % [tag, s * 100.0, px * 100.0])
+
+
+func house_enter(easy_on: bool) -> void:
+	m.easy.set_on(easy_on)
+	ss.show_screen()
+	await idle(4)
+	await click(ss._easy_btn["building"] if easy_on else ss._expert_btn["building"])
+	if m.bld.part.on:
+		m.bld.part.set_on(false)   # the house builder, as bug6 reaches it
+	await idle(90)
 
 
 ## how many of the grid's four corners project in front of the lens and inside the window
@@ -178,5 +210,20 @@ func _init() -> void:
 	await click(root.find_child("easypart_view_3q", true, false))
 	await idle(60)
 	ok(absf(float(m.yaw) - 30.0) < 0.5 and absf(float(m.pitch) + 22.0) < 0.5, "B 3/4: yaw %.1f pitch %.1f (30 / -22)" % [float(m.yaw), float(m.pitch)])
+	# H: the HOUSE builder (Easy: Room / Door / Window ...; Expert: Room / Wall / Pull ...), fresh and after an ANIMATION project
+	for entry in ["fresh", "after_anim"]:
+		for easy_on in [true, false]:
+			if entry == "after_anim":
+				m.easy.set_on(true)
+				ss.show_screen()
+				await idle(4)
+				await click(ss._cards["animation"])
+				await idle(10)
+			elif easy_on:
+				m._new_scene()
+				m._page_set("POSE")
+				await idle(6)
+			await house_enter(easy_on)
+			await house_floor("%s_%s" % [entry, "easy" if easy_on else "expert"])
 	print("bug2: %d fail" % fails)
 	quit()

@@ -2377,6 +2377,9 @@ func sync() -> void:
 	if up:
 		bu.grid.visible = false
 		bu.person.visible = false
+	else:
+		bu.grid.visible = bu.on   # bug2: the house floor comes back when the Part workspace closes (it was hidden above and never restored: a blank dark view)
+		bu.person.visible = bu.on
 	browser.visible = show
 	side.visible = show and (sk != "" or not dlg.is_empty() or not _sel_hinge().is_empty() or _sel_look() >= 0)
 	tl.visible = show
