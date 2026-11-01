@@ -4290,6 +4290,8 @@ func _look_surfaces() -> void:
 		if a < 1.0:
 			mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		part_mesh.set_surface_override_material(s, mt)
+	if cut_hook.is_valid():
+		cut_hook.call()   # S016: the Wall slider's cut-away stays on over each new look
 
 
 # ---------------------------------------------------------------- PATTERN (GAP 30)
@@ -4836,6 +4838,7 @@ var _tess_run := {}           # the job on the worker now: {seq, ids, looks, mes
 var _tess_next := {}          # the newest request waiting for the worker (a newer one replaces it: the newest wins)
 var tess_landed := 0          # probe: background results that reached the view
 var tess_started := 0         # probe: background jobs started
+var cut_hook := Callable()     # S016: PartCutaway.apply while the Wall slider is held (see scripts/build/part_cutaway.gd)
 
 
 ## the replay (only the changed steps) runs here; its shapes are tessellated by a WorkerThreadPool task. res carries the new volume and errors now,
