@@ -611,4 +611,3 @@ EXTRA="$EXTRA sbug2:w"   # sbug2: a broken painted-weights sidecar (right forear
 EXTRA="$EXTRA s212:w"   # s212: name bodies (browser double-click / right-click Rename, Easy name field; names in record, undo, 3MF/GLB/OBJ/STEP); tests/s212_test.gd
 
 
-EXTRA="$EXTRA s228:w"   # s228: patterns along paths and grids: Part pattern kinds grid + route (corners, fit, follow, jitter, skip, group); Expert Pattern Grid / Along a path, Easy Repeat it > Grid / Round edge
