@@ -393,6 +393,7 @@ func build(root: Control) -> void:
 	size_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	size_l.visible = false
 	root.add_child(size_l)
+	_kt_wire(root)   # P100: the keyboard shortcuts card
 
 
 ## CUT A HOLE: Through (the round hole, the default) or Hollow inside (the shell: open at the top, a Wall slider). Two toggle chips like Draw shape's
@@ -3636,6 +3637,8 @@ func _process(_dt: float) -> void:
 	hint.visible = on
 	view_box.visible = on   # P107 FITVIEW
 	status.visible = on
+	if kt != null:
+		kt.on_visible(on)   # P100
 	dots.visible = on
 	shape_box.visible = on and armed == "draw"
 	_s166_sync(on)   # FRIDAY 43 + 166: the traced picture and the Draw to search box show only on the Easy screen
@@ -3778,6 +3781,8 @@ func _key(k: InputEventKey) -> void:
 		elif not _edge.is_empty():
 			_edge_cancel()
 			get_viewport().set_input_as_handled()
+	elif _kt_letter(k):   # P100: D / P / H / M press the MAKE buttons of the same names
+		get_viewport().set_input_as_handled()
 	elif k.keycode == KEY_DELETE and not k.ctrl_pressed and not k.alt_pressed:
 		if del_on:
 			_remove_piece()   # FDELETE: the picked piece goes (a click picked it)
@@ -3859,6 +3864,8 @@ func _fix_press() -> void:
 ## notes it, and lets the button have it. A drag that then leaves the bar starts the sketch (input() below, from the noted press)
 func _input(ev: InputEvent) -> void:
 	if ev is InputEventKey:
+		if kt != null:
+			kt.key_seen(ev as InputEventKey)   # P100: a listed key pressed is learned
 		_key(ev as InputEventKey)   # EKEYS: Escape and Delete (Ctrl+Z / Ctrl+Y are main's undo and redo)
 		return
 	if ev is InputEventMouse:
@@ -6777,6 +6784,7 @@ func _level_build(root: Control) -> void:
 		wr.add_child(l)
 		level_words.append(l)
 	vb.add_child(_theme_row())   # plan 109: Light / Dark, in the same small settings popup
+	vb.add_child(_kt_list_btn())   # P100: the Shortcuts list
 	root.add_child(level_box)
 
 
@@ -7596,3 +7604,49 @@ func _fit_row() -> HBoxContainer:
 	fit_row = preload("res://scripts/easy_fit.gd").new()
 	fit_row.setup(self)
 	return fit_row
+
+
+# ---------------------------------------------------------------- P100 the keyboard shortcuts card (scripts/key_tips.gd)
+var kt: KeyTips
+const KT_LETTERS := {KEY_D: "draw", KEY_P: "pull", KEY_H: "hole", KEY_M: "mirror"}
+
+
+func _kt_wire(root: Control) -> void:
+	kt = KeyTips.new()
+	kt.setup(self, root)
+	var btns := {"undo": undo_btn, "redo": redo_btn, "delete": del_btn}
+	for k in ["draw", "pull", "hole", "mirror"]:
+		btns[k] = make_btns.get(k)
+	for k in btns:
+		var b: Button = btns[k]
+		if b != null:
+			b.pressed.connect(kt.clicked.bind(String(k)))
+
+
+func _kt_place() -> void:
+	if kt != null:
+		kt.place()
+
+
+func _kt_list_btn() -> Button:
+	var b := Button.new()
+	b.name = "easypart_shortcuts_btn"
+	b.text = "Shortcuts"
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(0, 32)
+	b.tooltip_text = "Every keyboard shortcut, in one list"
+	b.pressed.connect(func(): kt.list_toggle())
+	return b
+
+
+## D / P / H / M with no modifier: the MAKE button of the same name (the same press, one undo step where the button makes one)
+func _kt_letter(k: InputEventKey) -> bool:
+	if k.ctrl_pressed or k.alt_pressed or k.shift_pressed or not KT_LETTERS.has(int(k.keycode)):
+		return false
+	if not _draft.is_empty() or not _drag.is_empty():
+		return false
+	var b: Button = make_btns.get(KT_LETTERS[int(k.keycode)])
+	if b == null or not b.visible or b.disabled:
+		return false
+	_make(String(KT_LETTERS[int(k.keycode)]))
+	return true

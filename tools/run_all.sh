@@ -468,3 +468,4 @@ EXTRA="$EXTRA s191:w"   # Friday 191: Sketch with sizes (AI): Trace box option, 
 
 
 EXTRA="$EXTRA s193:w"   # s193 (Friday plan 193): Fit to an object, Parts > Boards: a phone scan (.obj, 1/1000 scale, noisy, tumbled) -> real size -> Holder / Case by the CAD kernel; ray-cast pocket, wall and enclosure bars (tests/s193_test.gd)
+EXTRA="$EXTRA s100:w"   # s100 (Friday plan 100): Easy Part keyboard shortcuts card: 3 clicks on a button with a key show "Tip: Ctrl+Z does Undo" once (remembered in settings), at most one per 2 minutes, never during a drag; Shortcuts list in the Easy popup, each key tested (tests/s100_test.gd; needs the CAD DLL)
