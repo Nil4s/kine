@@ -500,3 +500,4 @@ EXTRA="$EXTRA s097:w"   # s097 (Friday plan 97): Ctrl+K / the bar icon opens one
 
 
 EXTRA="$EXTRA s016:w"   # s016: Wall slider shows the part cut in half (a contrasting band) while held and 1.5 s after
+EXTRA="$EXTRA s094:w"   # p094: Easy Part MAKE buttons show a looping 14-frame clip tooltip (assets/tips/easy, made by tools/make_easy_tips.gd)
