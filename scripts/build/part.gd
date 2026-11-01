@@ -48,7 +48,7 @@ extends RefCounted
 ## "rough": 0..1, "metal": 0..1, "alpha": 0..1 (below 1 = see-through)} paints body N from that step on (the record holds the numbers, a preset
 ## only names them). A body with no appear step gets its palette colour by index (LOOK_CHIPS), so the bodies of a split read as two.
 ## A split gives both halves the look of the body it cut. No DLL: available() is false, replay() answers with an empty result and every tool says why.
-## PATTERN (GAP 30, Fusion's Pattern): {"t": "pattern", "id", "name", "body": N, "kind": "linear"|"circular", "count": copies INCLUDING the original (2..64),
+## PATTERN (GAP 30, Fusion's Pattern): {"t": "pattern", "id", "name", "body": N, "kind": "linear"|"circular"|"path" (p049: "path" the sketch id of an open curve, "mm" the spacing along it), "count": copies INCLUDING the original (2..64),
 ## "mm" (linear: the spacing), "dir": "x"|"y"|"z" (linear: the direction), "axis": "x"|"y"|"z" (circular: the axis through the origin), "deg" (circular:
 ## the total angle; a full turn spreads the copies evenly, a smaller angle runs from the first copy to the last), "op": "join" (the copies fuse into body N)
 ## | "new" (each copy is a body of its own, with body N's look). Built from the kernel's translate / rotate (one shape per copy, not one fused shape).
@@ -2400,7 +2400,7 @@ static func _pattern(bodies: Array, looks: Array, f: Dictionary, rec: Dictionary
 			return KCad.last_error() if KCad.last_error() != "" else "the piece to copy could not be made"
 		srcb = sid
 		owned = true
-	var why := _pattern_copies(bodies, looks, f, bi, srcb)
+	var why := _pattern_copies(bodies, looks, f, bi, srcb, rec)
 	if owned:
 		KCad.release(srcb)
 	return why
@@ -2464,18 +2464,36 @@ static func _upto_rec(rec: Dictionary, k: int) -> Dictionary:
 	return sub
 
 
-static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int, srcb: int) -> String:
+static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int, srcb: int, rec: Dictionary = {}) -> String:
 	var n := int(f.get("count", 0))
-	if n < 2 or n > PATTERN_MAX:
+	var along := String(f.get("kind", "linear")) == "path"   # p049: the copies follow a curve, so their count comes from its length
+	if not along and (n < 2 or n > PATTERN_MAX):
 		return "a pattern needs 2 to %d copies (the original counts as one)" % PATTERN_MAX
 	var copies := []
-	if String(f.get("kind", "linear")) == "circular":
+	if along:
+		var why0 := _along_copies(rec, f, srcb, copies)
+		if why0 != "":
+			return why0
+	elif String(f.get("kind", "linear")) == "grow":   # s048 REPEAT WITH GROWTH: copy k is the piece scaled by factor^k
+		var why1 := _grow_copies(rec, f, srcb, copies)
+		if why1 != "":
+			return why1
+	elif String(f.get("kind", "linear")) == "circular":
 		var ax: Vector3 = AXIS_VEC.get(String(f.get("axis", "y")), Vector3.UP)
+		var edge_pivot := Vector3.ZERO   # s048 AROUND: a picked edge is the axis (its direction "adir", a point on it "pivot", mm)
+		if f.has("pivot") and f.has("adir"):
+			var ad: Array = f["adir"]
+			ax = Vector3(float(ad[0]), float(ad[1]), float(ad[2]))
+			if ax.length() < 1e-9:
+				return "the picked edge has no direction"
+			ax = ax.normalized()
+			var pv: Array = f["pivot"]
+			edge_pivot = Vector3(float(pv[0]), float(pv[1]), float(pv[2])) * MM
 		var total := deg_to_rad(float(f.get("deg", 360.0)))
 		if absf(total) < 1e-6:
 			return "the angle must not be zero"
 		var step := total / n if absf(total) >= TAU - 1e-9 else total / (n - 1)
-		var pivot := Vector3.ZERO   # the axis runs through the origin (Expert), or through a point BESIDE the body ("beside": Easy's Ring)
+		var pivot := edge_pivot   # the axis runs through the origin (Expert), or through a point BESIDE the body ("beside": Easy's Ring), or along a picked edge (s048)
 		var mc: Vector3 = (KCad.mass_properties(bodies[bi]).get("center", Vector3.ZERO) as Vector3)
 		var off_mid := Vector2(mc.x, mc.z).length()
 		# FWHEEL: a piece that sits near the middle but not on it (a spoke from the hub) goes round the middle: its copies fan out round the
@@ -2536,6 +2554,76 @@ static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int,
 		KCad.release(bodies[bi])
 		bodies[bi] = u
 	return ""
+
+
+## p049 REPEAT ALONG: the piece's copies on an open curve (the Curvy line the path sketch holds): one copy every f.mm along it, from the
+## start (the first copy one spacing on). The piece's centre goes to each point, kept at its own height above the curve's plane.
+## Fills copies (0 where a copy could not be made: the caller releases them). "" or the reason
+static func _along_copies(rec: Dictionary, f: Dictionary, srcb: int, copies: Array) -> String:
+	var pk := feature(rec, String(f.get("path", "")))
+	if pk.is_empty() or String(pk.get("t", "")) != "sketch":
+		return "the curve is gone: draw a Curvy line, then press Along the line again"
+	var ents: Array = pk.get("ents", [])
+	if ents.is_empty():
+		return "the curve has no lines or splines"
+	var chain := sweep_path(ents, 1.0)
+	if String(chain["err"]) != "":
+		return String(chain["err"])
+	var pts := _curve_pts(ents)
+	var gap := float(f.get("mm", 0.0))
+	if gap < 1e-6:
+		return "the spacing must not be zero"
+	var L := 0.0
+	for i in range(1, pts.size()):
+		L += pts[i - 1].distance_to(pts[i])
+	var n := int(floorf(L / gap + 1e-6))   # copies after the piece's own place
+	if int(f.get("count", 0)) >= 2:
+		n = mini(n, int(f["count"]) - 1)   # s048: How many caps the copies (the original counts as one); the curve's length caps them too
+	if n < 1:
+		return "the curve is shorter than the spacing: lower the gap, or draw a longer curve"
+	if n > PATTERN_MAX - 1:
+		return "%d copies along the curve is more than %d: raise the gap" % [n, PATTERN_MAX - 1]
+	var pl := plane(String(pk.get("plane", "front")))
+	var pa: Dictionary = pk.get("_pl", pl)
+	var nrm: Vector3 = pa["n"]
+	var mc: Vector3 = KCad.mass_properties(srcb).get("center", Vector3.ZERO)
+	for i in range(1, n + 1):
+		var w := to_world(pa, _at(pts, gap * i))
+		var d := w - mc
+		d -= nrm * nrm.dot(d)   # in the curve's plane only: the piece keeps its height above it
+		copies.append(KCad.translate(srcb, d))
+	return ""
+
+
+## p049: the curve as dense points in sketch mm, in the order the path's pieces run (a line its two ends, an arc or a spline sampled)
+static func _curve_pts(ents: Array) -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for e in ents:
+		var seg := PackedVector2Array()
+		match String(e["k"]):
+			"line":
+				seg = PackedVector2Array([v2(e["a"]), v2(e["b"])])
+			"arc":
+				var g := _arc_geom(v2(e["a"]), v2(e["m"]), v2(e["b"]))
+				for i in range(0, 17):
+					var ang: float = float(g["s"]) + float(g["ds"]) * i / 16.0
+					seg.append((g["c"] as Vector2) + Vector2(cos(ang), sin(ang)) * float(g["R"]))
+			"bspline":
+				seg = spline_curve(e.get("pts", []), false, 16)
+		var from := 1 if not out.is_empty() else 0   # the piece starts where the last one ended (sweep_path checked the join)
+		for i in range(from, seg.size()):
+			out.append(seg[i])
+	return out
+
+
+## p049: the point a distance d (sketch mm) along the polyline pts
+static func _at(pts: PackedVector2Array, d: float) -> Vector2:
+	for i in range(1, pts.size()):
+		var seg := pts[i - 1].distance_to(pts[i])
+		if d <= seg or i == pts.size() - 1:
+			return pts[i - 1].lerp(pts[i], clampf(d / maxf(seg, 1e-9), 0.0, 1.0))
+		d -= seg
+	return pts[-1] if not pts.is_empty() else Vector2.ZERO
 
 
 ## FRAIL: a handrail along a stair made by Up and Forward (count steps, rise and run in mm): a 50 mm square bar laid on the
@@ -3020,3 +3108,73 @@ static func _gear_turn_view(rec: Dictionary, bodies: Array, want: Dictionary) ->
 	if s1 != 0:
 		KCad.release(bodies[1])
 		bodies[1] = s1
+
+
+## s048 REPEAT WITH GROWTH: the piece (a shape pulled up: f.src is its step) made again k times, each one "factor" times bigger than the last: the drawn
+## shape's points and the pull distance are scaled by factor^k about the shape's middle (the base stays on its plane), then the copy is moved along "dir"
+## so its near side sits "gap" mm past the far side of the one before. Fills copies; "" or the reason
+static func _grow_copies(rec: Dictionary, f: Dictionary, srcb: int, copies: Array) -> String:
+	var sid := String(f.get("src", ""))
+	if sid == "":
+		return "Grow needs the newest piece, pulled up from a drawn shape: pull one up, then press Repeat it and Grow"
+	var sub0 := pattern_src_rec(rec, sid)
+	var ex0 := feature(sub0, sid)
+	var sk0 := feature(sub0, String(ex0.get("sketch", "")))
+	if sub0.is_empty() or String(ex0.get("t", "")) != "extrude" or sk0.is_empty():
+		return "Grow works on a piece pulled up from a drawn shape"
+	var fac := float(f.get("factor", 1.1))
+	if fac < 0.2 or fac > 5.0:
+		return "the growth must be between 0.2 and 5 times"
+	var ai: int = {"x": 0, "y": 1, "z": 2}.get(String(f.get("dir", "x")), 0)
+	var gap := float(f.get("gap", 0.0)) * MM
+	var lo := Vector2(INF, INF)
+	var hi2 := Vector2(-INF, -INF)
+	for e in sk0["ents"]:
+		for key in ["a", "b", "c", "m"]:
+			if e.has(key):
+				lo = lo.min(v2(e[key]))
+				hi2 = hi2.max(v2(e[key]))
+		for q in e.get("pts", []):
+			lo = lo.min(v2(q))
+			hi2 = hi2.max(v2(q))
+		if e.has("c") and e.has("r"):
+			lo = lo.min(v2(e["c"]) - Vector2.ONE * float(e["r"]))
+			hi2 = hi2.max(v2(e["c"]) + Vector2.ONE * float(e["r"]))
+	var mid := (lo + hi2) * 0.5
+	var edge := _piece_box(srcb).end[ai]
+	for k in range(1, maxi(int(f.get("count", 2)), 2)):
+		var s := pow(fac, k)
+		var sub := sub0.duplicate(false)
+		sub["features"] = (sub0["features"] as Array).duplicate(true)
+		var exk := feature(sub, sid)
+		var skk := feature(sub, String(exk["sketch"]))
+		skk.erase("cons")   # a dimension would pull the scaled shape back
+		for e in skk["ents"]:
+			for key in ["a", "b", "c", "m"]:
+				if e.has(key):
+					e[key] = arr2(mid + (v2(e[key]) - mid) * s)
+			if e.has("r"):
+				e["r"] = float(e["r"]) * s
+			if e.has("pts"):
+				var np := []
+				for q in e["pts"]:
+					np.append(arr2(mid + (v2(q) - mid) * s))
+				e["pts"] = np
+		exk["dist"] = float(exk["dist"]) * s
+		var made := replay(sub, -1, {"keep": true})
+		var ids: Array = made.get("ids", [])
+		if not (made["errors"] as Dictionary).is_empty() or ids.is_empty():
+			for b in ids:
+				KCad.release(int(b))
+			return "a bigger copy could not be made"
+		for j in ids.size() - 1:
+			KCad.release(int(ids[j]))
+		var piece := int(ids[-1])
+		var bb := _piece_box(piece)
+		var d := Vector3.ZERO
+		d[ai] = edge + gap - bb.position[ai]
+		var moved := KCad.translate(piece, d)
+		KCad.release(piece)
+		copies.append(moved)
+		edge = bb.end[ai] + d[ai]
+	return ""
