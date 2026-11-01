@@ -59,6 +59,18 @@ func _repeat_box() -> PanelContainer:
 	gb.toggle_mode = true
 	h2.add_child(gb)
 	rep_btns["grow"] = gb
+	# s214: Group (the step copies several separate pieces at once). It ends the second line, narrow, so the box stays clear of the view column
+	var gpb := _big_btn("easypart_rep_group", "Group", "Repeat all the separate pieces together in one step (a ring of three cylinders, not three rings). Then click a piece to add it or take it off", _rep_group)
+	gpb.toggle_mode = true
+	gpb.custom_minimum_size = Vector2(52, 44)
+	gpb.add_theme_font_size_override("font_size", 13)
+	h2.add_child(gpb)
+	rep_btns["group"] = gpb
+	# s214: the two button lines end left of the view buttons at the right (a 1280 x 720 window): a smaller type and a narrower least width
+	for hb in [h, h2]:
+		for bt in hb.get_children():
+			(bt as Button).add_theme_font_size_override("font_size", 14)
+			(bt as Button).custom_minimum_size = Vector2(56, 44)
 	rep_rows.append(_make_row("How many", 2.0, 20.0, 1.0, REP_WORDS["count"], "rep", "count", "copies", vb))
 	rep_rows.append(_make_row("Gap", 0.5, 30.0, 0.5, REP_WORDS["gap"], "rep", "gap", "cm", vb))
 	rep_rows.append(_make_row("Grow by", 5.0, 100.0, 1.0, ["Slightly", "A lot"], "rep", "grow", "pct", vb))
@@ -395,6 +407,8 @@ func _rep_mode(ring: bool) -> void:
 	pu.sync()
 	_rep_sync()
 	_values_sync()
+	if ring:
+		_rep_raise_view()
 	_say("Ring: the copies go round in a circle" if ring else "Row: the copies go in a straight line")   # FWHEEL: "beside it" lied for a spoke (its copies go round the middle)
 
 
@@ -450,6 +464,7 @@ func _piece_mm(rec: Dictionary, bi: int, dir: String) -> float:
 func _rep_sync() -> void:
 	if repeat_box == null:
 		return
+	_rep_slim()
 	var f := Part.feature(_rec(), rep_id)
 	if f.is_empty():
 		return
@@ -469,6 +484,7 @@ func _rep_sync() -> void:
 		(rep_btns["around_" + ax] as Button).set_pressed_no_signal(about == ax)
 	(rep_btns["around_edge"] as Button).set_pressed_no_signal(about == "edge" or armed == "aredge")
 	(rep_btns["grow"] as Button).set_pressed_no_signal(kind == "grow")
+	(rep_btns["group"] as Button).set_pressed_no_signal(f.has("bodies"))   # s214
 	var rows_on := kind != "corners"   # CORNERS: four copies at the corners, no How many or Gap to set
 	for r in rep_rows:
 		# UP AND FORWARD: the steps are a count (How many); a Gap would mean nothing between the steps, so it is not shown
@@ -518,6 +534,7 @@ func _around_fields(cur: Dictionary, about: String) -> void:
 
 func _around_done(words: String) -> void:
 	pu.sync()
+	_rep_raise_view()
 	_rep_sync()
 	_values_sync()
 	var err: String = pu.replay_full(_rec())["errors"].get(rep_id, "")
@@ -606,3 +623,151 @@ func _seg_px_r(p: Vector2, a: Vector2, b: Vector2) -> float:
 	var ab := b - a
 	var t := 0.0 if ab.length_squared() < 1e-9 else clampf((p - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
 	return p.distance_to(a + ab * t)
+
+
+## s214 PATTERN A GROUP (Easy): Group makes the newest Repeat it step copy SEVERAL separate pieces at once, as one step (the Part pattern step's "bodies").
+## Pressing it picks every piece the part had before the step; then a click on a piece (or Shift + click) adds it or takes it off. Row and Ring
+## then move the whole group: a ring turns all of them the same way round the up line through the middle. Every copy is a piece of its own ("own").
+func _rep_group() -> void:
+	var cur := Part.feature(_rec(), rep_id)
+	if cur.is_empty():
+		(rep_btns["group"] as Button).set_pressed_no_signal(false)
+		_say("Repeat it first, then Group")
+		return
+	_flush_if_dirty()
+	if cur.has("bodies"):   # pressed again: back to the newest piece alone
+		_begin("Group off")
+		cur.erase("bodies")
+		cur.erase("own")
+		cur["op"] = "join"
+		var nbk := int(Part.replay(Part._upto_rec(_rec(), Part.index_of(_rec(), rep_id) - 1)).get("bodies", 1))
+		cur["body"] = maxi(nbk - 1, 0)
+		var sp := Part.pattern_piece(Part._upto_rec(_rec(), Part.index_of(_rec(), rep_id) - 1))
+		if sp != "":
+			cur["src"] = sp
+		_end()
+		pu.sync()
+		_rep_sync()
+		_values_sync()
+		_say("Group off: Repeat it copies the newest piece again")
+		return
+	var before := Part._upto_rec(_rec(), Part.index_of(_rec(), rep_id) - 1)
+	var nb := int(Part.replay(before).get("bodies", 0))
+	if nb < 2:
+		(rep_btns["group"] as Button).set_pressed_no_signal(false)
+		_say("Group needs two or more separate pieces. Make another piece that does not touch the first")
+		return
+	_begin("Group")
+	var all: Array = []
+	for i in nb:
+		all.append(i)
+	_group_set(cur, all)
+	_end()
+	pu.sync()
+	_rep_raise_view()
+	_rep_sync()
+	_values_sync()
+	var err: String = pu.replay_full(_rec())["errors"].get(rep_id, "")
+	_say(_plain(err) + ". Press Row or Ring, or undo" if err != "" else "Group: all %d pieces are copied together. Click a piece to take it off or put it back, then pick Row or Ring" % nb)
+
+
+## the step's fields for a group of bodies (indices before the step): every piece of its own, spacing from the group's whole size
+func _group_set(cur: Dictionary, idx: Array) -> void:
+	idx.sort()
+	cur["bodies"] = idx
+	cur["body"] = int(idx[0])
+	cur["own"] = true
+	cur["op"] = "new"
+	cur["beside"] = false
+	cur.erase("src")
+	if String(cur.get("kind", "linear")) not in ["linear", "circular"]:
+		cur["kind"] = "linear"
+		cur["dir"] = "x"
+		cur["about"] = ""
+	var faces := Part.body_faces(Part._upto_rec(_rec(), Part.index_of(_rec(), rep_id) - 1), -1)
+	var bb := AABB()
+	var first := true
+	for bi in idx:
+		if int(bi) >= faces.size():
+			continue
+		for q in (faces[int(bi)] as PackedVector3Array):
+			bb = AABB(q, Vector3.ZERO) if first else bb.expand(q)
+			first = false
+	if not first:
+		cur["w"] = maxf(bb.size.x / Part.MM, 1.0)
+		cur["h"] = maxf(bb.size.y / Part.MM, 1.0)
+		cur["d"] = maxf(bb.size.z / Part.MM, 1.0)
+		if String(cur.get("kind", "linear")) == "linear":
+			cur["mm"] = _span(cur) + float(cur.get("gap", 10.0))
+
+
+## s214: does this click pick a piece for the group: the group is on, the Repeat it box is open, and the group is on (a click on a piece; the camera keeps clicks on empty space)
+func _rgroup_wants(_mb: InputEventMouseButton) -> bool:
+	if repeat_box == null or not repeat_box.is_visible_in_tree() or rep_id == "":
+		return false
+	return Part.feature(_rec(), rep_id).has("bodies")
+
+
+## s214: a press at p on a piece: it joins the group or leaves it (the last piece stays), one undo step. true = taken
+func _rgroup_press(p: Vector2) -> bool:
+	if m.cam == null:
+		return false
+	var cur := Part.feature(_rec(), rep_id)
+	var faces := Part.body_faces(Part._upto_rec(_rec(), Part.index_of(_rec(), rep_id) - 1), -1)
+	var hit: Dictionary = pu._ray_hit(p, faces)
+	var bi := int(hit["body"]) if not hit.is_empty() else _near_body(p, faces)
+	if bi < 0:
+		return false   # nothing solid there: the camera keeps the click
+	_flush_if_dirty()
+	var idx: Array = (cur.get("bodies", []) as Array).duplicate()
+	if idx.has(bi):
+		if idx.size() < 2:
+			_say("The group keeps at least one piece")
+			return true
+		idx.erase(bi)
+	else:
+		idx.append(bi)
+	_begin("Group piece")
+	_group_set(cur, idx)
+	_end()
+	pu.sync()
+	_rep_sync()
+	_values_sync()
+	_say("Group: %d of %d pieces are copied together" % [idx.size(), faces.size()])
+	return true
+
+
+## s214: the Repeat it buttons are slimmer (their side padding 6 px, type 14) so both button lines end left of the view buttons at the right
+func _rep_slim() -> void:
+	if _rep_slimmed:
+		return
+	_rep_slimmed = true
+	for k in rep_btns:
+		var bt: Button = rep_btns[k]
+		for st in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
+			var sb := bt.get_theme_stylebox("pressed" if st == "hover_pressed" else st)   # (the pressed look under the pointer is the pressed look)
+			if sb != null:
+				var d := sb.duplicate() as StyleBox
+				d.content_margin_left = 6.0
+				d.content_margin_right = 6.0
+				bt.add_theme_stylebox_override(st, d)
+		bt.custom_minimum_size.x = 0.0
+		bt.reset_size()
+	repeat_box.reset_size()
+
+
+## s214: a ring or a group seen edge-on (the floor level) is a line: the view lifts to a raised three-quarter one, and the framing then fits the result
+func _rep_raise_view() -> void:
+	if not Part.feature(_rec(), rep_id).has("bodies"):
+		return   # only a group's result is framed here: a single piece's Repeat it keeps the camera the user left (its usual framing)
+	if absf(float(m.pitch)) < 15.0:
+		m.pitch = -30.0
+		m.yaw = float(m.yaw) + 25.0
+		m._cam()
+	var bb: AABB = pu.res.get("aabb", AABB())   # and fit the whole result in the free view (a looser fit than the usual one: the box already took its columns out)
+	if bb.size.length() > 1e-4:
+		var pose := _frame_pose(bb, 0.85)
+		if not pose.is_empty():
+			_fr_ref = bb
+			_fr_has = true
+			_ease = {"t0": m.target, "d0": float(m.dist), "t1": pose[0], "d1": pose[1], "s": 0.0}

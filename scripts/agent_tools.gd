@@ -432,6 +432,11 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# N022 HUMAN FACTS: cited human numbers by keywords (scripts/human_facts.gd); not in METHODS (the transcript's ready line)
 			var fr := HumanFacts.serve(p)
 			return _ok(id, fr) if not fr.is_empty() else _err(id, -32602, "facts needs {\"q\": \"how fast is a real jab?\"}, {\"list\": true} or {\"registry\": true}")
+		"part_facts", "part_assert":
+			# ITEM 220 MODELING VIEW WITH MATHS (scripts/part_facts.gd, scripts/part_assert.gd): the part as text, and one-line checks on it, the
+			# way assert / state give the body. {part | path} or the part on screen. Not in METHODS (the transcript's ready line)
+			var pt := PartAssert.serve(self, method, p)
+			return _ok(id, pt["result"]) if pt["ok"] else _err(id, -32602, String(pt["error"]), {"grammar": pt["grammar"]} if pt.has("grammar") else null)
 		"dry":
 			# N003: what run's steps WOULD do (parts moved, findings added / removed, score change, cards / keys touched), the
 			# scene, body and undo put back byte for byte; file-writing steps refused: scripts/dry_run.gd

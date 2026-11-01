@@ -49,6 +49,7 @@ func setup(easy: Node) -> void:
 	add_btn = _chip("easypart_pipe_add", "Add to the part", "On: the next kind is a new piece at the end of what is on the floor. Then Stick together makes them one solid", _add_press)
 	fr.add_child(add_btn)
 	_fit_text()
+	_p3_build()
 
 
 func _chip(nm: String, txt: String, tip: String, cb: Callable) -> Button:
@@ -208,3 +209,204 @@ func _fit_press() -> void:
 		_finish("Sleeve with the %s fit" % String(PipeParts.FIT_NAMES[nxt]).to_lower())
 		return
 	ep._say("%s fit: %s mm on each side. The next sleeve uses it" % [PipeParts.FIT_NAMES[nxt], str(fit)])
+
+
+# ---------------------------------------------------------------- s215: Pipe through points (a tube along a path of points placed in 3D)
+var p3_pts: Array = []          # Vector3, mm, world
+var p3_pick := false            # the next press on the part (or the floor) adds a point
+var p3_xyz: LineEdit
+var p3_list: Label
+var p3_d_btn: Button
+var p3_wall_btn: Button
+var p3_bend_btn: Button
+var p3_make: Button
+var p3_pick_btn: Button
+var p3_di := 1                  # index in PipeParts.DS
+var p3_wi := 1                  # 0 solid, 1 the PVC wall, 2 double
+var p3_bi := 0                  # index in P3_BEND
+const P3_BEND := [1.5, 2.0, 3.0]   # bend radius in pipe widths
+
+
+func _p3_build() -> void:
+	var t := Label.new()
+	t.name = "easypart_p3_words"
+	t.text = "Pipe through points: type X Y Z (mm) or click the part, then Make the pipe"
+	t.add_theme_font_size_override("font_size", 13)
+	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	add_child(t)
+	var r1 := HFlowContainer.new()
+	r1.add_theme_constant_override("h_separation", 3)
+	add_child(r1)
+	p3_xyz = LineEdit.new()
+	p3_xyz.name = "easypart_p3_xyz"
+	p3_xyz.placeholder_text = "X Y Z mm"
+	p3_xyz.custom_minimum_size = Vector2(110, 30)
+	p3_xyz.tooltip_text = "A point of the pipe's path in millimetres: three numbers, for example 0 0 100"
+	p3_xyz.text_submitted.connect(func(_s): _p3_add_typed())
+	r1.add_child(p3_xyz)
+	var ab := _chip("easypart_p3_add", "Add point", "Adds the typed X Y Z as the next point of the path", _p3_add_typed)
+	ab.toggle_mode = false
+	r1.add_child(ab)
+	p3_pick_btn = _chip("easypart_p3_pick", "Pick on the part", "Then click a face or a corner of the part (or the floor): that spot is the next point. Corners snap", _p3_arm)
+	r1.add_child(p3_pick_btn)
+	p3_list = Label.new()
+	p3_list.name = "easypart_p3_list"
+	p3_list.add_theme_font_size_override("font_size", 13)
+	p3_list.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	add_child(p3_list)
+	var r2 := HFlowContainer.new()
+	r2.add_theme_constant_override("h_separation", 3)
+	add_child(r2)
+	p3_d_btn = _chip("easypart_p3_width", "", "The pipe's outside width. Press to change it", _p3_cycle.bind("d"))
+	p3_wall_btn = _chip("easypart_p3_wall", "", "Solid rod, or a hollow pipe with a wall. Press to change it", _p3_cycle.bind("w"))
+	p3_bend_btn = _chip("easypart_p3_bend", "", "How wide the bends are, in pipe widths (a bigger number is a gentler bend). Press to change it", _p3_cycle.bind("b"))
+	for b in [p3_d_btn, p3_wall_btn, p3_bend_btn]:
+		(b as Button).toggle_mode = false
+		r2.add_child(b)
+	var r3 := HFlowContainer.new()
+	r3.add_theme_constant_override("h_separation", 3)
+	add_child(r3)
+	p3_make = _chip("easypart_p3_make", "Make the pipe", "Sweeps the pipe along the points, with smooth bends at the corners: one step", _p3_make_press)
+	p3_make.toggle_mode = false
+	r3.add_child(p3_make)
+	var cb := _chip("easypart_p3_clear", "Clear points", "Forgets the points (the pipe already made stays)", _p3_clear)
+	cb.toggle_mode = false
+	r3.add_child(cb)
+	_p3_text()
+
+
+func _p3_text() -> void:
+	var d: int = PipeParts.DS[p3_di]
+	p3_d_btn.text = "Width %d mm" % d
+	p3_wall_btn.text = "Solid" if p3_wi == 0 else "Wall %s mm" % str(_p3_wall())
+	p3_bend_btn.text = "Bend %s x" % str(P3_BEND[p3_bi])
+	if p3_pts.is_empty():
+		p3_list.text = "No points yet"
+	else:
+		var s: PackedStringArray = []
+		for i in p3_pts.size():
+			var q: Vector3 = p3_pts[i]
+			s.append("%d: %s %s %s" % [i + 1, str(snappedf(q.x, 0.01)), str(snappedf(q.y, 0.01)), str(snappedf(q.z, 0.01))])
+		p3_list.text = "Points (mm)  " + "   ".join(s)
+
+
+func _p3_wall() -> float:
+	var w := PipeParts.wall(float(PipeParts.DS[p3_di]))
+	return 0.0 if p3_wi == 0 else (w if p3_wi == 1 else w * 2.0)
+
+
+func _p3_cycle(what: String) -> void:
+	if what == "d":
+		p3_di = (p3_di + 1) % PipeParts.DS.size()
+	elif what == "w":
+		p3_wi = (p3_wi + 1) % 3
+	else:
+		p3_bi = (p3_bi + 1) % P3_BEND.size()
+	_p3_text()
+
+
+func _p3_add_typed() -> void:
+	var parts := p3_xyz.text.replace(",", " ").split(" ", false)
+	if parts.size() != 3 or not (parts[0].is_valid_float() and parts[1].is_valid_float() and parts[2].is_valid_float()):
+		ep._say("Type three numbers: X Y Z in millimetres, for example 0 0 100")
+		return
+	_p3_push(Vector3(float(parts[0]), float(parts[1]), float(parts[2])))
+	p3_xyz.text = ""
+
+
+func _p3_push(q: Vector3) -> void:
+	if not p3_pts.is_empty() and (p3_pts[-1] as Vector3).distance_to(q) < 0.05:
+		ep._say("That is the same spot as the last point")
+		return
+	p3_pts.append(q)
+	_p3_text()
+	ep._say("Point %d added. Two or more points make a pipe: press Make the pipe" % p3_pts.size())
+
+
+func _p3_clear() -> void:
+	p3_pts = []
+	p3_pick = false
+	p3_pick_btn.set_pressed_no_signal(false)
+	_p3_text()
+
+
+func _p3_arm() -> void:
+	p3_pick = p3_pick_btn.button_pressed
+	if p3_pick:
+		ep.armed = ""
+		ep._say("Click a face or a corner of the part, or the floor: the point goes there")
+	else:
+		ep._say("Pick on the part cancelled")
+
+
+## the press while Pick on the part is on: a corner of the part within 14 px wins, else the face under the pointer, else the floor. true = taken
+func _p3_press(p: Vector2) -> bool:
+	var faces: Array = Part.body_faces(ep._rec(), -1)
+	var best := Vector3.ZERO
+	var found := false
+	var bd := 14.0
+	for tris in faces:
+		var t: PackedVector3Array = tris
+		for v in t:
+			if ep.m.cam.is_position_behind(v):
+				continue
+			var d: float = ep.m.cam.unproject_position(v).distance_to(p)
+			if d < bd:
+				bd = d
+				best = v
+				found = true
+	if not found:
+		var hit: Dictionary = ep.pu._ray_hit(p, faces)
+		if not hit.is_empty():
+			best = hit["at"]
+			found = true
+	if not found:
+		var ro: Vector3 = ep.m.cam.project_ray_origin(p)
+		var rd: Vector3 = ep.m.cam.project_ray_normal(p)
+		if absf(rd.y) > 1e-6 and -ro.y / rd.y > 0.0:
+			best = ro + rd * (-ro.y / rd.y)
+			found = true
+	if not found:
+		ep._say("Nothing there: click the part or the floor")
+		return true
+	p3_pick = false
+	p3_pick_btn.set_pressed_no_signal(false)
+	_p3_push(best * 1000.0)
+	return true
+
+
+## one step: the pipe3d feature, replayed by the kernel; a failure takes the step back and says why
+func _p3_make_press() -> void:
+	if not Part.available():
+		ep._say(Part.why_not())
+		return
+	if p3_pts.size() < 2:
+		ep._say("A pipe needs two points or more: type X Y Z and press Add point")
+		return
+	ep._flush_if_dirty()
+	ep.armed = ""
+	var snap: Dictionary = ep._rec().duplicate(true)
+	ep._begin("Pipe through points")
+	var rec: Dictionary = ep.pu._ensure()
+	var pts: Array = []
+	for q in p3_pts:
+		pts.append([snappedf(q.x, 0.001), snappedf(q.y, 0.001), snappedf(q.z, 0.001)])
+	var d: float = PipeParts.DS[p3_di]
+	var f := Part.new_feature(rec, "pipe3d", {"pts": pts, "r": d * 0.5, "wall": _p3_wall(), "bend": d * float(P3_BEND[p3_bi]), "op": "join"})
+	rec["features"].append(f)
+	var err: String = ep._last_error(rec, String(f["id"]))
+	if err != "":
+		ep.m.S.part = snap
+		ep.m._drop_undo()
+		ep._edit_n = -1
+		ep._say("The pipe was not made: %s" % err)
+		return
+	ep._end()
+	ep.pu.upto = -1
+	ep.pu.sync()
+	ep._rows_sync()
+	ep._values_sync()
+	ep.frame()
+	ep._say("Pipe made through %d points. Undo takes it back" % p3_pts.size())
+	p3_pts = []
+	_p3_text()

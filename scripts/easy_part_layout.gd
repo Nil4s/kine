@@ -448,6 +448,9 @@ func layout(cl: Rect2) -> void:
 		pu.reopen_btn.add_theme_font_size_override("font_size", 14 if narrow else 16)
 	# FMOBILE: at 1024 wide the Repeat it row (Row Up Forward Ring Corners) is narrower, so it fits left of the panel instead of under it
 	for rb in rep_btns.values():
+		if _rep_slimmed:
+			(rb as Button).custom_minimum_size.x = 56.0   # s214: the slim buttons are as wide as their words (56 least, a finger-sized touch) (both lines end left of the view buttons)
+			continue
 		(rb as Button).custom_minimum_size.x = 92.0 if (narrow or get_viewport().get_visible_rect().size.x < 1400.0) else 110.0   # bug5: 1280 wide the row ran under the view column
 	export_btn.custom_minimum_size.x = 84.0 if narrow else 110.0
 	title_l.clip_text = narrow

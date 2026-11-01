@@ -79,9 +79,9 @@ const DRAW := {
 	"part_revolve": [["arc", Vector2(12, 12), 8, 2.0, 40, 320], ["seg", Vector2(12, 2.5), Vector2(12, 21.5), 1.3], ["seg", Vector2(17.5, 4), Vector2(20, 7.5), 1.8], ["seg", Vector2(20, 7.5), Vector2(15, 8.5), 1.8]],
 	"part_loft": [["box", Rect2(3, 4, 6, 6), 1.6], ["box", Rect2(15, 14, 6, 6), 1.6], ["seg", Vector2(3, 4), Vector2(15, 14), 1.4], ["seg", Vector2(9, 4), Vector2(21, 14), 1.4], ["seg", Vector2(9, 10), Vector2(21, 20), 1.4]],
 	"part_sweep": [["box", Rect2(2, 15, 7, 7), 1.6], ["seg", Vector2(5.5, 15), Vector2(5.5, 6), 1.4], ["seg", Vector2(5.5, 6), Vector2(19, 6), 1.4], ["seg", Vector2(19, 6), Vector2(19, 20), 1.4]],
+	"part_pipe3d": [["box", Rect2(2, 15, 7, 7), 1.6], ["seg", Vector2(5.5, 15), Vector2(5.5, 6), 1.4], ["seg", Vector2(5.5, 6), Vector2(19, 6), 1.4], ["seg", Vector2(19, 6), Vector2(19, 20), 1.4]],   # PIPE THROUGH POINTS (s215): the sweep drawing, a tube along a path
 	"part_pattern": [["box", Rect2(2, 9, 5, 5), 1.4], ["box", Rect2(9.5, 9, 5, 5), 1.4], ["box", Rect2(17, 9, 5, 5), 1.4]],   # PATTERN: three copies in a row
 	"part_ornament": [["arc", Vector2(13, 9), 6.0, 2.4, 200.0, 520.0], ["seg", Vector2(7, 9), Vector2(6, 18), 2.4], ["seg", Vector2(3, 20), Vector2(20, 20), 1.8], ["disc", Vector2(18, 5), 1.6]],   # s227 ORNAMENT: a curled tail on a base
-	"part_meshsolid": [["ring", Vector2(12, 12), 7.5, 1.6], ["seg", Vector2(5, 12), Vector2(19, 12), 1.2], ["seg", Vector2(12, 4), Vector2(12, 20), 1.2]],   # s155 mesh solid: a sphere
 	"part_canvas": [["box", Rect2(3, 4, 18, 14), 1.6], ["disc", Vector2(16, 8), 1.8], ["seg", Vector2(3, 16), Vector2(9, 10), 1.4], ["seg", Vector2(9, 10), Vector2(13, 14), 1.4], ["seg", Vector2(13, 14), Vector2(21, 8), 1.4]],
 	"part_measure": [["seg", Vector2(3, 18), Vector2(21, 6), 1.6], ["disc", Vector2(3, 18), 2.0], ["disc", Vector2(21, 6), 2.0], ["seg", Vector2(7, 14), Vector2(7, 19), 1.2]],
 	"part_section": [["box", Rect2(4, 4, 16, 16), 1.6], ["seg", Vector2(2.5, 12), Vector2(21.5, 12), 2.4]],
@@ -434,6 +434,15 @@ const DRAW := {
 	"use_scene": [["box", Rect2(3, 4, 18, 15), 1.6], ["box", Rect2(6, 8, 5, 6), 1.4], ["seg", Vector2(21, 21), Vector2(15, 15), 1.9], ["seg", Vector2(15, 15), Vector2(15, 19.5), 1.9], ["seg", Vector2(15, 15), Vector2(19.5, 15), 1.9]],
 	# SURFACE: EXPORT UVS (a UV square with its grid, an arrow out of it)
 	"uv_export": [["box", Rect2(3, 3, 12, 12), 1.4], ["seg", Vector2(7, 3), Vector2(7, 15), 1.0], ["seg", Vector2(3, 9), Vector2(15, 9), 1.0], ["seg", Vector2(18, 10), Vector2(18, 21), 2.0], ["seg", Vector2(14.5, 17), Vector2(18, 21), 2.0], ["seg", Vector2(21.5, 17), Vector2(18, 21), 2.0]],
+	# s219: the Part timeline steps that had no picture (a step kind with no icon errored on every refresh)
+	"part_move": [["seg", Vector2(12, 3), Vector2(12, 21), 1.8], ["seg", Vector2(3, 12), Vector2(21, 12), 1.8], ["seg", Vector2(12, 3), Vector2(9, 6.5), 1.8], ["seg", Vector2(12, 3), Vector2(15, 6.5), 1.8], ["seg", Vector2(12, 21), Vector2(9, 17.5), 1.8], ["seg", Vector2(12, 21), Vector2(15, 17.5), 1.8], ["seg", Vector2(3, 12), Vector2(6.5, 9), 1.8], ["seg", Vector2(3, 12), Vector2(6.5, 15), 1.8], ["seg", Vector2(21, 12), Vector2(17.5, 9), 1.8], ["seg", Vector2(21, 12), Vector2(17.5, 15), 1.8]],   # MOVE: a four-way arrow
+	"part_lay": [["box", Rect2(3, 13, 18, 7), 1.7], ["arc", Vector2(12, 9), 6, 1.8, 200, 340], ["seg", Vector2(18, 9), Vector2(15.5, 6.5), 1.8], ["seg", Vector2(18, 9), Vector2(20.5, 6.5), 1.8]],   # LAY: a block lying flat, a turn arrow over it
+	"part_align": [["seg", Vector2(4, 3), Vector2(4, 21), 1.8], ["box", Rect2(4, 5, 14, 4), 1.6], ["box", Rect2(4, 10, 9, 4), 1.6], ["box", Rect2(4, 15, 17, 4), 1.6]],   # ALIGN: three bars on one edge
+	"part_lattice": [["box", Rect2(3.5, 3.5, 17, 17), 1.6], ["seg", Vector2(9.2, 3.5), Vector2(9.2, 20.5), 1.2], ["seg", Vector2(14.8, 3.5), Vector2(14.8, 20.5), 1.2], ["seg", Vector2(3.5, 9.2), Vector2(20.5, 9.2), 1.2], ["seg", Vector2(3.5, 14.8), Vector2(20.5, 14.8), 1.2]],   # LATTICE: a block of cells
+	"part_fitobj": [["box", Rect2(3, 3, 18, 18), 1.8], ["ring", Vector2(12, 12), 4.5, 1.8], ["disc", Vector2(12, 12), 1.6]],   # FIT TO AN OBJECT: a holder around a thing
+	"part_offset": [["box", Rect2(3, 3, 18, 18), 1.7], ["box", Rect2(8, 8, 8, 8), 1.7]],   # OFFSET: a block and a second skin around it
+	"part_meshsolid": [["seg", Vector2(12, 3), Vector2(21, 15), 1.7], ["seg", Vector2(21, 15), Vector2(12, 21), 1.7], ["seg", Vector2(12, 21), Vector2(3, 15), 1.7], ["seg", Vector2(3, 15), Vector2(12, 3), 1.7], ["seg", Vector2(12, 3), Vector2(12, 21), 1.2], ["seg", Vector2(3, 15), Vector2(21, 15), 1.2]],   # MESH SOLID: a faceted gem
+	"part_generic": [["box", Rect2(4, 4, 16, 16), 1.7], ["disc", Vector2(12, 12), 3.0]],   # s219: the picture for any step kind that has none yet
 }
 
 static var _cache := {}
@@ -443,14 +452,14 @@ static var _cache := {}
 static func big(name: String) -> ImageTexture:
 	var k := name + "@64"
 	if not _cache.has(k):
-		_cache[k] = ImageTexture.create_from_image(paint(DRAW[name], 64))
+		_cache[k] = ImageTexture.create_from_image(paint(DRAW[_known(name)], 64))
 	return _cache[k]
 
 
 ## the icon as a texture (made once)
 static func tex(name: String) -> ImageTexture:
 	if not _cache.has(name):
-		_cache[name] = ImageTexture.create_from_image(paint(DRAW[name]))
+		_cache[name] = ImageTexture.create_from_image(paint(DRAW[_known(name)]))
 	return _cache[name]
 
 
@@ -458,7 +467,7 @@ static func tex(name: String) -> ImageTexture:
 static func sized(name: String, px: int) -> ImageTexture:
 	var k := "%s@sized%d" % [name, px]
 	if not _cache.has(k):
-		_cache[k] = ImageTexture.create_from_image(paint(DRAW[name], px))
+		_cache[k] = ImageTexture.create_from_image(paint(DRAW[_known(name)], px))
 	return _cache[k]
 
 
@@ -466,7 +475,7 @@ static func sized(name: String, px: int) -> ImageTexture:
 static func small(name: String) -> ImageTexture:
 	var k := name + "@16"
 	if not _cache.has(k):
-		var img := paint(DRAW[name])
+		var img := paint(DRAW[_known(name)])
 		img.resize(16, 16, Image.INTERPOLATE_LANCZOS)
 		_cache[k] = ImageTexture.create_from_image(img)
 	return _cache[k]
@@ -515,3 +524,8 @@ static func dist(s: Array, p: Vector2) -> float:
 			var out := Vector2(maxf(q.x, 0.0), maxf(q.y, 0.0)).length() + minf(maxf(q.x, q.y), 0.0)
 			return out if s[2] == 0 else absf(out) - s[2] * 0.5
 	return INF
+
+
+## s219: a name with no drawing gets the generic picture, not a script error
+static func _known(name: String) -> String:
+	return name if DRAW.has(name) else "part_generic"

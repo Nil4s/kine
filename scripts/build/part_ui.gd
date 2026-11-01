@@ -145,6 +145,7 @@ var pill_text := ""   # XFIX2: the last size readout drawn next to the cursor (i
 var pill_at := Vector2.ZERO
 var cur_px := Vector2.ZERO   # the last pointer place on the view (the readout follows it)
 var grey_why := {}   # XFIX2: greyed button -> why (a click on it says that)
+var asm_on := false            # s213: the Assembly screen (assembly_ui.gd) has the page: the Part chrome and the part's own mesh stay hidden
 var part_btn: Button
 var tool_btns := {}
 var finish_btn: Button
@@ -187,6 +188,10 @@ var f_ruled: OptionButton      # the loft dialog: ruled (straight) or smooth
 var f_sw_prof: OptionButton    # the sweep dialog: the closed profile sketch
 var f_sw_path: OptionButton    # the sweep dialog: the open path sketch
 var f_sw_flange: CheckBox      # the sweep dialog: a flange ring at the line's start end (FPIPE)
+var pat_pick: Array = []        # s214 PATTERN A GROUP: the bodies the Pattern dialog copies (one = the usual single body)
+var pat_mod := false            # s214: Shift or Ctrl was held on the last left click
+var pat_box := {}               # s214: a box being dragged over the view {"a", "b"} (screen points) to pick the bodies inside it
+var pat_faces: Array = []       # s214: the triangles of each body before the step (a view click and the box pick by them)
 var pat := {}                  # PATTERN dialog: its controls by name (built each time it opens, see _pattern_open)
 var f_cmb_op: OptionButton     # the combine dialog: Join, Cut or Intersect
 var f_cmb_keep: CheckBox       # the combine dialog: keep the tool bodies
@@ -213,6 +218,7 @@ var sec_on := false            # SECTION (a view setting, not in the record): th
 var sec_pl := "front"          # its plane (Front, Top, Right) and offset (mm along the plane normal)
 var sec_mm := 0.0
 var sec_mat: ShaderMaterial
+var sec_cut := {}              # S218: the cut now on ({"n","w"}: Section tool or Easy Cut view); _look_surfaces gives each body its own cap colour
 var sec_box: PanelContainer
 var sec_chk: CheckBox
 var sec_opt: OptionButton
@@ -331,12 +337,12 @@ func setup(b: BuildUI) -> void:
 
 ## the Expert chrome (ribbon tools, browser, panel, timeline) shows
 func chrome() -> bool:
-	return bu.on and on and not easy and not bu.easy_ui()
+	return bu.on and on and not easy and not bu.easy_ui() and not asm_on
 
 
 ## the Part workspace has the page, in Expert or in Easy's screen
 func shows() -> bool:
-	return bu.on and on and (easy or not bu.easy_ui())
+	return bu.on and on and (easy or not bu.easy_ui() or asm_on)
 
 
 ## EASY PART: the same record on Easy's screen. A part drawn in Expert stays as it is (the chips start a template over it, as one undo step);
@@ -388,9 +394,9 @@ func ribbon_shows(b: Node, tab: String) -> bool:
 	if b == reopen_btn:   # the way back to the chooser: in the Part ribbon too, with its words
 		return true
 	if b is VSeparator:
-		return show if my_seps.has(b) else not show
+		return show if my_seps.has(b) else (not show and not asm_on)   # s213: the assembly screen shows neither the house tools' dividers nor the Part tools'
 	if house_btns.has(b):
-		return not show
+		return not show and not asm_on
 	return show
 
 
@@ -958,6 +964,7 @@ func input(ev: InputEvent) -> bool:
 	if ev is InputEventMouseButton:
 		var mb := ev as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT:
+			pat_mod = mb.shift_pressed or mb.ctrl_pressed   # s214: Shift / Ctrl held on this click (a group pick)
 			if mb.pressed:
 				m._toast_clear()   # XFIX2: a press is an action: an older "Undid" toast goes
 			return _press(mb.position) if mb.pressed else _release(mb.position)
@@ -978,6 +985,8 @@ func _press(p: Vector2) -> bool:
 		return _press_sketch(p)
 	if dlg.get("t", "") == "canvas":
 		return _canvas_press(p)
+	if dlg.get("t", "") == "pattern" and _pgrp_press(p):
+		return true   # s214: a click on a body picks it for the pattern (shift / ctrl: several; on empty space: a box)
 	if dlg.get("t", "") == "combine":
 		return _combine_press(p)   # COMBINE: a click on a body picks it (its own functions, at the end of this file)   # GAP 3: the canvas dialog's clicks (two points) and drags
 	if dlg.is_empty() and tool == "" and _canvas_grab(p):
@@ -1095,6 +1104,8 @@ func _press_sketch(p: Vector2) -> bool:
 
 
 func _release(p: Vector2) -> bool:
+	if not pat_box.is_empty():
+		return _pgrp_release(p)
 	if not cv_drag.is_empty():
 		return _canvas_release()
 	if not con_drag.is_empty():
@@ -1140,6 +1151,10 @@ func _commit_draft() -> void:
 
 func _motion(p: Vector2) -> bool:
 	cur_px = p   # XFIX2: the size readout follows the pointer
+	if not pat_box.is_empty():
+		pat_box["b"] = p
+		pov.queue_redraw()
+		return false
 	if not cv_drag.is_empty():
 		_canvas_move(p)
 		return false
@@ -2175,7 +2190,7 @@ func _timeline_sync() -> void:
 
 func _browser_sync() -> void:
 	var feats := _feats()
-	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], f["t"], f.get("mm", 0), f.get("from", ""), f.get("show", "")]), sk, res.get("bodies", 0), prev.is_empty(), sel_body, cmb])
+	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], f["t"], f.get("mm", 0), f.get("from", ""), f.get("show", "")]), sk, res.get("bodies", 0), prev.is_empty(), sel_body, cmb, pat_pick if String(dlg.get("t", "")) == "pattern" else []])
 	if sig == _browser_sig:
 		return
 	_browser_sig = sig
@@ -2190,7 +2205,7 @@ func _browser_sync() -> void:
 		bb.tooltip_text = "Body%d: click to change its colour and material (Appearance)" % (i + 1)
 		if _combine_has(i):
 			bb.tooltip_text = "Body%d: picked for the combine" % (i + 1)
-		if i == sel_body or _combine_has(i):
+		if i == sel_body or _combine_has(i) or _pgrp_has(i):
 			bb.add_theme_color_override("font_color", SKY)
 			bb.add_theme_color_override("font_hover_color", SKY)
 		bb.pressed.connect(func(): _body_row_pressed(i))
@@ -2348,7 +2363,7 @@ func sync() -> void:
 	part_btn.visible = bu.on and not bu.easy_ui()
 	part_btn.set_pressed_no_signal(on)
 	for c in house_btns:
-		(c as Control).visible = not show or c == reopen_btn
+		(c as Control).visible = (not show and not asm_on) or c == reopen_btn
 	if reopen_btn != null:
 		reopen_btn.text = "What to build" if on and not (easy and m.get_viewport().get_visible_rect().size.x < 1400.0) else ""   # bug6: Easy Part's bar at 1280 is full: the words went off the right edge, so the icon alone there   # icon only in the house ribbon (it is crowded there); with words in Part, Expert or Easy
 	for t in tool_btns:
@@ -2380,11 +2395,11 @@ func sync() -> void:
 	_inspect_sync(show)
 	_look_sync(show)   # after the replay: the panel reads this record's looks
 	pov.visible = show
-	part_mesh.visible = up and sk == "" and prev.is_empty() and part_mesh.mesh != null
+	part_mesh.visible = up and sk == "" and prev.is_empty() and part_mesh.mesh != null and not asm_on
 	prev_mesh.visible = show and not prev.is_empty() and prev_mesh.mesh != null
 	bu.house.visible = not up
 	if up:
-		bu.grid.visible = false
+		bu.grid.visible = asm_on and bu.on   # s213: the assembly stands on the floor grid (the Part workspace draws its own)
 		bu.person.visible = false
 	else:
 		bu.grid.visible = bu.on   # bug2: the house floor comes back when the Part workspace closes (it was hidden above and never restored: a blank dark view)
@@ -2676,6 +2691,7 @@ func _draw_model() -> void:
 	_draw_axes(Vector3.ZERO, 0.08)
 	_draw_hinge_marks()
 	_draw_measure()
+	_pgrp_draw()
 	for i in edge_cache.size():
 		var picked_now := false
 		for pe in picked:
@@ -3445,18 +3461,30 @@ uniform vec4 cut = vec4(0.0, 0.0, 1.0, 0.0);
 uniform float on = 0.0;
 uniform vec4 cap : source_color = vec4(0.91, 0.51, 0.23, 1.0);
 uniform vec4 solid : source_color = vec4(0.74, 0.77, 0.82, 1.0);
+uniform vec4 caps[16];
+uniform vec4 solids[16];
+uniform int body_n = 0;
 varying vec3 wp;
+varying float bid;
 void vertex() {
 	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	bid = COLOR.r * 16.0;
 }
 void fragment() {
 	if (on > 0.5 && dot(cut.xyz, wp) > cut.w) {
 		discard;
 	}
+	vec3 capc = cap.rgb;
+	vec3 solc = solid.rgb;
+	int b = int(bid + 0.5);
+	if (b < body_n) {
+		capc = caps[b].rgb;
+		solc = solids[b].rgb;
+	}
 	if (FRONT_FACING) {
-		ALBEDO = solid.rgb * (0.7 + 0.3 * abs(NORMAL.z));
+		ALBEDO = solc * (0.7 + 0.3 * abs(NORMAL.z));
 	} else {
-		ALBEDO = cap.rgb;
+		ALBEDO = capc;
 	}
 }
 """
@@ -3739,6 +3767,8 @@ func _sec_apply() -> void:
 		return
 	if not sec_on:
 		part_mesh.material_override = null   # each body keeps its own look (_look_surfaces); an override would paint them all one grey
+		sec_cut = {}
+		_look_surfaces()   # S218: the cap colours go, the own looks come back
 		return
 	if sec_mat == null:
 		sec_mat = ShaderMaterial.new()
@@ -3753,6 +3783,8 @@ func _sec_apply() -> void:
 	var p: Vector3 = d["p"]
 	sec_mat.set_shader_parameter("cut", Vector4(n.x, n.y, n.z, n.dot(p)))
 	sec_mat.set_shader_parameter("on", 1.0)
+	sec_cut = {"n": n, "w": n.dot(p)}   # S218
+	_look_surfaces()
 
 
 func _inspect_sync(show: bool) -> void:
@@ -4301,10 +4333,13 @@ func _look_surfaces() -> void:
 		mt.albedo_color = Color(c.r, c.g, c.b, a)
 		mt.roughness = float(l["rough"])
 		mt.metallic = float(l["metal"])
+		if mt.metallic < 0.5:
+			mt.metallic_specular = 0.2   # s217: paint reflects the (brighter) studio sky less than metal does: a coloured part keeps its look
 		mt.cull_mode = BaseMaterial3D.CULL_DISABLED
 		if a < 1.0:
 			mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		part_mesh.set_surface_override_material(s, mt)
+	SectionLook.after_look(self)   # S218: per-body cap colours on a cut / split
 	if cut_hook.is_valid():
 		cut_hook.call()   # S016: the Wall slider's cut-away stays on over each new look
 
@@ -4335,9 +4370,10 @@ func _pattern_open(f: Dictionary, edit: int) -> void:
 	for i in nb:
 		body_o.add_item("Body %d" % (i + 1))
 	body_o.select(clampi(int(f.get("body", nb - 1)) if edit >= 0 else nb - 1, 0, nb - 1))
-	body_o.item_selected.connect(func(_i): _preview())
+	body_o.item_selected.connect(func(_i): _pgrp_pick(body_o.selected, false))
 	pat["body"] = body_o
 	dlg_rows.add_child(_pat_row("Body to copy", body_o, ""))
+	_pgrp_open(f, edit, nb, body_o)   # s214: tick several bodies to copy them all in this one step
 	var cnt := _field("part_pattern_count")
 	cnt.text = str(int(f.get("count", 3))) if edit >= 0 else "3"
 	pat["count"] = cnt
@@ -4421,6 +4457,11 @@ func _pattern_feature() -> Dictionary:
 	var nb := maxi(int(res.get("bodies", 0)), 1)
 	var f := {"kind": "circular" if circ else "linear", "count": int(nd), "body": clampi(int((pat["body"] as OptionButton).selected), 0, nb - 1),
 		"op": "new" if int((pat["op"] as OptionButton).selected) == 1 else "join"}
+	if pat_pick.size() > 1:   # s214: a group: one step copies every picked body (the body field is the first of them)
+		var grp: Array = pat_pick.duplicate()
+		grp.sort()
+		f["bodies"] = grp
+		f["body"] = int(grp[0])
 	if circ:
 		var a := _num(pat["deg"])
 		if is_nan(a) or absf(a) < 1e-6:
@@ -4513,6 +4554,8 @@ func _combine_has(i: int) -> bool:
 func _body_row_pressed(i: int) -> void:
 	if String(dlg.get("t", "")) == "combine":
 		_combine_pick(i)
+	elif String(dlg.get("t", "")) == "pattern":
+		_pgrp_pick(i, Input.is_key_pressed(KEY_SHIFT) or Input.is_key_pressed(KEY_CTRL))   # s214: a browser row picks the body for the pattern
 	else:
 		_sel_body_pick(i)
 
@@ -4966,3 +5009,135 @@ func thread_look_sync() -> void:
 	am.surface_set_material(0, mat)
 	tl.mesh = am
 	tl.visible = true
+
+
+# ---------------------------------------------------------------- s214 PATTERN A GROUP (Row / Ring over several bodies in one step)
+# The dialog's "Also copy" ticks, a click on a body (Shift or Ctrl adds more), a click on a browser row (Shift / Ctrl adds) or a box dragged over
+# the view (Shift / Ctrl held, starting on empty space) pick the bodies. One pattern step carries them ("bodies"), so one undo takes all the copies.
+
+func _pgrp_open(f: Dictionary, edit: int, nb: int, body_o: OptionButton) -> void:
+	pat_faces = Part.body_faces(_rec(), -1)
+	pat_box = {}
+	pat_pick = []
+	if edit >= 0 and f.has("bodies"):
+		for v in (f["bodies"] as Array):
+			pat_pick.append(int(v))
+	else:
+		pat_pick = [body_o.selected]
+	var fl := HFlowContainer.new()
+	fl.name = "part_pattern_group"
+	var cl := _label("Also copy")
+	cl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	fl.add_child(cl)
+	var boxes: Array = []
+	for i in nb:
+		var cb := CheckBox.new()
+		cb.name = "part_pattern_pick_%d" % i
+		cb.text = "Body %d" % (i + 1)
+		cb.focus_mode = Control.FOCUS_NONE
+		cb.tooltip_text = "Tick every body the row or ring should copy. You can also click bodies in the view (hold Shift or Ctrl for several, or drag a box round them)"
+		cb.set_pressed_no_signal(pat_pick.has(i))
+		cb.toggled.connect(func(_v): _pgrp_pick(i, true))
+		fl.add_child(cb)
+		boxes.append(cb)
+	pat["picks"] = boxes
+	dlg_rows.add_child(fl)
+	fl.visible = nb > 1
+
+
+func _pgrp_has(i: int) -> bool:
+	return String(dlg.get("t", "")) == "pattern" and pat_pick.size() > 1 and pat_pick.has(i)
+
+
+## one pick: add = true toggles the body in the group (never empties it); add = false makes it the only one
+func _pgrp_pick(i: int, add: bool) -> void:
+	if String(dlg.get("t", "")) != "pattern" or pat.is_empty():
+		return
+	if add:
+		if pat_pick.has(i):
+			if pat_pick.size() > 1:
+				pat_pick.erase(i)
+		else:
+			pat_pick.append(i)
+	else:
+		pat_pick = [i]
+	_pgrp_sync()
+
+
+func _pgrp_sync() -> void:
+	if pat.is_empty():
+		return
+	var bo: OptionButton = pat["body"]
+	var first := int(pat_pick.min()) if not pat_pick.is_empty() else 0
+	if first < bo.item_count:
+		bo.select(first)
+	var boxes: Array = pat.get("picks", [])
+	for i in boxes.size():
+		(boxes[i] as CheckBox).set_pressed_no_signal(pat_pick.has(i))
+	_preview()
+	_say("Pattern: %d bod%s picked. Shift or Ctrl adds more; a box dragged round bodies picks them" % [pat_pick.size(), "y" if pat_pick.size() == 1 else "ies"])
+	pov.queue_redraw()
+	bu.sync()
+
+
+## a press while the Pattern dialog is open: a body under it is picked (Shift / Ctrl: added); empty space with Shift / Ctrl starts a box. false = not taken
+func _pgrp_press(p: Vector2) -> bool:
+	if int(res.get("bodies", 0)) < 2:
+		return false
+	var add := pat_mod or Input.is_key_pressed(KEY_SHIFT) or Input.is_key_pressed(KEY_CTRL)
+	var h := _ray_hit(p, pat_faces)
+	if not h.is_empty():
+		_pgrp_pick(int(h["body"]), add)
+		return true
+	if add:
+		pat_box = {"a": p, "b": p}
+		return true
+	return false
+
+
+func _pgrp_release(p: Vector2) -> bool:
+	pat_box["b"] = p
+	var r := Rect2(pat_box["a"], Vector2.ZERO).expand(pat_box["b"])
+	pat_box = {}
+	if r.size.length() > 6.0:
+		var n0 := pat_pick.size()
+		for bi in pat_faces.size():
+			if _pgrp_in_box(bi, r) and not pat_pick.has(bi):
+				pat_pick.append(bi)
+		if pat_pick.size() != n0:
+			_pgrp_sync()
+	pov.queue_redraw()
+	return true
+
+
+## does any corner of body bi's triangles land inside the screen rect r
+func _pgrp_in_box(bi: int, r: Rect2) -> bool:
+	var tris: PackedVector3Array = pat_faces[bi]
+	for v in tris:
+		if not m.cam.is_position_behind(v) and r.has_point(m.cam.unproject_position(v)):
+			return true
+	return false
+
+
+## the picked bodies get a sky-blue frame round them (when more than one is picked), and the box being dragged
+func _pgrp_draw() -> void:
+	if String(dlg.get("t", "")) != "pattern":
+		return
+	if pat_pick.size() > 1:
+		for bi in pat_pick:
+			if int(bi) >= pat_faces.size():
+				continue
+			var lo := Vector2(INF, INF)
+			var hi := Vector2(-INF, -INF)
+			for v in (pat_faces[int(bi)] as PackedVector3Array):
+				if m.cam.is_position_behind(v):
+					continue
+				var q: Vector2 = m.cam.unproject_position(v)
+				lo = lo.min(q)
+				hi = hi.max(q)
+			if lo.x < INF:
+				pov.draw_rect(Rect2(lo - Vector2(4, 4), hi - lo + Vector2(8, 8)), SKY, false, 2.0)
+	if not pat_box.is_empty():
+		var r := Rect2(pat_box["a"], Vector2.ZERO).expand(pat_box["b"])
+		pov.draw_rect(r, Color(SKY, 0.15), true)
+		pov.draw_rect(r, SKY, false, 1.5)

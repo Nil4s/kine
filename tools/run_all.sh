@@ -564,4 +564,27 @@ EXTRA="$EXTRA fstool:w"   # FSTOOL: a beginner from the BUILDING card builds a t
 EXTRA="$EXTRA bug6:w"   # bug6: animation-only UI (grip panel, facing label) never shows in 3D BUILDING; no stray divider bars / empty buttons; top rows clear at 3 sizes; tests/bug6_test.gd
 
 
+EXTRA="$EXTRA s219:w"   # s219: every Part step kind has a timeline icon; unknown names fall back to a generic icon
+
+
+EXTRA="$EXTRA s215:w"   # s215: Pipe through points (Parts > Pipes): a tube swept along 3D points with smooth bends
+
+
+
+EXTRA="$EXTRA s218:w"   # s218: section colour: per-body cap colours on Section view, Split results and Nice picture
+
+
+EXTRA="$EXTRA s216:w"   # s216 SWEEP BEND RADIUS: Pull along has a Bend radius control (slider + typed mm, default 1.5 x tube width, least the tube radius); L path, 30 mm tube at 60 mm: one solid, mesh circle-fit radius 60 +-1, Pappus volume, slider/typed changes, undo (tests/s216_test.gd; needs the CAD DLL)
+
+
+EXTRA="$EXTRA s213:w"   # s213: multi-part Assembly (BUILD chooser New assembly): insert, place, edit, save/open, export STL/GLB/STEP; tests/s213_test.gd
+
+
+EXTRA="$EXTRA s220:w"   # s220: MODELING VIEW WITH MATHS: part_facts (a part as text: volume, box, axis, contact graph) + part_assert (one-line checks, miss in mm / deg / mm3), agent_tools + poser_cli + AI box; tests/s220_test.gd
+
+
+EXTRA="$EXTRA s214:w"   # s214: pattern a GROUP of bodies in one step (Expert Pattern ticks/Ctrl-click/box, Easy Repeat it > Group)
+
+
+EXTRA="$EXTRA s217:w"   # Metal reads as metal in Expert, Easy Part, Nice picture and STAGE (same studio reflection sky as bug3)
 EXTRA="$EXTRA s227:w"   # s227: ornaments library + sculpt-into-part road

@@ -139,6 +139,7 @@ var stick_edges := {}            # body index -> its crease edges (pairs of poin
 const EDGE_PX := 10.0            # NROUNDDRAG: a press this close (screen px) to a solid's edge takes it in hand
 const EDGE_MAX_MM := 10.0        # NROUNDDRAG: the radius a drag can reach (mm)
 const PICK_PX := 12.0            # a click this close (screen px) to a piece picks it when the ray hits nothing
+var _rep_slimmed := false      # s214: the Repeat it buttons were slimmed once
 var rep_id := ""                 # the last Repeat it step's feature id ("" = none)
 var rep_rows := []               # the two slider rows of the Repeat it box (see _make_row)
 var hole_box: PanelContainer     # Cut a hole: the Through / Hollow inside chips, under the MAKE row, after a Cut a hole press (see _hole_on)
