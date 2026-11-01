@@ -18,6 +18,7 @@ var ui_blur: CheckBox   # playblast motion blur (ROADMAP R3)
 var ui_what: OptionButton   # "What to export": Everything (the default) / Only the selected object / One entry per mesh object
 var ui_face: OptionButton   # laser cutting: which flat face
 var ui_face_row: HBoxContainer
+var ui_price_row: HBoxContainer   # s081: the price table (BRL) behind the cost line
 var ui_objects: Label   # the mesh objects in the scene, by name (what the choice picks from)
 var batch_ui: BatchDialog   # Batch... (ROADMAP 80), made on first use
 var ui_slicer_box: VBoxContainer   # 3D printing only (plan 119): the slicers found + the Send to slicer button
@@ -78,6 +79,14 @@ const PRINT_TARGET := {"id": "print", "label": "3D printing (STL, 3MF)", "engine
 	"app": "The part as a printable solid in millimetres."}
 
 
+## CUT LIST (s081, plan 81): shown only while the part on screen is made of wood boards; scripts/build/cut_list.gd writes the CSV
+const CUTLIST_TARGET := {"id": "cutlist", "label": "Cut list (CSV)", "engine": "",
+	"needs": "Any spreadsheet (Excel, LibreOffice, Google Sheets) opens the .csv. One line per size of board: its name, length, width and thickness in millimetres, how many of that size, and the board-metres to buy; the last line is the total.",
+	"formats": [{"name": "CSV (.csv): the boards to buy", "run": "csv",
+			"app": "A .csv with a header, one line for each size of board (boards of the same size are counted together) and a TOTAL line with the number of boards and the board-metres."}],
+	"app": "The list of boards to cut, from the wood boards of the part."}
+
+
 ## LASER CUTTING (SVG, DXF; plan 116): shown with 3D printing while a free Part is on screen; scripts/build/laser_export.gd writes the outline of one flat face
 const LASER_TARGET := {"id": "laser", "label": "Laser cutting (SVG, DXF)", "engine": "",
 	"needs": "Any laser or CNC program (LightBurn, Inkscape, Fusion, LibreCAD) opens either file. Both hold millimetres, drawn flat: the outer edge and every hole of ONE flat face, at full size. Pick the face above: Top is the usual choice for a plate.",
@@ -116,6 +125,8 @@ func _tg() -> Array:
 	if m.pieces.size() > 0 and BaseBody.gen(m) > 0:
 		out.append(BODYANIM_TARGET)
 	if free_part:
+		if CutList.is_wood_build(m.S.part):
+			out.append(CUTLIST_TARGET)   # s081: only a build of wood boards
 		out.append(LASER_TARGET)   # before 3D printing, so the Export button still lands on the last one: 3D printing
 		out.append(STEP_TARGET)
 		out.append(PRINT_TARGET)
@@ -131,6 +142,8 @@ static func target(id: String) -> Dictionary:
 		return BODYANIM_TARGET
 	if id == "laser":
 		return LASER_TARGET
+	if id == "cutlist":
+		return CUTLIST_TARGET
 	if id == "step":
 		return STEP_TARGET
 	return PRINT_TARGET if id == "print" else {}
@@ -203,6 +216,7 @@ func _build() -> void:
 	ui_face_row.add_child(ui_face)
 	ui_face_row.visible = false
 	v.add_child(ui_face_row)
+	_price_row_build(v)
 	ui_slicer_box = VBoxContainer.new()   # plan 119: Send to slicer (3D printing only)
 	ui_slicer_box.name = "export_slicer_box"
 	ui_slicer_txt = Label.new()
@@ -337,7 +351,11 @@ func _refresh() -> void:
 	var lst := ", ".join(names) if not names.is_empty() else "none"
 	var why := "" if plain else "\n\nThe choice is for the plain .glb (one mesh per object, no animation); this format always holds everything."
 	ui_face_row.visible = _cur_id() == "laser"
+	ui_price_row.visible = _cur_id() == "cutlist" or _cur_id() == "print"
 	_refresh_slicer()
+	if _cur_id() == "cutlist":
+		ui_objects.text = "The part on screen is what is read: each wood board is one line. The prices above set the cost line on the Size label."
+		return
 	if _cur_id() == "laser":
 		ui_objects.text = "The part on screen is what is read. Pick the face above; its outer edge and holes are written in millimetres."
 		return
@@ -377,6 +395,8 @@ func text_of(id: String, fi: int) -> Dictionary:
 		fps_s = "none: a printed part is one still shape"
 	if id == "laser":
 		fps_s = "none: a cut outline is one still shape"
+	if id == "cutlist":
+		fps_s = "none: a cut list is a table"
 	# a format with its own "needs" / "app" replaces the target's (they describe that file type: glTF's scale is not FBX's)
 	var needs := String(f["needs"]) if f.has("needs") else needs_of(t)
 	var app := String(f["app"]) if f.has("app") else String(t["app"])
@@ -391,6 +411,8 @@ func checks(id: String, run: String) -> Array:
 		return StepExport.check_lines(m.S.part)
 	if id == "print":   # the printability check of the part on screen
 		return MeshExport.check_lines(m.S.part)
+	if id == "cutlist":
+		return CutList.check_lines(m.S.part)
 	if id == "laser":
 		return LaserExport.check_lines(m.S.part, ui_face.selected if ui_face != null else 0)
 	if id == "bodyanim":
@@ -472,6 +494,10 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 		return ""
 	var fs: Array = t["formats"]
 	var run := String((fs[clampi(fi, 0, fs.size() - 1)] as Dictionary)["run"])
+	if id == "cutlist":   # s081: the CSV of the boards
+		var rc := CutList.export_csv(m.S.part, UserPaths.w(dir))
+		m._say_plain(String(rc["text"]))
+		return String(rc["path"]) if bool(rc["ok"]) else ""
 	if id == "laser":   # SVG / DXF of one flat face (what = the face's index in LaserExport.FACES)
 		var rl := LaserExport.export_part(m.S.part, run, UserPaths.w(dir), what)
 		m._say_plain(String(rl["text"]))
@@ -552,3 +578,23 @@ func send_to_slicer() -> Dictionary:
 	var r := SlicerSend.send(m.S.part, pick, lch)
 	m._say_plain(String(r["text"]))
 	return r
+
+
+## s081: the price table row (Cut list and 3D printing): PLA R$ per kg and pine board R$ per metre; each change is kept in user://kine_prices.json
+func _price_row_build(v: VBoxContainer) -> void:
+	ui_price_row = HBoxContainer.new()
+	ui_price_row.name = "export_price_row"
+	ui_price_row.visible = false
+	for spec in [["pla_brl_kg", "Prices: PLA R$ per kg"], ["pine_brl_m", "pine board R$ per metre"]]:
+		var l := Label.new()
+		l.text = String(spec[1])
+		ui_price_row.add_child(l)
+		var sb := SpinBox.new()
+		sb.name = "export_price_" + String(spec[0])
+		sb.min_value = 0.0
+		sb.max_value = 100000.0
+		sb.step = 0.5
+		sb.value = float(CutList.prices()[spec[0]])
+		sb.value_changed.connect(func(x: float): CutList.set_price(String(spec[0]), x))
+		ui_price_row.add_child(sb)
+	v.add_child(ui_price_row)
