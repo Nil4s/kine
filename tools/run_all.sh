@@ -611,3 +611,4 @@ EXTRA="$EXTRA sbug2:w"   # sbug2: a broken painted-weights sidecar (right forear
 EXTRA="$EXTRA s212:w"   # s212: name bodies (browser double-click / right-click Rename, Easy name field; names in record, undo, 3MF/GLB/OBJ/STEP); tests/s212_test.gd
 
 
+EXTRA="$EXTRA s225:w"   # FRIDAY 225 NATURE + SCATTER: trees, hedges, shrubs, grass, flowers, scatter; Nature tool + Words + agent "nature"

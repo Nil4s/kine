@@ -329,6 +329,9 @@ func build(root: Control) -> void:
 	v.add_child(clip_box)
 	orn_box = PartOrnamentEasy.make_box(self)   # s227: Parts > Ornaments
 	v.add_child(orn_box)
+
+
+	v.add_child(_nature_box())   # FRIDAY 225: the Nature page
 	handle_box = _handle_box()   # P071 HANDLES: the Handles grid under the library page
 	v.add_child(handle_box)
 	wheel_box = _wheel_box()   # P072: the Wheels page's chips
@@ -2253,6 +2256,8 @@ func _lib_box() -> PanelContainer:
 		b.pressed.connect(_lib_press.bind(cat))
 		fl.add_child(b)
 		lib_btns[cat] = b
+		if cat == "Gears":
+			fl.add_child(_nature_chip())   # FRIDAY 225: icon-only Nature chip in the first row, which has 46 px spare: adds no row
 	fl.add_child(_kids_chip_make())   # p197kidsmode: the Kids chip, last on the library page
 	fl.add_child(_challenge_chip_make())   # s165: Challenges, after Kids
 
@@ -2608,7 +2613,7 @@ func _screw_sync() -> void:
 		m._grey(spring_pick, Part.why_not() if not Part.available() else "")
 		_cam_pick_sync()   # p130camandfoll
 		_gp_pick_sync()   # p065gearpairpi
-		lib_soon.visible = parts_open and lib_cat != "" and not (lib_cat in LIB_READY)
+		lib_soon.visible = parts_open and lib_cat != "" and lib_cat != "Nature" and not (lib_cat in LIB_READY)
 		if screw_words != null:   # the page is open: its chips and the status line say what to do
 			screw_words.visible = not parts_open
 		lib_soon.text = "%s are coming soon: not made yet. Next step: press Screws or Gears" % lib_cat if lib_soon.visible else ""
@@ -2624,6 +2629,10 @@ func _screw_sync() -> void:
 			_fav_sync()
 	if orn_box != null:   # s227
 		orn_box.visible = parts_open and lib_cat == "Ornaments"
+
+
+	if nature_page != null:   # FRIDAY 225
+		nature_page.sync()
 	if clip_box != null:   # P075: the Clips and feet chips show while that category is open
 		clip_box.visible = parts_open and lib_cat == "Clips and feet"
 		_clip_scroll_once()   # integ94: the chips sat below the scroll's edge (y 594 vs 586) and took no click (p205 S1)
@@ -8452,3 +8461,19 @@ func _mat_sync() -> void:
 		mat_box.position = Vector2(colour_box.position.x, colour_box.position.y + colour_box.size.y + 6.0)
 		mat_box.size.x = maxf(colour_box.size.x, 300.0)
 		mat_box.size.y = mat_box.get_combined_minimum_size().y
+
+
+# ---------------------------------------------------------------- FRIDAY 225 NATURE PAGE
+var nature_page = null   # easy_part_nature.gd
+
+
+func _nature_chip() -> Button:
+	if nature_page == null:
+		nature_page = EasyPartNature.new(self)
+	return nature_page.make_chip()
+
+
+func _nature_box() -> PanelContainer:
+	if nature_page == null:
+		nature_page = EasyPartNature.new(self)
+	return nature_page.make_box()

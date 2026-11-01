@@ -609,6 +609,8 @@ static func to_file(b: Dictionary) -> Dictionary:
 		out["roof"] = _snapped_copy(b["roof"])
 	if not b.get("pieces", []).is_empty():
 		out["pieces"] = b["pieces"].map(func(p): return _snapped_copy(p))
+	if not b.get("nature", []).is_empty():
+		out["nature"] = b["nature"].map(func(n): return Nature.snap_item(n))   # FRIDAY 225: trees, hedges, grass, scatter (scripts/build/nature.gd)
 	return out
 
 
@@ -667,6 +669,9 @@ static func from_file(d: Variant) -> Dictionary:
 		if not (pd as Dictionary).has("id") or not piece_of(b, String(pc["id"])).is_empty():
 			pc["id"] = _new_id(b["pieces"], "p")
 		b["pieces"].append(pc)
+	var nat := Nature.from_file(d.get("nature", []))
+	if not nat.is_empty():
+		b["nature"] = nat
 	var rf = d.get("roof", {})
 	if rf is Dictionary and ROOFS.has(String(rf.get("kind", ""))):
 		var pitch = rf.get("pitch", ROOF_PITCH)
@@ -710,6 +715,8 @@ static func mirror_file(d: Dictionary) -> Dictionary:
 				pc.erase("flip")
 			else:
 				pc["flip"] = true
+	if out.has("nature"):
+		out["nature"] = Nature.mirror_list(out["nature"])
 	var inner := {}
 	for iw in out.get("walls", []):
 		var rm := {}
