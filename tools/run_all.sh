@@ -494,3 +494,6 @@ EXTRA="$EXTRA s125:w"   # s125 (Friday plan 125): Easy Part Swing it checks ever
 
 
 EXTRA="$EXTRA n05:w"   # N05: slicer lookup cache, build_banded reuse + C++ (KineFieldNative)
+
+
+EXTRA="$EXTRA s097:w"   # s097 (Friday plan 97): Ctrl+K / the bar icon opens one box for any Easy Part action: hole, round, m3 screw hole, screw m4 16; arrows + Enter = the click, Esc closes

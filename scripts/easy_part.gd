@@ -64,6 +64,7 @@ func build(root: Control) -> void:
 	fix_btn.icon = Icons.sized("fix", 22)
 	fix_btn.expand_icon = false
 	fix_btn.custom_minimum_size.x = 110.0
+	row.add_child(EasySearch.bar_button(m))   # s097: the search icon (Ctrl+K)
 	row.add_child(undo_btn)
 	row.add_child(redo_btn)
 	row.add_child(dup_btn)

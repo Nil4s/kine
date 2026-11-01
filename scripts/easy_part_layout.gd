@@ -439,6 +439,7 @@ func layout(cl: Rect2) -> void:
 		(sb as Button).custom_minimum_size.x = 72.0 if tight else 96.0
 	give_btn.custom_minimum_size.x = 110.0 if narrow else 170.0
 	_narrow_bar_text(narrow)   # P172LAYOUTS: the long bar words trim at 1024 wide instead of setting the row wider than the window
+	EasySearch.fit(self)   # s097: the search icon only where the bar row has room
 	dup_btn.custom_minimum_size.x = 92.0 if narrow else 120.0   # FMOBILE2: 1024 wide, the bar row (with What to build at its end) must fit the window
 	if bar_home != null:
 		bar_home.custom_minimum_size.x = 88.0 if narrow else 110.0

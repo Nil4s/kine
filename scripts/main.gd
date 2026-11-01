@@ -5874,7 +5874,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		if k.ctrl_pressed:
 			match k.keycode:
 				KEY_Z: _undo()
-				KEY_K: _toggle_autokey()   # ROADMAP 42: auto-key on / off (Ctrl+K)
+				KEY_K: ui_cmd.open() if (bld != null and bld.part != null and bld.part.ep != null and bld.part.ep.active()) else _toggle_autokey()   # s097: Easy Part: Ctrl+K opens the action search; elsewhere ROADMAP 42 auto-key on / off
 				KEY_Y: _redo()
 				KEY_S: _save_scene() if k.shift_pressed or (easy != null and easy.on) else _save_pose()   # Ctrl+Shift+S = the scene (round 15, V3); Easy: Ctrl+S too (startwalk bar 8: a beginner's Ctrl+S wrote a pose into moves/)
 				KEY_E: _inbetween("push")   # Ctrl+E push from the in-between (WW3)
@@ -16761,6 +16761,7 @@ func _commands() -> Array:
 	add.call("Help: Blender / Maya keys win on / off", "", func(): kt.set_wins(not kt.wins), "blender maya keys win override shortcuts priority", false, "with the helper on: a Blender/Maya key that Kine uses for something else runs the Kine command it maps to, instead of Kine's own action")
 	add.call("Help: edit hotkeys", "", hk.open_editor, "hotkeys keys key shortcut shortcuts rebind bind change remap", false, "change any command's key: search, click its key, press the new one (a key another command has is refused until pressed again)")
 	add.call("Help: forget my command habits", "", _nt_forget, "next suggested tool chips habits learned forget reset clear history suggestions", false, "forget which commands you run after which (the grey chips after Next:); the default sequence comes back")
+	c.append_array(EasySearch.rows(self))   # p097searchboxf: the Easy Part actions (hole, round, screw) are S box rows too (scripts/easy_search.gd)
 	var rows: Array = Hotkeys.apply(c, hk.over)
 	for d in rows:   # P17: every way to run a command (palette, key, chip, macro) goes through this one wrapper, which counts it
 		var f: Callable = d["run"]
