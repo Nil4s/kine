@@ -32,9 +32,12 @@ func _hole_sync() -> void:
 	_lighter_sync()   # p195generative
 
 
+	_smartfit_sync()   # s202
+
+
 ## a Through / Hollow inside chip: the hole step is REPLACED (one undo step): the record from before the hole press, then the chosen hole.
 ## A hollow that fails (a body too thin for the wall) says so and changes nothing
-func _hole_mode(mode: String, lip := false, rebuild := false) -> void:   # lip: the lid with its Snap-fit lip; rebuild: the same chip again (the Snap-fit lip press)
+func _hole_mode(mode: String, lip := false, rebuild := false, fit_set := -1.0) -> void:   # lip: the lid with its Snap-fit lip; rebuild: the same chip again (the Snap-fit lip press)
 	if not _hole_on() or not Part.available() or (mode == hole_mode and not rebuild):
 		_hole_sync()
 		return
@@ -42,8 +45,9 @@ func _hole_mode(mode: String, lip := false, rebuild := false) -> void:   # lip: 
 	armed = ""
 	wall_pick = false
 	var snap := _rec().duplicate(true)
-	_begin("Hollow with a lid" if mode == "lid" else ("Hollow inside" if mode == "hollow" else "Cut a hole"))
+	_begin("Change fit" if fit_set >= 0.0 else ("Hollow with a lid" if mode == "lid" else ("Hollow inside" if mode == "hollow" else "Cut a hole")))
 	var rec: Dictionary = (hole_base if not hole_base.is_empty() else _without_screw_hole(_rec())).duplicate(true)   # P082: after Change the part, the chips rebuild from the record without its screw hole
+	rec["fit_mm"] = fit_set if fit_set >= 0.0 else _fit_of(snap)   # s202: the part's fit survives the rebuild
 	m.S.part = rec
 	var why := ""
 	if mode.begins_with("screw"):   # p030countersun: a screw chip (screw3 .. screw6) cuts the hole for that screw
@@ -347,7 +351,7 @@ func _hollow_lid(rec: Dictionary, snap := false) -> String:
 	var z0 := bb.position.z / Part.MM
 	var z1 := bb.end.z / Part.MM
 	var top := bb.end.y / Part.MM
-	var ins_o := HOLLOW_MM + 0.2          # the lip's outer face: 0.2 mm inside the wall
+	var ins_o := HOLLOW_MM + _fit_of(rec)   # the lip's outer face: the part's fit (s202: Slides = 0.2 mm) inside the wall
 	var ins_i := ins_o + 1.0              # the lip's inner face: a 1 mm ring
 	var sp := Part.new_feature(rec, "split", {"plane": "top", "at": top - LID_MM, "keep": 0})   # bodies: [the top slice (the lid), the box]
 	rec["features"].append(sp)
@@ -378,8 +382,8 @@ func _hollow_lid(rec: Dictionary, snap := false) -> String:
 	if snap:   # the ridge: a ring 0.5 mm proud of the lip, joined to the lid (body 0) in the same band as the groove
 		var pr := Part.new_feature(rec, "plane", {"from": "top", "mm": band_y})
 		rec["features"].append(pr)
-		var ro := HOLLOW_MM + 0.2 - LIP_RIDGE_MM   # the ridge's outside: 2.7 mm in (0.5 mm proud of the lip's 3.2 mm face)
-		var ri := HOLLOW_MM + 0.2                  # the ridge's inside: the lip's own outer face
+		var ro := ins_o - LIP_RIDGE_MM   # the ridge's outside: 0.5 mm proud of the lip's outer face
+		var ri := ins_o                  # the ridge's inside: the lip's own outer face
 		var bars := [[x0 + ro, z0 + ro, x1 - ro, z0 + ri], [x0 + ro, z1 - ri, x1 - ro, z1 - ro], [x0 + ro, z0 + ri, x0 + ri, z1 - ri], [x1 - ri, z0 + ri, x1 - ro, z1 - ri]]
 		fids.append(pr["id"])
 		for b in bars:   # four bars (front, back, left, right), each joined to the lid (body 0): a ring with no cut
@@ -554,8 +558,13 @@ func _pull(rec: Dictionary) -> String:
 	# FBOX: a LID: a face drawing on the top of a hollow (shelled) body is a separate piece, not joined to the box (it rests on the rim)
 	var lid := on_face and _top_face(pf) and _has_shell(rec)
 	var slot := not on_face and not through and _slot_cut(rec, sk, dist)   # FWRENCH2: a jaw slot at the end of a solid CUTS it
+	# FFLAT: a floor shape pulled up beside the solids (not on a face, not sitting on one) is its OWN piece (op new): Stick together can join it.
+	# The sketch's 2D y is the world height only on an UPRIGHT plane, so a floor drawing never "sits on" a body here (its 2D y runs along the depth)
+	var floor_plane := absf((Part.resolve_plane(rec, String(sk.get("plane", "front")))["n"] as Vector3).y) > 0.5
+	var beside := not (lid or slot or through or on_face) and (floor_plane or not _sits_on_body(rec, sk)) and _beside_body(rec, sk) and int(Part.replay(rec).get("bodies", 0)) > 0
+	var flat := not (lid or slot or through or on_face) and _flat_plate(sk, dist)
 	var rule := _pull_rule({"lid": lid, "slot": slot, "through": through, "inward": inward, "on_face": on_face,
-		"flat": not (lid or slot or through or on_face) and _flat_plate(sk, dist)})
+		"beside": beside, "beside_flat": beside and flat, "flat": flat})
 	var nb0 := int(Part.replay(rec).get("bodies", 0))   # FLAMP: a shape that stands apart from the solid is its own body, not one lump
 	var lk0 := _lumps(Part.replay(rec)) if nb0 > 0 else 0
 	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": String(rule["op"])})
@@ -618,8 +627,14 @@ const PULL_RULES := [
 	{"name": "A shape drawn on a face: pulled out of that face, joined to the body it sits on", "when": "on_face",
 		"op": "join", "sits_on": true, "slider": "how far", "taper": false, "fill": "where", "slider_says": false,
 		"say": "Pulled out of the %s: use the slider to change it, or press Mirror that next"},
+	{"name": "A flat plate on the floor beside the solids (FFLAT + NTHICK): its own piece, its slider is Thickness", "when": "beside_flat",
+		"op": "new", "sits_on": false, "slider": "thickness", "taper": true, "fill": "how far", "slider_says": true,
+		"say": "Pulled up %s: use the slider to change it, or press Round the edges or Cut a hole next"},
 	{"name": "A flat plate on the floor (NTHICK): a slab, its slider is Thickness", "when": "flat",
 		"op": "join", "sits_on": true, "slider": "thickness", "taper": true, "fill": "how far", "slider_says": true,
+		"say": "Pulled up %s: use the slider to change it, or press Round the edges or Cut a hole next"},
+	{"name": "A floor shape beside the solids (FFLAT): its own piece, Stick together can join it", "when": "beside",
+		"op": "new", "sits_on": false, "slider": "how far", "taper": true, "fill": "how far", "slider_says": true,
 		"say": "Pulled up %s: use the slider to change it, or press Round the edges or Cut a hole next"},
 	{"name": "A shape on the floor: pulled up, joined to the body it sits on, or its own body when it stands apart", "when": "",
 		"op": "join", "sits_on": true, "slider": "how far", "taper": true, "fill": "how far", "slider_says": true,
@@ -633,6 +648,44 @@ func _pull_rule(facts: Dictionary) -> Dictionary:
 		if String(r["when"]) == "" or bool(facts.get(r["when"], false)):
 			return r
 	return PULL_RULES[-1]
+
+
+## FFLAT: a floor shape that TOUCHES a body (its footprint in the floor's X and Z reaches a body triangle, gap at most 0.5 mm) and does not
+## overlap it is BESIDE the solids: its own piece (Stick together can join it). Shapes that overlap, or lie apart, keep the join
+func _beside_body(rec: Dictionary, sk: Dictionary) -> bool:
+	if Part.replay(rec).get("aabb", AABB()).size == Vector3.ZERO:
+		return false
+	var pl := Part.resolve_plane(rec, String(sk.get("plane", "front")))
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for e in sk["ents"]:
+		for q in _ent_pts(e):
+			var w := Part.to_world(pl, Vector2(float(q[0]), float(q[1])))
+			lo = lo.min(Vector2(w.x, w.z))
+			hi = hi.max(Vector2(w.x, w.z))
+	var eps := 0.5 * Part.MM
+	var spans: Array = []   # FFLAT6: the x spans where the footprint touches the body; touches in two or more separated places (a bar across comb teeth) BRIDGE the solid: it joins
+	for body in Part.body_faces(rec, -1):
+		var tris: PackedVector3Array = body
+		for k in range(0, tris.size() - 2, 3):
+			var tlo := Vector2(minf(minf(tris[k].x, tris[k + 1].x), tris[k + 2].x), minf(minf(tris[k].z, tris[k + 1].z), tris[k + 2].z))
+			var thi := Vector2(maxf(maxf(tris[k].x, tris[k + 1].x), tris[k + 2].x), maxf(maxf(tris[k].z, tris[k + 1].z), tris[k + 2].z))
+			var gx := maxf(tlo.x - hi.x, lo.x - thi.x)   # the gap along X (negative: the boxes overlap there)
+			var gz := maxf(tlo.y - hi.y, lo.y - thi.y)
+			if gx < -eps and gz < -eps:
+				return false   # the footprint overlaps the body: it stays in the body
+			if gx <= eps and gz <= eps:
+				spans.append(Vector2(tlo.x, thi.x))
+	if spans.is_empty():
+		return false
+	spans.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.x < b.x)
+	var groups := 1
+	var reach: float = spans[0].y
+	for i in range(1, spans.size()):
+		if spans[i].x > reach + eps:
+			groups += 1   # a gap between two contact places: the shape spans it
+		reach = maxf(reach, spans[i].y)
+	return groups == 1
 
 
 ## NTHICK: a FLAT PLATE is a plain pull of a floor shape whose narrow side is at least 10 cm and whose height is at most half of it (and at most 40 cm):
@@ -1483,12 +1536,12 @@ func _fill_chips(h: Control) -> void:
 	for sd in [["round", "Round", "Round holes: the size is their width"], ["square", "Square", "Square holes: the size is their side"], ["hex", "Hex", "Six-sided holes in a honeycomb: the size is across the flats"]]:
 		var b := _big_btn("easypart_fillshape_" + String(sd[0]), String(sd[1]), String(sd[2]), _fill_shape.bind(String(sd[0])))
 		b.toggle_mode = true
-		b.custom_minimum_size = Vector2(92, 40)
+		b.custom_minimum_size = Vector2(92, 34)
 		chips.add_child(b)
 		fill_shape_btns[sd[0]] = b
 	var sb := _big_btn("easypart_fillshape_stag", "Staggered", "Every other row is shifted half a step, so the holes pack tighter (a grille)", _fill_stagger)
 	sb.toggle_mode = true
-	sb.custom_minimum_size = Vector2(120, 40)
+	sb.custom_minimum_size = Vector2(120, 34)
 	chips.add_child(sb)
 	fill_shape_btns["stag"] = sb
 	var sl := HFlowContainer.new()
@@ -2069,3 +2122,72 @@ func _lighter_follow(sk: Dictionary) -> void:
 ## the Fill the face shapes and sliders are up (waiting for the face, or the face is filled)
 func _fill_open() -> bool:
 	return fill_box != null and _hole_on() and (fill_pick or not _fill_sketch().is_empty())
+
+
+## s202 SMART TOLERANCES (Friday plan 202): "How should it fit?" One chip on the Cut a hole panel cycles Tight (0.0 mm) / Snug (0.1) /
+## Slides (0.2, the default) / Loose (0.4): the clearance on each side between a hole and what goes in it. A Through hole is its size
+## (the Hole size slider, the peg) + the clearance on every side; a lid's lip sits that far inside the box's opening. The choice is
+## remembered per part (rec["fit_mm"]); changing it is ONE undo step and re-cuts the hole / lid on the screen at the new fit
+const SMARTFIT_NAMES := ["Tight", "Snug", "Slides", "Loose"]
+const SMARTFIT_MM := [0.0, 0.1, 0.2, 0.4]
+const SMARTFIT_DEFAULT := 0.2
+var smartfit_btn: Button = null
+
+
+func _fit_of(rec: Dictionary) -> float:
+	return float(rec.get("fit_mm", SMARTFIT_DEFAULT))
+
+
+func _fit_index(fit: float) -> int:
+	for i in SMARTFIT_MM.size():
+		if absf(float(SMARTFIT_MM[i]) - fit) < 0.005:
+			return i
+	return 2
+
+
+func _smartfit_chip(h: Control) -> void:
+	smartfit_btn = _big_btn("easypart_hole_fit", "", "How should it fit? The gap on each side between a hole and what goes in it: Tight 0.0 mm, Snug 0.1, Slides 0.2, Loose 0.4. Press to change it; the hole or lid on the screen is made again", _smartfit_press)
+	smartfit_btn.custom_minimum_size = Vector2(150, 44)
+	h.add_child(smartfit_btn)
+	_smartfit_sync()
+
+
+func _smartfit_sync() -> void:
+	if smartfit_btn != null:
+		smartfit_btn.text = "Fit: " + String(SMARTFIT_NAMES[_fit_index(_fit_of(_rec()))])
+
+
+func _smartfit_press() -> void:
+	var cur := _fit_index(_fit_of(_rec()))
+	var nxt := (cur + 1) % SMARTFIT_NAMES.size()
+	var nf := float(SMARTFIT_MM[nxt])
+	var nm := String(SMARTFIT_NAMES[nxt])
+	var words := "%s: %s mm on each side" % [nm, _mm_words(nf)]
+	if _hole_on() and Part.available() and hole_mode == "lid":
+		_hole_mode("lid", _rec_has_lip(), true, nf)   # the lid is made again at the new fit (one undo step)
+		_smartfit_sync()
+		_say("%s. The lid's lip sits that far inside the box" % words)
+		return
+	_flush_if_dirty()
+	var sk: Dictionary = Part.feature(_rec(), String(tweak.get("id", ""))) if not tweak.is_empty() else {}
+	var is_hole := _hole_on() and hole_mode == "through" and Part.available() and sk.has("fit") and tweak.has("ent")
+	_begin("Change fit")
+	var rec := _rec().duplicate(true)
+	rec["fit_mm"] = nf
+	if is_hole:   # the hole on the screen keeps the size the user gave it: its radius moves by the change of fit only
+		var hk := Part.feature(rec, String(tweak["id"]))
+		var old := float(hk.get("fit", 0.0))
+		hk["ents"][int(tweak["ent"])]["r"] = float(hk["ents"][int(tweak["ent"])]["r"]) - old + nf
+		hk["fit"] = nf
+		_hpat_follow(hk)
+		tweak["add"] = nf
+	m.S.part = rec
+	_end()
+	if is_hole:
+		pu.upto = -1
+		pu.sync()
+		_rows_sig = ""
+		_rows_sync()
+		_values_sync()
+	_smartfit_sync()
+	_say("%s. %s" % [words, "The hole is made again" if is_hole else "The next hole and lid use it"])

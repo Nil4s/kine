@@ -2399,6 +2399,7 @@ func sync() -> void:
 
 ## the record -> the preview mesh (only when something changed)
 func _rebuild(show: bool) -> void:
+	_tess_poll()   # s169: a finished background tessellation lands on the view
 	if not show:
 		return
 	Part.refresh_bound(_rec(), _body_measures())   # C2: a dimension bound to the body shows the body's size now
@@ -2415,13 +2416,16 @@ func _rebuild(show: bool) -> void:
 	var up := upto
 	if not dlg.is_empty() and int(dlg["edit"]) >= 0:
 		up = int(dlg["edit"]) - 1
-	var want := {"edges": not easy, "faces": not easy, "body": _body_measures()}
+	var want := {"edges": not easy, "faces": not easy, "body": _body_measures(), "inc": true}   # s168: only the changed steps are rebuilt
 	if not pose.is_empty():
 		want["pose"] = pose   # a hinge turned by Play / the slider (the record is the same; only the view turns)
 	if not is_nan(gear_turn):
 		want["gear_turn"] = gear_turn   # s124: the Gear pair's Turn it preview (the view only; the record is untouched)
 	if coarse:
 		want["coarse"] = true   # NSLIDELOD: the slider preview (low detail)
+	if coarse and sk == "" and Part.async_tess and _rebuild_async(up, want):
+		return   # s169: the slider preview tessellates on a worker; the old mesh stays until the new one is ready
+	_tess_floor = _tess_seq + 1   # a synchronous rebuild is the newest: any background result still on its way is stale
 	res = replay_once(_rec(), up, want)
 	if sk == "":
 		part_mesh.mesh = _exploded(res["mesh"])
@@ -2467,7 +2471,7 @@ func _exploded(src: ArrayMesh) -> ArrayMesh:
 
 ## the replay the rebuild wants (the same keys as _rebuild): a press that replays the same record in the same frame gets the result back
 func want_full() -> Dictionary:
-	var w := {"edges": not easy, "faces": not easy, "body": _body_measures()}
+	var w := {"edges": not easy, "faces": not easy, "body": _body_measures(), "inc": true}
 	if not pose.is_empty():
 		w["pose"] = pose
 	return w
@@ -4820,3 +4824,78 @@ func _con_draw() -> void:
 
 
 var xray := false   # S102: the X-ray view toggle (PartViewTools); a view setting, never in the record
+
+
+# ---------------------------------------------------------------- s169 background tessellation (the slider preview)
+
+var _tess_seq := 0            # requests made
+var _tess_floor := 0          # results of requests below this are stale (a synchronous rebuild came after them)
+var _tess_run := {}           # the job on the worker now: {seq, ids, looks, meshes, task}
+var _tess_next := {}          # the newest request waiting for the worker (a newer one replaces it: the newest wins)
+var tess_landed := 0          # probe: background results that reached the view
+var tess_started := 0         # probe: background jobs started
+
+
+## the replay (only the changed steps) runs here; its shapes are tessellated by a WorkerThreadPool task. res carries the new volume and errors now,
+## its mesh / aabb / looks stay the shown ones until the task lands (_tess_poll)
+func _rebuild_async(up: int, want: Dictionary) -> bool:
+	want["defer_tess"] = true
+	var r := Part.replay(_rec(), up, want)
+	var ids: Array = r.get("tess_ids", [])
+	_tess_seq += 1
+	var meshes: Array = []
+	meshes.resize(ids.size())
+	var job := {"seq": _tess_seq, "ids": ids, "looks": r.get("tess_looks", []), "meshes": meshes, "task": -1}
+	r["tess_ids"] = []
+	r["mesh"] = res.get("mesh")
+	r["aabb"] = res.get("aabb", AABB())
+	r["looks"] = res.get("looks", [])
+	res = r
+	edge_cache = r["edges"]
+	face_cache = r["faces"]
+	if _tess_run.is_empty():
+		_tess_start(job)
+	else:
+		_tess_free(_tess_next)
+		_tess_next = job
+	return true
+
+
+func _tess_start(job: Dictionary) -> void:
+	tess_started += 1
+	var ids: Array = job["ids"]
+	var meshes: Array = job["meshes"]
+	job["task"] = WorkerThreadPool.add_task(func(): Part.tessellate_job(ids, meshes, true), false, "Part tessellation")
+	_tess_run = job
+
+
+func _tess_free(job: Dictionary) -> void:
+	for id in job.get("ids", []):
+		Part.KCad.release(int(id))
+	job["ids"] = []
+
+
+func _tess_poll() -> void:
+	if _tess_run.is_empty() or not WorkerThreadPool.is_task_completed(int(_tess_run["task"])):
+		return
+	WorkerThreadPool.wait_for_task_completion(int(_tess_run["task"]))   # already complete: returns at once
+	var job := _tess_run
+	_tess_run = {}
+	_tess_free(job)
+	if int(job["seq"]) >= _tess_floor and sk == "":
+		var tmp := {"tess_looks": job["looks"]}
+		Part.finish_mesh(tmp, job["meshes"])
+		if tmp.has("mesh"):
+			res["mesh"] = tmp["mesh"]
+			res["aabb"] = tmp["aabb"]
+			res["looks"] = tmp["looks"]
+			part_mesh.mesh = _exploded(res["mesh"])
+			_look_surfaces()
+			tess_landed += 1
+	if not _tess_next.is_empty():
+		var nx := _tess_next
+		_tess_next = {}
+		if int(nx["seq"]) >= _tess_floor:
+			_tess_start(nx)
+		else:
+			_tess_free(nx)

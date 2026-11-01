@@ -481,7 +481,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	if calls_log != null:
 		var st := get_stack()
 		calls_log.append([str(hash(JSON.stringify(rec))), str(upto), str(want.keys()), str(st[1]["function"]), str(st[1]["line"])])
-	var res := {"mesh": null, "volume": 0.0, "bodies": 0, "volumes": [], "errors": {}, "edges": [], "faces": [], "aabb": AABB(), "props": [], "looks": [], "body_looks": []}
+	var res := {"mesh": null, "volume": 0.0, "bodies": 0, "volumes": [], "errors": {}, "edges": [], "faces": [], "aabb": AABB(), "props": [], "looks": [], "body_looks": [], "tess_ids": [], "tess_looks": []}
 	if not available():
 		return res
 	var feats: Array = rec.get("features", [])
@@ -491,7 +491,18 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	var errs: Dictionary = res["errors"]
 	var sketches := {}
 	var off_ids := {}   # XTIME: the sketches the timeline suppressed
-	for i in n:
+	var inc := bool(want.get("inc", false)) and n > 0   # s168 INCREMENTAL REPLAY: the steps a cached prefix already made are not run again
+	var inc_keys: Array = []
+	var i0 := 0
+	if inc:
+		inc_keys = _inc_keys(feats, n, want)
+		i0 = _inc_restore(inc_keys, n, bodies, looks, errs, sketches, off_ids)
+	if inc_trace:
+		print("INC replay n=%d from=%d caller=%s:%s want=%s" % [n, i0, get_stack()[1]["function"], get_stack()[1]["line"], str(want.keys())])
+	for i in range(i0, n):
+		step_runs += 1
+		if inc and i > i0:
+			_inc_store(inc_keys[i - 1], bodies, looks, errs, sketches, off_ids)   # the state after step i-1 (a `continue` below skips the end of the body, so it is taken at the top)
 		var f: Dictionary = feats[i]
 		var id := String(f["id"])
 		look_fit(looks, bodies.size())
@@ -618,6 +629,8 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var hb := int(f.get("body", -1))
 				if hb < 0 or hb >= bodies.size():
 					errs[id] = "there is no body %d to hinge" % hb
+	if inc and n > i0:
+		_inc_store(inc_keys[n - 1], bodies, looks, errs, sketches, off_ids)
 	if want.has("pose"):   # the view of a hinge mid-swing (PartUI's Play): that body turned, the rest as it is
 		var pz: Dictionary = want["pose"]
 		for k in n:
@@ -637,7 +650,12 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		res["volume"] = float(res["volume"]) + v
 		if want.get("props", false):
 			res["props"].append(KCad.mass_properties(b))   # {volume, area, center, inertia} per body, density 1 (PartWeapon)
-		var tm := KCad.tessellate(b, COARSE_DEFL, COARSE_ANGLE) if want.get("coarse", false) else KCad.tessellate(b, 0.0003, 0.25)   # NSLIDELOD: a coarse preview while a slider is dragged
+		var tm: ArrayMesh = null
+		if want.get("defer_tess", false):   # s169: the caller tessellates these off the main thread (finish_mesh) and releases them
+			res["tess_ids"].append(b)
+			res["tess_looks"].append(look_at(looks, bodies.find(b)))
+		elif not want.get("errors_only", false):   # s168: errors_of wants no mesh
+			tm = KCad.tessellate(b, COARSE_DEFL, COARSE_ANGLE) if want.get("coarse", false) else KCad.tessellate(b, 0.0003, 0.25)   # NSLIDELOD: a coarse preview while a slider is dragged
 		if tm != null and tm.get_surface_count() > 0:
 			mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, tm.surface_get_arrays(0))
 			res["looks"].append(look_at(looks, bodies.find(b)))   # one surface, one look (the view paints each surface)
@@ -681,7 +699,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		res["aabb"] = mesh.get_aabb()
 	if want.has("probe"):   # XFIX: how full the bodies make a thin slab on a sketch's face (see extrude_default)
 		res["probe"] = _probe_fill(bodies, int(want["probe"]))
-	if want.get("keep", false):   # the caller owns the solids (vehicle.gd: intersect tests); release them with KCad.release
+	if want.get("keep", false) or want.get("defer_tess", false):   # the caller owns the solids (vehicle.gd: intersect tests); release them with KCad.release
 		res["ids"] = bodies
 	else:
 		for b in bodies:
@@ -847,6 +865,7 @@ static func body_faces(rec: Dictionary, upto := -1, want := {}) -> Array:
 		return out
 	var w := want.duplicate()
 	w["keep"] = true
+	w["inc"] = true   # s168: the shapes up to the changed step come from the cache
 	for b in replay(rec, upto, w).get("ids", []):
 		out.append(_tris_of(int(b)))
 		KCad.release(int(b))
@@ -885,7 +904,7 @@ static func _mesh_verts(mesh: Variant) -> PackedVector3Array:
 static func overhang_faces_of(rec: Dictionary) -> Array:
 	if not available():
 		return []
-	var res := replay(rec, -1, {"faces": true})
+	var res := replay(rec, -1, {"faces": true, "inc": true})   # s168
 	return _overhang_faces(res.get("faces", []), Basis.IDENTITY, _mesh_verts(res.get("mesh")))
 
 
@@ -3183,3 +3202,142 @@ static func _grow_copies(rec: Dictionary, f: Dictionary, srcb: int, copies: Arra
 		copies.append(moved)
 		edge = bb.end[ai] + d[ai]
 	return ""
+
+
+# ---------------------------------------------------------------- s168 incremental replay: the shapes after each step, kept by what made them
+
+const INC_MAX := 96   # snapshots kept (the least recently used go; their shapes are released)
+static var inc_trace := false   # s168 probe: print what each cached replay started from
+static var step_runs := 0   # s168 probe: steps the replay really ran (a cached step is not counted); tests/s168_test.gd reads it
+static var inc_hits := 0    # s168 probe: replays that started from a cached prefix
+static var inc_cache := {}  # key -> {"bodies": [kernel ids it owns], "looks", "errs", "sketches", "off", "tick"}
+static var _inc_tick := 0
+static var async_tess := true   # s169: the slider preview tessellates on a worker thread (PartUI._rebuild_async); false = on the main thread
+
+
+## one key per step 0..n-1: a hash chain over the steps up to it (and the body measures the bound sketches read). Same key = same shapes
+static func _inc_keys(feats: Array, n: int, want: Dictionary) -> Array:
+	var keys: Array = []
+	var h := ""
+	var bound := false   # the body's measures matter from the first bound sketch on (resolved_sketch); a part with none shares its shapes with a call that gave no body
+	for i in n:
+		var f: Dictionary = feats[i]
+		if not bound and String(f.get("t", "")) == "sketch":
+			for d in f.get("dims", []):
+				if (d as Dictionary).has("bind"):
+					bound = true
+					h += JSON.stringify(want.get("body", null))
+					break
+		h = (h + JSON.stringify(f)).sha256_text()
+		keys.append(h)
+	return keys
+
+
+## the newest cached prefix: its shapes (copies; the replay mutates them) and notes go into the replay's own containers. Answers how many steps it covers
+static func _inc_restore(keys: Array, n: int, bodies: Array, looks: Array, errs: Dictionary, sketches: Dictionary, off_ids: Dictionary) -> int:
+	var j := n - 1
+	while j >= 0 and not inc_cache.has(keys[j]):
+		j -= 1
+	if j < 0:
+		return 0
+	var snap: Dictionary = inc_cache[keys[j]]
+	var made: Array = []
+	for b in snap["bodies"]:
+		var c: int = KCad.translate(int(b), Vector3.ZERO)   # a deep copy
+		if c == 0:
+			for x in made:
+				KCad.release(int(x))
+			_inc_drop(keys[j])
+			return 0
+		made.append(c)
+	bodies.append_array(made)
+	looks.append_array((snap["looks"] as Array).duplicate(true))
+	errs.merge((snap["errs"] as Dictionary).duplicate(true))
+	sketches.merge((snap["sketches"] as Dictionary).duplicate(true))
+	off_ids.merge((snap["off"] as Dictionary).duplicate(true))
+	for k in range(0, j + 1):   # the whole prefix was used: it stays young
+		if inc_cache.has(keys[k]):
+			_inc_tick += 1
+			inc_cache[keys[k]]["tick"] = _inc_tick
+	inc_hits += 1
+	return j + 1
+
+
+## keeps a copy of the state under `key` (the replay goes on mutating its own shapes)
+static func _inc_store(key: String, bodies: Array, looks: Array, errs: Dictionary, sketches: Dictionary, off_ids: Dictionary) -> void:
+	if inc_cache.has(key):
+		_inc_tick += 1
+		inc_cache[key]["tick"] = _inc_tick
+		return
+	var made: Array = []
+	for b in bodies:
+		var c: int = KCad.translate(int(b), Vector3.ZERO)
+		if c == 0:
+			for x in made:
+				KCad.release(int(x))
+			return
+		made.append(c)
+	_inc_tick += 1
+	inc_cache[key] = {"bodies": made, "looks": looks.duplicate(true), "errs": errs.duplicate(true), "sketches": sketches.duplicate(true), "off": off_ids.duplicate(true), "tick": _inc_tick}
+	while inc_cache.size() > INC_MAX:
+		var oldest := ""
+		var ot := 1 << 60
+		for k in inc_cache:
+			if int(inc_cache[k]["tick"]) < ot:
+				ot = int(inc_cache[k]["tick"])
+				oldest = String(k)
+		_inc_drop(oldest)
+
+
+static func _inc_drop(key: String) -> void:
+	if not inc_cache.has(key):
+		return
+	for b in inc_cache[key]["bodies"]:
+		KCad.release(int(b))
+	inc_cache.erase(key)
+
+
+## frees every kept shape (tests; a new document)
+static func inc_clear() -> void:
+	for k in inc_cache.keys():
+		_inc_drop(String(k))
+	inc_cache.clear()
+
+
+# ---------------------------------------------------------------- s169 background tessellation
+
+## the meshes (one per tess_ids entry, null = nothing) a worker made, put into the replay result the way replay makes them itself
+static func finish_mesh(res: Dictionary, meshes: Array) -> void:
+	var mesh := ArrayMesh.new()
+	res["looks"] = []
+	for k in meshes.size():
+		var tm: ArrayMesh = meshes[k]
+		if tm != null and tm.get_surface_count() > 0:
+			mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, tm.surface_get_arrays(0))
+			res["looks"].append(res["tess_looks"][k])
+	if mesh.get_surface_count() > 0:
+		res["mesh"] = mesh
+		res["aabb"] = mesh.get_aabb()
+
+
+## the worker's job: tessellate each shape (coarse or fine). Pure kernel work on shapes only this task touches
+static func tessellate_job(ids: Array, out: Array, coarse: bool) -> void:
+	for k in ids.size():
+		out[k] = KCad.tessellate(int(ids[k]), COARSE_DEFL, COARSE_ANGLE) if coarse else KCad.tessellate(int(ids[k]), 0.0003, 0.25)
+
+
+## s168: the errors of a replay ({step id: message}) without the mesh, from the cached prefix (a check that only asks "does every step hold?")
+static func errors_of(rec: Dictionary) -> Dictionary:
+	return replay(rec, -1, {"inc": true, "errors_only": true})["errors"]
+
+
+## s168: the replay of the same record and wants as the last call returns that result (PartCom.read and PartStand.check ask for the same props
+## replay one after the other: one tessellation, not two). Read-only callers only (no "keep")
+static var _memo_key := ""
+static var _memo_res := {}
+static func replay_memo(rec: Dictionary, want: Dictionary) -> Dictionary:
+	var k := JSON.stringify(rec.get("features", [])) + JSON.stringify(want)
+	if k != _memo_key:
+		_memo_res = replay(rec, -1, want)
+		_memo_key = k
+	return _memo_res

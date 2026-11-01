@@ -31,6 +31,23 @@ static func lines_of(rec: Dictionary, bodies: Array) -> Array:
 
 
 static func analyse(bodies: Array) -> Dictionary:
+	return _words(scan(bodies))
+
+
+static func native_on() -> bool:
+	return MeshCheckDoor.native_on()
+
+
+## the numbers of the three scans: {"walls", "thinnest" (INF when none), "over_mm2", "floating", "lowest" (INF when none)}.
+## KineMeshCheckNative.scan when the DLL is there (same arithmetic, native/src/kine_meshcheck_native.cpp), else the GDScript below.
+static func scan(bodies: Array) -> Dictionary:
+	var d = MeshCheckDoor.door()
+	if d != null:
+		return d.scan(bodies)
+	return _scan_gd(bodies)
+
+
+static func _scan_gd(bodies: Array) -> Dictionary:
 	# the triangle soup of every body: global vertex ids (per body offset), corners, unit outward normals, area
 	var ia := PackedInt32Array()
 	var ib := PackedInt32Array()
@@ -187,6 +204,15 @@ static func analyse(bodies: Array) -> Dictionary:
 			floating += 1
 			lowest = minf(lowest, (bmin[bi] as Vector3).z)
 
+	return {"walls": walls, "thinnest": thinnest, "over_mm2": over_mm2, "floating": floating, "lowest": lowest}
+
+
+static func _words(sc: Dictionary) -> Dictionary:
+	var walls := int(sc["walls"])
+	var thinnest := float(sc["thinnest"])
+	var over_mm2 := float(sc["over_mm2"])
+	var floating := int(sc["floating"])
+	var lowest := float(sc["lowest"])
 	# ---- the words
 	var out := []
 	var bad := 0

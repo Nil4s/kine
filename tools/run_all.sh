@@ -294,6 +294,7 @@ EXTRA="$EXTRA fhandle:w"   # FHANDLE: a beginner from the BUILDING card builds a
 EXTRA="$EXTRA fmug3:w"   # FMUG3: a beginner from the BUILDING card builds a mug by real clicks: a round body, Cut a hole + Hollow inside, a handle box; the walk is counted in clicks, each step at most 3 (tests/fmug3_test.gd)
 EXTRA="$EXTRA fspoon:w"   # FSPOON: a beginner from the BUILDING card builds a spoon by real clicks: an oval bowl (Blend two round shapes, Hollow inside), a long tapered handle (Blend), Round the edges on the whole (tests/fspoon_test.gd)
 EXTRA="$EXTRA fglasses:w"   # FGLASSES: a beginner from the BUILDING card builds a pair of glasses by real clicks: bridge, ring, Cut a hole, arm, Mirror that (tests/fglasses_test.gd)
+EXTRA="$EXTRA fflat:w"   # FFLAT: a beginner builds a flat-pack shelf unit from the BUILDING card: base shelf, Repeat it Up x4, two sides and a back pulled beside it, Stick together to one body (tests/fflat_test.gd)
 EXTRA="$EXTRA fnamechange:w"   # FNAMECHANGE: the BUILDING card's blank part is named Part N; a click on its title opens a name box, Bracket + Enter renames it (undo / redo), Use in a scene puts Bracket in My parts (tests/fnamechange_test.gd)
 EXTRA="$EXTRA fsnap:w"   # FSNAP: Draw shape snaps box corners to the 1 cm grid (plain drag = whole cm sides); Alt held = free; the snap words say once (tests/fsnap_test.gd)
 EXTRA="$EXTRA aprop:w"   # APROP: a cup built in Easy Part (round, Pull, Cut a hole > Hollow inside), given to the character, used in a scene; it stays in the hand through a Walk card and in the scene; the hand panel names it; dead ends: a typed drink, Pick up in Easy (tests/aprop_test.gd; needs the CAD DLL)
@@ -446,6 +447,14 @@ EXTRA="$EXTRA s051:w"   # s051 (Friday plan 51): Array fill: Cut a hole > Fill t
 EXTRA="$EXTRA s195:w"   # s195 (Friday plan 195): Cut a hole > Make it lighter (rule of thumb, not a stress test): Held / Pushed chips, How much lighter slider; 120x40x10 bracket drops 20-50 pct, 3 mm rim probed solid (tests/s195_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA s194:w"   # s194 (Friday plan 194): Parametric families: My parts right-click > Make a family; a stool (400 mm legs + 30 mm seat, 6 mm hole) at 30/45/60 cm: heights within 0.05, seat 30.00 and hole 6.00 unchanged (replayed, not scaled), 3 entries re-read from disk, no undo step (tests/s194_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA s051:w"   # s051 (Friday plan 51): Array fill: Cut a hole > Fill the face (Round / Square / Hex, size, spacing, edge margin): 100x60x3 plate, 5 mm round holes 10 mm apart 5 mm margin = 45 holes (analytic), volume within 0.5 pct, staggered 54, hex 48, too-small face = message and no step (tests/s051_test.gd; needs the CAD DLL)
+
+EXTRA="$EXTRA s168:w"   # s168+s169: incremental replay (a slider change rebuilds only the changed steps) and background tessellation of the slider preview
+
+EXTRA="$EXTRA s202:w"   # s202 (Friday plan 202): Smart tolerances: Fit chip on Cut a hole (Tight 0.0 / Snug 0.1 / Slides 0.2 / Loose 0.4 mm per side): 10 mm peg hole measures 10.40 at Slides, lid lip gap per side, one undo step
+EXTRA="$EXTRA s146:w"   # F146: a part built in Easy Part becomes a prop with a grip; Pick up goes to the grip (tests/s146_test.gd)
+EXTRA="$EXTRA n04:w"   # N04: native cape sim (KineClothNative, scripts/cloth.gd): native vs GDScript capes equal, timing
+EXTRA="$EXTRA n02:w"   # n02 native port KineMeshCheckNative (Ready to print scans, closed-edge count, signed volume, size box, tip-over feet hull): GDScript vs native on the 45-hole plate + gear pair + s115 cases (tests/n02_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA n01:w"   # profile.
 EXTRA="$EXTRA s158:w"   # Friday plan 158: vertex-colour paint with a hard/soft round brush, colour picker popup, eyedropper, star/heart/logo/PNG stickers (size + turn), undo, .kmesh + GLB COLOR_0
 EXTRA="$EXTRA s165:w"   # s165 (Friday plan 165): Build-along Challenges (Parts page): 5 targets with picture + sizes in words, "How close am I?" score = 100 x IoU (kernel intersect volume) x size fit; exact target >= 98, stand with no slot < 90 (hint names the slot), twice as tall < 60 ("too tall", 40 mm) (tests/s165_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA s166:w"   # s166 (Friday plans 43 + 166): Trace a picture into a sketch (Draw shape row: width in mm + Trace it; 80x40 rectangle with a 20 mm hole = 80.0 x 40.0 bbox, volume within 2 pct) and Draw to search in the Parts library (real mouse drag: circle -> round part, hexagon -> hex nut, L -> L-bracket in the top 3)

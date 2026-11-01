@@ -449,6 +449,7 @@ func _hole_box() -> PanelContainer:
 	_hpat_chips(h)   # s029: Row / Around / Grid of holes
 	_fill_chips(h)   # s051: Fill the face
 	_printer_chip(h)   # p203screwholea: the printer chip (resin tight, FDM loose)
+	_smartfit_chip(h)   # s202: How should it fit? (Tight / Snug / Slides / Loose)
 	var fb := _big_btn("easypart_hole_fits", "What fits here?", "Ask which of My Parts go through this hole (the saved parts that fit it). No step: it only tells you", _fits_press)   # P076
 	fb.custom_minimum_size = Vector2(150, 44)
 	h.add_child(fb)
@@ -1276,7 +1277,7 @@ func _apply_tweak(v: float) -> void:
 	var f := Part.feature(_rec(), String(tweak["id"]))
 	if f.is_empty():
 		return
-	var val: float = v * float(tweak.get("scale", 1.0)) * float(tweak.get("sgn", 1.0))
+	var val: float = v * float(tweak.get("scale", 1.0)) * float(tweak.get("sgn", 1.0)) + float(tweak.get("add", 0.0))   # s202: "add" is the fit clearance a hole carries on top of its size
 	if tweak.has("ent"):
 		f["ents"][int(tweak["ent"])][tweak["field"]] = val
 	else:
@@ -1464,7 +1465,7 @@ func tweak_last() -> void:
 		var sk := Part.feature(_rec(), String(f.get("sketch", "")))
 		var ents: Array = sk.get("ents", [])
 		if ents.size() == 1 and String(ents[0].get("k", "")) == "circle" and sk.has("plane") and String(sk.get("plane", "")) in ["front", "top"]:
-			tweak = {"id": sk["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}
+			tweak = {"id": sk["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"], "add": float(sk.get("fit", 0.0))}
 
 
 ## the last step's own slider belongs to ONE entity of its feature. Undo can bring back a record where that id is another sketch
@@ -1492,7 +1493,7 @@ func _tweak_value() -> float:
 	if f.is_empty():
 		return float(tweak["lo"])
 	var raw: float = float(f["ents"][int(tweak["ent"])][tweak["field"]]) if tweak.has("ent") else float(f.get(tweak["field"], 0.0))
-	return raw * float(tweak.get("sgn", 1.0)) / float(tweak.get("scale", 1.0))
+	return (raw - float(tweak.get("add", 0.0))) * float(tweak.get("sgn", 1.0)) / float(tweak.get("scale", 1.0))
 
 
 func _values_sync() -> void:
@@ -3014,6 +3015,7 @@ func _hole(rec: Dictionary) -> String:
 	# FBRACKET: the middle first; when the middle already has a hole, the next press cuts to the side, along the body's two long
 	# sketch axes (30% of the span each way), and the first side spot that takes material wins
 	var had_cut := _has_cut(rec)
+	var fit := _fit_of(rec)   # s202: how should it fit: the hole is its size + this clearance on each side
 	var mid := Vector2(c.x, -c.z) if floor_made else Vector2(c.x, c.y)   # the middle of the whole body (the top plane's v axis is -Z)
 	var span := Vector2(bb.size.x, bb.size.z if floor_made else bb.size.y) / Part.MM
 	var spots: Array = [cen]   # FROOM: the newest piece's middle first; the whole body's middle when that cut takes everything
@@ -3030,11 +3032,11 @@ func _hole(rec: Dictionary) -> String:
 		rec["seq"] = seq0
 		# "both" splits dist half each way from the sketch plane: twice the body's farthest reach + 1 cm, so a tall body is cut all the way
 		if floor_made:
-			s = Part.new_feature(rec, "sketch", {"plane": "top", "ents": [{"k": "circle", "c": Part.arr2(at), "r": snappedf(r, 0.5)}], "dims": []})
+			s = Part.new_feature(rec, "sketch", {"plane": "top", "ents": [{"k": "circle", "c": Part.arr2(at), "r": snappedf(r, 0.5) + fit}], "dims": [], "fit": fit})
 			rec["features"].append(s)
 			f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.y), absf(bb.end.y)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
 		else:
-			s = Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "circle", "c": Part.arr2(at), "r": snappedf(r, 0.5)}], "dims": []})
+			s = Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "circle", "c": Part.arr2(at), "r": snappedf(r, 0.5) + fit}], "dims": [], "fit": fit})
 			rec["features"].append(s)
 			f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.z), absf(bb.end.z)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
 		rec["features"].append(f)
@@ -3047,7 +3049,7 @@ func _hole(rec: Dictionary) -> String:
 		if had_cut:
 			return "The middle already has a hole, and Cut a hole always cuts the middle. For a second hole, use Expert: Circle, then Cut"
 		return "The hole would miss the shape: nothing was cut"
-	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}   # the slider is the hole's WIDTH (cm): radius mm = width cm * 5
+	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"], "add": fit}   # the slider is the hole's WIDTH (cm): radius mm = width cm * 5 (+ the fit clearance, s202)
 	if had_cut:
 		_say("The middle already has a hole, so this one is cut to the side. For exact places, use Expert: Circle, then Cut")
 	else:
@@ -3657,7 +3659,7 @@ func _process(_dt: float) -> void:
 	if _dirty and Time.get_ticks_msec() - _last_ms >= THROTTLE_MS:
 		_flush()
 	var rec := _rec()
-	var sig := JSON.stringify(rec.get("easy", {})) + str(rec.get("features", []).size()) + str(m.redo.size()) + str(m.undo.size()) + str(pu.res.get("bodies", 0)) + str(pu.res.get("volume", 0.0)) + str(Part.available()) + str(armed) + msg   # undo depth + the result: a slider edit of a step changes no step count
+	var sig := JSON.stringify(rec.get("easy", {})) + str(rec.get("features", []).size()) + str(m.redo.size()) + str(m.undo.size()) + str(pu.res.get("bodies", 0)) + str(pu.res.get("volume", 0.0)) + str(pu.res["mesh"].get_instance_id() if pu.res.get("mesh") != null else 0) + str(Part.available()) + str(armed) + msg   # s169: the shown mesh is in the key (the status line counts pieces on it; the async preview lands a new mesh with the same volume). Undo depth + the result: a slider edit of a step changes no step count
 	if sig != _sig and _drag.is_empty() and not _dirty:
 		_sig = sig
 		_chrome_sync()
@@ -4025,6 +4027,18 @@ func _draft_end() -> void:
 	if _draft.has("clicks"):
 		_mirror_release()   # s047: a click places a point; the same point twice finishes
 		return
+
+
+	# FFLAT8: a floor drawing that lies over a solid was a press on its top face: it draws on that top (the floor shape is beside the solid only when it lies clear of it)
+	if _draft.has("top") and String(_draft["shape"]) != "curve" and _under_solid(Part.to_world(Part.plane("top"), ((_draft["a"] as Vector2) + (_draft["b"] as Vector2)) * 0.5)):
+		var tp: Dictionary = _draft["top"]
+		tp["shape"] = _draft["shape"]
+		tp["b"] = tp["a"]
+		tp["pts"] = [tp["a"]]
+		var tb: Variant = _ground(_draft_px1, tp["pl"])
+		if tb != null:
+			tp["b"] = tb
+		_draft = tp
 	if String(_draft["shape"]) == "line":
 		_finish_line()
 	elif String(_draft["shape"]) == "curve":
@@ -4047,6 +4061,43 @@ func _above_body(p: Vector2) -> bool:
 	return q.y >= bb.end.y / Part.MM - 10.0 and q.x >= xr.x - 1.0 and q.x <= xr.y + 1.0
 
 
+## FFLAT8: a press that hits a TOP face near that solid's outer edge, where the floor point under the press lies outside the solid
+## (the camera looks down at the edge, so the top face is shifted inward on screen), is a floor press: a shape drawn there stands beside the solid
+func _press_beside_top(p: Vector2, fc: Dictionary) -> bool:
+	if fc.is_empty() or String(fc.get("base", "")) != "top" or not fc.has("pl"):
+		return false
+	var g: Variant = _ground(p, {}, false)
+	var h: Variant = _ground(p, fc["pl"], false)
+	if g == null or h == null:
+		return false
+	var gw := Part.to_world(Part.plane("top"), g as Vector2)
+	var hw := Part.to_world(fc["pl"], h as Vector2)
+	if Vector2(gw.x - hw.x, gw.z - hw.z).length() > 40.0 * Part.MM:
+		return false
+	return not _under_solid(gw)   # the floor point is under the solid: an ordinary top press
+
+
+## true when the world point w lies under a solid's top (a triangle that rises above the floor covers it in X and Z)
+func _under_solid(w: Vector3) -> bool:
+	var eps := 0.5 * Part.MM
+	for body in _shown_faces():
+		var tris: PackedVector3Array = body
+		for k in range(0, tris.size() - 2, 3):
+			var a: Vector3 = tris[k]
+			var b: Vector3 = tris[k + 1]
+			var c: Vector3 = tris[k + 2]
+			if maxf(a.y, maxf(b.y, c.y)) <= eps:
+				continue   # a floor-level sheet (a flat bottom) does not hold the press
+			var d := (b.z - c.z) * (a.x - c.x) + (c.x - b.x) * (a.z - c.z)
+			if absf(d) < 1e-12:
+				continue
+			var u := ((b.z - c.z) * (w.x - c.x) + (c.x - b.x) * (w.z - c.z)) / d
+			var v := ((c.z - a.z) * (w.x - c.x) + (a.x - c.x) * (w.z - c.z)) / d
+			if u >= -1e-6 and v >= -1e-6 and u + v <= 1.0 + 1e-6:
+				return true
+	return false
+
+
 ## a draw / curve press on the grid at p: a sketch on the face under it, the upright plane, or the floor. true = taken
 func _start_draft(p: Vector2) -> bool:
 	_draft_px0 = p
@@ -4060,6 +4111,11 @@ func _start_draft(p: Vector2) -> bool:
 			_say("Drawing a roof on the box top, through the middle")
 			return true
 	var fc := _face_hit(p)   # DRAW ON A FACE: a press on a flat face of a solid puts the sketch on that face
+	# FFLAT8: a press on the top edge of a solid whose floor point lies beside it draws on the floor (beside the solid); the top face stays the fallback
+	# when the floor shape then lies over the solid (_draft_end)
+	var top_fc: Dictionary = fc if _press_beside_top(p, fc) else {}
+	if not top_fc.is_empty():
+		fc = {}
 	if not fc.is_empty():
 		var fg: Variant = _ground(p, fc["pl"])
 		if fg != null:
@@ -4076,6 +4132,10 @@ func _start_draft(p: Vector2) -> bool:
 	var g: Variant = _ground(p)
 	if g != null:
 		_draft = {"a": g, "b": g, "shape": "curve" if armed == "curve" else shape, "pts": [g], "pl": Part.plane("top")}
+		if not top_fc.is_empty():
+			var tg: Variant = _ground(p, top_fc["pl"])
+			if tg != null:
+				_draft["top"] = {"a": tg, "pl": top_fc["pl"], "face": top_fc}
 		return true
 	return false
 

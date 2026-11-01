@@ -10,7 +10,7 @@ extends RefCounted
 static func read(rec: Dictionary) -> Dictionary:
 	if not Part.available():
 		return {"ok": false, "com": Vector3.ZERO, "tips": false, "margin_mm": 0.0, "warn": ""}
-	var res := Part.replay(rec, -1, {"props": true})
+	var res := Part.replay_memo(rec, {"props": true, "inc": true})   # s168: from the cached steps
 	var props: Array = res.get("props", [])
 	if res.get("mesh", null) == null or props.is_empty() or float(res.get("volume", 0.0)) <= 0.0:
 		return {"ok": false, "com": Vector3.ZERO, "tips": false, "margin_mm": 0.0, "warn": ""}
