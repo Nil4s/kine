@@ -270,8 +270,11 @@ func _start(id: String, easy_on: bool) -> void:
 	if why != "":
 		m._say(why)
 		return
+	var from_part: bool = m.bld.part.on
 	if id != "part" and m.bld.part.on:   # a card that is not the Part one leaves the Part workspace (Expert's way back to the house)
 		m.bld.part.set_on(false)
+	if id == "house" and from_part:   # ebuild: the Part camera sits a hand from the origin; the house is metres wide, so frame the house view or the floor is off screen
+		m.bld.reset_view()
 	match id:
 		"house":
 			_mode(easy_on)

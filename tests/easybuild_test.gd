@@ -150,6 +150,12 @@ func _init() -> void:
 	await idle(8)
 	ok(not ss.visible and m.S.kind == "building" and m.cur_page == "BUILD" and bld.on and m.easy.on, "1 Building -> Easy opens BUILD in Easy (kind %s, page %s, easy %s)" % [m.S.kind, m.cur_page, m.easy.on])
 
+	# 1b ENTRY (fixture, 2026-10-28 5c735d53 "freebuild": the card opens a free Easy Part; the house is one click on): What to build, then House / Set > Easy
+	await click_ctl(m.bld.part.reopen_btn)
+	await idle(6)
+	await click_ctl(m.build_choose.btns["house"]["easy"])
+	await idle(8)
+
 	# 2 LOOK
 	var eb: EasyBuild = m.easy.building
 	var names := ["easybuild_btn_undo", "easybuild_btn_words", "easybuild_btn_switch_to_expert", "easybuild_btn_done"]
