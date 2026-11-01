@@ -360,6 +360,8 @@ func _init() -> void:
 
 	# ---- STAGGERED round, then HEX and SQUARE
 	var ust: int = m.undo.size()
+	await shot("before_stag")
+	print("STAG chip rect %s, box %s" % [fbtn(ep, "stag").get_global_rect(), ep.hole_box.get_global_rect()])
 	await click_ctl(fbtn(ep, "stag"))
 	await idle(4)
 	var want_st := analytic(100.0, 60.0, R, R, 5.0, 10.0, true)

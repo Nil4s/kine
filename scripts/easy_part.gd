@@ -3590,6 +3590,8 @@ func _process(_dt: float) -> void:
 	dots.visible = on
 	shape_box.visible = on and armed == "draw"
 	hole_box.visible = on and _hole_on()
+	if hole_box.visible and edge_chip != null and edge_chip.visible and hole_box.get_global_rect().intersects(edge_chip.get_global_rect()):   # s051: a Round / Bevel chip left over the Cut a hole chips would take their clicks (Staggered, Hex)
+		_edge_hide()
 	if flat_sheet != null:
 		flat_sheet.visible = on and flat_sheet.visible   # p117flatpatter: the sheet closes with Easy Part
 	split_box.visible = on and _split_on()
@@ -4425,6 +4427,9 @@ func _edge_hide() -> void:
 ## a pointer move at p (no press, nothing armed): the built edge under it shows the chip
 func _edge_hover(p: Vector2) -> void:
 	if not active() or not Part.available() or pu == null or m.cam == null or int(pu.res.get("bodies", 0)) == 0:
+		_edge_hide()
+		return
+	if hole_box != null and hole_box.visible and hole_box.get_global_rect().has_point(p):   # s051: the pointer is on the Cut a hole chips: no Round / Bevel chip pops up over them (it took the click meant for Staggered / Hex)
 		_edge_hide()
 		return
 	_edge_chip_ensure()
