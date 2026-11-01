@@ -4292,6 +4292,8 @@ func _look_surfaces() -> void:
 		mt.albedo_color = Color(c.r, c.g, c.b, a)
 		mt.roughness = float(l["rough"])
 		mt.metallic = float(l["metal"])
+		if mt.metallic < 0.5:
+			mt.metallic_specular = 0.2   # s217: paint reflects the (brighter) studio sky less than metal does: a coloured part keeps its look
 		mt.cull_mode = BaseMaterial3D.CULL_DISABLED
 		if a < 1.0:
 			mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA

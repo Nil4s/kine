@@ -229,6 +229,94 @@ func bars(prefix: String, view: String, st: Array) -> void:
 	ok(st[1] >= 0.75, "%s2 %s Metal: brightest 5 %% (p95) %.3f (>= 0.75)" % [prefix, view, st[1]])
 
 
+
+## ---- SHAPES (the engine case): the faces of a cube, the side of a cylinder, a sphere, the engine's crankcase drum, all Metal, in Expert
+func shape_rec(kind: String, col: Array) -> Dictionary:
+	var r := Part.make("S217 " + kind)
+	var look := {"t": "appear", "id": "f9", "name": "Appear1", "body": 0, "preset": "Metal", "color": col}
+	for k in Part.LOOK_PRESETS["Metal"]:
+		look[k] = Part.LOOK_PRESETS["Metal"][k]
+	var fs: Array = []
+	if kind == "cube":
+		fs = [{"t": "sketch", "id": "f1", "name": "S1", "plane": "front", "ents": [{"k": "rect", "a": [-20.0, -20.0], "b": [20.0, 20.0]}], "dims": []},
+			{"t": "extrude", "id": "f2", "name": "E1", "sketch": "f1", "dist": 40.0, "both": false, "op": "new"}]
+	elif kind == "cylinder":
+		fs = [{"t": "sketch", "id": "f1", "name": "S1", "plane": "top", "ents": [{"k": "circle", "c": [0.0, 0.0], "r": 20.0}], "dims": []},
+			{"t": "extrude", "id": "f2", "name": "E1", "sketch": "f1", "dist": 60.0, "both": false, "op": "new"}]
+	elif kind == "sphere":
+		fs = [{"t": "sketch", "id": "f1", "name": "S1", "plane": "front", "ents": [{"k": "arc", "a": [-25.0, 0.0], "m": [0.0, 25.0], "b": [25.0, 0.0]}, {"k": "line", "a": [25.0, 0.0], "b": [-25.0, 0.0]}], "dims": []},
+			{"t": "revolve", "id": "f2", "name": "R1", "sketch": "f1", "axis": "x", "deg": 360.0, "op": "new"}]
+	else:   # the engine's crankcase drum (engine_driver.gd: an 8-line profile revolved 360 about the crank axis, 260 x 110 mm)
+		var pts := [[35, -55], [130, -55], [130, 55], [60, 55], [60, 45], [115, 45], [115, -45], [35, -45]]
+		var ents := []
+		for k in pts.size():
+			var a: Array = pts[k]
+			var b: Array = pts[(k + 1) % pts.size()]
+			ents.append({"k": "line", "a": [a[0], a[1]], "b": [b[0], b[1]]})
+		fs = [{"t": "sketch", "id": "f1", "name": "S1", "plane": "top", "ents": ents, "dims": []},
+			{"t": "revolve", "id": "f2", "name": "R1", "sketch": "f1", "axis": "y", "deg": 360.0, "op": "new"}]
+	fs.append(look)
+	r["features"] = fs
+	r["seq"] = 9
+	return r
+
+
+func aim(yaw: float, pitch: float, mi: MeshInstance3D, k: float) -> void:
+	var bb: AABB = mi.get_aabb()
+	m._turn_to(yaw, pitch, bb.size.length() * k, mi.global_transform * bb.get_center(), false)
+
+
+func rect_mean(img: Image, r: Rect2) -> float:
+	var kx := float(img.get_width()) / root.get_visible_rect().size.x
+	var n := 0
+	var s := 0.0
+	for y in range(int(r.position.y * kx), int(r.end.y * kx)):
+		for x in range(int(r.position.x * kx), int(r.end.x * kx)):
+			s += lum(img.get_pixel(x, y))
+			n += 1
+	return s / maxf(n, 1)
+
+
+## n vertical stripes over r: [mean luminance of each]
+func stripes(img: Image, r: Rect2, n: int) -> Array:
+	var out := []
+	for i in n:
+		out.append(rect_mean(img, Rect2(r.position.x + r.size.x * i / n, r.position.y, r.size.x / n, r.size.y)))
+	return out
+
+
+func proj_rect(mi: MeshInstance3D) -> Rect2:
+	var hull := hull_of(mi, 1.0)
+	return box_of(hull)
+
+
+func fmt(a: Array) -> String:
+	var t := []
+	for v in a:
+		t.append("%.2f" % v)
+	return "[" + ", ".join(t) + "]"
+
+
+## the visible side faces of the cube (outward normal horizontal and facing the camera): each face's mean luminance
+func cube_side_faces(mi: MeshInstance3D, img: Image) -> Array:
+	var bb: AABB = mi.get_aabb()
+	var out := []
+	var cam_p: Vector3 = m.cam.global_position
+	for nrm in [Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD]:
+		var cw: Vector3 = mi.global_transform * (bb.get_center() + Vector3(nrm.x * bb.size.x, nrm.y, nrm.z * bb.size.z) * 0.5)
+		var nw: Vector3 = (mi.global_transform.basis * nrm).normalized()
+		if nw.dot(cam_p - cw) <= 0.05:
+			continue
+		var t1 := nw.cross(Vector3.UP).normalized()
+		var h := bb.size.x * 0.5
+		var pts := PackedVector2Array()
+		for sg in [[-1, -1], [1, -1], [1, 1], [-1, 1]]:
+			pts.append(m.cam.unproject_position(cw + t1 * h * sg[0] * 0.6 + Vector3.UP * h * sg[1] * 0.6))
+		var st := cube_stats(img, pts)
+		out.append(st[0])
+	return out
+
+
 func _init() -> void:
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
@@ -286,6 +374,82 @@ func _init() -> void:
 		var sa := cube_stats(await grab(), h2)
 		var ch := absf(sa[0] - sb[0]) / maxf(sb[0], 0.001)
 		ok(sb[0] > 0.05 and ch < 0.15, "W %s in Expert: mean luminance %.3f -> %.3f (%.1f %%, < 15 %%)" % [nm[0], sb[0], sa[0], ch * 100.0])
+	# ---- SHAPES in Expert (the engine case: the camera pitch -22, yaw 150, Metal, no custom lights)
+	for yaw in [30.0, 150.0]:
+		m.S.part = shape_rec("cube", STEEL)
+		pu.upto = -1
+		pu.sync()
+		await idle(20)
+		aim(yaw, -22.0, pu.part_mesh, 2.2)
+		await idle(10)
+		var ci: Image = await grab()
+		ci.save_png(SHOT + "/cube_yaw%d.png" % int(yaw))
+		var sf := cube_side_faces(pu.part_mesh, ci)
+		var lo := 9.0
+		for v in sf:
+			lo = minf(lo, v)
+		ok(sf.size() >= 1 and lo >= 0.25, "F cube side faces at yaw %d: %s (every face mean >= 0.25)" % [int(yaw), fmt(sf)])
+	for kind in ["cylinder", "sphere"]:
+		for col in [STEEL, [0.42, 0.44, 0.47]]:
+			m.S.part = shape_rec(kind, col)
+			pu.upto = -1
+			pu.sync()
+			await idle(20)
+			aim(150.0, -22.0, pu.part_mesh, 2.2)
+			await idle(10)
+			var si: Image = await grab()
+			si.save_png(SHOT + "/%s_%d.png" % [kind, int(col[0] * 100)])
+			var pr := proj_rect(pu.part_mesh)
+			var reg := Rect2(pr.position.x + pr.size.x * 0.22, pr.position.y + pr.size.y * 0.5, pr.size.x * 0.56, pr.size.y * 0.3)   # the box projects wider than the drum (its corners): keep the middle 56 %, where only the drum is
+			if kind == "sphere":
+				reg = Rect2(pr.position.x + pr.size.x * 0.15, pr.position.y + pr.size.y * 0.35, pr.size.x * 0.7, pr.size.y * 0.3)
+			var bs := stripes(si, reg, 6)
+			var mn := 9.0
+			var mx := 0.0
+			for v in bs:
+				mn = minf(mn, v)
+				mx = maxf(mx, v)
+			print("info %s colour %.2f bands %s" % [kind, col[0], fmt(bs)])
+			ok(mn >= 0.25, "B %s (%.2f grey) side bands %s: darkest %.3f (>= 0.25)" % [kind, col[0], fmt(bs), mn])
+			if kind == "cylinder" and col[0] > 0.7:
+				ok(mx >= 0.6, "B cylinder brightest band %.3f (>= 0.6)" % mx)
+	# the engine's crankcase drum (260 x 110 mm) at the engine's camera (pitch -22, yaw 150), colour #6b6f78, Metal, no extra lights
+	m.S.part = shape_rec("crank", [0.42, 0.44, 0.47])
+	pu.upto = -1
+	pu.sync()
+	await idle(20)
+	aim(150.0, -22.0, pu.part_mesh, 1.6)
+	await idle(10)
+	pu.part_mesh.visible = false
+	var bg: Image = await grab()
+	pu.part_mesh.visible = true
+	var fg: Image = await grab()
+	fg.save_png(SHOT + "/crankcase.png")
+	var kx := float(fg.get_width()) / root.get_visible_rect().size.x
+	var cols := []
+	var x0 := 99999
+	var x1 := -1
+	for y in range(int(150 * kx), int(600 * kx), 2):
+		for x in range(int(300 * kx), int(1400 * kx), 2):
+			if absf(lum(fg.get_pixel(x, y)) - lum(bg.get_pixel(x, y))) > 0.02:
+				x0 = mini(x0, x)
+				x1 = maxi(x1, x)
+	var cb := []
+	for i in 5:
+		var xa := x0 + (x1 - x0) * i / 5
+		var xb := x0 + (x1 - x0) * (i + 1) / 5
+		var sm := 0.0
+		var cn := 0
+		for y in range(int(150 * kx), int(600 * kx), 2):
+			for x in range(xa, xb, 2):
+				if absf(lum(fg.get_pixel(x, y)) - lum(bg.get_pixel(x, y))) > 0.02:
+					sm += lum(fg.get_pixel(x, y))
+					cn += 1
+		cb.append(sm / maxf(cn, 1))
+	var cmn := 9.0
+	for v in cb:
+		cmn = minf(cmn, v)
+	ok(x1 > x0 and cmn >= 0.25, "C engine crankcase (#6b6f78 Metal, engine camera) bands %s: darkest %.3f (>= 0.25)" % [fmt(cb), cmn])
 	# ---- EASY PART: the chip, as bug3
 	await click_ctl(pu.easy_open_btn)
 	await idle(4)
