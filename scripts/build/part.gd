@@ -233,6 +233,12 @@ static func from_file(d: Variant) -> Dictionary:
 			out[gk] = [float(gv[0]), float(gv[1]), float(gv[2])]
 	if String((d as Dictionary).get("grip_axis", "")) in ["long", "face"]:
 		out["grip_axis"] = String((d as Dictionary)["grip_axis"])
+	if (d as Dictionary).get("asserts") is Array:   # item 220: the saved part assertions (scripts/part_assert.gd), lines of text only
+		var pa: Array = ((d as Dictionary)["asserts"] as Array).filter(func(x): return x is String and String(x).strip_edges() != "")
+		if not pa.is_empty():
+			out["asserts"] = pa.duplicate()
+	if (d as Dictionary).get("body_names") is Array:   # item 212/220: a name per body, when the record has them
+		out["body_names"] = ((d as Dictionary)["body_names"] as Array).map(func(x): return String(x))
 	if bool((d as Dictionary).get("kept", false)):
 		out["kept"] = true   # an EMPTY part the user chose (Easy's Empty): a part with no steps that undo and redo bring back as it was
 	return out if not out["features"].is_empty() or out.has("kept") else {}

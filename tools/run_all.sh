@@ -578,3 +578,6 @@ EXTRA="$EXTRA s216:w"   # s216 SWEEP BEND RADIUS: Pull along has a Bend radius c
 
 
 EXTRA="$EXTRA s213:w"   # s213: multi-part Assembly (BUILD chooser New assembly): insert, place, edit, save/open, export STL/GLB/STEP; tests/s213_test.gd
+
+
+EXTRA="$EXTRA s220:w"   # s220: MODELING VIEW WITH MATHS: part_facts (a part as text: volume, box, axis, contact graph) + part_assert (one-line checks, miss in mm / deg / mm3), agent_tools + poser_cli + AI box; tests/s220_test.gd
