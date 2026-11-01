@@ -171,6 +171,7 @@ var _light_home := []
 var floor_mat: StandardMaterial3D
 var grid_mesh: ImmediateMesh   # the floor grid (the axes: axis_mesh)
 var scene_path := ""   # the open scene's file ("" = never saved)
+var undo_note := ""   # Friday 175: "oldest undo steps forgotten to save memory" once the memory budget made the stack drop its oldest steps (UndoBudget)
 var undo_dropped := 0   # undo steps pushed out of the 60-step stack: undo.size() + this is a step's depth that never saturates (easy_home._note_name)
 var clips_ui: ClipsUI   # CLIPS (GAP row 12): the commands, dialog and picked clip (scripts/clips_ui.gd)
 var export_ui: ExportDialog   # EXPORT... (ROADMAP 57): one dialog for every target; runs the writers below (scripts/export_dialog.gd)
@@ -6520,6 +6521,7 @@ func _vehicle_file() -> Dictionary:
 
 
 func _restore(u: Dictionary) -> void:
+	UndoBudget.unpack(u)   # Friday 175: an old step is stored packed
 	_bake_drop(u["scene"] if u.get("scene") is Scene else null)
 	if mm_ui != null:
 		mm_ui.halt()   # a motion matching preview ends with the step taken back: it would play over the restored pose
@@ -6802,11 +6804,12 @@ func _push_undo() -> void:
 	_tree.push(u)   # a new branch node when there was a redo: the abandoned future stays in the tree
 	_undo_tips()
 	_history_rows.call_deferred()
-	if undo.size() > 60:
+	if undo.size() > UndoBudget.MAX_STEPS:
 		undo.pop_front()
 		undo_dropped += 1
 		_tree.trim_root()
 	redo.clear()
+	UndoBudget.settle(self)   # Friday 175: the old steps packed, the oldest forgotten over the memory budget
 	_jpending = true
 	_co_sync()
 
@@ -6847,6 +6850,7 @@ func _undo() -> void:
 	redo.append(now)
 	_tree.step_back(now)
 	_restore(u)
+	UndoBudget.settle(self)
 	_easy_forget_msg()
 	_rehearse_again()   # I14: the comparison is read again from the clip as it now is
 	if u.has("lib"):
@@ -6894,6 +6898,7 @@ func _redo() -> void:
 	undo.append(now)
 	_tree.step_forward(now)
 	_restore(r)
+	UndoBudget.settle(self)
 	_easy_forget_msg()
 	_rehearse_again()   # I14
 	if r.has("lib"):
@@ -11379,7 +11384,7 @@ func _why_step(ex: Dictionary) -> void:
 func _undo_tips() -> void:
 	if ui_undo_btn == null or ui_redo_btn == null:
 		return
-	ui_undo_btn.tooltip_text = ("Undo: " + _step_label(undo[-1])) if not undo.is_empty() else "Undo (Ctrl+Z)\nnothing to undo yet"
+	ui_undo_btn.tooltip_text = ("Undo: " + _step_label(undo[-1]) + ("\n(" + undo_note + ")" if undo_note != "" else "")) if not undo.is_empty() else "Undo (Ctrl+Z)\nnothing to undo yet"
 	ui_redo_btn.tooltip_text = ("Redo: " + _step_label(redo[-1])) if not redo.is_empty() else "Redo (Ctrl+Y)\nnothing to redo yet"
 
 
