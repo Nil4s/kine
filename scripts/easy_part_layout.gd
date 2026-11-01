@@ -557,6 +557,7 @@ func layout(cl: Rect2) -> void:
 	if sbox.size != Vector2.ZERO and Rect2(status.position, status.size).intersects(sbox):
 		status.size.x = PW
 		status.position = Vector2(panel.position.x, panel.position.y + panel.size.y + 8.0)
+	call("_kt_place")   # P100: the shortcuts card, off every control
 
 
 # ---------------------------------------------------------------- amber dots and the shape being drawn

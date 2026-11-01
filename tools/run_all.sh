@@ -517,3 +517,6 @@ EXTRA="$EXTRA s105:w"   # S105 Nice picture button in the Export dialog: 1920x10
 
 
 EXTRA="$EXTRA s120:w"   # s120: a part with hinges is one moving prop on STAGE, its joints keyed (Friday plan 120)
+
+
+EXTRA="$EXTRA s100:w"   # s100 (Friday plan 100): Easy Part keyboard shortcuts card: 3 clicks on a button with a key show "Tip: Ctrl+Z does Undo" once (remembered in settings), at most one per 2 minutes, never during a drag; Shortcuts list in the Easy popup, each key tested (tests/s100_test.gd; needs the CAD DLL)
