@@ -432,3 +432,4 @@ EXTRA="$EXTRA s128:w"   # s128 (Friday plan 128): Easy Part centre of mass: red 
 EXTRA="$EXTRA s013:w"   # s013 (Friday plans 13 + 36): Soft/Medium/Sharp round presets (r 5.0/2.4/0.8 on a 40x40x20 box, measured from the top face and the volume) and the Rib chip on the Brackets page (+600 mm3 for 20x20x3, one solid)
 EXTRA="$EXTRA s157:w"   # s157 + s154 (Friday plans 157, 154): Export dialog Triangle budget on a 13.8k sculpt sphere (2k: <= 2000 triangles re-read from the .glb, volume 3 pct, bbox 1 pct, Full = full count, screen mesh unchanged) and the Sculpt Remesh slider lighter / smoother (half within 10 pct, volume 2 pct, one undo each) (tests/s157_test.gd)
 EXTRA="$EXTRA s048:w"   # s048: Repeat it Around an axis/edge, Along a line, With growth
+EXTRA="$EXTRA s135:w"   # Friday plan 135+136: Scene lines (two characters with then/while/after, camera words)
