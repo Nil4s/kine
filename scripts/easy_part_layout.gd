@@ -465,7 +465,7 @@ func layout(cl: Rect2) -> void:
 	colour_box.reset_size()
 	colour_box.position = shape_box.position
 	# FMOBILE: the floating boxes stay left of the panel (the colour chips wrap) and below the sentence (the hint)
-	var room := cl.end.x - PW - 32.0 - colour_box.position.x
+	var room := minf(cl.end.x - PW - 32.0, view_box.position.x - 8.0) - colour_box.position.x   # s081: and left of the view column (the Wood chip sat under it, so a click there hit the view buttons)
 	var nat := 24.0   # the chips in one row (their own widths and the gaps): the box is only as wide as its chips when the room is wide
 	for c in (colour_box.get_child(0) as Control).get_children():
 		nat += (c as Control).get_combined_minimum_size().x + 6.0

@@ -152,11 +152,10 @@ func _init() -> void:
 	var ep = pu.ep
 	await click_ctl(ep.make_btns["colour"])
 	var wb: Button = ep.colour_box.find_child("easypart_colour_wood", true, false) as Button
+	var vbr: Rect2 = ep.view_box.get_global_rect()
+	ok(wb.is_visible_in_tree() and not wb.get_global_rect().intersects(vbr) and root.get_visible_rect().encloses(wb.get_global_rect()), "0b the Wood chip %s is on the screen and clear of the view column %s" % [str(wb.get_global_rect()), str(vbr)])
 	await click_ctl(wb)
 	await idle(6)
-	if (m.S.part["features"] as Array).size() == 6:   # the click did not land on the chip (something sits over it at 1280 x 720): press the chip itself
-		wb.pressed.emit()
-		await idle(6)
 	ok(wb != null and int(pu.res.get("bodies", 0)) == 3, "0 three solids built (%d) and painted with the Wood chip" % int(pu.res.get("bodies", 0)))
 
 	# 1 LIST
