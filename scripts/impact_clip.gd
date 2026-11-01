@@ -123,12 +123,28 @@ static func _shot_for(S: Scene, tc: float, c: Dictionary) -> int:
 
 ## ImpactFrames.remove for this edit; the shot it made (named CAM_NAME, keyless once its tagged key is out) goes with it
 static func remove(S: Scene) -> int:
+	for i in range(S.cards.size() - 1, -1, -1):   # the sampled frame cards of a mid-move stop go, the card gets its own move back
+		if S.cards[i].has("ihb"):
+			S.cards.remove_at(i)
+		elif S.cards[i].has("ihm"):
+			S.cards[i]["move"] = S.cards[i]["ihm"]
+			S.cards[i].erase("ihm")
 	var n := ImpactFrames.remove([S])
 	for i in range(S.shots.size() - 1, -1, -1):
 		var sh: Dictionary = S.shots[i]
-		if String(sh.get("name", "")) == CAM_NAME and (sh["keys"] as Array).is_empty() and (sh.get("fx", {}) as Dictionary).is_empty():
+		if String(sh.get("name", "")) == CAM_NAME and (sh["keys"] as Array).is_empty() and _fx_empty(sh.get("fx", {})):
 			S.shots.remove_at(i)
 	return n
+
+
+## a shot's fx with nothing in it (a reloaded file's fx holds empty "shake" / "focus" lists)
+static func _fx_empty(fx: Dictionary) -> bool:
+	for k in fx:
+		if fx[k] is Array and not (fx[k] as Array).is_empty():
+			return false
+		if not (fx[k] is Array):
+			return false
+	return true
 
 
 static func _is_ours(mk: Dictionary) -> bool:
@@ -186,11 +202,28 @@ static func _hold(S: Scene, B: Body, t: float, h: float) -> void:
 			cd["iho"] = cd["hold"]
 		cd["hold"] = float(cd["hold"]) + h
 	else:
-		S.apply(B, t)
-		var x := {"name": "hit-stop", "pose": B.to_dict(), "move": t - float(ts[i][0]), "hold": h, "ease": "linear",
-			"ihs": S.cards[i]["move"]}
-		S.cards[i]["move"] = float(ts[i][1]) - t
-		S.cards.insert(i, x)
+		# MID-MOVE: the move under t is replaced by one card per FRAME of the ORIGINAL curve (sampled with Scene.apply before anything
+		# is written, so the card's own ease, the natural lag and every layer are in the numbers): frames after the start up to the
+		# contact (the contact card holds h), then the frames after the contact up to the card's end, then the card itself with
+		# the rest of its move. At every frame the pose is the original's, before the contact and (shifted by the hold) after it.
+		var fps := maxi(S.fps, 1)
+		var a0 := float(ts[i][0])
+		var b0 := float(ts[i][1])
+		var kc := roundi(t * float(fps))
+		var k0 := floori(a0 * float(fps) + 1e-6) + 1
+		var kend := ceili(b0 * float(fps) - 1e-6) - 1
+		var made := []
+		var prev := a0
+		for k in range(k0, maxi(kend, kc) + 1):
+			var tk := float(k) / float(fps)
+			S.apply(B, tk)
+			made.append({"name": "hit-stop", "pose": B.to_dict(), "move": tk - prev, "hold": h if k == kc else 0.0, "ease": "linear", "ihb": true})
+			prev = tk
+		var oc: Dictionary = S.cards[i]
+		oc["ihm"] = oc["move"]   # the card's own move, back on Remove
+		oc["move"] = b0 - prev
+		for n in made.size():
+			S.cards.insert(i + n, made[n])
 	ImpactFrames._shift(S, t, h)
 	if not cam.is_empty():
 		var keys: Array = S.shots[cam_si]["keys"]

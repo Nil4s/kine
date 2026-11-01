@@ -116,6 +116,14 @@ func all_sigs() -> Array:
 	return out
 
 
+func maxdiff(a: Array, b: Array) -> float:
+	var worst := 0.0
+	for i in a.size():
+		if a[i] is Quaternion:
+			worst = maxf(worst, rad_to_deg((a[i] as Quaternion).angle_to(b[i])))
+	return worst
+
+
 func box_dist(p: Vector3, c: Vector3, half: float) -> float:
 	var q := Vector3(maxf(absf(p.x - c.x) - half, 0.0), maxf(absf(p.y - c.y) - half, 0.0), maxf(absf(p.z - c.z) - half, 0.0))
 	return q.length()
@@ -306,5 +314,58 @@ func _init() -> void:
 	var wb := root.get_visible_rect()
 	var panel: Control = m.ui_find
 	ok(wb.encloses(panel.get_global_rect()), "PICTURE: the panel is inside the window")
+	# 9 DEFAULT EASES: the same punch with the app's defaults (natural on, no ease named: smootherstep with the body-leads lag)
+	var S3 := Scene.new()
+	S3.from_dict({"scene": "zz_s137n", "fps": FPS, "cards": [
+		{"name": "guard", "pose": pose_of(0), "move": -1.0, "hold": 0.4},
+		{"name": "punch", "pose": pose_of(best), "move": 0.6, "hold": 0.5},
+		{"name": "back", "pose": pose_of(0), "move": 0.6, "hold": 0.4}]})
+	S3.props = S.props
+	m.S = S3
+	m._rebuild_cards()
+	m.playhead = 0.0
+	m._props_show()
+	m._refresh()
+	await idle(3)
+	var o3 := all_sigs()
+	var j3 := sjson(m.S)
+	var c3 := ImpactClip.find_contact(m.S, m.B)
+	var kc3 := int(c3.get("k", -1))
+	ok(m.S.natural and kc3 > 0, "NATURAL: default eases (natural on), contact at frame %d" % kc3)
+	ImpactClip.apply(m.S, m.B, c3, 3, 2.0)
+	m._retimed()
+	await idle(2)
+	var n3 := all_sigs()
+	var pre3 := 0.0
+	for k in range(0, kc3):
+		pre3 = maxf(pre3, maxdiff(n3[k], o3[k]))
+	var post3 := 0.0
+	for k in range(kc3, o3.size()):
+		post3 = maxf(post3, maxdiff(n3[k + 3], o3[k]))
+	ok(pre3 < 0.5, "NATURAL: before the contact the largest bone difference from the original is %.3f deg (< 0.5)" % pre3)
+	ok(post3 < 0.5, "NATURAL: after the hold (shifted by 3 frames) it is %.3f deg (< 0.5)" % post3)
+	var h3 := true
+	for i in range(1, 4):
+		h3 = h3 and same(n3[kc3 + i], n3[kc3], 1e-6)
+	ok(h3 and not same(n3[kc3 + 4], n3[kc3], 1e-4), "NATURAL: frames %d..%d identical, then moving" % [kc3, kc3 + 3])
+	var rl := Scene.new()
+	rl.from_dict(JSON.parse_string(JSON.stringify(m.S.to_dict(m.B))))
+	rl.props = S.props
+	ImpactClip.remove(rl)
+	var rj := sjson(rl)
+	if rj != j3:
+		var d1 := 0
+		while d1 < mini(rj.length(), j3.length()) and rj[d1] == j3[d1]:
+			d1 += 1
+		print("info: reload JSON differs at %d: now ...%s | was ...%s" % [d1, rj.substr(maxi(d1 - 80, 0), 200), j3.substr(maxi(d1 - 80, 0), 200)])
+	ok(sjson(rl) == j3, "NATURAL: saved, reloaded, Remove -> JSON-equal to the original (the frame-card tags are in the file)")
+	ImpactClip.remove(m.S)
+	m._retimed()
+	var r3 := all_sigs()
+	var same3 := r3.size() == o3.size()
+	if same3:
+		for k in r3.size():
+			same3 = same3 and same(r3[k], o3[k], 1e-6)
+	ok(same3 and sjson(m.S) == j3, "NATURAL: remove -> every frame and the JSON equal the original")
 	print("s137: %d fail" % fails)
 	quit(0 if fails == 0 else 1)
