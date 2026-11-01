@@ -529,3 +529,5 @@ EXTRA="$EXTRA s140:w"   # s140 (Friday plan 140): Pose library by mood: moods me
 
 
 EXTRA="$EXTRA s094:w"   # p094: Easy Part MAKE buttons show a looping 14-frame clip tooltip (assets/tips/easy, made by tools/make_easy_tips.gd)
+
+EXTRA="$EXTRA bug4:w"   # bug4 (Nick 11-01 "no access to our library"): a Library button in the Easy Part bar (2 clicks from the start screen), a Parts library button on the 3D BUILDING start card; tests/bug4_test.gd

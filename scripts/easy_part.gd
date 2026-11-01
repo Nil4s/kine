@@ -65,6 +65,7 @@ func build(root: Control) -> void:
 	fix_btn.expand_icon = false
 	fix_btn.custom_minimum_size.x = 110.0
 	row.add_child(EasySearch.bar_button(m))   # s097: the search icon (Ctrl+K)
+	row.add_child(_lib_bar_make())   # bug4: Library, a big labelled button in the always-visible bar (opens the Parts library page)
 	row.add_child(undo_btn)
 	row.add_child(redo_btn)
 	row.add_child(dup_btn)
@@ -2629,6 +2630,7 @@ func _screw_sync() -> void:
 			b.set_pressed_no_signal(not cur.is_empty() and int(cur.get("d", 0)) == d and int(cur.get("L", 0)) == L)
 			m._grey(b, Part.why_not() if not Part.available() else "")
 	parts_btn.set_pressed_no_signal(parts_open)
+	_lib_bar_sync()   # bug4
 	_head_sync(cur)   # P061SCREWHEADS: the head chips and the size tips follow the screw on the floor
 	# FRIDAY 73: the bracket chips show while Brackets is open or a bracket is the part; the pressed one is the shape on the floor
 	var kind := int(cur.get("kind", 0)) if _tpl() == "bracket" else 0
@@ -8129,3 +8131,32 @@ func _kt_letter(k: InputEventKey) -> bool:
 		return false
 	_make(String(KT_LETTERS[int(k.keycode)]))
 	return true
+
+
+## BUG4 (Nick 11-01: "I have no access to our library with things yet"): the Parts chip sits in the FOOT of the scrolling side panel, below the
+## fold at 1280 x 720 and tiny (50 x 34). Library is a big labelled button in the always-visible bar (62 px tall) that does what Parts does:
+## opens the Parts library page (categories, Screws open) at the top of the panel, and a second press shuts it. No new row: it is a bar slot.
+func _lib_bar_make() -> Button:
+	lib_bar_btn = _bar_btn("Library", "Library: screws, boards, pipes, wood, gears and more. Press a part and it drops on the floor. Press again to shut it", _lib_bar_press)
+	lib_bar_btn.name = "easypart_library_btn"
+	lib_bar_btn.toggle_mode = true
+	lib_bar_btn.icon = Icons.sized("part_part", 22)
+	lib_bar_btn.expand_icon = false
+	lib_bar_btn.custom_minimum_size.x = 112.0
+	return lib_bar_btn
+
+
+func _lib_bar_press() -> void:
+	_parts_press()
+	if parts_open:
+		_lib_scroll_top.call_deferred()
+
+
+func _lib_scroll_top() -> void:
+	if panel != null and panel.get_child_count() > 0 and panel.get_child(0) is ScrollContainer:
+		(panel.get_child(0) as ScrollContainer).scroll_vertical = 0
+
+
+func _lib_bar_sync() -> void:
+	if lib_bar_btn != null:
+		lib_bar_btn.set_pressed_no_signal(parts_open)

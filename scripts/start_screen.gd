@@ -51,6 +51,7 @@ var _resume_path := ""
 var _settings: PanelContainer
 var _show_check: CheckBox
 var _built := false
+var _lib_after := false          # bug4: the Parts library button asked for the library page to open with Easy Part
 var _at_boot := false
 var file_dialog_inline := false   # a test: the in-window dialog (a native one cannot be driven)
 var last_dialog: FileDialog
@@ -202,6 +203,12 @@ func _card(kind: String, title: String, desc: String) -> PanelContainer:
 		_expert_btn[kind] = expert
 		foot.add_child(easy)
 		foot.add_child(expert)
+		if kind == "building":   # bug4: the Parts library from the start screen: Easy Part opens with the library page already open
+			var lib := _button("Parts library", "lib_" + kind)
+			lib.custom_minimum_size = Vector2(110, 26)
+			lib.tooltip_text = "Screws, boards, pipes, wood, gears and more: opens Easy Part with the Library open"
+			lib.pressed.connect(_start_library)
+			foot.add_child(lib)
 	else:   # no Easy flow for this kind yet: one honest button, and the note
 		var go := _button("Start", "start_" + kind)
 		go.custom_minimum_size = Vector2(70, 26)
@@ -400,6 +407,8 @@ func _start_kind_now(kind: String) -> void:
 			m._page_set("BUILD")
 			m.bld.reset_view()   # a new project starts on the default view, not where the last house was left
 			m.bld.part.open_blank(want_easy)
+			if _lib_after:
+				_lib_open_now.call_deferred()
 	if m.has_method("_refresh"):
 		m._refresh()
 
@@ -720,6 +729,7 @@ func _show_help() -> void:
 
 func _card_input(ev: InputEvent, kind: String) -> void:
 	if _is_click(ev):
+		_lib_after = false
 		_start_kind(kind)
 
 
@@ -731,8 +741,27 @@ func _tile_input(ev: InputEvent, path: String, example: bool) -> void:
 ## one click on Easy or Expert starts that kind of project in that mode (a card click elsewhere uses the mode last shown)
 func _start_in_mode(kind: String, easy: bool) -> void:
 	_card_easy[kind] = easy
+	_lib_after = false
 	_sync_modes(kind)
 	_start_kind(kind)
+
+
+## bug4: the Parts library button on the 3D BUILDING card: Easy Part, library page open
+func _start_library() -> void:
+	_card_easy["building"] = true
+	_sync_modes("building")
+	_lib_after = true
+	_start_kind("building")
+
+
+## (after the project is made) open the library page of Easy Part, one frame later so the part's panel has been placed
+func _lib_open_now() -> void:
+	_lib_after = false
+	if m == null or m.bld == null or m.bld.part == null or m.bld.part.ep == null:
+		return
+	var ep = m.bld.part.ep
+	if not ep.parts_open:
+		ep._lib_bar_press()
 
 
 ## a real file picker for a .json scene (the native dialog); the screen stays until a file is picked
