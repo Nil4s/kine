@@ -586,6 +586,8 @@ func _round_box() -> PanelContainer:
 
 
 func _round_shown() -> bool:
+	if rep_id != "" and not Part.feature(_rec(), rep_id).is_empty():
+		return false   # s214: the Repeat it box is open: its own box only (the Round the edges row hung over it)
 	return armed == "" and int(pu.res.get("bodies", 0)) > 0 and not _hole_on() and not _split_on()
 
 

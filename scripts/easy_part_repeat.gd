@@ -66,6 +66,11 @@ func _repeat_box() -> PanelContainer:
 	gpb.add_theme_font_size_override("font_size", 13)
 	h2.add_child(gpb)
 	rep_btns["group"] = gpb
+	# s214: the two button lines end left of the view buttons at the right (a 1280 x 720 window): a smaller type and a narrower least width
+	for hb in [h, h2]:
+		for bt in hb.get_children():
+			(bt as Button).add_theme_font_size_override("font_size", 14)
+			(bt as Button).custom_minimum_size = Vector2(56, 44)
 	rep_rows.append(_make_row("How many", 2.0, 20.0, 1.0, REP_WORDS["count"], "rep", "count", "copies", vb))
 	rep_rows.append(_make_row("Gap", 0.5, 30.0, 0.5, REP_WORDS["gap"], "rep", "gap", "cm", vb))
 	rep_rows.append(_make_row("Grow by", 5.0, 100.0, 1.0, ["Slightly", "A lot"], "rep", "grow", "pct", vb))
@@ -402,6 +407,8 @@ func _rep_mode(ring: bool) -> void:
 	pu.sync()
 	_rep_sync()
 	_values_sync()
+	if ring:
+		_rep_raise_view()
 	_say("Ring: the copies go round in a circle" if ring else "Row: the copies go in a straight line")   # FWHEEL: "beside it" lied for a spoke (its copies go round the middle)
 
 
@@ -457,6 +464,7 @@ func _piece_mm(rec: Dictionary, bi: int, dir: String) -> float:
 func _rep_sync() -> void:
 	if repeat_box == null:
 		return
+	_rep_slim()
 	var f := Part.feature(_rec(), rep_id)
 	if f.is_empty():
 		return
@@ -526,6 +534,7 @@ func _around_fields(cur: Dictionary, about: String) -> void:
 
 func _around_done(words: String) -> void:
 	pu.sync()
+	_rep_raise_view()
 	_rep_sync()
 	_values_sync()
 	var err: String = pu.replay_full(_rec())["errors"].get(rep_id, "")
@@ -655,6 +664,7 @@ func _rep_group() -> void:
 	_group_set(cur, all)
 	_end()
 	pu.sync()
+	_rep_raise_view()
 	_rep_sync()
 	_values_sync()
 	var err: String = pu.replay_full(_rec())["errors"].get(rep_id, "")
@@ -725,3 +735,39 @@ func _rgroup_press(p: Vector2) -> bool:
 	_values_sync()
 	_say("Group: %d of %d pieces are copied together" % [idx.size(), faces.size()])
 	return true
+
+
+## s214: the Repeat it buttons are slimmer (their side padding 6 px, type 14) so both button lines end left of the view buttons at the right
+func _rep_slim() -> void:
+	if _rep_slimmed:
+		return
+	_rep_slimmed = true
+	for k in rep_btns:
+		var bt: Button = rep_btns[k]
+		for st in ["normal", "hover", "pressed", "hover_pressed", "disabled"]:
+			var sb := bt.get_theme_stylebox("pressed" if st == "hover_pressed" else st)   # (the pressed look under the pointer is the pressed look)
+			if sb != null:
+				var d := sb.duplicate() as StyleBox
+				d.content_margin_left = 6.0
+				d.content_margin_right = 6.0
+				bt.add_theme_stylebox_override(st, d)
+		bt.custom_minimum_size.x = 0.0
+		bt.reset_size()
+	repeat_box.reset_size()
+
+
+## s214: a ring or a group seen edge-on (the floor level) is a line: the view lifts to a raised three-quarter one, and the framing then fits the result
+func _rep_raise_view() -> void:
+	if not Part.feature(_rec(), rep_id).has("bodies"):
+		return   # only a group's result is framed here: a single piece's Repeat it keeps the camera the user left (its usual framing)
+	if absf(float(m.pitch)) < 15.0:
+		m.pitch = -30.0
+		m.yaw = float(m.yaw) + 25.0
+		m._cam()
+	var bb: AABB = pu.res.get("aabb", AABB())   # and fit the whole result in the free view (a looser fit than the usual one: the box already took its columns out)
+	if bb.size.length() > 1e-4:
+		var pose := _frame_pose(bb, 0.85)
+		if not pose.is_empty():
+			_fr_ref = bb
+			_fr_has = true
+			_ease = {"t0": m.target, "d0": float(m.dist), "t1": pose[0], "d1": pose[1], "s": 0.0}
