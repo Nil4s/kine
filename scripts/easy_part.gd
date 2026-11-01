@@ -154,6 +154,7 @@ func build(root: Control) -> void:
 	pic.tooltip_text = "Your own picture: a dark shape on white becomes a raised logo, 4 cm wide and 2 mm high, in one step"
 	pic.pressed.connect(_picture_press)
 	sh.add_child(pic)
+	sh.add_child(_mirror_chip())   # s047: Mirror while drawing (a Line clicked on one side is drawn on both)
 	sh.add_child(_one_side_chip())   # P153: Symmetry is on by default; this chip turns it off ("One side only")
 	var photo_btn := Button.new()   # P201: Photo size: a phone photo with a coin beside the object; six clicks, the mm become a plate (easy_part_photo.gd)
 	photo_btn.name = "easypart_shape_photo"
@@ -3668,6 +3669,10 @@ func _key(k: InputEventKey) -> void:
 	var fo := get_viewport().gui_get_focus_owner()
 	if fo is LineEdit or fo is SpinBox:
 		return   # a typed number keeps its keys
+	if _draft.has("clicks") and k.keycode in [KEY_ENTER, KEY_KP_ENTER]:
+		_mirror_finish()   # s047: Enter ends a mirrored Line, as clicking its last point again does
+		get_viewport().set_input_as_handled()
+		return
 	if _line_typed_key(k):   # P045: a Line being drawn takes a typed length (digits, Backspace, Enter); the digits do not turn the camera
 		get_viewport().set_input_as_handled()
 		return
@@ -3870,8 +3875,14 @@ func input(ev: InputEvent) -> bool:
 				return true
 			if armed == "hold" and not _over_ui(p):
 				return _hold_press(p)   # p131grippoint: the press on the part sets the grip point
+			if armed == "draw" and _draft.has("clicks") and not _over_ui(p):
+				_draft_move(p)   # s047: the next click of a mirrored Line: the point follows the pointer, the release places it
+				return true
 			if (armed == "draw" or armed == "curve") and not _over_ui(p):
-				return _start_draft(p)
+				var started := _start_draft(p)
+				if started:
+					_mirror_tag()   # s047
+				return started
 			if armed == "" and not _over_ui(p) and _edge_press(p):
 				return true
 			if armed == "" and not _over_ui(p):
@@ -3947,7 +3958,7 @@ func _draft_move(p: Vector2) -> void:
 	if g != null:
 		_draft["b"] = g
 		var sh := String(_draft["shape"])
-		if (sh == "curve" or sh == "line") and (g as Vector2).distance_to((_draft["pts"] as Array).back()) >= 5.0:
+		if (sh == "curve" or sh == "line") and not _draft.has("clicks") and (g as Vector2).distance_to((_draft["pts"] as Array).back()) >= 5.0:
 			(_draft["pts"] as Array).append(g)
 			if sh == "line":   # P040: the stretch that ends here is curvy when Shift is held
 				var segs: Array = _draft.get("segs", [false])
@@ -3957,6 +3968,9 @@ func _draft_move(p: Vector2) -> void:
 
 
 func _draft_end() -> void:
+	if _draft.has("clicks"):
+		_mirror_release()   # s047: a click places a point; the same point twice finishes
+		return
 	if String(_draft["shape"]) == "line":
 		_finish_line()
 	elif String(_draft["shape"]) == "curve":
@@ -5404,7 +5418,7 @@ func _spring_pick_press() -> void:
 ## Enter draws a straight stretch of that length from the last point, in the way the pointer is going (a new run, so it stays its own line).
 ## true = the key was the typed length's; any other key (Escape, Delete, Ctrl) is left to the rest of the screen
 func _line_typed_key(k: InputEventKey) -> bool:
-	if _draft.is_empty() or String(_draft.get("shape", "")) != "line" or not _draft.has("pts"):
+	if _draft.is_empty() or String(_draft.get("shape", "")) != "line" or not _draft.has("pts") or _draft.has("clicks"):
 		return false
 	var typed := String(_draft.get("typed", ""))
 	var ch := ""
@@ -6518,3 +6532,120 @@ func _label_build() -> void:
 	m._cam()
 	_say("Label %s x %s mm, %s. Make another to replace it" % [_plain_num(float(d["w"])), _plain_num(float(d["h"])), "letters cut in" if cut else "letters raised"])
 	_screw_sync()
+
+
+# ---------------------------------------------------------------- s047 MIRROR WHILE DRAWING
+## The Mirror chip (Draw shape row) cycles off / Mirror X / Mirror Y and picks the Line. With Mirror on, the Line takes CLICKS: each click
+## places a point on one side of the middle line (X: left-right, x -> -x; Y: front-back, y -> -y) and its mirror shows live; the same
+## point clicked twice (a double click) or Enter finishes. The finished shape is the closed outline of the points and their mirrors,
+## in ONE Draw shape step, symmetric to the float. On a face of the part the Line draws as before (the middle line is the floor's).
+var mirror_mode := ""        # "", "x", "y"
+var mirror_btn: Button
+var _mirror_frame := -1      # the frame of the last release (a release can reach both input passes: it counts once)
+
+
+func _mirror_chip() -> Button:
+	mirror_btn = Button.new()
+	mirror_btn.name = "easypart_mirror_draw"
+	mirror_btn.toggle_mode = true
+	mirror_btn.focus_mode = Control.FOCUS_NONE
+	mirror_btn.icon = Icons.sized("symmetry", 22)
+	mirror_btn.expand_icon = false
+	mirror_btn.custom_minimum_size = Vector2(124, 40)
+	mirror_btn.add_theme_font_size_override("font_size", 16)
+	mirror_btn.pressed.connect(_mirror_press)
+	_mirror_sync()
+	return mirror_btn
+
+
+func _mirror_sync() -> void:
+	mirror_btn.text = "Mirror: off" if mirror_mode == "" else "Mirror " + mirror_mode.to_upper()
+	mirror_btn.set_pressed_no_signal(mirror_mode != "")
+	mirror_btn.tooltip_text = "Mirror while drawing. Press: Mirror X (left and right), press again: Mirror Y (front and back), again: off. Click the points of a Line on one side: the other side is drawn for you. Click the last point again to finish"
+
+
+func _mirror_press() -> void:
+	mirror_mode = {"": "x", "x": "y", "y": ""}[mirror_mode]
+	_draft = {}
+	if mirror_mode != "":
+		shape = "line"
+		_sync_shape()
+		_say("Mirror %s on. Click the points of a line on one side: the other side is drawn for you. Click the last point again to finish" % mirror_mode.to_upper())
+	else:
+		_say("Mirror off: a Line is drawn by dragging, as before")
+	_mirror_sync()
+	dots.queue_redraw()
+
+
+## the draft a press just started: with Mirror on and the Line chosen on the floor or the middle plane, it becomes a clicked, mirrored Line
+func _mirror_tag() -> void:
+	if mirror_mode == "" or _draft.is_empty() or String(_draft.get("shape", "")) != "line":
+		return
+	var fc: Dictionary = _draft.get("face", {})
+	if not (fc.is_empty() or bool(fc.get("through", false))):
+		_say("Mirror works on the floor and on the middle plane: this Line is drawn as usual")
+		return
+	_draft["mirror"] = mirror_mode
+	_draft["clicks"] = true
+	_draft["vx"] = []
+	_say("Mirror %s: click the next point. Click the last point again to finish" % mirror_mode.to_upper())
+
+
+## which side of the middle line a point is on: 1, -1, or 0 on the line
+func _mirror_side(q: Vector2, mode: String) -> int:
+	var v := q.x if mode == "x" else q.y
+	return 0 if absf(v) < 0.01 else (1 if v > 0.0 else -1)
+
+
+## a click of a mirrored Line (the button let go): the point is placed, or (the last point again) the line is finished
+func _mirror_release() -> void:
+	var fr := Engine.get_process_frames()
+	if fr == _mirror_frame:
+		return
+	_mirror_frame = fr
+	var mode := String(_draft["mirror"])
+	var vx: Array = _draft["vx"]
+	var q: Vector2 = _draft["b"]
+	if not vx.is_empty() and (vx.back() as Vector2).distance_to(q) < 0.5:
+		_mirror_finish()
+		return
+	var sd := _mirror_side(q, mode)
+	for v in vx:
+		var sv := _mirror_side(v, mode)
+		if sd != 0 and sv != 0 and sd != sv:
+			_say("That point is across the middle line. Keep all the points on one side: the other side is drawn for you")
+			return
+	vx.append(q)
+	_say("%d point%s. Click the next point, or click the last point again to finish" % [vx.size(), "" if vx.size() == 1 else "s"])
+	dots.queue_redraw()
+
+
+func _mirror_finish() -> void:
+	var mode := String(_draft.get("mirror", "x"))
+	var vx: Array = _draft.get("vx", [])
+	var fc: Dictionary = _draft.get("face", {})
+	if vx.size() < 2:
+		_say("Click at least two points on one side, then click the last one again to finish")
+		return
+	var pts := _mirror_outline(vx, mode)
+	var onside := false
+	for v in vx:
+		if _mirror_side(v, mode) != 0:
+			onside = true
+	if pts.size() < 3 or not onside:
+		_say("These points make no shape: click them away from the middle line")
+		return
+	var ents := []
+	for i in pts.size():
+		ents.append({"k": "line", "a": Part.arr2(pts[i]), "b": Part.arr2(pts[(i + 1) % pts.size()])})
+	_draft = {}
+	_begin("Draw shape")
+	var rec := pu._ensure()
+	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": ents, "dims": []}))
+	_end()
+	armed = ""
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_say("Shape drawn with its mirror: %d corners. Now press Pull it up or Spin it round" % pts.size())
