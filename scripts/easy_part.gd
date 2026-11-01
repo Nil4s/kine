@@ -1294,6 +1294,8 @@ func _set_value(row: Dictionary, v: float, final: bool) -> void:
 		_apply_taper(v)
 	elif row["kind"] == "twist":
 		_apply_twist(v)
+	elif row["kind"] == "grow":
+		_apply_grow(v)   # plan 18
 	else:
 		_apply_tweak(v)
 		if final and tweak.has("say"):
@@ -1420,7 +1422,7 @@ func _rows_sync() -> void:
 	_tweak_stale()
 	var t := _tpl()
 	# FKEY: the label is in the signature: after an Undo a new step can take the id of the step it replaced, and its slider must still be rebuilt
-	var sig := "%s|%s|%s|%s|%s" % [t, JSON.stringify(tweak.get("id", "")), _compact, String(tweak.get("label", "")), _taper_live()]
+	var sig := "%s|%s|%s|%s|%s|%s" % [t, JSON.stringify(tweak.get("id", "")), _compact, String(tweak.get("label", "")), _taper_live(), _grow_live()]
 	if sig == _rows_sig:
 		return
 	_rows_sig = sig
@@ -1439,6 +1441,10 @@ func _rows_sync() -> void:
 		rows.append(r)
 	taper_row = {}
 	twist_row = {}
+	grow_row = {}
+	if _grow_live():   # plan 18: the Thinner / thicker everywhere row sits under How far (it offsets every face of the whole part)
+		grow_row = _make_row("Thinner / thicker everywhere", GROW_LO, GROW_HI, 0.5, ["Thinner", "Thicker"], "grow", "offsetall", "mm")
+		(grow_row["words"] as Control).visible = not _compact
 	if _taper_live():   # FPLANTER: the Taper row sits UNDER How far; it is not in rows (rows[-1] stays the step's own slider)
 		# P024: the Twist slider shares the Taper row's line (side by side), so a pull with a Twist costs no more height than one with a Taper
 		# alone: the side panel stays as tall, and the drawing area under it stays as clear (fdelete draws beside a piece there)
@@ -1461,7 +1467,9 @@ func _rows_sync() -> void:
 func _taper_live() -> bool:
 	if taper_tw.is_empty():
 		return false
-	var fs: Array = _rec().get("features", [])
+	var fs: Array = _rec().get("features", []).duplicate()
+	if not fs.is_empty() and String((fs[-1] as Dictionary).get("t", "")) == "offset":
+		fs.pop_back()   # plan 18: the Thinner / thicker step sits after the pull; the Taper row stays (the rows must not rebuild under a drag)
 	return not fs.is_empty() and String((fs[-1] as Dictionary).get("id", "")) == String(taper_tw.get("id", "")) and String((fs[-1] as Dictionary).get("t", "")) == "extrude"
 
 
@@ -1540,6 +1548,8 @@ func _values_sync() -> void:
 		all_rows.append(taper_row)
 	if not twist_row.is_empty():
 		all_rows.append(twist_row)
+	if not grow_row.is_empty():
+		all_rows.append(grow_row)
 	for r in all_rows:
 		var s: HSlider = r["slider"]
 		var v := 0.0
@@ -1549,6 +1559,8 @@ func _values_sync() -> void:
 			v = float(Part.feature(_rec(), String(taper_tw.get("id", ""))).get("taper", 0.0))
 		elif r["kind"] == "twist":
 			v = float(Part.feature(_rec(), String(twist_tw.get("id", ""))).get("twist", 0.0))
+		elif r["kind"] == "grow":
+			v = _grow_value()
 		else:
 			v = _tweak_value()
 		if not bool(r.get("held", false)):
@@ -2819,6 +2831,7 @@ func _make(which: String) -> void:
 			_sync_shape()
 		_draft = {}
 		_say(_arm_words(armed))
+		_rows_sync()   # NOFFSET: the Thinner / thicker row goes while a shape is drawn (the floor stays clear)
 		return
 	armed = ""
 	var snap := _rec().duplicate(true)
@@ -7596,3 +7609,60 @@ func _fit_row() -> HBoxContainer:
 	fit_row = preload("res://scripts/easy_fit.gd").new()
 	fit_row.setup(self)
 	return fit_row
+
+
+# ================================================================ plan 18: Thinner / thicker everywhere
+const GROW_LO := -3.0
+const GROW_HI := 3.0
+var grow_row: Dictionary = {}   # the slider's row ({} = none); kept out of rows so rows[-1] is still the last step's own slider
+
+
+## the row shows while the newest step is a pull (or this offset itself): a part with a solid, nothing being drawn
+func _grow_live() -> bool:
+	if armed != "" or not Part.available():
+		return false
+	var fs: Array = _rec().get("features", [])
+	if fs.is_empty():
+		return false
+	return String((fs[-1] as Dictionary).get("t", "")) in ["extrude", "offset"]
+
+
+func _grow_feature() -> Dictionary:
+	var fs: Array = _rec().get("features", [])
+	if not fs.is_empty() and String((fs[-1] as Dictionary).get("t", "")) == "offset":
+		return fs[-1]
+	return {}
+
+
+func _grow_value() -> float:
+	return float(_grow_feature().get("mm", 0.0))
+
+
+## the slider writes ONE offset step at the end of the record (every face of every body moves by v mm); the same step is edited while it
+## stays the newest. A value the kernel refuses keeps the old one and says what to do next
+func _apply_grow(v: float) -> void:
+	pu.upto = -1
+	var v2 := snappedf(v, 0.01)
+	var f := _grow_feature()
+	var added := false
+	if f.is_empty():
+		if absf(v2) < 1e-9:
+			return
+		f = Part.new_feature(_rec(), "offset", {"mm": 0.0})
+		(_rec()["features"] as Array).append(f)
+		added = true
+	var old := float(f.get("mm", 0.0))
+	f["mm"] = v2
+	if absf(v2) > 1e-9 and not (Part.replay(_rec())["errors"] as Dictionary).is_empty():
+		if added:
+			(_rec()["features"] as Array).pop_back()
+		else:
+			f["mm"] = old
+		_say("That is too much for this shape: its faces would run into each other. Try a smaller number")
+		return
+	if absf(v2) < 1e-9:
+		_say("Back to the shape as pulled")
+	elif v2 > 0.0:
+		_say("Thicker everywhere by %s mm: every face moved out" % str(snappedf(v2, 0.1)))
+	else:
+		_say("Thinner everywhere by %s mm: every face moved in" % str(snappedf(-v2, 0.1)))

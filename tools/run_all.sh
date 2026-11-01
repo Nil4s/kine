@@ -468,3 +468,5 @@ EXTRA="$EXTRA s191:w"   # Friday 191: Sketch with sizes (AI): Trace box option, 
 
 
 EXTRA="$EXTRA s193:w"   # s193 (Friday plan 193): Fit to an object, Parts > Boards: a phone scan (.obj, 1/1000 scale, noisy, tumbled) -> real size -> Holder / Case by the CAD kernel; ray-cast pocket, wall and enclosure bars (tests/s193_test.gd)
+EXTRA="$EXTRA s018:w"   # S018 (Friday 18): Thinner / thicker everywhere slider under How far offsets every face of the whole part (box +-1 mm, plate hole 10 -> 8 mm); one undo step; Pull it up still edits (tests/s018_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA s018:w"   # S018 (Friday 18): Thinner / thicker everywhere slider under How far offsets every face of the whole part (box +-1 mm, plate hole 10 -> 8 mm); one undo step; Pull it up still edits (tests/s018_test.gd; needs the CAD DLL)
