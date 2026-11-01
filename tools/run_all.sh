@@ -453,3 +453,4 @@ EXTRA="$EXTRA s173:w"   # s173 (Friday plans 173 + 174): touch (one finger draws
 EXTRA="$EXTRA s175:w"   # Friday 175: undo memory budget (old steps packed, oldest forgotten with a note)
 EXTRA="$EXTRA s167:w"   # Friday 167: Easy Part start under 1 s from the BUILDING card (median of 5)
 EXTRA="$EXTRA s176:w"   # S176: one walk per Parts library category (read from LIB_CATS): first and last chip, real clicks; a solid, bbox inside 1 m (wood stock 2.5 m), one undo step, chip on screen and not under the view column (tests/s176_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA s200:w"   # s200 (Friday plan 200): Export dialog > Godot 4 > Playable game (Godot project folder): project.godot + main.tscn, run headless with Godot (tests/s200_test.gd + s200_sim.gd)
