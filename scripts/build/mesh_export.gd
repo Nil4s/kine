@@ -26,6 +26,7 @@ static func bodies_of(rec: Dictionary) -> Dictionary:
 	var res := Part.replay(rec, -1, {"keep": true})
 	var ids: Array = res.get("ids", [])
 	var looks: Array = res.get("body_looks", [])
+	var names: Array = res.get("body_names", [])
 	var out := []
 	var base := String(rec.get("name", "Part"))
 	for i in ids.size():
@@ -44,6 +45,8 @@ static func bodies_of(rec: Dictionary) -> Dictionary:
 		KCad.release(int(ids[i]))
 		var b := weld(soup)
 		b["name"] = base if ids.size() == 1 else "%s %d" % [base, i + 1]
+		if i < names.size() and String(names[i]) != "Body%d" % (i + 1):   # s212: a body the maker named is called that in the file
+			b["name"] = String(names[i])
 		var look: Dictionary = looks[i] if i < looks.size() else {}
 		# a colour only for a body the maker painted (a look named Default is the palette's guess, not a choice)
 		b["color"] = look["c"] if not look.is_empty() and String(look.get("preset", "Default")) != "Default" else null

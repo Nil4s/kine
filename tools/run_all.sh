@@ -606,3 +606,6 @@ EXTRA="$EXTRA s227:w"   # s227: ornaments library + sculpt-into-part road
 
 
 EXTRA="$EXTRA sbug2:w"   # sbug2: a broken painted-weights sidecar (right forearm weight over the whole body) tore the body apart in every clip; refused at load now; per-clip stretch bar x4, planted control must fail it (tests/sbug2_test.gd; run with APPDATA on a temp dir)
+
+
+EXTRA="$EXTRA s212:w"   # s212: name bodies (browser double-click / right-click Rename, Easy name field; names in record, undo, 3MF/GLB/OBJ/STEP); tests/s212_test.gd

@@ -43,10 +43,16 @@ static func export_part(rec: Dictionary, dir: String) -> Dictionary:
 	if not ok:
 		return {"ok": false, "path": path, "why": err, "bodies": ids.size(), "text": "NOT DONE: the .step could not be written (%s)" % err}
 	var s := FileAccess.get_file_as_string(path)
-	if s.contains(MILLI_UNIT):
+	var nm_list := ", ".join((res.get("body_names", []) as Array).map(func(n): return String(n).replace("'", "")))   # s212: the bodies' names go in the file's description
+	var s2 := s.replace(MILLI_UNIT, METRE_UNIT)
+	var rx := RegEx.create_from_string("FILE_DESCRIPTION\\(\\('[^']*'\\)")
+	var mt := rx.search(s2)
+	if mt != null:
+		s2 = s2.replace(mt.get_string(), "FILE_DESCRIPTION(('Kine bodies: %s'" % nm_list + ")")
+	if s2 != s:
 		var f := FileAccess.open(path, FileAccess.WRITE)
 		if f != null:
-			f.store_string(s.replace(MILLI_UNIT, METRE_UNIT))
+			f.store_string(s2)
 			f.close()
 	return {"ok": true, "path": path, "why": "", "bodies": ids.size(), "text": "exported %s: the exact solid (%d piece%s), true size in millimetres, for SolidWorks, Fusion, FreeCAD, Onshape" % [path.get_file(), ids.size(), "" if ids.size() == 1 else "s"]}
 

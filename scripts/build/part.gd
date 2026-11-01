@@ -47,6 +47,8 @@ extends RefCounted
 ## APPEARANCE (GAP 5): {"t": "appear", "id", "name", "body": N, "preset": "Paint"|"Metal"|"Glass"|"Rubber"|"Plastic"|"Custom", "color": [r, g, b] (0..1),
 ## "rough": 0..1, "metal": 0..1, "alpha": 0..1 (below 1 = see-through)} paints body N from that step on (the record holds the numbers, a preset
 ## only names them). A body with no appear step gets its palette colour by index (LOOK_CHIPS), so the bodies of a split read as two.
+## NAME A BODY (s212): {"t": "bname", "id", "name", "body": N, "called": "Piston"}: body N is called that from this step on ("" = back to Body<N+1>). The name rides in the
+## body's look (key "name"), so a split, combine or pattern carries it the way it carries the colour; replay answers res["body_names"] (the shown name of every body).
 ## A split gives both halves the look of the body it cut. No DLL: available() is false, replay() answers with an empty result and every tool says why.
 ## PATTERN (GAP 30, Fusion's Pattern): {"t": "pattern", "id", "name", "body": N, "kind": "linear"|"circular"|"path" (p049: "path" the sketch id of an open curve, "mm" the spacing along it), "count": copies INCLUDING the original (2..64),
 ## "mm" (linear: the spacing), "dir": "x"|"y"|"z" (linear: the direction), "axis": "x"|"y"|"z" (circular: the axis through the origin), "deg" (circular:
@@ -72,7 +74,7 @@ const PFIT := preload("res://scripts/build/part_fit.gd")   # s193: Fit to an obj
 const SKIN_MM := 0.3   # NROUNDFILTER: a face centre this close (mm) to the box's outside counts as on the skin
 const VERSION := 1
 const RING_MIDDLE := 100.0   # mm: a Ring piece whose centre is closer than this to the middle (not on it) goes round the middle
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "lattice", "fitobj", "move", "offset", "meshsolid", "pipe3d", "prim", "ornament"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "lattice", "fitobj", "move", "offset", "meshsolid", "pipe3d", "prim", "ornament", "bname"]
 const OVERHANG_COS := 0.7071   # p113: a face pointing down more than 45 degrees needs support when printed
 const BED_MM := 0.1            # p113: a face this close (mm) to the lowest point of the part is on the floor, not an overhang
 const DRAFT_DIRS := {"x": Vector3(1, 0, 0), "y": Vector3(0, 1, 0), "z": Vector3(0, 0, 1)}
@@ -692,7 +694,23 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				if ai < 0 or ai >= bodies.size():
 					errs[id] = "there is no body %d to paint" % ai
 				else:
-					looks[ai] = look_of(f)
+					var alook := look_of(f)
+					var olook: Variant = looks[ai]
+					if olook != null and (olook as Dictionary).has("name"):
+						alook["name"] = (olook as Dictionary)["name"]   # s212: painting a body keeps its name
+					looks[ai] = alook
+			"bname":   # s212: the body's name from this step on (its own numbers; no kernel)
+				var ni := int(f.get("body", -1))
+				if ni < 0 or ni >= bodies.size():
+					errs[id] = "there is no body %d to name" % (ni + 1)
+				else:
+					var nlook: Dictionary = look_at(looks, ni).duplicate()
+					var lab := clean_name(String(f.get("called", "")))
+					if lab == "":
+						nlook.erase("name")
+					else:
+						nlook["name"] = lab
+					looks[ni] = nlook
 			"combine":   # COMBINE: its own function (_combine_step): the target and the tools become one body list again
 				var ce := _combine_step(bodies, looks, f)
 				if ce != "":
@@ -769,8 +787,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var top := float(ed["a"].y) >= bb.end.y - SKIN_MM * MM and float(ed["b"].y) >= bb.end.y - SKIN_MM * MM
 				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "concave": concave, "inner": inner, "outside": outside, "top": top})
 	res["bodies"] = bodies.size()
+	res["body_names"] = []
 	for bi in bodies.size():
 		res["body_looks"].append(look_at(looks, bi))
+		res["body_names"].append(name_at(looks, bi))   # s212
 	if mesh.get_surface_count() > 0:
 		res["mesh"] = mesh
 		res["aabb"] = mesh.get_aabb()
@@ -2071,7 +2091,7 @@ static func _combine_step(bodies: Array, looks: Array, f: Dictionary) -> String:
 		cur = nx
 		if op != "join" and _vol(cur) <= HIT_VOL:
 			KCad.release(cur)
-			return "nothing is left: " + ("Body%d takes all of the target" % (t + 1) if op == "cut" else "the target shares no volume with Body%d" % (t + 1))
+			return "nothing is left: " + ("%s takes all of the target" % name_at(looks, t) if op == "cut" else "the target shares no volume with %s" % name_at(looks, t))
 	var keep := bool(f.get("keep", false))
 	var nb: Array = []
 	var nl: Array = []
@@ -2501,7 +2521,7 @@ static func _split_looks(looks: Array, n: int, pieces: Array) -> void:
 	for i in n:
 		nl.append(looks[i])
 		if k < pieces.size() and int(pieces[k][0]) == i:
-			nl.append(looks[i])
+			nl.append(_second_half(looks[i]))
 			k += 1
 	looks.clear()
 	looks.append_array(nl)
@@ -2575,7 +2595,7 @@ static func pattern_piece(rec: Dictionary) -> String:
 	var feats: Array = rec.get("features", [])
 	for i in range(feats.size() - 1, -1, -1):
 		var f: Dictionary = feats[i]
-		if bool(f.get("off", false)) or String(f.get("t", "")) == "appear":
+		if bool(f.get("off", false)) or String(f.get("t", "")) in ["appear", "bname"]:
 			continue
 		if String(f.get("t", "")) in ["extrude", "revolve"] and String(f.get("op", "join")) != "cut":
 			# FSHELF: the piece is the newest step only when it stands UP off a face (dist > 0, a slat on a frame) and makes ONE solid;
@@ -2680,9 +2700,11 @@ static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int,
 			return why if why != "" else "a copy could not be made"
 	if String(f.get("op", "join")) == "new":
 		var src: Variant = looks[bi] if bi < looks.size() else null
+		var cn := 1
 		for c in copies:
 			bodies.append(c)
-			looks.append(src)
+			cn += 1
+			looks.append(_numbered(src, cn))   # s212: a named body's copies are Name 2, Name 3 ...
 		return ""
 	for k in copies.size():
 		var u := KCad.union(bodies[bi], copies[k])
@@ -3616,3 +3638,65 @@ static func add_plane(rec: Dictionary, from: String, fields := {}) -> String:
 	var nf := new_feature(rec, "plane", fl)
 	(rec["features"] as Array).append(nf)
 	return String(nf["id"])
+
+
+# ---------------------------------------------------------------- s212 NAME A BODY
+
+const NAME_MAX := 40
+
+## the typed name made safe: no control characters, runs of spaces made one, trimmed, at most NAME_MAX letters
+static func clean_name(t: String) -> String:
+	var out := ""
+	for ch in t:
+		out += " " if ch.unicode_at(0) < 32 else ch
+	var parts := out.strip_edges().split(" ", false)
+	return " ".join(parts).left(NAME_MAX).strip_edges()
+
+
+## the shown name of body i: the one it was given, else Body<i+1> (the browser's old name for it)
+static func name_at(looks: Array, i: int) -> String:
+	if i >= 0 and i < looks.size() and looks[i] != null:
+		var n := String((looks[i] as Dictionary).get("name", ""))
+		if n != "":
+			return n
+	return "Body%d" % (i + 1)
+
+
+## the shown name of body i in a replay result (Body<i+1> when the replay has no names)
+static func body_name(res: Dictionary, i: int) -> String:
+	var ns: Array = res.get("body_names", [])
+	return String(ns[i]) if i >= 0 and i < ns.size() else "Body%d" % (i + 1)
+
+
+static func _second_half(l: Variant) -> Variant:
+	if l == null or String((l as Dictionary).get("name", "")) == "":
+		return l
+	return _numbered(l, 2)
+
+
+static func _numbered(l: Variant, n: int) -> Variant:
+	if l == null or String((l as Dictionary).get("name", "")) == "" or n < 2:
+		return l
+	var d: Dictionary = (l as Dictionary).duplicate()
+	d["name"] = "%s %d" % [String(d["name"]), n]
+	return d
+
+
+## RENAME body bi in the record: the newest naming step of that body is rewritten when only colour / naming steps came after it, else one more step goes
+## on the end. Returns the step ({} when nothing changed: same name already, or an empty name for a body with none). The caller owns the undo step.
+static func set_body_name(rec: Dictionary, bi: int, text: String, current: String) -> Dictionary:
+	var lab := clean_name(text)
+	if lab == current or (lab == "" and current == "Body%d" % (bi + 1)):
+		return {}
+	var feats: Array = rec["features"]
+	for k in range(feats.size() - 1, -1, -1):
+		var f: Dictionary = feats[k]
+		var t := String(f.get("t", ""))
+		if t == "bname" and int(f.get("body", -1)) == bi:
+			f["called"] = lab
+			return f
+		if t != "appear" and t != "bname":
+			break
+	var nf := new_feature(rec, "bname", {"name": "Name%d" % (count_of(rec, "bname") + 1), "body": bi, "called": lab})
+	feats.append(nf)
+	return nf
