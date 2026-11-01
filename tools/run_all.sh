@@ -476,3 +476,27 @@ EXTRA="$EXTRA s063:w"   # s063 FASTEN THESE TWO (Friday plan 63): Stick together
 
 
 EXTRA="$EXTRA s031:w"   # s031 (Friday plan 31): Thread look on a round hole: a helix drawn in the bore at the ISO pitch (radius / pitch / same-STL / sheet line / one undo bars; tests/s031_test.gd)
+
+
+EXTRA="$EXTRA s012:w"   # s012 (Friday plan 12): Bevel chip beside Round the edges: 45-degree chamfer planes, top face 40 -> 38 -> 36 mm, volume vs the analytic chamfered box, one undo step (tests/s012_test.gd)
+
+
+EXTRA="$EXTRA s053:w"   # s053 Friday 53: drag a piece onto another piece's face, it lands flush (snap 1 mm, ghost, one undo step "Moved a piece"); real drags (tests/s053_test.gd)
+
+
+EXTRA="$EXTRA s042:w"   # s042 (Friday plan 42): Draw shape > More shapes: star, gear outline (Teeth slider), heart, arrow drawn by clicks, pulled up 10 mm; tips/radii/mirror/angle measured from the mesh (tests/s042_test.gd)
+
+
+EXTRA="$EXTRA s079:w"   # s079 (Friday plan 79): Parts > Pipes: PVC pipe by real outside width, elbows 90 and 45, T-piece, sleeve with the Fit clearance; ray-cast widths, opening angles, Stick together (tests/s079_test.gd)
+
+
+EXTRA="$EXTRA s125:w"   # s125 (Friday plan 125): Easy Part Swing it checks every step against the other pieces; at the first touch the turn stops at the last free angle, both flash red 0.3 s, words say what hit; lid 0-120 deg analytic; 2k-triangle timing (tests/s125_test.gd; needs the CAD DLL)
+
+
+EXTRA="$EXTRA n05:w"   # N05: slicer lookup cache, build_banded reuse + C++ (KineFieldNative)
+
+
+EXTRA="$EXTRA s097:w"   # s097 (Friday plan 97): Ctrl+K / the bar icon opens one box for any Easy Part action: hole, round, m3 screw hole, screw m4 16; arrows + Enter = the click, Esc closes
+
+
+EXTRA="$EXTRA s016:w"   # s016: Wall slider shows the part cut in half (a contrasting band) while held and 1.5 s after

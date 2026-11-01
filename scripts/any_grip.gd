@@ -667,6 +667,50 @@ class MeshField:
 	## triangle reaches is inside or outside by a flood fill from the grid's edge (the band cuts the grid in two).
 	## build() itself is unchanged: the grips' field is the same as before.
 	static func build_banded(tris: PackedVector3Array, cell: float) -> MeshField:
+		# the same triangles at the same cell (the remesh's correction loop, then its apply) give the same field: reuse the last
+		# one (keyed on the hash of the triangles and the cell; a copy is returned, the grid array is copy-on-write)
+		var key := hash([hash(tris), cell, tris.size()])
+		if _last_key == key and _last != null and _last_tris == tris:
+			hits += 1
+			return _copy(_last)
+		var f := _build_banded(tris, cell)
+		_last_key = key
+		_last_tris = tris
+		_last = f
+		return _copy(f)
+
+	static var hits := 0   ## how many build_banded calls were answered from the last result
+	static var _last_key := 0
+	static var _last: MeshField = null
+	static var _last_tris := PackedVector3Array()
+	static var native_on := OS.get_environment("KINE_NO_NATIVE") == ""   ## KINE_NO_NATIVE=1 (or native_on = false) forces the GDScript loop
+	static var _door = null
+	static var _door_tried := false
+
+	static func _copy(s: MeshField) -> MeshField:
+		var f := MeshField.new()
+		f.gmin = s.gmin
+		f.gmax = s.gmax
+		f.h = s.h
+		f.nx = s.nx
+		f.ny = s.ny
+		f.nz = s.nz
+		f.d = s.d
+		f.size = s.size
+		f.sphere = s.sphere
+		return f
+
+	## the native door, or null (no DLL, or native_on is false)
+	static func native_door():
+		if not native_on:
+			return null
+		if not _door_tried:
+			_door_tried = true
+			if NativeExt.ensure("kine_native", "KineFieldNative"):
+				_door = load("res://scripts/any_grip_field_native.gd")
+		return _door
+
+	static func _build_banded(tris: PackedVector3Array, cell: float) -> MeshField:
 		var f := MeshField.new()
 		var ntri := tris.size() / 3
 		if ntri == 0 or cell <= 0.0:
@@ -690,6 +734,10 @@ class MeshField:
 		for t in ntri:
 			vol += tris[3 * t].dot(tris[3 * t + 1].cross(tris[3 * t + 2]))
 		var flip := -1.0 if vol < 0.0 else 1.0
+		var door = native_door()
+		if door != null:
+			f.d = door.banded(tris, f.gmin, f.nx, f.ny, f.nz, cell, flip, AnyGrip.BAND, AnyGrip.ON_SURFACE)
+			return f
 		f.d.resize(n)
 		var dist := PackedFloat32Array()
 		dist.resize(n)

@@ -1,5 +1,5 @@
 class_name EasyPart
-extends "res://scripts/easy_part_pull.gd"
+extends "res://scripts/easy_part_move.gd"
 ## EASY PART: Easy's screen for the Part workspace (BUILD page, scripts/build/part_ui.gd; the record and the kernel are Expert's: scripts/build/part.gd).
 ## Mouse only: no key names in any text here. A big top bar (Home, the part's name, Undo, Redo, Easy | Expert), six big MAKE buttons, the panel
 ## "Change your sword" (template chips, 3-4 sliders, "Back to the first one", "Exact sizes? Use Expert"), amber drag dots on the model for the main
@@ -64,6 +64,7 @@ func build(root: Control) -> void:
 	fix_btn.icon = Icons.sized("fix", 22)
 	fix_btn.expand_icon = false
 	fix_btn.custom_minimum_size.x = 110.0
+	row.add_child(EasySearch.bar_button(m))   # s097: the search icon (Ctrl+K)
 	row.add_child(undo_btn)
 	row.add_child(redo_btn)
 	row.add_child(dup_btn)
@@ -175,7 +176,9 @@ func build(root: Control) -> void:
 	trace_btn.tooltip_text = "Trace a picture: it lies on the floor, set its real width, press Trace it: its dark shape becomes a sketch"
 	trace_btn.pressed.connect(_trace_press)
 	sh.add_child(trace_btn)
+	sh.add_child(_quick_chip())   # s042: More shapes: star, gear outline, heart, arrow in a small panel under the row
 	root.add_child(shape_box)
+	root.add_child(quick_box)
 	hole_box = _hole_box()
 	root.add_child(hole_box)
 	split_box = _split_box()
@@ -565,6 +568,7 @@ func _round_box() -> PanelContainer:
 		b.custom_minimum_size = Vector2(176, 44)
 		h.add_child(b)
 		round_btns[rf[0]] = b
+	h.add_child(_bevel_btn())   # s012: Bevel (a flat 45-degree cut) beside the filter chips: the same edges as Round the edges, its own size slider
 	# p038makeitstro: a press adds a rib where the solid is thin (no toggle: the press is the step)
 	var sb := _big_btn("easypart_stronger", "Make it stronger", "Add a rib where the solid is thin: a strip on its thin side, along its long side", _stronger_press)
 	sb.icon = Icons.sized("part_stronger", 22)
@@ -877,6 +881,7 @@ func _swing_press() -> void:
 		_say("Swing it: the piece swings open %d degrees in %d seconds and clears the other piece. Ctrl+Z undoes it" % [int(SWING_DEG), int(SWING_SECS)])
 	pu.upto = -1
 	pu.sync()
+	_swing_play(f)   # P125: the turn plays in the view and stops at the first touch
 
 
 ## P026 PULL ALONG: the open curve (the path: a Curvy line that does not come back to its start) and a closed shape (the round or box
@@ -1355,11 +1360,16 @@ func _on_slider_start(row: Dictionary) -> void:
 	row["held"] = true
 	pu.coarse = true   # NSLIDELOD: the part shows a coarse preview while the slider is in hand
 	_begin("Change " + String(row["label"]))
+	if _is_wall_row(row):
+		_cutaway_get().hold()   # S016: the part shows cut in half while the Wall is held
+		_say("Cut in half: the coloured band is the wall. Let go to see the whole part")
 
 
 func _on_slider_end(_changed: bool, row: Dictionary) -> void:
 	row["held"] = false
 	pu.coarse = false   # NSLIDELOD: full detail on release (the final write below rebuilds it)
+	if _is_wall_row(row):
+		_cutaway_get().release()   # S016: the whole part comes back 1.5 s after
 	_set_value(row, (row["slider"] as HSlider).value, true)
 	_end()
 
@@ -1435,6 +1445,8 @@ func _rows_sync() -> void:
 	rows = []
 	if t != "" and not PartTemplates.T[t].get("parts", false):   # NSCREW2: a screw's numbers are the Parts chips, not sliders
 		for d in PartTemplates.T[t]["params"]:
+			if bool(d.get("chip", false)):   # s079: a pipe's size and fit are chips, not sliders
+				continue
 			var raw := bool(d.get("raw", false))   # NGEAR: a raw slider (teeth, a size step) keeps its own numbers and unit
 			var r := _make_row(String(d["label"]), float(d["lo"]) if raw else float(d["lo"]) / 10.0, float(d["hi"]) if raw else float(d["hi"]) / 10.0, float(d["step"]) if raw else float(d["step"]) / 10.0, d["words"], "tpl", String(d["k"]), String(d["unit"]) if raw else "cm", null, raw)
 			rows.append(r)
@@ -2144,6 +2156,11 @@ func _lib_press(cat: String) -> void:
 	elif cat == "Boards":   # p078makeacasef
 		_say("Boards: press your board. A case for it drops on the floor")
 		_bcase_scroll.call_deferred()   # s077: the real-board chips sit low on the page: scroll them into view
+
+
+	elif cat == "Pipes":   # s079
+		_say("Pipes: pick a kind and a size. It drops on the floor")
+		_scroll_into_view.call_deferred(pipes_box)
 	elif cat == "Wood boards":   # P080: the two wood chips open under the library
 		_say("Wood boards: pick one by its real size. It lies on the floor, flat")
 	elif cat == "Type it":   # p085typetobuil: a line of words builds a box
@@ -2226,6 +2243,9 @@ func _lib_box() -> PanelContainer:
 	vb.add_child(_text_row())   # FRIDAY 33: Text on a face, under Like a photo
 	vb.add_child(_label_row())   # s210: Label, under Like a photo
 	vb.add_child(_fit_row())   # s193: Fit to an object, on the Boards page
+	pipes_box = preload("res://scripts/easy_pipes.gd").new()   # s079: the Pipes page (scripts/easy_pipes.gd)
+	pipes_box.setup(self)
+	vb.add_child(pipes_box)
 	linkage_box = preload("res://scripts/easy_linkage.gd").new()   # p129linkages: the Linkage panel (4 bars, a drag knob) on the Hinges page, scripts/easy_linkage.gd
 	linkage_box.say_fn = _say   # p129linkages: its words go to the status line at the top
 	vb.add_child(linkage_box)
@@ -2243,6 +2263,12 @@ func _lib_icon(cat: String) -> ImageTexture:
 		return _board_icon(1)
 	if cat == "Wood boards":   # P080
 		return _wood_icon()
+	if cat == "Pipes":   # s079
+		var pi := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+		pi.fill(Color(0, 0, 0, 0))
+		pi.fill_rect(Rect2i(3, 0, 4, 12), Tok.c("text"))
+		pi.fill_rect(Rect2i(3, 9, 13, 4), Tok.c("text"))
+		return ImageTexture.create_from_image(pi)
 	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
 	var col := Tok.c("text")
@@ -2604,6 +2630,9 @@ func _screw_sync() -> void:
 		bo.set_pressed_no_signal(not bcur.is_empty() and int(bcur.get("board", 0)) == bd)
 		m._grey(bo, Part.why_not() if not Part.available() else "")
 	_wood_sync()   # P080 WOOD BOARDS: the wood chips and their cut readout follow the same state
+	if pipes_box != null:   # s079
+		pipes_box.visible = parts_open and lib_cat == "Pipes"
+		pipes_box.sync()
 
 
 ## P069 BEARINGS: the three bearing sizes, in the order of PartTemplates.BEARING_SIZE (608, 625, 688)
@@ -3614,6 +3643,8 @@ func _process(_dt: float) -> void:
 	_theme_sync()   # plan 109: the boxes follow Light / Dark
 	_grid_labels_sync()   # p108measuregri: the grid's numbers follow the zoom (view only)
 	pu.replay_forget()   # the same-frame replay reuse (PartUI.replay_once) ends with the frame
+	if not pu._tess_run.is_empty():
+		pu._tess_poll()   # S016: a slider preview that finishes while the slider is held still lands now, not at the next move (the cut-away shows the wall as it is)
 	_cut_sync()   # P101 SECTION: the Cut view follows the built part, and goes off when Easy is left
 	if meas != null:
 		meas.sync()   # s055: the Measure readouts follow the camera
@@ -3646,6 +3677,7 @@ func _process(_dt: float) -> void:
 	status.visible = on
 	dots.visible = on
 	shape_box.visible = on and armed == "draw"
+	_quick_sync()
 	_s166_sync(on)   # FRIDAY 43 + 166: the traced picture and the Draw to search box show only on the Easy screen
 	hole_box.visible = on and _hole_on()
 	if hole_box.visible and edge_chip != null and edge_chip.visible and hole_box.get_global_rect().intersects(edge_chip.get_global_rect()):   # s051: a Round / Bevel chip left over the Cut a hole chips would take their clicks (Staggered, Hex)
@@ -3982,9 +4014,15 @@ func input(ev: InputEvent) -> bool:
 				return started
 			if armed == "" and not _over_ui(p) and _edge_press(p):
 				return true
+			if armed == "" and not _over_ui(p) and _mv_start(p):   # p053: a press on a piece, then a drag moves it
+				return true
 			if armed == "" and not _over_ui(p):
 				_pick_p = p   # FDELETE: a click (no drag) on a piece picks it, on the release
 			return false
+		if not _mv.is_empty():   # p053: the release of a piece drag; a click falls through to the pick below
+			if _mv_drop(p):
+				return true
+			_pick_p = p
 		if not _edge.is_empty():
 			if p.distance_to(_edge["press"] as Vector2) >= 6.0:
 				_edge_end()
@@ -4019,6 +4057,9 @@ func input(ev: InputEvent) -> bool:
 		return false
 	if ev is InputEventMouseMotion:
 		var p := (ev as InputEventMouseMotion).position
+		if not _mv.is_empty():   # p053: a piece drag in hand
+			_mv_move(p)
+			return true
 		if not _edge.is_empty():
 			_edge_move(p)
 			return true
@@ -4269,6 +4310,15 @@ func _finish_draw() -> void:
 			var t := TAU * float(i) / 16.0
 			opts.append(Part.arr2(Vector2(oc.x + orx * cos(t), oc.y + ory * sin(t))))
 		ents = [{"k": "bspline", "pts": opts, "closed": true}]
+	elif sh in QUICK_SHAPES:   # s042: star, gear outline, heart, arrow: straight lines, the closed outline (the drag box's shorter side is the size)
+		var sq := _sides(a, b, pl)
+		if sq.has("thin"):
+			_say("Drag a bit wider: both sides must be at least 2 mm (now %s mm)" % _mm_words(float(sq["thin"])))
+			return
+		b = sq["b"]
+		var qp := _quick_pts(sh, a, b)
+		for i in qp.size():
+			ents.append({"k": "line", "a": Part.arr2(qp[i]), "b": Part.arr2(qp[(i + 1) % qp.size()])})
 	elif sh == "box" or sh == "pointy" or sh == "hex" or sh == "poly":
 		var sd := _sides(a, b, pl)
 		if sd.has("thin"):
@@ -4293,7 +4343,10 @@ func _finish_draw() -> void:
 	var all: Array = _with_twin(ents if not ents.is_empty() else [ent], fc, sh)   # P153: symmetry on by default: the copy on the other side, same step
 	_begin("Draw shape")
 	var rec := pu._ensure()
-	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": all, "dims": []}))
+	var sk_fields := {"plane": _face_plane(rec, fc), "ents": all, "dims": []}
+	if sh in QUICK_SHAPES:
+		sk_fields["quick"] = sh   # s042: the steps list names it ("Drew a star")
+	rec["features"].append(Part.new_feature(rec, "sketch", sk_fields))
 	_end()
 	armed = ""
 	tweak = {}
@@ -4809,7 +4862,7 @@ func step_words(f: Dictionary) -> String:
 func _step_words_plain(f: Dictionary) -> String:
 	match String(f.get("t", "")):
 		"sketch":
-			return "Drew a shape"
+			return "Drew %s" % QUICK_WORDS[String(f["quick"])] if QUICK_WORDS.has(String(f.get("quick", ""))) else "Drew a shape"
 		"lay":
 			return "Laid it flat"
 		"bulge":
@@ -4873,6 +4926,8 @@ func _step_tweak(f: Dictionary) -> Dictionary:
 		"extrude":
 			var sg := -1.0 if float(f.get("dist", 0.0)) < 0.0 else 1.0
 			return {"id": id, "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
+		"chamfer":   # s012
+			return {"id": id, "field": "dist", "label": "Bevel size", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Smaller", "Bigger"]}
 		"fillet":
 			return {"id": id, "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
 		"shell":
@@ -7681,3 +7736,178 @@ func _bcase_scroll() -> void:
 	var sc := panel.find_child("easypart_panel_scroll", true, false) as ScrollContainer
 	if sc != null and board_box != null and board_box.visible:
 		sc.ensure_control_visible(board_box)
+
+
+## p012beveltheed (Friday plan 12): Bevel the edges, the chip beside the Round the edges filters. It bevels the same edges Round the edges
+## would (the All / Only the outside / Only the top filter), cut flat by a chamfer instead of a round. The bevel size is its own slider
+## (dist, 1 to 10 mm, the same range and words as How round). One press = one undo step; a refusal says why and changes nothing
+func _bevel_btn() -> Button:
+	var b := _big_btn("easypart_bevel", "Bevel", "Bevel the edges: cut the sharp edges flat, a slanted edge. Uses the same edges as Round the edges", _bevel_press)
+	b.icon = Icons.sized("part_chamfer", 22)
+	b.expand_icon = false
+	b.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.custom_minimum_size = Vector2(116, 44)   # narrow: the chip row ends where the view buttons (Fit view, Front, Top) start
+	return b
+
+
+func _bevel_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	armed = ""
+	var snap := _rec().duplicate(true)
+	_begin("Bevel the edges")
+	var rec := pu._ensure()
+	var why := _bevel(rec)
+	if why != "":
+		m.S.part = snap   # nothing changes: the step taken a moment ago goes back out
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+	else:
+		_end()
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+
+
+## the chamfer step, added to rec when it works. "" or why not. The edges are the Round the edges ones (same filter, same length rule),
+## the size is the default Round uses (1% of the smallest size, 1 to 6 mm, never under the slider's 1 mm). One chamfer, checked by a full
+## replay (each try is one replay of the record)
+func _bevel(rec: Dictionary) -> String:
+	var res := Part.replay(rec, -1, {"edges": true, "keep": true})
+	var kept: Array = res.get("ids", [])
+	Part.release_kept(kept)
+	if int(res["bodies"]) == 0:
+		return "Nothing solid to bevel yet. Press Pull it up first"
+	var es: Array = res["edges"]
+	var aabb: AABB = res["aabb"]
+	var flag := "" if round_mode == "all" else round_mode
+	var small := minf(aabb.size.x, minf(aabb.size.y, aabb.size.z)) / Part.MM
+	var longest := 0.0
+	for e in es:
+		longest = maxf(longest, float(e["len"]))
+	var r := snappedf(clampf(small * 0.01, 1.0, 6.0), 0.1)
+	var list := []
+	for e in es:
+		if int(e["body"]) == 0 and not bool(e.get("seam", false)) and (flag == "" or bool(e.get(flag, false))) and float(e["len"]) / Part.MM > r * 2.5:
+			list.append(Part.describe(e))
+	if list.is_empty():
+		return "No edge to bevel on this solid: Pull it up taller, or press Round the edges"
+	var f := Part.new_feature(rec, "chamfer", {"body": 0, "dist": r, "edges": list})
+	rec["features"].append(f)
+	if _last_error(rec, String(f["id"])) == "":
+		_bevel_done(f)
+		return ""
+	rec["features"].pop_back()
+	return "These edges are too small or too crowded to bevel: Pull it up taller, or press Round the edges"
+
+
+func _bevel_done(f: Dictionary) -> void:
+	tweak = {"id": f["id"], "field": "dist", "label": "Bevel size", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Smaller", "Bigger"]}
+	_say("Edges bevelled: use the slider for more or less, or press Cut a hole next")
+
+
+# ---------------------------------------------------------------- s079: Pipes (Parts > Pipes; scripts/easy_pipes.gd, scripts/build/pipe_parts.gd)
+var pipes_box: VBoxContainer = null
+
+
+## P125 COLLIDE LIVE (Friday plan 125, "the door hits the wall: red flash"): Swing it plays the turn in the view, one step every 0.1 s on the
+## hinge's own curve. Every step is checked against the other pieces by CollideLive (boxes first, then the triangles; no kernel call, no undo
+## step). At the first touch the turn stops at the last free angle, the two touching pieces flash red for 0.3 s and the words say what hit
+const SWING_TICK := 0.1
+const FLASH_SECS := 0.3
+const SWING_SUB := 1.5   # degrees: the check looks at least this often inside a step, so a thin piece is not jumped over
+var _swing_tw: Tween
+var _swing_gen := 0
+var swing_log := {}   # the last playback's numbers: {"hit", "free", "deg", "body", "ticks", "check_ms" (per step)}
+
+
+func _swing_play(f: Dictionary) -> void:
+	await get_tree().process_frame   # the press ends first: the turn starts on the next frame
+	if _swing_tw != null and _swing_tw.is_valid():
+		_swing_tw.kill()
+	_swing_gen += 1
+	var gen := _swing_gen
+	var CL = load("res://scripts/build/collide_live.gd")
+	var P: Dictionary = CL.prep(_rec(), String(f["id"]))
+	if not bool(P.get("ok", false)):
+		return
+	var end_s := float(f["track"][-1][0])
+	var steps := maxi(1, int(ceil(end_s / SWING_TICK - 1e-6)))
+	swing_log = {"hit": false, "free": 0.0, "deg": 0.0, "body": -1, "ticks": 0, "check_ms": []}
+	_swing_tw = m.create_tween()
+	for i in range(1, steps + 1):
+		_swing_tw.tween_callback(_swing_tick.bind(f, P, minf(float(i) * SWING_TICK, end_s), gen))
+		_swing_tw.tween_interval(SWING_TICK)
+
+
+## one step: check the turn from the last free angle to this step's angle; a touch stops the playback, else the view shows the angle
+func _swing_tick(f: Dictionary, P: Dictionary, t: float, gen: int) -> void:
+	if gen != _swing_gen or bool(swing_log.get("hit", false)):
+		return
+	var CL = load("res://scripts/build/collide_live.gd")
+	var lim := Part.hinge_limit(f)
+	var deg := clampf(float(Curves.eval(f["track"], t)), -lim, lim)
+	var n0: int = CL.ms.size()
+	var r: Dictionary = CL.first_contact(P, float(swing_log["free"]), deg, SWING_SUB)
+	var spent := 0.0
+	for k in range(n0, CL.ms.size()):
+		spent += CL.ms[k]
+	(swing_log["check_ms"] as Array).append(spent)
+	swing_log["ticks"] = int(swing_log["ticks"]) + 1
+	if not bool(r.get("hit", false)):
+		swing_log["free"] = deg
+		_swing_show(f, deg)
+		return
+	swing_log["hit"] = true
+	swing_log["free"] = float(r["free"])
+	swing_log["deg"] = float(r["deg"])
+	swing_log["body"] = int(r["body"])
+	_swing_show(f, float(r["free"]))
+	_swing_flash(int(f["body"]), int(r["body"]), true)
+	_say("The swinging piece (piece %d) hits piece %d at %d degrees. Undo, or move the pieces apart" % [int(f["body"]) + 1, int(r["body"]) + 1, roundi(float(r["deg"]))])
+	var tw := m.create_tween()
+	tw.tween_interval(FLASH_SECS)
+	tw.tween_callback(_swing_flash.bind(int(f["body"]), int(r["body"]), false))
+
+
+## the view shows the hinge's body turned to deg (the record is the same; only the view turns)
+func _swing_show(f: Dictionary, deg: float) -> void:
+	pu.pose = {"f": String(f["id"]), "deg": deg}
+	pu._rebuild(true)
+
+
+## the two touching pieces are painted red on the part mesh, or back to their own colours
+func _swing_flash(bi: int, hit: int, on: bool) -> void:
+	if not on:
+		pu._look_surfaces()
+		return
+	var pm := pu.part_mesh
+	if pm.mesh == null:
+		return
+	var sb: Array = pu.res.get("surf_body", [])
+	var red := StandardMaterial3D.new()
+	red.albedo_color = Tok.c("mk_red")
+	red.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	red.cull_mode = BaseMaterial3D.CULL_DISABLED
+	for s in mini(sb.size(), pm.mesh.get_surface_count()):
+		if int(sb[s]) == bi or int(sb[s]) == hit:
+			pm.set_surface_override_material(s, red)
+
+
+## S016: the Wall slider (a hollow's wall thickness) is the one that shows the cut-away
+const PartCutaway := preload("res://scripts/build/part_cutaway.gd")
+var _cutaway: RefCounted = null
+
+
+func _is_wall_row(row: Dictionary) -> bool:
+	return String(row.get("kind", "")) == "tweak" and String(tweak.get("label", "")) == "Wall"
+
+
+func _cutaway_get() -> RefCounted:
+	if _cutaway == null:
+		_cutaway = PartCutaway.new(pu)
+	return _cutaway

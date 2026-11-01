@@ -139,6 +139,52 @@ static func detect_system() -> Array:
 	return detect(roots, dirs)
 
 
+## detect_system(), looked up ONCE per app run (it is ~2 s of folder scans and `reg query` processes). The Export dialog used to re-run it on every
+## open. prewarm() starts the lookup on a worker thread at start-up; detect_cached() waits for it if it is still running. forget() = "Look again".
+static var _cache: Array = []
+static var _cache_known := false
+static var _task := -1
+static var _mtx := Mutex.new()
+
+
+static func _job() -> void:
+	var r := detect_system()
+	_mtx.lock()
+	_cache = r
+	_cache_known = true
+	_mtx.unlock()
+
+
+static func prewarm() -> void:
+	if _cache_known or _task >= 0:
+		return
+	_task = WorkerThreadPool.add_task(_job, false, "slicer lookup")
+
+
+static func is_ready() -> bool:
+	return _cache_known
+
+
+## the slicers (the same list detect_system() gives), from the lookup of this app run; a copy, so a caller cannot change the cache
+static func detect_cached() -> Array:
+	if not _cache_known:
+		if _task >= 0:
+			WorkerThreadPool.wait_for_task_completion(_task)
+			_task = -1
+		if not _cache_known:
+			_job()
+	return _cache.duplicate(true)
+
+
+## "Look again for slicers": the next detect_cached() looks at the computer again
+static func forget() -> void:
+	if _task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_task)
+		_task = -1
+	_cache_known = false
+	_cache = []
+
+
 ## the argv to start a slicer on a file: [file]. The program is the first argument of OS.create_process, never part of a string.
 static func argv(file_path: String) -> Array:
 	return [file_path]

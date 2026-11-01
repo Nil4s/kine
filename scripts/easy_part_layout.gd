@@ -411,6 +411,9 @@ func _chrome_sync() -> void:
 func _sync_shape() -> void:
 	for k in shape_btns:
 		(shape_btns[k] as Button).set_pressed_no_signal(k == shape)
+	if not (shape in QUICK_SHAPES):
+		quick_open = false   # a plain shape (or Draw shape pressed again) closes the More panel
+	_quick_sync()
 
 
 ## the panel's height if it is not cut short: its column plus its own margins
@@ -436,6 +439,7 @@ func layout(cl: Rect2) -> void:
 		(sb as Button).custom_minimum_size.x = 72.0 if tight else 96.0
 	give_btn.custom_minimum_size.x = 110.0 if narrow else 170.0
 	_narrow_bar_text(narrow)   # P172LAYOUTS: the long bar words trim at 1024 wide instead of setting the row wider than the window
+	EasySearch.fit(self)   # s097: the search icon only where the bar row has room
 	dup_btn.custom_minimum_size.x = 92.0 if narrow else 120.0   # FMOBILE2: 1024 wide, the bar row (with What to build at its end) must fit the window
 	if bar_home != null:
 		bar_home.custom_minimum_size.x = 88.0 if narrow else 110.0
@@ -807,6 +811,10 @@ func _draft_outline() -> PackedVector2Array:
 	elif String(_draft["shape"]) == "hex" or String(_draft["shape"]) == "poly":
 		for q in _poly_pts(a, b, _draft_sides()) + [a]:
 			pts.append(m.cam.unproject_position(_pw(q)))
+	elif String(_draft["shape"]) in QUICK_SHAPES:   # s042: star, gear outline, heart, arrow
+		var qp := _quick_pts(String(_draft["shape"]), a, b)
+		for q in qp + [qp[0]]:
+			pts.append(m.cam.unproject_position(_pw(q)))
 	else:
 		var r := a.distance_to(b)
 		for i in 33:
@@ -844,6 +852,8 @@ func _draft_corners_mm() -> Array:
 			return _pointy_pts(a, b)
 		"hex", "poly":
 			return _poly_pts(a, b, _draft_sides())
+		"arrow":
+			return _quick_pts("arrow", a, b)
 	return []
 
 
@@ -1445,3 +1455,129 @@ func _draw_mirror_live() -> void:
 	for i in half.size():
 		dots.draw_circle(half[i], 5.0, col)
 		dots.draw_circle(other[i], 5.0, Color(col, 0.7))
+
+
+## s042 QUICK SHAPES: star, gear outline, heart, arrow behind ONE "More shapes" chip in the Draw shape row (a small panel, not a wider row).
+## Each takes the drag box like Hex does and is drawn as straight lines; the Teeth slider is the gear's tooth count.
+const QUICK_SHAPES := ["star", "gear", "heart", "arrow"]
+const QUICK_WORDS := {"star": "a star", "gear": "a gear outline", "heart": "a heart", "arrow": "an arrow"}
+var quick_teeth := 12
+var quick_box: PanelContainer
+var quick_btns := {}
+var quick_chip: Button
+var quick_open := false
+var quick_teeth_value: Label
+
+
+## the outline (mm, on the draft's plane) of a quick shape in the drag box a-b, centred on the box. The size is the box's SHORTER side:
+## star: outer radius = half of it, inner radius 0.4 of the outer (5 points, one up); gear: tip radius = half of it, root radius 0.8 of that,
+## `quick_teeth` teeth; heart: fits the box; arrow: points right, head 90 degrees at the tip (head as long as half its height)
+func _quick_pts(sh: String, a: Vector2, b: Vector2) -> Array:
+	var c := (a + b) * 0.5
+	var w := absf(b.x - a.x)
+	var h := absf(b.y - a.y)
+	var out := []
+	match sh:
+		"star":
+			var r := minf(w, h) * 0.5
+			for k in 10:
+				out.append(c + Vector2.from_angle(PI * 0.5 + k * PI / 5.0) * (r if k % 2 == 0 else r * 0.4))
+		"gear":
+			var r := minf(w, h) * 0.5
+			var n := maxi(quick_teeth, 3)
+			var pitch := TAU / float(n)
+			for i in n:
+				var t := PI * 0.5 + i * pitch
+				for da in [[-0.30, 0.8], [-0.17, 1.0], [0.17, 1.0], [0.30, 0.8]]:
+					out.append(c + Vector2.from_angle(t + float(da[0]) * pitch) * r * float(da[1]))
+		"heart":
+			var raw := []
+			var lo := INF
+			var hi := -INF
+			for k in 40:
+				var t := TAU * k / 40.0
+				var q := Vector2(16.0 * pow(sin(t), 3.0), 13.0 * cos(t) - 5.0 * cos(2.0 * t) - 2.0 * cos(3.0 * t) - cos(4.0 * t))
+				raw.append(q)
+				lo = minf(lo, q.y)
+				hi = maxf(hi, q.y)
+			var f := minf(w * 0.5 / 16.0, h / (hi - lo))
+			for q in raw:
+				out.append(c + Vector2((q as Vector2).x, (q as Vector2).y - (hi + lo) * 0.5) * f)
+		"arrow":
+			var hh := minf(h, w)
+			var hl := hh * 0.5
+			var x0 := c.x - w * 0.5
+			var x1 := c.x + w * 0.5
+			var sy := hh * 0.2
+			var hy := hh * 0.5
+			for q in [Vector2(x0, c.y - sy), Vector2(x1 - hl, c.y - sy), Vector2(x1 - hl, c.y - hy), Vector2(x1, c.y), Vector2(x1 - hl, c.y + hy), Vector2(x1 - hl, c.y + sy), Vector2(x0, c.y + sy)]:
+				out.append(q)
+	return out
+
+
+## the "More shapes" chip and its small panel (made once, under the shape row; shown by the chip). Returns the chip for the row
+func _quick_chip() -> Button:
+	quick_chip = Button.new()
+	quick_chip.name = "easypart_shape_more"
+	quick_chip.text = "More"   # the row's second line has 65 px left of the view column: "More shapes" ran under it
+	quick_chip.toggle_mode = true
+	quick_chip.focus_mode = Control.FOCUS_NONE
+	quick_chip.custom_minimum_size = Vector2(60, 40)
+	quick_chip.add_theme_font_size_override("font_size", 16)
+	quick_chip.tooltip_text = "Star, gear outline, heart, arrow: pick one, then drag on the grid"
+	quick_chip.pressed.connect(func(): quick_open = not quick_open; _quick_sync())
+	quick_box = PanelContainer.new()
+	quick_box.name = "easypart_quick"
+	quick_box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.97), 10, 6))
+	quick_box.z_index = 5
+	quick_box.visible = false
+	var hb := HBoxContainer.new()
+	hb.add_theme_constant_override("separation", 6)
+	quick_box.add_child(hb)
+	for s in [["star", "Star"], ["gear", "Gear outline"], ["heart", "Heart"], ["arrow", "Arrow"]]:
+		var b := Button.new()
+		b.name = "easypart_quick_" + String(s[0])
+		b.text = String(s[1])
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(70, 40)
+		b.add_theme_font_size_override("font_size", 16)
+		b.pressed.connect(func(): shape = String(s[0]); quick_open = false; _sync_shape())   # the panel closes: it would lie over the grid
+		hb.add_child(b)
+		quick_btns[s[0]] = b
+	var tl := Label.new()
+	tl.text = "Teeth"
+	tl.add_theme_font_size_override("font_size", 16)
+	hb.add_child(tl)
+	var sl := HSlider.new()
+	sl.name = "easypart_quick_teeth"
+	sl.min_value = 6
+	sl.max_value = 40
+	sl.step = 1
+	sl.value = quick_teeth
+	sl.focus_mode = Control.FOCUS_NONE
+	sl.custom_minimum_size = Vector2(120, 40)
+	sl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	sl.tooltip_text = "Teeth: how many teeth the gear outline has"
+	quick_teeth_value = Label.new()
+	quick_teeth_value.name = "easypart_quick_teeth_value"
+	quick_teeth_value.add_theme_font_size_override("font_size", 16)
+	quick_teeth_value.text = "%d teeth" % quick_teeth
+	sl.value_changed.connect(func(v: float): quick_teeth = int(v); shape = "gear"; quick_teeth_value.text = "%d teeth" % quick_teeth; _sync_shape())
+	hb.add_child(sl)
+	hb.add_child(quick_teeth_value)
+	return quick_chip
+
+
+## the chip shows pressed while a quick shape is picked; the panel sits under the shape row and closes with it
+func _quick_sync() -> void:
+	if quick_chip == null:
+		return
+	if not shape_box.visible:
+		quick_open = false
+	for k in quick_btns:
+		(quick_btns[k] as Button).set_pressed_no_signal(k == shape)
+	quick_chip.set_pressed_no_signal(quick_open or shape in QUICK_SHAPES)
+	quick_box.visible = quick_open and shape_box.visible
+	quick_box.reset_size()
+	quick_box.position = shape_box.position + Vector2(0.0, shape_box.size.y + 4.0)

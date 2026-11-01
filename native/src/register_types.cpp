@@ -8,6 +8,9 @@
 #include "kine_meshcheck_native.h"
 #include "kine_meshops_native.h"
 
+
+#include "kine_field_native.h"
+
 using namespace godot;
 
 void kine_native_initialize(ModuleInitializationLevel p_level) {
@@ -18,6 +21,9 @@ void kine_native_initialize(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(KineClothNative);
 	GDREGISTER_ABSTRACT_CLASS(KineMeshCheckNative);
 	GDREGISTER_ABSTRACT_CLASS(KineMeshOpsNative);
+
+
+	GDREGISTER_ABSTRACT_CLASS(KineFieldNative);
 }
 
 void kine_native_terminate(ModuleInitializationLevel p_level) {
