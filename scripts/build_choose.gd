@@ -131,6 +131,19 @@ func build(parent: Control) -> void:
 	back.offset_top = 14.0
 	back.offset_bottom = 54.0
 	root_box.add_child(back)
+	var asm_b := Button.new()   # s213: several Parts put together (scripts/build/assembly_ui.gd); a button beside Back, not a seventh card
+	asm_b.name = "build_choose_assembly"
+	asm_b.text = "New assembly"
+	asm_b.tooltip_text = "Put several parts together: place each one, change any of them, save and export the lot as one file"
+	asm_b.focus_mode = Control.FOCUS_NONE
+	asm_b.custom_minimum_size = Vector2(150, 40)
+	asm_b.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	asm_b.offset_left = -310.0
+	asm_b.offset_right = -150.0
+	asm_b.offset_top = 14.0
+	asm_b.offset_bottom = 54.0
+	asm_b.pressed.connect(new_assembly)
+	root_box.add_child(asm_b)
 	_title = _label("What do you want to build?", 30, Color(0.93, 0.94, 0.96))
 	_title.name = "choose_title"
 	_col.add_child(_title)
@@ -469,3 +482,14 @@ class Art extends Control:
 				draw_rect(Rect2(w * 0.2, h * 0.42, w * 0.18, h * 0.16), YEL, true)
 				draw_line(Vector2(w * 0.44, h * 0.5), Vector2(w * 0.58, h * 0.5), YEL, 3.0)
 				draw_rect(Rect2(w * 0.64, h * 0.3, s * 0.45, s * 0.5), grey, true)
+
+
+## s213: the New assembly button: Expert's BUILD page with the Assembly screen on it (the parts are added from its own list)
+func new_assembly() -> void:
+	if not Part.available():
+		m._say("Needs the KineCAD add-on, which is not installed.")
+		return
+	_mode(false)
+	close()
+	m._page_set("BUILD")
+	m.bld.asm.open_new()
