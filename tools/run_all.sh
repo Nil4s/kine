@@ -428,3 +428,4 @@ EXTRA="$EXTRA s055:w"   # s055 (Friday plan 55 + 56): Easy Part view column > Me
 EXTRA="$EXTRA s209:w"   # s209 + s210 (Friday plans 209, 210): Make it stackable (lip 0.3 mm inside the rim, no common volume of two stacked copies) and the Label maker (BOLTS tag, raised or cut in, Parts > Type it; tests/s209_test.gd; needs the CAD DLL)
 
 EXTRA="$EXTRA s029:w"   # s029 (Friday plan 29): Holes in a pattern: Cut a hole > Row / Around / Grid of holes (count, spacing, radius, rows x columns, Pick centre); 100x60x10 plate, 6 mm holes: volume within 1 pct, centres 20 mm / 60 deg / 15 mm apart (tests/s029_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA s194:w"   # s194 (Friday plan 194): Parametric families: My parts right-click > Make a family; a stool (400 mm legs + 30 mm seat, 6 mm hole) at 30/45/60 cm: heights within 0.05, seat 30.00 and hole 6.00 unchanged (replayed, not scaled), 3 entries re-read from disk, no undo step (tests/s194_test.gd; needs the CAD DLL)
