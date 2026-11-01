@@ -187,6 +187,7 @@ var knobs_ui: MoveKnobsUI   # N025 MOVE KNOBS: strike height / reach / stance / 
 var hit_harder_ui: HitHarderUI   # N065 HIT HARDER: one button under the move knobs (scripts/hit_harder_ui.gd)
 var sd_ui: StyleDialUI   # STYLE DIAL (ROADMAP I6): four sliders that restyle the whole clip (scripts/style_dial_ui.gd)
 var tcat_ui: ThrowCatchUI   # THROW AND CATCH (ROADMAP I27): "Throw to...", the plan, its arc drawing and preview (scripts/throw_catch_ui.gd)
+var ic_ui: ImpactClipUI   # IMPACT FRAMES ON A STRIKE (plan 137): the toggle, sliders and the flash (scripts/impact_clip_ui.gd)
 var if_ui: ImpactFramesUI   # IMPACT FRAMES (ROADMAP I13): the commands, the plan and its preview (scripts/impact_frames_ui.gd)
 var se_ui: SpeedEnvUI = SpeedEnvUI.new(self)   # SPEED LIMITS (ROADMAP I47): scripts/speed_env_ui.gd + speed_env.gd
 var bt_ui: BestTakeUI = BestTakeUI.new(self)   # MY BEST TAKE (ROADMAP I38): scripts/best_take_ui.gd + best_take.gd
@@ -262,7 +263,7 @@ const RIBBON_GROUPS := {
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial", "Match the reference timing"]], ["SOUND", ["Sound cues"]]],
 	"SET": [["PROPS", ["Library", "Add prop", "Import model", "Turn left", "Turn right", "Delete prop"]], ["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]],
 		["ACT", ["Sit here", "Pick up", "Put down", "Step up", "Throw to...", "Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]],
-		["REACT", ["Reactions", "React to the hit (physics)", "Add impact frames", "Remove impact frames"]]],
+		["REACT", ["Reactions", "React to the hit (physics)", "Impact frames", "Add impact frames", "Remove impact frames"]]],
 	"CHECK": [["JUDGE", ["Check", "Realism score", "Safety sheet", "Real-mocap check"]], ["FIX", ["Polish", "Fix moves through the body", "Timing coach", "Speed limits"]],
 		["PHYSICS", ["Make it physical", "Accept span", "Keep this pose", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check"]],
 		["FIGHT", ["Fight distance", "Fit the ring", "Auto opponent", "Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound"]],
@@ -3506,6 +3507,8 @@ func _process_body(dt: float) -> void:
 		tcat_ui.tick(dt)   # THROW AND CATCH preview (nothing otherwise)
 	if if_ui != null:
 		if_ui.tick(dt)   # IMPACT FRAMES preview (nothing otherwise)
+	if ic_ui != null:
+		ic_ui.sync()   # plan 137: the flash follows the playhead every frame (a rebuilt prop node loses it otherwise)
 	if bf_ui != null:
 		bf_ui.tick(dt)
 	if cg_ui != null:
@@ -5136,6 +5139,8 @@ func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := tru
 
 
 func _refresh() -> void:
+	if ic_ui != null:
+		ic_ui.sync()   # plan 137: the target's flash on its 2 frames
 	_hands_refresh()   # HANDS (w4-handlock): the hands rows say the state
 	_light_apply()
 	_refimg_sync()
@@ -12245,7 +12250,7 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Library": "library", "Export model (GLB / OBJ)": "export_glb", "Throw to...": "throw","Reactions": "react", "React to the hit (physics)": "react_hit", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Pack scene (zip)": "pack", "Unpack zip...": "unpack", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Keep balance": "keep_balance", "Ouch meter": "ouch", "Show problems on the body": "red_spots", "Collision (C)": "collision",
+const ICON_OF := {"Library": "library", "Export model (GLB / OBJ)": "export_glb", "Throw to...": "throw","Reactions": "react", "React to the hit (physics)": "react_hit", "Impact frames": "impact", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Pack scene (zip)": "pack", "Unpack zip...": "unpack", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Symmetry": "symmetry", "Smart drag": "smart", "Keep balance": "keep_balance", "Ouch meter": "ouch", "Show problems on the body": "red_spots", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "Parry rebound": "parry", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Reaction direction": "reactdir", "Sell the hit": "sellhit", "Gaze director": "gaze", "Safety sheet": "safety", "Floor plan": "floorplan", "Breakfall check": "breakfall", "Recovery step": "recovery", "Fight rhythm": "rhythm", "Precog check": "precog", "Auto opponent": "autoopp", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Momentum ledger": "momentum", "Airborne spin check": "spin", "Real-mocap check": "mocapchk", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "Star this clip": "star_clip", "My best take": "best_take", "Make this one more like my best": "best_nudge", "Speed limits": "speed_env", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Keep this pose": "keep", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix", "Fit the ring": "arena",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Body: fighter archetype...": "archetype", "Body: from height, weight, sex, age, build": "body_nums", "Mannequin as shipped": "mannequin_ship", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
@@ -12865,6 +12870,9 @@ func _ui() -> void:
 	ui_ribbon["SET"].add_child(_button("React to the hit (physics)", _react_physics, "where a weapon or fist touches a fighter, Kine measures the blow (where, direction, impulse = effective mass x speed) and the MuJoCo humanoid reacts to it from the contact; runs in the background, one Ctrl+Z (ROADMAP I2)"))
 	if if_ui == null:
 		if_ui = ImpactFramesUI.new(self)
+	if ic_ui == null:
+		ic_ui = ImpactClipUI.new(self)
+	ui_ribbon["SET"].add_child(_button("Impact frames", ic_ui.show, "the Impact frames toggle: where a hand or weapon first touches a prop, the clip holds 0-6 frames, the target flashes white for 2 frames and the shot camera shakes for 0.25 s; the panel has the sliders (plan 137)"))
 	ui_ribbon["SET"].add_child(_button("Add impact frames", if_ui.show, "at every contact: a hit-stop of 2 to 6 frames scaled by the blow's impulse, a shot-camera shake and a squash on the struck part; Preview first, Accept is one undo step (ROADMAP I13)"))
 	ui_ribbon["SET"].add_child(_button("Remove impact frames", if_ui.remove, "takes the impact frames out by their tags and shifts the scene back; one undo step"))
 	ui_ribbon["SET"].add_child(_button("Crowd: remove", _crowd_remove, "the copies go and the fighter stays. Ctrl+Z undoes"))
@@ -16243,6 +16251,8 @@ func _commands() -> Array:
 	add.call("Grip: wrap the hand round the picked prop", "", _grip_prop_cmd, "grip wrap hand fingers close round prop ball box cylinder any shape keyframe", true, "the picked hand's fingers close round the picked prop's surface (any shape; a ball, a cylinder, a box, an imported model) and the thumb opposes; the finger poses are keyed at the playhead; one undo step")
 	add.call("Door: open 15 deg (key here)", "", _door_swing.bind(15.0), "door swing open hinge push key", true, "the picked door's leaf turns 15 deg more open about its hinge, keyed at the playhead (up to 110 deg)")
 	add.call("Door: close 15 deg (key here)", "", _door_swing.bind(-15.0), "door swing close shut hinge pull key", true, "the picked door's leaf turns 15 deg back toward shut, keyed at the playhead (down to -110 deg: the other way)")
+	add.call("Joint: open 15 deg (key here)", "", _prop_joint_step.bind(15.0), "joint hinge lid moving part open key prop pieces", true, "the picked moving part's first joint turns 15 deg more, keyed at the playhead; it stops at the part's joint limit and says so")
+	add.call("Joint: close 15 deg (key here)", "", _prop_joint_step.bind(-15.0), "joint hinge lid moving part close shut key prop pieces", true, "the picked moving part's first joint turns 15 deg back, keyed at the playhead")
 	add.call("Constraint: child of the target", "", _cons_child_of, "constraint child of parent follow hold attach hand foot hips prop door hip blender", true, "the picked hand, foot (or the hips) follows the target from the playhead on, keeping where it is from it now; the arm / leg bends to reach")
 	add.call("Constraint: copy the target's place", "", _cons_add_kind.bind("copy_location"), "constraint copy location place position follow move target parent hand foot hips blender", true, "the picked hand, foot (or the hips) moves to the target's place from the playhead on, keeping its own turn; the arm / leg bends to reach")
 	add.call("Constraint: copy the target's turn", "", _cons_add_kind.bind("copy_rotation"), "constraint copy rotation turn angle twist follow target hand foot hips blender", true, "the picked hand, foot (or the hips) turns with the target from the playhead on, keeping the turn it has now against the target; its place stays")
@@ -16310,6 +16320,9 @@ func _commands() -> Array:
 	if if_ui == null:
 		if_ui = ImpactFramesUI.new(self)
 	if_ui.commands(add)   # IMPACT FRAMES (ROADMAP I13)
+	if ic_ui == null:
+		ic_ui = ImpactClipUI.new(self)
+	ic_ui.commands(add)
 	if bf_ui == null:
 		bf_ui = BeatFightUI.new(self)
 	bf_ui.commands(add)   # FIGHT TO THE BEAT (ROADMAP I15)
@@ -25477,3 +25490,32 @@ func _feedback_open() -> void:
 ## plan 157: the sculpt page's own test sphere is open (the body sculpt is the body, already an export object)
 func _sculpt_sphere_open() -> bool:
 	return ksc != null and ksc.on and ksc.mesh != null and ksc.view != null and not ksc.source.is_valid()
+
+
+## s120 MOVING PARTS: the picked moving part's joint `name` keyed to value v (degrees; mm for a slide) at the playhead, ONE undo step. The part's own
+## joint limit cuts the value and the words say so. Answers Props/PropJoints.key's dictionary ({} when no moving part is picked)
+func _prop_joint_key(name: String, v: float) -> Dictionary:
+	if sel_prop < 0 or sel_prop >= S.props.size() or not PropJoints.has_joints(S.props[sel_prop]):
+		_say("pick a part that moves first (Save and use in a scene sends a part with hinges as one prop), then key its joint")
+		return {}
+	var i := sel_prop
+	var r := {}
+	_do(func(): r.merge(PropJoints.key(S.props[i], name, playhead, v)))
+	_props_show()
+	_doc_line()
+	if not bool(r.get("ok", false)):
+		_say(String(r.get("why", "no such joint")))
+	elif bool(r["limited"]):
+		_say("%s of the %s is keyed %.0f at %s, not the %.0f asked: the part's joint limit is %.0f (it stops there). Ctrl+Z takes it back" % [name, _prop_name(i), float(r["value"]), Units.time(playhead, S.fps), float(r["asked"]), float(r["limit"])])
+	else:
+		_say("%s of the %s is keyed %.0f at %s; move the playhead and key it again, it plays between. Ctrl+Z takes it back" % [name, _prop_name(i), float(r["value"]), Units.time(playhead, S.fps)])
+	return r
+
+
+func _prop_joint_step(delta: float) -> void:
+	if sel_prop < 0 or sel_prop >= S.props.size() or not PropJoints.has_joints(S.props[sel_prop]):
+		_say("pick a part that moves first (Save and use in a scene sends a part with hinges as one prop), then Joint: open 15 deg")
+		return
+	var j: Dictionary = PropJoints.joints_of_kind(String(S.props[sel_prop]["kind"]))[0]
+	var cur := float(PropJoints.angles_at(S.props[sel_prop], playhead).get(String(j["name"]), 0.0))
+	_prop_joint_key(String(j["name"]), cur + delta)

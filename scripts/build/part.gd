@@ -63,13 +63,14 @@ extends RefCounted
 
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
+const POFFSET := preload("res://scripts/build/part_offset.gd")   # plan 18: Thinner / thicker everywhere
 const PBULGE := preload("res://scripts/build/part_bulge.gd")   # plan 23: Pinch / Bulge a face
 const GEAR_DRIVE := preload("res://scripts/gear_drive.gd")
 const PFIT := preload("res://scripts/build/part_fit.gd")   # s193: Fit to an object (a holder / case sunk with a phone scan)   # s124: the Gear pair turned for the view
 const SKIN_MM := 0.3   # NROUNDFILTER: a face centre this close (mm) to the box's outside counts as on the skin
 const VERSION := 1
 const RING_MIDDLE := 100.0   # mm: a Ring piece whose centre is closer than this to the middle (not on it) goes round the middle
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "lattice", "fitobj", "move"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "lattice", "fitobj", "move", "offset"]
 const OVERHANG_COS := 0.7071   # p113: a face pointing down more than 45 degrees needs support when printed
 const BED_MM := 0.1            # p113: a face this close (mm) to the lowest point of the part is on the floor, not an overhang
 const DRAFT_DIRS := {"x": Vector3(1, 0, 0), "y": Vector3(0, 1, 0), "z": Vector3(0, 0, 1)}
@@ -222,6 +223,12 @@ static func from_file(d: Variant) -> Dictionary:
 				out["joints"].append((j as Dictionary).duplicate(true))   # p121 JOINTS IN WORDS: a hinge or a slide between two pieces (scripts/easy_part_stick.gd _joint_words)
 	if (d as Dictionary).has("fit_mm"):
 		out["fit_mm"] = float((d as Dictionary)["fit_mm"])   # s202: the part's chosen fit survives save, load and undo (fix102: it was dropped here)
+	for gk in ["grip", "grip_n"]:   # s132 HOLD IT HERE: the grip spot and the clicked face's normal survive save and load (mm / unit, 3 numbers)
+		var gv: Variant = (d as Dictionary).get(gk)
+		if gv is Array and (gv as Array).size() == 3:
+			out[gk] = [float(gv[0]), float(gv[1]), float(gv[2])]
+	if String((d as Dictionary).get("grip_axis", "")) in ["long", "face"]:
+		out["grip_axis"] = String((d as Dictionary)["grip_axis"])
 	if bool((d as Dictionary).get("kept", false)):
 		out["kept"] = true   # an EMPTY part the user chose (Easy's Empty): a part with no steps that undo and redo bring back as it was
 	return out if not out["features"].is_empty() or out.has("kept") else {}
@@ -566,6 +573,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var fe := _face_op(bodies, f)
 				if fe != "":
 					errs[id] = fe
+			"offset":   # plan 18: every face of every body moved by mm (scripts/build/part_offset.gd)
+				var oe := POFFSET.apply(bodies, f)
+				if oe != "":
+					errs[id] = oe
 			"bulge":   # plan 23: the middle of a flat face moved in or out (scripts/build/part_bulge.gd)
 				var bue := PBULGE.apply(bodies, f, match_face, _bbox_of_points)
 				if bue != "":

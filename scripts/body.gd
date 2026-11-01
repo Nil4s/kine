@@ -748,6 +748,8 @@ func weapon_to_hand(h: String) -> void:
 		# a Part weapon (scripts/build/part_weapon.gd): one hand, on its grip point (the template's handle centre)
 		grip = false
 		slide_in_hand(WeightFeel.grip_u_of(wep_kind) - hold_u())
+		if bool(KINDS[wep_kind].get("grip_pick", false)):
+			palm_on_grip()   # s132: a spot the user picked (Hold here) sits in the palm itself, not just on the shaft through it
 
 
 ## the old rough start (no grip file): the bat through the palm, out on the thumb side, knob 6 cm below, locked
@@ -2724,3 +2726,23 @@ func cross_contacts(other: Body, xf: Transform3D) -> Array:
 				out.append([p[0], q[0], d, kind, zone])
 	out.sort_custom(func(x, y): return x[2] > y[2])
 	return out
+
+
+## s132 HOLD IT HERE: the held weapon moved (in the hand's own frame, the turn kept) so its grip point (grip_u up the shaft) is the palm's centre
+func palm_on_grip() -> void:
+	if wep_hand == "":
+		return
+	var g: Quaternion = G[wep_hand]
+	var d := palm_point(wep_hand) - wep_point(clampf(WeightFeel.grip_u_of(wep_kind), 0.0, wep_len))
+	wep_lpos = lpos_from_knob(knob_in_hand(wep_lpos, wep_lrot, wep_hand) + g.inverse() * d, wep_lrot, wep_hand)
+
+
+## s132: the hand's own grip axis (a unit vector in the world): the way the standard grip (data/grips/metal_bat.json) points a shaft,
+## through this hand as it stands now. A weapon held in the standard grip lies along it
+func grip_axis(h: String) -> Vector3:
+	var gj: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://data/grips/metal_bat.json"))
+	var lr: Array = gj["local_rot"]
+	var q := Quaternion(lr[0], lr[1], lr[2], lr[3])
+	if h != String(gj["hand"]):
+		q = Quaternion(q.x, -q.y, -q.z, q.w)
+	return ((G[h] as Quaternion) * q * Vector3.UP).normalized()

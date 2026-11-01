@@ -1648,6 +1648,10 @@ func use_part() -> void:
 		_say("Use in a scene: make something solid first", "Make something solid first")
 		return
 	_save_part(m.S.part)   # My parts: the same name replaces the saved part
+	if PropJoints.is_moving_kind(kind):   # s120
+		var js := PropJoints.joints_of_kind(kind)
+		_say("STAGE: the %s is in the scene as one prop with %d moving pieces; %d joint%s you can key on the timeline (command: Joint: open 15 deg). Edit it in BUILD any time" % [nm, (Props.kind_of(kind)["pieces"] as Array).size(), js.size(), "" if js.size() == 1 else "s"], "STAGE: the %s is in the scene, its joints can be keyed" % nm)
+		return
 	_say("STAGE: the %s is in the scene as a prop. Edit it in BUILD any time" % nm, "STAGE: the %s is in the scene" % nm)
 
 

@@ -33,6 +33,10 @@ var ui_slicer_txt: Label
 var ui_slicer_opt: OptionButton
 var ui_slicer_btn: Button
 var ui_slicer_again: Button
+
+
+var nice_btn: Button       # p105: Nice picture, in the dialog's button row
+var nice_say: Label        # p105: where the picture went, in words
 var slicers_override = null   # a test: the slicers to show (an Array of {name, path}) instead of looking at this computer
 var slicer_launcher := Callable()   # a test: stands in for OS.create_process
 var _slicers: Array = []
@@ -181,6 +185,22 @@ func _build() -> void:
 	dlg.exclusive = false
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", 8)
+	var nrow := HBoxContainer.new()   # p105: the Nice picture row sits at the TOP, where it shows however long the dialog grows
+	nrow.name = "export_nice_row"
+	nice_btn = Button.new()
+	nice_btn.name = "btn_nice_picture"
+	nice_btn.text = "Nice picture"
+	nice_btn.tooltip_text = "Save a nice picture of this part as a PNG (1920 x 1080): soft light, a soft shadow, a faint floor reflection. The part does not change"
+	nice_btn.pressed.connect(func(): nice_picture())
+	nrow.add_child(nice_btn)
+	nice_say = Label.new()
+	nice_say.name = "export_nice_text"
+	nice_say.text = "A picture of the part for showing it (PNG)"
+	nice_say.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	nice_say.custom_minimum_size = Vector2(440, 0)
+	nice_say.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nrow.add_child(nice_say)
+	v.add_child(nrow)
 	var row := HBoxContainer.new()
 	var lt := Label.new()
 	lt.text = "Target"
@@ -679,3 +699,18 @@ func _price_row_build(v: VBoxContainer) -> void:
 		sb.value_changed.connect(func(x: float): CutList.set_price(String(spec[0]), x))
 		ui_price_row.add_child(sb)
 	v.add_child(ui_price_row)
+
+
+## p105 NICE PICTURE: the part on screen drawn off-screen at 1920 x 1080 and saved as <part>_nice.png beside its other exports.
+## Returns the saved path ("" when not made); the words go in the dialog and on the status line. The app view and the part do not change
+func nice_picture() -> String:
+	if nice_say == null:
+		return ""
+	var free_part: bool = m.bld != null and m.bld.part != null and m.bld.part.on
+	if not free_part or not Part.available() or Part.replay(m.S.part)["mesh"] == null:
+		nice_say.text = "NOT NOW: there is no part to picture. Draw a shape and press Pull it up, then press Nice picture"
+		return ""
+	nice_say.text = "Drawing the nice picture..."
+	var r: Dictionary = await NiceRender.save(m, m.S.part, UserPaths.w("res://exports"))
+	nice_say.text = String(r["text"])
+	return String(r["path"]) if bool(r["ok"]) else ""

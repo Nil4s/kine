@@ -396,6 +396,7 @@ func build(root: Control) -> void:
 	size_l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	size_l.visible = false
 	root.add_child(size_l)
+	_kt_wire(root)   # P100: the keyboard shortcuts card
 
 
 ## CUT A HOLE: Through (the round hole, the default) or Hollow inside (the shell: open at the top, a Wall slider). Two toggle chips like Draw shape's
@@ -642,6 +643,8 @@ func _colour_box() -> PanelContainer:
 		weight_btns[String(wk[0])] = wb
 	h.add_child(_stand_chip())   # P127 STAND: "Does it fall over?" beside the weights (a readout: no step, no undo)
 	h.add_child(_hold_chip())   # p131grippoint: Hold here, the last chip of the page
+	h.add_child(_grip_axis_chip("long"))   # s132: which way the held part lies in the hand
+	h.add_child(_grip_axis_chip("face"))
 	return box
 
 
@@ -709,6 +712,7 @@ func _tilt_box() -> PanelContainer:
 	bulge_btn.toggle_mode = true
 	bulge_btn.custom_minimum_size = Vector2(230, 44)
 	row.add_child(bulge_btn)
+	row.add_child(_motion_btn())   # p126motionmp4: Save the motion as a video, after Swing it
 	return box
 
 
@@ -1304,6 +1308,8 @@ func _set_value(row: Dictionary, v: float, final: bool) -> void:
 		_apply_taper(v)
 	elif row["kind"] == "twist":
 		_apply_twist(v)
+	elif row["kind"] == "grow":
+		_apply_grow(v)   # plan 18
 	else:
 		_apply_tweak(v)
 		if final and tweak.has("say"):
@@ -1435,7 +1441,7 @@ func _rows_sync() -> void:
 	_tweak_stale()
 	var t := _tpl()
 	# FKEY: the label is in the signature: after an Undo a new step can take the id of the step it replaced, and its slider must still be rebuilt
-	var sig := "%s|%s|%s|%s|%s" % [t, JSON.stringify(tweak.get("id", "")), _compact, String(tweak.get("label", "")), _taper_live()]
+	var sig := "%s|%s|%s|%s|%s|%s" % [t, JSON.stringify(tweak.get("id", "")), _compact, String(tweak.get("label", "")), _taper_live(), _grow_live()]
 	if sig == _rows_sig:
 		return
 	_rows_sig = sig
@@ -1456,6 +1462,10 @@ func _rows_sync() -> void:
 		rows.append(r)
 	taper_row = {}
 	twist_row = {}
+	grow_row = {}
+	if _grow_live():   # plan 18: the Thinner / thicker everywhere row sits under How far (it offsets every face of the whole part)
+		grow_row = _make_row("Thinner / thicker everywhere", GROW_LO, GROW_HI, 0.5, ["Thinner", "Thicker"], "grow", "offsetall", "mm")
+		(grow_row["words"] as Control).visible = not _compact
 	if _taper_live():   # FPLANTER: the Taper row sits UNDER How far; it is not in rows (rows[-1] stays the step's own slider)
 		# P024: the Twist slider shares the Taper row's line (side by side), so a pull with a Twist costs no more height than one with a Taper
 		# alone: the side panel stays as tall, and the drawing area under it stays as clear (fdelete draws beside a piece there)
@@ -1478,7 +1488,9 @@ func _rows_sync() -> void:
 func _taper_live() -> bool:
 	if taper_tw.is_empty():
 		return false
-	var fs: Array = _rec().get("features", [])
+	var fs: Array = _rec().get("features", []).duplicate()
+	if not fs.is_empty() and String((fs[-1] as Dictionary).get("t", "")) == "offset":
+		fs.pop_back()   # plan 18: the Thinner / thicker step sits after the pull; the Taper row stays (the rows must not rebuild under a drag)
 	return not fs.is_empty() and String((fs[-1] as Dictionary).get("id", "")) == String(taper_tw.get("id", "")) and String((fs[-1] as Dictionary).get("t", "")) == "extrude"
 
 
@@ -1557,6 +1569,8 @@ func _values_sync() -> void:
 		all_rows.append(taper_row)
 	if not twist_row.is_empty():
 		all_rows.append(twist_row)
+	if not grow_row.is_empty():
+		all_rows.append(grow_row)
 	for r in all_rows:
 		var s: HSlider = r["slider"]
 		var v := 0.0
@@ -1566,6 +1580,8 @@ func _values_sync() -> void:
 			v = float(Part.feature(_rec(), String(taper_tw.get("id", ""))).get("taper", 0.0))
 		elif r["kind"] == "twist":
 			v = float(Part.feature(_rec(), String(twist_tw.get("id", ""))).get("twist", 0.0))
+		elif r["kind"] == "grow":
+			v = _grow_value()
 		else:
 			v = _tweak_value()
 		if not bool(r.get("held", false)):
@@ -2856,6 +2872,7 @@ func _make(which: String) -> void:
 			_sync_shape()
 		_draft = {}
 		_say(_arm_words(armed))
+		_rows_sync()   # NOFFSET: the Thinner / thicker row goes while a shape is drawn (the floor stays clear)
 		return
 	armed = ""
 	var snap := _rec().duplicate(true)
@@ -3675,6 +3692,8 @@ func _process(_dt: float) -> void:
 	hint.visible = on
 	view_box.visible = on   # P107 FITVIEW
 	status.visible = on
+	if kt != null:
+		kt.on_visible(on)   # P100
 	dots.visible = on
 	shape_box.visible = on and armed == "draw"
 	_quick_sync()
@@ -3718,13 +3737,15 @@ func _process(_dt: float) -> void:
 	draft_btn.visible = draft_on
 	_gd_sync(on)   # s124
 	var swing_on := not along and _swing_ok(_rec())   # p123driveit
+	var motion_on := not along and _motion_ok(_rec())   # p126motionmp4: the video chip shows after Swing it
 	swing_btn.visible = swing_on
+	motion_btn.visible = motion_on
 	var flat_on := on and armed == "" and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # p113: Lay it flat and Show overhangs, under any solid, in the step list
 	flat_box.visible = flat_on
 	paint_btn.set_pressed_no_signal(paint_on)
 	suggest_row.visible = on and _suggest_on()   # P092: after a Pull it up the two next-step chips show in the panel, under the slider rows
 	var bulge_on := on and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # plan 23: Pinch / Bulge a face is offered under any solid
-	tilt_box.visible = on and (armed == "" or bulge_pick) and (along or tilt_on or draft_on or swing_on or bulge_on) and not _fill_open() and not (hpat_box != null and hpat_box.visible)   # lay1: the open Holes Row / Around / Grid sliders are as tall as the low-left chips too; s051: the open Fill the face box is as tall as the low-left chips: they would sit over its Square chip and sliders
+	tilt_box.visible = on and (armed == "" or bulge_pick) and (along or tilt_on or draft_on or swing_on or bulge_on or motion_on) and not _fill_open() and not (hpat_box != null and hpat_box.visible)   # lay1: the open Holes Row / Around / Grid sliders are as tall as the low-left chips too; s051: the open Fill the face box is as tall as the low-left chips: they would sit over its Square chip and sliders
 	_overhang_sync(on)
 	_com_sync(on)   # P128: the centre-of-mass dot
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
@@ -3819,6 +3840,8 @@ func _key(k: InputEventKey) -> void:
 		elif not _edge.is_empty():
 			_edge_cancel()
 			get_viewport().set_input_as_handled()
+	elif _kt_letter(k):   # P100: D / P / H / M press the MAKE buttons of the same names
+		get_viewport().set_input_as_handled()
 	elif k.keycode == KEY_DELETE and not k.ctrl_pressed and not k.alt_pressed:
 		if del_on:
 			_remove_piece()   # FDELETE: the picked piece goes (a click picked it)
@@ -3900,6 +3923,8 @@ func _fix_press() -> void:
 ## notes it, and lets the button have it. A drag that then leaves the bar starts the sketch (input() below, from the noted press)
 func _input(ev: InputEvent) -> void:
 	if ev is InputEventKey:
+		if kt != null:
+			kt.key_seen(ev as InputEventKey)   # P100: a listed key pressed is learned
 		_key(ev as InputEventKey)   # EKEYS: Escape and Delete (Ctrl+Z / Ctrl+Y are main's undo and redo)
 		return
 	if ev is InputEventMouse:
@@ -5825,6 +5850,10 @@ func _hold_press(p: Vector2) -> bool:
 			knob = minf(knob, (v as Vector3).x)
 	_begin("Hold here")
 	_rec()["grip"] = [snappedf(at.x / PartTemplates.MM, 0.1), snappedf(at.y / PartTemplates.MM, 0.1), snappedf(at.z / PartTemplates.MM, 0.1)]
+	var fn: Vector3 = hit.get("n", Vector3.RIGHT)   # s132: the face under the click, for the Face axis chip
+	_rec()["grip_n"] = [snappedf(fn.x, 0.001), snappedf(fn.y, 0.001), snappedf(fn.z, 0.001)]
+	if String(_rec().get("grip_axis", "")) == "":
+		_rec()["grip_axis"] = "long"
 	_end()
 	m.part_weapon_changed(_rec())   # a held Part weapon takes the new grip at once
 	_say("The hand holds it here, %.1f cm from the butt" % ((at.x - knob) * 100.0))
@@ -6842,6 +6871,7 @@ func _level_build(root: Control) -> void:
 		wr.add_child(l)
 		level_words.append(l)
 	vb.add_child(_theme_row())   # plan 109: Light / Dark, in the same small settings popup
+	vb.add_child(_kt_list_btn())   # P100: the Shortcuts list
 	root.add_child(level_box)
 
 
@@ -7911,3 +7941,188 @@ func _cutaway_get() -> RefCounted:
 	if _cutaway == null:
 		_cutaway = PartCutaway.new(pu)
 	return _cutaway
+
+
+# ================================================================ plan 18: Thinner / thicker everywhere
+const GROW_LO := -3.0
+const GROW_HI := 3.0
+var grow_row: Dictionary = {}   # the slider's row ({} = none); kept out of rows so rows[-1] is still the last step's own slider
+
+
+## the row shows while the newest step is a pull (or this offset itself): a part with a solid, nothing being drawn
+func _grow_live() -> bool:
+	if armed != "" or not Part.available():
+		return false
+	var fs: Array = _rec().get("features", [])
+	if fs.is_empty():
+		return false
+	return String((fs[-1] as Dictionary).get("t", "")) in ["extrude", "offset"]
+
+
+func _grow_feature() -> Dictionary:
+	var fs: Array = _rec().get("features", [])
+	if not fs.is_empty() and String((fs[-1] as Dictionary).get("t", "")) == "offset":
+		return fs[-1]
+	return {}
+
+
+func _grow_value() -> float:
+	return float(_grow_feature().get("mm", 0.0))
+
+
+## the slider writes ONE offset step at the end of the record (every face of every body moves by v mm); the same step is edited while it
+## stays the newest. A value the kernel refuses keeps the old one and says what to do next
+func _apply_grow(v: float) -> void:
+	pu.upto = -1
+	var v2 := snappedf(v, 0.01)
+	var f := _grow_feature()
+	var added := false
+	if f.is_empty():
+		if absf(v2) < 1e-9:
+			return
+		f = Part.new_feature(_rec(), "offset", {"mm": 0.0})
+		(_rec()["features"] as Array).append(f)
+		added = true
+	var old := float(f.get("mm", 0.0))
+	f["mm"] = v2
+	if absf(v2) > 1e-9 and not (Part.replay(_rec())["errors"] as Dictionary).is_empty():
+		if added:
+			(_rec()["features"] as Array).pop_back()
+		else:
+			f["mm"] = old
+		_say("That is too much for this shape: its faces would run into each other. Try a smaller number")
+		return
+	if absf(v2) < 1e-9:
+		_say("Back to the shape as pulled")
+	elif v2 > 0.0:
+		_say("Thicker everywhere by %s mm: every face moved out" % str(snappedf(v2, 0.1)))
+	else:
+		_say("Thinner everywhere by %s mm: every face moved in" % str(snappedf(-v2, 0.1)))
+
+
+## P126 MOTION VIDEO: the chip "Save the motion as a video", a row under Pull along in the tilt panel (it shows after Swing it)
+func _motion_btn() -> Button:
+	motion_btn = _big_btn("easypart_motion_video", "Save the motion as a video", "Film the swing (2 seconds) as an .mp4 video in your Videos folder (Kine). The part does not change", _motion_press)
+	motion_btn.icon = Icons.sized("video", 22)
+	motion_btn.expand_icon = false
+	motion_btn.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	motion_btn.custom_minimum_size = Vector2(230, 44)
+	motion_btn.visible = false
+	return motion_btn
+
+
+## P126 MOTION VIDEO: the newest step is the hinge (Swing it has just made it): the swing can be filmed. A suppressed hinge is not
+func _motion_ok(rec: Dictionary) -> bool:
+	var feats: Array = rec.get("features", [])
+	return not feats.is_empty() and String(feats[feats.size() - 1].get("t", "")) == "hinge" and not bool(feats[feats.size() - 1].get("off", false))
+
+
+## P126 MOTION VIDEO, Save the motion as a video: the hinge's 2 s swing filmed into an .mp4 in the Videos folder (Kine), through the ffmpeg
+## that Save video uses (PartMotion.render). Only reads the part: no step, so no undo step. The status line names the file, or says the next step
+func _motion_press() -> void:
+	if motion_busy:
+		_say("The motion video is still being saved: wait for it to finish")
+		return
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	var rec := _rec()
+	if not _motion_ok(rec):
+		_say("Save the motion as a video needs a swing: press Swing it first, then this")
+		return
+	var ff := PlayblastExport.find_ffmpeg()
+	if ff == "":
+		_say("No video: ffmpeg was not found. Install it (winget install Gyan.FFmpeg), then press Save the motion as a video again")
+		return
+	var folder: String = m.easy.home.video_folder()
+	var gdir := ProjectSettings.globalize_path(folder)
+	if DirAccess.make_dir_recursive_absolute(gdir) != OK:
+		_say("NOT DONE: the folder %s could not be made: close anything using it, then press Save the motion as a video again" % folder)
+		return
+	var mp4 := "%s/swing_%s.mp4" % [gdir, m._stamp()]
+	motion_busy = true
+	_say("Saving the motion as a video...")
+	var made: bool = await PartMotion.render(m, rec, String(rec["features"][-1]["id"]), mp4, ff)
+	motion_busy = false
+	if not made:
+		_say("NOT DONE: ffmpeg could not make the video: close anything using %s, then press Save the motion as a video again" % folder)
+		return
+	_say("Motion video saved: %s, in %s" % [mp4.get_file(), m.easy.home.folder_line(mp4)])
+
+
+## s132 HOLD IT HERE, the axis: two chips after Hold here. "Long axis" lays the part's longest side along the hand's grip axis; "Face axis" lays
+## the face that was clicked square to the palm (its normal along the grip axis). One undo step per press; the held part turns at once
+func _grip_axis_chip(mode: String) -> Button:
+	var b := _colour_btn("grip_" + mode, "Long axis" if mode == "long" else "Face axis", Color(0.85, 0.8, 0.6))
+	b.name = "easypart_grip_" + mode
+	b.custom_minimum_size.x = 100.0
+	for fc in ["font_hover_color", "font_pressed_color", "font_focus_color"]:
+		b.add_theme_color_override(fc, Color(0.08, 0.08, 0.1))   # the cream chip keeps dark words when the mouse is on it
+	b.tooltip_text = ("Hold it along its longest side (a rod lies along the hand)" if mode == "long"
+		else "Hold it with the face you clicked square to the palm (its normal along the hand's grip axis)")
+	b.pressed.connect(_grip_axis_press.bind(mode))
+	return b
+
+
+func _grip_axis_press(mode: String) -> void:
+	if int(pu.res.get("bodies", 0)) == 0:
+		_say("Make something solid first, then pick where the hand holds it")
+		return
+	if (_rec().get("grip", []) as Array).size() != 3:
+		_say("Press Hold here and click the spot first; then pick which way it lies in the hand")
+		return
+	if mode == "face" and (_rec().get("grip_n", []) as Array).size() != 3:
+		_say("Press Hold here and click the face again: this part has no face picked yet")
+		return
+	_flush_if_dirty()
+	_begin("Hold along " + ("its length" if mode == "long" else "the face"))
+	_rec()["grip_axis"] = mode
+	_end()
+	m.part_weapon_changed(_rec())
+	_say("The hand holds it along its length" if mode == "long" else "The hand holds it with the clicked face square to the palm")
+
+
+# ---------------------------------------------------------------- P100 the keyboard shortcuts card (scripts/key_tips.gd)
+var kt: KeyTips
+const KT_LETTERS := {KEY_D: "draw", KEY_P: "pull", KEY_H: "hole", KEY_M: "mirror"}
+
+
+func _kt_wire(root: Control) -> void:
+	kt = KeyTips.new()
+	kt.setup(self, root)
+	var btns := {"undo": undo_btn, "redo": redo_btn, "delete": del_btn}
+	for k in ["draw", "pull", "hole", "mirror"]:
+		btns[k] = make_btns.get(k)
+	for k in btns:
+		var b: Button = btns[k]
+		if b != null:
+			b.pressed.connect(kt.clicked.bind(String(k)))
+
+
+func _kt_place() -> void:
+	if kt != null:
+		kt.place()
+
+
+func _kt_list_btn() -> Button:
+	var b := Button.new()
+	b.name = "easypart_shortcuts_btn"
+	b.text = "Shortcuts"
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(0, 32)
+	b.tooltip_text = "Every keyboard shortcut, in one list"
+	b.pressed.connect(func(): kt.list_toggle())
+	return b
+
+
+## D / P / H / M with no modifier: the MAKE button of the same name (the same press, one undo step where the button makes one)
+func _kt_letter(k: InputEventKey) -> bool:
+	if k.ctrl_pressed or k.alt_pressed or k.shift_pressed or not KT_LETTERS.has(int(k.keycode)):
+		return false
+	if not _draft.is_empty() or not _drag.is_empty():
+		return false
+	var b: Button = make_btns.get(KT_LETTERS[int(k.keycode)])
+	if b == null or not b.visible or b.disabled:
+		return false
+	_make(String(KT_LETTERS[int(k.keycode)]))
+	return true

@@ -289,6 +289,10 @@ static func record(S: Scene) -> Dictionary:
 			cs.append({"i": i, "tag": "ihs", "v": float(c["ihs"])})
 		elif c.has("iho"):
 			cs.append({"i": i, "tag": "iho", "v": float(c["iho"])})
+		elif c.has("ihb"):
+			cs.append({"i": i, "tag": "ihb", "v": 0.0})   # plan 137 (impact_clip.gd): a sampled frame card of a mid-move stop
+		elif c.has("ihm"):
+			cs.append({"i": i, "tag": "ihm", "v": float(c["ihm"])})
 	var cam := []
 	var shake := false
 	for si in S.shots.size():
@@ -328,6 +332,10 @@ static func rehydrate(S: Scene, rec: Variant) -> void:
 			S.cards[i]["ihs"] = float(e["v"])
 		elif tag == "iho":
 			S.cards[i]["iho"] = float(e["v"])
+		elif tag == "ihb":
+			S.cards[i]["ihb"] = true
+		elif tag == "ihm":
+			S.cards[i]["ihm"] = float(e["v"])
 	for e in rec.get("cam", []):
 		var si := int(e.get("shot", -1))
 		if si < 0 or si >= S.shots.size():

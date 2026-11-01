@@ -67,8 +67,11 @@ static func use(S: Scene, part := {}) -> String:
 		if res["mesh"] == null:
 			return ""
 		var pk := "part:%s#%s" % [String(part.get("name", "Part")), str(hash(JSON.stringify(part)))]
-		Part.paint(res["mesh"], res["looks"])
-		Props.register_part(pk, res["mesh"], true)
+		if PropJoints.has_hinge(part) and PropJoints.register(pk + PropJoints.SUFFIX, part):   # s120: pieces with joints are one prop with child nodes
+			pk += PropJoints.SUFFIX
+		else:
+			Part.paint(res["mesh"], res["looks"])
+			Props.register_part(pk, res["mesh"], true)
 		var pp := Props.make(pk, Transform3D.IDENTITY)
 		pp["part_rec"] = part.duplicate(true)
 		S.props.append(pp)
@@ -83,6 +86,8 @@ static func use(S: Scene, part := {}) -> String:
 
 ## a Part prop of a scene file (scene.gd): its kind is made again from its record; "" when it has no solid (the prop is skipped)
 static func restore_part(kind: String, rec: Dictionary) -> String:
+	if PropJoints.is_moving_kind(kind):   # s120
+		return kind if PropJoints.register(kind, rec) else ""
 	var res := Part.replay(rec)
 	if res["mesh"] == null:
 		return ""

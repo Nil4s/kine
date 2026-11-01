@@ -500,3 +500,29 @@ EXTRA="$EXTRA s097:w"   # s097 (Friday plan 97): Ctrl+K / the bar icon opens one
 
 
 EXTRA="$EXTRA s016:w"   # s016: Wall slider shows the part cut in half (a contrasting band) while held and 1.5 s after
+
+
+EXTRA="$EXTRA s018:w"   # S018 (Friday 18): Thinner / thicker everywhere slider under How far offsets every face of the whole part (box +-1 mm, plate hole 10 -> 8 mm); one undo step; Pull it up still edits (tests/s018_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA s018:w"   # S018 (Friday 18): Thinner / thicker everywhere slider under How far offsets every face of the whole part (box +-1 mm, plate hole 10 -> 8 mm); one undo step; Pull it up still edits (tests/s018_test.gd; needs the CAD DLL)
+
+
+
+EXTRA="$EXTRA s126:w"   # s126 (Friday plan 126, Motion study to video): Easy Part, Swing it, then Save the motion as a video films the swing into a 1280 x 720 30 fps h264 .mp4; size, ffprobe, decoded frames and a half-angle still measured from the file (tests/s126_test.gd); needs the CAD DLL and ffmpeg
+
+
+EXTRA="$EXTRA s132:w"   # Hold it here: grip spot + Long axis / Face axis chips, the palm on the spot, kept in the scene file
+
+
+EXTRA="$EXTRA s105:w"   # S105 Nice picture button in the Export dialog: 1920x1080 PNG, shadow, reflection, gradient
+
+
+EXTRA="$EXTRA s120:w"   # s120: a part with hinges is one moving prop on STAGE, its joints keyed (Friday plan 120)
+
+
+EXTRA="$EXTRA s100:w"   # s100 (Friday plan 100): Easy Part keyboard shortcuts card: 3 clicks on a button with a key show "Tip: Ctrl+Z does Undo" once (remembered in settings), at most one per 2 minutes, never during a drag; Shortcuts list in the Easy popup, each key tested (tests/s100_test.gd; needs the CAD DLL)
+
+
+EXTRA="$EXTRA s137:w"   # plan 137: impact frames on a strike (hit-stop slider, 2-frame target flash, 0.25 s camera shake, toggle off = original)
+
+
+EXTRA="$EXTRA s140:w"   # s140 (Friday plan 140): Pose library by mood: moods measured from the body (tired/proud/scared/happy/angry/sad/calm/excited), Poses search words + synonyms, mood chips in the Pose library; tests/s140_test.gd

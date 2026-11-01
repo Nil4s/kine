@@ -53,10 +53,10 @@ func _ready() -> void:
 	item_selected.connect(_chosen)
 	_search = LineEdit.new()   # R21: search the pose library by words (names and auto tags); filters as you type
 	_search.name = "pose_search"
-	_search.placeholder_text = "search poses: guard, crouch, low kick..."
+	_search.placeholder_text = "search poses: guard, tired, low kick..."
 	_search.clear_button_enabled = true
 	_search.add_theme_font_size_override("font_size", 12)
-	_search.tooltip_text = "words over the pose names and their tags (crouch, guard, high, low, kick, lunge, one-leg, arms-up, seated, lying); a typo is forgiven"
+	_search.tooltip_text = "words over the pose names and their tags (crouch, guard, high, low, kick, lunge, one-leg, arms-up, seated, lying) and moods measured from the body (tired, proud, scared, happy, angry, sad, calm, excited; exhausted = tired); a typo is forgiven"
 	_search.visible = false
 	_search.text_changed.connect(set_pose_query)
 	add_child(_search)
