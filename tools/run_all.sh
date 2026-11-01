@@ -500,3 +500,4 @@ EXTRA="$EXTRA s097:w"   # s097 (Friday plan 97): Ctrl+K / the bar icon opens one
 
 
 EXTRA="$EXTRA s016:w"   # s016: Wall slider shows the part cut in half (a contrasting band) while held and 1.5 s after
+EXTRA="$EXTRA s140:w"   # s140 (Friday plan 140): Pose library by mood: moods measured from the body (tired/proud/scared/happy/angry/sad/calm/excited), Poses search words + synonyms, mood chips in the Pose library; tests/s140_test.gd

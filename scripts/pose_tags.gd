@@ -20,7 +20,7 @@
 class_name PoseTags
 extends RefCounted
 
-const VERSION := 1   # bump when a rule changes: every cached tag list is recomputed
+const VERSION := 2   # bump when a rule changes: every cached tag list is recomputed
 const STAND_HIP := 0.9167
 const ALL := ["crouch", "guard", "high", "low", "kick", "lunge", "one-leg", "arms-up", "seated", "lying"]
 ## words people type for a tag; the typed word is read as the tag (like CommandSearch.SYNONYMS)
@@ -118,6 +118,7 @@ static func tags_of(d: Dictionary) -> Array:
 		out.append("seated")
 	if lying:
 		out.append("lying")
+	out.append_array(PoseMood.tags_of(d))   # Friday 140: the moods (tired, proud, scared...), measured from the body: scripts/pose_mood.gd
 	if not wep.is_empty():
 		if String(wep.get("kind", "")).contains("bat"):
 			out.append("bat")
@@ -165,6 +166,9 @@ class Index extends RefCounted:
 	## typo 7 > inside 4; a tag: its word 10 > a synonym 9 > start 8 > typo 6. An OPTIONAL word adds when it matches.
 	func search(q: String) -> Array:
 		var qw := q.to_lower().split(" ", false)
+		var mood_of := {}   # each typed word read as a mood once, not once per pose
+		for w in qw:
+			mood_of[w] = PoseMood.canon(w)
 		var res := []
 		for i in entries.size():
 			var e: Dictionary = entries[i]
@@ -172,10 +176,11 @@ class Index extends RefCounted:
 			var chips := []
 			var ok := true
 			for w in qw:
-				var best := PoseTags._word_in_name(e["_nw"], e["name"].to_lower(), w)
+				var mw: String = mood_of[w]   # a MOOD word (or synonym) is read from the body's tags only, never from a name or a typo of one
+				var best := 0 if mw != "" else PoseTags._word_in_name(e["_nw"], e["name"].to_lower(), w)
 				var tg := ""
 				for t in e["tags"]:
-					var ts := PoseTags._word_in_tag(t, w)
+					var ts := (10 if mw == t else 0) if mw != "" else PoseTags._word_in_tag(t, w)
 					if ts > 0:
 						if not chips.has(t):
 							chips.append(t)
