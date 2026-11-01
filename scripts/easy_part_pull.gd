@@ -2008,6 +2008,8 @@ func _fill_sync() -> void:
 		hole_mode = "through"   # an Undo took the fill back to the single hole
 	fill_btn.set_pressed_no_signal(fill_pick or not sk.is_empty())
 	fill_box.visible = _hole_on() and (fill_pick or not sk.is_empty())
+	for k in fill_shape_btns:   # lay1: the shape chips sit in the hole box's own chip flow, shown with the fill
+		(fill_shape_btns[k] as Button).visible = fill_box.visible
 	for k in ["round", "square", "hex"]:
 		(fill_shape_btns[k] as Button).set_pressed_no_signal(k == fill_shape)
 	(fill_shape_btns["stag"] as Button).set_pressed_no_signal(fill_stag)
