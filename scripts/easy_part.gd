@@ -717,6 +717,7 @@ func _tilt_box() -> PanelContainer:
 	pull_along_btn.custom_minimum_size = Vector2(230, 44)
 	pull_along_btn.visible = false
 	row.add_child(pull_along_btn)
+	row.add_child(_bend_row())   # S216: Bend radius (slider + typed mm) under Pull along
 	bulge_btn = _big_btn("easypart_bulge", "Pinch / Bulge a face", "Click a flat face: its middle moves out (a dome) or in (a dish), the rim stays. A slider -1..1 sets how much", _bulge_press)   # plan 23: under any solid, in the box of the newest-step chips
 	bulge_btn.toggle_mode = true
 	bulge_btn.custom_minimum_size = Vector2(230, 44)
@@ -948,9 +949,12 @@ func _pull_along_press() -> void:
 	var snap := _rec().duplicate(true)
 	_begin("Pull along")
 	var rec := pu._ensure()
-	var f := Part.new_feature(rec, "sweep", {"profile": ids[0], "path": ids[1], "op": "join"})
+	var f := Part.new_feature(rec, "sweep", {"profile": ids[0], "path": ids[1], "op": "join", "bend": _bend_for(rec, ids[0])})   # S216: the bend radius the control shows
 	rec["features"].append(f)
 	var err := _last_error(rec, String(f["id"]))
+	if err != "" and _bend_typed < 0.0:   # S216: the default bend (1.5 x the tube width) does not fit the legs: the old tighter bend (1.5 x the tube's radius) is tried
+		f["bend"] = maxf(2.0, 1.5 * _bend_reach(rec, ids[0]))
+		err = _last_error(rec, String(f["id"]))
 	if err != "":
 		m.S.part = snap
 		m._drop_undo()
@@ -3761,6 +3765,7 @@ func _process(_dt: float) -> void:
 	var tilt_on := not along and _tilt_ok(_rec())
 	var draft_on := not along and _draft_ok(_rec())
 	pull_along_btn.visible = along
+	_bend_sync(along)   # S216
 	tilt_btn.visible = tilt_on
 	draft_btn.visible = draft_on
 	_gd_sync(on)   # s124
@@ -8204,3 +8209,158 @@ func _lib_scroll_top() -> void:
 func _lib_bar_sync() -> void:
 	if lib_bar_btn != null:
 		lib_bar_btn.set_pressed_no_signal(parts_open)
+
+
+## S216 BEND RADIUS: Pull along rounds every corner of the path with one radius (mm, the centre line of the pipe). The control (a slider and a typed mm box)
+## sits under Pull along; it shows before the press (the radius the next Pull along uses) and while the newest step is a sweep (it changes that pipe: one undo step).
+## Default 1.5 x the tube's width; least = the tube's radius (a solid tube has no wall; a tighter bend folds); most = the larger of 300 mm and 6 x the radius.
+var bend_row: HBoxContainer
+var bend_slider: HSlider
+var bend_spin: SpinBox
+var bend_label: Label
+var _bend_typed := -1.0     # mm the user chose for the next Pull along (-1: none, the default is used)
+var _bend_sid := ""         # the round shape that choice was made for
+var _bend_busy := false
+var _bend_drag := false     # the slider is held: the panel syncs leave it alone
+
+
+func _bend_row() -> HBoxContainer:
+	bend_row = HBoxContainer.new()
+	bend_row.name = "easypart_bend_row"
+	bend_row.add_theme_constant_override("separation", 6)
+	bend_row.visible = false
+	bend_label = Label.new()
+	bend_label.text = "Bend radius"
+	bend_label.tooltip_text = "How wide the pipe's bends are, in mm to the middle of the pipe. Every corner of the curve is rounded with this radius"
+	bend_row.add_child(bend_label)
+	bend_slider = HSlider.new()
+	bend_slider.name = "easypart_bend_slider"
+	bend_slider.custom_minimum_size = Vector2(110, 24)
+	bend_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	bend_slider.step = 0.5
+	bend_slider.min_value = 1.0
+	bend_slider.max_value = 300.0
+	bend_slider.value_changed.connect(func(v: float):
+		if not _bend_busy:
+			_bend_busy = true
+			bend_spin.set_value_no_signal(v)
+			_bend_busy = false)
+	bend_slider.drag_started.connect(func(): _bend_drag = true)
+	bend_slider.drag_ended.connect(func(changed: bool):
+		_bend_drag = false
+		if changed:
+			_bend_commit(bend_slider.value))
+	bend_row.add_child(bend_slider)
+	bend_spin = SpinBox.new()
+	bend_spin.name = "easypart_bend_mm"
+	bend_spin.suffix = "mm"
+	bend_spin.step = 0.5
+	bend_spin.min_value = 1.0
+	bend_spin.max_value = 300.0
+	bend_spin.custom_minimum_size = Vector2(84, 0)
+	bend_spin.value_changed.connect(func(v: float):
+		if not _bend_busy:
+			_bend_commit(v))
+	bend_row.add_child(bend_spin)
+	return bend_row
+
+
+## the round shape's reach (mm): the tube's radius
+func _bend_reach(rec: Dictionary, sid: String) -> float:
+	for f in rec.get("features", []):
+		if String(f.get("t", "")) == "sketch" and String(f.get("id", "")) == sid:
+			var ents: Array = f.get("ents", [])
+			return Part._profile_reach(ents, Part._profile_centre(ents))
+	return 5.0
+
+
+## the radius the next Pull along on this shape uses: the user's choice, else 1.5 x the tube's width
+func _bend_for(rec: Dictionary, sid: String) -> float:
+	var reach := _bend_reach(rec, sid)
+	if _bend_typed >= 0.0 and _bend_sid == sid:
+		return maxf(_bend_typed, reach)
+	_bend_typed = -1.0
+	return 3.0 * reach
+
+
+## the newest step when it is a sweep ({} when not)
+func _bend_sweep(rec: Dictionary) -> Dictionary:
+	var feats: Array = rec.get("features", [])
+	if not feats.is_empty() and String(feats[feats.size() - 1].get("t", "")) == "sweep":
+		return feats[feats.size() - 1]
+	return {}
+
+
+func _bend_sync(along: bool) -> void:
+	if bend_row == null:
+		return
+	var rec := _rec()
+	var sw := _bend_sweep(rec)
+	var sid := ""
+	if not sw.is_empty():
+		sid = String(sw.get("profile", ""))
+	elif along:
+		sid = String(_along_pick(rec)[0])
+	bend_row.visible = sid != "" and (along or not sw.is_empty())
+	if not bend_row.visible:
+		return
+	var reach := _bend_reach(rec, sid)
+	var cur := 0.0
+	if not sw.is_empty():
+		cur = float(sw.get("bend", maxf(2.0, 1.5 * reach)))
+	else:
+		cur = _bend_for(rec, sid)
+	var hi := maxf(300.0, 6.0 * reach)
+	_bend_busy = true
+	bend_slider.min_value = reach
+	bend_slider.max_value = hi
+	bend_spin.min_value = reach
+	bend_spin.max_value = hi
+	if not _bend_drag:
+		bend_slider.set_value_no_signal(cur)
+		if not bend_spin.get_line_edit().has_focus():
+			bend_spin.set_value_no_signal(cur)
+	_bend_busy = false
+	bend_row.tooltip_text = "Bend radius %.1f to %.0f mm" % [reach, hi]
+
+
+## a new radius: before the press it is remembered; on a pipe it rebuilds the pipe (one undo step, taken back whole when it cannot be built)
+func _bend_commit(v: float) -> void:
+	bend_spin.get_line_edit().release_focus()   # the typed text is taken: the next sync may show the real value
+	var rec := _rec()
+	var sw := _bend_sweep(rec)
+	if sw.is_empty():
+		var ids := _along_pick(rec)
+		if ids.is_empty():
+			return
+		_bend_typed = maxf(v, _bend_reach(rec, String(ids[0])))
+		_bend_sid = String(ids[0])
+		_say("Bend radius %.1f mm for the next Pull along" % _bend_typed)
+		_bend_sync(true)
+		return
+	var reach := _bend_reach(rec, String(sw.get("profile", "")))
+	var nv := maxf(v, reach)
+	if absf(nv - float(sw.get("bend", -1.0))) < 0.01:
+		return
+	_flush_if_dirty()
+	var snap := rec.duplicate(true)
+	_begin("Bend radius")
+	var r2 := pu._ensure()
+	var f2 := _bend_sweep(r2)
+	f2["bend"] = nv
+	var err := _last_error(r2, String(f2["id"]))
+	if err != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("Bend radius %.1f mm does not fit: %s" % [nv, err])
+		pu.upto = -1
+		pu.sync()
+		_bend_sync(false)
+		return
+	_end()
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	_say("Bend radius %.1f mm. Undo takes it back" % nv)

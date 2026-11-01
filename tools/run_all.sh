@@ -564,3 +564,4 @@ EXTRA="$EXTRA fstool:w"   # FSTOOL: a beginner from the BUILDING card builds a t
 EXTRA="$EXTRA bug6:w"   # bug6: animation-only UI (grip panel, facing label) never shows in 3D BUILDING; no stray divider bars / empty buttons; top rows clear at 3 sizes; tests/bug6_test.gd
 
 
+EXTRA="$EXTRA s216:w"   # s216 SWEEP BEND RADIUS: Pull along has a Bend radius control (slider + typed mm, default 1.5 x tube width, least the tube radius); L path, 30 mm tube at 60 mm: one solid, mesh circle-fit radius 60 +-1, Pappus volume, slider/typed changes, undo (tests/s216_test.gd; needs the CAD DLL)
