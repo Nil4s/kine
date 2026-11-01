@@ -211,6 +211,8 @@ func _init() -> void:
 		return
 	(rw["slider"] as HSlider).value = 1.0   # the peg: 10 mm
 	await idle(10)
+	await press_fit()   # fix102 fixture: the default fit is Exact now; this test picks Slides explicitly (Exact -> Snug -> Slides)
+	await press_fit()
 	var a1 := hole_across()
 	ok(absf(a1 - 10.40) <= 0.02 and ep.smartfit_btn.text == "Fit: Slides", "1 SLIDES: a 10 mm peg hole is %.3f mm across (want 10.40 +-0.02), chip [%s]" % [a1, ep.smartfit_btn.text])
 	await shot("hole")

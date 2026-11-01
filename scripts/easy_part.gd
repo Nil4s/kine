@@ -402,9 +402,9 @@ func _hole_box() -> PanelContainer:
 	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
 	box.visible = false
 	var h := HFlowContainer.new()   # P076: a flow, so the row wraps to a second line when the What fits here? chip would run past the window's right edge
-	h.add_theme_constant_override("h_separation", 6)
+	h.add_theme_constant_override("h_separation", 4)
 	h.add_theme_constant_override("v_separation", 6)
-	h.custom_minimum_size = Vector2(720, 0)   # P076: the chips wrap at 720 px (two short rows, clear of Change your part), not one narrow column
+	h.custom_minimum_size = Vector2(HOLE_W, 0)   # P076: the chips wrap at 720 px (two short rows, clear of Change your part), not one narrow column; lay1: _hole_fit() narrows it to the room left of the view column
 	box.add_child(h)
 	for hm in [["through", "Through", "A round hole straight through the middle"], ["hollow", "Hollow inside", "Hollow the solid out, open at the top, with a wall (the Wall slider)"], ["lid", "Hollow with a lid", "Hollow the box out with a 3 mm wall; its top 5 mm comes off as a lid with a lip that sits inside the box"], ["fingers", "Finger joints", "Cut a comb of notches along the top edge of the box, for a laser-cut box: each finger is 3 mm, the notch a third of the height"]]:
 		var b := _big_btn("easypart_hole_" + String(hm[0]), String(hm[1]), String(hm[2]), _hole_mode.bind(String(hm[0])))
@@ -450,12 +450,45 @@ func _hole_box() -> PanelContainer:
 	_fill_chips(h)   # s051: Fill the face
 	_printer_chip(h)   # p203screwholea: the printer chip (resin tight, FDM loose)
 	_smartfit_chip(h)   # s202: How should it fit? (Tight / Snug / Slides / Loose)
-	var fb := _big_btn("easypart_hole_fits", "What fits here?", "Ask which of My Parts go through this hole (the saved parts that fit it). No step: it only tells you", _fits_press)   # P076
+	var fb := _big_btn("easypart_hole_fits", "What fits?", "Ask which of My Parts go through this hole (the saved parts that fit it). No step: it only tells you", _fits_press)   # P076
 	fb.custom_minimum_size = Vector2(150, 44)
 	h.add_child(fb)
 	h.add_child(hpat_box)   # s029: the pattern sliders come last, so the chips above stay on their lines
 	h.add_child(fill_box)   # s051: the Fill the face shapes and sliders
+	_hole_compact(h)   # lay1: small chips, so the box is three rows and stays left of the view column
 	return box
+
+
+const HOLE_W := 720.0
+
+
+## lay1: the Cut a hole chips as small as their words (14 px, 34 px high) so they fit three rows left of the view column. Names, order and clicks are unchanged
+func _hole_compact(h: Control) -> void:
+	for c in h.get_children():
+		if c is Button:
+			var b := c as Button
+			b.add_theme_font_size_override("font_size", 13)
+			b.custom_minimum_size = Vector2(0, 34)
+	if fill_box != null:   # the Round / Square / Hex / Staggered chips join the chip flow right after Fill the face (shown with the fill box: _fill_sync)
+		var at := fill_btn.get_index() + 1
+		var chips := fill_box.get_child(0) as Control
+		for b in chips.get_children():
+			(b as Button).add_theme_font_size_override("font_size", 13)
+			(b as Button).custom_minimum_size = Vector2(0, 34)
+			(b as Button).visible = false
+			chips.remove_child(b)
+			h.add_child(b)
+			h.move_child(b, at)
+			at += 1
+		chips.visible = false
+
+
+## lay1: the hole box is w wide (the room between its left edge and the view column), its sliders' flows too
+func _hole_fit(w: float) -> void:
+	var h := hole_box.get_child(0) as Control
+	h.custom_minimum_size.x = w
+	hpat_box.custom_minimum_size.x = w
+	fill_box.custom_minimum_size.x = w
 
 
 ## P076 WHAT FITS HERE?: the hole is the newest cut's round sketch (its diameter in mm, _hole_mm). A saved part (MyParts) fits when its two
@@ -3647,7 +3680,7 @@ func _process(_dt: float) -> void:
 	paint_btn.set_pressed_no_signal(paint_on)
 	suggest_row.visible = on and _suggest_on()   # P092: after a Pull it up the two next-step chips show in the panel, under the slider rows
 	var bulge_on := on and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # plan 23: Pinch / Bulge a face is offered under any solid
-	tilt_box.visible = on and (armed == "" or bulge_pick) and (along or tilt_on or draft_on or swing_on or bulge_on) and not _fill_open()   # s051: the open Fill the face box is as tall as the low-left chips: they would sit over its Square chip and sliders
+	tilt_box.visible = on and (armed == "" or bulge_pick) and (along or tilt_on or draft_on or swing_on or bulge_on) and not _fill_open() and not (hpat_box != null and hpat_box.visible)   # lay1: the open Holes Row / Around / Grid sliders are as tall as the low-left chips too; s051: the open Fill the face box is as tall as the low-left chips: they would sit over its Square chip and sliders
 	_overhang_sync(on)
 	_com_sync(on)   # P128: the centre-of-mass dot
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
