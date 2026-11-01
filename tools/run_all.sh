@@ -514,3 +514,6 @@ EXTRA="$EXTRA s132:w"   # Hold it here: grip spot + Long axis / Face axis chips,
 
 
 EXTRA="$EXTRA s105:w"   # S105 Nice picture button in the Export dialog: 1920x1080 PNG, shadow, reflection, gradient
+
+
+EXTRA="$EXTRA s120:w"   # s120: a part with hinges is one moving prop on STAGE, its joints keyed (Friday plan 120)
