@@ -20,7 +20,7 @@ func _hole_sync() -> void:
 		snap_btn.set_pressed_no_signal(_rec_has_lip())   # the record says it (an Undo takes the chip off with the lip)
 		snap_btn.visible = hole_mode == "lid"   # the chip only exists for a lid
 	if thread_btn != null:   # s031: Thread look exists for a round Through hole
-		thread_btn.visible = hole_mode == "through" and _hole_on() and not _thread_feature().is_empty()
+		thread_btn.visible = hole_mode == "through" and _hole_on() and not _thread_feature().is_empty() and not _fill_open()   # lay1: with Fill the face open its chips take the row (a pattern, not one round hole)
 		thread_btn.set_pressed_no_signal(bool(_thread_feature().get("thread", false)))
 	if wall_btn != null:
 		wall_btn.set_pressed_no_signal(wall_pick)
