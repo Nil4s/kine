@@ -5,143 +5,31 @@ extends RefCounted
 ## A letter with a hole (A, B, D, O, P, Q, R) is ONE polygon: the hole is joined to the outside by a slit SLIT_MM wide (the kernel takes one
 ## closed loop per letter; a loop inside another loop is refused). The slit is 0.03 mm: far below anything a print or a cutter can show.
 
-const FONT_SIZE := 100        # the size the glyph contours are read at (font units are then scaled, so this only sets the curve detail)
-const CURVE_STEPS := 8        # straight pieces per Bezier curve
+const PLabel := preload("res://scripts/build/part_label.gd")   # the Label maker's font-outline code (Friday 210): not duplicated here
 const SLIT_MM := 0.03         # the width of the slit that joins a hole to its letter
 const MIN_EDGE_MM := 0.02     # two outline points closer than this are one point
-const MAX_CHARS := 24
+const MAX_CHARS := PLabel.MAX_CHARS
 
 
-## the font's contours of the text, in font units, y up, pen moving right: {"ok", "why", "glyphs": [[ring, ...] per letter], "bb": Rect2}
+## the font's outlines of the text (PartLabel.layout), mm, y up, centred on 0,0: {"ok", "why", "outers", "holes", "bb": Rect2 of the letters}
 static func raw(text: String) -> Dictionary:
-	var t := text.strip_edges()
-	var out := {"ok": false, "why": "", "glyphs": [], "bb": Rect2()}
-	if t == "":
-		out["why"] = "Type the words first, like KINE"
+	var lay: Dictionary = PLabel.layout(text)
+	var out := {"ok": false, "why": String(lay["why"]), "outers": [], "holes": [], "bb": Rect2()}
+	if not bool(lay["ok"]):
+		if text.strip_edges() == "":
+			out["why"] = "Type the words first, like KINE"
 		return out
-	if t.length() > MAX_CHARS:
-		out["why"] = "That is too long: use %d letters or fewer" % MAX_CHARS
-		return out
-	var f: Font = ThemeDB.fallback_font
-	if f == null or f.get_rids().is_empty():
-		out["why"] = "No font is available to draw the letters"
-		return out
-	var ts := TextServerManager.get_primary_interface()
-	var rid: RID = f.get_rids()[0]
-	var pen := 0.0
 	var lo := Vector2(INF, INF)
 	var hi := Vector2(-INF, -INF)
-	var glyphs: Array = []
-	for i in t.length():
-		var cp := t.unicode_at(i)
-		var gi := ts.font_get_glyph_index(rid, FONT_SIZE, cp, 0)
-		if cp != 32 and gi == 0:
-			out["why"] = "The letter \"%s\" is not in the font: use letters, numbers and simple marks" % t[i]
-			return out
-		var adv := ts.font_get_glyph_advance(rid, FONT_SIZE, gi).x
-		if cp != 32:
-			var d: Dictionary = ts.font_get_glyph_contours(rid, FONT_SIZE, gi)
-			var rings: Array = _rings(d.get("points", PackedVector3Array()), d.get("contours", PackedInt32Array()))
-			var moved: Array = []
-			for r in rings:
-				var ring := PackedVector2Array()
-				for p in (r as PackedVector2Array):
-					var q := p + Vector2(pen, 0.0)
-					ring.append(q)
-					lo = lo.min(q)
-					hi = hi.max(q)
-				moved.append(ring)
-			if not moved.is_empty():
-				glyphs.append(moved)
-		pen += adv
-	if glyphs.is_empty():
-		out["why"] = "There is nothing to draw in those words"
-		return out
+	for r in lay["outers"]:
+		for p in (r as PackedVector2Array):
+			lo = lo.min(p)
+			hi = hi.max(p)
 	out["ok"] = true
-	out["glyphs"] = glyphs
+	out["outers"] = lay["outers"]
+	out["holes"] = lay["holes"]
 	out["bb"] = Rect2(lo, hi - lo)
 	return out
-
-
-## the glyph's points -> one flattened ring per contour (font y is down: flipped to y up)
-static func _rings(pts: PackedVector3Array, ends: PackedInt32Array) -> Array:
-	var rings: Array = []
-	var start := 0
-	for e in ends:
-		var seg: Array = []
-		for k in range(start, int(e) + 1):
-			seg.append(pts[k])
-		start = int(e) + 1
-		if seg.size() >= 3:
-			var r := _flatten(seg)
-			if r.size() >= 3:
-				rings.append(r)
-	return rings
-
-
-static func _flatten(seg: Array) -> PackedVector2Array:
-	# start on an on-curve point
-	var first := -1
-	for k in seg.size():
-		if (seg[k] as Vector3).z > 0.5:
-			first = k
-			break
-	var s: Array = []
-	if first < 0:
-		var a: Vector3 = seg[0]
-		var b: Vector3 = seg[1]
-		s.append(Vector3((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, 1.0))
-		for k in range(1, seg.size()):
-			s.append(seg[k])
-		s.append(seg[0])
-	else:
-		for k in seg.size():
-			s.append(seg[(first + k) % seg.size()])
-	s.append(s[0])
-	var out := PackedVector2Array()
-	var cur := _v(s[0])
-	out.append(cur)
-	var i := 1
-	while i < s.size():
-		var pi: Vector3 = s[i]
-		if pi.z > 0.5:
-			cur = _v(pi)
-			out.append(cur)
-			i += 1
-			continue
-		var run: Array = []
-		while i < s.size() and (s[i] as Vector3).z <= 0.5:
-			run.append(_v(s[i]))
-			i += 1
-		var end: Vector2 = _v(s[i])
-		if run.size() == 2:
-			for st in range(1, CURVE_STEPS + 1):
-				out.append(_cubic(cur, run[0], run[1], end, float(st) / CURVE_STEPS))
-		else:
-			for q in run.size():
-				var tgt: Vector2 = end if q == run.size() - 1 else ((run[q] as Vector2) + (run[q + 1] as Vector2)) * 0.5
-				for st in range(1, CURVE_STEPS + 1):
-					out.append(_quad(cur, run[q], tgt, float(st) / CURVE_STEPS))
-				cur = tgt
-		cur = end
-		i += 1
-	out.remove_at(out.size() - 1)   # the closing point is the first one again
-	return out
-
-
-static func _v(p: Vector3) -> Vector2:
-	return Vector2(p.x, -p.y)
-
-
-static func _quad(a: Vector2, c: Vector2, b: Vector2, t: float) -> Vector2:
-	return a.lerp(c, t).lerp(c.lerp(b, t), t)
-
-
-static func _cubic(a: Vector2, c1: Vector2, c2: Vector2, b: Vector2, t: float) -> Vector2:
-	var ab := a.lerp(c1, t)
-	var bc := c1.lerp(c2, t)
-	var cd := c2.lerp(b, t)
-	return ab.lerp(bc, t).lerp(bc.lerp(cd, t), t)
 
 
 ## signed area (positive = counter-clockwise, y up)
@@ -154,16 +42,18 @@ static func signed_area(r: PackedVector2Array) -> float:
 	return a * 0.5
 
 
-## the raw outlines scaled by `scale` (mm per font unit) about `center` (font units), moved by `shift` (mm), mirrored left-right when
-## `mirror` (a face seen from behind), cleaned, and merged into ONE polygon per outer outline (holes joined by a slit). Counter-clockwise
-static func polygons(rw: Dictionary, scale: float, center: Vector2, shift: Vector2, mirror: bool) -> Array:
-	var polys: Array = []
-	for g in rw["glyphs"]:
-		var rings: Array = []
-		for r in (g as Array):
+## the raw outlines scaled by `scale` about `center`, moved by `shift` (mm), mirrored left-right when `mirror` (a face seen from behind),
+## cleaned, and merged into ONE polygon per outer outline (holes joined by a slit). Counter-clockwise
+static func polygons(rw: Dictionary, scale: float, center: Vector2, shift: Vector2, mirror: bool, turn := false) -> Array:
+	var outers: Array = []
+	var holes: Array = []
+	for kind in ["outers", "holes"]:
+		for r in rw[kind]:
 			var ring := PackedVector2Array()
 			for p in (r as PackedVector2Array):
 				var q := (p - center) * scale
+				if turn:
+					q = Vector2(-q.y, q.x)   # a quarter turn: the words run along the face's long side when that is the plane's v
 				if mirror:
 					q.x = -q.x
 				q += shift
@@ -171,34 +61,21 @@ static func polygons(rw: Dictionary, scale: float, center: Vector2, shift: Vecto
 					ring.append(q)
 			while ring.size() > 1 and ring[0].distance_to(ring[ring.size() - 1]) < MIN_EDGE_MM:
 				ring.remove_at(ring.size() - 1)
-			if ring.size() >= 3 and absf(signed_area(ring)) > 1e-4:
-				rings.append(ring)
-		polys.append_array(_merge_glyph(rings))
-	return polys
+			if ring.size() < 3 or absf(signed_area(ring)) < 1e-4:
+				continue
+			if kind == "outers":
+				if signed_area(ring) < 0.0:
+					ring.reverse()
+				outers.append(ring)
+			else:
+				if signed_area(ring) > 0.0:
+					ring.reverse()
+				holes.append(ring)   # clockwise
+	return _attach(outers, holes)
 
 
-## one letter's rings -> polygons: the rings turning the way of the biggest are outlines, the others holes (each joined into the outline
-## that holds it)
-static func _merge_glyph(rings: Array) -> Array:
-	if rings.is_empty():
-		return []
-	var big := 0.0
-	for r in rings:
-		if absf(signed_area(r)) > absf(big):
-			big = signed_area(r)
-	var outers: Array = []
-	var holes: Array = []
-	for r in rings:
-		var rr: PackedVector2Array = r
-		var ccw := signed_area(rr) > 0.0
-		if (signed_area(rr) > 0.0) == (big > 0.0):
-			if not ccw:
-				rr.reverse()
-			outers.append(rr)
-		else:
-			if ccw:
-				rr.reverse()
-			holes.append(rr)   # clockwise
+## each hole joined into the smallest outline that holds it
+static func _attach(outers: Array, holes: Array) -> Array:
 	var mine: Array = []
 	for o in outers:
 		mine.append([])

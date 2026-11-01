@@ -391,6 +391,7 @@ func build(root: Control) -> void:
 	_scrub_time.name = "eh_scrub_time"
 	_scrub_time.custom_minimum_size.x = 170
 	_scrub_row.add_child(_scrub_time)
+	_cs_build(sv)   # p142: the Style slider row, under the scrub row
 	# no Save video here: the Easy bar has it (two buttons with one label confused the monkey test's beginner)
 	_pbar = PanelContainer.new()
 	_pbar.name = "easy_prop_bar"
@@ -715,13 +716,13 @@ func card(i: int) -> void:
 
 ## SAVE VIDEO (Easy's strip and the bar's Export video): the playblast (PNG frames, and an .mp4 when ffmpeg is found) in the
 ## user's Videos folder, Kine/ (video_folder). A toast names the file and offers Show the file. Expert's export is not changed.
-func save_video() -> void:
+func save_video(keep_frames := false) -> void:   # keep_frames (the story's film step): the PNG frames stay beside the .mp4
 	last_video = {}
 	if m.S.cards.size() < 2:   # nothing to film yet: say what to do, render nothing
 		_show_toast(NO_MOVE, "")
 		m._say_plain(NO_MOVE)
 		return
-	var r: Dictionary = await m._save_video_playblast(video_folder(), clip_name())   # piped to ffmpeg, with the progress line and Cancel
+	var r: Dictionary = await m._save_video_playblast(video_folder(), clip_name(), keep_frames)   # piped to ffmpeg, with the progress line and Cancel
 	last_video = r
 	if r.is_empty():   # refused or cancelled: the playblast's status line says why
 		return
@@ -870,6 +871,7 @@ func _refresh_next() -> void:
 ## moves, the slider follows it. Its value moves only from the playhead here (_scrub_sync), so only a real drag scrubs.
 func _scrub_show() -> void:
 	_scrub_row.visible = m.easy.on and not m.S.cards.is_empty()
+	_cs_sync()
 	if not _scrub_row.visible:
 		return
 	var len: float = maxf(m._ps().length(), 0.01)
@@ -2660,3 +2662,85 @@ func _mood_typed(txt: String) -> void:
 	var names: Array = StyleDial.STYLES.filter(func(k): return absf(float(vals[k])) > 1e-6).map(func(k): return "%s %+.1f" % [k, float(vals[k])])
 	_mood_msg.text = "Blended %s onto the clip: it now takes %.1f s. Undo takes it back." % [", ".join(names), S.length()]
 	m._say_plain(_mood_msg.text)
+
+
+## the picture button of one move card (the test's and the Walk picture's handle; the cards are built in build() above)
+func card_btn(i: int) -> Button:
+	return panel.find_child("eh_card_%d" % i, true, false) as Button
+
+
+## STYLE SLIDER (p142, ClipStyle): realistic <-> cartoon on the built clip, a row under the scrub. 1.00x = the clip as it is.
+## The value is a factor on the clip as it was when the slider last sat at 1.00x (_cs_base); a clip changed any other way
+## (Undo, Faster, a new move...) resets the slider to 1.00x over the clip as it is. One undo step per drag.
+var _cs_row: HBoxContainer
+var _cs_slider: HSlider
+var _cs_val: Label
+var _cs_base: Array = []
+var _cs_key = null            # S.times() as this slider left it: any other clip makes a new base
+var _cs_pushed := false
+
+
+func _cs_build(sv: Control) -> void:
+	_cs_row = HBoxContainer.new()
+	_cs_row.name = "eh_style_row"
+	_cs_row.add_theme_constant_override("separation", 12)
+	_cs_row.visible = false
+	sv.add_child(_cs_row)
+	var t := _label("Style", 20, "text")
+	t.custom_minimum_size.x = 80
+	_cs_row.add_child(t)
+	_cs_row.add_child(_label("Realistic", 18, "text"))
+	_cs_slider = HSlider.new()
+	_cs_slider.name = "eh_style"
+	_cs_slider.min_value = ClipStyle.K_MIN
+	_cs_slider.max_value = ClipStyle.K_MAX
+	_cs_slider.step = 0.01
+	_cs_slider.value = 1.0
+	_cs_slider.focus_mode = Control.FOCUS_NONE
+	_cs_slider.custom_minimum_size = Vector2(420, 32)
+	_cs_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_cs_slider.tooltip_text = "realistic <-> cartoon: the whole clip's motion smaller or bigger (1.00x = as it is; feet stay planted; one undo step a drag)"
+	_cs_slider.value_changed.connect(_cs_changed)
+	_cs_slider.drag_ended.connect(_cs_released)
+	_cs_row.add_child(_cs_slider)
+	_cs_row.add_child(_label("Cartoon", 18, "text"))
+	_cs_val = _label("1.00x", 20, "text")
+	_cs_val.name = "eh_style_val"
+	_cs_val.custom_minimum_size.x = 80
+	_cs_row.add_child(_cs_val)
+
+
+## every frame (from _scrub_show): the row shows with the scrub; a clip that is not the one this slider wrote is the new base
+func _cs_sync() -> void:
+	_cs_row.visible = _scrub_row.visible
+	if not _cs_row.visible or _cs_pushed:
+		return
+	var ts = m.S.times()
+	if _cs_key != null and is_same(ts, _cs_key):
+		return
+	_cs_key = ts
+	_cs_base = m.S.cards.duplicate(true)
+	_cs_slider.set_value_no_signal(1.0)
+	_cs_val.text = "1.00x"
+
+
+func _cs_changed(v: float) -> void:
+	_cs_val.text = "%.2fx" % v
+	var S: Scene = m.S
+	if S.cards.size() < 1 or _cs_base.is_empty():
+		return
+	if not _cs_pushed:
+		m._step_easy = "Style" if m.easy.on else ""
+		m._push_undo()
+		m._step_easy = ""
+		_cs_pushed = true
+	S.cards = ClipStyle.styled(_cs_base, m.B, S.solid_props(), v)
+	m._retimed()
+	_cs_key = S.times()
+	m._say_plain("Style %.2fx: %s moves %d %% %s." % [v, _clip_word, roundi(absf(v - 1.0) * 100.0), "further" if v > 1.0 else "less"] if absf(v - 1.0) > 0.004 else "Style 1.00x: the clip as it was.")
+
+
+func _cs_released(_changed := false) -> void:
+	_cs_pushed = false
+	_play()
+	m.easy.frame_clip_next()

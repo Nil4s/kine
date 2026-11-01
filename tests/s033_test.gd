@@ -97,6 +97,31 @@ func ink_area(sk: Dictionary) -> float:
 	return total
 
 
+## the box (mm, plane coordinates) of the letters' outline in a sketch
+func sk_box(sk: Dictionary) -> Rect2:
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for e in sk["ents"]:
+		for k in ["a", "b"]:
+			var p := Part.v2(e[k])
+			lo = lo.min(p)
+			hi = hi.max(p)
+	return Rect2(lo, hi - lo)
+
+
+## the box of the mesh vertices whose z is above `z` (mm): the words standing out of the front face -> Rect2 (x, y)
+func front_box(z: float) -> Rect2:
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for fa in Part.body_faces(m.S.part):
+		var t: PackedVector3Array = fa
+		for v in t:
+			if v.z * 1000.0 > z:
+				lo = lo.min(Vector2(v.x, v.y) * 1000.0)
+				hi = hi.max(Vector2(v.x, v.y) * 1000.0)
+	return Rect2(lo, hi - lo)
+
+
 func newest(t: String) -> Dictionary:
 	var out := {}
 	for f in m.S.part.get("features", []):
@@ -178,7 +203,7 @@ func _init() -> void:
 	var tb := find("easypart_text_box")
 	var vp := Rect2(Vector2.ZERO, Vector2(1280, 720))
 	var onscreen := tb != null and tb.is_visible_in_tree() and vp.encloses(tb.get_global_rect())
-	for nm in ["easypart_text_edit", "easypart_text_cut", "easypart_text_out", "easypart_text_depth", "easypart_text_top", "easypart_text_face"]:
+	for nm in ["easypart_text_edit", "easypart_text_cut", "easypart_text_out", "easypart_text_depth", "easypart_text_size", "easypart_text_top", "easypart_text_face"]:
 		var c := find(nm)
 		onscreen = onscreen and c != null and c.is_visible_in_tree() and vp.encloses(c.get_global_rect())
 	ok(onscreen, "0 the Text on a face rows are on the 1280 x 720 screen (Parts > Type it)")
@@ -200,6 +225,9 @@ func _init() -> void:
 	ok(ink > 20.0 and absf(drop - ink * 1.0) <= 0.03 * ink, "1 the drop matches the letters' area x depth: %.2f vs %.2f mm3 (3 pct)" % [drop, ink])
 	ok(int(eg["bodies"]) == 1 and cl, "1 still ONE closed solid (%d solids, closed mesh %s)" % [int(eg["bodies"]), str(cl)])
 	ok(m.undo.size() == u0 + 1 and absf(float(eg["top"]) - 10.0) < 0.05, "1 ONE undo step (%d -> %d), the box is not taller (top %.2f mm)" % [u0, m.undo.size(), float(eg["top"])])
+	var eb1 := sk_box(newest("sketch"))
+	ok(absf(eb1.size.y - 10.0) <= 0.3 and eb1.size.x > eb1.size.y, "1 the letters are 10.0 mm tall within 0.3 (%.2f) and run along the long edge (%.2f mm wide)" % [eb1.size.y, eb1.size.x])
+	ok(eb1.get_center().length() <= 0.5, "1 the letters are centred on the face within 0.5 mm (centre %.2f, %.2f)" % [eb1.get_center().x, eb1.get_center().y])
 	await close_top()
 	await shot("engrave")
 	# 2 UNDO
@@ -242,6 +270,7 @@ func _init() -> void:
 	await idle(4)
 	# the front face (+Z): stand out toward +Z
 	await click_ctl(find("easypart_text_out"))
+	ep.text_size.value = 6.0
 	await click_ctl(find("easypart_text_face"))
 	bb = pu.res["aabb"]
 	var fr := Vector3(bb.get_center().x, bb.get_center().y, bb.end.z)
@@ -252,6 +281,8 @@ func _init() -> void:
 	await idle(4)
 	var fm := meas()
 	ok(absf(float(fm["zmax"]) - z0 - 1.0) <= 0.05 and int(fm["bodies"]) == 1 and m.undo.size() == u3 + 1, "4 on the front face the words stand out toward +Z by 1 mm: %.3f -> %.3f, one undo step" % [z0, float(fm["zmax"])])
+	var fb := front_box(z0 + 0.5)
+	ok(absf(fb.size.y - 6.0) <= 0.3 and fb.size.x > fb.size.y and absf(fb.get_center().x) <= 0.5 and absf(fb.get_center().y - 5.0) <= 0.5, "4 on the front face the words lie in that face's plane: %.2f x %.2f mm, centre %.2f, %.2f (6 tall, centre 0, 5)" % [fb.size.x, fb.size.y, fb.get_center().x, fb.get_center().y])
 	await shot("front")
 	m._undo()
 	await idle(4)

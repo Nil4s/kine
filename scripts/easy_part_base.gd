@@ -310,6 +310,8 @@ func _fmt(v: float, unit: String) -> String:
 		return "%d degrees" % int(roundf(v))
 	if unit == "copies":
 		return "%d copies" % int(roundf(v))
+	if unit == "holes":   # s029
+		return "%d holes" % int(roundf(v))
 	if unit == "teeth":   # NGEAR
 		return "%d teeth" % int(roundf(v))
 	if unit == "size":   # NGEAR: the module 1 / 2 / 3 as Small / Medium / Big teeth
@@ -343,6 +345,7 @@ func _pull_hi() -> float:
 ## FHELP3: Easy is already on: the press says what the screen is and what to press, and the button stays lit
 func _easy_on() -> void:
 	easy_btn.set_pressed_no_signal(true)
+	call("_level_open")   # P093: the level slider (Beginner / Comfortable / Expert)
 	_say("You are in Easy: big buttons and sliders. Press Expert for every tool and exact numbers")
 
 

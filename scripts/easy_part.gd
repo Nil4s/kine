@@ -87,13 +87,14 @@ func build(root: Control) -> void:
 	del_btn.custom_minimum_size = Vector2(110, m.TOP_H - 12)
 	del_btn.visible = false
 	row.add_child(del_btn)
-	easy_btn = _bar_btn("Easy", "Sliders and big buttons", _easy_on)
+	easy_btn = _bar_btn("Easy", "Sliders and big buttons. Press again to choose how many buttons show: Beginner, Comfortable or Expert", _easy_on)
 	easy_btn.toggle_mode = true
 	easy_btn.button_pressed = true
 	expert_btn = _bar_btn("Expert", "The same part with every tool and exact numbers", func(): to_expert())
 	expert_btn.toggle_mode = true
 	row.add_child(easy_btn)
 	row.add_child(expert_btn)
+	_level_build(root)   # P093: the level slider opens from the Easy button (no new row)
 	# the six MAKE buttons
 	make_box = HBoxContainer.new()
 	make_box.name = "easypart_make"
@@ -244,6 +245,8 @@ func build(root: Control) -> void:
 		vbtn.pressed.connect(_view_press.bind(String(vb[0])))
 		vr.add_child(vbtn)
 	vr.add_child(_cut_btn())   # P101 SECTION: the Cut view chip, last in the same view column (no new row)
+	meas = EasyMeasure.new(self)   # s055: the Measure chip (distance and angle readouts), also in the view column
+	meas.build(root, vr)
 	var cr := HFlowContainer.new()
 	cr.name = "easypart_chips"
 	cr.add_theme_constant_override("h_separation", 2)
@@ -297,6 +300,8 @@ func build(root: Control) -> void:
 	v.add_child(lib_box)
 	fav_box = _fav_box()   # p083favfix: the Favourites category page (its row and the star), right under the Parts chips: the screw grid of a screw on the floor sits below it, so the star stays in the scroll view
 	v.add_child(fav_box)
+	rod_box = _rod_box()   # THREAD (p206threadgene): the threaded rod chips, ABOVE the screw grid on the Screws page (under the grid they sat below the panel's edge)
+	v.add_child(rod_box)
 	screw_box = _screw_box()
 	v.add_child(screw_box)
 	bear_box = _bear_box()   # P069 BEARINGS: the bearing chips and the seat button, under the Parts page
@@ -318,6 +323,9 @@ func build(root: Control) -> void:
 	rows_vb.name = "easypart_rows"
 	rows_vb.add_theme_constant_override("separation", 2)
 	v.add_child(rows_vb)
+	gear_drive = preload("res://scripts/easy_geardrive.gd").new()   # s124: Turn it under the Gear pair's sliders
+	gear_drive.ep = self
+	v.add_child(gear_drive)
 	v.add_child(_suggest_row())   # P092: the two next-step chips, under the slider rows (the rows above keep their places)
 	whole_l = Label.new()
 	whole_l.name = "easypart_whole"
@@ -414,6 +422,10 @@ func _hole_box() -> PanelContainer:
 	lattice_btn.custom_minimum_size = Vector2(150, 44)
 	lattice_btn.visible = false
 	h.add_child(lattice_btn)
+	stack_btn = _big_btn("easypart_hole_stack", "Make it stackable", "Add a lip under the floor that fits inside the rim of another one like it, with 0.3 mm of play: boxes stack. One click, one undo step", _stack_press)   # s209
+	stack_btn.custom_minimum_size = Vector2(150, 44)
+	stack_btn.visible = false
+	h.add_child(stack_btn)
 	var flb := _big_btn("easypart_hole_flat", "Flat pattern", "Unfold the box into a flat sheet to laser-cut: six panels with finger joints. The model does not change", _flat_press)   # p117flatpatter
 	flb.custom_minimum_size = Vector2(120, 44)
 	h.add_child(flb)   # not a toggle: it is not in hole_btns (the row's pressed state would ignore it)
@@ -423,10 +435,12 @@ func _hole_box() -> PanelContainer:
 		sb.custom_minimum_size = Vector2(96, 44)
 		h.add_child(sb)
 		hole_btns["screw%d" % sd] = sb
+	_hpat_chips(h)   # s029: Row / Around / Grid of holes
 	_printer_chip(h)   # p203screwholea: the printer chip (resin tight, FDM loose)
 	var fb := _big_btn("easypart_hole_fits", "What fits here?", "Ask which of My Parts go through this hole (the saved parts that fit it). No step: it only tells you", _fits_press)   # P076
 	fb.custom_minimum_size = Vector2(150, 44)
 	h.add_child(fb)
+	h.add_child(hpat_box)   # s029: the pattern sliders come last, so the chips above stay on their lines
 	return box
 
 
@@ -1210,6 +1224,8 @@ func _set_value(row: Dictionary, v: float, final: bool) -> void:
 		hole_base = {}                    # the template's sizes changed: the hole chips would rebuild on an old shape
 	elif row["kind"] == "rep":
 		_apply_rep(row, v)
+	elif row["kind"] == "hpat":
+		_apply_hpat(row, v)
 	elif row["kind"] == "taper":
 		_apply_taper(v)
 	elif row["kind"] == "twist":
@@ -1235,6 +1251,7 @@ func _apply_tweak(v: float) -> void:
 		f["ents"][int(tweak["ent"])][tweak["field"]] = val
 	else:
 		f[tweak["field"]] = val
+	_hpat_follow(f)   # s029: the pattern's other circles follow the first
 	if f.has("raw"):   # p039: a Curvy line's points come back from its raw stroke at the new Smooth
 		_rebuild_curve(f)
 
@@ -2130,6 +2147,7 @@ func _lib_box() -> PanelContainer:
 	vb.add_child(_type_row())   # p085typetobuil: the Type it row (shows with that category)
 	vb.add_child(_photo_row())   # p192makeitlike: Like a photo, under Type it
 	vb.add_child(_text_row())   # FRIDAY 33: Text on a face, under Like a photo
+	vb.add_child(_label_row())   # s210: Label, under Like a photo
 	linkage_box = preload("res://scripts/easy_linkage.gd").new()   # p129linkages: the Linkage panel (4 bars, a drag knob) on the Hinges page, scripts/easy_linkage.gd
 	linkage_box.say_fn = _say   # p129linkages: its words go to the status line at the top
 	vb.add_child(linkage_box)
@@ -2441,6 +2459,7 @@ func _screw_sync() -> void:
 		photo_box.visible = parts_open and lib_cat == "Type it"   # p192makeitlike
 		if text_box != null:
 			text_box.visible = parts_open and lib_cat == "Type it"   # FRIDAY 33
+		label_box.visible = parts_open and lib_cat == "Type it"   # s210
 		if fav_box != null:   # p083favfix: the Favourites page shows while its category is open; the row and the star are drawn here
 			fav_box.visible = parts_open and lib_cat == "Favourites"
 			_fav_sync()
@@ -2470,6 +2489,7 @@ func _screw_sync() -> void:
 	if _tpl() == "screw":
 		cur = (_rec().get("easy", {}) as Dictionary).get("p", {})
 	screw_box.visible = (parts_open and lib_cat == "Screws") or _tpl() == "screw"
+	_rod_sync()   # THREAD (p206threadgene)
 	if bear_box != null:   # P069 BEARINGS: the three chips show the bearing on the floor (pressed); the seat button sits under them
 		var bk := int((_rec().get("easy", {}) as Dictionary).get("p", {}).get("kind", -1)) if _tpl() in ["bearing", "seat"] else -1
 		bear_box.visible = (parts_open and lib_cat == "Bearings") or _tpl() in ["bearing", "seat"]
@@ -3510,6 +3530,8 @@ func _process(_dt: float) -> void:
 	_grid_labels_sync()   # p108measuregri: the grid's numbers follow the zoom (view only)
 	pu.replay_forget()   # the same-frame replay reuse (PartUI.replay_once) ends with the frame
 	_cut_sync()   # P101 SECTION: the Cut view follows the built part, and goes off when Easy is left
+	if meas != null:
+		meas.sync()   # s055: the Measure readouts follow the camera
 	var on := active()
 	if on != _was:
 		_was = on
@@ -3573,6 +3595,7 @@ func _process(_dt: float) -> void:
 	pull_along_btn.visible = along
 	tilt_btn.visible = tilt_on
 	draft_btn.visible = draft_on
+	_gd_sync(on)   # s124
 	var swing_on := not along and _swing_ok(_rec())   # p123driveit
 	swing_btn.visible = swing_on
 	var flat_on := on and armed == "" and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # p113: Lay it flat and Show overhangs, under any solid, in the step list
@@ -3652,6 +3675,10 @@ func _key(k: InputEventKey) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if k.keycode == KEY_ESCAPE:
+		if meas != null and meas.on:
+			meas.set_on(false)   # s055: Esc leaves Measure
+			get_viewport().set_input_as_handled()
+			return
 		if not _draft.is_empty():
 			_draft = {}
 			_bar_press = null
@@ -3829,6 +3856,8 @@ func input(ev: InputEvent) -> bool:
 		return false
 	if ev is InputEventMouseButton and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 		var p := (ev as InputEventMouseButton).position
+		if meas != null and meas.on and not _over_ui(p):
+			return meas.mouse(p, (ev as InputEventMouseButton).pressed)   # s055: Measure mode: a click reads, the camera keeps the rest
 		if (ev as InputEventMouseButton).pressed:
 			for d in _dot_list():
 				if (d["scr"] as Vector2).distance_to(p) <= 16.0:
@@ -3873,6 +3902,8 @@ func input(ev: InputEvent) -> bool:
 			if pp.distance_to(p) < 6.0 and _drag.is_empty() and _draft.is_empty():
 				if wall_pick:   # p022shellwalls: Thicker wall is waiting for a wall: this press picks it (or says why not)
 					_wall_press(p)
+				elif hpat_pick:   # s029: Pick centre is waiting for the click
+					_hpat_press(p)
 				elif not _open_face(p):   # NOPENTOP: after Hollow inside, a flat face click opens that side; any other click picks a piece
 					_pick_at(p)
 		if not _draft.is_empty():
@@ -3890,6 +3921,10 @@ func input(ev: InputEvent) -> bool:
 		if not _draft.is_empty():
 			_draft_move(p)
 			return true
+		if meas != null and meas.on:
+			if edge_chip != null and edge_chip.visible:
+				_edge_hide()   # s055: no Round / Bevel chip over the part while Measure is on (a click there would be an edit)
+			return false
 		var h := ""
 		for d in _dot_list():
 			if (d["scr"] as Vector2).distance_to(p) <= 16.0:
@@ -5794,6 +5829,102 @@ func _cam_icon() -> ImageTexture:
 	return ImageTexture.create_from_image(img)
 
 
+## THREAD (p206threadgene): a threaded rod for printing, M8 M10 M12. Its three chips are on the Screws page, under the screw grid.
+var rod_box: PanelContainer      # the rod chips' panel
+var rod_btns := {}               # size (8, 10, 12) -> its Button
+
+
+## THREAD: the rod row: a plain line, then one chip per size (M8 rod, M10 rod, M12 rod), each with a small rod icon
+func _rod_box() -> PanelContainer:
+	var pc := PanelContainer.new()
+	pc.name = "easypart_rod_box"
+	pc.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 6))
+	pc.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	pc.add_child(vb)
+	var g := GridContainer.new()   # one line of three chips, no heading: the Screws page is full (the words are in the tooltips and the status line)
+	g.columns = PartTemplates.ROD_PITCH.size()
+	g.add_theme_constant_override("h_separation", 4)
+	g.add_theme_constant_override("v_separation", 4)
+	vb.add_child(g)
+	for d in PartTemplates.ROD_PITCH:
+		var b := Button.new()
+		b.name = "easypart_rod_M%d" % d
+		b.text = "M%d rod" % d
+		b.icon = _rod_icon(d)
+		b.tooltip_text = "M%d rod: a threaded rod, about 30 mm long, for printing. Its crest is 0.15 mm under M%d, so a printed nut turns on it. One click, one undo step" % [d, d]
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(0, 28)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_rod_pick.bind(d))
+		g.add_child(b)
+		rod_btns[d] = b
+	return pc
+
+
+## THREAD: a 16 px rod icon (Tok text colour): a shank with three thread ridges, a little wider with the size
+func _rod_icon(d: int) -> ImageTexture:
+	var img := Image.create(16, 16, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0, 0, 0, 0))
+	var col := Tok.c("text")
+	var w := 4 + (d - 8) / 2
+	img.fill_rect(Rect2i(8 - w / 2, 0, w, 16), col)
+	for y in range(2, 15, 4):
+		img.fill_rect(Rect2i(8 - w / 2 - 2, y, w + 4, 1), col)
+	return ImageTexture.create_from_image(img)
+
+
+## THREAD: the rod chips follow the page (open on Screws, or a rod is the part): the size on the floor is pressed
+func _rod_sync() -> void:
+	if rod_box == null:
+		return
+	var was_shown := rod_box.visible
+	rod_box.visible = (parts_open and lib_cat == "Screws") or _tpl() == "rod"
+	if rod_box.visible and not was_shown and _tpl() != "rod":
+		_rod_scroll.call_deferred()   # the rod row sits above the screw grid: scroll down by its height so the screw chips stay where they were (nscrew2 clicks them unscrolled)
+	var cur := 0
+	if _tpl() == "rod":
+		cur = int(roundf(float((_rec().get("easy", {}) as Dictionary).get("p", {}).get("d", 0))))
+	for d in rod_btns:
+		var b: Button = rod_btns[d]
+		b.set_pressed_no_signal(d == cur)
+		m._grey(b, Part.why_not() if not Part.available() else "")
+
+
+## THREAD: one click puts a threaded rod of that size on the floor (one undo step). A rod already on the floor takes the new size, its steps kept.
+func _rod_pick(d: int) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var on_floor := _tpl() == "rod"
+	if on_floor and int(roundf(float((_rec().get("easy", {}) as Dictionary).get("p", {}).get("d", 0)))) == d:
+		_say("Already a M%d rod on the floor. Pick another size to change it" % d)
+		_rod_sync()
+		return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Change the rod size" if on_floor else "Start a threaded rod"
+	m._push_undo()
+	if on_floor:
+		PartTemplates.retemplate(_rec(), {"d": d})
+	else:
+		m.S.part = PartTemplates.make("rod", {"d": d})
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	_lib_fit()
+	_screw_sync()
+	_say("M%d rod on the floor. Its thread is for printing: a printed nut turns on it" % d)
+
+
 # ---------------------------------------------------------------- p192makeitlike: "Like a photo" (Parts > Type it)
 
 var photo_box: HBoxContainer     # p192makeitlike: the photo row under the Parts page's categories (shows with Type it)
@@ -6155,6 +6286,7 @@ func _screw_tip(d: int, L: int) -> String:
 const PText := preload("res://scripts/build/part_text.gd")
 var text_box: VBoxContainer       # the Text on a face rows under Like a photo (shown with Type it)
 var text_edit: LineEdit           # the words
+var text_size: SpinBox            # how tall the letters are, mm
 var text_depth: SpinBox           # how deep / how tall, mm
 var text_cut_btn: Button          # Cut in
 var text_out_btn: Button          # Stand out
@@ -6204,11 +6336,11 @@ func _text_row() -> VBoxContainer:
 	text_cut_btn.toggle_mode = true
 	text_cut_btn.button_pressed = true
 	r2.add_child(text_cut_btn)
-	text_out_btn = _text_chip("easypart_text_out", "Stand out", "The letters stand out of the face (embossed)", func(): _text_mode(false))
+	text_out_btn = _text_chip("easypart_text_out", "Raise", "The letters stand out of the face (embossed)", func(): _text_mode(false))
 	text_out_btn.toggle_mode = true
 	r2.add_child(text_out_btn)
 	var dl := Label.new()
-	dl.text = "Depth"
+	dl.text = "Depth mm"
 	dl.add_theme_font_size_override("font_size", 13)
 	r2.add_child(dl)
 	text_depth = SpinBox.new()
@@ -6217,12 +6349,23 @@ func _text_row() -> VBoxContainer:
 	text_depth.max_value = 20.0
 	text_depth.step = 0.1
 	text_depth.value = 1.0
-	text_depth.suffix = "mm"
 	text_depth.tooltip_text = "How deep the letters go in, or how far they stand out, in mm"
 	r2.add_child(text_depth)
 	var r3 := HBoxContainer.new()
 	r3.add_theme_constant_override("separation", 4)
 	vb.add_child(r3)
+	var sl := Label.new()
+	sl.text = "Size mm"
+	sl.add_theme_font_size_override("font_size", 13)
+	r3.add_child(sl)
+	text_size = SpinBox.new()
+	text_size.name = "easypart_text_size"
+	text_size.min_value = 2.0
+	text_size.max_value = 100.0
+	text_size.step = 0.5
+	text_size.value = 10.0
+	text_size.tooltip_text = "How tall the letters are, in mm"
+	r3.add_child(text_size)
 	text_top_btn = _text_chip("easypart_text_top", "On the top", "Put the words on the top face of the solid: one step, one undo", _text_top)
 	r3.add_child(text_top_btn)
 	text_face_btn = _text_chip("easypart_text_face", "Pick a face", "Then click the face of the solid the words go on", _text_arm)
@@ -6347,13 +6490,20 @@ func _text_apply(fc: Dictionary) -> void:
 		_say("That face is too small for words")
 		return
 	var bb: Rect2 = rw["bb"]
-	var sc := minf(minf(box.size.y * 0.5 / bb.size.y, box.size.x * 0.85 / bb.size.x), 40.0 / bb.size.y)
-	if bb.size.y * sc < 1.5:
+	var turn := box.size.y > box.size.x   # the words run along the face's longest edge
+	var along := box.size.y if turn else box.size.x
+	var across := box.size.x if turn else box.size.y
+	var h := text_size.value
+	var fit := minf(across * 0.9 / h, along * 0.92 / (bb.size.x / bb.size.y * h))
+	if fit < 1.0:
+		h *= fit   # too big for the face: made smaller to fit, and said so
+	if h < 1.5:
 		_say("That face is too small for these words: use fewer letters or a bigger face")
 		return
+	var sc := h / bb.size.y
 	var out := int(fc["out"])
 	var depth := snappedf(text_depth.value, 0.1)
-	var polys := PText.polygons(rw, sc, bb.get_center(), box.get_center(), out < 0)
+	var polys := PText.polygons(rw, sc, bb.get_center(), box.get_center(), out < 0, turn)
 	var ents := PText.ents_of(polys)
 	var snap := _rec().duplicate(true)
 	var before := Part.replay(snap)
@@ -6386,4 +6536,248 @@ func _text_apply(fc: Dictionary) -> void:
 	pu.sync()
 	_rows_sync()
 	_values_sync()
-	_say("The words are %s the face, %s mm. Use the slider for the depth" % ["cut into" if text_cut else "standing out of", str(depth)])
+	_say("The words are %s the face, %s mm tall%s, %s mm deep. Use the slider for the depth" % ["cut into" if text_cut else "standing out of", str(snappedf(h, 0.1)), " (made smaller to fit the face)" if fit < 1.0 else "", str(depth)])
+
+
+# ---------------------------------------------------------------- P093 the level: Beginner / Comfortable / Expert
+## One slider with three stops, opened by pressing Easy (the Easy | Expert switch is where it lives; no new row). Beginner: the MAKE row without the
+## advanced buttons (LEVEL_ADV). Comfortable: the MAKE row as it was (all twelve). Expert: the Expert screen (to_expert), the same record.
+## Hiding a button deletes nothing: the record, the step list and the undo stack are untouched. The level is remembered in user://.
+const LEVEL_WORDS := ["Beginner", "Comfortable", "Expert"]
+const LEVEL_ADV := ["spin", "curve", "blend", "stick", "repeat"]   # Spin it round, Curvy line, Blend two shapes, Stick together, Repeat it
+var level := 1                 # the Easy screen's level: 0 Beginner, 1 Comfortable (the default). Expert leaves the Easy screen
+var level_file := "user://easy_part_level.cfg"
+var level_box: PanelContainer
+var level_slider: HSlider
+var level_words: Array = []
+var _level_gen := 0
+var _lv_drag := false
+
+
+func _level_build(root: Control) -> void:
+	_level_load()
+	level_box = PanelContainer.new()
+	level_box.name = "easypart_level_box"
+	level_box.add_theme_stylebox_override("panel", _style(Color(0.12, 0.125, 0.15), 10, 8))
+	level_box.visible = false
+	level_box.z_index = 60
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 4)
+	level_box.add_child(vb)
+	var cap := Label.new()
+	cap.text = "How many buttons?"
+	cap.add_theme_font_size_override("font_size", 15)
+	vb.add_child(cap)
+	level_slider = HSlider.new()
+	level_slider.name = "easypart_level_slider"
+	level_slider.min_value = 0
+	level_slider.max_value = 2
+	level_slider.step = 1
+	level_slider.tick_count = 3
+	level_slider.ticks_on_borders = true
+	level_slider.focus_mode = Control.FOCUS_NONE
+	level_slider.custom_minimum_size = Vector2(300, 28)
+	level_slider.tooltip_text = "Beginner: the basic buttons. Comfortable: all the make buttons. Expert: every tool and exact numbers"
+	level_slider.set_value_no_signal(level)
+	# a drag from Beginner to Expert passes Comfortable: only where the knob is let go counts
+	level_slider.drag_started.connect(func(): _lv_drag = true)
+	level_slider.drag_ended.connect(func(_c: bool): _lv_drag = false; _level_set(int(level_slider.value)))
+	level_slider.value_changed.connect(func(v: float):
+		if not _lv_drag:
+			_level_set(int(v)))
+	vb.add_child(level_slider)
+	var wr := HBoxContainer.new()
+	vb.add_child(wr)
+	level_words = []
+	for i in 3:
+		var l := Label.new()
+		l.text = LEVEL_WORDS[i]
+		l.add_theme_font_size_override("font_size", 13)
+		l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		l.horizontal_alignment = [HORIZONTAL_ALIGNMENT_LEFT, HORIZONTAL_ALIGNMENT_CENTER, HORIZONTAL_ALIGNMENT_RIGHT][i]
+		wr.add_child(l)
+		level_words.append(l)
+	root.add_child(level_box)
+
+
+func _level_load() -> void:
+	var cf := ConfigFile.new()
+	level = 1
+	if cf.load(level_file) == OK:
+		level = clampi(int(cf.get_value("easy", "level", 1)), 0, 1)
+
+
+func _level_save(chosen: int) -> void:
+	var cf := ConfigFile.new()
+	cf.set_value("easy", "level", level)      # the Easy screen's own level (0 or 1)
+	cf.set_value("easy", "last_chosen", chosen)   # what the slider was last moved to (2 = Expert)
+	cf.save(level_file)
+
+
+## the slider moved (or a test set it): 0 / 1 change the Easy MAKE row, 2 goes to Expert (the same record)
+func _level_set(v: int) -> void:
+	v = clampi(v, 0, 2)
+	_level_gen += 1
+	if v == 2:
+		_level_save(2)
+		level_box.visible = false
+		level_slider.set_value_no_signal(level)
+		to_expert()
+		return
+	level = v
+	_level_save(v)
+	if level_slider != null:
+		level_slider.set_value_no_signal(v)
+	_level_apply()
+	_level_close_later()
+
+
+## the MAKE buttons the level shows (Beginner hides the advanced ones); the record keeps every step either way
+func _level_apply_buttons() -> void:
+	if make_btns.is_empty():
+		return
+	for k in make_btns:
+		(make_btns[k] as Button).visible = not (level == 0 and k in LEVEL_ADV)
+	if level == 0 and armed in LEVEL_ADV:
+		armed = ""
+
+
+func _level_apply() -> void:
+	_level_apply_buttons()
+	if _cl.size.x > 0.0 and active():
+		layout(_cl)
+		_chrome_sync()
+
+
+func _level_open() -> void:
+	level_slider.set_value_no_signal(level)
+	level_box.visible = not level_box.visible
+	if level_box.visible:
+		level_box.get_parent().move_child(level_box, -1)   # last in the tree: the GUI picks by tree order (z_index does not count), so the slider takes the click, not the MAKE button under it
+		level_box.reset_size()
+		var br := easy_btn.get_global_rect()
+		var vw := get_viewport().get_visible_rect().size.x
+		level_box.global_position = Vector2(clampf(br.end.x - 320.0, 4.0, vw - 330.0), bar.get_global_rect().end.y + 2.0)
+		_level_close_later()
+
+
+func _level_close_later() -> void:
+	_level_gen += 1
+	var g := _level_gen
+	await get_tree().create_timer(4.0).timeout
+	if g == _level_gen and level_box != null:
+		level_box.visible = false
+
+
+## THREAD: scroll the panel down by the rod row's height (once, when the row appears on the Screws page), so the head row and the screw grid keep their places
+func _rod_scroll() -> void:
+	await panel.get_tree().process_frame   # the layout must have grown first, or the scroll clamps to 0
+	await panel.get_tree().process_frame
+	var sc := panel.get_node_or_null("easypart_panel_scroll") as ScrollContainer
+	if sc != null and rod_box != null and rod_box.visible:
+		sc.scroll_vertical = int(rod_box.get_combined_minimum_size().y) + 4
+
+
+## s124 GEARS DRIVE EACH OTHER: Turn it shows under the Gear pair's sliders (not while the Parts page is open). When it hides, the view's preview is dropped
+var gear_drive: PanelContainer
+var _gd_was := false
+
+
+func _gd_sync(on: bool) -> void:
+	if gear_drive == null:
+		return
+	var want: bool = on and _tpl() == "gearpair" and not parts_open and armed == ""
+	if want and not _gd_was:
+		gear_drive.sync_to_record()
+	if not want and (_gd_was or not is_nan(pu.gear_turn)):
+		gear_drive.spinning = false
+		gear_drive.spin_btn.set_pressed_no_signal(false)
+		pu.gear_turn = NAN
+	_gd_was = want
+	gear_drive.visible = want
+	if want and is_nan(pu.gear_turn) and not gear_drive.spinning:
+		gear_drive.sync_to_record()   # an Undo of Save pose moves the slider back with the record
+
+
+# s055: Measure (scripts/easy_part_measure.gd)
+var meas: EasyMeasure
+
+
+const PartLabel := preload("res://scripts/build/part_label.gd")
+## s210 LABEL MAKER: a word and Raised / Cut in, then Make label: a flat tag sized to the word, the word on it (scripts/build/part_label.gd)
+var label_box: HBoxContainer = null
+var label_edit: LineEdit = null
+var label_mode: Button = null
+var label_go: Button = null
+
+
+func _label_row() -> HBoxContainer:
+	var hb := HBoxContainer.new()
+	hb.name = "easypart_label_row"
+	hb.visible = false
+	hb.add_theme_constant_override("separation", 4)
+	label_edit = LineEdit.new()
+	label_edit.name = "easypart_label_edit"
+	label_edit.placeholder_text = "A label: BOLTS"
+	label_edit.max_length = PartLabel.MAX_CHARS
+	label_edit.add_theme_font_size_override("font_size", 13)
+	label_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	label_edit.text_submitted.connect(func(_t: String) -> void: _label_build())
+	hb.add_child(label_edit)
+	label_mode = Button.new()
+	label_mode.name = "easypart_label_mode"
+	label_mode.text = "Raised"
+	label_mode.toggle_mode = true
+	label_mode.focus_mode = Control.FOCUS_NONE
+	label_mode.tooltip_text = "Raised: the letters stand out of the tag. Press for Cut in: the letters are cut into it"
+	label_mode.add_theme_font_size_override("font_size", 13)
+	label_mode.toggled.connect(func(on: bool) -> void: label_mode.text = "Cut in" if on else "Raised")
+	hb.add_child(label_mode)
+	label_go = Button.new()
+	label_go.name = "easypart_label_go"
+	label_go.text = "Make label"
+	label_go.focus_mode = Control.FOCUS_NONE
+	label_go.tooltip_text = "Make a flat tag with your word on it, sized to the word: one press, one undo step"
+	label_go.add_theme_font_size_override("font_size", 13)
+	label_go.pressed.connect(_label_build)
+	hb.add_child(label_go)
+	label_box = hb
+	return hb
+
+
+func _label_build() -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var cut := label_mode.button_pressed
+	var d := PartLabel.build(label_edit.text.strip_edges(), cut)
+	if not bool(d["ok"]):
+		_say(String(d["why"]))
+		return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	var snap := _rec().duplicate(true)
+	m._step_hint = "Make a label"
+	m._push_undo()
+	m.S.part = d["rec"]
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty() or int(pu.res.get("bodies", 0)) != 1:
+		m.S.part = snap
+		m._drop_undo()
+		pu.upto = -1
+		pu.sync()
+		_say("That label did not build: try other letters")
+		return
+	var lb: AABB = pu.res.get("aabb", AABB())   # the tag is small: the camera comes in close and looks down on it, left of the panel
+	m.pitch = -42.0
+	m.dist = clampf(lb.size.x * 3.0, 0.08, 0.5)
+	m.target = lb.get_center()
+	m._cam()
+	m.target += m.cam.global_basis.x * (float(m.dist) * 0.22)
+	m._cam()
+	_say("Label %s x %s mm, %s. Make another to replace it" % [_plain_num(float(d["w"])), _plain_num(float(d["h"])), "letters cut in" if cut else "letters raised"])
+	_screw_sync()
