@@ -429,8 +429,8 @@ func _init() -> void:
 	var cols := []
 	var x0 := 99999
 	var x1 := -1
-	for y in range(int(150 * kx), int(600 * kx), 2):
-		for x in range(int(300 * kx), int(1400 * kx), 2):
+	for y in range(int(150 * kx), mini(int(600 * kx), fg.get_height()), 2):
+		for x in range(int(300 * kx), mini(int(1400 * kx), fg.get_width()), 2):
 			if absf(lum(fg.get_pixel(x, y)) - lum(bg.get_pixel(x, y))) > 0.02:
 				x0 = mini(x0, x)
 				x1 = maxi(x1, x)
@@ -440,7 +440,7 @@ func _init() -> void:
 		var xb := x0 + (x1 - x0) * (i + 1) / 5
 		var sm := 0.0
 		var cn := 0
-		for y in range(int(150 * kx), int(600 * kx), 2):
+		for y in range(int(150 * kx), mini(int(600 * kx), fg.get_height()), 2):
 			for x in range(xa, xb, 2):
 				if absf(lum(fg.get_pixel(x, y)) - lum(bg.get_pixel(x, y))) > 0.02:
 					sm += lum(fg.get_pixel(x, y))
