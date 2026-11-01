@@ -565,3 +565,4 @@ EXTRA="$EXTRA bug6:w"   # bug6: animation-only UI (grip panel, facing label) nev
 
 
 EXTRA="$EXTRA s214:w"   # s214: pattern a GROUP of bodies in one step (Expert Pattern ticks/Ctrl-click/box, Easy Repeat it > Group)
+EXTRA="$EXTRA s228:w"   # s228: patterns along paths and grids: Part pattern kinds grid + route (corners, fit, follow, jitter, skip, group); Expert Pattern Grid / Along a path, Easy Repeat it > Grid / Round edge

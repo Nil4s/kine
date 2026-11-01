@@ -62,6 +62,7 @@ extends RefCounted
 ## space under each step is filled (a solid staircase, n(n+1)/2 blocks of the body), so the stair is one body. Every other body keeps its place and its look, the target keeps its look.
 
 const KCad := preload("res://scripts/kcad.gd")
+const PartArray := preload("res://scripts/build/part_array.gd")   # s228: grid / route patterns
 const MM := 0.001
 const POFFSET := preload("res://scripts/build/part_offset.gd")   # plan 18: Thinner / thicker everywhere
 const PBULGE := preload("res://scripts/build/part_bulge.gd")   # plan 23: Pinch / Bulge a face
@@ -2544,10 +2545,18 @@ static func _upto_rec(rec: Dictionary, k: int) -> Dictionary:
 static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int, srcb: int, rec: Dictionary = {}) -> String:
 	var n := int(f.get("count", 0))
 	var along := String(f.get("kind", "linear")) == "path"   # p049: the copies follow a curve, so their count comes from its length
-	if not along and (n < 2 or n > PATTERN_MAX):
+	var arr := String(f.get("kind", "linear")) in PartArray.KINDS   # s228: grid / route (scripts/build/part_array.gd)
+	if not along and not arr and (n < 2 or n > PATTERN_MAX):
 		return "a pattern needs 2 to %d copies (the original counts as one)" % PATTERN_MAX
 	var copies := []
-	if along:
+	if arr:
+		var whyA := PartArray.copies(rec, f, srcb, copies)
+		if whyA != "":
+			for c in copies:
+				if int(c) != 0:
+					KCad.release(c)
+			return whyA
+	elif along:
 		var why0 := _along_copies(rec, f, srcb, copies)
 		if why0 != "":
 			return why0
@@ -3523,6 +3532,7 @@ static func _pattern_group(bodies: Array, looks: Array, f: Dictionary, rec: Dict
 	g.erase("src")
 	if bool(f.get("own", false)):   # Easy's group: every copy is a piece of its own (a ring of three cylinders is nine pieces)
 		g["op"] = "new"
+	g["gref"] = PartArray.group_center(bodies, idx)   # s228: grid / route move the group as one about its centre
 	g["beside"] = false   # the group goes round the axis through the origin (or the picked edge), all the same turn
 	for bi in idx:
 		var why := _pattern_copies(bodies, looks, g, int(bi), int(bodies[int(bi)]), rec)

@@ -4317,6 +4317,7 @@ func _look_surfaces() -> void:
 # ---------------------------------------------------------------- PATTERN (GAP 30)
 
 const PAT_AXES := ["x", "y", "z"]
+const PArrayUI := preload("res://scripts/build/part_array_ui.gd")   # s228
 
 
 ## the PATTERN dialog: a kind (linear or circular), the body, the copies (the original counts), the spacing and direction or the axis and angle,
@@ -4373,6 +4374,7 @@ func _pattern_open(f: Dictionary, edit: int) -> void:
 	op_o.item_selected.connect(func(_i): _preview())
 	pat["op"] = op_o
 	dlg_rows.add_child(_pat_row("Result", op_o, ""))
+	PArrayUI.attach(self, f, edit)   # s228: Grid and Along a path (part_array_ui.gd)
 	_pattern_sync()
 	(pat["count"] as LineEdit).grab_focus()
 
@@ -4414,6 +4416,7 @@ func _pattern_sync() -> void:
 		(r as Control).visible = not circ
 	for r in pat["circ"]:
 		(r as Control).visible = circ
+	PArrayUI.sync(self)   # s228
 
 
 ## the feature the PATTERN dialog describes now ({} when a number is missing or wrong)
@@ -4432,6 +4435,8 @@ func _pattern_feature() -> Dictionary:
 		grp.sort()
 		f["bodies"] = grp
 		f["body"] = int(grp[0])
+	if int((pat["kind"] as OptionButton).selected) >= 2:   # s228: Grid / Along a path
+		return PArrayUI.finish(self, f, int((pat["kind"] as OptionButton).selected))
 	if circ:
 		var a := _num(pat["deg"])
 		if is_nan(a) or absf(a) < 1e-6:
