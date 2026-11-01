@@ -2171,6 +2171,8 @@ func _parts_press() -> void:
 	lib_cat = "Screws" if parts_open else ""   # NLIBPAGE: the page opens on Screws, its sizes showing
 	_say("Parts: pick a kind. Screws is open: pick a size. It drops on the floor" if parts_open else "Parts shut. Press Parts to open them again")
 	_screw_sync()
+	if parts_open:
+		_scroll_screw_sizes.call_deferred()
 
 
 ## NLIBPAGE: a category chip. Screws shows the sizes, Gears says to press the Gear chip, the others say coming soon with the next step.
@@ -2183,6 +2185,7 @@ func _lib_press(cat: String) -> void:
 	lib_cat = cat
 	if cat == "Screws":
 		_say("Screws: pick a size. It drops on the floor")
+		_scroll_screw_sizes.call_deferred()   # s227: the category chips take more rows now: scroll so the first two size rows show
 	elif cat == "Gears":
 		_say("Gears: press Gear in the chips above, or Cam and follower below. It drops on the floor")
 	elif cat == "Bearings":   # P069 BEARINGS: three sizes; the seat button under them cuts the seat for the one on the floor
@@ -2492,6 +2495,15 @@ func _screw_pick(d: int, L: int) -> void:
 
 
 ## the panel scrolls so the control is inside its visible part: a chip below the scroll's bottom edge is drawn clipped and takes no click
+## s227: the library page's chips fill several rows, so the screw sizes sit under the fold: bring the first two rows of size chips into view
+func _scroll_screw_sizes() -> void:
+	if lib_cat != "Screws" or not parts_open:
+		return
+	var c: Button = screw_btns.get("3_16", null)
+	if c != null:
+		_scroll_into_view(c)
+
+
 func _scroll_into_view(c: Control) -> void:
 	var sc := panel.get_node_or_null("easypart_panel_scroll") as ScrollContainer
 	if sc != null and c != null and c.is_visible_in_tree():
