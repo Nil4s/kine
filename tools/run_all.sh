@@ -597,3 +597,6 @@ EXTRA="$EXTRA s229:w"   # s229: primitives by numbers (Part.prim, Expert Primiti
 
 
 EXTRA="$EXTRA s228:w"   # s228: patterns along paths and grids: Part pattern kinds grid + route (corners, fit, follow, jitter, skip, group); Expert Pattern Grid / Along a path, Easy Repeat it > Grid / Round edge
+
+
+EXTRA="$EXTRA s230:w"   # s230: GPU tiers: adapter -> tier (RTX30 here), NVENC video export vs libx264, Fast view (FSR 2) fps; tests/s230_test.gd

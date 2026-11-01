@@ -1637,6 +1637,7 @@ func _save_video_playblast(root_dir := PlayblastExport.ROOT, clip := "", keep_fr
 	_sides_apply()
 	ui_root.visible = false
 	var shot := _shot_blast_begin()
+	var fast_hold := GpuTier.hold(get_viewport())   # Fast view (FSR 2) is for the live view: the file is rendered at full quality
 	var pipe := {}   # the ffmpeg process and its stdin, started with the first frame (its size is the frame's)
 	var done := 0
 	var refused_pipe := false
@@ -1665,6 +1666,7 @@ func _save_video_playblast(root_dir := PlayblastExport.ROOT, clip := "", keep_fr
 		_pb_layer.visible = true
 		await RenderingServer.frame_post_draw   # the panel is drawn (with the count, and Cancel reads) before the next frame
 	_shot_blast_end(shot)
+	GpuTier.release(get_viewport(), fast_hold)
 	ui_root.visible = true
 	clean = keep_clean
 	_sides_apply()
@@ -11878,6 +11880,7 @@ func _gfx_start(testing: bool) -> void:
 	gfx_mode = "high" if testing and not saved else Quality.mode_load(settings)
 	var mach := Quality.machine()
 	gfx_tier = Quality.tier_for(gfx_mode, settings, mach)
+	GpuTier.load_settings(settings, testing)
 	if testing:
 		gfx_override = "user://zz_override_%d.cfg" % OS.get_process_id()
 	Quality.apply(get_viewport(), gfx_tier, light_key)
@@ -12949,6 +12952,16 @@ func _ui() -> void:
 		for k in Quality.MODES.size():
 			gq.get_popup().set_item_checked(k, Quality.MODES[k] == gfx_mode))
 	ui_ribbon["VIEW"].add_child(gq)
+	var gpu := MenuButton.new()   # GPU TIERS (scripts/gpu_tier.gd): this PC's card, Fast view, the video encoder
+	gpu.name = "gpu_tier"
+	gpu.text = "Graphics card"
+	gpu.flat = false
+	gpu.focus_mode = Control.FOCUS_NONE
+	gpu.tooltip_text = "which graphics card this PC has, Fast view (off by default; no gain measured on this PC) and which chip saves the video"
+	_gpu_menu_build(gpu.get_popup())
+	gpu.get_popup().id_pressed.connect(func(id: int): _gpu_pressed(id, gpu.get_popup()))
+	gpu.about_to_popup.connect(func(): _gpu_menu_sync(gpu.get_popup()))
+	ui_ribbon["VIEW"].add_child(gpu)
 	ui_ribbon["VIEW"].add_child(_button("View options", _onion_panel_open, "onion skin options: ghosts of the picked parts only, the frames before and after, the step between them (remembered)"))
 	# always there, in the strip: the scene in the middle, the small icons on the right
 	var fill := Control.new()
@@ -25538,3 +25551,41 @@ func _prop_joint_step(delta: float) -> void:
 	var j: Dictionary = PropJoints.joints_of_kind(String(S.props[sel_prop]["kind"]))[0]
 	var cur := float(PropJoints.angles_at(S.props[sel_prop], playhead).get(String(j["name"]), 0.0))
 	_prop_joint_key(String(j["name"]), cur + delta)
+
+
+# ---------------------------------------------------------------- GPU TIERS (scripts/gpu_tier.gd): items of View > Graphics quality
+func _gpu_menu_build(pm: PopupMenu) -> void:
+	pm.add_separator("This PC's graphics card")
+	pm.add_item(GpuTier.summary(GpuTier.info()), 100)
+	pm.set_item_disabled(pm.get_item_index(100), true)
+	pm.add_check_item("Fast view (FSR 2)", 101)
+	pm.set_item_tooltip(pm.get_item_index(101), "the live view is drawn at 2/3 size and sharpened back up (AMD FSR 2, built into Godot): for a PC whose graphics card is the limit. Videos you save are always full quality. Needs the High drawing engine (Forward+)")
+	pm.add_separator("Saving video")
+	for k in GpuTier.ENCODERS.size():
+		pm.add_radio_check_item(GpuTier.ENCODER_NAMES[GpuTier.ENCODERS[k]], 110 + k)
+		pm.set_item_tooltip(pm.get_item_index(110 + k), "which chip makes the .mp4. Auto and "on the CPU" use the processor. The graphics card (NVENC) frees the processor but was not measurably faster in Kine's own exports; a choice it cannot do here falls back to the processor (remembered)")
+	_gpu_menu_sync(pm)
+
+
+func _gpu_menu_sync(pm: PopupMenu) -> void:
+	var tier := String(GpuTier.info()["tier"])
+	pm.set_item_checked(pm.get_item_index(101), GpuTier.fast_view)
+	pm.set_item_disabled(pm.get_item_index(101), Quality.current_renderer() != "forward_plus")
+	for k in GpuTier.ENCODERS.size():
+		var e: String = GpuTier.ENCODERS[k]
+		var i := pm.get_item_index(110 + k)
+		pm.set_item_checked(i, e == GpuTier.pref)
+		pm.set_item_disabled(i, e != "auto" and not GpuTier.encoders_for(tier).has(e))
+
+
+func _gpu_pressed(id: int, pm: PopupMenu) -> void:
+	if id == 101:
+		GpuTier.fast_view = not GpuTier.fast_view
+		Quality.apply(get_viewport(), gfx_tier, light_key)
+		_say("Fast view %s (remembered)" % ("on: the live view is drawn smaller and sharpened (FSR 2); saved videos stay full quality" if GpuTier.fast_view else "off"))
+	elif id >= 110 and id < 110 + GpuTier.ENCODERS.size():
+		GpuTier.pref = GpuTier.ENCODERS[id - 110]
+		GpuTier._resolved.clear()
+		_say("Video encoder: %s (remembered)" % GpuTier.ENCODER_NAMES[GpuTier.pref])
+	GpuTier.save_settings(settings)
+	_gpu_menu_sync(pm)
