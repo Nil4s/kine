@@ -547,10 +547,13 @@ func _pull(rec: Dictionary) -> String:
 			if e.has(k):
 				ext = maxf(ext, maxf(absf(float(e[k][0])), absf(float(e[k][1]))))
 	var pf := Part.feature(rec, String(sk.get("plane", "front")))
+	var tan_pl := String(pf.get("from", "")) == "tan"
+	if tan_pl:
+		_tan_sink(rec, pf, sk)   # s211: the pull starts inside the curved solid, so it fuses
 	var on_face := String(pf.get("t", "")) == "plane" and pf.has("out")   # a sketch on a face: the pull goes OUTWARD from it
 	var sg := float(pf["out"]) if on_face else 1.0
 	var through := bool(pf.get("through", false))   # an upright sketch (through the middle) pulls BOTH ways
-	var inward := on_face and not through and _overhangs(rec, sk) and not _top_face(pf)
+	var inward := on_face and not through and _overhangs(rec, sk) and not _top_face(pf) and not tan_pl
 	if inward:
 		sg = -sg   # a face drawing that hangs past the body (a roof above the walls) pulls back INTO it: it extends the body's outline; one inside the face (a leg) pulls out
 	# ETABLE: a top drawn on the TOP of the legs hangs past them, but it stands ON them: a top face pulls up (out), never into the legs
@@ -600,7 +603,7 @@ func _pull(rec: Dictionary) -> String:
 			words = words % _fmt(absf(dist) / 10.0, "cm")
 		"where":
 			# FWRENCH2: a beginner does not know the word "face": the top of a solid says "top", a side says "side" (the bottom keeps "face": eface_test pins that text)
-			words = words % ("top" if _top_face(pf) else ("side" if String(pf.get("from", "")) in ["front", "right"] else "face"))
+			words = words % ("top" if _top_face(pf) else ("side" if String(pf.get("from", "")) in ["front", "right"] else ("curved side" if tan_pl else "face")))
 	_say(words)
 	taper_tw = {"id": f["id"], "label": "Taper", "unit": "deg", "lo": -15.0, "hi": 15.0, "step": 0.5, "words": ["Wider at the top", "Narrower at the top"]} if bool(rule["taper"]) else {}
 	# P024: a Twist slider under the Taper one, for a one-way pull of one closed shape (the twisted post); a box or any closed shape turns, a round one looks the same
@@ -2261,3 +2264,30 @@ func _thread_words_of(f: Dictionary) -> String:
 		return ""
 	var t := Part.thread_look_size(2.0 * float(ents[0]["r"]))
 	return Part.thread_look_words(int(t[0]), float(t[1]))
+
+
+## s211: how far (mm) a shape drawn on a curved face's tangent plane hangs over the surface at its edge; the plane's "sink" is that plus 0.5 mm,
+## so a pull starts inside the solid (and a cut outside it) over the whole width of the shape
+func _tan_sink(_rec: Dictionary, pf: Dictionary, sk: Dictionary) -> void:
+	var sf: Dictionary = pf.get("surf", {})
+	var kind := String(sf.get("k", ""))
+	var pl := Part.tangent_plane(pf)
+	var faces: Array = _shown_faces() if kind == "smooth" else []
+	var sag := 0.0
+	for e in sk.get("ents", []):
+		var rr := float(e.get("r", 0.0))
+		for q in _ent_pts(e):
+			var u := float(q[0])
+			var v := float(q[1])
+			var spots: Array = [Vector2(u, v)]
+			if rr > 0.0:
+				spots = []
+				for i in 8:
+					spots.append(Vector2(u, v) + Vector2.from_angle(TAU * i / 8.0) * rr)
+			for sp in spots:
+				if kind in ["cyl", "sph"]:
+					sag = maxf(sag, CurvedFace.sag(kind, float(sf.get("r", 0.0)), bool(sf.get("cv", true)), sp.x, sp.y))
+				elif kind == "smooth":
+					for tris in faces:
+						sag = maxf(sag, CurvedFace.sag_mesh(tris, pl, sp.x, sp.y))
+	pf["sink"] = snappedf(sag + 0.5, 0.01)
