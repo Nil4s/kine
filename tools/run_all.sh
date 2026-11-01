@@ -575,3 +575,6 @@ EXTRA="$EXTRA s218:w"   # s218: section colour: per-body cap colours on Section 
 
 
 EXTRA="$EXTRA s216:w"   # s216 SWEEP BEND RADIUS: Pull along has a Bend radius control (slider + typed mm, default 1.5 x tube width, least the tube radius); L path, 30 mm tube at 60 mm: one solid, mesh circle-fit radius 60 +-1, Pappus volume, slider/typed changes, undo (tests/s216_test.gd; needs the CAD DLL)
+
+
+EXTRA="$EXTRA s213:w"   # s213: multi-part Assembly (BUILD chooser New assembly): insert, place, edit, save/open, export STL/GLB/STEP; tests/s213_test.gd
