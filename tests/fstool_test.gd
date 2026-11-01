@@ -311,17 +311,22 @@ func _init() -> void:
 	ep()._pick_at(ppt)
 	await idle(6)
 	var hs: HSlider = ep().height_slider
-	ok(nb == 2 and ep().del_on and ep().del_bi == bi and hs.is_visible_in_tree() and hs.get_global_rect().end.y <= 700.0 and hs.get_global_rect().end.x <= 1280.0 and hs.min_value <= -450.0 and hs.max_value >= 20.0,
-		"4h the ring is its own piece (bodies %d), picked, and the Height slider shows at 1280 x 720 (range %.0f to %.0f mm, rect %s)" % [nb, hs.min_value, hs.max_value, str(hs.get_global_rect())])
+	# Lead 11-01 (the shown Height read "-249 mm up from the floor"): the shown number is the piece's bottom above the floor (the part's lowest point), positive;
+	# 0 = on the floor, the top = the piece's top level with the part's top. The internal move stays exact.
+	var floor_y: float = minf(stool0.position.y, br0.position.y)
+	var top_y: float = maxf(stool0.end.y, br0.end.y)
+	var want_max: float = top_y - br0.size.y - floor_y
+	ok(nb == 2 and ep().del_on and ep().del_bi == bi and hs.is_visible_in_tree() and hs.get_global_rect().end.y <= 700.0 and hs.get_global_rect().end.x <= 1280.0 and hs.min_value == 0.0 and absf(hs.max_value - want_max) <= 1.0 and absf(hs.value - (br0.position.y - floor_y)) <= 0.5,
+		"4h the ring is its own piece (bodies %d), picked, the Height slider shows at 1280 x 720 and reads mm above the floor (range %.0f to %.0f, want 0 to %.0f; shows %.0f, measured %.1f; rect %s)" % [nb, hs.min_value, hs.max_value, want_max, hs.value, br0.position.y - floor_y, str(hs.get_global_rect())])
 	var u0: int = m.undo.size()
 	var f0: int = (m.S.part["features"] as Array).size()
-	var from_y: float = br0.position.y
-	await drag_slider(hs, -250.0)
+	await drag_slider(hs, 200.0)
 	await idle(10)
 	var br1 := body_mm(bi)
-	var want_dy: float = hs.value - from_y
-	ok(absf((br1.position.y - br0.position.y) - want_dy) <= 0.05 and absf(want_dy) > 100.0 and absf(br1.position.x - br0.position.x) < 0.05 and absf(br1.position.z - br0.position.z) < 0.05,
-		"4i Height moves the piece exactly the slider's mm: slider %.0f (from %.1f), moved %.3f mm, want %.3f" % [hs.value, from_y, br1.position.y - br0.position.y, want_dy])
+	var above: float = br1.position.y - floor_y   # measured: the piece's bottom above the floor
+	var want_dy: float = hs.value - (br0.position.y - floor_y)
+	ok(absf(above - hs.value) <= 0.05 and absf((br1.position.y - br0.position.y) - want_dy) <= 0.05 and absf(want_dy) > 100.0 and absf(br1.position.x - br0.position.x) < 0.05 and absf(br1.position.z - br0.position.z) < 0.05 and ep().hint_l.text.find("up from the floor") >= 0 and ep().hint_l.text.find("-") < 0,
+		"4i Height shows the piece's bottom above the floor and moves it exactly that: slider %.0f, measured %.3f mm above the floor, moved %.3f (want %.3f) [%s]" % [hs.value, above, br1.position.y - br0.position.y, want_dy, ep().hint_l.text])
 	var moves := 0
 	for f in m.S.part["features"]:
 		if String(f["t"]) == "move":
@@ -338,8 +343,23 @@ func _init() -> void:
 	var bb := br1
 	ok(abs(bb.size.x - 200.0) < 15.0 and abs(bb.size.z - 200.0) < 15.0 and abs(bb.size.y - 20.0) < 1.0,
 		"4a BRACE alone: a ring (round) piece about 200 mm across and 20 mm thick (own box %s)" % str(bb))
-	ok(bb.position.y < -150.0 and bb.position.y > -300.0,
-		"4b BRACE alone sits about 25 cm below the seat (its own box min y %.1f, max y %.1f)" % [bb.position.y, bb.end.y])
+	ok(bb.position.y < -150.0 and bb.position.y > -300.0 and hs.value > 150.0 and hs.value < 300.0,
+		"4b BRACE alone sits about 25 cm below the seat (its own box min y %.1f, max y %.1f; the slider shows %.0f mm above the floor)" % [bb.position.y, bb.end.y, hs.value])
+	# 4n LAYOUT (Lead 11-01): the whole Height row (label + slider) sits clear of the Size line ("Size: 40 x 30 x 47 cm ...") at 1280 x 720 and at 1600 x 900
+	var win0: Vector2i = root.size
+	for wsz in [Vector2i(1280, 720), Vector2i(1600, 900)]:
+		root.size = wsz
+		await settle(0.6)
+		await idle(6)
+		var row: Rect2 = ep().height_label.get_global_rect().merge(hs.get_global_rect())
+		var sl: Label = ep().size_l
+		var vis: bool = hs.is_visible_in_tree() and ep().height_label.is_visible_in_tree()
+		var clear: bool = sl.visible and not row.intersects(sl.get_global_rect())
+		await shot("height_%d" % wsz.x)
+		ok(vis and clear and Rect2(Vector2.ZERO, Vector2(1280, 720)).encloses(row),
+			"4n LAYOUT the Height row is fully on screen and clear of the Size line at %d x %d (row %s, Size line %s, visible %s)" % [wsz.x, wsz.y, str(row), str(sl.get_global_rect()), str(sl.visible)])
+	root.size = win0
+	await idle(6)
 	# 4m Stick together afterwards joins the brace to the stool (legs) into ONE body
 	await click_ctl(ep().make_btns["stick"])
 	# the two pieces are picked through _stick_pick (the entry a press on a piece calls): a raw press does not reach the view in this camera (see the 4h note)

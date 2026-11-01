@@ -598,6 +598,7 @@ func _slider_box_sync(on: bool) -> void:
 	_height_sync()
 	size_box.reset_size()
 	size_box.position = SIZE_AT   # the grid's lower middle: right of the Tilt and Draft rows, left of the steps panel (1280 x 720)
+	_box_clear_of_size_line()
 
 
 func _size_drag_start() -> void:
@@ -819,7 +820,7 @@ func _fasten_two() -> void:
 
 
 ## HEIGHT (fstool 4b): the picked piece (a body of its own) moves up or down along the world vertical. The slider is the piece's lowest point in
-## mm, from the part's lowest point to its top, 1 mm steps; one drag = one undo step, recorded as a "move" step (Your steps lists it, a save keeps it)
+## mm above the floor (the part's lowest point), 1 mm steps, up to the piece's top level with the part's top; one drag = one undo step, recorded as a "move" step (Your steps lists it, a save keeps it)
 var height_label: Label
 var height_slider: HSlider
 var height_base: Dictionary = {}   # the record when a Height drag began ({} = no drag)
@@ -852,9 +853,10 @@ func _height_sync() -> void:
 		var r := _height_range(_rec())
 		on = not r.is_empty()
 		if on:
-			height_slider.min_value = floorf(float(r["plo"]))
-			height_slider.max_value = maxf(ceilf(float(r["phi"])), height_slider.min_value + 1.0)
-			height_slider.set_value_no_signal(roundf(float(r["lo"])))
+			# the shown number is the piece's bottom above the floor (the part's lowest point), 0 = on the floor, the top = the piece's top level with the part's top
+			height_slider.min_value = 0.0
+			height_slider.max_value = maxf(ceilf(float(r["phi"]) - float(r["plo"]) - (float(r["hi"]) - float(r["lo"]))), 1.0)
+			height_slider.set_value_no_signal(roundf(float(r["lo"]) - float(r["plo"])))
 			_size_text()
 	else:
 		on = true
@@ -865,7 +867,7 @@ func _height_sync() -> void:
 func _height_start() -> void:
 	height_base = _rec().duplicate(true)
 	var r := _height_range(height_base)
-	height_from = float(r["lo"]) if not r.is_empty() else 0.0
+	height_from = (float(r["lo"]) - float(r["plo"])) if not r.is_empty() else 0.0   # the shown height when the drag began (mm above the floor)
 
 
 ## the record with the picked piece moved dy mm up (or down) as one more step
@@ -918,3 +920,4 @@ static func _join_overlaps(before: Dictionary, after: Dictionary) -> bool:
 	var v0 := float(Part.replay(before).get("volume", 0.0))
 	var v1 := float(Part.replay(after).get("volume", 0.0))
 	return v0 > 0.0 and v1 < v0 * (1.0 - 1e-6)
+
