@@ -139,9 +139,16 @@ func widths_at(z: float) -> Array:
 	var a_od := 0.0
 	var a_id := 0.0
 	var angles: Array = []
-	for k in 24:   # 24 directions 7.5 deg apart, then 0.5 deg steps round the widest outside and the widest inside: a ray through a polygon corner of the mesh is the true width
+	for k in 24:   # 24 directions 7.5 deg apart, then one ray through every mesh corner at this slice: the corners lie on the true circle, the flats between them are the mesh's own chords
 		angles.append(7.5 * float(k))
-	var refined := false
+	var seen := {}
+	for v in tr:
+		var vv: Vector3 = v
+		if absf(vv.z - z) < 1.0 and Vector2(vv.x, vv.y).length() > 3.0:
+			var key := int(roundf(rad_to_deg(atan2(vv.y, vv.x)) * 10.0))
+			if not seen.has(key):
+				seen[key] = true
+				angles.append(float(key) / 10.0 + 0.03)
 	var ai := 0
 	while ai < angles.size():
 		var ang := float(angles[ai])
@@ -157,12 +164,6 @@ func widths_at(z: float) -> Array:
 			if float(ts[2]) - float(ts[1]) > best_id:
 				best_id = float(ts[2]) - float(ts[1])
 				a_id = ang
-		if ai == angles.size() and not refined:
-			refined = true
-			for q in range(-8, 9):
-				if q != 0:
-					angles.append(a_od + 0.5 * float(q))
-					angles.append(a_id + 0.5 * float(q))
 	return [best_od, best_id]
 
 
