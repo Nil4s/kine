@@ -485,3 +485,6 @@ EXTRA="$EXTRA s053:w"   # s053 Friday 53: drag a piece onto another piece's face
 
 
 EXTRA="$EXTRA s042:w"   # s042 (Friday plan 42): Draw shape > More shapes: star, gear outline (Teeth slider), heart, arrow drawn by clicks, pulled up 10 mm; tips/radii/mirror/angle measured from the mesh (tests/s042_test.gd)
+
+
+EXTRA="$EXTRA s079:w"   # s079 (Friday plan 79): Parts > Pipes: PVC pipe by real outside width, elbows 90 and 45, T-piece, sleeve with the Fit clearance; ray-cast widths, opening angles, Stick together (tests/s079_test.gd)

@@ -195,6 +195,21 @@ const T := {
 	"bc_esp51": {"title": "ESP32 51 x 28 box", "params": BC_PARAMS},
 	"bc_esp55": {"title": "ESP32 DevKitC 55 x 28 box", "params": BC_PARAMS},
 	"bc_pi4": {"title": "Raspberry Pi 4B box", "params": BC_PARAMS},
+
+
+	# s079 PIPES (Parts > Pipes, scripts/build/pipe_parts.gd): PVC pipe by its real outside diameter d (mm, the Pipes chips: "chip" = no slider) and its fittings.
+	"pipe": {"title": "Pipe", "params": [
+		{"k": "d", "label": "Outside width", "lo": 20.0, "hi": 50.0, "def": 25.0, "step": 1.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "mm", "chip": true},
+		{"k": "len", "label": "Length", "lo": 50.0, "hi": 1000.0, "def": 300.0, "step": 10.0, "words": ["Shorter", "Longer"], "raw": true, "unit": "mm"}]},
+	"elbow": {"title": "Elbow 90", "params": [
+		{"k": "d", "label": "Outside width", "lo": 20.0, "hi": 50.0, "def": 25.0, "step": 1.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "mm", "chip": true}]},
+	"elbow45": {"title": "Elbow 45", "params": [
+		{"k": "d", "label": "Outside width", "lo": 20.0, "hi": 50.0, "def": 25.0, "step": 1.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "mm", "chip": true}]},
+	"tee": {"title": "T-piece", "params": [
+		{"k": "d", "label": "Outside width", "lo": 20.0, "hi": 50.0, "def": 25.0, "step": 1.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "mm", "chip": true}]},
+	"sleeve": {"title": "Sleeve", "params": [
+		{"k": "d", "label": "Fits a pipe of", "lo": 20.0, "hi": 50.0, "def": 25.0, "step": 1.0, "words": ["Smaller", "Bigger"], "raw": true, "unit": "mm", "chip": true},
+		{"k": "fit", "label": "Fit", "lo": 0.0, "hi": 0.4, "def": 0.2, "step": 0.1, "words": ["Tight", "Loose"], "raw": true, "unit": "mm", "chip": true}]},
 	# P080 WOOD BOARDS: a flat wood board, mm (Parts > Wood boards): width across X, thickness up Y, length along Z. Its sliders are the board's sizes
 	"board": {"title": "Wood board", "params": [
 		{"k": "width", "label": "Width", "lo": 10.0, "hi": 1300.0, "def": 89.0, "step": 1.0, "words": ["Narrower", "Wider"]},
@@ -513,6 +528,8 @@ static func _poly(pts: Array) -> Array:
 
 
 static func features_of(t: String, p: Dictionary) -> Array:
+	if PipeParts.KINDS.has(t):   # s079
+		return PipeParts.features_of(t, p)
 	if t == "rod":   # THREAD (p206threadgene)
 		return rod_features(p)
 	if t == "grip":   # p207knurlingon
