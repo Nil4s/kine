@@ -212,6 +212,7 @@ var sec_on := false            # SECTION (a view setting, not in the record): th
 var sec_pl := "front"          # its plane (Front, Top, Right) and offset (mm along the plane normal)
 var sec_mm := 0.0
 var sec_mat: ShaderMaterial
+var sec_cut := {}              # S218: the cut now on ({"n","w"}: Section tool or Easy Cut view); _look_surfaces gives each body its own cap colour
 var sec_box: PanelContainer
 var sec_chk: CheckBox
 var sec_opt: OptionButton
@@ -3436,18 +3437,30 @@ uniform vec4 cut = vec4(0.0, 0.0, 1.0, 0.0);
 uniform float on = 0.0;
 uniform vec4 cap : source_color = vec4(0.91, 0.51, 0.23, 1.0);
 uniform vec4 solid : source_color = vec4(0.74, 0.77, 0.82, 1.0);
+uniform vec4 caps[16];
+uniform vec4 solids[16];
+uniform int body_n = 0;
 varying vec3 wp;
+varying float bid;
 void vertex() {
 	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	bid = COLOR.r * 16.0;
 }
 void fragment() {
 	if (on > 0.5 && dot(cut.xyz, wp) > cut.w) {
 		discard;
 	}
+	vec3 capc = cap.rgb;
+	vec3 solc = solid.rgb;
+	int b = int(bid + 0.5);
+	if (b < body_n) {
+		capc = caps[b].rgb;
+		solc = solids[b].rgb;
+	}
 	if (FRONT_FACING) {
-		ALBEDO = solid.rgb * (0.7 + 0.3 * abs(NORMAL.z));
+		ALBEDO = solc * (0.7 + 0.3 * abs(NORMAL.z));
 	} else {
-		ALBEDO = cap.rgb;
+		ALBEDO = capc;
 	}
 }
 """
@@ -3730,6 +3743,8 @@ func _sec_apply() -> void:
 		return
 	if not sec_on:
 		part_mesh.material_override = null   # each body keeps its own look (_look_surfaces); an override would paint them all one grey
+		sec_cut = {}
+		_look_surfaces()   # S218: the cap colours go, the own looks come back
 		return
 	if sec_mat == null:
 		sec_mat = ShaderMaterial.new()
@@ -3744,6 +3759,8 @@ func _sec_apply() -> void:
 	var p: Vector3 = d["p"]
 	sec_mat.set_shader_parameter("cut", Vector4(n.x, n.y, n.z, n.dot(p)))
 	sec_mat.set_shader_parameter("on", 1.0)
+	sec_cut = {"n": n, "w": n.dot(p)}   # S218
+	_look_surfaces()
 
 
 func _inspect_sync(show: bool) -> void:
@@ -4296,6 +4313,7 @@ func _look_surfaces() -> void:
 		if a < 1.0:
 			mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		part_mesh.set_surface_override_material(s, mt)
+	SectionLook.after_look(self)   # S218: per-body cap colours on a cut / split
 	if cut_hook.is_valid():
 		cut_hook.call()   # S016: the Wall slider's cut-away stays on over each new look
 

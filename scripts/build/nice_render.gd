@@ -98,7 +98,7 @@ static func _screen_box(cam: Camera3D, box: AABB) -> Rect2:
 
 
 ## the 1920 x 1080 picture of a replayed part as an Image (null when there is no solid to draw)
-static func draw(host: Node, rec: Dictionary, size := SIZE) -> Image:
+static func draw(host: Node, rec: Dictionary, size := SIZE, cut := {}) -> Image:
 	var res := Part.replay(rec)
 	var mesh: ArrayMesh = res["mesh"]
 	if mesh == null:
@@ -118,6 +118,21 @@ static func draw(host: Node, rec: Dictionary, size := SIZE) -> Image:
 	var solid := MeshInstance3D.new()
 	solid.mesh = mesh
 	world.add_child(solid)
+	# S218 SECTION COLOUR: a cut that is on (or a split in the record) gives every body its own cap colour; the half facing the camera is removed
+	var sec_planes: Array = SectionLook.split_planes(rec)
+	var nice_cut := {}
+	var dir0 := Vector3(0.6, 0.42, 1.0).normalized()
+	if not cut.is_empty():
+		var cn: Vector3 = cut["n"]
+		var cw := float(cut["w"])
+		if cn.dot(dir0) < 0.0:
+			cn = -cn
+			cw = -cw
+		nice_cut = {"n": cn, "w": cw}
+	if not nice_cut.is_empty() or not sec_planes.is_empty():
+		var smats: Array = SectionLook.materials(looks, mesh.get_surface_count(), nice_cut, sec_planes, true)
+		for s in smats.size():
+			solid.set_surface_override_material(s, smats[s])
 	# the reflection: the same solid mirrored across the floor, fading with depth (one shader, the part's own colours)
 	var sh := Shader.new()
 	sh.code = MIRROR_SHADER
@@ -136,7 +151,7 @@ static func draw(host: Node, rec: Dictionary, size := SIZE) -> Image:
 	mirror.scale = Vector3(1, -1, 1)
 	mirror.position = Vector3(0, 2.0 * floor_y, 0)
 	mirror.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	if not part_only:
+	if not part_only and nice_cut.is_empty():
 		world.add_child(mirror)
 	# the soft contact shadow: a wide faint pool and a tight dark one right under the part
 	var c := box.get_center()
@@ -209,9 +224,9 @@ static func draw(host: Node, rec: Dictionary, size := SIZE) -> Image:
 
 ## the picture saved as <part>_nice.png in `dir` (the exports folder, beside the part's other files).
 ## Returns {"ok", "path", "text"}: the words say where the file is, or why it was not made
-static func save(host: Node, rec: Dictionary, dir: String) -> Dictionary:
+static func save(host: Node, rec: Dictionary, dir: String, cut := {}) -> Dictionary:
 	var t0 := Time.get_ticks_msec()
-	var img: Image = await draw(host, rec)
+	var img: Image = await draw(host, rec, SIZE, cut)
 	if img == null or img.is_empty():
 		return {"ok": false, "path": "", "text": "NOT DONE: the picture could not be drawn. Try again, or press Pull it up first"}
 	var gdir := ProjectSettings.globalize_path(dir)

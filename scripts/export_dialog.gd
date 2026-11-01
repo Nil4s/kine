@@ -711,6 +711,6 @@ func nice_picture() -> String:
 		nice_say.text = "NOT NOW: there is no part to picture. Draw a shape and press Pull it up, then press Nice picture"
 		return ""
 	nice_say.text = "Drawing the nice picture..."
-	var r: Dictionary = await NiceRender.save(m, m.S.part, UserPaths.w("res://exports"))
+	var r: Dictionary = await NiceRender.save(m, m.S.part, UserPaths.w("res://exports"), SectionLook.live_cut(m))
 	nice_say.text = String(r["text"])
 	return String(r["path"]) if bool(r["ok"]) else ""
