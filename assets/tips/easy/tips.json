@@ -1,0 +1,68 @@
+{
+	"clips": {
+		"blend": {
+			"cols": 7,
+			"frames": 14,
+			"sheet": "blend.png"
+		},
+		"colour": {
+			"cols": 7,
+			"frames": 14,
+			"sheet": "colour.png"
+		},
+		"curve": {
+			"cols": 7,
+			"frames": 14,
+			"sheet": "curve.png"
+		},
+		"draw": {
+			"cols": 7,
+			"frames": 14,
+			"sheet": "draw.png"
+		},
+		"hole": {
+			"cols": 7,
+			"frames": 14,
+			"sheet": "hole.png"
+		},
+		"mirror": {
+			"cols": 7,
+			"frames": 14,
+			"sheet": "mirror.png"
+		},
+		"pull": {
+			"cols": 7,
+			"frames": 14,
+			"sheet": "pull.png"
+		},
+		"repeat": {
+			"cols": 7,
+			"frames": 14,
+			"sheet": "repeat.png"
+		},
+		"round": {
+			"cols": 7,
+			"frames": 14,
+			"sheet": "round.png"
+		},
+		"spin": {
+			"cols": 7,
+			"frames": 14,
+			"sheet": "spin.png"
+		},
+		"split": {
+			"cols": 7,
+			"frames": 14,
+			"sheet": "split.png"
+		},
+		"stick": {
+			"cols": 7,
+			"frames": 14,
+			"sheet": "stick.png"
+		}
+	},
+	"fps": 12,
+	"generated_by": "tools/make_easy_tips.gd",
+	"h": 120,
+	"w": 200
+}
