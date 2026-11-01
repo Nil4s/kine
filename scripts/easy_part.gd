@@ -1,5 +1,5 @@
 class_name EasyPart
-extends "res://scripts/easy_part_pull.gd"
+extends "res://scripts/easy_part_move.gd"
 ## EASY PART: Easy's screen for the Part workspace (BUILD page, scripts/build/part_ui.gd; the record and the kernel are Expert's: scripts/build/part.gd).
 ## Mouse only: no key names in any text here. A big top bar (Home, the part's name, Undo, Redo, Easy | Expert), six big MAKE buttons, the panel
 ## "Change your sword" (template chips, 3-4 sliders, "Back to the first one", "Exact sizes? Use Expert"), amber drag dots on the model for the main
@@ -3973,9 +3973,15 @@ func input(ev: InputEvent) -> bool:
 				return started
 			if armed == "" and not _over_ui(p) and _edge_press(p):
 				return true
+			if armed == "" and not _over_ui(p) and _mv_start(p):   # p053: a press on a piece, then a drag moves it
+				return true
 			if armed == "" and not _over_ui(p):
 				_pick_p = p   # FDELETE: a click (no drag) on a piece picks it, on the release
 			return false
+		if not _mv.is_empty():   # p053: the release of a piece drag; a click falls through to the pick below
+			if _mv_drop(p):
+				return true
+			_pick_p = p
 		if not _edge.is_empty():
 			if p.distance_to(_edge["press"] as Vector2) >= 6.0:
 				_edge_end()
@@ -4010,6 +4016,9 @@ func input(ev: InputEvent) -> bool:
 		return false
 	if ev is InputEventMouseMotion:
 		var p := (ev as InputEventMouseMotion).position
+		if not _mv.is_empty():   # p053: a piece drag in hand
+			_mv_move(p)
+			return true
 		if not _edge.is_empty():
 			_edge_move(p)
 			return true
