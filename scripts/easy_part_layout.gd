@@ -715,6 +715,7 @@ func _floor_sync(on: bool) -> void:
 				for q in ln:
 					im.surface_set_color(col)
 					im.surface_add_vertex(q)
+		_floor_outer(im, e)
 		im.surface_end()
 		var mat := StandardMaterial3D.new()
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -727,6 +728,37 @@ func _floor_sync(on: bool) -> void:
 		floor_mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		m.cam.get_parent().add_child(floor_mi)
 	floor_mi.visible = on
+
+
+## bug2 (Nick 11-01: "when you open 3D the floor goes missing, only after Top / Side it appears"): the 1 m tile alone is a 7 pct sliver of the frame at the opening 3/4
+## view (it sits in the free view's 370 px); Top fills 42 pct. The floor goes on past the tile, a line every 25 cm, fading out to FLOOR_OUT metres, so the
+## floor is always on screen when Easy Part opens. Only lines OUTSIDE the tile (the tile keeps its own lines, the framing still fits the tile). Camera untouched.
+const FLOOR_OUT := 3.0          # m: where the outer floor has faded out (its lines end here)
+const FLOOR_OUT_STEP := 0.25    # m: the outer lines
+const FLOOR_OUT_ALPHA := 0.13   # the outer lines' alpha at the tile's edge (the tile's own minor lines are 0.16)
+
+
+func _floor_outer(im: ImmediateMesh, e: float) -> void:
+	var seg := FLOOR_OUT_STEP
+	var n := int(roundf(FLOOR_OUT / seg))
+	for i in range(-n, n + 1):
+		var v := float(i) * seg
+		for axis in 2:
+			var a := -float(n) * seg
+			while a < float(n) * seg - 0.0001:
+				var b := a + seg
+				var mid := (a + b) * 0.5
+				# a piece inside the tile's square is the tile's own: skip it
+				if absf(v) < e - 0.0001 and absf(mid) < e:
+					a = b
+					continue
+				for q in [a, b]:
+					var w := Vector3(q, 0.0, v) if axis == 0 else Vector3(v, 0.0, q)
+					var r := maxf(absf(w.x), absf(w.z))
+					var f := clampf(1.0 - (r - e) / (FLOOR_OUT - e), 0.0, 1.0)
+					im.surface_set_color(Color(0.4, 0.48, 0.6, FLOOR_OUT_ALPHA * f))
+					im.surface_add_vertex(w)
+				a = b
 
 
 ## UPRIGHT THROUGH THE MIDDLE (side-on): the camera looks along a horizontal line (|pitch| < SIDE_ON), so a press on empty space draws on

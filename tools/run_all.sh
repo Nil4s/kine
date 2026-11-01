@@ -529,3 +529,4 @@ EXTRA="$EXTRA s140:w"   # s140 (Friday plan 140): Pose library by mood: moods me
 
 
 EXTRA="$EXTRA s094:w"   # p094: Easy Part MAKE buttons show a looping 14-frame clip tooltip (assets/tips/easy, made by tools/make_easy_tips.gd)
+EXTRA="$EXTRA bug2:w"   # bug2: Easy Part opens with its floor grid at least 15 pct of the frame (looking down at -45 deg), Top / Side unchanged
