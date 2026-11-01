@@ -327,6 +327,7 @@ func build(root: Control) -> void:
 	v.add_child(bracket_box)
 	clip_box = _clip_box()
 	v.add_child(clip_box)
+	v.add_child(_nature_box())   # FRIDAY 225: the Nature page
 	handle_box = _handle_box()   # P071 HANDLES: the Handles grid under the library page
 	v.add_child(handle_box)
 	wheel_box = _wheel_box()   # P072: the Wheels page's chips
@@ -2240,6 +2241,7 @@ func _lib_box() -> PanelContainer:
 
 
 	fl.add_child(_sketch_chip())   # FRIDAY 166: Draw to search, after Kids
+	fl.add_child(_nature_chip())   # FRIDAY 225: Nature, last chip
 	lib_soon = Label.new()
 	lib_soon.name = "easypart_lib_soon"
 	lib_soon.add_theme_font_size_override("font_size", 14)
@@ -2587,7 +2589,7 @@ func _screw_sync() -> void:
 		m._grey(spring_pick, Part.why_not() if not Part.available() else "")
 		_cam_pick_sync()   # p130camandfoll
 		_gp_pick_sync()   # p065gearpairpi
-		lib_soon.visible = parts_open and lib_cat != "" and not (lib_cat in LIB_READY)
+		lib_soon.visible = parts_open and lib_cat != "" and lib_cat != "Nature" and not (lib_cat in LIB_READY)
 		if screw_words != null:   # the page is open: its chips and the status line say what to do
 			screw_words.visible = not parts_open
 		lib_soon.text = "%s are coming soon: not made yet. Next step: press Screws or Gears" % lib_cat if lib_soon.visible else ""
@@ -2599,6 +2601,8 @@ func _screw_sync() -> void:
 		if fav_box != null:   # p083favfix: the Favourites page shows while its category is open; the row and the star are drawn here
 			fav_box.visible = parts_open and lib_cat == "Favourites"
 			_fav_sync()
+	if nature_page != null:   # FRIDAY 225
+		nature_page.sync()
 	if clip_box != null:   # P075: the Clips and feet chips show while that category is open
 		clip_box.visible = parts_open and lib_cat == "Clips and feet"
 		_clip_scroll_once()   # integ94: the chips sat below the scroll's edge (y 594 vs 586) and took no click (p205 S1)
@@ -8204,3 +8208,19 @@ func _lib_scroll_top() -> void:
 func _lib_bar_sync() -> void:
 	if lib_bar_btn != null:
 		lib_bar_btn.set_pressed_no_signal(parts_open)
+
+
+# ---------------------------------------------------------------- FRIDAY 225 NATURE PAGE
+var nature_page = null   # easy_part_nature.gd
+
+
+func _nature_chip() -> Button:
+	if nature_page == null:
+		nature_page = EasyPartNature.new(self)
+	return nature_page.make_chip()
+
+
+func _nature_box() -> PanelContainer:
+	if nature_page == null:
+		nature_page = EasyPartNature.new(self)
+	return nature_page.make_box()

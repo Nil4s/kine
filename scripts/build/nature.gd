@@ -19,7 +19,7 @@ extends RefCounted
 const SPECIES := {
 	"ginkgo": {"crown": 0.46, "trunk": 0.040, "bare": 0.20, "top": 0.97, "el": 48.0, "curve": 8.0, "a": 0.18, "p": 0.75, "leaf": 0.15, "shape": 0, "leaves": 3400, "bark": Color(0.36, 0.30, 0.24)},
 	"oak": {"crown": 0.95, "trunk": 0.055, "bare": 0.26, "top": 0.88, "el": 26.0, "curve": 14.0, "a": 0.38, "p": 0.55, "leaf": 0.17, "shape": 1, "leaves": 4200, "bark": Color(0.27, 0.21, 0.15)},
-	"pine": {"crown": 0.46, "trunk": 0.030, "bare": 0.10, "top": 1.0, "el": -6.0, "curve": 7.0, "a": 0.0, "p": 1.0, "leaf": 0.26, "shape": 2, "leaves": 3600, "bark": Color(0.30, 0.20, 0.14)},
+	"pine": {"crown": 0.46, "trunk": 0.030, "bare": 0.10, "top": 1.0, "el": -6.0, "curve": 7.0, "a": 0.0, "p": 1.0, "leaf": 0.26, "shape": 2, "leaves": 6500, "bark": Color(0.30, 0.20, 0.14)},
 	"palm": {"crown": 0.62, "trunk": 0.030, "bare": 1.0, "top": 1.0, "el": 0.0, "curve": 0.0, "a": 0.0, "p": 1.0, "leaf": 0.4, "shape": 3, "leaves": 0, "bark": Color(0.50, 0.40, 0.30)},
 	"birch": {"crown": 0.40, "trunk": 0.026, "bare": 0.24, "top": 0.97, "el": 42.0, "curve": 10.0, "a": 0.22, "p": 0.70, "leaf": 0.085, "shape": 4, "leaves": 4200, "bark": Color(0.86, 0.85, 0.80)},
 	"bare": {"crown": 0.85, "trunk": 0.050, "bare": 0.25, "top": 0.90, "el": 34.0, "curve": 12.0, "a": 0.32, "p": 0.60, "leaf": 0.0, "shape": 1, "leaves": 0, "bark": Color(0.24, 0.20, 0.17)},
@@ -451,12 +451,12 @@ static func make_tree(item: Dictionary) -> Dictionary:
 			chains.append({"pts": pts, "rads": rads, "level": 1})
 			counted += 1
 	else:
-		var n_main := int(round(5.0 + dens * 1.4)) if sp != "pine" else int(round(10.0 + dens * 2.5))
+		var n_main := int(round(5.0 + dens * 1.4)) if sp != "pine" else int(round(14.0 + dens * 3.0))
 		var h0 := H * float(P["bare"])
 		var c1 := int(round(1.0 + dens * 0.5))
 		var c2 := int(round(dens * 0.35)) + 1
 		if sp == "pine":
-			c1 = int(round(dens * 0.7)) + 1
+			c1 = int(round(dens * 0.7)) + 3
 			c2 = 0
 		var azim := rng.randf() * TAU
 		for i in n_main:
@@ -494,7 +494,7 @@ static func make_tree(item: Dictionary) -> Dictionary:
 							cd = (side * 0.95 + pd * 0.25 + Vector3.UP * 0.05).normalized()
 						var clen := (ppts[ppts.size() - 1] as Vector3).distance_to(ppts[0]) * (0.5 if lv == 1 else 0.42) * rng.randf_range(0.8, 1.2)
 						if sp == "pine":
-							clen *= 0.55
+							clen *= 0.85
 						var cc := _chain(rng, pp, cd, maxf(clen, 0.12), 2, float(P["curve"]) * 0.6, rr * 0.55, rr * 0.12)
 						cc["level"] = lv + 1
 						chains.append(cc)
@@ -638,21 +638,17 @@ static func _hedge_profile(shape: String, w: float, h: float) -> Array:
 		pts.append(Vector2(hw, hs * 0.5))
 		pts.append(Vector2(hw, 0.0))
 	else:
-		var rc := minf(0.1, minf(w, h) * 0.25)
-		pts.append(Vector2(-hw, 0.0))
-		pts.append(Vector2(-hw, h * 0.5))
-		pts.append(Vector2(-hw, h - rc))
-		for i in range(1, 4):
-			var a := PI * 0.5 * float(i) / 4.0
-			pts.append(Vector2(-hw + rc - cos(a) * rc, h - rc + sin(a) * rc))
-		pts.append(Vector2(-hw + rc, h))
-		pts.append(Vector2(hw - rc, h))
-		for i in range(1, 4):
-			var a2 := PI * 0.5 * float(i) / 4.0
-			pts.append(Vector2(hw - rc + sin(a2) * rc, h - rc + cos(a2) * rc))
-		pts.append(Vector2(hw, h - rc))
-		pts.append(Vector2(hw, h * 0.5))
-		pts.append(Vector2(hw, 0.0))
+		var rc := minf(0.05, minf(w, h) * 0.12)   # a clipped box: a crisp edge, a flat top, the sides cut straight
+		var ns := maxi(int(ceil((h - rc) / 0.12)), 2)
+		for i in ns + 1:
+			pts.append(Vector2(-hw, (h - rc) * float(i) / float(ns)))
+		pts.append(Vector2(-hw + rc * 0.3, h - rc * 0.3))
+		var nt := maxi(int(ceil((w - 2.0 * rc) / 0.12)), 2)
+		for i in nt + 1:
+			pts.append(Vector2(-hw + rc + (w - 2.0 * rc) * float(i) / float(nt), h))
+		pts.append(Vector2(hw - rc * 0.3, h - rc * 0.3))
+		for i in range(ns, -1, -1):
+			pts.append(Vector2(hw, (h - rc) * float(i) / float(ns)))
 	return pts
 
 
@@ -700,7 +696,7 @@ static func make_hedge(item: Dictionary) -> Dictionary:
 	var path: Array = it["path"]
 	var prof := _hedge_profile(String(it["shape"]), float(it["width"]), float(it["height"]))
 	var pn := _profile_normals(prof)
-	var st := stations(path, 0.25)
+	var st := stations(path, 0.10)
 	var K := prof.size()
 	var rng := _rng(int(it["seed"]), 31)
 	var mesh := _empty_mesh()
@@ -713,7 +709,8 @@ static func make_hedge(item: Dictionary) -> Dictionary:
 			var pf: Vector2 = prof[k]
 			var disp := 0.0
 			if k > 0 and k < K - 1:
-				disp = (vnoise(float(s["s"]) * 3.1, float(k) * 0.9, int(it["seed"])) - 0.5) * 0.10
+				var sv := float(s["s"])
+				disp = (vnoise(sv * 5.0, float(k) * 1.3, int(it["seed"])) - 0.5) * 0.09 + (vnoise(sv * 11.0, float(k) * 2.9, int(it["seed"]) + 5) - 0.5) * 0.05
 			var q: Vector2 = pn[k]
 			var off := lat * (pf.x + q.x * disp) * float(s["miter"])
 			var pos2: Vector2 = (s["pos"] as Vector2) + off
@@ -721,7 +718,8 @@ static func make_hedge(item: Dictionary) -> Dictionary:
 			var nrm := Vector3(lat.x * q.x, q.y, lat.y * q.x).normalized()
 			mesh["norms"].append(nrm)
 			var shade := clampf(pf.y / float(it["height"]), 0.0, 1.0)
-			mesh["cols"].append(dark.lerp(Color(0.2, 0.36, 0.12), shade))
+			var patch := vnoise(float(s["s"]) * 7.0, float(k) * 1.7, int(it["seed"]) + 9)   # mottled: clumps of leaves catch more light
+			mesh["cols"].append(dark.lerp(Color(0.2, 0.36, 0.12), shade * 0.5 + patch * 0.5))
 	for si in st.size() - 1:
 		for k in K - 1:
 			var a := si * K + k
@@ -753,8 +751,11 @@ static func make_hedge(item: Dictionary) -> Dictionary:
 	for k in range(1, K):
 		perim += (prof[k] as Vector2).distance_to(prof[k - 1])
 	var length := path_length(path)
-	var cnt := mini(int(length * perim * 420.0), 30000)
-	var lv := grid_leaves(mesh, st.size(), K, false, cnt, rng, 0.085, "oak", "summer", true, true)
+	var cnt := mini(int(length * perim * 700.0), 60000)
+	var lv := grid_leaves(mesh, st.size(), K, false, cnt, rng, 0.075, "oak", "summer", true, true)
+	var hc: Array = lv["col"]
+	for i in hc.size():
+		hc[i] = (hc[i] as Color).darkened(0.32)   # a trimmed box hedge reads dark and matte
 	# the grid leaves above read the first st.size() x K vertices only (the end caps come after them)
 	return {"mesh": mesh, "leaf_xf": lv["xf"], "leaf_col": lv["col"], "length": length}
 

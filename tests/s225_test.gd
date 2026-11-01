@@ -211,7 +211,7 @@ func _init() -> void:
 	for n in [ta, tb, tc, ha, hb, hc]:
 		n.free()
 	# ---------------------------------------------------------------- 2 SIZE
-	var worst := 0.0
+	var overhang := 0.0
 	var cnt := 0
 	for sp in ["ginkgo", "oak", "pine", "palm", "birch", "bare"]:
 		for hh in [4.0, 9.0]:
@@ -220,12 +220,12 @@ func _init() -> void:
 			var bb := node_box(n)
 			var eh: float = absf(bb.end.y - hh) / hh
 			var ew: float = absf(maxf(bb.size.x, bb.size.z) - cw) / cw
-			worst = maxf(worst, maxf(eh, ew))
+			overhang = maxf(overhang, maxf(eh, ew))
 			cnt += 1
 			if eh > 0.05 or ew > 0.05:
 				print("     %s %.1f: height %.3f crown %.3f (asked %.1f / %.2f)" % [sp, hh, bb.end.y, maxf(bb.size.x, bb.size.z), hh, cw])
 			n.free()
-	ok(worst <= 0.05, "2 %d trees (6 species x 2 heights): height and crown width within 5 pct of asked, worst %.2f pct" % [cnt, worst * 100.0])
+	ok(overhang <= 0.05, "2 %d trees (6 species x 2 heights): height and crown width within 5 pct of asked, overhang %.2f pct" % [cnt, overhang * 100.0])
 	var tk := tree_of("oak", 8.0, 0.0, "summer", 5, 2)
 	var tk2 := NatureView.tree_node({"kind": "tree", "species": "oak", "height": 8.0, "trunk": 0.6, "seed": 2})
 	var rad := func(n: Node3D) -> float:
@@ -476,6 +476,108 @@ func _init() -> void:
 	ok((S2.building.get("nature", []) as Array).size() == (rec["nature"] as Array).size(), "10 a scene read back has the same %d items" % (S2.building.get("nature", []) as Array).size())
 	var mir := Building.mirror_file(f1)
 	ok(Building.mirror_file(mir) == f1 or JSON.stringify(Building.to_file(Building.from_file(Building.mirror_file(mir)))) == JSON.stringify(f1), "10 mirrored twice, the nature list is the original")
+	# ---------------------------------------------------------------- 12 EASY PARTS > NATURE, and the look of the hedge and the pine
+	var pup = bld.part
+	m.S.part = {}
+	await click_ctl(pup.part_btn)
+	await click_ctl(pup.easy_open_btn)
+	await idle(4)
+	var epn = pup.ep
+	var pbtn := root.find_child("easypart_chip_parts", true, false) as Button
+	await click_ctl(pbtn)
+	await idle(3)
+	var nchip := root.find_child("easypart_nature_chip", true, false) as Button
+	var win := Rect2(0, 0, 1280, 720)
+	ok(nchip != null and nchip.is_visible_in_tree() and win.encloses(nchip.get_global_rect()), "12 Easy Parts: a Nature chip on the Parts library page, inside 1280 x 720 (%s)" % str(nchip.get_global_rect() if nchip != null else Rect2()))
+	var lib_box := root.find_child("easypart_library", true, false) as Control
+	var lib_b0 := lib_box.get_global_rect().end.y if lib_box != null else -1.0
+	var cat_n := (lib_box.find_children("easypart_lib_*", "Button", true, false) as Array).size() if lib_box != null else -1
+	await click_ctl(nchip)
+	await idle(4)
+	var nbox := root.find_child("easypart_nature_box", true, false) as Control
+	var soon := root.find_child("easypart_lib_soon", true, false) as Label
+	var lib_b1 := lib_box.get_global_rect().end.y if lib_box != null else -1.0
+	ok(nbox != null and nbox.is_visible_in_tree() and (soon == null or not soon.is_visible_in_tree()) and epn.screw_box != null and not epn.screw_box.is_visible_in_tree(), "12 the Nature chip opens the Nature page (no 'coming soon', no screw grid)")
+	await idle(8)
+	var scr_rect := (epn.panel.get_node("easypart_panel_scroll") as Control).get_global_rect()
+	var all_in := nbox != null
+	var ovh := 0.0
+	for kk in ["ginkgo", "oak", "pine", "palm", "birch", "bare", "hedge", "shrub", "grass", "flowers", "path"]:
+		var bt0 := root.find_child("easypart_nature_" + kk, true, false) as Control
+		if bt0 == null or not scr_rect.encloses(bt0.get_global_rect()) or not win.encloses(bt0.get_global_rect()):
+			all_in = false
+			ovh = maxf(ovh, bt0.get_global_rect().end.y - scr_rect.end.y if bt0 != null else 9999.0)
+	ok(all_in and cat_n >= 16, "12 the page opens scrolled into view: all 11 chips inside the panel's scroll area and the 1280 x 720 window (ovh ovh %.0f px), the library keeps its %d category chips" % [ovh, cat_n])
+	await shot("easy_nature")
+	var n_before: int = (m.S.building.get("nature", []) as Array).size()
+	var u_before: int = m.undo.size()
+	var res_kinds := {}
+	for kk in ["ginkgo", "hedge", "path", "grass", "flowers", "shrub", "oak", "pine", "palm", "birch", "bare"]:
+		var bt := root.find_child("easypart_nature_" + kk, true, false) as Button
+		var nb0: int = (m.S.building.get("nature", []) as Array).size()
+		var ub0: int = m.undo.size()
+		if bt != null:
+			await click_ctl(bt)
+		var itl: Array = m.S.building.get("nature", [])
+		res_kinds[kk] = [itl.size() - nb0, m.undo.size() - ub0, String(itl[-1]["kind"]) if itl.size() > nb0 else "", itl[-1] if itl.size() > nb0 else {}]
+	var all_one := true
+	for kk in res_kinds:
+		var rk: Array = res_kinds[kk]
+		if int(rk[1]) != 1 or int(rk[0]) < 1:
+			all_one = false
+	ok(all_one, "12 each of the 11 Nature chips adds its item in ONE undo step (%s)" % str(res_kinds.keys().map(func(k): return "%s +%d/%d" % [k, int(res_kinds[k][0]), int(res_kinds[k][1])])))
+	ok(res_kinds["ginkgo"][2] == "tree" and res_kinds["hedge"][2] == "hedge" and res_kinds["path"][2] == "path" and res_kinds["grass"][2] == "grass" and res_kinds["flowers"][2] == "flowers" and res_kinds["shrub"][2] == "shrub", "12 and the kinds are tree, hedge, path, grass, flowers, shrub")
+	await click_ctl(root.find_child("easypart_nature_season_autumn", true, false) as Button)
+	await click_ctl(root.find_child("easypart_nature_ginkgo", true, false) as Button)
+	var last_t: Dictionary = (m.S.building["nature"] as Array)[-1]
+	ok(String(last_t.get("season", "")) == "autumn" and String(last_t.get("species", "")) == "ginkgo", "12 the Gold leaf button then Ginkgo plants an autumn ginkgo (season %s)" % str(last_t.get("season", "")))
+	var n_mid: int = (m.S.building["nature"] as Array).size()
+	m._undo()
+	ok((m.S.building["nature"] as Array).size() == n_mid - 1, "12 Undo takes the last planting back (%d -> %d items)" % [n_mid, (m.S.building["nature"] as Array).size()])
+	pup.set_on(false)
+	await idle(4)
+	# the hedge reads as a clipped hedge, not a tube: a flat top, lumpy sides, many leaves; the pine is a full cone of tiers
+	var hz := NatureView.hedge_node({"kind": "hedge", "path": [[0, 0], [12, 0]], "height": 0.8, "width": 0.6, "seed": 3})
+	var hzv: PackedVector3Array = (hz.get_node("body") as MeshInstance3D).mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var top_ys := PackedFloat32Array()
+	var side_zs := PackedFloat32Array()
+	for v in hzv:
+		if v.y > 0.7:
+			top_ys.append(v.y)
+		if v.z > 0.2 and v.y > 0.15 and v.y < 0.6 and v.x > 0.5 and v.x < 11.5:
+			side_zs.append(v.z)
+	var sdv := func(a: PackedFloat32Array) -> float:
+		if a.is_empty():
+			return -1.0
+		var mu := 0.0
+		for x in a:
+			mu += x
+		mu /= a.size()
+		var q := 0.0
+		for x in a:
+			q += (x - mu) * (x - mu)
+		return sqrt(q / a.size())
+	var top_sd: float = sdv.call(top_ys)
+	var side_sd: float = sdv.call(side_zs)
+	var hl_n := (hz.get_node("leaves") as MultiMeshInstance3D).multimesh.instance_count
+	ok(top_sd >= 0.005 and top_sd <= 0.05 and side_sd >= 0.015 and hl_n >= 8000, "12 a 12 m hedge: top flat but textured (height sd %.3f m), sides clipped lumpy (lateral sd %.3f m), %d leaf cards" % [top_sd, side_sd, hl_n])
+	hz.free()
+	var pn := tree_of("pine", 8.0, 0.0, "summer", 5, 3)
+	var pmm := (pn.get_node("leaves") as MultiMeshInstance3D).multimesh
+	var bands := PackedInt32Array([0, 0, 0, 0, 0, 0, 0, 0])
+	var low_r := 0.0
+	for i in pmm.instance_count:
+		var o := pmm.get_instance_transform(i).origin
+		var b := clampi(int((o.y / 8.0 - 0.15) / 0.1), 0, 7)
+		if o.y / 8.0 >= 0.15:
+			bands[b] += 1
+		if o.y / 8.0 > 0.15 and o.y / 8.0 < 0.35:
+			low_r = maxf(low_r, Vector2(o.x, o.z).length())
+	var bmin := 1 << 30
+	for c in bands:
+		bmin = mini(bmin, c)
+	ok(pmm.instance_count >= 5000 and bmin >= 150 and low_r >= 1.0, "12 the pine is a full cone: %d leaves, fewest in any of 8 height bands %d (want 150), lower crown reaches %.2f m out" % [pmm.instance_count, bmin, low_r])
+	pn.free()
 	bld._pick_tool("Floor")   # the shots: no words box over the view
 	# ---------------------------------------------------------------- the sheets: every kind in every season
 	m.S.building = Building.make("Sheet")
