@@ -25,6 +25,11 @@ static func counts(mesh: Mesh) -> Vector2i:
 	return Vector2i(tris, verts)
 
 
+## n03: vertex / normal / face lines in C++ (KineMeshOpsNative); KINE_NO_NATIVE=1 forces the GDScript loops
+static func native_on() -> bool:
+	return MeshOpsDoor.on()
+
+
 static func _f(x: float) -> String:
 	return "%.6f" % x
 
@@ -102,19 +107,31 @@ static func export(meshes: Array, path: String) -> Dictionary:
 			var ix = arr[Mesh.ARRAY_INDEX]
 			var has_n: bool = nrm != null and (nrm as PackedVector3Array).size() == v.size()
 			var has_t: bool = uv != null and (uv as PackedVector2Array).size() == v.size()
-			for p in v:
-				var q := xf * p
-				out.append("v %s %s %s" % [_f(q.x), _f(q.y), _f(q.z)])
+			var nat := native_on()
+			if nat:
+				if not v.is_empty():
+					out.append(MeshOpsDoor.door().obj_vertices(v, xf))
+			else:
+				for p in v:
+					var q := xf * p
+					out.append("v %s %s %s" % [_f(q.x), _f(q.y), _f(q.z)])
 			if has_t:
 				for t in (uv as PackedVector2Array):
 					out.append("vt %s %s" % [_f(t.x), _f(1.0 - t.y)])   # OBJ's v runs up from the bottom
 			if has_n:
-				for nv in (nrm as PackedVector3Array):
-					var q := (nb * nv).normalized()
-					out.append("vn %s %s %s" % [_f(q.x), _f(q.y), _f(q.z)])
+				if nat:
+					if not (nrm as PackedVector3Array).is_empty():
+						out.append(MeshOpsDoor.door().obj_normals(nrm, nb))
+				else:
+					for nv in (nrm as PackedVector3Array):
+						var q := (nb * nv).normalized()
+						out.append("vn %s %s %s" % [_f(q.x), _f(q.y), _f(q.z)])
 			var m := v.size()
 			var cnt: int = (ix.size() if ix != null else m) / 3
-			for t in cnt:
+			if nat:
+				if cnt > 0:
+					out.append(MeshOpsDoor.door().obj_faces(ix if ix != null else PackedInt32Array(), cnt, off_v, off_t, off_n, has_t, has_n))
+			for t in (0 if nat else cnt):
 				var c := []
 				for corner in [0, 2, 1]:   # clockwise -> counter-clockwise
 					var i: int = (ix[t * 3 + corner] if ix != null else t * 3 + corner)

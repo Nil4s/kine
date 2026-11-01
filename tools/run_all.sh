@@ -455,3 +455,12 @@ EXTRA="$EXTRA s146:w"   # F146: a part built in Easy Part becomes a prop with a 
 EXTRA="$EXTRA n04:w"   # N04: native cape sim (KineClothNative, scripts/cloth.gd): native vs GDScript capes equal, timing
 EXTRA="$EXTRA n02:w"   # n02 native port KineMeshCheckNative (Ready to print scans, closed-edge count, signed volume, size box, tip-over feet hull): GDScript vs native on the 45-hole plate + gear pair + s115 cases (tests/n02_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA n01:w"   # profile.
+EXTRA="$EXTRA s158:w"   # Friday plan 158: vertex-colour paint with a hard/soft round brush, colour picker popup, eyedropper, star/heart/logo/PNG stickers (size + turn), undo, .kmesh + GLB COLOR_0
+EXTRA="$EXTRA s165:w"   # s165 (Friday plan 165): Build-along Challenges (Parts page): 5 targets with picture + sizes in words, "How close am I?" score = 100 x IoU (kernel intersect volume) x size fit; exact target >= 98, stand with no slot < 90 (hint names the slot), twice as tall < 60 ("too tall", 40 mm) (tests/s165_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA s166:w"   # s166 (Friday plans 43 + 166): Trace a picture into a sketch (Draw shape row: width in mm + Trace it; 80x40 rectangle with a 20 mm hole = 80.0 x 40.0 bbox, volume within 2 pct) and Draw to search in the Parts library (real mouse drag: circle -> round part, hexagon -> hex nut, L -> L-bracket in the top 3)
+EXTRA="$EXTRA s173:w"   # s173 (Friday plans 173 + 174): touch (one finger draws, two fingers orbit / pinch / tap = undo), pen pressure and gamepad (left stick orbit, triggers zoom, right stick pan, A fit, B back) (tests/s173_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA s175:w"   # Friday 175: undo memory budget (old steps packed, oldest forgotten with a note)
+EXTRA="$EXTRA s167:w"   # Friday 167: Easy Part start under 1 s from the BUILDING card (median of 5)
+EXTRA="$EXTRA s176:w"   # S176: one walk per Parts library category (read from LIB_CATS): first and last chip, real clicks; a solid, bbox inside 1 m (wood stock 2.5 m), one undo step, chip on screen and not under the view column (tests/s176_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA s200:w"   # s200 (Friday plan 200): Export dialog > Godot 4 > Playable game (Godot project folder): project.godot + main.tscn, run headless with Godot (tests/s200_test.gd + s200_sim.gd)
+EXTRA="$EXTRA n03:w"   # n03: KineMeshOpsNative, native decimate / voxel remesh / STL, 3MF, OBJ packing, byte-identical to the GDScript writers (tests/n03_test.gd)

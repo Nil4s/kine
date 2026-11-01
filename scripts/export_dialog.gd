@@ -52,7 +52,10 @@ const TARGETS := [
 				"app": "Centimetres in the file, Y up, nothing moved: the clip moves the hips (no root motion). Bones: UE5 names. Binary FBX 7.4. The weapons and props are not in it."}],
 		"app": "Metres and Y up, as the file is: nothing is moved, the clip moves the hips. Unverified in-engine: Unity was never opened on this file. A Humanoid avatar needs the FBX route (Blender, docs/EXPORT.md)."},
 	{"id": "godot", "label": "Godot 4", "engine": "godot",
-		"formats": [{"name": "glTF 2.0 (.glb), named _godot", "run": "engine:godot"}],
+		"formats": [{"name": "glTF 2.0 (.glb), named _godot", "run": "engine:godot"},
+			{"name": "Playable game (Godot project folder)", "run": "game_project",
+				"needs": "Godot 4: open the written <name>_game folder (Project Manager > Import > project.godot) and press F5. Nothing to import first: the characters are read when the game starts.",
+				"app": "A whole Godot project: the built house and every set prop as static colliders (trimesh), a ground, the hero as a CharacterBody3D (WASD or arrows, Space jumps, Q/E turn the camera, a third-person follow camera), the other characters standing idle, the stage's lights, a README.txt. Metres, Y up."}],
 		"app": "Metres and Y up: nothing is moved. Godot imports it as a Skeleton3D with one AnimationPlayer at Root Scale 1. Read back by Godot's own glTF importer (tests/glb_export_test.gd); the import dock was not run on it."},
 	{"id": "blender", "label": "Blender", "engine": "",
 		"needs": "Blender reads the .glb and the .bvh as they are, in metres. Set the scene's frame rate to the animation's BEFORE importing: the importer turns seconds into frames at the scene's rate (docs/EXPORT.md). Blender is Z up; both importers convert from the files' Y up.",
@@ -468,6 +471,9 @@ func checks(id: String, run: String) -> Array:
 				var l := String(out[i])
 				if l.begins_with("OK    units:") or l.begins_with("WRONG units:"):
 					out[i] = l.replace("the file is metres; the mannequin is", "the file is centimetres; the mannequin is").replace("with Import Uniform Scale 100 (the glTF default)", "at Import Uniform Scale 1 (the FBX is centimetres)")
+		if run == "game_project":   # s200: the characters hold their first pose in the game, so the .glb's root-motion warning does not apply
+			out = out.filter(func(l): return not String(l).contains("root motion"))
+			out.append("OK    game: the hero walks by the game's own script and holds its first pose (the move is not played); the other characters stand idle")
 	else:
 		if S.fps >= 1 and S.fps <= 120:
 			out.append("OK    frame rate: %d fps, a key on every frame (%d keys)" % [S.fps, int(ceil(S.length() * S.fps - 1e-6)) + 1])
@@ -569,6 +575,8 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 			return m._export_usd_layers(dir)
 		"game":
 			return m._export_game(dir)
+		"game_project":
+			return GameProject.write(m, dir)
 	return ""
 
 
