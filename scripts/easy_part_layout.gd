@@ -111,8 +111,9 @@ func _size_sync() -> void:
 					size_l.visible = false
 					return
 	size_l.position = pos
+	_box_clear_of_size_line()   # the Size / Height box rises above this line rather than draw under it
 	var r := Rect2(size_l.get_global_position(), sz)
-	for bx in [panel, hole_box, tilt_box, explode_box, get("challenge_card"), repeat_box, stick_box, colour_box, hint, status]:
+	for bx in [panel, hole_box, tilt_box, explode_box, get("challenge_card"), repeat_box, stick_box, colour_box, hint, status, flat_box]:
 		var c := bx as Control
 		if c != null and c.is_visible_in_tree() and r.intersects(c.get_global_rect()):
 			size_l.visible = false
@@ -447,7 +448,7 @@ func layout(cl: Rect2) -> void:
 		pu.reopen_btn.add_theme_font_size_override("font_size", 14 if narrow else 16)
 	# FMOBILE: at 1024 wide the Repeat it row (Row Up Forward Ring Corners) is narrower, so it fits left of the panel instead of under it
 	for rb in rep_btns.values():
-		(rb as Button).custom_minimum_size.x = 92.0 if narrow else 110.0
+		(rb as Button).custom_minimum_size.x = 92.0 if (narrow or get_viewport().get_visible_rect().size.x < 1400.0) else 110.0   # bug5: 1280 wide the row ran under the view column
 	export_btn.custom_minimum_size.x = 84.0 if narrow else 110.0
 	title_l.clip_text = narrow
 	title_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if narrow else TextServer.OVERRUN_NO_TRIMMING
@@ -512,23 +513,36 @@ func layout(cl: Rect2) -> void:
 		if want_on != words_on:
 			for r in rep_rows:
 				(r["words"] as Control).visible = want_on
-	repeat_box.reset_size()
-	repeat_box.position = Vector2(cl.position.x + 12.0, _low_box_y(cl.end.y - repeat_box.size.y - 64.0, repeat_box.size.y, low_y, stat_top))
-	stick_box.reset_size()
-	stick_box.position = Vector2(cl.position.x + 12.0, _low_box_y(cl.end.y - stick_box.size.y - 64.0, stick_box.size.y, low_y, stat_top))
+	# bug5: the Tilt it / Draft angle / Pinch chips keep their place at the lower left whatever opens: the Repeat it and Stick together rows stand
+	# ABOVE them (they used to push the chips up, or sideways under the panel). With no room above the chips (or the Challenges card standing there)
+	# the chips hide (_tilt_cover, read by the sync) while those are open, and come back when they close
 	tilt_box.reset_size()
-	var tilt_y := cl.end.y - tilt_box.size.y - 64.0
-	if repeat_box.visible:   # FMOBILE5: Tilt it and Repeat it show together (nothing armed): Tilt sits above the Repeat rows, never over their sliders
-		tilt_y = repeat_box.position.y - tilt_box.size.y - 6.0
-	var tilt_x := cl.position.x + 12.0
-	if repeat_box.visible and tilt_y < low_y:   # a short window: no room above the Repeat rows, so Tilt it stands beside them
-		tilt_x = repeat_box.position.x + repeat_box.size.x + 8.0
-		tilt_y = repeat_box.position.y + repeat_box.size.y - tilt_box.size.y
-	tilt_box.position = Vector2(tilt_x, _low_box_y(tilt_y, tilt_box.size.y, _tilt_low(low_y), stat_top))
+	var tilt_h := maxf(tilt_box.size.y, tilt_box.get_combined_minimum_size().y)
+	var tilt_at := _low_box_y(cl.end.y - tilt_h - 64.0, tilt_h, _tilt_low(low_y), stat_top)
+	repeat_box.reset_size()
+	stick_box.reset_size()
+	var cover := false
+	var cc2: Variant = get("challenge_card")
+	if cc2 != null and (cc2 as Control).visible:
+		cover = true   # the Challenges card stands where the chips are
+	var tilt_up := not cover
+	for bx in [repeat_box, stick_box]:
+		if (bx as Control).visible and tilt_at - (bx as Control).size.y - 6.0 < low_y:
+			cover = true
+			tilt_up = false
+	if cover != _tilt_cover:
+		_tilt_cover = cover
+	if _tilt_cover:
+		tilt_box.visible = false
+	for bx in [repeat_box, stick_box]:
+		var bh := (bx as Control).size.y
+		var want := tilt_at - bh - 6.0 if (tilt_up and tilt_box.visible) else cl.end.y - bh - 64.0
+		(bx as Control).position = Vector2(cl.position.x + 12.0, _low_box_y(want, bh, low_y, stat_top))
+	tilt_box.position = Vector2(cl.position.x + 12.0, tilt_at)
 	explode_box.reset_size()   # EXPLODE (p103): the Pull apart slider sits under the Round filter row (that row is up whenever a solid is), clear of the low rows and the view's drags
 	explode_box.position = Vector2(cl.position.x + 12.0, round_box.position.y + round_box.size.y + 6.0)
 	# the panel on the right, as tall as it needs; the words under the sliders go first when the room is short
-	var avail := _panel_room(cl.end.y - top - 4.0, top)   # P172LAYOUTS: the step list keeps the window's bottom edge (narrow)
+	var avail := _col_avail(cl, top)   # bug5: the step list and the printing box are anchored to the window's bottom; the panel takes the room above them
 	panel.reset_size()
 	var need := _panel_need()
 	if need > avail and not _compact:
@@ -545,8 +559,7 @@ func layout(cl: Rect2) -> void:
 		need = _panel_need()
 	panel.size = Vector2(PW, minf(need, avail))
 	panel.position = Vector2(cl.end.x - PW - 8.0, top)
-	_steps_place(cl, _steps_y(panel.position.y + maxf(panel.size.y, need) + 8.0, panel.position.y + panel.size.y + 8.0))   # NSTEPLIST: under the panel, on the right; under its CONTENT when the Parts page runs past the clamped size (the list sat over the screw chips)
-	_flat_narrow()   # P172LAYOUTS: the Lay it flat box beside the sentence at 1024 wide, not under the step list (off the window)
+	_steps_place(cl, panel.position.y + panel.size.y + 8.0)   # NSTEPLIST: under the panel, on the right; under its CONTENT when the Parts page runs past the clamped size (the list sat over the screw chips)
 	status.reset_size()
 	status.size.x = minf(status.get_combined_minimum_size().x, cl.size.x - PW - 40.0)
 	status.position = Vector2(cl.position.x + 12.0, _low_end(cl) - status.size.y - 6.0)
@@ -1114,17 +1127,15 @@ const FACE_N := [Vector3.RIGHT, Vector3.UP, Vector3.BACK]
 
 
 ## NSTEPLIST: the list sits under the panel on the right, as tall as the room left (it scrolls past that)
-func _steps_place(cl: Rect2, y: float) -> void:
-	steps_box.reset_size()
-	var room := cl.end.y - y - 44.0
+func _steps_place(cl: Rect2, _y: float) -> void:
+	var g := _col_geom(cl)
 	var sc := steps_box.find_child("easypart_steps_scroll", true, false) as ScrollContainer
 	if sc != null:
-		sc.custom_minimum_size.y = clampf(steps_vb.get_combined_minimum_size().y, 40.0, maxf(40.0, room - 40.0))
+		sc.custom_minimum_size.y = float(g["list_h"])
 	steps_box.reset_size()
-	steps_box.position = Vector2(cl.end.x - PW - 8.0, y)
+	steps_box.position = Vector2(cl.end.x - PW - 8.0, maxf(float(g["steps_y"]), _y))   # bug5: under the panel when the panel needs more than the room above the anchored foot (a short window)
 	flat_box.reset_size()   # p113: the printing box sits under the step list
-	flat_box.position = Vector2(steps_box.position.x, y + steps_box.get_combined_minimum_size().y + 6.0)
-
+	flat_box.position = Vector2(cl.position.x + 12.0, float(g["flat_y"]))
 
 
 ## p108measuregri, Friday plan 108: THE GRID'S NUMBERS. The floor grid (_floor_sync) gets plain cm numbers along its two axes, standing
@@ -1338,8 +1349,8 @@ func _flat_narrow() -> void:
 ## stops short of the views and the panel's sliders. The chips narrow and their words trim (the tooltips have the full words); wide, nothing changes
 func _round_narrow() -> void:
 	var btns := ((round_box.get_child(0).get_child(0)) as Control).get_children()   # s013: box > column > the chip row
-	var narrow := get_viewport().get_visible_rect().size.x < NARROW_W
 	var room := view_box.position.x - 8.0 - round_box.position.x - 14.0 - 6.0 * float(btns.size() - 1)
+	var narrow := get_viewport().get_visible_rect().size.x < NARROW_W
 	var bw := clampf(floorf(room / float(btns.size())), 96.0, 176.0) if narrow else 176.0
 	for b in btns:
 		(b as Button).custom_minimum_size.x = bw
@@ -1618,6 +1629,47 @@ func _quick_sync() -> void:
 	quick_box.position = shape_box.position + Vector2(0.0, shape_box.size.y + 4.0)
 
 
+## the Size line ("Size: 40 x 30 x 47 cm ...") sits under the part: the Size / Height box moves up so its bottom row (the Height slider) is clear of it
+func _box_clear_of_size_line() -> void:
+	var sb := get("size_box") as Control   # declared further down the chain (easy_part_stick.gd)
+	if sb == null or not sb.visible or size_l == null or not size_l.visible:
+		return
+	var lr := size_l.get_global_rect()
+	var br := Rect2(sb.position, sb.size)
+	if br.intersects(lr):
+		sb.position.y = maxf(4.0, lr.position.y - sb.size.y - 4.0)
+
+
+
+## bug5: THE FOOT OF THE RIGHT COLUMN. The step list and the printing box (Lay it flat, Show overhangs) are anchored to the window's bottom edge: their
+## places depend on the window only, never on what is open above them (a taller panel page, a chip row, a hint used to push them down and off the window).
+## The panel takes the room above them and scrolls inside it. The list's own height is fixed per window (it scrolls past that), and the printing box's
+## room is kept whether it shows or not. The app's UI scale is already in the window's logical size, so the foot scales with it.
+func _col_geom(cl: Rect2) -> Dictionary:
+	var vp := get_viewport().get_visible_rect()
+	var bottom := vp.end.y - 6.0
+	var list_h := clampf(24.0 + (vp.size.y - 720.0) * 0.25, 24.0, 220.0)
+	var sc := steps_box.find_child("easypart_steps_scroll", true, false) as ScrollContainer
+	if sc != null:
+		sc.custom_minimum_size.y = list_h
+	steps_box.reset_size()
+	var steps_h := steps_box.get_combined_minimum_size().y
+	var flat_h := flat_box.get_combined_minimum_size().y
+	var flat_y := bottom - flat_h   # the printing chips stand at the bottom left (a free corner), not under the list
+	var steps_y := bottom - steps_h
+	return {"list_h": list_h, "steps_y": steps_y, "flat_y": flat_y, "steps_h": steps_h, "flat_h": flat_h}
+
+
+## bug5: the panel's room: from its top to the step list's top (the list never moves for it)
+func _col_avail(cl: Rect2, top: float) -> float:
+	var g := _col_geom(cl)
+	var anchored := maxf(160.0, float(g["steps_y"]) - 8.0 - top)
+	# a short window: the panel keeps the room it needs (its sliders and chips must be reachable without a scroll); the foot then stands under it
+	return maxf(anchored, minf(_panel_need(), cl.end.y - top - 4.0))
+
+
+var _tilt_cover := false   # bug5: a Repeat it / Stick together row or the Challenges card stands where the Tilt chips are: the chips hide (the sync reads this)
+
 # ---------------------------------------------------------------- s211 DRAW ON A CURVED FACE
 
 const CURVED_CENTRED := ["box", "pointy", "hex", "poly", "oval", "star", "gear", "heart", "arrow"]   # shapes that grow from the click on a curved face (a round one already does)
@@ -1627,6 +1679,8 @@ const CURVED_CENTRED := ["box", "pointy", "hex", "poly", "oval", "star", "gear",
 func _start_curved(p: Vector2, strict := false) -> bool:
 	if not Part.available() or m.cam == null or pu == null:
 		return false
+	if armed == "curve":
+		return false   # a Curvy line is a path (Pull along) or an outline on the working plane: a press that starts on a pipe (the hook from the wire) stays on that plane (fhanger)
 	var cb: Basis = m.cam.global_transform.basis
 	var ro: Vector3 = m.cam.project_ray_origin(p)
 	var rd: Vector3 = m.cam.project_ray_normal(p)
@@ -1694,3 +1748,4 @@ func _lib_bar_fit(tight: bool, narrow: bool) -> void:
 	if tight:
 		title_l.clip_text = true
 		title_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+

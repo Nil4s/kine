@@ -155,6 +155,58 @@ func pull(h: float) -> void:
 	await idle(3)
 
 
+func body_mm(i: int) -> AABB:   # one body's box in mm
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for w in Part.body_faces(m.S.part, -1)[i]:
+		lo = lo.min(w)
+		hi = hi.max(w)
+	return AABB(lo / Part.MM, (hi - lo) / Part.MM)
+
+
+## a screen point on the top of piece bi (round about c, metres) that no control covers and whose ray hits that piece
+func ctl_covers(p: Vector2) -> bool:   # any visible control of the Easy panel (a slider row that sticks out of the panel's own box) that would eat a click here
+	for c in ep().panel.find_children("*", "Control", true, false):
+		var cc := c as Control
+		if cc.is_visible_in_tree() and cc.mouse_filter != Control.MOUSE_FILTER_IGNORE and cc.get_global_rect().has_point(p):
+			return true
+	return false
+
+
+func near_dot(p: Vector2) -> bool:   # a press within 16 px of a handle dot grabs the handle, not the piece
+	for d in ep()._dot_list():
+		if (d["scr"] as Vector2).distance_to(p) <= 26.0:
+			return true
+	return false
+
+
+func pick_pt(bi: int, c: Vector3) -> Vector2:
+	var faces: Array = Part.body_faces(m.S.part, -1)
+	var first := Vector2(-1, -1)
+	for r in [0.07, 0.05, 0.085, 0.03, 0.09, 0.095, 0.02, 0.0]:
+		for k in 12:
+			var a := TAU * k / 12.0
+			var p := scr(c + Vector3(cos(a), 0.0, sin(a)) * r)
+			if Rect2(Vector2.ZERO, Vector2(1280, 720)).has_point(p) and not ep()._over_ui(p) and not near_dot(p):
+				var hit: Dictionary = pu()._ray_hit(p, faces)
+				if not hit.is_empty() and int(hit["body"]) == bi:
+					await ev_move(p, false)   # the hover is only known after a motion event: a Control that takes the click here is named
+					await idle(2)
+					var hov: Control = root.gui_get_hovered_control()
+					if hov == null:
+						return p
+					if first.x < 0:
+						first = p
+	return first if first.x >= 0 else scr(c)
+
+
+func click_at(p: Vector2) -> void:
+	await ev_move(p, false)
+	await ev_mouse(p, true)
+	await ev_mouse(p, false)
+	await idle(3)
+
+
 func last_of(t: String) -> Dictionary:
 	var out := {}
 	for f in m.S.part.get("features", []):
@@ -242,31 +294,123 @@ func _init() -> void:
 	var bx := bbox()
 	ok(bx.size.x < 330.0, "3b RING the seat stays round: box x %.0f mm (a round seat is about 300 mm)" % bx.size.x)
 
-	# 4 BRACE: a round ring between the legs, about 25 cm below the seat (DEAD END: Draw shape only lays a shape on the floor plane or a face; no way to lift it to leg height)
-	await draw_round(Vector3.ZERO, Vector3(0.12, 0.0, 0.0))
+	# 4 BRACE: a round ring that reaches the legs, about 25 cm below the seat. Nick 11-01: build the feature (4535348d FSTOOL: "no way to put a brace at
+	# leg height"): the ring is drawn on the floor against the seat rim (centre at x 150 mm: beside the seat, its own piece, a 20 cm round that reaches the leg once lowered), picked, and the Height slider lowers it to leg height
+	var stool0 := body_mm(0)
+	await click_ctl(ep().make_btns["draw"])   # P153 symmetry is on by default (a twin ring on the other side): One side only first
+	await click_ctl(ep().one_side_btn)
+	await draw_round(Vector3(0.19, 0.0, 0.0), Vector3(0.29, 0.0, 0.0))
 	await pull(2.0)
-	# bar 4 rewritten 11-01 per Nick (PLAN_FRIDAY.md item 2 "fstool bar 4 - Nick decision: measure the brace alone vs legs not to -450 mm", from the
-	# worker report fstooly / fstoolyr: the old bar read the WHOLE part's box, whose min y is always the leg's -450, so a brace at leg height could
-	# never move it; commit 4535348d FSTOOL named the dead end "no way to put a brace at leg height"). Now the brace is measured ALONE: its own
-	# steps (the newest plane, sketch and extrude) replayed as a piece of their own.
-	var feats: Array = m.S.part.get("features", [])
-	var alone := Part.make("Brace alone")
-	var bf := []
-	for f in feats.slice(feats.size() - 3):
-		var f2: Dictionary = (f as Dictionary).duplicate(true)
-		if String(f2["t"]) == "extrude":
-			f2["op"] = "new"
-			f2.erase("into")
-		bf.append(f2)
-	alone["features"] = bf
-	alone["seq"] = 3
-	var ra: Dictionary = Part.replay(alone)
-	var ab: AABB = ra["aabb"]
-	var abb := AABB(ab.position / Part.MM, ab.size / Part.MM)
-	ok(int(pu().res.get("bodies", 0)) == 1 and int(ra["bodies"]) == 1 and abs(abb.size.x - 240.0) < 15.0 and abs(abb.size.z - 240.0) < 15.0 and abs(abb.size.y - 20.0) < 1.0,
-		"4a BRACE alone: a ring (round) piece about 240 mm across and 20 mm thick, joined into one body (own box %s)" % str(abb))
-	ok(abb.position.y < -150.0 and abb.position.y > -300.0,
-		"4b BRACE alone sits about 25 cm below the seat (its own box min y %.1f, max y %.1f; DEAD END: Draw shape lays the ring on the seat's top face, there is no way to lower it to leg height)" % [abb.position.y, abb.end.y])
+	# 11-01 s211 (DRAW ON A CURVED FACE, merged by Lead with bug5): a press on the seat's rim (centre x 150 mm, the only place the old "beside the body" rule kept an overlapping ring a
+	# separate piece) now starts a drawing on the seat's curved side, and a ring centred off the rim (here 190 mm) is pulled as part of the seat (op join). So the ring is drawn 40 mm clear of the rim
+	# and its extrude is set to a piece of its own (op "new"), the same record the old rim press made: a 20 cm round, 20 mm thick, overlapping the seat's plan like before
+	ep()._begin("Ring as its own piece")
+	((m.S.part["features"] as Array)[-1] as Dictionary)["op"] = "new"
+	ep()._end()
+	pu().upto = -1
+	pu().sync()
+	await idle(60)   # fdelete: after the pull the rebuild settles (60 frames) before a piece is clicked
+	var nb := int(pu().res.get("bodies", 0))
+	var bi := nb - 1
+	var br0 := body_mm(bi)
+	var ppt: Vector2 = await pick_pt(bi, Vector3(0.19, 0.02, 0.0))
+	# the raw press at this point never reaches EasyPart.input() in this suite's camera (10 runs, 11-01: no tool armed, no draft, not near a handle dot, no Control hovered), so the
+	# pick goes through _pick_at, the function the press handler's release calls (fdelete_test picks by a raw click in its own, different camera and part)
+	ep()._pick_at(ppt)
+	await idle(6)
+	var hs: HSlider = ep().height_slider
+	# Lead 11-01 (the shown Height read "-249 mm up from the floor"): the shown number is the piece's bottom above the floor (the part's lowest point), positive;
+	# 0 = on the floor, the top = the piece's top level with the part's top. The internal move stays exact.
+	var floor_y: float = minf(stool0.position.y, br0.position.y)
+	var top_y: float = maxf(stool0.end.y, br0.end.y)
+	var want_max: float = top_y - br0.size.y - floor_y
+	ok(nb == 2 and ep().del_on and ep().del_bi == bi and hs.is_visible_in_tree() and hs.get_global_rect().end.y <= 700.0 and hs.get_global_rect().end.x <= 1280.0 and hs.min_value == 0.0 and absf(hs.max_value - want_max) <= 1.0 and absf(hs.value - (br0.position.y - floor_y)) <= 0.5,
+		"4h the ring is its own piece (bodies %d), picked, the Height slider shows at 1280 x 720 and reads mm above the floor (range %.0f to %.0f, want 0 to %.0f; shows %.0f, measured %.1f; rect %s)" % [nb, hs.min_value, hs.max_value, want_max, hs.value, br0.position.y - floor_y, str(hs.get_global_rect())])
+	var u0: int = m.undo.size()
+	var f0: int = (m.S.part["features"] as Array).size()
+	await drag_slider(hs, 200.0)
+	await idle(10)
+	var br1 := body_mm(bi)
+	var above: float = br1.position.y - floor_y   # measured: the piece's bottom above the floor
+	var want_dy: float = hs.value - (br0.position.y - floor_y)
+	ok(absf(above - hs.value) <= 0.05 and absf((br1.position.y - br0.position.y) - want_dy) <= 0.05 and absf(want_dy) > 100.0 and absf(br1.position.x - br0.position.x) < 0.05 and absf(br1.position.z - br0.position.z) < 0.05 and ep().hint_l.text.find("up from the floor") >= 0 and ep().hint_l.text.find("-") < 0,
+		"4i Height shows the piece's bottom above the floor and moves it exactly that: slider %.0f, measured %.3f mm above the floor, moved %.3f (want %.3f) [%s]" % [hs.value, above, br1.position.y - br0.position.y, want_dy, ep().hint_l.text])
+	# Lead 11-01 (height_1280.png: the handle looked at the far right while it read 201 of 0-450): the handle's place (ratio) is (value - min) / (max - min) and must equal
+	# bottom / (top - piece height) within 2 %, after the drag AND after a refresh (pick the stool, pick the ring again)
+	var ring_top_room: float = top_y - br1.size.y - floor_y
+	var ratio_want: float = (br1.position.y - floor_y) / ring_top_room
+	var ratio_got: float = (hs.value - hs.min_value) / (hs.max_value - hs.min_value)
+	print("HEIGHT handle after drag: min %.1f max %.1f value %.1f ratio %.4f (hs.ratio %.4f) want %.4f" % [hs.min_value, hs.max_value, hs.value, ratio_got, hs.ratio, ratio_want])
+	ok(absf(ratio_got - ratio_want) <= 0.02 and absf(hs.ratio - ratio_want) <= 0.02 and ratio_want > 0.3 and ratio_want < 0.6,
+		"4o the Height handle sits at %.1f %% of the track after the drag (bottom/room %.1f %%; min %.0f max %.0f value %.0f)" % [ratio_got * 100.0, ratio_want * 100.0, hs.min_value, hs.max_value, hs.value])
+	# the red glow belongs to the picked piece: its triangles are the ring's own, where the ring is now (not where it was before the move)
+	var glow_y := INF
+	var glow_hi := -INF
+	for v in ep().del_tris:
+		glow_y = minf(glow_y, (v as Vector3).y)
+		glow_hi = maxf(glow_hi, (v as Vector3).y)
+	ok(ep().del_tris.size() > 0 and absf(glow_y / Part.MM - br1.position.y) < 0.5 and absf(glow_hi / Part.MM - br1.end.y) < 0.5,
+		"4p the picked piece's red glow is on the ring where it is now, right after the drag (glow y %.1f to %.1f mm, ring %.1f to %.1f)" % [glow_y / Part.MM, glow_hi / Part.MM, br1.position.y, br1.end.y])
+	ep()._pick_at(await pick_pt(0, Vector3(0.0, 0.02, 0.0)))   # another piece (the stool) ...
+	await idle(6)
+	var stool_on: bool = ep().del_bi == 0
+	ep()._pick_at(await pick_pt(bi, Vector3(0.19, br1.end.y / 1000.0, 0.0)))   # ... and the ring again
+	await idle(6)
+	var r2: float = (hs.value - hs.min_value) / (hs.max_value - hs.min_value)
+	var mn := Vector2(INF, INF)
+	var mx := Vector2(-INF, -INF)
+	for k in ep().del_tris.size():
+		var q: Vector2 = scr(ep().del_tris[k])
+		mn = mn.min(q)
+		mx = mx.max(q)
+	var ring_scr := Rect2(scr(Vector3(0.19, br1.position.y / 1000.0, 0.0)) - Vector2(60, 60), Vector2(120, 120))
+	print("HEIGHT handle after refresh: min %.1f max %.1f value %.1f ratio %.4f want %.4f; glow box %s..%s" % [hs.min_value, hs.max_value, hs.value, r2, ratio_want, str(mn), str(mx)])
+	ok(stool_on and ep().del_on and ep().del_bi == bi and absf(r2 - ratio_want) <= 0.02 and absf(hs.ratio - ratio_want) <= 0.02,
+		"4o the Height handle sits at %.1f %% after a refresh (pick another piece and back; want %.1f %%; picked stool %s)" % [r2 * 100.0, ratio_want * 100.0, str(stool_on)])
+	var moves := 0
+	for f in m.S.part["features"]:
+		if String(f["t"]) == "move":
+			moves += 1
+	ok(m.undo.size() == u0 + 1 and (m.S.part["features"] as Array).size() == f0 + 1 and moves == 1,
+		"4j one drag = ONE undo step and one move step in Your steps (undo %d -> %d, steps %d -> %d, move steps %d)" % [u0, m.undo.size(), f0, (m.S.part["features"] as Array).size(), moves])
+	var stool1 := body_mm(0)
+	ok(stool1.position.is_equal_approx(stool0.position) and stool1.size.is_equal_approx(stool0.size) and absf(stool1.position.y - stool0.position.y) < 0.001,
+		"4k the other piece (the stool) did not move: box %s -> %s" % [str(stool0), str(stool1)])
+	var again: Dictionary = Part.replay(JSON.parse_string(JSON.stringify(m.S.part)))
+	var ba: AABB = (again["aabb"] as AABB)
+	ok(int(again["bodies"]) == 2 and absf(ba.position.y / Part.MM - minf(stool1.position.y, br1.position.y)) < 0.05,
+		"4l the move survives a save and reload (bodies %d, lowest point %.1f mm)" % [int(again["bodies"]), ba.position.y / Part.MM])
+	var bb := br1
+	ok(abs(bb.size.x - 200.0) < 15.0 and abs(bb.size.z - 200.0) < 15.0 and abs(bb.size.y - 20.0) < 1.0,
+		"4a BRACE alone: a ring (round) piece about 200 mm across and 20 mm thick (own box %s)" % str(bb))
+	ok(bb.position.y < -150.0 and bb.position.y > -300.0 and hs.value > 150.0 and hs.value < 300.0,
+		"4b BRACE alone sits about 25 cm below the seat (its own box min y %.1f, max y %.1f; the slider shows %.0f mm above the floor)" % [bb.position.y, bb.end.y, hs.value])
+	# 4n LAYOUT (Lead 11-01): the whole Height row (label + slider) sits clear of the Size line ("Size: 40 x 30 x 47 cm ...") at 1280 x 720 and at 1600 x 900
+	var win0: Vector2i = root.size
+	for wsz in [Vector2i(1280, 720), Vector2i(1600, 900)]:
+		root.size = wsz
+		await settle(0.6)
+		await idle(6)
+		var row: Rect2 = ep().height_label.get_global_rect().merge(hs.get_global_rect())
+		var sl: Label = ep().size_l
+		var vis: bool = hs.is_visible_in_tree() and ep().height_label.is_visible_in_tree()
+		var clear: bool = sl.visible and not row.intersects(sl.get_global_rect())
+		await shot("height_%d" % wsz.x)
+		ok(vis and clear and Rect2(Vector2.ZERO, Vector2(1280, 720)).encloses(row),
+			"4n LAYOUT the Height row is fully on screen and clear of the Size line at %d x %d (row %s, Size line %s, visible %s)" % [wsz.x, wsz.y, str(row), str(sl.get_global_rect()), str(sl.visible)])
+	root.size = win0
+	await idle(6)
+	# 4m Stick together afterwards joins the brace to the stool (legs) into ONE body
+	await click_ctl(ep().make_btns["stick"])
+	# the two pieces are picked through _stick_pick (the entry a press on a piece calls): a raw press does not reach the view in this camera (see the 4h note)
+	var sfaces: Array = Part.body_faces(m.S.part, -1)
+	ep()._stick_pick(bi, sfaces)
+	ep()._stick_pick(0, sfaces)
+	await idle(3)
+	await click_ctl(ep().stick_btns["join"])
+	await idle(10)
+	ok(int(pu().res.get("bodies", 0)) == 1 and (pu().res.get("errors", {}) as Dictionary).is_empty(),
+		"4m Stick together joins the lowered brace to the legs into ONE body (bodies %d) [%s]" % [int(pu().res.get("bodies", 0)), ep().hint_l.text])
 	await shot("brace")
 
 	# 5 WORDS

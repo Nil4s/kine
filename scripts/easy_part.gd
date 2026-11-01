@@ -3773,7 +3773,7 @@ func _process(_dt: float) -> void:
 	paint_btn.set_pressed_no_signal(paint_on)
 	suggest_row.visible = on and _suggest_on()   # P092: after a Pull it up the two next-step chips show in the panel, under the slider rows
 	var bulge_on := on and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # plan 23: Pinch / Bulge a face is offered under any solid
-	tilt_box.visible = on and (armed == "" or bulge_pick) and (along or tilt_on or draft_on or swing_on or bulge_on or motion_on) and not _fill_open() and not (hpat_box != null and hpat_box.visible)   # lay1: the open Holes Row / Around / Grid sliders are as tall as the low-left chips too; s051: the open Fill the face box is as tall as the low-left chips: they would sit over its Square chip and sliders
+	tilt_box.visible = on and not _tilt_cover and (armed == "" or bulge_pick) and (along or tilt_on or draft_on or swing_on or bulge_on or motion_on) and not _fill_open() and not (hpat_box != null and hpat_box.visible)   # lay1: the open Holes Row / Around / Grid sliders are as tall as the low-left chips too; s051: the open Fill the face box is as tall as the low-left chips: they would sit over its Square chip and sliders
 	_overhang_sync(on)
 	_com_sync(on)   # P128: the centre-of-mass dot
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
@@ -4838,7 +4838,11 @@ func _steps_box() -> PanelContainer:
 	scrub_lbl.name = "easypart_scrub_label"
 	scrub_lbl.add_theme_font_size_override("font_size", 13)
 	scrub_lbl.add_theme_color_override("font_color", Tok.c("info"))
-	v.add_child(scrub_lbl)
+	scrub_lbl.clip_text = true
+	scrub_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	scrub_lbl.custom_minimum_size.x = 130.0
+	scrub_lbl.tooltip_text = "Drag the slider back to see the part after fewer steps"
+	sr.add_child(scrub_lbl)   # bug5: on the slider's row (one line less: the foot of the column is shorter, the panel keeps its room)
 	var sc := ScrollContainer.new()
 	sc.name = "easypart_steps_scroll"
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -4899,17 +4903,21 @@ func _sheet_press() -> void:
 func _printing_box() -> PanelContainer:
 	var box := PanelContainer.new()
 	box.name = "easypart_printing"
-	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 4))
 	box.visible = false
-	var v := VBoxContainer.new()
+	var v := HBoxContainer.new()   # bug5: the two chips side by side (one row, half the height): the column's foot stays small
 	v.add_theme_constant_override("separation", 4)
 	box.add_child(v)
 	lay_btn = _big_btn("easypart_lay_flat", "Lay it flat", "Turn the part so the face that needs the least support under it sits on the floor", _lay_press)
-	lay_btn.custom_minimum_size = Vector2(PW - 40.0, 40)
+	lay_btn.custom_minimum_size = Vector2((PW - 40.0) * 0.5, 30)
+	lay_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lay_btn.add_theme_font_size_override("font_size", 14)
 	v.add_child(lay_btn)
 	paint_btn = _big_btn("easypart_show_overhangs", "Show overhangs", "Paint red the faces a printer needs support under (they point down more than 45 degrees)", _paint_press)
 	paint_btn.toggle_mode = true
-	paint_btn.custom_minimum_size = Vector2(PW - 40.0, 40)
+	paint_btn.custom_minimum_size = Vector2((PW - 40.0) * 0.5, 30)
+	paint_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	paint_btn.add_theme_font_size_override("font_size", 14)
 	v.add_child(paint_btn)
 	return box
 
