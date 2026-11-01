@@ -63,3 +63,5 @@ TKGeomBase / TKGeomAlgo (5.6 MB each) are the big ones.
 - `import_step` checks the file exists first: in this build OCCT's STEP reader kills the process on a missing path instead of failing.
 - Meshes are not welded across B-rep faces (each face keeps its own vertices; positions match to <1e-9, so welding by position gives a watertight mesh, as the test does).
 - Shapes live in a table inside the DLL (ids): call `KCad.release(id)` / `release_all()`.
+
+Version 4 adds `solid_from_mesh(verts, tris, tol)` (sew triangles into one solid); version 5 adds `offset(id, distance_m)` (BRepOffsetAPI_MakeOffsetShape, sharp join first, then arc; used by scripts/build/part_offset.gd, tests/s155b_test.gd). Calls newer than the first DLL live in scripts/kcad_native_new.gd so an older DLL still loads. Rebuilding only kine_cad: compile native/cad/src/*.cpp with g++ and link against the prebuilt godot-cpp .a (do not run SCons: it rebuilds godot-cpp).
