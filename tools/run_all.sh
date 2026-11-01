@@ -586,6 +586,7 @@ EXTRA="$EXTRA s220:w"   # s220: MODELING VIEW WITH MATHS: part_facts (a part as 
 EXTRA="$EXTRA s214:w"   # s214: pattern a GROUP of bodies in one step (Expert Pattern ticks/Ctrl-click/box, Easy Repeat it > Group)
 
 
+EXTRA="$EXTRA s224:w"   # s224: Realistic render (sky, sun, soft shadows, AO, reflections): Nice picture preset + VIEW > Realistic
 EXTRA="$EXTRA s217:w"   # Metal reads as metal in Expert, Easy Part, Nice picture and STAGE (same studio reflection sky as bug3)
 
 
