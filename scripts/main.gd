@@ -2999,6 +2999,7 @@ func _ready() -> void:
 		SceneQualityWorker.run(wargs[wi + 1])
 		get_tree().quit()
 		return
+	SlicerSend.prewarm()   # the Export dialog's slicer lookup (~2 s) runs on a worker thread now, not at the first open
 	BootProfile.start()   # KINE_BOOT_PROFILE=1 / --boot-profile: the start-up blocks, timed (scripts/boot_profile.gd)
 	RenderingServer.set_debug_generate_wireframes(true)   # K01: the wireframe view needs this before any mesh is made
 	# EVERY WIDGET BY NAME (round 14, U2): each control the window builds is named from what it says (scripts/names.gd)
