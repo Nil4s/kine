@@ -8235,7 +8235,7 @@ func _bend_row() -> HBoxContainer:
 	bend_row.add_child(bend_label)
 	bend_slider = HSlider.new()
 	bend_slider.name = "easypart_bend_slider"
-	bend_slider.custom_minimum_size = Vector2(110, 24)
+	bend_slider.custom_minimum_size = Vector2(80, 24)
 	bend_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	bend_slider.step = 0.5
 	bend_slider.min_value = 1.0
@@ -8257,7 +8257,7 @@ func _bend_row() -> HBoxContainer:
 	bend_spin.step = 0.5
 	bend_spin.min_value = 1.0
 	bend_spin.max_value = 300.0
-	bend_spin.custom_minimum_size = Vector2(84, 0)
+	bend_spin.custom_minimum_size = Vector2(120, 0)
 	bend_spin.value_changed.connect(func(v: float):
 		if not _bend_busy:
 			_bend_commit(v))

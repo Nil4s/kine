@@ -314,6 +314,9 @@ func _init() -> void:
 	ok(absf(b2 - 30.0) < 0.01 and absf(float(fit2[0]) - 30.0) <= 1.0 and absf(vol_mm3() - pappus(30.0)) <= 0.01 * pappus(30.0) and m.undo.size() == u0 + 2 and int(pu().res.get("bodies", 0)) == 1,
 		"4c typed 30 mm: record %.1f, mesh radius %.2f mm, volume %.0f vs %.0f mm3, one solid, undo steps %d" % [b2, fit2[0], vol_mm3(), pappus(30.0), m.undo.size() - u0])
 	ok(ep.bend_spin.get_line_edit().text.begins_with("30") and ep.bend_slider.value > 29.0 and ep.bend_slider.value < 31.0, "4d the typed box shows the text '%s' and the slider %.1f (the pipe is at 30 mm)" % [ep.bend_spin.get_line_edit().text, ep.bend_slider.value])
+	var le30: LineEdit = ep.bend_spin.get_line_edit()
+	var fw: float = le30.get_theme_font("font").get_string_size(le30.text, HORIZONTAL_ALIGNMENT_LEFT, -1, le30.get_theme_font_size("font_size")).x
+	ok(fw + 12.0 <= le30.size.x, "4e the typed box is wide enough for its text (%.0f px of text in %.0f px)" % [fw, le30.size.x])
 	await shot("03_bend30")
 
 	# 5 a radius the legs cannot hold (200 mm on 150 mm legs) is refused in words, the pipe stays as it was, no undo step
