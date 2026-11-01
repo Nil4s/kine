@@ -2341,7 +2341,7 @@ func sync() -> void:
 	for c in house_btns:
 		(c as Control).visible = not show or c == reopen_btn
 	if reopen_btn != null:
-		reopen_btn.text = "What to build" if on else ""   # icon only in the house ribbon (it is crowded there); with words in Part, Expert or Easy
+		reopen_btn.text = "What to build" if on and not (easy and m.get_viewport().get_visible_rect().size.x < 1400.0) else ""   # bug6: Easy Part's bar at 1280 is full: the words went off the right edge, so the icon alone there   # icon only in the house ribbon (it is crowded there); with words in Part, Expert or Easy
 	for t in tool_btns:
 		(tool_btns[t] as Control).visible = show and not (t in m.RIBBON_REST.get("BUILD", [])) and (con_open or not (t in CON_TOOLS))   # the rarer ones live under their captions (main.gd RIBBON_REST); the rule row shows while Constrain is open
 	finish_btn.visible = show
@@ -2354,7 +2354,7 @@ func sync() -> void:
 			_tag_vis = m.axis_tags.map(func(l): return (l as Node3D).visible)
 		else:
 			for i in mini(_tag_vis.size(), m.axis_tags.size()):
-				(m.axis_tags[i] as Node3D).visible = _tag_vis[i]
+				(m.axis_tags[i] as Node3D).visible = _tag_vis[i] and not m._hides("figure")   # bug6: the saved flags may be from an ANIMATION project
 		m._place_caps.call_deferred()
 		m._fit_top.call_deferred()
 	if show and sk != "" and _sk().is_empty():
@@ -2542,6 +2542,8 @@ func layout(cl: Rect2) -> void:
 	var show := chrome()
 	var up := shows()
 	part_btn.visible = bu.on and not bu.easy_ui()   # (a project started from the start screen reaches BUILD without a sync)
+	if reopen_btn != null and on and easy:   # bug6: every layout (a resize too), not only sync: Easy Part's bar is full below 1400 px
+		reopen_btn.text = "" if m.get_viewport().get_visible_rect().size.x < 1400.0 else "What to build"
 	if up:
 		for l in m.axis_tags:
 			(l as Node3D).visible = false

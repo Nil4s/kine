@@ -3690,6 +3690,8 @@ func _process(_dt: float) -> void:
 	_upright_sync(on and (armed == "draw" or armed == "curve") and _side_on())
 	_scale_sync(on)   # p110realsizech: the reference beside the part follows it while Easy is on
 	bar.visible = on
+	if m.ui_top_bar != null and m.easy != null and not m.easy.on:
+		m.ui_top_bar.visible = not on   # bug6: Expert's strip (KINE, Home, View, What to build) lay under this bar: two Home buttons, a button off the right edge
 	make_box.visible = on
 	panel.visible = on
 	hint.visible = on
