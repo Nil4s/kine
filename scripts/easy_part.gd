@@ -3645,7 +3645,7 @@ func _process(_dt: float) -> void:
 	if _dirty and Time.get_ticks_msec() - _last_ms >= THROTTLE_MS:
 		_flush()
 	var rec := _rec()
-	var sig := JSON.stringify(rec.get("easy", {})) + str(rec.get("features", []).size()) + str(m.redo.size()) + str(m.undo.size()) + str(pu.res.get("bodies", 0)) + str(pu.res.get("volume", 0.0)) + str(Part.available()) + str(armed) + msg   # undo depth + the result: a slider edit of a step changes no step count
+	var sig := JSON.stringify(rec.get("easy", {})) + str(rec.get("features", []).size()) + str(m.redo.size()) + str(m.undo.size()) + str(pu.res.get("bodies", 0)) + str(pu.res.get("volume", 0.0)) + str(pu.res["mesh"].get_instance_id() if pu.res.get("mesh") != null else 0) + str(Part.available()) + str(armed) + msg   # s169: the shown mesh is in the key (the status line counts pieces on it; the async preview lands a new mesh with the same volume). Undo depth + the result: a slider edit of a step changes no step count
 	if sig != _sig and _drag.is_empty() and not _dirty:
 		_sig = sig
 		_chrome_sync()
