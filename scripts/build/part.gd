@@ -1743,6 +1743,8 @@ static func _combine(bodies: Array, solid: int, op: String, into := -1) -> Strin
 		return ""
 	if op == "cut":
 		for i in bodies.size():
+			if into >= 0 and i != into:   # p063: a cut with "into" touches only that body (Fasten these two: the screw hole of one piece)
+				continue
 			var c := KCad.cut(bodies[i], solid)
 			if c != 0:
 				KCad.release(bodies[i])

@@ -3665,6 +3665,7 @@ func _process(_dt: float) -> void:
 	if not explode_box.visible and pu.explode_mm != 0.0:
 		_explode_reset()
 	align_row.visible = stick_box.visible and not smooth and stick_picks.size() == 2   # P054: the align row shows with the two picks
+	fasten_row.visible = align_row.visible   # p063: Fasten these two shows with the two picks
 	if del_on and (armed != "" or (_rec().get("features", []) as Array).size() != del_n):
 		_pick_clear()   # FDELETE: a pick ends with the step it was made on
 	del_btn.visible = on and del_on

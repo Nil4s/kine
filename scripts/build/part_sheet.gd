@@ -16,7 +16,7 @@ static func _esc(s: String) -> String:
 
 
 ## the page text. steps = [{"upto": feature index, "words": plain words, "png": PNG bytes ("" = no picture)}]; vols = cm3 per piece
-static func to_html(title: String, steps: Array, vols: Array, size_mm: Vector3) -> String:
+static func to_html(title: String, steps: Array, vols: Array, size_mm: Vector3, hardware := []) -> String:
 	var h := "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><title>Instructions - %s</title>\n<style>\n" % _esc(title)
 	h += "body{font:15px/1.45 system-ui,Segoe UI,sans-serif;margin:24px auto;max-width:820px;color:%s;background:#fff}\n" % Tok.c("ink").to_html(false)
 	h += "h1{font-size:24px;margin:0 0 4px;color:%s}h2{font-size:18px;margin:22px 0 8px;color:%s;border-bottom:2px solid %s}\n" % [Tok.c("heading").to_html(false), Tok.c("heading").to_html(false), Tok.c("accent").to_html(false)]
@@ -28,7 +28,13 @@ static func to_html(title: String, steps: Array, vols: Array, size_mm: Vector3) 
 	h += "<h2>Parts list</h2>\n<ul>\n"
 	for i in vols.size():
 		h += "<li><span class=\"piece\">%.1f cm3</span>, piece %d</li>\n" % [float(vols[i]), i + 1]
-	h += "</ul>\n<h2>Steps</h2>\n"
+	h += "</ul>\n"
+	if not hardware.is_empty():   # p063: the screws Fasten these two put in
+		h += "<h2>Hardware</h2>\n<ul>\n"
+		for hw in hardware:
+			h += "<li><span class=\"piece\">%s</span></li>\n" % _esc(String(hw))
+		h += "</ul>\n"
+	h += "<h2>Steps</h2>\n"
 	for i in steps.size():
 		var st: Dictionary = steps[i]
 		h += "<div class=\"step\"><span class=\"num\">%d</span>" % (i + 1)
@@ -88,6 +94,6 @@ static func write(host: Node, rec: Dictionary, title: String, steps: Array) -> S
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		return ""
-	f.store_string(to_html(title, out, vols, size_mm))
+	f.store_string(to_html(title, out, vols, size_mm, PartFasten.hardware_lines(rec)))
 	f.close()
 	return path
