@@ -394,7 +394,7 @@ static func fit_rounds(rec: Dictionary) -> String:
 	var i := 0
 	while i < (rec["features"] as Array).size():
 		var f: Dictionary = rec["features"][i]
-		if String(f["t"]) != "fillet" or String(Part.replay(rec)["errors"].get(String(f["id"]), "")) == "":
+		if String(f["t"]) != "fillet" or String(Part.errors_of(rec).get(String(f["id"]), "")) == "":
 			i += 1
 			continue
 		var r0 := float(f["r"])
@@ -408,7 +408,7 @@ static func fit_rounds(rec: Dictionary) -> String:
 		var done := false
 		for c in cands:
 			f["r"] = c
-			if String(Part.replay(rec)["errors"].get(String(f["id"]), "")) == "":
+			if String(Part.errors_of(rec).get(String(f["id"]), "")) == "":
 				note = "The round is now %s mm: the part is too small for %s mm" % [str(c), str(r0)]
 				done = true
 				break
@@ -421,7 +421,7 @@ static func fit_rounds(rec: Dictionary) -> String:
 				var trial := good.duplicate(true)
 				trial.append(e)
 				f["edges"] = trial
-				if String(Part.replay(rec)["errors"].get(String(f["id"]), "")) == "":
+				if String(Part.errors_of(rec).get(String(f["id"]), "")) == "":
 					good = trial
 			f["edges"] = good
 			if good.is_empty():
