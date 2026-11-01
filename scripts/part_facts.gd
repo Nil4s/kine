@@ -27,6 +27,11 @@ const TOUCH_MM := 0.05     # a gap this small (mm) is touching: the kernel's tes
 const HIT_MM3 := 1.0       # an overlap volume above this (mm3) is interference (Part.HIT_VOL, 1 mm3)
 const NEAR_MM := 25.0      # pairs closer than this are listed in the contact graph
 const KERNEL_MM3 := 1e-3  # mm3: a common volume above this means the grown body reached the other (the kernel noise is far below it)
+## the kernel refinement of a gap (offset one body, intersect, bisect) stays OFF: on the first KineCAD 5 DLL that could run it, the offset +
+## intersect loses the thin common sliver between near-coincident round faces. Measured 11-01 on s220's peg (r 5.0 in a 5.1 hole, true 0.100 mm):
+## growing the peg shares 0 mm3 with the block up to 0.102 mm, growing the block first shares volume past 0.101, so the bisect read 0.101-0.104,
+## while the fine mesh gap reads 0.09995. The mesh gap is within the fine deflection (0.005-0.1 mm) and is what every bar was written on.
+const KERNEL_GAP := false
 const SAME_MOMENT := 1e-3  # two principal moments within this fraction are one (a body of revolution)
 
 
@@ -138,7 +143,7 @@ class Model:
 		var info := {}
 		var g := PartFacts.tri_gap(tris_fine(i), tris_fine(j), INF, info)
 		out = {"gap": g, "method": "mesh", "ov": ov, "a": info.get("a", Vector3.ZERO), "b": info.get("b", Vector3.ZERO)}
-		if g <= 1e-9 or is_inf(g) or not KCad.has_offset():
+		if g <= 1e-9 or is_inf(g) or not KERNEL_GAP or not KCad.has_offset():
 			_kgap[key] = out
 			return out
 		var small: int = i if KCad.face_count(int(ids[i])) <= KCad.face_count(int(ids[j])) else j
