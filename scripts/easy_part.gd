@@ -560,6 +560,7 @@ func _round_box() -> PanelContainer:
 		b.custom_minimum_size = Vector2(176, 44)
 		h.add_child(b)
 		round_btns[rf[0]] = b
+	h.add_child(_bevel_btn())   # s012: Bevel (a flat 45-degree cut) beside the filter chips: the same edges as Round the edges, its own size slider
 	# p038makeitstro: a press adds a rib where the solid is thin (no toggle: the press is the step)
 	var sb := _big_btn("easypart_stronger", "Make it stronger", "Add a rib where the solid is thin: a strip on its thin side, along its long side", _stronger_press)
 	sb.icon = Icons.sized("part_stronger", 22)
@@ -4863,6 +4864,8 @@ func _step_tweak(f: Dictionary) -> Dictionary:
 		"extrude":
 			var sg := -1.0 if float(f.get("dist", 0.0)) < 0.0 else 1.0
 			return {"id": id, "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
+		"chamfer":   # s012
+			return {"id": id, "field": "dist", "label": "Bevel size", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Smaller", "Bigger"]}
 		"fillet":
 			return {"id": id, "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
 		"shell":
@@ -7596,3 +7599,75 @@ func _fit_row() -> HBoxContainer:
 	fit_row = preload("res://scripts/easy_fit.gd").new()
 	fit_row.setup(self)
 	return fit_row
+
+
+## p012beveltheed (Friday plan 12): Bevel the edges, the chip beside the Round the edges filters. It bevels the same edges Round the edges
+## would (the All / Only the outside / Only the top filter), cut flat by a chamfer instead of a round. The bevel size is its own slider
+## (dist, 1 to 10 mm, the same range and words as How round). One press = one undo step; a refusal says why and changes nothing
+func _bevel_btn() -> Button:
+	var b := _big_btn("easypart_bevel", "Bevel", "Bevel the edges: cut the sharp edges flat, a slanted edge. Uses the same edges as Round the edges", _bevel_press)
+	b.icon = Icons.sized("part_chamfer", 22)
+	b.expand_icon = false
+	b.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.custom_minimum_size = Vector2(116, 44)   # narrow: the chip row ends where the view buttons (Fit view, Front, Top) start
+	return b
+
+
+func _bevel_press() -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	_flush_if_dirty()
+	armed = ""
+	var snap := _rec().duplicate(true)
+	_begin("Bevel the edges")
+	var rec := pu._ensure()
+	var why := _bevel(rec)
+	if why != "":
+		m.S.part = snap   # nothing changes: the step taken a moment ago goes back out
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+	else:
+		_end()
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+
+
+## the chamfer step, added to rec when it works. "" or why not. The edges are the Round the edges ones (same filter, same length rule),
+## the size is the default Round uses (1% of the smallest size, 1 to 6 mm, never under the slider's 1 mm). One chamfer, checked by a full
+## replay (each try is one replay of the record)
+func _bevel(rec: Dictionary) -> String:
+	var res := Part.replay(rec, -1, {"edges": true, "keep": true})
+	var kept: Array = res.get("ids", [])
+	Part.release_kept(kept)
+	if int(res["bodies"]) == 0:
+		return "Nothing solid to bevel yet. Press Pull it up first"
+	var es: Array = res["edges"]
+	var aabb: AABB = res["aabb"]
+	var flag := "" if round_mode == "all" else round_mode
+	var small := minf(aabb.size.x, minf(aabb.size.y, aabb.size.z)) / Part.MM
+	var longest := 0.0
+	for e in es:
+		longest = maxf(longest, float(e["len"]))
+	var r := snappedf(clampf(small * 0.01, 1.0, 6.0), 0.1)
+	var list := []
+	for e in es:
+		if int(e["body"]) == 0 and not bool(e.get("seam", false)) and (flag == "" or bool(e.get(flag, false))) and float(e["len"]) / Part.MM > r * 2.5:
+			list.append(Part.describe(e))
+	if list.is_empty():
+		return "No edge to bevel on this solid: Pull it up taller, or press Round the edges"
+	var f := Part.new_feature(rec, "chamfer", {"body": 0, "dist": r, "edges": list})
+	rec["features"].append(f)
+	if _last_error(rec, String(f["id"])) == "":
+		_bevel_done(f)
+		return ""
+	rec["features"].pop_back()
+	return "These edges are too small or too crowded to bevel: Pull it up taller, or press Round the edges"
+
+
+func _bevel_done(f: Dictionary) -> void:
+	tweak = {"id": f["id"], "field": "dist", "label": "Bevel size", "unit": "cm", "lo": 0.1, "hi": 1.0, "step": 0.1, "scale": 10.0, "words": ["Smaller", "Bigger"]}
+	_say("Edges bevelled: use the slider for more or less, or press Cut a hole next")

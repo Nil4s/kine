@@ -468,3 +468,4 @@ EXTRA="$EXTRA s191:w"   # Friday 191: Sketch with sizes (AI): Trace box option, 
 
 
 EXTRA="$EXTRA s193:w"   # s193 (Friday plan 193): Fit to an object, Parts > Boards: a phone scan (.obj, 1/1000 scale, noisy, tumbled) -> real size -> Holder / Case by the CAD kernel; ray-cast pocket, wall and enclosure bars (tests/s193_test.gd)
+EXTRA="$EXTRA s012:w"   # s012 (Friday plan 12): Bevel chip beside Round the edges: 45-degree chamfer planes, top face 40 -> 38 -> 36 mm, volume vs the analytic chamfered box, one undo step (tests/s012_test.gd)
