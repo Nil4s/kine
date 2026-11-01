@@ -529,3 +529,4 @@ EXTRA="$EXTRA s140:w"   # s140 (Friday plan 140): Pose library by mood: moods me
 
 
 EXTRA="$EXTRA s094:w"   # p094: Easy Part MAKE buttons show a looping 14-frame clip tooltip (assets/tips/easy, made by tools/make_easy_tips.gd)
+EXTRA="$EXTRA bug7:w"   # bug7: Examples only lists examples on the start screen (no mode switch), Back to my projects, 15 Building examples built by the app's own builders (scenes/examples, tools/gen_start_examples.gd)

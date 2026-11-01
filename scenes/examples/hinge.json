@@ -1,0 +1,57 @@
+{
+	"cards": [],
+	"floor_body": false,
+	"fps": 30,
+	"kind": "building",
+	"length_s": 0.0,
+	"name": "Hinge",
+	"natural": true,
+	"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other.",
+	"on_floor": true,
+	"part": {
+		"easy": {
+			"n": 2,
+			"p": {
+				"door": 2100.0,
+				"kind": 1.0
+			},
+			"t": "hinge"
+		},
+		"features": [
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							-30.0,
+							0.0
+						],
+						"b": [
+							30.0,
+							100.0
+						],
+						"k": "rect"
+					}
+				],
+				"id": "f1",
+				"name": "Sketch1",
+				"plane": "front",
+				"t": "sketch"
+			},
+			{
+				"both": false,
+				"dist": 2.5,
+				"id": "f2",
+				"name": "Extrude1",
+				"op": "new",
+				"sketch": "f1",
+				"t": "extrude"
+			}
+		],
+		"name": "Hinge",
+		"seq": 2,
+		"version": 1
+	},
+	"pin": true,
+	"scene": "Hinge"
+}

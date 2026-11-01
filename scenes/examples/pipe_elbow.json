@@ -1,0 +1,123 @@
+{
+	"cards": [],
+	"floor_body": false,
+	"fps": 30,
+	"kind": "building",
+	"length_s": 0.0,
+	"name": "Pipe elbow",
+	"natural": true,
+	"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other.",
+	"on_floor": true,
+	"part": {
+		"easy": {
+			"n": 5,
+			"p": {
+				"d": 25.0
+			},
+			"t": "elbow"
+		},
+		"features": [
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							0.0,
+							0.0
+						],
+						"b": [
+							0.0,
+							25.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							0.0,
+							25.0
+						],
+						"b": [
+							37.5,
+							62.5
+						],
+						"k": "arc",
+						"m": [
+							10.9835,
+							51.5165
+						]
+					},
+					{
+						"a": [
+							37.5,
+							62.5
+						],
+						"b": [
+							62.5,
+							62.5
+						],
+						"k": "line"
+					}
+				],
+				"id": "f1",
+				"name": "Sketch1",
+				"plane": "top",
+				"t": "sketch"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"c": [
+							0.0,
+							0.0
+						],
+						"k": "circle",
+						"r": 12.5
+					}
+				],
+				"id": "f2",
+				"name": "Sketch2",
+				"plane": "front",
+				"t": "sketch"
+			},
+			{
+				"id": "f3",
+				"name": "Sweep1",
+				"op": "new",
+				"path": "f1",
+				"profile": "f2",
+				"t": "sweep"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"c": [
+							0.0,
+							0.0
+						],
+						"k": "circle",
+						"r": 10.6
+					}
+				],
+				"id": "f4",
+				"name": "Sketch3",
+				"plane": "front",
+				"t": "sketch"
+			},
+			{
+				"id": "f5",
+				"name": "Sweep2",
+				"op": "cut",
+				"path": "f1",
+				"profile": "f4",
+				"t": "sweep"
+			}
+		],
+		"name": "Elbow 90",
+		"seq": 5,
+		"version": 1
+	},
+	"pin": true,
+	"scene": "Pipe elbow"
+}
