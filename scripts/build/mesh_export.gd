@@ -85,6 +85,9 @@ static func weld(soup: PackedVector3Array) -> Dictionary:
 static func signed_volume(b: Dictionary) -> float:
 	var v: PackedVector3Array = b["v"]
 	var t: PackedInt32Array = b["t"]
+	var door = MeshCheckDoor.door()
+	if door != null:
+		return door.signed_volume(v, t)
 	var s := 0.0
 	for i in range(0, t.size(), 3):
 		s += v[t[i]].dot(v[t[i + 1]].cross(v[t[i + 2]]))
@@ -95,6 +98,12 @@ static func signed_volume(b: Dictionary) -> float:
 ## round), "closed" (open == 0 and bad == 0)}
 static func check(b: Dictionary) -> Dictionary:
 	var t: PackedInt32Array = b["t"]
+	var door = MeshCheckDoor.door()
+	if door != null:
+		var nr: Dictionary = door.edge_check(t)
+		var no := int(nr["open"])
+		var nb := int(nr["bad"])
+		return {"tris": t.size() / 3, "open": no, "bad": nb, "closed": no == 0 and nb == 0}
 	var cnt := {}
 	var dirs := {}
 	for i in range(0, t.size(), 3):
@@ -128,6 +137,16 @@ static func report(bodies: Array) -> Dictionary:
 		open += int(c["open"])
 		bad += int(c["bad"])
 		tris += int(c["tris"])
+		var bdoor = MeshCheckDoor.door()
+		if bdoor != null:
+			var bb: PackedVector3Array = bdoor.bounds(b["v"])
+			for p in bb:
+				if first:
+					box = AABB(p, Vector3.ZERO)
+					first = false
+				else:
+					box = box.expand(p)
+			continue
 		for p in (b["v"] as PackedVector3Array):
 			if first:
 				box = AABB(p, Vector3.ZERO)
