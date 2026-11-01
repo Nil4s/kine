@@ -590,3 +590,6 @@ EXTRA="$EXTRA s217:w"   # Metal reads as metal in Expert, Easy Part, Nice pictur
 
 
 EXTRA="$EXTRA s223:w"   # LOOKS: the material library made in code, material words, Part materials (Friday plan 223)
+
+
+EXTRA="$EXTRA s229:w"   # s229: primitives by numbers (Part.prim, Expert Primitive dialog, Easy By numbers), planes from 3 points / angle / edge / face, scoped intersect, bow-tie refused; tests/s229_test.gd
