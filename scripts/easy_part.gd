@@ -5848,6 +5848,9 @@ func _cut_sync() -> void:
 	if not (cut_on and active() and _cut_ready()):
 		if cut_mat != null and pu.part_mesh.material_override == cut_mat:
 			pu.part_mesh.material_override = null
+			if not pu.sec_on:
+				pu.sec_cut = {}   # S218
+			pu._look_surfaces()
 		return
 	if cut_mat == null:
 		cut_mat = ShaderMaterial.new()
@@ -5861,6 +5864,8 @@ func _cut_sync() -> void:
 	cut_mat.set_shader_parameter("cut", Vector4(n.x, n.y, n.z, float(d["w"])))
 	cut_mat.set_shader_parameter("on", 1.0)
 	pu.part_mesh.material_override = cut_mat
+	pu.sec_cut = {"n": n, "w": float(d["w"])}   # S218: each body's own cap colour
+	pu._look_surfaces()
 
 
 ## HOLD HERE (p131grippoint): the Colour page's Hold here chip arms one click. The next press on the part sets the grip point there: the

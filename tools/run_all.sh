@@ -568,3 +568,7 @@ EXTRA="$EXTRA s219:w"   # s219: every Part step kind has a timeline icon; unknow
 
 
 EXTRA="$EXTRA s215:w"   # s215: Pipe through points (Parts > Pipes): a tube swept along 3D points with smooth bends
+
+
+
+EXTRA="$EXTRA s218:w"   # s218: section colour: per-body cap colours on Section view, Split results and Nice picture
