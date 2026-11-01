@@ -491,3 +491,6 @@ EXTRA="$EXTRA s079:w"   # s079 (Friday plan 79): Parts > Pipes: PVC pipe by real
 
 
 EXTRA="$EXTRA s125:w"   # s125 (Friday plan 125): Easy Part Swing it checks every step against the other pieces; at the first touch the turn stops at the last free angle, both flash red 0.3 s, words say what hit; lid 0-120 deg analytic; 2k-triangle timing (tests/s125_test.gd; needs the CAD DLL)
+
+
+EXTRA="$EXTRA n05:w"   # N05: slicer lookup cache, build_banded reuse + C++ (KineFieldNative)

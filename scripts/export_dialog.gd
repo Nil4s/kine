@@ -32,6 +32,7 @@ var ui_slicer_box: VBoxContainer   # 3D printing only (plan 119): the slicers fo
 var ui_slicer_txt: Label
 var ui_slicer_opt: OptionButton
 var ui_slicer_btn: Button
+var ui_slicer_again: Button
 var slicers_override = null   # a test: the slicers to show (an Array of {name, path}) instead of looking at this computer
 var slicer_launcher := Callable()   # a test: stands in for OS.create_process
 var _slicers: Array = []
@@ -258,6 +259,11 @@ func _build() -> void:
 	ui_slicer_btn.text = "Send to slicer"
 	ui_slicer_btn.pressed.connect(send_to_slicer)
 	srow.add_child(ui_slicer_btn)
+	ui_slicer_again = Button.new()
+	ui_slicer_again.name = "btn_slicer_look_again"
+	ui_slicer_again.text = "Look again for slicers"
+	ui_slicer_again.pressed.connect(look_again)
+	srow.add_child(ui_slicer_again)
 	ui_slicer_box.add_child(srow)
 	ui_slicer_box.visible = false
 	v.add_child(ui_slicer_box)
@@ -323,7 +329,7 @@ func open_batch() -> void:
 func open() -> void:
 	if dlg == null:
 		_build()
-	_slicers_known = false   # look for the slicers again each time the dialog opens
+	_slicers_known = false   # the dialog re-reads the list each open; SlicerSend.detect_cached() looks at the computer once per app run ("Look again" button)
 	var tg := _tg()
 	var labels_differ := ui_target.item_count != tg.size()
 	for li in mini(ui_target.item_count, tg.size()):
@@ -372,8 +378,6 @@ func _refresh() -> void:
 	ui_app.text = "%s %s\n\n%s %s" % [dlg.tr("What the app does:"), dlg.tr(d["app"]), dlg.tr("Frame rate:"), dlg.tr(d["fps"])]
 	var plain := _cur_run() == "glb" or _cur_run() == "obj"
 	ui_what.disabled = not plain
-	var names := m.scene_object_names() as Array
-	var lst := ", ".join(names) if not names.is_empty() else "none"
 	var why := "" if plain else "\n\nThe choice is for the plain .glb (one mesh per object, no animation); this format always holds everything."
 	ui_face_row.visible = _cur_id() == "laser"
 	ui_budget_row.visible = _cur_run() in ["glb", "obj", "stl", "3mf"]
@@ -396,6 +400,8 @@ func _refresh() -> void:
 			(func(): (sc as ScrollContainer).ensure_control_visible(ui_checks)).call_deferred()
 		ui_objects.text = dlg.tr("The part on screen is what is written. It holds millimetres, Z up, and the floor of the part is the print bed.")
 		return
+	var names := m.scene_object_names() as Array   # only the targets that list the scene's objects pay for it (it skins the body: ~0.5 s)
+	var lst := ", ".join(names) if not names.is_empty() else "none"
 	ui_objects.text = "Mesh objects in the scene: %s. Only the selected object writes just the one picked in the scene (the test cube when it is open, else the set piece picked, else the body); one entry per mesh object writes each by its name.%s" % [lst, why]
 
 
@@ -614,9 +620,16 @@ func _build_bed_row(v: VBoxContainer) -> void:
 ## SEND TO SLICER (plan 119): the slicers this computer has (looked up once per opening of the dialog)
 func slicers() -> Array:
 	if not _slicers_known:
-		_slicers = (slicers_override as Array) if slicers_override != null else SlicerSend.detect_system()
+		_slicers = (slicers_override as Array) if slicers_override != null else SlicerSend.detect_cached()
 		_slicers_known = true
 	return _slicers
+
+
+## the user installed a slicer while the app runs: look at the computer again
+func look_again() -> void:
+	SlicerSend.forget()
+	_slicers_known = false
+	_refresh_slicer()
 
 
 func _refresh_slicer() -> void:
