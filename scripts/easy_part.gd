@@ -872,6 +872,7 @@ func _swing_press() -> void:
 		_say("Swing it: the piece swings open %d degrees in %d seconds and clears the other piece. Ctrl+Z undoes it" % [int(SWING_DEG), int(SWING_SECS)])
 	pu.upto = -1
 	pu.sync()
+	_swing_play(f)   # P125: the turn plays in the view and stops at the first touch
 
 
 ## P026 PULL ALONG: the open curve (the path: a Curvy line that does not come back to its start) and a closed shape (the round or box
@@ -7596,3 +7597,87 @@ func _fit_row() -> HBoxContainer:
 	fit_row = preload("res://scripts/easy_fit.gd").new()
 	fit_row.setup(self)
 	return fit_row
+
+
+## P125 COLLIDE LIVE (Friday plan 125, "the door hits the wall: red flash"): Swing it plays the turn in the view, one step every 0.1 s on the
+## hinge's own curve. Every step is checked against the other pieces by CollideLive (boxes first, then the triangles; no kernel call, no undo
+## step). At the first touch the turn stops at the last free angle, the two touching pieces flash red for 0.3 s and the words say what hit
+const SWING_TICK := 0.1
+const FLASH_SECS := 0.3
+const SWING_SUB := 1.5   # degrees: the check looks at least this often inside a step, so a thin piece is not jumped over
+var _swing_tw: Tween
+var _swing_gen := 0
+var swing_log := {}   # the last playback's numbers: {"hit", "free", "deg", "body", "ticks", "check_ms" (per step)}
+
+
+func _swing_play(f: Dictionary) -> void:
+	await get_tree().process_frame   # the press ends first: the turn starts on the next frame
+	if _swing_tw != null and _swing_tw.is_valid():
+		_swing_tw.kill()
+	_swing_gen += 1
+	var gen := _swing_gen
+	var CL = load("res://scripts/build/collide_live.gd")
+	var P: Dictionary = CL.prep(_rec(), String(f["id"]))
+	if not bool(P.get("ok", false)):
+		return
+	var end_s := float(f["track"][-1][0])
+	var steps := maxi(1, int(ceil(end_s / SWING_TICK - 1e-6)))
+	swing_log = {"hit": false, "free": 0.0, "deg": 0.0, "body": -1, "ticks": 0, "check_ms": []}
+	_swing_tw = m.create_tween()
+	for i in range(1, steps + 1):
+		_swing_tw.tween_callback(_swing_tick.bind(f, P, minf(float(i) * SWING_TICK, end_s), gen))
+		_swing_tw.tween_interval(SWING_TICK)
+
+
+## one step: check the turn from the last free angle to this step's angle; a touch stops the playback, else the view shows the angle
+func _swing_tick(f: Dictionary, P: Dictionary, t: float, gen: int) -> void:
+	if gen != _swing_gen or bool(swing_log.get("hit", false)):
+		return
+	var CL = load("res://scripts/build/collide_live.gd")
+	var lim := Part.hinge_limit(f)
+	var deg := clampf(float(Curves.eval(f["track"], t)), -lim, lim)
+	var n0: int = CL.ms.size()
+	var r: Dictionary = CL.first_contact(P, float(swing_log["free"]), deg, SWING_SUB)
+	var spent := 0.0
+	for k in range(n0, CL.ms.size()):
+		spent += CL.ms[k]
+	(swing_log["check_ms"] as Array).append(spent)
+	swing_log["ticks"] = int(swing_log["ticks"]) + 1
+	if not bool(r.get("hit", false)):
+		swing_log["free"] = deg
+		_swing_show(f, deg)
+		return
+	swing_log["hit"] = true
+	swing_log["free"] = float(r["free"])
+	swing_log["deg"] = float(r["deg"])
+	swing_log["body"] = int(r["body"])
+	_swing_show(f, float(r["free"]))
+	_swing_flash(int(f["body"]), int(r["body"]), true)
+	_say("The swinging piece (piece %d) hits piece %d at %d degrees. Undo, or move the pieces apart" % [int(f["body"]) + 1, int(r["body"]) + 1, roundi(float(r["deg"]))])
+	var tw := m.create_tween()
+	tw.tween_interval(FLASH_SECS)
+	tw.tween_callback(_swing_flash.bind(int(f["body"]), int(r["body"]), false))
+
+
+## the view shows the hinge's body turned to deg (the record is the same; only the view turns)
+func _swing_show(f: Dictionary, deg: float) -> void:
+	pu.pose = {"f": String(f["id"]), "deg": deg}
+	pu._rebuild(true)
+
+
+## the two touching pieces are painted red on the part mesh, or back to their own colours
+func _swing_flash(bi: int, hit: int, on: bool) -> void:
+	if not on:
+		pu._look_surfaces()
+		return
+	var pm := pu.part_mesh
+	if pm.mesh == null:
+		return
+	var sb: Array = pu.res.get("surf_body", [])
+	var red := StandardMaterial3D.new()
+	red.albedo_color = Tok.c("mk_red")
+	red.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	red.cull_mode = BaseMaterial3D.CULL_DISABLED
+	for s in mini(sb.size(), pm.mesh.get_surface_count()):
+		if int(sb[s]) == bi or int(sb[s]) == hit:
+			pm.set_surface_override_material(s, red)
