@@ -419,6 +419,7 @@ func _init() -> void:
 	var gs := stamped_print_check()
 	ok(gs != null, "2 the stamped copy of PrintCheck compiles")
 	var pc = gs.new() if gs != null else null
+	MeshCheckDoor.force_gd = true   # n02: PrintCheck.scan goes to the native door when it is there; the stamps live in _scan_gd, so this measurement runs the GDScript scans it always measured
 	if m.export_ui == null:
 		m.export_ui = ExportDialog.new(m)
 	var open_t := []
@@ -563,6 +564,7 @@ func _init() -> void:
 		tab.append("%s %d tris %.0f ms" % [t, n2, (Time.get_ticks_usec() - ta) / 1000.0])
 	if not tab.is_empty():
 		print("n01: PrintCheck.analyse per template: " + "; ".join(tab))
+	MeshCheckDoor.force_gd = false
 
 	# ======================================================= 3 EXPORT STL / 3MF
 	cpu_load("export files")

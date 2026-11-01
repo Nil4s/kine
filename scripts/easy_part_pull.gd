@@ -1536,12 +1536,12 @@ func _fill_chips(h: Control) -> void:
 	for sd in [["round", "Round", "Round holes: the size is their width"], ["square", "Square", "Square holes: the size is their side"], ["hex", "Hex", "Six-sided holes in a honeycomb: the size is across the flats"]]:
 		var b := _big_btn("easypart_fillshape_" + String(sd[0]), String(sd[1]), String(sd[2]), _fill_shape.bind(String(sd[0])))
 		b.toggle_mode = true
-		b.custom_minimum_size = Vector2(92, 40)
+		b.custom_minimum_size = Vector2(92, 34)
 		chips.add_child(b)
 		fill_shape_btns[sd[0]] = b
 	var sb := _big_btn("easypart_fillshape_stag", "Staggered", "Every other row is shifted half a step, so the holes pack tighter (a grille)", _fill_stagger)
 	sb.toggle_mode = true
-	sb.custom_minimum_size = Vector2(120, 40)
+	sb.custom_minimum_size = Vector2(120, 34)
 	chips.add_child(sb)
 	fill_shape_btns["stag"] = sb
 	var sl := HFlowContainer.new()
