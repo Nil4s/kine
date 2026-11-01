@@ -479,3 +479,6 @@ EXTRA="$EXTRA s031:w"   # s031 (Friday plan 31): Thread look on a round hole: a 
 
 
 EXTRA="$EXTRA s012:w"   # s012 (Friday plan 12): Bevel chip beside Round the edges: 45-degree chamfer planes, top face 40 -> 38 -> 36 mm, volume vs the analytic chamfered box, one undo step (tests/s012_test.gd)
+
+
+EXTRA="$EXTRA s053:w"   # s053 Friday 53: drag a piece onto another piece's face, it lands flush (snap 1 mm, ghost, one undo step "Moved a piece"); real drags (tests/s053_test.gd)

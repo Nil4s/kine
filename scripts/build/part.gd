@@ -57,6 +57,7 @@ extends RefCounted
 ## COMBINE (Fusion Combine): {"t": "combine", "id", "name", "target": N, "tools": [M, ...], "op": "join"|"cut"|"intersect", "keep": bool}: the target
 ## body joins, cuts or shares volume with each tool body in turn (the tools in order). The result takes the target's place in the body list; the tool
 ## bodies go (keep = true leaves them where they are, unchanged).
+## MOVE (p053, Kine's own: drag a piece, it sits flush on another piece's face): {"t": "move", "id", "name", "body": N, "d": [dx, dy, dz] (mm)}: the body N moves by d.
 ## FSTAIRS: "kind": "stairs" (Easy's Up and Forward): "count" steps, "rise" and "run" mm: step i is the body moved i rises up and i runs forward; the
 ## space under each step is filled (a solid staircase, n(n+1)/2 blocks of the body), so the stair is one body. Every other body keeps its place and its look, the target keeps its look.
 
@@ -68,7 +69,7 @@ const PFIT := preload("res://scripts/build/part_fit.gd")   # s193: Fit to an obj
 const SKIN_MM := 0.3   # NROUNDFILTER: a face centre this close (mm) to the box's outside counts as on the skin
 const VERSION := 1
 const RING_MIDDLE := 100.0   # mm: a Ring piece whose centre is closer than this to the middle (not on it) goes round the middle
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "lattice", "fitobj"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "lattice", "fitobj", "move"]
 const OVERHANG_COS := 0.7071   # p113: a face pointing down more than 45 degrees needs support when printed
 const BED_MM := 0.1            # p113: a face this close (mm) to the lowest point of the part is on the floor, not an overhang
 const DRAFT_DIRS := {"x": Vector3(1, 0, 0), "y": Vector3(0, 1, 0), "z": Vector3(0, 0, 1)}
@@ -557,6 +558,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var e := _edge_op(bodies, f)
 				if e != "":
 					errs[id] = e
+			"move":   # p053: a piece moved by drag (its own function: _move_op)
+				var mv := _move_op(bodies, f)
+				if mv != "":
+					errs[id] = mv
 			"offset_face", "draft":   # GAP 10: a face moved along its normal, or leaned about the body's bottom (its own function: _face_op)
 				var fe := _face_op(bodies, f)
 				if fe != "":
@@ -2205,6 +2210,23 @@ static func fillet_trial(body: int, r_mm: float, edges: Array) -> String:
 		return KCad.last_error()
 	KCad.release(r)
 	return ""
+
+## p053: a piece moved by d (mm): the kernel moves that body; a zero move changes nothing
+static func _move_op(bodies: Array, f: Dictionary) -> String:
+	if bodies.is_empty():
+		return "there is no piece to move"
+	var bi := clampi(int(f.get("body", 0)), 0, bodies.size() - 1)
+	var d: Array = f.get("d", [0.0, 0.0, 0.0])
+	var v := Vector3(float(d[0]), float(d[1]), float(d[2])) * MM
+	if v.is_zero_approx():
+		return ""
+	var r := KCad.translate(bodies[bi], v)
+	if r == 0:
+		return KCad.last_error()
+	KCad.release(bodies[bi])
+	bodies[bi] = r
+	return ""
+
 
 ## GAP 10: an offset or a draft. The faces are found on the body as it is at this step (match_face), then the kernel moves them
 static func _face_op(bodies: Array, f: Dictionary) -> String:
