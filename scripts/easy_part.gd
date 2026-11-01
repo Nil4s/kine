@@ -485,9 +485,12 @@ func _round_box() -> PanelContainer:
 	box.name = "easypart_round"
 	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
 	box.visible = false
+	var vb0 := VBoxContainer.new()   # s013: row 1 = the filter chips + Make it stronger; row 2 = the Soft / Medium / Sharp presets
+	vb0.add_theme_constant_override("separation", 4)
+	box.add_child(vb0)
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 6)
-	box.add_child(h)
+	vb0.add_child(h)
 	for rf in ROUND_FILTERS:
 		var b := _big_btn("easypart_round_" + String(rf[0]), String(rf[1]), String(rf[3]), _round_filter.bind(String(rf[0])))
 		b.toggle_mode = true
@@ -504,6 +507,7 @@ func _round_box() -> PanelContainer:
 	sb.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	sb.custom_minimum_size = Vector2(176, 44)
 	h.add_child(sb)
+	vb0.add_child(_round_presets_row())
 	return box
 
 
@@ -512,6 +516,13 @@ func _round_shown() -> bool:
 
 
 func _round_sync() -> void:
+	# s013: the How round row (Soft / Medium / Sharp) shows while the newest step is a round (a second row all the time covered the grid the
+	# drags land on). Round the edges makes the first round, then the presets swap it
+	var pr := round_box.find_child("easypart_round_presets", true, false)
+	if pr != null:
+		var fs: Array = _rec().get("features", [])
+		(pr as Control).visible = not fs.is_empty() and String((fs[-1] as Dictionary).get("t", "")) == "fillet"
+		round_box.reset_size()
 	for k in round_btns:
 		(round_btns[k] as Button).set_pressed_no_signal(k == round_mode)
 		m._grey(round_btns[k], Part.why_not() if not Part.available() else "")
@@ -1959,6 +1970,7 @@ func _bracket_box() -> PanelContainer:
 		b.pressed.connect(_bracket_pick.bind(int(bc[2])))
 		row.add_child(b)
 		bracket_btns[bc[0]] = b
+	_rib_rows(vb)   # s013 (Friday 36): the Rib chip and its Size / Thickness sliders
 	return pc
 
 
@@ -2007,6 +2019,7 @@ func _bracket_pick(kind: int) -> void:
 	m._push_undo()
 	if on_floor:
 		PartTemplates.retemplate(_rec(), {"kind": kind})
+		_rib_after_shape()   # s013: a rib follows the new shape (or goes, on the corner brace)
 	else:
 		m.S.part = PartTemplates.make("bracket", {"kind": kind})
 	tweak = {}
@@ -2491,6 +2504,7 @@ func _screw_sync() -> void:
 		var bb: Button = bracket_btns[bc[0]]
 		bb.set_pressed_no_signal(kind == int(bc[2]))
 		m._grey(bb, Part.why_not() if not Part.available() else "")
+	_rib_sync()   # s013
 	# p078makeacasef: the Boards chips: the case on the floor shows its board pressed
 	var bcur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {}) if _tpl() == "case" else {}
 	board_box.visible = (parts_open and lib_cat == "Boards") or _tpl() == "case"
@@ -6274,3 +6288,332 @@ func _level_close_later() -> void:
 	await get_tree().create_timer(4.0).timeout
 	if g == _level_gen and level_box != null:
 		level_box.visible = false
+
+
+# ================================================================ s013 (Friday 13 + 36)
+## FRIDAY 13 SOFT / MEDIUM / SHARP: three chips under the Round the edges row. Each rounds the solid's edges with a radius of a share of its
+## smallest side (Soft 25 %, Medium 12 %, Sharp 4 %), clamped to what the kernel can fillet (it steps the radius down until the fillet builds).
+## One undo step each. A press right after a round replaces that round (the newest step is a fillet: it is swapped, not stacked)
+const ROUND_PRESETS := [["soft", "Soft", 0.25, "Very round: a quarter of the smallest side"], ["medium", "Medium", 0.12, "Round: an eighth of the smallest side"], ["sharp", "Sharp", 0.04, "Barely round: a twenty-fifth of the smallest side"]]
+
+
+func _round_presets_row() -> HBoxContainer:
+	var h := HBoxContainer.new()
+	h.name = "easypart_round_presets"
+	h.add_theme_constant_override("separation", 6)
+	var l := Label.new()
+	l.text = "How round:"
+	l.add_theme_font_size_override("font_size", 16)
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(l)
+	for rp in ROUND_PRESETS:
+		var b := _big_btn("easypart_roundpreset_" + String(rp[0]), String(rp[1]), String(rp[3]), _round_preset_press.bind(String(rp[0])))
+		b.custom_minimum_size = Vector2(100, 44)
+		h.add_child(b)
+	return h
+
+
+func _round_preset_press(key: String) -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	var pct := 0.12
+	var label := "Medium"
+	for rp in ROUND_PRESETS:
+		if String(rp[0]) == key:
+			pct = float(rp[2])
+			label = String(rp[1])
+	_flush_if_dirty()
+	armed = ""
+	var snap := _rec().duplicate(true)
+	_begin("Round: " + label)
+	var rec: Dictionary = snap.duplicate(true)
+	var why := _round_preset(rec, pct, label)
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+	else:
+		m.S.part = rec
+		_end()
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+
+
+## the preset round added to rec (the newest step, when it is a round, is taken off first). "" or why not
+func _round_preset(rec: Dictionary, pct: float, label: String) -> String:
+	var feats: Array = rec.get("features", [])
+	if not feats.is_empty() and String((feats[-1] as Dictionary).get("t", "")) == "fillet":
+		feats.pop_back()
+	var res := Part.replay(rec, -1, {"edges": true, "keep": true})
+	var kept: Array = res.get("ids", [])
+	if int(res["bodies"]) == 0 or kept.is_empty():
+		Part.release_kept(kept)
+		return "Nothing solid to round yet. Press Pull it up first"
+	var es: Array = res["edges"]
+	var aabb: AABB = res["aabb"]
+	var small := minf(aabb.size.x, minf(aabb.size.y, aabb.size.z)) / Part.MM
+	var flag := "" if round_mode == "all" else round_mode
+	var r0 := clampf(snappedf(small * pct, 0.1), 0.1, maxf(0.1, snappedf(small * 0.45, 0.1)))
+	var tried := {}
+	var done := false
+	var got := 0.0
+	for i in 60:
+		var r := maxf(0.1, snappedf(r0 * pow(0.92, i), 0.1))
+		if tried.has(r):
+			continue
+		tried[r] = true
+		var list := []
+		for e in es:
+			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and (flag == "" or bool(e.get(flag, false))) and float(e["len"]) / Part.MM > r * 2.5:
+				list.append(Part.describe(e))
+		if not list.is_empty() and Part.fillet_trial(int(kept[0]), r, list) == "":
+			var f := Part.new_feature(rec, "fillet", {"body": 0, "r": r, "edges": list})
+			rec["features"].append(f)
+			if _last_error(rec, String(f["id"])) == "":
+				got = r
+				done = true
+				tweak = {"id": f["id"], "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": maxf(1.0, snappedf(r * 0.2, 0.1)), "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
+				break
+			rec["features"].pop_back()
+		if r <= 0.1:
+			break
+	Part.release_kept(kept)
+	if not done:
+		return "These edges are too small or too crowded to round: Pull it up taller, then press %s again" % label
+	_say("%s round: %s mm. Use the slider for more or less" % [label, ("%.1f" % got)])
+	return ""
+
+
+## FRIDAY 36 RIB / GUSSET: on the Brackets page, under the three shape chips. The Add a rib chip puts a triangular rib in the bracket's inside
+## corner (an L-bracket is made first when none is on the floor), joined into the one solid; its Size (the legs of the triangle) and Thickness
+## sliders move it. The rib is two steps after the bracket's own (a sketch of the triangle in the front plane, a join extrude centred on the
+## width), marked "rib" so it can be swapped or taken off; rec.easy.rib = {size, t} says it is there. One undo step each.
+const RIB_SIZE_LO := 6.0
+const RIB_SIZE_HI := 40.0
+const RIB_T_LO := 2.0
+const RIB_T_HI := 10.0
+var rib_btn: Button
+var rib_size_sl: HSlider
+var rib_t_sl: HSlider
+var rib_size_val: Label
+var rib_t_val: Label
+var rib_size := 20.0
+var rib_t := 3.0
+var _rib_drag := false
+var _rib_loading := false
+
+
+func _rib_rows(vb: VBoxContainer) -> void:
+	rib_btn = Button.new()
+	rib_btn.name = "easypart_rib"
+	rib_btn.text = "Add a rib"
+	rib_btn.tooltip_text = "A triangular rib in the inside corner of the bracket, fused into one solid. Press again to take it off"
+	rib_btn.toggle_mode = true
+	rib_btn.focus_mode = Control.FOCUS_NONE
+	rib_btn.custom_minimum_size = Vector2(0, 34)
+	rib_btn.add_theme_font_size_override("font_size", 13)
+	rib_btn.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+	rib_btn.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+	rib_btn.pressed.connect(_rib_press)
+	vb.add_child(rib_btn)
+	for k in ["size", "t"]:
+		var hb := HBoxContainer.new()
+		hb.add_theme_constant_override("separation", 4)
+		var l := Label.new()
+		l.text = "Rib size" if k == "size" else "Rib thickness"
+		l.custom_minimum_size = Vector2(92, 0)
+		l.add_theme_font_size_override("font_size", 13)
+		hb.add_child(l)
+		var sl := HSlider.new()
+		sl.name = "easypart_rib_" + k
+		sl.min_value = RIB_SIZE_LO if k == "size" else RIB_T_LO
+		sl.max_value = RIB_SIZE_HI if k == "size" else RIB_T_HI
+		sl.step = 1.0
+		sl.value = rib_size if k == "size" else rib_t
+		sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		sl.custom_minimum_size = Vector2(60, 24)
+		sl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		sl.focus_mode = Control.FOCUS_NONE
+		sl.value_changed.connect(_rib_slid)
+		sl.drag_started.connect(_rib_drag_start)
+		sl.drag_ended.connect(_rib_drag_end)
+		hb.add_child(sl)
+		var vl := Label.new()
+		vl.custom_minimum_size = Vector2(44, 0)
+		vl.add_theme_font_size_override("font_size", 13)
+		hb.add_child(vl)
+		vb.add_child(hb)
+		if k == "size":
+			rib_size_sl = sl
+			rib_size_val = vl
+		else:
+			rib_t_sl = sl
+			rib_t_val = vl
+	_rib_labels()
+
+
+func _rib_labels() -> void:
+	if rib_size_val != null:
+		rib_size_val.text = "%d mm" % int(roundf(rib_size))
+		rib_t_val.text = "%d mm" % int(roundf(rib_t))
+
+
+## the rib on the record: {size, t}, or {} when none
+func _rib_of(rec: Dictionary) -> Dictionary:
+	return (rec.get("easy", {}) as Dictionary).get("rib", {})
+
+
+## take the rib's steps off rec (and its note)
+func _rib_strip(rec: Dictionary) -> void:
+	var keep := []
+	for f in rec.get("features", []):
+		if not bool((f as Dictionary).get("rib", false)):
+			keep.append(f)
+	rec["features"] = keep
+	(rec.get("easy", {}) as Dictionary).erase("rib")
+
+
+## the rib added to rec (a bracket record): "" or why not. Replaces a rib that is there
+func _rib_add(rec: Dictionary, size: float, t: float) -> String:
+	_rib_strip(rec)
+	var e: Dictionary = rec.get("easy", {})
+	var p: Dictionary = e.get("p", {})
+	var kind := int(roundf(float(p.get("kind", 1))))
+	if kind == 3:
+		return "The corner brace has its gusset already. Pick the L-bracket or the T-bracket for a rib"
+	var S := float(p.get("leg", 80.0))
+	var th := float(p.get("thickness", 5.0))
+	var w := float(p.get("width", 30.0))
+	var s := clampf(size, RIB_SIZE_LO, RIB_SIZE_HI)
+	var tt := clampf(t, RIB_T_LO, minf(RIB_T_HI, w))
+	var tri := []
+	if kind == 2:   # T: the inside corner under the bar, right of the stem
+		var sx := S * 0.5 - th * 0.5
+		s = minf(s, minf(S - th - 2.0, S - (sx + th) - 2.0))
+		tri = [Vector2(sx + th, S - th), Vector2(sx + th + s, S - th), Vector2(sx + th, S - th - s)]
+	else:   # L: the inside corner of the foot and the upright
+		s = minf(s, S - th - 2.0)
+		tri = [Vector2(th, th), Vector2(th + s, th), Vector2(th, th + s)]
+	var sk := Part.new_feature(rec, "sketch", {"plane": "front", "ents": PartTemplates._poly(tri), "dims": [], "rib": true})
+	rec["features"].append(sk)
+	var ex := Part.new_feature(rec, "extrude", {"sketch": sk["id"], "dist": tt, "both": true, "op": "join", "into": 0, "rib": true})
+	rec["features"].append(ex)
+	if _last_error(rec, String(ex["id"])) != "":
+		rec["features"].pop_back()
+		rec["features"].pop_back()
+		return "A rib does not fit on this bracket"
+	if not rec.has("easy"):
+		rec["easy"] = {}
+	rec["easy"]["rib"] = {"size": s, "t": tt}
+	return ""
+
+
+func _rib_on_floor() -> bool:
+	return _tpl() == "bracket" and not (_rec().get("features", []) as Array).is_empty()
+
+
+func _rib_press() -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	_flush_if_dirty()
+	armed = ""
+	var had := _rib_on_floor() and not _rib_of(_rec()).is_empty()
+	var snap := _rec().duplicate(true)
+	_begin("Take the rib off" if had else "Add a rib")
+	var rec: Dictionary
+	var why := ""
+	if had:
+		rec = snap.duplicate(true)
+		_rib_strip(rec)
+	else:
+		rec = snap.duplicate(true) if _rib_on_floor() else PartTemplates.make("bracket", {"kind": 1})
+		why = _rib_add(rec, rib_size, rib_t)
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+	else:
+		m.S.part = rec
+		_end()
+		_say("Rib taken off" if had else "Rib added: %d mm, %d mm thick. Use the sliders to change it" % [int(roundf(rib_size)), int(roundf(rib_t))])
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	_rows_sync()
+	_values_sync()
+	_chips_sync()
+	_rib_scroll_to()
+
+
+## the panel scrolls: after a rib is added the sliders are brought into its view (they sit below the chips)
+func _rib_scroll_to() -> void:
+	await get_tree().process_frame
+	var n: Node = rib_t_sl
+	while n != null and not (n is ScrollContainer):
+		n = n.get_parent()
+	if n != null and rib_t_sl.is_visible_in_tree():
+		(n as ScrollContainer).ensure_control_visible(rib_t_sl)
+
+
+func _rib_slid(_v: float) -> void:
+	if _rib_loading:
+		return
+	rib_size = rib_size_sl.value
+	rib_t = rib_t_sl.value
+	_rib_labels()
+	if not (_rib_on_floor() and not _rib_of(_rec()).is_empty()):
+		return   # no rib yet: the numbers wait for Add a rib
+	if not _rib_drag:
+		m._step_hint = "Rib size"
+		m._push_undo()
+	var why := _rib_add(_rec(), rib_size, rib_t)
+	if why != "":
+		_say(why)
+	pu.upto = -1
+	pu.sync()
+
+
+func _rib_drag_start() -> void:
+	if _rib_on_floor() and not _rib_of(_rec()).is_empty():
+		m._step_hint = "Rib size"
+		m._push_undo()
+	_rib_drag = true
+
+
+func _rib_drag_end(_changed: bool) -> void:
+	_rib_drag = false
+
+
+## the bracket changed shape (retemplate rewrote its own steps): the rib is laid again for the new shape, or goes (corner brace)
+func _rib_after_shape() -> void:
+	var r := _rib_of(_rec())
+	if r.is_empty():
+		return
+	var why := _rib_add(_rec(), float(r.get("size", rib_size)), float(r.get("t", rib_t)))
+	if why != "":
+		_say(why)
+
+
+## the chip and the sliders follow the record
+func _rib_sync() -> void:
+	if rib_btn == null:
+		return
+	var r: Dictionary = _rib_of(_rec()) if _rib_on_floor() else {}
+	rib_btn.set_pressed_no_signal(not r.is_empty())
+	rib_btn.text = "Take the rib off" if not r.is_empty() else "Add a rib"
+	m._grey(rib_btn, Part.why_not() if not Part.available() else "")
+	_rib_loading = true
+	if not r.is_empty():
+		rib_size = float(r.get("size", rib_size))
+		rib_t = float(r.get("t", rib_t))
+	rib_size_sl.set_value_no_signal(rib_size)
+	rib_t_sl.set_value_no_signal(rib_t)
+	_rib_loading = false
+	_rib_labels()
