@@ -111,6 +111,7 @@ func _size_sync() -> void:
 					size_l.visible = false
 					return
 	size_l.position = pos
+	_box_clear_of_size_line()   # the Size / Height box rises above this line rather than draw under it
 	var r := Rect2(size_l.get_global_position(), sz)
 	for bx in [panel, hole_box, tilt_box, explode_box, get("challenge_card"), repeat_box, stick_box, colour_box, hint, status, flat_box]:
 		var c := bx as Control
@@ -1626,6 +1627,17 @@ func _quick_sync() -> void:
 	quick_box.visible = quick_open and shape_box.visible
 	quick_box.reset_size()
 	quick_box.position = shape_box.position + Vector2(0.0, shape_box.size.y + 4.0)
+
+
+## the Size line ("Size: 40 x 30 x 47 cm ...") sits under the part: the Size / Height box moves up so its bottom row (the Height slider) is clear of it
+func _box_clear_of_size_line() -> void:
+	var sb := get("size_box") as Control   # declared further down the chain (easy_part_stick.gd)
+	if sb == null or not sb.visible or size_l == null or not size_l.visible:
+		return
+	var lr := size_l.get_global_rect()
+	var br := Rect2(sb.position, sb.size)
+	if br.intersects(lr):
+		sb.position.y = maxf(4.0, lr.position.y - sb.size.y - 4.0)
 
 
 
