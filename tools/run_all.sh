@@ -433,3 +433,4 @@ EXTRA="$EXTRA s013:w"   # s013 (Friday plans 13 + 36): Soft/Medium/Sharp round p
 EXTRA="$EXTRA s157:w"   # s157 + s154 (Friday plans 157, 154): Export dialog Triangle budget on a 13.8k sculpt sphere (2k: <= 2000 triangles re-read from the .glb, volume 3 pct, bbox 1 pct, Full = full count, screen mesh unchanged) and the Sculpt Remesh slider lighter / smoother (half within 10 pct, volume 2 pct, one undo each) (tests/s157_test.gd)
 EXTRA="$EXTRA s048:w"   # s048: Repeat it Around an axis/edge, Along a line, With growth
 EXTRA="$EXTRA s135:w"   # Friday plan 135+136: Scene lines (two characters with then/while/after, camera words)
+EXTRA="$EXTRA s096:w"   # P096 templates as recipes: phone stand / shelf bracket / box with lid open as named steps, edited from the step list
