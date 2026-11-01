@@ -520,3 +520,6 @@ EXTRA="$EXTRA s120:w"   # s120: a part with hinges is one moving prop on STAGE, 
 
 
 EXTRA="$EXTRA s100:w"   # s100 (Friday plan 100): Easy Part keyboard shortcuts card: 3 clicks on a button with a key show "Tip: Ctrl+Z does Undo" once (remembered in settings), at most one per 2 minutes, never during a drag; Shortcuts list in the Easy popup, each key tested (tests/s100_test.gd; needs the CAD DLL)
+
+
+EXTRA="$EXTRA s137:w"   # plan 137: impact frames on a strike (hit-stop slider, 2-frame target flash, 0.25 s camera shake, toggle off = original)
