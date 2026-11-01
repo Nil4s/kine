@@ -115,6 +115,8 @@ func _init() -> void:
 	# ---- B + T: before and after of the three scenes
 	var names := ["cube", "cylinder", "house"]
 	var scenes := [scene_cube(), scene_cyl(), scene_house()]
+	NiceRender.look = "studio"
+	await NiceRender.draw_mesh(root, scenes[0][0], scenes[0][1], scenes[0][2], Vector2i(320, 180))   # warm-up: the first off-screen draw of a session comes out empty
 	for i in 3:
 		var sc: Array = scenes[i]
 		NiceRender.look = "studio"

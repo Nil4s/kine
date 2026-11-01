@@ -281,6 +281,7 @@ static func draw_real(host: Node, mesh: ArrayMesh, box: AABB, size := SIZE, ov :
 	world.add_child(cam)
 	cam.current = true
 	host.add_child(vp)
+	await host.get_tree().process_frame   # the viewport takes its size on its first frame: unproject_position needs it to centre the part
 	var dir := Vector3(0.6, 0.16 if outdoor else 0.42, 1.0).normalized()
 	var target := box.get_center()
 	var dist := diag * 2.0
