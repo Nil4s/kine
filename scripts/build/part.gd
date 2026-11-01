@@ -66,11 +66,12 @@ const MM := 0.001
 const POFFSET := preload("res://scripts/build/part_offset.gd")   # plan 18: Thinner / thicker everywhere
 const PBULGE := preload("res://scripts/build/part_bulge.gd")   # plan 23: Pinch / Bulge a face
 const GEAR_DRIVE := preload("res://scripts/gear_drive.gd")
+const PPRIM := preload("res://scripts/build/part_prim.gd")   # s229: primitives by numbers, planes from 3 points / an angle, scoped intersect, bow-tie check
 const PFIT := preload("res://scripts/build/part_fit.gd")   # s193: Fit to an object (a holder / case sunk with a phone scan)   # s124: the Gear pair turned for the view
 const SKIN_MM := 0.3   # NROUNDFILTER: a face centre this close (mm) to the box's outside counts as on the skin
 const VERSION := 1
 const RING_MIDDLE := 100.0   # mm: a Ring piece whose centre is closer than this to the middle (not on it) goes round the middle
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "lattice", "fitobj", "move", "offset", "meshsolid"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "lattice", "fitobj", "move", "offset", "meshsolid", "prim"]
 const OVERHANG_COS := 0.7071   # p113: a face pointing down more than 45 degrees needs support when printed
 const BED_MM := 0.1            # p113: a face this close (mm) to the lowest point of the part is on the floor, not an overhang
 const DRAFT_DIRS := {"x": Vector3(1, 0, 0), "y": Vector3(0, 1, 0), "z": Vector3(0, 0, 1)}
@@ -175,6 +176,9 @@ static func resolve_plane(rec: Dictionary, name: String) -> Dictionary:
 		return plane("front")
 	if String(f.get("from", "")) == "tan":   # s211 DRAW ON A CURVED FACE: the tangent plane at a clicked point of a curved face (o, x, n in the record, o in mm)
 		return tangent_plane(f)
+	if PPRIM.PLANE_KINDS.has(String(f.get("from", ""))):   # s229: a plane from 3 points, turned about an edge, through an edge, or on a face
+		var np := PPRIM.plane_of(rec, f)
+		return np if not np.is_empty() else plane("front")
 	var pl := plane(String(f.get("from", "front")))
 	pl["o"] = (pl["o"] as Vector3) + (pl["n"] as Vector3) * float(f.get("mm", 0.0)) * MM
 	return pl
@@ -189,6 +193,8 @@ static func plane_words(rec: Dictionary, name: String) -> String:
 		return "plane"
 	if String(f.get("from", "")) == "tan":
 		return "%s (flat where you clicked the curved side)" % f["name"]
+	if PPRIM.PLANE_KINDS.has(String(f.get("from", ""))):
+		return PPRIM.plane_words(rec, f)
 	return "%s (%s mm from the %s plane)" % [f["name"], _short(float(f.get("mm", 0.0))), String(f.get("from", "front")).capitalize()]
 
 
@@ -496,7 +502,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	if calls_log != null:
 		var st := get_stack()
 		calls_log.append([str(hash(JSON.stringify(rec))), str(upto), str(want.keys()), str(st[1]["function"]), str(st[1]["line"])])
-	var res := {"mesh": null, "volume": 0.0, "bodies": 0, "volumes": [], "errors": {}, "edges": [], "faces": [], "aabb": AABB(), "props": [], "looks": [], "body_looks": [], "tess_ids": [], "tess_looks": [], "surf_body": []}
+	var res := {"mesh": null, "volume": 0.0, "bodies": 0, "volumes": [], "errors": {}, "edges": [], "faces": [], "aabb": AABB(), "props": [], "looks": [], "body_looks": [], "tess_ids": [], "tess_looks": [], "surf_body": [], "warnings": {}}
 	if not available():
 		return res
 	var feats: Array = rec.get("features", [])
@@ -504,6 +510,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	var bodies: Array = []
 	var looks: Array = []   # APPEARANCE: one look per body (null = the default for its index), kept beside bodies
 	var errs: Dictionary = res["errors"]
+	var warns: Dictionary = res["warnings"]   # s229: what a step did that the user should know (an Intersect that left or removed bodies)
 	var sketches := {}
 	var off_ids := {}   # XTIME: the sketches the timeline suppressed
 	var inc := bool(want.get("inc", false)) and n > 0   # s168 INCREMENTAL REPLAY: the steps a cached prefix already made are not run again
@@ -533,6 +540,15 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				if rs["err"] != "":
 					errs[id] = rs["err"]
 					sketches[id] = {}   # a sketch that cannot be read makes no solid (never its stored numbers)
+				else:
+					var pw := PPRIM.plane_problem(rec, String(f.get("plane", "front")))   # s229: a sketch on a plane that is not a plane
+					var cx := PPRIM.crossing(rs["sk"]["ents"]) if pw == "" else {}   # s229: a closed outline that crosses itself (bow-tie) is refused here, with the place
+					if pw != "":
+						errs[id] = pw
+						sketches[id] = {}
+					elif not cx.is_empty():
+						errs[id] = PPRIM.crossing_words(rs["sk"]["ents"], cx)
+						sketches[id] = {}
 			"extrude", "revolve":
 				var sk: Dictionary = sketches.get(String(f.get("sketch", "")), {})
 				if sk.is_empty():
@@ -547,12 +563,26 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				for si in sids.size():   # XFIX: one solid per separate loop of the sketch (one feature, one undo step)
 					if absf(tilt_deg) > 1e-9:
 						sids[si] = _tilt_solid(sids[si], tilt_deg)
-					var e := _combine(bodies, sids[si], String(f.get("op", "join")), int(f.get("into", -1)))
+					PPRIM.last_warning = ""
+					var e := _combine(bodies, sids[si], String(f.get("op", "join")), int(f.get("into", -1)), f)
+					if PPRIM.last_warning != "":
+						warns[id] = PPRIM.last_warning
 					if e != "":
 						errs[id] = e
 						for sj in range(si + 1, sids.size()):
 							KCad.release(sids[sj])
 						break
+			"prim":   # s229: a box / cylinder / tube / cone / sphere / wedge by numbers (scripts/build/part_prim.gd)
+				PPRIM.last_warning = ""
+				var pre := PPRIM.apply(bodies, f)
+				if pre != "":
+					errs[id] = pre
+				if PPRIM.last_warning != "":
+					warns[id] = PPRIM.last_warning
+			"plane":   # s229: an offset plane needs no solid; a plane from points / an angle says when its numbers are not a plane
+				var ple := PPRIM.plane_problem(rec, id)
+				if ple != "":
+					errs[id] = ple
 			"loft":   # E: the picked profiles, in order, through the kernel's loft
 				var le := _loft(bodies, f, sketches)
 				if le != "":
@@ -1760,15 +1790,17 @@ static func _flange_ring(pipe: int, p0: Vector3, tan: Vector3, x: Vector3, ents:
 
 
 ## puts a new solid into the body list as the op says; "" or the failure message
-static func _combine(bodies: Array, solid: int, op: String, into := -1) -> String:
+static func _combine(bodies: Array, solid: int, op: String, into := -1, f := {}) -> String:
 	if op == "intersect":
-		return _intersect_into(bodies, solid)
+		return PPRIM.scoped_intersect(bodies, solid, f if not f.is_empty() else {"into": into})   # s229: only the bodies it touches (or the named ones)
 	if op == "new" or bodies.is_empty():
 		bodies.append(solid)
 		return ""
 	if op == "cut":
 		for i in bodies.size():
 			if into >= 0 and i != into:   # p063: a cut with "into" touches only that body (Fasten these two: the screw hole of one piece)
+				continue
+			if not (f.get("targets", []) as Array).is_empty() and not (f["targets"] as Array).has(i):   # s229: a cut with a target list touches only those bodies
 				continue
 			var c := KCad.cut(bodies[i], solid)
 			if c != 0:
@@ -3497,3 +3529,26 @@ static func sunk_dist(pl: Dictionary, f: Dictionary) -> float:
 	if sink <= 0.0 or bool(f.get("both", false)):
 		return float(f["dist"])
 	return float(f["dist"]) + signf(float(f["dist"])) * sink
+
+
+## s229 ONE-CALL PRIMITIVE for code and agents: appends a "prim" feature (box, cylinder, tube, cone, sphere, wedge; numbers in mm, see part_prim.gd)
+## and returns its id. Part.prim(rec, "box", {"x": 0, "y": 0, "z": 0, "w": 100, "h": 50, "d": 20, "name": "Plinth"}) is a whole box: no plane, sketch or extrude.
+static func prim(rec: Dictionary, kind: String, fields := {}) -> String:
+	var fl := fields.duplicate()
+	fl["kind"] = kind
+	if not fl.has("op"):
+		fl["op"] = "new"
+	var nf := new_feature(rec, "prim", fl)
+	if not fields.has("name"):
+		nf["name"] = "%s%d" % [kind.capitalize(), count_of(rec, "prim") + 1]
+	(rec["features"] as Array).append(nf)
+	return String(nf["id"])
+
+
+## s229 ONE-CALL PLANE: appends a plane from 3 points ("pts"), turned about an edge ("angle"), through an edge ("edge") or on a face ("face"); returns its id.
+static func add_plane(rec: Dictionary, from: String, fields := {}) -> String:
+	var fl := fields.duplicate()
+	fl["from"] = from
+	var nf := new_feature(rec, "plane", fl)
+	(rec["features"] as Array).append(nf)
+	return String(nf["id"])

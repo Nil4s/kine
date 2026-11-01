@@ -24,8 +24,9 @@ const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]   # Constrain: the rule row (CON_TOOLS, below)
-const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine"]
-const TOOL_KIND := {"Offset plane": "plane", "Offset face": "offset_face", "Draft": "draft"}   # a tool's feature kind when it is not its lower-case name
+const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Primitive"]
+const PPRIMUI := preload("res://scripts/build/part_prim_ui.gd")   # s229: the Primitive dialog and the plane modes
+const TOOL_KIND := {"Primitive": "prim", "Offset plane": "plane", "Offset face": "offset_face", "Draft": "draft"}   # a tool's feature kind when it is not its lower-case name
 const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell", "Appearance", "Offset face", "Draft"]
 const LOOK_TOOLS := ["Appearance"]   # APPEARANCE (GAP 5): picks a body for the side panel; the panel is _build_look / _look_sync
 const LOOK_PRESET_ORDER := ["Paint", "Metal", "Glass", "Rubber", "Plastic"]
@@ -64,7 +65,8 @@ const TIPS := {
 	"Loft": "LOFT: pick two or more sketches in order (each a closed profile); the solid runs through them. Ruled = straight, Smooth = curved.",
 	"Pattern": "PATTERN: copies of a body in a row (linear) or round an axis through the origin (circular). Join them into the body or make them new bodies. Live preview.",
 	"Sweep": "SWEEP: pick the shape to push along a line (a pipe: a round shape) and the line. The shape sits at the line's start, facing along it. Corners are rounded.",   # FPIPE: plain words
-	"Offset plane": "OFFSET PLANE: pick Front, Top or Right and type a distance. The new plane is in the browser: click it to sketch on it.",
+	"Offset plane": "PLANE: a distance from Front, Top or Right, or through 3 points, angled about an edge, through an edge at an angle, or on a face. The new plane is in the browser: click it to sketch on it.",
+	"Primitive": "PRIMITIVE: a box, cylinder, tube, cone, sphere or wedge made in ONE step from typed numbers (position and sizes in mm). New body, Join, Cut or Intersect.",
 	"Fillet": "FILLET: click edges (they turn sky blue), type a radius, press Enter or OK.",
 	"Chamfer": "CHAMFER: click edges, type a distance, press Enter or OK.",
 	"Offset face": "OFFSET FACE: click a face on the model, type a distance (mm): plus adds material, minus takes it away. Press Enter or OK.",
@@ -186,6 +188,8 @@ var f_ruled: OptionButton      # the loft dialog: ruled (straight) or smooth
 var f_sw_prof: OptionButton    # the sweep dialog: the closed profile sketch
 var f_sw_path: OptionButton    # the sweep dialog: the open path sketch
 var f_sw_flange: CheckBox      # the sweep dialog: a flange ring at the line's start end (FPIPE)
+var pr := {}                   # s229: the Primitive / plane-mode dialog's controls (part_prim_ui.gd), rebuilt each time it opens
+var cross_mark := {}           # s229: a refused line that would make the outline cross itself: {"at": [x, y] mm, "a", "b", "new": the refused line}
 var pat := {}                  # PATTERN dialog: its controls by name (built each time it opens, see _pattern_open)
 var f_cmb_op: OptionButton     # the combine dialog: Join, Cut or Intersect
 var f_cmb_keep: CheckBox       # the combine dialog: keep the tool bodies
@@ -933,6 +937,7 @@ func _add_ent(e: Dictionary) -> void:
 
 
 func _after_sketch_edit() -> void:
+	cross_mark = {}
 	_nums_sync()
 	_note_sync()
 	pov.queue_redraw()
@@ -987,6 +992,8 @@ func _press(p: Vector2) -> bool:
 		return _measure_press(p)
 	if tool == "Hinge" and dlg.get("t", "") == "hinge":
 		return _hinge_press(p)
+	if dlg.get("t", "") == "plane" and PPRIMUI.plane_mode(self) == 4:
+		return PPRIMUI.face_press(self, p)   # s229: the plane on a clicked face
 	if tool == "Offset face" or tool == "Draft":   # GAP 10: a click picks a face (its centre; the front-facing ones)
 		var fi := _pick_face(p)
 		if fi >= 0:
@@ -1061,7 +1068,17 @@ func _press_sketch(p: Vector2) -> bool:
 				if (draft["a"] as Vector2).distance_to(b) < 0.5:
 					_say("Pick a different point: that is where the line starts (a line needs two ends)")   # XFIX2
 					return true
-				_add_ent({"k": "line", "a": Part.arr2(draft["a"]), "b": Part.arr2(b)})
+				var nline := {"k": "line", "a": Part.arr2(draft["a"]), "b": Part.arr2(b)}
+				var test: Array = (_sk()["ents"] as Array).duplicate()
+				test.append(nline)
+				var cx := Part.PPRIM.crossing(test)
+				if not cx.is_empty():   # s229: a line that would close the outline across itself is refused, red, with the place
+					cx["new"] = nline
+					cross_mark = cx
+					_say(Part.PPRIM.crossing_words(test, cx))
+					pov.queue_redraw()
+					return true
+				_add_ent(nline)
 				if b.distance_to(draft["start"]) < 0.5:
 					_close_chain()
 				else:
@@ -1517,6 +1534,9 @@ func open_dialog(t: String, edit: int) -> void:
 		_row("Distance", f_num, "%s mm" % _fmt(float(f.get("mm", 20.0))))
 		dlg_rows.add_child(f_plane)
 		f_plane.select(PlanesIdx.find(String(f.get("from", "front"))))
+		PPRIMUI.plane_open(self, f, edit)   # s229: how the plane is made (distance, 3 points, angle about an edge, through an edge, on a face)
+	elif kind == "prim":
+		PPRIMUI.open_prim(self, f, edit)   # s229
 	if kind == "extrude" or kind == "revolve":
 		var sid: String = String(f.get("sketch", "")) if edit >= 0 else Part.profile_sketch(rec)
 		dlg["sketch"] = sid
@@ -1861,11 +1881,20 @@ func dialog_feature() -> Dictionary:
 			f = _canvas_feature(true)
 			if f.is_empty():
 				return {}
-		"plane":
-			var pd := _num(f_num)
-			if is_nan(pd) or absf(pd) < 1e-6:
+		"prim":
+			f = PPRIMUI.prim_feature(self)
+			if f.is_empty() or PPRIMUI.PPRIM.problem(f) != "":
 				return {}
-			f = {"from": PlanesIdx[clampi(f_plane.selected, 0, 2)], "mm": pd}
+		"plane":
+			if PPRIMUI.plane_mode(self) != 0:
+				f = PPRIMUI.plane_feature(self)
+				if f.is_empty():
+					return {}
+			else:
+				var pd := _num(f_num)
+				if is_nan(pd) or absf(pd) < 1e-6:
+					return {}
+				f = {"from": PlanesIdx[clampi(f_plane.selected, 0, 2)], "mm": pd}
 		"hinge":
 			var a0 := _num(f_from)
 			var a1 := _num(f_to)
@@ -1914,6 +1943,8 @@ func _preview() -> void:
 	prev = Part.replay(rec, -1, {"body": _body_measures()})
 	var err: String = prev["errors"].get(String(f["id"]), "")
 	dlg_info.text = ("%s. Nothing is changed until it works." % err) if err != "" else "Volume %s cm3" % snappedf(float(prev["volume"]) * 1e6, 0.01)
+	if err == "" and prev.get("warnings", {}).has(String(f["id"])):
+		dlg_info.text += "\n" + String(prev["warnings"][String(f["id"])])   # s229: what an Intersect did to the other bodies
 	if kind == "pattern" and err == "":
 		dlg_info.text = _pattern_info()
 	ok_btn.disabled = err != ""
@@ -1941,7 +1972,9 @@ func _dialog_hint(kind: String) -> String:
 	if kind == "sweep":
 		return "Pick the profile (closed) and the path (open), two different sketches."
 	if kind == "plane":
-		return "Type the distance from the plane (mm)."
+		return PPRIMUI.plane_hint(self)
+	if kind == "prim":
+		return PPRIMUI.prim_hint(self)
 	if kind == "canvas":
 		return _canvas_hint()
 	if kind == "pattern":
@@ -1980,7 +2013,7 @@ func ok_pressed() -> void:
 	tool = ""
 	_tool_sync()
 	bu.sync()
-	if kind == "extrude" or kind == "revolve" or kind == "loft" or kind == "sweep" or kind == "pattern":
+	if kind == "extrude" or kind == "revolve" or kind == "loft" or kind == "sweep" or kind == "pattern" or kind == "prim":
 		_view_model()
 
 
@@ -1988,6 +2021,7 @@ func close_dialog() -> void:
 	if dlg.is_empty():
 		return
 	dlg = {}
+	pr = {}
 	picked = []
 	prev = {}
 	prev_mesh.visible = false
@@ -2166,7 +2200,7 @@ func _timeline_sync() -> void:
 
 func _browser_sync() -> void:
 	var feats := _feats()
-	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], f["t"], f.get("mm", 0), f.get("from", ""), f.get("show", "")]), sk, res.get("bodies", 0), prev.is_empty(), sel_body, cmb])
+	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], f["t"], f.get("mm", 0), f.get("from", ""), f.get("show", ""), f.get("deg", 0), f.get("p", ""), f.get("edge", ""), f.get("a", ""), f.get("b", ""), f.get("o", ""), f.get("n", ""), f.get("base", "")]), sk, res.get("bodies", 0), prev.is_empty(), sel_body, cmb])
 	if sig == _browser_sig:
 		return
 	_browser_sig = sig
@@ -2533,6 +2567,9 @@ func _note_sync() -> void:
 func _profile_text(f: Dictionary) -> String:
 	if f["ents"].is_empty():
 		return "empty: draw something"
+	var cxp := Part.PPRIM.crossing(f["ents"])
+	if not cxp.is_empty():
+		return "crosses itself at (%s, %s) mm: not a shape" % [Part._short(float(cxp["at"][0])), Part._short(float(cxp["at"][1]))]   # s229
 	var face := Part.KCad.sketch_face(Part.items_of(f["ents"]), Vector3.ZERO, Vector3.RIGHT, Vector3.BACK)
 	if face == 0:
 		return "not closed yet (%s)" % String(Part.KCad.last_error()).get_slice("\n", 0).left(60)
@@ -2674,7 +2711,7 @@ func _draw_model() -> void:
 				picked_now = true
 		if picked_now or i == hover_edge:
 			_edge_line(edge_cache[i], SKY if picked_now else Color(SKY, 0.6), 5.0 if picked_now else 3.0)
-	if tool == "Offset face" or tool == "Draft" or (not dlg.is_empty() and String(dlg["t"]) in ["offset_face", "draft"]):
+	if tool == "Offset face" or tool == "Draft" or (not dlg.is_empty() and String(dlg["t"]) in ["offset_face", "draft", "plane"]):
 		_draw_faces()
 	if not dlg.is_empty() and picked.size() > 0 and String(dlg["t"]) in ["fillet", "chamfer"]:
 		var e: Dictionary = picked[0]
@@ -2765,6 +2802,19 @@ func _draw_sketch() -> void:
 				pov.draw_polyline(curve, c, 2.5)
 				for q in e["pts"]:
 					pov.draw_circle(scr(Part.v2(q)), 4.0, Color.WHITE)
+	var cxm := cross_mark if not cross_mark.is_empty() else Part.PPRIM.crossing(ents)   # s229: a self-crossing outline is drawn red where it crosses
+	if not cxm.is_empty():
+		var red := Color("#ff3b3b")
+		for key in ["a", "b"]:
+			var ce: Dictionary = ents[int(cxm[key])] if int(cxm[key]) < ents.size() else {}
+			if not ce.is_empty() and String(ce.get("k", "")) == "line":
+				pov.draw_line(scr(Part.v2(ce["a"])), scr(Part.v2(ce["b"])), red, 4.0)
+		if cxm.has("new"):
+			pov.draw_line(scr(Part.v2(cxm["new"]["a"])), scr(Part.v2(cxm["new"]["b"])), red, 4.0)
+		var cp := scr(Vector2(float(cxm["at"][0]), float(cxm["at"][1])))
+		pov.draw_circle(cp, 9.0, Color(red, 0.35))
+		pov.draw_arc(cp, 9.0, 0.0, TAU, 24, red, 3.0)
+		_pill(cp + Vector2(16, -22), "crosses itself here (%s, %s) mm" % [Part._short(float(cxm["at"][0])), Part._short(float(cxm["at"][1]))], Color(0.45, 0.04, 0.04, 0.95), Color.WHITE, 13)
 	if show_dims:
 		for d in f.get("dims", []):
 			_draw_dim(ents, d)

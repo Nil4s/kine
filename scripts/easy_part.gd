@@ -2271,6 +2271,9 @@ func _lib_box() -> PanelContainer:
 	vb.add_child(lib_soon)
 	vb.add_child(_type_row())   # p085typetobuil: the Type it row (shows with that category)
 	vb.add_child(_photo_row())   # p192makeitlike: Like a photo, under Type it
+	numbers_box = preload("res://scripts/easy_numbers.gd").new()   # s229: By numbers (a shape, its place and sizes typed), on the Type it page
+	numbers_box.setup(self)
+	vb.add_child(numbers_box)
 	vb.add_child(_text_row())   # FRIDAY 33: Text on a face, under Like a photo
 	vb.add_child(_label_row())   # s210: Label, under Like a photo
 	vb.add_child(_fit_row())   # s193: Fit to an object, on the Boards page
@@ -2593,6 +2596,8 @@ func _screw_sync() -> void:
 		lib_soon.text = "%s are coming soon: not made yet. Next step: press Screws or Gears" % lib_cat if lib_soon.visible else ""
 		type_box.visible = parts_open and lib_cat == "Type it"   # p085typetobuil
 		photo_box.visible = parts_open and lib_cat == "Type it"   # p192makeitlike
+		if numbers_box != null:
+			numbers_box.visible = parts_open and lib_cat == "Type it"   # s229
 		if text_box != null:
 			text_box.visible = parts_open and lib_cat == "Type it"   # FRIDAY 33
 		label_box.visible = parts_open and lib_cat == "Type it"   # s210
@@ -7891,6 +7896,7 @@ func _bevel_done(f: Dictionary) -> void:
 
 # ---------------------------------------------------------------- s079: Pipes (Parts > Pipes; scripts/easy_pipes.gd, scripts/build/pipe_parts.gd)
 var pipes_box: VBoxContainer = null
+var numbers_box: VBoxContainer = null   # s229: By numbers (scripts/easy_numbers.gd)
 
 
 ## P125 COLLIDE LIVE (Friday plan 125, "the door hits the wall: red flash"): Swing it plays the turn in the view, one step every 0.1 s on the
