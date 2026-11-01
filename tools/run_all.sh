@@ -564,3 +564,4 @@ EXTRA="$EXTRA fstool:w"   # FSTOOL: a beginner from the BUILDING card builds a t
 EXTRA="$EXTRA bug6:w"   # bug6: animation-only UI (grip panel, facing label) never shows in 3D BUILDING; no stray divider bars / empty buttons; top rows clear at 3 sizes; tests/bug6_test.gd
 
 
+EXTRA="$EXTRA s213:w"   # s213: multi-part Assembly (BUILD chooser New assembly): insert, place, edit, save/open, export STL/GLB/STEP; tests/s213_test.gd

@@ -110,6 +110,7 @@ var houses: HousesUI           # My houses: the name box, Save house, Open house
 var bp: BlueprintUI            # the Blueprint sheet (phase 1g)
 const MyParts := preload("res://scripts/build/myparts.gd")
 var _part_lt: LibraryThumbs = null   # My parts: draws the pictures of saved parts (made once, on the first save)
+var asm: AssemblyUI          # s213: the Assembly screen (scripts/build/assembly_ui.gd)
 var part: PartUI               # the Part workspace (Expert: sketch -> extrude / revolve / fillet, a timeline; scripts/build/part_ui.gd)
 var bp_btn: Button
 var fields := {}               # param -> LineEdit
@@ -477,6 +478,8 @@ func _build_ui() -> void:
 	houses.setup(self)
 	part = PartUI.new()
 	part.setup(self)
+	asm = AssemblyUI.new()
+	asm.setup(self)
 
 
 ## a ribbon button of this page: its icon (scripts/icons.gd, build_*) and one word

@@ -144,6 +144,7 @@ var pill_text := ""   # XFIX2: the last size readout drawn next to the cursor (i
 var pill_at := Vector2.ZERO
 var cur_px := Vector2.ZERO   # the last pointer place on the view (the readout follows it)
 var grey_why := {}   # XFIX2: greyed button -> why (a click on it says that)
+var asm_on := false            # s213: the Assembly screen (assembly_ui.gd) has the page: the Part chrome and the part's own mesh stay hidden
 var part_btn: Button
 var tool_btns := {}
 var finish_btn: Button
@@ -330,12 +331,12 @@ func setup(b: BuildUI) -> void:
 
 ## the Expert chrome (ribbon tools, browser, panel, timeline) shows
 func chrome() -> bool:
-	return bu.on and on and not easy and not bu.easy_ui()
+	return bu.on and on and not easy and not bu.easy_ui() and not asm_on
 
 
 ## the Part workspace has the page, in Expert or in Easy's screen
 func shows() -> bool:
-	return bu.on and on and (easy or not bu.easy_ui())
+	return bu.on and on and (easy or not bu.easy_ui() or asm_on)
 
 
 ## EASY PART: the same record on Easy's screen. A part drawn in Expert stays as it is (the chips start a template over it, as one undo step);
@@ -2339,7 +2340,7 @@ func sync() -> void:
 	part_btn.visible = bu.on and not bu.easy_ui()
 	part_btn.set_pressed_no_signal(on)
 	for c in house_btns:
-		(c as Control).visible = not show or c == reopen_btn
+		(c as Control).visible = (not show and not asm_on) or c == reopen_btn
 	if reopen_btn != null:
 		reopen_btn.text = "What to build" if on and not (easy and m.get_viewport().get_visible_rect().size.x < 1400.0) else ""   # bug6: Easy Part's bar at 1280 is full: the words went off the right edge, so the icon alone there   # icon only in the house ribbon (it is crowded there); with words in Part, Expert or Easy
 	for t in tool_btns:
@@ -2371,7 +2372,7 @@ func sync() -> void:
 	_inspect_sync(show)
 	_look_sync(show)   # after the replay: the panel reads this record's looks
 	pov.visible = show
-	part_mesh.visible = up and sk == "" and prev.is_empty() and part_mesh.mesh != null
+	part_mesh.visible = up and sk == "" and prev.is_empty() and part_mesh.mesh != null and not asm_on
 	prev_mesh.visible = show and not prev.is_empty() and prev_mesh.mesh != null
 	bu.house.visible = not up
 	if up:
