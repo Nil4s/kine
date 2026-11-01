@@ -1,0 +1,380 @@
+{
+	"cards": [],
+	"floor_body": false,
+	"fps": 30,
+	"kind": "building",
+	"length_s": 0.0,
+	"name": "Sword",
+	"natural": true,
+	"note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other.",
+	"on_floor": true,
+	"part": {
+		"easy": {
+			"n": 12,
+			"p": {
+				"blade_length": 760.0,
+				"guard_size": 130.0,
+				"thickness": 7.0,
+				"width": 68.0
+			},
+			"t": "sword"
+		},
+		"features": [
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							0.0,
+							-34.0
+						],
+						"b": [
+							651.2,
+							-13.6
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							651.2,
+							-13.6
+						],
+						"b": [
+							760.0,
+							0.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							760.0,
+							0.0
+						],
+						"b": [
+							651.2,
+							13.6
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							651.2,
+							13.6
+						],
+						"b": [
+							0.0,
+							34.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							0.0,
+							34.0
+						],
+						"b": [
+							0.0,
+							-34.0
+						],
+						"k": "line"
+					}
+				],
+				"id": "f1",
+				"name": "Sketch1",
+				"plane": "front",
+				"t": "sketch"
+			},
+			{
+				"both": true,
+				"dist": 7.0,
+				"id": "f2",
+				"name": "Extrude1",
+				"op": "new",
+				"sketch": "f1",
+				"t": "extrude"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							-0.42,
+							-36.0
+						],
+						"b": [
+							-0.42,
+							-34.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							-0.42,
+							-34.0
+						],
+						"b": [
+							-3.5,
+							0.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							-3.5,
+							0.0
+						],
+						"b": [
+							-0.42,
+							34.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							-0.42,
+							34.0
+						],
+						"b": [
+							-0.42,
+							36.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							-0.42,
+							36.0
+						],
+						"b": [
+							-5.5,
+							36.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							-5.5,
+							36.0
+						],
+						"b": [
+							-5.5,
+							-36.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							-5.5,
+							-36.0
+						],
+						"b": [
+							-0.42,
+							-36.0
+						],
+						"k": "line"
+					}
+				],
+				"id": "f3",
+				"name": "Sketch2",
+				"plane": "right",
+				"t": "sketch"
+			},
+			{
+				"both": true,
+				"dist": 1540.0,
+				"id": "f4",
+				"name": "Extrude2",
+				"op": "cut",
+				"sketch": "f3",
+				"t": "extrude"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							0.42,
+							-36.0
+						],
+						"b": [
+							0.42,
+							-34.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							0.42,
+							-34.0
+						],
+						"b": [
+							3.5,
+							0.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							3.5,
+							0.0
+						],
+						"b": [
+							0.42,
+							34.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							0.42,
+							34.0
+						],
+						"b": [
+							0.42,
+							36.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							0.42,
+							36.0
+						],
+						"b": [
+							5.5,
+							36.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							5.5,
+							36.0
+						],
+						"b": [
+							5.5,
+							-36.0
+						],
+						"k": "line"
+					},
+					{
+						"a": [
+							5.5,
+							-36.0
+						],
+						"b": [
+							0.42,
+							-36.0
+						],
+						"k": "line"
+					}
+				],
+				"id": "f5",
+				"name": "Sketch3",
+				"plane": "right",
+				"t": "sketch"
+			},
+			{
+				"both": true,
+				"dist": 1540.0,
+				"id": "f6",
+				"name": "Extrude3",
+				"op": "cut",
+				"sketch": "f5",
+				"t": "extrude"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							-6.0,
+							-65.0
+						],
+						"b": [
+							4.0,
+							65.0
+						],
+						"k": "rect"
+					}
+				],
+				"id": "f7",
+				"name": "Sketch4",
+				"plane": "front",
+				"t": "sketch"
+			},
+			{
+				"both": true,
+				"dist": 8.0,
+				"id": "f8",
+				"name": "Extrude4",
+				"op": "join",
+				"sketch": "f7",
+				"t": "extrude"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							-106.0,
+							0.0
+						],
+						"b": [
+							-2.0,
+							11.0
+						],
+						"k": "rect"
+					}
+				],
+				"id": "f9",
+				"name": "Sketch5",
+				"plane": "front",
+				"t": "sketch"
+			},
+			{
+				"axis": "x",
+				"deg": 360.0,
+				"id": "f10",
+				"name": "Revolve1",
+				"op": "join",
+				"sketch": "f9",
+				"t": "revolve"
+			},
+			{
+				"dims": [],
+				"ents": [
+					{
+						"a": [
+							-124.0,
+							0.0
+						],
+						"b": [
+							-104.0,
+							15.0
+						],
+						"k": "rect"
+					}
+				],
+				"id": "f11",
+				"name": "Sketch6",
+				"plane": "front",
+				"t": "sketch"
+			},
+			{
+				"axis": "x",
+				"deg": 360.0,
+				"id": "f12",
+				"name": "Revolve2",
+				"op": "join",
+				"sketch": "f11",
+				"t": "revolve"
+			}
+		],
+		"name": "Sword",
+		"seq": 12,
+		"version": 1
+	},
+	"pin": true,
+	"scene": "Sword"
+}

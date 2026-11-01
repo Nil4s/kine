@@ -372,8 +372,8 @@ func _init() -> void:
 	ss.file_dialog_inline = false
 	ok(ss.visible, "G Open file... then Cancel leaves the start screen open")
 	await click(ss.find_child("examples_btn", true, false))
-	ok(not ss.visible and m.easy.scenes != null and m.easy.scenes.visible, "G Examples closes the screen and opens the catalog (screen %s)" % ss.visible)
-	m.easy.scenes.close_panel()
+	ok(ss.visible and ss._examples_mode, "G Examples (bug7) keeps the screen and lists the examples in the grid (screen %s)" % ss.visible)
+	await click(ss._back_btn)
 	# resize with the screen open
 	ss.show_screen()
 	for sz in [Vector2i(1024, 600), Vector2i(1600, 900), Vector2i(1280, 720)]:

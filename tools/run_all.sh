@@ -541,3 +541,6 @@ EXTRA="$EXTRA fpen:w"   # FPEN: a beginner builds a pen from the BUILDING card b
 
 
 EXTRA="$EXTRA bug3:w"   # bug3: a metal block is lit by a studio reflection sky, not black
+
+
+EXTRA="$EXTRA bug7:w"   # bug7: Examples only lists examples on the start screen (no mode switch), Back to my projects, 15 Building examples built by the app's own builders (scenes/examples, tools/gen_start_examples.gd)
