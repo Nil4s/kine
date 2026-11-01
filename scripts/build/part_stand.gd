@@ -28,17 +28,11 @@ static func check(rec: Dictionary) -> Dictionary:
 	var verts := PackedVector3Array()
 	for s in mesh.get_surface_count():
 		verts.append_array(mesh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX])
-	var lo := INF
-	for v in verts:
-		lo = minf(lo, v.y)
-	var feet := PackedVector2Array()
-	for v in verts:
-		if v.y <= lo + FOOT:
-			feet.append(Vector2(v.x, v.z))
+	var hull := _feet_hull(verts)
 	var mid := Vector2(c.x, c.z)
-	var margin := _margin(mid, _hull(feet))   # metres: + inside the feet, - past them
+	var margin := _margin(mid, hull)   # metres: + inside the feet, - past them
 	var mm := margin * 1000.0
-	var near := _nearest(mid, _hull(feet))
+	var near := _nearest(mid, hull)
 	var side := (mid - near)   # the way gravity tips it: from the feet toward the middle
 	var dir := ""
 	if absf(side.x) >= absf(side.y):
@@ -48,6 +42,22 @@ static func check(rec: Dictionary) -> Dictionary:
 	if margin >= 0.0:
 		return {"ok": true, "margin_mm": mm, "say": "Yes, it stands. Its middle is %d mm inside its feet, so gravity keeps it up" % roundi(mm)}
 	return {"ok": false, "margin_mm": mm, "say": "No, it falls over toward the %s. Its middle is %d mm past its feet. Widen the foot on the %s side, or move the weight in" % [dir, roundi(-mm), dir]}
+
+
+## the convex hull of the feet of a vertex list (the vertices within FOOT of the lowest height, seen from above).
+## KineMeshCheckNative.feet_hull when the DLL is there, else the GDScript lines.
+static func _feet_hull(verts: PackedVector3Array) -> Array:
+	var d = MeshCheckDoor.door()
+	if d != null:
+		return Array(d.feet_hull(verts, FOOT))
+	var lo := INF
+	for v in verts:
+		lo = minf(lo, v.y)
+	var feet := PackedVector2Array()
+	for v in verts:
+		if v.y <= lo + FOOT:
+			feet.append(Vector2(v.x, v.z))
+	return _hull(feet)
 
 
 ## the convex hull of the feet (monotone chain), counter-clockwise. One or two points stay as they are (a line or a point)

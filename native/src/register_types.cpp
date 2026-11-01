@@ -5,6 +5,7 @@
 
 #include "kine_sculpt_native.h"
 #include "kine_cloth_native.h"
+#include "kine_meshcheck_native.h"
 
 using namespace godot;
 
@@ -14,6 +15,7 @@ void kine_native_initialize(ModuleInitializationLevel p_level) {
 	}
 	GDREGISTER_ABSTRACT_CLASS(KineSculptNative);
 	GDREGISTER_ABSTRACT_CLASS(KineClothNative);
+	GDREGISTER_ABSTRACT_CLASS(KineMeshCheckNative);
 }
 
 void kine_native_terminate(ModuleInitializationLevel p_level) {

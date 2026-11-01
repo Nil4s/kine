@@ -452,3 +452,4 @@ EXTRA="$EXTRA s168:w"   # s168+s169: incremental replay (a slider change rebuild
 EXTRA="$EXTRA s202:w"   # s202 (Friday plan 202): Smart tolerances: Fit chip on Cut a hole (Tight 0.0 / Snug 0.1 / Slides 0.2 / Loose 0.4 mm per side): 10 mm peg hole measures 10.40 at Slides, lid lip gap per side, one undo step
 EXTRA="$EXTRA s146:w"   # F146: a part built in Easy Part becomes a prop with a grip; Pick up goes to the grip (tests/s146_test.gd)
 EXTRA="$EXTRA n04:w"   # N04: native cape sim (KineClothNative, scripts/cloth.gd): native vs GDScript capes equal, timing
+EXTRA="$EXTRA n02:w"   # n02 native port KineMeshCheckNative (Ready to print scans, closed-edge count, signed volume, size box, tip-over feet hull): GDScript vs native on the 45-hole plate + gear pair + s115 cases (tests/n02_test.gd; needs the CAD DLL)
