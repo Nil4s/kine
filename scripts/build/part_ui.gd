@@ -456,7 +456,14 @@ func _build_browser() -> void:
 	browser.add_theme_stylebox_override("panel", _panel_style())
 	browser_vb = VBoxContainer.new()
 	browser_vb.add_theme_constant_override("separation", 2)
-	browser.add_child(browser_vb)
+	browser_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	browser.clip_contents = true   # s228: a part with many bodies (patterns make many) scrolls inside its own box, never over the timeline
+	var bsc := ScrollContainer.new()
+	bsc.name = "part_browser_scroll"
+	bsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	bsc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	browser.add_child(bsc)
+	bsc.add_child(browser_vb)
 	browser.visible = false
 	m.ui_root.add_child(browser)
 
@@ -2581,7 +2588,8 @@ func layout(cl: Rect2) -> void:
 	tl.position = Vector2(cl.position.x + 8.0, cl.end.y - TL_H - 4.0)
 	var avail := tl.position.y - cl.position.y - 12.0
 	browser.reset_size()
-	browser.size = Vector2(BROWSER_W, minf(browser.get_combined_minimum_size().y, avail))
+	var browser_need := browser_vb.get_combined_minimum_size().y + browser.get_theme_stylebox("panel").get_minimum_size().y
+	browser.size = Vector2(BROWSER_W, minf(browser_need, avail))
 	browser.position = Vector2(cl.position.x + 8.0, cl.position.y + 6.0)
 	side.reset_size()
 	# PCUBE: a dialog's own width can be more than PANEL_W (its rows); the panel grows and stays LEFT of the cube column

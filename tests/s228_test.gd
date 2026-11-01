@@ -222,6 +222,35 @@ func place_view(c0: Vector3, px: Vector2, d: float) -> void:
 	await idle(20)
 
 
+## the browser bar: rows = the Button rows under the panel; bad = rows that stick out of the panel's rect and are not clipped away
+## (a clipping ancestor, a ScrollContainer, hides what is outside it; a plain panel does not)
+func browser_check(panel: Control, tl: Control) -> Dictionary:
+	var pr := panel.get_global_rect()
+	var rows := 0
+	var bad := 0
+	var hidden := 0
+	var stack: Array = [panel]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		if n is Button:
+			rows += 1
+			var r := (n as Control).get_global_rect()
+			var clipped := panel is PanelContainer and (panel as Control).clip_contents and panel.get_node_or_null("part_browser_scroll") != null
+			if pr.encloses(r):
+				continue
+			if clipped:
+				if not pr.intersects(r):
+					hidden += 1
+				elif not pr.grow(0.5).encloses(r):
+					# partly cut by the scroll box edge: drawn clipped, inside the panel
+					pass
+				continue
+			bad += 1
+	return {"rows": rows, "bad": bad, "hidden": hidden, "bottom": pr.end.y, "tl_top": tl.get_global_rect().position.y, "above": pr.end.y <= tl.get_global_rect().position.y}
+
+
 func _init() -> void:
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
@@ -591,6 +620,28 @@ func _init() -> void:
 	m._cam()
 	await idle(40)
 	await shot("hall_brackets")
+	# BROWSER with many bodies: every row is inside the panel or clipped away by it (scrolled), the panel ends above the timeline
+	await idle(4)
+	var bchk: Dictionary = browser_check(pu.browser, pu.tl)
+	ok(int(m.S.part.get("seq", 0)) >= 0 and int(pu.res.get("bodies", 0)) >= 27 and bchk["rows"] >= 27 and bchk["bad"] == 0 and bchk["above"],
+		"browser with %d bodies: %d rows, %d drawn outside the panel, panel bottom %.0f above timeline top %.0f, %d rows scrolled out of view" % [int(pu.res.get("bodies", 0)), bchk["rows"], bchk["bad"], bchk["bottom"], bchk["tl_top"], bchk["hidden"]])
+	# a planted unclipped panel with the same rows must FAIL the same check
+	var plant := Control.new()
+	var pvb := VBoxContainer.new()
+	plant.add_child(pvb)
+	m.ui_root.add_child(plant)
+	for i in 27:
+		var pb := Button.new()
+		pb.text = "    Body%d" % (i + 1)
+		pb.flat = true
+		pvb.add_child(pb)
+	plant.position = pu.browser.position
+	plant.size = pu.browser.size
+	await idle(3)
+	plant.size = pu.browser.size
+	var pchk: Dictionary = browser_check(plant, pu.tl)
+	ok(pchk["bad"] > 0, "a planted unclipped panel fails the browser bar (%d rows drawn outside it)" % pchk["bad"])
+	plant.queue_free()
 	m.S.part = hall_rec()   # the whole hall again: a row of 12 tiles along the roof's back eave
 	bld.sync()
 	m.target = Vector3(0.0, 0.085, -0.12)
