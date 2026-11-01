@@ -2419,6 +2419,10 @@ static func paint(mesh: ArrayMesh, looks: Array) -> void:
 		var c: Color = l["c"]
 		var a := float(l["alpha"])
 		var mt := StandardMaterial3D.new()
+		var mm := MaterialMaker.look_material(l)   # s223: a made material (triplanar maps) when the look has one
+		if mm != null:
+			mesh.surface_set_material(s, mm)
+			continue
 		mt.albedo_color = Color(c.r, c.g, c.b, a)
 		mt.roughness = float(l["rough"])
 		mt.metallic = float(l["metal"])
@@ -2433,7 +2437,7 @@ static func paint(mesh: ArrayMesh, looks: Array) -> void:
 static func look_of(f: Dictionary) -> Dictionary:
 	var c: Array = f.get("color", [0.74, 0.77, 0.82])
 	return {"c": Color(float(c[0]), float(c[1]), float(c[2])), "rough": float(f.get("rough", 0.5)), "metal": float(f.get("metal", 0.15)),
-		"alpha": clampf(float(f.get("alpha", 1.0)), 0.0, 1.0), "preset": String(f.get("preset", "Custom"))}
+		"alpha": clampf(float(f.get("alpha", 1.0)), 0.0, 1.0), "preset": String(f.get("preset", "Custom")), "mat": f.get("mat", {})}   # s223: "mat" = a MaterialMaker spec
 
 
 ## the look of body i: its last appear step, else its chip (by index) with the default numbers

@@ -587,3 +587,6 @@ EXTRA="$EXTRA s214:w"   # s214: pattern a GROUP of bodies in one step (Expert Pa
 
 
 EXTRA="$EXTRA s217:w"   # Metal reads as metal in Expert, Easy Part, Nice picture and STAGE (same studio reflection sky as bug3)
+
+
+EXTRA="$EXTRA s223:w"   # LOOKS: the material library made in code, material words, Part materials (Friday plan 223)
