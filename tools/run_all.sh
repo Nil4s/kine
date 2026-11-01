@@ -428,3 +428,4 @@ EXTRA="$EXTRA s055:w"   # s055 (Friday plan 55 + 56): Easy Part view column > Me
 EXTRA="$EXTRA s209:w"   # s209 + s210 (Friday plans 209, 210): Make it stackable (lip 0.3 mm inside the rim, no common volume of two stacked copies) and the Label maker (BOLTS tag, raised or cut in, Parts > Type it; tests/s209_test.gd; needs the CAD DLL)
 
 EXTRA="$EXTRA s029:w"   # s029 (Friday plan 29): Holes in a pattern: Cut a hole > Row / Around / Grid of holes (count, spacing, radius, rows x columns, Pick centre); 100x60x10 plate, 6 mm holes: volume within 1 pct, centres 20 mm / 60 deg / 15 mm apart (tests/s029_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA s134:w"   # s134 (Friday plan 134): typed moves with props: "pick up the box" (hand on the grip point within 3 cm, the box follows the hand), "throw the ball" (>= 1 m), "open the door"; a missing prop is said in plain words, one undo step
