@@ -500,9 +500,12 @@ func _round_box() -> PanelContainer:
 	box.name = "easypart_round"
 	box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
 	box.visible = false
+	var vb0 := VBoxContainer.new()   # s013: row 1 = the filter chips + Make it stronger; row 2 = the Soft / Medium / Sharp presets
+	vb0.add_theme_constant_override("separation", 4)
+	box.add_child(vb0)
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 6)
-	box.add_child(h)
+	vb0.add_child(h)
 	for rf in ROUND_FILTERS:
 		var b := _big_btn("easypart_round_" + String(rf[0]), String(rf[1]), String(rf[3]), _round_filter.bind(String(rf[0])))
 		b.toggle_mode = true
@@ -519,6 +522,7 @@ func _round_box() -> PanelContainer:
 	sb.icon_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	sb.custom_minimum_size = Vector2(176, 44)
 	h.add_child(sb)
+	vb0.add_child(_round_presets_row())
 	return box
 
 
@@ -527,6 +531,13 @@ func _round_shown() -> bool:
 
 
 func _round_sync() -> void:
+	# s013: the How round row (Soft / Medium / Sharp) shows while the newest step is a round (a second row all the time covered the grid the
+	# drags land on). Round the edges makes the first round, then the presets swap it
+	var pr := round_box.find_child("easypart_round_presets", true, false)
+	if pr != null:
+		var fs: Array = _rec().get("features", [])
+		(pr as Control).visible = not fs.is_empty() and String((fs[-1] as Dictionary).get("t", "")) == "fillet"
+		round_box.reset_size()
 	for k in round_btns:
 		(round_btns[k] as Button).set_pressed_no_signal(k == round_mode)
 		m._grey(round_btns[k], Part.why_not() if not Part.available() else "")
@@ -640,6 +651,10 @@ func _tilt_box() -> PanelContainer:
 	pull_along_btn.custom_minimum_size = Vector2(230, 44)
 	pull_along_btn.visible = false
 	row.add_child(pull_along_btn)
+	bulge_btn = _big_btn("easypart_bulge", "Pinch / Bulge a face", "Click a flat face: its middle moves out (a dome) or in (a dish), the rim stays. A slider -1..1 sets how much", _bulge_press)   # plan 23: under any solid, in the box of the newest-step chips
+	bulge_btn.toggle_mode = true
+	bulge_btn.custom_minimum_size = Vector2(230, 44)
+	row.add_child(bulge_btn)
 	return box
 
 
@@ -1415,7 +1430,7 @@ func tweak_last() -> void:
 	var t := String(f.get("t", ""))
 	if t == "shell":
 		tweak = {"id": f["id"], "field": "thick", "label": "Wall", "unit": "mm", "lo": 1.0, "hi": 10.0, "step": 0.5, "scale": 1.0, "words": ["Thinner", "Thicker"]}
-	elif t == "lattice":   # p208latticeinf: a reopened part keeps its Gap slider
+	elif t == "lattice" or t == "bulge":   # p208latticeinf: a reopened part keeps its Gap slider; plan 23: and its Pinch / Bulge slider
 		tweak = _step_tweak(f)
 	elif t == "loft" and f.has("twist"):   # P027: a reopened blend keeps its Twist slider
 		tweak = _twist_tweak(String(f["id"]))
@@ -1979,6 +1994,7 @@ func _bracket_box() -> PanelContainer:
 		b.pressed.connect(_bracket_pick.bind(int(bc[2])))
 		row.add_child(b)
 		bracket_btns[bc[0]] = b
+	_rib_rows(vb)   # s013 (Friday 36): the Rib chip and its Size / Thickness sliders
 	return pc
 
 
@@ -2027,6 +2043,7 @@ func _bracket_pick(kind: int) -> void:
 	m._push_undo()
 	if on_floor:
 		PartTemplates.retemplate(_rec(), {"kind": kind})
+		_rib_after_shape()   # s013: a rib follows the new shape (or goes, on the corner brace)
 	else:
 		m.S.part = PartTemplates.make("bracket", {"kind": kind})
 	tweak = {}
@@ -2514,6 +2531,7 @@ func _screw_sync() -> void:
 		var bb: Button = bracket_btns[bc[0]]
 		bb.set_pressed_no_signal(kind == int(bc[2]))
 		m._grey(bb, Part.why_not() if not Part.available() else "")
+	_rib_sync()   # s013
 	# p078makeacasef: the Boards chips: the case on the floor shows its board pressed
 	var bcur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {}) if _tpl() == "case" else {}
 	board_box.visible = (parts_open and lib_cat == "Boards") or _tpl() == "case"
@@ -3528,6 +3546,7 @@ func _curve_keep(pts: Array, maxn: int) -> Array:
 func _process(_dt: float) -> void:
 	if bar == null or pu == null:
 		return
+	_theme_sync()   # plan 109: the boxes follow Light / Dark
 	_grid_labels_sync()   # p108measuregri: the grid's numbers follow the zoom (view only)
 	pu.replay_forget()   # the same-frame replay reuse (PartUI.replay_once) ends with the frame
 	_cut_sync()   # P101 SECTION: the Cut view follows the built part, and goes off when Easy is left
@@ -3603,8 +3622,10 @@ func _process(_dt: float) -> void:
 	flat_box.visible = flat_on
 	paint_btn.set_pressed_no_signal(paint_on)
 	suggest_row.visible = on and _suggest_on()   # P092: after a Pull it up the two next-step chips show in the panel, under the slider rows
-	tilt_box.visible = on and armed == "" and (along or tilt_on or draft_on or swing_on)
+	var bulge_on := on and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # plan 23: Pinch / Bulge a face is offered under any solid
+	tilt_box.visible = on and (armed == "" or bulge_pick) and (along or tilt_on or draft_on or swing_on or bulge_on)
 	_overhang_sync(on)
+	_com_sync(on)   # P128: the centre-of-mass dot
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
 	if not on:
 		return
@@ -3872,6 +3893,8 @@ func input(ev: InputEvent) -> bool:
 					return false   # nothing solid there: the camera keeps the click
 				_stick_pick(bi, faces)
 				return true
+			if armed == "aredge" and not _over_ui(p):
+				return _aredge_press(p)   # s048: Around edge picks the edge under the click
 			if armed == "hold" and not _over_ui(p):
 				return _hold_press(p)   # p131grippoint: the press on the part sets the grip point
 			if (armed == "draw" or armed == "curve") and not _over_ui(p):
@@ -3905,6 +3928,8 @@ func input(ev: InputEvent) -> bool:
 					_hpat_press(p)
 				elif fill_pick:   # s051: Fill the face is waiting for the face
 					_fill_click(p)
+				elif bulge_pick and armed == "":   # plan 23: Pinch / Bulge is waiting for a flat face
+					_bulge_click(p)
 				elif not _open_face(p):   # NOPENTOP: after Hollow inside, a flat face click opens that side; any other click picks a piece
 					_pick_at(p)
 		if not _draft.is_empty():
@@ -4625,11 +4650,23 @@ func _printing_box() -> PanelContainer:
 
 ## NSTEPLIST: the step's plain words ("" = no row: a helper plane). Pulled up N cm, Rounded N edges R mm, Drew a shape, Hollowed out
 func step_words(f: Dictionary) -> String:
+	var lab := String(f.get("label", ""))   # P096: a recipe's step has its own name ("Base plate"): the row reads "Base plate: pulled up 6 mm"
+	if lab != "":
+		if String(f.get("t", "")) == "sketch":   # a recipe step is its pull: its sketch gets no row of its own
+			return ""
+		var w := _step_words_plain(f)
+		return "" if w == "" else "%s: %s" % [lab, w.substr(0, 1).to_lower() + w.substr(1)]
+	return _step_words_plain(f)
+
+
+func _step_words_plain(f: Dictionary) -> String:
 	match String(f.get("t", "")):
 		"sketch":
 			return "Drew a shape"
 		"lay":
 			return "Laid it flat"
+		"bulge":
+			return "Bulged a face %s" % _plain_num(float(f.get("k", 0.0)))
 		"loft":
 			return "Blended two shapes"
 		"extrude":
@@ -4696,6 +4733,8 @@ func _step_tweak(f: Dictionary) -> Dictionary:
 			return {"id": id, "field": "gap", "label": "Gap", "unit": "mm", "lo": 6.0, "hi": 20.0, "step": 1.0, "scale": 1.0, "words": ["Denser", "Airier"]}
 		"loft":
 			return _twist_tweak(id) if f.has("twist") else {}
+		"bulge":
+			return {"id": id, "field": "k", "label": "Pinch / Bulge", "unit": "bulge", "lo": -1.0, "hi": 1.0, "step": 0.05, "scale": 1.0, "words": ["Pinch", "Bulge"]}
 	return {}
 
 
@@ -5775,6 +5814,7 @@ func _stand_chip() -> Button:
 
 
 func _stand_press() -> void:
+	com_on = not com_on   # P128: the same press shows (or hides) the centre-of-mass dot
 	var r := PartStand.check(_rec())
 	_say(String(r["say"]))
 
@@ -6340,6 +6380,7 @@ func _level_build(root: Control) -> void:
 		l.horizontal_alignment = [HORIZONTAL_ALIGNMENT_LEFT, HORIZONTAL_ALIGNMENT_CENTER, HORIZONTAL_ALIGNMENT_RIGHT][i]
 		wr.add_child(l)
 		level_words.append(l)
+	vb.add_child(_theme_row())   # plan 109: Light / Dark, in the same small settings popup
 	root.add_child(level_box)
 
 
@@ -6524,3 +6565,452 @@ func _label_build() -> void:
 	m._cam()
 	_say("Label %s x %s mm, %s. Make another to replace it" % [_plain_num(float(d["w"])), _plain_num(float(d["h"])), "letters cut in" if cut else "letters raised"])
 	_screw_sync()
+
+
+# ================================================================ s013 (Friday 13 + 36)
+## FRIDAY 13 SOFT / MEDIUM / SHARP: three chips under the Round the edges row. Each rounds the solid's edges with a radius of a share of its
+## smallest side (Soft 25 %, Medium 12 %, Sharp 4 %), clamped to what the kernel can fillet (it steps the radius down until the fillet builds).
+## One undo step each. A press right after a round replaces that round (the newest step is a fillet: it is swapped, not stacked)
+const ROUND_PRESETS := [["soft", "Soft", 0.25, "Very round: a quarter of the smallest side"], ["medium", "Medium", 0.12, "Round: an eighth of the smallest side"], ["sharp", "Sharp", 0.04, "Barely round: a twenty-fifth of the smallest side"]]
+
+
+func _round_presets_row() -> HBoxContainer:
+	var h := HBoxContainer.new()
+	h.name = "easypart_round_presets"
+	h.add_theme_constant_override("separation", 6)
+	var l := Label.new()
+	l.text = "How round:"
+	l.add_theme_font_size_override("font_size", 16)
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	h.add_child(l)
+	for rp in ROUND_PRESETS:
+		var b := _big_btn("easypart_roundpreset_" + String(rp[0]), String(rp[1]), String(rp[3]), _round_preset_press.bind(String(rp[0])))
+		b.custom_minimum_size = Vector2(100, 44)
+		h.add_child(b)
+	return h
+
+
+func _round_preset_press(key: String) -> void:
+	if not Part.available():
+		_say(Part.why_not())
+		return
+	var pct := 0.12
+	var label := "Medium"
+	for rp in ROUND_PRESETS:
+		if String(rp[0]) == key:
+			pct = float(rp[2])
+			label = String(rp[1])
+	_flush_if_dirty()
+	armed = ""
+	var snap := _rec().duplicate(true)
+	_begin("Round: " + label)
+	var rec: Dictionary = snap.duplicate(true)
+	var why := _round_preset(rec, pct, label)
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+	else:
+		m.S.part = rec
+		_end()
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+
+
+## the preset round added to rec (the newest step, when it is a round, is taken off first). "" or why not
+func _round_preset(rec: Dictionary, pct: float, label: String) -> String:
+	var feats: Array = rec.get("features", [])
+	if not feats.is_empty() and String((feats[-1] as Dictionary).get("t", "")) == "fillet":
+		feats.pop_back()
+	var res := Part.replay(rec, -1, {"edges": true, "keep": true})
+	var kept: Array = res.get("ids", [])
+	if int(res["bodies"]) == 0 or kept.is_empty():
+		Part.release_kept(kept)
+		return "Nothing solid to round yet. Press Pull it up first"
+	var es: Array = res["edges"]
+	var aabb: AABB = res["aabb"]
+	var small := minf(aabb.size.x, minf(aabb.size.y, aabb.size.z)) / Part.MM
+	var flag := "" if round_mode == "all" else round_mode
+	var r0 := clampf(snappedf(small * pct, 0.1), 0.1, maxf(0.1, snappedf(small * 0.45, 0.1)))
+	var tried := {}
+	var done := false
+	var got := 0.0
+	for i in 60:
+		var r := maxf(0.1, snappedf(r0 * pow(0.92, i), 0.1))
+		if tried.has(r):
+			continue
+		tried[r] = true
+		var list := []
+		for e in es:
+			if int(e["body"]) == 0 and not bool(e.get("seam", false)) and (flag == "" or bool(e.get(flag, false))) and float(e["len"]) / Part.MM > r * 2.5:
+				list.append(Part.describe(e))
+		if not list.is_empty() and Part.fillet_trial(int(kept[0]), r, list) == "":
+			var f := Part.new_feature(rec, "fillet", {"body": 0, "r": r, "edges": list})
+			rec["features"].append(f)
+			if _last_error(rec, String(f["id"])) == "":
+				got = r
+				done = true
+				tweak = {"id": f["id"], "field": "r", "label": "How round", "unit": "cm", "lo": 0.1, "hi": maxf(1.0, snappedf(r * 0.2, 0.1)), "step": 0.1, "scale": 10.0, "words": ["Barely", "Very round"]}
+				break
+			rec["features"].pop_back()
+		if r <= 0.1:
+			break
+	Part.release_kept(kept)
+	if not done:
+		return "These edges are too small or too crowded to round: Pull it up taller, then press %s again" % label
+	_say("%s round: %s mm. Use the slider for more or less" % [label, ("%.1f" % got)])
+	return ""
+
+
+## FRIDAY 36 RIB / GUSSET: on the Brackets page, under the three shape chips. The Add a rib chip puts a triangular rib in the bracket's inside
+## corner (an L-bracket is made first when none is on the floor), joined into the one solid; its Size (the legs of the triangle) and Thickness
+## sliders move it. The rib is two steps after the bracket's own (a sketch of the triangle in the front plane, a join extrude centred on the
+## width), marked "rib" so it can be swapped or taken off; rec.easy.rib = {size, t} says it is there. One undo step each.
+const RIB_SIZE_LO := 6.0
+const RIB_SIZE_HI := 40.0
+const RIB_T_LO := 2.0
+const RIB_T_HI := 10.0
+var rib_btn: Button
+var rib_size_sl: HSlider
+var rib_t_sl: HSlider
+var rib_size_val: Label
+var rib_t_val: Label
+var rib_size := 20.0
+var rib_t := 3.0
+var _rib_drag := false
+var _rib_loading := false
+
+
+func _rib_rows(vb: VBoxContainer) -> void:
+	rib_btn = Button.new()
+	rib_btn.name = "easypart_rib"
+	rib_btn.text = "Add a rib"
+	rib_btn.tooltip_text = "A triangular rib in the inside corner of the bracket, fused into one solid. Press again to take it off"
+	rib_btn.toggle_mode = true
+	rib_btn.focus_mode = Control.FOCUS_NONE
+	rib_btn.custom_minimum_size = Vector2(0, 34)
+	rib_btn.add_theme_font_size_override("font_size", 13)
+	rib_btn.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+	rib_btn.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+	rib_btn.pressed.connect(_rib_press)
+	vb.add_child(rib_btn)
+	for k in ["size", "t"]:
+		var hb := HBoxContainer.new()
+		hb.add_theme_constant_override("separation", 4)
+		var l := Label.new()
+		l.text = "Rib size" if k == "size" else "Rib thickness"
+		l.custom_minimum_size = Vector2(92, 0)
+		l.add_theme_font_size_override("font_size", 13)
+		hb.add_child(l)
+		var sl := HSlider.new()
+		sl.name = "easypart_rib_" + k
+		sl.min_value = RIB_SIZE_LO if k == "size" else RIB_T_LO
+		sl.max_value = RIB_SIZE_HI if k == "size" else RIB_T_HI
+		sl.step = 1.0
+		sl.value = rib_size if k == "size" else rib_t
+		sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		sl.custom_minimum_size = Vector2(60, 24)
+		sl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		sl.focus_mode = Control.FOCUS_NONE
+		sl.value_changed.connect(_rib_slid)
+		sl.drag_started.connect(_rib_drag_start)
+		sl.drag_ended.connect(_rib_drag_end)
+		hb.add_child(sl)
+		var vl := Label.new()
+		vl.custom_minimum_size = Vector2(44, 0)
+		vl.add_theme_font_size_override("font_size", 13)
+		hb.add_child(vl)
+		vb.add_child(hb)
+		if k == "size":
+			rib_size_sl = sl
+			rib_size_val = vl
+		else:
+			rib_t_sl = sl
+			rib_t_val = vl
+	_rib_labels()
+
+
+func _rib_labels() -> void:
+	if rib_size_val != null:
+		rib_size_val.text = "%d mm" % int(roundf(rib_size))
+		rib_t_val.text = "%d mm" % int(roundf(rib_t))
+
+
+## the rib on the record: {size, t}, or {} when none
+func _rib_of(rec: Dictionary) -> Dictionary:
+	return (rec.get("easy", {}) as Dictionary).get("rib", {})
+
+
+## take the rib's steps off rec (and its note)
+func _rib_strip(rec: Dictionary) -> void:
+	var keep := []
+	for f in rec.get("features", []):
+		if not bool((f as Dictionary).get("rib", false)):
+			keep.append(f)
+	rec["features"] = keep
+	(rec.get("easy", {}) as Dictionary).erase("rib")
+
+
+## the rib added to rec (a bracket record): "" or why not. Replaces a rib that is there
+func _rib_add(rec: Dictionary, size: float, t: float) -> String:
+	_rib_strip(rec)
+	var e: Dictionary = rec.get("easy", {})
+	var p: Dictionary = e.get("p", {})
+	var kind := int(roundf(float(p.get("kind", 1))))
+	if kind == 3:
+		return "The corner brace has its gusset already. Pick the L-bracket or the T-bracket for a rib"
+	var S := float(p.get("leg", 80.0))
+	var th := float(p.get("thickness", 5.0))
+	var w := float(p.get("width", 30.0))
+	var s := clampf(size, RIB_SIZE_LO, RIB_SIZE_HI)
+	var tt := clampf(t, RIB_T_LO, minf(RIB_T_HI, w))
+	var tri := []
+	if kind == 2:   # T: the inside corner under the bar, right of the stem
+		var sx := S * 0.5 - th * 0.5
+		s = minf(s, minf(S - th - 2.0, S - (sx + th) - 2.0))
+		tri = [Vector2(sx + th, S - th), Vector2(sx + th + s, S - th), Vector2(sx + th, S - th - s)]
+	else:   # L: the inside corner of the foot and the upright
+		s = minf(s, S - th - 2.0)
+		tri = [Vector2(th, th), Vector2(th + s, th), Vector2(th, th + s)]
+	var sk := Part.new_feature(rec, "sketch", {"plane": "front", "ents": PartTemplates._poly(tri), "dims": [], "rib": true})
+	rec["features"].append(sk)
+	var ex := Part.new_feature(rec, "extrude", {"sketch": sk["id"], "dist": tt, "both": true, "op": "join", "into": 0, "rib": true})
+	rec["features"].append(ex)
+	if _last_error(rec, String(ex["id"])) != "":
+		rec["features"].pop_back()
+		rec["features"].pop_back()
+		return "A rib does not fit on this bracket"
+	if not rec.has("easy"):
+		rec["easy"] = {}
+	rec["easy"]["rib"] = {"size": s, "t": tt}
+	return ""
+
+
+func _rib_on_floor() -> bool:
+	return _tpl() == "bracket" and not (_rec().get("features", []) as Array).is_empty()
+
+
+func _rib_press() -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	_flush_if_dirty()
+	armed = ""
+	var had := _rib_on_floor() and not _rib_of(_rec()).is_empty()
+	var snap := _rec().duplicate(true)
+	_begin("Take the rib off" if had else "Add a rib")
+	var rec: Dictionary
+	var why := ""
+	if had:
+		rec = snap.duplicate(true)
+		_rib_strip(rec)
+	else:
+		rec = snap.duplicate(true) if _rib_on_floor() else PartTemplates.make("bracket", {"kind": 1})
+		why = _rib_add(rec, rib_size, rib_t)
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+	else:
+		m.S.part = rec
+		_end()
+		_say("Rib taken off" if had else "Rib added: %d mm, %d mm thick. Use the sliders to change it" % [int(roundf(rib_size)), int(roundf(rib_t))])
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	_rows_sync()
+	_values_sync()
+	_chips_sync()
+	_rib_scroll_to()
+
+
+## the panel scrolls: after a rib is added the sliders are brought into its view (they sit below the chips)
+func _rib_scroll_to() -> void:
+	await get_tree().process_frame
+	var n: Node = rib_t_sl
+	while n != null and not (n is ScrollContainer):
+		n = n.get_parent()
+	if n != null and rib_t_sl.is_visible_in_tree():
+		(n as ScrollContainer).ensure_control_visible(rib_t_sl)
+
+
+func _rib_slid(_v: float) -> void:
+	if _rib_loading:
+		return
+	rib_size = rib_size_sl.value
+	rib_t = rib_t_sl.value
+	_rib_labels()
+	if not (_rib_on_floor() and not _rib_of(_rec()).is_empty()):
+		return   # no rib yet: the numbers wait for Add a rib
+	if not _rib_drag:
+		m._step_hint = "Rib size"
+		m._push_undo()
+	var why := _rib_add(_rec(), rib_size, rib_t)
+	if why != "":
+		_say(why)
+	pu.upto = -1
+	pu.sync()
+
+
+func _rib_drag_start() -> void:
+	if _rib_on_floor() and not _rib_of(_rec()).is_empty():
+		m._step_hint = "Rib size"
+		m._push_undo()
+	_rib_drag = true
+
+
+func _rib_drag_end(_changed: bool) -> void:
+	_rib_drag = false
+
+
+## the bracket changed shape (retemplate rewrote its own steps): the rib is laid again for the new shape, or goes (corner brace)
+func _rib_after_shape() -> void:
+	var r := _rib_of(_rec())
+	if r.is_empty():
+		return
+	var why := _rib_add(_rec(), float(r.get("size", rib_size)), float(r.get("t", rib_t)))
+	if why != "":
+		_say(why)
+
+
+## the chip and the sliders follow the record
+func _rib_sync() -> void:
+	if rib_btn == null:
+		return
+	var r: Dictionary = _rib_of(_rec()) if _rib_on_floor() else {}
+	rib_btn.set_pressed_no_signal(not r.is_empty())
+	rib_btn.text = "Take the rib off" if not r.is_empty() else "Add a rib"
+	m._grey(rib_btn, Part.why_not() if not Part.available() else "")
+	_rib_loading = true
+	if not r.is_empty():
+		rib_size = float(r.get("size", rib_size))
+		rib_t = float(r.get("t", rib_t))
+	rib_size_sl.set_value_no_signal(rib_size)
+	rib_t_sl.set_value_no_signal(rib_t)
+	_rib_loading = false
+	_rib_labels()
+
+
+## PINCH / BULGE a face (Friday plan 23): the chip under the step list arms a face pick; the next click on a flat face adds ONE step
+## (scripts/build/part_bulge.gd, one undo step) at Bulge 0.5, and the usual slider (-1 pinch .. +1 bulge) edits that step
+var bulge_btn: Button
+var bulge_pick := false
+
+
+func _bulge_press() -> void:
+	if not Part.available():
+		bulge_btn.set_pressed_no_signal(false)
+		_say(Part.why_not())
+		return
+	armed = ""
+	fill_pick = false   # s051: one pick mode at a time
+	bulge_pick = bulge_btn.button_pressed
+	_say("Click a flat face: its middle will bulge out. The slider then goes from Pinch to Bulge" if bulge_pick else "Pinch / Bulge is off")
+
+
+func _bulge_click(p: Vector2) -> void:
+	bulge_pick = false
+	bulge_btn.set_pressed_no_signal(false)
+	var fc := _face_hit(p)
+	if fc.is_empty():
+		_say("That is not a flat face: press Pinch / Bulge a face and click a flat one")
+		return
+	_flush_if_dirty()
+	var res := Part.replay(_rec(), -1, {"faces": true})
+	var ax := FACE_BASE.find(String(fc["base"]))
+	var want: Vector3 = FACE_N[ax] * float(fc["out"])
+	var best: Variant = null
+	var best_d := INF
+	for cand in res.get("faces", []):
+		if (cand["n"] as Vector3).dot(want) < 0.99:
+			continue
+		var d: float = (cand["c"] as Vector3).distance_to(fc["hit"])
+		if d < best_d:
+			best_d = d
+			best = cand
+	if best == null:
+		_say("That face cannot be bent")
+		return
+	armed = ""
+	var snap := _rec().duplicate(true)
+	_begin("Bulge a face")
+	var f := Part.new_feature(_rec(), "bulge", {"body": int(best["body"]), "face": Part.describe_face(best), "k": 0.5})
+	_rec()["features"].append(f)
+	var why := _last_error(_rec(), String(f["id"]))
+	if why == "" and int(Part.replay(_rec())["bodies"]) != int(res.get("bodies", 1)):
+		why = "the part would break into pieces"
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("That face cannot be bent: " + why)
+		return
+	tweak = _step_tweak(f)
+	_end()
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	_say("Bulged the face: use the slider, Pinch to Bulge")
+
+
+## LIGHT / DARK (Friday plan 109): two toggle buttons in the "How many buttons?" popup. They call the app's own switch (VIEW > Light), which
+## remembers the choice in settings.cfg and re-reads it at start; the Easy Part boxes then follow (scripts/easy_part_theme.gd)
+var theme_btns := {}
+var _themed_dark := true
+var _theme_ms := 0
+
+
+func _theme_row() -> HBoxContainer:
+	var hb := HBoxContainer.new()
+	hb.name = "easypart_theme_row"
+	hb.add_theme_constant_override("separation", 6)
+	var cap := Label.new()
+	cap.text = "Look:"
+	cap.add_theme_font_size_override("font_size", 15)
+	hb.add_child(cap)
+	for k in ["Dark", "Light"]:
+		var b := Button.new()
+		b.name = "easypart_theme_" + k.to_lower()
+		b.text = k
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(90, 32)
+		b.button_pressed = (k == "Dark") == Tok.dark
+		b.tooltip_text = "%s look for the Part page, the panel, the step list and the view. Remembered" % k
+		b.pressed.connect(_theme_pick.bind(k == "Light"))
+		hb.add_child(b)
+		theme_btns[k] = b
+	return hb
+
+
+func _theme_pick(light: bool) -> void:
+	if Tok.dark == not light:
+		_theme_sync()
+		return
+	m._set_light(light)
+	_theme_sync()
+	_level_close_later()
+
+
+## the boxes take the palette now (once per change; a new box built in Light already has it from _style)
+func _theme_sync() -> void:
+	for k in theme_btns:
+		(theme_btns[k] as Button).set_pressed_no_signal((k == "Dark") == Tok.dark)
+	if _themed_dark == Tok.dark:
+		if Tok.dark or Time.get_ticks_msec() - _theme_ms < 400:
+			return   # Light: boxes built since (slider rows, chips) are tinted a few times a second
+	_themed_dark = Tok.dark
+	_theme_ms = Time.get_ticks_msec()
+	var rt := bar.get_parent()
+	for c in rt.get_children():
+		if String(c.name).to_lower().begins_with("easypart"):
+			EPTheme.retint(c)
+	for lone in [size_l, edge_num]:   # these two sit under a wrapper that is not named easypart
+		if lone != null:
+			EPTheme.retint(lone)

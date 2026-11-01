@@ -428,4 +428,13 @@ EXTRA="$EXTRA s055:w"   # s055 (Friday plan 55 + 56): Easy Part view column > Me
 EXTRA="$EXTRA s209:w"   # s209 + s210 (Friday plans 209, 210): Make it stackable (lip 0.3 mm inside the rim, no common volume of two stacked copies) and the Label maker (BOLTS tag, raised or cut in, Parts > Type it; tests/s209_test.gd; needs the CAD DLL)
 
 EXTRA="$EXTRA s029:w"   # s029 (Friday plan 29): Holes in a pattern: Cut a hole > Row / Around / Grid of holes (count, spacing, radius, rows x columns, Pick centre); 100x60x10 plate, 6 mm holes: volume within 1 pct, centres 20 mm / 60 deg / 15 mm apart (tests/s029_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA s128:w"   # s128 (Friday plan 128): Easy Part centre of mass: red dot (after Does it fall over?, always while tipping) and "It will tip over: its weight is N mm outside its feet" in the size line; cube/L analytic, leaning box within 1 mm (tests/s128_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA s013:w"   # s013 (Friday plans 13 + 36): Soft/Medium/Sharp round presets (r 5.0/2.4/0.8 on a 40x40x20 box, measured from the top face and the volume) and the Rib chip on the Brackets page (+600 mm3 for 20x20x3, one solid)
+EXTRA="$EXTRA s157:w"   # s157 + s154 (Friday plans 157, 154): Export dialog Triangle budget on a 13.8k sculpt sphere (2k: <= 2000 triangles re-read from the .glb, volume 3 pct, bbox 1 pct, Full = full count, screen mesh unchanged) and the Sculpt Remesh slider lighter / smoother (half within 10 pct, volume 2 pct, one undo each) (tests/s157_test.gd)
+EXTRA="$EXTRA s048:w"   # s048: Repeat it Around an axis/edge, Along a line, With growth
+EXTRA="$EXTRA s135:w"   # Friday plan 135+136: Scene lines (two characters with then/while/after, camera words)
+EXTRA="$EXTRA s096:w"   # P096 templates as recipes: phone stand / shelf bracket / box with lid open as named steps, edited from the step list
+
+EXTRA="$EXTRA s023:w"   # s023 (Friday plans 23 + 109): Pinch / Bulge a face (chip under the step list, slider -1..1, 40x40x20 box top centre +-4 mm at 0.5, rim at 20 mm, 0 = original) and Light / Dark for the Easy Part boxes (popup under Easy, contrast, remembered) (tests/s023_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA s081:w"   # s081 (Friday plans 81 + 58): Cut list CSV from wood boards in the Export dialog (2 rows, counts 2 and 1, 2.1 m) and the BRL cost on the Size line (20 cm3 PLA = R$ 2,98; price edit changes it)
 EXTRA="$EXTRA s051:w"   # s051 (Friday plan 51): Array fill: Cut a hole > Fill the face (Round / Square / Hex, size, spacing, edge margin): 100x60x3 plate, 5 mm round holes 10 mm apart 5 mm margin = 45 holes (analytic), volume within 0.5 pct, staggered 54, hex 48, too-small face = message and no step (tests/s051_test.gd; needs the CAD DLL)
