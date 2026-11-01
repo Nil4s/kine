@@ -9101,6 +9101,7 @@ func _dgb_release() -> void:
 	_say(DragBalance.words(d["r"]) + "   (keyed at %s; Ctrl+Z takes it back in one step)" % Units.time(t, S.fps))
 
 ## MODEL PAGE, FIRST STEP (ROADMAP_400 A05/A06; scripts/kmesh_view.gd, kmesh_edit_ui.gd): a test cube you can select on
+var touch_in   # TouchInput (scripts/touch_input.gd)
 var bld: BuildUI   # BUILD page (scripts/build/build_ui.gd): the 3D BUILDING project's grid, tools and panel
 var kmed   # KMeshEditUI (scripts/kmesh_edit_ui.gd), loaded on first use: not typed, so the class is not parsed at boot
 
@@ -12633,6 +12634,9 @@ func _ui() -> void:
 		tb.add_child(ui_ribbon[t])
 	bld = BuildUI.new()
 	add_child(bld)
+	touch_in = TouchInput.new()   # Friday 173 + 174: touch, pen and gamepad drive the camera and the draw tools (scripts/touch_input.gd)
+	touch_in.m = self
+	add_child(touch_in)
 	bld.setup(self)   # BUILD: its ribbon tools and panel (the page itself is in PAGES)
 	ExpertPages.build(self)   # MODEL / SCULPT / SURFACE: their ribbon tools (scripts/expert_pages.gd), before the groups are laid out
 	var tog := func(tab: String, label: String, f: Callable, on: Callable, tip := ""):
