@@ -121,7 +121,13 @@ func settle() -> void:
 func draw_on_floor(a: Vector2, b: Vector2) -> void:
 	await click_ctl(pu().ep.make_btns["draw"])
 	await settle()   # the Draw press may start an ease: aim the drag at the settled view
-	await drag_screen(scr(Vector3(a.x, 0.0, a.y)), scr(Vector3(b.x, 0.0, b.y)))
+	var pa := scr(Vector3(a.x, 0.0, a.y))
+	var pb := scr(Vector3(b.x, 0.0, b.y))
+	if pu().ep._over_ui(pa):   # s178: the press point sits under the hint label (a press there is the label's, as for a user): draw the SAME rectangle from the other corner
+		var tp := pa
+		pa = pb
+		pb = tp
+	await drag_screen(pa, pb)
 
 
 ## the middle of the newest round hole, in metres on the floor (x, z); Vector2.INF when there is none
