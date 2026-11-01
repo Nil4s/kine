@@ -2236,12 +2236,13 @@ func _lib_box() -> PanelContainer:
 		b.pressed.connect(_lib_press.bind(cat))
 		fl.add_child(b)
 		lib_btns[cat] = b
+		if cat == "Gears":
+			fl.add_child(_nature_chip())   # FRIDAY 225: icon-only Nature chip in the first row, which has 46 px spare: adds no row
 	fl.add_child(_kids_chip_make())   # p197kidsmode: the Kids chip, last on the library page
 	fl.add_child(_challenge_chip_make())   # s165: Challenges, after Kids
 
 
 	fl.add_child(_sketch_chip())   # FRIDAY 166: Draw to search, after Kids
-	fl.add_child(_nature_chip())   # FRIDAY 225: Nature, last chip
 	lib_soon = Label.new()
 	lib_soon.name = "easypart_lib_soon"
 	lib_soon.add_theme_font_size_override("font_size", 14)
