@@ -71,7 +71,7 @@ const PFIT := preload("res://scripts/build/part_fit.gd")   # s193: Fit to an obj
 const SKIN_MM := 0.3   # NROUNDFILTER: a face centre this close (mm) to the box's outside counts as on the skin
 const VERSION := 1
 const RING_MIDDLE := 100.0   # mm: a Ring piece whose centre is closer than this to the middle (not on it) goes round the middle
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "lattice", "fitobj", "move", "offset", "meshsolid"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "lattice", "fitobj", "move", "offset", "meshsolid", "pipe3d"]
 const OVERHANG_COS := 0.7071   # p113: a face pointing down more than 45 degrees needs support when printed
 const BED_MM := 0.1            # p113: a face this close (mm) to the lowest point of the part is on the floor, not an overhang
 const DRAFT_DIRS := {"x": Vector3(1, 0, 0), "y": Vector3(0, 1, 0), "z": Vector3(0, 0, 1)}
@@ -234,6 +234,12 @@ static func from_file(d: Variant) -> Dictionary:
 			out[gk] = [float(gv[0]), float(gv[1]), float(gv[2])]
 	if String((d as Dictionary).get("grip_axis", "")) in ["long", "face"]:
 		out["grip_axis"] = String((d as Dictionary)["grip_axis"])
+	if (d as Dictionary).get("asserts") is Array:   # item 220: the saved part assertions (scripts/part_assert.gd), lines of text only
+		var pa: Array = ((d as Dictionary)["asserts"] as Array).filter(func(x): return x is String and String(x).strip_edges() != "")
+		if not pa.is_empty():
+			out["asserts"] = pa.duplicate()
+	if (d as Dictionary).get("body_names") is Array:   # item 212/220: a name per body, when the record has them
+		out["body_names"] = ((d as Dictionary)["body_names"] as Array).map(func(x): return String(x))
 	if bool((d as Dictionary).get("kept", false)):
 		out["kept"] = true   # an EMPTY part the user chose (Easy's Empty): a part with no steps that undo and redo bring back as it was
 	return out if not out["features"].is_empty() or out.has("kept") else {}
@@ -594,6 +600,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var fo := PFIT.apply(bodies, f)
 				if fo != "":
 					errs[id] = fo
+			"pipe3d":   # s215: a round tube along points placed in 3D (scripts/build/part_pipe3d.gd)
+				var p3e := PartPipe3D.add(bodies, f)
+				if p3e != "":
+					errs[id] = p3e
 			"meshsolid":   # s155: a sculpt mesh sewn into one solid (its own file: part_meshsolid.gd)
 				var mse := PartMeshSolid.add(bodies, f)
 				if mse != "":
@@ -1667,6 +1677,8 @@ static func _sweep(bodies: Array, f: Dictionary, sketches: Dictionary) -> String
 	var pa: Dictionary = pk.get("_pl", plane(String(pk.get("plane", "front"))))
 	var centre := _profile_centre(ps["ents"])
 	var rc := maxf(2.0, 1.5 * _profile_reach(ps["ents"], centre))
+	if f.has("bend"):   # S216 BEND RADIUS: the centre line's radius (mm) at every corner, never below the profile's own reach (a tighter bend folds)
+		rc = maxf(float(f["bend"]), _profile_reach(ps["ents"], centre))
 	var sp := sweep_path(pk["ents"], rc)
 	if String(sp["err"]) != "":
 		return String(sp["err"])
@@ -2411,6 +2423,8 @@ static func paint(mesh: ArrayMesh, looks: Array) -> void:
 		mt.albedo_color = Color(c.r, c.g, c.b, a)
 		mt.roughness = float(l["rough"])
 		mt.metallic = float(l["metal"])
+		if mt.metallic < 0.5:
+			mt.metallic_specular = 0.2   # s217: paint reflects the (brighter) studio sky less than metal does: a coloured part keeps its look
 		mt.cull_mode = BaseMaterial3D.CULL_DISABLED
 		if a < 1.0:
 			mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA

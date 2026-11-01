@@ -387,9 +387,9 @@ static func studio_sky() -> Sky:
 	if _studio_sky == null:
 		var pm := ProceduralSkyMaterial.new()
 		pm.sky_top_color = Color(1.0, 1.0, 1.0)
-		pm.sky_horizon_color = Color(0.62, 0.62, 0.60)
-		pm.ground_horizon_color = Color(0.50, 0.49, 0.47)
-		pm.ground_bottom_color = Color(0.25, 0.25, 0.24)
+		pm.sky_horizon_color = Color(0.90, 0.90, 0.88)   # s217: a studio cyclorama, not a dark floor: a side face and a drum's side reflect the horizon and the ground half
+		pm.ground_horizon_color = Color(0.88, 0.87, 0.85)
+		pm.ground_bottom_color = Color(0.85, 0.84, 0.83)
 		pm.sky_curve = 0.3
 		pm.sun_angle_max = 0.0
 		pm.sky_energy_multiplier = 1.2

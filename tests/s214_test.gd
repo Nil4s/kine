@@ -215,7 +215,7 @@ func world_pt(x_mm: float, y_mm: float) -> Vector2:
 func frame_right() -> void:
 	m.target = Vector3(0.1, 0.0, 0.0)
 	m.dist = 1.6
-	m.pitch = 0.0
+	m.pitch = 0.0  # edge-on on purpose: the APP must lift the view when the ring is made
 	m.yaw = 0.0
 	m._cam()
 	await idle(10)
@@ -409,13 +409,48 @@ func _init() -> void:
 	var zwhy := ring_audit(m.S.part)
 	ok(zwhy == "" and n_of(m.S.part, "pattern") == 1, "Z2 Ring on the group: nine bodies, 120 / 240 deg, volumes exact, one pattern step [%s]" % zwhy)
 	ok(u3 - u0 == 3, "Z2 Repeat it + Group + Ring are %d undo steps (3: one each)" % (u3 - u0))
-	m.target = Vector3(0.0, 0.0, 0.0)
-	m.dist = 0.62
-	m.pitch = -55.0
-	m.yaw = 15.0
-	m._cam()
-	await idle(40)
+	# the view is NOT touched by the test now: Repeat it's own framing has to bring the nine pieces into the picture (Z7), and the box must be clean (Z8)
+	await idle(150)
 	await shot("easy_ring")
+	var vr := Rect2(ep.view_box.global_position, ep.view_box.size)
+	for k in ep.rep_btns:
+		var bq: Button = ep.rep_btns[k]
+		if bq.is_visible_in_tree():
+			print("   rect %s %s font %d" % [k, str(bq.get_global_rect()), bq.get_theme_font_size("font_size")])
+	var hit := []
+	var clip := []
+	for c in ep.repeat_box.find_children("*", "Control", true, false):
+		var cc := c as Control
+		if not cc.is_visible_in_tree():
+			continue
+		var r := cc.get_global_rect()
+		if (cc is BaseButton or cc is Label) and r.intersects(vr):
+			hit.append("%s %s" % [cc.name if cc.name != "" else cc.get_class(), str(r)])
+		if cc is Button and (cc as Button).text != "":
+			var bt := cc as Button
+			var tw := bt.get_theme_font("font").get_string_size(bt.text, HORIZONTAL_ALIGNMENT_LEFT, -1, bt.get_theme_font_size("font_size")).x
+			if tw > r.size.x - 4.0:
+				clip.append("%s text %.0f > button %.0f" % [bt.text, tw, r.size.x])
+	ok(hit.is_empty() and ep.repeat_box.get_global_rect().end.x <= vr.position.x, "Z8 no Repeat it control touches the view buttons %s (box right edge %.0f, view column left %.0f) %s" % [str(vr), ep.repeat_box.get_global_rect().end.x, vr.position.x, str(hit)])
+	ok(clip.is_empty(), "Z8 no button label is clipped %s" % str(clip))
+	var others := []
+	for nm in ["hole_box", "split_box", "round_box", "shape_box", "colour_box", "stick_box", "explode_box", "tilt_box"]:
+		var bx = ep.get(nm)
+		if bx != null and (bx as Control).visible:
+			others.append(nm)
+	ok(others.is_empty() and ep.repeat_box.visible, "Z8 only the open tool's box is up: Repeat it, and no other box %s" % str(others))
+	var fr: Rect2 = ep.free_rect()
+	var ab: AABB = pu.res.get("aabb", AABB())
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for i in 8:
+		var pt := ab.position + ab.size * Vector3(i & 1, (i >> 1) & 1, (i >> 2) & 1)
+		var q: Vector2 = m.cam.unproject_position(pt)
+		lo = lo.min(q)
+		hi = hi.max(q)
+	var sb := Rect2(lo, hi - lo).intersection(fr)
+	var share := sb.get_area() / maxf(fr.get_area(), 1.0)
+	ok(share >= 0.25 and share <= 1.0, "Z7 the nine pieces fill %.0f pct of the free view (want 25 pct or more); part box %s, free view %s" % [share * 100.0, str(Rect2(lo, hi - lo)), str(fr)])
 	await frame_right()
 
 	# Z3 CLICK: Shift + click on cube 2 takes it off, again puts it back

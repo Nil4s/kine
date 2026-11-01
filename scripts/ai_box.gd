@@ -30,6 +30,13 @@ const TOOLS := {
 	"commands": ["commands", "Every command the window has (id, name, keys): the ids are run steps.",
 		{"type": "object", "properties": {}, "additionalProperties": false}],
 }
+## ITEM 220: with a Part on screen the model also gets these two (never in a scene with no part: the animation box stays at its 7 tools)
+const PART_TOOLS := {
+	"part_facts": ["part_facts", "The part on screen (Part workspace) as text, no picture needed: one line per body (name, volume mm3, box, centroid, axis / radius / length) and which bodies touch, overlap (mm3) or are near (gap mm), repeated bodies, loose pieces.",
+		{"type": "object", "properties": {}, "additionalProperties": false}],
+	"part_assert": ["part_assert", "One-line checks on the part on screen, pass or fail with the worst miss in mm, deg or mm3 and where: 'piston touches barrel clearance 0.0-0.2 mm', 'pushrod touches crankcase', 'body 5 inside body 3', 'no overlaps except pistons/barrels', 'count bodies like fin = 36', 'pipe 1 ends at cage 1 within 1 mm', 'axis of body 6 at 120 deg to axis of body 7 +-0.5', 'one solid', 'all bodies above the floor'. A line it cannot read comes back with the grammar.",
+		{"type": "object", "properties": {"lines": {"type": "array", "items": S, "minItems": 1}, "save": {"type": "boolean"}}, "additionalProperties": false}],
+}
 const SYSTEM := """You animate a human figure in Kine, an animation app. The user tells you what should happen; you build it with the tools, on the scene they are looking at. A scene is a row of CARDS (key poses); playing it moves the body from card to card. To make a card: pose the body (pose), then run ["add"]. To change a card: run ["card=N"], pose, run ["update"]. Name the cards (run ["name=..."]) after what happens in them. Angles are degrees; left / right are HIS. Keep it simple: 3 to 8 cards for a short action. When done, run check; if it lists MUST FIX findings, fix them (run ["fix=N"] or change the card), then check again. Finish with one or two plain sentences saying what you made. Do not ask the user questions: decide."""
 
 var main: Node
@@ -153,10 +160,13 @@ func _line(t: String) -> void:
 		ui_log.append_text(t.replace("[", "[lb]") + "\n")
 
 
-static func tool_specs() -> Array:
+static func tool_specs(with_part := false) -> Array:
 	var out := []
 	for k in TOOLS:
 		out.append({"name": k, "description": TOOLS[k][1], "schema": TOOLS[k][2]})
+	if with_part:
+		for k in PART_TOOLS:
+			out.append({"name": k, "description": PART_TOOLS[k][1], "schema": PART_TOOLS[k][2]})
 	return out
 
 
@@ -195,7 +205,7 @@ func ask(text: String) -> void:
 	ui_in.text = ""
 	convo = [{"role": "user", "text": text}]
 	_line("YOU: " + text)
-	var specs := tool_specs()
+	var specs := tool_specs(not main.S.part.is_empty())
 	var turns := 0
 	var said := ""
 	while running and turns < MAX_TURNS:
@@ -245,7 +255,7 @@ func _call(c: Dictionary, specs: Array) -> String:
 		_line("  x " + bad[0])
 		return JSON.stringify({"error": bad[0]})
 	var n0: int = main.undo.size()
-	var resp: Dictionary = await tools.request(calls_made, TOOLS[c["name"]][0], c.get("args", {}) if c.get("args") is Dictionary else {})
+	var resp: Dictionary = await tools.request(calls_made, (TOOLS[c["name"]] if TOOLS.has(c["name"]) else PART_TOOLS[c["name"]])[0], c.get("args", {}) if c.get("args") is Dictionary else {})
 	_one_step(n0, "AI: " + label)
 	var ok := resp.has("result")
 	_line(("  %s %s" % ["-" if ok else "x", label]) + ("" if ok else ": " + String(resp["error"]["message"])))

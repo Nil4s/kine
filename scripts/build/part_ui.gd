@@ -144,6 +144,7 @@ var pill_text := ""   # XFIX2: the last size readout drawn next to the cursor (i
 var pill_at := Vector2.ZERO
 var cur_px := Vector2.ZERO   # the last pointer place on the view (the readout follows it)
 var grey_why := {}   # XFIX2: greyed button -> why (a click on it says that)
+var asm_on := false            # s213: the Assembly screen (assembly_ui.gd) has the page: the Part chrome and the part's own mesh stay hidden
 var part_btn: Button
 var tool_btns := {}
 var finish_btn: Button
@@ -216,6 +217,7 @@ var sec_on := false            # SECTION (a view setting, not in the record): th
 var sec_pl := "front"          # its plane (Front, Top, Right) and offset (mm along the plane normal)
 var sec_mm := 0.0
 var sec_mat: ShaderMaterial
+var sec_cut := {}              # S218: the cut now on ({"n","w"}: Section tool or Easy Cut view); _look_surfaces gives each body its own cap colour
 var sec_box: PanelContainer
 var sec_chk: CheckBox
 var sec_opt: OptionButton
@@ -334,12 +336,12 @@ func setup(b: BuildUI) -> void:
 
 ## the Expert chrome (ribbon tools, browser, panel, timeline) shows
 func chrome() -> bool:
-	return bu.on and on and not easy and not bu.easy_ui()
+	return bu.on and on and not easy and not bu.easy_ui() and not asm_on
 
 
 ## the Part workspace has the page, in Expert or in Easy's screen
 func shows() -> bool:
-	return bu.on and on and (easy or not bu.easy_ui())
+	return bu.on and on and (easy or not bu.easy_ui() or asm_on)
 
 
 ## EASY PART: the same record on Easy's screen. A part drawn in Expert stays as it is (the chips start a template over it, as one undo step);
@@ -391,9 +393,9 @@ func ribbon_shows(b: Node, tab: String) -> bool:
 	if b == reopen_btn:   # the way back to the chooser: in the Part ribbon too, with its words
 		return true
 	if b is VSeparator:
-		return show if my_seps.has(b) else not show
+		return show if my_seps.has(b) else (not show and not asm_on)   # s213: the assembly screen shows neither the house tools' dividers nor the Part tools'
 	if house_btns.has(b):
-		return not show
+		return not show and not asm_on
 	return show
 
 
@@ -2359,7 +2361,7 @@ func sync() -> void:
 	part_btn.visible = bu.on and not bu.easy_ui()
 	part_btn.set_pressed_no_signal(on)
 	for c in house_btns:
-		(c as Control).visible = not show or c == reopen_btn
+		(c as Control).visible = (not show and not asm_on) or c == reopen_btn
 	if reopen_btn != null:
 		reopen_btn.text = "What to build" if on and not (easy and m.get_viewport().get_visible_rect().size.x < 1400.0) else ""   # bug6: Easy Part's bar at 1280 is full: the words went off the right edge, so the icon alone there   # icon only in the house ribbon (it is crowded there); with words in Part, Expert or Easy
 	for t in tool_btns:
@@ -2391,11 +2393,11 @@ func sync() -> void:
 	_inspect_sync(show)
 	_look_sync(show)   # after the replay: the panel reads this record's looks
 	pov.visible = show
-	part_mesh.visible = up and sk == "" and prev.is_empty() and part_mesh.mesh != null
+	part_mesh.visible = up and sk == "" and prev.is_empty() and part_mesh.mesh != null and not asm_on
 	prev_mesh.visible = show and not prev.is_empty() and prev_mesh.mesh != null
 	bu.house.visible = not up
 	if up:
-		bu.grid.visible = false
+		bu.grid.visible = asm_on and bu.on   # s213: the assembly stands on the floor grid (the Part workspace draws its own)
 		bu.person.visible = false
 	else:
 		bu.grid.visible = bu.on   # bug2: the house floor comes back when the Part workspace closes (it was hidden above and never restored: a blank dark view)
@@ -3458,18 +3460,30 @@ uniform vec4 cut = vec4(0.0, 0.0, 1.0, 0.0);
 uniform float on = 0.0;
 uniform vec4 cap : source_color = vec4(0.91, 0.51, 0.23, 1.0);
 uniform vec4 solid : source_color = vec4(0.74, 0.77, 0.82, 1.0);
+uniform vec4 caps[16];
+uniform vec4 solids[16];
+uniform int body_n = 0;
 varying vec3 wp;
+varying float bid;
 void vertex() {
 	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	bid = COLOR.r * 16.0;
 }
 void fragment() {
 	if (on > 0.5 && dot(cut.xyz, wp) > cut.w) {
 		discard;
 	}
+	vec3 capc = cap.rgb;
+	vec3 solc = solid.rgb;
+	int b = int(bid + 0.5);
+	if (b < body_n) {
+		capc = caps[b].rgb;
+		solc = solids[b].rgb;
+	}
 	if (FRONT_FACING) {
-		ALBEDO = solid.rgb * (0.7 + 0.3 * abs(NORMAL.z));
+		ALBEDO = solc * (0.7 + 0.3 * abs(NORMAL.z));
 	} else {
-		ALBEDO = cap.rgb;
+		ALBEDO = capc;
 	}
 }
 """
@@ -3752,6 +3766,8 @@ func _sec_apply() -> void:
 		return
 	if not sec_on:
 		part_mesh.material_override = null   # each body keeps its own look (_look_surfaces); an override would paint them all one grey
+		sec_cut = {}
+		_look_surfaces()   # S218: the cap colours go, the own looks come back
 		return
 	if sec_mat == null:
 		sec_mat = ShaderMaterial.new()
@@ -3766,6 +3782,8 @@ func _sec_apply() -> void:
 	var p: Vector3 = d["p"]
 	sec_mat.set_shader_parameter("cut", Vector4(n.x, n.y, n.z, n.dot(p)))
 	sec_mat.set_shader_parameter("on", 1.0)
+	sec_cut = {"n": n, "w": n.dot(p)}   # S218
+	_look_surfaces()
 
 
 func _inspect_sync(show: bool) -> void:
@@ -4314,10 +4332,13 @@ func _look_surfaces() -> void:
 		mt.albedo_color = Color(c.r, c.g, c.b, a)
 		mt.roughness = float(l["rough"])
 		mt.metallic = float(l["metal"])
+		if mt.metallic < 0.5:
+			mt.metallic_specular = 0.2   # s217: paint reflects the (brighter) studio sky less than metal does: a coloured part keeps its look
 		mt.cull_mode = BaseMaterial3D.CULL_DISABLED
 		if a < 1.0:
 			mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		part_mesh.set_surface_override_material(s, mt)
+	SectionLook.after_look(self)   # S218: per-body cap colours on a cut / split
 	if cut_hook.is_valid():
 		cut_hook.call()   # S016: the Wall slider's cut-away stays on over each new look
 
