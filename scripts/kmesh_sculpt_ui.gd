@@ -421,6 +421,7 @@ func make_sliders() -> void:
 	box.add_child(strength_lbl)
 	strength_sl = _slider("sculpt_strength", 0.2, 50.0, 0.1, _on_strength)
 	box.add_child(strength_sl)
+	_make_remesh_slider(box)   # plan 154
 	_sync_sliders()
 
 
@@ -457,3 +458,76 @@ func _sync_sliders() -> void:
 	strength_sl.set_value_no_signal(s_mm)
 	size_lbl.text = "Size  %d mm  (%s)" % [roundi(r_mm), "small" if r_mm < 40.0 else ("medium" if r_mm < 120.0 else "big")]
 	strength_lbl.text = "Strength  %.1f mm  (%s)" % [s_mm, "soft" if s_mm < 2.0 else ("firm" if s_mm < 20.0 else "hard")]
+
+
+## ---- plan 154: Remesh slider (lighter <-> smoother). The slider's value is a number of doublings of the triangle count: -2 = a quarter,
+## -1 = half (lighter), 0 = as now, +1 = double (smoother), +2 = four times. Letting go of the handle rebuilds the sphere as an even
+## voxel mesh (scripts/kmesh_voxel_remesh.gd) with about that many triangles; one undo step. The slider goes back to 0, so the next
+## move is again relative to what the sphere is now.
+var remesh_sl: HSlider
+var remesh_lbl: Label
+var _remesh_busy := false
+
+
+func _make_remesh_slider(box: VBoxContainer) -> void:
+	remesh_lbl = Label.new()
+	remesh_lbl.name = "sculpt_remesh_label"
+	remesh_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(remesh_lbl)
+	remesh_sl = _slider("sculpt_remesh", -2.0, 2.0, 0.5, _on_remesh_value)
+	remesh_sl.tooltip_text = "Remesh: drag left for a lighter mesh (fewer, evenly sized triangles), right for a smoother one (more). Let go to rebuild; Ctrl+Z takes it back."
+	remesh_sl.drag_ended.connect(_on_remesh_released)
+	box.add_child(remesh_sl)
+	_on_remesh_value(0.0)
+
+
+func _on_remesh_value(v: float) -> void:
+	if remesh_lbl == null:
+		return
+	if v == 0.0 or mesh == null:
+		remesh_lbl.text = "Remesh: lighter <-> smoother"
+	else:
+		remesh_lbl.text = "Remesh: %s, about %d triangles" % ["lighter" if v < 0.0 else "smoother", int(round(mesh.triangle_count() * pow(2.0, v)))]
+
+
+func _on_remesh_released(changed: bool) -> void:
+	if not changed or remesh_sl == null or _remesh_busy:
+		return
+	var v := remesh_sl.value
+	remesh_sl.set_value_no_signal(0.0)
+	_on_remesh_value(0.0)
+	if v != 0.0:
+		remesh_by(v)
+
+
+## rebuild the sculpt mesh with about triangles * 2^doublings triangles, evenly sized. One undo step. Returns the result of the apply.
+func remesh_by(doublings: float) -> Dictionary:
+	if not on or view == null or mesh == null:
+		return {"ok": false, "why": "no sculpt mesh"}
+	_remesh_busy = true
+	var target := maxf(float(mesh.triangle_count()) * pow(2.0, doublings), 12.0)
+	var area := 0.0
+	for f in mesh.faces:
+		var fa := f as PackedInt32Array
+		for k in range(1, fa.size() - 1):
+			area += (mesh.verts[fa[k]] - mesh.verts[fa[0]]).cross(mesh.verts[fa[k + 1]] - mesh.verts[fa[0]]).length() * 0.5
+	var h := sqrt(3.0 * area / target)   # a surface-net mesh has about 3 A / h^2 triangles (1.5 quads per cell face area)
+	for _i in 2:   # one correction from the measured count
+		var t := KMeshVoxelRemesh.remesh(mesh, h)
+		if not t["ok"]:
+			break
+		var got := float((t["mesh"] as KMesh).triangle_count())
+		if absf(got / target - 1.0) < 0.03:
+			break
+		h *= sqrt(got / target)
+	var tris0 := mesh.triangle_count()
+	var r := KMeshVoxelRemesh.apply(mesh, h, undo)
+	_remesh_busy = false
+	if not r["ok"]:
+		m._say("Remesh: " + String(r["why"]))
+		return r
+	view.set_mesh(mesh)
+	view.rebuild()
+	tint.refresh(true)
+	m._say("Remesh: %s, %d -> %d triangles, evenly sized. Ctrl+Z takes it back" % ["lighter" if mesh.triangle_count() < tris0 else "smoother", tris0, mesh.triangle_count()])
+	return r
