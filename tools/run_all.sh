@@ -548,3 +548,6 @@ EXTRA="$EXTRA bug7:w"   # bug7: Examples only lists examples on the start screen
 
 
 EXTRA="$EXTRA bug4:w"   # bug4 (Nick 11-01 "no access to our library"): a Library button in the Easy Part bar (2 clicks from the start screen), a Parts library button on the 3D BUILDING start card; tests/bug4_test.gd
+
+
+EXTRA="$EXTRA bug2:w"   # bug2: Easy Part opens with its floor grid at least 15 pct of the frame (looking down at -45 deg), Top / Side unchanged
