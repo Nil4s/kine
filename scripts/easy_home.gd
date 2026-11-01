@@ -1163,6 +1163,8 @@ func _words(text: String) -> void:
 		return
 	if not follow and _sit_typed(t):   # "sit", "sit down", "sit on the chair" with a chair in the scene: he sits on it
 		return
+	if not follow and _prop_move_typed(t):   # "pick up the box", "throw the ball", "open the door": the hand reaches the prop in the scene (PropMove)
+		return
 	if not follow and _jump_over_typed(t):   # "jump over the crate" with a crate or box in the scene: a run-up, then the jump over it
 		return
 	_t0 = Time.get_ticks_msec()
@@ -2744,3 +2746,31 @@ func _cs_released(_changed := false) -> void:
 	_cs_pushed = false
 	_play()
 	m.easy.frame_clip_next()
+
+
+## TYPED MOVES WITH PROPS (Friday 134): the words name a prop in the scene; PropMove builds the reach, the grip and the move in ONE undo
+## step. A prop that is not there is said in plain words and nothing is added. false = not a prop move (the builder gets the words)
+func _prop_move_typed(t: String) -> bool:
+	var r: Dictionary = PropMove.run(m, t)
+	if not bool(r.get("handled", false)):
+		return false
+	if not bool(r["ok"]):
+		m._say_plain(String(r["say"]))
+		return true
+	var was: bool = m.S.cards.size() == int(r["cards"])
+	_note_name(t.strip_edges().to_lower(), was)
+	_built = true
+	_open = false
+	_gen_words = ""
+	_msg.text = ""
+	_edit.text = ""
+	if was:
+		_hist.clear()
+	_hist.append([m.undo.size(), ""])
+	_clip_word = "the clip"
+	_refresh_next()
+	m._layout_bottom()
+	_play()
+	m._say_plain("%s. Again plays it; Undo takes it back." % String(r["say"]))
+	m.easy.frame_clip_next()
+	return true

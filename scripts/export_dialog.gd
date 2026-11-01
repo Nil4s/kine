@@ -21,6 +21,11 @@ var ui_face_row: HBoxContainer
 var ui_budget: OptionButton   # plan 157: Triangle budget (Full / 50 000 / 10 000 / 2 000) for the mesh files (.glb objects, .obj, .stl, .3mf)
 var ui_budget_row: HBoxContainer
 var ui_price_row: HBoxContainer   # s081: the price table (BRL) behind the cost line
+var ui_bed_row: HBoxContainer   # 3D printing only: the printer bed size and Split to fit (Friday plan 114)
+var ui_bed: Array = []   # three SpinBoxes: bed X, Y, Z in mm
+var ui_split: CheckBox
+var split_fit := false
+var bed_mm := Vector3(220.0, 220.0, 250.0)
 var ui_objects: Label   # the mesh objects in the scene, by name (what the choice picks from)
 var batch_ui: BatchDialog   # Batch... (ROADMAP 80), made on first use
 var ui_slicer_box: VBoxContainer   # 3D printing only (plan 119): the slicers found + the Send to slicer button
@@ -232,6 +237,7 @@ func _build() -> void:
 	ui_budget_row.add_child(ui_budget)
 	v.add_child(ui_budget_row)
 	_price_row_build(v)
+	_build_bed_row(v)
 	ui_slicer_box = VBoxContainer.new()   # plan 119: Send to slicer (3D printing only)
 	ui_slicer_box.name = "export_slicer_box"
 	ui_slicer_txt = Label.new()
@@ -369,6 +375,8 @@ func _refresh() -> void:
 	ui_face_row.visible = _cur_id() == "laser"
 	ui_budget_row.visible = _cur_run() in ["glb", "obj", "stl", "3mf"]
 	ui_price_row.visible = _cur_id() == "cutlist" or _cur_id() == "print"
+	if ui_bed_row != null:
+		ui_bed_row.visible = _cur_id() == "print"
 	_refresh_slicer()
 	if _cur_id() == "cutlist":
 		ui_objects.text = "The part on screen is what is read: each wood board is one line. The prices above set the cost line on the Size label."
@@ -427,7 +435,10 @@ func checks(id: String, run: String) -> Array:
 	if id == "step":
 		return StepExport.check_lines(m.S.part)
 	if id == "print":   # the printability check of the part on screen
-		return MeshExport.check_lines(m.S.part)
+		var pl: Array = MeshExport.check_lines(m.S.part)
+		if not (m.S.part as Dictionary).is_empty() and Part.available():
+			pl.append_array(PrintSplit.size_lines(m.S.part, bed_mm, split_fit))
+		return pl
 	if id == "cutlist":
 		return CutList.check_lines(m.S.part)
 	if id == "laser":
@@ -521,7 +532,7 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 		m._say_plain(String(rl["text"]))
 		return String(rl["path"]) if bool(rl["ok"]) else ""
 	if id == "print":   # STL / 3MF of the part on screen (never blocked: an open shape still writes, with the warning in the words)
-		var r := MeshExport.export_part(m.S.part, run, UserPaths.w(dir), budget)
+		var r := PrintSplit.export_part(m.S.part, run, UserPaths.w(dir), bed_mm) if split_fit else MeshExport.export_part(m.S.part, run, UserPaths.w(dir), budget)
 		m._say_plain(String(r["text"]))
 		return String(r["path"]) if bool(r["ok"]) else ""
 	if id == "step":   # STEP of the part on screen (the exact solid)
@@ -561,6 +572,37 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 	return ""
 
 
+## the "Printer bed" size boxes and the "Split to fit" tick (Friday plan 114), in the 3D printing target only
+func _build_bed_row(v: VBoxContainer) -> void:
+	ui_bed_row = HBoxContainer.new()
+	ui_bed_row.name = "export_bed_row"
+	var l := Label.new()
+	l.text = "Printer bed (mm)"
+	ui_bed_row.add_child(l)
+	ui_bed = []
+	for a in 3:
+		var sb := SpinBox.new()
+		sb.name = "spin_export_bed_%s" % ["x", "y", "z"][a]
+		sb.min_value = 10.0
+		sb.max_value = 2000.0
+		sb.step = 1.0
+		sb.value = bed_mm[a]
+		sb.custom_minimum_size = Vector2(80, 0)
+		sb.value_changed.connect(func(x: float):
+			bed_mm[a] = x
+			_refresh())
+		ui_bed_row.add_child(sb)
+		ui_bed.append(sb)
+	ui_split = CheckBox.new()
+	ui_split.name = "chk_export_split"
+	ui_split.text = "Split to fit (cut into pieces, with dowel holes)"
+	ui_split.button_pressed = split_fit
+	ui_split.toggled.connect(func(on: bool):
+		split_fit = on
+		_refresh())
+	ui_bed_row.add_child(ui_split)
+	ui_bed_row.visible = false
+	v.add_child(ui_bed_row)
 ## SEND TO SLICER (plan 119): the slicers this computer has (looked up once per opening of the dialog)
 func slicers() -> Array:
 	if not _slicers_known:

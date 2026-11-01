@@ -154,6 +154,7 @@ func build(root: Control) -> void:
 	pic.tooltip_text = "Your own picture: a dark shape on white becomes a raised logo, 4 cm wide and 2 mm high, in one step"
 	pic.pressed.connect(_picture_press)
 	sh.add_child(pic)
+	sh.add_child(_mirror_chip())   # s047: Mirror while drawing (a Line clicked on one side is drawn on both)
 	sh.add_child(_one_side_chip())   # P153: Symmetry is on by default; this chip turns it off ("One side only")
 	var photo_btn := Button.new()   # P201: Photo size: a phone photo with a coin beside the object; six clicks, the mm become a plate (easy_part_photo.gd)
 	photo_btn.name = "easypart_shape_photo"
@@ -417,6 +418,7 @@ func _hole_box() -> PanelContainer:
 	mb.custom_minimum_size = Vector2(96, 44)
 	h.add_child(mb)
 	hole_btns["magnet"] = mb
+	_lighter_chip(h)   # p195generative: Make it lighter + its Held / Pushed chips (the end of easy_part_pull.gd)
 	lattice_btn = _big_btn("easypart_hole_lattice", "Lattice inside", "Fill the hollow with a light lattice of thin bars: the Gap slider sets how far apart they are", _lattice_press)   # p208latticeinf: shown by _hole_sync
 	lattice_btn.icon = Icons.tex("part_pattern")
 	lattice_btn.custom_minimum_size = Vector2(150, 44)
@@ -436,11 +438,13 @@ func _hole_box() -> PanelContainer:
 		h.add_child(sb)
 		hole_btns["screw%d" % sd] = sb
 	_hpat_chips(h)   # s029: Row / Around / Grid of holes
+	_fill_chips(h)   # s051: Fill the face
 	_printer_chip(h)   # p203screwholea: the printer chip (resin tight, FDM loose)
 	var fb := _big_btn("easypart_hole_fits", "What fits here?", "Ask which of My Parts go through this hole (the saved parts that fit it). No step: it only tells you", _fits_press)   # P076
 	fb.custom_minimum_size = Vector2(150, 44)
 	h.add_child(fb)
 	h.add_child(hpat_box)   # s029: the pattern sliders come last, so the chips above stay on their lines
+	h.add_child(fill_box)   # s051: the Fill the face shapes and sliders
 	return box
 
 
@@ -1241,6 +1245,8 @@ func _set_value(row: Dictionary, v: float, final: bool) -> void:
 		_apply_rep(row, v)
 	elif row["kind"] == "hpat":
 		_apply_hpat(row, v)
+	elif row["kind"] == "fill":
+		_apply_fill(row, v)   # s051
 	elif row["kind"] == "taper":
 		_apply_taper(v)
 	elif row["kind"] == "twist":
@@ -1267,6 +1273,7 @@ func _apply_tweak(v: float) -> void:
 	else:
 		f[tweak["field"]] = val
 	_hpat_follow(f)   # s029: the pattern's other circles follow the first
+	_lighter_follow(f)   # p195generative: Make it lighter's holes follow the slider
 	if f.has("raw"):   # p039: a Curvy line's points come back from its raw stroke at the new Smooth
 		_rebuild_curve(f)
 
@@ -2163,6 +2170,7 @@ func _lib_box() -> PanelContainer:
 	vb.add_child(lib_soon)
 	vb.add_child(_type_row())   # p085typetobuil: the Type it row (shows with that category)
 	vb.add_child(_photo_row())   # p192makeitlike: Like a photo, under Type it
+	vb.add_child(_text_row())   # FRIDAY 33: Text on a face, under Like a photo
 	vb.add_child(_label_row())   # s210: Label, under Like a photo
 	linkage_box = preload("res://scripts/easy_linkage.gd").new()   # p129linkages: the Linkage panel (4 bars, a drag knob) on the Hinges page, scripts/easy_linkage.gd
 	linkage_box.say_fn = _say   # p129linkages: its words go to the status line at the top
@@ -2473,6 +2481,8 @@ func _screw_sync() -> void:
 		lib_soon.text = "%s are coming soon: not made yet. Next step: press Screws or Gears" % lib_cat if lib_soon.visible else ""
 		type_box.visible = parts_open and lib_cat == "Type it"   # p085typetobuil
 		photo_box.visible = parts_open and lib_cat == "Type it"   # p192makeitlike
+		if text_box != null:
+			text_box.visible = parts_open and lib_cat == "Type it"   # FRIDAY 33
 		label_box.visible = parts_open and lib_cat == "Type it"   # s210
 		if fav_box != null:   # p083favfix: the Favourites page shows while its category is open; the row and the star are drawn here
 			fav_box.visible = parts_open and lib_cat == "Favourites"
@@ -3578,6 +3588,8 @@ func _process(_dt: float) -> void:
 	dots.visible = on
 	shape_box.visible = on and armed == "draw"
 	hole_box.visible = on and _hole_on()
+	if hole_box.visible and edge_chip != null and edge_chip.visible and hole_box.get_global_rect().intersects(edge_chip.get_global_rect()):   # s051: a Round / Bevel chip left over the Cut a hole chips would take their clicks (Staggered, Hex)
+		_edge_hide()
 	if flat_sheet != null:
 		flat_sheet.visible = on and flat_sheet.visible   # p117flatpatter: the sheet closes with Easy Part
 	split_box.visible = on and _split_on()
@@ -3619,7 +3631,7 @@ func _process(_dt: float) -> void:
 	paint_btn.set_pressed_no_signal(paint_on)
 	suggest_row.visible = on and _suggest_on()   # P092: after a Pull it up the two next-step chips show in the panel, under the slider rows
 	var bulge_on := on and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # plan 23: Pinch / Bulge a face is offered under any solid
-	tilt_box.visible = on and (armed == "" or bulge_pick) and (along or tilt_on or draft_on or swing_on or bulge_on)
+	tilt_box.visible = on and (armed == "" or bulge_pick) and (along or tilt_on or draft_on or swing_on or bulge_on) and not _fill_open()   # s051: the open Fill the face box is as tall as the low-left chips: they would sit over its Square chip and sliders
 	_overhang_sync(on)
 	_com_sync(on)   # P128: the centre-of-mass dot
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST
@@ -3689,6 +3701,10 @@ func _key(k: InputEventKey) -> void:
 	var fo := get_viewport().gui_get_focus_owner()
 	if fo is LineEdit or fo is SpinBox:
 		return   # a typed number keeps its keys
+	if _draft.has("clicks") and k.keycode in [KEY_ENTER, KEY_KP_ENTER]:
+		_mirror_finish()   # s047: Enter ends a mirrored Line, as clicking its last point again does
+		get_viewport().set_input_as_handled()
+		return
 	if _line_typed_key(k):   # P045: a Line being drawn takes a typed length (digits, Backspace, Enter); the digits do not turn the camera
 		get_viewport().set_input_as_handled()
 		return
@@ -3881,6 +3897,8 @@ func input(ev: InputEvent) -> bool:
 				if (d["scr"] as Vector2).distance_to(p) <= 16.0:
 					_grab(d, p)
 					return true
+			if text_pick and not _over_ui(p):
+				return _text_press(p)   # FRIDAY 33: the press picks the face the words go on
 			if armed == "stick" and not _over_ui(p):
 				var faces: Array = Part.body_faces(_rec(), -1)
 				var hit: Dictionary = pu._ray_hit(p, faces)   # the body under the pointer (Expert's combine picks the same way)
@@ -3893,8 +3911,14 @@ func input(ev: InputEvent) -> bool:
 				return _aredge_press(p)   # s048: Around edge picks the edge under the click
 			if armed == "hold" and not _over_ui(p):
 				return _hold_press(p)   # p131grippoint: the press on the part sets the grip point
+			if armed == "draw" and _draft.has("clicks") and not _over_ui(p):
+				_draft_move(p)   # s047: the next click of a mirrored Line: the point follows the pointer, the release places it
+				return true
 			if (armed == "draw" or armed == "curve") and not _over_ui(p):
-				return _start_draft(p)
+				var started := _start_draft(p)
+				if started:
+					_mirror_tag()   # s047
+				return started
 			if armed == "" and not _over_ui(p) and _edge_press(p):
 				return true
 			if armed == "" and not _over_ui(p):
@@ -3922,6 +3946,8 @@ func input(ev: InputEvent) -> bool:
 					_wall_press(p)
 				elif hpat_pick:   # s029: Pick centre is waiting for the click
 					_hpat_press(p)
+				elif fill_pick:   # s051: Fill the face is waiting for the face
+					_fill_click(p)
 				elif bulge_pick and armed == "":   # plan 23: Pinch / Bulge is waiting for a flat face
 					_bulge_click(p)
 				elif not _open_face(p):   # NOPENTOP: after Hollow inside, a flat face click opens that side; any other click picks a piece
@@ -3972,7 +3998,7 @@ func _draft_move(p: Vector2) -> void:
 	if g != null:
 		_draft["b"] = g
 		var sh := String(_draft["shape"])
-		if (sh == "curve" or sh == "line") and (g as Vector2).distance_to((_draft["pts"] as Array).back()) >= 5.0:
+		if (sh == "curve" or sh == "line") and not _draft.has("clicks") and (g as Vector2).distance_to((_draft["pts"] as Array).back()) >= 5.0:
 			(_draft["pts"] as Array).append(g)
 			if sh == "line":   # P040: the stretch that ends here is curvy when Shift is held
 				var segs: Array = _draft.get("segs", [false])
@@ -3982,6 +4008,9 @@ func _draft_move(p: Vector2) -> void:
 
 
 func _draft_end() -> void:
+	if _draft.has("clicks"):
+		_mirror_release()   # s047: a click places a point; the same point twice finishes
+		return
 	if String(_draft["shape"]) == "line":
 		_finish_line()
 	elif String(_draft["shape"]) == "curve":
@@ -4338,6 +4367,9 @@ func _edge_hide() -> void:
 ## a pointer move at p (no press, nothing armed): the built edge under it shows the chip
 func _edge_hover(p: Vector2) -> void:
 	if not active() or not Part.available() or pu == null or m.cam == null or int(pu.res.get("bodies", 0)) == 0:
+		_edge_hide()
+		return
+	if hole_box != null and hole_box.visible and hole_box.get_global_rect().has_point(p):   # s051: the pointer is on the Cut a hole chips: no Round / Bevel chip pops up over them (it took the click meant for Staggered / Hex)
 		_edge_hide()
 		return
 	_edge_chip_ensure()
@@ -5443,7 +5475,7 @@ func _spring_pick_press() -> void:
 ## Enter draws a straight stretch of that length from the last point, in the way the pointer is going (a new run, so it stays its own line).
 ## true = the key was the typed length's; any other key (Escape, Delete, Ctrl) is left to the rest of the screen
 func _line_typed_key(k: InputEventKey) -> bool:
-	if _draft.is_empty() or String(_draft.get("shape", "")) != "line" or not _draft.has("pts"):
+	if _draft.is_empty() or String(_draft.get("shape", "")) != "line" or not _draft.has("pts") or _draft.has("clicks"):
 		return false
 	var typed := String(_draft.get("typed", ""))
 	var ch := ""
@@ -6316,6 +6348,264 @@ func _screw_tip(d: int, L: int) -> String:
 	return "M%d x %d: %s head %s mm across, %s mm high, plain shank %d mm long" % [d, L, String(PartTemplates.SCREW_HEAD_CHIPS[screw_head]).to_lower(), str(hd[0]), str(hd[1]), L]
 
 
+# ---------------------------------------------------------------- FRIDAY 33: text on a face (Parts > Type it): words cut into or stand out of a face
+
+const PText := preload("res://scripts/build/part_text.gd")
+var text_box: VBoxContainer       # the Text on a face rows under Like a photo (shown with Type it)
+var text_edit: LineEdit           # the words
+var text_size: SpinBox            # how tall the letters are, mm
+var text_depth: SpinBox           # how deep / how tall, mm
+var text_cut_btn: Button          # Cut in
+var text_out_btn: Button          # Stand out
+var text_top_btn: Button          # Put on the top face
+var text_face_btn: Button         # Pick a face
+var text_pick := false            # the next press on the solid picks the face
+var text_cut := true              # Cut in (true) or Stand out (false)
+
+
+func _text_chip(nm: String, txt: String, tip: String, f: Callable) -> Button:
+	var b := Button.new()
+	b.name = nm
+	b.text = txt
+	b.tooltip_text = tip
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", 13)
+	b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+	b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+	b.pressed.connect(f)
+	return b
+
+
+func _text_row() -> VBoxContainer:
+	var vb := VBoxContainer.new()
+	vb.name = "easypart_text_box"
+	vb.visible = false
+	vb.add_theme_constant_override("separation", 3)
+	var r1 := HBoxContainer.new()
+	r1.add_theme_constant_override("separation", 4)
+	vb.add_child(r1)
+	var lab := Label.new()
+	lab.text = "Text on a face:"
+	lab.add_theme_font_size_override("font_size", 13)
+	r1.add_child(lab)
+	text_edit = LineEdit.new()
+	text_edit.name = "easypart_text_edit"
+	text_edit.placeholder_text = "KINE"
+	text_edit.max_length = PText.MAX_CHARS
+	text_edit.add_theme_font_size_override("font_size", 13)
+	text_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text_edit.text_submitted.connect(func(_t: String) -> void: _text_top())
+	r1.add_child(text_edit)
+	var r2 := HBoxContainer.new()
+	r2.add_theme_constant_override("separation", 4)
+	vb.add_child(r2)
+	text_cut_btn = _text_chip("easypart_text_cut", "Cut in", "The letters are cut into the face (engraved)", func(): _text_mode(true))
+	text_cut_btn.toggle_mode = true
+	text_cut_btn.button_pressed = true
+	r2.add_child(text_cut_btn)
+	text_out_btn = _text_chip("easypart_text_out", "Raise", "The letters stand out of the face (embossed)", func(): _text_mode(false))
+	text_out_btn.toggle_mode = true
+	r2.add_child(text_out_btn)
+	var dl := Label.new()
+	dl.text = "Depth mm"
+	dl.add_theme_font_size_override("font_size", 13)
+	r2.add_child(dl)
+	text_depth = SpinBox.new()
+	text_depth.name = "easypart_text_depth"
+	text_depth.min_value = 0.2
+	text_depth.max_value = 20.0
+	text_depth.step = 0.1
+	text_depth.value = 1.0
+	text_depth.tooltip_text = "How deep the letters go in, or how far they stand out, in mm"
+	r2.add_child(text_depth)
+	var r3 := HBoxContainer.new()
+	r3.add_theme_constant_override("separation", 4)
+	vb.add_child(r3)
+	var sl := Label.new()
+	sl.text = "Size mm"
+	sl.add_theme_font_size_override("font_size", 13)
+	r3.add_child(sl)
+	text_size = SpinBox.new()
+	text_size.name = "easypart_text_size"
+	text_size.min_value = 2.0
+	text_size.max_value = 100.0
+	text_size.step = 0.5
+	text_size.value = 10.0
+	text_size.tooltip_text = "How tall the letters are, in mm"
+	r3.add_child(text_size)
+	text_top_btn = _text_chip("easypart_text_top", "On the top", "Put the words on the top face of the solid: one step, one undo", _text_top)
+	r3.add_child(text_top_btn)
+	text_face_btn = _text_chip("easypart_text_face", "Pick a face", "Then click the face of the solid the words go on", _text_arm)
+	text_face_btn.toggle_mode = true
+	r3.add_child(text_face_btn)
+	text_box = vb
+	return vb
+
+
+func _text_mode(cut: bool) -> void:
+	text_cut = cut
+	text_cut_btn.set_pressed_no_signal(cut)
+	text_out_btn.set_pressed_no_signal(not cut)
+
+
+func _text_arm() -> void:
+	text_pick = text_face_btn.button_pressed
+	if text_pick:
+		armed = ""
+		_say("Click the face of the solid the words go on")
+	else:
+		_say("Pick a face cancelled")
+
+
+## the press on a face (text_pick): true = taken
+func _text_press(p: Vector2) -> bool:
+	var fc := _face_hit(p)
+	if fc.is_empty():
+		_say("No flat face there: click a flat face of the solid")
+		return true
+	text_pick = false
+	text_face_btn.set_pressed_no_signal(false)
+	_text_apply(fc)
+	return true
+
+
+func _text_top() -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	var faces: Array = _shown_faces()
+	var ymax := -INF
+	var seed_tri := Vector3.ZERO
+	for tris in faces:
+		var t: PackedVector3Array = tris
+		for k in range(0, t.size() - 2, 3):
+			var n := (t[k + 1] - t[k]).cross(t[k + 2] - t[k])
+			if n.length() < 1e-12 or absf(n.normalized().y) < 0.999:
+				continue
+			if t[k].y > ymax:
+				ymax = t[k].y
+				seed_tri = (t[k] + t[k + 1] + t[k + 2]) / 3.0
+	if ymax == -INF:
+		_say("Make a solid first: the words need a face to go on")
+		return
+	var pl := Part.plane("top")
+	pl["o"] = (pl["o"] as Vector3) + (pl["n"] as Vector3) * ymax
+	_text_apply({"pl": pl, "base": "top", "mm": snappedf(ymax / Part.MM, 0.01), "out": 1, "hit": seed_tri})
+
+
+## the 2D box (mm, plane coordinates) of the connected flat face the point `hit` is on
+func _text_face_box(fc: Dictionary) -> Rect2:
+	var pl: Dictionary = fc["pl"]
+	var n: Vector3 = pl["n"]
+	var d := (pl["o"] as Vector3).dot(n)
+	var hit: Vector3 = fc["hit"]
+	var tris: Array = []
+	for fa in _shown_faces():
+		var t: PackedVector3Array = fa
+		for k in range(0, t.size() - 2, 3):
+			if absf(t[k].dot(n) - d) < 2e-5 and absf(t[k + 1].dot(n) - d) < 2e-5 and absf(t[k + 2].dot(n) - d) < 2e-5:
+				tris.append([t[k], t[k + 1], t[k + 2]])
+	var seed_i := -1
+	var h2 := Part.to_plane(pl, hit)
+	for i in tris.size():
+		var tr: Array = tris[i]
+		if Geometry2D.point_is_inside_triangle(h2, Part.to_plane(pl, tr[0]), Part.to_plane(pl, tr[1]), Part.to_plane(pl, tr[2])):
+			seed_i = i
+			break
+	if seed_i < 0:
+		return Rect2()
+	var by_v := {}
+	for i in tris.size():
+		for v in tris[i]:
+			var kk := _text_key(v)
+			if not by_v.has(kk):
+				by_v[kk] = []
+			(by_v[kk] as Array).append(i)
+	var seen := {seed_i: true}
+	var todo := [seed_i]
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	while not todo.is_empty():
+		var i: int = todo.pop_back()
+		for v in tris[i]:
+			var q := Part.to_plane(pl, v)
+			lo = lo.min(q)
+			hi = hi.max(q)
+			for j in by_v[_text_key(v)]:
+				if not seen.has(j):
+					seen[j] = true
+					todo.append(j)
+	return Rect2(lo, hi - lo)
+
+
+func _text_key(v: Vector3) -> String:
+	return "%d,%d,%d" % [roundi(v.x * 1e6), roundi(v.y * 1e6), roundi(v.z * 1e6)]
+
+
+## put the words on face fc: a plane step, a sketch of the letters, a pull (cut or join): ONE undo step. Nothing changes when it cannot be done
+func _text_apply(fc: Dictionary) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	_flush_if_dirty()
+	var rw := PText.raw(text_edit.text)
+	if not bool(rw["ok"]):
+		_say(String(rw["why"]))
+		return
+	var box := _text_face_box(fc)
+	if box.size.x < 4.0 or box.size.y < 4.0:
+		_say("That face is too small for words")
+		return
+	var bb: Rect2 = rw["bb"]
+	var turn := box.size.y > box.size.x   # the words run along the face's longest edge
+	var along := box.size.y if turn else box.size.x
+	var across := box.size.x if turn else box.size.y
+	var h := text_size.value
+	var fit := minf(across * 0.9 / h, along * 0.92 / (bb.size.x / bb.size.y * h))
+	if fit < 1.0:
+		h *= fit   # too big for the face: made smaller to fit, and said so
+	if h < 1.5:
+		_say("That face is too small for these words: use fewer letters or a bigger face")
+		return
+	var sc := h / bb.size.y
+	var out := int(fc["out"])
+	var depth := snappedf(text_depth.value, 0.1)
+	var polys := PText.polygons(rw, sc, bb.get_center(), box.get_center(), out < 0, turn)
+	var ents := PText.ents_of(polys)
+	var snap := _rec().duplicate(true)
+	var before := Part.replay(snap)
+	_begin("Text on a face")
+	var rec := pu._ensure()
+	var pid := _face_plane(rec, fc)
+	var sk := Part.new_feature(rec, "sketch", {"plane": pid, "ents": ents, "dims": []})
+	rec["features"].append(sk)
+	var sgn := float(-out if text_cut else out)
+	var ex := Part.new_feature(rec, "extrude", {"sketch": sk["id"], "dist": sgn * depth, "both": false, "op": "cut" if text_cut else "join"})
+	rec["features"].append(ex)
+	var res := pu.replay_full(rec)
+	var why := ""
+	if _last_error(rec, String(ex["id"])) != "":
+		why = "The words could not be made on that face"
+	elif text_cut and float(res["volume"]) >= float(before["volume"]) - 1e-12:
+		why = "The words miss the solid: nothing was cut"
+	elif not text_cut and float(res["volume"]) <= float(before["volume"]) + 1e-12:
+		why = "The words did not join the solid"
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say(why)
+		return
+	tweak = {"id": ex["id"], "field": "dist", "label": "Depth", "unit": "mm", "lo": 0.2, "hi": 20.0, "step": 0.1, "scale": 1.0, "words": ["Shallower", "Deeper"], "sgn": sgn}
+	_end()
+	armed = ""
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	_say("The words are %s the face, %s mm tall%s, %s mm deep. Use the slider for the depth" % ["cut into" if text_cut else "standing out of", str(snappedf(h, 0.1)), " (made smaller to fit the face)" if fit < 1.0 else "", str(depth)])
+
+
 # ---------------------------------------------------------------- P093 the level: Beginner / Comfortable / Expert
 ## One slider with three stops, opened by pressing Easy (the Easy | Expert switch is where it lives; no new row). Beginner: the MAKE row without the
 ## advanced buttons (LEVEL_ADV). Comfortable: the MAKE row as it was (all twelve). Expert: the Expert screen (to_expert), the same record.
@@ -6902,6 +7192,7 @@ func _bulge_press() -> void:
 		_say(Part.why_not())
 		return
 	armed = ""
+	fill_pick = false   # s051: one pick mode at a time
 	bulge_pick = bulge_btn.button_pressed
 	_say("Click a flat face: its middle will bulge out. The slider then goes from Pinch to Bulge" if bulge_pick else "Pinch / Bulge is off")
 
@@ -7007,3 +7298,120 @@ func _theme_sync() -> void:
 	for lone in [size_l, edge_num]:   # these two sit under a wrapper that is not named easypart
 		if lone != null:
 			EPTheme.retint(lone)
+
+
+# ---------------------------------------------------------------- s047 MIRROR WHILE DRAWING
+## The Mirror chip (Draw shape row) cycles off / Mirror X / Mirror Y and picks the Line. With Mirror on, the Line takes CLICKS: each click
+## places a point on one side of the middle line (X: left-right, x -> -x; Y: front-back, y -> -y) and its mirror shows live; the same
+## point clicked twice (a double click) or Enter finishes. The finished shape is the closed outline of the points and their mirrors,
+## in ONE Draw shape step, symmetric to the float. On a face of the part the Line draws as before (the middle line is the floor's).
+var mirror_mode := ""        # "", "x", "y"
+var mirror_btn: Button
+var _mirror_frame := -1      # the frame of the last release (a release can reach both input passes: it counts once)
+
+
+func _mirror_chip() -> Button:
+	mirror_btn = Button.new()
+	mirror_btn.name = "easypart_mirror_draw"
+	mirror_btn.toggle_mode = true
+	mirror_btn.focus_mode = Control.FOCUS_NONE
+	mirror_btn.icon = Icons.sized("symmetry", 22)
+	mirror_btn.expand_icon = false
+	mirror_btn.custom_minimum_size = Vector2(124, 40)
+	mirror_btn.add_theme_font_size_override("font_size", 16)
+	mirror_btn.pressed.connect(_mirror_press)
+	_mirror_sync()
+	return mirror_btn
+
+
+func _mirror_sync() -> void:
+	mirror_btn.text = "Mirror: off" if mirror_mode == "" else "Mirror " + mirror_mode.to_upper()
+	mirror_btn.set_pressed_no_signal(mirror_mode != "")
+	mirror_btn.tooltip_text = "Mirror while drawing. Press: Mirror X (left and right), press again: Mirror Y (front and back), again: off. Click the points of a Line on one side: the other side is drawn for you. Click the last point again to finish"
+
+
+func _mirror_press() -> void:
+	mirror_mode = {"": "x", "x": "y", "y": ""}[mirror_mode]
+	_draft = {}
+	if mirror_mode != "":
+		shape = "line"
+		_sync_shape()
+		_say("Mirror %s on. Click the points of a line on one side: the other side is drawn for you. Click the last point again to finish" % mirror_mode.to_upper())
+	else:
+		_say("Mirror off: a Line is drawn by dragging, as before")
+	_mirror_sync()
+	dots.queue_redraw()
+
+
+## the draft a press just started: with Mirror on and the Line chosen on the floor or the middle plane, it becomes a clicked, mirrored Line
+func _mirror_tag() -> void:
+	if mirror_mode == "" or _draft.is_empty() or String(_draft.get("shape", "")) != "line":
+		return
+	var fc: Dictionary = _draft.get("face", {})
+	if not (fc.is_empty() or bool(fc.get("through", false))):
+		_say("Mirror works on the floor and on the middle plane: this Line is drawn as usual")
+		return
+	_draft["mirror"] = mirror_mode
+	_draft["clicks"] = true
+	_draft["vx"] = []
+	_say("Mirror %s: click the next point. Click the last point again to finish" % mirror_mode.to_upper())
+
+
+## which side of the middle line a point is on: 1, -1, or 0 on the line
+func _mirror_side(q: Vector2, mode: String) -> int:
+	var v := q.x if mode == "x" else q.y
+	return 0 if absf(v) < 0.01 else (1 if v > 0.0 else -1)
+
+
+## a click of a mirrored Line (the button let go): the point is placed, or (the last point again) the line is finished
+func _mirror_release() -> void:
+	var fr := Engine.get_process_frames()
+	if fr == _mirror_frame:
+		return
+	_mirror_frame = fr
+	var mode := String(_draft["mirror"])
+	var vx: Array = _draft["vx"]
+	var q: Vector2 = _draft["b"]
+	if not vx.is_empty() and (vx.back() as Vector2).distance_to(q) < 0.5:
+		_mirror_finish()
+		return
+	var sd := _mirror_side(q, mode)
+	for v in vx:
+		var sv := _mirror_side(v, mode)
+		if sd != 0 and sv != 0 and sd != sv:
+			_say("That point is across the middle line. Keep all the points on one side: the other side is drawn for you")
+			return
+	vx.append(q)
+	_say("%d point%s. Click the next point, or click the last point again to finish" % [vx.size(), "" if vx.size() == 1 else "s"])
+	dots.queue_redraw()
+
+
+func _mirror_finish() -> void:
+	var mode := String(_draft.get("mirror", "x"))
+	var vx: Array = _draft.get("vx", [])
+	var fc: Dictionary = _draft.get("face", {})
+	if vx.size() < 2:
+		_say("Click at least two points on one side, then click the last one again to finish")
+		return
+	var pts := _mirror_outline(vx, mode)
+	var onside := false
+	for v in vx:
+		if _mirror_side(v, mode) != 0:
+			onside = true
+	if pts.size() < 3 or not onside:
+		_say("These points make no shape: click them away from the middle line")
+		return
+	var ents := []
+	for i in pts.size():
+		ents.append({"k": "line", "a": Part.arr2(pts[i]), "b": Part.arr2(pts[(i + 1) % pts.size()])})
+	_draft = {}
+	_begin("Draw shape")
+	var rec := pu._ensure()
+	rec["features"].append(Part.new_feature(rec, "sketch", {"plane": _face_plane(rec, fc), "ents": ents, "dims": []}))
+	_end()
+	armed = ""
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_say("Shape drawn with its mirror: %d corners. Now press Pull it up or Spin it round" % pts.size())

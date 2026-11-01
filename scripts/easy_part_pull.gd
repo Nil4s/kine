@@ -11,6 +11,7 @@ func _hole_on() -> bool:
 
 
 func _hole_sync() -> void:
+	_fill_sync()   # s051 (first: it repairs hole_mode after an Undo or Redo)
 	if _screw_group(_rec()) >= 0 and hole_base.is_empty():   # P082: the chip on is the screw the hole was cut for
 		hole_mode = "screw%d" % int(_rec()["features"][_screw_group(_rec())]["screw_hole"])
 	for k in hole_btns:
@@ -28,6 +29,7 @@ func _hole_sync() -> void:
 		if _rec_has_stack() and wall_btn != null:
 			wall_btn.visible = false
 	_hpat_sync()   # s029
+	_lighter_sync()   # p195generative
 
 
 ## a Through / Hollow inside chip: the hole step is REPLACED (one undo step): the record from before the hole press, then the chosen hole.
@@ -48,6 +50,8 @@ func _hole_mode(mode: String, lip := false, rebuild := false) -> void:   # lip: 
 		why = _screw_hole(rec, int(mode.trim_prefix("screw")))
 	elif mode == "magnet":   # p074magnetsapo: the round pocket for a magnet
 		why = _magnet_pocket(rec)
+	elif mode == "lighter":   # p195generative: round holes in the regions away from the load path (the end of this file)
+		why = _lighter(rec)
 	elif mode == "fingers":   # p118fingerjoin: a comb of notches along the top edge (see _finger_joints, at the end of this file)
 		why = _finger_joints(rec)
 	else:
@@ -1219,7 +1223,7 @@ func _hpat_chips(h: Control) -> void:
 
 ## the hole's round sketch while the chips are up on a single round hole (a screw, hollow or lid is not copied); {} if not
 func _hpat_sketch() -> Dictionary:
-	if hole_mode in ["hollow", "lid", "fingers"] or hole_mode.begins_with("screw") or hole_id == "":
+	if hole_mode in ["hollow", "lid", "fingers", "fill"] or hole_mode.begins_with("screw") or hole_id == "":
 		return {}
 	var sk := Part.feature(_rec(), hole_id)
 	if String(sk.get("t", "")) != "sketch":
@@ -1438,3 +1442,630 @@ func _hpat_sync() -> void:
 					v = float(h.get("cols", 3))
 			(r["slider"] as HSlider).set_value_no_signal(v)
 			_pill_text(r, v)
+
+
+## s051 FILL THE FACE (Friday plan 51): after Cut a hole, Fill the face (the chip on the Through page) cuts a whole perforated sheet or grille:
+## press it, click a flat face, and the app computes how many holes of the chosen shape (Round / Square / Hex), size, spacing and edge margin
+## fit on THAT face and cuts them all through, ONE solid and ONE undo step. It replaces the single hole (the same step: the hole's sketch
+## and cut, rebuilt from hole_base), reuses the pattern sketch of Holes: Row / Around / Grid (many shapes in one sketch + the cut through),
+## and a slider or a shape chip afterwards rewrites the sketch ("fill": the face and the numbers), one undo step each.
+## Every hole stays at least the margin from every edge of the face (a hole's whole outline, not just its middle); the grid is the best of
+## four half-step shifts, so the count is the most that fit. Staggered rows are spacing x 0.866 apart (the honeycomb of a grille)
+const FILL_MAX := 500        # holes: more than this and the kernel takes minutes
+const FILL_WEB := 0.4        # mm: the least material left between two holes
+var fill_btn: Button
+var fill_shape_btns := {}    # "round" / "square" / "hex" / "stag": the chips
+var fill_box: VBoxContainer  # the shape chips and the three sliders (shown while the fill is on)
+var fill_rows := []          # Size, Spacing, Margin
+var fill_pick := false       # true while Fill the face waits for the click on the face
+var fill_shape := "round"
+var fill_stag := false
+var fill_size := 5.0         # mm across (round: the diameter, square: the side, hex: across the flats)
+var fill_gap := 10.0         # mm between the middles of neighbouring holes
+var fill_margin := 5.0       # mm of material left between a hole and the edge of the face
+var fill_count := 0          # the holes of the last fill
+var _fill_cache := {}
+
+
+func _fill_chips(h: Control) -> void:
+	fill_btn = _big_btn("easypart_hole_fill", "Fill the face", "Cut a whole sheet of holes in a flat face: pick the shape, the size, the spacing and the edge margin, then click the face. The app counts how many fit and cuts them all, in one step", _fill_press)
+	fill_btn.toggle_mode = true
+	fill_btn.custom_minimum_size = Vector2(130, 44)
+	h.add_child(fill_btn)
+	fill_box = VBoxContainer.new()
+	fill_box.name = "easypart_hole_fillbox"
+	fill_box.custom_minimum_size = Vector2(700, 0)
+	fill_box.add_theme_constant_override("separation", 2)
+	fill_box.visible = false
+	var chips := HFlowContainer.new()
+	chips.add_theme_constant_override("h_separation", 6)
+	fill_box.add_child(chips)
+	for sd in [["round", "Round", "Round holes: the size is their width"], ["square", "Square", "Square holes: the size is their side"], ["hex", "Hex", "Six-sided holes in a honeycomb: the size is across the flats"]]:
+		var b := _big_btn("easypart_fillshape_" + String(sd[0]), String(sd[1]), String(sd[2]), _fill_shape.bind(String(sd[0])))
+		b.toggle_mode = true
+		b.custom_minimum_size = Vector2(92, 40)
+		chips.add_child(b)
+		fill_shape_btns[sd[0]] = b
+	var sb := _big_btn("easypart_fillshape_stag", "Staggered", "Every other row is shifted half a step, so the holes pack tighter (a grille)", _fill_stagger)
+	sb.toggle_mode = true
+	sb.custom_minimum_size = Vector2(120, 40)
+	chips.add_child(sb)
+	fill_shape_btns["stag"] = sb
+	var sl := HFlowContainer.new()
+	sl.add_theme_constant_override("h_separation", 12)
+	sl.add_theme_constant_override("v_separation", 0)
+	fill_box.add_child(sl)
+	fill_rows.append(_make_row("Hole size", 1.0, 50.0, 0.5, ["Smaller", "Bigger"], "fill", "fl_size", "mm", sl))
+	fill_rows.append(_make_row("Spacing", 2.0, 100.0, 0.5, ["Closer", "Further apart"], "fill", "fl_gap", "mm", sl))
+	fill_rows.append(_make_row("Edge margin", 1.0, 50.0, 0.5, ["Closer", "Further in"], "fill", "fl_margin", "mm", sl))
+	for r in fill_rows:   # three sliders to a line, no words under them: the panel stays low
+		(r["words"] as Control).visible = false
+		(r["box"] as Control).custom_minimum_size = Vector2(225, 0)
+
+
+## the hole's sketch while the face is filled ({} if not)
+func _fill_sketch() -> Dictionary:
+	if not _hole_on():
+		return {}
+	var sk := Part.feature(_rec(), hole_id)
+	return sk if String(sk.get("t", "")) == "sketch" and sk.has("fill") else {}
+
+
+func _fill_params() -> Dictionary:
+	return {"shape": fill_shape, "stag": fill_stag, "size": fill_size, "gap": fill_gap, "margin": fill_margin}
+
+
+## the corners of one hole of this shape at c (a circle has none: its radius is size / 2). Hex: flat top and bottom, size across the flats
+static func fill_poly(shape: String, c: Vector2, size: float) -> Array:
+	var out: Array = []
+	if shape == "square":
+		var h := size * 0.5
+		out = [c + Vector2(-h, -h), c + Vector2(h, -h), c + Vector2(h, h), c + Vector2(-h, h)]
+	elif shape == "hex":
+		var R := size / sqrt(3.0)
+		for i in 6:
+			out.append(c + Vector2.from_angle(PI / 3.0 * i) * R)
+	return out
+
+
+## the closest two middles may be so that FILL_WEB of material is left between the holes (mm)
+static func fill_least_gap(shape: String, stag: bool, size: float) -> float:
+	if shape == "hex":
+		return size * 1.1547005 + FILL_WEB
+	if shape == "square" and stag:
+		return (size + FILL_WEB) / 0.8660254
+	return size + FILL_WEB
+
+
+static func _fill_seg_dist(p: Vector2, a: Vector2, b: Vector2) -> float:
+	var ab := b - a
+	var l2 := ab.length_squared()
+	if l2 < 1e-12:
+		return p.distance_to(a)
+	return p.distance_to(a + ab * clampf((p - a).dot(ab) / l2, 0.0, 1.0))
+
+
+static func _fill_in_poly(p: Vector2, poly: Array) -> bool:
+	var n := poly.size()
+	var pos := false
+	var neg := false
+	for i in n:
+		var a: Vector2 = poly[i]
+		var b: Vector2 = poly[(i + 1) % n]
+		var cr := (b - a).cross(p - a)
+		if cr > 1e-9:
+			pos = true
+		elif cr < -1e-9:
+			neg = true
+	return not (pos and neg)
+
+
+## the least distance between a segment and a convex polygon (0 when they touch or cross)
+static func _fill_seg_poly(a: Vector2, b: Vector2, poly: Array) -> float:
+	if _fill_in_poly(a, poly) or _fill_in_poly(b, poly):
+		return 0.0
+	var best := INF
+	var n := poly.size()
+	for i in n:
+		var p: Vector2 = poly[i]
+		var q: Vector2 = poly[(i + 1) % n]
+		if Geometry2D.segment_intersects_segment(a, b, p, q) != null:
+			return 0.0
+		best = minf(best, minf(_fill_seg_dist(p, a, b), minf(_fill_seg_dist(q, a, b), minf(_fill_seg_dist(a, p, q), _fill_seg_dist(b, p, q)))))
+	return best
+
+
+static func _fill_in_tris(p: Vector2, tris: Array) -> bool:
+	for t in tris:
+		var a: Vector2 = t[0]
+		var b: Vector2 = t[1]
+		var c: Vector2 = t[2]
+		var d1 := (b - a).cross(p - a)
+		var d2 := (c - b).cross(p - b)
+		var d3 := (a - c).cross(p - c)
+		if (d1 >= -1e-7 and d2 >= -1e-7 and d3 >= -1e-7) or (d1 <= 1e-7 and d2 <= 1e-7 and d3 <= 1e-7):
+			return true
+	return false
+
+
+## a hole at c is allowed: its middle is on the face and its whole outline keeps the margin from every edge of the face
+static func fill_ok(c: Vector2, par: Dictionary, face: Dictionary) -> bool:
+	if not _fill_in_tris(c, face["tris"]):
+		return false
+	var margin := float(par["margin"])
+	var size := float(par["size"])
+	if String(par["shape"]) == "round":
+		var need := margin + size * 0.5 - 1e-6
+		for sg in face["segs"]:
+			if _fill_seg_dist(c, sg[0], sg[1]) < need:
+				return false
+		return true
+	var poly := fill_poly(String(par["shape"]), c, size)
+	for sg in face["segs"]:
+		if _fill_seg_poly(sg[0], sg[1], poly) < margin - 1e-6:
+			return false
+	return true
+
+
+## the flat face (spec: base plane name, mm along its normal, a world point on it) of the record: its triangles and its edge, in the base
+## plane's own mm coordinates. {} if there is no such face
+func _fill_face(base: Dictionary, spec: Dictionary) -> Dictionary:
+	var key := "%s|%s|%s|%s" % [str(base.hash()), String(spec["base"]), str(spec["mm"]), str(spec.get("hit", []))]
+	if String(_fill_cache.get("key", "")) == key:
+		return _fill_cache["face"]
+	var ax := FACE_BASE.find(String(spec["base"]))
+	if ax < 0:
+		return {}
+	var axis: Vector3 = FACE_N[ax]
+	var pl := Part.plane(String(spec["base"]))
+	var lvl := float(spec["mm"])
+	var tris: Array = []
+	for body in Part.body_faces(base, -1):
+		var tv: PackedVector3Array = body
+		for k in range(0, tv.size() - 2, 3):
+			var a := tv[k]
+			var b := tv[k + 1]
+			var c := tv[k + 2]
+			var nrm := (b - a).cross(c - a)
+			if nrm.length() < 1e-14 or absf(nrm.normalized().dot(axis)) < 0.9998:
+				continue
+			if absf(a.dot(axis) / Part.MM - lvl) > 0.02 or absf(b.dot(axis) / Part.MM - lvl) > 0.02 or absf(c.dot(axis) / Part.MM - lvl) > 0.02:
+				continue
+			tris.append([Part.to_plane(pl, a), Part.to_plane(pl, b), Part.to_plane(pl, c)])
+	if tris.is_empty():
+		return {}
+	# union the triangles that share an edge: the face is the piece the click was on
+	var parent := range(tris.size())
+	var edge_owner := {}
+	var vk := func(v: Vector2) -> String: return "%d,%d" % [roundi(v.x * 1000.0), roundi(v.y * 1000.0)]
+	var ek := func(a: Vector2, b: Vector2) -> String:
+		var ka: String = vk.call(a)
+		var kb: String = vk.call(b)
+		return ka + ">" + kb if ka < kb else kb + ">" + ka
+	var find := func(i: int) -> int:
+		while parent[i] != i:
+			parent[i] = parent[parent[i]]
+			i = parent[i]
+		return i
+	var edge_n := {}
+	for i in tris.size():
+		var t: Array = tris[i]
+		for e in 3:
+			var key_e: String = ek.call(t[e], t[(e + 1) % 3])
+			edge_n[key_e] = int(edge_n.get(key_e, 0)) + 1
+			if edge_owner.has(key_e):
+				parent[find.call(i)] = find.call(int(edge_owner[key_e]))
+			else:
+				edge_owner[key_e] = i
+	var pick := -1
+	if spec.has("hit") and (spec["hit"] as Array).size() == 3:
+		var hw := Vector3(float(spec["hit"][0]), float(spec["hit"][1]), float(spec["hit"][2]))
+		var q := Part.to_plane(pl, hw)
+		for i in tris.size():
+			if _fill_in_tris(q, [tris[i]]):
+				pick = int(find.call(i))
+				break
+	if pick < 0:   # no hit point: the biggest piece
+		var area := {}
+		for i in tris.size():
+			var t2: Array = tris[i]
+			var r: int = find.call(i)
+			area[r] = float(area.get(r, 0.0)) + absf((t2[1] - t2[0]).cross(t2[2] - t2[0])) * 0.5
+		var best := -1.0
+		for r in area:
+			if float(area[r]) > best:
+				best = float(area[r])
+				pick = int(r)
+	var mine: Array = []
+	var segs: Array = []
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for i in tris.size():
+		if int(find.call(i)) != pick:
+			continue
+		var t3: Array = tris[i]
+		mine.append(t3)
+		for e in 3:
+			var p0: Vector2 = t3[e]
+			var p1: Vector2 = t3[(e + 1) % 3]
+			lo = lo.min(p0)
+			hi = hi.max(p0)
+			if int(edge_n[ek.call(p0, p1)]) == 1:
+				segs.append([p0, p1])
+	var face := {"tris": mine, "segs": segs, "lo": lo, "hi": hi}
+	_fill_cache = {"key": key, "face": face}
+	return face
+
+
+## the holes that fit: {"why": "" or why not, "centres": the middles (mm on the base plane), "count"}
+func _fill_calc(base: Dictionary, spec: Dictionary, par: Dictionary) -> Dictionary:
+	var size := float(par["size"])
+	var gap := float(par["gap"])
+	var shape := String(par["shape"])
+	var least := fill_least_gap(shape, bool(par["stag"]), size)
+	if gap < least - 1e-9:
+		return {"why": "The spacing is too small: %s mm between the middles leaves almost no material between the holes. Make it at least %s mm" % [_plain_num(gap), _plain_num(snappedf(least + 0.049, 0.1))], "centres": [], "count": 0}
+	var face := _fill_face(base, spec)
+	if face.is_empty():
+		return {"why": "I could not find that flat face. Press Fill the face and click it again", "centres": [], "count": 0}
+	var lo: Vector2 = face["lo"]
+	var hi: Vector2 = face["hi"]
+	var stag := bool(par["stag"])
+	var dy := gap * 0.8660254 if stag else gap
+	var ni := int(ceil((hi.x - lo.x) / gap)) + 2
+	var nj := int(ceil((hi.y - lo.y) / dy)) + 2
+	if ni * nj > 60000:
+		return {"why": "That would be far too many holes: make the spacing bigger", "centres": [], "count": 0}
+	var mid := (lo + hi) * 0.5
+	var best: Array = []
+	for ox in [0.0, gap * 0.5]:
+		for oy in [0.0, dy * 0.5]:
+			var pts: Array = []
+			for j in range(-nj, nj + 1):
+				var y: float = mid.y + float(oy) + float(j) * dy
+				if y < lo.y or y > hi.y:
+					continue
+				var rowoff := 0.0
+				if stag:
+					rowoff = 0.25 * gap if posmod(j, 2) == 1 else -0.25 * gap
+				for i in range(-ni, ni + 1):
+					var x: float = mid.x + float(ox) + rowoff + float(i) * gap
+					if x < lo.x or x > hi.x:
+						continue
+					var c := Vector2(snappedf(x, 0.0001), snappedf(y, 0.0001))
+					if fill_ok(c, par, face):
+						pts.append(c)
+			if pts.size() > best.size():
+				best = pts
+	if best.is_empty():
+		return {"why": "That face is too small for even one %s mm hole with a %s mm margin: pick a bigger face, or make the hole or the margin smaller. Nothing was changed" % [_plain_num(size), _plain_num(float(par["margin"]))], "centres": [], "count": 0}
+	if best.size() > FILL_MAX:
+		return {"why": "That would be %d holes, more than %d: make the spacing or the holes bigger" % [best.size(), FILL_MAX], "centres": [], "count": 0}
+	return {"why": "", "centres": best, "count": best.size()}
+
+
+## the sketch entities of the holes (the pattern's way: one entity per circle, a square is a rectangle, a hex six lines)
+func _fill_ents(centres: Array, par: Dictionary) -> Array:
+	var shape := String(par["shape"])
+	var size := float(par["size"])
+	var out: Array = []
+	for c in centres:
+		if shape == "round":
+			out.append({"k": "circle", "c": Part.arr2(c), "r": size * 0.5})
+		elif shape == "square":
+			out.append({"k": "rect", "a": Part.arr2(c - Vector2(size, size) * 0.5), "b": Part.arr2(c + Vector2(size, size) * 0.5)})
+		else:
+			var pts := fill_poly("hex", c, size)
+			for i in 6:
+				out.append({"k": "line", "a": Part.arr2(pts[i]), "b": Part.arr2(pts[(i + 1) % 6])})
+	return out
+
+
+func _fill_words(par: Dictionary, n: int) -> String:
+	return "Fill the face: %d %s holes, %s mm wide, %s mm apart%s, %s mm from the edge. Hole size, Spacing and Edge margin change them; Through puts one hole back" % [n, String(par["shape"]), _plain_num(float(par["size"])), _plain_num(float(par["gap"])), ", staggered" if bool(par["stag"]) else "", _plain_num(float(par["margin"]))]
+
+
+func _fill_press() -> void:
+	if not _hole_on() or not Part.available() or hole_base.is_empty():
+		fill_pick = false
+		_hole_sync()
+		_say("Press Cut a hole first, then Fill the face")
+		return
+	if fill_pick and _fill_sketch().is_empty():   # a second press before the click: off
+		fill_pick = false
+		_hole_sync()
+		_say("Fill the face is off")
+		return
+	armed = ""
+	wall_pick = false
+	hpat_pick = false
+	set("bulge_pick", false)   # one pick mode at a time: a Bulge pick left on would take the face click (declared further down the chain)
+	var bb: Variant = get("bulge_btn")
+	if bb != null:
+		(bb as Button).set_pressed_no_signal(false)
+	fill_pick = true
+	_hole_sync()
+	_say("Click the flat face you want to fill. First set the shape, Hole size, Spacing and Edge margin below")
+
+
+## the click on the face (fill_pick is on): cut the holes there (one undo step), or say why not and change nothing
+func _fill_click(p: Vector2) -> void:
+	var fc := _face_hit(p)
+	if fc.is_empty() or not fc.has("base"):
+		_hole_sync()
+		_say("Click on a flat face of the part. Press Fill the face to try again")
+		fill_pick = false
+		return
+	fill_pick = false
+	var spec := {"base": String(fc["base"]), "mm": float(fc["mm"]), "out": int(fc.get("out", 1))}
+	if fc.has("hit"):
+		var hv: Vector3 = fc["hit"]
+		spec["hit"] = [hv.x, hv.y, hv.z]
+	_flush_if_dirty()
+	fill_cache_reset()
+	var base: Dictionary = hole_base.duplicate(true)
+	var par := _fill_params()
+	var calc := _fill_calc(base, spec, par)
+	if String(calc["why"]) != "":
+		fill_pick = true   # still waiting: change the numbers below, then click the face again
+		_hole_sync()
+		_say(String(calc["why"]))
+		return
+	var snap := _rec().duplicate(true)
+	_begin("Fill the face")
+	var rec: Dictionary = base.duplicate(true)
+	m.S.part = rec
+	var bb: AABB = Part.replay(base)["aabb"]
+	var reach := maxf(maxf(absf(bb.position.x), absf(bb.end.x)), maxf(maxf(absf(bb.position.y), absf(bb.end.y)), maxf(absf(bb.position.z), absf(bb.end.z)))) / Part.MM
+	var fspec := spec.duplicate(true)
+	fspec.merge(par, true)
+	fspec["count"] = int(calc["count"])
+	var sk := Part.new_feature(rec, "sketch", {"plane": String(spec["base"]), "ents": _fill_ents(calc["centres"], par), "dims": [], "fill": fspec})
+	rec["features"].append(sk)
+	rec["features"].append(Part.new_feature(rec, "extrude", {"sketch": sk["id"], "dist": snappedf(2.0 * (reach + 10.0), 1.0), "both": true, "op": "cut"}))
+	var before := float(Part.replay(base)["volume"])
+	var res := pu.replay_full(rec)
+	var after := float(res["volume"])
+	if not (res["errors"].is_empty() and after > 1e-9 and after < before - 1e-12):
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("Those holes do not cut the part: nothing was changed")
+		fill_pick = true
+	else:
+		_end()
+		hole_mode = "fill"
+		hole_id = String(sk["id"])
+		tweak = {}
+		fill_count = int(calc["count"])
+		_say(_fill_words(par, fill_count))
+	pu.upto = -1
+	pu.sync()
+	_rows_sig = ""
+	_rows_sync()
+	_values_sync()
+	_hole_sync()
+
+
+func fill_cache_reset() -> void:
+	_fill_cache = {}
+
+
+## rewrite the filled sketch with the current numbers (a slider or a chip); "" or why not (the sketch is left as it was)
+func _fill_redo(sk: Dictionary) -> String:
+	var spec: Dictionary = sk["fill"]
+	var par := _fill_params()
+	var calc := _fill_calc(hole_base, spec, par)
+	if String(calc["why"]) != "":
+		return String(calc["why"])
+	sk["ents"] = _fill_ents(calc["centres"], par)
+	spec.merge(par, true)
+	spec["count"] = int(calc["count"])
+	fill_count = int(calc["count"])
+	return ""
+
+
+## the sliders: Hole size, Spacing, Edge margin (kind "fill" in _set_value). Before a face is filled they only set the numbers
+func _apply_fill(row: Dictionary, v: float) -> void:
+	var old := _fill_params()
+	match String(row["key"]):
+		"fl_size":
+			fill_size = v
+		"fl_gap":
+			fill_gap = v
+		"fl_margin":
+			fill_margin = v
+	var sk := _fill_sketch()
+	if sk.is_empty():
+		return
+	pu.upto = -1
+	var why := _fill_redo(sk)
+	if why != "":
+		fill_size = float(old["size"])
+		fill_gap = float(old["gap"])
+		fill_margin = float(old["margin"])
+		_say(why)
+	else:
+		_say(_fill_words(_fill_params(), fill_count))
+
+
+func _fill_shape(shape: String) -> void:
+	fill_shape = shape
+	if shape == "hex":
+		fill_stag = true   # a honeycomb packs in staggered rows (Staggered turns it off again)
+	_fill_change("Fill: " + shape)
+
+
+func _fill_stagger() -> void:
+	fill_stag = not fill_stag
+	_fill_change("Fill: staggered" if fill_stag else "Fill: in a grid")
+
+
+func _fill_change(label: String) -> void:
+	var sk0 := _fill_sketch()
+	if sk0.is_empty():
+		_fill_sync()
+		return
+	_flush_if_dirty()
+	var snap := _rec().duplicate(true)
+	var old := (sk0["fill"] as Dictionary).duplicate(true)
+	_begin(label)
+	var sk := Part.feature(_rec(), hole_id)
+	var why := _fill_redo(sk)
+	if why == "":
+		var res := pu.replay_full(_rec())
+		if not (res["errors"].is_empty() and float(res["volume"]) > 1e-9):
+			why = "Those holes do not cut the part: nothing was changed"
+	if why != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		fill_shape = String(old["shape"])
+		fill_stag = bool(old["stag"])
+		_say(why)
+	else:
+		_end()
+		_say(_fill_words(_fill_params(), fill_count))
+	pu.upto = -1
+	pu.sync()
+	_rows_sig = ""
+	_rows_sync()
+	_values_sync()
+	_fill_sync()
+
+
+## the chips and sliders follow the fill
+func _fill_sync() -> void:
+	if fill_box == null:
+		return
+	var sk := _fill_sketch()
+	if not sk.is_empty():
+		var f: Dictionary = sk["fill"]
+		fill_shape = String(f.get("shape", fill_shape))
+		fill_stag = bool(f.get("stag", fill_stag))
+		fill_size = float(f.get("size", fill_size))
+		fill_gap = float(f.get("gap", fill_gap))
+		fill_margin = float(f.get("margin", fill_margin))
+		fill_count = int(f.get("count", fill_count))
+	if not _hole_on():
+		fill_pick = false
+	if not sk.is_empty():
+		hole_mode = "fill"   # (also after a Redo)
+	elif hole_mode == "fill":
+		hole_mode = "through"   # an Undo took the fill back to the single hole
+	fill_btn.set_pressed_no_signal(fill_pick or not sk.is_empty())
+	fill_box.visible = _hole_on() and (fill_pick or not sk.is_empty())
+	for k in ["round", "square", "hex"]:
+		(fill_shape_btns[k] as Button).set_pressed_no_signal(k == fill_shape)
+	(fill_shape_btns["stag"] as Button).set_pressed_no_signal(fill_stag)
+	for r in fill_rows:
+		if bool(r.get("held", false)):
+			continue
+		var v := 0.0
+		match String(r["key"]):
+			"fl_size":
+				v = fill_size
+			"fl_gap":
+				v = fill_gap
+			"fl_margin":
+				v = fill_margin
+		(r["slider"] as HSlider).set_value_no_signal(v)
+		_pill_text(r, v)
+
+
+## p195generative MAKE IT LIGHTER (Friday plan 195): the Make it lighter chip in the Cut a hole row, with a Held and a Pushed chip beside it (a side each,
+## the bottom and the top at first) and the "How much lighter" slider. A rule of thumb, NOT a stress simulation: see scripts/build/lighter.gd. The holes
+## replace the Cut a hole step (one undo step); the slider and the two chips change the same step's holes
+var lighter_held := "bottom"
+var lighter_push := "top"
+var lighter_level := 0.7
+var lighter_held_btn: Button
+var lighter_push_btn: Button
+
+
+func _lighter_chip(h: Container) -> void:
+	var lb := _big_btn("easypart_hole_lighter", "Make it lighter", "Take material out where it is not needed: round holes away from the line between the held side and the pushed side, a solid rim left round the edges. A rule of thumb, not a stress test", _hole_mode.bind("lighter"))
+	lb.toggle_mode = true
+	lb.icon = Icons.tex("part_shell")
+	lb.custom_minimum_size = Vector2(150, 44)
+	h.add_child(lb)
+	hole_btns["lighter"] = lb
+	lighter_held_btn = _big_btn("easypart_lighter_held", "", "Where the part is held (it does not move). Press to pick the next side", _lighter_pick.bind(true))
+	lighter_push_btn = _big_btn("easypart_lighter_push", "", "Where the part is pushed (the load). Press to pick the next side", _lighter_pick.bind(false))
+	for b in [lighter_held_btn, lighter_push_btn]:
+		(b as Button).custom_minimum_size = Vector2(150, 44)
+		(b as Button).visible = false
+		h.add_child(b)
+	_lighter_sync()
+
+
+func _lighter_sync() -> void:
+	if lighter_held_btn == null:
+		return
+	var on := hole_mode == "lighter" and _hole_on()
+	lighter_held_btn.visible = on
+	lighter_push_btn.visible = on
+	lighter_held_btn.text = "Held: " + Lighter.side_word(lighter_held)
+	lighter_push_btn.text = "Pushed: " + Lighter.side_word(lighter_push)
+
+
+## a Held / Pushed press: the next side that is not the other chip's; the holes are made again (one undo step)
+func _lighter_pick(held: bool) -> void:
+	var cur := lighter_held if held else lighter_push
+	var other := lighter_push if held else lighter_held
+	var i := Lighter.SIDES.find(cur)
+	for k in range(1, Lighter.SIDES.size() + 1):
+		var nx: String = Lighter.SIDES[(i + k) % Lighter.SIDES.size()]
+		if nx != other:
+			if held:
+				lighter_held = nx
+			else:
+				lighter_push = nx
+			break
+	_hole_mode("lighter", false, true)
+
+
+func _lighter(rec: Dictionary) -> String:
+	var res := Part.replay(rec)
+	if int(res["bodies"]) == 0:
+		return "Nothing solid to make lighter yet. Press Pull it up first"
+	if int(res["bodies"]) > 1:
+		return "Make it lighter works on one solid: press Stick together to make the pieces one solid first"
+	var bb: AABB = res["aabb"]
+	var sz := bb.size / Part.MM
+	if sz.z > minf(sz.x, sz.y) + 1e-6:
+		return "Make it lighter works on a flat part seen from the front (thin front to back). Turn it flat first"
+	var lt := {"x0": bb.position.x / Part.MM, "y0": bb.position.y / Part.MM, "w": sz.x, "h": sz.y, "held": lighter_held, "push": lighter_push}
+	var pl := Lighter.plan(lt, lighter_level)
+	if int(pl["n"]) == 0:
+		return "Too small to make lighter: it needs room for a hole with a solid rim round it. Pull it up bigger, then press Make it lighter again"
+	var before := float(res["volume"])
+	var n0: int = rec["features"].size()
+	var seq0 := int(rec.get("seq", 0))
+	var s := Part.new_feature(rec, "sketch", {"plane": "front", "ents": pl["ents"], "dims": [], "lt": lt, "light": lighter_level})
+	rec["features"].append(s)
+	rec["features"].append(Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.z), absf(bb.end.z)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"}))
+	var rr := pu.replay_full(rec)
+	var after := float(rr["volume"])
+	if not (after < before - 1e-12 and after > 1e-9) or int(rr["bodies"]) != 1:
+		rec["features"].resize(n0)
+		rec["seq"] = seq0
+		return "The holes would not leave one solid: nothing was cut. Press Make it lighter again after a bigger pull"
+	tweak = {"id": s["id"], "field": "light", "label": "How much lighter", "unit": "pct", "lo": 20.0, "hi": 100.0, "step": 10.0, "scale": 0.01, "words": ["A little", "A lot"]}
+	_say("Lighter: %d round holes, a %d mm rim left round every edge and %d mm between holes. A rule of thumb, not a stress test. Held %s, pushed %s" % [int(pl["n"]), int(Lighter.MARGIN), int(Lighter.RIB), Lighter.side_word(lighter_held), Lighter.side_word(lighter_push)])
+	return ""
+
+
+## the slider moved: the holes of the sketch are made again at the new lightness (called from _apply_tweak)
+func _lighter_follow(sk: Dictionary) -> void:
+	if not sk.has("lt"):
+		return
+	lighter_level = clampf(float(sk.get("light", lighter_level)), 0.0, 1.0)
+	var pl := Lighter.plan(sk["lt"], lighter_level)
+	if int(pl["n"]) > 0:
+		sk["ents"] = pl["ents"]
+
+
+## the Fill the face shapes and sliders are up (waiting for the face, or the face is filled)
+func _fill_open() -> bool:
+	return fill_box != null and _hole_on() and (fill_pick or not _fill_sketch().is_empty())

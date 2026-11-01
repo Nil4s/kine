@@ -291,3 +291,8 @@ static func check_lines(rec: Dictionary) -> Array:
 	var lines: Array = (report(bo["bodies"])["lines"] as Array).duplicate()
 	lines.append_array(PrintCheck.lines_of(rec, bo["bodies"]))   # Friday plan 112: Ready to print? (thin walls, overhangs, floating pieces)
 	return lines
+
+
+## printer (x, y, z up; mm) -> Kine (x right, y up, z toward the viewer; metres): the way back from to_print (Friday plan 114, Split to fit)
+static func to_print_inv(p: Vector3) -> Vector3:
+	return Vector3(p.x, p.z, -p.y) / 1000.0
