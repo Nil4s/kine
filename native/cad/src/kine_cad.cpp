@@ -16,6 +16,11 @@
 #include <BRepPrimAPI_MakePrism.hxx>
 #include <BRepPrimAPI_MakeRevol.hxx>
 #include <BRepTools.hxx>
+#include <BRepBuilderAPI_Sewing.hxx>
+#include <BRepBuilderAPI_MakePolygon.hxx>
+#include <BRepBuilderAPI_MakeSolid.hxx>
+#include <BRepLib.hxx>
+#include <BRepCheck_Analyzer.hxx>
 #include <GC_MakeArcOfCircle.hxx>
 #include <GeomAPI_Interpolate.hxx>
 #include <GeomAPI_ProjectPointOnSurf.hxx>
@@ -159,6 +164,7 @@ void KineCAD::_bind_methods() {
 	ClassDB::bind_static_method("KineCAD", D_METHOD("revolve", "profile", "axis_origin", "axis_dir", "radians"), &KineCAD::revolve);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("sweep", "profile", "path"), &KineCAD::sweep);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("loft", "profiles", "ruled", "solid"), &KineCAD::loft);
+	ClassDB::bind_static_method("KineCAD", D_METHOD("solid_from_mesh", "verts", "tris", "tol"), &KineCAD::solid_from_mesh);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("edges", "id"), &KineCAD::edges);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("faces", "id"), &KineCAD::faces);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("fillet_edges", "id", "edge_ids", "radius"), &KineCAD::fillet_edges);
@@ -175,7 +181,7 @@ void KineCAD::_bind_methods() {
 }
 
 int KineCAD::version() {
-	return 3;
+	return 4;
 }
 String KineCAD::occt_version() {
 	return String(OCC_VERSION_COMPLETE);
@@ -1224,4 +1230,71 @@ void KineCAD::release_all() {
 int KineCAD::live_count() {
 	std::lock_guard<std::mutex> lk(g_mu);
 	return (int)g_shapes.size();
+}
+
+
+// s155 MESH -> SOLID: every triangle becomes a planar face, the faces are sewn into one shell (shared vertices, tolerance p_tol metres),
+// the shell must be CLOSED and be the only one, then it becomes a solid with its faces pointing outward. 0 + last_error() otherwise.
+int KineCAD::solid_from_mesh(const PackedVector3Array &p_verts, const PackedInt32Array &p_tris, double p_tol) {
+	if (p_tris.size() < 12 || p_tris.size() % 3 != 0) {
+		g_err = "mesh: needs at least 4 triangles";
+		return 0;
+	}
+	KCAD_TRY
+	BRepBuilderAPI_Sewing sew(p_tol > 0.0 ? p_tol : 1e-6, true, true, true, false);
+	int added = 0;
+	for (int t = 0; t + 2 < p_tris.size(); t += 3) {
+		int ia = p_tris[t], ib = p_tris[t + 1], ic = p_tris[t + 2];
+		if (ia < 0 || ib < 0 || ic < 0 || ia >= p_verts.size() || ib >= p_verts.size() || ic >= p_verts.size()) {
+			g_err = "mesh: a triangle names a corner that is not there";
+			return 0;
+		}
+		if (ia == ib || ib == ic || ia == ic) {
+			continue;
+		}
+		Vector3 a = p_verts[ia], b = p_verts[ib], c = p_verts[ic];
+		BRepBuilderAPI_MakePolygon poly(gp_Pnt(a.x, a.y, a.z), gp_Pnt(b.x, b.y, b.z), gp_Pnt(c.x, c.y, c.z), true);
+		if (!poly.IsDone()) {
+			continue; // a zero-area sliver: the sewing closes over it or the shell stays open (checked below)
+		}
+		BRepBuilderAPI_MakeFace mf(poly.Wire(), true);
+		if (!mf.IsDone()) {
+			continue;
+		}
+		sew.Add(mf.Face());
+		added++;
+	}
+	if (added < 4) {
+		g_err = "mesh: no usable triangles";
+		return 0;
+	}
+	sew.Perform();
+	TopoDS_Shape sewn = sew.SewedShape();
+	if (sewn.IsNull()) {
+		g_err = "mesh: the triangles could not be joined";
+		return 0;
+	}
+	if (sew.NbFreeEdges() > 0 || sew.NbMultipleEdges() > 0 || sew.NbDegeneratedShapes() > 0) {
+		g_err = std::string("mesh: not closed (") + std::to_string(sew.NbFreeEdges()) + " open edges, " + std::to_string(sew.NbMultipleEdges()) + " shared by 3+ faces)";
+		return 0;
+	}
+	TopoDS_Shell shell;
+	int shells = 0;
+	for (TopExp_Explorer ex(sewn, TopAbs_SHELL); ex.More(); ex.Next()) {
+		shell = TopoDS::Shell(ex.Current());
+		shells++;
+	}
+	if (shells != 1) {
+		g_err = "mesh: it is " + std::to_string(shells) + " separate shells, a solid part needs exactly one";
+		return 0;
+	}
+	BRepBuilderAPI_MakeSolid ms(shell);
+	if (!ms.IsDone()) {
+		g_err = "mesh: the shell could not become a solid";
+		return 0;
+	}
+	TopoDS_Solid sol = ms.Solid();
+	BRepLib::OrientClosedSolid(sol);
+	return kc_put_solid(sol);
+	KCAD_CATCH("solid_from_mesh", 0)
 }

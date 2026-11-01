@@ -60,6 +60,7 @@ public:
 	static int revolve(int p_profile, const Vector3 &p_axis_origin, const Vector3 &p_axis_dir, double p_radians);
 	static int sweep(int p_profile, int p_path); // profile face (solid) or wire (shell) along the path wire
 	static int loft(const PackedInt32Array &p_profiles, bool p_ruled, bool p_solid); // wires or faces, in order
+	static int solid_from_mesh(const PackedVector3Array &p_verts, const PackedInt32Array &p_tris, double p_tol); // s155: sew triangles into a closed solid (0 = open / not manifold)
 	// edge / face ids are 1-based positions in the shape's own map: stable for one shape id, NOT across derived shapes
 	static Array edges(int p_id); // [{id, center, a, b, length, dir (tangent at the middle), faces: [face ids]}]
 	static Array faces(int p_id); // [{id, center (of mass), normal (outward at the centre point), area, type, point (a point on the face)}]
