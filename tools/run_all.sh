@@ -448,3 +448,5 @@ EXTRA="$EXTRA s194:w"   # s194 (Friday plan 194): Parametric families: My parts 
 EXTRA="$EXTRA s051:w"   # s051 (Friday plan 51): Array fill: Cut a hole > Fill the face (Round / Square / Hex, size, spacing, edge margin): 100x60x3 plate, 5 mm round holes 10 mm apart 5 mm margin = 45 holes (analytic), volume within 0.5 pct, staggered 54, hex 48, too-small face = message and no step (tests/s051_test.gd; needs the CAD DLL)
 
 EXTRA="$EXTRA s168:w"   # s168+s169: incremental replay (a slider change rebuilds only the changed steps) and background tessellation of the slider preview
+
+EXTRA="$EXTRA s202:w"   # s202 (Friday plan 202): Smart tolerances: Fit chip on Cut a hole (Tight 0.0 / Snug 0.1 / Slides 0.2 / Loose 0.4 mm per side): 10 mm peg hole measures 10.40 at Slides, lid lip gap per side, one undo step

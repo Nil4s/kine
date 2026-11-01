@@ -440,6 +440,7 @@ func _hole_box() -> PanelContainer:
 	_hpat_chips(h)   # s029: Row / Around / Grid of holes
 	_fill_chips(h)   # s051: Fill the face
 	_printer_chip(h)   # p203screwholea: the printer chip (resin tight, FDM loose)
+	_smartfit_chip(h)   # s202: How should it fit? (Tight / Snug / Slides / Loose)
 	var fb := _big_btn("easypart_hole_fits", "What fits here?", "Ask which of My Parts go through this hole (the saved parts that fit it). No step: it only tells you", _fits_press)   # P076
 	fb.custom_minimum_size = Vector2(150, 44)
 	h.add_child(fb)
@@ -1267,7 +1268,7 @@ func _apply_tweak(v: float) -> void:
 	var f := Part.feature(_rec(), String(tweak["id"]))
 	if f.is_empty():
 		return
-	var val: float = v * float(tweak.get("scale", 1.0)) * float(tweak.get("sgn", 1.0))
+	var val: float = v * float(tweak.get("scale", 1.0)) * float(tweak.get("sgn", 1.0)) + float(tweak.get("add", 0.0))   # s202: "add" is the fit clearance a hole carries on top of its size
 	if tweak.has("ent"):
 		f["ents"][int(tweak["ent"])][tweak["field"]] = val
 	else:
@@ -1455,7 +1456,7 @@ func tweak_last() -> void:
 		var sk := Part.feature(_rec(), String(f.get("sketch", "")))
 		var ents: Array = sk.get("ents", [])
 		if ents.size() == 1 and String(ents[0].get("k", "")) == "circle" and sk.has("plane") and String(sk.get("plane", "")) in ["front", "top"]:
-			tweak = {"id": sk["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}
+			tweak = {"id": sk["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"], "add": float(sk.get("fit", 0.0))}
 
 
 ## the last step's own slider belongs to ONE entity of its feature. Undo can bring back a record where that id is another sketch
@@ -1483,7 +1484,7 @@ func _tweak_value() -> float:
 	if f.is_empty():
 		return float(tweak["lo"])
 	var raw: float = float(f["ents"][int(tweak["ent"])][tweak["field"]]) if tweak.has("ent") else float(f.get(tweak["field"], 0.0))
-	return raw * float(tweak.get("sgn", 1.0)) / float(tweak.get("scale", 1.0))
+	return (raw - float(tweak.get("add", 0.0))) * float(tweak.get("sgn", 1.0)) / float(tweak.get("scale", 1.0))
 
 
 func _values_sync() -> void:
@@ -3001,6 +3002,7 @@ func _hole(rec: Dictionary) -> String:
 	# FBRACKET: the middle first; when the middle already has a hole, the next press cuts to the side, along the body's two long
 	# sketch axes (30% of the span each way), and the first side spot that takes material wins
 	var had_cut := _has_cut(rec)
+	var fit := _fit_of(rec)   # s202: how should it fit: the hole is its size + this clearance on each side
 	var mid := Vector2(c.x, -c.z) if floor_made else Vector2(c.x, c.y)   # the middle of the whole body (the top plane's v axis is -Z)
 	var span := Vector2(bb.size.x, bb.size.z if floor_made else bb.size.y) / Part.MM
 	var spots: Array = [cen]   # FROOM: the newest piece's middle first; the whole body's middle when that cut takes everything
@@ -3017,11 +3019,11 @@ func _hole(rec: Dictionary) -> String:
 		rec["seq"] = seq0
 		# "both" splits dist half each way from the sketch plane: twice the body's farthest reach + 1 cm, so a tall body is cut all the way
 		if floor_made:
-			s = Part.new_feature(rec, "sketch", {"plane": "top", "ents": [{"k": "circle", "c": Part.arr2(at), "r": snappedf(r, 0.5)}], "dims": []})
+			s = Part.new_feature(rec, "sketch", {"plane": "top", "ents": [{"k": "circle", "c": Part.arr2(at), "r": snappedf(r, 0.5) + fit}], "dims": [], "fit": fit})
 			rec["features"].append(s)
 			f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.y), absf(bb.end.y)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
 		else:
-			s = Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "circle", "c": Part.arr2(at), "r": snappedf(r, 0.5)}], "dims": []})
+			s = Part.new_feature(rec, "sketch", {"plane": "front", "ents": [{"k": "circle", "c": Part.arr2(at), "r": snappedf(r, 0.5) + fit}], "dims": [], "fit": fit})
 			rec["features"].append(s)
 			f = Part.new_feature(rec, "extrude", {"sketch": s["id"], "dist": snappedf(2.0 * (maxf(absf(bb.position.z), absf(bb.end.z)) / Part.MM + 10.0), 1.0), "both": true, "op": "cut"})
 		rec["features"].append(f)
@@ -3034,7 +3036,7 @@ func _hole(rec: Dictionary) -> String:
 		if had_cut:
 			return "The middle already has a hole, and Cut a hole always cuts the middle. For a second hole, use Expert: Circle, then Cut"
 		return "The hole would miss the shape: nothing was cut"
-	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"]}   # the slider is the hole's WIDTH (cm): radius mm = width cm * 5
+	tweak = {"id": s["id"], "ent": 0, "field": "r", "label": "Hole size", "unit": "cm", "lo": 0.6, "hi": 16.0, "step": 0.1, "scale": 5.0, "words": ["Smaller", "Bigger"], "add": fit}   # the slider is the hole's WIDTH (cm): radius mm = width cm * 5 (+ the fit clearance, s202)
 	if had_cut:
 		_say("The middle already has a hole, so this one is cut to the side. For exact places, use Expert: Circle, then Cut")
 	else:
