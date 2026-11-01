@@ -3623,7 +3623,7 @@ func _process(_dt: float) -> void:
 	paint_btn.set_pressed_no_signal(paint_on)
 	suggest_row.visible = on and _suggest_on()   # P092: after a Pull it up the two next-step chips show in the panel, under the slider rows
 	var bulge_on := on and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # plan 23: Pinch / Bulge a face is offered under any solid
-	tilt_box.visible = on and (armed == "" or bulge_pick) and (along or tilt_on or draft_on or swing_on or bulge_on)
+	tilt_box.visible = on and (armed == "" or bulge_pick) and (along or tilt_on or draft_on or swing_on or bulge_on) and not _fill_open()   # s051: the open Fill the face box is as tall as the low-left chips: they would sit over its Square chip and sliders
 	_overhang_sync(on)
 	_com_sync(on)   # P128: the centre-of-mass dot
 	steps_box.visible = on and not _rec().get("features", []).is_empty()   # NSTEPLIST

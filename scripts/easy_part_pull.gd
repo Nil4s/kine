@@ -1968,3 +1968,8 @@ func _fill_sync() -> void:
 				v = fill_margin
 		(r["slider"] as HSlider).set_value_no_signal(v)
 		_pill_text(r, v)
+
+
+## the Fill the face shapes and sliders are up (waiting for the face, or the face is filled)
+func _fill_open() -> bool:
+	return fill_box != null and _hole_on() and (fill_pick or not _fill_sketch().is_empty())
