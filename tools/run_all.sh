@@ -429,3 +429,4 @@ EXTRA="$EXTRA s209:w"   # s209 + s210 (Friday plans 209, 210): Make it stackable
 
 EXTRA="$EXTRA s029:w"   # s029 (Friday plan 29): Holes in a pattern: Cut a hole > Row / Around / Grid of holes (count, spacing, radius, rows x columns, Pick centre); 100x60x10 plate, 6 mm holes: volume within 1 pct, centres 20 mm / 60 deg / 15 mm apart (tests/s029_test.gd; needs the CAD DLL)
 EXTRA="$EXTRA s128:w"   # s128 (Friday plan 128): Easy Part centre of mass: red dot (after Does it fall over?, always while tipping) and "It will tip over: its weight is N mm outside its feet" in the size line; cube/L analytic, leaning box within 1 mm (tests/s128_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA s013:w"   # s013 (Friday plans 13 + 36): Soft/Medium/Sharp round presets (r 5.0/2.4/0.8 on a 40x40x20 box, measured from the top face and the volume) and the Rib chip on the Brackets page (+600 mm3 for 20x20x3, one solid)
