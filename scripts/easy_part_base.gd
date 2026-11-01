@@ -322,6 +322,8 @@ func _fmt(v: float, unit: String) -> String:
 		return "%d %%" % int(roundf(v))
 	if unit == "bulge":   # plan 23: Pinch / Bulge reads -1 .. +1
 		return "%+.2f" % snappedf(v, 0.05)
+	if unit == "pct":   # p195generative
+		return "%d %%" % int(roundf(v))
 	if unit == "mm":
 		return "%s mm" % str(snappedf(v, 0.1))
 	return "%s cm" % str(snappedf(v, 0.1))

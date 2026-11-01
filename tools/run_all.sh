@@ -442,3 +442,5 @@ EXTRA="$EXTRA s081:w"   # s081 (Friday plans 81 + 58): Cut list CSV from wood bo
 EXTRA="$EXTRA s047:w"   # s047 Mirror while drawing: Mirror chip, clicked mirrored Line (Easy Part)
 EXTRA="$EXTRA s134:w"   # s134 (Friday plan 134): typed moves with props: "pick up the box" (hand on the grip point within 3 cm, the box follows the hand), "throw the ball" (>= 1 m), "open the door"; a missing prop is said in plain words, one undo step
 EXTRA="$EXTRA s051:w"   # s051 (Friday plan 51): Array fill: Cut a hole > Fill the face (Round / Square / Hex, size, spacing, edge margin): 100x60x3 plate, 5 mm round holes 10 mm apart 5 mm margin = 45 holes (analytic), volume within 0.5 pct, staggered 54, hex 48, too-small face = message and no step (tests/s051_test.gd; needs the CAD DLL)
+
+EXTRA="$EXTRA s195:w"   # s195 (Friday plan 195): Cut a hole > Make it lighter (rule of thumb, not a stress test): Held / Pushed chips, How much lighter slider; 120x40x10 bracket drops 20-50 pct, 3 mm rim probed solid (tests/s195_test.gd; needs the CAD DLL)
