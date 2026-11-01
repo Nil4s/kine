@@ -104,10 +104,15 @@ static func save(rec: Dictionary, nm: String, img: Image = null) -> String:
 	var kept := read(path)   # p163collection: saving the part again keeps its collection
 	if not r.has("collection") and kept.has("collection"):
 		r["collection"] = kept["collection"]
+	if not r.has("tags") and kept.has("tags"):
+		r["tags"] = kept["tags"]   # s161: saving the part again keeps its tags
+	var text := JSON.stringify(r, "\t")
+	if not kept.is_empty() and FileAccess.get_file_as_string(path) != text:
+		_archive(String(r["name"]))   # s164: the version being replaced is kept (json and picture) before the new one is written
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		return ""
-	f.store_string(JSON.stringify(r, "\t"))
+	f.store_string(text)
 	f.close()
 	if img != null and not img.is_empty():
 		img.save_png(_abs(thumb_of(String(r["name"]))))
@@ -158,3 +163,74 @@ static func set_collection(nm: String, coll: String) -> bool:
 ## the collection a saved part's record belongs to ("" = none)
 static func collection_of(rec: Dictionary) -> String:
 	return String(rec.get("collection", ""))
+
+
+## TAGS (Friday plan 161: My parts, thumbnails and tags). The maker types words with commas ("bolt, metal, M6"); they are kept in the part's
+## own record ("tags": lower-case words, no duplicates). A tag chip row on the My parts page shows only the tagged parts.
+static func parse_tags(text: String) -> Array:
+	var out: Array = []
+	for w in text.replace(";", ",").split(","):
+		var t := String(w).strip_edges().to_lower()
+		if t != "" and not out.has(t):
+			out.append(t.left(24))
+	return out
+
+
+static func tags_of(rec: Dictionary) -> Array:
+	var out: Array = []
+	var t = rec.get("tags", [])
+	if t is Array:
+		for x in t:
+			out.append(String(x))
+	return out
+
+
+## the saved part gets exactly these tags (the words of `text`); "" takes them all off. false when the part is not saved
+static func set_tags(nm: String, text: String) -> bool:
+	var path := path_of(nm)
+	var rec := read(path)
+	if rec.is_empty():
+		return false
+	var tg := parse_tags(text)
+	if tg.is_empty():
+		rec.erase("tags")
+	else:
+		rec["tags"] = tg
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		return false
+	f.store_string(JSON.stringify(rec, "\t"))
+	f.close()
+	return true
+
+
+## VERSIONS (Friday plan 164): every save that changes the part keeps the one it replaces under <folder>/versions/<file>.v<N>.json (+ .png).
+static func versions_dir() -> String:
+	return folder() + "/versions"
+
+
+static func _archive(nm: String) -> void:
+	var stem := file_stem(nm)
+	var n := 1
+	while FileAccess.file_exists(_abs("%s/%s.v%d.json" % [versions_dir(), stem, n])):
+		n += 1
+	DirAccess.make_dir_recursive_absolute(_abs(versions_dir()))
+	DirAccess.copy_absolute(_abs(path_of(nm)), _abs("%s/%s.v%d.json" % [versions_dir(), stem, n]))
+	if FileAccess.file_exists(_abs(thumb_of(nm))):
+		DirAccess.copy_absolute(_abs(thumb_of(nm)), _abs("%s/%s.v%d.png" % [versions_dir(), stem, n]))
+
+
+## every version of a saved part, oldest first, the current one last: [{"n" (1 = oldest), "record", "thumb" (a png path or ""), "current"}]
+static func versions(nm: String) -> Array:
+	var out: Array = []
+	var stem := file_stem(nm)
+	var n := 1
+	while FileAccess.file_exists(_abs("%s/%s.v%d.json" % [versions_dir(), stem, n])):
+		var jp := "%s/%s.v%d.json" % [versions_dir(), stem, n]
+		var tp := "%s/%s.v%d.png" % [versions_dir(), stem, n]
+		out.append({"n": n, "record": read(jp), "thumb": tp if FileAccess.file_exists(_abs(tp)) else "", "current": false})
+		n += 1
+	var cur := read(path_of(nm))
+	if not cur.is_empty():
+		out.append({"n": n, "record": cur, "thumb": thumb_of(nm) if FileAccess.file_exists(_abs(thumb_of(nm))) else "", "current": true})
+	return out

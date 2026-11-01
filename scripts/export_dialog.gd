@@ -25,6 +25,14 @@ var split_fit := false
 var bed_mm := Vector3(220.0, 220.0, 250.0)
 var ui_objects: Label   # the mesh objects in the scene, by name (what the choice picks from)
 var batch_ui: BatchDialog   # Batch... (ROADMAP 80), made on first use
+var ui_slicer_box: VBoxContainer   # 3D printing only (plan 119): the slicers found + the Send to slicer button
+var ui_slicer_txt: Label
+var ui_slicer_opt: OptionButton
+var ui_slicer_btn: Button
+var slicers_override = null   # a test: the slicers to show (an Array of {name, path}) instead of looking at this computer
+var slicer_launcher := Callable()   # a test: stands in for OS.create_process
+var _slicers: Array = []
+var _slicers_known := false
 
 ## run: "engine:<id>" (EngineExport preset: root motion, units, pre-flight), "glb", "bvh", "usda", "usda_layers" (ROADMAP 79) or "game" (the PoseTable)
 const TARGETS := [
@@ -201,6 +209,26 @@ func _build() -> void:
 	ui_face_row.visible = false
 	v.add_child(ui_face_row)
 	_build_bed_row(v)
+	ui_slicer_box = VBoxContainer.new()   # plan 119: Send to slicer (3D printing only)
+	ui_slicer_box.name = "export_slicer_box"
+	ui_slicer_txt = Label.new()
+	ui_slicer_txt.name = "export_slicer_text"
+	ui_slicer_txt.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ui_slicer_txt.custom_minimum_size = Vector2(600, 0)
+	ui_slicer_box.add_child(ui_slicer_txt)
+	var srow := HBoxContainer.new()
+	ui_slicer_opt = OptionButton.new()
+	ui_slicer_opt.name = "opt_export_slicer"
+	ui_slicer_opt.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	srow.add_child(ui_slicer_opt)
+	ui_slicer_btn = Button.new()
+	ui_slicer_btn.name = "btn_send_to_slicer"
+	ui_slicer_btn.text = "Send to slicer"
+	ui_slicer_btn.pressed.connect(send_to_slicer)
+	srow.add_child(ui_slicer_btn)
+	ui_slicer_box.add_child(srow)
+	ui_slicer_box.visible = false
+	v.add_child(ui_slicer_box)
 	# the text scrolls in its own box, so the dialog's buttons stay on a small window too
 	var sc := ScrollContainer.new()
 	sc.name = "export_scroll"
@@ -263,6 +291,7 @@ func open_batch() -> void:
 func open() -> void:
 	if dlg == null:
 		_build()
+	_slicers_known = false   # look for the slicers again each time the dialog opens
 	var tg := _tg()
 	var labels_differ := ui_target.item_count != tg.size()
 	for li in mini(ui_target.item_count, tg.size()):
@@ -305,9 +334,9 @@ func _fill_formats() -> void:
 
 func _refresh() -> void:
 	var d := text_of(_cur_id(), maxi(ui_format.selected, 0))
-	ui_info.text = "%s\n\nNeeds: %s" % [d["format"], d["needs"]]
-	ui_checks.text = "Checklist for this scene\n" + "\n".join(d["checks"])
-	ui_app.text = "What the app does: %s\n\nFrame rate: %s" % [d["app"], d["fps"]]
+	ui_info.text = "%s\n\n%s %s" % [dlg.tr(d["format"]), dlg.tr("Needs:"), dlg.tr(d["needs"])]   # FRIDAY 99: each piece through the translation (English is unchanged)
+	ui_checks.text = dlg.tr("Checklist for this scene") + "\n" + "\n".join(d["checks"])
+	ui_app.text = "%s %s\n\n%s %s" % [dlg.tr("What the app does:"), dlg.tr(d["app"]), dlg.tr("Frame rate:"), dlg.tr(d["fps"])]
 	var plain := _cur_run() == "glb" or _cur_run() == "obj"
 	ui_what.disabled = not plain
 	var names := m.scene_object_names() as Array
@@ -316,6 +345,7 @@ func _refresh() -> void:
 	ui_face_row.visible = _cur_id() == "laser"
 	if ui_bed_row != null:
 		ui_bed_row.visible = _cur_id() == "print"
+	_refresh_slicer()
 	if _cur_id() == "laser":
 		ui_objects.text = "The part on screen is what is read. Pick the face above; its outer edge and holes are written in millimetres."
 		return
@@ -326,7 +356,7 @@ func _refresh() -> void:
 		var sc = ui_checks.get_parent().get_parent()   # the "Ready to print?" lines are last in the checklist: scroll them into view
 		if sc is ScrollContainer:
 			(func(): (sc as ScrollContainer).ensure_control_visible(ui_checks)).call_deferred()
-		ui_objects.text = "The part on screen is what is written. It holds millimetres, Z up, and the floor of the part is the print bed."
+		ui_objects.text = dlg.tr("The part on screen is what is written. It holds millimetres, Z up, and the floor of the part is the print bed.")
 		return
 	ui_objects.text = "Mesh objects in the scene: %s. Only the selected object writes just the one picked in the scene (the test cube when it is open, else the set piece picked, else the body); one entry per mesh object writes each by its name.%s" % [lst, why]
 
@@ -529,3 +559,38 @@ func _build_bed_row(v: VBoxContainer) -> void:
 	ui_bed_row.add_child(ui_split)
 	ui_bed_row.visible = false
 	v.add_child(ui_bed_row)
+## SEND TO SLICER (plan 119): the slicers this computer has (looked up once per opening of the dialog)
+func slicers() -> Array:
+	if not _slicers_known:
+		_slicers = (slicers_override as Array) if slicers_override != null else SlicerSend.detect_system()
+		_slicers_known = true
+	return _slicers
+
+
+func _refresh_slicer() -> void:
+	if ui_slicer_box == null:
+		return
+	var on := _cur_id() == "print"
+	ui_slicer_box.visible = on
+	if not on:
+		return
+	var sl := slicers()
+	var keep := ui_slicer_opt.selected
+	ui_slicer_opt.clear()
+	for s in sl:
+		ui_slicer_opt.add_item(String((s as Dictionary)["name"]))
+	if not sl.is_empty():
+		ui_slicer_opt.select(clampi(keep, 0, sl.size() - 1))
+	ui_slicer_opt.visible = not sl.is_empty()
+	ui_slicer_btn.disabled = sl.is_empty()
+	ui_slicer_txt.text = SlicerSend.found_text(sl)
+
+
+## writes the part's 3MF to user://exports and starts the picked slicer on it
+func send_to_slicer() -> Dictionary:
+	var sl := slicers()
+	var pick: Dictionary = sl[clampi(ui_slicer_opt.selected, 0, sl.size() - 1)] if not sl.is_empty() else {}
+	var lch: Callable = slicer_launcher if slicer_launcher.is_valid() else Callable(SlicerSend, "launch")
+	var r := SlicerSend.send(m.S.part, pick, lch)
+	m._say_plain(String(r["text"]))
+	return r

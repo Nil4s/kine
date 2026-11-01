@@ -62,6 +62,7 @@ extends RefCounted
 
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
+const GEAR_DRIVE := preload("res://scripts/gear_drive.gd")   # s124: the Gear pair turned for the view
 const SKIN_MM := 0.3   # NROUNDFILTER: a face centre this close (mm) to the box's outside counts as on the skin
 const VERSION := 1
 const RING_MIDDLE := 100.0   # mm: a Ring piece whose centre is closer than this to the middle (not on it) goes round the middle
@@ -622,6 +623,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				if sw != 0:
 					KCad.release(bodies[hbi])
 					bodies[hbi] = sw
+	_gear_turn_view(rec, bodies, want)   # s124: the Gear pair's gears shown turned (the view only; the record's pose is its own saved field)
 	look_fit(looks, bodies.size())
 	var mesh := ArrayMesh.new()
 	for b in bodies:
@@ -834,11 +836,13 @@ static func _axis(f: Dictionary) -> Vector3:
 
 
 ## C3: the triangles (metres) of every body at upto, in body order (the picking of PartUI's hinge); the solids are released
-static func body_faces(rec: Dictionary, upto := -1) -> Array:
+static func body_faces(rec: Dictionary, upto := -1, want := {}) -> Array:
 	var out: Array = []
 	if not available():
 		return out
-	for b in replay(rec, upto, {"keep": true}).get("ids", []):
+	var w := want.duplicate()
+	w["keep"] = true
+	for b in replay(rec, upto, w).get("ids", []):
 		out.append(_tris_of(int(b)))
 		KCad.release(int(b))
 	return out
@@ -2993,3 +2997,26 @@ static func _bar_at(size: Vector3, at: Vector3) -> int:
 	KCad.release(box)
 	return moved
 
+
+## s124 GEARS DRIVE EACH OTHER: the Gear pair's two gears turned for the view. The small gear (body 0, centre at the origin) turns by a degrees
+## about the sketch normal; the big gear (body 1, centre d = module x (N1 + N2) / 2 along x) turns by -a x N1 / N2, so the teeth stay meshed.
+## a = want["gear_turn"] (a preview, set by the Turn it slider; NAN = none) or else rec["gear_pose"] (the pose saved with Save pose); 0 = no change
+static func _gear_turn_view(rec: Dictionary, bodies: Array, want: Dictionary) -> void:
+	var gp: Dictionary = GEAR_DRIVE.pair_of(rec)
+	if gp.is_empty() or bodies.size() < 2:
+		return
+	var a := float(want.get("gear_turn", NAN))
+	if is_nan(a):
+		a = float(rec.get("gear_pose", 0.0))
+	if a == 0.0:
+		return
+	var out_deg := GEAR_DRIVE.out_angle(a, int(gp["n1"]), int(gp["n2"]))
+	var c := Vector3(float(gp["d"]) * MM, 0.0, 0.0)
+	var s0 := _swing(int(bodies[0]), Vector3.ZERO, Vector3(0, 0, 1), deg_to_rad(a))
+	var s1 := _swing(int(bodies[1]), c, Vector3(0, 0, 1), deg_to_rad(out_deg))
+	if s0 != 0:
+		KCad.release(bodies[0])
+		bodies[0] = s0
+	if s1 != 0:
+		KCad.release(bodies[1])
+		bodies[1] = s1

@@ -3032,6 +3032,7 @@ func _ready() -> void:
 	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	BootProfile.mark("load skeleton+limits")
 	var testing: bool = Engine.get_main_loop().get_script() != null
+	KineLang.apply_saved(testing)   # FRIDAY 99: the remembered language (English unless Portugues was picked in the start screen's Settings)
 	if testing:
 		settings = "user://poser_test_%d.cfg" % OS.get_process_id()
 		autosave = "user://autosave_test_%d.json" % OS.get_process_id()
@@ -15163,6 +15164,7 @@ func _place_cube() -> void:
 			k.offset_top = y
 			k.offset_bottom = y + NAV_H
 			r += NAV_W + 4
+	PartViewTools.place(self)   # S102 / S104: X-ray and Turntable beside them
 
 
 ## the ring for part j at screen point p: up = reset, then clockwise. The part is selected first (what the ring acts on)
