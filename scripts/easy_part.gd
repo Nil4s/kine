@@ -4619,6 +4619,16 @@ func _printing_box() -> PanelContainer:
 
 ## NSTEPLIST: the step's plain words ("" = no row: a helper plane). Pulled up N cm, Rounded N edges R mm, Drew a shape, Hollowed out
 func step_words(f: Dictionary) -> String:
+	var lab := String(f.get("label", ""))   # P096: a recipe's step has its own name ("Base plate"): the row reads "Base plate: pulled up 6 mm"
+	if lab != "":
+		if String(f.get("t", "")) == "sketch":   # a recipe step is its pull: its sketch gets no row of its own
+			return ""
+		var w := _step_words_plain(f)
+		return "" if w == "" else "%s: %s" % [lab, w.substr(0, 1).to_lower() + w.substr(1)]
+	return _step_words_plain(f)
+
+
+func _step_words_plain(f: Dictionary) -> String:
 	match String(f.get("t", "")):
 		"sketch":
 			return "Drew a shape"
