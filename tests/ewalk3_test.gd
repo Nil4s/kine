@@ -111,7 +111,9 @@ func _init() -> void:
 		{"t": "sketch", "id": "f2", "name": "Sketch2", "plane": "top", "ents": [{"k": "bspline", "pts": op, "closed": false}], "dims": []}]
 	bl["seq"] = 2
 	var msg3: String = ep._blend(bl)
-	ok(msg3.contains("draw both as closed shapes, then press Blend two shapes again"), "3 BLEND two shapes that cannot blend say what to do [%s]" % msg3)
+	# design changed in 2d508559 EBLEND: Easy Part Blend two shapes refuses what cannot blend, in words; bar rewritten 11-01 per Nick:
+	# the old words ("draw both as closed shapes, ...") came from 7bbf79a3; two shapes on planes at an angle now get the angle words and the next press
+	ok(msg3.contains("cannot blend") and msg3.contains("at an angle") and msg3.contains("then press Blend two shapes again"), "3 BLEND two shapes that cannot blend say what to do [%s]" % msg3)
 
 	print("ewalk3: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
