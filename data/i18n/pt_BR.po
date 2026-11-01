@@ -1,0 +1,778 @@
+# Kine: Brazilian Portuguese (FRIDAY 99). Plain everyday words; units stay mm / cm.
+msgid ""
+msgstr ""
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "BODY"
+msgstr "CORPO"
+
+msgid "POSE"
+msgstr "POSE"
+
+msgid "ANIMATE"
+msgstr "ANIMAR"
+
+msgid "STAGE"
+msgstr "CENA"
+
+msgid "CHECK"
+msgstr "CONFERIR"
+
+msgid "DELIVER"
+msgstr "ENTREGA"
+
+msgid "MODEL"
+msgstr "MODELAR"
+
+msgid "SCULPT"
+msgstr "ESCULPIR"
+
+msgid "SURFACE"
+msgstr "COR"
+
+msgid "BUILD"
+msgstr "CONSTRUIR"
+
+msgid "Undo"
+msgstr "Desfazer"
+
+msgid "Redo"
+msgstr "Refazer"
+
+msgid "Duplicate"
+msgstr "Duplicar"
+
+msgid "Fix it"
+msgstr "Consertar"
+
+msgid "Bring back your part"
+msgstr "Recuperar sua peça"
+
+msgid "Save and use in a scene"
+msgstr "Salvar e usar numa cena"
+
+msgid "Export"
+msgstr "Exportar"
+
+msgid "Expert"
+msgstr "Avançado"
+
+msgid "Draw shape"
+msgstr "Desenhar forma"
+
+msgid "Pull it up"
+msgstr "Puxar para cima"
+
+msgid "Spin it round"
+msgstr "Girar em volta"
+
+msgid "Round the edges"
+msgstr "Bordas redondas"
+
+msgid "Cut a hole"
+msgstr "Fazer um furo"
+
+msgid "Mirror that"
+msgstr "Espelhar isso"
+
+msgid "Curvy line"
+msgstr "Linha curva"
+
+msgid "Blend two shapes"
+msgstr "Misturar duas formas"
+
+msgid "Cut in two"
+msgstr "Cortar em dois"
+
+msgid "Repeat it"
+msgstr "Repetir"
+
+msgid "Stick together"
+msgstr "Juntar"
+
+msgid "Box"
+msgstr "Caixa"
+
+msgid "Round"
+msgstr "Redondo"
+
+msgid "Pointy"
+msgstr "Pontudo"
+
+msgid "Oval"
+msgstr "Oval"
+
+msgid "Hex"
+msgstr "Hexágono"
+
+msgid "Sides"
+msgstr "Lados"
+
+msgid "6 sides"
+msgstr "6 lados"
+
+msgid "Picture"
+msgstr "Foto"
+
+msgid "One side only"
+msgstr "Só um lado"
+
+msgid "Photo size"
+msgstr "Tamanho da foto"
+
+msgid "Through"
+msgstr "Atravessar"
+
+msgid "Hollow inside"
+msgstr "Oco por dentro"
+
+msgid "Hollow with a lid"
+msgstr "Oco com tampa"
+
+msgid "Finger joints"
+msgstr "Encaixe de dedos"
+
+msgid "Snap-fit lip"
+msgstr "Aba de encaixe"
+
+msgid "Thicker wall"
+msgstr "Parede mais grossa"
+
+msgid "Magnet"
+msgstr "Ímã"
+
+msgid "Lattice inside"
+msgstr "Treliça por dentro"
+
+msgid "Flat pattern"
+msgstr "Planificar"
+
+msgid "M3 screw"
+msgstr "Parafuso M3"
+
+msgid "M4 screw"
+msgstr "Parafuso M4"
+
+msgid "M5 screw"
+msgstr "Parafuso M5"
+
+msgid "M6 screw"
+msgstr "Parafuso M6"
+
+msgid "Printer: any"
+msgstr "Impressora: qualquer"
+
+msgid "What fits here?"
+msgstr "O que cabe aqui?"
+
+msgid "Keep both halves"
+msgstr "Manter as duas metades"
+
+msgid "Keep the lower half"
+msgstr "Manter a metade de baixo"
+
+msgid "Keep the upper half"
+msgstr "Manter a metade de cima"
+
+msgid "All edges"
+msgstr "Todas as bordas"
+
+msgid "Only the outside"
+msgstr "Só por fora"
+
+msgid "Only the top"
+msgstr "Só em cima"
+
+msgid "Make it stronger"
+msgstr "Deixar mais forte"
+
+msgid "Grey"
+msgstr "Cinza"
+
+msgid "Red"
+msgstr "Vermelho"
+
+msgid "Blue"
+msgstr "Azul"
+
+msgid "Yellow"
+msgstr "Amarelo"
+
+msgid "Green"
+msgstr "Verde"
+
+msgid "Wood"
+msgstr "Madeira"
+
+msgid "Does it fall over?"
+msgstr "Ele tomba?"
+
+msgid "Hold here"
+msgstr "Segurar aqui"
+
+msgid "Row"
+msgstr "Fileira"
+
+msgid "Up"
+msgstr "Para cima"
+
+msgid "Forward"
+msgstr "Para frente"
+
+msgid "Ring"
+msgstr "Anel"
+
+msgid "Corners"
+msgstr "Cantos"
+
+msgid "Up and Forward"
+msgstr "Cima e frente"
+
+msgid "Rail"
+msgstr "Trilho"
+
+msgid "How many"
+msgstr "Quantos"
+
+msgid "Fewer"
+msgstr "Menos"
+
+msgid "Gap"
+msgstr "Vão"
+
+msgid "Closer"
+msgstr "Mais perto"
+
+msgid "Further apart"
+msgstr "Mais longe"
+
+msgid "Join"
+msgstr "Unir"
+
+msgid "Cut away"
+msgstr "Recortar"
+
+msgid "Keep the overlap"
+msgstr "Manter a parte comum"
+
+msgid "This turns here"
+msgstr "Gira aqui"
+
+msgid "This slides here"
+msgstr "Desliza aqui"
+
+msgid "Smooth the joints"
+msgstr "Suavizar as juntas"
+
+msgid "Line them up"
+msgstr "Alinhar"
+
+msgid "Centre on that"
+msgstr "Centralizar nisso"
+
+msgid "Same height"
+msgstr "Mesma altura"
+
+msgid "Taller only"
+msgstr "Só mais alto"
+
+msgid "Tilt it 20 degrees"
+msgstr "Inclinar 20 graus"
+
+msgid "Draft angle"
+msgstr "Ângulo de saída"
+
+msgid "Swing it"
+msgstr "Balançar"
+
+msgid "Pull along"
+msgstr "Puxar ao longo"
+
+msgid "Your steps"
+msgstr "Seus passos"
+
+msgid "Instruction sheet"
+msgstr "Folha de instruções"
+
+msgid "Show me how"
+msgstr "Mostre como"
+
+msgid "Lay it flat"
+msgstr "Deitar a peça"
+
+msgid "Show overhangs"
+msgstr "Mostrar partes no ar"
+
+msgid "Empty"
+msgstr "Vazio"
+
+msgid "Slot"
+msgstr "Rasgo"
+
+msgid "Examples"
+msgstr "Exemplos"
+
+msgid "Start from:"
+msgstr "Começar de:"
+
+msgid "Cylinder"
+msgstr "Cilindro"
+
+msgid "Sphere"
+msgstr "Esfera"
+
+msgid "Tube"
+msgstr "Tubo"
+
+msgid "Plate"
+msgstr "Placa"
+
+msgid "Gear"
+msgstr "Engrenagem"
+
+msgid "Rack"
+msgstr "Cremalheira"
+
+msgid "Screws"
+msgstr "Parafusos"
+
+msgid "Nuts"
+msgstr "Porcas"
+
+msgid "Washers"
+msgstr "Arruelas"
+
+msgid "Gears"
+msgstr "Engrenagens"
+
+msgid "Hinges"
+msgstr "Dobradiças"
+
+msgid "Bearings"
+msgstr "Rolamentos"
+
+msgid "Springs"
+msgstr "Molas"
+
+msgid "Handles"
+msgstr "Puxadores"
+
+msgid "Wheels"
+msgstr "Rodas"
+
+msgid "Brackets"
+msgstr "Suportes"
+
+msgid "Clips and feet"
+msgstr "Clipes e pés"
+
+msgid "Boards"
+msgstr "Placas"
+
+msgid "Wood boards"
+msgstr "Tábuas"
+
+msgid "Type it"
+msgstr "Digite"
+
+msgid "Favourites"
+msgstr "Favoritos"
+
+msgid "Kids"
+msgstr "Crianças"
+
+msgid "Living cuts"
+msgstr "Cortes flexíveis"
+
+msgid "Spring"
+msgstr "Mola"
+
+msgid "Cam and follower"
+msgstr "Came e seguidor"
+
+msgid "Gear pair"
+msgstr "Par de engrenagens"
+
+msgid "Like a photo:"
+msgstr "Igual a uma foto:"
+
+msgid "Mug like this photo"
+msgstr "Caneca como esta foto"
+
+msgid "Chair like this photo"
+msgstr "Cadeira como esta foto"
+
+msgid "Full turn: yes"
+msgstr "Volta completa: sim"
+
+msgid "Linkage: drag the knob"
+msgstr "Articulação: arraste o botão"
+
+msgid "Reset"
+msgstr "Reiniciar"
+
+msgid "Socket"
+msgstr "Allen"
+
+msgid "Button"
+msgstr "Abaulado"
+
+msgid "Add its nut and washer"
+msgstr "Com porca e arruela"
+
+msgid "Add its boss"
+msgstr "Com base de apoio"
+
+msgid "Make a seat for it"
+msgstr "Fazer o encaixe"
+
+msgid "L-bracket"
+msgstr "Suporte em L"
+
+msgid "T-bracket"
+msgstr "Suporte em T"
+
+msgid "Corner brace"
+msgstr "Cantoneira"
+
+msgid "Rubber foot"
+msgstr "Pé de borracha"
+
+msgid "Cable clip"
+msgstr "Clipe de cabo"
+
+msgid "Zip-tie slot"
+msgstr "Furo p/ abraçadeira"
+
+msgid "Snap-fit clip"
+msgstr "Clipe de encaixe"
+
+msgid "Drawer pull"
+msgstr "Puxador de gaveta"
+
+msgid "Knob"
+msgstr "Botão"
+
+msgid "D-handle"
+msgstr "Alça em D"
+
+msgid "Knurled grip"
+msgstr "Pegada serrilhada"
+
+msgid "Wheel"
+msgstr "Roda"
+
+msgid "Castor"
+msgstr "Rodízio"
+
+msgid "2x4 board"
+msgstr "Tábua 2x4"
+
+msgid "MDF sheet 15 mm"
+msgstr "Chapa de MDF 15 mm"
+
+msgid "Round the edges?"
+msgstr "Bordas redondas?"
+
+msgid "Hollow it?"
+msgstr "Deixar oco?"
+
+msgid "Sculpt details?"
+msgstr "Esculpir detalhes?"
+
+msgid "Parts"
+msgstr "Peças"
+
+msgid "For scale"
+msgstr "Para comparar"
+
+msgid "Exact sizes? Use Expert"
+msgstr "Medidas exatas? Use o Avançado"
+
+msgid "Fit view"
+msgstr "Ajustar vista"
+
+msgid "Front"
+msgstr "Frente"
+
+msgid "Top"
+msgstr "Cima"
+
+msgid "Side"
+msgstr "Lado"
+
+msgid "Cut view"
+msgstr "Vista cortada"
+
+msgid "Hand"
+msgstr "Mão"
+
+msgid "Coin"
+msgstr "Moeda"
+
+msgid "Phone"
+msgstr "Celular"
+
+msgid "No steps yet"
+msgstr "Nenhum passo ainda"
+
+msgid "Change your part"
+msgstr "Mude sua peça"
+
+msgid "Favourites:"
+msgstr "Favoritos:"
+
+msgid "Add to favourites"
+msgstr "Pôr nos favoritos"
+
+msgid "No solid yet"
+msgstr "Nenhum sólido ainda"
+
+msgid "Width"
+msgstr "Largura"
+
+msgid "Height"
+msgstr "Altura"
+
+msgid "Depth"
+msgstr "Profundidade"
+
+msgid "Narrower"
+msgstr "Mais estreito"
+
+msgid "Wider"
+msgstr "Mais largo"
+
+msgid "Lower"
+msgstr "Mais baixo"
+
+msgid "Taller"
+msgstr "Mais alto"
+
+msgid "Shallower"
+msgstr "Mais raso"
+
+msgid "Deeper"
+msgstr "Mais fundo"
+
+msgid "Shorter"
+msgstr "Mais curto"
+
+msgid "Longer"
+msgstr "Mais comprido"
+
+msgid "Thinner"
+msgstr "Mais fino"
+
+msgid "Thicker"
+msgstr "Mais grosso"
+
+msgid "Length"
+msgstr "Comprimento"
+
+msgid "Thickness"
+msgstr "Espessura"
+
+msgid "Teeth"
+msgstr "Dentes"
+
+msgid "Teeth size"
+msgstr "Tamanho dos dentes"
+
+msgid "Medium teeth"
+msgstr "Dentes médios"
+
+msgid "Small teeth"
+msgstr "Dentes pequenos"
+
+msgid "Big teeth"
+msgstr "Dentes grandes"
+
+msgid "Width across"
+msgstr "Largura"
+
+msgid "Looks good: one solid, no gaps"
+msgstr "Está bom: um sólido só, sem buracos"
+
+msgid "Screws: pick a size. It drops on the floor"
+msgstr "Parafusos: escolha um tamanho. Ele cai no chão"
+
+msgid "Screws, socket head: pick a size. It drops on the floor"
+msgstr "Parafusos Allen: escolha um tamanho. Ele cai no chão"
+
+msgid "Bearings, ball: pick a size. It drops on the floor"
+msgstr "Rolamentos de esferas: escolha um tamanho. Ele cai no chão"
+
+msgid "Brackets: pick a shape. It drops on the floor"
+msgstr "Suportes: escolha um formato. Ele cai no chão"
+
+msgid "Clips and feet: pick one. It drops on the floor, then change its size with the sliders"
+msgstr "Clipes e pés: escolha um. Ele cai no chão; depois mude o tamanho com os controles"
+
+msgid "Handles: pick a kind and a size. It drops on the floor"
+msgstr "Puxadores: escolha um tipo e um tamanho. Ele cai no chão"
+
+msgid "Wheels: pick one. The hole in the middle takes the axle"
+msgstr "Rodas: escolha uma. O furo do meio recebe o eixo"
+
+msgid "Boards: pick yours. You get a box for it with standoffs, port holes and a lid"
+msgstr "Placas: escolha a sua. Você ganha uma caixa com apoios, aberturas e tampa"
+
+msgid "Wood, lying flat, by real size: pick one. It drops on the floor"
+msgstr "Madeira deitada, no tamanho real: escolha uma. Ela cai no chão"
+
+msgid "Gears: press Gear in the chips above, or Cam and follower below. It drops on the floor"
+msgstr "Engrenagens: aperte Engrenagem acima, ou Came e seguidor abaixo. Ela cai no chão"
+
+msgid "Hinges: press Hinge below. It drops on the floor, sized to the door"
+msgstr "Dobradiças: aperte Dobradiça abaixo. Ela cai no chão, do tamanho da porta"
+
+msgid "Springs: press Spring below. It drops on the floor"
+msgstr "Molas: aperte Mola abaixo. Ela cai no chão"
+
+msgid "Wheels: press Wheel or Castor. It drops on the floor, with its axle hole"
+msgstr "Rodas: aperte Roda ou Rodízio. Ela cai no chão, com o furo do eixo"
+
+msgid "Boards: press your board. A case for it drops on the floor"
+msgstr "Placas: aperte a sua placa. Uma caixa para ela cai no chão"
+
+msgid "Wood boards: pick one by its real size. It lies on the floor, flat"
+msgstr "Tábuas: escolha pelo tamanho real. Ela fica deitada no chão"
+
+msgid "Favourites: press a chip to put that part on the floor again. Press the star to keep one"
+msgstr "Favoritos: aperte uma peça para pô-la no chão de novo. Aperte a estrela para guardar uma"
+
+msgid "Nuts are coming soon. Next step: press Screws or Gears"
+msgstr "Porcas chegam em breve. Próximo passo: aperte Parafusos ou Engrenagens"
+
+msgid "Washers are coming soon. Next step: press Screws or Gears"
+msgstr "Arruelas chegam em breve. Próximo passo: aperte Parafusos ou Engrenagens"
+
+msgid "Hinge"
+msgstr "Dobradiça"
+
+msgid "Colour"
+msgstr "Cor"
+
+msgid "Flat"
+msgstr "Chata"
+
+msgid "Give to a character"
+msgstr "Dar a um personagem"
+
+msgid "Target"
+msgstr "Destino"
+
+msgid "Format"
+msgstr "Formato"
+
+msgid "What to export"
+msgstr "O que exportar"
+
+msgid "Everything"
+msgstr "Tudo"
+
+msgid "Only the selected object"
+msgstr "Só o objeto selecionado"
+
+msgid "One entry per mesh object (by its name)"
+msgstr "Uma entrada por objeto (pelo nome)"
+
+msgid "Batch..."
+msgstr "Em lote..."
+
+msgid "Cancel"
+msgstr "Cancelar"
+
+msgid "3D printing (STL, 3MF)"
+msgstr "Impressão 3D (STL, 3MF)"
+
+msgid "Raw data"
+msgstr "Dados brutos"
+
+msgid "Playblast video: motion blur (8 sub-frames, 180 deg shutter; slower)"
+msgstr "Vídeo de prévia: desfoque de movimento (8 subquadros, obturador de 180 graus; mais lento)"
+
+msgid "3MF (.3mf): shape in millimetres, pieces and colour (best for most slicers)"
+msgstr "3MF (.3mf): forma em milímetros, peças e cor (o melhor para a maioria dos fatiadores)"
+
+msgid "STL (.stl): the plain shape in millimetres"
+msgstr "STL (.stl): só a forma, em milímetros"
+
+msgid "Checklist for this scene"
+msgstr "Lista de conferência desta cena"
+
+msgid "Needs:"
+msgstr "Precisa:"
+
+msgid "What the app does:"
+msgstr "O que o programa faz:"
+
+msgid "Frame rate:"
+msgstr "Taxa de quadros:"
+
+msgid "none: a printed part is one still shape"
+msgstr "nenhuma: uma peça impressa é uma forma parada"
+
+msgid "A slicer (Cura, PrusaSlicer, Bambu Studio, Orca) opens either file. Both hold millimetres, and the part's floor is the print bed (z = 0, Z up). STL is the plain shape; 3MF is the same shape in a package that also keeps each separate piece as its own object and the colour you painted. If you are not sure, pick 3MF."
+msgstr "Um fatiador (Cura, PrusaSlicer, Bambu Studio, Orca) abre qualquer um dos arquivos. Os dois guardam milímetros, e o chão da peça é a mesa de impressão (z = 0, Z para cima). O STL é só a forma; o 3MF é a mesma forma num pacote que também guarda cada peça separada como um objeto e a cor que você pintou. Se estiver em dúvida, escolha 3MF."
+
+msgid "A 3MF package: one object for each separate piece of the part, the colour you painted, units in millimetres, the shape finely cut (0.1 mm)."
+msgstr "Um pacote 3MF: um objeto para cada peça separada, a cor que você pintou, unidades em milímetros, a forma bem detalhada (0,1 mm)."
+
+msgid "A binary STL in millimetres (an STL has no units, so the slicer reads the numbers as mm), all pieces in one mesh, the shape finely cut (0.1 mm). No colour."
+msgstr "Um STL binário em milímetros (o STL não tem unidades, então o fatiador lê os números como mm), todas as peças numa malha só, a forma bem detalhada (0,1 mm). Sem cor."
+
+msgid "The part on screen is what is written. It holds millimetres, Z up, and the floor of the part is the print bed."
+msgstr "A peça que está na tela é a que será gravada. Ela guarda milímetros, Z para cima, e o chão da peça é a mesa de impressão."
+
+msgid "Settings"
+msgstr "Configurações"
+
+msgid "Show start screen"
+msgstr "Mostrar a tela inicial"
+
+msgid "Language"
+msgstr "Idioma"
+
+msgid "Close"
+msgstr "Fechar"
+
+msgid "Home"
+msgstr "Início"
+
+msgid "New project"
+msgstr "Novo projeto"
+
+msgid "Library"
+msgstr "Biblioteca"
+
+msgid "Save video"
+msgstr "Salvar vídeo"
+
+msgid "New scene"
+msgstr "Nova cena"
+
+msgid "My scenes"
+msgstr "Minhas cenas"
+
+msgid "Switch to Expert"
+msgstr "Mudar para Avançado"
+
+msgid "Done"
+msgstr "Pronto"
+
+msgid "Help"
+msgstr "Ajuda"
+
+msgid "Make a part"
+msgstr "Fazer uma peça"
+
+msgid "Open file..."
+msgstr "Abrir arquivo..."
+
+msgid "Resume"
+msgstr "Continuar"
