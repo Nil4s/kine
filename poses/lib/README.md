@@ -40,3 +40,8 @@ Two clean poses can still have a bad path between them: straight-line angle blen
 body. Found with plans/lib_demo.json: guard -> idle_bat_carry puts the bat 10 cm into the chest; going via
 windup_high still puts the knob 11 cm into the belly on the way down. Next: a transition table (each pair: "direct"
 or "via <pose>"), every path checked frame by frame like the poses.
+
+## Mood poses (Friday plan 140)
+Made by `tools/s140_make_poses.gd` from joint angles; a pose's moods are MEASURED from its body by `scripts/pose_mood.gd`
+(rules and references in that file), never listed by hand: the Poses search ("tired", "exhausted", "confident"...) and the
+Pose library's mood chips both read them. tired_*, proud_*, scared_*, happy_*, angry_*, sad_*, calm_*, excited_*.

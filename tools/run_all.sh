@@ -523,3 +523,6 @@ EXTRA="$EXTRA s100:w"   # s100 (Friday plan 100): Easy Part keyboard shortcuts c
 
 
 EXTRA="$EXTRA s137:w"   # plan 137: impact frames on a strike (hit-stop slider, 2-frame target flash, 0.25 s camera shake, toggle off = original)
+
+
+EXTRA="$EXTRA s140:w"   # s140 (Friday plan 140): Pose library by mood: moods measured from the body (tired/proud/scared/happy/angry/sad/calm/excited), Poses search words + synonyms, mood chips in the Pose library; tests/s140_test.gd

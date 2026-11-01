@@ -31,6 +31,7 @@ var m: Node
 var dirs: Array = DIRS.duplicate()
 var entries: Array = []        # [{"path", "name", "mine"}]
 var picked := ""               # the picked pose's path
+var mood := ""                 # the mood chip lit ("" = All): the grid shows the poses whose measured body meets it (scripts/pose_mood.gd)
 var tex := {}                  # path -> ImageTexture (its thumbnail)
 var made := {}                 # path -> md5 of the pose file the thumbnail was made from
 var renders := 0               # thumbnails rendered this session (the test reads it)
@@ -125,6 +126,7 @@ func _ready() -> void:
 	only_box.focus_mode = Control.FOCUS_NONE
 	only_box.tooltip_text = "apply and blend on the parts selected in the view only (Ctrl+click parts for more); the rest keep their pose"
 	opts.add_child(only_box)
+	v.add_child(_mood_row())
 	var row := HBoxContainer.new()
 	v.add_child(row)
 	var bl := Label.new()
@@ -226,6 +228,8 @@ func list_poses() -> Array:
 ## the listing again; cells rebuilt when it changed; stale thumbnails queued
 func refresh() -> void:
 	entries = list_poses()
+	if mood != "":
+		entries = entries.filter(func(e): return mood in PoseMood.tags_of_file(e["path"]))
 	var sig := ",".join(entries.map(func(e): return e["path"]))
 	if sig != _sig:
 		_sig = sig
@@ -677,3 +681,37 @@ func select_parts(path: String) -> void:
 	m._refresh()
 	only_box.button_pressed = true
 	m._say("selected the %d parts '%s' turns; Only the selected parts is on, so a blend moves just them" % [js.size(), _nm(path)])
+
+
+## Friday plan 140: the MOOD chips (All, then one per mood), over the grid. A chip shows only the poses whose body MEASURES that
+## mood (PoseMood: head, spine, shoulder, arm and knee angles read off the pose file); All shows every pose
+func _mood_row() -> HFlowContainer:
+	var row := HFlowContainer.new()
+	row.name = "mood_row"
+	row.add_theme_constant_override("h_separation", 4)
+	row.add_theme_constant_override("v_separation", 2)
+	var group := ButtonGroup.new()
+	for md in ["all"] + PoseMood.MOODS:
+		var b := Button.new()
+		b.name = "mood_" + md
+		b.text = md.capitalize()
+		b.toggle_mode = true
+		b.button_group = group
+		b.button_pressed = md == "all"
+		b.focus_mode = Control.FOCUS_NONE
+		b.add_theme_font_size_override("font_size", 12)
+		b.tooltip_text = "every pose in the library" if md == "all" else "only the poses that look %s: %s" % [md, PoseMood.RULES[md]]
+		b.pressed.connect(_mood_pick.bind(md))
+		row.add_child(b)
+	return row
+
+
+func _mood_pick(md: String) -> void:
+	mood = "" if md == "all" else md
+	refresh()
+	if mood == "":
+		m._say("every pose in the library. Click a picture to apply it")
+	elif entries.is_empty():
+		m._say("no pose in the library looks %s yet: click All to see every pose" % mood)
+	else:
+		m._say("%d %s pose%s: click a picture to apply it, or All for every pose" % [entries.size(), mood, "" if entries.size() == 1 else "s"])
