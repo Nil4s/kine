@@ -165,6 +165,15 @@ func build(root: Control) -> void:
 	photo_btn.tooltip_text = "Measure with a photo: the object with a coin beside it. Click the coin, then the object: its size becomes a plate"
 	photo_btn.pressed.connect(_photo_press)
 	sh.add_child(photo_btn)
+	var trace_btn := Button.new()   # FRIDAY 43: Trace: a picture lies on the floor; Trace it turns its dark shape into a sketch (easy_part_trace.gd)
+	trace_btn.name = "easypart_shape_trace"
+	trace_btn.text = "Trace"
+	trace_btn.focus_mode = Control.FOCUS_NONE
+	trace_btn.custom_minimum_size = Vector2(76, 40)
+	trace_btn.add_theme_font_size_override("font_size", 16)
+	trace_btn.tooltip_text = "Trace a picture: it lies on the floor, set its real width, press Trace it: its dark shape becomes a sketch"
+	trace_btn.pressed.connect(_trace_press)
+	sh.add_child(trace_btn)
 	root.add_child(shape_box)
 	hole_box = _hole_box()
 	root.add_child(hole_box)
@@ -2132,6 +2141,7 @@ func _lib_box() -> PanelContainer:
 		fl.add_child(b)
 		lib_btns[cat] = b
 	fl.add_child(_kids_chip_make())   # p197kidsmode: the Kids chip, last on the library page
+	fl.add_child(_sketch_chip())   # FRIDAY 166: Draw to search, after Kids
 	lib_soon = Label.new()
 	lib_soon.name = "easypart_lib_soon"
 	lib_soon.add_theme_font_size_override("font_size", 14)
@@ -3577,6 +3587,7 @@ func _process(_dt: float) -> void:
 	status.visible = on
 	dots.visible = on
 	shape_box.visible = on and armed == "draw"
+	_s166_sync(on)   # FRIDAY 43 + 166: the traced picture and the Draw to search box show only on the Easy screen
 	hole_box.visible = on and _hole_on()
 	if flat_sheet != null:
 		flat_sheet.visible = on and flat_sheet.visible   # p117flatpatter: the sheet closes with Easy Part
@@ -4038,6 +4049,8 @@ func _start_draft(p: Vector2) -> bool:
 
 
 func _over_ui(p: Vector2) -> bool:
+	if (tracer != null and tracer.panel != null and tracer.panel.visible and tracer.panel.get_global_rect().has_point(p)) or (sketcher != null and sketcher.over(p)):
+		return true   # FRIDAY 43 + 166: their boxes are buttons and a drawing area, not the grid
 	if edge_chip != null and edge_chip.visible and edge_chip.get_global_rect().has_point(p):
 		return true   # NEDGECHIP: the edge chip is a button: its press is not a pick
 	# hint and status are WORDS only (a _pill: mouse_filter IGNORE, one Label, no button): a press under them is the grid's, not eaten
@@ -7007,3 +7020,27 @@ func _theme_sync() -> void:
 	for lone in [size_l, edge_num]:   # these two sit under a wrapper that is not named easypart
 		if lone != null:
 			EPTheme.retint(lone)
+
+
+# ---------------------------------------------------------------- FRIDAY 43 SHAPE FROM A PHOTO + FRIDAY 166 SEARCH PARTS BY SKETCH
+var tracer = null     # easy_part_trace.gd
+var sketcher = null   # easy_part_sketch.gd
+
+
+func _trace_press() -> void:
+	if tracer == null:
+		tracer = EasyPartTrace.new(self)
+	tracer.pick()
+
+
+func _sketch_chip() -> Button:
+	if sketcher == null:
+		sketcher = EasyPartSketch.new(self)
+	return sketcher.make_chip()
+
+
+func _s166_sync(on: bool) -> void:
+	if tracer != null:
+		tracer.sync(on)
+	if sketcher != null:
+		sketcher.sync(on)
