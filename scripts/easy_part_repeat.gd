@@ -59,6 +59,13 @@ func _repeat_box() -> PanelContainer:
 	gb.toggle_mode = true
 	h2.add_child(gb)
 	rep_btns["grow"] = gb
+	# s214: Group (the step copies several separate pieces at once). It ends the second line, narrow, so the box stays clear of the view column
+	var gpb := _big_btn("easypart_rep_group", "Group", "Repeat all the separate pieces together in one step (a ring of three cylinders, not three rings). Then click a piece to add it or take it off", _rep_group)
+	gpb.toggle_mode = true
+	gpb.custom_minimum_size = Vector2(52, 44)
+	gpb.add_theme_font_size_override("font_size", 13)
+	h2.add_child(gpb)
+	rep_btns["group"] = gpb
 	rep_rows.append(_make_row("How many", 2.0, 20.0, 1.0, REP_WORDS["count"], "rep", "count", "copies", vb))
 	rep_rows.append(_make_row("Gap", 0.5, 30.0, 0.5, REP_WORDS["gap"], "rep", "gap", "cm", vb))
 	rep_rows.append(_make_row("Grow by", 5.0, 100.0, 1.0, ["Slightly", "A lot"], "rep", "grow", "pct", vb))
@@ -469,6 +476,7 @@ func _rep_sync() -> void:
 		(rep_btns["around_" + ax] as Button).set_pressed_no_signal(about == ax)
 	(rep_btns["around_edge"] as Button).set_pressed_no_signal(about == "edge" or armed == "aredge")
 	(rep_btns["grow"] as Button).set_pressed_no_signal(kind == "grow")
+	(rep_btns["group"] as Button).set_pressed_no_signal(f.has("bodies"))   # s214
 	var rows_on := kind != "corners"   # CORNERS: four copies at the corners, no How many or Gap to set
 	for r in rep_rows:
 		# UP AND FORWARD: the steps are a count (How many); a Gap would mean nothing between the steps, so it is not shown
@@ -606,3 +614,114 @@ func _seg_px_r(p: Vector2, a: Vector2, b: Vector2) -> float:
 	var ab := b - a
 	var t := 0.0 if ab.length_squared() < 1e-9 else clampf((p - a).dot(ab) / ab.length_squared(), 0.0, 1.0)
 	return p.distance_to(a + ab * t)
+
+
+## s214 PATTERN A GROUP (Easy): Group makes the newest Repeat it step copy SEVERAL separate pieces at once, as one step (the Part pattern step's "bodies").
+## Pressing it picks every piece the part had before the step; then a click on a piece (or Shift + click) adds it or takes it off. Row and Ring
+## then move the whole group: a ring turns all of them the same way round the up line through the middle. Every copy is a piece of its own ("own").
+func _rep_group() -> void:
+	var cur := Part.feature(_rec(), rep_id)
+	if cur.is_empty():
+		(rep_btns["group"] as Button).set_pressed_no_signal(false)
+		_say("Repeat it first, then Group")
+		return
+	_flush_if_dirty()
+	if cur.has("bodies"):   # pressed again: back to the newest piece alone
+		_begin("Group off")
+		cur.erase("bodies")
+		cur.erase("own")
+		cur["op"] = "join"
+		var nbk := int(Part.replay(Part._upto_rec(_rec(), Part.index_of(_rec(), rep_id) - 1)).get("bodies", 1))
+		cur["body"] = maxi(nbk - 1, 0)
+		var sp := Part.pattern_piece(Part._upto_rec(_rec(), Part.index_of(_rec(), rep_id) - 1))
+		if sp != "":
+			cur["src"] = sp
+		_end()
+		pu.sync()
+		_rep_sync()
+		_values_sync()
+		_say("Group off: Repeat it copies the newest piece again")
+		return
+	var before := Part._upto_rec(_rec(), Part.index_of(_rec(), rep_id) - 1)
+	var nb := int(Part.replay(before).get("bodies", 0))
+	if nb < 2:
+		(rep_btns["group"] as Button).set_pressed_no_signal(false)
+		_say("Group needs two or more separate pieces. Make another piece that does not touch the first")
+		return
+	_begin("Group")
+	var all: Array = []
+	for i in nb:
+		all.append(i)
+	_group_set(cur, all)
+	_end()
+	pu.sync()
+	_rep_sync()
+	_values_sync()
+	var err: String = pu.replay_full(_rec())["errors"].get(rep_id, "")
+	_say(_plain(err) + ". Press Row or Ring, or undo" if err != "" else "Group: all %d pieces are copied together. Click a piece to take it off or put it back, then pick Row or Ring" % nb)
+
+
+## the step's fields for a group of bodies (indices before the step): every piece of its own, spacing from the group's whole size
+func _group_set(cur: Dictionary, idx: Array) -> void:
+	idx.sort()
+	cur["bodies"] = idx
+	cur["body"] = int(idx[0])
+	cur["own"] = true
+	cur["op"] = "new"
+	cur["beside"] = false
+	cur.erase("src")
+	if String(cur.get("kind", "linear")) not in ["linear", "circular"]:
+		cur["kind"] = "linear"
+		cur["dir"] = "x"
+		cur["about"] = ""
+	var faces := Part.body_faces(Part._upto_rec(_rec(), Part.index_of(_rec(), rep_id) - 1), -1)
+	var bb := AABB()
+	var first := true
+	for bi in idx:
+		if int(bi) >= faces.size():
+			continue
+		for q in (faces[int(bi)] as PackedVector3Array):
+			bb = AABB(q, Vector3.ZERO) if first else bb.expand(q)
+			first = false
+	if not first:
+		cur["w"] = maxf(bb.size.x / Part.MM, 1.0)
+		cur["h"] = maxf(bb.size.y / Part.MM, 1.0)
+		cur["d"] = maxf(bb.size.z / Part.MM, 1.0)
+		if String(cur.get("kind", "linear")) == "linear":
+			cur["mm"] = _span(cur) + float(cur.get("gap", 10.0))
+
+
+## s214: does this click pick a piece for the group: the group is on, the Repeat it box is open, and the group is on (a click on a piece; the camera keeps clicks on empty space)
+func _rgroup_wants(_mb: InputEventMouseButton) -> bool:
+	if repeat_box == null or not repeat_box.is_visible_in_tree() or rep_id == "":
+		return false
+	return Part.feature(_rec(), rep_id).has("bodies")
+
+
+## s214: a press at p on a piece: it joins the group or leaves it (the last piece stays), one undo step. true = taken
+func _rgroup_press(p: Vector2) -> bool:
+	if m.cam == null:
+		return false
+	var cur := Part.feature(_rec(), rep_id)
+	var faces := Part.body_faces(Part._upto_rec(_rec(), Part.index_of(_rec(), rep_id) - 1), -1)
+	var hit: Dictionary = pu._ray_hit(p, faces)
+	var bi := int(hit["body"]) if not hit.is_empty() else _near_body(p, faces)
+	if bi < 0:
+		return false   # nothing solid there: the camera keeps the click
+	_flush_if_dirty()
+	var idx: Array = (cur.get("bodies", []) as Array).duplicate()
+	if idx.has(bi):
+		if idx.size() < 2:
+			_say("The group keeps at least one piece")
+			return true
+		idx.erase(bi)
+	else:
+		idx.append(bi)
+	_begin("Group piece")
+	_group_set(cur, idx)
+	_end()
+	pu.sync()
+	_rep_sync()
+	_values_sync()
+	_say("Group: %d of %d pieces are copied together" % [idx.size(), faces.size()])
+	return true

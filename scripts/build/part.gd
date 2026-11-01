@@ -2460,6 +2460,8 @@ const PATTERN_MAX := 64
 static func _pattern(bodies: Array, looks: Array, f: Dictionary, rec: Dictionary = {}) -> String:
 	if bodies.is_empty():
 		return "there is no body to pattern"
+	if f.has("bodies"):   # s214: a GROUP of bodies patterned in one step (its own function at the end of this file)
+		return _pattern_group(bodies, looks, f, rec)
 	var bi := int(f.get("body", -1))
 	if bi < 0 or bi >= bodies.size():
 		return "there is no body %d to pattern" % bi
@@ -3497,3 +3499,33 @@ static func sunk_dist(pl: Dictionary, f: Dictionary) -> float:
 	if sink <= 0.0 or bool(f.get("both", false)):
 		return float(f["dist"])
 	return float(f["dist"]) + signf(float(f["dist"])) * sink
+
+
+## s214 PATTERN A GROUP: one pattern step over several bodies. f["bodies"] = the body indices (the bodies as they are before this step); every one
+## is copied by the SAME row or ring (Row: the same move for all; Ring: the same turn about the same axis, so the whole group turns as one).
+## op "new" = each copy is a body of its own (the originals stay, then the copies, body by body); op "join" = each body's copies fuse into that body.
+## Corners / Rail need one piece, so they are refused here. "" or the reason
+static func _pattern_group(bodies: Array, looks: Array, f: Dictionary, rec: Dictionary) -> String:
+	var idx: Array = []
+	for v in (f.get("bodies", []) as Array):
+		var bi := int(v)
+		if bi < 0 or bi >= bodies.size():
+			return "there is no body %d to pattern" % (bi + 1)
+		if not idx.has(bi):
+			idx.append(bi)
+	if idx.is_empty():
+		return "pick the bodies to copy"
+	if String(f.get("kind", "linear")) in ["corners", "rail"]:
+		return "a group is copied in a row or a ring: Corners and Rail copy one piece"
+	idx.sort()
+	var g: Dictionary = f.duplicate(true)
+	g.erase("bodies")
+	g.erase("src")
+	if bool(f.get("own", false)):   # Easy's group: every copy is a piece of its own (a ring of three cylinders is nine pieces)
+		g["op"] = "new"
+	g["beside"] = false   # the group goes round the axis through the origin (or the picked edge), all the same turn
+	for bi in idx:
+		var why := _pattern_copies(bodies, looks, g, int(bi), int(bodies[int(bi)]), rec)
+		if why != "":
+			return why
+	return ""

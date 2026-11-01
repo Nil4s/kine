@@ -3748,7 +3748,7 @@ func _process(_dt: float) -> void:
 		(jb as Button).visible = not smooth
 	for so in stick_btns:
 		(stick_btns[so] as Button).visible = not smooth
-	explode_box.visible = on and int(pu.res.get("bodies", 0)) >= 2 and armed == "" and not _hole_on() and not _split_on()   # EXPLODE (p103): two or more pieces; not over a hole's or a cut's keep chips
+	explode_box.visible = on and int(pu.res.get("bodies", 0)) >= 2 and armed == "" and not repeat_box.visible and not _hole_on() and not _split_on()   # EXPLODE (p103): two or more pieces; not over a hole's or a cut's keep chips
 	if not explode_box.visible and pu.explode_mm != 0.0:
 		_explode_reset()
 	align_row.visible = stick_box.visible and not smooth and stick_picks.size() == 2   # P054: the align row shows with the two picks
@@ -4055,6 +4055,9 @@ func input(ev: InputEvent) -> bool:
 				return true
 			if armed == "aredge" and not _over_ui(p):
 				return _aredge_press(p)   # s048: Around edge picks the edge under the click
+			if _rgroup_wants(ev as InputEventMouseButton) and not _over_ui(p):
+				if _rgroup_press(p):   # s214: Group: a click on a piece adds it to the group or takes it off
+					return true
 			if armed == "hold" and not _over_ui(p):
 				return _hold_press(p)   # p131grippoint: the press on the part sets the grip point
 			if armed == "draw" and _draft.has("clicks") and not _over_ui(p):
