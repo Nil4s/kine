@@ -166,6 +166,15 @@ func build(root: Control) -> void:
 	photo_btn.tooltip_text = "Measure with a photo: the object with a coin beside it. Click the coin, then the object: its size becomes a plate"
 	photo_btn.pressed.connect(_photo_press)
 	sh.add_child(photo_btn)
+	var trace_btn := Button.new()   # FRIDAY 43: Trace: a picture lies on the floor; Trace it turns its dark shape into a sketch (easy_part_trace.gd)
+	trace_btn.name = "easypart_shape_trace"
+	trace_btn.text = "Trace"
+	trace_btn.focus_mode = Control.FOCUS_NONE
+	trace_btn.custom_minimum_size = Vector2(76, 40)
+	trace_btn.add_theme_font_size_override("font_size", 16)
+	trace_btn.tooltip_text = "Trace a picture: it lies on the floor, set its real width, press Trace it: its dark shape becomes a sketch"
+	trace_btn.pressed.connect(_trace_press)
+	sh.add_child(trace_btn)
 	root.add_child(shape_box)
 	hole_box = _hole_box()
 	root.add_child(hole_box)
@@ -2139,6 +2148,10 @@ func _lib_box() -> PanelContainer:
 		fl.add_child(b)
 		lib_btns[cat] = b
 	fl.add_child(_kids_chip_make())   # p197kidsmode: the Kids chip, last on the library page
+	fl.add_child(_challenge_chip_make())   # s165: Challenges, after Kids
+
+
+	fl.add_child(_sketch_chip())   # FRIDAY 166: Draw to search, after Kids
 	lib_soon = Label.new()
 	lib_soon.name = "easypart_lib_soon"
 	lib_soon.add_theme_font_size_override("font_size", 14)
@@ -3587,6 +3600,7 @@ func _process(_dt: float) -> void:
 	status.visible = on
 	dots.visible = on
 	shape_box.visible = on and armed == "draw"
+	_s166_sync(on)   # FRIDAY 43 + 166: the traced picture and the Draw to search box show only on the Easy screen
 	hole_box.visible = on and _hole_on()
 	if hole_box.visible and edge_chip != null and edge_chip.visible and hole_box.get_global_rect().intersects(edge_chip.get_global_rect()):   # s051: a Round / Bevel chip left over the Cut a hole chips would take their clicks (Staggered, Hex)
 		_edge_hide()
@@ -4067,6 +4081,8 @@ func _start_draft(p: Vector2) -> bool:
 
 
 func _over_ui(p: Vector2) -> bool:
+	if (tracer != null and tracer.panel != null and tracer.panel.visible and tracer.panel.get_global_rect().has_point(p)) or (sketcher != null and sketcher.over(p)):
+		return true   # FRIDAY 43 + 166: their boxes are buttons and a drawing area, not the grid
 	if edge_chip != null and edge_chip.visible and edge_chip.get_global_rect().has_point(p):
 		return true   # NEDGECHIP: the edge chip is a button: its press is not a pick
 	# hint and status are WORDS only (a _pill: mouse_filter IGNORE, one Label, no button): a press under them is the grid's, not eaten
@@ -7415,3 +7431,62 @@ func _mirror_finish() -> void:
 	pu.sync()
 	_rows_sync()
 	_say("Shape drawn with its mirror: %d corners. Now press Pull it up or Spin it round" % pts.size())
+
+
+## s165 BUILD-ALONG CHALLENGES: the Challenges chip on the Parts library page opens a card (scripts/easy_challenge.gd) at the bottom left of the clear view
+var challenge_btn: Button
+var challenge_card: EasyChallenge
+
+
+func _challenge_chip_make() -> Button:
+	challenge_card = EasyChallenge.new()
+	challenge_card.ep = self
+	panel.get_parent().add_child(challenge_card)   # the panel is already in the Easy Part root
+	challenge_btn = Button.new()
+	challenge_btn.name = "easypart_challenges"
+	challenge_btn.text = "Challenges"
+	challenge_btn.tooltip_text = "Challenges: a target picture to build, and a score for how close you got"
+	challenge_btn.toggle_mode = true
+	challenge_btn.focus_mode = Control.FOCUS_NONE
+	challenge_btn.custom_minimum_size = Vector2(0, PLAIN_H)
+	challenge_btn.add_theme_font_size_override("font_size", 12)
+	challenge_btn.pressed.connect(challenge_card.toggle)
+	return challenge_btn
+
+
+# ---------------------------------------------------------------- FRIDAY 43 SHAPE FROM A PHOTO + FRIDAY 166 SEARCH PARTS BY SKETCH
+var tracer = null     # easy_part_trace.gd
+var sketcher = null   # easy_part_sketch.gd
+
+
+func _trace_press() -> void:
+	if tracer == null:
+		tracer = EasyPartTrace.new(self)
+	tracer.pick()
+
+
+func _sketch_chip() -> Button:
+	if sketcher == null:
+		sketcher = EasyPartSketch.new(self)
+	return sketcher.make_chip()
+
+
+func _s166_sync(on: bool) -> void:
+	if tracer != null:
+		tracer.sync(on)
+	if sketcher != null:
+		sketcher.sync(on)
+
+
+## Friday 173: a second finger landed after the first had started a sketch / drag: put it away like Escape, nothing is written
+func touch_cancel() -> void:
+	if not _draft.is_empty():
+		_draft = {}
+	if not _drag.is_empty():
+		_cancel_drag()
+	if not _edge.is_empty():
+		_edge_cancel()
+	_bar_press = null
+	_press_btn = null
+	_pick_p = Vector2(-1, -1)
+	dots.queue_redraw()

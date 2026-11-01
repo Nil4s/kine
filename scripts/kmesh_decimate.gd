@@ -48,6 +48,11 @@ const PLANAR_ANGLE := 5.0   # deg, Blender's limited dissolve default
 static var last := {}
 
 
+## n03: the collapse loop in C++ (MeshOpsDoor.door().decimate) when the DLL has it; KINE_NO_NATIVE=1 forces the GDScript path below
+static func native_on() -> bool:
+	return MeshOpsDoor.on()
+
+
 ## working state of one collapse
 class _S:
 	var P: PackedVector3Array
@@ -301,6 +306,12 @@ static func collapse(m: KMesh, ratio := 0.5, target_tris := -1, lock_features :=
 		return res
 	if tris0 != m.faces.size():
 		KMeshTopo.triangulate(m)   # n-gons -> triangles, A09 attributes + custom normals carried
+	if native_on():
+		var nres := _collapse_native(m, target, lock_features, res)
+		if not nres.is_empty():
+			nres["ms"] = (Time.get_ticks_usec() - t0) / 1000.0
+			last = nres
+			return nres
 	var s := _S.new()
 	s.lock = lock_features
 	s.P = m.verts
@@ -457,6 +468,29 @@ static func collapse(m: KMesh, ratio := 0.5, target_tris := -1, lock_features :=
 	res["tris_after"] = m.face_count()
 	res["ms"] = (Time.get_ticks_usec() - t0) / 1000.0
 	last = res
+	return res
+
+
+## n03: the same collapse in C++ (same quadrics, heap and tie order). {} when the mesh has an edge attribute (the GDScript path
+## keeps the edge map for those); otherwise the result dictionary of collapse()
+static func _collapse_native(m: KMesh, target: int, lock_features: bool, res: Dictionary) -> Dictionary:
+	for k in m.attrs:
+		if m.attrs[k]["domain"] == KMesh.AD_EDGE:
+			return {}
+	var nv0 := m.verts.size()
+	var r: Dictionary = MeshOpsDoor.door().decimate(m.verts, m.faces, _corner_classes(m), m.he_twin, m.he_next, target, lock_features)
+	var s := _S.new()
+	s.tv = r["tv"]
+	s.tc = r["tc"]
+	s.talive = r["talive"]
+	_write_back(m, s, [])
+	res["collapses"] = int(r["collapses"])
+	res["refused_flip"] = int(r["refused_flip"])
+	res["refused_link"] = int(r["refused_link"])
+	res["refused_side"] = int(r["refused_side"])
+	res["refused_lock"] = int(r["refused_lock"])
+	res["max_cost"] = float(r["max_cost"])
+	res["tris_after"] = m.face_count()
 	return res
 
 
