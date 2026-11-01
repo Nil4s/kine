@@ -2138,6 +2138,7 @@ func _lib_press(cat: String) -> void:
 		_say("Wheels: press Wheel or Castor. It drops on the floor, with its axle hole")
 	elif cat == "Boards":   # p078makeacasef
 		_say("Boards: press your board. A case for it drops on the floor")
+		_bcase_scroll.call_deferred()   # s077: the real-board chips sit low on the page: scroll them into view
 	elif cat == "Wood boards":   # P080: the two wood chips open under the library
 		_say("Wood boards: pick one by its real size. It lies on the floor, flat")
 	elif cat == "Type it":   # p085typetobuil: a line of words builds a box
@@ -2357,6 +2358,7 @@ func _board_box() -> PanelContainer:
 		b.pressed.connect(_board_pick.bind(bd))
 		g.add_child(b)
 		board_btns[bd] = b
+	_bcase_chips(vb)   # s077: the real-board boxes under the two quick cases
 	return pc
 
 
@@ -2588,7 +2590,8 @@ func _screw_sync() -> void:
 	_rib_sync()   # s013
 	# p078makeacasef: the Boards chips: the case on the floor shows its board pressed
 	var bcur: Dictionary = (_rec().get("easy", {}) as Dictionary).get("p", {}) if _tpl() == "case" else {}
-	board_box.visible = (parts_open and lib_cat == "Boards") or _tpl() == "case"
+	board_box.visible = (parts_open and lib_cat == "Boards") or _tpl() == "case" or _tpl().begins_with("bc_")
+	_bcase_sync()   # s077
 	if fit_row != null:
 		fit_row.visible = parts_open and lib_cat == "Boards"   # s193
 	for bd in board_btns:
@@ -7596,3 +7599,78 @@ func _fit_row() -> HBoxContainer:
 	fit_row = preload("res://scripts/easy_fit.gd").new()
 	fit_row.setup(self)
 	return fit_row
+
+
+# ---------------------------------------------------------------- s077: boxes for real boards (Parts > Boards)
+var bc_btns := {}   # template name (bc_uno ...) -> its chip
+
+
+## s077: under the two quick cases: one chip per real board (datasheet size, standoffs at its holes, port openings), each a box with a Wall
+## slider and a Gap slider
+func _bcase_chips(vb: VBoxContainer) -> void:
+	var jl := Label.new()
+	jl.name = "easypart_bcase_words"
+	jl.text = "Exact box: standoffs at the board's real holes, openings for its ports. Sliders: wall and gap"
+	jl.add_theme_font_size_override("font_size", 14)
+	jl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(jl)
+	var jg := HFlowContainer.new()
+	jg.add_theme_constant_override("h_separation", 4)
+	jg.add_theme_constant_override("v_separation", 4)
+	vb.add_child(jg)
+	for t in PartTemplates.BC_ORDER:
+		var b := Button.new()
+		b.name = "easypart_bcase_" + String(t)
+		b.text = String(PartTemplates.BC_BOARDS[t]["name"])
+		b.icon = _board_icon(1)
+		b.tooltip_text = "%s: a box with standoffs at the board's holes and openings for its ports. One click, one undo step" % b.text
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		b.custom_minimum_size = Vector2(150, 34)
+		b.add_theme_font_size_override("font_size", 13)
+		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		b.pressed.connect(_bcase_pick.bind(t))
+		jg.add_child(b)
+		bc_btns[t] = b
+
+
+## s077: a real-board box on the floor (one undo step); the same board again does nothing
+func _bcase_pick(t: String) -> void:
+	if not Part.available():
+		_chips_sync()
+		return
+	if _tpl() == t:
+		_say("Already the %s box. Pick another board to change it" % String(PartTemplates.BC_BOARDS[t]["name"]))
+		_screw_sync()
+		return
+	armed = ""
+	hole_base = {}
+	split_id = ""
+	_flush_if_dirty()
+	m._step_hint = "Start a %s box" % String(PartTemplates.BC_BOARDS[t]["name"])
+	m._push_undo()
+	m.S.part = PartTemplates.make(t)
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	if not (pu.res.get("errors", {}) as Dictionary).is_empty():
+		_say("The %s box did not build. Press Reset, then pick the board again" % String(PartTemplates.BC_BOARDS[t]["name"]))
+	else:
+		_say("A box for the %s: standoffs, port openings and a lid. Wall and Gap are the sliders" % String(PartTemplates.BC_BOARDS[t]["name"]))
+	_screw_sync()
+
+
+func _bcase_sync() -> void:
+	for t in bc_btns:
+		var b: Button = bc_btns[t]
+		b.set_pressed_no_signal(_tpl() == t)
+		m._grey(b, Part.why_not() if not Part.available() else "")
+
+
+func _bcase_scroll() -> void:
+	await get_tree().process_frame
+	var sc := panel.find_child("easypart_panel_scroll", true, false) as ScrollContainer
+	if sc != null and board_box != null and board_box.visible:
+		sc.ensure_control_visible(board_box)

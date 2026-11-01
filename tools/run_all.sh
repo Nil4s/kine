@@ -468,3 +468,4 @@ EXTRA="$EXTRA s191:w"   # Friday 191: Sketch with sizes (AI): Trace box option, 
 
 
 EXTRA="$EXTRA s193:w"   # s193 (Friday plan 193): Fit to an object, Parts > Boards: a phone scan (.obj, 1/1000 scale, noisy, tumbled) -> real size -> Holder / Case by the CAD kernel; ray-cast pocket, wall and enclosure bars (tests/s193_test.gd)
+EXTRA="$EXTRA s077:w"   # s077 (Friday plan 77): Parts > Boards real-board boxes (Arduino Uno R3, ESP32 51/55 x 28, Raspberry Pi 4B): standoffs at the datasheet holes (rays: 4 found, dia 0.1, centres 0.05), port cut-outs escape, Wall and Gap sliders
