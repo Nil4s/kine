@@ -472,3 +472,7 @@ EXTRA="$EXTRA s077:w"   # s077 (Friday plan 77): Parts > Boards real-board boxes
 
 
 EXTRA="$EXTRA s063:w"   # s063 FASTEN THESE TWO (Friday plan 63): Stick together, two plates picked: Fasten these two picks the screw size and length and two hole places, cuts clearance and pilot holes, places the screws; the instruction sheet lists 2x M3 x 10 (tests/s063_test.gd; needs the CAD DLL)
+
+
+
+EXTRA="$EXTRA s031:w"   # s031 (Friday plan 31): Thread look on a round hole: a helix drawn in the bore at the ISO pitch (radius / pitch / same-STL / sheet line / one undo bars; tests/s031_test.gd)

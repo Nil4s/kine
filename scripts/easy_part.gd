@@ -437,6 +437,11 @@ func _hole_box() -> PanelContainer:
 	stack_btn.custom_minimum_size = Vector2(150, 44)
 	stack_btn.visible = false
 	h.add_child(stack_btn)
+	thread_btn = _big_btn("easypart_hole_thread", "Thread look", "Draw the thread of the nearest metric size (M3 to M12) inside a round hole, and put 'tap it or use a heat-set insert' on the instruction sheet. Only the picture changes: the solid and the export stay the same", _thread_press)   # s031
+	thread_btn.toggle_mode = true
+	thread_btn.custom_minimum_size = Vector2(120, 44)
+	thread_btn.visible = false
+	h.add_child(thread_btn)
 	var flb := _big_btn("easypart_hole_flat", "Flat pattern", "Unfold the box into a flat sheet to laser-cut: six panels with finger joints. The model does not change", _flat_press)   # p117flatpatter
 	flb.custom_minimum_size = Vector2(120, 44)
 	h.add_child(flb)   # not a toggle: it is not in hole_btns (the row's pressed state would ignore it)
@@ -4814,7 +4819,8 @@ func _step_words_plain(f: Dictionary) -> String:
 		"extrude":
 			var cm := _fmt_cm(absf(float(f.get("dist", 0.0))))
 			if String(f.get("op", "")) == "cut":
-				return "Cut a slot %s deep" % cm
+				var tw := _thread_words_of(f)   # s031: a threaded hole says its thread
+				return "Cut a slot %s deep. %s" % [cm, tw] if tw != "" else "Cut a slot %s deep" % cm
 			if bool(f.get("both", false)):
 				return "Pulled out both ways %s" % cm
 			return "Pulled up %s" % cm

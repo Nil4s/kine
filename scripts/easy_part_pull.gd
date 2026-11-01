@@ -19,6 +19,9 @@ func _hole_sync() -> void:
 	if snap_btn != null:
 		snap_btn.set_pressed_no_signal(_rec_has_lip())   # the record says it (an Undo takes the chip off with the lip)
 		snap_btn.visible = hole_mode == "lid"   # the chip only exists for a lid
+	if thread_btn != null:   # s031: Thread look exists for a round Through hole
+		thread_btn.visible = hole_mode == "through" and _hole_on() and not _thread_feature().is_empty()
+		thread_btn.set_pressed_no_signal(bool(_thread_feature().get("thread", false)))
 	if wall_btn != null:
 		wall_btn.set_pressed_no_signal(wall_pick)
 		wall_btn.visible = hole_mode == "hollow" and _hole_on()   # Thicker wall only exists for a hollow
@@ -2199,3 +2202,62 @@ func _smartfit_press() -> void:
 		_values_sync()
 	_smartfit_sync()
 	_say("%s. %s" % [words, "The hole is made again" if is_hole else "The next hole and lid use it"])
+
+
+## THREAD LOOK (s031, Friday plan 31): the cut step of the newest round Through hole ({} = none: the chip hides)
+func _thread_feature() -> Dictionary:
+	var sk := Part.feature(_rec(), hole_id)
+	var ents: Array = sk.get("ents", [])
+	if String(sk.get("t", "")) != "sketch" or ents.size() != 1 or String(ents[0].get("k", "")) != "circle":
+		return {}
+	for f in _rec().get("features", []):
+		if String(f.get("t", "")) == "extrude" and String(f.get("sketch", "")) == hole_id and String(f.get("op", "")) == "cut":
+			return f
+	return {}
+
+
+## THREAD LOOK (s031): the Thread look chip under Through. On: a helix is drawn along the bore at the ISO pitch of the nearest metric size (M3..M12)
+## and the instruction sheet says "M6 thread: tap it or use a heat-set insert". The solid is the same (export too). One undo step per press
+func _thread_press() -> void:
+	if not _hole_on() or hole_mode != "through" or not Part.available():
+		_hole_sync()
+		return
+	_flush_if_dirty()
+	armed = ""
+	var on := not bool(_thread_feature().get("thread", false))
+	var snap := _rec().duplicate(true)
+	_begin("Thread look on" if on else "Thread look off")
+	var f := _thread_feature()
+	if f.is_empty():
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("The hole is gone: press Cut a hole again, then Thread look")
+		_hole_sync()
+		return
+	if on:
+		f["thread"] = true
+	else:
+		f.erase("thread")
+	_end()
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	_hole_sync()
+	if on:
+		_say("Thread look on: " + _thread_words_of(f) + ". Only the picture changes: the solid is the same")
+	else:
+		_say("Thread look off: the bore is plain")
+
+
+## the plain words of a threaded hole's cut step ("" when it has no thread look): "M6 thread (1 mm pitch): tap it or use a heat-set insert"
+func _thread_words_of(f: Dictionary) -> String:
+	if not bool(f.get("thread", false)):
+		return ""
+	var sk := Part.feature(_rec(), String(f.get("sketch", "")))
+	var ents: Array = sk.get("ents", [])
+	if ents.size() != 1 or String(ents[0].get("k", "")) != "circle":
+		return ""
+	var t := Part.thread_look_size(2.0 * float(ents[0]["r"]))
+	return Part.thread_look_words(int(t[0]), float(t[1]))
