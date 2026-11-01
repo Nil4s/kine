@@ -328,6 +328,14 @@ func _init() -> void:
 		print("     CVA %-16s %.1f deg" % [nm, cva[nm]])
 	ok(cva["stand"] >= 48.0 and cva["stand"] <= 55.0, "REAL stand: CVA %.1f deg is in the neutral adult range 48-55 (the landmark check)" % cva["stand"])
 	ok(cva["tired_slump"] < 50.0 and cva["tired_droop"] < 50.0, "REAL tired: CVA %.1f / %.1f deg are forward-head (< 50)" % [cva["tired_slump"], cva["tired_droop"]])
+	# EVERY pose the "tired" search returns: a strongly slumped real person reads 30-45 deg (not a 10-16 deg caricature)
+	var tired_bad := []
+	for tr_row in found["tired"]:
+		var tc: float = cva_of.call(fresh(load_pose(tr_row[1])))
+		print("     CVA tired search row %-20s %.1f deg" % [tr_row[0], tc])
+		if tc < 30.0 or tc > 45.0:
+			tired_bad.append("%s %.1f" % [tr_row[0], tc])
+	ok(tired_bad.is_empty() and found["tired"].size() >= 3, "REAL every tired search row has CVA 30-45 deg (outside: %s)" % [tired_bad])
 	ok(cva["tired_droop"] < cva["tired_slump"] and cva["tired_slump"] < cva["stand"], "REAL tired: the deeper slump has the smaller CVA (%.1f < %.1f < stand %.1f)" % [cva["tired_droop"], cva["tired_slump"], cva["stand"]])
 	ok(cva["calm_easy"] >= 50.0 and cva["calm_easy"] <= 65.0, "REAL calm_easy: CVA %.1f deg is normal (50-65)" % cva["calm_easy"])
 	ok(cva["proud_chest_out"] >= 50.0 and cva["proud_chest_out"] <= 65.0, "REAL proud_chest_out: CVA %.1f deg is normal-to-high (50-65)" % cva["proud_chest_out"])
@@ -346,5 +354,13 @@ func _init() -> void:
 		ok(rch <= alen + 0.001 and rch < 0.9 * alen and rch > 0.15 and elb >= 60.0 and elb <= 145.0 and hf <= 0.40, "REACH %s: %.3f m of %.3f m, elbow %.0f deg, %.2f m from the face" % [nm, rch, alen, elb, hf])
 		reach_n += 1
 	ok(reach_n == 3, "REACH: %d scared poses measured" % reach_n)
+	# the three scared arms are three different arms: elbows at least 15 deg apart pairwise
+	var elbs := []
+	for nm in ["scared_shield", "scared_hand_to_mouth", "scared_back_away"]:
+		var bq := fresh(load_pose("res://poses/lib/%s.json" % nm))
+		var fq: Vector3 = ((bq.P["head"] as Vector3) + (bq.E["head"] as Vector3)) * 0.5
+		elbs.append(bq.ang["lowerarm_l"].x if (bq.P["hand_l"] as Vector3).distance_to(fq) < (bq.P["hand_r"] as Vector3).distance_to(fq) else bq.ang["lowerarm_r"].x)
+	var gap := minf(minf(absf(elbs[0] - elbs[1]), absf(elbs[0] - elbs[2])), absf(elbs[1] - elbs[2]))
+	ok(gap >= 15.0, "SCARED ARMS differ: guarding elbows %.0f / %.0f / %.0f deg, smallest gap %.0f deg (>= 15)" % [elbs[0], elbs[1], elbs[2], gap])
 	print("s140: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
