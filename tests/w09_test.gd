@@ -201,7 +201,7 @@ func run_size(sz: Vector2i) -> void:
 		for c in panel.find_children("*", "Button", true, false):
 			names.append(String((c as Button).text).replace("  (picked)", ""))
 	names.sort()
-	ok(names == ["Extrude 1", "Extrude 2"], "%s C the list names both: %s" % [sz, names])
+	ok(names == ["Extrude 1", "Extrude 2"], "%s C the list names both: %s" % [sz, names])   # W09b (ledger row W09b): labels are body/feature names now; was ["Piece 1","Piece 2"]
 	# D: front is picked now; press the name of the back piece with a real click
 	var want: String = String(PickStack.names_for(m.S.part, 2)[back]["label"])   # W09b navigation: the list now shows body names
 	var btn: Button = m.find_child("pickstack_" + want.replace(" ", "_"), true, false)
