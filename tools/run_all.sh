@@ -641,3 +641,6 @@ EXTRA="$EXTRA s240:w"   # s240: FRAMED FLOOR OVERLAP (Fit view frames the grid i
 
 
 EXTRA="$EXTRA s239:w"   # s239: GROUPED LIBRARY (group tabs, every chip readable, any number of categories fits), tests/s239_test.gd
+
+
+EXTRA="$EXTRA s243:w"   # s243: FRAMING FACTS FROM THE SILHOUETTE (frame_facts, frame_to), tests/s243_test.gd
