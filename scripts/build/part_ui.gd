@@ -44,7 +44,7 @@ const TIPS := {
 	"Circle": "CIRCLE: press the centre, drag out the radius.",
 	"Arc": "ARC: click the start, click the end, then click a point the arc passes through.",
 	"Spline": "SPLINE: click points for a smooth curve. Click the first point (or double-click) to close it; double-click ends an open curve. Drag a point to move it.",
-	"Dimension": "DIMENSION: pick a line, an edge of a rectangle or a circle, type its size, press Enter.",
+	"Dimension": "DIMENSION: pick a line, an edge of a rectangle or a circle, type its size, press Enter. Click a rectangle corner for its x and y from the origin.",
 	"Constrain": "CONSTRAIN: opens the rule row: Horiz, Vert, Coinc, Parallel, Perp, Equal, Angle, Remove. The rules are kept when you drag an end.",
 	"Horizontal": "HORIZONTAL: click a line; it is made level, and stays level.",
 	"Vertical": "VERTICAL: click a line; it is made upright, and stays upright.",
@@ -1183,7 +1183,9 @@ func _press_sketch(p: Vector2) -> bool:
 			else:
 				draft = {"k": "arc", "pts": pts, "b": a}
 		"Dimension":
-			var pk := pick_ent(p)
+			var pk := PartPosDim.corner_pick(_sk().get("ents", []), p, scr)   # W02c: a rectangle's corner = its x, then y, from the origin
+			if pk.is_empty():
+				pk = pick_ent(p)
 			if pk.is_empty() or pk["kind"] == "":
 				_say("DIMENSION: click a line, an edge of a rectangle or a circle")
 			else:
@@ -1533,9 +1535,19 @@ func _dim_submitted(t: String) -> void:
 		return
 	if dim_target.is_empty() or sk == "":
 		return
+	var then_y: bool = bool(dim_target.get("then_y", false))
+	var ent_y: int = int(dim_target["ent"])
 	var err := _set_dim_text(int(dim_target["ent"]), String(dim_target["kind"]), t)
 	if err != "":
 		_say(err)
+	elif then_y:
+		dim_target = {}
+		dim_edit.release_focus()
+		_after_sketch_edit()
+		dim_target = PartPosDim.next_y(_sk(), ent_y, scr)
+		_open_dim_edit.call_deferred(dim_target)   # (deferred: the edit lets go of focus right after it submits)
+		_say("x set. Now type the corner's y from the origin and press Enter")
+		return
 	elif Part.parse_bind(t).is_empty():
 		var shown := t.replace("mm", "").strip_edges()
 		if NumExpr.is_expression(shown):   # W07: the resolved size, then what was typed
@@ -1557,6 +1569,11 @@ func _body_measures() -> Dictionary:
 ## a dimension's typed text: a size in mm (plain: the dimension stops reading the body) or =forearm+4 (reads the body).
 ## Returns the message to show ("" = set)
 func _set_dim_text(ent: int, kind: String, t: String) -> String:
+	if kind == "x" or kind == "y":   # W02c: a position may be zero or negative; units go through LengthParse
+		var pr := LengthParse.parse_length(t.strip_edges(), unit())
+		if not bool(pr["ok"]):
+			return String(pr["error"])
+		return Part.set_dim_held(_sk(), ent, kind, float(pr["mm"]))
 	var v := t.replace("mm", "").strip_edges()
 	var bind := Part.parse_bind(v)
 	if not bind.is_empty():
@@ -1600,7 +1617,7 @@ func _dim_field_text(d: Dictionary) -> String:
 
 func _set_dim_value(i: int, v: float) -> void:
 	var dims: Array = _sk().get("dims", [])
-	if i >= dims.size() or v <= 0.0 or (absf(float(dims[i]["mm"]) - v) < 1e-9 and not dims[i].has("bind")):   # a bound size typed as a plain number stops reading the body
+	if i >= dims.size() or (v <= 0.0 and not String(dims[i]["kind"]) in ["x", "y"]) or (absf(float(dims[i]["mm"]) - v) < 1e-9 and not dims[i].has("bind")):   # a bound size typed as a plain number stops reading the body
 		return
 	var err := Part.set_dim_held(_sk(), int(dims[i]["ent"]), String(dims[i]["kind"]), v)
 	if err != "":
@@ -2443,7 +2460,13 @@ func _num_typed(i: int, t: String, le: LineEdit) -> void:
 		_after_sketch_edit()
 	elif i < dims.size():   # XDIM: a plain size (40, 4 cm) sets it; anything else says what to type (it was silent)
 		var mm := typed_mm(v, unit())
-		if mm > 0.0:
+		if String(dims[i]["kind"]) in ["x", "y"]:   # W02c: a position can be 0 or below
+			var pr := LengthParse.parse_length(v, unit())
+			if bool(pr["ok"]):
+				_set_dim_value(i, float(pr["mm"]))
+			else:
+				_say(String(pr["error"]))
+		elif mm > 0.0:
 			_set_dim_value(i, mm)
 		else:
 			_say(_size_words(v))
@@ -3080,6 +3103,12 @@ func _draw_dim(ents: Array, d: Dictionary) -> void:
 	var off := Vector2(0, 26)
 	var txt := "%s" % _fmt(float(d["mm"]))
 	match String(d["kind"]):
+		"x", "y":   # W02c: a line from the origin along the axis to the corner
+			a = Vector2(0, 0) if String(d["kind"]) == "x" else Vector2(0, 0)
+			b = Part.v2(e["a"])
+			a = Vector2(0, b.y) if String(d["kind"]) == "x" else Vector2(b.x, 0)
+			off = Vector2(0, 26) if String(d["kind"]) == "x" else Vector2(-30, 0)
+			txt = ("x " if String(d["kind"]) == "x" else "y ") + txt
 		"w":
 			a = Part.v2(e["a"])
 			b = Vector2(Part.v2(e["b"]).x, a.y)

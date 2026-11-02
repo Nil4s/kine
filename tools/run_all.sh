@@ -714,3 +714,4 @@ EXTRA="$EXTRA w10b:w"   # w10b: the app piece counter _lumps counts edge-touchin
 
 
 EXTRA="$EXTRA s257:w"   # s257: frame_to finds a body by its bname name AND its stable body key, tests/s257_test.gd
+EXTRA="$EXTRA w02c:w"   # w02c: Dimension tool on a rectangle corner gives x / y from the origin, tests/w02c_test.gd

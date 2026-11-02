@@ -298,6 +298,13 @@ static func apply_dim(ents: Array, d: Dictionary) -> void:
 		"r":
 			if e["k"] == "circle":
 				e["r"] = mm
+		"x", "y":   # W02c: where the rectangle's first corner sits from the origin (the whole rectangle moves, its size stays)
+			if e["k"] == "rect":
+				var a := v2(e["a"])
+				var b := v2(e["b"])
+				var sh := Vector2(mm - a.x, 0.0) if String(d["kind"]) == "x" else Vector2(0.0, mm - a.y)
+				e["a"] = arr2(a + sh)
+				e["b"] = arr2(b + sh)
 
 
 ## what a dimension measures now (mm)
@@ -311,6 +318,10 @@ static func measure(e: Dictionary, kind: String) -> float:
 			return v2(e["a"]).distance_to(v2(e["b"]))
 		"r":
 			return float(e["r"])
+		"x":
+			return v2(e["a"]).x
+		"y":
+			return v2(e["a"]).y
 	return 0.0
 
 
@@ -410,7 +421,7 @@ static func set_dim(sk: Dictionary, ent: int, kind: String, mm: float, bind := {
 	var d := {"id": "d%d" % (dims.size() + 1), "ent": ent, "kind": kind, "mm": mm}
 	if not bind.is_empty():
 		d["bind"] = bind.duplicate()
-	var word: String = {"w": "width", "h": "height", "len": "length", "r": "radius"}[kind]
+	var word: String = {"w": "width", "h": "height", "len": "length", "r": "radius", "x": "x", "y": "y"}[kind]
 	var same := 0
 	for o in dims:
 		if String(o["name"]).begins_with(word):
