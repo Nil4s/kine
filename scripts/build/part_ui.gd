@@ -2763,6 +2763,7 @@ func layout(cl: Rect2) -> void:
 	side.position = Vector2(cl.end.x - side.size.x - 8.0, cl.position.y + 6.0)
 	note.reset_size()
 	note.position = Vector2(browser.position.x + BROWSER_W + 12.0, cl.position.y + 6.0)
+	PartNoteFit.fit(note, note_l, m.get_viewport().get_visible_rect().size, [warn_ui, side])   # W02b: the whole status text, clear of the Look/Print panel
 	if bu.houses != null:
 		bu.houses.open_panel.visible = false
 		bu.houses.ask_box.visible = false

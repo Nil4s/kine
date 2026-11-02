@@ -44,7 +44,7 @@ static func analyze(sk: Dictionary) -> Dictionary:
 		var n := 0
 		match String(e.get("k", "")):
 			"rect":
-				n = 2 - (1 if _has_dim(dims, i, "w") else 0) - (1 if _has_dim(dims, i, "h") else 0)
+				n = 2 - (1 if _has_dim(dims, i, "w") else 0) - (1 if _has_dim(dims, i, "h") else 0) + _rect_pos_free(e, dims, i)
 			"circle":
 				n = 1 - (1 if _has_dim(dims, i, "r") else 0)
 			"line":
@@ -71,6 +71,19 @@ static func analyze(sk: Dictionary) -> Dictionary:
 		out["state"] = "free"
 		out["text"] = "%d free" % free
 	return out
+
+
+## W02b: where a rectangle sits is two more ways it can move. It is pinned when a corner is the origin (the anchored corner), when a
+## "pos" dimension gives the corner's distance from the origin, or when "x" / "y" dimensions give each coordinate.
+static func _rect_pos_free(e: Dictionary, dims: Array, i: int) -> int:
+	var a := Part.v2(e.get("a", [0, 0]))
+	var b := Part.v2(e.get("b", [0, 0]))
+	for c in [a, b, Vector2(a.x, b.y), Vector2(b.x, a.y)]:
+		if absf(c.x) < 1e-6 and absf(c.y) < 1e-6:
+			return 0
+	if _has_dim(dims, i, "pos"):
+		return 0
+	return 2 - (1 if _has_dim(dims, i, "x") else 0) - (1 if _has_dim(dims, i, "y") else 0)
 
 
 static func _has_dim(dims: Array, ent: int, kind: String) -> bool:
