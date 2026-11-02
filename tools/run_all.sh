@@ -694,3 +694,6 @@ EXTRA="$EXTRA w07:w"   # w07: arithmetic in number fields (25*2+3), scripts/num_
 
 
 EXTRA="$EXTRA w02:w"   # w02: sketch health free / fully defined / over-constrained by colour + the clashing pair named, tests/w02_test.gd
+
+
+EXTRA="$EXTRA w03:w"   # W03: stable references: hinge pivot follows the body box after a step-1 resize, tests/w03_test.gd

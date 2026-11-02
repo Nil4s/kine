@@ -3275,7 +3275,7 @@ func _hinge_open(f: Dictionary, edit: int) -> void:
 	hp = {"body": -1, "faces": Part.body_faces(_rec(), -1), "pts": []}
 	if edit >= 0:
 		hp["body"] = int(f.get("body", -1))
-		hp["o"] = Part._pivot(f)
+		hp["o"] = PartRefs.pivot_for_rec(_rec(), f) if f.has("oq") else Part._pivot(f)   # W03
 		hp["d"] = Part._axis(f)
 		var tr: Array = f.get("track", [])
 		if tr.size() >= 2:
