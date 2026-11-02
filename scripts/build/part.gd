@@ -2766,6 +2766,7 @@ static func paint(mesh: ArrayMesh, looks: Array) -> void:
 		var mt := StandardMaterial3D.new()
 		var mm := MaterialMaker.look_material(l)   # s223: a made material (triplanar maps) when the look has one
 		if mm != null:
+			PartGlow.apply(mm, l)   # s258
 			mesh.surface_set_material(s, mm)
 			continue
 		mt.albedo_color = Color(c.r, c.g, c.b, a)
@@ -2776,13 +2777,16 @@ static func paint(mesh: ArrayMesh, looks: Array) -> void:
 		mt.cull_mode = BaseMaterial3D.CULL_DISABLED
 		if a < 1.0:
 			mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		PartGlow.apply(mt, l)   # s258: a glowing look draws as emission
 		mesh.surface_set_material(s, mt)
 
 
 static func look_of(f: Dictionary) -> Dictionary:
 	var c: Array = f.get("color", [0.74, 0.77, 0.82])
-	return {"c": Color(float(c[0]), float(c[1]), float(c[2])), "rough": float(f.get("rough", 0.5)), "metal": float(f.get("metal", 0.15)),
+	var lk := {"c": Color(float(c[0]), float(c[1]), float(c[2])), "rough": float(f.get("rough", 0.5)), "metal": float(f.get("metal", 0.15)),
 		"alpha": clampf(float(f.get("alpha", 1.0)), 0.0, 1.0), "preset": String(f.get("preset", "Custom")), "mat": f.get("mat", {})}   # s223: "mat" = a MaterialMaker spec
+	PartGlow.read(f, lk)   # s258: an emission colour + strength ("glow", "glow_k") when the step has one
+	return lk
 
 
 ## the look of body i: its last appear step, else its chip (by index) with the default numbers

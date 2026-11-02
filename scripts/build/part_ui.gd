@@ -4522,6 +4522,7 @@ func _look_surfaces() -> void:
 		var l: Dictionary = ls[s]
 		var mm := MaterialMaker.look_material(l, PartViewTools.X_ALPHA if xray else 1.0)   # s223: a made material, triplanar in mm
 		if mm != null:
+			PartGlow.apply(mm, l)   # s258
 			part_mesh.set_surface_override_material(s, mm)
 			continue
 		var mt := StandardMaterial3D.new()
@@ -4535,6 +4536,7 @@ func _look_surfaces() -> void:
 		mt.cull_mode = BaseMaterial3D.CULL_DISABLED
 		if a < 1.0:
 			mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		PartGlow.apply(mt, l)   # s258: a glowing look draws as emission
 		part_mesh.set_surface_override_material(s, mt)
 	SectionLook.after_look(self)   # S218: per-body cap colours on a cut / split
 	if cut_hook.is_valid():
