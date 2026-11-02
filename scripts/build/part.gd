@@ -892,6 +892,7 @@ static func _tess_cached(id: int, coarse: bool) -> ArrayMesh:
 const MAX_SURFACES := 256
 static func pack_surfaces(mesh: ArrayMesh, pend: Array, res: Dictionary) -> void:
 	var groups: Array = []   # [[pend index, ...]] one per surface
+	res["surf_ranges"] = []
 	if pend.size() <= MAX_SURFACES:
 		for k in pend.size():
 			groups.append([k])
@@ -913,6 +914,13 @@ static func pack_surfaces(mesh: ArrayMesh, pend: Array, res: Dictionary) -> void
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 		res["looks"].append(pend[g[0]][1])
 		res["surf_body"].append(pend[g[0]][2])
+		var rg: Array = []   # s243: every body of this surface and its vertex range, [[body, first vertex, vertex count]] (the framing facts read one body's triangles)
+		var v0 := 0
+		for k in g:
+			var nv := ((pend[k][0] as Array)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+			rg.append([pend[k][2], v0, nv])
+			v0 += nv
+		res["surf_ranges"].append(rg)
 
 
 ## several surfaces' arrays as one (vertex-shaped slots appended, indices shifted)

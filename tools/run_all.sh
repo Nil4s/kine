@@ -648,3 +648,8 @@ EXTRA="$EXTRA s244:w"   # s244: CHECKPOINT + REPLAY FROM STEP, tests/s244_test.g
 
 
 EXTRA="$EXTRA s242:w"   # s242: LOOK FACTS (agent look_facts: per-piece colour, coverage, contrast, visibility from an ID pass + the final light), tests/s242_test.gd
+
+
+
+
+EXTRA="$EXTRA s243:w"   # s243: FRAMING FACTS FROM THE SILHOUETTE (frame_facts, frame_to), tests/s243_test.gd
