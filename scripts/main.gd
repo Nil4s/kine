@@ -11558,6 +11558,9 @@ func _theme() -> Theme:
 	th.set_color("font_hover_color", "RibbonTab", Tok.c("text"))
 	th.set_color("font_pressed_color", "RibbonTab", Tok.c("heading"))
 	th.set_color("font_hover_pressed_color", "RibbonTab", Tok.c("heading"))
+	# s250: the open tab's ICON reads like its words (the Button default, on_accent, is dark ink for an accent fill: on the tab's dark panel it was near invisible)
+	th.set_color("icon_pressed_color", "RibbonTab", Tok.c("heading") if Tok.dark else Tok.c("on_accent"))
+	th.set_color("icon_hover_pressed_color", "RibbonTab", Tok.c("heading") if Tok.dark else Tok.c("on_accent"))
 	# a section's header in the inspector (RR2): a hairline above, the words, no box
 	th.set_type_variation("Section", "Button")
 	for st in ["normal", "hover", "pressed", "hover_pressed"]:

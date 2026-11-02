@@ -229,11 +229,10 @@ func build(root: Control) -> void:
 	panel_title = Label.new()
 	panel_title.name = "easypart_panel_title"
 	panel_title.add_theme_font_size_override("font_size", 20)   # 20 (was 22): the title line holds Empty and Examples too, inside the panel's width
-	panel_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panel_title.clip_text = true
-	var th := HBoxContainer.new()   # the title line: "Change your part" and, at its end, Empty (the template chips stay on one line below)
+	panel_title.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var th := HFlowContainer.new()   # the title line: "Change your part" and, at its end, Empty (the template chips stay on one line below)
 	th.name = "easypart_title_row"
-	v.add_child(th)
+	v.add_child(th)   # s250: a FLOW row: the title and the chips share it while they fit, and the chips drop to the next line when they do not (they covered the title at 1024 x 600)
 	th.add_child(panel_title)
 	empty_chip = Button.new()   # EMPTY first: Easy Part opens on a sword, and a beginner building their own thing needs a clean floor
 	empty_chip.name = "easypart_chip_empty"
