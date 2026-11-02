@@ -23570,10 +23570,15 @@ func _anim_import_ask() -> void:
 	fd.filters = PackedStringArray(["*.fbx, *.glb, *.gltf, *.bvh ; animations"])
 	fd.use_native_dialog = true
 	fd.title = "Import an animation (Mixamo, Unreal, Blender ...)"
-	fd.file_selected.connect(func(p): _import_anim(p); fd.queue_free())
+	fd.file_selected.connect(func(p): _import_anim_picked(p); fd.queue_free())
 	fd.canceled.connect(fd.queue_free)
 	add_child(fd)
 	fd.popup_centered(Vector2i(800, 500))
+
+
+## the file dialog's pick (W04): the bone-map screen first when this rig has no saved map, else straight in
+func _import_anim_picked(p: String) -> void:
+	RetargetMap.import_with_screen(self, p)
 
 
 ## returns the new scene's path ("" refused)

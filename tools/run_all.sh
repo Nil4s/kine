@@ -663,3 +663,7 @@ EXTRA="$EXTRA s251:w"   # s251: tool labels never split a word, top bar buttons 
 EXTRA="$EXTRA s252:w"   # s252: undo/redo toasts name the step (never "Redid:"), toasts never cover a button, tests/s252_test.gd
 EXTRA="$EXTRA s253:w"   # s253: a slow frame never loses a drag or an undo state (exact playhead on Undo/Redo, drag after the camera ease), tests/s253_test.gd
 EXTRA="$EXTRA w01:w"   # w01: camera navigation settings (remap, zoom to cursor, orbit pivot, presets), tests/w01_test.gd
+
+
+EXTRA="$EXTRA w04:w"   # w04: retarget bone-map screen, tests/w04_test.gd
+EXTRA="$EXTRA w04m:w"   # w04m: bone-map screen through main._import_anim_picked, tests/w04m_test.gd
