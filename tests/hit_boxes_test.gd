@@ -12,7 +12,7 @@
 ##     the lane shows the box at its frames; the view draws the boxes (the --shot PNG shows them)
 extends SceneTree
 
-const BASE_HASH := "caaff2e7fb3fea766505ed63b31cb573"   # clips_test's: combo3 + walk_bat, no boxes, the base commit's body states
+const BASE_HASH := "4b8adc1bf7de3875d588a7f5d51b75fd"   # re-baselined from caaff2e7fb3fea766505ed63b31cb573 (s255): 37457e51 (HANDS) added state key free_hand and 80bdf6ec (Blade turn) added wep_turn + wep_tilt to Body.state(); with those 3 keys erased the 247 frames hash to caaff2e7 exactly, so every joint angle and weapon value is bit-identical, only the dict shape grew. Was: clips_test's: combo3 + walk_bat, no boxes, the base commit's body states
 const SHOT_FPS := 60
 var fails := 0
 
