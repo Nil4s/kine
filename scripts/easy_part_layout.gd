@@ -361,7 +361,7 @@ func _chrome_sync() -> void:
 	_steps_sync()   # NSTEPLIST
 	call("_level_apply_buttons")   # P093
 	title_l.text = "Part: %s" % String(rec.get("name", "Part")) if not rec.is_empty() else "Part"
-	panel_title.text = "Change your %s" % _nm()
+	panel_title.text = "Your %s" % _nm()   # s250: "Change your part" (168 px at 20) + Empty, Slot, Examples (159 px) does not fit the panel's 302 px row: the shorter title does, so the chips stay beside it
 	redo_btn.visible = not m.redo.is_empty()
 	var off := not Part.available()
 	for k in make_btns:
@@ -460,6 +460,7 @@ func layout(cl: Rect2) -> void:
 	title_l.clip_text = narrow
 	title_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if narrow else TextServer.OVERRUN_NO_TRIMMING
 	_lib_bar_fit(tight, narrow)   # bug4: the Library button's width, and the short words that make room for it at 1280
+	_bar_words(tight or narrow)   # s251: the long bar words take a SHORT label (full name in the tooltip) instead of "..."
 	var n := 0.0   # P093: only the visible ones share the row (Beginner hides five)
 	for b in make_btns.values():
 		if (b as Control).visible:
@@ -470,6 +471,7 @@ func layout(cl: Rect2) -> void:
 	make_box.reset_size()
 	for b in make_btns.values():
 		(b as Control).custom_minimum_size.x = bw
+	_make_words(bw)   # s251: no MAKE label breaks inside a word: a smaller font, then a shorter label
 	make_box.size = Vector2(bw * n + (n - 1.0) * 8.0, MAKE_H)
 	make_box.position = Vector2(cl.position.x + 8.0, cl.position.y + 4.0)
 	var top := make_box.position.y + maxf(MAKE_H, make_box.size.y) + 8.0   # the side panel's top
@@ -1781,3 +1783,82 @@ func _lib_bar_fit(tight: bool, narrow: bool) -> void:
 		title_l.clip_text = true
 		title_l.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 
+
+
+## s251: the top bar's long words and their short labels, widest first (the last is the least; the tooltip keeps the full name)
+const BAR_SHORT := {
+	"use_scene_btn": ["Save and use in a scene", "Save and use", "Save + use", "Save"],
+	"give_btn": ["Give to a character", "Give it", "Give"],
+	"restore_btn": ["Bring back your part", "Restore"],
+}
+const BAR_SHORT_TIP := {"use_scene_btn": "Save and use in a scene", "give_btn": "Give to a character", "restore_btn": "Bring back your part"}
+
+
+## s251: pick for each long bar button the widest label that fits its width (no clipping, no "..."). Wide windows keep the full words.
+func _bar_words(short: bool) -> void:
+	for k in BAR_SHORT:
+		var b: Button = get(k)
+		if b == null:
+			continue
+		var cands: Array = BAR_SHORT[k]
+		b.clip_text = false
+		b.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
+		var pick: String = cands[0]
+		if short:
+			if k == "restore_btn":
+				b.custom_minimum_size.x = 74.0   # s251: 1024 wide the row (a saved part is on the bar) must end inside the window
+			var f := b.get_theme_font("font")
+			var fs := b.get_theme_font_size("font_size")
+			var room := b.custom_minimum_size.x - b.get_theme_stylebox("normal").get_minimum_size().x - 4.0
+			pick = cands[cands.size() - 1]
+			for c in cands:
+				if f.get_string_size(String(c), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x <= room:
+					pick = c
+					break
+		if b.text != pick:
+			b.text = pick
+		var tip := b.get_meta("tip_full", b.tooltip_text) as String
+		b.set_meta("tip_full", tip)
+		b.tooltip_text = tip if pick == BAR_SHORT_TIP[k] else "%s: %s" % [BAR_SHORT_TIP[k], tip]
+
+
+const MAKE_SHORT := {"round": "Round edges", "blend": "Blend two", "stick": "Join up", "repeat": "Repeat", "spin": "Spin round", "curve": "Curve", "mirror": "Mirror", "split": "Cut in two", "colour": "Colour", "hole": "Cut a hole", "draw": "Draw", "pull": "Pull up"}
+
+
+## s251: a MAKE label breaks only at spaces. If its longest word is wider than the button's room, the font steps 14 -> 13 -> 12 -> 11,
+## and if that still does not fit, the label takes a short word (the full name goes first in the tooltip).
+func _make_words(bw: float) -> void:
+	for k in make_btns:
+		var b: Button = make_btns[k]
+		var full := ""
+		for mk in MAKES:
+			if mk[0] == k:
+				full = String(mk[1])
+		var f := b.get_theme_font("font")
+		var room := bw - b.get_theme_stylebox("normal").get_minimum_size().x - 4.0
+		var pick := full
+		var fsz := 14
+		var found := false
+		for cand in [full, String(MAKE_SHORT.get(k, full))]:
+			for fs in [14, 13, 12, 11]:
+				if _longest_word(f, String(cand), fs) <= room:
+					pick = cand
+					fsz = fs
+					found = true
+					break
+			if found:
+				break
+		b.text = pick
+		b.add_theme_font_size_override("font_size", fsz)
+		var pre := full + ": "
+		if pick != full and not b.tooltip_text.begins_with(pre):
+			b.tooltip_text = pre + b.tooltip_text   # the full name leads the tooltip of a shortened label
+		elif pick == full and b.tooltip_text.begins_with(pre):
+			b.tooltip_text = b.tooltip_text.substr(pre.length())
+
+
+static func _longest_word(f: Font, t: String, fs: int) -> float:
+	var w := 0.0
+	for part in t.split(" ", false):
+		w = maxf(w, f.get_string_size(part, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+	return w
