@@ -401,6 +401,144 @@ static func pieces(f: Dictionary) -> Array:
 	return out
 
 
+## s237 SEAT: an ornament placed ON a body (a roof) rests on it. Rays go straight down from over the base's footprint (a 3 x 3 grid inside the box, x along `bas`.x,
+## z across) onto the bodies already built; the highest hit under each sample is the surface there. With 5 or more hits the base leans to their best plane
+## (at most SEAT_TILT_DEG, so a curled hip carries a flat-footed beast without a wedge of air under it); then it drops (or rises) until its lowest footprint point is
+## SEAT_SINK_MM under the highest surface point, so the gap to the roof is 0 and the base is buried by at most that. Nothing under it within the capture range
+## (max(height, 500) mm below the base): free space, the place is returned unchanged. -> {"basis", "at", "seated": bool, "hits": int, "sink": mm}
+const SEAT_SINK_MM := 20.0
+const SEAT_TILT_DEG := 35.0
+const SEAT_CAST_MM := 3000.0
+
+
+## the mesh's own lowest points (local mm): the vertices in the bottom fifth of its height, at most 60 of them: what the seat drops onto the roof
+static func _base_pts(km: KMesh, sz: Vector3) -> Array:
+	var low: Array = []
+	for p in km.verts:
+		if p.y <= 0.2 * sz.y * MM:
+			low.append(p / MM)
+	if low.size() <= 60:
+		return low
+	var out: Array = []
+	var step := float(low.size()) / 60.0
+	for i in 60:
+		out.append(low[int(float(i) * step)])
+	return out
+
+
+static func _foot(sz: Vector3) -> Array:
+	var out: Array = []
+	for i in 3:
+		for k in 3:
+			out.append(Vector3((float(i) - 1.0) * 0.45 * sz.x, 0.0, (float(k) - 1.0) * 0.45 * sz.z))
+	return out
+
+
+static func _surface_under(bodies: Array, pts: Array, top_y: float, low_y: float) -> Array:
+	var hits: Array = []   # per sample: the highest surface y in [low_y, top_y], or NAN
+	var region := AABB()
+	var first := true
+	for q in pts:
+		var qq: Vector3 = q
+		var bx := AABB(Vector3(qq.x, low_y, qq.z), Vector3.ZERO)
+		region = bx if first else region.merge(bx)
+		first = false
+	region = region.grow(1.0)
+	region.size.y = maxf(region.size.y, top_y - low_y)
+	var cand: Array = []
+	for id in bodies:
+		var t := PartFacts.tess_mm(int(id), 0.002, 0.8)
+		if t.is_empty():
+			continue
+		var bb := PartFacts.box_of(t)
+		if bb.position.x > region.end.x or bb.end.x < region.position.x or bb.position.z > region.end.z or bb.end.z < region.position.z or bb.end.y < low_y or bb.position.y > top_y:
+			continue
+		cand.append(t)
+	for q in pts:
+		var qq: Vector3 = q
+		var best := NAN
+		for t in cand:
+			var d := PartFacts.ray_hit(t, Vector3(qq.x, top_y, qq.z), Vector3.DOWN)
+			if is_inf(d):
+				continue
+			var y := top_y - d
+			if y >= low_y and (is_nan(best) or y > best):
+				best = y
+		hits.append(best)
+	return hits
+
+
+static func seat(bodies: Array, size_mm: Vector3, bas: Basis, at: Vector3, foot_pts: Array = []) -> Dictionary:
+	var out := {"basis": bas, "at": at, "seated": false, "hits": 0, "sink": 0.0}
+	if bodies.is_empty():
+		return out
+	var foot: Array = foot_pts if foot_pts.size() >= 5 else _foot(size_mm)
+	var cap := maxf(size_mm.y, 500.0)
+	var cur := bas
+	var pos := at
+	var hits: Array = []
+	var world: Array = []
+	for pass_i in 2:
+		world = foot.map(func(l): return cur * (l as Vector3) + pos)
+		hits = _surface_under(bodies, world, pos.y + size_mm.y, pos.y - cap)
+		var n := 0
+		for h in hits:
+			if not is_nan(float(h)):
+				n += 1
+		if n == 0:
+			return out
+		if n >= 5 and pass_i == 0:
+			# the best plane y = p x + q z + c through the hits (normal equations)
+			var sxx := 0.0
+			var sxz := 0.0
+			var szz := 0.0
+			var sx := 0.0
+			var sz := 0.0
+			var sy := 0.0
+			var sxy := 0.0
+			var szy := 0.0
+			for i in world.size():
+				if is_nan(float(hits[i])):
+					continue
+				var w: Vector3 = world[i]
+				var y: float = hits[i]
+				sxx += w.x * w.x
+				sxz += w.x * w.z
+				szz += w.z * w.z
+				sx += w.x
+				sz += w.z
+				sy += y
+				sxy += w.x * y
+				szy += w.z * y
+			var m := Basis(Vector3(sxx, sxz, sx), Vector3(sxz, szz, sz), Vector3(sx, sz, float(n)))
+			if absf(m.determinant()) > 1e-6:
+				var sol := m.inverse() * Vector3(sxy, szy, sy)   # (p, q, c)
+				var nrm := Vector3(-sol.x, 1.0, -sol.y).normalized()
+				var lean := acos(clampf(nrm.dot(Vector3.UP), -1.0, 1.0))
+				if lean > deg_to_rad(SEAT_TILT_DEG):
+					nrm = Vector3.UP.slerp(nrm, deg_to_rad(SEAT_TILT_DEG) / lean).normalized()
+				var dirx: Vector3 = cur.x - nrm * cur.x.dot(nrm)
+				if dirx.length() > 1e-4 and lean > 1e-4:
+					dirx = dirx.normalized()
+					cur = Basis(dirx, nrm, dirx.cross(nrm).normalized())
+	var dy := -INF
+	world = foot.map(func(l): return cur * (l as Vector3) + pos)
+	for i in world.size():
+		if is_nan(float(hits[i])):
+			continue
+		dy = maxf(dy, float(hits[i]) - (world[i] as Vector3).y)
+	var nh := 0
+	for h in hits:
+		if not is_nan(float(h)):
+			nh += 1
+	out["basis"] = cur
+	out["at"] = pos + Vector3(0.0, dy - SEAT_SINK_MM, 0.0)
+	out["seated"] = true
+	out["hits"] = nh
+	out["sink"] = SEAT_SINK_MM
+	return out
+
+
 ## the replay arm (Part.replay): every piece is one new body. "" or the plain reason it could not
 static func add(bodies: Array, f: Dictionary) -> String:
 	if not PartMeshSolid.KCad.has_mesh_solid():
@@ -421,14 +559,20 @@ static func add(bodies: Array, f: Dictionary) -> String:
 			for mid in made:
 				PartMeshSolid.KCad.release(int(mid))
 			return PartMeshSolid.KCad.last_error() if PartMeshSolid.KCad.last_error() != "" else "The ornament could not become a solid"
-		var q := basis_for(pc["dir"]).get_rotation_quaternion()
+		var bas := basis_for(pc["dir"])
+		var at_mm: Vector3 = pc["at"]
+		if bool(f.get("seat", false)) or bool(pc.get("seat", false)):
+			var st := seat(bodies, sz, bas, at_mm, _base_pts(d["km"], sz))   # s237: rest the base on the host body under it
+			bas = st["basis"]
+			at_mm = st["at"]
+		var q := bas.get_rotation_quaternion()
 		var ang := q.get_angle()
 		if absf(ang) > 1e-7:
 			var r := PartMeshSolid.KCad.rotate(id, q.get_axis(), ang)
 			PartMeshSolid.KCad.release(id)
 			id = r
 		if id != 0:
-			var tr := PartMeshSolid.KCad.translate(id, (pc["at"] as Vector3) * MM)
+			var tr := PartMeshSolid.KCad.translate(id, at_mm * MM)
 			PartMeshSolid.KCad.release(id)
 			id = tr
 		if id == 0:
@@ -481,6 +625,18 @@ static func parse(text: String) -> Dictionary:
 	return out
 
 
+## the roof step of a part record that `ref` names (a step id or name; true / "" / "last" = the last roof step): the step dict, or {}
+static func roof_step(rec: Dictionary, ref: Variant) -> Dictionary:
+	var found := {}
+	for f in rec.get("features", []):
+		if String((f as Dictionary).get("t", "")) != "roof":
+			continue
+		if ref is String and String(ref) not in ["", "last", "true"] and String(f.get("id", "")) != String(ref) and String(f.get("name", "")) != String(ref):
+			continue
+		found = f
+	return found
+
+
 ## the ridge of a part record: its highest level, from its left to its right end, down the middle of its depth (mm); {} when it has no body
 static func ridge_of(rec: Dictionary) -> Dictionary:
 	var res := Part.replay(rec)
@@ -527,7 +683,10 @@ static func from_words(text: String, rec: Dictionary, seed := 1) -> Dictionary:
 			start = Vector3(bb.end.x / MM + size.x * 0.75, 0.0, bb.get_center().z / MM)
 		for i in n:
 			places.append({"at": arr(start + Vector3(size.x * 1.3 * float(i), 0.0, 0.0)), "dir": [1.0, 0.0, 0.0]})
-	return {"ok": true, "why": "", "fields": fields(kind, seed, places, size, row), "said": "%d %s" % [n if kind != "corner_row" else int(row["n"]), String(KINDS[kind]["name"]).to_lower()]}
+	var wf := fields(kind, seed, places, size, row)
+	if where != "" and not ridge.is_empty():
+		wf["seat"] = true   # s237: on the ridge means resting on it
+	return {"ok": true, "why": "", "fields": wf, "said": "%d %s" % [n if kind != "corner_row" else int(row["n"]), String(KINDS[kind]["name"]).to_lower()]}
 
 
 # --------------------------------------------------------------------------------------------------- for code and for the agent
@@ -557,7 +716,29 @@ static func serve(m: Node, p: Dictionary) -> Dictionary:
 		if kind == "corner_row":
 			row = {"n": n}
 			cnt = 1
-		if p.has("ridge"):
+		if p.has("roof"):   # s237: the ridge (or the corners) of a roof step of the part, from the roof's own parameters; the pieces are seated on it
+			var rf := roof_step(rec, p["roof"])
+			if rf.is_empty():
+				return {"ok": false, "error": "ornament: the part has no roof step called %s (give its name or id, or true for the last one)" % str(p["roof"])}
+			var where := String(p.get("where", "ends"))
+			if where == "corners":
+				var cin := float(p.get("inset", size.x * 0.6))
+				var rows: Array = []
+				for k in cnt:
+					rows.append(PartRoof.corner_points(rf, cin + size.x * 1.0 * float(k)))
+				for c in 4:
+					for k in cnt:
+						var cp: Dictionary = rows[k][c]
+						places.append({"at": arr(cp["at"]), "dir": arr(cp["dir"])})
+			else:
+				var rl := PartRoof.ridge_line(rf)
+				if rl.is_empty():
+					return {"ok": false, "error": "ornament: that roof has no ridge line (a flat, shed, pyramid or polygon roof): give the places by hand"}
+				var ra: Vector3 = rl["a"]
+				var rb: Vector3 = rl["b"]
+				var rin := float(p.get("inset", size.x * 0.5))
+				places = ends_of(ra, rb, rin) if where == "ends" and cnt == 2 else spread_on(ra, rb, cnt, rin)
+		elif p.has("ridge"):
 			var r: Dictionary = p["ridge"]
 			var a := vec(r["a"])
 			var b := vec(r["b"])
@@ -569,6 +750,8 @@ static func serve(m: Node, p: Dictionary) -> Dictionary:
 			for i in cnt:
 				places.append({"at": arr(at + dir * size.x * 1.3 * float(i)), "dir": arr(dir)})
 		fl = fields(kind, seed, places, size, row)
+		if p.has("roof") or bool(p.get("seat", false)):
+			fl["seat"] = bool(p.get("seat", true))
 	var feat := Part.new_feature(rec, "ornament", fl)
 	rec["features"].append(feat)
 	var res := Part.replay(rec)

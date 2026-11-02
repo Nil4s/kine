@@ -943,11 +943,66 @@ static func facts_of(M: Model, opts := {}) -> Dictionary:
 	if not reps2.is_empty():
 		lines.append("COUNTS BY NAME: " + ", ".join(reps2))
 	lines.append("CONTACTS: %d overlap%s, %d touching, %d near (<= %.0f mm), %d apart" % [C["overlaps"].size(), "" if C["overlaps"].size() == 1 else "s", C["touches"].size(), C["near"].size(), NEAR_MM, C["apart"]])
+	var fl := floats(M, comps)
+	for fw in fl:
+		lines.append("FLOATS: " + String(fw["text"]))
 	if comps.size() > 1:
 		lines.append("PIECES: " + "; ".join(comps.map(func(g): return "{" + _ids(g) + "}")))
 	return {"ok": true, "bodies": M.n, "lines": lines, "volume_mm3": snappedf(tot, 0.01), "pieces": comps.size(), "repeats": rep.map(func(g): return (g as Array).map(func(i): return int(i) + 1)),
 		"overlaps": C["overlaps"].map(func(p): return {"a": int(p[0]) + 1, "b": int(p[1]) + 1, "mm3": snappedf(p[2], 0.01)}), "apart_pairs": C["apart"],
-		"data": data_b, "errors": M.errors}
+		"data": data_b, "errors": M.errors, "floats": fl.map(func(q): return {"body": int(q["body"]) + 1, "name": q["label"], "gap_mm": q["gap_mm"], "to": int(q["to"]) + 1, "to_name": q["to_label"], "text": q["text"]})}
+
+
+## s237 FLOATS (Nick looked at the temple: "the golden stuff are not connected, they are flying"): a SMALL piece (a group of bodies that touch or overlap,
+## whose longest box side is at most FLOATS_SMALL of the part's longest side) that touches nothing, yet whose nearest other body is closer than
+## FLOATS_NEAR x its own longest side: it LOOKS attached and is not. A gap of more than that is a piece standing apart on purpose (a lantern in a courtyard):
+## look.floating says that one. -> [{"body": index of its biggest body, "label", "gap_mm", "to": index, "to_label", "size_mm", "text"}]
+const FLOATS_SMALL := 0.25
+const FLOATS_NEAR := 1.0
+
+
+static func floats(M: Model, comps: Array = []) -> Array:
+	var out: Array = []
+	if M.n < 2:
+		return out
+	var groups: Array = comps if not comps.is_empty() else M.components()
+	if groups.size() < 2:
+		return out
+	var whole := AABB()
+	for i in M.n:
+		whole = M.box(i) if i == 0 else whole.merge(M.box(i))
+	var longest := maxf(whole.size.x, maxf(whole.size.y, whole.size.z))
+	var owner := {}
+	for gi in groups.size():
+		for i in groups[gi]:
+			owner[int(i)] = gi
+	for gi in groups.size():
+		var g: Array = groups[gi]
+		var gb := AABB()
+		var big := int(g[0])
+		for k in g.size():
+			var i := int(g[k])
+			gb = M.box(i) if k == 0 else gb.merge(M.box(i))
+			if M.vol_mm3[i] > M.vol_mm3[big]:
+				big = i
+		var side := maxf(gb.size.x, maxf(gb.size.y, gb.size.z))
+		if side > FLOATS_SMALL * longest or side <= 0.0:
+			continue
+		var limit := FLOATS_NEAR * side
+		var best := INF
+		var best_j := -1
+		for j in M.n:
+			if int(owner[j]) == gi or aabb_gap(gb, M.box(j)) > limit:
+				continue
+			for i in g:
+				var d := M.gap(int(i), j, minf(limit, best))
+				if d < best:
+					best = d
+					best_j = j
+		if best_j >= 0 and best > TOUCH_MM and best <= limit:
+			out.append({"body": big, "label": String(M.labels[big]), "gap_mm": snappedf(best, 0.001), "to": best_j, "to_label": String(M.labels[best_j]), "size_mm": snappedf(side, 0.1),
+				"text": "%s floats: it looks attached but is not. It touches nothing; its nearest piece, %s, is %.1f mm away (it is %.0f mm across)." % [M.labels[big], M.labels[best_j], best, side]})
+	return out
 
 
 static func _gap_s(g: float) -> String:

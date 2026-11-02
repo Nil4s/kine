@@ -6,6 +6,7 @@
 ## LEVELS  off < look < print < engineering. A level shows its own warnings AND the ones of the levels below it (look is inside print is inside engineering).
 ##   LOOK  (art, games)  look.broken_solid    a step of the timeline failed, or a body has no volume
 ##                       look.floating        a piece touches nothing else and is not resting on the floor (the lowest point of the part)
+##                       look.floats          s237: a small piece (an ornament) that touches nothing but lies within its own size of another piece: it looks attached and is not (names the gap in mm)
 ##                       look.hidden_overlap  a body lies wholly inside another (95 % or more of its volume): nobody can see it
 ##                       look.no_name         a body still has its automatic name (Body3, Extrude2 ...)
 ##                       look.dark_material   a body's colour is darker than 6 % luminance: it vanishes in shading
@@ -64,7 +65,7 @@ const MATERIAL := {"steel": {"E": 200.0, "yield": 235.0, "name": "steel S235"}, 
 const ENGAGE := {"steel": 1.0, "aluminium": 1.5, "wood": 2.0, "plastic": 2.0}
 const AUTO_NAME := "^(Body ?\\d+|(Sketch|Extrude|Revolve|Fillet|Chamfer|Mirror|Hinge|Split|Shell|Loft|Sweep|Plane|Canvas|Appear|Pattern|Combine|Offset_face|Offset Face|Draft|Lay|Align|Lattice|Fitobj|Move|Offset|Meshsolid|Pipe3d|Prim|Ornament|Bname)\\d*)( \\d+)?$"
 const CODES := {
-	"look.broken_solid": "look", "look.floating": "look", "look.hidden_overlap": "look", "look.no_name": "look", "look.dark_material": "look",
+	"look.broken_solid": "look", "look.floating": "look", "look.floats": "look", "look.hidden_overlap": "look", "look.no_name": "look", "look.dark_material": "look",
 	"print.thin_wall": "print", "print.overhang": "print", "print.not_watertight": "print", "print.small_detail": "print",
 	"eng.fit": "engineering", "eng.bolt": "engineering", "eng.tips": "engineering", "eng.stress": "engineering", "eng.deflection": "engineering", "eng.draft": "engineering",
 }
@@ -222,6 +223,9 @@ static func _look(rec: Dictionary, M: PartFacts.Model, C: Dictionary, W: Array) 
 					big = int(i)
 			if glow > low + FLOOR_TOL:
 				W.append(_w("look.floating", String(M.labels[big]), "%s floats: it touches no other piece and its lowest point is %.1f mm above the floor." % [M.labels[big], glow - low]))
+	# floats (s237): a small piece that looks attached to another and is not (a gap of more than 0.05 mm, up to its own size)
+	for fw in PartFacts.floats(M, comps):
+		W.append(_w("look.floats", String(fw["label"]), String(fw["text"])))
 	# hidden: wholly inside another body
 	for p in C["overlaps"]:
 		var a := int(p[0])
