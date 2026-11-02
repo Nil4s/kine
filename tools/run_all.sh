@@ -670,3 +670,6 @@ EXTRA="$EXTRA w04m:w"   # w04m: bone-map screen through main._import_anim_picked
 
 
 EXTRA="$EXTRA w08:w"   # w08: In place / travelling toggle on a clip, applied live, tests/w08_test.gd
+
+
+EXTRA="$EXTRA w10:w"   # w10: join/cut failure helper, tests/w10_test.gd

@@ -22,6 +22,10 @@ func _split_box() -> PanelContainer:
 
 
 ## STICK TOGETHER: the three big buttons, shown once two pieces are picked in the view
+var stick_nudge_btn: Button      # W10: "Nudge 0.01 mm and retry", shown after a Join / Cut / Keep failed because the two only touch along a line
+var _stick_retry: Array = []    # W10: [op, label] of the failed press the nudge button repeats
+
+
 func _stick_box() -> PanelContainer:
 	var box := PanelContainer.new()
 	box.name = "easypart_stick"
@@ -47,6 +51,11 @@ func _stick_box() -> PanelContainer:
 	smooth_btn.custom_minimum_size = Vector2(190, 44)
 	smooth_btn.visible = false
 	h.add_child(smooth_btn)
+	stick_nudge_btn = _big_btn("easypart_stick_nudge", "Nudge 0.01 mm and retry", "The two pieces only touch along a line: move the second 0.01 mm into the first and try again (one step)", _stick_nudge)
+	stick_nudge_btn.custom_minimum_size = Vector2(200, 44)
+	stick_nudge_btn.visible = false
+	col.add_child(stick_nudge_btn)   # its own row, first: the long button row below runs under the view tools
+	col.move_child(stick_nudge_btn, 0)
 	col.add_child(_align_row())
 	col.add_child(_fasten_row())   # p063: Fasten these two, under the align chips
 	return box
@@ -231,7 +240,12 @@ func _split_keep(key: String) -> void:
 
 
 ## STICK TOGETHER: Part's combine step (Expert Combine): the first picked piece is the target, the second the tool; one undo step
-func _stick(op: String, label: String) -> void:
+func _stick_nudge() -> void:
+	if _stick_retry.size() == 2:
+		_stick(String(_stick_retry[0]), String(_stick_retry[1]), true)
+
+
+func _stick(op: String, label: String, nudge := false) -> void:
 	if stick_picks.size() < 2:
 		_say("Click two solid pieces first")
 		return
@@ -239,7 +253,10 @@ func _stick(op: String, label: String) -> void:
 	var snap := _rec().duplicate(true)
 	_begin(label)
 	var rec := pu._ensure()
-	var f := Part.new_feature(rec, "combine", {"target": int(stick_picks[0]), "tools": [int(stick_picks[1])], "op": op, "keep": false})
+	var cf := {"target": int(stick_picks[0]), "tools": [int(stick_picks[1])], "op": op, "keep": false}
+	if nudge:
+		cf["nudge"] = true   # W10: the tool sinks 0.01 mm into the target; recorded in the step
+	var f := Part.new_feature(rec, "combine", cf)
 	rec["features"].append(f)
 	armed = ""
 	var why := _last_error(rec, String(f["id"]))
@@ -247,12 +264,18 @@ func _stick(op: String, label: String) -> void:
 		why = _join_gap(Part.body_faces(snap, -1), stick_picks)
 		if why != "" and _join_overlaps(snap, rec):
 			why = ""   # one piece passes through the other (a brace round the legs): they share volume, so Join makes one solid
+	var picks_keep := stick_picks.duplicate()
 	stick_picks = []
+	_stick_retry = []
 	if why != "":
 		m.S.part = snap
 		m._drop_undo()
 		_edit_n = -1
 		_say("Those two pieces cannot do that: " + _plain(why))
+		if why.ends_with(Part.JOINH.NUDGE_ASK):   # W10: keep the two picks and the box: the nudge button repeats this press
+			stick_picks = picks_keep
+			armed = "stick"
+			_stick_retry = [op, label]
 	else:
 		_end()
 		_say("%s: the two pieces are one solid now" % label)
@@ -261,6 +284,7 @@ func _stick(op: String, label: String) -> void:
 	pu.sync()
 	_rows_sync()
 	_values_sync()
+	stick_nudge_btn.visible = not _stick_retry.is_empty()
 
 
 ## p121 JOINT WORDS: "This turns here" (a hinge) or "This slides here" (a slide) between the two picked pieces. The place is the middle of the two
@@ -311,6 +335,8 @@ static func _join_gap(before: Array, picked: Array) -> String:
 
 ## a click in the view while Stick together is armed: the body under the pointer is picked (a second click takes it off)
 func _stick_pick(bi: int, faces: Array) -> void:
+	_stick_retry = []
+	stick_nudge_btn.visible = false
 	if stick_picks.has(bi):
 		stick_picks.erase(bi)
 		stick_tris.erase(bi)
