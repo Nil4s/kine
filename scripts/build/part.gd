@@ -298,6 +298,13 @@ static func apply_dim(ents: Array, d: Dictionary) -> void:
 		"r":
 			if e["k"] == "circle":
 				e["r"] = mm
+		"x", "y":   # W02c: where the rectangle's first corner sits from the origin (the whole rectangle moves, its size stays)
+			if e["k"] == "rect":
+				var a := v2(e["a"])
+				var b := v2(e["b"])
+				var sh := Vector2(mm - a.x, 0.0) if String(d["kind"]) == "x" else Vector2(0.0, mm - a.y)
+				e["a"] = arr2(a + sh)
+				e["b"] = arr2(b + sh)
 
 
 ## what a dimension measures now (mm)
@@ -311,6 +318,10 @@ static func measure(e: Dictionary, kind: String) -> float:
 			return v2(e["a"]).distance_to(v2(e["b"]))
 		"r":
 			return float(e["r"])
+		"x":
+			return v2(e["a"]).x
+		"y":
+			return v2(e["a"]).y
 	return 0.0
 
 
@@ -410,7 +421,7 @@ static func set_dim(sk: Dictionary, ent: int, kind: String, mm: float, bind := {
 	var d := {"id": "d%d" % (dims.size() + 1), "ent": ent, "kind": kind, "mm": mm}
 	if not bind.is_empty():
 		d["bind"] = bind.duplicate()
-	var word: String = {"w": "width", "h": "height", "len": "length", "r": "radius"}[kind]
+	var word: String = {"w": "width", "h": "height", "len": "length", "r": "radius", "x": "x", "y": "y"}[kind]
 	var same := 0
 	for o in dims:
 		if String(o["name"]).begins_with(word):
@@ -541,7 +552,9 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	var warns: Dictionary = res["warnings"]   # s229: what a step did that the user should know (an Intersect that left or removed bodies)
 	var sketches := {}
 	var off_ids := {}   # XTIME: the sketches the timeline suppressed
-	var fx_on := bool(want.get("effects", false))   # item 241: what each step did (scripts/build/part_fx.gd); not with the incremental cache
+	var keyed := PartBKeys.keyed(feats)   # W03c: a part whose steps carry body keys tracks the keys while it replays
+	var stepkeys: Array = []
+	var fx_on := bool(want.get("effects", false)) or keyed or bool(want.get("stepkeys", false))   # item 241: what each step did (scripts/build/part_fx.gd); not with the incremental cache
 	var fx: Dictionary = PartFx.begin() if fx_on else {}
 	var inc := bool(want.get("inc", false)) and n > 0 and not fx_on   # s168 INCREMENTAL REPLAY: the steps a cached prefix already made are not run again
 	var inc_keys: Array = []
@@ -568,6 +581,14 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		var f: Dictionary = feats[i]
 		var id := String(f["id"])
 		look_fit(looks, bodies.size())
+		if fx_on:   # W03c: the keys of the bodies just before this step; its key fields are turned into body numbers
+			if want.get("stepkeys", false):
+				stepkeys.append((fx["keys"] as Array).duplicate())
+			if keyed and not bool(f.get("off", false)):
+				var kerr := PartBKeys.resolve(f, fx["keys"], i)
+				if kerr != "":
+					errs[id] = kerr
+					continue
 		if bool(f.get("off", false)):   # XTIME: a suppressed step is skipped (no solid, no error); a later step that needs it says so
 			if String(f["t"]) == "sketch":
 				off_ids[id] = true
@@ -782,6 +803,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		res["effects"] = fx["steps"]
 		res["body_keys"] = fx["keys"]
 		res["body_touch"] = fx["touch"]
+		res["step_keys"] = stepkeys
 	res["counts"] = counts   # s233: the body count after each step 0..n-1, from this one pass (PartFacts.labels_of replayed every prefix for it)
 	if inc and n > i0:
 		_inc_store(inc_keys[n - 1], bodies, looks, errs, sketches, off_ids, counts)
@@ -848,7 +870,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					if not fcen.has(int(fi)) or not _on_skin(fcen[int(fi)], bb):
 						outside = false
 				var top := float(ed["a"].y) >= bb.end.y - SKIN_MM * MM and float(ed["b"].y) >= bb.end.y - SKIN_MM * MM
-				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "concave": concave, "inner": inner, "outside": outside, "top": top})
+				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "concave": concave, "inner": inner, "outside": outside, "top": top, "fp": PartRefs.face_pair(ef, fnorm, fcen, bb)})
 	pack_surfaces(mesh, pend, res)
 	res["bodies"] = bodies.size()
 	res["body_names"] = []
@@ -1023,7 +1045,7 @@ static func hinge_sweep(rec: Dictionary, hinge_id: String, fps := 25.0) -> Dicti
 	var red := {}
 	for i in n:
 		var t := float(i) / fps
-		var raw := float(Curves.eval(track, t))
+		var raw := float(Curves.eval(track, t, Curves.mode_of(f)))
 		if absf(raw) > lim + 1e-6:
 			out["limited_frames"] = int(out["limited_frames"]) + 1
 		var deg := clampf(raw, -lim, lim)
@@ -2541,7 +2563,7 @@ static func _edge_op(bodies: Array, f: Dictionary) -> String:
 	var bb := _bbox(es)
 	var ids := PackedInt32Array()
 	for want in f.get("edges", []):
-		var j := match_edge(es, bb, want)
+		var j := PartRefs.pick_edge(bodies[bi], es, bb, want)
 		if j < 0:
 			return "an edge it rounded is not there any more"
 		if not ids.has(int(es[j]["id"])):
@@ -2573,7 +2595,7 @@ static func fillet_trial(body: int, r_mm: float, edges: Array) -> String:
 	var bb := _bbox(es)
 	var ids := PackedInt32Array()
 	for want in edges:
-		var j := match_edge(es, bb, want)
+		var j := PartRefs.pick_edge(body, es, bb, want)
 		if j < 0:
 			return "an edge it rounded is not there any more"
 		# FKEY: an edge where three or more faces meet (a tooth joined level with a blade leaves one) crashed the kernel's fillet
@@ -2721,7 +2743,7 @@ static func describe(edge: Dictionary) -> Dictionary:
 	var c: Vector3 = edge["c"]
 	var q: Vector3 = edge["q"]
 	var d: Vector3 = edge["d"]
-	return {"p": [snappedf(c.x / MM, 0.001), snappedf(c.y / MM, 0.001), snappedf(c.z / MM, 0.001)], "q": [q.x, q.y, q.z], "d": [d.x, d.y, d.z], "body": int(edge["body"])}
+	return {"p": [snappedf(c.x / MM, 0.001), snappedf(c.y / MM, 0.001), snappedf(c.z / MM, 0.001)], "q": [q.x, q.y, q.z], "d": [d.x, d.y, d.z], "body": int(edge["body"]), "fp": edge.get("fp", [])}
 
 
 # ---------------------------------------------------------------- canvas (GAP 3): a picture on a plane, calibrated by two points
@@ -2768,6 +2790,7 @@ static func paint(mesh: ArrayMesh, looks: Array) -> void:
 		var mt := StandardMaterial3D.new()
 		var mm := MaterialMaker.look_material(l)   # s223: a made material (triplanar maps) when the look has one
 		if mm != null:
+			PartGlow.apply(mm, l)   # s258
 			mesh.surface_set_material(s, mm)
 			continue
 		mt.albedo_color = Color(c.r, c.g, c.b, a)
@@ -2778,13 +2801,16 @@ static func paint(mesh: ArrayMesh, looks: Array) -> void:
 		mt.cull_mode = BaseMaterial3D.CULL_DISABLED
 		if a < 1.0:
 			mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		PartGlow.apply(mt, l)   # s258: a glowing look draws as emission
 		mesh.surface_set_material(s, mt)
 
 
 static func look_of(f: Dictionary) -> Dictionary:
 	var c: Array = f.get("color", [0.74, 0.77, 0.82])
-	return {"c": Color(float(c[0]), float(c[1]), float(c[2])), "rough": float(f.get("rough", 0.5)), "metal": float(f.get("metal", 0.15)),
+	var lk := {"c": Color(float(c[0]), float(c[1]), float(c[2])), "rough": float(f.get("rough", 0.5)), "metal": float(f.get("metal", 0.15)),
 		"alpha": clampf(float(f.get("alpha", 1.0)), 0.0, 1.0), "preset": String(f.get("preset", "Custom")), "mat": f.get("mat", {})}   # s223: "mat" = a MaterialMaker spec
+	PartGlow.read(f, lk)   # s258: an emission colour + strength ("glow", "glow_k") when the step has one
+	return lk
 
 
 ## the look of body i: its last appear step, else its chip (by index) with the default numbers

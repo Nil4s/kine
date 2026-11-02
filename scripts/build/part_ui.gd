@@ -44,7 +44,7 @@ const TIPS := {
 	"Circle": "CIRCLE: press the centre, drag out the radius.",
 	"Arc": "ARC: click the start, click the end, then click a point the arc passes through.",
 	"Spline": "SPLINE: click points for a smooth curve. Click the first point (or double-click) to close it; double-click ends an open curve. Drag a point to move it.",
-	"Dimension": "DIMENSION: pick a line, an edge of a rectangle or a circle, type its size, press Enter.",
+	"Dimension": "DIMENSION: pick a line, an edge of a rectangle or a circle, type its size, press Enter. Click a rectangle corner for its x and y from the origin.",
 	"Constrain": "CONSTRAIN: opens the rule row: Horiz, Vert, Coinc, Parallel, Perp, Equal, Angle, Remove. The rules are kept when you drag an end.",
 	"Horizontal": "HORIZONTAL: click a line; it is made level, and stays level.",
 	"Vertical": "VERTICAL: click a line; it is made upright, and stays upright.",
@@ -608,7 +608,7 @@ func _build_side() -> void:
 	f_dur = _field("part_seconds")
 	f_dial = Control.new()
 	f_dial.name = "part_dial"
-	f_dial.custom_minimum_size = Vector2(120, 120)
+	f_dial.custom_minimum_size = Vector2(120, 70)
 	f_dial.mouse_filter = Control.MOUSE_FILTER_STOP
 	f_dial.draw.connect(_draw_dial)
 	f_dial.gui_input.connect(_dial_input)
@@ -1183,7 +1183,9 @@ func _press_sketch(p: Vector2) -> bool:
 			else:
 				draft = {"k": "arc", "pts": pts, "b": a}
 		"Dimension":
-			var pk := pick_ent(p)
+			var pk := PartPosDim.corner_pick(_sk().get("ents", []), p, scr)   # W02c: a rectangle's corner = its x, then y, from the origin
+			if pk.is_empty():
+				pk = pick_ent(p)
 			if pk.is_empty() or pk["kind"] == "":
 				_say("DIMENSION: click a line, an edge of a rectangle or a circle")
 			else:
@@ -1533,9 +1535,19 @@ func _dim_submitted(t: String) -> void:
 		return
 	if dim_target.is_empty() or sk == "":
 		return
+	var then_y: bool = bool(dim_target.get("then_y", false))
+	var ent_y: int = int(dim_target["ent"])
 	var err := _set_dim_text(int(dim_target["ent"]), String(dim_target["kind"]), t)
 	if err != "":
 		_say(err)
+	elif then_y:
+		dim_target = {}
+		dim_edit.release_focus()
+		_after_sketch_edit()
+		dim_target = PartPosDim.next_y(_sk(), ent_y, scr)
+		_open_dim_edit.call_deferred(dim_target)   # (deferred: the edit lets go of focus right after it submits)
+		_say("x set. Now type the corner's y from the origin and press Enter")
+		return
 	elif Part.parse_bind(t).is_empty():
 		var shown := t.replace("mm", "").strip_edges()
 		if NumExpr.is_expression(shown):   # W07: the resolved size, then what was typed
@@ -1557,6 +1569,11 @@ func _body_measures() -> Dictionary:
 ## a dimension's typed text: a size in mm (plain: the dimension stops reading the body) or =forearm+4 (reads the body).
 ## Returns the message to show ("" = set)
 func _set_dim_text(ent: int, kind: String, t: String) -> String:
+	if kind == "x" or kind == "y":   # W02c: a position may be zero or negative; units go through LengthParse
+		var pr := LengthParse.parse_length(t.strip_edges(), unit())
+		if not bool(pr["ok"]):
+			return String(pr["error"])
+		return Part.set_dim_held(_sk(), ent, kind, float(pr["mm"]))
 	var v := t.replace("mm", "").strip_edges()
 	var bind := Part.parse_bind(v)
 	if not bind.is_empty():
@@ -1600,7 +1617,7 @@ func _dim_field_text(d: Dictionary) -> String:
 
 func _set_dim_value(i: int, v: float) -> void:
 	var dims: Array = _sk().get("dims", [])
-	if i >= dims.size() or v <= 0.0 or (absf(float(dims[i]["mm"]) - v) < 1e-9 and not dims[i].has("bind")):   # a bound size typed as a plain number stops reading the body
+	if i >= dims.size() or (v <= 0.0 and not String(dims[i]["kind"]) in ["x", "y"]) or (absf(float(dims[i]["mm"]) - v) < 1e-9 and not dims[i].has("bind")):   # a bound size typed as a plain number stops reading the body
 		return
 	var err := Part.set_dim_held(_sk(), int(dims[i]["ent"]), String(dims[i]["kind"]), v)
 	if err != "":
@@ -2032,6 +2049,8 @@ func dialog_feature() -> Dictionary:
 			if edit >= 0:
 				keep = (rec["features"][edit] as Dictionary).get("clear", [])
 			f = {"body": int(hp["body"]), "o": [o.x / Part.MM, o.y / Part.MM, o.z / Part.MM], "axis": [d.x, d.y, d.z], "track": [[0.0, a0], [du, a1]], "clear": keep, "limit": clampf(float(hp.get("limit", 90.0)), 0.0, 90.0)}
+			if String(hp.get("extrap", "constant")) != "constant":
+				f["extrap"] = String(hp["extrap"])   # s260: saved only when not constant
 	if edit >= 0:
 		var old: Dictionary = rec["features"][edit]
 		f["id"] = old["id"]
@@ -2443,7 +2462,13 @@ func _num_typed(i: int, t: String, le: LineEdit) -> void:
 		_after_sketch_edit()
 	elif i < dims.size():   # XDIM: a plain size (40, 4 cm) sets it; anything else says what to type (it was silent)
 		var mm := typed_mm(v, unit())
-		if mm > 0.0:
+		if String(dims[i]["kind"]) in ["x", "y"]:   # W02c: a position can be 0 or below
+			var pr := LengthParse.parse_length(v, unit())
+			if bool(pr["ok"]):
+				_set_dim_value(i, float(pr["mm"]))
+			else:
+				_say(String(pr["error"]))
+		elif mm > 0.0:
 			_set_dim_value(i, mm)
 		else:
 			_say(_size_words(v))
@@ -3080,6 +3105,12 @@ func _draw_dim(ents: Array, d: Dictionary) -> void:
 	var off := Vector2(0, 26)
 	var txt := "%s" % _fmt(float(d["mm"]))
 	match String(d["kind"]):
+		"x", "y":   # W02c: a line from the origin along the axis to the corner
+			a = Vector2(0, 0) if String(d["kind"]) == "x" else Vector2(0, 0)
+			b = Part.v2(e["a"])
+			a = Vector2(0, b.y) if String(d["kind"]) == "x" else Vector2(b.x, 0)
+			off = Vector2(0, 26) if String(d["kind"]) == "x" else Vector2(-30, 0)
+			txt = ("x " if String(d["kind"]) == "x" else "y ") + txt
 		"w":
 			a = Part.v2(e["a"])
 			b = Vector2(Part.v2(e["b"]).x, a.y)
@@ -3304,6 +3335,7 @@ func _hinge_open(f: Dictionary, edit: int) -> void:
 		f_to.text = "90"
 		f_dur.text = "3"
 	hp["limit"] = float(f.get("limit", 90.0)) if edit >= 0 else 90.0
+	hp["extrap"] = Curves.mode_of(f) if edit >= 0 else "constant"
 	_hinge_rows()
 
 
@@ -3318,6 +3350,7 @@ func _hinge_rows() -> void:
 		_hrow("To", f_to, "deg")
 		_hrow("Seconds", f_dur, "s")
 		dlg_rows.add_child(_limit_row())
+		dlg_rows.add_child(_extrap_row())
 		dlg_rows.add_child(f_dial)
 		f_dial.queue_redraw()
 
@@ -3341,6 +3374,25 @@ func _limit_row() -> Control:
 	h.add_child(limit_lbl)
 	limit_slider.set_value_no_signal(float(hp.get("limit", 90.0)))
 	_limit_set(float(hp.get("limit", 90.0)))
+	return h
+
+
+## s260 EXTRAPOLATION: what the swing does past its last key: Hold (constant), Continue (linear) or Repeat (cycle)
+func _extrap_row() -> Control:
+	var h := HBoxContainer.new()
+	var l := _label("After the last key")
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(l)
+	var ob := OptionButton.new()
+	ob.name = "part_extrap"
+	for t in ["Hold", "Continue", "Repeat"]:
+		ob.add_item(t)
+	ob.selected = maxi(0, Curves.EXTRAPS.find(String(hp.get("extrap", "constant"))))
+	ob.tooltip_text = "After the last key: Hold keeps the last angle, Continue goes on at the same speed, Repeat loops the swing"
+	ob.item_selected.connect(func(i: int) -> void:
+		hp["extrap"] = Curves.EXTRAPS[i]
+		_preview())
+	h.add_child(ob)
 	return h
 
 
@@ -3590,7 +3642,7 @@ func hinge_set_pct(v: float) -> void:
 		return
 	play_pct = clampf(v, 0.0, 100.0)
 	var tr: Array = f["track"]
-	var deg := clampf(float(Curves.eval(tr, play_pct / 100.0 * float(tr[-1][0]))), -Part.hinge_limit(f), Part.hinge_limit(f))   # P122: the joint limit stops the swing
+	var deg := clampf(float(Curves.eval(tr, play_pct / 100.0 * float(tr[-1][0]), Curves.mode_of(f))), -Part.hinge_limit(f), Part.hinge_limit(f))   # P122: the joint limit stops the swing
 	pose = {"f": String(f["id"]), "deg": deg}
 	hinge_pct_l.text = "%d %%   %s deg" % [roundi(play_pct), _fmt(deg)]
 	hinge_slider.set_value_no_signal(play_pct)
@@ -4539,6 +4591,7 @@ func _look_surfaces() -> void:
 		var l: Dictionary = ls[s]
 		var mm := MaterialMaker.look_material(l, PartViewTools.X_ALPHA if xray else 1.0)   # s223: a made material, triplanar in mm
 		if mm != null:
+			PartGlow.apply(mm, l)   # s258
 			part_mesh.set_surface_override_material(s, mm)
 			continue
 		var mt := StandardMaterial3D.new()
@@ -4552,6 +4605,7 @@ func _look_surfaces() -> void:
 		mt.cull_mode = BaseMaterial3D.CULL_DISABLED
 		if a < 1.0:
 			mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		PartGlow.apply(mt, l)   # s258: a glowing look draws as emission
 		part_mesh.set_surface_override_material(s, mt)
 	SectionLook.after_look(self)   # S218: per-body cap colours on a cut / split
 	if cut_hook.is_valid():

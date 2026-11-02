@@ -35,6 +35,8 @@ func idle(n := 3) -> void:
 func set_weapon_hidden(h: bool) -> void:
 	for n in [m.bat_handle, m.bat_barrel, m.bat_knob]:
 		(n as VisualInstance3D).layers = 0 if h else 1   # layer 0: not drawn by any camera
+	for n in m.weapon_pieces():   # s276: the bat is drawn by wep_model (the cylinders above are not what shows)
+		(n as VisualInstance3D).layers = 0 if h else 1
 	m._refresh()
 
 

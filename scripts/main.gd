@@ -1938,6 +1938,7 @@ func _export_judge_render(side_by_side := true, overlays: Array = JudgeRender.AL
 ## half the frame interval). Set from the command "Playblast: motion blur on/off" or the Export dialog's checkbox
 var blast_blur := false
 var blast_blur_n := 8
+var blast_shutter := 0.5   # shutter as a fraction of the frame interval (0.5 = 180 deg); scripts/blast_blur.gd
 
 
 func _blast_blur_toggle() -> void:
@@ -1950,15 +1951,17 @@ func _blast_blur_toggle() -> void:
 ## the image of the scene at time t as the playblast saves it: one render, or (motion blur on) the mean of the sub-frames over
 ## the shutter centred on t, kept inside [lo, hi]. With the blur off this is exactly the single render the playblast always did
 func _blast_frame(shot: Dictionary, t: float, fps: int, lo: float, hi: float) -> Image:
-	var ts: Array = PlayblastExport.shutter_times(t, fps, blast_blur_n, lo, hi) if blast_blur else [t]
+	var ts: Array = BlastBlur.times(blast_blur, t, fps, blast_blur_n, blast_shutter, lo, hi)
 	var imgs := []
 	for tt in ts:
 		playhead = tt
 		_ps().apply(B, playhead)
+		BlastBlur.on_time(playhead)
 		wt.render_active = true   # R23: the weapon trail ribbon is part of the render (option "Weapon trail in renders")
 		_refresh()
 		_shot_blast_frame(shot)
-		await RenderingServer.frame_post_draw   # one drawn frame: the pose set above is what it shows (no extra frame wait)
+		await get_tree().process_frame   # s276: a frame to settle (the first draw after a pose change shows the hands / hip one frame stale; r3 bar 2 caught it)
+		await RenderingServer.frame_post_draw
 		imgs.append(_shot_blast_image(shot, get_viewport().get_texture().get_image()))
 		wt.render_active = false
 		wt.draw(_ps(), playhead)
@@ -2075,14 +2078,18 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 			_sides_apply()
 			ui_root.visible = false
 			_sr_layer.visible = false
-			playhead = float(f) / fps
-			_ps().apply(B, playhead)
-			wt.render_active = true   # R23
-			_refresh()
-			_shot_blast_frame(shot)
-			await get_tree().process_frame
-			await RenderingServer.frame_post_draw
-			_shot_blast_image(shot, get_viewport().get_texture().get_image()).save_png("%s/frame_%04d.png" % [gdir, f])
+			var sub_imgs := []
+			for tt in BlastBlur.times(blast_blur, float(f) / fps, fps, blast_blur_n, blast_shutter, 0.0, float(maxi(n - 1, 0)) / fps):
+				playhead = tt
+				_ps().apply(B, playhead)
+				BlastBlur.on_time(playhead)
+				wt.render_active = true   # R23
+				_refresh()
+				_shot_blast_frame(shot)
+				await get_tree().process_frame
+				await RenderingServer.frame_post_draw
+				sub_imgs.append(_shot_blast_image(shot, get_viewport().get_texture().get_image()))
+			(sub_imgs[0] if sub_imgs.size() == 1 else PlayblastExport.average(sub_imgs)).save_png("%s/frame_%04d.png" % [gdir, f])
 			wt.render_active = false
 			ui_root.visible = true
 			_sr_layer.visible = true

@@ -714,3 +714,34 @@ EXTRA="$EXTRA w10b:w"   # w10b: the app piece counter _lumps counts edge-touchin
 
 
 EXTRA="$EXTRA s257:w"   # s257: frame_to finds a body by its bname name AND its stable body key, tests/s257_test.gd
+
+
+EXTRA="$EXTRA s258:w"   # s258: a look that glows (emission colour + strength on an appear step, saved, drawn as emission), tests/s258_test.gd
+
+
+EXTRA="$EXTRA s259:w"   # s259: playblast motion blur shutter/steps options, shots render blur, scripts/blast_blur.gd, tests/s259_test.gd
+
+
+EXTRA="$EXTRA s260:w"   # s260 CURVE EXTRAPOLATION: constant / linear / cycle on a hinge curve (tests/s260_test.gd; needs the CAD DLL for the UI bars)
+
+
+EXTRA="$EXTRA w10c:w"   # W10c: Easy Pull it up says line-touch and offers the nudge, tests/w10c_test.gd
+
+
+EXTRA="$EXTRA w02c:w"   # w02c: Dimension tool on a rectangle corner gives x / y from the origin, tests/w02c_test.gd
+
+
+EXTRA="$EXTRA w03b:w"
+
+
+EXTRA="$EXTRA s262:w"   # s262: Exploded view, scripts/build/explode_view.gd, tests/s262_test.gd
+EXTRA="$EXTRA s262ui:w"   # s262: Exploded view in the app (clicks, camera, strip), tests/s262ui_test.gd
+
+
+EXTRA="$EXTRA w09c:w"
+
+
+EXTRA="$EXTRA w03c:w"   # w03c: body keys on the steps that point at a body; insert_step / delete_step on the 297-step temple, tests/w03c_test.gd
+
+
+EXTRA="$EXTRA s263:w"   # s263: dark product studio + continuous ring band, tests/s263_test.gd

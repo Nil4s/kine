@@ -23,7 +23,7 @@ static func frame_count(f: Dictionary) -> int:
 ## the hinge's angle (degrees) at frame i: its curve at i / FPS, held inside the joint limit (as PartUI's Play holds it)
 static func deg_at(f: Dictionary, i: int) -> float:
 	var lim := Part.hinge_limit(f)
-	return clampf(float(Curves.eval(f["track"], float(i) / FPS)), -lim, lim)
+	return clampf(float(Curves.eval(f["track"], float(i) / FPS, Curves.mode_of(f))), -lim, lim)
 
 
 ## the box the whole swing fits in: the rest pose and the pose at the limit, both from Part.replay

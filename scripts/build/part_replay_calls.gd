@@ -9,7 +9,7 @@ extends RefCounted
 ## "created": [body index], "changed": [body index], "removed": [body index], "bodies", "volume_mm3", "errors": {id: message}, "new_errors", "remapped": [step ids whose body numbers moved]}.
 ## created / changed / removed are body places in the part after (removed: in the part before), found by comparing each body's volume + name before and after.
 
-const BODY_KEYS := ["body", "bodies", "targets", "tools"]   # the step fields that hold body numbers (a number or a list of them)
+const BODY_KEYS := ["body", "bodies", "targets", "tools", "into"]   # the step fields that hold body numbers (a number or a list of them)
 static var _cps := {}   # name -> {"part", "building", "light", "camera", "steps", "seq"}
 static var _seq := 0
 
@@ -119,7 +119,7 @@ static func diff(a: Array, b: Array) -> Dictionary:
 static func _shift_refs(f: Dictionary, a: int, d: int) -> bool:
 	var moved := false
 	for key in BODY_KEYS:
-		if not f.has(key):
+		if not f.has(key) or f.has(PartBKeys.kf(key)):   # W03c: a field with a body key finds its body by the key at replay
 			continue
 		var v: Variant = f[key]
 		if v is Array:
@@ -145,6 +145,19 @@ static func _ref_into(feats: Array, from: int, a: int, b: int) -> String:
 	return ""
 
 
+## step id -> its body numbers as text, for the steps that have any
+static func _body_idx(feats: Array) -> Dictionary:
+	var out := {}
+	for f in feats:
+		var parts: Array = []
+		for key in BODY_KEYS:
+			if f.has(key):
+				parts.append(str(f[key]))
+		if not parts.is_empty():
+			out[String(f["id"])] = ",".join(parts)
+	return out
+
+
 static func _run(rec: Dictionary) -> Dictionary:
 	return Part.replay(rec, -1, {"inc": true, "errors_only": true})
 
@@ -164,6 +177,9 @@ static func _edit(m: Node, method: String, p: Dictionary) -> Dictionary:
 	var before: Dictionary = m.S.part
 	var rec: Dictionary = before.duplicate(true)
 	var feats: Array = rec["features"]
+	if method == "insert_step" or method == "delete_step":
+		PartBKeys.stamp(rec)   # W03c / 256: every body reference gets its stable key before the steps move
+	var idx_before := _body_idx(feats)
 	var old := _run(before)
 	var old_sigs := sigs_of(old)
 	var old_counts: Array = old["counts"]
@@ -214,7 +230,8 @@ static func _edit(m: Node, method: String, p: Dictionary) -> Dictionary:
 		if d > 0:
 			var bad := _ref_into(feats, at + 1, a, a + d)
 			if bad != "":
-				return {"ok": false, "error": "delete_step refused: step %d (%s) makes body %d..%d and %s" % [at + 1, gone_id, a, a + d - 1, bad]}
+				var users := PartBKeys.users_of(feats, at + 1, gone_id)
+				return {"ok": false, "error": "delete_step refused: step %d (%s) makes body %d..%d and %s%s" % [at + 1, gone_id, a, a + d - 1, bad, ("; the steps that use its bodies: " + users) if users != "" else ""]}
 		elif d < 0:
 			var any := _ref_into(feats, at + 1, 0, 1 << 30)
 			if any != "":
@@ -244,6 +261,10 @@ static func _edit(m: Node, method: String, p: Dictionary) -> Dictionary:
 					remapped.append(String(feats[i]["id"]))
 			if not remapped.is_empty():
 				res = _run(rec)   # the moved steps changed their own keys: they run again (the prefix up to them is still cached)
+	var idx_after := _body_idx(feats)   # W03c: the steps whose body numbers the keys moved
+	for sid in idx_after:
+		if idx_before.has(sid) and idx_before[sid] != idx_after[sid] and not remapped.has(sid):
+			remapped.append(sid)
 	var ms := (Time.get_ticks_usec() - t0) / 1000.0
 	var ran := Part.step_runs - s0
 	var errs: Dictionary = res["errors"]
