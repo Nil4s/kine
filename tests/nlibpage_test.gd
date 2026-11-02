@@ -4,7 +4,8 @@ extends SceneTree
 ## A beginner walk with real clicks on the live Easy Part, from the BUILDING card (no keyboard). Measured from the BUILT result (mesh mm,
 ## item counts, undo steps), never from the code's own variables. Bars are written before the code; the bars that FAIL on the old code
 ## (no library page: the Parts chip opened the screw grid straight away) are marked in the bar text.
-##   1 PAGE      the Parts chip opens a page with ten category chips, named and worded exactly, all on the 1280 x 720 screen, each 34 px or taller, each with an icon   (FAILS on old code)
+##   1 PAGE      the Parts chip opens a page with ten category chips, named and worded exactly, each reachable in <= 2 real clicks (group tab, chip), on the 1280 x 720 screen, 34 px or taller, with an icon   (FAILS on old code)
+##               239 (a28b6389): "all ten visible at once" is retired (the chips sit in groups); Nick authorised rewriting stale bars
 ##   2 OPENS     opening the page and all ten categories makes no undo step (opening is not an action)                                                              (FAILS on old code)
 ##   3 SOON      Nuts, Washers, Hinges, Bearings, Springs, Handles, Wheels, Brackets each say 'coming soon' and name the next step (Screws), and build nothing   (FAILS on old code)
 ##   4 SHOWS     Screws shows the sixteen screw chips; Gears shows the Gear chip and hides 'coming soon'                                                             (FAILS on old code)
@@ -216,6 +217,7 @@ func _init() -> void:
 	var small := []
 	var no_icon := []
 	for c in CATS:
+		await open_group_of(lib(c))   # 239 (a28b6389, Nick authorised rewriting this stale bar): the chips sit in groups, so each is reached by its group tab: <= 2 real clicks
 		var b := lib(c)
 		if b == null:
 			names_ok.append("missing " + c)
@@ -230,10 +232,11 @@ func _init() -> void:
 			no_icon.append(c)
 	var shown := 0
 	for c in CATS:
+		await open_group_of(lib(c))
 		var b := lib(c)
 		if b != null and b.is_visible_in_tree():
 			shown += 1
-	ok(pb != null and shown == 10 and names_ok.is_empty(), "1 the Parts chip opens a page with 10 category chips shown %d/10, names %s" % [shown, str(names_ok)])
+	ok(pb != null and shown == 10 and names_ok.is_empty(), "1 the Parts chip opens a page whose 10 categories are each reachable in <= 2 real clicks (group tab, then chip) %d/10, names %s" % [shown, str(names_ok)])
 	ok(shown == 10 and off.is_empty() and small.is_empty() and no_icon.is_empty(), "1 every category chip is on the 1280 x 720 screen %s, 34 px or taller %s, with an icon %s" % [str(off), str(small), str(no_icon)])
 	await shot("page")
 
@@ -241,6 +244,7 @@ func _init() -> void:
 	var ub0: int = m.undo.size()
 	var opened := 0
 	for c in CATS:
+		await open_group_of(lib(c))
 		if await click_ctl(lib(c)):
 			opened += 1
 	ok(opened == 10 and m.undo.size() == ub0, "2 opening all ten categories (%d of 10 pressed): no undo step (%d -> %d)" % [opened, ub0, m.undo.size()])
@@ -251,6 +255,7 @@ func _init() -> void:
 	for c in CATS:
 		if LIB_READY.has(c):
 			continue   # the ready ones (Screws, Gears, Bearings, Brackets, Handles, Wheels) are checked by 4 and in their own suites
+		await open_group_of(lib(c))
 		await click_ctl(lib(c))
 		var sl := soon_label()
 		var txt := sl.text if sl != null else ""
@@ -263,8 +268,10 @@ func _init() -> void:
 	await shot("soon")
 
 	# 4 SHOWS: Screws opens the sixteen screw sizes; Gears the Gear chip and no 'coming soon'
+	await open_group_of(lib("Screws"))
 	await click_ctl(lib("Screws"))
 	var scr := screw_count_visible()
+	await open_group_of(lib("Gears"))
 	await click_ctl(lib("Gears"))
 	var gc := gear_chip()
 	var gshown := gc != null and gc.is_visible_in_tree()
@@ -283,6 +290,7 @@ func _init() -> void:
 	await shot("gear")
 
 	# 6 SCREW: Screws, M4 x 16: one undo step, built to ISO
+	await open_group_of(lib("Screws"))
 	await click_ctl(lib("Screws"))
 	var ub3: int = m.undo.size()
 	await click_ctl(chip(4, 16))
@@ -306,3 +314,14 @@ func _init() -> void:
 	ok(hit.is_empty(), "7 no key name in the library words, 'coming soon', hint or status %s" % str(hit))
 	print("nlibpage: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
+
+
+## 239 (a28b6389): the library chips sit in groups; a user opens a chip's group tab (a real click) before pressing the chip
+func open_group_of(c: Control) -> void:
+	if c == null or c.is_visible_in_tree():
+		return
+	for g in root.find_children("easypart_libgroup_*", "Button", true, false):
+		var fl := root.find_child("easypart_libchips_" + (g as Button).text, true, false)
+		if fl != null and fl.is_ancestor_of(c):
+			await click_ctl(g)
+			return

@@ -448,6 +448,7 @@ func ui_tests() -> void:
 	await idle(30)
 	await click_ctl(root.find_child("easypart_chip_parts", true, false) as Button)
 	await idle(6)
+	await open_group_of(root.find_child("easypart_lib_Type it", true, false) as Button)
 	await click_ctl(root.find_child("easypart_lib_Type it", true, false) as Button)
 	await idle(10)
 	var nb: Button = root.find_child("easypart_num_kind_box", true, false) as Button
@@ -495,3 +496,13 @@ func _init() -> void:
 	await ui_tests()
 	print("s229: %d fail" % fails)
 	quit(0 if fails == 0 else 1)
+
+## item 239 grouped the library chips under group tabs: open the tab that holds a chip before a real click on it (navigation only)
+func open_group_of(c: Control) -> void:
+	if c == null or c.is_visible_in_tree():
+		return
+	for g in root.find_children("easypart_libgroup_*", "Button", true, false):
+		var fl := root.find_child("easypart_libchips_" + (g as Button).text, true, false)
+		if fl != null and fl.is_ancestor_of(c):
+			await click_ctl(g)
+			return

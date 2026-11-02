@@ -115,6 +115,9 @@ static func go(m: Node, refs: Array) -> void:
 	if ep == null:
 		m._say("Easy Part is not open: go to BUILD, press Easy, then search again")
 		return
+	for r in refs:   # s239: a library chip sits in a group: open that group so the chip counts as on the screen
+		if String(r).begins_with("lib:") and ep.parts_open:
+			ep.lib_reveal(String(r).substr(4))
 	var start := 0
 	for i in range(refs.size() - 1, -1, -1):
 		var b := button(ep, String(refs[i]))
@@ -126,6 +129,8 @@ static func go(m: Node, refs: Array) -> void:
 		if b2 == null:
 			m._say("That button is not on Easy Part")
 			return
+		if String(refs[i]).begins_with("lib:"):
+			ep.lib_reveal(String(refs[i]).substr(4))
 		if i > start and not b2.is_visible_in_tree():
 			return   # the press before it said why (for example "Nothing solid to cut a hole in yet")
 		if i == 0 and String(refs[0]) == "parts:" and ep.parts_open and refs.size() > 1:

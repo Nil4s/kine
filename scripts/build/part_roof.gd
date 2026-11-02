@@ -722,6 +722,47 @@ static func to_world(G: Dictionary, P: Dictionary, p: Vector3) -> Vector3:
 	return q + (P["at"] as Vector3)
 
 
+## s237 THE RIDGE AND THE CORNERS FROM THE ROOF'S OWN PARAMETERS (an ornament seated on the roof reads these, not a number typed by hand):
+## {"a": Vector3, "b": Vector3} the two ends of the main ridge (world mm; y = the top surface there, sag and lift included), {} for a roof with no ridge line
+## (flat, shed, pyramid, a polygon). A hip's ridge ends where its two hips meet it, a xieshan's at the gable's set-in line, a gable's at the gable ends.
+static func ridge_line(f: Dictionary) -> Dictionary:
+	var P := norm(f)
+	if P.has("poly") and (P["poly"] as Array).size() >= 3:
+		return {}
+	var G := geometry(P)
+	var half := 0.0
+	match String(G["type"]):
+		"hip":
+			half = float(G["a"]) - minf(float(G["a"]), float(G["b"]))
+		"xieshan":
+			half = float(G["a"]) - float(G["u1"])
+		"gable":
+			half = float(G["a"])
+		_:
+			return {}
+	var ya: float = float(top(G, -half, 0.0, 1)[0])
+	var yb: float = float(top(G, half, 0.0, 1)[0])
+	return {"a": to_world(G, P, Vector3(-half, ya, 0.0)), "b": to_world(G, P, Vector3(half, yb, 0.0))}
+
+
+## the four eave corners of a hip-family roof, each: {"at": the point `inset` mm in along the hip from the corner (on the top surface), "dir": outward, level}
+static func corner_points(f: Dictionary, inset: float) -> Array:
+	var P := norm(f)
+	var G := geometry(P)
+	var out: Array = []
+	var a: float = G["a"]
+	var b: float = G["b"]
+	for sx in [-1.0, 1.0]:
+		for sz in [-1.0, 1.0]:
+			var o := Vector3(sx, 0.0, sz).normalized()
+			var x: float = sx * (a - inset * 0.7071)
+			var z: float = sz * (b - inset * 0.7071)
+			var w := to_world(G, P, Vector3(x, float(top(G, x, z)[0]), z))
+			var d := to_world(G, P, o) - to_world(G, P, Vector3.ZERO)
+			out.append({"at": w, "dir": Vector3(d.x, 0.0, d.z).normalized()})
+	return out
+
+
 ## every body of the roof: [{"name", "v" (mm), "t"}]; the first is the shell
 static func meshes(f: Dictionary) -> Array:
 	builds += 1
