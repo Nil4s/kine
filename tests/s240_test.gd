@@ -167,6 +167,7 @@ func challenge_run() -> void:
 	await fresh_part()
 	var card = ep.challenge_card
 	await click_ctl(chip("easypart_chip_parts"))
+	await open_group_of(chip("easypart_challenges"))
 	await click_ctl(chip("easypart_challenges"))
 	ok(card.visible and card.modulate.a > 0.5, "challenge: the card is up after the chip")
 	await click_ctl(chip("easypart_challenge_check"))
@@ -179,6 +180,7 @@ func challenge_run() -> void:
 	m.S.part = EasyChallenge.target_record("stand").duplicate(true)
 	pu.sync()
 	await idle(6)
+	await open_group_of(chip("easypart_challenges"))
 	await click_ctl(chip("easypart_challenges"))
 	ok(card.visible, "challenge: the card reopens over a built part")
 	await idle(4)
@@ -187,6 +189,7 @@ func challenge_run() -> void:
 	print("     CARD after a fresh part: visible %s rect %s" % [card.visible, card.get_global_rect()])
 	ok(not card.visible, "challenge: a fresh part closes the card")
 	# the card left up while Easy is left: it is gone when Easy comes back
+	await open_group_of(chip("easypart_challenges"))
 	await click_ctl(chip("easypart_challenges"))
 	ok(card.visible, "challenge: the card is up again")
 	pu.easy = false
@@ -237,3 +240,13 @@ func _init() -> void:
 	await challenge_run()
 	print("s240: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
+
+## item 239 grouped the library chips under group tabs: open the tab that holds a chip before a real click on it (navigation only)
+func open_group_of(c: Control) -> void:
+	if c == null or c.is_visible_in_tree():
+		return
+	for g in root.find_children("easypart_libgroup_*", "Button", true, false):
+		var fl := root.find_child("easypart_libchips_" + (g as Button).text, true, false)
+		if fl != null and fl.is_ancestor_of(c):
+			await click_ctl(g)
+			return
