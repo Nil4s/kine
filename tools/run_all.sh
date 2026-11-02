@@ -638,3 +638,6 @@ EXTRA="$EXTRA s237:w"   # s237: gold ornaments seated on the roof + floats check
 
 
 EXTRA="$EXTRA s240:w"   # s240: FRAMED FLOOR OVERLAP (Fit view frames the grid in the free view; Challenges card closes), tests/s240_test.gd
+
+
+EXTRA="$EXTRA s239:w"   # s239: GROUPED LIBRARY (group tabs, every chip readable, any number of categories fits), tests/s239_test.gd

@@ -2181,6 +2181,8 @@ func _parts_press() -> void:
 		return
 	parts_open = not parts_open
 	lib_cat = "Screws" if parts_open else ""   # NLIBPAGE: the page opens on Screws, its sizes showing
+	if parts_open:
+		lib_reveal("Screws")   # s239
 	_say("Parts: pick a kind. Screws is open: pick a size. It drops on the floor" if parts_open else "Parts shut. Press Parts to open them again")
 	_screw_sync()
 
@@ -2193,6 +2195,7 @@ func _lib_press(cat: String) -> void:
 		return
 	parts_open = true
 	lib_cat = cat
+	lib_reveal(cat)   # s239: the chip pressed (by search or code) shows in its group
 	if cat == "Screws":
 		_say("Screws: pick a size. It drops on the floor")
 	elif cat == "Gears":
@@ -2244,41 +2247,53 @@ func _lib_box() -> PanelContainer:
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 4)
 	pc.add_child(vb)
-	var fl := HFlowContainer.new()   # compact: eleven chips in three rows, so the screw grid under the page stays inside the panel at 1280 x 720
-	fl.add_theme_constant_override("h_separation", 3)
-	fl.add_theme_constant_override("v_separation", 3)
-	vb.add_child(fl)
-	for cat in LIB_CATS:
-		var b := Button.new()
-		b.name = "easypart_lib_" + cat
-		b.text = cat
-		b.icon = _lib_icon(cat)
-		b.toggle_mode = true
-		b.focus_mode = Control.FOCUS_NONE
-		b.custom_minimum_size = Vector2(0, 34)
-		b.add_theme_font_size_override("font_size", 12)
-		b.tooltip_text = ("%s: ready now" % cat) if cat in LIB_READY else ("%s: coming soon" % cat)
-		if cat in LIB_ICON_ONLY:   # s227b: the chips that open a page of their own are icon-only (word in the tooltip): the library page must fit the panel scroll area,
-			b.text = ""   # a page taller than it needs a scroll, and a scroll that moves under a real click sends that click to the wrong place (lay1)
-			if b.icon == null:
-				b.icon = Icons.tex("part_roof" if cat == "Roofs" else "part_ornament")
-			b.custom_minimum_size = Vector2(38, 34)
-			b.tooltip_text = "%s: ready now" % cat
-		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
-		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
-		b.pressed.connect(_lib_press.bind(cat))
-		fl.add_child(b)
-		lib_btns[cat] = b
-		if cat == "Gears":
-			fl.add_child(_nature_chip())   # FRIDAY 225: icon-only Nature chip in the first row, which has 46 px spare: adds no row
-	# s227b: the two icon-only chips go where a row has room (after Clips and feet, after Pipes), so the six rows of the page stay five
-	fl.move_child(lib_btns["Ornaments"], lib_btns["Clips and feet"].get_index() + 1)
-	fl.move_child(lib_btns["Roofs"], lib_btns["Pipes"].get_index() + 1)
-	fl.add_child(_kids_chip_make())   # p197kidsmode: the Kids chip, last on the library page
-	fl.add_child(_challenge_chip_make())   # s165: Challenges, after Kids
-
-
-	fl.add_child(_sketch_chip())   # FRIDAY 166: Draw to search, after Kids
+	# s239: a row of group tabs, then the chips of the open group only: the page height is the tallest group, never the sum of all the chips
+	var gfl := HFlowContainer.new()
+	gfl.name = "easypart_lib_groups"
+	gfl.add_theme_constant_override("h_separation", 3)
+	gfl.add_theme_constant_override("v_separation", 3)
+	vb.add_child(gfl)
+	for g in LIB_GROUPS:
+		var gb := Button.new()
+		gb.name = "easypart_libgroup_" + String(g[0])
+		gb.text = g[0]
+		gb.toggle_mode = true
+		gb.focus_mode = Control.FOCUS_NONE
+		gb.custom_minimum_size = Vector2(0, 30)
+		gb.add_theme_font_size_override("font_size", 12)
+		gb.tooltip_text = "%s: %s" % [g[0], g[1]]
+		gb.add_theme_stylebox_override("normal", _style(Color(0.14, 0.15, 0.19), 6, 4))
+		gb.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+		gb.add_theme_stylebox_override("pressed", _style(Tok.c("main"), 6, 4))   # same margins as normal: the pressed word is not clipped
+		gb.add_theme_stylebox_override("hover_pressed", _style(Tok.c("main"), 6, 4))
+		gb.pressed.connect(_lib_group_press.bind(g[0]))
+		gfl.add_child(gb)
+		lib_group_btns[g[0]] = gb
+		var fl := HFlowContainer.new()
+		fl.name = "easypart_libchips_" + String(g[0])
+		fl.add_theme_constant_override("h_separation", 3)
+		fl.add_theme_constant_override("v_separation", 3)
+		fl.visible = false
+		vb.add_child(fl)
+		lib_group_flows[g[0]] = fl
+	for g in LIB_GROUPS:
+		for key in g[2]:
+			var fl2: HFlowContainer = lib_group_flows[g[0]]
+			match String(key):
+				"@nature":
+					fl2.add_child(_nature_chip())   # FRIDAY 225
+				"@kids":
+					fl2.add_child(_kids_chip_make())   # p197kidsmode
+				"@challenges":
+					fl2.add_child(_challenge_chip_make())   # s165
+				"@sketch":
+					fl2.add_child(_sketch_chip())   # FRIDAY 166: Draw to search
+				_:
+					lib_add_category(String(key), g[0])
+	for cat in LIB_CATS:   # a category no group names still gets its chip, in the last group
+		if not lib_btns.has(cat):
+			lib_add_category(cat, LIB_GROUPS[LIB_GROUPS.size() - 1][0])
+	_lib_group_show(lib_group)
 	lib_soon = Label.new()
 	lib_soon.name = "easypart_lib_soon"
 	lib_soon.add_theme_font_size_override("font_size", 14)
@@ -2326,6 +2341,64 @@ func _lib_box() -> PanelContainer:
 	linkage_box.say_fn = _say   # p129linkages: its words go to the status line at the top
 	vb.add_child(linkage_box)
 	return pc
+
+
+## s239: one category chip (icon + its whole word) in a group's flow; later categories and the s239 test call this to add one more
+func lib_add_category(cat: String, group := "") -> Button:
+	if group == "" or not lib_group_flows.has(group):
+		group = lib_group
+	var b := Button.new()
+	b.name = "easypart_lib_" + cat
+	b.text = cat
+	b.icon = _lib_icon(cat)
+	if b.icon == null:
+		b.icon = Icons.tex("part_roof" if cat == "Roofs" else "part_ornament")
+	b.toggle_mode = true
+	b.focus_mode = Control.FOCUS_NONE
+	b.custom_minimum_size = Vector2(0, 34)
+	b.add_theme_font_size_override("font_size", 12)
+	b.tooltip_text = ("%s: ready now" % cat) if cat in LIB_READY else ("%s: coming soon" % cat)
+	b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
+	b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
+	b.add_theme_stylebox_override("pressed", _style(Tok.c("main"), 6, 4))   # same margins as normal: the pressed word is not clipped ("Screw")
+	b.add_theme_stylebox_override("hover_pressed", _style(Tok.c("main"), 6, 4))
+	b.pressed.connect(_lib_press.bind(cat))
+	(lib_group_flows[group] as Control).add_child(b)
+	lib_btns[cat] = b
+	return b
+
+
+## s239: the group a category's chip lives in ("" when it is in none)
+func lib_group_of(cat: String) -> String:
+	var b: Control = lib_btns.get(cat, null)
+	if b == null:
+		return ""
+	for g in lib_group_flows:
+		if b.get_parent() == lib_group_flows[g]:
+			return g
+	return ""
+
+
+## s239: show one group's chips (the group tabs and that group's chips are what the page shows). Opening a group is not an action: no undo step.
+func _lib_group_show(g: String) -> void:
+	if not lib_group_flows.has(g):
+		return
+	lib_group = g
+	for k in lib_group_flows:
+		(lib_group_flows[k] as Control).visible = (k == g)
+		(lib_group_btns[k] as Button).set_pressed_no_signal(k == g)
+
+
+func _lib_group_press(g: String) -> void:
+	_lib_group_show(g)
+	_say("%s: pick a kind" % g)
+
+
+## s239: open the group a category's chip lives in, so the chip shows (a press by search or code does this)
+func lib_reveal(key: String) -> void:
+	var g := lib_group_of(key)
+	if g != "":
+		_lib_group_show(g)
 
 
 ## NLIBPAGE: a 16 px icon per category, drawn in the text colour (Tok): a screw, a gear ring, a nut, a washer, hinge leaves, bearing rings,
@@ -6460,6 +6533,9 @@ func _kids_sync() -> void:
 	kids_btn.set_pressed_no_signal(kids_on)
 	var h := KIDS_H if kids_on else PLAIN_H
 	var r := KIDS_R if kids_on else PLAIN_R
+	for gk in lib_group_btns:   # s239: the group tabs follow the chips' size
+		(lib_group_btns[gk] as Button).custom_minimum_size = Vector2(0, h - 4)
+		(lib_group_btns[gk] as Button).add_theme_font_size_override("font_size", 15 if kids_on else 12)
 	for cat in lib_btns:
 		var b: Button = lib_btns[cat]
 		b.custom_minimum_size = Vector2(0, h)

@@ -524,6 +524,7 @@ func ui_part() -> void:
 	ep = pu.ep
 	var pbtn := root.find_child("easypart_chip_parts", true, false) as Button
 	await click_ctl(pbtn)
+	await open_group_of(root.find_child("easypart_lib_Roofs", true, false))   # 239: Roofs is in the Building group
 	var cat := root.find_child("easypart_lib_Roofs", true, false) as Button
 	ok(cat != null and cat.is_visible_in_tree() and root.get_visible_rect().encloses(cat.get_global_rect()), "11 EASY the Roofs category is on the Parts page and on screen")
 	if cat == null:
@@ -591,3 +592,14 @@ func ui_part() -> void:
 		KCad.release(int(hid))
 	var hall := await render_tris(ht, Vector2i(1000, 640), -28.0, 22.0)
 	hall.save_png(SHOT + "/hall.png")
+
+
+## 239 (a28b6389): the library chips sit in groups; a user opens a chip's group tab (a real click) before pressing the chip
+func open_group_of(c: Control) -> void:
+	if c == null or c.is_visible_in_tree():
+		return
+	for g in root.find_children("easypart_libgroup_*", "Button", true, false):
+		var fl := root.find_child("easypart_libchips_" + (g as Button).text, true, false)
+		if fl != null and fl.is_ancestor_of(c):
+			await click_ctl(g)
+			return

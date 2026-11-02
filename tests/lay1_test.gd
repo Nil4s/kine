@@ -257,6 +257,7 @@ func challenge_run(w: int, h: int, id := "stand", dy := 0.0) -> void:
 	var st := "challenge_%s_%dx%d_dy%d" % [id, w, h, int(dy * 100.0)]
 	if not ep.challenge_card.visible:
 		await click_ctl(root.find_child("easypart_chip_parts", true, false))
+		await open_group_of(root.find_child("easypart_challenges", true, false))   # 239
 		await click_ctl(root.find_child("easypart_challenges", true, false))
 	m.S.part = EasyChallenge.target_record(id).duplicate(true)
 	pu.sync()
@@ -272,6 +273,7 @@ func challenge_run(w: int, h: int, id := "stand", dy := 0.0) -> void:
 	var card := ep.challenge_card as EasyChallenge
 	if not card.visible:
 		await click_ctl(root.find_child("easypart_chip_parts", true, false))
+		await open_group_of(root.find_child("easypart_challenges", true, false))   # 239
 		await click_ctl(root.find_child("easypart_challenges", true, false))
 	await click_ctl(root.find_child("easypart_challenge_" + id, true, false))
 	await click_ctl(root.find_child("easypart_challenge_check", true, false))
@@ -453,3 +455,14 @@ func _init() -> void:
 		await trace_run()
 	print("lay1: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
+
+
+## 239 (a28b6389): the library chips sit in groups; a user opens a chip's group tab (a real click) before pressing the chip
+func open_group_of(c: Control) -> void:
+	if c == null or c.is_visible_in_tree():
+		return
+	for g in root.find_children("easypart_libgroup_*", "Button", true, false):
+		var fl := root.find_child("easypart_libchips_" + (g as Button).text, true, false)
+		if fl != null and fl.is_ancestor_of(c):
+			await click_ctl(g)
+			return

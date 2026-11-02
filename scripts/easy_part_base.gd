@@ -16,7 +16,16 @@ const SCREW_DS := [3, 4, 5, 6]         # NSCREW2: the Parts category's screw siz
 const SCREW_LENS := [10, 16, 20, 30]   # NSCREW2: the screw lengths in mm (rows of the grid)
 const BRACKET_CHIPS := [["L", "L-bracket", 1, "An L: a foot and an upright, two screw holes"], ["T", "T-bracket", 2, "A T: a bar on a stem, two screw holes"], ["corner", "Corner brace", 3, "An L with a gusset in the corner, two screw holes"]]   # FRIDAY 73: the Brackets page chips (key, words, kind 1 / 2 / 3)
 const LIB_CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "Springs", "Handles", "Wheels", "Brackets", "Clips and feet", "Boards", "Wood boards", "Pipes", "Ornaments", "Roofs", "Type it", "Favourites"]   # NLIBPAGE: the Parts library page, in this order (p083favfix: Favourites last; p085typetobuil: Type it before it)
-const LIB_ICON_ONLY := ["Ornaments", "Roofs", "Favourites", "Type it"]   # s227b: chips shown as an icon alone (the word is the tooltip): keeps the library page at five chip rows
+## s239: the library chips sit in a few plain-word groups (a row of group tabs, one group's chips below it), so any number of categories fits the page:
+## the page is as tall as the biggest group (a few rows), never the sum of every chip. Every chip shows its whole word.
+## Each entry: [group name, tooltip, [chip keys]]; a key is a LIB_CATS name or one of "@nature", "@kids", "@challenges", "@sketch" (chips made elsewhere).
+const LIB_GROUPS := [
+	["Fasteners", "Screws, nuts, washers, hinges, brackets and clips: the bits that hold things together", ["Screws", "Nuts", "Washers", "Hinges", "Brackets", "Clips and feet"]],
+	["Moving parts", "Gears, bearings, springs, handles and wheels: the bits that turn and move", ["Gears", "Bearings", "Springs", "Handles", "Wheels"]],
+	["Building", "Boards, wood, pipes and roofs: the big pieces of a house, a case or a frame", ["Boards", "Wood boards", "Pipes", "Roofs"]],
+	["Nature and decor", "Trees, plants and ornaments to dress a part", ["Ornaments", "@nature"]],
+	["Mine", "Your favourites, a part typed in words, a part found by drawing, kids mode and challenges", ["Favourites", "Type it", "@sketch", "@kids", "@challenges"]],
+]
 const LIB_READY := ["Screws", "Gears", "Bearings", "Brackets", "Clips and feet", "Handles", "Wheels", "Boards", "Wood boards", "Pipes", "Hinges", "Springs", "Ornaments", "Roofs", "Type it", "Favourites"]   # NLIBPAGE: the categories with parts today; the others say coming soon
 const CLIP_KINDS := ["foot", "clip", "slot", "snap"]   # P075: the Clips and feet chips: a rubber foot, a cable clip, a zip-tie slot (template kinds in part_templates.gd); P205: + the snap-fit clip
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
@@ -113,6 +122,9 @@ var nw_btn: Button               # NNUTWASHER: "Add its nut and washer" (in the 
 var boss_btn: Button             # FRIDAY 37 BOSS CHIP: "Add its boss" (in the screw grid): a round post beside the screw, sized to it, one click
 var parts_open := false          # NSCREW2: the Parts category is open (the grid shows even with no screw on the floor)
 var lib_box: PanelContainer      # NLIBPAGE: the Parts library page: ten category chips, under the template chips while Parts is open
+var lib_group := "Fasteners"   # s239: the library group showing
+var lib_group_btns := {}         # s239: group name -> its tab
+var lib_group_flows := {}        # s239: group name -> the flow holding its chips
 var lib_btns := {}               # NLIBPAGE: category -> its chip
 var lib_soon: Label              # NLIBPAGE: "Coming soon" line for an empty category (names the next step)
 var handle_box: PanelContainer    # P071 HANDLES: the Handles grid (three kinds x three sizes), under the library page while Handles is open or a handle is the part

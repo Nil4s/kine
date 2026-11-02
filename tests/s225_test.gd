@@ -486,6 +486,7 @@ func _init() -> void:
 	var pbtn := root.find_child("easypart_chip_parts", true, false) as Button
 	await click_ctl(pbtn)
 	await idle(3)
+	await open_group_of(root.find_child("easypart_nature_chip", true, false))   # 239: Nature is in the "Nature and decor" group
 	var nchip := root.find_child("easypart_nature_chip", true, false) as Button
 	var win := Rect2(0, 0, 1280, 720)
 	ok(nchip != null and nchip.is_visible_in_tree() and win.encloses(nchip.get_global_rect()), "12 Easy Parts: a Nature chip on the Parts library page, inside 1280 x 720 (%s)" % str(nchip.get_global_rect() if nchip != null else Rect2()))
@@ -653,3 +654,14 @@ func _init() -> void:
 	ok(hedge_total >= 40.0, "11 the courtyard has %.0f m of hedge (>= 40)" % hedge_total)
 	print("s225: %d fail" % fails)
 	quit()
+
+
+## 239 (a28b6389): the library chips sit in groups; a user opens a chip's group tab (a real click) before pressing the chip
+func open_group_of(c: Control) -> void:
+	if c == null or c.is_visible_in_tree():
+		return
+	for g in root.find_children("easypart_libgroup_*", "Button", true, false):
+		var fl := root.find_child("easypart_libchips_" + (g as Button).text, true, false)
+		if fl != null and fl.is_ancestor_of(c):
+			await click_ctl(g)
+			return

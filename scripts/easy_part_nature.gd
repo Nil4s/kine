@@ -37,8 +37,8 @@ func make_chip() -> Button:
 	chip = Button.new()
 	chip.name = "easypart_nature_chip"
 	chip.icon = Icons.tex("build_nature")   # icon only (the word is the tooltip): a text chip is 53 px and wraps the library flow to a new row, pushing the screw sizes below the fold
-	chip.custom_minimum_size = Vector2(38, 34)
-	chip.text = ""
+	chip.custom_minimum_size = Vector2(0, 34)
+	chip.text = "Nature"   # s239: the word is back (a group page has room)
 	chip.toggle_mode = true
 	chip.focus_mode = Control.FOCUS_NONE
 	chip.add_theme_font_size_override("font_size", 12)
