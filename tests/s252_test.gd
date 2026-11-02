@@ -112,11 +112,30 @@ func after(tag: String, kind: String, must: String) -> void:
 		ok(cv == "", "%s %s: toast covers no button %s" % [tag, kind, cv])
 
 
+## S253: the camera ease after a window resize runs on real time (FRAME_EASE s), not on frames: on a loaded PC 14 idle frames can end
+## before it does, and the box's corners were projected from a camera that was still moving (the press then landed on the view column).
+## Wait for the same condition the drag always assumed: the ease is over and the camera has not moved for 5 frames (cap 900 frames).
+func wait_cam_still() -> void:
+	var still := 0
+	var last := [m.target, float(m.dist)]
+	for i in 900:
+		await process_frame
+		var now := [m.target, float(m.dist)]
+		if ep._ease.is_empty() and now[0] == last[0] and now[1] == last[1]:
+			still += 1
+			if still >= 5:
+				return
+		else:
+			still = 0
+		last = now
+
+
 func drag_box() -> void:
-	var cam: Camera3D = m.cam
-	var s0 := cam.unproject_position(Vector3(1.4, 0.0, 0.0))
-	var s1 := cam.unproject_position(Vector3(1.5, 0.1, 0.0))
 	await click_ctl(ep.make_btns["draw"])
+	await wait_cam_still()
+	var cam: Camera3D = m.cam
+	var s0 := cam.unproject_position(Vector3(1.4, 0.0, 0.0))   # S253: projected after the camera is still (was: before the Draw click, mid-ease)
+	var s1 := cam.unproject_position(Vector3(1.5, 0.1, 0.0))
 	var mv := InputEventMouseMotion.new()
 	mv.position = s0
 	root.push_input(mv, true)

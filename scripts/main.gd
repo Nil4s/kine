@@ -6736,8 +6736,8 @@ func _restore(u: Dictionary) -> void:
 		_rebuild_cards()
 		if ui_find != null and ui_find.visible:
 			_check()   # the findings were for the cards just put back
-	if u.has("playhead") and not is_equal_approx(float(u["playhead"]), playhead):
-		playhead = float(u["playhead"])   # the clock's time is undone too: the body is posed at the time the step was taken at
+	if u.has("playhead") and float(u["playhead"]) != playhead:   # S253: EXACTLY, not is_equal_approx: a clip stopped on a slow frame lands a few microseconds either side of a frame time, and an undo that
+		playhead = float(u["playhead"])   # kept the playhead within 8 us of the step's left the body posed at a time the step was not taken at (the clock's time is undone too: the body is posed at the time the step was taken at)
 		if ui_timeline != null:
 			ui_timeline.queue_redraw()
 	for e in u.get("others", []):   # ROADMAP 53: the other fighters' cards, undone as well; re-posed at the playhead
