@@ -645,3 +645,6 @@ EXTRA="$EXTRA s241:w"   # s241: WHAT A STEP DID (body-making calls return create
 
 
 EXTRA="$EXTRA s244:w"   # s244: CHECKPOINT + REPLAY FROM STEP, tests/s244_test.gd
+
+
+EXTRA="$EXTRA s242:w"   # s242: LOOK FACTS (agent look_facts: per-piece colour, coverage, contrast, visibility from an ID pass + the final light), tests/s242_test.gd

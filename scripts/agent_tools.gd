@@ -474,6 +474,11 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"checkpoint", "restore", "checkpoints", "edit_step", "insert_step", "delete_step":   # item 244: named checkpoints + replay from one step (scripts/build/part_replay_calls.gd). Not in METHODS
 			var prc := PartReplayCalls.serve(m, method, p)
 			return _ok(id, prc) if bool(prc["ok"]) else _err(id, -32602, String(prc["error"]))
+
+
+		"look_facts":   # item 242: numbers for how the final picture LOOKS per piece / kind / nature item (scripts/build/look_facts.gd). Not in METHODS
+			var lf: Dictionary = await LookFacts.serve(m, p)
+			return _ok(id, lf) if bool(lf["ok"]) else _err(id, -32602, String(lf["error"]))
 		"nature":   # FRIDAY 225: trees, hedges, shrubs, grass, flowers, paths, scatter (scripts/build/nature_agent.gd); not in METHODS (the transcript's ready line)
 			var na := NatureAgent.serve(m, p)
 			return _ok(id, na) if bool(na["ok"]) else _err(id, -32602, String(na["error"]))
