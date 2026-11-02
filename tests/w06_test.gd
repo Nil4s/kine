@@ -216,7 +216,7 @@ func _init() -> void:
 	ok(absf(float(sk_dims()[0]["mm"]) - 40.0) < 0.01, "W4 typing 4 cm sets 40 mm")
 	await click_ctl(ub)
 	await click_ctl(ub)
-	ok(pu.unit() == "in" and ub.text.find("in") >= 0, "W5 two clicks on the unit button make the project unit in (%s)" % ub.text)
+	ok(pu.unit() == "in" and ub.text == "in", "W5 two clicks on the unit button make the project unit in (%s)" % ub.text)
 	fld = m.ui_root.find_child("part_dim_0", true, false)
 	await type_in(fld, "4")
 	ok(absf(float(sk_dims()[0]["mm"]) - 101.6) < 0.01, "W6 bare 4 in an inch project is 101.6 mm (%.3f)" % float(sk_dims()[0]["mm"]))

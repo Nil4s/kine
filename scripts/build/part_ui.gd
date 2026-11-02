@@ -513,19 +513,24 @@ func _build_side() -> void:
 	snap_btn.focus_mode = Control.FOCUS_NONE
 	snap_btn.tooltip_text = "the sketch grid: 5 mm, or 1 mm for fine work (holding Alt frees one click)"
 	snap_btn.pressed.connect(func(): snap_mm = 1.0 if snap_mm > 2.0 else 5.0; _snap_text(); pov.queue_redraw())
-	sketch_box.add_child(snap_btn)
+	var snap_row := HBoxContainer.new()   # W06: Snap, Unit and Both on ONE row: the palette must not grow taller (it covered sketch clicks)
+	snap_row.add_theme_constant_override("separation", 4)
+	sketch_box.add_child(snap_row)
+	snap_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	snap_row.add_child(snap_btn)
 	unit_btn = Button.new()   # W06: the project unit (mm / cm / in), saved with the part
 	unit_btn.name = "part_unit"
 	unit_btn.focus_mode = Control.FOCUS_NONE
 	unit_btn.tooltip_text = "the part's unit for bare numbers (mm, cm or in). Any field also takes 1.5in, 4 cm, 40 mm"
 	unit_btn.pressed.connect(func(): set_unit(LengthParse.UNITS[(LengthParse.UNITS.find(unit()) + 1) % LengthParse.UNITS.size()]))
-	sketch_box.add_child(unit_btn)
+	snap_row.add_child(unit_btn)
 	dual_chk = CheckBox.new()
 	dual_chk.name = "part_dual"
-	dual_chk.text = "Both units"
+	dual_chk.text = "Both"
+	dual_chk.tooltip_text = "show every length in two units: 38.1 mm (1.50 in)"
 	dual_chk.focus_mode = Control.FOCUS_NONE
 	dual_chk.toggled.connect(func(v: bool): if unit_busy == 0: set_dual(v))
-	sketch_box.add_child(dual_chk)
+	snap_row.add_child(dual_chk)
 	_unit_text()
 	dims_chk = CheckBox.new()
 	dims_chk.name = "part_show_dims"
@@ -727,7 +732,7 @@ func set_dual(v: bool) -> void:
 func _unit_text() -> void:
 	if unit_btn == null:
 		return
-	unit_btn.text = "Unit: %s" % unit()
+	unit_btn.text = unit()
 	unit_busy += 1
 	dual_chk.button_pressed = dual()
 	unit_busy -= 1
