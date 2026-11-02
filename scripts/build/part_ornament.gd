@@ -16,6 +16,8 @@ const MM := 0.001
 const CELLS := 40   # surface-net cells along the longest side
 const KINDS := {
 	"chiwen": {"name": "Chiwen (ridge-end dragon)", "size": [700.0, 1100.0, 300.0], "words": ["chiwen", "chi wen", "ridge beast", "ridge dragon", "ridge-end dragon", "chiwens"]},
+	"ridge_dragon": {"name": "Ridge dragon (chiwen head, mouth open)", "size": [1000.0, 1300.0, 420.0], "words": ["dragon head ridge", "ridge dragon head", "chiwen head", "ridge dragon"]},
+	"corner_sprite": {"name": "Corner sprite (light, upturned)", "size": [300.0, 420.0, 140.0], "words": ["corner sprite", "light corner beast", "eave sprite"]},
 	"corner_beast": {"name": "Corner beast", "size": [260.0, 300.0, 130.0], "words": ["corner beast", "eave beast", "small beast"]},
 	"corner_lead": {"name": "Leading figure (rider on a phoenix)", "size": [520.0, 640.0, 260.0], "words": ["leading figure", "rider", "immortal"]},
 	"corner_row": {"name": "Corner beast row", "size": [520.0, 640.0, 260.0], "words": ["corner beasts", "corner beast row", "eave beasts", "beast row"]},
@@ -28,7 +30,7 @@ const KINDS := {
 	"ball_finial": {"name": "Ball finial", "size": [240.0, 440.0, 240.0], "words": ["ball finial", "ball"]},
 	"onion_dome": {"name": "Onion dome", "size": [640.0, 940.0, 640.0], "words": ["onion dome", "dome"]},
 }
-const ORDER := ["chiwen", "corner_row", "corner_beast", "corner_lead", "finial", "dragon_head", "lion", "cloud_bracket", "lotus_base", "scroll", "ball_finial", "onion_dome"]
+const ORDER := ["chiwen", "ridge_dragon", "corner_row", "corner_sprite", "corner_beast", "corner_lead", "finial", "dragon_head", "lion", "cloud_bracket", "lotus_base", "scroll", "ball_finial", "onion_dome"]
 
 static var _meshes := {}   # key -> {"km": KMesh (metres, bottom-centre at the origin), "f": the meshsolid fields, "vol": mm3, "ms": build time}
 static var builds := 0     # how many meshes were built (tests read it: a replay builds none twice)
@@ -77,6 +79,44 @@ static func design(g: OrnShapes, kind: String) -> void:
 				var r := lerpf(0.17, 0.035, float(k) / float(n - 1))
 				g.cone(p + out * r * 0.5, p + out * (r + 0.13) + Vector3(0, 0.03, 0), r * 0.55, 0.012, 0.03)
 				k += 4
+		"ridge_dragon":
+			# item 236: the ridge end as a DRAGON HEAD, like the reference's spiky crest: a neck rising from the ridge, a head with an OPEN MOUTH (a cut between
+			# the upper and lower jaw), two horns swept back, eye sockets, a row of mane spikes down the neck and a tail curling up behind.
+			var hh: float = j.call(0.06)
+			g.ell(v(0.34, 0.05, 0), v(0.42, 0.06, 0.2), Vector3.ZERO, 0.04)   # the foot on the ridge
+			g.tube([v(0.3, 0.05, 0), v(0.2, 0.28, 0), v(0.18, 0.5, 0), v(0.3, 0.7 * hh, 0)], 0.17, 0.12, 0.06, 1.0, 5)   # the neck
+			g.ell(v(0.45, 0.86 * hh, 0), v(0.2, 0.15, 0.15), Vector3.ZERO, 0.05)   # the skull
+			g.cone(v(0.5, 0.92 * hh, 0), v(0.9, 0.86 * hh, 0), 0.11, 0.07, 0.04)   # the upper jaw
+			g.tube([v(0.88, 0.88 * hh, 0), v(0.98, 0.94 * hh, 0), v(1.0, 1.02 * hh, 0)], 0.05, 0.018, 0.03)   # the nose curls up
+			g.cone(v(0.44, 0.7 * hh, 0), v(0.84, 0.64 * hh, 0), 0.08, 0.045, 0.04)   # the lower jaw
+			for s in [-1.0, 1.0]:
+				g.tube([v(0.4, 0.98 * hh, 0.08 * s), v(0.22, 1.12 * hh, 0.11 * s), v(0.04, 1.2 * hh, 0.14 * s), v(-0.1, 1.16 * hh, 0.15 * s)], 0.05, 0.012, 0.03)   # horns swept back
+				g.tube([v(0.8, 0.8 * hh, 0.07 * s), v(0.95, 0.72 * hh, 0.18 * s), v(1.05, 0.6 * hh, 0.3 * s)], 0.02, 0.01, 0.02)   # whiskers
+				g.cone(v(0.66, 0.8 * hh, 0.07 * s), v(0.68, 0.7 * hh, 0.07 * s), 0.018, 0.005, 0.01)   # fangs
+			for q in 6:   # the mane: long flame spikes down the back of the neck, swept back
+				var qy := 0.2 + 0.11 * float(q)
+				g.cone(v(0.15, qy, 0), v(-0.16 - 0.03 * float(q), qy + 0.2, 0), 0.055, 0.008, 0.03)
+			for q in 3:   # a crest of three prongs on the skull
+				g.cone(v(0.34 + 0.07 * float(q), 0.98 * hh, 0), v(0.12 + 0.07 * float(q), 1.26 * hh + 0.04 * float(q), 0), 0.05, 0.008, 0.03)
+			var tl := g.tube([v(0.26, 0.06, 0), v(0.0, 0.1, 0), v(-0.18, 0.34, 0), v(-0.1, 0.58, 0), v(0.06, 0.56, 0)], 0.1, 0.03, 0.05, 1.0, 5)   # the tail curls up behind
+			var tk := 3
+			while tk < tl.size() - 4:   # tail fins
+				var tq := tl[tk + 1] - tl[tk - 1]
+				var tout := Vector3(-tq.y, tq.x, 0.0).normalized()
+				g.cone(tl[tk] + tout * 0.05, tl[tk] + tout * 0.2, 0.04, 0.008, 0.02)
+				tk += 3
+			g.begin_cut()
+			g.cone(v(0.54, 0.78 * hh, 0), v(1.15, 0.75 * hh, 0), 0.03, 0.05, 0.01)   # the mouth, open between the jaws
+			for s in [-1.0, 1.0]:
+				g.sph(v(0.58, 0.93 * hh, 0.13 * s), 0.04, 0.015)   # eye sockets
+		"corner_sprite":
+			# item 236: a light eave figure: a slim body arching up and out on a small seat, a small horned head, a thin tail flick
+			g.ell(v(0.12, 0.03, 0), v(0.16, 0.035, 0.07), Vector3.ZERO, 0.02)
+			g.tube([v(0.1, 0.04, 0), v(0.06, 0.28, 0), v(0.16, 0.52, 0), v(0.34, 0.62, 0)], 0.075, 0.045, 0.04, 1.0, 4)
+			g.ell(v(0.42, 0.66, 0), v(0.1, 0.07, 0.065), Vector3.ZERO, 0.03)
+			g.cone(v(0.46, 0.7, 0), v(0.5, 0.86, 0), 0.025, 0.006, 0.01)   # horn
+			g.cone(v(0.5, 0.64, 0), v(0.58, 0.62, 0), 0.04, 0.02, 0.02)   # snout
+			g.tube([v(0.08, 0.1, 0), v(-0.06, 0.2, 0), v(-0.12, 0.4, 0)], 0.04, 0.008, 0.02)   # tail flick
 		"corner_beast":
 			g.ell(v(0, 0.28, 0), v(0.3, 0.22, 0.17), Vector3.ZERO, 0.07)
 			g.ell(v(-0.14, 0.24, 0), v(0.22, 0.2, 0.2), Vector3.ZERO, 0.07)

@@ -95,11 +95,13 @@ static var sun_gain := 2.8       # item 235: multiplies the sun's energy (the su
 static var ambient := 0.8        # item 235: the sky's ambient fill energy (less = darker shadow side)
 static var contrast := 1.04      # item 235: the picture's contrast (adjustment)
 static var saturation := 1.2     # item 235: the picture's saturation (adjustment)
+static var mountains := false     # item 236: a backdrop of distant blue-grey hills behind the scene (two hazy layers about 650 m away, -Z side)
 static var tweak := {}            # a test's own Environment overrides, applied after the table (tuning only)
 static var final_size := Vector2i(1920, 1080)
 
 static var _saved := {}
 static var _ground_node: MeshInstance3D = null
+static var _mount_node: Node3D = null
 static var last := {}            # what the last apply set (the test reads it)
 static var scene_size := 8.0     # metres of what is shown (for the radii)
 static var scene_box := AABB()
@@ -294,6 +296,60 @@ static func quiet_light(L: DirectionalLight3D) -> void:
 	L.shadow_enabled = false
 
 
+## item 236: the distant mountains: two layers of a hill silhouette (a strip of triangles along an arc, heights from seeded noise) at `r` metres, behind -Z.
+## Returns a Node3D named "temple_mountains" whose children are the layers; its meshes' heights are the numbers the test reads.
+static func make_mountains(r: float, centre: Vector3, y0: float) -> Node3D:
+	var root := Node3D.new()
+	root.name = "temple_mountains"
+	var layers := [{"r": r, "h": 200.0, "col": Color(0.30, 0.42, 0.62), "seed": 11, "freq": 0.9}, {"r": r * 0.82, "h": 120.0, "col": Color(0.25, 0.37, 0.54), "seed": 23, "freq": 1.3}]
+	for L in layers:
+		var nz := FastNoiseLite.new()
+		nz.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+		nz.seed = int(L["seed"])
+		nz.frequency = float(L["freq"])
+		var n := 160
+		var verts := PackedVector3Array()
+		var norms := PackedVector3Array()
+		var idx := PackedInt32Array()
+		var rr: float = L["r"]
+		for i in n + 1:
+			var f := float(i) / float(n)
+			var th := deg_to_rad(lerpf(-85.0, 85.0, f))
+			var x := sin(th) * rr
+			var z := -cos(th) * rr
+			var e := 0.5 + 0.5 * nz.get_noise_1d(f * 6.0)
+			var hgt: float = float(L["h"]) * (0.18 + 0.82 * e * e) * (0.55 + 0.45 * cos(th * 1.5))
+			verts.append(Vector3(x, y0 - 6.0, z))
+			verts.append(Vector3(x, y0 + hgt, z))
+			var nn := Vector3(-sin(th), 0.15, cos(th)).normalized()
+			norms.append(nn)
+			norms.append(nn)
+		for i in n:
+			var a := i * 2
+			idx.append_array(PackedInt32Array([a, a + 1, a + 2, a + 1, a + 3, a + 2]))
+		var arr := []
+		arr.resize(Mesh.ARRAY_MAX)
+		arr[Mesh.ARRAY_VERTEX] = verts
+		arr[Mesh.ARRAY_NORMAL] = norms
+		arr[Mesh.ARRAY_INDEX] = idx
+		var am := ArrayMesh.new()
+		am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		var mt := StandardMaterial3D.new()
+		mt.albedo_color = L["col"]
+		mt.roughness = 1.0
+		mt.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mt.shading_mode = BaseMaterial3D.SHADING_MODE_PER_VERTEX
+		var mi := MeshInstance3D.new()
+		mi.mesh = am
+		mi.material_override = mt
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		mi.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		mi.name = "mountain_layer"
+		root.add_child(mi)
+	root.position = Vector3(centre.x, 0.0, centre.z)
+	return root
+
+
 static func make_ground(y: float, size: float, centre: Vector3) -> MeshInstance3D:
 	var pm := PlaneMesh.new()
 	pm.size = Vector2(maxf(size, 1.0) * 60.0, maxf(size, 1.0) * 60.0)
@@ -364,6 +420,14 @@ static func apply(m: Node, cam_pos := Vector3.INF) -> void:
 			m.add_child(_ground_node)
 		else:
 			_ground_node.position = Vector3(box.get_center().x, box.position.y - 0.003 * scene_size, box.get_center().z)
+	if on and mountains:
+		if _mount_node == null or not is_instance_valid(_mount_node):
+			_mount_node = make_mountains(650.0, box.get_center(), box.position.y - 0.003 * scene_size)
+			m.add_child(_mount_node)
+	elif _mount_node != null:
+		if is_instance_valid(_mount_node):
+			_mount_node.free()
+		_mount_node = null
 	last = {"env": ep, "sun": sp, "tier": tier_name(), "gi": gi_for(gi_mode), "elev": sun_elevation(time_h), "box": box}
 
 
@@ -395,6 +459,9 @@ static func set_live(m: Node, want: bool) -> String:
 	if _ground_node != null and is_instance_valid(_ground_node):
 		_ground_node.queue_free()
 	_ground_node = null
+	if _mount_node != null and is_instance_valid(_mount_node):
+		_mount_node.free()
+	_mount_node = null
 	on = false
 	_saved = {}
 	return "Temple light off: the fast look is back"
@@ -503,7 +570,7 @@ static func final_shot(m: Node, path: String, size := Vector2i.ZERO, spec := {})
 
 ## ---------------------------------------------------------------- agent_tools: temple_light / final_shot
 static func settings_dict() -> Dictionary:
-	return {"on": on, "time": time_h, "sun_az": sun_az, "sun_size": sun_size, "exposure": exposure, "haze": haze, "clouds": clouds, "gi": gi_mode,
+	return {"on": on, "time": time_h, "sun_az": sun_az, "sun_size": sun_size, "exposure": exposure, "haze": haze, "clouds": clouds, "gi": gi_mode, "mountains": mountains,
 		"tier": tier_name(), "sun_elevation": snappedf(sun_elevation(time_h), 0.1)}
 
 
@@ -518,6 +585,8 @@ static func set_from(p: Dictionary) -> void:
 		gi_mode = String(p["gi"])
 	if p.has("ground"):
 		ground = bool(p["ground"])
+	if p.has("mountains"):
+		mountains = bool(p["mountains"])
 
 
 static func _v3(a: Variant) -> Vector3:

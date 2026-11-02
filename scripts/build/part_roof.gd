@@ -51,6 +51,7 @@ static func norm(f: Dictionary) -> Dictionary:
 	P["sag"] = maxf(float(f.get("sag", 0.0)), 0.0)
 	P["lift"] = float(f.get("lift", 0.0))
 	P["lift_len"] = maxf(float(f.get("lift_len", 0.0)), 0.0)
+	P["lift_pow"] = clampf(float(f.get("lift_pow", 2.0)), 1.0, 6.0)   # item 236: 2 = the old smooth bump; higher = the lift gathers at the very tip (a steeper curl, like a temple's flying eave)
 	P["thick"] = clampf(float(f.get("thick", 60.0)), 1.0, 5000.0)
 	P["gable_in"] = maxf(float(f.get("gable_in", 0.0)), 0.0)
 	P["hip_frac"] = clampf(float(f.get("hip_frac", 0.4)), 0.05, 0.9)
@@ -71,7 +72,7 @@ static func norm(f: Dictionary) -> Dictionary:
 
 ## the geometry constants (canonical frame: the ridge runs along X, the eave rectangle is +-a by +-b, y = 0 at the eave line, mm). swap = the plan was turned
 static func geometry(P: Dictionary) -> Dictionary:
-	var G := {"type": P["type"], "t": float(P["thick"]), "sag": float(P["sag"]), "lift": float(P["lift"])}
+	var G := {"type": P["type"], "t": float(P["thick"]), "sag": float(P["sag"]), "lift": float(P["lift"]), "lp": float(P.get("lift_pow", 2.0))}
 	var w := float(P["w"])
 	var d := float(P["d"])
 	var o := float(P["overhang"])
@@ -173,6 +174,9 @@ static func _lift(G: Dictionary, x: float, z: float) -> float:
 		return 0.0
 	var fu := 1.0 - maxf(tu, 0.0)
 	var fv := 1.0 - maxf(tv, 0.0)
+	var lp: float = float(G.get("lp", 2.0))
+	if lp != 2.0:
+		return float(G["lift"]) * pow(fu, lp) * pow(fv, lp)
 	return float(G["lift"]) * fu * fu * fv * fv
 
 
@@ -847,7 +851,7 @@ static func words(f: Dictionary) -> String:
 ## a new roof record's fields from a short dictionary (the agent's call): the unknown keys are dropped, the rest kept as given
 static func fields_of(p: Dictionary) -> Dictionary:
 	var out := {}
-	for k in ["type", "w", "d", "poly", "overhang", "height", "pitch", "sag", "lift", "lift_len", "thick", "gable_in", "hip_frac", "hole", "axis", "at", "ridge", "hips", "eave", "trim_w", "trim_h", "detail", "name"]:
+	for k in ["type", "w", "d", "poly", "overhang", "height", "pitch", "sag", "lift", "lift_len", "lift_pow", "thick", "gable_in", "hip_frac", "hole", "axis", "at", "ridge", "hips", "eave", "trim_w", "trim_h", "detail", "name"]:
 		if p.has(k):
 			out[k] = p[k]
 	return out
