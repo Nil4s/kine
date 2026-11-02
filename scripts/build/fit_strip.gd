@@ -50,7 +50,9 @@ static func _circle(cx: float, cy: float, r: float) -> Dictionary:
 
 ## {"ok", "why", "rec", "cells": [{"c", "preset", "label", "peg_d", "hole_d", "x"}], "peg_body", "hole_body" (index in the replayed bodies),
 ##  "exp_peg_mm3", "exp_hole_mm3" (closed form), "length", "text_area_peg", "text_area_hole"}
-static func build(lo := 0.1, hi := 0.5, step := 0.1, peg_d := PEG_D) -> Dictionary:
+## rec_in: add the strip to this part (its steps are appended; body0 = the bodies it already has, so the "into" of the strip points at its own two);
+## origin: where the strip's low corner goes on the top plane (mm)
+static func build(lo := 0.1, hi := 0.5, step := 0.1, peg_d := PEG_D, rec_in := {}, body0 := 0, origin := Vector2.ZERO) -> Dictionary:
 	var cs := values(lo, hi, step)
 	if cs.is_empty():
 		return {"ok": false, "why": "The range needs a first value, a last value above it and a step above 0"}
@@ -59,20 +61,20 @@ static func build(lo := 0.1, hi := 0.5, step := 0.1, peg_d := PEG_D) -> Dictiona
 	var widest := peg_d + 2.0 * float(cs[cs.size() - 1])
 	var pitch := widest + SIDE_GAP
 	var length := pitch * cs.size()
-	var rec := Part.make("Fit strip")
+	var rec: Dictionary = rec_in if not rec_in.is_empty() else Part.make("Fit strip")
 	var cells: Array = []
 	var peg_polys: Array = []
 	var hole_polys: Array = []
-	var v_hole := -(PLATE_W + GAP_MM)   # the hole plate's front edge
+	var v_hole := origin.y - (PLATE_W + GAP_MM)   # the hole plate's front edge
 	var circles_pegs: Array = []
-	var holes_ents: Array = [{"k": "rect", "a": [0.0, v_hole], "b": [length, v_hole + PLATE_W]}]
+	var holes_ents: Array = [{"k": "rect", "a": [origin.x, v_hole], "b": [origin.x + length, v_hole + PLATE_W]}]
 	var area_pegs := 0.0
 	var area_holes := 0.0
 	var pegs_vol := 0.0
 	var holes_vol := 0.0
 	for i in cs.size():
 		var c: float = cs[i]
-		var cx := pitch * (i + 0.5)
+		var cx := origin.x + pitch * (i + 0.5)
 		var txt := label(c)
 		var rw := PText.raw(txt)
 		if not bool(rw["ok"]):
@@ -82,7 +84,7 @@ static func build(lo := 0.1, hi := 0.5, step := 0.1, peg_d := PEG_D) -> Dictiona
 		if bb.size.x * sc > pitch - 2.0:
 			sc = (pitch - 2.0) / bb.size.x
 		for side in 2:
-			var v0 := 0.0 if side == 0 else v_hole
+			var v0 := origin.y if side == 0 else v_hole
 			var polys := PText.polygons(rw, sc, bb.get_center(), Vector2(cx, v0 + LABEL_V), false)
 			if side == 0:
 				peg_polys.append_array(polys)
@@ -90,34 +92,34 @@ static func build(lo := 0.1, hi := 0.5, step := 0.1, peg_d := PEG_D) -> Dictiona
 			else:
 				hole_polys.append_array(polys)
 				area_holes += PText.area_of(polys)
-		circles_pegs.append(_circle(cx, PEG_V, peg_d * 0.5))
+		circles_pegs.append(_circle(cx, origin.y + PEG_V, peg_d * 0.5))
 		holes_ents.append(_circle(cx, v_hole + PEG_V, peg_d * 0.5 + c))
 		pegs_vol += PI * pow(peg_d * 0.5, 2) * PEG_H
 		holes_vol += PI * pow(peg_d * 0.5 + c, 2) * PLATE_T
 		cells.append({"c": c, "preset": preset_of(c), "label": txt, "peg_d": peg_d, "hole_d": peg_d + 2.0 * c, "x": cx})
 	var F: Array = rec["features"]
 	# body 0: the peg plate, pegs joined on top, values cut in
-	var s1 := Part.new_feature(rec, "sketch", {"plane": "top", "ents": [{"k": "rect", "a": [0.0, 0.0], "b": [length, PLATE_W]}], "dims": []})
+	var s1 := Part.new_feature(rec, "sketch", {"plane": "top", "ents": [{"k": "rect", "a": [origin.x, origin.y], "b": [origin.x + length, origin.y + PLATE_W]}], "dims": []})
 	F.append(s1)
 	F.append(Part.new_feature(rec, "extrude", {"sketch": s1["id"], "dist": PLATE_T, "both": false, "op": "new"}))
 	var pl := Part.new_feature(rec, "plane", {"from": "top", "mm": PLATE_T, "out": 1})
 	F.append(pl)
 	var s2 := Part.new_feature(rec, "sketch", {"plane": pl["id"], "ents": circles_pegs, "dims": []})
 	F.append(s2)
-	F.append(Part.new_feature(rec, "extrude", {"sketch": s2["id"], "dist": PEG_H, "both": false, "op": "join", "into": 0}))
+	F.append(Part.new_feature(rec, "extrude", {"sketch": s2["id"], "dist": PEG_H, "both": false, "op": "join", "into": body0}))
 	var s3 := Part.new_feature(rec, "sketch", {"plane": pl["id"], "ents": PText.ents_of(peg_polys), "dims": []})
 	F.append(s3)
-	F.append(Part.new_feature(rec, "extrude", {"sketch": s3["id"], "dist": -ENGRAVE, "both": false, "op": "cut", "into": 0}))
+	F.append(Part.new_feature(rec, "extrude", {"sketch": s3["id"], "dist": -ENGRAVE, "both": false, "op": "cut", "into": body0}))
 	# body 1: the hole plate, values cut in
 	var s4 := Part.new_feature(rec, "sketch", {"plane": "top", "ents": holes_ents, "dims": []})
 	F.append(s4)
 	F.append(Part.new_feature(rec, "extrude", {"sketch": s4["id"], "dist": PLATE_T, "both": false, "op": "new"}))
 	var s5 := Part.new_feature(rec, "sketch", {"plane": pl["id"], "ents": PText.ents_of(hole_polys), "dims": []})
 	F.append(s5)
-	F.append(Part.new_feature(rec, "extrude", {"sketch": s5["id"], "dist": -ENGRAVE, "both": false, "op": "cut", "into": 1}))
+	F.append(Part.new_feature(rec, "extrude", {"sketch": s5["id"], "dist": -ENGRAVE, "both": false, "op": "cut", "into": body0 + 1}))
 	var plate := length * PLATE_W * PLATE_T
 	return {"ok": true, "why": "", "rec": rec, "cells": cells, "length": length, "pitch": pitch,
-		"peg_body": 0, "hole_body": 1,
+		"peg_body": body0, "hole_body": body0 + 1,
 		"exp_peg_mm3": plate + pegs_vol - area_pegs * ENGRAVE,
 		"exp_hole_mm3": plate - holes_vol - area_holes * ENGRAVE,
 		"text_area_peg": area_pegs, "text_area_hole": area_holes}

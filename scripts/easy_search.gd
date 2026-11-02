@@ -46,6 +46,7 @@ const ACTIONS := [
 	["Round all edges", "round fillet every edge all", ["make:round", "round:all"]],
 	["Round only the outside", "round fillet outside outer edges", ["make:round", "round:outside"]],
 	["Round only the top", "round fillet top edges", ["make:round", "round:top"]],
+	["Test print: fit strip", "test print fit strip tolerance clearance pegs holes calibration printer", ["parts:", "lib:Type it", "fitstrip:go"]],
 	["Parts library", "parts library screws nuts gears bearings hinges", ["parts:"]],
 ]
 
@@ -101,6 +102,8 @@ static func button(ep, ref: String) -> Button:
 			return ep.parts_btn
 		"fill":
 			return ep.fill_btn
+		"fitstrip":
+			return ep.fitstrip_box.go_btn
 		"bar":
 			var bars := {"undo": ep.undo_btn, "redo": ep.redo_btn, "dup": ep.dup_btn, "fix": ep.fix_btn, "export": ep.export_btn, "scene": ep.use_scene_btn, "give": ep.give_btn}
 			return bars.get(key, null)

@@ -2337,6 +2337,9 @@ func _lib_box() -> PanelContainer:
 	vb.add_child(numbers_box)
 	vb.add_child(_text_row())   # FRIDAY 33: Text on a face, under Like a photo
 	vb.add_child(_label_row())   # s210: Label, under Like a photo
+	fitstrip_box = preload("res://scripts/easy_fit_strip.gd").new()   # W16: Test print: fit strip, on the Type it page
+	fitstrip_box.setup(self)
+	vb.add_child(fitstrip_box)
 	vb.add_child(_fit_row())   # s193: Fit to an object, on the Boards page
 	pipes_box = preload("res://scripts/easy_pipes.gd").new()   # s079: the Pipes page (scripts/easy_pipes.gd)
 	pipes_box.setup(self)
@@ -2726,6 +2729,7 @@ func _screw_sync() -> void:
 		if text_box != null:
 			text_box.visible = parts_open and lib_cat == "Type it"   # FRIDAY 33
 		label_box.visible = parts_open and lib_cat == "Type it"   # s210
+		fitstrip_box.visible = parts_open and lib_cat == "Type it"   # W16
 		if fav_box != null:   # p083favfix: the Favourites page shows while its category is open; the row and the star are drawn here
 			fav_box.visible = parts_open and lib_cat == "Favourites"
 			_fav_sync()
@@ -7193,6 +7197,7 @@ var meas: EasyMeasure
 const PartLabel := preload("res://scripts/build/part_label.gd")
 ## s210 LABEL MAKER: a word and Raised / Cut in, then Make label: a flat tag sized to the word, the word on it (scripts/build/part_label.gd)
 var label_box: HBoxContainer = null
+var fitstrip_box: VBoxContainer = null   # W16
 var label_edit: LineEdit = null
 var label_mode: Button = null
 var label_go: Button = null
