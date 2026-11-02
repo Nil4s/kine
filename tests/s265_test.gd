@@ -2,6 +2,7 @@ extends SceneTree
 ## S265 one lane of small Part fixes from the GPU build (NOTES.md gaps). A section per item, in commit order: 271, 268, 266, 270, 267, 265, 272.
 var fails := 0
 var m: Node
+const KCad := preload("res://scripts/kcad.gd")
 
 
 func ok(c: bool, w: String) -> void:
@@ -96,6 +97,54 @@ func s266() -> void:
 	ok(v.size() == 1 and absf(float(v[0]) - one * 120.0) < one * 2.0, "266 the 120 joined copies are one body of volume %s (120 boxes = %s)" % [v[0] if v.size() > 0 else "none", one * 120.0])
 
 
+func ring_rec(pts: Array) -> Array:
+	var rec := Part.make("S270")
+	Part.prim(rec, "box", {"x": -2.0, "y": -2.0, "z": -2.0, "w": 4.0, "h": 4.0, "d": 4.0, "name": "Cap"})
+	var f := Part.new_feature(rec, "pattern", {"kind": "route", "body": 0, "op": "new", "pts": pts, "closed": true, "mm": 20.0, "count": 0})
+	(rec["features"] as Array).append(f)
+	return [rec, String(f["id"])]
+
+
+## the centres (mm) of every body of a replay
+func centres(rec: Dictionary) -> Array:
+	var r := Part.replay(rec, -1, {"keep": true})
+	var out: Array = []
+	for b in r.get("ids", []):
+		out.append((KCad.mass_properties(int(b)).get("center", Vector3.ZERO) as Vector3) / 0.001)
+	for b in r.get("ids", []):
+		KCad.release(int(b))
+	return out
+
+
+## 270 BAR: a route ring through points that differ in Y (a 40 x 40 square standing in the XY plane) builds: 8 bodies (the cap + 7 copies at 20 mm),
+## every centre in the z = 0 plane and on the square. A flat ring on the ground still builds the same 8. CONTROL: points that are not on one plane say
+## "must lie on one plane" (not "no length"). pipe3d with op new takes the step's name (called), and its copies are numbered.
+func s270() -> void:
+	var sq: Array = [[0, 0, 0], [40, 0, 0], [40, 40, 0], [0, 40, 0]]
+	var a := ring_rec(sq)
+	var r := Part.replay(a[0])
+	ok((r["errors"] as Dictionary).is_empty() and int(r["bodies"]) == 8, "270 BAR a ring in the XY plane builds: %d bodies, errors %s" % [r["bodies"], str(r["errors"])])
+	var cs := centres(a[0])
+	var worst_z := 0.0
+	var worst_edge := 0.0
+	for c in cs:
+		worst_z = maxf(worst_z, absf((c as Vector3).z))
+		worst_edge = maxf(worst_edge, minf(minf(absf(c.x), absf(c.x - 40.0)), minf(absf(c.y), absf(c.y - 40.0))))
+	ok(cs.size() == 8 and worst_z < 0.01 and worst_edge < 0.01, "270 BAR 8 centres, worst off the z = 0 plane %.4f mm, worst off the square %.4f mm (bar 0.01)" % [worst_z, worst_edge])
+	var g := ring_rec([[0, 0, 0], [40, 0, 0], [40, 0, -40], [0, 0, -40]])
+	ok(int(Part.replay(g[0])["bodies"]) == 8, "270 the flat ring on the ground still builds 8")
+	var bad := ring_rec([[0, 0, 0], [40, 0, 0], [40, 40, 10], [0, 40, 40]])
+	var be := String((Part.replay(bad[0])["errors"] as Dictionary).get(bad[1], ""))
+	ok(be.contains("one plane") and not be.contains("no length"), "270 CONTROL points off one plane say so: '%s'" % be.substr(0, 70))
+	var rp := Part.make("S270 pipe")
+	(rp["features"] as Array).append(Part.new_feature(rp, "pipe3d", {"pts": [[0, 0, 0], [0, 0, 50], [30, 0, 80]], "r": 3.0, "bend": 8.0, "op": "new", "called": "Heat pipe"}))
+	var rr := Part.replay(rp)
+	ok((rr["errors"] as Dictionary).is_empty() and int(rr["bodies"]) == 1 and String(rr["body_names"][0]) == "Heat pipe", "270 BAR pipe3d takes its name: '%s' (errors %s)" % [rr["body_names"][0] if int(rr["bodies"]) > 0 else "none", str(rr["errors"])])
+	var rq := Part.make("S270 pipe2")
+	(rq["features"] as Array).append(Part.new_feature(rq, "pipe3d", {"pts": [[0, 0, 0], [0, 0, 50], [30, 0, 80]], "r": 3.0, "bend": 8.0, "op": "new"}))
+	ok(String(Part.replay(rq)["body_names"][0]).begins_with("Body"), "270 CONTROL an unnamed pipe is still BodyN")
+
+
 func _init() -> void:
 	if not Part.available():
 		print("FAIL: no KineCAD DLL")
@@ -105,5 +154,6 @@ func _init() -> void:
 	await s271()
 	s268()
 	s266()
+	s270()
 	print("s265: %d fail" % fails)
 	quit(1 if fails > 0 else 0)

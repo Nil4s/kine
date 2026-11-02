@@ -692,7 +692,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				if fo != "":
 					errs[id] = fo
 			"pipe3d":   # s215: a round tube along points placed in 3D (scripts/build/part_pipe3d.gd)
+				var p3b := bodies.size()
 				var p3e := PartPipe3D.add(bodies, f)
+				look_fit(looks, bodies.size())
+				_name_new(looks, bodies, p3b, f)   # S270: a pipe made as a new body takes its step's name (the heat pipes were Body7..)
 				if p3e != "":
 					errs[id] = p3e
 			"meshsolid":   # s155: a sculpt mesh sewn into one solid (its own file: part_meshsolid.gd)
