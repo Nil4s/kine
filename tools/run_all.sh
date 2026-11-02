@@ -697,3 +697,4 @@ EXTRA="$EXTRA w02:w"   # w02: sketch health free / fully defined / over-constrai
 
 
 EXTRA="$EXTRA s258:w"   # s258: a look that glows (emission colour + strength on an appear step, saved, drawn as emission), tests/s258_test.gd
+EXTRA="$EXTRA s263:w"   # s263: dark product studio + continuous ring band, tests/s263_test.gd

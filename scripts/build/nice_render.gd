@@ -114,6 +114,8 @@ static func draw(host: Node, rec: Dictionary, size := SIZE, cut := {}) -> Image:
 static func draw_mesh(host: Node, mesh: ArrayMesh, box: AABB, looks: Array, size := SIZE, rec := {}, cut := {}) -> Image:   # rec, cut: the s218 section colours (a split in rec, or a cut that is on)
 	if look == "real":
 		return await draw_real(host, mesh, box, size)
+	if look == "studio_dark":   # items 263/274/275: the dark product studio (scripts/build/studio_light.gd)
+		return await StudioLight.draw_mesh(host, mesh, box, size)
 	var floor_y := box.position.y
 	var vp := SubViewport.new()
 	vp.size = size
