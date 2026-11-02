@@ -864,7 +864,8 @@ func _refresh_next() -> void:
 	if h != _row_h:   # the row changed the strip's height: the body is framed under the strip again
 		_row_h = h
 		if shown_on and m.S.cards.size() > 0:
-			m.easy.frame_clip_next()
+			m.easy.frame_clip_next(true)   # S253: keep_body. The strip's height changing is a LAYOUT change (the camera is framed again), never a pose change: with the body put back
+			# "to the playhead" (apply at the playhead) a row that grew a frame after an Undo / Redo re-posed the body a hair off the step just restored (1e-3 deg), and off a hand-posed step entirely
 
 
 ## THE SCRUB: the slider's row is shown while a clip is built (the strip shows it); while the clip plays or the playhead
