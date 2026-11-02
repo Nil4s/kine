@@ -13,6 +13,7 @@ var t := 0.0
 var size: Vector2i
 var box := AABB()
 var ok := false
+var floor_y := 0.0
 
 
 func _init(host: Node, record: Dictionary, sz := Vector2i(960, 540), ov := {}) -> void:
@@ -68,9 +69,13 @@ func _init(host: Node, record: Dictionary, sz := Vector2i(960, 540), ov := {}) -
 		reach = ext if first else reach.merge(ext)
 		first = false
 	box = reach
-	var ovv := ov.duplicate()
-	ovv["reflect"] = false
-	var st := StudioLight.build(world, box, ovv)
+	var st := StudioLight.build(world, box, ov)
+	floor_y = float(st["floor_y"])
+	if bool(ov.get("reflect", true)):   # the reflective floor: one mirror per surface, re-synced to the keyed look at every set_time
+		for it in items:
+			var mir := StudioLight.mirror_of(it["mi"], floor_y, float(st["fade_h"]), float(ov.get("mirror", StudioLight.MIRROR_STRENGTH)))
+			world.add_child(mir)
+			it["mir"] = mir
 	cam = Camera3D.new()
 	cam.fov = float(ov.get("fov", 30.0))
 	cam.near = 0.01 * maxf(float(st["diag"]), 0.1)
@@ -127,6 +132,8 @@ func set_time(time: float) -> void:
 			mt.emission_energy_multiplier = float(l["glow_k"])
 		else:
 			mt.emission_enabled = false
+		if it.has("mir"):
+			StudioLight.sync_mirror(it["mir"], it["mi"], floor_y)
 
 
 ## playback: advance the clock by dt (looping at the end of the film when loop) and show it

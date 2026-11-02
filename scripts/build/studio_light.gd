@@ -117,6 +117,27 @@ static func mirror_of(src: MeshInstance3D, floor_y: float, fade_h: float, streng
 	return mi
 
 
+## ITEM 269b: a mirror made by mirror_of copies its source's colours once; for a source whose material CHANGES (film keys) call this each time it changes:
+## the mirror takes the source's transform and, per surface, its present body colour and glow
+static func sync_mirror(mir: MeshInstance3D, src: MeshInstance3D, floor_y: float) -> void:
+	mir.transform = Transform3D(Basis.from_scale(Vector3(1, -1, 1)), Vector3(0, 2.0 * floor_y, 0)) * src.transform
+	for s in src.mesh.get_surface_count():
+		var mat: Material = src.get_surface_override_material(s)
+		if mat == null:
+			mat = src.material_override
+		var sm := mir.get_surface_override_material(s) as ShaderMaterial
+		if sm == null or not (mat is BaseMaterial3D):
+			continue
+		var b := mat as BaseMaterial3D
+		sm.set_shader_parameter("body", Vector3(b.albedo_color.r, b.albedo_color.g, b.albedo_color.b))
+		if b.emission_enabled:
+			sm.set_shader_parameter("glow", Vector3(b.emission.r, b.emission.g, b.emission.b))
+			sm.set_shader_parameter("glow_k", b.emission_energy_multiplier)
+		else:
+			sm.set_shader_parameter("glow", Vector3.ZERO)
+			sm.set_shader_parameter("glow_k", 0.0)
+
+
 ## the studio's environment: the backdrop sky, low ambient, ACES, bloom (the part's emission blooms, lit metal edges do not), SSAO scaled to the part
 static func make_env(diag: float, ov := {}) -> Environment:
 	var sc := scaled(diag)

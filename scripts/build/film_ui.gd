@@ -54,7 +54,7 @@ func open() -> void:
 	panel.name = "film_panel"
 	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.03, 0.03, 0.04, 0.97)
+	sb.bg_color = Color(0.03, 0.03, 0.04, 1.0)   # fully opaque: nothing of the app shows through
 	panel.add_theme_stylebox_override("panel", sb)
 	var vb := VBoxContainer.new()
 	vb.add_theme_constant_override("separation", 6)
@@ -62,7 +62,7 @@ func open() -> void:
 	tex = TextureRect.new()
 	tex.name = "film_view"
 	tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	tex.stretch_mode = TextureRect.STRETCH_SCALE
 	tex.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tex.custom_minimum_size = Vector2(320, 180)
 	vb.add_child(tex)
@@ -135,7 +135,9 @@ func _make_stage() -> void:
 	if stage != null:
 		t0 = stage.t
 		stage.close()
-	stage = FilmStage.new(m.ui_root, rec(), Vector2i(960, 540))
+	var avail: Vector2 = m.ui_root.size - Vector2(0, 149)   # the view fills the panel above the timeline and the two button rows
+	var vsz := Vector2i(clampi(int(avail.x) & ~1, 320, 1920), clampi(int(avail.y) & ~1, 180, 1080))
+	stage = FilmStage.new(m.ui_root, rec(), vsz)
 	if stage.ok:
 		stage.vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 		tex.texture = stage.vp.get_texture()
