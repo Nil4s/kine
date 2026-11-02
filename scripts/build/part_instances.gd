@@ -36,6 +36,7 @@ static func places(box: AABB, f: Dictionary) -> Dictionary:
 		return {"err": "the body is bigger than the face"}
 	var pu := bu + gap   # pitch: footprint + gap
 	var pv := bv + gap
+	var short := ""   # set when scatter could not place them all; the places it did find are still returned in "partial"
 	var spots: Array = []   # [u, v] of each footprint centre, relative to the face centre
 	var mode := String(f.get("mode", "scatter"))
 	if mode == "grid":
@@ -80,7 +81,7 @@ static func places(box: AABB, f: Dictionary) -> Dictionary:
 			cells[key].append([u, v])
 			spots.append([-fw * 0.5 + bu * 0.5 + u, -fh * 0.5 + bv * 0.5 + v])
 		if spots.size() < n:
-			return {"err": "only %d of %d copies fit without overlapping: use fewer, a smaller gap or a bigger face" % [spots.size(), n]}
+			short = "only %d of %d fit without overlapping: use fewer, a smaller gap or a bigger face" % [spots.size(), n]
 	else:
 		return {"err": "mode must be scatter or grid"}
 	var pos := PackedVector3Array()
@@ -92,6 +93,8 @@ static func places(box: AABB, f: Dictionary) -> Dictionary:
 		p[vi] = c[vi] + float(s[1]) - bc[vi]
 		p[ci] = c[ci] - base
 		pos.append(p)
+	if short != "":
+		return {"err": short, "partial": pos}
 	return {"pos": pos, "err": ""}
 
 
