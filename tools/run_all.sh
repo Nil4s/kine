@@ -634,3 +634,4 @@ EXTRA="$EXTRA s222:w"   # s222: WORDS FOR MORE THAN HOUSES (hall_words.gd, trade
 EXTRA="$EXTRA s233:w"   # BIG PARTS: 300 bodies drawn (256-surface limit), shared replay shapes, broad phase, one-pass counts (item 233)
 EXTRA="$EXTRA s235:w"   # s235: TEMPLE LOOK ROUND 3 (light contrast, red/paving/tile colours, frame_width), tests/s235_test.gd
 EXTRA="$EXTRA s236:w"   # s236: TEMPLE ROUND 4 (amber dense ginkgo, ridge_dragon + corner_sprite shapes, roof lift_pow, mountains), tests/s236_test.gd
+EXTRA="$EXTRA s239:w"   # s239: GROUPED LIBRARY (group tabs, every chip readable, any number of categories fits), tests/s239_test.gd
