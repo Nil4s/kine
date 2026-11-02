@@ -10,6 +10,7 @@ const MODE_NAMES := {"join": "Join", "cut": "Cut", "overlap": "Overlap", "new": 
 const NUDGE := 0.00001          # 0.01 mm
 const TOL := 1e-7               # 0.1 micron: what "touching" means
 const VOL_EPS := 1e-13          # m3: below this a shared volume is a skin
+const NUDGE_ASK := "Nudge 0.01 mm and try again?"
 
 
 ## --- bodies, counted ----------------------------------------------------------------------------------------------------------------
@@ -196,3 +197,23 @@ static func nudged_retry(a: int, b: int, mode: String) -> Dictionary:
 	res["nudged"] = true
 	res["nudge_by"] = by
 	return {"b": b2, "result": res}
+
+
+## W10: what a combine step (Part._combine_step) should say about a kernel answer nx for cur (op) tool. "" = nothing to say.
+## Join must leave one counted lump; Cut and Intersect must not be a no-op / empty because the two only touch along a line or at a point.
+## The words end with "Nudge 0.01 mm and try again?" when the nudge could fix it (the dialog then shows its button).
+static func explain(cur: int, tool: int, op: String, nx: int) -> String:
+	var c := contact(cur, tool)
+	var touches: bool = c["kind"] in ["line", "point"]
+	if not touches:
+		return ""
+	var why := "these only touch %s (%s)" % ["along a line" if c["kind"] == "line" else "at a point", c["where"]]
+	if op == "join":
+		if nx != 0 and lumps(nx) > 1:
+			return "Join did not make one part (%d bodies): %s. %s" % [lumps(nx), why, NUDGE_ASK]
+		return ""
+	if op == "cut" and nx != 0:
+		return "Cut changed nothing: %s. %s" % [why, NUDGE_ASK]
+	if op == "intersect" and (nx == 0 or KCad.volume(nx) <= VOL_EPS):
+		return "Overlap found no shared volume: %s. %s" % [why, NUDGE_ASK]
+	return ""
