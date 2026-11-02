@@ -52,23 +52,29 @@ static func feat_label(f: Dictionary) -> String:
 
 ## W09b: the name to show for each of nb bodies: the body's own name (bname), else the feature that made it ("Extrude 2"), else "Piece N".
 ## Returns [{label, tip}] per body index.
-static func names_for(rec: Dictionary, nb: int) -> Array:
-	var out := []
-	var res := Part.replay(rec, -1, {"inc": true})
+static func names_for(rec: Dictionary, nb: int, shown := {}) -> Array:
+	# W09c: no replay per feature. A replay records the body count after every step (res["counts"]); body bi was made by the first step whose
+	# count passes bi. `shown` = the replay result the view already holds (PartUI.res): read as is, no replay at all. Without it (or if it does
+	# not cover every step) ONE incremental replay is run.
 	var feats: Array = rec.get("features", [])
+	var res: Dictionary = shown
+	if (shown.get("counts", []) as Array).size() != feats.size() or not shown.has("body_names"):
+		res = Part.replay(rec, -1, {"inc": true})
+	var counts: Array = res.get("counts", [])
 	var made := []   # made[bi] = index of the first feature after which body bi exists
 	made.resize(nb)
 	made.fill(-1)
 	var seen := 0
-	for i in feats.size():
+	for i in mini(feats.size(), counts.size()):
 		if seen >= nb:
 			break
 		if bool((feats[i] as Dictionary).get("off", false)):
 			continue
-		var c := int(Part.replay(rec, i, {"inc": true}).get("bodies", 0))
+		var c := int(counts[i])
 		while seen < mini(c, nb):
 			made[seen] = i
 			seen += 1
+	var out := []
 	for bi in nb:
 		var nm := Part.body_name(res, bi)
 		var named := nm != "Body%d" % (bi + 1)
@@ -131,7 +137,7 @@ func _sync(ep: Node) -> void:
 	var nbody := 0
 	for k in ids:
 		nbody = maxi(nbody, int(k) + 1)
-	var info := names_for(ep.m.S.part, nbody)
+	var info := names_for(ep.m.S.part, nbody, ep.m.bld.part.res)
 	labels = []
 	tips = []
 	for i in ids.size():

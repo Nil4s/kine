@@ -24,6 +24,15 @@ func idle(n := 3) -> void:
 		await process_frame
 
 
+## W09d: wait until the part's rebuild has settled: no tessellation job running or queued (part_ui _tess_run / _tess_next), then one frame so the view has it
+func settle() -> void:
+	var n := 0
+	while n < 3000 and (not (pu().get("_tess_run") as Dictionary).is_empty() or not (pu().get("_tess_next") as Dictionary).is_empty()):
+		await process_frame
+		n += 1
+	await process_frame
+
+
 func ev_mouse(p: Vector2, down: bool) -> void:
 	var e := InputEventMouseButton.new()
 	e.button_index = MOUSE_BUTTON_LEFT
@@ -262,11 +271,11 @@ func _init() -> void:
 	await click_ctl(draw)
 	await drag_screen(scr(Vector3(-0.04, 0.0, 0.0)), scr(Vector3(0.04, 0.0, 0.06)))
 	await click_ctl(pu().ep.make_btns["pull"])
-	await idle(60)
+	await settle()
 	await click_ctl(draw)
 	await drag_screen(scr(Vector3(-0.04, 0.0, -0.14)), scr(Vector3(0.04, 0.0, -0.08)))
 	await click_ctl(pu().ep.make_btns["pull"])
-	await idle(10)
+	await settle()
 	var tall: Dictionary = m.S.part.duplicate(true)   # 80 mm tall plates: a band of pixels wide enough to click (thin 20 mm plates left 2 px)
 	for f in tall["features"]:
 		if String(f["t"]) == "extrude":
@@ -274,7 +283,7 @@ func _init() -> void:
 	m.S.part = tall
 	pu().upto = -1
 	pu().sync()
-	await idle(60)
+	await settle()
 	ok(bodies() == 2, "setup: two separate pieces (bodies %d)" % bodies())
 	if bodies() == 2:
 		for sz in [Vector2i(1024, 600), Vector2i(1920, 1080)]:
