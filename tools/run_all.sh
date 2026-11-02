@@ -629,3 +629,6 @@ EXTRA="$EXTRA s234:w"   # s234: PART TEXT AND NAMING: nested loops in one sketch
 
 
 EXTRA="$EXTRA s222:w"   # s222: WORDS FOR MORE THAN HOUSES (hall_words.gd, trade_words.gd), tests/s222_test.gd
+
+
+EXTRA="$EXTRA s233:w"   # BIG PARTS: 300 bodies drawn (256-surface limit), shared replay shapes, broad phase, one-pass counts (item 233)
