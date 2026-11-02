@@ -698,3 +698,6 @@ EXTRA="$EXTRA w02:w"   # w02: sketch health free / fully defined / over-constrai
 
 
 EXTRA="$EXTRA w03:w"   # W03: stable references: hinge pivot follows the body box after a step-1 resize, tests/w03_test.gd
+
+
+EXTRA="$EXTRA w06b:w"   # W06b: units in type-while-drawing, dialog defaults in project unit, tests/w06b_test.gd
