@@ -11,7 +11,13 @@ const SUFFIXES := [["mm", "mm"], ["cm", "cm"], ["in", "in"], ["ft", "ft"], ["\""
 ## the number in a text (unit already cut off); NAN when it is not one
 static func number_of(t: String) -> float:
 	var v := t.strip_edges().replace(",", ".")
-	return float(v) if v.is_valid_float() else NAN
+	if v.is_valid_float():
+		return float(v)
+	if NumExpr.is_expression(v):   # W07: a sum (25*2+3); the unit was cut off before this
+		var r := NumExpr.eval(v)
+		if bool(r["ok"]) and String(r["unit"]) == "":
+			return float(r["value"])
+	return NAN
 
 
 ## the unit a text ends with ("" when none) and the text before it

@@ -1521,7 +1521,11 @@ func _dim_submitted(t: String) -> void:
 	if err != "":
 		_say(err)
 	elif Part.parse_bind(t).is_empty():
-		_say("Dimension set: %s mm" % t.replace("mm", "").strip_edges())
+		var shown := t.replace("mm", "").strip_edges()
+		if NumExpr.is_expression(shown):   # W07: the resolved size, then what was typed
+			_say("Dimension set: %s mm (%s)" % [("%.3f" % typed_mm(shown)).rstrip("0").rstrip("."), shown])
+		else:
+			_say("Dimension set: %s mm" % shown)
 	else:
 		_say("Dimension set: %s" % Part.bind_text(Part.parse_bind(t)))
 	dim_target = {}
@@ -1561,6 +1565,12 @@ func _size_words(t: String) -> String:
 	var v := t.strip_edges().to_lower().replace("mm", "").replace("cm", "").strip_edges()
 	if v.is_valid_float():
 		return "A size must be above 0 mm"
+	if NumExpr.is_expression(v):   # W07: say what is wrong with the sum
+		var r := NumExpr.eval(v)
+		if not r["ok"]:
+			return "Not a size: " + String(r["err"])
+		if float(r["value"]) <= 0.0:
+			return "A size must be above 0 mm"
 	return "type a size (40, 4 cm or 1.5 in), or =forearm+4 to read the body (forearm, upper_arm, thigh, shank, trunk, head ...)"
 
 
