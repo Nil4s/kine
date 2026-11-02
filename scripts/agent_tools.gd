@@ -471,6 +471,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"final_shot":   # item 232: the camera as a PNG with no UI, at a size ({out, w, h, camera?}). Not in METHODS
 			var fs: Dictionary = await TempleLight.serve_final(m, p)
 			return _ok(id, fs) if bool(fs["ok"]) else _err(id, -32000, String(fs["text"]))
+		"checkpoint", "restore", "checkpoints", "edit_step", "insert_step", "delete_step":   # item 244: named checkpoints + replay from one step (scripts/build/part_replay_calls.gd). Not in METHODS
+			var prc := PartReplayCalls.serve(m, method, p)
+			return _ok(id, prc) if bool(prc["ok"]) else _err(id, -32602, String(prc["error"]))
 		"nature":   # FRIDAY 225: trees, hedges, shrubs, grass, flowers, paths, scatter (scripts/build/nature_agent.gd); not in METHODS (the transcript's ready line)
 			var na := NatureAgent.serve(m, p)
 			return _ok(id, na) if bool(na["ok"]) else _err(id, -32602, String(na["error"]))
