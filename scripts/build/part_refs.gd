@@ -88,3 +88,54 @@ static func pivot_for_rec(rec: Dictionary, f: Dictionary) -> Vector3:
 	if r is Vector3:
 		return (r as Vector3) * Part.MM
 	return Part._pivot(f)
+
+
+## W03b FILLET EDGE BY FACE PAIR. An edge descriptor also stores "fp": the two faces it joins, each {"n": outward normal, "c": centre as 0..1 of the body box}.
+## Matching: the edges whose two face normals equal the stored two (either order) are the candidates; the best by box position "q", or by the
+## stored absolute "p" (a hole rim keeps its place in mm while the box grows), wins. No "fp" (older files), or no candidate -> Part.match_edge as before.
+static func face_pair(ef: Array, fnorm: Dictionary, fcen: Dictionary, bb: AABB) -> Array:
+	var out := []
+	if ef.size() != 2 or not fnorm.has(int(ef[0])) or not fnorm.has(int(ef[1])):
+		return out
+	for fi in ef:
+		var n: Vector3 = fnorm[int(fi)]
+		var c: Vector3 = Part._norm(fcen[int(fi)], bb)
+		out.append({"n": [n.x, n.y, n.z], "c": [c.x, c.y, c.z]})
+	return out
+
+
+static func _v(a: Array) -> Vector3:
+	return Vector3(float(a[0]), float(a[1]), float(a[2]))
+
+
+## index in es of the edge `want` names (see above), or -1
+static func pick_edge(body: int, es: Array, bb: AABB, want: Dictionary) -> int:
+	var fp: Array = want.get("fp", [])
+	if fp.size() == 2 and want.get("q") is Array and not want.get("nofp", false):
+		var norm := {}
+		for fc in KCad.faces(body):
+			norm[int(fc["id"])] = fc["normal"]
+		var n0 := _v(fp[0]["n"])
+		var n1 := _v(fp[1]["n"])
+		var q := _v(want["q"])
+		var p := _v(want["p"]) * Part.MM if want.get("p") is Array else Vector3.INF
+		var diag := maxf(bb.size.length(), 1e-6)
+		var best := -1
+		var bs := INF
+		for i in es.size():
+			var ef: Array = es[i].get("faces", [])
+			if ef.size() != 2 or not norm.has(int(ef[0])) or not norm.has(int(ef[1])):
+				continue
+			var a: Vector3 = norm[int(ef[0])]
+			var b: Vector3 = norm[int(ef[1])]
+			if not ((a.dot(n0) > 0.98 and b.dot(n1) > 0.98) or (a.dot(n1) > 0.98 and b.dot(n0) > 0.98)):
+				continue
+			var s: float = Part._norm(es[i]["center"], bb).distance_to(q)
+			if p.x != INF:
+				s = minf(s, (es[i]["center"] as Vector3).distance_to(p) / diag)
+			if s < bs:
+				bs = s
+				best = i
+		if best >= 0:
+			return best
+	return Part.match_edge(es, bb, want)
