@@ -676,3 +676,6 @@ EXTRA="$EXTRA w10:w"   # w10: join/cut failure helper, tests/w10_test.gd
 
 
 EXTRA="$EXTRA w13:w"   # w13: GIF export, per-clip palette, loops, tests/w13_test.gd
+
+
+EXTRA="$EXTRA w16:w"   # w16: test-print fit strip (5 pegs, 5 holes, clearances engraved, manifold STL/3MF, volumes within 1 %), tests/w16_test.gd
