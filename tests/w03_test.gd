@@ -51,9 +51,12 @@ func _init() -> void:
 	var A := edge_of(res, [40, 30, 10])
 	(r["features"] as Array).append({"t":"fillet","id":"f5","name":"Fillet1","body":0,"r":1.0,"edges":[Part.describe(A)]})
 	(r["features"] as Array).append({"t":"pattern","id":"f6","name":"P","body":0,"kind":"linear","count":2,"mm":40.0,"dir":"z","op":"new"})
-	(r["features"] as Array).append({"t":"hinge","id":"f7","name":"H","body":0,"o":[40,0,0],"axis":[0,0,1],"track":[[0,0],[1,30]]})
-	ok(r["features"].size() == 7, "7 steps")
-	ok(PartRefs.pin_hinge(r, "f7") == "", "pin_hinge ok")
+	r["seq"] = 6   # the hand-built steps above used f1..f6
+	# the real creation path: PartFx.append (the agent / feature call; Easy and Expert end in the same replay)
+	var made := PartFx.append(r, "hinge", {"body":0,"o":[40,0,0],"axis":[0,0,1],"track":[[0,0],[1,30]]})
+	var hid := String(made["id"])
+	ok(r["features"].size() == 7 and hid == "f7", "7 steps (hinge %s)" % hid)
+	ok(r["features"][6].has("oq"), "creation wrote oq without any pin call")
 	var q: Array = r["features"][6]["oq"]
 	ok(absf(q[0] - 1.0) < 1e-4 and absf(q[1]) < 1e-4, "oq = right/front edge of the box (%s)" % str(q))
 	var r2 := r.duplicate(true)

@@ -42,9 +42,22 @@ static func _n(v: float, lo: float, size: float) -> float:
 	return 0.5 if size < 1e-6 else (v - lo) / size
 
 
+## replay calls this for every hinge: no "oq" yet, or "o" was edited since it was pinned ("oq_o" is the "o" it was made from) -> pin now.
+## Every way of making or editing a hinge (Expert dialog, Easy swing / hinge-by-click, hinge words, agent feature / insert_step / edit_step) ends in a replay.
+static func auto_pin(f: Dictionary, body: int) -> void:
+	if f.get("oq") is Array and f.get("oq_o") == f.get("o"):
+		return
+	var bb := body_box_mm(body)
+	if bb.size == Vector3.ZERO or not (f.get("o") is Array):
+		return
+	var o := Vector3(float(f["o"][0]), float(f["o"][1]), float(f["o"][2]))
+	f["oq"] = [_n(o.x, bb.position.x, bb.size.x), _n(o.y, bb.position.y, bb.size.y), _n(o.z, bb.position.z, bb.size.z)]
+	f["oq_o"] = (f["o"] as Array).duplicate()
+
+
 ## the hinge's pivot in mm for the body (a kept kernel id) it turns: "oq" inside the body's box now, else the stored "o"
 static func pivot_mm(f: Dictionary, body: int) -> Vector3:
-	if f.get("oq") is Array and (f["oq"] as Array).size() >= 3:
+	if f.get("oq") is Array and (f["oq"] as Array).size() >= 3 and f.get("oq_o") == f.get("o"):
 		var bb := body_box_mm(body)
 		if bb.size != Vector3.ZERO:
 			var q: Array = f["oq"]
@@ -67,3 +80,11 @@ static func hinge_pivot(rec: Dictionary, hinge_id: String) -> Variant:
 		out = pivot_mm(f, int(ids[bi]))
 	Part.release_kept(ids)
 	return out
+
+
+## the pivot of hinge f (metres) as the current record puts it: "oq" inside its body's box after a replay up to the hinge
+static func pivot_for_rec(rec: Dictionary, f: Dictionary) -> Vector3:
+	var r = hinge_pivot(rec, String(f.get("id", "")))
+	if r is Vector3:
+		return (r as Vector3) * Part.MM
+	return Part._pivot(f)

@@ -765,6 +765,8 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var hb := int(f.get("body", -1))
 				if hb < 0 or hb >= bodies.size():
 					errs[id] = "there is no body %d to hinge" % hb
+				else:
+					PartRefs.auto_pin(f, int(bodies[hb]))   # W03: the first replay of a new or edited hinge pins its pivot to the body's box
 	if n > i0:
 		counts.append(bodies.size())
 		if fx_on:
