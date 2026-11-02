@@ -564,3 +564,4 @@ EXTRA="$EXTRA fstool:w"   # FSTOOL: a beginner from the BUILDING card builds a t
 EXTRA="$EXTRA bug6:w"   # bug6: animation-only UI (grip panel, facing label) never shows in 3D BUILDING; no stray divider bars / empty buttons; top rows clear at 3 sizes; tests/bug6_test.gd
 
 
+EXTRA="$EXTRA s226:w"   # s226: ROOF feature (hip/gable/xieshan/pyramid/shed/flat, sag, corner lift, open top, trims) as a thin closed shell; kernel ray/volume bars, Expert Roof tool, Easy Roofs page, agent part_roof; tests/s226_test.gd

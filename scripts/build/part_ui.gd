@@ -24,7 +24,7 @@ const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]   # Constrain: the rule row (CON_TOOLS, below)
-const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine"]
+const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Roof"]
 const TOOL_KIND := {"Offset plane": "plane", "Offset face": "offset_face", "Draft": "draft"}   # a tool's feature kind when it is not its lower-case name
 const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell", "Appearance", "Offset face", "Draft"]
 const LOOK_TOOLS := ["Appearance"]   # APPEARANCE (GAP 5): picks a body for the side panel; the panel is _build_look / _look_sync
@@ -59,6 +59,7 @@ const TIPS := {
 	"Split": "SPLIT: pick a plane and an offset (mm). Every body the plane cuts becomes two bodies. Press Enter.",
 	"Appearance": "APPEARANCE: click a body in the browser (Body1, Body2...). Pick a colour chip, the picker or a preset (Paint, Metal, Glass, Rubber, Plastic). Each change is one undo step.",
 	"Shell": "SHELL: the newest body becomes a hollow box with the wall thickness you type. Pick the face left open, press Enter.",
+	"Roof": "ROOF: a thin curved roof shell from a plan: hip, gable, hip and gable, pyramid, shed or flat, with the eave overhang, a sag in the slope, raised corners and an open top for a double eave. Type the numbers; live preview.",
 	"Combine": "COMBINE: click the target body (it stays), then the tool bodies, in the view or the browser. Pick Join, Cut or Intersect. Keep tools leaves them.",
 	"Canvas": "CANVAS: put a picture on the Front, Top or Right plane (or an offset plane). Click two points of known size, type the real distance, drag it to line up.",
 	"Loft": "LOFT: pick two or more sketches in order (each a closed profile); the solid runs through them. Ruled = straight, Smooth = curved.",
@@ -1568,6 +1569,8 @@ func open_dialog(t: String, edit: int) -> void:
 			dlg_info.text = "Nothing to draft yet."
 	elif kind == "hinge":
 		_hinge_open(f, edit)
+	elif kind == "roof":   # s226 (scripts/build/part_roof_ui.gd)
+		PartRoofUI.open_rows(self, f, edit)
 	elif kind == "mirror":
 		dlg_rows.add_child(f_plane)
 		f_plane.select(PlanesIdx.find(String(f.get("plane", "right"))))
@@ -1853,6 +1856,10 @@ func dialog_feature() -> Dictionary:
 				f["flange"] = true
 		"pattern":
 			f = _pattern_feature()
+		"roof":   # s226
+			f = PartRoofUI.feature(self)
+			if f.is_empty():
+				return {}
 		"combine":
 			f = _combine_feature(edit)
 			if f.is_empty():
@@ -1940,6 +1947,8 @@ func _dialog_hint(kind: String) -> String:
 		return "Pick two or more sketches, in order."
 	if kind == "sweep":
 		return "Pick the profile (closed) and the path (open), two different sketches."
+	if kind == "roof":
+		return PartRoofUI.hint()
 	if kind == "plane":
 		return "Type the distance from the plane (mm)."
 	if kind == "canvas":

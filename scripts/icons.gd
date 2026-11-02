@@ -99,6 +99,7 @@ const DRAW := {
 	"part_filter_top": [["seg", Vector2(3, 5), Vector2(21, 5), 3.0], ["box", Rect2(3, 8, 18, 11), 1.4]],   # NROUNDFILTER: the top rim, thick, and the box below it
 	"part_stronger": [["box", Rect2(2, 16, 20, 3), 1.6], ["seg", Vector2(6, 16), Vector2(6, 5), 2.4], ["seg", Vector2(12, 16), Vector2(12, 3), 2.4], ["seg", Vector2(18, 16), Vector2(18, 5), 2.4]],   # p038makeitstro: a plate with two ribs standing on it
 	"part_split": [["box", Rect2(3, 5, 18, 14), 1.6], ["seg", Vector2(12, 2.5), Vector2(12, 21.5), 1.5]],   # SPLIT: a block cut by a plane
+	"part_roof": [["seg", Vector2(2, 16), Vector2(7, 9), 1.8], ["seg", Vector2(7, 9), Vector2(17, 9), 1.8], ["seg", Vector2(17, 9), Vector2(22, 16), 1.8], ["seg", Vector2(2, 16), Vector2(22, 16), 1.2], ["seg", Vector2(7, 9), Vector2(5, 5), 1.2], ["seg", Vector2(17, 9), Vector2(19, 5), 1.2]],   # ROOF: a hip roof with the corners lifted
 	"part_combine": [["box", Rect2(3, 5, 11, 11), 1.6], ["box", Rect2(10, 8, 11, 11), 1.6]],   # COMBINE: two overlapping blocks
 	"part_shell": [["box", Rect2(3.5, 3.5, 17, 17), 1.9], ["box", Rect2(7.5, 7.5, 9, 9), 1.2]],   # SHELL: a hollow block
 	"part_constrain": [["ring", Vector2(8, 12), 4.2, 1.8], ["ring", Vector2(16, 12), 4.2, 1.8]],   # GAP 9 CONSTRAIN: two linked rings

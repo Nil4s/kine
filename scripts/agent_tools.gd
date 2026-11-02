@@ -432,6 +432,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# N022 HUMAN FACTS: cited human numbers by keywords (scripts/human_facts.gd); not in METHODS (the transcript's ready line)
 			var fr := HumanFacts.serve(p)
 			return _ok(id, fr) if not fr.is_empty() else _err(id, -32602, "facts needs {\"q\": \"how fast is a real jab?\"}, {\"list\": true} or {\"registry\": true}")
+		"part_roof":   # ITEM 226: a thin curved roof step (hip / gable / xieshan / pyramid / shed / flat, sag, corner lift, open top) on the part on screen; ONE undo step (scripts/build/part_roof.gd). Not in METHODS
+			var prf := PartRoof.serve(m, p)
+			return _ok(id, prf) if prf["ok"] else _err(id, -32602, String(prf["error"]))
 		"dry":
 			# N003: what run's steps WOULD do (parts moved, findings added / removed, score change, cards / keys touched), the
 			# scene, body and undo put back byte for byte; file-writing steps refused: scripts/dry_run.gd
