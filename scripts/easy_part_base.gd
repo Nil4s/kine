@@ -444,15 +444,11 @@ func _lumps(r: Dictionary) -> int:
 	_lump_n = 1
 	if mesh == null or mesh.get_surface_count() == 0:
 		return _lump_n
+	# W10b: pieces are triangles joined across an edge that exactly TWO triangles own (a solid's skin). Two solids that meet along a line
+	# share an edge four triangles own (non-manifold): that is not a join, so they stay two (same rule as JoinHelper.lumps).
 	var weld := {}
-	var parent := PackedInt32Array()
-	var wpos := PackedVector3Array()   # FLAMP5: the welded position of each vertex id (for the touch test below)
-	var tris: Array = []               # FLAMP5: each triangle as its three welded ids
-	var find := func(i: int) -> int:
-		while parent[i] != i:
-			parent[i] = parent[parent[i]]
-			i = parent[i]
-		return i
+	var wpos := PackedVector3Array()   # the welded position of each vertex id
+	var tris: Array = []               # each triangle as its three welded ids
 	for s in mesh.get_surface_count():
 		var arr := mesh.surface_get_arrays(s)
 		var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
@@ -461,41 +457,54 @@ func _lumps(r: Dictionary) -> int:
 		for v in vs:
 			var key := Vector3i(roundi(v.x * 1e5), roundi(v.y * 1e5), roundi(v.z * 1e5))
 			if not weld.has(key):
-				weld[key] = parent.size()
-				parent.append(parent.size())
+				weld[key] = wpos.size()
 				wpos.append(v)
 			ids.append(int(weld[key]))
 		var tri := idx.size() if idx.size() > 0 else vs.size()
 		for t in range(0, tri - 2, 3):
-			var a: int = ids[idx[t] if idx.size() > 0 else t]
-			var b1: int = ids[idx[t + 1] if idx.size() > 0 else t + 1]
-			var b2: int = ids[idx[t + 2] if idx.size() > 0 else t + 2]
-			tris.append([a, b1, b2])
-			for b in [b1, b2]:
-				var ra: int = find.call(a)
-				var rb: int = find.call(b)
-				if ra != rb:
-					parent[ra] = rb
+			tris.append([ids[idx[t] if idx.size() > 0 else t], ids[idx[t + 1] if idx.size() > 0 else t + 1], ids[idx[t + 2] if idx.size() > 0 else t + 2]])
+	var parent := PackedInt32Array()
+	parent.resize(tris.size())
+	for i in parent.size():
+		parent[i] = i
+	var find := func(i: int) -> int:
+		while parent[i] != i:
+			parent[i] = parent[parent[i]]
+			i = parent[i]
+		return i
+	var edge_tris := {}
+	for ti in tris.size():
+		var tr: Array = tris[ti]
+		for k in 3:
+			var ea: int = tr[k]
+			var eb: int = tr[(k + 1) % 3]
+			var e := Vector2i(mini(ea, eb), maxi(ea, eb))
+			if not edge_tris.has(e):
+				edge_tris[e] = []
+			(edge_tris[e] as Array).append(ti)
+	for e in edge_tris:
+		var l: Array = edge_tris[e]
+		if l.size() == 2:
+			var ra: int = find.call(l[0])
+			var rb: int = find.call(l[1])
+			if ra != rb:
+				parent[ra] = rb
 	# FLAMP5: a shape pulled up off a face of a solid is a separate shell that sits ON the face: the two meet on a face patch,
-	# with no vertex shared, so the welding above sees two pieces. A corner of one shell lying on a triangle of the other joins them.
+	# with no edge shared. Three corners of one shell (not in a line) lying on triangles of the other join them; a line or a point does not.
 	var merged := true
-	while merged and tris.size() > 0:
+	while merged and tris.size() > 1:
 		merged = false
-		var roots := {}
-		for i in parent.size():
-			roots[find.call(i)] = true
-		if roots.size() < 2:
-			break
 		var groups := {}   # root -> {"v": vertex ids, "t": triangle indices, "bb": AABB}
-		for i in parent.size():
-			var rr: int = find.call(i)
-			if not groups.has(rr):
-				groups[rr] = {"v": PackedInt32Array(), "t": PackedInt32Array(), "bb": AABB(wpos[i], Vector3.ZERO)}
-			groups[rr]["v"].append(i)
-			groups[rr]["bb"] = (groups[rr]["bb"] as AABB).expand(wpos[i])
 		for ti in tris.size():
-			var rt: int = find.call(int(tris[ti][0]))
-			groups[rt]["t"].append(ti)
+			var rr: int = find.call(ti)
+			if not groups.has(rr):
+				groups[rr] = {"v": PackedInt32Array(), "t": PackedInt32Array(), "bb": AABB(wpos[tris[ti][0]], Vector3.ZERO)}
+			for k in 3:
+				groups[rr]["v"].append(tris[ti][k])
+				groups[rr]["bb"] = (groups[rr]["bb"] as AABB).expand(wpos[tris[ti][k]])
+			groups[rr]["t"].append(ti)
+		if groups.size() < 2:
+			break
 		var keys := groups.keys()
 		for x in keys.size():
 			for y in range(x + 1, keys.size()):
@@ -503,7 +512,7 @@ func _lumps(r: Dictionary) -> int:
 				var gb: Dictionary = groups[keys[y]]
 				if not (ga["bb"] as AABB).grow(1e-4).intersects(gb["bb"] as AABB):
 					continue
-				if Part.touch_patch(_group_pts(ga, wpos), _group_tri_pts(gb, wpos, tris), gb["bb"]) or Part.touch_patch(_group_pts(gb, wpos), _group_tri_pts(ga, wpos, tris), ga["bb"]):
+				if LumpTouch.patch(_group_pts(ga, wpos), _group_tri_pts(gb, wpos, tris), gb["bb"]) or LumpTouch.patch(_group_pts(gb, wpos), _group_tri_pts(ga, wpos, tris), ga["bb"]):
 					parent[find.call(int(keys[x]))] = find.call(int(keys[y]))
 					merged = true
 					break
