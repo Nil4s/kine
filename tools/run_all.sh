@@ -745,3 +745,4 @@ EXTRA="$EXTRA w03c:w"   # w03c: body keys on the steps that point at a body; ins
 
 
 EXTRA="$EXTRA s263:w"   # s263: dark product studio + continuous ring band, tests/s263_test.gd
+EXTRA="$EXTRA s277:w"   # s277/s273: glossy blurred floor, wide bloom, preset levels, aluminium + nickel, face-scaled brush, tests/s277_test.gd

@@ -21,6 +21,8 @@ const DEFS := {
 	"pine": {"label": "Pine", "color": "#dcb279", "scale": 240.0, "gloss": 0.3, "wear": 0.0, "metal": 0.0, "warp": 0.45},
 	"plywood": {"label": "Plywood edge", "color": "#d9b682", "scale": 120.0, "gloss": 0.25, "wear": 0.0, "metal": 0.0, "warp": 0.3},
 	"steel": {"label": "Brushed steel", "color": "#c4c7cc", "scale": 120.0, "gloss": 0.7, "wear": 0.0, "metal": 1.0, "brushed": 1},
+	"aluminium": {"label": "Brushed aluminium", "color": "#d6d9dc", "scale": 120.0, "gloss": 0.62, "wear": 0.0, "metal": 1.0, "brushed": 1},   # s273
+	"nickel": {"label": "Nickel plate", "color": "#bdb9ae", "scale": 120.0, "gloss": 0.8, "wear": 0.0, "metal": 1.0, "brushed": 0},   # s273: bright satin plate, a faint warm cast
 	"iron": {"label": "Cast iron", "color": "#4a4a4d", "scale": 160.0, "gloss": 0.35, "wear": 0.0, "metal": 0.9},
 	"copper": {"label": "Copper", "color": "#e08a62", "scale": 160.0, "gloss": 0.65, "wear": 0.0, "metal": 1.0},
 	"brass": {"label": "Brass", "color": "#e2bb5c", "scale": 160.0, "gloss": 0.7, "wear": 0.0, "metal": 1.0},
@@ -44,7 +46,7 @@ const DEFS := {
 }
 ## the library, in the order the pickers show it: [id, kind, overrides]. "plastic_matte" is the same recipe, matte
 const LIBRARY := [
-	["oak", "oak", {}], ["pine", "pine", {}], ["plywood", "plywood", {}], ["steel", "steel", {}], ["iron", "iron", {}],
+	["oak", "oak", {}], ["pine", "pine", {}], ["plywood", "plywood", {}], ["steel", "steel", {}], ["aluminium", "aluminium", {}], ["nickel", "nickel", {}], ["iron", "iron", {}],
 	["copper", "copper", {}], ["brass", "brass", {}], ["lacquer", "lacquer", {"wear": 0.3}], ["tile", "tile", {}],
 	["terracotta", "terracotta", {}], ["granite", "granite", {}], ["marble", "marble", {}], ["concrete", "concrete", {}],
 	["brick", "brick", {}], ["plaster", "plaster", {}], ["grass", "grass", {}], ["gravel", "gravel", {}],
@@ -189,7 +191,37 @@ static func _normal(h: PackedFloat32Array, n: int, strength: float) -> PackedByt
 # ---------------------------------------------------------------- the material
 
 ## a StandardMaterial3D with the maps, TRIPLANAR in the mesh's own space (one tile = spec.scale mm). Glass is see-through
-static func standard(spec_in: Dictionary, size := SIZE) -> StandardMaterial3D:
+## s273 BRUSH SCALED TO THE FACE. The brushed maps hold ~256 streaks across one tile, so at the fixed tile (120 mm) the streak pitch is 0.47 mm on every part:
+## on a 0.4 mm fin or a 100 mm backplate that is sub-pixel aliasing (the "wild streaks"). With `dims` (the body's size, metres) a brushed metal's tile becomes
+## FACE_STREAKS x the pitch it should have on the body's second-largest side (the face you see), within 8..2000 mm; no dims = the old fixed tile.
+const FACE_STREAKS := 48.0
+static func face_tile_mm(scale_mm: float, dims: Vector3) -> float:
+	if dims == Vector3.ZERO:
+		return scale_mm
+	var d := [absf(dims.x), absf(dims.y), absf(dims.z)]
+	d.sort()
+	var face_mm: float = maxf(float(d[1]) / MM, 0.2)   # the second-largest side: a 40 x 100 x 0.4 fin reads 40 mm
+	return clampf(face_mm * 256.0 / FACE_STREAKS, 8.0, 2000.0)
+
+
+## the size (metres) of one surface of a mesh, only when the look is a brushed made material (else ZERO: nothing to scale, no arrays read)
+static func dims_for(look: Dictionary, mesh: Mesh, surf: int) -> Vector3:
+	var sp: Variant = look.get("mat", null)
+	if not (sp is Dictionary) or (sp as Dictionary).is_empty() or mesh == null or surf >= mesh.get_surface_count():
+		return Vector3.ZERO
+	if int(norm(sp as Dictionary).get("brushed", 0)) != 1:
+		return Vector3.ZERO
+	var vv: Variant = mesh.surface_get_arrays(surf)[Mesh.ARRAY_VERTEX]
+	if not (vv is PackedVector3Array) or (vv as PackedVector3Array).is_empty():
+		return Vector3.ZERO
+	var a := vv as PackedVector3Array
+	var bb := AABB(a[0], Vector3.ZERO)
+	for v in a:
+		bb = bb.expand(v)
+	return bb.size
+
+
+static func standard(spec_in: Dictionary, size := SIZE, dims := Vector3.ZERO) -> StandardMaterial3D:
 	var r := maps(spec_in, size)
 	var mt := StandardMaterial3D.new()
 	if r.is_empty():
@@ -207,7 +239,10 @@ static func standard(spec_in: Dictionary, size := SIZE) -> StandardMaterial3D:
 	mt.texture_repeat = true
 	mt.uv1_triplanar = true
 	mt.uv1_triplanar_sharpness = 4.0
-	var k := 1.0 / (float(sp["scale"]) * MM)
+	var tile_mm := float(sp["scale"])
+	if int(sp.get("brushed", 0)) == 1:
+		tile_mm = face_tile_mm(tile_mm, dims)
+	var k := 1.0 / (tile_mm * MM)
 	mt.uv1_scale = Vector3(k, k, k)
 	mt.cull_mode = BaseMaterial3D.CULL_DISABLED
 	var a := float(sp.get("alpha", 1.0))
@@ -231,11 +266,11 @@ static func textures(r: Dictionary) -> Array:
 
 
 ## the material a Part look wears: its "mat" spec when it has one (else null, so the caller keeps its plain colour)
-static func look_material(look: Dictionary, xray_alpha := 1.0) -> StandardMaterial3D:
+static func look_material(look: Dictionary, xray_alpha := 1.0, dims := Vector3.ZERO) -> StandardMaterial3D:
 	var spec: Variant = look.get("mat", null)
 	if not (spec is Dictionary) or (spec as Dictionary).is_empty():
 		return null
-	var mt := standard(spec as Dictionary)
+	var mt := standard(spec as Dictionary, SIZE, dims)
 	var a := minf(float(look.get("alpha", 1.0)), xray_alpha)   # the look's alpha (a mat feature stores the spec's alpha) and X-ray
 	if a < 1.0:
 		mt.albedo_color = Color(1, 1, 1, a)
@@ -358,7 +393,7 @@ class _Gen:
 				_wood()
 			"plywood":
 				_plywood()
-			"steel":
+			"steel", "aluminium", "nickel":
 				_steel()
 			"iron":
 				_iron()

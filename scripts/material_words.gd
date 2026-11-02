@@ -40,7 +40,7 @@ const COLOURS := {
 ## material words -> [kind, tweaks]. Tweaks are spec numbers set when the word is used
 const KINDS := {
 	"oak": ["oak", {}], "wood": ["oak", {}], "wooden": ["oak", {}], "pine": ["pine", {}], "plywood": ["plywood", {}], "ply": ["plywood", {}],
-	"steel": ["steel", {}], "stainless": ["steel", {}], "metal": ["steel", {}], "iron": ["iron", {}], "copper": ["copper", {}],
+	"steel": ["steel", {}], "stainless": ["steel", {}], "metal": ["steel", {}], "aluminium": ["aluminium", {}], "aluminum": ["aluminium", {}], "alu": ["aluminium", {}], "nickel": ["nickel", {}], "nickelled": ["nickel", {}], "iron": ["iron", {}], "copper": ["copper", {}],
 	"brass": ["brass", {}], "lacquer": ["lacquer", {}], "lacquered": ["lacquer", {}], "paint": ["lacquer", {}], "painted": ["lacquer", {}],
 	"enamel": ["lacquer", {}], "tile": ["tile", {}], "tiles": ["tile", {}], "tiled": ["tile", {}], "terracotta": ["terracotta", {}],
 	"granite": ["granite", {}], "marble": ["marble", {}], "concrete": ["concrete", {}], "cement": ["concrete", {}], "brick": ["brick", {}],

@@ -2788,7 +2788,7 @@ static func paint(mesh: ArrayMesh, looks: Array) -> void:
 		var c: Color = l["c"]
 		var a := float(l["alpha"])
 		var mt := StandardMaterial3D.new()
-		var mm := MaterialMaker.look_material(l)   # s223: a made material (triplanar maps) when the look has one
+		var mm := MaterialMaker.look_material(l, 1.0, MaterialMaker.dims_for(l, mesh, s))   # s223: a made material (triplanar maps) when the look has one; s273: a brushed one scaled to the face
 		if mm != null:
 			PartGlow.apply(mm, l)   # s258
 			mesh.surface_set_material(s, mm)
