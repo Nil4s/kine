@@ -714,3 +714,4 @@ EXTRA="$EXTRA w10b:w"   # w10b: the app piece counter _lumps counts edge-touchin
 
 
 EXTRA="$EXTRA s257:w"   # s257: frame_to finds a body by its bname name AND its stable body key, tests/s257_test.gd
+EXTRA="$EXTRA w03c:w"   # w03c: body keys on the steps that point at a body; insert_step / delete_step on the 297-step temple, tests/w03c_test.gd
