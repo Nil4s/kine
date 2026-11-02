@@ -24,7 +24,7 @@ const SPECIES := {
 	"birch": {"crown": 0.40, "trunk": 0.026, "bare": 0.24, "top": 0.97, "el": 42.0, "curve": 10.0, "a": 0.22, "p": 0.70, "leaf": 0.085, "shape": 4, "leaves": 4200, "bark": Color(0.86, 0.85, 0.80)},
 	"bare": {"crown": 0.85, "trunk": 0.050, "bare": 0.25, "top": 0.90, "el": 34.0, "curve": 12.0, "a": 0.32, "p": 0.60, "leaf": 0.0, "shape": 1, "leaves": 0, "bark": Color(0.24, 0.20, 0.17)},
 }
-const SEASONS := ["spring", "summer", "autumn", "red", "winter"]
+const SEASONS := ["spring", "summer", "autumn", "red", "winter", "amber"]   # item 236: amber = the deep orange-gold of a ginkgo in full colour (autumn is the lighter gold)
 const SHAPE_FAN := 0
 const SHAPE_LOBED := 1
 const SHAPE_NEEDLE := 2
@@ -83,6 +83,8 @@ static func clean(d: Variant) -> Dictionary:
 			var se := String(d.get("season", "summer"))
 			o["season"] = se if SEASONS.has(se) else "summer"
 			o["density"] = int(_num(d, "density", 5.0, 1.0, 10.0))
+			if d.has("fullness"):   # item 236: more leaves, a little bigger (1 = as before, 3 = a dense canopy)
+				o["fullness"] = _num(d, "fullness", 1.0, 0.3, 4.0)
 		"hedge":
 			o["path"] = _path(d.get("path"))
 			if o["path"].size() < 2:
@@ -342,6 +344,8 @@ static func leaf_color(species: String, season: String, shrub: bool, rng: Random
 			if shrub:
 				return Color.from_hsv(0.12 + rng.randf_range(-0.02, 0.02), 0.85, 0.8 + rng.randf_range(-0.1, 0.1))
 			return Color.from_hsv(0.128 + rng.randf_range(-0.016, 0.016), 0.88, 0.90 + rng.randf_range(-0.07, 0.08))
+		"amber":
+			return Color.from_hsv(0.064 + rng.randf_range(-0.012, 0.012), 1.0, 0.84 + rng.randf_range(-0.08, 0.06))
 		"red":
 			return Color.from_hsv(0.012 + rng.randf_range(-0.014, 0.014), 0.86, 0.68 + rng.randf_range(-0.1, 0.1))
 	return Color.from_hsv(0.285 + rng.randf_range(-0.03, 0.03), 0.72, 0.50 + rng.randf_range(-0.09, 0.1))
@@ -512,7 +516,9 @@ static func make_tree(item: Dictionary) -> Dictionary:
 				tips.append([tpts[tpts.size() - 2], tpts[tpts.size() - 1], int(tcn["level"])])
 		if not leafless:
 			var total := int(round(float(P["leaves"]) * (0.4 + 0.12 * dens) * clampf(pow(H / 6.0, 0.6), 0.3, 3.0)))
-			total = mini(total, 14000)
+			var fu := float(it.get("fullness", 1.0))
+			total = mini(int(float(total) * fu), 14000 if fu <= 1.0 else 32000)
+			leaf_size *= 1.0 + 0.2 * (fu - 1.0)
 			var cr := leaf_size * 1.3
 			for i in total:
 				var tpl: Array = tips[rng.randi() % tips.size()]
