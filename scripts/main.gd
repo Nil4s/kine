@@ -1958,7 +1958,8 @@ func _blast_frame(shot: Dictionary, t: float, fps: int, lo: float, hi: float) ->
 		wt.render_active = true   # R23: the weapon trail ribbon is part of the render (option "Weapon trail in renders")
 		_refresh()
 		_shot_blast_frame(shot)
-		await RenderingServer.frame_post_draw   # one drawn frame: the pose set above is what it shows (no extra frame wait)
+		await get_tree().process_frame   # s276: a frame to settle (the first draw after a pose change shows the hands / hip one frame stale; r3 bar 2 caught it)
+		await RenderingServer.frame_post_draw
 		imgs.append(_shot_blast_image(shot, get_viewport().get_texture().get_image()))
 		wt.render_active = false
 		wt.draw(_ps(), playhead)
