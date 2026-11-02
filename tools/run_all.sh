@@ -704,3 +704,6 @@ EXTRA="$EXTRA w06b:w"   # W06b: units in type-while-drawing, dialog defaults in 
 
 
 EXTRA="$EXTRA w09b:w"   # w09b: pick-through list shows body names / the making feature, tests/w09b_test.gd
+
+
+EXTRA="$EXTRA w05b:w"   # w05b: checklist triangles, Split to fit, OBJ and GLB follow the mesh quality, tests/w05b_test.gd

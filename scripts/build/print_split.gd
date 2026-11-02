@@ -80,8 +80,12 @@ static func size_lines(rec: Dictionary, bed: Vector3, split_on: bool) -> Array:
 
 
 ## the cut-and-dowel result for the part record; a body that fits is returned as MeshExport would write it
-static func split_rec(rec: Dictionary, bed: Vector3) -> Dictionary:
-	var bo := MeshExport.bodies_of(rec)
+static var _q := {}   # W05b: the chosen mesh quality for the pieces ({} = the finer numbers above)
+
+
+static func split_rec(rec: Dictionary, bed: Vector3, quality := {}) -> Dictionary:
+	_q = {} if quality.is_empty() or String(quality.get("name", "")) == "Normal" else quality
+	var bo := MeshExport.bodies_of(rec, _q)
 	var bodies: Array = bo["bodies"]
 	if bodies.is_empty():
 		return {"bodies": [], "split": false, "pieces": 0, "cuts": [], "why": String(bo["why"])}
@@ -161,7 +165,7 @@ static func _kcyl(c: Vector3, a: int, r: float, len: float) -> int:
 
 static func _tess(id: int) -> Dictionary:
 	var soup := PackedVector3Array()
-	var tm := KCad.tessellate(id, DEFLECT_M, ANGLE)
+	var tm := KCad.tessellate(id, DEFLECT_M if _q.is_empty() else float(_q["defl_mm"]) / 1000.0, ANGLE if _q.is_empty() else float(_q["angle"]))
 	if tm != null:
 		for s in tm.get_surface_count():
 			var arr := tm.surface_get_arrays(s)
@@ -272,13 +276,13 @@ static func _split_body(id: int, body: Dictionary, bed: Vector3, cuts: Array) ->
 
 ## the Export dialog's road with Split to fit ticked. fmt "stl" | "3mf". Answers
 ## {"ok", "path" (the first file), "paths", "why", "report", "text", "pieces", "split", "cuts"}
-static func export_part(rec: Dictionary, fmt: String, dir: String, bed: Vector3) -> Dictionary:
-	var sp := split_rec(rec, bed)
+static func export_part(rec: Dictionary, fmt: String, dir: String, bed: Vector3, quality := {}) -> Dictionary:
+	var sp := split_rec(rec, bed, quality)
 	var bodies: Array = sp["bodies"]
 	if bodies.is_empty():
 		return {"ok": false, "path": "", "paths": [], "why": String(sp["why"]), "report": {}, "text": "NOT DONE: " + String(sp["why"]), "pieces": 0, "split": false, "cuts": []}
 	if not bool(sp["split"]):
-		var r := MeshExport.export_part(rec, fmt, dir)
+		var r := MeshExport.export_part(rec, fmt, dir, 0, _q)
 		r["paths"] = [r["path"]] if String(r["path"]) != "" else []
 		r["pieces"] = bodies.size()
 		r["split"] = false
