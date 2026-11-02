@@ -367,6 +367,7 @@ func _build() -> void:
 	ui_blur.button_pressed = bool(m.blast_blur)
 	ui_blur.toggled.connect(func(on: bool): m.blast_blur = on)
 	v.add_child(ui_blur)
+	v.add_child(BlastBlur.controls(m))
 	dlg.add_child(v)
 	ui_target.item_selected.connect(_on_target)
 	ui_format.item_selected.connect(_on_format)

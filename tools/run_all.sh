@@ -717,3 +717,6 @@ EXTRA="$EXTRA s257:w"   # s257: frame_to finds a body by its bname name AND its 
 
 
 EXTRA="$EXTRA s258:w"   # s258: a look that glows (emission colour + strength on an appear step, saved, drawn as emission), tests/s258_test.gd
+
+
+EXTRA="$EXTRA s259:w"   # s259: playblast motion blur shutter/steps options, shots render blur, scripts/blast_blur.gd, tests/s259_test.gd
