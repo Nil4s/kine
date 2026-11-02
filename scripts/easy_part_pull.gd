@@ -578,6 +578,7 @@ func _pull(rec: Dictionary) -> String:
 		"beside": beside, "beside_flat": beside and flat, "flat": flat})
 	var nb0 := int(Part.replay(rec).get("bodies", 0))   # FLAMP: a shape that stands apart from the solid is its own body, not one lump
 	var lk0 := _lumps(Part.replay(rec)) if nb0 > 0 else 0
+	var line_to := -1
 	var f := Part.new_feature(rec, "extrude", {"sketch": sid, "dist": dist, "both": through, "op": String(rule["op"])})
 	rec["features"].append(f)
 	var err := _last_error(rec, String(f["id"]))
@@ -588,6 +589,7 @@ func _pull(rec: Dictionary) -> String:
 		if int(joined.get("bodies", 0)) == nb0 and _lumps(joined) > lk0:
 			f["op"] = "new"
 			err = _last_error(rec, String(f["id"]))
+			line_to = PullTouch.line_touch(rec, Part)   # W10c: stood apart because it only touches along a line? (-1: a gap)
 	if err != "":
 		return "That shape is not closed, so it cannot be pulled up: drag back to the start to close it"
 	tweak = {"id": f["id"], "field": "dist", "label": "How far", "unit": "cm", "lo": 0.2, "hi": _pull_hi(), "step": 0.2, "scale": 10.0, "words": ["Flatter", "Taller"], "sgn": sg}
@@ -604,6 +606,14 @@ func _pull(rec: Dictionary) -> String:
 		"where":
 			# FWRENCH2: a beginner does not know the word "face": the top of a solid says "top", a side says "side" (the bottom keeps "face": eface_test pins that text)
 			words = words % ("top" if _top_face(pf) else ("side" if String(pf.get("from", "")) in ["front", "right"] else ("curved side" if tan_pl else "face")))
+	if line_to >= 0:   # W10c: say so, and offer the Stick together nudge (JoinHelper's) on the two pieces
+		words = "Pulled up, but " + PullTouch.WORDS
+		stick_picks = [line_to, nb0]
+		armed = "stick"
+		_stick_retry = ["join", "Stick together"]
+		stick_nudge_btn.visible = true
+		if tweak.has("say"):
+			tweak["say"] = words
 	_say(words)
 	taper_tw = {"id": f["id"], "label": "Taper", "unit": "deg", "lo": -15.0, "hi": 15.0, "step": 0.5, "words": ["Wider at the top", "Narrower at the top"]} if bool(rule["taper"]) else {}
 	# P024: a Twist slider under the Taper one, for a one-way pull of one closed shape (the twisted post); a box or any closed shape turns, a round one looks the same
