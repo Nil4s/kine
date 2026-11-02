@@ -673,3 +673,6 @@ EXTRA="$EXTRA w08:w"   # w08: In place / travelling toggle on a clip, applied li
 
 
 EXTRA="$EXTRA w10:w"   # w10: join/cut failure helper, tests/w10_test.gd
+
+
+EXTRA="$EXTRA w13:w"   # w13: GIF export, per-clip palette, loops, tests/w13_test.gd
