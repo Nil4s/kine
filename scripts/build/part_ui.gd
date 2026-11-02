@@ -1768,7 +1768,7 @@ func _prof_picked(i: int) -> void:
 ## the dialog's rows go; the field controls are kept (they are re-parented into the next dialog)
 func _clear_rows() -> void:
 	_combine_controls()   # COMBINE's two controls exist before the list below takes them off their parent
-	for c in [f_num, f_ang, f_both, f_op, f_axis, f_pull, f_plane, f_taper, f_open, f_edges, f_from, f_to, f_dur, f_dial, f_prof, f_prof_clear, f_ruled, f_sw_prof, f_sw_path, f_sw_flange, f_cmb_op, f_cmb_keep]:
+	for c in [f_num, f_ang, f_both, f_op, f_axis, f_pull, f_plane, f_taper, f_open, f_edges, f_from, f_to, f_dur, f_dial, f_prof, f_prof_clear, f_ruled, f_sw_prof, f_sw_path, f_sw_flange, f_cmb_op, f_cmb_keep, f_cmb_nudge]:
 		if (c as Node).get_parent() != null:
 			(c as Node).get_parent().remove_child(c)
 	for c in dlg_rows.get_children():
