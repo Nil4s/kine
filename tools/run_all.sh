@@ -662,6 +662,7 @@ EXTRA="$EXTRA s250:w"   # s250: Easy Part panel title on its own row (not under 
 EXTRA="$EXTRA s251:w"   # s251: tool labels never split a word, top bar buttons never an ellipsis (1024 x 600 .. 2560 x 1440, Easy + Expert), tests/s251_test.gd
 EXTRA="$EXTRA s252:w"   # s252: undo/redo toasts name the step (never "Redid:"), toasts never cover a button, tests/s252_test.gd
 EXTRA="$EXTRA s253:w"   # s253: a slow frame never loses a drag or an undo state (exact playhead on Undo/Redo, drag after the camera ease), tests/s253_test.gd
+EXTRA="$EXTRA w09:w"   # W09: pick through overlapping pieces (repeat click cycles, list of plain names), tests/w09_test.gd
 EXTRA="$EXTRA w01:w"   # w01: camera navigation settings (remap, zoom to cursor, orbit pivot, presets), tests/w01_test.gd
 
 
@@ -695,3 +696,4 @@ EXTRA="$EXTRA w07:w"   # w07: arithmetic in number fields (25*2+3), scripts/num_
 
 EXTRA="$EXTRA w02:w"   # w02: sketch health free / fully defined / over-constrained by colour + the clashing pair named, tests/w02_test.gd
 EXTRA="$EXTRA w02b:w"   # w02b: health text fully visible + UI-dimensioned rectangle fully defined, tests/w02b_test.gd
+EXTRA="$EXTRA w09b:w"   # w09b: pick-through list shows body names / the making feature, tests/w09b_test.gd
