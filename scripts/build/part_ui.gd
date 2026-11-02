@@ -608,7 +608,7 @@ func _build_side() -> void:
 	f_dur = _field("part_seconds")
 	f_dial = Control.new()
 	f_dial.name = "part_dial"
-	f_dial.custom_minimum_size = Vector2(120, 120)
+	f_dial.custom_minimum_size = Vector2(120, 70)
 	f_dial.mouse_filter = Control.MOUSE_FILTER_STOP
 	f_dial.draw.connect(_draw_dial)
 	f_dial.gui_input.connect(_dial_input)
@@ -2032,6 +2032,8 @@ func dialog_feature() -> Dictionary:
 			if edit >= 0:
 				keep = (rec["features"][edit] as Dictionary).get("clear", [])
 			f = {"body": int(hp["body"]), "o": [o.x / Part.MM, o.y / Part.MM, o.z / Part.MM], "axis": [d.x, d.y, d.z], "track": [[0.0, a0], [du, a1]], "clear": keep, "limit": clampf(float(hp.get("limit", 90.0)), 0.0, 90.0)}
+			if String(hp.get("extrap", "constant")) != "constant":
+				f["extrap"] = String(hp["extrap"])   # s260: saved only when not constant
 	if edit >= 0:
 		var old: Dictionary = rec["features"][edit]
 		f["id"] = old["id"]
@@ -3304,6 +3306,7 @@ func _hinge_open(f: Dictionary, edit: int) -> void:
 		f_to.text = "90"
 		f_dur.text = "3"
 	hp["limit"] = float(f.get("limit", 90.0)) if edit >= 0 else 90.0
+	hp["extrap"] = Curves.mode_of(f) if edit >= 0 else "constant"
 	_hinge_rows()
 
 
@@ -3318,6 +3321,7 @@ func _hinge_rows() -> void:
 		_hrow("To", f_to, "deg")
 		_hrow("Seconds", f_dur, "s")
 		dlg_rows.add_child(_limit_row())
+		dlg_rows.add_child(_extrap_row())
 		dlg_rows.add_child(f_dial)
 		f_dial.queue_redraw()
 
@@ -3341,6 +3345,25 @@ func _limit_row() -> Control:
 	h.add_child(limit_lbl)
 	limit_slider.set_value_no_signal(float(hp.get("limit", 90.0)))
 	_limit_set(float(hp.get("limit", 90.0)))
+	return h
+
+
+## s260 EXTRAPOLATION: what the swing does past its last key: Hold (constant), Continue (linear) or Repeat (cycle)
+func _extrap_row() -> Control:
+	var h := HBoxContainer.new()
+	var l := _label("After the last key")
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	h.add_child(l)
+	var ob := OptionButton.new()
+	ob.name = "part_extrap"
+	for t in ["Hold", "Continue", "Repeat"]:
+		ob.add_item(t)
+	ob.selected = maxi(0, Curves.EXTRAPS.find(String(hp.get("extrap", "constant"))))
+	ob.tooltip_text = "After the last key: Hold keeps the last angle, Continue goes on at the same speed, Repeat loops the swing"
+	ob.item_selected.connect(func(i: int) -> void:
+		hp["extrap"] = Curves.EXTRAPS[i]
+		_preview())
+	h.add_child(ob)
 	return h
 
 
@@ -3590,7 +3613,7 @@ func hinge_set_pct(v: float) -> void:
 		return
 	play_pct = clampf(v, 0.0, 100.0)
 	var tr: Array = f["track"]
-	var deg := clampf(float(Curves.eval(tr, play_pct / 100.0 * float(tr[-1][0]))), -Part.hinge_limit(f), Part.hinge_limit(f))   # P122: the joint limit stops the swing
+	var deg := clampf(float(Curves.eval(tr, play_pct / 100.0 * float(tr[-1][0]), Curves.mode_of(f))), -Part.hinge_limit(f), Part.hinge_limit(f))   # P122: the joint limit stops the swing
 	pose = {"f": String(f["id"]), "deg": deg}
 	hinge_pct_l.text = "%d %%   %s deg" % [roundi(play_pct), _fmt(deg)]
 	hinge_slider.set_value_no_signal(play_pct)

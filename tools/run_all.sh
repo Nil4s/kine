@@ -720,3 +720,6 @@ EXTRA="$EXTRA s258:w"   # s258: a look that glows (emission colour + strength on
 
 
 EXTRA="$EXTRA s259:w"   # s259: playblast motion blur shutter/steps options, shots render blur, scripts/blast_blur.gd, tests/s259_test.gd
+
+
+EXTRA="$EXTRA s260:w"   # s260 CURVE EXTRAPOLATION: constant / linear / cycle on a hinge curve (tests/s260_test.gd; needs the CAD DLL for the UI bars)
