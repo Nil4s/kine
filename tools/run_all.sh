@@ -745,3 +745,4 @@ EXTRA="$EXTRA w03c:w"   # w03c: body keys on the steps that point at a body; ins
 
 
 EXTRA="$EXTRA s263:w"   # s263: dark product studio + continuous ring band, tests/s263_test.gd
+EXTRA="$EXTRA w10d:w"   # W10d: the Pull it up hover card stays clear of the line-touch note, tests/w10d_test.gd
