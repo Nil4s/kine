@@ -660,3 +660,4 @@ EXTRA="$EXTRA s247:w"   # s247: THE LIBRARY GROUP TABS ARE PINNED above the scro
 EXTRA="$EXTRA s248:w"   # s248: STATUS LINE vs THE PAGE BAR (BUILD tab) at 1024 x 600 .. 2560 x 1440, tests/s248_test.gd
 EXTRA="$EXTRA s250:w"   # s250: Easy Part panel title on its own row (not under Empty/Slot/Examples) + page tab icons whole and opaque, tests/s250_test.gd
 EXTRA="$EXTRA s251:w"   # s251: tool labels never split a word, top bar buttons never an ellipsis (1024 x 600 .. 2560 x 1440, Easy + Expert), tests/s251_test.gd
+EXTRA="$EXTRA s252:w"   # s252: undo/redo toasts name the step (never "Redid:"), toasts never cover a button, tests/s252_test.gd
