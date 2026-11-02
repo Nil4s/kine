@@ -414,10 +414,12 @@ func _build_ui() -> void:
 	roof_box.name = "build_roof_box"
 	var rr := HBoxContainer.new()
 	var rg := ButtonGroup.new()
-	for k in Building.ROOFS:
+	var rr2 := HBoxContainer.new()   # s226: the shell roofs (hip, pyramid, hip and gable, curved) on a second row
+	var rk_i := 0
+	for k in Building.ROOFS_ALL:
 		var rb := Button.new()
 		rb.name = "build_roof_" + k
-		rb.text = k.capitalize()
+		rb.text = ("Hip and gable" if k == "xieshan" else k.capitalize())
 		rb.toggle_mode = true
 		rb.button_group = rg
 		rb.focus_mode = Control.FOCUS_NONE
@@ -425,8 +427,10 @@ func _build_ui() -> void:
 		rb.tooltip_text = "a %s roof over the top floor (one undo step)" % k
 		rb.pressed.connect(_set_roof.bind(k))
 		roof_btns[k] = rb
-		rr.add_child(rb)
+		(rr if rk_i < 3 else rr2).add_child(rb)
+		rk_i += 1
 	roof_box.add_child(rr)
+	roof_box.add_child(rr2)
 	var nr := Button.new()
 	nr.name = "build_roof_remove"
 	nr.text = "No roof"

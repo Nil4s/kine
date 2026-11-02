@@ -2225,6 +2225,8 @@ func _lib_press(cat: String) -> void:
 		_scroll_into_view.call_deferred(orn_box)
 	elif cat == "Type it":   # p085typetobuil: a line of words builds a box
 		_say("Type it: write a box in words, like: %s. Then press Build it" % PartWords.EXAMPLE)
+	elif cat == "Roofs":   # s226
+		_say("Roofs: pick a type. It drops on the floor as a thin shell. Curved turns the corners up")
 	elif cat == "Hinges":
 		_say("Hinges: press Hinge below. It drops on the floor, sized to the door")
 	elif cat == "Springs":   # p070springfix: the page shows the Spring button (opening a category builds nothing)
@@ -2311,6 +2313,9 @@ func _lib_box() -> PanelContainer:
 	pipes_box = preload("res://scripts/easy_pipes.gd").new()   # s079: the Pipes page (scripts/easy_pipes.gd)
 	pipes_box.setup(self)
 	vb.add_child(pipes_box)
+	roofs_box = preload("res://scripts/easy_roof.gd").new()   # s226: the Roofs page (scripts/easy_roof.gd)
+	roofs_box.setup(self)
+	vb.add_child(roofs_box)
 	linkage_box = preload("res://scripts/easy_linkage.gd").new()   # p129linkages: the Linkage panel (4 bars, a drag knob) on the Hinges page, scripts/easy_linkage.gd
 	linkage_box.say_fn = _say   # p129linkages: its words go to the status line at the top
 	vb.add_child(linkage_box)
@@ -2722,6 +2727,8 @@ func _screw_sync() -> void:
 		bo.set_pressed_no_signal(not bcur.is_empty() and int(bcur.get("board", 0)) == bd)
 		m._grey(bo, Part.why_not() if not Part.available() else "")
 	_wood_sync()   # P080 WOOD BOARDS: the wood chips and their cut readout follow the same state
+	if roofs_box != null:   # s226
+		roofs_box.sync()
 	if pipes_box != null:   # s079
 		pipes_box.visible = parts_open and lib_cat == "Pipes"
 		pipes_box.sync()
@@ -7971,6 +7978,7 @@ func _bevel_done(f: Dictionary) -> void:
 
 # ---------------------------------------------------------------- s079: Pipes (Parts > Pipes; scripts/easy_pipes.gd, scripts/build/pipe_parts.gd)
 var pipes_box: VBoxContainer = null
+var roofs_box: VBoxContainer = null   # s226
 var numbers_box: VBoxContainer = null   # s229: By numbers (scripts/easy_numbers.gd)
 
 
