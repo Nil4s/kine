@@ -6845,6 +6845,7 @@ func _undo() -> void:
 	_tree_sync()
 	if undo.is_empty():
 		_say("nothing to undo yet: move a part of the body, and Undo takes that back" if (easy != null and easy.on) else "nothing to undo yet: click a part and drag it, and Ctrl+Z will take that back")
+		_toast("Nothing to undo")   # S252: an empty stack says so in words, on the toast too
 		return
 	var u: Dictionary = undo.pop_back()
 	_actor_set(int(u.get("actor", 0)))   # TC3: the redo step is taken on the actor this step changes
@@ -6874,8 +6875,8 @@ func _undo() -> void:
 		sk.flips = fl
 		sk.fitted = SketchPose._skel(B, cam)
 		_sk_show_handles()
-	_say(("Took back: " + easy_name(u)) if easy != null and easy.on else "undone: " + now["name"])   # Easy says the short name too
-	_toast(("Took back: " + easy_name(u)) if easy.on else "Undid: " + now["name"])   # Easy's toast and status line say the same words ("Took back: Faster")
+	_say(("Took back: " + easy_name(u)) if easy != null and easy.on else "Undid: " + now["name"])   # Easy says the short name too; S252: Expert's status line and toast say the same words, a name always follows
+	_toast(("Took back: " + easy_name(u)) if easy != null and easy.on else "Undid: " + now["name"])   # Easy's toast and status line say the same words ("Took back: Faster")
 	_undo_tips()
 	_history_rows()
 	_jpending = true
@@ -6893,6 +6894,8 @@ func _redo() -> void:
 		return
 	_tree_sync()
 	if redo.is_empty():
+		_say("Nothing to redo")   # S252: said in words (status line and toast), never a silent key press or an empty "Redid:"
+		_toast("Nothing to redo")
 		return
 	var r: Dictionary = redo.pop_back()
 	_actor_set(int(r.get("actor", 0)))   # TC3: as _undo
@@ -6912,7 +6915,7 @@ func _redo() -> void:
 	_rehearse_again()   # I14
 	if r.has("lib"):
 		PosePack.lib_move(r["lib"], false, library)
-	_say(("Put back: " + easy_name(r)) if easy != null and easy.on else "redone: " + now["name"])
+	_say(("Put back: " + easy_name(r)) if easy != null and easy.on else "Redid: " + now["name"])
 	_toast(("Put back: " + easy_name(r)) if easy != null and easy.on else "Redid: " + now["name"])   # Easy: the same words as the status line
 	_undo_tips()
 	_history_rows()
@@ -11229,11 +11232,58 @@ func _toast(t: String) -> void:
 	elif easy != null and easy.on:
 		_easy_toast_place(ui_toast)
 		_easy_toast_place.call_deferred(ui_toast)   # again once the strip has its new size (an undo can grow or shrink it this frame)
+	_toast_off_buttons(ui_toast)   # S252: whatever the mode placed, the toast never sits on a button
+	_toast_off_buttons.call_deferred(ui_toast)
 	_toast_gen += 1
 	var g := _toast_gen
 	get_tree().create_timer(hold).timeout.connect(func():
 		if g == _toast_gen and is_instance_valid(ui_toast):
 			ui_toast.visible = false)
+
+
+## S252: the toast's rect is moved, if it covers a visible button, to the nearest spot inside the window that covers none
+## (and no side panel / browser / timeline either: their buttons are the obstacles; the panels' own rects are added below)
+func _toast_off_buttons(t: Label) -> void:
+	if t == null or not is_instance_valid(t) or not t.visible:
+		return
+	var org := Vector2.ZERO
+	if t.get_parent() is Control:
+		org = (t.get_parent() as Control).global_position
+	var sz := t.size
+	var vp := get_viewport().get_visible_rect().size
+	var obs: Array = []
+	_collect_button_rects(self, obs)
+	var cur := Rect2(t.global_position, sz)
+	var hit := false
+	for b in obs:
+		var q: Rect2 = cur.intersection(b)
+		if q.size.x > 1.0 and q.size.y > 1.0:
+			hit = true
+			break
+	if not hit and Rect2(Vector2.ZERO, vp).encloses(cur):
+		return
+	var best := Vector2(INF, INF)
+	var bd := INF
+	var y := float(TOP_H) + 4.0
+	while y + sz.y <= vp.y - 4.0:
+		var x := 4.0
+		while x + sz.x <= vp.x - 4.0:
+			var r := Rect2(Vector2(x, y), sz)
+			var free := true
+			for b in obs:
+				var q: Rect2 = r.intersection(b)
+				if q.size.x > 1.0 and q.size.y > 1.0:
+					free = false
+					break
+			if free:
+				var d := (Vector2(x, y) - cur.position).length_squared()
+				if d < bd:
+					bd = d
+					best = Vector2(x, y)
+			x += 12.0
+		y += 6.0
+	if bd < INF:
+		t.position = best - org
 
 
 ## the toast is taken down now: an Easy action's new message replaces the old one (say, the library, a saved video)
@@ -11399,7 +11449,11 @@ func _undo_tips() -> void:
 
 ## what a step is called: what was said about it, else what was pressed, else "change"
 static func _step_label(u: Dictionary) -> String:
-	var n := String(u.get("name", u.get("hint", "change")))
+	var n := String(u.get("name", "")).strip_edges().rstrip(":").strip_edges()   # S252: an empty name ("") must not reach "Undid: "
+	if n == "":
+		n = String(u.get("hint", "")).strip_edges().rstrip(":").strip_edges()
+	if n == "":
+		n = "a change"
 	return n.left(1).to_upper() + n.substr(1)
 
 
@@ -11422,7 +11476,9 @@ static func easy_part(j: String) -> String:
 
 ## EASY: the short name of a step for Easy's Undo button and toast: the Easy name it was made with, else its own name; at most 18 characters
 static func easy_name(u: Dictionary) -> String:
-	var n := String(u.get("easy", "")) if u.has("easy") else _step_label(u)
+	var n := String(u.get("easy", "")).strip_edges().rstrip(":").strip_edges() if u.has("easy") else ""
+	if n == "":
+		n = _step_label(u)   # S252: an empty short name falls back to the step's own name
 	return (n.left(16) + "..") if n.length() > 18 else n
 
 
