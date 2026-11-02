@@ -35,6 +35,7 @@ var ui_slicer_btn: Button
 var ui_slicer_again: Button
 
 
+var nice_real: CheckBox   # s224
 var nice_btn: Button       # p105: Nice picture, in the dialog's button row
 var nice_say: Label        # p105: where the picture went, in words
 var slicers_override = null   # a test: the slicers to show (an Array of {name, path}) instead of looking at this computer
@@ -193,6 +194,14 @@ func _build() -> void:
 	nice_btn.tooltip_text = "Save a nice picture of this part as a PNG (1920 x 1080): soft light, a soft shadow, a faint floor reflection. The part does not change"
 	nice_btn.pressed.connect(func(): nice_picture())
 	nrow.add_child(nice_btn)
+	nice_real = CheckBox.new()   # s224: the REAL-LOOK preset (sky, sun, soft shadows, occlusion, reflections); off = the soft studio picture
+	nice_real.name = "chk_nice_realistic"
+	nice_real.text = "Realistic"
+	nice_real.focus_mode = Control.FOCUS_NONE
+	nice_real.button_pressed = NiceRender.look == "real"
+	nice_real.tooltip_text = "Draw the picture with a physical sky and sun, soft real shadows, ambient occlusion and reflections (a few seconds)"
+	nice_real.toggled.connect(func(v: bool): NiceRender.look = "real" if v else "studio")
+	nrow.add_child(nice_real)
 	nice_say = Label.new()
 	nice_say.name = "export_nice_text"
 	nice_say.text = "A picture of the part for showing it (PNG)"
@@ -711,6 +720,6 @@ func nice_picture() -> String:
 		nice_say.text = "NOT NOW: there is no part to picture. Draw a shape and press Pull it up, then press Nice picture"
 		return ""
 	nice_say.text = "Drawing the nice picture..."
-	var r: Dictionary = await NiceRender.save(m, m.S.part, UserPaths.w("res://exports"))
+	var r: Dictionary = await NiceRender.save(m, m.S.part, UserPaths.w("res://exports"), SectionLook.live_cut(m))
 	nice_say.text = String(r["text"])
 	return String(r["path"]) if bool(r["ok"]) else ""

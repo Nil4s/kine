@@ -327,6 +327,11 @@ func build(root: Control) -> void:
 	v.add_child(bracket_box)
 	clip_box = _clip_box()
 	v.add_child(clip_box)
+	orn_box = PartOrnamentEasy.make_box(self)   # s227: Parts > Ornaments
+	v.add_child(orn_box)
+
+
+	v.add_child(_nature_box())   # FRIDAY 225: the Nature page
 	handle_box = _handle_box()   # P071 HANDLES: the Handles grid under the library page
 	v.add_child(handle_box)
 	wheel_box = _wheel_box()   # P072: the Wheels page's chips
@@ -586,6 +591,8 @@ func _round_box() -> PanelContainer:
 
 
 func _round_shown() -> bool:
+	if rep_id != "" and not Part.feature(_rec(), rep_id).is_empty():
+		return false   # s214: the Repeat it box is open: its own box only (the Round the edges row hung over it)
 	return armed == "" and int(pu.res.get("bodies", 0)) > 0 and not _hole_on() and not _split_on()
 
 
@@ -641,6 +648,10 @@ func _colour_box() -> PanelContainer:
 	dk.add_theme_color_override("font_color", Color(0.9, 0.92, 0.95))
 	dk.pressed.connect(_paint.bind("Dark", Color("#1e2226"), "Paint"))
 	h.add_child(dk)
+	var mb := _colour_btn("materials", "Materials", Color(0.78, 0.74, 0.66))   # s223: oak, steel, tile, marble... and a words box, on a page under the chips
+	mb.tooltip_text = "Wood, metal, tile, stone, leather and more, drawn in code. Pick one or say it: dark oak, red lacquer a bit worn"
+	mb.pressed.connect(_mat_toggle)
+	h.add_child(mb)
 	# p057 WEIGHT: the whole Part's weight if it were made of each material (volume x density). A readout: it changes nothing in the Part
 	for wk in WEIGHT_CHIPS:
 		var wb := _colour_btn("weight_" + String(wk[0]), "", Color(0.7, 0.72, 0.76))
@@ -717,6 +728,7 @@ func _tilt_box() -> PanelContainer:
 	pull_along_btn.custom_minimum_size = Vector2(230, 44)
 	pull_along_btn.visible = false
 	row.add_child(pull_along_btn)
+	row.add_child(_bend_row())   # S216: Bend radius (slider + typed mm) under Pull along
 	bulge_btn = _big_btn("easypart_bulge", "Pinch / Bulge a face", "Click a flat face: its middle moves out (a dome) or in (a dish), the rim stays. A slider -1..1 sets how much", _bulge_press)   # plan 23: under any solid, in the box of the newest-step chips
 	bulge_btn.toggle_mode = true
 	bulge_btn.custom_minimum_size = Vector2(230, 44)
@@ -948,9 +960,12 @@ func _pull_along_press() -> void:
 	var snap := _rec().duplicate(true)
 	_begin("Pull along")
 	var rec := pu._ensure()
-	var f := Part.new_feature(rec, "sweep", {"profile": ids[0], "path": ids[1], "op": "join"})
+	var f := Part.new_feature(rec, "sweep", {"profile": ids[0], "path": ids[1], "op": "join", "bend": _bend_for(rec, ids[0])})   # S216: the bend radius the control shows
 	rec["features"].append(f)
 	var err := _last_error(rec, String(f["id"]))
+	if err != "" and _bend_typed < 0.0:   # S216: the default bend (1.5 x the tube width) does not fit the legs: the old tighter bend (1.5 x the tube's radius) is tried
+		f["bend"] = maxf(2.0, 1.5 * _bend_reach(rec, ids[0]))
+		err = _last_error(rec, String(f["id"]))
 	if err != "":
 		m.S.part = snap
 		m._drop_undo()
@@ -1792,6 +1807,9 @@ func _screw_box() -> PanelContainer:
 
 
 ## P075: the three Clips and feet chips: a row of icon + plain word each, one row under the category chips
+var orn_box: PanelContainer   # s227 (scripts/build/part_ornament_easy.gd)
+
+
 func _clip_box() -> PanelContainer:
 	var pc := PanelContainer.new()
 	pc.name = "easypart_clip_box"
@@ -2160,6 +2178,8 @@ func _parts_press() -> void:
 	lib_cat = "Screws" if parts_open else ""   # NLIBPAGE: the page opens on Screws, its sizes showing
 	_say("Parts: pick a kind. Screws is open: pick a size. It drops on the floor" if parts_open else "Parts shut. Press Parts to open them again")
 	_screw_sync()
+	if parts_open:
+		_scroll_screw_sizes.call_deferred()
 
 
 ## NLIBPAGE: a category chip. Screws shows the sizes, Gears says to press the Gear chip, the others say coming soon with the next step.
@@ -2170,8 +2190,14 @@ func _lib_press(cat: String) -> void:
 		return
 	parts_open = true
 	lib_cat = cat
+	if cat != "Screws" and _screw_scrolled:   # s227: leave the scroll where the page's own chips show
+		_screw_scrolled = false
+		var _sc0 := panel.get_node_or_null("easypart_panel_scroll") as ScrollContainer
+		if _sc0 != null:
+			_sc0.scroll_vertical = 0
 	if cat == "Screws":
 		_say("Screws: pick a size. It drops on the floor")
+		_scroll_screw_sizes.call_deferred()   # s227: the category chips take more rows now: scroll so the first two size rows show
 	elif cat == "Gears":
 		_say("Gears: press Gear in the chips above, or Cam and follower below. It drops on the floor")
 	elif cat == "Bearings":   # P069 BEARINGS: three sizes; the seat button under them cuts the seat for the one on the floor
@@ -2194,6 +2220,9 @@ func _lib_press(cat: String) -> void:
 		_scroll_into_view.call_deferred(pipes_box)
 	elif cat == "Wood boards":   # P080: the two wood chips open under the library
 		_say("Wood boards: pick one by its real size. It lies on the floor, flat")
+	elif cat == "Ornaments":   # s227
+		_say("Ornaments: press one to add it to the part. On a roof, the chiwen go on the ridge ends")
+		_scroll_into_view.call_deferred(orn_box)
 	elif cat == "Type it":   # p085typetobuil: a line of words builds a box
 		_say("Type it: write a box in words, like: %s. Then press Build it" % PartWords.EXAMPLE)
 	elif cat == "Roofs":   # s226
@@ -2237,6 +2266,8 @@ func _lib_box() -> PanelContainer:
 		b.pressed.connect(_lib_press.bind(cat))
 		fl.add_child(b)
 		lib_btns[cat] = b
+		if cat == "Gears":
+			fl.add_child(_nature_chip())   # FRIDAY 225: icon-only Nature chip in the first row, which has 46 px spare: adds no row
 	fl.add_child(_kids_chip_make())   # p197kidsmode: the Kids chip, last on the library page
 	fl.add_child(_challenge_chip_make())   # s165: Challenges, after Kids
 
@@ -2273,6 +2304,9 @@ func _lib_box() -> PanelContainer:
 	vb.add_child(lib_soon)
 	vb.add_child(_type_row())   # p085typetobuil: the Type it row (shows with that category)
 	vb.add_child(_photo_row())   # p192makeitlike: Like a photo, under Type it
+	numbers_box = preload("res://scripts/easy_numbers.gd").new()   # s229: By numbers (a shape, its place and sizes typed), on the Type it page
+	numbers_box.setup(self)
+	vb.add_child(numbers_box)
 	vb.add_child(_text_row())   # FRIDAY 33: Text on a face, under Like a photo
 	vb.add_child(_label_row())   # s210: Label, under Like a photo
 	vb.add_child(_fit_row())   # s193: Fit to an object, on the Boards page
@@ -2482,6 +2516,24 @@ func _screw_pick(d: int, L: int) -> void:
 	_scroll_into_view.call_deferred(screw_box)   # the grid stays clickable after placing (the panel grows, the scroll clipped the last row: nscrew2 bar 3)
 
 
+## s227: the library page's chips fill several rows, so the screw sizes sit under the fold: bring the size chips (M4 x 16, row 2) into view
+var _screw_scrolled := false   # s227: the Screws page moved the panel scroll
+func _scroll_screw_sizes() -> void:
+	# the grid lays out a few frames after the press and the scroll bar's range follows it: retry until the chip's centre is inside the viewport
+	for _i in 8:
+		await get_tree().process_frame
+		if lib_cat != "Screws" or not parts_open:
+			return
+		var c: Button = screw_btns.get("4_16", null)
+		var sc := panel.get_node_or_null("easypart_panel_scroll") as ScrollContainer
+		if c == null or sc == null or not c.is_visible_in_tree():
+			continue
+		if sc.get_global_rect().encloses(c.get_global_rect()):
+			continue   # _screw_sync scrolls the whole grid into view a frame later and can undo this: keep checking
+		_scroll_into_view(c)
+		_screw_scrolled = true
+
+
 ## the panel scrolls so the control is inside its visible part: a chip below the scroll's bottom edge is drawn clipped and takes no click
 func _scroll_into_view(c: Control) -> void:
 	var sc := panel.get_node_or_null("easypart_panel_scroll") as ScrollContainer
@@ -2592,18 +2644,26 @@ func _screw_sync() -> void:
 		m._grey(spring_pick, Part.why_not() if not Part.available() else "")
 		_cam_pick_sync()   # p130camandfoll
 		_gp_pick_sync()   # p065gearpairpi
-		lib_soon.visible = parts_open and lib_cat != "" and not (lib_cat in LIB_READY)
+		lib_soon.visible = parts_open and lib_cat != "" and lib_cat != "Nature" and not (lib_cat in LIB_READY)
 		if screw_words != null:   # the page is open: its chips and the status line say what to do
 			screw_words.visible = not parts_open
 		lib_soon.text = "%s are coming soon: not made yet. Next step: press Screws or Gears" % lib_cat if lib_soon.visible else ""
 		type_box.visible = parts_open and lib_cat == "Type it"   # p085typetobuil
 		photo_box.visible = parts_open and lib_cat == "Type it"   # p192makeitlike
+		if numbers_box != null:
+			numbers_box.visible = parts_open and lib_cat == "Type it"   # s229
 		if text_box != null:
 			text_box.visible = parts_open and lib_cat == "Type it"   # FRIDAY 33
 		label_box.visible = parts_open and lib_cat == "Type it"   # s210
 		if fav_box != null:   # p083favfix: the Favourites page shows while its category is open; the row and the star are drawn here
 			fav_box.visible = parts_open and lib_cat == "Favourites"
 			_fav_sync()
+	if orn_box != null:   # s227
+		orn_box.visible = parts_open and lib_cat == "Ornaments"
+
+
+	if nature_page != null:   # FRIDAY 225
+		nature_page.sync()
 	if clip_box != null:   # P075: the Clips and feet chips show while that category is open
 		clip_box.visible = parts_open and lib_cat == "Clips and feet"
 		_clip_scroll_once()   # integ94: the chips sat below the scroll's edge (y 594 vs 586) and took no click (p205 S1)
@@ -3480,7 +3540,7 @@ func _twist_tweak(id: String) -> Dictionary:
 
 ## COLOUR: one appear step on the newest body (Part's "appear" feature, the look Expert's Appearance writes), in ONE undo step. A material
 ## (Glass, Metal) keeps each body's own colour; a colour chip sets Paint's numbers with that colour
-func _paint(label: String, c: Color, preset: String) -> void:
+func _paint(label: String, c: Color, preset: String, mat := {}) -> void:
 	armed = ""
 	if not Part.available():
 		_say(Part.why_not())
@@ -3512,8 +3572,11 @@ func _paint(label: String, c: Color, preset: String) -> void:
 		var cur := Part.look_at(looks, i)
 		var col: Color = cur["c"] if COLOUR_PRESETS.has(preset) else c
 		var n := Part.count_of(rec, "appear") + 1
-		var f := Part.new_feature(rec, "appear", {"name": "Appearance%d" % n, "body": i, "preset": preset,
-			"color": [col.r, col.g, col.b], "rough": float(nums["rough"]), "metal": float(nums["metal"]), "alpha": float(nums["alpha"])})
+		var fields := {"name": "Appearance%d" % n, "body": i, "preset": preset,
+			"color": [col.r, col.g, col.b], "rough": float(nums["rough"]), "metal": float(nums["metal"]), "alpha": float(nums["alpha"])}
+		if not (mat as Dictionary).is_empty():   # s223: a made material (oak, tile, marble...): its numbers and its spec
+			fields.merge(MaterialMaker.appear_fields(mat), true)
+		var f := Part.new_feature(rec, "appear", fields)
 		(rec["features"] as Array).append(f)
 	_end()
 	pu.upto = -1
@@ -3745,6 +3808,7 @@ func _process(_dt: float) -> void:
 	if split_box.visible:
 		_split_sync()
 	colour_box.visible = on and armed == "colour"
+	_mat_sync()
 	if colour_box.visible:
 		_weight_sync()   # p057: the weight chips follow the Part (only read when its steps change)
 	repeat_box.visible = on and armed == "" and rep_id != "" and not Part.feature(_rec(), rep_id).is_empty()
@@ -3755,7 +3819,7 @@ func _process(_dt: float) -> void:
 		(jb as Button).visible = not smooth
 	for so in stick_btns:
 		(stick_btns[so] as Button).visible = not smooth
-	explode_box.visible = on and int(pu.res.get("bodies", 0)) >= 2 and armed == "" and not _hole_on() and not _split_on()   # EXPLODE (p103): two or more pieces; not over a hole's or a cut's keep chips
+	explode_box.visible = on and int(pu.res.get("bodies", 0)) >= 2 and armed == "" and not repeat_box.visible and not _hole_on() and not _split_on()   # EXPLODE (p103): two or more pieces; not over a hole's or a cut's keep chips
 	if not explode_box.visible and pu.explode_mm != 0.0:
 		_explode_reset()
 	align_row.visible = stick_box.visible and not smooth and stick_picks.size() == 2   # P054: the align row shows with the two picks
@@ -3768,6 +3832,7 @@ func _process(_dt: float) -> void:
 	var tilt_on := not along and _tilt_ok(_rec())
 	var draft_on := not along and _draft_ok(_rec())
 	pull_along_btn.visible = along
+	_bend_sync(along)   # S216
 	tilt_btn.visible = tilt_on
 	draft_btn.visible = draft_on
 	_gd_sync(on)   # s124
@@ -4050,6 +4115,8 @@ func input(ev: InputEvent) -> bool:
 				if (d["scr"] as Vector2).distance_to(p) <= 16.0:
 					_grab(d, p)
 					return true
+			if pipes_box != null and pipes_box.p3_pick and not _over_ui(p):
+				return pipes_box._p3_press(p)   # s215: Pick on the part
 			if text_pick and not _over_ui(p):
 				return _text_press(p)   # FRIDAY 33: the press picks the face the words go on
 			if armed == "stick" and not _over_ui(p):
@@ -4062,6 +4129,9 @@ func input(ev: InputEvent) -> bool:
 				return true
 			if armed == "aredge" and not _over_ui(p):
 				return _aredge_press(p)   # s048: Around edge picks the edge under the click
+			if _rgroup_wants(ev as InputEventMouseButton) and not _over_ui(p):
+				if _rgroup_press(p):   # s214: Group: a click on a piece adds it to the group or takes it off
+					return true
 			if armed == "hold" and not _over_ui(p):
 				return _hold_press(p)   # p131grippoint: the press on the part sets the grip point
 			if armed == "draw" and _draft.has("clicks") and not _over_ui(p):
@@ -4299,8 +4369,8 @@ func _over_ui(p: Vector2) -> bool:
 	if edge_chip != null and edge_chip.visible and edge_chip.get_global_rect().has_point(p):
 		return true   # NEDGECHIP: the edge chip is a button: its press is not a pick
 	# hint and status are WORDS only (a _pill: mouse_filter IGNORE, one Label, no button): a press under them is the grid's, not eaten
-	for c in [bar, make_box, view_box, panel, shape_box, colour_box, repeat_box, stick_box, explode_box, tilt_box, size_box]:   # P107 FITVIEW: the view row is a button row, a press on it is not the grid's
-		if (c as Control).visible and (c as Control).get_global_rect().has_point(p):
+	for c in [bar, make_box, view_box, panel, shape_box, colour_box, repeat_box, stick_box, explode_box, tilt_box, size_box, mat_box]:   # P107 FITVIEW: the view row is a button row, a press on it is not the grid's
+		if c != null and (c as Control).visible and (c as Control).get_global_rect().has_point(p):
 			return true
 	return false
 
@@ -4969,6 +5039,8 @@ func _step_words_plain(f: Dictionary) -> String:
 			return "Filled with a lattice, bars %s mm apart" % _plain_num(float(f.get("gap", 0.0)))
 		"appear":
 			return "Coloured"
+		"bname":
+			return "Named piece %d %s" % [int(f.get("body", 0)) + 1, String(f.get("called", "")) if String(f.get("called", "")) != "" else "Body%d again" % (int(f.get("body", 0)) + 1)]
 		"mirror":
 			return "Mirrored it"
 		"pattern":
@@ -4995,7 +5067,7 @@ static func step_icon(t: String) -> String:
 			return "part_mirror"
 		"pattern":
 			return "part_pattern"
-		"appear":
+		"appear", "bname":
 			return "part_appearance"
 	return "part_mirror"
 
@@ -5133,6 +5205,9 @@ func _type_row() -> HBoxContainer:
 func _type_build() -> void:
 	if not Part.available():
 		_chips_sync()
+		return
+	if bool(PartOrnament.parse(type_edit.text)["ok"]):   # s227: "2 chiwen on the ridge ends"
+		PartOrnamentEasy.words(self, type_edit.text)
 		return
 	var p := PartWords.parse(type_edit.text)
 	if not bool(p["ok"]):
@@ -5853,6 +5928,9 @@ func _cut_sync() -> void:
 	if not (cut_on and active() and _cut_ready()):
 		if cut_mat != null and pu.part_mesh.material_override == cut_mat:
 			pu.part_mesh.material_override = null
+			if not pu.sec_on:
+				pu.sec_cut = {}   # S218
+			pu._look_surfaces()
 		return
 	if cut_mat == null:
 		cut_mat = ShaderMaterial.new()
@@ -5866,6 +5944,8 @@ func _cut_sync() -> void:
 	cut_mat.set_shader_parameter("cut", Vector4(n.x, n.y, n.z, float(d["w"])))
 	cut_mat.set_shader_parameter("on", 1.0)
 	pu.part_mesh.material_override = cut_mat
+	pu.sec_cut = {"n": n, "w": float(d["w"])}   # S218: each body's own cap colour
+	pu._look_surfaces()
 
 
 ## HOLD HERE (p131grippoint): the Colour page's Hold here chip arms one click. The next press on the part sets the grip point there: the
@@ -7899,6 +7979,7 @@ func _bevel_done(f: Dictionary) -> void:
 # ---------------------------------------------------------------- s079: Pipes (Parts > Pipes; scripts/easy_pipes.gd, scripts/build/pipe_parts.gd)
 var pipes_box: VBoxContainer = null
 var roofs_box: VBoxContainer = null   # s226
+var numbers_box: VBoxContainer = null   # s229: By numbers (scripts/easy_numbers.gd)
 
 
 ## P125 COLLIDE LIVE (Friday plan 125, "the door hits the wall: red flash"): Swing it plays the turn in the view, one step every 0.1 s on the
@@ -8212,3 +8293,221 @@ func _lib_scroll_top() -> void:
 func _lib_bar_sync() -> void:
 	if lib_bar_btn != null:
 		lib_bar_btn.set_pressed_no_signal(parts_open)
+
+
+## S216 BEND RADIUS: Pull along rounds every corner of the path with one radius (mm, the centre line of the pipe). The control (a slider and a typed mm box)
+## sits under Pull along; it shows before the press (the radius the next Pull along uses) and while the newest step is a sweep (it changes that pipe: one undo step).
+## Default 1.5 x the tube's width; least = the tube's radius (a solid tube has no wall; a tighter bend folds); most = the larger of 300 mm and 6 x the radius.
+var bend_row: HBoxContainer
+var bend_slider: HSlider
+var bend_spin: SpinBox
+var bend_label: Label
+var _bend_typed := -1.0     # mm the user chose for the next Pull along (-1: none, the default is used)
+var _bend_sid := ""         # the round shape that choice was made for
+var _bend_busy := false
+var _bend_drag := false     # the slider is held: the panel syncs leave it alone
+
+
+func _bend_row() -> HBoxContainer:
+	bend_row = HBoxContainer.new()
+	bend_row.name = "easypart_bend_row"
+	bend_row.add_theme_constant_override("separation", 6)
+	bend_row.visible = false
+	bend_label = Label.new()
+	bend_label.text = "Bend radius"
+	bend_label.tooltip_text = "How wide the pipe's bends are, in mm to the middle of the pipe. Every corner of the curve is rounded with this radius"
+	bend_row.add_child(bend_label)
+	bend_slider = HSlider.new()
+	bend_slider.name = "easypart_bend_slider"
+	bend_slider.custom_minimum_size = Vector2(80, 24)
+	bend_slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	bend_slider.step = 0.5
+	bend_slider.min_value = 1.0
+	bend_slider.max_value = 300.0
+	bend_slider.value_changed.connect(func(v: float):
+		if not _bend_busy:
+			_bend_busy = true
+			bend_spin.value = v
+			_bend_busy = false)
+	bend_slider.drag_started.connect(func(): _bend_drag = true)
+	bend_slider.drag_ended.connect(func(changed: bool):
+		_bend_drag = false
+		if changed:
+			_bend_commit(bend_slider.value))
+	bend_row.add_child(bend_slider)
+	bend_spin = SpinBox.new()
+	bend_spin.name = "easypart_bend_mm"
+	bend_spin.suffix = "mm"
+	bend_spin.step = 0.5
+	bend_spin.min_value = 1.0
+	bend_spin.max_value = 300.0
+	bend_spin.custom_minimum_size = Vector2(120, 0)
+	bend_spin.value_changed.connect(func(v: float):
+		if not _bend_busy:
+			_bend_commit(v))
+	bend_row.add_child(bend_spin)
+	return bend_row
+
+
+## the round shape's reach (mm): the tube's radius
+func _bend_reach(rec: Dictionary, sid: String) -> float:
+	for f in rec.get("features", []):
+		if String(f.get("t", "")) == "sketch" and String(f.get("id", "")) == sid:
+			var ents: Array = f.get("ents", [])
+			return Part._profile_reach(ents, Part._profile_centre(ents))
+	return 5.0
+
+
+## the radius the next Pull along on this shape uses: the user's choice, else 1.5 x the tube's width
+func _bend_for(rec: Dictionary, sid: String) -> float:
+	var reach := _bend_reach(rec, sid)
+	if _bend_typed >= 0.0 and _bend_sid == sid:
+		return maxf(_bend_typed, reach)
+	_bend_typed = -1.0
+	return 3.0 * reach
+
+
+## the newest step when it is a sweep ({} when not)
+func _bend_sweep(rec: Dictionary) -> Dictionary:
+	var feats: Array = rec.get("features", [])
+	if not feats.is_empty() and String(feats[feats.size() - 1].get("t", "")) == "sweep":
+		return feats[feats.size() - 1]
+	return {}
+
+
+func _bend_sync(along: bool) -> void:
+	if bend_row == null:
+		return
+	var rec := _rec()
+	var sw := _bend_sweep(rec)
+	var sid := ""
+	if not sw.is_empty():
+		sid = String(sw.get("profile", ""))
+	elif along:
+		sid = String(_along_pick(rec)[0])
+	bend_row.visible = sid != "" and (along or not sw.is_empty())
+	if not bend_row.visible:
+		return
+	var reach := _bend_reach(rec, sid)
+	var cur := 0.0
+	if not sw.is_empty():
+		cur = float(sw.get("bend", maxf(2.0, 1.5 * reach)))
+	else:
+		cur = _bend_for(rec, sid)
+	var hi := maxf(300.0, 6.0 * reach)
+	_bend_busy = true
+	bend_slider.min_value = reach
+	bend_slider.max_value = hi
+	bend_spin.min_value = reach
+	bend_spin.max_value = hi
+	if not _bend_drag:
+		bend_slider.value = cur   # set_value (not no_signal): the typed box redraws its text from the change; _bend_busy keeps the handlers out
+		if not bend_spin.get_line_edit().has_focus():
+			bend_spin.value = cur
+	_bend_busy = false
+	bend_row.tooltip_text = "Bend radius %.1f to %.0f mm" % [reach, hi]
+
+
+## a new radius: before the press it is remembered; on a pipe it rebuilds the pipe (one undo step, taken back whole when it cannot be built)
+func _bend_commit(v: float) -> void:
+	bend_spin.get_line_edit().release_focus()   # the typed text is taken: the next sync may show the real value
+	var rec := _rec()
+	var sw := _bend_sweep(rec)
+	if sw.is_empty():
+		var ids := _along_pick(rec)
+		if ids.is_empty():
+			return
+		_bend_typed = maxf(v, _bend_reach(rec, String(ids[0])))
+		_bend_sid = String(ids[0])
+		_say("Bend radius %.1f mm for the next Pull along" % _bend_typed)
+		_bend_sync(true)
+		return
+	var reach := _bend_reach(rec, String(sw.get("profile", "")))
+	var nv := maxf(v, reach)
+	if absf(nv - float(sw.get("bend", -1.0))) < 0.01:
+		return
+	_flush_if_dirty()
+	var snap := rec.duplicate(true)
+	_begin("Bend radius")
+	var r2 := pu._ensure()
+	var f2 := _bend_sweep(r2)
+	f2["bend"] = nv
+	var err := _last_error(r2, String(f2["id"]))
+	if err != "":
+		m.S.part = snap
+		m._drop_undo()
+		_edit_n = -1
+		_say("Bend radius %.1f mm does not fit: %s" % [nv, err])
+		pu.upto = -1
+		pu.sync()
+		_bend_sync(false)
+		return
+	_end()
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_values_sync()
+	_say("Bend radius %.1f mm. Undo takes it back" % nv)
+
+
+# ---------------------------------------------------------------- MATERIALS (s223)
+
+var mat_box: PanelContainer
+var mat_w := {}
+var mat_on := false
+
+
+## the Materials page under the colour chips: swatch chips for the library and a words line (scripts/material_picker.gd)
+func _mat_make() -> void:
+	mat_box = PanelContainer.new()
+	mat_box.name = "easypart_materials"
+	mat_box.add_theme_stylebox_override("panel", _style(Color(0.1, 0.11, 0.14, 0.92), 10, 6))
+	mat_box.visible = false
+	var vb := VBoxContainer.new()
+	vb.add_theme_constant_override("separation", 6)
+	mat_box.add_child(vb)
+	var t := Label.new()
+	t.text = "Materials: pick one for the newest solid"
+	t.add_theme_font_size_override("font_size", 13)
+	vb.add_child(t)
+	mat_w = MaterialPicker.build(vb, "easypart_", Callable(self, "_mat_pick"), 40)
+	colour_box.get_parent().add_child(mat_box)
+
+
+func _mat_toggle() -> void:
+	mat_on = not mat_on
+	_say("Materials: pick a swatch or type what you want" if mat_on else "Materials closed")
+	_mat_sync()
+
+
+func _mat_pick(spec: Dictionary, label: String) -> void:
+	_paint(label, Color.WHITE, "Material", spec)
+
+
+func _mat_sync() -> void:
+	if mat_box == null:
+		_mat_make()
+	var show := colour_box.visible and mat_on
+	mat_box.visible = show
+	if show:
+		MaterialPicker.fill(mat_w)
+		mat_box.reset_size()
+		mat_box.position = Vector2(colour_box.position.x, colour_box.position.y + colour_box.size.y + 6.0)
+		mat_box.size.x = maxf(colour_box.size.x, 300.0)
+		mat_box.size.y = mat_box.get_combined_minimum_size().y
+
+
+# ---------------------------------------------------------------- FRIDAY 225 NATURE PAGE
+var nature_page = null   # easy_part_nature.gd
+
+
+func _nature_chip() -> Button:
+	if nature_page == null:
+		nature_page = EasyPartNature.new(self)
+	return nature_page.make_chip()
+
+
+func _nature_box() -> PanelContainer:
+	if nature_page == null:
+		nature_page = EasyPartNature.new(self)
+	return nature_page.make_box()

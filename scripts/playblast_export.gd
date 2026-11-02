@@ -128,9 +128,8 @@ static func _with_audio(a: PackedStringArray, audio: Variant, t0: float, mp4: St
 			a.append_array(["-ss", "%.4f" % -d])
 		a.append_array(["-i", snd])
 		snds.append(t)
-	a.append_array(["-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2", "-c:v", "libx264"])
-	if preset != "":
-		a.append_array(["-preset", preset])
+	a.append_array(["-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2"])
+	a.append_array(GpuTier.codec_args(preset))   # libx264 unless the GPU encoder is chosen and proven (scripts/gpu_tier.gd)
 	a.append_array(["-pix_fmt", "yuv420p"])
 	if snds.size() == 1:
 		a.append_array(["-af", "volume=%.2fdB" % float(snds[0].get("gain_db", 0.0)), "-c:a", "aac", "-shortest"])

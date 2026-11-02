@@ -24,8 +24,9 @@ const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]   # Constrain: the rule row (CON_TOOLS, below)
-const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Roof"]
-const TOOL_KIND := {"Offset plane": "plane", "Offset face": "offset_face", "Draft": "draft"}   # a tool's feature kind when it is not its lower-case name
+const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Primitive", "Ornament", "Roof"]
+const PPRIMUI := preload("res://scripts/build/part_prim_ui.gd")   # s229: the Primitive dialog and the plane modes
+const TOOL_KIND := {"Primitive": "prim", "Offset plane": "plane", "Offset face": "offset_face", "Draft": "draft"}   # a tool's feature kind when it is not its lower-case name
 const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell", "Appearance", "Offset face", "Draft"]
 const LOOK_TOOLS := ["Appearance"]   # APPEARANCE (GAP 5): picks a body for the side panel; the panel is _build_look / _look_sync
 const LOOK_PRESET_ORDER := ["Paint", "Metal", "Glass", "Rubber", "Plastic"]
@@ -63,9 +64,11 @@ const TIPS := {
 	"Combine": "COMBINE: click the target body (it stays), then the tool bodies, in the view or the browser. Pick Join, Cut or Intersect. Keep tools leaves them.",
 	"Canvas": "CANVAS: put a picture on the Front, Top or Right plane (or an offset plane). Click two points of known size, type the real distance, drag it to line up.",
 	"Loft": "LOFT: pick two or more sketches in order (each a closed profile); the solid runs through them. Ruled = straight, Smooth = curved.",
+	"Ornament": "ORNAMENT: a ridge beast, corner beasts, a lion, a finial, a dragon head, a scroll, a lotus base or a dome. Pick one, give its box in mm, say where: a point, both ends of the ridge, or spread along it. Each is a solid you can cut and join.",
 	"Pattern": "PATTERN: copies of a body in a row (linear) or round an axis through the origin (circular). Join them into the body or make them new bodies. Live preview.",
 	"Sweep": "SWEEP: pick the shape to push along a line (a pipe: a round shape) and the line. The shape sits at the line's start, facing along it. Corners are rounded.",   # FPIPE: plain words
-	"Offset plane": "OFFSET PLANE: pick Front, Top or Right and type a distance. The new plane is in the browser: click it to sketch on it.",
+	"Offset plane": "PLANE: a distance from Front, Top or Right, or through 3 points, angled about an edge, through an edge at an angle, or on a face. The new plane is in the browser: click it to sketch on it.",
+	"Primitive": "PRIMITIVE: a box, cylinder, tube, cone, sphere or wedge made in ONE step from typed numbers (position and sizes in mm). New body, Join, Cut or Intersect.",
 	"Fillet": "FILLET: click edges (they turn sky blue), type a radius, press Enter or OK.",
 	"Chamfer": "CHAMFER: click edges, type a distance, press Enter or OK.",
 	"Offset face": "OFFSET FACE: click a face on the model, type a distance (mm): plus adds material, minus takes it away. Press Enter or OK.",
@@ -145,6 +148,7 @@ var pill_text := ""   # XFIX2: the last size readout drawn next to the cursor (i
 var pill_at := Vector2.ZERO
 var cur_px := Vector2.ZERO   # the last pointer place on the view (the readout follows it)
 var grey_why := {}   # XFIX2: greyed button -> why (a click on it says that)
+var asm_on := false            # s213: the Assembly screen (assembly_ui.gd) has the page: the Part chrome and the part's own mesh stay hidden
 var part_btn: Button
 var tool_btns := {}
 var finish_btn: Button
@@ -187,6 +191,14 @@ var f_ruled: OptionButton      # the loft dialog: ruled (straight) or smooth
 var f_sw_prof: OptionButton    # the sweep dialog: the closed profile sketch
 var f_sw_path: OptionButton    # the sweep dialog: the open path sketch
 var f_sw_flange: CheckBox      # the sweep dialog: a flange ring at the line's start end (FPIPE)
+var pat_pick: Array = []        # s214 PATTERN A GROUP: the bodies the Pattern dialog copies (one = the usual single body)
+var pat_mod := false            # s214: Shift or Ctrl was held on the last left click
+var pat_box := {}               # s214: a box being dragged over the view {"a", "b"} (screen points) to pick the bodies inside it
+var pat_faces: Array = []       # s214: the triangles of each body before the step (a view click and the box pick by them)
+
+
+var pr := {}                   # s229: the Primitive / plane-mode dialog's controls (part_prim_ui.gd), rebuilt each time it opens
+var cross_mark := {}           # s229: a refused line that would make the outline cross itself: {"at": [x, y] mm, "a", "b", "new": the refused line}
 var pat := {}                  # PATTERN dialog: its controls by name (built each time it opens, see _pattern_open)
 var f_cmb_op: OptionButton     # the combine dialog: Join, Cut or Intersect
 var f_cmb_keep: CheckBox       # the combine dialog: keep the tool bodies
@@ -213,6 +225,7 @@ var sec_on := false            # SECTION (a view setting, not in the record): th
 var sec_pl := "front"          # its plane (Front, Top, Right) and offset (mm along the plane normal)
 var sec_mm := 0.0
 var sec_mat: ShaderMaterial
+var sec_cut := {}              # S218: the cut now on ({"n","w"}: Section tool or Easy Cut view); _look_surfaces gives each body its own cap colour
 var sec_box: PanelContainer
 var sec_chk: CheckBox
 var sec_opt: OptionButton
@@ -331,12 +344,12 @@ func setup(b: BuildUI) -> void:
 
 ## the Expert chrome (ribbon tools, browser, panel, timeline) shows
 func chrome() -> bool:
-	return bu.on and on and not easy and not bu.easy_ui()
+	return bu.on and on and not easy and not bu.easy_ui() and not asm_on
 
 
 ## the Part workspace has the page, in Expert or in Easy's screen
 func shows() -> bool:
-	return bu.on and on and (easy or not bu.easy_ui())
+	return bu.on and on and (easy or not bu.easy_ui() or asm_on)
 
 
 ## EASY PART: the same record on Easy's screen. A part drawn in Expert stays as it is (the chips start a template over it, as one undo step);
@@ -388,9 +401,9 @@ func ribbon_shows(b: Node, tab: String) -> bool:
 	if b == reopen_btn:   # the way back to the chooser: in the Part ribbon too, with its words
 		return true
 	if b is VSeparator:
-		return show if my_seps.has(b) else not show
+		return show if my_seps.has(b) else (not show and not asm_on)   # s213: the assembly screen shows neither the house tools' dividers nor the Part tools'
 	if house_btns.has(b):
-		return not show
+		return not show and not asm_on
 	return show
 
 
@@ -453,7 +466,14 @@ func _build_browser() -> void:
 	browser.add_theme_stylebox_override("panel", _panel_style())
 	browser_vb = VBoxContainer.new()
 	browser_vb.add_theme_constant_override("separation", 2)
-	browser.add_child(browser_vb)
+	browser_vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	browser.clip_contents = true   # s228: a part with many bodies (patterns make many) scrolls inside its own box, never over the timeline
+	var bsc := ScrollContainer.new()
+	bsc.name = "part_browser_scroll"
+	bsc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	bsc.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	browser.add_child(bsc)
+	bsc.add_child(browser_vb)
 	browser.visible = false
 	m.ui_root.add_child(browser)
 
@@ -934,6 +954,7 @@ func _add_ent(e: Dictionary) -> void:
 
 
 func _after_sketch_edit() -> void:
+	cross_mark = {}
 	_nums_sync()
 	_note_sync()
 	pov.queue_redraw()
@@ -958,6 +979,7 @@ func input(ev: InputEvent) -> bool:
 	if ev is InputEventMouseButton:
 		var mb := ev as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT:
+			pat_mod = mb.shift_pressed or mb.ctrl_pressed   # s214: Shift / Ctrl held on this click (a group pick)
 			if mb.pressed:
 				m._toast_clear()   # XFIX2: a press is an action: an older "Undid" toast goes
 			return _press(mb.position) if mb.pressed else _release(mb.position)
@@ -978,6 +1000,8 @@ func _press(p: Vector2) -> bool:
 		return _press_sketch(p)
 	if dlg.get("t", "") == "canvas":
 		return _canvas_press(p)
+	if dlg.get("t", "") == "pattern" and _pgrp_press(p):
+		return true   # s214: a click on a body picks it for the pattern (shift / ctrl: several; on empty space: a box)
 	if dlg.get("t", "") == "combine":
 		return _combine_press(p)   # COMBINE: a click on a body picks it (its own functions, at the end of this file)   # GAP 3: the canvas dialog's clicks (two points) and drags
 	if dlg.is_empty() and tool == "" and _canvas_grab(p):
@@ -988,6 +1012,8 @@ func _press(p: Vector2) -> bool:
 		return _measure_press(p)
 	if tool == "Hinge" and dlg.get("t", "") == "hinge":
 		return _hinge_press(p)
+	if dlg.get("t", "") == "plane" and PPRIMUI.plane_mode(self) == 4:
+		return PPRIMUI.face_press(self, p)   # s229: the plane on a clicked face
 	if tool == "Offset face" or tool == "Draft":   # GAP 10: a click picks a face (its centre; the front-facing ones)
 		var fi := _pick_face(p)
 		if fi >= 0:
@@ -1062,7 +1088,17 @@ func _press_sketch(p: Vector2) -> bool:
 				if (draft["a"] as Vector2).distance_to(b) < 0.5:
 					_say("Pick a different point: that is where the line starts (a line needs two ends)")   # XFIX2
 					return true
-				_add_ent({"k": "line", "a": Part.arr2(draft["a"]), "b": Part.arr2(b)})
+				var nline := {"k": "line", "a": Part.arr2(draft["a"]), "b": Part.arr2(b)}
+				var test: Array = (_sk()["ents"] as Array).duplicate()
+				test.append(nline)
+				var cx := Part.PPRIM.crossing(test)
+				if not cx.is_empty():   # s229: a line that would close the outline across itself is refused, red, with the place
+					cx["new"] = nline
+					cross_mark = cx
+					_say(Part.PPRIM.crossing_words(test, cx))
+					pov.queue_redraw()
+					return true
+				_add_ent(nline)
 				if b.distance_to(draft["start"]) < 0.5:
 					_close_chain()
 				else:
@@ -1095,6 +1131,8 @@ func _press_sketch(p: Vector2) -> bool:
 
 
 func _release(p: Vector2) -> bool:
+	if not pat_box.is_empty():
+		return _pgrp_release(p)
 	if not cv_drag.is_empty():
 		return _canvas_release()
 	if not con_drag.is_empty():
@@ -1140,6 +1178,10 @@ func _commit_draft() -> void:
 
 func _motion(p: Vector2) -> bool:
 	cur_px = p   # XFIX2: the size readout follows the pointer
+	if not pat_box.is_empty():
+		pat_box["b"] = p
+		pov.queue_redraw()
+		return false
 	if not cv_drag.is_empty():
 		_canvas_move(p)
 		return false
@@ -1514,10 +1556,15 @@ func open_dialog(t: String, edit: int) -> void:
 		_sweep_open(f, edit)
 	elif kind == "pattern":
 		_pattern_open(f, edit)
+	elif kind == "ornament":   # s227 (scripts/build/part_ornament_ui.gd)
+		PartOrnamentUI.open(self, f, edit)
 	elif kind == "plane":
 		_row("Distance", f_num, "%s mm" % _fmt(float(f.get("mm", 20.0))))
 		dlg_rows.add_child(f_plane)
 		f_plane.select(PlanesIdx.find(String(f.get("from", "front"))))
+		PPRIMUI.plane_open(self, f, edit)   # s229: how the plane is made (distance, 3 points, angle about an edge, through an edge, on a face)
+	elif kind == "prim":
+		PPRIMUI.open_prim(self, f, edit)   # s229
 	if kind == "extrude" or kind == "revolve":
 		var sid: String = String(f.get("sketch", "")) if edit >= 0 else Part.profile_sketch(rec)
 		dlg["sketch"] = sid
@@ -1858,6 +1905,8 @@ func dialog_feature() -> Dictionary:
 			f = _pattern_feature()
 		"roof":   # s226
 			f = PartRoofUI.feature(self)
+		"ornament":   # s227
+			f = PartOrnamentUI.feature(self)
 			if f.is_empty():
 				return {}
 		"combine":
@@ -1868,11 +1917,20 @@ func dialog_feature() -> Dictionary:
 			f = _canvas_feature(true)
 			if f.is_empty():
 				return {}
-		"plane":
-			var pd := _num(f_num)
-			if is_nan(pd) or absf(pd) < 1e-6:
+		"prim":
+			f = PPRIMUI.prim_feature(self)
+			if f.is_empty() or PPRIMUI.PPRIM.problem(f) != "":
 				return {}
-			f = {"from": PlanesIdx[clampi(f_plane.selected, 0, 2)], "mm": pd}
+		"plane":
+			if PPRIMUI.plane_mode(self) != 0:
+				f = PPRIMUI.plane_feature(self)
+				if f.is_empty():
+					return {}
+			else:
+				var pd := _num(f_num)
+				if is_nan(pd) or absf(pd) < 1e-6:
+					return {}
+				f = {"from": PlanesIdx[clampi(f_plane.selected, 0, 2)], "mm": pd}
 		"hinge":
 			var a0 := _num(f_from)
 			var a1 := _num(f_to)
@@ -1921,6 +1979,8 @@ func _preview() -> void:
 	prev = Part.replay(rec, -1, {"body": _body_measures()})
 	var err: String = prev["errors"].get(String(f["id"]), "")
 	dlg_info.text = ("%s. Nothing is changed until it works." % err) if err != "" else "Volume %s cm3" % snappedf(float(prev["volume"]) * 1e6, 0.01)
+	if err == "" and prev.get("warnings", {}).has(String(f["id"])):
+		dlg_info.text += "\n" + String(prev["warnings"][String(f["id"])])   # s229: what an Intersect did to the other bodies
 	if kind == "pattern" and err == "":
 		dlg_info.text = _pattern_info()
 	ok_btn.disabled = err != ""
@@ -1950,13 +2010,17 @@ func _dialog_hint(kind: String) -> String:
 	if kind == "roof":
 		return PartRoofUI.hint()
 	if kind == "plane":
-		return "Type the distance from the plane (mm)."
+		return PPRIMUI.plane_hint(self)
+	if kind == "prim":
+		return PPRIMUI.prim_hint(self)
 	if kind == "canvas":
 		return _canvas_hint()
 	if kind == "pattern":
 		return "Type the copies (the original counts) and the spacing or the angle."
 	if kind == "combine":
 		return _combine_next()
+	if kind == "ornament":
+		return "Pick an ornament, its size in mm and where it goes."
 	return ""
 
 
@@ -1989,7 +2053,7 @@ func ok_pressed() -> void:
 	tool = ""
 	_tool_sync()
 	bu.sync()
-	if kind == "extrude" or kind == "revolve" or kind == "loft" or kind == "sweep" or kind == "pattern":
+	if kind == "extrude" or kind == "revolve" or kind == "loft" or kind == "sweep" or kind == "pattern" or kind == "prim":
 		_view_model()
 
 
@@ -1997,6 +2061,7 @@ func close_dialog() -> void:
 	if dlg.is_empty():
 		return
 	dlg = {}
+	pr = {}
 	picked = []
 	prev = {}
 	prev_mesh.visible = false
@@ -2095,9 +2160,11 @@ func step_clicked(i: int) -> void:
 
 func edit_step(i: int) -> void:
 	var f: Dictionary = _feats()[i]
-	if String(f["t"]) == "appear":   # APPEARANCE: its body's panel opens (no dialog)
+	if String(f["t"]) == "appear" or String(f["t"]) == "bname":   # APPEARANCE: its body's panel opens (no dialog); s212: a naming step opens the name field
 		sel_body = int(f.get("body", 0))
 		sel_step = -1
+		if String(f["t"]) == "bname":
+			ren_begin(sel_body)
 		bu.sync()
 		return
 	if sk != "":
@@ -2113,7 +2180,7 @@ func edit_step(i: int) -> void:
 
 
 func _step_icon(f: Dictionary) -> String:
-	if String(f["t"]) == "appear":
+	if String(f["t"]) == "appear" or String(f["t"]) == "bname":
 		return "part_appearance"
 	return "part_" + String(f["t"]) if String(f["t"]) != "sketch" else "part_sketch"
 
@@ -2121,7 +2188,7 @@ func _step_icon(f: Dictionary) -> String:
 func _timeline_sync() -> void:
 	var feats := _feats()
 	var errs: Dictionary = res.get("errors", {})
-	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], bool(f.get("off", false))]), upto, sel_step, sk, dlg.get("edit", -2), errs.keys()])
+	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], bool(f.get("off", false))]), upto, sel_step, sk, dlg.get("edit", -2), errs.keys(), res.get("body_names", [])])
 	if sig != _tl_sig:
 		_tl_sig = sig
 		for c in tl_row.get_children():
@@ -2140,6 +2207,11 @@ func _timeline_sync() -> void:
 			b.toggle_mode = true
 			b.button_pressed = i == sel_step or (sk != "" and String(f["id"]) == sk) or (int(dlg.get("edit", -1)) == i)
 			b.tooltip_text = "%s. Double-click to change it; the steps after it replay." % f["name"]
+			if f.has("body") and int(f.get("body", -1)) >= 0 and int(f.get("body", -1)) < int(res.get("bodies", 0)):   # s212: the hover names the body the step is about
+				b.tooltip_text += " Body: %s." % Part.body_name(res, int(f["body"]))
+			if String(f["t"]) == "bname":
+				var lab_s := String(f.get("called", ""))
+				b.tooltip_text = "%s: Body%d is called %s. Double-click to rename it. Body: %s." % [f["name"], int(f["body"]) + 1, ("\"%s\"" % lab_s) if lab_s != "" else "Body%d again" % (int(f["body"]) + 1), Part.body_name(res, int(f["body"]))]
 			if bool(f.get("off", false)):
 				b.tooltip_text = "%s is suppressed: the replay skips it. Click Suppress to put it back." % f["name"]
 			b.pressed.connect(step_clicked.bind(i))
@@ -2169,13 +2241,13 @@ func _timeline_sync() -> void:
 	var sel_f: Dictionary = feats[sel_step] if sel_step >= 0 and sel_step < n else {}
 	if sup_btn != null:
 		sup_btn.text = "Unsuppress" if bool(sel_f.get("off", false)) else "Suppress"
-		sup_btn.disabled = sel_f.is_empty() or String(sel_f.get("t", "")) == "appear"
+		sup_btn.disabled = sel_f.is_empty() or String(sel_f.get("t", "")) == "appear" or String(sel_f.get("t", "")) == "bname"
 		del_btn.disabled = sel_f.is_empty()
 
 
 func _browser_sync() -> void:
 	var feats := _feats()
-	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], f["t"], f.get("mm", 0), f.get("from", ""), f.get("show", "")]), sk, res.get("bodies", 0), prev.is_empty(), sel_body, cmb])
+	var sig := JSON.stringify([feats.map(func(f): return [f["id"], f["name"], f["t"], f.get("mm", 0), f.get("from", ""), f.get("show", ""), f.get("deg", 0), f.get("p", ""), f.get("edge", ""), f.get("a", ""), f.get("b", ""), f.get("o", ""), f.get("n", ""), f.get("base", "")]), sk, res.get("bodies", 0), prev.is_empty(), sel_body, cmb, pat_pick if String(dlg.get("t", "")) == "pattern" else [], res.get("body_names", []), ren_i])
 	if sig == _browser_sig:
 		return
 	_browser_sig = sig
@@ -2186,11 +2258,16 @@ func _browser_sync() -> void:
 	var nb: int = res.get("bodies", 0)
 	browser_vb.add_child(_label("Bodies (%d)" % nb, 15))
 	for i in nb:
-		var bb := _row_btn("    Body%d" % (i + 1), "part_body_%d" % i)   # APPEARANCE: a click picks the body for the side panel
-		bb.tooltip_text = "Body%d: click to change its colour and material (Appearance)" % (i + 1)
+		var bnm := Part.body_name(res, i)
+		if i == ren_i:   # s212: this row is being renamed: the name field stands in its place
+			browser_vb.add_child(_ren_field(i, bnm))
+			continue
+		var bb := _row_btn("    " + bnm, "part_body_%d" % i)   # APPEARANCE: a click picks the body for the side panel
+		bb.tooltip_text = "%s: click to change its colour and material (Appearance). Double-click or right-click to rename it" % bnm
 		if _combine_has(i):
-			bb.tooltip_text = "Body%d: picked for the combine" % (i + 1)
-		if i == sel_body or _combine_has(i):
+			bb.tooltip_text = "%s: picked for the combine" % bnm
+		bb.gui_input.connect(_body_row_input.bind(i))
+		if i == sel_body or _combine_has(i) or _pgrp_has(i):
 			bb.add_theme_color_override("font_color", SKY)
 			bb.add_theme_color_override("font_hover_color", SKY)
 		bb.pressed.connect(func(): _body_row_pressed(i))
@@ -2348,7 +2425,7 @@ func sync() -> void:
 	part_btn.visible = bu.on and not bu.easy_ui()
 	part_btn.set_pressed_no_signal(on)
 	for c in house_btns:
-		(c as Control).visible = not show or c == reopen_btn
+		(c as Control).visible = (not show and not asm_on) or c == reopen_btn
 	if reopen_btn != null:
 		reopen_btn.text = "What to build" if on and not (easy and m.get_viewport().get_visible_rect().size.x < 1400.0) else ""   # bug6: Easy Part's bar at 1280 is full: the words went off the right edge, so the icon alone there   # icon only in the house ribbon (it is crowded there); with words in Part, Expert or Easy
 	for t in tool_btns:
@@ -2380,11 +2457,11 @@ func sync() -> void:
 	_inspect_sync(show)
 	_look_sync(show)   # after the replay: the panel reads this record's looks
 	pov.visible = show
-	part_mesh.visible = up and sk == "" and prev.is_empty() and part_mesh.mesh != null
+	part_mesh.visible = up and sk == "" and prev.is_empty() and part_mesh.mesh != null and not asm_on
 	prev_mesh.visible = show and not prev.is_empty() and prev_mesh.mesh != null
 	bu.house.visible = not up
 	if up:
-		bu.grid.visible = false
+		bu.grid.visible = asm_on and bu.on   # s213: the assembly stands on the floor grid (the Part workspace draws its own)
 		bu.person.visible = false
 	else:
 		bu.grid.visible = bu.on   # bug2: the house floor comes back when the Part workspace closes (it was hidden above and never restored: a blank dark view)
@@ -2528,6 +2605,7 @@ func _note_sync() -> void:
 		if bx.size != Vector3.ZERO:
 			var sz := bx.size / Part.MM
 			t += ", box %s x %s x %s mm" % [("%.1f" % sz.x).trim_suffix(".0"), ("%.1f" % sz.y).trim_suffix(".0"), ("%.1f" % sz.z).trim_suffix(".0")]
+		t += ren_stats()   # s212: the picked body's own name and volume, once it has a name
 		if not errs.is_empty():
 			t += "   (%d step%s failed: see the red icon)" % [errs.size(), "" if errs.size() == 1 else "s"]
 	elif not _feats().is_empty():
@@ -2542,6 +2620,9 @@ func _note_sync() -> void:
 func _profile_text(f: Dictionary) -> String:
 	if f["ents"].is_empty():
 		return "empty: draw something"
+	var cxp := Part.PPRIM.crossing(f["ents"])
+	if not cxp.is_empty():
+		return "crosses itself at (%s, %s) mm: not a shape" % [Part._short(float(cxp["at"][0])), Part._short(float(cxp["at"][1]))]   # s229
 	var face := Part.KCad.sketch_face(Part.items_of(f["ents"]), Vector3.ZERO, Vector3.RIGHT, Vector3.BACK)
 	if face == 0:
 		return "not closed yet (%s)" % String(Part.KCad.last_error()).get_slice("\n", 0).left(60)
@@ -2577,7 +2658,8 @@ func layout(cl: Rect2) -> void:
 	tl.position = Vector2(cl.position.x + 8.0, cl.end.y - TL_H - 4.0)
 	var avail := tl.position.y - cl.position.y - 12.0
 	browser.reset_size()
-	browser.size = Vector2(BROWSER_W, minf(browser.get_combined_minimum_size().y, avail))
+	var browser_need := browser_vb.get_combined_minimum_size().y + browser.get_theme_stylebox("panel").get_minimum_size().y
+	browser.size = Vector2(BROWSER_W, minf(browser_need, avail))
 	browser.position = Vector2(cl.position.x + 8.0, cl.position.y + 6.0)
 	side.reset_size()
 	# PCUBE: a dialog's own width can be more than PANEL_W (its rows); the panel grows and stays LEFT of the cube column
@@ -2676,6 +2758,7 @@ func _draw_model() -> void:
 	_draw_axes(Vector3.ZERO, 0.08)
 	_draw_hinge_marks()
 	_draw_measure()
+	_pgrp_draw()
 	for i in edge_cache.size():
 		var picked_now := false
 		for pe in picked:
@@ -2683,7 +2766,7 @@ func _draw_model() -> void:
 				picked_now = true
 		if picked_now or i == hover_edge:
 			_edge_line(edge_cache[i], SKY if picked_now else Color(SKY, 0.6), 5.0 if picked_now else 3.0)
-	if tool == "Offset face" or tool == "Draft" or (not dlg.is_empty() and String(dlg["t"]) in ["offset_face", "draft"]):
+	if tool == "Offset face" or tool == "Draft" or (not dlg.is_empty() and String(dlg["t"]) in ["offset_face", "draft", "plane"]):
 		_draw_faces()
 	if not dlg.is_empty() and picked.size() > 0 and String(dlg["t"]) in ["fillet", "chamfer"]:
 		var e: Dictionary = picked[0]
@@ -2774,6 +2857,19 @@ func _draw_sketch() -> void:
 				pov.draw_polyline(curve, c, 2.5)
 				for q in e["pts"]:
 					pov.draw_circle(scr(Part.v2(q)), 4.0, Color.WHITE)
+	var cxm := cross_mark if not cross_mark.is_empty() else Part.PPRIM.crossing(ents)   # s229: a self-crossing outline is drawn red where it crosses
+	if not cxm.is_empty():
+		var red := Color("#ff3b3b")
+		for key in ["a", "b"]:
+			var ce: Dictionary = ents[int(cxm[key])] if int(cxm[key]) < ents.size() else {}
+			if not ce.is_empty() and String(ce.get("k", "")) == "line":
+				pov.draw_line(scr(Part.v2(ce["a"])), scr(Part.v2(ce["b"])), red, 4.0)
+		if cxm.has("new"):
+			pov.draw_line(scr(Part.v2(cxm["new"]["a"])), scr(Part.v2(cxm["new"]["b"])), red, 4.0)
+		var cp := scr(Vector2(float(cxm["at"][0]), float(cxm["at"][1])))
+		pov.draw_circle(cp, 9.0, Color(red, 0.35))
+		pov.draw_arc(cp, 9.0, 0.0, TAU, 24, red, 3.0)
+		_pill(cp + Vector2(16, -22), "crosses itself here (%s, %s) mm" % [Part._short(float(cxm["at"][0])), Part._short(float(cxm["at"][1]))], Color(0.45, 0.04, 0.04, 0.95), Color.WHITE, 13)
 	if show_dims:
 		for d in f.get("dims", []):
 			_draw_dim(ents, d)
@@ -3045,7 +3141,7 @@ func _sel_hinge() -> Dictionary:
 
 
 func _part_name(i: int) -> String:
-	return "Body%d" % (i + 1)   # the browser's name for the same body (Bodies: Body1, Body2)
+	return Part.body_name(res, i)   # the browser's name for the same body (Bodies: Body1, Body2, or the name it was given: s212)
 
 
 ## the panel's words for a hinge: turns Part 1 from 0 deg to 90 deg in 3 s
@@ -3445,18 +3541,30 @@ uniform vec4 cut = vec4(0.0, 0.0, 1.0, 0.0);
 uniform float on = 0.0;
 uniform vec4 cap : source_color = vec4(0.91, 0.51, 0.23, 1.0);
 uniform vec4 solid : source_color = vec4(0.74, 0.77, 0.82, 1.0);
+uniform vec4 caps[16];
+uniform vec4 solids[16];
+uniform int body_n = 0;
 varying vec3 wp;
+varying float bid;
 void vertex() {
 	wp = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	bid = COLOR.r * 16.0;
 }
 void fragment() {
 	if (on > 0.5 && dot(cut.xyz, wp) > cut.w) {
 		discard;
 	}
+	vec3 capc = cap.rgb;
+	vec3 solc = solid.rgb;
+	int b = int(bid + 0.5);
+	if (b < body_n) {
+		capc = caps[b].rgb;
+		solc = solids[b].rgb;
+	}
 	if (FRONT_FACING) {
-		ALBEDO = solid.rgb * (0.7 + 0.3 * abs(NORMAL.z));
+		ALBEDO = solc * (0.7 + 0.3 * abs(NORMAL.z));
 	} else {
-		ALBEDO = cap.rgb;
+		ALBEDO = capc;
 	}
 }
 """
@@ -3739,6 +3847,8 @@ func _sec_apply() -> void:
 		return
 	if not sec_on:
 		part_mesh.material_override = null   # each body keeps its own look (_look_surfaces); an override would paint them all one grey
+		sec_cut = {}
+		_look_surfaces()   # S218: the cap colours go, the own looks come back
 		return
 	if sec_mat == null:
 		sec_mat = ShaderMaterial.new()
@@ -3753,6 +3863,8 @@ func _sec_apply() -> void:
 	var p: Vector3 = d["p"]
 	sec_mat.set_shader_parameter("cut", Vector4(n.x, n.y, n.z, n.dot(p)))
 	sec_mat.set_shader_parameter("on", 1.0)
+	sec_cut = {"n": n, "w": n.dot(p)}   # S218
+	_look_surfaces()
 
 
 func _inspect_sync(show: bool) -> void:
@@ -4225,6 +4337,8 @@ func _build_look(vb: VBoxContainer) -> void:
 		pb.pressed.connect(func(): _look_set(_look_now()["c"], pn))
 		pr.add_child(pb)
 		look_presets[pn] = pb
+	look_box.add_child(_label("Made materials", 12, true))   # s223: oak, steel, tile, marble... drawn in code; or say it in words
+	look_mat = MaterialPicker.build(look_box, "part_look_", Callable(self, "_look_set_mat"))
 
 
 ## the look of the picked body now (from the replay); a default when none is picked
@@ -4275,6 +4389,7 @@ func _look_sync(show: bool) -> void:
 	if bi < 0:
 		look_sig = ""
 		return
+	MaterialPicker.fill(look_mat)
 	var l := _look_now()
 	var sig := JSON.stringify([bi, (l["c"] as Color).to_html(), l["rough"], l["metal"], l["alpha"], l["preset"]])
 	if sig == look_sig:
@@ -4295,16 +4410,23 @@ func _look_surfaces() -> void:
 	var ls: Array = res.get("looks", [])
 	for s in mini(ls.size(), part_mesh.mesh.get_surface_count()):
 		var l: Dictionary = ls[s]
+		var mm := MaterialMaker.look_material(l, PartViewTools.X_ALPHA if xray else 1.0)   # s223: a made material, triplanar in mm
+		if mm != null:
+			part_mesh.set_surface_override_material(s, mm)
+			continue
 		var mt := StandardMaterial3D.new()
 		var c: Color = l["c"]
 		var a := minf(float(l["alpha"]), PartViewTools.X_ALPHA) if xray else float(l["alpha"])   # S102: X-ray draws every body see-through
 		mt.albedo_color = Color(c.r, c.g, c.b, a)
 		mt.roughness = float(l["rough"])
 		mt.metallic = float(l["metal"])
+		if mt.metallic < 0.5:
+			mt.metallic_specular = 0.2   # s217: paint reflects the (brighter) studio sky less than metal does: a coloured part keeps its look
 		mt.cull_mode = BaseMaterial3D.CULL_DISABLED
 		if a < 1.0:
 			mt.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		part_mesh.set_surface_override_material(s, mt)
+	SectionLook.after_look(self)   # S218: per-body cap colours on a cut / split
 	if cut_hook.is_valid():
 		cut_hook.call()   # S016: the Wall slider's cut-away stays on over each new look
 
@@ -4312,6 +4434,7 @@ func _look_surfaces() -> void:
 # ---------------------------------------------------------------- PATTERN (GAP 30)
 
 const PAT_AXES := ["x", "y", "z"]
+const PArrayUI := preload("res://scripts/build/part_array_ui.gd")   # s228
 
 
 ## the PATTERN dialog: a kind (linear or circular), the body, the copies (the original counts), the spacing and direction or the axis and angle,
@@ -4333,11 +4456,12 @@ func _pattern_open(f: Dictionary, edit: int) -> void:
 	body_o.name = "part_pattern_body"
 	body_o.focus_mode = Control.FOCUS_NONE
 	for i in nb:
-		body_o.add_item("Body %d" % (i + 1))
+		body_o.add_item(Part.body_name(res, i) if Part.body_name(res, i) != "Body%d" % (i + 1) else "Body %d" % (i + 1))
 	body_o.select(clampi(int(f.get("body", nb - 1)) if edit >= 0 else nb - 1, 0, nb - 1))
-	body_o.item_selected.connect(func(_i): _preview())
+	body_o.item_selected.connect(func(_i): _pgrp_pick(body_o.selected, false))
 	pat["body"] = body_o
 	dlg_rows.add_child(_pat_row("Body to copy", body_o, ""))
+	_pgrp_open(f, edit, nb, body_o)   # s214: tick several bodies to copy them all in this one step
 	var cnt := _field("part_pattern_count")
 	cnt.text = str(int(f.get("count", 3))) if edit >= 0 else "3"
 	pat["count"] = cnt
@@ -4367,6 +4491,7 @@ func _pattern_open(f: Dictionary, edit: int) -> void:
 	op_o.item_selected.connect(func(_i): _preview())
 	pat["op"] = op_o
 	dlg_rows.add_child(_pat_row("Result", op_o, ""))
+	PArrayUI.attach(self, f, edit)   # s228: Grid and Along a path (part_array_ui.gd)
 	_pattern_sync()
 	(pat["count"] as LineEdit).grab_focus()
 
@@ -4408,6 +4533,7 @@ func _pattern_sync() -> void:
 		(r as Control).visible = not circ
 	for r in pat["circ"]:
 		(r as Control).visible = circ
+	PArrayUI.sync(self)   # s228
 
 
 ## the feature the PATTERN dialog describes now ({} when a number is missing or wrong)
@@ -4421,6 +4547,13 @@ func _pattern_feature() -> Dictionary:
 	var nb := maxi(int(res.get("bodies", 0)), 1)
 	var f := {"kind": "circular" if circ else "linear", "count": int(nd), "body": clampi(int((pat["body"] as OptionButton).selected), 0, nb - 1),
 		"op": "new" if int((pat["op"] as OptionButton).selected) == 1 else "join"}
+	if pat_pick.size() > 1:   # s214: a group: one step copies every picked body (the body field is the first of them)
+		var grp: Array = pat_pick.duplicate()
+		grp.sort()
+		f["bodies"] = grp
+		f["body"] = int(grp[0])
+	if int((pat["kind"] as OptionButton).selected) >= 2:   # s228: Grid / Along a path
+		return PArrayUI.finish(self, f, int((pat["kind"] as OptionButton).selected))
 	if circ:
 		var a := _num(pat["deg"])
 		if is_nan(a) or absf(a) < 1e-6:
@@ -4513,6 +4646,8 @@ func _combine_has(i: int) -> bool:
 func _body_row_pressed(i: int) -> void:
 	if String(dlg.get("t", "")) == "combine":
 		_combine_pick(i)
+	elif String(dlg.get("t", "")) == "pattern":
+		_pgrp_pick(i, Input.is_key_pressed(KEY_SHIFT) or Input.is_key_pressed(KEY_CTRL))   # s214: a browser row picks the body for the pattern
 	else:
 		_sel_body_pick(i)
 
@@ -4966,3 +5101,259 @@ func thread_look_sync() -> void:
 	am.surface_set_material(0, mat)
 	tl.mesh = am
 	tl.visible = true
+
+
+# ---------------------------------------------------------------- s214 PATTERN A GROUP (Row / Ring over several bodies in one step)
+# The dialog's "Also copy" ticks, a click on a body (Shift or Ctrl adds more), a click on a browser row (Shift / Ctrl adds) or a box dragged over
+# the view (Shift / Ctrl held, starting on empty space) pick the bodies. One pattern step carries them ("bodies"), so one undo takes all the copies.
+
+func _pgrp_open(f: Dictionary, edit: int, nb: int, body_o: OptionButton) -> void:
+	pat_faces = Part.body_faces(_rec(), -1)
+	pat_box = {}
+	pat_pick = []
+	if edit >= 0 and f.has("bodies"):
+		for v in (f["bodies"] as Array):
+			pat_pick.append(int(v))
+	else:
+		pat_pick = [body_o.selected]
+	var fl := HFlowContainer.new()
+	fl.name = "part_pattern_group"
+	var cl := _label("Also copy")
+	cl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	fl.add_child(cl)
+	var boxes: Array = []
+	for i in nb:
+		var cb := CheckBox.new()
+		cb.name = "part_pattern_pick_%d" % i
+		cb.text = "Body %d" % (i + 1)
+		cb.focus_mode = Control.FOCUS_NONE
+		cb.tooltip_text = "Tick every body the row or ring should copy. You can also click bodies in the view (hold Shift or Ctrl for several, or drag a box round them)"
+		cb.set_pressed_no_signal(pat_pick.has(i))
+		cb.toggled.connect(func(_v): _pgrp_pick(i, true))
+		fl.add_child(cb)
+		boxes.append(cb)
+	pat["picks"] = boxes
+	dlg_rows.add_child(fl)
+	fl.visible = nb > 1
+
+
+func _pgrp_has(i: int) -> bool:
+	return String(dlg.get("t", "")) == "pattern" and pat_pick.size() > 1 and pat_pick.has(i)
+
+
+## one pick: add = true toggles the body in the group (never empties it); add = false makes it the only one
+func _pgrp_pick(i: int, add: bool) -> void:
+	if String(dlg.get("t", "")) != "pattern" or pat.is_empty():
+		return
+	if add:
+		if pat_pick.has(i):
+			if pat_pick.size() > 1:
+				pat_pick.erase(i)
+		else:
+			pat_pick.append(i)
+	else:
+		pat_pick = [i]
+	_pgrp_sync()
+
+
+func _pgrp_sync() -> void:
+	if pat.is_empty():
+		return
+	var bo: OptionButton = pat["body"]
+	var first := int(pat_pick.min()) if not pat_pick.is_empty() else 0
+	if first < bo.item_count:
+		bo.select(first)
+	var boxes: Array = pat.get("picks", [])
+	for i in boxes.size():
+		(boxes[i] as CheckBox).set_pressed_no_signal(pat_pick.has(i))
+	_preview()
+	_say("Pattern: %d bod%s picked. Shift or Ctrl adds more; a box dragged round bodies picks them" % [pat_pick.size(), "y" if pat_pick.size() == 1 else "ies"])
+	pov.queue_redraw()
+	bu.sync()
+
+
+## a press while the Pattern dialog is open: a body under it is picked (Shift / Ctrl: added); empty space with Shift / Ctrl starts a box. false = not taken
+func _pgrp_press(p: Vector2) -> bool:
+	if int(res.get("bodies", 0)) < 2:
+		return false
+	var add := pat_mod or Input.is_key_pressed(KEY_SHIFT) or Input.is_key_pressed(KEY_CTRL)
+	var h := _ray_hit(p, pat_faces)
+	if not h.is_empty():
+		_pgrp_pick(int(h["body"]), add)
+		return true
+	if add:
+		pat_box = {"a": p, "b": p}
+		return true
+	return false
+
+
+func _pgrp_release(p: Vector2) -> bool:
+	pat_box["b"] = p
+	var r := Rect2(pat_box["a"], Vector2.ZERO).expand(pat_box["b"])
+	pat_box = {}
+	if r.size.length() > 6.0:
+		var n0 := pat_pick.size()
+		for bi in pat_faces.size():
+			if _pgrp_in_box(bi, r) and not pat_pick.has(bi):
+				pat_pick.append(bi)
+		if pat_pick.size() != n0:
+			_pgrp_sync()
+	pov.queue_redraw()
+	return true
+
+
+## does any corner of body bi's triangles land inside the screen rect r
+func _pgrp_in_box(bi: int, r: Rect2) -> bool:
+	var tris: PackedVector3Array = pat_faces[bi]
+	for v in tris:
+		if not m.cam.is_position_behind(v) and r.has_point(m.cam.unproject_position(v)):
+			return true
+	return false
+
+
+## the picked bodies get a sky-blue frame round them (when more than one is picked), and the box being dragged
+func _pgrp_draw() -> void:
+	if String(dlg.get("t", "")) != "pattern":
+		return
+	if pat_pick.size() > 1:
+		for bi in pat_pick:
+			if int(bi) >= pat_faces.size():
+				continue
+			var lo := Vector2(INF, INF)
+			var hi := Vector2(-INF, -INF)
+			for v in (pat_faces[int(bi)] as PackedVector3Array):
+				if m.cam.is_position_behind(v):
+					continue
+				var q: Vector2 = m.cam.unproject_position(v)
+				lo = lo.min(q)
+				hi = hi.max(q)
+			if lo.x < INF:
+				pov.draw_rect(Rect2(lo - Vector2(4, 4), hi - lo + Vector2(8, 8)), SKY, false, 2.0)
+	if not pat_box.is_empty():
+		var r := Rect2(pat_box["a"], Vector2.ZERO).expand(pat_box["b"])
+		pov.draw_rect(r, Color(SKY, 0.15), true)
+		pov.draw_rect(r, SKY, false, 1.5)
+
+
+# ---------------------------------------------------------------- MADE MATERIALS (s223)
+
+var look_mat := {}   # the MaterialPicker widgets of the Appearance panel
+
+
+## one appear step with a made material (one undo step): the spec, and the look numbers it stands for
+func _look_set_mat(spec: Dictionary, label := "") -> void:
+	var bi := _sel_look()
+	if bi < 0 or not Part.available():
+		return
+	var fields := MaterialMaker.appear_fields(spec)
+	if fields.is_empty():
+		return
+	var rec := _rec()
+	var n := Part.count_of(rec, "appear") + 1
+	m._step_hint = "Appearance"
+	m._push_undo()
+	fields["name"] = "Appearance%d" % n
+	fields["body"] = bi
+	var f := Part.new_feature(rec, "appear", fields)
+	(rec["features"] as Array).append(f)
+	upto = -1
+	_say("%s: %s is now %s. Undo takes it back." % [String(f["name"]), _part_name(bi), MaterialWords.describe(spec)])
+	bu.sync()
+
+
+# ---------------------------------------------------------------- s212 NAME A BODY
+
+var ren_i := -1                  # the browser row whose name field is open (-1 = none)
+var ren_menu: PopupMenu          # the right-click menu of a body row (Rename)
+var ren_menu_i := -1
+
+
+## a mouse event on a Bodies row: a double-click or the menu's Rename opens the name field
+func _body_row_input(ev: InputEvent, i: int) -> void:
+	if not (ev is InputEventMouseButton) or not (ev as InputEventMouseButton).pressed:
+		return
+	var mb := ev as InputEventMouseButton
+	if mb.button_index == MOUSE_BUTTON_LEFT and mb.double_click:
+		ren_begin(i)
+	elif mb.button_index == MOUSE_BUTTON_RIGHT:
+		if ren_menu == null:
+			ren_menu = PopupMenu.new()
+			ren_menu.name = "part_body_menu"
+			ren_menu.add_item("Rename", 0)
+			ren_menu.id_pressed.connect(func(_id): ren_begin(ren_menu_i))
+			m.add_child(ren_menu)
+		ren_menu_i = i
+		var w: Window = m.get_window()
+		ren_menu.popup(Rect2i(Vector2i(mb.global_position) + (w.position if not w.is_embedded() else Vector2i.ZERO), Vector2i.ZERO))
+
+
+## open the name field of body i (the Bodies row turns into a text box holding its name)
+func ren_begin(i: int) -> void:
+	if not dlg.is_empty() or sk != "" or i < 0 or i >= int(res.get("bodies", 0)):
+		return
+	ren_i = i
+	sel_body = i
+	_browser_sig = ""
+	_browser_sync()
+	_say("Type the new name for %s and press Enter. Undo takes it back." % Part.body_name(res, i))
+
+
+func _ren_field(i: int, cur: String) -> LineEdit:
+	var le := LineEdit.new()
+	le.name = "part_body_rename"
+	le.text = cur
+	le.max_length = 40
+	le.placeholder_text = "Body%d" % (i + 1)
+	le.tooltip_text = "Type a name and press Enter. Empty gives Body%d back. Escape leaves it as it is" % (i + 1)
+	le.text_submitted.connect(func(t: String):
+		le.accept_event()   # the Enter is the field's: the rebuild below takes the field out of the tree, and a loose Enter adds a pose card
+		_ren_end(i, t, true))
+	le.focus_exited.connect(func(): _ren_end(i, le.text, true))
+	le.gui_input.connect(func(ev: InputEvent):
+		if ev is InputEventKey and (ev as InputEventKey).pressed and (ev as InputEventKey).keycode == KEY_ESCAPE:
+			le.accept_event()
+			_ren_end(i, le.text, false))
+	le.tree_entered.connect(func():
+		le.grab_focus.call_deferred()
+		le.select_all.call_deferred())
+	return le
+
+
+func _ren_end(i: int, text: String, commit: bool) -> void:
+	if ren_i != i:
+		return
+	ren_i = -1
+	if commit:
+		body_rename(i, text)
+	_browser_sig = ""
+	_browser_sync()
+
+
+## the one road every rename takes (the browser's field, Easy Part's name field): ONE undo step. false when nothing changed
+func body_rename(bi: int, text: String) -> bool:
+	if not Part.available() or bi < 0 or bi >= int(res.get("bodies", 0)):
+		return false
+	var cur := Part.body_name(res, bi)
+	var lab := Part.clean_name(text)
+	if lab == cur or (lab == "" and cur == "Body%d" % (bi + 1)):
+		return false
+	var rec := _rec()
+	m._step_hint = "Name"
+	m._push_undo()
+	var f := Part.set_body_name(rec, bi, lab, cur)
+	upto = -1
+	_say("%s is now called %s. Undo takes it back." % [cur, lab if lab != "" else "Body%d" % (bi + 1)])
+	bu.sync()
+	return not f.is_empty()
+
+
+## the note line's tail: the picked body's name and volume, once the body has a name of its own
+func ren_stats() -> String:
+	var bi := sel_body
+	var nb := int(res.get("bodies", 0))
+	if bi < 0 or bi >= nb or Part.body_name(res, bi) == "Body%d" % (bi + 1):
+		return ""
+	var vols: Array = res.get("volumes", [])
+	if bi >= vols.size():
+		return ""
+	return ", %s %s cm3" % [Part.body_name(res, bi), snappedf(float(vols[bi]) * 1e6, 0.01)]

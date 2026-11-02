@@ -448,6 +448,9 @@ func layout(cl: Rect2) -> void:
 		pu.reopen_btn.add_theme_font_size_override("font_size", 14 if narrow else 16)
 	# FMOBILE: at 1024 wide the Repeat it row (Row Up Forward Ring Corners) is narrower, so it fits left of the panel instead of under it
 	for rb in rep_btns.values():
+		if _rep_slimmed:
+			(rb as Button).custom_minimum_size.x = 56.0   # s214: the slim buttons are as wide as their words (56 least, a finger-sized touch) (both lines end left of the view buttons)
+			continue
 		(rb as Button).custom_minimum_size.x = 92.0 if (narrow or get_viewport().get_visible_rect().size.x < 1400.0) else 110.0   # bug5: 1280 wide the row ran under the view column
 	export_btn.custom_minimum_size.x = 84.0 if narrow else 110.0
 	title_l.clip_text = narrow
@@ -507,6 +510,11 @@ func layout(cl: Rect2) -> void:
 		var room_h := stat_top - low_y - 4.0
 		var words_on := bool((rep_rows[0]["words"] as Control).visible)
 		var wh := float((rep_rows[0]["words"] as Control).get_combined_minimum_size().y) + 4.0
+		var rows_up := 0   # s228: the words stand under EACH shown slider (How many, Rows, Gap...): counting one made the box flip the words on and off every frame when the room was tight
+		for rr in rep_rows:
+			if (rr["box"] as Control).visible:
+				rows_up += 1
+		wh *= float(maxi(rows_up, 1))
 		repeat_box.reset_size()
 		var h_now := repeat_box.get_combined_minimum_size().y
 		var want_on := (h_now + wh) <= room_h if not words_on else h_now <= room_h

@@ -578,6 +578,7 @@ func _size_box() -> PanelContainer:
 	height_slider.value_changed.connect(_height_preview)
 	height_slider.drag_ended.connect(_height_end)
 	v.add_child(height_slider)
+	v.add_child(_name_row())   # s212: the picked piece's name
 	_size_text()
 	return box
 
@@ -596,6 +597,7 @@ func _slider_box_sync(on: bool) -> void:
 	if not size_box.visible:
 		return
 	_height_sync()
+	_name_sync()
 	size_box.reset_size()
 	size_box.position = SIZE_AT   # the grid's lower middle: right of the Tilt and Draft rows, left of the steps panel (1280 x 720)
 	_box_clear_of_size_line()
@@ -931,3 +933,69 @@ static func _join_overlaps(before: Dictionary, after: Dictionary) -> bool:
 	var v1 := float(Part.replay(after).get("volume", 0.0))
 	return v0 > 0.0 and v1 < v0 * (1.0 - 1e-6)
 
+
+
+# ---------------------------------------------------------------- s212 NAME A PIECE
+## A picked piece has a name field in the Size box (Body1 until it is given one). Enter or leaving the field sets it: one undo step, the same record step
+## the Expert browser's Rename writes (PartUI.body_rename). The name shows in the Expert browser, the exports and the part's readouts.
+var bname_row: HBoxContainer
+var bname_edit: LineEdit
+
+
+func _name_row() -> HBoxContainer:
+	bname_row = HBoxContainer.new()
+	bname_row.name = "easypart_name_row"
+	var l := Label.new()
+	l.text = "Name"
+	l.add_theme_font_size_override("font_size", 16)
+	l.add_theme_color_override("font_color", Tok.c("text"))
+	bname_row.add_child(l)
+	bname_edit = LineEdit.new()
+	bname_edit.name = "easypart_name_edit"
+	bname_edit.custom_minimum_size = Vector2(200, 30)
+	bname_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	bname_edit.max_length = 40
+	bname_edit.tooltip_text = "Give the picked piece a name. It shows in the Expert browser, on the exported files and in the readouts"
+	bname_edit.text_submitted.connect(func(t: String): _name_commit(t))
+	bname_edit.focus_exited.connect(func(): _name_commit(bname_edit.text))
+	bname_row.add_child(bname_edit)
+	return bname_row
+
+
+## the field shows the picked piece's name (not while the maker is typing in it)
+func _name_sync() -> void:
+	if bname_edit == null or bname_edit.has_focus():
+		return
+	bname_target = del_bi
+	var shown := Part.body_name(pu.res, del_bi) if del_bi >= 0 else ""
+	if bname_edit.text != shown:
+		bname_edit.text = shown
+	bname_edit.placeholder_text = "Body%d" % (del_bi + 1)
+	bname_row.visible = del_bi >= 0 and del_bi < int(pu.res.get("bodies", 0))
+
+
+## the piece the field was showing when the maker started typing (a click on another piece must not rename that one)
+var bname_target := -1
+
+
+func _name_commit(t: String) -> void:
+	var bi := bname_target
+	if bi < 0 or bi >= int(pu.res.get("bodies", 0)):
+		return
+	_flush_if_dirty()
+	var keep := del_on and del_bi == bi
+	var k_id := del_id
+	var k_pt := del_pt
+	var k_tris := del_tris
+	if pu.body_rename(bi, t):
+		if keep:   # the naming step must not end the pick (the pick ends with the step it was made on)
+			del_on = true
+			del_bi = bi
+			del_id = k_id
+			del_pt = k_pt
+			del_tris = k_tris
+			del_n = (_rec().get("features", []) as Array).size()
+			dots.queue_redraw()
+		_rows_sync()
+		_say("The piece is now called %s. Undo takes it back" % Part.body_name(pu.res, bi))
+	_name_sync()

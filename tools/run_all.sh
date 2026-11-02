@@ -564,4 +564,52 @@ EXTRA="$EXTRA fstool:w"   # FSTOOL: a beginner from the BUILDING card builds a t
 EXTRA="$EXTRA bug6:w"   # bug6: animation-only UI (grip panel, facing label) never shows in 3D BUILDING; no stray divider bars / empty buttons; top rows clear at 3 sizes; tests/bug6_test.gd
 
 
+EXTRA="$EXTRA s219:w"   # s219: every Part step kind has a timeline icon; unknown names fall back to a generic icon
+
+
+EXTRA="$EXTRA s215:w"   # s215: Pipe through points (Parts > Pipes): a tube swept along 3D points with smooth bends
+
+
+
+EXTRA="$EXTRA s218:w"   # s218: section colour: per-body cap colours on Section view, Split results and Nice picture
+
+
+EXTRA="$EXTRA s216:w"   # s216 SWEEP BEND RADIUS: Pull along has a Bend radius control (slider + typed mm, default 1.5 x tube width, least the tube radius); L path, 30 mm tube at 60 mm: one solid, mesh circle-fit radius 60 +-1, Pappus volume, slider/typed changes, undo (tests/s216_test.gd; needs the CAD DLL)
+
+
+EXTRA="$EXTRA s213:w"   # s213: multi-part Assembly (BUILD chooser New assembly): insert, place, edit, save/open, export STL/GLB/STEP; tests/s213_test.gd
+
+
+EXTRA="$EXTRA s220:w"   # s220: MODELING VIEW WITH MATHS: part_facts (a part as text: volume, box, axis, contact graph) + part_assert (one-line checks, miss in mm / deg / mm3), agent_tools + poser_cli + AI box; tests/s220_test.gd
+
+
+EXTRA="$EXTRA s214:w"   # s214: pattern a GROUP of bodies in one step (Expert Pattern ticks/Ctrl-click/box, Easy Repeat it > Group)
+
+
+EXTRA="$EXTRA s224:w"   # s224: Realistic render (sky, sun, soft shadows, AO, reflections): Nice picture preset + VIEW > Realistic
+EXTRA="$EXTRA s217:w"   # Metal reads as metal in Expert, Easy Part, Nice picture and STAGE (same studio reflection sky as bug3)
+
+
+EXTRA="$EXTRA s223:w"   # LOOKS: the material library made in code, material words, Part materials (Friday plan 223)
+
+
+EXTRA="$EXTRA s229:w"   # s229: primitives by numbers (Part.prim, Expert Primitive dialog, Easy By numbers), planes from 3 points / angle / edge / face, scoped intersect, bow-tie refused; tests/s229_test.gd
+
+
+EXTRA="$EXTRA s228:w"   # s228: patterns along paths and grids: Part pattern kinds grid + route (corners, fit, follow, jitter, skip, group); Expert Pattern Grid / Along a path, Easy Repeat it > Grid / Round edge
+
+
+EXTRA="$EXTRA s230:w"   # s230: GPU tiers: adapter -> tier (RTX30 here), NVENC video export vs libx264, Fast view (FSR 2) fps; tests/s230_test.gd
+
+
+EXTRA="$EXTRA s227:w"   # s227: ornaments library + sculpt-into-part road
+
+
+EXTRA="$EXTRA sbug2:w"   # sbug2: a broken painted-weights sidecar (right forearm weight over the whole body) tore the body apart in every clip; refused at load now; per-clip stretch bar x4, planted control must fail it (tests/sbug2_test.gd; run with APPDATA on a temp dir)
+
+
+EXTRA="$EXTRA s212:w"   # s212: name bodies (browser double-click / right-click Rename, Easy name field; names in record, undo, 3MF/GLB/OBJ/STEP); tests/s212_test.gd
+
+
+EXTRA="$EXTRA s225:w"   # FRIDAY 225 NATURE + SCATTER: trees, hedges, shrubs, grass, flowers, scatter; Nature tool + Words + agent "nature"
 EXTRA="$EXTRA s226:w"   # s226: ROOF feature (hip/gable/xieshan/pyramid/shed/flat, sag, corner lift, open top, trims) as a thin closed shell; kernel ray/volume bars, Expert Roof tool, Easy Roofs page, agent part_roof; tests/s226_test.gd

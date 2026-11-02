@@ -15,8 +15,8 @@ const STICK_OPS := [["join", "Join", "Make the two pieces one solid"], ["cut", "
 const SCREW_DS := [3, 4, 5, 6]         # NSCREW2: the Parts category's screw sizes (M3..M6, columns of the grid)
 const SCREW_LENS := [10, 16, 20, 30]   # NSCREW2: the screw lengths in mm (rows of the grid)
 const BRACKET_CHIPS := [["L", "L-bracket", 1, "An L: a foot and an upright, two screw holes"], ["T", "T-bracket", 2, "A T: a bar on a stem, two screw holes"], ["corner", "Corner brace", 3, "An L with a gusset in the corner, two screw holes"]]   # FRIDAY 73: the Brackets page chips (key, words, kind 1 / 2 / 3)
-const LIB_CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "Springs", "Handles", "Wheels", "Brackets", "Clips and feet", "Boards", "Wood boards", "Pipes", "Roofs", "Type it", "Favourites"]   # NLIBPAGE: the Parts library page, in this order (p083favfix: Favourites last; p085typetobuil: Type it before it)
-const LIB_READY := ["Screws", "Gears", "Bearings", "Brackets", "Clips and feet", "Handles", "Wheels", "Boards", "Wood boards", "Pipes", "Roofs", "Hinges", "Springs", "Type it", "Favourites"]   # NLIBPAGE: the categories with parts today; the others say coming soon
+const LIB_CATS := ["Screws", "Nuts", "Washers", "Gears", "Hinges", "Bearings", "Springs", "Handles", "Wheels", "Brackets", "Clips and feet", "Boards", "Wood boards", "Pipes", "Ornaments", "Roofs", "Type it", "Favourites"]   # NLIBPAGE: the Parts library page, in this order (p083favfix: Favourites last; p085typetobuil: Type it before it)
+const LIB_READY := ["Screws", "Gears", "Bearings", "Brackets", "Clips and feet", "Handles", "Wheels", "Boards", "Wood boards", "Pipes", "Hinges", "Springs", "Ornaments", "Roofs", "Type it", "Favourites"]   # NLIBPAGE: the categories with parts today; the others say coming soon
 const CLIP_KINDS := ["foot", "clip", "slot", "snap"]   # P075: the Clips and feet chips: a rubber foot, a cable clip, a zip-tie slot (template kinds in part_templates.gd); P205: + the snap-fit clip
 const COLOUR_PRESETS := ["Glass", "Metal"]   # the two material chips after the five colour chips
 const WEIGHT_CHIPS := [["wood", "wood"], ["steel", "metal"], ["plastic", "plastic"]]   # p057: the weight chips after Wood (PartWeapon.DENSITY key, the word on the chip)
@@ -139,6 +139,7 @@ var stick_edges := {}            # body index -> its crease edges (pairs of poin
 const EDGE_PX := 10.0            # NROUNDDRAG: a press this close (screen px) to a solid's edge takes it in hand
 const EDGE_MAX_MM := 10.0        # NROUNDDRAG: the radius a drag can reach (mm)
 const PICK_PX := 12.0            # a click this close (screen px) to a piece picks it when the ray hits nothing
+var _rep_slimmed := false      # s214: the Repeat it buttons were slimmed once
 var rep_id := ""                 # the last Repeat it step's feature id ("" = none)
 var rep_rows := []               # the two slider rows of the Repeat it box (see _make_row)
 var hole_box: PanelContainer     # Cut a hole: the Through / Hollow inside chips, under the MAKE row, after a Cut a hole press (see _hole_on)
@@ -322,6 +323,8 @@ func _fmt(v: float, unit: String) -> String:
 		return "%d degrees" % int(roundf(v))
 	if unit == "copies":
 		return "%d copies" % int(roundf(v))
+	if unit == "rows":   # s228: Grid
+		return "%d rows" % int(roundf(v))
 	if unit == "holes":   # s029
 		return "%d holes" % int(roundf(v))
 	if unit == "teeth":   # NGEAR

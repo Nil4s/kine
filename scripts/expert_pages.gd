@@ -59,6 +59,8 @@ static func build(m: Node) -> void:
 	row.add_child(m._button("Test sphere", m._sculpt_start, "a sphere on the stage to sculpt (nothing is saved)"))
 	row.add_child(m._button("Voxel remesh", m._sculpt_remesh, "the test sphere becomes an even mesh at 1.5 cm voxels: its surface is rebuilt (scripts/kmesh_voxel_remesh.gd); one undo step, Ctrl+Z takes it back"))
 	row.add_child(m._button("Make it a solid part", PartMeshSolid.convert.bind(m), "turn the open sculpt into a solid part in Easy Part that you can drill and round (needs a closed sculpt, one undo step)"))
+	row.add_child(m._button("Sculpt the part", PartSculpt.open.bind(m), "open the newest ornament, the picked body or a ball of clay of the part on this page to sculpt (s227: Back into the part brings it back as a solid, one undo step)"))
+	row.add_child(m._button("Back into the part", PartSculpt.finish.bind(m), "the sculpt opened from the part goes back into it as one solid in the same place (one undo step; the mesh stays in the step, so you can sculpt it again)"))
 	row.add_child(m._button("Sculpt the body", _sculpt_body.bind(m), "sculpt the fighter's body mesh (the one MODEL edits) with the brushes below; each stroke one undo step, Esc goes back to MODEL (Save to body writes it to the fighter)"))
 	for b in BRUSHES:
 		var key: Key = b[1]

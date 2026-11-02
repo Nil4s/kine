@@ -14,6 +14,9 @@
 ##   $G --headless --path . -s tools/poser_cli.gd -- assert scenes/combo3.json "left foot planted 0-0.4 s" "COM inside the feet all clip"
 ##        (N002 body assertions, scripts/body_assert.gd: pass / fail per line, the worst miss in cm / deg / m/s and its frame;
 ##        no lines = the scene's saved "asserts"; an unread line gets the grammar back)
+##   $G --headless --path . -s tools/poser_cli.gd -- part_facts <part.json|scene.json> [cap=N]   (item 220: a modelled part as text: one line per body, volume, box, axis, contacts)
+##   $G --headless --path . -s tools/poser_cli.gd -- part_assert <part.json> "piston touches barrel clearance 0.0-0.2 mm" "one solid" [--save] [--clear]
+##        (item 220, scripts/part_assert.gd: pass / fail per line, the worst miss in mm / deg / mm3 and where; no lines = the part's saved "asserts"; an unread line gets the grammar back)
 ##   $G --headless --path . -s tools/poser_cli.gd -- events scenes/combo3.json "when does the left foot leave the floor" [fighter=2] [fps=60]
 ##   $G --headless --path . -s tools/poser_cli.gd -- explain_conflict scenes/combo3.json "right fist touches fighter 2 chin" "both feet planted" [t=0.6] [card=N]
 ##        (N006: the smallest set of those wishes that clash at one moment, and the cost to free each; nothing is changed)
@@ -203,6 +206,13 @@ func _init() -> void:
 				cs.append({"id": c["id"], "name": c["name"], "keys": c["keys"], "edits": c["edits"], "desc": c["desc"]})
 				say("%-38s %-8s %s  %s" % [c["id"], c["keys"], "EDIT" if c["edits"] else "    ", c["desc"]])
 			done({"ok": true, "commands": cs})
+		"material":   # s223: material "dark oak" | material list (scripts/material_words.gd)
+			var mq := " ".join(a.slice(1))
+			var mr := {"ok": true, "library": MaterialMaker.library_ids()} if mq == "list" else MaterialWords.parse(mq)
+			if mr.get("ok", false) and mr.has("spec"):
+				mr["describe"] = MaterialWords.describe(mr["spec"])
+			say(String(mr.get("describe", "%d materials" % mr.get("library", []).size())) if mr.get("ok", false) else "material \"<words>\" | material list (not known: %s)" % ", ".join(mr.get("unknown", [])))
+			done(mr)
 		"facts":   # N022: facts "how fast is a real jab?" | facts list
 			var fq := " ".join(a.slice(1))
 			var fr := HumanFacts.serve({"list": true} if fq == "list" else {"q": fq})
@@ -286,6 +296,43 @@ func _init() -> void:
 					say(g)
 			ar["ok"] = ar.get("pass", false)
 			done(ar)
+		"part_facts", "part_assert":   # ITEM 220 (scripts/part_facts.gd, scripts/part_assert.gd): a modelled part as text, and one-line checks on it
+			var pflags := a.filter(func(x): return String(x) in ["--save", "--clear"])
+			var pargs := a.filter(func(x): return not String(x) in ["--save", "--clear"])
+			if pargs.size() < 2:
+				done({"ok": false, "error": "%s <part.json | scene.json> %s" % [verb, "[cap=N]  (one line per body, the contacts, the repeats)" if verb == "part_facts" else "\"<line>\" ...  [--save] [--clear]  (no lines = the part's saved asserts)"], "grammar": PartAssert.GRAMMAR if verb == "part_assert" else null})
+				return
+			var pp := {"path": pargs[1]}
+			if verb == "part_assert":
+				if pargs.size() > 2:
+					pp["lines"] = pargs.slice(2)
+				pp["save"] = "--save" in pflags
+				pp["clear"] = "--clear" in pflags
+			else:
+				for x in pargs.slice(2):
+					if String(x).begins_with("cap=") and String(x).substr(4).is_valid_int():
+						pp["cap"] = int(String(x).substr(4))
+			var prq: Dictionary = await T.request(1, verb, pp)
+			if prq.has("error"):
+				var pd := {"ok": false, "error": prq["error"]["message"]}
+				if prq["error"].has("data") and prq["error"]["data"] is Dictionary:
+					pd.merge(prq["error"]["data"])
+				done(pd)
+				return
+			var pr: Dictionary = prq["result"]
+			if verb == "part_facts":
+				for l in pr["lines"]:
+					say(l)
+				pr["ok"] = true
+			else:
+				for x in pr.get("results", []):
+					say(x.get("say", "UNREAD  %s:  %s" % [x["line"], x.get("error", "")]))
+				if pr.get("unread", 0) > 0:
+					for g in PartAssert.GRAMMAR:
+						say(g)
+				say("PART ASSERT: %d pass, %d fail, %d unread" % [pr.get("passed", 0), pr.get("failed", 0), pr.get("unread", 0)])
+				pr["ok"] = pr.get("pass", false)
+			done(pr)
 		"diff":
 			if a.size() < 3 or not FileAccess.file_exists(res(a[1])) or not FileAccess.file_exists(res(a[2])):
 				done({"ok": false, "error": "diff <a.json> <b.json>  (both scene files that exist)"})
