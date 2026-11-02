@@ -205,6 +205,10 @@ func _parse(t: String, final: bool) -> void:
 		res = {}
 		plan = {}
 		return
+	if HallWords.claims(t, m.S.part):
+		res = {"ok": false, "kind": "typing"}   # s222: a hall / part / check sentence: Enter does it (_do_hall)
+		plan = {}
+		return
 	if NatureWords.looks_natural(t):
 		res = {"ok": false, "kind": "typing"}   # a nature sentence: Enter does it (_do_nature)
 		plan = {}
@@ -230,6 +234,9 @@ func submit() -> void:
 		m._say("Words: say what to build first. " + HINT)
 		_render()
 		return
+	if HallWords.claims(t, m.S.part):
+		_do_hall(t)   # s222: words for more than houses (scripts/build/hall_words.gd) on the Part on screen
+		return
 	if NatureWords.looks_natural(t):
 		_do_nature(t)   # FRIDAY 225: trees, hedges, shrubs, grass, flowers, paths, rocks (scripts/build/nature_words.gd)
 		return
@@ -250,6 +257,26 @@ func submit() -> void:
 	else:
 		_do_build()
 	_render()
+
+
+## s222: a sentence about a hall, a part, a trade name or a check: done on the part on screen (ONE undo step), said back
+func _do_hall(t: String) -> void:
+	var r := HallWords.run(m, t)
+	if not bool(r["ok"]):
+		res = {"ok": false, "kind": "refuse", "error": String(r.get("error", "")), "did": String(r.get("did", "")), "ignored": [], "notes": [], "defaults": {}}
+		_render()
+		m._say(String(r.get("error", "")))
+		return
+	var said := String(r.get("say", ""))
+	if not (r.get("ignored", []) as Array).is_empty():
+		said += " Left out (not understood): %s." % ", ".join(PackedStringArray(r["ignored"]))
+	res = {"ok": true, "kind": "done", "say": said}
+	plan = {}
+	edit.text = ""
+	parsed_text = ""
+	_render()
+	m._say(said)
+	m._toast(said)
 
 
 func _do_build() -> void:

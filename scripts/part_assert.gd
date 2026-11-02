@@ -332,15 +332,16 @@ static func judge(M: PartFacts.Model, q: Dictionary) -> Dictionary:
 			var worst := 0.0
 			var wp := ""
 			var listed := []
-			for i in M.n:
-				for j in range(i + 1, M.n):
-					var o := M.overlap(i, j)
-					if o <= PartFacts.HIT_MM3 or _excepted(M, q["except"], i, j):
-						continue
-					listed.append([i, j, o])
-					if o > worst:
-						worst = o
-						wp = "%s x %s" % [_nm(M, i), _nm(M, j)]
+			for pr in M.near_pairs(1e-6):   # s233: only the pairs whose boxes meet (overlap() is 0 for the others), in the same (i, j) order
+				var i: int = pr[0]
+				var j: int = pr[1]
+				var o := M.overlap(i, j)
+				if o <= PartFacts.HIT_MM3 or _excepted(M, q["except"], i, j):
+					continue
+				listed.append([i, j, o])
+				if o > worst:
+					worst = o
+					wp = "%s x %s" % [_nm(M, i), _nm(M, j)]
 			listed.sort_custom(func(x, y): return x[2] > y[2])
 			var said2 := "no unexcepted overlap" if listed.is_empty() else "%d overlap%s: %s%s" % [listed.size(), "" if listed.size() == 1 else "s",
 				"; ".join(listed.slice(0, 5).map(func(t): return "%s x %s %.0f mm3" % [_nm(M, t[0]), _nm(M, t[1]), t[2]])), "" if listed.size() <= 5 else "; +%d more" % (listed.size() - 5)]

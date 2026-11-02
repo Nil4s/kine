@@ -623,3 +623,12 @@ EXTRA="$EXTRA s231:w"   # TEMPLE LOOK: default materials by piece kind, words an
 
 
 EXTRA="$EXTRA s227b:w"   # s227b: the Easy Part library page fits the panel scroll area at 1280x720 (a chip that adds a row fails here)
+
+
+EXTRA="$EXTRA s234:w"   # s234: PART TEXT AND NAMING: nested loops in one sketch (holes, islands, crossing named), CJK text from the bundled OFL font, step names reach piece kinds; tests/s234_test.gd
+
+
+EXTRA="$EXTRA s222:w"   # s222: WORDS FOR MORE THAN HOUSES (hall_words.gd, trade_words.gd), tests/s222_test.gd
+
+
+EXTRA="$EXTRA s233:w"   # BIG PARTS: 300 bodies drawn (256-surface limit), shared replay shapes, broad phase, one-pass counts (item 233)

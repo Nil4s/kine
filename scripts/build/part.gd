@@ -519,6 +519,8 @@ static func spline_curve(pts: Array, closed: bool, steps := 16) -> PackedVector2
 ## Every shape made here is released before it returns.
 ## REPLAYGAP probe: while calls_log is an Array, each replay appends [record hash, step, want keys, caller, line] (tests/replaygap2_test.gd); null = off
 static var calls_log = null
+## s233 probe: while step_log is an Array, each replay appends [feature id, type, ms] per step it really ran (where a big part's time goes); null = off
+static var step_log = null
 static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	if calls_log != null:
 		var st := get_stack()
@@ -536,16 +538,24 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	var off_ids := {}   # XTIME: the sketches the timeline suppressed
 	var inc := bool(want.get("inc", false)) and n > 0   # s168 INCREMENTAL REPLAY: the steps a cached prefix already made are not run again
 	var inc_keys: Array = []
+	var counts: Array = []
 	var i0 := 0
 	if inc:
 		inc_keys = _inc_keys(feats, n, want)
-		i0 = _inc_restore(inc_keys, n, bodies, looks, errs, sketches, off_ids)
+		i0 = _inc_restore(inc_keys, n, bodies, looks, errs, sketches, off_ids, counts)
 	if inc_trace:
 		print("INC replay n=%d from=%d caller=%s:%s want=%s" % [n, i0, get_stack()[1]["function"], get_stack()[1]["line"], str(want.keys())])
+	var t_prev := Time.get_ticks_usec()
 	for i in range(i0, n):
 		step_runs += 1
+		if step_log != null:
+			if i > i0:
+				step_log.append([String(feats[i - 1]["id"]), String(feats[i - 1]["t"]), (Time.get_ticks_usec() - t_prev) / 1000.0])
+			t_prev = Time.get_ticks_usec()
+		if i > i0:
+			counts.append(bodies.size())   # s233: the body count after step i-1 (a `continue` below skips the end of the body, so it is taken at the top)
 		if inc and i > i0:
-			_inc_store(inc_keys[i - 1], bodies, looks, errs, sketches, off_ids)   # the state after step i-1 (a `continue` below skips the end of the body, so it is taken at the top)
+			_inc_store(inc_keys[i - 1], bodies, looks, errs, sketches, off_ids, counts)   # the state after step i-1 (a `continue` below skips the end of the body, so it is taken at the top)
 		var f: Dictionary = feats[i]
 		var id := String(f["id"])
 		look_fit(looks, bodies.size())
@@ -580,6 +590,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					errs[id] = String(sols["err"])
 					continue
 				var sids: PackedInt32Array = sols["solids"]
+				var nb0 := bodies.size()   # s234: the bodies this step makes carry its name
 				var tilt_deg := float(f.get("tilt", 0.0))   # TILT (Easy's Tilt it): the piece leans about its middle, before it joins the body
 				for si in sids.size():   # XFIX: one solid per separate loop of the sketch (one feature, one undo step)
 					if absf(tilt_deg) > 1e-9:
@@ -593,9 +604,12 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 						for sj in range(si + 1, sids.size()):
 							KCad.release(sids[sj])
 						break
+				_name_new(looks, bodies, nb0, f)
 			"prim":   # s229: a box / cylinder / tube / cone / sphere / wedge by numbers (scripts/build/part_prim.gd)
 				PPRIM.last_warning = ""
+				var pb0 := bodies.size()
 				var pre := PPRIM.apply(bodies, f)
+				_name_new(looks, bodies, pb0, f)
 				if pre != "":
 					errs[id] = pre
 				if PPRIM.last_warning != "":
@@ -747,8 +761,13 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var hb := int(f.get("body", -1))
 				if hb < 0 or hb >= bodies.size():
 					errs[id] = "there is no body %d to hinge" % hb
+	if n > i0:
+		counts.append(bodies.size())
+		if step_log != null:
+			step_log.append([String(feats[n - 1]["id"]), String(feats[n - 1]["t"]), (Time.get_ticks_usec() - t_prev) / 1000.0])
+	res["counts"] = counts   # s233: the body count after each step 0..n-1, from this one pass (PartFacts.labels_of replayed every prefix for it)
 	if inc and n > i0:
-		_inc_store(inc_keys[n - 1], bodies, looks, errs, sketches, off_ids)
+		_inc_store(inc_keys[n - 1], bodies, looks, errs, sketches, off_ids, counts)
 	if want.has("pose"):   # the view of a hinge mid-swing (PartUI's Play): that body turned, the rest as it is
 		var pz: Dictionary = want["pose"]
 		for k in n:
@@ -766,6 +785,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		res["body_kinds"].append(PieceLook.kind_at(looks, bk))   # s231: what each body is in a building (before the style's defaults replace the looks)
 	PieceLook.finish(rec, looks)   # s231: in a temple, a body no one painted wears its kind's material
 	var mesh := ArrayMesh.new()
+	var pend: Array = []   # s233: [arrays, look, body] per drawn body; packed into surfaces after the loop (a mesh holds at most MAX_SURFACES)
 	for b in bodies:
 		var v := KCad.volume(b)
 		res["volumes"].append(v)
@@ -777,11 +797,9 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 			res["tess_ids"].append(b)
 			res["tess_looks"].append(look_at(looks, bodies.find(b)))
 		elif not want.get("errors_only", false):   # s168: errors_of wants no mesh
-			tm = KCad.tessellate(b, COARSE_DEFL, COARSE_ANGLE) if want.get("coarse", false) else KCad.tessellate(b, 0.0003, 0.25)   # NSLIDELOD: a coarse preview while a slider is dragged
+			tm = _tess_cached(b, want.get("coarse", false))   # NSLIDELOD: a coarse preview while a slider is dragged
 		if tm != null and tm.get_surface_count() > 0:
-			mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, tm.surface_get_arrays(0))
-			res["looks"].append(look_at(looks, bodies.find(b)))   # one surface, one look (the view paints each surface)
-			res["surf_body"].append(bodies.find(b))   # P125: the body each surface is (the collision flash paints two of them)
+			pend.append([tm.surface_get_arrays(0), look_at(looks, bodies.find(b)), bodies.find(b)])   # one surface, one look (the view paints each surface); P125: surf_body = the body each surface is
 		if want.get("faces", false):   # GAP 10: the faces to pick (centre, outward normal, box position, body)
 			var fs := KCad.faces(b)
 			var fb := _bbox_of_points(fs)
@@ -814,6 +832,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 						outside = false
 				var top := float(ed["a"].y) >= bb.end.y - SKIN_MM * MM and float(ed["b"].y) >= bb.end.y - SKIN_MM * MM
 				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "concave": concave, "inner": inner, "outside": outside, "top": top})
+	pack_surfaces(mesh, pend, res)
 	res["bodies"] = bodies.size()
 	res["body_names"] = []
 	for bi in bodies.size():
@@ -830,6 +849,81 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		for b in bodies:
 			KCad.release(b)
 	return res
+
+
+## s233: a body's tessellation, kept while the shape lives (ids shared with the replay cache come back unchanged on the next replay: the hall's 220 bodies
+## were tessellated again after every step). Only the first surface's arrays are kept and handed out as a fresh one-surface mesh.
+static var _tess_cache := {}
+static var _tess_verts := 0
+const TESS_CACHE_VERTS := 6000000
+static func _tess_cached(id: int, coarse: bool) -> ArrayMesh:
+	var key := "%d.%d.%d" % [id, KCad.gen(id), 1 if coarse else 0]
+	if _tess_cache.has(key):
+		var m2 := ArrayMesh.new()
+		m2.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, _tess_cache[key])
+		return m2
+	var tm: ArrayMesh = KCad.tessellate(id, COARSE_DEFL, COARSE_ANGLE) if coarse else KCad.tessellate(id, 0.0003, 0.25)
+	if tm != null and tm.get_surface_count() > 0:
+		var arr := tm.surface_get_arrays(0)
+		var nv: int = (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+		if _tess_verts + nv > TESS_CACHE_VERTS:
+			_tess_cache.clear()
+			_tess_verts = 0
+		_tess_cache[key] = arr
+		_tess_verts += nv
+	return tm
+
+
+## s233 BIG PARTS: an ArrayMesh holds at most 256 surfaces (RenderingServer.MAX_MESH_SURFACES); the 257th add_surface_from_arrays fails with an
+## engine error and the body is silently not drawn (the hall's compound wall, built last, at body 267). pend = [[arrays, look, body], ...] in body order.
+## Up to MAX_SURFACES bodies: one surface each, exactly as before. More: bodies with the SAME look share a surface (first-seen order, so the picture is
+## the same); if the distinct looks are still too many, the last looks' bodies share the final surface. Writes res["looks"] (one per surface) and
+## res["surf_body"] (the first body of each surface).
+const MAX_SURFACES := 256
+static func pack_surfaces(mesh: ArrayMesh, pend: Array, res: Dictionary) -> void:
+	var groups: Array = []   # [[pend index, ...]] one per surface
+	if pend.size() <= MAX_SURFACES:
+		for k in pend.size():
+			groups.append([k])
+	else:
+		var by_look := {}
+		for k in pend.size():
+			var key := JSON.stringify(pend[k][1])
+			if not by_look.has(key):
+				by_look[key] = groups.size()
+				groups.append([])
+			groups[by_look[key]].append(k)
+		while groups.size() > MAX_SURFACES:
+			var tail: Array = groups.pop_back()
+			groups[MAX_SURFACES - 1].append_array(tail)
+	for g in groups:
+		var arr: Array = pend[g[0]][0]
+		if g.size() > 1:
+			arr = _merge_arrays(g.map(func(k): return pend[k][0]))
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+		res["looks"].append(pend[g[0]][1])
+		res["surf_body"].append(pend[g[0]][2])
+
+
+## several surfaces' arrays as one (vertex-shaped slots appended, indices shifted)
+static func _merge_arrays(list: Array) -> Array:
+	var out: Array = (list[0] as Array).duplicate()
+	var shift := (out[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+	for q in range(1, list.size()):
+		var a: Array = list[q]
+		for slot in Mesh.ARRAY_INDEX:
+			if out[slot] != null and a[slot] != null:
+				var acc: Variant = out[slot]   # packed arrays are values: append, then put back
+				acc.append_array(a[slot])
+				out[slot] = acc
+		var ix: Variant = a[Mesh.ARRAY_INDEX]
+		if ix != null and out[Mesh.ARRAY_INDEX] != null:
+			var oi: PackedInt32Array = out[Mesh.ARRAY_INDEX]
+			for t in (ix as PackedInt32Array):
+				oi.append(t + shift)
+			out[Mesh.ARRAY_INDEX] = oi
+		shift += (a[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+	return out
 
 
 ## XTIME: why an extrude / revolve has no sketch to read, in plain words: its sketch was deleted (the name it had: sketch_was, set when the
@@ -1381,26 +1475,159 @@ static func _solids(f: Dictionary, sk: Dictionary) -> Dictionary:
 		if s == 0:
 			return {"solids": PackedInt32Array(), "err": _plain_err(KCad.last_error())}
 		return {"solids": PackedInt32Array([s]), "err": ""}
-	for i in groups.size():
-		for j in groups.size():
-			if i != j and _loop_box(groups[j]).encloses(_loop_box(groups[i])):
-				return {"solids": PackedInt32Array(), "err": "a closed shape sits inside another one in this sketch: Extrude them one at a time"}
+	var nest := loop_nest(groups)   # s234: a loop inside a loop is a HOLE, a loop inside a hole is an island (a new region), like every CAD tool
+	if not (nest["cross"] as Dictionary).is_empty():
+		return {"solids": PackedInt32Array(), "err": loop_cross_words(nest["cross"])}
 	var pl: Dictionary = sk["_pl"] if sk.has("_pl") else plane(String(sk.get("plane", "front")))
+	var depth: Array = nest["depth"]
+	var parent: Array = nest["parent"]
 	var out := PackedInt32Array()
-	for g in groups:
-		var face := KCad.sketch_face(items_of(g), sunk_origin(pl, f), pl["x"], pl["n"])
-		if face == 0:
-			for s in out:
-				KCad.release(s)
-			return {"solids": PackedInt32Array(), "err": _plain_err(KCad.last_error())}
-		var sd := KCad.extrude(face, sunk_dist(pl, f) * MM, bool(f.get("both", false)), deg_to_rad(float(f.get("taper", 0.0))))
-		KCad.release(face)
+	var fail := ""
+	for gi in groups.size():
+		if int(depth[gi]) % 2 == 1:
+			continue   # a hole: cut out of its outer loop's solid below
+		var sd := _loop_solid(f, pl, groups[gi])
+		if sd == 0:
+			fail = _plain_err(KCad.last_error())
+		else:
+			for hi in groups.size():
+				if sd != 0 and int(parent[hi]) == gi and int(depth[hi]) % 2 == 1:
+					var tool := _loop_solid(f, pl, groups[hi])
+					if tool == 0:
+						fail = _plain_err(KCad.last_error())
+						KCad.release(sd)
+						sd = 0
+						break
+					var cutd := KCad.cut(sd, tool)
+					KCad.release(sd)
+					KCad.release(tool)
+					if cutd == 0:
+						fail = _plain_err(KCad.last_error())
+					sd = cutd
 		if sd == 0:
 			for s in out:
 				KCad.release(s)
-			return {"solids": PackedInt32Array(), "err": _plain_err(KCad.last_error())}
+			return {"solids": PackedInt32Array(), "err": fail if fail != "" else "the shape could not be pulled"}
 		out.append(sd)
 	return {"solids": out, "err": ""}
+
+
+## s234: one loop's entities pulled as a solid (its own face, the feature's distance / both sides / taper). 0 when the kernel refuses.
+static func _loop_solid(f: Dictionary, pl: Dictionary, g: Array) -> int:
+	var face := KCad.sketch_face(items_of(g), sunk_origin(pl, f), pl["x"], pl["n"])
+	if face == 0:
+		return 0
+	var sd := KCad.extrude(face, sunk_dist(pl, f) * MM, bool(f.get("both", false)), deg_to_rad(float(f.get("taper", 0.0))))
+	KCad.release(face)
+	return sd
+
+
+## s234: a loop's outline as straight pieces (mm): [[a, b], ...]. Circles, arcs and splines are sampled finely enough for a containment / crossing test.
+static func _loop_segs(g: Array) -> Array:
+	var segs: Array = []
+	for e in g:
+		var pts := PackedVector2Array()
+		var closed := false
+		match String(e["k"]):
+			"line":
+				pts = PackedVector2Array([v2(e["a"]), v2(e["b"])])
+			"rect":
+				var a := v2(e["a"])
+				var b := v2(e["b"])
+				pts = PackedVector2Array([a, Vector2(b.x, a.y), b, Vector2(a.x, b.y)])
+				closed = true
+			"circle":
+				var c := v2(e["c"])
+				var r := float(e["r"])
+				for k in 64:
+					pts.append(c + Vector2(cos(TAU * k / 64.0), sin(TAU * k / 64.0)) * r)
+				closed = true
+			"arc":
+				pts = _arc_points(v2(e["a"]), v2(e["m"]), v2(e["b"]))
+			"bspline":
+				var cl := bool(e.get("closed", false))
+				pts = spline_curve(e.get("pts", []), cl, 8)
+				closed = false   # spline_curve repeats the first point when closed
+		for k in range(pts.size() - 1):
+			segs.append([pts[k], pts[k + 1]])
+		if closed and pts.size() > 2:
+			segs.append([pts[pts.size() - 1], pts[0]])
+	return segs
+
+
+## the points of the arc through a, m, b (mm), a to b
+static func _arc_points(a: Vector2, m: Vector2, b: Vector2) -> PackedVector2Array:
+	var d := 2.0 * (a.x * (m.y - b.y) + m.x * (b.y - a.y) + b.x * (a.y - m.y))
+	if absf(d) < 1e-9:
+		return PackedVector2Array([a, m, b])
+	var ux := ((a.length_squared()) * (m.y - b.y) + m.length_squared() * (b.y - a.y) + b.length_squared() * (a.y - m.y)) / d
+	var uy := ((a.length_squared()) * (b.x - m.x) + m.length_squared() * (a.x - b.x) + b.length_squared() * (m.x - a.x)) / d
+	var c := Vector2(ux, uy)
+	var r := a.distance_to(c)
+	var aa := (a - c).angle()
+	var am := (m - c).angle()
+	var ab := (b - c).angle()
+	var ccw := wrapf(ab - aa, 0.0, TAU)
+	var sweep := ccw if wrapf(am - aa, 0.0, TAU) <= ccw else ccw - TAU   # the middle point says which way round
+	var pts := PackedVector2Array()
+	var n := maxi(8, int(absf(sweep) / TAU * 64.0))
+	for k in n + 1:
+		pts.append(c + Vector2(cos(aa + sweep * k / n), sin(aa + sweep * k / n)) * r)
+	return pts
+
+
+## s234: how the separate loops of a sketch nest. {"depth": [n], "parent": [loop index or -1], "cross": {} or {"at": [x, y], "a": loop, "b": loop}}.
+## Depth 0 = a solid region, 1 = a hole in it, 2 = an island in that hole (a new solid region), ... Two loops whose outlines truly cross are named by the crossing point.
+static func loop_nest(groups: Array) -> Dictionary:
+	var n := groups.size()
+	var segs: Array = []
+	var boxes: Array = []
+	for g in groups:
+		segs.append(_loop_segs(g))
+		boxes.append(_loop_box(g).grow(0.01))
+	for i in n:
+		for j in range(i + 1, n):
+			if not (boxes[i] as Rect2).intersects(boxes[j]):
+				continue
+			for sa in (segs[i] as Array):
+				for sb in (segs[j] as Array):
+					var p := PPRIM._seg_cross(sa[0], sa[1], sb[0], sb[1])
+					if not p.is_empty():
+						return {"depth": [], "parent": [], "cross": {"at": [snappedf(p[0], 0.01), snappedf(p[1], 0.01)], "a": i, "b": j}}
+	var depth: Array = []
+	var parent: Array = []
+	for i in n:
+		var probe: Vector2 = (segs[i][0] as Array)[0] if not (segs[i] as Array).is_empty() else Vector2.ZERO
+		var d := 0
+		var par := -1
+		var par_area := INF
+		for j in n:
+			if j == i or not (boxes[j] as Rect2).encloses(_loop_box(groups[i])):
+				continue
+			if _in_segs(probe, segs[j]):
+				d += 1
+				var ar: float = (boxes[j] as Rect2).get_area()
+				if ar < par_area:
+					par_area = ar
+					par = j
+		depth.append(d)
+		parent.append(par)
+	return {"depth": depth, "parent": parent, "cross": {}}
+
+
+## even-odd test of a point against loose segments
+static func _in_segs(p: Vector2, segs: Array) -> bool:
+	var inside := false
+	for sg in segs:
+		var a: Vector2 = sg[0]
+		var b: Vector2 = sg[1]
+		if (a.y > p.y) != (b.y > p.y) and p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x:
+			inside = not inside
+	return inside
+
+
+static func loop_cross_words(c: Dictionary) -> String:
+	return "two shapes in this sketch cross at (%s, %s) mm (shape %d and shape %d): move one so it sits wholly inside or wholly outside the other" % [_short(float(c["at"][0])), _short(float(c["at"][1])), int(c["a"]) + 1, int(c["b"]) + 1]
 
 
 ## XFIX: the words a user reads for a kernel failure (no kernel jargon)
@@ -3370,7 +3597,7 @@ static func _grow_copies(rec: Dictionary, f: Dictionary, srcb: int, copies: Arra
 
 # ---------------------------------------------------------------- s168 incremental replay: the shapes after each step, kept by what made them
 
-const INC_MAX := 96   # snapshots kept (the least recently used go; their shapes are released)
+const INC_MAX := 320   # snapshots kept (s233: shapes are shared, a snapshot costs its id list; was 96 deep copies) (the least recently used go; their shapes are released)
 static var inc_trace := false   # s168 probe: print what each cached replay started from
 static var step_runs := 0   # s168 probe: steps the replay really ran (a cached step is not counted); tests/s168_test.gd reads it
 static var inc_hits := 0    # s168 probe: replays that started from a cached prefix
@@ -3398,7 +3625,7 @@ static func _inc_keys(feats: Array, n: int, want: Dictionary) -> Array:
 
 
 ## the newest cached prefix: its shapes (copies; the replay mutates them) and notes go into the replay's own containers. Answers how many steps it covers
-static func _inc_restore(keys: Array, n: int, bodies: Array, looks: Array, errs: Dictionary, sketches: Dictionary, off_ids: Dictionary) -> int:
+static func _inc_restore(keys: Array, n: int, bodies: Array, looks: Array, errs: Dictionary, sketches: Dictionary, off_ids: Dictionary, counts: Array) -> int:
 	var j := n - 1
 	while j >= 0 and not inc_cache.has(keys[j]):
 		j -= 1
@@ -3406,19 +3633,15 @@ static func _inc_restore(keys: Array, n: int, bodies: Array, looks: Array, errs:
 		return 0
 	var snap: Dictionary = inc_cache[keys[j]]
 	var made: Array = []
-	for b in snap["bodies"]:
-		var c: int = KCad.translate(int(b), Vector3.ZERO)   # a deep copy
-		if c == 0:
-			for x in made:
-				KCad.release(int(x))
-			_inc_drop(keys[j])
-			return 0
-		made.append(c)
+	for b in snap["bodies"]:   # s233: the shapes are SHARED with the snapshot (KCad.retain), not copied: a kernel shape is never changed in place
+		KCad.retain(int(b))
+		made.append(int(b))
 	bodies.append_array(made)
 	looks.append_array((snap["looks"] as Array).duplicate(true))
 	errs.merge((snap["errs"] as Dictionary).duplicate(true))
 	sketches.merge((snap["sketches"] as Dictionary).duplicate(true))
 	off_ids.merge((snap["off"] as Dictionary).duplicate(true))
+	counts.append_array(snap.get("counts", []))
 	for k in range(0, j + 1):   # the whole prefix was used: it stays young
 		if inc_cache.has(keys[k]):
 			_inc_tick += 1
@@ -3428,21 +3651,17 @@ static func _inc_restore(keys: Array, n: int, bodies: Array, looks: Array, errs:
 
 
 ## keeps a copy of the state under `key` (the replay goes on mutating its own shapes)
-static func _inc_store(key: String, bodies: Array, looks: Array, errs: Dictionary, sketches: Dictionary, off_ids: Dictionary) -> void:
+static func _inc_store(key: String, bodies: Array, looks: Array, errs: Dictionary, sketches: Dictionary, off_ids: Dictionary, counts: Array) -> void:
 	if inc_cache.has(key):
 		_inc_tick += 1
 		inc_cache[key]["tick"] = _inc_tick
 		return
 	var made: Array = []
-	for b in bodies:
-		var c: int = KCad.translate(int(b), Vector3.ZERO)
-		if c == 0:
-			for x in made:
-				KCad.release(int(x))
-			return
-		made.append(c)
+	for b in bodies:   # s233: shared, not deep-copied (the copy per step was O(steps x bodies) in time and in memory)
+		KCad.retain(int(b))
+		made.append(int(b))
 	_inc_tick += 1
-	inc_cache[key] = {"bodies": made, "looks": looks.duplicate(true), "errs": errs.duplicate(true), "sketches": sketches.duplicate(true), "off": off_ids.duplicate(true), "tick": _inc_tick}
+	inc_cache[key] = {"bodies": made, "looks": looks.duplicate(true), "errs": errs.duplicate(true), "sketches": sketches.duplicate(true), "off": off_ids.duplicate(true), "counts": counts.duplicate(), "tick": _inc_tick}
 	while inc_cache.size() > INC_MAX:
 		var oldest := ""
 		var ot := 1 << 60
@@ -3474,11 +3693,14 @@ static func inc_clear() -> void:
 static func finish_mesh(res: Dictionary, meshes: Array) -> void:
 	var mesh := ArrayMesh.new()
 	res["looks"] = []
+	res["surf_body"] = []
+	var pend: Array = []
 	for k in meshes.size():
 		var tm: ArrayMesh = meshes[k]
 		if tm != null and tm.get_surface_count() > 0:
-			mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, tm.surface_get_arrays(0))
-			res["looks"].append(res["tess_looks"][k])
+			pend.append([tm.surface_get_arrays(0), res["tess_looks"][k], k])
+	pack_surfaces(mesh, pend, res)
+	res["surf_body"] = []   # the background preview never set it (the collision flash reads the synchronous replay's)
 	if mesh.get_surface_count() > 0:
 		res["mesh"] = mesh
 		res["aabb"] = mesh.get_aabb()
@@ -3677,6 +3899,28 @@ static func clean_name(t: String) -> String:
 		out += " " if ch.unicode_at(0) < 32 else ch
 	var parts := out.strip_edges().split(" ", false)
 	return " ".join(parts).left(NAME_MAX).strip_edges()
+
+
+## s234: the bodies a step just made (from index `from`) take the step's own name when someone gave it one ("Column", "Platform"), so the name reaches the
+## body's piece kind and look. A name that is only the step's auto name ("Extrude3", "Prim1") says nothing. A body already named keeps its name.
+static func _name_new(looks: Array, bodies: Array, from: int, f: Dictionary) -> void:
+	if bodies.size() <= from:
+		return
+	var nm := clean_name(String(f.get("called", f.get("name", ""))))
+	if nm == "":
+		return
+	var t := String(f.get("t", ""))
+	if String(f.get("called", "")) == "":
+		var rest := nm.trim_prefix(t.capitalize())
+		if nm.begins_with(t.capitalize()) and (rest == "" or rest.is_valid_int()):
+			return
+	look_fit(looks, bodies.size())
+	for k in range(from, bodies.size()):
+		var l: Dictionary = look_at(looks, k).duplicate()
+		if String(l.get("name", "")) != "":
+			continue
+		l["name"] = nm if bodies.size() - from == 1 else "%s %d" % [nm, k - from + 1]
+		looks[k] = l
 
 
 ## the shown name of body i: the one it was given, else Body<i+1> (the browser's old name for it)

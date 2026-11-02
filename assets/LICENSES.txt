@@ -1,2 +1,4 @@
 assets/mannequin.glb: Quaternius "Universal Animation Library 2" (Standard) mannequin, CC0 1.0 (quaternius.com / opengameart.org). Its animations are unused.
 assets/body_smooth.glb: built by tools/smoothbody_build.gd from Quaternius "Universal Base Characters" (Standard) Superhero_Male, CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/, https://quaternius.itch.io/universal-base-characters), fitted onto the mannequin skeleton, with the mannequin egg head. The optional "Body: smooth".
+
+assets/fonts/KineHanSubset.otf: Adobe Source Han Sans JP subset (renamed Kine Han Subset), SIL Open Font License 1.1, see assets/fonts/OFL.txt.
