@@ -43,7 +43,8 @@ const FLOORW := ["floor", "floors", "storey", "storeys", "story", "stories", "le
 const WALLW := {"front": "front", "back": "back", "rear": "back", "left": "left", "right": "right"}
 const HOUSEW := ["house", "home", "building", "cottage", "cabin", "villa", "bungalow", "hut", "place", "residence", "dojo", "hall", "arena", "gym", "barn", "warehouse", "studio", "temple"]
 const ROOFKIND := {"gable": "gable", "gabled": "gable", "pitched": "gable", "peaked": "gable", "pointed": "gable", "triangular": "gable",
-	"flat": "flat", "shed": "shed", "sloped": "shed", "sloping": "shed", "slanted": "shed", "lean": "shed"}
+	"flat": "flat", "shed": "shed", "sloped": "shed", "sloping": "shed", "slanted": "shed", "lean": "shed",
+	"hip": "hip", "hipped": "hip", "pyramid": "pyramid", "pyramidal": "pyramid", "xieshan": "xieshan", "chinese": "curved", "curved": "curved", "upturned": "curved"}   # s226: the shell roofs
 const FILLER := ["a", "an", "the", "with", "and", "of", "on", "at", "in", "to", "it", "that", "has", "have", "having", "i", "want", "need", "please",
 	"build", "make", "create", "give", "me", "us", "some", "just", "also", "plus", "each", "every", "all", "both", "side", "sides", "wall", "walls",
 	"upstairs", "downstairs", "then", "now", "would", "like", "can", "you", "could", "for", "its", "is", "be", "new", "ground", "upper", "first", "total",

@@ -2178,8 +2178,6 @@ func _parts_press() -> void:
 	lib_cat = "Screws" if parts_open else ""   # NLIBPAGE: the page opens on Screws, its sizes showing
 	_say("Parts: pick a kind. Screws is open: pick a size. It drops on the floor" if parts_open else "Parts shut. Press Parts to open them again")
 	_screw_sync()
-	if parts_open:
-		_scroll_screw_sizes.call_deferred()
 
 
 ## NLIBPAGE: a category chip. Screws shows the sizes, Gears says to press the Gear chip, the others say coming soon with the next step.
@@ -2190,14 +2188,8 @@ func _lib_press(cat: String) -> void:
 		return
 	parts_open = true
 	lib_cat = cat
-	if cat != "Screws" and _screw_scrolled:   # s227: leave the scroll where the page's own chips show
-		_screw_scrolled = false
-		var _sc0 := panel.get_node_or_null("easypart_panel_scroll") as ScrollContainer
-		if _sc0 != null:
-			_sc0.scroll_vertical = 0
 	if cat == "Screws":
 		_say("Screws: pick a size. It drops on the floor")
-		_scroll_screw_sizes.call_deferred()   # s227: the category chips take more rows now: scroll so the first two size rows show
 	elif cat == "Gears":
 		_say("Gears: press Gear in the chips above, or Cam and follower below. It drops on the floor")
 	elif cat == "Bearings":   # P069 BEARINGS: three sizes; the seat button under them cuts the seat for the one on the floor
@@ -2225,6 +2217,8 @@ func _lib_press(cat: String) -> void:
 		_scroll_into_view.call_deferred(orn_box)
 	elif cat == "Type it":   # p085typetobuil: a line of words builds a box
 		_say("Type it: write a box in words, like: %s. Then press Build it" % PartWords.EXAMPLE)
+	elif cat == "Roofs":   # s226
+		_say("Roofs: pick a type. It drops on the floor as a thin shell. Curved turns the corners up")
 	elif cat == "Hinges":
 		_say("Hinges: press Hinge below. It drops on the floor, sized to the door")
 	elif cat == "Springs":   # p070springfix: the page shows the Spring button (opening a category builds nothing)
@@ -2259,6 +2253,12 @@ func _lib_box() -> PanelContainer:
 		b.custom_minimum_size = Vector2(0, 34)
 		b.add_theme_font_size_override("font_size", 12)
 		b.tooltip_text = ("%s: ready now" % cat) if cat in LIB_READY else ("%s: coming soon" % cat)
+		if cat in LIB_ICON_ONLY:   # s227b: the chips that open a page of their own are icon-only (word in the tooltip): the library page must fit the panel scroll area,
+			b.text = ""   # a page taller than it needs a scroll, and a scroll that moves under a real click sends that click to the wrong place (lay1)
+			if b.icon == null:
+				b.icon = Icons.tex("part_roof" if cat == "Roofs" else "part_ornament")
+			b.custom_minimum_size = Vector2(38, 34)
+			b.tooltip_text = "%s: ready now" % cat
 		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
 		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
 		b.pressed.connect(_lib_press.bind(cat))
@@ -2266,6 +2266,9 @@ func _lib_box() -> PanelContainer:
 		lib_btns[cat] = b
 		if cat == "Gears":
 			fl.add_child(_nature_chip())   # FRIDAY 225: icon-only Nature chip in the first row, which has 46 px spare: adds no row
+	# s227b: the two icon-only chips go where a row has room (after Clips and feet, after Pipes), so the six rows of the page stay five
+	fl.move_child(lib_btns["Ornaments"], lib_btns["Clips and feet"].get_index() + 1)
+	fl.move_child(lib_btns["Roofs"], lib_btns["Pipes"].get_index() + 1)
 	fl.add_child(_kids_chip_make())   # p197kidsmode: the Kids chip, last on the library page
 	fl.add_child(_challenge_chip_make())   # s165: Challenges, after Kids
 
@@ -2311,6 +2314,9 @@ func _lib_box() -> PanelContainer:
 	pipes_box = preload("res://scripts/easy_pipes.gd").new()   # s079: the Pipes page (scripts/easy_pipes.gd)
 	pipes_box.setup(self)
 	vb.add_child(pipes_box)
+	roofs_box = preload("res://scripts/easy_roof.gd").new()   # s226: the Roofs page (scripts/easy_roof.gd)
+	roofs_box.setup(self)
+	vb.add_child(roofs_box)
 	linkage_box = preload("res://scripts/easy_linkage.gd").new()   # p129linkages: the Linkage panel (4 bars, a drag knob) on the Hinges page, scripts/easy_linkage.gd
 	linkage_box.say_fn = _say   # p129linkages: its words go to the status line at the top
 	vb.add_child(linkage_box)
@@ -2512,23 +2518,6 @@ func _screw_pick(d: int, L: int) -> void:
 
 
 ## s227: the library page's chips fill several rows, so the screw sizes sit under the fold: bring the size chips (M4 x 16, row 2) into view
-var _screw_scrolled := false   # s227: the Screws page moved the panel scroll
-func _scroll_screw_sizes() -> void:
-	# the grid lays out a few frames after the press and the scroll bar's range follows it: retry until the chip's centre is inside the viewport
-	for _i in 8:
-		await get_tree().process_frame
-		if lib_cat != "Screws" or not parts_open:
-			return
-		var c: Button = screw_btns.get("4_16", null)
-		var sc := panel.get_node_or_null("easypart_panel_scroll") as ScrollContainer
-		if c == null or sc == null or not c.is_visible_in_tree():
-			continue
-		if sc.get_global_rect().encloses(c.get_global_rect()):
-			continue   # _screw_sync scrolls the whole grid into view a frame later and can undo this: keep checking
-		_scroll_into_view(c)
-		_screw_scrolled = true
-
-
 ## the panel scrolls so the control is inside its visible part: a chip below the scroll's bottom edge is drawn clipped and takes no click
 func _scroll_into_view(c: Control) -> void:
 	var sc := panel.get_node_or_null("easypart_panel_scroll") as ScrollContainer
@@ -2722,6 +2711,8 @@ func _screw_sync() -> void:
 		bo.set_pressed_no_signal(not bcur.is_empty() and int(bcur.get("board", 0)) == bd)
 		m._grey(bo, Part.why_not() if not Part.available() else "")
 	_wood_sync()   # P080 WOOD BOARDS: the wood chips and their cut readout follow the same state
+	if roofs_box != null:   # s226
+		roofs_box.sync()
 	if pipes_box != null:   # s079
 		pipes_box.visible = parts_open and lib_cat == "Pipes"
 		pipes_box.sync()
@@ -7971,6 +7962,7 @@ func _bevel_done(f: Dictionary) -> void:
 
 # ---------------------------------------------------------------- s079: Pipes (Parts > Pipes; scripts/easy_pipes.gd, scripts/build/pipe_parts.gd)
 var pipes_box: VBoxContainer = null
+var roofs_box: VBoxContainer = null   # s226
 var numbers_box: VBoxContainer = null   # s229: By numbers (scripts/easy_numbers.gd)
 
 
@@ -8462,7 +8454,7 @@ func _mat_make() -> void:
 	t.text = "Materials: pick one for the newest solid"
 	t.add_theme_font_size_override("font_size", 13)
 	vb.add_child(t)
-	mat_w = MaterialPicker.build(vb, "easypart_", Callable(self, "_mat_pick"), 40)
+	mat_w = MaterialPicker.build(vb, "easypart_", Callable(self, "_mat_pick"), 40, Callable(self, "_mat_kind"), Callable(self, "_mat_style"))
 	colour_box.get_parent().add_child(mat_box)
 
 
@@ -8503,3 +8495,38 @@ func _nature_box() -> PanelContainer:
 	if nature_page == null:
 		nature_page = EasyPartNature.new(self)
 	return nature_page.make_box()
+
+
+## s231: a material for EVERY piece of a kind ("red lacquer columns", the Columns chip then a swatch): one appear step per body, ONE undo step
+func _mat_kind(kind: String, spec: Dictionary, label: String) -> void:
+	if not Part.available() or int(pu.res.get("bodies", 0)) == 0:
+		_say("Make something solid first")
+		return
+	_flush_if_dirty()
+	_begin("Material for " + String(PieceLook.LABELS.get(kind, kind)))
+	var rec := pu._ensure()
+	var n := PieceLook.apply(rec, pu.res, kind, spec)
+	_end()
+	if n == 0:
+		_say("No %s in this building yet (a piece is called by its name: Column, Roof, Stair rail...)" % String(PieceLook.LABELS.get(kind, kind)).to_lower())
+		return
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_say("%s: %d piece%s now %s. Undo takes it back." % [String(PieceLook.LABELS.get(kind, kind)), n, "" if n == 1 else "s", MaterialWords.describe(spec)])
+
+
+## s231: the building's style: "temple" (every piece that is not painted wears its kind's material) or "none" (plain colours)
+func _mat_style(style: String) -> void:
+	if not Part.available() or int(pu.res.get("bodies", 0)) == 0:
+		_say("Make something solid first")
+		return
+	_flush_if_dirty()
+	_begin("Look: " + style)
+	var rec := pu._ensure()
+	PieceLook.set_style(rec, style)
+	_end()
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_say("Temple look: tile roof, red lacquer columns, teal and gold beams, marble and stone. Undo takes it back." if style == "temple" else "Plain colours again. Undo takes it back.")

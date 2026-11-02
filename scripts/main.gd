@@ -255,7 +255,7 @@ const RIBBON_GROUPS := {
 	"SCULPT": [["START", ["Test sphere", "Sculpt the body", "Voxel remesh", "Make it a solid part"]], ["BRUSH", ["Draw", "Inflate", "Grab", "Clay", "Crease"]], ["SMOOTH", ["Smooth", "Flatten", "Pinch", "Snake"]]],
 	"SURFACE": [["COLOUR", ["Paint", "Material from photo"]], ["UV", ["UV editor", "Game UVs 2k", "Pack UVs", "Export UVs"]]],
 	"BUILD": [["DRAW", ["Room", "Wall", "Pull"]], ["ADD", ["Opening", "Floor", "Roof", "Piece"]], ["SAY", ["Words"]], ["SHEET", ["Blueprint"]],
-		["PART", ["Part"]], ["SKETCH", ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]], ["CREATE", ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Ornament"]], ["MODIFY", ["Fillet", "Chamfer", "Shell", "Appearance", "Offset face", "Draft"]], ["VIEW", ["Measure", "Section"]], ["DONE", ["Finish sketch"]]],   # the last five are the Part workspace's (scripts/build/part_ui.gd)
+		["PART", ["Part"]], ["SKETCH", ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]], ["CREATE", ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Ornament", "Roof shell"]], ["MODIFY", ["Fillet", "Chamfer", "Shell", "Appearance", "Offset face", "Draft"]], ["VIEW", ["Measure", "Section"]], ["DONE", ["Finish sketch"]]],   # the last five are the Part workspace's (scripts/build/part_ui.gd)
 	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped", "Face: brows, eyes, jaw, mouth...", "Hair: add a ponytail", "Hair: take the hair off"]]],
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag", "Keep balance"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
@@ -284,7 +284,7 @@ const RIBBON_REST := {"MODEL": ["Save to body", "Open...", "Use in scene", "Loop
 	"Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound", "Star this clip", "My best take", "Make this one more like my best",
 	"What I learned from you", "My combos", "Frame it my way"],
 	# BUILD (the Part workspace's rarer tools): under their captions SKETCH / CREATE / MODIFY, not on the row, so Fillet fits at 1280 x 720
-	"BUILD": ["Arc", "Dimension", "Constrain", "Mirror", "Chamfer", "Loft", "Offset plane", "Canvas", "Appearance", "Sweep", "Pattern", "Combine", "Offset face", "Draft"]}
+	"BUILD": ["Arc", "Dimension", "Constrain", "Mirror", "Chamfer", "Loft", "Offset plane", "Canvas", "Appearance", "Sweep", "Pattern", "Combine", "Offset face", "Draft", "Roof shell"]}
 ## PAGES (docs/PAGES_PLAN.md, step 1; DaVinci Resolve's page bar): one bar along the bottom, each page its own layout over
 ## the SAME scene, body and undo history. A page shows ONE ribbon row (its groups) and decides which side panels and how
 ## much of the scene strip are open; switching is a view change: no undo step, the scene untouched. The VIEW row is not a
@@ -12919,6 +12919,9 @@ func _ui() -> void:
 	tog.call("VIEW", "Hints", func(): _set_hints(not hints_on), func(): return hints_on, "the teaching lines (how to click, drag, start): on or off (remembered)")
 	tog.call("VIEW", "Contact shadows", func(): cshadow.on = not cshadow.on; _refresh(); _say("contact shadows " + ("on: a soft blob under each foot, darker the nearer the sole is to the floor" if cshadow.on else "off (VIEW > Contact shadows turns them back on)")), func(): return cshadow.on, "a soft shadow under each foot that darkens as the sole nears the floor, gone by 15 cm up (on by default)")
 	tog.call("VIEW", "Realistic", func(): _say(Realistic.set_live(self, not Realistic.live_on)), func(): return Realistic.live_on, "the live view with a physical sky and sun, soft shadows, ambient occlusion and reflections (slower; off = the fast look, remembered nowhere: it starts off)")
+	tog.call("VIEW", "Temple light", func(): _say(TempleLight.set_live(self, not TempleLight.on)), func(): return TempleLight.on, "item 232: the building light in the live view, the same as the final shot: a sky with clouds, a sun you set by the time of day, soft shadows, bounce light in the shadows, haze (slower; starts off)")
+	ui_ribbon["VIEW"].add_child(_button("Light and camera", func(): _temple_panel_toggle(), "time of day, sun, exposure, haze, clouds, GI, and the camera by numbers (position, target, fov)"))
+	ui_ribbon["VIEW"].add_child(_button("Final shot", func(): _temple_final_shot(), "the camera as a PNG with no interface at all (1920 x 1080 unless the panel says otherwise), lit like the live view; saved in the exports folder"))
 	tog.call("VIEW", "Next poses", _sg_toggle, func(): return sg_on, "while a card is current: up to 3 ghost poses of what may come next (gold = your usual next, violet = from real motion, rose = the move phase), small thumbnails after the card.  Tab cycles, Enter or a click takes one as a new card, Esc hides.  Nothing changes until you take one")
 	tog.call("VIEW", "Light", func(): _set_light(Tok.dark), func(): return not Tok.dark, "light or dark theme (remembered)")
 	tog.call("VIEW", "Follow system", func(): _set_theme_system(theme_pref != "system"), func(): return theme_pref == "system", "the palette follows Windows' dark mode (remembered); Light sets it by hand")
@@ -25595,3 +25598,23 @@ func _gpu_pressed(id: int, pm: PopupMenu) -> void:
 		_say("Video encoder: %s (remembered)" % GpuTier.ENCODER_NAMES[GpuTier.pref])
 	GpuTier.save_settings(settings)
 	_gpu_menu_sync(pm)
+
+
+# ---------------------------------------------------------------- TEMPLE LIGHT (item 232): panel + final shot (scripts/build/temple_light.gd)
+var _temple_panel: Control = null
+
+func _temple_panel_toggle() -> void:
+	if _temple_panel == null:
+		_temple_panel = TempleLightUI.build(self)
+		ui_root.add_child(_temple_panel)
+	_temple_panel.visible = not _temple_panel.visible
+	if _temple_panel.visible:
+		TempleLightUI.fill(_temple_panel, self)
+
+
+func _temple_final_shot() -> void:
+	var dir := ProjectSettings.globalize_path("user://exports")
+	var path := "%s/final_shot_%s.png" % [dir, Time.get_datetime_string_from_system().replace(":", "-")]
+	_say("Final shot: drawing...")
+	var r: Dictionary = await TempleLight.final_shot(self, path)
+	_say(String(r["text"]))

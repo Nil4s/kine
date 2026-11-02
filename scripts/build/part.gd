@@ -74,7 +74,7 @@ const PFIT := preload("res://scripts/build/part_fit.gd")   # s193: Fit to an obj
 const SKIN_MM := 0.3   # NROUNDFILTER: a face centre this close (mm) to the box's outside counts as on the skin
 const VERSION := 1
 const RING_MIDDLE := 100.0   # mm: a Ring piece whose centre is closer than this to the middle (not on it) goes round the middle
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "lattice", "fitobj", "move", "offset", "meshsolid", "pipe3d", "prim", "ornament", "bname"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "roof", "lattice", "fitobj", "move", "offset", "meshsolid", "pipe3d", "prim", "ornament", "bname"]
 const OVERHANG_COS := 0.7071   # p113: a face pointing down more than 45 degrees needs support when printed
 const BED_MM := 0.1            # p113: a face this close (mm) to the lowest point of the part is on the floor, not an overhang
 const DRAFT_DIRS := {"x": Vector3(1, 0, 0), "y": Vector3(0, 1, 0), "z": Vector3(0, 0, 1)}
@@ -248,6 +248,18 @@ static func from_file(d: Variant) -> Dictionary:
 			out["asserts"] = pa.duplicate()
 	if (d as Dictionary).get("body_names") is Array:   # item 212/220: a name per body, when the record has them
 		out["body_names"] = ((d as Dictionary)["body_names"] as Array).map(func(x): return String(x))
+	if String((d as Dictionary).get("warn_level", "")) in ["off", "look", "print", "engineering"]:   # item 221: the warning level and the mutes survive save, load and undo (scripts/build/part_warn.gd)
+		out["warn_level"] = String((d as Dictionary)["warn_level"])
+	if (d as Dictionary).get("warn_mute") is Array:
+		var wm: Array = ((d as Dictionary)["warn_mute"] as Array).filter(func(x): return x is String and String(x).contains("@"))
+		if not wm.is_empty():
+			out["warn_mute"] = wm.map(func(x): return String(x))
+	if float((d as Dictionary).get("load_n", 0.0)) > 0.0:
+		out["load_n"] = float((d as Dictionary)["load_n"])   # item 221: the load (N) the beam estimate uses, instead of the part's own weight
+	if PartWeapon.DENSITY.has(String((d as Dictionary).get("material", ""))):
+		out["material"] = String((d as Dictionary)["material"])   # item 221: the material the weight and stress estimates use
+	if String((d as Dictionary).get("style", "")) in ["temple", "none"]:
+		out["style"] = String((d as Dictionary)["style"])   # item 231: the building's style (temple: every piece wears its kind's material)
 	if bool((d as Dictionary).get("kept", false)):
 		out["kept"] = true   # an EMPTY part the user chose (Easy's Empty): a part with no steps that undo and redo bring back as it was
 	return out if not out["features"].is_empty() or out.has("kept") else {}
@@ -640,8 +652,18 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var mse := PartMeshSolid.add(bodies, f)
 				if mse != "":
 					errs[id] = mse
+			"roof":   # s226: a thin curved roof shell, with its trims as more bodies (scripts/build/part_roof.gd)
+				var rf0 := bodies.size()
+				var rfe := PartRoof.add(bodies, f)
+				look_fit(looks, bodies.size())
+				PieceLook.stamp(looks, rf0, PieceLook.roof_hints(f, bodies.size() - rf0))   # s231: the shell is a roof, its trims ridge pieces
+				if rfe != "":
+					errs[id] = rfe
 			"ornament":   # s227: a library ornament (a ridge beast, a lion...) sewn into solids (its own file: part_ornament.gd)
+				var or0 := bodies.size()
 				var orne := PartOrnament.add(bodies, f)
+				look_fit(looks, bodies.size())
+				PieceLook.stamp(looks, or0, ["ridge"].duplicate() if bodies.size() - or0 <= 1 else range(bodies.size() - or0).map(func(_k): return "ridge"))
 				if orne != "":
 					errs[id] = orne
 			"lattice":   # p208latticeinf: thin bars inside a hollow box (its own function: _lattice)
@@ -698,6 +720,8 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					var olook: Variant = looks[ai]
 					if olook != null and (olook as Dictionary).has("name"):
 						alook["name"] = (olook as Dictionary)["name"]   # s212: painting a body keeps its name
+					if olook != null and (olook as Dictionary).has("hint"):
+						alook["hint"] = (olook as Dictionary)["hint"]   # s231: and its piece kind
 					looks[ai] = alook
 			"bname":   # s212: the body's name from this step on (its own numbers; no kernel)
 				var ni := int(f.get("body", -1))
@@ -737,6 +761,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					bodies[hbi] = sw
 	_gear_turn_view(rec, bodies, want)   # s124: the Gear pair's gears shown turned (the view only; the record's pose is its own saved field)
 	look_fit(looks, bodies.size())
+	res["body_kinds"] = []
+	for bk in bodies.size():
+		res["body_kinds"].append(PieceLook.kind_at(looks, bk))   # s231: what each body is in a building (before the style's defaults replace the looks)
+	PieceLook.finish(rec, looks)   # s231: in a temple, a body no one painted wears its kind's material
 	var mesh := ArrayMesh.new()
 	for b in bodies:
 		var v := KCad.volume(b)

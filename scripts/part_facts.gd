@@ -45,6 +45,7 @@ class Model:
 	var ids: Array = []          # the kernel solids (kept until free())
 	var labels: Array = []       # one name per body
 	var errors: Dictionary = {}  # the replay's step errors {feature id: message}
+	var looks: Array = []        # item 221: the body looks of the replay ({"c": Color, "preset", ...}), one per body
 	var props: Array = []        # KCad.mass_properties per body (metres)
 	var vol_mm3: Array = []
 	var _tris := {}              # i -> PackedVector3Array (flat triangles, mm)
@@ -321,6 +322,7 @@ static func build(rec: Dictionary) -> Model:
 	M.ids = r.get("ids", [])
 	M.n = M.ids.size()
 	M.errors = r.get("errors", {})
+	M.looks = r.get("body_looks", [])
 	if M.n == 0:
 		M.why = "the part has no solid body" + ((": " + JSON.stringify(M.errors)) if not M.errors.is_empty() else "")
 		return M

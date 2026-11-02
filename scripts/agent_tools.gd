@@ -432,11 +432,19 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# N022 HUMAN FACTS: cited human numbers by keywords (scripts/human_facts.gd); not in METHODS (the transcript's ready line)
 			var fr := HumanFacts.serve(p)
 			return _ok(id, fr) if not fr.is_empty() else _err(id, -32602, "facts needs {\"q\": \"how fast is a real jab?\"}, {\"list\": true} or {\"registry\": true}")
+		"part_roof":   # ITEM 226: a thin curved roof step (hip / gable / xieshan / pyramid / shed / flat, sag, corner lift, open top) on the part on screen; ONE undo step (scripts/build/part_roof.gd). Not in METHODS
+			var prf := PartRoof.serve(m, p)
+			return _ok(id, prf) if prf["ok"] else _err(id, -32602, String(prf["error"]))
 		"part_facts", "part_assert":
 			# ITEM 220 MODELING VIEW WITH MATHS (scripts/part_facts.gd, scripts/part_assert.gd): the part as text, and one-line checks on it, the
 			# way assert / state give the body. {part | path} or the part on screen. Not in METHODS (the transcript's ready line)
 			var pt := PartAssert.serve(self, method, p)
 			return _ok(id, pt["result"]) if pt["ok"] else _err(id, -32602, String(pt["error"]), {"grammar": pt["grammar"]} if pt.has("grammar") else null)
+		"part_warn":
+			# ITEM 221 WARNING LEVELS (scripts/build/part_warn.gd): the part's warnings at its level (off / look / print / engineering), the same list the
+			# Part panel shows; {level}, {mute}, {unmute} edit the record in one undo step. Not in METHODS (the transcript's ready line)
+			var pw := PartWarn.serve(self, p)
+			return _ok(id, pw["result"]) if pw["ok"] else _err(id, -32602, String(pw["error"]))
 		"dry":
 			# N003: what run's steps WOULD do (parts moved, findings added / removed, score change, cards / keys touched), the
 			# scene, body and undo put back byte for byte; file-writing steps refused: scripts/dry_run.gd
@@ -457,6 +465,12 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			return _ok(id, orr["result"]) if orr["ok"] else _err(id, -32602, String(orr["error"]))
 
 
+		"temple_light":   # item 232: sky, sun by time of day, haze, GI, exposure, camera by numbers (scripts/build/temple_light.gd). Not in METHODS
+			var tl := TempleLight.serve(m, p)
+			return _ok(id, tl) if bool(tl["ok"]) else _err(id, -32602, String(tl["error"]))
+		"final_shot":   # item 232: the camera as a PNG with no UI, at a size ({out, w, h, camera?}). Not in METHODS
+			var fs: Dictionary = await TempleLight.serve_final(m, p)
+			return _ok(id, fs) if bool(fs["ok"]) else _err(id, -32000, String(fs["text"]))
 		"nature":   # FRIDAY 225: trees, hedges, shrubs, grass, flowers, paths, scatter (scripts/build/nature_agent.gd); not in METHODS (the transcript's ready line)
 			var na := NatureAgent.serve(m, p)
 			return _ok(id, na) if bool(na["ok"]) else _err(id, -32602, String(na["error"]))

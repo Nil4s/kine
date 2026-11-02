@@ -47,6 +47,9 @@ const PARAMS := {
 	"floor_height": [2.8, 1.0, 15.0], "roof_overhang": [0.45, 0.0, 3.0], "inner_wall_thickness": [0.1, 0.05, 0.5],
 }
 const ROOFS := ["gable", "flat", "shed"]
+const ROOFS_CURVED := ["hip", "pyramid", "xieshan", "curved"]   # s226: thin shell roofs (scripts/build/part_roof.gd); "curved" = a hip roof with the Chinese sag and raised corners
+const ROOFS_ALL := ["gable", "flat", "shed", "hip", "pyramid", "xieshan", "curved"]   # the Expert roof panel's choices
+static var _shell_cache := {}
 const ROOF_PITCH := 25.0        # degrees: gable and shed
 const SHED_LOW := 0.1           # m: a shed roof's low edge is this thick (a flat roof is floor_thickness thick)
 const MIN_SIZE := 0.5   # a room smaller than this across is not a room (the drag's dead zone)
@@ -414,6 +417,8 @@ static func roof_solid(b: Dictionary) -> Dictionary:
 	var ov := maxf(num(b, rf.get("overhang"), 0.45), 0.0)
 	var rect: Rect2 = (base["rect"] as Rect2).grow(ov)
 	var yb: float = base["y"]
+	if ROOFS_CURVED.has(String(rf.get("kind", ""))):
+		return _roof_shell(rf, rect, ov, yb)
 	var ridge_x := rect.size.x >= rect.size.y   # the ridge runs along X: the span is across Z
 	var span := rect.size.y if ridge_x else rect.size.x
 	var length := rect.size.x if ridge_x else rect.size.y
@@ -453,6 +458,32 @@ static func roof_solid(b: Dictionary) -> Dictionary:
 			rev.reverse()
 			faces[fi] = PackedInt32Array(rev)
 	return {"verts": verts, "faces": faces}
+
+
+## s226: hip / pyramid / hip-and-gable / curved roofs: the thin shell of PartRoof over the plan (metres), as triangles
+static func _roof_shell(rf: Dictionary, rect: Rect2, ov: float, yb: float) -> Dictionary:
+	var kd := String(rf.get("kind", "hip"))
+	var f := {"type": "hip" if kd == "curved" else kd, "w": maxf(rect.size.x - 2.0 * ov, 0.1) * 1000.0, "d": maxf(rect.size.y - 2.0 * ov, 0.1) * 1000.0,
+		"overhang": ov * 1000.0, "pitch": clampf(float(rf.get("pitch", ROOF_PITCH)), 1.0, 70.0), "thick": 120.0, "detail": 12,
+		"at": [rect.get_center().x * 1000.0, (yb + 0.15) * 1000.0, rect.get_center().y * 1000.0]}
+	if kd == "curved":
+		var g := PartRoof.geometry(PartRoof.norm(f))
+		f["sag"] = 0.12 * float(g["H"])
+		f["lift"] = 0.2 * float(g["H"])
+	var key := JSON.stringify(f)
+	if not _shell_cache.has(key):
+		var m: Dictionary = PartRoof.meshes(f)[0]
+		var vs := []
+		for v in (m["v"] as PackedVector3Array):
+			vs.append(v * 0.001)
+		var fs := []
+		var t: PackedInt32Array = m["t"]
+		for i in range(0, t.size(), 3):
+			fs.append(PackedInt32Array([t[i], t[i + 1], t[i + 2]]))
+		if _shell_cache.size() > 8:
+			_shell_cache.clear()
+		_shell_cache[key] = {"verts": vs, "faces": fs}
+	return (_shell_cache[key] as Dictionary).duplicate()
 
 
 ## the grid's boundary faces, outward and counter-clockwise, turned back by basis into the world, appended to acc's
@@ -673,7 +704,7 @@ static func from_file(d: Variant) -> Dictionary:
 	if not nat.is_empty():
 		b["nature"] = nat
 	var rf = d.get("roof", {})
-	if rf is Dictionary and ROOFS.has(String(rf.get("kind", ""))):
+	if rf is Dictionary and ROOFS_ALL.has(String(rf.get("kind", ""))):
 		var pitch = rf.get("pitch", ROOF_PITCH)
 		var ovh = rf.get("overhang", "roof_overhang")
 		b["roof"] = {"kind": String(rf["kind"]), "pitch": clampf(float(pitch), 1.0, 70.0) if (pitch is float or pitch is int) and is_finite(float(pitch)) else ROOF_PITCH,

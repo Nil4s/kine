@@ -24,9 +24,9 @@ const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]   # Constrain: the rule row (CON_TOOLS, below)
-const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Primitive", "Ornament"]
+const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Primitive", "Ornament", "Roof shell"]
 const PPRIMUI := preload("res://scripts/build/part_prim_ui.gd")   # s229: the Primitive dialog and the plane modes
-const TOOL_KIND := {"Primitive": "prim", "Offset plane": "plane", "Offset face": "offset_face", "Draft": "draft"}   # a tool's feature kind when it is not its lower-case name
+const TOOL_KIND := {"Roof shell": "roof", "Primitive": "prim", "Offset plane": "plane", "Offset face": "offset_face", "Draft": "draft"}   # a tool's feature kind when it is not its lower-case name
 const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell", "Appearance", "Offset face", "Draft"]
 const LOOK_TOOLS := ["Appearance"]   # APPEARANCE (GAP 5): picks a body for the side panel; the panel is _build_look / _look_sync
 const LOOK_PRESET_ORDER := ["Paint", "Metal", "Glass", "Rubber", "Plastic"]
@@ -60,6 +60,7 @@ const TIPS := {
 	"Split": "SPLIT: pick a plane and an offset (mm). Every body the plane cuts becomes two bodies. Press Enter.",
 	"Appearance": "APPEARANCE: click a body in the browser (Body1, Body2...). Pick a colour chip, the picker or a preset (Paint, Metal, Glass, Rubber, Plastic). Each change is one undo step.",
 	"Shell": "SHELL: the newest body becomes a hollow box with the wall thickness you type. Pick the face left open, press Enter.",
+	"Roof shell": "ROOF SHELL: a thin curved roof shell from a plan: hip, gable, hip and gable, pyramid, shed or flat, with the eave overhang, a sag in the slope, raised corners and an open top for a double eave. Type the numbers; live preview.",
 	"Combine": "COMBINE: click the target body (it stays), then the tool bodies, in the view or the browser. Pick Join, Cut or Intersect. Keep tools leaves them.",
 	"Canvas": "CANVAS: put a picture on the Front, Top or Right plane (or an offset plane). Click two points of known size, type the real distance, drag it to line up.",
 	"Loft": "LOFT: pick two or more sketches in order (each a closed profile); the solid runs through them. Ruled = straight, Smooth = curved.",
@@ -81,6 +82,7 @@ var m: Node
 var on := false                # the Part workspace is showing (inside BUILD)
 var easy := false              # ...with EASY PART's screen (scripts/easy_part.gd) instead of the Expert chrome: the same record
 var ep: EasyPart
+var warn_ui: PartWarnUI        # item 221: the Warnings panel (scripts/build/part_warn_ui.gd), shown with the Part workspace
 var easy_open_btn: Button
 var tool := ""
 var sk := ""                   # the sketch being edited ("" = the model is showing)
@@ -339,6 +341,10 @@ func setup(b: BuildUI) -> void:
 	ep.m = m
 	m.ui_root.add_child(ep)   # (PartUI itself is not in the tree: EasyPart needs its own _process)
 	ep.build(m.ui_root)
+	warn_ui = PartWarnUI.new()
+	warn_ui.m = m
+	warn_ui.pu = self
+	warn_ui.build(m.ui_root)
 
 
 ## the Expert chrome (ribbon tools, browser, panel, timeline) shows
@@ -1615,6 +1621,8 @@ func open_dialog(t: String, edit: int) -> void:
 			dlg_info.text = "Nothing to draft yet."
 	elif kind == "hinge":
 		_hinge_open(f, edit)
+	elif kind == "roof":   # s226 (scripts/build/part_roof_ui.gd)
+		PartRoofUI.open_rows(self, f, edit)
 	elif kind == "mirror":
 		dlg_rows.add_child(f_plane)
 		f_plane.select(PlanesIdx.find(String(f.get("plane", "right"))))
@@ -1900,6 +1908,8 @@ func dialog_feature() -> Dictionary:
 				f["flange"] = true
 		"pattern":
 			f = _pattern_feature()
+		"roof":   # s226
+			f = PartRoofUI.feature(self)
 		"ornament":   # s227
 			f = PartOrnamentUI.feature(self)
 			if f.is_empty():
@@ -2002,6 +2012,8 @@ func _dialog_hint(kind: String) -> String:
 		return "Pick two or more sketches, in order."
 	if kind == "sweep":
 		return "Pick the profile (closed) and the path (open), two different sketches."
+	if kind == "roof":
+		return PartRoofUI.hint()
 	if kind == "plane":
 		return PPRIMUI.plane_hint(self)
 	if kind == "prim":
@@ -4331,7 +4343,7 @@ func _build_look(vb: VBoxContainer) -> void:
 		pr.add_child(pb)
 		look_presets[pn] = pb
 	look_box.add_child(_label("Made materials", 12, true))   # s223: oak, steel, tile, marble... drawn in code; or say it in words
-	look_mat = MaterialPicker.build(look_box, "part_look_", Callable(self, "_look_set_mat"))
+	look_mat = MaterialPicker.build(look_box, "part_look_", Callable(self, "_look_set_mat"), 34, Callable(self, "_look_set_kind"), Callable(self, "_look_set_style"))
 
 
 ## the look of the picked body now (from the replay); a default when none is picked
@@ -5350,3 +5362,32 @@ func ren_stats() -> String:
 	if bi >= vols.size():
 		return ""
 	return ", %s %s cm3" % [Part.body_name(res, bi), snappedf(float(vols[bi]) * 1e6, 0.01)]
+
+
+## s231: one material for every piece of a kind (one undo step; one appear step per body)
+func _look_set_kind(kind: String, spec: Dictionary, _label := "") -> void:
+	if not Part.available() or int(res.get("bodies", 0)) == 0:
+		return
+	var rec := _rec()
+	m._step_hint = "Material for " + String(PieceLook.LABELS.get(kind, kind))
+	m._push_undo()
+	var n := PieceLook.apply(rec, res, kind, spec)
+	if n == 0:
+		_say("No %s in this building yet (a piece is called by its name: Column, Roof, Stair rail...)" % String(PieceLook.LABELS.get(kind, kind)).to_lower())
+		return
+	upto = -1
+	_say("%s: %d piece%s now %s. Undo takes it back." % [String(PieceLook.LABELS.get(kind, kind)), n, "" if n == 1 else "s", MaterialWords.describe(spec)])
+	bu.sync()
+
+
+## s231: the building's style ("temple" | "none"), one undo step
+func _look_set_style(style: String) -> void:
+	if not Part.available():
+		return
+	var rec := _rec()
+	m._step_hint = "Look: " + style
+	m._push_undo()
+	PieceLook.set_style(rec, style)
+	upto = -1
+	_say("Temple look on. Undo takes it back." if style == "temple" else "Plain colours again. Undo takes it back.")
+	bu.sync()
