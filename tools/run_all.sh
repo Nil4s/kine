@@ -641,3 +641,15 @@ EXTRA="$EXTRA s240:w"   # s240: FRAMED FLOOR OVERLAP (Fit view frames the grid i
 
 
 EXTRA="$EXTRA s239:w"   # s239: GROUPED LIBRARY (group tabs, every chip readable, any number of categories fits), tests/s239_test.gd
+EXTRA="$EXTRA s241:w"   # s241: WHAT A STEP DID (body-making calls return created / changed / removed with stable keys), tests/s241_test.gd
+
+
+EXTRA="$EXTRA s244:w"   # s244: CHECKPOINT + REPLAY FROM STEP, tests/s244_test.gd
+
+
+EXTRA="$EXTRA s242:w"   # s242: LOOK FACTS (agent look_facts: per-piece colour, coverage, contrast, visibility from an ID pass + the final light), tests/s242_test.gd
+
+
+
+
+EXTRA="$EXTRA s243:w"   # s243: FRAMING FACTS FROM THE SILHOUETTE (frame_facts, frame_to), tests/s243_test.gd

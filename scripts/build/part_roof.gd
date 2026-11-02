@@ -916,7 +916,7 @@ static func serve(m: Node, p: Dictionary) -> Dictionary:
 	else:
 		feat = Part.new_feature(rec, "roof", fields)
 		(rec["features"] as Array).append(feat)
-	var res := Part.replay(rec)
+	var res := Part.replay(rec, -1, {"effects": true})
 	var errs: Dictionary = res["errors"]
 	if errs.has(String(feat["id"])):
 		return {"ok": false, "error": String(errs[String(feat["id"])])}
@@ -926,4 +926,4 @@ static func serve(m: Node, p: Dictionary) -> Dictionary:
 	if m.has_method("_fit_top"):
 		m._fit_top.call_deferred()
 	var bb: Variant = res.get("aabb", null)
-	return {"ok": true, "id": String(feat["id"]), "bodies": int(res["bodies"]), "volume_mm3": float(res["volume"]) / (MM * MM * MM), "box_mm": bb, "words": words(feat)}
+	return PartFx.merge_into({"ok": true, "id": String(feat["id"]), "bodies": int(res["bodies"]), "volume_mm3": float(res["volume"]) / (MM * MM * MM), "box_mm": bb, "words": words(feat)}, res, String(feat["id"]))

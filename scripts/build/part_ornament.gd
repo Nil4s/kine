@@ -754,7 +754,7 @@ static func serve(m: Node, p: Dictionary) -> Dictionary:
 			fl["seat"] = bool(p.get("seat", true))
 	var feat := Part.new_feature(rec, "ornament", fl)
 	rec["features"].append(feat)
-	var res := Part.replay(rec)
+	var res := Part.replay(rec, -1, {"effects": true})
 	var errs: Dictionary = res["errors"]
 	if errs.has(String(feat["id"])):
 		return {"ok": false, "error": String(errs[String(feat["id"])])}
@@ -762,5 +762,5 @@ static func serve(m: Node, p: Dictionary) -> Dictionary:
 	m._push_undo()
 	m.S.part = rec
 	var bb: AABB = res["aabb"]
-	return {"ok": true, "error": "", "result": {"id": feat["id"], "kind": feat["kind"], "bodies": int(res["bodies"]), "volume_mm3": float(res["volume"]) / (MM * MM * MM),
-		"box_mm": [bb.size.x / MM, bb.size.y / MM, bb.size.z / MM], "places": (feat["places"] as Array).size()}}
+	return {"ok": true, "error": "", "result": PartFx.merge_into({"id": feat["id"], "kind": feat["kind"], "bodies": int(res["bodies"]), "volume_mm3": float(res["volume"]) / (MM * MM * MM),
+		"box_mm": [bb.size.x / MM, bb.size.y / MM, bb.size.z / MM], "places": (feat["places"] as Array).size()}, res, String(feat["id"]))}
