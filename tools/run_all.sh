@@ -667,3 +667,6 @@ EXTRA="$EXTRA w01:w"   # w01: camera navigation settings (remap, zoom to cursor,
 
 EXTRA="$EXTRA w04:w"   # w04: retarget bone-map screen, tests/w04_test.gd
 EXTRA="$EXTRA w04m:w"   # w04m: bone-map screen through main._import_anim_picked, tests/w04m_test.gd
+
+
+EXTRA="$EXTRA w08:w"   # w08: In place / travelling toggle on a clip, applied live, tests/w08_test.gd

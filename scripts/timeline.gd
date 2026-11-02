@@ -113,7 +113,7 @@ const SNAP := 0.05       # s: the clips' snap (a retime snaps to frames, see _re
 const FINE := 0.01
 const LANE_H := 14.0     # px: one sound lane (ROADMAP 77: one thin lane per track, under the cards, track 0 on top)
 const MIN_MOVE := 0.04   # s: a move can't be shorter (a 1-frame move at 30 fps is 0.033)
-const CLIP_H := 12.0     # px: one row per placed CLIP (scripts/clips.gd), under the cards
+const CLIP_H := 20.0     # px: one row per placed CLIP (scripts/clips.gd), under the cards
 const WARP_H := 58.0     # px: the picked clip's row is taller by this: its TIME WARP panel (ROADMAP 83; scripts/clips.gd warp_*)
 
 var m: Node              # main.gd: reads m.S, m.playhead, m.sel_card
@@ -361,6 +361,9 @@ func hit(p: Vector2) -> Dictionary:
 	var wh := warp_hit(p)   # the picked clip's time curve: a knot (j) or its empty panel (j = -1)
 	if not wh.is_empty():
 		return wh
+	var ik := inplace_at(p)
+	if ik >= 0:
+		return {"kind": "inplace", "i": ik}
 	var ck := clip_at(p)
 	if ck >= 0:
 		return {"kind": "clip", "i": ck}
@@ -454,6 +457,11 @@ func _gui_input(ev: InputEvent) -> void:
 			if h.is_empty():
 				return
 			match h["kind"]:
+				"inplace":   # W08: the clip's In place chip
+					var cu = m.get("clips_ui")
+					if cu != null:
+						cu.sel = int(h["i"])
+						cu.toggle_inplace(int(h["i"]))
 				"clip":
 					_clip_press(h["i"], ev.position.x)
 				"warp":
@@ -1302,6 +1310,28 @@ func warp_hit(p: Vector2) -> Dictionary:
 	return {"kind": "warp", "i": k, "j": best}
 
 
+## W08: clip k's "In place" chip, at the START of its bar (clamped to stay on the strip when the clip starts off-screen).
+## Dark pill with light text when it travels; amber with dark text when in place (both >= 4.5:1, asserted in tests/w08_test.gd)
+const CHIP_W := 68.0
+const CHIP_OFF_FILL := Color(0.12, 0.12, 0.15)
+const CHIP_OFF_INK := Color(0.96, 0.96, 0.98)
+const CHIP_ON_FILL := Color(1.0, 0.76, 0.18)
+const CHIP_ON_INK := Color(0.10, 0.08, 0.02)
+func inplace_rect(k: int) -> Rect2:
+	var r := clip_rect(k)
+	return Rect2(clampf(r.position.x, 2.0, maxf(2.0, size.x - CHIP_W - 2.0)), r.position.y, CHIP_W, r.size.y)
+
+
+func inplace_at(p: Vector2) -> int:
+	var S := _S()
+	if S == null:
+		return -1
+	for k in S.clips.size():
+		if inplace_rect(k).has_point(p):
+			return k
+	return -1
+
+
 func clip_at(p: Vector2) -> int:
 	var S := _S()
 	if S == null:
@@ -1516,6 +1546,19 @@ func _draw_clips(S: Scene, font: Font) -> void:
 		for i in range(1, int(c["repeat"])):   # each repeat's seam
 			var xs := x_of(float(c["start"]) + L * i / float(c["speed"]))
 			draw_line(Vector2(xs, r.position.y), Vector2(xs, r.end.y), Tok.of("on_accent:0.6"), 1.0)
-		draw_string(font, Vector2(r.position.x + 3, r.position.y + 9), Clips.label(c), HORIZONTAL_ALIGNMENT_LEFT, maxf(r.size.x - 4, 1.0), 9, Tok.c("on_accent"))
+		draw_string(font, Vector2(inplace_rect(k).end.x + 4, r.position.y + 13), Clips.label(c), HORIZONTAL_ALIGNMENT_LEFT, maxf(r.end.x - inplace_rect(k).end.x - 6, 1.0), 11, Tok.c("on_accent"))
+		var ir := inplace_rect(k)   # W08: the In place toggle, lit amber when on
+		var ion := bool(c.get("inplace", false))
+		var ink := CHIP_ON_INK if ion else CHIP_OFF_INK
+		draw_rect(ir, CHIP_ON_FILL if ion else CHIP_OFF_FILL)
+		draw_rect(ir, CHIP_ON_INK if ion else Color(1, 1, 1, 0.55), false, 1.5)   # an outline: the amber chip must not melt into the amber bar
+		var cy := ir.position.y + ir.size.y * 0.5
+		if ion:
+			draw_arc(Vector2(ir.position.x + 9, cy), 3.5, 0.0, TAU, 12, ink, 1.6)   # a ring: stays put
+		else:
+			draw_line(Vector2(ir.position.x + 4, cy), Vector2(ir.position.x + 14, cy), ink, 1.6)   # an arrow: travels
+			draw_line(Vector2(ir.position.x + 14, cy), Vector2(ir.position.x + 10, cy - 3), ink, 1.6)
+			draw_line(Vector2(ir.position.x + 14, cy), Vector2(ir.position.x + 10, cy + 3), ink, 1.6)
+		draw_string(font, Vector2(ir.position.x + 18, cy + 4), "In place" if ion else "Travels", HORIZONTAL_ALIGNMENT_LEFT, ir.size.x - 20, 11, ink)
 		if k == sel:
 			draw_rect(r.grow(0.5), Tok.c("focus"), false, 1.5)

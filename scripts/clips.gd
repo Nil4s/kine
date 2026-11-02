@@ -117,6 +117,8 @@ static func clean(c: Dictionary) -> Dictionary:
 	var mt := match_norm(c.get("match", {}))
 	if not mt.is_empty():
 		out["match"] = mt
+	if bool(c.get("inplace", false)):
+		out["inplace"] = true   # W08: IN PLACE, the hips' floor travel taken out (written only when on)
 	if not out["type"] in TYPES:
 		out["type"] = "replace"
 	if not out["mask"] in MASK_NAMES:
@@ -516,6 +518,13 @@ static func _play(S: Scene, B: Body, t: float) -> void:
 		var mt: Dictionary = c.get("match", {}) if c["type"] == "replace" else {}   # ROADMAP 84
 		if not mt.is_empty() and mask_root(c["mask"]):
 			off = align(off, mt)
+		if bool(c.get("inplace", false)) and mask_root(c["mask"]):
+			# W08 IN PLACE: the hips stay over the floor spot the source starts on (x and z); the height and every joint are the source's own
+			var b0: Vector3 = (_pose_of(e, 0.0, mirror, Q) as Array)[1]
+			if not mt.is_empty():
+				b0 = align(b0, mt)
+			off.x = b0.x
+			off.z = b0.z
 		for j in mask_joints(c["mask"]):
 			if not B.ang.has(j) or not qa.has(j):
 				continue
@@ -548,6 +557,8 @@ static func label(c: Dictionary) -> String:
 		s += " [%s]" % c["mask"]
 	if c["type"] == "add":
 		s += " +add"
+	if bool(c.get("inplace", false)):
+		s += " (in place)"
 	if bool(c.get("mirror", false)):
 		s += " (mirrored)"
 	return s
