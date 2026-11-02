@@ -694,3 +694,4 @@ EXTRA="$EXTRA w07:w"   # w07: arithmetic in number fields (25*2+3), scripts/num_
 
 
 EXTRA="$EXTRA w02:w"   # w02: sketch health free / fully defined / over-constrained by colour + the clashing pair named, tests/w02_test.gd
+EXTRA="$EXTRA w05b:w"   # w05b: checklist triangles, Split to fit, OBJ and GLB follow the mesh quality, tests/w05b_test.gd

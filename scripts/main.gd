@@ -23787,9 +23787,10 @@ func _export_obj(dir := "user://exports", budget := 0) -> String:
 
 ## OBJ of ONE object (DELIVER, the export dialog's OBJ with "Only the selected object"; or one entry per object): the picked
 ## set piece (the chair) or the body, each as its own group at its place (metres, Y up). Same objects as the .glb choice
-func _export_obj_objects(dir := "res://exports", only_selected := false, budget := 0) -> String:
+func _export_obj_objects(dir := "res://exports", only_selected := false, budget := 0, quality := {}) -> String:
 	dir = UserPaths.w(dir)
 	var objs := scene_objects()
+	objs = MeshQuality.objects_at(objs, S.part, quality)   # W05b
 	if only_selected:
 		var want := selected_object_name()
 		objs = objs.filter(func(o): return String(o["name"]) == want or String(o.get("group", "")) == want)
@@ -23948,9 +23949,10 @@ func selected_object_name() -> String:
 
 ## EXPORT DIALOG "What to export" (only_selected: the one object; else every object by its name): a static .glb of the
 ## mesh objects in the scene at res:// dir (user's folder in an exported build). Everything is _export_glb, not this.
-func _export_objects(dir := "res://exports", only_selected := false, budget := 0) -> String:
+func _export_objects(dir := "res://exports", only_selected := false, budget := 0, quality := {}) -> String:
 	dir = UserPaths.w(dir)
 	var objs := scene_objects()
+	objs = MeshQuality.objects_at(objs, S.part, quality)   # W05b
 	if only_selected:
 		var want := selected_object_name()
 		objs = objs.filter(func(o): return String(o["name"]) == want or String(o.get("group", "")) == want)
