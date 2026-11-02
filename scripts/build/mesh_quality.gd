@@ -55,3 +55,47 @@ static func _grp(n: int) -> String:
 			out += " "
 		out += s[i]
 	return out
+
+
+## W05b: the mesh objects an OBJ / GLB export takes (main.scene_objects' entries), with the free part's re-tessellated at quality q. Normal or {} leaves the
+## list as it is (what the files always held). The part's objects (named as the part, or grouped under it) become one object per body of MeshExport.bodies_of.
+static func objects_at(objs: Array, rec: Dictionary, q: Dictionary) -> Array:
+	if q.is_empty() or String(q.get("name", "Normal")) == "Normal" or rec.is_empty():
+		return objs
+	var pname := String(rec.get("name", "Part"))
+	var at := -1
+	for i in objs.size():
+		var o: Dictionary = objs[i]
+		if String(o["name"]) == pname or String(o.get("group", "")) == pname:
+			at = i
+			break
+	if at < 0:
+		return objs
+	var bo := MeshExport.bodies_of(rec, q)
+	if (bo["bodies"] as Array).is_empty():
+		return objs
+	var made := []
+	var many: bool = (bo["bodies"] as Array).size() > 1
+	for b in bo["bodies"]:
+		var v: PackedVector3Array = b["v"]
+		var t: PackedInt32Array = b["t"]
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for k in t:
+			st.add_vertex(MeshExport.to_print_inv(v[k]))
+		st.generate_normals()
+		var e := {"name": String(b["name"]), "mesh": st.commit(), "xf": Transform3D.IDENTITY}
+		if many:
+			e["group"] = pname
+		else:
+			e["name"] = pname
+		made.append(e)
+	var out := []
+	for i in objs.size():
+		var o: Dictionary = objs[i]
+		if String(o["name"]) == pname or String(o.get("group", "")) == pname:
+			if i == at:
+				out.append_array(made)
+		else:
+			out.append(o)
+	return out

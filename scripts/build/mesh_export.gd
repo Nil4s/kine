@@ -325,11 +325,11 @@ static func export_part(rec: Dictionary, fmt: String, dir: String, budget := 0, 
 
 
 ## the dialog's checklist for the part on screen (lines start OK or WARN)
-static func check_lines(rec: Dictionary) -> Array:
-	var bo := bodies_of(rec)
+static func check_lines(rec: Dictionary, quality := {}, budget := 0) -> Array:
+	var bo := bodies_of(rec, quality)
 	if (bo["bodies"] as Array).is_empty():
 		return ["WARN  " + String(bo["why"])]
-	var lines: Array = (report(bo["bodies"])["lines"] as Array).duplicate()
+	var lines: Array = (report(ExportBudget.apply_bodies(bo["bodies"], budget) if budget > 0 else bo["bodies"])["lines"] as Array).duplicate()
 	lines.append_array(PrintCheck.lines_of(rec, bo["bodies"]))   # Friday plan 112: Ready to print? (thin walls, overhangs, floating pieces)
 	for row in Part.thread_look_rows(rec, AABB()):   # s031: a threaded hole says how to make the thread
 		lines.append("OK  " + Part.thread_look_words(int(row["M"]), float(row["pitch"])))

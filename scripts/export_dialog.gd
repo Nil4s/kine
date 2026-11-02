@@ -245,6 +245,7 @@ func _build() -> void:
 	ui_what.add_item("Only the selected object")
 	ui_what.add_item("One entry per mesh object (by its name)")
 	ui_what.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ui_what.item_selected.connect(func(_i: int): _refresh())
 	rw.add_child(ui_what)
 	v.add_child(rw)
 	ui_face_row = HBoxContainer.new()   # laser cutting only: which flat face
@@ -477,7 +478,7 @@ func quality() -> Dictionary:
 
 
 func _refresh_quality() -> void:
-	var on: bool = _cur_id() == "print" and _cur_run() in ["stl", "3mf"]
+	var on: bool = (_cur_id() == "print" and _cur_run() in ["stl", "3mf"]) or (_cur_run() in ["glb", "obj"] and ui_what.selected > 0 and not (m.S.part as Dictionary).is_empty() and Part.available())   # W05b: and the OBJ / GLB of the part's objects
 	ui_q_row.visible = on
 	ui_q_info.visible = on
 	ui_q_custom.visible = on and ui_q.selected == 3
@@ -487,9 +488,10 @@ func _refresh_quality() -> void:
 	var rec: Dictionary = m.S.part
 	var budget: int = ExportBudget.BUDGETS[ui_budget.selected] if ui_budget.selected >= 0 else 0
 	var key := "%d|%s|%s|%d" % [rec.hash(), str(q), _cur_run(), budget]
+	var fmt := _cur_run() if _cur_run() in ["stl", "3mf"] else "stl"
 	if not _q_cache.has(key):
 		var bo := MeshExport.bodies_of(rec, q)
-		_q_cache[key] = MeshQuality.estimate(ExportBudget.apply_bodies(bo["bodies"], budget), _cur_run(), String(rec.get("name", "Part"))) if (bo["bodies"] as Array).size() > 0 else {"tris": 0, "bytes": 0, "text": "nothing to export yet"}
+		_q_cache[key] = MeshQuality.estimate(ExportBudget.apply_bodies(bo["bodies"], budget), fmt, String(rec.get("name", "Part"))) if (bo["bodies"] as Array).size() > 0 else {"tris": 0, "bytes": 0, "text": "nothing to export yet"}
 	ui_q_info.text = String((_q_cache[key] as Dictionary)["text"])
 
 
@@ -532,7 +534,7 @@ func checks(id: String, run: String) -> Array:
 	if id == "step":
 		return StepExport.check_lines(m.S.part)
 	if id == "print":   # the printability check of the part on screen
-		var pl: Array = MeshExport.check_lines(m.S.part)
+		var pl: Array = MeshExport.check_lines(m.S.part, quality(), ExportBudget.BUDGETS[ui_budget.selected] if ui_budget != null and ui_budget.selected >= 0 else 0)
 		if not (m.S.part as Dictionary).is_empty() and Part.available():
 			pl.append_array(PrintSplit.size_lines(m.S.part, bed_mm, split_fit))
 		return pl
@@ -632,7 +634,7 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 		m._say_plain(String(rl["text"]))
 		return String(rl["path"]) if bool(rl["ok"]) else ""
 	if id == "print":   # STL / 3MF of the part on screen (never blocked: an open shape still writes, with the warning in the words)
-		var r := PrintSplit.export_part(m.S.part, run, UserPaths.w(dir), bed_mm) if split_fit else MeshExport.export_part(m.S.part, run, UserPaths.w(dir), budget, quality())
+		var r := PrintSplit.export_part(m.S.part, run, UserPaths.w(dir), bed_mm, quality()) if split_fit else MeshExport.export_part(m.S.part, run, UserPaths.w(dir), budget, quality())
 		m._say_plain(String(r["text"]))
 		return String(r["path"]) if bool(r["ok"]) else ""
 	if id == "step":   # STEP of the part on screen (the exact solid)
@@ -651,9 +653,9 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 		m._say_plain("exported %s: your body (%d verts) with its skeleton and the animation. FBX: open this .glb in Blender and export FBX" % [String(rb["path"]).get_file(), int(rb["verts"])])
 		return String(rb["path"])
 	if what > 0 and run == "glb":
-		return m._export_objects(dir, what == 1, budget)
+		return m._export_objects(dir, what == 1, budget, quality())
 	if run == "obj":   # OBJ: Everything is the posed body (the old writer); a picked object or one entry per object is its own mesh
-		return m._export_obj_objects(dir, what == 1, budget) if what > 0 else m._export_obj(dir, budget)
+		return m._export_obj_objects(dir, what == 1, budget, quality()) if what > 0 else m._export_obj(dir, budget)
 	if run.begins_with("engine:"):
 		return m._export_engine(run.trim_prefix("engine:"), dir)
 	if run.begins_with("fbx"):

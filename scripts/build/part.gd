@@ -770,6 +770,8 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var hb := int(f.get("body", -1))
 				if hb < 0 or hb >= bodies.size():
 					errs[id] = "there is no body %d to hinge" % hb
+				else:
+					PartRefs.auto_pin(f, int(bodies[hb]))   # W03: the first replay of a new or edited hinge pins its pivot to the body's box
 	if n > i0:
 		counts.append(bodies.size())
 		if fx_on:
@@ -1001,7 +1003,7 @@ static func hinge_sweep(rec: Dictionary, hinge_id: String, fps := 25.0) -> Dicti
 			for b in ids:
 				KCad.release(b)
 			return {"ok": false, "why": "the must-not-touch pair %d and %d: there is no such body" % [pa, pb]}
-	var pivot := _pivot(f)
+	var pivot := PartRefs.pivot_mm(f, int(ids[bi])) * MM   # W03: follows the body's box when an early step resizes it
 	var axis := _axis(f)
 	var rest: Array = []
 	for j in ids.size():

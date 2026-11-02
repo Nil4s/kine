@@ -71,6 +71,7 @@ static func gather_part(pm: MeshInstance3D, res: Dictionary) -> Dictionary:
 	var mesh := pm.mesh
 	var xf := pm.global_transform
 	var bn: Array = res.get("body_names", [])
+	var bk: Array = res.get("body_keys", [])   # s257: stable "<feature id>#<k>" per body (only when the replay ran with effects)
 	var sb: Array = res.get("surf_body", [])
 	var rngs: Array = res.get("surf_ranges", [])
 	var by_body := {}   # body index -> PackedVector3Array (local)
@@ -98,6 +99,7 @@ static func gather_part(pm: MeshInstance3D, res: Dictionary) -> Dictionary:
 	order.sort()
 	var names: Array = []
 	var verts: Array = []
+	var keys: Array = []
 	var seen := {}
 	for b in order:
 		var nm := String(bn[b]) if b < bn.size() and String(bn[b]) != "" else "Body%d" % (int(b) + 1)
@@ -107,8 +109,11 @@ static func gather_part(pm: MeshInstance3D, res: Dictionary) -> Dictionary:
 		else:
 			seen[nm] = 1
 		names.append(nm)
+		keys.append(String(bk[b]) if b < bk.size() else "")
 		verts.append(xf * (by_body[b] as PackedVector3Array))
-	return _finish(names, verts)
+	var g := _finish(names, verts)
+	g["keys"] = keys
+	return g
 
 
 static func _finish(names: Array, verts: Array) -> Dictionary:
@@ -127,13 +132,46 @@ static func _finish(names: Array, verts: Array) -> Dictionary:
 static func select(g: Dictionary, pieces: Array) -> Array:
 	var out: Array = []
 	var names: Array = g["names"]
+	var ks: Array = g.get("keys", [])
 	for i in names.size():
 		for pat in pieces:
 			var ps := String(pat)
 			if String(names[i]).matchn(ps) or String(names[i]).to_lower() == ps.to_lower():
 				out.append(i)
 				break
+			# s257: a stable body key ("f12#0", or a pattern like "f12#*") names the body too
+			if ks.size() == names.size() and String(ks[i]) != "" and (String(ks[i]).matchn(ps) or String(ks[i]).to_lower() == ps.to_lower()):
+				out.append(i)
+				break
 	return out
+
+
+## s257: the app's replay carries no body keys (they cost an effects pass); when a request names one ("f12#0") replay the record once with effects and add them to g
+static func ensure_keys(m: Node, g: Dictionary, req: Array) -> void:
+	for k in (g.get("keys", []) as Array):
+		if String(k) != "":
+			return
+	var wants := false
+	for r in req:
+		if String(r).contains("#"):
+			wants = true
+	if not wants or m.get("bld") == null:
+		return
+	var pu: Object = (m.get("bld") as Object).get("part")
+	if pu == null or not pu.has_method("_rec"):
+		return
+	var rec: Variant = pu.call("_rec")
+	if not (rec is Dictionary) or (rec as Dictionary).is_empty():
+		return
+	var keys := keys_of_record(rec)
+	if keys.size() == (g["names"] as Array).size():
+		g["keys"] = keys
+
+
+## the body keys of a record, in body order (one replay with effects). Same order as res.body_names.
+static func keys_of_record(rec: Dictionary) -> Array:
+	var r := Part.replay(rec.duplicate(true), -1, {"effects": true})
+	return (r.get("body_keys", []) as Array).map(func(x): return String(x))
 
 
 ## ---------------------------------------------------------------- the camera
@@ -298,6 +336,7 @@ static func serve(m: Node, p: Dictionary) -> Dictionary:
 	out["scene"] = scene_facts(g, [], cam)
 	out["pieces"] = {}
 	var req: Array = p.get("pieces", []) if p.get("pieces") is Array else ([p["pieces"]] if p.has("pieces") else [])
+	ensure_keys(m, g, req)
 	if not req.is_empty():
 		var idx := select(g, req)
 		if idx.is_empty():
@@ -499,6 +538,7 @@ static func serve_to(m: Node, p: Dictionary) -> Dictionary:
 		return {"ok": false, "error": "nothing to frame: no part is on screen"}
 	var idx: Array = []
 	var req: Array = p.get("pieces", []) if p.get("pieces") is Array else ([p["pieces"]] if p.has("pieces") else [])
+	ensure_keys(m, g, req)
 	if not req.is_empty():
 		idx = select(g, req)
 		if idx.is_empty():
