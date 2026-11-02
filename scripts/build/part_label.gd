@@ -27,23 +27,27 @@ static func layout(text: String) -> Dictionary:
 	if text.length() > MAX_CHARS:
 		out["why"] = "That word is too long for a label: %d letters at most" % MAX_CHARS
 		return out
-	var font: Font = ThemeDB.fallback_font
+	var latin: Font = ThemeDB.fallback_font
 	var ts := TextServerManager.get_primary_interface()
-	if font == null or ts == null or font.get_rids().is_empty():
+	if latin == null or ts == null or latin.get_rids().is_empty():
 		out["why"] = "No font to draw the letters with"
 		return out
-	var rid: RID = font.get_rids()[0]
-	var cap_px := 0.0
-	var hc: Dictionary = ts.font_get_glyph_contours(rid, FONT_PX, ts.font_get_glyph_index(rid, FONT_PX, ord("H"), 0))
-	for p in hc.get("points", PackedVector3Array()):
-		cap_px = maxf(cap_px, -p.y)
-	if cap_px < 1.0:
-		cap_px = FONT_PX * 0.7
-	var sc := CAP_MM / cap_px
+	var han: Font = han_font()
+	var rid_l: RID = latin.get_rids()[0]
+	var rid_h: RID = han.get_rids()[0] if han != null and not han.get_rids().is_empty() else RID()
+	var sc_l := CAP_MM / _cap_px(ts, rid_l)
+	var sc_h := CAP_MM / _cap_px(ts, rid_h) if rid_h.is_valid() else sc_l
 	var polys: Array = []   # [PackedVector2Array, signed area]
-	var pen := 0.0
+	var pen := 0.0          # mm
 	for ch in text:
-		var gi := ts.font_get_glyph_index(rid, FONT_PX, ord(ch), 0)
+		var cp := ord(ch)
+		var use_han := cp > 0x24F and rid_h.is_valid()   # any script past Latin comes from the bundled CJK font (SIL OFL 1.1)
+		var rid: RID = rid_h if use_han else rid_l
+		var sc := sc_h if use_han else sc_l
+		if use_han and not ts.font_has_char(rid, cp):
+			out["why"] = "The bundled font has no letter for \"%s\" (it covers Latin, kana, punctuation and the 3755 common Chinese characters)" % ch
+			return out
+		var gi := ts.font_get_glyph_index(rid, FONT_PX, cp, 0)
 		var c: Dictionary = ts.font_get_glyph_contours(rid, FONT_PX, gi)
 		var pts: PackedVector3Array = c.get("points", PackedVector3Array())
 		var ends: PackedInt32Array = c.get("contours", PackedInt32Array())
@@ -53,7 +57,7 @@ static func layout(text: String) -> Dictionary:
 			a = e + 1
 			if poly.size() >= 3:
 				polys.append([poly, _area(poly)])
-		pen += ts.font_get_glyph_advance(rid, FONT_PX, gi).x
+		pen += ts.font_get_glyph_advance(rid, FONT_PX, gi).x * sc
 	if polys.is_empty():
 		out["why"] = "Those letters have no outline to make a label from: type letters or numbers"
 		return out
@@ -139,13 +143,33 @@ static func _flatten(src: PackedVector3Array, pen: float, sc: float) -> PackedVe
 	pts.pop_back()   # the closing point is the first one again
 	var last := Vector2(INF, INF)
 	for p in pts:
-		var m := Vector2((pen + p.x) * sc, -p.y * sc)
+		var m := Vector2(pen + p.x * sc, -p.y * sc)
 		if m.distance_to(last) >= DEDUP:
 			res.append(m)
 			last = m
 	while res.size() > 1 and res[0].distance_to(res[-1]) < DEDUP:
 		res.remove_at(res.size() - 1)
 	return res
+
+
+## the bundled CJK-capable font (Kine Han Subset: Source Han Sans JP cut to kana + GB2312 level 1 hanzi + punctuation, SIL OFL 1.1; assets/fonts/OFL.txt)
+const HAN_PATH := "res://assets/fonts/KineHanSubset.otf"
+static var _han: Font = null
+
+
+static func han_font() -> Font:
+	if _han == null and ResourceLoader.exists(HAN_PATH):
+		_han = load(HAN_PATH) as Font
+	return _han
+
+
+## the height (font pixels) of a capital H in a font
+static func _cap_px(ts: TextServer, rid: RID) -> float:
+	var cap_px := 0.0
+	var hc: Dictionary = ts.font_get_glyph_contours(rid, FONT_PX, ts.font_get_glyph_index(rid, FONT_PX, ord("H"), 0))
+	for p in hc.get("points", PackedVector3Array()):
+		cap_px = maxf(cap_px, -p.y)
+	return cap_px if cap_px >= 1.0 else FONT_PX * 0.7
 
 
 static func _area(poly: PackedVector2Array) -> float:

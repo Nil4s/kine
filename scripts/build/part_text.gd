@@ -45,6 +45,12 @@ static func signed_area(r: PackedVector2Array) -> float:
 ## the raw outlines scaled by `scale` about `center`, moved by `shift` (mm), mirrored left-right when `mirror` (a face seen from behind),
 ## cleaned, and merged into ONE polygon per outer outline (holes joined by a slit). Counter-clockwise
 static func polygons(rw: Dictionary, scale: float, center: Vector2, shift: Vector2, mirror: bool, turn := false) -> Array:
+	var r := rings(rw, scale, center, shift, mirror, turn)
+	return _attach(r[0], r[1])
+
+
+## s234: the same cleaned outlines, NOT joined: [outers (counter-clockwise), holes (clockwise)]. A sketch may hold a hole inside its outline now.
+static func rings(rw: Dictionary, scale: float, center: Vector2, shift: Vector2, mirror: bool, turn := false) -> Array:
 	var outers: Array = []
 	var holes: Array = []
 	for kind in ["outers", "holes"]:
@@ -71,7 +77,25 @@ static func polygons(rw: Dictionary, scale: float, center: Vector2, shift: Vecto
 				if signed_area(ring) > 0.0:
 					ring.reverse()
 				holes.append(ring)   # clockwise
-	return _attach(outers, holes)
+	return [outers, holes]
+
+
+## s234: text as a PART: ONE sketch of every outline (outer loops and the holes inside them, e.g. the counters of 殿) and ONE extrude, a real solid.
+## The letters are `height` mm tall (the line's height, glyph box), `depth` mm thick, centred on the floor origin. {"ok", "why", "rec", "holes", "outers"}
+static func part_record(text: String, height: float, depth: float) -> Dictionary:
+	var rw := raw(text)
+	if not bool(rw["ok"]):
+		return {"ok": false, "why": String(rw["why"])}
+	var bb: Rect2 = rw["bb"]
+	var r := rings(rw, height / maxf(bb.size.y, 0.001), bb.get_center(), Vector2.ZERO, false)
+	var all: Array = (r[0] as Array) + (r[1] as Array)
+	var rec := Part.make("Text")
+	var sk := Part.new_feature(rec, "sketch", {"plane": "top", "ents": ents_of(all), "dims": []})
+	rec["features"].append(sk)
+	var ex := Part.new_feature(rec, "extrude", {"sketch": sk["id"], "dist": depth, "both": false, "op": "new"})
+	rec["features"].append(ex)
+	rec["text"] = {"text": text, "height": height, "depth": depth}
+	return {"ok": true, "why": "", "rec": rec, "holes": (r[1] as Array).size(), "outers": (r[0] as Array).size()}
 
 
 ## each hole joined into the smallest outline that holds it

@@ -580,6 +580,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					errs[id] = String(sols["err"])
 					continue
 				var sids: PackedInt32Array = sols["solids"]
+				var nb0 := bodies.size()   # s234: the bodies this step makes carry its name
 				var tilt_deg := float(f.get("tilt", 0.0))   # TILT (Easy's Tilt it): the piece leans about its middle, before it joins the body
 				for si in sids.size():   # XFIX: one solid per separate loop of the sketch (one feature, one undo step)
 					if absf(tilt_deg) > 1e-9:
@@ -593,9 +594,12 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 						for sj in range(si + 1, sids.size()):
 							KCad.release(sids[sj])
 						break
+				_name_new(looks, bodies, nb0, f)
 			"prim":   # s229: a box / cylinder / tube / cone / sphere / wedge by numbers (scripts/build/part_prim.gd)
 				PPRIM.last_warning = ""
+				var pb0 := bodies.size()
 				var pre := PPRIM.apply(bodies, f)
+				_name_new(looks, bodies, pb0, f)
 				if pre != "":
 					errs[id] = pre
 				if PPRIM.last_warning != "":
@@ -1381,26 +1385,159 @@ static func _solids(f: Dictionary, sk: Dictionary) -> Dictionary:
 		if s == 0:
 			return {"solids": PackedInt32Array(), "err": _plain_err(KCad.last_error())}
 		return {"solids": PackedInt32Array([s]), "err": ""}
-	for i in groups.size():
-		for j in groups.size():
-			if i != j and _loop_box(groups[j]).encloses(_loop_box(groups[i])):
-				return {"solids": PackedInt32Array(), "err": "a closed shape sits inside another one in this sketch: Extrude them one at a time"}
+	var nest := loop_nest(groups)   # s234: a loop inside a loop is a HOLE, a loop inside a hole is an island (a new region), like every CAD tool
+	if not (nest["cross"] as Dictionary).is_empty():
+		return {"solids": PackedInt32Array(), "err": loop_cross_words(nest["cross"])}
 	var pl: Dictionary = sk["_pl"] if sk.has("_pl") else plane(String(sk.get("plane", "front")))
+	var depth: Array = nest["depth"]
+	var parent: Array = nest["parent"]
 	var out := PackedInt32Array()
-	for g in groups:
-		var face := KCad.sketch_face(items_of(g), sunk_origin(pl, f), pl["x"], pl["n"])
-		if face == 0:
-			for s in out:
-				KCad.release(s)
-			return {"solids": PackedInt32Array(), "err": _plain_err(KCad.last_error())}
-		var sd := KCad.extrude(face, sunk_dist(pl, f) * MM, bool(f.get("both", false)), deg_to_rad(float(f.get("taper", 0.0))))
-		KCad.release(face)
+	var fail := ""
+	for gi in groups.size():
+		if int(depth[gi]) % 2 == 1:
+			continue   # a hole: cut out of its outer loop's solid below
+		var sd := _loop_solid(f, pl, groups[gi])
+		if sd == 0:
+			fail = _plain_err(KCad.last_error())
+		else:
+			for hi in groups.size():
+				if sd != 0 and int(parent[hi]) == gi and int(depth[hi]) % 2 == 1:
+					var tool := _loop_solid(f, pl, groups[hi])
+					if tool == 0:
+						fail = _plain_err(KCad.last_error())
+						KCad.release(sd)
+						sd = 0
+						break
+					var cutd := KCad.cut(sd, tool)
+					KCad.release(sd)
+					KCad.release(tool)
+					if cutd == 0:
+						fail = _plain_err(KCad.last_error())
+					sd = cutd
 		if sd == 0:
 			for s in out:
 				KCad.release(s)
-			return {"solids": PackedInt32Array(), "err": _plain_err(KCad.last_error())}
+			return {"solids": PackedInt32Array(), "err": fail if fail != "" else "the shape could not be pulled"}
 		out.append(sd)
 	return {"solids": out, "err": ""}
+
+
+## s234: one loop's entities pulled as a solid (its own face, the feature's distance / both sides / taper). 0 when the kernel refuses.
+static func _loop_solid(f: Dictionary, pl: Dictionary, g: Array) -> int:
+	var face := KCad.sketch_face(items_of(g), sunk_origin(pl, f), pl["x"], pl["n"])
+	if face == 0:
+		return 0
+	var sd := KCad.extrude(face, sunk_dist(pl, f) * MM, bool(f.get("both", false)), deg_to_rad(float(f.get("taper", 0.0))))
+	KCad.release(face)
+	return sd
+
+
+## s234: a loop's outline as straight pieces (mm): [[a, b], ...]. Circles, arcs and splines are sampled finely enough for a containment / crossing test.
+static func _loop_segs(g: Array) -> Array:
+	var segs: Array = []
+	for e in g:
+		var pts := PackedVector2Array()
+		var closed := false
+		match String(e["k"]):
+			"line":
+				pts = PackedVector2Array([v2(e["a"]), v2(e["b"])])
+			"rect":
+				var a := v2(e["a"])
+				var b := v2(e["b"])
+				pts = PackedVector2Array([a, Vector2(b.x, a.y), b, Vector2(a.x, b.y)])
+				closed = true
+			"circle":
+				var c := v2(e["c"])
+				var r := float(e["r"])
+				for k in 64:
+					pts.append(c + Vector2(cos(TAU * k / 64.0), sin(TAU * k / 64.0)) * r)
+				closed = true
+			"arc":
+				pts = _arc_points(v2(e["a"]), v2(e["m"]), v2(e["b"]))
+			"bspline":
+				var cl := bool(e.get("closed", false))
+				pts = spline_curve(e.get("pts", []), cl, 8)
+				closed = false   # spline_curve repeats the first point when closed
+		for k in range(pts.size() - 1):
+			segs.append([pts[k], pts[k + 1]])
+		if closed and pts.size() > 2:
+			segs.append([pts[pts.size() - 1], pts[0]])
+	return segs
+
+
+## the points of the arc through a, m, b (mm), a to b
+static func _arc_points(a: Vector2, m: Vector2, b: Vector2) -> PackedVector2Array:
+	var d := 2.0 * (a.x * (m.y - b.y) + m.x * (b.y - a.y) + b.x * (a.y - m.y))
+	if absf(d) < 1e-9:
+		return PackedVector2Array([a, m, b])
+	var ux := ((a.length_squared()) * (m.y - b.y) + m.length_squared() * (b.y - a.y) + b.length_squared() * (a.y - m.y)) / d
+	var uy := ((a.length_squared()) * (b.x - m.x) + m.length_squared() * (a.x - b.x) + b.length_squared() * (m.x - a.x)) / d
+	var c := Vector2(ux, uy)
+	var r := a.distance_to(c)
+	var aa := (a - c).angle()
+	var am := (m - c).angle()
+	var ab := (b - c).angle()
+	var ccw := wrapf(ab - aa, 0.0, TAU)
+	var sweep := ccw if wrapf(am - aa, 0.0, TAU) <= ccw else ccw - TAU   # the middle point says which way round
+	var pts := PackedVector2Array()
+	var n := maxi(8, int(absf(sweep) / TAU * 64.0))
+	for k in n + 1:
+		pts.append(c + Vector2(cos(aa + sweep * k / n), sin(aa + sweep * k / n)) * r)
+	return pts
+
+
+## s234: how the separate loops of a sketch nest. {"depth": [n], "parent": [loop index or -1], "cross": {} or {"at": [x, y], "a": loop, "b": loop}}.
+## Depth 0 = a solid region, 1 = a hole in it, 2 = an island in that hole (a new solid region), ... Two loops whose outlines truly cross are named by the crossing point.
+static func loop_nest(groups: Array) -> Dictionary:
+	var n := groups.size()
+	var segs: Array = []
+	var boxes: Array = []
+	for g in groups:
+		segs.append(_loop_segs(g))
+		boxes.append(_loop_box(g).grow(0.01))
+	for i in n:
+		for j in range(i + 1, n):
+			if not (boxes[i] as Rect2).intersects(boxes[j]):
+				continue
+			for sa in (segs[i] as Array):
+				for sb in (segs[j] as Array):
+					var p := PPRIM._seg_cross(sa[0], sa[1], sb[0], sb[1])
+					if not p.is_empty():
+						return {"depth": [], "parent": [], "cross": {"at": [snappedf(p[0], 0.01), snappedf(p[1], 0.01)], "a": i, "b": j}}
+	var depth: Array = []
+	var parent: Array = []
+	for i in n:
+		var probe: Vector2 = (segs[i][0] as Array)[0] if not (segs[i] as Array).is_empty() else Vector2.ZERO
+		var d := 0
+		var par := -1
+		var par_area := INF
+		for j in n:
+			if j == i or not (boxes[j] as Rect2).encloses(_loop_box(groups[i])):
+				continue
+			if _in_segs(probe, segs[j]):
+				d += 1
+				var ar: float = (boxes[j] as Rect2).get_area()
+				if ar < par_area:
+					par_area = ar
+					par = j
+		depth.append(d)
+		parent.append(par)
+	return {"depth": depth, "parent": parent, "cross": {}}
+
+
+## even-odd test of a point against loose segments
+static func _in_segs(p: Vector2, segs: Array) -> bool:
+	var inside := false
+	for sg in segs:
+		var a: Vector2 = sg[0]
+		var b: Vector2 = sg[1]
+		if (a.y > p.y) != (b.y > p.y) and p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x:
+			inside = not inside
+	return inside
+
+
+static func loop_cross_words(c: Dictionary) -> String:
+	return "two shapes in this sketch cross at (%s, %s) mm (shape %d and shape %d): move one so it sits wholly inside or wholly outside the other" % [_short(float(c["at"][0])), _short(float(c["at"][1])), int(c["a"]) + 1, int(c["b"]) + 1]
 
 
 ## XFIX: the words a user reads for a kernel failure (no kernel jargon)
@@ -3677,6 +3814,28 @@ static func clean_name(t: String) -> String:
 		out += " " if ch.unicode_at(0) < 32 else ch
 	var parts := out.strip_edges().split(" ", false)
 	return " ".join(parts).left(NAME_MAX).strip_edges()
+
+
+## s234: the bodies a step just made (from index `from`) take the step's own name when someone gave it one ("Column", "Platform"), so the name reaches the
+## body's piece kind and look. A name that is only the step's auto name ("Extrude3", "Prim1") says nothing. A body already named keeps its name.
+static func _name_new(looks: Array, bodies: Array, from: int, f: Dictionary) -> void:
+	if bodies.size() <= from:
+		return
+	var nm := clean_name(String(f.get("called", f.get("name", ""))))
+	if nm == "":
+		return
+	var t := String(f.get("t", ""))
+	if String(f.get("called", "")) == "":
+		var rest := nm.trim_prefix(t.capitalize())
+		if nm.begins_with(t.capitalize()) and (rest == "" or rest.is_valid_int()):
+			return
+	look_fit(looks, bodies.size())
+	for k in range(from, bodies.size()):
+		var l: Dictionary = look_at(looks, k).duplicate()
+		if String(l.get("name", "")) != "":
+			continue
+		l["name"] = nm if bodies.size() - from == 1 else "%s %d" % [nm, k - from + 1]
+		looks[k] = l
 
 
 ## the shown name of body i: the one it was given, else Body<i+1> (the browser's old name for it)
