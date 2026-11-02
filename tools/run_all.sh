@@ -662,3 +662,4 @@ EXTRA="$EXTRA s250:w"   # s250: Easy Part panel title on its own row (not under 
 EXTRA="$EXTRA s251:w"   # s251: tool labels never split a word, top bar buttons never an ellipsis (1024 x 600 .. 2560 x 1440, Easy + Expert), tests/s251_test.gd
 EXTRA="$EXTRA s252:w"   # s252: undo/redo toasts name the step (never "Redid:"), toasts never cover a button, tests/s252_test.gd
 EXTRA="$EXTRA s253:w"   # s253: a slow frame never loses a drag or an undo state (exact playhead on Undo/Redo, drag after the camera ease), tests/s253_test.gd
+EXTRA="$EXTRA w02:w"   # w02: sketch health free / fully defined / over-constrained by colour + the clashing pair named, tests/w02_test.gd
