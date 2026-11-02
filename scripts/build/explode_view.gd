@@ -17,6 +17,8 @@ extends RefCounted
 
 const EPS := 1.0e-6
 const BIG := 1.0e7
+## "to infinity" for a slab: a few part-sizes, set by plan(). AABB is float32: with 1e7 the far face of a downward slab (pos - 1e7 + 1e7) lost every digit below 1 unit (the GPU part: a screw "blocked" by the PCB above it)
+static var reach_world := 100.0
 
 
 static func axis_vec(a: String) -> Vector3:
@@ -61,7 +63,7 @@ static func overlaps(a: AABB, b: AABB, eps := EPS) -> bool:
 static func slab(b: AABB, k: int, s: float, d: float) -> AABB:
 	var pos := b.position
 	var sz := b.size
-	var reach := BIG if d < 0.0 else d
+	var reach := reach_world if d < 0.0 else d
 	if s > 0.0:
 		pos[k] = b.position[k] + b.size[k]
 	else:
@@ -164,7 +166,9 @@ static func plan(boxes: Array, layers: Array, axis: Vector3, gap: float, opts :=
 			if vol > best + EPS:
 				best = vol
 				anchor = u
-	var all_c := union_box(ub, range(nu)).get_center()[k]
+	var whole := union_box(ub, range(nu))
+	reach_world = maxf(whole.size.length() * 3.0 + gap * 4.0, 1e-3)
+	var all_c := whole.get_center()[k]
 	var in_place: Array = range(nu)
 	var order: Array = []
 	var sgn: Array = []
@@ -270,7 +274,7 @@ static func schedule(p: Dictionary, dur := 1.0, stagger := 0.4, hold := 0.5) -> 
 	var last_start := -stagger
 	for j in order.size():
 		var u: int = order[j]
-		var t0 := last_start + stagger
+		var t0 := float(j) * stagger   # s262b: its own slot, not after the previous start: one blocked layer must not hold every later one back
 		var tries := 0
 		while tries < 400:
 			st[u] = t0
@@ -279,6 +283,13 @@ static func schedule(p: Dictionary, dur := 1.0, stagger := 0.4, hold := 0.5) -> 
 				break
 			t0 += dur / 20.0
 			tries += 1
+		if tries >= 400:   # s262b: no clear window by sliding: go after every layer that has started (nothing else moves then)
+			var after := 0.0
+			for q in nu:
+				if q != u and float(st[q]) >= 0.0:
+					after = maxf(after, float(en[q]))
+			st[u] = after + 1e-3
+			en[u] = st[u] + dur
 		last_start = st[u]
 	var out_total := 0.0
 	for u in order:
@@ -332,7 +343,7 @@ static func hits_at(p: Dictionary, sc: Dictionary, t: float) -> Array:
 	var out: Array = []
 	for i in cur.size():
 		var d := dist_at(p, sc, i, t)
-		if d <= EPS:
+		if d <= EPS or not _moving_at(sc, i, t):   # s262b: a layer that is parked sweeps nothing now (its old swept region is not a collision)
 			continue
 		var sl := slab(p["ubox"][i], k, float((p["sign"] as Array)[i]), d)
 		for j in cur.size():
@@ -341,26 +352,58 @@ static func hits_at(p: Dictionary, sc: Dictionary, t: float) -> Array:
 	return out
 
 
+## is layer i in motion at t (out or in run, open interval)?
+static func _moving_at(sc: Dictionary, i: int, t: float) -> bool:
+	var o0 := float((sc["out_start"] as Array)[i])
+	if o0 < 0.0:
+		return false
+	if t > o0 + 1e-9 and t < float((sc["out_end"] as Array)[i]) - 1e-9:
+		return true
+	return t > float((sc["in_start"] as Array)[i]) + 1e-9 and t < float((sc["in_end"] as Array)[i]) - 1e-9
+
+
+static func _grown(b: AABB, k: int, pad: float) -> AABB:
+	var pos := b.position
+	var sz := b.size
+	pos[k] -= pad
+	sz[k] += 2.0 * pad
+	return AABB(pos, sz)
+
+
 static func _motion_clear(p: Dictionary, st: Array, en: Array, u: int) -> bool:
-	# samples of u's out motion against every layer: those that have not started sit at rest, those that have (and may still move) are where their stored times put them
-	var sc := {"out_start": st, "out_end": en, "in_start": en, "in_end": en}
+	# samples of u's out motion: u's new swept region against every layer's box, and every layer still moving against u's box. Only pairs that contain u
+	# can clash newly here (s262b: O(layers) per sample, was O(layers^2)). Samples are 1/24 of the run apart, so every box that moves is grown by
+	# the most it can travel between two samples (smoothstep peak speed 1.5 x distance / duration): a graze shorter than a sample is not missed.
 	var t0: float = st[u]
 	var t1: float = en[u]
-	var nu := (p["ubox"] as Array).size()
+	var ub: Array = p["ubox"]
+	var nu := ub.size()
+	var k: int = p["k"]
+	var sg: Array = p["sign"]
+	var dd: Array = p["dist"]
+	var started: Array = []
+	for i in nu:
+		if i != u and float(st[i]) >= 0.0:
+			started.append(i)
+	var padu: float = 1.5 * float(dd[u]) / 24.0
 	for si in 25:
 		var t := lerpf(t0, t1, float(si) / 24.0)
-		var cur := boxes_at_out(p, st, en, t)
-		var k: int = p["k"]
-		for i in nu:
-			if float(st[i]) < 0.0 and i != u:
+		var du := dist_out(p, st, en, u, t)
+		var cu: AABB = _grown(shifted(ub[u], k, float(sg[u]), du), k, padu)
+		if du > EPS:
+			var sl := slab(ub[u], k, float(sg[u]), du + padu)
+			for j in nu:
+				if j == u:
+					continue
+				var pj := 1.5 * float(dd[j]) / 24.0 if (float(st[j]) >= 0.0 and t < float(en[j])) else 0.0
+				if overlaps(sl, _grown(shifted(ub[j], k, float(sg[j]), dist_out(p, st, en, j, t)), k, pj)):
+					return false
+		for i in started:
+			if t >= float(en[i]) - 1e-9:
 				continue
 			var d := dist_out(p, st, en, i, t)
-			if d <= EPS:
-				continue
-			var sl := slab(p["ubox"][i], k, float((p["sign"] as Array)[i]), d)
-			for j in nu:
-				if j != i and overlaps(sl, cur[j]) and (i == u or j == u):
-					return false
+			if d > EPS and overlaps(slab(ub[i], k, float(sg[i]), d + 1.5 * float(dd[i]) / 24.0), cu):
+				return false
 	return true
 
 
@@ -386,9 +429,10 @@ static func check(p: Dictionary, sc: Dictionary) -> Dictionary:
 	keys.sort()
 	var cols: Array = []
 	var n := 0
+	var steps := 24 if keys.size() <= 60 else 4   # s262b: a 180-layer run has ~700 key times; 5 samples between keys keep the check minutes, not hours
 	for i in keys.size() - 1:
-		for si in 25:
-			var t := lerpf(float(keys[i]), float(keys[i + 1]), float(si) / 24.0)
+		for si in steps + 1:
+			var t := lerpf(float(keys[i]), float(keys[i + 1]), float(si) / float(steps))
 			n += 1
 			for h in hits_at(p, sc, t):
 				h["t"] = snappedf(t, 0.001)
@@ -465,9 +509,27 @@ static func keys(p: Dictionary, sc: Dictionary) -> Array:
 ## CAMERA: for each time in `times`, the camera that keeps every piece in view (FrameFacts.solve on the pieces moved to that time), the live camera's aim kept.
 ## g: FrameFacts gather dict (names, verts, aabb in world); layer_of_body: body -> layer; share: asked width/height share (<= 0.9).
 ## Returns [{t, pos, target, fov, share_w, share_h}]
-static func camera_frames(g: Dictionary, cam0: Dictionary, p: Dictionary, sc: Dictionary, times: Array, layer_of_body: Array, share := 0.8) -> Array:
+static func camera_frames(g: Dictionary, cam0: Dictionary, p: Dictionary, sc: Dictionary, times: Array, layer_of_body: Array, share := 0.8, rect := Rect2()) -> Array:
 	var out: Array = []
 	var idx: Array = range((g["names"] as Array).size())
+	# s262b VISIBLE AREA: with a rect (the clear view beside the panel, in window pixels) the pieces are framed to THAT, at the live lens's pixel scale,
+	# then the camera is slid sideways so the rect's centre is where the pieces' centre lands. Shares are reported against the whole window.
+	var use_rect := rect.size.x > 8.0 and rect.size.y > 8.0
+	var camx: Dictionary = cam0
+	var W := float(cam0["w"])
+	var H := float(cam0["h"])
+	var fpx := FrameFacts.focal(cam0)
+	var sx := 0.0
+	var sy := 0.0
+	if use_rect:
+		camx = cam0.duplicate()
+		camx["w"] = int(rect.size.x)
+		camx["h"] = int(rect.size.y)
+		var ratio: float = rect.size.x / W if bool(cam0.get("keep_width", false)) else rect.size.y / H
+		camx["fov"] = rad_to_deg(2.0 * atan(tan(deg_to_rad(float(cam0["fov"])) * 0.5) * ratio))
+		var rc := rect.get_center()
+		sx = W * 0.5 - rc.x
+		sy = rc.y - H * 0.5
 	for t in times:
 		var offs := offsets_at(p, sc, float(t))
 		var verts: Array = []
@@ -483,14 +545,24 @@ static func camera_frames(g: Dictionary, cam0: Dictionary, p: Dictionary, sc: Di
 			var bb: AABB = g["aabb"][b]
 			boxes.append(AABB(bb.position + off, bb.size))
 		var g2 := {"names": g["names"], "verts": verts, "aabb": boxes}
-		var r: Dictionary = FrameFacts.solve(g2, idx, cam0, "w", share, "fov", "xy", {})
+		var r: Dictionary = FrameFacts.solve(g2, idx, camx, "w", share, "fov", "xy", {})
 		if bool(r.get("ok", false)):
 			var sil: Dictionary = FrameFacts.measure(g2, idx, r["cam"])["sil"]
 			if (float(sil["y1"]) - float(sil["y0"])) / float(r["cam"]["h"]) > share + 0.005:
-				var r2: Dictionary = FrameFacts.solve(g2, idx, cam0, "h", share, "fov", "xy", {})
+				var r2: Dictionary = FrameFacts.solve(g2, idx, camx, "h", share, "fov", "xy", {})
 				if bool(r2.get("ok", false)):
 					r = r2
 					sil = FrameFacts.measure(g2, idx, r["cam"])["sil"]
-			out.append({"t": float(t), "pos": r["pos"], "target": r["target"], "fov": r["fov"],
-				"share_w": (float(sil["x1"]) - float(sil["x0"])) / float(r["cam"]["w"]), "share_h": (float(sil["y1"]) - float(sil["y0"])) / float(r["cam"]["h"])})
+			var pos: Vector3 = r["pos"]
+			var tg: Vector3 = r["target"]
+			var fov: float = r["fov"]
+			if use_rect:
+				var bas := FrameFacts.look(pos, tg).basis
+				var k := (pos - tg).length() / maxf(fpx, 1e-6)
+				var sh: Vector3 = bas.x * sx * k + bas.y * sy * k
+				pos += sh
+				tg += sh
+				fov = float(cam0["fov"]) if absf(fov - float(camx["fov"])) < 1e-4 else fov
+			out.append({"t": float(t), "pos": pos, "target": tg, "fov": fov,
+				"share_w": (float(sil["x1"]) - float(sil["x0"])) / W, "share_h": (float(sil["y1"]) - float(sil["y0"])) / H})
 	return out

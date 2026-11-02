@@ -745,3 +745,6 @@ EXTRA="$EXTRA w03c:w"   # w03c: body keys on the steps that point at a body; ins
 
 
 EXTRA="$EXTRA s263:w"   # s263: dark product studio + continuous ring band, tests/s263_test.gd
+
+
+EXTRA="$EXTRA s262b:w"   # s262b: exploded view v2 (visible area, timeline keys, 256+ bodies), tests/s262b_test.gd
