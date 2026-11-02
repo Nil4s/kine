@@ -657,9 +657,12 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				if swe != "":
 					errs[id] = swe
 			"pattern":   # GAP 30: copies of body N (its own function: _pattern); FRULER: a row of copies of a cut (a sketch with "sketch", _cut_row)
+				PPRIM.last_warning = ""
 				var pe := _cut_row(bodies, f, rec) if f.has("sketch") else _pattern(bodies, looks, f, rec)
 				if pe != "":
 					errs[id] = pe
+				elif PPRIM.last_warning != "":
+					warns[id] = PPRIM.last_warning   # S266: a long pattern says it is slow
 			"fillet", "chamfer":
 				var e := _edge_op(bodies, f)
 				if e != "":
@@ -2870,7 +2873,7 @@ static func _split_looks(looks: Array, n: int, pieces: Array) -> void:
 ## PATTERN (GAP 30): the copies of body N, one kernel move each (translate for a row, rotate about the origin for a circle). "join" unions them into
 ## body N; "new" keeps each copy as a body of its own (with body N's look). "" or the failure message; a failure changes nothing.
 const AXIS_VEC := {"x": Vector3.RIGHT, "y": Vector3.UP, "z": Vector3.BACK}
-const PATTERN_MAX := 64
+const PATTERN_MAX := PartArray.MAX_COPIES   # S266: ONE cap for linear / circular / path / grid / route (1000); past COPIES_SLOW the step says it is slow
 
 static func _pattern(bodies: Array, looks: Array, f: Dictionary, rec: Dictionary = {}) -> String:
 	if bodies.is_empty():
@@ -2956,6 +2959,9 @@ static func _upto_rec(rec: Dictionary, k: int) -> Dictionary:
 	return sub
 
 
+const COPIES_SLOW := 100
+
+
 static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int, srcb: int, rec: Dictionary = {}) -> String:
 	var n := int(f.get("count", 0))
 	var along := String(f.get("kind", "linear")) == "path"   # p049: the copies follow a curve, so their count comes from its length
@@ -3031,6 +3037,8 @@ static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int,
 			return "the spacing must not be zero"
 		for i in range(1, n):
 			copies.append(KCad.translate(srcb, d * i))
+	if copies.size() + 1 > COPIES_SLOW:   # S266: the cost, in words (the GPU card's 71-finger join took 6 to 8 s)
+		PPRIM.last_warning = "%d copies: every copy is real geometry, so this step is slow (it can take many seconds); a grid joined into one body is cheaper" % (copies.size() + 1)
 	for k in copies.size():
 		if int(copies[k]) == 0:
 			var why := KCad.last_error()

@@ -71,6 +71,31 @@ func s268() -> void:
 	ok(absf(rt["volumes"][0] - full) < full * 1e-6 and rt["volumes"][2] < full * 0.99, "268 CONTROL targets still names the only body: body 3 cut, body 1 not")
 
 
+func linear(rec: Dictionary, n: int, kind := "linear") -> Dictionary:
+	var f := {"body": 0, "kind": kind, "count": n, "dir": "x", "mm": 3.0, "op": "join"}
+	(rec["features"] as Array).append(Part.new_feature(rec, "pattern", f))
+	return rec
+
+
+## 266 BAR: a linear pattern of 70 and of 120 copies builds (the old cap was 64), 1001 is refused with the one cap in the sentence; the
+## cap is the same number for the grid (PartArray.MAX_COPIES); 120 copies carry a cost warning, 70 do not. CONTROL: 1001 does fail, 1000 would not be refused by count.
+func s266() -> void:
+	ok(Part.PATTERN_MAX == Part.PartArray.MAX_COPIES and Part.PATTERN_MAX == 1000, "266 BAR one cap: PATTERN_MAX %d == MAX_COPIES %d == 1000" % [Part.PATTERN_MAX, Part.PartArray.MAX_COPIES])
+	var out := {}
+	for n in [70, 120, 1001]:
+		var rec := Part.make("S266")
+		Part.prim(rec, "box", {"x": 0.0, "y": 0.0, "z": 0.0, "w": 2.0, "h": 2.0, "d": 2.0})
+		var pid := String((linear(rec, n)["features"] as Array)[-1]["id"])
+		var r := Part.replay(rec)
+		out[n] = {"err": String((r["errors"] as Dictionary).get(pid, "")), "warn": String((r["warnings"] as Dictionary).get(pid, "")), "bodies": int(r["bodies"]), "vol": (r["volumes"] as Array)}
+	ok(String(out[70]["err"]) == "" and String(out[70]["warn"]) == "", "266 BAR 70 copies build (was refused above 64), no warning: err '%s' warn '%s'" % [out[70]["err"], out[70]["warn"]])
+	ok(String(out[120]["err"]) == "" and String(out[120]["warn"]).contains("120 copies") and String(out[120]["warn"]).contains("slow"), "266 BAR 120 copies build and say the cost: '%s'" % out[120]["warn"])
+	ok(String(out[1001]["err"]).contains("1000"), "266 CONTROL 1001 is refused, naming 1000: '%s'" % out[1001]["err"])
+	var v: Array = out[120]["vol"]
+	var one := 2.0 * 2.0 * 2.0 * 1e-9
+	ok(v.size() == 1 and absf(float(v[0]) - one * 120.0) < one * 2.0, "266 the 120 joined copies are one body of volume %s (120 boxes = %s)" % [v[0] if v.size() > 0 else "none", one * 120.0])
+
+
 func _init() -> void:
 	if not Part.available():
 		print("FAIL: no KineCAD DLL")
@@ -79,5 +104,6 @@ func _init() -> void:
 	await boot()
 	await s271()
 	s268()
+	s266()
 	print("s265: %d fail" % fails)
 	quit(1 if fails > 0 else 0)

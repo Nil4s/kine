@@ -15,7 +15,7 @@ extends RefCounted
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
 const KINDS := ["grid", "route"]
-const MAX_COPIES := 400
+const MAX_COPIES := 1000   # S266: the one cap for every pattern kind (Part.PATTERN_MAX is this)
 const CORNER_DEG := 5.0
 const AX := {"x": Vector3.RIGHT, "y": Vector3.UP, "z": Vector3.BACK}
 
