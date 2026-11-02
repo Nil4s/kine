@@ -707,3 +707,6 @@ EXTRA="$EXTRA w09b:w"   # w09b: pick-through list shows body names / the making 
 
 
 EXTRA="$EXTRA w05b:w"   # w05b: checklist triangles, Split to fit, OBJ and GLB follow the mesh quality, tests/w05b_test.gd
+
+
+EXTRA="$EXTRA w10b:w"   # w10b: the app piece counter _lumps counts edge-touching boxes as 2, tests/w10b_test.gd
