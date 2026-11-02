@@ -2178,8 +2178,6 @@ func _parts_press() -> void:
 	lib_cat = "Screws" if parts_open else ""   # NLIBPAGE: the page opens on Screws, its sizes showing
 	_say("Parts: pick a kind. Screws is open: pick a size. It drops on the floor" if parts_open else "Parts shut. Press Parts to open them again")
 	_screw_sync()
-	if parts_open:
-		_scroll_screw_sizes.call_deferred()
 
 
 ## NLIBPAGE: a category chip. Screws shows the sizes, Gears says to press the Gear chip, the others say coming soon with the next step.
@@ -2190,14 +2188,8 @@ func _lib_press(cat: String) -> void:
 		return
 	parts_open = true
 	lib_cat = cat
-	if cat != "Screws" and _screw_scrolled:   # s227: leave the scroll where the page's own chips show
-		_screw_scrolled = false
-		var _sc0 := panel.get_node_or_null("easypart_panel_scroll") as ScrollContainer
-		if _sc0 != null:
-			_sc0.scroll_vertical = 0
 	if cat == "Screws":
 		_say("Screws: pick a size. It drops on the floor")
-		_scroll_screw_sizes.call_deferred()   # s227: the category chips take more rows now: scroll so the first two size rows show
 	elif cat == "Gears":
 		_say("Gears: press Gear in the chips above, or Cam and follower below. It drops on the floor")
 	elif cat == "Bearings":   # P069 BEARINGS: three sizes; the seat button under them cuts the seat for the one on the floor
@@ -2261,10 +2253,12 @@ func _lib_box() -> PanelContainer:
 		b.custom_minimum_size = Vector2(0, 34)
 		b.add_theme_font_size_override("font_size", 12)
 		b.tooltip_text = ("%s: ready now" % cat) if cat in LIB_READY else ("%s: coming soon" % cat)
-		if cat == "Ornaments":   # s227: icon-only (like Nature): a text chip would add a row and push the screw sizes under the fold
-			b.text = ""
-			b.icon = Icons.tex("part_ornament")
+		if cat in LIB_ICON_ONLY:   # s227b: the chips that open a page of their own are icon-only (word in the tooltip): the library page must fit the panel scroll area,
+			b.text = ""   # a page taller than it needs a scroll, and a scroll that moves under a real click sends that click to the wrong place (lay1)
+			if b.icon == null:
+				b.icon = Icons.tex("part_roof" if cat == "Roofs" else "part_ornament")
 			b.custom_minimum_size = Vector2(38, 34)
+			b.tooltip_text = "%s: ready now" % cat
 		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
 		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
 		b.pressed.connect(_lib_press.bind(cat))
@@ -2272,6 +2266,9 @@ func _lib_box() -> PanelContainer:
 		lib_btns[cat] = b
 		if cat == "Gears":
 			fl.add_child(_nature_chip())   # FRIDAY 225: icon-only Nature chip in the first row, which has 46 px spare: adds no row
+	# s227b: the two icon-only chips go where a row has room (after Clips and feet, after Pipes), so the six rows of the page stay five
+	fl.move_child(lib_btns["Ornaments"], lib_btns["Clips and feet"].get_index() + 1)
+	fl.move_child(lib_btns["Roofs"], lib_btns["Pipes"].get_index() + 1)
 	fl.add_child(_kids_chip_make())   # p197kidsmode: the Kids chip, last on the library page
 	fl.add_child(_challenge_chip_make())   # s165: Challenges, after Kids
 
@@ -2521,23 +2518,6 @@ func _screw_pick(d: int, L: int) -> void:
 
 
 ## s227: the library page's chips fill several rows, so the screw sizes sit under the fold: bring the size chips (M4 x 16, row 2) into view
-var _screw_scrolled := false   # s227: the Screws page moved the panel scroll
-func _scroll_screw_sizes() -> void:
-	# the grid lays out a few frames after the press and the scroll bar's range follows it: retry until the chip's centre is inside the viewport
-	for _i in 8:
-		await get_tree().process_frame
-		if lib_cat != "Screws" or not parts_open:
-			return
-		var c: Button = screw_btns.get("4_16", null)
-		var sc := panel.get_node_or_null("easypart_panel_scroll") as ScrollContainer
-		if c == null or sc == null or not c.is_visible_in_tree():
-			continue
-		if sc.get_global_rect().encloses(c.get_global_rect()):
-			continue   # _screw_sync scrolls the whole grid into view a frame later and can undo this: keep checking
-		_scroll_into_view(c)
-		_screw_scrolled = true
-
-
 ## the panel scrolls so the control is inside its visible part: a chip below the scroll's bottom edge is drawn clipped and takes no click
 func _scroll_into_view(c: Control) -> void:
 	var sc := panel.get_node_or_null("easypart_panel_scroll") as ScrollContainer

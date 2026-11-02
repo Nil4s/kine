@@ -620,3 +620,6 @@ EXTRA="$EXTRA s232:w"   # s232: TEMPLE LIGHT: sky with clouds, sun by time of da
 
 
 EXTRA="$EXTRA s231:w"   # TEMPLE LOOK: default materials by piece kind, words and chips, gravel and oak fixes (Friday plan 231)
+
+
+EXTRA="$EXTRA s227b:w"   # s227b: the Easy Part library page fits the panel scroll area at 1280x720 (a chip that adds a row fails here)
