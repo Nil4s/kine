@@ -2613,6 +2613,7 @@ func _rebuild(show: bool) -> void:
 	if sk == "":
 		part_mesh.mesh = _exploded(res["mesh"])
 		_look_surfaces()
+	Part.PartInstances.sync(part_mesh, res)   # s261
 	edge_cache = res["edges"]
 	face_cache = res["faces"]
 	thread_look_sync()

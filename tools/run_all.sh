@@ -714,3 +714,4 @@ EXTRA="$EXTRA w10b:w"   # w10b: the app piece counter _lumps counts edge-touchin
 
 
 EXTRA="$EXTRA s257:w"   # s257: frame_to finds a body by its bname name AND its stable body key, tests/s257_test.gd
+EXTRA="$EXTRA s261:w"   # s261: Part feature instances: N copies of a body on a face as one MultiMesh, scatter with no-overlap + seed, baked at export, tests/s261_test.gd
