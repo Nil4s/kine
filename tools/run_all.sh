@@ -666,3 +666,6 @@ EXTRA="$EXTRA w14:w"   # W14: GPU in use + integrated-GPU warning with Windows G
 
 
 EXTRA="$EXTRA w05:w"   # w05: export mesh quality Coarse/Normal/Fine/Custom, live triangle count and file size, tests/w05_test.gd
+
+
+EXTRA="$EXTRA w06:w"   # W06: project unit (mm/cm/in), typed units in length fields, dual labels, saved with the part, tests/w06_test.gd
