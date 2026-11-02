@@ -742,3 +742,6 @@ EXTRA="$EXTRA w09c:w"
 
 
 EXTRA="$EXTRA w03c:w"   # w03c: body keys on the steps that point at a body; insert_step / delete_step on the 297-step temple, tests/w03c_test.gd
+
+
+EXTRA="$EXTRA s263:w"   # s263: dark product studio + continuous ring band, tests/s263_test.gd
