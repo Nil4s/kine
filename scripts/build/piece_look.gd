@@ -27,15 +27,15 @@ const CHIPS := [["roof", "Roof"], ["ridge", "Ridge"], ["column", "Columns"], ["b
 	["stair", "Stairs"], ["paving", "Paving"], ["wall", "Walls"], ["plaque", "Plaque"], ["door", "Doors"]]
 ## the material of a kind in a temple: MaterialMaker specs (norm() fills the rest)
 const DEFAULTS := {
-	"roof": {"kind": "tile", "color": "#bd5418", "scale": 1100.0, "gloss": 0.88, "wear": 0.1, "seed": 3},                        # glazed terracotta tile, ribs and rows
+	"roof": {"kind": "tile", "color": "#93410a", "scale": 1100.0, "gloss": 0.8, "wear": 0.1, "seed": 3},                        # glazed terracotta tile, ribs and rows
 	"ridge": {"kind": "tile", "color": "#d6921a", "scale": 440.0, "gloss": 0.92, "wear": 0.05, "seed": 5},                      # the same glaze, golden
-	"column": {"kind": "lacquer", "color": "#a3140f", "scale": 160.0, "gloss": 0.7, "wear": 0.16, "seed": 7},                   # red lacquer, a slight sheen, slight wear
+	"column": {"kind": "lacquer", "color": "#b21d08", "scale": 160.0, "gloss": 0.7, "wear": 0.16, "seed": 7},                   # red lacquer, a slight sheen, slight wear
 	"beam": {"kind": "caihua", "color": "#1b6f73", "scale": 400.0, "gloss": 0.5, "seed": 2},                                    # teal paint with gold lines
 	"platform": {"kind": "marble", "color": "#d9d7d0", "scale": 900.0, "gloss": 0.75, "seed": 4},
 	"stair": {"kind": "marble", "color": "#d4d2cb", "scale": 700.0, "gloss": 0.7, "seed": 6},
 	"rail": {"kind": "marble", "color": "#efeeea", "scale": 500.0, "gloss": 0.8, "seed": 8},
-	"paving": {"kind": "slabs", "color": "#bcb9b0", "scale": 2400.0, "gloss": 0.3, "seed": 2},
-	"wall": {"kind": "plaster", "color": "#9b2c22", "scale": 700.0, "gloss": 0.07, "wear": 0.12, "seed": 9},                    # red plaster
+	"paving": {"kind": "slabs", "color": "#706d66", "scale": 2400.0, "gloss": 0.3, "seed": 2},
+	"wall": {"kind": "plaster", "color": "#8c2a1c", "scale": 700.0, "gloss": 0.07, "wear": 0.12, "seed": 9},                    # red plaster
 	"plaque": {"kind": "lacquer", "color": "#1a110c", "scale": 160.0, "gloss": 0.85, "seed": 11},                               # dark lacquer
 	"plaque_letters": {"kind": "brass", "color": "#e0aa22", "scale": 120.0, "gloss": 0.6, "metal": 0.55, "seed": 12},           # gilt (metal 0.55: gold leaf on a board, not a mirror)
 	"plaque_frame": {"kind": "brass", "color": "#e0aa22", "scale": 120.0, "gloss": 0.6, "metal": 0.55, "seed": 12},
@@ -46,7 +46,7 @@ const DEFAULTS := {
 	"trunk": {"kind": "oak", "color": "#5b3f26", "scale": 300.0, "gloss": 0.15, "warp": 0.5, "seed": 17},
 	"canopy": {"kind": "grass", "color": "#d9a21b", "scale": 250.0, "gloss": 0.1, "seed": 18},                                  # golden leaves
 	"wall_base": {"kind": "granite", "color": "#9a9892", "scale": 500.0, "gloss": 0.4, "seed": 19},
-	"wall_cap": {"kind": "tile", "color": "#bd5418", "scale": 700.0, "gloss": 0.88, "seed": 20},
+	"wall_cap": {"kind": "tile", "color": "#93410a", "scale": 700.0, "gloss": 0.88, "seed": 20},
 	"other": {"kind": "plaster", "color": "#d6cdbd", "scale": 600.0, "gloss": 0.07, "seed": 21},                                # a body of no known kind: a plain warm plaster, never a flat colour
 }
 ## words -> kind, for the user's sentence (a piece noun, singular and plural). A noun is taken OUT of the sentence before the rest is read as a material
