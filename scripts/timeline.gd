@@ -361,6 +361,9 @@ func hit(p: Vector2) -> Dictionary:
 	var wh := warp_hit(p)   # the picked clip's time curve: a knot (j) or its empty panel (j = -1)
 	if not wh.is_empty():
 		return wh
+	var ik := inplace_at(p)
+	if ik >= 0:
+		return {"kind": "inplace", "i": ik}
 	var ck := clip_at(p)
 	if ck >= 0:
 		return {"kind": "clip", "i": ck}
@@ -454,6 +457,11 @@ func _gui_input(ev: InputEvent) -> void:
 			if h.is_empty():
 				return
 			match h["kind"]:
+				"inplace":   # W08: the clip's In place chip
+					var cu = m.get("clips_ui")
+					if cu != null:
+						cu.sel = int(h["i"])
+						cu.toggle_inplace(int(h["i"]))
 				"clip":
 					_clip_press(h["i"], ev.position.x)
 				"warp":
@@ -1302,6 +1310,22 @@ func warp_hit(p: Vector2) -> Dictionary:
 	return {"kind": "warp", "i": k, "j": best}
 
 
+## W08: clip k's "In place" chip, just right of its bar (left of the strip's edge when the bar ends near it)
+func inplace_rect(k: int) -> Rect2:
+	var r := clip_rect(k)
+	return Rect2(minf(r.end.x + 3.0, size.x - 52.0), r.position.y, 50.0, r.size.y)
+
+
+func inplace_at(p: Vector2) -> int:
+	var S := _S()
+	if S == null:
+		return -1
+	for k in S.clips.size():
+		if inplace_rect(k).has_point(p):
+			return k
+	return -1
+
+
 func clip_at(p: Vector2) -> int:
 	var S := _S()
 	if S == null:
@@ -1517,5 +1541,9 @@ func _draw_clips(S: Scene, font: Font) -> void:
 			var xs := x_of(float(c["start"]) + L * i / float(c["speed"]))
 			draw_line(Vector2(xs, r.position.y), Vector2(xs, r.end.y), Tok.of("on_accent:0.6"), 1.0)
 		draw_string(font, Vector2(r.position.x + 3, r.position.y + 9), Clips.label(c), HORIZONTAL_ALIGNMENT_LEFT, maxf(r.size.x - 4, 1.0), 9, Tok.c("on_accent"))
+		var ir := inplace_rect(k)   # W08: the In place toggle, lit when on
+		var ion := bool(c.get("inplace", false))
+		draw_rect(ir, Tok.c("accent") if ion else Tok.of("ink:0.25"))
+		draw_string(font, Vector2(ir.position.x + 3, ir.position.y + 8), "In place", HORIZONTAL_ALIGNMENT_LEFT, ir.size.x - 4, 9, Tok.c("on_accent"))
 		if k == sel:
 			draw_rect(r.grow(0.5), Tok.c("focus"), false, 1.5)
