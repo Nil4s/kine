@@ -48,6 +48,7 @@ class Model:
 	var looks: Array = []        # item 221: the body looks of the replay ({"c": Color, "preset", ...}), one per body
 	var props: Array = []        # KCad.mass_properties per body (metres)
 	var vol_mm3: Array = []
+	var _tidx := {}              # s233: i -> TriIndex of tris(i)
 	var _tris := {}              # i -> PackedVector3Array (flat triangles, mm)
 	var _fine := {}              # i -> PackedVector3Array (finer tessellation, mm)
 	var _kgap := {}              # "i,j" -> {"gap", "method"}
@@ -91,6 +92,11 @@ class Model:
 		_fine[i] = t
 		return t
 
+	func index(i: int) -> TriIndex:
+		if not _tidx.has(i):
+			_tidx[i] = TriIndex.new(tris(i))
+		return _tidx[i]
+
 	func box(i: int) -> AABB:
 		if not _box.has(i):
 			tris(i)
@@ -106,10 +112,15 @@ class Model:
 			return _ov[key]
 		var v := 0.0
 		if box_gap(i, j) <= 1e-6:
-			var c: int = KCad.intersect(int(ids[i]), int(ids[j]))
-			if c != 0:
-				v = KCad.volume(c) / (MM * MM * MM)
-				KCad.release(c)
+			var pk := PartFacts.pair_key(int(ids[i]), int(ids[j]))
+			if PartFacts._pair_ov.has(pk):   # s233: the same two shapes met in an earlier call (the replay cache hands the same ids back)
+				v = PartFacts._pair_ov[pk]
+			else:
+				var c: int = KCad.intersect(int(ids[i]), int(ids[j]))
+				if c != 0:
+					v = KCad.volume(c) / (MM * MM * MM)
+					KCad.release(c)
+				PartFacts._pair_ov[pk] = v
 		_ov[key] = v
 		return v
 
@@ -124,7 +135,14 @@ class Model:
 		if overlap(i, j) > HIT_MM3:
 			_gap[key] = 0.0
 			return 0.0
-		var g2 := PartFacts.tri_gap(tris(i), tris(j), limit)
+		var pk2 := PartFacts.pair_key(int(ids[i]), int(ids[j]))
+		var g2: float
+		var hit: Variant = PartFacts._pair_gap.get(pk2)
+		if hit != null and (not is_inf(float(hit[0])) or float(hit[1]) >= limit):   # a finite answer is the true gap; an INF one holds for any limit up to the one it was asked with
+			g2 = float(hit[0])
+		else:
+			g2 = PartFacts.tri_gap(tris(i), tris(j), limit, {}, index(i), index(j))
+			PartFacts._pair_gap[pk2] = [g2, limit]
 		if g2 <= limit or is_inf(limit):
 			_gap[key] = g2
 		return g2 if g2 <= limit else INF
@@ -282,18 +300,66 @@ class Model:
 				out.append(i)
 		return out
 
+	## s233 BROAD PHASE: every pair (i < j) whose boxes are within `limit` mm (box_gap <= limit), in (i, j) order, exactly the pairs the
+	## all-pairs loop would keep, found by a sweep over the boxes sorted along the axis with the fewest overlaps: near-linear in n plus the pairs found
+	## (n=267: 35 000 box tests became about 1 000). pairs_tested counts the full box tests made, for the tests to read.
+	func near_pairs(limit: float) -> Array:
+		var bx: Array = []
+		for i in n:
+			bx.append(box(i))
+		var best_axis := 0
+		var best_cnt := -1
+		var orders: Array = []
+		for ax in 3:
+			var ord: Array = range(n)
+			ord.sort_custom(func(a, b): return bx[a].position[ax] < bx[b].position[ax] or (bx[a].position[ax] == bx[b].position[ax] and a < b))
+			orders.append(ord)
+			var cnt := 0   # the candidates this axis leaves (capped: a bad axis stops early)
+			for a in n:
+				var ia: int = ord[a]
+				var hi: float = bx[ia].position[ax] + bx[ia].size[ax] + limit
+				var b := a + 1
+				while b < n and bx[ord[b]].position[ax] <= hi:
+					cnt += 1
+					b += 1
+				if best_cnt >= 0 and cnt > best_cnt:
+					break
+			if best_cnt < 0 or cnt < best_cnt:
+				best_cnt = cnt
+				best_axis = ax
+		var ord2: Array = orders[best_axis]
+		var found := PackedInt64Array()
+		for a in n:
+			var ia: int = ord2[a]
+			var hi: float = bx[ia].position[best_axis] + bx[ia].size[best_axis] + limit
+			var b := a + 1
+			while b < n and bx[ord2[b]].position[best_axis] <= hi:
+				var ib: int = ord2[b]
+				pairs_tested += 1
+				if PartFacts.aabb_gap(bx[ia], bx[ib]) <= limit:
+					found.append(mini(ia, ib) * n + maxi(ia, ib))
+				b += 1
+		found.sort()
+		var out: Array = []
+		for key in found:
+			out.append([int(key) / n, int(key) % n])
+		return out
+
+	var pairs_tested := 0   # s233 probe: full box tests the broad phase made
+
 	## connected pieces of the part: bodies joined when they overlap or touch (gap <= TOUCH_MM); [[i, ...], ...] by first body
 	func components() -> Array:
 		var par := []
 		for i in n:
 			par.append(i)
-		for i in n:
-			for j in range(i + 1, n):
-				if box_gap(i, j) <= TOUCH_MM and gap(i, j, TOUCH_MM) <= TOUCH_MM:
-					var a := _root(par, i)
-					var b := _root(par, j)
-					if a != b:
-						par[maxi(a, b)] = mini(a, b)
+		for pr in near_pairs(TOUCH_MM):
+			var i: int = pr[0]
+			var j: int = pr[1]
+			if gap(i, j, TOUCH_MM) <= TOUCH_MM:
+				var a := _root(par, i)
+				var b := _root(par, j)
+				if a != b:
+					par[maxi(a, b)] = mini(a, b)
 		var groups := {}
 		for i in n:
 			var r := _root(par, i)
@@ -318,7 +384,7 @@ static func build(rec: Dictionary) -> Model:
 	if not Part.available():
 		M.why = "the CAD kernel is not installed (Part.why_not(): %s)" % Part.why_not()
 		return M
-	var r: Dictionary = Part.replay(rec, -1, {"keep": true, "props": true, "errors_only": true})
+	var r: Dictionary = Part.replay(rec, -1, {"keep": true, "props": true, "errors_only": true, "inc": true})
 	M.ids = r.get("ids", [])
 	M.n = M.ids.size()
 	M.errors = r.get("errors", {})
@@ -335,7 +401,7 @@ static func build(rec: Dictionary) -> Model:
 		vs += v
 		cs += (M.props[i]["center"] as Vector3) / MM * v
 	M.centre_mm = cs / maxf(vs, 1e-9)
-	M.labels = labels_of(rec, M.n)
+	M.labels = labels_of(rec, M.n, r.get("counts", []))
 	M.ok = true
 	return M
 
@@ -343,7 +409,7 @@ static func build(rec: Dictionary) -> Model:
 ## the name of each body, as the replay lists them. rec["body_names"] (item 212) first; else tracked through the timeline by how many
 ## bodies each step adds or removes: a new body takes its feature's name (a pattern's copies "<name> 2", ...), a combine drops its tools.
 ## Anything the tracking cannot follow (a split) falls back to BodyN for the bodies it cannot name.
-static func labels_of(rec: Dictionary, n: int) -> Array:
+static func labels_of(rec: Dictionary, n: int, counts: Array = []) -> Array:   # counts: the body count after each step (Part.replay res["counts"]); empty = replay each prefix
 	var bn: Variant = rec.get("body_names")
 	if bn is Array and (bn as Array).size() == n:
 		return (bn as Array).map(func(s): return String(s))
@@ -352,7 +418,7 @@ static func labels_of(rec: Dictionary, n: int) -> Array:
 	var made: Array = []   # [feature index, body count after it]
 	var cnt := 0
 	var prev := 0
-	var step_counts := _counts_after_each(rec, feats)
+	var step_counts: Array = counts if counts.size() == feats.size() else _counts_after_each(rec, feats)
 	for k in feats.size():
 		var f: Dictionary = feats[k]
 		var c: int = step_counts[k]
@@ -407,7 +473,34 @@ static func _counts_after_each(rec: Dictionary, feats: Array) -> Array:
 
 
 # ------------------------------------------------------------------------------------------------ geometry helpers (mm)
+static var _pair_ov := {}    # s233: (shape a, shape b) -> common volume mm3, across calls
+static var _pair_gap := {}   # s233: (shape a, shape b) -> [mesh gap or INF, the limit it was asked with]
+
+
+## the key of an ordered pair of live shapes (their ids and generations: a freed and reused id never meets an old answer)
+static func pair_key(a: int, b: int) -> String:
+	return "%d.%d|%d.%d" % [a, KCad.gen(a), b, KCad.gen(b)]
+
+
+static var _tess_mm := {}   # s233: (shape, deflection, angle) -> triangles, kept while the shape lives (every agent call tessellated the whole part again)
+static var _tess_mm_pts := 0
+const TESS_MM_PTS := 12000000
+
+
 static func tess_mm(id: int, defl_m: float, ang: float) -> PackedVector3Array:
+	var key := "%d.%d.%s.%s" % [id, KCad.gen(id), var_to_str(defl_m), var_to_str(ang)]
+	if _tess_mm.has(key):
+		return _tess_mm[key]
+	var r := _tess_mm_make(id, defl_m, ang)
+	if _tess_mm_pts + r.size() > TESS_MM_PTS:
+		_tess_mm.clear()
+		_tess_mm_pts = 0
+	_tess_mm[key] = r
+	_tess_mm_pts += r.size()
+	return r
+
+
+static func _tess_mm_make(id: int, defl_m: float, ang: float) -> PackedVector3Array:
 	var out := PackedVector3Array()
 	var tm: ArrayMesh = KCad.tessellate(id, defl_m, ang)
 	if tm == null:
@@ -444,7 +537,7 @@ static func aabb_gap(a: AABB, b: AABB) -> float:
 
 ## the shortest distance between two triangle soups (flat, three points per triangle), mm; INF when it is more than `limit`.
 ## Region filter (only triangles near the other soup's box), then a grid over B so each triangle of A meets only its neighbours.
-static func tri_gap(A: PackedVector3Array, B: PackedVector3Array, limit := INF, info := {}) -> float:
+static func tri_gap(A: PackedVector3Array, B: PackedVector3Array, limit := INF, info := {}, ia: TriIndex = null, ib: TriIndex = null) -> float:   # ia / ib: s233 per-body triangle indexes (Model.index), same answer, no scan of every triangle per pair
 	if A.is_empty() or B.is_empty():
 		return INF
 	var ba := box_of(A)
@@ -464,11 +557,11 @@ static func tri_gap(A: PackedVector3Array, B: PackedVector3Array, limit := INF, 
 	if region.size == Vector3.ZERO and not (ba.grow(reach).intersects(bb.grow(reach))):
 		return INF
 	# the triangles that can matter
-	var ta: Array = _near_tris(A, region)
-	var tb: Array = _near_tris(B, region)
+	var ta: Array = _near(A, ia, region)
+	var tb: Array = _near(B, ib, region)
 	if ta.is_empty() or tb.is_empty():
-		ta = _near_tris(A, bb.grow(reach))
-		tb = _near_tris(B, ba.grow(reach))
+		ta = _near(A, ia, bb.grow(reach))
+		tb = _near(B, ib, ba.grow(reach))
 	# grid over tb
 	var cell := maxf(region.size.length() / 12.0, 0.05)
 	var grid := {}
@@ -557,6 +650,76 @@ static func ray_hit(P: PackedVector3Array, o: Vector3, d: Vector3) -> float:
 	return best
 
 
+static func _near(P: PackedVector3Array, idx: TriIndex, region: AABB) -> Array:
+	return idx.near(region) if idx != null else _near_tris(P, region)
+
+
+## s233 TRIANGLE INDEX: a body's triangle boxes and a uniform grid over them, built once per body. near(region) answers exactly what _near_tris(P, region)
+## answers (same triangles, same ascending order, same boxes) by looking only in the grid cells the region covers, not at all 400 000 triangles.
+class TriIndex:
+	extends RefCounted
+	var P: PackedVector3Array
+	var mins := PackedVector3Array()
+	var maxs := PackedVector3Array()
+	var cell := 1.0
+	var origin := Vector3.ZERO
+	var grid := {}   # Vector3i -> PackedInt32Array of triangle numbers
+	var maxc := Vector3.ZERO   # the last cell with triangles in it, per axis
+
+	func _init(pts: PackedVector3Array) -> void:
+		P = pts
+		var nt := pts.size() / 3
+		mins.resize(nt)
+		maxs.resize(nt)
+		var all := AABB()
+		for t in nt:
+			var a := pts[3 * t]
+			var b := pts[3 * t + 1]
+			var c := pts[3 * t + 2]
+			mins[t] = Vector3(minf(a.x, minf(b.x, c.x)), minf(a.y, minf(b.y, c.y)), minf(a.z, minf(b.z, c.z)))
+			maxs[t] = Vector3(maxf(a.x, maxf(b.x, c.x)), maxf(a.y, maxf(b.y, c.y)), maxf(a.z, maxf(b.z, c.z)))
+		if nt == 0:
+			return
+		all = PartFacts.box_of(pts)
+		origin = all.position
+		cell = maxf(all.size.length() / 40.0, 1e-3)
+		maxc = ((all.position + all.size - origin) / cell).floor()
+		for t in nt:
+			var lo := ((mins[t] - origin) / cell).floor()
+			var hi := ((maxs[t] - origin) / cell).floor()
+			for cx in range(int(lo.x), int(hi.x) + 1):
+				for cy in range(int(lo.y), int(hi.y) + 1):
+					for cz in range(int(lo.z), int(hi.z) + 1):
+						var key := Vector3i(cx, cy, cz)
+						var cellv: PackedInt32Array = grid.get(key, PackedInt32Array())   # packed arrays are values: put it back
+						cellv.append(t)
+						grid[key] = cellv
+
+	func near(region: AABB) -> Array:
+		var out := []
+		if mins.is_empty():
+			return out
+		var lo := ((region.position - origin) / cell).floor().max(Vector3.ZERO)
+		var hi := ((region.position + region.size - origin) / cell).floor().min(maxc)
+		var seen := {}
+		var hit: Array = []
+		for cx in range(int(lo.x), int(hi.x) + 1):
+			for cy in range(int(lo.y), int(hi.y) + 1):
+				for cz in range(int(lo.z), int(hi.z) + 1):
+					var key := Vector3i(cx, cy, cz)
+					if grid.has(key):
+						for t in (grid[key] as PackedInt32Array):
+							if not seen.has(t):
+								seen[t] = true
+								hit.append(t)
+		hit.sort()
+		for t in hit:
+			var tb := AABB(P[3 * t], Vector3.ZERO).expand(P[3 * t + 1]).expand(P[3 * t + 2])
+			if tb.intersects(region) or region.encloses(tb):
+				out.append([3 * t, tb])
+		return out
+
+
 ## [[first vertex index, its box]] for the triangles of P whose box meets `region`
 static func _near_tris(P: PackedVector3Array, region: AABB) -> Array:
 	var out := []
@@ -630,6 +793,28 @@ static func _u3(v: Vector3) -> String:
 
 ## the contact graph: {"overlaps": [[i, j, mm3]], "touches": [[i, j]], "near": [[i, j, gap]], "apart": count of the other pairs}
 static func contacts(M: Model, near_mm := NEAR_MM) -> Dictionary:
+	var ov := []
+	var tc := []
+	var nr := []
+	for pr in M.near_pairs(near_mm):   # s233: only the pairs whose boxes are within near_mm (the sweep); the rest are "apart" by count
+		var i: int = pr[0]
+		var j: int = pr[1]
+		var o := M.overlap(i, j)
+		if o > HIT_MM3:
+			ov.append([i, j, o])
+			continue
+		var g := M.gap(i, j, near_mm)
+		if is_inf(g):
+			continue
+		elif g <= TOUCH_MM:
+			tc.append([i, j])
+		else:
+			nr.append([i, j, g])
+	return {"overlaps": ov, "touches": tc, "near": nr, "apart": M.n * (M.n - 1) / 2 - ov.size() - tc.size() - nr.size()}
+
+
+## the all-pairs contact graph the broad phase replaced: kept as the reference tests/s233_test.gd compares against (identical results)
+static func contacts_all_pairs(M: Model, near_mm := NEAR_MM) -> Dictionary:
 	var ov := []
 	var tc := []
 	var nr := []

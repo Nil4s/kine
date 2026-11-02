@@ -95,7 +95,13 @@ static func shell(id: int, thickness: float, open_dir := Vector3.ZERO) -> int:
 
 static func volume(id: int) -> float:
 	var n = _n()
-	return n.volume(id) if n != null else -1.0
+	if n == null:
+		return -1.0
+	if _vol_cache.has(id):   # s233: a shape never changes, so its volume is asked of the kernel once while the shape lives
+		return _vol_cache[id]
+	var v: float = n.volume(id)
+	_vol_cache[id] = v
+	return v
 
 
 static func area(id: int) -> float:
@@ -270,16 +276,56 @@ static func pattern_circular(id: int, axis_origin: Vector3, axis_dir: Vector3, c
 ## {volume, area, center (of mass), inertia (Basis about the centre, density 1)}; empty on failure
 static func mass_properties(id: int) -> Dictionary:
 	var n = _n()
-	return n.mass_properties(id) if n != null else {}
+	if n == null:
+		return {}
+	if _mass_cache.has(id):   # s233: the hall's 220 bodies cost about 170 s here (roof shells); a shape never changes, so ask once while it lives
+		return (_mass_cache[id] as Dictionary).duplicate()
+	var d: Dictionary = n.mass_properties(id)
+	_mass_cache[id] = d.duplicate()
+	return d
+
+
+## s233 SHARED SHAPES: the kernel's shapes are never changed in place (every operation answers a NEW id), so two owners can hold one id.
+## retain(id) adds an owner; release(id) drops one and frees the shape only when the last owner lets go. The replay cache (Part.inc_cache)
+## shares the bodies of a step with the next step instead of deep-copying every body per step (that copy was O(steps x bodies) in time and memory).
+static var _owners := {}   # id -> extra owners beyond the first
+static var _vol_cache := {}    # id -> volume (m3), dropped when the shape is freed
+static var _mass_cache := {}   # id -> mass_properties
+static var _epoch := 0         # release_all makes every earlier cache key stale
+static var _gens := {}         # id -> how many shapes have been freed under this id (ids may be reused): cache keys of other modules include it
+
+
+## the number to put in a cache key beside the id: it changes when the id is freed, so a reused id never meets an old entry
+static func gen(id: int) -> int:
+	return _epoch * 1000000 + int(_gens.get(id, 0))
+
+
+static func retain(id: int) -> void:
+	if id != 0:
+		_owners[id] = int(_owners.get(id, 0)) + 1
 
 
 static func release(id: int) -> void:
+	if _owners.has(id):
+		var k: int = int(_owners[id]) - 1
+		if k <= 0:
+			_owners.erase(id)
+		else:
+			_owners[id] = k
+		return
+	_vol_cache.erase(id)
+	_mass_cache.erase(id)
+	_gens[id] = int(_gens.get(id, 0)) + 1
 	var n = _n()
 	if n != null:
 		n.release(id)
 
 
 static func release_all() -> void:
+	_owners.clear()
+	_vol_cache.clear()
+	_mass_cache.clear()
+	_epoch += 1
 	var n = _n()
 	if n != null:
 		n.release_all()

@@ -623,3 +623,4 @@ EXTRA="$EXTRA s231:w"   # TEMPLE LOOK: default materials by piece kind, words an
 
 
 EXTRA="$EXTRA s227b:w"   # s227b: the Easy Part library page fits the panel scroll area at 1280x720 (a chip that adds a row fails here)
+EXTRA="$EXTRA s233:w"   # BIG PARTS: 300 bodies drawn (256-surface limit), shared replay shapes, broad phase, one-pass counts (item 233)
