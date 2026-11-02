@@ -694,3 +694,6 @@ EXTRA="$EXTRA w07:w"   # w07: arithmetic in number fields (25*2+3), scripts/num_
 
 
 EXTRA="$EXTRA w02:w"   # w02: sketch health free / fully defined / over-constrained by colour + the clashing pair named, tests/w02_test.gd
+
+EXTRA="$EXTRA s262:w"   # s262: Exploded view, scripts/build/explode_view.gd, tests/s262_test.gd
+EXTRA="$EXTRA s262ui:w"   # s262: Exploded view in the app (clicks, camera, strip), tests/s262ui_test.gd

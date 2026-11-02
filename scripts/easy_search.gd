@@ -47,6 +47,7 @@ const ACTIONS := [
 	["Round only the outside", "round fillet outside outer edges", ["make:round", "round:outside"]],
 	["Round only the top", "round fillet top edges", ["make:round", "round:top"]],
 	["Test print: fit strip", "test print fit strip tolerance clearance pegs holes calibration printer", ["parts:", "lib:Type it", "fitstrip:go"]],
+	["Exploded view", "explode exploded view pull apart assembly screws order animate", ["parts:", "lib:Hinges", "explode:go"]],
 	["Parts library", "parts library screws nuts gears bearings hinges", ["parts:"]],
 ]
 
@@ -102,6 +103,8 @@ static func button(ep, ref: String) -> Button:
 			return ep.parts_btn
 		"fill":
 			return ep.fill_btn
+		"explode":
+			return ep.xview_box.go_btn
 		"fitstrip":
 			return ep.fitstrip_box.go_btn
 		"bar":
