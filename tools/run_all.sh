@@ -653,3 +653,5 @@ EXTRA="$EXTRA s242:w"   # s242: LOOK FACTS (agent look_facts: per-piece colour, 
 
 
 EXTRA="$EXTRA s243:w"   # s243: FRAMING FACTS FROM THE SILHOUETTE (frame_facts, frame_to), tests/s243_test.gd
+
+EXTRA="$EXTRA s247:w"   # s247: THE LIBRARY GROUP TABS ARE PINNED above the scrolling chip area, tests/s247_test.gd

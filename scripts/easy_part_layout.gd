@@ -422,7 +422,8 @@ func _sync_shape() -> void:
 
 ## the panel's height if it is not cut short: its column plus its own margins
 func _panel_need() -> float:
-	return panel_vb.get_combined_minimum_size().y + panel.get_theme_stylebox("panel").get_minimum_size().y
+	var pinned := (lib_group_row.get_combined_minimum_size().y + 4.0) if (lib_group_row != null and lib_group_row.visible) else 0.0   # s247
+	return panel_vb.get_combined_minimum_size().y + pinned + panel.get_theme_stylebox("panel").get_minimum_size().y
 
 
 ## FMOBILE: a bottom-left box's top: its usual place, never above the sentence under the hint, and above the one sentence at the bottom when the room allows

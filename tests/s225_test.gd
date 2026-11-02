@@ -490,7 +490,7 @@ func _init() -> void:
 	var nchip := root.find_child("easypart_nature_chip", true, false) as Button
 	var win := Rect2(0, 0, 1280, 720)
 	ok(nchip != null and nchip.is_visible_in_tree() and win.encloses(nchip.get_global_rect()), "12 Easy Parts: a Nature chip on the Parts library page, inside 1280 x 720 (%s)" % str(nchip.get_global_rect() if nchip != null else Rect2()))
-	var scr_vp := (epn.panel.get_node("easypart_panel_scroll") as Control).get_global_rect()
+	var scr_vp := (epn.panel.find_child("easypart_panel_scroll", true, false) as Control).get_global_rect()
 	var m416 := root.find_child("easypart_screw_M4_16", true, false) as Control
 	ok(m416 != null and scr_vp.has_point(m416.get_global_rect().get_center()), "12 the Nature chip adds no row: the M4 x 16 screw chip's middle (%s) is still inside the scroll area (%s), so a real click reaches it" % [str(m416.get_global_rect().get_center()) if m416 != null else "-", str(scr_vp)])
 	var lib_box := root.find_child("easypart_library", true, false) as Control
@@ -503,7 +503,7 @@ func _init() -> void:
 	var lib_b1 := lib_box.get_global_rect().end.y if lib_box != null else -1.0
 	ok(nbox != null and nbox.is_visible_in_tree() and (soon == null or not soon.is_visible_in_tree()) and epn.screw_box != null and not epn.screw_box.is_visible_in_tree(), "12 the Nature chip opens the Nature page (no 'coming soon', no screw grid)")
 	await idle(8)
-	var scr_rect := (epn.panel.get_node("easypart_panel_scroll") as Control).get_global_rect()
+	var scr_rect := (epn.panel.find_child("easypart_panel_scroll", true, false) as Control).get_global_rect()
 	var all_in := nbox != null
 	var ovh := 0.0
 	for kk in ["ginkgo", "oak", "pine", "palm", "birch", "bare", "hedge", "shrub", "grass", "flowers", "path"]:

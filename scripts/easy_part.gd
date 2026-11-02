@@ -218,7 +218,12 @@ func build(root: Control) -> void:
 	var sc := ScrollContainer.new()   # the panel's column scrolls inside the panel when it is taller than the room (a Where-to-cut row adds one)
 	sc.name = "easypart_panel_scroll"
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	panel.add_child(sc)
+	var outer := VBoxContainer.new()   # s247: the library's group tabs are pinned in this column ABOVE the scroll, so a scrolled page never carries them away
+	outer.name = "easypart_panel_outer"
+	outer.add_theme_constant_override("separation", 4)
+	panel.add_child(outer)
+	sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	outer.add_child(sc)
 	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sc.add_child(v)
 	panel_title = Label.new()
@@ -315,6 +320,8 @@ func build(root: Control) -> void:
 	th.add_child(more)   # on the title line beside Empty (other ways to start): on the Start row it wrapped to a second line once Rack joined, and the Parts page ran out of the panel
 	lib_box = _lib_box()
 	v.add_child(lib_box)
+	outer.add_child(lib_group_row)   # s247: pinned above the scroll area
+	outer.move_child(lib_group_row, 0)
 	fav_box = _fav_box()   # p083favfix: the Favourites category page (its row and the star), right under the Parts chips: the screw grid of a screw on the floor sits below it, so the star stays in the scroll view
 	v.add_child(fav_box)
 	rod_box = _rod_box()   # THREAD (p206threadgene): the threaded rod chips, ABOVE the screw grid on the Screws page (under the grid they sat below the panel's edge)
@@ -2252,7 +2259,8 @@ func _lib_box() -> PanelContainer:
 	gfl.name = "easypart_lib_groups"
 	gfl.add_theme_constant_override("h_separation", 3)
 	gfl.add_theme_constant_override("v_separation", 3)
-	vb.add_child(gfl)
+	gfl.visible = false
+	lib_group_row = gfl   # s247: not in the scrolling page: _panel_build puts it above the scroll area
 	for g in LIB_GROUPS:
 		var gb := Button.new()
 		gb.name = "easypart_libgroup_" + String(g[0])
@@ -2598,8 +2606,8 @@ func _screw_pick(d: int, L: int) -> void:
 ## s227: the library page's chips fill several rows, so the screw sizes sit under the fold: bring the size chips (M4 x 16, row 2) into view
 ## the panel scrolls so the control is inside its visible part: a chip below the scroll's bottom edge is drawn clipped and takes no click
 func _scroll_into_view(c: Control) -> void:
-	var sc := panel.get_node_or_null("easypart_panel_scroll") as ScrollContainer
-	if sc != null and c != null and c.is_visible_in_tree():
+	var sc := panel.find_child("easypart_panel_scroll", true, false) as ScrollContainer
+	if sc != null and c != null and c.is_visible_in_tree() and sc.is_ancestor_of(c):   # s247: the pinned group tabs are outside the scroll: nothing to scroll
 		sc.ensure_control_visible(c)
 
 
@@ -2691,6 +2699,8 @@ func _handle_box() -> PanelContainer:
 func _screw_sync() -> void:
 	if lib_box != null:   # NLIBPAGE: the page shows while Parts is open; the open category is pressed; the coming-soon line names it
 		lib_box.visible = parts_open
+		if lib_group_row != null:
+			lib_group_row.visible = parts_open   # s247
 		for cat in lib_btns:
 			var lb: Button = lib_btns[cat]
 			lb.set_pressed_no_signal(parts_open and cat == lib_cat)
@@ -7151,7 +7161,7 @@ func _level_close_later() -> void:
 func _rod_scroll() -> void:
 	await panel.get_tree().process_frame   # the layout must have grown first, or the scroll clamps to 0
 	await panel.get_tree().process_frame
-	var sc := panel.get_node_or_null("easypart_panel_scroll") as ScrollContainer
+	var sc := panel.find_child("easypart_panel_scroll", true, false) as ScrollContainer
 	if sc != null and rod_box != null and rod_box.visible:
 		sc.scroll_vertical = int(rod_box.get_combined_minimum_size().y) + 4
 
@@ -8353,8 +8363,8 @@ func _lib_bar_press() -> void:
 
 
 func _lib_scroll_top() -> void:
-	if panel != null and panel.get_child_count() > 0 and panel.get_child(0) is ScrollContainer:
-		(panel.get_child(0) as ScrollContainer).scroll_vertical = 0
+	if panel != null and panel.find_child("easypart_panel_scroll", true, false) is ScrollContainer:
+		(panel.find_child("easypart_panel_scroll", true, false) as ScrollContainer).scroll_vertical = 0
 
 
 func _lib_bar_sync() -> void:
