@@ -123,6 +123,7 @@ var boss_btn: Button             # FRIDAY 37 BOSS CHIP: "Add its boss" (in the s
 var parts_open := false          # NSCREW2: the Parts category is open (the grid shows even with no screw on the floor)
 var lib_box: PanelContainer      # NLIBPAGE: the Parts library page: ten category chips, under the template chips while Parts is open
 var lib_group := "Fasteners"   # s239: the library group showing
+var lib_group_row: HFlowContainer   # s247: the group tab row, pinned above the panel scroll
 var lib_group_btns := {}         # s239: group name -> its tab
 var lib_group_flows := {}        # s239: group name -> the flow holding its chips
 var lib_btns := {}               # NLIBPAGE: category -> its chip
