@@ -3,7 +3,8 @@ extends SceneTree
 ## A page taller than the scroll area needs a scroll, and a scroll that moves while a real click is on its way sends that click to the wrong place (lay1).
 ##  1 FITS    Parts open (Screws page, nothing scrolled): the library page's height <= the panel scroll area's height (both printed)
 ##  2 SIZES   the M4 x 16 chip's middle lies inside the scroll area after the app's own one scroll to the grid (the panel scroll, printed)
-##  3 ICONS   the Ornaments, Roofs, Favourites, Type it and Nature chips are icon-only, each keeps its name and says its word in the tooltip
+##  3 WORDS   the Ornaments, Roofs, Favourites, Type it and Nature chips show their readable name, with an icon and a tooltip
+##            (239, a28b6389: was 'icon-only'; the stopgap is retired, the grouped library page has room for every word; Nick authorised the rewrite)
 const SHOT := "C:/Temp/claude/s227b"
 const DIRT := "user://s227b_test"
 var fails := 0
@@ -107,9 +108,9 @@ func _init() -> void:
 	var bad := []
 	for nm in ["easypart_lib_Ornaments", "easypart_lib_Roofs", "easypart_lib_Favourites", "easypart_lib_Type it", "easypart_nature_chip"]:
 		var b := root.find_child(nm, true, false) as Button
-		if b == null or b.text != "" or b.icon == null or b.tooltip_text == "":
+		if b == null or b.text.strip_edges() == "" or b.icon == null or b.tooltip_text == "":
 			bad.append(nm)
-	ok(bad.is_empty(), "3 the Ornaments, Roofs, Favourites, Type it and Nature chips are icon-only with a tooltip (wrong: %s)" % str(bad))
+	ok(bad.is_empty(), "3 the Ornaments, Roofs, Favourites, Type it and Nature chips show their name, with an icon and a tooltip (wrong: %s)" % str(bad))
 	DirAccess.make_dir_recursive_absolute(SHOT)
 	root.get_texture().get_image().save_png(SHOT + "/page.png")
 	print("s227b: %d fail" % fails)

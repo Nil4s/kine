@@ -289,6 +289,7 @@ func _init() -> void:
 	if not ep.parts_open:
 		var hov := root.gui_get_hovered_control()
 		print("     diag: the Parts click did not open it: rect %s visible %s hovered %s" % [str(ep.parts_btn.get_global_rect()), str(ep.parts_btn.is_visible_in_tree()), str(hov.name if hov != null else "none")])
+	await open_group_of(ep.lib_btns.get("Ornaments", null))   # 239: Ornaments is in the "Nature and decor" group
 	var lb: Button = ep.lib_btns.get("Ornaments", null)
 	print("     diag: parts_open %s, lib_btn %s visible %s, keys %s" % [str(ep.parts_open), str(lb), str(lb.is_visible_in_tree()) if lb != null else "-", str(ep.lib_btns.keys()).left(120)])
 	ok(lb != null and lb.is_visible_in_tree(), "6 the Parts library has an Ornaments chip, visible")
@@ -313,6 +314,7 @@ func _init() -> void:
 		m._undo()
 	await idle(6)
 	ok(int(Part.replay(m.S.part)["bodies"]) == nb_before, "6 undo takes both away (%d bodies)" % int(Part.replay(m.S.part)["bodies"]))
+	await open_group_of(ep.lib_btns["Type it"])   # 239: Type it is in the Mine group
 	await click_ctl(ep.lib_btns["Type it"])
 	await idle(4)
 	ep.type_edit.text = "5 corner beasts"
@@ -371,6 +373,7 @@ func _init() -> void:
 		await idle(6)
 	if not ep.parts_open:
 		await click_ctl(ep.parts_btn)
+	await open_group_of(ep.lib_btns["Ornaments"])   # 239
 	await click_ctl(ep.lib_btns["Ornaments"])
 	await idle(6)
 	var sb: Button = ep.orn_box.find_child("easypart_ornament_sculpt", true, false)
@@ -475,3 +478,14 @@ func _init() -> void:
 	await shot("sheet_far")
 	print("s227: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
+
+
+## 239 (a28b6389): the library chips sit in groups; a user opens a chip's group tab (a real click) before pressing the chip
+func open_group_of(c: Control) -> void:
+	if c == null or c.is_visible_in_tree():
+		return
+	for g in root.find_children("easypart_libgroup_*", "Button", true, false):
+		var fl := root.find_child("easypart_libchips_" + (g as Button).text, true, false)
+		if fl != null and fl.is_ancestor_of(c):
+			await click_ctl(g)
+			return
