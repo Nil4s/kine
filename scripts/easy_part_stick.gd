@@ -327,7 +327,7 @@ func _stick_pick(bi: int, faces: Array) -> void:
 
 ## FDELETE: a click on a piece picks it (the glow shows it; Remove or the Delete key takes it out). A click on empty grid clears the pick.
 ## The piece is the step that first put the clicked surface in the solid: the first step whose result has that point on a face
-func _pick_at(p: Vector2) -> void:
+func _pick_at(p: Vector2, forced := {}) -> void:   # W09: forced = a piece chosen by name from the list
 	_pick_clear()
 	if _tpl() != "" or not _drag.is_empty() or not _draft.is_empty():
 		return
@@ -335,7 +335,9 @@ func _pick_at(p: Vector2) -> void:
 	if (rec.get("features", []) as Array).is_empty():
 		return
 	var faces: Array = Part.body_faces(rec, -1)
-	var hit: Dictionary = pu._ray_hit(p, faces)
+	if _pstack == null:
+		_pstack = PickStack.new()
+	var hit: Dictionary = forced if not forced.is_empty() else _pstack.cycled(self, p, faces)   # W09: a repeat click goes down the pieces under it
 	if hit.is_empty():
 		return
 	var pt: Vector3 = hit["at"]
@@ -355,6 +357,9 @@ func _pick_at(p: Vector2) -> void:
 			_say("Picked a piece: press Remove to take it out. Undo puts it back")
 			return
 	_say("That piece has no step to take out")
+
+
+var _pstack: PickStack   # W09
 
 
 func _pick_clear() -> void:
