@@ -238,6 +238,33 @@ func s265() -> void:
 	ok((rc["errors"] as Dictionary).is_empty() and absf((full - left) - 3500.0) < 35.0, "265 the plus as a cut: plate %s of %s mm3 (removed %s)" % [str(left), str(full), str(full - left)])
 
 
+## 272 BAR: ONE move step with "bodies": [0, 2, 4] and d = [0, 0, 50] moves those three of five boxes by 50 mm in z (centres within 0.01 mm) and leaves
+## the other two where they were; one step instead of three. CONTROL: a bad index is refused in words and moves nothing; the single "body" move is unchanged.
+func s272() -> void:
+	var rec := Part.make("S272")
+	for k in 5:
+		Part.prim(rec, "box", {"x": 20.0 * k, "y": 0.0, "z": 0.0, "w": 10.0, "h": 10.0, "d": 10.0, "name": "C%d" % k})
+	var base := centres(rec)
+	var g := rec.duplicate(true)
+	(g["features"] as Array).append(Part.new_feature(g, "move", {"bodies": [0, 2, 4], "d": [0.0, 0.0, 50.0]}))
+	var after := centres(g)
+	var worst := 0.0
+	for k in 5:
+		var want: Vector3 = (base[k] as Vector3) + (Vector3(0, 0, 50) if k in [0, 2, 4] else Vector3.ZERO)
+		worst = maxf(worst, (after[k] as Vector3).distance_to(want))
+	ok(after.size() == 5 and worst < 0.01 and (g["features"] as Array).size() == rec["features"].size() + 1, "272 BAR one step moved bodies 1, 3, 5 by 50 mm and left 2, 4: worst centre error %.4f mm (bar 0.01)" % worst)
+	var bad := rec.duplicate(true)
+	(bad["features"] as Array).append(Part.new_feature(bad, "move", {"bodies": [0, 9], "d": [0.0, 0.0, 50.0]}))
+	var rb := Part.replay(bad)
+	var eb := String((rb["errors"] as Dictionary).values()[0]) if not (rb["errors"] as Dictionary).is_empty() else ""
+	var ab := centres(bad)
+	ok(eb.contains("no body 10") and ab.size() == 5 and (ab[0] as Vector3).distance_to(base[0]) < 0.01, "272 CONTROL a bad index is refused ('%s') and body 1 did not move" % eb)
+	var one := rec.duplicate(true)
+	(one["features"] as Array).append(Part.new_feature(one, "move", {"body": 1, "d": [0.0, 30.0, 0.0]}))
+	var co := centres(one)
+	ok((co[1] as Vector3).distance_to((base[1] as Vector3) + Vector3(0, 30, 0)) < 0.01 and (co[0] as Vector3).distance_to(base[0]) < 0.01, "272 CONTROL the single-body move is unchanged")
+
+
 func _init() -> void:
 	if not Part.available():
 		print("FAIL: no KineCAD DLL")
@@ -250,5 +277,6 @@ func _init() -> void:
 	s270()
 	s267()
 	s265()
+	s272()
 	print("s265: %d fail" % fails)
 	quit(1 if fails > 0 else 0)

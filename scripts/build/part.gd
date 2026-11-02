@@ -2744,9 +2744,33 @@ static func fillet_trial(body: int, r_mm: float, edges: Array) -> String:
 static func _move_op(bodies: Array, f: Dictionary) -> String:
 	if bodies.is_empty():
 		return "there is no piece to move"
-	var bi := clampi(int(f.get("body", 0)), 0, bodies.size() - 1)
 	var d: Array = f.get("d", [0.0, 0.0, 0.0])
 	var v := Vector3(float(d[0]), float(d[1]), float(d[2])) * MM
+	if f.has("bodies"):   # S272: a GROUP moves in one step: "bodies": [i, ...] (0-based, as a pattern's), all by the same "d" mm
+		var idx: Array = []
+		for bv in (f["bodies"] as Array):
+			var bj := int(bv)
+			if bj < 0 or bj >= bodies.size():
+				return "there is no body %d to move" % (bj + 1)
+			if not idx.has(bj):
+				idx.append(bj)
+		if idx.is_empty():
+			return "pick the bodies to move"
+		if v.is_zero_approx():
+			return ""
+		var moved: Array = []
+		for bj in idx:
+			var rj := KCad.translate(bodies[bj], v)
+			if rj == 0:
+				for mj in moved:
+					KCad.release(int(mj))
+				return KCad.last_error()
+			moved.append(rj)
+		for k in idx.size():
+			KCad.release(bodies[int(idx[k])])
+			bodies[int(idx[k])] = moved[k]
+		return ""
+	var bi := clampi(int(f.get("body", 0)), 0, bodies.size() - 1)
 	if v.is_zero_approx():
 		return ""
 	var r := KCad.translate(bodies[bi], v)
