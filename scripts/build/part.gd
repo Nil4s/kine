@@ -235,6 +235,8 @@ static func from_file(d: Variant) -> Dictionary:
 		for j in (d as Dictionary)["joints"]:
 			if j is Dictionary and String(j.get("kind", "")) in ["turn", "slide"]:
 				out["joints"].append((j as Dictionary).duplicate(true))   # p121 JOINTS IN WORDS: a hinge or a slide between two pieces (scripts/easy_part_stick.gd _joint_words)
+	if (d as Dictionary).get("film") is Dictionary:
+		out["film"] = (d as Dictionary)["film"].duplicate(true)   # s269 FILM KEYS: look / spin / move keys survive save and load (scripts/build/film.gd)
 	if String((d as Dictionary).get("unit", "")) in ["mm", "cm", "in"]:
 		out["unit"] = String((d as Dictionary)["unit"])   # W06: the part's unit for bare numbers survives save and load
 	if (d as Dictionary).has("dual"):

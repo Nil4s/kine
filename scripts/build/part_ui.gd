@@ -812,6 +812,7 @@ func _build_timeline() -> void:
 	part_give.tooltip_text = "Give it to a character: they hold this part in one hand; its size, weight and balance come from the part (steel unless you change the material)"
 	part_give.pressed.connect(func(): m.give_part_weapon(_rec()))
 	nb.add_child(part_give)
+	nb.add_child(FilmUI.make_button(self))   # s269 Film mode, on the timeline
 	nav.add_child(nb)
 	hb.add_child(nav)
 	hb.add_child(VSeparator.new())
