@@ -635,3 +635,6 @@ EXTRA="$EXTRA s233:w"   # BIG PARTS: 300 bodies drawn (256-surface limit), share
 EXTRA="$EXTRA s235:w"   # s235: TEMPLE LOOK ROUND 3 (light contrast, red/paving/tile colours, frame_width), tests/s235_test.gd
 EXTRA="$EXTRA s236:w"   # s236: TEMPLE ROUND 4 (amber dense ginkgo, ridge_dragon + corner_sprite shapes, roof lift_pow, mountains), tests/s236_test.gd
 EXTRA="$EXTRA s237:w"   # s237: gold ornaments seated on the roof + floats check, tests/s237_test.gd
+
+
+EXTRA="$EXTRA s240:w"   # s240: FRAMED FLOOR OVERLAP (Fit view frames the grid in the free view; Challenges card closes), tests/s240_test.gd
