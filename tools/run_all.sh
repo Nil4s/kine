@@ -701,3 +701,6 @@ EXTRA="$EXTRA w03:w"   # W03: stable references: hinge pivot follows the body bo
 
 
 EXTRA="$EXTRA w06b:w"   # W06b: units in type-while-drawing, dialog defaults in project unit, tests/w06b_test.gd
+
+
+EXTRA="$EXTRA w09b:w"   # w09b: pick-through list shows body names / the making feature, tests/w09b_test.gd
