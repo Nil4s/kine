@@ -1530,7 +1530,9 @@ static func _solids(f: Dictionary, sk: Dictionary) -> Dictionary:
 		return {"solids": PackedInt32Array([s]), "err": ""}
 	var nest := loop_nest(groups)   # s234: a loop inside a loop is a HOLE, a loop inside a hole is an island (a new region), like every CAD tool
 	if not (nest["cross"] as Dictionary).is_empty():
-		return {"solids": PackedInt32Array(), "err": loop_cross_words(nest["cross"])}
+		if bool(f.get("merge_loops", false)):   # S265: "merge_loops": true makes loops that cross ONE region (their union), as Fusion's regions do
+			return _solids_crossing(f, sk, groups, nest["cross"])
+		return {"solids": PackedInt32Array(), "err": loop_cross_words(nest["cross"]) + ' (or set "merge_loops": true on the pull to make crossing shapes one region)'}
 	var pl: Dictionary = sk["_pl"] if sk.has("_pl") else plane(String(sk.get("plane", "front")))
 	var depth: Array = nest["depth"]
 	var parent: Array = nest["parent"]
@@ -1677,6 +1679,102 @@ static func _in_segs(p: Vector2, segs: Array) -> bool:
 		if (a.y > p.y) != (b.y > p.y) and p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x:
 			inside = not inside
 	return inside
+
+
+## S265: every pair of loops whose outlines cross: [[i, j], ...]
+static func loop_cross_pairs(groups: Array) -> Array:
+	var segs: Array = []
+	var boxes: Array = []
+	for g in groups:
+		segs.append(_loop_segs(g))
+		boxes.append(_loop_box(g).grow(0.01))
+	var out: Array = []
+	for i in groups.size():
+		for j in range(i + 1, groups.size()):
+			if not (boxes[i] as Rect2).intersects(boxes[j]):
+				continue
+			var hit := false
+			for sa in (segs[i] as Array):
+				for sb in (segs[j] as Array):
+					if not PPRIM._seg_cross(sa[0], sa[1], sb[0], sb[1]).is_empty():
+						hit = true
+						break
+				if hit:
+					break
+			if hit:
+				out.append([i, j])
+	return out
+
+
+## S265: a sketch whose loops cross (a "+" recess drawn as two bars): each set of crossing loops is pulled as one solid, the UNION of its loops.
+## The rest of the loops go the usual way (holes, islands). A loop inside a crossing set, or a crossing set inside another loop (a hole in the
+## union, a union as a hole) is not made here: the old words say the shapes cross.
+static func _solids_crossing(f: Dictionary, sk: Dictionary, groups: Array, first: Dictionary) -> Dictionary:
+	var n := groups.size()
+	var par: Array = []
+	for i in n:
+		par.append(i)
+	for pr in loop_cross_pairs(groups):
+		par[_uf_root(par, int(pr[0]))] = _uf_root(par, int(pr[1]))
+	var members := {}   # root -> loop indices
+	for i in n:
+		var r := _uf_root(par, i)
+		if not members.has(r):
+			members[r] = []
+		(members[r] as Array).append(i)
+	var sets: Array = []
+	var singles: Array = []
+	for r in members:
+		if (members[r] as Array).size() > 1:
+			sets.append(members[r])
+		else:
+			singles.append((members[r] as Array)[0])
+	var segs: Array = []
+	for g in groups:
+		segs.append(_loop_segs(g))
+	for st in sets:
+		for ci in st:
+			for si in singles:
+				var pa: Vector2 = (segs[si][0] as Array)[0] if not (segs[si] as Array).is_empty() else Vector2.ZERO
+				var pb: Vector2 = (segs[ci][0] as Array)[0] if not (segs[ci] as Array).is_empty() else Vector2.ZERO
+				if _in_segs(pa, segs[ci]) or _in_segs(pb, segs[si]):
+					return {"solids": PackedInt32Array(), "err": loop_cross_words(first)}
+	var pl: Dictionary = sk["_pl"] if sk.has("_pl") else plane(String(sk.get("plane", "front")))
+	var out := PackedInt32Array()
+	if not singles.is_empty():
+		var flat: Array = []
+		for si in singles:
+			flat.append_array(groups[si])
+		var sk2 := sk.duplicate()
+		sk2["ents"] = flat
+		var rest := _solids(f, sk2)
+		if String(rest["err"]) != "":
+			return rest
+		out = rest["solids"]
+	for st in sets:
+		var u := 0
+		var fail := ""
+		for gi in st:
+			var sd := _loop_solid(f, pl, groups[gi])
+			if sd == 0:
+				fail = _plain_err(KCad.last_error())
+				break
+			if u == 0:
+				u = sd
+				continue
+			var w := KCad.union(u, sd)
+			KCad.release(u)
+			KCad.release(sd)
+			u = w
+			if u == 0:
+				fail = _plain_err(KCad.last_error())
+				break
+		if u == 0:
+			for s0 in out:
+				KCad.release(s0)
+			return {"solids": PackedInt32Array(), "err": fail if fail != "" else "the crossing shapes could not be joined into one"}
+		out.append(u)
+	return {"solids": out, "err": ""}
 
 
 static func loop_cross_words(c: Dictionary) -> String:

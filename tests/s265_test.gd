@@ -186,6 +186,58 @@ func s267() -> void:
 	ok(fx.contains("axis_face") and fx.contains("pivot") and fx.contains("adir"), "267 the docs in part_fx.gd name pivot, adir, axis_edge and axis_face")
 
 
+func rect_ents(a: Vector2, b: Vector2) -> Array:
+	var ents := []
+	var c := [a, Vector2(b.x, a.y), b, Vector2(a.x, b.y)]
+	for i in 4:
+		ents.append({"k": "line", "a": Part.arr2(c[i]), "b": Part.arr2(c[(i + 1) % 4])})
+	return ents
+
+
+func plus_ents() -> Array:   # two bars, 40 x 10 and 10 x 40, crossing at the middle: the union is 700 mm2
+	return rect_ents(Vector2(-20, -5), Vector2(20, 5)) + rect_ents(Vector2(-5, -20), Vector2(5, 20))
+
+
+func pull_rec(ents: Array, op := "new", merge := true) -> Dictionary:
+	var rec := Part.make("S265")
+	var sk := Part.new_feature(rec, "sketch", {"plane": "top", "ents": ents, "dims": []})
+	rec["features"].append(sk)
+	var ex := Part.new_feature(rec, "extrude", {"sketch": sk["id"], "dist": 5.0, "both": false, "op": op, "merge_loops": merge})
+	rec["features"].append(ex)
+	rec["xid"] = ex["id"]
+	return rec
+
+
+## 265 BAR: a sketch of two crossing bars (a "+"), with "merge_loops": true on the pull, pulled 5 mm is ONE body of volume (400 + 400 - 100) x 5 = 3500 mm3 (within 1 %), no error.
+## CONTROL: two separate bars still make 2 bodies (unchanged); a circle inside the crossing set is still refused with the old words naming the
+## crossing (the union-with-a-hole is not made here); the plus as a cut removes 3500 mm3 from a plate.
+func s265() -> void:
+	var mm3 := 1e-9
+	var r := Part.replay(pull_rec(plus_ents()))
+	var v: Array = r["volumes"]
+	ok((r["errors"] as Dictionary).is_empty() and int(r["bodies"]) == 1 and v.size() == 1 and absf(float(v[0]) / mm3 - 3500.0) < 35.0, "265 BAR the plus is one body of %s mm3 (want 3500), errors %s" % [str(float(v[0]) / mm3) if v.size() > 0 else "none", str(r["errors"])])
+	var apart := rect_ents(Vector2(-20, -5), Vector2(20, 5)) + rect_ents(Vector2(-20, 20), Vector2(20, 30))
+	var ra := Part.replay(pull_rec(apart))
+	ok((ra["errors"] as Dictionary).is_empty() and int(ra["bodies"]) == 2, "265 CONTROL two separate bars are still 2 bodies: %d" % int(ra["bodies"]))
+	var rold := Part.replay(pull_rec(plus_ents(), "new", false))
+	var eold := String((rold["errors"] as Dictionary).values()[0]) if not (rold["errors"] as Dictionary).is_empty() else ""
+	ok(eold.contains("cross at") and eold.contains("merge_loops") and int(rold["bodies"]) == 0, "265 CONTROL without merge_loops the plus is refused as before, and the words name the switch: '%s'" % eold.substr(0, 40))
+	var ring := plus_ents() + [{"k": "circle", "c": [0.0, 0.0], "r": 2.0}]
+	var rr := Part.replay(pull_rec(ring))
+	var er := String((rr["errors"] as Dictionary).values()[0]) if not (rr["errors"] as Dictionary).is_empty() else ""
+	ok(er.contains("cross"), "265 CONTROL a hole inside the crossing set keeps the old refusal: '%s'" % er.substr(0, 60))
+	var plate := Part.make("S265 plate")
+	Part.prim(plate, "box", {"x": -50.0, "y": 0.0, "z": -50.0, "w": 100.0, "h": 5.0, "d": 100.0, "name": "Plate"})
+	var sk := Part.new_feature(plate, "sketch", {"plane": "top", "ents": plus_ents(), "dims": []})
+	plate["features"].append(sk)
+	plate["features"].append(Part.new_feature(plate, "extrude", {"sketch": sk["id"], "dist": 5.0, "both": false, "op": "cut", "merge_loops": true}))
+	var rc := Part.replay(plate)
+	var vp: Array = rc["volumes"]
+	var left := float(vp[0]) / mm3 if vp.size() > 0 else -1.0
+	var full := 100.0 * 5.0 * 100.0
+	ok((rc["errors"] as Dictionary).is_empty() and absf((full - left) - 3500.0) < 35.0, "265 the plus as a cut: plate %s of %s mm3 (removed %s)" % [str(left), str(full), str(full - left)])
+
+
 func _init() -> void:
 	if not Part.available():
 		print("FAIL: no KineCAD DLL")
@@ -197,5 +249,6 @@ func _init() -> void:
 	s266()
 	s270()
 	s267()
+	s265()
 	print("s265: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
