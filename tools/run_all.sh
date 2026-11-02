@@ -658,3 +658,4 @@ EXTRA="$EXTRA s247:w"   # s247: THE LIBRARY GROUP TABS ARE PINNED above the scro
 
 
 EXTRA="$EXTRA s248:w"   # s248: STATUS LINE vs THE PAGE BAR (BUILD tab) at 1024 x 600 .. 2560 x 1440, tests/s248_test.gd
+EXTRA="$EXTRA s250:w"   # s250: Easy Part panel title on its own row (not under Empty/Slot/Examples) + page tab icons whole and opaque, tests/s250_test.gd

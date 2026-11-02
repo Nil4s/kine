@@ -361,7 +361,7 @@ func _chrome_sync() -> void:
 	_steps_sync()   # NSTEPLIST
 	call("_level_apply_buttons")   # P093
 	title_l.text = "Part: %s" % String(rec.get("name", "Part")) if not rec.is_empty() else "Part"
-	panel_title.text = "Change your %s" % _nm()
+	panel_title.text = "Your %s" % _nm()   # s250: "Change your part" (168 px at 20) + Empty, Slot, Examples (159 px) does not fit the panel's 302 px row: the shorter title does, so the chips stay beside it
 	redo_btn.visible = not m.redo.is_empty()
 	var off := not Part.available()
 	for k in make_btns:
