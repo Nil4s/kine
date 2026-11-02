@@ -623,3 +623,5 @@ EXTRA="$EXTRA s231:w"   # TEMPLE LOOK: default materials by piece kind, words an
 
 
 EXTRA="$EXTRA s227b:w"   # s227b: the Easy Part library page fits the panel scroll area at 1280x720 (a chip that adds a row fails here)
+
+EXTRA="$EXTRA s222:w"   # s222: WORDS FOR MORE THAN HOUSES (hall_words.gd, trade_words.gd), tests/s222_test.gd
