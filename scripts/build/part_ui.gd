@@ -81,6 +81,7 @@ var m: Node
 var on := false                # the Part workspace is showing (inside BUILD)
 var easy := false              # ...with EASY PART's screen (scripts/easy_part.gd) instead of the Expert chrome: the same record
 var ep: EasyPart
+var warn_ui: PartWarnUI        # item 221: the Warnings panel (scripts/build/part_warn_ui.gd), shown with the Part workspace
 var easy_open_btn: Button
 var tool := ""
 var sk := ""                   # the sketch being edited ("" = the model is showing)
@@ -339,6 +340,10 @@ func setup(b: BuildUI) -> void:
 	ep.m = m
 	m.ui_root.add_child(ep)   # (PartUI itself is not in the tree: EasyPart needs its own _process)
 	ep.build(m.ui_root)
+	warn_ui = PartWarnUI.new()
+	warn_ui.m = m
+	warn_ui.pu = self
+	warn_ui.build(m.ui_root)
 
 
 ## the Expert chrome (ribbon tools, browser, panel, timeline) shows

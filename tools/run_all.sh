@@ -612,3 +612,4 @@ EXTRA="$EXTRA s212:w"   # s212: name bodies (browser double-click / right-click 
 
 
 EXTRA="$EXTRA s225:w"   # FRIDAY 225 NATURE + SCATTER: trees, hedges, shrubs, grass, flowers, scatter; Nature tool + Words + agent "nature"
+EXTRA="$EXTRA s221:w"   # s221: WARNING LEVELS (Off / Look / Print / Engineering; per-part and per-warning mutes; same list in the Part panel and agent_tools part_warn); tests/s221_test.gd

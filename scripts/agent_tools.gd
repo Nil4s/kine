@@ -437,6 +437,11 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# way assert / state give the body. {part | path} or the part on screen. Not in METHODS (the transcript's ready line)
 			var pt := PartAssert.serve(self, method, p)
 			return _ok(id, pt["result"]) if pt["ok"] else _err(id, -32602, String(pt["error"]), {"grammar": pt["grammar"]} if pt.has("grammar") else null)
+		"part_warn":
+			# ITEM 221 WARNING LEVELS (scripts/build/part_warn.gd): the part's warnings at its level (off / look / print / engineering), the same list the
+			# Part panel shows; {level}, {mute}, {unmute} edit the record in one undo step. Not in METHODS (the transcript's ready line)
+			var pw := PartWarn.serve(self, p)
+			return _ok(id, pw["result"]) if pw["ok"] else _err(id, -32602, String(pw["error"]))
 		"dry":
 			# N003: what run's steps WOULD do (parts moved, findings added / removed, score change, cards / keys touched), the
 			# scene, body and undo put back byte for byte; file-writing steps refused: scripts/dry_run.gd

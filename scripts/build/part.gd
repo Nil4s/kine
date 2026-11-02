@@ -248,6 +248,16 @@ static func from_file(d: Variant) -> Dictionary:
 			out["asserts"] = pa.duplicate()
 	if (d as Dictionary).get("body_names") is Array:   # item 212/220: a name per body, when the record has them
 		out["body_names"] = ((d as Dictionary)["body_names"] as Array).map(func(x): return String(x))
+	if String((d as Dictionary).get("warn_level", "")) in ["off", "look", "print", "engineering"]:   # item 221: the warning level and the mutes survive save, load and undo (scripts/build/part_warn.gd)
+		out["warn_level"] = String((d as Dictionary)["warn_level"])
+	if (d as Dictionary).get("warn_mute") is Array:
+		var wm: Array = ((d as Dictionary)["warn_mute"] as Array).filter(func(x): return x is String and String(x).contains("@"))
+		if not wm.is_empty():
+			out["warn_mute"] = wm.map(func(x): return String(x))
+	if float((d as Dictionary).get("load_n", 0.0)) > 0.0:
+		out["load_n"] = float((d as Dictionary)["load_n"])   # item 221: the load (N) the beam estimate uses, instead of the part's own weight
+	if PartWeapon.DENSITY.has(String((d as Dictionary).get("material", ""))):
+		out["material"] = String((d as Dictionary)["material"])   # item 221: the material the weight and stress estimates use
 	if bool((d as Dictionary).get("kept", false)):
 		out["kept"] = true   # an EMPTY part the user chose (Easy's Empty): a part with no steps that undo and redo bring back as it was
 	return out if not out["features"].is_empty() or out.has("kept") else {}
