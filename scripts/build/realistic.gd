@@ -229,6 +229,8 @@ static func live_kind(m: Node) -> String:
 ## Returns a line in words (what is on, or what was put back). The stage's grid, floor and bodies are not touched.
 static func set_live(m: Node, on: bool) -> String:
 	_names()
+	if on and TempleLight.on:
+		TempleLight.set_live(m, false)   # one light at a time (item 232)
 	if on == live_on:
 		return "Realistic view is already " + ("on" if on else "off")
 	var e: Environment = m.world_env
