@@ -723,3 +723,6 @@ EXTRA="$EXTRA s259:w"   # s259: playblast motion blur shutter/steps options, sho
 
 
 EXTRA="$EXTRA s260:w"   # s260 CURVE EXTRAPOLATION: constant / linear / cycle on a hinge curve (tests/s260_test.gd; needs the CAD DLL for the UI bars)
+
+
+EXTRA="$EXTRA w10c:w"   # W10c: Easy Pull it up says line-touch and offers the nudge, tests/w10c_test.gd
