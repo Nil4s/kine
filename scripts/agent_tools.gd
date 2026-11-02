@@ -465,6 +465,12 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			return _ok(id, orr["result"]) if orr["ok"] else _err(id, -32602, String(orr["error"]))
 
 
+		"temple_light":   # item 232: sky, sun by time of day, haze, GI, exposure, camera by numbers (scripts/build/temple_light.gd). Not in METHODS
+			var tl := TempleLight.serve(m, p)
+			return _ok(id, tl) if bool(tl["ok"]) else _err(id, -32602, String(tl["error"]))
+		"final_shot":   # item 232: the camera as a PNG with no UI, at a size ({out, w, h, camera?}). Not in METHODS
+			var fs: Dictionary = await TempleLight.serve_final(m, p)
+			return _ok(id, fs) if bool(fs["ok"]) else _err(id, -32000, String(fs["text"]))
 		"nature":   # FRIDAY 225: trees, hedges, shrubs, grass, flowers, paths, scatter (scripts/build/nature_agent.gd); not in METHODS (the transcript's ready line)
 			var na := NatureAgent.serve(m, p)
 			return _ok(id, na) if bool(na["ok"]) else _err(id, -32602, String(na["error"]))

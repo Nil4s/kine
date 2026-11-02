@@ -12919,6 +12919,9 @@ func _ui() -> void:
 	tog.call("VIEW", "Hints", func(): _set_hints(not hints_on), func(): return hints_on, "the teaching lines (how to click, drag, start): on or off (remembered)")
 	tog.call("VIEW", "Contact shadows", func(): cshadow.on = not cshadow.on; _refresh(); _say("contact shadows " + ("on: a soft blob under each foot, darker the nearer the sole is to the floor" if cshadow.on else "off (VIEW > Contact shadows turns them back on)")), func(): return cshadow.on, "a soft shadow under each foot that darkens as the sole nears the floor, gone by 15 cm up (on by default)")
 	tog.call("VIEW", "Realistic", func(): _say(Realistic.set_live(self, not Realistic.live_on)), func(): return Realistic.live_on, "the live view with a physical sky and sun, soft shadows, ambient occlusion and reflections (slower; off = the fast look, remembered nowhere: it starts off)")
+	tog.call("VIEW", "Temple light", func(): _say(TempleLight.set_live(self, not TempleLight.on)), func(): return TempleLight.on, "item 232: the building light in the live view, the same as the final shot: a sky with clouds, a sun you set by the time of day, soft shadows, bounce light in the shadows, haze (slower; starts off)")
+	ui_ribbon["VIEW"].add_child(_button("Light and camera", func(): _temple_panel_toggle(), "time of day, sun, exposure, haze, clouds, GI, and the camera by numbers (position, target, fov)"))
+	ui_ribbon["VIEW"].add_child(_button("Final shot", func(): _temple_final_shot(), "the camera as a PNG with no interface at all (1920 x 1080 unless the panel says otherwise), lit like the live view; saved in the exports folder"))
 	tog.call("VIEW", "Next poses", _sg_toggle, func(): return sg_on, "while a card is current: up to 3 ghost poses of what may come next (gold = your usual next, violet = from real motion, rose = the move phase), small thumbnails after the card.  Tab cycles, Enter or a click takes one as a new card, Esc hides.  Nothing changes until you take one")
 	tog.call("VIEW", "Light", func(): _set_light(Tok.dark), func(): return not Tok.dark, "light or dark theme (remembered)")
 	tog.call("VIEW", "Follow system", func(): _set_theme_system(theme_pref != "system"), func(): return theme_pref == "system", "the palette follows Windows' dark mode (remembered); Light sets it by hand")
@@ -25595,3 +25598,23 @@ func _gpu_pressed(id: int, pm: PopupMenu) -> void:
 		_say("Video encoder: %s (remembered)" % GpuTier.ENCODER_NAMES[GpuTier.pref])
 	GpuTier.save_settings(settings)
 	_gpu_menu_sync(pm)
+
+
+# ---------------------------------------------------------------- TEMPLE LIGHT (item 232): panel + final shot (scripts/build/temple_light.gd)
+var _temple_panel: Control = null
+
+func _temple_panel_toggle() -> void:
+	if _temple_panel == null:
+		_temple_panel = TempleLightUI.build(self)
+		ui_root.add_child(_temple_panel)
+	_temple_panel.visible = not _temple_panel.visible
+	if _temple_panel.visible:
+		TempleLightUI.fill(_temple_panel, self)
+
+
+func _temple_final_shot() -> void:
+	var dir := ProjectSettings.globalize_path("user://exports")
+	var path := "%s/final_shot_%s.png" % [dir, Time.get_datetime_string_from_system().replace(":", "-")]
+	_say("Final shot: drawing...")
+	var r: Dictionary = await TempleLight.final_shot(self, path)
+	_say(String(r["text"]))
