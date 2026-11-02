@@ -339,6 +339,87 @@ func shot(nm: String) -> Image:
 	return img
 
 
+## the part rebuilds in the background (the first sewing of a roof takes seconds): wait for a result with a solid, 60 s at most
+func wait_res() -> void:
+	for i in 1800:
+		if int(pu.res.get("bodies", 0)) >= 1 or not (pu.res.get("errors", {}) as Dictionary).is_empty():
+			break
+		await idle(2)
+	await idle(3)
+
+
+## the Parts panel scrolls: bring a control into view the way the user's wheel would
+func reveal(c: Control) -> void:
+	var n: Node = c.get_parent()
+	while n != null and not (n is ScrollContainer):
+		n = n.get_parent()
+	if n != null:
+		(n as ScrollContainer).ensure_control_visible(c)
+	await idle(3)
+
+
+## draw triangle soups (mm) in a SubViewport of their own: one grey solid lit from the side, framed by its box. yaw / pitch in degrees
+func render_tris(lists: Array, size: Vector2i, yaw: float, pitch: float) -> Image:
+	var svp := SubViewport.new()
+	svp.size = size
+	svp.own_world_3d = true
+	svp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	root.add_child(svp)
+	var lo := Vector3(1e9, 1e9, 1e9)
+	var hi := Vector3(-1e9, -1e9, -1e9)
+	var tint := [Color(0.78, 0.8, 0.84), Color(0.86, 0.55, 0.45)]
+	var n := 0
+	for tl in lists:
+		var st := SurfaceTool.new()
+		st.begin(Mesh.PRIMITIVE_TRIANGLES)
+		for v in (tl as PackedVector3Array):
+			st.add_vertex(v * 0.001)
+			lo = lo.min(v * 0.001)
+			hi = hi.max(v * 0.001)
+		st.generate_normals()
+		var mi := MeshInstance3D.new()
+		mi.mesh = st.commit()
+		var mat := StandardMaterial3D.new()
+		mat.albedo_color = tint[n % 2]
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mi.material_override = mat
+		svp.add_child(mi)
+		n += 1
+	var floor_mi := MeshInstance3D.new()
+	var pm := PlaneMesh.new()
+	pm.size = Vector2(60, 60)
+	floor_mi.mesh = pm
+	floor_mi.position = Vector3(0, lo.y - 0.02, 0)
+	var fm := StandardMaterial3D.new()
+	fm.albedo_color = Color(0.18, 0.2, 0.22)
+	floor_mi.material_override = fm
+	svp.add_child(floor_mi)
+	var ctr := (lo + hi) * 0.5
+	var rad := (hi - lo).length() * 0.5
+	var cam := Camera3D.new()
+	cam.fov = 35.0
+	svp.add_child(cam)
+	var dir := Vector3(0, 0, 1).rotated(Vector3.RIGHT, -deg_to_rad(pitch)).rotated(Vector3.UP, deg_to_rad(yaw))
+	cam.position = ctr + dir * (rad / sin(deg_to_rad(17.5)) * 0.95)
+	cam.look_at(ctr, Vector3.UP)
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-50, -30, 0)
+	svp.add_child(sun)
+	var env := WorldEnvironment.new()
+	var e := Environment.new()
+	e.background_mode = Environment.BG_COLOR
+	e.background_color = Color(0.1, 0.11, 0.14)
+	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	e.ambient_light_color = Color(0.55, 0.58, 0.62)
+	env.environment = e
+	svp.add_child(env)
+	await idle(6)
+	var img := svp.get_texture().get_image()
+	img.convert(Image.FORMAT_RGB8)
+	svp.queue_free()
+	return img
+
+
 func vol_mm3() -> float:
 	return float(pu.res.get("volume", 0.0)) * 1e9
 
@@ -379,15 +460,17 @@ func ui_part() -> void:
 	await click_ctl(pu.part_btn)
 	await click_ctl(pu.easy_open_btn)
 	await idle(4)
-	pu.ep.set_on(false) if pu.ep.has_method("set_on") else null
-	await idle(2)
-	var rb := root.find_child("part_tool_roof", true, false) as Button
+	await click_ctl(pu.ep.expert_btn)   # Easy Part's own button to Expert
+	await idle(12)
+	m._fit_top()
+	await idle(6)
+	var rb := root.find_child("part_tool_roof_shell", true, false) as Button
 	var cap: MenuButton = null
 	for lst in m.ui_caps.values():
 		for pair in lst:
 			var has := false
 			for b in pair[1]:
-				if (b as Node).name == "part_tool_roof":
+				if (b as Node).name == "part_tool_roof_shell":
 					has = true
 			if has and (pair[0] as Control).is_visible_in_tree():
 				cap = pair[0]
@@ -396,7 +479,7 @@ func ui_part() -> void:
 		await click_ctl(cap)
 		await idle(4)
 		for q in cap.get_popup().item_count:
-			if cap.get_popup().get_item_text(q) == "Roof":
+			if cap.get_popup().get_item_text(q) == "Roof shell":
 				ri = q
 		await shot("expert_menu")
 	var cr := cap.get_global_rect() if cap != null else Rect2()
@@ -420,8 +503,9 @@ func ui_part() -> void:
 	await idle(4)
 	var u1: int = m.undo.size()
 	await shot("expert")
+	pu.res = {}
 	await click_ctl(pu.ok_btn)
-	await idle(4)
+	await wait_res()
 	var fs: Array = m.S.part.get("features", [])
 	var bx := pu.res.get("aabb", AABB()) as AABB
 	ok(fs.size() == 1 and String(fs[0].get("type", "")) == "xieshan" and m.undo.size() == u1 + 1 and int(pu.res.get("bodies", 0)) == 1, "11 EXPERT OK made one roof step, one undo step (%d -> %d), %d solid, volume %.0f cm3" % [u1, m.undo.size(), int(pu.res.get("bodies", 0)), vol_mm3() / 1000.0])
@@ -452,8 +536,10 @@ func ui_part() -> void:
 		if chip == null or not chip.is_visible_in_tree():
 			ok(false, "11 EASY chip %s missing" % t)
 			continue
+		await reveal(chip)
+		pu.res = {}
 		await click_ctl(chip)
-		await idle(6)
+		await wait_res()
 		var bb := pu.res.get("aabb", AABB()) as AABB
 		var good: bool = int(pu.res.get("bodies", 0)) == 1 and (pu.res.get("errors", {}) as Dictionary).is_empty() and absf(bb.position.y * 1000.0) <= 0.6 and absf(bb.size.x * 1000.0 - 4800.0) <= 1.0 and absf(bb.size.z * 1000.0 - 3800.0) <= 1.0
 		ok(good, "11 EASY %s: one solid on the floor (lowest %.2f mm), %.1f x %.1f mm plan (4800 x 3800), %.0f cm3" % [t, bb.position.y * 1000.0, bb.size.x * 1000.0, bb.size.z * 1000.0, vol_mm3() / 1000.0])
@@ -461,34 +547,47 @@ func ui_part() -> void:
 		await shot("easy_" + t)
 	ok(m.undo.size() == u2 + ntype, "11 EASY six chips: one undo step each (%d -> %d)" % [u2, m.undo.size()])
 	var cur := root.find_child("easypart_roof_curved", true, false) as Button
+	var xs := root.find_child("easypart_roof_xieshan", true, false) as Button   # a flat roof cannot sag: the Chinese hip first, then Curved
+	await reveal(xs)
+	pu.res = {}
+	await click_ctl(xs)
+	await wait_res()
+	await reveal(cur)
+	pu.res = {}
 	await click_ctl(cur)
-	await idle(6)
+	await wait_res()
 	var fcur: Dictionary = (m.S.part.get("features", []) as Array)[0]
 	ok(float(fcur.get("sag", 0.0)) > 0.0 and float(fcur.get("lift", 0.0)) > 0.0 and int(pu.res.get("bodies", 0)) == 1, "11 EASY Curved: the roof on the floor now has sag %.0f and corner lift %.0f mm, still one solid" % [float(fcur.get("sag", 0.0)), float(fcur.get("lift", 0.0))])
 	await shot("easy")
-	# --- the contact sheet of all types (curved) and the hall's double eave
-	var im := Image.create(960, 720, false, Image.FORMAT_RGB8)
-	var k := 0
+	# --- the contact sheet of all types (curved where it can be) and the hall's double eave, drawn from the KERNEL's triangles in a view of their own (the app view is full of panels)
+	var sheet := Image.create(1200, 800, false, Image.FORMAT_RGB8)
+	var kk := 0
 	for t in ["hip", "gable", "xieshan", "pyramid", "shed", "flat"]:
-		var chip2 := root.find_child("easypart_roof_" + t, true, false) as Button
-		await click_ctl(chip2)
-		await idle(6)
-		var img := root.get_texture().get_image()
-		img.convert(Image.FORMAT_RGB8)
-		var crop := img.get_region(Rect2i(330, 120, 620, 520))
-		crop.resize(320, 360)
-		im.blit_rect(crop, Rect2i(0, 0, 320, 360), Vector2i((k % 3) * 320, (k / 3) * 360))
-		k += 1
-	im.save_png(SHOT + "/sheet.png")
+		var fl := {"type": t, "w": 6000, "d": 4400, "overhang": 600, "height": 1500, "thick": 60}
+		if t != "flat":
+			fl["sag"] = 220.0
+			fl["lift"] = 320.0 if t != "shed" else 0.0
+			fl["lift_len"] = 1500.0
+		var sb := body_ids(rec_of(fl))
+		var tt: Array = []
+		for sid in sb:
+			tt.append(tris_of(int(sid)))
+			KCad.release(int(sid))
+		var cell := await render_tris(tt, Vector2i(400, 400), -30.0, 28.0)
+		sheet.blit_rect(cell, Rect2i(0, 0, 400, 400), Vector2i((kk % 3) * 400, (kk / 3) * 400))
+		kk += 1
+	sheet.save_png(SHOT + "/sheet.png")
 	var rec := Part.make("Hall roofs")
 	var low := {"type": "hip", "w": 9000, "d": 6000, "overhang": 1200, "height": 1500, "thick": 70, "sag": 250, "lift": 500, "lift_len": 2400, "hole": [8200, 5200], "at": [0, 0, 0]}
 	var up := {"type": "xieshan", "w": 7000, "d": 4400, "overhang": 1500, "height": 2600, "thick": 70, "sag": 450, "lift": 650, "lift_len": 2400, "at": [0, 1700, 0]}
 	(rec["features"] as Array).append(Part.new_feature(rec, "roof", low))
 	(rec["features"] as Array).append(Part.new_feature(rec, "roof", up))
-	m.S.part = rec
-	pu.sync()
-	ep.frame()
-	await idle(8)
 	var hr := Part.replay(rec)
-	ok((hr["errors"] as Dictionary).is_empty() and int(hr["bodies"]) == 2, "11 HALL double eave: skirt + hip-and-gable, %d solids, %s" % [int(hr["bodies"]), str(hr["errors"])])
-	await shot("hall")
+	ok((hr["errors"] as Dictionary).is_empty() and int(hr["bodies"]) == 2 and float(hr["volume"]) > 0.0, "11 HALL double eave: skirt + hip-and-gable, %d solids, %.0f cm3, %s" % [int(hr["bodies"]), float(hr["volume"]) * 1e6, str(hr["errors"])])
+	var hb := body_ids(rec)
+	var ht: Array = []
+	for hid in hb:
+		ht.append(tris_of(int(hid)))
+		KCad.release(int(hid))
+	var hall := await render_tris(ht, Vector2i(1000, 640), -28.0, 22.0)
+	hall.save_png(SHOT + "/hall.png")

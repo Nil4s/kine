@@ -24,9 +24,9 @@ const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]   # Constrain: the rule row (CON_TOOLS, below)
-const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Primitive", "Ornament", "Roof"]
+const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Primitive", "Ornament", "Roof shell"]
 const PPRIMUI := preload("res://scripts/build/part_prim_ui.gd")   # s229: the Primitive dialog and the plane modes
-const TOOL_KIND := {"Primitive": "prim", "Offset plane": "plane", "Offset face": "offset_face", "Draft": "draft"}   # a tool's feature kind when it is not its lower-case name
+const TOOL_KIND := {"Roof shell": "roof", "Primitive": "prim", "Offset plane": "plane", "Offset face": "offset_face", "Draft": "draft"}   # a tool's feature kind when it is not its lower-case name
 const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell", "Appearance", "Offset face", "Draft"]
 const LOOK_TOOLS := ["Appearance"]   # APPEARANCE (GAP 5): picks a body for the side panel; the panel is _build_look / _look_sync
 const LOOK_PRESET_ORDER := ["Paint", "Metal", "Glass", "Rubber", "Plastic"]
@@ -60,7 +60,7 @@ const TIPS := {
 	"Split": "SPLIT: pick a plane and an offset (mm). Every body the plane cuts becomes two bodies. Press Enter.",
 	"Appearance": "APPEARANCE: click a body in the browser (Body1, Body2...). Pick a colour chip, the picker or a preset (Paint, Metal, Glass, Rubber, Plastic). Each change is one undo step.",
 	"Shell": "SHELL: the newest body becomes a hollow box with the wall thickness you type. Pick the face left open, press Enter.",
-	"Roof": "ROOF: a thin curved roof shell from a plan: hip, gable, hip and gable, pyramid, shed or flat, with the eave overhang, a sag in the slope, raised corners and an open top for a double eave. Type the numbers; live preview.",
+	"Roof shell": "ROOF SHELL: a thin curved roof shell from a plan: hip, gable, hip and gable, pyramid, shed or flat, with the eave overhang, a sag in the slope, raised corners and an open top for a double eave. Type the numbers; live preview.",
 	"Combine": "COMBINE: click the target body (it stays), then the tool bodies, in the view or the browser. Pick Join, Cut or Intersect. Keep tools leaves them.",
 	"Canvas": "CANVAS: put a picture on the Front, Top or Right plane (or an offset plane). Click two points of known size, type the real distance, drag it to line up.",
 	"Loft": "LOFT: pick two or more sketches in order (each a closed profile); the solid runs through them. Ruled = straight, Smooth = curved.",

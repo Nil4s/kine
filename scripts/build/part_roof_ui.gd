@@ -5,12 +5,12 @@ extends RefCounted
 ## Each row: a label, a LineEdit named part_roof_<field>, the unit. The type is a pick (OptionButton part_roof_type); trims are check boxes.
 
 const ROWS := [
-	["w", "Plan width (X)", "mm", 8000.0], ["d", "Plan depth (Z)", "mm", 6000.0], ["overhang", "Eave overhang", "mm", 600.0],
-	["height", "Ridge height (0 = use pitch)", "mm", 2500.0], ["pitch", "Pitch", "deg", 30.0], ["thick", "Shell thickness", "mm", 60.0],
-	["sag", "Sag at mid-slope (the curve)", "mm", 0.0], ["lift", "Corner lift", "mm", 0.0], ["lift_len", "Corner lift length (0 = auto)", "mm", 0.0],
-	["gable_in", "Gable set in (hip and gable; 0 = auto)", "mm", 0.0], ["hole_w", "Open top width (0 = closed)", "mm", 0.0], ["hole_d", "Open top depth", "mm", 0.0],
-	["y", "Eave line height", "mm", 0.0]]
-const TRIMS := [["ridge", "Ridge as its own body"], ["hips", "Hip ridges as own bodies"], ["eave", "Eave edge as its own body"]]
+	["w", "Width X", "mm", 8000.0], ["d", "Depth Z", "mm", 6000.0], ["overhang", "Overhang", "mm", 600.0],
+	["height", "Ridge (0 = pitch)", "mm", 2500.0], ["pitch", "Pitch", "deg", 30.0], ["thick", "Thickness", "mm", 60.0],
+	["sag", "Sag (curve)", "mm", 0.0], ["lift", "Corner lift", "mm", 0.0], ["lift_len", "Lift length (0 = auto)", "mm", 0.0],
+	["gable_in", "Gable in (0 = auto)", "mm", 0.0], ["hole_w", "Open top W (0 = shut)", "mm", 0.0], ["hole_d", "Open top D", "mm", 0.0],
+	["y", "Eave height", "mm", 0.0]]
+const TRIMS := [["ridge", "Ridge body"], ["hips", "Hip bodies"], ["eave", "Eave body"]]
 
 
 static func open_rows(pu: Node, f: Dictionary, edit: int) -> void:
@@ -28,6 +28,7 @@ static func open_rows(pu: Node, f: Dictionary, edit: int) -> void:
 	h.add_child(tp)
 	pu.dlg_rows.add_child(h)
 	ctl["type"] = tp
+	var half: HBoxContainer = null   # two fields to a row: the window is 720 high and the dialog has 13 numbers
 	for r in ROWS:
 		var key := String(r[0])
 		var v := float(r[3])
@@ -41,18 +42,31 @@ static func open_rows(pu: Node, f: Dictionary, edit: int) -> void:
 			v = float(f[key])
 		var le := LineEdit.new()
 		le.name = "part_roof_" + key
-		le.custom_minimum_size = Vector2(80, 0)
+		le.custom_minimum_size = Vector2(64, 0)
+		le.size_flags_horizontal = Control.SIZE_SHRINK_END
 		le.text_changed.connect(func(_t): pu._preview())
 		le.text_submitted.connect(func(_t): pu.ok_pressed())
-		pu._row(String(r[1]), le, "%s %s" % [pu._fmt(v), String(r[2])])
+		le.text = pu._fmt(v)
+		le.tooltip_text = "%s (%s)" % [String(r[1]), String(r[2])]
+		if half == null:
+			half = HBoxContainer.new()
+			pu.dlg_rows.add_child(half)
+		var lb: Label = pu._label(String(r[1]), 13)
+		lb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		half.add_child(lb)
+		half.add_child(le)
+		if half.get_child_count() >= 4 or key == "y":
+			half = null
 		ctl[key] = le
+	var trow := HBoxContainer.new()
+	pu.dlg_rows.add_child(trow)
 	for tr in TRIMS:
 		var cb := CheckBox.new()
 		cb.name = "part_roof_" + String(tr[0])
 		cb.text = String(tr[1])
 		cb.button_pressed = bool(f.get(String(tr[0]), false))
 		cb.toggled.connect(func(_b): pu._preview())
-		pu.dlg_rows.add_child(cb)
+		trow.add_child(cb)
 		ctl[String(tr[0])] = cb
 	pu.dlg["roof"] = ctl
 
