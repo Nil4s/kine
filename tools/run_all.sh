@@ -747,3 +747,4 @@ EXTRA="$EXTRA w03c:w"   # w03c: body keys on the steps that point at a body; ins
 EXTRA="$EXTRA s263:w"   # s263: dark product studio + continuous ring band, tests/s263_test.gd
 EXTRA="$EXTRA s269:w"   # s269: film keys (look/emission hue cycle, spin rpm + extrapolation, move) + Film mode in the dark studio, tests/s269_test.gd
 EXTRA="$EXTRA s269b:w"   # s269b: film panel opaque + view fills it, reflective floor follows keyed materials, tests/s269b_test.gd
+EXTRA="$EXTRA w03d:w"   # w03d: fillet face pair for hole rims (cylinder half), corner, body keys, tests/w03d_test.gd

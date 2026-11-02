@@ -93,15 +93,42 @@ static func pivot_for_rec(rec: Dictionary, f: Dictionary) -> Vector3:
 ## W03b FILLET EDGE BY FACE PAIR. An edge descriptor also stores "fp": the two faces it joins, each {"n": outward normal, "c": centre as 0..1 of the body box}.
 ## Matching: the edges whose two face normals equal the stored two (either order) are the candidates; the best by box position "q", or by the
 ## stored absolute "p" (a hole rim keeps its place in mm while the box grows), wins. No "fp" (older files), or no candidate -> Part.match_edge as before.
-static func face_pair(ef: Array, fnorm: Dictionary, fcen: Dictionary, bb: AABB) -> Array:
+static func face_pair(ef: Array, fnorm: Dictionary, fcen: Dictionary, bb: AABB, ftyp := {}, ed := {}) -> Array:
 	var out := []
 	if ef.size() != 2 or not fnorm.has(int(ef[0])) or not fnorm.has(int(ef[1])):
 		return out
-	for fi in ef:
-		var n: Vector3 = fnorm[int(fi)]
-		var c: Vector3 = Part._norm(fcen[int(fi)], bb)
-		out.append({"n": [n.x, n.y, n.z], "c": [c.x, c.y, c.z]})
+	for k in 2:
+		var fi := int(ef[k])
+		var n: Vector3 = fnorm[fi]
+		var c: Vector3 = Part._norm(fcen[fi], bb)
+		var d := {"n": [n.x, n.y, n.z], "c": [c.x, c.y, c.z]}
+		var ty: Array = ftyp.get(fi, [])
+		if ty.size() == 2 and String(ty[0]) == "cylinder":
+			# W03d HOLE RIM: a cylinder's "normal" is read at an arbitrary seam point (the same hole can read +x, then -z), so it cannot be the key.
+			# Keep "ty" and the radius (mm): a closed rim circle gives it as length / 2 pi, else the distance of the face point from the axis through its mass centre.
+			d["ty"] = "cylinder"
+			var r := -1.0
+			var other := int(ef[1 - k])
+			var ax := Vector3.ZERO
+			if ftyp.get(other, ["", null])[0] == "plane":
+				ax = fnorm[other]
+			if not ed.is_empty() and (ed["a"] as Vector3).distance_to(ed["b"]) < 1e-6 * maxf(1.0, bb.size.length()):
+				r = float(ed["length"]) / TAU / Part.MM
+			elif ax != Vector3.ZERO:
+				var off: Vector3 = fcen[fi] - (ty[1] as Vector3)
+				r = (off - ax * off.dot(ax)).length() / Part.MM
+			d["r"] = snappedf(r, 0.001)
+			if ax != Vector3.ZERO:
+				d["ax"] = [ax.x, ax.y, ax.z]
+		out.append(d)
 	return out
+
+
+## does face `fid` (normal `n`, type `ty`) fit the stored half-pair `d`? A cylinder half fits any cylinder face; a plane half by its normal
+static func _half_fits(d: Dictionary, n: Vector3, ty: String) -> bool:
+	if String(d.get("ty", "")) == "cylinder":
+		return ty == "cylinder"
+	return n.dot(_v(d["n"])) > 0.98
 
 
 static func _v(a: Array) -> Vector3:
@@ -113,10 +140,10 @@ static func pick_edge(body: int, es: Array, bb: AABB, want: Dictionary) -> int:
 	var fp: Array = want.get("fp", [])
 	if fp.size() == 2 and want.get("q") is Array and not want.get("nofp", false):
 		var norm := {}
+		var fty := {}
 		for fc in KCad.faces(body):
 			norm[int(fc["id"])] = fc["normal"]
-		var n0 := _v(fp[0]["n"])
-		var n1 := _v(fp[1]["n"])
+			fty[int(fc["id"])] = String(fc.get("type", ""))
 		var q := _v(want["q"])
 		var p := _v(want["p"]) * Part.MM if want.get("p") is Array else Vector3.INF
 		var diag := maxf(bb.size.length(), 1e-6)
@@ -126,16 +153,26 @@ static func pick_edge(body: int, es: Array, bb: AABB, want: Dictionary) -> int:
 			var ef: Array = es[i].get("faces", [])
 			if ef.size() != 2 or not norm.has(int(ef[0])) or not norm.has(int(ef[1])):
 				continue
-			var a: Vector3 = norm[int(ef[0])]
-			var b: Vector3 = norm[int(ef[1])]
-			if not ((a.dot(n0) > 0.98 and b.dot(n1) > 0.98) or (a.dot(n1) > 0.98 and b.dot(n0) > 0.98)):
+			var f0 := int(ef[0])
+			var f1 := int(ef[1])
+			var fit := (_half_fits(fp[0], norm[f0], fty[f0]) and _half_fits(fp[1], norm[f1], fty[f1])) or (_half_fits(fp[0], norm[f1], fty[f1]) and _half_fits(fp[1], norm[f0], fty[f0]))
+			if not fit:
 				continue
 			var s: float = Part._norm(es[i]["center"], bb).distance_to(q)
 			if p.x != INF:
 				s = minf(s, (es[i]["center"] as Vector3).distance_to(p) / diag)
+			s += _radius_gap(fp, es[i], diag)
 			if s < bs:
 				bs = s
 				best = i
 		if best >= 0:
 			return best
 	return Part.match_edge(es, bb, want)
+
+
+## W03d: a small score for how far a rim circle's radius is from the stored one (a hole edited 4 -> 5 mm still matches; two holes of different size are told apart)
+static func _radius_gap(fp: Array, e: Dictionary, diag: float) -> float:
+	for h in fp:
+		if String(h.get("ty", "")) == "cylinder" and float(h.get("r", -1.0)) > 0.0 and (e["a"] as Vector3).distance_to(e["b"]) < 1e-6 * diag:
+			return absf(float(e["length"]) / TAU / Part.MM - float(h["r"])) * Part.MM / diag * 0.5
+	return 0.0

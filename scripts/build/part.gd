@@ -850,10 +850,12 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 			var es := KCad.edges(b)
 			var bb := _bbox(es)
 			var fnorm := {}   # FBRACKET: face id -> outward normal, to tell a flat seam (two coplanar faces joined) from a real bend
+			var ftyp := {}   # W03d
 			var fcen := {}   # NROUNDFILTER: face id -> its centre (the outside test: every face of an edge lies on the box's skin)
 			for fc in KCad.faces(b):
 				fnorm[int(fc["id"])] = fc["normal"]
 				fcen[int(fc["id"])] = fc["center"]
+				ftyp[int(fc["id"])] = [String(fc.get("type", "")), fc.get("mass_center", fc["center"])]   # W03d: a cylinder face's normal is read at an arbitrary seam point, so its type and axis point are kept
 			for ed in es:
 				var ef: Array = ed.get("faces", [])
 				var seam := false
@@ -872,7 +874,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					if not fcen.has(int(fi)) or not _on_skin(fcen[int(fi)], bb):
 						outside = false
 				var top := float(ed["a"].y) >= bb.end.y - SKIN_MM * MM and float(ed["b"].y) >= bb.end.y - SKIN_MM * MM
-				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "concave": concave, "inner": inner, "outside": outside, "top": top, "fp": PartRefs.face_pair(ef, fnorm, fcen, bb)})
+				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "concave": concave, "inner": inner, "outside": outside, "top": top, "fp": PartRefs.face_pair(ef, fnorm, fcen, bb, ftyp, ed)})
 	pack_surfaces(mesh, pend, res)
 	res["bodies"] = bodies.size()
 	res["body_names"] = []
