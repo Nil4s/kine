@@ -20,7 +20,7 @@ static func to_print(p: Vector3) -> Vector3:
 
 
 ## the bodies of a part record, ready to write: {"bodies": [...], "why": ""}; why is the words to say when there is nothing to write
-static func bodies_of(rec: Dictionary) -> Dictionary:
+static func bodies_of(rec: Dictionary, quality := {}) -> Dictionary:
 	if rec.is_empty() or not Part.available():
 		return {"bodies": [], "why": "Nothing to export: " + ("make a part first" if Part.available() else Part.why_not())}
 	var res := Part.replay(rec, -1, {"keep": true})
@@ -29,9 +29,11 @@ static func bodies_of(rec: Dictionary) -> Dictionary:
 	var names: Array = res.get("body_names", [])
 	var out := []
 	var base := String(rec.get("name", "Part"))
+	var defl := DEFLECT_M if quality.is_empty() else float(quality["defl_mm"]) / 1000.0   # W05: the chosen mesh quality (Normal = the old numbers)
+	var ang := ANGLE if quality.is_empty() else float(quality["angle"])
 	for i in ids.size():
 		var soup := PackedVector3Array()
-		var tm := KCad.tessellate(int(ids[i]), DEFLECT_M, ANGLE)
+		var tm := KCad.tessellate(int(ids[i]), defl, ang)
 		if tm != null:
 			for s in tm.get_surface_count():
 				var arr := tm.surface_get_arrays(s)
@@ -301,8 +303,8 @@ static func stem(name: String) -> String:
 
 ## the Export dialog's road: the part record -> dir/<name>.stl or .3mf. fmt "stl" | "3mf". Answers
 ## {"ok", "path", "why", "report": the check (see report), "text": one plain sentence to say}
-static func export_part(rec: Dictionary, fmt: String, dir: String, budget := 0) -> Dictionary:
-	var bo := bodies_of(rec)
+static func export_part(rec: Dictionary, fmt: String, dir: String, budget := 0, quality := {}) -> Dictionary:
+	var bo := bodies_of(rec, quality)
 	if (bo["bodies"] as Array).is_empty():
 		return {"ok": false, "path": "", "why": String(bo["why"]), "report": {}, "text": "NOT DONE: " + String(bo["why"])}
 	var bodies: Array = ExportBudget.apply_bodies(bo["bodies"], budget)   # plan 157: a triangle budget writes a decimated copy

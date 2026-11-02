@@ -663,3 +663,6 @@ EXTRA="$EXTRA s251:w"   # s251: tool labels never split a word, top bar buttons 
 EXTRA="$EXTRA s252:w"   # s252: undo/redo toasts name the step (never "Redid:"), toasts never cover a button, tests/s252_test.gd
 EXTRA="$EXTRA s253:w"   # s253: a slow frame never loses a drag or an undo state (exact playhead on Undo/Redo, drag after the camera ease), tests/s253_test.gd
 EXTRA="$EXTRA w14:w"   # W14: GPU in use + integrated-GPU warning with Windows Graphics steps, tests/w14_test.gd
+
+
+EXTRA="$EXTRA w05:w"   # w05: export mesh quality Coarse/Normal/Fine/Custom, live triangle count and file size, tests/w05_test.gd
