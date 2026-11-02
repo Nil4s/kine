@@ -626,3 +626,6 @@ EXTRA="$EXTRA s227b:w"   # s227b: the Easy Part library page fits the panel scro
 
 
 EXTRA="$EXTRA s234:w"   # s234: PART TEXT AND NAMING: nested loops in one sketch (holes, islands, crossing named), CJK text from the bundled OFL font, step names reach piece kinds; tests/s234_test.gd
+
+
+EXTRA="$EXTRA s222:w"   # s222: WORDS FOR MORE THAN HOUSES (hall_words.gd, trade_words.gd), tests/s222_test.gd

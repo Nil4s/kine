@@ -56,7 +56,8 @@ const VOCAB := ["house", "home", "building", "cottage", "cabin", "villa", "bunga
 	"storey", "storeys", "story", "roof", "gable", "gabled", "flat", "shed", "sloped", "garage", "wide", "long", "deep", "front", "back", "left", "right",
 	"overhang", "taller", "shorter", "higher", "lower", "wider", "narrower", "move", "remove", "delete", "add", "make", "centre", "second", "third",
 	"first", "metres", "meters", "sides", "walls", "build", "pitched", "floor", "level", "levels",
-	"stairs", "table", "bench", "crate", "pillar", "fence", "ramp", "platform", "corner", "around", "benches", "pillars", "crates", "staircase", "tables"]
+	"stairs", "table", "bench", "crate", "pillar", "fence", "ramp", "platform", "corner", "around", "benches", "pillars", "crates", "staircase", "tables",
+	"columns", "column", "bays"]   # s222: HallWords nouns, so a slip of one asks
 
 
 # ---------------------------------------------------------------- the sentence
