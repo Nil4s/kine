@@ -732,3 +732,7 @@ EXTRA="$EXTRA w02c:w"   # w02c: Dimension tool on a rectangle corner gives x / y
 
 
 EXTRA="$EXTRA w03b:w"
+
+
+EXTRA="$EXTRA s262:w"   # s262: Exploded view, scripts/build/explode_view.gd, tests/s262_test.gd
+EXTRA="$EXTRA s262ui:w"   # s262: Exploded view in the app (clicks, camera, strip), tests/s262ui_test.gd
