@@ -552,7 +552,9 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	var warns: Dictionary = res["warnings"]   # s229: what a step did that the user should know (an Intersect that left or removed bodies)
 	var sketches := {}
 	var off_ids := {}   # XTIME: the sketches the timeline suppressed
-	var fx_on := bool(want.get("effects", false))   # item 241: what each step did (scripts/build/part_fx.gd); not with the incremental cache
+	var keyed := PartBKeys.keyed(feats)   # W03c: a part whose steps carry body keys tracks the keys while it replays
+	var stepkeys: Array = []
+	var fx_on := bool(want.get("effects", false)) or keyed or bool(want.get("stepkeys", false))   # item 241: what each step did (scripts/build/part_fx.gd); not with the incremental cache
 	var fx: Dictionary = PartFx.begin() if fx_on else {}
 	var inc := bool(want.get("inc", false)) and n > 0 and not fx_on   # s168 INCREMENTAL REPLAY: the steps a cached prefix already made are not run again
 	var inc_keys: Array = []
@@ -579,6 +581,14 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		var f: Dictionary = feats[i]
 		var id := String(f["id"])
 		look_fit(looks, bodies.size())
+		if fx_on:   # W03c: the keys of the bodies just before this step; its key fields are turned into body numbers
+			if want.get("stepkeys", false):
+				stepkeys.append((fx["keys"] as Array).duplicate())
+			if keyed and not bool(f.get("off", false)):
+				var kerr := PartBKeys.resolve(f, fx["keys"], i)
+				if kerr != "":
+					errs[id] = kerr
+					continue
 		if bool(f.get("off", false)):   # XTIME: a suppressed step is skipped (no solid, no error); a later step that needs it says so
 			if String(f["t"]) == "sketch":
 				off_ids[id] = true
@@ -793,6 +803,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		res["effects"] = fx["steps"]
 		res["body_keys"] = fx["keys"]
 		res["body_touch"] = fx["touch"]
+		res["step_keys"] = stepkeys
 	res["counts"] = counts   # s233: the body count after each step 0..n-1, from this one pass (PartFacts.labels_of replayed every prefix for it)
 	if inc and n > i0:
 		_inc_store(inc_keys[n - 1], bodies, looks, errs, sketches, off_ids, counts)

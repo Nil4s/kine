@@ -1,0 +1,12586 @@
+{
+ "bad_frames": [],
+ "building": {
+  "name": "Untitled",
+  "nature": [
+   {
+    "height": 1.8,
+    "id": "n1",
+    "kind": "hedge",
+    "path": [
+     [
+      -7.0,
+      27.0
+     ],
+     [
+      -7.0,
+      14.5
+     ]
+    ],
+    "seed": 3.0,
+    "shape": "box",
+    "width": 2.4
+   },
+   {
+    "height": 1.8,
+    "id": "n2",
+    "kind": "hedge",
+    "path": [
+     [
+      7.0,
+      27.0
+     ],
+     [
+      7.0,
+      14.5
+     ]
+    ],
+    "seed": 4.0,
+    "shape": "box",
+    "width": 2.4
+   },
+   {
+    "height": 1.0,
+    "id": "n3",
+    "kind": "hedge",
+    "path": [
+     [
+      -19.0,
+      9.6
+     ],
+     [
+      -9.0,
+      9.6
+     ]
+    ],
+    "seed": 5.0,
+    "shape": "box",
+    "width": 1.6
+   },
+   {
+    "height": 1.0,
+    "id": "n4",
+    "kind": "hedge",
+    "path": [
+     [
+      9.0,
+      9.6
+     ],
+     [
+      19.0,
+      9.6
+     ]
+    ],
+    "seed": 6.0,
+    "shape": "box",
+    "width": 1.6
+   },
+   {
+    "height": 0.0,
+    "id": "n5",
+    "kind": "shrub",
+    "season": "summer",
+    "seed": 7.0,
+    "shape": "round",
+    "size": 1.8,
+    "x": -6.0,
+    "z": 9.2
+   },
+   {
+    "height": 0.0,
+    "id": "n6",
+    "kind": "shrub",
+    "season": "summer",
+    "seed": 7.0,
+    "shape": "round",
+    "size": 1.8,
+    "x": 6.0,
+    "z": 9.2
+   },
+   {
+    "height": 0.0,
+    "id": "n7",
+    "kind": "shrub",
+    "season": "summer",
+    "seed": 7.0,
+    "shape": "round",
+    "size": 2.3,
+    "x": -4.4,
+    "z": 9.8
+   },
+   {
+    "height": 0.0,
+    "id": "n8",
+    "kind": "shrub",
+    "season": "summer",
+    "seed": 7.0,
+    "shape": "round",
+    "size": 2.3,
+    "x": 4.4,
+    "z": 9.8
+   },
+   {
+    "blade": 0.25,
+    "d": 16.0,
+    "density": 60.0,
+    "id": "n9",
+    "kind": "grass",
+    "seed": 2.0,
+    "tone": "lawn",
+    "w": 12.0,
+    "x": -17.0,
+    "z": 12.5
+   },
+   {
+    "blade": 0.25,
+    "d": 16.0,
+    "density": 60.0,
+    "id": "n10",
+    "kind": "grass",
+    "seed": 3.0,
+    "tone": "lawn",
+    "w": 12.0,
+    "x": 5.0,
+    "z": 12.5
+   },
+   {
+    "crown": 12.0,
+    "density": 9.0,
+    "fullness": 2.2,
+    "height": 16.0,
+    "id": "n11",
+    "kind": "tree",
+    "season": "amber",
+    "seed": 11.0,
+    "species": "ginkgo",
+    "trunk": 0.0,
+    "x": -17.5,
+    "z": -2.0
+   },
+   {
+    "crown": 12.0,
+    "density": 9.0,
+    "fullness": 2.2,
+    "height": 16.0,
+    "id": "n12",
+    "kind": "tree",
+    "season": "amber",
+    "seed": 12.0,
+    "species": "ginkgo",
+    "trunk": 0.0,
+    "x": 17.5,
+    "z": -2.0
+   }
+  ],
+  "openings": [],
+  "params": {
+   "door_height": 2.1,
+   "door_width": 0.9,
+   "floor_height": 2.8,
+   "floor_thickness": 0.2,
+   "grid": 0.5,
+   "inner_wall_thickness": 0.1,
+   "roof_overhang": 0.45,
+   "wall_height": 2.7,
+   "wall_thickness": 0.2,
+   "window_height": 1.2,
+   "window_sill": 0.9,
+   "window_width": 1.2
+  },
+  "rooms": [],
+  "version": 1
+ },
+ "cards": [],
+ "floor_body": false,
+ "fps": 30,
+ "kind": "building",
+ "length_s": 0.0,
+ "natural": true,
+ "note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other.",
+ "on_floor": true,
+ "part": {
+  "features": [
+   {
+    "d": 120000.0,
+    "h": 390.0,
+    "id": "f1",
+    "kind": "box",
+    "name": "Ground grass",
+    "op": "new",
+    "t": "prim",
+    "w": 120000.0,
+    "x": -60000.0,
+    "y": -400.0,
+    "z": -60000.0
+   },
+   {
+    "body": 0.0,
+    "called": "Ground grass",
+    "id": "f2",
+    "name": "Name Ground grass",
+    "t": "bname"
+   },
+   {
+    "d": 29000.0,
+    "h": 40.0,
+    "id": "f3",
+    "kind": "box",
+    "name": "Paving centre",
+    "op": "new",
+    "t": "prim",
+    "w": 9000.0,
+    "x": -4500.0,
+    "y": -10.0,
+    "z": 11000.0
+   },
+   {
+    "body": 1.0,
+    "called": "Paving centre",
+    "id": "f4",
+    "name": "Name Paving centre",
+    "t": "bname"
+   },
+   {
+    "d": 2500.0,
+    "h": 40.0,
+    "id": "f5",
+    "kind": "box",
+    "name": "Paving cross left",
+    "op": "new",
+    "t": "prim",
+    "w": 17500.0,
+    "x": -22000.0,
+    "y": -10.0,
+    "z": 12000.0
+   },
+   {
+    "body": 2.0,
+    "called": "Paving cross left",
+    "id": "f6",
+    "name": "Name Paving cross left",
+    "t": "bname"
+   },
+   {
+    "d": 2500.0,
+    "h": 40.0,
+    "id": "f7",
+    "kind": "box",
+    "name": "Paving cross right",
+    "op": "new",
+    "t": "prim",
+    "w": 17500.0,
+    "x": 4500.0,
+    "y": -10.0,
+    "z": 12000.0
+   },
+   {
+    "body": 3.0,
+    "called": "Paving cross right",
+    "id": "f8",
+    "name": "Name Paving cross right",
+    "t": "bname"
+   },
+   {
+    "d": 4000.0,
+    "h": 40.0,
+    "id": "f9",
+    "kind": "box",
+    "name": "Paving apron",
+    "op": "new",
+    "t": "prim",
+    "w": 4800.0,
+    "x": -2400.0,
+    "y": -10.0,
+    "z": 7000.0
+   },
+   {
+    "body": 4.0,
+    "called": "Paving apron",
+    "id": "f10",
+    "name": "Name Paving apron",
+    "t": "bname"
+   },
+   {
+    "d": 14400.0,
+    "h": 1300.0,
+    "id": "f11",
+    "kind": "box",
+    "name": "Platform",
+    "op": "new",
+    "t": "prim",
+    "w": 21400.0,
+    "x": -10700.0,
+    "y": 0.0,
+    "z": -7200.0
+   },
+   {
+    "body": 5.0,
+    "called": "Platform",
+    "id": "f12",
+    "name": "Name Platform",
+    "t": "bname"
+   },
+   {
+    "from": "right",
+    "id": "f13",
+    "mm": -2100.0,
+    "name": "right @-2100.0",
+    "t": "plane"
+   },
+   {
+    "dims": [],
+    "ents": [
+     {
+      "a": [
+       -7200.0,
+       1300.0
+      ],
+      "b": [
+       -7500.0,
+       1300.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -7500.0,
+       1300.0
+      ],
+      "b": [
+       -7500.0,
+       1155.55555555556
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -7500.0,
+       1155.55555555556
+      ],
+      "b": [
+       -7800.0,
+       1155.55555555556
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -7800.0,
+       1155.55555555556
+      ],
+      "b": [
+       -7800.0,
+       1011.11111111111
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -7800.0,
+       1011.11111111111
+      ],
+      "b": [
+       -8100.0,
+       1011.11111111111
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -8100.0,
+       1011.11111111111
+      ],
+      "b": [
+       -8100.0,
+       866.666666666667
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -8100.0,
+       866.666666666667
+      ],
+      "b": [
+       -8400.0,
+       866.666666666667
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -8400.0,
+       866.666666666667
+      ],
+      "b": [
+       -8400.0,
+       722.222222222222
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -8400.0,
+       722.222222222222
+      ],
+      "b": [
+       -8700.0,
+       722.222222222222
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -8700.0,
+       722.222222222222
+      ],
+      "b": [
+       -8700.0,
+       577.777777777778
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -8700.0,
+       577.777777777778
+      ],
+      "b": [
+       -9000.0,
+       577.777777777778
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -9000.0,
+       577.777777777778
+      ],
+      "b": [
+       -9000.0,
+       433.333333333333
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -9000.0,
+       433.333333333333
+      ],
+      "b": [
+       -9300.0,
+       433.333333333333
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -9300.0,
+       433.333333333333
+      ],
+      "b": [
+       -9300.0,
+       288.888888888889
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -9300.0,
+       288.888888888889
+      ],
+      "b": [
+       -9600.0,
+       288.888888888889
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -9600.0,
+       288.888888888889
+      ],
+      "b": [
+       -9600.0,
+       144.444444444444
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -9600.0,
+       144.444444444444
+      ],
+      "b": [
+       -9900.0,
+       144.444444444444
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -9900.0,
+       144.444444444444
+      ],
+      "b": [
+       -9900.0,
+       0.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -9900.0,
+       0.0
+      ],
+      "b": [
+       -7200.0,
+       0.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -7200.0,
+       0.0
+      ],
+      "b": [
+       -7200.0,
+       1300.0
+      ],
+      "k": "line"
+     }
+    ],
+    "id": "f14",
+    "name": "Stair sketch",
+    "plane": "f13",
+    "t": "sketch"
+   },
+   {
+    "both": false,
+    "dist": 4200.0,
+    "id": "f15",
+    "name": "Stair",
+    "op": "new",
+    "sketch": "f14",
+    "t": "extrude"
+   },
+   {
+    "body": 6.0,
+    "called": "Stair",
+    "id": "f16",
+    "name": "Name Stair",
+    "t": "bname"
+   },
+   {
+    "from": "right",
+    "id": "f17",
+    "mm": -2435.0,
+    "name": "right @-2435.0",
+    "t": "plane"
+   },
+   {
+    "dims": [],
+    "ents": [
+     {
+      "a": [
+       -7200.0,
+       2120.0
+      ],
+      "b": [
+       -7400.0,
+       2120.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -7400.0,
+       2120.0
+      ],
+      "b": [
+       -9900.0,
+       964.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -9900.0,
+       964.0
+      ],
+      "b": [
+       -9900.0,
+       0.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -9900.0,
+       0.0
+      ],
+      "b": [
+       -7200.0,
+       1300.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -7200.0,
+       1300.0
+      ],
+      "b": [
+       -7200.0,
+       2120.0
+      ],
+      "k": "line"
+     }
+    ],
+    "id": "f18",
+    "name": "Stair rail cheek sketch",
+    "plane": "f17",
+    "t": "sketch"
+   },
+   {
+    "both": false,
+    "dist": 320.0,
+    "id": "f19",
+    "name": "Stair rail cheek",
+    "op": "new",
+    "sketch": "f18",
+    "t": "extrude"
+   },
+   {
+    "body": 7.0,
+    "called": "Stair rail cheek",
+    "id": "f20",
+    "name": "Name Stair rail cheek",
+    "t": "bname"
+   },
+   {
+    "d": 380.0,
+    "h": 1350.0,
+    "id": "f21",
+    "kind": "box",
+    "name": "Stair rail post",
+    "op": "new",
+    "t": "prim",
+    "w": 380.0,
+    "x": -2465.0,
+    "y": 1300.0,
+    "z": 7200.0
+   },
+   {
+    "body": 8.0,
+    "called": "Stair rail post",
+    "id": "f22",
+    "name": "Name Stair rail post",
+    "t": "bname"
+   },
+   {
+    "id": "f23",
+    "kind": "sphere",
+    "name": "Stair rail cap",
+    "op": "new",
+    "r": 230.0,
+    "t": "prim",
+    "x": -2275.0,
+    "y": 2780.0,
+    "z": 7390.0
+   },
+   {
+    "body": 9.0,
+    "called": "Stair rail cap",
+    "id": "f24",
+    "name": "Name Stair rail cap",
+    "t": "bname"
+   },
+   {
+    "d": 380.0,
+    "h": 1500.0,
+    "id": "f25",
+    "kind": "box",
+    "name": "Stair rail post",
+    "op": "new",
+    "t": "prim",
+    "w": 380.0,
+    "x": -2465.0,
+    "y": 0.0,
+    "z": 9560.0
+   },
+   {
+    "body": 10.0,
+    "called": "Stair rail post",
+    "id": "f26",
+    "name": "Name Stair rail post",
+    "t": "bname"
+   },
+   {
+    "id": "f27",
+    "kind": "sphere",
+    "name": "Stair rail cap",
+    "op": "new",
+    "r": 210.0,
+    "t": "prim",
+    "x": -2275.0,
+    "y": 1630.0,
+    "z": 9750.0
+   },
+   {
+    "body": 11.0,
+    "called": "Stair rail cap",
+    "id": "f28",
+    "name": "Name Stair rail cap",
+    "t": "bname"
+   },
+   {
+    "from": "right",
+    "id": "f29",
+    "mm": 2115.0,
+    "name": "right @2115.0",
+    "t": "plane"
+   },
+   {
+    "dims": [],
+    "ents": [
+     {
+      "a": [
+       -7200.0,
+       2120.0
+      ],
+      "b": [
+       -7400.0,
+       2120.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -7400.0,
+       2120.0
+      ],
+      "b": [
+       -9900.0,
+       964.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -9900.0,
+       964.0
+      ],
+      "b": [
+       -9900.0,
+       0.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -9900.0,
+       0.0
+      ],
+      "b": [
+       -7200.0,
+       1300.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -7200.0,
+       1300.0
+      ],
+      "b": [
+       -7200.0,
+       2120.0
+      ],
+      "k": "line"
+     }
+    ],
+    "id": "f30",
+    "name": "Stair rail cheek sketch",
+    "plane": "f29",
+    "t": "sketch"
+   },
+   {
+    "both": false,
+    "dist": 320.0,
+    "id": "f31",
+    "name": "Stair rail cheek",
+    "op": "new",
+    "sketch": "f30",
+    "t": "extrude"
+   },
+   {
+    "body": 12.0,
+    "called": "Stair rail cheek",
+    "id": "f32",
+    "name": "Name Stair rail cheek",
+    "t": "bname"
+   },
+   {
+    "d": 380.0,
+    "h": 1350.0,
+    "id": "f33",
+    "kind": "box",
+    "name": "Stair rail post",
+    "op": "new",
+    "t": "prim",
+    "w": 380.0,
+    "x": 2085.0,
+    "y": 1300.0,
+    "z": 7200.0
+   },
+   {
+    "body": 13.0,
+    "called": "Stair rail post",
+    "id": "f34",
+    "name": "Name Stair rail post",
+    "t": "bname"
+   },
+   {
+    "id": "f35",
+    "kind": "sphere",
+    "name": "Stair rail cap",
+    "op": "new",
+    "r": 230.0,
+    "t": "prim",
+    "x": 2275.0,
+    "y": 2780.0,
+    "z": 7390.0
+   },
+   {
+    "body": 14.0,
+    "called": "Stair rail cap",
+    "id": "f36",
+    "name": "Name Stair rail cap",
+    "t": "bname"
+   },
+   {
+    "d": 380.0,
+    "h": 1500.0,
+    "id": "f37",
+    "kind": "box",
+    "name": "Stair rail post",
+    "op": "new",
+    "t": "prim",
+    "w": 380.0,
+    "x": 2085.0,
+    "y": 0.0,
+    "z": 9560.0
+   },
+   {
+    "body": 15.0,
+    "called": "Stair rail post",
+    "id": "f38",
+    "name": "Name Stair rail post",
+    "t": "bname"
+   },
+   {
+    "id": "f39",
+    "kind": "sphere",
+    "name": "Stair rail cap",
+    "op": "new",
+    "r": 210.0,
+    "t": "prim",
+    "x": 2275.0,
+    "y": 1630.0,
+    "z": 9750.0
+   },
+   {
+    "body": 16.0,
+    "called": "Stair rail cap",
+    "id": "f40",
+    "name": "Name Stair rail cap",
+    "t": "bname"
+   },
+   {
+    "d": 260.0,
+    "h": 650.0,
+    "id": "f41",
+    "kind": "box",
+    "name": "Platform rail post",
+    "op": "new",
+    "t": "prim",
+    "w": 260.0,
+    "x": -3030.0,
+    "y": 1300.0,
+    "z": 6770.0
+   },
+   {
+    "body": 17.0,
+    "called": "Platform rail post",
+    "id": "f42",
+    "name": "Name Platform rail post",
+    "t": "bname"
+   },
+   {
+    "id": "f43",
+    "into": 17.0,
+    "kind": "sphere",
+    "name": "Platform rail ball",
+    "op": "join",
+    "r": 150.0,
+    "t": "prim",
+    "x": -2900.0,
+    "y": 2050.0,
+    "z": 6900.0
+   },
+   {
+    "body": 17.0,
+    "closed": false,
+    "corners": true,
+    "count": 0.0,
+    "follow": false,
+    "hold": true,
+    "id": "f44",
+    "kind": "route",
+    "mm": 2000.0,
+    "name": "Platform rail posts round the edge",
+    "op": "new",
+    "pts": [
+     [
+      -2900.0,
+      1300.0,
+      6900.0
+     ],
+     [
+      -10300.0,
+      1300.0,
+      6900.0
+     ],
+     [
+      -10300.0,
+      1300.0,
+      -6900.0
+     ],
+     [
+      10300.0,
+      1300.0,
+      -6900.0
+     ],
+     [
+      10300.0,
+      1300.0,
+      6900.0
+     ],
+     [
+      2900.0,
+      1300.0,
+      6900.0
+     ]
+    ],
+    "t": "pattern"
+   },
+   {
+    "d": 120.0,
+    "h": 100.0,
+    "id": "f45",
+    "kind": "box",
+    "name": "Platform rail bar",
+    "op": "new",
+    "t": "prim",
+    "w": 7400.0,
+    "x": -10300.0,
+    "y": 1850.0,
+    "z": 6840.0
+   },
+   {
+    "body": 50.0,
+    "called": "Platform rail bar",
+    "id": "f46",
+    "name": "Name Platform rail bar",
+    "t": "bname"
+   },
+   {
+    "d": 120.0,
+    "h": 100.0,
+    "id": "f47",
+    "kind": "box",
+    "name": "Platform rail bar",
+    "op": "new",
+    "t": "prim",
+    "w": 7400.0,
+    "x": 2900.0,
+    "y": 1850.0,
+    "z": 6840.0
+   },
+   {
+    "body": 51.0,
+    "called": "Platform rail bar",
+    "id": "f48",
+    "name": "Name Platform rail bar",
+    "t": "bname"
+   },
+   {
+    "d": 13800.0,
+    "h": 100.0,
+    "id": "f49",
+    "kind": "box",
+    "name": "Platform rail bar",
+    "op": "new",
+    "t": "prim",
+    "w": 120.0,
+    "x": -10360.0,
+    "y": 1850.0,
+    "z": -6900.0
+   },
+   {
+    "body": 52.0,
+    "called": "Platform rail bar",
+    "id": "f50",
+    "name": "Name Platform rail bar",
+    "t": "bname"
+   },
+   {
+    "d": 13800.0,
+    "h": 100.0,
+    "id": "f51",
+    "kind": "box",
+    "name": "Platform rail bar",
+    "op": "new",
+    "t": "prim",
+    "w": 120.0,
+    "x": 10240.0,
+    "y": 1850.0,
+    "z": -6900.0
+   },
+   {
+    "body": 53.0,
+    "called": "Platform rail bar",
+    "id": "f52",
+    "name": "Name Platform rail bar",
+    "t": "bname"
+   },
+   {
+    "d": 120.0,
+    "h": 100.0,
+    "id": "f53",
+    "kind": "box",
+    "name": "Platform rail bar",
+    "op": "new",
+    "t": "prim",
+    "w": 20600.0,
+    "x": -10300.0,
+    "y": 1850.0,
+    "z": -6960.0
+   },
+   {
+    "body": 54.0,
+    "called": "Platform rail bar",
+    "id": "f54",
+    "name": "Name Platform rail bar",
+    "t": "bname"
+   },
+   {
+    "d": 2600.0,
+    "h": 4600.0,
+    "id": "f55",
+    "kind": "box",
+    "name": "Red hall wall",
+    "op": "new",
+    "t": "prim",
+    "w": 16200.0,
+    "x": -8100.0,
+    "y": 1300.0,
+    "z": -1300.0
+   },
+   {
+    "body": 55.0,
+    "called": "Red hall wall",
+    "id": "f56",
+    "name": "Name Red hall wall",
+    "t": "bname"
+   },
+   {
+    "from": "top",
+    "id": "f57",
+    "mm": 1300.0,
+    "name": "top @1300.0",
+    "t": "plane"
+   },
+   {
+    "dims": [],
+    "ents": [
+     {
+      "c": [
+       -8100.0,
+       -4600.0
+      ],
+      "k": "circle",
+      "r": 250.0
+     },
+     {
+      "c": [
+       -8100.0,
+       4600.0
+      ],
+      "k": "circle",
+      "r": 250.0
+     },
+     {
+      "c": [
+       -3100.0,
+       -4600.0
+      ],
+      "k": "circle",
+      "r": 250.0
+     },
+     {
+      "c": [
+       -3100.0,
+       4600.0
+      ],
+      "k": "circle",
+      "r": 250.0
+     },
+     {
+      "c": [
+       3100.0,
+       -4600.0
+      ],
+      "k": "circle",
+      "r": 250.0
+     },
+     {
+      "c": [
+       3100.0,
+       4600.0
+      ],
+      "k": "circle",
+      "r": 250.0
+     },
+     {
+      "c": [
+       8100.0,
+       -4600.0
+      ],
+      "k": "circle",
+      "r": 250.0
+     },
+     {
+      "c": [
+       8100.0,
+       4600.0
+      ],
+      "k": "circle",
+      "r": 250.0
+     },
+     {
+      "c": [
+       -8100.0,
+       1533.0
+      ],
+      "k": "circle",
+      "r": 250.0
+     },
+     {
+      "c": [
+       8100.0,
+       1533.0
+      ],
+      "k": "circle",
+      "r": 250.0
+     },
+     {
+      "c": [
+       -8100.0,
+       -1533.0
+      ],
+      "k": "circle",
+      "r": 250.0
+     },
+     {
+      "c": [
+       8100.0,
+       -1533.0
+      ],
+      "k": "circle",
+      "r": 250.0
+     },
+     {
+      "c": [
+       -7000.0,
+       -1530.0
+      ],
+      "k": "circle",
+      "r": 230.0
+     },
+     {
+      "c": [
+       7000.0,
+       -1530.0
+      ],
+      "k": "circle",
+      "r": 230.0
+     }
+    ],
+    "id": "f58",
+    "name": "Column sketch",
+    "plane": "f57",
+    "t": "sketch"
+   },
+   {
+    "both": false,
+    "dist": 4600.0,
+    "id": "f59",
+    "name": "Column",
+    "op": "new",
+    "sketch": "f58",
+    "t": "extrude"
+   },
+   {
+    "body": 56.0,
+    "called": "Column",
+    "id": "f60",
+    "name": "Name Column",
+    "t": "bname"
+   },
+   {
+    "body": 57.0,
+    "called": "Column 2",
+    "id": "f61",
+    "name": "Name Column 2",
+    "t": "bname"
+   },
+   {
+    "body": 58.0,
+    "called": "Column 3",
+    "id": "f62",
+    "name": "Name Column 3",
+    "t": "bname"
+   },
+   {
+    "body": 59.0,
+    "called": "Column 4",
+    "id": "f63",
+    "name": "Name Column 4",
+    "t": "bname"
+   },
+   {
+    "body": 60.0,
+    "called": "Column 5",
+    "id": "f64",
+    "name": "Name Column 5",
+    "t": "bname"
+   },
+   {
+    "body": 61.0,
+    "called": "Column 6",
+    "id": "f65",
+    "name": "Name Column 6",
+    "t": "bname"
+   },
+   {
+    "body": 62.0,
+    "called": "Column 7",
+    "id": "f66",
+    "name": "Name Column 7",
+    "t": "bname"
+   },
+   {
+    "body": 63.0,
+    "called": "Column 8",
+    "id": "f67",
+    "name": "Name Column 8",
+    "t": "bname"
+   },
+   {
+    "body": 64.0,
+    "called": "Column 9",
+    "id": "f68",
+    "name": "Name Column 9",
+    "t": "bname"
+   },
+   {
+    "body": 65.0,
+    "called": "Column 10",
+    "id": "f69",
+    "name": "Name Column 10",
+    "t": "bname"
+   },
+   {
+    "body": 66.0,
+    "called": "Column 11",
+    "id": "f70",
+    "name": "Name Column 11",
+    "t": "bname"
+   },
+   {
+    "body": 67.0,
+    "called": "Column 12",
+    "id": "f71",
+    "name": "Name Column 12",
+    "t": "bname"
+   },
+   {
+    "body": 68.0,
+    "called": "Column 13",
+    "id": "f72",
+    "name": "Name Column 13",
+    "t": "bname"
+   },
+   {
+    "body": 69.0,
+    "called": "Column 14",
+    "id": "f73",
+    "name": "Name Column 14",
+    "t": "bname"
+   },
+   {
+    "d": 600.0,
+    "h": 3800.0,
+    "id": "f74",
+    "into": 55.0,
+    "kind": "box",
+    "name": "Door opening",
+    "op": "cut",
+    "t": "prim",
+    "w": 3000.0,
+    "x": -1500.0,
+    "y": 1300.0,
+    "z": 900.0
+   },
+   {
+    "d": 2100.0,
+    "h": 4000.0,
+    "id": "f75",
+    "into": 55.0,
+    "kind": "box",
+    "name": "Hall interior",
+    "op": "cut",
+    "t": "prim",
+    "w": 7000.0,
+    "x": -3500.0,
+    "y": 1300.0,
+    "z": -1100.0
+   },
+   {
+    "d": 70.0,
+    "h": 3700.0,
+    "id": "f76",
+    "kind": "box",
+    "name": "Door",
+    "op": "new",
+    "t": "prim",
+    "w": 1430.0,
+    "x": -1460.0,
+    "y": 1340.0,
+    "z": 1170.0
+   },
+   {
+    "body": 70.0,
+    "called": "Door",
+    "id": "f77",
+    "name": "Name Door",
+    "t": "bname"
+   },
+   {
+    "d": 60.0,
+    "h": 1300.0,
+    "id": "f78",
+    "into": 70.0,
+    "kind": "box",
+    "name": "Door panel low",
+    "op": "join",
+    "t": "prim",
+    "w": 1230.0,
+    "x": -1360.0,
+    "y": 1500.0,
+    "z": 1240.0
+   },
+   {
+    "d": 60.0,
+    "h": 1900.0,
+    "id": "f79",
+    "into": 70.0,
+    "kind": "box",
+    "name": "Door panel high",
+    "op": "join",
+    "t": "prim",
+    "w": 1230.0,
+    "x": -1360.0,
+    "y": 3000.0,
+    "z": 1240.0
+   },
+   {
+    "body": 70.0,
+    "count": 2.0,
+    "dir": "x",
+    "id": "f80",
+    "kind": "linear",
+    "mm": 1490.0,
+    "name": "Door right leaf",
+    "op": "new",
+    "t": "pattern"
+   },
+   {
+    "d": 400.0,
+    "h": 3760.0,
+    "id": "f81",
+    "kind": "box",
+    "name": "Door frame",
+    "op": "new",
+    "t": "prim",
+    "w": 40.0,
+    "x": -1500.0,
+    "y": 1340.0,
+    "z": 900.0
+   },
+   {
+    "body": 72.0,
+    "called": "Door frame",
+    "id": "f82",
+    "name": "Name Door frame",
+    "t": "bname"
+   },
+   {
+    "d": 400.0,
+    "h": 3760.0,
+    "id": "f83",
+    "into": 72.0,
+    "kind": "box",
+    "name": "Door frame jamb",
+    "op": "join",
+    "t": "prim",
+    "w": 40.0,
+    "x": 1460.0,
+    "y": 1340.0,
+    "z": 900.0
+   },
+   {
+    "d": 400.0,
+    "h": 60.0,
+    "id": "f84",
+    "into": 72.0,
+    "kind": "box",
+    "name": "Door frame head",
+    "op": "join",
+    "t": "prim",
+    "w": 3000.0,
+    "x": -1500.0,
+    "y": 5040.0,
+    "z": 900.0
+   },
+   {
+    "d": 480.0,
+    "h": 40.0,
+    "id": "f85",
+    "kind": "box",
+    "name": "Door sill",
+    "op": "new",
+    "t": "prim",
+    "w": 3000.0,
+    "x": -1500.0,
+    "y": 1300.0,
+    "z": 900.0
+   },
+   {
+    "body": 73.0,
+    "called": "Door sill",
+    "id": "f86",
+    "name": "Name Door sill",
+    "t": "bname"
+   },
+   {
+    "d": 120.0,
+    "h": 200.0,
+    "id": "f87",
+    "kind": "box",
+    "name": "Door lintel",
+    "op": "new",
+    "t": "prim",
+    "w": 3300.0,
+    "x": -1650.0,
+    "y": 5100.0,
+    "z": 1300.0
+   },
+   {
+    "body": 74.0,
+    "called": "Door lintel",
+    "id": "f88",
+    "name": "Name Door lintel",
+    "t": "bname"
+   },
+   {
+    "d": 2100.0,
+    "h": 30.0,
+    "id": "f89",
+    "kind": "box",
+    "name": "Interior floor",
+    "op": "new",
+    "t": "prim",
+    "w": 7000.0,
+    "x": -3500.0,
+    "y": 1300.0,
+    "z": -1100.0
+   },
+   {
+    "body": 75.0,
+    "called": "Interior floor",
+    "id": "f90",
+    "name": "Name Interior floor",
+    "t": "bname"
+   },
+   {
+    "d": 60.0,
+    "h": 2970.0,
+    "id": "f91",
+    "kind": "box",
+    "name": "Altar screen",
+    "op": "new",
+    "t": "prim",
+    "w": 3000.0,
+    "x": -1500.0,
+    "y": 1330.0,
+    "z": -1100.0
+   },
+   {
+    "body": 76.0,
+    "called": "Altar screen",
+    "id": "f92",
+    "name": "Name Altar screen",
+    "t": "bname"
+   },
+   {
+    "d": 550.0,
+    "h": 670.0,
+    "id": "f93",
+    "kind": "box",
+    "name": "Altar table",
+    "op": "new",
+    "t": "prim",
+    "w": 1600.0,
+    "x": -800.0,
+    "y": 1330.0,
+    "z": -1000.0
+   },
+   {
+    "body": 77.0,
+    "called": "Altar table",
+    "id": "f94",
+    "name": "Name Altar table",
+    "t": "bname"
+   },
+   {
+    "axis": "y",
+    "id": "f95",
+    "kind": "cylinder",
+    "len": 900.0,
+    "name": "Altar statue",
+    "op": "new",
+    "r": 240.0,
+    "t": "prim",
+    "x": 0.0,
+    "y": 2000.0,
+    "z": -720.0
+   },
+   {
+    "body": 78.0,
+    "called": "Altar statue",
+    "id": "f96",
+    "name": "Name Altar statue",
+    "t": "bname"
+   },
+   {
+    "id": "f97",
+    "into": 78.0,
+    "kind": "sphere",
+    "name": "Altar statue head",
+    "op": "join",
+    "r": 230.0,
+    "t": "prim",
+    "x": 0.0,
+    "y": 3100.0,
+    "z": -720.0
+   },
+   {
+    "id": "f98",
+    "kind": "sphere",
+    "name": "Lantern",
+    "op": "new",
+    "r": 340.0,
+    "t": "prim",
+    "x": -900.0,
+    "y": 3700.0,
+    "z": 150.0
+   },
+   {
+    "body": 79.0,
+    "called": "Lantern",
+    "id": "f99",
+    "name": "Name Lantern",
+    "t": "bname"
+   },
+   {
+    "axis": "y",
+    "id": "f100",
+    "into": 79.0,
+    "kind": "cylinder",
+    "len": 1400.0,
+    "name": "Lantern cord",
+    "op": "join",
+    "r": 14.0,
+    "t": "prim",
+    "x": -900.0,
+    "y": 3900.0,
+    "z": 150.0
+   },
+   {
+    "id": "f101",
+    "kind": "sphere",
+    "name": "Lantern",
+    "op": "new",
+    "r": 340.0,
+    "t": "prim",
+    "x": 900.0,
+    "y": 3700.0,
+    "z": 150.0
+   },
+   {
+    "body": 80.0,
+    "called": "Lantern",
+    "id": "f102",
+    "name": "Name Lantern",
+    "t": "bname"
+   },
+   {
+    "axis": "y",
+    "id": "f103",
+    "into": 80.0,
+    "kind": "cylinder",
+    "len": 1400.0,
+    "name": "Lantern cord",
+    "op": "join",
+    "r": 14.0,
+    "t": "prim",
+    "x": 900.0,
+    "y": 3900.0,
+    "z": 150.0
+   },
+   {
+    "d": 40.0,
+    "h": 2700.0,
+    "id": "f104",
+    "kind": "box",
+    "name": "Door window back",
+    "op": "new",
+    "t": "prim",
+    "w": 480.0,
+    "x": -2140.0,
+    "y": 2200.0,
+    "z": 1305.0
+   },
+   {
+    "body": 81.0,
+    "called": "Door window back",
+    "id": "f105",
+    "name": "Name Door window back",
+    "t": "bname"
+   },
+   {
+    "d": 70.0,
+    "h": 60.0,
+    "id": "f106",
+    "kind": "box",
+    "name": "Lattice frame",
+    "op": "new",
+    "t": "prim",
+    "w": 480.0,
+    "x": -2140.0,
+    "y": 2200.0,
+    "z": 1345.0
+   },
+   {
+    "body": 82.0,
+    "called": "Lattice frame",
+    "id": "f107",
+    "name": "Name Lattice frame",
+    "t": "bname"
+   },
+   {
+    "d": 70.0,
+    "h": 60.0,
+    "id": "f108",
+    "kind": "box",
+    "name": "Lattice frame",
+    "op": "new",
+    "t": "prim",
+    "w": 480.0,
+    "x": -2140.0,
+    "y": 4840.0,
+    "z": 1345.0
+   },
+   {
+    "body": 83.0,
+    "called": "Lattice frame",
+    "id": "f109",
+    "name": "Name Lattice frame",
+    "t": "bname"
+   },
+   {
+    "d": 70.0,
+    "h": 2700.0,
+    "id": "f110",
+    "kind": "box",
+    "name": "Lattice frame",
+    "op": "new",
+    "t": "prim",
+    "w": 60.0,
+    "x": -2140.0,
+    "y": 2200.0,
+    "z": 1345.0
+   },
+   {
+    "body": 84.0,
+    "called": "Lattice frame",
+    "id": "f111",
+    "name": "Name Lattice frame",
+    "t": "bname"
+   },
+   {
+    "d": 70.0,
+    "h": 2700.0,
+    "id": "f112",
+    "kind": "box",
+    "name": "Lattice frame",
+    "op": "new",
+    "t": "prim",
+    "w": 60.0,
+    "x": -1720.0,
+    "y": 2200.0,
+    "z": 1345.0
+   },
+   {
+    "body": 85.0,
+    "called": "Lattice frame",
+    "id": "f113",
+    "name": "Name Lattice frame",
+    "t": "bname"
+   },
+   {
+    "d": 40.0,
+    "h": 2600.0,
+    "id": "f114",
+    "kind": "box",
+    "name": "Lattice bars",
+    "op": "new",
+    "t": "prim",
+    "w": 56.0,
+    "x": -2050.0,
+    "y": 2250.0,
+    "z": 1345.0
+   },
+   {
+    "body": 86.0,
+    "called": "Lattice bars",
+    "id": "f115",
+    "name": "Name Lattice bars",
+    "t": "bname"
+   },
+   {
+    "body": 86.0,
+    "count": 2.0,
+    "dir": "x",
+    "id": "f116",
+    "kind": "linear",
+    "mm": 220.0,
+    "name": "Lattice verticals",
+    "op": "join",
+    "t": "pattern"
+   },
+   {
+    "d": 40.0,
+    "h": 56.0,
+    "id": "f117",
+    "kind": "box",
+    "name": "Lattice rails",
+    "op": "new",
+    "t": "prim",
+    "w": 380.0,
+    "x": -2090.0,
+    "y": 2290.0,
+    "z": 1345.0
+   },
+   {
+    "body": 87.0,
+    "called": "Lattice rails",
+    "id": "f118",
+    "name": "Name Lattice rails",
+    "t": "bname"
+   },
+   {
+    "body": 87.0,
+    "count": 12.0,
+    "dir": "y",
+    "id": "f119",
+    "kind": "linear",
+    "mm": 220.0,
+    "name": "Lattice horizontals",
+    "op": "join",
+    "t": "pattern"
+   },
+   {
+    "d": 40.0,
+    "h": 3700.0,
+    "id": "f120",
+    "kind": "box",
+    "name": "Wall moulding",
+    "op": "new",
+    "t": "prim",
+    "w": 3000.0,
+    "x": -6900.0,
+    "y": 1700.0,
+    "z": 1300.0
+   },
+   {
+    "body": 88.0,
+    "called": "Wall moulding",
+    "id": "f121",
+    "name": "Name Wall moulding",
+    "t": "bname"
+   },
+   {
+    "d": 40.0,
+    "h": 2500.0,
+    "id": "f122",
+    "kind": "box",
+    "name": "Door window back",
+    "op": "new",
+    "t": "prim",
+    "w": 2200.0,
+    "x": -6500.0,
+    "y": 2500.0,
+    "z": 1340.0
+   },
+   {
+    "body": 89.0,
+    "called": "Door window back",
+    "id": "f123",
+    "name": "Name Door window back",
+    "t": "bname"
+   },
+   {
+    "d": 70.0,
+    "h": 60.0,
+    "id": "f124",
+    "kind": "box",
+    "name": "Lattice frame",
+    "op": "new",
+    "t": "prim",
+    "w": 2200.0,
+    "x": -6500.0,
+    "y": 2500.0,
+    "z": 1380.0
+   },
+   {
+    "body": 90.0,
+    "called": "Lattice frame",
+    "id": "f125",
+    "name": "Name Lattice frame",
+    "t": "bname"
+   },
+   {
+    "d": 70.0,
+    "h": 60.0,
+    "id": "f126",
+    "kind": "box",
+    "name": "Lattice frame",
+    "op": "new",
+    "t": "prim",
+    "w": 2200.0,
+    "x": -6500.0,
+    "y": 4940.0,
+    "z": 1380.0
+   },
+   {
+    "body": 91.0,
+    "called": "Lattice frame",
+    "id": "f127",
+    "name": "Name Lattice frame",
+    "t": "bname"
+   },
+   {
+    "d": 70.0,
+    "h": 2500.0,
+    "id": "f128",
+    "kind": "box",
+    "name": "Lattice frame",
+    "op": "new",
+    "t": "prim",
+    "w": 60.0,
+    "x": -6500.0,
+    "y": 2500.0,
+    "z": 1380.0
+   },
+   {
+    "body": 92.0,
+    "called": "Lattice frame",
+    "id": "f129",
+    "name": "Name Lattice frame",
+    "t": "bname"
+   },
+   {
+    "d": 70.0,
+    "h": 2500.0,
+    "id": "f130",
+    "kind": "box",
+    "name": "Lattice frame",
+    "op": "new",
+    "t": "prim",
+    "w": 60.0,
+    "x": -4360.0,
+    "y": 2500.0,
+    "z": 1380.0
+   },
+   {
+    "body": 93.0,
+    "called": "Lattice frame",
+    "id": "f131",
+    "name": "Name Lattice frame",
+    "t": "bname"
+   },
+   {
+    "d": 70.0,
+    "h": 2500.0,
+    "id": "f132",
+    "kind": "box",
+    "name": "Lattice frame",
+    "op": "new",
+    "t": "prim",
+    "w": 80.0,
+    "x": -5440.0,
+    "y": 2500.0,
+    "z": 1380.0
+   },
+   {
+    "body": 94.0,
+    "called": "Lattice frame",
+    "id": "f133",
+    "name": "Name Lattice frame",
+    "t": "bname"
+   },
+   {
+    "d": 40.0,
+    "h": 2400.0,
+    "id": "f134",
+    "kind": "box",
+    "name": "Lattice bars",
+    "op": "new",
+    "t": "prim",
+    "w": 56.0,
+    "x": -6410.0,
+    "y": 2550.0,
+    "z": 1380.0
+   },
+   {
+    "body": 95.0,
+    "called": "Lattice bars",
+    "id": "f135",
+    "name": "Name Lattice bars",
+    "t": "bname"
+   },
+   {
+    "body": 95.0,
+    "count": 10.0,
+    "dir": "x",
+    "id": "f136",
+    "kind": "linear",
+    "mm": 220.0,
+    "name": "Lattice verticals",
+    "op": "join",
+    "t": "pattern"
+   },
+   {
+    "d": 40.0,
+    "h": 56.0,
+    "id": "f137",
+    "kind": "box",
+    "name": "Lattice rails",
+    "op": "new",
+    "t": "prim",
+    "w": 2100.0,
+    "x": -6450.0,
+    "y": 2590.0,
+    "z": 1380.0
+   },
+   {
+    "body": 96.0,
+    "called": "Lattice rails",
+    "id": "f138",
+    "name": "Name Lattice rails",
+    "t": "bname"
+   },
+   {
+    "body": 96.0,
+    "count": 11.0,
+    "dir": "y",
+    "id": "f139",
+    "kind": "linear",
+    "mm": 220.0,
+    "name": "Lattice horizontals",
+    "op": "join",
+    "t": "pattern"
+   },
+   {
+    "d": 50.0,
+    "h": 500.0,
+    "id": "f140",
+    "kind": "box",
+    "name": "Wall apron panel",
+    "op": "new",
+    "t": "prim",
+    "w": 2500.0,
+    "x": -6650.0,
+    "y": 1850.0,
+    "z": 1340.0
+   },
+   {
+    "body": 97.0,
+    "called": "Wall apron panel",
+    "id": "f141",
+    "name": "Name Wall apron panel",
+    "t": "bname"
+   },
+   {
+    "d": 40.0,
+    "h": 2700.0,
+    "id": "f142",
+    "kind": "box",
+    "name": "Door window back",
+    "op": "new",
+    "t": "prim",
+    "w": 480.0,
+    "x": 1660.0,
+    "y": 2200.0,
+    "z": 1305.0
+   },
+   {
+    "body": 98.0,
+    "called": "Door window back",
+    "id": "f143",
+    "name": "Name Door window back",
+    "t": "bname"
+   },
+   {
+    "d": 70.0,
+    "h": 60.0,
+    "id": "f144",
+    "kind": "box",
+    "name": "Lattice frame",
+    "op": "new",
+    "t": "prim",
+    "w": 480.0,
+    "x": 1660.0,
+    "y": 2200.0,
+    "z": 1345.0
+   },
+   {
+    "body": 99.0,
+    "called": "Lattice frame",
+    "id": "f145",
+    "name": "Name Lattice frame",
+    "t": "bname"
+   },
+   {
+    "d": 70.0,
+    "h": 60.0,
+    "id": "f146",
+    "kind": "box",
+    "name": "Lattice frame",
+    "op": "new",
+    "t": "prim",
+    "w": 480.0,
+    "x": 1660.0,
+    "y": 4840.0,
+    "z": 1345.0
+   },
+   {
+    "body": 100.0,
+    "called": "Lattice frame",
+    "id": "f147",
+    "name": "Name Lattice frame",
+    "t": "bname"
+   },
+   {
+    "d": 70.0,
+    "h": 2700.0,
+    "id": "f148",
+    "kind": "box",
+    "name": "Lattice frame",
+    "op": "new",
+    "t": "prim",
+    "w": 60.0,
+    "x": 1660.0,
+    "y": 2200.0,
+    "z": 1345.0
+   },
+   {
+    "body": 101.0,
+    "called": "Lattice frame",
+    "id": "f149",
+    "name": "Name Lattice frame",
+    "t": "bname"
+   },
+   {
+    "d": 70.0,
+    "h": 2700.0,
+    "id": "f150",
+    "kind": "box",
+    "name": "Lattice frame",
+    "op": "new",
+    "t": "prim",
+    "w": 60.0,
+    "x": 2080.0,
+    "y": 2200.0,
+    "z": 1345.0
+   },
+   {
+    "body": 102.0,
+    "called": "Lattice frame",
+    "id": "f151",
+    "name": "Name Lattice frame",
+    "t": "bname"
+   },
+   {
+    "d": 40.0,
+    "h": 2600.0,
+    "id": "f152",
+    "kind": "box",
+    "name": "Lattice bars",
+    "op": "new",
+    "t": "prim",
+    "w": 56.0,
+    "x": 1750.0,
+    "y": 2250.0,
+    "z": 1345.0
+   },
+   {
+    "body": 103.0,
+    "called": "Lattice bars",
+    "id": "f153",
+    "name": "Name Lattice bars",
+    "t": "bname"
+   },
+   {
+    "body": 103.0,
+    "count": 2.0,
+    "dir": "x",
+    "id": "f154",
+    "kind": "linear",
+    "mm": 220.0,
+    "name": "Lattice verticals",
+    "op": "join",
+    "t": "pattern"
+   },
+   {
+    "d": 40.0,
+    "h": 56.0,
+    "id": "f155",
+    "kind": "box",
+    "name": "Lattice rails",
+    "op": "new",
+    "t": "prim",
+    "w": 380.0,
+    "x": 1710.0,
+    "y": 2290.0,
+    "z": 1345.0
+   },
+   {
+    "body": 104.0,
+    "called": "Lattice rails",
+    "id": "f156",
+    "name": "Name Lattice rails",
+    "t": "bname"
+   },
+   {
+    "body": 104.0,
+    "count": 12.0,
+    "dir": "y",
+    "id": "f157",
+    "kind": "linear",
+    "mm": 220.0,
+    "name": "Lattice horizontals",
+    "op": "join",
+    "t": "pattern"
+   },
+   {
+    "d": 40.0,
+    "h": 3700.0,
+    "id": "f158",
+    "kind": "box",
+    "name": "Wall moulding",
+    "op": "new",
+    "t": "prim",
+    "w": 3000.0,
+    "x": 3900.0,
+    "y": 1700.0,
+    "z": 1300.0
+   },
+   {
+    "body": 105.0,
+    "called": "Wall moulding",
+    "id": "f159",
+    "name": "Name Wall moulding",
+    "t": "bname"
+   },
+   {
+    "d": 40.0,
+    "h": 2500.0,
+    "id": "f160",
+    "kind": "box",
+    "name": "Door window back",
+    "op": "new",
+    "t": "prim",
+    "w": 2200.0,
+    "x": 4300.0,
+    "y": 2500.0,
+    "z": 1340.0
+   },
+   {
+    "body": 106.0,
+    "called": "Door window back",
+    "id": "f161",
+    "name": "Name Door window back",
+    "t": "bname"
+   },
+   {
+    "d": 70.0,
+    "h": 60.0,
+    "id": "f162",
+    "kind": "box",
+    "name": "Lattice frame",
+    "op": "new",
+    "t": "prim",
+    "w": 2200.0,
+    "x": 4300.0,
+    "y": 2500.0,
+    "z": 1380.0
+   },
+   {
+    "body": 107.0,
+    "called": "Lattice frame",
+    "id": "f163",
+    "name": "Name Lattice frame",
+    "t": "bname"
+   },
+   {
+    "d": 70.0,
+    "h": 60.0,
+    "id": "f164",
+    "kind": "box",
+    "name": "Lattice frame",
+    "op": "new",
+    "t": "prim",
+    "w": 2200.0,
+    "x": 4300.0,
+    "y": 4940.0,
+    "z": 1380.0
+   },
+   {
+    "body": 108.0,
+    "called": "Lattice frame",
+    "id": "f165",
+    "name": "Name Lattice frame",
+    "t": "bname"
+   },
+   {
+    "d": 70.0,
+    "h": 2500.0,
+    "id": "f166",
+    "kind": "box",
+    "name": "Lattice frame",
+    "op": "new",
+    "t": "prim",
+    "w": 60.0,
+    "x": 4300.0,
+    "y": 2500.0,
+    "z": 1380.0
+   },
+   {
+    "body": 109.0,
+    "called": "Lattice frame",
+    "id": "f167",
+    "name": "Name Lattice frame",
+    "t": "bname"
+   },
+   {
+    "d": 70.0,
+    "h": 2500.0,
+    "id": "f168",
+    "kind": "box",
+    "name": "Lattice frame",
+    "op": "new",
+    "t": "prim",
+    "w": 60.0,
+    "x": 6440.0,
+    "y": 2500.0,
+    "z": 1380.0
+   },
+   {
+    "body": 110.0,
+    "called": "Lattice frame",
+    "id": "f169",
+    "name": "Name Lattice frame",
+    "t": "bname"
+   },
+   {
+    "d": 70.0,
+    "h": 2500.0,
+    "id": "f170",
+    "kind": "box",
+    "name": "Lattice frame",
+    "op": "new",
+    "t": "prim",
+    "w": 80.0,
+    "x": 5360.0,
+    "y": 2500.0,
+    "z": 1380.0
+   },
+   {
+    "body": 111.0,
+    "called": "Lattice frame",
+    "id": "f171",
+    "name": "Name Lattice frame",
+    "t": "bname"
+   },
+   {
+    "d": 40.0,
+    "h": 2400.0,
+    "id": "f172",
+    "kind": "box",
+    "name": "Lattice bars",
+    "op": "new",
+    "t": "prim",
+    "w": 56.0,
+    "x": 4390.0,
+    "y": 2550.0,
+    "z": 1380.0
+   },
+   {
+    "body": 112.0,
+    "called": "Lattice bars",
+    "id": "f173",
+    "name": "Name Lattice bars",
+    "t": "bname"
+   },
+   {
+    "body": 112.0,
+    "count": 10.0,
+    "dir": "x",
+    "id": "f174",
+    "kind": "linear",
+    "mm": 220.0,
+    "name": "Lattice verticals",
+    "op": "join",
+    "t": "pattern"
+   },
+   {
+    "d": 40.0,
+    "h": 56.0,
+    "id": "f175",
+    "kind": "box",
+    "name": "Lattice rails",
+    "op": "new",
+    "t": "prim",
+    "w": 2100.0,
+    "x": 4350.0,
+    "y": 2590.0,
+    "z": 1380.0
+   },
+   {
+    "body": 113.0,
+    "called": "Lattice rails",
+    "id": "f176",
+    "name": "Name Lattice rails",
+    "t": "bname"
+   },
+   {
+    "body": 113.0,
+    "count": 11.0,
+    "dir": "y",
+    "id": "f177",
+    "kind": "linear",
+    "mm": 220.0,
+    "name": "Lattice horizontals",
+    "op": "join",
+    "t": "pattern"
+   },
+   {
+    "d": 50.0,
+    "h": 500.0,
+    "id": "f178",
+    "kind": "box",
+    "name": "Wall apron panel",
+    "op": "new",
+    "t": "prim",
+    "w": 2500.0,
+    "x": 4150.0,
+    "y": 1850.0,
+    "z": 1340.0
+   },
+   {
+    "body": 114.0,
+    "called": "Wall apron panel",
+    "id": "f179",
+    "name": "Name Wall apron panel",
+    "t": "bname"
+   },
+   {
+    "body": 81.0,
+    "color": [
+     0.03,
+     0.02,
+     0.02
+    ],
+    "id": "f180",
+    "metal": 0.0,
+    "name": "Paint Door window back",
+    "preset": "Custom",
+    "rough": 0.9,
+    "t": "appear"
+   },
+   {
+    "body": 89.0,
+    "color": [
+     0.03,
+     0.02,
+     0.02
+    ],
+    "id": "f181",
+    "metal": 0.0,
+    "name": "Paint Door window back",
+    "preset": "Custom",
+    "rough": 0.9,
+    "t": "appear"
+   },
+   {
+    "body": 98.0,
+    "color": [
+     0.03,
+     0.02,
+     0.02
+    ],
+    "id": "f182",
+    "metal": 0.0,
+    "name": "Paint Door window back",
+    "preset": "Custom",
+    "rough": 0.9,
+    "t": "appear"
+   },
+   {
+    "body": 106.0,
+    "color": [
+     0.03,
+     0.02,
+     0.02
+    ],
+    "id": "f183",
+    "metal": 0.0,
+    "name": "Paint Door window back",
+    "preset": "Custom",
+    "rough": 0.9,
+    "t": "appear"
+   },
+   {
+    "body": 82.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f184",
+    "metal": 0.0,
+    "name": "Paint Lattice frame",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 83.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f185",
+    "metal": 0.0,
+    "name": "Paint Lattice frame",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 84.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f186",
+    "metal": 0.0,
+    "name": "Paint Lattice frame",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 85.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f187",
+    "metal": 0.0,
+    "name": "Paint Lattice frame",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 86.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f188",
+    "metal": 0.0,
+    "name": "Paint Lattice bars",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 87.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f189",
+    "metal": 0.0,
+    "name": "Paint Lattice rails",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 90.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f190",
+    "metal": 0.0,
+    "name": "Paint Lattice frame",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 91.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f191",
+    "metal": 0.0,
+    "name": "Paint Lattice frame",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 92.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f192",
+    "metal": 0.0,
+    "name": "Paint Lattice frame",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 93.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f193",
+    "metal": 0.0,
+    "name": "Paint Lattice frame",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 94.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f194",
+    "metal": 0.0,
+    "name": "Paint Lattice frame",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 95.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f195",
+    "metal": 0.0,
+    "name": "Paint Lattice bars",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 96.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f196",
+    "metal": 0.0,
+    "name": "Paint Lattice rails",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 99.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f197",
+    "metal": 0.0,
+    "name": "Paint Lattice frame",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 100.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f198",
+    "metal": 0.0,
+    "name": "Paint Lattice frame",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 101.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f199",
+    "metal": 0.0,
+    "name": "Paint Lattice frame",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 102.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f200",
+    "metal": 0.0,
+    "name": "Paint Lattice frame",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 103.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f201",
+    "metal": 0.0,
+    "name": "Paint Lattice bars",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 104.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f202",
+    "metal": 0.0,
+    "name": "Paint Lattice rails",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 107.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f203",
+    "metal": 0.0,
+    "name": "Paint Lattice frame",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 108.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f204",
+    "metal": 0.0,
+    "name": "Paint Lattice frame",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 109.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f205",
+    "metal": 0.0,
+    "name": "Paint Lattice frame",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 110.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f206",
+    "metal": 0.0,
+    "name": "Paint Lattice frame",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 111.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f207",
+    "metal": 0.0,
+    "name": "Paint Lattice frame",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 112.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f208",
+    "metal": 0.0,
+    "name": "Paint Lattice bars",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 113.0,
+    "color": [
+     0.62,
+     0.4,
+     0.22
+    ],
+    "id": "f209",
+    "metal": 0.0,
+    "name": "Paint Lattice rails",
+    "preset": "Custom",
+    "rough": 0.7,
+    "t": "appear"
+   },
+   {
+    "body": 70.0,
+    "color": [
+     0.5,
+     0.09,
+     0.06
+    ],
+    "id": "f210",
+    "metal": 0.0,
+    "name": "Paint Door",
+    "preset": "Custom",
+    "rough": 0.42,
+    "t": "appear"
+   },
+   {
+    "body": 71.0,
+    "color": [
+     0.5,
+     0.09,
+     0.06
+    ],
+    "id": "f211",
+    "metal": 0.0,
+    "name": "Paint Door 2",
+    "preset": "Custom",
+    "rough": 0.42,
+    "t": "appear"
+   },
+   {
+    "body": 72.0,
+    "color": [
+     0.8,
+     0.58,
+     0.16
+    ],
+    "id": "f212",
+    "metal": 0.0,
+    "name": "Paint Door frame",
+    "preset": "Custom",
+    "rough": 0.35,
+    "t": "appear"
+   },
+   {
+    "body": 73.0,
+    "color": [
+     0.55,
+     0.53,
+     0.5
+    ],
+    "id": "f213",
+    "metal": 0.0,
+    "name": "Paint Door sill",
+    "preset": "Custom",
+    "rough": 0.8,
+    "t": "appear"
+   },
+   {
+    "body": 75.0,
+    "color": [
+     0.1,
+     0.06,
+     0.05
+    ],
+    "id": "f214",
+    "metal": 0.0,
+    "name": "Paint Interior floor",
+    "preset": "Custom",
+    "rough": 0.5,
+    "t": "appear"
+   },
+   {
+    "body": 76.0,
+    "color": [
+     0.62,
+     0.1,
+     0.06
+    ],
+    "id": "f215",
+    "metal": 0.0,
+    "name": "Paint Altar screen",
+    "preset": "Custom",
+    "rough": 0.45,
+    "t": "appear"
+   },
+   {
+    "body": 77.0,
+    "color": [
+     0.3,
+     0.05,
+     0.04
+    ],
+    "id": "f216",
+    "metal": 0.0,
+    "name": "Paint Altar table",
+    "preset": "Custom",
+    "rough": 0.5,
+    "t": "appear"
+   },
+   {
+    "body": 78.0,
+    "color": [
+     0.9,
+     0.68,
+     0.18
+    ],
+    "id": "f217",
+    "metal": 0.0,
+    "name": "Paint Altar statue",
+    "preset": "Custom",
+    "rough": 0.3,
+    "t": "appear"
+   },
+   {
+    "body": 79.0,
+    "color": [
+     0.85,
+     0.12,
+     0.05
+    ],
+    "id": "f218",
+    "metal": 0.0,
+    "name": "Paint Lantern",
+    "preset": "Custom",
+    "rough": 0.4,
+    "t": "appear"
+   },
+   {
+    "body": 80.0,
+    "color": [
+     0.85,
+     0.12,
+     0.05
+    ],
+    "id": "f219",
+    "metal": 0.0,
+    "name": "Paint Lantern",
+    "preset": "Custom",
+    "rough": 0.4,
+    "t": "appear"
+   },
+   {
+    "d": 10000.0,
+    "h": 400.0,
+    "id": "f220",
+    "kind": "box",
+    "name": "Lower beam",
+    "op": "new",
+    "t": "prim",
+    "w": 17200.0,
+    "x": -8600.0,
+    "y": 5900.0,
+    "z": -5000.0
+   },
+   {
+    "body": 115.0,
+    "called": "Lower beam",
+    "id": "f221",
+    "name": "Name Lower beam",
+    "t": "bname"
+   },
+   {
+    "from": "front",
+    "id": "f222",
+    "mm": 4400.0,
+    "name": "front @4400.0",
+    "t": "plane"
+   },
+   {
+    "dims": [],
+    "ents": [
+     {
+      "a": [
+       -170.0,
+       6300.0
+      ],
+      "b": [
+       170.0,
+       6300.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       170.0,
+       6300.0
+      ],
+      "b": [
+       170.0,
+       6470.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       170.0,
+       6470.0
+      ],
+      "b": [
+       450.0,
+       6470.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       450.0,
+       6470.0
+      ],
+      "b": [
+       450.0,
+       6640.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       450.0,
+       6640.0
+      ],
+      "b": [
+       280.0,
+       6640.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       280.0,
+       6640.0
+      ],
+      "b": [
+       280.0,
+       6810.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       280.0,
+       6810.0
+      ],
+      "b": [
+       650.0,
+       6810.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       650.0,
+       6810.0
+      ],
+      "b": [
+       650.0,
+       6980.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       650.0,
+       6980.0
+      ],
+      "b": [
+       560.0,
+       6980.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       560.0,
+       6980.0
+      ],
+      "b": [
+       560.0,
+       7100.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       560.0,
+       7100.0
+      ],
+      "b": [
+       -560.0,
+       7100.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -560.0,
+       7100.0
+      ],
+      "b": [
+       -560.0,
+       6980.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -560.0,
+       6980.0
+      ],
+      "b": [
+       -650.0,
+       6980.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -650.0,
+       6980.0
+      ],
+      "b": [
+       -650.0,
+       6810.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -650.0,
+       6810.0
+      ],
+      "b": [
+       -280.0,
+       6810.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -280.0,
+       6810.0
+      ],
+      "b": [
+       -280.0,
+       6640.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -280.0,
+       6640.0
+      ],
+      "b": [
+       -450.0,
+       6640.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -450.0,
+       6640.0
+      ],
+      "b": [
+       -450.0,
+       6470.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -450.0,
+       6470.0
+      ],
+      "b": [
+       -170.0,
+       6470.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -170.0,
+       6470.0
+      ],
+      "b": [
+       -170.0,
+       6300.0
+      ],
+      "k": "line"
+     }
+    ],
+    "id": "f223",
+    "name": "Lower bracket sketch",
+    "plane": "f222",
+    "t": "sketch"
+   },
+   {
+    "both": false,
+    "dist": 700.0,
+    "id": "f224",
+    "name": "Lower bracket",
+    "op": "new",
+    "sketch": "f223",
+    "t": "extrude"
+   },
+   {
+    "body": 116.0,
+    "called": "Lower bracket",
+    "id": "f225",
+    "name": "Name Lower bracket",
+    "t": "bname"
+   },
+   {
+    "body": 116.0,
+    "closed": true,
+    "corners": true,
+    "count": 0.0,
+    "follow": true,
+    "hold": true,
+    "id": "f226",
+    "kind": "route",
+    "mm": 1200.0,
+    "name": "Lower brackets round the hall",
+    "op": "new",
+    "pts": [
+     [
+      -8300.0,
+      6300.0,
+      4750.0
+     ],
+     [
+      8300.0,
+      6300.0,
+      4750.0
+     ],
+     [
+      8300.0,
+      6300.0,
+      -4750.0
+     ],
+     [
+      -8300.0,
+      6300.0,
+      -4750.0
+     ]
+    ],
+    "t": "pattern"
+   },
+   {
+    "d": 10800.0,
+    "h": 250.0,
+    "id": "f227",
+    "kind": "box",
+    "name": "Lower eave beam",
+    "op": "new",
+    "t": "prim",
+    "w": 18200.0,
+    "x": -9100.0,
+    "y": 7000.0,
+    "z": -5400.0
+   },
+   {
+    "body": 160.0,
+    "called": "Lower eave beam",
+    "id": "f228",
+    "name": "Name Lower eave beam",
+    "t": "bname"
+   },
+   {
+    "at": [
+     0.0,
+     7250.0,
+     0.0
+    ],
+    "d": 10400.0,
+    "height": 3800.0,
+    "hole": [
+     14000.0,
+     5400.0
+    ],
+    "id": "f229",
+    "lift": 2300.0,
+    "lift_len": 4400.0,
+    "lift_pow": 3.0,
+    "name": "Lower roof",
+    "overhang": 2500.0,
+    "sag": 1000.0,
+    "t": "roof",
+    "thick": 160.0,
+    "type": "hip",
+    "w": 18600.0
+   },
+   {
+    "d": 5200.0,
+    "h": 3750.0,
+    "id": "f230",
+    "kind": "box",
+    "name": "Upper hall wall",
+    "op": "new",
+    "t": "prim",
+    "w": 13800.0,
+    "x": -6900.0,
+    "y": 7250.0,
+    "z": -2600.0
+   },
+   {
+    "body": 162.0,
+    "called": "Upper hall wall",
+    "id": "f231",
+    "name": "Name Upper hall wall",
+    "t": "bname"
+   },
+   {
+    "from": "top",
+    "id": "f232",
+    "mm": 8300.0,
+    "name": "top @8300.0",
+    "t": "plane"
+   },
+   {
+    "dims": [],
+    "ents": [
+     {
+      "c": [
+       -6900.0,
+       -2830.0
+      ],
+      "k": "circle",
+      "r": 220.0
+     },
+     {
+      "c": [
+       -6900.0,
+       2830.0
+      ],
+      "k": "circle",
+      "r": 220.0
+     },
+     {
+      "c": [
+       -2300.0,
+       -2830.0
+      ],
+      "k": "circle",
+      "r": 220.0
+     },
+     {
+      "c": [
+       -2300.0,
+       2830.0
+      ],
+      "k": "circle",
+      "r": 220.0
+     },
+     {
+      "c": [
+       2300.0,
+       -2830.0
+      ],
+      "k": "circle",
+      "r": 220.0
+     },
+     {
+      "c": [
+       2300.0,
+       2830.0
+      ],
+      "k": "circle",
+      "r": 220.0
+     },
+     {
+      "c": [
+       6900.0,
+       -2830.0
+      ],
+      "k": "circle",
+      "r": 220.0
+     },
+     {
+      "c": [
+       6900.0,
+       2830.0
+      ],
+      "k": "circle",
+      "r": 220.0
+     }
+    ],
+    "id": "f233",
+    "name": "Upper column sketch",
+    "plane": "f232",
+    "t": "sketch"
+   },
+   {
+    "both": false,
+    "dist": 2700.0,
+    "id": "f234",
+    "name": "Upper column",
+    "op": "new",
+    "sketch": "f233",
+    "t": "extrude"
+   },
+   {
+    "body": 163.0,
+    "called": "Upper column",
+    "id": "f235",
+    "name": "Name Upper column",
+    "t": "bname"
+   },
+   {
+    "body": 164.0,
+    "called": "Upper column 2",
+    "id": "f236",
+    "name": "Name Upper column 2",
+    "t": "bname"
+   },
+   {
+    "body": 165.0,
+    "called": "Upper column 3",
+    "id": "f237",
+    "name": "Name Upper column 3",
+    "t": "bname"
+   },
+   {
+    "body": 166.0,
+    "called": "Upper column 4",
+    "id": "f238",
+    "name": "Name Upper column 4",
+    "t": "bname"
+   },
+   {
+    "body": 167.0,
+    "called": "Upper column 5",
+    "id": "f239",
+    "name": "Name Upper column 5",
+    "t": "bname"
+   },
+   {
+    "body": 168.0,
+    "called": "Upper column 6",
+    "id": "f240",
+    "name": "Name Upper column 6",
+    "t": "bname"
+   },
+   {
+    "body": 169.0,
+    "called": "Upper column 7",
+    "id": "f241",
+    "name": "Name Upper column 7",
+    "t": "bname"
+   },
+   {
+    "body": 170.0,
+    "called": "Upper column 8",
+    "id": "f242",
+    "name": "Name Upper column 8",
+    "t": "bname"
+   },
+   {
+    "d": 6900.0,
+    "h": 400.0,
+    "id": "f243",
+    "kind": "box",
+    "name": "Upper beam",
+    "op": "new",
+    "t": "prim",
+    "w": 14300.0,
+    "x": -7150.0,
+    "y": 11000.0,
+    "z": -3450.0
+   },
+   {
+    "body": 171.0,
+    "called": "Upper beam",
+    "id": "f244",
+    "name": "Name Upper beam",
+    "t": "bname"
+   },
+   {
+    "from": "front",
+    "id": "f245",
+    "mm": 3000.0,
+    "name": "front @3000.0",
+    "t": "plane"
+   },
+   {
+    "dims": [],
+    "ents": [
+     {
+      "a": [
+       -170.0,
+       11400.0
+      ],
+      "b": [
+       170.0,
+       11400.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       170.0,
+       11400.0
+      ],
+      "b": [
+       170.0,
+       11570.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       170.0,
+       11570.0
+      ],
+      "b": [
+       450.0,
+       11570.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       450.0,
+       11570.0
+      ],
+      "b": [
+       450.0,
+       11740.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       450.0,
+       11740.0
+      ],
+      "b": [
+       280.0,
+       11740.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       280.0,
+       11740.0
+      ],
+      "b": [
+       280.0,
+       11910.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       280.0,
+       11910.0
+      ],
+      "b": [
+       650.0,
+       11910.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       650.0,
+       11910.0
+      ],
+      "b": [
+       650.0,
+       12080.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       650.0,
+       12080.0
+      ],
+      "b": [
+       560.0,
+       12080.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       560.0,
+       12080.0
+      ],
+      "b": [
+       560.0,
+       12200.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       560.0,
+       12200.0
+      ],
+      "b": [
+       -560.0,
+       12200.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -560.0,
+       12200.0
+      ],
+      "b": [
+       -560.0,
+       12080.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -560.0,
+       12080.0
+      ],
+      "b": [
+       -650.0,
+       12080.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -650.0,
+       12080.0
+      ],
+      "b": [
+       -650.0,
+       11910.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -650.0,
+       11910.0
+      ],
+      "b": [
+       -280.0,
+       11910.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -280.0,
+       11910.0
+      ],
+      "b": [
+       -280.0,
+       11740.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -280.0,
+       11740.0
+      ],
+      "b": [
+       -450.0,
+       11740.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -450.0,
+       11740.0
+      ],
+      "b": [
+       -450.0,
+       11570.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -450.0,
+       11570.0
+      ],
+      "b": [
+       -170.0,
+       11570.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -170.0,
+       11570.0
+      ],
+      "b": [
+       -170.0,
+       11400.0
+      ],
+      "k": "line"
+     }
+    ],
+    "id": "f246",
+    "name": "Upper bracket sketch",
+    "plane": "f245",
+    "t": "sketch"
+   },
+   {
+    "both": false,
+    "dist": 700.0,
+    "id": "f247",
+    "name": "Upper bracket",
+    "op": "new",
+    "sketch": "f246",
+    "t": "extrude"
+   },
+   {
+    "body": 172.0,
+    "called": "Upper bracket",
+    "id": "f248",
+    "name": "Name Upper bracket",
+    "t": "bname"
+   },
+   {
+    "body": 172.0,
+    "closed": true,
+    "corners": true,
+    "count": 0.0,
+    "follow": true,
+    "hold": true,
+    "id": "f249",
+    "kind": "route",
+    "mm": 1200.0,
+    "name": "Upper brackets round the hall",
+    "op": "new",
+    "pts": [
+     [
+      -6900.0,
+      11400.0,
+      3350.0
+     ],
+     [
+      6900.0,
+      11400.0,
+      3350.0
+     ],
+     [
+      6900.0,
+      11400.0,
+      -3350.0
+     ],
+     [
+      -6900.0,
+      11400.0,
+      -3350.0
+     ]
+    ],
+    "t": "pattern"
+   },
+   {
+    "d": 7500.0,
+    "h": 250.0,
+    "id": "f250",
+    "kind": "box",
+    "name": "Upper eave beam",
+    "op": "new",
+    "t": "prim",
+    "w": 14800.0,
+    "x": -7400.0,
+    "y": 12200.0,
+    "z": -3750.0
+   },
+   {
+    "body": 208.0,
+    "called": "Upper eave beam",
+    "id": "f251",
+    "name": "Name Upper eave beam",
+    "t": "bname"
+   },
+   {
+    "at": [
+     0.0,
+     12450.0,
+     0.0
+    ],
+    "d": 7000.0,
+    "gable_in": 900.0,
+    "height": 2900.0,
+    "id": "f252",
+    "lift": 1900.0,
+    "lift_len": 3600.0,
+    "lift_pow": 3.0,
+    "name": "Upper roof",
+    "overhang": 2700.0,
+    "sag": 800.0,
+    "t": "roof",
+    "thick": 160.0,
+    "type": "xieshan",
+    "w": 14800.0
+   },
+   {
+    "id": "f253",
+    "kind": "ridge_dragon",
+    "name": "Ridge dragon (chiwen head, mouth open)",
+    "places": [
+     {
+      "at": [
+       -8200.0,
+       15350.0,
+       0.0
+      ],
+      "dir": [
+       1.0,
+       0.0,
+       0.0
+      ]
+     },
+     {
+      "at": [
+       8200.0,
+       15350.0,
+       0.0
+      ],
+      "dir": [
+       -1.0,
+       0.0,
+       0.0
+      ]
+     }
+    ],
+    "seat": true,
+    "seed": 3.0,
+    "size": [
+     2000.0,
+     2200.0,
+     640.0
+    ],
+    "t": "ornament"
+   },
+   {
+    "id": "f254",
+    "kind": "corner_sprite",
+    "name": "Corner sprites",
+    "places": [
+     {
+      "at": [
+       -11531.302,
+       8805.66375969074,
+       -7431.302
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       -11092.9,
+       8068.6496174669,
+       -6992.9
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       -10654.498,
+       7699.97890660352,
+       -6554.498
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       -10216.096,
+       7563.71249723816,
+       -6116.096
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       -9777.694,
+       7568.82625592418,
+       -5677.694
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       -11531.302,
+       8805.66375969074,
+       7431.302
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       -11092.9,
+       8068.6496174669,
+       6992.9
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       -10654.498,
+       7699.97890660352,
+       6554.498
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       -10216.096,
+       7563.71249723816,
+       6116.096
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       -9777.694,
+       7568.82625592418,
+       5677.694
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       11531.302,
+       8805.66375969074,
+       -7431.302
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       11092.9,
+       8068.6496174669,
+       -6992.9
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       10654.498,
+       7699.97890660352,
+       -6554.498
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       10216.096,
+       7563.71249723816,
+       -6116.096
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       9777.694,
+       7568.82625592418,
+       -5677.694
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       11531.302,
+       8805.66375969074,
+       7431.302
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       11092.9,
+       8068.6496174669,
+       6992.9
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       10654.498,
+       7699.97890660352,
+       6554.498
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       10216.096,
+       7563.71249723816,
+       6116.096
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       9777.694,
+       7568.82625592418,
+       5677.694
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     }
+    ],
+    "seat": true,
+    "seed": 5.0,
+    "size": [
+     620.0,
+     900.0,
+     280.0
+    ],
+    "t": "ornament"
+   },
+   {
+    "id": "f255",
+    "kind": "corner_sprite",
+    "name": "Corner sprites",
+    "places": [
+     {
+      "at": [
+       -9831.302,
+       13623.2072718299,
+       -5931.302
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       -9392.9,
+       12981.0513156972,
+       -5492.9
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       -8954.498,
+       12727.3255547002,
+       -5054.498
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       -8516.096,
+       12689.9441836163,
+       -4616.096
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       -8077.694,
+       12767.4939034371,
+       -4177.694
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       -9831.302,
+       13623.2072718299,
+       5931.302
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       -9392.9,
+       12981.0513156972,
+       5492.9
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       -8954.498,
+       12727.3255547002,
+       5054.498
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       -8516.096,
+       12689.9441836163,
+       4616.096
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       -8077.694,
+       12767.4939034371,
+       4177.694
+      ],
+      "dir": [
+       -0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       9831.302,
+       13623.2072718299,
+       -5931.302
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       9392.9,
+       12981.0513156972,
+       -5492.9
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       8954.498,
+       12727.3255547002,
+       -5054.498
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       8516.096,
+       12689.9441836163,
+       -4616.096
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       8077.694,
+       12767.4939034371,
+       -4177.694
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       -0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       9831.302,
+       13623.2072718299,
+       5931.302
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       9392.9,
+       12981.0513156972,
+       5492.9
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       8954.498,
+       12727.3255547002,
+       5054.498
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       8516.096,
+       12689.9441836163,
+       4616.096
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     },
+     {
+      "at": [
+       8077.694,
+       12767.4939034371,
+       4177.694
+      ],
+      "dir": [
+       0.70710676908493,
+       0.0,
+       0.70710676908493
+      ]
+     }
+    ],
+    "seat": true,
+    "seed": 5.0,
+    "size": [
+     620.0,
+     900.0,
+     280.0
+    ],
+    "t": "ornament"
+   },
+   {
+    "d": 160.0,
+    "h": 1000.0,
+    "id": "f256",
+    "kind": "box",
+    "name": "Upper plaque board",
+    "op": "new",
+    "t": "prim",
+    "w": 2700.0,
+    "x": -1350.0,
+    "y": 9900.0,
+    "z": 2600.0
+   },
+   {
+    "body": 252.0,
+    "called": "Upper plaque board",
+    "id": "f257",
+    "name": "Name Upper plaque board",
+    "t": "bname"
+   },
+   {
+    "d": 100.0,
+    "h": 1200.0,
+    "id": "f258",
+    "kind": "box",
+    "name": "Upper plaque frame",
+    "op": "new",
+    "t": "prim",
+    "w": 2960.0,
+    "x": -1480.0,
+    "y": 9800.0,
+    "z": 2600.0
+   },
+   {
+    "body": 253.0,
+    "called": "Upper plaque frame",
+    "id": "f259",
+    "name": "Name Upper plaque frame",
+    "t": "bname"
+   },
+   {
+    "from": "front",
+    "id": "f260",
+    "mm": 2760.0,
+    "name": "front @2760.0",
+    "t": "plane"
+   },
+   {
+    "dims": [],
+    "ents": [
+     {
+      "a": [
+       -437.1253,
+       10475.8828
+      ],
+      "b": [
+       -437.1253,
+       10528.1582
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -437.1253,
+       10528.1582
+      ],
+      "b": [
+       -757.1467,
+       10528.1582
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -757.1467,
+       10528.1582
+      ],
+      "b": [
+       -751.3937,
+       10576.6865
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -751.3937,
+       10576.6865
+      ],
+      "b": [
+       -747.7274,
+       10623.46
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -747.7274,
+       10623.46
+      ],
+      "b": [
+       -745.6259,
+       10667.9863
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -745.6259,
+       10667.9863
+      ],
+      "b": [
+       -744.5677,
+       10709.7686
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -744.5677,
+       10709.7686
+      ],
+      "b": [
+       -744.0311,
+       10748.3135
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -744.0311,
+       10748.3135
+      ],
+      "b": [
+       -797.8052,
+       10748.3135
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -797.8052,
+       10748.3135
+      ],
+      "b": [
+       -798.1904,
+       10710.416
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -798.1904,
+       10710.416
+      ],
+      "b": [
+       -798.9083,
+       10668.8496
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -798.9083,
+       10668.8496
+      ],
+      "b": [
+       -800.6516,
+       10624.2158
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -800.6516,
+       10624.2158
+      ],
+      "b": [
+       -804.1127,
+       10577.1182
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -804.1127,
+       10577.1182
+      ],
+      "b": [
+       -809.9839,
+       10528.1582
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -809.9839,
+       10528.1582
+      ],
+      "b": [
+       -1106.21,
+       10528.1582
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -1106.21,
+       10528.1582
+      ],
+      "b": [
+       -1106.21,
+       10475.8828
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -1106.21,
+       10475.8828
+      ],
+      "b": [
+       -819.165,
+       10475.8828
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -819.165,
+       10475.8828
+      ],
+      "b": [
+       -844.0562,
+       10387.5439
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -844.0562,
+       10387.5439
+      ],
+      "b": [
+       -883.2112,
+       10301.5879
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -883.2112,
+       10301.5879
+      ],
+      "b": [
+       -940.0116,
+       10221.5225
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -940.0116,
+       10221.5225
+      ],
+      "b": [
+       -1017.839,
+       10150.8555
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -1017.839,
+       10150.8555
+      ],
+      "b": [
+       -1120.075,
+       10093.0938
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -1120.075,
+       10093.0938
+      ],
+      "b": [
+       -1111.8533,
+       10085.8486
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -1111.8533,
+       10085.8486
+      ],
+      "b": [
+       -1103.3169,
+       10077.4873
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -1103.3169,
+       10077.4873
+      ],
+      "b": [
+       -1095.0504,
+       10068.5146
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -1095.0504,
+       10068.5146
+      ],
+      "b": [
+       -1087.6382,
+       10059.4346
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -1087.6382,
+       10059.4346
+      ],
+      "b": [
+       -1081.6649,
+       10050.749
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -1081.6649,
+       10050.749
+      ],
+      "b": [
+       -979.5789,
+       10110.624
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -979.5789,
+       10110.624
+      ],
+      "b": [
+       -900.6422,
+       10183.0898
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -900.6422,
+       10183.0898
+      ],
+      "b": [
+       -841.8332,
+       10264.9092
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -841.8332,
+       10264.9092
+      ],
+      "b": [
+       -800.13,
+       10352.8438
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -800.13,
+       10352.8438
+      ],
+      "b": [
+       -772.5107,
+       10443.6563
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -772.5107,
+       10443.6563
+      ],
+      "b": [
+       -731.9752,
+       10340.7266
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -731.9752,
+       10340.7266
+      ],
+      "b": [
+       -681.16,
+       10248.418
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -681.16,
+       10248.418
+      ],
+      "b": [
+       -619.6784,
+       10168.3584
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -619.6784,
+       10168.3584
+      ],
+      "b": [
+       -547.1437,
+       10102.1758
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -547.1437,
+       10102.1758
+      ],
+      "b": [
+       -463.1692,
+       10051.499
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -463.1692,
+       10051.499
+      ],
+      "b": [
+       -456.9142,
+       10061.251
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -456.9142,
+       10061.251
+      ],
+      "b": [
+       -449.5079,
+       10071.5967
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -449.5079,
+       10071.5967
+      ],
+      "b": [
+       -441.4631,
+       10081.8252
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -441.4631,
+       10081.8252
+      ],
+      "b": [
+       -433.2925,
+       10091.2266
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -433.2925,
+       10091.2266
+      ],
+      "b": [
+       -425.5086,
+       10099.0898
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -425.5086,
+       10099.0898
+      ],
+      "b": [
+       -508.792,
+       10145.5977
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -508.792,
+       10145.5977
+      ],
+      "b": [
+       -580.8066,
+       10208.8955
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -580.8066,
+       10208.8955
+      ],
+      "b": [
+       -641.5702,
+       10286.6191
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -641.5702,
+       10286.6191
+      ],
+      "b": [
+       -691.1009,
+       10376.4043
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -691.1009,
+       10376.4043
+      ],
+      "b": [
+       -729.4166,
+       10475.8828
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -729.4166,
+       10475.8828
+      ],
+      "b": [
+       -437.1253,
+       10475.8828
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -10.3052,
+       10578.7471
+      ],
+      "b": [
+       -10.3052,
+       10625.5889
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -10.3052,
+       10625.5889
+      ],
+      "b": [
+       -196.7345,
+       10625.5889
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -196.7345,
+       10625.5889
+      ],
+      "b": [
+       -196.3688,
+       10641.041
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -196.3688,
+       10641.041
+      ],
+      "b": [
+       -196.1469,
+       10656.1699
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -196.1469,
+       10656.1699
+      ],
+      "b": [
+       -196.033,
+       10671.0107
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -196.033,
+       10671.0107
+      ],
+      "b": [
+       -195.9911,
+       10685.5996
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -195.9911,
+       10685.5996
+      ],
+      "b": [
+       -195.9851,
+       10699.9736
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -195.9851,
+       10699.9736
+      ],
+      "b": [
+       -195.9851,
+       10750.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -195.9851,
+       10750.0
+      ],
+      "b": [
+       -242.0771,
+       10750.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -242.0771,
+       10750.0
+      ],
+      "b": [
+       -242.0771,
+       10699.2236
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -242.0771,
+       10699.2236
+      ],
+      "b": [
+       -242.0831,
+       10685.1445
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -242.0831,
+       10685.1445
+      ],
+      "b": [
+       -242.1251,
+       10670.6328
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -242.1251,
+       10670.6328
+      ],
+      "b": [
+       -242.239,
+       10655.7988
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -242.239,
+       10655.7988
+      ],
+      "b": [
+       -242.4608,
+       10640.7471
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -242.4608,
+       10640.7471
+      ],
+      "b": [
+       -242.8266,
+       10625.5889
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -242.8266,
+       10625.5889
+      ],
+      "b": [
+       -345.6906,
+       10625.5889
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -345.6906,
+       10625.5889
+      ],
+      "b": [
+       -345.6906,
+       10578.7471
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -345.6906,
+       10578.7471
+      ],
+      "b": [
+       -244.3256,
+       10578.7471
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -244.3256,
+       10578.7471
+      ],
+      "b": [
+       -250.7169,
+       10486.7012
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -250.7169,
+       10486.7012
+      ],
+      "b": [
+       -264.0244,
+       10390.5361
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -264.0244,
+       10390.5361
+      ],
+      "b": [
+       -286.5773,
+       10292.4277
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -286.5773,
+       10292.4277
+      ],
+      "b": [
+       -320.705,
+       10194.5537
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -320.705,
+       10194.5537
+      ],
+      "b": [
+       -368.7367,
+       10099.0898
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -368.7367,
+       10099.0898
+      ],
+      "b": [
+       -360.1193,
+       10096.082
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -360.1193,
+       10096.082
+      ],
+      "b": [
+       -350.6116,
+       10091.8408
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -350.6116,
+       10091.8408
+      ],
+      "b": [
+       -341.1219,
+       10086.7998
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -341.1219,
+       10086.7998
+      ],
+      "b": [
+       -332.5585,
+       10081.3906
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -332.5585,
+       10081.3906
+      ],
+      "b": [
+       -325.8298,
+       10076.0439
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -325.8298,
+       10076.0439
+      ],
+      "b": [
+       -276.3172,
+       10175.9014
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -276.3172,
+       10175.9014
+      ],
+      "b": [
+       -241.2662,
+       10278.4922
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -241.2662,
+       10278.4922
+      ],
+      "b": [
+       -218.2307,
+       10381.4248
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -218.2307,
+       10381.4248
+      ],
+      "b": [
+       -204.7643,
+       10482.3076
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -204.7643,
+       10482.3076
+      ],
+      "b": [
+       -198.4208,
+       10578.7471
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -198.4208,
+       10578.7471
+      ],
+      "b": [
+       -10.3052,
+       10578.7471
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -102.4893,
+       10302.5693
+      ],
+      "b": [
+       -94.6455,
+       10280.2188
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -94.6455,
+       10280.2188
+      ],
+      "b": [
+       -86.9544,
+       10256.8252
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -86.9544,
+       10256.8252
+      ],
+      "b": [
+       -79.5692,
+       10232.7842
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -79.5692,
+       10232.7842
+      ],
+      "b": [
+       -72.6427,
+       10208.4912
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -72.6427,
+       10208.4912
+      ],
+      "b": [
+       -66.3277,
+       10184.3418
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -66.3277,
+       10184.3418
+      ],
+      "b": [
+       -173.8759,
+       10159.0469
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -173.8759,
+       10159.0469
+      ],
+      "b": [
+       -157.9782,
+       10219.5391
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -157.9782,
+       10219.5391
+      ],
+      "b": [
+       -142.1165,
+       10286.4355
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -142.1165,
+       10286.4355
+      ],
+      "b": [
+       -126.8214,
+       10356.1553
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -126.8214,
+       10356.1553
+      ],
+      "b": [
+       -112.6236,
+       10425.1191
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -112.6236,
+       10425.1191
+      ],
+      "b": [
+       -100.0536,
+       10489.748
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -100.0536,
+       10489.748
+      ],
+      "b": [
+       -146.8951,
+       10499.6787
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -146.8951,
+       10499.6787
+      ],
+      "b": [
+       -157.2812,
+       10431.9766
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -157.2812,
+       10431.9766
+      ],
+      "b": [
+       -170.3564,
+       10358.2305
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -170.3564,
+       10358.2305
+      ],
+      "b": [
+       -185.3022,
+       10283.2803
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -185.3022,
+       10283.2803
+      ],
+      "b": [
+       -201.3002,
+       10211.9619
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -201.3002,
+       10211.9619
+      ],
+      "b": [
+       -217.5322,
+       10149.1172
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -217.5322,
+       10149.1172
+      ],
+      "b": [
+       -228.9106,
+       10146.7031
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -228.9106,
+       10146.7031
+      ],
+      "b": [
+       -240.0281,
+       10144.2451
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -240.0281,
+       10144.2451
+      ],
+      "b": [
+       -250.7589,
+       10141.832
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -250.7589,
+       10141.832
+      ],
+      "b": [
+       -260.9771,
+       10139.5537
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -260.9771,
+       10139.5537
+      ],
+      "b": [
+       -270.5568,
+       10137.5
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -270.5568,
+       10137.5
+      ],
+      "b": [
+       -254.4433,
+       10093.0938
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -254.4433,
+       10093.0938
+      ],
+      "b": [
+       -219.1151,
+       10101.9229
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -219.1151,
+       10101.9229
+      ],
+      "b": [
+       -180.8728,
+       10111.7861
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -180.8728,
+       10111.7861
+      ],
+      "b": [
+       -140.4902,
+       10122.3682
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -140.4902,
+       10122.3682
+      ],
+      "b": [
+       -98.7405,
+       10133.3555
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -98.7405,
+       10133.3555
+      ],
+      "b": [
+       -56.3973,
+       10144.4326
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -56.3973,
+       10144.4326
+      ],
+      "b": [
+       -54.1474,
+       10133.5176
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -54.1474,
+       10133.5176
+      ],
+      "b": [
+       -52.1133,
+       10122.8535
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -52.1133,
+       10122.8535
+      ],
+      "b": [
+       -50.2861,
+       10112.5146
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -50.2861,
+       10112.5146
+      ],
+      "b": [
+       -48.6568,
+       10102.5703
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -48.6568,
+       10102.5703
+      ],
+      "b": [
+       -47.2163,
+       10093.0938
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -47.2163,
+       10093.0938
+      ],
+      "b": [
+       -6.5579,
+       10107.5215
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -6.5579,
+       10107.5215
+      ],
+      "b": [
+       -13.2715,
+       10144.7051
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -13.2715,
+       10144.7051
+      ],
+      "b": [
+       -22.8992,
+       10186.584
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -22.8992,
+       10186.584
+      ],
+      "b": [
+       -34.8471,
+       10230.8369
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -34.8471,
+       10230.8369
+      ],
+      "b": [
+       -48.5219,
+       10275.1436
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -48.5219,
+       10275.1436
+      ],
+      "b": [
+       -63.3298,
+       10317.1846
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -63.3298,
+       10317.1846
+      ],
+      "b": [
+       -102.4893,
+       10302.5693
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       344.1917,
+       10133.0029
+      ],
+      "b": [
+       216.0331,
+       10133.0029
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       216.0331,
+       10133.0029
+      ],
+      "b": [
+       216.0331,
+       10245.7979
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       216.0331,
+       10245.7979
+      ],
+      "b": [
+       325.8297,
+       10245.7979
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       325.8297,
+       10245.7979
+      ],
+      "b": [
+       325.8297,
+       10290.2031
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       325.8297,
+       10290.2031
+      ],
+      "b": [
+       216.0331,
+       10290.2031
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       216.0331,
+       10290.2031
+      ],
+      "b": [
+       216.0331,
+       10400.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       216.0331,
+       10400.0
+      ],
+      "b": [
+       325.8297,
+       10400.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       325.8297,
+       10400.0
+      ],
+      "b": [
+       325.8297,
+       10445.3428
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       325.8297,
+       10445.3428
+      ],
+      "b": [
+       216.0331,
+       10445.3428
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       216.0331,
+       10445.3428
+      ],
+      "b": [
+       216.0331,
+       10554.9521
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       216.0331,
+       10554.9521
+      ],
+      "b": [
+       335.7601,
+       10554.9521
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       335.7601,
+       10554.9521
+      ],
+      "b": [
+       335.7601,
+       10601.793
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       335.7601,
+       10601.793
+      ],
+      "b": [
+       213.0353,
+       10601.793
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       213.0353,
+       10601.793
+      ],
+      "b": [
+       223.7467,
+       10625.8184
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       223.7467,
+       10625.8184
+      ],
+      "b": [
+       234.602,
+       10651.3086
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       234.602,
+       10651.3086
+      ],
+      "b": [
+       245.3852,
+       10677.5283
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       245.3852,
+       10677.5283
+      ],
+      "b": [
+       255.8807,
+       10703.7383
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       255.8807,
+       10703.7383
+      ],
+      "b": [
+       265.8725,
+       10729.2021
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       265.8725,
+       10729.2021
+      ],
+      "b": [
+       216.7825,
+       10743.0674
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       216.7825,
+       10743.0674
+      ],
+      "b": [
+       208.9672,
+       10716.8096
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       208.9672,
+       10716.8096
+      ],
+      "b": [
+       199.5419,
+       10687.916
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       199.5419,
+       10687.916
+      ],
+      "b": [
+       188.9656,
+       10658.0244
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       188.9656,
+       10658.0244
+      ],
+      "b": [
+       177.6965,
+       10628.7715
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       177.6965,
+       10628.7715
+      ],
+      "b": [
+       166.1937,
+       10601.793
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       166.1937,
+       10601.793
+      ],
+      "b": [
+       67.077,
+       10601.793
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       67.077,
+       10601.793
+      ],
+      "b": [
+       78.8032,
+       10628.2598
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       78.8032,
+       10628.2598
+      ],
+      "b": [
+       89.8818,
+       10655.1943
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       89.8818,
+       10655.1943
+      ],
+      "b": [
+       100.2499,
+       10682.4795
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       100.2499,
+       10682.4795
+      ],
+      "b": [
+       109.8446,
+       10709.998
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       109.8446,
+       10709.998
+      ],
+      "b": [
+       118.6028,
+       10737.6338
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       118.6028,
+       10737.6338
+      ],
+      "b": [
+       71.0117,
+       10750.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       71.0117,
+       10750.0
+      ],
+      "b": [
+       49.1828,
+       10683.8594
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       49.1828,
+       10683.8594
+      ],
+      "b": [
+       22.7402,
+       10620.1025
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       22.7402,
+       10620.1025
+      ],
+      "b": [
+       -7.7585,
+       10560.3926
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -7.7585,
+       10560.3926
+      ],
+      "b": [
+       -41.7557,
+       10506.3936
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -41.7557,
+       10506.3936
+      ],
+      "b": [
+       -78.6938,
+       10459.7695
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -78.6938,
+       10459.7695
+      ],
+      "b": [
+       -71.4195,
+       10453.5938
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -71.4195,
+       10453.5938
+      ],
+      "b": [
+       -63.2189,
+       10445.8447
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -63.2189,
+       10445.8447
+      ],
+      "b": [
+       -54.9643,
+       10437.5107
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -54.9643,
+       10437.5107
+      ],
+      "b": [
+       -47.5281,
+       10429.5811
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -47.5281,
+       10429.5811
+      ],
+      "b": [
+       -41.7827,
+       10423.0459
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -41.7827,
+       10423.0459
+      ],
+      "b": [
+       -30.3864,
+       10436.8613
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -30.3864,
+       10436.8613
+      ],
+      "b": [
+       -19.1428,
+       10451.5049
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -19.1428,
+       10451.5049
+      ],
+      "b": [
+       -8.0703,
+       10466.9033
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -8.0703,
+       10466.9033
+      ],
+      "b": [
+       2.8134,
+       10482.9854
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       2.8134,
+       10482.9854
+      ],
+      "b": [
+       13.4904,
+       10499.6787
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       13.4904,
+       10499.6787
+      ],
+      "b": [
+       13.4904,
+       10050.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       13.4904,
+       10050.0
+      ],
+      "b": [
+       61.0813,
+       10050.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       61.0813,
+       10050.0
+      ],
+      "b": [
+       61.0813,
+       10086.1621
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       61.0813,
+       10086.1621
+      ],
+      "b": [
+       344.1917,
+       10086.1621
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       344.1917,
+       10086.1621
+      ],
+      "b": [
+       344.1917,
+       10133.0029
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       879.122,
+       10671.6807
+      ],
+      "b": [
+       983.485,
+       10671.6807
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       983.485,
+       10671.6807
+      ],
+      "b": [
+       983.485,
+       10538.0889
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       983.485,
+       10538.0889
+      ],
+      "b": [
+       983.8716,
+       10515.8691
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       983.8716,
+       10515.8691
+      ],
+      "b": [
+       985.1398,
+       10499.7734
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       985.1398,
+       10499.7734
+      ],
+      "b": [
+       987.4512,
+       10488.417
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       987.4512,
+       10488.417
+      ],
+      "b": [
+       990.9677,
+       10480.416
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       990.9677,
+       10480.416
+      ],
+      "b": [
+       995.8511,
+       10474.3848
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       995.8511,
+       10474.3848
+      ],
+      "b": [
+       1002.3205,
+       10469.958
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1002.3205,
+       10469.958
+      ],
+      "b": [
+       1009.6083,
+       10466.7188
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1009.6083,
+       10466.7188
+      ],
+      "b": [
+       1017.4087,
+       10464.5498
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1017.4087,
+       10464.5498
+      ],
+      "b": [
+       1025.416,
+       10463.334
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1025.416,
+       10463.334
+      ],
+      "b": [
+       1033.3243,
+       10462.9551
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1033.3243,
+       10462.9551
+      ],
+      "b": [
+       1064.0524,
+       10462.9551
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1064.0524,
+       10462.9551
+      ],
+      "b": [
+       1070.246,
+       10463.1465
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1070.246,
+       10463.1465
+      ],
+      "b": [
+       1076.6825,
+       10463.7705
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1076.6825,
+       10463.7705
+      ],
+      "b": [
+       1083.0198,
+       10464.8975
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1083.0198,
+       10464.8975
+      ],
+      "b": [
+       1088.9166,
+       10466.6006
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1088.9166,
+       10466.6006
+      ],
+      "b": [
+       1094.031,
+       10468.9512
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1094.031,
+       10468.9512
+      ],
+      "b": [
+       1099.1903,
+       10471.8467
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1099.1903,
+       10471.8467
+      ],
+      "b": [
+       1103.6932,
+       10475.7949
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1103.6932,
+       10475.7949
+      ],
+      "b": [
+       1107.6024,
+       10480.7686
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1107.6024,
+       10480.7686
+      ],
+      "b": [
+       1110.9808,
+       10486.7402
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1110.9808,
+       10486.7402
+      ],
+      "b": [
+       1113.8918,
+       10493.6826
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1113.8918,
+       10493.6826
+      ],
+      "b": [
+       1115.9739,
+       10503.0859
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1115.9739,
+       10503.0859
+      ],
+      "b": [
+       1117.5524,
+       10516.6973
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1117.5524,
+       10516.6973
+      ],
+      "b": [
+       1118.7078,
+       10533.1963
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1118.7078,
+       10533.1963
+      ],
+      "b": [
+       1119.5219,
+       10551.2598
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1119.5219,
+       10551.2598
+      ],
+      "b": [
+       1120.075,
+       10569.5664
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1120.075,
+       10569.5664
+      ],
+      "b": [
+       1112.7406,
+       10572.7129
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1112.7406,
+       10572.7129
+      ],
+      "b": [
+       1104.7948,
+       10576.4346
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1104.7948,
+       10576.4346
+      ],
+      "b": [
+       1096.7502,
+       10580.5879
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1096.7502,
+       10580.5879
+      ],
+      "b": [
+       1089.119,
+       10585.0293
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1089.119,
+       10585.0293
+      ],
+      "b": [
+       1082.4143,
+       10589.6143
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1082.4143,
+       10589.6143
+      ],
+      "b": [
+       1082.0365,
+       10571.7578
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1082.0365,
+       10571.7578
+      ],
+      "b": [
+       1081.7308,
+       10556.0322
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1081.7308,
+       10556.0322
+      ],
+      "b": [
+       1081.3892,
+       10542.5469
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1081.3892,
+       10542.5469
+      ],
+      "b": [
+       1080.9033,
+       10531.4082
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1080.9033,
+       10531.4082
+      ],
+      "b": [
+       1080.1659,
+       10522.7246
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1080.1659,
+       10522.7246
+      ],
+      "b": [
+       1079.175,
+       10517.6611
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1079.175,
+       10517.6611
+      ],
+      "b": [
+       1077.9955,
+       10513.4707
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1077.9955,
+       10513.4707
+      ],
+      "b": [
+       1076.6179,
+       10510.125
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1076.6179,
+       10510.125
+      ],
+      "b": [
+       1075.0336,
+       10507.5977
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1075.0336,
+       10507.5977
+      ],
+      "b": [
+       1073.2333,
+       10505.8623
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1073.2333,
+       10505.8623
+      ],
+      "b": [
+       1069.2223,
+       10503.835
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1069.2223,
+       10503.835
+      ],
+      "b": [
+       1066.4746,
+       10503.2715
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1066.4746,
+       10503.2715
+      ],
+      "b": [
+       1063.4484,
+       10502.96
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1063.4484,
+       10502.96
+      ],
+      "b": [
+       1060.3051,
+       10502.8643
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1060.3051,
+       10502.8643
+      ],
+      "b": [
+       1043.2546,
+       10502.8643
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1043.2546,
+       10502.8643
+      ],
+      "b": [
+       1040.6331,
+       10502.96
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1040.6331,
+       10502.96
+      ],
+      "b": [
+       1038.2004,
+       10503.2715
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1038.2004,
+       10503.2715
+      ],
+      "b": [
+       1036.0104,
+       10503.835
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1036.0104,
+       10503.835
+      ],
+      "b": [
+       1032.575,
+       10505.8623
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1032.575,
+       10505.8623
+      ],
+      "b": [
+       1031.3998,
+       10508.4219
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1031.3998,
+       10508.4219
+      ],
+      "b": [
+       1030.5483,
+       10512.4932
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1030.5483,
+       10512.4932
+      ],
+      "b": [
+       1029.9849,
+       10518.0576
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1029.9849,
+       10518.0576
+      ],
+      "b": [
+       1029.6729,
+       10525.0957
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1029.6729,
+       10525.0957
+      ],
+      "b": [
+       1029.577,
+       10533.5918
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1029.577,
+       10533.5918
+      ],
+      "b": [
+       1029.577,
+       10717.5859
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1029.577,
+       10717.5859
+      ],
+      "b": [
+       833.0298,
+       10717.5859
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       833.0298,
+       10717.5859
+      ],
+      "b": [
+       833.0298,
+       10610.2246
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       833.0298,
+       10610.2246
+      ],
+      "b": [
+       831.5834,
+       10579.5703
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       831.5834,
+       10579.5703
+      ],
+      "b": [
+       825.8651,
+       10548.0977
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       825.8651,
+       10548.0977
+      ],
+      "b": [
+       813.8062,
+       10516.8311
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       813.8062,
+       10516.8311
+      ],
+      "b": [
+       793.3383,
+       10486.7969
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       793.3383,
+       10486.7969
+      ],
+      "b": [
+       762.3928,
+       10459.0205
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       762.3928,
+       10459.0205
+      ],
+      "b": [
+       769.5053,
+       10453.7383
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       769.5053,
+       10453.7383
+      ],
+      "b": [
+       777.2922,
+       10446.8457
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       777.2922,
+       10446.8457
+      ],
+      "b": [
+       784.9892,
+       10439.2979
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       784.9892,
+       10439.2979
+      ],
+      "b": [
+       791.8318,
+       10432.0459
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       791.8318,
+       10432.0459
+      ],
+      "b": [
+       797.0556,
+       10426.0439
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       797.0556,
+       10426.0439
+      ],
+      "b": [
+       832.0676,
+       10458.1436
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       832.0676,
+       10458.1436
+      ],
+      "b": [
+       855.7297,
+       10494.335
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       855.7297,
+       10494.335
+      ],
+      "b": [
+       870.0925,
+       10532.8203
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       870.0925,
+       10532.8203
+      ],
+      "b": [
+       877.2064,
+       10571.7998
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       877.2064,
+       10571.7998
+      ],
+      "b": [
+       879.122,
+       10609.4756
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       879.122,
+       10609.4756
+      ],
+      "b": [
+       879.122,
+       10671.6807
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       497.6444,
+       10251.793
+      ],
+      "b": [
+       781.6916,
+       10251.793
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       781.6916,
+       10251.793
+      ],
+      "b": [
+       781.6916,
+       10294.8877
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       781.6916,
+       10294.8877
+      ],
+      "b": [
+       716.4881,
+       10294.8877
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       716.4881,
+       10294.8877
+      ],
+      "b": [
+       716.4881,
+       10397.752
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       716.4881,
+       10397.752
+      ],
+      "b": [
+       765.5781,
+       10397.752
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       765.5781,
+       10397.752
+      ],
+      "b": [
+       765.5781,
+       10439.9092
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       765.5781,
+       10439.9092
+      ],
+      "b": [
+       716.4881,
+       10439.9092
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       716.4881,
+       10439.9092
+      ],
+      "b": [
+       716.4881,
+       10527.4092
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       716.4881,
+       10527.4092
+      ],
+      "b": [
+       677.3286,
+       10527.4092
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       677.3286,
+       10527.4092
+      ],
+      "b": [
+       677.3286,
+       10439.9092
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       677.3286,
+       10439.9092
+      ],
+      "b": [
+       601.2579,
+       10439.9092
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       601.2579,
+       10439.9092
+      ],
+      "b": [
+       601.2579,
+       10527.4092
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       601.2579,
+       10527.4092
+      ],
+      "b": [
+       563.0352,
+       10527.4092
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       563.0352,
+       10527.4092
+      ],
+      "b": [
+       563.0352,
+       10439.9092
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       563.0352,
+       10439.9092
+      ],
+      "b": [
+       505.3265,
+       10439.9092
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       505.3265,
+       10439.9092
+      ],
+      "b": [
+       505.3265,
+       10397.752
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       505.3265,
+       10397.752
+      ],
+      "b": [
+       563.0352,
+       10397.752
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       563.0352,
+       10397.752
+      ],
+      "b": [
+       563.0352,
+       10294.8877
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       563.0352,
+       10294.8877
+      ],
+      "b": [
+       498.5814,
+       10294.8877
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       498.5814,
+       10294.8877
+      ],
+      "b": [
+       501.2974,
+       10328.3486
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       501.2974,
+       10328.3486
+      ],
+      "b": [
+       503.222,
+       10361.251
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       503.222,
+       10361.251
+      ],
+      "b": [
+       504.4631,
+       10393.2188
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       504.4631,
+       10393.2188
+      ],
+      "b": [
+       505.1287,
+       10423.873
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       505.1287,
+       10423.873
+      ],
+      "b": [
+       505.3265,
+       10452.8369
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       505.3265,
+       10452.8369
+      ],
+      "b": [
+       505.3265,
+       10545.7705
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       505.3265,
+       10545.7705
+      ],
+      "b": [
+       767.8264,
+       10545.7705
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       767.8264,
+       10545.7705
+      ],
+      "b": [
+       767.8264,
+       10717.5859
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       767.8264,
+       10717.5859
+      ],
+      "b": [
+       459.4217,
+       10717.5859
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       459.4217,
+       10717.5859
+      ],
+      "b": [
+       459.4217,
+       10452.8369
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       459.4217,
+       10452.8369
+      ],
+      "b": [
+       458.518,
+       10384.624
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       458.518,
+       10384.624
+      ],
+      "b": [
+       454.4393,
+       10311.3477
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       454.4393,
+       10311.3477
+      ],
+      "b": [
+       445.1355,
+       10236.8027
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       445.1355,
+       10236.8027
+      ],
+      "b": [
+       428.5558,
+       10164.7852
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       428.5558,
+       10164.7852
+      ],
+      "b": [
+       402.6498,
+       10099.0898
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       402.6498,
+       10099.0898
+      ],
+      "b": [
+       409.9945,
+       10095.3857
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       409.9945,
+       10095.3857
+      ],
+      "b": [
+       418.5534,
+       10090.1445
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       418.5534,
+       10090.1445
+      ],
+      "b": [
+       427.3372,
+       10084.0752
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       427.3372,
+       10084.0752
+      ],
+      "b": [
+       435.3565,
+       10077.8887
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       435.3565,
+       10077.8887
+      ],
+      "b": [
+       441.6219,
+       10072.2969
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       441.6219,
+       10072.2969
+      ],
+      "b": [
+       458.7262,
+       10111.4111
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       458.7262,
+       10111.4111
+      ],
+      "b": [
+       472.512,
+       10153.5381
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       472.512,
+       10153.5381
+      ],
+      "b": [
+       483.3477,
+       10197.8242
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       483.3477,
+       10197.8242
+      ],
+      "b": [
+       491.6022,
+       10243.4141
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       491.6022,
+       10243.4141
+      ],
+      "b": [
+       497.6444,
+       10289.4541
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       497.6444,
+       10289.4541
+      ],
+      "b": [
+       497.6444,
+       10251.793
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       566.0331,
+       10218.0674
+      ],
+      "b": [
+       554.4044,
+       10186.9297
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       554.4044,
+       10186.9297
+      ],
+      "b": [
+       540.0057,
+       10156.5752
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       540.0057,
+       10156.5752
+      ],
+      "b": [
+       523.2147,
+       10127.8301
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       523.2147,
+       10127.8301
+      ],
+      "b": [
+       504.4091,
+       10101.5225
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       504.4091,
+       10101.5225
+      ],
+      "b": [
+       483.9667,
+       10078.4795
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       483.9667,
+       10078.4795
+      ],
+      "b": [
+       491.2275,
+       10073.6768
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       491.2275,
+       10073.6768
+      ],
+      "b": [
+       499.5586,
+       10067.9844
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       499.5586,
+       10067.9844
+      ],
+      "b": [
+       508.0066,
+       10061.9941
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       508.0066,
+       10061.9941
+      ],
+      "b": [
+       515.6182,
+       10056.3018
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       515.6182,
+       10056.3018
+      ],
+      "b": [
+       521.44,
+       10051.499
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       521.44,
+       10051.499
+      ],
+      "b": [
+       542.3875,
+       10076.873
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       542.3875,
+       10076.873
+      ],
+      "b": [
+       562.3458,
+       10106.2305
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       562.3458,
+       10106.2305
+      ],
+      "b": [
+       580.7301,
+       10138.5654
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       580.7301,
+       10138.5654
+      ],
+      "b": [
+       596.956,
+       10172.8701
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       596.956,
+       10172.8701
+      ],
+      "b": [
+       610.4389,
+       10208.1367
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       610.4389,
+       10208.1367
+      ],
+      "b": [
+       566.0331,
+       10218.0674
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       664.9625,
+       10206.6377
+      ],
+      "b": [
+       680.367,
+       10184.1553
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       680.367,
+       10184.1553
+      ],
+      "b": [
+       695.6096,
+       10160.1084
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       695.6096,
+       10160.1084
+      ],
+      "b": [
+       709.764,
+       10135.8545
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       709.764,
+       10135.8545
+      ],
+      "b": [
+       721.9038,
+       10112.751
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       721.9038,
+       10112.751
+      ],
+      "b": [
+       731.1027,
+       10092.1572
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       731.1027,
+       10092.1572
+      ],
+      "b": [
+       771.7611,
+       10110.707
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       771.7611,
+       10110.707
+      ],
+      "b": [
+       762.1785,
+       10130.8311
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       762.1785,
+       10130.8311
+      ],
+      "b": [
+       749.6909,
+       10153.4385
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       749.6909,
+       10153.4385
+      ],
+      "b": [
+       735.0809,
+       10177.1875
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       735.0809,
+       10177.1875
+      ],
+      "b": [
+       719.1307,
+       10200.7383
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       719.1307,
+       10200.7383
+      ],
+      "b": [
+       702.6231,
+       10222.752
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       702.6231,
+       10222.752
+      ],
+      "b": [
+       664.9625,
+       10206.6377
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1053.3724,
+       10414.6143
+      ],
+      "b": [
+       1044.1917,
+       10412.9287
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1044.1917,
+       10412.9287
+      ],
+      "b": [
+       793.1209,
+       10412.9287
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       793.1209,
+       10412.9287
+      ],
+      "b": [
+       793.1209,
+       10367.0234
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       793.1209,
+       10367.0234
+      ],
+      "b": [
+       1024.1434,
+       10367.0234
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1024.1434,
+       10367.0234
+      ],
+      "b": [
+       1011.9391,
+       10333.9658
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1011.9391,
+       10333.9658
+      ],
+      "b": [
+       997.4685,
+       10302.8965
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       997.4685,
+       10302.8965
+      ],
+      "b": [
+       980.8934,
+       10273.7783
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       980.8934,
+       10273.7783
+      ],
+      "b": [
+       962.3755,
+       10246.5752
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       962.3755,
+       10246.5752
+      ],
+      "b": [
+       942.077,
+       10221.2529
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       942.077,
+       10221.2529
+      ],
+      "b": [
+       923.2114,
+       10247.2832
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       923.2114,
+       10247.2832
+      ],
+      "b": [
+       906.1807,
+       10274.7617
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       906.1807,
+       10274.7617
+      ],
+      "b": [
+       890.9756,
+       10303.6514
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       890.9756,
+       10303.6514
+      ],
+      "b": [
+       877.5871,
+       10333.918
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       877.5871,
+       10333.918
+      ],
+      "b": [
+       866.0063,
+       10365.5244
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       866.0063,
+       10365.5244
+      ],
+      "b": [
+       822.35,
+       10354.6572
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       822.35,
+       10354.6572
+      ],
+      "b": [
+       835.737,
+       10317.6504
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       835.737,
+       10317.6504
+      ],
+      "b": [
+       851.1115,
+       10282.2715
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       851.1115,
+       10282.2715
+      ],
+      "b": [
+       868.3927,
+       10248.6641
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       868.3927,
+       10248.6641
+      ],
+      "b": [
+       887.4996,
+       10216.9717
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       887.4996,
+       10216.9717
+      ],
+      "b": [
+       908.3511,
+       10187.3398
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       908.3511,
+       10187.3398
+      ],
+      "b": [
+       878.7427,
+       10162.2412
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       878.7427,
+       10162.2412
+      ],
+      "b": [
+       847.2189,
+       10140.21
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       847.2189,
+       10140.21
+      ],
+      "b": [
+       814.067,
+       10121.21
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       814.067,
+       10121.21
+      ],
+      "b": [
+       779.5751,
+       10105.2041
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       779.5751,
+       10105.2041
+      ],
+      "b": [
+       744.0309,
+       10092.1572
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       744.0309,
+       10092.1572
+      ],
+      "b": [
+       750.2905,
+       10084.8652
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       750.2905,
+       10084.8652
+      ],
+      "b": [
+       756.8289,
+       10076.3135
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       756.8289,
+       10076.3135
+      ],
+      "b": [
+       763.1603,
+       10067.2676
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       763.1603,
+       10067.2676
+      ],
+      "b": [
+       768.7993,
+       10058.4912
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       768.7993,
+       10058.4912
+      ],
+      "b": [
+       773.26,
+       10050.749
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       773.26,
+       10050.749
+      ],
+      "b": [
+       809.4697,
+       10065.416
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       809.4697,
+       10065.416
+      ],
+      "b": [
+       844.4383,
+       10082.6914
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       844.4383,
+       10082.6914
+      ],
+      "b": [
+       877.9589,
+       10102.6201
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       877.9589,
+       10102.6201
+      ],
+      "b": [
+       909.8245,
+       10125.2461
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       909.8245,
+       10125.2461
+      ],
+      "b": [
+       939.8287,
+       10150.6152
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       939.8287,
+       10150.6152
+      ],
+      "b": [
+       965.5892,
+       10125.5342
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       965.5892,
+       10125.5342
+      ],
+      "b": [
+       993.1576,
+       10102.9434
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       993.1576,
+       10102.9434
+      ],
+      "b": [
+       1022.4976,
+       10082.9072
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1022.4976,
+       10082.9072
+      ],
+      "b": [
+       1053.5734,
+       10065.4883
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1053.5734,
+       10065.4883
+      ],
+      "b": [
+       1086.3489,
+       10050.749
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1086.3489,
+       10050.749
+      ],
+      "b": [
+       1091.6973,
+       10058.9307
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1091.6973,
+       10058.9307
+      ],
+      "b": [
+       1098.1516,
+       10068.083
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1098.1516,
+       10068.083
+      ],
+      "b": [
+       1105.1545,
+       10077.3799
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1105.1545,
+       10077.3799
+      ],
+      "b": [
+       1112.1487,
+       10085.9922
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1112.1487,
+       10085.9922
+      ],
+      "b": [
+       1118.576,
+       10093.0938
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1118.576,
+       10093.0938
+      ],
+      "b": [
+       1085.8843,
+       10106.0195
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1085.8843,
+       10106.0195
+      ],
+      "b": [
+       1055.0364,
+       10121.7598
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1055.0364,
+       10121.7598
+      ],
+      "b": [
+       1026.0321,
+       10140.1621
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1026.0321,
+       10140.1621
+      ],
+      "b": [
+       998.8714,
+       10161.0732
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       998.8714,
+       10161.0732
+      ],
+      "b": [
+       973.5546,
+       10184.3418
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       973.5546,
+       10184.3418
+      ],
+      "b": [
+       1002.1212,
+       10220.2725
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1002.1212,
+       10220.2725
+      ],
+      "b": [
+       1027.7919,
+       10260.0342
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1027.7919,
+       10260.0342
+      ],
+      "b": [
+       1050.2338,
+       10303.7715
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1050.2338,
+       10303.7715
+      ],
+      "b": [
+       1069.1143,
+       10351.6279
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1069.1143,
+       10351.6279
+      ],
+      "b": [
+       1084.1006,
+       10403.7471
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       1084.1006,
+       10403.7471
+      ],
+      "b": [
+       1053.3724,
+       10414.6143
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       61.0813,
+       10245.7979
+      ],
+      "b": [
+       168.4422,
+       10245.7979
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       168.4422,
+       10245.7979
+      ],
+      "b": [
+       168.4422,
+       10133.0029
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       168.4422,
+       10133.0029
+      ],
+      "b": [
+       61.0813,
+       10133.0029
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       61.0813,
+       10133.0029
+      ],
+      "b": [
+       61.0813,
+       10245.7979
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       168.4422,
+       10445.3428
+      ],
+      "b": [
+       61.0813,
+       10445.3428
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       61.0813,
+       10445.3428
+      ],
+      "b": [
+       61.0813,
+       10554.9521
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       61.0813,
+       10554.9521
+      ],
+      "b": [
+       168.4422,
+       10554.9521
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       168.4422,
+       10554.9521
+      ],
+      "b": [
+       168.4422,
+       10445.3428
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       168.4422,
+       10290.2031
+      ],
+      "b": [
+       61.0813,
+       10290.2031
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       61.0813,
+       10290.2031
+      ],
+      "b": [
+       61.0813,
+       10400.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       61.0813,
+       10400.0
+      ],
+      "b": [
+       168.4422,
+       10400.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       168.4422,
+       10400.0
+      ],
+      "b": [
+       168.4422,
+       10290.2031
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       720.9849,
+       10676.1777
+      ],
+      "b": [
+       720.9849,
+       10586.4297
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       720.9849,
+       10586.4297
+      ],
+      "b": [
+       505.3265,
+       10586.4297
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       505.3265,
+       10586.4297
+      ],
+      "b": [
+       505.3265,
+       10676.1777
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       505.3265,
+       10676.1777
+      ],
+      "b": [
+       720.9849,
+       10676.1777
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       601.2579,
+       10397.752
+      ],
+      "b": [
+       677.3286,
+       10397.752
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       677.3286,
+       10397.752
+      ],
+      "b": [
+       677.3286,
+       10294.8877
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       677.3286,
+       10294.8877
+      ],
+      "b": [
+       601.2579,
+       10294.8877
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       601.2579,
+       10294.8877
+      ],
+      "b": [
+       601.2579,
+       10397.752
+      ],
+      "k": "line"
+     }
+    ],
+    "id": "f261",
+    "name": "Upper plaque letters sketch",
+    "plane": "f260",
+    "t": "sketch"
+   },
+   {
+    "both": false,
+    "dist": 45.0,
+    "id": "f262",
+    "name": "Upper plaque letters",
+    "op": "new",
+    "sketch": "f261",
+    "t": "extrude"
+   },
+   {
+    "body": 254.0,
+    "called": "Upper plaque letters",
+    "id": "f263",
+    "name": "Name Upper plaque letters",
+    "t": "bname"
+   },
+   {
+    "body": 255.0,
+    "called": "Upper plaque letters 2",
+    "id": "f264",
+    "name": "Name Upper plaque letters 2",
+    "t": "bname"
+   },
+   {
+    "body": 256.0,
+    "called": "Upper plaque letters 3",
+    "id": "f265",
+    "name": "Name Upper plaque letters 3",
+    "t": "bname"
+   },
+   {
+    "body": 257.0,
+    "called": "Upper plaque letters 4",
+    "id": "f266",
+    "name": "Name Upper plaque letters 4",
+    "t": "bname"
+   },
+   {
+    "body": 258.0,
+    "called": "Upper plaque letters 5",
+    "id": "f267",
+    "name": "Name Upper plaque letters 5",
+    "t": "bname"
+   },
+   {
+    "body": 259.0,
+    "called": "Upper plaque letters 6",
+    "id": "f268",
+    "name": "Name Upper plaque letters 6",
+    "t": "bname"
+   },
+   {
+    "body": 260.0,
+    "called": "Upper plaque letters 7",
+    "id": "f269",
+    "name": "Name Upper plaque letters 7",
+    "t": "bname"
+   },
+   {
+    "body": 261.0,
+    "called": "Upper plaque letters 8",
+    "id": "f270",
+    "name": "Name Upper plaque letters 8",
+    "t": "bname"
+   },
+   {
+    "body": 262.0,
+    "called": "Upper plaque letters 9",
+    "id": "f271",
+    "name": "Name Upper plaque letters 9",
+    "t": "bname"
+   },
+   {
+    "d": 120.0,
+    "h": 600.0,
+    "id": "f272",
+    "kind": "box",
+    "name": "Door plaque board",
+    "op": "new",
+    "t": "prim",
+    "w": 1800.0,
+    "x": -900.0,
+    "y": 5200.0,
+    "z": 1420.0
+   },
+   {
+    "body": 263.0,
+    "called": "Door plaque board",
+    "id": "f273",
+    "name": "Name Door plaque board",
+    "t": "bname"
+   },
+   {
+    "d": 70.0,
+    "h": 700.0,
+    "id": "f274",
+    "kind": "box",
+    "name": "Door plaque frame",
+    "op": "new",
+    "t": "prim",
+    "w": 2000.0,
+    "x": -1000.0,
+    "y": 5150.0,
+    "z": 1420.0
+   },
+   {
+    "body": 264.0,
+    "called": "Door plaque frame",
+    "id": "f275",
+    "name": "Name Door plaque frame",
+    "t": "bname"
+   },
+   {
+    "from": "front",
+    "id": "f276",
+    "mm": 1540.0,
+    "name": "front @1540.0",
+    "t": "plane"
+   },
+   {
+    "dims": [],
+    "ents": [
+     {
+      "a": [
+       -273.9557,
+       5509.4756
+      ],
+      "b": [
+       -273.9557,
+       5540.6504
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -273.9557,
+       5540.6504
+      ],
+      "b": [
+       -449.9019,
+       5540.6504
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -449.9019,
+       5540.6504
+      ],
+      "b": [
+       -449.683,
+       5546.3867
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -449.683,
+       5546.3867
+      ],
+      "b": [
+       -449.5503,
+       5552.0366
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -449.5503,
+       5552.0366
+      ],
+      "b": [
+       -449.4821,
+       5557.6221
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -449.4821,
+       5557.6221
+      ],
+      "b": [
+       -449.457,
+       5563.1646
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -449.457,
+       5563.1646
+      ],
+      "b": [
+       -449.4534,
+       5568.6851
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -449.4534,
+       5568.6851
+      ],
+      "b": [
+       -449.4534,
+       5651.7803
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -449.4534,
+       5651.7803
+      ],
+      "b": [
+       -262.069,
+       5651.7803
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -262.069,
+       5651.7803
+      ],
+      "b": [
+       -262.069,
+       5683.0669
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -262.069,
+       5683.0669
+      ],
+      "b": [
+       -662.5176,
+       5683.0669
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -662.5176,
+       5683.0669
+      ],
+      "b": [
+       -662.5176,
+       5651.7803
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -662.5176,
+       5651.7803
+      ],
+      "b": [
+       -481.1888,
+       5651.7803
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -481.1888,
+       5651.7803
+      ],
+      "b": [
+       -481.1888,
+       5568.6851
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -481.1888,
+       5568.6851
+      ],
+      "b": [
+       -481.1959,
+       5563.1646
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -481.1959,
+       5563.1646
+      ],
+      "b": [
+       -481.2461,
+       5557.6221
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -481.2461,
+       5557.6221
+      ],
+      "b": [
+       -481.3825,
+       5552.0366
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -481.3825,
+       5552.0366
+      ],
+      "b": [
+       -481.648,
+       5546.3867
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -481.648,
+       5546.3867
+      ],
+      "b": [
+       -482.0858,
+       5540.6504
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -482.0858,
+       5540.6504
+      ],
+      "b": [
+       -648.8367,
+       5540.6504
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -648.8367,
+       5540.6504
+      ],
+      "b": [
+       -648.8367,
+       5509.4756
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -648.8367,
+       5509.4756
+      ],
+      "b": [
+       -485.2257,
+       5509.4756
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -485.2257,
+       5509.4756
+      ],
+      "b": [
+       -496.1732,
+       5468.77
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -496.1732,
+       5468.77
+      ],
+      "b": [
+       -517.1755,
+       5428.958
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -517.1755,
+       5428.958
+      ],
+      "b": [
+       -551.2631,
+       5391.1753
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -551.2631,
+       5391.1753
+      ],
+      "b": [
+       -601.4664,
+       5356.5576
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -601.4664,
+       5356.5576
+      ],
+      "b": [
+       -670.8159,
+       5326.2407
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -670.8159,
+       5326.2407
+      ],
+      "b": [
+       -666.7179,
+       5321.8965
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -666.7179,
+       5321.8965
+      ],
+      "b": [
+       -662.3884,
+       5316.5195
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -662.3884,
+       5316.5195
+      ],
+      "b": [
+       -658.2689,
+       5310.6899
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -658.2689,
+       5310.6899
+      ],
+      "b": [
+       -654.8007,
+       5304.9897
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -654.8007,
+       5304.9897
+      ],
+      "b": [
+       -652.4251,
+       5300.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -652.4251,
+       5300.0
+      ],
+      "b": [
+       -585.7733,
+       5329.0527
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -585.7733,
+       5329.0527
+      ],
+      "b": [
+       -535.3447,
+       5362.1968
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -535.3447,
+       5362.1968
+      ],
+      "b": [
+       -498.9543,
+       5398.5435
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -498.9543,
+       5398.5435
+      ],
+      "b": [
+       -474.4164,
+       5437.2046
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -474.4164,
+       5437.2046
+      ],
+      "b": [
+       -459.5459,
+       5477.292
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -459.5459,
+       5477.292
+      ],
+      "b": [
+       -436.308,
+       5426.8804
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -436.308,
+       5426.8804
+      ],
+      "b": [
+       -406.4601,
+       5383.8003
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -406.4601,
+       5383.8003
+      ],
+      "b": [
+       -369.448,
+       5348.1963
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -369.448,
+       5348.1963
+      ],
+      "b": [
+       -324.7171,
+       5320.2148
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -324.7171,
+       5320.2148
+      ],
+      "b": [
+       -271.713,
+       5300.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -271.713,
+       5300.0
+      ],
+      "b": [
+       -268.4582,
+       5305.4883
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -268.4582,
+       5305.4883
+      ],
+      "b": [
+       -264.4338,
+       5311.6123
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -264.4338,
+       5311.6123
+      ],
+      "b": [
+       -259.9733,
+       5317.7949
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -259.9733,
+       5317.7949
+      ],
+      "b": [
+       -255.4107,
+       5323.4614
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -255.4107,
+       5323.4614
+      ],
+      "b": [
+       -251.0794,
+       5328.0347
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -251.0794,
+       5328.0347
+      ],
+      "b": [
+       -306.0822,
+       5347.292
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -306.0822,
+       5347.292
+      ],
+      "b": [
+       -351.9399,
+       5375.5439
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -351.9399,
+       5375.5439
+      ],
+      "b": [
+       -389.1692,
+       5412.3115
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -389.1692,
+       5412.3115
+      ],
+      "b": [
+       -418.2868,
+       5457.1147
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -418.2868,
+       5457.1147
+      ],
+      "b": [
+       -439.8094,
+       5509.4756
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -439.8094,
+       5509.4756
+      ],
+      "b": [
+       -273.9557,
+       5509.4756
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       12.6717,
+       5351.0234
+      ],
+      "b": [
+       12.6717,
+       5496.5796
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       12.6717,
+       5496.5796
+      ],
+      "b": [
+       162.3773,
+       5496.5796
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       162.3773,
+       5496.5796
+      ],
+      "b": [
+       162.3773,
+       5526.8574
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       162.3773,
+       5526.8574
+      ],
+      "b": [
+       12.6717,
+       5526.8574
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       12.6717,
+       5526.8574
+      ],
+      "b": [
+       12.6717,
+       5657.8359
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       12.6717,
+       5657.8359
+      ],
+      "b": [
+       177.9646,
+       5657.8359
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       177.9646,
+       5657.8359
+      ],
+      "b": [
+       177.9646,
+       5687.6646
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       177.9646,
+       5687.6646
+      ],
+      "b": [
+       -183.011,
+       5687.6646
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -183.011,
+       5687.6646
+      ],
+      "b": [
+       -183.011,
+       5657.8359
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -183.011,
+       5657.8359
+      ],
+      "b": [
+       -19.0637,
+       5657.8359
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -19.0637,
+       5657.8359
+      ],
+      "b": [
+       -19.0637,
+       5526.8574
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -19.0637,
+       5526.8574
+      ],
+      "b": [
+       -163.7231,
+       5526.8574
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -163.7231,
+       5526.8574
+      ],
+      "b": [
+       -163.7231,
+       5496.5796
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -163.7231,
+       5496.5796
+      ],
+      "b": [
+       -19.0637,
+       5496.5796
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -19.0637,
+       5496.5796
+      ],
+      "b": [
+       -19.0637,
+       5351.0234
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -19.0637,
+       5351.0234
+      ],
+      "b": [
+       -206.8966,
+       5351.0234
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -206.8966,
+       5351.0234
+      ],
+      "b": [
+       -206.8966,
+       5321.1943
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       -206.8966,
+       5321.1943
+      ],
+      "b": [
+       201.8503,
+       5321.1943
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       201.8503,
+       5321.1943
+      ],
+      "b": [
+       201.8503,
+       5351.0234
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       201.8503,
+       5351.0234
+      ],
+      "b": [
+       12.6717,
+       5351.0234
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       526.605,
+       5672.5259
+      ],
+      "b": [
+       589.0665,
+       5672.5259
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       589.0665,
+       5672.5259
+      ],
+      "b": [
+       589.0665,
+       5592.5708
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       589.0665,
+       5592.5708
+      ],
+      "b": [
+       589.2979,
+       5579.272
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       589.2979,
+       5579.272
+      ],
+      "b": [
+       590.0569,
+       5569.6387
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       590.0569,
+       5569.6387
+      ],
+      "b": [
+       591.4402,
+       5562.8423
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       591.4402,
+       5562.8423
+      ],
+      "b": [
+       593.5449,
+       5558.0537
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       593.5449,
+       5558.0537
+      ],
+      "b": [
+       596.4677,
+       5554.4434
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       596.4677,
+       5554.4434
+      ],
+      "b": [
+       600.3396,
+       5551.7944
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       600.3396,
+       5551.7944
+      ],
+      "b": [
+       604.7014,
+       5549.8555
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       604.7014,
+       5549.8555
+      ],
+      "b": [
+       609.3699,
+       5548.5576
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       609.3699,
+       5548.5576
+      ],
+      "b": [
+       614.1623,
+       5547.8301
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       614.1623,
+       5547.8301
+      ],
+      "b": [
+       618.8954,
+       5547.603
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       618.8954,
+       5547.603
+      ],
+      "b": [
+       637.2862,
+       5547.603
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       637.2862,
+       5547.603
+      ],
+      "b": [
+       640.9931,
+       5547.7178
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       640.9931,
+       5547.7178
+      ],
+      "b": [
+       644.8453,
+       5548.0913
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       644.8453,
+       5548.0913
+      ],
+      "b": [
+       648.6382,
+       5548.7656
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       648.6382,
+       5548.7656
+      ],
+      "b": [
+       652.1675,
+       5549.7847
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       652.1675,
+       5549.7847
+      ],
+      "b": [
+       655.2285,
+       5551.1914
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       655.2285,
+       5551.1914
+      ],
+      "b": [
+       658.3164,
+       5552.9248
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       658.3164,
+       5552.9248
+      ],
+      "b": [
+       661.0114,
+       5555.2876
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       661.0114,
+       5555.2876
+      ],
+      "b": [
+       663.3511,
+       5558.2642
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       663.3511,
+       5558.2642
+      ],
+      "b": [
+       665.373,
+       5561.8384
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       665.373,
+       5561.8384
+      ],
+      "b": [
+       667.1153,
+       5565.9937
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       667.1153,
+       5565.9937
+      ],
+      "b": [
+       668.3614,
+       5571.6216
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       668.3614,
+       5571.6216
+      ],
+      "b": [
+       669.3061,
+       5579.7681
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       669.3061,
+       5579.7681
+      ],
+      "b": [
+       669.9976,
+       5589.6426
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       669.9976,
+       5589.6426
+      ],
+      "b": [
+       670.4848,
+       5600.4536
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       670.4848,
+       5600.4536
+      ],
+      "b": [
+       670.8159,
+       5611.4102
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       670.8159,
+       5611.4102
+      ],
+      "b": [
+       666.4263,
+       5613.2935
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       666.4263,
+       5613.2935
+      ],
+      "b": [
+       661.6707,
+       5615.5205
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       661.6707,
+       5615.5205
+      ],
+      "b": [
+       656.856,
+       5618.0068
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       656.856,
+       5618.0068
+      ],
+      "b": [
+       652.2887,
+       5620.665
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       652.2887,
+       5620.665
+      ],
+      "b": [
+       648.2759,
+       5623.4092
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       648.2759,
+       5623.4092
+      ],
+      "b": [
+       648.0498,
+       5612.7217
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       648.0498,
+       5612.7217
+      ],
+      "b": [
+       647.8669,
+       5603.3101
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       647.8669,
+       5603.3101
+      ],
+      "b": [
+       647.6623,
+       5595.2388
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       647.6623,
+       5595.2388
+      ],
+      "b": [
+       647.3716,
+       5588.5723
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       647.3716,
+       5588.5723
+      ],
+      "b": [
+       646.9302,
+       5583.3755
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       646.9302,
+       5583.3755
+      ],
+      "b": [
+       646.3372,
+       5580.3452
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       646.3372,
+       5580.3452
+      ],
+      "b": [
+       645.6312,
+       5577.8364
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       645.6312,
+       5577.8364
+      ],
+      "b": [
+       644.8067,
+       5575.8345
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       644.8067,
+       5575.8345
+      ],
+      "b": [
+       643.8585,
+       5574.3218
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       643.8585,
+       5574.3218
+      ],
+      "b": [
+       642.7811,
+       5573.2827
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       642.7811,
+       5573.2827
+      ],
+      "b": [
+       640.3804,
+       5572.0698
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       640.3804,
+       5572.0698
+      ],
+      "b": [
+       638.736,
+       5571.7329
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       638.736,
+       5571.7329
+      ],
+      "b": [
+       636.9247,
+       5571.5459
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       636.9247,
+       5571.5459
+      ],
+      "b": [
+       635.0435,
+       5571.4888
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       635.0435,
+       5571.4888
+      ],
+      "b": [
+       624.8387,
+       5571.4888
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       624.8387,
+       5571.4888
+      ],
+      "b": [
+       623.2697,
+       5571.5459
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       623.2697,
+       5571.5459
+      ],
+      "b": [
+       621.8138,
+       5571.7329
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       621.8138,
+       5571.7329
+      ],
+      "b": [
+       620.5031,
+       5572.0698
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       620.5031,
+       5572.0698
+      ],
+      "b": [
+       618.4469,
+       5573.2827
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       618.4469,
+       5573.2827
+      ],
+      "b": [
+       617.7435,
+       5574.8154
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       617.7435,
+       5574.8154
+      ],
+      "b": [
+       617.234,
+       5577.252
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       617.234,
+       5577.252
+      ],
+      "b": [
+       616.8967,
+       5580.582
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       616.8967,
+       5580.582
+      ],
+      "b": [
+       616.71,
+       5584.7944
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       616.71,
+       5584.7944
+      ],
+      "b": [
+       616.6526,
+       5589.8794
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       616.6526,
+       5589.8794
+      ],
+      "b": [
+       616.6526,
+       5700.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       616.6526,
+       5700.0
+      ],
+      "b": [
+       499.0187,
+       5700.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       499.0187,
+       5700.0
+      ],
+      "b": [
+       499.0187,
+       5635.7441
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       499.0187,
+       5635.7441
+      ],
+      "b": [
+       498.1531,
+       5617.3975
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       498.1531,
+       5617.3975
+      ],
+      "b": [
+       494.7306,
+       5598.561
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       494.7306,
+       5598.561
+      ],
+      "b": [
+       487.5133,
+       5579.8481
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       487.5133,
+       5579.8481
+      ],
+      "b": [
+       475.2632,
+       5561.8726
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       475.2632,
+       5561.8726
+      ],
+      "b": [
+       456.7423,
+       5545.248
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       456.7423,
+       5545.248
+      ],
+      "b": [
+       460.9991,
+       5542.0869
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       460.9991,
+       5542.0869
+      ],
+      "b": [
+       465.6597,
+       5537.9619
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       465.6597,
+       5537.9619
+      ],
+      "b": [
+       470.2663,
+       5533.4438
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       470.2663,
+       5533.4438
+      ],
+      "b": [
+       474.3617,
+       5529.1035
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       474.3617,
+       5529.1035
+      ],
+      "b": [
+       477.4881,
+       5525.5117
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       477.4881,
+       5525.5117
+      ],
+      "b": [
+       498.4428,
+       5544.7231
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       498.4428,
+       5544.7231
+      ],
+      "b": [
+       512.6046,
+       5566.3843
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       512.6046,
+       5566.3843
+      ],
+      "b": [
+       521.2008,
+       5589.4175
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       521.2008,
+       5589.4175
+      ],
+      "b": [
+       525.4585,
+       5612.7471
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       525.4585,
+       5612.7471
+      ],
+      "b": [
+       526.605,
+       5635.2959
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       526.605,
+       5635.2959
+      ],
+      "b": [
+       526.605,
+       5672.5259
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       298.2898,
+       5421.2222
+      ],
+      "b": [
+       468.2927,
+       5421.2222
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       468.2927,
+       5421.2222
+      ],
+      "b": [
+       468.2927,
+       5447.0142
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       468.2927,
+       5447.0142
+      ],
+      "b": [
+       429.2682,
+       5447.0142
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       429.2682,
+       5447.0142
+      ],
+      "b": [
+       429.2682,
+       5508.5786
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       429.2682,
+       5508.5786
+      ],
+      "b": [
+       458.6487,
+       5508.5786
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       458.6487,
+       5508.5786
+      ],
+      "b": [
+       458.6487,
+       5533.8101
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       458.6487,
+       5533.8101
+      ],
+      "b": [
+       429.2682,
+       5533.8101
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       429.2682,
+       5533.8101
+      ],
+      "b": [
+       429.2682,
+       5586.1787
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       429.2682,
+       5586.1787
+      ],
+      "b": [
+       405.8312,
+       5586.1787
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       405.8312,
+       5586.1787
+      ],
+      "b": [
+       405.8312,
+       5533.8101
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       405.8312,
+       5533.8101
+      ],
+      "b": [
+       360.3027,
+       5533.8101
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       360.3027,
+       5533.8101
+      ],
+      "b": [
+       360.3027,
+       5586.1787
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       360.3027,
+       5586.1787
+      ],
+      "b": [
+       337.4264,
+       5586.1787
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       337.4264,
+       5586.1787
+      ],
+      "b": [
+       337.4264,
+       5533.8101
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       337.4264,
+       5533.8101
+      ],
+      "b": [
+       302.8876,
+       5533.8101
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       302.8876,
+       5533.8101
+      ],
+      "b": [
+       302.8876,
+       5508.5786
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       302.8876,
+       5508.5786
+      ],
+      "b": [
+       337.4264,
+       5508.5786
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       337.4264,
+       5508.5786
+      ],
+      "b": [
+       337.4264,
+       5447.0142
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       337.4264,
+       5447.0142
+      ],
+      "b": [
+       298.8506,
+       5447.0142
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       298.8506,
+       5447.0142
+      ],
+      "b": [
+       300.4761,
+       5467.0405
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       300.4761,
+       5467.0405
+      ],
+      "b": [
+       301.628,
+       5486.7329
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       301.628,
+       5486.7329
+      ],
+      "b": [
+       302.3708,
+       5505.8657
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       302.3708,
+       5505.8657
+      ],
+      "b": [
+       302.7692,
+       5524.2124
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       302.7692,
+       5524.2124
+      ],
+      "b": [
+       302.8876,
+       5541.5474
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       302.8876,
+       5541.5474
+      ],
+      "b": [
+       302.8876,
+       5597.1685
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       302.8876,
+       5597.1685
+      ],
+      "b": [
+       459.9943,
+       5597.1685
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       459.9943,
+       5597.1685
+      ],
+      "b": [
+       459.9943,
+       5700.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       459.9943,
+       5700.0
+      ],
+      "b": [
+       275.4135,
+       5700.0
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       275.4135,
+       5700.0
+      ],
+      "b": [
+       275.4135,
+       5541.5474
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       275.4135,
+       5541.5474
+      ],
+      "b": [
+       274.8726,
+       5500.7217
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       274.8726,
+       5500.7217
+      ],
+      "b": [
+       272.4315,
+       5456.8657
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       272.4315,
+       5456.8657
+      ],
+      "b": [
+       266.8631,
+       5412.2505
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       266.8631,
+       5412.2505
+      ],
+      "b": [
+       256.9401,
+       5369.1475
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       256.9401,
+       5369.1475
+      ],
+      "b": [
+       241.4353,
+       5329.8291
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       241.4353,
+       5329.8291
+      ],
+      "b": [
+       245.8312,
+       5327.6123
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       245.8312,
+       5327.6123
+      ],
+      "b": [
+       250.9537,
+       5324.4751
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       250.9537,
+       5324.4751
+      ],
+      "b": [
+       256.2108,
+       5320.8428
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       256.2108,
+       5320.8428
+      ],
+      "b": [
+       261.0104,
+       5317.1401
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       261.0104,
+       5317.1401
+      ],
+      "b": [
+       264.7603,
+       5313.793
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       264.7603,
+       5313.793
+      ],
+      "b": [
+       274.9972,
+       5337.2031
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       274.9972,
+       5337.2031
+      ],
+      "b": [
+       283.248,
+       5362.4165
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       283.248,
+       5362.4165
+      ],
+      "b": [
+       289.7332,
+       5388.9219
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       289.7332,
+       5388.9219
+      ],
+      "b": [
+       294.6736,
+       5416.2075
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       294.6736,
+       5416.2075
+      ],
+      "b": [
+       298.2898,
+       5443.7622
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       298.2898,
+       5443.7622
+      ],
+      "b": [
+       298.2898,
+       5421.2222
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       339.2206,
+       5401.0371
+      ],
+      "b": [
+       332.2608,
+       5382.4014
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       332.2608,
+       5382.4014
+      ],
+      "b": [
+       323.6431,
+       5364.2344
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       323.6431,
+       5364.2344
+      ],
+      "b": [
+       313.5937,
+       5347.0303
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       313.5937,
+       5347.0303
+      ],
+      "b": [
+       302.3385,
+       5331.2852
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       302.3385,
+       5331.2852
+      ],
+      "b": [
+       290.1037,
+       5317.4937
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       290.1037,
+       5317.4937
+      ],
+      "b": [
+       294.4493,
+       5314.6191
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       294.4493,
+       5314.6191
+      ],
+      "b": [
+       299.4355,
+       5311.2119
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       299.4355,
+       5311.2119
+      ],
+      "b": [
+       304.4916,
+       5307.6274
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       304.4916,
+       5307.6274
+      ],
+      "b": [
+       309.0471,
+       5304.2202
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       309.0471,
+       5304.2202
+      ],
+      "b": [
+       312.5315,
+       5301.3457
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       312.5315,
+       5301.3457
+      ],
+      "b": [
+       325.0687,
+       5316.5317
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       325.0687,
+       5316.5317
+      ],
+      "b": [
+       337.0137,
+       5334.103
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       337.0137,
+       5334.103
+      ],
+      "b": [
+       348.0168,
+       5353.4556
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       348.0168,
+       5353.4556
+      ],
+      "b": [
+       357.728,
+       5373.9868
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       357.728,
+       5373.9868
+      ],
+      "b": [
+       365.7976,
+       5395.0938
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       365.7976,
+       5395.0938
+      ],
+      "b": [
+       339.2206,
+       5401.0371
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       398.4301,
+       5394.1968
+      ],
+      "b": [
+       407.6497,
+       5380.7412
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       407.6497,
+       5380.7412
+      ],
+      "b": [
+       416.7724,
+       5366.3486
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       416.7724,
+       5366.3486
+      ],
+      "b": [
+       425.2439,
+       5351.8325
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       425.2439,
+       5351.8325
+      ],
+      "b": [
+       432.5096,
+       5338.0054
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       432.5096,
+       5338.0054
+      ],
+      "b": [
+       438.0151,
+       5325.6797
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       438.0151,
+       5325.6797
+      ],
+      "b": [
+       462.3493,
+       5336.7817
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       462.3493,
+       5336.7817
+      ],
+      "b": [
+       456.614,
+       5348.8262
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       456.614,
+       5348.8262
+      ],
+      "b": [
+       449.1402,
+       5362.3564
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       449.1402,
+       5362.3564
+      ],
+      "b": [
+       440.3961,
+       5376.5703
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       440.3961,
+       5376.5703
+      ],
+      "b": [
+       430.8499,
+       5390.666
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       430.8499,
+       5390.666
+      ],
+      "b": [
+       420.97,
+       5403.8408
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       420.97,
+       5403.8408
+      ],
+      "b": [
+       398.4301,
+       5394.1968
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       630.8943,
+       5518.6714
+      ],
+      "b": [
+       625.3995,
+       5517.6621
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       625.3995,
+       5517.6621
+      ],
+      "b": [
+       475.1331,
+       5517.6621
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       475.1331,
+       5517.6621
+      ],
+      "b": [
+       475.1331,
+       5490.188
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       475.1331,
+       5490.188
+      ],
+      "b": [
+       613.4006,
+       5490.188
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       613.4006,
+       5490.188
+      ],
+      "b": [
+       606.0964,
+       5470.4028
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       606.0964,
+       5470.4028
+      ],
+      "b": [
+       597.4357,
+       5451.8076
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       597.4357,
+       5451.8076
+      ],
+      "b": [
+       587.5154,
+       5434.3804
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       587.5154,
+       5434.3804
+      ],
+      "b": [
+       576.4324,
+       5418.0996
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       576.4324,
+       5418.0996
+      ],
+      "b": [
+       564.2837,
+       5402.9438
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       564.2837,
+       5402.9438
+      ],
+      "b": [
+       552.9926,
+       5418.5229
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       552.9926,
+       5418.5229
+      ],
+      "b": [
+       542.7997,
+       5434.9688
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       542.7997,
+       5434.9688
+      ],
+      "b": [
+       533.6994,
+       5452.2598
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       533.6994,
+       5452.2598
+      ],
+      "b": [
+       525.6863,
+       5470.374
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       525.6863,
+       5470.374
+      ],
+      "b": [
+       518.7552,
+       5489.2905
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       518.7552,
+       5489.2905
+      ],
+      "b": [
+       492.6268,
+       5482.7866
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       492.6268,
+       5482.7866
+      ],
+      "b": [
+       500.639,
+       5460.6377
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       500.639,
+       5460.6377
+      ],
+      "b": [
+       509.8407,
+       5439.4634
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       509.8407,
+       5439.4634
+      ],
+      "b": [
+       520.1835,
+       5419.3491
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       520.1835,
+       5419.3491
+      ],
+      "b": [
+       531.619,
+       5400.3813
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       531.619,
+       5400.3813
+      ],
+      "b": [
+       544.0987,
+       5382.6465
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       544.0987,
+       5382.6465
+      ],
+      "b": [
+       526.378,
+       5367.625
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       526.378,
+       5367.625
+      ],
+      "b": [
+       507.5109,
+       5354.4395
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       507.5109,
+       5354.4395
+      ],
+      "b": [
+       487.6694,
+       5343.0679
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       487.6694,
+       5343.0679
+      ],
+      "b": [
+       467.026,
+       5333.4883
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       467.026,
+       5333.4883
+      ],
+      "b": [
+       445.7527,
+       5325.6797
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       445.7527,
+       5325.6797
+      ],
+      "b": [
+       449.4991,
+       5321.3154
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       449.4991,
+       5321.3154
+      ],
+      "b": [
+       453.4123,
+       5316.1973
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       453.4123,
+       5316.1973
+      ],
+      "b": [
+       457.2017,
+       5310.7832
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       457.2017,
+       5310.7832
+      ],
+      "b": [
+       460.5766,
+       5305.5308
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       460.5766,
+       5305.5308
+      ],
+      "b": [
+       463.2464,
+       5300.897
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       463.2464,
+       5300.897
+      ],
+      "b": [
+       484.9179,
+       5309.6753
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       484.9179,
+       5309.6753
+      ],
+      "b": [
+       505.8467,
+       5320.0146
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       505.8467,
+       5320.0146
+      ],
+      "b": [
+       525.9089,
+       5331.9419
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       525.9089,
+       5331.9419
+      ],
+      "b": [
+       544.9805,
+       5345.4834
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       544.9805,
+       5345.4834
+      ],
+      "b": [
+       562.938,
+       5360.667
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       562.938,
+       5360.667
+      ],
+      "b": [
+       578.3558,
+       5345.6558
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       578.3558,
+       5345.6558
+      ],
+      "b": [
+       594.8555,
+       5332.1353
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       594.8555,
+       5332.1353
+      ],
+      "b": [
+       612.4156,
+       5320.1436
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       612.4156,
+       5320.1436
+      ],
+      "b": [
+       631.0145,
+       5309.7183
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       631.0145,
+       5309.7183
+      ],
+      "b": [
+       650.6307,
+       5300.897
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       650.6307,
+       5300.897
+      ],
+      "b": [
+       653.8317,
+       5305.7935
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       653.8317,
+       5305.7935
+      ],
+      "b": [
+       657.6947,
+       5311.2715
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       657.6947,
+       5311.2715
+      ],
+      "b": [
+       661.886,
+       5316.835
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       661.886,
+       5316.835
+      ],
+      "b": [
+       666.072,
+       5321.9902
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       666.072,
+       5321.9902
+      ],
+      "b": [
+       669.9188,
+       5326.2407
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       669.9188,
+       5326.2407
+      ],
+      "b": [
+       650.3527,
+       5333.9766
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       650.3527,
+       5333.9766
+      ],
+      "b": [
+       631.8901,
+       5343.397
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       631.8901,
+       5343.397
+      ],
+      "b": [
+       614.531,
+       5354.4106
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       614.531,
+       5354.4106
+      ],
+      "b": [
+       598.2753,
+       5366.9263
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       598.2753,
+       5366.9263
+      ],
+      "b": [
+       583.1231,
+       5380.8521
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       583.1231,
+       5380.8521
+      ],
+      "b": [
+       600.2203,
+       5402.3569
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       600.2203,
+       5402.3569
+      ],
+      "b": [
+       615.5843,
+       5426.1548
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       615.5843,
+       5426.1548
+      ],
+      "b": [
+       629.0157,
+       5452.3315
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       629.0157,
+       5452.3315
+      ],
+      "b": [
+       640.3158,
+       5480.9736
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       640.3158,
+       5480.9736
+      ],
+      "b": [
+       649.2851,
+       5512.167
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       649.2851,
+       5512.167
+      ],
+      "b": [
+       630.8943,
+       5518.6714
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       431.9596,
+       5675.2173
+      ],
+      "b": [
+       431.9596,
+       5621.5024
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       431.9596,
+       5621.5024
+      ],
+      "b": [
+       302.8876,
+       5621.5024
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       302.8876,
+       5621.5024
+      ],
+      "b": [
+       302.8876,
+       5675.2173
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       302.8876,
+       5675.2173
+      ],
+      "b": [
+       431.9596,
+       5675.2173
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       360.3027,
+       5508.5786
+      ],
+      "b": [
+       405.8312,
+       5508.5786
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       405.8312,
+       5508.5786
+      ],
+      "b": [
+       405.8312,
+       5447.0142
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       405.8312,
+       5447.0142
+      ],
+      "b": [
+       360.3027,
+       5447.0142
+      ],
+      "k": "line"
+     },
+     {
+      "a": [
+       360.3027,
+       5447.0142
+      ],
+      "b": [
+       360.3027,
+       5508.5786
+      ],
+      "k": "line"
+     }
+    ],
+    "id": "f277",
+    "name": "Door plaque letters sketch",
+    "plane": "f276",
+    "t": "sketch"
+   },
+   {
+    "both": false,
+    "dist": 35.0,
+    "id": "f278",
+    "name": "Door plaque letters",
+    "op": "new",
+    "sketch": "f277",
+    "t": "extrude"
+   },
+   {
+    "body": 265.0,
+    "called": "Door plaque letters",
+    "id": "f279",
+    "name": "Name Door plaque letters",
+    "t": "bname"
+   },
+   {
+    "body": 266.0,
+    "called": "Door plaque letters 2",
+    "id": "f280",
+    "name": "Name Door plaque letters 2",
+    "t": "bname"
+   },
+   {
+    "body": 267.0,
+    "called": "Door plaque letters 3",
+    "id": "f281",
+    "name": "Name Door plaque letters 3",
+    "t": "bname"
+   },
+   {
+    "body": 268.0,
+    "called": "Door plaque letters 4",
+    "id": "f282",
+    "name": "Name Door plaque letters 4",
+    "t": "bname"
+   },
+   {
+    "body": 269.0,
+    "called": "Door plaque letters 5",
+    "id": "f283",
+    "name": "Name Door plaque letters 5",
+    "t": "bname"
+   },
+   {
+    "body": 270.0,
+    "called": "Door plaque letters 6",
+    "id": "f284",
+    "name": "Name Door plaque letters 6",
+    "t": "bname"
+   },
+   {
+    "body": 271.0,
+    "called": "Door plaque letters 7",
+    "id": "f285",
+    "name": "Name Door plaque letters 7",
+    "t": "bname"
+   },
+   {
+    "d": 900.0,
+    "h": 700.0,
+    "id": "f286",
+    "kind": "box",
+    "name": "Compound wall base",
+    "op": "new",
+    "t": "prim",
+    "w": 90000.0,
+    "x": -45000.0,
+    "y": 0.0,
+    "z": -9950.0
+   },
+   {
+    "body": 272.0,
+    "called": "Compound wall base",
+    "id": "f287",
+    "name": "Name Compound wall base",
+    "t": "bname"
+   },
+   {
+    "d": 700.0,
+    "h": 2500.0,
+    "id": "f288",
+    "kind": "box",
+    "name": "Compound wall",
+    "op": "new",
+    "t": "prim",
+    "w": 90000.0,
+    "x": -45000.0,
+    "y": 700.0,
+    "z": -9850.0
+   },
+   {
+    "body": 273.0,
+    "called": "Compound wall",
+    "id": "f289",
+    "name": "Name Compound wall",
+    "t": "bname"
+   },
+   {
+    "d": 39150.0,
+    "h": 2500.0,
+    "id": "f290",
+    "kind": "box",
+    "name": "Compound wall",
+    "op": "new",
+    "t": "prim",
+    "w": 700.0,
+    "x": -45350.0,
+    "y": 700.0,
+    "z": -9150.0
+   },
+   {
+    "body": 274.0,
+    "called": "Compound wall",
+    "id": "f291",
+    "name": "Name Compound wall",
+    "t": "bname"
+   },
+   {
+    "d": 39150.0,
+    "h": 2500.0,
+    "id": "f292",
+    "kind": "box",
+    "name": "Compound wall",
+    "op": "new",
+    "t": "prim",
+    "w": 700.0,
+    "x": 44650.0,
+    "y": 700.0,
+    "z": -9150.0
+   },
+   {
+    "body": 275.0,
+    "called": "Compound wall",
+    "id": "f293",
+    "name": "Name Compound wall",
+    "t": "bname"
+   },
+   {
+    "at": [
+     -27000.0,
+     3200.0,
+     -9500.0
+    ],
+    "d": 700.0,
+    "detail": 6.0,
+    "height": 520.0,
+    "id": "f294",
+    "name": "Compound wall cap roof",
+    "overhang": 220.0,
+    "sag": 40.0,
+    "t": "roof",
+    "thick": 45.0,
+    "type": "gable",
+    "w": 30000.0
+   },
+   {
+    "at": [
+     27000.0,
+     3200.0,
+     -9500.0
+    ],
+    "d": 700.0,
+    "detail": 6.0,
+    "height": 520.0,
+    "id": "f295",
+    "name": "Compound wall cap roof",
+    "overhang": 220.0,
+    "sag": 40.0,
+    "t": "roof",
+    "thick": 45.0,
+    "type": "gable",
+    "w": 30000.0
+   },
+   {
+    "axis": [
+     0.0,
+     1.0,
+     0.0
+    ],
+    "body": 70.0,
+    "id": "f296",
+    "name": "Door hinge left",
+    "o": [
+     -1460.0,
+     3200.0,
+     1300.0
+    ],
+    "t": "hinge",
+    "track": [
+     [
+      0.0,
+      0.0
+     ],
+     [
+      3.0,
+      0.0
+     ],
+     [
+      3.1,
+      -0.032
+     ],
+     [
+      3.2,
+      -0.241
+     ],
+     [
+      3.3,
+      -0.77
+     ],
+     [
+      3.4,
+      -1.729
+     ],
+     [
+      3.5,
+      -3.194
+     ],
+     [
+      3.6,
+      -5.213
+     ],
+     [
+      3.7,
+      -7.805
+     ],
+     [
+      3.8,
+      -10.968
+     ],
+     [
+      3.9,
+      -14.677
+     ],
+     [
+      4.0,
+      -18.889
+     ],
+     [
+      4.1,
+      -23.544
+     ],
+     [
+      4.2,
+      -28.57
+     ],
+     [
+      4.3,
+      -33.883
+     ],
+     [
+      4.4,
+      -39.392
+     ],
+     [
+      4.5,
+      -45.0
+     ],
+     [
+      4.6,
+      -50.608
+     ],
+     [
+      4.7,
+      -56.117
+     ],
+     [
+      4.8,
+      -61.43
+     ],
+     [
+      4.9,
+      -66.456
+     ],
+     [
+      5.0,
+      -71.111
+     ],
+     [
+      5.1,
+      -75.323
+     ],
+     [
+      5.2,
+      -79.032
+     ],
+     [
+      5.3,
+      -82.195
+     ],
+     [
+      5.4,
+      -84.787
+     ],
+     [
+      5.5,
+      -86.806
+     ],
+     [
+      5.6,
+      -88.271
+     ],
+     [
+      5.7,
+      -89.23
+     ],
+     [
+      5.8,
+      -89.759
+     ],
+     [
+      5.9,
+      -89.968
+     ],
+     [
+      6.0,
+      -90.0
+     ],
+     [
+      15.0,
+      -90.0
+     ]
+    ]
+   },
+   {
+    "axis": [
+     0.0,
+     1.0,
+     0.0
+    ],
+    "body": 71.0,
+    "id": "f297",
+    "name": "Door hinge right",
+    "o": [
+     1460.0,
+     3200.0,
+     1300.0
+    ],
+    "t": "hinge",
+    "track": [
+     [
+      0.0,
+      0.0
+     ],
+     [
+      3.0,
+      0.0
+     ],
+     [
+      3.1,
+      0.032
+     ],
+     [
+      3.2,
+      0.241
+     ],
+     [
+      3.3,
+      0.77
+     ],
+     [
+      3.4,
+      1.729
+     ],
+     [
+      3.5,
+      3.194
+     ],
+     [
+      3.6,
+      5.213
+     ],
+     [
+      3.7,
+      7.805
+     ],
+     [
+      3.8,
+      10.968
+     ],
+     [
+      3.9,
+      14.677
+     ],
+     [
+      4.0,
+      18.889
+     ],
+     [
+      4.1,
+      23.544
+     ],
+     [
+      4.2,
+      28.57
+     ],
+     [
+      4.3,
+      33.883
+     ],
+     [
+      4.4,
+      39.392
+     ],
+     [
+      4.5,
+      45.0
+     ],
+     [
+      4.6,
+      50.608
+     ],
+     [
+      4.7,
+      56.117
+     ],
+     [
+      4.8,
+      61.43
+     ],
+     [
+      4.9,
+      66.456
+     ],
+     [
+      5.0,
+      71.111
+     ],
+     [
+      5.1,
+      75.323
+     ],
+     [
+      5.2,
+      79.032
+     ],
+     [
+      5.3,
+      82.195
+     ],
+     [
+      5.4,
+      84.787
+     ],
+     [
+      5.5,
+      86.806
+     ],
+     [
+      5.6,
+      88.271
+     ],
+     [
+      5.7,
+      89.23
+     ],
+     [
+      5.8,
+      89.759
+     ],
+     [
+      5.9,
+      89.968
+     ],
+     [
+      6.0,
+      90.0
+     ],
+     [
+      15.0,
+      90.0
+     ]
+    ]
+   }
+  ],
+  "name": "Chinese hall temple",
+  "seq": 297,
+  "version": 1
+ },
+ "pin": true,
+ "scene": "temple_orbit"
+}
