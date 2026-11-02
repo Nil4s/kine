@@ -860,6 +860,7 @@ var wp_radius := 0.08    # metres, on the skin
 var wp_strength := 0.25  # per dab, at the centre
 var wp_stroke := false
 var wp_key := "mannequin"  # the sidecar's name under user://weights
+var wp_notice := ""        # SBUG2: why the last sidecar was refused ("" = none)
 var wp_centres := []     # the brush centres of the last stroke (the test reads them)
 var wp_row: HBoxContainer   # the Bone / Brush / size / strength row, in the Brush popover (shown while Weight paint is on)
 var wp_pop: PopupPanel      # the popover that holds wp_row
@@ -1637,6 +1638,7 @@ func _save_video_playblast(root_dir := PlayblastExport.ROOT, clip := "", keep_fr
 	_sides_apply()
 	ui_root.visible = false
 	var shot := _shot_blast_begin()
+	var fast_hold := GpuTier.hold(get_viewport())   # Fast view (FSR 2) is for the live view: the file is rendered at full quality
 	var pipe := {}   # the ffmpeg process and its stdin, started with the first frame (its size is the frame's)
 	var done := 0
 	var refused_pipe := false
@@ -1665,6 +1667,7 @@ func _save_video_playblast(root_dir := PlayblastExport.ROOT, clip := "", keep_fr
 		_pb_layer.visible = true
 		await RenderingServer.frame_post_draw   # the panel is drawn (with the count, and Cancel reads) before the next frame
 	_shot_blast_end(shot)
+	GpuTier.release(get_viewport(), fast_hold)
 	ui_root.visible = true
 	clean = keep_clean
 	_sides_apply()
@@ -11878,6 +11881,7 @@ func _gfx_start(testing: bool) -> void:
 	gfx_mode = "high" if testing and not saved else Quality.mode_load(settings)
 	var mach := Quality.machine()
 	gfx_tier = Quality.tier_for(gfx_mode, settings, mach)
+	GpuTier.load_settings(settings, testing)
 	if testing:
 		gfx_override = "user://zz_override_%d.cfg" % OS.get_process_id()
 	Quality.apply(get_viewport(), gfx_tier, light_key)
@@ -12914,6 +12918,7 @@ func _ui() -> void:
 		"Check's problems glow on the body part at the frames they cover (red = must fix, yellow = look); click the glow for the finding and its Fix (remembered, on by default)")
 	tog.call("VIEW", "Hints", func(): _set_hints(not hints_on), func(): return hints_on, "the teaching lines (how to click, drag, start): on or off (remembered)")
 	tog.call("VIEW", "Contact shadows", func(): cshadow.on = not cshadow.on; _refresh(); _say("contact shadows " + ("on: a soft blob under each foot, darker the nearer the sole is to the floor" if cshadow.on else "off (VIEW > Contact shadows turns them back on)")), func(): return cshadow.on, "a soft shadow under each foot that darkens as the sole nears the floor, gone by 15 cm up (on by default)")
+	tog.call("VIEW", "Realistic", func(): _say(Realistic.set_live(self, not Realistic.live_on)), func(): return Realistic.live_on, "the live view with a physical sky and sun, soft shadows, ambient occlusion and reflections (slower; off = the fast look, remembered nowhere: it starts off)")
 	tog.call("VIEW", "Next poses", _sg_toggle, func(): return sg_on, "while a card is current: up to 3 ghost poses of what may come next (gold = your usual next, violet = from real motion, rose = the move phase), small thumbnails after the card.  Tab cycles, Enter or a click takes one as a new card, Esc hides.  Nothing changes until you take one")
 	tog.call("VIEW", "Light", func(): _set_light(Tok.dark), func(): return not Tok.dark, "light or dark theme (remembered)")
 	tog.call("VIEW", "Follow system", func(): _set_theme_system(theme_pref != "system"), func(): return theme_pref == "system", "the palette follows Windows' dark mode (remembered); Light sets it by hand")
@@ -12948,6 +12953,16 @@ func _ui() -> void:
 		for k in Quality.MODES.size():
 			gq.get_popup().set_item_checked(k, Quality.MODES[k] == gfx_mode))
 	ui_ribbon["VIEW"].add_child(gq)
+	var gpu := MenuButton.new()   # GPU TIERS (scripts/gpu_tier.gd): this PC's card, Fast view, the video encoder
+	gpu.name = "gpu_tier"
+	gpu.text = "Graphics card"
+	gpu.flat = false
+	gpu.focus_mode = Control.FOCUS_NONE
+	gpu.tooltip_text = "which graphics card this PC has, Fast view (off by default; no gain measured on this PC) and which chip saves the video"
+	_gpu_menu_build(gpu.get_popup())
+	gpu.get_popup().id_pressed.connect(func(id: int): _gpu_pressed(id, gpu.get_popup()))
+	gpu.about_to_popup.connect(func(): _gpu_menu_sync(gpu.get_popup()))
+	ui_ribbon["VIEW"].add_child(gpu)
 	ui_ribbon["VIEW"].add_child(_button("View options", _onion_panel_open, "onion skin options: ghosts of the picked parts only, the frames before and after, the step between them (remembered)"))
 	# always there, in the strip: the scene in the middle, the small icons on the right
 	var fill := Control.new()
@@ -23693,11 +23708,11 @@ func _export_obj_objects(dir := "res://exports", only_selected := false, budget 
 	var objs := scene_objects()
 	if only_selected:
 		var want := selected_object_name()
-		objs = objs.filter(func(o): return String(o["name"]) == want)
+		objs = objs.filter(func(o): return String(o["name"]) == want or String(o.get("group", "")) == want)
 	if objs.is_empty():
 		_say_plain("NOT DONE: no mesh object to export (open the test cube, or add a set piece)")
 		return ""
-	var stem := String(objs[0]["name"]) if only_selected else safe_file(S.name if S.name != "" else "scene") + "_objects"
+	var stem := PartNames.stem_of(objs[0]) if only_selected else safe_file(S.name if S.name != "" else "scene") + "_objects"
 	var meshes := []
 	for o in ExportBudget.apply_list(objs, budget):
 		meshes.append({"name": String(o["name"]), "mesh": o["mesh"], "xf": Transform3D.IDENTITY, "color": ObjIO.DEFAULT_COLOR})
@@ -23781,7 +23796,7 @@ func scene_objects() -> Array:
 		out.append({"name": "sculpt_sphere", "mesh": sph, "xf": Transform3D.IDENTITY})
 	var fp := _free_part_object()
 	if not fp.is_empty():   # FEXPORT: a free BUILDING part (Easy Part, no set piece): its solid is a mesh object, named by the part
-		out.append(fp)
+		out.append_array(PartNames.objects(fp, bld.part))   # s212: a part with named bodies is one object per body, each called by its name
 	var pnames := _prop_object_names()
 	for i in S.props.size():
 		var pd := S.props[i] as Dictionary
@@ -23854,11 +23869,11 @@ func _export_objects(dir := "res://exports", only_selected := false, budget := 0
 	var objs := scene_objects()
 	if only_selected:
 		var want := selected_object_name()
-		objs = objs.filter(func(o): return String(o["name"]) == want)
+		objs = objs.filter(func(o): return String(o["name"]) == want or String(o.get("group", "")) == want)
 	if objs.is_empty():
 		_say_plain("NOT DONE: no mesh object to export (open the test cube, or add a set piece)")
 		return ""
-	var stem := String(objs[0]["name"]) if only_selected else safe_file(S.name if S.name != "" else "scene") + "_objects"
+	var stem := PartNames.stem_of(objs[0]) if only_selected else safe_file(S.name if S.name != "" else "scene") + "_objects"
 	var path := "%s/%s.glb" % [dir, stem]
 	var err := GltfExport.write_meshes(ExportBudget.apply_list(objs, budget), path)
 	if err != OK:
@@ -23930,7 +23945,12 @@ func _wp_setup() -> void:
 	if wp.is_empty() or wp["skin"] == null:
 		wp = {}
 		return
-	SkinPaint.load_into(wp, wp_key)
+	if not SkinPaint.load_into(wp, wp_key) and wp.has("rejected"):   # SBUG2: a broken sidecar is set aside, never applied
+		var moved := SkinPaint.quarantine(wp_key)
+		wp_notice = "the saved skin weights (%s) are broken: %s. They were not used; the file is kept as %s. The body has its own weights." % [wp_key, wp["rejected"], moved.get_file() if moved != "" else "(could not be moved)"]
+		push_warning(wp_notice)
+		if ui_status != null:   # (at boot the status line does not exist yet: wp_notice stays for the first look)
+			_say(wp_notice)
 	SkinPaint.apply(wp)
 	if wp_bind < 0:
 		wp_bind = _wp_bind_of("lowerarm_r")
@@ -25537,3 +25557,41 @@ func _prop_joint_step(delta: float) -> void:
 	var j: Dictionary = PropJoints.joints_of_kind(String(S.props[sel_prop]["kind"]))[0]
 	var cur := float(PropJoints.angles_at(S.props[sel_prop], playhead).get(String(j["name"]), 0.0))
 	_prop_joint_key(String(j["name"]), cur + delta)
+
+
+# ---------------------------------------------------------------- GPU TIERS (scripts/gpu_tier.gd): items of View > Graphics quality
+func _gpu_menu_build(pm: PopupMenu) -> void:
+	pm.add_separator("This PC's graphics card")
+	pm.add_item(GpuTier.summary(GpuTier.info()), 100)
+	pm.set_item_disabled(pm.get_item_index(100), true)
+	pm.add_check_item("Fast view (FSR 2)", 101)
+	pm.set_item_tooltip(pm.get_item_index(101), "the live view is drawn at 2/3 size and sharpened back up (AMD FSR 2, built into Godot): for a PC whose graphics card is the limit. Videos you save are always full quality. Needs the High drawing engine (Forward+)")
+	pm.add_separator("Saving video")
+	for k in GpuTier.ENCODERS.size():
+		pm.add_radio_check_item(GpuTier.ENCODER_NAMES[GpuTier.ENCODERS[k]], 110 + k)
+		pm.set_item_tooltip(pm.get_item_index(110 + k), "which chip makes the .mp4. Auto and 'on the CPU' use the processor. The graphics card (NVENC) frees the processor but was not measurably faster in Kine's own exports; a choice it cannot do here falls back to the processor (remembered)")
+	_gpu_menu_sync(pm)
+
+
+func _gpu_menu_sync(pm: PopupMenu) -> void:
+	var tier := String(GpuTier.info()["tier"])
+	pm.set_item_checked(pm.get_item_index(101), GpuTier.fast_view)
+	pm.set_item_disabled(pm.get_item_index(101), Quality.current_renderer() != "forward_plus")
+	for k in GpuTier.ENCODERS.size():
+		var e: String = GpuTier.ENCODERS[k]
+		var i := pm.get_item_index(110 + k)
+		pm.set_item_checked(i, e == GpuTier.pref)
+		pm.set_item_disabled(i, e != "auto" and not GpuTier.encoders_for(tier).has(e))
+
+
+func _gpu_pressed(id: int, pm: PopupMenu) -> void:
+	if id == 101:
+		GpuTier.fast_view = not GpuTier.fast_view
+		Quality.apply(get_viewport(), gfx_tier, light_key)
+		_say("Fast view %s (remembered)" % ("on: the live view is drawn smaller and sharpened (FSR 2); saved videos stay full quality" if GpuTier.fast_view else "off"))
+	elif id >= 110 and id < 110 + GpuTier.ENCODERS.size():
+		GpuTier.pref = GpuTier.ENCODERS[id - 110]
+		GpuTier._resolved.clear()
+		_say("Video encoder: %s (remembered)" % GpuTier.ENCODER_NAMES[GpuTier.pref])
+	GpuTier.save_settings(settings)
+	_gpu_menu_sync(pm)

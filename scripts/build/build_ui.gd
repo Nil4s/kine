@@ -33,7 +33,8 @@ const TOOLS := [["Room", "ROOM: drag on the floor. Sizes snap to 0.5 m; type the
 	["Opening", "OPENING: click a wall to add a door. Drag it along the wall (snaps to 0.5 m). The Remove button takes it out and fills the hole."],
 	["Floor", "FLOOR: + Floor in the panel adds a floor on top, the same footprint with a floor slab between. Delete takes the top floor off."],
 	["Roof", "ROOF: pick gable, flat or shed in the panel (a click in the view adds a gable). The overhang is a number."],
-	["Piece", "PIECE: pick a card on the left, then click inside a room to put it there (snaps to 0.5 m). Click a piece to change its numbers, turn it or remove it."]]
+	["Piece", "PIECE: pick a card on the left, then click inside a room to put it there (snaps to 0.5 m). Click a piece to change its numbers, turn it or remove it."],
+	["Nature", "NATURE: pick a tree, hedge, shrub, grass, flowers or path card, then click the ground. A hedge or path takes two clicks (start, end). Undo takes each back."]]
 const LATER := []
 const WORDS_TIP := "WORDS: type a building, check the plan, press Build it. The result is normal rooms and openings. Then say changes: move the door to the left."
 const EXTRA_ROWS := [["Floor height", "floor_height"], ["Roof overhang", "roof_overhang"]]
@@ -106,6 +107,8 @@ var type_box: PanelContainer
 var chip: Button
 var tool_btns := {}
 var words: BuildWordsUI
+var nature: NatureView         # FRIDAY 225: the record's trees, hedges, grass ... drawn (scripts/build/nature_view.gd)
+var nature_ui: NatureUI        # the Nature tool's picker (scripts/build/nature_ui.gd)
 var houses: HousesUI           # My houses: the name box, Save house, Open house (scripts/build/houses_ui.gd)
 var bp: BlueprintUI            # the Blueprint sheet (phase 1g)
 const MyParts := preload("res://scripts/build/myparts.gd")
@@ -133,6 +136,9 @@ func setup(main: Node) -> void:
 	clay.shader = HOUSE_SHADER
 	house.material_override = clay
 	root3.add_child(house)
+	nature = NatureView.new()
+	nature.name = "build_nature"
+	root3.add_child(nature)
 	ghost_room = MeshInstance3D.new()
 	ghost_room.name = "build_ghost_room"
 	ghost_room.material_override = _glass(Color(SKY, 0.32))
@@ -472,6 +478,8 @@ func _build_ui() -> void:
 	_build_picker()
 	words = BuildWordsUI.new()
 	words.setup(self)
+	nature_ui = NatureUI.new()
+	nature_ui.setup(self)
 	bp = BlueprintUI.new()
 	bp.setup(self)
 	houses = HousesUI.new()
@@ -708,6 +716,7 @@ func sync() -> void:
 		house.mesh = null
 	else:
 		house.mesh = Building.to_array_mesh(bd)
+	nature.sync(bd if not bd.is_empty() else {})
 	if sel != "" and _opening(sel).is_empty():
 		sel = ""
 	if psel != "" and Building.piece_of(bd, psel).is_empty():
@@ -768,7 +777,7 @@ func _layout() -> void:
 	var cl: Rect2 = m.nav_clear_rect()
 	var has: bool = not _bld().is_empty() and not _bld().get("rooms", []).is_empty()
 	var o := _opening(sel)
-	panel.visible = on and has and tool != "Words" and not easy_ui()
+	panel.visible = on and has and tool != "Words" and tool != "Nature" and not easy_ui()
 	var pc := Building.piece_of(_bld(), psel) if tool == "Piece" else {}
 	panel_title.text = ("%s" % String(o.get("kind", "")).capitalize() + "   (selected)") if not o.is_empty() else {"Floor": "Floors", "Roof": "Roof", "Wall": "Wall", "Piece": "Piece"}.get(tool, "Building")
 	if not pc.is_empty():
@@ -810,6 +819,8 @@ func _layout() -> void:
 		type_box.position = Vector2(cl.end.x - type_box.size.x - 8.0, cl.position.y + 6.0)
 	if words != null:
 		words.layout(cl)
+	if nature_ui != null:
+		nature_ui.layout(cl)
 	if houses != null:
 		houses.layout(cl)
 	chip.visible = on and not easy_ui()
@@ -1113,6 +1124,8 @@ func _press(p: Vector2) -> bool:
 		return true
 	if tool == "Piece":
 		return _press_piece(p)
+	if tool == "Nature":
+		return nature_ui.press(p)
 	if tool == "Room":
 		var g: Variant = ground(p)
 		if g == null:
@@ -2418,3 +2431,30 @@ func _draw_labels() -> void:
 			_pill(m.cam.unproject_position(bx.get_center() + Vector3(0, bx.size.y * 0.5 + 0.2, 0)), "%.1f m" % [Building.num(_bld(), o.get("w"), 0.9)], SKY, Color(0.04, 0.06, 0.1), 14)
 			var foot := Vector3(bx.get_center().x, 0, bx.get_center().z)
 			_pill_outline(m.cam.unproject_position(foot) + Vector2(0, 30), "drag to slide: snaps to %.1f m" % _grid(), Color(0.06, 0.07, 0.1, 0.85), SKY, 12)
+
+
+## FRIDAY 225: with no house, the camera stands back to take in the planted things (a house in view keeps its own framing)
+func _frame_nature() -> void:
+	var bd := _bld()
+	if bd.is_empty() or bd.get("nature", []).is_empty():
+		return
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for it in bd["nature"]:
+		var pts: Array = []
+		if it.has("path"):
+			for q in it["path"]:
+				pts.append(Vector2(q[0], q[1]))
+		elif it.has("x"):
+			pts.append(Vector2(float(it["x"]), float(it["z"])))
+			pts.append(Vector2(float(it["x"]) + float(it.get("w", 0.0)), float(it["z"]) + float(it.get("d", 0.0))))
+		for q in pts:
+			lo = Vector2(minf(lo.x, q.x), minf(lo.y, q.y))
+			hi = Vector2(maxf(hi.x, q.x), maxf(hi.y, q.y))
+	for r in bd.get("rooms", []):
+		lo = Vector2(minf(lo.x, float(r["x"])), minf(lo.y, float(r["z"])))
+		hi = Vector2(maxf(hi.x, float(r["x"]) + float(r["w"])), maxf(hi.y, float(r["z"]) + float(r["d"])))
+	if lo.x == INF:
+		return
+	var d := maxf(VIEW_DIST, (hi - lo).length() * 1.5 + 6.0)
+	m._turn_to(m.yaw, m.pitch, d, Vector3((lo.x + hi.x) * 0.5, 2.0, (lo.y + hi.y) * 0.5), false)

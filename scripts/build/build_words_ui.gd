@@ -205,6 +205,10 @@ func _parse(t: String, final: bool) -> void:
 		res = {}
 		plan = {}
 		return
+	if NatureWords.looks_natural(t):
+		res = {"ok": false, "kind": "typing"}   # a nature sentence: Enter does it (_do_nature)
+		plan = {}
+		return
 	var r := BuildWords.parse(t, ui._bld())
 	if not bool(r["ok"]) and not final:
 		res = {"ok": false, "kind": "typing"}
@@ -225,6 +229,9 @@ func submit() -> void:
 		plan = {}
 		m._say("Words: say what to build first. " + HINT)
 		_render()
+		return
+	if NatureWords.looks_natural(t):
+		_do_nature(t)   # FRIDAY 225: trees, hedges, shrubs, grass, flowers, paths, rocks (scripts/build/nature_words.gd)
 		return
 	if t != parsed_text or String(res.get("kind", "")) == "typing":
 		_parse(t, true)
@@ -586,3 +593,28 @@ func _value_of(key: String) -> float:
 
 func _fmt(key: String, v: float) -> String:
 	return str(int(v)) if key in ["floors", "door_n", "win_n"] or (key.begins_with("pc") and key.ends_with("_n")) else BuildWords._m(v)
+
+
+## FRIDAY 225: a nature sentence ("2 golden ginkgo trees 6 m tall left and right"): the items go into the record, ONE undo step, and the reply says what was done
+func _do_nature(t: String) -> void:
+	var r := NatureWords.parse(t, ui._bld())
+	if not bool(r["ok"]):
+		res = {"ok": false, "kind": "refuse", "error": String(r["error"]), "did": "", "ignored": r["ignored"], "notes": [], "defaults": {}}
+		m._say(String(r["error"]))
+		_render()
+		return
+	m._step_hint = "Words: " + String(r["say"])
+	m._push_undo()
+	NatureWords.apply(ui._ensure(), t)
+	edit.text = ""
+	parsed_text = ""
+	var said := "Planted: %s." % String(r["say"])
+	if not (r["ignored"] as Array).is_empty():
+		said += " Left out (not understood): %s." % ", ".join(r["ignored"])
+	res = {"ok": true, "kind": "done", "say": said}
+	plan = {}
+	ui.sync()
+	ui._frame_nature()
+	m._say(said)
+	m._toast(said)
+	_render()

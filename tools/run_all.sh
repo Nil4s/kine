@@ -586,5 +586,29 @@ EXTRA="$EXTRA s220:w"   # s220: MODELING VIEW WITH MATHS: part_facts (a part as 
 EXTRA="$EXTRA s214:w"   # s214: pattern a GROUP of bodies in one step (Expert Pattern ticks/Ctrl-click/box, Easy Repeat it > Group)
 
 
+EXTRA="$EXTRA s224:w"   # s224: Realistic render (sky, sun, soft shadows, AO, reflections): Nice picture preset + VIEW > Realistic
 EXTRA="$EXTRA s217:w"   # Metal reads as metal in Expert, Easy Part, Nice picture and STAGE (same studio reflection sky as bug3)
+
+
+EXTRA="$EXTRA s223:w"   # LOOKS: the material library made in code, material words, Part materials (Friday plan 223)
+
+
+EXTRA="$EXTRA s229:w"   # s229: primitives by numbers (Part.prim, Expert Primitive dialog, Easy By numbers), planes from 3 points / angle / edge / face, scoped intersect, bow-tie refused; tests/s229_test.gd
+
+
+EXTRA="$EXTRA s228:w"   # s228: patterns along paths and grids: Part pattern kinds grid + route (corners, fit, follow, jitter, skip, group); Expert Pattern Grid / Along a path, Easy Repeat it > Grid / Round edge
+
+
+EXTRA="$EXTRA s230:w"   # s230: GPU tiers: adapter -> tier (RTX30 here), NVENC video export vs libx264, Fast view (FSR 2) fps; tests/s230_test.gd
+
+
 EXTRA="$EXTRA s227:w"   # s227: ornaments library + sculpt-into-part road
+
+
+EXTRA="$EXTRA sbug2:w"   # sbug2: a broken painted-weights sidecar (right forearm weight over the whole body) tore the body apart in every clip; refused at load now; per-clip stretch bar x4, planted control must fail it (tests/sbug2_test.gd; run with APPDATA on a temp dir)
+
+
+EXTRA="$EXTRA s212:w"   # s212: name bodies (browser double-click / right-click Rename, Easy name field; names in record, undo, 3MF/GLB/OBJ/STEP); tests/s212_test.gd
+
+
+EXTRA="$EXTRA s225:w"   # FRIDAY 225 NATURE + SCATTER: trees, hedges, shrubs, grass, flowers, scatter; Nature tool + Words + agent "nature"
