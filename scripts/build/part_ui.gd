@@ -1288,7 +1288,17 @@ func _typed_key(k: InputEventKey, x_too: bool) -> String:
 		return "."
 	if x_too and k.keycode == KEY_X:
 		return "x"
+	if typed != "":   # W06b: a unit after the number: mm cm in ft m " '
+		var ul := {KEY_I: "i", KEY_N: "n", KEY_M: "m", KEY_C: "c", KEY_F: "f", KEY_T: "t", KEY_QUOTEDBL: "\"", KEY_APOSTROPHE: "'"}
+		if ul.has(k.keycode):
+			return String(ul[k.keycode])
 	return ""
+
+
+## W06b: a typed length in mm (units allowed, a bare number in the part's unit); -1 when it is no length above 0
+func _typed_len(t: String) -> float:
+	var r := LengthParse.parse_length(t, unit())
+	return float(r["mm"]) if bool(r["ok"]) and float(r["mm"]) > 0.0 else -1.0
 
 
 ## XDIM: Enter on a typed size: a rectangle "40x30" (width x height, from its first corner, on the side the pointer is on),
@@ -1300,17 +1310,17 @@ func _typed_size() -> bool:
 	var sy := 1.0 if cur.y >= a.y else -1.0
 	if String(draft["k"]) == "rect":
 		var wh := typed.split("x")
-		if wh.size() != 2 or not wh[0].is_valid_float() or not wh[1].is_valid_float() or float(wh[0]) <= 0.0 or float(wh[1]) <= 0.0:
-			_say("Type width x height in mm, like 40x30")
+		var w := _typed_len(wh[0]) if wh.size() == 2 else -1.0
+		var h := _typed_len(wh[1]) if wh.size() == 2 else -1.0
+		if w <= 0.0 or h <= 0.0:
+			_say("Type width x height, like 40x30 or 2inx1in")
 			return true
-		var w := float(wh[0])
-		var h := float(wh[1])
 		_add_ent({"k": "rect", "a": Part.arr2(a), "b": Part.arr2(a + Vector2(sx * w, sy * h))})
 	else:
-		if not typed.is_valid_float() or float(typed) <= 0.0:
-			_say("Type the radius in mm, above 0 (like 12)")
+		if _typed_len(typed) <= 0.0:
+			_say("Type the radius, above 0 (like 12 or 0.5in)")
 			return true
-		_add_ent({"k": "circle", "c": Part.arr2(a), "r": float(typed)})
+		_add_ent({"k": "circle", "c": Part.arr2(a), "r": _typed_len(typed)})
 	typed = ""
 	draft = {}
 	pov.queue_redraw()
@@ -1351,11 +1361,11 @@ func _key(k: InputEventKey) -> bool:
 			typed = typed.left(-1)
 			pov.queue_redraw()
 			return true
-		if k.keycode in [KEY_ENTER, KEY_KP_ENTER] and typed.is_valid_float() and float(typed) > 0.0:
+		if k.keycode in [KEY_ENTER, KEY_KP_ENTER] and _typed_len(typed) > 0.0:
 			var a: Vector2 = draft["a"]
 			var dir: Vector2 = (draft["b"] as Vector2) - a
 			dir = dir.normalized() if dir.length() > 1e-6 else Vector2.RIGHT
-			var b := a + dir * float(typed)
+			var b := a + dir * _typed_len(typed)
 			_add_ent({"k": "line", "a": Part.arr2(a), "b": Part.arr2(b)})
 			draft["a"] = b
 			draft["b"] = b
@@ -1626,7 +1636,7 @@ func open_dialog(t: String, edit: int) -> void:
 	elif kind == "ornament":   # s227 (scripts/build/part_ornament_ui.gd)
 		PartOrnamentUI.open(self, f, edit)
 	elif kind == "plane":
-		_row("Distance", f_num, "%s mm" % _fmt(float(f.get("mm", 20.0))))
+		_row("Distance", f_num, _lu(float(f.get("mm", 20.0))))
 		dlg_rows.add_child(f_plane)
 		f_plane.select(PlanesIdx.find(String(f.get("from", "front"))))
 		PPRIMUI.plane_open(self, f, edit)   # s229: how the plane is made (distance, 3 points, angle about an edge, through an edge, on a face)
@@ -1637,7 +1647,7 @@ func open_dialog(t: String, edit: int) -> void:
 		dlg["sketch"] = sid
 		dlg_rows.add_child(_label("Profile:  %s" % String(Part.feature(rec, sid).get("name", "none"))))
 	if kind == "extrude":
-		_row("Distance", f_num, "%s mm" % _fmt(float(f.get("dist", 10.0))))
+		_row("Distance", f_num, _lu(float(f.get("dist", 10.0))))
 		f_both.set_pressed_no_signal(bool(f.get("both", false)))
 		dlg_rows.add_child(f_both)
 		_row("Taper angle", f_taper, "%s deg" % _fmt(float(f.get("taper", 0.0))))
@@ -1650,7 +1660,7 @@ func open_dialog(t: String, edit: int) -> void:
 	elif kind == "fillet" or kind == "chamfer":
 		_base_edges(edit)
 		dlg_rows.add_child(f_edges)
-		_row("Radius" if kind == "fillet" else "Distance", f_num, "%s mm" % _fmt(float(f.get("r" if kind == "fillet" else "dist", 2.0 if kind == "fillet" else 1.0))))
+		_row("Radius" if kind == "fillet" else "Distance", f_num, _lu(float(f.get("r" if kind == "fillet" else "dist", 2.0 if kind == "fillet" else 1.0))))
 		if edit >= 0:
 			for d in f.get("edges", []):
 				var j := _match_cache(d)
@@ -1661,7 +1671,7 @@ func open_dialog(t: String, edit: int) -> void:
 	elif kind == "offset_face":   # GAP 10: click a face, type the distance (minus cuts in)
 		_base_faces(edit)
 		dlg_rows.add_child(f_edges)
-		_row("Distance", f_num, "%s mm" % _fmt(float(f.get("mm", 2.0))))
+		_row("Distance", f_num, _lu(float(f.get("mm", 2.0))))
 		if edit >= 0:
 			var fj := _match_face_cache(f.get("face", {}))
 			if fj >= 0:
@@ -1692,11 +1702,11 @@ func open_dialog(t: String, edit: int) -> void:
 	elif kind == "split":
 		dlg_rows.add_child(f_plane)
 		f_plane.select(PlanesIdx.find(String(f.get("plane", "right"))))
-		_row("Offset along its normal", f_num, "%s mm" % _fmt(float(f.get("at", 0.0))))
+		_row("Offset along its normal", f_num, _lu(float(f.get("at", 0.0))))
 	elif kind == "canvas":
 		pass   # its rows: _canvas_open
 	elif kind == "shell":
-		_row("Wall thickness", f_num, "%s mm" % _fmt(float(f.get("thick", 5.0))))
+		_row("Wall thickness", f_num, _lu(float(f.get("thick", 5.0))))
 		dlg_rows.add_child(f_open)
 		f_open.select(maxi(SHELL_OPEN.find(String(f.get("open", "+y"))), 0))
 	if kind == "combine":
@@ -1839,6 +1849,12 @@ func _clear_rows() -> void:
 
 func _fmt(v: float) -> String:
 	return str(snappedf(v, 0.001))
+
+
+## W06b: a length (mm) as a dialog row default in the part's unit: "1.5 in"
+func _lu(mm: float) -> String:
+	var u := unit()
+	return "%s %s" % [_fmt(mm / float(LengthParse.MM_PER[u])), u]
 
 
 func _row(label: String, le: LineEdit, txt: String) -> void:
@@ -4066,7 +4082,7 @@ func _canvas_open(f: Dictionary, edit: int) -> void:
 	f_cv_op.set_value_no_signal(float(cv["opacity"]))
 	f_cv_show.set_pressed_no_signal(bool(cv["show"]))
 	var dist := float(cv["dist"])
-	_row("Real distance", f_num, "%s mm" % _fmt(dist) if dist > 0.0 else "")
+	_row("Real distance", f_num, _lu(dist) if dist > 0.0 else "")
 	dlg_rows.add_child(f_cv_pick)
 	dlg_rows.move_child(f_cv_pick, 0)
 	var plr := HBoxContainer.new()
@@ -4096,7 +4112,7 @@ func _canvas_feature(need: bool) -> Dictionary:
 	f["plane"] = _cv_plane_id()
 	f["opacity"] = snappedf(f_cv_op.value, 0.01)
 	f["show"] = f_cv_show.button_pressed
-	var d := _num(f_num)
+	var d := _len(f_num)
 	var dist := d if (not is_nan(d) and d > 0.0) else 0.0
 	f["dist"] = dist
 	var at := Vector2(cv["at"][0], cv["at"][1])
@@ -4120,7 +4136,7 @@ func _canvas_hint() -> String:
 		return "Click the first point on the picture (a mark whose real size you know)."
 	if n == 1:
 		return "Now click the second point."
-	var d := _num(f_num)
+	var d := _len(f_num)
 	if is_nan(d) or d <= 0.0:
 		return "Type the real distance between the two points (mm). The picture follows as you type; OK keeps it."
 	return "Drag the picture to line it up. OK keeps it."
