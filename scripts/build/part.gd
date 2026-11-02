@@ -996,7 +996,7 @@ static func hinge_sweep(rec: Dictionary, hinge_id: String, fps := 25.0) -> Dicti
 			for b in ids:
 				KCad.release(b)
 			return {"ok": false, "why": "the must-not-touch pair %d and %d: there is no such body" % [pa, pb]}
-	var pivot := _pivot(f)
+	var pivot := PartRefs.pivot_mm(f, int(ids[bi])) * MM   # W03: follows the body's box when an early step resizes it
 	var axis := _axis(f)
 	var rest: Array = []
 	for j in ids.size():
