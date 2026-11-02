@@ -2156,18 +2156,16 @@ static func _split(bodies: Array, f: Dictionary, looks: Array = []) -> String:
 	var n: Vector3 = pl["n"]
 	var o: Vector3 = (pl["o"] as Vector3) + n * float(f.get("at", 0.0)) * MM
 	var pos := _half(o, n)
-	var neg := _half(o, -n)
 	var pieces := []   # [index, the piece on n's side, the piece on the other side]
 	for i in bodies.size():
 		var a := KCad.intersect(bodies[i], pos)
-		var c := KCad.intersect(bodies[i], neg)
+		var c := KCad.cut(bodies[i], pos)   # the other side is what the half-space box leaves: both halves share ONE cut face. (A second box at o - n * 10 differed by a float32 rounding, 1-2 micrometres far from the origin: the halves overlapped by a sliver above HIT_VOL and Intersect on them did not refuse)
 		if _vol(a) > HIT_VOL and _vol(c) > HIT_VOL:
 			pieces.append([i, a, c])
 		else:
 			KCad.release(a)
 			KCad.release(c)
 	KCad.release(pos)
-	KCad.release(neg)
 	if pieces.is_empty():
 		return "the plane does not cut the body"
 	var out := []
