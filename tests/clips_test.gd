@@ -14,7 +14,7 @@
 ##   8 in the app: place / remove are ONE undo step each, a drag on the bar moves it (one step), the strip is drawn
 extends SceneTree
 
-const BASE_HASH := "caaff2e7fb3fea766505ed63b31cb573"   # tests/ hash of combo3 + walk_bat with no clips. Re-baselined from 4070ef4b97d86fefca43d335b5963ed2 (poser-ui-rounds c0ea5e4): 88eb4c1 (toe cap TOE_MTP_MAX 45 + _toe_guard) legitimately changed walk_bat, and only the ball_l/ball_r angles (47 of 106 frames; every other joint bit-identical, combo3 unchanged), then the guard blend was eased (lift 0-2 cm)
+const BASE_HASH := "4b8adc1bf7de3875d588a7f5d51b75fd"   # re-baselined from caaff2e7fb3fea766505ed63b31cb573 (s255): 37457e51 (HANDS) added state key free_hand and 80bdf6ec (Blade turn) added wep_turn + wep_tilt to Body.state(); with those 3 keys erased the 247 frames hash to caaff2e7 exactly, so every joint angle and weapon value is bit-identical, only the dict shape grew. Earlier: tests/ hash of combo3 + walk_bat with no clips. Re-baselined from 4070ef4b97d86fefca43d335b5963ed2 (poser-ui-rounds c0ea5e4): 88eb4c1 (toe cap TOE_MTP_MAX 45 + _toe_guard) legitimately changed walk_bat, and only the ball_l/ball_r angles (47 of 106 frames; every other joint bit-identical, combo3 unchanged), then the guard blend was eased (lift 0-2 cm)
 const SRC := "scenes/walk_bat.json"
 var fails := 0
 
