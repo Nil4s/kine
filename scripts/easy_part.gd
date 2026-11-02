@@ -2259,6 +2259,10 @@ func _lib_box() -> PanelContainer:
 		b.custom_minimum_size = Vector2(0, 34)
 		b.add_theme_font_size_override("font_size", 12)
 		b.tooltip_text = ("%s: ready now" % cat) if cat in LIB_READY else ("%s: coming soon" % cat)
+		if cat == "Ornaments":   # s227: icon-only (like Nature): a text chip would add a row and push the screw sizes under the fold
+			b.text = ""
+			b.icon = Icons.tex("part_ornament")
+			b.custom_minimum_size = Vector2(38, 34)
 		b.add_theme_stylebox_override("normal", _style(Color(0.165, 0.176, 0.212), 6, 4))
 		b.add_theme_stylebox_override("hover", _style(Color(0.23, 0.245, 0.29), 6, 4))
 		b.pressed.connect(_lib_press.bind(cat))
