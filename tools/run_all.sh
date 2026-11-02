@@ -710,3 +710,6 @@ EXTRA="$EXTRA w05b:w"   # w05b: checklist triangles, Split to fit, OBJ and GLB f
 
 
 EXTRA="$EXTRA w10b:w"   # w10b: the app piece counter _lumps counts edge-touching boxes as 2, tests/w10b_test.gd
+
+
+EXTRA="$EXTRA s257:w"   # s257: frame_to finds a body by its bname name AND its stable body key, tests/s257_test.gd
