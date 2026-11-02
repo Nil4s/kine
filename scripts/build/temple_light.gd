@@ -80,17 +80,21 @@ const DEFAULT_GI := "off"   # what tests/s232_test.gd measured and its rule pick
 
 ## the settings (typed numbers; the panel, agent_tools and the tests write them)
 static var on := false
-static var time_h := 16.75        # hours of the day: 6 = sunrise, 12 = noon, 18 = sunset
-static var sun_az := -50.0       # the sun's yaw: -50 = on the front-left (shadows fall to the right and back)
+static var time_h := 15.5        # hours of the day: 6 = sunrise, 12 = noon, 18 = sunset
+static var sun_az := -65.0       # the sun's yaw: -50 = on the front-left (shadows fall to the right and back)
 static var sun_size := 1.2       # degrees: the penumbra
-static var exposure := 1.0
+static var exposure := 0.75
 static var haze := 1.0           # 0 = clear, 1 = the default aerial haze, 2 = misty
-static var haze_m := 500.0       # the distance at which the haze at haze 1 has taken 63 % of the colour
+static var haze_m := 800.0       # the distance at which the haze at haze 1 has taken 63 % of the colour
 static var clouds := 0.40        # 0 clear .. 1 overcast
 static var gi_mode := "off"    # what the measurement chose (tests/s232_test.gd prints the numbers); "off" | "ssil" | "sdfgi"
 static var ground := true        # a far ground plane that the haze fades into the horizon
 static var tier_override := ""   # "" = Quality's tier
 static var sun_mult := 1.0       # 0 = the sun off (a test control: only the sky lights the scene)
+static var sun_gain := 2.8       # item 235: multiplies the sun's energy (the sun / sky balance: more = deeper shadows against the lit side)
+static var ambient := 0.8        # item 235: the sky's ambient fill energy (less = darker shadow side)
+static var contrast := 1.04      # item 235: the picture's contrast (adjustment)
+static var saturation := 1.2     # item 235: the picture's saturation (adjustment)
 static var tweak := {}            # a test's own Environment overrides, applied after the table (tuning only)
 static var final_size := Vector2i(1920, 1080)
 
@@ -201,7 +205,7 @@ static func env_props(size: float, mode: String) -> Dictionary:
 		"background_mode": Environment.BG_SKY,
 		"sky": make_sky(elev, sun_az),
 		"ambient_light_source": Environment.AMBIENT_SOURCE_SKY,
-		"ambient_light_energy": 1.0,
+		"ambient_light_energy": ambient,
 		"ambient_light_sky_contribution": 1.0,
 		"reflected_light_source": Environment.REFLECTION_SOURCE_SKY,
 		"tonemap_mode": Environment.TONE_MAPPER_AGX,
@@ -209,7 +213,7 @@ static func env_props(size: float, mode: String) -> Dictionary:
 		"tonemap_white": 6.0,
 		"ssao_enabled": fp and bool(t["ssao"]),
 		"ssao_radius": clampf(s * 0.03, 0.6, 3.0),
-		"ssao_intensity": 2.0,
+		"ssao_intensity": 1.2,
 		"ssao_power": 1.5,
 		"ssao_detail": 0.5,
 		"ssao_horizon": 0.06,
@@ -229,8 +233,8 @@ static func env_props(size: float, mode: String) -> Dictionary:
 		"glow_hdr_threshold": 1.2,
 		"adjustment_enabled": true,
 		"adjustment_brightness": 1.0,
-		"adjustment_contrast": 1.06,
-		"adjustment_saturation": 1.2,
+		"adjustment_contrast": contrast,
+		"adjustment_saturation": saturation,
 		"fog_enabled": haze > 0.001,
 		"fog_mode": Environment.FOG_MODE_EXPONENTIAL,
 		"fog_light_color": hz,
@@ -243,7 +247,7 @@ static func env_props(size: float, mode: String) -> Dictionary:
 		"sdfgi_cascades": 4,
 		"sdfgi_min_cell_size": clampf(s / 220.0, 0.15, 1.0),
 		"sdfgi_y_scale": Environment.SDFGI_Y_SCALE_75_PERCENT,
-		"sdfgi_energy": 1.0,
+		"sdfgi_energy": 0.5,   # item 235: the bounce is scaled down with the deeper sun-to-shade contrast (at 1.0 it lifted the shadow side 4-9 %)
 		"sdfgi_read_sky_light": true,
 		"sdfgi_bounce_feedback": 0.6,
 		"sdfgi_normal_bias": 1.1,
@@ -266,7 +270,7 @@ static func sun_props(cam_pos: Vector3, box: AABB) -> Dictionary:
 	var maxd := minf(far_of(cam_pos, box) * 1.15, 600.0) if box.size.length() > 0.01 else s * 2.0
 	return {
 		"rotation_degrees": Vector3(-elev, sun_az, 0.0),
-		"light_energy": sun_energy(elev) * sun_mult,
+		"light_energy": sun_energy(elev) * sun_mult * sun_gain,
 		"light_color": sun_color(elev),
 		"light_angular_distance": sun_size,
 		"light_specular": 1.0,
@@ -429,6 +433,15 @@ static func set_camera(m: Node, pos: Vector3, tgt: Vector3, fov := 45.0, near :=
 		m.cam.far = far
 	refresh(m)
 	return {"ok": true, "pos": m.cam.global_position, "target": tgt, "fov": m.cam.fov, "pitch": m.pitch, "yaw": m.yaw, "dist": L}
+
+
+## FRAME TO A WIDTH (item 235): the camera that shows a front face `face` (Rect2: x, y = left and bottom in metres, size = width, height) at pct of the
+## picture width, looking straight on from (cx, cam_y) at (cx, tgt_y), the face at z = face_z. Pure numbers: distance = width * f / (pct * size), f = (size/2) / tan(fov/2)
+static func frame_width(_m: Node, face: Rect2, pct: float, fov := 45.0, cam_y := 4.5, tgt_y := 6.3, size := 1024.0, face_z := 0.0) -> Dictionary:
+	var f := (size * 0.5) / tan(deg_to_rad(fov) * 0.5)
+	var d := face.size.x * f / (maxf(pct, 0.05) * size)
+	var cx := face.position.x + face.size.x * 0.5
+	return {"pos": Vector3(cx, cam_y, face_z + d), "target": Vector3(cx, tgt_y, face_z), "fov": fov, "dist": d}
 
 
 ## ---------------------------------------------------------------- FINAL SHOT
