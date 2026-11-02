@@ -616,3 +616,4 @@ EXTRA="$EXTRA s221:w"   # s221: WARNING LEVELS (Off / Look / Print / Engineering
 
 
 EXTRA="$EXTRA s226:w"   # s226: ROOF feature (hip/gable/xieshan/pyramid/shed/flat, sag, corner lift, open top, trims) as a thin closed shell; kernel ray/volume bars, Expert Roof tool, Easy Roofs page, agent part_roof; tests/s226_test.gd
+EXTRA="$EXTRA s231:w"   # TEMPLE LOOK: default materials by piece kind, words and chips, gravel and oak fixes (Friday plan 231)

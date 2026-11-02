@@ -4343,7 +4343,7 @@ func _build_look(vb: VBoxContainer) -> void:
 		pr.add_child(pb)
 		look_presets[pn] = pb
 	look_box.add_child(_label("Made materials", 12, true))   # s223: oak, steel, tile, marble... drawn in code; or say it in words
-	look_mat = MaterialPicker.build(look_box, "part_look_", Callable(self, "_look_set_mat"))
+	look_mat = MaterialPicker.build(look_box, "part_look_", Callable(self, "_look_set_mat"), 34, Callable(self, "_look_set_kind"), Callable(self, "_look_set_style"))
 
 
 ## the look of the picked body now (from the replay); a default when none is picked
@@ -5362,3 +5362,32 @@ func ren_stats() -> String:
 	if bi >= vols.size():
 		return ""
 	return ", %s %s cm3" % [Part.body_name(res, bi), snappedf(float(vols[bi]) * 1e6, 0.01)]
+
+
+## s231: one material for every piece of a kind (one undo step; one appear step per body)
+func _look_set_kind(kind: String, spec: Dictionary, _label := "") -> void:
+	if not Part.available() or int(res.get("bodies", 0)) == 0:
+		return
+	var rec := _rec()
+	m._step_hint = "Material for " + String(PieceLook.LABELS.get(kind, kind))
+	m._push_undo()
+	var n := PieceLook.apply(rec, res, kind, spec)
+	if n == 0:
+		_say("No %s in this building yet (a piece is called by its name: Column, Roof, Stair rail...)" % String(PieceLook.LABELS.get(kind, kind)).to_lower())
+		return
+	upto = -1
+	_say("%s: %d piece%s now %s. Undo takes it back." % [String(PieceLook.LABELS.get(kind, kind)), n, "" if n == 1 else "s", MaterialWords.describe(spec)])
+	bu.sync()
+
+
+## s231: the building's style ("temple" | "none"), one undo step
+func _look_set_style(style: String) -> void:
+	if not Part.available():
+		return
+	var rec := _rec()
+	m._step_hint = "Look: " + style
+	m._push_undo()
+	PieceLook.set_style(rec, style)
+	upto = -1
+	_say("Temple look on. Undo takes it back." if style == "temple" else "Plain colours again. Undo takes it back.")
+	bu.sync()

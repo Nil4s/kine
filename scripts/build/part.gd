@@ -258,6 +258,8 @@ static func from_file(d: Variant) -> Dictionary:
 		out["load_n"] = float((d as Dictionary)["load_n"])   # item 221: the load (N) the beam estimate uses, instead of the part's own weight
 	if PartWeapon.DENSITY.has(String((d as Dictionary).get("material", ""))):
 		out["material"] = String((d as Dictionary)["material"])   # item 221: the material the weight and stress estimates use
+	if String((d as Dictionary).get("style", "")) in ["temple", "none"]:
+		out["style"] = String((d as Dictionary)["style"])   # item 231: the building's style (temple: every piece wears its kind's material)
 	if bool((d as Dictionary).get("kept", false)):
 		out["kept"] = true   # an EMPTY part the user chose (Easy's Empty): a part with no steps that undo and redo bring back as it was
 	return out if not out["features"].is_empty() or out.has("kept") else {}
@@ -651,11 +653,17 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				if mse != "":
 					errs[id] = mse
 			"roof":   # s226: a thin curved roof shell, with its trims as more bodies (scripts/build/part_roof.gd)
+				var rf0 := bodies.size()
 				var rfe := PartRoof.add(bodies, f)
+				look_fit(looks, bodies.size())
+				PieceLook.stamp(looks, rf0, PieceLook.roof_hints(f, bodies.size() - rf0))   # s231: the shell is a roof, its trims ridge pieces
 				if rfe != "":
 					errs[id] = rfe
 			"ornament":   # s227: a library ornament (a ridge beast, a lion...) sewn into solids (its own file: part_ornament.gd)
+				var or0 := bodies.size()
 				var orne := PartOrnament.add(bodies, f)
+				look_fit(looks, bodies.size())
+				PieceLook.stamp(looks, or0, ["ridge"].duplicate() if bodies.size() - or0 <= 1 else range(bodies.size() - or0).map(func(_k): return "ridge"))
 				if orne != "":
 					errs[id] = orne
 			"lattice":   # p208latticeinf: thin bars inside a hollow box (its own function: _lattice)
@@ -712,6 +720,8 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					var olook: Variant = looks[ai]
 					if olook != null and (olook as Dictionary).has("name"):
 						alook["name"] = (olook as Dictionary)["name"]   # s212: painting a body keeps its name
+					if olook != null and (olook as Dictionary).has("hint"):
+						alook["hint"] = (olook as Dictionary)["hint"]   # s231: and its piece kind
 					looks[ai] = alook
 			"bname":   # s212: the body's name from this step on (its own numbers; no kernel)
 				var ni := int(f.get("body", -1))
@@ -751,6 +761,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					bodies[hbi] = sw
 	_gear_turn_view(rec, bodies, want)   # s124: the Gear pair's gears shown turned (the view only; the record's pose is its own saved field)
 	look_fit(looks, bodies.size())
+	res["body_kinds"] = []
+	for bk in bodies.size():
+		res["body_kinds"].append(PieceLook.kind_at(looks, bk))   # s231: what each body is in a building (before the style's defaults replace the looks)
+	PieceLook.finish(rec, looks)   # s231: in a temple, a body no one painted wears its kind's material
 	var mesh := ArrayMesh.new()
 	for b in bodies:
 		var v := KCad.volume(b)

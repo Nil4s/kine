@@ -47,6 +47,8 @@ const KINDS := {
 	"bricks": ["brick", {}], "plaster": ["plaster", {}], "stucco": ["plaster", {}], "grass": ["grass", {}], "lawn": ["grass", {}],
 	"gravel": ["gravel", {}], "pebbles": ["gravel", {}], "fabric": ["fabric", {}], "cloth": ["fabric", {}], "cotton": ["fabric", {}],
 	"leather": ["leather", {}], "rubber": ["rubber", {}], "glass": ["glass", {}], "plastic": ["plastic", {}],
+	"slabs": ["slabs", {}], "slab": ["slabs", {}], "flagstone": ["slabs", {}], "flagstones": ["slabs", {}], "paving": ["slabs", {}], "paved": ["slabs", {}],   # s231
+	"caihua": ["caihua", {}], "gilded": ["brass", {}], "gilt": ["brass", {}], "gilding": ["brass", {}],
 }
 ## words that change a number: word -> [what, amount]. what: dark (+ lighter / - darker), warm, wear, gloss, brushed
 const MODS := {
