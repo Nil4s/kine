@@ -748,3 +748,4 @@ EXTRA="$EXTRA s263:w"   # s263: dark product studio + continuous ring band, test
 
 
 EXTRA="$EXTRA s262b:w"   # s262b: exploded view v2 (visible area, timeline keys, 256+ bodies), tests/s262b_test.gd
+EXTRA="$EXTRA s277:w"   # s277/s273: glossy blurred floor, wide bloom, preset levels, aluminium + nickel, face-scaled brush, tests/s277_test.gd
