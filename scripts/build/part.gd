@@ -235,6 +235,10 @@ static func from_file(d: Variant) -> Dictionary:
 		for j in (d as Dictionary)["joints"]:
 			if j is Dictionary and String(j.get("kind", "")) in ["turn", "slide"]:
 				out["joints"].append((j as Dictionary).duplicate(true))   # p121 JOINTS IN WORDS: a hinge or a slide between two pieces (scripts/easy_part_stick.gd _joint_words)
+	if String((d as Dictionary).get("unit", "")) in ["mm", "cm", "in"]:
+		out["unit"] = String((d as Dictionary)["unit"])   # W06: the part's unit for bare numbers survives save and load
+	if (d as Dictionary).has("dual"):
+		out["dual"] = bool((d as Dictionary)["dual"])
 	if (d as Dictionary).has("fit_mm"):
 		out["fit_mm"] = float((d as Dictionary)["fit_mm"])   # s202: the part's chosen fit survives save, load and undo (fix102: it was dropped here)
 	for gk in ["grip", "grip_n"]:   # s132 HOLD IT HERE: the grip spot and the clicked face's normal survive save and load (mm / unit, 3 numbers)

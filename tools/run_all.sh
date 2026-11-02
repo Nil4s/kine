@@ -679,3 +679,18 @@ EXTRA="$EXTRA w13:w"   # w13: GIF export, per-clip palette, loops, tests/w13_tes
 
 
 EXTRA="$EXTRA w16:w"   # w16: test-print fit strip (5 pegs, 5 holes, clearances engraved, manifold STL/3MF, volumes within 1 %), tests/w16_test.gd
+
+
+EXTRA="$EXTRA w14:w"   # W14: GPU in use + integrated-GPU warning with Windows Graphics steps, tests/w14_test.gd
+
+
+EXTRA="$EXTRA w05:w"   # w05: export mesh quality Coarse/Normal/Fine/Custom, live triangle count and file size, tests/w05_test.gd
+
+
+EXTRA="$EXTRA w06:w"   # W06: project unit (mm/cm/in), typed units in length fields, dual labels, saved with the part, tests/w06_test.gd
+
+
+EXTRA="$EXTRA w07:w"   # w07: arithmetic in number fields (25*2+3), scripts/num_expr.gd, tests/w07_test.gd
+
+
+EXTRA="$EXTRA w02:w"   # w02: sketch health free / fully defined / over-constrained by colour + the clashing pair named, tests/w02_test.gd

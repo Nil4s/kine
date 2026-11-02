@@ -11956,6 +11956,8 @@ func _gfx_start(testing: bool) -> void:
 	if testing:
 		gfx_override = "user://zz_override_%d.cfg" % OS.get_process_id()
 	Quality.apply(get_viewport(), gfx_tier, light_key)
+	if not testing:
+		_say(GpuNotice.line(GpuNotice.list_windows() if GpuNotice.is_integrated(String(mach["adapter"])) else [], String(mach["adapter"])))
 	if not testing and gfx_mode == "auto" and not Quality.benched(settings, mach):
 		_gfx_first_run.call_deferred(mach)
 
