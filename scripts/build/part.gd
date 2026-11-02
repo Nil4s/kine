@@ -859,7 +859,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					if not fcen.has(int(fi)) or not _on_skin(fcen[int(fi)], bb):
 						outside = false
 				var top := float(ed["a"].y) >= bb.end.y - SKIN_MM * MM and float(ed["b"].y) >= bb.end.y - SKIN_MM * MM
-				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "concave": concave, "inner": inner, "outside": outside, "top": top})
+				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "concave": concave, "inner": inner, "outside": outside, "top": top, "fp": PartRefs.face_pair(ef, fnorm, fcen, bb)})
 	pack_surfaces(mesh, pend, res)
 	res["bodies"] = bodies.size()
 	res["body_names"] = []
@@ -2552,7 +2552,7 @@ static func _edge_op(bodies: Array, f: Dictionary) -> String:
 	var bb := _bbox(es)
 	var ids := PackedInt32Array()
 	for want in f.get("edges", []):
-		var j := match_edge(es, bb, want)
+		var j := PartRefs.pick_edge(bodies[bi], es, bb, want)
 		if j < 0:
 			return "an edge it rounded is not there any more"
 		if not ids.has(int(es[j]["id"])):
@@ -2584,7 +2584,7 @@ static func fillet_trial(body: int, r_mm: float, edges: Array) -> String:
 	var bb := _bbox(es)
 	var ids := PackedInt32Array()
 	for want in edges:
-		var j := match_edge(es, bb, want)
+		var j := PartRefs.pick_edge(body, es, bb, want)
 		if j < 0:
 			return "an edge it rounded is not there any more"
 		# FKEY: an edge where three or more faces meet (a tooth joined level with a blade leaves one) crashed the kernel's fillet
@@ -2732,7 +2732,7 @@ static func describe(edge: Dictionary) -> Dictionary:
 	var c: Vector3 = edge["c"]
 	var q: Vector3 = edge["q"]
 	var d: Vector3 = edge["d"]
-	return {"p": [snappedf(c.x / MM, 0.001), snappedf(c.y / MM, 0.001), snappedf(c.z / MM, 0.001)], "q": [q.x, q.y, q.z], "d": [d.x, d.y, d.z], "body": int(edge["body"])}
+	return {"p": [snappedf(c.x / MM, 0.001), snappedf(c.y / MM, 0.001), snappedf(c.z / MM, 0.001)], "q": [q.x, q.y, q.z], "d": [d.x, d.y, d.z], "body": int(edge["body"]), "fp": edge.get("fp", [])}
 
 
 # ---------------------------------------------------------------- canvas (GAP 3): a picture on a plane, calibrated by two points

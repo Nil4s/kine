@@ -729,3 +729,6 @@ EXTRA="$EXTRA w10c:w"   # W10c: Easy Pull it up says line-touch and offers the n
 
 
 EXTRA="$EXTRA w02c:w"   # w02c: Dimension tool on a rectangle corner gives x / y from the origin, tests/w02c_test.gd
+
+
+EXTRA="$EXTRA w03b:w"
