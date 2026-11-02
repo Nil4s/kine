@@ -641,3 +641,4 @@ EXTRA="$EXTRA s240:w"   # s240: FRAMED FLOOR OVERLAP (Fit view frames the grid i
 
 
 EXTRA="$EXTRA s239:w"   # s239: GROUPED LIBRARY (group tabs, every chip readable, any number of categories fits), tests/s239_test.gd
+EXTRA="$EXTRA s241:w"   # s241: WHAT A STEP DID (body-making calls return created / changed / removed with stable keys), tests/s241_test.gd

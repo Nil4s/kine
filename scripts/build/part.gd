@@ -536,7 +536,9 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	var warns: Dictionary = res["warnings"]   # s229: what a step did that the user should know (an Intersect that left or removed bodies)
 	var sketches := {}
 	var off_ids := {}   # XTIME: the sketches the timeline suppressed
-	var inc := bool(want.get("inc", false)) and n > 0   # s168 INCREMENTAL REPLAY: the steps a cached prefix already made are not run again
+	var fx_on := bool(want.get("effects", false))   # item 241: what each step did (scripts/build/part_fx.gd); not with the incremental cache
+	var fx: Dictionary = PartFx.begin() if fx_on else {}
+	var inc := bool(want.get("inc", false)) and n > 0 and not fx_on   # s168 INCREMENTAL REPLAY: the steps a cached prefix already made are not run again
 	var inc_keys: Array = []
 	var counts: Array = []
 	var i0 := 0
@@ -552,6 +554,8 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 			if i > i0:
 				step_log.append([String(feats[i - 1]["id"]), String(feats[i - 1]["t"]), (Time.get_ticks_usec() - t_prev) / 1000.0])
 			t_prev = Time.get_ticks_usec()
+		if fx_on and i > i0:
+			PartFx.close(fx, bodies, looks, feats[i - 1], i - 1, errs)
 		if i > i0:
 			counts.append(bodies.size())   # s233: the body count after step i-1 (a `continue` below skips the end of the body, so it is taken at the top)
 		if inc and i > i0:
@@ -763,8 +767,14 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					errs[id] = "there is no body %d to hinge" % hb
 	if n > i0:
 		counts.append(bodies.size())
+		if fx_on:
+			PartFx.close(fx, bodies, looks, feats[n - 1], n - 1, errs)
 		if step_log != null:
 			step_log.append([String(feats[n - 1]["id"]), String(feats[n - 1]["t"]), (Time.get_ticks_usec() - t_prev) / 1000.0])
+	if fx_on:
+		res["effects"] = fx["steps"]
+		res["body_keys"] = fx["keys"]
+		res["body_touch"] = fx["touch"]
 	res["counts"] = counts   # s233: the body count after each step 0..n-1, from this one pass (PartFacts.labels_of replayed every prefix for it)
 	if inc and n > i0:
 		_inc_store(inc_keys[n - 1], bodies, looks, errs, sketches, off_ids, counts)
