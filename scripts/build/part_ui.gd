@@ -1505,6 +1505,11 @@ static func typed_mm(t: String) -> float:
 	if v.ends_with("cm"):
 		v = v.trim_suffix("cm").strip_edges()
 		mul = 10.0
+	if not v.is_valid_float() and NumExpr.is_expression(v):   # W07: 25*2+3, (10+5)/3
+		var r := NumExpr.eval(v)
+		if r["ok"] and (r["unit"] == "" or r["unit"] == "cm") and float(r["value"]) > 0.0:
+			return float(r["value"]) * (10.0 if r["unit"] == "cm" else mul)
+		return -1.0
 	if not v.is_valid_float() or float(v) <= 0.0:
 		return -1.0
 	return float(v) * mul
@@ -1515,6 +1520,12 @@ func _size_words(t: String) -> String:
 	var v := t.strip_edges().to_lower().replace("mm", "").replace("cm", "").strip_edges()
 	if v.is_valid_float():
 		return "A size must be above 0 mm"
+	if NumExpr.is_expression(v):   # W07: say what is wrong with the sum
+		var r := NumExpr.eval(v)
+		if not r["ok"]:
+			return "Not a size: " + String(r["err"])
+		if float(r["value"]) <= 0.0:
+			return "A size must be above 0 mm"
 	return "type a size in mm (40 or 4 cm), or =forearm+4 to read the body (forearm, upper_arm, thigh, shank, trunk, head ...)"
 
 
