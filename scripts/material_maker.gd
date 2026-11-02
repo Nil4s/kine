@@ -39,6 +39,8 @@ const DEFS := {
 	"rubber": {"label": "Rubber", "color": "#232325", "scale": 120.0, "gloss": 0.06, "wear": 0.0, "metal": 0.0},
 	"glass": {"label": "Glass (tint)", "color": "#a8d4e0", "scale": 300.0, "gloss": 0.97, "wear": 0.0, "metal": 0.0, "alpha": 0.38},
 	"plastic": {"label": "Plastic, glossy", "color": "#2f6fd0", "scale": 200.0, "gloss": 0.85, "wear": 0.0, "metal": 0.0},
+	"slabs": {"label": "Stone slabs", "color": "#bcb9b0", "scale": 2400.0, "gloss": 0.3, "wear": 0.0, "metal": 0.0},   # s231: paving, a running bond of slabs with dark joints
+	"caihua": {"label": "Painted beam", "color": "#1b6f73", "scale": 400.0, "gloss": 0.5, "wear": 0.0, "metal": 0.0, "line": "#e2b53a"},   # s231: teal ground, gold lines and a gold-edged lozenge
 }
 ## the library, in the order the pickers show it: [id, kind, overrides]. "plastic_matte" is the same recipe, matte
 const LIBRARY := [
@@ -48,6 +50,7 @@ const LIBRARY := [
 	["brick", "brick", {}], ["plaster", "plaster", {}], ["grass", "grass", {}], ["gravel", "gravel", {}],
 	["fabric", "fabric", {}], ["leather", "leather", {}], ["rubber", "rubber", {}], ["glass", "glass", {}],
 	["plastic", "plastic", {}], ["plastic_matte", "plastic", {"gloss": 0.15, "color": "#d8d4c8"}],
+	["slabs", "slabs", {}], ["caihua", "caihua", {}], ["gold", "brass", {"color": "#e0aa22", "gloss": 0.6, "metal": 0.55}],   # s231: the temple's paving, painted beams, gold leaf
 ]
 
 static var _cache := {}        # key -> {"albedo": Image, "rough": Image, "normal": Image, "tex": [..]}
@@ -78,6 +81,8 @@ static func norm(spec: Dictionary) -> Dictionary:
 		out["brushed"] = 1 if float(spec.get("brushed", d["brushed"])) >= 0.5 else 0
 	if d.has("alpha"):
 		out["alpha"] = clampf(float(spec.get("alpha", d["alpha"])), 0.05, 1.0)
+	if d.has("line"):
+		out["line"] = _html(spec.get("line", d["line"]), String(d["line"]))
 	return out
 
 
@@ -88,6 +93,14 @@ static func _html(v: Variant, fallback: String) -> String:
 	if s.is_valid_html_color():
 		return "#" + Color(s).to_html(false)
 	return fallback
+
+
+## the knots a wood spec has: [[u, v, half-width (tile widths), stretch along the grain, tilt]]; a tile is spec.scale mm wide
+static func knots_of(spec_in: Dictionary) -> Array:
+	var sp := norm(spec_in)
+	if sp.is_empty() or not (String(sp["kind"]) in ["oak", "pine"]):
+		return []
+	return _Gen.new(sp, 16).knot_list()
 
 
 ## the library entry (id) as a spec
@@ -110,7 +123,7 @@ static func library_ids() -> Array:
 static func label_of(id: String) -> String:
 	for e in LIBRARY:
 		if String(e[0]) == id:
-			return "Plastic, matte" if id == "plastic_matte" else String(DEFS[e[1]]["label"])
+			return "Plastic, matte" if id == "plastic_matte" else ("Gold leaf" if id == "gold" else String(DEFS[e[1]]["label"]))
 	return id
 
 
@@ -373,6 +386,10 @@ class _Gen:
 				_fabric()
 			"leather":
 				_leather()
+			"slabs":
+				_slabs()
+			"caihua":
+				_caihua()
 
 	# ------------------------------------------------ fields
 
@@ -447,13 +464,22 @@ class _Gen:
 
 	# ------------------------------------------------ wood
 
+	## s231: knots as seen in sawn boards: small OVAL (the long way along the grain, 2 to 3 times as long as wide), rare in oak, a few in pine.
+	## [u, v, half-width (in tile widths), stretch along the grain, tilt of the oval]. 223 drew round soft dark blobs 0.04 to 0.08 of the
+	## tile across, which read as a cartoon eye; oak had one in every tile
 	func _knots(count: int) -> Array:
 		var rng := RandomNumberGenerator.new()
 		rng.seed = sd + 4242
 		var out := []
 		for k in count:
-			out.append([rng.randf(), rng.randf(), rng.randf_range(0.04, 0.08)])
+			out.append([rng.randf(), rng.randf(), rng.randf_range(0.014, 0.026), rng.randf_range(2.2, 3.2), rng.randf_range(-0.12, 0.12)])
 		return out
+
+	## the knots this spec has: pine two, oak one in a tile of three, none when the grain does not wander (warp 0)
+	func knot_list() -> Array:
+		if float(sp.get("warp", 0.35)) <= 0.0:
+			return []
+		return _knots(2 if String(sp["kind"]) == "pine" else (1 if sd % 3 == 0 else 0))
 
 	func _wood() -> void:
 		var pine := String(sp["kind"]) == "pine"
@@ -463,9 +489,8 @@ class _Gen:
 		var ff := fld(256, 4, 2)
 		var ff2 := fld(64, 8, 3)
 		var fp := fld(256, 32, 4)
-		var knots := _knots(2 if pine else 1)
-		if warp <= 0.0:
-			knots = []
+		var fr_ray := fld(32, 256, 6)
+		var knots := knot_list()
 		var dr := cr * 0.5
 		var dg := cg * 0.4
 		var db := cb * 0.34
@@ -477,22 +502,26 @@ class _Gen:
 				var u := float(x) / float(n)
 				var t := u * rings + (fw[i] - 0.5) * warp * rings * 0.22
 				var core := 0.0
+				var ring := 0.0
 				for k in knots:
 					var sdx := u - float(k[0])
 					sdx -= roundf(sdx)
-					var dx := absf(sdx)
-					var dy := absf(v - float(k[1]))
-					dy = minf(dy, 1.0 - dy)
-					var d2 := (dx * dx + dy * dy) / (float(k[2]) * float(k[2]))
-					if d2 < 9.0:
-						var e := exp(-d2 * 0.35)
-						t += e * 3.0 * sdx / float(k[2])
-						core = maxf(core, exp(-d2 * 2.2))
+					var sdy := v - float(k[1])
+					sdy -= roundf(sdy)
+					var cdx := sdx + sdy * float(k[4])   # a slight tilt of the oval
+					var rw := float(k[2])
+					var d2 := (cdx * cdx) / (rw * rw) + (sdy * sdy) / (rw * rw * float(k[3]) * float(k[3]))
+					if d2 < 16.0:
+						# the grain flows around the oval: rings are pushed aside, more where the oval is wide
+						t += exp(-d2 * 0.45) * 0.9 * cdx / rw
+						core = maxf(core, 1.0 - smoothstep(0.55, 1.0, d2))   # a hard-edged dark oval: the knot itself
+						ring = maxf(ring, exp(-pow(d2 - 1.3, 2.0) * 2.0))   # a darker ring just outside it
 				var fr := t - floorf(t)
 				var band := fr * fr * fr
 				var fib := ff[i] * 0.6 + ff2[i] * 0.4
 				var pore := smoothstep(0.84, 0.97, fp[i]) * (0.35 if pine else 0.8)
-				var k2 := clampf(band * (0.7 if pine else 0.82) + (fib - 0.5) * 0.55 + core * 0.6, 0.0, 1.0)
+				var ray := smoothstep(0.9, 0.97, fr_ray[i]) * (0.0 if pine else 1.0)   # oak: pale medullary-ray flecks
+				var k2 := clampf(band * (0.7 if pine else 0.82) + (fib - 0.5) * 0.55 + core * 0.55 + ring * 0.22 - ray * 0.18, 0.0, 1.0)
 				var r := lerpf(cr, dr, k2) * (1.0 - 0.4 * pore)
 				var g := lerpf(cg, dg, k2) * (1.0 - 0.42 * pore)
 				var b := lerpf(cb, db, k2) * (1.0 - 0.45 * pore)
@@ -504,7 +533,7 @@ class _Gen:
 					g = lerpf(g, gr * 0.97, w * 0.6)
 					b = lerpf(b, gr * 0.93, w * 0.6)
 					rough += w * 0.3
-				put(i, r, g, b, rough, -band * 0.35 + fib * 0.18 - pore * 0.6 - core * 0.2)
+				put(i, r, g, b, rough, -band * 0.35 + fib * 0.18 - pore * 0.6 - core * 0.15 - ring * 0.12)
 		bump = 3.0
 
 	func _plywood() -> void:
@@ -675,6 +704,9 @@ class _Gen:
 
 	# ------------------------------------------------ ceramics
 
+	## s231: a Chinese pan-and-cover roof. 4 ribs across (a round cover tile with a glaze highlight on its crown, a dark valley between) and
+	## 4 rows down (each tile lies over the one below: a bright lip, then a shadow under it). Both are strong, so the rows and ribs
+	## read at 30 m and in the normal map. A tone per tile and a glaze mottle
 	func _tile() -> void:
 		var cols := 4
 		var rows := 4
@@ -690,29 +722,31 @@ class _Gen:
 			var cv := float(y) / float(n) * rows + 0.5
 			var ri := int(floorf(cv))
 			var fy := cv - float(ri)
-			var shade := 0.5 + 0.5 * smoothstep(0.0, 0.3, fy)
-			var lip := smoothstep(0.88, 1.0, fy)
+			var shade := 0.46 + 0.54 * smoothstep(0.0, 0.42, fy)   # the shadow just under the row above
+			var lip := smoothstep(0.84, 0.97, fy) * (1.0 - smoothstep(0.97, 1.0, fy))
 			for x in n:
 				var i := y * n + x
 				var cu := float(x) / float(n) * cols + 0.5
 				var ci := int(floorf(cu))
 				var fx := cu - float(ci)
 				var crown := sin(fx * PI)
+				var valley := 1.0 - smoothstep(0.0, 0.2, minf(fx, 1.0 - fx))
 				var tv: Array = vr[(ri % rows) * cols + (ci % cols)]
 				var glaze := (mo[i] - 0.5) * 0.12 + (fine[i] - 0.5) * 0.03
-				var tone := (0.88 + 0.22 * float(tv[0]) + glaze) * shade * (0.72 + 0.28 * crown) * (1.0 + lip * 0.15)
-				var r := cr * tone
-				var g := cg * tone * (0.94 + 0.12 * float(tv[1]))
-				var b := cb * tone
-				var rough := rb + (fine[i] - 0.5) * 0.06 + (1.0 - crown) * 0.1
+				var tone := (0.86 + 0.22 * float(tv[0]) + glaze) * shade * (0.5 + 0.5 * pow(crown, 0.6)) * (1.0 - valley * 0.35) * (1.0 + lip * 0.3)
+				var spec_hi := smoothstep(0.82, 1.0, crown) * gloss * 0.22 * shade   # the glaze catching the sky along the crown
+				var r := cr * tone + spec_hi
+				var g := cg * tone * (0.94 + 0.12 * float(tv[1])) + spec_hi
+				var b := cb * tone + spec_hi
+				var rough := rb + (fine[i] - 0.5) * 0.06 + (1.0 - crown) * 0.12
 				if wm.size() > 0:
 					var w := wm[i]
 					r = lerpf(r, 0.36, w * 0.6)
 					g = lerpf(g, 0.31, w * 0.6)
 					b = lerpf(b, 0.24, w * 0.6)
 					rough = lerpf(rough, 0.85, w * 0.8)
-				put(i, r, g, b, rough, crown * 0.7 + fy * 0.3 - lip * 0.5)
-		bump = 3.0
+				put(i, r, g, b, rough, crown * 0.9 + fy * 0.4 - lip * 0.5 - valley * 0.3)
+		bump = 4.0
 
 	func _terracotta() -> void:
 		var cl := fbm(8, 8, 5, 61)
@@ -885,27 +919,43 @@ class _Gen:
 			put(i, r, g, b, rough, h)
 		bump = 1.2 if plaster else 2.5
 
+	## s231: gravel as a real photo shows it: many small rounded stones of ONE family (the same grey-beige, each a little lighter or darker,
+	## a few pale and a few dark ones), packed close, with dark shadow in the gaps between. 223's version coloured 16 x 16 blobs from six
+	## unrelated colours (tan, grey, brown, near-white, near-black): blotches of hue at stone-pile scale, which is camouflage, not gravel
 	func _gravel() -> void:
-		var g1 := fbm(16, 16, 3, 121)
-		var tn := fld(16, 16, 122)
+		var cells := _cells(36, 121, true)
+		var f1: PackedFloat32Array = cells["f1"]
+		var f2: PackedFloat32Array = cells["f2"]
+		var ids: PackedInt32Array = cells["id"]
+		var rng := RandomNumberGenerator.new()
+		rng.seed = sd + 122
+		var st: Array = []
+		for k in 36 * 36:
+			var u := rng.randf()
+			var lum := 0.78 + 0.34 * u   # +-17 % about the base
+			if rng.randf() < 0.06:
+				lum = 1.18 + 0.1 * rng.randf()   # a pale stone
+			elif rng.randf() < 0.06:
+				lum = 0.55 + 0.08 * rng.randf()   # a dark one
+			st.append([lum, rng.randf() - 0.5, rng.randf()])
 		var fine := fld(256, 256, 123)
-		var palette := [Color(0.62, 0.6, 0.57), Color(0.74, 0.69, 0.6), Color(0.5, 0.45, 0.4), Color(0.8, 0.78, 0.74), Color(0.36, 0.34, 0.33), Color(0.66, 0.55, 0.42)]
 		var rb := lerpf(0.9, 0.35, gloss)
 		for i in n * n:
-			var d := absf(g1[i] - 0.5) * 2.0
-			var pebble := smoothstep(0.03, 0.2, d)
-			var pc: Color = palette[int(clampf(tn[i], 0.0, 0.999) * palette.size())]
-			var tint := Color(cr / 0.6, cg / 0.6, cb / 0.6)
-			var t := (0.8 + 0.4 * pebble) * (1.0 + (fine[i] - 0.5) * 0.25)
-			var r := pc.r * minf(tint.r, 1.4) * t
-			var g := pc.g * minf(tint.g, 1.4) * t
-			var b := pc.b * minf(tint.b, 1.4) * t
-			var rough := rb + (fine[i] - 0.5) * 0.1 + (1.0 - pebble) * 0.05
+			var s0: Array = st[ids[i]]
+			var gap := f2[i] - f1[i]   # 0 on the line between two stones
+			var round_ := smoothstep(0.0, 0.5, f1[i])   # 0 at a stone's middle, 1 at its rim
+			var sh := smoothstep(0.0, 0.07, gap)   # 0 in the crevice, 1 on the stone
+			var t := 1.3 * float(s0[0]) * (1.0 - 0.16 * round_ * round_) * (0.45 + 0.55 * sh) * (1.0 + (fine[i] - 0.5) * 0.3)
+			var warm := float(s0[1]) * 0.07   # a hair of warm/cool per stone: same family, not a different colour
+			var r := cr * t * (1.0 + warm)
+			var g := cg * t
+			var b := cb * t * (1.0 - warm)
+			var rough := rb + (fine[i] - 0.5) * 0.1 + (1.0 - sh) * 0.08
 			if wm.size() > 0:
 				r = lerpf(r, 0.42, wm[i] * 0.35)
 				g = lerpf(g, 0.38, wm[i] * 0.35)
 				b = lerpf(b, 0.3, wm[i] * 0.35)
-			put(i, r, g, b, rough, pebble * 1.0 + (fine[i] - 0.5) * 0.15)
+			put(i, r, g, b, rough, sh * (1.0 - 0.7 * round_ * round_) * 1.2 + (fine[i] - 0.5) * 0.12)
 		bump = 3.5
 
 	# ------------------------------------------------ soft materials
@@ -991,6 +1041,152 @@ class _Gen:
 				rough += w * 0.2
 			put(i, r, g, b, rough, pebble * 0.6 + (wr[i] - 0.5) * 0.4)
 		bump = 3.0
+
+	## s231: a jittered grid of cells that wraps at the tile edge: for each pixel the nearest and second-nearest cell point.
+	## Returns {"f1": distance to the nearest point (in cells), "f2": to the second nearest, "id": the nearest cell's index}
+	func _cells(nc: int, salt: int, weighted := false) -> Dictionary:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = (sd + salt * 104729 + nc) & 0x7fffffffffff
+		var px := PackedFloat32Array()
+		var py := PackedFloat32Array()
+		px.resize(nc * nc)
+		py.resize(nc * nc)
+		var wt := PackedFloat32Array()
+		wt.resize(nc * nc)
+		for k in nc * nc:
+			px[k] = 0.1 + 0.8 * rng.randf()
+			py[k] = 0.1 + 0.8 * rng.randf()
+			wt[k] = (0.72 + 0.6 * rng.randf()) if weighted else 1.0   # a stone's size: a bigger weight claims more room
+		var f1 := PackedFloat32Array()
+		var f2 := PackedFloat32Array()
+		var ids := PackedInt32Array()
+		f1.resize(n * n)
+		f2.resize(n * n)
+		ids.resize(n * n)
+		var sc := float(nc) / float(n)
+		for y in n:
+			var fy := (float(y) + 0.5) * sc
+			var cy := int(floorf(fy))
+			for x in n:
+				var fx := (float(x) + 0.5) * sc
+				var cx := int(floorf(fx))
+				var b1 := 1e9
+				var b2 := 1e9
+				var bi := 0
+				for dy in range(-1, 2):
+					var yy := cy + dy
+					var wy := ((yy % nc) + nc) % nc
+					for dx in range(-1, 2):
+						var xx := cx + dx
+						var wx := ((xx % nc) + nc) % nc
+						var k := wy * nc + wx
+						var ex := float(xx) + px[k] - fx
+						var ey := float(yy) + py[k] - fy
+						var d := (ex * ex + ey * ey) / (wt[k] * wt[k])
+						if d < b1:
+							b2 = b1
+							b1 = d
+							bi = k
+						elif d < b2:
+							b2 = d
+				f1[y * n + x] = sqrt(b1)
+				f2[y * n + x] = sqrt(b2)
+				ids[y * n + x] = bi
+		return {"f1": f1, "f2": f2, "id": ids}
+
+	## s231 STONE SLABS: a running bond, 2 slabs across and 2 rows (the second row set half a slab over), dark joints, a different
+	## tone per slab, a little cloud and grit. Paving: the joints are what reads at 30 m
+	func _slabs() -> void:
+		var cl := fbm(4, 4, 5, 161)
+		var grit := fld(256, 256, 162)
+		var spk := fld(256, 256, 163)
+		var rng := RandomNumberGenerator.new()
+		rng.seed = sd + 164
+		var tone: Array = []
+		for k in 8:
+			tone.append([0.88 + 0.2 * rng.randf(), rng.randf() - 0.5])
+		var rb := lerpf(0.92, 0.3, gloss)
+		var jw := 0.028   # joint half-width as a share of a slab
+		for y in n:
+			var v := float(y) / float(n) * 2.0
+			var row := int(floorf(v))
+			var fy := v - float(row)
+			var dy := minf(fy, 1.0 - fy)
+			for x in n:
+				var i := y * n + x
+				var u := float(x) / float(n) * 2.0 + (0.5 if row % 2 == 1 else 0.0)
+				var col := int(floorf(u))
+				var fx := u - float(col)
+				var dx := minf(fx, 1.0 - fx)
+				var d := minf(dx * 0.5, dy)   # a slab is twice as long as it is deep: measure the distance in the same units
+				var joint := 1.0 - smoothstep(jw * 0.6, jw * 1.6, d)
+				var edge := 1.0 - smoothstep(jw * 1.6, jw * 5.0, d)   # a worn bevel along the slab edge
+				var tn: Array = tone[(row * 2 + (col % 2 + 2) % 2) % 8]
+				var mot := cl[i] - 0.5
+				var t := float(tn[0]) * (1.0 + mot * 0.18 + (grit[i] - 0.5) * 0.1) * (1.0 - edge * 0.05)
+				t *= 1.0 - smoothstep(0.93, 0.99, spk[i]) * 0.25
+				var r := cr * t
+				var g := cg * t * (1.0 + float(tn[1]) * 0.02)
+				var b := cb * t * (1.0 - float(tn[1]) * 0.02)
+				r = lerpf(r, cr * 0.5, joint)
+				g = lerpf(g, cg * 0.48, joint)
+				b = lerpf(b, cb * 0.46, joint)
+				var rough := rb + (grit[i] - 0.5) * 0.08 + joint * 0.25
+				if wm.size() > 0:
+					r = lerpf(r, r * 0.8, wm[i] * 0.5)
+					g = lerpf(g, g * 0.78, wm[i] * 0.5)
+					b = lerpf(b, b * 0.72, wm[i] * 0.5)
+					rough += wm[i] * 0.1
+				put(i, r, g, b, rough, -joint * 1.0 - edge * 0.12 + mot * 0.25 + (grit[i] - 0.5) * 0.12)
+		bump = 2.2
+
+	## s231 PAINTED BEAM (caihua): a ground colour, a gold frame line, a darker band inside it and a gold-edged lozenge with a pale centre.
+	## One tile is square; along a long beam the frame repeats as a row of panels, which is what a painted bracket band reads as
+	func _caihua() -> void:
+		var gold := Color(String(sp.get("line", "#e2b53a")))
+		var cl := fbm(8, 8, 4, 171)
+		var fine := fld(256, 256, 172)
+		var rb := lerpf(0.85, 0.1, gloss)
+		var band := Color(cr * 0.55, cg * 0.62, cb * 0.9)   # the darker band: the ground pushed toward blue
+		var pale := Color(minf(cr * 1.6 + 0.12, 1.0), minf(cg * 1.35 + 0.1, 1.0), minf(cb * 1.3 + 0.08, 1.0))
+		for y in n:
+			var v := float(y) / float(n) - 0.5
+			for x in n:
+				var i := y * n + x
+				var u := float(x) / float(n) - 0.5
+				var dsq := maxf(absf(u), absf(v))
+				var dia := absf(u) + absf(v)
+				var r := cr
+				var g := cg
+				var b := cb
+				# the frame: a gold line at 0.43, a band inside it to 0.31, a thin gold line at 0.31
+				var in_band := smoothstep(0.455, 0.445, dsq) * smoothstep(0.285, 0.295, dsq)
+				r = lerpf(r, band.r, in_band)
+				g = lerpf(g, band.g, in_band)
+				b = lerpf(b, band.b, in_band)
+				var l1 := 1.0 - smoothstep(0.014, 0.026, absf(dsq - 0.43))
+				var l2 := 1.0 - smoothstep(0.008, 0.016, absf(dsq - 0.30))
+				# the lozenge: gold edge at dia 0.2, pale inside
+				var in_dia := smoothstep(0.215, 0.2, dia)
+				r = lerpf(r, pale.r, in_dia * 0.85)
+				g = lerpf(g, pale.g, in_dia * 0.85)
+				b = lerpf(b, pale.b, in_dia * 0.85)
+				var l3 := 1.0 - smoothstep(0.012, 0.024, absf(dia - 0.21))
+				var dot := 1.0 - smoothstep(0.03, 0.045, sqrt(u * u + v * v))   # a gold dot in the lozenge
+				var gl := clampf(maxf(maxf(l1, l2 * 0.9), maxf(l3, dot)), 0.0, 1.0)
+				var tone := 1.0 + (cl[i] - 0.5) * 0.22 + (fine[i] - 0.5) * 0.05
+				r = lerpf(r * tone, gold.r * (0.95 + (fine[i] - 0.5) * 0.12), gl)
+				g = lerpf(g * tone, gold.g * (0.95 + (fine[i] - 0.5) * 0.12), gl)
+				b = lerpf(b * tone, gold.b * (0.95 + (fine[i] - 0.5) * 0.12), gl)
+				var rough := rb + (fine[i] - 0.5) * 0.06 - gl * 0.2
+				if wm.size() > 0:
+					var w := wm[i]
+					r = lerpf(r, 0.55, w * 0.45)
+					g = lerpf(g, 0.55, w * 0.45)
+					b = lerpf(b, 0.5, w * 0.45)
+					rough += w * 0.3
+				put(i, r, g, b, rough, gl * 0.35 + in_band * -0.1)
+		bump = 1.4
 
 
 # ================================================================ Part appearance

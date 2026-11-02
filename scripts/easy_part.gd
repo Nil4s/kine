@@ -8474,7 +8474,7 @@ func _mat_make() -> void:
 	t.text = "Materials: pick one for the newest solid"
 	t.add_theme_font_size_override("font_size", 13)
 	vb.add_child(t)
-	mat_w = MaterialPicker.build(vb, "easypart_", Callable(self, "_mat_pick"), 40)
+	mat_w = MaterialPicker.build(vb, "easypart_", Callable(self, "_mat_pick"), 40, Callable(self, "_mat_kind"), Callable(self, "_mat_style"))
 	colour_box.get_parent().add_child(mat_box)
 
 
@@ -8515,3 +8515,38 @@ func _nature_box() -> PanelContainer:
 	if nature_page == null:
 		nature_page = EasyPartNature.new(self)
 	return nature_page.make_box()
+
+
+## s231: a material for EVERY piece of a kind ("red lacquer columns", the Columns chip then a swatch): one appear step per body, ONE undo step
+func _mat_kind(kind: String, spec: Dictionary, label: String) -> void:
+	if not Part.available() or int(pu.res.get("bodies", 0)) == 0:
+		_say("Make something solid first")
+		return
+	_flush_if_dirty()
+	_begin("Material for " + String(PieceLook.LABELS.get(kind, kind)))
+	var rec := pu._ensure()
+	var n := PieceLook.apply(rec, pu.res, kind, spec)
+	_end()
+	if n == 0:
+		_say("No %s in this building yet (a piece is called by its name: Column, Roof, Stair rail...)" % String(PieceLook.LABELS.get(kind, kind)).to_lower())
+		return
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_say("%s: %d piece%s now %s. Undo takes it back." % [String(PieceLook.LABELS.get(kind, kind)), n, "" if n == 1 else "s", MaterialWords.describe(spec)])
+
+
+## s231: the building's style: "temple" (every piece that is not painted wears its kind's material) or "none" (plain colours)
+func _mat_style(style: String) -> void:
+	if not Part.available() or int(pu.res.get("bodies", 0)) == 0:
+		_say("Make something solid first")
+		return
+	_flush_if_dirty()
+	_begin("Look: " + style)
+	var rec := pu._ensure()
+	PieceLook.set_style(rec, style)
+	_end()
+	pu.upto = -1
+	pu.sync()
+	_rows_sync()
+	_say("Temple look: tile roof, red lacquer columns, teal and gold beams, marble and stone. Undo takes it back." if style == "temple" else "Plain colours again. Undo takes it back.")
