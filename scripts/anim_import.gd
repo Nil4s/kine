@@ -662,7 +662,7 @@ static func _import_file(path: String, B: Body, scene_name := "") -> Dictionary:
 		var src := load_source(path)
 		if not src["ok"]:
 			return src
-		mapping = map_bones(src)
+		mapping = RetargetMap.resolve(src)   # W04: the rig's saved bone map, else the guess
 		var rt := retarget(src, mapping, B, nm)
 		if not rt["ok"]:
 			return rt

@@ -168,6 +168,9 @@ var side_title: Label
 var sketch_box: VBoxContainer
 var nums_vb: VBoxContainer
 var snap_btn: Button
+var unit_btn: Button      # W06
+var dual_chk: CheckBox
+var unit_busy := 0
 var part_give: Button   # "Give it to the fighter" (PartWeapon)
 var grid_chk: CheckBox
 var dims_chk: CheckBox
@@ -203,6 +206,7 @@ var cross_mark := {}           # s229: a refused line that would make the outlin
 var pat := {}                  # PATTERN dialog: its controls by name (built each time it opens, see _pattern_open)
 var f_cmb_op: OptionButton     # the combine dialog: Join, Cut or Intersect
 var f_cmb_keep: CheckBox       # the combine dialog: keep the tool bodies
+var f_cmb_nudge: Button     # W10: "Nudge 0.01 mm and retry", shown when the combine fails because the bodies only touch along a line
 var cmb := {}                  # the combine dialog's picks: {"target": body or -1, "tools": [bodies]} (the bodies of the steps before)
 var cmb_faces: Array = []      # the combine dialog: the triangles of each body before it (a view click picks by them)
 var dim_edit: LineEdit
@@ -510,7 +514,25 @@ func _build_side() -> void:
 	snap_btn.focus_mode = Control.FOCUS_NONE
 	snap_btn.tooltip_text = "the sketch grid: 5 mm, or 1 mm for fine work (holding Alt frees one click)"
 	snap_btn.pressed.connect(func(): snap_mm = 1.0 if snap_mm > 2.0 else 5.0; _snap_text(); pov.queue_redraw())
-	sketch_box.add_child(snap_btn)
+	var snap_row := HBoxContainer.new()   # W06: Snap, Unit and Both on ONE row: the palette must not grow taller (it covered sketch clicks)
+	snap_row.add_theme_constant_override("separation", 4)
+	sketch_box.add_child(snap_row)
+	snap_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	snap_row.add_child(snap_btn)
+	unit_btn = Button.new()   # W06: the project unit (mm / cm / in), saved with the part
+	unit_btn.name = "part_unit"
+	unit_btn.focus_mode = Control.FOCUS_NONE
+	unit_btn.tooltip_text = "the part's unit for bare numbers (mm, cm or in). Any field also takes 1.5in, 4 cm, 40 mm"
+	unit_btn.pressed.connect(func(): set_unit(LengthParse.UNITS[(LengthParse.UNITS.find(unit()) + 1) % LengthParse.UNITS.size()]))
+	snap_row.add_child(unit_btn)
+	dual_chk = CheckBox.new()
+	dual_chk.name = "part_dual"
+	dual_chk.text = "Both"
+	dual_chk.tooltip_text = "show every length in two units: 38.1 mm (1.50 in)"
+	dual_chk.focus_mode = Control.FOCUS_NONE
+	dual_chk.toggled.connect(func(v: bool): if unit_busy == 0: set_dual(v))
+	snap_row.add_child(dual_chk)
+	_unit_text()
 	dims_chk = CheckBox.new()
 	dims_chk.name = "part_show_dims"
 	dims_chk.text = "Show dimensions"
@@ -684,6 +706,42 @@ func _build_side() -> void:
 	side.visible = false
 	m.ui_root.add_child(side)
 	_snap_text()
+
+
+## W06: the part's unit ("mm" | "cm" | "in") and the dual-label switch, both saved in the part record
+func unit() -> String:
+	var u := String(m.S.part.get("unit", "mm")) if m != null and not m.S.part.is_empty() else "mm"
+	return u if LengthParse.UNITS.has(u) else "mm"
+
+
+func dual() -> bool:
+	return bool(m.S.part.get("dual", false)) if m != null and not m.S.part.is_empty() else false
+
+
+func set_unit(u: String) -> void:
+	_ensure()["unit"] = u
+	_unit_text()
+	_refresh_dim_fields()
+
+
+func set_dual(v: bool) -> void:
+	_ensure()["dual"] = v
+	_unit_text()
+	_refresh_dim_fields()
+
+
+func _unit_text() -> void:
+	if unit_btn == null:
+		return
+	unit_btn.text = unit()
+	unit_busy += 1
+	dual_chk.button_pressed = dual()
+	unit_busy -= 1
+
+
+func _refresh_dim_fields() -> void:
+	_nums_sig = ""
+	_nums_sync()
 
 
 func _snap_text() -> void:
@@ -1469,7 +1527,11 @@ func _dim_submitted(t: String) -> void:
 	if err != "":
 		_say(err)
 	elif Part.parse_bind(t).is_empty():
-		_say("Dimension set: %s mm" % t.replace("mm", "").strip_edges())
+		var shown := t.replace("mm", "").strip_edges()
+		if NumExpr.is_expression(shown):   # W07: the resolved size, then what was typed
+			_say("Dimension set: %s mm (%s)" % [("%.3f" % typed_mm(shown)).rstrip("0").rstrip("."), shown])
+		else:
+			_say("Dimension set: %s mm" % shown)
 	else:
 		_say("Dimension set: %s" % Part.bind_text(Part.parse_bind(t)))
 	dim_target = {}
@@ -1499,15 +1561,9 @@ func _set_dim_text(ent: int, kind: String, t: String) -> String:
 
 
 ## XDIM: a typed size in mm: "40", "40 mm", or "4 cm" (= 40 mm). -1 when the text is no size above 0
-static func typed_mm(t: String) -> float:
-	var v := t.strip_edges().to_lower().replace("mm", "").strip_edges()
-	var mul := 1.0
-	if v.ends_with("cm"):
-		v = v.trim_suffix("cm").strip_edges()
-		mul = 10.0
-	if not v.is_valid_float() or float(v) <= 0.0:
-		return -1.0
-	return float(v) * mul
+static func typed_mm(t: String, project_unit := "mm") -> float:
+	var r := LengthParse.parse_length(t, project_unit)   # W06: mm, cm, m, in, ft; a bare number uses the project unit
+	return float(r["mm"]) if bool(r["ok"]) and float(r["mm"]) > 0.0 else -1.0
 
 
 ## XDIM: the words for a size that is not one: a number at or below 0, or anything else
@@ -1515,7 +1571,13 @@ func _size_words(t: String) -> String:
 	var v := t.strip_edges().to_lower().replace("mm", "").replace("cm", "").strip_edges()
 	if v.is_valid_float():
 		return "A size must be above 0 mm"
-	return "type a size in mm (40 or 4 cm), or =forearm+4 to read the body (forearm, upper_arm, thigh, shank, trunk, head ...)"
+	if NumExpr.is_expression(v):   # W07: say what is wrong with the sum
+		var r := NumExpr.eval(v)
+		if not r["ok"]:
+			return "Not a size: " + String(r["err"])
+		if float(r["value"]) <= 0.0:
+			return "A size must be above 0 mm"
+	return "type a size (40, 4 cm or 1.5 in), or =forearm+4 to read the body (forearm, upper_arm, thigh, shank, trunk, head ...)"
 
 
 ## the number a row shows: the size now (a bound one: what the body gives)
@@ -1523,7 +1585,7 @@ func _dim_field_text(d: Dictionary) -> String:
 	if d.has("bind"):
 		var r := Part.bound_mm(d["bind"], _body_measures())
 		return Part.bind_text(d["bind"]) if r["err"] != "" else "%s mm" % _fmt(float(r["mm"]))
-	return "%s mm" % _fmt(float(d["mm"]))
+	return LengthParse.label(float(d["mm"]), unit(), dual())
 
 
 func _set_dim_value(i: int, v: float) -> void:
@@ -1767,7 +1829,7 @@ func _prof_picked(i: int) -> void:
 ## the dialog's rows go; the field controls are kept (they are re-parented into the next dialog)
 func _clear_rows() -> void:
 	_combine_controls()   # COMBINE's two controls exist before the list below takes them off their parent
-	for c in [f_num, f_ang, f_both, f_op, f_axis, f_pull, f_plane, f_taper, f_open, f_edges, f_from, f_to, f_dur, f_dial, f_prof, f_prof_clear, f_ruled, f_sw_prof, f_sw_path, f_sw_flange, f_cmb_op, f_cmb_keep]:
+	for c in [f_num, f_ang, f_both, f_op, f_axis, f_pull, f_plane, f_taper, f_open, f_edges, f_from, f_to, f_dur, f_dial, f_prof, f_prof_clear, f_ruled, f_sw_prof, f_sw_path, f_sw_flange, f_cmb_op, f_cmb_keep, f_cmb_nudge]:
 		if (c as Node).get_parent() != null:
 			(c as Node).get_parent().remove_child(c)
 	for c in dlg_rows.get_children():
@@ -1830,6 +1892,12 @@ func _match_cache(d: Dictionary) -> int:
 	return best
 
 
+## W06: a LENGTH field: units allowed (1.5in, 4 cm), a bare number in the part's unit; NAN when it is no length
+func _len(le: LineEdit) -> float:
+	var r := LengthParse.parse_length(le.text, unit())
+	return float(r["mm"]) if bool(r["ok"]) else NAN
+
+
 func _num(le: LineEdit) -> float:
 	var t := le.text.replace("mm", "").replace("deg", "").strip_edges()
 	return float(t) if t.is_valid_float() else NAN
@@ -1846,7 +1914,7 @@ func dialog_feature() -> Dictionary:
 	var op: String = Part.OPS[clampi(f_op.selected, 0, Part.OPS.size() - 1)]
 	match kind:
 		"extrude":
-			var d := _num(f_num)
+			var d := _len(f_num)
 			if is_nan(d) or absf(d) < 1e-6 or String(dlg.get("sketch", "")) == "":
 				return {}
 			var tp := _num(f_taper)
@@ -1857,7 +1925,7 @@ func dialog_feature() -> Dictionary:
 				return {}
 			f = {"sketch": dlg["sketch"], "axis": "x" if f_axis.selected == 0 else "y", "deg": a, "op": op}
 		"fillet", "chamfer":
-			var r := _num(f_num)
+			var r := _len(f_num)
 			if is_nan(r) or r <= 0.0 or picked.is_empty():
 				return {}
 			var ds := []
@@ -1866,7 +1934,7 @@ func dialog_feature() -> Dictionary:
 			f = {"body": int(ds[0]["body"]), "edges": ds}
 			f["r" if kind == "fillet" else "dist"] = r
 		"offset_face":
-			var od := _num(f_num)
+			var od := _len(f_num)
 			if is_nan(od) or absf(od) < 1e-6 or picked.is_empty():
 				return {}
 			f = {"body": int(picked[0]["body"]), "face": Part.describe_face(picked[0]), "mm": od}
@@ -1881,12 +1949,12 @@ func dialog_feature() -> Dictionary:
 		"mirror":
 			f = {"plane": PlanesIdx[clampi(f_plane.selected, 0, 2)], "op": "join"}
 		"split":
-			var at := _num(f_num)
+			var at := _len(f_num)
 			if is_nan(at):
 				return {}
 			f = {"plane": PlanesIdx[clampi(f_plane.selected, 0, 2)], "at": at}
 		"shell":
-			var th := _num(f_num)
+			var th := _len(f_num)
 			if is_nan(th) or th <= 0.0:
 				return {}
 			f = {"body": maxi(int(res.get("bodies", 0)) - 1, 0), "thick": th, "open": SHELL_OPEN[clampi(f_open.selected, 0, SHELL_OPEN.size() - 1)]}
@@ -1932,7 +2000,7 @@ func dialog_feature() -> Dictionary:
 				if f.is_empty():
 					return {}
 			else:
-				var pd := _num(f_num)
+				var pd := _len(f_num)
 				if is_nan(pd) or absf(pd) < 1e-6:
 					return {}
 				f = {"from": PlanesIdx[clampi(f_plane.selected, 0, 2)], "mm": pd}
@@ -1971,6 +2039,8 @@ func _preview() -> void:
 	prev = {}
 	if f.is_empty():
 		dlg_info.text = _dialog_hint(kind)
+		if f_cmb_nudge != null:
+			f_cmb_nudge.visible = false
 		ok_btn.disabled = true
 		prev_mesh.visible = false
 		part_mesh.visible = on and sk == "" and part_mesh.mesh != null
@@ -1989,6 +2059,8 @@ func _preview() -> void:
 	if kind == "pattern" and err == "":
 		dlg_info.text = _pattern_info()
 	ok_btn.disabled = err != ""
+	if kind == "combine" and f_cmb_nudge != null:
+		f_cmb_nudge.visible = err.ends_with(Part.JOINH.NUDGE_ASK)   # W10
 	prev_mesh.mesh = prev["mesh"]
 	prev_mesh.visible = prev["mesh"] != null
 	part_mesh.visible = false
@@ -2333,7 +2405,7 @@ func _nums_sync() -> void:
 		h.add_child(l)
 		var le := LineEdit.new()
 		le.name = "part_dim_%d" % i
-		le.custom_minimum_size.x = 92
+		le.custom_minimum_size.x = 168 if dual() else 92   # W06: the two-unit text must fit
 		le.alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		le.select_all_on_focus = true
 		le.text = _dim_field_text(d)
@@ -2346,15 +2418,15 @@ func _nums_sync() -> void:
 func _num_typed(i: int, t: String, le: LineEdit) -> void:
 	if sk == "" or not is_instance_valid(le) or not le.is_inside_tree():
 		return
-	var v := t.replace("mm", "").strip_edges()
+	var v := t.strip_edges()
 	var dims: Array = _sk().get("dims", [])
-	if i < dims.size() and not Part.parse_bind(v).is_empty():
+	if i < dims.size() and not Part.parse_bind(v.replace("mm", "").strip_edges()).is_empty():
 		var err := _set_dim_text(int(dims[i]["ent"]), String(dims[i]["kind"]), v)
 		if err != "":
 			_say(err)
 		_after_sketch_edit()
 	elif i < dims.size():   # XDIM: a plain size (40, 4 cm) sets it; anything else says what to type (it was silent)
-		var mm := typed_mm(v)
+		var mm := typed_mm(v, unit())
 		if mm > 0.0:
 			_set_dim_value(i, mm)
 		else:
@@ -2598,10 +2670,12 @@ func _note_sync() -> void:
 		t = Part.why_not()
 	elif sk != "":
 		var f := _sk()
-		var sig := JSON.stringify(f.get("ents", []))
+		var sig := JSON.stringify([f.get("ents", []), f.get("cons", []), f.get("dims", [])])
 		if sig != _profile_sig:
 			_profile_sig = sig
 			_profile_ok = _profile_text(f)
+			if not f.get("ents", []).is_empty():
+				_profile_ok += ", " + String(health_now().get("text", ""))   # W02
 		t = "%s: %s" % [f.get("name", "Sketch"), _profile_ok]
 	elif res.get("bodies", 0) > 0:
 		var errs: Dictionary = res.get("errors", {})
@@ -2825,7 +2899,7 @@ func _draw_sketch() -> void:
 	for i in ents.size():
 		var e: Dictionary = ents[i]
 		var hot: bool = not hover_ent.is_empty() and int(hover_ent.get("ent", -1)) == i and tool == "Dimension"
-		var c := Color("#ffc233") if hot else line_c
+		var c := Color("#ffc233") if hot else PartHealth.color_of(health_now(), i)   # W02: blue free, green defined, red over
 		match String(e["k"]):
 			"rect":
 				var a := Part.v2(e["a"])
@@ -2878,8 +2952,39 @@ func _draw_sketch() -> void:
 	if show_dims:
 		for d in f.get("dims", []):
 			_draw_dim(ents, d)
+	_health_draw(ents)   # W02: the clashing rules marked
 	_con_draw()   # GAP 9: the rule glyphs
 	_draw_draft()
+
+
+## W02: the sketch's health, worked out again only when its shapes, rules or sizes change
+var _health := {}
+var _health_sig := ""
+
+func health_now() -> Dictionary:
+	var f := _sk()
+	if f.is_empty():
+		return {}
+	var sig := JSON.stringify([f.get("ents", []), f.get("cons", []), f.get("dims", [])])
+	if sig != _health_sig:
+		_health_sig = sig
+		_health = PartHealth.analyze(f)
+	return _health
+
+
+func _health_draw(ents: Array) -> void:
+	var h := health_now()
+	var f := _sk()
+	for ci in h.get("clash_cons", []):
+		var c: Dictionary = f["cons"][int(ci)]
+		for key in ["a", "b"]:
+			var i := int(c.get(key, -1))
+			if i >= 0 and i < ents.size() and String(ents[i]["k"]) == "line":
+				pov.draw_line(scr(Part.v2(ents[i]["a"])), scr(Part.v2(ents[i]["b"])), PartHealth.CLASH_C, 6.0)
+	for di in h.get("clash_dims", []):
+		var i := int(f["dims"][int(di)].get("ent", -1))
+		if i >= 0 and i < ents.size() and String(ents[i]["k"]) == "line":
+			pov.draw_line(scr(Part.v2(ents[i]["a"])), scr(Part.v2(ents[i]["b"])), PartHealth.CLASH_C, 6.0)
 
 
 func _draw_arc_ent(a: Vector2, mid: Vector2, b: Vector2, c: Color) -> void:
@@ -4566,7 +4671,7 @@ func _pattern_feature() -> Dictionary:
 		f["axis"] = PAT_AXES[int((pat["axis"] as OptionButton).selected)]
 		f["deg"] = a
 	else:
-		var s := _num(pat["mm"])
+		var s := _len(pat["mm"])
 		if is_nan(s) or absf(s) < 1e-6:
 			return {}
 		f["dir"] = PAT_AXES[int((pat["dir"] as OptionButton).selected)]
@@ -4596,6 +4701,13 @@ func _combine_controls() -> void:
 	f_cmb_keep.text = "Keep the tool bodies"
 	f_cmb_keep.focus_mode = Control.FOCUS_NONE
 	f_cmb_keep.toggled.connect(func(_v): _preview())
+	f_cmb_nudge = Button.new()
+	f_cmb_nudge.name = "part_combine_nudge"
+	f_cmb_nudge.text = "Nudge 0.01 mm and retry"
+	f_cmb_nudge.visible = false
+	f_cmb_nudge.pressed.connect(func():
+		cmb["nudge"] = true
+		_preview())
 
 
 ## the combine dialog opens: its picks (an edit shows the step's own), the bodies as they are before the step
@@ -4606,6 +4718,7 @@ func _combine_open(f: Dictionary, edit: int) -> void:
 	if edit >= 0:
 		cmb["target"] = int(f.get("target", -1))
 		cmb["tools"] = (f.get("tools", []) as Array).duplicate()
+		cmb["nudge"] = bool(f.get("nudge", false))
 	f_cmb_op.select(maxi(Part.COMBINE_OPS.find(String(f.get("op", "join"))), 0))
 	f_cmb_keep.set_pressed_no_signal(bool(f.get("keep", false)))
 	_combine_rows()
@@ -4628,6 +4741,7 @@ func _combine_rows() -> void:
 	h.add_child(f_cmb_op)
 	dlg_rows.add_child(h)
 	dlg_rows.add_child(f_cmb_keep)
+	dlg_rows.add_child(f_cmb_nudge)
 	_preview()
 	pov.queue_redraw()
 
@@ -4690,7 +4804,10 @@ func _combine_feature(_edit: int) -> Dictionary:
 	var tl: Array = cmb.get("tools", [])
 	if tg < 0 or tl.is_empty():
 		return {}
-	return {"target": tg, "tools": tl.duplicate(), "op": Part.COMBINE_OPS[clampi(f_cmb_op.selected, 0, Part.COMBINE_OPS.size() - 1)], "keep": f_cmb_keep.button_pressed}
+	var cf := {"target": tg, "tools": tl.duplicate(), "op": Part.COMBINE_OPS[clampi(f_cmb_op.selected, 0, Part.COMBINE_OPS.size() - 1)], "keep": f_cmb_keep.button_pressed}
+	if bool(cmb.get("nudge", false)):
+		cf["nudge"] = true   # W10: the tool sinks 0.01 mm into the target (recorded in the step, so a replay is the same)
+	return cf
 
 
 # ---------------------------------------------------------------- constraints (GAP 9): the SKETCH Constrain row, clicks, drags, glyphs

@@ -46,6 +46,8 @@ func commands(add: Callable) -> void:
 		false, "the picked clip's repeat, speed, blend in / out, blend type, parts and extrapolation (click a clip's bar on the timeline to pick it)")
 	add.call("Clip: remove the picked clip", "", remove, "clip strip nla delete remove",
 		true, "the picked clip leaves this scene (its file stays as it is)")
+	add.call("Clip: in place / travelling", "", toggle_inplace.bind(-1), "clip strip root motion in place travelling travel treadmill walk cycle toggle hips slide",
+		false, "the picked clip (or the last one) walks on the spot, or travels again: flip it while you look at the clip (ONE undo step)")
 	add.call("Clip: warp linear", "", warp_preset.bind("linear"), "clip strip warp time curve linear straight none reset",
 		false, "the picked clip plays at a constant rate again (its time curve is straight)")
 	add.call("Clip: warp ease in", "", warp_preset.bind("ease_in"), "clip strip warp time curve ease in slow start",
@@ -209,6 +211,25 @@ func edit(k: int, opts: Dictionary) -> void:
 		S.clips[k] = c
 		_replay())
 	m._say("clip %s changed (Ctrl+Z takes it back)" % Clips.label(c))
+
+
+## W08: the picked clip's (or clip k's) hips travel over the floor or stay on the spot, applied live: ONE undo step
+func toggle_inplace(k := -1, on = null) -> void:
+	var S: Scene = m.S
+	if S.clips.is_empty():
+		m._say("this scene has no clip: use 'Clip: place a scene here...' to place one")
+		return
+	if k < 0:
+		k = sel if sel >= 0 and sel < S.clips.size() else S.clips.size() - 1
+	var c: Dictionary = S.clips[k]
+	var want: bool = (not bool(c.get("inplace", false))) if on == null else bool(on)
+	var d := c.duplicate()
+	d["inplace"] = want
+	d = Clips.clean(d)
+	m._do(func():
+		S.clips[k] = d
+		_replay())
+	m._say("clip %s: %s (Ctrl+Z takes it back)" % [Clips.label(d), "walks in place" if want else "travels"])
 
 
 ## ROADMAP 84: the picked clip (or clip k) matched to the clip before it: ONE undo step. Says what the match did
