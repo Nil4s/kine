@@ -365,8 +365,8 @@ func _init() -> void:
 	for it in lib.catalog():
 		if not fixed_list.has(String(it["cat"])):
 			nocat.append(String(it["id"]))
-	# 11 since e426c1de (myparts, 2026-10-27) added the "My parts" column to EXTRA_CATS; 31f6f3b9 counted 10
-	ok(nocat.is_empty() and fixed_list.size() == 11, "D1 every object has one category from the fixed list of %d (without one: %s)" % [fixed_list.size(), str(nocat.slice(0, 4))])
+	# 13 since 732afc7f (p163collection) added "My workshop" and "My game props" to EXTRA_CATS (already on origin; rewritten 11-01 under Nick's stale-bar rule); 11 since e426c1de (myparts, 2026-10-27) added the "My parts" column; 31f6f3b9 counted 10
+	ok(nocat.is_empty() and fixed_list.size() == 13, "D1 every object has one category from the fixed list of %d (without one: %s)" % [fixed_list.size(), str(nocat.slice(0, 4))])
 
 	# D2 / D3 / D4 Easy
 	m.easy.set_on(true, false)

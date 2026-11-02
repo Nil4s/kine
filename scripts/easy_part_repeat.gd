@@ -1,4 +1,5 @@
 extends "res://scripts/easy_part_stick.gd"
+const PartArray := preload("res://scripts/build/part_array.gd")   # s228
 ## EASY PART REPEAT: the copies. Repeat it (a row, a ring, or the corners of the seat it sits on; its How many and Gap sliders),
 ## Duplicate (a second copy of the whole part beside it) and Mirror that (a copy on the other side of the middle line, a hole with it).
 
@@ -66,12 +67,28 @@ func _repeat_box() -> PanelContainer:
 	gpb.add_theme_font_size_override("font_size", 13)
 	h2.add_child(gpb)
 	rep_btns["group"] = gpb
+	# s228: the third line: a Grid (How many columns x Rows) and Round edge (copies go round the outline of the piece it sits on, a copy at every corner)
+	var h3 := HBoxContainer.new()
+	h3.add_theme_constant_override("separation", 6)
+	vb.add_child(h3)
+	var grb := _big_btn("easypart_rep_grid", "Grid", "Columns and rows of copies in one go: How many is the columns, Rows the rows, Gap what lies between", _rep_grid)
+	grb.toggle_mode = true
+	h3.add_child(grb)
+	rep_btns["grid"] = grb
+	var rob := _big_btn("easypart_rep_route", "Round edge", "Copies go all the way round the edge of the piece this one sits on, one exactly at each corner, turned to follow it (brackets, tiles). Gap sets the distance", _rep_route)
+	rob.toggle_mode = true
+	h3.add_child(rob)
+	rep_btns["route"] = rob
 	# s214: the two button lines end left of the view buttons at the right (a 1280 x 720 window): a smaller type and a narrower least width
-	for hb in [h, h2]:
+	for hb in [h, h2, h3]:
 		for bt in hb.get_children():
 			(bt as Button).add_theme_font_size_override("font_size", 14)
 			(bt as Button).custom_minimum_size = Vector2(56, 44)
+	for hh in [h2, h3]:   # the second and third lines are slimmer, so the taller box still clears the Round filter chips above it
+		for cc in hh.get_children():
+			(cc as Control).custom_minimum_size.y = 32.0
 	rep_rows.append(_make_row("How many", 2.0, 20.0, 1.0, REP_WORDS["count"], "rep", "count", "copies", vb))
+	rep_rows.append(_make_row("Rows", 1.0, 20.0, 1.0, ["Fewer", "More"], "rep", "rows", "rows", vb))   # s228: Grid
 	rep_rows.append(_make_row("Gap", 0.5, 30.0, 0.5, REP_WORDS["gap"], "rep", "gap", "cm", vb))
 	rep_rows.append(_make_row("Grow by", 5.0, 100.0, 1.0, ["Slightly", "A lot"], "rep", "grow", "pct", vb))
 	return box
@@ -84,11 +101,15 @@ func _apply_rep(row: Dictionary, v: float) -> void:
 		return
 	if String(row["key"]) == "count":
 		f["count"] = int(roundf(v))
+	elif String(row["key"]) == "rows":   # s228
+		f["rows"] = int(roundf(v))
 	elif String(row["key"]) == "grow":   # s048: Grow by 20 % = each copy 1.2 times the one before
 		f["factor"] = 1.0 + v / 100.0
 	else:
 		f["gap"] = v * 10.0
-		f["mm"] = (_side_mm(f) if String(f.get("kind", "")) == "path" else _span(f)) + v * 10.0
+		f["mm"] = (_side_mm(f) if String(f.get("kind", "")) in ["path", "route"] else _span(f)) + v * 10.0
+		if String(f.get("kind", "")) == "grid":   # s228: the rows are a piece depth plus the gap apart
+			f["mm2"] = float(f.get("d", 10.0)) + v * 10.0
 
 
 func _mirror(rec: Dictionary) -> String:
@@ -485,6 +506,8 @@ func _rep_sync() -> void:
 	(rep_btns["around_edge"] as Button).set_pressed_no_signal(about == "edge" or armed == "aredge")
 	(rep_btns["grow"] as Button).set_pressed_no_signal(kind == "grow")
 	(rep_btns["group"] as Button).set_pressed_no_signal(f.has("bodies"))   # s214
+	(rep_btns["grid"] as Button).set_pressed_no_signal(kind == "grid")   # s228
+	(rep_btns["route"] as Button).set_pressed_no_signal(kind == "route")
 	var rows_on := kind != "corners"   # CORNERS: four copies at the corners, no How many or Gap to set
 	for r in rep_rows:
 		# UP AND FORWARD: the steps are a count (How many); a Gap would mean nothing between the steps, so it is not shown
@@ -495,10 +518,14 @@ func _rep_sync() -> void:
 			show = show and key == "count"   # s048: round an axis: only How many (the copies are spread evenly in the turn)
 		if key == "grow":
 			show = kind == "grow"
+		if key == "rows":   # s228
+			show = kind == "grid"
+		if kind == "route" and key == "count":
+			show = false   # a path of copies is spaced by the Gap, not counted
 		(r["box"] as Control).visible = show
 	for r in rep_rows:
 		var s: HSlider = r["slider"]
-		var v := float(f.get("count", 3)) if String(r["key"]) == "count" else (float(f.get("gap", 10.0)) / 10.0 if String(r["key"]) == "gap" else (float(f.get("factor", 1.1)) - 1.0) * 100.0)
+		var v := float(f.get("rows", 2)) if String(r["key"]) == "rows" else float(f.get("count", 3)) if String(r["key"]) == "count" else (float(f.get("gap", 10.0)) / 10.0 if String(r["key"]) == "gap" else (float(f.get("factor", 1.1)) - 1.0) * 100.0)
 		if not bool(r.get("held", false)):
 			s.set_value_no_signal(v)
 		_pill_text(r, v)
@@ -735,6 +762,91 @@ func _rgroup_press(p: Vector2) -> bool:
 	_values_sync()
 	_say("Group: %d of %d pieces are copied together" % [idx.size(), faces.size()])
 	return true
+
+
+## s228 GRID: the newest Repeat it step becomes columns x rows of copies (How many = columns, Rows = rows, Gap = the space between), one undo step.
+## Pressed again: back to a Row
+func _rep_grid() -> void:
+	var cur := Part.feature(_rec(), rep_id)
+	if cur.is_empty():
+		(rep_btns["grid"] as Button).set_pressed_no_signal(false)
+		_say("Repeat it first, then Grid")
+		return
+	if String(cur.get("kind", "")) == "grid":
+		_rep_mode(false)
+		return
+	_flush_if_dirty()
+	_begin("Grid")
+	cur = Part.feature(_rec(), rep_id)
+	var gap := float(cur.get("gap", 10.0))
+	cur["kind"] = "grid"
+	cur["beside"] = false
+	cur["about"] = ""
+	cur["op"] = "join"
+	cur["dir"] = "x"
+	cur["dir2"] = "z"
+	cur["rows"] = 3
+	cur["layers"] = 1
+	cur["count"] = clampi(int(cur.get("count", 3)), 2, 20)
+	var wx := _feat_mm(cur, "x")
+	var wz := _feat_mm(cur, "z")
+	cur["mm"] = (wx if wx > 0.0 else 10.0) + gap
+	cur["mm2"] = (wz if wz > 0.0 else 10.0) + gap
+	cur["d"] = wz if wz > 0.0 else 10.0
+	cur["mm3"] = 10.0
+	_end()
+	pu.sync()
+	_rep_sync()
+	_values_sync()
+	var err: String = pu.replay_full(_rec())["errors"].get(rep_id, "")
+	_say(_plain(err) + ". Lower How many or Rows, or undo" if err != "" else "Grid: columns across, rows back. Move How many, Rows and Gap")
+
+
+## s228 ROUND EDGE: the newest Repeat it step copies its piece all the way round the plan outline of the body it sits on (a copy exactly at each
+## corner, turned to follow the edge, the piece keeping its distance from the edge). One undo step; the Gap sets the space. Pressed again: back to a Row
+func _rep_route() -> void:
+	var cur := Part.feature(_rec(), rep_id)
+	if cur.is_empty():
+		(rep_btns["route"] as Button).set_pressed_no_signal(false)
+		_say("Repeat it first, then Round edge")
+		return
+	if String(cur.get("kind", "")) == "route":
+		_rep_mode(false)
+		return
+	_flush_if_dirty()
+	var rec := _rec()
+	var src := String(cur.get("src", ""))
+	var r2: Dictionary = Part._upto_rec(rec, Part.index_of(rec, rep_id) - 1)
+	var bi := int(cur.get("body", 0))
+	if src != "":   # the body the piece joined: the record before the piece was made, its newest body
+		r2 = Part._upto_rec(rec, Part.index_of(rec, src) - 1)
+		bi = int(Part.replay(r2).get("bodies", 1)) - 1
+	var fp: Dictionary = PartArray.footprint_pts(r2, maxi(bi, 0), 0.0)
+	if String(fp["err"]) != "":
+		(rep_btns["route"] as Button).set_pressed_no_signal(false)
+		_say("Round edge needs a solid to go round: pull a base shape up first, then add the piece")
+		return
+	_begin("Round edge")
+	cur = Part.feature(_rec(), rep_id)
+	cur["kind"] = "route"
+	cur["beside"] = false
+	cur["about"] = ""
+	cur["op"] = "join"
+	cur["pts"] = fp["pts"]
+	cur["closed"] = true
+	cur["corners"] = true
+	cur["follow"] = true
+	cur["hold"] = true
+	cur["fit"] = false
+	cur["count"] = 0
+	cur.erase("path")
+	cur["mm"] = _side_mm(cur) + float(cur.get("gap", 10.0))
+	_end()
+	pu.sync()
+	_rep_sync()
+	_values_sync()
+	var err: String = pu.replay_full(_rec())["errors"].get(rep_id, "")
+	_say(_plain(err) + ". Move the piece to the edge of the base, or undo" if err != "" else "Round edge: the copies go all the way round, one at each corner. Move Gap for the space")
 
 
 ## s214: the Repeat it buttons are slimmer (their side padding 6 px, type 14) so both button lines end left of the view buttons at the right

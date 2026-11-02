@@ -122,8 +122,7 @@ static func benched(cfg: String, mach: Dictionary) -> bool:
 ## NOT touched (it cannot change in a session). main may be null (a test with no app): the viewport and server parts still apply.
 static func apply(vp: Viewport, tier: String, sun: DirectionalLight3D = null) -> Dictionary:
 	var p := preset(tier)
-	vp.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR
-	vp.scaling_3d_scale = float(p["scale"])
+	GpuTier.apply_fast(vp, float(p["scale"]))   # bilinear at the preset's scale, or FSR 2 when Fast view is on
 	vp.msaa_3d = int(p["msaa"]) as Viewport.MSAA
 	RenderingServer.directional_shadow_atlas_set_size(int(p["dir_shadow"]), true)
 	RenderingServer.directional_soft_shadow_filter_set_quality(int(p["dir_filter"]) as RenderingServer.ShadowQuality)

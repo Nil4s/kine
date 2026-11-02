@@ -325,8 +325,81 @@ static func save(model: Dictionary, key: String) -> bool:
 	return true
 
 
+## SBUG2 (Nick: "the body starts dissolving while moving and leaving parts behind, stretched"). The sidecar was applied
+## unchecked: a user's weights.json with the right forearm's weight added over the whole body (1498 + 3765 vertices,
+## feet included, 840 + 1875 influences more than 0.35 m from their bone) looks right in the stand pose and tears the
+## body apart the moment that forearm moves (edge stretch x28-x40 in the walk). A real skin never gives a bone a share
+## of a vertex far from it: the mannequin's farthest influence (weight >= REACH_MIN_W) is 0.27 m from its bone's rest
+## segment (spine_01 on a shoulder vertex). A set with an influence past MAX_REACH (0.5 m, about twice that on a 1.8 m
+## figure) is not a painted skin, it is a broken file: it is refused (and set aside by quarantine()), not applied.
+const MAX_REACH := 0.5
+const REACH_MIN_W := 0.05
+
+
+## the rest segment of every bind in mesh space: its head to its first child bone's head (a leaf: a point)
+static func bind_segments(skin: Skin, sk: Skeleton3D) -> Array:
+	var head := []
+	var bone := []
+	for q in skin.get_bind_count():
+		head.append(skin.get_bind_pose(q).affine_inverse().origin)
+		bone.append(bind_bone(skin, sk, q))
+	var out := []
+	for q in head.size():
+		var tail: Vector3 = head[q]
+		for r in head.size():
+			if bone[q] >= 0 and sk.get_bone_parent(bone[r]) == bone[q]:
+				tail = head[r]
+				break
+		out.append([head[q], tail])
+	return out
+
+
+## the farthest influence (weight >= REACH_MIN_W) of the given weights from its bone's rest segment:
+## {"worst": metres, "bind": its bind, "far": influences past MAX_REACH}. got: [[bones, w]] per surface of the model
+static func reach(model: Dictionary, got: Array) -> Dictionary:
+	var out := {"worst": 0.0, "bind": -1, "far": 0}
+	var skin: Skin = model["skin"]
+	if skin == null or model["sk"] == null:
+		return out
+	var segs := bind_segments(skin, model["sk"])
+	for k in got.size():
+		var s: Dictionary = model["surfs"][k]
+		var v: PackedVector3Array = s["verts"]
+		var per: int = s["per"]
+		var b: PackedInt32Array = got[k][0]
+		var w: PackedFloat32Array = got[k][1]
+		for i in v.size():
+			for q in per:
+				if w[i * per + q] < REACH_MIN_W:
+					continue
+				var bi: int = b[i * per + q]
+				if bi < 0 or bi >= segs.size():
+					out["far"] += 1
+					continue
+				var sg: Array = segs[bi]
+				var d: float = v[i].distance_to(Geometry3D.get_closest_point_to_segment(v[i], sg[0], sg[1]))
+				if d > out["worst"]:
+					out["worst"] = d
+					out["bind"] = bi
+				if d > MAX_REACH:
+					out["far"] += 1
+	return out
+
+
+## a refused sidecar is set aside, not deleted: <file>.rejected. Returns where it went ("" when there was no file)
+static func quarantine(key: String) -> String:
+	var src := ProjectSettings.globalize_path(path(key))
+	if not FileAccess.file_exists(src):
+		return ""
+	var dst := src + ".rejected"
+	if FileAccess.file_exists(dst):
+		DirAccess.remove_absolute(dst)
+	return dst if DirAccess.rename_absolute(src, dst) == OK else ""
+
+
 ## the sidecar's weights onto a model read from the same character. False (model untouched) when there is no file,
-## or the file is for another character (surface count, vertex count or influence count differ)
+## or the file is for another character (surface count, vertex count or influence count differ), or its weights give a
+## bone a share of a vertex farther than MAX_REACH from it (model["rejected"] then says so)
 static func load_into(model: Dictionary, key: String) -> bool:
 	if not FileAccess.file_exists(path(key)):
 		return false
@@ -346,6 +419,11 @@ static func load_into(model: Dictionary, key: String) -> bool:
 		if int(e.get("verts", -1)) != (s["verts"] as PackedVector3Array).size() or int(e.get("per", -1)) != int(s["per"]) or b.size() != n or w.size() != n:
 			return false
 		got.append([b, w])
+	model.erase("rejected")
+	var rc := reach(model, got)
+	if int(rc["far"]) > 0:
+		model["rejected"] = "%d influences farther than %.2f m from their bone (worst %.2f m, on %s)" % [int(rc["far"]), MAX_REACH, float(rc["worst"]), (model["skin"] as Skin).get_bind_name(int(rc["bind"]))]
+		return false
 	for k in got.size():
 		model["surfs"][k]["bones"] = got[k][0]
 		model["surfs"][k]["w"] = got[k][1]

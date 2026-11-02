@@ -6,6 +6,7 @@ extends RefCounted
 ## no panels. The 3D layer is drawn on a clear background and laid over the gradient in 2D, so the floor has no edge and no lines.
 ## Saved next to the part's other exports (the exports folder) as <part>_nice.png; the caller shows the path in words.
 
+static var look := "studio"   # "studio" (the soft gradient picture above) or "real" (Realistic: scripts/build/realistic.gd; the Export dialog's Realistic box)
 static var part_only := false   # the test's switch: draw the part alone (no shadow, no reflection) to measure its own pixel box
 const SIZE := Vector2i(1920, 1080)
 const FILL_H := 0.70          # the part's height in the frame (a share), so the shadow and the reflection fit under it
@@ -106,6 +107,13 @@ static func draw(host: Node, rec: Dictionary, size := SIZE, cut := {}) -> Image:
 	var box: AABB = res["aabb"]
 	var looks: Array = res["looks"]
 	Part.paint(mesh, looks)
+	return await draw_mesh(host, mesh, box, looks, size, rec, cut)
+
+
+## the same picture of an already painted mesh (a part, or a test's own scene): box = its bounds, looks = one look per surface
+static func draw_mesh(host: Node, mesh: ArrayMesh, box: AABB, looks: Array, size := SIZE, rec := {}, cut := {}) -> Image:   # rec, cut: the s218 section colours (a split in rec, or a cut that is on)
+	if look == "real":
+		return await draw_real(host, mesh, box, size)
 	var floor_y := box.position.y
 	var vp := SubViewport.new()
 	vp.size = size
@@ -236,3 +244,83 @@ static func save(host: Node, rec: Dictionary, dir: String, cut := {}) -> Diction
 		return {"ok": false, "path": path, "text": "NOT DONE: the picture could not be saved (check that the folder can be written), then press Nice picture again"}
 	return {"ok": true, "path": path, "ms": Time.get_ticks_msec() - t0,
 		"text": "Nice picture saved: %s (1920 x 1080)" % path}
+
+
+## ---------------------------------------------------------------- the REAL-LOOK preset (Friday plan 224)
+## An opaque picture from one SubViewport: the Realistic sky and sun, a ground / glossy floor with real shadows and real reflections,
+## AgX, SSAO, SSIL, SSR, bloom. A building (>= Realistic.OUTDOOR_MIN metres) is OUTDOOR, a part is STUDIO. ov switches single
+## effects off for the test's controls: {"kind", "ssao", "ssil", "ssr", "shadow", "sun", "angular", "sdfgi", "extra": Node3D}
+const REAL_FRAMES := 6
+static var last_view := {}
+
+static func draw_real(host: Node, mesh: ArrayMesh, box: AABB, size := SIZE, ov := {}) -> Image:
+	var diag := maxf(box.size.length(), 0.02)
+	var kind: String = String(ov.get("kind", Realistic.kind_for(diag)))
+	var outdoor := kind == "outdoor"
+	var vp := SubViewport.new()
+	vp.size = size
+	vp.own_world_3d = true
+	vp.transparent_bg = false
+	vp.msaa_3d = Viewport.MSAA_4X
+	vp.use_debanding = true
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var world := Node3D.new()
+	vp.add_child(world)
+	var solid := MeshInstance3D.new()
+	solid.mesh = mesh
+	world.add_child(solid)
+	if ov.has("extra"):
+		world.add_child(ov["extra"])
+	world.add_child(Realistic.ground(kind, box.position.y - 0.0002 * diag, diag, box.get_center()))
+	var key := DirectionalLight3D.new()
+	Realistic.apply_props(key, Realistic.sun_props(kind, diag, ov))
+	world.add_child(key)
+	var fill := DirectionalLight3D.new()
+	Realistic.apply_props(fill, Realistic.fill_props(kind))
+	world.add_child(fill)
+	var rim := DirectionalLight3D.new()
+	Realistic.apply_props(rim, Realistic.rim_props(kind))
+	world.add_child(rim)
+	if not bool(ov.get("fills", true)):
+		fill.light_energy = 0.0
+		rim.light_energy = 0.0
+	var env := Environment.new()
+	Realistic.apply_props(env, Realistic.env_props(kind, diag, ov))
+	var we := WorldEnvironment.new()
+	we.environment = env
+	world.add_child(we)
+	var cam := Camera3D.new()
+	cam.fov = 44.0 if outdoor else 30.0
+	cam.near = 0.01 * maxf(diag, 0.1)
+	cam.far = diag * 120.0
+	world.add_child(cam)
+	cam.current = true
+	host.add_child(vp)
+	var dir := Vector3(0.6, 0.16 if outdoor else 0.42, 1.0).normalized()
+	var target := box.get_center()
+	var dist := diag * 2.0
+	var fsz := Vector2(size)
+	var fill_h := 0.58 if outdoor else FILL_H
+	for it in 6:
+		cam.look_at_from_position(target + dir * dist, target, Vector3.UP)
+		var r := _screen_box(cam, box)
+		var scale_to := minf(fill_h * fsz.y / maxf(r.size.y, 1.0), FILL_W * fsz.x / maxf(r.size.x, 1.0))
+		var err := r.get_center() - fsz * 0.5
+		var mpp := 2.0 * dist * tan(deg_to_rad(cam.fov) * 0.5) / fsz.y
+		target += cam.global_transform.basis.x * err.x * mpp - cam.global_transform.basis.y * err.y * mpp
+		dist /= scale_to
+	cam.look_at_from_position(target + dir * dist, target, Vector3.UP)
+	last_view = {"xf": cam.global_transform, "fov": cam.fov, "kind": kind}   # the test projects world points with it
+	Realistic.set_soft_shadows(true, int(ov.get("quality", RenderingServer.SHADOW_QUALITY_SOFT_ULTRA)))
+	var atlas := int(ov.get("atlas", Realistic.ATLAS))
+	RenderingServer.directional_shadow_atlas_set_size(atlas, true)
+	for i in REAL_FRAMES:
+		await RenderingServer.frame_post_draw
+	var img := vp.get_texture().get_image()
+	vp.queue_free()
+	Realistic.set_soft_shadows(Realistic.live_on)
+	RenderingServer.directional_shadow_atlas_set_size(int(ProjectSettings.get_setting("rendering/lights_and_shadows/directional_shadow/size", 4096)), true)
+	if img == null or img.is_empty():
+		return null
+	img.convert(Image.FORMAT_RGBA8)
+	return img

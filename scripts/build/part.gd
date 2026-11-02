@@ -47,6 +47,8 @@ extends RefCounted
 ## APPEARANCE (GAP 5): {"t": "appear", "id", "name", "body": N, "preset": "Paint"|"Metal"|"Glass"|"Rubber"|"Plastic"|"Custom", "color": [r, g, b] (0..1),
 ## "rough": 0..1, "metal": 0..1, "alpha": 0..1 (below 1 = see-through)} paints body N from that step on (the record holds the numbers, a preset
 ## only names them). A body with no appear step gets its palette colour by index (LOOK_CHIPS), so the bodies of a split read as two.
+## NAME A BODY (s212): {"t": "bname", "id", "name", "body": N, "called": "Piston"}: body N is called that from this step on ("" = back to Body<N+1>). The name rides in the
+## body's look (key "name"), so a split, combine or pattern carries it the way it carries the colour; replay answers res["body_names"] (the shown name of every body).
 ## A split gives both halves the look of the body it cut. No DLL: available() is false, replay() answers with an empty result and every tool says why.
 ## PATTERN (GAP 30, Fusion's Pattern): {"t": "pattern", "id", "name", "body": N, "kind": "linear"|"circular"|"path" (p049: "path" the sketch id of an open curve, "mm" the spacing along it), "count": copies INCLUDING the original (2..64),
 ## "mm" (linear: the spacing), "dir": "x"|"y"|"z" (linear: the direction), "axis": "x"|"y"|"z" (circular: the axis through the origin), "deg" (circular:
@@ -62,15 +64,17 @@ extends RefCounted
 ## space under each step is filled (a solid staircase, n(n+1)/2 blocks of the body), so the stair is one body. Every other body keeps its place and its look, the target keeps its look.
 
 const KCad := preload("res://scripts/kcad.gd")
+const PartArray := preload("res://scripts/build/part_array.gd")   # s228: grid / route patterns
 const MM := 0.001
 const POFFSET := preload("res://scripts/build/part_offset.gd")   # plan 18: Thinner / thicker everywhere
 const PBULGE := preload("res://scripts/build/part_bulge.gd")   # plan 23: Pinch / Bulge a face
 const GEAR_DRIVE := preload("res://scripts/gear_drive.gd")
+const PPRIM := preload("res://scripts/build/part_prim.gd")   # s229: primitives by numbers, planes from 3 points / an angle, scoped intersect, bow-tie check
 const PFIT := preload("res://scripts/build/part_fit.gd")   # s193: Fit to an object (a holder / case sunk with a phone scan)   # s124: the Gear pair turned for the view
 const SKIN_MM := 0.3   # NROUNDFILTER: a face centre this close (mm) to the box's outside counts as on the skin
 const VERSION := 1
 const RING_MIDDLE := 100.0   # mm: a Ring piece whose centre is closer than this to the middle (not on it) goes round the middle
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "lattice", "fitobj", "move", "offset", "meshsolid", "pipe3d"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "lattice", "fitobj", "move", "offset", "meshsolid", "pipe3d", "prim", "ornament", "bname"]
 const OVERHANG_COS := 0.7071   # p113: a face pointing down more than 45 degrees needs support when printed
 const BED_MM := 0.1            # p113: a face this close (mm) to the lowest point of the part is on the floor, not an overhang
 const DRAFT_DIRS := {"x": Vector3(1, 0, 0), "y": Vector3(0, 1, 0), "z": Vector3(0, 0, 1)}
@@ -175,6 +179,9 @@ static func resolve_plane(rec: Dictionary, name: String) -> Dictionary:
 		return plane("front")
 	if String(f.get("from", "")) == "tan":   # s211 DRAW ON A CURVED FACE: the tangent plane at a clicked point of a curved face (o, x, n in the record, o in mm)
 		return tangent_plane(f)
+	if PPRIM.PLANE_KINDS.has(String(f.get("from", ""))):   # s229: a plane from 3 points, turned about an edge, through an edge, or on a face
+		var np := PPRIM.plane_of(rec, f)
+		return np if not np.is_empty() else plane("front")
 	var pl := plane(String(f.get("from", "front")))
 	pl["o"] = (pl["o"] as Vector3) + (pl["n"] as Vector3) * float(f.get("mm", 0.0)) * MM
 	return pl
@@ -189,6 +196,8 @@ static func plane_words(rec: Dictionary, name: String) -> String:
 		return "plane"
 	if String(f.get("from", "")) == "tan":
 		return "%s (flat where you clicked the curved side)" % f["name"]
+	if PPRIM.PLANE_KINDS.has(String(f.get("from", ""))):
+		return PPRIM.plane_words(rec, f)
 	return "%s (%s mm from the %s plane)" % [f["name"], _short(float(f.get("mm", 0.0))), String(f.get("from", "front")).capitalize()]
 
 
@@ -502,7 +511,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	if calls_log != null:
 		var st := get_stack()
 		calls_log.append([str(hash(JSON.stringify(rec))), str(upto), str(want.keys()), str(st[1]["function"]), str(st[1]["line"])])
-	var res := {"mesh": null, "volume": 0.0, "bodies": 0, "volumes": [], "errors": {}, "edges": [], "faces": [], "aabb": AABB(), "props": [], "looks": [], "body_looks": [], "tess_ids": [], "tess_looks": [], "surf_body": []}
+	var res := {"mesh": null, "volume": 0.0, "bodies": 0, "volumes": [], "errors": {}, "edges": [], "faces": [], "aabb": AABB(), "props": [], "looks": [], "body_looks": [], "tess_ids": [], "tess_looks": [], "surf_body": [], "warnings": {}}
 	if not available():
 		return res
 	var feats: Array = rec.get("features", [])
@@ -510,6 +519,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	var bodies: Array = []
 	var looks: Array = []   # APPEARANCE: one look per body (null = the default for its index), kept beside bodies
 	var errs: Dictionary = res["errors"]
+	var warns: Dictionary = res["warnings"]   # s229: what a step did that the user should know (an Intersect that left or removed bodies)
 	var sketches := {}
 	var off_ids := {}   # XTIME: the sketches the timeline suppressed
 	var inc := bool(want.get("inc", false)) and n > 0   # s168 INCREMENTAL REPLAY: the steps a cached prefix already made are not run again
@@ -539,6 +549,15 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				if rs["err"] != "":
 					errs[id] = rs["err"]
 					sketches[id] = {}   # a sketch that cannot be read makes no solid (never its stored numbers)
+				else:
+					var pw := PPRIM.plane_problem(rec, String(f.get("plane", "front")))   # s229: a sketch on a plane that is not a plane
+					var cx := PPRIM.crossing(rs["sk"]["ents"]) if pw == "" else {}   # s229: a closed outline that crosses itself (bow-tie) is refused here, with the place
+					if pw != "":
+						errs[id] = pw
+						sketches[id] = {}
+					elif not cx.is_empty():
+						errs[id] = PPRIM.crossing_words(rs["sk"]["ents"], cx)
+						sketches[id] = {}
 			"extrude", "revolve":
 				var sk: Dictionary = sketches.get(String(f.get("sketch", "")), {})
 				if sk.is_empty():
@@ -553,12 +572,26 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				for si in sids.size():   # XFIX: one solid per separate loop of the sketch (one feature, one undo step)
 					if absf(tilt_deg) > 1e-9:
 						sids[si] = _tilt_solid(sids[si], tilt_deg)
-					var e := _combine(bodies, sids[si], String(f.get("op", "join")), int(f.get("into", -1)))
+					PPRIM.last_warning = ""
+					var e := _combine(bodies, sids[si], String(f.get("op", "join")), int(f.get("into", -1)), f)
+					if PPRIM.last_warning != "":
+						warns[id] = PPRIM.last_warning
 					if e != "":
 						errs[id] = e
 						for sj in range(si + 1, sids.size()):
 							KCad.release(sids[sj])
 						break
+			"prim":   # s229: a box / cylinder / tube / cone / sphere / wedge by numbers (scripts/build/part_prim.gd)
+				PPRIM.last_warning = ""
+				var pre := PPRIM.apply(bodies, f)
+				if pre != "":
+					errs[id] = pre
+				if PPRIM.last_warning != "":
+					warns[id] = PPRIM.last_warning
+			"plane":   # s229: an offset plane needs no solid; a plane from points / an angle says when its numbers are not a plane
+				var ple := PPRIM.plane_problem(rec, id)
+				if ple != "":
+					errs[id] = ple
 			"loft":   # E: the picked profiles, in order, through the kernel's loft
 				var le := _loft(bodies, f, sketches)
 				if le != "":
@@ -607,6 +640,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var mse := PartMeshSolid.add(bodies, f)
 				if mse != "":
 					errs[id] = mse
+			"ornament":   # s227: a library ornament (a ridge beast, a lion...) sewn into solids (its own file: part_ornament.gd)
+				var orne := PartOrnament.add(bodies, f)
+				if orne != "":
+					errs[id] = orne
 			"lattice":   # p208latticeinf: thin bars inside a hollow box (its own function: _lattice)
 				var le := _lattice(bodies, f)
 				if le != "":
@@ -657,7 +694,23 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				if ai < 0 or ai >= bodies.size():
 					errs[id] = "there is no body %d to paint" % ai
 				else:
-					looks[ai] = look_of(f)
+					var alook := look_of(f)
+					var olook: Variant = looks[ai]
+					if olook != null and (olook as Dictionary).has("name"):
+						alook["name"] = (olook as Dictionary)["name"]   # s212: painting a body keeps its name
+					looks[ai] = alook
+			"bname":   # s212: the body's name from this step on (its own numbers; no kernel)
+				var ni := int(f.get("body", -1))
+				if ni < 0 or ni >= bodies.size():
+					errs[id] = "there is no body %d to name" % (ni + 1)
+				else:
+					var nlook: Dictionary = look_at(looks, ni).duplicate()
+					var lab := clean_name(String(f.get("called", "")))
+					if lab == "":
+						nlook.erase("name")
+					else:
+						nlook["name"] = lab
+					looks[ni] = nlook
 			"combine":   # COMBINE: its own function (_combine_step): the target and the tools become one body list again
 				var ce := _combine_step(bodies, looks, f)
 				if ce != "":
@@ -734,8 +787,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var top := float(ed["a"].y) >= bb.end.y - SKIN_MM * MM and float(ed["b"].y) >= bb.end.y - SKIN_MM * MM
 				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "concave": concave, "inner": inner, "outside": outside, "top": top})
 	res["bodies"] = bodies.size()
+	res["body_names"] = []
 	for bi in bodies.size():
 		res["body_looks"].append(look_at(looks, bi))
+		res["body_names"].append(name_at(looks, bi))   # s212
 	if mesh.get_surface_count() > 0:
 		res["mesh"] = mesh
 		res["aabb"] = mesh.get_aabb()
@@ -1772,15 +1827,17 @@ static func _flange_ring(pipe: int, p0: Vector3, tan: Vector3, x: Vector3, ents:
 
 
 ## puts a new solid into the body list as the op says; "" or the failure message
-static func _combine(bodies: Array, solid: int, op: String, into := -1) -> String:
+static func _combine(bodies: Array, solid: int, op: String, into := -1, f := {}) -> String:
 	if op == "intersect":
-		return _intersect_into(bodies, solid)
+		return PPRIM.scoped_intersect(bodies, solid, f if not f.is_empty() else {"into": into})   # s229: only the bodies it touches (or the named ones)
 	if op == "new" or bodies.is_empty():
 		bodies.append(solid)
 		return ""
 	if op == "cut":
 		for i in bodies.size():
 			if into >= 0 and i != into:   # p063: a cut with "into" touches only that body (Fasten these two: the screw hole of one piece)
+				continue
+			if not (f.get("targets", []) as Array).is_empty() and not (f["targets"] as Array).has(i):   # s229: a cut with a target list touches only those bodies
 				continue
 			var c := KCad.cut(bodies[i], solid)
 			if c != 0:
@@ -2034,7 +2091,7 @@ static func _combine_step(bodies: Array, looks: Array, f: Dictionary) -> String:
 		cur = nx
 		if op != "join" and _vol(cur) <= HIT_VOL:
 			KCad.release(cur)
-			return "nothing is left: " + ("Body%d takes all of the target" % (t + 1) if op == "cut" else "the target shares no volume with Body%d" % (t + 1))
+			return "nothing is left: " + ("%s takes all of the target" % name_at(looks, t) if op == "cut" else "the target shares no volume with %s" % name_at(looks, t))
 	var keep := bool(f.get("keep", false))
 	var nb: Array = []
 	var nl: Array = []
@@ -2099,18 +2156,16 @@ static func _split(bodies: Array, f: Dictionary, looks: Array = []) -> String:
 	var n: Vector3 = pl["n"]
 	var o: Vector3 = (pl["o"] as Vector3) + n * float(f.get("at", 0.0)) * MM
 	var pos := _half(o, n)
-	var neg := _half(o, -n)
 	var pieces := []   # [index, the piece on n's side, the piece on the other side]
 	for i in bodies.size():
 		var a := KCad.intersect(bodies[i], pos)
-		var c := KCad.intersect(bodies[i], neg)
+		var c := KCad.cut(bodies[i], pos)   # the other side is what the half-space box leaves: both halves share ONE cut face. (A second box at o - n * 10 differed by a float32 rounding, 1-2 micrometres far from the origin: the halves overlapped by a sliver above HIT_VOL and Intersect on them did not refuse)
 		if _vol(a) > HIT_VOL and _vol(c) > HIT_VOL:
 			pieces.append([i, a, c])
 		else:
 			KCad.release(a)
 			KCad.release(c)
 	KCad.release(pos)
-	KCad.release(neg)
 	if pieces.is_empty():
 		return "the plane does not cut the body"
 	var out := []
@@ -2419,6 +2474,10 @@ static func paint(mesh: ArrayMesh, looks: Array) -> void:
 		var c: Color = l["c"]
 		var a := float(l["alpha"])
 		var mt := StandardMaterial3D.new()
+		var mm := MaterialMaker.look_material(l)   # s223: a made material (triplanar maps) when the look has one
+		if mm != null:
+			mesh.surface_set_material(s, mm)
+			continue
 		mt.albedo_color = Color(c.r, c.g, c.b, a)
 		mt.roughness = float(l["rough"])
 		mt.metallic = float(l["metal"])
@@ -2433,7 +2492,7 @@ static func paint(mesh: ArrayMesh, looks: Array) -> void:
 static func look_of(f: Dictionary) -> Dictionary:
 	var c: Array = f.get("color", [0.74, 0.77, 0.82])
 	return {"c": Color(float(c[0]), float(c[1]), float(c[2])), "rough": float(f.get("rough", 0.5)), "metal": float(f.get("metal", 0.15)),
-		"alpha": clampf(float(f.get("alpha", 1.0)), 0.0, 1.0), "preset": String(f.get("preset", "Custom"))}
+		"alpha": clampf(float(f.get("alpha", 1.0)), 0.0, 1.0), "preset": String(f.get("preset", "Custom")), "mat": f.get("mat", {})}   # s223: "mat" = a MaterialMaker spec
 
 
 ## the look of body i: its last appear step, else its chip (by index) with the default numbers
@@ -2460,7 +2519,7 @@ static func _split_looks(looks: Array, n: int, pieces: Array) -> void:
 	for i in n:
 		nl.append(looks[i])
 		if k < pieces.size() and int(pieces[k][0]) == i:
-			nl.append(looks[i])
+			nl.append(_second_half(looks[i]))
 			k += 1
 	looks.clear()
 	looks.append_array(nl)
@@ -2534,7 +2593,7 @@ static func pattern_piece(rec: Dictionary) -> String:
 	var feats: Array = rec.get("features", [])
 	for i in range(feats.size() - 1, -1, -1):
 		var f: Dictionary = feats[i]
-		if bool(f.get("off", false)) or String(f.get("t", "")) == "appear":
+		if bool(f.get("off", false)) or String(f.get("t", "")) in ["appear", "bname"]:
 			continue
 		if String(f.get("t", "")) in ["extrude", "revolve"] and String(f.get("op", "join")) != "cut":
 			# FSHELF: the piece is the newest step only when it stands UP off a face (dist > 0, a slat on a frame) and makes ONE solid;
@@ -2558,10 +2617,18 @@ static func _upto_rec(rec: Dictionary, k: int) -> Dictionary:
 static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int, srcb: int, rec: Dictionary = {}) -> String:
 	var n := int(f.get("count", 0))
 	var along := String(f.get("kind", "linear")) == "path"   # p049: the copies follow a curve, so their count comes from its length
-	if not along and (n < 2 or n > PATTERN_MAX):
+	var arr := String(f.get("kind", "linear")) in PartArray.KINDS   # s228: grid / route (scripts/build/part_array.gd)
+	if not along and not arr and (n < 2 or n > PATTERN_MAX):
 		return "a pattern needs 2 to %d copies (the original counts as one)" % PATTERN_MAX
 	var copies := []
-	if along:
+	if arr:
+		var whyA := PartArray.copies(rec, f, srcb, copies)
+		if whyA != "":
+			for c in copies:
+				if int(c) != 0:
+					KCad.release(c)
+			return whyA
+	elif along:
 		var why0 := _along_copies(rec, f, srcb, copies)
 		if why0 != "":
 			return why0
@@ -2631,9 +2698,11 @@ static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int,
 			return why if why != "" else "a copy could not be made"
 	if String(f.get("op", "join")) == "new":
 		var src: Variant = looks[bi] if bi < looks.size() else null
+		var cn := 1
 		for c in copies:
 			bodies.append(c)
-			looks.append(src)
+			cn += 1
+			looks.append(_numbered(src, cn))   # s212: a named body's copies are Name 2, Name 3 ...
 		return ""
 	for k in copies.size():
 		var u := KCad.union(bodies[bi], copies[k])
@@ -3537,9 +3606,95 @@ static func _pattern_group(bodies: Array, looks: Array, f: Dictionary, rec: Dict
 	g.erase("src")
 	if bool(f.get("own", false)):   # Easy's group: every copy is a piece of its own (a ring of three cylinders is nine pieces)
 		g["op"] = "new"
+	g["gref"] = PartArray.group_center(bodies, idx)   # s228: grid / route move the group as one about its centre
 	g["beside"] = false   # the group goes round the axis through the origin (or the picked edge), all the same turn
 	for bi in idx:
 		var why := _pattern_copies(bodies, looks, g, int(bi), int(bodies[int(bi)]), rec)
 		if why != "":
 			return why
 	return ""
+
+
+## s229 ONE-CALL PRIMITIVE for code and agents: appends a "prim" feature (box, cylinder, tube, cone, sphere, wedge; numbers in mm, see part_prim.gd)
+## and returns its id. Part.prim(rec, "box", {"x": 0, "y": 0, "z": 0, "w": 100, "h": 50, "d": 20, "name": "Plinth"}) is a whole box: no plane, sketch or extrude.
+static func prim(rec: Dictionary, kind: String, fields := {}) -> String:
+	var fl := fields.duplicate()
+	fl["kind"] = kind
+	if not fl.has("op"):
+		fl["op"] = "new"
+	var nf := new_feature(rec, "prim", fl)
+	if not fields.has("name"):
+		nf["name"] = "%s%d" % [kind.capitalize(), count_of(rec, "prim") + 1]
+	(rec["features"] as Array).append(nf)
+	return String(nf["id"])
+
+
+## s229 ONE-CALL PLANE: appends a plane from 3 points ("pts"), turned about an edge ("angle"), through an edge ("edge") or on a face ("face"); returns its id.
+static func add_plane(rec: Dictionary, from: String, fields := {}) -> String:
+	var fl := fields.duplicate()
+	fl["from"] = from
+	var nf := new_feature(rec, "plane", fl)
+	(rec["features"] as Array).append(nf)
+	return String(nf["id"])
+
+
+# ---------------------------------------------------------------- s212 NAME A BODY
+
+const NAME_MAX := 40
+
+## the typed name made safe: no control characters, runs of spaces made one, trimmed, at most NAME_MAX letters
+static func clean_name(t: String) -> String:
+	var out := ""
+	for ch in t:
+		out += " " if ch.unicode_at(0) < 32 else ch
+	var parts := out.strip_edges().split(" ", false)
+	return " ".join(parts).left(NAME_MAX).strip_edges()
+
+
+## the shown name of body i: the one it was given, else Body<i+1> (the browser's old name for it)
+static func name_at(looks: Array, i: int) -> String:
+	if i >= 0 and i < looks.size() and looks[i] != null:
+		var n := String((looks[i] as Dictionary).get("name", ""))
+		if n != "":
+			return n
+	return "Body%d" % (i + 1)
+
+
+## the shown name of body i in a replay result (Body<i+1> when the replay has no names)
+static func body_name(res: Dictionary, i: int) -> String:
+	var ns: Array = res.get("body_names", [])
+	return String(ns[i]) if i >= 0 and i < ns.size() else "Body%d" % (i + 1)
+
+
+static func _second_half(l: Variant) -> Variant:
+	if l == null or String((l as Dictionary).get("name", "")) == "":
+		return l
+	return _numbered(l, 2)
+
+
+static func _numbered(l: Variant, n: int) -> Variant:
+	if l == null or String((l as Dictionary).get("name", "")) == "" or n < 2:
+		return l
+	var d: Dictionary = (l as Dictionary).duplicate()
+	d["name"] = "%s %d" % [String(d["name"]), n]
+	return d
+
+
+## RENAME body bi in the record: the newest naming step of that body is rewritten when only colour / naming steps came after it, else one more step goes
+## on the end. Returns the step ({} when nothing changed: same name already, or an empty name for a body with none). The caller owns the undo step.
+static func set_body_name(rec: Dictionary, bi: int, text: String, current: String) -> Dictionary:
+	var lab := clean_name(text)
+	if lab == current or (lab == "" and current == "Body%d" % (bi + 1)):
+		return {}
+	var feats: Array = rec["features"]
+	for k in range(feats.size() - 1, -1, -1):
+		var f: Dictionary = feats[k]
+		var t := String(f.get("t", ""))
+		if t == "bname" and int(f.get("body", -1)) == bi:
+			f["called"] = lab
+			return f
+		if t != "appear" and t != "bname":
+			break
+	var nf := new_feature(rec, "bname", {"name": "Name%d" % (count_of(rec, "bname") + 1), "body": bi, "called": lab})
+	feats.append(nf)
+	return nf

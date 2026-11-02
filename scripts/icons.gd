@@ -53,6 +53,7 @@ const DRAW := {
 	"build_roof": [["seg", Vector2(3, 12), Vector2(12, 4), 1.9], ["seg", Vector2(12, 4), Vector2(21, 12), 1.9], ["box", Rect2(6, 12, 12, 8), 1.8]],
 	"build_piece": [["seg", Vector2(12, 3), Vector2(20, 7.5), 1.7], ["seg", Vector2(20, 7.5), Vector2(20, 16.5), 1.7], ["seg", Vector2(20, 16.5), Vector2(12, 21), 1.7], ["seg", Vector2(12, 21), Vector2(4, 16.5), 1.7],
 		["seg", Vector2(4, 16.5), Vector2(4, 7.5), 1.7], ["seg", Vector2(4, 7.5), Vector2(12, 3), 1.7], ["seg", Vector2(4, 7.5), Vector2(12, 12), 1.5], ["seg", Vector2(20, 7.5), Vector2(12, 12), 1.5], ["seg", Vector2(12, 12), Vector2(12, 21), 1.5]],
+	"build_nature": [["disc", Vector2(12, 8.5), 5.5], ["disc", Vector2(7.5, 11.5), 3.4], ["disc", Vector2(16.5, 11.5), 3.4], ["seg", Vector2(12, 11), Vector2(12, 21), 2.4]],
 	# BUILD > Piece: the picker's big cards (Icons.big) and the rotate arrow
 	"piece_stairs": [["seg", Vector2(3, 20), Vector2(3, 16), 2.0], ["seg", Vector2(3, 16), Vector2(8, 16), 2.0], ["seg", Vector2(8, 16), Vector2(8, 12), 2.0], ["seg", Vector2(8, 12), Vector2(13, 12), 2.0],
 		["seg", Vector2(13, 12), Vector2(13, 8), 2.0], ["seg", Vector2(13, 8), Vector2(18, 8), 2.0], ["seg", Vector2(18, 8), Vector2(18, 4), 2.0], ["seg", Vector2(18, 4), Vector2(21, 4), 2.0], ["seg", Vector2(3, 20), Vector2(21, 20), 2.0], ["seg", Vector2(21, 4), Vector2(21, 20), 2.0]],
@@ -81,6 +82,7 @@ const DRAW := {
 	"part_sweep": [["box", Rect2(2, 15, 7, 7), 1.6], ["seg", Vector2(5.5, 15), Vector2(5.5, 6), 1.4], ["seg", Vector2(5.5, 6), Vector2(19, 6), 1.4], ["seg", Vector2(19, 6), Vector2(19, 20), 1.4]],
 	"part_pipe3d": [["box", Rect2(2, 15, 7, 7), 1.6], ["seg", Vector2(5.5, 15), Vector2(5.5, 6), 1.4], ["seg", Vector2(5.5, 6), Vector2(19, 6), 1.4], ["seg", Vector2(19, 6), Vector2(19, 20), 1.4]],   # PIPE THROUGH POINTS (s215): the sweep drawing, a tube along a path
 	"part_pattern": [["box", Rect2(2, 9, 5, 5), 1.4], ["box", Rect2(9.5, 9, 5, 5), 1.4], ["box", Rect2(17, 9, 5, 5), 1.4]],   # PATTERN: three copies in a row
+	"part_ornament": [["arc", Vector2(13, 9), 6.0, 2.4, 200.0, 520.0], ["seg", Vector2(7, 9), Vector2(6, 18), 2.4], ["seg", Vector2(3, 20), Vector2(20, 20), 1.8], ["disc", Vector2(18, 5), 1.6]],   # s227 ORNAMENT: a curled tail on a base
 	"part_canvas": [["box", Rect2(3, 4, 18, 14), 1.6], ["disc", Vector2(16, 8), 1.8], ["seg", Vector2(3, 16), Vector2(9, 10), 1.4], ["seg", Vector2(9, 10), Vector2(13, 14), 1.4], ["seg", Vector2(13, 14), Vector2(21, 8), 1.4]],
 	"part_measure": [["seg", Vector2(3, 18), Vector2(21, 6), 1.6], ["disc", Vector2(3, 18), 2.0], ["disc", Vector2(21, 6), 2.0], ["seg", Vector2(7, 14), Vector2(7, 19), 1.2]],
 	"part_section": [["box", Rect2(4, 4, 16, 16), 1.6], ["seg", Vector2(2.5, 12), Vector2(21.5, 12), 2.4]],
@@ -100,6 +102,9 @@ const DRAW := {
 	"part_filter_top": [["seg", Vector2(3, 5), Vector2(21, 5), 3.0], ["box", Rect2(3, 8, 18, 11), 1.4]],   # NROUNDFILTER: the top rim, thick, and the box below it
 	"part_stronger": [["box", Rect2(2, 16, 20, 3), 1.6], ["seg", Vector2(6, 16), Vector2(6, 5), 2.4], ["seg", Vector2(12, 16), Vector2(12, 3), 2.4], ["seg", Vector2(18, 16), Vector2(18, 5), 2.4]],   # p038makeitstro: a plate with two ribs standing on it
 	"part_split": [["box", Rect2(3, 5, 18, 14), 1.6], ["seg", Vector2(12, 2.5), Vector2(12, 21.5), 1.5]],   # SPLIT: a block cut by a plane
+	"part_primitive": [["box", Rect2(3, 10, 10, 10), 1.8], ["ring", Vector2(16.5, 8.5), 4.5, 1.8]],   # s229 PRIMITIVE: a box and a ball, by numbers
+	"part_bname": [["seg", Vector2(4, 8), Vector2(15, 8), 1.8], ["seg", Vector2(15, 8), Vector2(20, 12), 1.8], ["seg", Vector2(20, 12), Vector2(15, 16), 1.8], ["seg", Vector2(15, 16), Vector2(4, 16), 1.8], ["seg", Vector2(4, 16), Vector2(4, 8), 1.8], ["disc", Vector2(8, 12), 1.4]],   # s212 NAME A BODY: a name tag
+	"part_prim": [["box", Rect2(3, 10, 10, 10), 1.8], ["ring", Vector2(16.5, 8.5), 4.5, 1.8]],
 	"part_combine": [["box", Rect2(3, 5, 11, 11), 1.6], ["box", Rect2(10, 8, 11, 11), 1.6]],   # COMBINE: two overlapping blocks
 	"part_shell": [["box", Rect2(3.5, 3.5, 17, 17), 1.9], ["box", Rect2(7.5, 7.5, 9, 9), 1.2]],   # SHELL: a hollow block
 	"part_constrain": [["ring", Vector2(8, 12), 4.2, 1.8], ["ring", Vector2(16, 12), 4.2, 1.8]],   # GAP 9 CONSTRAIN: two linked rings

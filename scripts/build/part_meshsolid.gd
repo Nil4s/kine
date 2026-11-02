@@ -20,7 +20,7 @@ static var _masters := {}   # content hash -> kernel id of the sewn solid (never
 ## the mesh as the record wants it, or why not. Returns {"ok", "why", "f": the step's fields, "vol_mm3", "size_mm": Vector3, "tris"}.
 ## basis: how the sculpt view is turned (identity unless the sculpt is of a posed body). The mesh is centred left-right and front-back and
 ## rests on the floor (its lowest point at y = 0), like a part dropped from the library
-static func from_mesh(km: KMesh, basis := Basis()) -> Dictionary:
+static func from_mesh(km: KMesh, basis := Basis(), keep_origin := false) -> Dictionary:
 	if km == null or km.vert_count() < 4 or km.face_count() < 4:
 		return {"ok": false, "why": "There is no sculpt to turn into a part yet. Open a sculpt first"}
 	var open_n := km.boundary_edge_count()
@@ -45,7 +45,7 @@ static func from_mesh(km: KMesh, basis := Basis()) -> Dictionary:
 		pts.append(p)
 		lo = lo.min(p)
 		hi = hi.max(p)
-	var shift := Vector3((lo.x + hi.x) * 0.5, lo.y, (lo.z + hi.z) * 0.5)
+	var shift := Vector3.ZERO if keep_origin else Vector3((lo.x + hi.x) * 0.5, lo.y, (lo.z + hi.z) * 0.5)   # s227: keep_origin = a sculpt of a body already in place
 	var buf := PackedFloat32Array()
 	var vol := 0.0
 	for i in pts.size():
@@ -87,7 +87,12 @@ static func add(bodies: Array, f: Dictionary) -> String:
 	var id := solid(f)
 	if id == 0:
 		return KCad.last_error() if KCad.last_error() != "" else "The mesh could not become a solid"
-	bodies.append(id)
+	var rep := int(f.get("replace", -1))   # s227: the sculpt road puts the new solid where body N was
+	if rep >= 0 and rep < bodies.size():
+		KCad.release(int(bodies[rep]))
+		bodies[rep] = id
+	else:
+		bodies.append(id)
 	return ""
 
 
@@ -100,6 +105,8 @@ static func convert(m: Node) -> String:
 
 
 static func _convert(m: Node) -> String:
+	if m.has_meta("s227_road"):   # s227: a sculpt opened from the part goes back into the part (part_sculpt.gd)
+		return PartSculpt.finish(m)
 	if not Part.available() or not KCad.has_mesh_solid():
 		return "Solid parts need the part library, and it is not loaded: restart Kine first"
 	var ksc = m.get("ksc")
