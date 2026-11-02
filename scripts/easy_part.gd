@@ -1297,12 +1297,17 @@ func frame() -> void:
 	m.target += m.cam.global_basis.x * (span * (PW * 0.5 + 8.0) / vs.x)
 	m._cam()
 	if _rec().get("features", []).is_empty() and m.cam != null:
-		# FREEWALK D1: an empty part shows the 1 m grid tile framed in the free view (not a corner under the bar)
-		var pose := _frame_pose(GRID_TILE, GRID_TILE_FILL)
+		# FREEWALK D1 + s240: an empty part shows the 1 m grid tile framed in the free view by the closed loop (the open-loop pose ignored the lens shift
+		# and left the grid's near corner below the free view). m._say below can change the free view: the grid is framed again after it (_grid_auto)
+		m._say("")
+		var pose := _grid_pose(GRID_TILE, GRID_FILL)
 		if not pose.is_empty():
 			m.target = pose[0]
 			m.dist = pose[1]
 			m._cam()
+			_grid_framed = true
+			_grid_fr = free_rect()
+			_grid_cam = [m.target, float(m.dist), float(m.yaw), float(m.pitch)]
 	m._say("")
 
 
@@ -3752,6 +3757,8 @@ func _process(_dt: float) -> void:
 			armed = ""
 			_drag = {}
 			_draft = {}
+			if challenge_card != null and challenge_card.visible:
+				challenge_card.close()   # s240: the card was only made transparent when Easy was left: it came back over the next part
 		elif m.cam != null and _side_on():
 			m.pitch = ENTRY_PITCH   # Easy Part opens LOOKING DOWN: the app's level start view (-8 deg) would make every first drawing upright
 			m._cam()

@@ -441,6 +441,9 @@ func check() -> void:
 
 
 ## the card sits at the bottom left of the clear view (below the Make buttons, the hint and the shape row, left of the panel)
+var _had := false   # s240: the part had features while the card was up
+
+
 func _process(_d: float) -> void:
 	if ep == null:
 		return
@@ -451,7 +454,15 @@ func _process(_d: float) -> void:
 		return
 	modulate.a = 1.0
 	if not visible:
+		_had = false
 		return
+	# s240: a part that had solids and is empty again (New part, cleared) ends the challenge
+	var has_f: bool = not ep._rec().get("features", []).is_empty()
+	if _had and not has_f:
+		close()
+		_had = false
+		return
+	_had = has_f
 	var cl: Rect2 = ep._cl
 	reset_size()
 	size = get_combined_minimum_size()
