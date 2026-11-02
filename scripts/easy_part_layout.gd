@@ -572,8 +572,7 @@ func layout(cl: Rect2) -> void:
 	panel.size = Vector2(PW, minf(need, avail))
 	panel.position = Vector2(cl.end.x - PW - 8.0, top)
 	_steps_place(cl, panel.position.y + panel.size.y + 8.0)   # NSTEPLIST: under the panel, on the right; under its CONTENT when the Parts page runs past the clamped size (the list sat over the screw chips)
-	status.reset_size()
-	status.size.x = minf(status.get_combined_minimum_size().x, cl.size.x - PW - 40.0)
+	_status_fit(cl)   # s248: the sentence wraps inside the room left of the panel (it never runs past it)
 	status.position = Vector2(cl.position.x + 12.0, _low_end(cl) - status.size.y - 6.0)
 	# FMOBILE: a short window: when a Repeat it / Stick together box would cover the one sentence, the sentence goes under the panel on the right
 	var sbox := Rect2()
@@ -581,6 +580,8 @@ func layout(cl: Rect2) -> void:
 		if (bx as Control).visible:
 			sbox = sbox.merge(Rect2((bx as Control).position, (bx as Control).size))
 	if sbox.size != Vector2.ZERO and Rect2(status.position, status.size).intersects(sbox):
+		status_l.custom_minimum_size.x = minf(status_l.custom_minimum_size.x, PW - status.get_theme_stylebox("panel").get_minimum_size().x)
+		status.reset_size()
 		status.size.x = PW
 		status.position = Vector2(panel.position.x, panel.position.y + panel.size.y + 8.0)
 	call("_kt_place")   # P100: the shortcuts card, off every control
@@ -1320,7 +1321,26 @@ func _narrow_bar_text(narrow: bool) -> void:
 ## short for the words, the round filter row, Tilt and the sentence together (the Tilt box sat on the round row)
 func _low_end(cl: Rect2) -> float:
 	var vp := get_viewport().get_visible_rect()
-	return vp.end.y - 6.0 if vp.size.x < NARROW_W else cl.end.y
+	if vp.size.x >= NARROW_W:
+		return cl.end.y
+	# s248: never under the page bar (its BUILD tab sat under the sentence at 1024 x 600)
+	var bar = m.ui_page_bar if m != null else null
+	if bar != null and (bar as Control).is_visible_in_tree():
+		return minf(vp.end.y - 6.0, (bar as Control).get_global_rect().position.y - 4.0)
+	return vp.end.y - 6.0
+
+
+## s248: the status sentence's width is its text (up to the room left of the side panel); longer text wraps to more lines
+func _status_fit(cl: Rect2) -> void:
+	var l := status_l
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.clip_text = false
+	var fs := l.get_theme_font_size("font_size")
+	var tw := l.get_theme_font("font").get_string_size(l.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var pad := status.get_theme_stylebox("panel").get_minimum_size().x
+	var room := maxf(120.0, cl.size.x - PW - 40.0 - pad)
+	l.custom_minimum_size = Vector2(minf(ceilf(tw) + 2.0, room), 0)
+	status.reset_size()
 
 
 ## P172LAYOUTS: at 1024 wide Tilt it goes under the round filter row (it was placed on the row's line)
