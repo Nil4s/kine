@@ -726,3 +726,6 @@ EXTRA="$EXTRA s260:w"   # s260 CURVE EXTRAPOLATION: constant / linear / cycle on
 
 
 EXTRA="$EXTRA w10c:w"   # W10c: Easy Pull it up says line-touch and offers the nudge, tests/w10c_test.gd
+
+
+EXTRA="$EXTRA w02c:w"   # w02c: Dimension tool on a rectangle corner gives x / y from the origin, tests/w02c_test.gd
