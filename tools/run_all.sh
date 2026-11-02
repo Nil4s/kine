@@ -745,3 +745,4 @@ EXTRA="$EXTRA w03c:w"   # w03c: body keys on the steps that point at a body; ins
 
 
 EXTRA="$EXTRA s263:w"   # s263: dark product studio + continuous ring band, tests/s263_test.gd
+EXTRA="$EXTRA s265:w"   # s265: lane of small Part fixes from the GPU build, tests/s265_test.gd
