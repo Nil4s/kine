@@ -694,3 +694,4 @@ EXTRA="$EXTRA w07:w"   # w07: arithmetic in number fields (25*2+3), scripts/num_
 
 
 EXTRA="$EXTRA w02:w"   # w02: sketch health free / fully defined / over-constrained by colour + the clashing pair named, tests/w02_test.gd
+EXTRA="$EXTRA s260:w"   # s260 CURVE EXTRAPOLATION: constant / linear / cycle on a hinge curve (tests/s260_test.gd; needs the CAD DLL for the UI bars)

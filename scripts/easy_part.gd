@@ -8099,7 +8099,7 @@ func _swing_tick(f: Dictionary, P: Dictionary, t: float, gen: int) -> void:
 		return
 	var CL = load("res://scripts/build/collide_live.gd")
 	var lim := Part.hinge_limit(f)
-	var deg := clampf(float(Curves.eval(f["track"], t)), -lim, lim)
+	var deg := clampf(float(Curves.eval(f["track"], t, Curves.mode_of(f))), -lim, lim)
 	var n0: int = CL.ms.size()
 	var r: Dictionary = CL.first_contact(P, float(swing_log["free"]), deg, SWING_SUB)
 	var spent := 0.0

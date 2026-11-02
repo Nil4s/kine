@@ -54,10 +54,32 @@ static func _mag(d) -> float:
 	return absf(d)
 
 
-## linear read of a channel at time t (clamped to the ends), as a float or a Vector3
-static func eval(ch: Array, t: float):
+const EXTRAPS := ["constant", "linear", "cycle"]
+
+
+## s260 EXTRAPOLATION: what a channel does outside its keys. "constant" (default, the old behaviour) holds the end value;
+## "linear" continues the end segment's slope; "cycle" repeats the keyed span. A feature carries "extrap" only when it is not constant.
+static func mode_of(f: Dictionary) -> String:
+	var m := String(f.get("extrap", "constant"))
+	return m if m in EXTRAPS else "constant"
+
+
+## linear read of a channel at time t (outside the keys: held, unless mode says linear / cycle), as a float or a Vector3
+static func eval(ch: Array, t: float, mode: String = "constant"):
 	if ch.is_empty():
 		return 0.0
+	if mode != "constant" and ch.size() >= 2:
+		var t0: float = ch[0][0]
+		var t1: float = ch[-1][0]
+		if mode == "cycle" and t1 > t0 and (t < t0 or t > t1):
+			t = t0 + fposmod(t - t0, t1 - t0)
+			return eval(ch, t, "constant")
+		if mode == "linear" and (t > t1 or t < t0):
+			var a: int = ch.size() - 2 if t > t1 else 0
+			var dt: float = maxf(1e-12, float(ch[a + 1][0]) - float(ch[a][0]))
+			var slope = (ch[a + 1][1] - ch[a][1]) / dt
+			var end: int = ch.size() - 1 if t > t1 else 0
+			return ch[end][1] + slope * (t - float(ch[end][0]))
 	if t <= ch[0][0]:
 		return ch[0][1]
 	if t >= ch[-1][0]:

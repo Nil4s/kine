@@ -1021,7 +1021,7 @@ static func hinge_sweep(rec: Dictionary, hinge_id: String, fps := 25.0) -> Dicti
 	var red := {}
 	for i in n:
 		var t := float(i) / fps
-		var raw := float(Curves.eval(track, t))
+		var raw := float(Curves.eval(track, t, Curves.mode_of(f)))
 		if absf(raw) > lim + 1e-6:
 			out["limited_frames"] = int(out["limited_frames"]) + 1
 		var deg := clampf(raw, -lim, lim)
