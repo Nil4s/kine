@@ -471,6 +471,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"final_shot":   # item 232: the camera as a PNG with no UI, at a size ({out, w, h, camera?}). Not in METHODS
 			var fs: Dictionary = await TempleLight.serve_final(m, p)
 			return _ok(id, fs) if bool(fs["ok"]) else _err(id, -32000, String(fs["text"]))
+		"look_facts":   # item 242: numbers for how the final picture LOOKS per piece / kind / nature item (scripts/build/look_facts.gd). Not in METHODS
+			var lf: Dictionary = await LookFacts.serve(m, p)
+			return _ok(id, lf) if bool(lf["ok"]) else _err(id, -32602, String(lf["error"]))
 		"nature":   # FRIDAY 225: trees, hedges, shrubs, grass, flowers, paths, scatter (scripts/build/nature_agent.gd); not in METHODS (the transcript's ready line)
 			var na := NatureAgent.serve(m, p)
 			return _ok(id, na) if bool(na["ok"]) else _err(id, -32602, String(na["error"]))
