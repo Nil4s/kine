@@ -2135,6 +2135,8 @@ static func _combine(bodies: Array, solid: int, op: String, into := -1, f := {})
 	if op == "new" or bodies.is_empty():
 		bodies.append(solid)
 		return ""
+	if op == "cut" and into < 0 and (f.get("targets", []) as Array).is_empty():
+		return _cut_overlapping(bodies, solid)   # S268: no into / targets = the bodies the tool overlaps, and the words say which
 	if op == "cut":
 		for i in bodies.size():
 			if into >= 0 and i != into:   # p063: a cut with "into" touches only that body (Fasten these two: the screw hole of one piece)
@@ -2154,6 +2156,28 @@ static func _combine(bodies: Array, solid: int, op: String, into := -1, f := {})
 		return KCad.last_error()
 	KCad.release(bodies[t])
 	bodies[t] = u
+	return ""
+
+
+## S268: a cut with no "into" / "targets" cuts only the bodies the tool really overlaps (a cut that removes volume), so a notch meant for
+## the board does not touch the chips beside it; PartPrim.last_warning says "cut 1 body: Body3" (or that it overlapped none)
+static func _cut_overlapping(bodies: Array, solid: int) -> String:
+	var hit: Array = []
+	for i in bodies.size():
+		var c := KCad.cut(bodies[i], solid)
+		if c == 0:
+			continue
+		if KCad.volume(bodies[i]) - KCad.volume(c) > PPRIM.HIT_VOL:
+			KCad.release(bodies[i])
+			bodies[i] = c
+			hit.append("Body%d" % (i + 1))
+		else:
+			KCad.release(c)   # it removed nothing from this body: the body stays as it was
+	KCad.release(solid)
+	if hit.is_empty():
+		PPRIM.last_warning = "the cut overlaps no body, so nothing was cut"
+	else:
+		PPRIM.last_warning = ("cut 1 body: %s" % hit[0]) if hit.size() == 1 else ("cut %d bodies: %s" % [hit.size(), ", ".join(hit)])
 	return ""
 
 

@@ -282,4 +282,4 @@ static func _edit(m: Node, method: String, p: Dictionary) -> Dictionary:
 	var df := diff(old_sigs, sigs_of(res))
 	return {"ok": true, "step": at + 1, "id": gone_id if method == "delete_step" else String(feats[at]["id"]), "ran": ran, "of": feats.size(), "from": first + 1, "ms": snappedf(ms, 0.1),
 		"created": df["created"], "changed": df["changed"], "removed": df["removed"], "bodies": int(res["bodies"]), "volume_mm3": float(res["volume"]) / (Part.MM * Part.MM * Part.MM),
-		"errors": errs, "new_errors": broke, "remapped": remapped}
+		"errors": errs, "new_errors": broke, "remapped": remapped, "warnings": res.get("warnings", {})}
