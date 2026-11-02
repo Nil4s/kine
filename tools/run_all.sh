@@ -714,3 +714,6 @@ EXTRA="$EXTRA w10b:w"   # w10b: the app piece counter _lumps counts edge-touchin
 
 
 EXTRA="$EXTRA s257:w"   # s257: frame_to finds a body by its bname name AND its stable body key, tests/s257_test.gd
+
+
+EXTRA="$EXTRA s258:w"   # s258: a look that glows (emission colour + strength on an appear step, saved, drawn as emission), tests/s258_test.gd
