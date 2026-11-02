@@ -2990,13 +2990,28 @@ static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int,
 	elif String(f.get("kind", "linear")) == "circular":
 		var ax: Vector3 = AXIS_VEC.get(String(f.get("axis", "y")), Vector3.UP)
 		var edge_pivot := Vector3.ZERO   # s048 AROUND: a picked edge is the axis (its direction "adir", a point on it "pivot", mm)
-		if f.has("pivot") and f.has("adir"):
-			var ad: Array = f["adir"]
+		var axf := f.duplicate()   # S267: the axis as "axis_edge" [[x,y,z],[x,y,z]] mm or "axis_face" {"o": [x,y,z], "n": [x,y,z]} mm becomes pivot + adir
+		if f.has("axis_edge"):
+			var ae: Array = f["axis_edge"]
+			if ae.size() != 2 or (ae[0] as Array).size() != 3 or (ae[1] as Array).size() != 3:
+				return "axis_edge needs two points [[x,y,z],[x,y,z]] in mm: the edge the copies turn about"
+			axf["pivot"] = ae[0]
+			axf["adir"] = [float(ae[1][0]) - float(ae[0][0]), float(ae[1][1]) - float(ae[0][1]), float(ae[1][2]) - float(ae[0][2])]
+		elif f.has("axis_face"):
+			var af: Variant = f["axis_face"]
+			if not (af is Dictionary) or not (af as Dictionary).has("o") or not (af as Dictionary).has("n"):
+				return "axis_face needs {\"o\": [x,y,z], \"n\": [x,y,z]} in mm: a point on the face and its normal; the copies turn about that line"
+			axf["pivot"] = af["o"]
+			axf["adir"] = af["n"]
+		if axf.has("pivot") != axf.has("adir"):
+			return "a circular pattern about your own axis needs both pivot [x,y,z] mm and adir [x,y,z] (or axis_edge, or axis_face); with neither it turns about the %s axis through the origin" % String(f.get("axis", "y"))
+		if axf.has("pivot") and axf.has("adir"):
+			var ad: Array = axf["adir"]
 			ax = Vector3(float(ad[0]), float(ad[1]), float(ad[2]))
 			if ax.length() < 1e-9:
 				return "the picked edge has no direction"
 			ax = ax.normalized()
-			var pv: Array = f["pivot"]
+			var pv: Array = axf["pivot"]
 			edge_pivot = Vector3(float(pv[0]), float(pv[1]), float(pv[2])) * MM
 		var total := deg_to_rad(float(f.get("deg", 360.0)))
 		if absf(total) < 1e-6:

@@ -145,6 +145,47 @@ func s270() -> void:
 	ok(String(Part.replay(rq)["body_names"][0]).begins_with("Body"), "270 CONTROL an unnamed pipe is still BodyN")
 
 
+func circ(extra: Dictionary) -> Dictionary:
+	var rec := Part.make("S267")
+	Part.prim(rec, "box", {"x": 128.0, "y": -2.0, "z": -2.0, "w": 4.0, "h": 4.0, "d": 4.0, "name": "Blade"})   # centre (130, 0, 0)
+	var f := {"kind": "circular", "body": 0, "op": "new", "count": 4, "deg": 360.0}
+	f.merge(extra, true)
+	(rec["features"] as Array).append(Part.new_feature(rec, "pattern", f))
+	return rec
+
+
+## worst distance (mm) between each wanted centre and the nearest body centre
+func miss(rec: Dictionary, want: Array) -> float:
+	var cs := centres(rec)
+	if cs.size() != want.size():
+		return 999.0
+	var worst := 0.0
+	for w in want:
+		var best := INF
+		for c in cs:
+			best = minf(best, (c as Vector3).distance_to(w))
+		worst = maxf(worst, best)
+	return worst
+
+
+## 267 BAR: "axis_face" {o, n} and "axis_edge" [[a],[b]] turn 4 copies of a piece at (130,0,0) about the line through (100,0,0) along Z: centres at
+## (130,0,0) (100,30,0) (70,0,0) (100,-30,0), within 0.01 mm; the same as pivot + adir. CONTROL: with no axis the copies turn about the origin (a
+## different set: the bar fails there), and pivot alone is refused with words that name adir.
+func s267() -> void:
+	var want := [Vector3(130, 0, 0), Vector3(100, 30, 0), Vector3(70, 0, 0), Vector3(100, -30, 0)]
+	var m_face := miss(circ({"axis_face": {"o": [100, 0, 0], "n": [0, 0, 1]}}), want)
+	var m_edge := miss(circ({"axis_edge": [[100, 0, 0], [100, 0, 10]]}), want)
+	var m_pv := miss(circ({"pivot": [100, 0, 0], "adir": [0, 0, 1]}), want)
+	ok(m_face < 0.01 and m_edge < 0.01 and m_pv < 0.01, "267 BAR axis_face %.4f, axis_edge %.4f, pivot+adir %.4f mm off the wanted ring (bar 0.01)" % [m_face, m_edge, m_pv])
+	var m_none := miss(circ({"axis": "z"}), want)
+	ok(m_none > 1.0, "267 CONTROL with no axis field the copies turn about the origin, %.1f mm off the ring: the bar can fail" % m_none)
+	var r := Part.replay(circ({"pivot": [100, 0, 0]}))
+	var e := String((r["errors"] as Dictionary).values()[0]) if not (r["errors"] as Dictionary).is_empty() else ""
+	ok(e.contains("adir") and e.contains("axis_face"), "267 CONTROL pivot alone is refused in words: '%s'" % e.substr(0, 80))
+	var fx := FileAccess.get_file_as_string("res://scripts/build/part_fx.gd")
+	ok(fx.contains("axis_face") and fx.contains("pivot") and fx.contains("adir"), "267 the docs in part_fx.gd name pivot, adir, axis_edge and axis_face")
+
+
 func _init() -> void:
 	if not Part.available():
 		print("FAIL: no KineCAD DLL")
@@ -155,5 +196,6 @@ func _init() -> void:
 	s268()
 	s266()
 	s270()
+	s267()
 	print("s265: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
