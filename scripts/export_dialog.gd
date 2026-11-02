@@ -20,6 +20,11 @@ var ui_face: OptionButton   # laser cutting: which flat face
 var ui_face_row: HBoxContainer
 var ui_budget: OptionButton   # plan 157: Triangle budget (Full / 50 000 / 10 000 / 2 000) for the mesh files (.glb objects, .obj, .stl, .3mf)
 var ui_budget_row: HBoxContainer
+var ui_q: OptionButton   # W05: mesh quality of the STL / 3MF (Coarse / Normal / Fine / Custom), the live estimate under it
+var ui_q_custom: SpinBox
+var ui_q_row: HBoxContainer
+var ui_q_info: Label
+var _q_cache := {}
 var ui_price_row: HBoxContainer   # s081: the price table (BRL) behind the cost line
 var ui_bed_row: HBoxContainer   # 3D printing only: the printer bed size and Split to fit (Friday plan 114)
 var ui_bed: Array = []   # three SpinBoxes: bed X, Y, Z in mm
@@ -267,8 +272,37 @@ func _build() -> void:
 		ui_budget.add_item(String(bl))
 	ui_budget.tooltip_text = "Write a lighter copy of the mesh: the file gets at most this many triangles (volume and size kept); the model on screen is not changed. Applies to the mesh files (.glb objects, .obj, .stl, .3mf)."
 	ui_budget.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ui_budget.item_selected.connect(func(_i: int): _refresh_quality())
 	ui_budget_row.add_child(ui_budget)
 	v.add_child(ui_budget_row)
+	ui_q_row = HBoxContainer.new()   # W05: mesh quality for the printing files
+	ui_q_row.name = "export_quality_row"
+	var lq := Label.new()
+	lq.text = "Mesh quality"
+	ui_q_row.add_child(lq)
+	ui_q = OptionButton.new()
+	ui_q.name = "opt_export_quality"
+	for qn in MeshQuality.NAMES:
+		ui_q.add_item(String(qn))
+	ui_q.select(1)
+	ui_q.tooltip_text = "How smooth curved faces are in the file. Coarse is small and faceted, Fine is smooth and big, Normal is the usual. Custom takes the most a face may sit off the true surface, in mm."
+	ui_q.item_selected.connect(func(_i: int): _refresh())
+	ui_q_row.add_child(ui_q)
+	ui_q_custom = SpinBox.new()
+	ui_q_custom.name = "spin_export_quality_mm"
+	ui_q_custom.min_value = MeshQuality.MIN_DEFL_MM
+	ui_q_custom.max_value = MeshQuality.MAX_DEFL_MM
+	ui_q_custom.step = 0.005
+	ui_q_custom.value = 0.1
+	ui_q_custom.suffix = "mm"
+	ui_q_custom.value_changed.connect(func(_x: float): _refresh())
+	ui_q_row.add_child(ui_q_custom)
+	v.add_child(ui_q_row)
+	ui_q_info = Label.new()
+	ui_q_info.name = "export_quality_info"
+	ui_q_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ui_q_info.custom_minimum_size = Vector2(300, 0)
+	v.add_child(ui_q_info)
 	_price_row_build(v)
 	_build_bed_row(v)
 	ui_slicer_box = VBoxContainer.new()   # plan 119: Send to slicer (3D printing only)
@@ -411,6 +445,7 @@ func _refresh() -> void:
 	ui_face_row.visible = _cur_id() == "laser"
 	ui_budget_row.visible = _cur_run() in ["glb", "obj", "stl", "3mf"]
 	ui_price_row.visible = _cur_id() == "cutlist" or _cur_id() == "print"
+	_refresh_quality()
 	if ui_bed_row != null:
 		ui_bed_row.visible = _cur_id() == "print"
 	_refresh_slicer()
@@ -432,6 +467,30 @@ func _refresh() -> void:
 	var names := m.scene_object_names() as Array   # only the targets that list the scene's objects pay for it (it skins the body: ~0.5 s)
 	var lst := ", ".join(names) if not names.is_empty() else "none"
 	ui_objects.text = "Mesh objects in the scene: %s. Only the selected object writes just the one picked in the scene (the test cube when it is open, else the set piece picked, else the body); one entry per mesh object writes each by its name.%s" % [lst, why]
+
+
+## W05: the chosen mesh quality ({} when the dialog is not on the printing files, which then write as before)
+func quality() -> Dictionary:
+	if ui_q == null:
+		return {}
+	return MeshQuality.of(ui_q.get_item_text(maxi(ui_q.selected, 0)), ui_q_custom.value)
+
+
+func _refresh_quality() -> void:
+	var on: bool = _cur_id() == "print" and _cur_run() in ["stl", "3mf"]
+	ui_q_row.visible = on
+	ui_q_info.visible = on
+	ui_q_custom.visible = on and ui_q.selected == 3
+	if not on:
+		return
+	var q := quality()
+	var rec: Dictionary = m.S.part
+	var budget: int = ExportBudget.BUDGETS[ui_budget.selected] if ui_budget.selected >= 0 else 0
+	var key := "%d|%s|%s|%d" % [rec.hash(), str(q), _cur_run(), budget]
+	if not _q_cache.has(key):
+		var bo := MeshExport.bodies_of(rec, q)
+		_q_cache[key] = MeshQuality.estimate(ExportBudget.apply_bodies(bo["bodies"], budget), _cur_run(), String(rec.get("name", "Part"))) if (bo["bodies"] as Array).size() > 0 else {"tris": 0, "bytes": 0, "text": "nothing to export yet"}
+	ui_q_info.text = String((_q_cache[key] as Dictionary)["text"])
 
 
 func _cur_run() -> String:
@@ -573,7 +632,7 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 		m._say_plain(String(rl["text"]))
 		return String(rl["path"]) if bool(rl["ok"]) else ""
 	if id == "print":   # STL / 3MF of the part on screen (never blocked: an open shape still writes, with the warning in the words)
-		var r := PrintSplit.export_part(m.S.part, run, UserPaths.w(dir), bed_mm) if split_fit else MeshExport.export_part(m.S.part, run, UserPaths.w(dir), budget)
+		var r := PrintSplit.export_part(m.S.part, run, UserPaths.w(dir), bed_mm) if split_fit else MeshExport.export_part(m.S.part, run, UserPaths.w(dir), budget, quality())
 		m._say_plain(String(r["text"]))
 		return String(r["path"]) if bool(r["ok"]) else ""
 	if id == "step":   # STEP of the part on screen (the exact solid)
