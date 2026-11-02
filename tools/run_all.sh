@@ -672,3 +672,6 @@ EXTRA="$EXTRA w06:w"   # W06: project unit (mm/cm/in), typed units in length fie
 
 
 EXTRA="$EXTRA w07:w"   # w07: arithmetic in number fields (25*2+3), scripts/num_expr.gd, tests/w07_test.gd
+
+
+EXTRA="$EXTRA w02:w"   # w02: sketch health free / fully defined / over-constrained by colour + the clashing pair named, tests/w02_test.gd

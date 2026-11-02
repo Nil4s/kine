@@ -2660,10 +2660,12 @@ func _note_sync() -> void:
 		t = Part.why_not()
 	elif sk != "":
 		var f := _sk()
-		var sig := JSON.stringify(f.get("ents", []))
+		var sig := JSON.stringify([f.get("ents", []), f.get("cons", []), f.get("dims", [])])
 		if sig != _profile_sig:
 			_profile_sig = sig
 			_profile_ok = _profile_text(f)
+			if not f.get("ents", []).is_empty():
+				_profile_ok += ", " + String(health_now().get("text", ""))   # W02
 		t = "%s: %s" % [f.get("name", "Sketch"), _profile_ok]
 	elif res.get("bodies", 0) > 0:
 		var errs: Dictionary = res.get("errors", {})
@@ -2887,7 +2889,7 @@ func _draw_sketch() -> void:
 	for i in ents.size():
 		var e: Dictionary = ents[i]
 		var hot: bool = not hover_ent.is_empty() and int(hover_ent.get("ent", -1)) == i and tool == "Dimension"
-		var c := Color("#ffc233") if hot else line_c
+		var c := Color("#ffc233") if hot else PartHealth.color_of(health_now(), i)   # W02: blue free, green defined, red over
 		match String(e["k"]):
 			"rect":
 				var a := Part.v2(e["a"])
@@ -2940,8 +2942,39 @@ func _draw_sketch() -> void:
 	if show_dims:
 		for d in f.get("dims", []):
 			_draw_dim(ents, d)
+	_health_draw(ents)   # W02: the clashing rules marked
 	_con_draw()   # GAP 9: the rule glyphs
 	_draw_draft()
+
+
+## W02: the sketch's health, worked out again only when its shapes, rules or sizes change
+var _health := {}
+var _health_sig := ""
+
+func health_now() -> Dictionary:
+	var f := _sk()
+	if f.is_empty():
+		return {}
+	var sig := JSON.stringify([f.get("ents", []), f.get("cons", []), f.get("dims", [])])
+	if sig != _health_sig:
+		_health_sig = sig
+		_health = PartHealth.analyze(f)
+	return _health
+
+
+func _health_draw(ents: Array) -> void:
+	var h := health_now()
+	var f := _sk()
+	for ci in h.get("clash_cons", []):
+		var c: Dictionary = f["cons"][int(ci)]
+		for key in ["a", "b"]:
+			var i := int(c.get(key, -1))
+			if i >= 0 and i < ents.size() and String(ents[i]["k"]) == "line":
+				pov.draw_line(scr(Part.v2(ents[i]["a"])), scr(Part.v2(ents[i]["b"])), PartHealth.CLASH_C, 6.0)
+	for di in h.get("clash_dims", []):
+		var i := int(f["dims"][int(di)].get("ent", -1))
+		if i >= 0 and i < ents.size() and String(ents[i]["k"]) == "line":
+			pov.draw_line(scr(Part.v2(ents[i]["a"])), scr(Part.v2(ents[i]["b"])), PartHealth.CLASH_C, 6.0)
 
 
 func _draw_arc_ent(a: Vector2, mid: Vector2, b: Vector2, c: Color) -> void:
