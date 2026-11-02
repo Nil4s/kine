@@ -18,6 +18,10 @@ func body() -> Body:
 	b.fk()
 	return b
 
+func lum(c: Color) -> float:
+	var f := func(x: float) -> float: return x / 12.92 if x <= 0.03928 else pow((x + 0.055) / 1.055, 2.4)
+	return 0.2126 * f.call(c.r) + 0.7152 * f.call(c.g) + 0.0722 * f.call(c.b)
+
 func hz(v: Vector3) -> Vector3:
 	return Vector3(v.x, 0, v.z)
 
@@ -70,7 +74,6 @@ func _init() -> void:
 	quit(fails)
 
 func app_part() -> void:
-	root.size = Vector2i(1024, 600)
 	var m: Node = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
 	for i in 3:
@@ -86,8 +89,22 @@ func app_part() -> void:
 	var L := float(Clips.source(SRC)["len"])
 	var u0: int = m.undo.size()
 	var tl: Timeline = m.ui_timeline
+	await size_to(1024, 600)
+	ok(root.get_visible_rect().size == Vector2(1024, 600), "layout really is 1024x600 (visible rect %s)" % root.get_visible_rect().size)
 	var cr: Rect2 = tl.inplace_rect(0)
-	ok(cr.size.x > 20 and cr.end.x <= tl.size.x, "the In place chip is on the strip (%s of %s)" % [cr, tl.size])
+	ok(cr.size.y >= 18.0 and cr.position.x >= 0.0 and cr.end.x <= tl.size.x and cr.position.y >= 0.0 and cr.end.y <= tl.size.y, "chip is %.0f px tall, fully inside the strip (%s of %s)" % [cr.size.y, cr, tl.size])
+	var gr := Rect2(tl.get_global_rect().position + cr.position, cr.size)
+	var hit_tr := []
+	for nd in m.find_children("*", "Control", true, false):
+		var c2 := nd as Control
+		if c2.is_visible_in_tree() and c2 != tl and not c2.is_ancestor_of(tl) and not tl.is_ancestor_of(c2) and (c2 is Button or c2 is CheckBox) and c2.get_global_rect().intersects(gr) and String(c2.get("text")) in ["Real speed", "Loop", "Natural", "speed"]:
+			hit_tr.append(String(c2.get("text")))
+	ok(hit_tr.is_empty(), "chip does not touch the transport controls %s" % str(hit_tr))
+	for pair in [[Timeline.CHIP_OFF_FILL, Timeline.CHIP_OFF_INK], [Timeline.CHIP_ON_FILL, Timeline.CHIP_ON_INK]]:
+		var l1: float = lum(pair[0])
+		var l2: float = lum(pair[1])
+		var cr2 := (maxf(l1, l2) + 0.05) / (minf(l1, l2) + 0.05)
+		ok(cr2 >= 4.5, "chip text contrast %.1f:1 (>= 4.5)" % cr2)
 	for pr in [true, false]:
 		var ev := InputEventMouseButton.new()
 		ev.button_index = MOUSE_BUTTON_LEFT
@@ -118,9 +135,17 @@ func app_part() -> void:
 	m._refresh()
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--shot="):
-			for i in 4:
-				await process_frame
-			await RenderingServer.frame_post_draw
-			root.get_viewport().get_texture().get_image().save_png(a.substr(7))
+			for wh in [[1024, 600], [1920, 1080]]:
+				await size_to(wh[0], wh[1])
+				await RenderingServer.frame_post_draw
+				root.get_texture().get_image().save_png(a.substr(7) + "_%dx%d.png" % [wh[0], wh[1]])
 	m.queue_free()
 	await process_frame
+
+
+func size_to(w: int, h: int) -> void:
+	root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
+	root.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_KEEP
+	root.content_scale_size = Vector2i(w, h)
+	for i in 14:
+		await process_frame
