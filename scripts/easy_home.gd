@@ -71,6 +71,7 @@ var _t0 := -1                  # msec at the last click; -1 = nothing being time
 var last_ms := -1              # click -> the first frame the clip plays, msec (the test reads it; -1 = none yet)
 var last_build_ms := -1        # the builder alone (the build of the last card or line), msec: reported, not hidden
 var video_root := ""           # a TEST's folder (user://...) for Save video; "" = the user's Videos folder (Kine/)
+var last_gif := ""   # W13: the last Save GIF file
 var last_video := {}          # the last Easy save: the playblast's result ({dir, frames, mp4, ffmpeg}); {} = none, or refused
 var _toast: PanelContainer
 var _toast_text: Label
@@ -534,6 +535,8 @@ func _process(dt: float) -> void:
 	var pb: Button = m.easy.button("Play / Stop")
 	if pb != null:   # the button says what a click does now (the walk-through found "Play / Stop" gave no state)
 		(pb.get_node("label") as Label).text = "Stop" if m.playing else "Play"   # the words are the child Label (Button.text drew over them)
+	if m.easy.gif_button != null:   # W13: Save GIF is on the bar only once there is a clip to film (like Redo, it is the extra button)
+		m.easy.gif_button.visible = m.S.cards.size() >= 2
 	var ub: Button = m.easy.button("Undo") if on else null   # Expert runs none of this
 	if ub != null:   # UNDO SAYS WHAT IT TAKES BACK, IN THE TOOLTIP: the label stays "Undo" (a beginner finds it each step); the tooltip reads "Undo: Walk"
 		var ut: String = "Undo: " + m.easy_name(m.undo[-1]) if not m.undo.is_empty() else UNDO_NONE
@@ -2775,3 +2778,21 @@ func _prop_move_typed(t: String) -> bool:
 	m._say_plain("%s. Again plays it; Undo takes it back." % String(r["say"]))
 	m.easy.frame_clip_next()
 	return true
+
+
+## SAVE GIF (W13): the Save video frames as a looping GIF (per-clip palette, 480 px wide) beside the video; returns the .gif path or ""
+func save_gif(fps := 12) -> String:
+	await save_video(true)
+	if last_video.is_empty() or String(last_video.get("dir", "")) == "":
+		return ""
+	var g := String(last_video["dir"]).path_join((clip_name() if clip_name() != "" else "clip") + ".gif")
+	var prog := func(t: String, f: float) -> void: m._say_plain("%s: %d%%" % [t, int(f * 100.0)])
+	var done: bool = await GifWriter.from_dir(String(last_video["dir"]), fps, g, 480, prog)
+	if done:
+		last_gif = g
+		_show_toast("Your GIF is saved: %s
+%s" % [g.get_file(), folder_line(g)], g)
+		m._say_plain("Your GIF is saved: %s" % g.get_file())
+	else:
+		m._say_plain("Could not make the GIF here. Your frames are kept.")
+	return g if done else ""

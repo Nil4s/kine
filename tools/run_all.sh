@@ -662,6 +662,25 @@ EXTRA="$EXTRA s250:w"   # s250: Easy Part panel title on its own row (not under 
 EXTRA="$EXTRA s251:w"   # s251: tool labels never split a word, top bar buttons never an ellipsis (1024 x 600 .. 2560 x 1440, Easy + Expert), tests/s251_test.gd
 EXTRA="$EXTRA s252:w"   # s252: undo/redo toasts name the step (never "Redid:"), toasts never cover a button, tests/s252_test.gd
 EXTRA="$EXTRA s253:w"   # s253: a slow frame never loses a drag or an undo state (exact playhead on Undo/Redo, drag after the camera ease), tests/s253_test.gd
+EXTRA="$EXTRA w01:w"   # w01: camera navigation settings (remap, zoom to cursor, orbit pivot, presets), tests/w01_test.gd
+
+
+EXTRA="$EXTRA w04:w"   # w04: retarget bone-map screen, tests/w04_test.gd
+EXTRA="$EXTRA w04m:w"   # w04m: bone-map screen through main._import_anim_picked, tests/w04m_test.gd
+
+
+EXTRA="$EXTRA w08:w"   # w08: In place / travelling toggle on a clip, applied live, tests/w08_test.gd
+
+
+EXTRA="$EXTRA w10:w"   # w10: join/cut failure helper, tests/w10_test.gd
+
+
+EXTRA="$EXTRA w13:w"   # w13: GIF export, per-clip palette, loops, tests/w13_test.gd
+
+
+EXTRA="$EXTRA w16:w"   # w16: test-print fit strip (5 pegs, 5 holes, clearances engraved, manifold STL/3MF, volumes within 1 %), tests/w16_test.gd
+
+
 EXTRA="$EXTRA w14:w"   # W14: GPU in use + integrated-GPU warning with Windows Graphics steps, tests/w14_test.gd
 
 

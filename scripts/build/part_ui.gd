@@ -206,6 +206,7 @@ var cross_mark := {}           # s229: a refused line that would make the outlin
 var pat := {}                  # PATTERN dialog: its controls by name (built each time it opens, see _pattern_open)
 var f_cmb_op: OptionButton     # the combine dialog: Join, Cut or Intersect
 var f_cmb_keep: CheckBox       # the combine dialog: keep the tool bodies
+var f_cmb_nudge: Button     # W10: "Nudge 0.01 mm and retry", shown when the combine fails because the bodies only touch along a line
 var cmb := {}                  # the combine dialog's picks: {"target": body or -1, "tools": [bodies]} (the bodies of the steps before)
 var cmb_faces: Array = []      # the combine dialog: the triangles of each body before it (a view click picks by them)
 var dim_edit: LineEdit
@@ -1828,7 +1829,7 @@ func _prof_picked(i: int) -> void:
 ## the dialog's rows go; the field controls are kept (they are re-parented into the next dialog)
 func _clear_rows() -> void:
 	_combine_controls()   # COMBINE's two controls exist before the list below takes them off their parent
-	for c in [f_num, f_ang, f_both, f_op, f_axis, f_pull, f_plane, f_taper, f_open, f_edges, f_from, f_to, f_dur, f_dial, f_prof, f_prof_clear, f_ruled, f_sw_prof, f_sw_path, f_sw_flange, f_cmb_op, f_cmb_keep]:
+	for c in [f_num, f_ang, f_both, f_op, f_axis, f_pull, f_plane, f_taper, f_open, f_edges, f_from, f_to, f_dur, f_dial, f_prof, f_prof_clear, f_ruled, f_sw_prof, f_sw_path, f_sw_flange, f_cmb_op, f_cmb_keep, f_cmb_nudge]:
 		if (c as Node).get_parent() != null:
 			(c as Node).get_parent().remove_child(c)
 	for c in dlg_rows.get_children():
@@ -2038,6 +2039,8 @@ func _preview() -> void:
 	prev = {}
 	if f.is_empty():
 		dlg_info.text = _dialog_hint(kind)
+		if f_cmb_nudge != null:
+			f_cmb_nudge.visible = false
 		ok_btn.disabled = true
 		prev_mesh.visible = false
 		part_mesh.visible = on and sk == "" and part_mesh.mesh != null
@@ -2056,6 +2059,8 @@ func _preview() -> void:
 	if kind == "pattern" and err == "":
 		dlg_info.text = _pattern_info()
 	ok_btn.disabled = err != ""
+	if kind == "combine" and f_cmb_nudge != null:
+		f_cmb_nudge.visible = err.ends_with(Part.JOINH.NUDGE_ASK)   # W10
 	prev_mesh.mesh = prev["mesh"]
 	prev_mesh.visible = prev["mesh"] != null
 	part_mesh.visible = false
@@ -4696,6 +4701,13 @@ func _combine_controls() -> void:
 	f_cmb_keep.text = "Keep the tool bodies"
 	f_cmb_keep.focus_mode = Control.FOCUS_NONE
 	f_cmb_keep.toggled.connect(func(_v): _preview())
+	f_cmb_nudge = Button.new()
+	f_cmb_nudge.name = "part_combine_nudge"
+	f_cmb_nudge.text = "Nudge 0.01 mm and retry"
+	f_cmb_nudge.visible = false
+	f_cmb_nudge.pressed.connect(func():
+		cmb["nudge"] = true
+		_preview())
 
 
 ## the combine dialog opens: its picks (an edit shows the step's own), the bodies as they are before the step
@@ -4706,6 +4718,7 @@ func _combine_open(f: Dictionary, edit: int) -> void:
 	if edit >= 0:
 		cmb["target"] = int(f.get("target", -1))
 		cmb["tools"] = (f.get("tools", []) as Array).duplicate()
+		cmb["nudge"] = bool(f.get("nudge", false))
 	f_cmb_op.select(maxi(Part.COMBINE_OPS.find(String(f.get("op", "join"))), 0))
 	f_cmb_keep.set_pressed_no_signal(bool(f.get("keep", false)))
 	_combine_rows()
@@ -4728,6 +4741,7 @@ func _combine_rows() -> void:
 	h.add_child(f_cmb_op)
 	dlg_rows.add_child(h)
 	dlg_rows.add_child(f_cmb_keep)
+	dlg_rows.add_child(f_cmb_nudge)
 	_preview()
 	pov.queue_redraw()
 
@@ -4790,7 +4804,10 @@ func _combine_feature(_edit: int) -> Dictionary:
 	var tl: Array = cmb.get("tools", [])
 	if tg < 0 or tl.is_empty():
 		return {}
-	return {"target": tg, "tools": tl.duplicate(), "op": Part.COMBINE_OPS[clampi(f_cmb_op.selected, 0, Part.COMBINE_OPS.size() - 1)], "keep": f_cmb_keep.button_pressed}
+	var cf := {"target": tg, "tools": tl.duplicate(), "op": Part.COMBINE_OPS[clampi(f_cmb_op.selected, 0, Part.COMBINE_OPS.size() - 1)], "keep": f_cmb_keep.button_pressed}
+	if bool(cmb.get("nudge", false)):
+		cf["nudge"] = true   # W10: the tool sinks 0.01 mm into the target (recorded in the step, so a replay is the same)
+	return cf
 
 
 # ---------------------------------------------------------------- constraints (GAP 9): the SKETCH Constrain row, clicks, drags, glyphs

@@ -29,6 +29,7 @@ var _tour_text: Label
 var _expert: Array = []     # the nodes Easy hides (main's panels and tools)
 var _vis := {}              # node -> its visibility before Easy hid it (Expert puts it back)
 var _btns := {}             # label -> Button
+var gif_button: Button      # W13 Save GIF, beside Save video
 var _menu: PopupMenu        # the scene list Open shows
 var _menu_paths := {}       # Open's row index -> the scene file it opens (the separator has none)
 var _dummy_was := false   # the target dummy was on when Easy came on (Expert puts it back)
@@ -140,6 +141,13 @@ func build(root: Control, expert: Array) -> void:
 	row.add_child(rb)
 	row.move_child(rb, (_btns["Undo"] as Control).get_index() + 1)
 	_btns["Redo"] = rb
+	# W13 SAVE GIF: next to Save video; a plain button kept out of _btns so the bar's numbered buttons and label list stay as they were
+	gif_button = _big("Save GIF", "Save the clip as a looping GIF in your Videos folder (Kine), to show anywhere", func(): home.save_gif())
+	gif_button.name = "easy_gif"
+	gif_button.size_flags_horizontal = Control.SIZE_FILL
+	gif_button.custom_minimum_size = Vector2(120, m.TOP_H - 12)
+	row.add_child(gif_button)
+	row.move_child(gif_button, (_btns["Save video"] as Control).get_index() + 1)
 	# RED IS SAID: Check's red spots on the body (main's redspots) get one plain line in Easy, above the mouse strip
 	red_note = PanelContainer.new()
 	red_note.name = "easy_red_note"

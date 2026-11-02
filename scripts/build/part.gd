@@ -69,6 +69,7 @@ const MM := 0.001
 const POFFSET := preload("res://scripts/build/part_offset.gd")   # plan 18: Thinner / thicker everywhere
 const PBULGE := preload("res://scripts/build/part_bulge.gd")   # plan 23: Pinch / Bulge a face
 const GEAR_DRIVE := preload("res://scripts/gear_drive.gd")
+const JOINH := preload("res://scripts/build/join_helper.gd")   # W10: line-touch words, counted bodies, the 0.01 mm nudge
 const PPRIM := preload("res://scripts/build/part_prim.gd")   # s229: primitives by numbers, planes from 3 points / an angle, scoped intersect, bow-tie check
 const PFIT := preload("res://scripts/build/part_fit.gd")   # s193: Fit to an object (a holder / case sunk with a phone scan)   # s124: the Gear pair turned for the view
 const SKIN_MM := 0.3   # NROUNDFILTER: a face centre this close (mm) to the box's outside counts as on the skin
@@ -2351,13 +2352,25 @@ static func _combine_step(bodies: Array, looks: Array, f: Dictionary) -> String:
 	var cur: int = bodies[tg]
 	for t in tl:
 		var nx := 0
+		var tool_id: int = bodies[t]
+		if bool(f.get("nudge", false)):   # W10: the one-click 0.01 mm retry: the tool sinks 0.01 mm into the target before the operation
+			tool_id = KCad.translate(bodies[t], JOINH.nudge_vector(cur, bodies[t]))
 		match op:
 			"join":
-				nx = KCad.union(cur, bodies[t])
+				nx = KCad.union(cur, tool_id)
 			"cut":
-				nx = KCad.cut(cur, bodies[t])
+				nx = KCad.cut(cur, tool_id)
 			_:
-				nx = KCad.intersect(cur, bodies[t])
+				nx = KCad.intersect(cur, tool_id)
+		var w10 := JOINH.explain(cur, tool_id, op, nx)   # W10: counted bodies / "only touch along a line" in plain words ("" = fine)
+		if tool_id != bodies[t]:
+			KCad.release(tool_id)
+		if w10 != "":
+			if nx != 0:
+				KCad.release(nx)
+			if cur != bodies[tg]:
+				KCad.release(cur)
+			return w10
 		if nx == 0:
 			var why := KCad.last_error()
 			if cur != bodies[tg]:

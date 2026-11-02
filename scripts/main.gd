@@ -3141,6 +3141,9 @@ func _ready() -> void:
 	BootProfile.mark("vx")
 	hk = Hotkeys.new(self)   # HOTKEYS: the saved keys, applied by _commands() (scripts/hotkeys.gd)
 	hk.load_from(settings)
+	camnav = CamNav.new(self)   # W01: camera navigation settings (scripts/cam_nav.gd)
+	camnav.load_from(settings)
+	camnav_ui = CamNavUI.new(self, camnav)
 	kt = KeymapTranslate.new(self)   # P20: the "coming from Blender / Maya" helper (scripts/keymap_translate.gd)
 	kt.load_from(settings)
 	blk = BlKeys.new(self)   # B16: Blender-style modal G R S, off unless the setting says so
@@ -5614,6 +5617,9 @@ static func _ray_seg(o: Vector3, d: Vector3, a: Vector3, b: Vector3) -> Vector2:
 
 
 func _unhandled_input(ev: InputEvent) -> void:
+	if camnav != null and camnav.gesture(ev):   # W01: trackpad-safe pan / pinch
+		get_viewport().set_input_as_handled()
+		return
 	if blk != null and blk.input(ev):   # B16 / GRS: G / R / S: the model preview's always, the body's with the Blender-style layer on (off by default)
 		get_viewport().set_input_as_handled()
 		return
@@ -5662,6 +5668,8 @@ func _unhandled_input(ev: InputEvent) -> void:
 			if loa.armed and mb.button_index != MOUSE_BUTTON_LEFT:
 				loa.armed = false   # ROADMAP 23: any other press cancels the line-of-action stroke
 				_say("line of action cancelled")
+			if camnav != null and camnav.press(mb):   # W01: remapped orbit / pan / zoom gestures, zoom to cursor
+				return
 			if mb.button_index == MOUSE_BUTTON_LEFT and nav_tool != "":   # the nav bar's Orbit / Pan tool (HH2)
 				dragging = nav_tool
 			elif mb.button_index == MOUSE_BUTTON_LEFT and loa.armed:
@@ -5771,7 +5779,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			if was == "box_handle" and hitbox_ui != null:
 				hitbox_ui.release()   # ROADMAP 36: one undo step for a moved box handle
 			# a right CLICK (not a drag) on a part: the ring. The few pixels it wobbled are not a turn: undone
-			if was == "orbit" and mb.button_index == MOUSE_BUTTON_RIGHT and not _rpress.is_empty():
+			if (was == "orbit" or was == "rclick") and mb.button_index == MOUSE_BUTTON_RIGHT and not _rpress.is_empty():
 				if mb.position.distance_to(_rpress["at"]) < 5.0 and _rpress["part"] != "":
 					yaw = _rpress["yaw"]
 					pitch = _rpress["pitch"]
@@ -5831,9 +5839,13 @@ func _unhandled_input(ev: InputEvent) -> void:
 		if dragging == "orbit":
 			if shot_through:
 				_shot_hand_over()   # as Blender: orbiting leaves the camera view, from where the camera was
+			camnav.orbit_pre()   # W01
 			yaw -= rel.x * 0.4
 			pitch = clampf(pitch + (rel.y if _mesh_orbit() else -rel.y) * 0.4, -89.0, 89.0)   # MODEL / SCULPT: a downward drag turns the camera under the floor
+			camnav.orbit_post()   # W01: orbit around the cursor point / the selection
 			_cam()
+		elif dragging == "zoom":
+			camnav.zoom_drag_move(rel, mm.position)   # W01
 		elif dragging == "pan":
 			var k := dist * 0.0012
 			target += -cam.global_basis.x * rel.x * k + cam.global_basis.y * rel.y * k
@@ -16223,6 +16235,8 @@ func _press(code: Key, shift := false) -> void:
 ## it opens (a command given a key shows up with nothing else to change), grouped by what you hold: plain keys,
 ## Shift + a key, Ctrl + a key. ? opens and closes it, Esc closes it
 var ui_keys: PanelContainer
+var camnav: CamNav   # W01
+var camnav_ui: CamNavUI
 var kt: KeymapTranslate   # P20: Blender / Maya key helper
 var blk: BlKeys           # B16: Blender-style modal G / R / S layer
 var hk: Hotkeys   # HOTKEYS: rebinding, the saved keys, the editor (scripts/hotkeys.gd)
@@ -16842,6 +16856,7 @@ func _commands() -> Array:
 	add.call("View: reference image...", "", refimg.ask, "reference image photo picture overlay trace rotoscope png jpg person plane", false, "load a photo or video frame of a real person as an overlay on the view (or a plane behind the body); opacity, size, offset and flip in the reference panel; saved in the scene as a path, never copied (ROADMAP C25, B21)")
 	add.call("View: reference panel", "", refimg.open_panel, "reference image opacity scale offset flip plane front side free camera overlay", false, "the reference picture's mode (camera overlay, plane front / side / free), opacity, size, offset and flip")
 	add.call("View: match the body to the reference", "", refimg.match_body, "match fit reference image person pose detector height hips residual 2 point head heel", false, "finds the person in the reference picture and scales + moves it to line up with the body as seen from this camera, then says the mean pixel residual; with no detector installed it asks you to click the head top and heel instead")
+	add.call("View: camera navigation settings...", "", func(): camnav_ui.open(), "camera navigation orbit pan zoom mouse remap blender maya fusion preset cursor selection trackpad", false, "which gesture orbits, pans and zooms the view; orbit around the cursor or the selection; zoom to cursor; presets Kine, Blender, Fusion, Maya (W01)")
 	add.call("View: quad view on/off", "Ctrl+Alt+Q", func(): vx.quad_toggle(), "quad four panes front side top perspective orthographic split viewport", false, "split the view into top, perspective, front and side panes (the perspective one keeps every tool); click a pane to make it the active one for orbit")
 	add.call("View: isolate the selected part", "", func(): vx.isolate_toggle(), "local view isolate solo only selected hide others focus", false, "hide every body part and prop except the picked one and frame it; again to bring everything back exactly as it was")
 	add.call("View: frame the selected part", "", func(): vx.frame(), "frame selected fit zoom to focus view camera", false, "move the camera to fit the picked part (its posed box, with margin) in the view")
@@ -23557,10 +23572,15 @@ func _anim_import_ask() -> void:
 	fd.filters = PackedStringArray(["*.fbx, *.glb, *.gltf, *.bvh ; animations"])
 	fd.use_native_dialog = true
 	fd.title = "Import an animation (Mixamo, Unreal, Blender ...)"
-	fd.file_selected.connect(func(p): _import_anim(p); fd.queue_free())
+	fd.file_selected.connect(func(p): _import_anim_picked(p); fd.queue_free())
 	fd.canceled.connect(fd.queue_free)
 	add_child(fd)
 	fd.popup_centered(Vector2i(800, 500))
+
+
+## the file dialog's pick (W04): the bone-map screen first when this rig has no saved map, else straight in
+func _import_anim_picked(p: String) -> void:
+	RetargetMap.import_with_screen(self, p)
 
 
 ## returns the new scene's path ("" refused)
