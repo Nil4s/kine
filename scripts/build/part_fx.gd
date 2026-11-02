@@ -107,6 +107,8 @@ static func close(fx: Dictionary, bodies: Array, looks: Array, f: Dictionary, si
 				if nm != String(Bn[bi]):
 					e["was"] = String(Bn[bi])
 				changed.append(e)
+				if not fx["touch"].has(key2):   # W03e: a replay started from a cached prefix has not seen this body made
+					fx["touch"][key2] = []
 				(fx["touch"][key2] as Array).append(fid)
 	for i in B.size():
 		if not used.has(i):

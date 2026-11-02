@@ -745,3 +745,4 @@ EXTRA="$EXTRA w03c:w"   # w03c: body keys on the steps that point at a body; ins
 
 
 EXTRA="$EXTRA s263:w"   # s263: dark product studio + continuous ring band, tests/s263_test.gd
+EXTRA="$EXTRA w03e:w"   # w03e: key-aware incremental cache + nested face.body keys, tests/w03e_test.gd
