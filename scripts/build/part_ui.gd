@@ -1469,7 +1469,11 @@ func _dim_submitted(t: String) -> void:
 	if err != "":
 		_say(err)
 	elif Part.parse_bind(t).is_empty():
-		_say("Dimension set: %s mm" % t.replace("mm", "").strip_edges())
+		var shown := t.replace("mm", "").strip_edges()
+		if NumExpr.is_expression(shown):   # W07: the resolved size, then what was typed
+			_say("Dimension set: %s mm (%s)" % [("%.3f" % typed_mm(shown)).rstrip("0").rstrip("."), shown])
+		else:
+			_say("Dimension set: %s mm" % shown)
 	else:
 		_say("Dimension set: %s" % Part.bind_text(Part.parse_bind(t)))
 	dim_target = {}
