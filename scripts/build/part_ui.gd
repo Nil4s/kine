@@ -26,6 +26,8 @@ const DOUBLE_MS := 650
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]   # Constrain: the rule row (CON_TOOLS, below)
 const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Primitive", "Ornament", "Roof shell"]
 const PUpto := preload("res://scripts/build/part_upto.gd")   # C44
+const PSHAPES := preload("res://scripts/build/part_shapes.gd")   # C37: Rounded rectangle, Slot, the Radius field, Size first
+var shp   # C37: the PSHAPES helper (built with the sketch palette)
 const PPRIMUI := preload("res://scripts/build/part_prim_ui.gd")   # s229: the Primitive dialog and the plane modes
 const TOOL_KIND := {"Roof shell": "roof", "Primitive": "prim", "Offset plane": "plane", "Offset face": "offset_face", "Draft": "draft"}   # a tool's feature kind when it is not its lower-case name
 const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell", "Appearance", "Offset face", "Draft"]
@@ -323,6 +325,8 @@ func setup(b: BuildUI) -> void:
 	_build_browser()
 	_build_side()
 	_con_row(sketch_box)   # GAP 9: the rule choices, a small row in the SKETCH PALETTE (shown while Constrain is open)
+	shp = PSHAPES.new(self)   # C37: after the rule row, so the Constrain buttons sit where they did
+	shp.build_row(sketch_box)
 	_build_timeline()
 	_build_inspect()
 	note = PanelContainer.new()
@@ -917,6 +921,10 @@ func set_on(v: bool) -> void:
 
 
 func _pick(t: String) -> void:
+	if PSHAPES.TOOLS.has(t):   # C37
+		if Part.available():
+			shp.pick(t)
+		return
 	if t in LOOK_TOOLS:
 		_look_tool()
 		return
@@ -1005,7 +1013,7 @@ func finish_sketch() -> void:
 	typed = ""
 	dim_target = {}
 	dim_edit.visible = false
-	if tool in SKETCH_TOOLS or tool in CON_TOOLS:
+	if tool in SKETCH_TOOLS or tool in CON_TOOLS or PSHAPES.TOOLS.has(tool):
 		tool = ""
 	con_open = false
 	con_pick = {}
@@ -1175,6 +1183,9 @@ func _press_sketch(p: Vector2) -> bool:
 		if not hp.is_empty():
 			spl_drag = hp   # a point of a curve on the sheet: drag it (the release keeps it)
 			return true
+	if shp.press(a):   # C37: a shape tool, or Circle with a typed Radius
+		pov.queue_redraw()
+		return true
 	match tool:
 		"Spline":
 			_spline_click(p, a)
@@ -1262,6 +1273,8 @@ func _release(p: Vector2) -> bool:
 
 
 func _commit_draft() -> void:
+	if shp.commit():   # C37
+		return
 	var a: Vector2 = draft["a"]
 	var b: Vector2 = draft["b"]
 	if draft["k"] == "rect":
@@ -1366,6 +1379,8 @@ func _typed_size() -> bool:
 
 
 func _key(k: InputEventKey) -> bool:
+	if shp != null and shp.key(k):   # C37
+		return true
 	if not pair_pick.is_empty() and k.keycode == KEY_ESCAPE:
 		pair_pick = {}
 		_hinge_sync()
@@ -2587,6 +2602,8 @@ func sync() -> void:
 	for t in tool_btns:
 		(tool_btns[t] as Control).visible = show and not (t in m.RIBBON_REST.get("BUILD", [])) and (con_open or not (t in CON_TOOLS))   # the rarer ones live under their captions (main.gd RIBBON_REST); the rule row shows while Constrain is open
 	finish_btn.visible = show
+	if shp != null:
+		shp.sync()
 	easy_open_btn.visible = show
 	for c in my_seps:
 		(c as Control).visible = show
@@ -3280,6 +3297,8 @@ func _draw_draft() -> void:
 				_readout("%s mm (Enter)" % typed)
 			else:
 				_readout("%s x %s mm%s" % [_fmt(absf(b.x - a.x)), _fmt(absf(b.y - a.y)), _snap_words()])
+		"rrect", "slot":
+			shp.draw_draft(c)
 		"circle":
 			var pts := PackedVector2Array()
 			for j in 65:

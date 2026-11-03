@@ -896,3 +896,6 @@ EXTRA="$EXTRA c43:w"   # C43: Printer row in Export (saved preset the fit tools 
 
 
 EXTRA="$EXTRA c44:w"   # C44: Extrude up to a face or edge with an offset, tests/c44_test.gd
+
+
+EXTRA="$EXTRA c37:w"   # C37: Rounded rectangle + Slot sketch shapes, typed Radius for Circle/corners, Size first (tests/c37_test.gd; needs the CAD DLL)
