@@ -658,7 +658,7 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 		m._say_plain(String(rl["text"]))
 		return String(rl["path"]) if bool(rl["ok"]) else ""
 	if id == "print":   # STL / 3MF of the part on screen (never blocked: an open shape still writes, with the warning in the words)
-		var r := PrintSplit.export_part(m.S.part, run, UserPaths.w(dir), bed_mm, quality()) if split_fit else MeshExport.export_part(m.S.part, run, UserPaths.w(dir), budget, quality(), SupportPref.of(ui_support.selected) if run == "3mf" else {})
+		var r := PrintSplit.export_part(m.S.part, run, UserPaths.w(dir), bed_mm, quality()) if split_fit else MeshExport.export_part(m.S.part, run, UserPaths.w(dir), budget, quality(), SupportPref.of(ui_support.selected) if run == "3mf" and ui_support != null else {})
 		m._say_plain(String(r["text"]))
 		return String(r["path"]) if bool(r["ok"]) else ""
 	if id == "step":   # STEP of the part on screen (the exact solid)
