@@ -35,12 +35,19 @@ static func build(ep, _row: Control = null) -> void:
 		elif sp[0] == "easypart_printer_preset":
 			ep.set_meta("c03_printer", b)
 	ep.set_meta("c03_box", box)
-	ep.m.get_tree().process_frame.connect(func():   # a full-screen dialog (What to build) is never covered by the panel
+	var tree: SceneTree = ep.m.get_tree()
+	var tick := []
+	tick.append(func():   # a full-screen dialog (What to build) is never covered by the panel
+		if not is_instance_valid(ep) or not is_instance_valid(box):   # the part screen was freed: stop looking
+			if tree.process_frame.is_connected(tick[0]):
+				tree.process_frame.disconnect(tick[0])
+			return
 		var bc = ep.m.get("build_choose")
 		if is_instance_valid(box) and box.visible and bc != null and bool(bc.get("open")):
 			box.visible = false
 		elif is_instance_valid(box) and box.visible and Engine.get_process_frames() % 12 == 0:
 			place(box, ep))   # the layout moves its boxes after a press: look again, so the panel never ends up over one
+	tree.process_frame.connect(tick[0])
 	sync(ep, false)
 
 
