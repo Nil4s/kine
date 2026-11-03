@@ -915,3 +915,10 @@ Shorter Portuguese so the text fits at 1280x720 and 1024x600 (was 2 px over each
 
 * `Say the render time first` -> Dizer o tempo do render antes  (was Dizer o tempo de renderização antes)
 * `FBX: shot camera (keys)` -> FBX: câm. do plano (chaves)  (was FBX: câmera do plano (chaves))
+
+Bottom page tabs (the measurer now sees them: they overflowed their cell at 1280x720):
+
+* `CHECK` -> CHECAR  (was CONFERIR, 9 px over)
+* `DELIVER` -> SAÍDA  (was ENTREGA, 4 px over)
+* `SCULPT` -> ESCULT  (was ESCULPIR, 6 px over)
+* `MODEL` -> FORMA  (was MODELAR, 9 px over)

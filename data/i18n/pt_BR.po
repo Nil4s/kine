@@ -19,16 +19,16 @@ msgid "STAGE"
 msgstr "CENA"
 
 msgid "CHECK"
-msgstr "CONFERIR"
+msgstr "CHECAR"
 
 msgid "DELIVER"
-msgstr "ENTREGA"
+msgstr "SAÍDA"
 
 msgid "MODEL"
-msgstr "MODELAR"
+msgstr "FORMA"
 
 msgid "SCULPT"
-msgstr "ESCULPIR"
+msgstr "ESCULT"
 
 msgid "SURFACE"
 msgstr "COR"

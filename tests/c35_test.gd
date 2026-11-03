@@ -42,13 +42,17 @@ func over(c: Control, t: String) -> float:
 	var font := c.get_theme_font("font")
 	var w := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
 	var room := c.size.x
+	# a page tab is a Button anchored in a fixed-width cell: it grows past the cell (min size) and overlaps its neighbour, so the CELL is its room
+	if c.get_parent() != null and String(c.get_parent().name).begins_with("cell_"):
+		room = (c.get_parent() as Control).size.x
 	if c is Button:
 		var sb := c.get_theme_stylebox("normal")
 		room -= sb.get_margin(SIDE_LEFT) + sb.get_margin(SIDE_RIGHT)
 		if (c as Button).icon != null:
 			room -= (c as Button).icon.get_width() + 4.0
 		if c is CheckBox or c is CheckButton:
-			room -= 22.0
+			# the engine's own allowance: the check icon + h_separation (was a hard-coded 22, 2 px too much)
+			room -= float(c.get_theme_icon("unchecked").get_width() + c.get_theme_constant("h_separation"))
 	elif c is Label:
 		if (c as Label).autowrap_mode != TextServer.AUTOWRAP_OFF:
 			return -1.0
@@ -129,12 +133,22 @@ func _init() -> void:
 	await idle(2)
 	ok(over(lab, lab.text) > 100.0, "1 CONTROL the measurer flags an 80-letter label in a 50 px box (%.0f px over)" % over(lab, lab.text))
 	lab.queue_free()
+	# 1 CONTROL (allowance): an English check box the engine's own minimum size says fits measures 0 px over
+	var cbx := CheckBox.new()
+	cbx.text = "Say the render time first"
+	root.add_child(cbx)
+	await idle(3)
+	cbx.size = cbx.get_minimum_size()
+	ok(over(cbx, cbx.text) <= 0.5 and over(cbx, cbx.text) > -4.0, "1 CONTROL a check box at the engine's minimum size measures %.1f px over (must be 0)" % over(cbx, cbx.text))
+	cbx.queue_free()
 	KineLang.use("pt_BR")
 	for sz in [Vector2i(1280, 720), Vector2i(1024, 600)]:
 		cut.clear()
 		seen = 0
 		root.content_scale_size = sz
 		await idle(5)
+		m._fit_page_bar()
+		await idle(3)
 		var tag := "%dx%d" % [sz.x, sz.y]
 		for p in m.PAGES_ALL:
 			m._page_set(p, false)
