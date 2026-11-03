@@ -10,10 +10,10 @@ extends SceneTree
 ##             CONTROL: a rack 1.5 mm too low fails
 ##  4 BACKLASH on the pitch line, rack tooth thickness + pinion tooth thickness = pitch - 0.10 x module (the stated backlash), within 0.05 mm, and the gap is >= 0
 ##  5 ROLL     the pinion rolled over the rack (centre moves s, turns s / pitch radius) at 0.25 mm steps over 2 pitches: the overlap area of the mesh outlines
-##             stays <= 0.10 mm2 at every step.  CONTROL: the rack outline grown 0.3 mm all round overlaps by more than 0.10 mm2
+##             stays <= 0.10 mm2 at every step.  CONTROL: the rack outline grown 1.0 mm all round (first planted at 0.3 mm: the new rack has more room than that, so the control was widened) overlaps by more than 0.10 mm2
 ##  6 LENGTH   rack length typed 60 / 100 / 200 mm: tooth count = round(len / pitch) (10 / 16 / 32 at module 2, counted from the mesh), the rack is within one pitch
 ##             of the length typed
-##  7 UI       real drags on Mode (0 -> 1): one undo step, two solids; Rack length dragged to 200: one undo step, 10 teeth; Ctrl+Z restores; the status line
+##  7 UI       real drags on Mode (0 -> 1): one undo step, two solids; Rack length dragged to 200: one undo step, 10 teeth; Ctrl+Z restores; the hint line
 ##             carries the gear scope line (what the tool does and does not do), no key names in it; screenshots C:/Temp/claude/c52/*.png
 ##  8 PT_BR    the .po (CRLF) has the 4 new msgids with non-empty msgstr
 const SHOT := "C:/Temp/claude/c52"
@@ -372,6 +372,7 @@ func _init() -> void:
 	await idle(60)
 	var ep = pu().ep
 	await click_ctl(root.find_child("easypart_chip_parts", true, false) as Control)
+	await click_ctl(root.find_child("easypart_libgroup_Moving parts", true, false) as Control)
 	await click_ctl(root.find_child("easypart_lib_Gears", true, false) as Control)
 	await click_ctl(root.find_child("easypart_gearpair_pick", true, false) as Button)
 	await idle(10)
@@ -390,8 +391,8 @@ func _init() -> void:
 	var mode_val := float(ep._rec()["easy"]["p"].get("mode", -1.0))
 	ok(sm != null and mode_val == 1.0 and m.undo.size() == ub + 1 and int(b1["bodies"]) == 2,
 		"7a Mode dragged to Rack and pinion: mode %s, one undo step (%d -> %d), %d solids" % [str(mode_val), ub, m.undo.size(), int(b1["bodies"])])
-	ok(String(ep.status_l.text).contains("straight spur teeth") and not String(ep.status_l.text).to_lower().contains("ctrl"),
-		"7b the status line carries the gear scope line: [%s]" % ep.status_l.text)
+	ok(String(ep.hint_l.text).contains("straight spur teeth") and not String(ep.hint_l.text).to_lower().contains("ctrl"),
+		"7b the hint line carries the gear scope line: [%s]" % ep.hint_l.text)
 
 	# 2-5 geometry from the mesh at the defaults
 	var g := measure_all(ep)
@@ -416,10 +417,10 @@ func _init() -> void:
 	ok(gap >= 0.0 and absf(gap - want_gap) <= 0.05,
 		"4 BACKLASH: pitch line: rack tooth %.3f + pinion tooth %.3f -> gap %.3f mm (stated 0.10 x module = %.3f, tol 0.05, gap >= 0)" % [s_r, s_p, gap, want_gap])
 	var ov := overlap_max(g["pin"], g["rack"], float(g["rp"]), pit_pin)
-	var fat: PackedVector2Array = Geometry2D.offset_polygon(g["rack"], 0.3)[0]
+	var fat: PackedVector2Array = Geometry2D.offset_polygon(g["rack"], 1.0)[0]
 	var ov_ctl := overlap_max(g["pin"], fat, float(g["rp"]), pit_pin)
 	ok(ov <= 0.10 and ov_ctl > 0.10,
-		"5 ROLL: worst overlap over 2 pitches %.4f mm2 (bar 0.10); control (rack grown 0.3 mm) %.3f mm2 is flagged" % [ov, ov_ctl])
+		"5 ROLL: worst overlap over 2 pitches %.4f mm2 (bar 0.10); control (rack grown 1.0 mm) %.3f mm2 is flagged" % [ov, ov_ctl])
 
 	# 6 LENGTH, by real drags of the rack length slider (also the UI part 2)
 	var rl := row_of(ep, "rack_len")
@@ -429,11 +430,17 @@ func _init() -> void:
 	for L in [60.0, 200.0, 100.0]:
 		if sl != null:
 			var ub2: int = m.undo.size()
+			var par: Node = sl.get_parent()
+			while par != null and not (par is ScrollContainer):
+				par = par.get_parent()
+			if par != null:
+				(par as ScrollContainer).ensure_control_visible(sl)
+				await idle(3)
 			await slide_to(sl, L)
 			await idle(12)
 			var gg := measure_all(ep)
 			var want_n := roundi(L / (PI * float(gg.get("mod", 2.0))))
-			var good := not gg.is_empty() and int(gg["teeth"]) == want_n and absf(float(gg["rack_w"]) - L) <= float(gg["pitch"]) * 0.5 + 0.05 and m.undo.size() == ub2 + 1 and int(built()["bodies"]) == 2
+			var good: bool = not gg.is_empty() and int(gg["teeth"]) == want_n and absf(float(gg["rack_w"]) - L) <= float(gg["pitch"]) * 0.5 + 0.05 and m.undo.size() == ub2 + 1 and int(built()["bodies"]) == 2
 			len_ok = len_ok and good
 			detail += " [%d mm: %d teeth (want %d), rack %.1f mm wide, undo +%d]" % [int(L), int(gg.get("teeth", -1)), want_n, float(gg.get("rack_w", 0)), m.undo.size() - ub2]
 			if L == 200.0:

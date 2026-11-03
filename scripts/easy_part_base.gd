@@ -327,7 +327,7 @@ func _flush() -> void:
 	if note == "":
 		note = PartTemplates.livecut_note(_rec())   # p204livinghing: slots closer than 2 x Thickness may tear the strip
 	if note == "":
-		note = PartTemplates.gear_note(_rec())   # c52: what the gear tool does and does not do
+		note = PartTemplates.gear_note(_rec())   # c52: what the gear tool does and does not do (shown in the hint line)
 	if note != "":
 		_say(note)
 	pu.sync()

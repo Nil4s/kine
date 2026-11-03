@@ -1136,7 +1136,7 @@ static func _gear_pair_features(p: Dictionary) -> Array:
 ## backlash is the gap. A rack tooth is centred under the pinion, facing one of its gaps. Four features (like the pair): pinion, its hole, the
 ## rack, and a mounting hole through the rack's body at its left end. Two solids.
 const RACK_BACKLASH := 0.1   # x module (mm): the gap between the two teeth on the pitch line
-const RACK_PRESSURE := 20.0  # deg: the rack's flank angle
+const RACK_PRESSURE := 30.0  # deg: the rack tooth's flank angle above the pitch line (below it the sides are straight up: no root flare, which the pinion's neighbouring teeth would hit)
 const RACK_BODY := 3.0       # x module: the rack's body under the tooth roots
 
 
@@ -1160,7 +1160,7 @@ static func rack_geom(p: Dictionary) -> Dictionary:
 	var tn := tan(deg_to_rad(RACK_PRESSURE))
 	var hw := 0.5 * (pitch - pair_tooth_on_pitch(n, m) - RACK_BACKLASH * m)
 	var yp := -m * n * 0.5
-	return {"n": n, "m": m, "N": N, "pitch": pitch, "hw": hw, "ht": hw - m * tn, "hr": hw + 1.25 * m * tn,
+	return {"n": n, "m": m, "N": N, "pitch": pitch, "hw": hw, "ht": maxf(hw - m * tn, 0.1 * m), "hr": hw,
 		"x0": -(floorf(N * 0.5) + 0.5) * pitch, "yp": yp, "ytip": yp + m, "yroot": yp - 1.25 * m, "ybot": yp - 1.25 * m - RACK_BODY * m}
 
 
@@ -1172,8 +1172,10 @@ static func rack_pinion_outline(g: Dictionary) -> Array:
 	for k in range(N - 1, -1, -1):
 		var c := x0 + (k + 0.5) * pitch
 		pts.append(Vector2(c + g["hr"], g["yroot"]))
+		pts.append(Vector2(c + g["hw"], g["yp"]))   # the pitch line: the tooth is hw wide each side here, straight up from the root
 		pts.append(Vector2(c + g["ht"], g["ytip"]))
 		pts.append(Vector2(c - g["ht"], g["ytip"]))
+		pts.append(Vector2(c - g["hw"], g["yp"]))
 		pts.append(Vector2(c - g["hr"], g["yroot"]))
 	pts.append(Vector2(x0, g["yroot"]))
 	return _poly(pts)
