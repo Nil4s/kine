@@ -15,6 +15,7 @@ const FIRST_SHAPES := ["Box", "Rounded box", "Slot", "Round"]
 
 var ui: Node   # the PartUI
 var row: HFlowContainer
+var float_box: PanelContainer   # a small floating card above the timeline, not in the palette: any height added to the palette moves the Constrain row (pconstr) and the layout bar (partws 9)
 var toggle: Button   # one small button; the row opens under it (the palette has little spare height at 1280x720: partws bar 9)
 var row_open := false
 var btns := {}
@@ -112,11 +113,19 @@ func build_row(box: Node) -> void:
 	toggle = ui.m._button("Shapes", func(): set_row_open(not row_open), "SHAPES: Rounded rect, Slot, a typed Radius for Circle and corners, and Size first (type the size, then pick the shape)")
 	toggle.name = "part_shapes_toggle"
 	toggle.toggle_mode = true
-	box.add_child(toggle)
+	float_box = PanelContainer.new()
+	float_box.name = "part_shapes_card"
+	float_box.visible = false
+	ui.m.ui_root.add_child(float_box)
+	var fv := VBoxContainer.new()
+	fv.add_theme_constant_override("separation", 4)
+	float_box.add_child(fv)
+	fv.add_child(toggle)
 	row = HFlowContainer.new()
 	row.name = "part_shape_row"
 	row.visible = false
-	box.add_child(row)
+	row.custom_minimum_size = Vector2(250, 0)
+	fv.add_child(row)
 	for t in TOOLS:
 		var b: Button = ui.m._button(t.replace("Rounded rectangle", "Rounded rect"), ui._pick.bind(t), String(TIP[t]))
 		b.name = "part_tool_" + t.to_lower().replace(" ", "_")
@@ -136,6 +145,20 @@ func build_row(box: Node) -> void:
 	_build_first()
 
 
+## the card sits at the foot of the canvas, just above the timeline strip, under the browser, at the left edge
+func _place() -> void:
+	if float_box == null or not float_box.visible:
+		return
+	var vh: float = ui.m.ui_root.get_viewport_rect().size.y
+	float_box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)   # grows UP from its foot when the row opens
+	float_box.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	float_box.grow_horizontal = Control.GROW_DIRECTION_END
+	float_box.offset_left = 8.0
+	float_box.offset_bottom = ui.tl.global_position.y - vh - 6.0
+	float_box.offset_top = float_box.offset_bottom   # zero size: the contents set the real one
+	float_box.offset_right = float_box.offset_left
+
+
 func set_row_open(v: bool) -> void:
 	row_open = v
 	sync()
@@ -150,6 +173,8 @@ func sync() -> void:
 	if row != null:
 		toggle.set_pressed_no_signal(row_open)
 		toggle.visible = not ui.con_open
+		float_box.visible = ui.sk != "" and ui.dlg.is_empty() and ui.shows() and not ui.con_open
+		_place()
 		row.visible = row_open and not ui.con_open   # the rule row needs the room (the palette ends under the timeline at 1280x720)
 	for t in btns:
 		(btns[t] as Button).set_pressed_no_signal(t == ui.tool)
