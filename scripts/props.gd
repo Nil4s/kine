@@ -662,12 +662,14 @@ static func rests(p: Dictionary, a: Vector3, b: Vector3, r: float) -> bool:
 
 ## SETTLING (round 39, GATES UU1): every prop stands on the highest top under it that is not above it, or on the
 ## floor; lowest first, so a box on a table follows the table. Moves the props in place; returns how many moved
-static func settle(props: Array) -> int:
+static func settle(props: Array, skip := {}) -> int:   # skip: prop index -> true, a prop held in the air by a grip (C36) stays where it was put
 	var order := range(props.size())
 	order.sort_custom(func(a, b): return (props[a]["xf"] as Transform3D).origin.y < (props[b]["xf"] as Transform3D).origin.y)
 	var done := []
 	var moved := 0
 	for i in order:
+		if skip.has(i):
+			continue
 		var xf: Transform3D = props[i]["xf"]
 		var y := 0.0
 		for q in done:

@@ -875,3 +875,6 @@ EXTRA="$EXTRA c32:w"   # C32: support gap/interface in the slicers settings file
 
 
 EXTRA="$EXTRA c33:w"   # C33: free ring vs yellow selection, hovered label contrast (tests/c33_test.gd)
+
+
+EXTRA="$EXTRA c36:w"   # C36: grip a prop by its handle, wrist solved from the handle axis (tests/c36_test.gd)
