@@ -819,3 +819,4 @@ EXTRA="$EXTRA c13:w"   # C13: pose IK/FK state, prop attach/detach frame, cape s
 
 
 EXTRA="$EXTRA c14:w"   # c14: rig pre-check, footage pre-check, cut-list CSV locale, tests/c14_test.gd
+EXTRA="$EXTRA c22:w"   # C22: attach to either hand, grip by the handle, IK/FK joint-position snap (tests/c22_test.gd)
