@@ -730,6 +730,9 @@ func _tilt_box() -> PanelContainer:
 	swing_btn.custom_minimum_size = Vector2(170, 44)
 	swing_btn.visible = false
 	draft_row.add_child(swing_btn)
+	door_opt = PartDoor.make_option()   # C18
+	door_opt.visible = false
+	draft_row.add_child(door_opt)
 	pull_along_btn = _big_btn("easypart_pull_along", "Pull along", "Pull the round shape along the open curve: a pipe in one step", _pull_along_press)
 	pull_along_btn.custom_minimum_size = Vector2(230, 44)
 	pull_along_btn.visible = false
@@ -891,10 +894,14 @@ func _swing_press() -> void:
 	for v in faces[bi]:
 		lo = lo.min(v)
 		hi = hi.max(v)
-	var o := Vector3(lo.x, hi.y, lo.z) / Part.MM
 	var snap := _rec().duplicate(true)
 	_begin("Swing it")
-	var f := Part.new_feature(_rec(), "hinge", {"body": bi, "o": [o.x, o.y, o.z], "axis": [1.0, 0.0, 0.0], "track": [[0.0, 0.0], [SWING_SECS, SWING_DEG]]})
+	if door_opt != null and door_opt.selected > 0:
+		PartDoor.mark(_rec(), bi, PartDoor.side_from_option(door_opt))   # C18: a door turns on its own hinge edge
+	var hg := PartDoor.swing_hinge(_rec(), bi, lo, hi)
+	var o: Vector3 = hg["o"]
+	var ax: Vector3 = hg["axis"]
+	var f := Part.new_feature(_rec(), "hinge", {"body": bi, "o": [o.x, o.y, o.z], "axis": [ax.x, ax.y, ax.z], "track": [[0.0, 0.0], [SWING_SECS, SWING_DEG]]})
 	_rec()["features"].append(f)
 	if _last_error(_rec(), String(f["id"])) != "":
 		m.S.part = snap
@@ -3920,6 +3927,7 @@ func _process(_dt: float) -> void:
 	var swing_on := not along and _swing_ok(_rec())   # p123driveit
 	var motion_on := not along and _motion_ok(_rec())   # p126motionmp4: the video chip shows after Swing it
 	swing_btn.visible = swing_on
+	door_opt.visible = swing_on
 	motion_btn.visible = motion_on
 	var flat_on := on and armed == "" and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # p113: Lay it flat and Show overhangs, under any solid, in the step list
 	flat_box.visible = flat_on
