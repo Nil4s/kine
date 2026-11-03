@@ -51,7 +51,7 @@ func names_idx(names: Array, nm: String) -> Array:
 func run_case(rec: Dictionary, hooked: bool) -> Dictionary:
 	ExplodeKeys.layout_hook = Callable(GpuExplodeLayout, "layout") if hooked else Callable()
 	var opts := {"axis": Vector3.BACK, "gap_mm": 10.0, "by_level": false, "anchor": "PCB"}
-	var r := ExplodeKeys.send(m, rec, opts, 0.8, 0.3, 1.2)
+	var r := ExplodeKeys.send(m, rec, opts, 0.7, 0.12, 1.5)
 	var p: Dictionary = m.S.props[int(r["prop"])]
 	var kd: Dictionary = Props.kind_of(String(p["kind"]))
 	var res := Part.replay(rec)
@@ -159,7 +159,7 @@ func _init() -> void:
 	for u in ex:
 		plan["dist"][int(u)] = 0.0
 		plan["ubox"][int(u)] = AABB(Vector3(1e3, 1e3, 1e3), Vector3.ZERO)   # it leaves along X, first of the two layers it blocks (the order shows io before shroud and cooler)
-	var sc := ExplodeView.schedule(plan, 0.8, 0.3, 1.2)
+	var sc := ExplodeView.schedule(plan, 0.7, 0.12, 1.5)
 	var ck := ExplodeView.check(plan, sc)
 	print("collisions %d samples %d stuck %s" % [(ck["collisions"] as Array).size(), ck["samples"], str(plan["stuck"])])
 	var labs: Array = plan.get("labels", [])
