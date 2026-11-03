@@ -292,7 +292,7 @@ func _init() -> void:
 	set_radius(pu, "")
 	await click_at(sp(30, 30))
 	ents = pu._sk()["ents"]
-	ok(ents.size() == 1 and pu.draft.size() > 0, "3 control: Radius blank, a click is the old press (draft started, nothing added)")
+	ok(ents.size() == 1, "3 control: Radius blank, a click adds no circle (the old click-without-drag cancels)")
 	pu.draft = {}
 	await drag(sp(0, 0), sp(20, 0))
 	ents = pu._sk()["ents"]
@@ -313,6 +313,7 @@ func _init() -> void:
 	await click_ctl(pu.finish_btn)
 
 	# 5 SIZE FIRST
+	await click_ctl(pu.finish_btn)
 	await begin(pu)
 	await click_ctl(pu.shp.first_btn)
 	ok(pu.shp.first_panel.visible, "5 Size first opens its panel")
@@ -320,6 +321,7 @@ func _init() -> void:
 	await click_ctl(pu.shp.first_panel.find_child("part_first_make", true, false))
 	ok((m.S.part.get("features", []) as Array).size() == nf0, "5 Make with nothing typed adds nothing")
 	await shot("size_first_panel")
+	await click_ctl(pu.finish_btn)
 	var cases := [["Box", "", 80.0 * 50.0 * 20.0], ["Rounded box", "10", (4000.0 - (4.0 - PI) * 100.0) * 20.0], ["Slot", "", (30.0 * 50.0 + PI * 625.0) * 20.0]]
 	for cs in cases:
 		set_radius(pu, String(cs[1]))
