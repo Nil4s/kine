@@ -807,3 +807,6 @@ EXTRA="$EXTRA c07:w"   # c07: own-axis shot camera orbit, pivot ball, joint dot 
 
 
 EXTRA="$EXTRA c08:w"   # c08/C08: sides from geometry, facing axis, hand-bend check, tests/c08_test.gd
+
+
+EXTRA="$EXTRA c09:w"   # c09: export name template, FBX shot camera, lightmap UV2
