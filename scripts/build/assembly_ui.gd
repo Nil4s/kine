@@ -62,6 +62,10 @@ var _sig := ""
 var _t := 0.0
 var _rec_sig := ""
 var _fields_sig := ""
+var lock_pos: Array = []       # C15: the six lock checks (slide X Y Z, turn X Y Z)
+var lock_rot: Array = []
+var dof_l: Label
+var fix_btn: Button
 
 
 func setup(b: BuildUI) -> void:
@@ -171,6 +175,27 @@ func _build_panel() -> void:
 		(b as Button).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		r2.add_child(b)
 	vb.add_child(r2)
+	vb.add_child(_lbl("Freedom left (tick = locked)", 12, "asm_dof_title"))
+	for kind in ["pos", "rot"]:
+		var rr := HBoxContainer.new()
+		rr.add_child(_lbl("Slide" if kind == "pos" else "Turn", 12))
+		for i in 3:
+			var cb := CheckBox.new()
+			cb.name = "asm_lock_%s_%d" % [kind, i]
+			cb.text = AssemblyDof.PN[i]
+			cb.focus_mode = Control.FOCUS_NONE
+			cb.tooltip_text = "Lock this one: typing and dragging cannot change it"
+			cb.toggled.connect(func(v: bool): _lock_changed(kind, i, v))
+			(lock_pos if kind == "pos" else lock_rot).append(cb)
+			rr.add_child(cb)
+		if kind == "rot":
+			fix_btn = _btn("Fix", "asm_fix", "Lock all six, or free them all again", func(): _fix_toggle())
+			rr.add_child(fix_btn)
+		vb.add_child(rr)
+	dof_l = _lbl("", 12, "asm_dof")
+	dof_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	dof_l.custom_minimum_size = Vector2(PANEL_W - 24.0, 0)
+	vb.add_child(dof_l)
 	var r3 := HBoxContainer.new()
 	stl_btn = _btn("STL", "asm_export_stl", "One .stl with every part, in place", func(): export("stl"))
 	glb_btn = _btn("GLB", "asm_export_glb", "One .glb, a node for each part", func(): export("glb"))
@@ -505,7 +530,10 @@ func _apply_fields() -> void:
 	for i in 3:
 		pos[i] = _num((pos_edits[i] as LineEdit).text, float(p["pos"][i]))
 		rot[i] = _num((rot_edits[i] as LineEdit).text, float(p["rot"][i]))
+	var pos0: Array = p["pos"].duplicate()
+	var rot0: Array = p["rot"].duplicate()
 	Assembly.set_pose(p, pos, rot)
+	AssemblyDof.enforce(p, pos0, rot0)   # C15: a locked axis keeps its value
 	_refresh(false)
 	_say("%s is at %s mm" % [String(p["name"]), _pos_words(p)])
 
@@ -537,6 +565,7 @@ func _refresh(reframe: bool) -> void:
 			meshes.erase(id)
 	_list_sync()
 	_fields_sync()
+	_dof_sync()
 	name_edit.text = String(asm["name"]) if not name_edit.has_focus() else name_edit.text
 	edit_btn.disabled = sel == ""
 	remove_btn.disabled = sel == ""
@@ -558,6 +587,8 @@ func _list_sync() -> void:
 		var b := Button.new()
 		b.name = "asm_row_%d" % i
 		b.text = String(p["name"])
+		b.tooltip_text = AssemblyDof.words(p)
+		b.add_theme_color_override("font_color", AssemblyDof.colour(p))
 		b.toggle_mode = true
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.focus_mode = Control.FOCUS_NONE
@@ -571,6 +602,35 @@ func _list_sync() -> void:
 				sel = id
 				edit_part(id))
 		list_vb.add_child(b)
+
+
+func _lock_changed(kind: String, i: int, v: bool) -> void:
+	var p := _sel_part()
+	if p.is_empty() or AssemblyDof.is_locked(p, kind, i) == v:
+		return
+	AssemblyDof.set_lock(p, kind, i, v)
+	_refresh(false)
+
+
+func _fix_toggle() -> void:
+	var p := _sel_part()
+	if p.is_empty():
+		return
+	AssemblyDof.lock_all(p, AssemblyDof.free_count(p) > 0)
+	_refresh(false)
+
+
+func _dof_sync() -> void:
+	var p := _sel_part()
+	for kind in ["pos", "rot"]:
+		for i in 3:
+			var cb: CheckBox = (lock_pos if kind == "pos" else lock_rot)[i]
+			cb.disabled = p.is_empty()
+			cb.set_pressed_no_signal(not p.is_empty() and AssemblyDof.is_locked(p, kind, i))
+	fix_btn.disabled = p.is_empty()
+	dof_l.text = "" if p.is_empty() else AssemblyDof.words(p)
+	if not p.is_empty():
+		dof_l.add_theme_color_override("font_color", AssemblyDof.colour(p))
 
 
 func _fields_sync() -> void:
@@ -715,6 +775,8 @@ func _input(ev: InputEvent) -> void:
 			return
 		var delta: Vector2 = mv.position - (drag["start"] as Vector2)
 		var ax: int = int(drag["axis"])
+		var pos0: Array = p["pos"].duplicate()
+		var rot0: Array = p["rot"].duplicate()
 		if mode == "move":
 			var along := delta.dot(drag["dir"] as Vector2)
 			var mm := snappedf(along / maxf(float(drag["dist"]), 1.0) * float(drag["len"]) * 1000.0, 0.5)
@@ -725,6 +787,8 @@ func _input(ev: InputEvent) -> void:
 			var deg := snappedf(delta.dot(Vector2(-dir.y, dir.x)) * 0.5, 1.0)
 			p["rot"] = (drag["rot"] as Array).duplicate()
 			Assembly.turn_about(p, AXES[ax], deg)
+			rot0 = (drag["rot"] as Array).duplicate()
+		AssemblyDof.enforce(p, pos0, rot0)   # C15: locked axes stay
 		_refresh(false)
 		m.get_viewport().set_input_as_handled()
 
