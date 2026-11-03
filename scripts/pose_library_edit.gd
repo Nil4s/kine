@@ -100,8 +100,8 @@ static func delete_many(lib: PoseLibrary, paths: Array) -> int:
 
 
 ## a safe file stem from what was typed
-static func stem_of(typed: String) -> String:
-	var s := String(lib.m.safe_file(typed)).strip_edges()
+static func stem_of(m: Node, typed: String) -> String:
+	var s := String(m.safe_file(typed)).strip_edges()
 	return s.trim_suffix(".json")
 
 
@@ -111,7 +111,7 @@ static func rename(lib: PoseLibrary, path: String, typed: String) -> String:
 	if not editable(path):
 		m._say("'%s' is a bundled pose and cannot be renamed" % lib._nm(path))
 		return ""
-	var stem := stem_of(typed)
+	var stem := stem_of(m, typed)
 	if stem == "" or stem.contains("/"):
 		m._say("type a name for the pose first")
 		return ""
