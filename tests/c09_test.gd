@@ -23,7 +23,7 @@ func _tri_overlap(a: PackedVector2Array, b: PackedVector2Array) -> bool:
 	for tri in [a, b]:
 		for i in 3:
 			var e: Vector2 = tri[(i + 1) % 3] - tri[i]
-			var n := Vector2(-e.y, e.x)
+			var n := Vector2(-e.y, e.x).normalized() if e.length() > 1e-12 else Vector2.ZERO
 			var amin := 1e30
 			var amax := -1e30
 			var bmin := 1e30
@@ -34,7 +34,7 @@ func _tri_overlap(a: PackedVector2Array, b: PackedVector2Array) -> bool:
 			for p in b:
 				bmin = minf(bmin, n.dot(p))
 				bmax = maxf(bmax, n.dot(p))
-			if amax <= bmin or bmax <= amin:
+			if amax - bmin <= 1e-6 or bmax - amin <= 1e-6:   # touching along a shared edge is not overlap
 				return false
 	return true
 
@@ -44,6 +44,8 @@ func _overlaps(uv: PackedVector2Array) -> int:
 	var nt := uv.size() / 3
 	for i in nt:
 		var a := uv.slice(i * 3, i * 3 + 3)
+		if absf((a[1] - a[0]).cross(a[2] - a[0])) < 1e-12:
+			continue   # a pole triangle of the sphere: zero area in 3D too, covers no texel
 		for j in range(i + 1, nt):
 			if _tri_overlap(a, uv.slice(j * 3, j * 3 + 3)):
 				n += 1
@@ -56,6 +58,11 @@ func _props(text: String, model: String, prop: String) -> Vector3:
 	var line := text.substr(j, text.find("\n", j) - j)
 	var p := line.split("\"A\",")[1].split(",")
 	return Vector3(float(p[0]), float(p[1]), float(p[2]))
+
+
+func _json_of(path: String) -> String:
+	var b := FileAccess.get_file_as_bytes(ProjectSettings.globalize_path(path))
+	return b.slice(20, 20 + b.decode_u32(12)).get_string_from_utf8()
 
 
 func _init() -> void:
@@ -138,6 +145,11 @@ func _init() -> void:
 			if p.x < 0 or p.y < 0 or p.x > 1 or p.y > 1:
 				inside = false
 		ok(inside, "C2 %s: all in 0..1" % o["name"])
+		var degen := 0
+		for i in nt:
+			if absf((u2[i*3+1]-u2[i*3]).cross(u2[i*3+2]-u2[i*3])) < 1e-12:
+				degen += 1
+		print("degenerate UV2 tris: ", degen)
 		var ov := _overlaps(u2)
 		ok(ov == 0, "C3 %s: overlapping triangle pairs = %d" % [o["name"], ov])
 		var ps := {}
@@ -155,10 +167,12 @@ func _init() -> void:
 		ok(_overlaps(planted) > 0, "C5 control: the overlap reader flags a planted layout")
 	var path := DIR + "/lm.glb"
 	ok(GltfExport.write_meshes(LightmapUV.apply_list(objs), path) == OK, "C6 .glb with UV2 written")
-	var bytes := FileAccess.get_file_as_bytes(ProjectSettings.globalize_path(path)).get_string_from_ascii()
+	var bytes := _json_of(path)
+	var ai := bytes.find("attributes")
+	print("glb attrs: ", bytes.substr(ai, 200))
 	ok("TEXCOORD_1" in bytes, "C7 the .glb has TEXCOORD_1")
 	GltfExport.write_meshes(objs, DIR + "/plain.glb")
-	var pb := FileAccess.get_file_as_bytes(ProjectSettings.globalize_path(DIR + "/plain.glb")).get_string_from_ascii()
+	var pb := _json_of(DIR + "/plain.glb")
 	ok(not ("TEXCOORD_1" in pb), "C8 control: the plain export has no TEXCOORD_1")
 	var ctl := ExportNames.controls()
 	ok(ctl.find_child("le_name_template", true, false) != null and ctl.find_child("chk_fbx_camera", true, false) != null and ctl.find_child("chk_lightmap_uv", true, false) != null, "D1 dialog controls exist")
