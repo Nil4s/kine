@@ -85,7 +85,8 @@ func cyl_chord(q: Dictionary, fit: float) -> float:
 
 
 func finish() -> void:
-	finish()
+	print("c20: %d fail" % fails)
+	quit(1 if fails > 0 else 0)
 
 
 func _init() -> void:
