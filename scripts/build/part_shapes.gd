@@ -15,6 +15,8 @@ const FIRST_SHAPES := ["Box", "Rounded box", "Slot", "Round"]
 
 var ui: Node   # the PartUI
 var row: HFlowContainer
+var toggle: Button   # one small button; the row opens under it (the palette has little spare height at 1280x720: partws bar 9)
+var row_open := false
 var btns := {}
 var radius_edit: LineEdit
 var first_btn: Button
@@ -107,12 +109,18 @@ static func slot_area(centre_len: float, r: float) -> float:
 # ---------------------------------------------------------------- the row in the sketch palette
 
 func build_row(box: Node) -> void:
+	toggle = ui.m._button("Shapes", func(): set_row_open(not row_open), "SHAPES: Rounded rect, Slot, a typed Radius for Circle and corners, and Size first (type the size, then pick the shape)")
+	toggle.name = "part_shapes_toggle"
+	toggle.toggle_mode = true
+	box.add_child(toggle)
 	row = HFlowContainer.new()
 	row.name = "part_shape_row"
+	row.visible = false
 	box.add_child(row)
 	var fc: Node = ui.free_chk
 	if fc != null and fc.get_parent() == box:   # high in the palette: the foot of it sits under the timeline at 1280x720
-		box.move_child(row, fc.get_index() + 1)
+		box.move_child(toggle, fc.get_index() + 1)
+		box.move_child(row, fc.get_index() + 2)
 	for t in TOOLS:
 		var b: Button = ui.m._button(t.replace("Rounded rectangle", "Rounded rect"), ui._pick.bind(t), String(TIP[t]))
 		b.name = "part_tool_" + t.to_lower().replace(" ", "_")
@@ -132,13 +140,20 @@ func build_row(box: Node) -> void:
 	_build_first()
 
 
+func set_row_open(v: bool) -> void:
+	row_open = v
+	sync()
+	ui.pov.queue_redraw()
+
+
 func owns(t: String) -> bool:
 	return TOOLS.has(t)
 
 
 func sync() -> void:
 	if row != null:
-		row.visible = not ui.con_open   # the rule row needs the room (the palette ends under the timeline at 1280x720)
+		toggle.set_pressed_no_signal(row_open)
+		row.visible = row_open and not ui.con_open   # the rule row needs the room (the palette ends under the timeline at 1280x720)
 	for t in btns:
 		(btns[t] as Button).set_pressed_no_signal(t == ui.tool)
 
@@ -151,6 +166,7 @@ func radius() -> float:
 
 
 func pick(t: String) -> void:
+	row_open = true
 	if ui.dlg.size() > 0:
 		ui.close_dialog()
 	if ui.sk == "":

@@ -244,7 +244,9 @@ func _init() -> void:
 	# 1 RRECT
 	var n0: int = m.undo.size()
 	await begin(pu)
-	ok(pu.shp.btns["Rounded rectangle"].is_visible_in_tree(), "1 the Rounded rect button shows in the sketch palette")
+	ok(not pu.shp.row.visible, "1 the shape row is folded by default (the palette is tight at 1280x720)")
+	await click_ctl(pu.shp.toggle)
+	ok(pu.shp.btns["Rounded rectangle"].is_visible_in_tree(), "1 the Shapes button opens the row")
 	set_radius(pu, "8")
 	await click_ctl(pu.shp.btns["Rounded rectangle"])
 	ok(pu.tool == "Rounded rectangle", "1 the button picks the tool (%s)" % pu.tool)
