@@ -113,6 +113,8 @@ static func gather_part(pm: MeshInstance3D, res: Dictionary) -> Dictionary:
 		verts.append(xf * (by_body[b] as PackedVector3Array))
 	var g := _finish(names, verts)
 	g["keys"] = keys
+	g["body_idx"] = order   # C06: the replay body of each piece, and the replay's looks (FrameLight)
+	g["looks"] = res.get("body_looks", [])
 	return g
 
 
@@ -328,7 +330,7 @@ static func serve(m: Node, p: Dictionary) -> Dictionary:
 	var cam := camera_of(m, p)
 	if not bool(cam["ok"]):
 		return cam
-	var g := gather(m)
+	var g := FrameLight.gather_given(m, p["part"]) if p.get("part") is Dictionary else gather(m)   # C06: {part: record} frames a given part
 	if (g["names"] as Array).is_empty():
 		return {"ok": false, "error": "nothing to frame: no part is on screen"}
 	var out := {"ok": true, "w": cam["w"], "h": cam["h"], "method": "projected real triangle corners (silhouette bbox is exact); aabb_bbox_px is the 3D box's corners for comparison"}
@@ -345,6 +347,11 @@ static func serve(m: Node, p: Dictionary) -> Dictionary:
 			out["pieces"][g["names"][i]] = scene_facts(g, [i], cam)
 		out["selection"] = scene_facts(g, idx, cam)
 		out["selection"]["pieces"] = idx.size()
+	out["light"] = FrameLight.block(g, cam)   # C06: emission, peak luminance, brightest piece, pieces touching the frame edge (incl. glow px)
+	for nm in out["pieces"]:
+		var lp: Dictionary = (out["light"]["pieces"] as Dictionary).get(nm, {})
+		if not lp.is_empty():
+			out["pieces"][nm].merge({"emission": lp["emission"], "peak_luminance": lp["peak_luminance"], "glow_px": lp["glow_px"], "touches_edge": lp["edge"].values().has(true)})
 	out["ms"] = snappedf((Time.get_ticks_usec() - t0) / 1000.0, 0.1)
 	return out
 

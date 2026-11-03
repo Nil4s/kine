@@ -867,7 +867,14 @@ static func facts(rec: Dictionary, opts := {}) -> Dictionary:
 	return r
 
 
+## C06: the report plus the added keys of scripts/build/c06_math.gd (box_mm, bodies_math, failed_steps, touching_pairs, gap, holes, fillets); no old key changes
 static func facts_of(M: Model, opts := {}) -> Dictionary:
+	var out := facts_core(M, opts)
+	out.merge(C06Math.extra(M, contacts(M, float(opts.get("near_mm", NEAR_MM))), opts))
+	return out
+
+
+static func facts_core(M: Model, opts := {}) -> Dictionary:
 	var cap: int = int(opts.get("cap", 6))
 	var C := contacts(M, float(opts.get("near_mm", NEAR_MM)))
 	var rep := repeats(M)

@@ -38,6 +38,7 @@ func two_cubes(gap_x: float) -> Dictionary:
 
 
 func _init() -> void:
+	await process_frame   # the tree is live (global transforms of the framed pieces)
 	if not Part.available():
 		print("FAIL: no KineCAD DLL, the parts cannot be built")
 		quit(1)
