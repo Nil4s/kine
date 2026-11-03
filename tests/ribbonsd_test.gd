@@ -4,6 +4,8 @@ extends SceneTree
 ## nothing in More. Every old tool is reached by REAL clicks (its icon, or its caption then its menu item) and runs the same button's action.
 ## At 1280x720 and 1600x900: nothing clipped, nothing in More, one caption per group, every tool keeps its tooltip.
 
+## tools added to a group since the old lists above (338dc756 plan 137 put "Impact frames", the toggle, in STAGE REACT)
+const ADDED := {"SET": ["Impact frames"]}
 const OLD := {
 	"SET": ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight", "Add prop", "Import model", "Turn left", "Turn right", "Delete prop",
 		"Sit here", "Step up", "Pick up", "Put down", "Throw to...", "Sit down", "Stand up", "Get up", "Crowd: make 20 copies of this fighter",
@@ -125,7 +127,7 @@ func _init() -> void:
 				var menu_n: int = cap.get_popup().item_count
 				ok(menu_n == (pair[1] as Array).size(), "%s: %s menu lists all %d of its tools" % [tag, cap.text, menu_n])
 				seen += menu_n
-			ok(seen == old.size(), "%s: the groups hold all %d tools (%d)" % [tag, old.size(), seen])
+			ok(seen == old.size() + ADDED.get(row, []).size(), "%s: the groups hold all %d tools (%d)" % [tag, old.size() + ADDED.get(row, []).size(), seen])   # navigation: ADDED = tools the groups gained after this suite was written
 			# every tool: reached by real clicks, its own button fires once
 			var direct := 0
 			var via := 0
