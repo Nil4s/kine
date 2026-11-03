@@ -141,6 +141,11 @@ func win_click(w: Window, p: Vector2) -> void:
 
 ## press on the button, drag to the popup's row, release there (how a Godot drop-down is used with one gesture)
 func pick(opt: OptionButton, idx: int) -> void:
+	# C30 navigation edit: the choice now sits in the dialog's options scroll; bring it into view first, as a user would
+	var sc := opt.get_window().find_child("export_opts_scroll", true, false) as ScrollContainer
+	if sc != null:
+		sc.ensure_control_visible(opt)
+		await idle(3)
 	var dlg: Window = opt.get_window()
 	var off := Vector2(dlg.position) if dlg != root else Vector2.ZERO
 	var pb := off + opt.get_global_rect().get_center()
