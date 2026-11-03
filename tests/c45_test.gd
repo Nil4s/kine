@@ -219,13 +219,14 @@ func _init() -> void:
 	for q in [[0, 0], [100, 0], [100, 60], [0, 60], [0, 0]]:
 		await click_at(sp2(q[0], q[1]))
 	await key(KEY_ESCAPE)
+	await press_tool(pu, "Line")
 	await click_at(sp2(100, 60))
 	await click_at(sp2(150, 100))
 	await key(KEY_ESCAPE)
 	pu.tool = ""
 	pu.draft = {}
-	pu._add_ent({"k": "rect", "a": [200.0, 0.0], "b": [260.0, 60.0]})
-	pu._add_ent({"k": "line", "a": [190.0, 30.0], "b": [270.0, 30.0]})
+	pu._add_ent({"k": "rect", "a": [-90.0, 10.0], "b": [-10.0, 80.0]})
+	pu._add_ent({"k": "line", "a": [-100.0, 45.0], "b": [0.0, 45.0]})
 	await idle(2)
 	var n_ents: int = pu._sk()["ents"].size()
 	ok(pu.tool == "" and pu.draft.is_empty(), "B0 no tool, nothing being drawn (%d entities)" % n_ents)
@@ -247,8 +248,9 @@ func _init() -> void:
 	await idle(2)
 	ok(not ps_.chosen.is_empty() and ps_.chosen == it[1] and String(m.ui_status.text).contains("Picked"), "B5 choosing row 2 picks that item: %s" % str(ps_.chosen.get("label", "")))
 	ps_.popup.hide()
+	await idle(5)
 	await shot("sketch_stack_picked")
-	await ev_alt(sp2(230, 30))
+	await ev_alt(sp2(-50, 45) + Vector2(0, 4))
 	it = ps_.items
 	var kinds := it.map(func(x): return x["kind"])
 	var ie := kinds.find("edge")

@@ -9,6 +9,7 @@ extends Node
 ##   G / R / S  grab / rotate / scale the selected vertices (on the model preview WITHOUT the Blender-keys layer; then X / Y / Z,
 ##      a typed number, click or Enter keeps, Esc or right click cancels; O proportional, the wheel its radius: scripts/bl_keys.gd)
 ##   Alt+click  select the edge LOOP through the edge under the mouse (Shift+Alt+click adds it; kmesh_select.gd select_loop)
+##   Alt+click (face mode)  the face under the mouse, each click at the same spot the next one BEHIND it (C45, kmesh_pickstack.gd)
 ##   Ctrl+1 / Ctrl+2 / Ctrl+3  a Subdivide modifier at level 1 / 2 / 3 on the stack (one undo step; the modifiers panel)
 ##   Ctrl+Z  undo the last mesh edit (A12: "Model: subdivide the test cube (Catmull-Clark)" is one step)
 ##   K  add a shape key from the current shape (A13)                    [ / ]  the last key's value -0.1 / +0.1
@@ -401,9 +402,8 @@ func input(ev: InputEvent) -> bool:
 			_cur = mb.position
 			if armed != "":
 				_kind = armed
-			elif mb.alt_pressed and sel.mode == KMeshSelect.FACE and _alt_behind(cam, mb.position, _add):   # C45: Alt+click walks the faces behind
+			elif mb.alt_pressed and sel.mode == KMeshSelect.FACE and _alt_behind(cam, mb.position, _add):   # C45: Alt+click walks the faces behind (its own status line)
 				_kind = "click"
-				_report()
 			elif mb.alt_pressed and _alt_loop(cam, mb.position, _add):   # Blender's Alt+click: the edge loop through that edge
 				_kind = "click"
 				_report()
