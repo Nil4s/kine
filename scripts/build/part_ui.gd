@@ -2678,6 +2678,8 @@ func _rebuild(show: bool) -> void:
 	Part.PartInstances.sync(part_mesh, res)   # s261
 	edge_cache = res["edges"]
 	face_cache = res["faces"]
+	if c50 != null:
+		c50.sync()   # C50: the references follow the solid
 	thread_look_sync()
 
 

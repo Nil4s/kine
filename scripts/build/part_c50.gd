@@ -29,7 +29,11 @@ func _init(p: PartUI) -> void:
 	chk.tooltip_text = "Click an edge or a corner of the solid to project it into this sketch as dashed reference geometry. Lines you draw snap to it. Click it again to remove it."
 	chk.focus_mode = Control.FOCUS_NONE
 	chk.toggled.connect(func(v: bool): on = v; pu.pov.queue_redraw())
-	pu.sketch_box.add_child(chk)
+	if pu.c15 != null and pu.c15.box != null:   # first row of the scrolling window under the palette: the palette itself must not grow (pconstr clicks its rule row)
+		pu.c15.box.add_child(chk)
+		pu.c15.box.move_child(chk, 0)
+	else:
+		pu.sketch_box.add_child(chk)
 
 
 # ---------------------------------------------------------------- labels (#197)
@@ -65,7 +69,7 @@ static func all_labels(sk: Dictionary) -> Array:
 static func ent_words(sk: Dictionary, i: int) -> String:
 	var e: Dictionary = sk["ents"][i]
 	var k := String(e.get("k", ""))
-	var w := {"line": "line", "rect": "rectangle", "circle": "circle", "arc": "arc", "bspline": "curvy line"}.get(k, k)
+	var w: String = {"line": "line", "rect": "rectangle", "circle": "circle", "arc": "arc", "bspline": "curvy line"}.get(k, k)
 	var s := "%s: %s" % [ent_label(sk, i), w]
 	match k:
 		"line":

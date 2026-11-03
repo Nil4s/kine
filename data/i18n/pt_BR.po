@@ -813,6 +813,9 @@ msgstr "Dizer o tempo de renderização antes"
 msgid "Scale to 1.75 m"
 msgstr "Escalar para 1,75 m"
 
+msgid "Pick body edges as reference"
+msgstr "Escolher arestas do corpo como referência"
+
 msgid "   Pick what you want to make"
 msgstr "   Escolha o que você quer fazer"
 

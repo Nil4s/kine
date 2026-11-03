@@ -130,7 +130,7 @@ func _init() -> void:
 	rec["features"].append(sk1)
 	rec["features"].append(Part.new_feature(rec, "extrude", {"sketch": sk1["id"], "dist": 30.0, "both": false, "op": "new"}))
 	pu._rec_sig = ""
-	pu._rebuild()
+	pu._rebuild(true)
 	await idle(3)
 	pu.begin_sketch("front")
 	await idle(4)
@@ -177,7 +177,7 @@ func _init() -> void:
 	var f1 := Part.feature(pu._rec(), String(sk1["id"]))
 	f1["ents"][0]["b"] = [60, 20]
 	pu._rec_sig = ""
-	pu._rebuild()
+	pu._rebuild(true)
 	await idle(3)
 	c50.sync()
 	var p1 := Part.v2(refs()[0]["pa"])
