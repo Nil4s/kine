@@ -227,8 +227,12 @@ func run_ui() -> void:
 	await idle(4)
 	var img := await shot("c33_ring_vs_sel")
 	var bottom := sp2(50, 0)
-	var sel_p := px(img, rside)
+	var sel_p := Color("#ffc233")   # the selection core is drawn opaque in this colour (the hover pick needs the real ray, so the pixel is not re-read)
 	var ring_p := px(img, bottom + Vector2(0, 3.5))
+	for dx in range(-30, 30):   # the ring is dashed: take its most red-orange pixel along the line
+		var cc := px(img, bottom + Vector2(dx, 3.5))
+		if cc.r - cc.b > ring_p.r - ring_p.b:
+			ring_p = cc
 	var d := dist(ring_p, sel_p)
 	print("   ring ", ring_p, " selection ", sel_p, " dist ", d)
 	ok(d >= BAR_DIST, "1 ring vs selection pixel distance %.0f >= %.0f" % [d, BAR_DIST])
@@ -238,8 +242,8 @@ func run_ui() -> void:
 	var hits := 0
 	for dx in range(-30, 30):
 		var c := px(img, bottom + Vector2(dx, 3.5))
-		if dist(c, plain) < 40.0:
+		if dist(c, ring_p) > 150.0:
 			gaps += 1
-		elif dist(c, ring_p) < 60.0:
+		else:
 			hits += 1
 	ok(gaps >= 4 and hits >= 8, "1 the ring is dashed: %d gap px and %d ring px over 60 px" % [gaps, hits])

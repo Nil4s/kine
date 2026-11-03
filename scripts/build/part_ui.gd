@@ -89,7 +89,7 @@ var sk := ""                   # the sketch being edited ("" = the model is show
 var snap_mm := 5.0
 var grid_on := true
 var show_dims := true
-const FREE_RING_C := Color(1.0, 0.62, 0.04, 0.6)
+const FREE_RING_C := Color(1.0, 0.22, 0.08, 0.9)   # C33: a red-orange that stays clear of the yellow (#ffc233) selection, and drawn DASHED so the shape differs too
 var show_free := false   # C21: the free shapes named in the status line and ringed on the sketch
 var free_chk: CheckBox
 var upto := -1                 # the timeline marker: -1 = every step
@@ -3043,16 +3043,20 @@ func _health_draw(ents: Array) -> void:
 			var e: Dictionary = ents[int(fsd["i"])]
 			match String(e["k"]):
 				"line":
-					pov.draw_line(scr(Part.v2(e["a"])), scr(Part.v2(e["b"])), FREE_RING_C, 8.0)
+					pov.draw_dashed_line(scr(Part.v2(e["a"])), scr(Part.v2(e["b"])), FREE_RING_C, 8.0, 10.0)
 				"rect":
 					var ra := scr(Part.v2(e["a"]))
 					var rb := scr(Part.v2(e["b"]))
-					pov.draw_rect(Rect2(ra, rb - ra).abs().grow(3.0), FREE_RING_C, false, 4.0)
+					var rr := Rect2(ra, rb - ra).abs().grow(3.0)
+					var rc := [rr.position, Vector2(rr.end.x, rr.position.y), rr.end, Vector2(rr.position.x, rr.end.y), rr.position]
+					for k in 4:
+						pov.draw_dashed_line(rc[k], rc[k + 1], FREE_RING_C, 5.0, 10.0)
 				"circle":
 					var rp := PackedVector2Array()
 					for j in 49:
 						rp.append(scr(Part.v2(e["c"]) + Vector2.from_angle(TAU * j / 48.0) * float(e["r"])))
-					pov.draw_polyline(rp, FREE_RING_C, 7.0)
+					for j in range(0, 48, 2):   # every other chord: a dashed ring
+						pov.draw_line(rp[j], rp[j + 1], FREE_RING_C, 7.0)
 	for ci in h.get("clash_cons", []):
 		var c: Dictionary = f["cons"][int(ci)]
 		for key in ["a", "b"]:
