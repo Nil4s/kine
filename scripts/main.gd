@@ -2739,6 +2739,7 @@ func _open_version(path: String) -> void:
 
 
 func _input(ev: InputEvent) -> void:
+	sticky.filter(ev)   # C11: sticky modifier keys (off unless Settings turns them on)
 	# FIX ALL runs in slices (its sampler is part way through a clip between two frames): only its own button answers meanwhile
 	if _fixall_on and (ev is InputEventKey or (ev is InputEventMouseButton and not (is_instance_valid(_fixall_btn) and _fixall_btn.get_global_rect().has_point((ev as InputEventMouseButton).position)))):
 		get_viewport().set_input_as_handled()
@@ -3046,6 +3047,7 @@ func _ready() -> void:
 	B.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 	BootProfile.mark("load skeleton+limits")
 	var testing: bool = Engine.get_main_loop().get_script() != null
+	sticky.set_on(StickyKeys.saved() if (not testing or OS.get_environment("KINE_STICKY_FILE") != "") else false)   # C11
 	KineLang.apply_saved(testing)   # FRIDAY 99: the remembered language (English unless Portugues was picked in the start screen's Settings)
 	if testing:
 		settings = "user://poser_test_%d.cfg" % OS.get_process_id()
@@ -11963,6 +11965,7 @@ func _gear_open() -> void:
 var gfx_mode := "auto"   # Auto / Low / Medium / High (remembered)
 var gfx_tier := "high"   # what the mode means on this PC, applied at start
 var ui_gfx_dlg: ConfirmationDialog
+var sticky := StickyKeys.new()   # C11
 var gfx_override := ""   # a test's own override.cfg path (never the project's)
 
 
@@ -11979,6 +11982,9 @@ func _gfx_start(testing: bool) -> void:
 	Quality.apply(get_viewport(), gfx_tier, light_key)
 	if not testing:
 		_say(GpuNotice.line(GpuNotice.list_windows() if GpuNotice.is_integrated(String(mach["adapter"])) else [], String(mach["adapter"])))
+		var bad_drv := GpuDrivers.warning_now()   # C11: known-bad driver list (data/gpu_bad_drivers.json), warns only
+		if bad_drv != "":
+			_say(bad_drv)
 	if not testing and gfx_mode == "auto" and not Quality.benched(settings, mach):
 		_gfx_first_run.call_deferred(mach)
 

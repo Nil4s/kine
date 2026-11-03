@@ -318,6 +318,7 @@ func _settings_box() -> PanelContainer:
 	_show_check.text = "Show start screen"
 	_show_check.toggled.connect(_show_toggled)
 	v.add_child(_show_check)
+	v.add_child(_sticky_row())   # C11
 	v.add_child(_lang_row())   # FRIDAY 99: Language: English / Português
 	var close_btn := _button("Close", "settings_close")
 	close_btn.pressed.connect(_close)
@@ -872,6 +873,19 @@ func _show_toggled(on: bool) -> void:
 
 ## FRIDAY 99: the Language row of Settings (the words of the app: English or Português; remembered, scripts/kine_lang.gd)
 var _lang_pick: OptionButton
+
+
+## C11: Sticky keys (tap Shift / Ctrl / Alt to hold it for the next key or click); off by default
+func _sticky_row() -> CheckBox:
+	var c := CheckBox.new()
+	c.name = "settings_sticky_keys"
+	c.text = "Sticky keys (tap Shift / Ctrl / Alt to hold it for the next key or click)"
+	c.button_pressed = m.sticky.on
+	c.toggled.connect(func(v: bool):
+		m.sticky.set_on(v)
+		StickyKeys.save(v))
+	return c
+
 
 
 func _lang_row() -> HBoxContainer:
