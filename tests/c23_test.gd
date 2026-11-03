@@ -152,6 +152,10 @@ func part_a() -> void:
 	# picture of the dialog on the Best-for-my-part format
 	ex.open()
 	await idle(4)
+	for ti in ex._tg().size():
+		if String((ex._tg()[ti] as Dictionary)["id"]) == "print":
+			ex.ui_target.select(ti)
+	ex._fill_formats()
 	ex.ui_format.select(2)
 	ex._refresh()
 	await idle(6)
