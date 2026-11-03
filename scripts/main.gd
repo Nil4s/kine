@@ -1425,7 +1425,9 @@ func _export_fbx(dir := "res://exports", root_motion := false) -> String:
 	if not acts.is_empty():
 		for a in acts:
 			var p := "%s/%s%s_%s.fbx" % [dir, _export_base(), sfx, safe_file(String(a["name"]))]
-			var r := FbxExport.write(a["S"], a["B"], p, root_motion, a["xf"], String(a["name"]))
+			if ExportNames.template.strip_edges() != "":   # C09: the name template
+				p = "%s/%s%s.fbx" % [dir, ExportNames.expand(ExportNames.template, {"name": _export_base(), "part": safe_file(String(a["name"]))}, _export_base()), sfx]
+			var r := FbxExport.write(a["S"], a["B"], p, root_motion, a["xf"], String(a["name"]), false, ExportNames.cam_keys(a["S"]))
 			if r["err"] != OK:
 				_refresh()
 				_say_plain("NOT DONE: %s could not be written (%s)" % [p.get_file(), error_string(r["err"])])
@@ -1438,9 +1440,9 @@ func _export_fbx(dir := "res://exports", root_motion := false) -> String:
 		_say_plain("exported %d .fbx, one per fighter, each at its place: %d bones, %d frames at %d fps, UE5 bone names, centimetres, Y up. The weapons are not in them" % [acts.size(), bones, frames, S.fps])
 		return first
 	var nm := S.name if S.name != "" else "scene"
-	var path := "%s/%s%s.fbx" % [dir, nm, sfx]
+	var path := "%s/%s%s.fbx" % [dir, ExportNames.expand(ExportNames.template, {"name": nm, "part": nm}, nm), sfx]   # C09: blank template = nm
 	var keep := B.state()
-	var r2 := FbxExport.write(S, B, path, root_motion)
+	var r2 := FbxExport.write(S, B, path, root_motion, Transform3D.IDENTITY, "", false, ExportNames.cam_keys(S))
 	B.set_state(keep)
 	_refresh()
 	if r2["err"] != OK:
@@ -24006,8 +24008,12 @@ func _export_objects(dir := "res://exports", only_selected := false, budget := 0
 		_say_plain("NOT DONE: no mesh object to export (open the test cube, or add a set piece)")
 		return ""
 	var stem := PartNames.stem_of(objs[0]) if only_selected else safe_file(S.name if S.name != "" else "scene") + "_objects"
+	stem = ExportNames.expand(ExportNames.template, {"name": safe_file(S.name if S.name != "" else "scene"), "part": stem}, stem)   # C09
 	var path := "%s/%s.glb" % [dir, stem]
-	var err := GltfExport.write_meshes(ExportBudget.apply_list(objs, budget), path)
+	var wobjs := ExportBudget.apply_list(objs, budget)
+	if ExportNames.lightmap_uv:
+		wobjs = LightmapUV.apply_list(wobjs)   # C09: UV2 for baked lighting, opt-in
+	var err := GltfExport.write_meshes(wobjs, path)
 	if err != OK:
 		_say_plain("NOT DONE: the .glb could not be written (%s)" % error_string(err))
 		return ""
