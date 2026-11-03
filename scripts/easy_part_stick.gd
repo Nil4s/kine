@@ -272,7 +272,7 @@ func _stick(op: String, label: String, nudge := false) -> void:
 		m._drop_undo()
 		_edit_n = -1
 		_say("Those two pieces cannot do that: " + _plain(why))
-		if why.ends_with(Part.JOINH.NUDGE_ASK):   # W10: keep the two picks and the box: the nudge button repeats this press
+		if why.contains(Part.JOINH.NUDGE_ASK):   # C21 suffix follows it   # W10: keep the two picks and the box: the nudge button repeats this press
 			stick_picks = picks_keep
 			armed = "stick"
 			_stick_retry = [op, label]

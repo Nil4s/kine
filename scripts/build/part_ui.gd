@@ -2118,7 +2118,7 @@ func _preview() -> void:
 		dlg_info.text = _pattern_info()
 	ok_btn.disabled = err != ""
 	if kind == "combine" and f_cmb_nudge != null:
-		f_cmb_nudge.visible = err.ends_with(Part.JOINH.NUDGE_ASK)   # W10
+		f_cmb_nudge.visible = err.contains(Part.JOINH.NUDGE_ASK)   # C21 appends " How to fix:" after it   # W10
 	prev_mesh.mesh = prev["mesh"]
 	prev_mesh.visible = prev["mesh"] != null
 	part_mesh.visible = false
