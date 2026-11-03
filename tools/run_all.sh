@@ -869,3 +869,4 @@ EXTRA="$EXTRA c31:w"   # c31: pt_BR 447 strings, placeholders, CRLF, review list
 
 
 EXTRA="$EXTRA c30:w"
+EXTRA="$EXTRA c42:w"   # C42 stay-in-place export toggle + lightmap UV1 Blender readback (tests/c42_test.gd)
