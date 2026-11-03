@@ -10,6 +10,12 @@
 ##   (4) See-through on: the surface transparency is KMeshSpots.SEE_THROUGH (0.65); off: 0.0 (a control that reads 0 first)
 ##   (5) Next spot cycles: after Jump on row 0, next_spot() selects row 1's elements
 ##   (6) the panel lies inside the free view at 1280x720; screenshot saved for the eye
+##   LAYOUT (lead, 11-02): at 1280x720 AND 1024x600, with the panel open and the spot list full (15 rows):
+##   (15) the panel's rect intersects no other visible control's rect (PanelContainers, buttons, labels, outside it, none
+##        wider than 40 % of the window); the Scan and Next spot buttons' rects intersect none either
+##   (16) at 1280x720 the list shows >= 6 rows (its height / the first row's height)
+##   (17) CONTROL: the old layout (top left of the free view, cl.position + 12) FAILS (15): the same check reports >= 1 overlap
+##   (3) amended: the spot is centred in the free view LEFT of the panel (the panel now sits at the view's right end)
 ##  HAND (#619): a hand of 5 fingers (8-sided, 5 rings, 8 cm, radius 8 mm) on hand_l + finger bones
 ##   (7) the good hand has 0 findings and 5 fingers each with >= 6 verts; CONTROL for the others
 ##   (8) one middle-finger vert pulled 9 cm off the hand: findings kinds exactly ["spike", "stretched"], the spike items
@@ -258,7 +264,7 @@ func app() -> void:
 	var cam: Camera3D = m.cam
 	var wp: Vector3 = ed.view.global_transform * ed.mesh.verts[8]
 	var sc := cam.unproject_position(wp)
-	var reg: Rect2 = ModelChecksUI.of(m).view_region()
+	var reg: Rect2 = ui.view_region()
 	ok(same(selv, [8]) and ui._marks != null and ui._marks.get_parent() == ed.view and sc.distance_to(reg.get_center()) <= 2.0, "(3) Jump selects exactly vert 8, red marker on the view, spot %.1f px from the view centre" % sc.distance_to(reg.get_center()))
 	var surf = ed.view.get("_surf")
 	var t0: float = surf.transparency
@@ -276,8 +282,60 @@ func app() -> void:
 	var want: Array = ui.spots[1]["items"]
 	var got: Array = ed.sel.verts.keys() if ui.spots[1]["mode"] == 0 else (ed.sel.faces.keys() if ui.spots[1]["mode"] == 2 else ed.sel.edges.keys())
 	ok(ui.cur == 1 and same(got, want), "(5) next_spot goes to row 1 (%s), selection %s" % [ui.spots[1]["kind"], str(got)])
-	var cl: Rect2 = m.nav_clear_rect()
-	var pr := ui.get_global_rect()
-	ok(cl.encloses(pr), "(6) panel %s inside the free view %s" % [str(pr), str(cl)])
 	m.get_viewport().get_texture().get_image().save_png(SHOT + "/spots_1280x720.png")
+	await layout("1280x720", true)
+	root.size = Vector2i(1024, 600)
+	DisplayServer.window_set_size(Vector2i(1024, 600))
+	await idle(4)
+	ui.place()
+	await idle(2)
+	await layout("1024x600", false)
 	TestFiles.cleanup()
+
+
+## the visible controls outside the panel that count as "another panel": not mouse-transparent, under 40 % of the window wide
+func others(ui: Control) -> Array:
+	var out := []
+	var vs := Vector2(root.size)
+	for c in m.ui_root.find_children("*", "Control", true, false):
+		var ct := c as Control
+		if ct == ui or ui.is_ancestor_of(ct) or ct.is_ancestor_of(ui) or not ct.is_visible_in_tree():
+			continue
+		if ct.mouse_filter == Control.MOUSE_FILTER_IGNORE and not (ct is PanelContainer):
+			continue
+		var r := ct.get_global_rect()
+		if r.size.x < 8 or r.size.y < 8 or r.size.x > 0.4 * vs.x or r.size.y > 0.8 * vs.y:
+			continue
+		out.append(ct)
+	return out
+
+
+func hits(ui: Control, r: Rect2) -> Array:
+	return others(ui).filter(func(c): return c.get_global_rect().intersects(r)).map(func(c): return "%s %s" % [c.name, str(c.get_global_rect())])
+
+
+func layout(tag: String, rows_bar: bool) -> void:
+	var ui := KMeshSpotsUI.of(m)
+	var pr := ui.get_global_rect()
+	var h := hits(ui, pr)
+	var nb := ui.find_child("btn_sp_next", true, false) as Button
+	var sb := ui.find_child("btn_sp_scan", true, false) as Button
+	var bh := hits(ui, nb.get_global_rect()) + hits(ui, sb.get_global_rect())
+	var cl: Rect2 = m.nav_clear_rect()
+	ok(h.is_empty() and bh.is_empty() and cl.encloses(pr), "(15) %s: panel %s overlaps %s, buttons covered by %s, inside free view %s" % [tag, str(pr), str(h), str(bh), str(cl)])
+	var row0: Control = ui._rows.get_child(0)
+	var rows := ui._scroll.size.y / maxf(1.0, row0.size.y + 8.0)
+	if rows_bar:
+		ok(rows >= 6.0, "(16) %s: the list shows %.1f rows (list %.0f px, row %.0f px)" % [tag, rows, ui._scroll.size.y, row0.size.y])
+	else:
+		print("     %s: list shows %.1f rows" % [tag, rows])
+	m.get_viewport().get_texture().get_image().save_png(SHOT + "/spots_%s.png" % tag)
+	if rows_bar:
+		var old := Vector2(cl.position.x + 12.0, cl.position.y + 12.0)
+		var save := ui.position
+		ui.position = old
+		await idle(2)
+		var oh := hits(ui, ui.get_global_rect()) + hits(ui, nb.get_global_rect())
+		ok(not oh.is_empty(), "(17) CONTROL: the old top-left layout overlaps %d control(s): %s" % [oh.size(), str(oh)])
+		ui.position = save
+		await idle(2)
