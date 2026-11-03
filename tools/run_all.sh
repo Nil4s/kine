@@ -843,3 +843,6 @@ EXTRA="$EXTRA c12:w"   # c12: blueprint callouts, dim style presets, custom 1:1 
 
 
 EXTRA="$EXTRA c20:w"   # C20: print fit: hinge clearance from the printer preset + knuckle fuse check, export tessellation = fit/4 (opt-in), support anchor width check (tests/c20_test.gd; needs the CAD DLL)
+
+
+EXTRA="$EXTRA c17:w"   # C17 mesh print safety: internal-shell check, repair list + undo, reload check of written STL/3MF (tests/c17_test.gd; needs the CAD DLL)

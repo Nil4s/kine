@@ -27,6 +27,7 @@ var ui_q_info: Label
 var ui_fit: CheckBox   # C20: Match the mesh to the fit (off = the usual quality)
 var _q_cache := {}
 var ui_csv_locale: OptionButton   # C14 (#442): the cut-list CSV's locale (0 = comma + dot decimals, the default; 1 = semicolon + decimal comma, for Excel in pt-BR / EU)
+var ui_safety: VBoxContainer   # C17: print safety row
 var ui_price_row: HBoxContainer   # s081: the price table (BRL) behind the cost line
 var ui_bed_row: HBoxContainer   # 3D printing only: the printer bed size and Split to fit (Friday plan 114)
 var ui_bed: Array = []   # three SpinBoxes: bed X, Y, Z in mm
@@ -313,6 +314,8 @@ func _build() -> void:
 	ui_q_info.custom_minimum_size = Vector2(300, 0)
 	v.add_child(ui_q_info)
 	_price_row_build(v)
+	ui_safety = PrintSafety.build_row(self)   # C17
+	v.add_child(ui_safety)
 	_build_bed_row(v)
 	ui_slicer_box = VBoxContainer.new()   # plan 119: Send to slicer (3D printing only)
 	ui_slicer_box.name = "export_slicer_box"
@@ -456,6 +459,8 @@ func _refresh() -> void:
 	ui_face_row.visible = _cur_id() == "laser"
 	ui_budget_row.visible = _cur_run() in ["glb", "obj", "stl", "3mf"]
 	ui_price_row.visible = _cur_id() == "cutlist" or _cur_id() == "print"
+	if ui_safety != null:
+		ui_safety.visible = _cur_id() == "print"
 	_refresh_quality()
 	if ui_bed_row != null:
 		ui_bed_row.visible = _cur_id() == "print"
