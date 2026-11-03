@@ -38,7 +38,17 @@ const STYLE := {
 	"elev-window": {"w": 0.3, "stroke": "#000000", "fill": "#d6e6f2"}, "elev-arch": {"w": 0.3, "stroke": "#000000", "fill": "#ffffff"},
 	"roof": {"w": 0.4, "stroke": "#000000", "fill": "#c8c8c8"}, "roof-edge": {"w": 0.18, "stroke": "#000000"},
 	"ground": {"w": 0.6, "stroke": "#000000"}, "ground-hatch": {"w": 0.13, "stroke": "#404040"}, "level": {"w": 0.18, "stroke": "#000000"},
+	"dim-bg": {"w": 0.0, "stroke": "#ffffff", "fill": "#ffffff"}, "callout": {"w": 0.25, "stroke": "#000000"}, "leader": {"w": 0.18, "stroke": "#000000"},
+	"callout-text": {"stroke": "#000000"},
 }
+
+
+## custom sheet sizes registered by BlueprintExt (name -> mm); empty by default, so A4 / A3 stay the only papers
+static var custom_papers := {}
+
+
+static func paper_size(paper: String) -> Vector2:
+	return PAPERS[paper] if PAPERS.has(paper) else Vector2(custom_papers.get(paper, Vector2(420, 297)))
 
 
 static func style(cls: String) -> Dictionary:
@@ -69,7 +79,7 @@ static func title_of(tab: String) -> String:
 
 
 static func _area(paper: String) -> Rect2:
-	var P: Vector2 = PAPERS[paper]
+	var P: Vector2 = paper_size(paper)
 	return Rect2(MARGIN + PAD, MARGIN + PAD, P.x - 2.0 * (MARGIN + PAD), P.y - 2.0 * (MARGIN + PAD) - TB_H)
 
 
@@ -94,7 +104,7 @@ static func sheet(b: Dictionary, tab: String, pick := {}) -> Dictionary:
 	var ch: Dictionary = pick if not pick.is_empty() else choose(b)
 	var paper: String = ch["paper"]
 	var denom: int = int(ch["denom"])
-	var P: Vector2 = PAPERS[paper]
+	var P: Vector2 = paper_size(paper)
 	var area := _area(paper)
 	var ents := _view(b, tab, 1000.0 / float(denom))
 	var bb := _bounds(ents)
@@ -185,18 +195,25 @@ static func _dim(a: Vector2, c: Vector2, n: Vector2, off: float, txt: String, d 
 	var out := []
 	var a2 := a + n * off
 	var c2 := c + n * off
-	out.append(_line(a + n * 1.5, a2 + n * 1.5, "dim"))
-	out.append(_line(c + n * 1.5, c2 + n * 1.5, "dim"))
+	var dp := BlueprintExt.dim_params()
+	var gap := float(dp["gap"])
+	var over := float(dp["over"])
+	out.append(_line(a + n * gap, a2 + n * over, "dim"))
+	out.append(_line(c + n * gap, c2 + n * over, "dim"))
 	out.append(_line(a2, c2, "dim"))
 	var u := (c - a).normalized()
 	var t := (u + n).normalized() * 1.4
 	out.append(_line(a2 - t, a2 + t, "dim"))
 	out.append(_line(c2 - t, c2 + t, "dim"))
 	var mid := (a2 + c2) * 0.5
-	if absf(u.x) > 0.5:
-		out.append(_text(mid + Vector2(0, -0.8), txt, TXT, "m", "dim-text", d))
+	var tg := float(dp["tgap"])
+	var horiz := absf(u.x) > 0.5
+	if bool(dp["bg"]):
+		out.append(BlueprintExt.dim_bg(mid + (Vector2(0, -tg) if horiz else Vector2(-tg, 0)), txt, horiz))
+	if horiz:
+		out.append(_text(mid + Vector2(0, -tg), txt, TXT, "m", "dim-text", d))
 	else:
-		out.append(_text(mid + Vector2(-0.8, 0), txt, TXT, "m", "dim-text", d, -90.0))
+		out.append(_text(mid + Vector2(-tg, 0), txt, TXT, "m", "dim-text", d, -90.0))
 	return out
 
 
@@ -573,7 +590,7 @@ static func _elev(b: Dictionary, which: String, k: float) -> Array:
 # ---------------------------------------------------------------- the frame and the title block
 
 static func _frame(b: Dictionary, tab: String, paper: String, denom: int, idx: int, count: int) -> Array:
-	var P: Vector2 = PAPERS[paper]
+	var P: Vector2 = paper_size(paper)
 	var out := []
 	out.append(_poly([Vector2(MARGIN, MARGIN), Vector2(P.x - MARGIN, MARGIN), Vector2(P.x - MARGIN, P.y - MARGIN), Vector2(MARGIN, P.y - MARGIN)], "border"))
 	var y0 := P.y - MARGIN - TB_H

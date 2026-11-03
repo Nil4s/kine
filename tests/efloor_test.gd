@@ -174,6 +174,8 @@ func _init() -> void:
 	await click_ctl(pu().part_btn)
 	await click_ctl(pu().easy_open_btn)
 	await idle(4)
+	ep().one_side = true   # P153 (a4512f9c): symmetry is on by default; this walk draws single boxes, so it uses One side only
+	ep().one_side_btn.set_pressed_no_signal(true)
 
 	# 1 FLOOR: a 40 x 40 mm square on empty space, pulled up 20 mm
 	await fresh(-40.0)
@@ -249,14 +251,20 @@ func _init() -> void:
 
 	# 8 LEG + the TABLE shot: a floor top, four legs drawn on its underside (pull goes DOWN)
 	await fresh(-40.0)
+	# navigation: 335b56eb (NPOLY2) added the Sides row, so the shape box grew to y 237..333 and covers the plate's start point (575, 271); view from a little further along z so the drag starts below it
+	m.target = Vector3(0.0, 0.0, -0.05)
+	m._cam()
+	await idle(150)
 	await draw_floor(Vector3(-0.05, 0.0, -0.05), Vector3(0.05, 0.0, 0.05))
 	await pull(2.0)
+	m.target = Vector3(0.0, 0.0, 0.0)
 	var bt := bbox()
 	var topv := bt.end.y
 	m.pitch = 35.0   # from below: the underside is in view
 	m.yaw = 25.0
 	m._cam()
 	await idle(60)
+	await idle(120)   # navigation: let the camera finish easing before the press points are read from it
 	var legs := [[Vector3(-0.045, 0.0, -0.045), Vector3(-0.03, 0.0, -0.03)], [Vector3(0.03, 0.0, -0.045), Vector3(0.045, 0.0, -0.03)], [Vector3(-0.045, 0.0, 0.03), Vector3(-0.03, 0.0, 0.045)], [Vector3(0.03, 0.0, 0.03), Vector3(0.045, 0.0, 0.045)]]
 	var first := true
 	for lg in legs:

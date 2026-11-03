@@ -17,6 +17,8 @@ const ANG_EPS := 0.5
 var m: Node
 var invert_orbit := false
 var invert_pan := false
+var invert_orbit_x := false   # C41 (#184): flip only the left-right (yaw) part of an orbit; XORs with invert_orbit
+var invert_orbit_y := false   # C41: flip only the up-down (pitch) part
 var cube_top := Vector3.ZERO   # ZERO = the world's up is Top (the default)
 var hist: Array = []
 var at := -1
@@ -136,7 +138,9 @@ func key(ev: InputEvent) -> bool:
 ## main calls this on a drag step: the drag with its direction flipped when that gesture is inverted
 func inv(act: String, rel: Vector2) -> Vector2:
 	if (act == "orbit" and invert_orbit) or (act == "pan" and invert_pan):
-		return -rel
+		rel = -rel
+	if act == "orbit" and (invert_orbit_x or invert_orbit_y):   # C41
+		rel = Vector2(-rel.x if invert_orbit_x else rel.x, -rel.y if invert_orbit_y else rel.y)
 	return rel
 
 
@@ -152,6 +156,8 @@ func load_from(path: String) -> void:
 		return
 	invert_orbit = bool(cf.get_value(SECTION, "invert_orbit", false))
 	invert_pan = bool(cf.get_value(SECTION, "invert_pan", false))
+	invert_orbit_x = bool(cf.get_value(SECTION, "invert_orbit_x", false))
+	invert_orbit_y = bool(cf.get_value(SECTION, "invert_orbit_y", false))
 
 
 func save_to(path: String) -> void:
@@ -159,6 +165,8 @@ func save_to(path: String) -> void:
 	cf.load(path)
 	cf.set_value(SECTION, "invert_orbit", invert_orbit)
 	cf.set_value(SECTION, "invert_pan", invert_pan)
+	cf.set_value(SECTION, "invert_orbit_x", invert_orbit_x)
+	cf.set_value(SECTION, "invert_orbit_y", invert_orbit_y)
 	cf.save(path)
 
 

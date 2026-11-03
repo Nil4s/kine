@@ -98,6 +98,7 @@ var suggest_round_btn: Button    # P092: "Round the edges?" under a pulled-up so
 var suggest_hollow_btn: Button   # P092: "Hollow it?" under a pulled-up solid (the suggest row): one press = Hollow inside (HOLLOW_MM wall, open at the top)
 var suggest_sculpt_btn: Button   # p156solidmesht: "Sculpt details?" in the same suggest row: the solid becomes a sculpt mesh (a copy; see _suggest_sculpt_press)
 var swing_btn: Button            # p123driveit: Swing it (Drive it), the chip in the Tilt it panel: the newest piece swings on a hinge step
+var door_opt: OptionButton        # C18: Swing it as a door (hinge edge left or right)
 var motion_btn: Button           # p126motionmp4: Save the motion as a video (the Tilt it panel, after Swing it)
 var motion_busy := false         # p126motionmp4: the swing is being filmed (one video at a time)
 var draft_btn: Button            # p021: Draft angle, the chip beside Tilt it (the side walls lean DRAFT_DEG for a mould)
@@ -512,7 +513,7 @@ func _lumps(r: Dictionary) -> int:
 				var gb: Dictionary = groups[keys[y]]
 				if not (ga["bb"] as AABB).grow(1e-4).intersects(gb["bb"] as AABB):
 					continue
-				if LumpTouch.patch(_group_pts(ga, wpos), _group_tri_pts(gb, wpos, tris), gb["bb"]) or LumpTouch.patch(_group_pts(gb, wpos), _group_tri_pts(ga, wpos, tris), ga["bb"]):
+				if LumpTouch.patch(_group_pts(ga, wpos, tris), _group_tri_pts(gb, wpos, tris), gb["bb"]) or LumpTouch.patch(_group_pts(gb, wpos, tris), _group_tri_pts(ga, wpos, tris), ga["bb"]):
 					parent[find.call(int(keys[x]))] = find.call(int(keys[y]))
 					merged = true
 					break
@@ -526,10 +527,22 @@ func _lumps(r: Dictionary) -> int:
 
 
 ## FLAMP5: the points of a welded group, and the flat triangle points of the group's triangles (see Part.touch_patch)
-func _group_pts(g: Dictionary, wpos: PackedVector3Array) -> PackedVector3Array:
+## B02: the vertices of a shell, plus a 5 x 5 grid of points over each triangle. Two faces that cross each other (a slab over a narrower panel's top:
+## the panel's corners are on the slab, the slab's are not) have too few shared VERTICES to read as a face contact; their grid points lie on it
+func _group_pts(g: Dictionary, wpos: PackedVector3Array, tris: Array = []) -> PackedVector3Array:
 	var out := PackedVector3Array()
 	for vi in g["v"]:
 		out.append(wpos[vi])
+	for ti in g["t"] if not tris.is_empty() else []:
+		var tr: Array = tris[ti]
+		var a: Vector3 = wpos[tr[0]]
+		var b: Vector3 = wpos[tr[1]]
+		var c: Vector3 = wpos[tr[2]]
+		for i in range(0, 5):
+			for j in range(0, 5 - i):
+				if (i == 0 and j == 0) or (i == 4) or (j == 4):
+					continue   # the corners are in the list already
+				out.append(a + (b - a) * (float(i) / 4.0) + (c - a) * (float(j) / 4.0))
 	return out
 
 

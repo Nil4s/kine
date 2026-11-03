@@ -1,0 +1,898 @@
+# pt_BR review list (C31, complaint #804)
+
+The 447 strings below were added to data/i18n/pt_BR.po for Nick to read. None is marked fuzzy. "Kine" is kept as is.
+
+- `Pick what you want to make`
+  - Escolha o que você quer fazer
+- `no automatic fix (the Check panel says why)`
+  - sem correção automática (o painel Conferir explica o motivo)
+- `no automatic fix:`
+  - sem correção automática:
+- `or try one:`
+  - ou tente uma destas:
+- `why:`
+  - motivo:
+- `+  New scene`
+  - +  Nova cena
+- `+ Add pose`
+  - + Adicionar pose
+- `0.0 s / 0.0 s`
+  - 0,0 s / 0,0 s
+- `0.00 s`
+  - 0,00 s
+- `1  POSE THE BODY.  Click a part, drag it.  Or use the sliders on the right, which say what each one does.  The body stops at real joint limits (yellow) and where parts meet (red).  Drag a hand or a foot and the whole arm or leg follows.  Ctrl+Z undoes.`
+  - 1  POSICIONE O CORPO.  Clique numa parte e arraste.  Ou use os controles deslizantes à direita, que explicam o que cada um faz.  O corpo para nos limites reais das articulações (amarelo) e onde as partes se encontram (vermelho).  Arraste uma mão ou um pé e o braço ou a perna inteira acompanha.  Ctrl+Z desfaz.
+- `1.00x`
+  - 1,00x
+- `2  SAVE IT.  Type a name on the left, 'Save body as a pose'.  It joins the list; click it any time to get it back.`
+  - 2  SALVE.  Digite um nome à esquerda e clique em 'Salvar o corpo como pose'.  Ela entra na lista; clique nela a qualquer hora para recuperá-la.
+- `2-point fit (click head top, heel)`
+  - Ajuste de 2 pontos (clique no topo da cabeça e no calcanhar)
+- `3  MAKE A SCENE.  Put the body in a pose, CLIP this pose: it becomes a clip at the bottom.  Pose the next moment, add it.  Each card says how long the body takes to get there ('move', auto = the poser picks a natural time) and how long it stays ('hold').`
+  - 3  MONTE UMA CENA.  Coloque o corpo numa pose e use CLIPE esta pose: ela vira um clipe lá embaixo.  Faça a próxima pose e adicione.  Cada cartão diz quanto tempo o corpo leva para chegar ('mover', auto = o Kine escolhe um tempo natural) e quanto tempo ele fica parado ('segurar').
+- `3  SCENE`
+  - 3  CENA
+- `4  PLAY.  The body moves from card to card on its own: the hips lead, the hands arrive last.  'Fix moves through the body' adds a pass-by card where an arm or the bat would go through the body.  Click a card to see that moment; change the body, then 'Update' on the card.`
+  - 4  REPRODUZA.  O corpo vai de cartão em cartão sozinho: o quadril puxa e as mãos chegam por último.  'Corrigir movimentos pelo corpo' adiciona um cartão de passagem onde um braço ou o taco atravessaria o corpo.  Clique num cartão para ver aquele momento; mude o corpo e clique em 'Atualizar' no cartão.
+- `5  SEE THE MOTION.  T = motion trail: the weapon tip's path, one dot per frame (far apart = fast), blue slow to red fast, white = the cards.  Shift+T = a trail on the part you clicked (feet, hands, head, hips: as many as you like).  O = onion skin: the card before (orange) and after (green) as ghosts.  'tween' slider: the picked card becomes a mix of its two neighbours (past the ends = overshoot);`
+  - 5  VEJA O MOVIMENTO.  T = trilha de movimento: o caminho da ponta da arma, um ponto por quadro (pontos distantes = rápido), do azul (lento) ao vermelho (rápido), branco = os cartões.  Shift+T = uma trilha na parte que você clicou (pés, mãos, cabeça, quadril: quantas quiser).  O = casca de cebola: o cartão anterior (laranja) e o seguinte (verde) como fantasmas.  Controle 'tween': o cartão escolhido vira uma mistura dos dois vizinhos (além das pontas = exagero); '+ tween' adiciona um cartão intermediário.  'Suavizar (spline)': uma curva por todos os cartões, só as pausas paralisam.
+- `6  ANIMATOR TOOLS (top bar, ANIMATE tab).  Shift+M = mirror the whole pose left <-> right (the weapon changes hands).  Mirror the scene = a left-handed copy saved in _wip.  Shift+O = spacing ghosts: where the arms and weapon are every 0.1 s around the playhead; bunched = slow, a wide fan = fast.  Y = speed graph: tip, hips and head speed over the whole scene, click it to jump there.  Stepped previ`
+  - 6  FERRAMENTAS DE ANIMAÇÃO (barra de cima, aba ANIMAR).  Shift+M = espelha a pose inteira esquerda <-> direita (a arma troca de mão).  Espelhar a cena = uma cópia para canhoto salva em _wip.  Shift+O = fantasmas de espaçamento: onde ficam os braços e a arma a cada 0,1 s em volta do cursor; juntos = lento, um leque aberto = rápido.  Y = gráfico de velocidade: velocidade da ponta, do quadril e da cabeça na cena toda, clique nele para ir até lá.  Prévia em degraus = só as poses, sem intermediários (bloqueio).  Pausas com movimento = uma pose segurada continua se deslocando um pouco para a próxima em vez de congelar.  Conferir também aponta DERRAPAGEM DO PÉ: um pé apoiado escorregando pelo chão.
+- `7  TIMELINE (under the clips).  Each clip is a block: solid = moving into the pose, striped = holding it.  Drag a block's edge to change how long it takes (later clips slide along); a clip with no hold: drag its edge right to pull one out.  Shift = fine steps.  Click a block to jump to that clip; drag the ruler to scrub.  Grab a HAND or FOOT and drag: the limb follows; past its reach a yellow line`
+  - 7  LINHA DO TEMPO (embaixo dos clipes).  Cada clipe é um bloco: cheio = indo para a pose, listrado = segurando.  Arraste a borda de um bloco para mudar o tempo (os clipes seguintes deslizam); num clipe sem pausa: arraste a borda para a direita para criar uma.  Shift = passos finos.  Clique num bloco para ir até aquele clipe; arraste a régua para percorrer.  Pegue uma MÃO ou um PÉ e arraste: o membro acompanha; além do alcance, uma linha amarela mostra onde você está puxando.
+- `< View`
+  - < Vista
+- `A picture of the part for showing it (PNG)`
+  - Uma imagem da parte para mostrar (PNG)
+- `A starting scene, checked against real people's numbers. It opens as a new file in scenes/_wip; yours stay untouched.`
+  - Uma cena inicial, conferida com números de gente de verdade. Abre como arquivo novo em scenes/_wip; os seus não são tocados.
+- `A step cannot be empty: press the x to remove it`
+  - Um passo não pode ficar vazio: clique no x para removê-lo
+- `A value on this part, keyed per card like an angle (grip 0 .. 1). The engine reads it from the .glb.`
+  - Um valor desta parte, com chave por cartão como um ângulo (pegada 0 .. 1). O motor lê do .glb.
+- `A whoosh marks each speed peak of the weapon tip (8 m/s and up; for an unarmed fighter, hands over 5 m/s and feet over 6 m/s), a hit each contact, a step each foot plant. The size of a mark is its strength. The cues are not saved with the scene until you press Keep cues.`
+  - Um whoosh marca cada pico de velocidade da ponta da arma (8 m/s ou mais; para lutador sem arma, mãos acima de 5 m/s e pés acima de 6 m/s), um impacto marca cada contato e um passo marca cada apoio do pé. O tamanho da marca é a força. Os sinais não são salvos na cena até você apertar Manter sinais.
+- `AIRBORNE SPIN  -`
+  - GIRO NO AR  -
+- `ARCS  -`
+  - ARCOS  -
+- `ASK AI`
+  - PERGUNTAR À IA
+- `Accept a suggestion and I watch: undone within 30 s counts against it, a change to its own number within 2 minutes is a lesson. Three edits the same way and I apply them for you.`
+  - Aceite uma sugestão e eu observo: desfeita em até 30 s conta contra ela, uma mudança no próprio número em até 2 minutos é uma lição. Três edições no mesmo sentido e eu aplico por você.
+- `Add`
+  - Adicionar
+- `Add a rib`
+  - Adicionar uma nervura
+- `Add beat at playhead`
+  - Adicionar batida no cursor
+- `Add it`
+  - Adicionar
+- `Add modifier`
+  - Adicionar modificador
+- `Add primitive`
+  - Adicionar primitivo
+- `Add prop`
+  - Adicionar objeto
+- `Adds to the S box:`
+  - Soma na caixa S:
+- `Aim at:`
+  - Mirar em:
+- `All six are in. Press Make the part`
+  - Os seis estão prontos. Aperte Fazer a parte
+- `Alpha`
+  - Alfa
+- `Animation & modeling`
+  - Animação e modelagem
+- `Animation craft, from the twelve principles: notes, not errors. Click one to jump to its moment.`
+  - Técnica de animação, pelos doze princípios: avisos, não erros. Clique num para ir ao momento.
+- `Animator tools`
+  - Ferramentas de animação
+- `Apply`
+  - Aplicar
+- `Armour from the body`
+  - Armadura a partir do corpo
+- `Ask`
+  - Perguntar
+- `BROWSER`
+  - NAVEGADOR
+- `BROWSER (left panel, 2nd tab).  Every part of the body by name, folded like the body (torso, arms with their fingers, legs), the weapon, and the scene's clips.  Click one: selected, the same as clicking it in the view (a finger joint is one click here).  Click in the view and its row lights up.  CUBE (top right of the view): click a face to look from that side.`
+  - NAVEGADOR (painel da esquerda, 2ª aba).  Todas as partes do corpo pelo nome, dobradas como o corpo (tronco, braços com os dedos, pernas), a arma e os clipes da cena.  Clique numa: ela fica selecionada, igual a clicar na vista (uma junta de dedo é um clique aqui).  Clique na vista e a linha dela acende.  CUBO (canto de cima à direita da vista): clique numa face para olhar daquele lado.
+- `Back`
+  - Voltar
+- `Bad spots`
+  - Pontos ruins
+- `Bad spots: none`
+  - Pontos ruins: nenhum
+- `Bend radius`
+  - Raio da dobra
+- `Blade turn`
+  - Giro da lâmina
+- `Blend`
+  - Misturar
+- `Blend it`
+  - Misturar
+- `Body regions (Shift+H)`
+  - Regiões do corpo (Shift+H)
+- `Bone editor`
+  - Editor de ossos
+- `Bounce`
+  - Quicar
+- `Brush presets`
+  - Predefinições de pincel
+- `Brush...`
+  - Pincel...
+- `Build a walk first: click Walk, then type a mood.`
+  - Monte uma caminhada primeiro: clique em Caminhar e digite um humor.
+- `Build it`
+  - Construir
+- `By numbers: pick a shape, type where it goes and how big (mm)`
+  - Por números: escolha uma forma, digite onde vai e o tamanho (mm)
+- `CC0: anyone may use it for anything.  CC-BY: anyone may use it if they credit you.  All rights reserved: not for reuse without your permission.`
+  - CC0: qualquer pessoa pode usar para qualquer fim.  CC-BY: qualquer pessoa pode usar se citar você.  Todos os direitos reservados: não use sem a sua permissão.
+- `CHECK  -`
+  - CONFERIR  -
+- `CRITIQUE  -`
+  - CRÍTICA  -
+- `Camera follows`
+  - Câmera segue
+- `Cancel render (Esc)`
+  - Cancelar renderização (Esc)
+- `Cartoon`
+  - Desenho animado
+- `Challenges`
+  - Desafios
+- `Change your car`
+  - Mude seu carro
+- `Channels`
+  - Canais
+- `Chassis: the steel floor structure`
+  - Chassi: a estrutura de aço do piso
+- `Check how this rig's bones were matched to Kine's`
+  - Veja como os ossos deste rig foram associados aos do Kine
+- `Clear`
+  - Limpar
+- `Click a bone, or E to grow one from the right hand`
+  - Clique num osso, ou E para crescer um a partir da mão direita
+- `Click an example to open a copy of it`
+  - Clique num exemplo para abrir uma cópia
+- `Click one to jump there.  Red = breaks a real human limit, yellow = looks off.`
+  - Clique num para ir até lá.  Vermelho = quebra um limite humano real, amarelo = parece estranho.
+- `Closest first. Press one to put it on the floor`
+  - Mais próximos primeiro. Clique num para colocá-lo no chão
+- `Curve (drag points / handles, Alt+click adds)`
+  - Curva (arraste pontos / alças, Alt+clique adiciona)
+- `Cut in`
+  - Cortar
+- `DOPE SHEET`
+  - FOLHA DE EXPOSIÇÃO
+- `Delete marker`
+  - Apagar marcador
+- `Delete selected beat`
+  - Apagar a batida selecionada
+- `Delete ticked`
+  - Apagar os marcados
+- `Depth mm`
+  - Profundidade mm
+- `Describe ONE person's move (the framing is added for you: whole body, plain background, static camera). A weapon in the mannequin's hand is used by the import. About 9 minutes on an 8 GB card.`
+  - Descreva o movimento de UMA pessoa (o enquadramento é adicionado por você: corpo inteiro, fundo liso, câmera parada). Uma arma na mão do manequim é usada na importação. Cerca de 9 minutos numa placa de 8 GB.
+- `Diff report`
+  - Relatório de diferenças
+- `Direction: the struck body's velocity change within 45 deg of the impulse J. Rotation: the trunk turns about r x J. Onset: no rise in the struck spot's speed more than a frame before contact. Magnitude: the COM's velocity change within 0.5-2 of J / body mass. The limits are heuristics.`
+  - Direção: a mudança de velocidade do corpo atingido a até 45 graus do impulso J. Rotação: o tronco gira em torno de r x J. Início: sem aumento da velocidade do ponto atingido mais de um quadro antes do contato. Magnitude: a mudança de velocidade do centro de massa entre 0,5 e 2 de J / massa do corpo. Os limites são heurísticas.
+- `Drafts: work copies made by Easy and Expert (scenes/_wip, best first)`
+  - Rascunhos: cópias de trabalho feitas pelo Fácil e pelo Expert (scenes/_wip, melhores primeiro)
+- `Drag his arms and legs, then press + Add pose`
+  - Arraste os braços e as pernas dele e aperte + Adicionar pose
+- `Drag in the box to draw an outline`
+  - Arraste na caixa para desenhar um contorno
+- `Draw a bigger outline: drag across the box`
+  - Desenhe um contorno maior: arraste pela caixa
+- `Draw a room in BUILD first.`
+  - Desenhe uma sala em CONSTRUIR primeiro.
+- `Draw to search`
+  - Desenhe para buscar
+- `Drawing the nice picture...`
+  - Desenhando a imagem bonita...
+- `Drive side`
+  - Lado do motorista
+- `Drop it on the floor in the view (the ground), not in the sky.`
+  - Solte no chão da vista (o piso), não no céu.
+- `EASE THE STOP  -`
+  - SUAVIZE A PARADA  -
+- `EVERY KEY  (hold ? to see it, let go to hide it; Esc closes it; S finds the rest by name)`
+  - TODAS AS TECLAS  (segure ? para ver, solte para esconder; Esc fecha; S acha o resto pelo nome)
+- `EXPLAIN THIS MOTION`
+  - EXPLICAR ESTE MOVIMENTO
+- `Each contact lands on a beat by retiming the moves before it; a strike never goes outside the recorded human range (timing coach). Preview changes nothing; Accept is one undo step (Ctrl+Z).`
+  - Cada contato cai numa batida, mudando o tempo dos movimentos antes dele; um golpe nunca sai da faixa humana registrada (treinador de tempo). A prévia não muda nada; Aceitar é um passo de desfazer (Ctrl+Z).
+- `Each contact: hit-stop (both fighters hold), shot-camera shake, squash on the struck part, all scaled by the impulse J = effective mass x speed. Preview changes nothing; Accept is one undo step (Ctrl+Z).`
+  - Cada contato: parada de impacto (os dois lutadores seguram), tremor da câmera da cena, achatamento na parte atingida, tudo proporcional ao impulso J = massa efetiva x velocidade. A prévia não muda nada; Aceitar é um passo de desfazer (Ctrl+Z).
+- `Each line: the evidence is a real clip in your scenes and the strike numbers with their sources. Preview changes nothing; Accept is one undo step (Ctrl+Z).`
+  - Cada linha: a evidência é um clipe real das suas cenas e os números do golpe com as fontes. A prévia não muda nada; Aceitar é um passo de desfazer (Ctrl+Z).
+- `Each slider restyles the whole clip when you let go (one Ctrl+Z). +1 is the size by which your own clips differ at the 90th percentile; the feet stay planted and a strike keeps its contact.`
+  - Cada controle muda o estilo do clipe inteiro quando você solta (um Ctrl+Z). +1 é a diferença de tamanho entre os seus clipes no percentil 90; os pés ficam apoiados e o golpe mantém o contato.
+- `Easy mode coming`
+  - Modo Fácil em breve
+- `Encoding the .mp4...`
+  - Codificando o .mp4...
+- `Every card's root moves about the first card's root by this factor. The headings and the card times stay.`
+  - A raiz de cada cartão se move em torno da raiz do primeiro cartão por este fator. Os títulos e os tempos dos cartões ficam.
+- `Exact box: standoffs at the board's real holes, openings for its ports. Sliders: wall and gap`
+  - Caixa exata: apoios nos furos reais da placa, aberturas para as portas. Controles: parede e folga
+- `Exploded view`
+  - Vista explodida
+- `Exploded view: pull the pieces apart so none passes through another`
+  - Vista explodida: afaste as peças para que nenhuma atravesse outra
+- `Export UV layout (PNG + SVG, transparent)`
+  - Exportar layout UV (PNG + SVG, transparente)
+- `Export batch`
+  - Exportar em lote
+- `FALLS`
+  - QUEDAS
+- `FATIGUE  -`
+  - FADIGA  -
+- `FEEDBACK`
+  - RETORNO
+- `FIX  -`
+  - CORRIGIR  -
+- `FLAGGED  -`
+  - MARCADOS  -
+- `Face to cut`
+  - Face a cortar
+- `Fingers one by one: click a finger on the body (zoom in with the wheel).`
+  - Dedo por dedo: clique num dedo no corpo (aproxime com a roda).
+- `Fit to an object`
+  - Ajustar a um objeto
+- `Fit:`
+  - Ajuste:
+- `Flip left-right`
+  - Inverter esquerda-direita
+- `Flipped`
+  - Invertido
+- `Folder`
+  - Pasta
+- `Folders:`
+  - Pastas:
+- `Frame all`
+  - Enquadrar tudo
+- `From a video`
+  - De um vídeo
+- `Full turn: no`
+  - Volta completa: não
+- `Gap mm`
+  - Folga mm
+- `Getting the parts ready...`
+  - Preparando as peças...
+- `Ghosts of the picked parts only (not the whole body)`
+  - Fantasmas só das partes escolhidas (não do corpo inteiro)
+- `Go`
+  - Ir
+- `Got it`
+  - Entendi
+- `Grade for animation`
+  - Nota para animação
+- `Graphics card`
+  - Placa de vídeo
+- `Graphics quality`
+  - Qualidade gráfica
+- `Greyed out: this tool is not in this copy of Kine`
+  - Cinza: esta ferramenta não está nesta cópia do Kine
+- `HIT REACTIONS: drag one onto the struck fighter`
+  - REAÇÕES A GOLPES: arraste uma para o lutador atingido
+- `HOLD  the capture point stays inside the feet: no step is needed`
+  - SEGURAR  o ponto de captura fica dentro dos pés: não precisa dar passo
+- `HOTKEYS  (click a key, then press the new one; Esc cancels or closes this)`
+  - ATALHOS  (clique numa tecla e aperte a nova; Esc cancela ou fecha)
+- `HOW IT WORKS`
+  - COMO FUNCIONA
+- `Held:`
+  - Segurando:
+- `Hide weird ones`
+  - Esconder os estranhos
+- `How close am I?`
+  - Quão perto estou?
+- `How many buttons?`
+  - Quantos botões?
+- `How round:`
+  - Quão redondo:
+- `IMPACT FRAMES`
+  - QUADROS DE IMPACTO
+- `Impact frames`
+  - Quadros de impacto
+- `Import pack...`
+  - Importar pacote...
+- `Import with this map`
+  - Importar com este mapa
+- `In the air only gravity acts: the centre of mass follows y'' = -9.81 m/s^2 and the angular momentum about it is conserved. A body turns at H / I, so a turn needs momentum at take-off.`
+  - No ar só a gravidade age: o centro de massa segue y'' = -9,81 m/s^2 e o momento angular em torno dele se conserva. O corpo gira a H / I, então um giro precisa de momento na saída do chão.
+- `Invert orbit drag`
+  - Inverter arrastar da órbita
+- `Jump`
+  - Pular
+- `KINE`
+  - KINE
+- `Kept`
+  - Mantido
+- `Keys`
+  - Teclas
+- `Library...`
+  - Biblioteca...
+- `List view`
+  - Vista em lista
+- `Load PNG...`
+  - Carregar PNG...
+- `Loads a performer would take, from the motion: landing (vGRF in body weights), knee valgus, spine (NIOSH 3400 N, ours), neck. Bars and sources: docs/research/STUNT_LOAD.md. Click one to jump to its moment.`
+  - Cargas que um dublê sofreria, a partir do movimento: aterrissagem (vGRF em pesos do corpo), joelho em valgo, coluna (NIOSH 3400 N, o nosso), pescoço. Limites e fontes: docs/research/STUNT_LOAD.md. Clique num para ir ao momento.
+- `Lock this bone`
+  - Travar este osso
+- `Locked:`
+  - Travado:
+- `Look again for slicers`
+  - Procurar os fatiadores de novo
+- `Look:`
+  - Olhar:
+- `Looking...`
+  - Procurando...
+- `Loop`
+  - Repetir
+- `Loud bars get a combo, quiet bars a pause; the biggest strike lands on the loudest downbeat; every contact is on a beat and inside the recorded human strike range (timing coach). Preview changes nothing; Accept writes a NEW scene in scenes/_wip and opens it; your scene is not touched.`
+  - Compassos fortes ganham um combo, os fracos uma pausa; o golpe maior cai no tempo forte mais alto; todo contato fica numa batida e dentro da faixa humana de golpes registrada (treinador de tempo). A prévia não muda nada; Aceitar escreve uma cena NOVA em scenes/_wip e a abre; a sua cena não é tocada.
+- `MAKE IT MORE LIKE MY BEST  -`
+  - DEIXE MAIS PARECIDO COM O MEU MELHOR  -
+- `MATCH THE REFERENCE TIMING`
+  - IGUALAR AO TEMPO DA REFERÊNCIA
+- `MOMENTUM LEDGER  -`
+  - REGISTRO DE MOMENTO  -
+- `MOVE KNOBS`
+  - AJUSTES DO MOVIMENTO
+- `MY BEST TAKE`
+  - MINHA MELHOR TOMADA
+- `MY STYLE  -`
+  - MEU ESTILO  -
+- `Make a family...`
+  - Fazer uma família...
+- `Make a story: build a prop, give it to the fighter, film a scene`
+  - Faça uma história: construa um objeto, dê ao lutador, filme uma cena
+- `Make it`
+  - Fazer
+- `Make label`
+  - Fazer etiqueta
+- `Make plate`
+  - Fazer placa
+- `Matcap`
+  - Matcap
+- `Match: fit the body to the reference`
+  - Igualar: ajusta o corpo à referência
+- `Material`
+  - Material
+- `Material library`
+  - Biblioteca de materiais
+- `Materials (PBR)`
+  - Materiais (PBR)
+- `Materials: pick one for the newest solid`
+  - Materiais: escolha um para o sólido mais novo
+- `Measure`
+  - Medir
+- `Mesh quality`
+  - Qualidade da malha
+- `Mirror: off`
+  - Espelho: desligado
+- `Model checks`
+  - Verificações do modelo
+- `Model from words: type a step, Enter`
+  - Modelo por palavras: digite um passo e aperte Enter
+- `Modifiers`
+  - Modificadores
+- `Mods`
+  - Mods
+- `Mood: type one word, such as angry, tired, heavy or sneaky. It blends onto this clip`
+  - Humor: digite uma palavra, como bravo, cansado, pesado ou sorrateiro. Ela se mistura neste clipe
+- `More`
+  - Mais
+- `Motion blur shutter / sub-frames:`
+  - Desfoque de movimento, obturador / subquadros:
+- `NEW >`
+  - NOVO >
+- `NEXT BEAT  -`
+  - PRÓXIMA BATIDA  -
+- `NOT NOW: there is no part to picture. Draw a shape and press Pull it up, then press Nice picture`
+  - AGORA NÃO: não há parte para mostrar. Desenhe uma forma, aperte Puxar para cima e depois Imagem bonita
+- `NOT NOW: tick at least one scene in the list first`
+  - AGORA NÃO: marque pelo menos uma cena na lista primeiro
+- `Name`
+  - Nome
+- `Natural`
+  - Natural
+- `Natural motion follows arcs: a path that turns sharply without stopping reads as mechanical. Worst first; click one to jump to it.`
+  - O movimento natural segue arcos: um caminho que vira bruscamente sem parar parece mecânico. Piores primeiro; clique num para ir até ele.
+- `Nature`
+  - Natureza
+- `Needs a prop in the set (Add prop > box) that a hand or weapon of the clip reaches.`
+  - Precisa de um objeto na cena (Adicionar objeto > caixa) que uma mão ou arma do clipe alcance.
+- `New assembly`
+  - Nova montagem
+- `New here? Pick a card above.`
+  - Novo por aqui? Escolha um cartão acima.
+- `Newton: the outside force is dP/dt.`
+  - Newton: a força externa é dP/dt.
+- `Next`
+  - Próximo
+- `Next:`
+  - Próximo:
+- `Next:`
+  - Próximo:
+- `Nice picture`
+  - Imagem bonita
+- `No catch:`
+  - Sem pegadinha:
+- `No clips yet.  Start here:`
+  - Nenhum clipe ainda.  Comece aqui:
+- `No clips yet: this face is the body's face for the whole scene. Sliders preview on the head; OK keys it (one undo step).`
+  - Nenhum clipe ainda: este rosto é o rosto do corpo na cena inteira. Os controles mostram na cabeça; OK grava a chave (um passo de desfazer).
+- `No material in that. I know oak, pine, steel, copper, lacquer, tile, marble, brick, leather... and colours`
+  - Esse material eu não conheço. Conheço carvalho, pinho, aço, cobre, laca, azulejo, mármore, tijolo, couro... e cores
+- `No points yet`
+  - Nenhum ponto ainda
+- `No pose: the links cannot close`
+  - Sem pose: as ligações não fecham
+- `No recent work yet. Your first project shows up here.`
+  - Nenhum trabalho recente ainda. Seu primeiro projeto aparece aqui.
+- `No scene files in scenes/.`
+  - Nenhum arquivo de cena em scenes/.
+- `No sequence repeats yet (a combo needs 2 or more cards, used twice or more). Save more clips, then Mine again.`
+  - Nenhuma sequência se repete ainda (um combo precisa de 2 ou mais cartões, usados duas vezes ou mais). Salve mais clipes e clique em Minerar de novo.
+- `No shots in your scenes yet. 'Frame it my way' will fall back to Auto camera.`
+  - Nenhum plano nas suas cenas ainda. 'Enquadrar do meu jeito' vai usar a câmera automática.
+- `Not checked yet`
+  - Ainda não conferido
+- `Nothing built yet`
+  - Nada construído ainda
+- `Nothing flagged: every judge that ran is satisfied.`
+  - Nada marcado: todo avaliador que rodou está satisfeito.
+- `Nothing here yet`
+  - Nada aqui ainda
+- `Nothing the app times shows up: the time is in the engine's drawing. Try a smaller window.`
+  - Nada que o app cronometra aparece: o tempo está no desenho do motor. Tente uma janela menor.
+- `Nothing to fix: ready to animate.`
+  - Nada a corrigir: pronto para animar.
+- `Nothing went wrong yet.  When a command refuses (it says 'pick a part first', 'needs two cards', 'NOT PLACED'...), this panel says what you tried, why it did not work, and the one next step.`
+  - Nada deu errado ainda.  Quando um comando recusa (diz 'escolha uma parte primeiro', 'precisa de dois cartões', 'NÃO COLOCADO'...), este painel diz o que você tentou, por que não funcionou e o próximo passo.
+- `Object library`
+  - Biblioteca de objetos
+- `On`
+  - Ligado
+- `One step could not follow the new sizes. Undo takes it back`
+  - Um passo não acompanhou os tamanhos novos. Desfazer volta atrás
+- `Only the move time of these cards is lengthened, on a copy. Preview changes nothing; Accept is one undo step (Ctrl+Z).`
+  - Só o tempo de movimento destes cartões é alongado, numa cópia. A prévia não muda nada; Aceitar é um passo de desfazer (Ctrl+Z).
+- `Only the selected parts`
+  - Só as partes selecionadas
+- `Open`
+  - Abrir
+- `Open a scene`
+  - Abrir uma cena
+- `Or try:`
+  - Ou tente:
+- `PARRY REBOUND  -`
+  - REBOTE DA DEFESA  -
+- `PLUGINS`
+  - PLUGINS
+- `PNG...`
+  - PNG...
+- `POSE LIBRARY`
+  - BIBLIOTECA DE POSES
+- `Peak hand and foot speed (world) and joint turning speed of each card, against the fastest measured people. Nothing is changed until you Accept.`
+  - Velocidade máxima da mão e do pé (no mundo) e velocidade de giro das juntas de cada cartão, contra as pessoas mais rápidas já medidas. Nada muda até você aceitar.
+- `Photo size: a coin for scale, then the object`
+  - Tamanho da foto: uma moeda como escala, depois o objeto
+- `Pick a challenge`
+  - Escolha um desafio
+- `Pick a picture on the left to see what is in it.`
+  - Escolha uma imagem à esquerda para ver o que tem nela.
+- `Pick one. Easy gives you big buttons and sliders. Expert gives you the full tools.`
+  - Escolha um. O Fácil dá botões e controles grandes. O Expert dá todas as ferramentas.
+- `Pick one. The full tools are still in the ribbon above.`
+  - Escolha um. As ferramentas completas continuam na faixa acima.
+- `Pick the reference (a scene made from a video). Preview draws both limb-speed curves and the events that match; Accept retimes your cards to them (one Ctrl+Z). Poses are not changed.`
+  - Escolha a referência (uma cena feita de um vídeo). A prévia desenha as duas curvas de velocidade dos membros e os eventos que combinam; Aceitar muda o tempo dos seus cartões para os dela (um Ctrl+Z). As poses não mudam.
+- `Picked:`
+  - Escolhido:
+- `Pipe through points: type X Y Z (mm) or click the part, then Make the pipe`
+  - Tubo por pontos: digite X Y Z (mm) ou clique na parte e depois em Fazer o tubo
+- `Pipes: PVC by real size. Pick a kind and an outside width (mm)`
+  - Tubos: PVC em tamanho real. Escolha um tipo e uma largura externa (mm)
+- `Plain`
+  - Liso
+- `Plugins run with the app's permissions; only enable plugins you trust. GDScript cannot be sandboxed:`
+  - Plugins rodam com as permissões do app; ative só plugins em que você confia. GDScript não pode ficar em isolamento:
+- `Points (mm)`
+  - Pontos (mm)
+- `Presets (B)`
+  - Predefinições (B)
+- `Press Start again and click the two edges of the coin, far apart`
+  - Aperte Iniciar de novo e clique nas duas bordas da moeda, bem afastadas
+- `Printer bed (mm)`
+  - Mesa da impressora (mm)
+- `Printer:`
+  - Impressora:
+- `Pushed:`
+  - Empurrado:
+- `Put back`
+  - Recolocar
+- `Put on the timeline`
+  - Pôr na linha do tempo
+- `REAL-MOCAP CHECK  -`
+  - CONFERÊNCIA COM MOCAP REAL  -
+- `RIGHT-CLICK a part (click, don't drag: right-DRAG still turns the view): a ring around the mouse.  Up = Reset, then clockwise: Snap 90°, Copy to the other side, CLIP this pose, Pin a trail, Snap 45°.  Click one; the middle or Esc cancels.`
+  - CLIQUE DIREITO numa parte (clique, não arraste: arrastar com o direito ainda gira a vista): um anel em volta do mouse.  Para cima = Resetar, depois no sentido horário: Encaixar 90°, Copiar para o outro lado, CLIPAR esta pose, Fixar uma trilha, Encaixar 45°.  Clique num; o botão do meio ou Esc cancela.
+- `Raised`
+  - Elevado
+- `Read from your own clips in scenes/ (never changed). Your median beside the neutral default a new card gets otherwise.`
+  - Lido dos seus próprios clipes em scenes/ (nunca alterados). A sua mediana ao lado do padrão neutro que um cartão novo recebe.
+- `Real size`
+  - Tamanho real
+- `Real size: press Hand, Coin or Phone. It lies on the floor beside the part at its real size. Press it again to take it away`
+  - Tamanho real: aperte Mão, Moeda ou Celular. Ele fica no chão ao lado da parte em tamanho real. Aperte de novo para tirar
+- `Real speed`
+  - Velocidade real
+- `Real width (mm)`
+  - Largura real (mm)
+- `Realistic`
+  - Realista
+- `Recent scenes`
+  - Cenas recentes
+- `Record`
+  - Gravar
+- `Reduce keys: tolerance (deg)`
+  - Reduzir chaves: tolerância (graus)
+- `Reference images`
+  - Imagens de referência
+- `Remesh: lighter <-> smoother`
+  - Remalhar: mais leve <-> mais suave
+- `Remove`
+  - Remover
+- `Remove favourite`
+  - Remover dos favoritos
+- `Remove the reference`
+  - Remover a referência
+- `Rendering shots: starting...`
+  - Renderizando planos: começando...
+- `Reset this part`
+  - Resetar esta parte
+- `Reset to defaults`
+  - Voltar ao padrão
+- `Rib size`
+  - Tamanho da nervura
+- `Ring side`
+  - Lado do anel
+- `Roofs, thin shells: pick a type. It drops on the floor. Curved gives it the Chinese sag and raised corners`
+  - Telhados, cascas finas: escolha um tipo. Ele cai no chão. Curvo dá a curvatura chinesa e as pontas levantadas
+- `S = SEARCH.  Don't remember where something is?  Press S, type a word (mirror, trail, staff, slower...), Enter.  Every button and key is in it, with its shortcut.`
+  - S = BUSCA.  Não lembra onde fica algo?  Aperte S, digite uma palavra (espelho, trilha, cajado, mais lento...) e Enter.  Todo botão e tecla está lá, com o atalho.
+- `SCENE LINES: A and B are the characters`
+  - FALAS DA CENA: A e B são os personagens
+- `SHOT LIST: type the story, one line per shot`
+  - LISTA DE PLANOS: digite a história, uma linha por plano
+- `SLOW THEM TO THE LIMIT  -`
+  - DESACELERE ATÉ O LIMITE  -
+- `SPEED LIMITS  -`
+  - LIMITES DE VELOCIDADE  -
+- `STEP`
+  - PASSO
+- `STYLE DIAL`
+  - CONTROLE DE ESTILO
+- `Save current brush as preset`
+  - Salvar o pincel atual como predefinição
+- `Save current slot to library`
+  - Salvar o slot atual na biblioteca
+- `Save tags`
+  - Salvar etiquetas
+- `Saved characters`
+  - Personagens salvos
+- `Saving video... encoding the last frames`
+  - Salvando o vídeo... codificando os últimos quadros
+- `Say the pose. Guard, crouch, lunge, wide stance, weight on back foot, hand on chin, bat cocked over right shoulder, left knee bent 90, look left, lean forward 20.`
+  - Diga a pose. Guarda, agachado, afundo, base larga, peso no pé de trás, mão no queixo, taco armado sobre o ombro direito, joelho esquerdo dobrado 90, olhar para a esquerda, inclinar para a frente 20.
+- `Scene only: data/skeleton.json is never changed. Percentiles: ANSUR II 2012 (Gordon et al.).`
+  - Só na cena: data/skeleton.json nunca é alterado. Percentis: ANSUR II 2012 (Gordon et al.).
+- `Scenes in scenes/: tick the ones to export. Each goes to its own file; the open scene is not changed.`
+  - Cenas em scenes/: marque as que quer exportar. Cada uma vai para o seu arquivo; a cena aberta não muda.
+- `Section`
+  - Corte
+- `See the drawings`
+  - Ver os desenhos
+- `See-through`
+  - Transparente
+- `Select all`
+  - Selecionar tudo
+- `Select none`
+  - Selecionar nada
+- `Select several`
+  - Selecionar vários
+- `Send to slicer`
+  - Enviar ao fatiador
+- `Sequences you use twice or more in scenes/ (never changed). Pick a card on the timeline, click Insert: a ghost shows it, Enter writes it (Ctrl+Z undoes).`
+  - Sequências que você usa duas vezes ou mais em scenes/ (nunca alteradas). Escolha um cartão na linha do tempo e clique em Inserir: um fantasma mostra, Enter escreve (Ctrl+Z desfaz).
+- `Set the picture's real width, then press Trace it`
+  - Defina a largura real da imagem e aperte Traçar
+- `Shape`
+  - Forma
+- `Shortcuts`
+  - Atalhos
+- `Show all the tools`
+  - Mostrar todas as ferramentas
+- `Show both`
+  - Mostrar os dois
+- `Show me`
+  - Mostre
+- `Show the tour`
+  - Mostrar o tour
+- `Sit on it`
+  - Sentar nele
+- `Size mm`
+  - Tamanho mm
+- `Sketch with sizes (AI)`
+  - Esboço com medidas (IA)
+- `Skip`
+  - Pular
+- `Skip tour`
+  - Pular o tour
+- `Slide , . : body follows`
+  - Deslizar , . : o corpo acompanha
+- `Slow in`
+  - Entrada lenta
+- `Slow out`
+  - Saída lenta
+- `Smooth (spline)`
+  - Suavizar (spline)
+- `Solid`
+  - Sólido
+- `Spin / lathe`
+  - Girar / torno
+- `Split to fit (cut into pieces, with dowel holes)`
+  - Dividir para caber (cortar em peças, com furos para cavilhas)
+- `Start`
+  - Iniciar
+- `Start from a class`
+  - Começar de uma classe
+- `Start →`
+  - Iniciar →
+- `Sticker`
+  - Adesivo
+- `Sticky keys (tap Shift / Ctrl / Alt to hold it for the next key or click)`
+  - Teclas de aderência (toque em Shift / Ctrl / Alt para segurar na próxima tecla ou clique)
+- `Stop`
+  - Parar
+- `Style`
+  - Estilo
+- `Suspension: the wheels on their arms`
+  - Suspensão: as rodas nos seus braços
+- `Switch...`
+  - Trocar...
+- `TIMING COACH  -`
+  - TREINADOR DE TEMPO  -
+- `TOP BAR = TABS.  POSE (reset, relax, mirror, collision), ANIMATE (trail, onion, spacing, speed graph, stepped, moving holds, the Animator tools menu), CHECK (check, polish, fix, the dummy), VIEW (the five views, big view).  A lit button = that tool is on.  Undo, Redo, Search and Help are always on the right.`
+  - BARRA DE CIMA = ABAS.  POSE (resetar, relaxar, espelhar, colisão), ANIMAR (trilha, casca de cebola, espaçamento, gráfico de velocidade, degraus, pausas com movimento, o menu Ferramentas de animação), CONFERIR (conferir, polir, corrigir, o boneco), VISTA (as cinco vistas, vista grande).  Botão aceso = ferramenta ligada.  Desfazer, Refazer, Busca e Ajuda ficam sempre à direita.
+- `Tags (words with commas):`
+  - Etiquetas (palavras com vírgulas):
+- `Take the rib off`
+  - Tirar a nervura
+- `Temple look`
+  - Estilo templo
+- `Test print: fit strip`
+  - Impressão de teste: tira de encaixe
+- `Test print: pegs and holes with the gap on each side (mm), to find what fits your printer`
+  - Impressão de teste: pinos e furos com a folga de cada lado (mm), para achar o que serve na sua impressora
+- `Text on a face:`
+  - Texto numa face:
+- `That house is already in the set.`
+  - Essa casa já está na cena.
+- `The biggest differences, in units of how much your other clips differ among themselves (the bar). Read from your own clips; nothing is changed.`
+  - As maiores diferenças, na unidade de quanto os seus outros clipes diferem entre si (a barra). Lido dos seus próprios clipes; nada é alterado.
+- `The mesh changed by hand after the last step. Press Ctrl+Z until the last row is gone, or remove a row.`
+  - A malha mudou à mão depois do último passo. Aperte Ctrl+Z até a última linha sumir, ou remova uma linha.
+- `The mesh changed by hand after the last step. Press Ctrl+Z until the last row is gone, then edit this step.`
+  - A malha mudou à mão depois do último passo. Aperte Ctrl+Z até a última linha sumir e depois edite este passo.
+- `The part on screen is what is read. Pick the face above; its outer edge and holes are written in millimetres.`
+  - A parte na tela é o que é lido. Escolha a face acima; a borda externa e os furos são escritos em milímetros.
+- `The part on screen is what is read: each wood board is one line. The prices above set the cost line on the Size label.`
+  - A parte na tela é o que é lido: cada tábua de madeira é uma linha. Os preços acima definem a linha de custo na etiqueta de tamanho.
+- `The part on screen is what is written, as one exact solid. The file says metres, so a CAD program shows the true size.`
+  - A parte na tela é o que é escrito, como um sólido exato. O arquivo diz metros, então um programa CAD mostra o tamanho verdadeiro.
+- `The ring is centred between the fighters where they start. Each fighter's farthest reach (body and weapon, the volume's radius included) is measured through the whole fight. One walking step is 0.7 m.`
+  - O ringue fica centrado entre os lutadores onde eles começam. O alcance máximo de cada lutador (corpo e arma, incluindo o raio do volume) é medido na luta toda. Um passo de caminhada é 0,7 m.
+- `The spine, neck and head share the bend by their ranges: they reach their limits together.`
+  - A coluna, o pescoço e a cabeça dividem a dobra pelas suas faixas: chegam aos limites juntos.
+- `The two coin clicks are too close together`
+  - Os dois cliques na moeda estão muito próximos
+- `Then`
+  - Depois
+- `Then:`
+  - Depois:
+- `This edge will not take a round or a bevel: Pull it up taller, or use Round the edges`
+  - Esta aresta não aceita arredondar nem chanfrar: Puxe para cima mais alto, ou use Arredondar as arestas
+- `Tick the scenes, pick the format and folder, then Export batch.`
+  - Marque as cenas, escolha o formato e a pasta e depois Exportar em lote.
+- `Topology heat map (H)`
+  - Mapa de calor da topologia (H)
+- `Trace`
+  - Traçar
+- `Trace a picture`
+  - Traçar uma imagem
+- `Trackpad-safe: two-finger scroll pans, pinch zooms`
+  - Seguro para trackpad: rolar com dois dedos move, pinça dá zoom
+- `Triangle budget`
+  - Limite de triângulos
+- `Turn it`
+  - Girar
+- `Type a mood, such as 'angry' or 'a bit tired', then Blend it.`
+  - Digite um humor, como 'bravo' ou 'meio cansado', e depois clique em Misturar.
+- `Type a move in the box and click Go, such as 'jump' or 'jab then cross'. Or click a picture. Help (top right) says more.`
+  - Digite um movimento na caixa e clique em Ir, como 'pular' ou 'jab e cruzado'. Ou clique numa imagem. A Ajuda (canto de cima à direita) diz mais.
+- `Type a step and press Enter. Edit a step and press Enter to run the list again from it.`
+  - Digite um passo e aperte Enter. Edite um passo e aperte Enter para rodar a lista de novo a partir dele.
+- `Type a step first, e.g. extrude the top 5 cm`
+  - Digite um passo primeiro, por exemplo extrudar o topo 5 cm
+- `Typical road car: wheel tilt -2 to 0 deg, steering tilt 8 to 16 deg, scrub -20 to +60 mm, caster 2 to 8 deg, roll centre 0 to 150 mm.`
+  - Carro de rua típico: inclinação da roda -2 a 0 graus, inclinação da direção 8 a 16 graus, scrub -20 a +60 mm, cáster 2 a 8 graus, centro de rolagem 0 a 150 mm.
+- `Tyre size`
+  - Tamanho do pneu
+- `UI size`
+  - Tamanho da interface
+- `Use in a scene`
+  - Usar numa cena
+- `Vehicle`
+  - Veículo
+- `Versions`
+  - Versões
+- `Vertex paint`
+  - Pintura de vértices
+- `View`
+  - Vista
+- `View >`
+  - Vista >
+- `View: ARROWS slide the view, Shift+ARROWS turn around the body, PageUp/PageDown or the wheel zoom, Tab = big view.  F6 = the panels by keyboard (Tab moves, Enter presses, Esc back).  Mouse: right-drag = turn around, middle-drag = slide.`
+  - VISTA: SETAS deslizam a vista, Shift+SETAS giram em volta do corpo, PageUp/PageDown ou a roda dão zoom, Tab = vista grande.  F6 = os painéis pelo teclado (Tab move, Enter aperta, Esc volta).  Mouse: arrastar com o direito = girar, arrastar com o do meio = deslizar.
+- `WEAPON WEIGHT  -`
+  - PESO DA ARMA  -
+- `WHAT I LEARNED FROM YOU  -`
+  - O QUE EU APRENDI COM VOCÊ  -
+- `WHAT WENT WRONG?`
+  - O QUE DEU ERRADO?
+- `WHY IS IT SLOW?`
+  - POR QUE ESTÁ LENTO?
+- `WILL THIS DEFORM?  -`
+  - VAI DEFORMAR?  -
+- `Walk along a path:`
+  - Caminhar por um caminho:
+- `Weapon in hand`
+  - Arma na mão
+- `Weight and balance: where the mass sits`
+  - Peso e equilíbrio: onde fica a massa
+- `Weight paint`
+  - Pintura de pesos
+- `What do you want to build?`
+  - O que você quer construir?
+- `What do you want to do?`
+  - O que você quer fazer?
+- `What should he do?`
+  - O que ele deve fazer?
+- `X mirror (_l <-> _r)`
+  - Espelho X (_l <-> _r)
+- `X symmetry`
+  - Simetria X
+- `Your scenes (best first)`
+  - Suas cenas (melhores primeiro)
+- `Zoom to cursor`
+  - Zoom no cursor
+- `[ ] slide the other hand along the shaft,  , . slide the main hand,  - = change the length`
+  - [ ] desliza a outra mão pelo cabo,  , . desliza a mão principal,  - = muda o comprimento
+- `after:`
+  - depois:
+- `attach a screenshot`
+  - anexar uma captura de tela
+- `back to the built-in keys`
+  - voltar às teclas originais
+- `blur brush`
+  - pincel de desfoque
+- `cam`
+  - câm
+- `cancelled: the key is unchanged`
+  - cancelado: a tecla não mudou
+- `cancelling...`
+  - cancelando...
+- `click = apply   drag right = blend   Ctrl = flipped   right-click = more`
+  - clique = aplicar   arraste para a direita = misturar   Ctrl = invertido   clique direito = mais
+- `click the floor to add points, Enter builds it, Esc cancels`
+  - clique no chão para adicionar pontos, Enter constrói, Esc cancela
+- `default`
+  - padrão
+- `dummy off`
+  - boneco desligado
+- `ease`
+  - suavizar
+- `face`
+  - rosto
+- `fitness`
+  - condicionamento
+- `flip`
+  - inverter
+- `from a photo...`
+  - de uma foto...
+- `gear`
+  - engrenagem
+- `gearpair`
+  - par de engrenagens
+- `hinge`
+  - dobradiça
+- `hold`
+  - segurar
+- `lathe`
+  - torno
+- `learned`
+  - aprendido
+- `left:`
+  - esquerda:
+- `length`
+  - comprimento
+- `livecut`
+  - corte ao vivo
+- `max`
+  - máx
+- `min`
+  - mín
+- `move`
+  - mover
+- `name`
+  - nome
+- `newer`
+  - mais novo
+- `next?`
+  - próximo?
+- `no reference yet: press Reference... and pick the scene made from the video`
+  - sem referência ainda: aperte Referência... e escolha a cena feita do vídeo
+- `none`
+  - nenhum
+- `none yet: set the sliders, name the person, press Save`
+  - nenhum ainda: ajuste os controles, dê um nome à pessoa e aperte Salvar
+- `nothing can be keyed here (see above)`
+  - nada pode receber chave aqui (veja acima)
+- `nothing yet: every change you make shows up here`
+  - nada ainda: toda mudança que você faz aparece aqui
+- `off`
+  - desligado
+- `older`
+  - mais antigo
+- `past = warm, future = cool. The farther from the playhead, the fainter.`
+  - passado = quente, futuro = frio. Quanto mais longe do cursor, mais fraco.
+- `points`
+  - pontos
+- `right:`
+  - direita:
+- `score = 100 points x exp(-total / 100 points), total = sum of: weight x share of the clip (older judges) or of the things judged (newer ones) flagged; about 100 points minus the total when the total is small, never stuck at zero. An abstaining judge does not move the score.`
+  - nota = 100 pontos x exp(-total / 100 pontos), total = soma de: peso x parcela do clipe (avaliadores antigos) ou das coisas avaliadas (os novos) marcadas; cerca de 100 pontos menos o total quando o total é pequeno, nunca presa em zero. Um avaliador que se abstém não mexe na nota.
+- `show at start`
+  - mostrar ao iniciar
+- `soft`
+  - suave
+- `speed`
+  - velocidade
+- `spring`
+  - mola
+- `stature (cm)`
+  - altura (cm)
+- `the body's own bone: not edited here (E grows one of yours from it)`
+  - o osso do próprio corpo: não é editado aqui (E faz crescer um seu a partir dele)
+- `the defender:`
+  - o defensor:
+- `the whole scene (every card)`
+  - a cena toda (todo cartão)
+- `this solid`
+  - este sólido
+- `tween`
+  - tween
+- `usual transitions:`
+  - transições comuns:
+- `x`
+  - x

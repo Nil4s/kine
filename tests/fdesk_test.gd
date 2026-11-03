@@ -152,6 +152,8 @@ func _init() -> void:
 	await click_ctl(pu.easy_open_btn)
 	await idle(10)
 	var ep = pu.ep
+	ep.one_side = true   # P153 (a4512f9c): symmetry is on by default; this walk draws single panels, so it uses One side only
+	ep.one_side_btn.set_pressed_no_signal(true)
 	m.target = Vector3(0.0, 0.35, 0.0)   # the desk's middle, the view from the front and above, far enough back for both panels (clear of the Easy panel)
 	m.pitch = -30.0   # negative pitch: the camera is above the floor (positive looks up from under it)
 	m.yaw = 0.0
@@ -200,6 +202,7 @@ func _init() -> void:
 	m.pitch = -55.0   # looking more from above: the panels' top faces are big enough on screen to be the face the press picks
 	m._cam()
 	await idle(30)
+	await idle(120)   # navigation: let the camera finish easing before the press points are read from it
 	var top_y: float = bb2.end.y   # the panels' top faces (the picked face is at this height)
 	await drag_rect(Vector3(-0.55, top_y, 0.26), Vector3(0.62, top_y, -0.34))
 	await click_ctl(ep.make_btns["draw"])
@@ -219,6 +222,7 @@ func _init() -> void:
 	m.target = Vector3(0.0, 0.3, 0.3)
 	m._cam()
 	await idle(40)
+	await idle(120)   # navigation: camera ease
 	await click_ctl(ep.make_btns["draw"])
 	await click_ctl(ep.shape_btns["box"])
 	await drag_rect(Vector3(-0.2, 0.0, 0.40), Vector3(0.2, 0.0, 0.62))

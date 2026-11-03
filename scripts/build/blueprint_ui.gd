@@ -16,6 +16,7 @@ var pick := {}          # the paper and scale of the whole set (Blueprint.choose
 var sheet := {}
 var last_path := ""
 var _group: ButtonGroup
+var ext: BlueprintExtUI
 
 
 func setup(build_ui: BuildUI) -> void:
@@ -77,6 +78,7 @@ func setup(build_ui: BuildUI) -> void:
 	status.name = "blueprint_status"
 	status.add_theme_color_override("font_color", Color(0.75, 0.82, 0.9))
 	vb.add_child(status)
+	ext = BlueprintExtUI.attach(self, vb)
 
 
 func is_open() -> bool:
@@ -114,6 +116,8 @@ func _pick_tab(t: String) -> void:
 	for c in tab_row.get_children():
 		(c as Button).set_pressed_no_signal((c as Button).text == t)
 	sheet = Blueprint.sheet(b._bld(), t, pick)
+	if ext != null:
+		ext.decorate()
 	view.sheet = sheet
 	status.text = "%s  -  %s, 1:%d, dimensions in metres" % [sheet["title"], sheet["paper"], int(sheet["denom"])]
 	_layout()

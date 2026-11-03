@@ -776,3 +776,1380 @@ msgstr "Abrir arquivo..."
 
 msgid "Resume"
 msgstr "Continuar"
+
+msgid "  for:"
+msgstr "  para:"
+
+msgid "CSV for"
+msgstr "CSV para"
+
+msgid "Estimate render time"
+msgstr "Estimar o tempo de renderização"
+
+msgid "FBX: shot camera (keys)"
+msgstr "FBX: câmera do plano (chaves)"
+
+msgid "File name template (blank = the usual name):"
+msgstr "Modelo do nome do arquivo (vazio = o nome de sempre):"
+
+msgid "Keep it"
+msgstr "Manter"
+
+msgid "Match the mesh to the fit"
+msgstr "Ajustar a malha ao encaixe"
+
+msgid "Mesh .glb: add a lightmap UV set (UV2, no overlaps)"
+msgstr "Malha .glb: adicionar um conjunto UV de lightmap (UV2, sem sobreposição)"
+
+msgid "Print-in-place hinge"
+msgstr "Dobradiça impressa já montada"
+
+msgid "Pull makes: "
+msgstr "Puxar faz: "
+
+msgid "Say the render time first"
+msgstr "Dizer o tempo de renderização antes"
+
+msgid "Scale to 1.75 m"
+msgstr "Escalar para 1,75 m"
+
+msgid "   Pick what you want to make"
+msgstr "   Escolha o que você quer fazer"
+
+msgid "   no automatic fix (the Check panel says why)"
+msgstr "   sem correção automática (o painel Conferir explica o motivo)"
+
+msgid "   no automatic fix: "
+msgstr "   sem correção automática: "
+
+msgid "   or try one:"
+msgstr "   ou tente uma destas:"
+
+msgid "   why: "
+msgstr "   motivo: "
+
+msgid "+  New scene"
+msgstr "+  Nova cena"
+
+msgid "+ Add pose"
+msgstr "+ Adicionar pose"
+
+msgid "0.0 s / 0.0 s"
+msgstr "0,0 s / 0,0 s"
+
+msgid "0.00 s"
+msgstr "0,00 s"
+
+msgid "1  POSE THE BODY.  Click a part, drag it.  Or use the sliders on the right, which say what each one does.  The body stops at real joint limits (yellow) and where parts meet (red).  Drag a hand or a foot and the whole arm or leg follows.  Ctrl+Z undoes."
+msgstr "1  POSICIONE O CORPO.  Clique numa parte e arraste.  Ou use os controles deslizantes à direita, que explicam o que cada um faz.  O corpo para nos limites reais das articulações (amarelo) e onde as partes se encontram (vermelho).  Arraste uma mão ou um pé e o braço ou a perna inteira acompanha.  Ctrl+Z desfaz."
+
+msgid "1.00x"
+msgstr "1,00x"
+
+msgid "2  SAVE IT.  Type a name on the left, 'Save body as a pose'.  It joins the list; click it any time to get it back."
+msgstr "2  SALVE.  Digite um nome à esquerda e clique em 'Salvar o corpo como pose'.  Ela entra na lista; clique nela a qualquer hora para recuperá-la."
+
+msgid "2-point fit (click head top, heel)"
+msgstr "Ajuste de 2 pontos (clique no topo da cabeça e no calcanhar)"
+
+msgid "3  MAKE A SCENE.  Put the body in a pose, CLIP this pose: it becomes a clip at the bottom.  Pose the next moment, add it.  Each card says how long the body takes to get there ('move', auto = the poser picks a natural time) and how long it stays ('hold')."
+msgstr "3  MONTE UMA CENA.  Coloque o corpo numa pose e use CLIPE esta pose: ela vira um clipe lá embaixo.  Faça a próxima pose e adicione.  Cada cartão diz quanto tempo o corpo leva para chegar ('mover', auto = o Kine escolhe um tempo natural) e quanto tempo ele fica parado ('segurar')."
+
+msgid "3  SCENE"
+msgstr "3  CENA"
+
+msgid "4  PLAY.  The body moves from card to card on its own: the hips lead, the hands arrive last.  'Fix moves through the body' adds a pass-by card where an arm or the bat would go through the body.  Click a card to see that moment; change the body, then 'Update' on the card."
+msgstr "4  REPRODUZA.  O corpo vai de cartão em cartão sozinho: o quadril puxa e as mãos chegam por último.  'Corrigir movimentos pelo corpo' adiciona um cartão de passagem onde um braço ou o taco atravessaria o corpo.  Clique num cartão para ver aquele momento; mude o corpo e clique em 'Atualizar' no cartão."
+
+msgid "5  SEE THE MOTION.  T = motion trail: the weapon tip's path, one dot per frame (far apart = fast), blue slow to red fast, white = the cards.  Shift+T = a trail on the part you clicked (feet, hands, head, hips: as many as you like).  O = onion skin: the card before (orange) and after (green) as ghosts.  'tween' slider: the picked card becomes a mix of its two neighbours (past the ends = overshoot); '+ tween' adds an in-between card.  'Smooth (spline)': one curve through every card, only holds stop."
+msgstr "5  VEJA O MOVIMENTO.  T = trilha de movimento: o caminho da ponta da arma, um ponto por quadro (pontos distantes = rápido), do azul (lento) ao vermelho (rápido), branco = os cartões.  Shift+T = uma trilha na parte que você clicou (pés, mãos, cabeça, quadril: quantas quiser).  O = casca de cebola: o cartão anterior (laranja) e o seguinte (verde) como fantasmas.  Controle 'tween': o cartão escolhido vira uma mistura dos dois vizinhos (além das pontas = exagero); '+ tween' adiciona um cartão intermediário.  'Suavizar (spline)': uma curva por todos os cartões, só as pausas paralisam."
+
+msgid "6  ANIMATOR TOOLS (top bar, ANIMATE tab).  Shift+M = mirror the whole pose left <-> right (the weapon changes hands).  Mirror the scene = a left-handed copy saved in _wip.  Shift+O = spacing ghosts: where the arms and weapon are every 0.1 s around the playhead; bunched = slow, a wide fan = fast.  Y = speed graph: tip, hips and head speed over the whole scene, click it to jump there.  Stepped preview = poses only, no in-betweens (blocking).  Moving holds = a held pose keeps drifting slightly toward the next one instead of freezing.  Check also flags FOOT SLIDE: a planted foot creeping along the floor."
+msgstr "6  FERRAMENTAS DE ANIMAÇÃO (barra de cima, aba ANIMAR).  Shift+M = espelha a pose inteira esquerda <-> direita (a arma troca de mão).  Espelhar a cena = uma cópia para canhoto salva em _wip.  Shift+O = fantasmas de espaçamento: onde ficam os braços e a arma a cada 0,1 s em volta do cursor; juntos = lento, um leque aberto = rápido.  Y = gráfico de velocidade: velocidade da ponta, do quadril e da cabeça na cena toda, clique nele para ir até lá.  Prévia em degraus = só as poses, sem intermediários (bloqueio).  Pausas com movimento = uma pose segurada continua se deslocando um pouco para a próxima em vez de congelar.  Conferir também aponta DERRAPAGEM DO PÉ: um pé apoiado escorregando pelo chão."
+
+msgid "7  TIMELINE (under the clips).  Each clip is a block: solid = moving into the pose, striped = holding it.  Drag a block's edge to change how long it takes (later clips slide along); a clip with no hold: drag its edge right to pull one out.  Shift = fine steps.  Click a block to jump to that clip; drag the ruler to scrub.  Grab a HAND or FOOT and drag: the limb follows; past its reach a yellow line shows where you are pulling it."
+msgstr "7  LINHA DO TEMPO (embaixo dos clipes).  Cada clipe é um bloco: cheio = indo para a pose, listrado = segurando.  Arraste a borda de um bloco para mudar o tempo (os clipes seguintes deslizam); num clipe sem pausa: arraste a borda para a direita para criar uma.  Shift = passos finos.  Clique num bloco para ir até aquele clipe; arraste a régua para percorrer.  Pegue uma MÃO ou um PÉ e arraste: o membro acompanha; além do alcance, uma linha amarela mostra onde você está puxando."
+
+msgid "< View"
+msgstr "< Vista"
+
+msgid "A picture of the part for showing it (PNG)"
+msgstr "Uma imagem da parte para mostrar (PNG)"
+
+msgid "A starting scene, checked against real people's numbers. It opens as a new file in scenes/_wip; yours stay untouched."
+msgstr "Uma cena inicial, conferida com números de gente de verdade. Abre como arquivo novo em scenes/_wip; os seus não são tocados."
+
+msgid "A step cannot be empty: press the x to remove it"
+msgstr "Um passo não pode ficar vazio: clique no x para removê-lo"
+
+msgid "A value on this part, keyed per card like an angle (grip 0 .. 1). The engine reads it from the .glb."
+msgstr "Um valor desta parte, com chave por cartão como um ângulo (pegada 0 .. 1). O motor lê do .glb."
+
+msgid "A whoosh marks each speed peak of the weapon tip (8 m/s and up; for an unarmed fighter, hands over 5 m/s and feet over 6 m/s), a hit each contact, a step each foot plant. The size of a mark is its strength. The cues are not saved with the scene until you press Keep cues."
+msgstr "Um whoosh marca cada pico de velocidade da ponta da arma (8 m/s ou mais; para lutador sem arma, mãos acima de 5 m/s e pés acima de 6 m/s), um impacto marca cada contato e um passo marca cada apoio do pé. O tamanho da marca é a força. Os sinais não são salvos na cena até você apertar Manter sinais."
+
+msgid "AIRBORNE SPIN  -  "
+msgstr "GIRO NO AR  -  "
+
+msgid "ARCS  -  "
+msgstr "ARCOS  -  "
+
+msgid "ASK AI"
+msgstr "PERGUNTAR À IA"
+
+msgid "Accept a suggestion and I watch: undone within 30 s counts against it, a change to its own number within 2 minutes is a lesson. Three edits the same way and I apply them for you."
+msgstr "Aceite uma sugestão e eu observo: desfeita em até 30 s conta contra ela, uma mudança no próprio número em até 2 minutos é uma lição. Três edições no mesmo sentido e eu aplico por você."
+
+msgid "Add"
+msgstr "Adicionar"
+
+msgid "Add a rib"
+msgstr "Adicionar uma nervura"
+
+msgid "Add beat at playhead"
+msgstr "Adicionar batida no cursor"
+
+msgid "Add it"
+msgstr "Adicionar"
+
+msgid "Add modifier"
+msgstr "Adicionar modificador"
+
+msgid "Add primitive"
+msgstr "Adicionar primitivo"
+
+msgid "Add prop"
+msgstr "Adicionar objeto"
+
+msgid "Adds to the S box: "
+msgstr "Soma na caixa S: "
+
+msgid "Aim at:"
+msgstr "Mirar em:"
+
+msgid "All six are in. Press Make the part"
+msgstr "Os seis estão prontos. Aperte Fazer a parte"
+
+msgid "Alpha"
+msgstr "Alfa"
+
+msgid "Animation & modeling"
+msgstr "Animação e modelagem"
+
+msgid "Animation craft, from the twelve principles: notes, not errors. Click one to jump to its moment."
+msgstr "Técnica de animação, pelos doze princípios: avisos, não erros. Clique num para ir ao momento."
+
+msgid "Animator tools"
+msgstr "Ferramentas de animação"
+
+msgid "Apply"
+msgstr "Aplicar"
+
+msgid "Armour from the body"
+msgstr "Armadura a partir do corpo"
+
+msgid "Ask"
+msgstr "Perguntar"
+
+msgid "BROWSER"
+msgstr "NAVEGADOR"
+
+msgid "BROWSER (left panel, 2nd tab).  Every part of the body by name, folded like the body (torso, arms with their fingers, legs), the weapon, and the scene's clips.  Click one: selected, the same as clicking it in the view (a finger joint is one click here).  Click in the view and its row lights up.  CUBE (top right of the view): click a face to look from that side."
+msgstr "NAVEGADOR (painel da esquerda, 2ª aba).  Todas as partes do corpo pelo nome, dobradas como o corpo (tronco, braços com os dedos, pernas), a arma e os clipes da cena.  Clique numa: ela fica selecionada, igual a clicar na vista (uma junta de dedo é um clique aqui).  Clique na vista e a linha dela acende.  CUBO (canto de cima à direita da vista): clique numa face para olhar daquele lado."
+
+msgid "Back"
+msgstr "Voltar"
+
+msgid "Bad spots"
+msgstr "Pontos ruins"
+
+msgid "Bad spots: none"
+msgstr "Pontos ruins: nenhum"
+
+msgid "Bend radius"
+msgstr "Raio da dobra"
+
+msgid "Blade turn"
+msgstr "Giro da lâmina"
+
+msgid "Blend"
+msgstr "Misturar"
+
+msgid "Blend it"
+msgstr "Misturar"
+
+msgid "Body regions (Shift+H)"
+msgstr "Regiões do corpo (Shift+H)"
+
+msgid "Bone editor"
+msgstr "Editor de ossos"
+
+msgid "Bounce"
+msgstr "Quicar"
+
+msgid "Brush presets"
+msgstr "Predefinições de pincel"
+
+msgid "Brush..."
+msgstr "Pincel..."
+
+msgid "Build a walk first: click Walk, then type a mood."
+msgstr "Monte uma caminhada primeiro: clique em Caminhar e digite um humor."
+
+msgid "Build it"
+msgstr "Construir"
+
+msgid "By numbers: pick a shape, type where it goes and how big (mm)"
+msgstr "Por números: escolha uma forma, digite onde vai e o tamanho (mm)"
+
+msgid "CC0: anyone may use it for anything.  CC-BY: anyone may use it if they credit you.  All rights reserved: not for reuse without your permission."
+msgstr "CC0: qualquer pessoa pode usar para qualquer fim.  CC-BY: qualquer pessoa pode usar se citar você.  Todos os direitos reservados: não use sem a sua permissão."
+
+msgid "CHECK  -  "
+msgstr "CONFERIR  -  "
+
+msgid "CRITIQUE  -  "
+msgstr "CRÍTICA  -  "
+
+msgid "Camera follows"
+msgstr "Câmera segue"
+
+msgid "Cancel render (Esc)"
+msgstr "Cancelar renderização (Esc)"
+
+msgid "Cartoon"
+msgstr "Desenho animado"
+
+msgid "Challenges"
+msgstr "Desafios"
+
+msgid "Change your car"
+msgstr "Mude seu carro"
+
+msgid "Channels"
+msgstr "Canais"
+
+msgid "Chassis: the steel floor structure"
+msgstr "Chassi: a estrutura de aço do piso"
+
+msgid "Check how this rig's bones were matched to Kine's"
+msgstr "Veja como os ossos deste rig foram associados aos do Kine"
+
+msgid "Clear"
+msgstr "Limpar"
+
+msgid "Click a bone, or E to grow one from the right hand"
+msgstr "Clique num osso, ou E para crescer um a partir da mão direita"
+
+msgid "Click an example to open a copy of it"
+msgstr "Clique num exemplo para abrir uma cópia"
+
+msgid "Click one to jump there.  Red = breaks a real human limit, yellow = looks off."
+msgstr "Clique num para ir até lá.  Vermelho = quebra um limite humano real, amarelo = parece estranho."
+
+msgid "Closest first. Press one to put it on the floor"
+msgstr "Mais próximos primeiro. Clique num para colocá-lo no chão"
+
+msgid "Curve (drag points / handles, Alt+click adds)"
+msgstr "Curva (arraste pontos / alças, Alt+clique adiciona)"
+
+msgid "Cut in"
+msgstr "Cortar"
+
+msgid "DOPE SHEET"
+msgstr "FOLHA DE EXPOSIÇÃO"
+
+msgid "Delete marker"
+msgstr "Apagar marcador"
+
+msgid "Delete selected beat"
+msgstr "Apagar a batida selecionada"
+
+msgid "Delete ticked"
+msgstr "Apagar os marcados"
+
+msgid "Depth mm"
+msgstr "Profundidade mm"
+
+msgid "Describe ONE person's move (the framing is added for you: whole body, plain background, static camera).\nA weapon in the mannequin's hand is used by the import. About 9 minutes on an 8 GB card."
+msgstr "Descreva o movimento de UMA pessoa (o enquadramento é adicionado por você: corpo inteiro, fundo liso, câmera parada).\nUma arma na mão do manequim é usada na importação. Cerca de 9 minutos numa placa de 8 GB."
+
+msgid "Diff report"
+msgstr "Relatório de diferenças"
+
+msgid "Direction: the struck body's velocity change within 45 deg of the impulse J. Rotation: the trunk turns about r x J. Onset: no rise in the struck spot's speed more than a frame before contact. Magnitude: the COM's velocity change within 0.5-2 of J / body mass. The limits are heuristics."
+msgstr "Direção: a mudança de velocidade do corpo atingido a até 45 graus do impulso J. Rotação: o tronco gira em torno de r x J. Início: sem aumento da velocidade do ponto atingido mais de um quadro antes do contato. Magnitude: a mudança de velocidade do centro de massa entre 0,5 e 2 de J / massa do corpo. Os limites são heurísticas."
+
+msgid "Drafts: work copies made by Easy and Expert (scenes/_wip, best first)"
+msgstr "Rascunhos: cópias de trabalho feitas pelo Fácil e pelo Expert (scenes/_wip, melhores primeiro)"
+
+msgid "Drag his arms and legs, then press + Add pose"
+msgstr "Arraste os braços e as pernas dele e aperte + Adicionar pose"
+
+msgid "Drag in the box to draw an outline"
+msgstr "Arraste na caixa para desenhar um contorno"
+
+msgid "Draw a bigger outline: drag across the box"
+msgstr "Desenhe um contorno maior: arraste pela caixa"
+
+msgid "Draw a room in BUILD first."
+msgstr "Desenhe uma sala em CONSTRUIR primeiro."
+
+msgid "Draw to search"
+msgstr "Desenhe para buscar"
+
+msgid "Drawing the nice picture..."
+msgstr "Desenhando a imagem bonita..."
+
+msgid "Drive side"
+msgstr "Lado do motorista"
+
+msgid "Drop it on the floor in the view (the ground), not in the sky."
+msgstr "Solte no chão da vista (o piso), não no céu."
+
+msgid "EASE THE STOP  -  "
+msgstr "SUAVIZE A PARADA  -  "
+
+msgid "EVERY KEY  (hold ? to see it, let go to hide it; Esc closes it; S finds the rest by name)"
+msgstr "TODAS AS TECLAS  (segure ? para ver, solte para esconder; Esc fecha; S acha o resto pelo nome)"
+
+msgid "EXPLAIN THIS MOTION"
+msgstr "EXPLICAR ESTE MOVIMENTO"
+
+msgid "Each contact lands on a beat by retiming the moves before it; a strike never goes outside the recorded human range (timing coach). Preview changes nothing; Accept is one undo step (Ctrl+Z)."
+msgstr "Cada contato cai numa batida, mudando o tempo dos movimentos antes dele; um golpe nunca sai da faixa humana registrada (treinador de tempo). A prévia não muda nada; Aceitar é um passo de desfazer (Ctrl+Z)."
+
+msgid "Each contact: hit-stop (both fighters hold), shot-camera shake, squash on the struck part, all scaled by the impulse J = effective mass x speed. Preview changes nothing; Accept is one undo step (Ctrl+Z)."
+msgstr "Cada contato: parada de impacto (os dois lutadores seguram), tremor da câmera da cena, achatamento na parte atingida, tudo proporcional ao impulso J = massa efetiva x velocidade. A prévia não muda nada; Aceitar é um passo de desfazer (Ctrl+Z)."
+
+msgid "Each line: the evidence is a real clip in your scenes and the strike numbers with their sources. Preview changes nothing; Accept is one undo step (Ctrl+Z)."
+msgstr "Cada linha: a evidência é um clipe real das suas cenas e os números do golpe com as fontes. A prévia não muda nada; Aceitar é um passo de desfazer (Ctrl+Z)."
+
+msgid "Each slider restyles the whole clip when you let go (one Ctrl+Z). +1 is the size by which your own clips differ at the 90th percentile; the feet stay planted and a strike keeps its contact."
+msgstr "Cada controle muda o estilo do clipe inteiro quando você solta (um Ctrl+Z). +1 é a diferença de tamanho entre os seus clipes no percentil 90; os pés ficam apoiados e o golpe mantém o contato."
+
+msgid "Easy mode coming"
+msgstr "Modo Fácil em breve"
+
+msgid "Encoding the .mp4..."
+msgstr "Codificando o .mp4..."
+
+msgid "Every card's root moves about the first card's root by this factor. The headings and the card times stay."
+msgstr "A raiz de cada cartão se move em torno da raiz do primeiro cartão por este fator. Os títulos e os tempos dos cartões ficam."
+
+msgid "Exact box: standoffs at the board's real holes, openings for its ports. Sliders: wall and gap"
+msgstr "Caixa exata: apoios nos furos reais da placa, aberturas para as portas. Controles: parede e folga"
+
+msgid "Exploded view"
+msgstr "Vista explodida"
+
+msgid "Exploded view: pull the pieces apart so none passes through another"
+msgstr "Vista explodida: afaste as peças para que nenhuma atravesse outra"
+
+msgid "Export UV layout (PNG + SVG, transparent)"
+msgstr "Exportar layout UV (PNG + SVG, transparente)"
+
+msgid "Export batch"
+msgstr "Exportar em lote"
+
+msgid "FALLS  "
+msgstr "QUEDAS  "
+
+msgid "FATIGUE  -  "
+msgstr "FADIGA  -  "
+
+msgid "FEEDBACK"
+msgstr "RETORNO"
+
+msgid "FIX  -  "
+msgstr "CORRIGIR  -  "
+
+msgid "FLAGGED  -  "
+msgstr "MARCADOS  -  "
+
+msgid "Face to cut"
+msgstr "Face a cortar"
+
+msgid "Fingers one by one: click a finger on the body (zoom in with the wheel)."
+msgstr "Dedo por dedo: clique num dedo no corpo (aproxime com a roda)."
+
+msgid "Fit to an object"
+msgstr "Ajustar a um objeto"
+
+msgid "Fit: "
+msgstr "Ajuste: "
+
+msgid "Flip left-right"
+msgstr "Inverter esquerda-direita"
+
+msgid "Flipped"
+msgstr "Invertido"
+
+msgid "Folder"
+msgstr "Pasta"
+
+msgid "Folders: "
+msgstr "Pastas: "
+
+msgid "Frame all"
+msgstr "Enquadrar tudo"
+
+msgid "From a video"
+msgstr "De um vídeo"
+
+msgid "Full turn: no"
+msgstr "Volta completa: não"
+
+msgid "Gap mm"
+msgstr "Folga mm"
+
+msgid "Getting the parts ready..."
+msgstr "Preparando as peças..."
+
+msgid "Ghosts of the picked parts only (not the whole body)"
+msgstr "Fantasmas só das partes escolhidas (não do corpo inteiro)"
+
+msgid "Go"
+msgstr "Ir"
+
+msgid "Got it"
+msgstr "Entendi"
+
+msgid "Grade for animation"
+msgstr "Nota para animação"
+
+msgid "Graphics card"
+msgstr "Placa de vídeo"
+
+msgid "Graphics quality"
+msgstr "Qualidade gráfica"
+
+msgid "Greyed out: this tool is not in this copy of Kine"
+msgstr "Cinza: esta ferramenta não está nesta cópia do Kine"
+
+msgid "HIT REACTIONS: drag one onto the struck fighter"
+msgstr "REAÇÕES A GOLPES: arraste uma para o lutador atingido"
+
+msgid "HOLD  the capture point stays inside the feet: no step is needed"
+msgstr "SEGURAR  o ponto de captura fica dentro dos pés: não precisa dar passo"
+
+msgid "HOTKEYS  (click a key, then press the new one; Esc cancels or closes this)"
+msgstr "ATALHOS  (clique numa tecla e aperte a nova; Esc cancela ou fecha)"
+
+msgid "HOW IT WORKS"
+msgstr "COMO FUNCIONA"
+
+msgid "Held: "
+msgstr "Segurando: "
+
+msgid "Hide weird ones"
+msgstr "Esconder os estranhos"
+
+msgid "How close am I?"
+msgstr "Quão perto estou?"
+
+msgid "How many buttons?"
+msgstr "Quantos botões?"
+
+msgid "How round:"
+msgstr "Quão redondo:"
+
+msgid "IMPACT FRAMES"
+msgstr "QUADROS DE IMPACTO"
+
+msgid "Impact frames"
+msgstr "Quadros de impacto"
+
+msgid "Import pack..."
+msgstr "Importar pacote..."
+
+msgid "Import with this map"
+msgstr "Importar com este mapa"
+
+msgid "In the air only gravity acts: the centre of mass follows y'' = -9.81 m/s^2 and the angular momentum about it is conserved. A body turns at H / I, so a turn needs momentum at take-off. "
+msgstr "No ar só a gravidade age: o centro de massa segue y'' = -9,81 m/s^2 e o momento angular em torno dele se conserva. O corpo gira a H / I, então um giro precisa de momento na saída do chão. "
+
+msgid "Invert orbit drag"
+msgstr "Inverter arrastar da órbita"
+
+msgid "Jump"
+msgstr "Pular"
+
+msgid "KINE"
+msgstr "KINE"
+
+msgid "Kept"
+msgstr "Mantido"
+
+msgid "Keys"
+msgstr "Teclas"
+
+msgid "Library..."
+msgstr "Biblioteca..."
+
+msgid "List view"
+msgstr "Vista em lista"
+
+msgid "Load PNG..."
+msgstr "Carregar PNG..."
+
+msgid "Loads a performer would take, from the motion: landing (vGRF in body weights), knee valgus, spine (NIOSH 3400 N, ours), neck. Bars and sources: docs/research/STUNT_LOAD.md. Click one to jump to its moment."
+msgstr "Cargas que um dublê sofreria, a partir do movimento: aterrissagem (vGRF em pesos do corpo), joelho em valgo, coluna (NIOSH 3400 N, o nosso), pescoço. Limites e fontes: docs/research/STUNT_LOAD.md. Clique num para ir ao momento."
+
+msgid "Lock this bone"
+msgstr "Travar este osso"
+
+msgid "Locked: "
+msgstr "Travado: "
+
+msgid "Look again for slicers"
+msgstr "Procurar os fatiadores de novo"
+
+msgid "Look:"
+msgstr "Olhar:"
+
+msgid "Looking..."
+msgstr "Procurando..."
+
+msgid "Loop"
+msgstr "Repetir"
+
+msgid "Loud bars get a combo, quiet bars a pause; the biggest strike lands on the loudest downbeat; every contact is on a beat and inside the recorded human strike range (timing coach). Preview changes nothing; Accept writes a NEW scene in scenes/_wip and opens it; your scene is not touched."
+msgstr "Compassos fortes ganham um combo, os fracos uma pausa; o golpe maior cai no tempo forte mais alto; todo contato fica numa batida e dentro da faixa humana de golpes registrada (treinador de tempo). A prévia não muda nada; Aceitar escreve uma cena NOVA em scenes/_wip e a abre; a sua cena não é tocada."
+
+msgid "MAKE IT MORE LIKE MY BEST  -  "
+msgstr "DEIXE MAIS PARECIDO COM O MEU MELHOR  -  "
+
+msgid "MATCH THE REFERENCE TIMING"
+msgstr "IGUALAR AO TEMPO DA REFERÊNCIA"
+
+msgid "MOMENTUM LEDGER  -  "
+msgstr "REGISTRO DE MOMENTO  -  "
+
+msgid "MOVE KNOBS"
+msgstr "AJUSTES DO MOVIMENTO"
+
+msgid "MY BEST TAKE"
+msgstr "MINHA MELHOR TOMADA"
+
+msgid "MY STYLE  -  "
+msgstr "MEU ESTILO  -  "
+
+msgid "Make a family..."
+msgstr "Fazer uma família..."
+
+msgid "Make a story: build a prop, give it to the fighter, film a scene"
+msgstr "Faça uma história: construa um objeto, dê ao lutador, filme uma cena"
+
+msgid "Make it"
+msgstr "Fazer"
+
+msgid "Make label"
+msgstr "Fazer etiqueta"
+
+msgid "Make plate"
+msgstr "Fazer placa"
+
+msgid "Matcap"
+msgstr "Matcap"
+
+msgid "Match: fit the body to the reference"
+msgstr "Igualar: ajusta o corpo à referência"
+
+msgid "Material"
+msgstr "Material"
+
+msgid "Material library"
+msgstr "Biblioteca de materiais"
+
+msgid "Materials (PBR)"
+msgstr "Materiais (PBR)"
+
+msgid "Materials: pick one for the newest solid"
+msgstr "Materiais: escolha um para o sólido mais novo"
+
+msgid "Measure"
+msgstr "Medir"
+
+msgid "Mesh quality"
+msgstr "Qualidade da malha"
+
+msgid "Mirror: off"
+msgstr "Espelho: desligado"
+
+msgid "Model checks"
+msgstr "Verificações do modelo"
+
+msgid "Model from words: type a step, Enter"
+msgstr "Modelo por palavras: digite um passo e aperte Enter"
+
+msgid "Modifiers"
+msgstr "Modificadores"
+
+msgid "Mods"
+msgstr "Mods"
+
+msgid "Mood: type one word, such as angry, tired, heavy or sneaky. It blends onto this clip"
+msgstr "Humor: digite uma palavra, como bravo, cansado, pesado ou sorrateiro. Ela se mistura neste clipe"
+
+msgid "More"
+msgstr "Mais"
+
+msgid "Motion blur shutter / sub-frames:"
+msgstr "Desfoque de movimento, obturador / subquadros:"
+
+msgid "NEW >"
+msgstr "NOVO >"
+
+msgid "NEXT BEAT  -  "
+msgstr "PRÓXIMA BATIDA  -  "
+
+msgid "NOT NOW: there is no part to picture. Draw a shape and press Pull it up, then press Nice picture"
+msgstr "AGORA NÃO: não há parte para mostrar. Desenhe uma forma, aperte Puxar para cima e depois Imagem bonita"
+
+msgid "NOT NOW: tick at least one scene in the list first"
+msgstr "AGORA NÃO: marque pelo menos uma cena na lista primeiro"
+
+msgid "Name"
+msgstr "Nome"
+
+msgid "Natural"
+msgstr "Natural"
+
+msgid "Natural motion follows arcs: a path that turns sharply without stopping reads as mechanical. Worst first; click one to jump to it."
+msgstr "O movimento natural segue arcos: um caminho que vira bruscamente sem parar parece mecânico. Piores primeiro; clique num para ir até ele."
+
+msgid "Nature"
+msgstr "Natureza"
+
+msgid "Needs a prop in the set (Add prop > box) that a hand or weapon of the clip reaches."
+msgstr "Precisa de um objeto na cena (Adicionar objeto > caixa) que uma mão ou arma do clipe alcance."
+
+msgid "New assembly"
+msgstr "Nova montagem"
+
+msgid "New here? Pick a card above."
+msgstr "Novo por aqui? Escolha um cartão acima."
+
+msgid "Newton: the outside force is dP/dt. "
+msgstr "Newton: a força externa é dP/dt. "
+
+msgid "Next"
+msgstr "Próximo"
+
+msgid "Next: "
+msgstr "Próximo: "
+
+msgid "Next:  "
+msgstr "Próximo:  "
+
+msgid "Nice picture"
+msgstr "Imagem bonita"
+
+msgid "No catch: "
+msgstr "Sem pegadinha: "
+
+msgid "No clips yet.  Start here:"
+msgstr "Nenhum clipe ainda.  Comece aqui:"
+
+msgid "No clips yet: this face is the body's face for the whole scene. Sliders preview on the head; OK keys it (one undo step)."
+msgstr "Nenhum clipe ainda: este rosto é o rosto do corpo na cena inteira. Os controles mostram na cabeça; OK grava a chave (um passo de desfazer)."
+
+msgid "No material in that. I know oak, pine, steel, copper, lacquer, tile, marble, brick, leather... and colours"
+msgstr "Esse material eu não conheço. Conheço carvalho, pinho, aço, cobre, laca, azulejo, mármore, tijolo, couro... e cores"
+
+msgid "No points yet"
+msgstr "Nenhum ponto ainda"
+
+msgid "No pose: the links cannot close"
+msgstr "Sem pose: as ligações não fecham"
+
+msgid "No recent work yet. Your first project shows up here."
+msgstr "Nenhum trabalho recente ainda. Seu primeiro projeto aparece aqui."
+
+msgid "No scene files in scenes/."
+msgstr "Nenhum arquivo de cena em scenes/."
+
+msgid "No sequence repeats yet (a combo needs 2 or more cards, used twice or more). Save more clips, then Mine again."
+msgstr "Nenhuma sequência se repete ainda (um combo precisa de 2 ou mais cartões, usados duas vezes ou mais). Salve mais clipes e clique em Minerar de novo."
+
+msgid "No shots in your scenes yet. 'Frame it my way' will fall back to Auto camera."
+msgstr "Nenhum plano nas suas cenas ainda. 'Enquadrar do meu jeito' vai usar a câmera automática."
+
+msgid "Not checked yet"
+msgstr "Ainda não conferido"
+
+msgid "Nothing built yet"
+msgstr "Nada construído ainda"
+
+msgid "Nothing flagged: every judge that ran is satisfied."
+msgstr "Nada marcado: todo avaliador que rodou está satisfeito."
+
+msgid "Nothing here yet"
+msgstr "Nada aqui ainda"
+
+msgid "Nothing the app times shows up: the time is in the engine's drawing. Try a smaller window."
+msgstr "Nada que o app cronometra aparece: o tempo está no desenho do motor. Tente uma janela menor."
+
+msgid "Nothing to fix: ready to animate."
+msgstr "Nada a corrigir: pronto para animar."
+
+msgid "Nothing went wrong yet.  When a command refuses (it says 'pick a part first', 'needs two cards', 'NOT PLACED'...), this panel says what you tried, why it did not work, and the one next step."
+msgstr "Nada deu errado ainda.  Quando um comando recusa (diz 'escolha uma parte primeiro', 'precisa de dois cartões', 'NÃO COLOCADO'...), este painel diz o que você tentou, por que não funcionou e o próximo passo."
+
+msgid "Object library"
+msgstr "Biblioteca de objetos"
+
+msgid "On"
+msgstr "Ligado"
+
+msgid "One step could not follow the new sizes. Undo takes it back"
+msgstr "Um passo não acompanhou os tamanhos novos. Desfazer volta atrás"
+
+msgid "Only the move time of these cards is lengthened, on a copy. Preview changes nothing; Accept is one undo step (Ctrl+Z)."
+msgstr "Só o tempo de movimento destes cartões é alongado, numa cópia. A prévia não muda nada; Aceitar é um passo de desfazer (Ctrl+Z)."
+
+msgid "Only the selected parts"
+msgstr "Só as partes selecionadas"
+
+msgid "Open"
+msgstr "Abrir"
+
+msgid "Open a scene"
+msgstr "Abrir uma cena"
+
+msgid "Or try:"
+msgstr "Ou tente:"
+
+msgid "PARRY REBOUND  -  "
+msgstr "REBOTE DA DEFESA  -  "
+
+msgid "PLUGINS"
+msgstr "PLUGINS"
+
+msgid "PNG..."
+msgstr "PNG..."
+
+msgid "POSE LIBRARY"
+msgstr "BIBLIOTECA DE POSES"
+
+msgid "Peak hand and foot speed (world) and joint turning speed of each card, against the fastest measured people. Nothing is changed until you Accept."
+msgstr "Velocidade máxima da mão e do pé (no mundo) e velocidade de giro das juntas de cada cartão, contra as pessoas mais rápidas já medidas. Nada muda até você aceitar."
+
+msgid "Photo size: a coin for scale, then the object"
+msgstr "Tamanho da foto: uma moeda como escala, depois o objeto"
+
+msgid "Pick a challenge"
+msgstr "Escolha um desafio"
+
+msgid "Pick a picture on the left to see what is in it."
+msgstr "Escolha uma imagem à esquerda para ver o que tem nela."
+
+msgid "Pick one. Easy gives you big buttons and sliders. Expert gives you the full tools."
+msgstr "Escolha um. O Fácil dá botões e controles grandes. O Expert dá todas as ferramentas."
+
+msgid "Pick one. The full tools are still in the ribbon above."
+msgstr "Escolha um. As ferramentas completas continuam na faixa acima."
+
+msgid "Pick the reference (a scene made from a video). Preview draws both limb-speed curves and the events that match; Accept retimes your cards to them (one Ctrl+Z). Poses are not changed."
+msgstr "Escolha a referência (uma cena feita de um vídeo). A prévia desenha as duas curvas de velocidade dos membros e os eventos que combinam; Aceitar muda o tempo dos seus cartões para os dela (um Ctrl+Z). As poses não mudam."
+
+msgid "Picked: "
+msgstr "Escolhido: "
+
+msgid "Pipe through points: type X Y Z (mm) or click the part, then Make the pipe"
+msgstr "Tubo por pontos: digite X Y Z (mm) ou clique na parte e depois em Fazer o tubo"
+
+msgid "Pipes: PVC by real size. Pick a kind and an outside width (mm)"
+msgstr "Tubos: PVC em tamanho real. Escolha um tipo e uma largura externa (mm)"
+
+msgid "Plain"
+msgstr "Liso"
+
+msgid "Plugins run with the app's permissions; only enable plugins you trust. GDScript cannot be sandboxed: "
+msgstr "Plugins rodam com as permissões do app; ative só plugins em que você confia. GDScript não pode ficar em isolamento: "
+
+msgid "Points (mm)  "
+msgstr "Pontos (mm)  "
+
+msgid "Presets (B)"
+msgstr "Predefinições (B)"
+
+msgid "Press Start again and click the two edges of the coin, far apart"
+msgstr "Aperte Iniciar de novo e clique nas duas bordas da moeda, bem afastadas"
+
+msgid "Printer bed (mm)"
+msgstr "Mesa da impressora (mm)"
+
+msgid "Printer: "
+msgstr "Impressora: "
+
+msgid "Pushed: "
+msgstr "Empurrado: "
+
+msgid "Put back"
+msgstr "Recolocar"
+
+msgid "Put on the timeline"
+msgstr "Pôr na linha do tempo"
+
+msgid "REAL-MOCAP CHECK  -  "
+msgstr "CONFERÊNCIA COM MOCAP REAL  -  "
+
+msgid "RIGHT-CLICK a part (click, don't drag: right-DRAG still turns the view): a ring around the mouse.  Up = Reset, then clockwise: Snap 90°, Copy to the other side, CLIP this pose, Pin a trail, Snap 45°.  Click one; the middle or Esc cancels."
+msgstr "CLIQUE DIREITO numa parte (clique, não arraste: arrastar com o direito ainda gira a vista): um anel em volta do mouse.  Para cima = Resetar, depois no sentido horário: Encaixar 90°, Copiar para o outro lado, CLIPAR esta pose, Fixar uma trilha, Encaixar 45°.  Clique num; o botão do meio ou Esc cancela."
+
+msgid "Raised"
+msgstr "Elevado"
+
+msgid "Read from your own clips in scenes/ (never changed). Your median beside the neutral default a new card gets otherwise."
+msgstr "Lido dos seus próprios clipes em scenes/ (nunca alterados). A sua mediana ao lado do padrão neutro que um cartão novo recebe."
+
+msgid "Real size"
+msgstr "Tamanho real"
+
+msgid "Real size: press Hand, Coin or Phone. It lies on the floor beside the part at its real size. Press it again to take it away"
+msgstr "Tamanho real: aperte Mão, Moeda ou Celular. Ele fica no chão ao lado da parte em tamanho real. Aperte de novo para tirar"
+
+msgid "Real speed"
+msgstr "Velocidade real"
+
+msgid "Real width (mm)"
+msgstr "Largura real (mm)"
+
+msgid "Realistic"
+msgstr "Realista"
+
+msgid "Recent scenes"
+msgstr "Cenas recentes"
+
+msgid "Record"
+msgstr "Gravar"
+
+msgid "Reduce keys: tolerance (deg)"
+msgstr "Reduzir chaves: tolerância (graus)"
+
+msgid "Reference images"
+msgstr "Imagens de referência"
+
+msgid "Remesh: lighter <-> smoother"
+msgstr "Remalhar: mais leve <-> mais suave"
+
+msgid "Remove"
+msgstr "Remover"
+
+msgid "Remove favourite"
+msgstr "Remover dos favoritos"
+
+msgid "Remove the reference"
+msgstr "Remover a referência"
+
+msgid "Rendering shots: starting..."
+msgstr "Renderizando planos: começando..."
+
+msgid "Reset this part"
+msgstr "Resetar esta parte"
+
+msgid "Reset to defaults"
+msgstr "Voltar ao padrão"
+
+msgid "Rib size"
+msgstr "Tamanho da nervura"
+
+msgid "Ring side"
+msgstr "Lado do anel"
+
+msgid "Roofs, thin shells: pick a type. It drops on the floor. Curved gives it the Chinese sag and raised corners"
+msgstr "Telhados, cascas finas: escolha um tipo. Ele cai no chão. Curvo dá a curvatura chinesa e as pontas levantadas"
+
+msgid "S = SEARCH.  Don't remember where something is?  Press S, type a word (mirror, trail, staff, slower...), Enter.  Every button and key is in it, with its shortcut."
+msgstr "S = BUSCA.  Não lembra onde fica algo?  Aperte S, digite uma palavra (espelho, trilha, cajado, mais lento...) e Enter.  Todo botão e tecla está lá, com o atalho."
+
+msgid "SCENE LINES: A and B are the characters"
+msgstr "FALAS DA CENA: A e B são os personagens"
+
+msgid "SHOT LIST: type the story, one line per shot"
+msgstr "LISTA DE PLANOS: digite a história, uma linha por plano"
+
+msgid "SLOW THEM TO THE LIMIT  -  "
+msgstr "DESACELERE ATÉ O LIMITE  -  "
+
+msgid "SPEED LIMITS  -  "
+msgstr "LIMITES DE VELOCIDADE  -  "
+
+msgid "STEP"
+msgstr "PASSO"
+
+msgid "STYLE DIAL"
+msgstr "CONTROLE DE ESTILO"
+
+msgid "Save current brush as preset"
+msgstr "Salvar o pincel atual como predefinição"
+
+msgid "Save current slot to library"
+msgstr "Salvar o slot atual na biblioteca"
+
+msgid "Save tags"
+msgstr "Salvar etiquetas"
+
+msgid "Saved characters"
+msgstr "Personagens salvos"
+
+msgid "Saving video... encoding the last frames"
+msgstr "Salvando o vídeo... codificando os últimos quadros"
+
+msgid "Say the pose. Guard, crouch, lunge, wide stance, weight on back foot, hand on chin, bat cocked over right shoulder, left knee bent 90, look left, lean forward 20."
+msgstr "Diga a pose. Guarda, agachado, afundo, base larga, peso no pé de trás, mão no queixo, taco armado sobre o ombro direito, joelho esquerdo dobrado 90, olhar para a esquerda, inclinar para a frente 20."
+
+msgid "Scene only: data/skeleton.json is never changed. Percentiles: ANSUR II 2012 (Gordon et al.)."
+msgstr "Só na cena: data/skeleton.json nunca é alterado. Percentis: ANSUR II 2012 (Gordon et al.)."
+
+msgid "Scenes in scenes/: tick the ones to export. Each goes to its own file; the open scene is not changed."
+msgstr "Cenas em scenes/: marque as que quer exportar. Cada uma vai para o seu arquivo; a cena aberta não muda."
+
+msgid "Section"
+msgstr "Corte"
+
+msgid "See the drawings"
+msgstr "Ver os desenhos"
+
+msgid "See-through"
+msgstr "Transparente"
+
+msgid "Select all"
+msgstr "Selecionar tudo"
+
+msgid "Select none"
+msgstr "Selecionar nada"
+
+msgid "Select several"
+msgstr "Selecionar vários"
+
+msgid "Send to slicer"
+msgstr "Enviar ao fatiador"
+
+msgid "Sequences you use twice or more in scenes/ (never changed). Pick a card on the timeline, click Insert: a ghost shows it, Enter writes it (Ctrl+Z undoes)."
+msgstr "Sequências que você usa duas vezes ou mais em scenes/ (nunca alteradas). Escolha um cartão na linha do tempo e clique em Inserir: um fantasma mostra, Enter escreve (Ctrl+Z desfaz)."
+
+msgid "Set the picture's real width, then press Trace it"
+msgstr "Defina a largura real da imagem e aperte Traçar"
+
+msgid "Shape"
+msgstr "Forma"
+
+msgid "Shortcuts"
+msgstr "Atalhos"
+
+msgid "Show all the tools"
+msgstr "Mostrar todas as ferramentas"
+
+msgid "Show both"
+msgstr "Mostrar os dois"
+
+msgid "Show me"
+msgstr "Mostre"
+
+msgid "Show the tour"
+msgstr "Mostrar o tour"
+
+msgid "Sit on it"
+msgstr "Sentar nele"
+
+msgid "Size mm"
+msgstr "Tamanho mm"
+
+msgid "Sketch with sizes (AI)"
+msgstr "Esboço com medidas (IA)"
+
+msgid "Skip"
+msgstr "Pular"
+
+msgid "Skip tour"
+msgstr "Pular o tour"
+
+msgid "Slide , . : body follows"
+msgstr "Deslizar , . : o corpo acompanha"
+
+msgid "Slow in"
+msgstr "Entrada lenta"
+
+msgid "Slow out"
+msgstr "Saída lenta"
+
+msgid "Smooth (spline)"
+msgstr "Suavizar (spline)"
+
+msgid "Solid"
+msgstr "Sólido"
+
+msgid "Spin / lathe"
+msgstr "Girar / torno"
+
+msgid "Split to fit (cut into pieces, with dowel holes)"
+msgstr "Dividir para caber (cortar em peças, com furos para cavilhas)"
+
+msgid "Start"
+msgstr "Iniciar"
+
+msgid "Start from a class"
+msgstr "Começar de uma classe"
+
+msgid "Start →"
+msgstr "Iniciar →"
+
+msgid "Sticker"
+msgstr "Adesivo"
+
+msgid "Sticky keys (tap Shift / Ctrl / Alt to hold it for the next key or click)"
+msgstr "Teclas de aderência (toque em Shift / Ctrl / Alt para segurar na próxima tecla ou clique)"
+
+msgid "Stop"
+msgstr "Parar"
+
+msgid "Style"
+msgstr "Estilo"
+
+msgid "Suspension: the wheels on their arms"
+msgstr "Suspensão: as rodas nos seus braços"
+
+msgid "Switch..."
+msgstr "Trocar..."
+
+msgid "TIMING COACH  -  "
+msgstr "TREINADOR DE TEMPO  -  "
+
+msgid "TOP BAR = TABS.  POSE (reset, relax, mirror, collision), ANIMATE (trail, onion, spacing, speed graph, stepped, moving holds, the Animator tools menu), CHECK (check, polish, fix, the dummy), VIEW (the five views, big view).  A lit button = that tool is on.  Undo, Redo, Search and Help are always on the right."
+msgstr "BARRA DE CIMA = ABAS.  POSE (resetar, relaxar, espelhar, colisão), ANIMAR (trilha, casca de cebola, espaçamento, gráfico de velocidade, degraus, pausas com movimento, o menu Ferramentas de animação), CONFERIR (conferir, polir, corrigir, o boneco), VISTA (as cinco vistas, vista grande).  Botão aceso = ferramenta ligada.  Desfazer, Refazer, Busca e Ajuda ficam sempre à direita."
+
+msgid "Tags (words with commas):"
+msgstr "Etiquetas (palavras com vírgulas):"
+
+msgid "Take the rib off"
+msgstr "Tirar a nervura"
+
+msgid "Temple look"
+msgstr "Estilo templo"
+
+msgid "Test print: fit strip"
+msgstr "Impressão de teste: tira de encaixe"
+
+msgid "Test print: pegs and holes with the gap on each side (mm), to find what fits your printer"
+msgstr "Impressão de teste: pinos e furos com a folga de cada lado (mm), para achar o que serve na sua impressora"
+
+msgid "Text on a face:"
+msgstr "Texto numa face:"
+
+msgid "That house is already in the set."
+msgstr "Essa casa já está na cena."
+
+msgid "The biggest differences, in units of how much your other clips differ among themselves (the bar). Read from your own clips; nothing is changed."
+msgstr "As maiores diferenças, na unidade de quanto os seus outros clipes diferem entre si (a barra). Lido dos seus próprios clipes; nada é alterado."
+
+msgid "The mesh changed by hand after the last step. Press Ctrl+Z until the last row is gone, or remove a row."
+msgstr "A malha mudou à mão depois do último passo. Aperte Ctrl+Z até a última linha sumir, ou remova uma linha."
+
+msgid "The mesh changed by hand after the last step. Press Ctrl+Z until the last row is gone, then edit this step."
+msgstr "A malha mudou à mão depois do último passo. Aperte Ctrl+Z até a última linha sumir e depois edite este passo."
+
+msgid "The part on screen is what is read. Pick the face above; its outer edge and holes are written in millimetres."
+msgstr "A parte na tela é o que é lido. Escolha a face acima; a borda externa e os furos são escritos em milímetros."
+
+msgid "The part on screen is what is read: each wood board is one line. The prices above set the cost line on the Size label."
+msgstr "A parte na tela é o que é lido: cada tábua de madeira é uma linha. Os preços acima definem a linha de custo na etiqueta de tamanho."
+
+msgid "The part on screen is what is written, as one exact solid. The file says metres, so a CAD program shows the true size."
+msgstr "A parte na tela é o que é escrito, como um sólido exato. O arquivo diz metros, então um programa CAD mostra o tamanho verdadeiro."
+
+msgid "The ring is centred between the fighters where they start. Each fighter's farthest reach (body and weapon, the volume's radius included) is measured through the whole fight. One walking step is 0.7 m."
+msgstr "O ringue fica centrado entre os lutadores onde eles começam. O alcance máximo de cada lutador (corpo e arma, incluindo o raio do volume) é medido na luta toda. Um passo de caminhada é 0,7 m."
+
+msgid "The spine, neck and head share the bend by their ranges: they reach their limits together."
+msgstr "A coluna, o pescoço e a cabeça dividem a dobra pelas suas faixas: chegam aos limites juntos."
+
+msgid "The two coin clicks are too close together"
+msgstr "Os dois cliques na moeda estão muito próximos"
+
+msgid "Then "
+msgstr "Depois "
+
+msgid "Then:"
+msgstr "Depois:"
+
+msgid "This edge will not take a round or a bevel: Pull it up taller, or use Round the edges"
+msgstr "Esta aresta não aceita arredondar nem chanfrar: Puxe para cima mais alto, ou use Arredondar as arestas"
+
+msgid "Tick the scenes, pick the format and folder, then Export batch."
+msgstr "Marque as cenas, escolha o formato e a pasta e depois Exportar em lote."
+
+msgid "Topology heat map (H)"
+msgstr "Mapa de calor da topologia (H)"
+
+msgid "Trace"
+msgstr "Traçar"
+
+msgid "Trace a picture"
+msgstr "Traçar uma imagem"
+
+msgid "Trackpad-safe: two-finger scroll pans, pinch zooms"
+msgstr "Seguro para trackpad: rolar com dois dedos move, pinça dá zoom"
+
+msgid "Triangle budget"
+msgstr "Limite de triângulos"
+
+msgid "Turn it"
+msgstr "Girar"
+
+msgid "Type a mood, such as 'angry' or 'a bit tired', then Blend it."
+msgstr "Digite um humor, como 'bravo' ou 'meio cansado', e depois clique em Misturar."
+
+msgid "Type a move in the box and click Go, such as 'jump' or 'jab then cross'. Or click a picture. Help (top right) says more."
+msgstr "Digite um movimento na caixa e clique em Ir, como 'pular' ou 'jab e cruzado'. Ou clique numa imagem. A Ajuda (canto de cima à direita) diz mais."
+
+msgid "Type a step and press Enter. Edit a step and press Enter to run the list again from it."
+msgstr "Digite um passo e aperte Enter. Edite um passo e aperte Enter para rodar a lista de novo a partir dele."
+
+msgid "Type a step first, e.g. extrude the top 5 cm"
+msgstr "Digite um passo primeiro, por exemplo extrudar o topo 5 cm"
+
+msgid "Typical road car: wheel tilt -2 to 0 deg, steering tilt 8 to 16 deg, scrub -20 to +60 mm, caster 2 to 8 deg, roll centre 0 to 150 mm."
+msgstr "Carro de rua típico: inclinação da roda -2 a 0 graus, inclinação da direção 8 a 16 graus, scrub -20 a +60 mm, cáster 2 a 8 graus, centro de rolagem 0 a 150 mm."
+
+msgid "Tyre size"
+msgstr "Tamanho do pneu"
+
+msgid "UI size"
+msgstr "Tamanho da interface"
+
+msgid "Use in a scene"
+msgstr "Usar numa cena"
+
+msgid "Vehicle"
+msgstr "Veículo"
+
+msgid "Versions"
+msgstr "Versões"
+
+msgid "Vertex paint"
+msgstr "Pintura de vértices"
+
+msgid "View"
+msgstr "Vista"
+
+msgid "View >"
+msgstr "Vista >"
+
+msgid "View: ARROWS slide the view, Shift+ARROWS turn around the body, PageUp/PageDown or the wheel zoom, Tab = big view.  F6 = the panels by keyboard (Tab moves, Enter presses, Esc back).  Mouse: right-drag = turn around, middle-drag = slide."
+msgstr "VISTA: SETAS deslizam a vista, Shift+SETAS giram em volta do corpo, PageUp/PageDown ou a roda dão zoom, Tab = vista grande.  F6 = os painéis pelo teclado (Tab move, Enter aperta, Esc volta).  Mouse: arrastar com o direito = girar, arrastar com o do meio = deslizar."
+
+msgid "WEAPON WEIGHT  -  "
+msgstr "PESO DA ARMA  -  "
+
+msgid "WHAT I LEARNED FROM YOU  -  "
+msgstr "O QUE EU APRENDI COM VOCÊ  -  "
+
+msgid "WHAT WENT WRONG?"
+msgstr "O QUE DEU ERRADO?"
+
+msgid "WHY IS IT SLOW?"
+msgstr "POR QUE ESTÁ LENTO?"
+
+msgid "WILL THIS DEFORM?  -  "
+msgstr "VAI DEFORMAR?  -  "
+
+msgid "Walk along a path:"
+msgstr "Caminhar por um caminho:"
+
+msgid "Weapon in hand"
+msgstr "Arma na mão"
+
+msgid "Weight and balance: where the mass sits"
+msgstr "Peso e equilíbrio: onde fica a massa"
+
+msgid "Weight paint"
+msgstr "Pintura de pesos"
+
+msgid "What do you want to build?"
+msgstr "O que você quer construir?"
+
+msgid "What do you want to do?"
+msgstr "O que você quer fazer?"
+
+msgid "What should he do?"
+msgstr "O que ele deve fazer?"
+
+msgid "X mirror (_l <-> _r)"
+msgstr "Espelho X (_l <-> _r)"
+
+msgid "X symmetry"
+msgstr "Simetria X"
+
+msgid "Your scenes (best first)"
+msgstr "Suas cenas (melhores primeiro)"
+
+msgid "Zoom to cursor"
+msgstr "Zoom no cursor"
+
+msgid "[ ] slide the other hand along the shaft,  , . slide the main hand,  - = change the length"
+msgstr "[ ] desliza a outra mão pelo cabo,  , . desliza a mão principal,  - = muda o comprimento"
+
+msgid "after:  "
+msgstr "depois:  "
+
+msgid "attach a screenshot"
+msgstr "anexar uma captura de tela"
+
+msgid "back to the built-in keys"
+msgstr "voltar às teclas originais"
+
+msgid "blur brush"
+msgstr "pincel de desfoque"
+
+msgid "cam"
+msgstr "câm"
+
+msgid "cancelled: the key is unchanged"
+msgstr "cancelado: a tecla não mudou"
+
+msgid "cancelling..."
+msgstr "cancelando..."
+
+msgid "click = apply   drag right = blend   Ctrl = flipped   right-click = more"
+msgstr "clique = aplicar   arraste para a direita = misturar   Ctrl = invertido   clique direito = mais"
+
+msgid "click the floor to add points, Enter builds it, Esc cancels"
+msgstr "clique no chão para adicionar pontos, Enter constrói, Esc cancela"
+
+msgid "default"
+msgstr "padrão"
+
+msgid "dummy off"
+msgstr "boneco desligado"
+
+msgid "ease"
+msgstr "suavizar"
+
+msgid "face"
+msgstr "rosto"
+
+msgid "fitness"
+msgstr "condicionamento"
+
+msgid "flip"
+msgstr "inverter"
+
+msgid "from a photo..."
+msgstr "de uma foto..."
+
+msgid "gear"
+msgstr "engrenagem"
+
+msgid "gearpair"
+msgstr "par de engrenagens"
+
+msgid "hinge"
+msgstr "dobradiça"
+
+msgid "hold"
+msgstr "segurar"
+
+msgid "lathe"
+msgstr "torno"
+
+msgid "learned"
+msgstr "aprendido"
+
+msgid "left:  "
+msgstr "esquerda:  "
+
+msgid "length"
+msgstr "comprimento"
+
+msgid "livecut"
+msgstr "corte ao vivo"
+
+msgid "max"
+msgstr "máx"
+
+msgid "min"
+msgstr "mín"
+
+msgid "move"
+msgstr "mover"
+
+msgid "name"
+msgstr "nome"
+
+msgid "newer"
+msgstr "mais novo"
+
+msgid "next?"
+msgstr "próximo?"
+
+msgid "no reference yet: press Reference... and pick the scene made from the video"
+msgstr "sem referência ainda: aperte Referência... e escolha a cena feita do vídeo"
+
+msgid "none"
+msgstr "nenhum"
+
+msgid "none yet: set the sliders, name the person, press Save"
+msgstr "nenhum ainda: ajuste os controles, dê um nome à pessoa e aperte Salvar"
+
+msgid "nothing can be keyed here (see above)"
+msgstr "nada pode receber chave aqui (veja acima)"
+
+msgid "nothing yet: every change you make shows up here"
+msgstr "nada ainda: toda mudança que você faz aparece aqui"
+
+msgid "off"
+msgstr "desligado"
+
+msgid "older"
+msgstr "mais antigo"
+
+msgid "past = warm, future = cool. The farther from the playhead, the fainter."
+msgstr "passado = quente, futuro = frio. Quanto mais longe do cursor, mais fraco."
+
+msgid "points"
+msgstr "pontos"
+
+msgid "right:"
+msgstr "direita:"
+
+msgid "score = 100 points x exp(-total / 100 points), total = sum of: weight x share of the clip (older judges) or of the things judged (newer ones) flagged; about 100 points minus the total when the total is small, never stuck at zero. An abstaining judge does not move the score.\n"
+msgstr "nota = 100 pontos x exp(-total / 100 pontos), total = soma de: peso x parcela do clipe (avaliadores antigos) ou das coisas avaliadas (os novos) marcadas; cerca de 100 pontos menos o total quando o total é pequeno, nunca presa em zero. Um avaliador que se abstém não mexe na nota.\n"
+
+msgid "show at start"
+msgstr "mostrar ao iniciar"
+
+msgid "soft"
+msgstr "suave"
+
+msgid "speed"
+msgstr "velocidade"
+
+msgid "spring"
+msgstr "mola"
+
+msgid "stature (cm)"
+msgstr "altura (cm)"
+
+msgid "the body's own bone: not edited here (E grows one of yours from it)"
+msgstr "o osso do próprio corpo: não é editado aqui (E faz crescer um seu a partir dele)"
+
+msgid "the defender: "
+msgstr "o defensor: "
+
+msgid "the whole scene (every card)"
+msgstr "a cena toda (todo cartão)"
+
+msgid "this solid"
+msgstr "este sólido"
+
+msgid "tween"
+msgstr "tween"
+
+msgid "usual transitions: "
+msgstr "transições comuns: "
+
+msgid "x"
+msgstr "x"
