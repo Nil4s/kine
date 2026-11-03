@@ -67,6 +67,7 @@ const KCad := preload("res://scripts/kcad.gd")
 const PartInstances := preload("res://scripts/build/part_instances.gd")   # s261: N copies of a body as one MultiMesh
 const PartArray := preload("res://scripts/build/part_array.gd")   # s228: grid / route patterns
 const MM := 0.001
+const PUPTO := preload("res://scripts/build/part_upto.gd")   # C44
 const POFFSET := preload("res://scripts/build/part_offset.gd")   # plan 18: Thinner / thicker everywhere
 const PBULGE := preload("res://scripts/build/part_bulge.gd")   # plan 23: Pinch / Bulge a face
 const GEAR_DRIVE := preload("res://scripts/gear_drive.gd")
@@ -623,6 +624,8 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				if sk.is_empty():
 					errs[id] = _no_sketch_words(rec, f, String(f.get("sketch", "")), errs, off_ids)
 					continue
+				if f.has("upto") and String(f["t"]) == "extrude":
+					f = PUPTO.resolve(f, sk.get("_pl", {}))   # C44: Up to a face (a copy with the distance worked out)
 				var sols := _solids(f, sk)
 				if String(sols["err"]) != "":
 					errs[id] = String(sols["err"])

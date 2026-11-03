@@ -25,6 +25,7 @@ const TL_H := 84.0
 const DOUBLE_MS := 650
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]   # Constrain: the rule row (CON_TOOLS, below)
 const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Primitive", "Ornament", "Roof shell"]
+const PUpto := preload("res://scripts/build/part_upto.gd")   # C44
 const PPRIMUI := preload("res://scripts/build/part_prim_ui.gd")   # s229: the Primitive dialog and the plane modes
 const TOOL_KIND := {"Roof shell": "roof", "Primitive": "prim", "Offset plane": "plane", "Offset face": "offset_face", "Draft": "draft"}   # a tool's feature kind when it is not its lower-case name
 const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell", "Appearance", "Offset face", "Draft"]
@@ -1107,6 +1108,8 @@ func _press(p: Vector2) -> bool:
 		return _measure_press(p)
 	if tool == "Hinge" and dlg.get("t", "") == "hinge":
 		return _hinge_press(p)
+	if PUpto.press(self, p):
+		return true   # C44: the face an Extrude ends on
 	if dlg.get("t", "") == "plane" and PPRIMUI.plane_mode(self) == 4:
 		return PPRIMUI.face_press(self, p)   # s229: the plane on a clicked face
 	if tool == "Offset face" or tool == "Draft":   # GAP 10: a click picks a face (its centre; the front-facing ones)
@@ -1304,6 +1307,7 @@ func _motion(p: Vector2) -> bool:
 		if i != hover_edge:
 			hover_edge = i
 			pov.queue_redraw()
+	PUpto.hover(self, p)   # C44
 	if tool == "Offset face" or tool == "Draft":
 		var fi := _pick_face(p)
 		if fi != hover_face:
@@ -1699,6 +1703,7 @@ func open_dialog(t: String, edit: int) -> void:
 		_row("Distance", f_num, _lu(float(f.get("dist", 10.0))))
 		f_both.set_pressed_no_signal(bool(f.get("both", false)))
 		dlg_rows.add_child(f_both)
+		PUpto.open_rows(self, f)   # C44: Up to a face
 		_row("Taper angle", f_taper, "%s deg" % _fmt(float(f.get("taper", 0.0))))
 		_op_row(f)
 	elif kind == "revolve":
@@ -1984,6 +1989,7 @@ func dialog_feature() -> Dictionary:
 				return {}
 			var tp := _num(f_taper)
 			f = {"sketch": dlg["sketch"], "dist": d, "both": f_both.button_pressed, "op": op, "taper": 0.0 if is_nan(tp) else tp}
+			PUpto.extend(self, f)   # C44
 		"revolve":
 			var a := _num(f_ang)
 			if is_nan(a) or absf(a) < 1e-6 or String(dlg.get("sketch", "")) == "":
@@ -2931,7 +2937,7 @@ func _draw_model() -> void:
 				picked_now = true
 		if picked_now or i == hover_edge:
 			_edge_line(edge_cache[i], SKY if picked_now else Color(SKY, 0.6), 5.0 if picked_now else 3.0)
-	if tool == "Offset face" or tool == "Draft" or (not dlg.is_empty() and String(dlg["t"]) in ["offset_face", "draft", "plane"]):
+	if tool == "Offset face" or tool == "Draft" or (not dlg.is_empty() and String(dlg["t"]) in ["offset_face", "draft", "plane"] or (String(dlg.get("t", "")) == "extrude" and (bool(dlg.get("upto_arm", false)) or dlg.has("upto")))):
 		_draw_faces()
 	if not dlg.is_empty() and picked.size() > 0 and String(dlg["t"]) in ["fillet", "chamfer"]:
 		var e: Dictionary = picked[0]

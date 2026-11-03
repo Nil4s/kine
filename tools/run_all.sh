@@ -893,3 +893,6 @@ EXTRA="$EXTRA c42:w"   # C42 stay-in-place export toggle + lightmap UV1 Blender 
 
 
 EXTRA="$EXTRA c43:w"   # C43: Printer row in Export (saved preset the fit tools read) + the written STL/3MF re-read as the preview (tests/c43_test.gd)
+
+
+EXTRA="$EXTRA c44:w"   # C44: Extrude up to a face or edge with an offset, tests/c44_test.gd
