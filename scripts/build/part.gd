@@ -945,18 +945,18 @@ static func pack_surfaces(mesh: ArrayMesh, pend: Array, res: Dictionary) -> void
 			var tail: Array = groups.pop_back()
 			groups[MAX_SURFACES - 1].append_array(tail)
 	for g in groups:
+		var rg: Array = []   # s243: every body of this surface and its vertex range, [[body, first vertex, vertex count]] (the framing facts read one body's triangles)
+		var v0 := 0   # s262b: counted BEFORE the merge (the merge appends into the first body's array: counted after, body 1 had every vertex and the rest were shifted past the end)
+		for k in g:
+			var nv := ((pend[k][0] as Array)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
+			rg.append([pend[k][2], v0, nv])
+			v0 += nv
 		var arr: Array = pend[g[0]][0]
 		if g.size() > 1:
 			arr = _merge_arrays(g.map(func(k): return pend[k][0]))
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 		res["looks"].append(pend[g[0]][1])
 		res["surf_body"].append(pend[g[0]][2])
-		var rg: Array = []   # s243: every body of this surface and its vertex range, [[body, first vertex, vertex count]] (the framing facts read one body's triangles)
-		var v0 := 0
-		for k in g:
-			var nv := ((pend[k][0] as Array)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
-			rg.append([pend[k][2], v0, nv])
-			v0 += nv
 		res["surf_ranges"].append(rg)
 
 

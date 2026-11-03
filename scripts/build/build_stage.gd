@@ -86,6 +86,8 @@ static func use(S: Scene, part := {}) -> String:
 
 ## a Part prop of a scene file (scene.gd): its kind is made again from its record; "" when it has no solid (the prop is skipped)
 static func restore_part(kind: String, rec: Dictionary) -> String:
+	if ExplodeKeys.is_kind(kind):   # s262b: an exploded view on the timeline is made again from its record
+		return ExplodeKeys.restore(kind, rec)
 	if PropJoints.is_moving_kind(kind):   # s120
 		return kind if PropJoints.register(kind, rec) else ""
 	var res := Part.replay(rec)

@@ -759,3 +759,8 @@ EXTRA="$EXTRA s261:w"   # s261: Part feature instances: N copies of a body on a 
 
 
 EXTRA="$EXTRA w10d:w"   # W10d: the Pull it up hover card stays clear of the line-touch note, tests/w10d_test.gd
+
+
+
+
+EXTRA="$EXTRA s262b:w"   # s262b: exploded view v2 (visible area, timeline keys, 256+ bodies), tests/s262b_test.gd
