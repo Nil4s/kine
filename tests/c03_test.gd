@@ -90,7 +90,7 @@ func set_part(feats: Array, nm: String) -> void:
 
 
 func chip(nm: String) -> Button:
-	return m.bld.part.ep.find_child(nm, true, false) as Button
+	return root.find_child(nm, true, false) as Button
 
 
 func bars(sz: Vector2i) -> void:
