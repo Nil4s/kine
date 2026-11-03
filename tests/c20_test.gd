@@ -193,6 +193,9 @@ func _init() -> void:
 	if m.ui_save_ask != null and m.ui_save_ask.visible:
 		m._save_ask_choose("discard")
 	await idle(6)
+	m.bld.part.set_on(false)   # as p_stl3mf: start from a clean builder
+	m.S.part = {}
+	await idle(8)
 	var pu: PartUI = m.bld.part
 	await click_ctl(pu.part_btn)
 	await idle(3)
@@ -203,7 +206,7 @@ func _init() -> void:
 	var ep = pu.ep
 	ep._lib_press("Hinges")   # the Hinges page (its category button sits in a collapsible group; the click on the pip button below is real)
 	await idle(4)
-	print("info hinges_btn visible %s parts_open %s lib_cat %s" % [str(ep.hinges_btn.is_visible_in_tree()), str(ep.parts_open), str(ep.lib_cat)])
+	print("info ep visible %s easy %s; " % [str(pu.ep.is_visible_in_tree()), str(pu.easy)] + "hinges_btn visible %s parts_open %s lib_cat %s" % [str(ep.hinges_btn.is_visible_in_tree()), str(ep.parts_open), str(ep.lib_cat)])
 	var pb := root.find_child("easypart_pip_hinge", true, false) as Button
 	if pb == null:
 		ok(false, "UI the Print-in-place hinge button exists")
