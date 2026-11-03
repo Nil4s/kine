@@ -92,7 +92,7 @@ func _init() -> void:
 		Props.register("zz pillar", AABB(Vector3(-0.05, 0, -0.05), Vector3(0.1, h, 0.1)), "", 1.0)
 		var raised := body()
 		var up_j := "upperarm" + sd
-		raised.ang[up_j] = (raised.ang[up_j] as Vector3) + Vector3(0.0, 0.0, 40.0 if sd == "_l" else -40.0)
+		raised.ang[up_j] = (raised.ang[up_j] as Vector3) + Vector3(40.0, 0.0, 0.0)
 		raised.fk()
 		var S := Scene.new()
 		S.props = [Props.make("zz pillar", Props.xf_at(Vector3(mid.x, 0, mid.z), 0.0))]
@@ -148,7 +148,7 @@ func _init() -> void:
 	for case in ["sword_r", "sword_l", "bar_r"]:
 		var h := "hand_l" if case.ends_with("_l") else "hand_r"
 		var Bg := body()
-		var pc: Vector3 = Bg.palm_point(h) + AnyGrip.curl_dir(Bg, h) * 0.06
+		var pc: Vector3 = Bg.palm_point(h) + AnyGrip.curl_dir(Bg, h) * 0.06 + Vector3(0, 0, 0.2)
 		var prop: Dictionary
 		var axis_i := 0
 		if case.begins_with("sword"):
@@ -194,7 +194,7 @@ func _init() -> void:
 	m._rebuild_cards()
 	await idle(3)
 	var Bm := m.B as Body
-	var pc2: Vector3 = Bm.palm_point("hand_r") + AnyGrip.curl_dir(Bm, "hand_r") * 0.06
+	var pc2: Vector3 = Bm.palm_point("hand_r") + AnyGrip.curl_dir(Bm, "hand_r") * 0.06 + Vector3(0, 0, 0.2)
 	m.S.props = [Props.make("sword", Props.xf_at(Vector3(pc2.x, pc2.y - 0.015, pc2.z), 0.0))]
 	m.sel_prop = 0
 	m.sel = "hand_r"
