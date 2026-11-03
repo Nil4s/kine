@@ -167,6 +167,9 @@ func _frame_step() -> void:
 
 
 ## the free view: the clear view minus the MAKE row above and the side panel at the right, minus the status line at the bottom
+const FREE_MIN_W := 160.0   # s279: the least free-view width worth narrowing for the view column
+
+
 func free_rect() -> Rect2:
 	var boxes := [hint, hole_box, split_box, round_box, shape_box, colour_box, repeat_box, stick_box]   # the words and the chip rows under the MAKE row: the part sits below them
 	var top := _free_top(boxes)                                                              # (ewalk4: the Through / Hollow inside chips covered the mug's rim)
@@ -178,7 +181,14 @@ func free_rect() -> Rect2:
 	var x1 := _cl.end.x - PW - 16.0
 	# s240: the view column (Fit view, Front, Top ...) stands inside that strip at the right: the part is framed to its left, not under it
 	if view_box != null and view_box.visible and view_box.get_global_rect().end.y > top and view_box.get_global_rect().position.y < _cl.end.y - 70.0:
-		x1 = minf(x1, view_box.get_global_rect().position.x - 8.0)
+		# s279: only while a usable width is left of it: with the Repeat it box open at the left the column left the free view 98 px wide
+		# (the nine pieces of s214 filled 16 pct, bar Z7 wants 25): then the view keeps its width and the part may stand under the column's lower end
+		var x1n := minf(x1, view_box.get_global_rect().position.x - 8.0)
+		var x0n := x0
+		if repeat_box.visible and repeat_box.position.y < _cl.end.y - 70.0 and repeat_box.position.y + repeat_box.size.y > top:
+			x0n = maxf(x0, repeat_box.position.x + repeat_box.size.x + 8.0)
+		if x1n - x0n >= FREE_MIN_W:
+			x1 = x1n
 	# EPANELVIEW: an open Repeat it box at the lower left takes its columns out of the free view (the part is framed to its right)
 	if repeat_box.visible and repeat_box.position.y < _cl.end.y - 70.0 and repeat_box.position.y + repeat_box.size.y > top:
 		x0 = maxf(x0, repeat_box.position.x + repeat_box.size.x + 8.0)
