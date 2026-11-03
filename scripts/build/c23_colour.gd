@@ -26,7 +26,9 @@ static func pick_bodies(bodies: Array, wanted := "auto") -> Dictionary:
 		return {"fmt": "3mf", "why": "3MF chosen: this part has %d colours and an STL holds none; the 3MF keeps each piece's colour" % n, "colours": n}
 	if n == 1:
 		return {"fmt": "3mf", "why": "3MF chosen: this part is painted and an STL would lose the colour", "colours": n}
-	return {"fmt": "3mf", "why": "3MF chosen: it is unpainted, so either file holds the shape; the 3MF also keeps each separate piece as its own object", "colours": 0}
+	if bodies.size() > 1:
+		return {"fmt": "3mf", "why": "3MF chosen: it is unpainted but has %d separate pieces, and the 3MF keeps each as its own object" % bodies.size(), "colours": 0}
+	return {"fmt": "stl", "why": "STL chosen: one unpainted piece, so the plain shape is all there is to keep", "colours": 0}
 
 
 static func pick(rec: Dictionary, quality := {}, wanted := "auto") -> Dictionary:
