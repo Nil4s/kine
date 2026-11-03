@@ -750,3 +750,6 @@ EXTRA="$EXTRA s269b:w"   # s269b: film panel opaque + view fills it, reflective 
 
 
 EXTRA="$EXTRA w03e:w"   # w03e: key-aware incremental cache + nested face.body keys, tests/w03e_test.gd
+
+
+EXTRA="$EXTRA s277:w"   # s277/s273: glossy blurred floor, wide bloom, preset levels, aluminium + nickel, face-scaled brush, tests/s277_test.gd

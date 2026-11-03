@@ -4590,7 +4590,7 @@ func _look_surfaces() -> void:
 	var ls: Array = res.get("looks", [])
 	for s in mini(ls.size(), part_mesh.mesh.get_surface_count()):
 		var l: Dictionary = ls[s]
-		var mm := MaterialMaker.look_material(l, PartViewTools.X_ALPHA if xray else 1.0)   # s223: a made material, triplanar in mm
+		var mm := MaterialMaker.look_material(l, PartViewTools.X_ALPHA if xray else 1.0, MaterialMaker.dims_for(l, part_mesh.mesh, s))   # s223: a made material, triplanar in mm (s273: brushed = scaled to the face)
 		if mm != null:
 			PartGlow.apply(mm, l)   # s258
 			part_mesh.set_surface_override_material(s, mm)
