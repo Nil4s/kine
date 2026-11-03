@@ -14,7 +14,7 @@ var fails := 0
 const FIX := "res://tests/fixtures/mixamo_rig.fbx"
 const SHOT := "C:/Users/Nick/tools/kine_workers/out/c19"
 const NET := ["HTTPRequest", "HTTPClient", "StreamPeerTLS", "PacketPeerUDP", "WebSocketPeer", "WebRTC", "ENetMultiplayer"]
-const TCP_OK := ["co_edit.gd", "live_puppet.gd"]
+const TCP_OK := ["co_edit.gd", "live_puppet.gd", "local_api.gd"]   # listeners (loopback / user-started LAN); local_api bound to 127.0.0.1 is asserted below
 
 
 func ok(c: bool, w: String) -> void:
@@ -105,7 +105,7 @@ func _init() -> void:
 		b["scene"].apply(B, t)
 		for j in AnimImport.MAIN:
 			w = maxf(w, (P0[j] as Vector3).distance_to(B.P[j]))
-	ok(a["ok"] and b["ok"] and w < 1e-6, "3 untouched screen map == guess, worst %.2e m" % w)
+	ok(a["ok"] and b["ok"] and w < 1e-6, "3 untouched screen map == guess, worst %s m" % w)
 	# 4 gpu
 	var intel := "Intel(R) UHD Graphics 770"
 	var nv := "NVIDIA GeForce RTX 3070"
@@ -127,6 +127,7 @@ func _init() -> void:
 	ok(bad.is_empty(), "5 no network classes outside the allow-list: %s" % [bad])
 	ok(not scan("res://scripts/anim_import.gd", "var h = HTTPRequest.new()").is_empty(), "5 CONTROL: a planted HTTPRequest fails the scan")
 	ok(not scan("res://scripts/x.gd", "t.connect_to_host(a,1)").is_empty(), "5 CONTROL: a planted connect_to_host fails the scan")
+	ok(FileAccess.get_file_as_string("res://scripts/local_api.gd").contains("const BIND := \"127.0.0.1\""), "5 local_api listens on loopback only")
 	var imp := AnimImport.import_file(ProjectSettings.globalize_path(FIX), B)
 	await idle(3)
 	var nodes := root.find_children("*", "HTTPRequest", true, false)
