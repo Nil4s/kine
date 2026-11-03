@@ -40,7 +40,7 @@ static func build(ep, _row: Control = null) -> void:
 		if is_instance_valid(box) and box.visible and bc != null and bool(bc.get("open")):
 			box.visible = false
 		elif is_instance_valid(box) and box.visible and Engine.get_process_frames() % 12 == 0:
-			place(box))   # the layout moves its boxes after a press: look again, so the panel never ends up over one
+			place(box, ep))   # the layout moves its boxes after a press: look again, so the panel never ends up over one
 	sync(ep, false)
 
 
@@ -55,7 +55,7 @@ static func sync(ep, show := false) -> void:
 			ep.tilt_box.get_parent().add_child(box)   # beside the other Easy boxes (the panel's own layer)
 		box.visible = show and box.get_parent() != null
 		if box.visible:
-			place(box)
+			place(box, ep)
 
 
 ## Controls the panel must not cover: every visible button, label, slider and panel in the window except the panel itself, the controls it sits
@@ -84,11 +84,29 @@ static func blockers(box: Control) -> Array:
 
 
 ## the panel goes where it overlaps none of them (4 px apart), as far from the middle of the view (where the model stands) as the free room allows
-static func place(box: Control) -> void:
+## the screen box of the part's pieces (the whole part's bounding box projected, 24 px wider); empty when there is no part
+static func piece_rect(ep) -> Rect2:
+	var ab: AABB = ep.pu.res.get("aabb", AABB())
+	if ab.size == Vector3.ZERO or ep.m.cam == null:
+		return Rect2()
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for i in 8:
+		var q: Vector2 = ep.m.cam.unproject_position(ab.position + ab.size * Vector3(i & 1, (i >> 1) & 1, (i >> 2) & 1))
+		lo = lo.min(q)
+		hi = hi.max(q)
+	return Rect2(lo, hi - lo).grow(24.0)
+
+
+static func place(box: Control, ep = null) -> void:
 	box.reset_size()
 	var par := box.get_parent() as Control
 	var vs: Vector2 = par.size
 	var bl := blockers(box)
+	if ep != null:
+		var pr := piece_rect(ep)   # the pieces on the screen: a click into the 3D view must never land on the panel
+		if pr.size.x > 0.0:
+			bl.append(pr)
 	var sz := box.size
 	if box.has_meta("c03_placed") and box.get_meta("c03_vs") == vs and Rect2(Vector2.ZERO, vs).encloses(Rect2(box.position, sz)):   # sticky: it stays where it is while that place is still clear (a button must not slide under the mouse)
 		var cur := Rect2(par.get_global_transform() * box.position, sz).grow(4.0)
@@ -121,7 +139,12 @@ static func place(box: Control) -> void:
 					best = Vector2(x, y)
 			x += 12.0
 		y += 12.0
-	box.position = best if best.x >= 0.0 else Vector2(vs.x * 0.5 - sz.x * 0.5 - 90.0, vs.y - sz.y - 110.0)
+	if best.x >= 0.0:
+		box.position = best
+	elif ep != null:
+		box.visible = false   # no clear place left: the panel gives way, the view stays free
+	else:
+		box.position = Vector2(vs.x * 0.5 - sz.x * 0.5 - 90.0, vs.y - sz.y - 110.0)
 
 
 static func pull_press(ep) -> void:

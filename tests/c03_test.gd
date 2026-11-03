@@ -142,7 +142,7 @@ func piece_bars(sz: Vector2i) -> void:
 	var pu: PartUI = m.bld.part
 	var ep = pu.ep
 	await set_part(three_cubes(), "Pieces")
-	m.target = Vector3(0.0, 0.0, 0.0)
+	m.target = Vector3(0.1, 0.0, 0.0)   # s214's frame_right: the pieces small, on the right of the screen
 	m.dist = 1.6
 	m.pitch = 0.0
 	m.yaw = 0.0
@@ -174,18 +174,19 @@ func piece_bars(sz: Vector2i) -> void:
 		if r.intersects(pbox):
 			o.append("piece box " + str(pbox))
 		return o
+	var c03 = load("res://scripts/easy_part_c03.gd")
+	box.visible = true
+	# the panel was put down earlier, over where the pieces now stand (the batch-8 failure: it sat there, still clear of every control)
+	box.position = (cs[1] as Vector2) - box.size * 0.5
+	box.set_meta("c03_placed", true)
+	box.set_meta("c03_vs", (box.get_parent() as Control).size)
+	# control: the panel where it was put down, no re-placement (the old rule never looked at pieces): the detector must fire
+	var b0: Array = bad.call()
+	print("  [%s 7 control: the old rule leaves the panel over the pieces: %d: %s]" % [tag, b0.size(), str(b0)])
+	ctl_cover += b0.size()
+	c03.place(box, ep)   # the new rule: it must move off the pieces (or hide)
 	var b1: Array = bad.call()
 	ok(b1.is_empty(), "%s 7: panel %s (visible %s) covers no body centre and not the piece box %s" % [tag, str(box.get_global_rect()), str(box.visible), str(b1)])
-	# control: the old rule (no piece avoidance), placed afresh
-	var c03 = load("res://scripts/easy_part_c03.gd")
-	var was := box.visible
-	box.visible = true
-	box.remove_meta("c03_placed") if box.has_meta("c03_placed") else null
-	c03.place(box, null)
-	var b0: Array = bad.call()
-	print("  [%s 7 control: the old placement covers %d: %s]" % [tag, b0.size(), str(b0)])
-	ctl_cover += b0.size()
-	box.visible = was
 	await shot("pieces_" + tag)
 
 
