@@ -24,8 +24,10 @@ var ui_q: OptionButton   # W05: mesh quality of the STL / 3MF (Coarse / Normal /
 var ui_q_custom: SpinBox
 var ui_q_row: HBoxContainer
 var ui_q_info: Label
+var ui_fit: CheckBox   # C20: Match the mesh to the fit (off = the usual quality)
 var _q_cache := {}
 var ui_csv_locale: OptionButton   # C14 (#442): the cut-list CSV's locale (0 = comma + dot decimals, the default; 1 = semicolon + decimal comma, for Excel in pt-BR / EU)
+var ui_safety: VBoxContainer   # C17: print safety row
 var ui_price_row: HBoxContainer   # s081: the price table (BRL) behind the cost line
 var ui_bed_row: HBoxContainer   # 3D printing only: the printer bed size and Split to fit (Friday plan 114)
 var ui_bed: Array = []   # three SpinBoxes: bed X, Y, Z in mm
@@ -300,12 +302,20 @@ func _build() -> void:
 	ui_q_custom.value_changed.connect(func(_x: float): _refresh())
 	ui_q_row.add_child(ui_q_custom)
 	v.add_child(ui_q_row)
+	ui_fit = CheckBox.new()   # C20: opt-in, off
+	ui_fit.name = "opt_export_fit_tess"
+	ui_fit.text = "Match the mesh to the fit"
+	ui_fit.tooltip_text = "Make curved faces sit at most a quarter of the printer's clearance off the true surface, and check hinges and supports. Off keeps the usual quality."
+	ui_fit.toggled.connect(func(_b: bool): _refresh())
+	v.add_child(ui_fit)
 	ui_q_info = Label.new()
 	ui_q_info.name = "export_quality_info"
 	ui_q_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	ui_q_info.custom_minimum_size = Vector2(300, 0)
 	v.add_child(ui_q_info)
 	_price_row_build(v)
+	ui_safety = PrintSafety.build_row(self)   # C17
+	v.add_child(ui_safety)
 	_build_bed_row(v)
 	ui_slicer_box = VBoxContainer.new()   # plan 119: Send to slicer (3D printing only)
 	ui_slicer_box.name = "export_slicer_box"
@@ -449,6 +459,8 @@ func _refresh() -> void:
 	ui_face_row.visible = _cur_id() == "laser"
 	ui_budget_row.visible = _cur_run() in ["glb", "obj", "stl", "3mf"]
 	ui_price_row.visible = _cur_id() == "cutlist" or _cur_id() == "print"
+	if ui_safety != null:
+		ui_safety.visible = _cur_id() == "print"
 	_refresh_quality()
 	if ui_bed_row != null:
 		ui_bed_row.visible = _cur_id() == "print"
@@ -477,6 +489,10 @@ func _refresh() -> void:
 func quality() -> Dictionary:
 	if ui_q == null:
 		return {}
+	if ui_fit != null and ui_fit.button_pressed:   # C20
+		var fq := C20Fit.quality_for_fit(m.S.part)
+		if not fq.is_empty():
+			return fq
 	return MeshQuality.of(ui_q.get_item_text(maxi(ui_q.selected, 0)), ui_q_custom.value)
 
 
@@ -496,6 +512,8 @@ func _refresh_quality() -> void:
 		var bo := MeshExport.bodies_of(rec, q)
 		_q_cache[key] = MeshQuality.estimate(ExportBudget.apply_bodies(bo["bodies"], budget), fmt, String(rec.get("name", "Part"))) if (bo["bodies"] as Array).size() > 0 else {"tris": 0, "bytes": 0, "text": "nothing to export yet"}
 	ui_q_info.text = String((_q_cache[key] as Dictionary)["text"])
+	if ui_fit != null and ui_fit.button_pressed and not q.is_empty() and String(q.get("name", "")) == "Fit":   # C20: reported
+		ui_q_info.text = C20Fit.tess_words(q, int((_q_cache[key] as Dictionary)["tris"])) + ". " + ui_q_info.text
 
 
 func _cur_run() -> String:
@@ -540,6 +558,10 @@ func checks(id: String, run: String) -> Array:
 		var pl: Array = MeshExport.check_lines(m.S.part, quality(), ExportBudget.BUDGETS[ui_budget.selected] if ui_budget != null and ui_budget.selected >= 0 else 0)
 		if not (m.S.part as Dictionary).is_empty() and Part.available():
 			pl.append_array(PrintSplit.size_lines(m.S.part, bed_mm, split_fit))
+			if ui_fit != null and ui_fit.button_pressed:   # C20
+				var fbo := MeshExport.bodies_of(m.S.part, quality())
+				if not (fbo["bodies"] as Array).is_empty():
+					pl.append_array(C20Fit.check_lines(m.S.part, fbo["bodies"], quality()))
 		return pl
 	if id == "cutlist":
 		return CutList.check_lines(m.S.part)

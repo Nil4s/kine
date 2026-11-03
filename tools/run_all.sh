@@ -821,4 +821,28 @@ EXTRA="$EXTRA c13:w"   # C13: pose IK/FK state, prop attach/detach frame, cape s
 EXTRA="$EXTRA c14:w"   # c14: rig pre-check, footage pre-check, cut-list CSV locale, tests/c14_test.gd
 
 
-EXTRA="$EXTRA c25:w"   # C25: one Move rule in/out of sketch, render time estimate (tests/c25_test.gd)
+EXTRA="$EXTRA c15:w"   # C15: sketch re-plane preview, SVG import scale check, assembly degrees of freedom, tests/c15_test.gd
+
+
+EXTRA="$EXTRA c16:w"   # C16: guided first pose (opt-in command) + clip licence line from repo data (tests/c16_test.gd)
+
+
+EXTRA="$EXTRA c18:w"   # C18 door hinge edge, one-time Join undo note, scaled Join touch tolerance, tests/c18_test.gd
+
+
+EXTRA="$EXTRA c19:w"   # C19: bone-map unmapped list, gpu notice, no-network scan, tests/c19_test.gd
+
+
+EXTRA="$EXTRA c21:w"   # C21: how-to-fix on every failed step, free shapes ringed, 1.75 m fix (tests/c21_test.gd)
+
+
+EXTRA="$EXTRA c22:w"   # C22: attach to either hand, grip by the handle, IK/FK joint-position snap (tests/c22_test.gd)
+
+
+EXTRA="$EXTRA c12:w"   # c12: blueprint callouts, dim style presets, custom 1:1 sheets, tests/c12_test.gd
+
+
+EXTRA="$EXTRA c20:w"   # C20: print fit: hinge clearance from the printer preset + knuckle fuse check, export tessellation = fit/4 (opt-in), support anchor width check (tests/c20_test.gd; needs the CAD DLL)
+
+
+EXTRA="$EXTRA c17:w"   # C17 mesh print safety: internal-shell check, repair list + undo, reload check of written STL/3MF (tests/c17_test.gd; needs the CAD DLL)
