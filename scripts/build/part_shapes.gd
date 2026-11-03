@@ -137,6 +137,8 @@ func owns(t: String) -> bool:
 
 
 func sync() -> void:
+	if row != null:
+		row.visible = not ui.con_open   # the rule row needs the room (the palette ends under the timeline at 1280x720)
 	for t in btns:
 		(btns[t] as Button).set_pressed_no_signal(t == ui.tool)
 
