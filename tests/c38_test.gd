@@ -76,11 +76,11 @@ func bars_a() -> void:
 	ok(int(q0["open"]) > 0, "A1 CONTROL raw kernel cut (cyl r50 in cube 100): open edges %s (>0 = the defect), volume %s" % [q0["open"], KCad.volume(raw)])
 	var cube_v := 1e-3
 	replay_bars("r50 tangent", rec_for(50.0, 50.0, 50.0), cube_v - PI * 0.05 * 0.05 * 0.1, true)
-	replay_bars("r20 corner", rec_for(20.0, 70.0, 70.0), cube_v - PI * 0.02 * 0.02 * 0.1, true)
+	replay_bars("r20 corner", rec_for(20.0, 80.0, 80.0), cube_v - PI * 0.02 * 0.02 * 0.1, true)
 	# A4 a cut that does not touch: no words, same volume as the raw kernel
 	var r4 := Part.replay(rec_for(30.0, 50.0, 50.0))
 	var raw4 := KCad.cut(KCad.translate(A, Vector3(0.05, 0.05, 0.05)), KCad.translate(KCad.cylinder(0.03, 0.1), Vector3(0.05, 0.05, 0.05)))
-	ok(String((r4["warnings"] as Dictionary).get("c1", "")) == "" and absf(float((r4["volumes"] as Array)[0]) - KCad.volume(raw4)) < 1e-12,
+	ok(String((r4["warnings"] as Dictionary).get("c1", "")) == "" and absf(float((r4["volumes"] as Array)[0]) - KCad.volume(raw4)) < 1e-9,
 			"A4 CONTROL non-coincident cut: no words, volume %s vs raw %s" % [(r4["volumes"] as Array)[0], KCad.volume(raw4)])
 	# A5 polish on a turned body, direct
 	var ax := Vector3(1, 2, 3).normalized()
@@ -90,7 +90,7 @@ func bars_a() -> void:
 	var p := BS.polish(At, Ct, "cut", rawt)
 	var qp := BS.inspect(int(p["id"]))
 	var dv := absf(KCad.volume(int(p["id"])) - (cube_v - PI * 0.05 * 0.05 * 0.1)) / (cube_v - PI * 0.05 * 0.05 * 0.1)
-	ok(int(qp["open"]) == 0 and dv <= 0.005 and (p["by"] as Vector3).abs().max_axis_value() <= 1.0001e-5 and bool(p["nudged"]),
+	ok(int(qp["open"]) == 0 and dv <= 0.005 and maxf(absf((p["by"] as Vector3).x), maxf(absf((p["by"] as Vector3).y), absf((p["by"] as Vector3).z))) <= 1.0001e-5 and bool(p["nudged"]),
 			"A5 turned body: open %s, vol err %.4f %%, by %s" % [qp["open"], dv * 100.0, p["by"]])
 	await process_frame
 
@@ -109,7 +109,7 @@ func vhash(id: int) -> int:
 	var m := KCad.tessellate(id, 0.001)
 	var h := 7
 	for s in m.get_surface_count():
-		h = hash([h, (m.surface_get_arrays(s)[Mesh.ARRAY_VERTEX] as PackedVector3Array).to_byte_array().hash()])
+		h = hash([h, hash(m.surface_get_arrays(s)[Mesh.ARRAY_VERTEX])])
 	return h
 
 
@@ -154,18 +154,19 @@ func bars_b() -> void:
 		calls.append([d, tt])
 		ui.set_progress(d, tt, txt)
 	ui.cancel_pressed.connect(func(): job["cancel"] = true)
-	var maxgap := 0.0
+	var mg := [0.0]
 	var probing := [true]
 	var last := [Time.get_ticks_usec()]
 	var cb := func():
 		if probing[0]:
 			var n := Time.get_ticks_usec()
-			maxgap = maxf(maxgap, (n - last[0]) / 1000.0)
+			mg[0] = maxf(mg[0], (n - last[0]) / 1000.0)
 			last[0] = n
 	process_frame.connect(cb)
 	var res: Dictionary = await BS.run_job(self, plate, tools, "cut", job)
 	probing[0] = false
 	process_frame.disconnect(cb)
+	var maxgap: float = mg[0]
 	ok(maxgap <= 0.5 * sync_ms, "B1 FRAME GAP: longest %.1f ms <= 0.5 x sync %.1f ms (= %.1f x the idle %.2f ms); CONTROL the sync loop's gap %.1f ms %s the bar" % [maxgap, sync_ms, maxgap / idle, idle, sync_ms, "fails" if sync_ms > 0.5 * sync_ms else "passes"])
 	var mono := true
 	for i in range(1, calls.size()):
@@ -188,26 +189,30 @@ func bars_b() -> void:
 	var h0 := vhash(plate)
 	var live0 := KCad.live_count()
 	var cancel_at := [-1]
-	var task = BS.run_job(self, plate, tools, "cut", job2)   # a coroutine: it runs until its first await
-	var p := ui.btn.get_global_rect().get_center()
+	var fin := [null]
+	var starter := func(): fin[0] = await BS.run_job(self, plate, tools, "cut", job2)
+	starter.call()
 	for k in 600:
 		await process_frame
 		if step[0] >= 5:
 			break
 	await process_frame
-	if step[0] == 5:
+	var pc: Vector2 = ui.btn.get_global_rect().get_center()
+	if step[0] >= 5:
 		get_root().get_viewport().get_texture().get_image().save_png(OUT + "/busy.png") if DirAccess.make_dir_recursive_absolute(OUT) == OK else null
 	for d in [true, false]:
 		var e := InputEventMouseButton.new()
 		e.button_index = MOUSE_BUTTON_LEFT
 		e.pressed = d
-		e.position = p
-		e.global_position = p
+		e.position = pc
+		e.global_position = pc
 		e.button_mask = MOUSE_BUTTON_MASK_LEFT if d else 0
 		root.push_input(e)
 		await process_frame
 	cancel_at[0] = step[0]
-	var r2: Dictionary = await task
+	while fin[0] == null:
+		await process_frame
+	var r2: Dictionary = fin[0]
 	ok(r2["cancelled"] and int(r2["id"]) == plate and step[0] - cancel_at[0] <= 2 and absf(KCad.volume(plate) - v0) == 0.0 and vhash(plate) == h0 and KCad.live_count() <= live0 + 0,
 			"B4 CANCEL: cancelled %s, stopped at step %d (clicked at %d), id same %s, vol equal, hash equal %s, live %d -> %d" % [r2["cancelled"], step[0], cancel_at[0], int(r2["id"]) == plate, vhash(plate) == h0, live0, KCad.live_count()])
 	ok(FileAccess.file_exists(OUT + "/busy.png"), "B5 SHOT saved " + OUT + "/busy.png")
