@@ -251,8 +251,13 @@ func _init() -> void:
 
 	# 8 LEG + the TABLE shot: a floor top, four legs drawn on its underside (pull goes DOWN)
 	await fresh(-40.0)
+	# navigation: 335b56eb (NPOLY2) added the Sides row, so the shape box grew to y 237..333 and covers the plate's start point (575, 271); view from a little further along z so the drag starts below it
+	m.target = Vector3(0.0, 0.0, -0.05)
+	m._cam()
+	await idle(150)
 	await draw_floor(Vector3(-0.05, 0.0, -0.05), Vector3(0.05, 0.0, 0.05))
 	await pull(2.0)
+	m.target = Vector3(0.0, 0.0, 0.0)
 	var bt := bbox()
 	var topv := bt.end.y
 	m.pitch = 35.0   # from below: the underside is in view
