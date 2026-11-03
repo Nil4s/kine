@@ -86,7 +86,7 @@ func _init() -> void:
 		var rr := Part.make("E")
 		rr["features"] = edge.duplicate(true) + [{"t": "combine", "id": "c1", "name": "C1", "target": 0, "tools": [1], "op": op, "keep": false}]
 		var er := String(Part.replay(rr)["errors"].get("c1", ""))
-		ok(er.contains("only touch along a line") and er.ends_with(JH.NUDGE_ASK), "Expert combine %s on the edge pair says: %s" % [op, er])
+		ok(er.contains("only touch along a line") and er.split(" How to fix:")[0].ends_with(JH.NUDGE_ASK), "Expert combine %s on the edge pair says: %s" % [op, er])
 	var rj := Part.make("E")
 	rj["features"] = edge.duplicate(true) + [{"t": "combine", "id": "c1", "name": "C1", "target": 0, "tools": [1], "op": "join", "keep": false, "nudge": true}]
 	var pj := Part.replay(rj)

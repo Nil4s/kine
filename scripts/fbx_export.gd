@@ -26,7 +26,7 @@ const PRESETS := {
 
 
 ## the same as write() under a unit preset ("default" | "unity" | "unreal" | "blender"); the statics are put back after
-static func write_preset(preset: String, S: Scene, B: Body, path: String, root_motion := false, xf := Transform3D.IDENTITY, root_name := "", ascii := false, camera_keys := []) -> Dictionary:
+static func write_preset(preset: String, S: Scene, B: Body, path: String, root_motion := false, xf := Transform3D.IDENTITY, root_name := "", ascii := false, camera_keys := [], mats := []) -> Dictionary:
 	if not PRESETS.has(preset):
 		return {"err": ERR_INVALID_PARAMETER, "path": path, "text": ""}
 	var p: Dictionary = PRESETS[preset]
@@ -36,7 +36,7 @@ static func write_preset(preset: String, S: Scene, B: Body, path: String, root_m
 	var x2 := xf
 	if up_z:
 		x2 = Transform3D(Basis(Vector3.RIGHT, PI / 2.0), Vector3.ZERO) * xf   # Y up -> Z up (the front +Z becomes -Y)
-	var r := write(S, B, path, root_motion, x2, root_name if root_name != "" else (S.name if S.name != "" else "scene"), ascii, camera_keys)
+	var r := write(S, B, path, root_motion, x2, root_name if root_name != "" else (S.name if S.name != "" else "scene"), ascii, camera_keys, mats)
 	unit_mult = CM
 	unit_factor = 1.0
 	up_z = false
@@ -53,12 +53,12 @@ const TIME_MODE := {120: 1, 60: 3, 50: 4, 48: 5, 30: 6, 24: 11, 96: 15, 72: 16}
 ## the names in the file), "keys" (keys per curve), "curves" (animation curves written), "text"}.
 ## BINARY by default (Unreal, Unity, Maya and Blender 4.5 all read it; Blender refuses ASCII). ascii = true writes the
 ## ASCII text instead, a debug view of the same tree (tests/py/fbx_check.py reads it). The "format" key says which.
-static func write(S: Scene, B: Body, path: String, root_motion := false, xf := Transform3D.IDENTITY, root_name := "", ascii := false, camera_keys := []) -> Dictionary:
+static func write(S: Scene, B: Body, path: String, root_motion := false, xf := Transform3D.IDENTITY, root_name := "", ascii := false, camera_keys := [], mats := []) -> Dictionary:
 	var keep := B.state()
 	var an := S.name if S.name != "" else "scene"
 	# the file is a pure function of the scene, the body and the options: the last one built is kept, so the same scene written
 	# again (a second click, the gentle test's hostile starts) is the write only, not the pose of every frame again
-	var ck := var_to_str([S.to_dict(B, true), keep, root_motion, xf, root_name, ascii, camera_keys, unit_mult, unit_factor, up_z])
+	var ck := var_to_str([S.to_dict(B, true), keep, root_motion, xf, root_name, ascii, camera_keys, unit_mult, unit_factor, up_z] + ([mats] if not mats.is_empty() else []))
 	if ck == _last_key and not _last.is_empty():
 		return _write_out(_last, path, ascii)
 	var man := GltfExport.build(S, B, an, false, root_motion)
@@ -72,6 +72,9 @@ static func write(S: Scene, B: Body, path: String, root_motion := false, xf := T
 	if not camera_keys.is_empty():
 		out["text"] = FbxCamera.inject(out["text"], camera_keys)   # C09: the shot camera, opt-in
 		out["camera_keys"] = camera_keys.size()
+	if not mats.is_empty():
+		out["text"] = FbxMaterial.inject(out["text"], mats)   # C39: body + prop materials, opt-in
+		out["materials"] = mats.size()
 	B.set_state(keep)
 	_last_key = ck
 	_last = out
@@ -361,8 +364,8 @@ static func _esc(s: String) -> String:
 ## Value types as FBX writes them: ids and KTime int64 ('L'), other integers int32 ('I'), decimals float64 ('D'),
 ## KeyTime int64 arrays, KeyValueFloat float32, KeyAttr int32 / float32, matrices float64, T / Y bool. An object's name
 ## "Class::name" is written "name" + NUL + SOH + "Class" (Blender's reader needs that). Little-endian, uncompressed.
-const ID_NODES := ["Model", "NodeAttribute", "AnimationCurveNode", "AnimationCurve", "Pose", "AnimationStack", "AnimationLayer", "Document"]
-const ARRAY_CODE := {"KeyTime": "l", "KeyValueFloat": "f", "KeyAttrFlags": "i", "KeyAttrDataFloat": "f", "KeyAttrRefCount": "i", "Matrix": "d"}
+const ID_NODES := ["Model", "NodeAttribute", "AnimationCurveNode", "AnimationCurve", "Pose", "AnimationStack", "AnimationLayer", "Document", "Material", "Texture", "Geometry"]
+const ARRAY_CODE := {"KeyTime": "l", "KeyValueFloat": "f", "KeyAttrFlags": "i", "KeyAttrDataFloat": "f", "KeyAttrRefCount": "i", "Matrix": "d", "PolygonVertexIndex": "i"}
 
 
 ## the FBX text as binary FBX 7.4 bytes

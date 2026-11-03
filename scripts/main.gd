@@ -1421,6 +1421,7 @@ func _export_fbx(dir := "res://exports", root_motion := false) -> String:
 		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
 		return ""
 	var sfx := "_ue5" if root_motion else ""
+	ExportNames.body_rgb = BODY_COLOURS[body_colour][1]   # C39
 	var acts := _export_actors()
 	var first := ""
 	var bones := 0
@@ -11731,6 +11732,8 @@ func _theme() -> Theme:
 		th.set_color("icon_hover_pressed_color", t, Tok.c("on_accent"))
 		th.set_color("font_pressed_color", t, Tok.c("on_accent"))   # STYLE: a pressed button is the accent; its words take on_accent (dark text on amber / sky)
 		th.set_color("font_hover_pressed_color", t, Tok.c("on_accent"))
+	for t in ["CheckBox", "CheckButton"]:   # C33: an ON box under the mouse keeps the accent fill its dark on_accent words need (it fell back to a dark box: 1.04:1)
+		th.set_stylebox("hover_pressed", t, box.call(Tok.c("accent")))
 	if not Tok.dark:
 		# LIGHT (round 9): Godot's own look is dark, so every control that draws its own box or text gets the palette.
 		# Dark keeps Godot's look for these (nothing Nick knows changes)
@@ -16428,6 +16431,7 @@ func _commands() -> Array:
 	add.call("Prop: delete its keys", "", _prop_unkey, "prop key keyframe clear remove animation", true, "the picked prop's keys go: it stays where it is at the playhead")
 	add.call("Prop: attach to the LEFT hand on this card", "", C22Hands.take_left.bind(self), "prop attach left hand pick up grab hold carry", true, "the picked prop is taken by the LEFT hand from the selected card's arrival, whichever hand is nearer (one undo step)")
 	add.call("Prop: attach to the RIGHT hand on this card", "", C22Hands.take_right.bind(self), "prop attach right hand pick up grab hold carry", true, "the picked prop is taken by the RIGHT hand from the selected card's arrival, whichever hand is nearer (one undo step)")
+	add.call("Grip: palm on the prop's handle", "", C36Grip.grip_cmd.bind(self), "grip handle palm hold sword bar wrap fingers hand prop", true, "the selected hand takes the picked prop by its handle: wrist solved from the handle axis, palm on the surface, fingers wrapped (one undo step)")
 	add.call("Grip: wrap the hand round the picked prop", "", _grip_prop_cmd, "grip wrap hand fingers close round prop ball box cylinder any shape keyframe", true, "the picked hand's fingers close round the picked prop's surface (any shape; a ball, a cylinder, a box, an imported model) and the thumb opposes; the finger poses are keyed at the playhead; one undo step")
 	add.call("Door: open 15 deg (key here)", "", _door_swing.bind(15.0), "door swing open hinge push key", true, "the picked door's leaf turns 15 deg more open about its hinge, keyed at the playhead (up to 110 deg)")
 	add.call("Door: close 15 deg (key here)", "", _door_swing.bind(-15.0), "door swing close shut hinge pull key", true, "the picked door's leaf turns 15 deg back toward shut, keyed at the playhead (down to -110 deg: the other way)")
@@ -21298,7 +21302,7 @@ var _gone_said := {}   # prop kinds whose missing model file was already said
 
 
 func _props_show() -> void:
-	Props.settle(S.props)   # UU1: whatever changed, every prop rests on what is under it
+	Props.settle(S.props, C36Grip.air_held(S))   # UU1: whatever changed, every prop rests on what is under it
 	B.props = S.solid_props()   # TT2: the live body stands on the set too (never on what it carries)
 	if ui_props_root == null:
 		return

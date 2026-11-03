@@ -283,6 +283,11 @@ static func write_3mf(path: String, bodies: Array, title: String, support := {})
 		z.start_file(en[0])
 		z.write_file(String(en[1]).to_utf8_buffer())
 		z.close_file()
+	if not support.is_empty():   # C32: the slicers' own settings files, so the gap and interface are read, not just carried
+		for en in SupportPref.slicer_files(support):
+			z.start_file(en[0])
+			z.write_file(String(en[1]).to_utf8_buffer())
+			z.close_file()
 	z.close()
 	return OK
 

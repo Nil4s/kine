@@ -869,3 +869,21 @@ EXTRA="$EXTRA c31:w"   # c31: pt_BR 447 strings, placeholders, CRLF, review list
 
 
 EXTRA="$EXTRA c30:w"
+
+
+EXTRA="$EXTRA c32:w"   # C32: support gap/interface in the slicers settings files (tests/c32_test.gd)
+
+
+EXTRA="$EXTRA c33:w"   # C33: free ring vs yellow selection, hovered label contrast (tests/c33_test.gd)
+
+
+EXTRA="$EXTRA c36:w"   # C36: grip a prop by its handle, wrist solved from the handle axis (tests/c36_test.gd)
+
+
+EXTRA="$EXTRA c38:w"   # C38: coincident faces nudged 0.01 mm in words, heavy boolean in steps with progress + Cancel (tests/c38_test.gd)
+
+
+EXTRA="$EXTRA c39:w"   # c39: FBX materials (tests/c39_test.gd)
+
+
+EXTRA="$EXTRA c41:w"   # c41: #184 invert orbit X / Y apart, #311 bad spots (built by C05) checked
