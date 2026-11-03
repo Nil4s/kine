@@ -70,7 +70,7 @@ func pick(ui: ExportDialog, i: int) -> void:
 
 
 func _init() -> void:
-	var wd := get_root().create_timer(240.0)   # watchdog
+	var wd = create_timer(240.0)   # watchdog
 	wd.timeout.connect(func():
 		print("FAIL watchdog: c27 timed out")
 		quit(1))

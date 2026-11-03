@@ -24,6 +24,8 @@ var ui_q: OptionButton   # W05: mesh quality of the STL / 3MF (Coarse / Normal /
 var ui_q_custom: SpinBox
 var ui_q_row: HBoxContainer
 var ui_q_info: Label
+var ui_support: OptionButton   # C27: support removal (3MF only)
+var ui_support_info: Label
 var _q_cache := {}
 var ui_csv_locale: OptionButton   # C14 (#442): the cut-list CSV's locale (0 = comma + dot decimals, the default; 1 = semicolon + decimal comma, for Excel in pt-BR / EU)
 var ui_price_row: HBoxContainer   # s081: the price table (BRL) behind the cost line
@@ -305,6 +307,17 @@ func _build() -> void:
 	ui_q_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	ui_q_info.custom_minimum_size = Vector2(300, 0)
 	v.add_child(ui_q_info)
+	ui_support = OptionButton.new()   # C27
+	ui_support.name = "opt_export_support"
+	for sn in SupportPref.NAMES:
+		ui_support.add_item(String(sn))
+	ui_support.item_selected.connect(func(_i: int): _refresh_support())
+	v.add_child(ui_support)
+	ui_support_info = Label.new()
+	ui_support_info.name = "export_support_info"
+	ui_support_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ui_support_info.custom_minimum_size = Vector2(300, 0)
+	v.add_child(ui_support_info)
 	_price_row_build(v)
 	_build_bed_row(v)
 	ui_slicer_box = VBoxContainer.new()   # plan 119: Send to slicer (3D printing only)
@@ -450,6 +463,7 @@ func _refresh() -> void:
 	ui_budget_row.visible = _cur_run() in ["glb", "obj", "stl", "3mf"]
 	ui_price_row.visible = _cur_id() == "cutlist" or _cur_id() == "print"
 	_refresh_quality()
+	_refresh_support()
 	if ui_bed_row != null:
 		ui_bed_row.visible = _cur_id() == "print"
 	_refresh_slicer()
@@ -478,6 +492,13 @@ func quality() -> Dictionary:
 	if ui_q == null:
 		return {}
 	return MeshQuality.of(ui_q.get_item_text(maxi(ui_q.selected, 0)), ui_q_custom.value)
+
+
+func _refresh_support() -> void:   # C27
+	var on: bool = _cur_id() == "print" and _cur_run() == "3mf"
+	ui_support.visible = on
+	ui_support_info.visible = on
+	ui_support_info.text = SupportPref.words(ui_support.selected)
 
 
 func _refresh_quality() -> void:
@@ -637,7 +658,7 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 		m._say_plain(String(rl["text"]))
 		return String(rl["path"]) if bool(rl["ok"]) else ""
 	if id == "print":   # STL / 3MF of the part on screen (never blocked: an open shape still writes, with the warning in the words)
-		var r := PrintSplit.export_part(m.S.part, run, UserPaths.w(dir), bed_mm, quality()) if split_fit else MeshExport.export_part(m.S.part, run, UserPaths.w(dir), budget, quality())
+		var r := PrintSplit.export_part(m.S.part, run, UserPaths.w(dir), bed_mm, quality()) if split_fit else MeshExport.export_part(m.S.part, run, UserPaths.w(dir), budget, quality(), SupportPref.of(ui_support.selected) if run == "3mf" else {})
 		m._say_plain(String(r["text"]))
 		return String(r["path"]) if bool(r["ok"]) else ""
 	if id == "step":   # STEP of the part on screen (the exact solid)
