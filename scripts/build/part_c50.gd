@@ -2,7 +2,7 @@
 ## (dashed violet; the lines you draw snap to it; a line end drawn on a reference corner is pinned there by a rule that holds when the body moves),
 ## and every sketch item has a short unique label: L1 line, R2 rectangle, C3 circle, A4 arc, S5 curvy line (the number is the item's place in the
 ## sketch), E1 / E2 reference edge, P1 / P2 reference corner. The label shows on hover and in the status line.
-## Opt-in: the "Pick body edges as reference" box in the sketch palette is off by default, so a click draws exactly as before.
+## Opt-in: the "Reference from the solid" box in the sketch palette is off by default, so a click draws exactly as before.
 ## A reference is stored in the sketch step as sk["refs"]: [{"id": "E1", "kind": "edge" | "point", "q": [..], "d": [..], "body": N, "s": +-1 (point: which
 ## end of the edge), "pa": [x, y], "pb": [x, y] (the plane mm it was last projected to)}]. q / d describe the edge the way a fillet edge is described
 ## (centre inside the body's box, direction), so it is found again when the body is resized; refresh() re-projects while the sketch is open.
@@ -25,7 +25,7 @@ func _init(p: PartUI) -> void:
 	pu = p
 	chk = CheckBox.new()
 	chk.name = "c50_ref_chk"
-	chk.text = "Pick body edges as reference"
+	chk.text = "Reference from the solid"
 	chk.tooltip_text = "Click an edge or a corner of the solid to project it into this sketch as dashed reference geometry. Lines you draw snap to it. Click it again to remove it."
 	chk.focus_mode = Control.FOCUS_NONE
 	chk.toggled.connect(func(v: bool): on = v; pu.pov.queue_redraw())

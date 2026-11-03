@@ -211,5 +211,14 @@ func _init() -> void:
 	var wrong := want.duplicate(true)
 	wrong[1][3] += 0.01
 	ok(Part.v2(ask["ents"][1]["b"]).distance_to(Vector2(wrong[1][2], wrong[1][3])) > 1e-6, "9 control: a planted 0.01 mm error is seen")
+	await shot("labels_hover_1280x720")
+	root.content_scale_size = Vector2i(1024, 600)
+	pu.tool = ""
+	await idle(4)
+	await click_ctl(c50.chk)
+	await click_at(sp(40, 20))
+	await shot("refs_1024x600")
+	var cr: Rect2 = c50.chk.get_global_rect()
+	ok(c50.chk.is_visible_in_tree() and Rect2(Vector2.ZERO, Vector2(root.content_scale_size)).encloses(cr), "8 1024x600: the box is laid out (%s)" % cr)
 	print("c50: %d fail%s" % [fails, "" if fails == 1 else "s"])
 	quit(1 if fails > 0 else 0)
