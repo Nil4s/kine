@@ -827,7 +827,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 			var hf: Dictionary = feats[k]
 			var hbi := int(hf.get("body", -1))
 			if String(hf["id"]) == String(pz.get("f", "")) and String(hf["t"]) == "hinge" and hbi >= 0 and hbi < bodies.size():
-				var sw := _swing(int(bodies[hbi]), _pivot(hf), _axis(hf), deg_to_rad(float(pz.get("deg", 0.0))))
+				var sw := _swing(int(bodies[hbi]), _pivot(hf), _axis(hf), deg_to_rad(float(pz.get("deg", 0.0)))) if not JointAxes.has2(hf) else JointAxes.swing2(int(bodies[hbi]), _pivot(hf), hf, deg_to_rad(float(pz.get("deg", 0.0))), deg_to_rad(float(pz.get("deg2", 0.0))))   # C24
 				if sw != 0:
 					KCad.release(bodies[hbi])
 					bodies[hbi] = sw
@@ -1051,6 +1051,12 @@ static func hinge_sweep(rec: Dictionary, hinge_id: String, fps := 25.0) -> Dicti
 				KCad.release(b)
 			return {"ok": false, "why": "the must-not-touch pair %d and %d: there is no such body" % [pa, pb]}
 	var pivot := PartRefs.pivot_mm(f, int(ids[bi])) * MM   # W03: follows the body's box when an early step resizes it
+	var placed := {}
+	if bool(f.get("autoplace", false)):   # C24 (#348): a pivot in the air moves onto the nearest visible feature of its body
+		placed = JointAxes.auto_place(rec, bi, pivot / MM, hi)
+		if bool(placed.get("ok", false)) and bool(placed.get("hidden", false)):
+			pivot = (placed["p"] as Vector3) * MM
+	var two_ax := JointAxes.has2(f)
 	var axis := _axis(f)
 	var rest: Array = []
 	for j in ids.size():
@@ -1067,6 +1073,11 @@ static func hinge_sweep(rec: Dictionary, hinge_id: String, fps := 25.0) -> Dicti
 	var lim := hinge_limit(f)
 	var out := {"ok": true, "frames": n, "first": -1, "first_s": -1.0, "deg_first": 0.0, "hit_frames": 0, "secs": 0.0,
 		"limit": lim, "limited_frames": 0, "max_deg": 0.0}
+	if two_ax:
+		out["limit2"] = JointAxes.limit2(f)
+		out["max_deg2"] = 0.0
+	if not placed.is_empty():
+		out["placed"] = placed
 	var red := {}
 	for i in n:
 		var t := float(i) / fps
@@ -1075,7 +1086,9 @@ static func hinge_sweep(rec: Dictionary, hinge_id: String, fps := 25.0) -> Dicti
 			out["limited_frames"] = int(out["limited_frames"]) + 1
 		var deg := clampf(raw, -lim, lim)
 		out["max_deg"] = maxf(float(out["max_deg"]), absf(deg))
-		var m := _swing(int(ids[bi]), pivot, axis, deg_to_rad(deg))
+		if two_ax:
+			out["max_deg2"] = maxf(float(out["max_deg2"]), absf(JointAxes.deg2_at(f, t)))
+		var m := _swing(int(ids[bi]), pivot, axis, deg_to_rad(deg)) if not two_ax else JointAxes.swing2(int(ids[bi]), pivot, f, deg_to_rad(deg), deg_to_rad(JointAxes.deg2_at(f, t)))   # C24: the second axis (opt-in)
 		var hit := false
 		var bad := KCad.last_error() if m == 0 else ""
 		for r in rest:

@@ -819,3 +819,5 @@ EXTRA="$EXTRA c13:w"   # C13: pose IK/FK state, prop attach/detach frame, cape s
 
 
 EXTRA="$EXTRA c14:w"   # c14: rig pre-check, footage pre-check, cut-list CSV locale, tests/c14_test.gd
+
+EXTRA="$EXTRA c24:w"   # C24: hinge second axis, pivot on a visible feature (tests/c24_test.gd)

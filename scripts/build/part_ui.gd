@@ -2052,6 +2052,7 @@ func dialog_feature() -> Dictionary:
 			f = {"body": int(hp["body"]), "o": [o.x / Part.MM, o.y / Part.MM, o.z / Part.MM], "axis": [d.x, d.y, d.z], "track": [[0.0, a0], [du, a1]], "clear": keep, "limit": clampf(float(hp.get("limit", 90.0)), 0.0, 90.0)}
 			if String(hp.get("extrap", "constant")) != "constant":
 				f["extrap"] = String(hp["extrap"])   # s260: saved only when not constant
+			JointAxes.add_to_feature(f, hp, d, du, (rec["features"][edit] as Dictionary) if edit >= 0 else {})   # C24: second turn, visible pivot (opt-in rows)
 	if edit >= 0:
 		var old: Dictionary = rec["features"][edit]
 		f["id"] = old["id"]
@@ -3353,6 +3354,7 @@ func _hinge_rows() -> void:
 		_hrow("Seconds", f_dur, "s")
 		dlg_rows.add_child(_limit_row())
 		dlg_rows.add_child(_extrap_row())
+		dlg_rows.add_child(JointAxes.rows(self))   # C24
 		dlg_rows.add_child(f_dial)
 		f_dial.queue_redraw()
 
