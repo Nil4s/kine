@@ -172,6 +172,8 @@ var side_title: Label
 var sketch_box: VBoxContainer
 var nums_vb: VBoxContainer
 var snap_btn: Button
+var extras: PanelContainer
+var extras_vb: VBoxContainer
 var move_chk: CheckBox   # C25: One Move rule (complaint 198)
 var unit_btn: Button      # W06
 var dual_chk: CheckBox
@@ -521,7 +523,14 @@ func _build_side() -> void:
 	move_chk.button_pressed = MoveRule.unified
 	move_chk.focus_mode = Control.FOCUS_NONE
 	move_chk.toggled.connect(func(v: bool): MoveRule.unified = v)
-	sketch_box.add_child(move_chk)
+	extras = PanelContainer.new()   # B04: C25's rule and C15's rows live in this floating card, so the sketch palette gains no height
+	extras.name = "part_sketch_extras"
+	extras.mouse_filter = Control.MOUSE_FILTER_STOP
+	extras_vb = VBoxContainer.new()
+	extras.add_child(extras_vb)
+	extras_vb.add_child(move_chk)
+	extras.visible = false
+	m.ui_root.add_child(extras)
 	snap_btn = Button.new()
 	snap_btn.name = "part_snap"
 	snap_btn.focus_mode = Control.FOCUS_NONE
@@ -2611,6 +2620,7 @@ func sync() -> void:
 	side.visible = show and (sk != "" or not dlg.is_empty() or not _sel_hinge().is_empty() or _sel_look() >= 0)
 	tl.visible = show
 	sketch_box.visible = sk != "" and dlg.is_empty()
+	extras.visible = sketch_box.visible and side.visible
 	if c15 != null:
 		c15.sync()
 	dlg_box.visible = not dlg.is_empty()
@@ -2816,6 +2826,10 @@ func layout(cl: Rect2) -> void:
 	side.size.x = maxf(PANEL_W, side.get_combined_minimum_size().x)
 	side.size.y = minf(side.get_combined_minimum_size().y, avail)
 	side.position = Vector2(cl.end.x - side.size.x - 8.0, cl.position.y + 6.0)
+	extras.reset_size()
+	extras.custom_minimum_size.x = PANEL_W
+	extras.size = Vector2(PANEL_W, minf(extras.get_combined_minimum_size().y, avail))
+	extras.position = Vector2(side.position.x - PANEL_W - 8.0, cl.position.y + 6.0)
 	note.reset_size()
 	note.position = Vector2(browser.position.x + BROWSER_W + 12.0, cl.position.y + 6.0)
 	PartNoteFit.fit(note, note_l, m.get_viewport().get_visible_rect().size, [warn_ui, side])   # W02b: the whole status text, clear of the Look/Print panel
