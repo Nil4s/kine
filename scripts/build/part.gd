@@ -875,6 +875,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 						outside = false
 				var top := float(ed["a"].y) >= bb.end.y - SKIN_MM * MM and float(ed["b"].y) >= bb.end.y - SKIN_MM * MM
 				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "concave": concave, "inner": inner, "outside": outside, "top": top, "fp": PartRefs.face_pair(ef, fnorm, fcen, bb, ftyp, ed)})
+	res["solo"] = want.get("solo", [])
 	pack_surfaces(mesh, pend, res)
 	res["bodies"] = bodies.size()
 	res["body_names"] = []
@@ -926,20 +927,27 @@ const MAX_SURFACES := 256
 static func pack_surfaces(mesh: ArrayMesh, pend: Array, res: Dictionary) -> void:
 	var groups: Array = []   # [[pend index, ...]] one per surface
 	res["surf_ranges"] = []
+	var solo: Array = res.get("solo", [])   # s269c: bodies the film keys move on their own: never merged into another surface
 	if pend.size() <= MAX_SURFACES:
 		for k in pend.size():
 			groups.append([k])
 	else:
 		var by_look := {}
+		var solos: Array = []
 		for k in pend.size():
+			if solo.has(int(pend[k][2])):
+				solos.append([k])
+				continue
 			var key := JSON.stringify(pend[k][1])
 			if not by_look.has(key):
 				by_look[key] = groups.size()
 				groups.append([])
 			groups[by_look[key]].append(k)
-		while groups.size() > MAX_SURFACES:
+		var room := maxi(MAX_SURFACES - solos.size(), 1)
+		while groups.size() > room:
 			var tail: Array = groups.pop_back()
-			groups[MAX_SURFACES - 1].append_array(tail)
+			groups[room - 1].append_array(tail)
+		groups.append_array(solos.slice(0, MAX_SURFACES - groups.size()))
 	for g in groups:
 		var arr: Array = pend[g[0]][0]
 		if g.size() > 1:
