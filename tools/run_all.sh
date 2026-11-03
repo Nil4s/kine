@@ -846,3 +846,4 @@ EXTRA="$EXTRA c20:w"   # C20: print fit: hinge clearance from the printer preset
 
 
 EXTRA="$EXTRA c17:w"   # C17 mesh print safety: internal-shell check, repair list + undo, reload check of written STL/3MF (tests/c17_test.gd; needs the CAD DLL)
+EXTRA="$EXTRA c36:w"   # C36: grip a prop by its handle, wrist solved from the handle axis (tests/c36_test.gd)

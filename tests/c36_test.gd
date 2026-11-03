@@ -1,6 +1,7 @@
 ## godot --position -30000,-30000 --audio-driver Dummy --path . -s tests/c36_test.gd     (C36, complaint 20, second try after C22; a window)
 ## BARS (written and committed before the first run of scripts/c36_grip.gd). Env C36_SHOT=<dir> saves 1280x720 screenshots.
-## Cases (the same layout as C22 B1): sword_r, sword_l (a sword lying in front of the hand, axis x) and bar_r (a 4 cm bar standing, axis y).
+## Cases (C22 B1 layout, but the sword lies across the forearm: along it, no wrist posture holds it, the arm misses by 6 cm; the standing bar as in C22)
+## (the same layout as C22 B1): sword_r, sword_l (a sword lying in front of the hand, axis x) and bar_r (a 4 cm bar standing, axis y).
 ##  A  for each case after C36Grip.grip(B, h, prop, pk, 0.0):
 ##   A1 the wrist is within 1 cm of the target the solver derived from the handle axis and the palm frame (report "place"."target")
 ##   A2 the palm point is 0 .. 5 mm outside the prop's own surface (signed distance of the FULL prop, not only the handle slab)
@@ -8,6 +9,7 @@
 ##   A4 the palm faces the handle surface: angle between the palm direction (curl direction of the final hand) and the inward normal <= 25 deg
 ##   A5 the 15 finger joints keyed at the playhead; every fingertip on the surface (<= 3 mm) or at its limit
 ##   A6 the palm stays within HAND_SPAN/2 (5 cm) of the handle centre along the handle axis
+##   A7 (added after the first run showed the fingers parallel to the bar) the knuckle line index->pinky within 25 deg of the handle axis
 ##  B  finger flexion against a real power grip (Hume et al. 1990 J Hand Surg 15A:240; Bain et al. 2015 J Hand Surg 40A:1: mean
 ##     functional flexion in grasp ADLs MCP 61, PIP 60, DIP 39 degrees; power grip on a cylinder: Napier 1956, Cutkosky 1989).
 ##   B1 mean over index..pinky of each joint's flexion, from the joint positions (wrist-MCP-PIP-DIP-tip bend angles): each within 25 deg
@@ -22,6 +24,7 @@ extends SceneTree
 
 var fails := 0
 var m: Node
+var worst_name := ""
 const REF := {"MCP": 61.0, "PIP": 60.0, "DIP": 39.0}
 const BAND := 25.0
 
@@ -69,18 +72,21 @@ func bends(B: Body, f: String, sd: String, h: String) -> Array:
 func worst_gap(B: Body, h: String, fn: Callable) -> float:
 	var sd := h.right(2)
 	var w := INF
-	for f in GripWrap.LONG:
+	for f in GripWrap.LONG + ["thumb"]:
 		for k in 3:
-			w = minf(w, AnyGrip.gap(B, fn, "%s_0%d%s" % [f, k + 1, sd]))
-	for k in 3:
-		w = minf(w, AnyGrip.gap(B, fn, "thumb_0%d%s" % [k + 1, sd]))
+			var j := "%s_0%d%s" % [f, k + 1, sd]
+			var g := AnyGrip.gap(B, fn, j)
+			if g < w:
+				w = g
+				worst_name = j
 	return w
 
 
 func make_prop(case: String, Bg: Body, h: String) -> Dictionary:
 	var pc: Vector3 = Bg.palm_point(h) + AnyGrip.curl_dir(Bg, h) * 0.06 + Vector3(0, 0, 0.1)
-	if case.begins_with("sword"):
-		return Props.make("sword", Props.xf_at(Vector3(pc.x, pc.y - 0.015, pc.z), 0.0))
+	if case.begins_with("sword"):   # lying ACROSS the forearm (yaw 90): a power grip holds a bar at ~100 deg to the forearm, not along it
+		pc.z -= 0.1
+		return Props.make("sword", Props.xf_at(Vector3(pc.x, pc.y - 0.015, pc.z), 90.0))
 	Props.register("zz bar", AABB(Vector3(-0.02, 0, -0.02), Vector3(0.04, 0.5, 0.04)), "", 1.0)
 	return Props.make("zz bar", Props.xf_at(Vector3(pc.x, pc.y - 0.25, pc.z), 0.0))
 
@@ -114,7 +120,7 @@ func _init() -> void:
 		var sdp := float(fn.call(palm))
 		ok(sdp >= 0.0 and sdp <= 0.005, "A2 %s: the palm is %.2f mm outside the prop surface (0 .. 5 mm)" % [case, sdp * 1000.0])
 		var wg := worst_gap(Bg, h, fn)
-		ok(wg >= -0.0001, "A3 %s: the worst finger/thumb segment is %.2f mm from the prop (>= -0.1 mm)" % [case, wg * 1000.0])
+		ok(wg >= -0.0001, "A3 %s: the worst finger/thumb segment (%s) is %.2f mm from the prop (>= -0.1 mm)" % [case, worst_name, wg * 1000.0])
 		ok(pk.size() == 15, "A5 %s: %d finger joints keyed" % [case, pk.size()])
 		var bad := []
 		for f in GripWrap.LONG:
@@ -124,6 +130,10 @@ func _init() -> void:
 		ok(bad.is_empty(), "A5 %s: every fingertip on the surface or at its limit %s" % [case, bad])
 		var along := absf((palm - (hd["c"] as Vector3)).dot(hd["ax"]))
 		ok(along <= C22Hands.HAND_SPAN * 0.5, "A6 %s: the palm is %.1f cm along the axis from the handle centre (<= 5 cm)" % [case, along * 100.0])
+		var stack: Vector3 = (Bg.P["pinky_01" + sd] as Vector3) - (Bg.P["index_01" + sd] as Vector3)
+		var sa := rad_to_deg(stack.angle_to(hd["ax"]))
+		sa = minf(sa, 180.0 - sa)
+		ok(sa <= 25.0, "A7 %s: the knuckle line (the fingers' stack) is %.1f degrees off the handle axis (<= 25: the fingers wrap round it)" % [case, sa])
 		# B: flexion of the closed hand
 		var sum := {"MCP": 0.0, "PIP": 0.0, "DIP": 0.0}
 		var lo := INF
@@ -168,6 +178,9 @@ func _init() -> void:
 	m.pitch = -15.0
 	m.dist = 0.9
 	m.target = Bm.palm_point(hh)
+	m.get_window().size = Vector2i(1280, 720)
+	await idle(4)
+	m._cam()
 	await idle(6)
 	shot("c36_hand_close")
 	print("c36: %d fail" % fails)
