@@ -95,18 +95,17 @@ func _init() -> void:
 	for ln in po_text.split("
 "):
 		var t := ln.strip_edges()
-		if t.begins_with("msgid \"") and t.length() > 8 and t[7] == "\"" and t[8] != "\"":
-			indep[t.substr(8, t.length() - 9)] = true
+		if t.begins_with("msgid \"") and t.length() > 8 and t[6] == "\"" and t[7] != "\"" and t.ends_with("\""):
+			indep[t.substr(7, t.length() - 8)] = true
 	ok(ids.size() == indep.size() and ids.size() > 0, "1 SCAN scanner msgids %d == independent count %d" % [ids.size(), indep.size()])
 	for fn in ["start_screen.gd", "easy_part.gd"]:
 		var src := FileAccess.get_file_as_string("res://scripts/" + fn)
 		var a1 := I18nScan.strings_in(src).size()
 		var a2 := recount(src)
 		ok(a1 == a2 and a1 > 0, "1 SCAN %s UI strings: scanner %d == independent recount %d" % [fn, a1, a2])
-	var cut := po_text.find("msgid \"BODY\"
-")
+	var cut := po_text.find("msgid \"BODY\"")
 	var drop := po_text.substr(0, cut) + "msgid \"\"
-" + po_text.substr(cut + 13)
+" + po_text.substr(cut + 12)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://c11_po"))
 	var pf := FileAccess.open("user://c11_po/less.po", FileAccess.WRITE)
 	pf.store_string(drop)
