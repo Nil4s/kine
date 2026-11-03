@@ -43,9 +43,7 @@ func set_on(v: bool) -> void:
 	on = v
 	_applied.clear()
 	if not v:
-		for nm in latched:
-		_applied[nm] = true
-	latched.clear()
+		latched.clear()
 		_down.clear()
 
 
