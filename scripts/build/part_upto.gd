@@ -127,8 +127,8 @@ static func press(ui: Object, p: Vector2) -> bool:
 	# the number field shows the worked-out distance (a plain extrude of that length would end on the same face)
 	var Part = load("res://scripts/build/part.gd")   # at run time: part.gd preloads this file
 	var rec: Dictionary = ui.call("_rec")
-	var pl := Part.resolve_plane(rec, String((Part.feature(rec, String(ui.dlg.get("sketch", "")))).get("plane", "front")))
-	var g := resolve({"upto": ui.dlg["upto"], "upto_off": 0.0, "dist": 10.0}, pl)
+	var pl: Dictionary = Part.resolve_plane(rec, String((Part.feature(rec, String(ui.dlg.get("sketch", "")))).get("plane", "front")))
+	var g: Dictionary = resolve({"upto": ui.dlg["upto"], "upto_off": 0.0, "dist": 10.0}, pl)
 	ui.f_num.text = ui.call("_fmt", float(g["dist"]))
 	_sync_hint(ui)
 	ui.call("_preview")

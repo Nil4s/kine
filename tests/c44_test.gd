@@ -163,7 +163,9 @@ func ui_bars(pu) -> void:
 	await click_ctl(pu.ok_btn)
 	await idle(4)
 	ok(m.undo.size() == n_u + 1 and (m.S.part["features"] as Array).size() == n_f + 1, "5 OK = ONE undo step, one new feature (%d, %d)" % [m.undo.size() - n_u, (m.S.part["features"] as Array).size() - n_f])
-	var v := vol(m.S.part)
+	var r5: Dictionary = (m.S.part as Dictionary).duplicate(true)   # the dialog's default op joins (the pull ends inside the slab): read it as its own body
+	(r5["features"][r5["features"].size() - 1] as Dictionary)["op"] = "new"
+	var v := vol(r5)
 	ok(near(v, 28000.0), "5 the new body is %.1f mm3 (want 28000)" % v)
 	await shot("result_1280")
 	# control: typing a distance afterwards clears the pick
@@ -191,6 +193,7 @@ func ui_bars(pu) -> void:
 		var r := rec_of(feats(null, 0.0, 0.0, false))
 		f2["id"] = "f5"
 		f2["name"] = "Pull"
+		f2["op"] = "new"
 		r["features"].append(f2)
 		var v6 := vol(r)
 		ok(near(v6, 24000.0), "6 offset -10 typed in the dialog: %.1f mm3 (want 24000)" % v6)

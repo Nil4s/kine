@@ -2923,7 +2923,7 @@ func _draw_model() -> void:
 				picked_now = true
 		if picked_now or i == hover_edge:
 			_edge_line(edge_cache[i], SKY if picked_now else Color(SKY, 0.6), 5.0 if picked_now else 3.0)
-	if tool == "Offset face" or tool == "Draft" or (not dlg.is_empty() and String(dlg["t"]) in ["offset_face", "draft", "plane"] or (String(dlg["t"]) == "extrude" and (bool(dlg.get("upto_arm", false)) or dlg.has("upto")))):
+	if tool == "Offset face" or tool == "Draft" or (not dlg.is_empty() and String(dlg["t"]) in ["offset_face", "draft", "plane"] or (String(dlg.get("t", "")) == "extrude" and (bool(dlg.get("upto_arm", false)) or dlg.has("upto")))):
 		_draw_faces()
 	if not dlg.is_empty() and picked.size() > 0 and String(dlg["t"]) in ["fillet", "chamfer"]:
 		var e: Dictionary = picked[0]
