@@ -172,6 +172,7 @@ var side_title: Label
 var sketch_box: VBoxContainer
 var nums_vb: VBoxContainer
 var snap_btn: Button
+var move_chk: CheckBox   # C25: One Move rule (complaint 198)
 var unit_btn: Button      # W06
 var dual_chk: CheckBox
 var unit_busy := 0
@@ -513,6 +514,14 @@ func _build_side() -> void:
 	grid_chk.focus_mode = Control.FOCUS_NONE
 	grid_chk.toggled.connect(func(v: bool): grid_on = v; pov.queue_redraw())
 	sketch_box.add_child(grid_chk)
+	move_chk = CheckBox.new()
+	move_chk.name = "part_move_rule"
+	move_chk.text = "One Move rule"
+	move_chk.tooltip_text = "Dragging a piece snaps to this sketch grid (Alt = free) and a typed number sets the distance, as in the sketch"
+	move_chk.button_pressed = MoveRule.unified
+	move_chk.focus_mode = Control.FOCUS_NONE
+	move_chk.toggled.connect(func(v: bool): MoveRule.unified = v)
+	sketch_box.add_child(move_chk)
 	snap_btn = Button.new()
 	snap_btn.name = "part_snap"
 	snap_btn.focus_mode = Control.FOCUS_NONE
@@ -1018,7 +1027,7 @@ func hit(p: Vector2) -> Variant:
 func snap(v: Vector2) -> Vector2:
 	if Input.is_key_pressed(KEY_ALT) or snap_mm <= 0.0:
 		return v
-	return Vector2(snappedf(v.x, snap_mm), snappedf(v.y, snap_mm))
+	return Vector2(MoveRule.snap(v.x, snap_mm, false), MoveRule.snap(v.y, snap_mm, false))
 
 
 func scr(v: Vector2) -> Vector2:

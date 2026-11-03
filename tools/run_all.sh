@@ -853,3 +853,6 @@ EXTRA="$EXTRA c11:w"   # c11: pt_BR missing-string scanner, sticky keys, bad GPU
 
 EXTRA="$EXTRA c26:w"   # C26: pick-hit check (pick_check.gd) + per-character cost line (char_cost.gd), tests/c26_test.gd
 EXTRA="$EXTRA c29:w"   # C29: one-click body pick, no panel over the body (tests/c29_test.gd)
+
+
+EXTRA="$EXTRA c25:w"   # C25: one Move rule in/out of sketch, render time estimate (tests/c25_test.gd)

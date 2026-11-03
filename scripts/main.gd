@@ -2029,6 +2029,19 @@ func _sr_panel_make() -> void:
 	_sr_layer.visible = false
 
 
+## C25 (730): the time a shot render would take, said before it starts (nothing is rendered or written). Returns {secs, costliest, text}
+func _render_estimate() -> Dictionary:
+	var fps: int = S.fps
+	var vp := get_viewport().get_visible_rect().size
+	var j := {"w": int(vp.x), "h": int(vp.y), "frames": ShotRender.frame_count(_ps().length(), fps), "volumetric": world_env != null and world_env.volumetric_fog_enabled,
+		"sdfgi": world_env != null and world_env.sdfgi_enabled, "ssao": world_env != null and world_env.ssao_enabled, "blur_n": blast_blur_n if blast_blur else 1}
+	var r := RenderEstimate.estimate(j, RenderEstimate.app_cal)
+	_say_plain(String(r["text"]))
+	return r
+
+
+
+
 func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary:
 	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if _sr_busy:
@@ -2040,6 +2053,8 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: a render needs at least 2 cards (a move): press Enter to add a card, or open a scene in the list below")
 		return {}
+	if RenderEstimate.show_first:
+		_render_estimate()   # C25: opt-in, the estimate is said before the first frame
 	var fps: int = S.fps
 	var length: float = _ps().length()
 	var n := ShotRender.frame_count(length, fps)
