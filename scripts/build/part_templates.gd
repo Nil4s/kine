@@ -107,7 +107,10 @@ const T := {
 		{"k": "teeth", "label": "Small teeth", "lo": 8.0, "hi": 30.0, "def": 15.0, "step": 1.0, "words": ["Fewer", "More"], "raw": true, "unit": "teeth"},
 		{"k": "ratio", "label": "Ratio", "lo": 1.0, "hi": 3.0, "def": 2.0, "step": 1.0, "words": ["Same speed", "Slower out"], "raw": true, "unit": "ratio"},
 		{"k": "module", "label": "Teeth size", "lo": 1.0, "hi": 3.0, "def": 2.0, "step": 1.0, "words": ["Small teeth", "Big teeth"], "raw": true, "unit": "size"},
-		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 30.0, "def": 10.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"}]},
+		{"k": "thickness", "label": "Thickness", "lo": 3.0, "hi": 30.0, "def": 10.0, "step": 1.0, "words": ["Thinner", "Thicker"], "raw": true, "unit": "mm"},
+		# c52: the mode switch (0 = Gear pair, 1 = Rack and pinion: Small teeth and Teeth size make the pinion, Ratio is not used) and the rack's length
+		{"k": "mode", "label": "Mode", "lo": 0.0, "hi": 1.0, "def": 0.0, "step": 1.0, "words": ["Gear pair", "Rack and pinion"], "raw": true, "unit": "gearmode"},
+		{"k": "rack_len", "label": "Rack length", "lo": 40.0, "hi": 300.0, "def": 100.0, "step": 10.0, "words": ["Shorter", "Longer"], "raw": true, "unit": "mm"}]},
 	# P032: a plate with a long rounded hole (a slot) cut right through it. Length and Width are the hole's own size (the round ends
 	# are Width / 2 across); the plate is 20 mm wider than the hole on each side. Width is at most 40, so Length (at least 60) stays longer.
 	"slothole": {"title": "Slot", "params": [
@@ -1057,6 +1060,16 @@ static func _livecut_features(p: Dictionary) -> Array:
 
 
 ## p204livinghing: the say line when the slots are closer than 2 x Thickness (the strip may tear). Names the next step. "" otherwise.
+const GEAR_SCOPE := "Gears here: straight spur teeth with flat sides, sized to mesh (rack and pinion too). Not an involute profile, not helical, bevel or worm, and no strength check"
+
+
+static func gear_note(rec: Dictionary) -> String:
+	var e: Dictionary = rec.get("easy", {})
+	if String(e.get("t", "")) != "gearpair":
+		return ""
+	return GEAR_SCOPE
+
+
 static func livecut_note(rec: Dictionary) -> String:
 	var e: Dictionary = rec.get("easy", {})
 	if String(e.get("t", "")) != "livecut":
@@ -1101,6 +1114,8 @@ static func _snap_features(p: Dictionary) -> Array:
 ## turned by pi - pi / N2, so a gap of the big gear faces the small gear's tooth and the teeth interleave. Each gear: its outline, then its
 ## centre hole (0.12 x its pitch diameter, as a Gear). Four features at every ratio (the record keeps its features in step). Two solids.
 static func _gear_pair_features(p: Dictionary) -> Array:
+	if int(roundf(float(p.get("mode", 0.0)))) == 1:
+		return _rack_pinion_features(p)   # c52
 	var fs: Array = []
 	var n1 := int(roundf(float(p["teeth"])))
 	var n2 := int(roundf(float(p["teeth"]) * float(p["ratio"])))
@@ -1111,6 +1126,70 @@ static func _gear_pair_features(p: Dictionary) -> Array:
 	_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": 0.12 * n1 * md}]), "extrude", th, "cut", true)
 	_ex(fs, _sk(fs, "front", _gear_at(n2, md, Vector2(d, 0.0), PI - PI / float(n2))), "extrude", th, "new")
 	_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [d, 0.0], "r": 0.12 * n2 * md}]), "extrude", th, "cut", true)
+	return fs
+
+
+## c52 RACK AND PINION: the Gear pair's mode 1. The pinion (teeth N, module m, the Gear pair's own slim tooth) sits at the origin; the rack lies
+## under it, its PITCH LINE tangent to the pinion's pitch circle: centre distance = pitch radius m N / 2. The rack's circular pitch is pi m, the
+## pinion's (pitch circle length / N = pi m): the teeth mesh. The rack tooth is a straight-flanked trapezoid (20 deg), its thickness on the pitch
+## line = pi m - (the pinion tooth's thickness there) - RACK_BACKLASH m, so the two teeth never overlap on the pitch line and the stated
+## backlash is the gap. A rack tooth is centred under the pinion, facing one of its gaps. Four features (like the pair): pinion, its hole, the
+## rack, and a mounting hole through the rack's body at its left end. Two solids.
+const RACK_BACKLASH := 0.1   # x module (mm): the gap between the two teeth on the pitch line
+const RACK_PRESSURE := 20.0  # deg: the rack's flank angle
+const RACK_BODY := 3.0       # x module: the rack's body under the tooth roots
+
+
+## the pinion tooth's full thickness (mm) on its pitch circle, from the Gear pair's own tooth (tip 1.0 q, root 2.7 q wide: linear between)
+static func pair_tooth_on_pitch(n: int, m: float) -> float:
+	var ra := m * (n + 2) * 0.5
+	var rf := m * (n - 2.5) * 0.5
+	var rp := m * n * 0.5
+	var q := PI / (2.0 * n)
+	var ht := 0.5 * q * ra
+	var hr := 1.35 * q * rf
+	return 2.0 * (hr + (ht - hr) * (rp - rf) / (ra - rf))
+
+
+## the rack's numbers: {"N", "pitch", "hw" (half tooth on the pitch line), "ht", "hr", "x0" (left end), "yp" (pitch line y), "yroot", "ytip", "ybot"}
+static func rack_geom(p: Dictionary) -> Dictionary:
+	var n := int(roundf(float(p["teeth"])))
+	var m := float(int(roundf(float(p["module"]))))
+	var pitch := PI * m
+	var N := maxi(2, int(roundf(float(p.get("rack_len", 100.0)) / pitch)))
+	var tn := tan(deg_to_rad(RACK_PRESSURE))
+	var hw := 0.5 * (pitch - pair_tooth_on_pitch(n, m) - RACK_BACKLASH * m)
+	var yp := -m * n * 0.5
+	return {"n": n, "m": m, "N": N, "pitch": pitch, "hw": hw, "ht": hw - m * tn, "hr": hw + 1.25 * m * tn,
+		"x0": -(floorf(N * 0.5) + 0.5) * pitch, "yp": yp, "ytip": yp + m, "yroot": yp - 1.25 * m, "ybot": yp - 1.25 * m - RACK_BODY * m}
+
+
+static func rack_pinion_outline(g: Dictionary) -> Array:
+	var N: int = g["N"]
+	var pitch: float = g["pitch"]
+	var x0: float = g["x0"]
+	var pts := [Vector2(x0, g["ybot"]), Vector2(x0 + N * pitch, g["ybot"]), Vector2(x0 + N * pitch, g["yroot"])]
+	for k in range(N - 1, -1, -1):
+		var c := x0 + (k + 0.5) * pitch
+		pts.append(Vector2(c + g["hr"], g["yroot"]))
+		pts.append(Vector2(c + g["ht"], g["ytip"]))
+		pts.append(Vector2(c - g["ht"], g["ytip"]))
+		pts.append(Vector2(c - g["hr"], g["yroot"]))
+	pts.append(Vector2(x0, g["yroot"]))
+	return _poly(pts)
+
+
+static func _rack_pinion_features(p: Dictionary) -> Array:
+	var fs: Array = []
+	var g := rack_geom(p)
+	var n: int = g["n"]
+	var md: float = g["m"]
+	var th: float = p["thickness"]
+	# a gap of the pinion faces straight down (its gap centre is half a pitch angle, pi / n, past a tooth centre)
+	_ex(fs, _sk(fs, "front", _gear_at(n, md, Vector2.ZERO, -PI * 0.5 - PI / float(n))), "extrude", th, "new")
+	_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [0.0, 0.0], "r": 0.12 * n * md}]), "extrude", th, "cut", true)
+	_ex(fs, _sk(fs, "front", rack_pinion_outline(g)), "extrude", th, "new")
+	_ex(fs, _sk(fs, "front", [{"k": "circle", "c": [float(g["x0"]) + 0.5 * float(g["pitch"]), float(g["yroot"]) - 1.5 * md], "r": 0.75 * md}]), "extrude", th, "cut", true)
 	return fs
 
 

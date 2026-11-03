@@ -887,3 +887,4 @@ EXTRA="$EXTRA c39:w"   # c39: FBX materials (tests/c39_test.gd)
 
 
 EXTRA="$EXTRA c41:w"   # c41: #184 invert orbit X / Y apart, #311 bad spots (built by C05) checked
+EXTRA="$EXTRA c52:w"   # c52: Gear template Rack and pinion mode (pitch, centre distance, backlash, roll overlap measured on the mesh), Gear pair byte-identical, pt_BR (tests/c52_test.gd; needs the CAD DLL)

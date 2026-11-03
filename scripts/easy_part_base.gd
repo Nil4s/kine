@@ -326,6 +326,8 @@ func _flush() -> void:
 	var note := PartTemplates.fit_rounds(_rec())   # a new size (or the How round slider) can leave a round too big for its edges: it shrinks, and says so
 	if note == "":
 		note = PartTemplates.livecut_note(_rec())   # p204livinghing: slots closer than 2 x Thickness may tear the strip
+	if note == "":
+		note = PartTemplates.gear_note(_rec())   # c52: what the gear tool does and does not do
 	if note != "":
 		_say(note)
 	pu.sync()
@@ -346,6 +348,10 @@ func _fmt(v: float, unit: String) -> String:
 		return "%d teeth" % int(roundf(v))
 	if unit == "size":   # NGEAR: the module 1 / 2 / 3 as Small / Medium / Big teeth
 		return ["Small", "Medium", "Big"][clampi(int(roundf(v)) - 1, 0, 2)] + " teeth"
+	if unit == "gearmode":   # c52
+		return "Rack and pinion" if roundi(v) == 1 else "Gear pair"
+	if unit == "gearmode":   # c52
+		return "Rack and pinion" if roundi(v) == 1 else "Gear pair"
 	if unit == "ratio":   # p065gearpairpi: the Gear pair's ratio reads 2 : 1
 		return "%d : 1" % int(roundf(v))
 	if unit == "pct":   # s048: Grow by 20 %
