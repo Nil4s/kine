@@ -820,6 +820,7 @@ EXTRA="$EXTRA c13:w"   # C13: pose IK/FK state, prop attach/detach frame, cape s
 
 EXTRA="$EXTRA c14:w"   # c14: rig pre-check, footage pre-check, cut-list CSV locale, tests/c14_test.gd
 
+EXTRA="$EXTRA c24:w"   # C24: hinge second axis, pivot on a visible feature (tests/c24_test.gd)
 
 EXTRA="$EXTRA c15:w"   # C15: sketch re-plane preview, SVG import scale check, assembly degrees of freedom, tests/c15_test.gd
 
@@ -866,6 +867,9 @@ EXTRA="$EXTRA c27:w"   # C27: support removal choice in the 3D-print export (tes
 
 
 EXTRA="$EXTRA c31:w"   # c31: pt_BR 447 strings, placeholders, CRLF, review list, fit at 1280x720
+EXTRA="$EXTRA c35:w"   # c35: pt_BR fit across pages, popups, Export, 1280x720 and 1024x600
+
+
 
 
 EXTRA="$EXTRA c30:w"
@@ -887,4 +891,25 @@ EXTRA="$EXTRA c39:w"   # c39: FBX materials (tests/c39_test.gd)
 
 
 EXTRA="$EXTRA c41:w"   # c41: #184 invert orbit X / Y apart, #311 bad spots (built by C05) checked
+
+
+EXTRA="$EXTRA c42:w"   # C42 stay-in-place export toggle + lightmap UV1 Blender readback (tests/c42_test.gd)
+
+
+EXTRA="$EXTRA c43:w"   # C43: Printer row in Export (saved preset the fit tools read) + the written STL/3MF re-read as the preview (tests/c43_test.gd)
+
+
+EXTRA="$EXTRA c44:w"   # C44: Extrude up to a face or edge with an offset, tests/c44_test.gd
+
+
+EXTRA="$EXTRA c37:w"   # C37: Rounded rectangle + Slot sketch shapes, typed Radius for Circle/corners, Size first (tests/c37_test.gd; needs the CAD DLL)
+
+
+EXTRA="$EXTRA c46:w"   # c46: the Combine dialog runs a many-tool combine stepwise with progress and Cancel (tests/c46_test.gd)
+
+
+EXTRA="$EXTRA c45:w"   # c45: Alt+click through to the hidden face; sketch stack picker
+
+
+EXTRA="$EXTRA c47:w"   # c47: mirror you can trust: facing axis from geometry (#273), side from geometry (#274), mirror seam kink (#251) (tests/c47_test.gd)
 EXTRA="$EXTRA c52:w"   # c52: Gear template Rack and pinion mode (pitch, centre distance, backlash, roll overlap measured on the mesh), Gear pair byte-identical, pt_BR (tests/c52_test.gd; needs the CAD DLL)

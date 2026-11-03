@@ -6,6 +6,9 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+msgid "Animation: stay in place (take the hips' forward travel off)"
+msgstr "Animação: ficar no lugar (tira o avanço do quadril)"
+
 msgid "BODY"
 msgstr "CORPO"
 
@@ -18,17 +21,38 @@ msgstr "ANIMAR"
 msgid "STAGE"
 msgstr "CENA"
 
+msgid "Mirror to facing"
+msgstr "Espelhar pela frente"
+
+msgid "the same mirror for a body that is turned: through the plane of the way it faces, found from its hips (a body facing the front mirrors as Mirror pose does)"
+msgstr "o mesmo espelho para um corpo virado: pelo plano da direção para onde ele olha, achada pelos quadris (um corpo de frente espelha como o Espelhar pose)"
+
+msgid "mirrored to the way the body faces (turned %d deg from the front): left <-> right, the heading kept.  Ctrl+Z undoes"
+msgstr "espelhado pela direção do corpo (virado %d graus da frente): esquerda <-> direita, a direção mantida.  Ctrl+Z desfaz"
+
+msgid "Side check: "
+msgstr "Checagem de lados: "
+
+msgid "%s_l is on the right of %s_r while the other pairs are the other way: a left and right name swapped"
+msgstr "%s_l está à direita de %s_r enquanto os outros pares estão ao contrário: um nome de esquerda e direita trocado"
+
+msgid "the bones named left are on the body's right (the feet point the other way): left and right are swapped in the whole rig"
+msgstr "os ossos chamados de esquerda estão à direita do corpo (os pés apontam para o outro lado): esquerda e direita estão trocadas no rig inteiro"
+
+msgid "the mirrored halves meet at a ridge of %d degrees (over %d): the surface does not run smoothly through the mirror plane"
+msgstr "as metades espelhadas se encontram numa quina de %d graus (acima de %d): a superfície não passa suave pelo plano do espelho"
+
 msgid "CHECK"
-msgstr "CONFERIR"
+msgstr "CHECAR"
 
 msgid "DELIVER"
-msgstr "ENTREGA"
+msgstr "SAÍDA"
 
 msgid "MODEL"
-msgstr "MODELAR"
+msgstr "FORMA"
 
 msgid "SCULPT"
-msgstr "ESCULPIR"
+msgstr "ESCULT"
 
 msgid "SURFACE"
 msgstr "COR"
@@ -424,7 +448,7 @@ msgid "Linkage: drag the knob"
 msgstr "Articulação: arraste o botão"
 
 msgid "Reset"
-msgstr "Reiniciar"
+msgstr "Zerar"
 
 msgid "Socket"
 msgstr "Allen"
@@ -706,7 +730,7 @@ msgid "Raw data"
 msgstr "Dados brutos"
 
 msgid "Playblast video: motion blur (8 sub-frames, 180 deg shutter; slower)"
-msgstr "Vídeo de prévia: desfoque de movimento (8 subquadros, obturador de 180 graus; mais lento)"
+msgstr "Prévia em vídeo: desfoque (8 subquadros, obturador 180°; mais lento)"
 
 msgid "3MF (.3mf): shape in millimetres, pieces and colour (best for most slicers)"
 msgstr "3MF (.3mf): forma em milímetros, peças e cor (o melhor para a maioria dos fatiadores)"
@@ -799,7 +823,7 @@ msgid "Estimate render time"
 msgstr "Estimar o tempo de renderização"
 
 msgid "FBX: shot camera (keys)"
-msgstr "FBX: câmera do plano (chaves)"
+msgstr "FBX: câm. do plano (chaves)"
 
 msgid "File name template (blank = the usual name):"
 msgstr "Modelo do nome do arquivo (vazio = o nome de sempre):"
@@ -820,10 +844,16 @@ msgid "Pull makes: "
 msgstr "Puxar faz: "
 
 msgid "Say the render time first"
-msgstr "Dizer o tempo de renderização antes"
+msgstr "Dizer o tempo do render antes"
 
 msgid "Scale to 1.75 m"
 msgstr "Escalar para 1,75 m"
+
+msgid "FBX: include materials (colour, texture)"
+msgstr "FBX: incluir materiais (cor, textura)"
+
+msgid "Invert orbit left-right only"
+msgstr "Inverter só a órbita esquerda-direita"
 
 msgid "   Pick what you want to make"
 msgstr "   Escolha o que você quer fazer"

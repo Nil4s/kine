@@ -100,6 +100,13 @@ static func controls() -> Control:
 	c2.button_pressed = lightmap_uv
 	c2.toggled.connect(func(on: bool): lightmap_uv = on)
 	v.add_child(c2)
+	var c3 := CheckBox.new()   # C42: stay in place
+	c3.name = "chk_stay_in_place"
+	c3.text = "Animation: stay in place (take the hips' forward travel off)"
+	c3.tooltip_text = "Moves the pelvis's horizontal travel off the clip so it plays on the spot. Height and joint angles stay; the feet keep their place relative to the body. The status line gives the travel before and after. Off by default."
+	c3.button_pressed = StayInPlace.on
+	c3.toggled.connect(func(on: bool): StayInPlace.on = on)
+	v.add_child(c3)
 	return v
 
 

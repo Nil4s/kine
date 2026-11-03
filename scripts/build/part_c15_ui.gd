@@ -66,7 +66,7 @@ func _init(p: PartUI) -> void:
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sc.add_child(box)
-	pu.sketch_box.add_child(sc)
+	pu.extras_vb.add_child(sc)
 	ov = Control.new()
 	ov.name = "c15_overlay"
 	ov.mouse_filter = Control.MOUSE_FILTER_IGNORE
