@@ -257,7 +257,7 @@ const RIBBON_GROUPS := {
 	"BUILD": [["DRAW", ["Room", "Wall", "Pull"]], ["ADD", ["Opening", "Floor", "Roof", "Piece"]], ["SAY", ["Words"]], ["SHEET", ["Blueprint"]],
 		["PART", ["Part"]], ["SKETCH", ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]], ["CREATE", ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Ornament", "Roof shell"]], ["MODIFY", ["Fillet", "Chamfer", "Shell", "Appearance", "Offset face", "Draft"]], ["VIEW", ["Measure", "Section"]], ["DONE", ["Finish sketch"]]],   # the last five are the Part workspace's (scripts/build/part_ui.gd)
 	"BODY": [["PERSON", ["Body: proportions...", "Body: fighter archetype...", "Body: from height, weight, sex, age, build", "Mannequin as shipped", "Face: brows, eyes, jaw, mouth...", "Hair: add a ponytail", "Hair: take the hair off"]]],
-	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag", "Keep balance"]],
+	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Mirror to facing", "Symmetry", "Smart drag", "Keep balance"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)", "Force view"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
 		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place", "Stay in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial", "Match the reference timing"]], ["SOUND", ["Sound cues"]]],
@@ -12808,6 +12808,7 @@ func _ui() -> void:
 	ui_ribbon["POSE"].add_child(_button("Snap to floor", _floor_snap, "lift or sink the picked card (or the body) so its lowest point touches the floor; the joints stay. Ctrl+Z takes it back"))
 	ui_ribbon["POSE"].add_child(_button("Arms 25°", _do.bind(_arms_relaxed), "both arms relaxed: 25° out from straight down"))
 	ui_ribbon["POSE"].add_child(_button("Mirror pose (Shift+M)", _tool.bind(0), "the whole body left <-> right (the weapon changes hands)"))
+	ui_ribbon["POSE"].add_child(_button("Mirror to facing", _tool.bind(42), "the same mirror for a body that is turned: through the plane of the way it faces, found from its hips and shoulders (a body facing the front mirrors as Mirror pose does)"))
 	ui_ribbon["POSE"].add_child(_button("Sketch to pose", _sk_toggle, "draw a stick figure over the view (a drag = one stroke: the spine, arms from its top, legs from its bottom, a circle for the head); Enter fits the body to it with its real bone lengths and joint limits, Backspace removes the last stroke, Esc leaves. One undo step. Limbs you did not draw stay as they were"))
 	ui_ribbon["POSE"].add_child(_button("Sketch line of action", _loa_arm, "sketch: drag one stroke on the view, and the spine and the support leg bend to follow it (Shift = mirror the lean). Pose: draw a line of action"))
 	ui_ribbon["POSE"].add_child(_button("Open from QR...", _qr_open_ask, "open a pose or a short scene from a picture of a Kine QR code (a friend's photo or screenshot): the pose goes on the body, a scene's cards are added to this scene; ONE undo step. Command search: 'Open from QR (webcam)' reads it from the camera"))
@@ -17638,6 +17639,10 @@ func _tool(id: int) -> void:
 		0:
 			_do(func(): B.mirror_pose())
 			_say("mirrored: the whole body left <-> right (the weapon changed hands).  Ctrl+Z undoes; Update keeps it on the card")
+		42:   # C47 (#273): Mirror to facing: the same mirror through the plane of the way the body is turned (scripts/mirror_facing.gd)
+			var mf := {}
+			_do(func(): mf = MirrorFacing.mirror(B))
+			_say("mirrored to the way the body faces (turned %d deg from the front): left <-> right, the heading kept.  Ctrl+Z undoes" % roundi(float(mf.get("heading", 0.0))))
 		1:
 			ov.spacing_on = not ov.spacing_on
 			ov.mark_dirty()

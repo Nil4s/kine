@@ -744,6 +744,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					for pb in bodies:
 						pbb = pbb.merge(_piece_box(int(pb))) if pbb.size != Vector3.ZERO else _piece_box(int(pb))
 					mo = Vector3(pbb.get_center().x, 0.0, 0.0)
+				if bool(f.get("seam", false)):   # C47: the kink at the seam, in words (opt-in)
+					var sw := MirrorSeam.warn(bodies[-1], mo, pl["n"], float(f.get("seam_deg", MirrorSeam.SEAM_DEG)))
+					if sw != "":
+						warns[id] = sw
 				var u: int = KCad.mirror_join(bodies[-1], mo, pl["n"])
 				if u == 0:
 					errs[id] = KCad.last_error()

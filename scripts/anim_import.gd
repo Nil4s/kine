@@ -676,6 +676,10 @@ static func _import_file(path: String, B: Body, scene_name := "") -> Dictionary:
 		checks["rig"] = rc
 		if String(rc["text"]) != "":
 			(checks["warnings"] as Array).append(rc["text"])
+		var sc := SideCheck.check(src, mapping)   # C47 (#274): the side from where the bones are, against their names; words only
+		checks["side"] = sc
+		if String(sc["text"]) != "":
+			(checks["warnings"] as Array).append(sc["text"])
 		head = "\"%s\" (%s%s): %s" % [src["clip"], src["format"], (", %d animations in the file, the longest taken" % (src["clips"] as Array).size()) if (src["clips"] as Array).size() > 1 else "", rt["text"]]
 	var cr := cards(dense, B)
 	B.set_state(keep)

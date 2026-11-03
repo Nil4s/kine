@@ -78,7 +78,7 @@ func _init() -> void:
 		turn(B, h)
 		var det := MirrorFacing.detect(B)
 		var hd: float = det["heading"]
-		ok(absf(angle_difference(deg_to_rad(hd), deg_to_rad(h))) < deg_to_rad(1.0) and det["turned"], "1 FACING heading %.0f detected as %.2f" % [h, hd])
+		ok(absf(angle_difference(deg_to_rad(hd), deg_to_rad(h))) < deg_to_rad(1.0) and det["turned"], "1 FACING heading %.0f detected as %.2f (hips %.1f)" % [h, hd, det["raw"]])
 		var n := Quaternion(Vector3.UP, deg_to_rad(h)) * Vector3.RIGHT
 		M.from_dict(B.to_dict())
 		M.fk()
@@ -90,7 +90,7 @@ func _init() -> void:
 		M2.fk()
 		M2.mirror_pose()
 		var eo := reflect_err(B, M2, n, c0)
-		ok(eo > 0.05, "1 CONTROL turned %.0f under the old mirror is off by %.0f mm (the bar can fail)" % [h, eo * 1000.0])
+		ok(eo > 0.05 or h == 180.0, "1 CONTROL turned %.0f under the old mirror is off by %.0f mm (the bar can fail)" % [h, eo * 1000.0])
 		MirrorFacing.mirror(M)
 		var tw := 0.0
 		for j in Body.ORDER:
@@ -98,7 +98,7 @@ func _init() -> void:
 		ok(tw < 0.001, "1 FACING turned %.0f: mirrored twice = the pose, worst %.3f mm" % [h, tw * 1000.0])
 	B.from_dict(Sc.cards[9]["pose"])
 	turn(B, 15.0)
-	ok(not MirrorFacing.detect(B)["turned"], "1 FACING a pelvis twisted 15 deg in the front frame is not a turned body (heading %.1f)" % MirrorFacing.heading(B))
+	ok(not MirrorFacing.detect(B)["turned"], "1 FACING a pelvis twisted 15 deg in the front frame is not a turned body (hips %.1f)" % MirrorFacing.heading(B))
 
 	# ---- 2 SIDE
 	var src := {"names": [], "parent": [], "rest": []}
