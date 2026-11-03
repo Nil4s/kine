@@ -5624,6 +5624,9 @@ static func _ray_seg(o: Vector3, d: Vector3, a: Vector3, b: Vector3) -> Vector2:
 
 
 func _unhandled_input(ev: InputEvent) -> void:
+	if camx != null and camx.key(ev):   # C01: Alt+Left / Alt+Right = previous / next view
+		get_viewport().set_input_as_handled()
+		return
 	if camnav != null and camnav.gesture(ev):   # W01: trackpad-safe pan / pinch
 		get_viewport().set_input_as_handled()
 		return
@@ -5846,6 +5849,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		if dragging == "orbit":
 			if shot_through:
 				_shot_hand_over()   # as Blender: orbiting leaves the camera view, from where the camera was
+			rel = camx.inv("orbit", rel)   # C01
 			camnav.orbit_pre()   # W01
 			yaw -= rel.x * 0.4
 			pitch = clampf(pitch + (rel.y if _mesh_orbit() else -rel.y) * 0.4, -89.0, 89.0)   # MODEL / SCULPT: a downward drag turns the camera under the floor
@@ -5854,6 +5858,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		elif dragging == "zoom":
 			camnav.zoom_drag_move(rel, mm.position)   # W01
 		elif dragging == "pan":
+			rel = camx.inv("pan", rel)   # C01
 			var k := dist * 0.0012
 			target += -cam.global_basis.x * rel.x * k + cam.global_basis.y * rel.y * k
 			_cam()
@@ -7979,6 +7984,7 @@ func _scene_dict(frames := true) -> Dictionary:
 	var d := H.to_dict(hb, frames)
 	hb.set_state(keep)
 	BodyFile.put_key(self, d)   # G07: the applied body's .kbody, by reference (scripts/body_file.gd)
+	camx.put_key(d)   # C01: the cube's Top
 	var ar := ArmourFromBody.to_file(self)   # B23: the armour plates on the fighter, when there are any (scripts/armour_from_body.gd)
 	if not ar.is_empty():
 		d[ArmourFromBody.KEY] = ar
@@ -13819,6 +13825,8 @@ func _ui() -> void:
 	ui_cube.anchor_left = 1.0
 	ui_cube.anchor_right = 1.0
 	ui_root.add_child(ui_cube)
+	camx = CamExtras.new(self)   # C01: view history, invert orbit / pan, the cube's Top (scripts/cam_extras.gd)
+	camx.build(ui_root)
 	_build_shade_menus()
 	ui_ring = RingMenu.new()
 	ui_ring.top_margin = TOP_H
@@ -15271,6 +15279,8 @@ func _card_pick(i: int) -> void:
 func _place_cube() -> void:
 	if ui_cube == null:
 		return
+	if camx != null:
+		camx.place.call_deferred()   # C01
 	var r := rw() + 10.0
 	ui_cube.offset_right = -r
 	ui_cube.offset_left = -r - ViewCube.SIZE
@@ -16244,6 +16254,7 @@ func _press(code: Key, shift := false) -> void:
 var ui_keys: PanelContainer
 var camnav: CamNav   # W01
 var camnav_ui: CamNavUI
+var camx: CamExtras   # C01
 var kt: KeymapTranslate   # P20: Blender / Maya key helper
 var blk: BlKeys           # B16: Blender-style modal G / R / S layer
 var hk: Hotkeys   # HOTKEYS: rebinding, the saved keys, the editor (scripts/hotkeys.gd)
@@ -21189,6 +21200,7 @@ func _restore_work(a: Dictionary) -> void:
 		BaseBody.restore_gen(self, 0)   # the mannequin as shipped (the state held no applied body)
 	BodyFile.from_scene(self, a["scene"])   # G07: an applied body back, from its file or inline
 	ArmourFromBody.from_scene(self, a["scene"])   # B23: the armour plates back
+	camx.from_scene(a["scene"])   # C01
 	scene_path = path
 	if ui_loop != null:
 		ui_natural.set_pressed_no_signal(S.natural)
@@ -24257,6 +24269,7 @@ func _open_scene_dict(path: String, d: Dictionary, work: bool, built := false) -
 			_say.call_deferred("this scene's set names models your library does not have (%s): they were left out" % ", ".join(S.props_skipped))
 		BodyFile.from_scene(self, d)   # G07: the body the scene was saved with back on the fighter
 		ArmourFromBody.from_scene(self, d)   # B23: the armour plates the scene was saved with (none when the file has none)
+		camx.from_scene(d)   # C01: the cube's Top the scene was saved with
 	else:   # an old move file: its keys become cards
 		var prev := 0.0
 		for k in d.get("keys", []):
