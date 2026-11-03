@@ -150,6 +150,9 @@ func part_a() -> void:
 	ok(not "\n".join(ex.checks("print", "stl")).contains("colours"), "A2 CONTROL: the unpainted box's checklist has no colour line")
 	m.S.part = rec
 	# picture of the dialog on the Best-for-my-part format
+	m.bld.part.set_on(true)
+	m.bld.part._rec_sig = ""
+	await idle(4)
 	ex.open()
 	await idle(4)
 	for ti in ex._tg().size():
