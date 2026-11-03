@@ -846,3 +846,26 @@ EXTRA="$EXTRA c20:w"   # C20: print fit: hinge clearance from the printer preset
 
 
 EXTRA="$EXTRA c17:w"   # C17 mesh print safety: internal-shell check, repair list + undo, reload check of written STL/3MF (tests/c17_test.gd; needs the CAD DLL)
+
+
+EXTRA="$EXTRA c11:w"   # c11: pt_BR missing-string scanner, sticky keys, bad GPU driver list
+
+
+EXTRA="$EXTRA c26:w"   # C26: pick-hit check (pick_check.gd) + per-character cost line (char_cost.gd), tests/c26_test.gd
+EXTRA="$EXTRA c29:w"   # C29: one-click body pick, no panel over the body (tests/c29_test.gd)
+
+
+EXTRA="$EXTRA c25:w"   # C25: one Move rule in/out of sketch, render time estimate (tests/c25_test.gd)
+
+
+EXTRA="$EXTRA c23:w"   # c23: 3MF colour read-back + auto format, FBX unit/axis presets, GIF ordered dither + Smooth GIF button (tests/c23_test.gd)
+EXTRA="$EXTRA c28:w"   # c28: FBX For choice in the Export dialog (tests/c28_test.gd)
+
+
+EXTRA="$EXTRA c27:w"   # C27: support removal choice in the 3D-print export (tests/c27_test.gd)
+
+
+EXTRA="$EXTRA c31:w"   # c31: pt_BR 447 strings, placeholders, CRLF, review list, fit at 1280x720
+
+
+EXTRA="$EXTRA c30:w"

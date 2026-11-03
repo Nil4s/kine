@@ -6,12 +6,16 @@ class_name GifWriter
 
 const BITS := 5
 const NBIN := 32768   # 1 << (3 * BITS)
+## the 4 x 4 Bayer matrix as offsets of one 5-bit step (8 levels): (m + 0.5) / 16 - 0.5, times 8, rounded; they sum to about zero
+const BAYER := [-4, 0, -3, 1, 2, -2, 3, -1, -3, 1, -4, 0, 3, -1, 2, -2]
 
 
 ## frames: Array of Image (all one size). fps: frames per second (delay is whole 1/100 s, so 12 fps plays at 8 cs = 12.5 fps).
 ## loops: 0 = forever. fixed: the 3-3-2 palette instead (the control the per-clip palette is measured against)
 ## progress: optional Callable(text: String, fraction: float); a coroutine: it yields one frame per clip frame so the window repaints, so AWAIT it
-static func encode(frames: Array, fps: int, loops := 0, fixed := false, progress := Callable()) -> PackedByteArray:
+## dither (C23, opt-in, default off = the old file byte for byte): a 4 x 4 ordered (Bayer) pattern is added to each pixel before it is matched to the palette, so a smooth
+## gradient is woven from neighbouring palette colours instead of cut into flat bands. Same palette, same size class; the pattern repeats every 4 px, so it does not crawl.
+static func encode(frames: Array, fps: int, loops := 0, fixed := false, progress := Callable(), dither := false) -> PackedByteArray:
 	var out := PackedByteArray()
 	if frames.is_empty() or fps < 1:
 		return out
@@ -82,9 +86,15 @@ static func encode(frames: Array, fps: int, loops := 0, fixed := false, progress
 		var np := w * h
 		idx.resize(np)
 		var j := 0
-		for p in np:
-			idx[p] = lut[((dd[j] >> 3) << 10) | ((dd[j + 1] >> 3) << 5) | (dd[j + 2] >> 3)]
-			j += 3
+		if dither:
+			for p in np:
+				var o: int = BAYER[((p / w) & 3) * 4 + ((p % w) & 3)]
+				idx[p] = lut[(clampi(dd[j] + o, 0, 255) >> 3 << 10) | (clampi(dd[j + 1] + o, 0, 255) >> 3 << 5) | (clampi(dd[j + 2] + o, 0, 255) >> 3)]
+				j += 3
+		else:
+			for p in np:
+				idx[p] = lut[((dd[j] >> 3) << 10) | ((dd[j + 1] >> 3) << 5) | (dd[j + 2] >> 3)]
+				j += 3
 		out.append(0x21); out.append(0xF9); out.append(4); out.append(0)   # graphic control: no disposal, no transparency
 		_u16(out, delay)
 		out.append(0); out.append(0)
@@ -104,8 +114,8 @@ static func encode(frames: Array, fps: int, loops := 0, fixed := false, progress
 	return out
 
 
-static func write(path: String, frames: Array, fps: int, loops := 0, progress := Callable()) -> bool:
-	var b: PackedByteArray = await encode(frames, fps, loops, false, progress)
+static func write(path: String, frames: Array, fps: int, loops := 0, progress := Callable(), dither := false) -> bool:
+	var b: PackedByteArray = await encode(frames, fps, loops, false, progress, dither)
 	if b.is_empty():
 		return false
 	var f := FileAccess.open(path, FileAccess.WRITE)
@@ -117,7 +127,7 @@ static func write(path: String, frames: Array, fps: int, loops := 0, progress :=
 
 
 ## the PNG frames of a Save video folder (frame_0000.png ...) -> one GIF, width px wide (0 = as filmed)
-static func from_dir(dir: String, fps: int, gif: String, width := 480, progress := Callable()) -> bool:
+static func from_dir(dir: String, fps: int, gif: String, width := 480, progress := Callable(), dither := false) -> bool:
 	var names: Array = []
 	for n in DirAccess.get_files_at(dir):
 		if String(n).begins_with("frame_") and String(n).ends_with(".png"):
@@ -131,7 +141,7 @@ static func from_dir(dir: String, fps: int, gif: String, width := 480, progress 
 		if width > 0 and im.get_width() > width:
 			im.resize(width, maxi(1, int(round(im.get_height() * width / float(im.get_width())))), Image.INTERPOLATE_LANCZOS)
 		frames.append(im)
-	return await write(gif, frames, fps, 0, progress)
+	return await write(gif, frames, fps, 0, progress, dither)
 
 
 static func _u16(b: PackedByteArray, v: int) -> void:

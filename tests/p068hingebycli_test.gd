@@ -176,6 +176,8 @@ func _init() -> void:
 	await idle(3)
 	await press(pu().easy_open_btn)
 	await idle(4)
+	ep().one_side = true   # P153 (a4512f9c): symmetry is on by default; this walk draws two single pieces, so it uses One side only
+	ep().one_side_btn.set_pressed_no_signal(true)
 	await fresh()
 
 	# BUILD: the frame (a box on the floor, pulled up), then the door: a second piece apart from the frame, pulled up
@@ -201,6 +203,7 @@ func _init() -> void:
 	var u0: int = m.undo.size()
 
 	# DOOR: hover the door's edge; the Hinge chip shows; the click names the next step
+	await idle(120)   # navigation: let the camera finish easing after the last pull before edge points are read from it
 	await hover_edge(door_e)
 	var hc := hinge_chip()
 	ok(hc != null, "2 DOOR the door's edge shows a Hinge chip (edge chip up: %s)" % str(hc != null))

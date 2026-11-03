@@ -72,7 +72,7 @@ func tick(dt: float) -> void:
 	if not typing:
 		x = float(Input.is_key_pressed(KEY_A)) - float(Input.is_key_pressed(KEY_D))   # A = the hero's left, +X
 		z = float(Input.is_key_pressed(KEY_W)) - float(Input.is_key_pressed(KEY_S))
-	var running := Input.is_key_pressed(KEY_SHIFT)
+	var running := StickyKeys.held(KEY_SHIFT)
 	var want := Vector3(x, 0.0, z)
 	if want.length() > 0.0:
 		want = want.normalized() * (RUN if running else WALK)

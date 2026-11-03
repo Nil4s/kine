@@ -734,7 +734,7 @@ func _tilt_box() -> PanelContainer:
 	draft_row.add_child(swing_btn)
 	door_opt = PartDoor.make_option()   # C18
 	door_opt.visible = false
-	draft_row.add_child(door_opt)
+	row.add_child(door_opt)   # own line under Draft/Swing: beside them it widened the panel to 539 px and covered the open door edge (p068hingebycli)
 	pull_along_btn = _big_btn("easypart_pull_along", "Pull along", "Pull the round shape along the open curve: a pipe in one step", _pull_along_press)
 	pull_along_btn.custom_minimum_size = Vector2(230, 44)
 	pull_along_btn.visible = false
@@ -3814,7 +3814,7 @@ func _finish_line() -> void:
 ## P040: Shift is held (the last mouse event said so, or the key is down): the stretch a Line drag adds now is curvy
 var _shift := false
 func _shift_held() -> bool:
-	return _shift or Input.is_key_pressed(KEY_SHIFT)
+	return _shift or StickyKeys.held(KEY_SHIFT)
 
 
 ## the drawn points kept for the spline (at most maxn, first and last always): the points that bend the line most, so a rim or a
@@ -3984,7 +3984,7 @@ var _snap_said := false  # the 1 cm snap words were said (once per session: the 
 
 
 func _alt_held() -> bool:
-	return _alt or Input.is_key_pressed(KEY_ALT)
+	return _alt or StickyKeys.held(KEY_ALT)
 
 
 func _snap_step() -> float:
@@ -4021,6 +4021,9 @@ func _key(k: InputEventKey) -> void:
 		return   # a typed number keeps its keys
 	if _draft.has("clicks") and k.keycode in [KEY_ENTER, KEY_KP_ENTER]:
 		_mirror_finish()   # s047: Enter ends a mirrored Line, as clicking its last point again does
+		get_viewport().set_input_as_handled()
+		return
+	if _mv_key(k):   # C25: a typed distance for a piece in hand (only with MoveRule.unified)
 		get_viewport().set_input_as_handled()
 		return
 	if _line_typed_key(k):   # P045: a Line being drawn takes a typed length (digits, Backspace, Enter); the digits do not turn the camera

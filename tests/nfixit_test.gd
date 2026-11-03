@@ -188,6 +188,8 @@ func _init() -> void:
 	m._cam()
 	await idle(60)
 	var ep = pu().ep
+	ep.one_side = true   # P153 (a4512f9c): symmetry is on by default; this walk draws single boxes, so it uses One side only
+	ep.one_side_btn.set_pressed_no_signal(true)
 
 	# the walk: a plate, then a second box apart from it, pulled up too (it floats)
 	await click_ctl(ep.make_btns["draw"])

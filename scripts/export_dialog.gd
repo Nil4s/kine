@@ -25,10 +25,13 @@ var ui_q_custom: SpinBox
 var ui_q_row: HBoxContainer
 var ui_q_info: Label
 var ui_fit: CheckBox   # C20: Match the mesh to the fit (off = the usual quality)
+var ui_support: OptionButton   # C27: support removal (3MF only)
+var ui_support_info: Label
 var _q_cache := {}
 var ui_csv_locale: OptionButton   # C14 (#442): the cut-list CSV's locale (0 = comma + dot decimals, the default; 1 = semicolon + decimal comma, for Excel in pt-BR / EU)
 var ui_safety: VBoxContainer   # C17: print safety row
 var ui_price_row: HBoxContainer   # s081: the price table (BRL) behind the cost line
+var opts_scroll: ScrollContainer   # C30
 var ui_bed_row: HBoxContainer   # 3D printing only: the printer bed size and Split to fit (Friday plan 114)
 var ui_bed: Array = []   # three SpinBoxes: bed X, Y, Z in mm
 var ui_split: CheckBox
@@ -94,6 +97,9 @@ const TARGETS := [
 
 
 ## 3D PRINTING (STL, 3MF): shown only while a free Part is on screen (so targets() stays the seven engine targets); scripts/build/mesh_export.gd writes the files
+## C23: the third print format, listed only while the part has more than one colour (so the two-format list of a plain part is as it was)
+const AUTO_FORMAT := {"name": "Best for my part (picks 3MF when the part is painted, and says why)", "run": "auto",
+	"app": "A 3MF when the part has colour (an STL would lose it); the words after the export say which and why. Millimetres, Z up, the shape finely cut (0.1 mm)."}
 const PRINT_TARGET := {"id": "print", "label": "3D printing (STL, 3MF)", "engine": "",
 	"needs": "A slicer (Cura, PrusaSlicer, Bambu Studio, Orca) opens either file. Both hold millimetres, and the part's floor is the print bed (z = 0, Z up). STL is the plain shape; 3MF is the same shape in a package that also keeps each separate piece as its own object and the colour you painted. If you are not sure, pick 3MF.",
 	"formats": [{"name": "3MF (.3mf): shape in millimetres, pieces and colour (best for most slicers)", "run": "3mf",
@@ -313,6 +319,17 @@ func _build() -> void:
 	ui_q_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	ui_q_info.custom_minimum_size = Vector2(300, 0)
 	v.add_child(ui_q_info)
+	ui_support = OptionButton.new()   # C27
+	ui_support.name = "opt_export_support"
+	for sn in SupportPref.NAMES:
+		ui_support.add_item(String(sn))
+	ui_support.item_selected.connect(func(_i: int): _refresh_support())
+	v.add_child(ui_support)
+	ui_support_info = Label.new()
+	ui_support_info.name = "export_support_info"
+	ui_support_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ui_support_info.custom_minimum_size = Vector2(300, 0)
+	v.add_child(ui_support_info)
 	_price_row_build(v)
 	ui_safety = PrintSafety.build_row(self)   # C17
 	v.add_child(ui_safety)
@@ -378,9 +395,34 @@ func _build() -> void:
 	ui_blur.button_pressed = bool(m.blast_blur)
 	ui_blur.toggled.connect(func(on: bool): m.blast_blur = on)
 	v.add_child(ui_blur)
+	var est_row := HBoxContainer.new()   # C25: the render time estimate (complaint 730)
+	var est_chk := CheckBox.new()
+	est_chk.name = "chk_estimate_first"
+	est_chk.text = "Say the render time first"
+	est_chk.tooltip_text = "Render shots says how long it will take, and which setting costs most, before the first frame"
+	est_chk.button_pressed = RenderEstimate.show_first
+	est_chk.toggled.connect(func(on: bool): RenderEstimate.show_first = on)
+	est_row.add_child(est_chk)
+	var est_btn := Button.new()
+	est_btn.name = "btn_estimate_time"
+	est_btn.text = "Estimate render time"
+	est_btn.tooltip_text = "how long Render shots would take now, and the costly setting; nothing is rendered"
+	var est_lab := Label.new()
+	est_lab.name = "lbl_estimate_time"
+	est_btn.pressed.connect(func(): est_lab.text = String(m._render_estimate().get("text", "")))
+	est_row.add_child(est_btn)
+	est_row.add_child(est_lab)
+	v.add_child(est_row)
 	v.add_child(BlastBlur.controls(m))
 	v.add_child(ExportNames.controls())   # C09: name template, FBX camera, lightmap UV2
-	dlg.add_child(v)
+	# C30: the options scroll in a box of their own (its height is set in open() to what the window can hold); the dialog's own
+	# Export / Cancel / Batch... buttons sit below it, so they stay on screen on a 1024 x 600 window
+	opts_scroll = ScrollContainer.new()
+	opts_scroll.name = "export_opts_scroll"
+	opts_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opts_scroll.add_child(v)
+	dlg.add_child(opts_scroll)
 	ui_target.item_selected.connect(_on_target)
 	ui_format.item_selected.connect(_on_format)
 	dlg.confirmed.connect(_on_export)
@@ -425,7 +467,16 @@ func open() -> void:
 	ui_what.select(1 if (free_part or m._sculpt_sphere_open()) else 0)
 	ui_budget.select(0)   # a budget is chosen each time: never a silent decimation
 	_refresh()
+	_fit_to_window()
 	dlg.popup_centered()
+
+
+## C30: the options box takes the height the window leaves (title bar, button row and margins taken off), never more than the options need
+func _fit_to_window() -> void:
+	var room := int(dlg.get_parent().get_viewport().get_visible_rect().size.y) - 190
+	var need := int(opts_scroll.get_child(0).get_combined_minimum_size().y)
+	opts_scroll.custom_minimum_size = Vector2(640, clampi(need, 120, maxi(room, 120)))
+	dlg.size = Vector2i(dlg.min_size.x, 0)
 
 
 func _on_target(_i: int) -> void:
@@ -445,6 +496,8 @@ func _fill_formats() -> void:
 	ui_format.clear()
 	for f in (_tg()[ui_target.selected] as Dictionary)["formats"]:
 		ui_format.add_item(String((f as Dictionary)["name"]))
+	if _cur_id() == "print" and m.S != null and C23Colour.colours_of(MeshExport.bodies_of(m.S.part, {})["bodies"]).size() > 1:   # C23
+		ui_format.add_item(String(AUTO_FORMAT["name"]))
 	ui_format.select(0)
 
 
@@ -457,11 +510,12 @@ func _refresh() -> void:
 	ui_what.disabled = not plain
 	var why := "" if plain else "\n\nThe choice is for the plain .glb (one mesh per object, no animation); this format always holds everything."
 	ui_face_row.visible = _cur_id() == "laser"
-	ui_budget_row.visible = _cur_run() in ["glb", "obj", "stl", "3mf"]
+	ui_budget_row.visible = _cur_run() in ["glb", "obj", "stl", "3mf", "auto"]
 	ui_price_row.visible = _cur_id() == "cutlist" or _cur_id() == "print"
 	if ui_safety != null:
 		ui_safety.visible = _cur_id() == "print"
 	_refresh_quality()
+	_refresh_support()
 	if ui_bed_row != null:
 		ui_bed_row.visible = _cur_id() == "print"
 	_refresh_slicer()
@@ -496,8 +550,15 @@ func quality() -> Dictionary:
 	return MeshQuality.of(ui_q.get_item_text(maxi(ui_q.selected, 0)), ui_q_custom.value)
 
 
+func _refresh_support() -> void:   # C27
+	var on: bool = _cur_id() == "print" and _cur_run() == "3mf"
+	ui_support.visible = on
+	ui_support_info.visible = on
+	ui_support_info.text = SupportPref.words(ui_support.selected)
+
+
 func _refresh_quality() -> void:
-	var on: bool = (_cur_id() == "print" and _cur_run() in ["stl", "3mf"]) or (_cur_run() in ["glb", "obj"] and ui_what.selected > 0 and not (m.S.part as Dictionary).is_empty() and Part.available())   # W05b: and the OBJ / GLB of the part's objects
+	var on: bool = (_cur_id() == "print" and _cur_run() in ["stl", "3mf", "auto"]) or (_cur_run() in ["glb", "obj"] and ui_what.selected > 0 and not (m.S.part as Dictionary).is_empty() and Part.available())   # W05b: and the OBJ / GLB of the part's objects
 	ui_q_row.visible = on
 	ui_q_info.visible = on
 	ui_q_custom.visible = on and ui_q.selected == 3
@@ -507,7 +568,7 @@ func _refresh_quality() -> void:
 	var rec: Dictionary = m.S.part
 	var budget: int = ExportBudget.BUDGETS[ui_budget.selected] if ui_budget.selected >= 0 else 0
 	var key := "%d|%s|%s|%d" % [rec.hash(), str(q), _cur_run(), budget]
-	var fmt := _cur_run() if _cur_run() in ["stl", "3mf"] else "stl"
+	var fmt := ("3mf" if _cur_run() == "auto" else _cur_run()) if _cur_run() in ["stl", "3mf", "auto"] else "stl"
 	if not _q_cache.has(key):
 		var bo := MeshExport.bodies_of(rec, q)
 		_q_cache[key] = MeshQuality.estimate(ExportBudget.apply_bodies(bo["bodies"], budget), fmt, String(rec.get("name", "Part"))) if (bo["bodies"] as Array).size() > 0 else {"tris": 0, "bytes": 0, "text": "nothing to export yet"}
@@ -517,6 +578,8 @@ func _refresh_quality() -> void:
 
 
 func _cur_run() -> String:
+	if _cur_id() == "print" and ui_format.selected == 2:   # C23: the listed-only-when-painted third format
+		return "auto"
 	var fs: Array = (_tg()[ui_target.selected] as Dictionary)["formats"]
 	return String((fs[clampi(maxi(ui_format.selected, 0), 0, fs.size() - 1)] as Dictionary)["run"])
 
@@ -531,7 +594,7 @@ func text_of(id: String, fi: int) -> Dictionary:
 	if t.is_empty():
 		return {}
 	var fs: Array = t["formats"]
-	var f: Dictionary = fs[clampi(fi, 0, fs.size() - 1)]
+	var f: Dictionary = AUTO_FORMAT if (id == "print" and fi == 2) else fs[clampi(fi, 0, fs.size() - 1)]
 	var S: Scene = m.S
 	var fps_s := "%d fps, the scene's own rate; the file keys every frame at it" % S.fps
 	if id == "bodyanim":
@@ -562,6 +625,9 @@ func checks(id: String, run: String) -> Array:
 				var fbo := MeshExport.bodies_of(m.S.part, quality())
 				if not (fbo["bodies"] as Array).is_empty():
 					pl.append_array(C20Fit.check_lines(m.S.part, fbo["bodies"], quality()))
+			var cl := C23Colour.dialog_line(m.S.part, run, quality())   # C23: a part with more than one colour says what each format does with it
+			if cl != "":
+				pl.append(cl)
 		return pl
 	if id == "cutlist":
 		return CutList.check_lines(m.S.part)
@@ -649,7 +715,7 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 	if t.is_empty():
 		return ""
 	var fs: Array = t["formats"]
-	var run := String((fs[clampi(fi, 0, fs.size() - 1)] as Dictionary)["run"])
+	var run := "auto" if (id == "print" and fi == 2) else String((fs[clampi(fi, 0, fs.size() - 1)] as Dictionary)["run"])
 	if id == "cutlist":   # s081: the CSV of the boards
 		var rc := CutList.export_csv(m.S.part, UserPaths.w(dir), ui_csv_locale.selected if ui_csv_locale != null and ui_csv_locale.selected > 0 else 0)
 		m._say_plain(String(rc["text"]))
@@ -659,8 +725,13 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 		m._say_plain(String(rl["text"]))
 		return String(rl["path"]) if bool(rl["ok"]) else ""
 	if id == "print":   # STL / 3MF of the part on screen (never blocked: an open shape still writes, with the warning in the words)
-		var r := PrintSplit.export_part(m.S.part, run, UserPaths.w(dir), bed_mm, quality()) if split_fit else MeshExport.export_part(m.S.part, run, UserPaths.w(dir), budget, quality())
-		m._say_plain(String(r["text"]))
+		var why23 := ""
+		if run == "auto":   # C23: the part decides; the words say why
+			var pk23 := C23Colour.pick(m.S.part, quality(), "auto")
+			run = String(pk23["fmt"])
+			why23 = String(pk23["why"])
+		var r := PrintSplit.export_part(m.S.part, run, UserPaths.w(dir), bed_mm, quality()) if split_fit else MeshExport.export_part(m.S.part, run, UserPaths.w(dir), budget, quality(), SupportPref.of(ui_support.selected) if run == "3mf" and ui_support != null else {})
+		m._say_plain(String(r["text"]) + (". " + why23 if why23 != "" and bool(r["ok"]) else ""))
 		return String(r["path"]) if bool(r["ok"]) else ""
 	if id == "step":   # STEP of the part on screen (the exact solid)
 		var rs := StepExport.export_part(m.S.part, UserPaths.w(dir))
