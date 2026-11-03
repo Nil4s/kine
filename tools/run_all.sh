@@ -869,3 +869,6 @@ EXTRA="$EXTRA c31:w"   # c31: pt_BR 447 strings, placeholders, CRLF, review list
 
 
 EXTRA="$EXTRA c30:w"
+
+
+EXTRA="$EXTRA c38:w"   # C38: coincident faces nudged 0.01 mm in words, heavy boolean in steps with progress + Cancel (tests/c38_test.gd)
