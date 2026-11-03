@@ -59,6 +59,7 @@ static func write(S: Scene, B: Body, path: String, root_motion := false, xf := T
 	# the file is a pure function of the scene, the body and the options: the last one built is kept, so the same scene written
 	# again (a second click, the gentle test's hostile starts) is the write only, not the pose of every frame again
 	var ck := var_to_str([S.to_dict(B, true), keep, root_motion, xf, root_name, ascii, camera_keys, unit_mult, unit_factor, up_z] + ([mats] if not mats.is_empty() else []))
+	var ck := var_to_str([S.to_dict(B, true), keep, root_motion, xf, root_name, ascii, camera_keys, unit_mult, unit_factor, up_z, StayInPlace.on])
 	if ck == _last_key and not _last.is_empty():
 		return _write_out(_last, path, ascii)
 	var man := GltfExport.build(S, B, an, false, root_motion)
