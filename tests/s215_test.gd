@@ -160,6 +160,7 @@ func _init() -> void:
 	await idle(4)
 	ep = pu.ep
 	await click_ctl(ctl("easypart_chip_parts"))
+	await click_ctl(ep.lib_group_btns["Building"])   # s279 navigation only: s239 put Pipes under the Building group tab (as fafa626d did for s079)
 	await click_ctl(ctl("easypart_lib_Pipes"))
 	await idle(3)
 	var vp := Rect2(Vector2.ZERO, Vector2(1280, 720))
