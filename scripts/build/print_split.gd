@@ -276,13 +276,13 @@ static func _split_body(id: int, body: Dictionary, bed: Vector3, cuts: Array) ->
 
 ## the Export dialog's road with Split to fit ticked. fmt "stl" | "3mf". Answers
 ## {"ok", "path" (the first file), "paths", "why", "report", "text", "pieces", "split", "cuts"}
-static func export_part(rec: Dictionary, fmt: String, dir: String, bed: Vector3, quality := {}) -> Dictionary:
+static func export_part(rec: Dictionary, fmt: String, dir: String, bed: Vector3, quality := {}, support := {}) -> Dictionary:
 	var sp := split_rec(rec, bed, quality)
 	var bodies: Array = sp["bodies"]
 	if bodies.is_empty():
 		return {"ok": false, "path": "", "paths": [], "why": String(sp["why"]), "report": {}, "text": "NOT DONE: " + String(sp["why"]), "pieces": 0, "split": false, "cuts": []}
 	if not bool(sp["split"]):
-		var r := MeshExport.export_part(rec, fmt, dir, 0, _q)
+		var r := MeshExport.export_part(rec, fmt, dir, 0, _q, support)
 		r["paths"] = [r["path"]] if String(r["path"]) != "" else []
 		r["pieces"] = bodies.size()
 		r["split"] = false
@@ -304,7 +304,7 @@ static func export_part(rec: Dictionary, fmt: String, dir: String, bed: Vector3,
 			paths.append(p)
 	else:
 		var p3 := "%s/%s.3mf" % [gdir, MeshExport.stem(name)]
-		e = MeshExport.write_3mf(p3, bodies, name)
+		e = MeshExport.write_3mf(p3, bodies, name, support)
 		if e == OK:
 			paths.append(p3)
 	if e != OK:

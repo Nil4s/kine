@@ -271,3 +271,28 @@ static func color_of(h: Dictionary, i: int) -> Color:
 		"over":
 			return OVER_C
 	return FREE_C
+
+
+## C21: the shapes that can still move, named the way the drawing counts them ("line 2", "circle 1"): [{"i": entity index, "name": text}].
+## Read from analyze()'s own per-shape states, so it never disagrees with the colours.
+static func free_shapes(sk: Dictionary, h: Dictionary) -> Array:
+	var out: Array = []
+	if String(h.get("state", "")) != "free":
+		return out
+	var counts := {}
+	var ents: Array = sk.get("ents", [])
+	for i in ents.size():
+		var k := String(ents[i].get("k", ""))
+		counts[k] = int(counts.get(k, 0)) + 1
+		if String((h.get("ent", {}) as Dictionary).get(i, "free")) == "free":
+			out.append({"i": i, "name": "%s %d" % ["rectangle" if k == "rect" else k, int(counts[k])]})
+	return out
+
+
+## C21: "3 free ways to move: line 2, line 4, circle 1" (empty when nothing is free)
+static func free_words(sk: Dictionary, h: Dictionary) -> String:
+	var fs := free_shapes(sk, h)
+	if fs.is_empty():
+		return ""
+	var names: Array = fs.map(func(d): return String(d["name"]))
+	return "%d free to move: %s" % [int(h.get("free", 0)), ", ".join(PackedStringArray(names))]

@@ -70,6 +70,7 @@ const MM := 0.001
 const POFFSET := preload("res://scripts/build/part_offset.gd")   # plan 18: Thinner / thicker everywhere
 const PBULGE := preload("res://scripts/build/part_bulge.gd")   # plan 23: Pinch / Bulge a face
 const GEAR_DRIVE := preload("res://scripts/gear_drive.gd")
+const BSAFE := preload("res://scripts/build/boolean_safe.gd")   # C38: coincident faces nudged 0.01 mm, said in words
 const JOINH := preload("res://scripts/build/join_helper.gd")   # W10: line-touch words, counted bodies, the 0.01 mm nudge
 const PPRIM := preload("res://scripts/build/part_prim.gd")   # s229: primitives by numbers, planes from 3 points / an angle, scoped intersect, bow-tie check
 const PFIT := preload("res://scripts/build/part_fit.gd")   # s193: Fit to an object (a holder / case sunk with a phone scan)   # s124: the Gear pair turned for the view
@@ -236,6 +237,10 @@ static func from_file(d: Variant) -> Dictionary:
 		for j in (d as Dictionary)["joints"]:
 			if j is Dictionary and String(j.get("kind", "")) in ["turn", "slide"]:
 				out["joints"].append((j as Dictionary).duplicate(true))   # p121 JOINTS IN WORDS: a hinge or a slide between two pieces (scripts/easy_part_stick.gd _joint_words)
+	if (d as Dictionary).get("doors") is Dictionary:
+		out["doors"] = (d as Dictionary)["doors"].duplicate(true)   # C18: door marks survive save and load (scripts/build/part_door.gd)
+	if bool((d as Dictionary).get("tol_scaled", false)):
+		out["tol_scaled"] = true   # C18: opt-in scaled Join touch tolerance
 	if (d as Dictionary).get("film") is Dictionary:
 		out["film"] = (d as Dictionary)["film"].duplicate(true)   # s269 FILM KEYS: look / spin / move keys survive save and load (scripts/build/film.gd)
 	if String((d as Dictionary).get("unit", "")) in ["mm", "cm", "in"]:
@@ -731,8 +736,9 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				if bodies.is_empty():
 					errs[id] = "there is nothing to mirror"
 					continue
-				var pl := plane(String(f.get("plane", "right")))
-				var mo := Vector3.ZERO   # EMIRROR: a piece off the middle line is mirrored across the middle of the PART (its box centre), not the world line
+				var pl := resolve_plane(rec, String(f.get("plane", "right")))   # C03: "plane" is a base plane, or a plane step's id (a face, an angle plane): mirror across any plane
+				var mo: Vector3 = Vector3.ZERO if PLANES.has(String(f.get("plane", "right"))) else (pl["o"] as Vector3)
+				# EMIRROR: a piece off the middle line is mirrored across the middle of the PART (its box centre), not the world line
 				if bool(f.get("mid", false)):
 					var pbb := AABB()
 					for pb in bodies:
@@ -793,9 +799,12 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 						nlook["name"] = lab
 					looks[ni] = nlook
 			"combine":   # COMBINE: its own function (_combine_step): the target and the tools become one body list again
+				PPRIM.last_warning = ""
 				var ce := _combine_step(bodies, looks, f)
 				if ce != "":
 					errs[id] = ce
+				elif PPRIM.last_warning != "":
+					warns[id] = PPRIM.last_warning   # C38
 			"align":   # P054 ALIGN CHIPS: the moved piece slides so its left side, middle or top sits level with the other piece's (its own function: _align_step)
 				var al := _align_step(bodies, f)
 				if al != "":
@@ -886,6 +895,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 						outside = false
 				var top := float(ed["a"].y) >= bb.end.y - SKIN_MM * MM and float(ed["b"].y) >= bb.end.y - SKIN_MM * MM
 				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "concave": concave, "inner": inner, "outside": outside, "top": top, "fp": PartRefs.face_pair(ef, fnorm, fcen, bb, ftyp, ed)})
+	FixHint.apply(errs, feats)   # C21: every failed step ends with a how-to-fix sentence (the start of the message is untouched)
 	res["solo"] = want.get("solo", [])
 	pack_surfaces(mesh, pend, res)
 	res["instances"] = sketches.get(PartInstances.KEY, [])   # s261
@@ -2532,6 +2542,11 @@ static func _combine_step(bodies: Array, looks: Array, f: Dictionary) -> String:
 				nx = KCad.cut(cur, tool_id)
 			_:
 				nx = KCad.intersect(cur, tool_id)
+		if nx != 0:   # C38: an answer with open edges (faces sitting exactly on each other) is redone with the tool 0.01 mm off, and said in words
+			var c38 := BSAFE.polish(cur, tool_id, op, nx)
+			nx = int(c38["id"])
+			if String(c38["words"]) != "":
+				PPRIM.last_warning = String(c38["words"])
 		var w10 := JOINH.explain(cur, tool_id, op, nx)   # W10: counted bodies / "only touch along a line" in plain words ("" = fine)
 		if tool_id != bodies[t]:
 			KCad.release(tool_id)

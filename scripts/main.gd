@@ -346,6 +346,7 @@ var clean := false:         # recording: no highlights, no name tag, NO PANELS (
 		if is_inside_tree() and ui_status != null:
 			_sides_apply()
 var ui_side: Array = []      # the panels Tab hides
+var guided_pose: GuidedPose   # C16: opt-in guided first pose (palette command only)
 var onboard: Onboarding     # ONBOARDING (scripts/onboarding.gd, R25): the first-launch 3-step guide
 var build_choose: BuildChoose   # BUILD's "What do you want to build?" chooser (scripts/build_choose.gd)
 var model_cards: ModelCards   # MODEL's task cards, "What do you want to do?" (scripts/model_cards.gd)
@@ -575,6 +576,8 @@ func _fold_button(which: String) -> void:
 	ui_fold_btn[which] = b
 # THE TARGET DUMMY (Nick 10-13): a second mannequin out front; red where the weapon is in it (scripts/dummy.gd)
 var T := Dummy.new()
+var ccost := CharCost.new(self)   # C26: the per-character cost line in the scene panel (opt-in, scripts/char_cost.gd)
+var pickchk := PickCheck.new(self)   # C26: "Help: test body selection" (scripts/pick_check.gd)
 var pdoc := PerfDoc.new(self)   # Q15 PERF DOCTOR: "Help: why is it slow?" (scripts/perf_doc.gd)
 var ov := Overlays.new()    # motion trail (T) and onion skin (O): scripts/overlays.gd
 var sd := SmartDrag.new()   # SMART DRAG (ROADMAP I12): scripts/smart_drag.gd; the glue is after _drag_joint
@@ -1418,6 +1421,7 @@ func _export_fbx(dir := "res://exports", root_motion := false) -> String:
 		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
 		return ""
 	var sfx := "_ue5" if root_motion else ""
+	ExportNames.body_rgb = BODY_COLOURS[body_colour][1]   # C39
 	var acts := _export_actors()
 	var first := ""
 	var bones := 0
@@ -1425,7 +1429,9 @@ func _export_fbx(dir := "res://exports", root_motion := false) -> String:
 	if not acts.is_empty():
 		for a in acts:
 			var p := "%s/%s%s_%s.fbx" % [dir, _export_base(), sfx, safe_file(String(a["name"]))]
-			var r := FbxExport.write(a["S"], a["B"], p, root_motion, a["xf"], String(a["name"]))
+			if ExportNames.template.strip_edges() != "":   # C09: the name template
+				p = "%s/%s%s.fbx" % [dir, ExportNames.expand(ExportNames.template, {"name": _export_base(), "part": safe_file(String(a["name"]))}, _export_base()), sfx]
+			var r := ExportNames.fbx_write(a["S"], a["B"], p, root_motion, a["xf"], String(a["name"]), false, ExportNames.cam_keys(a["S"]))
 			if r["err"] != OK:
 				_refresh()
 				_say_plain("NOT DONE: %s could not be written (%s)" % [p.get_file(), error_string(r["err"])])
@@ -1435,18 +1441,18 @@ func _export_fbx(dir := "res://exports", root_motion := false) -> String:
 				bones = (r["bones"] as PackedStringArray).size()
 				frames = int(r["keys"])
 		_refresh()
-		_say_plain("exported %d .fbx, one per fighter, each at its place: %d bones, %d frames at %d fps, UE5 bone names, centimetres, Y up. The weapons are not in them" % [acts.size(), bones, frames, S.fps])
+		_say_plain("exported %d .fbx, one per fighter, each at its place: %d bones, %d frames at %d fps, UE5 bone names, centimetres, Y up%s. The weapons are not in them" % [acts.size(), bones, frames, S.fps, ExportNames.fbx_for_words()])
 		return first
 	var nm := S.name if S.name != "" else "scene"
-	var path := "%s/%s%s.fbx" % [dir, nm, sfx]
+	var path := "%s/%s%s.fbx" % [dir, ExportNames.expand(ExportNames.template, {"name": nm, "part": nm}, nm), sfx]   # C09: blank template = nm
 	var keep := B.state()
-	var r2 := FbxExport.write(S, B, path, root_motion)
+	var r2 := ExportNames.fbx_write(S, B, path, root_motion, Transform3D.IDENTITY, "", false, ExportNames.cam_keys(S))
 	B.set_state(keep)
 	_refresh()
 	if r2["err"] != OK:
 		_say_plain("NOT DONE: the .fbx could not be written (%s)" % error_string(r2["err"]))
 		return ""
-	_say_plain("exported %s.fbx: %d bones, %d frames at %d fps, UE5 bone names, centimetres, Y up%s. The weapons and props are not in it" % [nm, (r2["bones"] as PackedStringArray).size(), int(r2["keys"]), S.fps, ", root motion on the root bone" if root_motion else ""])
+	_say_plain("exported %s.fbx: %d bones, %d frames at %d fps, UE5 bone names, centimetres, Y up%s%s. The weapons and props are not in it" % [nm, (r2["bones"] as PackedStringArray).size(), int(r2["keys"]), S.fps, ", root motion on the root bone" if root_motion else "", ExportNames.fbx_for_words()])
 	return path
 
 
@@ -2024,6 +2030,19 @@ func _sr_panel_make() -> void:
 	_sr_layer.visible = false
 
 
+## C25 (730): the time a shot render would take, said before it starts (nothing is rendered or written). Returns {secs, costliest, text}
+func _render_estimate() -> Dictionary:
+	var fps: int = S.fps
+	var vp := get_viewport().get_visible_rect().size
+	var j := {"w": int(vp.x), "h": int(vp.y), "frames": ShotRender.frame_count(_ps().length(), fps), "volumetric": world_env != null and world_env.volumetric_fog_enabled,
+		"sdfgi": world_env != null and world_env.sdfgi_enabled, "ssao": world_env != null and world_env.ssao_enabled, "blur_n": blast_blur_n if blast_blur else 1}
+	var r := RenderEstimate.estimate(j, RenderEstimate.app_cal)
+	_say_plain(String(r["text"]))
+	return r
+
+
+
+
 func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary:
 	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if _sr_busy:
@@ -2035,6 +2054,8 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 	if S.cards.size() < 2:
 		_say_plain("NOT NOW: a render needs at least 2 cards (a move): press Enter to add a card, or open a scene in the list below")
 		return {}
+	if RenderEstimate.show_first:
+		_render_estimate()   # C25: opt-in, the estimate is said before the first frame
 	var fps: int = S.fps
 	var length: float = _ps().length()
 	var n := ShotRender.frame_count(length, fps)
@@ -3030,6 +3051,9 @@ func _ready() -> void:
 	onboard = Onboarding.new()
 	onboard.m = self
 	add_child(onboard)
+	guided_pose = GuidedPose.new()
+	guided_pose.m = self
+	add_child(guided_pose)
 	BootProfile.mark("onboard node")
 	model_cards = ModelCards.new()
 	model_cards.m = self
@@ -3154,6 +3178,7 @@ func _ready() -> void:
 	camnav = CamNav.new(self)   # W01: camera navigation settings (scripts/cam_nav.gd)
 	camnav.load_from(settings)
 	camnav_ui = CamNavUI.new(self, camnav)
+	campiv = CamPivot.new(self)   # C07: own-axis camera, pivot ball, joint dot (scripts/cam_pivot.gd)
 	kt = KeymapTranslate.new(self)   # P20: the "coming from Blender / Maya" helper (scripts/keymap_translate.gd)
 	kt.load_from(settings)
 	blk = BlKeys.new(self)   # B16: Blender-style modal G R S, off unless the setting says so
@@ -3184,6 +3209,7 @@ func _ready() -> void:
 	BootProfile.mark("teach+folds")
 	# not on a scripted shot either (round 13: an agent's screenshot came back with the tour card over the body)
 	onboard.build(ui_root)
+	guided_pose.build(ui_root)
 	page_tour.build(ui_root)
 	model_cards.build(ui_root)
 	build_choose.build(ui_root)
@@ -3493,6 +3519,8 @@ func _process_body(dt: float) -> void:
 	_doc_line()   # RR1: the strip catches up (throttled) after edits that do not refresh
 	_mark_play_card()   # the card at the playhead wears the gold frame; the strip follows it while playing
 	_keys_camera(dt)
+	if campiv != null:
+		campiv.tick(dt)   # C07
 	if vx != null:
 		vx.tick(dt)   # K13-K16
 	if shot_through:
@@ -5851,6 +5879,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			return
 		if dragging == "orbit":
 			if shot_through:
+				campiv.own_begin()   # C07: opt-in, the camera turns about its own position
 				_shot_hand_over()   # as Blender: orbiting leaves the camera view, from where the camera was
 			rel = camx.inv("orbit", rel)   # C01
 			camnav.orbit_pre()   # W01
@@ -9827,7 +9856,7 @@ func _cape_tick() -> void:
 			return
 		_do(func(): S.cape = cape)
 		_dummy_hits()
-		_say("the cape is on the back: %d frames of cloth at %d fps (Ctrl+Z takes it back)" % [(cape["frames"] as Array).size(), S.fps])
+		_say("the cape is on the back: %d frames of cloth at %d fps (Ctrl+Z takes it back).  %s" % [(cape["frames"] as Array).size(), S.fps, ClothStretch.words(ClothStretch.report(cape))])
 		return
 	if Engine.get_process_frames() % 15 == 0:   # the progress line, about four times a second
 		_say("baking the cape: %d%%  (Cape: cancel the bake stops it; the scene keeps its last cape)" % int(job.progress() * 100.0))
@@ -10999,7 +11028,7 @@ func _hands_refresh() -> void:
 				if not Rect2(c, ps).intersects(body):
 					pick = c
 					break
-			ui_hands_panel.position = pick
+			ui_hands_panel.position = PickDodge.fit(ui_hands_panel, pick, Rect2(float(LEFT_W) + 8.0, float(TOP_H) + 8.0, vs.x - float(LEFT_W) - float(RIGHT_W) - 16.0, vs.y - float(TOP_H) - 16.0 - float(BOTTOM_H) - 56.0), PickDodge.points(self))   # C29: never over a body pick point
 		ui_hands_panel.position = ui_hands_panel.position.clamp(Vector2.ZERO, (vs - ui_hands_panel.size).max(Vector2.ZERO))   # no candidate fits a short window: it still stays on the view
 	for d in ui_hands:
 		if not is_instance_valid(d["box"]):
@@ -11703,6 +11732,8 @@ func _theme() -> Theme:
 		th.set_color("icon_hover_pressed_color", t, Tok.c("on_accent"))
 		th.set_color("font_pressed_color", t, Tok.c("on_accent"))   # STYLE: a pressed button is the accent; its words take on_accent (dark text on amber / sky)
 		th.set_color("font_hover_pressed_color", t, Tok.c("on_accent"))
+	for t in ["CheckBox", "CheckButton"]:   # C33: an ON box under the mouse keeps the accent fill its dark on_accent words need (it fell back to a dark box: 1.04:1)
+		th.set_stylebox("hover_pressed", t, box.call(Tok.c("accent")))
 	if not Tok.dark:
 		# LIGHT (round 9): Godot's own look is dark, so every control that draws its own box or text gets the palette.
 		# Dark keeps Godot's look for these (nothing Nick knows changes)
@@ -16270,6 +16301,7 @@ func _press(code: Key, shift := false) -> void:
 var ui_keys: PanelContainer
 var camnav: CamNav   # W01
 var camnav_ui: CamNavUI
+var campiv: CamPivot   # C07
 var camx: CamExtras   # C01
 var kt: KeymapTranslate   # P20: Blender / Maya key helper
 var blk: BlKeys           # B16: Blender-style modal G / R / S layer
@@ -16355,6 +16387,7 @@ func _commands() -> Array:
 	add.call("Record macro", "", _macro_record, "macro record macros start recording steps", false, "start a macro: every palette command you run from now is a step (with the part picked when it ran); Stop macro recording saves it")
 	add.call("Stop macro recording", "", _macro_stop, "macro stop end save finish recording", false, "save the macro being recorded under its name; it then shows in the S box as 'Macro: <name>'")
 	add.call("Play macro...", "", func(): ui_cmd.open_with("macro:"), "macro play run list saved", false, "the S box lists the saved macros: click or Enter plays one on the part picked now (ONE undo step)")
+	add.call("Guided first pose", "", func(): guided_pose.begin(), "guided first pose tutorial onboarding learn beginner steps", false, "a six-step guide to your first pose (body, click a part, drag, second part, clip, play); each step moves on by doing it, Skip closes it")
 	add.call("Page tour", "", func(): page_tour.replay(), "page tour help guide learn body model sculpt surface intro onboarding", false, "the five-step tour of the page you are on (BODY, MODEL, SCULPT or SURFACE; BODY from any other page), seen or not")
 	add.call("First steps tour", "", _tour_start, "tour help start begin learn new intro guide", false, "five steps that show the poser by doing: click a part, drag it, clip two cards, play, check")
 	add.call("Help: show the tour", "", easy.tour_start, "help tour easy beginner first steps learn guide intro", false, "the Easy tour: five steps (drag a hand, key the pose, move the playhead, key again, play), each moved on by doing it")
@@ -16376,6 +16409,9 @@ func _commands() -> Array:
 	add.call("Key the part here", "K", _press.bind(KEY_K), "part key keyframe channel", true, "a part key: the picked part's 3 angles at the playhead, over the cards' blend (WW1)")
 	add.call("Spine IK: spline the back here", "", _spine_pin, "spine ik spline curve bezier back bend chest hip mid vertebrae twist", true, "the picked back part's spine becomes a curve through a hip, a mid-back and a chest handle: drag the handles and the back bends along it, bones keeping their length, twist spread from hip to chest, every joint inside its limits")
 	add.call("Spine IK: spline off here", "", _spine_off, "spine ik spline off release curve back unlock", true, "the back follows the cards again from the playhead (over the last frame)")
+	add.call("Prop: attach on this card (move the pick-up here)", "", PropAttach.attach_here.bind(self), "prop attach pick up grab hold frame time timeline hand early late carry", true, "the picked prop is taken by the hand(s) from the selected card's arrival instead of the card it is attached on now (one undo step; the status line names the frames)")
+	add.call("Prop: let go on this card (move the let-go here)", "", PropAttach.detach_here.bind(self), "prop detach let go drop release frame time timeline hand carry", true, "the picked prop is let go at the selected card's arrival instead of the card it is let go on now (one undo step)")
+	add.call("Cape: stretch readout", "", func(): _say(ClothStretch.words(ClothStretch.report(S.cape if S != null else {}))), "cape cloth stretch edge length overlay readout sim", false, "says how far the baked cape stretched: the worst and the average edge against its rest length, and where on the cape the worst one is")
 	add.call("IK: pin the picked hand/foot here", "", _ik_pin, "ik inverse kinematics pin lock plant stick hand foot target pole table wall contact world space", true, "the picked limb's hand (or foot) stays where it is now from the playhead on, whatever the body does; its elbow (knee) keeps to the side it bends now (a pole)")
 	add.call("IK: contact mode on/off (a hand slides on a wall or table)", "", _ik_contact_toggle, "ik contact wall table slide surface palm hand drag touch", false, "while on, a hand you drag is held on the nearest wall or table of the set with its palm on the surface, so it slides along it instead of passing through; off = the plain pull")
 	add.call("IK space: world", "", func(): _ik_space("world"), "ik space switch world follow free hand foot parent child of", true, "the picked hand (or foot) stops following anything: its target is in the world from the playhead, and it does not move at this frame")
@@ -16393,6 +16429,9 @@ func _commands() -> Array:
 	add.call("Constraint: target the picked prop", "", _cons_target_prop, "constraint target prop box door ball chair table carried hold", false, "the picked prop becomes the target of the next constraint (Child Of follows it where it is: carried in a hand, or moved by its keys)")
 	add.call("Prop: key its place here", "", _prop_key, "prop key keyframe animate move position turn door ball box set", true, "a key for the picked prop at the playhead: where it is and how it is turned (a door: its swing too); between keys it moves smoothly")
 	add.call("Prop: delete its keys", "", _prop_unkey, "prop key keyframe clear remove animation", true, "the picked prop's keys go: it stays where it is at the playhead")
+	add.call("Prop: attach to the LEFT hand on this card", "", C22Hands.take_left.bind(self), "prop attach left hand pick up grab hold carry", true, "the picked prop is taken by the LEFT hand from the selected card's arrival, whichever hand is nearer (one undo step)")
+	add.call("Prop: attach to the RIGHT hand on this card", "", C22Hands.take_right.bind(self), "prop attach right hand pick up grab hold carry", true, "the picked prop is taken by the RIGHT hand from the selected card's arrival, whichever hand is nearer (one undo step)")
+	add.call("Grip: palm on the prop's handle", "", C36Grip.grip_cmd.bind(self), "grip handle palm hold sword bar wrap fingers hand prop", true, "the selected hand takes the picked prop by its handle: wrist solved from the handle axis, palm on the surface, fingers wrapped (one undo step)")
 	add.call("Grip: wrap the hand round the picked prop", "", _grip_prop_cmd, "grip wrap hand fingers close round prop ball box cylinder any shape keyframe", true, "the picked hand's fingers close round the picked prop's surface (any shape; a ball, a cylinder, a box, an imported model) and the thumb opposes; the finger poses are keyed at the playhead; one undo step")
 	add.call("Door: open 15 deg (key here)", "", _door_swing.bind(15.0), "door swing open hinge push key", true, "the picked door's leaf turns 15 deg more open about its hinge, keyed at the playhead (up to 110 deg)")
 	add.call("Door: close 15 deg (key here)", "", _door_swing.bind(-15.0), "door swing close shut hinge pull key", true, "the picked door's leaf turns 15 deg back toward shut, keyed at the playhead (down to -110 deg: the other way)")
@@ -16911,6 +16950,9 @@ func _commands() -> Array:
 	add.call("Start screen", "", func(): start_screen.show_screen(), "start screen home new project open recent resume", false, "the start screen: New project (Animation, Modeling, 3D Building), Open, recent scenes, Resume")
 	add.call("What went wrong?", "", _why_toggle, "why error wrong refused refusal explain not work failed stuck", false, "says what the last refusal or error meant in plain words: what you tried, why it did not work, and the one next step (a button runs it)")
 	add.call("Pick a part", "", _select_set.bind(["upperarm_r"]), "pick select choose part body click", false, "picks the right upper arm, so the next command has a part to act on")
+	add.call("Scene: show cost per character", "", ccost.show, "cost compute characters actors fighters skinning ik cloth ms frame heavy slow scene panel", false, "a line in the scene panel: milliseconds a frame each character costs for skinning, the pose / IK solve and cloth")
+	add.call("Scene: hide cost per character", "", ccost.hide, "cost compute characters hide", false, "take the cost line off the scene panel")
+	add.call("Help: test body selection", "", pickchk.run, "pick select click body part hit latency clicks several times", false, "aims a probe at the middle of each main body part, asks the pick a click uses, and says how many were found on the first click and how long a pick takes")
 	add.call("Help: why is it slow?", "", pdoc.start, "slow lag fps performance perf frame rate speed heavy stutter choppy profile doctor", false, "plays the scene for 3 seconds (or orbits the view when it has one card) and times the app's own systems: the three heaviest by milliseconds a frame, each with the button that fixes it, then fps before and after")
 	add.call("Help: printable cheat sheet", "", _cheat_sheet, "cheat sheet print keys shortcuts reference pdf paper list commands", false, "every key and every command, grouped, as one page you can print (an HTML file in your Kine folder, opened in the browser)")
 	add.call("Help: I come from Blender", "", kt.set_mode.bind("blender"), "blender keys shortcuts translate migrate switch from coming learn", false, "while on, a Blender key that Kine uses differently shows a toast with Kine's own key for it (Shift+Enter runs that command); remembered")
@@ -19779,6 +19821,7 @@ func _save_pose() -> void:
 
 func _save_pose_now(path: String) -> void:
 	var d := B.to_dict()
+	PoseIKFK.stamp(d, S, clampf(playhead, 0.0, S.length()))   # C13: each limb's IK/FK state
 	d["note"] = "angles in degrees from rest (bend, side, twist; meaning in data/body_limits.json 'say'); A = the joint's turn in rest axes, G = its turn from rest in the world now (quaternions x,y,z,w); pos/end in metres, character space (+Y up, +Z forward, +X his left); contacts = parts inside each other (m). Math: MATH.md"
 	_write(path, d)
 	_lists()
@@ -20084,6 +20127,8 @@ func _load_pose(path: String) -> void:
 		return
 	B.from_dict(d)
 	B.capture_second()   # a pose with both hands on the shaft loads with both hands holding it
+	if d.has("ik") and S != null:
+		PoseIKFK.restore(S, B, d["ik"], clampf(playhead, 0.0, S.length()))   # C13
 
 
 ## then (round 8): what goes on once the scene is saved (New scene, Open): it waits for a Replace / Save as a new name answer
@@ -21257,7 +21302,7 @@ var _gone_said := {}   # prop kinds whose missing model file was already said
 
 
 func _props_show() -> void:
-	Props.settle(S.props)   # UU1: whatever changed, every prop rests on what is under it
+	Props.settle(S.props, C36Grip.air_held(S))   # UU1: whatever changed, every prop rests on what is under it
 	B.props = S.solid_props()   # TT2: the live body stands on the set too (never on what it carries)
 	if ui_props_root == null:
 		return
@@ -22935,6 +22980,9 @@ func _import_video(path: String, raw := false) -> void:
 	_video_t = 0.0
 	_imp_show(true, "tracking %s" % _video_name)   # the bar fills as the tracker reads; Cancel stops it (_video_cancel)
 	_say("tracking %s: finding the person in every frame (about a second per second of video)..." % _video_name)
+	var fc := FootageCheck.check(path, video_python)   # C14 (#560): after the tracking line, a look at the first seconds of the file (never a camera); advice only
+	if String(fc["text"]) != "":
+		_say(String(fc["text"]))
 
 
 ## THE CANCEL WHILE TRACKING (Easy's Copy a video and the Expert import alike): the tracker is killed, its partial files are
@@ -23714,6 +23762,8 @@ func _import_file(path: String) -> Dictionary:
 	if not r["ok"]:
 		_say("could not import %s: %s Try another .glb, or open it in Blender and export it as .glb again" % [path.get_file(), r["why"]])
 		return r
+	if r["kind"] == "rigged":
+		CharScale.offer(self, path, r)   # C21: a character under 0.3 m or over 5 m tall: one click scales it to 1.75 m
 	if r["kind"] == "rigged" and AnimImport.load_source(path)["ok"]:   # a skeleton WITH an animation: the animation import
 		var o := _import_anim(path)
 		return {"ok": o != "", "path": o, "why": "" if o != "" else "refused (the reason is on the status line)"}
@@ -24013,8 +24063,12 @@ func _export_objects(dir := "res://exports", only_selected := false, budget := 0
 		_say_plain("NOT DONE: no mesh object to export (open the test cube, or add a set piece)")
 		return ""
 	var stem := PartNames.stem_of(objs[0]) if only_selected else safe_file(S.name if S.name != "" else "scene") + "_objects"
+	stem = ExportNames.expand(ExportNames.template, {"name": safe_file(S.name if S.name != "" else "scene"), "part": stem}, stem)   # C09
 	var path := "%s/%s.glb" % [dir, stem]
-	var err := GltfExport.write_meshes(ExportBudget.apply_list(objs, budget), path)
+	var wobjs := ExportBudget.apply_list(objs, budget)
+	if ExportNames.lightmap_uv:
+		wobjs = LightmapUV.apply_list(wobjs)   # C09: UV2 for baked lighting, opt-in
+	var err := GltfExport.write_meshes(wobjs, path)
 	if err != OK:
 		_say_plain("NOT DONE: the .glb could not be written (%s)" % error_string(err))
 		return ""

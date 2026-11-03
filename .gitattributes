@@ -1,3 +1,5 @@
 *.sh text eol=lf
 *.bat text eol=crlf
 refs/agent/*.jsonl -text
+docs/PT_BR_REVIEW.md text eol=lf
+data/i18n/pt_BR.po text eol=crlf

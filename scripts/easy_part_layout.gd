@@ -1282,6 +1282,9 @@ func _print_words() -> String:
 			_print_text = "about %d min to print" % mins
 		else:
 			_print_text = "about %d h %d min to print" % [mins / 60, mins % 60]
+		var bbx = pu.res.get("aabb")
+		if bbx is AABB:   # C10: a layer laid faster than the minimum layer time is slowed by the slicer: say so (the time above is unchanged)
+			_print_text += C10Print.layer_note(vol, area, (bbx as AABB).size.y)
 	return _print_text
 
 

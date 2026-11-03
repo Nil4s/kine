@@ -89,6 +89,9 @@ var sk := ""                   # the sketch being edited ("" = the model is show
 var snap_mm := 5.0
 var grid_on := true
 var show_dims := true
+const FREE_RING_C := Color(1.0, 0.22, 0.08, 0.9)   # C33: a red-orange that stays clear of the yellow (#ffc233) selection, and drawn DASHED so the shape differs too
+var show_free := false   # C21: the free shapes named in the status line and ringed on the sketch
+var free_chk: CheckBox
 var upto := -1                 # the timeline marker: -1 = every step
 var sel_step := -1
 var dlg := {}                  # the open feature dialog: {"t", "edit": index or -1, "sketch", ...}
@@ -145,6 +148,7 @@ var f_to: LineEdit
 var f_dur: LineEdit
 var f_dial: Control
 var status := ""
+var c15: PartC15UI   # C15: move-sketch-to-plane + SVG import rows in the sketch palette
 var pill_text := ""   # XFIX2: the last size readout drawn next to the cursor (its words, and where it sits)
 var pill_at := Vector2.ZERO
 var cur_px := Vector2.ZERO   # the last pointer place on the view (the readout follows it)
@@ -168,6 +172,7 @@ var side_title: Label
 var sketch_box: VBoxContainer
 var nums_vb: VBoxContainer
 var snap_btn: Button
+var move_chk: CheckBox   # C25: One Move rule (complaint 198)
 var unit_btn: Button      # W06
 var dual_chk: CheckBox
 var unit_busy := 0
@@ -509,6 +514,14 @@ func _build_side() -> void:
 	grid_chk.focus_mode = Control.FOCUS_NONE
 	grid_chk.toggled.connect(func(v: bool): grid_on = v; pov.queue_redraw())
 	sketch_box.add_child(grid_chk)
+	move_chk = CheckBox.new()
+	move_chk.name = "part_move_rule"
+	move_chk.text = "One Move rule"
+	move_chk.tooltip_text = "Dragging a piece snaps to this sketch grid (Alt = free) and a typed number sets the distance, as in the sketch"
+	move_chk.button_pressed = MoveRule.unified
+	move_chk.focus_mode = Control.FOCUS_NONE
+	move_chk.toggled.connect(func(v: bool): MoveRule.unified = v)
+	sketch_box.add_child(move_chk)
 	snap_btn = Button.new()
 	snap_btn.name = "part_snap"
 	snap_btn.focus_mode = Control.FOCUS_NONE
@@ -540,11 +553,20 @@ func _build_side() -> void:
 	dims_chk.focus_mode = Control.FOCUS_NONE
 	dims_chk.toggled.connect(func(v: bool): show_dims = v; pov.queue_redraw())
 	sketch_box.add_child(dims_chk)
+	free_chk = CheckBox.new()   # C21: which shapes are still free, named and ringed
+	free_chk.name = "part_show_free"
+	free_chk.text = "Show what is free"
+	free_chk.tooltip_text = "name the lines and shapes that can still move (the blue ones) and ring them in orange"
+	free_chk.button_pressed = false
+	free_chk.focus_mode = Control.FOCUS_NONE
+	free_chk.toggled.connect(func(v: bool): show_free = v; _note_sync(); pov.queue_redraw())
+	sketch_box.add_child(free_chk)
 	sketch_box.add_child(_label("NUMBERS (parameters)", 13, true))
 	nums_vb = VBoxContainer.new()
 	nums_vb.name = "part_nums"
 	nums_vb.add_theme_constant_override("separation", 4)
 	sketch_box.add_child(nums_vb)
+	c15 = PartC15UI.new(self)
 	hinge_box = VBoxContainer.new()
 	hinge_box.name = "part_hinge_box"
 	hinge_box.add_theme_constant_override("separation", 6)
@@ -1005,7 +1027,7 @@ func hit(p: Vector2) -> Variant:
 func snap(v: Vector2) -> Vector2:
 	if Input.is_key_pressed(KEY_ALT) or snap_mm <= 0.0:
 		return v
-	return Vector2(snappedf(v.x, snap_mm), snappedf(v.y, snap_mm))
+	return Vector2(MoveRule.snap(v.x, snap_mm, false), MoveRule.snap(v.y, snap_mm, false))
 
 
 func scr(v: Vector2) -> Vector2:
@@ -2096,7 +2118,7 @@ func _preview() -> void:
 		dlg_info.text = _pattern_info()
 	ok_btn.disabled = err != ""
 	if kind == "combine" and f_cmb_nudge != null:
-		f_cmb_nudge.visible = err.ends_with(Part.JOINH.NUDGE_ASK)   # W10
+		f_cmb_nudge.visible = err.contains(Part.JOINH.NUDGE_ASK)   # C21 appends " How to fix:" after it   # W10
 	prev_mesh.mesh = prev["mesh"]
 	prev_mesh.visible = prev["mesh"] != null
 	part_mesh.visible = false
@@ -2589,6 +2611,8 @@ func sync() -> void:
 	side.visible = show and (sk != "" or not dlg.is_empty() or not _sel_hinge().is_empty() or _sel_look() >= 0)
 	tl.visible = show
 	sketch_box.visible = sk != "" and dlg.is_empty()
+	if c15 != null:
+		c15.sync()
 	dlg_box.visible = not dlg.is_empty()
 	hinge_box.visible = show and dlg.is_empty() and sk == "" and not _sel_hinge().is_empty()
 	if sk != "" and dlg.is_empty():
@@ -2713,12 +2737,16 @@ func _note_sync() -> void:
 		t = Part.why_not()
 	elif sk != "":
 		var f := _sk()
-		var sig := JSON.stringify([f.get("ents", []), f.get("cons", []), f.get("dims", [])])
+		var sig := JSON.stringify([f.get("ents", []), f.get("cons", []), f.get("dims", []), show_free])
 		if sig != _profile_sig:
 			_profile_sig = sig
 			_profile_ok = _profile_text(f)
 			if not f.get("ents", []).is_empty():
 				_profile_ok += ", " + String(health_now().get("text", ""))   # W02
+				if show_free:   # C21: which ones
+					var fw := PartHealth.free_words(f, health_now())
+					if fw != "":
+						_profile_ok += " (" + fw + ")"
 		t = "%s: %s" % [f.get("name", "Sketch"), _profile_ok]
 	elif res.get("bodies", 0) > 0:
 		var errs: Dictionary = res.get("errors", {})
@@ -3019,6 +3047,25 @@ func health_now() -> Dictionary:
 func _health_draw(ents: Array) -> void:
 	var h := health_now()
 	var f := _sk()
+	if show_free:   # C21: a ring under every shape that can still move
+		for fsd in PartHealth.free_shapes(f, h):
+			var e: Dictionary = ents[int(fsd["i"])]
+			match String(e["k"]):
+				"line":
+					pov.draw_dashed_line(scr(Part.v2(e["a"])), scr(Part.v2(e["b"])), FREE_RING_C, 8.0, 6.0)
+				"rect":
+					var ra := scr(Part.v2(e["a"]))
+					var rb := scr(Part.v2(e["b"]))
+					var rr := Rect2(ra, rb - ra).abs().grow(3.0)
+					var rc := [rr.position, Vector2(rr.end.x, rr.position.y), rr.end, Vector2(rr.position.x, rr.end.y), rr.position]
+					for k in 4:
+						pov.draw_dashed_line(rc[k], rc[k + 1], FREE_RING_C, 5.0, 6.0)
+				"circle":
+					var rp := PackedVector2Array()
+					for j in 49:
+						rp.append(scr(Part.v2(e["c"]) + Vector2.from_angle(TAU * j / 48.0) * float(e["r"])))
+					for j in range(0, 48, 2):   # every other chord: a dashed ring
+						pov.draw_line(rp[j], rp[j + 1], FREE_RING_C, 7.0)
 	for ci in h.get("clash_cons", []):
 		var c: Dictionary = f["cons"][int(ci)]
 		for key in ["a", "b"]:

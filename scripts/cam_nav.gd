@@ -94,6 +94,7 @@ func press(mb: InputEventMouseButton) -> bool:
 			return false
 		zoom_at(mb.position, WHEEL_STEP if mb.button_index == MOUSE_BUTTON_WHEEL_UP else 1.0 / WHEEL_STEP)
 		return true
+	_pv_on = false
 	if is_default():
 		return false   # the old code runs as it always did
 	var act := action_for(mb)

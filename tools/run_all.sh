@@ -781,6 +781,8 @@ EXTRA="$EXTRA s269c:w"   # s269c: film framing includes the reflection, film key
 
 
 EXTRA="$EXTRA s277b:w"
+
+EXTRA="$EXTRA c03:w"   # C03: Join / New body choice, mirror across any plane, printer tolerance presets, tests/c03_test.gd
 EXTRA="$EXTRA c01:w"   # c01: view history, invert orbit/pan, the cube Top per scene, tests/c01_test.gd
 
 
@@ -801,6 +803,90 @@ EXTRA="$EXTRA c06mcp:h"   # C06: MCP round trip of the maths tools (tests/py/c06
 EXTRA="$EXTRA s277b:w"
 EXTRA="$EXTRA s277c:w"   # s277c/s262d: card body brightness in a fixed box, explode film camera margin + ring halo, tests/s277c_test.gd
 EXTRA="$EXTRA s277c2:w"   # s277c2/s262d round 2 readers (grey-body mean, edge pixels), tests/s277c2_test.gd
+EXTRA="$EXTRA c07:w"   # c07: own-axis shot camera orbit, pivot ball, joint dot + axis keep (opt-in), tests/c07_test.gd
+
+
+EXTRA="$EXTRA c08:w"   # c08/C08: sides from geometry, facing axis, hand-bend check, tests/c08_test.gd
+
+
+EXTRA="$EXTRA c09:w"   # c09: export name template, FBX shot camera, lightmap UV2
+
+
+EXTRA="$EXTRA c10:w"   # C10: print honesty: minimum-layer-time note, export read-back, M2..M10 screw fit table + Fit chip (tests/c10_test.gd; needs the CAD DLL)
+
+
+EXTRA="$EXTRA c13:w"   # C13: pose IK/FK state, prop attach/detach frame, cape stretch readout (tests/c13_test.gd)
+
+
+EXTRA="$EXTRA c14:w"   # c14: rig pre-check, footage pre-check, cut-list CSV locale, tests/c14_test.gd
+
+
+EXTRA="$EXTRA c15:w"   # C15: sketch re-plane preview, SVG import scale check, assembly degrees of freedom, tests/c15_test.gd
+
+
+EXTRA="$EXTRA c16:w"   # C16: guided first pose (opt-in command) + clip licence line from repo data (tests/c16_test.gd)
+
+
+EXTRA="$EXTRA c18:w"   # C18 door hinge edge, one-time Join undo note, scaled Join touch tolerance, tests/c18_test.gd
+
+
+EXTRA="$EXTRA c19:w"   # C19: bone-map unmapped list, gpu notice, no-network scan, tests/c19_test.gd
+
+
+EXTRA="$EXTRA c21:w"   # C21: how-to-fix on every failed step, free shapes ringed, 1.75 m fix (tests/c21_test.gd)
+
+
+EXTRA="$EXTRA c22:w"   # C22: attach to either hand, grip by the handle, IK/FK joint-position snap (tests/c22_test.gd)
+
+
+EXTRA="$EXTRA c12:w"   # c12: blueprint callouts, dim style presets, custom 1:1 sheets, tests/c12_test.gd
+
+
+EXTRA="$EXTRA c20:w"   # C20: print fit: hinge clearance from the printer preset + knuckle fuse check, export tessellation = fit/4 (opt-in), support anchor width check (tests/c20_test.gd; needs the CAD DLL)
+
+
+EXTRA="$EXTRA c17:w"   # C17 mesh print safety: internal-shell check, repair list + undo, reload check of written STL/3MF (tests/c17_test.gd; needs the CAD DLL)
+
+
 EXTRA="$EXTRA c11:w"   # c11: pt_BR missing-string scanner, sticky keys, bad GPU driver list
+
+
+EXTRA="$EXTRA c26:w"   # C26: pick-hit check (pick_check.gd) + per-character cost line (char_cost.gd), tests/c26_test.gd
+EXTRA="$EXTRA c29:w"   # C29: one-click body pick, no panel over the body (tests/c29_test.gd)
+
+
+EXTRA="$EXTRA c25:w"   # C25: one Move rule in/out of sketch, render time estimate (tests/c25_test.gd)
+
+
+EXTRA="$EXTRA c23:w"   # c23: 3MF colour read-back + auto format, FBX unit/axis presets, GIF ordered dither + Smooth GIF button (tests/c23_test.gd)
+EXTRA="$EXTRA c28:w"   # c28: FBX For choice in the Export dialog (tests/c28_test.gd)
+
+
+EXTRA="$EXTRA c27:w"   # C27: support removal choice in the 3D-print export (tests/c27_test.gd)
+
+
 EXTRA="$EXTRA c31:w"   # c31: pt_BR 447 strings, placeholders, CRLF, review list, fit at 1280x720
 EXTRA="$EXTRA c35:w"   # c35: pt_BR fit across pages, popups, Export, 1280x720 and 1024x600
+
+
+
+
+EXTRA="$EXTRA c30:w"
+
+
+EXTRA="$EXTRA c32:w"   # C32: support gap/interface in the slicers settings files (tests/c32_test.gd)
+
+
+EXTRA="$EXTRA c33:w"   # C33: free ring vs yellow selection, hovered label contrast (tests/c33_test.gd)
+
+
+EXTRA="$EXTRA c36:w"   # C36: grip a prop by its handle, wrist solved from the handle axis (tests/c36_test.gd)
+
+
+EXTRA="$EXTRA c38:w"   # C38: coincident faces nudged 0.01 mm in words, heavy boolean in steps with progress + Cancel (tests/c38_test.gd)
+
+
+EXTRA="$EXTRA c39:w"   # c39: FBX materials (tests/c39_test.gd)
+
+
+EXTRA="$EXTRA c41:w"   # c41: #184 invert orbit X / Y apart, #311 bad spots (built by C05) checked

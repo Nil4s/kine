@@ -535,6 +535,8 @@ func _process(dt: float) -> void:
 	var pb: Button = m.easy.button("Play / Stop")
 	if pb != null:   # the button says what a click does now (the walk-through found "Play / Stop" gave no state)
 		(pb.get_node("label") as Label).text = "Stop" if m.playing else "Play"   # the words are the child Label (Button.text drew over them)
+	if m.easy.gif_smooth_button != null:   # C23: Smooth GIF follows Save GIF
+		m.easy.gif_smooth_button.visible = m.S.cards.size() >= 2
 	if m.easy.gif_button != null:   # W13: Save GIF is on the bar only once there is a clip to film (like Redo, it is the extra button)
 		m.easy.gif_button.visible = m.S.cards.size() >= 2
 	var ub: Button = m.easy.button("Undo") if on else null   # Expert runs none of this
@@ -2781,13 +2783,13 @@ func _prop_move_typed(t: String) -> bool:
 
 
 ## SAVE GIF (W13): the Save video frames as a looping GIF (per-clip palette, 480 px wide) beside the video; returns the .gif path or ""
-func save_gif(fps := 12) -> String:
+func save_gif(fps := 12, smooth := false) -> String:
 	await save_video(true)
 	if last_video.is_empty() or String(last_video.get("dir", "")) == "":
 		return ""
-	var g := String(last_video["dir"]).path_join((clip_name() if clip_name() != "" else "clip") + ".gif")
+	var g := String(last_video["dir"]).path_join((clip_name() if clip_name() != "" else "clip") + ("_smooth" if smooth else "") + ".gif")
 	var prog := func(t: String, f: float) -> void: m._say_plain("%s: %d%%" % [t, int(f * 100.0)])
-	var done: bool = await GifWriter.from_dir(String(last_video["dir"]), fps, g, 480, prog)
+	var done: bool = await GifWriter.from_dir(String(last_video["dir"]), fps, g, 480, prog, smooth)
 	if done:
 		last_gif = g
 		_show_toast("Your GIF is saved: %s

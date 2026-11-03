@@ -1,5 +1,6 @@
 class_name EasyPart
 extends "res://scripts/easy_part_move.gd"
+const EC03 := preload("res://scripts/easy_part_c03.gd")
 ## EASY PART: Easy's screen for the Part workspace (BUILD page, scripts/build/part_ui.gd; the record and the kernel are Expert's: scripts/build/part.gd).
 ## Mouse only: no key names in any text here. A big top bar (Home, the part's name, Undo, Redo, Easy | Expert), six big MAKE buttons, the panel
 ## "Change your sword" (template chips, 3-4 sliders, "Back to the first one", "Exact sizes? Use Expert"), amber drag dots on the model for the main
@@ -470,6 +471,7 @@ func _hole_box() -> PanelContainer:
 		sb.custom_minimum_size = Vector2(96, 44)
 		h.add_child(sb)
 		hole_btns["screw%d" % sd] = sb
+	_screw_fit_chips(h)   # C10: M2 / M8 / M10 chips and the Fit chip (close / normal / loose), see easy_part_pull.gd
 	_hpat_chips(h)   # s029: Row / Around / Grid of holes
 	_fill_chips(h)   # s051: Fill the face
 	_printer_chip(h)   # p203screwholea: the printer chip (resin tight, FDM loose)
@@ -730,10 +732,14 @@ func _tilt_box() -> PanelContainer:
 	swing_btn.custom_minimum_size = Vector2(170, 44)
 	swing_btn.visible = false
 	draft_row.add_child(swing_btn)
+	door_opt = PartDoor.make_option()   # C18
+	door_opt.visible = false
+	row.add_child(door_opt)   # own line under Draft/Swing: beside them it widened the panel to 539 px and covered the open door edge (p068hingebycli)
 	pull_along_btn = _big_btn("easypart_pull_along", "Pull along", "Pull the round shape along the open curve: a pipe in one step", _pull_along_press)
 	pull_along_btn.custom_minimum_size = Vector2(230, 44)
 	pull_along_btn.visible = false
 	row.add_child(pull_along_btn)
+	EC03.build(self, row)   # C03: Pull makes Join / New body, Mirror at an angle / in the face, Printer preset
 	row.add_child(_bend_row())   # S216: Bend radius (slider + typed mm) under Pull along
 	bulge_btn = _big_btn("easypart_bulge", "Pinch / Bulge a face", "Click a flat face: its middle moves out (a dome) or in (a dish), the rim stays. A slider -1..1 sets how much", _bulge_press)   # plan 23: under any solid, in the box of the newest-step chips
 	bulge_btn.toggle_mode = true
@@ -891,10 +897,14 @@ func _swing_press() -> void:
 	for v in faces[bi]:
 		lo = lo.min(v)
 		hi = hi.max(v)
-	var o := Vector3(lo.x, hi.y, lo.z) / Part.MM
 	var snap := _rec().duplicate(true)
 	_begin("Swing it")
-	var f := Part.new_feature(_rec(), "hinge", {"body": bi, "o": [o.x, o.y, o.z], "axis": [1.0, 0.0, 0.0], "track": [[0.0, 0.0], [SWING_SECS, SWING_DEG]]})
+	if door_opt != null and door_opt.selected > 0:
+		PartDoor.mark(_rec(), bi, PartDoor.side_from_option(door_opt))   # C18: a door turns on its own hinge edge
+	var hg := PartDoor.swing_hinge(_rec(), bi, lo, hi)
+	var o: Vector3 = hg["o"]
+	var ax: Vector3 = hg["axis"]
+	var f := Part.new_feature(_rec(), "hinge", {"body": bi, "o": [o.x, o.y, o.z], "axis": [ax.x, ax.y, ax.z], "track": [[0.0, 0.0], [SWING_SECS, SWING_DEG]]})
 	_rec()["features"].append(f)
 	if _last_error(_rec(), String(f["id"])) != "":
 		m.S.part = snap
@@ -2316,6 +2326,16 @@ func _lib_box() -> PanelContainer:
 	hinges_btn.visible = false
 	hinges_btn.pressed.connect(_hinges_btn_press)
 	vb.add_child(hinges_btn)
+	pip_btn = Button.new()   # C20: a print-in-place hinge whose gap is the printer preset's clearance (opt-in; the Hinge chip is unchanged)
+	pip_btn.name = "easypart_pip_hinge"
+	pip_btn.text = "Print-in-place hinge"
+	pip_btn.tooltip_text = "A pin inside a knuckle with the printer's clearance between them (Printer chip). Export > Match the mesh to the fit checks that they do not fuse"
+	pip_btn.focus_mode = Control.FOCUS_NONE
+	pip_btn.custom_minimum_size = Vector2(0, 34)
+	pip_btn.add_theme_font_size_override("font_size", 13)
+	pip_btn.visible = false
+	pip_btn.pressed.connect(_pip_press)
+	vb.add_child(pip_btn)
 	vb.add_child(_livecut_btn_make())   # p204livinghing: the Living cuts button (the Hinges page)
 	spring_pick = Button.new()   # p070springfix: the Springs page button (shown only on Springs): one click, a spring on the floor
 	spring_pick.name = "easypart_spring_pick"
@@ -2711,6 +2731,7 @@ func _screw_sync() -> void:
 			lb.set_pressed_no_signal(parts_open and cat == lib_cat)
 			m._grey(lb, Part.why_not() if not Part.available() else "")
 		hinges_btn.visible = parts_open and lib_cat == "Hinges"   # p067hinges
+		pip_btn.visible = parts_open and lib_cat == "Hinges"   # C20
 		if linkage_box != null:   # p129linkages: the Linkage panel shows on the Hinges page
 			linkage_box.visible = parts_open and lib_cat == "Hinges"
 		hinges_btn.set_pressed_no_signal(_tpl() == "hinge")
@@ -3913,6 +3934,7 @@ func _process(_dt: float) -> void:
 	var tilt_on := not along and _tilt_ok(_rec())
 	var draft_on := not along and _draft_ok(_rec())
 	pull_along_btn.visible = along
+	EC03.sync(self, on and int(pu.res.get("bodies", 0)) > 0 and Part.available())
 	_bend_sync(along)   # S216
 	tilt_btn.visible = tilt_on
 	draft_btn.visible = draft_on
@@ -3920,6 +3942,7 @@ func _process(_dt: float) -> void:
 	var swing_on := not along and _swing_ok(_rec())   # p123driveit
 	var motion_on := not along and _motion_ok(_rec())   # p126motionmp4: the video chip shows after Swing it
 	swing_btn.visible = swing_on
+	door_opt.visible = swing_on
 	motion_btn.visible = motion_on
 	var flat_on := on and armed == "" and int(pu.res.get("bodies", 0)) > 0 and Part.available()   # p113: Lay it flat and Show overhangs, under any solid, in the step list
 	flat_box.visible = flat_on
@@ -3998,6 +4021,9 @@ func _key(k: InputEventKey) -> void:
 		return   # a typed number keeps its keys
 	if _draft.has("clicks") and k.keycode in [KEY_ENTER, KEY_KP_ENTER]:
 		_mirror_finish()   # s047: Enter ends a mirrored Line, as clicking its last point again does
+		get_viewport().set_input_as_handled()
+		return
+	if _mv_key(k):   # C25: a typed distance for a piece in hand (only with MoveRule.unified)
 		get_viewport().set_input_as_handled()
 		return
 	if _line_typed_key(k):   # P045: a Line being drawn takes a typed length (digits, Backspace, Enter); the digits do not turn the camera
@@ -5871,6 +5897,28 @@ func _demo_close() -> void:
 
 ## p067hinges: the Hinges page's Hinge button: the page closes (the hinge's Kind and Door height sliders take its room), then a Butt
 ## hinge drops on the floor at the door's height. One undo step (the chip's).
+var pip_btn: Button   # C20
+
+
+func _pip_press() -> void:
+	if not Part.available():
+		return
+	var cur: Dictionary = m.S.part
+	var idx := preload("res://scripts/build/c03_tools.gd").index_of(cur) if not cur.is_empty() else -1
+	parts_open = false
+	armed = ""
+	_flush_if_dirty()
+	m._step_hint = "Start a print-in-place hinge"
+	m._push_undo()
+	m.S.part = C20Fit.hinge_rec(idx if idx >= 0 else 3)
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	_say("Print-in-place hinge, gap %.2f mm from the printer. Export > Match the mesh to the fit checks it" % C20Fit.hinge_gap(m.S.part))
+	_screw_sync()
+
+
 func _hinges_btn_press() -> void:
 	parts_open = false
 	_chip("hinge")

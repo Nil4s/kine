@@ -657,6 +657,9 @@ static func _import_file(path: String, B: Body, scene_name := "") -> Dictionary:
 			if not r["ok"]:
 				return r
 			dense = r["scene"]
+			var hc := HandCheck.check(dense, B)   # C08: finger bend against Kine's limits
+			if String(hc["text"]) != "":
+				checks = {"warnings": [hc["text"]]}
 			head = "a Kine .bvh: " + String(r["text"])
 			mapping = {"map": {}, "unmapped": r["not_mapped"], "missing": r["missing"], "main": MAIN.size() - (r["missing"] as Array).filter(func(j): return j in MAIN).size(), "how": {}}
 	if dense == null:
@@ -669,6 +672,10 @@ static func _import_file(path: String, B: Body, scene_name := "") -> Dictionary:
 			return rt
 		dense = rt["scene"]
 		checks = ClipChecks.analyze(src, mapping, B, rt)
+		var rc := RigPrecheck.check(src, mapping)   # C14 (#520): odd bones, no neck, left and right differ; words only, appended after C04's
+		checks["rig"] = rc
+		if String(rc["text"]) != "":
+			(checks["warnings"] as Array).append(rc["text"])
 		head = "\"%s\" (%s%s): %s" % [src["clip"], src["format"], (", %d animations in the file, the longest taken" % (src["clips"] as Array).size()) if (src["clips"] as Array).size() > 1 else "", rt["text"]]
 	var cr := cards(dense, B)
 	B.set_state(keep)

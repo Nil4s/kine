@@ -261,7 +261,7 @@ func _stick(op: String, label: String, nudge := false) -> void:
 	armed = ""
 	var why := _last_error(rec, String(f["id"]))
 	if why == "" and op == "join":   # JOIN: the two picks must touch (apart pieces would "join" into one body with a gap: refused, nothing changes)
-		why = _join_gap(Part.body_faces(snap, -1), stick_picks)
+		why = _join_gap(Part.body_faces(snap, -1), stick_picks, snap)
 		if why != "" and _join_overlaps(snap, rec):
 			why = ""   # one piece passes through the other (a brace round the legs): they share volume, so Join makes one solid
 	var picks_keep := stick_picks.duplicate()
@@ -272,13 +272,13 @@ func _stick(op: String, label: String, nudge := false) -> void:
 		m._drop_undo()
 		_edit_n = -1
 		_say("Those two pieces cannot do that: " + _plain(why))
-		if why.ends_with(Part.JOINH.NUDGE_ASK):   # W10: keep the two picks and the box: the nudge button repeats this press
+		if why.contains(Part.JOINH.NUDGE_ASK):   # C21 suffix follows it   # W10: keep the two picks and the box: the nudge button repeats this press
 			stick_picks = picks_keep
 			armed = "stick"
 			_stick_retry = [op, label]
 	else:
 		_end()
-		_say("%s: the two pieces are one solid now" % label)
+		_say("%s: the two pieces are one solid now%s" % [label, (". " + PartDoor.join_note()) if op == "join" else ""])   # C18 #291
 	tweak = {}
 	pu.upto = -1
 	pu.sync()
@@ -324,11 +324,12 @@ static func _centre(tris: PackedVector3Array) -> Vector3:
 
 
 ## JOIN: the two picked pieces must touch (the smallest distance between their triangles is under 0.05 mm). "" or the words for the user
-static func _join_gap(before: Array, picked: Array) -> String:
+static func _join_gap(before: Array, picked: Array, rec := {}) -> String:
 	if picked.size() < 2:
 		return ""
 	# the same test as the gap under 0.05 mm (tris_touch finds it without the full pair scan: a Join of two big pieces froze the app)
-	if not Part.tris_touch(before[int(picked[0])], before[int(picked[1])], 0.00005):
+	var tol := PartDoor.touch_tol(rec, PartDoor.min_side(before[int(picked[0])]), PartDoor.min_side(before[int(picked[1])]))   # C18 #297: 0.00005 unless the part opts in
+	if not Part.tris_touch(before[int(picked[0])], before[int(picked[1])], tol):
 		return "the two pieces do not touch, so Join cannot make one solid: move one until it touches the other, then press Stick together again"
 	return ""
 

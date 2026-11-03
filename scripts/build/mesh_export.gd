@@ -216,7 +216,7 @@ static func _xml(s: String) -> String:
 
 
 ## the 3D/3dmodel.model text. Resource ids: 1 = basematerials (when any body is painted), objects from 2.
-static func model_xml(bodies: Array, title: String) -> String:
+static func model_xml(bodies: Array, title: String, support := {}) -> String:
 	var mats := []   # the distinct painted colours, in order
 	for b in bodies:
 		if b["color"] != null and not mats.has(_hex(b["color"])):
@@ -226,6 +226,8 @@ static func model_xml(bodies: Array, title: String) -> String:
 	x.append("<model unit=\"millimeter\" xml:lang=\"en-US\" xmlns=\"http://schemas.microsoft.com/3dmanufacturing/core/2015/02\">")
 	x.append("<metadata name=\"Title\">%s</metadata>" % _xml(title))
 	x.append("<metadata name=\"Application\">Kine</metadata>")
+	if not support.is_empty():   # C27: the support gap and interface for the slicer
+		x.append(SupportPref.xml_lines(support))
 	x.append("<resources>")
 	if not mats.is_empty():
 		x.append("<basematerials id=\"1\">")
@@ -272,15 +274,20 @@ const RELS := "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Relationships xmlns=
 
 
 ## writes the .3mf package; OK or an Error
-static func write_3mf(path: String, bodies: Array, title: String) -> int:
+static func write_3mf(path: String, bodies: Array, title: String, support := {}) -> int:
 	var z := ZIPPacker.new()
 	var e := z.open(path)
 	if e != OK:
 		return e
-	for en in [["[Content_Types].xml", CONTENT_TYPES], ["_rels/.rels", RELS], ["3D/3dmodel.model", model_xml(bodies, title)]]:
+	for en in [["[Content_Types].xml", CONTENT_TYPES], ["_rels/.rels", RELS], ["3D/3dmodel.model", model_xml(bodies, title, support)]]:
 		z.start_file(en[0])
 		z.write_file(String(en[1]).to_utf8_buffer())
 		z.close_file()
+	if not support.is_empty():   # C32: the slicers' own settings files, so the gap and interface are read, not just carried
+		for en in SupportPref.slicer_files(support):
+			z.start_file(en[0])
+			z.write_file(String(en[1]).to_utf8_buffer())
+			z.close_file()
 	z.close()
 	return OK
 
@@ -305,7 +312,7 @@ static func stem(name: String) -> String:
 
 ## the Export dialog's road: the part record -> dir/<name>.stl or .3mf. fmt "stl" | "3mf". Answers
 ## {"ok", "path", "why", "report": the check (see report), "text": one plain sentence to say}
-static func export_part(rec: Dictionary, fmt: String, dir: String, budget := 0, quality := {}) -> Dictionary:
+static func export_part(rec: Dictionary, fmt: String, dir: String, budget := 0, quality := {}, support := {}) -> Dictionary:
 	var bo := bodies_of(rec, quality)
 	if (bo["bodies"] as Array).is_empty():
 		return {"ok": false, "path": "", "why": String(bo["why"]), "report": {}, "text": "NOT DONE: " + String(bo["why"])}
@@ -315,15 +322,18 @@ static func export_part(rec: Dictionary, fmt: String, dir: String, budget := 0, 
 	DirAccess.make_dir_recursive_absolute(gdir)
 	var name := String(rec.get("name", "Part"))
 	var path := "%s/%s.%s" % [gdir, stem(name), fmt]
-	var e := write_stl(path, bodies) if fmt == "stl" else write_3mf(path, bodies, name)
+	var e := write_stl(path, bodies) if fmt == "stl" else write_3mf(path, bodies, name, support)
 	if e != OK:
 		return {"ok": false, "path": path, "why": error_string(e), "report": rep, "text": "NOT DONE: the file could not be written (%s). Check that the folder is writable, then export again" % error_string(e)}
 	var msg := "exported %s: %d triangles, %.1f x %.1f x %.1f mm" % [path.get_file(), int(rep["tris"]), rep["size"].x, rep["size"].y, rep["size"].z]
+	var vr := C10Print.verify_file(path, fmt, bodies)   # C10: the file is read back and compared with the part (volume and box, 0.5 pct)
+	if bool(vr["off"]):
+		msg += ". " + String(vr["text"]).substr(6)
 	if budget > 0:
 		msg += ExportBudget.words()
 	if not bool(rep["closed"]):
 		msg += ". " + String((rep["lines"] as Array)[0]).substr(6)
-	return {"ok": true, "path": path, "why": "", "report": rep, "text": msg}
+	return {"ok": true, "path": path, "why": "", "report": rep, "text": msg, "verify": vr}
 
 
 ## the dialog's checklist for the part on screen (lines start OK or WARN)

@@ -13,6 +13,36 @@ extends RefCounted
 
 const KTIME := 46186158000.0   # FBX ticks per second
 const CM := 100.0              # metres to centimetres: the numbers in the file (its UnitScaleFactor is 1.0, a centimetre)
+## C23 unit presets (opt-in; the defaults are the old file, byte for byte): the numbers' unit and the up axis. write_preset sets them for one write
+static var unit_mult := CM       # metres to the file's numbers
+static var unit_factor := 1.0    # the header's UnitScaleFactor: centimetres per file unit
+static var up_z := false         # true: Z up (UpAxis 2), the rig turned a quarter about X
+const PRESETS := {
+	"default": {"mult": 100.0, "factor": 1.0, "up_z": false, "words": "centimetres, Y up (the old file)"},
+	"unity": {"mult": 1.0, "factor": 100.0, "up_z": false, "words": "metres (1 unit = 100 cm), Y up: Unity reads 1 m as 1 m"},
+	"unreal": {"mult": 100.0, "factor": 1.0, "up_z": true, "words": "centimetres, Z up: Unreal reads 1 m as 100 units, standing up"},
+	"blender": {"mult": 100.0, "factor": 1.0, "up_z": true, "words": "centimetres, Z up: Blender reads 1 m as 1 m"},
+}
+
+
+## the same as write() under a unit preset ("default" | "unity" | "unreal" | "blender"); the statics are put back after
+static func write_preset(preset: String, S: Scene, B: Body, path: String, root_motion := false, xf := Transform3D.IDENTITY, root_name := "", ascii := false, camera_keys := [], mats := []) -> Dictionary:
+	if not PRESETS.has(preset):
+		return {"err": ERR_INVALID_PARAMETER, "path": path, "text": ""}
+	var p: Dictionary = PRESETS[preset]
+	unit_mult = float(p["mult"])
+	unit_factor = float(p["factor"])
+	up_z = bool(p["up_z"])
+	var x2 := xf
+	if up_z:
+		x2 = Transform3D(Basis(Vector3.RIGHT, PI / 2.0), Vector3.ZERO) * xf   # Y up -> Z up (the front +Z becomes -Y)
+	var r := write(S, B, path, root_motion, x2, root_name if root_name != "" else (S.name if S.name != "" else "scene"), ascii, camera_keys, mats)
+	unit_mult = CM
+	unit_factor = 1.0
+	up_z = false
+	r["preset"] = preset
+	return r
+
 ## FBX's TimeMode enum for the frame rates it names (FbxTime::EMode); any other rate is eCustom with CustomFrameRate
 const TIME_MODE := {120: 1, 60: 3, 50: 4, 48: 5, 30: 6, 24: 11, 96: 15, 72: 16}
 
@@ -23,12 +53,12 @@ const TIME_MODE := {120: 1, 60: 3, 50: 4, 48: 5, 30: 6, 24: 11, 96: 15, 72: 16}
 ## the names in the file), "keys" (keys per curve), "curves" (animation curves written), "text"}.
 ## BINARY by default (Unreal, Unity, Maya and Blender 4.5 all read it; Blender refuses ASCII). ascii = true writes the
 ## ASCII text instead, a debug view of the same tree (tests/py/fbx_check.py reads it). The "format" key says which.
-static func write(S: Scene, B: Body, path: String, root_motion := false, xf := Transform3D.IDENTITY, root_name := "", ascii := false) -> Dictionary:
+static func write(S: Scene, B: Body, path: String, root_motion := false, xf := Transform3D.IDENTITY, root_name := "", ascii := false, camera_keys := [], mats := []) -> Dictionary:
 	var keep := B.state()
 	var an := S.name if S.name != "" else "scene"
 	# the file is a pure function of the scene, the body and the options: the last one built is kept, so the same scene written
 	# again (a second click, the gentle test's hostile starts) is the write only, not the pose of every frame again
-	var ck := var_to_str([S.to_dict(B, true), keep, root_motion, xf, root_name, ascii])
+	var ck := var_to_str([S.to_dict(B, true), keep, root_motion, xf, root_name, ascii, camera_keys, unit_mult, unit_factor, up_z] + ([mats] if not mats.is_empty() else []))
 	if ck == _last_key and not _last.is_empty():
 		return _write_out(_last, path, ascii)
 	var man := GltfExport.build(S, B, an, false, root_motion)
@@ -39,6 +69,12 @@ static func write(S: Scene, B: Body, path: String, root_motion := false, xf := T
 	var base: Transform3D = man.transform * _rel(sk, man)
 	var out := text_of(sk, A, an, float(S.fps), base, xf, root_name if root_name != "" else an)
 	man.free()
+	if not camera_keys.is_empty():
+		out["text"] = FbxCamera.inject(out["text"], camera_keys)   # C09: the shot camera, opt-in
+		out["camera_keys"] = camera_keys.size()
+	if not mats.is_empty():
+		out["text"] = FbxMaterial.inject(out["text"], mats)   # C39: body + prop materials, opt-in
+		out["materials"] = mats.size()
 	B.set_state(keep)
 	_last_key = ck
 	_last = out
@@ -191,7 +227,7 @@ static func text_of(sk: Skeleton3D, A: Animation, an: String, fps: float, base: 
 			ncurve_nodes += 1
 			nid += 1
 			var tn := nid
-			var p0 := (local[i] as Transform3D).origin * CM
+			var p0 := (local[i] as Transform3D).origin * unit_mult
 			objs.append("\tAnimationCurveNode: %d, \"AnimCurveNode::T\", \"\" {\n\t\tProperties70:  {\n\t\t\tP: \"d|X\", \"Number\", \"\", \"A\",%s\n\t\t\tP: \"d|Y\", \"Number\", \"\", \"A\",%s\n\t\t\tP: \"d|Z\", \"Number\", \"\", \"A\",%s\n\t\t}\n\t}" % [tn, _f(p0.x), _f(p0.y), _f(p0.z)])
 			conns.append("\tC: \"OO\", %d, %d" % [tn, layer_id])
 			conns.append("\tC: \"OP\", %d, %d, \"Lcl Translation\"" % [tn, bone_id])
@@ -225,7 +261,7 @@ static func text_of(sk: Skeleton3D, A: Animation, an: String, fps: float, base: 
 
 ## one Model block (a LimbNode bone or the root Null): its rest local transform in cm
 static func _model_block(id: int, nm: String, kind: String, t: Transform3D) -> String:
-	var tr := t.origin * CM
+	var tr := t.origin * unit_mult
 	var e := _euler_deg(t)
 	var s := t.basis.get_scale()
 	return "\tModel: %d, \"Model::%s\", \"%s\" {\n\t\tVersion: 232\n\t\tProperties70:  {\n\t\t\tP: \"RotationOrder\", \"enum\", \"\", \"\",0\n\t\t\tP: \"Lcl Translation\", \"Lcl Translation\", \"\", \"A\",%s,%s,%s\n\t\t\tP: \"Lcl Rotation\", \"Lcl Rotation\", \"\", \"A\",%s,%s,%s\n\t\t\tP: \"Lcl Scaling\", \"Lcl Scaling\", \"\", \"A\",%s,%s,%s\n\t\t}\n\t\tShading: Y\n\t\tCulling: \"CullingOff\"\n\t}" % [id, _esc(nm), kind, _f(tr.x), _f(tr.y), _f(tr.z), _f(e.x), _f(e.y), _f(e.z), _f(s.x), _f(s.y), _f(s.z)]
@@ -252,7 +288,7 @@ static func _curves_for(tr: int, A: Animation, rot: bool) -> Array:
 		if rot:
 			xyz = eu[k]
 		else:
-			xyz = (v as Vector3) * CM
+			xyz = (v as Vector3) * unit_mult
 		vals[0].append(_f(xyz.x))
 		vals[1].append(_f(xyz.y))
 		vals[2].append(_f(xyz.z))
@@ -276,7 +312,7 @@ static func _glob(i: int, par: Array, local: Array, memo: Dictionary) -> Transfo
 ## FBX's matrix text for a transform (row-vector form, translation in the last row, cm): the 16 values of the
 ## bind pose. xf_global is already in the file's space when a root null holds the placement.
 static func _mat(t: Transform3D) -> String:
-	var o := t.origin * CM
+	var o := t.origin * unit_mult
 	var v := PackedStringArray()
 	for c in [t.basis.x, t.basis.y, t.basis.z]:
 		v.append(_f(c.x))
@@ -304,10 +340,10 @@ static func _header(fps: float, mode: int, ticks_L: int) -> String:
 	var s := "; FBX 7.4.0 project file\n; Written by Kine (Poser): ASCII FBX 7.4, centimetres, Y up, UE5 bone names.\n; ----------------------------------------------------\n"
 	s += "FBXHeaderExtension:  {\n\tFBXHeaderVersion: 1003\n\tFBXVersion: 7400\n\tCreationTimeStamp:  {\n\t\tVersion: 1000\n\t\tYear: %d\n\t\tMonth: %d\n\t\tDay: %d\n\t\tHour: %d\n\t\tMinute: %d\n\t\tSecond: %d\n\t\tMillisecond: 0\n\t}\n\tCreator: \"Kine FBX writer (ROADMAP 78)\"\n}\n" % [d["year"], d["month"], d["day"], d["hour"], d["minute"], d["second"]]
 	s += "GlobalSettings:  {\n\tVersion: 1000\n\tProperties70:  {\n"
-	s += "\t\tP: \"UpAxis\", \"int\", \"Integer\", \"\",1\n\t\tP: \"UpAxisSign\", \"int\", \"Integer\", \"\",1\n"
-	s += "\t\tP: \"FrontAxis\", \"int\", \"Integer\", \"\",2\n\t\tP: \"FrontAxisSign\", \"int\", \"Integer\", \"\",1\n"
+	s += "\t\tP: \"UpAxis\", \"int\", \"Integer\", \"\",%d\n\t\tP: \"UpAxisSign\", \"int\", \"Integer\", \"\",1\n" % (2 if up_z else 1)
+	s += "\t\tP: \"FrontAxis\", \"int\", \"Integer\", \"\",%d\n\t\tP: \"FrontAxisSign\", \"int\", \"Integer\", \"\",%d\n" % [1 if up_z else 2, -1 if up_z else 1]
 	s += "\t\tP: \"CoordAxis\", \"int\", \"Integer\", \"\",0\n\t\tP: \"CoordAxisSign\", \"int\", \"Integer\", \"\",1\n"
-	s += "\t\tP: \"UnitScaleFactor\", \"double\", \"Number\", \"\",%s\n\t\tP: \"OriginalUnitScaleFactor\", \"double\", \"Number\", \"\",%s\n" % [_f(1.0), _f(1.0)]
+	s += "\t\tP: \"UnitScaleFactor\", \"double\", \"Number\", \"\",%s\n\t\tP: \"OriginalUnitScaleFactor\", \"double\", \"Number\", \"\",%s\n" % [_f(unit_factor), _f(unit_factor)]
 	s += "\t\tP: \"TimeMode\", \"enum\", \"\", \"\",%d\n\t\tP: \"TimeSpanStart\", \"KTime\", \"Time\", \"\",0\n\t\tP: \"TimeSpanStop\", \"KTime\", \"Time\", \"\",%d\n" % [mode, ticks_L]
 	s += "\t\tP: \"CustomFrameRate\", \"double\", \"Number\", \"\",%s\n\t}\n}\n" % _f(fps)
 	s += "Documents:  {\n\tCount: 1\n\tDocument: 1000000000, \"\", \"Scene\" {\n\t\tProperties70:  {\n\t\t\tP: \"ActiveAnimStackName\", \"KString\", \"\", \"\", \"\"\n\t\t}\n\t\tRootNode: 0\n\t}\n}\n"
@@ -328,8 +364,8 @@ static func _esc(s: String) -> String:
 ## Value types as FBX writes them: ids and KTime int64 ('L'), other integers int32 ('I'), decimals float64 ('D'),
 ## KeyTime int64 arrays, KeyValueFloat float32, KeyAttr int32 / float32, matrices float64, T / Y bool. An object's name
 ## "Class::name" is written "name" + NUL + SOH + "Class" (Blender's reader needs that). Little-endian, uncompressed.
-const ID_NODES := ["Model", "NodeAttribute", "AnimationCurveNode", "AnimationCurve", "Pose", "AnimationStack", "AnimationLayer", "Document"]
-const ARRAY_CODE := {"KeyTime": "l", "KeyValueFloat": "f", "KeyAttrFlags": "i", "KeyAttrDataFloat": "f", "KeyAttrRefCount": "i", "Matrix": "d"}
+const ID_NODES := ["Model", "NodeAttribute", "AnimationCurveNode", "AnimationCurve", "Pose", "AnimationStack", "AnimationLayer", "Document", "Material", "Texture", "Geometry"]
+const ARRAY_CODE := {"KeyTime": "l", "KeyValueFloat": "f", "KeyAttrFlags": "i", "KeyAttrDataFloat": "f", "KeyAttrRefCount": "i", "Matrix": "d", "PolygonVertexIndex": "i"}
 
 
 ## the FBX text as binary FBX 7.4 bytes
