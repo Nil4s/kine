@@ -90,7 +90,7 @@ func set_part(feats: Array, nm: String) -> void:
 	m.S.part = rec
 	pu.upto = -1
 	pu.sync()
-	await idle(3)
+	await idle(16)   # the panel looks for a clear place every 12 frames: let it settle before a real click
 
 
 func chip(nm: String) -> Button:
