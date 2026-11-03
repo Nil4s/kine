@@ -174,6 +174,8 @@ func _init() -> void:
 	await click_ctl(pu().part_btn)
 	await click_ctl(pu().easy_open_btn)
 	await idle(4)
+	ep().one_side = true   # P153 (a4512f9c): symmetry is on by default; this walk draws single boxes, so it uses One side only
+	ep().one_side_btn.set_pressed_no_signal(true)
 
 	# 1 FLOOR: a 40 x 40 mm square on empty space, pulled up 20 mm
 	await fresh(-40.0)
@@ -257,6 +259,7 @@ func _init() -> void:
 	m.yaw = 25.0
 	m._cam()
 	await idle(60)
+	await idle(120)   # navigation: let the camera finish easing before the press points are read from it
 	var legs := [[Vector3(-0.045, 0.0, -0.045), Vector3(-0.03, 0.0, -0.03)], [Vector3(0.03, 0.0, -0.045), Vector3(0.045, 0.0, -0.03)], [Vector3(-0.045, 0.0, 0.03), Vector3(-0.03, 0.0, 0.045)], [Vector3(0.03, 0.0, 0.03), Vector3(0.045, 0.0, 0.045)]]
 	var first := true
 	for lg in legs:
