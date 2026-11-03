@@ -147,6 +147,7 @@ var wep_lpos := Vector3.ZERO                 # locked: the knob in the hand's fr
 var wep_lrot := Quaternion.IDENTITY          #                                         rot = G[h] * lrot
 var grip := false      # the OTHER hand holds the bat too
 var free_hand := ""   # HANDS (w4-handlock): the off hand let go of the weapon ("hand_l"/"hand_r"): the magnet does not re-snap it
+var axis_keep := false   # C07: turn_world takes the (bend, side) spelling nearest the old angles (cam_pivot.gd's joint dot switches it)
 var fast := false      # true while a scene plays: set_ang_safe skips the contact bisection (10-13: 300 ms -> ~ms a frame)
 var grip_u := 0.18     # where it holds it: metres up the bat from the knob
 ## the off-hand weapon: locked in wep2_hand (pos = P[h] + G[h] * wep2_lpos, rot = G[h] * wep2_lrot), a dagger
@@ -486,7 +487,24 @@ func turn_world(j: String, R: Quaternion) -> void:
 		v.z -= 360.0
 	while v.z - old.z < -180.0:
 		v.z += 360.0
+	if axis_keep:
+		v = keep_near(j, v, old)
 	set_ang_safe(j, v)
+
+
+## C07 AXIS KEEP (opt-in, off): the same turn has a second spelling in (bend, side): the swing's rotation vector rv (|rv| <= 180)
+## is also rv - rv/|rv| * 360. When that second spelling is nearer the old angles than decompose's, it is the one to take, so a
+## drag across 180 deg of swing does not flip the readout's sign. Twist is already unwrapped above.
+func keep_near(j: String, v: Vector3, old: Vector3) -> Vector3:
+	var rv: Vector3 = b_ax[j] * deg_to_rad(v.x) + a_ax[j] * deg_to_rad(v.y)
+	var n := rv.length()
+	if n < 1e-6:
+		return v
+	var alt: Vector3 = rv - rv / n * TAU
+	var av := Vector3(rad_to_deg(alt.dot(b_ax[j])), rad_to_deg(alt.dot(a_ax[j])), v.z)
+	var d0 := Vector2(v.x - old.x, v.y - old.y).length()
+	var d1 := Vector2(av.x - old.x, av.y - old.y).length()
+	return av if d1 + 1e-6 < d0 else v
 
 
 # ---------------------------------------------------------------- the weapon

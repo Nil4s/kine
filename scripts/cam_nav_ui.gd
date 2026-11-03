@@ -46,7 +46,7 @@ func _opt(id: String, title: String, items: Array, vb: VBoxContainer, cb: Callab
 func _build() -> void:
 	win = Window.new()
 	win.title = "Camera navigation"
-	win.size = Vector2i(460, 390)
+	win.size = Vector2i(560, 470)
 	win.exclusive = false
 	win.close_requested.connect(func(): win.hide())
 	var pc := PanelContainer.new()
@@ -83,6 +83,12 @@ func _build() -> void:
 		iv.text = "Invert orbit drag" if id == "invert_orbit" else "Invert pan drag"
 		iv.toggled.connect(func(_on: bool): _inv_changed())
 		vb.add_child(iv)
+	for id in ["own_cam", "show_pivot", "joint_dot"]:   # C07: pivots and cameras (scripts/cam_pivot.gd), all off until ticked
+		var pc7 := CheckBox.new()
+		pc7.name = id
+		pc7.text = {"own_cam": "Orbit a camera about its own position (looking through the shot camera)", "show_pivot": "Show the pivot the orbit turns about", "joint_dot": "Dot on the selected joint, and keep its angles from flipping"}[id]
+		pc7.toggled.connect(func(_on: bool): _piv_changed())
+		vb.add_child(pc7)
 	m.add_child(win)
 	win.hide()
 
@@ -112,6 +118,16 @@ func _sync() -> void:
 	(win.find_child("trackpad", true, false) as CheckBox).set_pressed_no_signal(cn.trackpad)
 	(win.find_child("invert_orbit", true, false) as CheckBox).set_pressed_no_signal(m.camx.invert_orbit)
 	(win.find_child("invert_pan", true, false) as CheckBox).set_pressed_no_signal(m.camx.invert_pan)
+	for id in ["own_cam", "show_pivot", "joint_dot"]:
+		(win.find_child(id, true, false) as CheckBox).set_pressed_no_signal(m.campiv.get(id))
+
+
+func _piv_changed() -> void:
+	var cp: CamPivot = m.campiv
+	cp.own_cam = (win.find_child("own_cam", true, false) as CheckBox).button_pressed
+	cp.show_pivot = (win.find_child("show_pivot", true, false) as CheckBox).button_pressed
+	cp.joint_dot = (win.find_child("joint_dot", true, false) as CheckBox).button_pressed
+	cp.save_to(m.settings)
 
 
 func _inv_changed() -> void:

@@ -3151,6 +3151,7 @@ func _ready() -> void:
 	camnav = CamNav.new(self)   # W01: camera navigation settings (scripts/cam_nav.gd)
 	camnav.load_from(settings)
 	camnav_ui = CamNavUI.new(self, camnav)
+	campiv = CamPivot.new(self)   # C07: own-axis camera, pivot ball, joint dot (scripts/cam_pivot.gd)
 	kt = KeymapTranslate.new(self)   # P20: the "coming from Blender / Maya" helper (scripts/keymap_translate.gd)
 	kt.load_from(settings)
 	blk = BlKeys.new(self)   # B16: Blender-style modal G R S, off unless the setting says so
@@ -3490,6 +3491,8 @@ func _process_body(dt: float) -> void:
 	_doc_line()   # RR1: the strip catches up (throttled) after edits that do not refresh
 	_mark_play_card()   # the card at the playhead wears the gold frame; the strip follows it while playing
 	_keys_camera(dt)
+	if campiv != null:
+		campiv.tick(dt)   # C07
 	if vx != null:
 		vx.tick(dt)   # K13-K16
 	if shot_through:
@@ -5848,6 +5851,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			return
 		if dragging == "orbit":
 			if shot_through:
+				campiv.own_begin()   # C07: opt-in, the camera turns about its own position
 				_shot_hand_over()   # as Blender: orbiting leaves the camera view, from where the camera was
 			rel = camx.inv("orbit", rel)   # C01
 			camnav.orbit_pre()   # W01
@@ -16263,6 +16267,7 @@ func _press(code: Key, shift := false) -> void:
 var ui_keys: PanelContainer
 var camnav: CamNav   # W01
 var camnav_ui: CamNavUI
+var campiv: CamPivot   # C07
 var camx: CamExtras   # C01
 var kt: KeymapTranslate   # P20: Blender / Maya key helper
 var blk: BlKeys           # B16: Blender-style modal G / R / S layer
