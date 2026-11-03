@@ -558,13 +558,13 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	var stepkeys: Array = []
 	var fx_on := bool(want.get("effects", false)) or keyed or bool(want.get("stepkeys", false))   # item 241: what each step did (scripts/build/part_fx.gd); not with the incremental cache
 	var fx: Dictionary = PartFx.begin() if fx_on else {}
-	var inc := bool(want.get("inc", false)) and n > 0 and not fx_on   # s168 INCREMENTAL REPLAY: the steps a cached prefix already made are not run again
+	var inc := bool(want.get("inc", false)) and n > 0 and not bool(want.get("effects", false)) and not bool(want.get("stepkeys", false))   # W03e: a keyed part uses the cache too (its snapshots hold the body keys).   s168 INCREMENTAL REPLAY: the steps a cached prefix already made are not run again
 	var inc_keys: Array = []
 	var counts: Array = []
 	var i0 := 0
 	if inc:
 		inc_keys = _inc_keys(feats, n, want)
-		i0 = _inc_restore(inc_keys, n, bodies, looks, errs, sketches, off_ids, counts)
+		i0 = _inc_restore(inc_keys, n, bodies, looks, errs, sketches, off_ids, counts, fx if fx_on else null)
 	if inc_trace:
 		print("INC replay n=%d from=%d caller=%s:%s want=%s" % [n, i0, get_stack()[1]["function"], get_stack()[1]["line"], str(want.keys())])
 	var t_prev := Time.get_ticks_usec()
@@ -579,7 +579,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		if i > i0:
 			counts.append(bodies.size())   # s233: the body count after step i-1 (a `continue` below skips the end of the body, so it is taken at the top)
 		if inc and i > i0:
-			_inc_store(inc_keys[i - 1], bodies, looks, errs, sketches, off_ids, counts)   # the state after step i-1 (a `continue` below skips the end of the body, so it is taken at the top)
+			_inc_store(inc_keys[i - 1], bodies, looks, errs, sketches, off_ids, counts, fx if fx_on else null)   # the state after step i-1 (a `continue` below skips the end of the body, so it is taken at the top)
 		var f: Dictionary = feats[i]
 		var id := String(f["id"])
 		look_fit(looks, bodies.size())
@@ -808,7 +808,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		res["step_keys"] = stepkeys
 	res["counts"] = counts   # s233: the body count after each step 0..n-1, from this one pass (PartFacts.labels_of replayed every prefix for it)
 	if inc and n > i0:
-		_inc_store(inc_keys[n - 1], bodies, looks, errs, sketches, off_ids, counts)
+		_inc_store(inc_keys[n - 1], bodies, looks, errs, sketches, off_ids, counts, fx if fx_on else null)
 	if want.has("pose"):   # the view of a hinge mid-swing (PartUI's Play): that body turned, the rest as it is
 		var pz: Dictionary = want["pose"]
 		for k in n:
@@ -3684,15 +3684,15 @@ static func _inc_keys(feats: Array, n: int, want: Dictionary) -> Array:
 					bound = true
 					h += JSON.stringify(want.get("body", null))
 					break
-		h = (h + JSON.stringify(f)).sha256_text()
+		h = (h + JSON.stringify(PartBKeys.chain_form(f))).sha256_text()
 		keys.append(h)
 	return keys
 
 
 ## the newest cached prefix: its shapes (copies; the replay mutates them) and notes go into the replay's own containers. Answers how many steps it covers
-static func _inc_restore(keys: Array, n: int, bodies: Array, looks: Array, errs: Dictionary, sketches: Dictionary, off_ids: Dictionary, counts: Array) -> int:
+static func _inc_restore(keys: Array, n: int, bodies: Array, looks: Array, errs: Dictionary, sketches: Dictionary, off_ids: Dictionary, counts: Array, fx = null) -> int:
 	var j := n - 1
-	while j >= 0 and not inc_cache.has(keys[j]):
+	while j >= 0 and not (inc_cache.has(keys[j]) and (fx == null or (inc_cache[keys[j]] as Dictionary).has("fx"))):   # W03e: a keyed replay needs the snapshot's body keys
 		j -= 1
 	if j < 0:
 		return 0
@@ -3707,6 +3707,10 @@ static func _inc_restore(keys: Array, n: int, bodies: Array, looks: Array, errs:
 	sketches.merge((snap["sketches"] as Dictionary).duplicate(true))
 	off_ids.merge((snap["off"] as Dictionary).duplicate(true))
 	counts.append_array(snap.get("counts", []))
+	if fx != null:
+		var sfx: Dictionary = snap["fx"]
+		for fk in ["ids", "keys", "names", "looks"]:
+			fx[fk] = (sfx[fk] as Array).duplicate()
 	for k in range(0, j + 1):   # the whole prefix was used: it stays young
 		if inc_cache.has(keys[k]):
 			_inc_tick += 1
@@ -3716,10 +3720,12 @@ static func _inc_restore(keys: Array, n: int, bodies: Array, looks: Array, errs:
 
 
 ## keeps a copy of the state under `key` (the replay goes on mutating its own shapes)
-static func _inc_store(key: String, bodies: Array, looks: Array, errs: Dictionary, sketches: Dictionary, off_ids: Dictionary, counts: Array) -> void:
+static func _inc_store(key: String, bodies: Array, looks: Array, errs: Dictionary, sketches: Dictionary, off_ids: Dictionary, counts: Array, fx = null) -> void:
 	if inc_cache.has(key):
 		_inc_tick += 1
 		inc_cache[key]["tick"] = _inc_tick
+		if fx != null and not inc_cache[key].has("fx"):
+			inc_cache[key]["fx"] = _inc_fx(fx)
 		return
 	var made: Array = []
 	for b in bodies:   # s233: shared, not deep-copied (the copy per step was O(steps x bodies) in time and in memory)
@@ -3727,6 +3733,8 @@ static func _inc_store(key: String, bodies: Array, looks: Array, errs: Dictionar
 		made.append(int(b))
 	_inc_tick += 1
 	inc_cache[key] = {"bodies": made, "looks": looks.duplicate(true), "errs": errs.duplicate(true), "sketches": sketches.duplicate(true), "off": off_ids.duplicate(true), "counts": counts.duplicate(), "tick": _inc_tick}
+	if fx != null:
+		inc_cache[key]["fx"] = _inc_fx(fx)
 	while inc_cache.size() > INC_MAX:
 		var oldest := ""
 		var ot := 1 << 60
@@ -3735,6 +3743,10 @@ static func _inc_store(key: String, bodies: Array, looks: Array, errs: Dictionar
 				ot = int(inc_cache[k]["tick"])
 				oldest = String(k)
 		_inc_drop(oldest)
+
+
+static func _inc_fx(fx: Dictionary) -> Dictionary:   # W03e: what PartFx knows after the step (body keys, names, looks; the ids are the kept shapes)
+	return {"ids": (fx["ids"] as Array).duplicate(), "keys": (fx["keys"] as Array).duplicate(), "names": (fx["names"] as Array).duplicate(), "looks": (fx["looks"] as Array).duplicate()}
 
 
 static func _inc_drop(key: String) -> void:
