@@ -121,7 +121,7 @@ func open(pu: PartUI, p: Vector2) -> void:
 		return
 	if popup == null:
 		popup = PopupMenu.new()
-		pu.add_child(popup)
+		pu.pov.add_child(popup)
 		popup.id_pressed.connect(_choose)
 	popup.clear()
 	for i in items.size():
