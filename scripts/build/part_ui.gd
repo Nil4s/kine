@@ -297,7 +297,7 @@ func setup(b: BuildUI) -> void:
 	easy_open_btn.name = "part_easy_open"
 	_icon(easy_open_btn, "part_part")
 	row.add_child(easy_open_btn)
-	SketchImportUI.attach(self, row)
+	SketchImportUI.attach(self)
 	for c in house_btns:
 		if c.name == "build_choose_open":
 			reopen_btn = c as Button
@@ -2431,6 +2431,7 @@ func _browser_sync() -> void:
 		ob.tooltip_text = "start a sketch on %s" % Part.plane_words(_rec(), String(f["id"]))
 		ob.pressed.connect(func(): begin_sketch(String(f["id"])))
 		browser_vb.add_child(ob)
+	SketchImportUI.browser_row(self, browser_vb)   # C53
 	_canvas_browser_rows()   # GAP 3: the pictures (show / hide)
 
 
@@ -2577,7 +2578,6 @@ func sync() -> void:
 		(tool_btns[t] as Control).visible = show and not (t in m.RIBBON_REST.get("BUILD", [])) and (con_open or not (t in CON_TOOLS))   # the rarer ones live under their captions (main.gd RIBBON_REST); the rule row shows while Constrain is open
 	finish_btn.visible = show
 	easy_open_btn.visible = show
-	import2d_btn.visible = show
 	for c in my_seps:
 		(c as Control).visible = show
 	if show != _was_show:

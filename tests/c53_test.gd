@@ -13,7 +13,7 @@ extends SceneTree
 ##  8 DXF UNITS   $INSUNITS 1 (inches): a 1 in LINE is 25.4 mm within 0.01
 ##  9 UNDO        through PartUI: import = ONE undo step (undo size +1; still +1 after Finish sketch); one undo removes the sketch; a file with nothing drawable
 ##                adds NO step and says why
-## 10 UI          the Import 2D button (part_import2d) and its plane menu (3 items) exist; at 1280x720 the button is on the bar inside the viewport or listed under More; screenshot of an imported sketch
+## 10 UI          the Import 2D button (part_import2d) and its plane menu (3 items) exist; at 1280x720 the button (in the Part browser) is visible inside the viewport; screenshot of an imported sketch
 ## CONTROLS: a checker that must reject a value 0.02 mm off; a file with only <text> imports 0 entities (bars 1 and 9 can fail); the same extrude without the
 ##   import (empty record) has volume 0 (bar 3/7 can fail).
 const SI := preload("res://scripts/build/sketch_import.gd")
@@ -201,8 +201,7 @@ func _init() -> void:
 	var pl: PopupMenu = pu.get("import2d_menu")
 	var vp := root.get_visible_rect()
 	var in_view: bool = btn != null and btn.is_visible_in_tree() and vp.encloses(btn.get_global_rect())
-	var in_more: bool = btn != null and m._more_tools.has(btn) and m.ui_more.visible
-	ok(btn != null and (in_view or in_more) and pl != null and pl.item_count == 3 and btn.text != "", "10 UI Import 2D button reachable (on the bar %s, under More %s, rect %s) and its plane menu has %d items" % [in_view, in_more, btn.get_global_rect() if btn else "none", pl.item_count if pl else -1])
+	ok(btn != null and in_view and pl != null and pl.item_count == 3 and btn.text != "", "10 UI Import 2D button in the Part browser, visible inside the viewport (%s, rect %s) and its plane menu has %d items" % [in_view, btn.get_global_rect() if btn else "none", pl.item_count if pl else -1])
 	root.get_texture().get_image().save_png(SHOT + "/c53_ui_1280x720.png")
 	print("c53: %d fail" % fails)
 	quit(1 if fails > 0 else 0)

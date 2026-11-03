@@ -6,20 +6,29 @@ const SI := preload("res://scripts/build/sketch_import.gd")
 const PLANES := ["front", "top", "right"]
 
 
-static func attach(ui: Object, row: Control) -> void:
-	var m = ui.m
-	var b: Button = m._button("Import 2D", func(): ask(ui), "Import 2D: an .svg or .dxf drawing becomes a new sketch on the chosen plane, in mm (SVG px at 96 dpi). Closed shapes can be extruded. What cannot be read is listed, never dropped quietly (one undo step)")
-	b.name = "part_import2d"
-	b.visible = false
-	row.add_child(b)
+## once, when the Part UI is built: the plane menu (Front / Top / Right)
+static func attach(ui: Object) -> void:
 	var pm := PopupMenu.new()
 	pm.name = "part_import2d_plane"
 	for p in ["Front", "Top", "Right"]:
 		pm.add_item(p)
 	pm.id_pressed.connect(func(i): pick_file(ui, PLANES[clampi(i, 0, 2)]))
-	b.add_child(pm)
-	ui.import2d_btn = b
+	ui.m.add_child(pm)
 	ui.import2d_menu = pm
+
+
+## every time the browser is rebuilt (after its Planes rows): the Import 2D row
+static func browser_row(ui: Object, vb: Control) -> void:
+	var b := Button.new()
+	b.name = "part_import2d"
+	b.text = "Import 2D"
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.flat = true
+	b.focus_mode = Control.FOCUS_NONE
+	b.tooltip_text = "Import 2D: an .svg or .dxf drawing becomes a new sketch on the chosen plane, in mm (SVG px at 96 dpi). Closed shapes can be extruded. What cannot be read is listed, never dropped quietly (one undo step)"
+	b.pressed.connect(func(): ask(ui))
+	vb.add_child(b)
+	ui.import2d_btn = b
 
 
 ## the button: pick the plane (Front / Top / Right), then the file
