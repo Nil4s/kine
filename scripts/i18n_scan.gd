@@ -10,7 +10,10 @@ static func unesc(s: String) -> String:
 	return s.replace("\\\"", "\"").replace("\\n", "\n")
 
 
-static func msgids(po := "res://data/i18n/pt_BR.po") -> Dictionary:
+const PO := "res://data/i18n/pt_BR.po"
+
+
+static func msgids(po := PO) -> Dictionary:
 	var out := {}
 	var re := RegEx.new()
 	re.compile("^msgid \"((?:[^\"\\\\]|\\\\.)*)\"")

@@ -2739,6 +2739,7 @@ func _open_version(path: String) -> void:
 
 
 func _input(ev: InputEvent) -> void:
+	StickyKeys.current = sticky
 	sticky.filter(ev)   # C11: sticky modifier keys (off unless Settings turns them on)
 	# FIX ALL runs in slices (its sampler is part way through a clip between two frames): only its own button answers meanwhile
 	if _fixall_on and (ev is InputEventKey or (ev is InputEventMouseButton and not (is_instance_valid(_fixall_btn) and _fixall_btn.get_global_rect().has_point((ev as InputEventMouseButton).position)))):
@@ -5381,7 +5382,7 @@ func _keys_camera(dt: float) -> void:
 	var z := float(Input.is_key_pressed(KEY_PAGEDOWN)) - float(Input.is_key_pressed(KEY_PAGEUP))
 	if x == 0.0 and y == 0.0 and z == 0.0:
 		return
-	if Input.is_key_pressed(KEY_SHIFT):
+	if StickyKeys.held(KEY_SHIFT):
 		yaw -= x * 90.0 * dt
 		pitch = clampf(pitch + y * 60.0 * dt, -89.0, 89.0)
 	else:
@@ -11965,7 +11966,7 @@ func _gear_open() -> void:
 var gfx_mode := "auto"   # Auto / Low / Medium / High (remembered)
 var gfx_tier := "high"   # what the mode means on this PC, applied at start
 var ui_gfx_dlg: ConfirmationDialog
-var sticky := StickyKeys.new()   # C11
+var sticky := StickyKeys.new()   # C11 (held() reads the live one)
 var gfx_override := ""   # a test's own override.cfg path (never the project's)
 
 
@@ -21356,7 +21357,7 @@ func _prop_press(i: int, mp: Vector2, t: float) -> void:
 	var hp := cam.project_ray_origin(mp) + cam.project_ray_normal(mp) * t
 	var o: Vector3 = (S.props[i]["xf"] as Transform3D).origin
 	_prop_drag = {"i": i, "plane": hp.y, "off": Vector3(o.x - hp.x, 0.0, o.z - hp.z), "moved": false, "from": o,
-		"turn": Input.is_key_pressed(KEY_SHIFT), "yaw0": Props.yaw_of(S.props[i]["xf"]), "a0": atan2(hp.x - o.x, hp.z - o.z)}
+		"turn": StickyKeys.held(KEY_SHIFT), "yaw0": Props.yaw_of(S.props[i]["xf"]), "a0": atan2(hp.x - o.x, hp.z - o.z)}
 	dragging = "prop"
 	_end_teach()
 	_props_show()
@@ -22012,7 +22013,7 @@ func _prop_turn_drag(hp: Vector3) -> void:
 	var xf: Transform3D = S.props[i]["xf"]
 	var a := atan2(hp.x - xf.origin.x, hp.z - xf.origin.z)
 	var yaw := float(_prop_drag["yaw0"]) + rad_to_deg(angle_difference(float(_prop_drag["a0"]), a))
-	yaw = snappedf(yaw, 5.0) if Input.is_key_pressed(KEY_CTRL) else yaw
+	yaw = snappedf(yaw, 5.0) if StickyKeys.held(KEY_CTRL) else yaw
 	S.props[i]["xf"] = Props.xf_at(xf.origin, yaw)
 	_prop_drag["moved"] = absf(angle_difference(deg_to_rad(float(_prop_drag["yaw0"])), deg_to_rad(yaw))) > 0.001
 	var n := ui_props_root.get_node_or_null("prop_%d" % i)

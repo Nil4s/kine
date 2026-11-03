@@ -5,7 +5,9 @@ extends RefCounted
 ## latch clears. Tapping a latched modifier again unlatches it. Holding a modifier while pressing something works as always.
 ## The choice is in user://kine_sticky.cfg (KINE_STICKY_FILE names another; a test never touches the real file).
 const MODS := {KEY_SHIFT: "shift", KEY_CTRL: "ctrl", KEY_ALT: "alt"}
+static var current: StickyKeys = null   # the app's live one; held() reads it
 var on := false
+var _applied := {}   # modifiers a press just took: still 'held' for that press's handlers until the next press
 var latched := {}   # "shift"/"ctrl"/"alt" -> true
 var _down := {}     # modifier name -> still a clean tap
 
@@ -27,10 +29,23 @@ static func save(v: bool) -> void:
 	cf.save(file())
 
 
+## the one place the app asks 'is Shift / Ctrl / Alt down': the real key state OR a sticky latch. Sticky off (or none) = is_key_pressed exactly.
+static func held(k: int) -> bool:
+	var real := Input.is_key_pressed(k)
+	var s := current
+	if s == null or not s.on or not MODS.has(k):
+		return real
+	var nm: String = MODS[k]
+	return real or s.latched.has(nm) or s._applied.has(nm)
+
+
 func set_on(v: bool) -> void:
 	on = v
+	_applied.clear()
 	if not v:
-		latched.clear()
+		for nm in latched:
+		_applied[nm] = true
+	latched.clear()
 		_down.clear()
 
 
@@ -48,6 +63,8 @@ func label() -> String:
 func filter(ev: InputEvent) -> void:
 	if not on:
 		return
+	if (ev is InputEventKey and (ev as InputEventKey).pressed and not MODS.has((ev as InputEventKey).keycode)) or (ev is InputEventMouseButton and (ev as InputEventMouseButton).pressed):
+		_applied.clear()   # a new press: the last press's modifiers are spent
 	if ev is InputEventKey:
 		var k := ev as InputEventKey
 		if MODS.has(k.keycode):
@@ -78,4 +95,6 @@ func _apply(e: InputEventWithModifiers) -> void:
 	e.shift_pressed = e.shift_pressed or latched.has("shift")
 	e.ctrl_pressed = e.ctrl_pressed or latched.has("ctrl")
 	e.alt_pressed = e.alt_pressed or latched.has("alt")
+	for nm in latched:
+		_applied[nm] = true
 	latched.clear()
