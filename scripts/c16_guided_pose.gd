@@ -66,9 +66,54 @@ func _go(k: int) -> void:
 	_text.text = STEPS[k][1]
 	card.visible = true
 	card.reset_size()
-	var win: Rect2 = card.get_viewport().get_visible_rect()
-	card.position = Vector2(win.size.x - card.get_combined_minimum_size().x - 16.0, 48.0)
+	_place()
 	set_process(true)
+
+
+## the card goes where it covers no visible button, label, slider, field or picture: the free spot nearest the top right, else hidden
+func _place() -> void:
+	var win: Rect2 = card.get_viewport().get_visible_rect()
+	var sz := card.get_combined_minimum_size()
+	var bl := _blockers()
+	var best := Vector2(-1, -1)
+	var bd := INF
+	var y := 4.0
+	while y + sz.y <= win.size.y - 4.0:
+		var x := 4.0
+		while x + sz.x <= win.size.x - 4.0:
+			var r := Rect2(Vector2(x, y), sz).grow(2.0)
+			var free := true
+			for b in bl:
+				if b.intersects(r):
+					free = false
+					break
+			if free:
+				var d := Vector2(x + sz.x, y).distance_to(Vector2(win.size.x, 0.0))
+				if d < bd:
+					bd = d
+					best = Vector2(x, y)
+			x += 12.0
+		y += 12.0
+	card.visible = best.x >= 0.0
+	if card.visible:
+		card.position = best
+		card.size = sz
+
+
+func _blockers() -> Array:
+	var out := []
+	var st: Array = [m.ui_root]
+	while not st.is_empty():
+		var n: Node = st.pop_back()
+		if n == card:
+			continue
+		for c in n.get_children():
+			st.append(c)
+		if n is Control and (n as Control).is_visible_in_tree() and (n is BaseButton or n is Label or n is Range or n is LineEdit or n is TextureRect):
+			var r := (n as Control).get_global_rect()
+			if r.size.x > 1.0 and r.size.y > 1.0:
+				out.append(r)
+	return out
 
 
 func finish(skipped: bool) -> void:
@@ -91,6 +136,13 @@ func done_now() -> bool:
 	return false
 
 
+var _t := 0
+
+
 func _process(_d: float) -> void:
+	_t += 1
+	if step >= 0 and _t % 20 == 0:
+		card.reset_size()
+		_place()
 	if step >= 0 and done_now():
 		_go(step + 1)

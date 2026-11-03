@@ -162,6 +162,14 @@ func _init() -> void:
 		ok(bad == 0, "G5 clear of every control at %s" % sz)
 		g.finish(true)
 	ok(old_hits > 0, "G5 control: the old placement overlaps controls at 1280x720 (%d)" % old_hits)
+	if OS.get_environment("C16_SHOT2") != "":
+		root.size = Vector2i(1280, 720)
+		cu.ui_src.select(0)
+		cu.ui_src.item_selected.emit(0)
+		cu.dlg.popup_centered()
+		for i in 5:
+			await process_frame
+		root.get_texture().get_image().save_png(OS.get_environment("C16_SHOT2"))
 	var src := FileAccess.get_file_as_string("res://scripts/main.gd")
 	ok(src.contains("\"Guided first pose\""), "G4 palette command registered")
 	print("c16: %d fail" % fails)
