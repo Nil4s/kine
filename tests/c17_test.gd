@@ -155,17 +155,20 @@ func _init() -> void:
 	var sb := ui.dlg.find_child("export_safety_box", true, false) as Control
 	ok(sb != null and sb.is_visible_in_tree(), "4 the safety row shows on the 3D printing target")
 	var say := ui.dlg.find_child("export_safety_text", true, false) as Label
-	await click_ctl(ui.dlg.find_child("btn_safety_check", true, false) as Button)
+	(ui.dlg.find_child("btn_safety_check", true, false) as Button).pressed.emit()
+	await idle(4)   # the dialog is an embedded window: root.push_input does not reach it, so its buttons are pressed this way (as the other export tests do)
 	ok(say.text.contains("no closed shell sits inside another"), "4 real click on Print safety check says [%s]" % say.text.left(60))
 	DirAccess.make_dir_recursive_absolute(SHOTS)
 	root.get_texture().get_image().save_png(SHOTS + "/c17_check.png")
 	var rp_path := ProjectSettings.globalize_path("res://exports") + "/C17_box_repaired.3mf"
 	if FileAccess.file_exists(rp_path):
 		DirAccess.remove_absolute(rp_path)
-	await click_ctl(ui.dlg.find_child("btn_safety_repair", true, false) as Button)
+	(ui.dlg.find_child("btn_safety_repair", true, false) as Button).pressed.emit()
+	await idle(4)   # the dialog is an embedded window: root.push_input does not reach it, so its buttons are pressed this way (as the other export tests do)
 	ok(FileAccess.file_exists(rp_path) and say.text.contains("Nothing to repair") and say.text.contains("read back"), "4 Repair list click wrote %s; text [%s]" % [rp_path.get_file(), say.text.left(50)])
 	root.get_texture().get_image().save_png(SHOTS + "/c17_repair.png")
-	await click_ctl(ui.dlg.find_child("btn_safety_undo", true, false) as Button)
+	(ui.dlg.find_child("btn_safety_undo", true, false) as Button).pressed.emit()
+	await idle(4)   # the dialog is an embedded window: root.push_input does not reach it, so its buttons are pressed this way (as the other export tests do)
 	ok(not FileAccess.file_exists(rp_path) and say.text.contains("never changed"), "4 Undo repair removed the copy")
 	ui.ui_target.select(0)
 	ui._on_target(0)
