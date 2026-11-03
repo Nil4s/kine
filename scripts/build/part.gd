@@ -70,6 +70,7 @@ const MM := 0.001
 const POFFSET := preload("res://scripts/build/part_offset.gd")   # plan 18: Thinner / thicker everywhere
 const PBULGE := preload("res://scripts/build/part_bulge.gd")   # plan 23: Pinch / Bulge a face
 const GEAR_DRIVE := preload("res://scripts/gear_drive.gd")
+const BSAFE := preload("res://scripts/build/boolean_safe.gd")   # C38: coincident faces nudged 0.01 mm, said in words
 const JOINH := preload("res://scripts/build/join_helper.gd")   # W10: line-touch words, counted bodies, the 0.01 mm nudge
 const PPRIM := preload("res://scripts/build/part_prim.gd")   # s229: primitives by numbers, planes from 3 points / an angle, scoped intersect, bow-tie check
 const PFIT := preload("res://scripts/build/part_fit.gd")   # s193: Fit to an object (a holder / case sunk with a phone scan)   # s124: the Gear pair turned for the view
@@ -798,9 +799,12 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 						nlook["name"] = lab
 					looks[ni] = nlook
 			"combine":   # COMBINE: its own function (_combine_step): the target and the tools become one body list again
+				PPRIM.last_warning = ""
 				var ce := _combine_step(bodies, looks, f)
 				if ce != "":
 					errs[id] = ce
+				elif PPRIM.last_warning != "":
+					warns[id] = PPRIM.last_warning   # C38
 			"align":   # P054 ALIGN CHIPS: the moved piece slides so its left side, middle or top sits level with the other piece's (its own function: _align_step)
 				var al := _align_step(bodies, f)
 				if al != "":
@@ -2538,6 +2542,11 @@ static func _combine_step(bodies: Array, looks: Array, f: Dictionary) -> String:
 				nx = KCad.cut(cur, tool_id)
 			_:
 				nx = KCad.intersect(cur, tool_id)
+		if nx != 0:   # C38: an answer with open edges (faces sitting exactly on each other) is redone with the tool 0.01 mm off, and said in words
+			var c38 := BSAFE.polish(cur, tool_id, op, nx)
+			nx = int(c38["id"])
+			if String(c38["words"]) != "":
+				PPRIM.last_warning = String(c38["words"])
 		var w10 := JOINH.explain(cur, tool_id, op, nx)   # W10: counted bodies / "only touch along a line" in plain words ("" = fine)
 		if tool_id != bodies[t]:
 			KCad.release(tool_id)

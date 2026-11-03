@@ -730,7 +730,7 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 			var pk23 := C23Colour.pick(m.S.part, quality(), "auto")
 			run = String(pk23["fmt"])
 			why23 = String(pk23["why"])
-		var r := PrintSplit.export_part(m.S.part, run, UserPaths.w(dir), bed_mm, quality()) if split_fit else MeshExport.export_part(m.S.part, run, UserPaths.w(dir), budget, quality(), SupportPref.of(ui_support.selected) if run == "3mf" and ui_support != null else {})
+		var r := PrintSplit.export_part(m.S.part, run, UserPaths.w(dir), bed_mm, quality(), SupportPref.of(ui_support.selected) if run == "3mf" and ui_support != null else {}) if split_fit else MeshExport.export_part(m.S.part, run, UserPaths.w(dir), budget, quality(), SupportPref.of(ui_support.selected) if run == "3mf" and ui_support != null else {})
 		m._say_plain(String(r["text"]) + (". " + why23 if why23 != "" and bool(r["ok"]) else ""))
 		return String(r["path"]) if bool(r["ok"]) else ""
 	if id == "step":   # STEP of the part on screen (the exact solid)
