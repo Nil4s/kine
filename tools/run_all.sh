@@ -802,3 +802,4 @@ EXTRA="$EXTRA s277b:w"
 EXTRA="$EXTRA s277c:w"   # s277c/s262d: card body brightness in a fixed box, explode film camera margin + ring halo, tests/s277c_test.gd
 EXTRA="$EXTRA s277c2:w"   # s277c2/s262d round 2 readers (grey-body mean, edge pixels), tests/s277c2_test.gd
 EXTRA="$EXTRA c11:w"   # c11: pt_BR missing-string scanner, sticky keys, bad GPU driver list
+EXTRA="$EXTRA c31:w"   # c31: pt_BR 447 strings, placeholders, CRLF, review list, fit at 1280x720
