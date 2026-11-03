@@ -38,7 +38,9 @@ static func build(ep, _row: Control = null) -> void:
 	ep.m.get_tree().process_frame.connect(func():   # a full-screen dialog (What to build) is never covered by the panel
 		var bc = ep.m.get("build_choose")
 		if is_instance_valid(box) and box.visible and bc != null and bool(bc.get("open")):
-			box.visible = false)
+			box.visible = false
+		elif is_instance_valid(box) and box.visible and Engine.get_process_frames() % 12 == 0:
+			place(box))   # the layout moves its boxes after a press: look again, so the panel never ends up over one
 	sync(ep, false)
 
 
@@ -53,9 +55,73 @@ static func sync(ep, show := false) -> void:
 			ep.tilt_box.get_parent().add_child(box)   # beside the other Easy boxes (the panel's own layer)
 		box.visible = show and box.get_parent() != null
 		if box.visible:
-			box.reset_size()
-			var vs: Vector2 = (box.get_parent() as Control).size
-			box.position = Vector2(vs.x * 0.5 - box.size.x * 0.5 - 90.0, vs.y - box.size.y - 110.0)
+			place(box)
+
+
+## Controls the panel must not cover: every visible button, label, slider and panel in the window except the panel itself, the controls it sits
+## in, and the big background layers (a rect over 40 pct of the window is the scene, not a control)
+static func blockers(box: Control) -> Array:
+	var out: Array = []
+	var win := Vector2(box.get_viewport().get_visible_rect().size)
+	var stack: Array = [box.get_viewport()]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			if c == box:
+				continue
+			stack.append(c)
+			if not (c is Control) or not (c as Control).is_visible_in_tree() or c.is_ancestor_of(box):
+				continue
+			if not (c is BaseButton or c is Label or c is Range or c is PanelContainer or c is LineEdit or c is RichTextLabel):
+				continue
+			if c is Label and (c as Label).text == "":
+				continue
+			var r := (c as Control).get_global_rect()
+			if r.size.x < 2.0 or r.size.y < 2.0 or r.get_area() > 0.4 * win.x * win.y:
+				continue
+			out.append(r)
+	return out
+
+
+## the panel goes where it overlaps none of them (4 px apart), as far from the middle of the view (where the model stands) as the free room allows
+static func place(box: Control) -> void:
+	box.reset_size()
+	var par := box.get_parent() as Control
+	var vs: Vector2 = par.size
+	var bl := blockers(box)
+	var sz := box.size
+	if box.has_meta("c03_placed") and box.get_meta("c03_vs") == vs and Rect2(Vector2.ZERO, vs).encloses(Rect2(box.position, sz)):   # sticky: it stays where it is while that place is still clear (a button must not slide under the mouse)
+		var cur := Rect2(par.get_global_transform() * box.position, sz).grow(4.0)
+		var clear := true
+		for b in bl:
+			if cur.intersects(b):
+				clear = false
+				break
+		if clear:
+			return
+	box.set_meta("c03_placed", true)
+	box.set_meta("c03_vs", vs)
+	var mid := vs * 0.5
+	var best := Vector2(-1, -1)
+	var best_d := -1.0
+	var y := 0.0
+	while y <= vs.y - sz.y:
+		var x := 0.0
+		while x <= vs.x - sz.x:
+			var r := Rect2(par.get_global_transform() * Vector2(x, y), sz).grow(4.0)
+			var hit := false
+			for b in bl:
+				if r.intersects(b):
+					hit = true
+					break
+			if not hit:
+				var d := (Vector2(x, y) + sz * 0.5).distance_to(mid)
+				if d > best_d:
+					best_d = d
+					best = Vector2(x, y)
+			x += 12.0
+		y += 12.0
+	box.position = best if best.x >= 0.0 else Vector2(vs.x * 0.5 - sz.x * 0.5 - 90.0, vs.y - sz.y - 110.0)
 
 
 static func pull_press(ep) -> void:
