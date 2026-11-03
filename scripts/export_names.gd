@@ -64,14 +64,14 @@ static func controls() -> Control:
 	v.add_child(row)
 	var c1 := CheckBox.new()
 	c1.name = "chk_fbx_camera"
-	c1.text = "FBX: include the shot camera (position, rotation, lens, keys)"
+	c1.text = "FBX: shot camera (keys)"
 	c1.button_pressed = fbx_camera
 	c1.toggled.connect(func(on: bool): fbx_camera = on)
-	v.add_child(c1)
-	var rf := HBoxContainer.new()
+	var rf := HBoxContainer.new()   # one row with the camera switch: the dialog gets no taller
 	rf.name = "row_fbx_for"
+	rf.add_child(c1)
 	var lf := Label.new()
-	lf.text = "FBX: for"
+	lf.text = "  for:"
 	rf.add_child(lf)
 	var of := OptionButton.new()
 	of.name = "opt_fbx_for"
@@ -80,6 +80,7 @@ static func controls() -> Control:
 	of.select(maxi(FBX_FOR.find(fbx_for), 0))
 	of.tooltip_text = "Which engine the FBX numbers are for. Default keeps the old file (centimetres, Y up). Unity writes metres; Unreal and Blender write Z up."
 	of.item_selected.connect(func(i: int): fbx_for = FBX_FOR[i])
+	of.custom_minimum_size = Vector2(190, 0)
 	rf.add_child(of)
 	v.add_child(rf)
 	var c2 := CheckBox.new()

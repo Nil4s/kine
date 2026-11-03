@@ -88,6 +88,22 @@ func bin_doubles(b: PackedByteArray, nm: String, n: int, nonzero := false) -> Ar
 	return []
 
 
+## the Integer property nm of a binary FBX (-1 when absent)
+func bin_int(b: PackedByteArray, nm: String) -> int:
+	var pat := nm.to_ascii_buffer()
+	var i := -1
+	for k in range(0, b.size() - pat.size()):
+		if b[k] == pat[0] and b.slice(k, k + pat.size()) == pat:
+			i = k
+			break
+	if i < 0:
+		return -1
+	var j := i + nm.length()
+	while j < b.size() - 5 and not (b[j] == 73 and b[j - 1] == 0 and b[j - 2] == 0 and b[j - 3] == 0 and b[j - 4] == 0):
+		j += 1
+	return b.decode_s32(j + 1)
+
+
 func fbx_facts(t: String) -> Dictionary:
 	var f := 0.0
 	for line in t.split("\n"):
@@ -103,12 +119,58 @@ func fbx_facts(t: String) -> Dictionary:
 	return {"factor": f, "t": tr}
 
 
+## a real click on the button through the dialog's own window (events reach a sub-window there), then the popup's row
+func win_click(w: Window, p: Vector2) -> void:
+	var mv := InputEventMouseMotion.new()
+	mv.position = p
+	mv.global_position = p
+	w.push_input(mv, true)
+	await process_frame
+	for d in [true, false]:
+		var e := InputEventMouseButton.new()
+		e.button_index = MOUSE_BUTTON_LEFT
+		e.pressed = d
+		e.position = p
+		e.global_position = p
+		if d:
+			e.button_mask = MOUSE_BUTTON_MASK_LEFT
+		w.push_input(e, true)
+		await process_frame
+	await idle(2)
+
+
+## press on the button, drag to the popup's row, release there (how a Godot drop-down is used with one gesture)
 func pick(opt: OptionButton, idx: int) -> void:
-	await click(opt)
-	var step := 1 if idx > opt.selected else -1
-	for i in absi(idx - opt.selected):
-		await key(KEY_DOWN if step > 0 else KEY_UP)
-	await key(KEY_ENTER)
+	var dlg: Window = opt.get_window()
+	var off := Vector2(dlg.position) if dlg != root else Vector2.ZERO
+	var pb := off + opt.get_global_rect().get_center()
+	var mv := InputEventMouseMotion.new()
+	mv.position = pb
+	mv.global_position = pb
+	root.push_input(mv, true)
+	await process_frame
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_LEFT
+	e.pressed = true
+	e.position = pb
+	e.global_position = pb
+	e.button_mask = MOUSE_BUTTON_MASK_LEFT
+	root.push_input(e, true)
+	await idle(3)
+	var pop := opt.get_popup()
+	var pi := Vector2(pop.position) + Vector2(pop.size.x / 2.0, (idx + 0.5) * float(pop.size.y) / float(pop.item_count))
+	var m2 := InputEventMouseMotion.new()
+	m2.position = pi
+	m2.global_position = pi
+	m2.button_mask = MOUSE_BUTTON_MASK_LEFT
+	root.push_input(m2, true)
+	await idle(2)
+	var r := InputEventMouseButton.new()
+	r.button_index = MOUSE_BUTTON_LEFT
+	r.pressed = false
+	r.position = pi
+	r.global_position = pi
+	root.push_input(r, true)
 	await idle(3)
 
 
@@ -176,8 +238,8 @@ func _init() -> void:
 	await pick(opt, 2)
 	ok(ExportNames.fbx_for == "unreal", "D a click picks Unreal")
 	var z_path: String = m._export_fbx(DIR)
-	var zu := bin_doubles(FileAccess.get_file_as_bytes(z_path), "UpAxis", 1)
-	ok(zu == [2.0], "D the Unreal file's UpAxis reads %s (2 = Z up)" % str(zu))
+	var zu := bin_int(FileAccess.get_file_as_bytes(z_path), "UpAxis")
+	ok(zu == 2, "D the Unreal file's UpAxis reads %s (2 = Z up)" % str(zu))
 	await pick(opt, 0)
 	ok(ExportNames.fbx_for == "default", "A choosing Default again restores it")
 	ExportNames.fbx_for = "default"
