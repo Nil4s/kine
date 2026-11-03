@@ -788,3 +788,7 @@ EXTRA="$EXTRA c02:w"   # c02: pose library update, multi-delete, rename, tests/c
 
 
 EXTRA="$EXTRA c04:w"   # c04: clip import checks and Stay in place, tests/c04_test.gd
+
+
+
+EXTRA="$EXTRA c05:w"   # c05: bad spots panel, hand shape check, finger bleed check, tests/c05_test.gd
