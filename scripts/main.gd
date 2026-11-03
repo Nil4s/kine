@@ -1427,7 +1427,7 @@ func _export_fbx(dir := "res://exports", root_motion := false) -> String:
 			var p := "%s/%s%s_%s.fbx" % [dir, _export_base(), sfx, safe_file(String(a["name"]))]
 			if ExportNames.template.strip_edges() != "":   # C09: the name template
 				p = "%s/%s%s.fbx" % [dir, ExportNames.expand(ExportNames.template, {"name": _export_base(), "part": safe_file(String(a["name"]))}, _export_base()), sfx]
-			var r := FbxExport.write(a["S"], a["B"], p, root_motion, a["xf"], String(a["name"]), false, ExportNames.cam_keys(a["S"]))
+			var r := ExportNames.fbx_write(a["S"], a["B"], p, root_motion, a["xf"], String(a["name"]), false, ExportNames.cam_keys(a["S"]))
 			if r["err"] != OK:
 				_refresh()
 				_say_plain("NOT DONE: %s could not be written (%s)" % [p.get_file(), error_string(r["err"])])
@@ -1437,18 +1437,18 @@ func _export_fbx(dir := "res://exports", root_motion := false) -> String:
 				bones = (r["bones"] as PackedStringArray).size()
 				frames = int(r["keys"])
 		_refresh()
-		_say_plain("exported %d .fbx, one per fighter, each at its place: %d bones, %d frames at %d fps, UE5 bone names, centimetres, Y up. The weapons are not in them" % [acts.size(), bones, frames, S.fps])
+		_say_plain("exported %d .fbx, one per fighter, each at its place: %d bones, %d frames at %d fps, UE5 bone names, centimetres, Y up%s. The weapons are not in them" % [acts.size(), bones, frames, S.fps, ExportNames.fbx_for_words()])
 		return first
 	var nm := S.name if S.name != "" else "scene"
 	var path := "%s/%s%s.fbx" % [dir, ExportNames.expand(ExportNames.template, {"name": nm, "part": nm}, nm), sfx]   # C09: blank template = nm
 	var keep := B.state()
-	var r2 := FbxExport.write(S, B, path, root_motion, Transform3D.IDENTITY, "", false, ExportNames.cam_keys(S))
+	var r2 := ExportNames.fbx_write(S, B, path, root_motion, Transform3D.IDENTITY, "", false, ExportNames.cam_keys(S))
 	B.set_state(keep)
 	_refresh()
 	if r2["err"] != OK:
 		_say_plain("NOT DONE: the .fbx could not be written (%s)" % error_string(r2["err"]))
 		return ""
-	_say_plain("exported %s.fbx: %d bones, %d frames at %d fps, UE5 bone names, centimetres, Y up%s. The weapons and props are not in it" % [nm, (r2["bones"] as PackedStringArray).size(), int(r2["keys"]), S.fps, ", root motion on the root bone" if root_motion else ""])
+	_say_plain("exported %s.fbx: %d bones, %d frames at %d fps, UE5 bone names, centimetres, Y up%s%s. The weapons and props are not in it" % [nm, (r2["bones"] as PackedStringArray).size(), int(r2["keys"]), S.fps, ", root motion on the root bone" if root_motion else "", ExportNames.fbx_for_words()])
 	return path
 
 
