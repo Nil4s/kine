@@ -1,6 +1,6 @@
 ## godot --headless --path . -s tests/c54_test.gd     (C54, complaint #180: cloth self-collision; scripts/cloth_self.gd, Cloth.self_collide)
 ## Fixture (no body needed): a 2 s clip at 30 fps (61 frames). The cape's 12 pins sink 0.45 m between 0.3 s and 1.2 s while the row
-## pinches from 0.30 m wide to 0.10 m, with a 12 cm-radius shelf under the cape: the cloth buckles and folds onto itself.
+## pinches from 0.30 m wide to 0.10 m, with an 8 cm-radius shelf at y 0.30 under the cape: the cloth buckles and folds onto itself.
 ## MEASURE (independent of the solver): ClothSelf.count_close = the number of triangle pairs of the cloth, sharing no vertex, whose
 ## surfaces are closer than 0.95 x THICK, by brute force over all pairs, at EVERY frame.
 ## Bars, written before any number was read:
@@ -36,13 +36,13 @@ func fixture() -> Dictionary:
 		for c in Cloth.COLS:
 			var u := float(c) / float(Cloth.COLS - 1) * 2.0 - 1.0
 			var hw := lerpf(0.15, 0.05, s)
-			pins.append(Vector3(u * hw, Cloth.TOP_Y - 0.45 * s, -0.17))
+			pins.append(Vector3(u * hw, Cloth.TOP_Y - 0.45 * s, -0.17 + (0.008 if c % 2 == 0 else -0.008) * s))
 		A.append(pins)
 		var caps := PackedVector3Array()
-		caps.append(Vector3(-0.4, 0.75, -0.17))
-		caps.append(Vector3(0.4, 0.75, -0.17))
+		caps.append(Vector3(-0.4, 0.30, -0.12))
+		caps.append(Vector3(0.4, 0.30, -0.12))
 		C.append(caps)
-	return {"A": A, "C": C, "rads": PackedFloat64Array([0.12])}
+	return {"A": A, "C": C, "rads": PackedFloat64Array([0.08])}
 
 
 func bake(fx: Dictionary, on: bool, gd := true) -> Dictionary:
@@ -82,12 +82,7 @@ func max_stretch(cape: Dictionary) -> float:
 
 
 func _init() -> void:
-	var wd := Timer.new()   # watchdog: a hung run is killed after 10 minutes
-	get_root().add_child(wd)
-	wd.wait_time = 600.0
-	wd.one_shot = true
-	wd.timeout.connect(func(): print("FAIL watchdog 600 s"); quit(2))
-	wd.start()
+	create_timer(600.0).timeout.connect(func(): print("FAIL watchdog 600 s"); quit(2))   # watchdog
 	var fx := fixture()
 	var t0 := Time.get_ticks_usec()
 	var off := bake(fx, false)

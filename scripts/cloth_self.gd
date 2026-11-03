@@ -15,7 +15,7 @@ class_name ClothSelf
 extends RefCounted
 
 const CELL := 0.05      # m: the hash cell
-const PAD := 0.012      # m: a box is padded by this on top of the thickness (positions move this much within a substep's passes)
+const PAD := 0.004      # m: a box is padded by this on top of the thickness (positions move this much within a substep's passes)
 
 var thick := 0.006
 var tris := PackedInt32Array()
@@ -52,7 +52,9 @@ func begin(p: PackedVector3Array) -> int:
 				for iz in range(int(floor(l.z * inv)), int(floor(h.z * inv)) + 1):
 					var key := (ix & 0x1FFFFF) | ((iy & 0x1FFFFF) << 21) | ((iz & 0x1FFFFF) << 42)
 					if grid.has(key):
-						(grid[key] as PackedInt32Array).append(t)
+						var cell: PackedInt32Array = grid[key]   # a Packed array is a value: append, then store it back
+						cell.append(t)
+						grid[key] = cell
 					else:
 						grid[key] = PackedInt32Array([t])
 	var seen := {}
