@@ -869,3 +869,4 @@ EXTRA="$EXTRA c31:w"   # c31: pt_BR 447 strings, placeholders, CRLF, review list
 
 
 EXTRA="$EXTRA c30:w"
+EXTRA="$EXTRA c41:w"   # c41: #184 invert orbit X / Y apart, #311 bad spots (built by C05) checked
