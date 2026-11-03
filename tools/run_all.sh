@@ -819,3 +819,4 @@ EXTRA="$EXTRA c13:w"   # C13: pose IK/FK state, prop attach/detach frame, cape s
 
 
 EXTRA="$EXTRA c14:w"   # c14: rig pre-check, footage pre-check, cut-list CSV locale, tests/c14_test.gd
+EXTRA="$EXTRA c20:w"   # C20: print fit: hinge clearance from the printer preset + knuckle fuse check, export tessellation = fit/4 (opt-in), support anchor width check (tests/c20_test.gd; needs the CAD DLL)
