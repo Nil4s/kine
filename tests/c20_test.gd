@@ -190,9 +190,7 @@ func _init() -> void:
 	(root.find_child("easypart_chip_parts", true, false) as Button).pressed.emit()
 	await idle(3)
 	var ep = pu.ep
-	ep.lib_cat = "Hinges"
-	ep.parts_open = true
-	ep._screw_sync()
+	await click_ctl(ep.lib_btns["Hinges"])
 	await idle(3)
 	var pb := root.find_child("easypart_pip_hinge", true, false) as Button
 	ok(pb != null and pb.is_visible_in_tree() and Rect2(Vector2.ZERO, Vector2(1280, 720)).encloses(pb.get_global_rect()), "UI the Print-in-place hinge button is on screen: %s" % (str(pb.get_global_rect()) if pb != null else "missing"))
