@@ -56,6 +56,15 @@ func click_ctl(c: Control) -> void:
 	await click_at(c.get_global_rect().get_center())
 
 
+## navigation only (5c735d53 freebuild: the BUILDING card opens a free Easy Part, so the house comes from the chooser, as in buildwords_test)
+func to_house() -> void:
+	await click_ctl(m.bld.part.reopen_btn)
+	await idle(6)
+	await click_ctl(m.build_choose.btns["house"]["expert"])
+	m.bld.reset_view()
+	await idle(10)
+
+
 func house() -> Dictionary:
 	var b := Building.make("Bay house")
 	Building.add_room(b, 0, 0, 8, 6)
@@ -146,7 +155,7 @@ func _run() -> void:
 	var pk := BlueprintExt.custom_pick(10000, 8000, 1)
 	var cs := Blueprint.sheet(b, "Floor 1", pk)
 	var svg := Blueprint.to_svg(cs)
-	ok(pk["paper"] == "Custom 10000x8000" and svg.contains("width=\"10000mm\"") and svg.contains("height=\"8000mm\"") and svg.contains("data-denom=\"1\"") and svg.contains("data-mm-per-m=\"1000\""),
+	ok(pk["paper"] == "Custom 10000x8000" and svg.contains("width=\"10000.0mm\"") and svg.contains("height=\"8000.0mm\"") and svg.contains("data-denom=\"1\"") and svg.contains("data-mm-per-m=\"1000.0\""),
 		"3 the SVG is 10000mm x 8000mm at 1:1, 1000 mm per metre")
 	var has_overall := false
 	for e in cls_of(cs["ents"], "dim"):
@@ -175,7 +184,8 @@ func _run() -> void:
 	var col: float = absf((ld["a"] - box.get_center()).normalized().cross(dir))
 	ok(tx["s"] == "B" and box.has_point(tx["p"]) and leader_ok(box, ld["a"]) and col < 0.0001 and ld["b"] == Vector2(150, 60), "4 the leader starts on the letter box's edge (%.4f mm) and runs to the target" % edge_dist(box, ld["a"]))
 	ok(not leader_ok(box, box.get_center()), "4 control: a leader planted from the letter's centre fails the edge check")
-	var e2 := BlueprintExt.callout("C", Vector2(100, 100), Vector2(300, 100))
+	var c2y: float = box_of(cls_of(ents, "callout")[0]).get_center().y
+	var e2 := BlueprintExt.callout("C", Vector2(100, 100), Vector2(300, c2y))
 	var b2 := box_of(cls_of(e2, "callout")[0])
 	var l2: Dictionary = cls_of(e2, "leader").filter(func(e): return e["t"] == "line")[0]
 	ok(is_equal_approx(l2["a"].x, b2.end.x) and is_equal_approx(l2["a"].y, b2.get_center().y), "4 a target straight to the right starts at the box's right edge")
@@ -206,6 +216,7 @@ func _run() -> void:
 	await click_ctl(ss._cards["building"])
 	if m.ui_save_ask != null and m.ui_save_ask.visible: m._save_ask_choose("discard")
 	await idle(6)
+	await to_house()
 	m.S.building = house()
 	bld.sync()
 	await idle(4)
