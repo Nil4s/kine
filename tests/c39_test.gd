@@ -72,6 +72,14 @@ func blender_mats(fbx: String, tag: String) -> Array:
 	return r if r is Array else []
 
 
+func _has(b: PackedByteArray, w: String) -> bool:
+	var pat := w.to_ascii_buffer()
+	for k in range(0, b.size() - pat.size()):
+		if b[k] == pat[0] and b.slice(k, k + pat.size()) == pat:
+			return true
+	return false
+
+
 func find_mat(ms: Array, nm: String) -> Dictionary:
 	for x in ms:
 		if String(x["name"]).begins_with(nm):
@@ -132,14 +140,14 @@ func _init() -> void:
 	var ref_path := DIR + "/ref_default.fbx"
 	FbxExport.write(S, B, ref_path, false, Transform3D.IDENTITY, "", false, ExportNames.cam_keys(S))
 	var rb := FileAccess.get_file_as_bytes(ref_path)
-	ok(db.size() > 100 and db == rb and db.get_string_from_ascii().find("Material") < 0, "B default (off): byte-identical to FbxExport.write's, no Material (%d vs %d bytes)" % [db.size(), rb.size()])
+	ok(db.size() > 100 and db == rb and _has(db, "Material") == false, "B default (off): byte-identical to FbxExport.write's, no Material (%d vs %d bytes)" % [db.size(), rb.size()])
 
 	await click(chk)
 	ok(chk.button_pressed and ExportNames.fbx_materials, "A a real click turns the switch on")
 	root.get_texture().get_image().save_png(SHOT + "/dialog_on_1280x720.png")
 	var on_path: String = m._export_fbx(DIR)
 	var ob := FileAccess.get_file_as_bytes(on_path)
-	ok(ob.size() > db.size() and ob.get_string_from_ascii().find("Material") >= 0, "C the file with materials is bigger (%d > %d bytes) and names Material" % [ob.size(), db.size()])
+	ok(ob.size() > db.size() and _has(ob, "Material"), "C the file with materials is bigger (%d > %d bytes) and names Material" % [ob.size(), db.size()])
 	var keep_on := DIR + "/with_materials.fbx"
 	DirAccess.copy_absolute(ProjectSettings.globalize_path(on_path), ProjectSettings.globalize_path(keep_on))
 	var mats: Array = await blender_mats(keep_on, "on")

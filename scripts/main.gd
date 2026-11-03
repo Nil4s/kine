@@ -1421,6 +1421,7 @@ func _export_fbx(dir := "res://exports", root_motion := false) -> String:
 		_say_plain("NOT NOW: an animation needs at least 2 cards (a move)")
 		return ""
 	var sfx := "_ue5" if root_motion else ""
+	ExportNames.body_rgb = BODY_COLOURS[body_colour][1]   # C39
 	var acts := _export_actors()
 	var first := ""
 	var bones := 0
