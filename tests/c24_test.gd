@@ -20,6 +20,7 @@ extends SceneTree
 ##   U2 SAVE   Sideways + 40 deg + OK: ONE new step with axis2 square to axis (|dot| < 1e-6) and track2 ending at 40.  CONTROL: None leaves axis2, track2, autoplace, placed unset.
 ##   U3 SNAP   checkbox on with the pivot in the air: the words under it name the edge, and OK saves o within 0.5 mm of the corner edge middle and "placed".
 ##   U4 LOOK   screenshots c24_rows.png and c24_snap.png are written (a human looks at them).
+## FIXTURE FIXES after run 1 (no bar value moved): A3 CONTROL uses track2 0 -> -60 (the +b tilt moves the TOP of the leaf away from the stop, the bottom corner still hits at frame 24); the UI opens the dialog by open_dialog("hinge").
 ## A watchdog prints FAIL and quits after 240 s.
 const KCad := preload("res://scripts/kcad.gd")
 var fails := 0
@@ -137,14 +138,14 @@ func logic_bars() -> void:
 	# A2
 	var lim := leaf_rec({"axis2": [1, 0, 0], "track2": [[0.0, 0.0], [3.0, 60.0]], "limit2": 20.0})
 	var sl: Dictionary = Part.hinge_sweep(lim, "f5")
-	var nl: Dictionary = Part.hinge_sweep(leaf_rec({"axis2": [1, 0, 0], "track2": [[0.0, 0.0], [3.0, 60.0]]}), "f5")
+	var nl: Dictionary = Part.hinge_sweep(leaf_rec({"axis2": [1, 0, 0], "track2": [[0.0, 0.0], [3.0, -60.0]]}), "f5")
 	ok(bool(sl.get("ok", false)) and absf(float(sl.get("limit2", -1)) - 20.0) < 0.01 and absf(float(sl.get("max_deg2", -1)) - 20.0) < 0.01, "A2 LIMIT: limit2 %s, max_deg2 %s (20, 20)" % [sl.get("limit2"), sl.get("max_deg2")])
 	ok(absf(float(nl.get("max_deg2", -1)) - 60.0) < 0.01, "A2 CONTROL: no limit2 -> max_deg2 %s (60)" % nl.get("max_deg2"))
 	# A3
 	var old: Dictionary = Part.hinge_sweep(leaf_rec({}), "f5")
 	var f_old := int(old.get("first", -9))
 	ok(not old.has("limit2") and not old.has("max_deg2") and not old.has("placed") and absi(f_old - 24) <= 1, "A3 OLD: no new keys, first hit frame %d (24 +- 1)" % f_old)
-	var two: Dictionary = Part.hinge_sweep(leaf_rec({"axis2": [1, 0, 0], "track2": [[0.0, 0.0], [3.0, 60.0]]}), "f5")
+	var two: Dictionary = Part.hinge_sweep(leaf_rec({"axis2": [1, 0, 0], "track2": [[0.0, 0.0], [3.0, -60.0]]}), "f5")
 	ok(int(two.get("first", -9)) != f_old, "A3 CONTROL: with axis2 the first hit frame is %s, not %d" % [two.get("first"), f_old])
 	# B1
 	var bo := Vector3(430, 430, 50)
@@ -204,7 +205,7 @@ func ui_bars() -> void:
 	var n0: int = (m.S.part["features"] as Array).size()
 	# open the dialog the way the Hinge tool does, with the part and the line already picked
 	for round in 3:
-		pu._hinge_open({}, -1)
+		pu.open_dialog("hinge", -1)
 		pu.hp["body"] = 0
 		pu.hp["o"] = Vector3(0.43, 0.43, 0.05) if round == 2 else Vector3(0.4, 0.4, 0.0)
 		pu.hp["d"] = Vector3(0, 0, 1)
