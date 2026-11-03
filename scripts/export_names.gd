@@ -8,6 +8,22 @@ extends RefCounted
 static var template := ""
 static var fbx_camera := false
 static var lightmap_uv := false
+## C28: the FBX target engine ("default" = the old file; "unity" | "unreal" | "blender" call FbxExport.write_preset)
+static var fbx_for := "default"
+const FBX_FOR := ["default", "unity", "unreal", "blender"]
+const FBX_FOR_NAMES := ["Default (centimetres, Y up)", "Unity (metres)", "Unreal (centimetres, Z up)", "Blender (centimetres, Z up)"]
+
+
+## the FBX write for the chosen target; the default target is FbxExport.write itself (the same bytes as before)
+static func fbx_write(S, B, path: String, root_motion := false, xf := Transform3D.IDENTITY, root_name := "", ascii := false, camera_keys := []) -> Dictionary:
+	if fbx_for == "default" or not FbxExport.PRESETS.has(fbx_for):
+		return FbxExport.write(S, B, path, root_motion, xf, root_name, ascii, camera_keys)
+	return FbxExport.write_preset(fbx_for, S, B, path, root_motion, xf, root_name, ascii, camera_keys)
+
+
+## the words after an export say which target the numbers are for ("" for the default)
+static func fbx_for_words() -> String:
+	return "" if fbx_for == "default" or not FbxExport.PRESETS.has(fbx_for) else "; for %s: %s" % [fbx_for.capitalize(), String(FbxExport.PRESETS[fbx_for]["words"])]
 
 
 static func expand(tpl: String, vars: Dictionary, fallback: String, date := {}) -> String:
@@ -48,10 +64,25 @@ static func controls() -> Control:
 	v.add_child(row)
 	var c1 := CheckBox.new()
 	c1.name = "chk_fbx_camera"
-	c1.text = "FBX: include the shot camera (position, rotation, lens, keys)"
+	c1.text = "FBX: shot camera (keys)"
 	c1.button_pressed = fbx_camera
 	c1.toggled.connect(func(on: bool): fbx_camera = on)
-	v.add_child(c1)
+	var rf := HBoxContainer.new()   # one row with the camera switch: the dialog gets no taller
+	rf.name = "row_fbx_for"
+	rf.add_child(c1)
+	var lf := Label.new()
+	lf.text = "  for:"
+	rf.add_child(lf)
+	var of := OptionButton.new()
+	of.name = "opt_fbx_for"
+	for nm in FBX_FOR_NAMES:
+		of.add_item(nm)
+	of.select(maxi(FBX_FOR.find(fbx_for), 0))
+	of.tooltip_text = "Which engine the FBX numbers are for. Default keeps the old file (centimetres, Y up). Unity writes metres; Unreal and Blender write Z up."
+	of.item_selected.connect(func(i: int): fbx_for = FBX_FOR[i])
+	of.custom_minimum_size = Vector2(190, 0)
+	rf.add_child(of)
+	v.add_child(rf)
 	var c2 := CheckBox.new()
 	c2.name = "chk_lightmap_uv"
 	c2.text = "Mesh .glb: add a lightmap UV set (UV2, no overlaps)"

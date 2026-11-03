@@ -94,6 +94,9 @@ const TARGETS := [
 
 
 ## 3D PRINTING (STL, 3MF): shown only while a free Part is on screen (so targets() stays the seven engine targets); scripts/build/mesh_export.gd writes the files
+## C23: the third print format, listed only while the part has more than one colour (so the two-format list of a plain part is as it was)
+const AUTO_FORMAT := {"name": "Best for my part (picks 3MF when the part is painted, and says why)", "run": "auto",
+	"app": "A 3MF when the part has colour (an STL would lose it); the words after the export say which and why. Millimetres, Z up, the shape finely cut (0.1 mm)."}
 const PRINT_TARGET := {"id": "print", "label": "3D printing (STL, 3MF)", "engine": "",
 	"needs": "A slicer (Cura, PrusaSlicer, Bambu Studio, Orca) opens either file. Both hold millimetres, and the part's floor is the print bed (z = 0, Z up). STL is the plain shape; 3MF is the same shape in a package that also keeps each separate piece as its own object and the colour you painted. If you are not sure, pick 3MF.",
 	"formats": [{"name": "3MF (.3mf): shape in millimetres, pieces and colour (best for most slicers)", "run": "3mf",
@@ -463,6 +466,8 @@ func _fill_formats() -> void:
 	ui_format.clear()
 	for f in (_tg()[ui_target.selected] as Dictionary)["formats"]:
 		ui_format.add_item(String((f as Dictionary)["name"]))
+	if _cur_id() == "print" and m.S != null and C23Colour.colours_of(MeshExport.bodies_of(m.S.part, {})["bodies"]).size() > 1:   # C23
+		ui_format.add_item(String(AUTO_FORMAT["name"]))
 	ui_format.select(0)
 
 
@@ -475,7 +480,7 @@ func _refresh() -> void:
 	ui_what.disabled = not plain
 	var why := "" if plain else "\n\nThe choice is for the plain .glb (one mesh per object, no animation); this format always holds everything."
 	ui_face_row.visible = _cur_id() == "laser"
-	ui_budget_row.visible = _cur_run() in ["glb", "obj", "stl", "3mf"]
+	ui_budget_row.visible = _cur_run() in ["glb", "obj", "stl", "3mf", "auto"]
 	ui_price_row.visible = _cur_id() == "cutlist" or _cur_id() == "print"
 	if ui_safety != null:
 		ui_safety.visible = _cur_id() == "print"
@@ -515,7 +520,7 @@ func quality() -> Dictionary:
 
 
 func _refresh_quality() -> void:
-	var on: bool = (_cur_id() == "print" and _cur_run() in ["stl", "3mf"]) or (_cur_run() in ["glb", "obj"] and ui_what.selected > 0 and not (m.S.part as Dictionary).is_empty() and Part.available())   # W05b: and the OBJ / GLB of the part's objects
+	var on: bool = (_cur_id() == "print" and _cur_run() in ["stl", "3mf", "auto"]) or (_cur_run() in ["glb", "obj"] and ui_what.selected > 0 and not (m.S.part as Dictionary).is_empty() and Part.available())   # W05b: and the OBJ / GLB of the part's objects
 	ui_q_row.visible = on
 	ui_q_info.visible = on
 	ui_q_custom.visible = on and ui_q.selected == 3
@@ -525,7 +530,7 @@ func _refresh_quality() -> void:
 	var rec: Dictionary = m.S.part
 	var budget: int = ExportBudget.BUDGETS[ui_budget.selected] if ui_budget.selected >= 0 else 0
 	var key := "%d|%s|%s|%d" % [rec.hash(), str(q), _cur_run(), budget]
-	var fmt := _cur_run() if _cur_run() in ["stl", "3mf"] else "stl"
+	var fmt := ("3mf" if _cur_run() == "auto" else _cur_run()) if _cur_run() in ["stl", "3mf", "auto"] else "stl"
 	if not _q_cache.has(key):
 		var bo := MeshExport.bodies_of(rec, q)
 		_q_cache[key] = MeshQuality.estimate(ExportBudget.apply_bodies(bo["bodies"], budget), fmt, String(rec.get("name", "Part"))) if (bo["bodies"] as Array).size() > 0 else {"tris": 0, "bytes": 0, "text": "nothing to export yet"}
@@ -535,6 +540,8 @@ func _refresh_quality() -> void:
 
 
 func _cur_run() -> String:
+	if _cur_id() == "print" and ui_format.selected == 2:   # C23: the listed-only-when-painted third format
+		return "auto"
 	var fs: Array = (_tg()[ui_target.selected] as Dictionary)["formats"]
 	return String((fs[clampi(maxi(ui_format.selected, 0), 0, fs.size() - 1)] as Dictionary)["run"])
 
@@ -549,7 +556,7 @@ func text_of(id: String, fi: int) -> Dictionary:
 	if t.is_empty():
 		return {}
 	var fs: Array = t["formats"]
-	var f: Dictionary = fs[clampi(fi, 0, fs.size() - 1)]
+	var f: Dictionary = AUTO_FORMAT if (id == "print" and fi == 2) else fs[clampi(fi, 0, fs.size() - 1)]
 	var S: Scene = m.S
 	var fps_s := "%d fps, the scene's own rate; the file keys every frame at it" % S.fps
 	if id == "bodyanim":
@@ -580,6 +587,9 @@ func checks(id: String, run: String) -> Array:
 				var fbo := MeshExport.bodies_of(m.S.part, quality())
 				if not (fbo["bodies"] as Array).is_empty():
 					pl.append_array(C20Fit.check_lines(m.S.part, fbo["bodies"], quality()))
+			var cl := C23Colour.dialog_line(m.S.part, run, quality())   # C23: a part with more than one colour says what each format does with it
+			if cl != "":
+				pl.append(cl)
 		return pl
 	if id == "cutlist":
 		return CutList.check_lines(m.S.part)
@@ -667,7 +677,7 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 	if t.is_empty():
 		return ""
 	var fs: Array = t["formats"]
-	var run := String((fs[clampi(fi, 0, fs.size() - 1)] as Dictionary)["run"])
+	var run := "auto" if (id == "print" and fi == 2) else String((fs[clampi(fi, 0, fs.size() - 1)] as Dictionary)["run"])
 	if id == "cutlist":   # s081: the CSV of the boards
 		var rc := CutList.export_csv(m.S.part, UserPaths.w(dir), ui_csv_locale.selected if ui_csv_locale != null and ui_csv_locale.selected > 0 else 0)
 		m._say_plain(String(rc["text"]))
@@ -677,8 +687,13 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 		m._say_plain(String(rl["text"]))
 		return String(rl["path"]) if bool(rl["ok"]) else ""
 	if id == "print":   # STL / 3MF of the part on screen (never blocked: an open shape still writes, with the warning in the words)
+		var why23 := ""
+		if run == "auto":   # C23: the part decides; the words say why
+			var pk23 := C23Colour.pick(m.S.part, quality(), "auto")
+			run = String(pk23["fmt"])
+			why23 = String(pk23["why"])
 		var r := PrintSplit.export_part(m.S.part, run, UserPaths.w(dir), bed_mm, quality()) if split_fit else MeshExport.export_part(m.S.part, run, UserPaths.w(dir), budget, quality())
-		m._say_plain(String(r["text"]))
+		m._say_plain(String(r["text"]) + (". " + why23 if why23 != "" and bool(r["ok"]) else ""))
 		return String(r["path"]) if bool(r["ok"]) else ""
 	if id == "step":   # STEP of the part on screen (the exact solid)
 		var rs := StepExport.export_part(m.S.part, UserPaths.w(dir))

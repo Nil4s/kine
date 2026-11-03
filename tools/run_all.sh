@@ -856,3 +856,7 @@ EXTRA="$EXTRA c29:w"   # C29: one-click body pick, no panel over the body (tests
 
 
 EXTRA="$EXTRA c25:w"   # C25: one Move rule in/out of sketch, render time estimate (tests/c25_test.gd)
+
+
+EXTRA="$EXTRA c23:w"   # c23: 3MF colour read-back + auto format, FBX unit/axis presets, GIF ordered dither + Smooth GIF button (tests/c23_test.gd)
+EXTRA="$EXTRA c28:w"   # c28: FBX For choice in the Export dialog (tests/c28_test.gd)

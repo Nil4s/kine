@@ -71,14 +71,14 @@ static func inject(text: String, keys: Array, name := "Camera") -> String:
 		nodes += 1
 		nid += 1
 		var cn := nid
-		var v0: Vector3 = x0.origin * 100.0 if ch[0] == "T" else e0
+		var v0: Vector3 = x0.origin * FbxExport.unit_mult if ch[0] == "T" else e0
 		objs.append("\tAnimationCurveNode: %d, \"AnimCurveNode::%s\", \"\" {\n\t\tProperties70:  {\n\t\t\tP: \"d|X\", \"Number\", \"\", \"A\",%s\n\t\t\tP: \"d|Y\", \"Number\", \"\", \"A\",%s\n\t\t\tP: \"d|Z\", \"Number\", \"\", \"A\",%s\n\t\t}\n\t}" % [cn, ch[0], FbxExport._f(v0.x), FbxExport._f(v0.y), FbxExport._f(v0.z)])
 		conns.append("\tC: \"OO\", %d, %d" % [cn, layer_id])
 		conns.append("\tC: \"OP\", %d, %d, \"%s\"" % [cn, cam, ch[1]])
 		for ax in 3:
 			var vals := PackedStringArray()
 			for i in keys.size():
-				var v: Vector3 = (xfs[i] as Transform3D).origin * 100.0 if ch[0] == "T" else eu[i]
+				var v: Vector3 = (xfs[i] as Transform3D).origin * FbxExport.unit_mult if ch[0] == "T" else eu[i]
 				vals.append(FbxExport._f(v[ax]))
 			nid += 1
 			objs.append("\tAnimationCurve: %d, \"AnimCurve::\", \"\" {\n%s\n\t}" % [nid, _curve(times, vals)])
