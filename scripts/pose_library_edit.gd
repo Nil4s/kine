@@ -24,6 +24,7 @@ static func update(lib: PoseLibrary, path: String) -> bool:
 		return false
 	var old := FileAccess.get_file_as_string(path)
 	var d: Dictionary = m.B.to_dict()
+	PoseIKFK.stamp(d, m.S, clampf(m.playhead, 0.0, m.S.length()))   # C13
 	var prev: Variant = JSON.parse_string(old)
 	if prev is Dictionary and (prev as Dictionary).has("note"):
 		d["note"] = prev["note"]

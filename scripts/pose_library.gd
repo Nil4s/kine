@@ -594,7 +594,7 @@ func clip_of(path: String) -> Dictionary:
 				ang[j] = m.B.clamp_ang(j, Vector3(x["bend"], x["side"], x["twist"]))
 		var o: Array = (d as Dictionary).get("offset", [0, 0, 0])
 		off = Vector3(o[0], o[1], o[2])
-	return {"ang": ang, "offset": off}
+	return {"ang": ang, "offset": off, "ik": (d as Dictionary).get("ik", {}) if d is Dictionary else {}}
 
 
 ## the joint's target in the clip: as saved, or mirrored (the twin's turn reflected through the middle plane, as
@@ -679,6 +679,10 @@ func end_blend() -> void:
 		m._drop_undo()
 		m._say("blend 0 %%: nothing changed. Drag further right on %s's picture to mix it in" % _nm(picked))
 		return
+	if f >= 1.0 and _only.is_empty() and not (_clip.get("ik", {}) as Dictionary).is_empty():
+		var sw := PoseIKFK.restore(m.S, m.B, _clip["ik"], clampf(m.playhead, 0.0, m.S.length()))   # C13: the saved IK/FK state
+		if not sw.is_empty():
+			m._after_edit()
 	if f >= 1.0:
 		m._say("the body is now in pose %s.  Ctrl+Z undoes; Update keeps it on the card" % what)
 	else:

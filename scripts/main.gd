@@ -9830,7 +9830,7 @@ func _cape_tick() -> void:
 			return
 		_do(func(): S.cape = cape)
 		_dummy_hits()
-		_say("the cape is on the back: %d frames of cloth at %d fps (Ctrl+Z takes it back)" % [(cape["frames"] as Array).size(), S.fps])
+		_say("the cape is on the back: %d frames of cloth at %d fps (Ctrl+Z takes it back).  %s" % [(cape["frames"] as Array).size(), S.fps, ClothStretch.words(ClothStretch.report(cape))])
 		return
 	if Engine.get_process_frames() % 15 == 0:   # the progress line, about four times a second
 		_say("baking the cape: %d%%  (Cape: cancel the bake stops it; the scene keeps its last cape)" % int(job.progress() * 100.0))
@@ -16376,6 +16376,9 @@ func _commands() -> Array:
 	add.call("Key the part here", "K", _press.bind(KEY_K), "part key keyframe channel", true, "a part key: the picked part's 3 angles at the playhead, over the cards' blend (WW1)")
 	add.call("Spine IK: spline the back here", "", _spine_pin, "spine ik spline curve bezier back bend chest hip mid vertebrae twist", true, "the picked back part's spine becomes a curve through a hip, a mid-back and a chest handle: drag the handles and the back bends along it, bones keeping their length, twist spread from hip to chest, every joint inside its limits")
 	add.call("Spine IK: spline off here", "", _spine_off, "spine ik spline off release curve back unlock", true, "the back follows the cards again from the playhead (over the last frame)")
+	add.call("Prop: attach on this card (move the pick-up here)", "", PropAttach.attach_here.bind(self), "prop attach pick up grab hold frame time timeline hand early late carry", true, "the picked prop is taken by the hand(s) from the selected card's arrival instead of the card it is attached on now (one undo step; the status line names the frames)")
+	add.call("Prop: let go on this card (move the let-go here)", "", PropAttach.detach_here.bind(self), "prop detach let go drop release frame time timeline hand carry", true, "the picked prop is let go at the selected card's arrival instead of the card it is let go on now (one undo step)")
+	add.call("Cape: stretch readout", "", func(): _say(ClothStretch.words(ClothStretch.report(S.cape if S != null else {}))), "cape cloth stretch edge length overlay readout sim", false, "says how far the baked cape stretched: the worst and the average edge against its rest length, and where on the cape the worst one is")
 	add.call("IK: pin the picked hand/foot here", "", _ik_pin, "ik inverse kinematics pin lock plant stick hand foot target pole table wall contact world space", true, "the picked limb's hand (or foot) stays where it is now from the playhead on, whatever the body does; its elbow (knee) keeps to the side it bends now (a pole)")
 	add.call("IK: contact mode on/off (a hand slides on a wall or table)", "", _ik_contact_toggle, "ik contact wall table slide surface palm hand drag touch", false, "while on, a hand you drag is held on the nearest wall or table of the set with its palm on the surface, so it slides along it instead of passing through; off = the plain pull")
 	add.call("IK space: world", "", func(): _ik_space("world"), "ik space switch world follow free hand foot parent child of", true, "the picked hand (or foot) stops following anything: its target is in the world from the playhead, and it does not move at this frame")
@@ -19779,6 +19782,7 @@ func _save_pose() -> void:
 
 func _save_pose_now(path: String) -> void:
 	var d := B.to_dict()
+	PoseIKFK.stamp(d, S, clampf(playhead, 0.0, S.length()))   # C13: each limb's IK/FK state
 	d["note"] = "angles in degrees from rest (bend, side, twist; meaning in data/body_limits.json 'say'); A = the joint's turn in rest axes, G = its turn from rest in the world now (quaternions x,y,z,w); pos/end in metres, character space (+Y up, +Z forward, +X his left); contacts = parts inside each other (m). Math: MATH.md"
 	_write(path, d)
 	_lists()
@@ -20084,6 +20088,8 @@ func _load_pose(path: String) -> void:
 		return
 	B.from_dict(d)
 	B.capture_second()   # a pose with both hands on the shaft loads with both hands holding it
+	if d.has("ik") and S != null:
+		PoseIKFK.restore(S, B, d["ik"], clampf(playhead, 0.0, S.length()))   # C13
 
 
 ## then (round 8): what goes on once the scene is saved (New scene, Open): it waits for a Replace / Save as a new name answer

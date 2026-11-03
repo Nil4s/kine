@@ -813,3 +813,6 @@ EXTRA="$EXTRA c09:w"   # c09: export name template, FBX shot camera, lightmap UV
 
 
 EXTRA="$EXTRA c10:w"   # C10: print honesty: minimum-layer-time note, export read-back, M2..M10 screw fit table + Fit chip (tests/c10_test.gd; needs the CAD DLL)
+
+
+EXTRA="$EXTRA c13:w"   # C13: pose IK/FK state, prop attach/detach frame, cape stretch readout (tests/c13_test.gd)
