@@ -55,7 +55,7 @@ static func sync(ep, show := false) -> void:
 		if box.visible:
 			box.reset_size()
 			var vs: Vector2 = (box.get_parent() as Control).size
-			box.position = Vector2(vs.x * 0.5 - box.size.x * 0.5, vs.y - box.size.y - 110.0)
+			box.position = Vector2(vs.x * 0.5 - box.size.x * 0.5 - 90.0, vs.y - box.size.y - 110.0)
 
 
 static func pull_press(ep) -> void:
