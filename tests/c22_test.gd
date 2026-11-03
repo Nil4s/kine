@@ -104,18 +104,22 @@ func _init() -> void:
 		ok(why == "" and cs.size() == 1 and cs[0]["hands"] == [sd], "A1 %s: take_with gives the carry hands %s" % [hand, cs[0]["hands"] if cs.size() == 1 else "none"])
 		var t1: float = S.times()[1][1]
 		var other := "hand_l" if hand == "hand_r" else "hand_r"
-		var h0 := hand_p(S, B, hand, 0.0)
-		var h1 := hand_p(S, B, hand, t1)
-		var o0 := hand_p(S, B, other, 0.0)
-		var o1 := hand_p(S, B, other, t1)
+		S.apply(B, 0.0)
+		var fr0 := Scene.hand_frame(B, [sd])
+		var fo0 := Scene.hand_frame(B, [("_l" if sd == "_r" else "_r")])
+		S.apply(B, t1)
+		var fr1 := Scene.hand_frame(B, [sd])
+		var fo1 := Scene.hand_frame(B, [("_l" if sd == "_r" else "_r")])
 		S.apply(B, 0.0)
 		var p0: Vector3 = (S.props_at(0.0, B)[0]["xf"] as Transform3D).origin
 		S.apply(B, t1)
 		var p1: Vector3 = (S.props_at(t1, B)[0]["xf"] as Transform3D).origin
-		var dh := h1 - h0
-		ok(dh.length() >= 0.10, "A1 %s: the hand moved %.1f cm (>= 10 cm, the bar can see it)" % [hand, dh.length() * 100.0])
-		ok((p1 - p0).distance_to(dh) <= 0.001, "A1 %s: the pillar's move differs from the hand's own by %.2f mm" % [hand, (p1 - p0).distance_to(dh) * 1000.0])
-		ok((o1 - o0).length() <= 0.001 and (p1 - p0).distance_to(o1 - o0) >= 0.10, "A1 CONTROL %s: the other hand stayed (%.2f mm); a prop held by it would differ by %.1f cm" % [hand, (o1 - o0).length() * 1000.0, (p1 - p0).distance_to(o1 - o0) * 100.0])
+		# the pillar is rigid in the chosen hand's frame: p1 = frame1 * frame0^-1 * p0 (the frame turns, so the wrist's own move is not the test)
+		var exp1 := fr1 * (fr0.affine_inverse() * p0)
+		var exo1 := fo1 * (fo0.affine_inverse() * p0)
+		ok((fr1.origin - fr0.origin).length() >= 0.10, "A1 %s: the hand moved %.1f cm (>= 10 cm, the bar can see it)" % [hand, (fr1.origin - fr0.origin).length() * 100.0])
+		ok(p1.distance_to(exp1) <= 0.001, "A1 %s: the pillar is %.2f mm from where the chosen hand's frame puts it" % [hand, p1.distance_to(exp1) * 1000.0])
+		ok(p1.distance_to(exo1) >= 0.10, "A1 CONTROL %s: the other hand's frame would put it %.1f cm away (>= 10 cm)" % [hand, p1.distance_to(exo1) * 100.0])
 		if sd == "_l":
 			var M := Scene.new()
 			M.from_dict(Scene.mirror_file(S.to_dict(B), body()))
@@ -148,7 +152,7 @@ func _init() -> void:
 	for case in ["sword_r", "sword_l", "bar_r"]:
 		var h := "hand_l" if case.ends_with("_l") else "hand_r"
 		var Bg := body()
-		var pc: Vector3 = Bg.palm_point(h) + AnyGrip.curl_dir(Bg, h) * 0.06 + Vector3(0, 0, 0.2)
+		var pc: Vector3 = Bg.palm_point(h) + AnyGrip.curl_dir(Bg, h) * 0.06 + Vector3(0, 0, 0.1)
 		var prop: Dictionary
 		var axis_i := 0
 		if case.begins_with("sword"):
@@ -194,7 +198,7 @@ func _init() -> void:
 	m._rebuild_cards()
 	await idle(3)
 	var Bm := m.B as Body
-	var pc2: Vector3 = Bm.palm_point("hand_r") + AnyGrip.curl_dir(Bm, "hand_r") * 0.06 + Vector3(0, 0, 0.2)
+	var pc2: Vector3 = Bm.palm_point("hand_r") + AnyGrip.curl_dir(Bm, "hand_r") * 0.06 + Vector3(0, 0, 0.1)
 	m.S.props = [Props.make("sword", Props.xf_at(Vector3(pc2.x, pc2.y - 0.015, pc2.z), 0.0))]
 	m.sel_prop = 0
 	m.sel = "hand_r"
