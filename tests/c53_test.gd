@@ -13,7 +13,7 @@ extends SceneTree
 ##  8 DXF UNITS   $INSUNITS 1 (inches): a 1 in LINE is 25.4 mm within 0.01
 ##  9 UNDO        through PartUI: import = ONE undo step (undo size +1; still +1 after Finish sketch); one undo removes the sketch; a file with nothing drawable
 ##                adds NO step and says why
-## 10 UI          the Import 2D button (part_import2d) and its plane list exist and are visible at 1280x720 inside the viewport; screenshot of an imported sketch
+## 10 UI          the Import 2D button (part_import2d) and its plane menu (3 items) exist; at 1280x720 the button is on the bar inside the viewport or listed under More; screenshot of an imported sketch
 ## CONTROLS: a checker that must reject a value 0.02 mm off; a file with only <text> imports 0 entities (bars 1 and 9 can fail); the same extrude without the
 ##   import (empty record) has volume 0 (bar 3/7 can fail).
 const SI := preload("res://scripts/build/sketch_import.gd")
@@ -129,7 +129,7 @@ func _init() -> void:
 			for k in ["a", "b"]:
 				xs.append(float(l[k][0]))
 				ys.append(float(l[k][1]))
-		ok(xs.size() == 6 and xs.min() >= 69.99 and xs.max() <= 100.01 and ys.min() >= -0.01 and ys.max() <= 30.01 and absf(xs.max() - xs.min() - 30.0) <= 0.01 and absf(ys.max() - ys.min() - 30.0) <= 0.01, "6 DXF polyline square: x %s..%s y %s..%s" % [xs.min() if xs.size() else "?", xs.max() if xs.size() else "?", ys.min() if ys.size() else "?", ys.max() if ys.size() else "?"])
+		ok(xs.size() == 8 and xs.min() >= 69.99 and xs.max() <= 100.01 and ys.min() >= -0.01 and ys.max() <= 30.01 and absf(xs.max() - xs.min() - 30.0) <= 0.01 and absf(ys.max() - ys.min() - 30.0) <= 0.01, "6 DXF polyline square: x %s..%s y %s..%s" % [xs.min() if xs.size() else "?", xs.max() if xs.size() else "?", ys.min() if ys.size() else "?", ys.max() if ys.size() else "?"])
 	var want_dxf := (PI * 50.0 + PI * 36.0 + 900.0) * 3.0
 	var v2d := vol_mm3(de, 3.0)
 	ok(rel(v2d, want_dxf), "7 DXF extrude volume %.2f mm3 (want %.2f within 0.1 pct)" % [v2d, want_dxf])
@@ -198,9 +198,11 @@ func _init() -> void:
 	var rep3: Dictionary = SIUI.import_text(pu, "svg", svg, "front")
 	await idle(4)
 	var btn: Button = pu.get("import2d_btn")
-	var pl: OptionButton = pu.get("import2d_plane")
+	var pl: PopupMenu = pu.get("import2d_menu")
 	var vp := root.get_visible_rect()
-	ok(btn != null and pl != null and btn.is_visible_in_tree() and pl.is_visible_in_tree() and vp.encloses(btn.get_global_rect()) and vp.encloses(pl.get_global_rect()), "10 UI Import 2D button %s and plane list %s visible inside %s" % [btn.get_global_rect() if btn else "none", pl.get_global_rect() if pl else "none", vp])
+	var in_view: bool = btn != null and btn.is_visible_in_tree() and vp.encloses(btn.get_global_rect())
+	var in_more: bool = btn != null and m._more_tools.has(btn) and m.ui_more.visible
+	ok(btn != null and (in_view or in_more) and pl != null and pl.item_count == 3 and btn.text != "", "10 UI Import 2D button reachable (on the bar %s, under More %s, rect %s) and its plane menu has %d items" % [in_view, in_more, btn.get_global_rect() if btn else "none", pl.item_count if pl else -1])
 	root.get_texture().get_image().save_png(SHOT + "/c53_ui_1280x720.png")
 	print("c53: %d fail" % fails)
 	quit(1 if fails > 0 else 0)

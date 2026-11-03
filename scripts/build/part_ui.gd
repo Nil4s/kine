@@ -23,6 +23,7 @@ const PANEL_W := 250.0
 const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
+const SketchImportUI := preload("res://scripts/build/sketch_import_ui.gd")
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]   # Constrain: the rule row (CON_TOOLS, below)
 const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Primitive", "Ornament", "Roof shell"]
 const PPRIMUI := preload("res://scripts/build/part_prim_ui.gd")   # s229: the Primitive dialog and the plane modes
@@ -84,6 +85,8 @@ var easy := false              # ...with EASY PART's screen (scripts/easy_part.g
 var ep: EasyPart
 var warn_ui: PartWarnUI        # item 221: the Warnings panel (scripts/build/part_warn_ui.gd), shown with the Part workspace
 var easy_open_btn: Button
+var import2d_btn: Button   # C53: Import 2D (sketch_import_ui.gd)
+var import2d_menu: PopupMenu
 var tool := ""
 var sk := ""                   # the sketch being edited ("" = the model is showing)
 var snap_mm := 5.0
@@ -294,6 +297,7 @@ func setup(b: BuildUI) -> void:
 	easy_open_btn.name = "part_easy_open"
 	_icon(easy_open_btn, "part_part")
 	row.add_child(easy_open_btn)
+	SketchImportUI.attach(self, row)
 	for c in house_btns:
 		if c.name == "build_choose_open":
 			reopen_btn = c as Button
@@ -2573,6 +2577,7 @@ func sync() -> void:
 		(tool_btns[t] as Control).visible = show and not (t in m.RIBBON_REST.get("BUILD", [])) and (con_open or not (t in CON_TOOLS))   # the rarer ones live under their captions (main.gd RIBBON_REST); the rule row shows while Constrain is open
 	finish_btn.visible = show
 	easy_open_btn.visible = show
+	import2d_btn.visible = show
 	for c in my_seps:
 		(c as Control).visible = show
 	if show != _was_show:
