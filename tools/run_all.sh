@@ -860,3 +860,6 @@ EXTRA="$EXTRA c25:w"   # C25: one Move rule in/out of sketch, render time estima
 
 EXTRA="$EXTRA c23:w"   # c23: 3MF colour read-back + auto format, FBX unit/axis presets, GIF ordered dither + Smooth GIF button (tests/c23_test.gd)
 EXTRA="$EXTRA c28:w"   # c28: FBX For choice in the Export dialog (tests/c28_test.gd)
+
+
+EXTRA="$EXTRA c27:w"   # C27: support removal choice in the 3D-print export (tests/c27_test.gd)

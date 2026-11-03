@@ -25,6 +25,8 @@ var ui_q_custom: SpinBox
 var ui_q_row: HBoxContainer
 var ui_q_info: Label
 var ui_fit: CheckBox   # C20: Match the mesh to the fit (off = the usual quality)
+var ui_support: OptionButton   # C27: support removal (3MF only)
+var ui_support_info: Label
 var _q_cache := {}
 var ui_csv_locale: OptionButton   # C14 (#442): the cut-list CSV's locale (0 = comma + dot decimals, the default; 1 = semicolon + decimal comma, for Excel in pt-BR / EU)
 var ui_safety: VBoxContainer   # C17: print safety row
@@ -316,6 +318,17 @@ func _build() -> void:
 	ui_q_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	ui_q_info.custom_minimum_size = Vector2(300, 0)
 	v.add_child(ui_q_info)
+	ui_support = OptionButton.new()   # C27
+	ui_support.name = "opt_export_support"
+	for sn in SupportPref.NAMES:
+		ui_support.add_item(String(sn))
+	ui_support.item_selected.connect(func(_i: int): _refresh_support())
+	v.add_child(ui_support)
+	ui_support_info = Label.new()
+	ui_support_info.name = "export_support_info"
+	ui_support_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ui_support_info.custom_minimum_size = Vector2(300, 0)
+	v.add_child(ui_support_info)
 	_price_row_build(v)
 	ui_safety = PrintSafety.build_row(self)   # C17
 	v.add_child(ui_safety)
@@ -485,6 +498,7 @@ func _refresh() -> void:
 	if ui_safety != null:
 		ui_safety.visible = _cur_id() == "print"
 	_refresh_quality()
+	_refresh_support()
 	if ui_bed_row != null:
 		ui_bed_row.visible = _cur_id() == "print"
 	_refresh_slicer()
@@ -517,6 +531,13 @@ func quality() -> Dictionary:
 		if not fq.is_empty():
 			return fq
 	return MeshQuality.of(ui_q.get_item_text(maxi(ui_q.selected, 0)), ui_q_custom.value)
+
+
+func _refresh_support() -> void:   # C27
+	var on: bool = _cur_id() == "print" and _cur_run() == "3mf"
+	ui_support.visible = on
+	ui_support_info.visible = on
+	ui_support_info.text = SupportPref.words(ui_support.selected)
 
 
 func _refresh_quality() -> void:
@@ -692,7 +713,7 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 			var pk23 := C23Colour.pick(m.S.part, quality(), "auto")
 			run = String(pk23["fmt"])
 			why23 = String(pk23["why"])
-		var r := PrintSplit.export_part(m.S.part, run, UserPaths.w(dir), bed_mm, quality()) if split_fit else MeshExport.export_part(m.S.part, run, UserPaths.w(dir), budget, quality())
+		var r := PrintSplit.export_part(m.S.part, run, UserPaths.w(dir), bed_mm, quality()) if split_fit else MeshExport.export_part(m.S.part, run, UserPaths.w(dir), budget, quality(), SupportPref.of(ui_support.selected) if run == "3mf" and ui_support != null else {})
 		m._say_plain(String(r["text"]) + (". " + why23 if why23 != "" and bool(r["ok"]) else ""))
 		return String(r["path"]) if bool(r["ok"]) else ""
 	if id == "step":   # STEP of the part on screen (the exact solid)
