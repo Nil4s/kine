@@ -113,6 +113,7 @@ func _init() -> void:
 	# T1
 	var cube: ViewCube = m.ui_cube
 	m._view(1, false)
+	await frames(3)   # the cube draws from the camera of the last frame
 	var c0 := cube._quad(0)
 	var cen0 := (c0[0] + c0[1] + c0[2] + c0[3]) * 0.25
 	var e := InputEventMouseButton.new()

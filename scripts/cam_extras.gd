@@ -265,6 +265,8 @@ func place() -> void:
 
 
 func _sync_buttons() -> void:
+	if bar != null:
+		bar.visible = not (m.bld != null and m.bld.on)   # the BUILD pages put their own buttons where the bar would sit (peasy3 clicks there): keys still work
 	if b_back != null:
 		b_back.disabled = not can_back()
 		b_fwd.disabled = not can_forward()
