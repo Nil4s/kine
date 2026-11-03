@@ -118,9 +118,9 @@ func _init() -> void:
 		for j in ja:
 			for k in ["bend", "side", "twist"]:
 				bad_j = maxf(bad_j, absf(float(ja[j][k]) - float(jb[j][k])))
-	ok(bad_xz < 1e-6 and bad_y < 1e-6 and bad_j < 1e-6 and res["metres"] >= 0.3, "4 stripped %d cards: xz drift %.2e, y change %.2e, joint change %.2e, reported %.2f m" % [res["cards"], bad_xz, bad_y, bad_j, res["metres"]])
+	ok(bad_xz < 1e-6 and bad_y < 1e-6 and bad_j < 1e-6 and res["metres"] >= 0.3, "4 stripped %d cards: xz drift %s, y change %s, joint change %s, reported %.2f m" % [res["cards"], str(bad_xz), str(bad_y), str(bad_j), res["metres"]])
 	var res2 := ClipChecks.strip_travel(T)
-	ok(res2["metres"] < 1e-6, "4 a scene with no travel: %.2e m (no-op)" % res2["metres"])
+	ok(res2["metres"] < 1e-6, "4 a scene with no travel: %s m (no-op)" % str(res2["metres"]))
 
 	# 4b in the app
 	var m: Node = (load("res://main.tscn") as PackedScene).instantiate()
@@ -151,7 +151,7 @@ func _init() -> void:
 	btn.pressed.emit()
 	for i in 3:
 		await process_frame
-	ok(travel(m.S) < 1e-6, "4b one press: travel %.2e m" % travel(m.S))
+	ok(travel(m.S) < 1e-6, "4b one press: travel %s m" % str(travel(m.S)))
 	DirAccess.make_dir_recursive_absolute(SHOT)
 	m.get_viewport().get_texture().get_image().save_png(SHOT + "/stay_in_place_1280x720.png")
 	m._undo()
