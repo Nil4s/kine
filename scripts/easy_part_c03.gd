@@ -35,6 +35,10 @@ static func build(ep, _row: Control = null) -> void:
 		elif sp[0] == "easypart_printer_preset":
 			ep.set_meta("c03_printer", b)
 	ep.set_meta("c03_box", box)
+	ep.m.get_tree().process_frame.connect(func():   # a full-screen dialog (What to build) is never covered by the panel
+		var bc = ep.m.get("build_choose")
+		if is_instance_valid(box) and box.visible and bc != null and bool(bc.get("open")):
+			box.visible = false)
 	sync(ep, false)
 
 
