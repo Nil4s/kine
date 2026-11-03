@@ -165,6 +165,7 @@ var _tag_vis: Array = []       # the floor's axis names as they were (they say "
 var part_mesh: MeshInstance3D
 var prev_mesh: MeshInstance3D
 var pov: Control
+var pick_stack: PartPickStack   # C45
 var browser: PanelContainer
 var browser_vb: VBoxContainer
 var side: PanelContainer
@@ -1066,6 +1067,11 @@ func input(ev: InputEvent) -> bool:
 		var mb := ev as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT:
 			pat_mod = mb.shift_pressed or mb.ctrl_pressed   # s214: Shift / Ctrl held on this click (a group pick)
+			if mb.pressed and mb.alt_pressed and sk != "" and tool == "" and draft.is_empty():   # C45: Alt+click lists what is under the cursor (part_pickstack.gd)
+				if pick_stack == null:
+					pick_stack = PartPickStack.new()
+				pick_stack.open(self, mb.position)
+				return true
 			if mb.pressed:
 				m._toast_clear()   # XFIX2: a press is an action: an older "Undid" toast goes
 			return _press(mb.position) if mb.pressed else _release(mb.position)

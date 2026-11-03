@@ -401,6 +401,9 @@ func input(ev: InputEvent) -> bool:
 			_cur = mb.position
 			if armed != "":
 				_kind = armed
+			elif mb.alt_pressed and sel.mode == KMeshSelect.FACE and _alt_behind(cam, mb.position, _add):   # C45: Alt+click walks the faces behind
+				_kind = "click"
+				_report()
 			elif mb.alt_pressed and _alt_loop(cam, mb.position, _add):   # Blender's Alt+click: the edge loop through that edge
 				_kind = "click"
 				_report()
@@ -588,6 +591,24 @@ func _b05_key(e: InputEventKey) -> void:
 	sel.clear()
 	view.mark_dirty()
 	m._say("Model: %s: %s now %s verts %s faces. Ctrl+Z undoes" % [what, before, str(mesh.vert_count()), str(mesh.face_count())])
+
+
+var _stack := KMeshPickStack.new()   # C45
+
+
+## C45 (M #233): Alt+click in face mode picks the face under the mouse, and each Alt+click at the same spot the next one BEHIND it
+## (nothing is deleted); the picked face is named in the status line and highlighted by the selection. False on a miss.
+func _alt_behind(cam: Camera3D, p: Vector2, add: bool) -> bool:
+	var r := _stack.next(view, cam, p)
+	if r.is_empty():
+		return false
+	var fi: int = r["face"]
+	if not add:
+		sel.clear()
+	sel.faces[fi] = true
+	view.mark_dirty()
+	m._say("Model: face %d, %d of %d under the mouse (Alt+click again for the one behind it; plain click picks the front)" % [fi, int(r["depth"]), int(r["of"])])
+	return true
 
 
 ## Alt+click on an edge (Blender): the edge loop through it. False when no edge is under the mouse (then the click is a plain one).
