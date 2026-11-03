@@ -87,13 +87,13 @@ func _run() -> void:
 	var rp := rec_for(ins(1000, 42, "scatter", {"looks": ["#ff0000", "#00ff00"]}))
 	var cl: PackedColorArray = Part.replay(rp, -1, {"keep": true})["instances"][0]["cols"]
 	ok(cl.size() == 1000 and cl[0] != cl[1] or cl.find(Color.RED) >= 0, "D per-copy looks")
-	# E control: pattern
+	# E control: pattern. S266 (8b28f751, this batch) raised the pattern cap from 64 to 1000, so the control asks for 1001
 	var pr := Part.make("p")
 	pr["seq"] = 1
 	pr["features"] = [r["features"][0].duplicate(true)]
-	pr["features"].append(Part.new_feature(pr, "pattern", {"body": 0, "kind": "linear", "count": 1000, "mm": 2.0, "dir": "x", "op": "new"}))
+	pr["features"].append(Part.new_feature(pr, "pattern", {"body": 0, "kind": "linear", "count": 1001, "mm": 2.0, "dir": "x", "op": "new"}))
 	var pe := Part.replay(pr, -1, {})
-	ok(pe["errors"].size() == 1, "E pattern 1000 refused: " + str(pe["errors"].values()))
+	ok(pe["errors"].size() == 1, "E pattern 1001 refused (S266 cap is 1000; instances take 1000 here, a pattern cannot go past its cap): " + str(pe["errors"].values()))
 	pr["features"][1]["count"] = 64
 	var t2 := Time.get_ticks_usec()
 	var p64 := Part.replay(pr, -1, {})
