@@ -10,6 +10,9 @@ class_name ExplodeKeys
 extends RefCounted
 
 const SUFFIX := "~explode_"
+## s262c: a Callable (boxes, names) -> {layers, dist (signed metres per layer, 0 = stays), extra_axis {layer: world axis}} that replaces the one-layer-per-body layers and the
+## planner's shortest distances (GpuExplodeLayout: big gaps, springs riding with their screws). Empty = the planner alone, as before.
+static var layout_hook := Callable()
 
 
 ## distinct body ids of the mesh, ascending
@@ -161,7 +164,26 @@ static func plan_of(res: Dictionary, opts: Dictionary) -> Dictionary:
 			for bi in layers[u]:
 				if names[int(bi)] == an:
 					po["anchor"] = u
+	var lay := {}
+	if layout_hook.is_valid():
+		lay = layout_hook.call(boxes, names)
+		layers = lay["layers"]
+		po.erase("anchor")
+		for u in layers.size():
+			if float((lay["dist"] as Array)[u]) == 0.0:
+				po["anchor"] = u
 	var plan := ExplodeView.plan(boxes, layers, axis, float(opts.get("gap_mm", 10.0)) * Part.MM, po)
+	if not lay.is_empty():
+		var ex: Dictionary = lay.get("extra_axis", {})
+		for u in layers.size():
+			var d := float((lay["dist"] as Array)[u])
+			if d == 0.0:
+				continue
+			plan["dist"][u] = absf(d)
+			if not ex.has(u):
+				plan["sign"][u] = 1.0 if d > 0.0 else -1.0
+		plan["extra_axis"] = ex
+		plan["labels"] = lay.get("labels", [])
 	return {"plan": plan, "ids": ids, "names": names, "boxes": boxes}
 
 
@@ -207,7 +229,7 @@ static func register(kind: String, rec: Dictionary) -> bool:
 			continue
 		var lim := float(plan["dist"][u]) * 1000.0 + 1e-6
 		for bi in plan["units"][u]:
-			joints.append({"name": jn[int(bi)], "id": "", "kind": "slide", "piece": int(bi), "o": at, "axis": ax * float(plan["sign"][u]), "limit": lim, "unit": u})
+			joints.append({"name": jn[int(bi)], "id": "", "kind": "slide", "piece": int(bi), "o": at, "axis": (plan["extra_axis"][u] if (plan.get("extra_axis", {}) as Dictionary).has(u) else ax * float(plan["sign"][u])), "limit": lim, "unit": u})
 	var kd: Dictionary = Props.EXTRA[kind]
 	kd["pieces"] = pieces
 	kd["pjoints"] = joints
