@@ -10,15 +10,19 @@ static var fbx_camera := false
 static var lightmap_uv := false
 ## C28: the FBX target engine ("default" = the old file; "unity" | "unreal" | "blender" call FbxExport.write_preset)
 static var fbx_for := "default"
+## C39: write the body's and the props' materials (base colour, texture path) into the FBX; off = the old file
+static var fbx_materials := false
+static var body_rgb := Color("D8DCE3")   # the body's colour (main sets it from BODY_COLOURS before an FBX write)
 const FBX_FOR := ["default", "unity", "unreal", "blender"]
 const FBX_FOR_NAMES := ["Default (centimetres, Y up)", "Unity (metres)", "Unreal (centimetres, Z up)", "Blender (centimetres, Z up)"]
 
 
 ## the FBX write for the chosen target; the default target is FbxExport.write itself (the same bytes as before)
 static func fbx_write(S, B, path: String, root_motion := false, xf := Transform3D.IDENTITY, root_name := "", ascii := false, camera_keys := []) -> Dictionary:
+	var mats := FbxMaterial.of_scene(S, body_rgb) if fbx_materials else []
 	if fbx_for == "default" or not FbxExport.PRESETS.has(fbx_for):
-		return FbxExport.write(S, B, path, root_motion, xf, root_name, ascii, camera_keys)
-	return FbxExport.write_preset(fbx_for, S, B, path, root_motion, xf, root_name, ascii, camera_keys)
+		return FbxExport.write(S, B, path, root_motion, xf, root_name, ascii, camera_keys, mats)
+	return FbxExport.write_preset(fbx_for, S, B, path, root_motion, xf, root_name, ascii, camera_keys, mats)
 
 
 ## the words after an export say which target the numbers are for ("" for the default)
@@ -83,6 +87,13 @@ static func controls() -> Control:
 	of.custom_minimum_size = Vector2(190, 0)
 	rf.add_child(of)
 	v.add_child(rf)
+	var cm := CheckBox.new()
+	cm.name = "chk_fbx_materials"
+	cm.text = "FBX: include materials (colour, texture)"
+	cm.tooltip_text = "Writes the body's and each prop's material into the FBX (base colour, and the texture file if it has one) so Unity and Blender show the colour, not grey. Off keeps the old file."
+	cm.button_pressed = fbx_materials
+	cm.toggled.connect(func(on: bool): fbx_materials = on)
+	v.add_child(cm)
 	var c2 := CheckBox.new()
 	c2.name = "chk_lightmap_uv"
 	c2.text = "Mesh .glb: add a lightmap UV set (UV2, no overlaps)"

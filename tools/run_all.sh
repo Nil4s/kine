@@ -881,3 +881,6 @@ EXTRA="$EXTRA c36:w"   # C36: grip a prop by its handle, wrist solved from the h
 
 
 EXTRA="$EXTRA c38:w"   # C38: coincident faces nudged 0.01 mm in words, heavy boolean in steps with progress + Cancel (tests/c38_test.gd)
+
+
+EXTRA="$EXTRA c39:w"   # c39: FBX materials (tests/c39_test.gd)
