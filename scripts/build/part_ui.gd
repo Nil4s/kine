@@ -3043,14 +3043,14 @@ func _health_draw(ents: Array) -> void:
 			var e: Dictionary = ents[int(fsd["i"])]
 			match String(e["k"]):
 				"line":
-					pov.draw_dashed_line(scr(Part.v2(e["a"])), scr(Part.v2(e["b"])), FREE_RING_C, 8.0, 10.0)
+					pov.draw_dashed_line(scr(Part.v2(e["a"])), scr(Part.v2(e["b"])), FREE_RING_C, 8.0, 6.0)
 				"rect":
 					var ra := scr(Part.v2(e["a"]))
 					var rb := scr(Part.v2(e["b"]))
 					var rr := Rect2(ra, rb - ra).abs().grow(3.0)
 					var rc := [rr.position, Vector2(rr.end.x, rr.position.y), rr.end, Vector2(rr.position.x, rr.end.y), rr.position]
 					for k in 4:
-						pov.draw_dashed_line(rc[k], rc[k + 1], FREE_RING_C, 5.0, 10.0)
+						pov.draw_dashed_line(rc[k], rc[k + 1], FREE_RING_C, 5.0, 6.0)
 				"circle":
 					var rp := PackedVector2Array()
 					for j in 49:
