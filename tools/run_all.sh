@@ -781,3 +781,5 @@ EXTRA="$EXTRA s269c:w"   # s269c: film framing includes the reflection, film key
 
 
 EXTRA="$EXTRA s277b:w"
+
+EXTRA="$EXTRA c05:w"   # c05: bad spots panel, hand shape check, finger bleed check, tests/c05_test.gd
