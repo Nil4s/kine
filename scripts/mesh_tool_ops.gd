@@ -61,6 +61,8 @@ static func op(name: String, m) -> String:
 		"body_regions":   # A18 (scripts/kmesh_body.gd)
 			ui.body.toggle()
 			return String(m.ui_status.text) if m.get("ui_status") != null else ""
+		"mesh_spots":   # C05 (scripts/kmesh_spots_ui.gd)
+			return KMeshSpotsUI.toggle(m)
 		"model_checks":   # B30 (scripts/model_checks_ui.gd): the panel says what it found
 			return ModelChecksUI.toggle(m)
 		"modifiers":
