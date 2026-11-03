@@ -834,3 +834,6 @@ EXTRA="$EXTRA c19:w"   # C19: bone-map unmapped list, gpu notice, no-network sca
 
 
 EXTRA="$EXTRA c21:w"   # C21: how-to-fix on every failed step, free shapes ringed, 1.75 m fix (tests/c21_test.gd)
+
+
+EXTRA="$EXTRA c22:w"   # C22: attach to either hand, grip by the handle, IK/FK joint-position snap (tests/c22_test.gd)
