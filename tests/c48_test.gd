@@ -134,9 +134,9 @@ func run() -> void:
 		var pa: Array = bj["pivot_after"]
 		var piv_ok := Vector3(pw[0], pw[1], pw[2]).distance_to(Vector3(0.8, 0, 0)) < 1e-5
 		var stay := Vector3(pw[0], pw[1], pw[2]).distance_to(Vector3(pa[0], pa[1], pa[2])) < 1e-9
-		print("     blender: err_ok %.3g err_wrong %.3g moved %.3f other %.3g moving verts %d, static meshes %d" % [bj["err_ok"], bj["err_wrong"], bj["moved"], bj["other_delta"], bj["n_moving"], bj["n_static"]])
+		print("     blender: err_ok %s err_wrong %s moved %s other %s moving verts %s, static meshes %s" % [str(bj["err_ok"]), str(bj["err_wrong"]), "%.3f" % float(bj["moved"]), str(bj["other_delta"]), str(int(bj["n_moving"])), str(int(bj["n_static"]))])
 		ok(float(bj["err_ok"]) < 1e-5 and float(bj["err_wrong"]) > 1e-3 and float(bj["moved"]) > 0.05 and float(bj["other_delta"]) < 1e-9 and stay and piv_ok and int(bj["n_static"]) == 1,
-			"4 BLENDER stated-axis turn matches closed form (err %.3g), wrong axis misses (%.3g), static moved %.3g, origin stayed %s, origin = pivot %s" % [bj["err_ok"], bj["err_wrong"], bj["other_delta"], str(stay), str(piv_ok)])
+			"4 BLENDER stated-axis turn matches closed form (err %s), wrong axis misses (%s), static moved %s, origin stayed %s, origin = pivot %s" % [str(bj["err_ok"]), str(bj["err_wrong"]), str(bj["other_delta"]), str(stay), str(piv_ok)])
 	else:
 		ok(false, "4 BLENDER no result from Blender: %s" % str(bj))
 	# 5 URDF
