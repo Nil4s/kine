@@ -869,3 +869,6 @@ EXTRA="$EXTRA c31:w"   # c31: pt_BR 447 strings, placeholders, CRLF, review list
 
 
 EXTRA="$EXTRA c30:w"
+
+
+EXTRA="$EXTRA c32:w"   # C32: support gap/interface in the slicers settings files (tests/c32_test.gd)
