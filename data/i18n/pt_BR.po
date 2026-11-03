@@ -846,6 +846,9 @@ msgstr "As dobradiças da peça como juntas."
 msgid "Joint types that leave the app: Part hinge (turns about an axis, with its limit) -> glTF: a node whose origin is the pivot and whose extras state the axis; URDF: a revolute joint with origin, axis and limits.\nJoint types that do not: slide joints, the swing's angle curve (only the limit is written) and the must-not-touch pairs stay in Kine; a body skeleton joint is exported by the animation targets."
 msgstr "Tipos de junta que saem do app: dobradiça da peça (gira em torno de um eixo, com seu limite) -> glTF: um nó cuja origem é o pivô e cujos extras indicam o eixo; URDF: uma junta rotativa com origem, eixo e limites.\nTipos que não saem: juntas deslizantes, a curva de ângulo do movimento (só o limite é escrito) e os pares de não encostar ficam no Kine; uma junta de esqueleto é exportada pelos alvos de animação."
 
+msgid "none: the joints are a still pose, the hinge limits"
+msgstr "nenhum: as juntas são uma pose parada, os limites das dobradiças"
+
 msgid "   Pick what you want to make"
 msgstr "   Escolha o que você quer fazer"
 

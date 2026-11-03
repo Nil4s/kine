@@ -615,8 +615,10 @@ func text_of(id: String, fi: int) -> Dictionary:
 	var fps_s := "%d fps, the scene's own rate; the file keys every frame at it" % S.fps
 	if id == "bodyanim":
 		fps_s = "%d fps, the scene's own rate; a key on every frame" % S.fps
-	if id == "print" or id == "step" or id == "joints":
+	if id == "print" or id == "step":
 		fps_s = "none: a printed part is one still shape"
+	if id == "joints":
+		fps_s = "none: the joints are a still pose, the hinge limits"
 	if id == "laser":
 		fps_s = "none: a cut outline is one still shape"
 	if id == "cutlist":
