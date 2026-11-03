@@ -101,7 +101,7 @@ func show() -> void:
 	label.text = text()
 	label.tooltip_text = text() + "\nms of work per frame for each character's skinning, pose / IK solve and cloth (this machine, just now). More characters cost more: hide the ones you are not posing."
 	label.visible = true
-	m._say_plain(text())
+	m._say_plain("cost per character: %d shown in the scene panel, %.2f ms a frame in all" % [rows.size(), total()])
 
 
 func hide() -> void:
