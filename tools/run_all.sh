@@ -819,3 +819,5 @@ EXTRA="$EXTRA c13:w"   # C13: pose IK/FK state, prop attach/detach frame, cape s
 
 
 EXTRA="$EXTRA c14:w"   # c14: rig pre-check, footage pre-check, cut-list CSV locale, tests/c14_test.gd
+
+EXTRA="$EXTRA c19:w"   # C19: bone-map unmapped list, gpu notice, no-network scan, tests/c19_test.gd
