@@ -575,6 +575,8 @@ func _fold_button(which: String) -> void:
 	ui_fold_btn[which] = b
 # THE TARGET DUMMY (Nick 10-13): a second mannequin out front; red where the weapon is in it (scripts/dummy.gd)
 var T := Dummy.new()
+var ccost := CharCost.new(self)   # C26: the per-character cost line in the scene panel (opt-in, scripts/char_cost.gd)
+var pickchk := PickCheck.new(self)   # C26: "Help: test body selection" (scripts/pick_check.gd)
 var pdoc := PerfDoc.new(self)   # Q15 PERF DOCTOR: "Help: why is it slow?" (scripts/perf_doc.gd)
 var ov := Overlays.new()    # motion trail (T) and onion skin (O): scripts/overlays.gd
 var sd := SmartDrag.new()   # SMART DRAG (ROADMAP I12): scripts/smart_drag.gd; the glue is after _drag_joint
@@ -16914,6 +16916,9 @@ func _commands() -> Array:
 	add.call("Start screen", "", func(): start_screen.show_screen(), "start screen home new project open recent resume", false, "the start screen: New project (Animation, Modeling, 3D Building), Open, recent scenes, Resume")
 	add.call("What went wrong?", "", _why_toggle, "why error wrong refused refusal explain not work failed stuck", false, "says what the last refusal or error meant in plain words: what you tried, why it did not work, and the one next step (a button runs it)")
 	add.call("Pick a part", "", _select_set.bind(["upperarm_r"]), "pick select choose part body click", false, "picks the right upper arm, so the next command has a part to act on")
+	add.call("Scene: show cost per character", "", ccost.show, "cost compute characters actors fighters skinning ik cloth ms frame heavy slow scene panel", false, "a line in the scene panel: milliseconds a frame each character costs for skinning, the pose / IK solve and cloth")
+	add.call("Scene: hide cost per character", "", ccost.hide, "cost compute characters hide", false, "take the cost line off the scene panel")
+	add.call("Help: test body selection", "", pickchk.run, "pick select click body part hit latency clicks several times", false, "aims a probe at the middle of each main body part, asks the pick a click uses, and says how many were found on the first click and how long a pick takes")
 	add.call("Help: why is it slow?", "", pdoc.start, "slow lag fps performance perf frame rate speed heavy stutter choppy profile doctor", false, "plays the scene for 3 seconds (or orbits the view when it has one card) and times the app's own systems: the three heaviest by milliseconds a frame, each with the button that fixes it, then fps before and after")
 	add.call("Help: printable cheat sheet", "", _cheat_sheet, "cheat sheet print keys shortcuts reference pdf paper list commands", false, "every key and every command, grouped, as one page you can print (an HTML file in your Kine folder, opened in the browser)")
 	add.call("Help: I come from Blender", "", kt.set_mode.bind("blender"), "blender keys shortcuts translate migrate switch from coming learn", false, "while on, a Blender key that Kine uses differently shows a toast with Kine's own key for it (Shift+Enter runs that command); remembered")
