@@ -15,8 +15,15 @@ const SPEC_KEY := 0.4
 const SPEC_FILL := 0.4
 const SPEC_RIM := 0.3
 const BLOOM_THRESHOLD := 1.0     # lit metal edges peak below this (specular is cut), emission (energy 3+) is above it
-const BLOOM_INTENSITY := 0.55
+const BLOOM_INTENSITY := 0.7
+const KEY_E := 3.4      # s277: the preset's OWN levels are the ones the Blender-matched film needed (it was key 2.0 fill 0.6 rim 1.1 plus overrides)
+const FILL_E := 1.6
+const RIM_E := 2.2
+## s277 wider, softer bloom: the big mips (levels 3..6) carry most of it; legacy (ov "bloom_legacy") is the s263 spread, kept for the control
+const BLOOM_LEVELS := [0.0, 0.8, 1.0, 1.0, 0.9, 0.6, 0.4]
+const BLOOM_LEVELS_LEGACY := [0.0, 1.0, 1.0, 0.6, 0.3, 0.15, 0.0]
 const MIRROR_STRENGTH := 0.55
+const GLOSSY_STRENGTH := 0.42   # the blurred reflection is dimmer than the hard mirror (Blender: a soft smear)
 static var last_view := {}
 
 const SKY := "shader_type sky;
@@ -117,6 +124,27 @@ static func mirror_of(src: MeshInstance3D, floor_y: float, fade_h: float, streng
 	return mi
 
 
+## ITEM 269b: a mirror made by mirror_of copies its source's colours once; for a source whose material CHANGES (film keys) call this each time it changes:
+## the mirror takes the source's transform and, per surface, its present body colour and glow
+static func sync_mirror(mir: MeshInstance3D, src: MeshInstance3D, floor_y: float) -> void:
+	mir.transform = Transform3D(Basis.from_scale(Vector3(1, -1, 1)), Vector3(0, 2.0 * floor_y, 0)) * src.transform
+	for s in src.mesh.get_surface_count():
+		var mat: Material = src.get_surface_override_material(s)
+		if mat == null:
+			mat = src.material_override
+		var sm := mir.get_surface_override_material(s) as ShaderMaterial
+		if sm == null or not (mat is BaseMaterial3D):
+			continue
+		var b := mat as BaseMaterial3D
+		sm.set_shader_parameter("body", Vector3(b.albedo_color.r, b.albedo_color.g, b.albedo_color.b))
+		if b.emission_enabled:
+			sm.set_shader_parameter("glow", Vector3(b.emission.r, b.emission.g, b.emission.b))
+			sm.set_shader_parameter("glow_k", b.emission_energy_multiplier)
+		else:
+			sm.set_shader_parameter("glow", Vector3.ZERO)
+			sm.set_shader_parameter("glow_k", 0.0)
+
+
 ## the studio's environment: the backdrop sky, low ambient, ACES, bloom (the part's emission blooms, lit metal edges do not), SSAO scaled to the part
 static func make_env(diag: float, ov := {}) -> Environment:
 	var sc := scaled(diag)
@@ -140,12 +168,11 @@ static func make_env(diag: float, ov := {}) -> Environment:
 	env.glow_bloom = 0.0   # a non-zero bloom adds a share of the whole image: a flat brown haze over the dark backdrop
 	env.glow_hdr_threshold = float(ov.get("bloom_threshold", BLOOM_THRESHOLD))
 	env.glow_blend_mode = Environment.GLOW_BLEND_MODE_SCREEN
-	env.set_glow_level(0, 0.0)
-	env.set_glow_level(1, 1.0)
-	env.set_glow_level(2, 1.0)
-	env.set_glow_level(3, 0.6)
-	env.set_glow_level(4, 0.3)
-	env.set_glow_level(5, 0.15)
+	var lv: Array = BLOOM_LEVELS_LEGACY if bool(ov.get("bloom_legacy", false)) else BLOOM_LEVELS
+	for li in 7:
+		env.set_glow_level(li, float(lv[li]))
+	if not bool(ov.get("bloom_legacy", false)):
+		env.glow_intensity = float(ov.get("bloom_intensity", BLOOM_INTENSITY))
 	env.ssao_enabled = true
 	env.ssao_radius = float(sc["ssao_radius"])
 	env.ssao_intensity = 1.2
@@ -160,7 +187,7 @@ static func build(world: Node3D, box: AABB, ov := {}) -> Dictionary:
 	var out := {"diag": diag}
 	var key := DirectionalLight3D.new()
 	key.light_color = Color(1.0, 0.86, 0.72)
-	key.light_energy = float(ov.get("key_energy", 2.0))
+	key.light_energy = float(ov.get("key_energy", KEY_E))
 	set_light(key, SPEC_KEY, bool(ov.get("key_floor", false)))   # light linking: key and fill ignore the floor, so the backdrop stays black
 	key.shadow_enabled = true
 	key.light_angular_distance = 2.5
@@ -170,13 +197,13 @@ static func build(world: Node3D, box: AABB, ov := {}) -> Dictionary:
 	key.look_at_from_position(c + Vector3(0.58, 0.67, 0.44), c, Vector3.UP)
 	var fill := DirectionalLight3D.new()
 	fill.light_color = Color(0.62, 0.74, 1.0)
-	fill.light_energy = float(ov.get("fill_energy", 0.6))
+	fill.light_energy = float(ov.get("fill_energy", FILL_E))
 	set_light(fill, SPEC_FILL, bool(ov.get("key_floor", false)))
 	world.add_child(fill)
 	fill.look_at_from_position(c + Vector3(-0.42, 0.23, 0.54), c, Vector3.UP)
 	var rim := DirectionalLight3D.new()
 	rim.light_color = Color(1, 1, 1)
-	rim.light_energy = float(ov.get("rim_energy", 1.1))
+	rim.light_energy = float(ov.get("rim_energy", RIM_E))
 	set_light(rim, SPEC_RIM, bool(ov.get("rim_floor", false)))   # the rim from behind would mirror in the floor
 	world.add_child(rim)
 	rim.look_at_from_position(c + Vector3(0.05, 0.21, -0.58), c, Vector3.UP)
@@ -208,7 +235,10 @@ static func draw_mesh(host: Node, mesh: ArrayMesh, box: AABB, size := NiceRender
 		world.add_child(ov["extra"])
 		product.append(ov["extra"])
 	var st := build(world, box, ov)
-	if bool(ov.get("reflect", true)):
+	var glossy: GlossyFloor = null
+	if bool(ov.get("glossy", false)) and bool(ov.get("reflect", true)):
+		pass   # made after the camera exists (below)
+	elif bool(ov.get("reflect", true)):
 		for p in product:
 			var mi := p as MeshInstance3D
 			if mi != null:
@@ -236,9 +266,24 @@ static func draw_mesh(host: Node, mesh: ArrayMesh, box: AABB, size := NiceRender
 		dist /= sc2
 	cam.look_at_from_position(target + dir * dist, target, Vector3.UP)
 	last_view = {"xf": cam.global_transform, "fov": cam.fov, "floor_y": st["floor_y"]}
+	if bool(ov.get("glossy", false)) and bool(ov.get("reflect", true)):   # s277: the blurred reflection (scripts/build/glossy_floor.gd)
+		glossy = GlossyFloor.create(host, vp, world, st["floor"], float(st["floor_y"]), float(st["fade_h"]), float(ov.get("mirror", GLOSSY_STRENGTH)))
+		cam.cull_mask = ALL_LAYERS & ~GlossyFloor.BOTH
+		glossy.sync_camera(cam)
+		glossy.set_sources(product)
+		vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		glossy.render_sides()
+		for i in 3:
+			await RenderingServer.frame_post_draw
+		vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 	for i in 6:
 		await RenderingServer.frame_post_draw
 	var img := vp.get_texture().get_image()
+	if glossy != null:
+		if ov.has("glossy_debug"):
+			glossy.colour_vp.get_texture().get_image().save_png(String(ov["glossy_debug"]) + "_colour.png")
+			glossy.depth_vp.get_texture().get_image().save_png(String(ov["glossy_debug"]) + "_depth.png")
+		glossy.free_all()
 	vp.queue_free()
 	if img == null or img.is_empty():
 		return null

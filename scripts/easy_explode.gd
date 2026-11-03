@@ -12,12 +12,19 @@ var go_btn: Button
 var back_btn: Button
 var report: Label
 var plan := {}
+var visible_rect := Rect2()   # the clear view beside the panel (window pixels); empty = frame to the whole window
 var sched := {}
 var cam_frames: Array = []
 var src_mesh: ArrayMesh
 var playing := false
 var t := 0.0
 var last_words := ""
+var body_ids: Array = []
+var last_axis := Vector3.UP
+var last_gap := 10.0
+var last_level := false
+var send_btn: Button
+var anchor_name := ""   # a body name that stays put ("" = the biggest)
 var cam_share := 0.8   # the share of the picture the pieces fill when the camera follows (the Easy Part panel covers the right third: tests use less)
 
 
@@ -74,6 +81,13 @@ func setup(easy: Node) -> void:
 	back_btn.focus_mode = Control.FOCUS_NONE
 	back_btn.pressed.connect(put_back)
 	add_child(back_btn)
+	send_btn = Button.new()
+	send_btn.name = "easypart_explode_send"
+	send_btn.text = "Put on the timeline"
+	send_btn.focus_mode = Control.FOCUS_NONE
+	send_btn.tooltip_text = "Put the part in the scene with its pieces keyed out and back in, so playing or saving the video shows the exploded view. One undo step"
+	send_btn.pressed.connect(send)
+	add_child(send_btn)
 	report = Label.new()
 	report.name = "easypart_explode_report"
 	report.add_theme_font_size_override("font_size", 12)
@@ -86,30 +100,34 @@ func _axis() -> Vector3:
 	return [Vector3.UP, Vector3.RIGHT, Vector3.BACK][dir_opt.selected]
 
 
-## bodies of the part on screen: world boxes (a surface is one body, as in the Pull apart slider)
+## bodies of the part on screen: world boxes (a surface is one body, as in the Pull apart slider; s262b: any count, bodies merged into a surface
+## on a 256+ body part are read by their vertex ranges)
 func _bodies() -> Dictionary:
 	var pu = ep.pu
 	var pm: MeshInstance3D = pu.part_mesh
 	if pm == null or pm.mesh == null:
 		return {}
 	var src: ArrayMesh = pu.res.get("mesh", null)
-	if src == null or src.get_surface_count() < 2:
+	if src == null:
 		return {}
+	var ids := ExplodeKeys.body_ids(src, pu.res)
+	if ids.size() < 2:
+		return {}
+	var bv := ExplodeKeys.body_verts(src, pu.res)
 	var xf: Transform3D = pm.global_transform
 	var boxes: Array = []
 	var names: Array = []
 	var bn: Array = pu.res.get("body_names", [])
-	for s in src.get_surface_count():
-		var vs: PackedVector3Array = src.surface_get_arrays(s)[Mesh.ARRAY_VERTEX]
+	for bi in ids:
 		var lo := Vector3(INF, INF, INF)
 		var hi := Vector3(-INF, -INF, -INF)
-		for v in vs:
+		for v in (bv[bi] as PackedVector3Array):
 			var w := xf * v
 			lo = lo.min(w)
 			hi = hi.max(w)
 		boxes.append(AABB(lo, hi - lo))
-		names.append(String(bn[s]) if s < bn.size() and String(bn[s]) != "" else "Body%d" % (s + 1))
-	return {"boxes": boxes, "names": names, "src": src}
+		names.append(String(bn[bi]) if bi < bn.size() and String(bn[bi]) != "" else "Body%d" % (int(bi) + 1))
+	return {"boxes": boxes, "names": names, "src": src, "ids": ids}
 
 
 ## plan + schedule (+ camera). Returns {ok, words, collisions (of the plan), naive_collisions, order}
@@ -119,11 +137,22 @@ func make(axis: Vector3, gap_mm: float, by_level: bool, with_cam: bool, dur := 1
 		return {"ok": false, "why": "Exploded view needs a part with two or more bodies"}
 	var boxes: Array = b["boxes"]
 	var layers: Array = ExplodeView.level_layers(boxes, axis) if by_level else ExplodeView.body_layers(boxes.size())
-	plan = ExplodeView.plan(boxes, layers, axis, gap_mm * Part.MM)
+	var po := {}
+	if anchor_name != "":
+		for u in layers.size():
+			for bi in layers[u]:
+				if b["names"][int(bi)] == anchor_name:
+					po["anchor"] = u
+	plan = ExplodeView.plan(boxes, layers, axis, gap_mm * Part.MM, po)
+	visible_rect = ep.free_rect() if with_cam and ep.has_method("free_rect") else Rect2()
 	if not bool(plan.get("ok", false)):
 		return {"ok": false, "why": String(plan.get("why", "no plan"))}
 	sched = ExplodeView.schedule(plan, dur, stagger, 0.5)
 	src_mesh = b["src"]
+	body_ids = b["ids"]
+	last_axis = axis
+	last_gap = gap_mm
+	last_level = by_level
 	var ck := ExplodeView.check(plan, sched)
 	var nk := ExplodeView.check(plan, ExplodeView.naive_schedule(plan, dur, stagger, 0.5))
 	last_words = ExplodeView.words(plan, b["names"])
@@ -141,7 +170,7 @@ func make(axis: Vector3, gap_mm: float, by_level: bool, with_cam: bool, dur := 1
 			for u in (plan["order"] as Array):
 				times.append(float(sched["out_end"][u]))
 			times.sort()
-			cam_frames = ExplodeView.camera_frames(g, cam0, plan, sched, times, lob, cam_share)
+			cam_frames = ExplodeView.camera_frames(g, cam0, plan, sched, times, lob, cam_share, visible_rect)
 	return {"ok": true, "words": last_words, "collisions": (ck["collisions"] as Array).size(), "naive_collisions": (nk["collisions"] as Array).size(),
 		"order": plan["order"], "stuck": plan["stuck"], "cams": cam_frames.size()}
 
@@ -153,21 +182,11 @@ func show_at(tt: float) -> void:
 	var pm: MeshInstance3D = ep.pu.part_mesh
 	var offs := ExplodeView.offsets_at(plan, sched, tt)
 	var inv: Basis = pm.global_transform.basis.inverse()
-	var out := ArrayMesh.new()
-	var unit_of := {}
+	var offm := {}
 	for u in (plan["units"] as Array).size():
 		for bi in plan["units"][u]:
-			unit_of[int(bi)] = u
-	for s in src_mesh.get_surface_count():
-		var arr: Array = src_mesh.surface_get_arrays(s)
-		var off: Vector3 = inv * (offs[int(unit_of.get(s, 0))] as Vector3)
-		var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
-		var mv := PackedVector3Array()
-		mv.resize(vs.size())
-		for i in vs.size():
-			mv[i] = vs[i] + off
-		arr[Mesh.ARRAY_VERTEX] = mv
-		out.add_surface_from_arrays(src_mesh.surface_get_primitive_type(s), arr)
+			offm[int(body_ids[int(bi)])] = inv * (offs[u] as Vector3)
+	var out := ExplodeKeys.shifted_mesh(src_mesh, ep.pu.res, offm)
 	pm.mesh = out
 	ep.pu._look_surfaces()
 	_apply_cam(tt)
@@ -226,3 +245,17 @@ func put_back() -> void:
 	if ep.pu.part_mesh != null:
 		ep.pu.upto = -1
 		ep.pu.sync()   # the shown mesh is the one the part builds, as before the view
+
+
+## s262b: the part goes to the scene as one prop, every moving body under a slide joint keyed with the planned out / in times (ExplodeKeys.send)
+func send() -> Dictionary:
+	var gt := gap_edit.text.strip_edges().replace("mm", "")
+	var g := float(gt) if gt.is_valid_float() and float(gt) > 0.0 else 10.0
+	var rec: Dictionary = ep.m.S.part
+	var r := ExplodeKeys.send(ep.m, rec, {"axis": _axis(), "gap_mm": g, "by_level": lay_opt.selected == 1, "anchor": anchor_name})
+	if not bool(r.get("ok", false)):
+		ep._say(String(r.get("why", "not sent")))
+		return r
+	ep._say("Exploded view is on the timeline: %d joints, %d keys, %.1f s. Play it or save the video" % [int(r["joints"]), int(r["keys"]), float(r["total"])])
+	report.text = "On the timeline: %d keys over %.1f s" % [int(r["keys"]), float(r["total"])]
+	return r

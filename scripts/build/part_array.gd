@@ -15,7 +15,7 @@ extends RefCounted
 const KCad := preload("res://scripts/kcad.gd")
 const MM := 0.001
 const KINDS := ["grid", "route"]
-const MAX_COPIES := 400
+const MAX_COPIES := 1000   # S266: the one cap for every pattern kind (Part.PATTERN_MAX is this)
 const CORNER_DEG := 5.0
 const AX := {"x": Vector3.RIGHT, "y": Vector3.UP, "z": Vector3.BACK}
 
@@ -205,6 +205,35 @@ static func _scaled(rec: Dictionary, sid: String, sc: float) -> int:
 
 # ---------------------------------------------------------------- route: the path
 
+## S270: the plane through a set of 3D points (mm): {"err", "o", "x", "y", "n"} (y = n x x, as the ground plane's). The x axis runs along the first
+## segment; a straight line gets any plane that holds it. Points off the plane by more than 0.05 mm: err names the first one that is.
+static func plane_of_points(P3: Array) -> Dictionary:
+	var o: Vector3 = P3[0]
+	var xa := Vector3.ZERO
+	for q in P3:
+		if (q as Vector3).distance_to(o) > 1e-6:
+			xa = ((q as Vector3) - o).normalized()
+			break
+	if xa == Vector3.ZERO:
+		return {"err": "the path's points are all the same point"}
+	var nrm := Vector3.ZERO   # Newell's normal of the polygon the points make
+	for i in P3.size():
+		var a: Vector3 = P3[i]
+		var b: Vector3 = P3[(i + 1) % P3.size()]
+		nrm += Vector3((a.y - b.y) * (a.z + b.z), (a.z - b.z) * (a.x + b.x), (a.x - b.x) * (a.y + b.y))
+	if nrm.length() < 1e-6:   # a straight run: any plane that holds the line; flat on the ground when it can be
+		nrm = xa.cross(Vector3.UP if absf(xa.dot(Vector3.UP)) < 0.99 else Vector3.RIGHT).cross(xa)
+	nrm = (nrm - xa * nrm.dot(xa))   # the normal square to the x axis (the plane holds the first segment)
+	if nrm.length() < 1e-6:
+		nrm = xa.cross(Vector3.UP if absf(xa.dot(Vector3.UP)) < 0.99 else Vector3.RIGHT).cross(xa)
+	nrm = nrm.normalized()
+	for i in P3.size():
+		var dd := ((P3[i] as Vector3) - o).dot(nrm)
+		if absf(dd) > 0.05:
+			return {"err": "the path's points must lie on one plane: point %d is %.1f mm off the plane through the first points (draw the path as a sketch on a plane, or keep the points flat)" % [i + 1, absf(dd)]}
+	return {"err": "", "o": o, "x": xa, "n": nrm, "y": nrm.cross(xa)}
+
+
 ## the path as {"pieces", "len", "closed", "pl", "err"}. Piece = {"k": line|arc|poly, "pa", "pb" (2D mm), "len", + the shape}; "start" = its distance along the path
 static func path_of(rec: Dictionary, f: Dictionary, c: Vector3) -> Dictionary:
 	var pl: Dictionary
@@ -227,12 +256,30 @@ static func path_of(rec: Dictionary, f: Dictionary, c: Vector3) -> Dictionary:
 		closed_hint = bool(f.get("closed", false))
 		if P3.size() < 2:
 			return {"err": "the path needs 2 or more points"}
-		pl["o"] = Vector3(0.0, (P3[0] as Vector3).y * MM, 0.0)
-		for i in P3.size():
-			var q3: Vector3 = P3[i]
-			ents.append({"k": "line", "a": [q3.x, -q3.z], "b": [(P3[(i + 1) % P3.size()] as Vector3).x, -(P3[(i + 1) % P3.size()] as Vector3).z]})
-			if i == P3.size() - 2 and not closed_hint:
-				break
+		var flat := true   # S270: points at one height keep the old ground-plane path exactly; any other set is fitted to its own plane
+		for q3 in P3:
+			if absf((q3 as Vector3).y - (P3[0] as Vector3).y) > 1e-6:
+				flat = false
+		var n_p := P3.size() if closed_hint else P3.size() - 1   # the number of segments
+		if flat:
+			pl["o"] = Vector3(0.0, (P3[0] as Vector3).y * MM, 0.0)
+			for i in P3.size():
+				var q3: Vector3 = P3[i]
+				ents.append({"k": "line", "a": [q3.x, -q3.z], "b": [(P3[(i + 1) % P3.size()] as Vector3).x, -(P3[(i + 1) % P3.size()] as Vector3).z]})
+				if i == P3.size() - 2 and not closed_hint:
+					break
+		else:
+			var fit := plane_of_points(P3)
+			if String(fit["err"]) != "":
+				return {"err": String(fit["err"])}
+			var o_p: Vector3 = fit["o"]
+			var px: Vector3 = fit["x"]
+			var pyv: Vector3 = fit["y"]
+			pl = {"o": o_p * MM, "x": px, "n": fit["n"], "y": pyv}
+			for i in n_p:
+				var qa: Vector3 = P3[i] - o_p
+				var qb: Vector3 = P3[(i + 1) % P3.size()] - o_p
+				ents.append({"k": "line", "a": [qa.dot(px), qa.dot(pyv)], "b": [qb.dot(px), qb.dot(pyv)]})
 	var pcs: Array = []
 	for e in ents:
 		var why := _pieces_of(e, pcs)

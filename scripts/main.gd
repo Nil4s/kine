@@ -19714,14 +19714,15 @@ func _stamp() -> String:
 	return Time.get_datetime_string_from_system().replace(":", "").replace("-", "").replace("T", "_")
 
 
-func _write(path0: String, d: Dictionary) -> void:
+func _write(path0: String, d: Dictionary) -> bool:   # S271: false = nothing was written (a test run keeps a shipped scene)
 	var path := UserPaths.w(path0)   # an exported build's res:// is read-only: the user's folder (as run from source: unchanged)
 	if _test_keeps(path):
-		return
+		return false
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(path.get_base_dir()))
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	f.store_string(JSON.stringify(d, " "))
 	f.close()
+	return true
 
 
 func _save_pose() -> void:
@@ -20199,7 +20200,9 @@ func _save_scene_now(nm: String) -> void:
 	BodyFile.before_save(self, safe_file(H.name).get_file())   # G07: an applied body with no file yet: a NEW .kbody first
 	var d := _scene_dict()   # TC3: the hero's file with its actors (lossless: the body kept, round 8)
 	var fname := safe_file(H.name) if safe_file(H.name) != "" else "scene_" + _stamp()
-	_write("res://scenes/%s.json" % fname, d)
+	if not _write("res://scenes/%s.json" % fname, d):   # S271: say it was skipped; the old file and scene_path stay as they were
+		_say("not saved: a test run may not overwrite the shipped scene %s (save under another name, or a zz_ name)" % fname)
+		return
 	if np.loaded:
 		np.update_file(UserPaths.w("res://scenes/%s.json" % fname))   # R27: the index of your habits learns the saved scene
 	_clean = _doc_key()

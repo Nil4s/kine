@@ -9,6 +9,7 @@ class_name MeshExport
 extends RefCounted
 
 const KCad := preload("res://scripts/kcad.gd")
+const PartInstances := preload("res://scripts/build/part_instances.gd")   # s261
 const DEFLECT_M := 0.0001   # tessellation: at most 0.1 mm off the true surface
 const ANGLE := 0.2
 const WELD := 1000.0   # vertices closer than 1/1000 mm are one vertex
@@ -53,6 +54,7 @@ static func bodies_of(rec: Dictionary, quality := {}) -> Dictionary:
 		# a colour only for a body the maker painted (a look named Default is the palette's guess, not a choice)
 		b["color"] = look["c"] if not look.is_empty() and String(look.get("preset", "Default")) != "Default" else null
 		out.append(b)
+	PartInstances.bake_into(out, res.get("instances", []), base)   # s261: instanced copies become real triangles
 	if out.is_empty() or int(out.map(func(b): return (b["t"] as PackedInt32Array).size()).max()) == 0:
 		return {"bodies": [], "why": "Nothing to export: this part has no solid yet"}
 	return {"bodies": out, "why": ""}

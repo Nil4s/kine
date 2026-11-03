@@ -812,6 +812,7 @@ func _build_timeline() -> void:
 	part_give.tooltip_text = "Give it to a character: they hold this part in one hand; its size, weight and balance come from the part (steel unless you change the material)"
 	part_give.pressed.connect(func(): m.give_part_weapon(_rec()))
 	nb.add_child(part_give)
+	nb.add_child(FilmUI.make_button(self))   # s269 Film mode, on the timeline
 	nav.add_child(nb)
 	hb.add_child(nav)
 	hb.add_child(VSeparator.new())
@@ -2638,6 +2639,7 @@ func _rebuild(show: bool) -> void:
 	if sk == "":
 		part_mesh.mesh = _exploded(res["mesh"])
 		_look_surfaces()
+	Part.PartInstances.sync(part_mesh, res)   # s261
 	edge_cache = res["edges"]
 	face_cache = res["faces"]
 	thread_look_sync()
@@ -4589,7 +4591,7 @@ func _look_surfaces() -> void:
 	var ls: Array = res.get("looks", [])
 	for s in mini(ls.size(), part_mesh.mesh.get_surface_count()):
 		var l: Dictionary = ls[s]
-		var mm := MaterialMaker.look_material(l, PartViewTools.X_ALPHA if xray else 1.0)   # s223: a made material, triplanar in mm
+		var mm := MaterialMaker.look_material(l, PartViewTools.X_ALPHA if xray else 1.0, MaterialMaker.dims_for(l, part_mesh.mesh, s))   # s223: a made material, triplanar in mm (s273: brushed = scaled to the face)
 		if mm != null:
 			PartGlow.apply(mm, l)   # s258
 			part_mesh.set_surface_override_material(s, mm)

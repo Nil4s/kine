@@ -745,3 +745,25 @@ EXTRA="$EXTRA w03c:w"   # w03c: body keys on the steps that point at a body; ins
 
 
 EXTRA="$EXTRA s263:w"   # s263: dark product studio + continuous ring band, tests/s263_test.gd
+EXTRA="$EXTRA s269:w"   # s269: film keys (look/emission hue cycle, spin rpm + extrapolation, move) + Film mode in the dark studio, tests/s269_test.gd
+EXTRA="$EXTRA s269b:w"   # s269b: film panel opaque + view fills it, reflective floor follows keyed materials, tests/s269b_test.gd
+
+
+EXTRA="$EXTRA w03e:w"   # w03e: key-aware incremental cache + nested face.body keys, tests/w03e_test.gd
+
+
+EXTRA="$EXTRA s277:w"   # s277/s273: glossy blurred floor, wide bloom, preset levels, aluminium + nickel, face-scaled brush, tests/s277_test.gd
+
+
+EXTRA="$EXTRA s261:w"   # s261: Part feature instances: N copies of a body on a face as one MultiMesh, scatter with no-overlap + seed, baked at export, tests/s261_test.gd
+
+
+EXTRA="$EXTRA w10d:w"   # W10d: the Pull it up hover card stays clear of the line-touch note, tests/w10d_test.gd
+
+
+
+
+EXTRA="$EXTRA s262b:w"   # s262b: exploded view v2 (visible area, timeline keys, 256+ bodies), tests/s262b_test.gd
+
+
+EXTRA="$EXTRA s265:w"   # s265: lane of small Part fixes from the GPU build, tests/s265_test.gd

@@ -8,6 +8,8 @@ extends RefCounted
 ## Replay of a part with any key field tracks keys (part_fx.gd) and calls resolve() at every step; it does not use the incremental cache for it.
 
 const FIELDS := ["body", "bodies", "targets", "tools", "target", "to", "into"]
+## W03e: body numbers NESTED in a face descriptor (offset_face "face": {.., "body": N}; draft "faces": [{.., "body": N}, ..]). Key field: "face_bk" (string) / "faces_bk" (array), "<key>_i" beside it.
+const NESTED := {"face": "face_bk", "faces": "faces_bk"}
 
 
 static func kf(field: String) -> String:
@@ -19,7 +21,66 @@ static func keyed(feats: Array) -> bool:
 		for fld in FIELDS:
 			if (f as Dictionary).has(kf(fld)):
 				return true
+		for nf in NESTED:
+			if (f as Dictionary).has(NESTED[nf]):
+				return true
 	return false
+
+
+## the body numbers held in the descriptors of f[fld] (one descriptor, or a list of them); [] when any descriptor has none
+static func nested_ints(f: Dictionary, fld: String) -> Array:
+	var v: Variant = f.get(fld, null)
+	var out: Array = []
+	if v is Dictionary:
+		if (v as Dictionary).has("body") and ((v as Dictionary)["body"] is int or (v as Dictionary)["body"] is float):
+			out.append(int((v as Dictionary)["body"]))
+	elif v is Array:
+		for d in v:
+			if d is Dictionary and (d as Dictionary).has("body") and ((d as Dictionary)["body"] is int or (d as Dictionary)["body"] is float):
+				out.append(int((d as Dictionary)["body"]))
+			else:
+				return []
+	return out
+
+
+static func nested_set(f: Dictionary, fld: String, idx: Array) -> void:
+	var v: Variant = f[fld]
+	if v is Dictionary:
+		(v as Dictionary)["body"] = idx[0]
+	else:
+		for j in (v as Array).size():
+			v[j]["body"] = idx[j]
+
+
+## the form of a step that the incremental cache hashes: a reference that still agrees with its key is left out (the key says it), so resolving
+## (which rewrites the numbers) does not change the hash. A step with no key field is returned as it is.
+static func chain_form(f: Dictionary) -> Dictionary:
+	var has := false
+	for fld in FIELDS:
+		if f.has(kf(fld)):
+			has = true
+	for nf in NESTED:
+		if f.has(NESTED[nf]):
+			has = true
+	if not has:
+		return f
+	var g := f.duplicate(true)
+	for fld in FIELDS:
+		var k := kf(fld)
+		if g.has(k) and g.has(fld) and _ints(g[fld]) == _ints(g.get(k + "_i", null)):
+			g.erase(fld)
+			g.erase(k + "_i")
+	for nf in NESTED:
+		var k2: String = NESTED[nf]
+		if g.has(k2) and g.has(nf) and nested_ints(g, nf) == _ints(g.get(k2 + "_i", null)):
+			var v: Variant = g[nf]
+			if v is Dictionary:
+				(v as Dictionary).erase("body")
+			else:
+				for d in v:
+					(d as Dictionary).erase("body")
+			g.erase(k2 + "_i")
+	return g
 
 
 static func _ints(v: Variant) -> Array:
@@ -51,6 +112,23 @@ static func stamp_step(f: Dictionary, keys: Array) -> void:
 			continue
 		f[kf(fld)] = ks if v is Array else ks[0]
 		f[kf(fld) + "_i"] = idx if v is Array else idx[0]
+	for nf in NESTED:
+		var nk: String = NESTED[nf]
+		if not f.has(nf) or f.has(nk):
+			continue
+		var nidx := nested_ints(f, nf)
+		if nidx.is_empty() or (f[nf] is Array and nidx.size() != (f[nf] as Array).size()):
+			continue
+		var nks: Array = []
+		for x in nidx:
+			if x < 0 or x >= keys.size():
+				nks.clear()
+				break
+			nks.append(String(keys[x]))
+		if nks.is_empty():
+			continue
+		f[nk] = nks if f[nf] is Array else nks[0]
+		f[nk + "_i"] = nidx if f[nf] is Array else nidx[0]
 
 
 ## stamps every step of rec (one replay). Returns the number of references newly stamped
@@ -89,6 +167,25 @@ static func resolve(f: Dictionary, keys: Array, si: int) -> String:
 			idx.append(at)
 		f[fld] = idx if f[fld] is Array else idx[0]
 		f[k + "_i"] = idx if f[fld] is Array else idx[0]
+	for nf in NESTED:
+		var nk: String = NESTED[nf]
+		if not f.has(nk) or not f.has(nf):
+			continue
+		var ncur := nested_ints(f, nf)
+		if ncur != _ints(f.get(nk + "_i", null)):
+			f.erase(nk)
+			f.erase(nk + "_i")
+			stamp_step(f, keys)
+			continue
+		var nks: Array = f[nk] if f[nk] is Array else [f[nk]]
+		var nidx: Array = []
+		for key in nks:
+			var at := keys.find(String(key))
+			if at < 0:
+				return "step %d (%s): the body %s that the face in '%s' pointed at is gone (an earlier step removed it)" % [si + 1, String(f.get("name", f.get("id", ""))), String(key), nf]
+			nidx.append(at)
+		nested_set(f, nf, nidx)
+		f[nk + "_i"] = nidx if f[nk] is Array else nidx[0]
 	return ""
 
 
@@ -100,6 +197,11 @@ static func users_of(feats: Array, from: int, id: String) -> String:
 		for fld in FIELDS:
 			var v: Variant = (feats[i] as Dictionary).get(kf(fld), null)
 			for key in (v if v is Array else [v]):
+				if key is String and (key as String).begins_with(id + "#"):
+					hit = true
+		for nf in NESTED:
+			var nv: Variant = (feats[i] as Dictionary).get(NESTED[nf], null)
+			for key in (nv if nv is Array else [nv]):
 				if key is String and (key as String).begins_with(id + "#"):
 					hit = true
 		if hit:

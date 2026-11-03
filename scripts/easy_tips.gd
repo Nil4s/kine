@@ -169,6 +169,12 @@ func _show(b: Control) -> void:
 	var y := r.end.y + 6.0
 	if y + sz.y > vs.y - 4.0:
 		y = maxf(4.0, r.position.y - sz.y - 6.0)
+	# W10d: the sentence under the MAKE row (the hint: the line-touch note and the rest) stays readable: a card that would stand on it moves below it
+	var hn: Control = ep.get("hint") as Control
+	if hn != null and hn.is_visible_in_tree():
+		var hr := hn.get_global_rect()
+		if Rect2(Vector2(x, y), sz).intersects(hr) and hr.end.y + 6.0 + sz.y <= vs.y - 4.0:
+			y = hr.end.y + 6.0
 	panel.position = Vector2(x, y)
 
 
