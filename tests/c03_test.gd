@@ -11,12 +11,17 @@ extends SceneTree
 ##   6 CLEAR     (added after the lead saw angle_1280.png) the chip panel's rect intersects NO other visible button, label, slider or panel at 1280 x 720 and
 ##               1920 x 1080, in the pull, angle and printer states. Control: the first placement (centred, 110 px above the bottom) intersects something
 ##               at one size at least, so the bar can fail.
+##   7 PIECES    (added after batch 8: s214 Z3 clicked a piece the panel covered) in the s214 Repeat-it state (three cubes, Repeat it, Group, camera framed
+##               as s214 frames it) the panel does not contain the screen point of any body's centre and does not touch the projected box of the pieces, at both
+##               sizes; if no clear place is left the panel hides (that also passes). Control: the placement WITHOUT the piece avoidance (the old rule) puts the
+##               panel over a body centre or the piece box at one size at least.
 ##   5 UI        the four chips are inside the window and visible at both sizes; screenshots saved and looked at.
 const Part := preload("res://scripts/build/part.gd")
 const OUT := "C:/Users/Nick/tools/kine_workers/out/c03"
 var fails := 0
 var m: Node
 var ctl_hits := 0
+var ctl_cover := 0
 
 
 func ok(c: bool, what: String) -> void:
@@ -120,6 +125,68 @@ func hits(box: Control) -> Array:
 			if mine.intersects(r):
 				out.append("%s %s" % [c.name, str(r)])
 	return out
+
+
+func three_cubes() -> Array:
+	var out: Array = []
+	var k := 1
+	for x in [-60.0, 0.0, 60.0]:
+		out.append(rect_sk("f%d" % k, [x - 10.0, -10.0], [x + 10.0, 10.0]))
+		out.append(ext("f%d" % (k + 1), "f%d" % k, "new"))
+		k += 2
+	return out
+
+
+func piece_bars(sz: Vector2i) -> void:
+	var tag := str(sz.x)
+	var pu: PartUI = m.bld.part
+	var ep = pu.ep
+	await set_part(three_cubes(), "Pieces")
+	m.target = Vector3(0.0, 0.0, 0.0)
+	m.dist = 1.6
+	m.pitch = 0.0
+	m.yaw = 0.0
+	m._cam()
+	await idle(10)
+	await click_ctl(ep.make_btns["repeat"])
+	await click_ctl(ep.rep_btns["group"])
+	await idle(40)
+	var box := chip("easypart_mirror_angle").get_parent().get_parent() as Control
+	var cs: Array = []
+	for x in [-60.0, 0.0, 60.0]:
+		cs.append(m.cam.unproject_position(Vector3(x * 0.001, 0.0, 0.0)))
+	var ab: AABB = pu.res.get("aabb", AABB())
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for i in 8:
+		var q: Vector2 = m.cam.unproject_position(ab.position + ab.size * Vector3(i & 1, (i >> 1) & 1, (i >> 2) & 1))
+		lo = lo.min(q)
+		hi = hi.max(q)
+	var pbox := Rect2(lo, hi - lo)
+	var bad := func() -> Array:
+		var o: Array = []
+		if not box.visible:
+			return o
+		var r := box.get_global_rect()
+		for c in cs:
+			if r.has_point(c):
+				o.append("centre " + str(c))
+		if r.intersects(pbox):
+			o.append("piece box " + str(pbox))
+		return o
+	var b1: Array = bad.call()
+	ok(b1.is_empty(), "%s 7: panel %s (visible %s) covers no body centre and not the piece box %s" % [tag, str(box.get_global_rect()), str(box.visible), str(b1)])
+	# control: the old rule (no piece avoidance), placed afresh
+	var c03 = load("res://scripts/easy_part_c03.gd")
+	var was := box.visible
+	box.visible = true
+	box.remove_meta("c03_placed") if box.has_meta("c03_placed") else null
+	c03.place(box, null)
+	var b0: Array = bad.call()
+	print("  [%s 7 control: the old placement covers %d: %s]" % [tag, b0.size(), str(b0)])
+	ctl_cover += b0.size()
+	box.visible = was
+	await shot("pieces_" + tag)
 
 
 func bars(sz: Vector2i) -> void:
@@ -236,6 +303,8 @@ func _initialize() -> void:
 	await idle(4)
 	for sz in [Vector2i(1280, 720), Vector2i(1920, 1080)]:
 		await bars(sz)
+		await piece_bars(sz)
+	ok(ctl_cover > 0, "7 control: the old placement covered a piece (%d covers over both sizes)" % ctl_cover)
 	ok(ctl_hits > 0, "6 control: the first placement intersected something (%d overlaps over both sizes)" % ctl_hits)
 	print("c03: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
