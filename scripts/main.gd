@@ -1380,7 +1380,7 @@ func _export_glb(dir := "res://exports") -> String:
 	if err != OK:
 		_say_plain("NOT DONE: the .glb could not be written (%s)" % error_string(err))
 		return ""
-	_say_plain("exported %s.glb: %d frames at %d fps, the mannequin and its skeleton (UE5 bone names)%s. Opens in Godot, Blender, Unreal 5; Unity via glTFast" % [nm, int(ceil(S.length() * S.fps - 1e-6)) + 1, S.fps, ", the weapons as nodes" if B.wep_on or B.wep2_on else ""])
+	_say_plain("exported %s.glb: %d frames at %d fps, the mannequin and its skeleton (UE5 bone names)%s%s. Opens in Godot, Blender, Unreal 5; Unity via glTFast" % [nm, int(ceil(S.length() * S.fps - 1e-6)) + 1, S.fps, ", the weapons as nodes" if B.wep_on or B.wep2_on else "", StayInPlace.words()])
 	return path
 
 
@@ -1451,7 +1451,7 @@ func _export_fbx(dir := "res://exports", root_motion := false) -> String:
 	if r2["err"] != OK:
 		_say_plain("NOT DONE: the .fbx could not be written (%s)" % error_string(r2["err"]))
 		return ""
-	_say_plain("exported %s.fbx: %d bones, %d frames at %d fps, UE5 bone names, centimetres, Y up%s%s. The weapons and props are not in it" % [nm, (r2["bones"] as PackedStringArray).size(), int(r2["keys"]), S.fps, ", root motion on the root bone" if root_motion else "", ExportNames.fbx_for_words()])
+	_say_plain("exported %s.fbx: %d bones, %d frames at %d fps, UE5 bone names, centimetres, Y up%s%s%s. The weapons and props are not in it" % [nm, (r2["bones"] as PackedStringArray).size(), int(r2["keys"]), S.fps, ", root motion on the root bone" if root_motion else "", ExportNames.fbx_for_words(), StayInPlace.words()])
 	return path
 
 

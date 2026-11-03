@@ -38,7 +38,9 @@ func _watchdog() -> void:
 
 
 func click(c: Control) -> void:
-	var p := c.get_global_rect().get_center()
+	var w: Window = c.get_window()
+	var off := Vector2(w.position) if w != root else Vector2.ZERO
+	var p := off + c.get_global_rect().get_center()
 	var mv := InputEventMouseMotion.new()
 	mv.position = p
 	mv.global_position = p
@@ -168,7 +170,7 @@ func _init() -> void:
 	# the dialog + a real click
 	m._export_dialog_open()
 	await idle(6)
-	var chk := m.export_ui.find_child("chk_stay_in_place", true, false) as CheckBox
+	var chk := m.export_ui.dlg.find_child("chk_stay_in_place", true, false) as CheckBox
 	ok(chk != null, "A checkbox exists")
 	if chk == null:
 		print("c42: %d fail" % fails)
@@ -192,12 +194,12 @@ func _init() -> void:
 	ok(rng_on <= 1e-4, "B on: horizontal range of written pelvis keys %.6f m <= 1e-4" % rng_on)
 	var ydiff := 0.0
 	for k in K:
-		ydiff = maxf(ydiff, absf((on["pel"][k] as Vector3).y - (off["pel"][k] as Vector3).y))
-	ok(ydiff <= 1e-6, "B on: pelvis height keys unchanged (max diff %.2e)" % ydiff)
+		ydiff = maxf(ydiff, absf((B.root_rot * (on["pel"][k] as Vector3)).y - (B.root_rot * (off["pel"][k] as Vector3)).y))
+	ok(ydiff <= 1e-6, "B on: pelvis height keys unchanged (max diff %s)" % ydiff)
 	var rdiff := 0.0
 	for k in (off["rot"] as Array).size():
 		rdiff = maxf(rdiff, ((on["rot"][k] as Quaternion) - (off["rot"][k] as Quaternion)).length())
-	ok(rdiff <= 1e-6 and (on["rot"] as Array).size() == (off["rot"] as Array).size(), "B on: every rotation key unchanged (max diff %.2e)" % rdiff)
+	ok(rdiff <= 1e-6 and (on["rot"] as Array).size() == (off["rot"] as Array).size(), "B on: every rotation key unchanged (max diff %s)" % rdiff)
 	ok(w.contains("travel %.2f m -> 0.00 m" % float(StayInPlace.last["before"])), "B words() has before and after: " + w)
 	ok(absf(float(StayInPlace.last["before"]) - travel_off) <= 1e-4, "B before %.4f equals the off travel %.4f" % [float(StayInPlace.last["before"]), travel_off])
 	# --- C files
@@ -214,7 +216,7 @@ func _init() -> void:
 	var pel0_off: Vector3 = sample(p_off, 0.0).get("pelvis", Vector3.ZERO)
 	var pel_stay := 0.0
 	for f in [0.25, 0.6, 1.0]:
-		var t := L * f
+		var t: float = L * float(f)
 		var a := sample(p_on, t)
 		var b := sample(p_off, t)
 		if a.is_empty() or b.is_empty():
@@ -225,8 +227,8 @@ func _init() -> void:
 			var db: Vector3 = (b[foot] as Vector3) - (b["pelvis"] as Vector3)
 			worst = maxf(worst, (da - db).length())
 		pel_stay = maxf(pel_stay, hz((a["pelvis"] as Vector3) - pel0_on).length())
-	ok(worst <= 1e-4, "C foot-minus-pelvis same on and off, worst %.2e m" % worst)
-	ok(pel_stay <= 1e-3, "C on: pelvis horizontal place held at 3 samples (%.2e)" % pel_stay)
+	ok(worst <= 1e-4, "C foot-minus-pelvis same on and off, worst %s m" % worst)
+	ok(pel_stay <= 1e-3, "C on: pelvis horizontal place held at 3 samples (%s)" % pel_stay)
 	var last_off: Vector3 = sample(p_off, L)["pelvis"]
 	var moved := hz(last_off - pel0_off).length()
 	ok(moved >= 0.20, "C control: the off file's pelvis moved %.3f m by the end" % moved)
