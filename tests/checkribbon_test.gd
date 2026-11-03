@@ -102,7 +102,8 @@ func _init() -> void:
 			var menu_n: int = cap.get_popup().item_count
 			ok(menu_n == (pair[1] as Array).size(), "%s: %s menu lists all %d of its tools" % [tag, cap.text, menu_n])
 			seen += menu_n
-		ok(seen == 42, "%s: the groups hold all 42 tools (%d; 40 old + Keep this pose 78efc4f2 + Fit the ring fc084079)" % [tag, seen])
+		# B05: 44 = 42 + Shot list (9648d877) + Scene lines (2053da96), put under CAMERA (rest list) after they had sat ungrouped on the row (22 icons)
+		ok(seen == 44, "%s: the groups hold all 44 tools (%d; 40 old + Keep this pose 78efc4f2 + Fit the ring fc084079 + Shot list + Scene lines)" % [tag, seen])
 		ok(shown[0] is Button and m.label_of(shown[0]) == "Check", "%s: the main Check is first" % tag)
 		# every tool: reached by real clicks, its own button fires
 		var direct := 0
