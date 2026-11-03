@@ -60,7 +60,13 @@ func _init(p: PartUI) -> void:
 	svg_words.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	svg_words.custom_minimum_size.x = PartUI.PANEL_W - 24.0
 	box.add_child(svg_words)
-	pu.sketch_box.add_child(box)
+	var sc := ScrollContainer.new()   # the palette must not grow into the timeline under it: these rows scroll in a short window
+	sc.name = "c15_scroll"
+	sc.custom_minimum_size = Vector2(0, 110)
+	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sc.add_child(box)
+	pu.sketch_box.add_child(sc)
 	ov = Control.new()
 	ov.name = "c15_overlay"
 	ov.mouse_filter = Control.MOUSE_FILTER_IGNORE
