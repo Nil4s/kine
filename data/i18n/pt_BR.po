@@ -18,6 +18,27 @@ msgstr "ANIMAR"
 msgid "STAGE"
 msgstr "CENA"
 
+msgid "Mirror to facing"
+msgstr "Espelhar pela frente"
+
+msgid "the same mirror for a body that is turned: through the plane of the way it faces, found from its hips (a body facing the front mirrors as Mirror pose does)"
+msgstr "o mesmo espelho para um corpo virado: pelo plano da direção para onde ele olha, achada pelos quadris (um corpo de frente espelha como o Espelhar pose)"
+
+msgid "mirrored to the way the body faces (turned %d deg from the front): left <-> right, the heading kept.  Ctrl+Z undoes"
+msgstr "espelhado pela direção do corpo (virado %d graus da frente): esquerda <-> direita, a direção mantida.  Ctrl+Z desfaz"
+
+msgid "Side check: "
+msgstr "Checagem de lados: "
+
+msgid "%s_l is on the right of %s_r while the other pairs are the other way: a left and right name swapped"
+msgstr "%s_l está à direita de %s_r enquanto os outros pares estão ao contrário: um nome de esquerda e direita trocado"
+
+msgid "the bones named left are on the body's right (the feet point the other way): left and right are swapped in the whole rig"
+msgstr "os ossos chamados de esquerda estão à direita do corpo (os pés apontam para o outro lado): esquerda e direita estão trocadas no rig inteiro"
+
+msgid "the mirrored halves meet at a ridge of %d degrees (over %d): the surface does not run smoothly through the mirror plane"
+msgstr "as metades espelhadas se encontram numa quina de %d graus (acima de %d): a superfície não passa suave pelo plano do espelho"
+
 msgid "CHECK"
 msgstr "CONFERIR"
 

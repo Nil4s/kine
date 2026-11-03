@@ -906,3 +906,6 @@ EXTRA="$EXTRA c46:w"   # c46: the Combine dialog runs a many-tool combine stepwi
 
 
 EXTRA="$EXTRA c45:w"   # c45: Alt+click through to the hidden face; sketch stack picker
+
+
+EXTRA="$EXTRA c47:w"   # c47: mirror you can trust: facing axis from geometry (#273), side from geometry (#274), mirror seam kink (#251) (tests/c47_test.gd)
