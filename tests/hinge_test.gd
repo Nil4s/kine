@@ -95,7 +95,7 @@ func click_ctl(c: Control) -> void:
 ## a Part tool as a user reaches it: its ribbon button when shown, else through More
 func press_tool(m: Node, pu: PartUI, t: String) -> void:
 	var b: Button = pu.tool_btns[t]
-	if b.is_visible_in_tree():
+	if b.is_visible_in_tree() and b.get_viewport().get_visible_rect().encloses(b.get_global_rect()):   # navigation: a ribbon button pushed past the window edge is reached through More
 		await click_ctl(b)
 		return
 	await click_ctl(m.ui_more)
