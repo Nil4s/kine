@@ -6,6 +6,9 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
+msgid "Animation: stay in place (take the hips' forward travel off)"
+msgstr "Animação: ficar no lugar (tira o avanço do quadril)"
+
 msgid "BODY"
 msgstr "CORPO"
 
