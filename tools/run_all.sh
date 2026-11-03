@@ -890,3 +890,6 @@ EXTRA="$EXTRA c41:w"   # c41: #184 invert orbit X / Y apart, #311 bad spots (bui
 
 
 EXTRA="$EXTRA c42:w"   # C42 stay-in-place export toggle + lightmap UV1 Blender readback (tests/c42_test.gd)
+
+
+EXTRA="$EXTRA c43:w"   # C43: Printer row in Export (saved preset the fit tools read) + the written STL/3MF re-read as the preview (tests/c43_test.gd)
