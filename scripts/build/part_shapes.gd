@@ -124,7 +124,7 @@ func build_row(box: Node) -> void:
 	row = HFlowContainer.new()
 	row.name = "part_shape_row"
 	row.visible = false
-	row.custom_minimum_size = Vector2(250, 0)
+	row.custom_minimum_size = Vector2(190, 0)   # narrow: beside the browser it must stay left of the sketch origin
 	fv.add_child(row)
 	for t in TOOLS:
 		var b: Button = ui.m._button(t.replace("Rounded rectangle", "Rounded rect"), ui._pick.bind(t), String(TIP[t]))
@@ -150,11 +150,24 @@ func _place() -> void:
 	if float_box == null or not float_box.visible:
 		return
 	var vh: float = ui.m.ui_root.get_viewport_rect().size.y
+	var ms := float_box.get_combined_minimum_size()
+	var bottom: float = ui.tl.global_position.y - 6.0
+	var x := 8.0
+	# the browser's real rect (it grows and shrinks with the part): move right of it when the card would cover any of it
+	var avoid: Array = []
+	for n in [ui.browser, ui.get("extras"), ui.side]:
+		if n != null and (n as Control).is_visible_in_tree():
+			avoid.append((n as Control).get_global_rect())
+	var try := Rect2(x, bottom - ms.y, ms.x, ms.y)
+	for r in avoid:
+		if try.intersects(r) and r.position.x < try.position.x + 60.0:   # the browser, at the left
+			x = r.end.x + 8.0
+			try = Rect2(x, bottom - ms.y, ms.x, ms.y)
 	float_box.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)   # grows UP from its foot when the row opens
 	float_box.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	float_box.grow_horizontal = Control.GROW_DIRECTION_END
-	float_box.offset_left = 8.0
-	float_box.offset_bottom = ui.tl.global_position.y - vh - 6.0
+	float_box.offset_left = x
+	float_box.offset_bottom = bottom - vh
 	float_box.offset_top = float_box.offset_bottom   # zero size: the contents set the real one
 	float_box.offset_right = float_box.offset_left
 

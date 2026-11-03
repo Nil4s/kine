@@ -11,6 +11,7 @@ extends SceneTree
 ##             each ONE undo step; Make with nothing typed makes nothing
 ##   6 CONTROL the plain-rectangle volume (60x40x10) is NOT within 0.5 percent of bar 1 (the bar can fail)
 ##   7 SHOTS   1280x720 screenshots in C:/Temp/claude/c37/ (looked at by eye)
+##   7b CLEAR  with the card open, at 1280x720 and at 1024x600, its rect overlaps neither the browser, the side palette nor B04's extras card (read at run time)
 ##   8 WATCHDOG the test quits itself at 240 s
 const SHOT := "C:/Temp/claude/c37"
 const DIRT := "user://c37_test"
@@ -342,6 +343,30 @@ func _init() -> void:
 		ok((rr["errors"] as Dictionary).is_empty() and near(float(rr["volume"]), float(cs[2])), "5 %s: volume %s want %s errors %s" % [cs[0], rr["volume"], float(cs[2]) * 1e-9, rr["errors"]])
 		if cs[0] == "Rounded box":
 			await shot("size_first_solid")
+
+	# 7b CLEAR at both sizes, the card open, a sketch on
+	pu.begin_sketch("front")
+	await idle(3)
+	if not pu.shp.row_open:
+		await click_ctl(pu.shp.toggle)
+	for sz in [Vector2i(1280, 720), Vector2i(1024, 600)]:
+		root.content_scale_size = sz
+		await idle(6)
+		pu.bu.sync()
+		await idle(4)
+		var cr: Rect2 = pu.shp.float_box.get_global_rect()
+		var hits := []
+		for pair in [["browser", pu.browser], ["side", pu.side], ["extras", pu.get("extras")]]:
+			var ctl: Control = pair[1]
+			if ctl != null and ctl.is_visible_in_tree() and cr.intersects(ctl.get_global_rect()):
+				hits.append("%s %s vs card %s" % [pair[0], ctl.get_global_rect(), cr])
+		ok(pu.shp.float_box.visible and hits.is_empty(), "7b %dx%d: the open Shapes card %s clears the browser, side palette and extras card: %s" % [sz.x, sz.y, cr, hits])
+		var old := Rect2(8.0, cr.position.y, cr.size.x, cr.size.y)
+		ok(old.intersects(pu.browser.get_global_rect()), "7b control %dx%d: at the old left edge (x 8) the card WOULD cover the browser, so the bar can fail" % [sz.x, sz.y])
+		await shot("card_%dx%d" % [sz.x, sz.y])
+	root.content_scale_size = Vector2i(1280, 720)
+	await idle(4)
+	await click_ctl(pu.finish_btn)
 	await shot("final")
 	print("c37: %d fail%s" % [fails, "" if fails == 1 else "s"])
 	quit(1 if fails > 0 else 0)
