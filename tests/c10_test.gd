@@ -191,9 +191,7 @@ func _init() -> void:
 		ok(absf(r2n - w2n) < 0.03 * w2n, "K2k M2 usual: lost %.1f mm3, want %.1f (2.4 mm, head 3.8 x 2)" % [r2n, w2n])
 	else:
 		ok(false, "K2h plate too thin for M8 (%.1f mm)" % T)
-	var lab := []
-	labels(ep.size_l.get_parent(), lab)
-	var sl := " ".join(lab)
+	var sl := String(ep.size_l.text)
 	ok(sl.find("to print") >= 0 and sl.find("minimum layer time") < 0, "K3c the plate (18 x 6 x 2 cm) label has no layer-time note: [%s]" % sl)
 	var win := Rect2(Vector2.ZERO, Vector2(1280, 720))
 	ok(win.encloses(fb.get_global_rect()) and win.encloses(ep.hole_box.get_global_rect()), "K5 Fit chip %s and panel %s inside 1280 x 720" % [fb.get_global_rect(), ep.hole_box.get_global_rect()])
