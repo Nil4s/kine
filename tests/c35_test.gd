@@ -91,14 +91,9 @@ func sweep(where: String) -> void:
 
 func _init() -> void:
 	t0 = Time.get_ticks_msec()
-	var wd := Timer.new()
-	wd.wait_time = 240.0
-	wd.one_shot = true
-	wd.timeout.connect(func():
+	create_timer(240.0).timeout.connect(func():
 		print("FAIL 4 WATCH watchdog: test ran past 240 s")
 		quit(1))
-	root.add_child(wd)
-	wd.start()
 	# 2 RESET
 	var text := FileAccess.get_file_as_string(PO)
 	var rs := ""
@@ -164,7 +159,7 @@ func _init() -> void:
 			await shot("%s_scenemenu" % tag)
 			m.ui_scene_btn.get_popup().hide()
 		# Export dialog, every target
-		m.export_ui.open()
+		m._export_dialog_open()
 		await idle(4)
 		var nt: int = m.export_ui.ui_target.item_count
 		for ti in nt:
