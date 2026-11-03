@@ -27,6 +27,18 @@ static func joints(rec: Dictionary) -> Array:
 	return out
 
 
+## the dialog's checklist for the Joints target (lines start OK or WARN; no animation is needed)
+static func check_lines(rec: Dictionary) -> Array:
+	var js := joints(rec)
+	if js.is_empty():
+		return ["WARN  no hinge in this part: the .glb holds its shape only and the .urdf is not written"]
+	var out: Array = ["OK    %d hinge(s) will be written as joints (glTF node + URDF revolute joint)" % js.size()]
+	for j in js:
+		if int(j["body"]) < 0:
+			out.append("WARN  %s turns no part yet: it is left out of the .glb" % String(j["name"]))
+	return out
+
+
 ## the words for the dialog: what this part would write
 static func summary(rec: Dictionary) -> String:
 	var js := joints(rec)
@@ -203,18 +215,18 @@ static func use_on_hinge(rec: Dictionary, hinge_id: String, name: String) -> Str
 
 # ---- the hinge dialog's frame row (PartUI) ------------------------------------------------------------------------------
 
-## two small rows for the hinge dialog: name + Save frame (the line picked now), and a list of the saved frames that puts one on this hinge
+## ONE compact row for the hinge dialog (the panel has no room for two: a taller one pushed OK under the timeline at 1280 x 720):
+## a name box, Save frame (the line picked now), and, once a frame is saved, a list that puts one on this hinge
 static func frame_row(ui: Object) -> Control:
-	var vb := VBoxContainer.new()
-	vb.name = "part_frame_box"
-	vb.add_theme_constant_override("separation", 4)
+	var h := HBoxContainer.new()
+	h.name = "part_frame_box"
+	h.add_theme_constant_override("separation", 4)
 	var rec: Dictionary = ui._rec()
 	var hp: Dictionary = ui.hp
-	var h := HBoxContainer.new()
 	var le := LineEdit.new()
 	le.name = "part_frame_name"
 	le.placeholder_text = "Frame name"
-	le.custom_minimum_size.x = 110.0
+	le.custom_minimum_size.x = 60.0
 	le.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	h.add_child(le)
 	var sb := Button.new()
@@ -229,15 +241,15 @@ static func frame_row(ui: Object) -> Control:
 		if why == "":
 			ui._hinge_rows())
 	h.add_child(sb)
-	vb.add_child(h)
 	var names := frame_names(rec)
 	if not names.is_empty():
 		var ob := OptionButton.new()
 		ob.name = "part_frame_use"
-		ob.add_item("Use a saved frame")
+		ob.add_item("Use frame")
 		for n in names:
 			ob.add_item(String(n))
 		ob.focus_mode = Control.FOCUS_NONE
+		ob.tooltip_text = "Use a saved frame: its pivot and axis go on this hinge"
 		ob.item_selected.connect(func(i: int):
 			if i <= 0:
 				return
@@ -245,8 +257,6 @@ static func frame_row(ui: Object) -> Control:
 			if not fr.is_empty():
 				hp["o"] = (fr["o"] as Vector3) * Part.MM
 				hp["d"] = fr["axis"]
-				if not hp.has("body") or int(hp["body"]) < 0:
-					pass
 				ui._hinge_rows())
-		vb.add_child(ob)
-	return vb
+		h.add_child(ob)
+	return h

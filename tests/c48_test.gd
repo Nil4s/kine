@@ -63,12 +63,13 @@ func glb_json(path: String) -> Dictionary:
 
 func _init() -> void:
 	var wd := Timer.new()   # watchdog: the whole test stops itself
-	root.add_child(wd)
 	wd.one_shot = true
+	wd.autostart = true
+	wd.wait_time = 240.0
+	root.add_child.call_deferred(wd)
 	wd.timeout.connect(func():
 		print("FAIL watchdog: the test ran past 240 s")
 		quit(2))
-	wd.start(240.0)
 	run.call_deferred()
 
 

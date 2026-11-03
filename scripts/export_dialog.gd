@@ -647,6 +647,8 @@ func checks(id: String, run: String) -> Array:
 			if cl != "":
 				pl.append(cl)
 		return pl
+	if id == "joints":   # C48: the joints are a still pose: no cards needed
+		return C48Joints.check_lines(m.S.part)
 	if id == "cutlist":
 		return CutList.check_lines(m.S.part)
 	if id == "laser":

@@ -33,8 +33,10 @@ func ev(p: Vector2, down: bool) -> void:
 	await process_frame
 
 
-func click_ctl(c: Control) -> void:
+func click_ctl(c: Control, win: Window = null) -> void:
 	var p := c.get_global_rect().get_center()
+	if win != null:
+		p += Vector2(win.position)   # a button inside an embedded dialog: its rect is in the dialog's own space
 	var mv := InputEventMouseMotion.new()
 	mv.position = p
 	mv.global_position = p
@@ -58,12 +60,13 @@ func size_of(p: String) -> int:
 
 func _init() -> void:
 	var wd := Timer.new()
-	root.add_child(wd)
 	wd.one_shot = true
+	wd.autostart = true
+	wd.wait_time = 200.0
+	root.add_child.call_deferred(wd)
 	wd.timeout.connect(func():
 		print("FAIL watchdog: past 200 s")
 		quit(2))
-	wd.start(200.0)
 	run.call_deferred()
 
 
@@ -137,7 +140,7 @@ func run() -> void:
 		ob.item_selected.emit(1)   # the popup's own pick
 		await idle(3)
 		await shot("hinge_frame_use")
-		var okb: Button = pu.find_child("part_ok", true, false)
+		var okb: Button = pu.ok_btn
 		await click_ctl(okb)
 	h2 = Part.feature(m.S.part, "f4")
 	var po := Vector3(h2["o"][0], h2["o"][1], h2["o"][2])
@@ -166,7 +169,7 @@ func run() -> void:
 	DirAccess.remove_absolute(urdf)
 	await shot("export_joints_checklist")
 	ed.ui_format.select(0)
-	await click_ctl(ed.dlg.get_ok_button())
+	await click_ctl(ed.dlg.get_ok_button(), ed.dlg)
 	await idle(4)
 	ok(size_of(glb) > 0, "2 GLB the Export click wrote %s: %d bytes" % [glb.get_file(), size_of(glb)])
 	m._export_dialog_open()
@@ -175,7 +178,7 @@ func run() -> void:
 	ed.ui_format.select(1)
 	ed._on_format(1)
 	await idle(2)
-	await click_ctl(ed.dlg.get_ok_button())
+	await click_ctl(ed.dlg.get_ok_button(), ed.dlg)
 	await idle(4)
 	ok(size_of(urdf) > 0, "3 URDF the Export click wrote %s: %d bytes" % [urdf.get_file(), size_of(urdf)])
 	print("c48ui: %d fail" % fails)

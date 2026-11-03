@@ -849,6 +849,21 @@ msgstr "Tipos de junta que saem do app: dobradiça da peça (gira em torno de um
 msgid "none: the joints are a still pose, the hinge limits"
 msgstr "nenhum: as juntas são uma pose parada, os limites das dobradiças"
 
+msgid "%s turns no part yet: it is left out of the .glb"
+msgstr "%s ainda não gira nenhuma peça: ficou fora do .glb"
+
+msgid "%d hinge(s) will be written as joints (glTF node + URDF revolute joint)"
+msgstr "%d dobradiça(s) serão escritas como juntas (nó glTF + junta rotativa URDF)"
+
+msgid "no hinge in this part: the .glb holds its shape only and the .urdf is not written"
+msgstr "nenhuma dobradiça nesta peça: o .glb guarda só a forma e o .urdf não é escrito"
+
+msgid "Use a saved frame: its pivot and axis go on this hinge"
+msgstr "Usar um quadro salvo: o pivô e o eixo dele vão para esta dobradiça"
+
+msgid "Use frame"
+msgstr "Usar quadro"
+
 msgid "   Pick what you want to make"
 msgstr "   Escolha o que você quer fazer"
 
