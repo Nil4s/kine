@@ -822,3 +822,6 @@ EXTRA="$EXTRA c14:w"   # c14: rig pre-check, footage pre-check, cut-list CSV loc
 
 
 EXTRA="$EXTRA c15:w"   # C15: sketch re-plane preview, SVG import scale check, assembly degrees of freedom, tests/c15_test.gd
+
+
+EXTRA="$EXTRA c16:w"   # C16: guided first pose (opt-in command) + clip licence line from repo data (tests/c16_test.gd)
