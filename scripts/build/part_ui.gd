@@ -24,7 +24,11 @@ const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]   # Constrain: the rule row (CON_TOOLS, below)
+const CHEAVY := preload("res://scripts/build/combine_heavy.gd")   # C46: a many-tool combine runs stepwise with progress and Cancel
 const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Primitive", "Ornament", "Roof shell"]
+const PUpto := preload("res://scripts/build/part_upto.gd")   # C44
+const PSHAPES := preload("res://scripts/build/part_shapes.gd")   # C37: Rounded rectangle, Slot, the Radius field, Size first
+var shp   # C37: the PSHAPES helper (built with the sketch palette)
 const PPRIMUI := preload("res://scripts/build/part_prim_ui.gd")   # s229: the Primitive dialog and the plane modes
 const TOOL_KIND := {"Roof shell": "roof", "Primitive": "prim", "Offset plane": "plane", "Offset face": "offset_face", "Draft": "draft"}   # a tool's feature kind when it is not its lower-case name
 const MODIFY_TOOLS := ["Fillet", "Chamfer", "Shell", "Appearance", "Offset face", "Draft"]
@@ -165,6 +169,7 @@ var _tag_vis: Array = []       # the floor's axis names as they were (they say "
 var part_mesh: MeshInstance3D
 var prev_mesh: MeshInstance3D
 var pov: Control
+var pick_stack: PartPickStack   # C45
 var browser: PanelContainer
 var browser_vb: VBoxContainer
 var side: PanelContainer
@@ -172,6 +177,8 @@ var side_title: Label
 var sketch_box: VBoxContainer
 var nums_vb: VBoxContainer
 var snap_btn: Button
+var extras: PanelContainer
+var extras_vb: VBoxContainer
 var move_chk: CheckBox   # C25: One Move rule (complaint 198)
 var unit_btn: Button      # W06
 var dual_chk: CheckBox
@@ -320,6 +327,8 @@ func setup(b: BuildUI) -> void:
 	_build_browser()
 	_build_side()
 	_con_row(sketch_box)   # GAP 9: the rule choices, a small row in the SKETCH PALETTE (shown while Constrain is open)
+	shp = PSHAPES.new(self)   # C37: after the rule row, so the Constrain buttons sit where they did
+	shp.build_row(sketch_box)
 	_build_timeline()
 	_build_inspect()
 	note = PanelContainer.new()
@@ -521,7 +530,14 @@ func _build_side() -> void:
 	move_chk.button_pressed = MoveRule.unified
 	move_chk.focus_mode = Control.FOCUS_NONE
 	move_chk.toggled.connect(func(v: bool): MoveRule.unified = v)
-	sketch_box.add_child(move_chk)
+	extras = PanelContainer.new()   # B04: C25's rule and C15's rows live in this floating card, so the sketch palette gains no height
+	extras.name = "part_sketch_extras"
+	extras.mouse_filter = Control.MOUSE_FILTER_STOP
+	extras_vb = VBoxContainer.new()
+	extras.add_child(extras_vb)
+	extras_vb.add_child(move_chk)
+	extras.visible = false
+	m.ui_root.add_child(extras)
 	snap_btn = Button.new()
 	snap_btn.name = "part_snap"
 	snap_btn.focus_mode = Control.FOCUS_NONE
@@ -907,6 +923,10 @@ func set_on(v: bool) -> void:
 
 
 func _pick(t: String) -> void:
+	if PSHAPES.TOOLS.has(t):   # C37
+		if Part.available():
+			shp.pick(t)
+		return
 	if t in LOOK_TOOLS:
 		_look_tool()
 		return
@@ -995,7 +1015,7 @@ func finish_sketch() -> void:
 	typed = ""
 	dim_target = {}
 	dim_edit.visible = false
-	if tool in SKETCH_TOOLS or tool in CON_TOOLS:
+	if tool in SKETCH_TOOLS or tool in CON_TOOLS or PSHAPES.TOOLS.has(tool):
 		tool = ""
 	con_open = false
 	con_pick = {}
@@ -1066,6 +1086,11 @@ func input(ev: InputEvent) -> bool:
 		var mb := ev as InputEventMouseButton
 		if mb.button_index == MOUSE_BUTTON_LEFT:
 			pat_mod = mb.shift_pressed or mb.ctrl_pressed   # s214: Shift / Ctrl held on this click (a group pick)
+			if mb.pressed and mb.alt_pressed and sk != "" and tool == "" and draft.is_empty():   # C45: Alt+click lists what is under the cursor (part_pickstack.gd)
+				if pick_stack == null:
+					pick_stack = PartPickStack.new()
+				pick_stack.open(self, mb.position)
+				return true
 			if mb.pressed:
 				m._toast_clear()   # XFIX2: a press is an action: an older "Undid" toast goes
 			return _press(mb.position) if mb.pressed else _release(mb.position)
@@ -1098,6 +1123,8 @@ func _press(p: Vector2) -> bool:
 		return _measure_press(p)
 	if tool == "Hinge" and dlg.get("t", "") == "hinge":
 		return _hinge_press(p)
+	if PUpto.press(self, p):
+		return true   # C44: the face an Extrude ends on
 	if dlg.get("t", "") == "plane" and PPRIMUI.plane_mode(self) == 4:
 		return PPRIMUI.face_press(self, p)   # s229: the plane on a clicked face
 	if tool == "Offset face" or tool == "Draft":   # GAP 10: a click picks a face (its centre; the front-facing ones)
@@ -1163,6 +1190,9 @@ func _press_sketch(p: Vector2) -> bool:
 		if not hp.is_empty():
 			spl_drag = hp   # a point of a curve on the sheet: drag it (the release keeps it)
 			return true
+	if shp.press(a):   # C37: a shape tool, or Circle with a typed Radius
+		pov.queue_redraw()
+		return true
 	match tool:
 		"Spline":
 			_spline_click(p, a)
@@ -1250,6 +1280,8 @@ func _release(p: Vector2) -> bool:
 
 
 func _commit_draft() -> void:
+	if shp.commit():   # C37
+		return
 	var a: Vector2 = draft["a"]
 	var b: Vector2 = draft["b"]
 	if draft["k"] == "rect":
@@ -1295,6 +1327,7 @@ func _motion(p: Vector2) -> bool:
 		if i != hover_edge:
 			hover_edge = i
 			pov.queue_redraw()
+	PUpto.hover(self, p)   # C44
 	if tool == "Offset face" or tool == "Draft":
 		var fi := _pick_face(p)
 		if fi != hover_face:
@@ -1353,6 +1386,8 @@ func _typed_size() -> bool:
 
 
 func _key(k: InputEventKey) -> bool:
+	if shp != null and shp.key(k):   # C37
+		return true
 	if not pair_pick.is_empty() and k.keycode == KEY_ESCAPE:
 		pair_pick = {}
 		_hinge_sync()
@@ -1690,6 +1725,7 @@ func open_dialog(t: String, edit: int) -> void:
 		_row("Distance", f_num, _lu(float(f.get("dist", 10.0))))
 		f_both.set_pressed_no_signal(bool(f.get("both", false)))
 		dlg_rows.add_child(f_both)
+		PUpto.open_rows(self, f)   # C44: Up to a face
 		_row("Taper angle", f_taper, "%s deg" % _fmt(float(f.get("taper", 0.0))))
 		_op_row(f)
 	elif kind == "revolve":
@@ -1975,6 +2011,7 @@ func dialog_feature() -> Dictionary:
 				return {}
 			var tp := _num(f_taper)
 			f = {"sketch": dlg["sketch"], "dist": d, "both": f_both.button_pressed, "op": op, "taper": 0.0 if is_nan(tp) else tp}
+			PUpto.extend(self, f)   # C44
 		"revolve":
 			var a := _num(f_ang)
 			if is_nan(a) or absf(a) < 1e-6 or String(dlg.get("sketch", "")) == "":
@@ -2074,6 +2111,7 @@ func dialog_feature() -> Dictionary:
 			f = {"body": int(hp["body"]), "o": [o.x / Part.MM, o.y / Part.MM, o.z / Part.MM], "axis": [d.x, d.y, d.z], "track": [[0.0, a0], [du, a1]], "clear": keep, "limit": clampf(float(hp.get("limit", 90.0)), 0.0, 90.0)}
 			if String(hp.get("extrap", "constant")) != "constant":
 				f["extrap"] = String(hp["extrap"])   # s260: saved only when not constant
+			JointAxes.add_to_feature(f, hp, d, du, (rec["features"][edit] as Dictionary) if edit >= 0 else {})   # C24: second turn, visible pivot (opt-in rows)
 	if edit >= 0:
 		var old: Dictionary = rec["features"][edit]
 		f["id"] = old["id"]
@@ -2102,6 +2140,11 @@ func _preview() -> void:
 		ok_btn.disabled = true
 		prev_mesh.visible = false
 		part_mesh.visible = on and sk == "" and part_mesh.mesh != null
+		return
+	if kind == "combine" and CHEAVY.is_heavy(f):   # C46: a many-tool combine is not replayed on every click; OK runs it stepwise with Cancel
+		dlg_info.text = "%d tools: OK runs them one at a time, with a progress bar and Cancel." % (f["tools"] as Array).size()
+		ok_btn.disabled = false
+		prev_mesh.visible = false
 		return
 	var rec := (_rec().duplicate(true))
 	var edit := int(dlg["edit"])
@@ -2165,6 +2208,9 @@ func ok_pressed() -> void:
 	var f := dialog_feature()
 	if f.is_empty():
 		_say("Nothing to make yet: %s" % _dialog_hint(String(dlg["t"])))
+		return
+	if String(dlg["t"]) == "combine" and CHEAVY.is_heavy(f) and not CHEAVY.ready(f):   # C46
+		CHEAVY.start(self, f, int(dlg["edit"]))
 		return
 	var err: String = prev.get("errors", {}).get(String(f["id"]), "") if not prev.is_empty() else ""
 	if err != "":
@@ -2572,6 +2618,8 @@ func sync() -> void:
 	for t in tool_btns:
 		(tool_btns[t] as Control).visible = show and not (t in m.RIBBON_REST.get("BUILD", [])) and (con_open or not (t in CON_TOOLS))   # the rarer ones live under their captions (main.gd RIBBON_REST); the rule row shows while Constrain is open
 	finish_btn.visible = show
+	if shp != null:
+		shp.sync()
 	easy_open_btn.visible = show
 	for c in my_seps:
 		(c as Control).visible = show
@@ -2611,6 +2659,7 @@ func sync() -> void:
 	side.visible = show and (sk != "" or not dlg.is_empty() or not _sel_hinge().is_empty() or _sel_look() >= 0)
 	tl.visible = show
 	sketch_box.visible = sk != "" and dlg.is_empty()
+	extras.visible = sketch_box.visible and side.visible
 	if c15 != null:
 		c15.sync()
 	dlg_box.visible = not dlg.is_empty()
@@ -2816,6 +2865,10 @@ func layout(cl: Rect2) -> void:
 	side.size.x = maxf(PANEL_W, side.get_combined_minimum_size().x)
 	side.size.y = minf(side.get_combined_minimum_size().y, avail)
 	side.position = Vector2(cl.end.x - side.size.x - 8.0, cl.position.y + 6.0)
+	extras.reset_size()
+	extras.custom_minimum_size.x = PANEL_W
+	extras.size = Vector2(PANEL_W, minf(extras.get_combined_minimum_size().y, avail))
+	extras.position = Vector2(side.position.x - PANEL_W - 8.0, cl.position.y + 6.0)
 	note.reset_size()
 	note.position = Vector2(browser.position.x + BROWSER_W + 12.0, cl.position.y + 6.0)
 	PartNoteFit.fit(note, note_l, m.get_viewport().get_visible_rect().size, [warn_ui, side])   # W02b: the whole status text, clear of the Look/Print panel
@@ -2917,7 +2970,7 @@ func _draw_model() -> void:
 				picked_now = true
 		if picked_now or i == hover_edge:
 			_edge_line(edge_cache[i], SKY if picked_now else Color(SKY, 0.6), 5.0 if picked_now else 3.0)
-	if tool == "Offset face" or tool == "Draft" or (not dlg.is_empty() and String(dlg["t"]) in ["offset_face", "draft", "plane"]):
+	if tool == "Offset face" or tool == "Draft" or (not dlg.is_empty() and String(dlg["t"]) in ["offset_face", "draft", "plane"] or (String(dlg.get("t", "")) == "extrude" and (bool(dlg.get("upto_arm", false)) or dlg.has("upto")))):
 		_draw_faces()
 	if not dlg.is_empty() and picked.size() > 0 and String(dlg["t"]) in ["fillet", "chamfer"]:
 		var e: Dictionary = picked[0]
@@ -3260,6 +3313,8 @@ func _draw_draft() -> void:
 				_readout("%s mm (Enter)" % typed)
 			else:
 				_readout("%s x %s mm%s" % [_fmt(absf(b.x - a.x)), _fmt(absf(b.y - a.y)), _snap_words()])
+		"rrect", "slot":
+			shp.draw_draft(c)
 		"circle":
 			var pts := PackedVector2Array()
 			for j in 65:
@@ -3400,6 +3455,7 @@ func _hinge_rows() -> void:
 		_hrow("Seconds", f_dur, "s")
 		dlg_rows.add_child(_limit_row())
 		dlg_rows.add_child(_extrap_row())
+		dlg_rows.add_child(JointAxes.rows(self))   # C24
 		dlg_rows.add_child(f_dial)
 		f_dial.queue_redraw()
 
@@ -4853,6 +4909,8 @@ func _combine_rows() -> void:
 	var names: Array = []
 	for t in tl:
 		names.append(_part_name(int(t)))
+	if names.size() > 6:   # C46: forty names made the dialog wider than the window
+		names = names.slice(0, 3) + ["... %d more ..." % (names.size() - 4), names[-1]]
 	dlg_rows.add_child(_label("Tools:  %s" % ", ".join(PackedStringArray(names)) if not tl.is_empty() else "Tools:  not yet"))
 	var h := HBoxContainer.new()
 	var l := _label("Operation")

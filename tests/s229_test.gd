@@ -279,7 +279,7 @@ func press_tool(nm: String, label: String) -> bool:
 	if b != null and b.is_visible_in_tree():
 		await click_ctl(b)
 		return true
-	if b != null and (nm in ["offset_plane"]):   # the rarer tools live under the CREATE caption's menu: the same pick as that menu's (main.gd _run_tool)
+	if b != null and (nm in ["offset_plane", "primitive"]):   # the rarer tools live under the CREATE caption's menu: the same pick as that menu's (main.gd _run_tool)
 		m._run_tool(b, m.ui_more)
 		await idle(6)
 		return false
