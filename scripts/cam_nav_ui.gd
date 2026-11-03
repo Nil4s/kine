@@ -86,7 +86,7 @@ func _build() -> void:
 	for id in ["own_cam", "show_pivot", "joint_dot"]:   # C07: pivots and cameras (scripts/cam_pivot.gd), all off until ticked
 		var pc7 := CheckBox.new()
 		pc7.name = id
-		pc7.text = {"own_cam": "Orbit a camera about its own position (looking through the shot camera)", "show_pivot": "Show the pivot the orbit turns about", "joint_dot": "Dot on the selected joint, and keep its angles from flipping"}[id]
+		pc7.text = {"own_cam": "Orbit a camera about its own position (looking through the shot camera)", "show_pivot": "Show the pivot the orbit turns about", "joint_dot": "Dot on the selected joint (the point a drag of it turns about)"}[id]
 		pc7.toggled.connect(func(_on: bool): _piv_changed())
 		vb.add_child(pc7)
 	m.add_child(win)

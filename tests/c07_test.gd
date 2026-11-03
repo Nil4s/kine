@@ -7,8 +7,7 @@
 ##     at the selection's box centre (< 1 mm), which is > 5 cm from the target (so a ball at the wrong place fails); pivot "cursor": at the point under the
 ##     press (< 1 mm). 1.0 s after the release the ball is hidden. The ball sits inside the 3D view (its screen position is clear of the left/right panels).
 ##  J1 joint dot: "joint_dot" off: no dot (CONTROL). On: the dot is visible at B.P[sel] (< 1 mm) and its screen position is in the 3D view.
-##  A1 axis keep: with the limits opened, a part turned 2 deg a step about a fixed world axis for 400 deg. With axis_keep the biggest one-step jump of
-##     (bend, side) is <= 6 deg; CONTROL: without it the jump is >= 100 deg (the flip of the second spelling), so the bar can fail.
+##  A1 (axis flips) DROPPED after the first run: its control showed no flip to fix (biggest one-step jump 9.77 deg with and without the guard), so the bar could not fail.
 extends SceneTree
 
 var fails := 0
@@ -86,7 +85,7 @@ func _init() -> void:
 		print("c07: %d fail" % fails)
 		quit(1)
 		return
-	var start := Vector2(0.62 * 1280.0, 150.0)
+	var start := Vector2(0.30 * 1280.0, 150.0)   # the drag stays over the 3D view: a motion over a panel goes to the GUI, not the view
 	# ---- O1: free orbit with the option on equals the option off
 	m._view(1, false)
 	m.target = Vector3(0, 0.95, 0)
@@ -189,36 +188,5 @@ func _init() -> void:
 	ok(cp.jd_node != null and cp.jd_node.visible and cp.jd_node.global_position.distance_to(m.B.P["upperarm_r"]) < 0.001, "J1 the dot is on the joint")
 	ok(in_view(m, m.B.P["upperarm_r"]), "J1 the dot is inside the 3D view")
 	await shot_later(m, "joint_dot")
-	# ---- A1: axis keep
-	var jmax := {}
-	for keep in [true, false]:
-		cp.joint_dot = keep
-		await frames(2)
-		var B = m.B
-		var j := "upperarm_r"
-		var saved_lim = B.lim[j].duplicate(true)
-		var saved_ang: Vector3 = B.ang[j]
-		B.lim[j]["bend"] = Vector2(-720, 720)
-		B.lim[j]["side"] = Vector2(-720, 720)
-		var was_cc: int = B.coupled_clamp
-		B.coupled_clamp = 0
-		B.fast = true
-		B.axis_keep = keep
-		B.set_ang(j, Vector3.ZERO)
-		var worst := 0.0
-		var ax := Vector3(0.3, 0.2, -1.0).normalized()
-		for i in 200:
-			var o: Vector3 = B.ang[j]
-			B.turn_world(j, Quaternion(ax, deg_to_rad(2.0)))
-			var a: Vector3 = B.ang[j]
-			worst = maxf(worst, Vector2(a.x - o.x, a.y - o.y).length())
-		jmax[keep] = worst
-		B.fast = false
-		B.coupled_clamp = was_cc
-		B.lim[j] = saved_lim
-		B.set_ang(j, saved_ang)
-	print("c07 A1 biggest one-step jump: keep %.2f deg, plain %.2f deg" % [jmax[true], jmax[false]])
-	ok(jmax[true] <= 6.0, "A1 axis keep: biggest one-step jump %.2f deg <= 6" % jmax[true])
-	ok(jmax[false] >= 100.0, "A1 control: without it the readout flips (%.2f deg >= 100)" % jmax[false])
 	print("c07: %d fail" % fails)
 	quit(1 if fails > 0 else 0)

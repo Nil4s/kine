@@ -5,8 +5,6 @@
 ##  2. SHOW THE PIVOT: a small orange ball at the point the orbit turns around (the view centre, the point under the cursor, or the
 ##     selection, whichever "Orbit around" says; the camera itself for 1.). Shown while orbiting and for FADE seconds after.
 ##  3. JOINT DOT: a cyan ball on the selected part's joint (the point a drag of it turns about), drawn over the body.
-##     AXIS KEEP: with it on, a part turn takes the equivalent (bend, side) pair nearest the old one, so the angle readout never jumps
-##     between two spellings of the same turn (Body.turn_world's flip).
 ## The balls are plain unshaded meshes with no collider: nothing picks them, they cover no control (they live in the 3D view only).
 class_name CamPivot
 extends RefCounted
@@ -97,8 +95,6 @@ func tick(dt: float) -> void:
 			pv_node.scale = Vector3.ONE * (m.cam.global_position.distance_to(_last_pv) * SCREEN_K)
 	elif pv_node != null:
 		pv_node.visible = false
-	if m.B != null:
-		m.B.axis_keep = joint_dot
 	if joint_dot and m.B != null and m.B.P.has(m.sel):
 		if jd_node == null:
 			jd_node = _ball(Color(0.1, 0.85, 1.0))
