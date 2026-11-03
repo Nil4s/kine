@@ -321,9 +321,9 @@ func setup(b: BuildUI) -> void:
 	m.ui_root.add_child(pov)
 	_build_browser()
 	_build_side()
-	shp = PSHAPES.new(self)   # C37
-	shp.build_row(sketch_box)
 	_con_row(sketch_box)   # GAP 9: the rule choices, a small row in the SKETCH PALETTE (shown while Constrain is open)
+	shp = PSHAPES.new(self)   # C37: after the rule row, so the Constrain buttons sit where they did
+	shp.build_row(sketch_box)
 	_build_timeline()
 	_build_inspect()
 	note = PanelContainer.new()

@@ -117,10 +117,6 @@ func build_row(box: Node) -> void:
 	row.name = "part_shape_row"
 	row.visible = false
 	box.add_child(row)
-	var fc: Node = ui.free_chk
-	if fc != null and fc.get_parent() == box:   # high in the palette: the foot of it sits under the timeline at 1280x720
-		box.move_child(toggle, fc.get_index() + 1)
-		box.move_child(row, fc.get_index() + 2)
 	for t in TOOLS:
 		var b: Button = ui.m._button(t.replace("Rounded rectangle", "Rounded rect"), ui._pick.bind(t), String(TIP[t]))
 		b.name = "part_tool_" + t.to_lower().replace(" ", "_")
@@ -153,6 +149,7 @@ func owns(t: String) -> bool:
 func sync() -> void:
 	if row != null:
 		toggle.set_pressed_no_signal(row_open)
+		toggle.visible = not ui.con_open
 		row.visible = row_open and not ui.con_open   # the rule row needs the room (the palette ends under the timeline at 1280x720)
 	for t in btns:
 		(btns[t] as Button).set_pressed_no_signal(t == ui.tool)
