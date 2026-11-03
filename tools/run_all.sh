@@ -840,3 +840,6 @@ EXTRA="$EXTRA c22:w"   # C22: attach to either hand, grip by the handle, IK/FK j
 
 
 EXTRA="$EXTRA c12:w"   # c12: blueprint callouts, dim style presets, custom 1:1 sheets, tests/c12_test.gd
+
+
+EXTRA="$EXTRA c20:w"   # C20: print fit: hinge clearance from the printer preset + knuckle fuse check, export tessellation = fit/4 (opt-in), support anchor width check (tests/c20_test.gd; needs the CAD DLL)

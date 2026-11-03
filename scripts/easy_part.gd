@@ -2326,6 +2326,16 @@ func _lib_box() -> PanelContainer:
 	hinges_btn.visible = false
 	hinges_btn.pressed.connect(_hinges_btn_press)
 	vb.add_child(hinges_btn)
+	pip_btn = Button.new()   # C20: a print-in-place hinge whose gap is the printer preset's clearance (opt-in; the Hinge chip is unchanged)
+	pip_btn.name = "easypart_pip_hinge"
+	pip_btn.text = "Print-in-place hinge"
+	pip_btn.tooltip_text = "A pin inside a knuckle with the printer's clearance between them (Printer chip). Export > Match the mesh to the fit checks that they do not fuse"
+	pip_btn.focus_mode = Control.FOCUS_NONE
+	pip_btn.custom_minimum_size = Vector2(0, 34)
+	pip_btn.add_theme_font_size_override("font_size", 13)
+	pip_btn.visible = false
+	pip_btn.pressed.connect(_pip_press)
+	vb.add_child(pip_btn)
 	vb.add_child(_livecut_btn_make())   # p204livinghing: the Living cuts button (the Hinges page)
 	spring_pick = Button.new()   # p070springfix: the Springs page button (shown only on Springs): one click, a spring on the floor
 	spring_pick.name = "easypart_spring_pick"
@@ -2721,6 +2731,7 @@ func _screw_sync() -> void:
 			lb.set_pressed_no_signal(parts_open and cat == lib_cat)
 			m._grey(lb, Part.why_not() if not Part.available() else "")
 		hinges_btn.visible = parts_open and lib_cat == "Hinges"   # p067hinges
+		pip_btn.visible = parts_open and lib_cat == "Hinges"   # C20
 		if linkage_box != null:   # p129linkages: the Linkage panel shows on the Hinges page
 			linkage_box.visible = parts_open and lib_cat == "Hinges"
 		hinges_btn.set_pressed_no_signal(_tpl() == "hinge")
@@ -5883,6 +5894,28 @@ func _demo_close() -> void:
 
 ## p067hinges: the Hinges page's Hinge button: the page closes (the hinge's Kind and Door height sliders take its room), then a Butt
 ## hinge drops on the floor at the door's height. One undo step (the chip's).
+var pip_btn: Button   # C20
+
+
+func _pip_press() -> void:
+	if not Part.available():
+		return
+	var cur: Dictionary = m.S.part
+	var idx := preload("res://scripts/build/c03_tools.gd").index_of(cur) if not cur.is_empty() else -1
+	parts_open = false
+	armed = ""
+	_flush_if_dirty()
+	m._step_hint = "Start a print-in-place hinge"
+	m._push_undo()
+	m.S.part = C20Fit.hinge_rec(idx if idx >= 0 else 3)
+	tweak = {}
+	pu.upto = -1
+	pu.sync()
+	frame()
+	_say("Print-in-place hinge, gap %.2f mm from the printer. Export > Match the mesh to the fit checks it" % C20Fit.hinge_gap(m.S.part))
+	_screw_sync()
+
+
 func _hinges_btn_press() -> void:
 	parts_open = false
 	_chip("hinge")
