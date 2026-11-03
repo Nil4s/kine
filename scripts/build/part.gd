@@ -237,6 +237,8 @@ static func from_file(d: Variant) -> Dictionary:
 		for j in (d as Dictionary)["joints"]:
 			if j is Dictionary and String(j.get("kind", "")) in ["turn", "slide"]:
 				out["joints"].append((j as Dictionary).duplicate(true))   # p121 JOINTS IN WORDS: a hinge or a slide between two pieces (scripts/easy_part_stick.gd _joint_words)
+	if (d as Dictionary).get("frames") is Dictionary:
+		out["frames"] = (d as Dictionary)["frames"].duplicate(true)   # C48: named joint frames survive save and load (scripts/build/c48_joints.gd)
 	if (d as Dictionary).get("doors") is Dictionary:
 		out["doors"] = (d as Dictionary)["doors"].duplicate(true)   # C18: door marks survive save and load (scripts/build/part_door.gd)
 	if bool((d as Dictionary).get("tol_scaled", false)):

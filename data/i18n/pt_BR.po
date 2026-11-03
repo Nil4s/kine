@@ -813,6 +813,39 @@ msgstr "Dizer o tempo de renderização antes"
 msgid "Scale to 1.75 m"
 msgstr "Escalar para 1,75 m"
 
+msgid "Frame name"
+msgstr "Nome do quadro"
+
+msgid "Save frame"
+msgstr "Salvar quadro"
+
+msgid "Keep this pivot and axis under the name, to use on another hinge"
+msgstr "Guarda este pivô e eixo com o nome, para usar em outra dobradiça"
+
+msgid "Use a saved frame"
+msgstr "Usar um quadro salvo"
+
+msgid "Joints (glTF, URDF)"
+msgstr "Juntas (glTF, URDF)"
+
+msgid "glTF (.glb): a node per hinged piece, pivot as origin, axis stated"
+msgstr "glTF (.glb): um nó por peça articulada, pivô como origem, eixo declarado"
+
+msgid "A .glb in metres in the part's own axes: each hinged piece is a node whose origin is the hinge pivot and whose extras state the axis and limits, so Blender, Unity or Godot can turn it."
+msgstr "Um .glb em metros nos eixos da própria peça: cada peça articulada é um nó cuja origem é o pivô da dobradiça e cujos extras indicam o eixo e os limites, para o Blender, Unity ou Godot poderem girá-la."
+
+msgid "URDF (.urdf): the hinges as revolute joints"
+msgstr "URDF (.urdf): as dobradiças como juntas rotativas"
+
+msgid "A .urdf listing each hinge as a revolute joint with origin, axis and limits (radians). The shapes are in the .glb."
+msgstr "Um .urdf listando cada dobradiça como junta rotativa com origem, eixo e limites (radianos). As formas estão no .glb."
+
+msgid "The part's hinges as joints."
+msgstr "As dobradiças da peça como juntas."
+
+msgid "Joint types that leave the app: Part hinge (turns about an axis, with its limit) -> glTF: a node whose origin is the pivot and whose extras state the axis; URDF: a revolute joint with origin, axis and limits.\nJoint types that do not: slide joints, the swing's angle curve (only the limit is written) and the must-not-touch pairs stay in Kine; a body skeleton joint is exported by the animation targets."
+msgstr "Tipos de junta que saem do app: dobradiça da peça (gira em torno de um eixo, com seu limite) -> glTF: um nó cuja origem é o pivô e cujos extras indicam o eixo; URDF: uma junta rotativa com origem, eixo e limites.\nTipos que não saem: juntas deslizantes, a curva de ângulo do movimento (só o limite é escrito) e os pares de não encostar ficam no Kine; uma junta de esqueleto é exportada pelos alvos de animação."
+
 msgid "   Pick what you want to make"
 msgstr "   Escolha o que você quer fazer"
 
