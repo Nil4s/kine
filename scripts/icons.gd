@@ -147,6 +147,8 @@ const DRAW := {
 	"mirror": [["seg", Vector2(12, 2), Vector2(12, 6), 1.5], ["seg", Vector2(12, 9), Vector2(12, 15), 1.5], ["seg", Vector2(12, 18), Vector2(12, 22), 1.5],
 		["seg", Vector2(9, 6), Vector2(3, 18), 1.8], ["seg", Vector2(3, 18), Vector2(9, 18), 1.8], ["seg", Vector2(9, 18), Vector2(9, 6), 1.8],
 		["seg", Vector2(15, 6), Vector2(21, 18), 1.8], ["seg", Vector2(21, 18), Vector2(15, 18), 1.8], ["seg", Vector2(15, 18), Vector2(15, 6), 1.8]],
+	"mirror_facing": [["seg", Vector2(4, 4), Vector2(7, 7), 1.5], ["seg", Vector2(10, 10), Vector2(14, 14), 1.5], ["seg", Vector2(17, 17), Vector2(20, 20), 1.5],
+		["disc", Vector2(6, 17), 3.0], ["disc", Vector2(18, 7), 3.0], ["seg", Vector2(6, 17), Vector2(6, 21), 1.8], ["seg", Vector2(18, 7), Vector2(18, 3), 1.8]],
 	"floor": [["seg", Vector2(12, 3), Vector2(12, 14), 2.2], ["seg", Vector2(6.5, 9), Vector2(12, 15), 2.2], ["seg", Vector2(17.5, 9), Vector2(12, 15), 2.2],
 		["seg", Vector2(3, 20.5), Vector2(21, 20.5), 2.2]],
 	"symmetry": [["seg", Vector2(12, 2), Vector2(12, 6), 1.5], ["seg", Vector2(12, 9), Vector2(12, 15), 1.5], ["seg", Vector2(12, 18), Vector2(12, 22), 1.5],

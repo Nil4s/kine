@@ -202,6 +202,63 @@ func _init() -> void:
 	var vp := root.get_visible_rect()
 	var in_view: bool = btn != null and btn.is_visible_in_tree() and vp.encloses(btn.get_global_rect())
 	ok(btn != null and in_view and pl != null and pl.item_count == 3 and btn.text != "", "10 UI Import 2D button in the Part browser, visible inside the viewport (%s, rect %s) and its plane menu has %d items" % [in_view, btn.get_global_rect() if btn else "none", pl.item_count if pl else -1])
-	root.get_texture().get_image().save_png(SHOT + "/c53_ui_1280x720.png")
+	# 11 BANNER: after an import of separate closed shapes the sketch says what it holds; an open polyline still says not closed
+	var sf: Dictionary = m.S.part["features"][0]
+	var t_closed: String = pu._profile_text(sf)
+	ok(t_closed.begins_with("3 closed shapes") and t_closed.contains("Extrude"), "11 BANNER closed import says: '%s'" % t_closed)
+	pu._after_sketch_edit()
+	pu.finish_sketch()
+	m._undo()
+	await idle(2)
+	var open_dxf := "  0
+SECTION
+  2
+ENTITIES
+  0
+LWPOLYLINE
+ 90
+3
+ 70
+0
+ 10
+0
+ 20
+0
+ 10
+10
+ 20
+0
+ 10
+10
+ 20
+10
+  0
+ENDSEC
+  0
+EOF
+"
+	SIUI.import_text(pu, "dxf", open_dxf, "front")
+	await idle(2)
+	var t_open: String = pu._profile_text(m.S.part["features"][0])
+	ok(t_open.begins_with("not closed yet"), "11 BANNER control: an open polyline import still says '%s'" % t_open)
+	var one := "<svg xmlns='http://www.w3.org/2000/svg' width='10mm' height='10mm' viewBox='0 0 10 10'><rect x='1' y='1' width='5' height='5'/></svg>"
+	m._undo()
+	await idle(2)
+	SIUI.import_text(pu, "svg", one, "front")
+	await idle(2)
+	var t_one: String = pu._profile_text(m.S.part["features"][0])
+	ok(t_one.begins_with("closed profile"), "11 BANNER one closed shape keeps the old words: '%s'" % t_one)
+	m._undo()
+	await idle(2)
+	SIUI.import_text(pu, "svg", svg, "front")
+	await idle(4)
+	var shot_a: Image = root.get_texture().get_image()
+	shot_a.save_png(SHOT + "/c53_ui_1280x720.png")
+	root.content_scale_size = Vector2i(1024, 600)
+	root.size = Vector2i(1024, 600)
+	await idle(6)
+	root.get_texture().get_image().save_png(SHOT + "/c53_ui_1024x600.png")
+	var bvp := root.get_visible_rect()
+	ok(pu.import2d_btn.is_visible_in_tree() and bvp.encloses(pu.import2d_btn.get_global_rect()), "10 UI at 1024x600 the Import 2D row is visible inside %s (rect %s)" % [bvp, pu.import2d_btn.get_global_rect()])
 	print("c53: %d fail" % fails)
 	quit(1 if fails > 0 else 0)

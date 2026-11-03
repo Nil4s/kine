@@ -76,3 +76,13 @@ static func import_text(ui: Object, ext: String, text: String, plane: String) ->
 	var w2 := "Imported %d shapes from the %s file. %s%s" % [ents.size(), ext.to_upper(), String(r["units"]), tail]
 	ui._say(w2)
 	return {"ok": true, "words": w2, "unsupported": uns, "ents": ents.size(), "notes": r["notes"]}
+
+
+## true when every separate loop of a sketch is a closed profile on its own
+static func all_closed(groups: Array) -> bool:
+	for g in groups:
+		var face: int = Part.KCad.sketch_face(Part.items_of(g), Vector3.ZERO, Vector3.RIGHT, Vector3.BACK)
+		if face == 0:
+			return false
+		Part.KCad.release(face)
+	return true
