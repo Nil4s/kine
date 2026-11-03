@@ -24,6 +24,7 @@ const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]   # Constrain: the rule row (CON_TOOLS, below)
+const CHEAVY := preload("res://scripts/build/combine_heavy.gd")   # C46: a many-tool combine runs stepwise with progress and Cancel
 const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Primitive", "Ornament", "Roof shell"]
 const PPRIMUI := preload("res://scripts/build/part_prim_ui.gd")   # s229: the Primitive dialog and the plane modes
 const TOOL_KIND := {"Roof shell": "roof", "Primitive": "prim", "Offset plane": "plane", "Offset face": "offset_face", "Draft": "draft"}   # a tool's feature kind when it is not its lower-case name
@@ -2103,6 +2104,11 @@ func _preview() -> void:
 		prev_mesh.visible = false
 		part_mesh.visible = on and sk == "" and part_mesh.mesh != null
 		return
+	if kind == "combine" and CHEAVY.is_heavy(f):   # C46: a many-tool combine is not replayed on every click; OK runs it stepwise with Cancel
+		dlg_info.text = "%d tools: OK runs them one at a time, with a progress bar and Cancel." % (f["tools"] as Array).size()
+		ok_btn.disabled = false
+		prev_mesh.visible = false
+		return
 	var rec := (_rec().duplicate(true))
 	var edit := int(dlg["edit"])
 	if edit >= 0:
@@ -2165,6 +2171,9 @@ func ok_pressed() -> void:
 	var f := dialog_feature()
 	if f.is_empty():
 		_say("Nothing to make yet: %s" % _dialog_hint(String(dlg["t"])))
+		return
+	if String(dlg["t"]) == "combine" and CHEAVY.is_heavy(f) and not CHEAVY.ready(f):   # C46
+		CHEAVY.start(self, f, int(dlg["edit"]))
 		return
 	var err: String = prev.get("errors", {}).get(String(f["id"]), "") if not prev.is_empty() else ""
 	if err != "":
@@ -4853,6 +4862,8 @@ func _combine_rows() -> void:
 	var names: Array = []
 	for t in tl:
 		names.append(_part_name(int(t)))
+	if names.size() > 6:   # C46: forty names made the dialog wider than the window
+		names = names.slice(0, 3) + ["... %d more ..." % (names.size() - 4), names[-1]]
 	dlg_rows.add_child(_label("Tools:  %s" % ", ".join(PackedStringArray(names)) if not tl.is_empty() else "Tools:  not yet"))
 	var h := HBoxContainer.new()
 	var l := _label("Operation")

@@ -231,6 +231,8 @@ func run() -> void:
 	var t_end := Time.get_ticks_usec()
 	for k in 3000:
 		await process_frame
+		if busy(pu) != null:
+			t_end = Time.get_ticks_usec()   # the last frame the busy bar showed = the job's end
 		if m.undo.size() > n1:
 			break
 	var t_commit := (Time.get_ticks_usec() - t_end) / 1000.0

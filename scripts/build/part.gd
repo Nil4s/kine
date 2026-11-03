@@ -70,6 +70,7 @@ const MM := 0.001
 const POFFSET := preload("res://scripts/build/part_offset.gd")   # plan 18: Thinner / thicker everywhere
 const PBULGE := preload("res://scripts/build/part_bulge.gd")   # plan 23: Pinch / Bulge a face
 const GEAR_DRIVE := preload("res://scripts/gear_drive.gd")
+const CHEAVY := preload("res://scripts/build/combine_heavy.gd")   # C46
 const BSAFE := preload("res://scripts/build/boolean_safe.gd")   # C38: coincident faces nudged 0.01 mm, said in words
 const JOINH := preload("res://scripts/build/join_helper.gd")   # W10: line-touch words, counted bodies, the 0.01 mm nudge
 const PPRIM := preload("res://scripts/build/part_prim.gd")   # s229: primitives by numbers, planes from 3 points / an angle, scoped intersect, bow-tie check
@@ -2530,7 +2531,13 @@ static func _combine_step(bodies: Array, looks: Array, f: Dictionary) -> String:
 		if t == tg or tl.count(t) > 1:
 			return "a tool body is the target itself or is picked twice"
 	var cur: int = bodies[tg]
-	for t in tl:
+	var c46 := CHEAVY.take(f)   # C46: the Combine dialog already ran this many-tool combine stepwise; its answer is used, not recomputed
+	if c46 != 0:
+		cur = c46
+		if op != "join" and _vol(cur) <= HIT_VOL:
+			KCad.release(cur)
+			return "nothing is left: the combine took everything"
+	for t in (tl if c46 == 0 else []):
 		var nx := 0
 		var tool_id: int = bodies[t]
 		if bool(f.get("nudge", false)):   # W10: the one-click 0.01 mm retry: the tool sinks 0.01 mm into the target before the operation
