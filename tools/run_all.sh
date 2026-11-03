@@ -863,3 +863,6 @@ EXTRA="$EXTRA c28:w"   # c28: FBX For choice in the Export dialog (tests/c28_tes
 
 
 EXTRA="$EXTRA c27:w"   # C27: support removal choice in the 3D-print export (tests/c27_test.gd)
+
+
+EXTRA="$EXTRA c31:w"   # c31: pt_BR 447 strings, placeholders, CRLF, review list, fit at 1280x720

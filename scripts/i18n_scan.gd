@@ -25,6 +25,7 @@ static func msgids(po := PO) -> Dictionary:
 
 
 static func strings_in(src: String) -> Array:
+	src = src.replace("\r\n", "\n")  # C31: Godot reads a multi-line literal in a CRLF script with LF (main.gd "Describe ONE person")
 	var re := RegEx.new()
 	re.compile("(?:\\.text\\s*=\\s*|\\b(?:_btn|_label|_chip|_check)\\()\"((?:[^\"\\\\%{]|\\\\[\"n])+)\"")
 	var out := []
