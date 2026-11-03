@@ -49,6 +49,8 @@ const GRAV := 9.81
 const DRAG := 0.6             # 1/s: the velocity loss that stops the cape ringing forever
 const CAND_PAD := 0.06        # m: a (vertex, capsule) pair is tested while the vertex is this near the capsule's box
 const MARGIN := 0.003         # m: half the cloth's thickness: a vertex is pushed to this far off a capsule's surface
+const THICK := 0.006          # m: the cloth's thickness (2 x MARGIN): C54 self-collision keeps triangles of one cloth this far apart
+const SELF_EVERY := 5         # C54: a self-collision pass after every this-many distance passes, and 6 more at the end
 const PRE_S := 1.0            # s: the first pose held before frame 0 so the cape settles onto its pins
 
 
@@ -141,6 +143,7 @@ static func bake(B: Body, n_frames: int, fps: int, pose_at: Callable, name := "c
 	return out
 
 
+static var self_collide := false   # C54: opt-in cloth self-collision (GDScript sim only: the native door has none)
 static var force_gdscript := false   # true (or KINE_NO_NATIVE=1) forces the GDScript sim below
 static var _door = null
 static var _door_tried := false
@@ -205,6 +208,10 @@ static func simulate(A: Array, C: Array, rads: PackedFloat64Array, fps: int, ctl
 	var m_end := (pre + n_frames - 1) * nsub
 	var total := float(m_end)
 	var door = native_door()
+	var sc: ClothSelf = null
+	if self_collide:
+		door = null
+		sc = ClothSelf.new(faces(), THICK)
 	if door != null:
 		# the native door: the same substeps in C++ (native/src/kine_cloth_native.cpp), one call per baked frame so the
 		# progress report and the cancel keep their cadence; with no ctl the whole run is one call
@@ -228,7 +235,7 @@ static func simulate(A: Array, C: Array, rads: PackedFloat64Array, fps: int, ctl
 		_lerp_into(C, u, capn)
 		var nnear := _near(p, capn, rads, near)
 		var ncand := _candidates(p, pinned, capn, rads, near, nnear, cand)
-		_substep(x, v, p, pinned, E, rest, pins, capn, rads, cand, ncand, dt)
+		_substep(x, v, p, pinned, E, rest, pins, capn, rads, cand, ncand, dt, sc)
 		if m % nsub == 0:
 			var k := m / nsub - pre
 			if k >= 0:
@@ -294,7 +301,7 @@ static func _candidates(p: PackedVector3Array, pinned: PackedByteArray, capn: Pa
 ## one substep of the PBD solver: predict, ITER passes of (distance, collision), then the velocities
 static func _substep(x: PackedVector3Array, v: PackedVector3Array, p: PackedVector3Array, pinned: PackedByteArray,
 		E: PackedInt32Array, rest: PackedFloat64Array, pins: PackedVector3Array, capn: PackedVector3Array,
-		rads: PackedFloat64Array, cand: PackedInt32Array, ncand: int, dt: float) -> void:
+		rads: PackedFloat64Array, cand: PackedInt32Array, ncand: int, dt: float, sc: ClothSelf = null) -> void:
 	var N := x.size()
 	var drag := 1.0 - DRAG * dt
 	var gdt := Vector3(0.0, -GRAV * dt, 0.0)
@@ -306,6 +313,8 @@ static func _substep(x: PackedVector3Array, v: PackedVector3Array, p: PackedVect
 			v[i] = v[i] * drag + gdt
 			p[i] = x[i] + v[i] * dt
 	var ne := E.size() / 2
+	if sc != null:
+		sc.begin(p)
 	for it in ITER:
 		# the distance pass, inlined (this is the hot loop: ITER x edges x substeps). Each edge pulls its two ends back to
 		# its rest length, split by inverse mass (a pin has none). The sweep alternates direction (a chain settles from both ends)
@@ -338,6 +347,11 @@ static func _substep(x: PackedVector3Array, v: PackedVector3Array, p: PackedVect
 			if dist < rr:
 				var nrm := dv / dist if dist > 1e-9 else Vector3.UP
 				p[i] = cp + nrm * rr
+		if sc != null and sc.npairs > 0 and it % SELF_EVERY == SELF_EVERY - 1:
+			sc.solve(p, pinned)
+	if sc != null and sc.npairs > 0:
+		for k in 6:
+			sc.solve(p, pinned)
 	for i in N:
 		if pinned[i] == 0:
 			v[i] = (p[i] - x[i]) / dt
