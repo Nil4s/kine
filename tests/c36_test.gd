@@ -22,7 +22,9 @@
 ##   C1 the C22 path (C22Hands.grip_handle) on sword_r leaves the wrist > 1 cm from its target or the palm > 5 mm out
 ##   C2 a point planted 3.3 cm off the surface: the A2 measure reads > 5 mm
 ##   C3 a point planted 3 mm inside the prop: the A3 measure reads < -0.1 mm
-##  D  the command (C36Grip.grip_cmd on the real main scene): one undo step, status line says "palm"; a close screenshot of the hand.
+##  D  the command (C36Grip.grip_cmd on the real main scene): one undo step, status line says "palm"; close shots of the hand.
+##   D2 (fix round 2) after the command and _props_show, with NO manual reposition, the sword's world AABB is within 10 mm of the palm;
+##      D3 the card carries it (take mark, right hand); D4 props_at keeps its height; CONTROL: without the take mark it falls > 50 cm.
 extends SceneTree
 
 var fails := 0
@@ -198,12 +200,34 @@ func _init() -> void:
 	m.get_window().size = Vector2i(1280, 720)
 	await idle(4)
 	print("     sword origin y: before %.3f after the command (Props.settle drops a floating prop to the floor) %.3f" % [xf0.origin.y, (m.S.props[0]["xf"] as Transform3D).origin.y])
-	m.S.props[0]["xf"] = xf0   # the picture shows the sword where it was gripped (the grip is solved on the prop as it was)
-	m._props_pose()
 	var pn: Node3D = m.ui_props_root.get_node_or_null("prop_0")
-	if pn != null:
-		pn.transform = xf0   # the node back where the prop was gripped (Props.settle had put it on the floor)
 	var wr: Vector3 = Bm.P[hh]
+	# D2 (fix round 2): no manual reposition anywhere: after the real command and _props_show the sword is still in the hand
+	var pal2: Vector3 = Bm.palm_point(hh)
+	var aabb2 := AABB()
+	var f2 := true
+	for mi in pn.find_children("*", "MeshInstance3D", true, false):
+		var wb2: AABB = (mi as MeshInstance3D).global_transform * (mi as MeshInstance3D).get_aabb()
+		aabb2 = wb2 if f2 else aabb2.merge(wb2)
+		f2 = false
+	var near := Vector3(clampf(pal2.x, aabb2.position.x, aabb2.end.x), clampf(pal2.y, aabb2.position.y, aabb2.end.y), clampf(pal2.z, aabb2.position.z, aabb2.end.z))
+	ok(near.distance_to(pal2) <= 0.01, "D2 after the command and _props_show the sword's world AABB is %.1f mm from the palm (<= 10 mm), no repositioning" % (near.distance_to(pal2) * 1000.0))
+	ok(not m.S.cards[m.sel_card].get("take", {}).is_empty() and (m.S.cards[m.sel_card]["take"]["hands"] as Array) == ["_r"], "D3 the card carries the sword in the right hand: %s" % [m.S.cards[m.sel_card].get("take", {})])
+	ok(m.S.carries().size() == 1 and m.S.carries()[0]["prop"] == 0, "D3 Scene.carries() lists it")
+	# the carried sword also follows the hand when the playhead is on the card (props_at)
+	var pa: Array = m.S.props_at(m.playhead, m.B)
+	ok(absf((pa[0]["xf"] as Transform3D).origin.y - xf0.origin.y) <= 0.01, "D4 props_at puts the sword at its gripped height %.3f (was %.3f)" % [(pa[0]["xf"] as Transform3D).origin.y, xf0.origin.y])
+	# CONTROL: without the take mark the same _props_show drops the sword to the floor, far from the palm
+	var keep_card: Dictionary = (m.S.cards[m.sel_card]["take"] as Dictionary).duplicate()
+	m.S.cards[m.sel_card].erase("take")
+	m._props_show()
+	await idle(2)
+	var pn2: Node3D = m.ui_props_root.get_node_or_null("prop_0")
+	var by: float = pn2.global_position.y
+	ok(by < pal2.y - 0.5, "D2 CONTROL: with no take mark the sword node is at y %.2f, %.0f cm below the palm (> 50 cm)" % [by, (pal2.y - by) * 100.0])
+	m.S.cards[m.sel_card]["take"] = keep_card
+	m._props_show()
+	await idle(2)
 	var palmw: Vector3 = Bm.palm_point(hh)
 	print("     prop node: %s, set root visible %s, children %d" % [pn, m.ui_props_root.visible, m.ui_props_root.get_child_count()])
 	if pn != null:
@@ -218,10 +242,10 @@ func _init() -> void:
 		print("     prop world AABB %s; palm %s wrist %s; prop centre in camera frustum: %s" % [bb, palmw, wr, not m.cam.is_position_behind(bb.get_center()) and m.cam.get_viewport().get_visible_rect().has_point(m.cam.unproject_position(bb.get_center()))])
 		print("     handle seen at camera %s, palm at %s" % [m.cam.unproject_position(bb.get_center()), m.cam.unproject_position(palmw)])
 	m.target = palmw
-	for v in [["side", -90.0, -10.0], ["front", 0.0, -10.0], ["top", 40.0, -70.0]]:
+	for v in [["side", -90.0, -10.0], ["front", 0.0, -10.0], ["top", 0.0, -80.0]]:
 		m.yaw = v[1]
 		m.pitch = v[2]
-		m.dist = 0.6
+		m.dist = 0.55
 		await idle(2)
 		m._cam()
 		await idle(6)

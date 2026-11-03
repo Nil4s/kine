@@ -21272,7 +21272,7 @@ var _gone_said := {}   # prop kinds whose missing model file was already said
 
 
 func _props_show() -> void:
-	Props.settle(S.props)   # UU1: whatever changed, every prop rests on what is under it
+	Props.settle(S.props, C36Grip.air_held(S))   # UU1: whatever changed, every prop rests on what is under it
 	B.props = S.solid_props()   # TT2: the live body stands on the set too (never on what it carries)
 	if ui_props_root == null:
 		return

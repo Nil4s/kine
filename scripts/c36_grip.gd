@@ -100,7 +100,19 @@ static func grip(B: Body, h: String, p: Dictionary, pk: Dictionary, t: float) ->
 	return rep
 
 
-## the command (Command palette): the picked prop, the selected hand, at the playhead; one undo step
+## the props a grip holds in the air: {prop index: true} for every card take mark with "air" (Props.settle leaves them where they are)
+static func air_held(S: Scene) -> Dictionary:
+	var out := {}
+	for c in S.cards:
+		var tk = c.get("take", null)
+		if tk is Dictionary and tk.has("prop") and bool(tk.get("air", false)):
+			out[int(tk["prop"])] = true
+	return out
+
+
+## the command (Command palette): the picked prop, the selected hand, at the playhead; one undo step. The prop is also marked as
+## CARRIED by that hand (the card's take mark, as C22's attach sets it, plus "air": Props.settle does not drop it to the floor) on the
+## card that holds the gripped pose (the picked card; else the card at the playhead; a scene with no card gets one)
 static func grip_cmd(m: Node) -> void:
 	if m.sel_prop < 0 or m.sel_prop >= m.S.props.size():
 		m._say("pick a prop first: click it in the view, then Grip: palm on the handle")
@@ -109,10 +121,30 @@ static func grip_cmd(m: Node) -> void:
 	var t := clampf(m.playhead, 0.0, m.S.length())
 	var p: Dictionary = Props.posed(m.S.props[m.sel_prop], t)
 	var rep := {}
-	m._do(func(): rep.merge(grip(m.B, h, p, m.S.part_keys, t)))
+	var pi: int = m.sel_prop
+	m._do(func():
+		rep.merge(grip(m.B, h, p, m.S.part_keys, t))
+		if rep.is_empty():
+			return
+		if m.S.cards.is_empty():
+			m.S.add("grip", m.B.to_dict())
+			m.sel_card = 0
+		var ci: int = m.sel_card if m.sel_card >= 0 and m.sel_card < m.S.cards.size() else 0
+		if m.sel_card < 0:
+			var best := 1e9
+			for k in m.S.times().size():
+				var d := absf(float(m.S.times()[k][1]) - t)
+				if d < best:
+					best = d
+					ci = k
+		m.S.cards[ci]["pose"] = m.B.to_dict()   # the card holds the gripped body
+		m.S.props[pi]["xf"] = p["xf"]   # where it was gripped
+		C22Hands.take_with(m.S, pi, ci, "_l" if h == "hand_l" else "_r")
+		m.S.cards[ci]["take"]["air"] = true)
 	if rep.is_empty():
 		m._say("that prop has no handle to grip (no solid part)")
 		return
+	m._rebuild_cards()
 	m._props_show()
-	m._say("%s palm on the %s's handle (%.1f mm off the surface, wrist %.1f mm from its target), fingers wrapped; Ctrl+Z takes it back" % [
-		"left" if h == "hand_l" else "right", m._prop_name(m.sel_prop), float(rep["place"]["palm_m"]) * 1000.0, float(rep["place"]["wrist_m"]) * 1000.0])
+	m._say("%s palm on the %s's handle (%.1f mm off the surface, wrist %.1f mm from its target), fingers wrapped, carried from card %d; Ctrl+Z takes it back" % [
+		"left" if h == "hand_l" else "right", m._prop_name(m.sel_prop), float(rep["place"]["palm_m"]) * 1000.0, float(rep["place"]["wrist_m"]) * 1000.0, m.sel_card + 1])
