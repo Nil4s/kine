@@ -151,7 +151,8 @@ func footage_part() -> void:
 	var dir := ProjectSettings.globalize_path(DIR)
 	DirAccess.make_dir_recursive_absolute(dir)
 	var out := []
-	OS.execute("python", PackedStringArray([ProjectSettings.globalize_path("res://tests/py/c14_make_videos.py"), dir]), out, true)
+	var xc := OS.execute("python", PackedStringArray([ProjectSettings.globalize_path("res://tests/py/c14_make_videos.py"), dir]), out, true)
+	print("     helper exit ", xc, " ", out, " dir ", dir)
 	var st := {}
 	var ck := {}
 	for n in ["good", "dark", "small", "shaky"]:
@@ -178,6 +179,10 @@ func footage_part() -> void:
 
 
 func _init() -> void:
+	# wtest gives each run its own APPDATA, which hides python's per-user site-packages (numpy, opencv): point python at the real one (read only)
+	var us := "C:/Users/Nick/AppData/Roaming/Python/Python311/site-packages"
+	OS.set_environment("PYTHONPATH", us)
+	OS.set_environment("PYTHONNOUSERSITE", "")
 	rig_part()
 	await footage_part()
 	m = (load("res://main.tscn") as PackedScene).instantiate()
@@ -193,8 +198,8 @@ func _init() -> void:
 	m.video_tool = "res://tests/fixtures/ri_stub.py"
 	for n in ["good", "dark"]:
 		m._import_video(ProjectSettings.globalize_path(DIR) + "/" + n + ".avi")
+		said.append(m.ui_status.text)   # read at once: the stub tracker fails on the next poll and says its own words
 		await idle(2)
-		said.append(m.ui_status.text)
 		m._video_cancel()
 		await idle(2)
 	ok(not String(said[0]).contains("Footage check") and String(said[1]).contains("Footage check"), "14 status line: good '%s' / dark '%s'" % [str(said[0]).left(60), str(said[1]).left(90)])

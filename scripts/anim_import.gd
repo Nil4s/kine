@@ -669,6 +669,10 @@ static func _import_file(path: String, B: Body, scene_name := "") -> Dictionary:
 			return rt
 		dense = rt["scene"]
 		checks = ClipChecks.analyze(src, mapping, B, rt)
+		var rc := RigPrecheck.check(src, mapping)   # C14 (#520): odd bones, no neck, left and right differ; words only, appended after C04's
+		checks["rig"] = rc
+		if String(rc["text"]) != "":
+			(checks["warnings"] as Array).append(rc["text"])
 		head = "\"%s\" (%s%s): %s" % [src["clip"], src["format"], (", %d animations in the file, the longest taken" % (src["clips"] as Array).size()) if (src["clips"] as Array).size() > 1 else "", rt["text"]]
 	var cr := cards(dense, B)
 	B.set_state(keep)

@@ -22928,6 +22928,9 @@ func _import_video(path: String, raw := false) -> void:
 	_video_t = 0.0
 	_imp_show(true, "tracking %s" % _video_name)   # the bar fills as the tracker reads; Cancel stops it (_video_cancel)
 	_say("tracking %s: finding the person in every frame (about a second per second of video)..." % _video_name)
+	var fc := FootageCheck.check(path, video_python)   # C14 (#560): after the tracking line, a look at the first seconds of the file (never a camera); advice only
+	if String(fc["text"]) != "":
+		_say(String(fc["text"]))
 
 
 ## THE CANCEL WHILE TRACKING (Easy's Copy a video and the Expert import alike): the tracker is killed, its partial files are

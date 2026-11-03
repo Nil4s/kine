@@ -801,3 +801,4 @@ EXTRA="$EXTRA c06mcp:h"   # C06: MCP round trip of the maths tools (tests/py/c06
 EXTRA="$EXTRA s277b:w"
 EXTRA="$EXTRA s277c:w"   # s277c/s262d: card body brightness in a fixed box, explode film camera margin + ring halo, tests/s277c_test.gd
 EXTRA="$EXTRA s277c2:w"   # s277c2/s262d round 2 readers (grey-body mean, edge pixels), tests/s277c2_test.gd
+EXTRA="$EXTRA c14:w"   # c14: rig pre-check, footage pre-check, cut-list CSV locale, tests/c14_test.gd
