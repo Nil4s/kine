@@ -45,7 +45,7 @@ static func spot(i: int, j: int) -> String:
 	var c := float(i % Cloth.COLS + j % Cloth.COLS) * 0.5
 	var h := "near the shoulders" if r < Cloth.ROWS * 0.33 else ("at the middle" if r < Cloth.ROWS * 0.66 else "near the hem")
 	var cm := (Cloth.COLS - 1) * 0.5
-	var sd := "in the centre" if absf(c - cm) < Cloth.COLS * 0.17 else ("on the left side" if c < cm else "on the right side")
+	var sd := "in the centre" if absf(c - cm) < Cloth.COLS * 0.12 else ("on the left side" if c < cm else "on the right side")
 	return "%s, %s (row %d, column %d)" % [h, sd, int(floor(r)) + 1, int(floor(c)) + 1]
 
 
