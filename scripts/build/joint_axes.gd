@@ -8,6 +8,7 @@ extends RefCounted
 ## AUTO PLACE: {"autoplace": true} on a hinge, or auto_place() on its own: when the pivot "o" is not on the body's surface (a chamfered tip
 ## leaves the box corner in the air), it moves to the nearest VISIBLE feature of that body: a hole's centre, the midpoint of an edge, or the
 ## centre of a face. The answer says which one, how far it moved and the words for it (the choice is shown).
+const KCad := preload("res://scripts/kcad.gd")
 const HIDDEN_MM := 0.5   # the pivot is "on the body" when a triangle of it is within this many mm
 const MM := 0.001
 
@@ -232,8 +233,21 @@ static func perp_axis(d: Vector3, which: int) -> Vector3:
 ## the rows: Second turn (None / Sideways / Other way), its angle, and "Put the pivot on a visible spot" with the choice in words.
 ## State lives in pu.hp: "ax2" (0..2), "deg2" (deg), "snap" (bool), "snap_res" (auto_place's answer). Nothing is read unless the user touches a row.
 static func rows(pu: Node) -> Control:
+	pu.f_dial.visible = true
+	var outer := VBoxContainer.new()
+	outer.name = "part_joint_rows"
+	var more := CheckButton.new()   # collapsed by default: the dialog keeps its height (the dial hides while it is open) so OK stays on screen
+	more.name = "part_joint_more"
+	more.text = "Second turn, visible pivot"
+	more.focus_mode = Control.FOCUS_NONE
+	outer.add_child(more)
 	var v := VBoxContainer.new()
-	v.name = "part_joint_rows"
+	v.name = "part_joint_body"
+	v.visible = false
+	outer.add_child(v)
+	more.toggled.connect(func(on: bool) -> void:
+		v.visible = on
+		pu.f_dial.visible = not on)
 	var h := HBoxContainer.new()
 	var l: Label = pu._label("Second turn")
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -284,7 +298,7 @@ static func rows(pu: Node) -> Control:
 			words.text = String(r.get("words", r.get("why", ""))))
 	if cb.button_pressed and pu.hp.has("snap_res"):
 		words.text = String(pu.hp["snap_res"].get("words", ""))
-	return v
+	return outer
 
 
 ## the dialog's extras for the hinge feature `f` being built from pu.hp (d = the line, du = seconds). Nothing is added when the rows were not used.

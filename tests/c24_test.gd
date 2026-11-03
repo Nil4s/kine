@@ -211,6 +211,10 @@ func ui_bars() -> void:
 		pu.hp["d"] = Vector3(0, 0, 1)
 		pu._hinge_rows()
 		await idle(3)
+		var mo: CheckButton = pu.dlg_rows.find_child("part_joint_more", true, false)
+		if mo != null and (round > 0 or true):
+			mo.button_pressed = false
+			await click_ctl(mo)
 		var ob: OptionButton = pu.dlg_rows.find_child("part_axis2", true, false)
 		var de: LineEdit = pu.dlg_rows.find_child("part_deg2", true, false)
 		var cb: CheckBox = pu.dlg_rows.find_child("part_snap", true, false)
@@ -223,6 +227,8 @@ func ui_bars() -> void:
 			pu.f_to.text = "90"
 			pu.f_dur.text = "3"
 			shot("c24_rows")
+			await click_ctl(mo)   # fold it again: the dialog as an untouched user sees it
+			shot("c24_closed")
 			await click_ctl(pu.ok_btn)
 			await idle(3)
 			var fs: Array = m.S.part["features"]
