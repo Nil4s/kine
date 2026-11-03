@@ -139,3 +139,19 @@ static func plan(fr: Array, dirs: Array, cam: Camera3D, w: int, h: int) -> Array
 			dd *= 1.03
 		out.append({"pos": t + dirs[f] * dd, "target": t})
 	return out
+
+
+## the boxes plus their mirror images in the floor plane y = floor_y, clipped at the depth where the glossy reflection has faded (fade_h): the reflection is picture too
+static func with_mirror(fr: Array, floor_y: float, fade_h: float) -> Array:
+	var out: Array = []
+	for bs in fr:
+		var o: Array = (bs as Array).duplicate()
+		for b in bs:
+			var bb: AABB = b
+			var lo := 2.0 * floor_y - bb.end.y
+			var hi := 2.0 * floor_y - bb.position.y
+			lo = maxf(lo, floor_y - fade_h)
+			if hi > lo:
+				o.append(AABB(Vector3(bb.position.x, lo, bb.position.z), Vector3(bb.size.x, hi - lo, bb.size.z)))
+		out.append(o)
+	return out
