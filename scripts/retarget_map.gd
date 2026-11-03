@@ -125,6 +125,7 @@ class Screen extends PanelContainer:
 	var rows: Array = []   # [{kine, label, tag, opt}]
 	var grid: GridContainer
 	var info: Label
+	var unmapped_lbl: Label   # C19: the source bones no Kine joint points at (they are not imported)
 	var import_btn: Button
 	var cancel_btn: Button
 
@@ -150,6 +151,12 @@ class Screen extends PanelContainer:
 		info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		info.custom_minimum_size.x = 300
 		v.add_child(info)
+		unmapped_lbl = Label.new()
+		unmapped_lbl.name = "unmapped_list"
+		unmapped_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		unmapped_lbl.custom_minimum_size.x = 300
+		unmapped_lbl.modulate = Color(1, 0.85, 0.5, 1)
+		v.add_child(unmapped_lbl)
 		var sc := ScrollContainer.new()
 		sc.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		sc.custom_minimum_size = Vector2(300, 120)
@@ -210,6 +217,9 @@ class Screen extends PanelContainer:
 
 	func _info() -> void:
 		info.text = "%d of %d main joints matched. Pick another bone for any row; a bone used twice swaps. The map is remembered for this rig." % [m["main"], AnimImport.MAIN.size()]
+		var un: Array = m.get("unmapped", [])
+		var shown_n := mini(un.size(), 24)
+		unmapped_lbl.text = "Unmapped source bones (%d, not imported): %s%s" % [un.size(), ", ".join(PackedStringArray(un.slice(0, shown_n))), " ..." if un.size() > shown_n else ""] if un.size() > 0 else "Every source bone is mapped."
 
 	func _picked(kine: String, idx: int) -> void:
 		RetargetMap.set_pair(m, kine, idx)

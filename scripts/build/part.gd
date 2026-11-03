@@ -236,6 +236,10 @@ static func from_file(d: Variant) -> Dictionary:
 		for j in (d as Dictionary)["joints"]:
 			if j is Dictionary and String(j.get("kind", "")) in ["turn", "slide"]:
 				out["joints"].append((j as Dictionary).duplicate(true))   # p121 JOINTS IN WORDS: a hinge or a slide between two pieces (scripts/easy_part_stick.gd _joint_words)
+	if (d as Dictionary).get("doors") is Dictionary:
+		out["doors"] = (d as Dictionary)["doors"].duplicate(true)   # C18: door marks survive save and load (scripts/build/part_door.gd)
+	if bool((d as Dictionary).get("tol_scaled", false)):
+		out["tol_scaled"] = true   # C18: opt-in scaled Join touch tolerance
 	if (d as Dictionary).get("film") is Dictionary:
 		out["film"] = (d as Dictionary)["film"].duplicate(true)   # s269 FILM KEYS: look / spin / move keys survive save and load (scripts/build/film.gd)
 	if String((d as Dictionary).get("unit", "")) in ["mm", "cm", "in"]:
@@ -887,6 +891,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 						outside = false
 				var top := float(ed["a"].y) >= bb.end.y - SKIN_MM * MM and float(ed["b"].y) >= bb.end.y - SKIN_MM * MM
 				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "concave": concave, "inner": inner, "outside": outside, "top": top, "fp": PartRefs.face_pair(ef, fnorm, fcen, bb, ftyp, ed)})
+	FixHint.apply(errs, feats)   # C21: every failed step ends with a how-to-fix sentence (the start of the message is untouched)
 	res["solo"] = want.get("solo", [])
 	pack_surfaces(mesh, pend, res)
 	res["instances"] = sketches.get(PartInstances.KEY, [])   # s261

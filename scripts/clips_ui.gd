@@ -96,6 +96,12 @@ func _build() -> void:
 	ui_src = OptionButton.new()
 	ui_src.name = "opt_clip_source"
 	row.call("source", ui_src)
+	ui_lic = Label.new()
+	ui_lic.name = "clip_licence_line"
+	ui_lic.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	ui_lic.custom_minimum_size = Vector2(260, 0)
+	row.call("licence", ui_lic)
+	ui_src.item_selected.connect(func(_i): _lic())
 	ui_rep = _spin("spin_clip_repeat", 1, 50, 1)
 	row.call("repeat (times)", ui_rep)
 	ui_speed = _spin("spin_clip_speed", 0.05, 20, 0.05)
@@ -122,6 +128,14 @@ func _build() -> void:
 	dlg.add_child(g)
 	dlg.confirmed.connect(_ok)
 	m.add_child(dlg)
+
+
+var ui_lic: Label
+
+
+func _lic() -> void:
+	if ui_lic != null:
+		ui_lic.text = ClipLicence.line(String(_files[ui_src.selected])) if ui_src.selected >= 0 and ui_src.selected < _files.size() else ""
 
 
 func _spin(nm: String, lo: float, hi: float, st: float) -> SpinBox:
@@ -153,6 +167,7 @@ func open(kind: String) -> void:
 	for f in _files:
 		ui_src.add_item(String(f))
 	ui_src.disabled = kind == "edit"
+	_lic()
 	ui_rep.value = int(c["repeat"])
 	ui_speed.value = float(c["speed"])
 	ui_bin.value = float(c["bin"])

@@ -346,6 +346,7 @@ var clean := false:         # recording: no highlights, no name tag, NO PANELS (
 		if is_inside_tree() and ui_status != null:
 			_sides_apply()
 var ui_side: Array = []      # the panels Tab hides
+var guided_pose: GuidedPose   # C16: opt-in guided first pose (palette command only)
 var onboard: Onboarding     # ONBOARDING (scripts/onboarding.gd, R25): the first-launch 3-step guide
 var build_choose: BuildChoose   # BUILD's "What do you want to build?" chooser (scripts/build_choose.gd)
 var model_cards: ModelCards   # MODEL's task cards, "What do you want to do?" (scripts/model_cards.gd)
@@ -3030,6 +3031,9 @@ func _ready() -> void:
 	onboard = Onboarding.new()
 	onboard.m = self
 	add_child(onboard)
+	guided_pose = GuidedPose.new()
+	guided_pose.m = self
+	add_child(guided_pose)
 	BootProfile.mark("onboard node")
 	model_cards = ModelCards.new()
 	model_cards.m = self
@@ -3184,6 +3188,7 @@ func _ready() -> void:
 	BootProfile.mark("teach+folds")
 	# not on a scripted shot either (round 13: an agent's screenshot came back with the tour card over the body)
 	onboard.build(ui_root)
+	guided_pose.build(ui_root)
 	page_tour.build(ui_root)
 	model_cards.build(ui_root)
 	build_choose.build(ui_root)
@@ -16355,6 +16360,7 @@ func _commands() -> Array:
 	add.call("Record macro", "", _macro_record, "macro record macros start recording steps", false, "start a macro: every palette command you run from now is a step (with the part picked when it ran); Stop macro recording saves it")
 	add.call("Stop macro recording", "", _macro_stop, "macro stop end save finish recording", false, "save the macro being recorded under its name; it then shows in the S box as 'Macro: <name>'")
 	add.call("Play macro...", "", func(): ui_cmd.open_with("macro:"), "macro play run list saved", false, "the S box lists the saved macros: click or Enter plays one on the part picked now (ONE undo step)")
+	add.call("Guided first pose", "", func(): guided_pose.begin(), "guided first pose tutorial onboarding learn beginner steps", false, "a six-step guide to your first pose (body, click a part, drag, second part, clip, play); each step moves on by doing it, Skip closes it")
 	add.call("Page tour", "", func(): page_tour.replay(), "page tour help guide learn body model sculpt surface intro onboarding", false, "the five-step tour of the page you are on (BODY, MODEL, SCULPT or SURFACE; BODY from any other page), seen or not")
 	add.call("First steps tour", "", _tour_start, "tour help start begin learn new intro guide", false, "five steps that show the poser by doing: click a part, drag it, clip two cards, play, check")
 	add.call("Help: show the tour", "", easy.tour_start, "help tour easy beginner first steps learn guide intro", false, "the Easy tour: five steps (drag a hand, key the pose, move the playhead, key again, play), each moved on by doing it")
@@ -16396,6 +16402,8 @@ func _commands() -> Array:
 	add.call("Constraint: target the picked prop", "", _cons_target_prop, "constraint target prop box door ball chair table carried hold", false, "the picked prop becomes the target of the next constraint (Child Of follows it where it is: carried in a hand, or moved by its keys)")
 	add.call("Prop: key its place here", "", _prop_key, "prop key keyframe animate move position turn door ball box set", true, "a key for the picked prop at the playhead: where it is and how it is turned (a door: its swing too); between keys it moves smoothly")
 	add.call("Prop: delete its keys", "", _prop_unkey, "prop key keyframe clear remove animation", true, "the picked prop's keys go: it stays where it is at the playhead")
+	add.call("Prop: attach to the LEFT hand on this card", "", C22Hands.take_left.bind(self), "prop attach left hand pick up grab hold carry", true, "the picked prop is taken by the LEFT hand from the selected card's arrival, whichever hand is nearer (one undo step)")
+	add.call("Prop: attach to the RIGHT hand on this card", "", C22Hands.take_right.bind(self), "prop attach right hand pick up grab hold carry", true, "the picked prop is taken by the RIGHT hand from the selected card's arrival, whichever hand is nearer (one undo step)")
 	add.call("Grip: wrap the hand round the picked prop", "", _grip_prop_cmd, "grip wrap hand fingers close round prop ball box cylinder any shape keyframe", true, "the picked hand's fingers close round the picked prop's surface (any shape; a ball, a cylinder, a box, an imported model) and the thumb opposes; the finger poses are keyed at the playhead; one undo step")
 	add.call("Door: open 15 deg (key here)", "", _door_swing.bind(15.0), "door swing open hinge push key", true, "the picked door's leaf turns 15 deg more open about its hinge, keyed at the playhead (up to 110 deg)")
 	add.call("Door: close 15 deg (key here)", "", _door_swing.bind(-15.0), "door swing close shut hinge pull key", true, "the picked door's leaf turns 15 deg back toward shut, keyed at the playhead (down to -110 deg: the other way)")
@@ -23723,6 +23731,8 @@ func _import_file(path: String) -> Dictionary:
 	if not r["ok"]:
 		_say("could not import %s: %s Try another .glb, or open it in Blender and export it as .glb again" % [path.get_file(), r["why"]])
 		return r
+	if r["kind"] == "rigged":
+		CharScale.offer(self, path, r)   # C21: a character under 0.3 m or over 5 m tall: one click scales it to 1.75 m
 	if r["kind"] == "rigged" and AnimImport.load_source(path)["ok"]:   # a skeleton WITH an animation: the animation import
 		var o := _import_anim(path)
 		return {"ok": o != "", "path": o, "why": "" if o != "" else "refused (the reason is on the status line)"}
