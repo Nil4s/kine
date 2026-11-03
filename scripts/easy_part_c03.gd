@@ -7,29 +7,51 @@ const Part := preload("res://scripts/build/part.gd")
 const ANGLE := 45.0
 
 
-static func build(ep, row: Control) -> void:
-	var b = ep._big_btn("easypart_pull_newbody", "", "Pull it up joins the solid by default. Press to make the next pull its own New body instead (and the newest pull too)", func(): pull_press(ep))
-	b.custom_minimum_size = Vector2(230, 44)
-	row.add_child(b)
-	ep.set_meta("c03_pull", b)
-	var a = ep._big_btn("easypart_mirror_angle", "Mirror at an angle", "Mirror the solid across a plane through the middle turned 45 degrees (the slider turns it)", func(): angle_press(ep))
-	a.custom_minimum_size = Vector2(230, 44)
-	row.add_child(a)
-	var fc = ep._big_btn("easypart_mirror_face", "Mirror in the face", "Mirror the solid across the face you last drew on", func(): face_press(ep))
-	fc.custom_minimum_size = Vector2(230, 44)
-	row.add_child(fc)
-	var p = ep._big_btn("easypart_printer_preset", "", "Your printer: its name and the gap on each side that holes, lids and fasteners keep. Press to change it", func(): printer_press(ep))
-	p.custom_minimum_size = Vector2(230, 44)
-	row.add_child(p)
-	ep.set_meta("c03_printer", p)
-	sync(ep)
+## the four chips live in ONE floating panel of their own (a 2 x 2 grid low in the view, centred): it is not in any box the layout moves, so no
+## existing control shifts (Easy's suites drag from fixed spots). It shows with a solid on the screen.
+static func build(ep, _row: Control = null) -> void:
+	var box := PanelContainer.new()
+	box.name = "easypart_c03_box"
+	box.visible = false
+	box.mouse_filter = Control.MOUSE_FILTER_STOP
+	var g := GridContainer.new()
+	g.columns = 2
+	g.add_theme_constant_override("h_separation", 6)
+	g.add_theme_constant_override("v_separation", 6)
+	box.add_child(g)
+	var specs := [
+		["easypart_pull_newbody", "", "Pull it up joins the solid by default. Press to make the next pull its own New body instead (and the newest pull too)", pull_press],
+		["easypart_mirror_angle", "Mirror at an angle", "Mirror the solid across a plane through the middle turned 45 degrees (the slider turns it)", angle_press],
+		["easypart_mirror_face", "Mirror in the face", "Mirror the solid across the face you last drew on", face_press],
+		["easypart_printer_preset", "", "Your printer: its name and the gap on each side that holes, lids and fasteners keep. Press to change it", printer_press],
+	]
+	for sp in specs:
+		var b: Button = ep._big_btn(sp[0], sp[1], sp[2], func(): (sp[3] as Callable).call(ep))
+		b.custom_minimum_size = Vector2(190, 36)
+		b.add_theme_font_size_override("font_size", 14)
+		g.add_child(b)
+		if sp[0] == "easypart_pull_newbody":
+			ep.set_meta("c03_pull", b)
+		elif sp[0] == "easypart_printer_preset":
+			ep.set_meta("c03_printer", b)
+	ep.set_meta("c03_box", box)
+	sync(ep, false)
 
 
-static func sync(ep) -> void:
+static func sync(ep, show := false) -> void:
 	if ep.has_meta("c03_pull"):
 		(ep.get_meta("c03_pull") as Button).text = "Pull makes: " + ("New body" if T.pull_new(ep._rec()) else "Join")
 	if ep.has_meta("c03_printer"):
 		(ep.get_meta("c03_printer") as Button).text = T.words(ep._rec()).replace("none", "any")
+	if ep.has_meta("c03_box"):
+		var box := ep.get_meta("c03_box") as Control
+		if box.get_parent() == null and ep.tilt_box != null and ep.tilt_box.get_parent() != null:
+			ep.tilt_box.get_parent().add_child(box)   # beside the other Easy boxes (the panel's own layer)
+		box.visible = show and box.get_parent() != null
+		if box.visible:
+			box.reset_size()
+			var vs: Vector2 = (box.get_parent() as Control).size
+			box.position = Vector2(vs.x * 0.5 - box.size.x * 0.5, vs.y - box.size.y - 110.0)
 
 
 static func pull_press(ep) -> void:

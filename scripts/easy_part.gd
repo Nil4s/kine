@@ -3915,7 +3915,7 @@ func _process(_dt: float) -> void:
 	var tilt_on := not along and _tilt_ok(_rec())
 	var draft_on := not along and _draft_ok(_rec())
 	pull_along_btn.visible = along
-	EC03.sync(self)
+	EC03.sync(self, on and int(pu.res.get("bodies", 0)) > 0 and Part.available())
 	_bend_sync(along)   # S216
 	tilt_btn.visible = tilt_on
 	draft_btn.visible = draft_on
