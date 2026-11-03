@@ -260,7 +260,7 @@ const RIBBON_GROUPS := {
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag", "Keep balance"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)", "Force view"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
-		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial", "Match the reference timing"]], ["SOUND", ["Sound cues"]]],
+		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place", "Stay in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial", "Match the reference timing"]], ["SOUND", ["Sound cues"]]],
 	"SET": [["PROPS", ["Library", "Add prop", "Import model", "Turn left", "Turn right", "Delete prop"]], ["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]],
 		["ACT", ["Sit here", "Pick up", "Put down", "Step up", "Throw to...", "Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]],
 		["REACT", ["Reactions", "React to the hit (physics)", "Impact frames", "Add impact frames", "Remove impact frames"]]],
@@ -5624,6 +5624,9 @@ static func _ray_seg(o: Vector3, d: Vector3, a: Vector3, b: Vector3) -> Vector2:
 
 
 func _unhandled_input(ev: InputEvent) -> void:
+	if camx != null and camx.key(ev):   # C01: Alt+Left / Alt+Right = previous / next view
+		get_viewport().set_input_as_handled()
+		return
 	if camnav != null and camnav.gesture(ev):   # W01: trackpad-safe pan / pinch
 		get_viewport().set_input_as_handled()
 		return
@@ -5846,6 +5849,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		if dragging == "orbit":
 			if shot_through:
 				_shot_hand_over()   # as Blender: orbiting leaves the camera view, from where the camera was
+			rel = camx.inv("orbit", rel)   # C01
 			camnav.orbit_pre()   # W01
 			yaw -= rel.x * 0.4
 			pitch = clampf(pitch + (rel.y if _mesh_orbit() else -rel.y) * 0.4, -89.0, 89.0)   # MODEL / SCULPT: a downward drag turns the camera under the floor
@@ -5854,6 +5858,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 		elif dragging == "zoom":
 			camnav.zoom_drag_move(rel, mm.position)   # W01
 		elif dragging == "pan":
+			rel = camx.inv("pan", rel)   # C01
 			var k := dist * 0.0012
 			target += -cam.global_basis.x * rel.x * k + cam.global_basis.y * rel.y * k
 			_cam()
@@ -6872,6 +6877,8 @@ func _undo() -> void:
 	now["name"] = _step_label(u)   # the step keeps its name on the way back and forth
 	if u.has("lib"):   # ROADMAP 96: a pack imported into the library: its files go to the trash, redo brings them back
 		now["lib"] = u["lib"]
+	if u.has("libedit"):   # C02: a pose library edit (delete / update) goes back and forth with the step
+		now["libedit"] = u["libedit"]
 	if u.get("swap", false):
 		now["swap"] = true   # a whole-scene swap goes back and forth
 	if u.has("easy"):
@@ -6884,6 +6891,8 @@ func _undo() -> void:
 	_rehearse_again()   # I14: the comparison is read again from the clip as it now is
 	if u.has("lib"):
 		PosePack.lib_move(u["lib"], true, library)
+	if u.has("libedit"):
+		PoseLibraryEdit.step(u["libedit"], true, self)
 	if sk_hist != null and B.state() == sk_hist["state"] and not sk.last.is_empty():
 		sk.hist.pop_back()   # a flip was undone: its handles come back, each limb on the candidate it had
 		sk.last = sk_hist["rep"]
@@ -6922,6 +6931,8 @@ func _redo() -> void:
 	now["name"] = _step_label(r)
 	if r.has("lib"):   # ROADMAP 96: as _undo, the other way: the import's files come back out of the trash
 		now["lib"] = r["lib"]
+	if r.has("libedit"):
+		now["libedit"] = r["libedit"]
 	if r.get("swap", false):
 		now["swap"] = true
 	if r.has("easy"):
@@ -6934,6 +6945,8 @@ func _redo() -> void:
 	_rehearse_again()   # I14
 	if r.has("lib"):
 		PosePack.lib_move(r["lib"], false, library)
+	if r.has("libedit"):
+		PoseLibraryEdit.step(r["libedit"], false, self)
 	_say(("Put back: " + easy_name(r)) if easy != null and easy.on else "Redid: " + now["name"])
 	_toast(("Put back: " + easy_name(r)) if easy != null and easy.on else "Redid: " + now["name"])   # Easy: the same words as the status line
 	_undo_tips()
@@ -7979,6 +7992,7 @@ func _scene_dict(frames := true) -> Dictionary:
 	var d := H.to_dict(hb, frames)
 	hb.set_state(keep)
 	BodyFile.put_key(self, d)   # G07: the applied body's .kbody, by reference (scripts/body_file.gd)
+	camx.put_key(d)   # C01: the cube's Top
 	var ar := ArmourFromBody.to_file(self)   # B23: the armour plates on the fighter, when there are any (scripts/armour_from_body.gd)
 	if not ar.is_empty():
 		d[ArmourFromBody.KEY] = ar
@@ -12343,7 +12357,7 @@ const ICON_OF := {"Library": "library", "Export model (GLB / OBJ)": "export_glb"
 	"Light: three-point": "lit_three", "Light: rim": "lit_rim", "Light: noir": "lit_noir", "Light: daylight": "lit_day",
 	"Add prop": "prop", "Object library...": "library", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective", "Local API": "api",
-	"Pose from words...": "say_it", "Sketch to pose": "sketch_pose", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong",
+	"Pose from words...": "say_it", "Sketch to pose": "sketch_pose", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Stay in place": "stay_in_place", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong",
 	"Test cube": "mesh_cube", "Edit body": "mannequin", "Save": "save", "Save to body": "body_save", "Open...": "open", "Use in scene": "use_scene", "Move": "xf_move", "Rotate": "xf_rot", "Scale": "xf_scale",
 	"Extrude": "part_extrude", "Inset": "inset", "Loop cut": "loopcut", "Knife": "knife", "Bevel": "part_chamfer", "Proportional": "proportional", "Modifiers": "stack", "Validate": "validate", "Repair": "wrench",
 	"Test sphere": "sphere", "Sculpt the body": "sculpt_body", "Voxel remesh": "remesh", "Draw": "brush_draw", "Inflate": "brush_inflate", "Grab": "brush_grab", "Clay": "brush_clay", "Crease": "brush_crease", "Smooth": "smooth", "Flatten": "brush_flat", "Pinch": "brush_pinch", "Snake": "brush_snake",
@@ -12809,6 +12823,7 @@ func _ui() -> void:
 	# ROADMAP 54: the two mirrors one click away (the menu item above stays): a copy in _wip, or the open scene itself
 	ui_ribbon["ANIMATE"].add_child(_button("Mirror scene", _mirror_scene, "Mirror scene: a left-handed copy of this scene, saved in scenes/_wip and opened (yours is untouched)"))
 	ui_ribbon["ANIMATE"].add_child(_button("Mirror in place", _mirror_in_place, "Mirror in place: this scene mirrored left <-> right, card by card, as ONE undo step (Ctrl+Z takes it back; nothing is saved)"))
+	ui_ribbon["ANIMATE"].add_child(_button("Stay in place", _stay_in_place, "Stay in place: strip the hips' travel from this scene (a walk that slides across the floor walks on the spot), as ONE undo step. Height is kept. Ctrl+Z brings the travel back; nothing is saved"))
 	ui_ribbon["ANIMATE"].add_child(_button("Ask AI", _ai_toggle, "type what should happen (\"he waves, then sits\") and an AI builds the cards on this scene: each of its steps is one Ctrl+Z. Runs on this machine (Ollama) or with your own Claude / GPT / Gemini key"))
 	ui_ribbon["ANIMATE"].add_child(_button("Walk along a path...", _pathwalk_start, "Walk along a path: click points on the floor, pick Walk or Run and a speed, Enter builds the cards (makes a NEW scene, the open one stays, as ONE undo step; Esc cancels)"))
 	ui_ribbon["ANIMATE"].add_child(_button("From video", _video_ask, "animation from a video of a person: pick a phone clip, the tracker finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window"))
@@ -13819,6 +13834,8 @@ func _ui() -> void:
 	ui_cube.anchor_left = 1.0
 	ui_cube.anchor_right = 1.0
 	ui_root.add_child(ui_cube)
+	camx = CamExtras.new(self)   # C01: view history, invert orbit / pan, the cube's Top (scripts/cam_extras.gd)
+	camx.build(ui_root)
 	_build_shade_menus()
 	ui_ring = RingMenu.new()
 	ui_ring.top_margin = TOP_H
@@ -15271,6 +15288,8 @@ func _card_pick(i: int) -> void:
 func _place_cube() -> void:
 	if ui_cube == null:
 		return
+	if camx != null:
+		camx.place.call_deferred()   # C01
 	var r := rw() + 10.0
 	ui_cube.offset_right = -r
 	ui_cube.offset_left = -r - ViewCube.SIZE
@@ -16244,6 +16263,7 @@ func _press(code: Key, shift := false) -> void:
 var ui_keys: PanelContainer
 var camnav: CamNav   # W01
 var camnav_ui: CamNavUI
+var camx: CamExtras   # C01
 var kt: KeymapTranslate   # P20: Blender / Maya key helper
 var blk: BlKeys           # B16: Blender-style modal G / R / S layer
 var hk: Hotkeys   # HOTKEYS: rebinding, the saved keys, the editor (scripts/hotkeys.gd)
@@ -17794,6 +17814,21 @@ func _mirror_in_place() -> void:
 		_rebuild_cards()
 		S.apply(B, playhead))
 	_say("mirrored in place: the whole scene left <-> right, %d cards.  Ctrl+Z takes it back in one step; nothing is saved until you save" % n)
+
+
+## STAY IN PLACE (C04, complaint #7): the open scene's hips keep the first card's floor position, one undo step (ClipChecks.strip_travel)
+func _stay_in_place() -> void:
+	if S.cards.size() < 2:
+		_say("Stay in place needs a scene of two cards or more: press Enter to add the body as a card (two at least), or open a scene in the list below")
+		return
+	var m := {}
+	_do(func():
+		m.merge(ClipChecks.strip_travel(S), true)
+		ov.mark_dirty()
+		wt.mark_dirty()
+		_rebuild_cards()
+		S.apply(B, playhead))
+	_say("stay in place: the hips' travel removed from %d cards (they had moved up to %.2f m on the floor).  Ctrl+Z takes it back in one step; nothing is saved until you save" % [m.get("cards", 0), m.get("metres", 0.0)])
 
 
 ## STYLE TRANSFER (ROADMAP 25): "Style: make it <older | tired | heavy | angry>" asks for the intensity (0-100 %), then saves
@@ -21189,6 +21224,7 @@ func _restore_work(a: Dictionary) -> void:
 		BaseBody.restore_gen(self, 0)   # the mannequin as shipped (the state held no applied body)
 	BodyFile.from_scene(self, a["scene"])   # G07: an applied body back, from its file or inline
 	ArmourFromBody.from_scene(self, a["scene"])   # B23: the armour plates back
+	camx.from_scene(a["scene"])   # C01
 	scene_path = path
 	if ui_loop != null:
 		ui_natural.set_pressed_no_signal(S.natural)
@@ -23611,7 +23647,7 @@ func _import_anim(path: String) -> String:
 	_load_scene(out, true)
 	_rebuild_cards()
 	_refresh()
-	_say("imported %s as scenes/_wip/%s: %d cards, %s. Play it, then move its cards like any others" % [path.get_file(), out.get_file(), (r["scene"] as Scene).cards.size(), r["report"]])
+	_say("imported %s as scenes/_wip/%s: %d cards, %s. Play it, then move its cards like any others%s" % [path.get_file(), out.get_file(), (r["scene"] as Scene).cards.size(), r["report"], ("  WARNING: " + "; ".join(PackedStringArray(r["warnings"]))) if not (r["warnings"] as Array).is_empty() else ""])
 	return out
 
 
@@ -24257,6 +24293,7 @@ func _open_scene_dict(path: String, d: Dictionary, work: bool, built := false) -
 			_say.call_deferred("this scene's set names models your library does not have (%s): they were left out" % ", ".join(S.props_skipped))
 		BodyFile.from_scene(self, d)   # G07: the body the scene was saved with back on the fighter
 		ArmourFromBody.from_scene(self, d)   # B23: the armour plates the scene was saved with (none when the file has none)
+		camx.from_scene(d)   # C01: the cube's Top the scene was saved with
 	else:   # an old move file: its keys become cards
 		var prev := 0.0
 		for k in d.get("keys", []):

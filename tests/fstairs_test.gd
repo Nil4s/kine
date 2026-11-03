@@ -212,7 +212,7 @@ func _init() -> void:
 	await shot("open")
 
 	# 1 TREAD: a floor rectangle 300 x 250 mm, pulled up 175 mm (one step block)
-	await draw_floor(Vector3(-0.15, 0.0, -0.125), Vector3(0.15, 0.0, 0.125))
+	await draw_floor(Vector3(-0.15, 0.0, -0.13), Vector3(0.15, 0.0, 0.12))   # s279: corners ON the 1 cm snap grid (+-125 was a tie that snapped inward since ecb9a39f reframed the grid smaller)
 	await pull(17.5)
 	var bp := bbox()
 	ok(int(pu().res.get("bodies", 0)) == 1 and absf(bp.size.x - 300.0) < 1.5 and absf(bp.size.z - 250.0) < 1.5 and absf(bp.size.y - 175.0) < 1.5,

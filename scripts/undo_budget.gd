@@ -10,7 +10,7 @@ const MAX_STEPS := 400          # a hard count; the byte budget is what normally
 const DEFAULT_MB := 64.0
 const NOTE := "oldest undo steps forgotten to save memory"
 ## kept as they are on every step: object references, and the words the lists, the tree and the tooltips read
-const PLAIN_KEYS := ["actor", "hero", "spath", "hero_actors", "rt", "scene", "others", "hint", "name", "easy", "lib", "swap", "drag", "_sz", "_z", "_zn"]
+const PLAIN_KEYS := ["actor", "hero", "spath", "hero_actors", "rt", "scene", "others", "hint", "name", "easy", "lib", "libedit", "swap", "drag", "_sz", "_z", "_zn"]
 
 static var budget_mb := -1.0    # < 0: not read yet (settings), a test sets it directly
 static var keep_plain := -1     # < 0: KEEP_PLAIN (or the KINE_UNDO_KEEP environment variable, for tests that pack everything)

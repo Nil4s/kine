@@ -54,6 +54,20 @@ one, the height landmark the nearest in height; numbers to 0.1 cm. `of: "opponen
 `place`) uses the other fighter's landmarks AND frame: "in front of the opponent's sternum" is toward whoever he faces.
 With one fighter, the dummy (when on) is the opponent.
 
+## The maths for building and for pictures (C06): `part_facts`, `frame_facts`
+Over MCP: `part_facts`, `part_assert`, `part_warn`, `frame_facts`, `look_facts`, `nature` (scripts/part_facts.gd, scripts/build/c06_math.gd,
+scripts/build/frame_facts.gd, scripts/build/frame_light.gd). Sizes of a part are **millimetres** in the part's own frame (y up); the picture is in pixels, y down.
+- `part_facts {part | path}`: the kernel's solids. `box_mm` {min, max, size} = the box of all bodies; a desk's top is `box_mm.max[1]` (the
+  number tests/fdesk_test.gd reads as the replay's aabb.end.y, within 1 mm). `bodies_math`: per body volume_mm3 and box. `failed_steps`: the steps that could
+  not run. `touching_pairs`: bodies whose gap is <= 0.05 mm and that do not overlap (1-based). `gap: [a, b]` in the request adds
+  `gap` {gap_mm (0 if they overlap), touching, overlap_mm3}. `holes`: every circle of a sketch a cut extrude uses (radius_mm); `fillets`: every
+  fillet step (radius_mm, ok).
+- `frame_facts {pieces?, camera?, w?, h?, part?}`: the silhouette box is the exact min/max of the projected triangle corners. `light`: per piece
+  `emission` = lum(glow colour) x glow strength, with lum = 0.2126 R + 0.7152 G + 0.0722 B; `peak_luminance` = emission + lum(albedo), an upper bound used for
+  ranking; `brightest_piece` = the largest peak among pieces in front of the camera; `glow_px` = round(8 x log2(1 + emission) x w / 1280), at most 200, an
+  ESTIMATE of the bloom; `edge` {left,right,top,bottom} = the silhouette box within 0.5 px of that side of the picture; `edge_with_glow` = the same with the box
+  grown by glow_px. `touching_frame_edge` / `touching_frame_edge_with_glow` list the pieces. Reflections are not modelled.
+
 ## The joints: limits and what + means
 | joint | bend | side | twist | what + means |
 |---|---|---|---|---|

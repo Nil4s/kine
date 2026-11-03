@@ -781,3 +781,23 @@ EXTRA="$EXTRA s269c:w"   # s269c: film framing includes the reflection, film key
 
 
 EXTRA="$EXTRA s277b:w"
+EXTRA="$EXTRA c01:w"   # c01: view history, invert orbit/pan, the cube Top per scene, tests/c01_test.gd
+
+
+EXTRA="$EXTRA c02:w"   # c02: pose library update, multi-delete, rename, tests/c02_test.gd
+
+
+EXTRA="$EXTRA c04:w"   # c04: clip import checks and Stay in place, tests/c04_test.gd
+
+
+
+EXTRA="$EXTRA c05:w"   # c05: bad spots panel, hand shape check, finger bleed check, tests/c05_test.gd
+
+
+EXTRA="$EXTRA c06:h"   # C06 agent math for building + pictures: part_facts fields, frame_facts light block, MCP advertises them, tests/c06_test.gd
+EXTRA="$EXTRA c06mcp:h"   # C06: MCP round trip of the maths tools (tests/py/c06_drive.py)
+
+
+EXTRA="$EXTRA s277b:w"
+EXTRA="$EXTRA s277c:w"   # s277c/s262d: card body brightness in a fixed box, explode film camera margin + ring halo, tests/s277c_test.gd
+EXTRA="$EXTRA s277c2:w"   # s277c2/s262d round 2 readers (grey-body mean, edge pixels), tests/s277c2_test.gd

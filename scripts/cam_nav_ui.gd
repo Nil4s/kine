@@ -46,7 +46,7 @@ func _opt(id: String, title: String, items: Array, vb: VBoxContainer, cb: Callab
 func _build() -> void:
 	win = Window.new()
 	win.title = "Camera navigation"
-	win.size = Vector2i(460, 330)
+	win.size = Vector2i(460, 390)
 	win.exclusive = false
 	win.close_requested.connect(func(): win.hide())
 	var pc := PanelContainer.new()
@@ -77,6 +77,12 @@ func _build() -> void:
 	t.text = "Trackpad-safe: two-finger scroll pans, pinch zooms"
 	t.toggled.connect(func(on: bool): cn.trackpad = on; _changed())
 	vb.add_child(t)
+	for id in ["invert_orbit", "invert_pan"]:   # C01: flip the drag direction of orbit / pan (saved in settings)
+		var iv := CheckBox.new()
+		iv.name = id
+		iv.text = "Invert orbit drag" if id == "invert_orbit" else "Invert pan drag"
+		iv.toggled.connect(func(_on: bool): _inv_changed())
+		vb.add_child(iv)
 	m.add_child(win)
 	win.hide()
 
@@ -104,3 +110,9 @@ func _sync() -> void:
 				o.select(i)
 	(win.find_child("zoom_cursor", true, false) as CheckBox).set_pressed_no_signal(cn.zoom_cursor)
 	(win.find_child("trackpad", true, false) as CheckBox).set_pressed_no_signal(cn.trackpad)
+	(win.find_child("invert_orbit", true, false) as CheckBox).set_pressed_no_signal(m.camx.invert_orbit)
+	(win.find_child("invert_pan", true, false) as CheckBox).set_pressed_no_signal(m.camx.invert_pan)
+
+
+func _inv_changed() -> void:
+	m.camx.set_invert((win.find_child("invert_orbit", true, false) as CheckBox).button_pressed, (win.find_child("invert_pan", true, false) as CheckBox).button_pressed)
