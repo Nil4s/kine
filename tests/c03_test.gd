@@ -8,11 +8,15 @@ extends SceneTree
 ##   3 FACE      a plane step with "out" at 60 mm from the right plane: "Mirror in the face" puts the copy at x 80..100 (aabb end x >= 0.099); control: before it, end x = 0.04.
 ##   4 PRINTER   presses cycle Resin 0.1, Bambu PLA 0.15, Prusa PETG 0.2, Ender FDM 0.3, then Resin again; rec fit_mm follows (the value holes, lids and
 ##               fasteners read); each press is ONE undo step. Control: after two presses fit_mm is 0.15, not 0.3.
+##   6 CLEAR     (added after the lead saw angle_1280.png) the chip panel's rect intersects NO other visible button, label, slider or panel at 1280 x 720 and
+##               1920 x 1080, in the pull, angle and printer states. Control: the first placement (centred, 110 px above the bottom) intersects something
+##               at one size at least, so the bar can fail.
 ##   5 UI        the four chips are inside the window and visible at both sizes; screenshots saved and looked at.
 const Part := preload("res://scripts/build/part.gd")
 const OUT := "C:/Users/Nick/tools/kine_workers/out/c03"
 var fails := 0
 var m: Node
+var ctl_hits := 0
 
 
 func ok(c: bool, what: String) -> void:
@@ -93,6 +97,31 @@ func chip(nm: String) -> Button:
 	return root.find_child(nm, true, false) as Button
 
 
+func hits(box: Control) -> Array:
+	var out: Array = []
+	var win := Vector2(root.get_visible_rect().size)
+	var stack: Array = [root]
+	var mine := box.get_global_rect()
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			if c == box:
+				continue
+			stack.append(c)
+			if not (c is Control) or not (c as Control).is_visible_in_tree() or c.is_ancestor_of(box):
+				continue
+			if not (c is BaseButton or c is Label or c is Range or c is PanelContainer or c is LineEdit or c is RichTextLabel):
+				continue
+			if c is Label and (c as Label).text == "":
+				continue
+			var r := (c as Control).get_global_rect()
+			if r.size.x < 2.0 or r.size.y < 2.0 or r.get_area() > 0.4 * win.x * win.y:
+				continue
+			if mine.intersects(r):
+				out.append("%s %s" % [c.name, str(r)])
+	return out
+
+
 func bars(sz: Vector2i) -> void:
 	var tag := str(sz.x)
 	var pu: PartUI = m.bld.part
@@ -113,6 +142,8 @@ func bars(sz: Vector2i) -> void:
 	await click_ctl(ep.make_btns["pull"])
 	ok(int(pu.res.get("bodies", 0)) == 2 and String(newest("extrude").get("op", "")) == "new", "%s 1: New body pull = 2 bodies, op new (%d, %s)" % [tag, int(pu.res.get("bodies", 0)), newest("extrude").get("op", "")])
 	await shot("newbody_" + tag)
+	var h3 := hits(chip("easypart_pull_newbody").get_parent().get_parent() as Control)
+	ok(h3.is_empty(), "%s 6: pull state: the panel overlaps nothing %s" % [tag, str(h3)])
 	await click_ctl(nb)
 	ok(int(pu.res.get("bodies", 0)) == 1 and String(newest("extrude").get("op", "")) == "join" and nb.text == "Pull makes: Join", "%s 1: chip again flips the newest pull back to join (%d bodies)" % [tag, int(pu.res.get("bodies", 0))])
 	# 2 ANGLE
@@ -129,6 +160,16 @@ func bars(sz: Vector2i) -> void:
 	ok(v0 > 0.0 and absf(va / v0 - 2.0) < 0.02, "%s 2: volume doubled (%.3f)" % [tag, va / v0 if v0 > 0.0 else -1.0])
 	ok(aa.end.z >= 0.034, "%s 2: the copy stands at z 25..35 (end z %.4f)" % [tag, aa.end.z])
 	await shot("angle_" + tag)
+	var cb := chip("easypart_mirror_angle").get_parent().get_parent() as Control
+	var h1 := hits(cb)
+	ok(cb.visible and h1.is_empty(), "%s 6: angle state: the panel overlaps nothing %s" % [tag, str(h1)])
+	var keep := cb.position
+	var par := cb.get_parent() as Control
+	cb.position = Vector2(par.size.x * 0.5 - cb.size.x * 0.5 - 90.0, par.size.y - cb.size.y - 110.0)
+	var h0 := hits(cb)
+	print("  [%s 6 control: first placement overlaps %d: %s]" % [tag, h0.size(), str(h0)])
+	ctl_hits += h0.size()
+	cb.position = keep
 	newest("plane")["deg"] = 0.0
 	var a0: AABB = Part.replay(m.S.part).get("aabb", AABB())
 	ok(a0.position.x <= -0.039, "%s 2: angle 0 is the usual mirror (x start %.4f)" % [tag, a0.position.x])
@@ -155,6 +196,8 @@ func bars(sz: Vector2i) -> void:
 			ok(absf(float(r["fit_mm"]) - 0.3) > 0.01, "%s 4 control: after two presses the fit is not Ender's 0.3" % tag)
 			ok(absf(float(ep._fit_of(r)) - 0.15) < 0.001, "%s 4: the fit holes and lids read is 0.15" % tag)
 	await shot("printer_" + tag)
+	var h2 := hits(cb)
+	ok(cb.visible and h2.is_empty(), "%s 6: printer state: the panel overlaps nothing %s" % [tag, str(h2)])
 	# 5 UI
 	for nm in ["easypart_pull_newbody", "easypart_mirror_angle", "easypart_mirror_face", "easypart_printer_preset"]:
 		var c := chip(nm)
@@ -193,5 +236,6 @@ func _initialize() -> void:
 	await idle(4)
 	for sz in [Vector2i(1280, 720), Vector2i(1920, 1080)]:
 		await bars(sz)
+	ok(ctl_hits > 0, "6 control: the first placement intersected something (%d overlaps over both sizes)" % ctl_hits)
 	print("c03: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
