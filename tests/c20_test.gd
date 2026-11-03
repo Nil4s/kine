@@ -84,7 +84,17 @@ func cyl_chord(q: Dictionary, fit: float) -> float:
 	return C20Fit.chord_error_mm(bb, c.x, c.y, 10.0)
 
 
+func finish() -> void:
+	finish()
+
+
 func _init() -> void:
+	# a script error after an await ends this coroutine without reaching quit(): the process then sits until the runner's timeout.
+	# The watchdog makes any such stall an explicit failure after 400 s.
+	create_timer(400.0).timeout.connect(func():
+		print("FAIL watchdog: the test did not finish in 400 s")
+		print("c20: %d fail" % (fails + 1))
+		quit(1))
 	DirAccess.make_dir_recursive_absolute(SHOT)
 	if not Part.available():
 		print("FAIL: no KineCAD DLL")
@@ -193,6 +203,10 @@ func _init() -> void:
 	await click_ctl(ep.lib_btns["Hinges"])
 	await idle(3)
 	var pb := root.find_child("easypart_pip_hinge", true, false) as Button
+	if pb == null:
+		ok(false, "UI the Print-in-place hinge button exists")
+		finish()
+		return
 	ok(pb != null and pb.is_visible_in_tree() and Rect2(Vector2.ZERO, Vector2(1280, 720)).encloses(pb.get_global_rect()), "UI the Print-in-place hinge button is on screen: %s" % (str(pb.get_global_rect()) if pb != null else "missing"))
 	root.get_viewport().get_texture().get_image().save_png(SHOT + "/hinges_page.png")
 	await click_ctl(pb)
@@ -203,6 +217,10 @@ func _init() -> void:
 	await click_ctl(eb)
 	await idle(4)
 	var ui: ExportDialog = m.export_ui
+	if ui == null or ui.ui_fit == null:
+		ok(false, "UI the export dialog opened with the fit box")
+		finish()
+		return
 	ok(ui != null and ui.ui_fit != null and not ui.ui_fit.button_pressed and absf(float(ui.quality()["defl_mm"]) - 0.1) < 1e-9 and String(ui.quality()["name"]) == "Normal", "9 the box starts off; quality() is Normal 0.1")
 	var off_lines := "\n".join(ui.checks("print", "stl"))
 	ui.ui_fit.button_pressed = true
@@ -212,5 +230,4 @@ func _init() -> void:
 	ok(not off_lines.contains("knuckles") and on_lines.contains("knuckles"), "13 checklist: knuckle line only with the box on")
 	ok(ui.ui_fit.is_visible_in_tree() and Rect2(Vector2.ZERO, Vector2(1280, 720)).encloses(ui.ui_fit.get_global_rect()), "UI the box is on screen: %s" % str(ui.ui_fit.get_global_rect()))
 	root.get_viewport().get_texture().get_image().save_png(SHOT + "/export_dialog.png")
-	print("c20: %d fail" % fails)
-	quit(1 if fails > 0 else 0)
+	finish()
