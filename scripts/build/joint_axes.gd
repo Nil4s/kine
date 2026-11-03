@@ -247,7 +247,10 @@ static func rows(pu: Node) -> Control:
 	outer.add_child(v)
 	more.toggled.connect(func(on: bool) -> void:
 		v.visible = on
-		pu.f_dial.visible = not on)
+		pu.f_dial.visible = not on
+		for c in outer.get_parent().get_children():   # open: the angle rows fold away so OK stays above the timeline
+			if c != outer and c is HBoxContainer:
+				c.visible = not on)
 	var h := HBoxContainer.new()
 	var l: Label = pu._label("Second turn")
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -269,19 +272,24 @@ static func rows(pu: Node) -> Control:
 	le.custom_minimum_size.x = 70.0
 	le.text = str(pu.hp.get("deg2", 30.0))
 	le.editable = ob.selected > 0
-	le.text_changed.connect(func(t: String) -> void: pu.hp["deg2"] = t.to_float())
+	le.text_changed.connect(func(t: String) -> void:
+		pu.hp["deg2"] = t.to_float()
+		pu._preview())
 	h2.add_child(le)
 	v.add_child(h2)
 	ob.item_selected.connect(func(i: int) -> void:
 		pu.hp["ax2"] = i
 		le.editable = i > 0
 		if not pu.hp.has("deg2"):
-			pu.hp["deg2"] = le.text.to_float())
+			pu.hp["deg2"] = le.text.to_float()
+		pu._preview())
 	var cb := CheckBox.new()
 	cb.name = "part_snap"
 	cb.text = "Put the pivot on a visible spot"
 	cb.tooltip_text = "If the pivot sits in the air (a hidden tip), move it onto the nearest hole centre, edge middle or face centre"
 	cb.button_pressed = bool(pu.hp.get("snap", false))
+	for k in ["font_pressed_color", "font_hover_pressed_color", "font_focus_color", "font_color"]:
+		cb.add_theme_color_override(k, Color(0.92, 0.94, 1.0))
 	v.add_child(cb)
 	var words: Label = pu._label("", 13, true)
 	words.name = "part_snap_words"
@@ -295,7 +303,8 @@ static func rows(pu: Node) -> Control:
 		if on and pu.hp.has("o") and int(pu.hp.get("body", -1)) >= 0:
 			var r := auto_place(pu._rec(), int(pu.hp["body"]), (pu.hp["o"] as Vector3) / Part.MM)
 			pu.hp["snap_res"] = r
-			words.text = String(r.get("words", r.get("why", ""))))
+			words.text = String(r.get("words", r.get("why", "")))
+		pu._preview())
 	if cb.button_pressed and pu.hp.has("snap_res"):
 		words.text = String(pu.hp["snap_res"].get("words", ""))
 	return outer

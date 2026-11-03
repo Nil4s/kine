@@ -202,7 +202,7 @@ func ui_bars() -> void:
 	await idle(3)
 	pu._view_model()
 	await idle(3)
-	var n0: int = (m.S.part["features"] as Array).size()
+	var n0: int = (pu._rec()["features"] as Array).size()
 	# open the dialog the way the Hinge tool does, with the part and the line already picked
 	for round in 3:
 		pu.open_dialog("hinge", -1)
@@ -210,6 +210,10 @@ func ui_bars() -> void:
 		pu.hp["o"] = Vector3(0.43, 0.43, 0.05) if round == 2 else Vector3(0.4, 0.4, 0.0)
 		pu.hp["d"] = Vector3(0, 0, 1)
 		pu._hinge_rows()
+		pu.f_from.text = "0"
+		pu.f_to.text = "90"
+		pu.f_dur.text = "3"
+		pu._preview()   # what a pick does: the dialog checks itself and enables OK
 		await idle(3)
 		var mo: CheckButton = pu.dlg_rows.find_child("part_joint_more", true, false)
 		if mo != null and (round > 0 or true):
@@ -229,9 +233,22 @@ func ui_bars() -> void:
 			shot("c24_rows")
 			await click_ctl(mo)   # fold it again: the dialog as an untouched user sees it
 			shot("c24_closed")
+			for sz in [Vector2i(1280, 720), Vector2i(1024, 600)]:
+				root.content_scale_size = sz
+				await idle(4)
+				var rr: Rect2 = pu.ok_btn.get_global_rect()
+				var cc := rr.get_center()
+				root.push_input(_mm(cc), true)
+				await idle(2)
+				var top = root.gui_get_hovered_control()
+				var inside := Rect2(Vector2.ZERO, Vector2(sz)).encloses(rr)
+				var topmost: bool = top == pu.ok_btn or (top != null and pu.ok_btn.is_ancestor_of(top))
+				ok(inside and topmost, "U5 OK REACHABLE at %s: rect %s inside the window %s, topmost control there is %s" % [sz, rr, inside, top])
+			root.content_scale_size = Vector2i(1280, 720)
+			await idle(3)
 			await click_ctl(pu.ok_btn)
 			await idle(3)
-			var fs: Array = m.S.part["features"]
+			var fs: Array = pu._rec()["features"]
 			var h0: Dictionary = fs[-1]
 			ok(fs.size() == n0 + 1 and not h0.has("axis2") and not h0.has("track2") and not h0.has("autoplace") and not h0.has("placed"), "U2 CONTROL: with None, one step and no axis2 / track2 / autoplace / placed keys")
 		elif round == 1:
@@ -242,10 +259,10 @@ func ui_bars() -> void:
 			pu.f_from.text = "0"
 			pu.f_to.text = "90"
 			pu.f_dur.text = "3"
-			var n1: int = (m.S.part["features"] as Array).size()
+			var n1: int = (pu._rec()["features"] as Array).size()
 			await click_ctl(pu.ok_btn)
 			await idle(3)
-			var fs1: Array = m.S.part["features"]
+			var fs1: Array = pu._rec()["features"]
 			var h1: Dictionary = fs1[-1]
 			var sq := false
 			var t40 := false
@@ -258,16 +275,21 @@ func ui_bars() -> void:
 		else:
 			await click_ctl(cb)
 			await idle(2)
+			var orr: Rect2 = pu.ok_btn.get_global_rect()
+			root.push_input(_mm(orr.get_center()), true)
+			await idle(2)
+			var otop = root.gui_get_hovered_control()
+			ok(Rect2(Vector2.ZERO, Vector2(1280, 720)).encloses(orr) and (otop == pu.ok_btn), "U5 OK REACHABLE with the rows open: rect %s, topmost %s" % [orr, otop])
 			var txt := sw.text
 			ok(cb.button_pressed and txt.contains("middle of an edge"), "U3 SNAP: the words say '%s'" % txt)
 			pu.f_from.text = "0"
 			pu.f_to.text = "90"
 			pu.f_dur.text = "3"
 			shot("c24_snap")
-			var n2: int = (m.S.part["features"] as Array).size()
+			var n2: int = (pu._rec()["features"] as Array).size()
 			await click_ctl(pu.ok_btn)
 			await idle(3)
-			var fs2: Array = m.S.part["features"]
+			var fs2: Array = pu._rec()["features"]
 			var h2: Dictionary = fs2[-1]
 			var oo := Vector3(float(h2["o"][0]), float(h2["o"][1]), float(h2["o"][2]))
 			ok(fs2.size() == n2 + 1 and oo.distance_to(Vector3(400, 400, 50)) <= 0.5 and h2.has("placed"), "U3 SAVE: o = %s (400, 400, 50 within 0.5), placed %s" % [str(oo), str(h2.get("placed"))])
