@@ -412,7 +412,7 @@ msgid "Linkage: drag the knob"
 msgstr "Articulação: arraste o botão"
 
 msgid "Reset"
-msgstr "Reiniciar"
+msgstr "Zerar"
 
 msgid "Socket"
 msgstr "Allen"
@@ -694,7 +694,7 @@ msgid "Raw data"
 msgstr "Dados brutos"
 
 msgid "Playblast video: motion blur (8 sub-frames, 180 deg shutter; slower)"
-msgstr "Vídeo de prévia: desfoque de movimento (8 subquadros, obturador de 180 graus; mais lento)"
+msgstr "Prévia em vídeo: desfoque (8 subquadros, obturador 180°; mais lento)"
 
 msgid "3MF (.3mf): shape in millimetres, pieces and colour (best for most slicers)"
 msgstr "3MF (.3mf): forma em milímetros, peças e cor (o melhor para a maioria dos fatiadores)"

@@ -896,3 +896,10 @@ The 447 strings below were added to data/i18n/pt_BR.po for Nick to read. None is
   - transições comuns:
 - `x`
   - x
+
+## C35 fit changes
+
+Shorter Portuguese so the text fits its button/box at 1280x720 and 1024x600 (was cut off):
+
+* `Reset` -> Zerar  (was Reiniciar, 17 px over)
+* `Playblast video: motion blur (8 sub-frames, 180 deg shutter; slower)` -> Prévia em vídeo: desfoque (8 subquadros, obturador 180°; mais lento)  (was 2 px over)

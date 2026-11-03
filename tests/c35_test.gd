@@ -108,7 +108,7 @@ func _init() -> void:
 	# 3 REVIEW
 	var rv := FileAccess.get_file_as_string(REVIEW)
 	var sec := rv.find("## C35 fit changes")
-	ok(sec >= 0 and rv.substr(sec).find("- `Reset`") > 0 and rv.substr(sec).find(rs) > 0, "3 REVIEW the C35 section lists Reset -> %s" % rs)
+	ok(sec >= 0 and rv.substr(sec).find("`Reset` -> ") > 0 and rv.substr(sec).find(rs) > 0, "3 REVIEW the C35 section lists Reset -> %s" % rs)
 	# 1 FIT
 	OS.set_environment("KINE_LANG_FILE", ProjectSettings.globalize_path("user://c35_lang_test.cfg"))
 	m = (load("res://main.tscn") as PackedScene).instantiate()
