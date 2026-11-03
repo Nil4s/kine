@@ -164,6 +164,7 @@ func _init() -> void:
 			ok(float(fn.call(inside)) < -0.0001, "C3 CONTROL: a point planted 3 mm inside reads %.1f mm (< -0.1)" % (float(fn.call(inside)) * 1000.0))
 	# D the command on the real scene
 	m.S.props = []
+	m.S.on_floor = false   # else Props.settle drops the sword to the floor
 	var Bm: Body = m.B
 	var hh := "hand_r"
 	m.S.props.append(make_prop("sword_r", Bm, hh))
@@ -174,9 +175,9 @@ func _init() -> void:
 	G.grip_cmd(m)
 	await idle(4)
 	ok(m.undo.size() == u0 + 1 and m.ui_status.text.find("palm") >= 0, "D1 the command: one undo step (%d -> %d), status '%s'" % [u0, m.undo.size(), m.ui_status.text.left(90)])
-	m.yaw = 150.0
-	m.pitch = -15.0
-	m.dist = 0.9
+	m.yaw = 40.0
+	m.pitch = -35.0
+	m.dist = 0.55
 	m.target = Bm.palm_point(hh)
 	m.get_window().size = Vector2i(1280, 720)
 	await idle(4)
