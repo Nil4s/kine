@@ -872,3 +872,6 @@ EXTRA="$EXTRA c30:w"
 
 
 EXTRA="$EXTRA c32:w"   # C32: support gap/interface in the slicers settings files (tests/c32_test.gd)
+
+
+EXTRA="$EXTRA c33:w"   # C33: free ring vs yellow selection, hovered label contrast (tests/c33_test.gd)

@@ -11731,6 +11731,8 @@ func _theme() -> Theme:
 		th.set_color("icon_hover_pressed_color", t, Tok.c("on_accent"))
 		th.set_color("font_pressed_color", t, Tok.c("on_accent"))   # STYLE: a pressed button is the accent; its words take on_accent (dark text on amber / sky)
 		th.set_color("font_hover_pressed_color", t, Tok.c("on_accent"))
+	for t in ["CheckBox", "CheckButton"]:   # C33: an ON box under the mouse keeps the accent fill its dark on_accent words need (it fell back to a dark box: 1.04:1)
+		th.set_stylebox("hover_pressed", t, box.call(Tok.c("accent")))
 	if not Tok.dark:
 		# LIGHT (round 9): Godot's own look is dark, so every control that draws its own box or text gets the palette.
 		# Dark keeps Godot's look for these (nothing Nick knows changes)
