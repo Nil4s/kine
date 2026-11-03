@@ -912,3 +912,4 @@ EXTRA="$EXTRA c45:w"   # c45: Alt+click through to the hidden face; sketch stack
 
 
 EXTRA="$EXTRA c47:w"   # c47: mirror you can trust: facing axis from geometry (#273), side from geometry (#274), mirror seam kink (#251) (tests/c47_test.gd)
+EXTRA="$EXTRA s245:w"   # s245: look-table kinds window back / window grid / door panel / tree / grass (tests/s245_test.gd)
