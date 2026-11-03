@@ -825,3 +825,6 @@ EXTRA="$EXTRA c15:w"   # C15: sketch re-plane preview, SVG import scale check, a
 
 
 EXTRA="$EXTRA c16:w"   # C16: guided first pose (opt-in command) + clip licence line from repo data (tests/c16_test.gd)
+
+
+EXTRA="$EXTRA c18:w"   # C18 door hinge edge, one-time Join undo note, scaled Join touch tolerance, tests/c18_test.gd

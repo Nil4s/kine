@@ -98,6 +98,7 @@ var suggest_round_btn: Button    # P092: "Round the edges?" under a pulled-up so
 var suggest_hollow_btn: Button   # P092: "Hollow it?" under a pulled-up solid (the suggest row): one press = Hollow inside (HOLLOW_MM wall, open at the top)
 var suggest_sculpt_btn: Button   # p156solidmesht: "Sculpt details?" in the same suggest row: the solid becomes a sculpt mesh (a copy; see _suggest_sculpt_press)
 var swing_btn: Button            # p123driveit: Swing it (Drive it), the chip in the Tilt it panel: the newest piece swings on a hinge step
+var door_opt: OptionButton        # C18: Swing it as a door (hinge edge left or right)
 var motion_btn: Button           # p126motionmp4: Save the motion as a video (the Tilt it panel, after Swing it)
 var motion_busy := false         # p126motionmp4: the swing is being filmed (one video at a time)
 var draft_btn: Button            # p021: Draft angle, the chip beside Tilt it (the side walls lean DRAFT_DEG for a mould)
