@@ -89,6 +89,9 @@ var sk := ""                   # the sketch being edited ("" = the model is show
 var snap_mm := 5.0
 var grid_on := true
 var show_dims := true
+const FREE_RING_C := Color(1.0, 0.62, 0.04, 0.6)
+var show_free := false   # C21: the free shapes named in the status line and ringed on the sketch
+var free_chk: CheckBox
 var upto := -1                 # the timeline marker: -1 = every step
 var sel_step := -1
 var dlg := {}                  # the open feature dialog: {"t", "edit": index or -1, "sketch", ...}
@@ -541,6 +544,14 @@ func _build_side() -> void:
 	dims_chk.focus_mode = Control.FOCUS_NONE
 	dims_chk.toggled.connect(func(v: bool): show_dims = v; pov.queue_redraw())
 	sketch_box.add_child(dims_chk)
+	free_chk = CheckBox.new()   # C21: which shapes are still free, named and ringed
+	free_chk.name = "part_show_free"
+	free_chk.text = "Show what is free"
+	free_chk.tooltip_text = "name the lines and shapes that can still move (the blue ones) and ring them in orange"
+	free_chk.button_pressed = false
+	free_chk.focus_mode = Control.FOCUS_NONE
+	free_chk.toggled.connect(func(v: bool): show_free = v; _note_sync(); pov.queue_redraw())
+	sketch_box.add_child(free_chk)
 	sketch_box.add_child(_label("NUMBERS (parameters)", 13, true))
 	nums_vb = VBoxContainer.new()
 	nums_vb.name = "part_nums"
@@ -2717,12 +2728,16 @@ func _note_sync() -> void:
 		t = Part.why_not()
 	elif sk != "":
 		var f := _sk()
-		var sig := JSON.stringify([f.get("ents", []), f.get("cons", []), f.get("dims", [])])
+		var sig := JSON.stringify([f.get("ents", []), f.get("cons", []), f.get("dims", []), show_free])
 		if sig != _profile_sig:
 			_profile_sig = sig
 			_profile_ok = _profile_text(f)
 			if not f.get("ents", []).is_empty():
 				_profile_ok += ", " + String(health_now().get("text", ""))   # W02
+				if show_free:   # C21: which ones
+					var fw := PartHealth.free_words(f, health_now())
+					if fw != "":
+						_profile_ok += " (" + fw + ")"
 		t = "%s: %s" % [f.get("name", "Sketch"), _profile_ok]
 	elif res.get("bodies", 0) > 0:
 		var errs: Dictionary = res.get("errors", {})
@@ -3023,6 +3038,21 @@ func health_now() -> Dictionary:
 func _health_draw(ents: Array) -> void:
 	var h := health_now()
 	var f := _sk()
+	if show_free:   # C21: a ring under every shape that can still move
+		for fsd in PartHealth.free_shapes(f, h):
+			var e: Dictionary = ents[int(fsd["i"])]
+			match String(e["k"]):
+				"line":
+					pov.draw_line(scr(Part.v2(e["a"])), scr(Part.v2(e["b"])), FREE_RING_C, 8.0)
+				"rect":
+					var ra := scr(Part.v2(e["a"]))
+					var rb := scr(Part.v2(e["b"]))
+					pov.draw_rect(Rect2(ra, rb - ra).abs().grow(3.0), FREE_RING_C, false, 4.0)
+				"circle":
+					var rp := PackedVector2Array()
+					for j in 49:
+						rp.append(scr(Part.v2(e["c"]) + Vector2.from_angle(TAU * j / 48.0) * float(e["r"])))
+					pov.draw_polyline(rp, FREE_RING_C, 7.0)
 	for ci in h.get("clash_cons", []):
 		var c: Dictionary = f["cons"][int(ci)]
 		for key in ["a", "b"]:

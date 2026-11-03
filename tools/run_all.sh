@@ -831,3 +831,6 @@ EXTRA="$EXTRA c18:w"   # C18 door hinge edge, one-time Join undo note, scaled Jo
 
 
 EXTRA="$EXTRA c19:w"   # C19: bone-map unmapped list, gpu notice, no-network scan, tests/c19_test.gd
+
+
+EXTRA="$EXTRA c21:w"   # C21: how-to-fix on every failed step, free shapes ringed, 1.75 m fix (tests/c21_test.gd)

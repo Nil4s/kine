@@ -891,6 +891,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 						outside = false
 				var top := float(ed["a"].y) >= bb.end.y - SKIN_MM * MM and float(ed["b"].y) >= bb.end.y - SKIN_MM * MM
 				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "concave": concave, "inner": inner, "outside": outside, "top": top, "fp": PartRefs.face_pair(ef, fnorm, fcen, bb, ftyp, ed)})
+	FixHint.apply(errs, feats)   # C21: every failed step ends with a how-to-fix sentence (the start of the message is untouched)
 	res["solo"] = want.get("solo", [])
 	pack_surfaces(mesh, pend, res)
 	res["instances"] = sketches.get(PartInstances.KEY, [])   # s261
