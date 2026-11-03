@@ -20,6 +20,12 @@ extends RefCounted
 ## made / changed it). It does not use the incremental cache (that cache holds no keys).
 
 
+## S267 CIRCULAR PATTERN ABOUT ANY AXIS (pattern step, "kind": "circular", "count" N, "deg" 360 or the sweep, "body" i). With no axis field it turns about the
+## world axis "axis" ("x" | "y" | "z", default "y") through the ORIGIN. To turn about another line give ONE of:
+##   "pivot": [x,y,z] mm (a point on the line) AND "adir": [x,y,z] (its direction)   (both, or the pattern is refused with these words)
+##   "axis_edge": [[x,y,z],[x,y,z]] mm        (two points of an edge: the line through them)
+##   "axis_face": {"o": [x,y,z], "n": [x,y,z]} (a point on a face and its normal: the line through it square to the face)
+## Example, 11 blades about a fan at (90, 20, 5) whose axle runs along +Z: {"t":"pattern","kind":"circular","body":3,"count":11,"op":"join","axis_face":{"o":[90,20,5],"n":[0,0,1]}}.
 
 static func begin() -> Dictionary:
 	return {"ids": [], "keys": [], "names": [], "looks": [], "steps": [], "touch": {}}

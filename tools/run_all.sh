@@ -764,3 +764,6 @@ EXTRA="$EXTRA w10d:w"   # W10d: the Pull it up hover card stays clear of the lin
 
 
 EXTRA="$EXTRA s262b:w"   # s262b: exploded view v2 (visible area, timeline keys, 256+ bodies), tests/s262b_test.gd
+
+
+EXTRA="$EXTRA s265:w"   # s265: lane of small Part fixes from the GPU build, tests/s265_test.gd

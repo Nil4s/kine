@@ -660,9 +660,12 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				if swe != "":
 					errs[id] = swe
 			"pattern":   # GAP 30: copies of body N (its own function: _pattern); FRULER: a row of copies of a cut (a sketch with "sketch", _cut_row)
+				PPRIM.last_warning = ""
 				var pe := _cut_row(bodies, f, rec) if f.has("sketch") else _pattern(bodies, looks, f, rec)
 				if pe != "":
 					errs[id] = pe
+				elif PPRIM.last_warning != "":
+					warns[id] = PPRIM.last_warning   # S266: a long pattern says it is slow
 			"instances":   # s261: N transforms of body N on a face (scripts/build/part_instances.gd), no kernel solid per copy
 				var ine := PartInstances.apply(bodies, looks, f, sketches)
 				if ine != "":
@@ -696,7 +699,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				if fo != "":
 					errs[id] = fo
 			"pipe3d":   # s215: a round tube along points placed in 3D (scripts/build/part_pipe3d.gd)
+				var p3b := bodies.size()
 				var p3e := PartPipe3D.add(bodies, f)
+				look_fit(looks, bodies.size())
+				_name_new(looks, bodies, p3b, f)   # S270: a pipe made as a new body takes its step's name (the heat pipes were Body7..)
 				if p3e != "":
 					errs[id] = p3e
 			"meshsolid":   # s155: a sculpt mesh sewn into one solid (its own file: part_meshsolid.gd)
@@ -1532,7 +1538,9 @@ static func _solids(f: Dictionary, sk: Dictionary) -> Dictionary:
 		return {"solids": PackedInt32Array([s]), "err": ""}
 	var nest := loop_nest(groups)   # s234: a loop inside a loop is a HOLE, a loop inside a hole is an island (a new region), like every CAD tool
 	if not (nest["cross"] as Dictionary).is_empty():
-		return {"solids": PackedInt32Array(), "err": loop_cross_words(nest["cross"])}
+		if bool(f.get("merge_loops", false)):   # S265: "merge_loops": true makes loops that cross ONE region (their union), as Fusion's regions do
+			return _solids_crossing(f, sk, groups, nest["cross"])
+		return {"solids": PackedInt32Array(), "err": loop_cross_words(nest["cross"]) + ' (or set "merge_loops": true on the pull to make crossing shapes one region)'}
 	var pl: Dictionary = sk["_pl"] if sk.has("_pl") else plane(String(sk.get("plane", "front")))
 	var depth: Array = nest["depth"]
 	var parent: Array = nest["parent"]
@@ -1679,6 +1687,102 @@ static func _in_segs(p: Vector2, segs: Array) -> bool:
 		if (a.y > p.y) != (b.y > p.y) and p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x:
 			inside = not inside
 	return inside
+
+
+## S265: every pair of loops whose outlines cross: [[i, j], ...]
+static func loop_cross_pairs(groups: Array) -> Array:
+	var segs: Array = []
+	var boxes: Array = []
+	for g in groups:
+		segs.append(_loop_segs(g))
+		boxes.append(_loop_box(g).grow(0.01))
+	var out: Array = []
+	for i in groups.size():
+		for j in range(i + 1, groups.size()):
+			if not (boxes[i] as Rect2).intersects(boxes[j]):
+				continue
+			var hit := false
+			for sa in (segs[i] as Array):
+				for sb in (segs[j] as Array):
+					if not PPRIM._seg_cross(sa[0], sa[1], sb[0], sb[1]).is_empty():
+						hit = true
+						break
+				if hit:
+					break
+			if hit:
+				out.append([i, j])
+	return out
+
+
+## S265: a sketch whose loops cross (a "+" recess drawn as two bars): each set of crossing loops is pulled as one solid, the UNION of its loops.
+## The rest of the loops go the usual way (holes, islands). A loop inside a crossing set, or a crossing set inside another loop (a hole in the
+## union, a union as a hole) is not made here: the old words say the shapes cross.
+static func _solids_crossing(f: Dictionary, sk: Dictionary, groups: Array, first: Dictionary) -> Dictionary:
+	var n := groups.size()
+	var par: Array = []
+	for i in n:
+		par.append(i)
+	for pr in loop_cross_pairs(groups):
+		par[_uf_root(par, int(pr[0]))] = _uf_root(par, int(pr[1]))
+	var members := {}   # root -> loop indices
+	for i in n:
+		var r := _uf_root(par, i)
+		if not members.has(r):
+			members[r] = []
+		(members[r] as Array).append(i)
+	var sets: Array = []
+	var singles: Array = []
+	for r in members:
+		if (members[r] as Array).size() > 1:
+			sets.append(members[r])
+		else:
+			singles.append((members[r] as Array)[0])
+	var segs: Array = []
+	for g in groups:
+		segs.append(_loop_segs(g))
+	for st in sets:
+		for ci in st:
+			for si in singles:
+				var pa: Vector2 = (segs[si][0] as Array)[0] if not (segs[si] as Array).is_empty() else Vector2.ZERO
+				var pb: Vector2 = (segs[ci][0] as Array)[0] if not (segs[ci] as Array).is_empty() else Vector2.ZERO
+				if _in_segs(pa, segs[ci]) or _in_segs(pb, segs[si]):
+					return {"solids": PackedInt32Array(), "err": loop_cross_words(first)}
+	var pl: Dictionary = sk["_pl"] if sk.has("_pl") else plane(String(sk.get("plane", "front")))
+	var out := PackedInt32Array()
+	if not singles.is_empty():
+		var flat: Array = []
+		for si in singles:
+			flat.append_array(groups[si])
+		var sk2 := sk.duplicate()
+		sk2["ents"] = flat
+		var rest := _solids(f, sk2)
+		if String(rest["err"]) != "":
+			return rest
+		out = rest["solids"]
+	for st in sets:
+		var u := 0
+		var fail := ""
+		for gi in st:
+			var sd := _loop_solid(f, pl, groups[gi])
+			if sd == 0:
+				fail = _plain_err(KCad.last_error())
+				break
+			if u == 0:
+				u = sd
+				continue
+			var w := KCad.union(u, sd)
+			KCad.release(u)
+			KCad.release(sd)
+			u = w
+			if u == 0:
+				fail = _plain_err(KCad.last_error())
+				break
+		if u == 0:
+			for s0 in out:
+				KCad.release(s0)
+			return {"solids": PackedInt32Array(), "err": fail if fail != "" else "the crossing shapes could not be joined into one"}
+		out.append(u)
+	return {"solids": out, "err": ""}
 
 
 static func loop_cross_words(c: Dictionary) -> String:
@@ -2143,6 +2247,8 @@ static func _combine(bodies: Array, solid: int, op: String, into := -1, f := {})
 	if op == "new" or bodies.is_empty():
 		bodies.append(solid)
 		return ""
+	if op == "cut" and into < 0 and (f.get("targets", []) as Array).is_empty():
+		return _cut_overlapping(bodies, solid)   # S268: no into / targets = the bodies the tool overlaps, and the words say which
 	if op == "cut":
 		for i in bodies.size():
 			if into >= 0 and i != into:   # p063: a cut with "into" touches only that body (Fasten these two: the screw hole of one piece)
@@ -2162,6 +2268,28 @@ static func _combine(bodies: Array, solid: int, op: String, into := -1, f := {})
 		return KCad.last_error()
 	KCad.release(bodies[t])
 	bodies[t] = u
+	return ""
+
+
+## S268: a cut with no "into" / "targets" cuts only the bodies the tool really overlaps (a cut that removes volume), so a notch meant for
+## the board does not touch the chips beside it; PartPrim.last_warning says "cut 1 body: Body3" (or that it overlapped none)
+static func _cut_overlapping(bodies: Array, solid: int) -> String:
+	var hit: Array = []
+	for i in bodies.size():
+		var c := KCad.cut(bodies[i], solid)
+		if c == 0:
+			continue
+		if KCad.volume(bodies[i]) - KCad.volume(c) > PPRIM.HIT_VOL:
+			KCad.release(bodies[i])
+			bodies[i] = c
+			hit.append("Body%d" % (i + 1))
+		else:
+			KCad.release(c)   # it removed nothing from this body: the body stays as it was
+	KCad.release(solid)
+	if hit.is_empty():
+		PPRIM.last_warning = "the cut overlaps no body, so nothing was cut"
+	else:
+		PPRIM.last_warning = ("cut 1 body: %s" % hit[0]) if hit.size() == 1 else ("cut %d bodies: %s" % [hit.size(), ", ".join(hit)])
 	return ""
 
 
@@ -2624,9 +2752,33 @@ static func fillet_trial(body: int, r_mm: float, edges: Array) -> String:
 static func _move_op(bodies: Array, f: Dictionary) -> String:
 	if bodies.is_empty():
 		return "there is no piece to move"
-	var bi := clampi(int(f.get("body", 0)), 0, bodies.size() - 1)
 	var d: Array = f.get("d", [0.0, 0.0, 0.0])
 	var v := Vector3(float(d[0]), float(d[1]), float(d[2])) * MM
+	if f.has("bodies"):   # S272: a GROUP moves in one step: "bodies": [i, ...] (0-based, as a pattern's), all by the same "d" mm
+		var idx: Array = []
+		for bv in (f["bodies"] as Array):
+			var bj := int(bv)
+			if bj < 0 or bj >= bodies.size():
+				return "there is no body %d to move" % (bj + 1)
+			if not idx.has(bj):
+				idx.append(bj)
+		if idx.is_empty():
+			return "pick the bodies to move"
+		if v.is_zero_approx():
+			return ""
+		var moved: Array = []
+		for bj in idx:
+			var rj := KCad.translate(bodies[bj], v)
+			if rj == 0:
+				for mj in moved:
+					KCad.release(int(mj))
+				return KCad.last_error()
+			moved.append(rj)
+		for k in idx.size():
+			KCad.release(bodies[int(idx[k])])
+			bodies[int(idx[k])] = moved[k]
+		return ""
+	var bi := clampi(int(f.get("body", 0)), 0, bodies.size() - 1)
 	if v.is_zero_approx():
 		return ""
 	var r := KCad.translate(bodies[bi], v)
@@ -2854,7 +3006,7 @@ static func _split_looks(looks: Array, n: int, pieces: Array) -> void:
 ## PATTERN (GAP 30): the copies of body N, one kernel move each (translate for a row, rotate about the origin for a circle). "join" unions them into
 ## body N; "new" keeps each copy as a body of its own (with body N's look). "" or the failure message; a failure changes nothing.
 const AXIS_VEC := {"x": Vector3.RIGHT, "y": Vector3.UP, "z": Vector3.BACK}
-const PATTERN_MAX := 64
+const PATTERN_MAX := PartArray.MAX_COPIES   # S266: ONE cap for linear / circular / path / grid / route (1000); past COPIES_SLOW the step says it is slow
 
 static func _pattern(bodies: Array, looks: Array, f: Dictionary, rec: Dictionary = {}) -> String:
 	if bodies.is_empty():
@@ -2940,6 +3092,9 @@ static func _upto_rec(rec: Dictionary, k: int) -> Dictionary:
 	return sub
 
 
+const COPIES_SLOW := 100
+
+
 static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int, srcb: int, rec: Dictionary = {}) -> String:
 	var n := int(f.get("count", 0))
 	var along := String(f.get("kind", "linear")) == "path"   # p049: the copies follow a curve, so their count comes from its length
@@ -2965,13 +3120,28 @@ static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int,
 	elif String(f.get("kind", "linear")) == "circular":
 		var ax: Vector3 = AXIS_VEC.get(String(f.get("axis", "y")), Vector3.UP)
 		var edge_pivot := Vector3.ZERO   # s048 AROUND: a picked edge is the axis (its direction "adir", a point on it "pivot", mm)
-		if f.has("pivot") and f.has("adir"):
-			var ad: Array = f["adir"]
+		var axf := f.duplicate()   # S267: the axis as "axis_edge" [[x,y,z],[x,y,z]] mm or "axis_face" {"o": [x,y,z], "n": [x,y,z]} mm becomes pivot + adir
+		if f.has("axis_edge"):
+			var ae: Array = f["axis_edge"]
+			if ae.size() != 2 or (ae[0] as Array).size() != 3 or (ae[1] as Array).size() != 3:
+				return "axis_edge needs two points [[x,y,z],[x,y,z]] in mm: the edge the copies turn about"
+			axf["pivot"] = ae[0]
+			axf["adir"] = [float(ae[1][0]) - float(ae[0][0]), float(ae[1][1]) - float(ae[0][1]), float(ae[1][2]) - float(ae[0][2])]
+		elif f.has("axis_face"):
+			var af: Variant = f["axis_face"]
+			if not (af is Dictionary) or not (af as Dictionary).has("o") or not (af as Dictionary).has("n"):
+				return "axis_face needs {\"o\": [x,y,z], \"n\": [x,y,z]} in mm: a point on the face and its normal; the copies turn about that line"
+			axf["pivot"] = af["o"]
+			axf["adir"] = af["n"]
+		if axf.has("pivot") != axf.has("adir"):
+			return "a circular pattern about your own axis needs both pivot [x,y,z] mm and adir [x,y,z] (or axis_edge, or axis_face); with neither it turns about the %s axis through the origin" % String(f.get("axis", "y"))
+		if axf.has("pivot") and axf.has("adir"):
+			var ad: Array = axf["adir"]
 			ax = Vector3(float(ad[0]), float(ad[1]), float(ad[2]))
 			if ax.length() < 1e-9:
 				return "the picked edge has no direction"
 			ax = ax.normalized()
-			var pv: Array = f["pivot"]
+			var pv: Array = axf["pivot"]
 			edge_pivot = Vector3(float(pv[0]), float(pv[1]), float(pv[2])) * MM
 		var total := deg_to_rad(float(f.get("deg", 360.0)))
 		if absf(total) < 1e-6:
@@ -3015,6 +3185,8 @@ static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int,
 			return "the spacing must not be zero"
 		for i in range(1, n):
 			copies.append(KCad.translate(srcb, d * i))
+	if copies.size() + 1 > COPIES_SLOW:   # S266: the cost, in words (the GPU card's 71-finger join took 6 to 8 s)
+		PPRIM.last_warning = "%d copies: every copy is real geometry, so this step is slow (it can take many seconds); a grid joined into one body is cheaper" % (copies.size() + 1)
 	for k in copies.size():
 		if int(copies[k]) == 0:
 			var why := KCad.last_error()
