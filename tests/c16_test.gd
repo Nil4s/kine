@@ -97,7 +97,7 @@ func _init() -> void:
 	if OS.get_environment("C16_SHOT") != "":
 		await process_frame
 		root.get_texture().get_image().save_png(OS.get_environment("C16_SHOT"))
-	m.S.cards.append(m.S.cards[0].duplicate(true) if m.S.cards.size() > 0 else {})
+	m._card_add()
 	await process_frame
 	ok(g.step == 5, "G2 card added -> step 5 (%d)" % g.step)
 	m.playing = true
