@@ -778,3 +778,6 @@ EXTRA="$EXTRA s262c:w"   # s262c: GPU explode v2 layout, tests/s262c_test.gd
 
 EXTRA="$EXTRA w03d:w"   # w03d: fillet face pair for hole rims (cylinder half), corner, body keys, tests/w03d_test.gd
 EXTRA="$EXTRA s269c:w"   # s269c: film framing includes the reflection, film keys past 256 bodies, spin/move curve strip, tests/s269c_test.gd
+
+
+EXTRA="$EXTRA s277b:w"

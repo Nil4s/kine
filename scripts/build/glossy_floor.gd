@@ -14,7 +14,7 @@ const DEPTH_LAYER := 1 << 17    # the depth copy
 const BOTH := (1 << 18) | (1 << 17)
 const R0 := 0.0014       # blur radius at the contact line, share of the image height
 const R1 := 0.032        # extra radius at fade depth 1, share of the image height
-const TAPS := 96
+const TAPS := 640
 
 const COLOUR := "shader_type spatial;
 render_mode unshaded, cull_disabled, depth_draw_opaque;
@@ -49,8 +49,8 @@ void fragment() {
 	float rmax = r0 + r1;
 	float rot = ign(FRAGCOORD.xy) * 6.2831853;
 	vec3 acc = vec3(0.0);
-	for (int i = 0; i < 96; i++) {
-		float fi = (float(i) + 0.5) / 96.0;
+	for (int i = 0; i < 640; i++) {
+		float fi = (float(i) + 0.5) / 640.0;
 		float rr = sqrt(fi);
 		float ang = float(i) * 2.39996323 + rot;
 		vec2 o = vec2(cos(ang), sin(ang)) * rr;
@@ -59,7 +59,7 @@ void fragment() {
 		float rs = r0 + r1 * d;
 		if (rr * rmax <= rs) {
 			float f = clamp(1.0 - d, 0.0, 1.0);
-			acc += texture(refl, uv).rgb * f * f * (rmax * rmax) / (96.0 * rs * rs);
+			acc += texture(refl, uv).rgb * f * f * (rmax * rmax) / (640.0 * rs * rs);
 		}
 	}
 	EMISSION = acc * strength;
