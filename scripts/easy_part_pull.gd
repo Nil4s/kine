@@ -243,8 +243,10 @@ func _screw_hole(rec: Dictionary, d: int) -> String:
 		return "Nothing solid to cut a hole in yet. Press Pull it up first"
 	var bb: AABB = res["aabb"]
 	var c := bb.get_center() / Part.MM
-	var head: Array = PartTemplates.SCREW_HEAD[d]   # [head across mm, head depth mm]
-	var clear := float(PRINTER_CLEAR.get(printer, SCREW_CLEAR)[d])   # p203screwholea: resin tight, FDM loose, any = medium
+	var head: Array = C10Print.head(d)   # [head across mm, head depth mm] (M3..M6 are PartTemplates.SCREW_HEAD's, M2 / M8 / M10 are C10Print's)
+	var clear := float(PRINTER_CLEAR.get(printer, SCREW_CLEAR)[d]) if SCREW_CLEAR.has(d) else C10Print.clear(d, {"resin": "close", "fdm": "loose"}.get(printer, "normal"))   # p203screwholea: resin tight, FDM loose, any = medium
+	if screw_fit != "":
+		clear = C10Print.clear(d, screw_fit)   # C10: the Fit chip's table row wins over the printer
 	var before := float(res["volume"])
 	var n0: int = rec["features"].size()
 	var seq0 := int(rec.get("seq", 0))
@@ -1117,6 +1119,8 @@ var printer_btn: Button = null
 
 
 func _printer_tag() -> String:
+	if screw_fit != "":
+		return " (%s fit)" % screw_fit
 	return " (resin: tight)" if printer == "resin" else (" (FDM: loose)" if printer == "fdm" else "")
 
 
@@ -2308,3 +2312,37 @@ func _tan_sink(_rec: Dictionary, pf: Dictionary, sk: Dictionary) -> void:
 					for tris in faces:
 						sag = maxf(sag, CurvedFace.sag_mesh(tris, pl, sp.x, sp.y))
 	pf["sink"] = snappedf(sag + 0.5, 0.01)
+
+
+## C10 (complaint #296): the metric screw clearance table M2..M10 (C10Print.SCREW_FIT) on the Cut a hole panel. A Fit chip cycles usual -> close ->
+## normal -> loose -> usual; "usual" (the start) leaves every hole exactly as it was (the printer chip decides). M2, M8, M10 are three more screw chips.
+## Pressing the Fit chip while a screw hole is the newest step cuts that hole again (one undo step), as the printer chip does
+var screw_fit := ""   # "" usual, else close / normal / loose
+var fit_btn: Button = null
+
+
+func _screw_fit_chips(h: Control) -> void:
+	for sd in [2, 8, 10]:
+		var sb := _big_btn("easypart_hole_screw%d" % sd, "M%d screw" % sd, "A hole for an M%d socket screw: a clearance hole, and a counterbore on the top face for its head" % sd, _hole_mode.bind("screw%d" % sd))
+		sb.toggle_mode = true
+		sb.custom_minimum_size = Vector2(96, 44)
+		h.add_child(sb)
+		hole_btns["screw%d" % sd] = sb
+	fit_btn = _big_btn("easypart_hole_fit", "", "How loose the screw hole is: close, normal or loose (the metric table M2 to M10). Usual = the printer chip decides. Press to change it; a screw hole on the screen is cut again", _screw_fit_press)
+	fit_btn.custom_minimum_size = Vector2(150, 44)
+	h.add_child(fit_btn)
+	_screw_fit_sync()
+
+
+func _screw_fit_sync() -> void:
+	if fit_btn != null:
+		fit_btn.text = "Fit: " + (screw_fit if screw_fit != "" else "usual")
+
+
+func _screw_fit_press() -> void:
+	screw_fit = {"": "close", "close": "normal", "normal": "loose", "loose": ""}[screw_fit]
+	_screw_fit_sync()
+	if hole_mode.begins_with("screw") and _hole_on():
+		_hole_mode(hole_mode, false, true)
+	else:
+		_say("Fit: %s. The next screw hole uses it" % (screw_fit if screw_fit != "" else "usual"))
