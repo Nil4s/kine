@@ -837,3 +837,6 @@ EXTRA="$EXTRA c21:w"   # C21: how-to-fix on every failed step, free shapes ringe
 
 
 EXTRA="$EXTRA c22:w"   # C22: attach to either hand, grip by the handle, IK/FK joint-position snap (tests/c22_test.gd)
+
+
+EXTRA="$EXTRA c12:w"   # c12: blueprint callouts, dim style presets, custom 1:1 sheets, tests/c12_test.gd
