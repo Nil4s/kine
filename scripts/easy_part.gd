@@ -1,5 +1,6 @@
 class_name EasyPart
 extends "res://scripts/easy_part_move.gd"
+const EC03 := preload("res://scripts/easy_part_c03.gd")
 ## EASY PART: Easy's screen for the Part workspace (BUILD page, scripts/build/part_ui.gd; the record and the kernel are Expert's: scripts/build/part.gd).
 ## Mouse only: no key names in any text here. A big top bar (Home, the part's name, Undo, Redo, Easy | Expert), six big MAKE buttons, the panel
 ## "Change your sword" (template chips, 3-4 sliders, "Back to the first one", "Exact sizes? Use Expert"), amber drag dots on the model for the main
@@ -470,6 +471,7 @@ func _hole_box() -> PanelContainer:
 		sb.custom_minimum_size = Vector2(96, 44)
 		h.add_child(sb)
 		hole_btns["screw%d" % sd] = sb
+	_screw_fit_chips(h)   # C10: M2 / M8 / M10 chips and the Fit chip (close / normal / loose), see easy_part_pull.gd
 	_hpat_chips(h)   # s029: Row / Around / Grid of holes
 	_fill_chips(h)   # s051: Fill the face
 	_printer_chip(h)   # p203screwholea: the printer chip (resin tight, FDM loose)
@@ -734,6 +736,7 @@ func _tilt_box() -> PanelContainer:
 	pull_along_btn.custom_minimum_size = Vector2(230, 44)
 	pull_along_btn.visible = false
 	row.add_child(pull_along_btn)
+	EC03.build(self, row)   # C03: Pull makes Join / New body, Mirror at an angle / in the face, Printer preset
 	row.add_child(_bend_row())   # S216: Bend radius (slider + typed mm) under Pull along
 	bulge_btn = _big_btn("easypart_bulge", "Pinch / Bulge a face", "Click a flat face: its middle moves out (a dome) or in (a dish), the rim stays. A slider -1..1 sets how much", _bulge_press)   # plan 23: under any solid, in the box of the newest-step chips
 	bulge_btn.toggle_mode = true
@@ -3913,6 +3916,7 @@ func _process(_dt: float) -> void:
 	var tilt_on := not along and _tilt_ok(_rec())
 	var draft_on := not along and _draft_ok(_rec())
 	pull_along_btn.visible = along
+	EC03.sync(self, on and int(pu.res.get("bodies", 0)) > 0 and Part.available())
 	_bend_sync(along)   # S216
 	tilt_btn.visible = tilt_on
 	draft_btn.visible = draft_on

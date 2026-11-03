@@ -23,12 +23,12 @@ const TIME_MODE := {120: 1, 60: 3, 50: 4, 48: 5, 30: 6, 24: 11, 96: 15, 72: 16}
 ## the names in the file), "keys" (keys per curve), "curves" (animation curves written), "text"}.
 ## BINARY by default (Unreal, Unity, Maya and Blender 4.5 all read it; Blender refuses ASCII). ascii = true writes the
 ## ASCII text instead, a debug view of the same tree (tests/py/fbx_check.py reads it). The "format" key says which.
-static func write(S: Scene, B: Body, path: String, root_motion := false, xf := Transform3D.IDENTITY, root_name := "", ascii := false) -> Dictionary:
+static func write(S: Scene, B: Body, path: String, root_motion := false, xf := Transform3D.IDENTITY, root_name := "", ascii := false, camera_keys := []) -> Dictionary:
 	var keep := B.state()
 	var an := S.name if S.name != "" else "scene"
 	# the file is a pure function of the scene, the body and the options: the last one built is kept, so the same scene written
 	# again (a second click, the gentle test's hostile starts) is the write only, not the pose of every frame again
-	var ck := var_to_str([S.to_dict(B, true), keep, root_motion, xf, root_name, ascii])
+	var ck := var_to_str([S.to_dict(B, true), keep, root_motion, xf, root_name, ascii, camera_keys])
 	if ck == _last_key and not _last.is_empty():
 		return _write_out(_last, path, ascii)
 	var man := GltfExport.build(S, B, an, false, root_motion)
@@ -39,6 +39,9 @@ static func write(S: Scene, B: Body, path: String, root_motion := false, xf := T
 	var base: Transform3D = man.transform * _rel(sk, man)
 	var out := text_of(sk, A, an, float(S.fps), base, xf, root_name if root_name != "" else an)
 	man.free()
+	if not camera_keys.is_empty():
+		out["text"] = FbxCamera.inject(out["text"], camera_keys)   # C09: the shot camera, opt-in
+		out["camera_keys"] = camera_keys.size()
 	B.set_state(keep)
 	_last_key = ck
 	_last = out

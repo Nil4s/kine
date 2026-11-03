@@ -731,8 +731,9 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				if bodies.is_empty():
 					errs[id] = "there is nothing to mirror"
 					continue
-				var pl := plane(String(f.get("plane", "right")))
-				var mo := Vector3.ZERO   # EMIRROR: a piece off the middle line is mirrored across the middle of the PART (its box centre), not the world line
+				var pl := resolve_plane(rec, String(f.get("plane", "right")))   # C03: "plane" is a base plane, or a plane step's id (a face, an angle plane): mirror across any plane
+				var mo: Vector3 = Vector3.ZERO if PLANES.has(String(f.get("plane", "right"))) else (pl["o"] as Vector3)
+				# EMIRROR: a piece off the middle line is mirrored across the middle of the PART (its box centre), not the world line
 				if bool(f.get("mid", false)):
 					var pbb := AABB()
 					for pb in bodies:

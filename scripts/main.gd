@@ -1425,7 +1425,9 @@ func _export_fbx(dir := "res://exports", root_motion := false) -> String:
 	if not acts.is_empty():
 		for a in acts:
 			var p := "%s/%s%s_%s.fbx" % [dir, _export_base(), sfx, safe_file(String(a["name"]))]
-			var r := FbxExport.write(a["S"], a["B"], p, root_motion, a["xf"], String(a["name"]))
+			if ExportNames.template.strip_edges() != "":   # C09: the name template
+				p = "%s/%s%s.fbx" % [dir, ExportNames.expand(ExportNames.template, {"name": _export_base(), "part": safe_file(String(a["name"]))}, _export_base()), sfx]
+			var r := FbxExport.write(a["S"], a["B"], p, root_motion, a["xf"], String(a["name"]), false, ExportNames.cam_keys(a["S"]))
 			if r["err"] != OK:
 				_refresh()
 				_say_plain("NOT DONE: %s could not be written (%s)" % [p.get_file(), error_string(r["err"])])
@@ -1438,9 +1440,9 @@ func _export_fbx(dir := "res://exports", root_motion := false) -> String:
 		_say_plain("exported %d .fbx, one per fighter, each at its place: %d bones, %d frames at %d fps, UE5 bone names, centimetres, Y up. The weapons are not in them" % [acts.size(), bones, frames, S.fps])
 		return first
 	var nm := S.name if S.name != "" else "scene"
-	var path := "%s/%s%s.fbx" % [dir, nm, sfx]
+	var path := "%s/%s%s.fbx" % [dir, ExportNames.expand(ExportNames.template, {"name": nm, "part": nm}, nm), sfx]   # C09: blank template = nm
 	var keep := B.state()
-	var r2 := FbxExport.write(S, B, path, root_motion)
+	var r2 := FbxExport.write(S, B, path, root_motion, Transform3D.IDENTITY, "", false, ExportNames.cam_keys(S))
 	B.set_state(keep)
 	_refresh()
 	if r2["err"] != OK:
@@ -3151,6 +3153,7 @@ func _ready() -> void:
 	camnav = CamNav.new(self)   # W01: camera navigation settings (scripts/cam_nav.gd)
 	camnav.load_from(settings)
 	camnav_ui = CamNavUI.new(self, camnav)
+	campiv = CamPivot.new(self)   # C07: own-axis camera, pivot ball, joint dot (scripts/cam_pivot.gd)
 	kt = KeymapTranslate.new(self)   # P20: the "coming from Blender / Maya" helper (scripts/keymap_translate.gd)
 	kt.load_from(settings)
 	blk = BlKeys.new(self)   # B16: Blender-style modal G R S, off unless the setting says so
@@ -3490,6 +3493,8 @@ func _process_body(dt: float) -> void:
 	_doc_line()   # RR1: the strip catches up (throttled) after edits that do not refresh
 	_mark_play_card()   # the card at the playhead wears the gold frame; the strip follows it while playing
 	_keys_camera(dt)
+	if campiv != null:
+		campiv.tick(dt)   # C07
 	if vx != null:
 		vx.tick(dt)   # K13-K16
 	if shot_through:
@@ -5848,6 +5853,7 @@ func _unhandled_input(ev: InputEvent) -> void:
 			return
 		if dragging == "orbit":
 			if shot_through:
+				campiv.own_begin()   # C07: opt-in, the camera turns about its own position
 				_shot_hand_over()   # as Blender: orbiting leaves the camera view, from where the camera was
 			rel = camx.inv("orbit", rel)   # C01
 			camnav.orbit_pre()   # W01
@@ -9824,7 +9830,7 @@ func _cape_tick() -> void:
 			return
 		_do(func(): S.cape = cape)
 		_dummy_hits()
-		_say("the cape is on the back: %d frames of cloth at %d fps (Ctrl+Z takes it back)" % [(cape["frames"] as Array).size(), S.fps])
+		_say("the cape is on the back: %d frames of cloth at %d fps (Ctrl+Z takes it back).  %s" % [(cape["frames"] as Array).size(), S.fps, ClothStretch.words(ClothStretch.report(cape))])
 		return
 	if Engine.get_process_frames() % 15 == 0:   # the progress line, about four times a second
 		_say("baking the cape: %d%%  (Cape: cancel the bake stops it; the scene keeps its last cape)" % int(job.progress() * 100.0))
@@ -16263,6 +16269,7 @@ func _press(code: Key, shift := false) -> void:
 var ui_keys: PanelContainer
 var camnav: CamNav   # W01
 var camnav_ui: CamNavUI
+var campiv: CamPivot   # C07
 var camx: CamExtras   # C01
 var kt: KeymapTranslate   # P20: Blender / Maya key helper
 var blk: BlKeys           # B16: Blender-style modal G / R / S layer
@@ -16369,6 +16376,9 @@ func _commands() -> Array:
 	add.call("Key the part here", "K", _press.bind(KEY_K), "part key keyframe channel", true, "a part key: the picked part's 3 angles at the playhead, over the cards' blend (WW1)")
 	add.call("Spine IK: spline the back here", "", _spine_pin, "spine ik spline curve bezier back bend chest hip mid vertebrae twist", true, "the picked back part's spine becomes a curve through a hip, a mid-back and a chest handle: drag the handles and the back bends along it, bones keeping their length, twist spread from hip to chest, every joint inside its limits")
 	add.call("Spine IK: spline off here", "", _spine_off, "spine ik spline off release curve back unlock", true, "the back follows the cards again from the playhead (over the last frame)")
+	add.call("Prop: attach on this card (move the pick-up here)", "", PropAttach.attach_here.bind(self), "prop attach pick up grab hold frame time timeline hand early late carry", true, "the picked prop is taken by the hand(s) from the selected card's arrival instead of the card it is attached on now (one undo step; the status line names the frames)")
+	add.call("Prop: let go on this card (move the let-go here)", "", PropAttach.detach_here.bind(self), "prop detach let go drop release frame time timeline hand carry", true, "the picked prop is let go at the selected card's arrival instead of the card it is let go on now (one undo step)")
+	add.call("Cape: stretch readout", "", func(): _say(ClothStretch.words(ClothStretch.report(S.cape if S != null else {}))), "cape cloth stretch edge length overlay readout sim", false, "says how far the baked cape stretched: the worst and the average edge against its rest length, and where on the cape the worst one is")
 	add.call("IK: pin the picked hand/foot here", "", _ik_pin, "ik inverse kinematics pin lock plant stick hand foot target pole table wall contact world space", true, "the picked limb's hand (or foot) stays where it is now from the playhead on, whatever the body does; its elbow (knee) keeps to the side it bends now (a pole)")
 	add.call("IK: contact mode on/off (a hand slides on a wall or table)", "", _ik_contact_toggle, "ik contact wall table slide surface palm hand drag touch", false, "while on, a hand you drag is held on the nearest wall or table of the set with its palm on the surface, so it slides along it instead of passing through; off = the plain pull")
 	add.call("IK space: world", "", func(): _ik_space("world"), "ik space switch world follow free hand foot parent child of", true, "the picked hand (or foot) stops following anything: its target is in the world from the playhead, and it does not move at this frame")
@@ -19772,6 +19782,7 @@ func _save_pose() -> void:
 
 func _save_pose_now(path: String) -> void:
 	var d := B.to_dict()
+	PoseIKFK.stamp(d, S, clampf(playhead, 0.0, S.length()))   # C13: each limb's IK/FK state
 	d["note"] = "angles in degrees from rest (bend, side, twist; meaning in data/body_limits.json 'say'); A = the joint's turn in rest axes, G = its turn from rest in the world now (quaternions x,y,z,w); pos/end in metres, character space (+Y up, +Z forward, +X his left); contacts = parts inside each other (m). Math: MATH.md"
 	_write(path, d)
 	_lists()
@@ -20077,6 +20088,8 @@ func _load_pose(path: String) -> void:
 		return
 	B.from_dict(d)
 	B.capture_second()   # a pose with both hands on the shaft loads with both hands holding it
+	if d.has("ik") and S != null:
+		PoseIKFK.restore(S, B, d["ik"], clampf(playhead, 0.0, S.length()))   # C13
 
 
 ## then (round 8): what goes on once the scene is saved (New scene, Open): it waits for a Replace / Save as a new name answer
@@ -22928,6 +22941,9 @@ func _import_video(path: String, raw := false) -> void:
 	_video_t = 0.0
 	_imp_show(true, "tracking %s" % _video_name)   # the bar fills as the tracker reads; Cancel stops it (_video_cancel)
 	_say("tracking %s: finding the person in every frame (about a second per second of video)..." % _video_name)
+	var fc := FootageCheck.check(path, video_python)   # C14 (#560): after the tracking line, a look at the first seconds of the file (never a camera); advice only
+	if String(fc["text"]) != "":
+		_say(String(fc["text"]))
 
 
 ## THE CANCEL WHILE TRACKING (Easy's Copy a video and the Expert import alike): the tracker is killed, its partial files are
@@ -24006,8 +24022,12 @@ func _export_objects(dir := "res://exports", only_selected := false, budget := 0
 		_say_plain("NOT DONE: no mesh object to export (open the test cube, or add a set piece)")
 		return ""
 	var stem := PartNames.stem_of(objs[0]) if only_selected else safe_file(S.name if S.name != "" else "scene") + "_objects"
+	stem = ExportNames.expand(ExportNames.template, {"name": safe_file(S.name if S.name != "" else "scene"), "part": stem}, stem)   # C09
 	var path := "%s/%s.glb" % [dir, stem]
-	var err := GltfExport.write_meshes(ExportBudget.apply_list(objs, budget), path)
+	var wobjs := ExportBudget.apply_list(objs, budget)
+	if ExportNames.lightmap_uv:
+		wobjs = LightmapUV.apply_list(wobjs)   # C09: UV2 for baked lighting, opt-in
+	var err := GltfExport.write_meshes(wobjs, path)
 	if err != OK:
 		_say_plain("NOT DONE: the .glb could not be written (%s)" % error_string(err))
 		return ""

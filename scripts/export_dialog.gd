@@ -25,6 +25,7 @@ var ui_q_custom: SpinBox
 var ui_q_row: HBoxContainer
 var ui_q_info: Label
 var _q_cache := {}
+var ui_csv_locale: OptionButton   # C14 (#442): the cut-list CSV's locale (0 = comma + dot decimals, the default; 1 = semicolon + decimal comma, for Excel in pt-BR / EU)
 var ui_price_row: HBoxContainer   # s081: the price table (BRL) behind the cost line
 var ui_bed_row: HBoxContainer   # 3D printing only: the printer bed size and Split to fit (Friday plan 114)
 var ui_bed: Array = []   # three SpinBoxes: bed X, Y, Z in mm
@@ -368,6 +369,7 @@ func _build() -> void:
 	ui_blur.toggled.connect(func(on: bool): m.blast_blur = on)
 	v.add_child(ui_blur)
 	v.add_child(BlastBlur.controls(m))
+	v.add_child(ExportNames.controls())   # C09: name template, FBX camera, lightmap UV2
 	dlg.add_child(v)
 	ui_target.item_selected.connect(_on_target)
 	ui_format.item_selected.connect(_on_format)
@@ -627,7 +629,7 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 	var fs: Array = t["formats"]
 	var run := String((fs[clampi(fi, 0, fs.size() - 1)] as Dictionary)["run"])
 	if id == "cutlist":   # s081: the CSV of the boards
-		var rc := CutList.export_csv(m.S.part, UserPaths.w(dir))
+		var rc := CutList.export_csv(m.S.part, UserPaths.w(dir), ui_csv_locale.selected if ui_csv_locale != null and ui_csv_locale.selected > 0 else 0)
 		m._say_plain(String(rc["text"]))
 		return String(rc["path"]) if bool(rc["ok"]) else ""
 	if id == "laser":   # SVG / DXF of one flat face (what = the face's index in LaserExport.FACES)
@@ -769,6 +771,15 @@ func _price_row_build(v: VBoxContainer) -> void:
 		sb.value = float(CutList.prices()[spec[0]])
 		sb.value_changed.connect(func(x: float): CutList.set_price(String(spec[0]), x))
 		ui_price_row.add_child(sb)
+	var ll := Label.new()
+	ll.text = "CSV for"
+	ui_price_row.add_child(ll)
+	ui_csv_locale = OptionButton.new()
+	ui_csv_locale.name = "opt_export_csv_locale"
+	for nm in CutList.LOCALES:
+		ui_csv_locale.add_item(String(nm))
+	ui_csv_locale.tooltip_text = "Which spreadsheet setup opens the cut list cleanly. Default: comma between columns, dot decimals. Excel with a comma-decimal language (Portuguese, German, French...): semicolon between columns, decimal comma."
+	ui_price_row.add_child(ui_csv_locale)
 	v.add_child(ui_price_row)
 
 

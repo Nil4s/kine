@@ -781,6 +781,8 @@ EXTRA="$EXTRA s269c:w"   # s269c: film framing includes the reflection, film key
 
 
 EXTRA="$EXTRA s277b:w"
+
+EXTRA="$EXTRA c03:w"   # C03: Join / New body choice, mirror across any plane, printer tolerance presets, tests/c03_test.gd
 EXTRA="$EXTRA c01:w"   # c01: view history, invert orbit/pan, the cube Top per scene, tests/c01_test.gd
 
 
@@ -801,3 +803,19 @@ EXTRA="$EXTRA c06mcp:h"   # C06: MCP round trip of the maths tools (tests/py/c06
 EXTRA="$EXTRA s277b:w"
 EXTRA="$EXTRA s277c:w"   # s277c/s262d: card body brightness in a fixed box, explode film camera margin + ring halo, tests/s277c_test.gd
 EXTRA="$EXTRA s277c2:w"   # s277c2/s262d round 2 readers (grey-body mean, edge pixels), tests/s277c2_test.gd
+EXTRA="$EXTRA c07:w"   # c07: own-axis shot camera orbit, pivot ball, joint dot + axis keep (opt-in), tests/c07_test.gd
+
+
+EXTRA="$EXTRA c08:w"   # c08/C08: sides from geometry, facing axis, hand-bend check, tests/c08_test.gd
+
+
+EXTRA="$EXTRA c09:w"   # c09: export name template, FBX shot camera, lightmap UV2
+
+
+EXTRA="$EXTRA c10:w"   # C10: print honesty: minimum-layer-time note, export read-back, M2..M10 screw fit table + Fit chip (tests/c10_test.gd; needs the CAD DLL)
+
+
+EXTRA="$EXTRA c13:w"   # C13: pose IK/FK state, prop attach/detach frame, cape stretch readout (tests/c13_test.gd)
+
+
+EXTRA="$EXTRA c14:w"   # c14: rig pre-check, footage pre-check, cut-list CSV locale, tests/c14_test.gd

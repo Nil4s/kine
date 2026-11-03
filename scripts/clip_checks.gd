@@ -100,6 +100,7 @@ static func analyze(src: Dictionary, mapping: Dictionary, B: Body, rt: Dictionar
 	for x in [po, si, pr]:
 		if String(x["warn"]) != "":
 			w.append(x["warn"])
+	w.append_array(SideChecks.warnings(sp))   # C08: sides from geometry, facing axis
 	return {"pose": po, "size": si, "prop": pr, "warnings": w}
 
 
