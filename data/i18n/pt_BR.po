@@ -40,16 +40,16 @@ msgid "the mirrored halves meet at a ridge of %d degrees (over %d): the surface 
 msgstr "as metades espelhadas se encontram numa quina de %d graus (acima de %d): a superfície não passa suave pelo plano do espelho"
 
 msgid "CHECK"
-msgstr "CONFERIR"
+msgstr "CHECAR"
 
 msgid "DELIVER"
-msgstr "ENTREGA"
+msgstr "SAÍDA"
 
 msgid "MODEL"
-msgstr "MODELAR"
+msgstr "FORMA"
 
 msgid "SCULPT"
-msgstr "ESCULPIR"
+msgstr "ESCULT"
 
 msgid "SURFACE"
 msgstr "COR"
@@ -433,7 +433,7 @@ msgid "Linkage: drag the knob"
 msgstr "Articulação: arraste o botão"
 
 msgid "Reset"
-msgstr "Reiniciar"
+msgstr "Zerar"
 
 msgid "Socket"
 msgstr "Allen"
@@ -715,7 +715,7 @@ msgid "Raw data"
 msgstr "Dados brutos"
 
 msgid "Playblast video: motion blur (8 sub-frames, 180 deg shutter; slower)"
-msgstr "Vídeo de prévia: desfoque de movimento (8 subquadros, obturador de 180 graus; mais lento)"
+msgstr "Prévia em vídeo: desfoque (8 subquadros, obturador 180°; mais lento)"
 
 msgid "3MF (.3mf): shape in millimetres, pieces and colour (best for most slicers)"
 msgstr "3MF (.3mf): forma em milímetros, peças e cor (o melhor para a maioria dos fatiadores)"
@@ -808,7 +808,7 @@ msgid "Estimate render time"
 msgstr "Estimar o tempo de renderização"
 
 msgid "FBX: shot camera (keys)"
-msgstr "FBX: câmera do plano (chaves)"
+msgstr "FBX: câm. do plano (chaves)"
 
 msgid "File name template (blank = the usual name):"
 msgstr "Modelo do nome do arquivo (vazio = o nome de sempre):"
@@ -829,10 +829,16 @@ msgid "Pull makes: "
 msgstr "Puxar faz: "
 
 msgid "Say the render time first"
-msgstr "Dizer o tempo de renderização antes"
+msgstr "Dizer o tempo do render antes"
 
 msgid "Scale to 1.75 m"
 msgstr "Escalar para 1,75 m"
+
+msgid "FBX: include materials (colour, texture)"
+msgstr "FBX: incluir materiais (cor, textura)"
+
+msgid "Invert orbit left-right only"
+msgstr "Inverter só a órbita esquerda-direita"
 
 msgid "   Pick what you want to make"
 msgstr "   Escolha o que você quer fazer"

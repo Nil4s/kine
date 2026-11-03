@@ -867,6 +867,9 @@ EXTRA="$EXTRA c27:w"   # C27: support removal choice in the 3D-print export (tes
 
 
 EXTRA="$EXTRA c31:w"   # c31: pt_BR 447 strings, placeholders, CRLF, review list, fit at 1280x720
+EXTRA="$EXTRA c35:w"   # c35: pt_BR fit across pages, popups, Export, 1280x720 and 1024x600
+
+
 
 
 EXTRA="$EXTRA c30:w"
