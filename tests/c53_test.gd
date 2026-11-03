@@ -260,5 +260,11 @@ EOF
 	root.get_texture().get_image().save_png(SHOT + "/c53_ui_1024x600.png")
 	var bvp := root.get_visible_rect()
 	ok(pu.import2d_btn.is_visible_in_tree() and bvp.encloses(pu.import2d_btn.get_global_rect()), "10 UI at 1024x600 the Import 2D row is visible inside %s (rect %s)" % [bvp, pu.import2d_btn.get_global_rect()])
+	var over := []
+	for n in root.find_children("*", "Button", true, false):
+		var bb := n as Button
+		if bb != pu.import2d_btn and bb.is_visible_in_tree() and bb.get_global_rect().intersects(pu.import2d_btn.get_global_rect()):
+			over.append(bb.text)
+	ok(over.is_empty(), "10 UI at 1024x600 nothing covers the Import 2D button (covered by %s)" % [over])
 	print("c53: %d fail" % fails)
 	quit(1 if fails > 0 else 0)

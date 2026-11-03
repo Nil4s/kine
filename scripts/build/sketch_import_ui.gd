@@ -25,9 +25,29 @@ static func browser_row(ui: Object, vb: Control) -> void:
 	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	b.flat = true
 	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", 11)
+	for sn in ["normal", "hover", "pressed"]:
+		var sbx := StyleBoxEmpty.new()
+		b.add_theme_stylebox_override(sn, sbx)
+	b.add_theme_color_override("font_color", Color(0.55, 0.75, 1.0))
 	b.tooltip_text = "Import 2D: an .svg or .dxf drawing becomes a new sketch on the chosen plane, in mm (SVG px at 96 dpi). Closed shapes can be extruded. What cannot be read is listed, never dropped quietly (one undo step)"
 	b.pressed.connect(func(): ask(ui))
-	vb.add_child(b)
+	var head: Control = null   # on the Sketches header's own line: no extra row (a taller browser ran under the Shapes button at 1024x600)
+	for c in vb.get_children():
+		if c is Label and (c as Label).text.begins_with("Sketches ("):
+			head = c
+	if head == null:
+		vb.add_child(b)
+	else:
+		var hb := HBoxContainer.new()
+		hb.name = "part_sketches_head"
+		var at := head.get_index()
+		vb.add_child(hb)
+		vb.move_child(hb, at)
+		head.reparent(hb)
+		head.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.size_flags_horizontal = Control.SIZE_SHRINK_END
+		hb.add_child(b)
 	ui.import2d_btn = b
 
 
