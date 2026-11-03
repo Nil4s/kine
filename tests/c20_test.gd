@@ -34,6 +34,25 @@ func idle(n := 3) -> void:
 		await process_frame
 
 
+func ev_mouse(p: Vector2, down: bool) -> void:
+	var e := InputEventMouseButton.new()
+	e.button_index = MOUSE_BUTTON_LEFT
+	e.pressed = down
+	e.position = p
+	e.global_position = p
+	if down:
+		e.button_mask = MOUSE_BUTTON_MASK_LEFT
+	root.push_input(e, true)
+	await process_frame
+
+
+func click_ctl(c: Control) -> void:
+	var p := c.get_global_rect().get_center()
+	await ev_mouse(p, true)
+	await ev_mouse(p, false)
+	await idle(3)
+
+
 func box(lo: Vector3, hi: Vector3) -> Dictionary:
 	var v := PackedVector3Array([Vector3(lo.x, lo.y, lo.z), Vector3(hi.x, lo.y, lo.z), Vector3(hi.x, hi.y, lo.z), Vector3(lo.x, hi.y, lo.z),
 		Vector3(lo.x, lo.y, hi.z), Vector3(hi.x, lo.y, hi.z), Vector3(hi.x, hi.y, hi.z), Vector3(lo.x, hi.y, hi.z)])
@@ -95,8 +114,9 @@ func _init() -> void:
 	ok(all_ok, "1 hinge gap = the preset's clearance, bore = pin + clearance, two bodies, for all 4 presets")
 	ok(all_fit, "2 at the fit tessellation the knuckles do not fuse [%s]" % det)
 	var r0 := C20Fit.hinge_rec(0)
-	var hc0 := C20Fit.hinge_check(r0, MeshQuality.of("Coarse"))
-	ok(bool(hc0["fused"]) and String(hc0["line"]).begins_with("WARN"), "3 CONTROL: Resin 0.1 at Coarse: fused %s, min %.3f [%s]" % [str(hc0["fused"]), hc0["min_mm"], String(hc0["line"]).left(60)])
+	r0["fit_mm"] = 0.3   # PLANTED: the printer asks 0.3 mm, the geometry has 0.1 (the kernel ignores a coarse deflection on a hinge this small, measured)
+	var hc0 := C20Fit.hinge_check(r0, C20Fit.quality_for_fit(r0))
+	ok(bool(hc0["fused"]) and String(hc0["line"]).begins_with("WARN"), "3 CONTROL (planted: asks 0.3, built 0.1): fused %s, min %.3f [%s]" % [str(hc0["fused"]), hc0["min_mm"], String(hc0["line"]).left(60)])
 	var hd := PartTemplates.make("hinge")
 	var has_circle := false
 	for f in hd["features"]:
@@ -105,6 +125,8 @@ func _init() -> void:
 				if String(e.get("k", "")) == "circle":
 					has_circle = true
 	ok(not has_circle and not hd.has("pip_hinge"), "4 the Hinge chip's record is unchanged (no circle, no pip_hinge)")
+	for dd in [0.01, 0.1, 0.5, 2.0, 5.0]:
+		print("info defl %.2f: cylinder chord %.4f, Resin hinge min gap %.3f" % [dd, cyl_chord(MeshQuality.of("Custom", dd), 0.15), C20Fit.hinge_check(r0, MeshQuality.of("Custom", dd))["min_mm"]])
 	# TESSELLATION
 	var qok := true
 	for i in C03.PRESETS.size():
@@ -116,10 +138,19 @@ func _init() -> void:
 	ok(qok and C20Fit.quality_for_fit(Part.make("y")).is_empty(), "5 quality_for_fit: deflection = fit / 4, named Fit; empty with no fit")
 	var e15 := cyl_chord(C20Fit.quality_for_fit({"fit_mm": 0.15}), 0.15)
 	var e10 := cyl_chord(C20Fit.quality_for_fit({"fit_mm": 0.1}), 0.1)
-	var eC := cyl_chord(MeshQuality.of("Coarse"), 0.15)
+	var oct := PackedVector3Array()
+	for i in 8:
+		oct.append(Vector3(10.0 * cos(TAU * i / 8.0), 10.0 * sin(TAU * i / 8.0), 0.0))
+		oct.append(Vector3(10.0 * cos(TAU * i / 8.0), 10.0 * sin(TAU * i / 8.0), 5.0))
+	var ot := PackedInt32Array()
+	for i in 8:
+		var a0 := i * 2
+		var a1 := ((i + 1) % 8) * 2
+		ot.append_array(PackedInt32Array([a0, a1, a0 + 1, a1, a1 + 1, a0 + 1]))
+	var eC := C20Fit.chord_error_mm([{"v": oct, "t": ot}], 0.0, 0.0, 10.0)   # PLANTED 8-sided mesh
 	var eN := cyl_chord({}, 0.15)
 	ok(e15 >= 0.0 and e15 <= 0.0375 + 0.002 and e10 >= 0.0 and e10 <= 0.025 + 0.002, "6 chord error: fit 0.15 -> %.4f (<= 0.0375), fit 0.1 -> %.4f (<= 0.025); default Normal reads %.4f" % [e15, e10, eN])
-	ok(eC > 0.0375, "7 CONTROL: Coarse chord error %.4f > 0.0375" % eC)
+	ok(eC > 0.0375, "7 CONTROL (planted octagon): chord error %.4f > 0.0375" % eC)
 	ok(C20Fit.tess_words({"defl_mm": 0.0375}, 100, 0.03).contains("quarter"), "8a tess_words says quarter")
 	# anchors
 	var an := C20Fit.anchor_check(post_case(1.5))
@@ -147,32 +178,31 @@ func _init() -> void:
 	ss.dirs_override = [DIRT]
 	ss.show_screen()
 	await idle(3)
-	ss._cards["building"].pressed.emit()
+	await click_ctl(ss._cards["building"])
 	if m.ui_save_ask != null and m.ui_save_ask.visible:
 		m._save_ask_choose("discard")
 	await idle(6)
 	var pu: PartUI = m.bld.part
-	pu.part_btn.pressed.emit()
+	await click_ctl(pu.part_btn)
 	await idle(3)
-	pu.easy_open_btn.pressed.emit()
+	await click_ctl(pu.easy_open_btn)
 	await idle(4)
 	(root.find_child("easypart_chip_parts", true, false) as Button).pressed.emit()
 	await idle(3)
-	var hb := root.find_child("easypart_hinge_pick", true, false) as Button
-	var lib: Dictionary = m.bld.part.easy.lib_btns if m.bld.part.get("easy") != null else {}
-	var ep = m.bld.part.easy
+	var ep = pu.ep
 	ep.lib_cat = "Hinges"
+	ep.parts_open = true
 	ep._screw_sync()
 	await idle(3)
 	var pb := root.find_child("easypart_pip_hinge", true, false) as Button
 	ok(pb != null and pb.is_visible_in_tree() and Rect2(Vector2.ZERO, Vector2(1280, 720)).encloses(pb.get_global_rect()), "UI the Print-in-place hinge button is on screen: %s" % (str(pb.get_global_rect()) if pb != null else "missing"))
 	root.get_viewport().get_texture().get_image().save_png(SHOT + "/hinges_page.png")
-	pb.pressed.emit()
+	await click_ctl(pb)
 	await idle(6)
 	ok(bool(m.S.part.get("pip_hinge", false)) and float(m.S.part.get("fit_mm", 0.0)) > 0.0, "UI pressing it makes a pip_hinge part with fit %.2f" % float(m.S.part.get("fit_mm", 0.0)))
 	m.S.part["fit_mm"] = 0.15
 	var eb := root.find_child("easypart_export", true, false) as Button
-	eb.pressed.emit()
+	await click_ctl(eb)
 	await idle(4)
 	var ui: ExportDialog = m.export_ui
 	ok(ui != null and ui.ui_fit != null and not ui.ui_fit.button_pressed and absf(float(ui.quality()["defl_mm"]) - 0.1) < 1e-9 and String(ui.quality()["name"]) == "Normal", "9 the box starts off; quality() is Normal 0.1")

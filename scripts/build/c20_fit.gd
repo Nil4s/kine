@@ -100,10 +100,15 @@ static func chord_error_mm(bodies: Array, cx: float, cy: float, r: float) -> flo
 		var v: PackedVector3Array = b["v"]
 		var t: PackedInt32Array = b["t"]
 		for k in range(0, t.size(), 3):
+			var fn := (v[t[k + 1]] - v[t[k]]).cross(v[t[k + 2]] - v[t[k]])
+			if fn.length() < 1e-12 or absf(fn.normalized().z) > 0.2:   # only wall facets, not the caps
+				continue
 			for e in 3:
 				var p := v[t[k + e]]
 				var q := v[t[k + (e + 1) % 3]]
 				if absf(Vector2(p.x - cx, p.y - cy).length() - r) > 0.002 or absf(Vector2(q.x - cx, q.y - cy).length() - r) > 0.002:
+					continue
+				if Vector2(p.x - q.x, p.y - q.y).length() > r * 0.5:   # a cap's fan chord, not a wall facet
 					continue
 				var mid := (p + q) * 0.5
 				worst = maxf(worst, r - Vector2(mid.x - cx, mid.y - cy).length())
