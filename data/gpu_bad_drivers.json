@@ -1,0 +1,4 @@
+{
+  "_doc": "Known-bad GPU drivers. A match prints one warning line at start and never blocks. vendor = regex on the adapter name; versions = prefixes of the driver version string (RenderingServer.get_video_adapter_api_version). Add rows here as users report them; each needs a note and a fix.",
+  "bad": []
+}

@@ -3814,7 +3814,7 @@ func _finish_line() -> void:
 ## P040: Shift is held (the last mouse event said so, or the key is down): the stretch a Line drag adds now is curvy
 var _shift := false
 func _shift_held() -> bool:
-	return _shift or Input.is_key_pressed(KEY_SHIFT)
+	return _shift or StickyKeys.held(KEY_SHIFT)
 
 
 ## the drawn points kept for the spline (at most maxn, first and last always): the points that bend the line most, so a rim or a
@@ -3984,7 +3984,7 @@ var _snap_said := false  # the 1 cm snap words were said (once per session: the 
 
 
 func _alt_held() -> bool:
-	return _alt or Input.is_key_pressed(KEY_ALT)
+	return _alt or StickyKeys.held(KEY_ALT)
 
 
 func _snap_step() -> float:
