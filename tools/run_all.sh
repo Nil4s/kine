@@ -804,3 +804,6 @@ EXTRA="$EXTRA s277b:w"
 EXTRA="$EXTRA s277c:w"   # s277c/s262d: card body brightness in a fixed box, explode film camera margin + ring halo, tests/s277c_test.gd
 EXTRA="$EXTRA s277c2:w"   # s277c2/s262d round 2 readers (grey-body mean, edge pixels), tests/s277c2_test.gd
 EXTRA="$EXTRA c07:w"   # c07: own-axis shot camera orbit, pivot ball, joint dot + axis keep (opt-in), tests/c07_test.gd
+
+
+EXTRA="$EXTRA c08:w"   # c08/C08: sides from geometry, facing axis, hand-bend check, tests/c08_test.gd

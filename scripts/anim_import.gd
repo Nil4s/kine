@@ -657,6 +657,9 @@ static func _import_file(path: String, B: Body, scene_name := "") -> Dictionary:
 			if not r["ok"]:
 				return r
 			dense = r["scene"]
+			var hc := HandCheck.check(dense, B)   # C08: finger bend against Kine's limits
+			if String(hc["text"]) != "":
+				checks = {"warnings": [hc["text"]]}
 			head = "a Kine .bvh: " + String(r["text"])
 			mapping = {"map": {}, "unmapped": r["not_mapped"], "missing": r["missing"], "main": MAIN.size() - (r["missing"] as Array).filter(func(j): return j in MAIN).size(), "how": {}}
 	if dense == null:
