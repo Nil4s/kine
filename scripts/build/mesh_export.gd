@@ -279,10 +279,17 @@ static func write_3mf(path: String, bodies: Array, title: String, support := {})
 	var e := z.open(path)
 	if e != OK:
 		return e
-	for en in [["[Content_Types].xml", CONTENT_TYPES], ["_rels/.rels", RELS], ["3D/3dmodel.model", model_xml(bodies, title, support)]]:
+	var ct := CONTENT_TYPES if support.is_empty() else CONTENT_TYPES.replace("</Types>", "<Default Extension=\"config\" ContentType=\"text/xml\"/>
+</Types>")
+	for en in [["[Content_Types].xml", ct], ["_rels/.rels", RELS], ["3D/3dmodel.model", model_xml(bodies, title, support)]]:
 		z.start_file(en[0])
 		z.write_file(String(en[1]).to_utf8_buffer())
 		z.close_file()
+	if not support.is_empty():   # C32: the slicers' own settings files, so the gap and interface are read, not just carried
+		for en in SupportPref.slicer_files(support):
+			z.start_file(en[0])
+			z.write_file(String(en[1]).to_utf8_buffer())
+			z.close_file()
 	z.close()
 	return OK
 
