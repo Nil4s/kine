@@ -23723,6 +23723,8 @@ func _import_file(path: String) -> Dictionary:
 	if not r["ok"]:
 		_say("could not import %s: %s Try another .glb, or open it in Blender and export it as .glb again" % [path.get_file(), r["why"]])
 		return r
+	if r["kind"] == "rigged":
+		CharScale.offer(self, path, r)   # C21: a character under 0.3 m or over 5 m tall: one click scales it to 1.75 m
 	if r["kind"] == "rigged" and AnimImport.load_source(path)["ok"]:   # a skeleton WITH an animation: the animation import
 		var o := _import_anim(path)
 		return {"ok": o != "", "path": o, "why": "" if o != "" else "refused (the reason is on the status line)"}
