@@ -27,6 +27,7 @@ var ui_q_info: Label
 var _q_cache := {}
 var ui_csv_locale: OptionButton   # C14 (#442): the cut-list CSV's locale (0 = comma + dot decimals, the default; 1 = semicolon + decimal comma, for Excel in pt-BR / EU)
 var ui_price_row: HBoxContainer   # s081: the price table (BRL) behind the cost line
+var opts_scroll: ScrollContainer   # C30
 var ui_bed_row: HBoxContainer   # 3D printing only: the printer bed size and Split to fit (Friday plan 114)
 var ui_bed: Array = []   # three SpinBoxes: bed X, Y, Z in mm
 var ui_split: CheckBox
@@ -373,7 +374,14 @@ func _build() -> void:
 	v.add_child(ui_blur)
 	v.add_child(BlastBlur.controls(m))
 	v.add_child(ExportNames.controls())   # C09: name template, FBX camera, lightmap UV2
-	dlg.add_child(v)
+	# C30: the options scroll in a box of their own (its height is set in open() to what the window can hold); the dialog's own
+	# Export / Cancel / Batch... buttons sit below it, so they stay on screen on a 1024 x 600 window
+	opts_scroll = ScrollContainer.new()
+	opts_scroll.name = "export_opts_scroll"
+	opts_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	v.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	opts_scroll.add_child(v)
+	dlg.add_child(opts_scroll)
 	ui_target.item_selected.connect(_on_target)
 	ui_format.item_selected.connect(_on_format)
 	dlg.confirmed.connect(_on_export)
@@ -418,7 +426,16 @@ func open() -> void:
 	ui_what.select(1 if (free_part or m._sculpt_sphere_open()) else 0)
 	ui_budget.select(0)   # a budget is chosen each time: never a silent decimation
 	_refresh()
+	_fit_to_window()
 	dlg.popup_centered()
+
+
+## C30: the options box takes the height the window leaves (title bar, button row and margins taken off), never more than the options need
+func _fit_to_window() -> void:
+	var room := int(dlg.get_parent().get_viewport().get_visible_rect().size.y) - 190
+	var need := int(opts_scroll.get_child(0).get_combined_minimum_size().y)
+	opts_scroll.custom_minimum_size = Vector2(640, clampi(need, 120, maxi(room, 120)))
+	dlg.size = Vector2i(dlg.min_size.x, 0)
 
 
 func _on_target(_i: int) -> void:
