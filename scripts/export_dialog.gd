@@ -27,6 +27,8 @@ var ui_q_info: Label
 var ui_fit: CheckBox   # C20: Match the mesh to the fit (off = the usual quality)
 var ui_support: OptionButton   # C27: support removal (3MF only)
 var ui_support_info: Label
+var ui_c43: Dictionary = {}   # C43: the Printer row + the re-read preview (scripts/build/c43_printer.gd)
+var last_reread: Dictionary = {}
 var _q_cache := {}
 var ui_csv_locale: OptionButton   # C14 (#442): the cut-list CSV's locale (0 = comma + dot decimals, the default; 1 = semicolon + decimal comma, for Excel in pt-BR / EU)
 var ui_safety: VBoxContainer   # C17: print safety row
@@ -330,6 +332,7 @@ func _build() -> void:
 	ui_support_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	ui_support_info.custom_minimum_size = Vector2(300, 0)
 	v.add_child(ui_support_info)
+	ui_c43 = C43Printer.build(self, v)   # C43
 	_price_row_build(v)
 	ui_safety = PrintSafety.build_row(self)   # C17
 	v.add_child(ui_safety)
@@ -465,6 +468,7 @@ func open() -> void:
 	ui_blur.set_pressed_no_signal(bool(m.blast_blur))
 	var free_part: bool = m.bld != null and m.bld.part != null and m.bld.part.on   # FEXPORT: a free part on screen is what the beginner made: that object by default
 	ui_what.select(1 if (free_part or m._sculpt_sphere_open()) else 0)
+	C43Printer.on_open(self, ui_c43)   # C43: a saved printer is taken by a part with none
 	ui_budget.select(0)   # a budget is chosen each time: never a silent decimation
 	_refresh()
 	_fit_to_window()
@@ -516,6 +520,7 @@ func _refresh() -> void:
 		ui_safety.visible = _cur_id() == "print"
 	_refresh_quality()
 	_refresh_support()
+	C43Printer.refresh(self, ui_c43)   # C43
 	if ui_bed_row != null:
 		ui_bed_row.visible = _cur_id() == "print"
 	_refresh_slicer()
@@ -732,6 +737,9 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 			why23 = String(pk23["why"])
 		var r := PrintSplit.export_part(m.S.part, run, UserPaths.w(dir), bed_mm, quality(), SupportPref.of(ui_support.selected) if run == "3mf" and ui_support != null else {}) if split_fit else MeshExport.export_part(m.S.part, run, UserPaths.w(dir), budget, quality(), SupportPref.of(ui_support.selected) if run == "3mf" and ui_support != null else {})
 		m._say_plain(String(r["text"]) + (". " + why23 if why23 != "" and bool(r["ok"]) else ""))
+		if not split_fit and bool(r["ok"]):   # C43: the written file is read back and drawn as the preview
+			var bo43: Array = MeshExport.bodies_of(m.S.part, quality())["bodies"]
+			last_reread = C43Printer.after_export(ui_c43, r, ExportBudget.apply_bodies(bo43, budget))
 		return String(r["path"]) if bool(r["ok"]) else ""
 	if id == "step":   # STEP of the part on screen (the exact solid)
 		var rs := StepExport.export_part(m.S.part, UserPaths.w(dir))

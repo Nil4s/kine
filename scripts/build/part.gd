@@ -67,9 +67,11 @@ const KCad := preload("res://scripts/kcad.gd")
 const PartInstances := preload("res://scripts/build/part_instances.gd")   # s261: N copies of a body as one MultiMesh
 const PartArray := preload("res://scripts/build/part_array.gd")   # s228: grid / route patterns
 const MM := 0.001
+const PUPTO := preload("res://scripts/build/part_upto.gd")   # C44
 const POFFSET := preload("res://scripts/build/part_offset.gd")   # plan 18: Thinner / thicker everywhere
 const PBULGE := preload("res://scripts/build/part_bulge.gd")   # plan 23: Pinch / Bulge a face
 const GEAR_DRIVE := preload("res://scripts/gear_drive.gd")
+const CHEAVY := preload("res://scripts/build/combine_heavy.gd")   # C46
 const BSAFE := preload("res://scripts/build/boolean_safe.gd")   # C38: coincident faces nudged 0.01 mm, said in words
 const JOINH := preload("res://scripts/build/join_helper.gd")   # W10: line-touch words, counted bodies, the 0.01 mm nudge
 const PPRIM := preload("res://scripts/build/part_prim.gd")   # s229: primitives by numbers, planes from 3 points / an angle, scoped intersect, bow-tie check
@@ -623,6 +625,8 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				if sk.is_empty():
 					errs[id] = _no_sketch_words(rec, f, String(f.get("sketch", "")), errs, off_ids)
 					continue
+				if f.has("upto") and String(f["t"]) == "extrude":
+					f = PUPTO.resolve(f, sk.get("_pl", {}))   # C44: Up to a face (a copy with the distance worked out)
 				var sols := _solids(f, sk)
 				if String(sols["err"]) != "":
 					errs[id] = String(sols["err"])
@@ -744,6 +748,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					for pb in bodies:
 						pbb = pbb.merge(_piece_box(int(pb))) if pbb.size != Vector3.ZERO else _piece_box(int(pb))
 					mo = Vector3(pbb.get_center().x, 0.0, 0.0)
+				if bool(f.get("seam", false)):   # C47: the kink at the seam, in words (opt-in)
+					var sw := MirrorSeam.warn(bodies[-1], mo, pl["n"], float(f.get("seam_deg", MirrorSeam.SEAM_DEG)))
+					if sw != "":
+						warns[id] = sw
 				var u: int = KCad.mirror_join(bodies[-1], mo, pl["n"])
 				if u == 0:
 					errs[id] = KCad.last_error()
@@ -835,7 +843,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 			var hf: Dictionary = feats[k]
 			var hbi := int(hf.get("body", -1))
 			if String(hf["id"]) == String(pz.get("f", "")) and String(hf["t"]) == "hinge" and hbi >= 0 and hbi < bodies.size():
-				var sw := _swing(int(bodies[hbi]), _pivot(hf), _axis(hf), deg_to_rad(float(pz.get("deg", 0.0))))
+				var sw := _swing(int(bodies[hbi]), _pivot(hf), _axis(hf), deg_to_rad(float(pz.get("deg", 0.0)))) if not JointAxes.has2(hf) else JointAxes.swing2(int(bodies[hbi]), _pivot(hf), hf, deg_to_rad(float(pz.get("deg", 0.0))), deg_to_rad(float(pz.get("deg2", 0.0))))   # C24
 				if sw != 0:
 					KCad.release(bodies[hbi])
 					bodies[hbi] = sw
@@ -1060,6 +1068,12 @@ static func hinge_sweep(rec: Dictionary, hinge_id: String, fps := 25.0) -> Dicti
 				KCad.release(b)
 			return {"ok": false, "why": "the must-not-touch pair %d and %d: there is no such body" % [pa, pb]}
 	var pivot := PartRefs.pivot_mm(f, int(ids[bi])) * MM   # W03: follows the body's box when an early step resizes it
+	var placed := {}
+	if bool(f.get("autoplace", false)):   # C24 (#348): a pivot in the air moves onto the nearest visible feature of its body
+		placed = JointAxes.auto_place(rec, bi, pivot / MM, hi)
+		if bool(placed.get("ok", false)) and bool(placed.get("hidden", false)):
+			pivot = (placed["p"] as Vector3) * MM
+	var two_ax := JointAxes.has2(f)
 	var axis := _axis(f)
 	var rest: Array = []
 	for j in ids.size():
@@ -1076,6 +1090,11 @@ static func hinge_sweep(rec: Dictionary, hinge_id: String, fps := 25.0) -> Dicti
 	var lim := hinge_limit(f)
 	var out := {"ok": true, "frames": n, "first": -1, "first_s": -1.0, "deg_first": 0.0, "hit_frames": 0, "secs": 0.0,
 		"limit": lim, "limited_frames": 0, "max_deg": 0.0}
+	if two_ax:
+		out["limit2"] = JointAxes.limit2(f)
+		out["max_deg2"] = 0.0
+	if not placed.is_empty():
+		out["placed"] = placed
 	var red := {}
 	for i in n:
 		var t := float(i) / fps
@@ -1084,7 +1103,9 @@ static func hinge_sweep(rec: Dictionary, hinge_id: String, fps := 25.0) -> Dicti
 			out["limited_frames"] = int(out["limited_frames"]) + 1
 		var deg := clampf(raw, -lim, lim)
 		out["max_deg"] = maxf(float(out["max_deg"]), absf(deg))
-		var m := _swing(int(ids[bi]), pivot, axis, deg_to_rad(deg))
+		if two_ax:
+			out["max_deg2"] = maxf(float(out["max_deg2"]), absf(JointAxes.deg2_at(f, t)))
+		var m := _swing(int(ids[bi]), pivot, axis, deg_to_rad(deg)) if not two_ax else JointAxes.swing2(int(ids[bi]), pivot, f, deg_to_rad(deg), deg_to_rad(JointAxes.deg2_at(f, t)))   # C24: the second axis (opt-in)
 		var hit := false
 		var bad := KCad.last_error() if m == 0 else ""
 		for r in rest:
@@ -2530,7 +2551,13 @@ static func _combine_step(bodies: Array, looks: Array, f: Dictionary) -> String:
 		if t == tg or tl.count(t) > 1:
 			return "a tool body is the target itself or is picked twice"
 	var cur: int = bodies[tg]
-	for t in tl:
+	var c46 := CHEAVY.take(f)   # C46: the Combine dialog already ran this many-tool combine stepwise; its answer is used, not recomputed
+	if c46 != 0:
+		cur = c46
+		if op != "join" and _vol(cur) <= HIT_VOL:
+			KCad.release(cur)
+			return "nothing is left: the combine took everything"
+	for t in (tl if c46 == 0 else []):
 		var nx := 0
 		var tool_id: int = bodies[t]
 		if bool(f.get("nudge", false)):   # W10: the one-click 0.01 mm retry: the tool sinks 0.01 mm into the target before the operation

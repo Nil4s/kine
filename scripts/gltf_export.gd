@@ -103,6 +103,7 @@ static func _animate(S: Scene, B: Body, man: Node3D, anim: Animation, pre: Strin
 	if root_motion and sk.find_bone("root") >= 0:
 		rtr = anim.add_track(Animation.TYPE_POSITION_3D)
 		anim.track_set_path(rtr, NodePath("%s:root" % sk_path))
+	var sip := Vector3.ZERO   # C42: the travel taken off this frame (weapons are world-space nodes: they lose it too)
 	var P0 := Vector3.ZERO   # the pelvis at frame 0 (set in the key loop, after the first pose)
 	# the weapons: present when the scene ever holds one
 	var wtr := {}
@@ -146,11 +147,17 @@ static func _animate(S: Scene, B: Body, man: Node3D, anim: Animation, pre: Strin
 			var T := Vector3(D.x, 0.0, D.z)
 			anim.position_track_insert_key(rtr, t, T)
 			pp -= B.root_rot.inverse() * T   # the pelvis's local place with the travel taken off it
+		if rtr < 0:   # C42: "Stay in place" (off = nothing happens); the root-motion preset above already took the travel off
+			if k == 0:
+				P0 = B.P["pelvis"]
+			var rem := StayInPlace.frame(B.P["pelvis"] - P0, k, k == n)
+			pp -= B.root_rot.inverse() * rem
+			sip = rem
 		anim.position_track_insert_key(pos, t, pp)
 		for w in wtr:
 			var on: bool = B.wep_on if w == "weapon" else B.wep2_on
 			var x: Array = (B.wep_xform() if w == "weapon" else B.wep2_xform()) if on else [Vector3.ZERO, Quaternion.IDENTITY]
-			anim.position_track_insert_key(wtr[w][0], t, x[0])
+			anim.position_track_insert_key(wtr[w][0], t, x[0] - sip)
 			anim.rotation_track_insert_key(wtr[w][1], t, x[1])
 			# a weapon put away is scaled to nothing (glTF has no "visible" channel)
 			anim.scale_track_insert_key(wtr[w][2], t, Vector3.ONE if on else Vector3.ZERO)
