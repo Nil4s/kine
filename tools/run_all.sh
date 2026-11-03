@@ -887,3 +887,5 @@ EXTRA="$EXTRA c39:w"   # c39: FBX materials (tests/c39_test.gd)
 
 
 EXTRA="$EXTRA c41:w"   # c41: #184 invert orbit X / Y apart, #311 bad spots (built by C05) checked
+
+EXTRA="$EXTRA c47:w"   # c47: mirror you can trust: facing axis from geometry (#273), side from geometry (#274), mirror seam kink (#251) (tests/c47_test.gd)
