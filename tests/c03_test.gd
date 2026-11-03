@@ -209,6 +209,7 @@ func bars(sz: Vector2i) -> void:
 	ok(nb.text == "Pull makes: New body", "%s 1: chip reads New body [%s]" % [tag, nb.text])
 	await click_ctl(ep.make_btns["pull"])
 	ok(int(pu.res.get("bodies", 0)) == 2 and String(newest("extrude").get("op", "")) == "new", "%s 1: New body pull = 2 bodies, op new (%d, %s)" % [tag, int(pu.res.get("bodies", 0)), newest("extrude").get("op", "")])
+	await idle(16)   # the panel may step off the new piece: let it settle before the next real click
 	await shot("newbody_" + tag)
 	var h3 := hits(chip("easypart_pull_newbody").get_parent().get_parent() as Control)
 	ok(h3.is_empty(), "%s 6: pull state: the panel overlaps nothing %s" % [tag, str(h3)])
