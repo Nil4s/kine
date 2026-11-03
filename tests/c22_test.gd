@@ -118,7 +118,7 @@ func _init() -> void:
 		ok((o1 - o0).length() <= 0.001 and (p1 - p0).distance_to(o1 - o0) >= 0.10, "A1 CONTROL %s: the other hand stayed (%.2f mm); a prop held by it would differ by %.1f cm" % [hand, (o1 - o0).length() * 1000.0, (p1 - p0).distance_to(o1 - o0) * 100.0])
 		if sd == "_l":
 			var M := Scene.new()
-			M.from_dict(Scene.mirror_file(S.to_dict(B)))
+			M.from_dict(Scene.mirror_file(S.to_dict(B), body()))
 			var mc := M.carries()
 			ok(mc.size() == 1 and mc[0]["hands"] == ["_r"], "A3 Mirror of the left-hand scene holds it in the right hand (%s)" % [mc[0]["hands"] if mc.size() == 1 else "none"])
 		# A2 the command
