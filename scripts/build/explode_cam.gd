@@ -2,7 +2,7 @@ class_name ExplodeCam
 extends RefCounted
 ## s262d: the GPU explode film's camera. frame_boxes = per frame the world box of every moving piece (from the TIMELINE keys); plan = one camera per frame that keeps all of them
 ## inside the frame with margin (fit per frame, then a symmetric smoothing that can only pull BACK, never in); old_plan = 2c32f1a2's lagging fit (the control).
-const FIT := 0.84   # fraction of the frame the boxes may fill (8 pct margin each side; the bar is 5 pct)
+const FIT := 0.74   # fraction of the frame the boxes may fill (13 pct margin each side: bloom spills ~7 pct past a box; the bar is 5 pct of the picture)
 
 
 static func cam_dir(keys: Array, f: float) -> Vector3:
@@ -134,7 +134,7 @@ static func plan(fr: Array, dirs: Array, cam: Camera3D, w: int, h: int) -> Array
 		dd = maxf(dd / c, float(ds[f]))   # never closer than the exact fit
 		for it in 40:
 			cam.look_at_from_position(t + dirs[f] * dd, t, Vector3.UP)
-			if margin(cam, fr[f], w, h) >= 0.07:
+			if margin(cam, fr[f], w, h) >= 0.12:
 				break
 			dd *= 1.03
 		out.append({"pos": t + dirs[f] * dd, "target": t})
