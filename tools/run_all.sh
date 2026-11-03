@@ -878,3 +878,6 @@ EXTRA="$EXTRA c33:w"   # C33: free ring vs yellow selection, hovered label contr
 
 
 EXTRA="$EXTRA c36:w"   # C36: grip a prop by its handle, wrist solved from the handle axis (tests/c36_test.gd)
+
+
+EXTRA="$EXTRA c38:w"   # C38: coincident faces nudged 0.01 mm in words, heavy boolean in steps with progress + Cancel (tests/c38_test.gd)
