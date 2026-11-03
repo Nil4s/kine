@@ -782,3 +782,6 @@ EXTRA="$EXTRA s269c:w"   # s269c: film framing includes the reflection, film key
 
 EXTRA="$EXTRA s277b:w"
 EXTRA="$EXTRA c01:w"   # c01: view history, invert orbit/pan, the cube Top per scene, tests/c01_test.gd
+
+
+EXTRA="$EXTRA c02:w"   # c02: pose library update, multi-delete, rename, tests/c02_test.gd
