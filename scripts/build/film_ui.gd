@@ -12,6 +12,7 @@ var tex: TextureRect
 var body_pick: OptionButton
 var slider: HSlider
 var ticks: Control
+var curves: FilmCurves   # s269c
 var time_l: Label
 var rpm_e: LineEdit
 var status: Label
@@ -78,6 +79,9 @@ func open() -> void:
 	slider.focus_mode = Control.FOCUS_NONE
 	slider.value_changed.connect(_scrub)
 	vb.add_child(slider)
+	curves = FilmCurves.new()
+	curves.rec_fn = rec
+	vb.add_child(curves)
 	var r1 := HBoxContainer.new()
 	vb.add_child(r1)
 	play_btn = _btn(r1, "film_play", "Play", _play_toggle)
@@ -88,6 +92,7 @@ func open() -> void:
 	vb.add_child(r2)
 	body_pick = OptionButton.new()
 	body_pick.name = "film_body"
+	body_pick.item_selected.connect(func(_i): _show_time())
 	r2.add_child(body_pick)
 	_btn(r2, "film_hue", "Hue cycle", _hue)
 	rpm_e = LineEdit.new()
@@ -135,7 +140,7 @@ func _make_stage() -> void:
 	if stage != null:
 		t0 = stage.t
 		stage.close()
-	var avail: Vector2 = m.ui_root.size - Vector2(0, 149)   # the view fills the panel above the timeline and the two button rows
+	var avail: Vector2 = m.ui_root.size - Vector2(0, 215)   # the view fills the panel above the timeline, the curves and the two button rows
 	var vsz := Vector2i(clampi(int(avail.x) & ~1, 320, 1920), clampi(int(avail.y) & ~1, 180, 1080))
 	stage = FilmStage.new(m.ui_root, rec(), vsz)
 	if stage.ok:
@@ -157,6 +162,10 @@ func _draw_ticks() -> void:
 func _show_time() -> void:
 	time_l.text = "  t = %.3f s of %.2f s" % [stage.t if stage != null else 0.0, Film.duration(rec())]
 	slider.set_value_no_signal(stage.t if stage != null else 0.0)
+	if curves != null:
+		curves.body = _body()
+		curves.playhead = stage.t if stage != null else 0.0
+		curves.queue_redraw()
 
 
 func _scrub(v: float) -> void:

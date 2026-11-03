@@ -294,3 +294,15 @@ static func key_times(rec: Dictionary) -> Array:
 		if out.is_empty() or absf(float(out[-1]) - float(t)) > 0.0005:
 			out.append(t)
 	return out
+
+
+## s269c: every body any film key touches (look, spin or move), sorted: the stage keeps each as a surface of its own past 256 bodies
+static func keyed_bodies(rec: Dictionary) -> Array:
+	var out: Array = []
+	var d := data(rec)
+	for k in ["looks", "spins", "moves"]:
+		for e in d.get(k, []):
+			if not out.has(int(e["body"])):
+				out.append(int(e["body"]))
+	out.sort()
+	return out
