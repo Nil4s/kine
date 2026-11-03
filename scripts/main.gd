@@ -346,6 +346,7 @@ var clean := false:         # recording: no highlights, no name tag, NO PANELS (
 		if is_inside_tree() and ui_status != null:
 			_sides_apply()
 var ui_side: Array = []      # the panels Tab hides
+var guided_pose: GuidedPose   # C16: opt-in guided first pose (palette command only)
 var onboard: Onboarding     # ONBOARDING (scripts/onboarding.gd, R25): the first-launch 3-step guide
 var build_choose: BuildChoose   # BUILD's "What do you want to build?" chooser (scripts/build_choose.gd)
 var model_cards: ModelCards   # MODEL's task cards, "What do you want to do?" (scripts/model_cards.gd)
@@ -3028,6 +3029,9 @@ func _ready() -> void:
 	onboard = Onboarding.new()
 	onboard.m = self
 	add_child(onboard)
+	guided_pose = GuidedPose.new()
+	guided_pose.m = self
+	add_child(guided_pose)
 	BootProfile.mark("onboard node")
 	model_cards = ModelCards.new()
 	model_cards.m = self
@@ -3181,6 +3185,7 @@ func _ready() -> void:
 	BootProfile.mark("teach+folds")
 	# not on a scripted shot either (round 13: an agent's screenshot came back with the tour card over the body)
 	onboard.build(ui_root)
+	guided_pose.build(ui_root)
 	page_tour.build(ui_root)
 	model_cards.build(ui_root)
 	build_choose.build(ui_root)
@@ -16348,6 +16353,7 @@ func _commands() -> Array:
 	add.call("Record macro", "", _macro_record, "macro record macros start recording steps", false, "start a macro: every palette command you run from now is a step (with the part picked when it ran); Stop macro recording saves it")
 	add.call("Stop macro recording", "", _macro_stop, "macro stop end save finish recording", false, "save the macro being recorded under its name; it then shows in the S box as 'Macro: <name>'")
 	add.call("Play macro...", "", func(): ui_cmd.open_with("macro:"), "macro play run list saved", false, "the S box lists the saved macros: click or Enter plays one on the part picked now (ONE undo step)")
+	add.call("Guided first pose", "", func(): guided_pose.begin(), "guided first pose tutorial onboarding learn beginner steps", false, "a six-step guide to your first pose (body, click a part, drag, second part, clip, play); each step moves on by doing it, Skip closes it")
 	add.call("Page tour", "", func(): page_tour.replay(), "page tour help guide learn body model sculpt surface intro onboarding", false, "the five-step tour of the page you are on (BODY, MODEL, SCULPT or SURFACE; BODY from any other page), seen or not")
 	add.call("First steps tour", "", _tour_start, "tour help start begin learn new intro guide", false, "five steps that show the poser by doing: click a part, drag it, clip two cards, play, check")
 	add.call("Help: show the tour", "", easy.tour_start, "help tour easy beginner first steps learn guide intro", false, "the Easy tour: five steps (drag a hand, key the pose, move the playhead, key again, play), each moved on by doing it")
