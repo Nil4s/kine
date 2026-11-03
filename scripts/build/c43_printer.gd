@@ -219,7 +219,7 @@ static func build(dlg: Object, v: VBoxContainer) -> Dictionary:
 		if not rec.is_empty() or i == 0:
 			choose(rec, i)
 		info.text = words(rec))
-	return {"row": row, "opt": opt, "info": info, "box": box, "say": say, "sv": sv}
+	return {"dlg": dlg, "row": row, "opt": opt, "info": info, "box": box, "say": say, "sv": sv}
 
 
 static func refresh(dlg: Object, c: Dictionary) -> void:
@@ -285,4 +285,9 @@ static func after_export(c: Dictionary, r: Dictionary, bodies: Array) -> Diction
 		we.environment = env
 		sv.add_child(we)
 	(c["box"] as Control).visible = true
+	if "opts_scroll" in dlg_of(c) and dlg_of(c).opts_scroll != null:   # the preview scrolls into view
+		(func(): dlg_of(c).opts_scroll.ensure_control_visible(c["box"])).call_deferred()
 	return cmp
+
+static func dlg_of(c: Dictionary) -> Object:
+	return c["dlg"]
