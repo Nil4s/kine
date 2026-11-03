@@ -43,6 +43,8 @@ func measure(reps := REPS) -> Array:
 	rows = []
 	var multi: bool = m.actors_rt.size() >= 2
 	var n: int = m.actors_rt.size() if multi else 1
+	if multi and m.actor_men.size() < n:
+		m._refresh()   # the other fighters' mannequins are built by a refresh
 	for k in n:
 		var B: Body = m.actors_rt[k]["B"] if multi else m.B
 		var S: Scene = m.actors_rt[k]["S"] if multi else m.S
