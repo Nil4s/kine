@@ -12,6 +12,8 @@ const DEFAULT_PRICES := {"pla_brl_kg": 120.0, "pla_g_cm3": 1.24, "pine_brl_m": 1
 const WOOD_COLOUR := Color("#9a6b3f")   # the same brown as the Colour > Wood chip (easy_part_base.gd)
 const BOARD_NAMES := {"89x38": "2x4 board"}   # width x thickness in mm -> the Parts > Wood boards chip's name
 
+const LOCALES := ["Comma, dot decimals (default)", "Semicolon, comma decimals (Excel pt-BR, EU)"]   # C14: index into csv_text's locale
+
 static var _prices_cache := {}
 static var _prices_stamp := -1
 static var _wood_key := -1
@@ -127,7 +129,9 @@ static func boards(rec: Dictionary) -> Dictionary:
 
 
 ## the CSV text: a header, one line per row, a TOTAL line. Dots in numbers (a spreadsheet or a script reads them); no quoting needed (no commas in names)
-static func csv_text(bl: Dictionary) -> String:
+static func csv_text(bl: Dictionary, locale := 0) -> String:
+	if locale == 1:
+		return csv_text_semicolon(bl)
 	var lines := ["name,length_mm,width_mm,thickness_mm,count,board_metres"]
 	for r in bl["rows"]:
 		lines.append("%s,%d,%d,%d,%d,%.3f" % [r["name"], r["length"], r["width"], r["thickness"], r["count"], float(r["length"]) * int(r["count"]) / 1000.0])
@@ -135,8 +139,17 @@ static func csv_text(bl: Dictionary) -> String:
 	return "\n".join(lines) + "\n"
 
 
+## C14 (#442): the same table for Excel in a comma-decimal language: ';' between columns, ',' as the decimal mark, a UTF-8 BOM so accents open right
+static func csv_text_semicolon(bl: Dictionary) -> String:
+	var lines := ["name;length_mm;width_mm;thickness_mm;count;board_metres"]
+	for r in bl["rows"]:
+		lines.append("%s;%d;%d;%d;%d;%s" % [r["name"], r["length"], r["width"], r["thickness"], r["count"], ("%.3f" % (float(r["length"]) * int(r["count"]) / 1000.0)).replace(".", ",")])
+	lines.append("TOTAL;;;;%d;%s" % [bl["boards"], ("%.3f" % float(bl["total_m"])).replace(".", ",")])
+	return "﻿" + "\n".join(lines) + "\n"
+
+
 ## writes <dir>/<Part>_cutlist.csv. {"ok", "path", "text"}
-static func export_csv(rec: Dictionary, dir: String) -> Dictionary:
+static func export_csv(rec: Dictionary, dir: String, locale := 0) -> Dictionary:
 	var bl := boards(rec)
 	if int(bl["boards"]) == 0:
 		return {"ok": false, "path": "", "text": "NOT DONE: no wood boards in this build. Pick one from Parts > Wood boards, or paint the solids Wood, then export the cut list"}
@@ -147,7 +160,7 @@ static func export_csv(rec: Dictionary, dir: String) -> Dictionary:
 	if f == null:
 		var e := FileAccess.get_open_error()
 		return {"ok": false, "path": path, "text": "NOT DONE: the file could not be written (%s). Check that the folder is writable, then export again" % error_string(e)}
-	f.store_string(csv_text(bl))
+	f.store_string(csv_text(bl, locale))
 	f.close()
 	return {"ok": true, "path": path, "text": "exported %s: %d board%s in %d size%s, %s of board in all" % [path.get_file(), bl["boards"], "" if int(bl["boards"]) == 1 else "s", (bl["rows"] as Array).size(), "" if (bl["rows"] as Array).size() == 1 else "s", metres_words(float(bl["total_m"]))]}
 

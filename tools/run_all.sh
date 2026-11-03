@@ -816,3 +816,6 @@ EXTRA="$EXTRA c10:w"   # C10: print honesty: minimum-layer-time note, export rea
 
 
 EXTRA="$EXTRA c13:w"   # C13: pose IK/FK state, prop attach/detach frame, cape stretch readout (tests/c13_test.gd)
+
+
+EXTRA="$EXTRA c14:w"   # c14: rig pre-check, footage pre-check, cut-list CSV locale, tests/c14_test.gd
