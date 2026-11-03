@@ -25,7 +25,6 @@ static func words(i: int) -> String:
 ## the metadata lines to insert in the model xml ("" for the default)
 static func xml_lines(s: Dictionary) -> String:
 	var out := PackedStringArray()
-	out.append("<metadata name=\"BambuStudio:3mfVersion\">1</metadata>")   # C32: without it Bambu Studio treats the file as a plain mesh and ignores Metadata/*.config
 	for k in ["mode", "support_material_contact_distance", "support_material_interface_layers"]:
 		if s.has(k):
 			out.append("<metadata name=\"%s\">%s</metadata>" % ["Kine:SupportMode" if k == "mode" else k, s[k]])
