@@ -903,3 +903,15 @@ Shorter Portuguese so the text fits its button/box at 1280x720 and 1024x600 (was
 
 * `Reset` -> Zerar  (was Reiniciar, 17 px over)
 * `Playblast video: motion blur (8 sub-frames, 180 deg shutter; slower)` -> Prévia em vídeo: desfoque (8 subquadros, obturador 180°; mais lento)  (was 2 px over)
+
+## 2026-11-03 C35 relaunch: new strings and shorter fits
+
+New strings (no pt_BR msgid before):
+
+* `FBX: include materials (colour, texture)` -> FBX: incluir materiais (cor, textura)
+* `Invert orbit left-right only` -> Inverter só a órbita esquerda-direita
+
+Shorter Portuguese so the text fits at 1280x720 and 1024x600 (was 2 px over each):
+
+* `Say the render time first` -> Dizer o tempo do render antes  (was Dizer o tempo de renderização antes)
+* `FBX: shot camera (keys)` -> FBX: câm. do plano (chaves)  (was FBX: câmera do plano (chaves))

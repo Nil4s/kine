@@ -787,7 +787,7 @@ msgid "Estimate render time"
 msgstr "Estimar o tempo de renderização"
 
 msgid "FBX: shot camera (keys)"
-msgstr "FBX: câmera do plano (chaves)"
+msgstr "FBX: câm. do plano (chaves)"
 
 msgid "File name template (blank = the usual name):"
 msgstr "Modelo do nome do arquivo (vazio = o nome de sempre):"
@@ -808,10 +808,16 @@ msgid "Pull makes: "
 msgstr "Puxar faz: "
 
 msgid "Say the render time first"
-msgstr "Dizer o tempo de renderização antes"
+msgstr "Dizer o tempo do render antes"
 
 msgid "Scale to 1.75 m"
 msgstr "Escalar para 1,75 m"
+
+msgid "FBX: include materials (colour, texture)"
+msgstr "FBX: incluir materiais (cor, textura)"
+
+msgid "Invert orbit left-right only"
+msgstr "Inverter só a órbita esquerda-direita"
 
 msgid "   Pick what you want to make"
 msgstr "   Escolha o que você quer fazer"
