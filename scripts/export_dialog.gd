@@ -92,14 +92,15 @@ const TARGETS := [
 
 
 ## 3D PRINTING (STL, 3MF): shown only while a free Part is on screen (so targets() stays the seven engine targets); scripts/build/mesh_export.gd writes the files
+## C23: the third print format, listed only while the part has more than one colour (so the two-format list of a plain part is as it was)
+const AUTO_FORMAT := {"name": "Best for my part (picks 3MF when the part is painted, and says why)", "run": "auto",
+	"app": "A 3MF when the part has colour (an STL would lose it); the words after the export say which and why. Millimetres, Z up, the shape finely cut (0.1 mm)."}
 const PRINT_TARGET := {"id": "print", "label": "3D printing (STL, 3MF)", "engine": "",
 	"needs": "A slicer (Cura, PrusaSlicer, Bambu Studio, Orca) opens either file. Both hold millimetres, and the part's floor is the print bed (z = 0, Z up). STL is the plain shape; 3MF is the same shape in a package that also keeps each separate piece as its own object and the colour you painted. If you are not sure, pick 3MF.",
 	"formats": [{"name": "3MF (.3mf): shape in millimetres, pieces and colour (best for most slicers)", "run": "3mf",
 			"app": "A 3MF package: one object for each separate piece of the part, the colour you painted, units in millimetres, the shape finely cut (0.1 mm)."},
 		{"name": "STL (.stl): the plain shape in millimetres", "run": "stl",
-			"app": "A binary STL in millimetres (an STL has no units, so the slicer reads the numbers as mm), all pieces in one mesh, the shape finely cut (0.1 mm). No colour."},
-		{"name": "Best for my part (picks 3MF when the part is painted, and says why)", "run": "auto",
-			"app": "A 3MF when the part has colour (an STL would lose it); the words after the export say which and why. Millimetres, Z up, the shape finely cut (0.1 mm)."}],
+			"app": "A binary STL in millimetres (an STL has no units, so the slicer reads the numbers as mm), all pieces in one mesh, the shape finely cut (0.1 mm). No colour."}],
 	"app": "The part as a printable solid in millimetres."}
 
 
@@ -437,6 +438,8 @@ func _fill_formats() -> void:
 	ui_format.clear()
 	for f in (_tg()[ui_target.selected] as Dictionary)["formats"]:
 		ui_format.add_item(String((f as Dictionary)["name"]))
+	if _cur_id() == "print" and m.S != null and C23Colour.colours_of(MeshExport.bodies_of(m.S.part, {})["bodies"]).size() > 1:   # C23
+		ui_format.add_item(String(AUTO_FORMAT["name"]))
 	ui_format.select(0)
 
 
@@ -501,6 +504,8 @@ func _refresh_quality() -> void:
 
 
 func _cur_run() -> String:
+	if _cur_id() == "print" and ui_format.selected == 2:   # C23: the listed-only-when-painted third format
+		return "auto"
 	var fs: Array = (_tg()[ui_target.selected] as Dictionary)["formats"]
 	return String((fs[clampi(maxi(ui_format.selected, 0), 0, fs.size() - 1)] as Dictionary)["run"])
 
@@ -515,7 +520,7 @@ func text_of(id: String, fi: int) -> Dictionary:
 	if t.is_empty():
 		return {}
 	var fs: Array = t["formats"]
-	var f: Dictionary = fs[clampi(fi, 0, fs.size() - 1)]
+	var f: Dictionary = AUTO_FORMAT if (id == "print" and fi == 2) else fs[clampi(fi, 0, fs.size() - 1)]
 	var S: Scene = m.S
 	var fps_s := "%d fps, the scene's own rate; the file keys every frame at it" % S.fps
 	if id == "bodyanim":
@@ -632,7 +637,7 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 	if t.is_empty():
 		return ""
 	var fs: Array = t["formats"]
-	var run := String((fs[clampi(fi, 0, fs.size() - 1)] as Dictionary)["run"])
+	var run := "auto" if (id == "print" and fi == 2) else String((fs[clampi(fi, 0, fs.size() - 1)] as Dictionary)["run"])
 	if id == "cutlist":   # s081: the CSV of the boards
 		var rc := CutList.export_csv(m.S.part, UserPaths.w(dir), ui_csv_locale.selected if ui_csv_locale != null and ui_csv_locale.selected > 0 else 0)
 		m._say_plain(String(rc["text"]))

@@ -106,7 +106,7 @@ func part_a() -> void:
 	var rec := two_box(true)
 	m.S.part = rec
 	var fmts: Array = ExportDialog.target("print")["formats"]
-	ok(fmts.size() == 3 and fmts[0]["run"] == "3mf" and fmts[1]["run"] == "stl" and fmts[2]["run"] == "auto", "A2 print formats: 3mf, stl kept first, auto added third (%s)" % str(fmts.map(func(f): return f["run"])))
+	ok(fmts.size() == 2 and fmts[0]["run"] == "3mf" and fmts[1]["run"] == "stl", "A2 the print target's own formats are still 3mf, stl (%s)" % str(fmts.map(func(f): return f["run"])))
 	# A: the default 3MF road (index 0), read back
 	var p := String(ex.export_now("print", 0, DIR))
 	var r := read_3mf(ProjectSettings.globalize_path(p)) if p != "" else {"objects": 0, "colors": [], "obj_pindex": []}
@@ -164,8 +164,12 @@ func part_a() -> void:
 	await idle(6)
 	root.get_texture().get_image().save_png(SHOT.path_join("dialog_1280x720.png"))
 	var chk := ex.ui_checks.text
+	ok(ex.ui_format.item_count == 3 and ex._cur_run() == "auto", "A2 a two-colour part lists the third format (%d formats) and it is the one selected" % ex.ui_format.item_count)
 	ok(chk.contains("2 colours"), "A2 the open dialog on 'Best for my part' lists the colours in its checklist")
 	ex.dlg.hide()
+	m.S.part = single
+	ex._fill_formats()
+	ok(ex.ui_format.item_count == 2, "A2 CONTROL: the unpainted box lists only 2 formats (%d), as before" % ex.ui_format.item_count)
 	m.S.part = {}
 
 
