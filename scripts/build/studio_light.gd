@@ -23,7 +23,8 @@ const RIM_E := 2.2
 const BLOOM_LEVELS := [0.0, 0.8, 1.0, 1.0, 0.9, 0.6, 0.4]
 const BLOOM_LEVELS_LEGACY := [0.0, 1.0, 1.0, 0.6, 0.3, 0.15, 0.0]
 const MIRROR_STRENGTH := 0.55
-const GLOSSY_STRENGTH := 0.42   # the blurred reflection is dimmer than the hard mirror (Blender: a soft smear)
+const GLOSSY_STRENGTH := 0.21   # s277b: Blender's smear peaks at 0.19 luminance, the 0.42 read 0.39 (2x)
+const BAR_K := 1.9   # s277b: the film's RGB bar emission (was 3.0: a green and red cloud)
 static var last_view := {}
 
 const SKY := "shader_type sky;

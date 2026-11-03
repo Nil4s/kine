@@ -861,10 +861,12 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 			var es := KCad.edges(b)
 			var bb := _bbox(es)
 			var fnorm := {}   # FBRACKET: face id -> outward normal, to tell a flat seam (two coplanar faces joined) from a real bend
+			var ftyp := {}   # W03d
 			var fcen := {}   # NROUNDFILTER: face id -> its centre (the outside test: every face of an edge lies on the box's skin)
 			for fc in KCad.faces(b):
 				fnorm[int(fc["id"])] = fc["normal"]
 				fcen[int(fc["id"])] = fc["center"]
+				ftyp[int(fc["id"])] = [String(fc.get("type", "")), fc.get("mass_center", fc["center"])]   # W03d: a cylinder face's normal is read at an arbitrary seam point, so its type and axis point are kept
 			for ed in es:
 				var ef: Array = ed.get("faces", [])
 				var seam := false
@@ -883,7 +885,8 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 					if not fcen.has(int(fi)) or not _on_skin(fcen[int(fi)], bb):
 						outside = false
 				var top := float(ed["a"].y) >= bb.end.y - SKIN_MM * MM and float(ed["b"].y) >= bb.end.y - SKIN_MM * MM
-				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "concave": concave, "inner": inner, "outside": outside, "top": top, "fp": PartRefs.face_pair(ef, fnorm, fcen, bb)})
+				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "concave": concave, "inner": inner, "outside": outside, "top": top, "fp": PartRefs.face_pair(ef, fnorm, fcen, bb, ftyp, ed)})
+	res["solo"] = want.get("solo", [])
 	pack_surfaces(mesh, pend, res)
 	res["instances"] = sketches.get(PartInstances.KEY, [])   # s261
 	res["bodies"] = bodies.size()
@@ -936,20 +939,27 @@ const MAX_SURFACES := 256
 static func pack_surfaces(mesh: ArrayMesh, pend: Array, res: Dictionary) -> void:
 	var groups: Array = []   # [[pend index, ...]] one per surface
 	res["surf_ranges"] = []
+	var solo: Array = res.get("solo", [])   # s269c: bodies the film keys move on their own: never merged into another surface
 	if pend.size() <= MAX_SURFACES:
 		for k in pend.size():
 			groups.append([k])
 	else:
 		var by_look := {}
+		var solos: Array = []
 		for k in pend.size():
+			if solo.has(int(pend[k][2])):
+				solos.append([k])
+				continue
 			var key := JSON.stringify(pend[k][1])
 			if not by_look.has(key):
 				by_look[key] = groups.size()
 				groups.append([])
 			groups[by_look[key]].append(k)
-		while groups.size() > MAX_SURFACES:
+		var room := maxi(MAX_SURFACES - solos.size(), 1)
+		while groups.size() > room:
 			var tail: Array = groups.pop_back()
-			groups[MAX_SURFACES - 1].append_array(tail)
+			groups[room - 1].append_array(tail)
+		groups.append_array(solos.slice(0, MAX_SURFACES - groups.size()))
 	for g in groups:
 		var rg: Array = []   # s243: every body of this surface and its vertex range, [[body, first vertex, vertex count]] (the framing facts read one body's triangles)
 		var v0 := 0   # s262b: counted BEFORE the merge (the merge appends into the first body's array: counted after, body 1 had every vertex and the rest were shifted past the end)

@@ -12,14 +12,16 @@ var cam: Camera3D
 var t := 0.0
 var size: Vector2i
 var box := AABB()
+var fbox := AABB()   # s269c: box plus its visible reflection: what the camera frames
 var ok := false
 var floor_y := 0.0
+var fade_h := 0.0   # how far below the floor the reflection shows
 
 
 func _init(host: Node, record: Dictionary, sz := Vector2i(960, 540), ov := {}) -> void:
 	rec = record
 	size = sz
-	var res := Part.replay(rec)
+	var res := Part.replay(rec, -1, {"solo": Film.keyed_bodies(rec)})   # s269c: keyed bodies stay their own surface past 256 bodies
 	var mesh: ArrayMesh = res["mesh"]
 	if mesh == null:
 		return
@@ -71,6 +73,7 @@ func _init(host: Node, record: Dictionary, sz := Vector2i(960, 540), ov := {}) -
 	box = reach
 	var st := StudioLight.build(world, box, ov)
 	floor_y = float(st["floor_y"])
+	fade_h = float(st["fade_h"])
 	if bool(ov.get("reflect", true)):   # the reflective floor: one mirror per surface, re-synced to the keyed look at every set_time
 		for it in items:
 			var mir := StudioLight.mirror_of(it["mi"], floor_y, float(st["fade_h"]), float(ov.get("mirror", StudioLight.MIRROR_STRENGTH)))
@@ -87,9 +90,15 @@ func _init(host: Node, record: Dictionary, sz := Vector2i(960, 540), ov := {}) -
 	var target := box.get_center()
 	var dist := float(st["diag"]) * 2.0
 	var fsz := Vector2(sz)
+	fbox = box
+	if bool(ov.get("frame_mirror", true)) and bool(ov.get("reflect", true)):   # s269c: frame the bodies AND the part of their reflection the floor shows
+		var lo := maxf(2.0 * floor_y - box.end.y, floor_y - fade_h)
+		var hi := 2.0 * floor_y - box.position.y
+		if hi > lo:
+			fbox = box.merge(AABB(Vector3(box.position.x, lo, box.position.z), Vector3(box.size.x, hi - lo, box.size.z)))
 	for i in 6:
 		cam.look_at_from_position(target + dir * dist, target, Vector3.UP)
-		var r2 := NiceRender._screen_box(cam, box)
+		var r2 := NiceRender._screen_box(cam, fbox)
 		var sc2 := minf(0.6 * fsz.y / maxf(r2.size.y, 1.0), 0.7 * fsz.x / maxf(r2.size.x, 1.0))
 		var err := r2.get_center() - fsz * 0.5
 		var mpp := 2.0 * dist * tan(deg_to_rad(cam.fov) * 0.5) / fsz.y
