@@ -145,6 +145,7 @@ var f_to: LineEdit
 var f_dur: LineEdit
 var f_dial: Control
 var status := ""
+var c15: PartC15UI   # C15: move-sketch-to-plane + SVG import rows in the sketch palette
 var pill_text := ""   # XFIX2: the last size readout drawn next to the cursor (its words, and where it sits)
 var pill_at := Vector2.ZERO
 var cur_px := Vector2.ZERO   # the last pointer place on the view (the readout follows it)
@@ -545,6 +546,7 @@ func _build_side() -> void:
 	nums_vb.name = "part_nums"
 	nums_vb.add_theme_constant_override("separation", 4)
 	sketch_box.add_child(nums_vb)
+	c15 = PartC15UI.new(self)
 	hinge_box = VBoxContainer.new()
 	hinge_box.name = "part_hinge_box"
 	hinge_box.add_theme_constant_override("separation", 6)
@@ -2589,6 +2591,8 @@ func sync() -> void:
 	side.visible = show and (sk != "" or not dlg.is_empty() or not _sel_hinge().is_empty() or _sel_look() >= 0)
 	tl.visible = show
 	sketch_box.visible = sk != "" and dlg.is_empty()
+	if c15 != null:
+		c15.sync()
 	dlg_box.visible = not dlg.is_empty()
 	hinge_box.visible = show and dlg.is_empty() and sk == "" and not _sel_hinge().is_empty()
 	if sk != "" and dlg.is_empty():
