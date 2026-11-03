@@ -884,3 +884,6 @@ EXTRA="$EXTRA c38:w"   # C38: coincident faces nudged 0.01 mm in words, heavy bo
 
 
 EXTRA="$EXTRA c39:w"   # c39: FBX materials (tests/c39_test.gd)
+
+
+EXTRA="$EXTRA c41:w"   # c41: #184 invert orbit X / Y apart, #311 bad spots (built by C05) checked

@@ -46,7 +46,7 @@ func _opt(id: String, title: String, items: Array, vb: VBoxContainer, cb: Callab
 func _build() -> void:
 	win = Window.new()
 	win.title = "Camera navigation"
-	win.size = Vector2i(560, 470)
+	win.size = Vector2i(560, 560)
 	win.exclusive = false
 	win.close_requested.connect(func(): win.hide())
 	var pc := PanelContainer.new()
@@ -83,6 +83,12 @@ func _build() -> void:
 		iv.text = "Invert orbit drag" if id == "invert_orbit" else "Invert pan drag"
 		iv.toggled.connect(func(_on: bool): _inv_changed())
 		vb.add_child(iv)
+	for id in ["invert_orbit_x", "invert_orbit_y"]:   # C41 (#184): orbit's left-right and up-down flipped apart
+		var iv2 := CheckBox.new()
+		iv2.name = id
+		iv2.text = "Invert orbit left-right only" if id == "invert_orbit_x" else "Invert orbit up-down only"
+		iv2.toggled.connect(func(_on: bool): _inv_xy_changed())
+		vb.add_child(iv2)
 	for id in ["own_cam", "show_pivot", "joint_dot"]:   # C07: pivots and cameras (scripts/cam_pivot.gd), all off until ticked
 		var pc7 := CheckBox.new()
 		pc7.name = id
@@ -118,6 +124,8 @@ func _sync() -> void:
 	(win.find_child("trackpad", true, false) as CheckBox).set_pressed_no_signal(cn.trackpad)
 	(win.find_child("invert_orbit", true, false) as CheckBox).set_pressed_no_signal(m.camx.invert_orbit)
 	(win.find_child("invert_pan", true, false) as CheckBox).set_pressed_no_signal(m.camx.invert_pan)
+	(win.find_child("invert_orbit_x", true, false) as CheckBox).set_pressed_no_signal(m.camx.invert_orbit_x)
+	(win.find_child("invert_orbit_y", true, false) as CheckBox).set_pressed_no_signal(m.camx.invert_orbit_y)
 	for id in ["own_cam", "show_pivot", "joint_dot"]:
 		(win.find_child(id, true, false) as CheckBox).set_pressed_no_signal(m.campiv.get(id))
 
@@ -128,6 +136,12 @@ func _piv_changed() -> void:
 	cp.show_pivot = (win.find_child("show_pivot", true, false) as CheckBox).button_pressed
 	cp.joint_dot = (win.find_child("joint_dot", true, false) as CheckBox).button_pressed
 	cp.save_to(m.settings)
+
+
+func _inv_xy_changed() -> void:
+	m.camx.invert_orbit_x = (win.find_child("invert_orbit_x", true, false) as CheckBox).button_pressed
+	m.camx.invert_orbit_y = (win.find_child("invert_orbit_y", true, false) as CheckBox).button_pressed
+	m.camx.save_to(m.settings)
 
 
 func _inv_changed() -> void:
