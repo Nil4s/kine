@@ -828,3 +828,6 @@ EXTRA="$EXTRA c16:w"   # C16: guided first pose (opt-in command) + clip licence 
 
 
 EXTRA="$EXTRA c18:w"   # C18 door hinge edge, one-time Join undo note, scaled Join touch tolerance, tests/c18_test.gd
+
+
+EXTRA="$EXTRA c19:w"   # C19: bone-map unmapped list, gpu notice, no-network scan, tests/c19_test.gd
