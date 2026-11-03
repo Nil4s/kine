@@ -73,8 +73,13 @@ func _mv_plan(p: Vector2) -> Dictionary:
 	for v in mine:
 		low = minf(low, v.dot(n))
 	var dv: Vector3 = at - (_mv["grab"] as Vector3)
-	var delta := (dv - dv.dot(n) * n) + (plane_d - low) * n   # slide across to the drop point, then flush on the face
-	if ax >= 0:
+	var slide0 := dv - dv.dot(n) * n
+	var typed_mm := float(String(_mv.get("typed", "0")).to_float()) if MoveRule.unified else 0.0
+	if typed_mm > 0.0:
+		slide0 = MoveRule.typed_slide(slide0, typed_mm)   # C25: a typed distance is the slide's exact length
+	var delta := slide0 + (plane_d - low) * n   # slide across to the drop point, then flush on the face
+	var grid := MoveRule.grid_m(float(pu.snap_mm), Input.is_key_pressed(KEY_ALT))
+	if ax >= 0 and typed_mm <= 0.0:
 		var tbb := _mv_bounds(faces[tb])
 		var on_edge := absf(plane_d * n[ax] - (tbb.end[ax] if n[ax] > 0.0 else tbb.position[ax])) < 1e-5   # the face is a side of the target's box
 		for a in 3:
@@ -86,10 +91,10 @@ func _mv_plan(p: Vector2) -> Dictionary:
 			var fits := on_edge and hi >= lo - 1e-9
 			if fits:
 				nm = clampf(nm, lo, hi)
-			var sn := roundf(nm / MV_GRID) * MV_GRID
+			var sn := (roundf(nm / grid) * grid) if grid > 0.0 else nm
 			if fits:
-				var slo := ceilf(lo / MV_GRID - 1e-6) * MV_GRID
-				var shi := floorf(hi / MV_GRID + 1e-6) * MV_GRID
+				var slo := (ceilf(lo / grid - 1e-6) * grid if grid > 0.0 else lo)
+				var shi := (floorf(hi / grid + 1e-6) * grid if grid > 0.0 else hi)
 				if slo <= shi + 1e-9:
 					sn = clampf(sn, slo, shi)
 				else:
@@ -189,3 +194,23 @@ func _mv_draw() -> void:
 		if m.cam.is_position_behind(a) or m.cam.is_position_behind(b):
 			continue
 		_mv_layer.draw_line(m.cam.unproject_position(a), m.cam.unproject_position(b), MV_GHOST, 2.0, true)
+
+
+## C25: while a piece is in hand and the unified Move rule is on, digits type a distance, Backspace deletes one, Esc clears it. True = taken
+func _mv_key(k: InputEventKey) -> bool:
+	if _mv.is_empty() or not MoveRule.unified or not bool(_mv.get("moved", false)) or not k.pressed or k.echo:
+		return false
+	var t := String(_mv.get("typed", ""))
+	if k.keycode >= KEY_0 and k.keycode <= KEY_9:
+		t += str(k.keycode - KEY_0)
+	elif k.keycode == KEY_PERIOD and not t.contains("."):
+		t += "."
+	elif k.keycode == KEY_BACKSPACE and t != "":
+		t = t.substr(0, t.length() - 1)
+	elif k.keycode == KEY_ESCAPE and t != "":
+		t = ""
+	else:
+		return false
+	_mv["typed"] = t
+	_say("Moving by %s mm (type a number, Backspace and Esc edit it; release to drop)" % t if t != "" else "Typed distance cleared: the pointer sets the move")
+	return true

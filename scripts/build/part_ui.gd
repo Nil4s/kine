@@ -1005,7 +1005,7 @@ func hit(p: Vector2) -> Variant:
 func snap(v: Vector2) -> Vector2:
 	if Input.is_key_pressed(KEY_ALT) or snap_mm <= 0.0:
 		return v
-	return Vector2(snappedf(v.x, snap_mm), snappedf(v.y, snap_mm))
+	return Vector2(MoveRule.snap(v.x, snap_mm, false), MoveRule.snap(v.y, snap_mm, false))
 
 
 func scr(v: Vector2) -> Vector2:

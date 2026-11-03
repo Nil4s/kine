@@ -218,7 +218,7 @@ func _init() -> void:
 	root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 	root.content_scale_size = Vector2i(1280, 720)
 	await idle(4)
-	var env: Environment = m.world_env.environment
+	var env: Environment = m.world_env
 	env.volumetric_fog_enabled = true
 	var d0 := shots_dirs()
 	var r: Dictionary = m._render_estimate()
