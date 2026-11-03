@@ -869,3 +869,4 @@ EXTRA="$EXTRA c31:w"   # c31: pt_BR 447 strings, placeholders, CRLF, review list
 
 
 EXTRA="$EXTRA c30:w"
+EXTRA="$EXTRA c44:w"   # C44: Extrude up to a face or edge with an offset, tests/c44_test.gd
