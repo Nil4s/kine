@@ -319,11 +319,14 @@ static func export_part(rec: Dictionary, fmt: String, dir: String, budget := 0, 
 	if e != OK:
 		return {"ok": false, "path": path, "why": error_string(e), "report": rep, "text": "NOT DONE: the file could not be written (%s). Check that the folder is writable, then export again" % error_string(e)}
 	var msg := "exported %s: %d triangles, %.1f x %.1f x %.1f mm" % [path.get_file(), int(rep["tris"]), rep["size"].x, rep["size"].y, rep["size"].z]
+	var vr := C10Print.verify_file(path, fmt, bodies)   # C10: the file is read back and compared with the part (volume and box, 0.5 pct)
+	if bool(vr["off"]):
+		msg += ". " + String(vr["text"]).substr(6)
 	if budget > 0:
 		msg += ExportBudget.words()
 	if not bool(rep["closed"]):
 		msg += ". " + String((rep["lines"] as Array)[0]).substr(6)
-	return {"ok": true, "path": path, "why": "", "report": rep, "text": msg}
+	return {"ok": true, "path": path, "why": "", "report": rep, "text": msg, "verify": vr}
 
 
 ## the dialog's checklist for the part on screen (lines start OK or WARN)

@@ -470,6 +470,7 @@ func _hole_box() -> PanelContainer:
 		sb.custom_minimum_size = Vector2(96, 44)
 		h.add_child(sb)
 		hole_btns["screw%d" % sd] = sb
+	_screw_fit_chips(h)   # C10: M2 / M8 / M10 chips and the Fit chip (close / normal / loose), see easy_part_pull.gd
 	_hpat_chips(h)   # s029: Row / Around / Grid of holes
 	_fill_chips(h)   # s051: Fill the face
 	_printer_chip(h)   # p203screwholea: the printer chip (resin tight, FDM loose)
