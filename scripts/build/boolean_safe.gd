@@ -7,6 +7,7 @@ extends RefCounted
 ##    kernel keeps one global solid table with no lock, so a call from two threads is unsafe. One kernel call cannot be interrupted, so Cancel and
 ##    progress act BETWEEN steps; a cancelled job releases every temp and returns the target id it was given, untouched.
 const KCad := preload("res://scripts/kcad.gd")
+const JOINH := preload("res://scripts/build/join_helper.gd")
 const NUDGE := 0.00001          # 0.01 mm
 const VOL_TOL := 0.005          # a nudged answer may differ by 0.5 % of the first answer
 const GRID := 1.0e5             # vertex quantum for the edge count: 0.01 mm
@@ -105,6 +106,8 @@ static func polish(a: int, b: int, op: String, first := 0) -> Dictionary:
 	r["open_after"] = int(q["open"])
 	if int(q["open"]) <= 0:
 		return r
+	if JOINH.contact(a, b)["kind"] in ["line", "point"]:
+		return r   # two solids that only touch along a line / at a point are W10's (JoinHelper.explain says so and offers the nudge); not changed here
 	var v0 := KCad.volume(nx)
 	for sg in [Vector3(1, 1, 1), Vector3(-1, 1, 1), Vector3(1, -1, 1), Vector3(1, 1, -1), Vector3(-1, -1, 1), Vector3(-1, 1, -1), Vector3(1, -1, -1), Vector3(-1, -1, -1)]:
 		var by: Vector3 = sg * NUDGE
