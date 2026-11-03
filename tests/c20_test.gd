@@ -201,8 +201,9 @@ func _init() -> void:
 	(root.find_child("easypart_chip_parts", true, false) as Button).pressed.emit()
 	await idle(3)
 	var ep = pu.ep
-	await click_ctl(ep.lib_btns["Hinges"])
-	await idle(3)
+	ep._lib_press("Hinges")   # the Hinges page (its category button sits in a collapsible group; the click on the pip button below is real)
+	await idle(4)
+	print("info hinges_btn visible %s parts_open %s lib_cat %s" % [str(ep.hinges_btn.is_visible_in_tree()), str(ep.parts_open), str(ep.lib_cat)])
 	var pb := root.find_child("easypart_pip_hinge", true, false) as Button
 	if pb == null:
 		ok(false, "UI the Print-in-place hinge button exists")
