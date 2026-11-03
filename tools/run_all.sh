@@ -785,3 +785,6 @@ EXTRA="$EXTRA c01:w"   # c01: view history, invert orbit/pan, the cube Top per s
 
 
 EXTRA="$EXTRA c02:w"   # c02: pose library update, multi-delete, rename, tests/c02_test.gd
+
+
+EXTRA="$EXTRA c04:w"   # c04: clip import checks and Stay in place, tests/c04_test.gd
