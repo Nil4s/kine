@@ -792,3 +792,7 @@ EXTRA="$EXTRA c04:w"   # c04: clip import checks and Stay in place, tests/c04_te
 
 
 EXTRA="$EXTRA c05:w"   # c05: bad spots panel, hand shape check, finger bleed check, tests/c05_test.gd
+
+
+EXTRA="$EXTRA c06:h"   # C06 agent math for building + pictures: part_facts fields, frame_facts light block, MCP advertises them, tests/c06_test.gd
+EXTRA="$EXTRA c06mcp:h"   # C06: MCP round trip of the maths tools (tests/py/c06_drive.py)

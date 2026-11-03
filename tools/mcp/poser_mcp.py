@@ -1,7 +1,7 @@
 """POSER AS AN MCP SERVER (round 15, GATES V1). Any MCP client (Claude Code, Claude Desktop, an agent SDK) can drive the
 poser: open a scene, pose the body in words, read where every part is at any moment, check the motion, save.
 
-  python tools/mcp/poser_mcp.py [--godot <Godot executable>]       (or set POSER_GODOT)
+  python tools/mcp/poser_mcp.py [--godot <Godot executable>] [--math]      (or set POSER_GODOT; --math / POSER_MCP_MATH=1 adds the six C06 tools)
 
 It speaks MCP over stdio (one JSON-RPC message per line) using the standard library only, and runs ONE live session of
 `poser_cli serve` underneath (tools/poser_cli.gd), started on the first tool call. Each MCP tool is one serve method,
@@ -53,9 +53,35 @@ TOOLS = {
                  {"type": "object", "properties": {"path": S}, "additionalProperties": False}),
     "save": ("save", "Save the live scene into scenes/_wip/ (e.g. scenes/_wip/my_fight.json). Nothing else is writable.",
              {"type": "object", "properties": {"out": S}, "required": ["out"], "additionalProperties": False}),
+    # C06: the maths for building and for pictures (serve methods outside METHODS: AgentTools.MCP_EXTRA)
+    "frame_facts": ("frame_facts", "Numbers for the picture, no screenshot: the silhouette's px box, share of the frame, cut, centre, top/bottom rows per piece "
+                    "(pieces: names or col* patterns; camera {pos, target, fov}; w, h; part {record} frames a given part). Also `light`: per piece emission, "
+                    "peak_luminance, glow_px, which edges it touches, the brightest_piece, and touching_frame_edge (and _with_glow).",
+                    {"type": "object", "properties": {"pieces": {"type": "array", "items": S}, "camera": {"type": "object"}, "w": N, "h": N, "part": {"type": "object"}}, "additionalProperties": False}),
+    "look_facts": ("look_facts", "Numbers for how the final picture LOOKS per piece / kind / nature item (colour, contrast, neon, ring, share), from an id render. "
+                   "Needs a part view or nature items showing: give piece, kind, nature or targets; camera, w, h optional.",
+                   {"type": "object", "properties": {"piece": S, "kind": S, "nature": S, "targets": {"type": "array"}, "camera": {"type": "object"}, "w": N, "h": N}, "additionalProperties": True}),
+    "nature": ("nature", "Trees, hedges, shrubs, grass, flowers, paths, scatter: op list | add {item} | words {text: '2 oak trees 5 m tall'} | remove {id} | clear | measure.",
+               {"type": "object", "properties": {"op": S, "item": {"type": "object"}, "text": S, "id": S}, "additionalProperties": True}),
+    "part_warn": ("part_warn", "The part's warnings at its level (off / look / print / engineering), the list the Part panel shows; level, mute, unmute edit the record "
+                  "(one undo step). part {record} reads a given part.",
+                  {"type": "object", "properties": {"level": S, "mute": {}, "unmute": {}, "part": {"type": "object"}}, "additionalProperties": False}),
+    "part_facts": ("part_facts", "The part as numbers: per body volume (mm3), box, touches/overlaps/near, repeats, floats; box_mm of the whole part (its top is box_mm.max[1]), "
+                   "bodies_math, failed_steps, touching_pairs, holes and fillets with radii; gap [a, b] (1-based) gives the distance between two bodies in mm. "
+                   "part {record} or path, else the live part.",
+                   {"type": "object", "properties": {"part": {"type": "object"}, "path": S, "gap": {"type": "array", "items": N, "minItems": 2, "maxItems": 2}, "cap": N, "near_mm": N}, "additionalProperties": False}),
+    "part_assert": ("part_assert", "One-line checks on the part (e.g. 'piston touches barrel clearance 0.0-0.2 mm'); no lines = the record's saved asserts; save keeps the lines that pass.",
+                    {"type": "object", "properties": {"lines": {"type": "array", "items": S}, "part": {"type": "object"}, "path": S, "save": {"type": "boolean"}, "clear": {"type": "boolean"}}, "additionalProperties": False}),
     "commands": ("commands", "Every command the window has (id, name, keys, whether it edits): the ids are run steps.",
                  {"type": "object", "properties": {}, "additionalProperties": False}),
 }
+
+# C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
+MATH_TOOLS = ["frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert"]
+MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
+_MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
+if MATH:
+    TOOLS.update(_MATH)
 
 
 def log(*a):

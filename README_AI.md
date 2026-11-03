@@ -124,7 +124,7 @@ Look at the PNG with the Read tool. A screenshot you haven't looked at is not ev
 
 ## Round 15 (GATES.md section V): MCP, and the maths for a blind agent
 - **MCP server**: `python tools/mcp/poser_mcp.py` (standard library only; set POSER_GODOT or pass `--godot`). It offers
-  12 tools, one per serve method. Claude Code: `claude mcp add poser -- python <path>/tools/mcp/poser_mcp.py`.
+  12 tools, one per serve method (+6 maths tools with `--math`: frame_facts, look_facts, nature, part_warn, part_facts, part_assert; docs/AGENT_MATH.md). Claude Code: `claude mcp add poser -- python <path>/tools/mcp/poser_mcp.py`.
 - **measure** (serve and MCP): `{"t": 3.0, "what": ["distance hand_r head", "angle upperarm_r lowerarm_r hand_r",
   "height head", "speed weapon_tip", "clearance"]}`, each answer with its unit. The frames, conventions and formulas,
   plus every joint's limits and what + means, are in **docs/AGENT_MATH.md** (generated from data/body_limits.json).
