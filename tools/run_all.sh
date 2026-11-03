@@ -781,3 +781,4 @@ EXTRA="$EXTRA s269c:w"   # s269c: film framing includes the reflection, film key
 
 
 EXTRA="$EXTRA s277b:w"
+EXTRA="$EXTRA c04:w"   # c04: clip import checks and Stay in place, tests/c04_test.gd

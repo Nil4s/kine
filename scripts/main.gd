@@ -260,7 +260,7 @@ const RIBBON_GROUPS := {
 	"POSE": [["CLIP", ["CLIP this pose (Enter)"]], ["BODY", ["Reset body", "Arms 25°", "Mirror pose (Shift+M)", "Symmetry", "Smart drag", "Keep balance"]],
 		["SHOW", ["Collision (C)"]], ["SHAPE", ["Sketch to pose", "Sketch line of action", "Line of action"]], ["LIBRARY", ["Pose library"]], ["WORDS", ["Pose from words..."]], ["SHARE", ["Open from QR..."]]],
 	"ANIMATE": [["OVERLAYS", ["Trail (T)", "Onion (O)", "Spacing (Shift+O)", "Speed graph (Y)", "Balance (Shift+B)", "Force view"]], ["PLAYBACK", ["Stepped", "Moving holds"]],
-		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial", "Match the reference timing"]], ["SOUND", ["Sound cues"]]],
+		["JUMP", ["Airborne"]], ["KEY", ["Auto-key (Ctrl+K)"]], ["TOOLS", ["Animator tools"]], ["MIRROR", ["Mirror scene", "Mirror in place", "Stay in place"]], ["MAKE", ["From video", "Ask AI", "Walk along a path..."]], ["STYLE", ["Style dial", "Match the reference timing"]], ["SOUND", ["Sound cues"]]],
 	"SET": [["PROPS", ["Library", "Add prop", "Import model", "Turn left", "Turn right", "Delete prop"]], ["LIGHT", ["Light: three-point", "Light: rim", "Light: noir", "Light: daylight"]],
 		["ACT", ["Sit here", "Pick up", "Put down", "Step up", "Throw to...", "Sit down", "Stand up", "Get up"]], ["CROWD", ["Crowd: make 20 copies of this fighter", "Crowd: re-roll (new seed)", "Crowd: remove"]],
 		["REACT", ["Reactions", "React to the hit (physics)", "Impact frames", "Add impact frames", "Remove impact frames"]]],
@@ -12343,7 +12343,7 @@ const ICON_OF := {"Library": "library", "Export model (GLB / OBJ)": "export_glb"
 	"Light: three-point": "lit_three", "Light: rim": "lit_rim", "Light: noir": "lit_noir", "Light: daylight": "lit_day",
 	"Add prop": "prop", "Object library...": "library", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective", "Local API": "api",
-	"Pose from words...": "say_it", "Sketch to pose": "sketch_pose", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong",
+	"Pose from words...": "say_it", "Sketch to pose": "sketch_pose", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Stay in place": "stay_in_place", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong",
 	"Test cube": "mesh_cube", "Edit body": "mannequin", "Save": "save", "Save to body": "body_save", "Open...": "open", "Use in scene": "use_scene", "Move": "xf_move", "Rotate": "xf_rot", "Scale": "xf_scale",
 	"Extrude": "part_extrude", "Inset": "inset", "Loop cut": "loopcut", "Knife": "knife", "Bevel": "part_chamfer", "Proportional": "proportional", "Modifiers": "stack", "Validate": "validate", "Repair": "wrench",
 	"Test sphere": "sphere", "Sculpt the body": "sculpt_body", "Voxel remesh": "remesh", "Draw": "brush_draw", "Inflate": "brush_inflate", "Grab": "brush_grab", "Clay": "brush_clay", "Crease": "brush_crease", "Smooth": "smooth", "Flatten": "brush_flat", "Pinch": "brush_pinch", "Snake": "brush_snake",
@@ -12809,6 +12809,7 @@ func _ui() -> void:
 	# ROADMAP 54: the two mirrors one click away (the menu item above stays): a copy in _wip, or the open scene itself
 	ui_ribbon["ANIMATE"].add_child(_button("Mirror scene", _mirror_scene, "Mirror scene: a left-handed copy of this scene, saved in scenes/_wip and opened (yours is untouched)"))
 	ui_ribbon["ANIMATE"].add_child(_button("Mirror in place", _mirror_in_place, "Mirror in place: this scene mirrored left <-> right, card by card, as ONE undo step (Ctrl+Z takes it back; nothing is saved)"))
+	ui_ribbon["ANIMATE"].add_child(_button("Stay in place", _stay_in_place, "Stay in place: strip the hips' travel from this scene (a walk that slides across the floor walks on the spot), as ONE undo step. Height is kept. Ctrl+Z brings the travel back; nothing is saved"))
 	ui_ribbon["ANIMATE"].add_child(_button("Ask AI", _ai_toggle, "type what should happen (\"he waves, then sits\") and an AI builds the cards on this scene: each of its steps is one Ctrl+Z. Runs on this machine (Ollama) or with your own Claude / GPT / Gemini key"))
 	ui_ribbon["ANIMATE"].add_child(_button("Walk along a path...", _pathwalk_start, "Walk along a path: click points on the floor, pick Walk or Run and a speed, Enter builds the cards (makes a NEW scene, the open one stays, as ONE undo step; Esc cancels)"))
 	ui_ribbon["ANIMATE"].add_child(_button("From video", _video_ask, "animation from a video of a person: pick a phone clip, the tracker finds the body in every frame and it arrives as a new scene with the feet planted. Or drop the video on the window"))
@@ -17794,6 +17795,21 @@ func _mirror_in_place() -> void:
 		_rebuild_cards()
 		S.apply(B, playhead))
 	_say("mirrored in place: the whole scene left <-> right, %d cards.  Ctrl+Z takes it back in one step; nothing is saved until you save" % n)
+
+
+## STAY IN PLACE (C04, complaint #7): the open scene's hips keep the first card's floor position, one undo step (ClipChecks.strip_travel)
+func _stay_in_place() -> void:
+	if S.cards.size() < 2:
+		_say("Stay in place needs a scene of two cards or more: press Enter to add the body as a card (two at least), or open a scene in the list below")
+		return
+	var m := {}
+	_do(func():
+		m.merge(ClipChecks.strip_travel(S), true)
+		ov.mark_dirty()
+		wt.mark_dirty()
+		_rebuild_cards()
+		S.apply(B, playhead))
+	_say("stay in place: the hips' travel removed from %d cards (they had moved up to %.2f m on the floor).  Ctrl+Z takes it back in one step; nothing is saved until you save" % [m.get("cards", 0), m.get("metres", 0.0)])
 
 
 ## STYLE TRANSFER (ROADMAP 25): "Style: make it <older | tired | heavy | angry>" asks for the intensity (0-100 %), then saves
@@ -23611,7 +23627,7 @@ func _import_anim(path: String) -> String:
 	_load_scene(out, true)
 	_rebuild_cards()
 	_refresh()
-	_say("imported %s as scenes/_wip/%s: %d cards, %s. Play it, then move its cards like any others" % [path.get_file(), out.get_file(), (r["scene"] as Scene).cards.size(), r["report"]])
+	_say("imported %s as scenes/_wip/%s: %d cards, %s. Play it, then move its cards like any others%s" % [path.get_file(), out.get_file(), (r["scene"] as Scene).cards.size(), r["report"], ("  WARNING: " + "; ".join(PackedStringArray(r["warnings"]))) if not (r["warnings"] as Array).is_empty() else ""])
 	return out
 
 

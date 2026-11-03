@@ -644,6 +644,7 @@ static func _import_file(path: String, B: Body, scene_name := "") -> Dictionary:
 	var dense: Scene = null
 	var head := ""
 	var mapping := {}
+	var checks := {"warnings": []}   # C04: ClipChecks (A-pose, size, proportions); words only, the import is unchanged
 	if path.get_extension().to_lower() == "bvh":
 		var bv := BvhImport.load_file(path)
 		if not bv["ok"]:
@@ -667,12 +668,13 @@ static func _import_file(path: String, B: Body, scene_name := "") -> Dictionary:
 		if not rt["ok"]:
 			return rt
 		dense = rt["scene"]
+		checks = ClipChecks.analyze(src, mapping, B, rt)
 		head = "\"%s\" (%s%s): %s" % [src["clip"], src["format"], (", %d animations in the file, the longest taken" % (src["clips"] as Array).size()) if (src["clips"] as Array).size() > 1 else "", rt["text"]]
 	var cr := cards(dense, B)
 	B.set_state(keep)
 	var T: Scene = cr[0]
 	var rep := report(mapping)
-	return {"ok": true, "why": "", "scene": T, "dense": dense, "map": mapping, "clean": cr[1],
+	return {"ok": true, "why": "", "scene": T, "dense": dense, "map": mapping, "clean": cr[1], "checks": checks, "warnings": checks["warnings"],
 		"text": "%s; %d cards; %s" % [head, T.cards.size(), String(cr[1]["text"])], "report": rep}
 
 
