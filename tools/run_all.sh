@@ -903,3 +903,6 @@ EXTRA="$EXTRA c37:w"   # C37: Rounded rectangle + Slot sketch shapes, typed Radi
 
 
 EXTRA="$EXTRA c46:w"   # c46: the Combine dialog runs a many-tool combine stepwise with progress and Cancel (tests/c46_test.gd)
+
+
+EXTRA="$EXTRA c45:w"   # c45: Alt+click through to the hidden face; sketch stack picker
