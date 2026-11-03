@@ -284,9 +284,10 @@ func app() -> void:
 	ok(ui.cur == 1 and same(got, want), "(5) next_spot goes to row 1 (%s), selection %s" % [ui.spots[1]["kind"], str(got)])
 	m.get_viewport().get_texture().get_image().save_png(SHOT + "/spots_1280x720.png")
 	await layout("1280x720", true)
+	root.min_size = Vector2i(0, 0)
 	root.size = Vector2i(1024, 600)
-	DisplayServer.window_set_size(Vector2i(1024, 600))
-	await idle(4)
+	root.content_scale_size = Vector2i(1024, 600)
+	await idle(8)
 	ui.place()
 	await idle(2)
 	await layout("1024x600", false)
@@ -322,9 +323,10 @@ func layout(tag: String, rows_bar: bool) -> void:
 	var sb := ui.find_child("btn_sp_scan", true, false) as Button
 	var bh := hits(ui, nb.get_global_rect()) + hits(ui, sb.get_global_rect())
 	var cl: Rect2 = m.nav_clear_rect()
+	print("     window %s viewport %s" % [str(root.size), str(m.get_viewport().get_visible_rect().size)])
 	ok(h.is_empty() and bh.is_empty() and cl.encloses(pr), "(15) %s: panel %s overlaps %s, buttons covered by %s, inside free view %s" % [tag, str(pr), str(h), str(bh), str(cl)])
 	var row0: Control = ui._rows.get_child(0)
-	var rows := ui._scroll.size.y / maxf(1.0, row0.size.y + 8.0)
+	var rows := ui._scroll.size.y / maxf(1.0, row0.size.y + KMeshSpotsUI.ROW_GAP)
 	if rows_bar:
 		ok(rows >= 6.0, "(16) %s: the list shows %.1f rows (list %.0f px, row %.0f px)" % [tag, rows, ui._scroll.size.y, row0.size.y])
 	else:

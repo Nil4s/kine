@@ -3,12 +3,14 @@ extends PanelContainer
 ## C05 (#311, #619, #618): the "Bad spots" panel (MeshTools line "op:mesh_spots"). Lists the mesh's validate problems, the
 ## hand-shape findings and the finger-bleed findings, each with a Jump button that selects exactly its elements, draws red
 ## crosses on them that show through the surface, and turns the camera onto them. "Next spot" cycles; "See-through" makes
-## the surface translucent. Placed top left of the free view (below the model-checks panel when that is open).
+## the surface translucent. Docked by place(): the tallest free spot of the free view that no other panel covers.
 
 const NAME := "mesh_spots"
 const W := 360.0
-const MAX_H := 0.55
 const PAD := 12.0
+const ROW_GAP := 4
+const STEP := 6.0
+const MIN_LIST := 100.0   # px of list the spot must hold
 
 var m: Node
 var spots: Array = []
@@ -63,10 +65,12 @@ func _build() -> void:
 	add_child(vb)
 	var top := HBoxContainer.new()
 	top.add_theme_constant_override("separation", 6)
-	var title: Label = m._label("Bad spots", 15, "text")
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(title)
-	for spec in [["btn_sp_scan", "Scan", "check the mesh again: surface, hands, finger weights"], ["btn_sp_next", "Next spot", "jump to the next bad spot"]]:
+	_head = m._label("Bad spots", 15, "text")
+	_head.name = "head"
+	_head.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_head.clip_text = true
+	top.add_child(_head)
+	for spec in [["btn_sp_scan", "Scan", "check the mesh again: surface, hands, finger weights"], ["btn_sp_next", "Next", "jump to the next bad spot"]]:
 		var b := Button.new()
 		b.name = spec[0]
 		b.text = spec[1]
@@ -85,16 +89,12 @@ func _build() -> void:
 	cb.tooltip_text = "make the surface translucent so spots behind it show"
 	cb.toggled.connect(set_see)
 	vb.add_child(cb)
-	_head = m._label("", 13, "text", true)
-	_head.name = "head"
-	_head.custom_minimum_size = Vector2(W - 20.0, 0)
-	vb.add_child(_head)
 	_scroll = ScrollContainer.new()
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_scroll.custom_minimum_size = Vector2(W - 20.0, 60.0)
+	_scroll.custom_minimum_size = Vector2(240.0, 60.0)
 	_rows = VBoxContainer.new()
 	_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_rows.add_theme_constant_override("separation", 8)
+	_rows.add_theme_constant_override("separation", ROW_GAP)
 	_scroll.add_child(_rows)
 	vb.add_child(_scroll)
 
@@ -121,16 +121,19 @@ func scan() -> String:
 	for c in _rows.get_children():
 		_rows.remove_child(c)
 		c.queue_free()
-	_head.text = "Nothing wrong found." if spots.is_empty() else "%d bad spot%s" % [spots.size(), "" if spots.size() == 1 else "s"]
+	_head.text = "Bad spots: none" if spots.is_empty() else "Bad spots (%d)" % spots.size()
 	for i in spots.size():
 		var f: Dictionary = spots[i]
-		var row := VBoxContainer.new()
+		var row := HBoxContainer.new()
 		row.name = "row_%d" % i
-		row.add_child(m._label("%d. %s" % [i + 1, f["title"]], 12, "text", true))
+		row.add_theme_constant_override("separation", 6)
+		var lb: Label = m._label("%d. %s" % [i + 1, f["title"]], 12, "text", true)
+		lb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		lb.custom_minimum_size = Vector2(150.0, 0)
+		row.add_child(lb)
 		var b := Button.new()
 		b.name = "btn_sp_jump_%d" % i
-		b.text = "Jump to it"
-		b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		b.text = "Jump"
 		b.pressed.connect(jump.bind(i))
 		row.add_child(b)
 		_rows.add_child(row)
@@ -173,7 +176,37 @@ func jump(i: int) -> void:
 		ed.view.add_child(_marks)
 	_marks.mesh = KMeshSpots.marker_mesh(ed.mesh, f)
 	ModelChecksUI.of(m).frame(f)
+	_recentre(f)
 	m._say("Model: bad spot %d of %d: %s" % [i + 1, spots.size(), f["title"]])
+
+
+## the free view left of this panel: where a jumped-to spot is centred
+func view_region() -> Rect2:
+	var cl: Rect2 = m.nav_clear_rect()
+	if not visible:
+		return cl
+	var left := Rect2(cl.position, Vector2(position.x - PAD - cl.position.x, cl.size.y))
+	var right := Rect2(Vector2(position.x + size.x + PAD, cl.position.y), Vector2(cl.end.x - position.x - size.x - PAD, cl.size.y))
+	var r := left if left.size.x >= right.size.x else right
+	return r if r.size.x >= 150.0 else cl
+
+
+func _recentre(f: Dictionary) -> void:
+	var ed = m.kmed
+	var pts := ModelChecks.points_of(ed.mesh, f, ed.view.global_transform)
+	if pts.is_empty():
+		return
+	var c := Vector3.ZERO
+	for p in pts:
+		c += p
+	c /= pts.size()
+	var cam: Camera3D = m.cam
+	var vs: Vector2 = m.get_viewport().get_visible_rect().size
+	var t := tan(deg_to_rad(cam.fov * 0.5))
+	var d := view_region().get_center() - cam.unproject_position(c)
+	var mpp: float = 2.0 * float(m.dist) * t / vs.y
+	m.target = m.target - cam.global_basis.x * d.x * mpp + cam.global_basis.y * d.y * mpp
+	m._cam()
 
 
 func set_see(on: bool) -> void:
@@ -182,18 +215,67 @@ func set_see(on: bool) -> void:
 		KMeshSpots.see_through(m.kmed.view, on)
 
 
+## the controls this panel must not cover: visible, clickable (or panels), outside this panel, under 40 % of the window wide
+## and 80 % high (the full-width status strips are the free view's own edge: nav_clear_rect), the ones inside another
+## listed one dropped
+func _blockers() -> Array:
+	var vs: Vector2 = m.get_viewport().get_visible_rect().size
+	var rs: Array = []
+	for c in m.ui_root.find_children("*", "Control", true, false):
+		var ct := c as Control
+		if ct == self or is_ancestor_of(ct) or ct.is_ancestor_of(self) or not ct.is_visible_in_tree():
+			continue
+		if ct.mouse_filter == Control.MOUSE_FILTER_IGNORE and not (ct is PanelContainer):
+			continue
+		var r := ct.get_global_rect()
+		if r.size.x < 8 or r.size.y < 8 or r.size.x > 0.4 * vs.x or r.size.y > 0.8 * vs.y:
+			continue
+		rs.append(r.grow(2.0))
+	return rs.filter(func(r): return not rs.any(func(o): return o != r and o.encloses(r) and o.size > r.size))
+
+
+func _free(r: Rect2, bl: Array) -> bool:
+	for o in bl:
+		if (o as Rect2).intersects(r):
+			return false
+	return true
+
+
+## docked in the free view where no other panel is: the widest of W / 320 / 280 px that gets MIN_LIST px of list, and the
+## tallest spot for it (searched on a STEP px grid, right and top first); at 1280x720 that is the right end of the view
+## under the "Editing: ..." bar. The list takes the height left.
 func place() -> void:
 	var cl: Rect2 = m.nav_clear_rect()
 	_scroll.custom_minimum_size.y = 60.0
-	var rest := get_combined_minimum_size().y - 60.0
-	_scroll.custom_minimum_size.y = clampf(_rows.get_combined_minimum_size().y, 40.0, maxf(40.0, cl.size.y * MAX_H - rest))
 	reset_size()
-	size = Vector2(W, get_combined_minimum_size().y)
-	var y := cl.position.y + PAD
-	var mc = m.ui_root.get_node_or_null(ModelChecksUI.NAME)
-	if mc != null and mc.visible:
-		y += mc.size.y + PAD
-	position = Vector2(cl.position.x + PAD, y)
+	var chrome := get_combined_minimum_size().y - 60.0
+	var bl := _blockers()
+	var best := Rect2()
+	var need := chrome + MIN_LIST
+	for w: float in [W, 320.0, 280.0]:
+		best = Rect2()
+		var y := cl.position.y + 4.0
+		while y + need <= cl.end.y - 4.0:
+			var x := cl.end.x - w - 4.0
+			while x >= cl.position.x + 4.0:
+				if _free(Rect2(x, y, w, need), bl):
+					var h := need
+					while y + h + STEP <= cl.end.y - 4.0 and _free(Rect2(x, y, w, h + STEP), bl):
+						h += STEP
+					if h > best.size.y:
+						best = Rect2(x, y, w, h)
+					break
+				x -= STEP
+			y += STEP
+		if best.size.y >= need:
+			break
+	if best.size.y < need:   # nowhere clear: the old top-left corner at the least height
+		best = Rect2(cl.position + Vector2(PAD, PAD), Vector2(W, need))
+	_scroll.custom_minimum_size = Vector2(best.size.x - 20.0, clampf(_rows.get_combined_minimum_size().y, 40.0, best.size.y - chrome))
+	_head.custom_minimum_size.x = 0.0
+	reset_size()
+	size = Vector2(best.size.x, get_combined_minimum_size().y)
+	position = best.position
 
 
 func _process(_dt: float) -> void:
