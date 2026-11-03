@@ -10,6 +10,9 @@
 ##   G2 state    begin() shows step 0; 30 frames with no change stay on step 0 (CONTROL: a guide that auto-advances fails);
 ##               each real state change (body, sel, pose, cards, playing) advances exactly one step; the 6th ends it (step -1).
 ##   G3 skip     the Skip button closes the guide at once and onboarded is still not written.
+##   G5 clear    at 1280x720 and 1600x900, at EVERY step (forced with _go(k)), the card is hidden or its rect (grown 2 px) intersects NO other
+##               visible Button / Label / Range / LineEdit / TextureRect outside the card, and sits inside the window.
+##               CONTROL: the old placement (right edge - 16, y 48) overlaps such a Control at 1280x720 at some step, so it would fail G5.
 ##   G4 menu     the palette registers "Guided first pose" (main.gd source) and the start screen file is unchanged by this item.
 ## Env C16_SHOT=<png> saves a 1280x720 shot of the guide card and of the clip dialog (C16_SHOT2).
 extends SceneTree
@@ -28,6 +31,30 @@ func wr(p: String, t: String) -> void:
 	var f := FileAccess.open(p, FileAccess.WRITE)
 	f.store_string(t)
 	f.close()
+
+
+func blockers(card: Node) -> Array:
+	var out := []
+	var st := [m.ui_root]
+	while not st.is_empty():
+		var n: Node = st.pop_back()
+		if n == card:
+			continue
+		for c in n.get_children():
+			st.append(c)
+		if n is Control and (n as Control).is_visible_in_tree() and (n is BaseButton or n is Label or n is Range or n is LineEdit or n is TextureRect):
+			var r := (n as Control).get_global_rect()
+			if r.size.x > 1.0 and r.size.y > 1.0:
+				out.append(r)
+	return out
+
+
+func hits(card: Control, r: Rect2) -> int:
+	var k := 0
+	for b in blockers(card):
+		if b.intersects(r.grow(2.0)):
+			k += 1
+	return k
 
 
 func _init() -> void:
@@ -112,6 +139,29 @@ func _init() -> void:
 	cf = ConfigFile.new()
 	cf.load(m.settings)
 	ok(cf.has_section_key("look", "onboarded") == had, "G3/G1 onboarded flag untouched")
+	var old_hits := 0
+	for sz in [Vector2i(1280, 720), Vector2i(1600, 900)]:
+		root.size = sz
+		await process_frame
+		await process_frame
+		var bad := 0
+		for k in 6:
+			g._go(k)
+			for i in 3:
+				await process_frame
+			if g.card.visible:
+				var r := Rect2(g.card.global_position, g.card.size)
+				if hits(g.card, r) > 0 or not Rect2(Vector2.ZERO, Vector2(sz)).encloses(r):
+					bad += 1
+					print("  step %d overlaps %d at %s" % [k, hits(g.card, r), sz])
+			if sz.x == 1280:
+				var oldr := Rect2(Vector2(sz.x - g.card.size.x - 16.0, 48.0), g.card.size)
+				old_hits += hits(g.card, oldr)
+				if k == 2 and OS.get_environment("C16_SHOT") != "":
+					root.get_texture().get_image().save_png(OS.get_environment("C16_SHOT").replace(".png", "_720.png"))
+		ok(bad == 0, "G5 clear of every control at %s" % sz)
+		g.finish(true)
+	ok(old_hits > 0, "G5 control: the old placement overlaps controls at 1280x720 (%d)" % old_hits)
 	var src := FileAccess.get_file_as_string("res://scripts/main.gd")
 	ok(src.contains("\"Guided first pose\""), "G4 palette command registered")
 	print("c16: %d fail" % fails)
