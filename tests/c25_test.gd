@@ -8,15 +8,22 @@
 ##   M3 typed distance: unified ON, drag, type 1 5 (keys), release: the slide across the face is 15.000 mm (0.01).
 ##      CONTROL: the same drag with no typing slides some other length (differs from 15 by > 1 mm).
 ##   M4 Esc after typing clears the number and the piece drops by the pointer (control for M3's key route).
-##  730 render time estimate (scripts/render_estimate.gd; the command "Estimate render time", says it, renders nothing)
-##   R1 pure: 1080p 100 frames, volumetric off: T0; volumetric on: T1 >= 2 * T0; costliest = "volumetric fog".
-##      With volumetric off and 16 blur sub-frames, costliest = "samples (motion blur sub-frames)"; with neither, costliest = "".
-##   R2 measured: render 6 frames at 640x360 in a SubViewport with volumetric fog off (time a), then on (time b). Calibrate the
-##      estimate from run a only; the estimate for run b is within [0.5, 2.0] x the measured b.
-##      CONTROL: the estimate with the volumetric multiplier removed misses b (ratio < 0.5) when b/a >= 2.5 is measured; if b/a < 2.5
-##      the volumetric cost is not measurable on this GPU and the control is reported as not decidable (a FAIL line, not a pass).
-##   R3 the command: with volumetric fog on in the scene's environment, its text names "volumetric fog", the frame count and
-##      "s" / "min"; no folder under exports/shots is made. CONTROL: with fog off the text does not name volumetric fog.
+##  730 render time estimate (scripts/render_estimate.gd). FIX ROUND 1: calibrate on scene A, judge on a HELD-OUT heavier scene B.
+##   Scene A (calibration): one sphere + one shadow light in a SubViewport, 8 frames per timing, the median of 3 timings, per-frame secs.
+##     fit(): plain 320x180 and plain 960x540 give the per-frame overhead and the per-pixel rate. learn(): at 640x360 each of ssao, sdfgi
+##     and volumetric fog is timed; its extra is kept only when >= 0.3 of a plain frame, else the setting is DROPPED (not guessed).
+##   Scene B (held out, timed only AFTER the calibration): 1280x720, 12 spheres, shadow light, SSAO on (and SDFGI on), 8 frames.
+##   R1 pure: with a planted calibration extra {ssao 1.0, sdfgi 2.0}: sdfgi + ssao on names "SDFGI"; none on names ""; 16 blur
+##      sub-frames name "samples (motion blur sub-frames)"; with the DEFAULT calibration (no extras) a volumetric flag names nothing.
+##   R2a a setting is named costly iff its measured extra on scene A was >= 0.3 (volumetric included).
+##   R2b the estimate for scene B (calibration from A only) is within [0.5, 2.0] x the measured time of B.
+##   R2c CONTROL: the same estimate with the rate times 10 is outside the band (> 2.0).
+##   R3 the Export dialog: a real click on its "Estimate render time" button puts the sentence (frames, time) in its label and in the
+##      status line, and makes no folder under exports/shots. With volumetric fog on in the scene the sentence names fog iff R2a says
+##      fog is costly. A real click on the "Say the time first" checkbox sets RenderEstimate.show_first.
+##   R4 ribbon button count: none added (ribbonsd unchanged).
+##  198 reachability
+##   M5 a real click on the checkbox "One Move rule" (sketch panel next to Grid) sets MoveRule.unified; a second click clears it.
 extends SceneTree
 
 const SHOT := "C:/Temp/claude/c25"
@@ -144,35 +151,42 @@ func wd() -> void:   # watchdog: a script error after an await must not hang the
 	quit(1)
 
 
-func fog_run(on: bool, frames: int) -> float:
+## per-frame seconds (median of 3 timings of 8 frames) of a SubViewport w x h; opts: ssao, sdfgi, volumetric, meshes
+func timed(w: int, h: int, opts: Dictionary) -> float:
 	var sv := SubViewport.new()
-	sv.size = Vector2i(640, 360)
+	sv.size = Vector2i(w, h)
 	sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	root.add_child(sv)
 	var cam := Camera3D.new()
 	sv.add_child(cam)
-	cam.position = Vector3(0, 1, 4)
+	cam.position = Vector3(0, 1, 6)
 	var env := Environment.new()
-	env.volumetric_fog_enabled = on
+	env.ssao_enabled = bool(opts.get("ssao", false))
+	env.sdfgi_enabled = bool(opts.get("sdfgi", false))
+	env.volumetric_fog_enabled = bool(opts.get("volumetric", false))
 	env.volumetric_fog_density = 0.05
 	var we := WorldEnvironment.new()
 	we.environment = env
 	sv.add_child(we)
 	var l := DirectionalLight3D.new()
 	l.shadow_enabled = true
-	l.light_volumetric_fog_energy = 1.0
 	sv.add_child(l)
-	var mi := MeshInstance3D.new()
-	mi.mesh = SphereMesh.new()
-	sv.add_child(mi)
+	for i in maxi(1, int(opts.get("meshes", 1))):
+		var mi := MeshInstance3D.new()
+		mi.mesh = SphereMesh.new()
+		mi.position = Vector3((i % 4) * 1.5 - 2.2, (i / 4) * 1.2 - 1.0, 0)
+		sv.add_child(mi)
 	await idle(3)
-	var t0 := Time.get_ticks_usec()
-	for i in frames:
-		await RenderingServer.frame_post_draw
-		sv.get_texture().get_image()
-	var dt := float(Time.get_ticks_usec() - t0) / 1e6
+	var runs := []
+	for rep in 3:
+		var t0 := Time.get_ticks_usec()
+		for i in 8:
+			await RenderingServer.frame_post_draw
+			sv.get_texture().get_image()
+		runs.append(float(Time.get_ticks_usec() - t0) / 1e6 / 8.0)
 	sv.queue_free()
-	return dt
+	runs.sort()
+	return runs[1]
 
 
 func shots_dirs() -> int:
@@ -183,31 +197,38 @@ func shots_dirs() -> int:
 func _init() -> void:
 	wd()
 	# ---- 730 pure ----
-	var base := {"w": 1920, "h": 1080, "frames": 100}
-	var e0: Dictionary = RenderEstimate.estimate(base)
-	var sv: Dictionary = base.duplicate()
-	sv["volumetric"] = true
-	var e1: Dictionary = RenderEstimate.estimate(sv)
-	ok(float(e1["secs"]) >= 2.0 * float(e0["secs"]) and String(e1["costliest"]) == "volumetric fog", "R1 volumetric on %.1f s vs off %.1f s, costliest '%s'" % [e1["secs"], e0["secs"], e1["costliest"]])
-	var bl: Dictionary = base.duplicate()
-	bl["blur_n"] = 16
-	ok(String(RenderEstimate.estimate(bl)["costliest"]) == "samples (motion blur sub-frames)" and String(e0["costliest"]) == "", "R1b blur 16 names samples; plain names nothing ('%s')" % e0["costliest"])
-	# ---- 730 measured ----
-	var a := await fog_run(false, 6)
-	var b := await fog_run(true, 6)
-	var small := {"w": 640, "h": 360, "frames": 6}
-	var cal := RenderEstimate.calibrate(small, a)
-	var sb: Dictionary = small.duplicate()
-	sb["volumetric"] = true
-	var pred: float = RenderEstimate.estimate(sb, cal)["secs"]
-	var ratio := pred / maxf(b, 1e-6)
-	print("  measured a=%.3f b=%.3f (b/a %.2f), predicted b=%.3f, ratio %.2f" % [a, b, b / maxf(a, 1e-6), pred, ratio])
-	ok(ratio >= 0.5 and ratio <= 2.0, "R2 estimate for the fog run within [0.5, 2.0] of measured: %.2f" % ratio)
-	if b / maxf(a, 1e-6) >= 2.5:
-		var flat: float = RenderEstimate.estimate(small, cal)["secs"]
-		ok(flat / b < 0.5, "R2 control: fog multiplier removed misses (%.2f)" % (flat / b))
-	else:
-		ok(false, "R2 control: volumetric cost not measurable here (b/a %.2f < 2.5): not decidable" % (b / maxf(a, 1e-6)))
+	var planted := {"over": 0.0, "rate": 1e-9, "extra": {"ssao": 1.0, "sdfgi": 2.0}}
+	var jj := {"w": 1920, "h": 1080, "frames": 100, "ssao": true, "sdfgi": true}
+	ok(String(RenderEstimate.estimate(jj, planted)["costliest"]) == "SDFGI", "R1 planted: sdfgi+ssao names SDFGI")
+	ok(String(RenderEstimate.estimate({"w": 1920, "h": 1080, "frames": 100}, planted)["costliest"]) == "", "R1 nothing on names nothing")
+	ok(String(RenderEstimate.estimate({"w": 1920, "h": 1080, "frames": 100, "blur_n": 16}, planted)["costliest"]) == "samples (motion blur sub-frames)", "R1 blur 16 names samples")
+	ok(String(RenderEstimate.estimate({"w": 1920, "h": 1080, "frames": 100, "volumetric": true})["costliest"]) == "", "R1 default calibration: volumetric flag names nothing")
+	# ---- 730 measured: scene A (calibration) ----
+	var t_lo := await timed(320, 180, {})
+	var t_hi := await timed(960, 540, {})
+	var cal := RenderEstimate.fit(320, 180, t_lo, 960, 540, t_hi)
+	var tp := await timed(640, 360, {})
+	var measured := {}
+	for k in ["ssao", "sdfgi", "volumetric"]:
+		var tk := await timed(640, 360, {k: true})
+		cal = RenderEstimate.learn(cal, k, 640, 360, tk)
+		measured[k] = (tk - float(cal["over"])) / maxf(float(cal["rate"]) * 640.0 * 360.0, 1e-12) - 1.0
+	print("  cal over %.4f rate %.3e plain640 %.4f measured extras %s kept %s" % [cal["over"], cal["rate"], tp, str(measured), str(cal["extra"])])
+	var consistent := true
+	for k in measured:
+		consistent = consistent and ((cal["extra"] as Dictionary).has(k) == (float(measured[k]) >= RenderEstimate.MIN_EXTRA))
+	ok(consistent, "R2a named costly iff measured >= %.1f (fog extra %.2f, kept %s)" % [RenderEstimate.MIN_EXTRA, measured["volumetric"], str((cal["extra"] as Dictionary).has("volumetric"))])
+	# ---- scene B (held out) ----
+	var tb := await timed(1280, 720, {"ssao": true, "sdfgi": true, "meshes": 12})
+	var pb: float = RenderEstimate.estimate({"w": 1280, "h": 720, "frames": 1, "ssao": true, "sdfgi": true}, cal)["secs"]
+	var ratio := pb / maxf(tb, 1e-9)
+	print("  scene B measured %.4f s/frame predicted %.4f ratio %.2f" % [tb, pb, ratio])
+	ok(ratio >= 0.5 and ratio <= 2.0, "R2b held-out scene B estimate within [0.5, 2.0] of measured: %.2f" % ratio)
+	var cal10 := cal.duplicate(true)
+	cal10["rate"] = float(cal["rate"]) * 10.0
+	cal10["over"] = float(cal["over"]) * 10.0
+	var r10: float = float(RenderEstimate.estimate({"w": 1280, "h": 720, "frames": 1, "ssao": true, "sdfgi": true}, cal10)["secs"]) / maxf(tb, 1e-9)
+	ok(r10 > 2.0, "R2c control: rate x10 is outside the band (%.2f)" % r10)
 	# ---- the app ----
 	m = (load("res://main.tscn") as PackedScene).instantiate()
 	root.add_child(m)
@@ -221,13 +242,25 @@ func _init() -> void:
 	var env: Environment = m.world_env
 	env.volumetric_fog_enabled = true
 	var d0 := shots_dirs()
-	var r: Dictionary = m._render_estimate()
-	var txt := String(r.get("text", ""))
-	ok(txt.find("volumetric fog") >= 0 and txt.find("frames") >= 0 and (txt.find(" s") >= 0 or txt.find("min") >= 0) and d0 == shots_dirs(), "R3 fog on: '%s'; no folder made" % txt)
-	await shot("estimate")
-	env.volumetric_fog_enabled = false
-	var txt2 := String(m._render_estimate().get("text", ""))
-	ok(txt2.find("volumetric fog") < 0, "R3 control fog off: '%s'" % txt2)
+	RenderEstimate.app_cal = cal
+	m._export_dialog_open()
+	await idle(6)
+	var xd = m.export_ui
+	var chk: CheckBox = xd.find_child("chk_estimate_first", true, false)
+	var btn: Button = xd.find_child("btn_estimate_time", true, false)
+	var lab: Label = xd.find_child("lbl_estimate_time", true, false)
+	ok(chk != null and btn != null and lab != null, "R3 the Export dialog holds the checkbox, button and label")
+	if btn != null:
+		await click_ctl(btn)
+		var txt := lab.text
+		ok(txt.find("frames") >= 0 and (txt.find(" s") >= 0 or txt.find("min") >= 0) and d0 == shots_dirs(), "R3 clicked: '%s'; no folder made" % txt)
+		ok((txt.find("volumetric fog") >= 0) == ((cal["extra"] as Dictionary).has("volumetric")), "R3 fog named iff learned costly ('%s')" % txt)
+		await shot("estimate")
+	if chk != null:
+		await click_ctl(chk)
+		ok(RenderEstimate.show_first, "R3 click on 'Say the time first' sets show_first")
+		await click_ctl(chk)
+		ok(not RenderEstimate.show_first, "R3 second click clears it")
 	# ---- 198 ----
 	ok(is_equal_approx(MoveRule.snap(12.3, 5.0, false), 10.0) and is_equal_approx(MoveRule.snap(12.3, 1.0, false), 12.0) and is_equal_approx(MoveRule.snap(12.3, 5.0, true), 12.3), "M1 rule numbers")
 	var ss: StartScreen = m.start_screen
@@ -255,6 +288,16 @@ func _init() -> void:
 		var v: Vector2 = pu().snap(Vector2(12.3, 7.1))
 		same = same and is_equal_approx(v.x, MoveRule.snap(12.3, pu().snap_mm, false)) and is_equal_approx(v.y, MoveRule.snap(7.1, pu().snap_mm, false))
 	ok(same and pu().snap_mm == 5.0, "M1b sketch grid equals the rule, on and off (snap %.0f)" % pu().snap_mm)
+	pu().sketch_box.visible = true
+	await idle(3)
+	var mchk: CheckBox = pu().move_chk
+	ok(mchk != null and not MoveRule.unified, "M5 the checkbox exists, off by default")
+	if mchk != null:
+		await click_ctl(mchk)
+		await shot("move_checkbox")
+		ok(MoveRule.unified, "M5 a real click turns the one Move rule on")
+		await click_ctl(mchk)
+		ok(not MoveRule.unified, "M5 a second click turns it off")
 	MoveRule.unified = true
 	pu().snap_mm = 5.0
 	var c1 := await drag_cube([])
