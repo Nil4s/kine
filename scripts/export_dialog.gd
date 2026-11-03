@@ -378,6 +378,24 @@ func _build() -> void:
 	ui_blur.button_pressed = bool(m.blast_blur)
 	ui_blur.toggled.connect(func(on: bool): m.blast_blur = on)
 	v.add_child(ui_blur)
+	var est_row := HBoxContainer.new()   # C25: the render time estimate (complaint 730)
+	var est_chk := CheckBox.new()
+	est_chk.name = "chk_estimate_first"
+	est_chk.text = "Say the render time first"
+	est_chk.tooltip_text = "Render shots says how long it will take, and which setting costs most, before the first frame"
+	est_chk.button_pressed = RenderEstimate.show_first
+	est_chk.toggled.connect(func(on: bool): RenderEstimate.show_first = on)
+	est_row.add_child(est_chk)
+	var est_btn := Button.new()
+	est_btn.name = "btn_estimate_time"
+	est_btn.text = "Estimate render time"
+	est_btn.tooltip_text = "how long Render shots would take now, and the costly setting; nothing is rendered"
+	var est_lab := Label.new()
+	est_lab.name = "lbl_estimate_time"
+	est_btn.pressed.connect(func(): est_lab.text = String(m._render_estimate().get("text", "")))
+	est_row.add_child(est_btn)
+	est_row.add_child(est_lab)
+	v.add_child(est_row)
 	v.add_child(BlastBlur.controls(m))
 	v.add_child(ExportNames.controls())   # C09: name template, FBX camera, lightmap UV2
 	dlg.add_child(v)

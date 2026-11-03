@@ -2030,16 +2030,14 @@ func _sr_panel_make() -> void:
 ## C25 (730): the time a shot render would take, said before it starts (nothing is rendered or written). Returns {secs, costliest, text}
 func _render_estimate() -> Dictionary:
 	var fps: int = S.fps
-	var rate := RenderEstimate.DEFAULT_RATE if _re_rate <= 0.0 else _re_rate
 	var vp := get_viewport().get_visible_rect().size
 	var j := {"w": int(vp.x), "h": int(vp.y), "frames": ShotRender.frame_count(_ps().length(), fps), "volumetric": world_env != null and world_env.volumetric_fog_enabled,
 		"sdfgi": world_env != null and world_env.sdfgi_enabled, "ssao": world_env != null and world_env.ssao_enabled, "blur_n": blast_blur_n if blast_blur else 1}
-	var r := RenderEstimate.estimate(j, rate)
+	var r := RenderEstimate.estimate(j, RenderEstimate.app_cal)
 	_say_plain(String(r["text"]))
 	return r
 
 
-var _re_rate := 0.0   # C25: seconds per plain pixel measured from the last real shot render (0 = the default)
 
 
 func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary:

@@ -78,10 +78,36 @@ func key(k: int) -> void:
 
 
 func click_ctl(c: Control) -> void:
+	var w: Window = c.get_window()   # a dialog is its own window: the click goes to it
 	var p := c.get_global_rect().get_center()
-	await ev_move(p, false)
-	await ev_mouse(p, true)
-	await ev_mouse(p, false)
+	if w.is_embedded():
+		p += Vector2(w.position)   # an embedded dialog: its content sits at its position in the root
+		w = root
+	var chain := ""
+	var q: Node = c
+	while q != null and q != root:
+		if q is CanvasItem and not (q as CanvasItem).visible:
+			chain += " HIDDEN:" + str(q.name)
+		q = q.get_parent()
+	print("  click %s in window %s (root %s) embedded %s%s" % [c.name, w.name, str(w == root), str(w.is_embedded()), chain])
+	for d in [null, true, false]:
+		var e: InputEvent
+		if d == null:
+			var mm := InputEventMouseMotion.new()
+			mm.position = p
+			mm.global_position = p
+			e = mm
+		else:
+			var mb := InputEventMouseButton.new()
+			mb.button_index = MOUSE_BUTTON_LEFT
+			mb.pressed = d
+			mb.position = p
+			mb.global_position = p
+			if d:
+				mb.button_mask = MOUSE_BUTTON_MASK_LEFT
+			e = mb
+		w.push_input(e, true)
+		await process_frame
 	await idle(3)
 
 
@@ -212,8 +238,8 @@ func _init() -> void:
 	for k in ["ssao", "sdfgi", "volumetric"]:
 		var tk := await timed(640, 360, {k: true})
 		cal = RenderEstimate.learn(cal, k, 640, 360, tk)
-		measured[k] = (tk - float(cal["over"])) / maxf(float(cal["rate"]) * 640.0 * 360.0, 1e-12) - 1.0
-	print("  cal over %.4f rate %.3e plain640 %.4f measured extras %s kept %s" % [cal["over"], cal["rate"], tp, str(measured), str(cal["extra"])])
+		measured[k] = tk / maxf(float(cal["over"]) + float(cal["rate"]) * 640.0 * 360.0, 1e-12) - 1.0   # extra = share of a plain frame
+	print("  cal over %.4f rate %s plain640 %.4f measured extras %s kept %s" % [cal["over"], str(cal["rate"]), tp, str(measured), str(cal["extra"])])
 	var consistent := true
 	for k in measured:
 		consistent = consistent and ((cal["extra"] as Dictionary).has(k) == (float(measured[k]) >= RenderEstimate.MIN_EXTRA))
@@ -246,10 +272,12 @@ func _init() -> void:
 	m._export_dialog_open()
 	await idle(6)
 	var xd = m.export_ui
-	var chk: CheckBox = xd.find_child("chk_estimate_first", true, false)
-	var btn: Button = xd.find_child("btn_estimate_time", true, false)
-	var lab: Label = xd.find_child("lbl_estimate_time", true, false)
+	var chk: CheckBox = xd.dlg.find_child("chk_estimate_first", true, false)
+	var btn: Button = xd.dlg.find_child("btn_estimate_time", true, false)
+	var lab: Label = xd.dlg.find_child("lbl_estimate_time", true, false)
 	ok(chk != null and btn != null and lab != null, "R3 the Export dialog holds the checkbox, button and label")
+	await idle(10)
+	print("  dlg visible %s btn rect %s" % [str(xd.dlg.visible), str(btn.get_global_rect()) if btn != null else "-"])
 	if btn != null:
 		await click_ctl(btn)
 		var txt := lab.text
@@ -261,6 +289,8 @@ func _init() -> void:
 		ok(RenderEstimate.show_first, "R3 click on 'Say the time first' sets show_first")
 		await click_ctl(chk)
 		ok(not RenderEstimate.show_first, "R3 second click clears it")
+	xd.dlg.hide()
+	await idle(5)
 	# ---- 198 ----
 	ok(is_equal_approx(MoveRule.snap(12.3, 5.0, false), 10.0) and is_equal_approx(MoveRule.snap(12.3, 1.0, false), 12.0) and is_equal_approx(MoveRule.snap(12.3, 5.0, true), 12.3), "M1 rule numbers")
 	var ss: StartScreen = m.start_screen
@@ -288,16 +318,6 @@ func _init() -> void:
 		var v: Vector2 = pu().snap(Vector2(12.3, 7.1))
 		same = same and is_equal_approx(v.x, MoveRule.snap(12.3, pu().snap_mm, false)) and is_equal_approx(v.y, MoveRule.snap(7.1, pu().snap_mm, false))
 	ok(same and pu().snap_mm == 5.0, "M1b sketch grid equals the rule, on and off (snap %.0f)" % pu().snap_mm)
-	pu().sketch_box.visible = true
-	await idle(3)
-	var mchk: CheckBox = pu().move_chk
-	ok(mchk != null and not MoveRule.unified, "M5 the checkbox exists, off by default")
-	if mchk != null:
-		await click_ctl(mchk)
-		await shot("move_checkbox")
-		ok(MoveRule.unified, "M5 a real click turns the one Move rule on")
-		await click_ctl(mchk)
-		ok(not MoveRule.unified, "M5 a second click turns it off")
 	MoveRule.unified = true
 	pu().snap_mm = 5.0
 	var c1 := await drag_cube([])
@@ -319,5 +339,24 @@ func _init() -> void:
 	var ce := await drag_cube([KEY_1, KEY_5, KEY_ESCAPE])
 	ok((Vector2(float(ce[0].x), float(ce[0].z)) - Vector2(float(cn[0].x), float(cn[0].z))).length() < 0.01, "M4 Esc clears the typed number: lands where no typing lands")
 	MoveRule.unified = false
+	# M5 last: Expert (a real click), a sketch open, the checkbox in the sketch panel
+	await click_ctl(pu().ep.expert_btn)
+	await idle(20)
+	var skid := ""
+	for f in (m.S.part["features"] as Array):
+		if String(f.get("type", f.get("t", ""))) == "sketch":
+			skid = String(f["id"])
+			break
+	pu().sk = skid
+	pu().sync()
+	await idle(10)
+	var mchk: CheckBox = pu().move_chk
+	print("  move_chk visible %s rect %s sk '%s'" % [str(mchk.is_visible_in_tree()), str(mchk.get_global_rect()), skid])
+	await shot("move_checkbox")
+	ok(mchk.is_visible_in_tree() and not MoveRule.unified, "M5 the checkbox is on screen in Expert's sketch panel, off by default")
+	await click_ctl(mchk)
+	ok(MoveRule.unified, "M5 a real click turns the one Move rule on")
+	await click_ctl(mchk)
+	ok(not MoveRule.unified, "M5 a second click turns it off")
 	print("c25: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
