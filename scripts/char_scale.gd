@@ -4,6 +4,7 @@ extends RefCounted
 ## "Scale to 1.75 m". verdict() says whether it is off and by how much; offer() puts the button on screen; fix() does it: the file
 ## is copied into the library like any prop and registered at the factor that makes it 1.75 m tall. The original file is never changed.
 
+const Importer := preload("res://scripts/importer.gd")
 const MIN_H := 0.3
 const MAX_H := 5.0
 const TARGET_H := 1.75
@@ -52,7 +53,13 @@ static func offer(main: Node, path: String, info: Dictionary) -> Control:
 		old.queue_free()
 	var pc := PanelContainer.new()
 	pc.name = "char_scale_offer"
-	pc.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_MINSIZE, 24)
+	pc.anchor_left = 0.5
+	pc.anchor_right = 0.5
+	pc.anchor_top = 1.0
+	pc.anchor_bottom = 1.0
+	pc.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	pc.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	pc.offset_bottom = -64.0
 	var hb := HBoxContainer.new()
 	hb.add_theme_constant_override("separation", 10)
 	pc.add_child(hb)
@@ -60,7 +67,7 @@ static func offer(main: Node, path: String, info: Dictionary) -> Control:
 	lb.name = "char_scale_text"
 	lb.text = String(v["text"])
 	lb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	lb.custom_minimum_size = Vector2(420, 0)
+	lb.custom_minimum_size = Vector2(420, 40)
 	hb.add_child(lb)
 	var go := Button.new()
 	go.name = "char_scale_fix"

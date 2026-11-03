@@ -549,7 +549,7 @@ func _build_side() -> void:
 	free_chk.tooltip_text = "name the lines and shapes that can still move (the blue ones) and ring them in orange"
 	free_chk.button_pressed = false
 	free_chk.focus_mode = Control.FOCUS_NONE
-	free_chk.toggled.connect(func(v: bool): show_free = v; _profile_sig = ""; pov.queue_redraw())
+	free_chk.toggled.connect(func(v: bool): show_free = v; _note_sync(); pov.queue_redraw())
 	sketch_box.add_child(free_chk)
 	sketch_box.add_child(_label("NUMBERS (parameters)", 13, true))
 	nums_vb = VBoxContainer.new()
@@ -2724,7 +2724,7 @@ func _note_sync() -> void:
 		t = Part.why_not()
 	elif sk != "":
 		var f := _sk()
-		var sig := JSON.stringify([f.get("ents", []), f.get("cons", []), f.get("dims", [])])
+		var sig := JSON.stringify([f.get("ents", []), f.get("cons", []), f.get("dims", []), show_free])
 		if sig != _profile_sig:
 			_profile_sig = sig
 			_profile_ok = _profile_text(f)
