@@ -1,7 +1,7 @@
 extends SceneTree
 ## godot --headless --path . -s tests/c45_test.gd     (C45, M #233 / F #203: pick the one you mean)
 ## Bars, written before measuring:
-##  A MESH   test cube, face mode. Plain click at a top-face spot picks the front face F (unchanged: a 2nd plain click picks F again).
+##  A MESH   face mode, test cube. First plain click = front face F (as origin). A quick 2nd click (<0.6 s, <3 px) = a hidden face G != F, a 3rd wraps to F; a slow click or one elsewhere is ordinary. Alt+click on an edge = the origin loop set (same as select_loop). Nothing deleted.
 ##           Alt+click at the same spot picks F; Alt+click again picks a DIFFERENT face G that is hidden (not visible from the camera);
 ##           a third wraps round to F (the cube has 2 faces on the ray). Face count and vert count never change (nothing deleted).
 ##           The status line names the pick ("N of M"). CONTROL: G != F and G is hidden (a plain click can never give it).
@@ -171,22 +171,63 @@ func _init() -> void:
 	var nf0: int = ui.mesh.face_count()
 	click_mesh(ui, spot)
 	var p1: Array = ui.sel.faces.keys()
+	ok(p1 == [f_front], "A1 a first plain click picks the front face %d (as before): %s" % [f_front, str(p1)])
+	click_mesh(ui, spot + Vector2(40, 0))   # elsewhere: an ordinary click (a different face or a miss, never the one behind)
+	await get_root().get_tree().create_timer(0.7).timeout
 	click_mesh(ui, spot)
-	var p2: Array = ui.sel.faces.keys()
-	ok(p1 == [f_front] and p2 == [f_front], "A1 plain click picks the front face %d, and again (default unchanged): %s %s" % [f_front, str(p1), str(p2)])
+	ok(ui.sel.faces.keys() == [f_front], "A1b a slow second click (0.7 s) is an ordinary click: front face again %s" % str(ui.sel.faces.keys()))
 	var picks := []
-	for i in 3:
-		click_mesh(ui, spot, true)
+	await get_root().get_tree().create_timer(0.7).timeout
+	for i in 4:
+		click_mesh(ui, spot)
 		picks.append((ui.sel.faces.keys() as Array)[0] if ui.sel.faces.size() == 1 else -1)
 	var g: int = picks[1]
-	ok(picks[0] == f_front and g >= 0 and g != f_front, "A2 Alt+click: front %d then a different face %d (picks %s)" % [f_front, g, str(picks)])
+	ok(picks[0] == f_front and g >= 0 and g != f_front, "A2 quick repeated clicks: front %d, then a different face %d (picks %s)" % [f_front, g, str(picks)])
 	ok(g >= 0 and not ui.view.point_visible(ui.m.cam, ui.view.global_transform * ui.mesh.face_center(g)), "A3 the second pick (face %d) is hidden from the camera" % g)
-	ok(picks[2] == f_front, "A4 a third Alt+click wraps round to the front face (%d)" % picks[2])
+	ok(picks[2] == f_front and picks[3] == g, "A4 it wraps round (%s)" % str(picks))
 	ok(ui.mesh.vert_count() == nv0 and ui.mesh.face_count() == nf0, "A5 nothing deleted: %d verts %d faces unchanged" % [nv0, nf0])
-	click_mesh(ui, spot, true)
 	var st := String(m.ui_status.text)
-	ok(st.contains("1 of 2") or st.contains("2 of 2"), "A6 status names the pick: '%s'" % st.left(100))
-	click_mesh(ui, spot, true)
+	ok(st.contains("of 2"), "A6 status names the pick: '%s'" % st.left(100))
+	# A7: Alt+click on an edge in face mode is the origin's edge loop, same set as select_loop on a fresh selection
+	await get_root().get_tree().create_timer(0.7).timeout
+	ui.sel.clear()
+	var fp: PackedInt32Array = ui.mesh.faces[f_front]
+	var wa: Vector2 = ui.m.cam.unproject_position(ui.view.global_transform * ui.mesh.verts[fp[0]])
+	var wb: Vector2 = ui.m.cam.unproject_position(ui.view.global_transform * ui.mesh.verts[fp[1]])
+	var emid := (wa + wb) * 0.5 + (spot - (wa + wb) * 0.5).normalized() * 3.0
+	var h: Dictionary = ui.view.pick(ui.m.cam, emid)
+	var exp := KMeshSelect.new(ui.mesh, KMeshSelect.FACE)
+	if not h.is_empty() and (h["edge"] as Vector2i).x >= 0:
+		exp.select_loop((h["edge"] as Vector2i).x, (h["edge"] as Vector2i).y, false)
+	click_mesh(ui, emid, true)
+	var got: Array = ui.sel.edges.keys()
+	got.sort()
+	var want: Array = exp.edges.keys()
+	want.sort()
+	ok(not want.is_empty() and got == want and ui.sel.mode == exp.mode, "A7 Alt+click on an edge in face mode: the origin's loop selection (%d edges, same set, mode as select_loop leaves it)" % got.size())
+	ui.sel.clear()
+	var cp: Vector3 = ui.view.global_position
+	ui.m.cam.look_at_from_position(cp + Vector3(0.5, 0.9, 1.1), cp + Vector3(0, 0.1, 0))
+	await idle(4)
+	ui.sel.set_mode(KMeshSelect.FACE)
+	var best := Vector2(640, 330)
+	var bd := 1.0e9
+	for fi in ui.mesh.face_count():
+		var c: Vector3 = ui.view.global_transform * ui.mesh.face_center(fi)
+		if not ui.view.point_visible(ui.m.cam, c):
+			continue
+		var q: Vector2 = ui.m.cam.unproject_position(c)
+		if q.x < 330 or q.x > 1000 or q.y < 170 or q.y > 560:
+			continue
+		if q.distance_to(Vector2(640, 330)) < bd:
+			bd = q.distance_to(Vector2(640, 330))
+			best = q
+	await get_root().get_tree().create_timer(0.7).timeout
+	click_mesh(ui, best)
+	await idle(4)
+	await shot("mesh_front")
+	click_mesh(ui, best)
+	await idle(4)
 	await shot("mesh_behind")
 	ui.stop()
 	await idle(2)

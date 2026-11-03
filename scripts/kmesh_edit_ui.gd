@@ -9,7 +9,7 @@ extends Node
 ##   G / R / S  grab / rotate / scale the selected vertices (on the model preview WITHOUT the Blender-keys layer; then X / Y / Z,
 ##      a typed number, click or Enter keeps, Esc or right click cancels; O proportional, the wheel its radius: scripts/bl_keys.gd)
 ##   Alt+click  select the edge LOOP through the edge under the mouse (Shift+Alt+click adds it; kmesh_select.gd select_loop)
-##   Alt+click (face mode)  the face under the mouse, each click at the same spot the next one BEHIND it (C45, kmesh_pickstack.gd)
+##   click again at the same spot (face mode, within 3 px and 0.6 s)  the face BEHIND the one picked, and so on, wrapping (C45, kmesh_pickstack.gd)
 ##   Ctrl+1 / Ctrl+2 / Ctrl+3  a Subdivide modifier at level 1 / 2 / 3 on the stack (one undo step; the modifiers panel)
 ##   Ctrl+Z  undo the last mesh edit (A12: "Model: subdivide the test cube (Catmull-Clark)" is one step)
 ##   K  add a shape key from the current shape (A13)                    [ / ]  the last key's value -0.1 / +0.1
@@ -157,7 +157,7 @@ func start() -> void:
 		anat.setup(self)
 		add_child(anat)
 	anat.tick()   # A19: tagged from the first frame
-	m._say("Model: test cube. 1 / 2 / 3 vert / edge / face, click selects, Shift+click adds, Alt+click an edge loop, B box, L lasso, G R S move rotate scale, E extrude, I inset, Ctrl+1 subdivide, Delete, M merge, Esc leaves")
+	m._say("Model: test cube. 1 / 2 / 3 vert / edge / face, click selects, Shift+click adds, Alt+click an edge loop, click twice quickly = the face behind, B box, L lasso, G R S move rotate scale, E extrude, I inset, Ctrl+1 subdivide, Delete, M merge, Esc leaves")
 
 
 func stop() -> void:
@@ -402,13 +402,13 @@ func input(ev: InputEvent) -> bool:
 			_cur = mb.position
 			if armed != "":
 				_kind = armed
-			elif mb.alt_pressed and sel.mode == KMeshSelect.FACE and _alt_behind(cam, mb.position, _add):   # C45: Alt+click walks the faces behind (its own status line)
-				_kind = "click"
 			elif mb.alt_pressed and _alt_loop(cam, mb.position, _add):   # Blender's Alt+click: the edge loop through that edge
 				_kind = "click"
 				_report()
 			else:
-				if view.click(cam, mb.position, _add):
+				if not mb.alt_pressed and _click_behind(cam, mb.position, _add):   # C45: a quick second click at the same spot = the face behind
+					_kind = "click"
+				elif view.click(cam, mb.position, _add):
 					_kind = "click"
 					_report()
 				else:
@@ -594,9 +594,29 @@ func _b05_key(e: InputEventKey) -> void:
 
 
 var _stack := KMeshPickStack.new()   # C45
+var _click_ms := -100000
+var _click_p := Vector2(-1.0e6, -1.0e6)
+var _click_n := 0
 
 
-## C45 (M #233): Alt+click in face mode picks the face under the mouse, and each Alt+click at the same spot the next one BEHIND it
+## C45: the 2nd, 3rd ... plain click within 3 px and 0.6 s of the last one (face mode, no Shift) walks the faces behind the first pick.
+## A first click, a click elsewhere or a slow click is the ordinary click (false: the caller does it).
+func _click_behind(cam: Camera3D, p: Vector2, add: bool) -> bool:
+	var now := Time.get_ticks_msec()
+	var again := sel.mode == KMeshSelect.FACE and not add and now - _click_ms <= 600 and p.distance_to(_click_p) <= KMeshPickStack.SAME_SPOT_PX
+	_click_ms = now
+	if not again:
+		_click_p = p
+		_click_n = 1
+		return false
+	if _click_n == 1:
+		_stack.last_p = Vector2(-1.0e6, -1.0e6)   # build the stack, front face first
+		_stack.next(view, cam, p)
+	_click_n += 1
+	return _alt_behind(cam, p, false)
+
+
+## C45 (M #233): a repeated plain click in face mode picks the face under the mouse, and each Alt+click at the same spot the next one BEHIND it
 ## (nothing is deleted); the picked face is named in the status line and highlighted by the selection. False on a miss.
 func _alt_behind(cam: Camera3D, p: Vector2, add: bool) -> bool:
 	var r := _stack.next(view, cam, p)
@@ -607,7 +627,7 @@ func _alt_behind(cam: Camera3D, p: Vector2, add: bool) -> bool:
 		sel.clear()
 	sel.faces[fi] = true
 	view.mark_dirty()
-	m._say("Model: face %d, %d of %d under the mouse (Alt+click again for the one behind it; plain click picks the front)" % [fi, int(r["depth"]), int(r["of"])])
+	m._say("Model: face %d, %d of %d under the mouse (click again quickly for the one behind it)" % [fi, int(r["depth"]), int(r["of"])])
 	return true
 
 
