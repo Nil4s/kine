@@ -781,3 +781,4 @@ EXTRA="$EXTRA s269c:w"   # s269c: film framing includes the reflection, film key
 
 
 EXTRA="$EXTRA s277b:w"
+EXTRA="$EXTRA c06:h"   # C06 agent math for building + pictures: part_facts fields, frame_facts light block, MCP advertises them, tests/c06_test.gd
