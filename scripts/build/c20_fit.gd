@@ -108,8 +108,6 @@ static func chord_error_mm(bodies: Array, cx: float, cy: float, r: float) -> flo
 				var q := v[t[k + (e + 1) % 3]]
 				if absf(Vector2(p.x - cx, p.y - cy).length() - r) > 0.002 or absf(Vector2(q.x - cx, q.y - cy).length() - r) > 0.002:
 					continue
-				if Vector2(p.x - q.x, p.y - q.y).length() > r * 0.5:   # a cap's fan chord, not a wall facet
-					continue
 				var mid := (p + q) * 0.5
 				worst = maxf(worst, r - Vector2(mid.x - cx, mid.y - cy).length())
 	return worst
