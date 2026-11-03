@@ -869,3 +869,4 @@ EXTRA="$EXTRA c31:w"   # c31: pt_BR 447 strings, placeholders, CRLF, review list
 
 
 EXTRA="$EXTRA c30:w"
+EXTRA="$EXTRA c39:w"   # c39: FBX materials (tests/c39_test.gd)
