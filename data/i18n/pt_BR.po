@@ -777,6 +777,42 @@ msgstr "Abrir arquivo..."
 msgid "Resume"
 msgstr "Continuar"
 
+msgid "  for:"
+msgstr "  para:"
+
+msgid "CSV for"
+msgstr "CSV para"
+
+msgid "Estimate render time"
+msgstr "Estimar o tempo de renderização"
+
+msgid "FBX: shot camera (keys)"
+msgstr "FBX: câmera do plano (chaves)"
+
+msgid "File name template (blank = the usual name):"
+msgstr "Modelo do nome do arquivo (vazio = o nome de sempre):"
+
+msgid "Keep it"
+msgstr "Manter"
+
+msgid "Match the mesh to the fit"
+msgstr "Ajustar a malha ao encaixe"
+
+msgid "Mesh .glb: add a lightmap UV set (UV2, no overlaps)"
+msgstr "Malha .glb: adicionar um conjunto UV de lightmap (UV2, sem sobreposição)"
+
+msgid "Print-in-place hinge"
+msgstr "Dobradiça impressa já montada"
+
+msgid "Pull makes: "
+msgstr "Puxar faz: "
+
+msgid "Say the render time first"
+msgstr "Dizer o tempo de renderização antes"
+
+msgid "Scale to 1.75 m"
+msgstr "Escalar para 1,75 m"
+
 msgid "   Pick what you want to make"
 msgstr "   Escolha o que você quer fazer"
 

@@ -200,6 +200,11 @@ func _init() -> void:
 	var ui: ExportDialog = m.export_ui
 	var opt := ui.dlg.find_child("opt_fbx_for", true, false) as OptionButton
 	ok(opt != null and opt.item_count == 4 and opt.selected == 0 and opt.get_item_text(1).begins_with("Unity"), "A the choice exists with 4 entries, Default selected")
+	# C30/C25/C27 moved UI: options scroll in export_opts_scroll; reach the choice first (reachable = scrollable into the window)
+	var sc0 := ui.dlg.find_child("export_opts_scroll", true, false) as ScrollContainer
+	if sc0 != null and opt != null:
+		sc0.ensure_control_visible(opt)
+		await idle(3)
 	var win := Rect2(Vector2.ZERO, Vector2(1280, 720))
 	ok(opt != null and win.encloses(opt.get_global_rect()), "A the choice sits inside the 1280 x 720 window (rect %s)" % str(opt.get_global_rect() if opt != null else Rect2()))
 	root.get_texture().get_image().save_png(SHOT + "/dialog_1280x720.png")

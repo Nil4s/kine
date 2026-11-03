@@ -78,6 +78,15 @@ func key(k: int) -> void:
 
 
 func click_ctl(c: Control) -> void:
+	# C30 moved the Export dialog options into export_opts_scroll: bring the control into view first, as a user would
+	var sq: Node = c.get_parent()
+	while sq != null:
+		if sq is ScrollContainer:
+			(sq as ScrollContainer).ensure_control_visible(c)
+			await process_frame
+			await process_frame
+			break
+		sq = sq.get_parent()
 	var w: Window = c.get_window()   # a dialog is its own window: the click goes to it
 	var p := c.get_global_rect().get_center()
 	if w.is_embedded():
