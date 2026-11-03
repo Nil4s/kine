@@ -64,6 +64,7 @@ extends RefCounted
 ## space under each step is filled (a solid staircase, n(n+1)/2 blocks of the body), so the stair is one body. Every other body keeps its place and its look, the target keeps its look.
 
 const KCad := preload("res://scripts/kcad.gd")
+const PartInstances := preload("res://scripts/build/part_instances.gd")   # s261: N copies of a body as one MultiMesh
 const PartArray := preload("res://scripts/build/part_array.gd")   # s228: grid / route patterns
 const MM := 0.001
 const POFFSET := preload("res://scripts/build/part_offset.gd")   # plan 18: Thinner / thicker everywhere
@@ -75,7 +76,7 @@ const PFIT := preload("res://scripts/build/part_fit.gd")   # s193: Fit to an obj
 const SKIN_MM := 0.3   # NROUNDFILTER: a face centre this close (mm) to the box's outside counts as on the skin
 const VERSION := 1
 const RING_MIDDLE := 100.0   # mm: a Ring piece whose centre is closer than this to the middle (not on it) goes round the middle
-const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "roof", "lattice", "fitobj", "move", "offset", "meshsolid", "pipe3d", "prim", "ornament", "bname"]
+const KINDS := ["sketch", "extrude", "revolve", "fillet", "chamfer", "mirror", "hinge", "split", "shell", "loft", "sweep", "plane", "canvas", "appear", "pattern", "combine", "offset_face", "draft", "lay", "align", "roof", "lattice", "fitobj", "move", "offset", "meshsolid", "pipe3d", "prim", "ornament", "bname", "instances"]
 const OVERHANG_COS := 0.7071   # p113: a face pointing down more than 45 degrees needs support when printed
 const BED_MM := 0.1            # p113: a face this close (mm) to the lowest point of the part is on the floor, not an overhang
 const DRAFT_DIRS := {"x": Vector3(1, 0, 0), "y": Vector3(0, 1, 0), "z": Vector3(0, 0, 1)}
@@ -662,6 +663,10 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var pe := _cut_row(bodies, f, rec) if f.has("sketch") else _pattern(bodies, looks, f, rec)
 				if pe != "":
 					errs[id] = pe
+			"instances":   # s261: N transforms of body N on a face (scripts/build/part_instances.gd), no kernel solid per copy
+				var ine := PartInstances.apply(bodies, looks, f, sketches)
+				if ine != "":
+					errs[id] = ine
 			"fillet", "chamfer":
 				var e := _edge_op(bodies, f)
 				if e != "":
@@ -874,6 +879,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 				var top := float(ed["a"].y) >= bb.end.y - SKIN_MM * MM and float(ed["b"].y) >= bb.end.y - SKIN_MM * MM
 				res["edges"].append({"c": ed["center"], "a": ed["a"], "b": ed["b"], "d": ed["dir"], "len": ed["length"], "body": bodies.find(b), "q": _norm(ed["center"], bb), "seam": seam or concave, "concave": concave, "inner": inner, "outside": outside, "top": top, "fp": PartRefs.face_pair(ef, fnorm, fcen, bb)})
 	pack_surfaces(mesh, pend, res)
+	res["instances"] = sketches.get(PartInstances.KEY, [])   # s261
 	res["bodies"] = bodies.size()
 	res["body_names"] = []
 	for bi in bodies.size():

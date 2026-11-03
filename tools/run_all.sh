@@ -753,3 +753,6 @@ EXTRA="$EXTRA w03e:w"   # w03e: key-aware incremental cache + nested face.body k
 
 
 EXTRA="$EXTRA s277:w"   # s277/s273: glossy blurred floor, wide bloom, preset levels, aluminium + nickel, face-scaled brush, tests/s277_test.gd
+
+
+EXTRA="$EXTRA s261:w"   # s261: Part feature instances: N copies of a body on a face as one MultiMesh, scatter with no-overlap + seed, baked at export, tests/s261_test.gd
