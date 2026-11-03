@@ -59,6 +59,9 @@ var _only: Array = []
 var _f := 0.0
 var _press := {}
 var _slider_drag := false
+var multi := {}                # C02: the ticked poses (path -> true) while "Select several" is on
+var several_box: CheckBox
+var del_btn: Button
 
 
 ## the panel on main m: made on first use, shown / hidden after
@@ -126,6 +129,18 @@ func _ready() -> void:
 	only_box.focus_mode = Control.FOCUS_NONE
 	only_box.tooltip_text = "apply and blend on the parts selected in the view only (Ctrl+click parts for more); the rest keep their pose"
 	opts.add_child(only_box)
+	# C02: Select several: click pictures to tick them, then Delete (one undo step)
+	several_box = CheckBox.new()
+	several_box.name = "check_select_several"
+	several_box.text = "Select several"
+	several_box.focus_mode = Control.FOCUS_NONE
+	several_box.tooltip_text = "click pictures to tick them (instead of applying), then Delete removes them all in one undo step"
+	several_box.toggled.connect(func(_on): multi.clear(); _lit())
+	opts.add_child(several_box)
+	del_btn = _btn("Delete ticked", func(): PoseLibraryEdit.delete_many(self, multi.keys()))
+	del_btn.name = "button_delete_ticked"
+	del_btn.tooltip_text = "delete every ticked pose (Ctrl+Z brings them all back)"
+	opts.add_child(del_btn)
 	v.add_child(_mood_row())
 	var row := HBoxContainer.new()
 	v.add_child(row)
@@ -420,6 +435,10 @@ func _lit() -> void:
 		if p == picked:
 			sb.set_border_width_all(2)
 			sb.border_color = Tok.c("accent")
+		if multi.has(p):   # C02: ticked
+			sb.bg_color = Tok.c("card_sel")
+			sb.set_border_width_all(3)
+			sb.border_color = Color(0.95, 0.6, 0.2)
 		(cells[p] as PanelContainer).add_theme_stylebox_override("panel", sb)
 
 
@@ -431,10 +450,18 @@ func pick(path: String) -> void:
 func _cell_input(ev: InputEvent, path: String) -> void:
 	if ev is InputEventMouseButton:
 		var mb := ev as InputEventMouseButton
-		if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
+		if mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed and several_box != null and several_box.button_pressed:
+			if multi.has(path):
+				multi.erase(path)
+			else:
+				multi[path] = true
+			pick(path)
+		elif mb.button_index == MOUSE_BUTTON_LEFT and mb.pressed:
 			pick(path)
 			_press = {"path": path, "x": mb.position.x, "moved": false, "ctrl": mb.ctrl_pressed}
-		elif mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed and not _press.is_empty():
+		elif mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed and _press.is_empty():
+			pass   # C02: a tick press set no blend
+		elif mb.button_index == MOUSE_BUTTON_LEFT and not mb.pressed:
 			var was := _press
 			_press = {}
 			if was["moved"]:
@@ -467,6 +494,9 @@ func _open_menu(at: Vector2) -> void:
 	menu.add_item("Blend 50 %", 2)
 	menu.add_item("Select the parts it moves", 3)
 	menu.add_item("Remake the thumbnail", 4)
+	menu.add_item("Update from current pose", 6)   # C02
+	menu.add_item("Rename...", 7)
+	menu.add_item("Delete", 8)
 	menu.add_item("Share as a pack...", 5)   # ROADMAP 96: the pose as one .kinepack file (no server)
 	menu.position = Vector2i(at)
 	menu.reset_size()
@@ -501,6 +531,12 @@ func _menu(id: int) -> void:
 			made.erase(picked)
 			_queue.append(picked)
 			_pump()
+		6:
+			PoseLibraryEdit.update(self, picked)
+		7:
+			PoseLibraryEdit.rename_ask(self, picked)
+		8:
+			PoseLibraryEdit.delete_many(self, [picked])
 		5:
 			PosePack.share_ask(m, picked, thumb_png(picked))
 

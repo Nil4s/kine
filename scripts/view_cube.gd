@@ -24,6 +24,7 @@ const FACES := [
 var m: Node
 var hover := -1
 var _b := Basis()   # the camera rotation last drawn
+var remap := Basis.IDENTITY   # C01: the scene's own Top (scripts/cam_extras.gd): identity = the default labels
 
 
 func _ready() -> void:
@@ -31,6 +32,27 @@ func _ready() -> void:
 	size = Vector2(SIZE, SIZE)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	tooltip_text = "click a face to look from that side (keys 1-5), near an edge or a corner for the view between; the house = back home"
+
+
+## C01: the labels turn so the chosen face reads TOP
+func set_remap(b: Basis) -> void:
+	remap = b
+	queue_redraw()
+
+
+func remap_is_id() -> bool:
+	return remap.is_equal_approx(Basis.IDENTITY)
+
+
+## the label face i shows
+func label_of(i: int) -> String:
+	if remap_is_id():
+		return FACES[i][1]
+	var n: Vector3 = remap * FACES[i][0]
+	for f in FACES:
+		if n.is_equal_approx(f[0]):
+			return f[1]
+	return FACES[i][1]
 
 
 func _process(_dt: float) -> void:
@@ -129,7 +151,7 @@ func _draw() -> void:
 		ring.append(q[0])
 		draw_polyline(ring, Color(Tok.c("cube_edge"), 0.7), 1.2, true)
 		if z > 0.35:   # a label only on a face you can read
-			var t: String = FACES[i][1]
+			var t: String = label_of(i)
 			var cen := (q[0] + q[1] + q[2] + q[3]) * 0.25
 			# as big as fits across the face's middle (a face seen edge-on is narrow): 13 px down to 8
 			var across := ((q[0] + q[1]) * 0.5).distance_to((q[2] + q[3]) * 0.5)
@@ -147,6 +169,11 @@ func _gui_input(ev: InputEvent) -> void:
 		if h != hover:
 			hover = h
 			queue_redraw()
+	elif ev is InputEventMouseButton and ev.pressed and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT:
+		var fi := face_at((ev as InputEventMouseButton).position)   # C01: right-click a face: make it Top
+		if fi >= 0 and m != null and m.get("camx") != null:
+			m.camx.cube_menu(fi, get_screen_position() + (ev as InputEventMouseButton).position)
+			accept_event()
 	elif ev is InputEventMouseButton and ev.pressed and (ev as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 		var p := (ev as InputEventMouseButton).position
 		if HOME_R.has_point(p):
@@ -156,7 +183,7 @@ func _gui_input(ev: InputEvent) -> void:
 		var d := dir_at(p)
 		if d != Vector3.ZERO:
 			var i := face_at(p)
-			if d.is_equal_approx(FACES[i][0]):
+			if d.is_equal_approx(FACES[i][0]) and remap_is_id():
 				m._view(FACES[i][2], true)   # a face's middle: that face's view, as its key gives it (a little from above)
 			else:
 				m._view_dir(d)
