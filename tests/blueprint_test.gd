@@ -65,6 +65,15 @@ func shot(nm: String) -> void:
 	root.get_texture().get_image().save_png("%s/%s.png" % [SHOT, nm])
 
 
+## navigation only (5c735d53 freebuild: the BUILDING card opens a free Easy Part, so the house comes from the chooser, as in buildwords_test)
+func to_house() -> void:
+	await click_ctl(m.bld.part.reopen_btn)
+	await idle(6)
+	await click_ctl(m.build_choose.btns["house"]["expert"])
+	m.bld.reset_view()
+	await idle(10)
+
+
 func house() -> Dictionary:
 	var b := Building.make("Bay house")
 	Building.add_room(b, 0, 0, 8, 6)
@@ -303,6 +312,7 @@ func _init() -> void:
 	await click_ctl(ss._cards["building"])
 	if m.ui_save_ask != null and m.ui_save_ask.visible: m._save_ask_choose("discard")   # unsaved work above: a new project asks first (startscreen bar 13)
 	await idle(6)
+	await to_house()
 	var btn: Button = m.ui_ribbon["BUILD"].find_child("build_blueprint", true, false)
 	ok(btn != null and btn.text == "Blueprint" and btn.icon != null and btn.disabled, "8 the Blueprint button is on the ribbon, greyed while there is no room")
 	await click_ctl(btn)
