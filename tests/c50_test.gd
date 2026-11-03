@@ -199,5 +199,17 @@ func _init() -> void:
 	await ev_move(mid + Vector2(1, 0))
 	ok(String(pu.status).begins_with("L1"), "7 hover on the line: status reads its label (%s)" % pu.status)
 	await shot("labels_hover")
+	# 9 ANGLE (lead fix round 1): box off, an angle-rule sketch solves to the numbers w4-b04 gives (measured there with the same script, tests/c50ang)
+	var ask := {"plane": "front", "ents": [{"k": "line", "a": [0, 0], "b": [100, 0]}, {"k": "line", "a": [10, 10], "b": [80, 60]}, {"k": "line", "a": [0, 0], "b": [30, 40]}], "dims": [], "cons": [{"k": "ang", "a": 0, "b": 1, "deg": 30.0}, {"k": "h", "a": 0}, {"k": "eq", "a": 1, "b": 2}, {"k": "coin", "a": 0, "ap": 0, "b": 1, "bp": 0}]}
+	Part.solve(ask)
+	var want := [[7.85694429153596, 6.0480522656849, 100.000104674186, 6.04805226568492], [7.85694429153595, 6.04805226568492, 73.9514963074969, 44.2077596647895], [-8.85062383490247, -9.78776613687165, 38.8506238349922, 49.7877661369671]]
+	var worst := 0.0
+	for i in 3:
+		for j in 2:
+			worst = maxf(worst, Part.v2(ask["ents"][i]["a" if j == 0 else "b"]).distance_to(Vector2(want[i][2 * j], want[i][2 * j + 1])))
+	ok(worst < 1e-6, "9 angle-rule sketch solves to the w4-b04 numbers (worst %s mm)" % worst)
+	var wrong := want.duplicate(true)
+	wrong[1][3] += 0.01
+	ok(Part.v2(ask["ents"][1]["b"]).distance_to(Vector2(wrong[1][2], wrong[1][3])) > 1e-6, "9 control: a planted 0.01 mm error is seen")
 	print("c50: %d fail%s" % [fails, "" if fails == 1 else "s"])
 	quit(1 if fails > 0 else 0)
