@@ -11004,7 +11004,7 @@ func _hands_refresh() -> void:
 				if not Rect2(c, ps).intersects(body):
 					pick = c
 					break
-			ui_hands_panel.position = pick
+			ui_hands_panel.position = PickDodge.fit(ui_hands_panel, pick, Rect2(float(LEFT_W) + 8.0, float(TOP_H) + 8.0, vs.x - float(LEFT_W) - float(RIGHT_W) - 16.0, vs.y - float(TOP_H) - 16.0 - float(BOTTOM_H) - 56.0), PickDodge.points(self))   # C29: never over a body pick point
 		ui_hands_panel.position = ui_hands_panel.position.clamp(Vector2.ZERO, (vs - ui_hands_panel.size).max(Vector2.ZERO))   # no candidate fits a short window: it still stays on the view
 	for d in ui_hands:
 		if not is_instance_valid(d["box"]):
