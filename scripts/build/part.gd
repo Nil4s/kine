@@ -3427,7 +3427,7 @@ static func _corners(bodies: Array, looks: Array, bi: int) -> String:
 ## Marquardt on the sketch points) so every constraint and every typed LENGTH dimension of a line holds; a set that cannot hold is refused
 ## (con_put), or its sketch makes an error in the replay (resolved_sketch). Residuals: mm, or unit-vector terms.
 const CON_TOL := 1e-6
-const CON_WORDS := {"h": "Horizontal", "v": "Vertical", "coin": "Coincident", "par": "Parallel", "perp": "Perpendicular", "eq": "Equal", "ang": "Angle"}
+const CON_WORDS := {"h": "Horizontal", "v": "Vertical", "coin": "Coincident", "par": "Parallel", "perp": "Perpendicular", "eq": "Equal", "ang": "Angle", "refpt": "On reference"}
 
 
 ## plain words for one constraint: "Angle 30 deg"
@@ -3478,6 +3478,14 @@ static func _res_all(sk: Dictionary, X: PackedFloat64Array) -> Array:
 			lb = maxf(sqrt(bx * bx + by * by), 1e-12)
 		var r := PackedFloat64Array()
 		match k:
+			"refpt":
+				var rq := PartC50.ref_point(sk, int(c.get("r", -1)), int(c.get("rp", 0)))
+				var pa0 := 4 * a + 2 * int(c.get("ap", 0))
+				if rq == Vector2.INF:
+					r.append(1.0)
+				else:
+					r.append(X[pa0] - rq.x)
+					r.append(X[pa0 + 1] - rq.y)
 			"h":
 				r.append(ay)
 			"v":

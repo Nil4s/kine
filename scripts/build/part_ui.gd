@@ -148,6 +148,7 @@ var f_to: LineEdit
 var f_dur: LineEdit
 var f_dial: Control
 var status := ""
+var c50: PartC50   # C50: reference geometry from the solid + item labels
 var c15: PartC15UI   # C15: move-sketch-to-plane + SVG import rows in the sketch palette
 var pill_text := ""   # XFIX2: the last size readout drawn next to the cursor (its words, and where it sits)
 var pill_at := Vector2.ZERO
@@ -567,6 +568,7 @@ func _build_side() -> void:
 	nums_vb.add_theme_constant_override("separation", 4)
 	sketch_box.add_child(nums_vb)
 	c15 = PartC15UI.new(self)
+	c50 = PartC50.new(self)
 	hinge_box = VBoxContainer.new()
 	hinge_box.name = "part_hinge_box"
 	hinge_box.add_theme_constant_override("separation", 6)
@@ -1036,6 +1038,8 @@ func scr(v: Vector2) -> Vector2:
 
 func _add_ent(e: Dictionary) -> void:
 	_sk()["ents"].append(e)
+	if c50 != null:
+		PartC50.pin_new_line(_sk(), _sk()["ents"].size() - 1)
 	_after_sketch_edit()
 
 
@@ -1150,6 +1154,8 @@ func _grey_click(ev: InputEvent, b: Button) -> void:
 
 
 func _press_sketch(p: Vector2) -> bool:
+	if c50 != null and c50.press(p):
+		return true
 	if _con_press(p):   # GAP 9: a rule's click, or an end picked up to drag
 		pov.queue_redraw()
 		return true
@@ -1158,6 +1164,8 @@ func _press_sketch(p: Vector2) -> bool:
 		_say("Nothing to draw there: turn the view onto the sketch plane (its name is in the browser)")   # XFIX2: a press off the plane says why
 		return true
 	var a := snap(h as Vector2)
+	if c50 != null:
+		a = c50.snap(p, a)
 	if tool == "Spline" and draft.is_empty():
 		var hp := _spline_point_at(p)
 		if not hp.is_empty():
@@ -1288,6 +1296,8 @@ func _motion(p: Vector2) -> bool:
 			draft["b"] = snap(h as Vector2)
 		if tool == "Dimension":
 			hover_ent = pick_ent(p)
+		if c50 != null:
+			c50.hover(p)
 		pov.queue_redraw()
 		return false
 	if tool == "Fillet" or tool == "Chamfer":
@@ -2613,6 +2623,8 @@ func sync() -> void:
 	sketch_box.visible = sk != "" and dlg.is_empty()
 	if c15 != null:
 		c15.sync()
+	if c50 != null:
+		c50.sync()
 	dlg_box.visible = not dlg.is_empty()
 	hinge_box.visible = show and dlg.is_empty() and sk == "" and not _sel_hinge().is_empty()
 	if sk != "" and dlg.is_empty():
@@ -3025,6 +3037,8 @@ func _draw_sketch() -> void:
 		for d in f.get("dims", []):
 			_draw_dim(ents, d)
 	_health_draw(ents)   # W02: the clashing rules marked
+	if c50 != null:
+		c50.draw()
 	_con_draw()   # GAP 9: the rule glyphs
 	_draw_draft()
 
