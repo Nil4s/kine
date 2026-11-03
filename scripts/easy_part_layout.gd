@@ -133,7 +133,10 @@ func _frame_step() -> void:
 		_ease = {}   # the user has the view: the ease stops where it is
 		return
 	if not _ease.is_empty():
-		_ease_step()
+		if armed == "draw" or armed == "curve":
+			_ease_end()   # s278: a press is coming: the view lands now, so the pixel the user aims at is the pixel the press hits
+		else:
+			_ease_step()
 		return
 	var bb: AABB = pu.res.get("aabb", AABB())
 	var len := bb.size.length()
@@ -164,6 +167,8 @@ func _frame_step() -> void:
 	if pose.is_empty():
 		return
 	_ease = {"t0": m.target, "d0": float(m.dist), "t1": pose[0], "d1": pose[1], "s": 0.0}
+	if armed == "draw" or armed == "curve":
+		_ease_end()   # s278: the Draw shape press is armed: no glide under the cursor
 
 
 ## the free view: the clear view minus the MAKE row above and the side panel at the right, minus the status line at the bottom

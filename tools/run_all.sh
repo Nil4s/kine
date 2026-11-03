@@ -756,3 +756,6 @@ EXTRA="$EXTRA s277:w"   # s277/s273: glossy blurred floor, wide bloom, preset le
 
 
 EXTRA="$EXTRA s261:w"   # s261: Part feature instances: N copies of a body on a face as one MultiMesh, scatter with no-overlap + seed, baked at export, tests/s261_test.gd
+
+
+EXTRA="$EXTRA w10d:w"   # W10d: the Pull it up hover card stays clear of the line-touch note, tests/w10d_test.gd
