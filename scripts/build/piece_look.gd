@@ -18,10 +18,12 @@ extends RefCounted
 
 const TEMPLE_WORDS := ["temple", "pagoda", "pavilion", "chinese", "shrine", "xieshan", "dougong"]
 const KINDS := ["roof", "ridge", "column", "beam", "platform", "stair", "rail", "paving", "wall", "plaque", "plaque_frame", "plaque_letters", "door", "lattice",
-	"ground", "hedge", "trunk", "canopy", "wall_base", "wall_cap"]
+	"ground", "hedge", "trunk", "canopy", "wall_base", "wall_cap",
+	"window_back", "window_grid", "door_panel", "tree", "grass"]   # s245: the last five are new
 const LABELS := {"roof": "Roof tiles", "ridge": "Ridge beasts", "column": "Columns", "beam": "Beams and brackets", "platform": "Platform",
 	"stair": "Stairs", "rail": "Rails", "paving": "Paving", "wall": "Walls", "plaque": "Plaque", "plaque_frame": "Plaque border", "plaque_letters": "Plaque letters", "door": "Doors",
-	"lattice": "Lattice", "ground": "Ground", "hedge": "Hedges", "trunk": "Trunks", "canopy": "Leaves", "wall_base": "Wall base", "wall_cap": "Wall cap"}
+	"lattice": "Lattice", "ground": "Ground", "hedge": "Hedges", "trunk": "Trunks", "canopy": "Leaves", "wall_base": "Wall base", "wall_cap": "Wall cap",
+	"window_back": "Window back", "window_grid": "Window grid", "door_panel": "Door panel", "tree": "Trees", "grass": "Grass blades"}
 ## the chips on the Materials page: [kind, label]
 const CHIPS := [["roof", "Roof"], ["ridge", "Ridge"], ["column", "Columns"], ["beam", "Beams"], ["platform", "Platform"], ["rail", "Rails"],
 	["stair", "Stairs"], ["paving", "Paving"], ["wall", "Walls"], ["plaque", "Plaque"], ["door", "Doors"]]
@@ -47,6 +49,12 @@ const DEFAULTS := {
 	"canopy": {"kind": "grass", "color": "#d9a21b", "scale": 250.0, "gloss": 0.1, "seed": 18},                                  # golden leaves
 	"wall_base": {"kind": "granite", "color": "#9a9892", "scale": 500.0, "gloss": 0.4, "seed": 19},
 	"wall_cap": {"kind": "tile", "color": "#93410a", "scale": 700.0, "gloss": 0.88, "seed": 20},
+	# s245: kinds the AI-ease pass found without a look of their own (a window back read as lattice, a door panel as the door, a tree as "other")
+	"window_back": {"kind": "plaster", "color": "#e3d3a8", "scale": 500.0, "gloss": 0.05, "seed": 22},                         # pale paper-and-plaster: the bars read against it
+	"window_grid": {"kind": "oak", "color": "#5a2410", "scale": 120.0, "gloss": 0.3, "warp": 0.0, "seed": 23},                 # dark reddish wood bars
+	"door_panel": {"kind": "lacquer", "color": "#b3281a", "scale": 160.0, "gloss": 0.65, "wear": 0.08, "seed": 24},            # brighter lacquer than the door frame
+	"tree": {"kind": "grass", "color": "#3d7a2c", "scale": 250.0, "gloss": 0.1, "seed": 25},                                   # a whole tree body: leaf green
+	"grass": {"kind": "grass", "color": "#7cc43c", "scale": 300.0, "gloss": 0.1, "seed": 26},                                  # blades: a lighter green than the ground
 	"other": {"kind": "plaster", "color": "#d6cdbd", "scale": 600.0, "gloss": 0.07, "seed": 21},                                # a body of no known kind: a plain warm plaster, never a flat colour
 }
 ## words -> kind, for the user's sentence (a piece noun, singular and plural). A noun is taken OUT of the sentence before the rest is read as a material
@@ -111,6 +119,12 @@ static func kind_of_name(nm: String) -> String:
 			if toks.has(w):
 				return true
 		return false
+	if has.call(["window", "windows"]) and has.call(["back", "backing"]):   # s245
+		return "window_back"
+	if has.call(["window", "windows"]) and has.call(["grid", "grille", "grill"]):
+		return "window_grid"
+	if has.call(["door", "doors"]) and has.call(["panel", "panels"]):
+		return "door_panel"
 	if has.call(["letters", "letter", "characters"]):
 		return "plaque_letters"
 	if has.call(["frame", "border"]) and has.call(["plaque", "plaques", "signboard"]):
@@ -151,6 +165,10 @@ static func kind_of_name(nm: String) -> String:
 		return "canopy"
 	if has.call(["grass", "lawn", "ground"]):
 		return "ground"
+	if has.call(["blade", "blades", "meadow", "turf"]):   # s245 (the words grass and lawn stay "ground")
+		return "grass"
+	if has.call(["tree", "trees"]):
+		return "tree"
 	return ""
 
 
