@@ -134,6 +134,7 @@ func _open_face(p: Vector2) -> bool:
 ## SHELL WALLS (p022shellwalls, Friday plan 22): Thicker wall under Hollow inside arms the wall pick (the chip stays pressed); the next
 ## press on the outside of a side wall makes THAT wall thicker by the Extra wall slider (WALL_EXTRA_MM at first). The other walls keep the
 ## shell's thickness. Off with a second press. Only a hollow has the chip; the other shapes say what to press first
+const C03T := preload("res://scripts/build/c03_tools.gd")
 const WALL_EXTRA_MM := 1.0   # the extra thickness a picked wall starts with (mm)
 
 
@@ -576,6 +577,7 @@ func _pull(rec: Dictionary) -> String:
 	var flat := not (lid or slot or through or on_face) and _flat_plate(sk, dist)
 	var rule := _pull_rule({"lid": lid, "slot": slot, "through": through, "inward": inward, "on_face": on_face,
 		"beside": beside, "beside_flat": beside and flat, "flat": flat})
+	rule = C03T.ruled(rec, rule)   # C03: the user chose New body for pulls
 	var nb0 := int(Part.replay(rec).get("bodies", 0))   # FLAMP: a shape that stands apart from the solid is its own body, not one lump
 	var lk0 := _lumps(Part.replay(rec)) if nb0 > 0 else 0
 	var line_to := -1

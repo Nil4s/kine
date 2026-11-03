@@ -781,3 +781,5 @@ EXTRA="$EXTRA s269c:w"   # s269c: film framing includes the reflection, film key
 
 
 EXTRA="$EXTRA s277b:w"
+
+EXTRA="$EXTRA c03:w"   # C03: Join / New body choice, mirror across any plane, printer tolerance presets, tests/c03_test.gd
