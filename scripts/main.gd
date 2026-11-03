@@ -6872,6 +6872,8 @@ func _undo() -> void:
 	now["name"] = _step_label(u)   # the step keeps its name on the way back and forth
 	if u.has("lib"):   # ROADMAP 96: a pack imported into the library: its files go to the trash, redo brings them back
 		now["lib"] = u["lib"]
+	if u.has("libedit"):   # C02: a pose library edit (delete / update) goes back and forth with the step
+		now["libedit"] = u["libedit"]
 	if u.get("swap", false):
 		now["swap"] = true   # a whole-scene swap goes back and forth
 	if u.has("easy"):
@@ -6884,6 +6886,8 @@ func _undo() -> void:
 	_rehearse_again()   # I14: the comparison is read again from the clip as it now is
 	if u.has("lib"):
 		PosePack.lib_move(u["lib"], true, library)
+	if u.has("libedit"):
+		PoseLibraryEdit.step(u["libedit"], true, self)
 	if sk_hist != null and B.state() == sk_hist["state"] and not sk.last.is_empty():
 		sk.hist.pop_back()   # a flip was undone: its handles come back, each limb on the candidate it had
 		sk.last = sk_hist["rep"]
@@ -6922,6 +6926,8 @@ func _redo() -> void:
 	now["name"] = _step_label(r)
 	if r.has("lib"):   # ROADMAP 96: as _undo, the other way: the import's files come back out of the trash
 		now["lib"] = r["lib"]
+	if r.has("libedit"):
+		now["libedit"] = r["libedit"]
 	if r.get("swap", false):
 		now["swap"] = true
 	if r.has("easy"):
@@ -6934,6 +6940,8 @@ func _redo() -> void:
 	_rehearse_again()   # I14
 	if r.has("lib"):
 		PosePack.lib_move(r["lib"], false, library)
+	if r.has("libedit"):
+		PoseLibraryEdit.step(r["libedit"], false, self)
 	_say(("Put back: " + easy_name(r)) if easy != null and easy.on else "Redid: " + now["name"])
 	_toast(("Put back: " + easy_name(r)) if easy != null and easy.on else "Redid: " + now["name"])   # Easy: the same words as the status line
 	_undo_tips()
