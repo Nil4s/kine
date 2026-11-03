@@ -39,4 +39,4 @@ static func warn(body: int, origin: Vector3, n: Vector3, thr := SEAM_DEG) -> Str
 	var k := kink_of(KCad.tessellate(body, 0.002, 0.2), origin, n)
 	if k <= thr:
 		return ""
-	return "the mirrored halves meet at a ridge of %d degrees (over %d): the surface does not run smoothly through the mirror plane" % [roundi(k), roundi(thr)]
+	return TranslationServer.translate("the mirrored halves meet at a ridge of %d degrees (over %d): the surface does not run smoothly through the mirror plane") % [roundi(k), roundi(thr)]

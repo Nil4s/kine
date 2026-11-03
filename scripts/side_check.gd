@@ -49,7 +49,7 @@ static func check(src: Dictionary, mapping: Dictionary) -> Dictionary:
 	var words := []
 	for p in ds:
 		if (ds[p] as Vector3).dot(ax) < 0.0:
-			var t := "%s_l is on the right of %s_r while the other pairs are the other way: a left and right name swapped" % [p, p]
+			var t := TranslationServer.translate("%s_l is on the right of %s_r while the other pairs are the other way: a left and right name swapped") % [p, p]
 			f.append({"kind": "swapped_pair", "bone": p, "text": t})
 			words.append(t)
 	var fwd := Vector3.ZERO
@@ -62,7 +62,7 @@ static func check(src: Dictionary, mapping: Dictionary) -> Dictionary:
 	if fwd.length() > 1e-4:
 		var geo_left := up.cross(fwd.normalized())   # up x forward = left (Kine: Y x Z = X)
 		if ax.dot(geo_left) < 0.0:
-			var t2 := "the bones named left are on the body's right (the feet point the other way): left and right are swapped in the whole rig"
+			var t2 := TranslationServer.translate("the bones named left are on the body's right (the feet point the other way): left and right are swapped in the whole rig")
 			f.append({"kind": "swapped_rig", "bone": "", "text": t2})
 			words.append(t2)
-	return {"ok": f.is_empty(), "findings": f, "text": ("Side check: " + "; ".join(words)) if not f.is_empty() else ""}
+	return {"ok": f.is_empty(), "findings": f, "text": (TranslationServer.translate("Side check: ") + "; ".join(words)) if not f.is_empty() else ""}
