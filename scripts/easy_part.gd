@@ -734,7 +734,7 @@ func _tilt_box() -> PanelContainer:
 	draft_row.add_child(swing_btn)
 	door_opt = PartDoor.make_option()   # C18
 	door_opt.visible = false
-	draft_row.add_child(door_opt)
+	row.add_child(door_opt)   # own line under Draft/Swing: beside them it widened the panel to 539 px and covered the open door edge (p068hingebycli)
 	pull_along_btn = _big_btn("easypart_pull_along", "Pull along", "Pull the round shape along the open curve: a pipe in one step", _pull_along_press)
 	pull_along_btn.custom_minimum_size = Vector2(230, 44)
 	pull_along_btn.visible = false
