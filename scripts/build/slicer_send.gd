@@ -120,6 +120,11 @@ static func _flush(out: Array, disp: String, loc: String) -> void:
 
 ## the real computer's folders: Program Files (both), Local Programs, and the registry's install folders (Windows only)
 static func detect_system() -> Array:
+	_stop = false   # a direct call after an earlier shutdown() (a test frees one Main and builds the next) looks again in full
+	return _detect_system()
+
+
+static func _detect_system() -> Array:
 	var roots := []
 	for ev in ["ProgramFiles", "ProgramFiles(x86)", "ProgramW6432"]:
 		var v := OS.get_environment(ev).replace("\\", "/")
@@ -131,9 +136,9 @@ static func detect_system() -> Array:
 	var dirs := []
 	if OS.get_name() == "Windows":
 		for k in REG_KEYS:
-			var o := []
-			if OS.execute("reg", ["query", String(k), "/s"], o, true) == 0 and not o.is_empty():
-				for d in reg_dirs_of(String(o[0])):
+			var txt := _reg_query(String(k))
+			if txt != "":
+				for d in reg_dirs_of(txt):
 					if not dirs.has(d):
 						dirs.append(d)
 	return detect(roots, dirs)
@@ -147,8 +152,55 @@ static var _task := -1
 static var _mtx := Mutex.new()
 
 
+## C79: `reg query <key> /s` takes 3 to 60 s on a loaded machine and ran inside OS.execute on this worker thread, which the engine waits for
+## when the app closes: a quit in the first minute hung for as long as the query had left (found by C78: ~90 s after a clean quit()).
+## The query now runs through a pipe that this thread polls; shutdown() (main._exit_tree) stops the poll and kills the reg.exe it started.
+static var _stop := false
+static var _live: Array = []
+
+
+static func _reg_query(key: String) -> String:
+	if _stop:
+		return ""
+	var p := OS.execute_with_pipe("reg", ["query", key, "/s"])
+	if p.is_empty():
+		return ""
+	var pid := int(p["pid"])
+	var io: FileAccess = p["stdio"]
+	_mtx.lock()
+	_live.append(pid)
+	_mtx.unlock()
+	var buf := PackedByteArray()
+	while not _stop:
+		var chunk := io.get_buffer(65536)
+		if chunk.is_empty():
+			if not OS.is_process_running(pid):
+				break
+			OS.delay_msec(5)
+			continue
+		buf.append_array(chunk)
+	_mtx.lock()
+	_live.erase(pid)
+	_mtx.unlock()
+	if _stop:
+		return ""
+	return buf.get_string_from_utf8()
+
+
+## the app is closing: the lookup in flight ends now, nothing half-read is cached
+static func shutdown() -> void:
+	_stop = true
+	_mtx.lock()
+	var pids := _live.duplicate()
+	_mtx.unlock()
+	for pid in pids:
+		OS.kill(int(pid))
+
+
 static func _job() -> void:
-	var r := detect_system()
+	var r := _detect_system()
+	if _stop:
+		return
 	_mtx.lock()
 	_cache = r
 	_cache_known = true
@@ -158,6 +210,7 @@ static func _job() -> void:
 static func prewarm() -> void:
 	if _cache_known or _task >= 0:
 		return
+	_stop = false
 	_task = WorkerThreadPool.add_task(_job, false, "slicer lookup")
 
 
@@ -172,6 +225,7 @@ static func detect_cached() -> Array:
 			WorkerThreadPool.wait_for_task_completion(_task)
 			_task = -1
 		if not _cache_known:
+			_stop = false
 			_job()
 	return _cache.duplicate(true)
 
