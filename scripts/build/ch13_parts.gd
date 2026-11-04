@@ -3,6 +3,7 @@ extends RefCounted
 ## Local frames: every part has its axis along +z, sketch plane at z = 0 (the piston, cylinder and head are turned -90 deg about x in the assembly so their axes point up).
 ## Assembly frame: crank axis = z through (0, 0); cylinder axis = y at z = ZC; crank angle theta from TDC, clockwise seen from +z.
 const E := preload("res://scripts/build/ch13_engine.gd")
+const KCad := preload("res://scripts/kcad.gd")
 const NAMES := ["crankcase", "crankshaft", "rod", "piston", "pin", "cylinder", "head"]
 const R := 20.7            # crank radius (stroke 41.4, Honda C50)
 const L := 80.0            # rod centres (ASSUMED)
@@ -193,14 +194,14 @@ static func place(src: int, p: Dictionary) -> int:
 	var rot: Array = p["rot"]
 	for step in [[Vector3.BACK, float(rot[2])], [Vector3.RIGHT, float(rot[0])], [Vector3.UP, float(rot[1])]]:
 		if absf(float(step[1])) > 1e-12:
-			var t := KCad.rotate(s, step[0], deg_to_rad(float(step[1])))
+			var t: int = KCad.rotate(s, step[0], deg_to_rad(float(step[1])))
 			if s != src:
 				KCad.release(s)
 			s = t
 			if s == 0:
 				return 0
 	var pos: Array = p["pos"]
-	var m := KCad.translate(s, Vector3(float(pos[0]), float(pos[1]), float(pos[2])) * Assembly.MM)
+	var m: int = KCad.translate(s, Vector3(float(pos[0]), float(pos[1]), float(pos[2])) * Assembly.MM)
 	if s != src:
 		KCad.release(s)
 	return m

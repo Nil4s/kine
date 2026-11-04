@@ -25,6 +25,7 @@ var nok := 0
 const E := preload("res://scripts/build/ch13_engine.gd")
 const P := preload("res://scripts/build/ch13_parts.gd")
 const S := preload("res://scripts/build/ch13_scene.gd")
+const KCad := preload("res://scripts/kcad.gd")
 const OUT := "C:/Temp/claude/ch13"
 ## AMENDED after the first run (documented): Transform3D is single precision, so a pose measured through it is good to ~2e-6 mm at 100 mm, not 1e-6; the bar is 1e-4 mm (0.1 um), still 100x finer than the smallest fit band (5.5 um)
 const TOL_MM := 1e-4
@@ -340,8 +341,8 @@ func ov(a: int, b: int) -> float:
 
 ## the overlap (m3) of the gauge record placed at p with the solid `other`
 func gauge_ov(g: Dictionary, p: Dictionary, other: int) -> float:
-	var s0 := P.solid(g)
-	var s := P.place(s0, p)
+	var s0: int = P.solid(g)
+	var s: int = P.place(s0, p)
 	var v := ov(s, other) if s != 0 else -1.0
 	KCad.release(s)
 	KCad.release(s0)
@@ -354,14 +355,14 @@ func crown_gap(piston: int, head: int) -> float:
 		return -1.0
 	var lo := 0.0
 	var hi := 10.0
-	var up := KCad.translate(piston, Vector3(0, hi, 0) * Assembly.MM)
+	var up: int = KCad.translate(piston, Vector3(0, hi, 0) * Assembly.MM)
 	var hit := ov(up, head) > OV_EPS
 	KCad.release(up)
 	if not hit:
 		return 99.0
 	while hi - lo > 1e-4:
 		var mid := (lo + hi) / 2.0
-		var t := KCad.translate(piston, Vector3(0, mid, 0) * Assembly.MM)
+		var t: int = KCad.translate(piston, Vector3(0, mid, 0) * Assembly.MM)
 		if ov(t, head) > OV_EPS:
 			hi = mid
 		else:
@@ -472,7 +473,7 @@ func bars_interference() -> void:
 
 	# crown to head at TDC against the deck clearance
 	var deck: float = float(E.stack(E.deck_chain())["nominal"])
-	var pis_tdc := P.place(int(local["piston"]), po0["piston"])
+	var pis_tdc: int = P.place(int(local["piston"]), po0["piston"])
 	var gap := crown_gap(pis_tdc, int(placed_static["head"]))
 	KCad.release(pis_tdc)
 	print("j  crown to head at TDC: %.4f mm measured on the solids; deck clearance (stack-up nominal) %.4f mm" % [gap, deck])
@@ -480,11 +481,11 @@ func bars_interference() -> void:
 
 	# controls
 	var pl: Dictionary = P.pose_of(0.0, {"rod_len": P.L + 2.0})
-	var pis_long := P.place(int(local["piston"]), pl["piston"])
+	var pis_long: int = P.place(int(local["piston"]), pl["piston"])
 	var v_long := ov(pis_long, int(placed_static["head"]))
 	KCad.release(pis_long)
 	ctl(v_long > OV_EPS, "j a rod 2 mm longer drives the piston into the head at TDC (overlap %.3f mm3)" % (v_long * 1e9))
-	var rod40 := P.place(int(local["rod"]), po40["rod"])
+	var rod40: int = P.place(int(local["rod"]), po40["rod"])
 	var v_pin := gauge_ov(P.gauge(0, 0, (float(d["pin_d"]) + 1.0) / 2.0, 0.0, 33.0), po40["pin"], rod40)
 	KCad.release(rod40)
 	ctl(v_pin > OV_EPS, "j a pin 1 mm oversize overlaps the rod's small end (%.2f mm3)" % (v_pin * 1e9))
