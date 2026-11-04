@@ -843,6 +843,15 @@ msgstr "FBX: incluir materiais (cor, textura)"
 msgid "Invert orbit left-right only"
 msgstr "Inverter só a órbita esquerda-direita"
 
+msgid "Cape: folds onto itself (slower)"
+msgstr "Capa: dobra sobre si mesma (mais lento)"
+
+msgid "Cape: folds onto itself - ON (slower, about 0.5 s a frame to bake)"
+msgstr "Capa: dobra sobre si mesma - LIGADO (mais lento, cerca de 0,5 s por quadro para assar)"
+
+msgid "Cape: folds onto itself - OFF"
+msgstr "Capa: dobra sobre si mesma - DESLIGADO"
+
 msgid "   Pick what you want to make"
 msgstr "   Escolha o que você quer fazer"
 
