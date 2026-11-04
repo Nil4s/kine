@@ -23,11 +23,17 @@ var pairs := PackedInt32Array()   # (tri a, tri b) pairs found by begin
 var npairs := 0
 var active := PackedInt32Array()   # pairs that pushed in the first pass of a substep: the later passes visit only these
 var contacts := 0                  # contacts pushed in the last solve
+static var force_gdscript := false   # C54n: true keeps the GDScript path even when the DLL has KineClothSelfNative
+var nat = null                     # KineClothSelfNative (C++ broad phase + pair passes) or null
 
 
 func _init(faces: PackedInt32Array, thickness: float) -> void:
 	tris = faces
 	thick = thickness
+	if not force_gdscript and OS.get_environment("KINE_NO_NATIVE") != "1" and NativeExt.ensure("kine_native", "KineClothSelfNative"):
+		nat = ClassDB.instantiate("KineClothSelfNative")
+		nat.setup(faces, thickness)
+		return
 	# the near ring: triangles within two vertex hops of each other (sharing a vertex, or sharing a vertex with a triangle that
 	# does) are the distance constraints' business, not this solver's: a flat cloth then has no pairs at all
 	var nt := tris.size() / 3
@@ -65,6 +71,9 @@ var ring := {}   # t * nt + u -> true for the triangles u within two hops of t
 ## listed once, in the cell holding the larger corner of the two boxes' overlap (no dedupe table). A cheap sphere test drops
 ## boxes that merely touch.
 func begin(p: PackedVector3Array) -> int:
+	if nat != null:
+		npairs = nat.begin(p)
+		return npairs
 	var nt := tris.size() / 3
 	var grid := {}
 	var lo := PackedVector3Array()
@@ -170,6 +179,12 @@ func _share(ta: int, tb: int) -> bool:
 
 ## one projection pass over the pairs found by begin. Returns the contacts it pushed.
 func solve(p: PackedVector3Array, pinned: PackedByteArray, first := false) -> int:
+	if nat != null:
+		var q: PackedVector3Array = nat.solve(p, pinned, first)
+		for i in q.size():   # in place: callers hold p by reference
+			p[i] = q[i]
+		contacts = nat.get_contacts()
+		return contacts
 	var n := 0
 	var live := PackedInt32Array()
 	var cnt := npairs if first else active.size()

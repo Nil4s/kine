@@ -348,10 +348,16 @@ static func _substep(x: PackedVector3Array, v: PackedVector3Array, p: PackedVect
 				var nrm := dv / dist if dist > 1e-9 else Vector3.UP
 				p[i] = cp + nrm * rr
 		if sc != null and sc.npairs > 0 and it % SELF_EVERY == SELF_EVERY - 1:
-			sc.solve(p, pinned, it == SELF_EVERY - 1 or it == 3 * SELF_EVERY - 1)
+			if sc.nat != null:   # C++ returns the moved positions: rebind (p is this substep's own buffer)
+				p = sc.nat.solve(p, pinned, it == SELF_EVERY - 1 or it == 3 * SELF_EVERY - 1)
+			else:
+				sc.solve(p, pinned, it == SELF_EVERY - 1 or it == 3 * SELF_EVERY - 1)
 	if sc != null and sc.npairs > 0:
 		for k in 6:
-			sc.solve(p, pinned)
+			if sc.nat != null:
+				p = sc.nat.solve(p, pinned, false)
+			else:
+				sc.solve(p, pinned)
 	for i in N:
 		if pinned[i] == 0:
 			v[i] = (p[i] - x[i]) / dt
