@@ -44,3 +44,7 @@ The model period is longer than 1.7 Ta (and longer than Cu Ta, 0.219 to 0.232 s 
 ## Build
 
 `cd native && bash /c/Users/Nick/tools/kine_workers/native_build.sh` (wrapper over `python -m SCons platform=windows use_mingw=yes target=template_release arch=x86_64 custom_api_file=D:/kine_native/api/extension_api.json`).
+
+## Open findings
+
+- Bar c (first sway period inside the ASCE 7 band 0.068 to 0.232 s) fails: 0.2898 s sheathing only, 0.2841 s with the gypsum skin. Kept as registered in `tests/ch10_period_test.gd`, not in run_all.sh. Run by hand: `bash /c/Users/Nick/tools/kine_workers/wtest.sh <id> ch10_period` (expected: FAIL, 1 fail).
