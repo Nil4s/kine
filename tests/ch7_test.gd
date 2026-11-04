@@ -51,6 +51,12 @@ static func edge_dist(p: Vector3, lo: Vector3, hi: Vector3) -> float:
 	return d if d < INF else Vector2(minf(dx, 9.0), minf(dz, 9.0)).length()
 
 
+## the pelvis joint's z against the plan's root z: the joint rests p0z (the pelvis joint's rest offset) from the root, so the plan's z is
+## compared at root + p0z (run 1 forgot it and read exactly 50.1 mm)
+static func playback_err(pel_z: float, root_z: float, p0z: float) -> float:
+	return absf(pel_z - (root_z + p0z))
+
+
 static func slide_of(pts: Array) -> float:
 	var w := 0.0
 	for p in pts:
@@ -138,7 +144,7 @@ func _run() -> void:
 			pen_frame = k
 		if k % 40 == 7:
 			var rt := Parkour.root_at(P, t)
-			back = maxf(back, absf(float((pel[k] as Vector3).z) - float(rt["z"])))
+			back = maxf(back, playback_err((pel[k] as Vector3).z, float(rt["z"]), float((B.p0["pelvis"] as Vector3).z)))
 	ok(back < 0.01, "6 playing the scene back reproduces the solved pelvis path to %.1f mm at sampled frames (bar 10 mm)" % (back * 1000.0))
 	# ---- 1 hand plants
 	var obs := {}
@@ -249,6 +255,7 @@ func _run() -> void:
 	S.apply(B, 1.2)
 	var wrong := boxes.duplicate(true)
 	wrong.append({"c": (B.P["pelvis"] as Vector3), "h": Vector3(0.3, 0.3, 0.3), "kind": "planted"})
+	ok(playback_err(5.0 + 0.0501 + 0.03, 5.0, 0.0501) > 0.01 and playback_err(5.0 + 0.0501, 5.0, 0.0501) < 1e-9, "7g control: a pelvis 3 cm off the plan fails the playback check, one at root + rest offset passes")
 	ok(float(Parkour.deepest(B, wrong)["d"]) > PEN_MAX, "7e control: a box planted through the pelvis fails bar 5 (%.0f mm)" % (float(Parkour.deepest(B, wrong)["d"]) * 1000.0))
 	print("CH7 TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	print("ch7: %d fail" % fails)
