@@ -263,7 +263,8 @@ func bar7_video() -> void:
 		print("skip 7 video and pictures (headless: no pixels)")
 		return
 	var od := out_dir()
-	var sc: Dictionary = SC.build(root, S.assembly(), false)
+	# the video itself is the SECTION video (the reactor building and the turbine hall cut on their middle planes, the brief's deliverable 4)
+	var sc: Dictionary = SC.build(root, S.assembly(), true)
 	var st := S.stages()
 	var frames := []
 	var labels := []
@@ -291,7 +292,6 @@ func bar7_video() -> void:
 	ok(in_order and frames.size() == st.size(), "7 video: %d stage frames in order" % frames.size())
 	ok(moves, "7 video: each frame differs from the one before (smallest mean diff %.4f)" % low)
 	ok(own_ok, "7 video: each stage's own colour grows in its frame (%s)" % ", ".join(own_txt))
-	var closed_red := red_px(frames[frames.size() - 1])
 	var w: int = (frames[0] as Image).get_width() / 4
 	var h: int = (frames[0] as Image).get_height() / 4
 	var rows := int(ceil(frames.size() / 4.0))
@@ -303,16 +303,20 @@ func bar7_video() -> void:
 		sheet.blit_rect(im2, Rect2i(0, 0, w, h), Vector2i((k % 4) * w, (k / 4) * h))
 	sheet.save_png(od + "/ch15_build_sheet.png")
 	print("     frames: " + " | ".join(labels))
-	(sc["root"] as Node).queue_free()
-	await process_frame
-	var ss: Dictionary = SC.build(root, S.assembly(), true)
-	SC.show_stage(ss, st.size() - 1)
-	SC.camera_section(ss)
+	SC.camera_section(sc)
 	var simg: Image = await grab()
 	simg.save_png(od + "/ch15_section.png")
 	var sr := red_px(simg)
-	ok(sr > 400 and closed_red < sr / 20, "7 the section frame shows the primary circuit: %d red px, the closed building %d" % [sr, closed_red])
-	(ss["root"] as Node).queue_free()
+	(sc["root"] as Node).queue_free()
+	await process_frame
+	var cs: Dictionary = SC.build(root, S.assembly(), false)
+	SC.show_stage(cs, st.size() - 1)
+	SC.camera_section(cs)
+	var cimg: Image = await grab()
+	cimg.save_png(TMP + "/closed.png")
+	var closed_red := red_px(cimg)
+	ok(sr > 400 and closed_red < sr / 20, "7 the section frame shows the primary circuit: %d red px, the same view of the closed building %d" % [sr, closed_red])
+	(cs["root"] as Node).queue_free()
 	await process_frame
 	# the three sheets as PNG, to look at
 	for nm in ["site", "section", "oneline"]:
