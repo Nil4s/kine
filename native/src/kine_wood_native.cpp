@@ -10,7 +10,7 @@ namespace {
 
 const double PI2 = 6.283185307179586476925286766559;
 const double EWR = 0.804, EWG = 0.635, EWB = 0.486, LATE_K = 0.77;
-const double PORE_CELL = 0.42, PORE_STRETCH = 8.0;
+const double PORE_CELL = 0.32, PORE_STRETCH = 8.0;
 const int RAY_SLOTS = 240;
 
 inline double hash3(int64_t x, int64_t y, int64_t z, int64_t s) {
@@ -71,15 +71,15 @@ PackedFloat32Array KineWoodNative::sample(const PackedVector3Array &p_pts, const
 		double h1 = hash3(gi, 5, 5, seed + 3);
 		double lw = sstep(0.45, 0.93, f) * (0.8 + 0.4 * h1);
 		double tone = 1.0 + (LATE_K - 1.0) * std::min(lw, 1.0);
-		double ewz = 1.0 - sstep(0.0, 0.3, f);
+		double ewz = 1.0 - sstep(0.1, 0.7, f);
 		double pa = a2 / PORE_CELL, pb = b2 / PORE_CELL, pt = t / (PORE_CELL * PORE_STRETCH);
 		int64_t ci = (int64_t)std::floor(pa), cj = (int64_t)std::floor(pb), ck = (int64_t)std::floor(pt);
-		double cx = 0.5 + 0.3 * (2.0 * hash3(ci, cj, ck, seed + 31) - 1.0);
-		double cy = 0.5 + 0.3 * (2.0 * hash3(ci, cj, ck, seed + 32) - 1.0);
+		double cx = 0.5 + 0.12 * (2.0 * hash3(ci, cj, ck, seed + 31) - 1.0);
+		double cy = 0.5 + 0.12 * (2.0 * hash3(ci, cj, ck, seed + 32) - 1.0);
 		double dx = (pa - ci) - cx, dy = (pb - cj) - cy;
 		double e = std::sqrt(dx * dx + dy * dy);
 		double present = hash3(ci, cj, ck, seed + 34) < pore_p * ewz ? 1.0 : 0.0;
-		double pore = present * (1.0 - sstep(0.17, 0.26, e));
+		double pore = present * (1.0 - sstep(0.2, 0.32, e));
 		tone *= 1.0 - 0.45 * pore;
 		double ray = 0.0;
 		if (rho0 > 4.0) {

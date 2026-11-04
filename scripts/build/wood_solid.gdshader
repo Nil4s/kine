@@ -14,11 +14,12 @@ uniform float oval_ang = 0.0;
 uniform float pore_p = 0.55;
 uniform float ray_dens = 0.35;
 uniform int mode = 0;
+uniform float bump = 1.0;
 varying vec3 lp;
 
 const vec3 EW = vec3(0.804, 0.635, 0.486);
 const float LATE_K = 0.77;
-const float PORE_CELL = 0.42;
+const float PORE_CELL = 0.32;
 const float PORE_STRETCH = 8.0;
 const int RAY_SLOTS = 240;
 
@@ -55,15 +56,15 @@ vec4 wood(vec3 p, out float pore, out float ray) {
 	float h1 = hash3(gi, 5, 5, seed + 3);
 	float lw = sst(0.45, 0.93, f) * (0.8 + 0.4 * h1);
 	float tone = 1.0 + (LATE_K - 1.0) * min(lw, 1.0);
-	float ewz = 1.0 - sst(0.0, 0.3, f);
+	float ewz = 1.0 - sst(0.1, 0.7, f);
 	float pa = a2 / PORE_CELL; float pb = b2 / PORE_CELL; float pt = t / (PORE_CELL * PORE_STRETCH);
 	int ci = int(floor(pa)); int cj = int(floor(pb)); int ck = int(floor(pt));
-	float cx = 0.5 + 0.3 * (2.0 * hash3(ci, cj, ck, seed + 31) - 1.0);
-	float cy = 0.5 + 0.3 * (2.0 * hash3(ci, cj, ck, seed + 32) - 1.0);
+	float cx = 0.5 + 0.12 * (2.0 * hash3(ci, cj, ck, seed + 31) - 1.0);
+	float cy = 0.5 + 0.12 * (2.0 * hash3(ci, cj, ck, seed + 32) - 1.0);
 	float dx = (pa - float(ci)) - cx; float dy = (pb - float(cj)) - cy;
 	float e = sqrt(dx * dx + dy * dy);
 	float present = hash3(ci, cj, ck, seed + 34) < pore_p * ewz ? 1.0 : 0.0;
-	pore = present * (1.0 - sst(0.17, 0.26, e));
+	pore = present * (1.0 - sst(0.2, 0.32, e));
 	tone *= 1.0 - 0.45 * pore;
 	ray = 0.0;
 	if (rho0 > 4.0) {
@@ -103,8 +104,19 @@ void fragment() {
 	vec4 w = wood(lp, pore, ray);
 	if (mode == 0) {
 		ALBEDO = s2l(w.xyz);
-		ROUGHNESS = 0.62 + 0.25 * pore;
-		SPECULAR = 0.3;
+		// the grain catches light: pores are dimples, the latewood a faint ridge (a bump from the field's own derivatives), an oiled finish on top
+		float lwv = smoothstep(0.45, 0.93, fract(w.w));
+		float hh = -(pore * 0.06 + lwv * 0.03) * 0.001;
+		vec3 dpx = dFdx(VERTEX); vec3 dpy = dFdy(VERTEX);
+		float dhx = dFdx(hh); float dhy = dFdy(hh);
+		vec3 r1 = cross(dpy, NORMAL); vec3 r2 = cross(NORMAL, dpx);
+		float det = dot(dpx, r1);
+		vec3 grad = sign(det) * (dhx * r1 + dhy * r2);
+		NORMAL = normalize(abs(det) * NORMAL - bump * grad);
+		ROUGHNESS = 0.38 + 0.3 * pore + 0.12 * lwv;
+		SPECULAR = 0.55;
+		CLEARCOAT = 0.35;
+		CLEARCOAT_ROUGHNESS = 0.28;
 	} else {
 		vec3 c = w.xyz;
 		if (mode == 2) {

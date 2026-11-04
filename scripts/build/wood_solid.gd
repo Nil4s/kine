@@ -20,12 +20,14 @@ extends RefCounted
 const KIND := "oak3d"
 const EW := Vector3(0.804, 0.635, 0.486)   # earlywood sRGB: the light zone of the fresh Quercus robur disc (205, 162, 124) (docs/CH4_REFERENCE.md)
 const LATE_K := 0.77                        # latewood / earlywood brightness, from the 1200 dpi scan (125,99,77) / (162,132,103)
-const PORE_CELL := 0.42                     # mm across the pore lattice
+const PORE_CELL := 0.32                     # mm across the pore lattice
 const PORE_STRETCH := 8.0                   # a pore is 8x longer along the grain than across
 const RAY_SLOTS := 240
 const M32 := 0xFFFFFFFF
 const MM := 0.001
 
+## tests: evaluate everything in GDScript (probing a parameter without rebuilding the DLL)
+static var force_gd_all := false
 static var _native_checked := false
 static var _native = null
 
@@ -47,8 +49,8 @@ static func norm(spec: Dictionary) -> Dictionary:
 	out["ring_var"] = clampf(float(spec.get("ring_var", 0.35)), 0.0, 2.0)
 	out["oval"] = clampf(float(spec.get("oval", 0.07)), 0.0, 0.5)
 	out["oval_ang"] = deg_to_rad(float(spec.get("oval_ang", 0.0)))
-	out["pore_p"] = clampf(float(spec.get("pore_p", 0.55)), 0.0, 1.0)
-	out["ray_dens"] = clampf(float(spec.get("ray_dens", 0.35)), 0.0, 1.0)
+	out["pore_p"] = clampf(float(spec.get("pore_p", 1.0)), 0.0, 1.0)
+	out["ray_dens"] = clampf(float(spec.get("ray_dens", 0.5)), 0.0, 1.0)
 	return out
 
 
@@ -128,20 +130,20 @@ static func field(p: Vector3, sp: Dictionary) -> PackedFloat32Array:
 	var lw := sstep(0.45, 0.93, f) * (0.8 + 0.4 * h1)
 	var tone := 1.0 + (LATE_K - 1.0) * minf(lw, 1.0)
 	# pores
-	var ewz := 1.0 - sstep(0.0, 0.3, f)
+	var ewz := 1.0 - sstep(0.1, 0.7, f)
 	var pa := a2 / PORE_CELL
 	var pb := b2 / PORE_CELL
 	var pt := t / (PORE_CELL * PORE_STRETCH)
 	var ci := floori(pa)
 	var cj := floori(pb)
 	var ck := floori(pt)
-	var cx := 0.5 + 0.3 * (2.0 * hash3(ci, cj, ck, seed + 31) - 1.0)
-	var cy := 0.5 + 0.3 * (2.0 * hash3(ci, cj, ck, seed + 32) - 1.0)
+	var cx := 0.5 + 0.12 * (2.0 * hash3(ci, cj, ck, seed + 31) - 1.0)
+	var cy := 0.5 + 0.12 * (2.0 * hash3(ci, cj, ck, seed + 32) - 1.0)
 	var dx := (pa - ci) - cx
 	var dy := (pb - cj) - cy
 	var e := sqrt(dx * dx + dy * dy)   # a vessel is a TUBE along the axis, broken into segments (cells) that are on or off
 	var present := 1.0 if hash3(ci, cj, ck, seed + 34) < float(sp["pore_p"]) * ewz else 0.0
-	var pore := present * (1.0 - sstep(0.17, 0.26, e))
+	var pore := present * (1.0 - sstep(0.2, 0.32, e))
 	tone *= 1.0 - 0.45 * pore
 	# rays
 	var ray := 0.0
@@ -202,7 +204,7 @@ static func has_native() -> bool:
 ## the field at every point (mm): 6 floats each (see field()); C++ when it is built, the GDScript above otherwise (force_gd: always GDScript)
 static func sample(pts: PackedVector3Array, spec: Dictionary, force_gd := false) -> PackedFloat32Array:
 	var sp := norm(spec)
-	var n = null if force_gd else _native_impl()
+	var n = null if (force_gd or force_gd_all) else _native_impl()
 	if n != null:
 		return n.sample(pts, sp)
 	var out := PackedFloat32Array()

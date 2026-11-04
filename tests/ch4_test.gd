@@ -17,6 +17,10 @@ extends SceneTree
 ##   H NATIVE      C++ and GDScript agree on 20000 random points of 5 specs within 1e-4 on all six outputs (FAILS if the DLL is not built)
 ##   R RENDER      the shader's phase image across the chamfer's top edge (3 px each side): the jump J = |d_cross - mean(d_left, d_right)| has mean <= 0.06 ring and p90 <= 0.12 ring
 ##   L LOOK        close-ups (corner with dovetails, chamfer, end grain, whole box) are written and are not flat (luminance sd > 0.03)
+##   S PATCH       (lead 11-04) on each of the 5 long faces (Front, Back, Left, Right outsides, Lid top) the largest single-ring patch (connected pixels with the same floor(g)) covers < 8 % of the face area
+##   P PORES       (lead 11-04) pores per mm2 on a billet end face (annulus r 6..16 mm) within 30 % of the 1200 dpi scan: 4.92 / mm2 (3.45 .. 6.40)
+##   Y RAYS        (lead 11-04) ray crossings per mm along a ring on a billet end face (circles r 8..14 mm) within 30 % of the scan: 0.55 / mm (0.385 .. 0.715)
+##   M LIGHT       (lead 11-04) the lit close-ups catch light: p99 / median luminance of the wood pixels >= 1.35 on corner and box
 ##   CONTROL       a 2D UV-mapped texture (the same grain read on each face's flat coordinates) FAILS D (median > 1 px) and FAILS E4 (misclassifies >= 8 of the 30 faces);
 ##                 a 1:6 box fails B, a 0.3 mm gap fails C
 const OUT := "C:/Users/Nick/tools/kine_workers/out/ch4"
@@ -316,6 +320,84 @@ func grad_stats(b: Dictionary, ppm: float, grain_axis: int) -> Dictionary:
 	return {"cross": float(cross_ok) / maxf(tot, 1), "pos": float(pos) / maxf(tot, 1), "neg": float(neg) / maxf(tot, 1), "slant": float(slant) / maxf(tot, 1)}
 
 
+func largest_patch(b: Dictionary) -> float:
+	var nw: int = b["w"]
+	var nh: int = b["h"]
+	var d: PackedFloat32Array = b["d"]
+	var lab := PackedInt32Array()
+	lab.resize(nw * nh)
+	for k in nw * nh:
+		lab[k] = floori(d[k * 6 + 3])
+	var seen := PackedByteArray()
+	seen.resize(nw * nh)
+	var best := 0
+	for k0 in nw * nh:
+		if seen[k0] == 1:
+			continue
+		seen[k0] = 1
+		var st := PackedInt32Array([k0])
+		var cnt := 0
+		while not st.is_empty():
+			var k: int = st[st.size() - 1]
+			st.resize(st.size() - 1)
+			cnt += 1
+			var x := k % nw
+			var y := k / nw
+			if x > 0 and seen[k - 1] == 0 and lab[k - 1] == lab[k0]:
+				seen[k - 1] = 1
+				st.append(k - 1)
+			if x < nw - 1 and seen[k + 1] == 0 and lab[k + 1] == lab[k0]:
+				seen[k + 1] = 1
+				st.append(k + 1)
+			if y > 0 and seen[k - nw] == 0 and lab[k - nw] == lab[k0]:
+				seen[k - nw] = 1
+				st.append(k - nw)
+			if y < nh - 1 and seen[k + nw] == 0 and lab[k + nw] == lab[k0]:
+				seen[k + nw] = 1
+				st.append(k + nw)
+		best = maxi(best, cnt)
+	return float(best) / float(nw * nh)
+
+
+## pore blobs (>= 3 px) whose centre lies in the annulus r0..r1 about the origin
+func count_pores(b: Dictionary, ppm: float, o2: Vector2, r0: float, r1: float) -> int:
+	var nw: int = b["w"]
+	var nh: int = b["h"]
+	var d: PackedFloat32Array = b["d"]
+	var seen := PackedByteArray()
+	seen.resize(nw * nh)
+	var n := 0
+	for j in nh:
+		for i in nw:
+			var k := j * nw + i
+			if seen[k] == 1 or d[k * 6 + 4] <= 0.5:
+				continue
+			var st := [Vector2i(i, j)]
+			seen[k] = 1
+			var cnt := 0
+			var sx := 0.0
+			var sy := 0.0
+			while not st.is_empty():
+				var q: Vector2i = st.pop_back()
+				cnt += 1
+				sx += q.x
+				sy += q.y
+				for dd in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+					var nq: Vector2i = q + dd
+					if nq.x < 0 or nq.y < 0 or nq.x >= nw or nq.y >= nh:
+						continue
+					var nk := nq.y * nw + nq.x
+					if seen[nk] == 0 and d[nk * 6 + 4] > 0.5:
+						seen[nk] = 1
+						st.append(nq)
+			if cnt < 3:
+				continue
+			var c := o2 + Vector2((sx / cnt + 0.5) / ppm, (sy / cnt + 0.5) / ppm)
+			if c.length() >= r0 and c.length() <= r1:
+				n += 1
+	return n
+
+
 func pore_aspect(b: Dictionary) -> float:
 	var nw: int = b["w"]
 	var nh: int = b["h"]
@@ -390,16 +472,26 @@ func make_view(w: int, h: int, ortho: float, lit: bool) -> void:
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.16, 0.17, 0.2)
 	if lit:
-		env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-		env.ambient_light_color = Color(0.75, 0.78, 0.85)
-		env.ambient_light_energy = 0.55
+		# a key light low and to one side (it rakes across the grain), a soft sky for the oiled finish to reflect, a weak fill from the other side
+		var sky := Sky.new()
+		var psm := ProceduralSkyMaterial.new()
+		psm.sky_top_color = Color(0.45, 0.58, 0.8)
+		psm.sky_horizon_color = Color(0.85, 0.85, 0.82)
+		psm.ground_horizon_color = Color(0.5, 0.45, 0.4)
+		psm.ground_bottom_color = Color(0.2, 0.18, 0.16)
+		sky.sky_material = psm
+		env.sky = sky
+		env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+		env.ambient_light_energy = 0.45
+		env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 		var sun := DirectionalLight3D.new()
-		sun.rotation_degrees = Vector3(-50, -35, 0)
-		sun.light_energy = 1.4
+		sun.rotation_degrees = Vector3(-32, -55, 0)
+		sun.light_energy = 2.4
+		sun.shadow_enabled = true
 		vp.add_child(sun)
 		var fill := DirectionalLight3D.new()
-		fill.rotation_degrees = Vector3(-20, 140, 0)
-		fill.light_energy = 0.5
+		fill.rotation_degrees = Vector3(-15, 130, 0)
+		fill.light_energy = 0.3
 		vp.add_child(fill)
 	else:
 		env.ambient_light_source = Environment.AMBIENT_SOURCE_DISABLED
@@ -438,6 +530,18 @@ func luminance_sd(im: Image) -> float:
 			n += 1
 	var m := s / n
 	return sqrt(maxf(s2 / n - m * m, 0.0))
+
+
+func highlight_ratio(im: Image) -> float:
+	var ls := []
+	for j in range(0, im.get_height(), 2):
+		for i in range(0, im.get_width(), 2):
+			var c := im.get_pixel(i, j)
+			if absf(c.r - 0.16) < 0.02 and absf(c.b - 0.2) < 0.02:
+				continue   # the background
+			ls.append(0.3 * c.r + 0.59 * c.g + 0.11 * c.b)
+	ls.sort()
+	return ls[int(ls.size() * 0.99)] / maxf(ls[ls.size() / 2], 1e-4)
 
 
 func ang_diff(a: float, b: float) -> float:
@@ -614,6 +718,41 @@ func _run() -> void:
 				nf += 1
 	ok(nf == 30 and wrong == 0, "E4 end vs side grain on all %d faces: %d misclassified (end aspects %s, long aspects %s)" % [nf, wrong, str(asp_end.map(func(a): return snappedf(a, 0.1))), str(asp_long.map(func(a): return snappedf(a, 0.1)))])
 	ok(wrong_2d >= 8, "CONTROL a 2D UV-mapped texture misclassifies %d of 30 faces (bar: >= 8)" % wrong_2d)
+	# S PATCH: the largest single-ring patch on each long face
+	var faces := [["Front", Vector3(0, 0, 0), Vector3.RIGHT, Vector3.UP, 160.0, 70.0, 0], ["Back", Vector3(0, 0, 100), Vector3.RIGHT, Vector3.UP, 160.0, 70.0, 1],
+		["Left", Vector3(0, 0, 0), Vector3(0, 0, 1), Vector3.UP, 100.0, 70.0, 2], ["Right", Vector3(160, 0, 0), Vector3(0, 0, 1), Vector3.UP, 100.0, 70.0, 3],
+		["Lid", Vector3(-4, 80, -4), Vector3.RIGHT, Vector3(0, 0, 1), 168.0, 108.0, 4]]
+	var worst_patch := 0.0
+	var patch_txt := []
+	for fc in faces:
+		var bf := bake(fc[1], fc[2], fc[3], fc[4], fc[5], 2.0, specs[int(fc[6])])
+		var fr := largest_patch(bf)
+		worst_patch = maxf(worst_patch, fr)
+		patch_txt.append("%s %.1f %%" % [fc[0], 100.0 * fr])
+	ok(worst_patch < 0.08, "S largest single-ring patch per long face: %s (bar < 8 %%)" % ", ".join(patch_txt))
+	# P / Y: pore and ray density on a billet end face against the scan
+	var bp := bake(Vector3(-18, -18, 0), Vector3.RIGHT, Vector3.UP, 36, 36, 20.0, fix)
+	var pore_n := count_pores(bp, 20.0, Vector2(-18, -18), 6.0, 16.0)
+	var area := PI * (16.0 * 16.0 - 6.0 * 6.0)
+	var pdens := pore_n / area
+	ok(pdens >= 3.45 and pdens <= 6.40, "P pores: %.2f per mm2 on the billet end (scan 4.92, bar 3.45 .. 6.40)" % pdens)
+	var cross := 0.0
+	var ncirc := 0
+	for rr in [8.0, 10.0, 12.0, 14.0]:
+		var cp := PackedVector3Array()
+		var nstep := int(TAU * rr / 0.05)
+		for i in nstep:
+			var an := TAU * i / nstep
+			cp.append(Vector3(rr * cos(an), rr * sin(an), 0.0))
+		var rs := WoodSolid.sample(cp, fix)
+		var cnt := 0
+		for i in nstep:
+			if rs[i * 6 + 5] > 0.5 and rs[((i + 1) % nstep) * 6 + 5] <= 0.5:
+				cnt += 1
+		cross += cnt / (TAU * rr)
+		ncirc += 1
+	cross /= ncirc
+	ok(cross >= 0.385 and cross <= 0.715, "Y rays: %.3f crossings per mm along a ring (scan 0.55, bar 0.385 .. 0.715)" % cross)
 	# G CHAMFER sampled vs analytic
 	var cpts := PackedVector3Array()
 	for i in range(0, ch_tris.size(), 3):
@@ -722,6 +861,9 @@ func _run() -> void:
 		imv.save_png(OUT + "/" + name + ".png")
 		var sd := luminance_sd(imv)
 		ok(sd > 0.03, "L look %s: luminance sd %.3f" % [name, sd])
+		if name == "corner" or name == "box":
+			var hl := highlight_ratio(imv)
+			ok(hl >= 1.35, "M light %s: p99 / median luminance %.2f (bar >= 1.35)" % [name, hl])
 		await free_view()
 	print("ch4: %d fail" % fails)
 	quit(1 if fails > 0 else 0)

@@ -27,3 +27,16 @@
 - Finer ring profile for flat-sawn faces (a second, faster latewood line, per-ring width variation), denser pores and rays, a normal map from the pore mask.
 - A UI picker for solid oak on any body (today it is a spec in the look: `{"mat": {"kind": "oak3d", "pith": [..], "dir": [..]}}`).
 - The GDScript fallback bake is 85x slower than C++ (fine for tests, slow for big faces).
+
+## Look pass (lead's four items)
+New bars, written first and run on the old build (all failed except Y; before -> after):
+- S largest single-ring patch per long face < 8 %: before Front 31.4 / Back 30.2 / Left 34.6 / Right 31.7 / Lid 12.5 %; after 2.2 / 2.3 / 2.1 / 2.8 / 6.6 %. The lenses are gone.
+- P pores per mm2 on the end face within 30 % of the 1200 dpi scan (4.92): before 0.58; after 4.04.
+- Y ray crossings per mm along a ring (scan 0.55): before 0.41; after 0.575. The scan figure is sensitive to prominence (0.3 to 0.8 depending on threshold); the model figure uses the model's own ray mask, the scan figure a difference-of-Gaussians, so the two detectors differ.
+- M highlight (p99/median luminance >= 1.35): before corner 1.20, box 1.50 (corner failed); after 1.97 / 1.80.
+- Fix for S: the side boards are now rift/quarter-sawn (pith in the face plane, 150+ mm away, rings 1.4-1.7 mm). Only moving a flat-sawn pith away would keep a near-tangent cut, which conflicts with E2. The lid stays flat-sawn (the cathedral). Right board pith x moved 140 -> 40 so its 12 mm edge face does not sit inside one ring (E4 had one face with no countable pores).
+- Lighting: sky + shadowed key light + weak fill in the test render, plus shader derivative bump, roughness 0.38..0.8 (lower on pores), clearcoat 0.35. Colour stays FRESH oak (light zone 0.80/0.64/0.49): aged oak is a material choice, not physics.
+- s224 on a clean db9328ec worktree: the View > Realistic fail is PRE-EXISTING (identical: 21 ok / 1 fail "VIEW > Realistic is a button in the View menu").
+- Reruns: ch4 0 fail, easypart 0 fail, peasy3 0 fail.
+
+Honest look: the lenses are gone and the lid arches and chamfer read well, but at box scale the 1.5 mm side-board stripes alias into a fine moire and, on the corner close-up, side stripes and end grain look alike so the dovetails read less than before. Next: a ring-width mip fade and a stronger end-grain tone.

@@ -18,14 +18,15 @@ const LID_T := 10.0
 const LID_OVER := 4.0
 
 
-## the trees: [pith, axis, seed, ring mm]
+## the trees: [pith, axis, seed, ring mm]. The four side boards are RIFT / QUARTER-sawn (the log's pith lies in the plane of the board face, a log radius 150 mm or more
+## away): fine parallel stripes, ray flecks lying in the face. The lid is FLAT-sawn off a tapered trunk: nested cathedral arches.
 static func spec_of(i: int) -> Dictionary:
 	match i:
-		0: return {"kind": WoodSolid.KIND, "seed": 11, "pith": [80.0, 35.0, 75.0], "dir": [1.0, 0.0, -0.03], "ring": 2.0, "oval_ang": 20.0}
-		1: return {"kind": WoodSolid.KIND, "seed": 12, "pith": [75.0, 30.0, 25.0], "dir": [1.0, 0.0, 0.03], "ring": 2.2, "oval_ang": 70.0}
-		2: return {"kind": WoodSolid.KIND, "seed": 13, "pith": [76.0, 35.0, 50.0], "dir": [-0.03, 0.0, 1.0], "ring": 1.9, "oval_ang": 40.0}
-		3: return {"kind": WoodSolid.KIND, "seed": 14, "pith": [84.0, 38.0, 50.0], "dir": [0.03, 0.0, 1.0], "ring": 2.1, "oval_ang": 110.0}
-	return {"kind": WoodSolid.KIND, "seed": 15, "pith": [80.0, 25.0, 54.0], "dir": [1.0, -0.08, 0.0], "ring": 2.4, "oval_ang": 10.0}
+		0: return {"kind": WoodSolid.KIND, "seed": 11, "pith": [80.0, -150.0, 20.0], "dir": [1.0, 0.0, 0.02], "ring": 1.5, "ring_var": 0.5, "oval_ang": 20.0}
+		1: return {"kind": WoodSolid.KIND, "seed": 12, "pith": [75.0, -160.0, 80.0], "dir": [1.0, 0.0, -0.02], "ring": 1.6, "ring_var": 0.5, "oval_ang": 70.0}
+		2: return {"kind": WoodSolid.KIND, "seed": 13, "pith": [20.0, -155.0, 50.0], "dir": [0.02, 0.0, 1.0], "ring": 1.4, "ring_var": 0.5, "oval_ang": 40.0}
+		3: return {"kind": WoodSolid.KIND, "seed": 14, "pith": [40.0, -165.0, 50.0], "dir": [-0.02, 0.0, 1.0], "ring": 1.7, "ring_var": 0.5, "oval_ang": 110.0}
+	return {"kind": WoodSolid.KIND, "seed": 15, "pith": [80.0, 25.0, 54.0], "dir": [1.0, -0.13, 0.0], "ring": 1.5, "ring_var": 0.6, "oval_ang": 10.0}
 
 
 static func _poly(pts: Array) -> Array:
