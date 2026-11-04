@@ -34,10 +34,13 @@ func _init() -> void:
 	var secs: float = float(args[1]) if args.size() > 1 else 20.0
 	var fps: int = int(args[2]) if args.size() > 2 else 30
 	var sub: int = int(args[3]) if args.size() > 3 else 4
+	var t0: float = float(args[4]) if args.size() > 4 else 0.0   # start time inside the 20 s film (for look-at-one-frame renders)
 	DirAccess.make_dir_recursive_absolute(out_dir)
 	root.size = Vector2i(1280, 720)
+	root.content_scale_size = Vector2i(1280, 720)
+	DisplayServer.window_set_size(Vector2i(1280, 720))
 	var C := ClockC.new()
-	var sim := C.simulate(secs + 1.0)
+	var sim := C.simulate(secs + t0 + 1.0)
 	C.capture_base(sim["theta"][0])
 	var world := Node3D.new()
 	root.add_child(world)
@@ -57,7 +60,7 @@ func _init() -> void:
 	env.background_color = Color(0.10, 0.11, 0.14)
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = 0.55
+	env.ambient_light_energy = 0.4
 	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
 	env.tonemap_exposure = 1.0
@@ -71,26 +74,25 @@ func _init() -> void:
 	world.add_child(we)
 	var key := DirectionalLight3D.new()
 	key.light_color = Color(1.0, 0.90, 0.75)
-	key.light_energy = 2.2
+	key.light_energy = 1.3
 	key.shadow_enabled = true
 	key.directional_shadow_max_distance = 6.0
 	key.rotation_degrees = Vector3(-38.0, -28.0, 0.0)
 	world.add_child(key)
 	var fill := OmniLight3D.new()
 	fill.light_color = Color(0.70, 0.80, 1.0)
-	fill.light_energy = 1.2
+	fill.light_energy = 0.5
 	fill.omni_range = 4.0
 	fill.position = Vector3(-0.8, 0.5, 1.4)
 	world.add_child(fill)
 	var spot := SpotLight3D.new()
 	spot.light_color = Color(1.0, 0.85, 0.65)
-	spot.light_energy = 14.0
+	spot.light_energy = 6.0
 	spot.spot_range = 3.0
 	spot.spot_angle = 24.0
 	spot.shadow_enabled = true
-	spot.position = Vector3(0.45, 0.45, 0.9)
 	world.add_child(spot)
-	spot.look_at(Vector3(0.0, 0.06, 0.03), Vector3.UP)
+	spot.look_at_from_position(Vector3(0.45, 0.45, 0.9), Vector3(0.0, 0.06, 0.03), Vector3.UP)
 	var cam := Camera3D.new()
 	cam.far = 30.0
 	world.add_child(cam)
@@ -101,10 +103,10 @@ func _init() -> void:
 	var total := int(secs * fps)
 	for f in total:
 		for s in sub:
-			var t := (float(f) + (float(s) + 0.5) / float(sub) * 0.5) / float(fps)   # a half-frame shutter
+			var t := t0 + (float(f) + (float(s) + 0.5) / float(sub) * 0.5) / float(fps)   # a half-frame shutter
 			var i := mini(int(t / dt), th.size() - 1)
 			sc.pose(th[i], ph[i])
-			var cp := cam_at(float(f) / float(fps))
+			var cp := cam_at(t0 + float(f) / float(fps))
 			cam.position = cp[0]
 			cam.look_at_from_position(cp[0], cp[1], Vector3.UP)
 			cam.fov = cp[2]

@@ -6,7 +6,7 @@ extends RefCounted
 const MM := 0.001
 const BRASS := Color(0.86, 0.62, 0.22)
 const STEEL := Color(0.62, 0.64, 0.68)
-const WOOD := Color(0.20, 0.10, 0.05)
+const WOOD := Color(0.10, 0.045, 0.02)
 var gear_nodes := {}     # gear id -> Node3D
 var node_of := {}        # named parts
 var model: ClockCH2
@@ -16,7 +16,7 @@ static func mat_brass() -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
 	m.albedo_color = BRASS
 	m.metallic = 1.0
-	m.roughness = 0.28
+	m.roughness = 0.22
 	return m
 
 
@@ -40,12 +40,14 @@ static func mat_wood() -> StandardMaterial3D:
 
 static func mat_glass() -> StandardMaterial3D:
 	var m := StandardMaterial3D.new()
-	m.albedo_color = Color(0.85, 0.95, 1.0, 0.07)
+	m.albedo_color = Color(0.80, 0.90, 1.0, 0.015)
 	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	m.metallic = 0.0
-	m.roughness = 0.02
+	m.roughness = 0.05
+	m.metallic_specular = 0.25
 	m.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	m.disable_receive_shadows = true
 	return m
 
 
@@ -222,7 +224,8 @@ func build(parent: Node3D, m: ClockCH2) -> void:
 	_box(parent, Vector3(cx1 - cx0, 20, 10), Vector3(0, cy1 - 10, cz1), frame)
 	_box(parent, Vector3(cx1 - cx0, 20, 10), Vector3(0, cy0 + 10, cz1), frame)
 	_box(parent, Vector3(cx1 - cx0, 20, 10), Vector3(0, -80, cz1), frame)   # the rail between hood and trunk
-	_mi(parent, _quad(cx1 - cx0 - 2 * t, cy1 - cy0 - 2 * t), mat_glass(), Vector3(0, (cy0 + cy1) * 0.5, cz1 + 2.0) * MM)
+	var gl := _mi(parent, _quad(cx1 - cx0 - 2 * t, cy1 - cy0 - 2 * t), mat_glass(), Vector3(0, (cy0 + cy1) * 0.5, cz1 + 2.0) * MM)
+	gl.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	# floor
 	var fl := PlaneMesh.new()
 	fl.size = Vector2(6.0, 6.0)
@@ -235,7 +238,7 @@ func build(parent: Node3D, m: ClockCH2) -> void:
 	wall.size = Vector2(6.0, 4.0)
 	wall.orientation = PlaneMesh.FACE_Z
 	var wm := StandardMaterial3D.new()
-	wm.albedo_color = Color(0.20, 0.23, 0.28)
+	wm.albedo_color = Color(0.07, 0.085, 0.11)
 	wm.roughness = 0.9
 	_mi(parent, wall, wm, Vector3(0, 0.6, (cz0 - 60.0) * MM))
 
