@@ -101,6 +101,36 @@ func enter(kind: String) -> void:
 	await idle(30)
 
 
+## the REAL popup (c68's way: the mouse comes to rest on the chip, nothing else moves, the engine's own tooltip shows): its rect
+func popup_of_measure(sz: Vector2i, tag: String) -> void:
+	root.size = sz
+	root.content_scale_size = sz
+	await idle(30)
+	var chip: Control = m.find_child("easypart_view_measure", true, false)
+	if chip != null and chip.toggle_mode and (chip as Button).button_pressed:
+		(chip as Button).button_pressed = false
+	await ev_move(Vector2(sz.x * 0.5, sz.y * 0.9))
+	await idle(10)
+	await ev_move(chip.get_global_rect().get_center())
+	var found: Window = null
+	for i in 12:
+		await idle(30)
+		found = find_tip()
+		if found != null:
+			break
+	var winr := Rect2(Vector2.ZERO, Vector2(sz))
+	ok(found != null, "%s real popup shown for Measure at %s" % [tag, sz])
+	if found != null:
+		var rc := Rect2(Vector2(found.position), Vector2(found.size))
+		var lb: Label = null
+		for l in found.find_children("*", "Label", true, false):
+			lb = l
+		print("popup %s %s rect %s label lines %d" % [tag, sz, rc, lb.get_line_count() if lb != null else -1])
+		ok(winr.encloses(rc) and rc.size.x <= 440.0, "%s popup rect %s inside %s and <= 440 px wide" % [tag, rc, winr])
+		ok(lb == null or lb.get_visible_line_count() >= lb.get_line_count(), "%s popup text not clipped" % tag)
+	await shot("popup_%s_%dx%d" % [tag, sz.x, sz.y])
+
+
 func sweep(label: String, sz: Vector2i) -> void:
 	root.size = sz
 	root.content_scale_size = sz
@@ -179,6 +209,8 @@ func _init() -> void:
 	await idle(60)
 	for sz in [Vector2i(1024, 600), Vector2i(1280, 720)]:
 		await sweep("Part %dx%d" % [sz.x, sz.y], sz)
+	for sz in [Vector2i(1024, 600), Vector2i(1280, 720)]:
+		await popup_of_measure(sz, "after")
 	await enter("animation")
 	for sz in [Vector2i(1024, 600), Vector2i(1280, 720)]:
 		await sweep("Pose %dx%d" % [sz.x, sz.y], sz)
