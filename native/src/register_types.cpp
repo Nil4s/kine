@@ -8,6 +8,7 @@
 #include "kine_cloth_self_native.h"
 #include "kine_meshcheck_native.h"
 #include "kine_meshops_native.h"
+#include "kine_parkour_native.h"
 
 
 #include "kine_field_native.h"
@@ -23,6 +24,7 @@ void kine_native_initialize(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(KineClothSelfNative);
 	GDREGISTER_ABSTRACT_CLASS(KineMeshCheckNative);
 	GDREGISTER_ABSTRACT_CLASS(KineMeshOpsNative);
+	GDREGISTER_ABSTRACT_CLASS(KineParkourNative);
 
 
 	GDREGISTER_ABSTRACT_CLASS(KineFieldNative);

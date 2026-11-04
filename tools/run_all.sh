@@ -962,3 +962,5 @@ EXTRA="$EXTRA c65:w"   # c65: over 256 bodies the look-merge ignores the body na
 
 
 EXTRA="$EXTRA c62:w"   # C62: no bone end under the toolbar or a panel in the opening view / Fit / Home at 1024, 1280, 1920
+
+EXTRA="$EXTRA ch7:w"   # CH7: the 8 s chained parkour run on a built course; hand plants, speed continuity, landing knee flex, foot skate, penetration (tests/ch7_test.gd)
