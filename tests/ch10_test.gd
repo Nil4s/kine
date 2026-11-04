@@ -34,6 +34,10 @@ func ok(c: bool, w: String) -> void:
 	fails += 0 if c else 1
 
 
+func sci(x: float) -> String:
+	return String.num_scientific(x)
+
+
 func rel(a: float, b: float) -> float:
 	return absf(a - b) / maxf(absf(b), 1e-300)
 
@@ -100,7 +104,7 @@ func sway_period(hm: Dictionary, dir: int) -> Dictionary:
 
 func quake(hm: Dictionary, dir: int, om: float, snap_every := 0) -> Dictionary:
 	var rec := SIM.load_record()
-	var dt := 0.01
+	var dt := 0.02    # the record's own step; average-acceleration Newmark, period elongation (w dt)^2/12 ~ 2 pct at T 0.25 s
 	var ag := SIM.resample(rec, dt)
 	var zeta := 0.05
 	var w2 := 5.0 * om
@@ -150,7 +154,7 @@ func _init() -> void:
 		var sr := FR.solve(cm, {"type": "static", "loads": load}, fg)
 		var tip: float = sr["u"][ne * 6 + 1]
 		var exact := 100.0 * L * L * L / (3.0 * E * I)
-		ok(rel(tip, exact) < 0.01, "a1 cantilever tip deflection [%s] %.6e m vs P L^3/3EI %.6e (%.4f pct)" % [tag, tip, exact, 100.0 * rel(tip, exact)])
+		ok(rel(tip, exact) < 0.01, "a1 cantilever tip deflection [%s] %s m vs P L^3/3EI %s (%.4f pct)" % [tag, sci(tip), sci(exact), 100.0 * rel(tip, exact)])
 		var md := FR.solve(cm, {"type": "modal", "start": sr["u"], "iters": 8}, fg)
 		var w_ex: float = 1.8751040687 * 1.8751040687 * sqrt(E * I / (rho * b * d * L * L * L * L))
 		ok(rel(md["omega"], w_ex) < 0.01, "a1 cantilever first omega [%s] %.4f vs %.4f rad/s (%.4f pct)" % [tag, md["omega"], w_ex, 100.0 * rel(md["omega"], w_ex)])
@@ -175,7 +179,7 @@ func _init() -> void:
 	var ps := FR.solve(pm, {"type": "static", "loads": pl})
 	var K_ex := 24.0 * E * I / (hh * hh * hh)
 	var sway: float = ps["u"][1 * 6]
-	ok(rel(sway, 1000.0 / K_ex) < 0.01, "a2 portal sway %.6e m vs H / (24EI/h^3) %.6e (%.4f pct)" % [sway, 1000.0 / K_ex, 100.0 * rel(sway, 1000.0 / K_ex)])
+	ok(rel(sway, 1000.0 / K_ex) < 0.01, "a2 portal sway %s m vs H / (24EI/h^3) %s (%.4f pct)" % [sci(sway), sci(1000.0 / K_ex), 100.0 * rel(sway, 1000.0 / K_ex)])
 	var pmd := FR.solve(pm, {"type": "modal", "start": ps["u"], "iters": 6})
 	var wp := sqrt(K_ex / 2000.0)
 	ok(rel(pmd["omega"], wp) < 0.01, "a2 portal first omega %.4f vs sqrt(K/m) %.4f rad/s (%.4f pct)" % [pmd["omega"], wp, 100.0 * rel(pmd["omega"], wp)])
@@ -198,9 +202,9 @@ func _init() -> void:
 			var e := 0.5 * km * ru[s] * ru[s] + 0.5 * mm0 * rv[s] * rv[s]
 			drift = maxf(drift, absf(e - e0) / e0)
 		if not damped:
-			ok(drift < 0.005, "d Newmark undamped SDOF energy drift %.3e over 1000 steps (bar 5e-3)" % drift)
+			ok(drift < 0.005, "d Newmark undamped SDOF energy drift %s over 1000 steps (bar 5e-3)" % sci(drift))
 		else:
-			ok(not (drift < 0.005), "d CONTROL: 2 pct damped SDOF energy drift %.3e FAILS the same bar (the bar can fail)" % drift)
+			ok(not (drift < 0.005), "d CONTROL: 2 pct damped SDOF energy drift %s FAILS the same bar (the bar can fail)" % sci(drift))
 	# ------------------------------------------------------------------------------------------------- e4 C++ == GDScript on 10 members
 	if FR.native_ok():
 		var q10 := [Vector3(0, 0, 0), Vector3(4, 0, 0), Vector3(4, 0, 3), Vector3(0, 0, 3), Vector3(0, 3, 0), Vector3(4, 3, 0), Vector3(4, 3, 3), Vector3(0, 3, 3)]
@@ -230,10 +234,10 @@ func _init() -> void:
 		for i in 48:
 			e_u = maxf(e_u, absf(s_n["u"][i] - s_g["u"][i]))
 			mx = maxf(mx, absf(s_g["u"][i]))
-		ok(e_u / mx < 1e-9, "e4 10-member frame static u: C++ vs GDScript max rel diff %.2e (bar 1e-9)" % (e_u / mx))
+		ok(e_u / mx < 1e-9, "e4 10-member frame static u: C++ vs GDScript max rel diff %s (bar 1e-9)" % sci(e_u / mx))
 		var o_n := FR.solve(m10, {"type": "modal", "start": s_g["u"], "iters": 5})
 		var o_g := FR.solve(m10, {"type": "modal", "start": s_g["u"], "iters": 5}, true)
-		ok(rel(o_n["omega"], o_g["omega"]) < 1e-9, "e4 first omega: C++ %.9f GDScript %.9f (rel %.2e)" % [o_n["omega"], o_g["omega"], rel(o_n["omega"], o_g["omega"])])
+		ok(rel(o_n["omega"], o_g["omega"]) < 1e-9, "e4 first omega: C++ %.9f GDScript %.9f (rel %s)" % [o_n["omega"], o_g["omega"], sci(rel(o_n["omega"], o_g["omega"]))])
 		var ag10 := PackedFloat64Array()
 		for s in 201:
 			ag10.append(3.0 * sin(0.2 * s))
@@ -245,10 +249,15 @@ func _init() -> void:
 		for i in n_g["rec_u"].size():
 			e_r = maxf(e_r, absf(n_n["rec_u"][i] - n_g["rec_u"][i]))
 			mr = maxf(mr, absf(n_g["rec_u"][i]))
-		ok(e_r / mr < 1e-9 and mr > 0.0, "e4 Newmark record (3 dofs x 201 steps): max rel diff %.2e (bar 1e-9), peak %.3e m" % [e_r / mr, mr])
+		ok(e_r / mr < 1e-9 and mr > 0.0, "e4 Newmark record (3 dofs x 201 steps): max rel diff %s (bar 1e-9), peak %s m" % [sci(e_r / mr), sci(mr)])
 	else:
 		ok(false, "e4 the native class is not loaded: C++ == GDScript cannot be checked")
 	# ------------------------------------------------------------------------------------------------- the house
+	if not FR.native_ok():
+		print("the house has ~5800 free dofs: the dense GDScript twin cannot run it; the house bars (b c e1-e3 f g) need KineFrameNative (native/bin DLL) and are not run")
+		print("ch10: %d fail (house bars NOT run)" % fails)
+		quit(1)
+		return
 	var code := house_model({})
 	var bld: Dictionary = code["bld"]
 	var nn: int = bld["nodes"].size()

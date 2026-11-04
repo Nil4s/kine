@@ -301,7 +301,7 @@ static func build(mj: Dictionary, opts := {}) -> Dictionary:
 				var qq: Vector3 = q + Vector3(0, 0.038, 0)
 				var sd := _seg_dist(qq, T2["p0"], T2["p1"])
 				if sd[0] < 0.012:
-					var t := sd[1]
+					var t: float = sd[1]
 					if t > 0.0 and t < 1.0 or true:
 						T2["pts"].append(sd[2])
 						links.append([q, sd[2]])
@@ -366,8 +366,8 @@ static func build(mj: Dictionary, opts := {}) -> Dictionary:
 			var sn: Array = []
 			var okp := true
 			for side in 2:
-				var qb := _request(beams, pts_b[side][0], ["bottom_plate"], 0.15)
-				var qt := _request(beams, pts_b[side][1], ["top_plate2"], 0.15)
+				var qb = _request(beams, pts_b[side][0], ["bottom_plate"], 0.15)
+				var qt = _request(beams, pts_b[side][1], ["top_plate2"], 0.15)
 				if qb == null or qt == null:
 					okp = false
 				sn.append([qb, qt])
@@ -543,6 +543,10 @@ static func to_model(bld: Dictionary) -> Dictionary:
 		if keep[b] == 1:
 			for d in 3:
 				fixed.append(b * 6 + d)
+	for i in n:    # nodes outside the main component carry no element: pin all six dofs so they do not make K singular
+		if keep[i] == 0:
+			for d in 6:
+				fixed.append(i * 6 + d)
 	var xyz := PackedFloat64Array()
 	xyz.resize(n * 3)
 	for i in n:
@@ -568,6 +572,9 @@ static func to_model(bld: Dictionary) -> Dictionary:
 		var B: Dictionary = beams[e["beam"]]
 		var s: Dictionary = B["sec"]
 		var e2: Vector3 = B["e2"]
+		var ax: Vector3 = (nodes[e["n2"]] - nodes[e["n1"]]).normalized()
+		if absf(ax.dot(e2)) > 0.999:    # a short piece cut along its section's reference axis: any perpendicular will do
+			e2 = Vector3.UP if absf(ax.y) < 0.9 else Vector3.RIGHT
 		bm.append_array([e["n1"], e["n2"], s["A"], s["Iz"], s["Iy"], s["J"], E_WOOD, G_WOOD, RHO_WOOD, e2.x, e2.y, e2.z])
 	var sp := PackedFloat64Array()
 	for s in springs:

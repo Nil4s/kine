@@ -466,9 +466,13 @@ Dictionary KineFrameNative::solve(const Dictionary &p_model, const Dictionary &p
 			force(s + 1, P);
 			for (int i = 0; i < nf; i++) t1[i] = c1 * u[i] + (1.0 / (beta * dt)) * v[i] + (1.0 / (2 * beta) - 1.0) * a[i];
 			for (int i = 0; i < nf; i++) t2[i] = c2 * u[i] + (gam / beta - 1.0) * v[i] + dt * (gam / (2 * beta) - 1.0) * a[i];
-			band_mul(M, t1, Mt);
-			Cmul(t2, Ct);
-			for (int i = 0; i < nf; i++) rhs[i] = P[i] + Mt[i] + Ct[i];
+			// M t1 + (alpha M + bet K) t2 = M (t1 + alpha t2) + K (bet t2): two band products instead of three
+			Ct.resize(nf);
+			for (int i = 0; i < nf; i++) { Ct[i] = bet * t2[i]; t2[i] = t1[i] + alpha * t2[i]; }
+			band_mul(M, t2, Mt);
+			Vd Kt;
+			band_mul(K, Ct, Kt);
+			for (int i = 0; i < nf; i++) rhs[i] = P[i] + Mt[i] + Kt[i];
 			chol_solve(Ke, rhs);
 			for (int i = 0; i < nf; i++) {
 				double an = c1 * (rhs[i] - u[i]) - (1.0 / (beta * dt)) * v[i] - (1.0 / (2 * beta) - 1.0) * a[i];
