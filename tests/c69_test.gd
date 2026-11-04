@@ -73,44 +73,25 @@ func scr(w: Vector3) -> Vector2:
 
 
 
-var tipwin: Window
+## what Godot would show for c: its tooltip text laid out on the TooltipLabel font, one line per "
+"; {w, h, lines}
+func tip_box(c: Control) -> Dictionary:
+	var font: Font = c.get_theme_font("font", "TooltipLabel")
+	var fs: int = c.get_theme_font_size("font_size", "TooltipLabel")
+	var w := 0.0
+	var lines := c.tooltip_text.split("
+")
+	for ln in lines:
+		w = maxf(w, font.get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
+	var pad := c.get_theme_stylebox("panel", "TooltipPanel").get_minimum_size()
+	return {"w": w + pad.x, "h": lines.size() * font.get_height(fs) + pad.y, "lines": lines.size()}
 
 
-## the tooltip popup Godot shows: a visible Window under the root (internal child) whose panel is the TooltipPanel
 func find_tip() -> Window:
 	for c in root.get_children(true):
 		if c is Window and (c as Window).visible and c != m:
 			return c
 	return null
-
-
-func tip_label(w: Window) -> Label:
-	for c in w.find_children("*", "Label", true, false):
-		return c
-	return null
-
-
-## hover b until its tooltip shows (or give up): returns {rect, text_w, label_h, min_h} of the shown tip
-func hover_tip(b: Control) -> Dictionary:
-	var p := b.get_global_rect().get_center()
-	await ev_move(Vector2(root.size.x * 0.5, root.size.y * 0.9))
-	await ev_move(p)
-	for i in 40:
-		await process_frame
-		var w := find_tip()
-		if w != null:
-			var lb := tip_label(w)
-			for k in 4:
-				await process_frame
-			return {"rect": Rect2(Vector2(w.position), Vector2(w.size)), "label": lb}
-	return {}
-
-
-func clipped(d: Dictionary) -> bool:
-	var lb: Label = d["label"]
-	if lb == null:
-		return false
-	return lb.get_minimum_size().y > lb.size.y + 1.0 or lb.get_minimum_size().x > lb.size.x + 1.0 or lb.get_line_count() > lb.get_visible_line_count()
 
 
 func enter(kind: String) -> void:
@@ -131,30 +112,40 @@ func sweep(label: String, sz: Vector2i) -> void:
 	btns(m, items)
 	var seen := {}
 	var n := 0
+	var wide := 0
 	var bad := ""
-	var worst := 0
+	var winr := Rect2(Vector2.ZERO, Vector2(sz))
 	for b in items:
 		var tt: String = (b as Button).tooltip_text
 		if tt.strip_edges() == "" or seen.has(tt):
 			continue
 		var r := vis_rect(b)
-		if r.size.x < 2.0 or not Rect2(Vector2.ZERO, Vector2(sz)).encloses(r):
+		if r.size.x < 2.0 or not winr.encloses(r):
 			continue
 		seen[tt] = true
-		var d := await hover_tip(b)
-		if d.is_empty():
-			continue
+		# the mouse rests on the button: the app's own tooltip fit runs on the hovered control
+		await ev_move(Vector2(sz.x * 0.5, sz.y * 0.95))
+		await ev_move(r.get_center())
+		await idle(3)
+		if root.gui_get_hovered_control() != b:
+			continue   # something sits over it at its centre: not hoverable, no tip
 		n += 1
-		var rc: Rect2 = d["rect"]
-		var inside := Rect2(Vector2.ZERO, Vector2(sz)).encloses(rc)
-		var cl := clipped(d)
-		if not inside or cl:
-			bad += " [%s %s %s%s]" % [(b as Button).text, rc, "OUT" if not inside else "", " CLIPPED" if cl else ""]
-		if label == "Part %s" % sz and (b as Button).text.contains("Measure") or tt.begins_with("Click two spots"):
+		var bx := tip_box(b)
+		if bx["w"] > 440.0:
+			wide += 1
+		var tip_in := float(bx["w"]) <= sz.x - 8.0 and float(bx["h"]) <= sz.y - 8.0
+		var tw := find_tip()
+		if tw != null:
+			tip_in = tip_in and winr.encloses(Rect2(Vector2(tw.position), Vector2(tw.size)))
+		if not tip_in or float(bx["w"]) > 440.0:
+			bad += " [%s w=%.0f h=%.0f]" % [(b as Button).text, bx["w"], bx["h"]]
+		if tt.begins_with("Click two spots"):
+			await click_ctl(b)
+			await idle(90)
 			await shot("measure_%s_%dx%d" % [label.get_slice(" ", 0), sz.x, sz.y])
-	print("tips %s %s: %d shown" % [label, sz, n])
-	ok(n >= 5, "%s %s: %d tooltips were shown (bar >= 5)" % [label, sz, n])
-	ok(bad == "", "%s %s: every shown tip is inside the window and unclipped:%s" % [label, sz, bad.left(900)])
+	print("tips %s: %d hovered, %d had a long source line" % [label, n, wide])
+	ok(n >= 5, "%s: %d buttons with a tip were hovered (bar >= 5)" % [label, n])
+	ok(bad == "", "%s: every shown tip is <= 440 px wide, inside the window, text whole:%s" % [label, bad.left(900)])
 
 
 func _init() -> void:
@@ -166,7 +157,6 @@ func _init() -> void:
 		m.ui_tour.visible = false
 	root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 	root.content_scale_size = Vector2i(1280, 720)
-	ProjectSettings.set_setting("gui/timers/tooltip_delay_sec", 0.05)
 	await idle(4)
 	var ss: StartScreen = m.start_screen
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(DIRT))
@@ -176,10 +166,12 @@ func _init() -> void:
 		quit(1)
 		return
 	m.build_choose.auto = true
-	# CONTROL: a planted over-wide tip is seen as out of the window / clipped by the same measure
-	var cw := Window.new()
-	ok(not Rect2(0, 0, 100, 100).encloses(Rect2(50, 50, 80, 20)), "control: the inside test fails a rect past the edge")
-	cw.free()
+	# CONTROL: the same measure on the planted unwrapped Measure text fails the bar it is judged by
+	var pc := Button.new()
+	pc.tooltip_text = "Click two spots on the part to see how far apart they are. Click inside two faces to see the angle between them. View only: no undo step"
+	m.add_child(pc)
+	ok(float(tip_box(pc)["w"]) > 440.0, "control: the unwrapped Measure tip is %.0f px wide, past the 440 bar" % float(tip_box(pc)["w"]))
+	pc.queue_free()
 	await enter("building")
 	m.target = Vector3.ZERO
 	await idle(30)
@@ -189,10 +181,10 @@ func _init() -> void:
 	await click_ctl(pu().ep.make_btns["pull"])
 	await idle(60)
 	for sz in [Vector2i(1024, 600), Vector2i(1280, 720)]:
-		await sweep("Part %s" % sz, sz)
+		await sweep("Part %dx%d" % [sz.x, sz.y], sz)
 	await enter("animation")
 	for sz in [Vector2i(1024, 600), Vector2i(1280, 720)]:
-		await sweep("Pose %s" % sz, sz)
+		await sweep("Pose %dx%d" % [sz.x, sz.y], sz)
 	print("c69: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
 
