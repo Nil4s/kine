@@ -13,6 +13,10 @@ void KineRopeNative::set_param(const String &key, double v) {
 	else if (key == "subs") rope.subs = (int)v;
 	else if (key == "skip") rope.skip = (int)v;
 	else if (key == "alpha") rope.alpha = (float)v;
+	else if (key == "kin") rope.kin = v != 0.0;
+	else if (key == "selfcol") rope.selfcol = v != 0.0;
+	else if (key == "adapt") rope.adapt = (float)v;
+	else if (key == "max_subs") rope.max_subs = (int)v;
 }
 
 void KineRopeNative::setup(const PackedVector3Array &p_pts, double p_ds, double p_r, const Dictionary &p_params) {
@@ -82,4 +86,5 @@ void KineRopeNative::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("max_col_pen", "skip_driven"), &KineRopeNative::max_col_pen);
 	ClassDB::bind_method(D_METHOD("get_tension"), &KineRopeNative::get_tension);
 	ClassDB::bind_method(D_METHOD("get_contacts"), &KineRopeNative::get_contacts);
+	ClassDB::bind_method(D_METHOD("get_used_subs"), &KineRopeNative::get_used_subs);
 }

@@ -1,7 +1,7 @@
 #pragma once
 // KineRopeNative (CH6): the rope of kine_rope_core.h as a Godot class. One instance per rope.
 //   setup(points, ds, r, params)        points = PackedVector3Array of particle centres (spacing ds, radius r)
-//   params keys (all optional): mu, kb, grav, damp, iters, subs, mass, skip, alpha
+//   params keys (all optional): mu, kb, grav, damp, iters, subs, mass, skip, alpha, kin, selfcol, adapt, max_subs
 //   set_colliders(a0, b0, a1, b1, radii, mus)   capsules at the start / end of the coming step (frame)
 //   drive(i, from, to) / undrive(i)     kinematic particle moving from -> to over the step (a hand's grasp, a pinned end)
 //   set_force(i, f)                     external force (N) on particle i
@@ -38,6 +38,7 @@ public:
 	double max_col_pen(bool skip_driven) const;
 	double get_tension() const { return rope.max_tension; }
 	int get_contacts() const { return rope.contacts_self; }
+	int get_used_subs() const { return rope.used_subs; }
 };
 
 } // namespace godot

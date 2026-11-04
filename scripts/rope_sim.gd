@@ -23,6 +23,12 @@ var alpha := 0.0
 var iters := 12
 var subs := 8
 var skip := 3
+var kin := false   # CH6b: a driven particle has inverse mass 0 in every constraint
+var selfcol := true   # false: rope-on-rope contact off (planted control)
+var adapt := 0.0   # >0: substeps grow until nothing moves more than adapt * r per substep
+var max_subs := 96
+var used_subs := 0
+var wb := PackedFloat32Array()
 var mass := 0.0004
 var x := PackedVector3Array()
 var xo := PackedVector3Array()
@@ -71,6 +77,7 @@ func setup(pts: PackedVector3Array, ds_: float, r_: float, params: Dictionary = 
 	lam_s.resize(n)
 	for i in n:
 		w[i] = 1.0 / mass
+	wb = w.duplicate()
 	for k in params:
 		set_param(k, float(params[k]))
 
@@ -88,6 +95,10 @@ func set_param(key: String, val: float) -> void:
 		"subs": subs = int(val)
 		"skip": skip = int(val)
 		"alpha": alpha = val
+		"kin": kin = val != 0.0
+		"selfcol": selfcol = val != 0.0
+		"adapt": adapt = val
+		"max_subs": max_subs = int(val)
 
 
 func set_colliders(a0: PackedVector3Array, b0: PackedVector3Array, a1: PackedVector3Array, b1: PackedVector3Array, radii: PackedFloat32Array, mus: PackedFloat32Array) -> void:
@@ -156,11 +167,30 @@ func max_col_pen(skip_driven: bool) -> float:
 	return m
 
 
+func get_used_subs() -> int:
+	if nat != null:
+		return nat.call("get_used_subs")
+	return used_subs
+
+
+func _frame_subs(dt: float) -> int:
+	if adapt <= 0.0:
+		return subs
+	var md := 0.0
+	for i in n:
+		var d: float = (tg1[i] - tg0[i]).length() if drv[i] != 0 else v[i].length() * dt
+		md = maxf(md, d)
+	for c in cols:
+		md = maxf(md, maxf(((c[2] as Vector3) - (c[0] as Vector3)).length(), ((c[3] as Vector3) - (c[1] as Vector3)).length()))
+	var need := int(ceil(md / (adapt * r)))
+	return mini(maxi(need, subs), maxi(max_subs, subs))
+
+
 func tension() -> float:
 	if nat != null:
 		return nat.call("get_tension")
 	var m := 0.0
-	var hh := 1.0 / 30.0 / subs
+	var hh := 1.0 / 30.0 / maxi(used_subs, 1)
 	for i in n - 1:
 		m = maxf(m, absf(lam_s[i]) / (hh * hh))
 	return m
@@ -202,12 +232,16 @@ func step(dt: float) -> void:
 	if nat != null:
 		nat.call("step", dt)
 		return
-	var h := dt / float(subs)
+	var ns := _frame_subs(dt)
+	used_subs = ns
+	var h := dt / float(ns)
 	var al := alpha / (h * h)
 	var save := cols.duplicate(true)
-	for sb in subs:
-		var f0 := float(sb) / float(subs)
-		var f1 := float(sb + 1) / float(subs)
+	for sb in ns:
+		var f0 := float(sb) / float(ns)
+		var f1 := float(sb + 1) / float(ns)
+		for i in n:
+			w[i] = 0.0 if (kin and drv[i] != 0) else wb[i]
 		for i in n:
 			xo[i] = x[i]
 			if drv[i] != 0:
@@ -277,7 +311,7 @@ func _collect(margin: float) -> void:
 	pairs.clear()
 	var lim := ds + 2.0 * r + margin
 	var lim2 := lim * lim
-	for i in n - 1:
+	for i in (n - 1 if selfcol else 0):
 		var mi: Vector3 = (p[i] + p[i + 1]) * 0.5
 		for j in range(i + skip, n - 1):
 			var d: Vector3 = mi - (p[j] + p[j + 1]) * 0.5

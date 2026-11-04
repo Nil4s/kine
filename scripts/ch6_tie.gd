@@ -181,7 +181,8 @@ func run(opts := {}) -> Dictionary:
 	for q in lay:
 		pts.append(q + O)
 	rope = RopeSim.new()
-	rope.setup(pts, Ch6Knot.DS, Ch6Knot.R_ROPE, {"mass": 0.3, "mu": mu, "kb": 0.003, "iters": 24, "subs": 16, "damp": 0.98})
+	rope.setup(pts, Ch6Knot.DS, Ch6Knot.R_ROPE, {"mass": 0.3, "mu": mu, "kb": 0.003, "iters": 24, "subs": 16, "damp": 0.98,
+		"kin": 1.0 if opts.get("kin", true) else 0.0, "adapt": float(opts.get("adapt", 0.5)), "selfcol": 1.0 if opts.get("selfcol", true) else 0.0})
 	var n := pts.size()
 	var peg := [O + Ch6Knot.PEG + Vector3(0, 0, -0.2), O + Ch6Knot.PEG + Vector3(0, 0, 0.2)]
 	make_pinch(Ch6Knot.R_ROPE)
@@ -221,7 +222,7 @@ func run(opts := {}) -> Dictionary:
 	var dt := 1.0 / FPS
 	var total_force_frames := 600
 	var hand_frames := path.size() + 40
-	var nframes := hand_frames + total_force_frames
+	var nframes := hand_frames + (0 if opts.get("tie_only", false) else total_force_frames)
 	var open_cur := 0.0
 	for f in nframes:
 		var xs := rope.positions()

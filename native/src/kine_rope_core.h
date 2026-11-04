@@ -79,6 +79,16 @@ struct Rope {
 	float alpha = 0.0f; // stretch compliance (m/N); 0 = hard
 	int iters = 12, subs = 8;
 	int skip = 3; // self contact skips |i-j| < skip
+	// CH6b: robust self contact. kin: a driven particle has inverse mass 0 in every constraint (a hand's grip or a held ring is
+	// truly kinematic, it is not shoved off its target and cannot be dragged through the rope). adapt: the substep count of a frame
+	// grows until the fastest particle / collider moves at most adapt * r per substep (no tunnelling), capped at max_subs.
+	// selfcol=false switches the rope-on-rope contact off (planted control).
+	bool kin = false;
+	bool selfcol = true;
+	float adapt = 0.0f;
+	int max_subs = 96;
+	int used_subs = 0; // substeps of the last step()
+	std::vector<float> wb; // base inverse masses
 	std::vector<V> x, xo, v, p, tg0, tg1, ext;
 	std::vector<float> w;
 	std::vector<char> drv;
@@ -102,6 +112,7 @@ struct Rope {
 		tg1 = pts;
 		ext.assign(n, V());
 		w.assign(n, 1.0f / mass);
+		wb = w;
 		drv.assign(n, 0);
 		lam_s.assign(n, 0.0f);
 	}
@@ -117,7 +128,7 @@ struct Rope {
 		pairs.clear();
 		float lim = ds + 2.0f * r + margin;
 		float lim2 = lim * lim;
-		for (int i = 0; i < n - 1; i++) {
+		for (int i = 0; selfcol && i < n - 1; i++) {
 			V mi = (p[i] + p[i + 1]) * 0.5f;
 			for (int j = i + skip; j < n - 1; j++) {
 				V d = mi - (p[j] + p[j + 1]) * 0.5f;
@@ -150,11 +161,27 @@ struct Rope {
 		}
 	}
 
+	// substeps this frame needs so nothing moves more than adapt * r per substep
+	int frame_subs(float dt) const {
+		if (adapt <= 0.0f) return subs;
+		float md = 0.0f;
+		for (int i = 0; i < n; i++) {
+			float d = drv[i] ? len(tg1[i] - tg0[i]) : len(v[i]) * dt;
+			md = std::max(md, d);
+		}
+		for (auto &c : cols) md = std::max(md, std::max(len(c.a1 - c.a0), len(c.b1 - c.b0)));
+		int need = (int)std::ceil(md / (adapt * r));
+		return std::min(std::max(need, subs), std::max(max_subs, subs));
+	}
+
 	void step(float dt) {
-		float h = dt / (float)subs;
+		int ns = frame_subs(dt);
+		used_subs = ns;
+		float h = dt / (float)ns;
 		float al = alpha / (h * h);
-		for (int sb = 0; sb < subs; sb++) {
-			float f0 = (float)sb / (float)subs, f1 = (float)(sb + 1) / (float)subs;
+		for (int sb = 0; sb < ns; sb++) {
+			float f0 = (float)sb / (float)ns, f1 = (float)(sb + 1) / (float)ns;
+			for (int i = 0; i < n; i++) w[i] = (kin && drv[i]) ? 0.0f : wb[i];
 			for (int i = 0; i < n; i++) {
 				xo[i] = x[i];
 				if (drv[i]) {
@@ -227,7 +254,7 @@ struct Rope {
 		}
 		// tension readout of the last substep: lambda / h^2 (N) of the first stretch constraint
 		max_tension = 0;
-		float hh = dt / (float)subs;
+		float hh = dt / (float)ns;
 		for (int i = 0; i < n - 1; i++) max_tension = std::max(max_tension, std::fabs(lam_s[i]) / (hh * hh));
 	}
 
