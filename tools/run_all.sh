@@ -956,3 +956,6 @@ EXTRA="$EXTRA c49b:w"   # C49b: Off/Look/Print strip clear of Part dialogs, brow
 
 
 EXTRA="$EXTRA c63:w"   # c63: the no-printer print estimate lands on a measured flow and names the printer it assumes (tests/c63_test.gd)
+
+
+EXTRA="$EXTRA c65:w"   # c65: over 256 bodies the look-merge ignores the body name: 600 named boxes in 6 materials each keep their own (tests/c65_test.gd)
