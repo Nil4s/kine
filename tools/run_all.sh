@@ -994,3 +994,6 @@ EXTRA="$EXTRA c70:w"   # C70: involute Gear sketch tool + a pattern fused in one
 
 
 EXTRA="$EXTRA c72:w"   # C72: the tooltip popup (TooltipPanel) is opaque with a 1 px border
+
+
+EXTRA="$EXTRA c73:w"   # C73: no CR inside any .gd string literal (.gitattributes *.gd eol=lf); GREY_TAG hints match (tests/c73_test.gd)
