@@ -75,7 +75,7 @@ func _a_hydro(control: bool) -> void:
 		return
 	var r := _tank(G)
 	ok(r["vmax"] < 1e-3, "(a) hydrostatic: max |v| = %.2e m/s after 1 s (bar < 1e-3)" % r["vmax"])
-	var err := absf(r["p_bottom"] - r["p_expect"]) / r["p_expect"]
+	var err: float = absf(r["p_bottom"] - r["p_expect"]) / r["p_expect"]
 	ok(err <= 0.02, "(a) hydrostatic: bottom layer %.1f Pa vs rho g H = %.1f Pa (H = %.4f m): %.2f %% (bar 2 %%)" % [r["p_bottom"], r["p_expect"], r["H"], err * 100.0])
 
 
@@ -127,7 +127,7 @@ func _bc_dam() -> void:
 	var all_in := true
 	var worst := 0.0
 	for i in MM_T.size():
-		var e := absf(zs[i] - MM_Z[i]) / MM_Z[i]
+		var e: float = absf(zs[i] - MM_Z[i]) / MM_Z[i]
 		worst = maxf(worst, e)
 		if e > 0.10:
 			all_in = false
