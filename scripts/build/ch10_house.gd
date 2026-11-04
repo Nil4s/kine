@@ -14,10 +14,10 @@ const GA_WALL_KIPS := 11.0         # SDPWS 2015 Table 4.3A, Structural sheathing
 const GA_GYP_KIPS := 5.5          # SDPWS 2015 Table 4.3C, 1/2 in gypsum wallboard, 7 in edge, 16 in studs, unblocked (opt-in via opts.gypsum)
 const GA_ROOF_KIPS := 7.5          # roof diaphragm: Table 4.2A blocked 6d 3/8 OSB is 15 kips/in; halved for unblocked (Table 4.2C NOT read: UNVERIFIED)
 const ASPECT_MAX := 3.5            # SDPWS 4.3.4 h/b limit for full stiffness
-const BEAM_KINDS := ["stud", "king", "jack", "cripple", "corner", "nailer", "end", "gable_stud", "bottom_plate", "top_plate1", "top_plate2", "sill", "header", "joist", "ridge", "rafter", "rafter_pair", "gable_rafter"]
+const BEAM_KINDS := ["stud", "king", "jack", "cripple", "corner", "nailer", "end", "gable_stud", "bottom_plate", "top_plate1", "top_plate2", "sill", "header", "joist", "ridge", "rafter", "rafter_pair", "rafter_layout", "gable_rafter"]
 const VERT := ["stud", "king", "jack", "cripple", "corner", "nailer", "end"]
 const HORIZ := ["bottom_plate", "top_plate1", "top_plate2", "sill", "header", "joist", "ridge"]
-const RAFT := ["rafter", "rafter_pair", "gable_rafter"]
+const RAFT := ["rafter", "rafter_pair", "rafter_layout", "gable_rafter"]   # CH1e: rafter_layout = the 1219.2 mm layout rafters that put a rafter under every sheet joint
 const ALLOW := {
 	"stud": ["bottom_plate", "top_plate1", "header", "sill"], "king": ["bottom_plate", "top_plate1", "header", "sill"], "jack": ["bottom_plate", "top_plate1", "header", "sill"],
 	"cripple": ["bottom_plate", "top_plate1", "header", "sill"], "corner": ["bottom_plate", "top_plate1"], "nailer": ["bottom_plate", "top_plate1"], "end": ["bottom_plate", "top_plate1"],
@@ -122,6 +122,8 @@ static func _beam_from_member(m: Dictionary) -> Dictionary:
 		var front: bool = cz < ZMID
 		var zb := 0.0445 if front else 7.620 - 0.0445
 		var zt := -0.406 if front else 8.026
+		if k == "rafter_layout":   # starts on the ceiling joist where its underside clears the joist top (z = 0.641 m from the plate line), not at the eave
+			zt = 0.641 if front else 7.620 - 0.641
 		var zr := ZMID
 		var yb := 2.448
 		var s := 1.0 / 3.0
@@ -258,18 +260,25 @@ static func build(mj: Dictionary, opts := {}) -> Dictionary:
 		var front: bool = A["p0"].z < ZMID
 		var zb := 0.0445 if front else 7.620 - 0.0445
 		var yb := 2.448
-		var Pb := Vector3(cx, yb, zb)
+		var is_lay: bool = A["kind"] == "rafter_layout"
+		var Pb: Vector3 = A["p0"] if is_lay else Vector3(cx, yb, zb)
 		var bj := -1
-		var bd := 0.03
+		var bd := 0.25 if is_lay else 0.03
 		var bq := Vector3.ZERO
 		for j in nb:
-			if beams[j]["kind"] == "top_plate2":
+			if beams[j]["kind"] == ("joist" if is_lay else "top_plate2"):
 				var sd := _seg_dist(Pb, beams[j]["p0"], beams[j]["p1"])
 				if sd[0] < bd:
 					bd = sd[0]
 					bj = j
 					bq = sd[2]
-		if bj >= 0:
+		if bj >= 0 and is_lay and not bool(opts.get("unsnap_layout", false)):
+			# CH1e: the layout rafter's lower end bears on the joist but is 87 mm above its axis: snap the rafter's end node onto the joist axis point (do not rely on a coordinate match)
+			beams[bj]["pts"].append(bq)
+			A["end0"] = bq
+			A["has0"] = true
+			A["pts"].append(bq)
+		elif bj >= 0:
 			beams[bj]["pts"].append(bq)
 			A["pts"].append(Pb)
 		else:

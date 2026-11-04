@@ -342,6 +342,14 @@ func _init() -> void:
 	var pp2 := sway_period(pl2, 2)
 	var q2 := quake(pl2, 2, pp2["omega"])
 	ok(q2["ratio"] > SIM.DRIFT_ALLOWABLE and qz["ratio"] < SIM.DRIFT_ALLOWABLE, "e3 planted (no z bracing, L and R) peak ratio %.5f > 0.020 and the code house %.5f does not (T %.3f s)" % [q2["ratio"], qz["ratio"], pp2["T"]])
+	# --- h (CH1e, added after the CH1e layout rafters showed sway_period can land on a local mode): the mode that sway_period reports, and that the Rayleigh damping is
+	#     tuned to, must be the BUILDING mode: effective modal mass fraction >= 0.5 in its own direction. The fraction is printed for every use.
+	print("h effective mass fraction of the sway_period mode: code z %.3f, code x %.3f, planted L unbraced z %.3f, planted L+R unbraced z %.3f" % [pz["eff"], px["eff"], pp1["eff"], pp2["eff"]])
+	ok(pz["eff"] >= 0.5 and px["eff"] >= 0.5 and pp1["eff"] >= 0.5 and pp2["eff"] >= 0.5, "h every sway_period / damping mode carries >= 0.5 effective mass in its direction (code z %.3f x %.3f, planted z %.3f / %.3f)" % [pz["eff"], px["eff"], pp1["eff"], pp2["eff"]])
+	var broken := house_model({"unsnap_layout": true})
+	var pbk := sway_period(broken, 2)
+	print("h CONTROL house (layout rafter lower end left unjoined): T %.4f s, eff %.3f" % [pbk["T"], pbk["eff"]])
+	ok(pbk["eff"] < 0.5, "h CONTROL: the layout rafters left unjoined to the joist put sway_period on a local mode (eff %.3f < 0.5, T %.3f s), and the bar above catches it" % [pbk["eff"], pbk["T"]])
 	# --- f
 	print("f solve time per Newmark step (code house, %d free dofs): %.2f ms" % [qz["r"]["nfree"], qz["ms_per_step"]])
 	ok(qz["ms_per_step"] < 200.0, "f %.2f ms per step < 200 ms" % qz["ms_per_step"])
