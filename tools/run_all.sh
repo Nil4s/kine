@@ -1007,3 +1007,4 @@ EXTRA="$EXTRA ch4:w"   # ch4: solid oak grain, dovetailed box (docs/CH4_REFERENC
 
 
 EXTRA="$EXTRA c78:w"   # c78: installer unit bars (docs/C78_INSTALLER.md); the installer run itself is tests/c78_test.sh
+EXTRA="$EXTRA c79:w"   # c79: slicer lookup no longer holds the quit (docs/C79_FEEDBACK.md); the quit-time bars are tests/c79_test.sh

@@ -13,8 +13,15 @@ func _fail(why: String) -> void:
 
 func run(m: Node) -> void:
 	print("C78_SMOKE_START ms=", Time.get_ticks_msec())
+	var at := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--c79-at="):
+			at = a.substr(9)   # C79 bisect switches: start | part (quit there instead of after the CAD box); free = free main first
 	for i in 6:
 		await get_tree().process_frame
+	if at == "start":
+		await _c79_quit(m, false)
+		return
 	m.tour_step = -1
 	var pu = m.bld.part
 	pu.set_on(true)
@@ -22,6 +29,9 @@ func run(m: Node) -> void:
 		await get_tree().process_frame
 	if not pu.on:
 		_fail("Part did not open")
+		return
+	if at == "part" or at == "partfree":
+		await _c79_quit(m, at == "partfree")
 		return
 	if not KCad.available():
 		_fail("KineCAD not available: " + KCad.last_error())
@@ -46,7 +56,12 @@ func run(m: Node) -> void:
 		return
 	print("C78_GATE=", VideoAddon.gate("tracking a video"))
 	print("C78_SMOKE_OK ms=%d tris=%d vol=%f" % [Time.get_ticks_msec(), tris, vol])
-	# C79: a clean quit(), with a line per shutdown phase (tools/c79_trace.gd); the test times the exit from outside
+	await _c79_quit(m, at == "free")
+
+
+## C79: a clean quit(), with a line per shutdown phase (tools/c79_trace.gd); the test times the exit from outside.
+## free_first: queue_free the main scene and wait for it, to price the node/script-instance free apart from the engine's final cleanup.
+func _c79_quit(m: Node, free_first: bool) -> void:
 	var Tr := load("res://tools/c79_trace.gd")
 	var root := get_tree().root
 	for pair in [["root_exits_last", 0], ["root_exits_first", -1]]:
@@ -57,5 +72,18 @@ func run(m: Node) -> void:
 			root.move_child(t, 0)
 	m.tree_exiting.connect(func(): Tr.mark("main tree_exiting"))
 	await get_tree().process_frame
+	if free_first:
+		var tree := get_tree()
+		reparent(root)   # this node is main's child: it moves out first so the coroutine survives the free
+		Tr.mark("free main: start")
+		m.get_parent().remove_child(m)
+		Tr.mark("free main: removed from tree")
+		m.free()
+		Tr.mark("free main: freed")
+		await tree.process_frame
+		Tr.mark("free main: next frame")
+		Tr.mark("quit() called")
+		tree.quit()
+		return
 	Tr.mark("quit() called")
 	get_tree().quit()

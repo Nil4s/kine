@@ -3476,6 +3476,7 @@ var intro: KineIntro   # the opening intro while it plays (null after, or when o
 
 ## a test's own settings file goes with it (ribbon_test clicks VIEW > Light like any button: one file per run piled up)
 func _exit_tree() -> void:
+	SlicerSend.shutdown()   # C79: the start-up slicer lookup (a `reg query` on a worker) must not hold the quit
 	if nb_ui != null:
 		nb_ui.finish()   # I44: the fatigue worker ends before the scenes it reads go
 	for sc in _bake_scenes():
