@@ -404,7 +404,8 @@ Ref<ArrayMesh> KineCAD::tessellate(int id, double deflection, double angle) {
 		return mesh;
 	}
 	KCAD_TRY
-	BRepMesh_IncrementalMesh inc(s, deflection, false, angle, true); // s249n: faces meshed in parallel (same triangulation, a few cores)
+	// c74: OCCT's parallel mesher starts the OSD thread pool, whose workers keep the process from exiting on Windows (blueprint/s257 hung to the 900 s timeout). Serial by default; KINE_PAR_MESH=1 opts back in.
+	BRepMesh_IncrementalMesh inc(s, deflection, false, angle, std::getenv("KINE_PAR_MESH") != nullptr);
 	PackedVector3Array verts, norms;
 	PackedInt32Array idx;
 	for (TopExp_Explorer ex(s, TopAbs_FACE); ex.More(); ex.Next()) {
