@@ -100,6 +100,8 @@ func _init() -> void:
 		var bm: PackedFloat64Array = sys["model"]["beams"]
 		var th := 0.09 if n == "wood" else 0.14
 		for b in range(0, bm.size(), 12):
+			if bm[b + 6] >= 1e12:
+				continue       # rigid diaphragm / footing links are not members
 			var p1 := Vector3(xyz[int(bm[b]) * 3], xyz[int(bm[b]) * 3 + 1], xyz[int(bm[b]) * 3 + 2])
 			var p2 := Vector3(xyz[int(bm[b + 1]) * 3], xyz[int(bm[b + 1]) * 3 + 1], xyz[int(bm[b + 1]) * 3 + 2])
 			if p1.z < 0.5 and p2.z < 0.5:

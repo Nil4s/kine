@@ -248,7 +248,21 @@ static func _finish(a: Acc, base_mass: float, parts: Dictionary, name: String) -
 	var tot := base_mass
 	for v in mass:
 		tot += v
-	return {"name": name, "nodes": a.nodes, "model": {"xyz": xyz, "beams": a.beams, "springs": a.springs, "fixed": PackedInt32Array(), "mass": mass},
+	# rigid roof diaphragm in plan (ux, uz of every top node follow a master node at mid-plan), as in slab/ring-beam practice; replaces the Ga roof springs for these two systems
+	var ties := PackedFloat64Array()
+	var bms: PackedFloat64Array = a.beams
+	var nt := tops.size()
+	var master := a.nodes.size()
+	xyz.append_array([LX * 0.5, H, LZ * 0.5])
+	mass.append(0.0)
+	for k in nt:
+		var i: int = tops[k]
+		var c := master + 1 + k
+		xyz.append_array([a.nodes[i].x, a.nodes[i].y, a.nodes[i].z])
+		mass.append(0.0)
+		bms.append_array([master, c, 1.0, 1.0, 1.0, 2.0, 1e13, 1e13 / 2.6, 0.0, 0, 1, 0])
+		ties.append_array([i * 6 + 0, c * 6 + 0, 1e12, i * 6 + 2, c * 6 + 2, 1e12])
+	return {"name": name, "nodes": a.nodes, "model": {"xyz": xyz, "beams": bms, "springs": a.springs, "fixed": PackedInt32Array(), "mass": mass, "ties": ties},
 		"base": PackedInt32Array(base), "top": PackedInt32Array(tops), "base_mass": base_mass, "mass_total": tot, "parts": parts, "panels": a.panels,
 		"panel_mode": "own", "floaters": PackedInt32Array()}
 
@@ -281,14 +295,13 @@ static func build_masonry(mj: Dictionary) -> Dictionary:
 				var Am := T_WALL * b
 				var kh := 1.0 / (pow(H, 3) / (12.0 * E_MAS * Im) + 1.2 * H / (G_MAS * Am))
 				_panel(a, ln, p[0], p[1], kh)
-	_roof_diaphragm(a)
 	var tops: Array = []
 	for i in a.nodes.size():
 		if absf(a.nodes[i].y - H) < 0.004:
 			tops.append(i)
 	var oa := opening_area(mj)
 	var gross := 2.0 * (LX + LZ) * HW
-	var net := gross - oa["window"] - oa["door"]
+	var net: float = gross - oa["window"] - oa["door"]
 	var wall: float = net * WALL_KGM2
 	parts["walls"] = wall
 	var ncol := cols.size()
@@ -356,18 +369,17 @@ static func build_lsf(mj: Dictionary) -> Dictionary:
 					a.beam(q, line_point(ln, s, H), sec2, E_ST, G_ST, out_e2)
 			var ni := maxi(0, int(floor(b / 0.4)) - 1)
 			if ni > 0:
-				var sm := 0.5 * (p[0] + p[1])
+				var sm: float = 0.5 * (p[0] + p[1])
 				var secn := {"A": ni * cs["A"], "Iz": ni * cs["Iz"], "Iy": ni * cs["Iy"], "J": ni * cs["J"]}
 				a.beam(line_point(ln, sm, 0.0), line_point(ln, sm, H), secn, E_ST, G_ST, out_e2)
 			if HW / b <= HO.ASPECT_MAX:
 				_panel(a, ln, p[0], p[1], gt * b / H)
-	_roof_diaphragm(a)
 	var tops: Array = []
 	for i in a.nodes.size():
 		if absf(a.nodes[i].y - H) < 0.004:
 			tops.append(i)
 	var oa := opening_area(mj)
-	var net := 2.0 * (LX + LZ) * HW - oa["window"] - oa["door"]
+	var net: float = 2.0 * (LX + LZ) * HW - oa["window"] - oa["door"]
 	# all studs of the real wall (every 400 mm plus doubled at each opening), not only the modelled pier columns: lumped
 	var nst := 0
 	var nop := 0
@@ -471,13 +483,17 @@ static func assemble(sys: Dictionary, s, opts := {}) -> Dictionary:
 	var src: Dictionary = sys["model"]
 	var model := {"xyz": (src["xyz"] as PackedFloat64Array).duplicate(), "beams": (src["beams"] as PackedFloat64Array).duplicate(), "springs": src["springs"],
 		"mass": (src["mass"] as PackedFloat64Array).duplicate(), "fixed": (src["fixed"] as PackedInt32Array).duplicate()}
+	if src.has("ties"):
+		model["ties"] = (src["ties"] as PackedFloat64Array).duplicate()
 	var n0: int = (model["xyz"] as PackedFloat64Array).size() / 3
 	var base: PackedInt32Array = sys["base"]
 	var out := {"model": model, "n0": n0, "f": -1}
 	if s == null:
+		var fx: PackedInt32Array = model["fixed"]
 		for b in base:
 			for d in 3:
-				(model["fixed"] as PackedInt32Array).append(b * 6 + d)
+				fx.append(b * 6 + d)
+		model["fixed"] = fx
 		if opts.get("pdelta", true):
 			model["axial"] = gravity_axial(model)
 		return out
@@ -490,7 +506,7 @@ static func assemble(sys: Dictionary, s, opts := {}) -> Dictionary:
 	var mass: PackedFloat64Array = model["mass"]
 	mass.append(opts.get("foot_mass", lx * lz * SLAB_T * RHO_RC + sys["base_mass"]))
 	var bm: PackedFloat64Array = model["beams"]
-	var ties := PackedFloat64Array()
+	var ties: PackedFloat64Array = model.get("ties", PackedFloat64Array())
 	var ktie: float = opts.get("ktie", 1e12)
 	var nb0 := bm.size() / 12
 	var k := 0
@@ -521,8 +537,10 @@ static func assemble(sys: Dictionary, s, opts := {}) -> Dictionary:
 	out["nbeams_struct"] = nb0
 	if opts.get("pdelta", true):
 		var N := gravity_axial(model)
-		for i in range(nb0, N.size()):
-			N[i] = 0.0
+		var bmm: PackedFloat64Array = model["beams"]
+		for i in N.size():
+			if i >= nb0 or bmm[i * 12 + 6] >= 1e12:
+				N[i] = 0.0
 		model["axial"] = N
 	return out
 

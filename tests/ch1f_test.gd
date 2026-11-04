@@ -111,7 +111,7 @@ func bar_b() -> void:
 	var g := SO.gazetas(s, 3.0, 3.0)
 	var rc := SO.veletsos_ratio(k, h + 0.05, g["kx"], g["rz"])
 	var rn := T1 / T0
-	print("     SDOF: k %.3e N/m, Kx %.3e, Krz %.3e, T fixed %.5f s, T SSI %.5f s, ratio %.4f, closed form %.4f" % [k, g["kx"], g["rz"], T0, T1, rn, rc])
+	print("     SDOF: k %s N/m, Kx %s, Krz %s, T fixed %.5f s, T SSI %.5f s, ratio %.4f, closed form %.4f" % [String.num_scientific(k), String.num_scientific(g["kx"]), String.num_scientific(g["rz"]), T0, T1, rn, rc])
 	ok(rel(T0, TAU * sqrt(5.0e4 / k)) < 0.01, "b SDOF fixed period equals 2 pi sqrt(m/k) within 1 pct (%.5f s)" % T0)
 	ok(rel(rn, rc) < 0.05, "b SDOF period lengthening %.4f vs Veletsos-Meek %.4f within 5 pct (%.2f pct)" % [rn, rc, rel(rn, rc) * 100.0])
 
@@ -205,7 +205,7 @@ func bar_e() -> void:
 func bar_f(sysd: Dictionary) -> void:
 	var oa := SYS.opening_area(mj)
 	var gross := 2.0 * (9.754 + 7.620) * 2.467
-	var net := gross - oa["window"] - oa["door"]
+	var net: float = gross - oa["window"] - oa["door"]
 	var glass: float = (oa["window"] + oa["door"]) * 30.0
 	# partitions: all top_plate1 members that are not on the four outer lines, less the interior doors
 	var part_len := 0.0
@@ -242,7 +242,7 @@ func bar_f(sysd: Dictionary) -> void:
 			ends[key] = true
 	nc = ends.size()
 	var tie_len := 2.0 * (9.754 - 0.14) + 2.0 * (7.620 - 0.14)
-	var mas := net * 255.0 + nc * 0.14 * 0.14 * 2.467 * 2500.0 + tie_len * 0.14 * (0.19 + 0.30) * 2500.0 + gable * 255.0 + glass + part + slope * 60.0 + ceil_m
+	var mas: float = net * 255.0 + nc * 0.14 * 0.14 * 2.467 * 2500.0 + tie_len * 0.14 * (0.19 + 0.30) * 2500.0 + gable * 255.0 + glass + part + slope * 60.0 + ceil_m
 	var mm: float = sysd["masonry"]["mass_total"]
 	ok(rel(mm, mas) < 0.05, "f masonry mass %.0f kg vs hand takeoff %.0f kg (%.2f pct); %d tie columns" % [mm, mas, rel(mm, mas) * 100.0, nc])
 	# light steel
@@ -257,8 +257,8 @@ func bar_f(sysd: Dictionary) -> void:
 				nop += 1
 	nst += 2 * nop
 	var trk_a := (0.090 + 0.080) * 0.00095
-	var steel := nst * cs["A"] * 2.467 * 7850.0 + 2.0 * 2.0 * (9.754 + 7.620 - 0.28) * trk_a * 7850.0
-	var lsf := steel + net * (7.1 + 11.0 + 10.7) + gable * 25.0 + glass + part + slope * (8.0 + 7.1 + 9.8) + ceil_m
+	var steel: float = nst * cs["A"] * 2.467 * 7850.0 + 2.0 * 2.0 * (9.754 + 7.620 - 0.28) * trk_a * 7850.0
+	var lsf: float = steel + net * (7.1 + 11.0 + 10.7) + gable * 25.0 + glass + part + slope * (8.0 + 7.1 + 9.8) + ceil_m
 	var ml: float = sysd["lsf"]["mass_total"]
 	ok(rel(ml, lsf) < 0.05, "f light steel mass %.0f kg vs hand takeoff %.0f kg (%.2f pct); %d studs" % [ml, lsf, rel(ml, lsf) * 100.0, nst])
 	# wood: framing volumes from the member boxes, finishes from areas
@@ -374,7 +374,7 @@ func bar_h() -> void:
 		for i in a.size():
 			mx = maxf(mx, absf(a[i] - bb[i]))
 			sc = maxf(sc, absf(bb[i]))
-		ok(mx / maxf(sc, 1e-300) < 1e-9, "h C++ == GDScript %s: max difference %.3e relative" % [names[j], mx / maxf(sc, 1e-300)])
+		ok(mx / maxf(sc, 1e-300) < 1e-9, "h C++ == GDScript %s: max difference %s relative" % [names[j], String.num_scientific(mx / maxf(sc, 1e-300))])
 
 
 func bar_i(sysd: Dictionary) -> void:
@@ -387,12 +387,12 @@ func bar_i(sysd: Dictionary) -> void:
 		if d.has("error"):
 			ok(false, "i heave %s error %s" % [r[0], d["error"]])
 			return
-		print("     heave %s: q %.1f kPa, dh %.2f mm, peak pier distortion %.3e, unit shear %.2f kN/m (%.1f pct of capacity)" % [r[0], d["q"] / 1000.0, d["dh"] * 1000.0, d["gamma"], d["v"] / 1000.0, d["ratio"] * 100.0])
+		print("     heave %s: q %.1f kPa, dh %.2f mm, peak pier distortion %s, unit shear %.2f kN/m (%.1f pct of capacity)" % [r[0], d["q"] / 1000.0, d["dh"] * 1000.0, String.num_scientific(d["gamma"]), d["v"] / 1000.0, d["ratio"] * 100.0])
 		var expect := SO.heave_free(d["q"])
 		ok(absf(d["dh"] - expect) < 1e-12, "i %s free heave equals H eps (1 - q/ps): %.3f mm" % [r[0], d["dh"] * 1000.0])
 	ok(hm["q"] > hw["q"] and hm["dh"] <= hw["dh"], "i heavier masonry carries more pressure (%.1f > %.1f kPa) and heaves no more (%.2f <= %.2f mm)" % [hm["q"] / 1000.0, hw["q"] / 1000.0, hm["dh"] * 1000.0, hw["dh"] * 1000.0])
 	var h2 := AN.heave(sysd["masonry"], s, {"eps": 2.0 * SO.EPS_FREE})
-	var r2 := h2["gamma"] / hm["gamma"]
+	var r2: float = h2["gamma"] / hm["gamma"]
 	# eps doubles dh before the q relief, and dh = H eps (1 - q/ps) is linear in eps
 	ok(absf(r2 - 2.0) < 0.02, "i pier distortion is linear in the swell strain: doubling eps gives x%.4f" % r2)
 

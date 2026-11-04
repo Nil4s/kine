@@ -88,14 +88,18 @@ static func quake(sys: Dictionary, s: Dictionary, opts := {}) -> Dictionary:
 static func heave(sys: Dictionary, s: Dictionary, opts := {}) -> Dictionary:
 	var src: Dictionary = sys["model"]
 	var model := {"xyz": src["xyz"], "beams": src["beams"], "springs": src["springs"], "mass": src["mass"], "fixed": (src["fixed"] as PackedInt32Array).duplicate()}
+	if src.has("ties"):
+		model["ties"] = src["ties"]
 	var base: PackedInt32Array = sys["base"]
 	var g := SO.gazetas(s)
 	var kz := PackedFloat64Array()
 	var kn: float = g["ky"] / base.size()
 	var xyz: PackedFloat64Array = model["xyz"]
+	var fx: PackedInt32Array = model["fixed"]
 	for b in base:
-		(model["fixed"] as PackedInt32Array).append_array([b * 6 + 0, b * 6 + 2])
+		fx.append_array([b * 6 + 0, b * 6 + 2])
 		kz.append_array([b * 6 + 1, kn])
+	model["fixed"] = fx
 	model["dofk"] = kz
 	# base nodes also need rotation support only through the members; vertical spring alone is enough for a stable frame with the fixed x/z
 	var n := xyz.size() / 3
@@ -124,7 +128,7 @@ static func heave(sys: Dictionary, s: Dictionary, opts := {}) -> Dictionary:
 	for p in sys["panels"]:
 		var e1 := _ext(xyz, du, d0, p["a1"], p["b1"])
 		var e2 := _ext(xyz, du, d0, p["a2"], p["b2"])
-		var gam := absf(e1 - e2) * 0.5 * p["dl"] / (p["dx"] * p["h"])
+		var gam: float = absf(e1 - e2) * 0.5 * p["dl"] / (p["dx"] * p["h"])
 		var v: float = p["kh"] * gam * p["h"] / p["b"]
 		gmax = maxf(gmax, gam)
 		vmax = maxf(vmax, v)
