@@ -73,7 +73,6 @@ func scr(w: Vector3) -> Vector2:
 
 
 ## what Godot would show for c: its tooltip text laid out on the TooltipLabel font, one line per newline; {w, h, lines}
-"; {w, h, lines}
 func tip_box(c: Control) -> Dictionary:
 	var font: Font = c.get_theme_font("font", "TooltipLabel")
 	var fs: int = c.get_theme_font_size("font_size", "TooltipLabel")
