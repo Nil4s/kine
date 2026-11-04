@@ -132,8 +132,9 @@ const CE_LEE := -0.5        # leeward wall: UNVERIFIED
 
 
 ## NBR 6123: Vk = V0 S1 S2 S3, q = 0.613 Vk^2 (N/m2). S2 = b Fr (z/10)^p; category III (suburbs, scattered obstacles), class A: b 0.94, Fr 1.0, p 0.105 (UNVERIFIED table values)
-static func wind(z_m := 3.2, v0 := V0_CUIABA, s1 := 1.0, s3 := 1.0) -> Dictionary:
-	var s2 := 0.94 * 1.0 * pow(maxf(z_m, 5.0) / 10.0, 0.105)   # S2 table starts at z = 5 m
+static func wind(z_m := 3.2, v0 := V0_CUIABA, s1 := 1.0, s3 := 1.0, floor5 := false) -> Dictionary:
+	# floor5: use S2 at 5 m for lower heights (the NBR 6123 S2 table starts at 5 m, MEMORY, UNVERIFIED); default off = the formula of docs/CH1f_REFERENCE.md as committed with bar j
+	var s2 := 0.94 * 1.0 * pow((maxf(z_m, 5.0) if floor5 else z_m) / 10.0, 0.105)
 	var vk := v0 * s1 * s2 * s3
 	var q := 0.613 * vk * vk
 	return {"S2": s2, "vk": vk, "q": q, "p_net": q * (CE_WIND - CE_LEE)}

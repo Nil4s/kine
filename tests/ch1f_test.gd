@@ -56,6 +56,7 @@ func _init() -> void:
 	bar_h()
 	bar_i(sysd)
 	bar_j(sysd)
+	bar_j2()
 	table(sysd)
 	print("ch1f: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
@@ -404,6 +405,17 @@ func bar_j(sysd: Dictionary) -> void:
 	ok(rel(wd["q"], q_hand) < 0.005, "j wind q %.1f Pa vs hand %.1f Pa" % [wd["q"], q_hand])
 	var w := AN.wind(sysd["masonry"], SO.soil("dense"))
 	ok(not w.has("error") and rel(w["Fz"], q_hand * 1.2 * 9.754 * 2.467) < 0.005, "j applied wind force %.0f N = p_net x area" % w.get("Fz", 0.0))
+
+
+## j2 (added 2026-11-04 after bar j was found to disagree with a clamp that had crept into SO.wind; written before this run)
+##  the optional 5 m S2 floor (NBR 6123 S2 table starts at 5 m, MEMORY/UNVERIFIED) gives q = 0.613 (35 x 0.94 (5/10)^0.105)^2 within 0.5 pct, does nothing at z >= 5 m,
+##  and CONTROL: at z = 3.167 m the floored q exceeds the unfloored one by more than 5 pct (so bar j really tests the unfloored formula).
+func bar_j2() -> void:
+	var qf: float = SO.wind(3.167, SO.V0_CUIABA, 1.0, 1.0, true)["q"]
+	var qh := 0.613 * pow(35.0 * 0.94 * pow(0.5, 0.105), 2)
+	ok(rel(qf, qh) < 0.005, "j2 floored wind q %.1f Pa vs hand at 5 m %.1f Pa" % [qf, qh])
+	ok(rel(SO.wind(8.0, SO.V0_CUIABA, 1.0, 1.0, true)["q"], SO.wind(8.0)["q"]) < 1e-12, "j2 floor does nothing at z = 8 m")
+	ok(qf > SO.wind(3.167)["q"] * 1.05, "j2 control: floored q %.1f Pa exceeds unfloored %.1f Pa by more than 5 pct" % [qf, SO.wind(3.167)["q"]])
 
 
 func table(sysd: Dictionary) -> void:

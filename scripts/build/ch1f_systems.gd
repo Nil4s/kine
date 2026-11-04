@@ -262,7 +262,7 @@ static func _finish(a: Acc, base_mass: float, parts: Dictionary, name: String) -
 		mass.append(0.0)
 		bms.append_array([master, c, 1.0, 1.0, 1.0, 2.0, 1e13, 1e13 / 2.6, 0.0, 0, 1, 0])
 		ties.append_array([i * 6 + 0, c * 6 + 0, 1e12, i * 6 + 2, c * 6 + 2, 1e12])
-	return {"name": name, "nodes": a.nodes, "model": {"xyz": xyz, "beams": bms, "springs": a.springs, "fixed": PackedInt32Array(), "mass": mass, "ties": ties},
+	return {"name": name, "nodes": a.nodes, "model": {"xyz": xyz, "beams": bms, "springs": a.springs, "fixed": PackedInt32Array([master * 6 + 1, master * 6 + 3, master * 6 + 5]), "mass": mass, "ties": ties},
 		"base": PackedInt32Array(base), "top": PackedInt32Array(tops), "base_mass": base_mass, "mass_total": tot, "parts": parts, "panels": a.panels,
 		"panel_mode": "own", "floaters": PackedInt32Array()}
 
@@ -497,6 +497,16 @@ static func assemble(sys: Dictionary, s, opts := {}) -> Dictionary:
 		if opts.get("pdelta", true):
 			model["axial"] = gravity_axial(model)
 		return out
+	if opts.get("tie_rot", false):    # the rotation ties replace a clamp on the base rotations
+		var keep := PackedInt32Array()
+		var drop := {}
+		for b in base:
+			for d in range(3, 6):
+				drop[b * 6 + d] = true
+		for f in (model["fixed"] as PackedInt32Array):
+			if not drop.has(f):
+				keep.append(f)
+		model["fixed"] = keep
 	var lx: float = opts.get("lx", LX)
 	var lz: float = opts.get("lz", LZ)
 	var g := SO.gazetas(s, lx, lz)

@@ -506,7 +506,13 @@ Dictionary KineFrameNative::solve(const Dictionary &p_model, const Dictionary &p
 			Vd rhs(nf);
 			for (int i = 0; i < nf; i++) rhs[i] = P[i] - Cv[i] - Ku[i];
 			Band Mf = M;
-			if (!chol(Mf)) { out["error"] = "mass not positive definite"; return out; }
+			if (!chol(Mf)) { // CH1f: massless dofs (rotations, rigid-link nodes) make M singular; regularise only then. At rest the load lives on mass dofs, so a0 = 0 elsewhere.
+				Mf = M;
+				double mx = 0;
+				for (int i = 0; i < nf; i++) mx = std::max(mx, M.at(i, i));
+				for (int i = 0; i < nf; i++) Mf.at(i, i) += 1e-9 * mx;
+				if (!chol(Mf)) { out["error"] = "mass not positive definite"; return out; }
+			}
 			chol_solve(Mf, rhs);
 			a = rhs;
 		}
