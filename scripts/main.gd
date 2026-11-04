@@ -23076,6 +23076,10 @@ func _import_video(path: String, raw := false) -> void:
 	if _video_pid >= 0 and OS.is_process_running(_video_pid):
 		_say("still tracking %s: one video at a time; try again when it arrives" % _video_name)
 		return
+	var _gate := VideoAddon.gate("tracking a video")   # C78: an installed build has no Python
+	if _gate != "":
+		_say(_gate)
+		return
 	_video_cancelled = false
 	if not FileAccess.file_exists(path):
 		_say("could not track %s: no such file; pick the video again" % path.get_file())
@@ -23454,6 +23458,9 @@ func _multicam_ask() -> void:
 
 
 func _multicam_start(paths: PackedStringArray) -> void:
+	if VideoAddon.gate("several cameras") != "":   # C78
+		_say(VideoAddon.gate("several cameras"))
+		return
 	if _mc_i >= 0:
 		_say("still tracking the cameras: one set at a time; try again when it arrives")
 		return
