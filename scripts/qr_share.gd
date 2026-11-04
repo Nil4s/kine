@@ -359,6 +359,8 @@ static func _tool() -> String:
 
 
 static func _run(python: String, args: PackedStringArray) -> Dictionary:
+	if VideoAddon.gate("QR pictures") != "":   # C78
+		return {"ok": false, "why": VideoAddon.gate("QR pictures")}
 	var o := []
 	var rc := OS.execute(python, args, o, true)
 	if rc == -1:

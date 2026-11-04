@@ -27,8 +27,8 @@ const TOOLS := {
 		{"type": "object", "properties": {"what": {"type": "array", "items": S, "minItems": 1}, "t": N}, "required": ["what"], "additionalProperties": false}],
 	"check": ["check", "Grade the motion against recorded human motion: numbered findings (MUST FIX breaks a human limit; look = looks off), each with its card and a fix if one exists (run [\"fix=N\"]). Needs 2+ cards.",
 		{"type": "object", "properties": {}, "additionalProperties": false}],
-	"commands": ["commands", "Every command the window has (id, name, keys): the ids are run steps.",
-		{"type": "object", "properties": {}, "additionalProperties": false}],
+	"commands": ["commands", "The window's commands (id, name, keys): the ids are run steps. The whole list is long: give find (a few words, e.g. 'mirror pose' or 'slower') to get only the commands that match.",
+		{"type": "object", "properties": {"find": S}, "additionalProperties": false}],
 }
 ## ITEM 220: with a Part on screen the model also gets these two (never in a scene with no part: the animation box stays at its 7 tools)
 const PART_TOOLS := {
@@ -46,6 +46,11 @@ var running := false
 var convo := []
 var calls_made := 0
 var log_lines := PackedStringArray()
+## AI COST (11-04): the last question's spend, summed from each answer's usage (LlmClient.usage_of):
+## {"turns", "calls", "in", "out", "cache_read", "cache_write", "seconds"}. tools/ai_bench.gd prints it; each question
+## also adds one line to USAGE_LOG so the spend over time can be read back.
+var stats := {}
+const USAGE_LOG := "user://ai_usage.csv"
 
 var ui_log: RichTextLabel
 var ui_in: LineEdit
@@ -199,6 +204,8 @@ func ask(text: String) -> void:
 		lc.key = ui_key.text.strip_edges()
 	running = true
 	calls_made = 0
+	stats = {"turns": 0, "calls": 0, "in": 0, "out": 0, "cache_read": 0, "cache_write": 0, "seconds": 0.0}
+	var t_start := Time.get_ticks_msec()
 	ui_stop.disabled = false
 	ui_stop.tooltip_text = "stop after the step that is running"
 	ui_go.disabled = true
@@ -212,6 +219,7 @@ func ask(text: String) -> void:
 		turns += 1
 		client.chat.call_deferred(SYSTEM + "\n\nThe scene now: " + JSON.stringify(tools.describe()), convo, specs)   # deferred: a refusal emits at once, before the await could hear it
 		var r: Dictionary = await client.answered
+		_add_usage(r)
 		if not running:
 			break
 		if not r.get("ok", false):
@@ -238,12 +246,66 @@ func ask(text: String) -> void:
 	ui_stop.disabled = true
 	ui_stop.tooltip_text = "nothing is running: ask something first"
 	ui_go.disabled = false
+	stats["turns"] = turns
+	stats["calls"] = calls_made
+	stats["seconds"] = snappedf((Time.get_ticks_msec() - t_start) / 1000.0, 0.1)
+	stats["usd"] = LlmClient.cost_usd((client as LlmClient).backend, (client as LlmClient).model, stats) if client is LlmClient else -1.0
+	var used := usage_line(stats)
+	if used != "":
+		_line("USED: " + used)
+	_log_usage()
 	var summary := _check_line()
 	if was_stopped:
 		summary = "stopped. " + summary
 	_line("CHECK: " + summary)
 	_say(("AI: %s  |  " % said.left(140) if said != "" else "") + summary)
 	finished.emit(summary)
+
+
+func _add_usage(r: Dictionary) -> void:
+	var u: Variant = r.get("usage")
+	if not (u is Dictionary):
+		return
+	for k in ["in", "out", "cache_read", "cache_write"]:
+		stats[k] = int(stats.get(k, 0)) + int(u.get(k, 0))
+
+
+static func _k(n: int) -> String:
+	return "%.1fk" % (n / 1000.0) if n >= 1000 else str(n)
+
+
+## "5 turns, 12.3k tokens in (8.1k from cache), 900 out, 14.2 s" ("" when the backend said nothing about tokens)
+static func usage_line(st: Dictionary) -> String:
+	var i := int(st.get("in", 0))
+	var o := int(st.get("out", 0))
+	if i == 0 and o == 0:
+		return ""
+	var cr := int(st.get("cache_read", 0))
+	var usd := float(st.get("usd", -1.0))
+	var money := "" if usd < 0.0 else (", free (this machine)" if usd == 0.0 else ", about $%s" % ("%.4f" % usd if usd < 0.01 else "%.3f" % usd))
+	return "%d turn%s, %s tokens in%s, %s out, %.1f s%s" % [int(st.get("turns", 0)), "" if int(st.get("turns", 0)) == 1 else "s",
+		_k(i), " (%s from cache)" % _k(cr) if cr > 0 else "", _k(o), float(st.get("seconds", 0.0)), money]
+
+
+## one line per question: when, backend, model, turns, calls, in, cache_read, cache_write, out, seconds (no prompt text, no key)
+func _log_usage() -> void:
+	var be := "?"
+	var mdl := "?"
+	if client is LlmClient:
+		be = (client as LlmClient).backend
+		mdl = (client as LlmClient).model
+	var new_file := not FileAccess.file_exists(USAGE_LOG)
+	var f := FileAccess.open(USAGE_LOG, FileAccess.READ_WRITE if not new_file else FileAccess.WRITE)
+	if f == null:
+		return
+	if new_file:
+		f.store_line("time,backend,model,turns,calls,in,cache_read,cache_write,out,seconds,usd")
+	f.seek_end()
+	var usd := float(stats.get("usd", -1.0))
+	f.store_line("%s,%s,%s,%d,%d,%d,%d,%d,%d,%.1f,%s" % [Time.get_datetime_string_from_system(), be, mdl.replace(",", " "),
+		int(stats["turns"]), int(stats["calls"]), int(stats["in"]), int(stats["cache_read"]), int(stats["cache_write"]), int(stats["out"]), float(stats["seconds"]),
+		"" if usd < 0.0 else "%.5f" % usd])
+	f.close()
 
 
 ## one tool call: shown, run as ONE undo step named after it, its answer trimmed for the model

@@ -1,0 +1,497 @@
+{
+ "kind": "ch12_bridge",
+ "part": {
+  "features": [
+   {
+    "d": 1000.0,
+    "h": 1800.0,
+    "id": "f1",
+    "kind": "box",
+    "name": "girder.S",
+    "op": "new",
+    "t": "prim",
+    "w": 144000.0,
+    "x": 0.0,
+    "y": -1800.0,
+    "z": -2400.0
+   },
+   {
+    "body": 0.0,
+    "color": [
+     0.55,
+     0.57,
+     0.6
+    ],
+    "id": "f2",
+    "metal": 0.0,
+    "name": "Paint girder.S",
+    "preset": "Custom",
+    "rough": 0.8,
+    "t": "appear"
+   },
+   {
+    "d": 1000.0,
+    "h": 1800.0,
+    "id": "f3",
+    "kind": "box",
+    "name": "girder.N",
+    "op": "new",
+    "t": "prim",
+    "w": 144000.0,
+    "x": 0.0,
+    "y": -1800.0,
+    "z": 1400.0
+   },
+   {
+    "body": 1.0,
+    "color": [
+     0.55,
+     0.57,
+     0.6
+    ],
+    "id": "f4",
+    "metal": 0.0,
+    "name": "Paint girder.N",
+    "preset": "Custom",
+    "rough": 0.8,
+    "t": "appear"
+   },
+   {
+    "d": 3800.0,
+    "h": 100.0,
+    "id": "f5",
+    "kind": "box",
+    "name": "deck",
+    "op": "new",
+    "t": "prim",
+    "w": 144000.0,
+    "x": 0.0,
+    "y": -100.0,
+    "z": -1900.0
+   },
+   {
+    "body": 2.0,
+    "color": [
+     0.45,
+     0.46,
+     0.48
+    ],
+    "id": "f6",
+    "metal": 0.0,
+    "name": "Paint deck",
+    "preset": "Custom",
+    "rough": 0.8,
+    "t": "appear"
+   },
+   {
+    "d": 3800.0,
+    "h": 200.0,
+    "id": "f7",
+    "kind": "box",
+    "name": "cross.0",
+    "op": "new",
+    "t": "prim",
+    "w": 300.0,
+    "x": -150.0,
+    "y": -1200.0,
+    "z": -1900.0
+   },
+   {
+    "body": 3.0,
+    "color": [
+     0.55,
+     0.57,
+     0.6
+    ],
+    "id": "f8",
+    "metal": 0.0,
+    "name": "Paint cross.0",
+    "preset": "Custom",
+    "rough": 0.8,
+    "t": "appear"
+   },
+   {
+    "d": 3800.0,
+    "h": 200.0,
+    "id": "f9",
+    "kind": "box",
+    "name": "cross.4",
+    "op": "new",
+    "t": "prim",
+    "w": 300.000000000001,
+    "x": 11850.0,
+    "y": -1200.0,
+    "z": -1900.0
+   },
+   {
+    "body": 4.0,
+    "color": [
+     0.55,
+     0.57,
+     0.6
+    ],
+    "id": "f10",
+    "metal": 0.0,
+    "name": "Paint cross.4",
+    "preset": "Custom",
+    "rough": 0.8,
+    "t": "appear"
+   },
+   {
+    "d": 3800.0,
+    "h": 200.0,
+    "id": "f11",
+    "kind": "box",
+    "name": "cross.8",
+    "op": "new",
+    "t": "prim",
+    "w": 299.999999999997,
+    "x": 23850.0,
+    "y": -1200.0,
+    "z": -1900.0
+   },
+   {
+    "body": 5.0,
+    "color": [
+     0.55,
+     0.57,
+     0.6
+    ],
+    "id": "f12",
+    "metal": 0.0,
+    "name": "Paint cross.8",
+    "preset": "Custom",
+    "rough": 0.8,
+    "t": "appear"
+   },
+   {
+    "d": 3800.0,
+    "h": 200.0,
+    "id": "f13",
+    "kind": "box",
+    "name": "cross.12",
+    "op": "new",
+    "t": "prim",
+    "w": 299.999999999997,
+    "x": 35850.0,
+    "y": -1200.0,
+    "z": -1900.0
+   },
+   {
+    "body": 6.0,
+    "color": [
+     0.55,
+     0.57,
+     0.6
+    ],
+    "id": "f14",
+    "metal": 0.0,
+    "name": "Paint cross.12",
+    "preset": "Custom",
+    "rough": 0.8,
+    "t": "appear"
+   },
+   {
+    "d": 3800.0,
+    "h": 200.0,
+    "id": "f15",
+    "kind": "box",
+    "name": "cross.16",
+    "op": "new",
+    "t": "prim",
+    "w": 299.999999999997,
+    "x": 47850.0,
+    "y": -1200.0,
+    "z": -1900.0
+   },
+   {
+    "body": 7.0,
+    "color": [
+     0.55,
+     0.57,
+     0.6
+    ],
+    "id": "f16",
+    "metal": 0.0,
+    "name": "Paint cross.16",
+    "preset": "Custom",
+    "rough": 0.8,
+    "t": "appear"
+   },
+   {
+    "d": 3800.0,
+    "h": 200.0,
+    "id": "f17",
+    "kind": "box",
+    "name": "cross.20",
+    "op": "new",
+    "t": "prim",
+    "w": 299.999999999997,
+    "x": 59850.0,
+    "y": -1200.0,
+    "z": -1900.0
+   },
+   {
+    "body": 8.0,
+    "color": [
+     0.55,
+     0.57,
+     0.6
+    ],
+    "id": "f18",
+    "metal": 0.0,
+    "name": "Paint cross.20",
+    "preset": "Custom",
+    "rough": 0.8,
+    "t": "appear"
+   },
+   {
+    "d": 3800.0,
+    "h": 200.0,
+    "id": "f19",
+    "kind": "box",
+    "name": "cross.24",
+    "op": "new",
+    "t": "prim",
+    "w": 300.000000000011,
+    "x": 71850.0,
+    "y": -1200.0,
+    "z": -1900.0
+   },
+   {
+    "body": 9.0,
+    "color": [
+     0.55,
+     0.57,
+     0.6
+    ],
+    "id": "f20",
+    "metal": 0.0,
+    "name": "Paint cross.24",
+    "preset": "Custom",
+    "rough": 0.8,
+    "t": "appear"
+   },
+   {
+    "d": 3800.0,
+    "h": 200.0,
+    "id": "f21",
+    "kind": "box",
+    "name": "cross.28",
+    "op": "new",
+    "t": "prim",
+    "w": 300.000000000011,
+    "x": 83850.0,
+    "y": -1200.0,
+    "z": -1900.0
+   },
+   {
+    "body": 10.0,
+    "color": [
+     0.55,
+     0.57,
+     0.6
+    ],
+    "id": "f22",
+    "metal": 0.0,
+    "name": "Paint cross.28",
+    "preset": "Custom",
+    "rough": 0.8,
+    "t": "appear"
+   },
+   {
+    "d": 3800.0,
+    "h": 200.0,
+    "id": "f23",
+    "kind": "box",
+    "name": "cross.32",
+    "op": "new",
+    "t": "prim",
+    "w": 300.000000000011,
+    "x": 95850.0,
+    "y": -1200.0,
+    "z": -1900.0
+   },
+   {
+    "body": 11.0,
+    "color": [
+     0.55,
+     0.57,
+     0.6
+    ],
+    "id": "f24",
+    "metal": 0.0,
+    "name": "Paint cross.32",
+    "preset": "Custom",
+    "rough": 0.8,
+    "t": "appear"
+   },
+   {
+    "d": 3800.0,
+    "h": 200.0,
+    "id": "f25",
+    "kind": "box",
+    "name": "cross.36",
+    "op": "new",
+    "t": "prim",
+    "w": 300.000000000011,
+    "x": 107850.0,
+    "y": -1200.0,
+    "z": -1900.0
+   },
+   {
+    "body": 12.0,
+    "color": [
+     0.55,
+     0.57,
+     0.6
+    ],
+    "id": "f26",
+    "metal": 0.0,
+    "name": "Paint cross.36",
+    "preset": "Custom",
+    "rough": 0.8,
+    "t": "appear"
+   },
+   {
+    "d": 3800.0,
+    "h": 200.0,
+    "id": "f27",
+    "kind": "box",
+    "name": "cross.40",
+    "op": "new",
+    "t": "prim",
+    "w": 300.000000000011,
+    "x": 119850.0,
+    "y": -1200.0,
+    "z": -1900.0
+   },
+   {
+    "body": 13.0,
+    "color": [
+     0.55,
+     0.57,
+     0.6
+    ],
+    "id": "f28",
+    "metal": 0.0,
+    "name": "Paint cross.40",
+    "preset": "Custom",
+    "rough": 0.8,
+    "t": "appear"
+   },
+   {
+    "d": 3800.0,
+    "h": 200.0,
+    "id": "f29",
+    "kind": "box",
+    "name": "cross.44",
+    "op": "new",
+    "t": "prim",
+    "w": 300.000000000011,
+    "x": 131850.0,
+    "y": -1200.0,
+    "z": -1900.0
+   },
+   {
+    "body": 14.0,
+    "color": [
+     0.55,
+     0.57,
+     0.6
+    ],
+    "id": "f30",
+    "metal": 0.0,
+    "name": "Paint cross.44",
+    "preset": "Custom",
+    "rough": 0.8,
+    "t": "appear"
+   },
+   {
+    "d": 3800.0,
+    "h": 200.0,
+    "id": "f31",
+    "kind": "box",
+    "name": "cross.48",
+    "op": "new",
+    "t": "prim",
+    "w": 300.000000000011,
+    "x": 143850.0,
+    "y": -1200.0,
+    "z": -1900.0
+   },
+   {
+    "body": 15.0,
+    "color": [
+     0.55,
+     0.57,
+     0.6
+    ],
+    "id": "f32",
+    "metal": 0.0,
+    "name": "Paint cross.48",
+    "preset": "Custom",
+    "rough": 0.8,
+    "t": "appear"
+   },
+   {
+    "d": 6000.0,
+    "h": 2200.0,
+    "id": "f33",
+    "kind": "box",
+    "name": "abutment.W",
+    "op": "new",
+    "t": "prim",
+    "w": 3000.0,
+    "x": -3000.0,
+    "y": -4000.0,
+    "z": -3000.0
+   },
+   {
+    "body": 16.0,
+    "color": [
+     0.62,
+     0.6,
+     0.55
+    ],
+    "id": "f34",
+    "metal": 0.0,
+    "name": "Paint abutment.W",
+    "preset": "Custom",
+    "rough": 0.8,
+    "t": "appear"
+   },
+   {
+    "d": 6000.0,
+    "h": 2200.0,
+    "id": "f35",
+    "kind": "box",
+    "name": "abutment.E",
+    "op": "new",
+    "t": "prim",
+    "w": 3000.0,
+    "x": 144000.0,
+    "y": -4000.0,
+    "z": -3000.0
+   },
+   {
+    "body": 17.0,
+    "color": [
+     0.62,
+     0.6,
+     0.55
+    ],
+    "id": "f36",
+    "metal": 0.0,
+    "name": "Paint abutment.E",
+    "preset": "Custom",
+    "rough": 0.8,
+    "t": "appear"
+   }
+  ],
+  "name": "Footbridge, sway study (CH12)",
+  "seq": 912,
+  "version": 1
+ },
+ "reference": "docs/CH12_REFERENCE.md"
+}
