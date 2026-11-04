@@ -391,7 +391,7 @@ func _init() -> void:
 	var mode_val := float(ep._rec()["easy"]["p"].get("mode", -1.0))
 	ok(sm != null and mode_val == 1.0 and m.undo.size() == ub + 1 and int(b1["bodies"]) == 2,
 		"7a Mode dragged to Rack and pinion: mode %s, one undo step (%d -> %d), %d solids" % [str(mode_val), ub, m.undo.size(), int(b1["bodies"])])
-	ok(String(ep.hint_l.text).contains("straight spur teeth") and not String(ep.hint_l.text).to_lower().contains("ctrl"),
+	ok(String(ep.hint_l.text).contains("Spur gears only") and not String(ep.hint_l.text).to_lower().contains("ctrl"),
 		"7b the hint line carries the gear scope line: [%s]" % ep.hint_l.text)
 
 	# 2-5 geometry from the mesh at the defaults
@@ -460,7 +460,7 @@ func _init() -> void:
 
 	# 8 PT_BR
 	var po := FileAccess.get_file_as_string(PO)
-	var need := ["Mode", "Rack length", "Rack and pinion", "Gears here: straight spur teeth"]
+	var need := ["Mode", "Rack length", "Rack and pinion", "Spur gears only"]
 	var po_ok := po.contains("\r\n")
 	for k in need:
 		var i := po.find("msgid \"" + k)

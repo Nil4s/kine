@@ -1060,7 +1060,7 @@ static func _livecut_features(p: Dictionary) -> Array:
 
 
 ## p204livinghing: the say line when the slots are closer than 2 x Thickness (the strip may tear). Names the next step. "" otherwise.
-const GEAR_SCOPE := "Gears here: straight spur teeth with flat sides, sized to mesh (rack and pinion too). Not an involute profile, not helical, bevel or worm, and no strength check"
+const GEAR_SCOPE := "Spur gears only: flat teeth, no helical, bevel or worm"
 
 
 static func gear_note(rec: Dictionary) -> String:

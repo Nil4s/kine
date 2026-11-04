@@ -429,8 +429,8 @@ msgstr "Comprimento da cremalheira"
 msgid "Rack and pinion"
 msgstr "Cremalheira e pinhão"
 
-msgid "Gears here: straight spur teeth with flat sides, sized to mesh (rack and pinion too). Not an involute profile, not helical, bevel or worm, and no strength check"
-msgstr "Engrenagens aqui: dentes retos de lados planos, dimensionados para engrenar (cremalheira e pinhão também). Não é perfil evolvente, nem helicoidal, cônica ou sem-fim, e não há cálculo de resistência"
+msgid "Spur gears only: flat teeth, no helical, bevel or worm"
+msgstr "Só engrenagens retas: dentes planos, sem helicoidal, cônica ou sem-fim"
 
 msgid "Like a photo:"
 msgstr "Igual a uma foto:"
