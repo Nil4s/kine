@@ -5,7 +5,7 @@
 ##   2 SPEED: the pelvis's horizontal (z) speed over the 0.15 s before each move ends, against the 0.15 s after the next one starts:
 ##     never a drop over 15 %. (The mean over a whole move is REPORTED, not barred: a cat leap's catch is a stop by definition.)
 ##   3 LANDINGS: knee flexion at each landing rises with the drop height (monotone over the landings sorted by drop) and the
-##     least-squares slope is within 20 % of the footage's 35 deg per m (docs/CH7_REFERENCE.md: three drops, 0.6 / 1.0 / 1.4 m)
+##     least-squares slope is within 20 % of the published 30.8 deg per m (docs/CH7_REFERENCE.md)
 ##   4 FOOT SKATE: a stance foot's toe base slides under 1 cm over each roof contact
 ##   5 NO PENETRATION: no body part more than 1 cm into any solid of the course, on every frame
 ##   6 the scene is 8 s at 30 fps, and playing it back reproduces the solved pose; C++ and GDScript give the same penetration
@@ -18,7 +18,7 @@ const EDGE_MAX := 0.02
 const SPEED_DROP_MAX := 0.15
 const SKATE_MAX := 0.01
 const PEN_MAX := 0.01
-const REF_SLOPE := 35.0       # deg per m of drop (docs/CH7_REFERENCE.md)
+const REF_SLOPE := 30.8       # deg per m of drop: Zhang et al. 2025 PeerJ 13:e19490, knee-dominant, 30 to 60 cm (docs/CH7_REFERENCE.md)
 const SLOPE_TOL := 0.20
 
 
