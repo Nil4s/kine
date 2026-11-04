@@ -3449,6 +3449,7 @@ func _hinge_rows() -> void:
 	var bi := int(hp.get("body", -1))
 	dlg_rows.add_child(_label("Turning part:  %s" % _part_name(bi) if bi >= 0 else "Turning part:  not yet"))
 	dlg_rows.add_child(_label("Line:  picked" if hp.has("d") else "Line:  not yet"))
+	dlg_rows.add_child(C48Joints.frame_row(self))
 	if hp.has("d"):
 		_hrow("From", f_from, "deg")
 		_hrow("To", f_to, "deg")

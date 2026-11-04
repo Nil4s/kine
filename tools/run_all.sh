@@ -913,3 +913,5 @@ EXTRA="$EXTRA c45:w"   # c45: Alt+click through to the hidden face; sketch stack
 
 EXTRA="$EXTRA c47:w"   # c47: mirror you can trust: facing axis from geometry (#273), side from geometry (#274), mirror seam kink (#251) (tests/c47_test.gd)
 EXTRA="$EXTRA c51:w"
+EXTRA="$EXTRA c48:w"   # c48: joints leave the app (tests/c48_test.gd, c48_blender.py)
+EXTRA="$EXTRA c48ui:w"   # c48ui: joints export + frame row by real clicks (tests/c48ui_test.gd)

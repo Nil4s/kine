@@ -111,6 +111,16 @@ const PRINT_TARGET := {"id": "print", "label": "3D printing (STL, 3MF)", "engine
 	"app": "The part as a printable solid in millimetres."}
 
 
+## C48 JOINTS (glTF, URDF): shown with the other part targets; scripts/build/c48_joints.gd writes the files. Its needs text lists which joint types survive
+const JOINTS_TARGET := {"id": "joints", "label": "Joints (glTF, URDF)", "engine": "",
+	"needs": C48Joints.SURVIVE,
+	"formats": [{"name": "glTF (.glb): a node per hinged piece, pivot as origin, axis stated", "run": "joints_glb",
+			"app": "A .glb in metres in the part's own axes: each hinged piece is a node whose origin is the hinge pivot and whose extras state the axis and limits, so Blender, Unity or Godot can turn it."},
+		{"name": "URDF (.urdf): the hinges as revolute joints", "run": "joints_urdf",
+			"app": "A .urdf listing each hinge as a revolute joint with origin, axis and limits (radians). The shapes are in the .glb."}],
+	"app": "The part's hinges as joints."}
+
+
 ## CUT LIST (s081, plan 81): shown only while the part on screen is made of wood boards; scripts/build/cut_list.gd writes the CSV
 const CUTLIST_TARGET := {"id": "cutlist", "label": "Cut list (CSV)", "engine": "",
 	"needs": "Any spreadsheet (Excel, LibreOffice, Google Sheets) opens the .csv. One line per size of board: its name, length, width and thickness in millimetres, how many of that size, and the board-metres to buy; the last line is the total.",
@@ -161,6 +171,7 @@ func _tg() -> Array:
 			out.append(CUTLIST_TARGET)   # s081: only a build of wood boards
 		out.append(LASER_TARGET)   # before 3D printing, so the Export button still lands on the last one: 3D printing
 		out.append(STEP_TARGET)
+		out.append(JOINTS_TARGET)
 		out.append(PRINT_TARGET)
 	return out
 
@@ -178,6 +189,8 @@ static func target(id: String) -> Dictionary:
 		return CUTLIST_TARGET
 	if id == "step":
 		return STEP_TARGET
+	if id == "joints":
+		return JOINTS_TARGET
 	return PRINT_TARGET if id == "print" else {}
 
 
@@ -530,6 +543,9 @@ func _refresh() -> void:
 	if _cur_id() == "laser":
 		ui_objects.text = "The part on screen is what is read. Pick the face above; its outer edge and holes are written in millimetres."
 		return
+	if _cur_id() == "joints":
+		ui_objects.text = dlg.tr(C48Joints.SURVIVE) + "\n\n" + C48Joints.summary(m.S.part)
+		return
 	if _cur_id() == "step":
 		ui_objects.text = "The part on screen is what is written, as one exact solid. The file says metres, so a CAD program shows the true size."
 		return
@@ -606,6 +622,8 @@ func text_of(id: String, fi: int) -> Dictionary:
 		fps_s = "%d fps, the scene's own rate; a key on every frame" % S.fps
 	if id == "print" or id == "step":
 		fps_s = "none: a printed part is one still shape"
+	if id == "joints":
+		fps_s = "none: the joints are a still pose, the hinge limits"
 	if id == "laser":
 		fps_s = "none: a cut outline is one still shape"
 	if id == "cutlist":
@@ -634,6 +652,8 @@ func checks(id: String, run: String) -> Array:
 			if cl != "":
 				pl.append(cl)
 		return pl
+	if id == "joints":   # C48: the joints are a still pose: no cards needed
+		return C48Joints.check_lines(m.S.part)
 	if id == "cutlist":
 		return CutList.check_lines(m.S.part)
 	if id == "laser":
@@ -741,6 +761,10 @@ func export_now(id: String, fi: int, dir: String, what := 0) -> Variant:
 			var bo43: Array = MeshExport.bodies_of(m.S.part, quality())["bodies"]
 			last_reread = C43Printer.after_export(ui_c43, r, ExportBudget.apply_bodies(bo43, budget))
 		return String(r["path"]) if bool(r["ok"]) else ""
+	if id == "joints":   # C48
+		var rj := C48Joints.write_urdf(m.S.part, UserPaths.w(dir)) if run == "joints_urdf" else C48Joints.write_glb(m.S.part, UserPaths.w(dir))
+		m._say_plain(String(rj["text"]))
+		return String(rj["path"]) if bool(rj["ok"]) else ""
 	if id == "step":   # STEP of the part on screen (the exact solid)
 		var rs := StepExport.export_part(m.S.part, UserPaths.w(dir))
 		m._say_plain(String(rs["text"]))
