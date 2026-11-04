@@ -4,7 +4,7 @@ class_name HandsDock
 ## menus, the tip's close) and no status / mouse-hint Label, and the body is not under it. A wider card is tried when the narrow one
 ## finds no spot (wider = fewer button rows = shorter). Nothing is hidden: every button and the full state line stay.
 
-const WIDTHS := [350.0, 335.0, 320.0, 450.0, 560.0, 300.0]   # plain widths, widest-looking first; the wider ones wrap to fewer rows
+const WIDTHS := [350.0, 335.0, 320.0, 400.0, 380.0, 360.0, 450.0, 560.0, 300.0]   # plain widths, widest-looking first; the wider ones wrap to fewer rows
 const PLAIN := 99   # entries from this index on would be tried compact (12 px type): none now, the plain card fits a free corner
 const STEP := 6.0
 
