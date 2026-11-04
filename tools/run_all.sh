@@ -952,3 +952,7 @@ EXTRA="$EXTRA c54n:w"   # c54n: C++ cloth self-collision (tests/c54n_test.gd; SK
 
 
 EXTRA="$EXTRA c49b:w"   # C49b: Off/Look/Print strip clear of Part dialogs, browser, timeline, cube; tests/c49b_test.gd
+
+
+
+EXTRA="$EXTRA c63:w"   # c63: the no-printer print estimate lands on a measured flow and names the printer it assumes (tests/c63_test.gd)
