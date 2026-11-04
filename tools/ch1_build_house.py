@@ -132,7 +132,7 @@ def kind_look(kind):
         return "header"
     if kind in ("joist",):
         return "joist"
-    if kind in ("rafter", "gable_rafter", "rafter_pair"):
+    if kind in ("rafter", "gable_rafter", "rafter_pair", "rafter_layout"):
         return "rafter"
     if kind == "ridge":
         return "ridge"
@@ -378,6 +378,15 @@ def build():
         # joist, one thickness over (real practice: the pair is nailed face to face); those seven are kind rafter_pair, the other eight stay rafter.
         r.poly("rafter.%s" % face, "rafter", "2x10", pts, G24 - T / 2, RFT, count=8, step=2 * G24, spacing=G24, span=(RIDGE_Z - D / 2), slope="4:12")
         r.poly("rafter_pair.%s" % face, "rafter_pair", "2x10", pts, 2 * G24 - T / 2 + T, RFT, count=7, step=2 * G24, spacing=G24, span=(RIDGE_Z - D / 2), slope="4:12")
+        # CH1e: the rafter_pair sits 38 mm off the 1219.2 grid (beside the joist), so the 1219.2 mm OSB sheet joints would land between rafters (19 mm short of the pair).
+        # A layout rafter on each 1219.2 line puts a rafter centre under every sheet joint. It cannot run to the plate (the ceiling joist is there), so it starts where its
+        # underside clears the joist top (z = D + JOIST_D / TAN), bears on the joist and runs to the ridge; it is nailed face to face to the pair beside it.
+        zc = D + JOIST_D / TAN
+        top_z = lambda z: tail_low + RAFT_V + (z + OVER) * TAN
+        lpts = [(zc, HW + JOIST_D), (zr, lower(zr)), (zr, lower(zr) + RAFT_V), (zc, top_z(zc))]
+        if face == "back":
+            lpts = [(DP - z, y) for z, y in lpts]
+        r.poly("rafter_layout.%s" % face, "rafter_layout", "2x10", lpts, 2 * G24 - T / 2, RFT, count=7, step=2 * G24, spacing=G24, span=(RIDGE_Z - zc), slope="4:12")
         r.poly("gable_rafter.%s.0" % face, "gable_rafter", "2x10", pts, 0.0, RFT, span=(RIDGE_Z - D / 2))
         r.poly("gable_rafter.%s.1" % face, "gable_rafter", "2x10", pts, W - RFT, RFT, span=(RIDGE_Z - D / 2))
     r.mark("Rafters and ridge")
