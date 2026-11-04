@@ -70,8 +70,8 @@ func _c2_speed() -> void:
 		t = tt
 		z.append(_front(F, h))
 	var v: float = (z[1] - z[0]) / (2.0 - 1.0)
-	print("      c2: Z(tau=1) = %.3f  Z(tau=2) = %.3f  average front speed = %.3f sqrt(gH)" % [z[0], z[1], v])
-	ok(v >= C2_LO and v <= C2_HI, "(c2) average front speed %.3f sqrt(gH) over tau 1..2 is inside the published span %.2f .. %.2f (arXiv:1308.0115 Table 1)" % [v, C2_LO, C2_HI])
+	print("      c2: Z(tau=1) = %.3f  Z(tau=2) = %.3f  average front speed = %.6f sqrt(gH)" % [z[0], z[1], v])
+	ok(v >= C2_LO and v <= C2_HI, "(c2) average front speed %.6f sqrt(gH) over tau 1..2 is inside the published span %.2f .. %.2f (arXiv:1308.0115 Table 1)" % [v, C2_LO, C2_HI])
 	ok(not (2.0 >= C2_LO and 2.0 <= C2_HI), "(g) CONTROL the frictionless Ritter value 2.0 fails the c2 span (the bar can fail)")
 
 

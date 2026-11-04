@@ -373,9 +373,28 @@ func _pcg() -> void:
 	var bmax := 0.0
 	for c in fl:
 		bmax = maxf(bmax, absf(rhs[c]))
-		pr[c] = 0.0
-		rr[c] = rhs[c]
 	if bmax == 0.0:
+		for c in fl:
+			pr[c] = 0.0
+		return
+	var r0 := 0.0
+	for c in fl:
+		var t := adiag[c] * pr[c]
+		if type[c - sx] == 1:
+			t -= pr[c - sx]
+		if type[c + sx] == 1:
+			t -= pr[c + sx]
+		if type[c - sy] == 1:
+			t -= pr[c - sy]
+		if type[c + sy] == 1:
+			t -= pr[c + sy]
+		if type[c - sz] == 1:
+			t -= pr[c - sz]
+		if type[c + sz] == 1:
+			t -= pr[c + sz]
+		rr[c] = rhs[c] - t
+		r0 = maxf(r0, absf(rr[c]))
+	if r0 < tol * bmax:
 		return
 	_precond(rr, zz)
 	for c in fl:
@@ -439,7 +458,9 @@ func _project(dt: float) -> void:
 				var s := (k == 0 or k == nz) or solid[_cid(i, j, k - 1)] != 0 or solid[_cid(i, j, k)] != 0
 				if s:
 					W[i + nx * (j + ny * k)] = 0.0
-	pr.fill(0.0)
+	for c in pr.size():
+		if type[c] != 1:
+			pr[c] = 0.0
 	var sc := h / dt
 	for c in fl:
 		var i := c % nx
@@ -449,6 +470,8 @@ func _project(dt: float) -> void:
 				+ Vg[i + nx * ((j + 1) + (ny + 1) * k)] - Vg[i + nx * (j + (ny + 1) * k)] \
 				+ W[i + nx * (j + ny * (k + 1))] - W[i + nx * (j + ny * k)]
 		var eps := minf(1.0, maxf(0.0, float(cnt[c]) / ppc - 1.0))
+		if eps == 0.0 and cnt[c] < ppc and type[c - 1] == 1 and type[c + 1] == 1 and type[c - nx] == 1 and type[c + nx] == 1 and type[c - nx * ny] == 1 and type[c + nx * ny] == 1:
+			eps = maxf(-0.5, float(cnt[c]) / ppc - 1.0)
 		rhs[c] = -sc * div + sc * (h / maxf(dt, dtmax)) * drift * eps
 	_pcg()
 	var f := dt / h

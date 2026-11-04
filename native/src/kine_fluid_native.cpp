@@ -15,7 +15,7 @@ inline double ms_since(Clk::time_point t) { return std::chrono::duration<double,
 
 template <class F>
 void pfor(int n, int nt, F f) { // f(begin, end)
-	if (nt <= 1 || n < 2 * nt) {
+	if (nt <= 1 || n < 2) {
 		f(0, n);
 		return;
 	}
@@ -371,9 +371,14 @@ void KineFluidNative::pcg() {
 		});
 	};
 	double bmax = 0;
-	for (int q = 0; q < n; q++) { bmax = std::max(bmax, std::fabs(rhs[fl[q]])); pr[fl[q]] = 0; rr[fl[q]] = rhs[fl[q]]; }
+	for (int q = 0; q < n; q++) bmax = std::max(bmax, std::fabs(rhs[fl[q]]));
 	last_res = bmax;
-	if (bmax == 0) return;
+	if (bmax == 0) { for (int q = 0; q < n; q++) pr[fl[q]] = 0; return; }
+	// warm start: the previous step's pressure (project() zeroed the cells that are not fluid now) is the first guess; r = b - A p0
+	matvec(pr, zz);
+	double r0 = 0;
+	for (int q = 0; q < n; q++) { int c = fl[q]; rr[c] = rhs[c] - zz[c]; r0 = std::max(r0, std::fabs(rr[c])); }
+	if (r0 < tol * bmax) return;
 	precond(rr, zz);
 	for (int q = 0; q < n; q++) ss[fl[q]] = zz[fl[q]];
 	double sig = dot(zz, rr);
@@ -441,7 +446,7 @@ void KineFluidNative::project(double dt) {
 				bool s = (k == 0 || k == nz) || solid[cid(i, j, k - 1)] || solid[cid(i, j, k)];
 				if (s) W[i + (size_t)nx * (j + (size_t)ny * k)] = 0;
 			}
-	std::fill(pr.begin(), pr.end(), 0.0);
+	for (size_t c = 0; c < pr.size(); c++) if (type[c] != 1) pr[c] = 0.0;
 	double sc = h / dt;
 	for (int c : fl) {
 		int i = c % nx, j = (c / nx) % ny, k = c / (nx * ny);
@@ -449,6 +454,9 @@ void KineFluidNative::project(double dt) {
 				+ Vg[i + (size_t)nx * ((j + 1) + (size_t)(ny + 1) * k)] - Vg[i + (size_t)nx * (j + (size_t)(ny + 1) * k)]
 				+ W[i + (size_t)nx * (j + (size_t)ny * (k + 1))] - W[i + (size_t)nx * (j + (size_t)ny * k)];
 		double eps = std::min(1.0, std::max(0.0, (double)cnt[c] / ppc - 1.0));
+		// voids: an under-dense cell whose six neighbours are all fluid is pulled back toward rest density (pressure source < 0). Free-surface cells are left alone.
+		if (eps == 0.0 && cnt[c] < ppc && type[c - 1] == 1 && type[c + 1] == 1 && type[c - nx] == 1 && type[c + nx] == 1 && type[c - nx * ny] == 1 && type[c + nx * ny] == 1)
+			eps = std::max(-0.5, (double)cnt[c] / ppc - 1.0);
 		rhs[c] = -sc * div + sc * (h / std::max(dt, dtmax)) * drift * eps;
 	}
 	pcg();
