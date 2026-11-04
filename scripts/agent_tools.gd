@@ -298,7 +298,9 @@ func handle(line: String) -> Dictionary:
 func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 	match method:
 		"commands":
-			return _ok(id, m._commands().map(func(c): return {"id": c["id"], "name": c["name"], "keys": c["keys"], "edits": c["edits"], "desc": c["desc"]}))
+			var all: Array = m._commands().map(func(c): return {"id": c["id"], "name": c["name"], "keys": c["keys"], "edits": c["edits"], "desc": c["desc"]})
+			var fw := String(p.get("find", "")).strip_edges()
+			return _ok(id, all if fw == "" else find_commands(all, fw))
 		"new":
 			m.S = Scene.new()
 			m.scene_path = ""
@@ -438,6 +440,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"part_roof":   # ITEM 226: a thin curved roof step (hip / gable / xieshan / pyramid / shed / flat, sag, corner lift, open top) on the part on screen; ONE undo step (scripts/build/part_roof.gd). Not in METHODS
 			var prf := PartRoof.serve(m, p)
 			return _ok(id, prf) if prf["ok"] else _err(id, -32602, String(prf["error"]))
+		"part_build":   # 11-04 AI COST: a whole part from JSON steps in ONE call, or {append} only the new steps (scripts/build/part_build.gd). Not in METHODS
+			var pb := PartBuild.serve(m, p)
+			return _ok(id, pb) if pb["ok"] else _err(id, -32602, String(pb["error"]))
 		"part_facts", "part_assert":
 			# ITEM 220 MODELING VIEW WITH MATHS (scripts/part_facts.gd, scripts/part_assert.gd): the part as text, and one-line checks on it, the
 			# way assert / state give the body. {part | path} or the part on screen. Not in METHODS (the transcript's ready line)
@@ -551,3 +556,29 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# Not in METHODS: its -32601 message is in the byte-for-byte transcript (refs/agent/serve_transcript.jsonl)
 			return KineBench.serve(self, id, p)
 	return _err(id, -32601, "no method '%s': the methods are %s (the head of tools/poser_cli.gd)" % [method, ", ".join(METHODS)])
+
+
+const FIND_MAX := 25
+
+## AI COST (11-04): commands {"find": "mirror pose"}: only the commands whose id / name / keys / desc hold EVERY word
+## (or, when none does, ANY word), best first, at most FIND_MAX. The whole list is 500+ commands (70-100 KB of JSON,
+## 20-30k tokens) that a model pays for again on every later turn; one search is usually a few hundred tokens.
+static func find_commands(all: Array, words: String) -> Array:
+	var ws := words.to_lower().split(" ", false)
+	var scored := []
+	for c in all:
+		var idn := (String(c["id"]) + " " + String(c["name"])).to_lower()
+		var hay := idn + " " + (String(c.get("keys", "")) + " " + String(c.get("desc", ""))).to_lower()
+		var hit := 0
+		var in_name := 0
+		for w in ws:
+			if hay.contains(w):
+				hit += 1
+				if idn.contains(w):
+					in_name += 1
+		if hit > 0:
+			scored.append([hit, in_name, c])
+	var full := scored.filter(func(s): return s[0] == ws.size())
+	var pick := full if not full.is_empty() else scored
+	pick.sort_custom(func(a, b): return a[0] > b[0] or (a[0] == b[0] and a[1] > b[1]))
+	return pick.slice(0, FIND_MAX).map(func(s): return s[2])
