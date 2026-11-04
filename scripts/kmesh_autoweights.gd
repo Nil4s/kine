@@ -580,7 +580,34 @@ static func _top(W: PackedFloat32Array, i: int, nb: int) -> Array:
 
 ## Jacobi-preconditioned conjugate gradient on the local SPD system (diagonal dg, off-diagonal CSR); x holds the start
 ## and gets the answer. Returns the iterations.
+static var _solve_door = null
+static var _solve_tried := false
+static var force_gd := false   # tests: true = the GDScript solver even with the DLL
+
+
+## C64: the solve in C++ (KineSolveNative.cg, bit-equal), the GDScript _cg_gd when the class is missing or KINE_NO_NATIVE=1
+static func _solve_native() -> bool:
+	if force_gd or OS.get_environment("KINE_NO_NATIVE") == "1":
+		return false
+	if not _solve_tried:
+		_solve_tried = true
+		if NativeExt.ensure("kine_native", "KineSolveNative"):
+			_solve_door = load("res://scripts/kmesh_solve_native.gd")
+	return _solve_door != null
+
+
 static func _cg(n: int, rp: PackedInt32Array, ci: PackedInt32Array, cv: PackedFloat64Array, dg: PackedFloat64Array,
+		b: PackedFloat64Array, x: PackedFloat64Array) -> int:
+	if n > 0 and _solve_native():
+		var r: Dictionary = _solve_door.cg(n, rp, ci, cv, dg, b, x, CG_TOL, CG_MAX)
+		var xr: PackedFloat64Array = r["x"]
+		for i in n:
+			x[i] = xr[i]
+		return int(r["it"])
+	return _cg_gd(n, rp, ci, cv, dg, b, x)
+
+
+static func _cg_gd(n: int, rp: PackedInt32Array, ci: PackedInt32Array, cv: PackedFloat64Array, dg: PackedFloat64Array,
 		b: PackedFloat64Array, x: PackedFloat64Array) -> int:
 	var r := PackedFloat64Array()
 	r.resize(n)
