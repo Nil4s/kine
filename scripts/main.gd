@@ -3131,6 +3131,11 @@ func _ready() -> void:
 	if cf.has_section_key("look", "light"):
 		pref = "light" if cf.get_value("look", "light", false) else "dark"
 	theme_pref = String(cf.get_value("look", "theme", pref))
+	if OS.get_cmdline_user_args().has("--c78-smoke"):   # C78: the installer test boots the installed build and builds a box (tools/c78_smoke.gd)
+		var _sm := Node.new()
+		_sm.set_script(load("res://tools/c78_smoke.gd"))
+		add_child(_sm)
+		_sm.call_deferred("run", self)
 	if OS.get_cmdline_user_args().has("--light") or OS.get_cmdline_user_args().has("--dark"):   # shots and tests choose
 		theme_pref = "light" if OS.get_cmdline_user_args().has("--light") else "dark"
 	if theme_pref not in ["system", "light", "dark"]:

@@ -4,7 +4,7 @@
 #   B1 BUILD      tools/build_installer.sh exits 0 and Kine-Setup-<project version>.exe exists
 #   B2 INSTALL    Setup /VERYSILENT /CURRENTUSER /DIR=<temp> exits 0; Kine.exe, Kine.console.exe, unins000.exe, libTKBRep.dll and
 #                 kine_cad.windows.template_release.x86_64.dll are in <temp>
-#   B3 SMOKE      the installed Kine.console.exe --headless -s res://tools/c78_smoke.gd (temp APPDATA, never Nick's) exits 0 in < 60 s,
+#   B3 SMOKE      the installed Kine.console.exe --headless -- --c78-smoke (temp APPDATA, never Nick's) exits 0 in < 60 s,
 #                 prints C78_SMOKE_OK (Part opened, box built through KineCAD, volume 2, meshed), and prints no "Can't open dynamic library",
 #                 no "Failed to load extension", no "No such file" / "missing extension" line
 #   B4 PATH       the same run with PATH = System32 only still passes (the DLLs are bundled, not found on PATH)
@@ -37,7 +37,7 @@ ok $? "B2 silent install into a temp dir (exit $rc)"
 
 smoke() {  # $1 = install dir, $2 = PATH value, $3 = out file ; prints exit code and ms
   local t0=$(date +%s%N)
-  APPDATA="$(WIN "$W/appdata")" LOCALAPPDATA="$(WIN "$W/appdata")" /usr/bin/env PATH="$2" /usr/bin/timeout 60 "$1/Kine.console.exe" --headless -s res://tools/c78_smoke.gd > "$3" 2>&1
+  APPDATA="$(WIN "$W/appdata")" LOCALAPPDATA="$(WIN "$W/appdata")" /usr/bin/env PATH="$2" /usr/bin/timeout 60 "$1/Kine.console.exe" --headless -- --c78-smoke > "$3" 2>&1
   local rc=$?
   SMOKE_MS=$(( ($(date +%s%N) - t0) / 1000000 ))
   return $rc

@@ -1,30 +1,25 @@
-extends SceneTree
-## C78 smoke test, run by the INSTALLED Kine.exe:  Kine.console.exe --headless -s res://tools/c78_smoke.gd
-## Boots main.tscn, opens Part (BUILD), builds a 2x1x1 box through KineCAD (OpenCASCADE), meshes it, checks the volume, quits 0.
-## Any failure prints "C78_SMOKE_FAIL <why>" and quits 1. Success prints "C78_SMOKE_OK ms=<boot-to-ok>".
+extends Node
+## C78 smoke test, started by main.gd when the command line has the user arg --c78-smoke:
+##   Kine.console.exe --headless -- --c78-smoke          (an installed Kine; also works from source)
+## Opens Part (BUILD), builds a 2x1x1 box through KineCAD (OpenCASCADE), meshes it, checks the volume, quits 0.
+## Any failure prints "C78_SMOKE_FAIL <why>" and quits 1. Success prints "C78_SMOKE_OK ms=<ms since engine start>".
 const KCad := preload("res://scripts/kcad.gd")
 
 
 func _fail(why: String) -> void:
 	print("C78_SMOKE_FAIL ", why)
-	quit(1)
+	get_tree().quit(1)
 
 
-func _init() -> void:
-	var t0 := Time.get_ticks_msec()
-	var m: Node = (load("res://main.tscn") as PackedScene).instantiate()
-	print("C78 instanced")
-	root.add_child(m)
-	print("C78 added")
-	for i in 8:
-		await process_frame
-	print("C78 booted")
+func run(m: Node) -> void:
+	print("C78_SMOKE_START ms=", Time.get_ticks_msec())
+	for i in 6:
+		await get_tree().process_frame
 	m.tour_step = -1
 	var pu = m.bld.part
-	print("C78 set_on")
 	pu.set_on(true)
 	for i in 4:
-		await process_frame
+		await get_tree().process_frame
 	if not pu.on:
 		_fail("Part did not open")
 		return
@@ -50,5 +45,5 @@ func _init() -> void:
 		_fail("mesh has %d triangles" % tris)
 		return
 	print("C78_GATE=", VideoAddon.gate("tracking a video"))
-	print("C78_SMOKE_OK ms=%d tris=%d vol=%f" % [Time.get_ticks_msec() - t0, tris, vol])
-	quit(0)
+	print("C78_SMOKE_OK ms=%d tris=%d vol=%f" % [Time.get_ticks_msec(), tris, vol])
+	get_tree().quit(0)
