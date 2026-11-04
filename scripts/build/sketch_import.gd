@@ -9,8 +9,14 @@ extends RefCounted
 ## Sketch entities are {"k": "line"|"rect"|"circle"|"arc", ...} exactly as Part draws them.
 
 const FLAT := 16   # lines per flattened curve
+const FLAT_REPORT := 12   # C55: the scale-report profile (C15's old parser) cut a curve into 12 lines
+const MM_PER := {"mm": 1.0, "cm": 10.0, "in": 25.4, "pt": 25.4 / 72.0, "pc": 25.4 / 6.0, "px": 25.4 / 96.0, "": 25.4 / 96.0}
+# C55: report profile = lines only, circles/rects as lines, arcs as chords, transforms not applied (counted), 12-line curves. Set only inside report().
+static var _rp := false
+static var _flatn := 16
+static var _stat := {}
 const SVG_NOT_DRAWN := ["defs", "clipPath", "mask", "symbol", "pattern", "marker", "metadata", "title", "desc", "style", "script"]
-const SVG_UNSUPPORTED := ["text", "image", "ellipse", "use", "foreignObject", "switch"]
+const SVG_UNSUPPORTED := ["text", "image", "use", "foreignObject", "switch"]
 
 
 static func parse(ext: String, text: String) -> Dictionary:
@@ -23,6 +29,15 @@ static func parse(ext: String, text: String) -> Dictionary:
 		_:
 			out["unsupported"].append("file type .%s (only .svg and .dxf)" % ext)
 	return out
+
+
+static func _ellipse(ents: Array, P: Callable, cx: float, cy: float, rx: float, ry: float) -> void:
+	var pts := []
+	for k in 48:
+		var t := TAU * k / 48.0
+		pts.append(P.call(Vector2(cx + rx * cos(t), cy + ry * sin(t))))
+	for k in 48:
+		_line(ents, pts[k], pts[(k + 1) % 48])
 
 
 static func _count_words(counts: Dictionary) -> Array:
@@ -134,7 +149,10 @@ static func _svg(text: String, out: Dictionary) -> void:
 			var empty := xp.is_empty()
 			var tr: Transform2D = stack[-1]
 			if xp.has_attribute("transform"):
-				tr = tr * _transform(xp.get_named_attribute_value("transform"))
+				if _rp:
+					_stat["transform"] = int(_stat.get("transform", 0)) + 1
+				else:
+					tr = tr * _transform(xp.get_named_attribute_value("transform"))
 			if nm == "svg" and not have_root:
 				have_root = true
 				var w := _length(xp.get_named_attribute_value_safe("width"))
@@ -155,6 +173,13 @@ static func _svg(text: String, out: Dictionary) -> void:
 					H = vb.size.y * scale
 				elif h.x > 0.0:
 					H = h.x
+				if _rp:
+					out["root"] = {"width": xp.get_named_attribute_value_safe("width"), "height": xp.get_named_attribute_value_safe("height"), "vb": (_nums(xp.get_named_attribute_value("viewBox")) if xp.has_attribute("viewBox") else PackedFloat64Array())}
+					out["scale"] = _report_scale(out)
+					scale = 1.0   # user units; report() applies the mm scale itself
+					has_vb = false
+					vb = Rect2()
+					H = 0.0
 				stack.append(Transform2D.IDENTITY)   # the root's own transform is not used; the stack entry keeps depth in step
 				depth_stack.append(false)
 				if empty:
@@ -207,7 +232,7 @@ static func _svg_shape(xp: XMLParser, nm: String, tr: Transform2D, scale: float,
 			out["source_count"] += 1
 			if f.call("rx") > 0.0 or f.call("ry") > 0.0:
 				unsup["rect corner radius (imported with square corners)"] = int(unsup.get("rect corner radius (imported with square corners)", 0)) + 1
-			if absf(tr.x.y) < 1e-9 and absf(tr.y.x) < 1e-9:
+			if absf(tr.x.y) < 1e-9 and absf(tr.y.x) < 1e-9 and not _rp:
 				var a: Vector2 = P.call(Vector2(x, y))
 				var b: Vector2 = P.call(Vector2(x + w, y + h))
 				ents.append({"k": "rect", "a": [a.x, a.y], "b": [b.x, b.y]})
@@ -220,6 +245,9 @@ static func _svg_shape(xp: XMLParser, nm: String, tr: Transform2D, scale: float,
 			if r <= 0.0:
 				return
 			out["source_count"] += 1
+			if _rp:
+				_ellipse(ents, P, f.call("cx"), f.call("cy"), r, r)
+				return
 			var lx := tr.x.length()
 			var ly := tr.y.length()
 			if absf(lx - ly) > 1e-6 * maxf(lx, ly) or absf(tr.x.dot(tr.y)) > 1e-6 * lx * ly:
@@ -227,6 +255,12 @@ static func _svg_shape(xp: XMLParser, nm: String, tr: Transform2D, scale: float,
 				return
 			var c: Vector2 = P.call(Vector2(f.call("cx"), f.call("cy")))
 			ents.append({"k": "circle", "c": [c.x, c.y], "r": r * lx * scale})
+		"ellipse":   # C55: C15's ability, now in both profiles
+			var erx: float = f.call("rx")
+			var ery: float = f.call("ry")
+			if erx > 0.0 and ery > 0.0:
+				out["source_count"] += 1
+				_ellipse(ents, P, f.call("cx"), f.call("cy"), erx, ery)
 		"line":
 			out["source_count"] += 1
 			_line(ents, P.call(Vector2(f.call("x1"), f.call("y1"))), P.call(Vector2(f.call("x2"), f.call("y2"))))
@@ -318,8 +352,8 @@ static func _svg_path(d: String, P: Callable, ents: Array, out: Dictionary) -> v
 					c1 = cur + (cur - last_c) if last_cmd in ["Q", "T"] else cur
 					np = o + Vector2(a[0], a[1])
 				var prev := cur
-				for s in range(1, FLAT + 1):
-					var t := float(s) / FLAT
+				for s in range(1, _flatn + 1):
+					var t := float(s) / _flatn
 					var u := 1.0 - t
 					var pt: Vector2
 					if quad:
@@ -337,9 +371,9 @@ static func _svg_path(d: String, P: Callable, ents: Array, out: Dictionary) -> v
 		cur = np
 		last_cmd = up
 	if flat_note:
-		out["notes"].append("curves (C S Q T) were cut into %d short lines each" % FLAT)
+		out["notes"].append("curves (C S Q T) were cut into %d short lines each" % _flatn)
 	if ell_note:
-		out["notes"].append("elliptical arcs were cut into %d short lines each" % FLAT)
+		out["notes"].append("elliptical arcs were cut into %d short lines each" % _flatn)
 
 
 # SVG arc (endpoint form) -> an arc entity (circle) or short lines (ellipse). Returns true when flattened.
@@ -375,15 +409,158 @@ static func _svg_arc(p1: Vector2, p2: Vector2, rx: float, ry: float, phi: float,
 		dth += TAU
 	var at := func(t: float) -> Vector2:
 		return c + Vector2(cp * rx * cos(t) - sp * ry * sin(t), sp * rx * cos(t) + cp * ry * sin(t))
+	if _rp:
+		_line(ents, P.call(p1), P.call(p2))
+		_stat["arcs"] = int(_stat.get("arcs", 0)) + 1
+		return false
 	if absf(rx - ry) < 1e-6 * maxf(rx, ry):
 		_arc_mid_ents(ents, P.call(p1), P.call(at.call(th1 + dth / 2.0)), P.call(p2))
 		return false
 	var prev := p1
-	for s in range(1, FLAT + 1):
-		var q: Vector2 = at.call(th1 + dth * float(s) / FLAT) if s < FLAT else p2
+	for s in range(1, _flatn + 1):
+		var q: Vector2 = at.call(th1 + dth * float(s) / _flatn) if s < _flatn else p2
 		_line(ents, P.call(prev), P.call(q))
 		prev = q
 	return true
+
+
+# ---------------------------------------------------------------- C55: the scale-checked SVG import (was C15's SvgImport)
+
+## "120mm" -> {"v": 120.0, "unit": "mm"}; "" -> {"v": NAN}
+static func len_of(s: String) -> Dictionary:
+	s = s.strip_edges()
+	if s == "" or s.ends_with("%"):
+		return {"v": NAN, "unit": "", "pct": s.ends_with("%")}
+	var re := RegEx.new()
+	re.compile("^([-+]?[0-9]*\\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\\s*([a-zA-Z]*)$")
+	var r := re.search(s)
+	if r == null:
+		return {"v": NAN, "unit": ""}
+	var u := r.get_string(2).to_lower()
+	if not MM_PER.has(u):
+		return {"v": NAN, "unit": u}
+	return {"v": float(r.get_string(1)), "unit": u}
+
+
+# the root's width / height / viewBox -> mm per user unit; fills out["size_mm"] and the scale warnings
+static func _report_scale(out: Dictionary) -> float:
+	var root: Dictionary = out["root"]
+	var warn: Array = out["warnings"]
+	var vb: PackedFloat64Array = root["vb"]
+	var has_vb := vb.size() == 4 and vb[2] > 0.0 and vb[3] > 0.0
+	var wl := len_of(String(root["width"]))
+	var hl := len_of(String(root["height"]))
+	var upu: float = MM_PER["px"]
+	var size := Vector2.ZERO
+	if not is_nan(wl["v"]) and not is_nan(hl["v"]):
+		size = Vector2(float(wl["v"]) * MM_PER[wl["unit"]], float(hl["v"]) * MM_PER[hl["unit"]])
+		if wl["unit"] == "" or hl["unit"] == "":
+			warn.append("The file gives its size with no unit; it is read as pixels (96 to the inch). Check the real size below.")
+		if has_vb:
+			upu = size.x / vb[2]
+			var ar_vb: float = vb[2] / vb[3]
+			var ar_sz: float = size.x / maxf(size.y, 1e-9)
+			if absf(ar_vb / ar_sz - 1.0) > 0.01:
+				warn.append("Scale mismatch: the width and height are %.1f x %.1f mm (ratio %.3f) but the viewBox is %.0f x %.0f (ratio %.3f). The drawing may be stretched." % [size.x, size.y, ar_sz, vb[2], vb[3], ar_vb])
+		else:
+			upu = MM_PER[wl["unit"]]
+	elif has_vb:
+		size = Vector2(vb[2], vb[3]) * upu
+		warn.append("The file gives no width and height; its size is taken from the viewBox in pixels (96 to the inch). Check the real size below.")
+	else:
+		warn.append("The file gives no width, height or viewBox; its size cannot be known. Type the real width below.")
+	out["size_mm"] = size
+	return upu
+
+
+## the whole scale-checked import, SVG text in, lines out in mm (y up, the drawing's lower-left corner at 0,0) and a plain-words scale report.
+## opts: {"width_mm": real width to scale the drawing to}
+## answers {"ok", "why", "size_mm", "content_mm", "mm_per_unit", "warnings", "words", "ents": [line entities], "lines"}
+static func report(text: String, opts := {}) -> Dictionary:
+	var out := {"ok": false, "why": "", "size_mm": Vector2.ZERO, "content_mm": Vector2.ZERO, "mm_per_unit": 1.0, "warnings": [], "words": "", "ents": [], "lines": 0}
+	var rs := RegEx.new()
+	rs.compile("<svg\\b([^>]*)>")
+	if rs.search(text) == null:
+		out["why"] = "This is not an SVG file (no <svg> tag)."
+		return out
+	var warn: Array = out["warnings"]
+	_rp = true
+	_flatn = FLAT_REPORT
+	_stat = {}
+	var tmp := {"ents": [], "unsupported": [], "notes": [], "units": "", "source_count": 0, "warnings": warn, "size_mm": Vector2.ZERO}
+	_svg(text, tmp)
+	_rp = false
+	_flatn = FLAT
+	var stat := _stat
+	_stat = {}
+	out["size_mm"] = tmp["size_mm"]
+	var upu: float = tmp["scale"] if tmp.has("scale") else MM_PER["px"]
+	var raw: Array = tmp["ents"]   # user units, y negated (scale 1 while parsing), so the report maths is C15's
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for e in raw:
+		var a0 := Vector2(e["a"][0], -float(e["a"][1]))
+		var a1 := Vector2(e["b"][0], -float(e["b"][1]))
+		lo = lo.min(a0).min(a1)
+		hi = hi.max(a0).max(a1)
+	if raw.is_empty():
+		out["why"] = "No lines, shapes or paths were found in this SVG."
+		return out
+	if int(stat.get("transform", 0)) > 0:
+		warn.append("%d shape(s) carry a transform; transforms are NOT applied, so their size or place may be off." % int(stat["transform"]))
+	if int(stat.get("arcs", 0)) > 0:
+		warn.append("%d curved arc(s) were drawn as straight chords." % int(stat["arcs"]))
+	var content := (hi - lo) * upu
+	var vbv: PackedFloat64Array = (tmp["root"] as Dictionary)["vb"] if tmp.has("root") else PackedFloat64Array()
+	if vbv.size() == 4 and vbv[2] > 0.0 and vbv[3] > 0.0:
+		var vlo := Vector2(vbv[0], vbv[1])
+		var vhi := vlo + Vector2(vbv[2], vbv[3])
+		var pad := Vector2(vbv[2], vbv[3]) * 0.02
+		if lo.x < vlo.x - pad.x or lo.y < vlo.y - pad.y or hi.x > vhi.x + pad.x or hi.y > vhi.y + pad.y:
+			warn.append("The drawing runs outside its viewBox, so the reported size does not hold for all of it.")
+		elif (hi - lo).x < vbv[2] * 0.1 and (hi - lo).y < vbv[3] * 0.1:
+			warn.append("The drawing fills under a tenth of its viewBox; the page size is not the size of the part.")
+	if float(opts.get("width_mm", 0.0)) > 0.0 and content.x > 1e-9:
+		var k_fix := float(opts["width_mm"]) / content.x
+		upu *= k_fix
+		content *= k_fix
+		out["size_mm"] = (out["size_mm"] as Vector2) * k_fix
+		warn.append("Scaled so the drawing is %.1f mm wide, as you typed." % float(opts["width_mm"]))
+	out["mm_per_unit"] = upu
+	out["content_mm"] = content
+	var res := []
+	for e in raw:
+		var p0 := Vector2(e["a"][0], -float(e["a"][1]))
+		var p1 := Vector2(e["b"][0], -float(e["b"][1]))
+		var a0 := Vector2((p0.x - lo.x) * upu, (hi.y - p0.y) * upu)
+		var a1 := Vector2((p1.x - lo.x) * upu, (hi.y - p1.y) * upu)
+		if a0.distance_to(a1) < 1e-4:
+			continue
+		res.append({"k": "line", "a": [snappedf(a0.x, 0.0001), snappedf(a0.y, 0.0001)], "b": [snappedf(a1.x, 0.0001), snappedf(a1.y, 0.0001)]})
+	out["ents"] = res
+	out["lines"] = res.size()
+	out["ok"] = not res.is_empty()
+	out["words"] = words(out)
+	return out
+
+
+static func words(rep: Dictionary) -> String:
+	var sz: Vector2 = rep["size_mm"]
+	var c: Vector2 = rep["content_mm"]
+	var s := "File says %.1f x %.1f mm. The drawing itself is %.1f x %.1f mm (%d lines)." % [sz.x, sz.y, c.x, c.y, int(rep["lines"])]
+	var w: Array = rep["warnings"]
+	if w.is_empty():
+		return s + " Scale looks consistent."
+	return s + " CHECK: " + " ".join(PackedStringArray(w))
+
+
+## put the import in the part as a new sketch on `plane`: answers the new sketch's id ("" if nothing was imported)
+static func add_to(rec: Dictionary, rep: Dictionary, plane_name := "front") -> String:
+	if not bool(rep.get("ok", false)):
+		return ""
+	var f := Part.new_feature(rec, "sketch", {"plane": plane_name, "ents": (rep["ents"] as Array).duplicate(true), "dims": []})
+	rec["features"].append(f)
+	return String(f["id"])
 
 
 # ---------------------------------------------------------------- DXF
