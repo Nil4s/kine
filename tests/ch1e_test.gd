@@ -180,6 +180,11 @@ func _float(F: Dictionary, V: Dictionary) -> void:
 		for i in bad.slice(0, 5):
 			f.append("%d %s %s/%s gap %.2f a %.1f b %.1f tail %.1f hole %.2f" % [i, F["tname"][i], F["names"][F["a"][i]], F["names"][F["b"][i]], V["head_gap"][i] - F["stand"][i], V["len_a"][i], V["len_b"][i], V["tail"][i], V["holes"][i]])
 		print("   first failing: ", f)
+		var grp := {}
+		for i in bad:
+			var kk := "%s|%s|%s" % [F["tname"][i], String(F["names"][F["a"][i]]).split(".")[0], String(F["names"][F["b"][i]]).split(".")[0]] if F["b"][i] >= 0 else "%s|%s|-" % [F["tname"][i], String(F["names"][F["a"][i]]).split(".")[0]]
+			grp[kk] = int(grp.get(kk, 0)) + 1
+		print("   failing by type|a|b: ", str(grp))
 	# CONTROL: move one nail 20 mm along z and x, the check must flag it
 	var G: Dictionary = F.duplicate()
 	var hh: PackedVector3Array = F["head"].duplicate()
