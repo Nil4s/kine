@@ -15514,6 +15514,8 @@ func _fit_page_bar() -> void:
 	var w := clampf(floorf((room - NEXT_RESERVE) / maxi(shown, 1)), TAB_MIN_W, TAB_W)
 	for b in ui_page_btns.values():
 		((b as Button).get_parent() as Control).custom_minimum_size.x = w   # the tab's cell (its clip) takes the width
+	for p in ui_page_btns:   # C51: a narrow cell (1024x600) drops the icon so the name fits
+		C51Tabs.apply(p, ui_page_btns[p], w)
 
 
 ## R6: THE ONE NEXT STEP, computed from the state; the same on every page, never empty. {text, cmd, kind}: cmd is the
