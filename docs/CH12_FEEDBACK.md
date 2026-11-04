@@ -36,6 +36,15 @@ The registered bar "retrofit at 4 N_c: sigma < 0.0005" FAILED on the first run (
 
 Video `C:/Users/Nick/tools/kine_workers/out/ch12/ch12_sway.mp4` (401 frames, 20 s real time, 5 N_c = 175 walkers, deck sway drawn x40): plan view of the deck with walkers coloured by the sign of their lateral force, amplitude-vs-time plot for locked crowd, random-phase control and retrofit, N and N_c printed. I looked at frame 399: the layout is readable, the locked trace climbs 6 to 13.8 mm while the control and retrofit decay. The deck bow is small at this amplitude (0.45 m drawn); the walkers are upright pegs, only the colour shows the force sign. I looked at one frame only.
 
+## The 3D film (lead's look pass, 11-04)
+
+`tools/ch12_render3d.gd` -> `C:/Users/Nick/tools/kine_workers/out/ch12_3d/ch12_3d.mp4` (802 frames, 20 fps, 40 s; frames in `.../frames/`). Part A (frames 0-400): perspective 3D of the Part (`data/challenges/ch12_bridge.json`: two edge girders, deck, cross frames, abutments) over a river with a box city behind it, 60 Kine mannequins (Overlays.mannequin, PathWalk gait at 1.3 m/s, one stride looped), the locked-crowd run of N = 105 (3 N_c) played as a 15x time-lapse (0.75 s of video-clock per frame at 20 fps = 300 s in 20 s) with an on-screen clock and the real amplitude. Part B (frames 401-801): plan-view split screen of the same 300 s for the locked crowd, the random-phase control and the retrofit (28 figures each).
+- Simulated: deck motion (C++ solver); each walker's phase theta_i (the crowd equation re-integrated from the recorded mid-span motion, checked against the solver's own end phases: worst difference 0.020 rad locked, 0.014 retrofit, 0 random); walker body sway d = (F0 / (m omega^2)) sin(theta) = 3.9 cm at 70 kg, so locked walkers sway in step with the deck and random ones do not.
+- A picture, not a result: the gait cycle is played at normal speed (not time-lapsed); the wider stance (hips abducted up to 10 degrees as the amplitude passes 100 mm) is an illustrative cue for Dallard's observation, not fitted or simulated. Only 60 of the 105 walkers are drawn in part A and 28 in part B (the other phases still drive the deck).
+- Deck and walker sway are drawn x25 (the amplitude saturates at 100 mm, so the bow reaches 2.5 m on a 4 m deck); the factor is printed on the film.
+- I looked at frames 0, 1, 2, 3, 5 (test renders at x10 and x25) and 200 and 600 of the final film. Part A reads well but the end-on camera makes the lateral sway hard to read from a still; part B shows it unmistakably (locked bridge bowed 85 to 100 mm real, the other two flat at under 1 mm). Not looked at: every frame, the video motion itself.
+- The mannequin gait looks plausible but I did not check the foot contact or the abduction sign visually in motion; the stance-width probe I used to pick the sign was inconclusive (1.059 vs 1.056 m), so the splay direction is unconfirmed.
+
 ## Not done
 
 - Cables, vertical footfall forcing, walkers' own mass, a crowd off the deck frequency.
