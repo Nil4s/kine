@@ -4,14 +4,14 @@
 <rect x="0" y="0" width="420.0" height="297.0" fill="#ffffff"/>
 <g id="sheet" data-paper="A3" data-scale="1:50" data-denom="50" data-mm-per-m="20.0" data-units="mm">
 <polygon class="elev-wall" data-room="r1" points="115.735,120.474 310.815,120.474 310.815,169.814 115.735,169.814" fill="#ececec" stroke="#000000" stroke-width="0.35" stroke-linejoin="miter"/>
-<polygon class="elev-window" data-id="o4" data-kind="window" data-room="r1" points="275.675,127.154 293.955,127.154 293.955,151.534 275.675,151.534" fill="#d6e6f2" stroke="#000000" stroke-width="0.3" stroke-linejoin="miter"/>
-<line class="window" data-id="o4" data-kind="window" data-room="r1" x1="284.815" y1="127.154" x2="284.815" y2="151.534" stroke="#000000" stroke-width="0.18"/>
-<line class="window" data-id="o4" data-kind="window" data-room="r1" x1="275.675" y1="139.344" x2="293.955" y2="139.344" stroke="#000000" stroke-width="0.18"/>
-<text class="dim-text" data-kind="width" data-id="o4" x="284.815" y="125.954" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">0.91</text>
-<polygon class="elev-window" data-id="o5" data-kind="window" data-room="r1" points="235.675,127.154 253.955,127.154 253.955,151.534 235.675,151.534" fill="#d6e6f2" stroke="#000000" stroke-width="0.3" stroke-linejoin="miter"/>
-<line class="window" data-id="o5" data-kind="window" data-room="r1" x1="244.815" y1="127.154" x2="244.815" y2="151.534" stroke="#000000" stroke-width="0.18"/>
-<line class="window" data-id="o5" data-kind="window" data-room="r1" x1="235.675" y1="139.344" x2="253.955" y2="139.344" stroke="#000000" stroke-width="0.18"/>
-<text class="dim-text" data-kind="width" data-id="o5" x="244.815" y="125.954" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">0.91</text>
+<polygon class="elev-window" data-id="o4" data-kind="window" data-room="r1" points="281.675,127.154 299.955,127.154 299.955,151.534 281.675,151.534" fill="#d6e6f2" stroke="#000000" stroke-width="0.3" stroke-linejoin="miter"/>
+<line class="window" data-id="o4" data-kind="window" data-room="r1" x1="290.815" y1="127.154" x2="290.815" y2="151.534" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o4" data-kind="window" data-room="r1" x1="281.675" y1="139.344" x2="299.955" y2="139.344" stroke="#000000" stroke-width="0.18"/>
+<text class="dim-text" data-kind="width" data-id="o4" x="290.815" y="125.954" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">0.91</text>
+<polygon class="elev-window" data-id="o5" data-kind="window" data-room="r1" points="233.675,127.154 251.955,127.154 251.955,151.534 233.675,151.534" fill="#d6e6f2" stroke="#000000" stroke-width="0.3" stroke-linejoin="miter"/>
+<line class="window" data-id="o5" data-kind="window" data-room="r1" x1="242.815" y1="127.154" x2="242.815" y2="151.534" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o5" data-kind="window" data-room="r1" x1="233.675" y1="139.344" x2="251.955" y2="139.344" stroke="#000000" stroke-width="0.18"/>
+<text class="dim-text" data-kind="width" data-id="o5" x="242.815" y="125.954" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">0.91</text>
 <polygon class="elev-window" data-id="o6" data-kind="window" data-room="r1" points="194.715,127.154 206.915,127.154 206.915,145.434 194.715,145.434" fill="#d6e6f2" stroke="#000000" stroke-width="0.3" stroke-linejoin="miter"/>
 <line class="window" data-id="o6" data-kind="window" data-room="r1" x1="200.815" y1="127.154" x2="200.815" y2="145.434" stroke="#000000" stroke-width="0.18"/>
 <line class="window" data-id="o6" data-kind="window" data-room="r1" x1="194.715" y1="136.294" x2="206.915" y2="136.294" stroke="#000000" stroke-width="0.18"/>

@@ -342,7 +342,7 @@ func video() -> void:
 	var show := "STRUCTURE CHECK (IRC 2021)
 %d lines   %d PASS   %d FAIL
 %d marked UNVERIFIED, listed on sheet 07
-rafters, joists, headers, studs, bracing, ties, anchor bolts, footing" % [lines.size(), lines.size() - nf, nf, nu]
+rafters, joists, headers, studs, bracing, ties, footing" % [lines.size(), lines.size() - nf, nf, nu]
 	mi.visible = false
 	lab.text = ""
 	lab2.text = ""

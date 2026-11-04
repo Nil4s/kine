@@ -6,10 +6,10 @@
 <polygon class="elev-wall" data-room="r1" points="115.735,120.474 310.815,120.474 310.815,169.814 115.735,169.814" fill="#ececec" stroke="#000000" stroke-width="0.35" stroke-linejoin="miter"/>
 <polygon class="elev-door" data-id="o1" data-kind="door" data-room="r1" points="172.595,129.174 190.875,129.174 190.875,169.814 172.595,169.814" fill="#ffffff" stroke="#000000" stroke-width="0.3" stroke-linejoin="miter"/>
 <text class="dim-text" data-kind="width" data-id="o1" x="181.735" y="127.974" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">0.91</text>
-<polygon class="elev-window" data-id="o2" data-kind="window" data-room="r1" points="128.595,127.154 146.875,127.154 146.875,151.534 128.595,151.534" fill="#d6e6f2" stroke="#000000" stroke-width="0.3" stroke-linejoin="miter"/>
-<line class="window" data-id="o2" data-kind="window" data-room="r1" x1="137.735" y1="127.154" x2="137.735" y2="151.534" stroke="#000000" stroke-width="0.18"/>
-<line class="window" data-id="o2" data-kind="window" data-room="r1" x1="128.595" y1="139.344" x2="146.875" y2="139.344" stroke="#000000" stroke-width="0.18"/>
-<text class="dim-text" data-kind="width" data-id="o2" x="137.735" y="125.954" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">0.91</text>
+<polygon class="elev-window" data-id="o2" data-kind="window" data-room="r1" points="124.595,127.154 142.875,127.154 142.875,151.534 124.595,151.534" fill="#d6e6f2" stroke="#000000" stroke-width="0.3" stroke-linejoin="miter"/>
+<line class="window" data-id="o2" data-kind="window" data-room="r1" x1="133.735" y1="127.154" x2="133.735" y2="151.534" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o2" data-kind="window" data-room="r1" x1="124.595" y1="139.344" x2="142.875" y2="139.344" stroke="#000000" stroke-width="0.18"/>
+<text class="dim-text" data-kind="width" data-id="o2" x="133.735" y="125.954" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">0.91</text>
 <polygon class="elev-window" data-id="o3" data-kind="window" data-room="r1" points="270.595,127.154 288.875,127.154 288.875,151.534 270.595,151.534" fill="#d6e6f2" stroke="#000000" stroke-width="0.3" stroke-linejoin="miter"/>
 <line class="window" data-id="o3" data-kind="window" data-room="r1" x1="279.735" y1="127.154" x2="279.735" y2="151.534" stroke="#000000" stroke-width="0.18"/>
 <line class="window" data-id="o3" data-kind="window" data-room="r1" x1="270.595" y1="139.344" x2="288.875" y2="139.344" stroke="#000000" stroke-width="0.18"/>
