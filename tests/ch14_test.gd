@@ -292,6 +292,22 @@ func bars_build(d: Dictionary) -> void:
 					worst_axis = "%s %.2f of %.1f mm at t %.1f" % [j, m, full, t]
 		t += 0.05
 	ok(worst_out <= 0.01, "11 every master plunger stays inside its stroke (worst overrun %.3f mm %s)" % [worst_out, worst_axis])
+	# 11b (added with the slave syringes in the animation, committed before its run): the DRAWN horn pin and pivot (the parts and the scene) give the lever maths'
+	# length at every joint angle, so what the animation shows is the mechanism the torque and stroke bars computed. PLANTED: the horn drawn 10 deg off fails.
+	var worst_geo := 0.0
+	var worst_off := 0.0
+	for j in ["sh", "el", "wr"]:
+		var lim: Array = d["lim"][j]
+		var lv: Array = d["lever"][j]
+		for i in 41:
+			var th: float = lerpf(lim[0], lim[1], i / 40.0)
+			var sl := A.slave_line(d, j, th)
+			var want := A.lc_len(lv[0], lv[1], A.phi_of(d, j, th))
+			worst_geo = maxf(worst_geo, absf(((sl["Q"] as Vector2) - (sl["P"] as Vector2)).length() - want))
+			var off := A.slave_line(d, j, th + 10.0)
+			worst_off = maxf(worst_off, absf(((off["Q"] as Vector2) - (off["P"] as Vector2)).length() - want))
+	ok(worst_geo < 1e-9, "11b drawn horn + pivot = lever length at every angle of sh, el, wr (worst %s mm)" % str(worst_geo))
+	ok(worst_off > 1.0, "11b PLANTED a horn drawn 10 deg off is %.2f mm out (caught)" % worst_off)
 	var low := N.sweep(d, N.waypoints(d, N.CLEAR, -40.0), 0.05)
 	ok(float(low["held_min"]) < 0.0, "11 PLANTED arriving 40 mm below the target height drives the carried can into the stack (%.2f mm at %s)" % [low["held_min"], low["held_at"]])
 

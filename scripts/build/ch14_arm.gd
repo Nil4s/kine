@@ -601,6 +601,17 @@ static func pivot(d: Dictionary, j: String) -> Vector2:
 	return Vector2(float(d["L2"]) - dd, 0.0)
 
 
+## the slave's two ends in the CARRIER's frame (mm): P the pivot it hangs from, Q the push pin on the horn turned by the joint angle th (sh: th1, el: th2, wr: psi).
+## The carrier frame has the joint at (0, 0) for the shoulder (the turntable seen from the shoulder axis), (L1, 0) for the elbow (upper arm), (L2, 0) for the wrist (forearm)
+static func slave_line(d: Dictionary, j: String, th: float) -> Dictionary:
+	var jo := Vector2.ZERO
+	if j == "el":
+		jo = Vector2(float(d["L1"]), 0.0)
+	elif j == "wr":
+		jo = Vector2(float(d["L2"]), 0.0)
+	return {"P": pivot(d, j), "Q": jo + horn_pin(d, j).rotated(deg_to_rad(th))}
+
+
 ## the rod, barrel offset and so on of a slave syringe: rod length Lrod and the barrel tip distance t0 from the pivot along the push line
 static func slave_layout(d: Dictionary, j: String) -> Dictionary:
 	var ss: int = d["cyl"][j][1]
