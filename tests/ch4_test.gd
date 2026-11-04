@@ -455,6 +455,8 @@ func make_view(w: int, h: int, ortho: float, lit: bool) -> void:
 	vp.size = Vector2i(w, h)
 	vp.own_world_3d = true
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	if lit:
+		vp.msaa_3d = Viewport.MSAA_4X
 	vp.transparent_bg = false
 	root.add_child(vp)
 	holder = Node3D.new()
@@ -508,7 +510,8 @@ func shot() -> Image:
 
 
 func free_view() -> void:
-	vp.queue_free()
+	if is_instance_valid(vp):
+		vp.queue_free()
 	await process_frame
 
 
@@ -530,6 +533,156 @@ func luminance_sd(im: Image) -> float:
 			n += 1
 	var m := s / n
 	return sqrt(maxf(s2 / n - m * m, 0.0))
+
+
+## V / AA helpers
+func mask_shot(tris_all: Array, from_mm: Vector3, to_mm: Vector3) -> Image:
+	# the same view with flat unshaded colours from the geometry: red = a face whose normal runs along its board's grain axis (an end face), green = any other face
+	var gaxis := [Vector3.RIGHT, Vector3.RIGHT, Vector3(0, 0, 1), Vector3(0, 0, 1), Vector3.RIGHT]
+	var vs := PackedVector3Array()
+	var cs := PackedColorArray()
+	for s in tris_all.size():
+		var t: PackedVector3Array = tris_all[s]
+		for i in range(0, t.size(), 3):
+			var n := (t[i + 1] - t[i]).cross(t[i + 2] - t[i]).normalized()
+			var col := Color(1, 0, 0) if absf(n.dot(gaxis[s])) > 0.9 else Color(0, 1, 0)
+			for k in 3:
+				vs.append(t[i + k] * 0.001)
+				cs.append(col)
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = vs
+	arr[Mesh.ARRAY_COLOR] = cs
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	var mt := StandardMaterial3D.new()
+	mt.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mt.vertex_color_use_as_albedo = true
+	mt.cull_mode = BaseMaterial3D.CULL_DISABLED
+	make_view(960, 720, 0.0, false)
+	var mi := MeshInstance3D.new()
+	mi.mesh = am
+	mi.material_override = mt
+	holder.add_child(mi)
+	look_at_mm(from_mm, to_mm)
+	var im := await shot()
+	await free_view()
+	return im
+
+
+## V: mean luminance of the end-grain cells against the side-grain cells that touch them (within 10 px), by the geometry mask
+func end_vs_side(im: Image, mk: Image) -> Dictionary:
+	var nw := im.get_width()
+	var nh := im.get_height()
+	var kind := PackedByteArray()
+	kind.resize(nw * nh)
+	for j in nh:
+		for i in nw:
+			var c := mk.get_pixel(i, j)
+			if c.r > 0.7 and c.g < 0.3:
+				kind[j * nw + i] = 1
+			elif c.g > 0.7 and c.r < 0.3:
+				kind[j * nw + i] = 2
+	var r := 10
+	var se := 0.0
+	var ne := 0
+	var ss := 0.0
+	var ns := 0
+	for j in range(r, nh - r, 2):
+		for i in range(r, nw - r, 2):
+			var k := kind[j * nw + i]
+			if k == 0:
+				continue
+			var other := 3 - k
+			var near := false
+			for dj in range(-r, r + 1, 3):
+				for di in range(-r, r + 1, 3):
+					if kind[(j + dj) * nw + i + di] == other:
+						near = true
+						break
+				if near:
+					break
+			if not near:
+				continue
+			var c := im.get_pixel(i, j)
+			var l := 0.3 * c.r + 0.59 * c.g + 0.11 * c.b
+			if k == 1:
+				se += l
+				ne += 1
+			else:
+				ss += l
+				ns += 1
+	var me := se / maxf(ne, 1)
+	var ms := ss / maxf(ns, 1)
+	return {"end": me, "side": ms, "ne": ne, "ns": ns, "rel": absf(me - ms) / maxf(ms, 1e-4)}
+
+
+func fft_hf(re: PackedFloat64Array, im: PackedFloat64Array, n_use: int) -> float:
+	# energy above 0.35 cycles / px of one windowed line (re has n_use real samples, zero padded to 1024)
+	var n := 1024
+	var xr := PackedFloat64Array()
+	var xi := PackedFloat64Array()
+	xr.resize(n)
+	xi.resize(n)
+	for i in n_use:
+		xr[i] = re[i] * (0.5 - 0.5 * cos(TAU * (i + 0.5) / n_use))
+	var j := 0
+	for i in range(1, n):
+		var bit := n >> 1
+		while j & bit:
+			j ^= bit
+			bit >>= 1
+		j ^= bit
+		if i < j:
+			var t := xr[i]
+			xr[i] = xr[j]
+			xr[j] = t
+	var ln := 2
+	while ln <= n:
+		var ang := -TAU / ln
+		var wr := cos(ang)
+		var wi := sin(ang)
+		for i0 in range(0, n, ln):
+			var cr := 1.0
+			var ci := 0.0
+			for k in ln / 2:
+				var ur := xr[i0 + k]
+				var ui := xi[i0 + k]
+				var vr := xr[i0 + k + ln / 2] * cr - xi[i0 + k + ln / 2] * ci
+				var vi := xr[i0 + k + ln / 2] * ci + xi[i0 + k + ln / 2] * cr
+				xr[i0 + k] = ur + vr
+				xi[i0 + k] = ui + vi
+				xr[i0 + k + ln / 2] = ur - vr
+				xi[i0 + k + ln / 2] = ui - vi
+				var ncr := cr * wr - ci * wi
+				ci = cr * wi + ci * wr
+				cr = ncr
+		ln <<= 1
+	var e := 0.0
+	for k in range(int(0.35 * n), n / 2 + 1):
+		e += xr[k] * xr[k] + xi[k] * xi[k]
+	return e
+
+
+func hf_energy(im: Image) -> float:
+	var nw := im.get_width()
+	var nh := im.get_height()
+	var e := 0.0
+	for j in range(4, nh, 8):
+		var row := PackedFloat64Array()
+		row.resize(nw)
+		for i in nw:
+			var c := im.get_pixel(i, j)
+			row[i] = 0.3 * c.r + 0.59 * c.g + 0.11 * c.b
+		e += fft_hf(row, PackedFloat64Array(), nw)
+	for i in range(4, nw, 8):
+		var col := PackedFloat64Array()
+		col.resize(nh)
+		for j in nh:
+			var c := im.get_pixel(i, j)
+			col[j] = 0.3 * c.r + 0.59 * c.g + 0.11 * c.b
+		e += fft_hf(col, PackedFloat64Array(), nh)
+	return e
 
 
 func highlight_ratio(im: Image) -> float:
@@ -864,6 +1017,23 @@ func _run() -> void:
 		if name == "corner" or name == "box":
 			var hl := highlight_ratio(imv)
 			ok(hl >= 1.35, "M light %s: p99 / median luminance %.2f (bar >= 1.35)" % [name, hl])
+		if name == "corner":
+			var mk := await mask_shot(tris, views[name][0], views[name][1])
+			var evs := end_vs_side(imv, mk)
+			ok(float(evs["rel"]) >= 0.12, "V dovetails show: tail end-grain cells %.3f vs neighbouring pin side-grain cells %.3f mean luminance: differ by %.1f %% (bar >= 12 %%; %d / %d px)" % [evs["end"], evs["side"], 100.0 * float(evs["rel"]), evs["ne"], evs["ns"]])
+		if name == "box":
+			await free_view()
+			make_view(3840, 2880, 0.0, true)
+			var m4 := MeshInstance3D.new()
+			m4.mesh = lit
+			holder.add_child(m4)
+			look_at_mm(views[name][0], views[name][1])
+			var big := await shot()
+			big.resize(960, 720, Image.INTERPOLATE_TRILINEAR)
+			var e1 := hf_energy(imv)
+			var e4 := hf_energy(big)
+			big.save_png(OUT + "/box_ss4.png")
+			ok(e1 <= 1.5 * e4, "AA box.png high-frequency energy (> 0.35 cycles/px) %s vs the 4x-supersampled render %s: ratio %.2f (bar <= 1.5)" % [String.num_scientific(e1), String.num_scientific(e4), e1 / maxf(e4, 1e-12)])
 		await free_view()
 	print("ch4: %d fail" % fails)
 	quit(1 if fails > 0 else 0)

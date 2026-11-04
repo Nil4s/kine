@@ -16,6 +16,7 @@ uniform float ray_dens = 0.35;
 uniform int mode = 0;
 uniform float bump = 1.0;
 varying vec3 lp;
+varying vec3 ln;
 
 const vec3 EW = vec3(0.804, 0.635, 0.486);
 const float LATE_K = 0.77;
@@ -41,7 +42,7 @@ float vnoise(float x, float y, float z, int s) {
 float sst(float e0, float e1, float x) { float t = clamp((x - e0) / (e1 - e0), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
 
 // returns rgb tone in xyz, growth coordinate in w; pore / ray via out
-vec4 wood(vec3 p, out float pore, out float ray) {
+vec4 wood(vec3 p, out float pore, out float ray, out float bl) {
 	vec3 q = p - pith;
 	float t = dot(q, ax_w); float a = dot(q, ax_u); float b = dot(q, ax_v);
 	float ca = cos(oval_ang); float sa = sin(oval_ang);
@@ -55,7 +56,15 @@ vec4 wood(vec3 p, out float pore, out float ray) {
 	int gi = int(floor(g)); float f = g - float(gi);
 	float h1 = hash3(gi, 5, 5, seed + 3);
 	float lw = sst(0.45, 0.93, f) * (0.8 + 0.4 * h1);
-	float tone = 1.0 + (LATE_K - 1.0) * min(lw, 1.0);
+	// band limit (lit mode only): once a ring is under ~2 px on screen, or the pores / rays under ~1 px, fade that contrast to its mean so the field does not alias
+	bl = 1.0;
+	float blp = 1.0;
+	if (mode == 0) {
+		bl = 1.0 - smoothstep(0.2, 0.5, fwidth(g));
+		blp = 1.0 - smoothstep(0.25, 0.6, fwidth(a2 / PORE_CELL) + fwidth(b2 / PORE_CELL));
+	}
+	float lw_eff = mix(0.31, min(lw, 1.0), bl);
+	float tone = 1.0 + (LATE_K - 1.0) * lw_eff;
 	float ewz = 1.0 - sst(0.1, 0.7, f);
 	float pa = a2 / PORE_CELL; float pb = b2 / PORE_CELL; float pt = t / (PORE_CELL * PORE_STRETCH);
 	int ci = int(floor(pa)); int cj = int(floor(pb)); int ck = int(floor(pt));
@@ -64,7 +73,7 @@ vec4 wood(vec3 p, out float pore, out float ray) {
 	float dx = (pa - float(ci)) - cx; float dy = (pb - float(cj)) - cy;
 	float e = sqrt(dx * dx + dy * dy);
 	float present = hash3(ci, cj, ck, seed + 34) < pore_p * ewz ? 1.0 : 0.0;
-	pore = present * (1.0 - sst(0.2, 0.32, e));
+	pore = mix(0.09, present * (1.0 - sst(0.2, 0.32, e)), blp);
 	tone *= 1.0 - 0.45 * pore;
 	ray = 0.0;
 	if (rho0 > 4.0) {
@@ -89,23 +98,26 @@ vec4 wood(vec3 p, out float pore, out float ray) {
 			ray = max(ray, 1.0 - sst(0.3 * wk, 0.5 * wk, lat));
 		}
 	}
+	ray = mix(0.04, ray, blp);
 	tone *= 1.0 + 0.2 * ray;
-	tone *= 0.94 + 0.12 * vnoise(a / 0.45, b / 0.45, t / 18.0, seed + 61);
+	tone *= mix(1.0, 0.94 + 0.12 * vnoise(a / 0.45, b / 0.45, t / 18.0, seed + 61), blp);
 	tone *= 0.93 + 0.14 * vnoise(q.x / 40.0, q.y / 40.0, q.z / 40.0, seed + 67);
 	return vec4(clamp(EW * tone, 0.0, 1.0), g);
 }
 
 vec3 s2l(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), c)); }
 
-void vertex() { lp = VERTEX * 1000.0; }
+void vertex() { lp = VERTEX * 1000.0; ln = NORMAL; }
 
 void fragment() {
-	float pore; float ray;
-	vec4 w = wood(lp, pore, ray);
+	float pore; float ray; float bl;
+	vec4 w = wood(lp, pore, ray, bl);
 	if (mode == 0) {
-		ALBEDO = s2l(w.xyz);
+		// end grain (the face normal along the board's own axis) is darker and thirstier than side grain: keyed from the field's axis, not a face id
+		float endness = smoothstep(0.55, 0.85, abs(dot(normalize(ln), normalize(ax_w))));
+		ALBEDO = s2l(w.xyz) * mix(1.0, 0.68, endness);
 		// the grain catches light: pores are dimples, the latewood a faint ridge (a bump from the field's own derivatives), an oiled finish on top
-		float lwv = smoothstep(0.45, 0.93, fract(w.w));
+		float lwv = mix(0.31, smoothstep(0.45, 0.93, fract(w.w)), bl);
 		float hh = -(pore * 0.06 + lwv * 0.03) * 0.001;
 		vec3 dpx = dFdx(VERTEX); vec3 dpy = dFdy(VERTEX);
 		float dhx = dFdx(hh); float dhy = dFdy(hh);
@@ -113,7 +125,7 @@ void fragment() {
 		float det = dot(dpx, r1);
 		vec3 grad = sign(det) * (dhx * r1 + dhy * r2);
 		NORMAL = normalize(abs(det) * NORMAL - bump * grad);
-		ROUGHNESS = 0.38 + 0.3 * pore + 0.12 * lwv;
+		ROUGHNESS = 0.38 + 0.3 * pore + 0.12 * lwv + 0.2 * endness;
 		SPECULAR = 0.55;
 		CLEARCOAT = 0.35;
 		CLEARCOAT_ROUGHNESS = 0.28;

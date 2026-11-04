@@ -40,3 +40,14 @@ New bars, written first and run on the old build (all failed except Y; before ->
 - Reruns: ch4 0 fail, easypart 0 fail, peasy3 0 fail.
 
 Honest look: the lenses are gone and the lid arches and chamfer read well, but at box scale the 1.5 mm side-board stripes alias into a fine moire and, on the corner close-up, side stripes and end grain look alike so the dovetails read less than before. Next: a ring-width mip fade and a stronger end-grain tone.
+
+## Last look pass (v2 read as noise, not oak)
+New bars written first and run on b7492a43 (both failed there):
+- V dovetails show (corner.png): mean luminance of tail end-grain cells vs the pin side-grain cells touching them (within 10 px; mask rendered from the geometry, red = face normal along its board's grain axis, same camera): old 2.1 % apart; now 12.8 % (bar >= 12 %). This one is marginal: 12.8 against 12.
+- AA box.png: energy above 0.35 cycles/px vs the same view rendered 4x supersampled and box-filtered (MSAA 4x on in both): old 1.63x; now 0.43x (bar <= 1.5). The ratio is below 1 because the band-limited field is smoother than the supersampled average of the sharp field.
+Changes:
+1. Band limit (shader, lit mode only, so the F shader-vs-field bar is unchanged): ring contrast fades to its mean once a ring is under 2 px (fwidth of the ring phase); pores, rays and the fine fibre noise fade once a pore cell is under ~1.6 px.
+2. End grain darker and rougher, keyed from the field: albedo x 0.68 and roughness +0.2 when the face normal is within ~30 deg of the board's own axis (ax_w); no face ids.
+3. Side boards flat-sawn with the pith 200 mm behind the face and the log axis tilted 0.18 through the thickness (Back, Left, Right); ring 1.0 to 1.1 mm. Bar S stays as it is: Front 2.2, Back 3.7, Left 5.4, Right 6.4, Lid 6.6 % (< 8 %). The tilt is what makes narrow arches: with no tilt a flat-sawn face has one huge ring patch. E4 bounds the tilt from above (pore streaks got short at 0.22: aspect 3.8, bar 4), S bounds it from below, so 0.18 with finer rings was the window.
+4. The Front stays rift-sawn: bar E2 (>= 70 % of ring gradient across the grain on the Front's outside) cannot hold on a flat-sawn tilted face, and I did not move it. So the corner shot shows a rift Front beside a flat-sawn Left.
+Honest look: the dovetails now read clearly in the corner and the box shot, the moire is gone, and the lid arches and chamfer read as oak. Weaker: the flat-sawn Right face has very regular, wide-ranging arcs with a bright, saturated tone; the Front's rift stripes are too even; no large rays are visible at this scale. Fresh-oak colour kept.

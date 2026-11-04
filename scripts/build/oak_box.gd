@@ -23,9 +23,9 @@ const LID_OVER := 4.0
 static func spec_of(i: int) -> Dictionary:
 	match i:
 		0: return {"kind": WoodSolid.KIND, "seed": 11, "pith": [80.0, -150.0, 20.0], "dir": [1.0, 0.0, 0.02], "ring": 1.5, "ring_var": 0.5, "oval_ang": 20.0}
-		1: return {"kind": WoodSolid.KIND, "seed": 12, "pith": [75.0, -160.0, 80.0], "dir": [1.0, 0.0, -0.02], "ring": 1.6, "ring_var": 0.5, "oval_ang": 70.0}
-		2: return {"kind": WoodSolid.KIND, "seed": 13, "pith": [20.0, -155.0, 50.0], "dir": [0.02, 0.0, 1.0], "ring": 1.4, "ring_var": 0.5, "oval_ang": 40.0}
-		3: return {"kind": WoodSolid.KIND, "seed": 14, "pith": [40.0, -165.0, 50.0], "dir": [-0.02, 0.0, 1.0], "ring": 1.7, "ring_var": 0.5, "oval_ang": 110.0}
+		1: return {"kind": WoodSolid.KIND, "seed": 12, "pith": [80.0, 35.0, 300.0], "dir": [1.0, 0.0, -0.18], "ring": 1.0, "ring_var": 0.5, "oval_ang": 70.0}
+		2: return {"kind": WoodSolid.KIND, "seed": 13, "pith": [-200.0, 35.0, 50.0], "dir": [0.18, 0.0, 1.0], "ring": 1.0, "ring_var": 0.5, "oval_ang": 40.0}
+		3: return {"kind": WoodSolid.KIND, "seed": 14, "pith": [360.0, 35.0, 50.0], "dir": [-0.18, 0.0, 1.0], "ring": 1.1, "ring_var": 0.5, "oval_ang": 110.0}
 	return {"kind": WoodSolid.KIND, "seed": 15, "pith": [80.0, 25.0, 54.0], "dir": [1.0, -0.13, 0.0], "ring": 1.5, "ring_var": 0.6, "oval_ang": 10.0}
 
 
