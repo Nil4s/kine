@@ -132,3 +132,14 @@ static func points(m: Node) -> Array:
 			if not m.cam.is_position_behind(w):
 				out.append(m.cam.unproject_position(w))
 	return out
+
+
+## the card where it is now: inside the view, touching no blocker and covering no point
+static func clear(card: Control, blk: Array, pts: Array, view: Rect2) -> bool:
+	var r := card.get_global_rect()
+	if not view.encloses(r):
+		return false
+	for b in blk:
+		if r.intersects(b):
+			return false
+	return not PickDodge.covers(r, pts, 2.0)

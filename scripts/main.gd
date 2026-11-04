@@ -3520,6 +3520,7 @@ func _process(dt: float) -> void:
 
 func _process_body(dt: float) -> void:
 	_mesh_hint_sync()
+	_hands_dock_tick()   # C66
 	if _drop_line != null and _drop_line.visible:
 		var hov := get_viewport().gui_get_hovered_control()
 		if not get_viewport().gui_is_dragging() or hov == null or not (hov == ui_card_row or ui_card_row.is_ancestor_of(hov)):
@@ -11032,6 +11033,24 @@ func _hands_block(easy_side: bool) -> VBoxContainer:
 	ui_hands.append(d)
 	_hands_refresh()
 	return box
+
+
+## C66: the hands card finds a free spot again when the camera or the layout moved something under it (only then: it does not
+## follow an orbit that leaves it clear)
+var _hands_sig := ""
+
+
+func _hands_dock_tick() -> void:
+	if ui_hands_panel == null or not is_instance_valid(ui_hands_panel) or not ui_hands_panel.visible or cam == null or B == null or (easy != null and easy.on):
+		return
+	var sig := str([cam.global_transform, cam.fov, cam.size, bottom_h, get_viewport().get_visible_rect().size, ui_bar.get_global_rect() if ui_bar != null else Rect2()])
+	if sig == _hands_sig:
+		return
+	_hands_sig = sig
+	var vs := get_viewport().get_visible_rect().size
+	var vrect := Rect2(float(LEFT_W), float(TOP_H), vs.x - float(LEFT_W) - float(RIGHT_W), vs.y - float(TOP_H) - float(bottom_h))
+	if not HandsDock.clear(ui_hands_panel, HandsDock.blockers(self, ui_hands_panel, vrect, [ui_status, ui_mouse, ui_bar, ui_cube]), HandsDock.points(self), vrect):
+		_hands_refresh()
 
 
 func _hands_refresh() -> void:
