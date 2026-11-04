@@ -2,7 +2,7 @@ extends SceneTree
 ## c72 (C72): the tooltip popup (TooltipPanel) is opaque with a 1 px border, so what is under it does not read through.
 ## Bars (written before any number was read), all on the REAL popup of Measure in Easy Part at 1024x600, mouse at rest on the chip:
 ##  1 BODY    ring of pixels 3 px inside the popup rect (the padding, no text) is within 3 levels (of 255) of the panel colour on EVERY sample
-##  2 BORDER  the 1 px rim pixels are within 20 levels of the border colour (blended by the window scale)
+##  2 BORDER  the 1 px rim pixels are coverage (mass) of 1 px at the window scale, within 0.35
 ##  3 BUSY    the same ring with the popup gone varies by >= 12 levels, so the UI under the popup was busy (else bar 1 proves nothing)
 ##  CONTROL   a translucent planted panel (the old 0.94 alpha) over the same pixels fails bar 1 by the same checker
 const SHOT := "C:/Users/Nick/tools/kine_workers/out/c72"
@@ -114,6 +114,24 @@ func lv(img: Image, p: Vector2i, c: Color) -> float:
 	return maxf(absf(q.r - c.r), maxf(absf(q.g - c.g), absf(q.b - c.b))) * 255.0
 
 
+## (bare = the same screen with the popup gone: a pixel equal to it was not drawn by the popup)
+## the rim's mass along the normal nrm at the rect edge p: the strongest row among edge-1..edge+1 (rounding at the window scale) plus the
+## two rows beside it (the 1 px line is smeared over them); each row's coverage = its offset from the panel colour projected on rim - panel, 0..1
+func rim_mass(img: Image, bare: Image, p: Vector2i, nrm: Vector2i, panel: Color, dv: Vector3, inimg: Callable) -> float:
+	var rows: Array = []
+	for o in range(-2, 3):
+		var qq: Vector2i = p + nrm * o
+		var px := img.get_pixelv(qq) if inimg.call(qq) else panel
+		if inimg.call(qq) and lv(bare, qq, px) < 2.0:
+			px = panel   # the popup did not draw this pixel (the busy UI beside it): no coverage
+		rows.append(clampf(Vector3(px.r - panel.r, px.g - panel.g, px.b - panel.b).dot(dv) / dv.length_squared(), 0.0, 1.0))
+	var at := 1
+	for r in range(1, 4):
+		if rows[r] > rows[at]:
+			at = r
+	return rows[at - 1] + rows[at] + rows[at + 1]
+
+
 func worst(img: Image, pts: Array, c: Color) -> float:
 	var w := 0.0
 	for p in pts:
@@ -193,26 +211,34 @@ func _init() -> void:
 	var wb := worst(img, pts, panel)
 	print("popup rect %s, %d samples, panel %s, worst body distance %.1f levels" % [rc, pts.size(), panel, wb])
 	ok(pts.size() >= 20 and wb < 3.0, "BODY: every padding sample is within 3 levels of the panel colour (worst %.1f of %d)" % [wb, pts.size()])
-	var wr := 0.0   # the rim is 1 css px = k image px, blended: per sample the nearer of the two outer rows (columns)
-	var dr := 255.0
-	var rpts: Array = ring(rp, 0).filter(inimg)
-	for p in rpts:
-		var nrm: Vector2i = Vector2i(0, 1) if (p.y <= rp.position.y + 1) else (Vector2i(0, -1) if p.y >= rp.end.y - 2 else (Vector2i(1, 0) if p.x <= rp.position.x + 1 else Vector2i(-1, 0)))
-		var best := 255.0
-		for o in range(-3, 4):
-			var qq: Vector2i = p + nrm * o
-			if inimg.call(qq):
-				best = minf(best, lv(img, qq, rim))
-		wr = maxf(wr, best)
-		dr = minf(dr, lv(img, p, panel))
-	print("rim: worst distance to border colour %s %.1f, nearest to panel colour %.1f" % [rim, wr, dr])
-	ok(sb.border_width_left == 1 and sb.border_width_top == 1 and wr < 20.0 and rpts.size() >= 20, "BORDER: 1 px rim in the border colour, rim worst %.1f levels off (nearest to panel %.1f)" % [wr, dr])
 	# the popup gone: what lay under it
 	await ev_move(Vector2(sz.x * 0.5, sz.y * 0.9))
 	await idle(40)
 	var under := find_tip() == null
 	var img2 := await grab()
 	img2.save_png(SHOT + "/tooltip_gone_1024x600.png")
+	# The rim is 1 css px = k image px, so the window scale smears it over two rows with partial coverage: judging one pixel's colour
+	# against the border colour mis-samples it. Judge its MASS instead: across the rows at the edge, the coverage of each pixel
+	# (its offset from the panel colour projected on rim - panel, 0..1) must sum to k +- 0.35 (a missing rim sums to 0, a 2 px rim to 2k).
+	var cov_lo := 99.0
+	var cov_hi := 0.0
+	var dr := 255.0
+	var rpts: Array = ring(rp, 0).filter(inimg)
+	var dv := Vector3(rim.r - panel.r, rim.g - panel.g, rim.b - panel.b)
+	for p in rpts:
+		var nrm: Vector2i = Vector2i(0, 1) if (p.y <= rp.position.y + 1) else (Vector2i(0, -1) if p.y >= rp.end.y - 2 else (Vector2i(1, 0) if p.x <= rp.position.x + 1 else Vector2i(-1, 0)))
+		var cov := 0.0
+		cov = rim_mass(img, img2, p, nrm, panel, dv, inimg)
+		cov_lo = minf(cov_lo, cov)
+		cov_hi = maxf(cov_hi, cov)
+		dr = minf(dr, lv(img, p, panel))
+	print("rim coverage over %d samples: %.2f .. %.2f (1 px line: 0.6 .. 2.0 (2 px rim = 2.4))" % [rpts.size(), cov_lo, cov_hi])
+	ok(sb.border_width_left == 1 and sb.border_width_top == 1 and rpts.size() >= 20 and cov_lo >= 0.6 and cov_hi <= 2.0, "BORDER: the 1 px rim has coverage %.2f .. %.2f (mass of a 1 px line: 0.6 .. 2.0 (2 px rim = 2.4))" % [cov_lo, cov_hi])
+	# CONTROL: the same measure 8 px inside the popup (padding, no rim) must read ~0, so a missing rim fails the bar above
+	var ctl := 0.0
+	for p in ring(Rect2i(rp.position + Vector2i(8, 8), rp.size - Vector2i(16, 16)), 0).filter(inimg).slice(0, 40):
+		ctl = maxf(ctl, rim_mass(img, img2, p, Vector2i(0, 1), panel, dv, inimg))
+	ok(ctl < 0.6, "control: with no rim (padding) the same measure reads %.2f, under the 0.6 floor" % ctl)
 	var sp := spread(img2, pts)
 	print("under the popup: popup gone %s, luminance spread %.1f levels" % [str(under), sp])
 	ok(under and sp >= 12.0, "BUSY: the ring pixels vary by %.1f levels without the popup (>= 12)" % sp)
