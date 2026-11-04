@@ -82,10 +82,12 @@ static func _aabb(id: int) -> AABB:
 ## --- how two solids touch -----------------------------------------------------------------------------------------------------------
 ## {"kind": "overlap"|"face"|"line"|"point"|"apart", "where": words}. Judged on the shared box of the two: its zero-width sides say face/line/point.
 static func contact(a: int, b: int) -> Dictionary:
-	var x := KCad.intersect(a, b)
-	var vol := KCad.volume(x) if x != 0 else 0.0
-	if x != 0:
-		KCad.release(x)
+	var vol := KCad.overlap_volume(a, b)   # C70: one solid of b at a time, the first clear overlap answers (a 64-tooth compound took 2 s whole)
+	if vol < 0.0:
+		var x := KCad.intersect(a, b)
+		vol = KCad.volume(x) if x != 0 else 0.0
+		if x != 0:
+			KCad.release(x)
 	if vol > VOL_EPS:
 		return {"kind": "overlap", "where": "they share volume"}
 	var A := _aabb(a)

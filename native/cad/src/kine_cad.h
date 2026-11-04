@@ -32,6 +32,7 @@ public:
 	static int rotate(int p_id, const Vector3 &p_axis, double p_radians);
 
 	static int union_(int p_a, int p_b);
+	static double overlap_volume(int p_a, int p_b); // C70
 	static int union_many(int p_base, const PackedInt32Array &p_tools); // C70: base fused with every tool in ONE boolean (0 + last_error when the kernel refuses: the caller falls back to pairs)
 	static int cut(int p_a, int p_b);
 	static int intersect(int p_a, int p_b);

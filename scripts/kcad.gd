@@ -78,6 +78,11 @@ static func union_many(base: int, tools: PackedInt32Array) -> int:
 	return load(NATIVE_NEW).union_many(base, tools) if n != null and has_union_many() else 0
 
 
+static func overlap_volume(a: int, b: int) -> float:   # C70: -1 when the kernel lacks it
+	var n = _n()
+	return load(NATIVE_NEW).overlap_volume(a, b) if n != null and ClassDB.class_exists("KineCAD") and ClassDB.class_has_method("KineCAD", "overlap_volume") else -1.0
+
+
 static func has_union_many() -> bool:
 	return ClassDB.class_exists("KineCAD") and ClassDB.class_has_method("KineCAD", "union_many")
 
