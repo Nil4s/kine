@@ -940,6 +940,15 @@ msgstr "Capa: dobra sobre si mesma - LIGADO (mais lento, cerca de 0,5 s por quad
 msgid "Cape: folds onto itself - OFF"
 msgstr "Capa: dobra sobre si mesma - DESLIGADO"
 
+msgid "Library: ready-made parts (screws, boards, pipes, gears and more); click one to put it in"
+msgstr "Biblioteca: peças prontas (parafusos, tábuas, canos, engrenagens e mais); clique em uma para colocá-la"
+
+msgid "My parts: the parts you built and saved; click one to put it in"
+msgstr "Minhas peças: as peças que você montou e salvou; clique em uma para colocá-la"
+
+msgid "Assemblies: the assemblies you saved; click one to put it in as one piece"
+msgstr "Montagens: as montagens que você salvou; clique em uma para colocá-la como uma peça só"
+
 msgid "   Pick what you want to make"
 msgstr "   Escolha o que você quer fazer"
 
