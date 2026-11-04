@@ -964,3 +964,51 @@ EXTRA="$EXTRA c65:w"   # c65: over 256 bodies the look-merge ignores the body na
 EXTRA="$EXTRA c62:w"   # C62: no bone end under the toolbar or a panel in the opening view / Fit / Home at 1024, 1280, 1920
 
 EXTRA="$EXTRA ch7:w"   # CH7: the 8 s chained parkour run on a built course; hand plants, speed continuity, landing knee flex, foot skate, penetration (tests/ch7_test.gd)
+
+
+
+
+EXTRA="$EXTRA c70:w"   # C70: involute Gear sketch tool + a pattern fused in one boolean (tests/c70_test.gd)
+EXTRA="$EXTRA ch10:w"   # ch10: the house under wind and El Centro, 3D frame solver (native KineFrameNative + GDScript twin), tests/ch10_test.gd
+
+
+EXTRA="$EXTRA s249:w"
+EXTRA="$EXTRA s249n:w"
+
+
+
+EXTRA="$EXTRA c64:w"   # c64: C++ conjugate gradient of the heat weights equals GDScript (1e-6), 5x faster (tests/c64_test.gd)
+EXTRA="$EXTRA c64_prof:w"   # c64: hot-loop profile table (tests/c64_prof_test.gd)
+
+
+EXTRA="$EXTRA c68:w"   # c68: Easy Part step hint fully visible (not overlapped or clipped) at 1024/1280/1600 (tests/c68_test.gd)
+
+
+
+
+EXTRA="$EXTRA ch2:w"   # ch2: the regulator clock: 720:12:1 train, 994 mm pendulum period, 0 mm3 clearance over 60 s at 60 fps, backlash < 5 % module, minute hand 6 deg per 60 s, C++ = GDScript (tests/ch2_test.gd)
+
+
+EXTRA="$EXTRA c66:w"   # C66: the hands card overlaps no button or status text and sits inside the 3D view at 1024, 1280, 1920
+
+
+EXTRA="$EXTRA c69:w"   # C69: every tooltip in Easy Part / Pose is wrapped to <= 440 px and fits the window at 1024 and 1280 (scripts/tooltip_fit.gd; tests/c69_test.gd)
+
+
+EXTRA="$EXTRA c70:w"   # C70: involute Gear sketch tool + a pattern fused in one boolean (tests/c70_test.gd)
+
+
+EXTRA="$EXTRA c72:w"   # C72: the tooltip popup (TooltipPanel) is opaque with a 1 px border
+
+
+EXTRA="$EXTRA c73:w"   # C73: no CR inside any .gd string literal (.gitattributes *.gd eol=lf); GREY_TAG hints match (tests/c73_test.gd)
+
+
+EXTRA="$EXTRA ch4:w"   # ch4: solid oak grain, dovetailed box (docs/CH4_REFERENCE.md, tests/ch4_test.gd)
+
+
+EXTRA="$EXTRA c78:w"   # c78: installer unit bars (docs/C78_INSTALLER.md); the installer run itself is tests/c78_test.sh
+EXTRA="$EXTRA c79:w"   # c79: slicer lookup no longer holds the quit (docs/C79_FEEDBACK.md); the quit-time bars are tests/c79_test.sh
+EXTRA="$EXTRA c75:w"   # C75: KineSkinNative.correct, the DQ/LBS skinning pre-correction in C++ (equal to GDScript within 1e-5, >=10x, fallback, ulp control) (tests/c75_test.gd)
+EXTRA="$EXTRA c77:w"   # C77: exit-hang guard: no ungated OCCT parallel switch, every Thread.start joined, planted controls caught (tests/c77_test.gd)
+EXTRA="$EXTRA ch12:w"   # ch12: footbridge sway under a phase-locking crowd (Dallard 2001), tests/ch12_test.gd

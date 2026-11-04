@@ -37,7 +37,7 @@ static func load_manifest(dir := DIR) -> Dictionary:
 static func sprite_frames(man: Dictionary, id: String, dir := DIR) -> SpriteFrames:
 	var c: Dictionary = man["clips"][id]
 	var path: String = dir + String(c["sheet"])
-	var img := Image.load_from_file(ProjectSettings.globalize_path(path))
+	var img := PckImage.load_res(path)
 	if img == null or img.is_empty():
 		return null
 	var tex := ImageTexture.create_from_image(img)

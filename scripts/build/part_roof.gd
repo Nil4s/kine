@@ -844,6 +844,8 @@ static func solid(f: Dictionary, k: int, mesh: Dictionary) -> int:
 static func add(bodies: Array, f: Dictionary) -> String:
 	if not KCad.has_mesh_solid():
 		return "The part library is older than this step: restart Kine, or reinstall it"
+	if PartFast.roof_copy(bodies, f):   # s249 fast build: the same roof somewhere else is a translated copy
+		return ""
 	var fkey := hash(JSON.stringify(norm(f)))
 	if _counts.has(fkey):   # a replay of the same numbers: copy the sewn solids, build nothing
 		var got: Array = []
@@ -874,6 +876,7 @@ static func add(bodies: Array, f: Dictionary) -> String:
 				KCad.release(int(mid))
 			return ("The %s could not become a solid: " % String(m["name"]).to_lower()) + (KCad.last_error() if KCad.last_error() != "" else "the mesh is open")
 		made.append(id)
+	PartFast.roof_keep(f, made)
 	bodies.append_array(made)
 	return ""
 

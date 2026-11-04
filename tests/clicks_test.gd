@@ -35,6 +35,14 @@ func ok(c: bool, what: String) -> void:
 		fails += 1
 
 
+# abd1c7dd (checkhunt): the Check button now plays the scene in time slices and posts its findings when done; wait for that (plumbing, not an action)
+func _check_done() -> void:
+	var t0 := Time.get_ticks_msec()
+	while m._check_busy and Time.get_ticks_msec() - t0 < 120000:
+		await process_frame
+	await process_frame
+
+
 func idle(n := 3) -> void:
 	for i in n:
 		await process_frame
@@ -249,6 +257,7 @@ func _init() -> void:
 		n += 1
 	if await click("ribbon_check/b_check"):
 		n += 1
+	await _check_done()
 	await idle()
 	var before := JSON.stringify(m.S.cards)
 	var tried := 0   # a fix that is refused ("did not remove the problem") changes nothing: the next one is tried
@@ -262,6 +271,7 @@ func _init() -> void:
 		if JSON.stringify(m.S.cards) != before:
 			break
 		await click("ribbon_check/b_check")
+		await _check_done()
 	n += 1
 	await task("check, apply a fix", "Check, a fix's button" + ("" if tried <= 1 else " (%d were refused first: not counted)" % (tried - 1)), n, m.check_ran and JSON.stringify(m.S.cards) != before)
 

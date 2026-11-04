@@ -25,6 +25,8 @@ var first_panel: PanelContainer
 var first_edits := {}
 var first_shape := "Box"
 var first_shape_btns := {}
+const PGEARUI := preload("res://scripts/build/part_gear_ui.gd")   # C70
+var gear_ui
 
 
 func _init(u: Node) -> void:
@@ -142,6 +144,8 @@ func build_row(box: Node) -> void:
 	first_btn = ui.m._button("Size first", open_first, "SIZE FIRST: type the width, depth and height, pick a shape, press Make: the solid appears (one undo step). The drawing tools stay as they are.")
 	first_btn.name = "part_size_first"
 	row.add_child(first_btn)
+	gear_ui = PGEARUI.new(ui)   # C70: the Gear tool (its dialog is its own card)
+	gear_ui.build(row)
 	_build_first()
 
 
@@ -183,6 +187,8 @@ func owns(t: String) -> bool:
 
 
 func sync() -> void:
+	if gear_ui != null:
+		gear_ui.sync()
 	if row != null:
 		toggle.set_pressed_no_signal(row_open)
 		toggle.visible = not ui.con_open

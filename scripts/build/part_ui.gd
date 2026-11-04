@@ -4723,6 +4723,10 @@ func _look_surfaces() -> void:
 	var ls: Array = res.get("looks", [])
 	for s in mini(ls.size(), part_mesh.mesh.get_surface_count()):
 		var l: Dictionary = ls[s]
+		var wood := WoodSolid.look_material(l)   # CH4: a solid-wood look is a 3D grain field
+		if wood != null:
+			part_mesh.set_surface_override_material(s, wood)
+			continue
 		var mm := MaterialMaker.look_material(l, PartViewTools.X_ALPHA if xray else 1.0, MaterialMaker.dims_for(l, part_mesh.mesh, s))   # s223: a made material, triplanar in mm (s273: brushed = scaled to the face)
 		if mm != null:
 			PartGlow.apply(mm, l)   # s258
