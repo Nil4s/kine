@@ -641,7 +641,8 @@ TopoDS_Shape fuse_list(const TopoDS_Shape &base, const std::vector<TopoDS_Shape>
 	BRepAlgoAPI_Fuse op;
 	op.SetArguments(args);
 	op.SetTools(tl);
-	op.SetRunParallel(true);
+	// C70/c74: OCCT's parallel mode starts the OSD thread pool, whose workers keep Godot from exiting on Windows: serial unless KINE_PAR_MESH is set
+	op.SetRunParallel(std::getenv("KINE_PAR_MESH") != nullptr);
 	op.Build();
 	if (!op.IsDone() || op.HasErrors()) {
 		return TopoDS_Shape();
