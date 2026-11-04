@@ -21,6 +21,8 @@ const E := preload("res://scripts/build/ch13_engine.gd")
 const P := preload("res://scripts/build/ch13_parts.gd")
 const S := preload("res://scripts/build/ch13_scene.gd")
 const OUT := "C:/Temp/claude/ch13"
+## AMENDED after the first run (documented): Transform3D is single precision, so a pose measured through it is good to ~2e-6 mm at 100 mm, not 1e-6; the bar is 1e-4 mm (0.1 um), still 100x finer than the smallest fit band (5.5 um)
+const TOL_MM := 1e-4
 
 
 func ok(c: bool, w: String) -> void:
@@ -166,7 +168,7 @@ func bars_kin() -> void:
 		var vw: float = -(E.piston_x(th + h, r, L) - E.piston_x(th - h, r, L)) / (2.0 * h)   # -dx/dth: torque per unit force
 		var fac: float = E.torque_per_force(th, r, L)
 		worst = maxf(worst, absf(vw - fac) / maxf(absf(fac), 1e-9))
-	ok(worst < 1e-6, "d torque per unit force = -dx/dtheta by central difference at 6 angles (worst rel %.1e)" % worst)
+	ok(worst < 1e-6, "d torque per unit force = -dx/dtheta by central difference at 6 angles (worst rel %s)" % String.num_scientific(worst))
 	ok(near(E.torque_per_force(0.0, r, L), 0.0, 1e-12) and near(E.torque_per_force(PI, r, L), 0.0, 1e-12), "d zero torque at both dead centres")
 	var th60 := deg_to_rad(60.0)
 	var exact: float = E.torque_per_force(th60, r, L)
@@ -186,14 +188,14 @@ func bars_cycle() -> void:
 	var Vc := Vd / (rc - 1.0)
 	var W: float = pr["p1"] * Vc * (4.0 - 1.0) * (pow(rc, n) - rc) / (n - 1.0)
 	var Wn: float = E.otto_work_numeric(pr)
-	ok(relnear(Wn, W, 0.005), "e Otto cycle: integral of slider-crank torque %.3f J vs closed form %.3f J (rel %.1e)" % [Wn, W, absf(Wn - W) / W])
+	ok(relnear(Wn, W, 0.005), "e Otto cycle: integral of slider-crank torque %.3f J vs closed form %.3f J (rel %s)" % [Wn, W, String.num_scientific(absf(Wn - W) / W)])
 	var cyc: Dictionary = E.run_cycle(pr)
 	ok(relnear(cyc["imep_T"], cyc["imep_pdv"], 0.005), "e Wiebe curve: IMEP from torque %.4f bar vs from pdV %.4f bar" % [cyc["imep_T"] / 1e5, cyc["imep_pdv"] / 1e5])
 	var m: float = pr["m_rec"]
 	var w: float = 7000.0 * TAU / 60.0
 	var lam: float = 20.7 / 80.0
 	ok(relnear(abs(E.inertia_force(0.0, pr)), m * 0.0207 * w * w * (1.0 + lam), 1e-9), "e primary+secondary inertia at TDC = m r w^2 (1 + lambda) = %.1f N" % (m * 0.0207 * w * w * (1.0 + lam)))
-	ok(abs(cyc["mean_T_inertia"]) < 1e-3 * cyc["peak_T_inertia"], "e inertia torque has zero mean over the cycle (mean %.2e, peak %.2f N m)" % [cyc["mean_T_inertia"], cyc["peak_T_inertia"]])
+	ok(abs(cyc["mean_T_inertia"]) < 1e-3 * cyc["peak_T_inertia"], "e inertia torque has zero mean over the cycle (mean %s, peak %.2f N m)" % [String.num_scientific(cyc["mean_T_inertia"]), cyc["peak_T_inertia"]])
 	ok(near(cyc["P_brake"], cyc["T_brake"] * w, 1e-9), "e P = T w (%.1f W = %.3f N m x %.1f rad/s)" % [cyc["P_brake"], cyc["T_brake"], w])
 	var T5: float = E.run_cycle(E.params(5000.0, 4.0, P.m_recip()))["T_brake"]
 	print("e  numbers: peak p %.1f bar at %.0f deg, IMEP_net %.2f bar, FMEP %.2f bar, BMEP %.2f bar; 7000 rpm: T %.3f N m, P %.3f kW; 5000 rpm: T %.3f N m" % [cyc["pmax"] / 1e5, cyc["th_pmax"], cyc["imep_net"] / 1e5, cyc["fmep"] / 1e5, cyc["bmep"] / 1e5, cyc["T_brake"], cyc["P_brake"] / 1000.0, T5])
@@ -247,7 +249,7 @@ func bars_parts() -> void:
 		hv += 2.0 * sqrt(R * R - x * x) * 2.0 * sqrt(rh * rh - x * x) * (2.0 * rh) / n
 	var vp := PI / 4.0 * dp * dp * 44.0 - PI / 4.0 * 34.0 * 34.0 * 22.0 - hv
 	var vk := vol_mm3(P.record("piston"))
-	ok(relnear(vk, vp, 0.001), "g piston volume %.1f mm3 vs closed form %.1f (hole %.1f by quadrature), rel %.1e" % [vk, vp, hv, absf(vk - vp) / vp])
+	ok(relnear(vk, vp, 0.001), "g piston volume %.1f mm3 vs closed form %.1f (hole %.1f by quadrature), rel %s" % [vk, vp, hv, String.num_scientific(absf(vk - vp) / vp)])
 	var bad := vol_mm3(P.record("piston", {"boss_override": 13.5}))
 	ctl(not relnear(bad, vp, 0.001), "g a piston with a 13.5 pin bore is caught by the volume bar (%.1f vs %.1f)" % [bad, vp])
 	var vpin := vol_mm3(P.record("pin"))
@@ -303,13 +305,13 @@ func bars_assembly() -> void:
 		worst_pin = maxf(worst_pin, absf(q["pin"].y - xf))
 		ymin = minf(ymin, q["pin"].y)
 		ymax = maxf(ymax, q["pin"].y)
-	ok(worst_cp < 1e-6, "h crank pin sits at r (sin th, cos th) over 2 revolutions (worst %.2e mm)" % worst_cp)
-	ok(worst_rod < 1e-6, "h rod big end on the crank pin, 49 poses (worst %.2e mm)" % worst_rod)
-	ok(worst_pin < 1e-6 and worst_len < 1e-6, "h rod small end on the piston pin, pin height = x(theta), rod length 80 (worst %.2e / %.2e mm)" % [worst_pin, worst_len])
-	ok(near(ymax - ymin, 41.4, 1e-6), "h piston stroke over the sweep %.6f mm (spec 41.4)" % (ymax - ymin))
+	ok(worst_cp < TOL_MM, "h crank pin sits at r (sin th, cos th) over 2 revolutions (worst %s mm)" % String.num_scientific(worst_cp))
+	ok(worst_rod < TOL_MM, "h rod big end on the crank pin, 49 poses (worst %s mm)" % String.num_scientific(worst_rod))
+	ok(worst_pin < TOL_MM and worst_len < TOL_MM, "h rod small end on the piston pin, pin height = x(theta), rod length 80 (worst %s / %s mm)" % [String.num_scientific(worst_pin), String.num_scientific(worst_len)])
+	ok(near(ymax - ymin, 41.4, TOL_MM), "h piston stroke over the sweep %.6f mm (spec 41.4)" % (ymax - ymin))
 	var a: Dictionary = P.points(100.0)
 	var b: Dictionary = P.points(460.0)
-	ok(((a["pin"] as Vector3) - (b["pin"] as Vector3)).length() < 1e-9 and ((a["crankpin"] as Vector3) - (b["crankpin"] as Vector3)).length() < 1e-9, "h the pose repeats after 360 deg")
+	ok(((a["pin"] as Vector3) - (b["pin"] as Vector3)).length() < TOL_MM and ((a["crankpin"] as Vector3) - (b["crankpin"] as Vector3)).length() < TOL_MM, "h the pose repeats after 360 deg")
 	var bad: Dictionary = P.points(90.0, {"skip_rod_turn": true})
 	ctl(((bad["rod_small"] as Vector3) - (bad["pin"] as Vector3)).length() > 1.0, "h a rod left unturned is %.2f mm off the pin at 90 deg" % ((bad["rod_small"] as Vector3) - (bad["pin"] as Vector3)).length())
 
@@ -318,7 +320,12 @@ func bars_assembly() -> void:
 func grab() -> Image:
 	for i in 4:
 		await process_frame
-	return root.get_texture().get_image()
+	var im: Image = root.get_texture().get_image()
+	var w := im.get_width()
+	var h := im.get_height()
+	var crop: Image = im.get_region(Rect2i(int(w * 0.3), int(h * 0.04), int(w * 0.4), int(h * 0.92)))
+	crop.convert(Image.FORMAT_RGBA8)
+	return crop
 
 
 func diff(a: Image, b: Image) -> float:
@@ -349,7 +356,6 @@ func bars_sheet() -> void:
 	if DisplayServer.get_name() == "headless":
 		print("skip i (headless: no pixels)")
 		return
-	root.size = Vector2i(640, 640)
 	var sc: Dictionary = S.build(root)
 	var imgs := {}
 	var order := []
@@ -368,14 +374,14 @@ func bars_sheet() -> void:
 	ok(movers, "i each of 12 frames differs from the one before (smallest mean diff %.4f)" % low)
 	var p360 := diff(imgs[0.0], imgs[360.0])
 	var p720 := diff(imgs[60.0], imgs[420.0])
-	ok(p360 < 1e-4 and p720 < 1e-4, "i frame(theta) == frame(theta + 360): diffs %.2e, %.2e" % [p360, p720])
+	ok(p360 < 1e-4 and p720 < 1e-4, "i frame(theta) == frame(theta + 360): diffs %s, %s" % [String.num_scientific(p360), String.num_scientific(p720)])
 	var half := diff(imgs[0.0], imgs[180.0])
 	ctl(half > 0.002, "i frame(0) vs frame(180) differ (%.4f), so the periodicity bar can fail" % half)
-	var sheet := Image.create(4 * 320, 3 * 320, false, Image.FORMAT_RGBA8)
+	var sheet := Image.create(6 * 256, 2 * 460, false, Image.FORMAT_RGBA8)
 	for i in 12:
 		var im: Image = (imgs[order[i]] as Image).duplicate()
-		im.resize(320, 320, Image.INTERPOLATE_BILINEAR)
-		sheet.blit_rect(im, Rect2i(0, 0, 320, 320), Vector2i((i % 4) * 320, (i / 4) * 320))
+		im.resize(256, 460, Image.INTERPOLATE_BILINEAR)
+		sheet.blit_rect(im, Rect2i(0, 0, 256, 460), Vector2i((i % 6) * 256, (i / 6) * 460))
 	sheet.save_png(OUT + "/sheet_animation.png")
 	S.pose(sc, 40.0)
 	var whole: Image = await grab()

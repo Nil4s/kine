@@ -76,21 +76,21 @@ static func record(nm: String, opts := {}) -> Dictionary:
 			var bd: float = float(opts.get("boss_override", d["boss_d"]))
 			# the pin bore: axis along y (the "top" plane: sketch (u, v) = (x, -z)), through the whole piston
 			_ex(fs, _sk(fs, "top", [_circle([0.0, -PIN_Z], bd / 2.0)]), 60.0, "cut", true)
-			_paint(fs, [0.78, 0.80, 0.84], 0.9, 0.35, 1.0, "Piston")
+			_paint(fs, [0.86, 0.87, 0.92], 0.15, 0.45, 1.0, "Piston")
 		"pin":
 			_cyl(fs, 0, 0, float(d["pin_d"]) / 2.0, 0.0, 33.0, "new")
-			_paint(fs, [0.45, 0.47, 0.52], 1.0, 0.2, 1.0, "Piston pin")
+			_paint(fs, [0.95, 0.80, 0.30], 0.15, 0.4, 1.0, "Piston pin")
 		"cylinder":
 			_cyl(fs, 0, 0, 28.0, 0.0, CYL_H, "new")
 			for zc in [20.0, 30.0, 40.0, 50.0, 60.0]:
 				_cyl(fs, 0, 0, 35.0, zc - 1.0, 2.0, "join")
 			_cyl(fs, 0, 0, float(d["bore_d"]) / 2.0, 0.0, CYL_H, "cut")
-			_paint(fs, [0.30, 0.32, 0.36], 0.8, 0.5, 0.4, "Cylinder")
+			_paint(fs, [0.35, 0.42, 0.55], 0.1, 0.5, 0.35, "Cylinder")
 		"head":
 			_cyl(fs, 0, 0, 35.0, 0.0, 30.0, "new")
 			_cyl(fs, 0, 0, 19.5, 0.0, 4.6, "cut")
 			_cyl(fs, 0, 0, 7.0, 4.6, 25.4, "cut")
-			_paint(fs, [0.55, 0.30, 0.22], 0.6, 0.5, 1.0, "Head")
+			_paint(fs, [0.70, 0.35, 0.25], 0.1, 0.5, 1.0, "Head")
 		"crankcase":
 			var sk := _sk(fs, "front", [{"k": "rect", "a": [-45.0, -50.0], "b": [45.0, 40.0]}])
 			_ex(fs, sk, 78.3, "new")
@@ -99,7 +99,7 @@ static func record(nm: String, opts := {}) -> Dictionary:
 			_cyl(fs, 0, 0, float(d["bearing_d"]) / 2.0, 0.0, 78.3, "cut")
 			var ty := _plane(fs, "top", 35.0)
 			_ex(fs, _sk(fs, ty, [_circle([0.0, -ZC], 22.0)]), 5.0, "cut")
-			_paint(fs, [0.40, 0.42, 0.46], 0.7, 0.5, 0.3, "Crankcase")
+			_paint(fs, [0.55, 0.60, 0.68], 0.1, 0.5, 0.28, "Crankcase")
 		"crankshaft":
 			var jr: float = float(d["journal_d"]) / 2.0
 			_cyl(fs, 0, 0, jr, -20.0, 29.0, "new")
@@ -110,7 +110,7 @@ static func record(nm: String, opts := {}) -> Dictionary:
 			_cyl(fs, 0, R, float(d["crankpin_d"]) / 2.0, 17.0, 24.0, "join")
 			_cyl(fs, 0, 0, 14.0, 49.0, 9.0, "join")
 			_cyl(fs, 0, 0, jr, 49.0, 29.0, "join")
-			_paint(fs, [0.80, 0.52, 0.20], 1.0, 0.3, 1.0, "Crankshaft")
+			_paint(fs, [0.95, 0.55, 0.12], 0.15, 0.4, 1.0, "Crankshaft")
 		"rod":
 			var sbd: float = float(opts.get("small_override", d["bush_d"]))
 			_cyl(fs, 0, 0, 15.0, 0.0, 20.0, "new")
@@ -123,7 +123,7 @@ static func record(nm: String, opts := {}) -> Dictionary:
 			if not bool(opts.get("no_bores", false)):
 				_cyl(fs, 0, 0, float(d["bigend_d"]) / 2.0, 0.0, 20.0, "cut")
 				_cyl(fs, 0, L, sbd / 2.0, 0.0, 20.0, "cut")
-			_paint(fs, [0.55, 0.57, 0.62], 0.9, 0.3, 1.0, "Connecting rod")
+			_paint(fs, [0.55, 0.70, 0.90], 0.15, 0.4, 1.0, "Connecting rod")
 	var rec := Part.make("Engine " + nm)
 	rec["features"] = fs
 	rec["seq"] = fs.size()

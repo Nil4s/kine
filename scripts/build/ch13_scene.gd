@@ -20,9 +20,9 @@ static func build(parent: Node) -> Dictionary:
 		sc["nodes"][nm] = mi
 		sc["recs"][nm] = rec
 	var cam := Camera3D.new()
-	cam.fov = 28.0
+	cam.fov = 32.0
 	root.add_child(cam)
-	cam.position = Vector3(0.33, 0.22, 0.62)
+	cam.position = Vector3(0.21, 0.13, 0.40)
 	cam.look_at_from_position(cam.position, Vector3(0.0, 0.055, 0.039), Vector3.UP)
 	cam.current = true
 	var sun := DirectionalLight3D.new()
