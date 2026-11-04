@@ -1166,6 +1166,21 @@ func _steps_place(cl: Rect2, _y: float) -> void:
 	steps_box.position = Vector2(cl.end.x - PW - 8.0, maxf(float(g["steps_y"]), _y))   # bug5: under the panel when the panel needs more than the room above the anchored foot (a short window)
 	flat_box.reset_size()   # p113: the printing box sits under the step list
 	flat_box.position = Vector2(cl.position.x + 12.0, float(g["flat_y"]))
+	_flat_beside_status(cl, steps_box.position.x)
+
+
+## C59: at 1024 the printing box and the "Looks good" sentence both stood at the window's foot, one on top of the other. Narrow: the sentence keeps the
+## corner, the printing chips (shortened) stand to its right, ending before the step list. Wide: unchanged
+func _flat_beside_status(cl: Rect2, steps_x: float) -> void:
+	var narrow := get_viewport().get_visible_rect().size.x < NARROW_W
+	for b in [get("lay_btn"), get("paint_btn")]:   # declared further down the chain (easy_part.gd)
+		if b == null:
+			continue
+		(b as Button).custom_minimum_size.x = 118.0 if narrow else (PW - 40.0) * 0.5
+	flat_box.reset_size()
+	if narrow and flat_box.visible:
+		var x := cl.position.x + 12.0 + status.get_combined_minimum_size().x + 6.0
+		flat_box.position = Vector2(minf(x, steps_x - 6.0 - flat_box.size.x), flat_box.position.y)
 
 
 ## p108measuregri, Friday plan 108: THE GRID'S NUMBERS. The floor grid (_floor_sync) gets plain cm numbers along its two axes, standing
@@ -1397,6 +1412,32 @@ func _flat_narrow() -> void:
 		flat_box.position = Vector2(260.0, vp.end.y - 6.0 - flat_box.size.y)
 
 
+## C59: a chip too narrow for its words shows ONE short whole word (All, Outside, Top, Bevel, Stronger) with its icon, not the first letters of two
+## chips that begin alike ("Only", "Only"). The full words come back when the room does; the tooltip always has them
+const CHIP_WORDS := {"easypart_round_all": ["All edges", "All"], "easypart_round_outside": ["Only the outside", "Outside", "Outer"], "easypart_round_top": ["Only the top", "Top"],
+	"easypart_bevel": ["Bevel"], "easypart_stronger": ["Make it stronger", "Stronger", "Strong", "Rib"]}
+
+
+func _chip_words(b: Button, short: bool) -> void:
+	if not CHIP_WORDS.has(String(b.name)):
+		return
+	if short:
+		b.add_theme_constant_override("icon_max_width", 16)
+	else:
+		b.remove_theme_constant_override("icon_max_width")
+	var f := b.get_theme_font("font")
+	var fs := b.get_theme_font_size("font_size")
+	var room := b.custom_minimum_size.x - b.get_theme_stylebox("normal").get_minimum_size().x - (16.0 + 4.0 if (short and b.icon != null) else (26.0 if b.icon != null else 0.0))
+	var words: Array = CHIP_WORDS[String(b.name)]
+	var pick: String = String(words[0]) if not short else String(words[words.size() - 1])
+	if short:
+		for w in words:
+			if f.get_string_size(String(w), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x <= room - 6.0:
+				pick = String(w)
+				break
+	b.text = pick
+
+
 ## P172LAYOUTS: the round filter row (four 176 px chips) at 1024 wide: the chips share the room left of the view column, so the row
 ## stops short of the views and the panel's sliders. The chips narrow and their words trim (the tooltips have the full words); wide, nothing changes
 func _round_narrow() -> void:
@@ -1420,6 +1461,7 @@ func _round_narrow() -> void:
 		(b as Button).clip_text = narrow
 		(b as Button).text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if narrow else TextServer.OVERRUN_NO_TRIMMING
 		(b as Button).add_theme_font_size_override("font_size", 14 if narrow else 16)
+		_chip_words(b as Button, bw < 150.0)
 	var k2 := ceili(float(n) / float(rows))
 	(round_box.get_child(0).get_child(0) as Control).custom_minimum_size.x = minf(room_all, float(k2) * bw + 6.0 * float(k2 - 1))
 	round_box.get_child(0).get_child(0).reset_size()
