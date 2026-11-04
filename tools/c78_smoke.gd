@@ -46,4 +46,7 @@ func run(m: Node) -> void:
 		return
 	print("C78_GATE=", VideoAddon.gate("tracking a video"))
 	print("C78_SMOKE_OK ms=%d tris=%d vol=%f" % [Time.get_ticks_msec(), tris, vol])
-	get_tree().quit(0)
+	# a clean quit() unloads the whole script graph and takes ~90 s headless; the smoke's verdict is the line above, so end the process
+	# right after stdout is flushed (OS.kill on Windows ends it with exit code 0)
+	await get_tree().process_frame
+	OS.kill(OS.get_process_id())

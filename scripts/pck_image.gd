@@ -10,4 +10,13 @@ static func load_res(path: String) -> Image:
 		var err := img.load_png_from_buffer(b) if path.get_extension().to_lower() == "png" else ERR_FILE_UNRECOGNIZED
 		if err == OK:
 			return img
+	# an exported build holds an imported PNG only as its imported texture (lossless here: compress/mode=0), not as the raw file
+	if ResourceLoader.exists(path):
+		var t := load(path) as Texture2D
+		if t != null:
+			var im := t.get_image()
+			if im != null and not im.is_empty():
+				if im.is_compressed():
+					im.decompress()
+				return im
 	return Image.load_from_file(ProjectSettings.globalize_path(path))
