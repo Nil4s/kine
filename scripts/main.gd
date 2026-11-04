@@ -1167,6 +1167,14 @@ func _nav_fit() -> void:
 		mid += q
 	target = mid / pts.size()
 	var clear := nav_clear_rect()
+	var tb := find_child("top_tools", true, false)   # C62: the toolbar's real bottom edge (81 px at 1280 x 720; TOP_H says 74): the body is fitted below it
+	if tb is Control and (tb as Control).is_visible_in_tree():
+		var pn: Node = tb.get_parent()
+		while pn != null and not (pn is PanelContainer):
+			pn = pn.get_parent()
+		var top := ((pn if pn != null else tb) as Control).get_global_rect().end.y + 4.0
+		if top > clear.position.y:
+			clear = Rect2(clear.position.x, top, clear.size.x, maxf(clear.end.y - top, 40.0))
 	var vs := get_viewport().get_visible_rect().size
 	for it in 4:
 		_cam()
@@ -3338,6 +3346,9 @@ func _ready() -> void:
 	_boot_watch.call_deferred()
 	await dummy_settle()   # round 14: the dummy measures on a worker; a shot shows what PLAYS (landed on it or not)
 	BootProfile.mark("dummy settle")
+	if not (args.has("--yaw") or args.has("--pitch") or args.has("--focus") or args.has("--dist")):
+		_view_home(false)   # C62: the opening view is HOME fitted to the free view, so no bone sits under the toolbar or a panel
+
 	if args.find("--t") >= 0 or args.find("--frame") >= 0:
 		_ps().apply(B, playhead)   # (and --dummy's range now counts: it used to move the dummy after --t had posed)
 		_refresh()
@@ -5541,6 +5552,40 @@ func _view_home(smooth := true) -> void:
 		_turn_to(HOME["yaw"], HOME["pitch"], easy.frame_dist(), easy.follow_target(), smooth)
 		return
 	_turn_to(HOME["yaw"], HOME["pitch"], _home_dist(), HOME["target"], smooth)
+	_home_fit(smooth)
+
+
+## C62: HOME's yaw / pitch, then the Fit button's framing (the whole body inside nav_clear_rect: under the toolbar, beside the
+## panels, above the bottom bar). At 1280 x 720 the 4 m HOME view drew the head at y 38..80, under the Pose-from-words button.
+## Smooth: the fitted goal is worked out on the spot and the turn is run again towards it
+func _home_fit(smooth: bool) -> void:
+	if shot_through or (easy != null and easy.on) or _mesh_orbit():
+		return
+	var y0 := yaw
+	var p0 := pitch
+	var d0 := dist
+	var t0 := target
+	yaw = HOME["yaw"]
+	pitch = HOME["pitch"]
+	dist = _home_dist()
+	target = HOME["target"]
+	_nav_fit()
+	var d1 := dist
+	var t1 := target
+	yaw = y0
+	pitch = p0
+	dist = d0
+	target = t0
+	_home_set = [d1, t1]
+	_turn_to(HOME["yaw"], HOME["pitch"], d1, t1, smooth)
+
+
+var _home_set: Array = []   # [dist, target] the last home fit chose: while the camera still sits there the user has not moved it
+
+
+func _home_refit() -> void:
+	if _home_set.size() == 2 and is_equal_approx(dist, float(_home_set[0])) and target.is_equal_approx(_home_set[1]) 			and is_equal_approx(yaw, float(HOME["yaw"])) and is_equal_approx(pitch, float(HOME["pitch"])):
+		_home_fit(false)
 
 
 ## HOME's distance, but never so close that the body (feet to head: 1.9 m about the target) is cut by the panels: the free view is
@@ -24397,6 +24442,8 @@ func _open_scene_dict(path: String, d: Dictionary, work: bool, built := false) -
 			journal.trim()   # ... and its journal goes with it
 	_props_show()   # the opened scene's set is drawn now (a load used to leave the props out of the view until the next edit)
 	S.apply(B, 0.0)
+	_home_refit()   # C62: a scene opened under the untouched home view is framed for ITS body
+	_home_refit.call_deferred()   # ... and again once its first pose has settled
 	_bld_scene_changed(true, built)
 
 
