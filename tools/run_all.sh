@@ -949,3 +949,6 @@ EXTRA="$EXTRA c59:w"   # c59: Easy Part left column: no button/label overlap and
 
 
 EXTRA="$EXTRA c54n:w"   # c54n: C++ cloth self-collision (tests/c54n_test.gd; SKIPs without the DLL)
+
+
+EXTRA="$EXTRA c49b:w"   # C49b: Off/Look/Print strip clear of Part dialogs, browser, timeline, cube; tests/c49b_test.gd
