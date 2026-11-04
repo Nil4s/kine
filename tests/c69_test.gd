@@ -85,8 +85,8 @@ func tip_box(c: Control) -> Dictionary:
 
 
 func find_tip() -> Window:
-	for c in root.get_children(true):
-		if c is Window and (c as Window).visible and c != m:
+	for c in root.get_embedded_subwindows():
+		if c.visible and not (c is PopupMenu):
 			return c
 	return null
 
