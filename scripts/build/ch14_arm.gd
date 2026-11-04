@@ -53,13 +53,15 @@ const R_PINION := 20.0        # mm pitch radius, 20 teeth module 2
 
 static func design() -> Dictionary:
 	return {
-		"L1": 240.0, "L2": 220.0, "hs": 250.0, "dg": 70.0,
-		"lim": {"sh": [10.0, 78.0], "el": [-128.0, -60.0], "wr": [15.0, 100.0], "ba": [-90.0, 90.0]},
+		"L1": 240.0, "L2": 220.0, "hs": 250.0, "dg": 95.0,
+		"lim": {"sh": [10.0, 82.0], "el": [-136.0, -60.0], "wr": [-5.0, 100.0], "ba": [-90.0, 90.0]},
 		"cyl": {"ba": [20, 20], "sh": [20, 20], "el": [20, 20], "wr": [10, 10], "gr": [5, 5]},
-		"phic": {"sh": 66.0, "el": 90.0, "wr": 90.0},
-		"lever": {"sh": [123.0, 58.0], "el": [130.0, 62.0], "wr": [88.0, 44.0]},   # d (axis to slave pivot), r (axis to push pin)
+		"phic": {"sh": 66.0, "el": 90.0, "wr": 80.0},
+		# d (axis to slave pivot), r (axis to push pin). Wrist: searched over d 50..160, r 20..45, phic 60..120 for the biggest smallest arm over its 105 deg with the
+		# stroke <= 95 pct of a 10 mL: phic 80 (not 90: with a finite d the arm peaks at cos phi = r/d) gives 21.9 mm; d 126 makes the pivot-to-pin length 95..153 mm, a real 10 mL syringe
+		"lever": {"sh": [117.0, 55.0], "el": [118.0, 56.0], "wr": [126.0, 36.0]},
 		"hose_len": {"ba": 0.5, "sh": 0.6, "el": 0.9, "wr": 1.2, "gr": 1.4},   # m
-		"hose": "mix", "flex": {"ba": 0.25, "sh": 0.2, "el": 0.3, "wr": 0.3, "gr": 0.3}, "cw_m": 0.8, "cw_l": 120.0, "air_ml": 0.0, "mat": "pla", "can_m": CAN_M0, "f_hand": F_HAND, "mu_jaw": MU_JAW,
+		"hose": "mix", "flex": {"ba": 0.25, "sh": 0.2, "el": 0.3, "wr": 0.3, "gr": 0.3}, "cw_m": 1.0, "cw_l": 120.0, "air_ml": 0.0, "mat": "pla", "can_m": CAN_M0, "f_hand": F_HAND, "mu_jaw": MU_JAW,
 		"pitch": 68.2, "rp": 270.0, "r_pick": 270.0, "rp_pinion": R_PINION,
 	}
 
