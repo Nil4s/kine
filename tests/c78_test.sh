@@ -60,11 +60,19 @@ grep -q "C78_GATE=.*video add-on" "$W/s1.txt"; ok $? "B6 Python features say the
 # B8 (before uninstall)
 SZ=$(du -sm "$W/inst" | cut -f1); EX=$(( $(stat -c %s "$W/inst/Kine.exe") / 1048576 ))
 [ "$EX" -lt 400 ] && [ "$SZ" -lt 600 ]; ok $? "B8 sizes: Kine.exe ${EX} MB, install ${SZ} MB"
-BEFORE=$(cd "$W/appdata" && find . -type f | sort | xargs md5sum | md5sum)
+# a run that timed out (the B5 control) may still be shutting down: wait until no process runs from under $W (read-only query, nothing is killed)
+for i in $(seq 1 40); do
+  n=$(powershell -NoProfile -Command "@(Get-CimInstance Win32_Process | Where-Object { \$_.ExecutablePath -like '$(cygpath -w "$W")*' }).Count" | tr -d '')
+  [ "${n:-0}" = 0 ] && break; sleep 5
+done
+(cd "$W/appdata" && find . -type f | sort | xargs md5sum) > "$W/before.md5"
+BEFORE=$(md5sum < "$W/before.md5")
 # B7
 MSYS_NO_PATHCONV=1 /usr/bin/timeout 300 "$W/inst/unins000.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART; rc=$?
 for i in 1 2 3 4 5 6 7 8 9 10; do [ ! -f "$W/inst/Kine.exe" ] && break; sleep 1; done   # the uninstaller finishes in a helper process
-AFTER=$(cd "$W/appdata" && find . -type f | sort | xargs md5sum | md5sum)
+(cd "$W/appdata" && find . -type f | sort | xargs md5sum) > "$W/after.md5"
+AFTER=$(md5sum < "$W/after.md5")
+diff "$W/before.md5" "$W/after.md5" | head -5
 [ ! -f "$W/inst/Kine.exe" ] && [ ! -f "$W/inst/libTKBRep.dll" ] && [ ! -d "$W/inst" -o -z "$(ls -A "$W/inst" 2>/dev/null)" ] && [ "$BEFORE" = "$AFTER" ] && [ -f "$W/appdata/Godot/app_userdata/Kine/marker.txt" ]
 ok $? "B7 silent uninstall removes the program dir, APPDATA untouched (exit $rc)"
 echo "work dir: $W"
