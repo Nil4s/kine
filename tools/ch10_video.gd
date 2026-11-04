@@ -42,7 +42,7 @@ class Plot:
 		draw_polyline(pb, Color(1.0, 0.35, 0.3), 1.6)
 		draw_polyline(pa, Color(0.35, 0.75, 1.0), 1.6)
 		draw_line(Vector2(xmap.call(t[cur]), plot.position.y), Vector2(xmap.call(t[cur]), plot.end.y), Color(1, 1, 1, 0.8), 1.5)
-		draw_string(f, Vector2(6, 16), "roof drift vs time (mm, real, not exaggerated)", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color.WHITE)
+		draw_string(f, Vector2(6, 16), "roof-mean drift, dt 0.01 (mm, real, not exaggerated)", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color.WHITE)
 		draw_string(f, Vector2(plot.end.x - 360, 16), "code house", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.35, 0.75, 1.0))
 		draw_string(f, Vector2(plot.end.x - 250, 16), label_b, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1.0, 0.35, 0.3))
 		draw_string(f, Vector2(4, plot.position.y + 10), "+%.0f" % ymax, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color(0.8, 0.8, 0.8))

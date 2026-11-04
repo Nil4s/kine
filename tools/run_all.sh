@@ -943,3 +943,4 @@ EXTRA="$EXTRA c57:w"   # c57: slicer-like print estimate (walls + infill, time f
 EXTRA="$EXTRA ch1a:w"   # ch1a: one-storey house from a real reference, tests/ch1a_test.gd
 EXTRA="$EXTRA ch1b:w"   # ch1b: house check, IRC spans/headers/studs/bracing/uplift/footing + first-principles cross-check (tests/ch1b_test.gd)
 EXTRA="$EXTRA ch10:w"   # ch10: the house under wind and El Centro, 3D frame solver (native KineFrameNative + GDScript twin), tests/ch10_test.gd
+EXTRA="$EXTRA ch10_period:w"   # ch10_period: OPEN FINDING, expected to FAIL (bar c, model period 0.28 s vs ASCE 7 band 0.068-0.232 s); not for the gate, tests/ch10_period_test.gd

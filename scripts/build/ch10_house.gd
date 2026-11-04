@@ -11,6 +11,7 @@ const G_WOOD := 0.69e9             # E / 16
 const RHO_WOOD := 530.0            # kg/m3, DF-L at 15 percent MC
 const LB_IN := 175.1268            # 1 lb/in in N/m
 const GA_WALL_KIPS := 11.0         # SDPWS 2015 Table 4.3A, Structural sheathing 3/8 in OSB, 6d common, 6 in edge (the house's nail); 7/16 has no 6d row
+const GA_GYP_KIPS := 5.5          # SDPWS 2015 Table 4.3C, 1/2 in gypsum wallboard, 7 in edge, 16 in studs, unblocked (opt-in via opts.gypsum)
 const GA_ROOF_KIPS := 7.5          # roof diaphragm: Table 4.2A blocked 6d 3/8 OSB is 15 kips/in; halved for unblocked (Table 4.2C NOT read: UNVERIFIED)
 const ASPECT_MAX := 3.5            # SDPWS 4.3.4 h/b limit for full stiffness
 const BEAM_KINDS := ["stud", "king", "jack", "cripple", "corner", "nailer", "end", "gable_stud", "bottom_plate", "top_plate1", "top_plate2", "sill", "header", "joist", "ridge", "rafter", "rafter_pair", "gable_rafter"]
@@ -308,7 +309,7 @@ static func build(mj: Dictionary, opts := {}) -> Dictionary:
 						break
 	# ---- panels
 	var h := WALL_H
-	var gt_wall: float = 1000.0 * GA_WALL_KIPS * LB_IN
+	var gt_wall: float = 1000.0 * (GA_WALL_KIPS + (GA_GYP_KIPS if opts.get("gypsum", false) else 0.0)) * LB_IN
 	var gt_roof: float = 1000.0 * GA_ROOF_KIPS * LB_IN
 	var panels: Array = []     # {line, x0, x1, b, kh, diag:[[Pa,Pb],[Pc,Pd]]}
 	var roofs: Array = []

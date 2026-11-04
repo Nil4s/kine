@@ -67,3 +67,10 @@ Source for all cells: AWC SDPWS 2015 (the AWC PDF mirrored at https://bayarearet
 3. **Corner returns.** In the frame model each wall line is its own plane of crossed springs, and the perpendicular walls attach through the corner posts and the double top plate, so the returns already act as flanges through those members. The only term a return changes is the chord (flexural) term of SDPWS 4.3-1: 8 v h^3 / (E A b) = 8 x 1 x 8.09^3 / (1.6e6 x 10.5 x 4) = 6.3e-5 in per plf against the shear term v h / (1000 Ga) = 8.09 / 11000 = 7.4e-4 in per plf. The chord term is 8 percent of the shear term, so a rigid return could shorten the period by at most about 4 percent (0.290 s to 0.278 s); it cannot by itself bring a period of 0.29 s inside 0.232 s.
 
 Gypsum is applied through the builder option `gypsum` (default off, so no existing bar or default changes); bar c reads the model with `gypsum: true`, bars b and e1 to e3 keep the sheathing-only model they were registered on. The band of bar c is untouched.
+
+## 9. Bar b hand calc (numbers as run, 2026-11-03)
+
+- Wind +z on eave wall F, V 130 mph, exposure B, Kz 0.57 (Table 26.10-1, hand) vs 0.575 (formula in the model): q = 0.00256 x 0.57 x 0.85 x 130^2 = 20.96 psf = 1003.6 Pa.
+- Net pressure windward + leeward: G (Cp_w - Cp_l) q = 0.85 x (0.8 + 0.5) x 1003.6 = 1109 Pa; tributary area = wall length 9.754 m x half wall height 1.2335 m = 12.03 m2. Hand force **13,343 N**; model **13,454 N** (0.83 pct; the model's leeward Cp is interpolated with L/B and Kz is 0.575).
+- Reactions: sum of the fixed-base reaction forces 13,454 N = applied 13,454 N (0.000 pct).
+- Gable walls L and R, hand stiffness from the member list alone: full-height OSB segments with h/b <= 3.5, each k = V / delta, delta = 8 v h^3 / (E A b) + v h / (1000 Ga) with Ga 11 kips/in and a 2-stud chord (E A = 1.6e6 psi x 10.5 in2); summed **k_hand = 4253 N/mm per wall** (both walls). Wall L: share of the wind 5531 N -> hand drift 1.301 mm, model mean top drift 1.338 mm (2.90 pct). Wall R: 5432 N -> 1.277 mm, model 1.335 mm (4.55 pct). Bar 5 pct; both pass, with R the narrower margin.

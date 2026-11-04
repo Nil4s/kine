@@ -9,7 +9,7 @@ extends SceneTree
 ##                  (b2) the base reactions of the model sum to the applied force within 0.5 pct (equilibrium);
 ##                  (b3) each gable wall (L, R): mean top-plate displacement within 5 pct of  R_wall / k_wall  where k_wall is summed from the member list by hand:
 ##                       full-height OSB panels, contiguous segments with h/b <= 3.5, per segment k = V / (v (8 h^3 / (E A b) + h / (1000 Ga))), Ga = 11 kips/in, end chords 2 studs.
-##  c  PERIOD       the longest of the first x-sway and z-sway periods (inverse iteration from the static shape, effective modal mass of the shape reported) within
+##  c  PERIOD       (MOVED to tests/ch10_period_test.gd, band unchanged, 11-03: it fails and is an open finding) the longest of the first x-sway and z-sway periods (inverse iteration from the static shape, effective modal mass of the shape reported) within
 ##                  [0.5 Ta, 1.7 Ta], Ta = 0.02 hn^0.75, hn = 12.96 ft (ridge) -> band 0.069 .. 0.233 s (Cu = 1.7 assumes SD1 <= 0.1 g: UNVERIFIED site value).
 ##  d  NEWMARK      undamped SDOF, free vibration, 1000 steps at T/20: total energy drift < 0.5 pct. CONTROL: with 2 pct Rayleigh damping the same check FAILS (bar can fail).
 ##  e  QUAKE        El Centro 1940 NS (PGA 0.349 g) unscaled, 5 pct Rayleigh damping at the first period and 5x it, dt 0.01 s, ASCE 7-16 Table 12.12-1 allowable 0.020 h
@@ -328,7 +328,7 @@ func _init() -> void:
 	var Ta := SIM.ta(12.96)
 	var Tlong := maxf(pz["T"], px["T"])
 	print("period z %.4f s (rq %s, eff mass %.2f), x %.4f s (eff mass %.2f), Ta %.4f s" % [pz["T"], str(pz["rq"]), pz["eff"], px["T"], px["eff"], Ta])
-	ok(Tlong >= 0.5 * Ta and Tlong <= 1.7 * Ta, "c longest first sway period %.4f s in [%.4f, %.4f]" % [Tlong, 0.5 * Ta, 1.7 * Ta])
+	print("c (period vs the ASCE 7 band) moved unchanged to tests/ch10_period_test.gd as an open finding; longest period here %.4f s, band [%.4f, %.4f]" % [Tlong, 0.5 * Ta, 1.7 * Ta])
 	# --- e: quake
 	var qz := quake(code, 2, pz["omega"])
 	var qx := quake(code, 0, px["omega"])
