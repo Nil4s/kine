@@ -234,6 +234,9 @@ func remove() -> void:
 # ---------------------------------------------------------------- MATCH
 
 func match_body() -> void:
+	if VideoAddon.gate("matching a picture") != "":   # C78
+		m._say(VideoAddon.gate("matching a picture"))
+		return
 	if list().is_empty():
 		m._say("nothing to match yet: load a picture of a person with View: reference image...")
 		return

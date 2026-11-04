@@ -40,6 +40,7 @@ struct Model {
 	struct Tie { int a, b; double k; };
 	std::vector<Tie> ties;
 	Vd addMass;
+	std::vector<std::pair<int, double>> dash; // CH12: lateral viscous dampers, (global dof, c) added to the damping matrix diagonal
 	std::vector<int> map; // global dof -> free index, or -1
 	int nf = 0, bw = 0;
 };
@@ -329,6 +330,7 @@ int KineFrameNative::version() { return 1; }
 
 // job "static":  loads (6n) -> u (6n), f (6n, K u incl. the constrained dofs; reaction = f - loads there)
 // job "modal":   start (6n), iters -> rq (Rayleigh quotient of the start vector, then after each inverse iteration), omega, phi (6n)
+// model "dashpots" (optional, CH12): pairs (global dof, c) of lateral viscous dampers; job "crowd" (optional, CH12): n1 n2 w omega theta0 (per pedestrian), F0, cp, dir
 // job "newmark": dt, nsteps, ag (nsteps + 1 base accelerations, force = -M r ag, r = 1 on translational dir 0/1/2 of every free node),
 //                u0 / v0 (6n, optional), alpha / beta (C = alpha M + beta K), record (global dofs), snap_every (0 = none)
 //                -> rec_u rec_v rec_a (row k = record[k], nsteps + 1 columns), snaps (Array of 6n displacement vectors), ke_end, se_end
@@ -362,6 +364,8 @@ Dictionary KineFrameNative::solve(const Dictionary &p_model, const Dictionary &p
 	PackedFloat64Array am = p_model.get("mass", PackedFloat64Array());
 	m.addMass.assign(am.ptr(), am.ptr() + am.size());
 	if (m.addMass.size() != (size_t)m.nn) m.addMass.assign(m.nn, 0.0);
+	PackedFloat64Array dp = p_model.get("dashpots", PackedFloat64Array());
+	for (int64_t i = 0; i + 1 < dp.size(); i += 2) m.dash.push_back({ (int)dp[i], dp[i + 1] });
 	rcm_and_number(m);
 	Band K, M;
 	if (!assemble(m, K, M)) { out["error"] = "degenerate element"; return out; }
@@ -502,6 +506,7 @@ Dictionary KineFrameNative::solve(const Dictionary &p_model, const Dictionary &p
 			Vd P, Cv, Ku;
 			force(0, P);
 			Cmul(v, Cv);
+			for (auto &d : m.dash) { int f = m.map[d.first]; if (f >= 0) Cv[f] += d.second * v[f]; }
 			band_mul(K, u, Ku);
 			Vd rhs(nf);
 			for (int i = 0; i < nf; i++) rhs[i] = P[i] - Cv[i] - Ku[i];
@@ -521,7 +526,23 @@ Dictionary KineFrameNative::solve(const Dictionary &p_model, const Dictionary &p
 		double c1 = 1.0 / (beta * dt * dt), c2 = gam / (beta * dt);
 		for (size_t i = 0; i < Ke.a.size(); i++) Ke.a[i] = K.a[i] + Kd.a[i] * (c2 * bet) + M.a[i] * (c1 + c2 * alpha);
 		for (int i = 0; i < nf; i++) Ke.at(i, i) += c2 * cdiag[i];
+		for (auto &d : m.dash) { int f = m.map[d.first]; if (f >= 0) Ke.at(f, f) += c2 * d.second; }
 		if (!chol(Ke)) { out["error"] = "effective stiffness not positive definite"; return out; }
+		// CH12 crowd: pedestrians whose lateral force F0 sin(theta) is phase-locked to the local deck velocity, theta' = omega + cp v cos(theta) (cp = 0: free-running random-phase control)
+		Dictionary crowd = p_job.get("crowd", Dictionary());
+		PackedInt32Array cn1, cn2;
+		PackedFloat64Array cw, com, cth;
+		double cF0 = 0, ccp = 0;
+		int cdir = 2;
+		if (!crowd.is_empty()) {
+			cn1 = crowd["n1"]; cn2 = crowd["n2"]; cw = crowd["w"]; com = crowd["omega"]; cth = crowd["theta0"];
+			cF0 = crowd["F0"]; ccp = crowd["cp"]; cdir = crowd.get("dir", 2);
+		}
+		int np = (int)cn1.size();
+		Vd th(cth.ptr(), cth.ptr() + cth.size());
+		Vd cpow((size_t)ns + 1, 0.0);
+		std::vector<int> cf1(np), cf2(np);
+		for (int i = 0; i < np; i++) { cf1[i] = m.map[cn1[i] * 6 + cdir]; cf2[i] = m.map[cn2[i] * 6 + cdir]; }
 		int nr = (int)rec.size();
 		Vd ru((size_t)nr * (ns + 1)), rv(ru.size()), ra(ru.size());
 		Array snaps;
@@ -536,19 +557,33 @@ Dictionary KineFrameNative::solve(const Dictionary &p_model, const Dictionary &p
 			if (snap_every > 0 && step % snap_every == 0) snaps.push_back(to_pf(scatter(u)));
 		};
 		store(0);
-		Vd P, t1(nf), t2(nf), Mt, Ct, rhs(nf);
+		Vd P, t1(nf), t2(nf), Mt, Ct, rhs(nf), dashadd;
 		for (int s = 0; s < ns; s++) {
 			force(s + 1, P);
+			for (int i = 0; i < np; i++) {
+				double w = cw[i];
+				double vi = (1.0 - w) * (cf1[i] >= 0 ? v[cf1[i]] : 0.0) + w * (cf2[i] >= 0 ? v[cf2[i]] : 0.0);
+				double g1 = com[i] + ccp * vi * std::cos(th[i]);
+				double tm = th[i] + 0.5 * dt * g1;
+				th[i] += dt * (com[i] + ccp * vi * std::cos(tm));
+				double F = cF0 * std::sin(th[i]);
+				if (cf1[i] >= 0) P[cf1[i]] += (1.0 - w) * F;
+				if (cf2[i] >= 0) P[cf2[i]] += w * F;
+				cpow[s + 1] += F * vi;
+			}
 			for (int i = 0; i < nf; i++) t1[i] = c1 * u[i] + (1.0 / (beta * dt)) * v[i] + (1.0 / (2 * beta) - 1.0) * a[i];
 			for (int i = 0; i < nf; i++) t2[i] = c2 * u[i] + (gam / beta - 1.0) * v[i] + dt * (gam / (2 * beta) - 1.0) * a[i];
 			// M t1 + (alpha M + bet K) t2 = M (t1 + alpha t2) + K (bet t2): two band products instead of three
 			Ct.resize(nf);
 			Vd cd(nf);
+			dashadd.resize(m.dash.size());
+			for (size_t k = 0; k < m.dash.size(); k++) { int f = m.map[m.dash[k].first]; dashadd[k] = f >= 0 ? m.dash[k].second * t2[f] : 0.0; }
 			for (int i = 0; i < nf; i++) { cd[i] = cdiag[i] * t2[i]; Ct[i] = bet * t2[i]; t2[i] = t1[i] + alpha * t2[i]; }
 			band_mul(M, t2, Mt);
 			Vd Kt;
 			band_mul(Kd, Ct, Kt);
 			for (int i = 0; i < nf; i++) rhs[i] = P[i] + Mt[i] + Kt[i] + cd[i];
+			for (size_t k = 0; k < m.dash.size(); k++) { int f = m.map[m.dash[k].first]; if (f >= 0) rhs[f] += dashadd[k]; }
 			chol_solve(Ke, rhs);
 			for (int i = 0; i < nf; i++) {
 				double an = c1 * (rhs[i] - u[i]) - (1.0 / (beta * dt)) * v[i] - (1.0 / (2 * beta) - 1.0) * a[i];
@@ -562,6 +597,8 @@ Dictionary KineFrameNative::solve(const Dictionary &p_model, const Dictionary &p
 		out["rec_v"] = to_pf(rv);
 		out["rec_a"] = to_pf(ra);
 		out["snaps"] = snaps;
+		out["crowd_power"] = to_pf(cpow);
+		out["crowd_theta"] = to_pf(th);
 		{
 			Vd Mv, Ku;
 			band_mul(M, v, Mv);

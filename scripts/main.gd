@@ -3131,6 +3131,11 @@ func _ready() -> void:
 	if cf.has_section_key("look", "light"):
 		pref = "light" if cf.get_value("look", "light", false) else "dark"
 	theme_pref = String(cf.get_value("look", "theme", pref))
+	if OS.get_cmdline_user_args().has("--c78-smoke"):   # C78: the installer test boots the installed build and builds a box (tools/c78_smoke.gd)
+		var _sm := Node.new()
+		_sm.set_script(load("res://tools/c78_smoke.gd"))
+		add_child(_sm)
+		_sm.call_deferred("run", self)
 	if OS.get_cmdline_user_args().has("--light") or OS.get_cmdline_user_args().has("--dark"):   # shots and tests choose
 		theme_pref = "light" if OS.get_cmdline_user_args().has("--light") else "dark"
 	if theme_pref not in ["system", "light", "dark"]:
@@ -3471,6 +3476,7 @@ var intro: KineIntro   # the opening intro while it plays (null after, or when o
 
 ## a test's own settings file goes with it (ribbon_test clicks VIEW > Light like any button: one file per run piled up)
 func _exit_tree() -> void:
+	SlicerSend.shutdown()   # C79: the start-up slicer lookup (a `reg query` on a worker) must not hold the quit
 	if nb_ui != null:
 		nb_ui.finish()   # I44: the fatigue worker ends before the scenes it reads go
 	for sc in _bake_scenes():
@@ -23076,6 +23082,10 @@ func _import_video(path: String, raw := false) -> void:
 	if _video_pid >= 0 and OS.is_process_running(_video_pid):
 		_say("still tracking %s: one video at a time; try again when it arrives" % _video_name)
 		return
+	var _gate := VideoAddon.gate("tracking a video")   # C78: an installed build has no Python
+	if _gate != "":
+		_say(_gate)
+		return
 	_video_cancelled = false
 	if not FileAccess.file_exists(path):
 		_say("could not track %s: no such file; pick the video again" % path.get_file())
@@ -23454,6 +23464,9 @@ func _multicam_ask() -> void:
 
 
 func _multicam_start(paths: PackedStringArray) -> void:
+	if VideoAddon.gate("several cameras") != "":   # C78
+		_say(VideoAddon.gate("several cameras"))
+		return
 	if _mc_i >= 0:
 		_say("still tracking the cameras: one set at a time; try again when it arrives")
 		return
