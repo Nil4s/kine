@@ -17,6 +17,7 @@ var B: Body
 var rope: RopeSim
 var pin_local := Vector3.ZERO   # the pinch point in the hand's frame
 var ax_local := Vector3.ZERO    # the stub axis (end -> body of the rope) in the hand's frame, pointing to the free end
+static var FREE_CURL := 2.0
 var idx_ang0 := {}              # the pinch pose's index joint angles (scaled by `open`)
 var cap_names: Array = []
 var prev_caps: Array = []
@@ -59,6 +60,10 @@ func axis_world() -> Vector3:
 ## shape the pinch: the index scaled until the surface gap of the two tip capsules = rope diameter + 1 mm
 func make_pinch(r_rope: float) -> void:
 	B.hand_pose("r", "pinch")
+	for f in ["middle", "ring", "pinky"]:   # the free fingers are curled into the palm (2x the pinch pose), clear of the rope
+		for k in 3:
+			B.ang["%s_0%d_r" % [f, k + 1]] = (B.ang["%s_0%d_r" % [f, k + 1]] as Vector3) * FREE_CURL
+	B.fk()
 	idx_ang0.clear()
 	for j in ["index_01_r", "index_02_r", "index_03_r"]:
 		idx_ang0[j] = B.ang[j]
@@ -81,8 +86,8 @@ func make_pinch(r_rope: float) -> void:
 	var st := RopeSim._closest(t2[0], t2[1], i2[0], i2[1])
 	var pt: Vector3 = (t2[0] as Vector3) + ((t2[1] as Vector3) - (t2[0] as Vector3)) * st[0]
 	var pi: Vector3 = (i2[0] as Vector3) + ((i2[1] as Vector3) - (i2[0] as Vector3)) * st[1]
-	var mid := (pt + pi) * 0.5
 	var nrm := (pi - pt).normalized()
+	var mid := pt + nrm * (float(B.rad["thumb_03_r"]) + r_rope + 0.0005)
 	var u := ((i2[1] as Vector3) - (i2[0] as Vector3)).normalized()
 	var s := nrm.cross(u).normalized()
 	# the rope leaves the pinch along -ax: pick the sign of ax whose exit line is clearest of the other capsules
@@ -109,12 +114,12 @@ func make_pinch(r_rope: float) -> void:
 ## move the wrist so the pinch point lands on `target` (world); returns the miss (m)
 func reach_pinch(target: Vector3) -> float:
 	var miss := 0.0
-	for it in 4:
+	for it in 12:
 		var cur := pinch_world()
 		var wr: Vector3 = (B.P["hand_r"] as Vector3) + (target - cur)
 		B.reach("hand_r", wr)
 		miss = pinch_world().distance_to(target)
-		if miss < 0.0005:
+		if miss < 0.0003:
 			break
 	return miss
 
@@ -245,7 +250,7 @@ func run(opts := {}) -> Dictionary:
 		else:
 			hand.append(hand[hand.size() - 1])
 		selfpen.append(rope.max_self_pen())
-		colpen.append(rope.max_col_pen(false))
+		colpen.append(rope.max_col_pen(true))
 		missv.append(miss)
 		tens.append(rope.tension())
 		s0y.append(kf[0].y)
