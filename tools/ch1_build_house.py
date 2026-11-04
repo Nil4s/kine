@@ -531,9 +531,25 @@ def meta(r):
         max_end = max(max_end, xs[0], L - xs[-1])
         min_end = min(min_end, xs[0], L - xs[-1])
     rafters = [m for m in r.members if m["kind"] in ("rafter", "rafter_pair", "gable_rafter")]
-    return {"species": "DF-L#2", "species_note": "assumed: not on the reference drawing", "wind_mph": 115, "exposure": "B", "seismic": "A-B", "soil_psf": 1500, "rise_per_12": 4.0,
+    # CH1d: the birdsmouth seat cut, measured from the rafter's own sketch polygon: the plumb cut at the plate line (z = 0) and the seat length along the plate
+    bm = None
+    for m in rafters:
+        if m.get("poly"):
+            ys = [p[1] for p in m["poly"] if abs(p[0]) < 1e-6]
+            seat = [p[0] for p in m["poly"] if p[0] > 1e-6 and abs(p[1] - max(ys)) < 1e-6]
+            if len(ys) >= 2:
+                bm = {"birdsmouth_in": round((max(ys) - min(ys)) / 25.4, 3), "seat_in": round(min(seat) / 25.4, 3) if seat else 0.0}
+                break
+    kinds = sorted(set(m["kind"] for m in r.members))
+    sheath = {"wall": {"nail": "6d common", "d": 6, "edge_in": 6.0, "field_in": 12.0}, "roof": {"nail": "6d common", "d": 6, "edge_in": 6.0, "field_in": 12.0}}
+    # the nailing schedule the drawing calls out (Table R602.3(1) rows), one entry per connection type; n = nails per connection
+    fast = {"stud_to_plate": {"d": 8, "n": 4, "type": "box"}, "joist_to_plate": {"d": 8, "n": 4, "type": "box"}, "rafter_to_plate": {"d": 16, "n": 3, "type": "box"},
+            "rafter_to_ridge": {"d": 16, "n": 4, "type": "box"}, "plate_to_plate": {"d": 16, "n": 1, "type": "common", "spacing_in": 16},
+            "plate_lap": {"d": 10, "n": 3, "type": "box"}, "stud_to_stud": {"d": 16, "n": 1, "type": "common", "spacing_in": 24},
+            "header_built_up": {"d": 16, "n": 1, "type": "common", "spacing_in": 16}, "header_to_stud": {"d": 8, "n": 5, "type": "box"}}
+    return {"site": "levittown_ny", "fasteners": fast, "sheathing_nailing": sheath, "rafter_cut": bm, "member_kinds": kinds, "species": "DF-L#2", "species_note": "assumed: not on the reference drawing", "wind_mph": 115, "exposure": "B", "seismic": "A-B", "soil_psf": 1500, "rise_per_12": 4.0,
             "tie": "H2.5A", "ties": {"type": "Simpson H2.5A", "count": len(rafters), "at": "one at the heel of every rafter, rafter to double top plate"},
-            "anchor_bolts": {"dia_in": 0.5, "max_spacing_in": round(max_sp, 2), "max_end_in": round(max_end, 2), "min_end_in": round(min_end, 2), "positions_mm": pos,
+            "anchor_bolts": {"dia_in": 0.5, "embed_in": 7.0, "max_spacing_in": round(max_sp, 2), "max_end_in": round(max_end, 2), "min_end_in": round(min_end, 2), "positions_mm": pos,
                              "pieces_without_bolt": skipped, "count": sum(len(v) for v in pos.values())},
             "footing": {"width_in": 12.0, "thickness_in": 8.0}}
 
