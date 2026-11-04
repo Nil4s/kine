@@ -47,7 +47,10 @@ func _init():
 		var pinned = PackedByteArray(); pinned.resize(192)
 		var pp = fr.duplicate()
 		t0 = Time.get_ticks_usec()
-		for r in 20: cs.solve(pp, pinned)
-		var ts = (Time.get_ticks_usec() - t0) / 1000.0 / 20
-		print("frame %d: init %.2f ms, begin %.3f ms (%d pairs), one solve %.3f ms" % [k, tinit, tb, np, ts])
+		for r in 10: cs.solve(pp, pinned, true)
+		var tf = (Time.get_ticks_usec() - t0) / 1000.0 / 10
+		t0 = Time.get_ticks_usec()
+		for r in 10: cs.solve(pp, pinned)
+		var ta = (Time.get_ticks_usec() - t0) / 1000.0 / 10
+		print("frame %d: init %.2f ms, begin %.2f ms (%d pairs), full solve %.2f ms, active solve %.2f ms (%d active)" % [k, tinit, tb, np, tf, ta, cs.active.size()])
 	quit()

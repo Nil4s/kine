@@ -21,6 +21,7 @@ var thick := 0.006
 var tris := PackedInt32Array()
 var pairs := PackedInt32Array()   # (tri a, tri b) pairs found by begin
 var npairs := 0
+var active := PackedInt32Array()   # pairs that pushed in the first pass of a substep: the later passes visit only these
 var contacts := 0                  # contacts pushed in the last solve
 
 
@@ -48,9 +49,13 @@ func _init(faces: PackedInt32Array, thickness: float) -> void:
 		sharing.append(s)
 	ring = {}
 	for t in nt:
+		var two := {}
 		for u in (sharing[t] as Dictionary):
 			for w in (sharing[u] as Dictionary):
-				ring[t * nt + w] = true
+				two[w] = true
+		for u in two:
+			for w in (sharing[u] as Dictionary):
+				ring[t * nt + w] = true   # three vertex hops: a flat cloth's diagonal neighbours are not pairs
 
 
 var ring := {}   # t * nt + u -> true for the triangles u within two hops of t
@@ -116,15 +121,43 @@ func begin(p: PackedVector3Array) -> int:
 				var oz := int(floor(maxf(l1.z, l2.z) * inv))
 				if key != ((ox & 0x1FFFFF) | ((oy & 0x1FFFFF) << 21) | ((oz & 0x1FFFFF) << 42)):
 					continue
+				if _share(ta, tb):
+					continue
 				if cen[ta].distance_to(cen[tb]) > rad[ta] + rad[tb] + reach:
 					continue
-				if ring.has(ta * nt + tb):
-					continue
+				if ring.has(ta * nt + tb) and not _near(p, ta, tb, reach):
+					continue   # a surface neighbour: only a real fold (surfaces within reach) is a pair
 				out.append(ta)
 				out.append(tb)
 	pairs = out
+	active = PackedInt32Array()
 	npairs = out.size() / 2
 	return npairs
+
+
+## true when the two triangles' surfaces come within lim (the 6 vertex-triangle and 9 edge-edge tests, early out)
+func _near(p: PackedVector3Array, ta: int, tb: int, lim: float) -> bool:
+	if _share(ta, tb):
+		return false
+	var a := PackedInt32Array([tris[3 * ta], tris[3 * ta + 1], tris[3 * ta + 2]])
+	var b := PackedInt32Array([tris[3 * tb], tris[3 * tb + 1], tris[3 * tb + 2]])
+	for i in 3:
+		var w := tri_bary(p[a[i]], p[b[0]], p[b[1]], p[b[2]])
+		if p[a[i]].distance_to(p[b[0]] * w.x + p[b[1]] * w.y + p[b[2]] * w.z) < lim:
+			return true
+		w = tri_bary(p[b[i]], p[a[0]], p[a[1]], p[a[2]])
+		if p[b[i]].distance_to(p[a[0]] * w.x + p[a[1]] * w.y + p[a[2]] * w.z) < lim:
+			return true
+	for i in 3:
+		for j in 3:
+			var p1 := p[a[i]]
+			var q1 := p[a[(i + 1) % 3]]
+			var p2 := p[b[j]]
+			var q2 := p[b[(j + 1) % 3]]
+			var st := closest_segs(p1, q1, p2, q2)
+			if p1.lerp(q1, st.x).distance_to(p2.lerp(q2, st.y)) < lim:
+				return true
+	return false
 
 
 func _share(ta: int, tb: int) -> bool:
@@ -136,11 +169,15 @@ func _share(ta: int, tb: int) -> bool:
 
 
 ## one projection pass over the pairs found by begin. Returns the contacts it pushed.
-func solve(p: PackedVector3Array, pinned: PackedByteArray) -> int:
+func solve(p: PackedVector3Array, pinned: PackedByteArray, first := false) -> int:
 	var n := 0
-	for k in npairs:
+	var live := PackedInt32Array()
+	var cnt := npairs if first else active.size()
+	for kk in cnt:
+		var k := kk if first else active[kk]
 		var ta := pairs[2 * k]
 		var tb := pairs[2 * k + 1]
+		var n0 := n
 		var a0 := tris[3 * ta]
 		var a1 := tris[3 * ta + 1]
 		var a2 := tris[3 * ta + 2]
@@ -162,6 +199,10 @@ func solve(p: PackedVector3Array, pinned: PackedByteArray) -> int:
 		n += _edge_edge(p, pinned, a2, a0, b0, b1)
 		n += _edge_edge(p, pinned, a2, a0, b1, b2)
 		n += _edge_edge(p, pinned, a2, a0, b2, b0)
+		if first and n > n0:
+			live.append(k)
+	if first:
+		active = live
 	contacts = n
 	return n
 
