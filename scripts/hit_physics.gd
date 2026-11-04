@@ -220,6 +220,8 @@ static func measure(S: Scene, B: Body, xf: Transform3D, hit: Dictionary, Bs: Bod
 
 ## run the sim for a measured blow. Blocking (a few seconds): call it on a worker. {"ok", "why", "bvh", "report" (react.py's)}
 static func simulate(blow: Dictionary, tag := "hit") -> Dictionary:
+	if VideoAddon.gate("the hit simulation") != "":   # C78
+		return {"ok": false, "why": VideoAddon.gate("the hit simulation")}
 	DirAccess.make_dir_recursive_absolute(DIR)
 	var base := ProjectSettings.globalize_path(DIR) + "/" + tag
 	var job := {"pose": blow["pose"], "body": blow["body"], "J": snappedf(float(blow["J_h"]), 0.0001), "J_v": snappedf(float(blow["J_v"]), 0.0001), "dir_deg": snappedf(float(blow["dir_deg"]), 0.01),

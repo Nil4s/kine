@@ -42,7 +42,7 @@ static func dir_bytes(dir := DIR) -> int:
 
 static func sprite_frames(man: Dictionary, id: String, dir := DIR) -> SpriteFrames:
 	var c: Dictionary = man["clips"][id]
-	var img := Image.load_from_file(ProjectSettings.globalize_path(dir + String(c["sheet"])))
+	var img := PckImage.load_res(dir + String(c["sheet"]))
 	if img == null or img.is_empty():
 		return null
 	var tex := ImageTexture.create_from_image(img)

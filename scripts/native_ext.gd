@@ -12,7 +12,12 @@ static func ensure(cfg_name: String, cls: String) -> bool:
 	if c.load(cfg) != OK:
 		return false
 	var dll := String(c.get_value("libraries", "windows.release.x86_64", ""))
-	if dll == "" or not FileAccess.file_exists(dll):
+	if dll == "":
 		return false
+	if not FileAccess.file_exists(dll):
+		# C78: in an installed (exported) build the DLLs sit flat beside Kine.exe, and Godot's loader looks there for a res:// library
+		# that is not on disk. Same test, one place down.
+		if not (OS.has_feature("template") and FileAccess.file_exists(OS.get_executable_path().get_base_dir().path_join(dll.get_file()))):
+			return false
 	GDExtensionManager.load_extension(cfg)
 	return ClassDB.class_exists(cls)

@@ -364,6 +364,11 @@ static func solve_gd(model: Dictionary, job: Dictionary) -> Dictionary:
 			return y
 		var P0: PackedFloat64Array = force.call(0)
 		var Cv: PackedFloat64Array = cmul.call(v)
+		var dash: PackedFloat64Array = model.get("dashpots", PackedFloat64Array())   # CH12: (global dof, c) pairs on the damping diagonal
+		for k in range(0, dash.size(), 2):
+			var fd := map[int(dash[k])]
+			if fd >= 0:
+				Cv[fd] += dash[k + 1] * v[fd]
 		var Ku: PackedFloat64Array = mul.call(K, u)
 		var rhs0 := PackedFloat64Array()
 		rhs0.resize(nf)
@@ -377,7 +382,23 @@ static func solve_gd(model: Dictionary, job: Dictionary) -> Dictionary:
 		Ke.resize(nf * nf)
 		for i in nf * nf:
 			Ke[i] = K[i] * (1.0 + c2 * bet) + M[i] * (c1 + c2 * alpha)
+		for k in range(0, dash.size(), 2):
+			var fd2 := map[int(dash[k])]
+			if fd2 >= 0:
+				Ke[fd2 * nf + fd2] += c2 * dash[k + 1]
 		var Lke: PackedFloat64Array = chol.call(Ke)
+		# CH12 crowd: F0 sin(theta) per pedestrian, theta' = omega + cp v cos(theta), v the local deck velocity (cp 0 = free-running control)
+		var crowd: Dictionary = job.get("crowd", {})
+		var cn1: PackedInt32Array = crowd.get("n1", PackedInt32Array())
+		var cn2: PackedInt32Array = crowd.get("n2", PackedInt32Array())
+		var cw: PackedFloat64Array = crowd.get("w", PackedFloat64Array())
+		var com: PackedFloat64Array = crowd.get("omega", PackedFloat64Array())
+		var th: PackedFloat64Array = crowd.get("theta0", PackedFloat64Array()).duplicate()
+		var cF0: float = crowd.get("F0", 0.0)
+		var ccp: float = crowd.get("cp", 0.0)
+		var cdir: int = crowd.get("dir", 2)
+		var cpow := PackedFloat64Array()
+		cpow.resize(ns + 1)
 		if Lke.is_empty():
 			out["error"] = "effective stiffness not positive definite"
 			return out
@@ -392,6 +413,20 @@ static func solve_gd(model: Dictionary, job: Dictionary) -> Dictionary:
 		for step in ns + 1:
 			if step > 0:
 				var P: PackedFloat64Array = force.call(step)
+				for i in cn1.size():
+					var f1 := map[cn1[i] * 6 + cdir]
+					var f2 := map[cn2[i] * 6 + cdir]
+					var wq: float = cw[i]
+					var vi: float = (1.0 - wq) * (v[f1] if f1 >= 0 else 0.0) + wq * (v[f2] if f2 >= 0 else 0.0)
+					var g1: float = com[i] + ccp * vi * cos(th[i])
+					var tm: float = th[i] + 0.5 * dt * g1
+					th[i] += dt * (com[i] + ccp * vi * cos(tm))
+					var F: float = cF0 * sin(th[i])
+					if f1 >= 0:
+						P[f1] += (1.0 - wq) * F
+					if f2 >= 0:
+						P[f2] += wq * F
+					cpow[step] += F * vi
 				var t1 := PackedFloat64Array()
 				t1.resize(nf)
 				var t2 := PackedFloat64Array()
@@ -401,6 +436,10 @@ static func solve_gd(model: Dictionary, job: Dictionary) -> Dictionary:
 					t2[i] = c2 * u[i] + (gam / beta - 1.0) * v[i] + dt * (gam / (2 * beta) - 1.0) * a[i]
 				var Mt: PackedFloat64Array = mul.call(M, t1)
 				var Ct: PackedFloat64Array = cmul.call(t2)
+				for k in range(0, dash.size(), 2):
+					var fd3 := map[int(dash[k])]
+					if fd3 >= 0:
+						Ct[fd3] += dash[k + 1] * t2[fd3]
 				var rhs := PackedFloat64Array()
 				rhs.resize(nf)
 				for i in nf:
@@ -423,6 +462,8 @@ static func solve_gd(model: Dictionary, job: Dictionary) -> Dictionary:
 		out["rec_v"] = rv
 		out["rec_a"] = ra
 		out["snaps"] = snaps
+		out["crowd_power"] = cpow
+		out["crowd_theta"] = th
 		var Mv: PackedFloat64Array = mul.call(M, v)
 		var Ku2: PackedFloat64Array = mul.call(K, u)
 		var ke := 0.0
