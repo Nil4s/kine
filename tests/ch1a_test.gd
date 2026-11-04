@@ -33,14 +33,16 @@ func replayed(d: Dictionary) -> Dictionary:
 	var res := Part.replay(rec.duplicate(true))
 	var mesh: ArrayMesh = res["mesh"]
 	var boxes := []
+	var ranges: Array = res["surf_ranges"]   # more than 256 bodies share surfaces by look: [[body, first vertex, vertex count]] per surface
 	for i in mesh.get_surface_count():
 		var a: PackedVector3Array = mesh.surface_get_arrays(i)[Mesh.ARRAY_VERTEX]
-		var lo := Vector3(1e9, 1e9, 1e9)
-		var hi := -lo
-		for v in a:
-			lo = lo.min(v)
-			hi = hi.max(v)
-		boxes.append([lo * 1000.0, hi * 1000.0])
+		for rg in ranges[i]:
+			var lo := Vector3(1e9, 1e9, 1e9)
+			var hi := -lo
+			for k in range(int(rg[1]), int(rg[1]) + int(rg[2])):
+				lo = lo.min(a[k])
+				hi = hi.max(a[k])
+			boxes.append([lo * 1000.0, hi * 1000.0])
 	var members: Array = d["members"]
 	var used := {}
 	var out := []
@@ -55,7 +57,7 @@ func replayed(d: Dictionary) -> Dictionary:
 		for i in boxes.size():
 			if used.has(i):
 				continue
-			var e := maxf((boxes[i][0] - mlo).abs().max_axis_value(), (boxes[i][1] - mhi).abs().max_axis_value())
+			var e := maxf(mx((boxes[i][0] - mlo).abs()), mx((boxes[i][1] - mhi).abs()))
 			if e < bd:
 				bd = e
 				best = i
@@ -66,6 +68,10 @@ func replayed(d: Dictionary) -> Dictionary:
 		worst = maxf(worst, bd)
 		out.append({"name": m["name"], "kind": m["kind"], "lo": boxes[best][0], "hi": boxes[best][1]})
 	return {"res": res, "bodies": boxes.size(), "list": out, "missing": missing, "worst": worst}
+
+
+func mx(v: Vector3) -> float:
+	return maxf(v.x, maxf(v.y, v.z))
 
 
 func by_name(list: Array) -> Dictionary:
@@ -208,13 +214,13 @@ func _run() -> void:
 	# B rooms
 	var rm := rooms_of(list)
 	for k in REF_ROOMS:
-		var ew := (float(rm[k][0]) - REF_ROOMS[k][0]) / REF_ROOMS[k][0] * 100.0
-		var ed := (float(rm[k][1]) - REF_ROOMS[k][1]) / REF_ROOMS[k][1] * 100.0
+		var ew: float = (float(rm[k][0]) - REF_ROOMS[k][0]) / REF_ROOMS[k][0] * 100.0
+		var ed: float = (float(rm[k][1]) - REF_ROOMS[k][1]) / REF_ROOMS[k][1] * 100.0
 		print("room %-10s %.0f x %.0f  (ref %.0f x %.0f)  err %.2f %% %.2f %%" % [k, rm[k][0], rm[k][1], REF_ROOMS[k][0], REF_ROOMS[k][1], ew, ed])
-	ok(rooms_fail(rm) == 0, "B all six rooms' w and d within 2 % of the reference (%d out)" % rooms_fail(rm))
+	ok(rooms_fail(rm) == 0, "B all six rooms' w and d within 2 %% of the reference (%d out)" % rooms_fail(rm))
 	# C area
 	var slab: Dictionary = by_name(list)["Slab on grade"]
-	var area := (slab["hi"].x - slab["lo"].x) * (slab["hi"].z - slab["lo"].z) / 1e6
+	var area: float = (slab["hi"].x - slab["lo"].x) * (slab["hi"].z - slab["lo"].z) / 1e6
 	print("slab area m2 ", area)
 	ok(absf(area - REF_AREA_M2) / REF_AREA_M2 <= 0.02, "C slab plan area %.2f m2 within 2 %% of %.2f" % [area, REF_AREA_M2])
 	# D grid
@@ -251,7 +257,7 @@ func _run() -> void:
 		for i in 2:
 			if absf(float(bp[k][i]) * 1000.0 - REF_ROOMS[k][i]) / REF_ROOMS[k][i] > TOL_ROOM:
 				bad_bp += 1
-	ok(bad_bp == 0, "F the blueprint's six rooms are within 2 % of the reference (%d out)" % bad_bp)
+	ok(bad_bp == 0, "F the blueprint's six rooms are within 2 %% of the reference (%d out)" % bad_bp)
 	var sh := Blueprint.sheet(bld, "Floor 1")
 	var texts := []
 	for e in sh["ents"]:

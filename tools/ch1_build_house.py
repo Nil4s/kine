@@ -168,7 +168,7 @@ def subtract(x0, x1, y0, y1, holes):
 DOOR_W, DOOR_H = 914.0, 2032.0
 IDOOR_W = 762.0
 WIN_W, WIN_H, WIN_SILL = 914.0, 1219.0, 914.0
-BATH_W, BATH_H, BATH_SILL = 610.0, 914.0, 1370.0
+BATH_W, BATH_H, BATH_SILL = 610.0, 914.0, 1219.0
 RO = 25.0     # rough opening is the unit + 25 mm
 
 # openings per wall: along = centre along the wall's axis; kind door|window|cased; bearing: header 2-2x8 (else a 2x4 flat)
@@ -274,6 +274,7 @@ def build():
                 hy0, hy1, nom = yt, yt + JOIST_D, "2-2x8"
             else:
                 hy0, hy1, nom = yt, yt + T, "2x4 flat"
+            assert hy1 <= Y_T1 + 0.01, (w, oi, hy1)
             r.box("header.%s.%d" % (w, oi), "header", nom, *bx(w, ro0 - 2 * T, ro1 + 2 * T, hy0, hy1), span=ro1 - ro0, label=label)
             # window sill and cripples under
             if kind == "window":
@@ -388,9 +389,7 @@ def build():
                 pi += 1
     # gable end sheathing (a pentagon on each end)
     for ei, x0 in enumerate([-OSB, W]):
-        pts = [(0.0, HW), (DP, HW), (DP, lower(DP) + RAFT_V), (RIDGE_Z, lower(RIDGE_Z - RFT / 2) + RAFT_V), (0.0, lower(0.0) + RAFT_V)]
-        # keep under the rafters' top edge: the underside of the roof sheathing
-        pts = [(0.0, HW), (DP, HW), (DP, lower(D) + 0.0 + RAFT_V * 0.0 + (D - D) * TAN + (HW - HW)), (RIDGE_Z, lower(RIDGE_Z - RFT / 2)), (0.0, lower(D))]
+        pts = [(0.0, HW), (DP, HW), (DP, lower(0.0) + RAFT_V), (RIDGE_Z, lower(RIDGE_Z - RFT / 2) + RAFT_V), (0.0, lower(0.0) + RAFT_V)]
         r.poly("sheathing.gable.%d" % ei, "gable_sheathing", "7/16 OSB", pts, x0, OSB)
     r.mark("Wall sheathing")
     # ---- roof sheathing: two rows of 4 x 8 sheets per slope, 8 columns of 1219.2
