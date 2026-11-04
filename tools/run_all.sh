@@ -962,3 +962,4 @@ EXTRA="$EXTRA c65:w"   # c65: over 256 bodies the look-merge ignores the body na
 
 
 EXTRA="$EXTRA c62:w"   # C62: no bone end under the toolbar or a panel in the opening view / Fit / Home at 1024, 1280, 1920
+EXTRA="$EXTRA ch6:w"   # CH6: a bowline tied by a Kine hand then loaded: rope self contact + friction, capstan, crossing code, no slip (tests/ch6_test.gd)
