@@ -912,3 +912,4 @@ EXTRA="$EXTRA c45:w"   # c45: Alt+click through to the hidden face; sketch stack
 
 
 EXTRA="$EXTRA c47:w"   # c47: mirror you can trust: facing axis from geometry (#273), side from geometry (#274), mirror seam kink (#251) (tests/c47_test.gd)
+EXTRA="$EXTRA b07:w"   # b07: no two visible buttons overlap in Easy Part at 1600x900 / 1280x720 / 1024x600 (tests/b07_test.gd)
