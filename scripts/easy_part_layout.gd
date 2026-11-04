@@ -1401,14 +1401,28 @@ func _flat_narrow() -> void:
 ## stops short of the views and the panel's sliders. The chips narrow and their words trim (the tooltips have the full words); wide, nothing changes
 func _round_narrow() -> void:
 	var btns := ((round_box.get_child(0).get_child(0)) as Control).get_children()   # s013: box > column > the chip row
-	var room := view_box.position.x - 8.0 - round_box.position.x - 14.0 - 6.0 * float(btns.size() - 1)
-	var narrow := get_viewport().get_visible_rect().size.x < NARROW_W
-	var bw := clampf(floorf(room / float(btns.size())), 96.0, 176.0) if narrow else 176.0
+	var room_all := view_box.position.x - 8.0 - round_box.position.x - 14.0   # B07: the row's whole width left of the view buttons
+	var n := btns.size()
+	var bw := 176.0
+	var rows := 1
+	var is_narrow := get_viewport().get_visible_rect().size.x < NARROW_W
+	for r in ([1] if is_narrow else [1, 2, 3, 4]):   # narrow (1024): one row only, the Tilt column and the printing box below have no room for a second   # B07: the fewest rows whose chips are at least 96 px (176 if they all fit on one row, as before)
+		rows = r
+		var k := ceili(float(n) / float(r))
+		bw = clampf(floorf((room_all - 6.0 * float(k - 1)) / float(k)), 56.0 if is_narrow else 96.0, 176.0)
+		if (room_all - 6.0 * float(k - 1)) / float(k) >= 96.0:
+			break
+	var narrow := bw < 176.0 or get_viewport().get_visible_rect().size.x < NARROW_W
+	if get_viewport().get_visible_rect().size.x < NARROW_W and rows == 1:
+		bw = clampf(floorf((room_all - 6.0 * float(n - 1)) / float(n)), 56.0, 176.0)
 	for b in btns:
 		(b as Button).custom_minimum_size.x = bw
 		(b as Button).clip_text = narrow
 		(b as Button).text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if narrow else TextServer.OVERRUN_NO_TRIMMING
 		(b as Button).add_theme_font_size_override("font_size", 14 if narrow else 16)
+	var k2 := ceili(float(n) / float(rows))
+	(round_box.get_child(0).get_child(0) as Control).custom_minimum_size.x = minf(room_all, float(k2) * bw + 6.0 * float(k2 - 1))
+	round_box.get_child(0).get_child(0).reset_size()
 	round_box.reset_size()
 
 

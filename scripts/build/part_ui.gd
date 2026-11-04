@@ -23,6 +23,7 @@ const PANEL_W := 250.0
 const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
+const SketchImportUI := preload("res://scripts/build/sketch_import_ui.gd")
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]   # Constrain: the rule row (CON_TOOLS, below)
 const CHEAVY := preload("res://scripts/build/combine_heavy.gd")   # C46: a many-tool combine runs stepwise with progress and Cancel
 const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Primitive", "Ornament", "Roof shell"]
@@ -88,6 +89,8 @@ var easy := false              # ...with EASY PART's screen (scripts/easy_part.g
 var ep: EasyPart
 var warn_ui: PartWarnUI        # item 221: the Warnings panel (scripts/build/part_warn_ui.gd), shown with the Part workspace
 var easy_open_btn: Button
+var import2d_btn: Button   # C53: Import 2D (sketch_import_ui.gd)
+var import2d_menu: PopupMenu
 var tool := ""
 var sk := ""                   # the sketch being edited ("" = the model is showing)
 var snap_mm := 5.0
@@ -152,6 +155,7 @@ var f_to: LineEdit
 var f_dur: LineEdit
 var f_dial: Control
 var status := ""
+var c50: PartC50   # C50: reference geometry from the solid + item labels
 var c15: PartC15UI   # C15: move-sketch-to-plane + SVG import rows in the sketch palette
 var pill_text := ""   # XFIX2: the last size readout drawn next to the cursor (its words, and where it sits)
 var pill_at := Vector2.ZERO
@@ -188,6 +192,7 @@ var grid_chk: CheckBox
 var dims_chk: CheckBox
 var dlg_box: VBoxContainer
 var dlg_rows: VBoxContainer
+var dlg_scroll: ScrollContainer   # C58
 var dlg_info: Label
 var ok_btn: Button
 var cancel_btn: Button
@@ -301,6 +306,7 @@ func setup(b: BuildUI) -> void:
 	easy_open_btn.name = "part_easy_open"
 	_icon(easy_open_btn, "part_part")
 	row.add_child(easy_open_btn)
+	SketchImportUI.attach(self)
 	for c in house_btns:
 		if c.name == "build_choose_open":
 			reopen_btn = c as Button
@@ -583,6 +589,7 @@ func _build_side() -> void:
 	nums_vb.add_theme_constant_override("separation", 4)
 	sketch_box.add_child(nums_vb)
 	c15 = PartC15UI.new(self)
+	c50 = PartC50.new(self)
 	hinge_box = VBoxContainer.new()
 	hinge_box.name = "part_hinge_box"
 	hinge_box.add_theme_constant_override("separation", 6)
@@ -646,7 +653,7 @@ func _build_side() -> void:
 	f_dur = _field("part_seconds")
 	f_dial = Control.new()
 	f_dial.name = "part_dial"
-	f_dial.custom_minimum_size = Vector2(120, 70)
+	f_dial.custom_minimum_size = Vector2(120, 52)   # B08: was 70; the hinge dialog gained C48's frame row
 	f_dial.mouse_filter = Control.MOUSE_FILTER_STOP
 	f_dial.draw.connect(_draw_dial)
 	f_dial.gui_input.connect(_dial_input)
@@ -656,7 +663,7 @@ func _build_side() -> void:
 	vb.add_child(dlg_box)
 	dlg_rows = VBoxContainer.new()
 	dlg_rows.add_theme_constant_override("separation", 6)
-	dlg_box.add_child(dlg_rows)
+	dlg_scroll = PartDlgScroll.wrap(dlg_box, dlg_rows)   # C58
 	f_num = _field("part_num")
 	f_ang = _field("part_angle")
 	f_both = CheckBox.new()
@@ -1056,6 +1063,8 @@ func scr(v: Vector2) -> Vector2:
 
 func _add_ent(e: Dictionary) -> void:
 	_sk()["ents"].append(e)
+	if c50 != null:
+		PartC50.pin_new_line(_sk(), _sk()["ents"].size() - 1)
 	_after_sketch_edit()
 
 
@@ -1177,6 +1186,8 @@ func _grey_click(ev: InputEvent, b: Button) -> void:
 
 
 func _press_sketch(p: Vector2) -> bool:
+	if c50 != null and c50.press(p):
+		return true
 	if _con_press(p):   # GAP 9: a rule's click, or an end picked up to drag
 		pov.queue_redraw()
 		return true
@@ -1185,6 +1196,8 @@ func _press_sketch(p: Vector2) -> bool:
 		_say("Nothing to draw there: turn the view onto the sketch plane (its name is in the browser)")   # XFIX2: a press off the plane says why
 		return true
 	var a := snap(h as Vector2)
+	if c50 != null:
+		a = c50.snap(p, a)
 	if tool == "Spline" and draft.is_empty():
 		var hp := _spline_point_at(p)
 		if not hp.is_empty():
@@ -1320,6 +1333,8 @@ func _motion(p: Vector2) -> bool:
 			draft["b"] = snap(h as Vector2)
 		if tool == "Dimension":
 			hover_ent = pick_ent(p)
+		if c50 != null:
+			c50.hover(p)
 		pov.queue_redraw()
 		return false
 	if tool == "Fillet" or tool == "Chamfer":
@@ -2473,6 +2488,7 @@ func _browser_sync() -> void:
 		ob.tooltip_text = "start a sketch on %s" % Part.plane_words(_rec(), String(f["id"]))
 		ob.pressed.connect(func(): begin_sketch(String(f["id"])))
 		browser_vb.add_child(ob)
+	SketchImportUI.browser_row(self, browser_vb)   # C53
 	_canvas_browser_rows()   # GAP 3: the pictures (show / hide)
 
 
@@ -2662,6 +2678,8 @@ func sync() -> void:
 	extras.visible = sketch_box.visible and side.visible
 	if c15 != null:
 		c15.sync()
+	if c50 != null:
+		c50.sync()
 	dlg_box.visible = not dlg.is_empty()
 	hinge_box.visible = show and dlg.is_empty() and sk == "" and not _sel_hinge().is_empty()
 	if sk != "" and dlg.is_empty():
@@ -2715,6 +2733,8 @@ func _rebuild(show: bool) -> void:
 	Part.PartInstances.sync(part_mesh, res)   # s261
 	edge_cache = res["edges"]
 	face_cache = res["faces"]
+	if c50 != null:
+		c50.sync()   # C50: the references follow the solid
 	thread_look_sync()
 
 
@@ -2824,6 +2844,9 @@ func _profile_text(f: Dictionary) -> String:
 		return "crosses itself at (%s, %s) mm: not a shape" % [Part._short(float(cxp["at"][0])), Part._short(float(cxp["at"][1]))]   # s229
 	var face := Part.KCad.sketch_face(Part.items_of(f["ents"]), Vector3.ZERO, Vector3.RIGHT, Vector3.BACK)
 	if face == 0:
+		var shapes := Part.loops_of(f["ents"])
+		if shapes.size() > 1 and SketchImportUI.all_closed(shapes):   # C53: several separate closed shapes (an import): each one pulls on its own
+			return "%d closed shapes: ready to Pull/Extrude" % shapes.size()
 		return "not closed yet (%s)" % String(Part.KCad.last_error()).get_slice("\n", 0).left(60)
 	Part.KCad.release(face)
 	var d: int = f.get("dims", []).size()
@@ -2861,6 +2884,7 @@ func layout(cl: Rect2) -> void:
 	browser.size = Vector2(BROWSER_W, minf(browser_need, avail))
 	browser.position = Vector2(cl.position.x + 8.0, cl.position.y + 6.0)
 	side.reset_size()
+	PartDlgScroll.fit(dlg_scroll, dlg_rows, side, avail)   # C58
 	# PCUBE: a dialog's own width can be more than PANEL_W (its rows); the panel grows and stays LEFT of the cube column
 	side.size.x = maxf(PANEL_W, side.get_combined_minimum_size().x)
 	side.size.y = minf(side.get_combined_minimum_size().y, avail)
@@ -3078,6 +3102,8 @@ func _draw_sketch() -> void:
 		for d in f.get("dims", []):
 			_draw_dim(ents, d)
 	_health_draw(ents)   # W02: the clashing rules marked
+	if c50 != null:
+		c50.draw()
 	_con_draw()   # GAP 9: the rule glyphs
 	_draw_draft()
 
@@ -3447,8 +3473,9 @@ func _hinge_open(f: Dictionary, edit: int) -> void:
 func _hinge_rows() -> void:
 	_clear_rows()
 	var bi := int(hp.get("body", -1))
-	dlg_rows.add_child(_label("Turning part:  %s" % _part_name(bi) if bi >= 0 else "Turning part:  not yet"))
-	dlg_rows.add_child(_label("Line:  picked" if hp.has("d") else "Line:  not yet"))
+	# B08: one label for part + line (C48's frame row below it made the dialog one row taller and pushed OK under the timeline)
+	dlg_rows.add_child(_label(("Turning part:  %s" % _part_name(bi) if bi >= 0 else "Turning part:  not yet") + ("   Line: picked" if hp.has("d") else "   Line: not yet")))
+	dlg_rows.add_child(C48Joints.frame_row(self))
 	if hp.has("d"):
 		_hrow("From", f_from, "deg")
 		_hrow("To", f_to, "deg")

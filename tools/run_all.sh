@@ -892,6 +892,7 @@ EXTRA="$EXTRA c39:w"   # c39: FBX materials (tests/c39_test.gd)
 
 EXTRA="$EXTRA c41:w"   # c41: #184 invert orbit X / Y apart, #311 bad spots (built by C05) checked
 
+EXTRA="$EXTRA c53:w"   # c53: SVG/DXF import into a Part sketch (tests/c53_test.gd)
 
 EXTRA="$EXTRA c42:w"   # C42 stay-in-place export toggle + lightmap UV1 Blender readback (tests/c42_test.gd)
 
@@ -912,3 +913,30 @@ EXTRA="$EXTRA c45:w"   # c45: Alt+click through to the hidden face; sketch stack
 
 
 EXTRA="$EXTRA c47:w"   # c47: mirror you can trust: facing axis from geometry (#273), side from geometry (#274), mirror seam kink (#251) (tests/c47_test.gd)
+EXTRA="$EXTRA c51:w"
+EXTRA="$EXTRA c48:w"   # c48: joints leave the app (tests/c48_test.gd, c48_blender.py)
+EXTRA="$EXTRA c48ui:w"   # c48ui: joints export + frame row by real clicks (tests/c48ui_test.gd)
+EXTRA="$EXTRA c50:w"   # c50: sketch reference geometry + item labels (tests/c50_test.gd)
+
+
+EXTRA="$EXTRA c58:w"   # C58: Part side dialogs keep OK/Cancel reachable, tests/c58_test.gd
+
+
+EXTRA="$EXTRA c52:w"   # c52: Gear template Rack and pinion mode (pitch, centre distance, backlash, roll overlap measured on the mesh), Gear pair byte-identical, pt_BR (tests/c52_test.gd; needs the CAD DLL)
+
+
+EXTRA="$EXTRA s245:w"   # s245: look-table kinds window back / window grid / door panel / tree / grass (tests/s245_test.gd)
+
+
+
+EXTRA="$EXTRA c55:w"   # c55: one SVG parser, 16 recorded output hashes unchanged (tests/c55_test.gd)
+
+
+EXTRA="$EXTRA b07:w"   # b07: no two visible buttons overlap in Easy Part at 1600x900 / 1280x720 / 1024x600 (tests/b07_test.gd)
+
+
+EXTRA="$EXTRA c56:w"   # c56: English ANIMATE/SURFACE tabs fit their cell at 1280 and 1920 (tests/c56_test.gd)
+
+
+
+EXTRA="$EXTRA c57:w"   # c57: slicer-like print estimate (walls + infill, time from flow, bigger-than-bed scale models, 5 kg sanity) against Bambu Studio on a cube and Benchy (tests/c57_test.gd)

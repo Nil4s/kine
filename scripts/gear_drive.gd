@@ -27,6 +27,8 @@ static func pair_of(rec: Dictionary) -> Dictionary:
 	if String(e.get("t", "")) != "gearpair":
 		return {}
 	var p: Dictionary = e.get("p", {})
+	if int(roundf(float(p.get("mode", 0.0)))) == 1:   # c52: Rack and pinion has no big gear to turn
+		return {}
 	if not (p.has("teeth") and p.has("ratio") and p.has("module")):
 		return {}
 	var n1 := int(roundf(float(p["teeth"])))

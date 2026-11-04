@@ -83,6 +83,8 @@ static func compute(S: Scene, inp: Dictionary) -> Dictionary:
 	for k in tc.size():
 		var s: Dictionary = tc[k]
 		var c := int(s["card"])
+		if c < 0 or c >= ts.size():
+			continue   # B05: a timing suggestion of a scene with more cards (a stale coach db) names no card of this one
 		items.append({"judge": "TIMING", "t0": float(ts[c][0]), "t1": float(ts[c][1]),
 			"text": "card %d %s: move %.2f s -> %.2f s" % [c + 1, String(s["kind"]).to_lower(), float(s["from"]), float(s["to"])], "fix": {"kind": "timing", "i": k}})
 	for k in (inp.get("push", []) as Array).size():

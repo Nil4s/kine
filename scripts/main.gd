@@ -268,7 +268,7 @@ const RIBBON_GROUPS := {
 		["PHYSICS", ["Make it physical", "Accept span", "Keep this pose", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check"]],
 		["FIGHT", ["Fight distance", "Fit the ring", "Auto opponent", "Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound"]],
 		["MUSIC", ["Fight to the beat", "Choreograph to the song"]], ["STYLE", ["My style", "Use my style", "Star this clip", "My best take", "Make this one more like my best", "What I learned from you", "My combos"]],
-		["CAMERA", ["Auto camera", "My camera", "Frame it my way"]], ["SHOW", ["Dummy (H)", "Frame data", "Frame boxes", "Frame rate"]]],
+		["CAMERA", ["Auto camera", "My camera", "Frame it my way", "Shot list", "Scene lines"]], ["SHOW", ["Dummy (H)", "Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export model (GLB / OBJ)", "Export frame data (json)...", "Render shots (mp4)", "Use as a prop", "Open exports folder"]], ["PLAN", ["Floor plan", "Save version"]], ["SHARE", ["Share as QR", "Pack scene (zip)", "Unpack zip..."]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API", "Next poses"]]],
@@ -282,7 +282,7 @@ const RIBBON_REST := {"MODEL": ["Save to body", "Open...", "Use in scene", "Loop
 	"SET": ["Turn left", "Turn right", "Step up", "Throw to...", "Sit down", "Stand up", "Get up", "Add impact frames", "Remove impact frames"],
 	"EXPORT": ["Use as a prop", "Open exports folder"], "CHECK": ["Fit the ring", "Safety sheet", "Real-mocap check", "Speed limits", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check",
 	"Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound", "Star this clip", "My best take", "Make this one more like my best",
-	"What I learned from you", "My combos", "Frame it my way"],
+	"What I learned from you", "My combos", "Frame it my way", "Shot list", "Scene lines"],
 	# BUILD (the Part workspace's rarer tools): under their captions SKETCH / CREATE / MODIFY, not on the row, so Fillet fits at 1280 x 720
 	"BUILD": ["Arc", "Dimension", "Constrain", "Mirror", "Chamfer", "Loft", "Offset plane", "Canvas", "Appearance", "Sweep", "Pattern", "Combine", "Offset face", "Draft", "Roof shell", "Primitive", "Ornament"]}
 ## PAGES (docs/PAGES_PLAN.md, step 1; DaVinci Resolve's page bar): one bar along the bottom, each page its own layout over
@@ -2991,6 +2991,7 @@ func _shade_menu_sync() -> void:
 		lp.set_item_checked(i, shading.sky if k2 == "sky" else (shading.hdri != "" if k2 == "hdri" else k2 == shading.lights))
 		if k2 == "hdri_clear":
 			lp.set_item_disabled(i, shading.hdri == "")
+			lp.set_item_tooltip(i, "" if shading.hdri != "" else GREY_TAG.strip_edges() + " no picture background is set: choose Picture background first")   # B07
 	ui_shade_btn.icon = Icons.tex({"wireframe": "shade_wire", "matcap": "shade_matcap", "xray": "shade_xray", "silhouette": "shade_sil"}.get(shading.mode, "shade_solid"))
 
 
@@ -11040,8 +11041,8 @@ func _hands_refresh() -> void:
 			continue
 		(d["state"] as Label).text = st
 		(d["both"] as Button).disabled = on_h
-		(d["let_l"] as Button).disabled = not (on_h and o == "hand_l")
-		(d["let_r"] as Button).disabled = not (on_h and o == "hand_r")
+		_grey(d["let_l"], "" if (on_h and o == "hand_l") else "the left hand is not holding the weapon: nothing to let go")   # B07: greyed says why
+		_grey(d["let_r"], "" if (on_h and o == "hand_r") else "the right hand is not holding the weapon: nothing to let go")
 		(d["follow"] as Button).set_pressed_no_signal(held)
 		(d["only"] as Button).set_pressed_no_signal(only_part)
 	_blade_sync()
@@ -12386,11 +12387,13 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Library": "library", "Export model (GLB / OBJ)": "export_glb", "Throw to...": "throw","Reactions": "react", "React to the hit (physics)": "react_hit", "Impact frames": "impact", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Pack scene (zip)": "pack", "Unpack zip...": "unpack", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Mirror to facing": "mirror_facing", "Symmetry": "symmetry", "Smart drag": "smart", "Keep balance": "keep_balance", "Ouch meter": "ouch", "Show problems on the body": "red_spots", "Collision (C)": "collision",
+const ICON_OF := {"Library": "library", "Export model (GLB / OBJ)": "export_glb", "Throw to...": "throw","Reactions": "react", "React to the hit (physics)": "react_hit", "Impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Pack scene (zip)": "pack", "Unpack zip...": "unpack", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Mirror to facing": "mirror_facing", "Symmetry": "symmetry", "Smart drag": "smart", "Keep balance": "keep_balance", "Ouch meter": "ouch", "Show problems on the body": "red_spots", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "Parry rebound": "parry", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Reaction direction": "reactdir", "Sell the hit": "sellhit", "Gaze director": "gaze", "Safety sheet": "safety", "Floor plan": "floorplan", "Breakfall check": "breakfall", "Recovery step": "recovery", "Fight rhythm": "rhythm", "Precog check": "precog", "Auto opponent": "autoopp", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Momentum ledger": "momentum", "Airborne spin check": "spin", "Real-mocap check": "mocapchk", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "Star this clip": "star_clip", "My best take": "best_take", "Make this one more like my best": "best_nudge", "Speed limits": "speed_env", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Keep this pose": "keep", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix", "Fit the ring": "arena",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Body: fighter archetype...": "archetype", "Body: from height, weight, sex, age, build": "body_nums", "Mannequin as shipped": "mannequin_ship", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
+	# B05: pictures for the buttons that had none
+	"Face: brows, eyes, jaw, mouth...": "face_rig", "Hair: add a ponytail": "hair_add", "Hair: take the hair off": "hair_off", "Shot list": "shot_list", "Scene lines": "scene_lines", "Realistic": "realistic", "Temple light": "temple_light", "Light and camera": "light_cam", "Final shot": "final_shot", "Graphics card": "gpu_card", "Make it a solid part": "part_solid", "Sculpt the part": "part_sculpt", "Back into the part": "part_back", "Add impact frames": "impact_add",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
 	"Light: three-point": "lit_three", "Light: rim": "lit_rim", "Light: noir": "lit_noir", "Light: daylight": "lit_day",
 	"Add prop": "prop", "Object library...": "library", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
@@ -15512,6 +15515,8 @@ func _fit_page_bar() -> void:
 	var w := clampf(floorf((room - NEXT_RESERVE) / maxi(shown, 1)), TAB_MIN_W, TAB_W)
 	for b in ui_page_btns.values():
 		((b as Button).get_parent() as Control).custom_minimum_size.x = w   # the tab's cell (its clip) takes the width
+	for p in ui_page_btns:   # C51: a narrow cell (1024x600) drops the icon so the name fits
+		C51Tabs.apply(p, ui_page_btns[p], w)
 
 
 ## R6: THE ONE NEXT STEP, computed from the state; the same on every page, never empty. {text, cmd, kind}: cmd is the
@@ -25763,6 +25768,7 @@ func _gpu_menu_build(pm: PopupMenu) -> void:
 	pm.add_separator("This PC's graphics card")
 	pm.add_item(GpuTier.summary(GpuTier.info()), 100)
 	pm.set_item_disabled(pm.get_item_index(100), true)
+	pm.set_item_tooltip(pm.get_item_index(100), GREY_TAG.strip_edges() + " this line only names the graphics card this PC has")   # B07
 	pm.add_check_item("Fast view (FSR 2)", 101)
 	pm.set_item_tooltip(pm.get_item_index(101), "the live view is drawn at 2/3 size and sharpened back up (AMD FSR 2, built into Godot): for a PC whose graphics card is the limit. Videos you save are always full quality. Needs the High drawing engine (Forward+)")
 	pm.add_separator("Saving video")
@@ -25776,11 +25782,15 @@ func _gpu_menu_sync(pm: PopupMenu) -> void:
 	var tier := String(GpuTier.info()["tier"])
 	pm.set_item_checked(pm.get_item_index(101), GpuTier.fast_view)
 	pm.set_item_disabled(pm.get_item_index(101), Quality.current_renderer() != "forward_plus")
+	var _t101 := "the live view is drawn at 2/3 size and sharpened back up (AMD FSR 2, built into Godot): for a PC whose graphics card is the limit. Videos you save are always full quality. Needs the High drawing engine (Forward+)"
+	pm.set_item_tooltip(pm.get_item_index(101), _t101 + ("" if Quality.current_renderer() == "forward_plus" else " " + GREY_TAG.strip_edges() + " this needs the High drawing engine: switch the drawing engine to High first"))   # B07
 	for k in GpuTier.ENCODERS.size():
 		var e: String = GpuTier.ENCODERS[k]
 		var i := pm.get_item_index(110 + k)
 		pm.set_item_checked(i, e == GpuTier.pref)
-		pm.set_item_disabled(i, e != "auto" and not GpuTier.encoders_for(tier).has(e))
+		var _no: bool = e != "auto" and not GpuTier.encoders_for(tier).has(e)
+		pm.set_item_disabled(i, _no)
+		pm.set_item_tooltip(i, "which chip makes the .mp4. Auto and 'on the CPU' use the processor. The graphics card (NVENC) frees the processor but was not measurably faster in Kine's own exports; a choice it cannot do here falls back to the processor (remembered)" + (" " + GREY_TAG.strip_edges() + " this PC's graphics card cannot make this video: pick Auto or the CPU" if _no else ""))   # B07
 
 
 func _gpu_pressed(id: int, pm: PopupMenu) -> void:
