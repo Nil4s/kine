@@ -6,7 +6,7 @@ class_name HandsDock
 
 const WIDTHS := [350.0, 335.0, 320.0, 450.0, 560.0, 300.0]   # plain widths, widest-looking first; the wider ones wrap to fewer rows
 const PLAIN := 99   # entries from this index on would be tried compact (12 px type): none now, the plain card fits a free corner
-const STEP := 10.0
+const STEP := 6.0
 
 
 ## every visible Button and the named labels in `root` that are not inside `card` (global rects clipped to `view`)
@@ -86,7 +86,7 @@ static func place(card: Control, hb: Control, view: Rect2, blk: Array, body: Rec
 						if r.intersects(b):
 							hit = true
 							break
-					if not hit and not (avoid_body and r.intersects(body)) and not PickDodge.covers(r, pts, 8.0):
+					if not hit and not (avoid_body and r.intersects(body)) and not PickDodge.covers(r, pts, 2.0):
 						_compact(card, hb, wi >= PLAIN)
 						hb.custom_minimum_size = Vector2(w - 20.0, 0)
 						card.size = ps   # the flow wraps to this width on the next layout; reset_size would keep the old wrapped height
