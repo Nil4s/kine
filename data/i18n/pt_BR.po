@@ -907,6 +907,30 @@ msgstr "Usar quadro"
 msgid "Reference from the solid"
 msgstr "Referência do sólido"
 
+msgid "Import 2D"
+msgstr "Importar 2D"
+
+msgid "Import 2D: an .svg or .dxf drawing becomes a new sketch on the chosen plane, in mm (SVG px at 96 dpi). Closed shapes can be extruded. What cannot be read is listed, never dropped quietly (one undo step)"
+msgstr "Importar 2D: um desenho .svg ou .dxf vira um novo esboço no plano escolhido, em mm (px do SVG a 96 dpi). Formas fechadas podem ser extrudadas. O que não pode ser lido é listado, nunca descartado em silêncio (um passo de desfazer)"
+
+msgid "Right"
+msgstr "Direita"
+
+msgid "Import 2D drawing (.svg, .dxf)"
+msgstr "Importar desenho 2D (.svg, .dxf)"
+
+msgid "Could not read %s: the file is empty or not there"
+msgstr "Não foi possível ler %s: o arquivo está vazio ou não existe"
+
+msgid "Nothing to import: the file has no lines, arcs, circles or closed shapes this can read%s"
+msgstr "Nada para importar: o arquivo não tem linhas, arcos, círculos ou formas fechadas que possam ser lidos%s"
+
+msgid ". Not imported: %s"
+msgstr ". Não importado: %s"
+
+msgid "Imported %d shapes from the %s file. %s%s"
+msgstr "%d formas importadas do arquivo %s. %s%s"
+
 msgid "   Pick what you want to make"
 msgstr "   Escolha o que você quer fazer"
 

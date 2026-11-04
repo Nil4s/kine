@@ -892,6 +892,7 @@ EXTRA="$EXTRA c39:w"   # c39: FBX materials (tests/c39_test.gd)
 
 EXTRA="$EXTRA c41:w"   # c41: #184 invert orbit X / Y apart, #311 bad spots (built by C05) checked
 
+EXTRA="$EXTRA c53:w"   # c53: SVG/DXF import into a Part sketch (tests/c53_test.gd)
 
 EXTRA="$EXTRA c42:w"   # C42 stay-in-place export toggle + lightmap UV1 Blender readback (tests/c42_test.gd)
 
@@ -925,3 +926,7 @@ EXTRA="$EXTRA c52:w"   # c52: Gear template Rack and pinion mode (pitch, centre 
 
 
 EXTRA="$EXTRA s245:w"   # s245: look-table kinds window back / window grid / door panel / tree / grass (tests/s245_test.gd)
+
+
+
+EXTRA="$EXTRA c55:w"   # c55: one SVG parser, 16 recorded output hashes unchanged (tests/c55_test.gd)

@@ -23,6 +23,7 @@ const PANEL_W := 250.0
 const BROWSER_W := 196.0
 const TL_H := 84.0
 const DOUBLE_MS := 650
+const SketchImportUI := preload("res://scripts/build/sketch_import_ui.gd")
 const SKETCH_TOOLS := ["Line", "Rectangle", "Circle", "Arc", "Spline", "Dimension", "Constrain"]   # Constrain: the rule row (CON_TOOLS, below)
 const CHEAVY := preload("res://scripts/build/combine_heavy.gd")   # C46: a many-tool combine runs stepwise with progress and Cancel
 const CREATE_TOOLS := ["Extrude", "Revolve", "Mirror", "Loft", "Sweep", "Offset plane", "Split", "Canvas", "Pattern", "Combine", "Primitive", "Ornament", "Roof shell"]
@@ -88,6 +89,8 @@ var easy := false              # ...with EASY PART's screen (scripts/easy_part.g
 var ep: EasyPart
 var warn_ui: PartWarnUI        # item 221: the Warnings panel (scripts/build/part_warn_ui.gd), shown with the Part workspace
 var easy_open_btn: Button
+var import2d_btn: Button   # C53: Import 2D (sketch_import_ui.gd)
+var import2d_menu: PopupMenu
 var tool := ""
 var sk := ""                   # the sketch being edited ("" = the model is showing)
 var snap_mm := 5.0
@@ -303,6 +306,7 @@ func setup(b: BuildUI) -> void:
 	easy_open_btn.name = "part_easy_open"
 	_icon(easy_open_btn, "part_part")
 	row.add_child(easy_open_btn)
+	SketchImportUI.attach(self)
 	for c in house_btns:
 		if c.name == "build_choose_open":
 			reopen_btn = c as Button
@@ -2484,6 +2488,7 @@ func _browser_sync() -> void:
 		ob.tooltip_text = "start a sketch on %s" % Part.plane_words(_rec(), String(f["id"]))
 		ob.pressed.connect(func(): begin_sketch(String(f["id"])))
 		browser_vb.add_child(ob)
+	SketchImportUI.browser_row(self, browser_vb)   # C53
 	_canvas_browser_rows()   # GAP 3: the pictures (show / hide)
 
 
@@ -2839,6 +2844,9 @@ func _profile_text(f: Dictionary) -> String:
 		return "crosses itself at (%s, %s) mm: not a shape" % [Part._short(float(cxp["at"][0])), Part._short(float(cxp["at"][1]))]   # s229
 	var face := Part.KCad.sketch_face(Part.items_of(f["ents"]), Vector3.ZERO, Vector3.RIGHT, Vector3.BACK)
 	if face == 0:
+		var shapes := Part.loops_of(f["ents"])
+		if shapes.size() > 1 and SketchImportUI.all_closed(shapes):   # C53: several separate closed shapes (an import): each one pulls on its own
+			return "%d closed shapes: ready to Pull/Extrude" % shapes.size()
 		return "not closed yet (%s)" % String(Part.KCad.last_error()).get_slice("\n", 0).left(60)
 	Part.KCad.release(face)
 	var d: int = f.get("dims", []).size()
