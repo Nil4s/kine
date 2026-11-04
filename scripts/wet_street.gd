@@ -1,8 +1,9 @@
 class_name WetStreet
 extends Node3D
 ## CH5c: wet cobblestone street at night, rebuilt on the engine's PBR (StandardMaterial3D), SSR, a reflection probe and real omni lights.
-## No hand-written ground shader. The height field of the setts comes from a real CC0 photo texture (Poly Haven "Cobblestone Floor 04",
-## Rob Tuytel, https://polyhaven.com/a/cobblestone_floor_04): scripts/../tools/ch5c_prep_tiles.py segments its sett outlines (a LABEL raster) and
+## No hand-written ground shader. The height field of the setts comes from a real CC0 photo texture (fix pass 2: Poly Haven "Cobblestone Floor 09",
+## Charlotte Baglioni, https://polyhaven.com/a/cobblestone_floor_09: rectangular setts in running-bond rows with a lengthwise channel, like ref2;
+## pass 1 used "Cobblestone Floor 04", Rob Tuytel, rounded cobbles): tools/ch5c_prep_tiles.py segments its sett outlines (a LABEL raster) and
 ## keeps its displacement map; the asphalt strip is Poly Haven "Worn Asphalt" (Amal Kumar, https://polyhaven.com/a/worn_asphalt), CC0.
 ## World: metres, +y up. Patch x in [X0, X0+SPAN_X], z in [Z0, Z0+SPAN_Z]; the camera stands on +z and looks toward -z.
 ## Data model (kept from CH5/CH5b so their bars A, C, E run unchanged): height(), himg (RF metres), mimg (RGBA8 wet albedo + wet roughness), bowls, level.
@@ -44,25 +45,31 @@ const BULB_VIS := 0.3
 const FOV := 61.0                    ## the photo's own camera: f = 1630 px over its 1922 px height = vertical 61.0 deg; the 1280x720 render holds the
                                      ## whole photo frame in its central 480 x 720 px (tools/ch5c_side.py crops it for the side-by-side)
 const PITCH_DEG := 0.5               ## the photo's horizon is 14 px below its centre: atan(14 / 1630) = 0.5 deg up
-const TILE_M := 1.3                  ## the CC0 tile (1.5 m real) drawn at 1.3 m: setts 117 x 99 mm pitch; the photo's setts: 16 joint rows between rows
-                                     ## 1495 and 1910 (3.10 m -> 1.73 m from the camera) = 86-90 mm pitch along the lane, 110-150 mm across (mean 131)
+const TILE_M := 1.49                 ## the CC0 tile (2.175 m real, sett rows 132 mm: 124 px of 2048 by autocorrelation of its displacement) drawn at
+                                     ## 1.49 m so its rows are the photo's 90 mm: 16 joint rows between photo rows 1495 and 1910 (3.10 m -> 1.73 m from
+                                     ## the camera); setts then 90 x ~140 mm (photo: 110-157 mm across)
+const TILE_ALB_MEAN := 0.092         ## mean linear luminance of the tile's stone pixels (cf09 albedo); scaled to DRY_ALB_COBBLE
 const TILE_N := 1024
 const PX_M := TILE_M / float(TILE_N)
 const TILT_X := 0.045               ## per-stone tilt (slope), from the photo's glitter streak: half-width 0.24 m at 3.2 m from the camera
 const TILT_Z := 0.045               ## (x 560-800 at row 1500) needs a normal spread of (0.24/3.2 + 0.24/18) / 2 = 0.044
 
 ## lamp row: [bulb position, colour, light energy, post x offset, bulb emission]
-## 0: the photo's lamp, colour from its halo ring rgb (172, 157, 166); energy 40 at 11.3 m (pass 1) scaled by distance^2 to 21.1 m -> 140
+## 0: the photo's lamp, colour from its halo ring rgb (172, 157, 166). ENERGY = EXPOSURE CALIBRATION on a surface no bar reads: the timber fence
+##    (x 1.33, 11-17 m away, 0.8-1.4 m up, 12 points) in the dry render at energy 140 with a 0.5 albedo tint was 2.7x the photo in linear
+##    luminance (median of 12 ratios 0.375); with the tint now 1.0 that is 5.3x -> 140 x 0.375 / 2 = 26
 ## 1: the photo's cyan light at the far right end (px 790, 875): 1.3 m right, 2.4 m up, at the gate
 ## 2, 3: NOT in the photo frame: the street beyond the end gate, whose white house front is lit in the photo (rgb 77, 69, 66); kept so the
-##    CH5b bar S3 (>= 4 lamps) still describes the scene
+##    CH5b bar S3 (>= 4 lamps) still describes the scene. Energy 25 lit the house to sRGB 0.58 vs the photo's 0.30: x (0.30/0.58)^2.2 -> 6
 const LAMPS := [
-	[Vector3(-0.60, 5.24, -19.6), Vector3(1.0, 0.91, 0.97), 140.0, 0.20, 60.0],
+	[Vector3(-0.60, 5.24, -19.6), Vector3(1.0, 0.91, 0.97), 26.0, 0.20, 60.0],
 	[Vector3(1.3, 2.41, -20.8), Vector3(0.55, 1.0, 0.9), 1.0, 0.0, 12.0],
-	[Vector3(-3.5, 5.0, -24.0), Vector3(1.0, 0.92, 0.8), 25.0, 0.0, 30.0],     ## behind the left wall's end, as seen from the camera
-	[Vector3(-6.0, 5.0, -24.0), Vector3(1.0, 0.92, 0.8), 25.0, 0.0, 30.0],
+	[Vector3(-3.5, 5.0, -24.0), Vector3(1.0, 0.92, 0.8), 6.0, 0.0, 30.0],     ## behind the left wall's end, as seen from the camera
+	[Vector3(-6.0, 5.0, -24.0), Vector3(1.0, 0.92, 0.8), 6.0, 0.0, 30.0],
 ]
-const BOLLARD := Vector3(-0.16, 0.0, -4.0)   ## the S2 shadow caster (NOT in the photo; kept for bar S2), on the lamp 0 to camera axis
+const BOLLARD := Vector3(0.35, 0.0, -4.0)    ## the S2 shadow caster (NOT in the photo; kept for bar S2). Not on the lamp-camera axis any more: there it
+                                             ## stood in the mirror path of the B puddles (the path is 0.59 m up at z = -4); x 0.35 clears the
+                                             ## three poses' paths (x -1.04, -0.16, 0.73 at z = -4) and its shadow still falls toward the camera
 const WALL_X := 1.30                 ## left brick wall face at x = -1.30
 const PLINTH_X := 1.02               ## right: a low brick plinth (face x 1.02, top 0.47 m) under a timber fence (face 1.33, top 1.83 m)
 const PLINTH_H := 0.47
@@ -395,7 +402,7 @@ func bake() -> void:
 				var lg := at[_alb[tk + 1]]
 				var lb := at[_alb[tk + 2]]
 				var lu := 0.3 * lr + 0.59 * lg + 0.11 * lb
-				var sc := DRY_ALB_COBBLE / 0.22 * (0.8 + 0.4 * hash2(int(c[0]) + 31, int(c[1]) % 9973 + 17))
+				var sc := DRY_ALB_COBBLE / TILE_ALB_MEAN * (0.8 + 0.4 * hash2(int(c[0]) + 31, int(c[1]) % 9973 + 17))
 				ar = lerpf(lu, lr, 0.5) * sc
 				ag = lerpf(lu, lg, 0.5) * sc
 				ab = lerpf(lu, lb, 0.5) * sc
@@ -538,9 +545,9 @@ func build(eyes: Array = [Vector3(0, EYE, 1.5)]) -> void:
 	env = Environment.new()
 	var sky := Sky.new()
 	var psm := ProceduralSkyMaterial.new()
-	psm.sky_top_color = Color(0.012, 0.015, 0.008)      ## the photo's haze: sRGB (33, 36, 22) olive green
-	psm.sky_horizon_color = Color(0.017, 0.02, 0.01)
-	psm.ground_horizon_color = Color(0.017, 0.02, 0.01)
+	psm.sky_top_color = Color(0.13, 0.14, 0.086)        ## the photo's haze: sRGB (33, 36, 22) olive green (sky colours are sRGB: pass 1 gave linear values -> black)
+	psm.sky_horizon_color = Color(0.13, 0.14, 0.086)
+	psm.ground_horizon_color = Color(0.13, 0.14, 0.086)
 	psm.ground_bottom_color = Color(0.005, 0.006, 0.004)
 	psm.sky_energy_multiplier = 1.0
 	sky.sky_material = psm
@@ -561,7 +568,9 @@ func build(eyes: Array = [Vector3(0, EYE, 1.5)]) -> void:
 	env.glow_hdr_threshold = 1.5
 	env.glow_hdr_scale = 1.5
 	get_viewport().msaa_3d = Viewport.MSAA_4X
-	get_viewport().positional_shadow_atlas_size = 4096
+	get_viewport().positional_shadow_atlas_size = 8192
+	get_viewport().positional_shadow_atlas_quad_0 = Viewport.SHADOW_ATLAS_QUADRANT_SUBDIV_1   ## lamp 0 (the largest light) gets a 4096 slot: at 21 m a
+	                                                                                               ## 1024 slot's texel blurred a point light's shadow edge to 6.8 px (S2 control)
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -757,8 +766,10 @@ func _tex_mat(dname: String, nname: String, tint: Color, tile_m: float, rough: f
 
 ## dark brick wall on the left (Poly Haven "Dark Brick Wall", CC0), timber fence on the right ("Weathered Planks", CC0), a closing wall at the far end
 func _build_walls() -> void:
-	var brick := _tex_mat("brick_diff.jpg", "brick_nor_gl.jpg", Color(0.55, 0.5, 0.45), 1.05, 0.85)
-	var wood := _tex_mat("fence_diff.jpg", "fence_nor_gl.jpg", Color(0.5, 0.48, 0.45), 2.0, 0.8)
+	## albedo maps at their own albedo (tint 1; pass 1 had unexplained 0.5 tints). Poly Haven CC0: https://polyhaven.com/a/dark_brick_wall (1.05 m),
+	## https://polyhaven.com/a/weathered_planks (2.0 m)
+	var brick := _tex_mat("brick_diff.jpg", "brick_nor_gl.jpg", Color(1, 1, 1), 1.05, 0.85)
+	var wood := _tex_mat("fence_diff.jpg", "fence_nor_gl.jpg", Color(1, 1, 1), 2.0, 0.8)
 	var gate := StandardMaterial3D.new()
 	gate.albedo_color = Color(0.03, 0.045, 0.045)      ## the photo's gate rgb (40, 46, 46)
 	gate.roughness = 0.6
@@ -867,8 +878,9 @@ func _build_lamp(lpos: Vector3, post_dx: float, col: Vector3, energy: float, emi
 		cable.free()
 	var bulb := MeshInstance3D.new()
 	var sm := SphereMesh.new()
-	sm.radius = BULB_VIS
-	sm.height = BULB_VIS * 2.0
+	var br := BULB_VIS if idx == 0 else 0.08     ## the photo's cyan light is a small source
+	sm.radius = br
+	sm.height = br * 2.0
 	bulb.mesh = sm
 	bulb.position = lpos
 	var bm := StandardMaterial3D.new()
@@ -894,7 +906,7 @@ func _build_lamp(lpos: Vector3, post_dx: float, col: Vector3, energy: float, emi
 	gm.disable_receive_shadows = true
 	var glare := MeshInstance3D.new()
 	var gq := QuadMesh.new()
-	gq.size = Vector2(7.0, 7.0) if idx == 0 else Vector2(1.6, 1.6)
+	gq.size = Vector2(7.0, 7.0) if idx == 0 else Vector2(0.8, 0.8)
 	glare.mesh = gq
 	glare.material_override = gm
 	glare.position = lpos

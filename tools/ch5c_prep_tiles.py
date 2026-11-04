@@ -1,22 +1,28 @@
 """CH5c: turn the Poly Haven CC0 photo texture 'Cobblestone Floor 04' (Rob Tuytel, https://polyhaven.com/a/cobblestone_floor_04, CC0)
 into the runtime assets: a sett LABEL raster (one id per stone, from a watershed on the photo's displacement map), the distance to the
 nearest joint, the displacement and the albedo, all 1024 px for the 1.5 m tile (the scene uses 0.75 m per tile: setts about 11 cm).
-usage: python tools/ch5c_prep_tiles.py SRC_DIR OUT_DIR   (SRC_DIR holds cf04_diff.jpg and cf04_disp.jpg, the 2k downloads)"""
+usage: python tools/ch5c_prep_tiles.py SRC_DIR OUT_DIR [PREFIX]   (SRC_DIR holds PREFIX_diff.jpg and PREFIX_disp.jpg, the 2k downloads)
+Fix pass 2 (lead: "pebble-sized stones vs large rectangular setts"): PREFIX cf09 = Poly Haven CC0 "Cobblestone Floor 09" (Charlotte Baglioni,
+https://polyhaven.com/a/cobblestone_floor_09, 2.175 m tile): rectangular granite setts in running-bond rows across the lane with a lengthwise
+channel, like ref2. Its stones are segmented on the DISPLACEMENT map (stones high, joints low; clean on this asset)."""
 import sys, os, numpy as np
 from PIL import Image
 from scipy import ndimage as ndi
 from skimage import filters, measure, morphology, segmentation, feature
 
 src, out = sys.argv[1], sys.argv[2]
+pre = sys.argv[3] if len(sys.argv) > 3 else "cf04"
 N = 1024
-disp = np.asarray(Image.open(os.path.join(src, "cf04_disp.jpg")).convert("L").resize((N, N), Image.LANCZOS)).astype(np.float32)
-diff = Image.open(os.path.join(src, "cf04_diff.jpg")).convert("RGB").resize((N, N), Image.LANCZOS)
+disp = np.asarray(Image.open(os.path.join(src, pre + "_disp.jpg")).convert("L").resize((N, N), Image.LANCZOS)).astype(np.float32)
+diff = Image.open(os.path.join(src, pre + "_diff.jpg")).convert("RGB").resize((N, N), Image.LANCZOS)
 # 3x3 periodic padding so stones across the tile edge are whole. The stone mask comes from the DIFFUSE photo: stone is lighter and less
 # green than the mossy, dark joint fill (the displacement map has too much grain inside a stone to segment on).
 D = np.asarray(diff).astype(np.float32) / 255.0
 lum = 0.3 * D[..., 0] + 0.59 * D[..., 1] + 0.11 * D[..., 2]
 green = D[..., 1] - 0.5 * (D[..., 0] + D[..., 2])
 score = ndi.gaussian_filter(lum - 1.2 * np.clip(green, 0, None), 1.5)
+if pre == "cf09":
+    score = ndi.gaussian_filter(disp / 255.0 - ndi.gaussian_filter(disp / 255.0, 40, mode="wrap"), 1.0, mode="wrap")
 score = np.tile(score, (3, 3))
 thr = filters.threshold_otsu(score[N:2 * N, N:2 * N])
 mask = score > thr * 0.95
@@ -25,11 +31,17 @@ mask = ndi.binary_fill_holes(mask)
 mask = morphology.remove_small_objects(mask, max_size=200)
 dist = ndi.distance_transform_edt(mask)
 dsm = ndi.gaussian_filter(dist, 3.0)
-pk = feature.peak_local_max(dsm, min_distance=22, threshold_abs=5, labels=measure.label(mask), exclude_border=False)
+pk = feature.peak_local_max(dsm, min_distance=22 if pre == "cf04" else 12, threshold_abs=5 if pre == "cf04" else 3, labels=measure.label(mask), exclude_border=False)
 mk = np.zeros(mask.shape, np.int32)
 for i, (y, x) in enumerate(pk):
     mk[y, x] = i + 1
 lab = segmentation.watershed(-dsm, mk, mask=mask)
+if pre == "cf09":
+    # the joints of this asset separate the setts cleanly: connected components of a slightly eroded stone mask, grown back (no watershed
+    # splitting of long setts)
+    m2 = score > thr * 0.5
+    m2 = ndi.binary_opening(m2, iterations=1)
+    lab = segmentation.expand_labels(measure.label(ndi.binary_erosion(m2, iterations=2)), 5)
 # union labels of the same texel in neighbouring tile copies
 par = {}
 def find(a):
@@ -60,7 +72,7 @@ for v in np.unique(c):
 # drop tiny regions (specks of grit), keep real setts
 areas = np.bincount(res.ravel())
 for k in range(1, len(areas)):
-    if areas[k] < 400:
+    if areas[k] < (400 if pre == "cf04" else 150):
         res[res == k] = 0
 uniq = [k for k in np.unique(res) if k > 0]
 remap = {k: i + 1 for i, k in enumerate(uniq)}
