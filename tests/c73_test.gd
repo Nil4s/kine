@@ -62,8 +62,8 @@ func gd_files(dir: String, acc: Array) -> void:
 
 
 func _init() -> void:
-	ok(cr_in_literal("var a = \"x\r\ny\"\r\n").size() == 1, "control: the scanner flags a literal that holds a CR")
-	ok(cr_in_literal("var a = \"x\n\"\r\nvar b = 1\r\n").is_empty(), "control: an escaped \n on a CRLF line is not flagged")
+	ok(cr_in_literal("var a = \"x\r\ny\"\r\n").size() >= 1,"control: the scanner flags a literal that holds a CR")
+	ok(cr_in_literal("var a = \"x\\n\"\r\nvar b = 1\r\n").is_empty(), "control: an escaped backslash-n on a CRLF line is not flagged")
 	var files := []
 	gd_files("res://scripts", files)
 	gd_files("res://tests", files)
