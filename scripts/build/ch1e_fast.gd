@@ -801,6 +801,10 @@ static func _tie(F: Dictionary, r: int, pl: int, front: bool) -> void:
 		okside[s] = not blocked
 	if not okside[1.0] and okside[-1.0]:
 		sx = -1.0
+	# CH1e: a gable rafter sits on the SIDE plate (it runs along z): the strap goes on the outer x face, flush with the rafter, and the plate flange nails go in along x
+	var side_plate: bool = float(S[pl]["b"][5]) - float(S[pl]["b"][2]) > 1000.0
+	if side_plate:
+		sx = -1.0 if rb[0] < 100.0 else 1.0
 	var xf2: float = rb[3] if sx > 0 else rb[0]
 	var cn := _conn(F, "h25a", "tie", r, pl, "", "H2.5A on %s" % S[r]["name"])
 	F["conns"][cn]["species_note"] = "0.131x1.5 in nails"
@@ -813,6 +817,13 @@ static func _tie(F: Dictionary, r: int, pl: int, front: bool) -> void:
 	# plate flange: 5 nails through the strap into the top plates
 	var py := [2402.0, 2415.0, 2428.0, 2441.0, 2454.0]
 	for k in 5:
+		if side_plate:
+			var zs: float = zi + si * (8.0 if k % 2 == 0 else 20.0)
+			var plate_s := _probe(F, Vector3(xf2 - sx * 10.0, py[k], zs))
+			if plate_s < 0:
+				plate_s = pl
+			_nail(F, "h25_nail", Vector3(xf2 + sx * t, py[k], zs), Vector3(-sx, 0, 0), plate_s, plate_s, cn, t, 2, 0, 38.0 - t)
+			continue
 		var xx: float = xf2 - sx * (8.0 if k % 2 == 0 else 20.0)
 		var hp := Vector3(xx, py[k], zi + si * t)
 		var plate := _probe(F, Vector3(xx, py[k], zi - si * 10.0))
