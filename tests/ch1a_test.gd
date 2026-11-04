@@ -160,7 +160,7 @@ func pairs_fail(list: Array, _tag := "", shift := 0.0) -> Array:
 	return [n, bad]
 
 
-func touching(a: Dictionary, b: Dictionary, b: Dictionary, gap := 1.0) -> bool:
+func touching(a: Dictionary, b: Dictionary, gap := 1.0) -> bool:
 	return a["lo"].x <= b["hi"].x + gap and b["lo"].x <= a["hi"].x + gap and a["lo"].y <= b["hi"].y + gap and b["lo"].y <= a["hi"].y + gap and a["lo"].z <= b["hi"].z + gap and b["lo"].z <= a["hi"].z + gap
 
 
