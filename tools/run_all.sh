@@ -985,3 +985,6 @@ EXTRA="$EXTRA ch2:w"   # ch2: the regulator clock: 720:12:1 train, 994 mm pendul
 
 
 EXTRA="$EXTRA c66:w"   # C66: the hands card overlaps no button or status text and sits inside the 3D view at 1024, 1280, 1920
+
+
+EXTRA="$EXTRA c69:w"   # C69: every tooltip in Easy Part / Pose is wrapped to <= 440 px and fits the window at 1024 and 1280 (scripts/tooltip_fit.gd; tests/c69_test.gd)

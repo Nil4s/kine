@@ -12597,7 +12597,7 @@ func _hover_hints() -> void:
 		# the tooltip leads with the name (an icon has no words); the hover line keeps "name:  what it does"
 		if b.get_meta("label", "") != "" and not b.tooltip_text.begins_with(t):
 			b.tooltip_text = t + ("\n" + b.tooltip_text if b.tooltip_text != "" else "")
-		b.mouse_entered.connect(func(): _hover_hint = "%s:  %s" % [t, b.tooltip_text.trim_prefix(t + "\n").trim_prefix(t)])
+		b.mouse_entered.connect(func(): _hover_hint = "%s:  %s" % [t, TooltipFit.source_of(b).trim_prefix(t + "\n").trim_prefix(t)])
 		b.mouse_exited.connect(func(): _hover_hint = "")
 
 
@@ -13980,6 +13980,9 @@ func _ui() -> void:
 	ui_cmd.pose_by_words = _pose_words
 	ui_cmd.tools_provider = func(): return MeshTools.rows(self)   # ROADMAP_400 P02: the mesh tools (scripts/mesh_tools.gd), built on the S box's first search
 	_hover_hints()
+	var tipfit := TooltipFit.new()   # C69: every tooltip wrapped to fit the window (scripts/tooltip_fit.gd)
+	tipfit.name = "tooltip_fit"
+	add_child(tipfit)
 	tips = TipVideo.new()   # ROADMAP 49: a 2 s clip of the tool beside the hint, after 0.6 s on a button
 	tips.name = "tips"
 	add_child(tips)
