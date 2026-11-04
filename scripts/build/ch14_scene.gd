@@ -60,6 +60,17 @@ static func build(parent: Node) -> Dictionary:
 	var jm := _mi(wr, PT.jaw(), "jaw_minus")
 	jm.scale = Vector3(1, 1, -1)
 	sc["nodes"] = {"yaw": yaw, "sh": sh, "el": el, "wr": wr, "jp": jp, "jm": jm}
+	# the three lever slaves ride on their carriers: shoulder on the turntable (a frame at the shoulder axis), elbow on the upper arm, wrist on the forearm
+	var sh_base := _node(yaw, "shoulder_base")
+	sh_base.position = Vector3(0, float(d["hs"]), 0) * MM
+	sc["slaves"] = {}
+	for j in ["sh", "el", "wr"]:
+		var carrier: Node3D = {"sh": sh_base, "el": sh, "wr": el}[j]
+		var sz: int = d["cyl"][j][1]
+		var lay := A.slave_layout(d, j)
+		var b := _mi(carrier, PT.syringe_barrel(sz), "slave_" + j)
+		var p := _mi(carrier, PT.syringe_plunger(sz, float(lay["lrod"])), "slave_plunger_" + j)
+		sc["slaves"][j] = {"barrel": b, "plunger": p, "lay": lay}
 	# the five masters lie on the console, tips at x = -124 pointing +x (the barrel part's tip points -x: turned 180 deg about y)
 	for k in AXES.size():
 		var j: String = AXES[k]
@@ -118,12 +129,27 @@ static func pose(sc: Dictionary, t: float) -> Dictionary:
 	(nd["jp"] as Node3D).position = Vector3(0, 0, inner + 2.0) * MM
 	(nd["jm"] as Node3D).position = Vector3(0, 0, -(inner + 2.0)) * MM
 	if st.has("th1"):
+		# slaves: barrel tip at P + u t0 pointing at the pin, the plunger's thumb disc on the pin Q (slave_layout: the stopper then sits lmin..lmax - lmin + 4 inside)
+		var ang := {"sh": float(st["th1"]), "el": float(st["th2"]), "wr": float(st["psi"])}
+		for j in ["sh", "el", "wr"]:
+			var sv: Dictionary = sc["slaves"][j]
+			var sl := A.slave_line(d, j, ang[j])
+			var P: Vector2 = sl["P"]
+			var Q: Vector2 = sl["Q"]
+			var u := (Q - P).normalized()
+			var bs := Basis(Vector3(0, 0, 1), atan2(u.y, u.x))
+			var tip := P + u * float(sv["lay"]["t0"])
+			var disc := Q - u * (8.0 + float(sv["lay"]["lrod"]))
+			(sv["barrel"] as Node3D).transform = Transform3D(bs, Vector3(tip.x, tip.y, 26.0) * MM)
+			(sv["plunger"] as Node3D).transform = Transform3D(bs, Vector3(disc.x, disc.y, 26.0) * MM)
 		var sk := N.strokes(d, st)
 		for j in AXES:
 			var p: Dictionary = sc["plungers"][j]
 			(p["node"] as Node3D).position = Vector3(-134.0 - float(sk["master_out"][j]), float(p["y"]), float(p["z"])) * MM
 	# cans: placed ones on the pyramid, the held one in the jaws, the next one on the stand, the rest hidden
 	var placed := N.placed_at(d, sc["wp"], t)
+	if int(st["held"]) < 0 and String(st["label"]).ends_with("released") and placed.size() < 6:
+		placed.append(placed.size())   # the jaws are opening on it: it already stands on the stack
 	var ps := A.poses(d)
 	var held: int = st["held"]
 	var nxt := placed.size() if held < 0 else held
@@ -152,7 +178,8 @@ static func build_section(parent: Node) -> Dictionary:
 	var bb: AABB = (mi.mesh as ArrayMesh).get_aabb()
 	var cam := Camera3D.new()
 	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
-	cam.size = bb.size.x * 1.08
+	cam.keep_aspect = Camera3D.KEEP_WIDTH
+	cam.size = bb.size.x * 1.05
 	root.add_child(cam)
 	var c := bb.get_center()
 	cam.look_at_from_position(c + Vector3(0, 0, 0.5), c, Vector3.UP)
