@@ -4,8 +4,8 @@ class_name HandsDock
 ## menus, the tip's close) and no status / mouse-hint Label, and the body is not under it. A wider card is tried when the narrow one
 ## finds no spot (wider = fewer button rows = shorter). Nothing is hidden: every button and the full state line stay.
 
-const WIDTHS := [350.0, 335.0, 320.0, 400.0, 380.0, 360.0, 450.0, 560.0, 300.0]   # plain widths, widest-looking first; the wider ones wrap to fewer rows
-const PLAIN := 99   # entries from this index on would be tried compact (12 px type): none now, the plain card fits a free corner
+const WIDTHS := [350.0, 335.0, 320.0, 450.0, 560.0, 300.0, 400.0, 380.0, 420.0, 360.0]   # the first six are the plain card, the rest are tried compact (12 px type, tighter rows): the same words in a card 30 px lower
+const PLAIN := 6
 const STEP := 6.0
 
 
@@ -65,7 +65,7 @@ static func measure(card: Control, hb: Control, w: float, compact: bool) -> Vect
 		row_h = maxf(row_h, bh)
 	rows += 1
 	h += rows * row_h + (rows - 1) * (2.0 if compact else 4.0)
-	return Vector2(w, h + pm.y + 8.0)
+	return Vector2(w, h + pm.y + 10.0)
 
 
 ## sets the card's width (via `hb`, the buttons' flow) and its position; returns true when a spot with no overlap was found
@@ -73,6 +73,7 @@ static func place(card: Control, hb: Control, view: Rect2, blk: Array, body: Rec
 	for avoid_body in [true, false]:
 		for wi in WIDTHS.size():
 			var w: float = WIDTHS[wi]
+			_compact(card, hb, wi >= PLAIN)   # the type size is part of what is measured (and a kept compact card must not skew the plain candidates)
 			var ps := measure(card, hb, w, wi >= PLAIN)
 			if ps.x > view.size.x or ps.y > view.size.y:
 				continue
