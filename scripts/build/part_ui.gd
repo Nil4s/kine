@@ -189,6 +189,7 @@ var grid_chk: CheckBox
 var dims_chk: CheckBox
 var dlg_box: VBoxContainer
 var dlg_rows: VBoxContainer
+var dlg_scroll: ScrollContainer   # C58
 var dlg_info: Label
 var ok_btn: Button
 var cancel_btn: Button
@@ -658,7 +659,7 @@ func _build_side() -> void:
 	vb.add_child(dlg_box)
 	dlg_rows = VBoxContainer.new()
 	dlg_rows.add_theme_constant_override("separation", 6)
-	dlg_box.add_child(dlg_rows)
+	dlg_scroll = PartDlgScroll.wrap(dlg_box, dlg_rows)   # C58
 	f_num = _field("part_num")
 	f_ang = _field("part_angle")
 	f_both = CheckBox.new()
@@ -2875,6 +2876,7 @@ func layout(cl: Rect2) -> void:
 	browser.size = Vector2(BROWSER_W, minf(browser_need, avail))
 	browser.position = Vector2(cl.position.x + 8.0, cl.position.y + 6.0)
 	side.reset_size()
+	PartDlgScroll.fit(dlg_scroll, dlg_rows, side, avail)   # C58
 	# PCUBE: a dialog's own width can be more than PANEL_W (its rows); the panel grows and stays LEFT of the cube column
 	side.size.x = maxf(PANEL_W, side.get_combined_minimum_size().x)
 	side.size.y = minf(side.get_combined_minimum_size().y, avail)

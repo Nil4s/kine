@@ -916,3 +916,6 @@ EXTRA="$EXTRA c51:w"
 EXTRA="$EXTRA c48:w"   # c48: joints leave the app (tests/c48_test.gd, c48_blender.py)
 EXTRA="$EXTRA c48ui:w"   # c48ui: joints export + frame row by real clicks (tests/c48ui_test.gd)
 EXTRA="$EXTRA c50:w"   # c50: sketch reference geometry + item labels (tests/c50_test.gd)
+
+
+EXTRA="$EXTRA c58:w"   # C58: Part side dialogs keep OK/Cancel reachable, tests/c58_test.gd
