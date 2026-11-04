@@ -431,13 +431,13 @@ static func solve_gd(model: Dictionary, job: Dictionary) -> Dictionary:
 			rhs0[i] = P0[i] - Cv[i] - Ku[i]
 		var Lm: PackedFloat64Array = chol.call(M)
 		if Lm.is_empty():    # CH1f: massless dofs; regularise only then (twin of the C++ fallback)
-			var Mr: PackedFloat64Array = M.duplicate()
+			var Mreg: PackedFloat64Array = M.duplicate()
 			var mxd := 0.0
 			for i in nf:
 				mxd = maxf(mxd, M[i * nf + i])
 			for i in nf:
-				Mr[i * nf + i] += 1e-9 * mxd
-			Lm = chol.call(Mr)
+				Mreg[i * nf + i] += 1e-9 * mxd
+			Lm = chol.call(Mreg)
 		a = csolve.call(Lm, rhs0)
 		var c1 := 1.0 / (beta * dt * dt)
 		var c2 := gam / (beta * dt)
