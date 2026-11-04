@@ -113,8 +113,15 @@ func _init() -> void:
 		root.size = sz
 		root.content_scale_size = sz
 		await idle(30)
+		await ev_move(Vector2(sz.x * 0.5, sz.y * 0.72))   # off every button: a hover tooltip is not the layout
+		await idle(40)
 		var items: Array = []
 		items_of(m, items)
+		var geo := ""
+		for nm in ["easypart_printing", "easypart_steps", "easypart_tilt_it", "easypart_pinch_bulge"]:
+			var gc := m.find_child(nm, true, false) as Control
+			if gc != null:
+				geo += " %s=%s" % [nm, gc.get_global_rect()]
 		var total := 0.0
 		var worst := ""
 		var n_pairs := 0
@@ -122,8 +129,6 @@ func _init() -> void:
 			for j in range(i + 1, items.size()):
 				var a: Control = items[i]
 				var b: Control = items[j]
-				if a is Label and b is Label:
-					pass   # label vs label counted too
 				if a.is_ancestor_of(b) or b.is_ancestor_of(a):
 					continue
 				var ov := vis_rect(a).intersection(vis_rect(b))
@@ -137,18 +142,15 @@ func _init() -> void:
 		var cut := ""
 		var mn := 99
 		var chips := 0
-		for nm in ["easypart_round_all", "easypart_round_outer", "easypart_round_top", "easypart_round_bottom", "easypart_round_vert"]:
-			pass
-		var row := m.find_child("easypart_bevel", true, false)
 		for ch in chip_row(m):
 			chips += 1
-			var need := ch.get_minimum_size().x
-			var shown := ch.size.x
+			var shown: float = ch.size.x
 			var full: String = ch.text
-			var fit := full.length() if ch.get_theme_font("font").get_string_size(full, HORIZONTAL_ALIGNMENT_LEFT, -1, ch.get_theme_font_size("font_size")).x + 16.0 <= shown else 0
+			var pad: float = ch.get_theme_stylebox("normal").get_minimum_size().x + icon_w(ch)
+			var fit := full.length() if ch.get_theme_font("font").get_string_size(full, HORIZONTAL_ALIGNMENT_LEFT, -1, ch.get_theme_font_size("font_size")).x + pad <= shown else 0
 			if fit == 0:
 				var k := full.length()
-				while k > 0 and ch.get_theme_font("font").get_string_size(full.left(k), HORIZONTAL_ALIGNMENT_LEFT, -1, ch.get_theme_font_size("font_size")).x + 16.0 > shown:
+				while k > 0 and ch.get_theme_font("font").get_string_size(full.left(k), HORIZONTAL_ALIGNMENT_LEFT, -1, ch.get_theme_font_size("font_size")).x + pad > shown:
 					k -= 1
 				fit = k
 			mn = mini(mn, mini(fit, 4) if fit < full.length() else 99)
@@ -156,6 +158,19 @@ func _init() -> void:
 				cut += " [%s: %d of %d letters]" % [full, fit, full.length()]
 		ok(chips >= 3, "setup %s: found %d edge chips" % [sz, chips])
 		ok(cut == "", "2 CHIP TEXT at %s: no chip cut below 4 letters:%s" % [sz, cut])
+		# 3: the shown words are whole and no two chips show the same word (not "Only" twice)
+		var seen := {}
+		var dup := ""
+		var clipped := ""
+		for ch in chip_row(m):
+			var w: float = ch.get_theme_font("font").get_string_size(ch.text, HORIZONTAL_ALIGNMENT_LEFT, -1, ch.get_theme_font_size("font_size")).x
+			var need: float = w + ch.get_theme_stylebox("normal").get_minimum_size().x + icon_w(ch)
+			if need > ch.size.x + 0.5:
+				clipped += " [%s %.0f>%.0f]" % [ch.text, need, ch.size.x]
+			if seen.has(ch.text):
+				dup += " [%s]" % ch.text
+			seen[ch.text] = true
+		ok(clipped == "" and dup == "", "3 WHOLE WORDS at %s: clipped%s dup%s" % [sz, clipped, dup])
 		# CONTROL: the measure sees a planted label over a button
 		var p1 := Button.new()
 		var p2 := Label.new()
@@ -222,3 +237,14 @@ func chip_row(root_n: Node) -> Array:
 			if c is Button and (c as Button).is_visible_in_tree():
 				out.append(c)
 	return out
+
+
+## the width a chip's icon takes beside its words (icon + the gap), at the size it is drawn
+func icon_w(ch: Button) -> float:
+	if ch.icon == null:
+		return 0.0
+	var w := float(ch.icon.get_width())
+	var mx := ch.get_theme_constant("icon_max_width")
+	if mx > 0:
+		w = minf(w, float(mx))
+	return w + float(ch.get_theme_constant("h_separation"))
