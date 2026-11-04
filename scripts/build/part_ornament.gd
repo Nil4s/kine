@@ -583,6 +583,7 @@ static func add(bodies: Array, f: Dictionary) -> String:
 			for mid in made:
 				PartMeshSolid.KCad.release(int(mid))
 			return PartMeshSolid.KCad.last_error()
+		PartFast.hint_box(id, d["km"], bas, at_mm)   # s249n: its box is known without tessellating it (a later ornament's seat skips it by box)
 		made.append(id)
 	for id in made:
 		bodies.append(id)

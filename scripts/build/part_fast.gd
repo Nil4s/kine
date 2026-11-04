@@ -16,6 +16,38 @@ static var _idx := {}         # "id.gen" -> {"t": tris, "box": AABB, "grid": Dic
 static var _idx_pts := 0
 static var _roof := {}        # shape key (roof parameters without "at") -> {"at": Vector3 mm, "ids": [kernel ids kept as masters]}
 static var roof_copies := 0   # tests read it
+static var force_gd := false  # tests: run the GDScript grid even when the DLL is there
+static var _nat = null
+static var _nat_tried := false
+
+
+## the native seat door (scripts/build/seat_native.gd), or null: no DLL, KINE_NO_NATIVE=1, or force_gd
+static func _native():
+	if force_gd or OS.get_environment("KINE_NO_NATIVE") == "1":
+		return null
+	if not _nat_tried:
+		_nat_tried = true
+		if NativeExt.ensure("kine_native", "KineSeatNative"):
+			_nat = load("res://scripts/build/seat_native.gd")
+	return _nat
+
+
+static var _hint := {}   # "id.gen" -> AABB (mm) of an ornament body, known from its source mesh
+
+
+## remember where an ornament body is (its mesh vertices turned by bas and moved to at_mm), grown 0.05 mm: surface_under then skips it by this box
+## without tessellating it (a kernel tessellation of a sewn ornament is ~0.1 s). Only a body whose box is met is tessellated, so answers do not change.
+static func hint_box(id: int, km: Object, bas: Basis, at_mm: Vector3) -> void:
+	var vs: PackedVector3Array = km.verts
+	if vs.is_empty():
+		return
+	var lo := bas * (vs[0] / MM) + at_mm
+	var hi := lo
+	for p in vs:
+		var w := bas * (p / MM) + at_mm
+		lo = lo.min(w)
+		hi = hi.max(w)
+	_hint["%d.%d" % [id, KCad.gen(id)]] = AABB(lo, hi - lo).grow(0.05)
 
 
 static func _entry(id: int) -> Dictionary:
@@ -120,6 +152,11 @@ static func surface_under(bodies: Array, pts: Array, top_y: float, low_y: float)
 	region.size.y = maxf(region.size.y, top_y - low_y)
 	var cand: Array = []
 	for id in bodies:
+		var hk := "%d.%d" % [int(id), KCad.gen(int(id))]
+		if _hint.has(hk) and not _idx.has(hk):
+			var hb: AABB = _hint[hk]
+			if hb.position.x > region.end.x or hb.end.x < region.position.x or hb.position.z > region.end.z or hb.end.z < region.position.z or hb.end.y < low_y or hb.position.y > top_y:
+				continue
 		var e := _entry(int(id))
 		if (e["t"] as PackedVector3Array).is_empty():
 			continue
@@ -128,6 +165,18 @@ static func surface_under(bodies: Array, pts: Array, top_y: float, low_y: float)
 			continue
 		cand.append(e)
 	var hits: Array = []
+	var nat = _native()
+	if nat != null:   # s249n: one call per ornament, all its points, in C++ (the loop below is the fallback)
+		var tl: Array = []
+		for e in cand:
+			tl.append(e["t"])
+		var pv := PackedVector3Array()
+		for q in pts:
+			pv.append(q)
+		var hv: PackedFloat64Array = nat.surface_under(tl, pv, top_y, low_y)
+		for x in hv:
+			hits.append(x)
+		return hits
 	for q in pts:
 		var qq: Vector3 = q
 		var best := NAN
