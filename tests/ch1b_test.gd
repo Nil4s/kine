@@ -17,6 +17,9 @@ extends SceneTree
 ##                      shear V = w L / 2 = 278.75 lb   fv = 1.5 V / A = 50.68 psi against Fv' = 180 x 1.25 = 225 psi
 ##                    the reported numbers match within 0.5 pct.
 ##  5 TABLES          Table rows ordered the way lumber is (a bigger size or a closer spacing never spans less), SPF #2 never spans more than DF-L #2 in the rafter table.
+##  6 PRINTED CELLS   (lead 11-03) every printed IRC 2021 cell stored in house_check.gd (rafters R802.4.1(1), ceiling joists R802.5.1(1), headers R602.7(1); DF-L #2 and SPF #2) is at most
+##                    3 pct ABOVE the first-principles NDS span (tables round down: physics may allow more, never less). Cells printed as 'over 26 ft' are lower bounds and skipped.
+##                    Cells where physics allows MORE than 3 pct above the printed value are listed, not failed. At least 60 cells. CONTROL: a cell inflated 10 pct is caught.
 ##  CONTROL           the planted cases of bar 2 ARE the control: a checker that passed everything would fail them. A checker that fails everything fails bar 1.
 var fails := 0
 const HC := preload("res://scripts/build/house_check.gd")
@@ -136,5 +139,28 @@ func _init() -> void:
 			if HC.table_span("rafter", sz, sp, "SPF#2") > HC.table_span("rafter", sz, sp, "DF-L#2"):
 				spf_ok = false
 	ok(spf_ok, "5 SPF #2 rafters never out-span DF-L #2")
+	# 6 printed cells vs first principles
+	var cells: Array = HC.cells()
+	ok(cells.size() >= 60, "6 %d printed cells compared" % cells.size())
+	var over := []
+	var under := []
+	for c in cells:
+		if c["capped"]:
+			continue
+		if c["printed"] > c["phys"] * 1.03:
+			over.append(c)
+		elif c["phys"] > c["printed"] * 1.03:
+			under.append(c)
+	ok(over.is_empty(), "6 no printed cell is more than 3 pct above physics (%d over: %s)" % [over.size(), str(over.map(func(x): return "%s %.0f vs %.1f" % [x["name"], x["printed"], x["phys"]]))])
+	print("info 6 cells where physics allows >3 pct more than printed: %d of %d" % [under.size(), cells.size()])
+	for c in under:
+		print("info   %s printed %.0f in phys %.1f in (%.1f pct more)" % [c["name"], c["printed"], c["phys"], (c["phys"] / c["printed"] - 1.0) * 100.0])
+	for c in cells:
+		print("cell %s printed %.0f phys %.1f ratio %.3f" % [c["name"], c["printed"], c["phys"], c["ratio"]])
+	var inflated: bool = false
+	for c in cells:
+		if not c["capped"] and c["printed"] * 1.10 > c["phys"] * 1.03:
+			inflated = true
+	ok(inflated, "6 control: a printed cell inflated 10 pct trips the bar")
 	print("ch1b: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
