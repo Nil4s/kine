@@ -210,7 +210,7 @@ func run(opts := {}) -> Dictionary:
 			a_idx.append(i)
 		if i < 80 and absf(Vector2(q.x + 0.05, q.y).length() - 0.05) < 0.004 and q.y > -0.04 and q.x > -0.05:
 			h_idx.append(i)
-		if i < 80 and absf(Vector2(q.x + 0.05, q.y).length() - 0.05) < 0.004 and (q - hold_c).length() < 0.024:
+		if i < 80 and absf(Vector2(q.x + 0.05, q.y).length() - 0.05) < 0.004 and q.y > -0.045:   # the whole ring is held open
 			g_idx.append(i)
 	var a_ref := _mean(pts, a_idx)
 	var h_ref := _mean(pts, h_idx)
