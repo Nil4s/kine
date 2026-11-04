@@ -13,32 +13,42 @@ func _fail(why: String) -> void:
 func _init() -> void:
 	var t0 := Time.get_ticks_msec()
 	var m: Node = (load("res://main.tscn") as PackedScene).instantiate()
+	print("C78 instanced")
 	root.add_child(m)
+	print("C78 added")
 	for i in 8:
 		await process_frame
+	print("C78 booted")
 	m.tour_step = -1
 	var pu = m.bld.part
+	print("C78 set_on")
 	pu.set_on(true)
 	for i in 4:
 		await process_frame
 	if not pu.on:
-		return _fail("Part did not open")
+		_fail("Part did not open")
+		return
 	if not KCad.available():
-		return _fail("KineCAD not available: " + KCad.last_error())
+		_fail("KineCAD not available: " + KCad.last_error())
+		return
 	var id := KCad.box(2.0, 1.0, 1.0)
 	if id == 0:
-		return _fail("box failed: " + KCad.last_error())
+		_fail("box failed: " + KCad.last_error())
+		return
 	var vol := KCad.volume(id)
 	if absf(vol - 2.0) > 1e-6:
-		return _fail("box volume %f" % vol)
+		_fail("box volume %f" % vol)
+		return
 	var mesh := KCad.tessellate(id, 0.01, 0.3)
 	if mesh == null or mesh.get_surface_count() == 0:
-		return _fail("tessellate gave no mesh")
+		_fail("tessellate gave no mesh")
+		return
 	var tris := 0
 	for s in mesh.get_surface_count():
 		tris += mesh.surface_get_array_index_len(s) / 3
 	if tris < 12:
-		return _fail("mesh has %d triangles" % tris)
+		_fail("mesh has %d triangles" % tris)
+		return
 	print("C78_GATE=", VideoAddon.gate("tracking a video"))
 	print("C78_SMOKE_OK ms=%d tris=%d vol=%f" % [Time.get_ticks_msec() - t0, tris, vol])
 	quit(0)

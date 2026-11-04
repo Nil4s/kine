@@ -31,13 +31,13 @@ else rc=0; fi
 [ $rc = 0 ] && [ -f "$SETUP" ]; ok $? "B1 installer builds ($SETUP, $(stat -c %s "$SETUP" 2>/dev/null) bytes)"
 
 # B2
-/usr/bin/timeout 300 "$SETUP" /VERYSILENT /CURRENTUSER /SUPPRESSMSGBOXES /NORESTART "/DIR=$(WIN "$W/inst")" "/LOG=$(WIN "$W/setup.log")"; rc=$?
+MSYS_NO_PATHCONV=1 /usr/bin/timeout 300 "$SETUP" /VERYSILENT /CURRENTUSER /SUPPRESSMSGBOXES /NORESTART "/DIR=$(WIN "$W/inst")" "/LOG=$(WIN "$W/setup.log")"; rc=$?
 [ $rc = 0 ] && [ -f "$W/inst/Kine.exe" ] && [ -f "$W/inst/Kine.console.exe" ] && [ -f "$W/inst/unins000.exe" ] && [ -f "$W/inst/libTKBRep.dll" ] && [ -f "$W/inst/kine_cad.windows.template_release.x86_64.dll" ]
 ok $? "B2 silent install into a temp dir (exit $rc)"
 
 smoke() {  # $1 = install dir, $2 = PATH value, $3 = out file ; prints exit code and ms
   local t0=$(date +%s%N)
-  APPDATA="$(WIN "$W/appdata")" LOCALAPPDATA="$(WIN "$W/appdata")" /usr/bin/env PATH="$2" /usr/bin/timeout 60 "$1/Kine.console.exe" --headless --path "$(WIN "$1")" -s res://tools/c78_smoke.gd > "$3" 2>&1
+  APPDATA="$(WIN "$W/appdata")" LOCALAPPDATA="$(WIN "$W/appdata")" /usr/bin/env PATH="$2" /usr/bin/timeout 60 "$1/Kine.console.exe" --headless -s res://tools/c78_smoke.gd > "$3" 2>&1
   local rc=$?
   SMOKE_MS=$(( ($(date +%s%N) - t0) / 1000000 ))
   return $rc
@@ -62,7 +62,7 @@ SZ=$(du -sm "$W/inst" | cut -f1); EX=$(( $(stat -c %s "$W/inst/Kine.exe") / 1048
 [ "$EX" -lt 400 ] && [ "$SZ" -lt 600 ]; ok $? "B8 sizes: Kine.exe ${EX} MB, install ${SZ} MB"
 BEFORE=$(cd "$W/appdata" && find . -type f | sort | xargs md5sum | md5sum)
 # B7
-/usr/bin/timeout 300 "$W/inst/unins000.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART; rc=$?
+MSYS_NO_PATHCONV=1 /usr/bin/timeout 300 "$W/inst/unins000.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART; rc=$?
 for i in 1 2 3 4 5 6 7 8 9 10; do [ ! -f "$W/inst/Kine.exe" ] && break; sleep 1; done   # the uninstaller finishes in a helper process
 AFTER=$(cd "$W/appdata" && find . -type f | sort | xargs md5sum | md5sum)
 [ ! -f "$W/inst/Kine.exe" ] && [ ! -f "$W/inst/libTKBRep.dll" ] && [ ! -d "$W/inst" -o -z "$(ls -A "$W/inst" 2>/dev/null)" ] && [ "$BEFORE" = "$AFTER" ] && [ -f "$W/appdata/Godot/app_userdata/Kine/marker.txt" ]
