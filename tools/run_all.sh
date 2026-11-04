@@ -936,3 +936,7 @@ EXTRA="$EXTRA b07:w"   # b07: no two visible buttons overlap in Easy Part at 160
 
 
 EXTRA="$EXTRA c56:w"   # c56: English ANIMATE/SURFACE tabs fit their cell at 1280 and 1920 (tests/c56_test.gd)
+
+
+
+EXTRA="$EXTRA c57:w"   # c57: slicer-like print estimate (walls + infill, time from flow, bigger-than-bed scale models, 5 kg sanity) against Bambu Studio on a cube and Benchy (tests/c57_test.gd)

@@ -89,7 +89,10 @@ static func solids(rec: Dictionary) -> Array:
 		var d := (hi - lo) / Part.MM
 		var dims := [roundi(d.x), roundi(d.y), roundi(d.z)]
 		dims.sort()
-		out.append({"wood": tpl_board or _is_wood_look(Part.look_at(looks, i)), "dims": dims, "vol_cm3": (float(vols[i]) * 1.0e6) if i < vols.size() else 0.0})
+		var area := 0.0   # C57: surface area in mm2 (the print estimate's shell)
+		for k in range(0, tris.size() - 2, 3):
+			area += (tris[k + 1] - tris[k]).cross(tris[k + 2] - tris[k]).length() * 0.5
+		out.append({"wood": tpl_board or _is_wood_look(Part.look_at(looks, i)), "dims": dims, "vol_cm3": (float(vols[i]) * 1.0e6) if i < vols.size() else 0.0, "area_mm2": area / (Part.MM * Part.MM)})
 	return out
 
 
@@ -216,6 +219,10 @@ static func cost(rec: Dictionary) -> Dictionary:
 	for s in ss:
 		if bool(s["wood"]):
 			wood += float((s["dims"] as Array)[2]) / 1000.0 * float(pr["pine_brl_m"])
-		else:
-			pla += float(s["vol_cm3"]) * float(pr["pla_g_cm3"]) / 1000.0 * float(pr["pla_brl_kg"])
-	return {"brl": pla + wood, "pla_brl": pla, "wood_brl": wood, "text": brl_words(pla + wood)}
+	# C57: the plastic is walls + infill at the part's printer (C57PrintEst), no longer solid at real size
+	var e := C57PrintEst.estimate(rec, ss, pr)
+	pla = float(e["brl"])
+	var txt := brl_words(pla + wood)
+	if bool(e["oversize"]):
+		txt += " at full size, too big for the bed"
+	return {"brl": pla + wood, "pla_brl": pla, "wood_brl": wood, "text": txt, "grams": e["grams"], "seconds": e["seconds"], "oversize": e["oversize"]}
