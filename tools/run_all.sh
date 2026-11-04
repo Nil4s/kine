@@ -991,3 +991,6 @@ EXTRA="$EXTRA c69:w"   # C69: every tooltip in Easy Part / Pose is wrapped to <=
 
 
 EXTRA="$EXTRA c70:w"   # C70: involute Gear sketch tool + a pattern fused in one boolean (tests/c70_test.gd)
+
+
+EXTRA="$EXTRA c72:w"   # C72: the tooltip popup (TooltipPanel) is opaque with a 1 px border
