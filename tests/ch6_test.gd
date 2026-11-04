@@ -203,6 +203,17 @@ func judge(R: Dictionary, tag: String, full: bool) -> void:
 		ok(absf(l1 - l0) / l0 < 0.05, "H2 %s: loop circumference changes %.1f %% (< 5 %%; %.3f -> %.3f m)" % [tag, absf(l1 - l0) / l0 * 100.0, l0, l1])
 	else:
 		ok(false, "H2 %s: no knot found in the judged window" % tag)
+	# REPORT ONLY (lead's honesty request): the same two numbers for the first loading, 60 -> 120 N straight after the tie,
+	# before any seating. The bars H1/H2 above are judged on the seated-then-reloaded window (20 -> 120 N after the 120 N hold).
+	var lf0: int = int(ph["load_start"])
+	var Pa: PackedVector3Array = R["frames"][lf0 + 60]
+	var Pb: PackedVector3Array = R["frames"][lf0 + 120]
+	var ca = Ch6Knot.knot_centre(Pa)
+	var cb = Ch6Knot.knot_centre(Pb)
+	if ca != null and cb != null:
+		var la := Ch6Knot.loop_len(Pa, ca)
+		var lb := Ch6Knot.loop_len(Pb, cb)
+		print("     REPORT %s unseated 60->120 N: S0 moves %.2f cm, loop circumference changes %.1f %%" % [tag, absf(Pb[0].y - Pa[0].y) * 100.0, absf(lb - la) / la * 100.0])
 	var Pe: PackedVector3Array = R["frames"][tie_end]
 	var Ps: PackedVector3Array = R["frames"][int(ph["seat_end"])]
 	var ce = Ch6Knot.knot_centre(Pe)
