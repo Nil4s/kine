@@ -39,6 +39,7 @@ func _init() -> void:
 	var t0 := Time.get_ticks_msec()
 	var mj = JSON.parse_string(FileAccess.get_file_as_string("res://out/ch1/members.json"))
 	var F: Dictionary = CF.build(mj, {})
+	_dump_miss(F)
 	print("build ms ", Time.get_ticks_msec() - t0, "  nails ", F["n"], "  connections ", F["conns"].size(), "  parts ", F["parts"].size())
 	var V: Dictionary = CF.validate(F)
 	_schedule(F, mj)
@@ -239,6 +240,13 @@ func _count(F: Dictionary, mj: Dictionary) -> void:
 			var y1: float = b[4]
 			if y0 > 1.0 or y1 < 2466.0:
 				continue    # a piece beside an opening: partial field lines (cripples, jacks) are counted by the module, not by this hand count
+			var colk := int(floor((u0 + 0.5) / 1219.2))
+			var alone := true
+			for o in members:
+				if o["kind"] == "wall_sheathing" and o["name"] != m["name"] and String(o["name"]).begins_with("sheathing.L.") and int(floor((float(o["box_mm"][2]) + 0.5) / 1219.2)) == colk:
+					alone = false
+			if not alone:
+				continue    # fragments of one sheet: the line between them is not a panel edge (counted by the module, see docs/CH1e_FEEDBACK.md)
 			npieces += 1
 			var w := (u1 - u0) - 19.0
 			var h := (y1 - y0) - 19.0
@@ -328,6 +336,11 @@ func _find_sheath(F: Dictionary, piece: String) -> int:
 
 
 # ---------------------------------------------------------------- P
+func _dump_miss(F: Dictionary) -> void:
+	for m in F["miss_list"]:
+		print("   MISS ", m)
+
+
 func _planted(mj: Dictionary) -> void:
 	var F: Dictionary = CF.build(mj, {})
 	var V: Dictionary = CF.validate(F)
