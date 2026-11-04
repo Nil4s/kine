@@ -8,9 +8,9 @@ extends Node3D
 ## Data model (kept from CH5/CH5b so their bars A, C, E run unchanged): height(), himg (RF metres), mimg (RGBA8 wet albedo + wet roughness), bowls, level.
 
 const X0 := -3.2
-const Z0 := -34.0
+const Z0 := -16.0
 const SPAN_X := 6.4
-const SPAN_Z := 35.6        ## the lane runs 34 m: the lamp is far, as in the photo, so the wet stone tops glint all along the way
+const SPAN_Z := 17.0
 const TEXEL := 0.006                 ## metres per baked pixel
 const PITCH := 0.11                  ## nominal sett size (tests scale u, v with it)
 const GAP := 0.014                   ## joint width scale
@@ -23,34 +23,36 @@ const LEVEL := -0.034                ## THE water level
 const ASPHALT_X := 0.85              ## asphalt strip: x > this
 const DRY_ROUGH_COBBLE := 0.85
 const DRY_ROUGH_ASPHALT := 0.92
-const WET_ROUGH_COBBLE := 0.16
+const WET_ROUGH_COBBLE := 0.10
 const WET_ROUGH_ASPHALT := 0.30
 const WATER_ROUGH := 0.03
 const DRY_ALB_COBBLE := 0.11         ## linear albedo of a dry stone top (night granite is dark; the photo's 0.5 grey is scaled to this)
 const DRY_ALB_ASPHALT := 0.07
 const WET_DARKEN := 0.7             ## wet albedo = dry * this (Lekner & Dorf 1988)
 const AMBIENT_WET := 0.9
-const EYE := 1.6
-const LAMP_POS := Vector3(0.3, 5.2, -33.0)   ## the bulb of lamp 0
+const EYE := 1.1                     ## camera height from ref2.jpg (tools/ch5c_photo_estimates.py): 1.1 m
+const LAMP_POS := Vector3(0.3, 5.8, -9.8)    ## the photo's lamp: base 11.3 m from the camera, 5.8 m high (estimates script)   ## the bulb of lamp 0
 const BULB_R := 0.3                  ## light_size (soft-shadow radius) of every lamp: a street luminaire emits from a ~0.6 m x 0.3 m window (typical cobra-head fixture, from memory, not re-fetched), so radius 0.3 m. NOT tuned to a bar.
 const BULB_VIS := 0.3
-const FOV := 62.0
-const PITCH_DEG := -6.0
-const TILE_M := 0.75                 ## the photo's 1.5 m tile is drawn at half size: setts about 11 cm
+const FOV := 47.4                    ## vertical FOV at 16:9 = horizontal 75.9 deg, f = 820 px of the photo (estimates script)
+const PITCH_DEG := 1.0                ## the photo's horizon is 14 px below its centre: the camera looks 1 deg up
+const TILE_M := 1.8                  ## the photo tile (1.5 m real) drawn 1.2x: setts about 190 x 120 mm (photo: 100 x 200 mm rows across the lane)
 const TILE_N := 1024
 const PX_M := TILE_M / float(TILE_N)
-const TILT := 0.2                   ## per-stone random tilt range (slope)
+const TILT_X := 0.08                ## per-stone tilt across the lane (slope)
+const TILT_Z := 0.40                ## per-stone tilt along the lane: smears the lamp's reflection into the vertical streak of the photo
 
 ## lamp row: [bulb position, colour, light energy, post x offset, bulb emission]; lamp 0 is the photo's lamp (white), the others are sodium
 const LAMPS := [
-	[Vector3(0.3, 5.2, -33.0), Vector3(1.0, 0.95, 0.85), 260.0, 1.2, 60.0],
-	[Vector3(2.4, 4.8, -5.0), Vector3(1.0, 0.55, 0.2), 5.0, 0.55, 8.0],
-	[Vector3(-2.4, 4.8, -11.0), Vector3(1.0, 0.55, 0.2), 6.0, -0.55, 8.0],
-	[Vector3(2.9, 4.8, -17.0), Vector3(1.0, 0.55, 0.2), 7.0, 0.3, 8.0],
-	[Vector3(-2.9, 4.8, -24.0), Vector3(1.0, 0.55, 0.2), 8.0, -0.3, 8.0],
+	[Vector3(0.3, 5.8, -9.8), Vector3(1.0, 0.96, 0.9), 40.0, 1.2, 60.0],
+	[Vector3(-1.2, 3.3, -2.5), Vector3(0.85, 0.92, 1.0), 1.5, -0.2, 5.0],
+	[Vector3(-1.2, 3.3, -5.0), Vector3(0.85, 0.92, 1.0), 1.5, -0.2, 5.0],
+	[Vector3(-1.2, 3.3, -7.5), Vector3(0.85, 0.92, 1.0), 1.5, -0.2, 5.0],
+	[Vector3(-1.2, 3.3, -12.0), Vector3(0.85, 0.92, 1.0), 2.0, -0.2, 5.0],
 ]
 const BOLLARD := Vector3(0.3, 0.0, -4.0)     ## the S2 shadow caster, on the lamp 0 to camera axis
-const WALL_X := 3.3
+const WALL_X := 1.5                  ## left brick wall; the timber fence stands at FENCE_X
+const FENCE_X := 2.7
 var light_r := BULB_R
 var legacy := false
 var env: Environment
@@ -245,8 +247,8 @@ func _cobble_h(x: float, z: float, c: Array) -> float:
 	var hd := maxf(0.5 * (float(c[8]) - float(c[7])), 0.02)
 	var da := (x - cx) / hw
 	var db := (z - cz) / hd
-	var tx := (hash2(i + 7, j) - 0.5) * 2.0 * TILT
-	var tz := (hash2(i, j + 9) - 0.5) * 2.0 * TILT
+	var tx := (hash2(i + 7, j) - 0.5) * 2.0 * TILT_X
+	var tz := (hash2(i, j + 9) - 0.5) * 2.0 * TILT_Z
 	var t := _tile_px(x, z)
 	var dd := float(_disp[int(t[1]) * TILE_N + int(t[0])]) / 255.0
 	var rel := clampf((dd - _d_lo) / maxf(_d_hi - _d_lo, 0.05), 0.0, 1.0)
@@ -519,16 +521,16 @@ func build(eyes: Array = [Vector3(0, EYE, 1.5)]) -> void:
 	env = Environment.new()
 	var sky := Sky.new()
 	var psm := ProceduralSkyMaterial.new()
-	psm.sky_top_color = Color(0.015, 0.02, 0.045)
-	psm.sky_horizon_color = Color(0.14, 0.085, 0.05)
-	psm.ground_horizon_color = Color(0.12, 0.075, 0.045)
-	psm.ground_bottom_color = Color(0.03, 0.025, 0.02)
-	psm.sky_energy_multiplier = 0.35
+	psm.sky_top_color = Color(0.012, 0.015, 0.008)      ## the photo's haze: sRGB (33, 36, 22) olive green
+	psm.sky_horizon_color = Color(0.017, 0.02, 0.01)
+	psm.ground_horizon_color = Color(0.017, 0.02, 0.01)
+	psm.ground_bottom_color = Color(0.005, 0.006, 0.004)
+	psm.sky_energy_multiplier = 1.0
 	sky.sky_material = psm
 	env.sky = sky
 	env.background_mode = Environment.BG_SKY
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.25, 0.3, 0.3)
+	env.ambient_light_color = Color(0.3, 0.36, 0.27)
 	env.ambient_light_energy = 0.04
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	env.ssr_enabled = true
@@ -542,7 +544,7 @@ func build(eyes: Array = [Vector3(0, EYE, 1.5)]) -> void:
 	env.glow_hdr_threshold = 1.5
 	env.glow_hdr_scale = 1.5
 	get_viewport().msaa_3d = Viewport.MSAA_4X
-	get_viewport().positional_shadow_atlas_size = 8192
+	get_viewport().positional_shadow_atlas_size = 4096
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -603,13 +605,13 @@ func build(eyes: Array = [Vector3(0, EYE, 1.5)]) -> void:
 	_build_bollards()
 	# reflection probe: the alley's walls and lamps for the rough wet stone (SSR covers what is on screen)
 	refl_probe = ReflectionProbe.new()
-	refl_probe.position = Vector3(0, 3.5, -16.0)
-	refl_probe.size = Vector3(7.0, 8.0, 44.0)
+	refl_probe.position = Vector3(0.6, 2.5, -7.0)
+	refl_probe.size = Vector3(5.4, 6.0, 19.0)
 	refl_probe.box_projection = true
 	refl_probe.interior = false
 	refl_probe.update_mode = ReflectionProbe.UPDATE_ONCE
 	refl_probe.intensity = 0.25
-	refl_probe.max_distance = 60.0
+	refl_probe.max_distance = 30.0
 	refl_probe.ambient_mode = ReflectionProbe.AMBIENT_DISABLED
 	add_child(refl_probe)
 	_apply_modes()
@@ -703,6 +705,16 @@ func set_reflections(on: bool) -> void:
 	refl_probe.visible = on and probe < 0 and not legacy
 
 
+## planted control for bar F2c: the wet scene (same albedo, SSR, probe) but with the DRY roughness on the stones
+func set_dry_roughness(on: bool) -> void:
+	if on:
+		mat_wet.roughness_texture = null
+		mat_wet.roughness = DRY_ROUGH_COBBLE
+	else:
+		mat_wet.roughness_texture = mat_wet.albedo_texture
+		mat_wet.roughness = 1.0
+
+
 func set_dry(on: bool) -> void:
 	dry = on
 	_apply_modes()
@@ -711,38 +723,43 @@ func set_dry(on: bool) -> void:
 var _bollards: Array = []
 
 
+func _tex_mat(dname: String, nname: String, tint: Color, tile_m: float, rough: float) -> StandardMaterial3D:
+	var base := ProjectSettings.globalize_path("res://assets/ch5c/")
+	var d := Image.load_from_file(base + dname)
+	d.generate_mipmaps()
+	var n := Image.load_from_file(base + nname)
+	n.generate_mipmaps()
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = ImageTexture.create_from_image(d)
+	m.albedo_color = tint
+	m.normal_enabled = true
+	m.normal_texture = ImageTexture.create_from_image(n)
+	m.roughness = rough
+	m.uv1_triplanar = true
+	m.uv1_world_triplanar = true
+	m.uv1_scale = Vector3.ONE / tile_m
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	return m
+
+
+## dark brick wall on the left (Poly Haven "Dark Brick Wall", CC0), timber fence on the right ("Weathered Planks", CC0), a closing wall at the far end
 func _build_walls() -> void:
-	var wm := StandardMaterial3D.new()
-	wm.albedo_color = Color(0.07, 0.055, 0.05)
-	wm.roughness = 0.9
-	var win_on := StandardMaterial3D.new()
-	win_on.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	win_on.albedo_color = Color(0.85, 0.5, 0.22)
-	var win_off := StandardMaterial3D.new()
-	win_off.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	win_off.albedo_color = Color(0.03, 0.035, 0.05)
-	for side in [-1.0, 1.0]:
+	var brick := _tex_mat("brick_diff.jpg", "brick_nor_gl.jpg", Color(0.55, 0.5, 0.45), 1.05, 0.85)
+	var wood := _tex_mat("fence_diff.jpg", "fence_nor_gl.jpg", Color(0.5, 0.48, 0.45), 2.0, 0.8)
+	var spans := [
+		[Vector3(-WALL_X - 0.15, 3.0, -8.0), Vector3(0.3, 6.0, 20.0), brick],
+		[Vector3(FENCE_X + 0.05, 1.1, -8.0), Vector3(0.1, 2.2, 20.0), wood],
+		[Vector3(0.6, 3.0, Z0 - 0.15), Vector3(6.0, 6.0, 0.3), brick],
+	]
+	for sp in spans:
 		var w := MeshInstance3D.new()
 		var bm := BoxMesh.new()
-		bm.size = Vector3(0.2, 10.0, 40.0)
+		bm.size = sp[1]
 		w.mesh = bm
-		w.position = Vector3(side * (WALL_X + 0.1), 5.0, -17.0)
-		w.material_override = wm
+		w.position = sp[0]
+		w.material_override = sp[2]
 		add_child(w)
 		set_pieces.append(w)
-		for r in 2:
-			for c in 14:
-				var q := MeshInstance3D.new()
-				var qm := QuadMesh.new()
-				qm.size = Vector2(1.0, 1.4)
-				q.mesh = qm
-				q.position = Vector3(side * (WALL_X - 0.005), 2.4 + 2.9 * float(r), -1.0 - 2.2 * float(c))
-				q.rotation_degrees = Vector3(0, -90.0 * side, 0)
-				var on := hash2(c + 3 * r, int(side) + 4) > 0.45
-				q.material_override = win_on if on else win_off
-				q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-				add_child(q)
-				set_pieces.append(q)
 
 
 func _build_bollards() -> void:
@@ -845,7 +862,7 @@ func _build_lamp(lpos: Vector3, post_dx: float, col: Vector3, energy: float, emi
 	gm.disable_receive_shadows = true
 	var glare := MeshInstance3D.new()
 	var gq := QuadMesh.new()
-	gq.size = Vector2(9.0, 9.0) if idx == 0 else Vector2(3.0, 3.0)
+	gq.size = Vector2(7.0, 7.0) if idx == 0 else Vector2(1.6, 1.6)
 	glare.mesh = gq
 	glare.material_override = gm
 	glare.position = lpos
@@ -854,13 +871,13 @@ func _build_lamp(lpos: Vector3, post_dx: float, col: Vector3, energy: float, emi
 	set_pieces.append(glare)
 	var o := OmniLight3D.new()
 	o.position = lpos - Vector3(0, BULB_VIS + 0.02, 0)
-	o.omni_range = 90.0 if idx == 0 else 18.0
+	o.omni_range = 40.0 if idx == 0 else 10.0
 	o.omni_attenuation = 2.0
 	o.light_energy = energy
 	o.light_color = Color(col.x, col.y, col.z)
 	o.light_size = light_r
 	o.shadow_enabled = true
-	o.shadow_blur = 1.5
+	o.shadow_blur = 0.5
 	o.omni_shadow_mode = OmniLight3D.SHADOW_CUBE
 	add_child(o)
 	lights.append(o)
