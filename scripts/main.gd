@@ -9877,6 +9877,14 @@ func _cape_cancel() -> void:
 	_say("cancelling the cape bake: the scene keeps its last cape")
 
 
+func _cape_fold_toggle() -> void:
+	Cloth.self_collide = not Cloth.self_collide
+	if Cloth.self_collide:
+		_say("Cape: folds onto itself - ON (slower, about 0.5 s a frame to bake)")
+	else:
+		_say("Cape: folds onto itself - OFF")
+
+
 func _cape_clear() -> void:
 	if S.cape.is_empty():
 		_say("no cape to take off: 'Cape: add to the back' first")
@@ -16465,6 +16473,7 @@ func _commands() -> Array:
 	add.call("Hair: take the hair off", "", _hair_clear, "hair ponytail strands clear remove off", true, "removes the hair strands from the scene (Ctrl+Z puts them back)")
 	add.call("Cape: add to the back (bakes the cloth)", "", _cape_add, "cape cloth back cloak robe sim bake drape", true, "a cape hangs from the shoulders on the back and swings in a turn: a cloth grid that collides with the body, baked over the scene; Ctrl+Z takes it back")
 	add.call("Cape: cancel the bake", "", _cape_cancel, "cape cloth bake cancel stop abort background", false, "stops a cape bake that is running in the background; the scene keeps its last cape")
+	add.call("Cape: folds onto itself (slower)", "", _cape_fold_toggle, "cape cloth fold self collision layers pass through itself slower", false, "makes the next cape bake keep its folds from passing through each other: about 0.5 s of baking a frame instead of 0.03 s, so it is off until you switch it on (the toggle says which way it is)")
 	add.call("Cape: take off", "", _cape_clear, "cape cloth remove clear off delete", true, "takes the cape off the scene (Ctrl+Z puts it back)")
 	add.call("Cape: export its vertices (JSON)", "", _cape_export, "cape cloth export mesh json vertices", false, "writes the cape's vertex positions for every frame to a JSON file in the user folder")
 	add.call("Secondary: bake", "", _sec_bake, "secondary bake keys rebake update animation", true, "bake every secondary item again over the scene (after the animation changed)")

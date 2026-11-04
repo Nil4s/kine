@@ -891,6 +891,7 @@ EXTRA="$EXTRA c39:w"   # c39: FBX materials (tests/c39_test.gd)
 
 
 EXTRA="$EXTRA c41:w"   # c41: #184 invert orbit X / Y apart, #311 bad spots (built by C05) checked
+EXTRA="$EXTRA c54:w"   # c54: cloth self-collision (tests/c54_test.gd)
 
 EXTRA="$EXTRA c53:w"   # c53: SVG/DXF import into a Part sketch (tests/c53_test.gd)
 
@@ -945,3 +946,6 @@ EXTRA="$EXTRA ch1b:w"   # ch1b: house check, IRC spans/headers/studs/bracing/upl
 
 
 EXTRA="$EXTRA c59:w"   # c59: Easy Part left column: no button/label overlap and no edge chip cut below 4 letters at 1024/1280/1600 (tests/c59_test.gd)
+
+
+EXTRA="$EXTRA c54n:w"   # c54n: C++ cloth self-collision (tests/c54n_test.gd; SKIPs without the DLL)
