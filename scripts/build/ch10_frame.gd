@@ -33,7 +33,7 @@ static func solve(model: Dictionary, job: Dictionary, force_gd := false) -> Dict
 
 
 # ---------------------------------------------------------------------------------------------------------------- GDScript twin
-static func _elem(xyz: PackedFloat64Array, e: PackedFloat64Array) -> Array:
+static func _elem(xyz: PackedFloat64Array, e: PackedFloat64Array, nax := 0.0) -> Array:
 	## returns [K(144), M(144), n1, n2]
 	var n1 := int(e[0])
 	var n2 := int(e[1])
@@ -96,6 +96,19 @@ static func _elem(xyz: PackedFloat64Array, e: PackedFloat64Array) -> Array:
 		for j in 4:
 			kl[ix2[i] * 12 + ix2[j]] += c2 * kb2[i][j]
 			ml[ix2[i] * 12 + ix2[j]] += cm * mb2[i][j]
+	if nax != 0.0:    # CH1f P-delta: geometric stiffness N/(30 L), tension positive (twin of the C++ block)
+		var cg := nax / (30.0 * L)
+		var g1 := [[36, 3 * L, -36, 3 * L], [3 * L, 4 * L2, -3 * L, -L2], [-36, -3 * L, 36, -3 * L], [3 * L, -L2, -3 * L, 4 * L2]]
+		var g2 := [[36, -3 * L, -36, -3 * L], [-3 * L, 4 * L2, 3 * L, -L2], [-36, 3 * L, 36, 3 * L], [-3 * L, -L2, 3 * L, 4 * L2]]
+		for i in 4:
+			for j in 4:
+				kl[ix1[i] * 12 + ix1[j]] += cg * g1[i][j]
+				kl[ix2[i] * 12 + ix2[j]] += cg * g2[i][j]
+		var kt := nax * (Iz + Iy) / (A * L)
+		kl[3 * 12 + 3] += kt
+		kl[9 * 12 + 9] += kt
+		kl[3 * 12 + 9] -= kt
+		kl[9 * 12 + 3] -= kt
 	var R := [e1[0], e1[1], e1[2], e2[0], e2[1], e2[2], e3[0], e3[1], e3[2]]
 	var T := PackedFloat64Array()
 	T.resize(144)
@@ -148,9 +161,11 @@ static func solve_gd(model: Dictionary, job: Dictionary) -> Dictionary:
 	M.resize(nf * nf)
 	var bm: PackedFloat64Array = model["beams"]
 	var elems: Array = []
+	var axial: PackedFloat64Array = model.get("axial", PackedFloat64Array())
+	var has_ax: bool = axial.size() == bm.size() / 12
 	for b in range(0, bm.size(), 12):
 		var e := bm.slice(b, b + 12)
-		var r := _elem(xyz, e)
+		var r := _elem(xyz, e, axial[b / 12] if has_ax else 0.0)
 		elems.append(r)
 		var gd := PackedInt32Array()
 		for i in 6:
@@ -188,6 +203,30 @@ static func solve_gd(model: Dictionary, job: Dictionary) -> Dictionary:
 				if fj < 0:
 					continue
 				K[fi * nf + fj] += k * sg[i] * sg[j]
+	var Kd := K.duplicate()    # structural stiffness: Rayleigh damping uses it, not the soil springs or ties
+	var dk: PackedFloat64Array = model.get("dofk", PackedFloat64Array())
+	for i in range(0, dk.size() - 1, 2):
+		var f := map[int(dk[i])]
+		if f >= 0:
+			K[f * nf + f] += dk[i + 1]
+	var tz: PackedFloat64Array = model.get("ties", PackedFloat64Array())
+	for i in range(0, tz.size() - 2, 3):
+		var fa := map[int(tz[i])]
+		var fb := map[int(tz[i + 1])]
+		if fa >= 0:
+			K[fa * nf + fa] += tz[i + 2]
+		if fb >= 0:
+			K[fb * nf + fb] += tz[i + 2]
+		if fa >= 0 and fb >= 0:
+			K[fa * nf + fb] -= tz[i + 2]
+			K[fb * nf + fa] -= tz[i + 2]
+	var cdiag := PackedFloat64Array()
+	cdiag.resize(nf)
+	var dc: PackedFloat64Array = model.get("dofc", PackedFloat64Array())
+	for i in range(0, dc.size() - 1, 2):
+		var f2 := map[int(dc[i])]
+		if f2 >= 0:
+			cdiag[f2] += dc[i + 1]
 	var am: PackedFloat64Array = model.get("mass", PackedFloat64Array())
 	if am.size() == nn:
 		for nd in nn:
@@ -277,7 +316,28 @@ static func solve_gd(model: Dictionary, job: Dictionary) -> Dictionary:
 			for i in 3:
 				f[a * 6 + i] -= s2[2] * ext * n[i]
 				f[b3 * 6 + i] += s2[2] * ext * n[i]
+		for i in range(0, dk.size() - 1, 2):
+			f[int(dk[i])] += dk[i + 1] * ug[int(dk[i])]
+		for i in range(0, tz.size() - 2, 3):
+			var dd: float = tz[i + 2] * (ug[int(tz[i])] - ug[int(tz[i + 1])])
+			f[int(tz[i])] += dd
+			f[int(tz[i + 1])] -= dd
 		return f
+
+	if typ == "axial":
+		var uu: PackedFloat64Array = job["u"]
+		var Nn := PackedFloat64Array()
+		for b in range(0, bm.size(), 12):
+			var a1 := int(bm[b])
+			var b1 := int(bm[b + 1])
+			var dv := [xyz[b1 * 3] - xyz[a1 * 3], xyz[b1 * 3 + 1] - xyz[a1 * 3 + 1], xyz[b1 * 3 + 2] - xyz[a1 * 3 + 2]]
+			var Lb := sqrt(dv[0] * dv[0] + dv[1] * dv[1] + dv[2] * dv[2])
+			var ex := 0.0
+			for i in 3:
+				ex += dv[i] / Lb * (uu[b1 * 6 + i] - uu[a1 * 6 + i])
+			Nn.append(bm[b + 6] * bm[b + 2] / Lb * ex)
+		out["N"] = Nn
+		return out
 
 	if typ == "static":
 		var Lk: PackedFloat64Array = chol.call(K)
@@ -356,11 +416,11 @@ static func solve_gd(model: Dictionary, job: Dictionary) -> Dictionary:
 			return P
 		var cmul := func(x: PackedFloat64Array) -> PackedFloat64Array:
 			var a1: PackedFloat64Array = mul.call(M, x)
-			var a2: PackedFloat64Array = mul.call(K, x)
+			var a2: PackedFloat64Array = mul.call(Kd, x)
 			var y := PackedFloat64Array()
 			y.resize(nf)
 			for i in nf:
-				y[i] = alpha * a1[i] + bet * a2[i]
+				y[i] = alpha * a1[i] + bet * a2[i] + cdiag[i] * x[i]
 			return y
 		var P0: PackedFloat64Array = force.call(0)
 		var Cv: PackedFloat64Array = cmul.call(v)
@@ -376,7 +436,9 @@ static func solve_gd(model: Dictionary, job: Dictionary) -> Dictionary:
 		var Ke := PackedFloat64Array()
 		Ke.resize(nf * nf)
 		for i in nf * nf:
-			Ke[i] = K[i] * (1.0 + c2 * bet) + M[i] * (c1 + c2 * alpha)
+			Ke[i] = K[i] + Kd[i] * (c2 * bet) + M[i] * (c1 + c2 * alpha)
+		for i in nf:
+			Ke[i * nf + i] += c2 * cdiag[i]
 		var Lke: PackedFloat64Array = chol.call(Ke)
 		if Lke.is_empty():
 			out["error"] = "effective stiffness not positive definite"
