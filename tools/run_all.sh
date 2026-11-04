@@ -962,3 +962,4 @@ EXTRA="$EXTRA c65:w"   # c65: over 256 bodies the look-merge ignores the body na
 
 
 EXTRA="$EXTRA c62:w"   # C62: no bone end under the toolbar or a panel in the opening view / Fit / Home at 1024, 1280, 1920
+EXTRA="$EXTRA c68:w"   # c68: Easy Part step hint fully visible (not overlapped or clipped) at 1024/1280/1600 (tests/c68_test.gd)
