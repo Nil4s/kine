@@ -20,9 +20,26 @@ static func apply(p: String, b: Button, cell_w: float) -> void:
 					b.add_theme_stylebox_override(st, s2)
 		b.add_theme_font_size_override("font_size", 11)
 		b.set_meta("c51_narrow", true)
-	elif b.has_meta("c51_narrow"):
-		b.remove_meta("c51_narrow")
-		b.icon = Icons.tex("page_" + p.to_lower())
-		for st in ["normal", "hover", "pressed", "hover_pressed"]:
-			b.remove_theme_stylebox_override(st)
-		b.remove_theme_font_size_override("font_size")
+	else:
+		if b.has_meta("c51_narrow") or b.has_meta("c56_fit"):
+			b.remove_meta("c51_narrow")
+			b.remove_meta("c56_fit")
+			b.icon = Icons.tex("page_" + p.to_lower())
+			for st in ["normal", "hover", "pressed", "hover_pressed"]:
+				b.remove_theme_stylebox_override(st)
+			b.remove_theme_font_size_override("font_size")
+		# C56: at 84 px and wider a tab whose own icon + name is still wider than its cell (English ANIMATE 100 in 96, SURFACE 98 in 96)
+		# first trims its side margins, then drops its icon; a tab that already fits is not touched (font size never changes)
+		if b.get_minimum_size().x > cell_w + 0.5:
+			_margins(b, 3)
+			b.set_meta("c56_fit", true)
+			if b.get_minimum_size().x > cell_w + 0.5:
+				b.icon = null
+
+static func _margins(b: Button, m: int) -> void:
+	for st in ["normal", "hover", "pressed", "hover_pressed"]:
+		var s2 := b.get_theme_stylebox(st).duplicate() as StyleBoxFlat
+		if s2 != null:
+			s2.content_margin_left = m
+			s2.content_margin_right = m
+			b.add_theme_stylebox_override(st, s2)

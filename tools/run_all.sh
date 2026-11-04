@@ -933,3 +933,6 @@ EXTRA="$EXTRA c55:w"   # c55: one SVG parser, 16 recorded output hashes unchange
 
 
 EXTRA="$EXTRA b07:w"   # b07: no two visible buttons overlap in Easy Part at 1600x900 / 1280x720 / 1024x600 (tests/b07_test.gd)
+
+
+EXTRA="$EXTRA c56:w"   # c56: English ANIMATE/SURFACE tabs fit their cell at 1280 and 1920 (tests/c56_test.gd)
