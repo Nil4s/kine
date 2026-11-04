@@ -196,14 +196,55 @@ static func _arms(B: Body, P: Dictionary, t: float, surfs: Array) -> float:
 			var a1 := {}
 			for j in chain:
 				a1[j] = B.ang[j]
-			var rr := ContactIK.reach(B, tip, tgt, surfs)
-			if rr.get("on", false):
-				worst = maxf(worst, float(rr["miss"]) * w)
+			var cidx := int(st["i"]) if w >= 1.0 else int(st["bi"])
+			var cmode := String((tr[cidx] as Dictionary).get("mode", "")) if cidx >= 0 else ""
+			if cmode == "palm":
+				# CH7b: the key is the PALM's point on the surface (the schedule's contact point), the hand flat on it
+				worst = maxf(worst, _palm_reach(B, tip, tgt, Vector3.UP) * w)
+			else:
+				var rr := ContactIK.reach(B, tip, tgt, surfs)
+				if rr.get("on", false):
+					worst = maxf(worst, float(rr["miss"]) * w)
 			if w < 1.0:
 				for j in chain:
 					B.ang[j] = (a1[j] as Vector3).lerp(B.ang[j], w)
 				B.fk()
 	return worst
+
+
+## CH7b: put the PALM POINT (Body.palm_point, the point the bar reads) on `target`, the palm turned flat to the surface normal n.
+## The wrist target is moved by the palm's miss each round, so a wrist limit that tilts the hand is reported (the return, m), not hidden.
+static func _palm_reach(B: Body, tip: String, target: Vector3, n: Vector3) -> float:
+	var g: Quaternion = (B.G[tip] as Quaternion).normalized()
+	var palm_dir := (g * Body.PALM_DROP).normalized()
+	var turn: Quaternion = ContactIK._arc(palm_dir, -n)
+	var q: Quaternion = turn * g
+	var pole := LimbIK.pole_from_pose(B, tip)
+	var vf: Vector3 = turn * ((B.E[tip] as Vector3) - (B.P[tip] as Vector3))
+	var w: Vector3 = target - (0.6 * vf + q * (Body.PALM_DROP * B.hand_s(tip)))
+	for it in 5:
+		LimbIK.solve(B, tip, w, pole, q)
+		var err: Vector3 = target - B.palm_point(tip)
+		if err.length() < 0.0005:
+			break
+		w += err
+	return (target - B.palm_point(tip)).length()
+
+
+## the lowest point of any body capsule (its axis end less its radius), m
+static func lowest(B: Body) -> float:
+	var lo := 1e9
+	for part in Body.BODY:
+		var c: Array = B.cap(part)
+		lo = minf(lo, minf((c[0] as Vector3).y, (c[1] as Vector3).y) - float(B.rad[part]))
+	return lo
+
+
+static func _snap_on(P: Dictionary, t: float) -> bool:
+	for w in P.get("snap", []):
+		if t >= float(w[0]) - 1e-6 and t <= float(w[1]) + 1e-6:
+			return true
+	return false
 
 
 ## FK windows (the roll's tuck): the limbs' angles ease into a given set and out of it, over the window's ramp
@@ -345,6 +386,10 @@ static func pose(P: Dictionary, t: float, boxes: Array, surfs: Array) -> Diction
 		if miss > REACH_EPS:
 			y -= minf(miss, 0.12)
 			continue
+		if _snap_on(P, t):
+			# CH7b: a body lying or rolling on the roof: the lowest capsule point is the contact, so it rests on the surface
+			B.offset.y += Y0 - lowest(B)
+			B.fk()
 		pen = deepest(B, boxes)
 		if float(pen0["d"]) < 0.0:
 			pen0 = pen
@@ -352,7 +397,7 @@ static func pose(P: Dictionary, t: float, boxes: Array, surfs: Array) -> Diction
 			y += minf(float(pen["d"]), 0.12)
 			continue
 		miss = maxf(miss, 0.0)
-		return {"miss": miss, "arm_miss": am, "lift": y - float(rt["y"]), "pen": pen, "pen0": pen0}
+		return {"miss": miss, "arm_miss": am, "lift": (B.P["pelvis"] as Vector3).y - float(rt["y"]), "pen": pen, "pen0": pen0}
 	return {"miss": miss, "arm_miss": 0.0, "lift": y - float(rt["y"]), "pen": pen, "pen0": pen0}
 
 
