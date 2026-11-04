@@ -72,15 +72,13 @@ func scr(w: Vector3) -> Vector2:
 	return m.cam.unproject_position(w)
 
 
-
-## what Godot would show for c: its tooltip text laid out on the TooltipLabel font, one line per "
+## what Godot would show for c: its tooltip text laid out on the TooltipLabel font, one line per newline; {w, h, lines}
 "; {w, h, lines}
 func tip_box(c: Control) -> Dictionary:
 	var font: Font = c.get_theme_font("font", "TooltipLabel")
 	var fs: int = c.get_theme_font_size("font_size", "TooltipLabel")
 	var w := 0.0
-	var lines := c.tooltip_text.split("
-")
+	var lines := c.tooltip_text.split("\n")
 	for ln in lines:
 		w = maxf(w, font.get_string_size(ln, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x)
 	var pad := c.get_theme_stylebox("panel", "TooltipPanel").get_minimum_size()
