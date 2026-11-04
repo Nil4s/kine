@@ -6,6 +6,9 @@
 ##     never a drop over 15 %. (The mean over a whole move is REPORTED, not barred: a cat leap's catch is a stop by definition.)
 ##   3 LANDINGS: knee flexion at each landing rises with the drop height (monotone over the landings sorted by drop) and the
 ##     least-squares slope is within 20 % of the published 30.8 deg per m (docs/CH7_REFERENCE.md)
+##   3b the same slope bar read at the landing ABSORPTION PEAK: the first local maximum of knee flexion after touchdown (before the
+##     knee extends again), not the maximum over a window; same 30.8 +- 20 % target and monotone rule (added after run 1 showed the
+##     0.25 s window of bar 3 also catches the next stride's knee fold; bar 3 is kept as written)
 ##   4 FOOT SKATE: a stance foot's toe base slides under 1 cm over each roof contact
 ##   5 NO PENETRATION: no body part more than 1 cm into any solid of the course, on every frame
 ##   6 the scene is 8 s at 30 fps, and playing it back reproduces the solved pose; C++ and GDScript give the same penetration
@@ -60,6 +63,14 @@ static func speed_drop(exit_v: float, entry_v: float) -> float:
 
 
 ## slope (deg per m) of the least-squares line through (drop, flex), and whether the flex rises with the drop when sorted
+## the first local maximum of a knee-flexion series at or after index k0 (the landing absorption peak); the last value if it only rises
+static func first_peak(series: Array, k0: int) -> float:
+	for k in range(k0, series.size() - 1):
+		if float(series[k + 1]) < float(series[k]):
+			return float(series[k])
+	return float(series[series.size() - 1])
+
+
 static func fit(rows: Array) -> Dictionary:
 	var r := rows.duplicate()
 	r.sort_custom(func(a, b): return a[0] < b[0])
@@ -171,7 +182,9 @@ func _run() -> void:
 	# ---- 3 landings: [name, foot (the first to touch), t_touch, t_apex_start]
 	var lands := [["speed vault", "_r", 1.48, 1.00], ["kong", "_l", 2.84, 2.16], ["wall run exit", "_r", 4.30, 4.15], ["ledge drop", "_l", 6.58, 6.04]]
 	var rows := []
+	var rows2 := []
 	var txt := ""
+	var txt2 := ""
 	for ld in lands:
 		var sd: String = ld[1]
 		var kt := int(round(float(ld[2]) * fps))
@@ -187,9 +200,14 @@ func _run() -> void:
 		for k in range(kt, mini(kt + int(0.25 * fps), nfr - 1) + 1):
 			flex = maxf(flex, float(knee[sd][k]))
 		rows.append([drop, flex])
+		var pk := first_peak(knee[sd], kt)
+		rows2.append([drop, pk])
+		txt2 += " %s drop %.2f m peak %.0f deg;" % [ld[0], drop, pk]
 		txt += " %s drop %.2f m flex %.0f deg;" % [ld[0], drop, flex]
 	var f := fit(rows)
 	ok(bool(f["mono"]) and absf(float(f["slope"]) - REF_SLOPE) <= SLOPE_TOL * REF_SLOPE, "3 landing knee flex vs drop:%s monotone %s, slope %.1f deg/m (bar %.0f +- 20 %%)" % [txt, str(f["mono"]), f["slope"], REF_SLOPE])
+	var f2 := fit(rows2)
+	ok(bool(f2["mono"]) and absf(float(f2["slope"]) - REF_SLOPE) <= SLOPE_TOL * REF_SLOPE, "3b landing absorption peak (first local max after touchdown) vs drop:%s monotone %s, slope %.1f deg/m (bar %.1f +- 20 %%)" % [txt2, str(f2["mono"]), f2["slope"], REF_SLOPE])
 	# ---- 4 foot skate on the roof contacts
 	var worst_sk := 0.0
 	var nstance := 0
@@ -227,6 +245,7 @@ func _run() -> void:
 	var flat := fit([[0.6, 60.0], [1.0, 60.0], [1.4, 60.0]])
 	var steep := fit([[0.6, 40.0], [1.0, 90.0], [1.4, 140.0]])
 	ok(not bool(flat["mono"]) and absf(float(steep["slope"]) - REF_SLOPE) > SLOPE_TOL * REF_SLOPE, "7d control: a flat landing (slope %.0f) and a 125 deg/m one fail bar 3" % flat["slope"])
+	ok(first_peak([10.0, 40.0, 70.0, 60.0, 130.0], 0) == 70.0 and first_peak([10.0, 40.0, 70.0, 60.0, 130.0], 3) == 130.0, "7f control: first_peak picks the first local maximum (70, not the later 130)")
 	S.apply(B, 1.2)
 	var wrong := boxes.duplicate(true)
 	wrong.append({"c": (B.P["pelvis"] as Vector3), "h": Vector3(0.3, 0.3, 0.3), "kind": "planted"})
