@@ -33,3 +33,16 @@ Every place Kine shells out to Python: video import (`main.gd` `_import_video`),
 **Choice: the base installer does not bundle Python. Each feature says "<feature> needs the video add-on ..." (`scripts/video_addon.gd`, `VideoAddon.gate`) and does nothing else.** Run from source (editor or `pose.bat`) nothing changes: `gate()` is always empty there.
 Reasons: (1) size and risk: embeddable Python + mediapipe + opencv + numpy + protobuf + their transitive wheels is several hundred MB, more than the whole app, for features most users do not use on day one; (2) the tools themselves (`tools/*.py`) are read through `res://` paths that point into the pck in an exported build, so they would need shipping loose as well, with the paths changed in about ten call sites; (3) mediapipe/numpy/opencv licences (Apache-2.0, BSD-3, Apache-2.0/MIT) allow bundling, so this is a size/maintenance decision, not a legal one; (4) a clear message is honest, a half-working bundled interpreter is not.
 The add-on layout the gate already looks for: `addon/python/python.exe` beside `Kine.exe` (with `tools/*.py` beside it). When the add-on is built, the interpreter fields (`video_python` etc.) need pointing at it; that is the follow-up.
+
+## Numbers (11-04, Windows 11, a loaded machine: 13 Godot processes from other lanes ran during every measurement)
+- Installer: `Kine-Setup-0.4.0.exe` 77.6 MB (LZMA2 max). Installed: 213 MB (`Kine.exe` 145 MB with the pck inside, 32 DLLs 65.7 MB: kine_native, kine_cad, 29 OpenCASCADE `libTK*`, 3 MinGW runtime).
+- First window of the installed app: 3.2 s. Headless smoke (boot, open Part, build a box through KineCAD, mesh it): 15.5 s to 31.9 s in the engine clock across runs depending on the load of the other lanes; the whole process under `timeout 60` exits 0 in 20 to 56 s (once 60 s was hit on a heavily loaded run and the bar failed, then passed on rerun; the bar was not moved).
+- A clean `quit()` of the headless build takes about 90 s (unloading the whole script graph), so `tools/c78_smoke.gd` ends the process with `OS.kill` right after printing its verdict. Worth a separate look: it is the same cost whenever the app is closed.
+- Dependency walk (`stage_dist.py`) found 32 DLLs; the build fails if an import is neither staged nor in System32.
+
+## Things the export taught us (kept, not hidden)
+- Exported builds ignore `-s`; the smoke test starts through the user arg `--c78-smoke` handled in `main.gd` (5 lines) and `tools/c78_smoke.gd`.
+- Imported PNGs are not in the pck as raw files, so `Image.load_from_file(res://...)` fails in an exported build (the Easy tip clips did this at every boot). `scripts/pck_image.gd` (`PckImage.load_res`) reads the imported lossless texture instead; the two tip loaders use it.
+- The release export needs `debug/export_console_wrapper=2` to produce `Kine.console.exe` (the preset's `1` is debug only).
+- Under Git Bash, Inno's `/D...` and `/VERYSILENT` switches are mangled as paths unless `MSYS_NO_PATHCONV=1` is set (the scripts do).
+- Not done: the video add-on itself, a file association (see above), code signing (Windows SmartScreen will warn on an unsigned installer), Godot's own About / Licences screen text for the notices.
