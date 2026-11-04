@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include "kine_cad.h"
 
 #include <godot_cpp/variant/array.hpp>
@@ -19,6 +20,12 @@
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepBuilderAPI_MakePolygon.hxx>
 #include <BRepBuilderAPI_MakeSolid.hxx>
+#include <BRepBuilderAPI_MakeVertex.hxx>
+#include <BRep_Builder.hxx>
+#include <TopoDS_Shell.hxx>
+#include <unordered_map>
+#include <vector>
+#include <algorithm>
 #include <BRepLib.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <GC_MakeArcOfCircle.hxx>
@@ -397,7 +404,8 @@ Ref<ArrayMesh> KineCAD::tessellate(int id, double deflection, double angle) {
 		return mesh;
 	}
 	KCAD_TRY
-	BRepMesh_IncrementalMesh inc(s, deflection, false, angle, false);
+	// c74: OCCT's parallel mesher starts the OSD thread pool, whose workers keep the process from exiting on Windows (blueprint/s257 hung to the 900 s timeout). Serial by default; KINE_PAR_MESH=1 opts back in.
+	BRepMesh_IncrementalMesh inc(s, deflection, false, angle, std::getenv("KINE_PAR_MESH") != nullptr);
 	PackedVector3Array verts, norms;
 	PackedInt32Array idx;
 	for (TopExp_Explorer ex(s, TopAbs_FACE); ex.More(); ex.Next()) {
@@ -1236,6 +1244,105 @@ int KineCAD::live_count() {
 }
 
 
+
+// s249n DIRECT SHELL: a mesh whose triangles already share vertex INDICES (every edge used by exactly two triangles, once each way) needs no sewing:
+// one vertex per index, one edge per undirected pair, one planar face per triangle. Sewing searches for the matches the indices already name (the
+// 54k-triangle temple roofs took 33 s that way). Anything else (unwelded copies, open or non-manifold edges, a bad index) returns false and the
+// caller sews as before, so the solid is the same one and only the time differs.
+static bool kc_direct_solid(const PackedVector3Array &p_verts, const PackedInt32Array &p_tris, TopoDS_Solid &r_solid) {
+	const int nv = p_verts.size();
+	std::unordered_map<long long, int> use; // undirected edge -> bit 1: seen a->b (a<b), bit 2: seen b->a
+	std::vector<char> ok_tri(p_tris.size() / 3, 0);
+	for (int t = 0; t + 2 < p_tris.size(); t += 3) {
+		int ix[3] = { p_tris[t], p_tris[t + 1], p_tris[t + 2] };
+		for (int k = 0; k < 3; k++) {
+			if (ix[k] < 0 || ix[k] >= nv) {
+				return false;
+			}
+		}
+		if (ix[0] == ix[1] || ix[1] == ix[2] || ix[0] == ix[2]) {
+			continue;
+		}
+		ok_tri[t / 3] = 1;
+		for (int k = 0; k < 3; k++) {
+			int a = ix[k], b = ix[(k + 1) % 3];
+			long long key = (long long)std::min(a, b) * (long long)nv + std::max(a, b);
+			int bit = a < b ? 1 : 2;
+			int &u = use[key];
+			if (u & bit) {
+				return false; // the same direction twice: non-manifold or flipped
+			}
+			u |= bit;
+		}
+	}
+	for (auto &kv : use) {
+		if (kv.second != 3) {
+			return false; // open edge
+		}
+	}
+	std::vector<TopoDS_Vertex> vtx(nv);
+	std::vector<char> have(nv, 0);
+	std::unordered_map<long long, TopoDS_Edge> edges;
+	BRep_Builder bb;
+	TopoDS_Shell shell;
+	bb.MakeShell(shell);
+	int nf = 0;
+	for (int t = 0; t + 2 < p_tris.size(); t += 3) {
+		if (!ok_tri[t / 3]) {
+			continue;
+		}
+		int ix[3] = { p_tris[t], p_tris[t + 1], p_tris[t + 2] };
+		for (int k = 0; k < 3; k++) {
+			if (!have[ix[k]]) {
+				Vector3 v = p_verts[ix[k]];
+				vtx[ix[k]] = BRepBuilderAPI_MakeVertex(gp_Pnt(v.x, v.y, v.z));
+				have[ix[k]] = 1;
+			}
+		}
+		BRepBuilderAPI_MakeWire mw;
+		for (int k = 0; k < 3; k++) {
+			int a = ix[k], b = ix[(k + 1) % 3];
+			int lo = std::min(a, b), hi = std::max(a, b);
+			long long key = (long long)lo * (long long)nv + hi;
+			auto it = edges.find(key);
+			if (it == edges.end()) {
+				BRepBuilderAPI_MakeEdge me(vtx[lo], vtx[hi]);
+				if (!me.IsDone()) {
+					return false;
+				}
+				it = edges.emplace(key, me.Edge()).first;
+			}
+			TopoDS_Edge e = it->second;
+			mw.Add(a < b ? e : TopoDS::Edge(e.Reversed()));
+			if (!mw.IsDone()) {
+				return false;
+			}
+		}
+		Vector3 va = p_verts[ix[0]], vb = p_verts[ix[1]], vc = p_verts[ix[2]];
+		gp_Vec n = gp_Vec(gp_Pnt(va.x, va.y, va.z), gp_Pnt(vb.x, vb.y, vb.z)).Crossed(gp_Vec(gp_Pnt(va.x, va.y, va.z), gp_Pnt(vc.x, vc.y, vc.z)));
+		if (n.Magnitude() < 1e-30) {
+			return false;
+		}
+		BRepBuilderAPI_MakeFace mf(gp_Pln(gp_Pnt(va.x, va.y, va.z), gp_Dir(n)), mw.Wire(), true); // the plane is known: no plane search
+		if (!mf.IsDone()) {
+			return false;
+		}
+		bb.Add(shell, mf.Face());
+		nf++;
+	}
+	if (nf < 4) {
+		return false;
+	}
+	shell.Closed(true);
+	BRepBuilderAPI_MakeSolid ms(shell);
+	if (!ms.IsDone()) {
+		return false;
+	}
+	r_solid = ms.Solid();
+	BRepLib::OrientClosedSolid(r_solid);
+	return true;
+}
+
 // s155 MESH -> SOLID: every triangle becomes a planar face, the faces are sewn into one shell (shared vertices, tolerance p_tol metres),
 // the shell must be CLOSED and be the only one, then it becomes a solid with its faces pointing outward. 0 + last_error() otherwise.
 int KineCAD::solid_from_mesh(const PackedVector3Array &p_verts, const PackedInt32Array &p_tris, double p_tol) {
@@ -1244,6 +1351,12 @@ int KineCAD::solid_from_mesh(const PackedVector3Array &p_verts, const PackedInt3
 		return 0;
 	}
 	KCAD_TRY
+	if (std::getenv("KINE_NO_DIRECT") == nullptr) {
+		TopoDS_Solid direct;
+		if (kc_direct_solid(p_verts, p_tris, direct)) {
+			return kc_put_solid(direct);
+		}
+	}
 	BRepBuilderAPI_Sewing sew(p_tol > 0.0 ? p_tol : 1e-6, true, true, true, false);
 	int added = 0;
 	for (int t = 0; t + 2 < p_tris.size(); t += 3) {

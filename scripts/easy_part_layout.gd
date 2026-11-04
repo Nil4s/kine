@@ -1253,6 +1253,15 @@ func _grid_labels_lay(st: float) -> void:
 
 ## p108measuregri: only the numbers the lens can see are shown: one behind the camera or outside the 1280 x 720 view is hidden,
 ## so the spacing on the screen is the spacing of the numbers that are there (a number far off the edge sat 40 px from its neighbour)
+## C68: true when a grid number drawn at screen point sp (about 64 x 18 px) would touch the sentence or a chip row
+func _grid_label_under_box(sp: Vector2) -> bool:
+	var r := Rect2(sp - Vector2(32, 9), Vector2(64, 18))
+	for bx in [hint, round_box, shape_box, hole_box, split_box, colour_box]:
+		if bx != null and (bx as Control).is_visible_in_tree() and r.intersects((bx as Control).get_global_rect()):
+			return true
+	return false
+
+
 func _grid_labels_cull() -> void:
 	var c: Camera3D = m.cam
 	var view := c.get_viewport().get_visible_rect()
@@ -1261,7 +1270,8 @@ func _grid_labels_cull() -> void:
 		var p := l.global_position
 		var on := not c.is_position_behind(p)
 		if on:
-			on = view.has_point(c.unproject_position(p))
+			var sp := c.unproject_position(p)
+			on = view.has_point(sp) and not _grid_label_under_box(sp)   # C68: a number half hidden by the sentence or a chip row shows as a cut-off line
 		l.visible = on
 	_grid_labels_screen_size(c, view)   # integ95: a fixed screen size, and no two numbers on top of each other
 
