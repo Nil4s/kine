@@ -69,7 +69,7 @@ static func measure(card: Control, hb: Control, w: float, compact: bool) -> Vect
 
 
 ## sets the card's width (via `hb`, the buttons' flow) and its position; returns true when a spot with no overlap was found
-static func place(card: Control, hb: Control, view: Rect2, blk: Array, body: Rect2) -> bool:
+static func place(card: Control, hb: Control, view: Rect2, blk: Array, body: Rect2, pts: Array = []) -> bool:
 	for avoid_body in [true, false]:
 		for wi in WIDTHS.size():
 			var w: float = WIDTHS[wi]
@@ -86,7 +86,7 @@ static func place(card: Control, hb: Control, view: Rect2, blk: Array, body: Rec
 						if r.intersects(b):
 							hit = true
 							break
-					if not hit and not (avoid_body and r.intersects(body)):
+					if not hit and not (avoid_body and r.intersects(body)) and not PickDodge.covers(r, pts, 8.0):
 						_compact(card, hb, wi >= PLAIN)
 						hb.custom_minimum_size = Vector2(w - 20.0, 0)
 						card.size = ps   # the flow wraps to this width on the next layout; reset_size would keep the old wrapped height
@@ -120,3 +120,15 @@ static func _compact(card: Control, hb: Control, on: bool) -> void:
 			(c as Control).remove_theme_font_size_override("font_size")
 		if c is Button:
 			(c as Control).custom_minimum_size = Vector2(0, 24 if on else 0)
+
+
+## the screen points the card must not cover: the pick point of every part (PickDodge) and both ends of every bone (C62)
+static func points(m: Node) -> Array:
+	var out: Array = PickDodge.points(m)
+	for j in m.B.P.keys():
+		var c: Array = m.B.cap(j)
+		for k in 2:
+			var w: Vector3 = c[k]
+			if not m.cam.is_position_behind(w):
+				out.append(m.cam.unproject_position(w))
+	return out

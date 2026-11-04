@@ -11075,7 +11075,7 @@ func _hands_refresh() -> void:
 				if not d0["easy"] and d0.has("both"):
 					hb_flow = (d0["both"] as Control).get_parent()
 					(d0["state"] as Label).text = st   # its wrapped height is part of the card's size
-			var docked: bool = hb_flow != null and HandsDock.place(ui_hands_panel, hb_flow, vrect, HandsDock.blockers(self, ui_hands_panel, vrect, [ui_status, ui_mouse, ui_bar, ui_cube]), body)
+			var docked: bool = hb_flow != null and HandsDock.place(ui_hands_panel, hb_flow, vrect, HandsDock.blockers(self, ui_hands_panel, vrect, [ui_status, ui_mouse, ui_bar, ui_cube]), body, HandsDock.points(self))
 			if not docked:
 				var pick := Vector2(x1, y1)
 				for c in [Vector2(x1, y1), Vector2(x0, y0), Vector2(x0, y1), Vector2(x1, y0)]:
