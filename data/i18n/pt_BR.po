@@ -420,6 +420,18 @@ msgstr "Came e seguidor"
 msgid "Gear pair"
 msgstr "Par de engrenagens"
 
+msgid "Mode"
+msgstr "Modo"
+
+msgid "Rack length"
+msgstr "Comprimento da cremalheira"
+
+msgid "Rack and pinion"
+msgstr "Cremalheira e pinhão"
+
+msgid "Spur gears only: flat teeth, no helical, bevel or worm"
+msgstr "Só engrenagens retas: dentes planos, sem helicoidal, cônica ou sem-fim"
+
 msgid "Like a photo:"
 msgstr "Igual a uma foto:"
 

@@ -919,3 +919,6 @@ EXTRA="$EXTRA c50:w"   # c50: sketch reference geometry + item labels (tests/c50
 
 
 EXTRA="$EXTRA c58:w"   # C58: Part side dialogs keep OK/Cancel reachable, tests/c58_test.gd
+
+
+EXTRA="$EXTRA c52:w"   # c52: Gear template Rack and pinion mode (pitch, centre distance, backlash, roll overlap measured on the mesh), Gear pair byte-identical, pt_BR (tests/c52_test.gd; needs the CAD DLL)
