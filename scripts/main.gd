@@ -2991,6 +2991,7 @@ func _shade_menu_sync() -> void:
 		lp.set_item_checked(i, shading.sky if k2 == "sky" else (shading.hdri != "" if k2 == "hdri" else k2 == shading.lights))
 		if k2 == "hdri_clear":
 			lp.set_item_disabled(i, shading.hdri == "")
+			lp.set_item_tooltip(i, "" if shading.hdri != "" else GREY_TAG.strip_edges() + " no picture background is set: choose Picture background first")   # B07
 	ui_shade_btn.icon = Icons.tex({"wireframe": "shade_wire", "matcap": "shade_matcap", "xray": "shade_xray", "silhouette": "shade_sil"}.get(shading.mode, "shade_solid"))
 
 
@@ -11040,8 +11041,8 @@ func _hands_refresh() -> void:
 			continue
 		(d["state"] as Label).text = st
 		(d["both"] as Button).disabled = on_h
-		(d["let_l"] as Button).disabled = not (on_h and o == "hand_l")
-		(d["let_r"] as Button).disabled = not (on_h and o == "hand_r")
+		_grey(d["let_l"], "" if (on_h and o == "hand_l") else "the left hand is not holding the weapon: nothing to let go")   # B07: greyed says why
+		_grey(d["let_r"], "" if (on_h and o == "hand_r") else "the right hand is not holding the weapon: nothing to let go")
 		(d["follow"] as Button).set_pressed_no_signal(held)
 		(d["only"] as Button).set_pressed_no_signal(only_part)
 	_blade_sync()
@@ -25763,6 +25764,7 @@ func _gpu_menu_build(pm: PopupMenu) -> void:
 	pm.add_separator("This PC's graphics card")
 	pm.add_item(GpuTier.summary(GpuTier.info()), 100)
 	pm.set_item_disabled(pm.get_item_index(100), true)
+	pm.set_item_tooltip(pm.get_item_index(100), GREY_TAG.strip_edges() + " this line only names the graphics card this PC has")   # B07
 	pm.add_check_item("Fast view (FSR 2)", 101)
 	pm.set_item_tooltip(pm.get_item_index(101), "the live view is drawn at 2/3 size and sharpened back up (AMD FSR 2, built into Godot): for a PC whose graphics card is the limit. Videos you save are always full quality. Needs the High drawing engine (Forward+)")
 	pm.add_separator("Saving video")
@@ -25776,11 +25778,15 @@ func _gpu_menu_sync(pm: PopupMenu) -> void:
 	var tier := String(GpuTier.info()["tier"])
 	pm.set_item_checked(pm.get_item_index(101), GpuTier.fast_view)
 	pm.set_item_disabled(pm.get_item_index(101), Quality.current_renderer() != "forward_plus")
+	var _t101 := "the live view is drawn at 2/3 size and sharpened back up (AMD FSR 2, built into Godot): for a PC whose graphics card is the limit. Videos you save are always full quality. Needs the High drawing engine (Forward+)"
+	pm.set_item_tooltip(pm.get_item_index(101), _t101 + ("" if Quality.current_renderer() == "forward_plus" else " " + GREY_TAG.strip_edges() + " this needs the High drawing engine: switch the drawing engine to High first"))   # B07
 	for k in GpuTier.ENCODERS.size():
 		var e: String = GpuTier.ENCODERS[k]
 		var i := pm.get_item_index(110 + k)
 		pm.set_item_checked(i, e == GpuTier.pref)
-		pm.set_item_disabled(i, e != "auto" and not GpuTier.encoders_for(tier).has(e))
+		var _no: bool = e != "auto" and not GpuTier.encoders_for(tier).has(e)
+		pm.set_item_disabled(i, _no)
+		pm.set_item_tooltip(i, "which chip makes the .mp4. Auto and 'on the CPU' use the processor. The graphics card (NVENC) frees the processor but was not measurably faster in Kine's own exports; a choice it cannot do here falls back to the processor (remembered)" + (" " + GREY_TAG.strip_edges() + " this PC's graphics card cannot make this video: pick Auto or the CPU" if _no else ""))   # B07
 
 
 func _gpu_pressed(id: int, pm: PopupMenu) -> void:
