@@ -11,12 +11,19 @@ extends "res://tests/ch5_test.gd"
 ##           brightest 10 % of that stone's own pixels (luminance) and average them: the stone's highlight. The statistic is the mean over stones of that
 ##           highlight. Wet / dry >= 3. The pixel choice follows the same rule in both images (it is never taken from one image and reused in the other).
 ##           CONTROL (planted): the wet scene with SSR and the reflection probe switched off (ws.set_reflections(false)) must give a ratio < 3.
+##           AMENDED (lead verdict RED 1, 11-04 12:40, before the F2c run): that control cannot fail for DIRECT glints (the lamp's own specular
+##           lobe needs neither SSR nor the probe), so it is now printed only. F2c CONTROL (planted): the wet scene with everything wet kept
+##           (albedo, water, SSR, probe) but the DRY roughness on the stones (ws.set_dry_roughness(true)) must give a ratio < 3: the bar must
+##           fail when the wet roughness is missing. F2 itself (statistic, stones, >= 3) is unchanged.
 ## H VEIL   (the pale asphalt) PRE-RUN CHANGE of an unrun bar (lead 11-04): the first draft limit "< 0.10 dry" had no source. Now it comes from ref2.jpg:
 ##           the only flat, non-sett ground in the photo is the wet flat patch at the left edge of the lane (hand-masked once, assets/ch5c/ref2_flat_patch_mask.png,
 ##           polygon in photo px (458,1246)..(594,1286), 5047 px). Its mean sRGB luminance (0.2126 R + 0.7152 G + 0.0722 B of the 8-bit values) is 0.302.
 ##           The photo patch is WET and shows the sky haze, so the comparison is wet render to wet photo. BAR: in the WET render, pose x = 0, the asphalt strip
 ##           (ground x 1.2..2.6, z -7..-1, outside the bowls) has mean sRGB luminance within +-25 % of 0.302, i.e. in [0.227, 0.378].
 ##           CONTROL: the parked CH5b shader's wet value 0.1207 (commit 67a12af7 diagnosis) is outside the band and fails. The dry value is printed, not barred.
+##           AMENDED REGION (fix pass 2, before its run; band, statistic and control unchanged): the scene now copies the photo's layout, which
+##           has no asphalt strip, so the old ground box (x 1.2..2.6) lies under the fence. The bar samples the scene's copy of the SAME photo
+##           patch instead (ws.is_asphalt(): the ellipse at the patch's photo position), every pixel (was every 2nd: the patch is ~1000 px), n > 500.
 const OUT := "C:/Users/Nick/tools/kine_workers/out/ch5c/"
 
 
@@ -73,6 +80,10 @@ func _run() -> void:
 	var ctrl := await render(cam)
 	ctrl.save_png(OUT + "ch5c_night_noreflect.png")
 	ws.set_reflections(true)
+	ws.set_dry_roughness(true)
+	var ctrl2 := await render(cam)
+	ctrl2.save_png(OUT + "ch5c_night_dryrough.png")
+	ws.set_dry_roughness(false)
 	ws.set_dry(true)
 	var dry := await render(cam)
 	dry.save_png(OUT + "ch5c_night_dry.png")
@@ -104,21 +115,24 @@ func _run() -> void:
 	var sc := sheen(ctrl, groups)
 	var ratio: float = float(sw[0]) / maxf(float(sd[0]), 1e-6)
 	var cratio: float = float(sc[0]) / maxf(float(sd[0]), 1e-6)
-	print("     F2: %d stones, mean top-10%% highlight wet %.4f, dry %.4f, no-SSR/no-probe %.4f" % [sw[1], sw[0], sd[0], sc[0]])
+	var sc2 := sheen(ctrl2, groups)
+	var c2ratio: float = float(sc2[0]) / maxf(float(sd[0]), 1e-6)
+	print("     F2: %d stones, mean top-10%% highlight wet %.4f, dry %.4f, no-SSR/no-probe %.4f, wet-with-dry-roughness %.4f" % [sw[1], sw[0], sd[0], sc[0], sc2[0]])
 	ok(int(sw[1]) >= 25 and ratio >= 3.0, "F2 SHEEN: wet stone highlights are %.1fx the same stones' dry highlights (need >= 3, n=%d stones)" % [ratio, sw[1]])
-	ok(not (cratio >= 3.0), "F2 CONTROL: the wet scene with SSR and the reflection probe off gives %.1fx and fails the bar" % cratio)
+	print("     (info, retired control) the wet scene with SSR and the reflection probe off gives %.1fx" % cratio)
+	ok(not (c2ratio >= 3.0), "F2c CONTROL: the wet scene with the DRY stone roughness gives %.1fx and fails the bar" % c2ratio)
 	# H VEIL
 	var hv := 0.0
 	var hd := 0.0
 	var hn := 0
-	for y in range(0, 720, 2):
-		for x in range(0, 1280, 2):
+	for y in range(0, 720):
+		for x in range(0, 1280):
 			var o2 := cam.project_ray_origin(Vector2(x, y))
 			var d2 := cam.project_ray_normal(Vector2(x, y))
 			if d2.y >= -0.001:
 				continue
 			var g2 := o2 + d2 * (-o2.y / d2.y)
-			if g2.x < 1.2 or g2.x > 2.6 or g2.z < -7.0 or g2.z > -1.0 or ws.bowl_field(g2.x, g2.z) < -0.01:
+			if not ws.is_asphalt(g2.x, g2.z) or ws.bowl_field(g2.x, g2.z) < -0.01:
 				continue
 			hv += ylum(wet.get_pixel(x, y))
 			hd += ylum(dry.get_pixel(x, y))

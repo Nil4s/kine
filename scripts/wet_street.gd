@@ -7,10 +7,15 @@ extends Node3D
 ## World: metres, +y up. Patch x in [X0, X0+SPAN_X], z in [Z0, Z0+SPAN_Z]; the camera stands on +z and looks toward -z.
 ## Data model (kept from CH5/CH5b so their bars A, C, E run unchanged): height(), himg (RF metres), mimg (RGBA8 wet albedo + wet roughness), bowls, level.
 
-const X0 := -3.2
-const Z0 := -16.0
-const SPAN_X := 6.4
-const SPAN_Z := 17.0
+## LAYOUT AND CAMERA FROM THE PHOTO (fix pass 2, tools/ch5c_photo_estimates.py prints every number): ref2.jpg is a Nokia Lumia 920 frame
+## (Wikimedia EXIF: Make Nokia, Model Lumia 920; 26 mm-equivalent lens, 1.4 um pixels, original 1994 px wide) -> f = 1630 px at the
+## 1280 px copy. Horizon (lane vanishing point) row 975. Camera height from the left wall's brick courses (15 px at x 440, 8 px at x 560,
+## wall base rows 1173 / 1079; a Victorian Liverpool course ~79 mm, the photo's GPS is 53.4166 N, 2.9497 W): 1.03 m (0.98-1.13 for
+## 75-86 mm courses). Everything else follows from f, h and the horizon: wall, plinth, fence, lamp, gate, the flat tarmac patch, sett size.
+const X0 := -1.6
+const Z0 := -21.5
+const SPAN_X := 3.2
+const SPAN_Z := 23.0
 const TEXEL := 0.006                 ## metres per baked pixel
 const PITCH := 0.11                  ## nominal sett size (tests scale u, v with it)
 const GAP := 0.014                   ## joint width scale
@@ -20,39 +25,50 @@ const DOME := 0.012                  ## extra per-stone dome on top of the photo
 const JOINT_DARK := 0.35             ## wet joints: albedo x this at the joint centre
 const ROUND := 0.012                 ## rounding width of a stone edge (metres from the outline)
 const LEVEL := -0.034                ## THE water level
-const ASPHALT_X := 0.85              ## asphalt strip: x > this
+const ASPHALT_X := 0.85              ## (CH5/CH5b layout, unused since fix pass 2: the photo has no asphalt strip)
+const PATCH_C := Vector2(-0.615, -4.43)   ## the photo's flat tarmac repair (px 430-610, rows 1235-1290): an ellipse on the ground
+const PATCH_R := Vector2(0.325, 0.565)
 const DRY_ROUGH_COBBLE := 0.85
 const DRY_ROUGH_ASPHALT := 0.92
-const WET_ROUGH_COBBLE := 0.10
+const WET_ROUGH_COBBLE := 0.03       ## the stone tops carry a water film: film roughness = WATER_ROUGH (Lagarde 2013, "Water drop 2b": a wet film is a water surface); domes end at ~0.11 after AMBIENT_WET
 const WET_ROUGH_ASPHALT := 0.30
 const WATER_ROUGH := 0.03
 const DRY_ALB_COBBLE := 0.11         ## linear albedo of a dry stone top (night granite is dark; the photo's 0.5 grey is scaled to this)
 const DRY_ALB_ASPHALT := 0.07
 const WET_DARKEN := 0.7             ## wet albedo = dry * this (Lekner & Dorf 1988)
 const AMBIENT_WET := 0.9
-const EYE := 1.1                     ## camera height from ref2.jpg (tools/ch5c_photo_estimates.py): 1.1 m
-const LAMP_POS := Vector3(0.3, 5.8, -9.8)    ## the photo's lamp: base 11.3 m from the camera, 5.8 m high (estimates script)   ## the bulb of lamp 0
+const EYE := 1.03                    ## camera height (brick courses, see the header)
+const LAMP_POS := Vector3(-0.60, 5.24, -19.6)  ## the bulb of lamp 0: post base row 1055 -> 21.1 m from the camera (z = 1.5 - 21.1), head row 650 -> 5.24 m, head x 645 -> -0.60 m
 const BULB_R := 0.3                  ## light_size (soft-shadow radius) of every lamp: a street luminaire emits from a ~0.6 m x 0.3 m window (typical cobra-head fixture, from memory, not re-fetched), so radius 0.3 m. NOT tuned to a bar.
 const BULB_VIS := 0.3
-const FOV := 47.4                    ## vertical FOV at 16:9 = horizontal 75.9 deg, f = 820 px of the photo (estimates script)
-const PITCH_DEG := 1.0                ## the photo's horizon is 14 px below its centre: the camera looks 1 deg up
-const TILE_M := 1.8                  ## the photo tile (1.5 m real) drawn 1.2x: setts about 190 x 120 mm (photo: 100 x 200 mm rows across the lane)
+const FOV := 61.0                    ## the photo's own camera: f = 1630 px over its 1922 px height = vertical 61.0 deg; the 1280x720 render holds the
+                                     ## whole photo frame in its central 480 x 720 px (tools/ch5c_side.py crops it for the side-by-side)
+const PITCH_DEG := 0.5               ## the photo's horizon is 14 px below its centre: atan(14 / 1630) = 0.5 deg up
+const TILE_M := 1.3                  ## the CC0 tile (1.5 m real) drawn at 1.3 m: setts 117 x 99 mm pitch; the photo's setts: 16 joint rows between rows
+                                     ## 1495 and 1910 (3.10 m -> 1.73 m from the camera) = 86-90 mm pitch along the lane, 110-150 mm across (mean 131)
 const TILE_N := 1024
 const PX_M := TILE_M / float(TILE_N)
-const TILT_X := 0.08                ## per-stone tilt across the lane (slope)
-const TILT_Z := 0.40                ## per-stone tilt along the lane: smears the lamp's reflection into the vertical streak of the photo
+const TILT_X := 0.045               ## per-stone tilt (slope), from the photo's glitter streak: half-width 0.24 m at 3.2 m from the camera
+const TILT_Z := 0.045               ## (x 560-800 at row 1500) needs a normal spread of (0.24/3.2 + 0.24/18) / 2 = 0.044
 
-## lamp row: [bulb position, colour, light energy, post x offset, bulb emission]; lamp 0 is the photo's lamp (white), the others are sodium
+## lamp row: [bulb position, colour, light energy, post x offset, bulb emission]
+## 0: the photo's lamp, colour from its halo ring rgb (172, 157, 166); energy 40 at 11.3 m (pass 1) scaled by distance^2 to 21.1 m -> 140
+## 1: the photo's cyan light at the far right end (px 790, 875): 1.3 m right, 2.4 m up, at the gate
+## 2, 3: NOT in the photo frame: the street beyond the end gate, whose white house front is lit in the photo (rgb 77, 69, 66); kept so the
+##    CH5b bar S3 (>= 4 lamps) still describes the scene
 const LAMPS := [
-	[Vector3(0.3, 5.8, -9.8), Vector3(1.0, 0.96, 0.9), 40.0, 1.2, 60.0],
-	[Vector3(-1.2, 3.3, -2.5), Vector3(0.85, 0.92, 1.0), 1.5, -0.2, 5.0],
-	[Vector3(-1.2, 3.3, -5.0), Vector3(0.85, 0.92, 1.0), 1.5, -0.2, 5.0],
-	[Vector3(-1.2, 3.3, -7.5), Vector3(0.85, 0.92, 1.0), 1.5, -0.2, 5.0],
-	[Vector3(-1.2, 3.3, -12.0), Vector3(0.85, 0.92, 1.0), 2.0, -0.2, 5.0],
+	[Vector3(-0.60, 5.24, -19.6), Vector3(1.0, 0.91, 0.97), 140.0, 0.20, 60.0],
+	[Vector3(1.3, 2.41, -20.8), Vector3(0.55, 1.0, 0.9), 1.0, 0.0, 12.0],
+	[Vector3(-3.5, 5.0, -24.0), Vector3(1.0, 0.92, 0.8), 25.0, 0.0, 30.0],     ## behind the left wall's end, as seen from the camera
+	[Vector3(-6.0, 5.0, -24.0), Vector3(1.0, 0.92, 0.8), 25.0, 0.0, 30.0],
 ]
-const BOLLARD := Vector3(0.3, 0.0, -4.0)     ## the S2 shadow caster, on the lamp 0 to camera axis
-const WALL_X := 1.5                  ## left brick wall; the timber fence stands at FENCE_X
-const FENCE_X := 2.7
+const BOLLARD := Vector3(-0.16, 0.0, -4.0)   ## the S2 shadow caster (NOT in the photo; kept for bar S2), on the lamp 0 to camera axis
+const WALL_X := 1.30                 ## left brick wall face at x = -1.30
+const PLINTH_X := 1.02               ## right: a low brick plinth (face x 1.02, top 0.47 m) under a timber fence (face 1.33, top 1.83 m)
+const PLINTH_H := 0.47
+const FENCE_X := 1.33
+const FENCE_H := 1.83
+const END_Z := -21.0                 ## the gate wall closing the lane (row 1050 -> 22.5 m)
 var light_r := BULB_R
 var legacy := false
 var env: Environment
@@ -107,8 +123,6 @@ static func default_bowls(eyes: Array) -> Array:
 	for e in eyes:
 		var x := reflection_point(e, LAMP_POS, LEVEL)
 		out.append([x.x, x.z, 0.62, 0.075])
-	out.append([-2.2, -3.5, 0.5, 0.06])
-	out.append([1.9, -6.0, 0.7, 0.065])
 	return out
 
 
@@ -121,8 +135,11 @@ func bowl_field(x: float, z: float) -> float:
 	return b
 
 
-func is_asphalt(x: float, _z: float) -> bool:
-	return x > ASPHALT_X
+## the photo's flat tarmac patch (bar H samples it)
+func is_asphalt(x: float, z: float) -> bool:
+	var a := (x - PATCH_C.x) / PATCH_R.x
+	var b := (z - PATCH_C.y) / PATCH_R.y
+	return a * a + b * b < 1.0
 
 
 # ---------------------------------------------------------------------------------------------------------------- the sett layout (photo)
@@ -344,7 +361,7 @@ func bake() -> void:
 			var x := X0 + (float(px) + 0.5) * TEXEL
 			var z := Z0 + (float(py) + 0.5) * TEXEL
 			var k := py * _w + px
-			var asph := x > ASPHALT_X
+			var asph := is_asphalt(x, z)
 			var c: Array = [] if asph else cobble_cell(x, z)
 			var hh := 0.0
 			if asph:
@@ -556,11 +573,10 @@ func build(eyes: Array = [Vector3(0, EYE, 1.5)]) -> void:
 	mat_probe.roughness = 1.0
 	mat_probe.metallic_specular = 0.0
 	ground = MeshInstance3D.new()
-	ground.mesh = _grid_mesh(X0, ASPHALT_X, Z0, Z0 + SPAN_Z, 0.02)
+	ground.mesh = _grid_mesh(X0, X0 + SPAN_X, Z0, Z0 + SPAN_Z, 0.02)
 	ground.material_override = mat_wet
 	add_child(ground)
-	asphalt_mesh = MeshInstance3D.new()
-	asphalt_mesh.mesh = _grid_mesh(ASPHALT_X, X0 + SPAN_X, Z0, Z0 + SPAN_Z, 0.02)
+	asphalt_mesh = MeshInstance3D.new()      ## no mesh since fix pass 2: the tarmac patch is baked into the ground
 	mat_asph_wet = _asphalt_mat(true)
 	mat_asph_dry = _asphalt_mat(false)
 	asphalt_mesh.material_override = mat_asph_wet
@@ -605,8 +621,8 @@ func build(eyes: Array = [Vector3(0, EYE, 1.5)]) -> void:
 	_build_bollards()
 	# reflection probe: the alley's walls and lamps for the rough wet stone (SSR covers what is on screen)
 	refl_probe = ReflectionProbe.new()
-	refl_probe.position = Vector3(0.6, 2.5, -7.0)
-	refl_probe.size = Vector3(5.4, 6.0, 19.0)
+	refl_probe.position = Vector3(0.0, 2.5, -9.5)
+	refl_probe.size = Vector3(2.7, 5.0, 23.0)
 	refl_probe.box_projection = true
 	refl_probe.interior = false
 	refl_probe.update_mode = ReflectionProbe.UPDATE_ONCE
@@ -639,9 +655,6 @@ func _occluders() -> Array:
 		var lp: Vector3 = l[0]
 		out.append([lp.x + float(l[3]), lp.z, 0.07, lp.y + 0.6])
 	out.append([BOLLARD.x, BOLLARD.z, 0.12, 0.9])
-	out.append([-1.6, -7.0, 0.12, 0.9])
-	out.append([2.0, -2.2, 0.12, 0.9])
-	out.append([-2.0, -9.5, 0.12, 0.9])
 	return out
 
 
@@ -746,10 +759,20 @@ func _tex_mat(dname: String, nname: String, tint: Color, tile_m: float, rough: f
 func _build_walls() -> void:
 	var brick := _tex_mat("brick_diff.jpg", "brick_nor_gl.jpg", Color(0.55, 0.5, 0.45), 1.05, 0.85)
 	var wood := _tex_mat("fence_diff.jpg", "fence_nor_gl.jpg", Color(0.5, 0.48, 0.45), 2.0, 0.8)
+	var gate := StandardMaterial3D.new()
+	gate.albedo_color = Color(0.03, 0.045, 0.045)      ## the photo's gate rgb (40, 46, 46)
+	gate.roughness = 0.6
+	var house := StandardMaterial3D.new()
+	house.albedo_color = Color(0.6, 0.58, 0.55)        ## the white house front beyond the gate
+	house.roughness = 0.9
+	var mid := 0.5 * (END_Z + 1.5)
+	var span := 1.5 - END_Z + 2.0
 	var spans := [
-		[Vector3(-WALL_X - 0.15, 3.0, -8.0), Vector3(0.3, 6.0, 20.0), brick],
-		[Vector3(FENCE_X + 0.05, 1.1, -8.0), Vector3(0.1, 2.2, 20.0), wood],
-		[Vector3(0.6, 3.0, Z0 - 0.15), Vector3(6.0, 6.0, 0.3), brick],
+		[Vector3(-WALL_X - 0.15, 2.5, mid), Vector3(0.3, 5.0, span), brick],
+		[Vector3(PLINTH_X + 0.15, PLINTH_H * 0.5, mid), Vector3(0.3, PLINTH_H, span), brick],
+		[Vector3(FENCE_X + 0.05, FENCE_H * 0.5, mid), Vector3(0.1, FENCE_H, span), wood],
+		[Vector3(0.0, 1.0, END_Z - 0.15), Vector3(WALL_X + FENCE_X + 0.2, 2.0, 0.3), gate],
+		[Vector3(0.0, 2.5, END_Z - 5.5), Vector3(12.0, 5.0, 0.3), house],
 	]
 	for sp in spans:
 		var w := MeshInstance3D.new()
@@ -816,14 +839,20 @@ func _build_lamp(lpos: Vector3, post_dx: float, col: Vector3, energy: float, emi
 	post.mesh = cm
 	post.position = Vector3(lpos.x + post_dx, arm_y * 0.5, lpos.z)
 	post.material_override = pm
-	add_child(post)
+	if idx == 0:      ## lamps 1-3 are wall / off-frame lights: no post
+		add_child(post)
+	else:
+		post.free()
 	var arm := MeshInstance3D.new()
 	var am := BoxMesh.new()
 	am.size = Vector3(absf(post_dx), 0.05, 0.05)
 	arm.mesh = am
 	arm.position = Vector3(lpos.x + post_dx * 0.5, arm_y, lpos.z)
 	arm.material_override = pm
-	add_child(arm)
+	if idx == 0:
+		add_child(arm)
+	else:
+		arm.free()
 	var cable := MeshInstance3D.new()
 	var km := CylinderMesh.new()
 	km.top_radius = 0.01
@@ -832,7 +861,10 @@ func _build_lamp(lpos: Vector3, post_dx: float, col: Vector3, energy: float, emi
 	cable.mesh = km
 	cable.position = Vector3(lpos.x, lpos.y + (arm_y - lpos.y) * 0.5, lpos.z)
 	cable.material_override = pm
-	add_child(cable)
+	if idx == 0:
+		add_child(cable)
+	else:
+		cable.free()
 	var bulb := MeshInstance3D.new()
 	var sm := SphereMesh.new()
 	sm.radius = BULB_VIS
