@@ -184,7 +184,7 @@ func bars_cycle() -> void:
 	var rc := 10.0
 	var n := 1.3
 	var Vc := Vd / (rc - 1.0)
-	var W := pr["p1"] * Vc * (4.0 - 1.0) * (pow(rc, n) - rc) / (n - 1.0)
+	var W: float = pr["p1"] * Vc * (4.0 - 1.0) * (pow(rc, n) - rc) / (n - 1.0)
 	var Wn: float = E.otto_work_numeric(pr)
 	ok(relnear(Wn, W, 0.005), "e Otto cycle: integral of slider-crank torque %.3f J vs closed form %.3f J (rel %.1e)" % [Wn, W, absf(Wn - W) / W])
 	var cyc: Dictionary = E.run_cycle(pr)
