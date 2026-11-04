@@ -648,7 +648,7 @@ func _build_side() -> void:
 	f_dur = _field("part_seconds")
 	f_dial = Control.new()
 	f_dial.name = "part_dial"
-	f_dial.custom_minimum_size = Vector2(120, 70)
+	f_dial.custom_minimum_size = Vector2(120, 52)   # B08: was 70; the hinge dialog gained C48's frame row
 	f_dial.mouse_filter = Control.MOUSE_FILTER_STOP
 	f_dial.draw.connect(_draw_dial)
 	f_dial.gui_input.connect(_dial_input)
@@ -3463,8 +3463,8 @@ func _hinge_open(f: Dictionary, edit: int) -> void:
 func _hinge_rows() -> void:
 	_clear_rows()
 	var bi := int(hp.get("body", -1))
-	dlg_rows.add_child(_label("Turning part:  %s" % _part_name(bi) if bi >= 0 else "Turning part:  not yet"))
-	dlg_rows.add_child(_label("Line:  picked" if hp.has("d") else "Line:  not yet"))
+	# B08: one label for part + line (C48's frame row below it made the dialog one row taller and pushed OK under the timeline)
+	dlg_rows.add_child(_label(("Turning part:  %s" % _part_name(bi) if bi >= 0 else "Turning part:  not yet") + ("   Line: picked" if hp.has("d") else "   Line: not yet")))
 	dlg_rows.add_child(C48Joints.frame_row(self))
 	if hp.has("d"):
 		_hrow("From", f_from, "deg")
