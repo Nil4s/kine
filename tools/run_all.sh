@@ -940,3 +940,6 @@ EXTRA="$EXTRA c56:w"   # c56: English ANIMATE/SURFACE tabs fit their cell at 128
 
 
 EXTRA="$EXTRA c57:w"   # c57: slicer-like print estimate (walls + infill, time from flow, bigger-than-bed scale models, 5 kg sanity) against Bambu Studio on a cube and Benchy (tests/c57_test.gd)
+
+EXTRA="$EXTRA c64:w"   # c64: C++ conjugate gradient of the heat weights equals GDScript (1e-6), 5x faster (tests/c64_test.gd)
+EXTRA="$EXTRA c64_prof:w"   # c64: hot-loop profile table (tests/c64_prof_test.gd)
