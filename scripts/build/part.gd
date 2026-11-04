@@ -554,6 +554,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	var res := {"mesh": null, "volume": 0.0, "bodies": 0, "volumes": [], "errors": {}, "edges": [], "faces": [], "aabb": AABB(), "props": [], "looks": [], "body_looks": [], "tess_ids": [], "tess_looks": [], "surf_body": [], "warnings": {}}
 	if not available():
 		return res
+	PartFast.enabled = bool(rec.get("fast_build", false))   # s249: opt-in Fast build
 	var feats: Array = rec.get("features", [])
 	var n := feats.size() if upto < 0 else mini(upto + 1, feats.size())
 	var bodies: Array = []
