@@ -40,10 +40,10 @@ func _init() -> void:
 	var worst_close := 0.0
 	for p in A.poses(d):
 		var q := A.ik(d, p["r"], p["z"])
-		var f := A.fk(d, q["th1"], q["th2"])
-		worst_close = maxf(worst_close, (f["c"] as Vector2).distance_to(Vector2(p["r"], p["z"])))
+		var f := A.fk_c(d, q["th1"], q["th2"])
+		worst_close = maxf(worst_close, sqrt(pow(f[0] - float(p["r"]), 2) + pow(f[1] - float(p["z"]), 2)))
 		print("     pose %-10s r %6.1f z %6.1f -> shoulder %6.2f elbow %7.2f wrist %6.2f deg" % [p["name"], p["r"], p["z"], q["th1"], q["th2"], q["psi"]])
-	ok(worst_close < 1e-9, "1 FK(IK) closes: worst %.2e mm" % worst_close)
+	ok(worst_close < 1e-9, "1 FK(IK) closes: worst %s mm" % str(worst_close))
 	var short := A.design()
 	short["L1"] = 110.0
 	short["L2"] = 110.0
@@ -55,6 +55,10 @@ func _init() -> void:
 	ok(br["sweep"] >= 180.0, "2 base sweeps >= 180 deg")
 	var bc := A.base_chain("crank", 20)
 	ok(not bc["ok"], "2 PLANTED lever-crank -90..+90 fails: monotone %s, min arm %.3f mm" % [bc["monotone"], bc["min_arm"]])
+	# 2b (added after the first run, a check the first design should have had): every lever joint's stroke chain fits its slave syringe (<= 95 pct), is monotone and keeps an arm >= 20 mm
+	for j in ["sh", "el", "wr"]:
+		var ch := A.chain(d, j)
+		ok(ch["monotone"] and ch["use"] <= 0.95 and ch["min_arm"] >= 20.0, "2b lever %s: stroke %.1f of %.1f mm (%.0f pct), monotone %s, smallest arm %.1f mm over %.0f deg" % [j, ch["stroke"], ch["avail"], 100.0 * ch["use"], ch["monotone"], ch["min_arm"], ch["sweep"]])
 	# ------------------------------------------------ 3
 	var n := A.count_syringes(d)
 	ok(n <= 10, "3 syringe count %d <= 10" % n)
@@ -153,14 +157,14 @@ func _init() -> void:
 	var wrong := A.pascal_slave_force(30.0, 10, 10) * (19.13 / 14.5)
 	ok(rel(wrong, 52.217393579072535) > 1e-3, "9 PLANTED diameter ratio as force ratio is %.3f N, %.1f pct off" % [wrong, 100.0 * rel(wrong, 52.217393579072535)])
 	var sec := A.section("pla")
-	ok(rel(sec["I"], 13730.995199999998) < 1e-9, "9 PLA+ boom I = 13730.9952 mm4")
+	ok(rel(sec["I"], 24510.94186666666) < 1e-9, "9 PLA+ boom I = 24510.941867 mm4")
 	ok(rel(A.cantilever(250.0, 2300.0 * 13730.995199999998, 2.0, 0.0, 0.0), 0.3298366535913127) < 1e-9, "9 cantilever F L3 / 3EI = 0.3298366536 mm")
 	var cf := A.cantilever(250.0, 3.1e7, 1.7, 0.0004, 120.0)
 	var ce := A.cantilever_energy(250.0, 3.1e7, 1.7, 0.0004, 120.0)
 	ok(rel(cf, ce) < 1e-9, "9 closed form %.12f equals the Simpson unit-load integral %.12f" % [cf, ce])
 	ok(rel(PI * A.R_PINION, 62.83185307179586) < 1e-9, "9 rack travel for 180 deg = pi r = 62.831853 mm")
 	ok(rel(A.hose_k(50.0), 0.122) < 1e-9, "9 Lame: 2 (13/5 + 0.45)/50 = 0.122 per MPa")
-	var dva := A.circuit_dv(d, "sh", 0.2, 0.5)["air"]
+	var dva: float = A.circuit_dv(d, "sh", 0.2, 0.5)["air"]
 	ok(rel(dva, 0.33186758483365136) < 1e-9, "9 bubble 0.5 mL at 0.2 MPa loses %.9f mL" % dva)
 	ok(rel((A.P0 + 0.2) * (0.5 - dva), A.P0 * 0.5) < 1e-9, "9 isothermal identity (p0 + p)(V - dV) = p0 V")
 	ok(rel(tol["x"], 16.9) < 1e-9 and rel(tol["y"], 37.92347557911853) < 1e-9, "9 stack tolerances 16.9 mm and 37.923476 mm")

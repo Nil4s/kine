@@ -40,26 +40,27 @@ static var MAT := {
 	"plywood": {"E": 9000.0, "rho": 650.0, "sigma": 45.0, "wall": 3.0},
 	"pla": {"E": 2300.0, "rho": 1240.0, "sigma": 45.0, "wall": 1.6},
 }
-const BOOM_W := 25.0          # mm outside of the square boom section
+const BOOM_W := 30.0          # mm outside of the square boom section
 const MU_BEARING := 0.2
 const R_BEARING := 30.0
 const MU_JAW := 0.4           # TPU / silicone pad on aluminium (conservative; the reference quotes 0.5 to 0.9)
 const ETA_RACK := 0.85
 const PIN_CLEAR := 0.25       # mm diametral clearance of a compensated printed pin hole, worst case
-const PIN_SPAN := 40.0        # mm between the two lugs of a clevis (the bearing length of the slop)
+const PIN_SPAN := 56.0        # mm between the two cheek holes of a clevis (the bearing length of the slop)
 const GEAR_BACKLASH := 0.25   # mm at the pitch circle, printed module 2
 const R_PINION := 20.0        # mm pitch radius, 20 teeth module 2
 
 
 static func design() -> Dictionary:
 	return {
-		"L1": 250.0, "L2": 230.0, "hs": 250.0, "dg": 70.0,
-		"lim": {"sh": [5.0, 85.0], "el": [-132.0, -45.0], "wr": [20.0, 105.0], "ba": [-90.0, 90.0]},
-		"cyl": {"ba": [20, 20], "sh": [20, 20], "el": [20, 20], "wr": [5, 5], "gr": [5, 5]},
-		"lever": {"sh": [118.0, 52.0], "el": [110.0, 50.0], "wr": [50.0, 25.0]},   # d (axis to slave pivot), r (axis to push pin)
+		"L1": 240.0, "L2": 220.0, "hs": 250.0, "dg": 70.0,
+		"lim": {"sh": [10.0, 78.0], "el": [-128.0, -60.0], "wr": [15.0, 100.0], "ba": [-90.0, 90.0]},
+		"cyl": {"ba": [20, 20], "sh": [20, 20], "el": [20, 20], "wr": [10, 10], "gr": [5, 5]},
+		"phic": {"sh": 66.0, "el": 90.0, "wr": 90.0},
+		"lever": {"sh": [123.0, 58.0], "el": [130.0, 62.0], "wr": [88.0, 44.0]},   # d (axis to slave pivot), r (axis to push pin)
 		"hose_len": {"ba": 0.5, "sh": 0.6, "el": 0.9, "wr": 1.2, "gr": 1.4},   # m
-		"hose": "pu98", "air_ml": 0.0, "mat": "pla", "can_m": CAN_M0, "f_hand": F_HAND, "mu_jaw": MU_JAW,
-		"pitch": 68.2, "rp": 300.0, "r_pick": 300.0, "rp_pinion": R_PINION,
+		"hose": "mix", "flex": {"ba": 0.25, "sh": 0.2, "el": 0.3, "wr": 0.3, "gr": 0.3}, "cw_m": 0.8, "cw_l": 120.0, "air_ml": 0.0, "mat": "pla", "can_m": CAN_M0, "f_hand": F_HAND, "mu_jaw": MU_JAW,
+		"pitch": 68.2, "rp": 270.0, "r_pick": 270.0, "rp_pinion": R_PINION,
 	}
 
 
@@ -105,6 +106,15 @@ static func ik(d: Dictionary, r: float, zc: float) -> Dictionary:
 	var lim: Dictionary = d["lim"]
 	var inl: bool = a1 >= lim["sh"][0] and a1 <= lim["sh"][1] and a2 >= lim["el"][0] and a2 <= lim["el"][1] and psi >= lim["wr"][0] and psi <= lim["wr"][1]
 	return {"ok": inl, "th1": a1, "th2": a2, "psi": psi, "why": "" if inl else "joint limit"}
+
+
+## the can centre (r, z) in double precision
+static func fk_c(d: Dictionary, th1: float, th2: float) -> Array:
+	var a1 := deg_to_rad(th1)
+	var a2 := deg_to_rad(th1 + th2)
+	var wr: float = float(d["L1"]) * cos(a1) + float(d["L2"]) * cos(a2)
+	var wz: float = float(d["hs"]) + float(d["L1"]) * sin(a1) + float(d["L2"]) * sin(a2)
+	return [wr, wz - float(d["dg"])]
 
 
 ## [elbow, wrist, can centre] as (r, z)
@@ -154,10 +164,10 @@ static func lc_arm(dd: float, rr: float, phi_deg: float) -> float:
 	return dd * rr * sin(deg_to_rad(phi_deg)) / lc_len(dd, rr, phi_deg)
 
 
-## the joint angle theta (deg) to the horn angle phi: the horn turns with the joint, centred at 90 deg in the middle of the limits
+## the joint angle theta (deg) to the horn angle phi: the horn turns with the joint, phi = phic in the middle of the limits (90 deg = the biggest swing, but the arm is largest near 60 deg)
 static func phi_of(d: Dictionary, j: String, th: float) -> float:
 	var lim: Array = d["lim"][j]
-	return 90.0 + (th - 0.5 * (float(lim[0]) + float(lim[1])))
+	return float(d["phic"][j]) + (th - 0.5 * (float(lim[0]) + float(lim[1])))
 
 
 static func lever_arm(d: Dictionary, j: String, th: float) -> float:
@@ -304,11 +314,11 @@ static func torques(d: Dictionary, th1: float, th2: float, mat: String, can_m: f
 	var L2: float = d["L2"]
 	var xe := L1 * cos(a1)
 	var xw := xe + L2 * cos(a2)
-	var ts: float = G * (float(m["u"]) * 0.5 * xe + float(m["f"]) * (xe + 0.5 * L2 * cos(a2)) + (float(m["g"]) + can_m) * xw)
+	var ts: float = G * (float(m["u"]) * 0.5 * xe + float(m["f"]) * (xe + 0.5 * L2 * cos(a2)) + (float(m["g"]) + can_m) * xw - float(d.get("cw_m", 0.0)) * float(d.get("cw_l", 0.0)) * cos(a1))
 	var te: float = G * (float(m["f"]) * 0.5 * L2 * cos(a2) + (float(m["g"]) + can_m) * L2 * cos(a2))
 	var tw: float = G * (float(m["g"]) + can_m) * 8.0          # 8 mm of off-centre can / gripper centre of mass
-	var w_all: float = G * (float(m["u"]) + float(m["f"]) + float(m["g"]) + can_m + 0.25)
-	return {"sh": absf(ts), "el": absf(te), "wr": tw, "ba": MU_BEARING * w_all * R_BEARING}
+	var w_all: float = G * (float(m["u"]) + float(m["f"]) + float(m["g"]) + can_m + 0.25 + float(d.get("cw_m", 0.0)))
+	return {"sh": ts, "el": absf(te), "wr": tw, "ba": MU_BEARING * w_all * R_BEARING}
 
 
 ## capacity vs need of one axis in newtons at the slave plunger. f_hand: the thumb force
@@ -316,7 +326,9 @@ static func axis_force(d: Dictionary, j: String, t_nmm: float, arm: float, f_han
 	var sm: int = d["cyl"][j][0]
 	var ss: int = d["cyl"][j][1]
 	var cap := pascal_slave_force(f_hand - F_SEAL, sm, ss)
-	var load := t_nmm / arm
+	if t_nmm < 0.0:       # the counterweight wins: the slave must PULL, and a closed water line only holds P_VAC of suction
+		cap = minf(cap, P_VAC * area(ss))
+	var load := absf(t_nmm) / arm
 	var need := load + F_SEAL
 	return {"cap": cap, "load": load, "need": need, "margin": cap / need}
 
@@ -376,6 +388,9 @@ static func circuit_dv(d: Dictionary, j: String, p: float, air_ml := -1.0, hose 
 	var sm: int = d["cyl"][j][0]
 	var ss: int = d["cyl"][j][1]
 	var hk := String(d["hose"]) if hose == "" else hose
+	var flex := 0.0
+	if hk == "mix":
+		flex = float(d["flex"][j])
 	var vh: float = PI / 4.0 * HOSE_ID * HOSE_ID * float(d["hose_len"][j]) * 1000.0 / 1000.0     # mm3 -> mL: (mm2 * m*1000 mm) / 1000
 	var swept := 0.0
 	if j == "ba":
@@ -386,7 +401,12 @@ static func circuit_dv(d: Dictionary, j: String, p: float, air_ml := -1.0, hose 
 		swept = float(chain(d, j)["stroke"]) * area(ss) / 1000.0
 	var vw := vh + swept + 2.0 * DEAD_ML                          # water in the circuit (mL), master + slave barrels hold the swept volume between them
 	var dv_w := vw * p / K_WATER
-	var dv_h := vh * hose_k(float(HOSES[hk])) * p
+	var dv_h := 0.0
+	if hk != "mix":
+		dv_h = vh * hose_k(float(HOSES[hk])) * p
+	else:
+		var vf: float = PI / 4.0 * HOSE_ID * HOSE_ID * flex
+		dv_h = vf * hose_k(float(HOSES["pu98"])) * p + (vh - vf) * hose_k(float(HOSES["pa12"])) * p
 	# barrels: thin wall, hoop strain p r / (t E) each way, dV/V = 2 p r /(t E) per barrel on the water they hold (the swept volume)
 	var rb := (float(SYR[sm]["bore"]) + float(SYR[ss]["bore"])) / 4.0
 	var dv_b := swept * 2.0 * p * rb / (WALL_BARREL * E_PP)
@@ -491,7 +511,7 @@ static func _hull(pts: PackedVector2Array) -> PackedVector2Array:
 
 
 ## the contact patch of a can standing on a lid: the lens where the standing ring (radius BASE_R at u) overlaps the lid (radius LID_R at v), as boundary points
-static func lens(u: Vector2, v: Vector2, n := 1440) -> PackedVector2Array:
+static func lens(u: Vector2, v: Vector2, n := 360) -> PackedVector2Array:
 	var out := PackedVector2Array()
 	for i in n:
 		var a := TAU * i / n
@@ -543,3 +563,52 @@ static func pyramid_check(pos: Array) -> Array:
 	out.append({"name": "row2 near", "c": stack_check(pos[4], pos[1], pos[2])})
 	out.append({"name": "top", "c": stack_check(pos[5], pos[3], pos[4])})
 	return out
+
+
+# ---------------------------------------------------------------- 9 where the pins are (the parts and the animation both read these)
+
+const FDM_UNDERSIZE := 0.30   # mm a printed hole of 4 to 15 mm comes out small (reference section 7)
+const RUN_CLEAR := 0.15       # mm running clearance wanted on a 4 mm steel dowel after printing
+
+
+## the diameter to draw in the CAD for a hole that must print at d_nom + clearance
+static func hole_design(d_nom: float, clearance := RUN_CLEAR) -> float:
+	return d_nom + clearance + FDM_UNDERSIZE
+
+
+## horn angle (deg) of the push pin in the frame of the part that carries the horn, and the pivot position in the carrier's frame
+static func horn_pin(d: Dictionary, j: String) -> Vector2:
+	var lim: Array = d["lim"][j]
+	var tc := 0.5 * (float(lim[0]) + float(lim[1]))
+	var r: float = d["lever"][j][1]
+	var dl: float = float(d["phic"][j]) - 90.0
+	var a := 0.0
+	if j == "sh":
+		a = dl - tc
+	else:
+		a = -90.0 + dl - tc      # elbow: in the forearm frame; wrist: in the level gripper frame (world angle -90 - psi_c + dl)
+	return Vector2(r * cos(deg_to_rad(a)), r * sin(deg_to_rad(a)))
+
+
+static func pivot(d: Dictionary, j: String) -> Vector2:
+	var dd: float = d["lever"][j][0]
+	if j == "sh":
+		return Vector2(0.0, -dd)
+	if j == "el":
+		return Vector2(float(d["L1"]) - dd, 0.0)
+	return Vector2(float(d["L2"]) - dd, 0.0)
+
+
+## the rod, barrel offset and so on of a slave syringe: rod length Lrod and the barrel tip distance t0 from the pivot along the push line
+static func slave_layout(d: Dictionary, j: String) -> Dictionary:
+	var ss: int = d["cyl"][j][1]
+	var lv: Array = d["lever"][j]
+	var lim: Array = d["lim"][j]
+	var lmin := lc_len(lv[0], lv[1], phi_of(d, j, lim[0]))
+	var lrod := stroke(ss) + 15.0
+	return {"lmin": lmin, "lrod": lrod, "t0": lmin - 12.0 - lrod, "barrel": stroke(ss) + 12.0}
+
+
+## everything a frame needs: joint angles from yaw, th1, th2, grip travel -> world transforms are built by the renderer; this answers the slave stroke of each axis
+static func strokes(d: Dictionary, yaw: float, th1: float, th2: float) -> Dictionary:
+	return {"ba": R_PINION * deg_to_rad(yaw + 90.0), "sh": lever_stroke(d, "sh", th1), "el": lever_stroke(d, "el", th2), "wr": lever_stroke(d, "wr", -(th1 + th2))}
