@@ -148,6 +148,13 @@ func colliders(prev: Array, cur: Array, peg: Array) -> Array:
 	return [a0, b0, a1, b1, rad, mus]
 
 
+static func _mean(P: PackedVector3Array, idx: Array) -> Vector3:
+	var m := Vector3.ZERO
+	for i in idx:
+		m += P[i]
+	return m / maxf(1.0, float(idx.size()))
+
+
 func load_at(f: int, fmax: float) -> float:
 	# seat: 0 -> fmax in 120 frames, hold to 330; unload to 20 by 360; hold to 390; re-ramp to 510; hold to the end
 	if f < 120:
@@ -192,6 +199,25 @@ func run(opts := {}) -> Dictionary:
 	var tail := PackedVector3Array()
 	var phase := {}
 	rope.drive(0, pts[0], pts[0])   # S0 pinned while tying
+	# live features (closed loop): the standing part A below the hole, the hole circle, and the off-hand grip on the crossing
+	var a_idx: Array = []
+	var h_idx: Array = []
+	var g_idx: Array = []
+	var hold_c := Vector3(-0.10, 0.0, 0.0)   # the off hand pinches the left arc of the hole
+	for i in n:
+		var q: Vector3 = lay[i]
+		if i < 60 and q.y > -0.12 and q.y < -0.08 and absf(q.x) < 0.01:
+			a_idx.append(i)
+		if i < 80 and absf(Vector2(q.x + 0.05, q.y).length() - 0.05) < 0.004 and q.y > -0.04:
+			h_idx.append(i)
+		if i < 80 and absf(Vector2(q.x + 0.05, q.y).length() - 0.05) < 0.004 and (q - hold_c).length() < 0.014:
+			g_idx.append(i)
+	var a_ref := _mean(pts, a_idx)
+	var h_ref := _mean(pts, h_idx)
+	var grip_pos := {}
+	for i in g_idx:
+		grip_pos[i] = pts[i]
+	log["grip_particles"] = g_idx.size()
 	var dt := 1.0 / FPS
 	var total_force_frames := 600
 	var hand_frames := path.size() + 40
@@ -203,7 +229,12 @@ func run(opts := {}) -> Dictionary:
 		var in_tie := f < path.size()
 		if f < hand_frames:
 			if in_tie:
-				miss = reach_pinch(path[f] + O)
+				var dA := _mean(xs, a_idx) - a_ref
+				var dH := _mean(xs, h_idx) - h_ref
+				dA.y = 0.0
+				dH.z = dH.z
+				var wy := clampf((-0.07 - path[f].y) / 0.02, 0.0, 1.0)   # 1 below the hole: anchored to the standing part
+				miss = reach_pinch(path[f] + O + dA * wy + dH * (1.0 - wy))
 			else:
 				# release: open the pinch (10 frames), drawing the hand back along -z
 				var k := f - path.size()
@@ -221,9 +252,13 @@ func run(opts := {}) -> Dictionary:
 			for k in STUB:
 				var from: Vector3 = xs[n - 1 - k]
 				rope.drive(n - 1 - k, from, pw - ax * (float(k) * Ch6Knot.DS))
+			for i in g_idx:   # the off hand pinches the crossing: a kinematic grip, released with the working-end pinch
+				rope.drive(i, xs[i], grip_pos[i])
 		else:
 			for k in STUB:
 				rope.undrive(n - 1 - k)
+			for i in g_idx:
+				rope.undrive(i)
 			if f == path.size():
 				rope.undrive(0)
 				phase["tie_end"] = f
@@ -238,6 +273,11 @@ func run(opts := {}) -> Dictionary:
 				phase["unload_end"] = f
 		rope.step(dt)
 		var xr := rope.positions()
+		if f % 15 == 0 and f <= path.size() + 15:
+			var dq := PackedVector3Array()
+			for q in xr:
+				dq.append(q - O)
+			log["trace_%03d" % f] = "gauss0=%d best=%s a=%s h=%s" % [Ch6Knot.gauss(dq).size(), Ch6Knot.code_str(Ch6Knot.best_code(dq, 10)), str(_mean(dq, a_idx)), str(_mean(dq, h_idx))]
 		var kf := PackedVector3Array()
 		for q in xr:
 			kf.append(q - O)

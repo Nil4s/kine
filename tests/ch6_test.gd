@@ -131,6 +131,10 @@ func _init() -> void:
 	var tie := Ch6Tie.new()
 	var R: Dictionary = tie.run({})
 	print("     tie run: %d frames, native=%s, %d s" % [R["frames"].size(), str(R["native"]), (Time.get_ticks_msec() - t0) / 1000])
+	var lk: Array = R["log"].keys()
+	lk.sort()
+	for k in lk:
+		print("     LOG ", k, " ", R["log"][k])
 	judge(R, "main", true)
 	# C
 	var Rm: Dictionary = Ch6Tie.new().run({"mu": 0.0})
