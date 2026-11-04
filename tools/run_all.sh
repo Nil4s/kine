@@ -982,3 +982,6 @@ EXTRA="$EXTRA c68:w"   # c68: Easy Part step hint fully visible (not overlapped 
 
 
 EXTRA="$EXTRA ch2:w"   # ch2: the regulator clock: 720:12:1 train, 994 mm pendulum period, 0 mm3 clearance over 60 s at 60 fps, backlash < 5 % module, minute hand 6 deg per 60 s, C++ = GDScript (tests/ch2_test.gd)
+
+
+EXTRA="$EXTRA c66:w"   # C66: the hands card overlaps no button or status text and sits inside the 3D view at 1024, 1280, 1920
