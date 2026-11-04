@@ -913,3 +913,4 @@ EXTRA="$EXTRA c45:w"   # c45: Alt+click through to the hidden face; sketch stack
 
 EXTRA="$EXTRA c47:w"   # c47: mirror you can trust: facing axis from geometry (#273), side from geometry (#274), mirror seam kink (#251) (tests/c47_test.gd)
 EXTRA="$EXTRA c58:w"   # C58: Part side dialogs keep OK/Cancel reachable, tests/c58_test.gd
+EXTRA="$EXTRA c49b:w"   # C49b: Off/Look/Print strip clear of Part dialogs, browser, timeline, cube; tests/c49b_test.gd
