@@ -613,6 +613,14 @@ func build(eyes: Array = [Vector3(0, EYE, 1.5)]) -> void:
 	refl_probe.ambient_mode = ReflectionProbe.AMBIENT_DISABLED
 	add_child(refl_probe)
 	_apply_modes()
+	_log_light_size("build")
+
+
+func _log_light_size(tag: String) -> void:
+	var sz := []
+	for o in lights:
+		sz.append((o as OmniLight3D).light_size)
+	print("     WETSTREET light_size used (%s): BULB_R const %.2f, light_r %.2f, lamps %s" % [tag, BULB_R, light_r, sz])
 
 
 func lamp_count() -> int:
@@ -686,6 +694,7 @@ func set_probe(i: int) -> void:
 func set_light_radius(r: float) -> void:
 	light_r = r
 	_apply_modes()
+	_log_light_size("set_light_radius")
 
 
 ## planted control for bar F2: the wet scene without screen-space reflections or the reflection probe
