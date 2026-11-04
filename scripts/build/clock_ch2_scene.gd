@@ -9,6 +9,7 @@ const STEEL := Color(0.62, 0.64, 0.68)
 const WOOD := Color(0.10, 0.045, 0.02)
 var gear_nodes := {}     # gear id -> Node3D
 var node_of := {}        # named parts
+var parts := {}          # part id -> Node3D (each carries meta part_features = its Part feature kinds)
 var model: ClockCH2
 
 
@@ -25,6 +26,36 @@ static func mat_steel() -> StandardMaterial3D:
 	m.albedo_color = STEEL
 	m.metallic = 1.0
 	m.roughness = 0.18
+	return m
+
+
+static func mat_plate() -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.30, 0.19, 0.08)
+	m.metallic = 1.0
+	m.roughness = 0.4
+	return m
+
+
+static func mat_enamel() -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.50, 0.47, 0.40)
+	m.roughness = 0.4
+	return m
+
+
+static func mat_ink() -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.03, 0.03, 0.035)
+	m.roughness = 0.5
+	return m
+
+
+static func mat_blue() -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color(0.08, 0.13, 0.4)
+	m.metallic = 0.8
+	m.roughness = 0.3
 	return m
 
 
@@ -129,61 +160,45 @@ func build(parent: Node3D, m: ClockCH2) -> void:
 	mv.name = "Movement"
 	parent.add_child(mv)
 	node_of["movement"] = mv
-	# wheels
-	for g in ClockCH2.GEARS:
-		var p := ClockCH2.pos_of(g[1])
-		var holder := Node3D.new()
-		holder.position = Vector3(p.x, p.y, g[4]) * MM
-		mv.add_child(holder)
-		_mi(holder, extrude(ClockCH2.involute_outline(g[2], g[3]), g[5]), brass)
-		gear_nodes[g[0]] = holder
-	# escape wheel
-	var eh := Node3D.new()
-	var ep := ClockCH2.pos_of("E")
-	eh.position = Vector3(ep.x, ep.y, ClockCH2.ESC_Z0) * MM
-	mv.add_child(eh)
-	_mi(eh, extrude(ClockCH2.escape_outline(), ClockCH2.ESC_TH), brass)
-	gear_nodes["ESC"] = eh
-	# arbors
-	for s in ["C", "T", "E", "M"]:
-		var p2 := ClockCH2.pos_of(s)
-		_arbor(mv, p2.x, p2.y, -2.0, 26.0 if s != "C" and s != "E" else 56.0, 1.6, steel)
-	# plates: a back and a front frame (rectangular bars) with a cross bar at each arbor, four pillars
-	var frames := [[0.0, 3.0], [26.0, 3.0]]
-	for f in frames:
-		var z: float = f[0]
-		var th: float = f[1]
-		for sx in [-66.0, 66.0]:
-			_box(mv, Vector3(9, 190, th), Vector3(sx, 35, z + th * 0.5), brass)
-		for y in [-50.0, 120.0]:
-			_box(mv, Vector3(141, 9, th), Vector3(0, y, z + th * 0.5), brass)
-		for y in [0.0, 36.0, 70.0]:
-			_box(mv, Vector3(132, 5, th), Vector3(0, y, z + th * 0.5), brass)
-	for px in [-66.0, 66.0]:
-		for py in [-50.0, 120.0]:
-			_arbor(mv, px, py, 3.0, 26.0, 3.5, brass)
-	# anchor: pivot arbor, hub and two arms to the blades; the blades are the model's pallet blades
-	var ah := Node3D.new()
+	# every wheel, arbor, plate, pillar, bridge, dial piece, hand, collet, the barrel, anchor and crutch is a PART record (ClockParts)
 	var D: float = ClockCH2.anchor_dims()["D"]
-	ah.position = Vector3(ep.x, ep.y + D, ClockCH2.ESC_Z0) * MM
-	mv.add_child(ah)
-	node_of["anchor"] = ah
-	_mi(ah, extrude(circle(6.0), ClockCH2.ESC_TH), steel)
-	var dd := ClockCH2.anchor_dims()
-	var side := 0
-	for b in ClockCH2.blade_polys():
-		_mi(ah, extrude(b, ClockCH2.ESC_TH), steel)
-		# an arm from the hub to the pallet's inner edge, along the middle of the pallet's polar span
-		var mid := Vector2.ZERO
-		for v in b:
-			mid += v
-		mid /= b.size()
-		var dirv := mid.normalized()
-		var perp := Vector2(-dirv.y, dirv.x) * 1.6
-		var r1: float = mid.length() - (float(dd["thick"]) * 0.5 if side == 0 else float(dd["thick"]) * 0.5)
-		_mi(ah, extrude(PackedVector2Array([dirv * 5.0 - perp, dirv * r1 - perp, dirv * r1 + perp, dirv * 5.0 + perp]), ClockCH2.ESC_TH), steel)
-		side += 1
-	_arbor(ah, 0.0, 0.0, -34.0, 3.0, 1.6, steel)
+	var ep := ClockCH2.pos_of("E")
+	var mats := {"brass": brass, "steel": steel, "plate": mat_plate(), "enamel": mat_enamel(), "ink": mat_ink(), "blue": mat_blue()}
+	for sp in ClockParts.specs():
+		var holder := Node3D.new()
+		holder.name = String(sp["id"])
+		holder.position = (sp["pos"] as Vector3) * MM
+		var tris := ClockParts.triangles(sp)
+		_mi(holder, ClockParts.mesh_of(tris), mats[sp["mat"]])
+		holder.set_meta("part_features", ClockParts.history_of(sp))
+		holder.set_meta("part_role", sp["role"])
+		parts[sp["id"]] = holder
+		var host: Node = mv
+		var id: String = sp["id"]
+		if id.begins_with("COLLET") or id == "DIAL_MARKS" or id == "DIAL_NUMERALS":
+			host = mv
+		mv.add_child(holder)
+	for g in ClockCH2.GEARS:
+		gear_nodes[g[0]] = parts[g[0]]
+	gear_nodes["ESC"] = parts["ESC"]
+	node_of["anchor"] = parts["ANCHOR"]
+	node_of["hour"] = parts["HAND_HOUR"]
+	node_of["minute"] = parts["HAND_MIN"]
+	node_of["second"] = parts["HAND_SEC"]
+	node_of["dial"] = [parts["DIAL"], parts["DIAL_MARKS"], parts["DIAL_NUMERALS"], parts["PLATE_FRONT"], parts["COCK"], parts["BRIDGE_BARREL"]]
+	# the collets and the anchor arbor / crutch ride with their shafts
+	for c in [["COLLET_HOUR", "HAND_HOUR"], ["COLLET_MIN", "HAND_MIN"], ["COLLET_SEC", "HAND_SEC"]]:
+		node_of[c[0]] = parts[c[0]]
+	# screw heads: four hold the dial to its pillars, four hold the front plate (plain cylinders, the only script-made parts of the movement)
+	for q in ClockParts.PILLARS:
+		for zz in [43.0, 29.0]:
+			var sc := CylinderMesh.new()
+			sc.top_radius = 2.4 * MM
+			sc.bottom_radius = 2.4 * MM
+			sc.height = 1.0 * MM
+			var smi := _mi(mv, sc, steel, Vector3(q[0], q[1], zz + 0.5) * MM)
+			smi.rotation.x = PI * 0.5
+			(node_of["dial"] as Array).append(smi)
 	# pendulum behind the back plate
 	var pend := Node3D.new()
 	pend.position = Vector3(ep.x, ep.y + D, -14.0) * MM
@@ -196,17 +211,7 @@ func build(parent: Node3D, m: ClockCH2) -> void:
 	bob.height = 14.0 * MM
 	var bm := _mi(pend, bob, brass, Vector3(0, -ClockCH2.L_PEND, 0) * MM)
 	bm.rotation.x = PI * 0.5
-	_arbor(pend, 0.0, 0.0, -4.0, 3.0, 4.0, brass)
-	# chapter rings (minute track round the centre, seconds track round the escape arbor) in front of the movement, hands
-	_chapter(mv, Vector2.ZERO, 54.0, 60, 44.0, brass)
-	_chapter(mv, Vector2(ep.x, ep.y), 46.0, 60, 40.0, brass)
-	node_of["hour"] = _hand(mv, 36.0, 7.0, 47.0, brass)
-	node_of["minute"] = _hand(mv, 50.0, 4.0, 50.0, steel)
-	var sh := _hand(mv, 42.0, 1.4, 53.0, steel)
-	sh.position = Vector3(ep.x, ep.y, 53.0) * MM
-	node_of["second"] = sh
-	node_of["hour"].position = Vector3(0, 0, 47.0 * MM)
-	node_of["minute"].position = Vector3(0, 0, 50.0 * MM)
+	_arbor(pend, 0.0, 0.0, -4.0, 2.8, 4.0, brass)
 	# case: walnut trunk and hood, glass front, floor and back wall
 	var cx0 := -118.0
 	var cx1 := 118.0
@@ -292,10 +297,26 @@ func pose(wheel_ang: float, phi: float) -> void:
 	for g in ClockCH2.GEARS:
 		(gear_nodes[g[0]] as Node3D).rotation.z = model.shaft_ang[g[1]]
 	(gear_nodes["ESC"] as Node3D).rotation.z = wheel_ang
-	(node_of["anchor"] as Node3D).rotation.z = phi * float(ClockCH2.anchor_dims()["k"])
+	var k: float = float(ClockCH2.anchor_dims()["k"])
+	for id in ["ANCHOR", "ARB_ANCHOR", "CRUTCH"]:
+		(parts[id] as Node3D).rotation.z = phi * k
 	(node_of["pendulum"] as Node3D).rotation.z = phi
-	# hands: a hand at angle 0 points to +y (12 o'clock); a clockwise hand turns by a negative angle. The seconds hand is the escape wheel,
-	# the minute hand the centre shaft, the hour hand the H shaft, each from its own start (the clock reads 10:09:00 at wheel_ang = 0).
-	(node_of["second"] as Node3D).rotation.z = wheel_ang - model.start_angle("E")
-	(node_of["minute"] as Node3D).rotation.z = model.shaft_ang["C"] - model.start_angle("C") + deg_to_rad(-54.0)
-	(node_of["hour"] as Node3D).rotation.z = model.shaft_ang["H"] - model.start_angle("H") + deg_to_rad(-304.5)
+	for id in ["ARB_C", "ARB_T", "ARB_E", "ARB_M", "SPRING_ARBOR", "BARREL", "BARREL_LID", "HOUR_PIPE"]:
+		var sh: String = String(ClockParts.spec_of(id)["shaft"])
+		(parts[id] as Node3D).rotation.z = model.shaft_ang[sh]
+	# hands: a hand at angle 0 points to +y; a clockwise hand turns by a negative angle (the clock reads 10:09:00 at wheel_ang = 0)
+	var sec: float = wheel_ang - model.start_angle("E")
+	var mn: float = model.shaft_ang["C"] - model.start_angle("C") + deg_to_rad(-54.0)
+	var hr: float = model.shaft_ang["H"] - model.start_angle("H") + deg_to_rad(-304.5)
+	(node_of["second"] as Node3D).rotation.z = sec
+	(parts["COLLET_SEC"] as Node3D).rotation.z = sec
+	(node_of["minute"] as Node3D).rotation.z = mn
+	(parts["COLLET_MIN"] as Node3D).rotation.z = mn
+	(node_of["hour"] as Node3D).rotation.z = hr
+	(parts["COLLET_HOUR"] as Node3D).rotation.z = hr
+
+
+## cutaway: the dial, its marks and numerals and the front plate go, so the train shows
+func set_skeleton(on: bool) -> void:
+	for n in node_of["dial"]:
+		(n as Node3D).visible = not on

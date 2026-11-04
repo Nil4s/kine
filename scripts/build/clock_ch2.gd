@@ -19,14 +19,15 @@ const PA := 30.0              # pressure angle, deg (8-leaf pinions need it: 20 
 const LASH_FRAC := 0.015      # each tooth is thinned by this x module on the pitch circle: lash = 2 x 0.015 = 3 % of the module
 const DOOR := "res://scripts/build/clock_native_door.gd"
 const SHAFTS := {   # name: [x, y] mm
-	"C": [0.0, 0.0], "T": [0.0, 36.0], "E": [0.0, 70.0], "M": [24.0, 0.0], "H": [0.0, 0.0]}
+	"C": [0.0, 0.0], "T": [0.0, 36.0], "E": [0.0, 70.0], "M": [24.0, 0.0], "H": [0.0, 0.0], "B": [-22.627417, -22.627417]}
 # id, shaft, teeth, module, z0, thickness
 const GEARS := [
 	["C64", "C", 64, 1.0, 6.0, 3.0], ["T8", "T", 8, 1.0, 6.0, 3.0],
 	["T60", "T", 60, 1.0, 12.0, 3.0], ["E8", "E", 8, 1.0, 12.0, 3.0],
 	["CAN12", "C", 12, 1.0, 32.0, 3.0], ["M36", "M", 36, 1.0, 32.0, 3.0],
-	["M10", "M", 10, 0.96, 36.0, 3.0], ["H40", "H", 40, 0.96, 36.0, 3.0]]
-const EDGES := [["C64", "T8"], ["T60", "E8"], ["CAN12", "M36"], ["M10", "H40"]]
+	["M10", "M", 10, 0.96, 36.0, 3.0], ["H40", "H", 40, 0.96, 36.0, 3.0],
+	["BP8", "C", 8, 1.0, 22.0, 3.0], ["BAR56", "B", 56, 1.0, 22.0, 3.0]]
+const EDGES := [["C64", "T8"], ["T60", "E8"], ["CAN12", "M36"], ["M10", "H40"], ["BP8", "BAR56"]]
 const ESC_Z0 := 18.0
 const ESC_TH := 3.0
 
@@ -396,6 +397,30 @@ func bodies(theta: float, alpha: float, shift := {}) -> Dictionary:
 		pose.append_array(PackedFloat64Array([ep.x, ep.y + D, alpha]))
 		z0.append(ESC_Z0)
 		z1.append(ESC_Z0 + ESC_TH)
+	# the parts added with the Part-API pass: barrel, pillars, crutch (stem + two pins), pendulum rod
+	var bp := pos_of("B") + (shift.get("BARREL", Vector2.ZERO) as Vector2)
+	var circ := func(r: float, c: Vector2) -> PackedVector2Array:
+		var o := PackedVector2Array()
+		for i in 48:
+			o.append(c + Vector2.from_angle(TAU * i / 48.0) * r)
+		return o
+	var add := func(nm: String, poly: PackedVector2Array, ps: Vector3, a: float, za: float, zb: float) -> void:
+		names.append(nm)
+		polys.append(poly)
+		pose.append_array(PackedFloat64Array([ps.x, ps.y, a]))
+		z0.append(za)
+		z1.append(zb)
+	add.call("BARREL", circ.call(22.0, Vector2.ZERO), Vector3(bp.x, bp.y, 0), shaft_ang["B"], 11.0, 22.0)
+	add.call("BARREL_LID", circ.call(22.0, Vector2.ZERO), Vector3(bp.x, bp.y, 0), shaft_ang["B"], 10.0, 11.0)
+	var pi_ := 0
+	for pl in [[-66.0, -50.0], [66.0, -50.0], [-66.0, 120.0], [66.0, 120.0]]:
+		add.call("PILLAR%d" % pi_, circ.call(3.5, Vector2.ZERO), Vector3(pl[0], pl[1], 0), 0.0, 3.0, 26.0)
+		pi_ += 1
+	var pv := Vector3(ep.x, ep.y + D, 0)
+	add.call("CRUTCH_STEM", PackedVector2Array([Vector2(-3, 6), Vector2(3, 6), Vector2(3, -86), Vector2(-3, -86)]), pv, alpha, -11.2, -8.8)
+	add.call("CRUTCH_PIN_L", circ.call(1.6, Vector2(-6.7, -80) + (shift.get("CRUTCH_PIN_L", Vector2.ZERO) as Vector2)), pv, alpha, -13.8, -8.8)
+	add.call("CRUTCH_PIN_R", circ.call(1.6, Vector2(6.7, -80) + (shift.get("CRUTCH_PIN_R", Vector2.ZERO) as Vector2)), pv, alpha, -13.8, -8.8)
+	add.call("ROD", PackedVector2Array([Vector2(-2.5, 0), Vector2(2.5, 0), Vector2(2.5, -L_PEND), Vector2(-2.5, -L_PEND)]), pv, alpha / float(dims["k"]), -15.2, -12.8)
 	return {"names": names, "polys": polys, "pose": pose, "z0": z0, "z1": z1}
 
 

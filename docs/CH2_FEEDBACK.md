@@ -3,19 +3,28 @@
 Challenge: a seconds-beating regulator movement (docs/CH2_REFERENCE.md), involute gears, 994 mm pendulum, anchor escapement, brass / steel / glass render.
 Code: scripts/build/clock_ch2.gd (model), clock_ch2_scene.gd (3D), native/src/kine_clock_native.cpp (per-frame contact), tests/ch2_test.gd, tools/ch2_render.gd.
 
-## What was built OUTSIDE Kine's part system, and why
-The clock is not made from Parts-tab features (sketch + extrude) or Easy Part templates. The movement is a script-built scene; the tooth outlines are
-plain polygons extruded in code. Reasons, ranked by what Kine would have to change:
+## What went through the Part API, and what did not (second pass)
+Built as Part records (scripts/build/clock_ch2_parts.gd; Part.make + sketch / extrude / pattern / combine / move; replayed by Part.body_faces; the scene draws that
+mesh): 8 gears + barrel gear + its pinion (spokes cut as an annulus window, one bar patterned, joined), the 30-tooth escape wheel, the anchor (hub, two arms,
+two pallets, combined), anchor arbor, crutch (stem moved by a Move step, two pins and a cross bar combined), arbors C T E M, the spring arbor, hour pipe, going
+barrel (drum with floor, cavity cut) and lid, three hands, three collets, back and front plates (arbor holes cut), four pillars, barrel bridge, escapement cock,
+dial (windows cut), 120 dial ticks (one sketch), 12 numerals (Kine's PartText font outlines in one sketch). That is 28 moving + 11 structural = 39 Part-built bodies;
+each scene node carries meta part_features (its feature kinds) and bar 8 checks it. Script-made: the pendulum rod and bob (kept as primitives because the unedited
+bar 2 measures the bob as a CylinderMesh), eight screw heads, the walnut case, glass, floor and wall.
 
-| # | Missing in Kine | What I did instead | Difficulty to add |
+Gaps found (script path kept for these pieces only):
+| # | Missing feature | Where it bit | Difficulty |
 |---|---|---|---|
-| 1 | Assemblies cannot drive: Turn it moves ONE Gear pair (gear_drive.gd). There is no gear-train graph (A meshes B meshes C, any shaft driven, ratio = product of teeth) | ClockCH2.drive(): shafts, mesh edges with a phase constant, set one shaft and the rest follow | Small (the maths is 40 lines; the work is a joint type "mesh" in assembly.gd and a UI to pick two gears) |
-| 2 | No involute profile in the Gear template (C52 says "flat sides"); small pinions (8 leaves) need pressure angle 25-30 deg or they undercut | involute_outline(): module, pressure angle, addendum, dedendum, backlash thinning | Small to add a second outline function to gear_outline(); a Pressure angle slider |
-| 3 | No pallet / ratchet / escapement template, and no contact-driven motion (a body that moves only until it touches another) | wheel_drop(): the wheel turns until a tooth meets a pallet (bisection on the overlap area); impulse faces push by a scan | Medium (needs a per-frame contact query exposed to film keys / assembly) |
-| 4 | Clearance of many moving parts every frame: assembly_dof / collide_live work on static or dragged poses and in GDScript | KineClockNative.pair_overlaps (C++, triangle-pair clip): 12 parts, 7 z-sharing pairs, 3600 frames in well under a second | Medium: generalise to 3D (this one is 2D flats stacked in z); ALL pairs of an assembly through the same C++ call |
-| 5 | Physics-driven time: a pendulum whose period comes from its length. Film keys are curves, not dynamics | pendulum_run(): RK4, period measured from zero crossings (2.0006 s vs 2.0004 s at 994 mm) | Small as a "Pendulum" film driver; large if general rigid-body dynamics |
-| 6 | Render: no brass / steel / glass material presets, no motion blur in the video export, lights are per-scene scripts (temple_light.gd is outdoor only) | StandardMaterial3D presets in the scene file; blur = 4 sub-frames per frame averaged by ffmpeg | Medium (material presets Small; motion-blur export Medium; an indoor studio rig Small) |
-| 7 | Part count: ~15 moving parts (8 gears, escape wheel, anchor, pendulum, 3 hands, arbors). The ledger asked for 30+; wheels with spokes, a barrel, the going-train bridges and the strike train would add them. Not built | - | Large (hours of modelling; no tool gaps beyond 1-3) |
+| 1 | No involute curve entity or gear macro in the sketch: the tooth flank is 8 sampled points per side, entered as lines | every gear: the OUTLINE points come from ClockCH2.involute_outline, everything after is Part | Small (an involute sketch entity or a Gear template with pressure angle) |
+| 2 | Circular pattern of a tooth is slow: it fuses copies one by one, super-linear in the count. 30 teeth 5.6 s, 64 teeth 18-30 s, 56 teeth 18 s; the whole clock replays in ~100 s | triangles are cached in assets/ch2_parts/ under the feature-list hash (2.1 MB); without the cache the test takes 2 extra minutes | Medium (pattern as ONE boolean of all copies, or a "pattern into a sketch" step that repeats a loop) |
+| 3 | A pattern only copies a body, not a sketch loop or a cut: every spoke wheel needs "cut ring, add one bar, pattern the bar, combine" instead of "cut one window, pattern the cut" (the FRULER row of cuts exists for linear rows only) | spokes | Small (circular _cut_row) |
+| 4 | The sketch plane cannot be placed along z by a number; I used a Move step per body (crutch stem) and put each part's z in the scene node | plate, dial, hands, crutch | Small (a plane at offset in the Sketch UI exists; the feature list needs it from a number) |
+| 5 | No text on a sketch plane outside Easy Part: I called PartText directly (works headless) | dial numerals | Small to expose as a Sketch tool |
+| 6 | Part has no assembly state: every body is its own record, the clock is 39 records plus a script that places them. Kine's assembly needs a "mesh" joint and a record per part | all | Large (see 1 below) |
+| 7 | No contact-driven motion, no mesh joint (Turn it drives ONE gear pair) | train driver is ClockCH2.drive() | Small (the maths is 40 lines) |
+| 8 | Clearance of many moving parts every frame is GDScript in assembly_dof / collide_live; C++ pair_overlaps (2D flats stacked in z) did it | 68 z-sharing pairs, 3600 frames | Medium |
+| 9 | Physics-driven time (pendulum period from length) is not a film key | pendulum_run RK4 | Small as a driver |
+| 10 | Materials: no brass / steel / enamel presets, no motion-blur video export, no indoor light rig | scene materials, 4 sub-frames per frame averaged by ffmpeg | Small to Medium |
 
 ## Ranked update suggestions
 1. (Small) A "Mesh" joint in assemblies + gear-train solver, shown as one Turn it that drives the whole train, with the tooth-ratio readout 60 : 1 : 1/12.

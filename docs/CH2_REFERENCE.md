@@ -39,3 +39,9 @@ SPEEDS of a seconds hand to a minute hand to an hour hand only if the hour hand 
 
 Deadbeat-style: an anchor with two pallet blades spans 7.5 teeth (90 degrees) of the 30-tooth wheel, pivot at R x sqrt(2) = 56.6 mm from the wheel centre.
 The pendulum swings 2.5 degrees each side, integrated with RK4 from theta'' = -(g/L) sin(theta).
+
+## Added in the second pass (not from the reference: a representative going barrel)
+Going barrel gear 56 teeth, module 1, meshing a 8-leaf pinion on the centre arbor (ratio 7:1, the barrel turns once per 7 hours of the centre wheel's turns; real
+regulator barrels are 64-80 teeth on 8-10 leaf pinions). Centre distance 32 mm, barrel at 225 degrees from the centre. Crutch: a stem from the anchor arbor with
+two pins either side of the pendulum rod, 80 mm below the pivot, gap 10.2 mm; the anchor turns 1.6 x the pendulum (model constant k), so the pin slides
+0.6 x 80 mm x 0.0436 rad = 2.1 mm across the rod at the extreme (bar 9 checks it never touches). Layout in z (mm): back plate 0-3, wheels 6-39, front plate 26-29, dial 41-43, ticks and numerals 43-43.5, hands 45-53.

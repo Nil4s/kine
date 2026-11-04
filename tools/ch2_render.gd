@@ -8,7 +8,8 @@ const SceneC := preload("res://scripts/build/clock_ch2_scene.gd")
 const KEYS := [   # t, camera position (m), target (m), fov
 	[0.0, Vector3(0.02, -0.30, 2.55), Vector3(0.0, -0.33, 0.0), 30.0],
 	[4.0, Vector3(0.02, -0.28, 2.40), Vector3(0.0, -0.30, 0.0), 30.0],
-	[9.0, Vector3(0.30, 0.16, 0.62), Vector3(0.0, 0.06, 0.02), 34.0],
+	[8.0, Vector3(0.0, 0.05, 0.80), Vector3(0.0, 0.05, 0.04), 30.0],
+	[9.5, Vector3(0.0, 0.05, 0.80), Vector3(0.0, 0.05, 0.04), 30.0],
 	[13.0, Vector3(0.16, 0.12, 0.30), Vector3(0.0, 0.075, 0.02), 38.0],
 	[17.0, Vector3(-0.10, 0.10, 0.34), Vector3(0.0, 0.05, 0.03), 38.0],
 	[20.0, Vector3(0.0, 0.06, 0.72), Vector3(0.0, 0.05, 0.0), 32.0]]
@@ -106,6 +107,7 @@ func _init() -> void:
 			var t := t0 + (float(f) + (float(s) + 0.5) / float(sub) * 0.5) / float(fps)   # a half-frame shutter
 			var i := mini(int(t / dt), th.size() - 1)
 			sc.pose(th[i], ph[i])
+			sc.set_skeleton(t >= 9.5)
 			var cp := cam_at(t0 + float(f) / float(fps))
 			cam.position = cp[0]
 			cam.look_at_from_position(cp[0], cp[1], Vector3.UP)

@@ -179,5 +179,64 @@ func _init() -> void:
 	ok(total_nodes > 100, "7 scene has %d nodes" % total_nodes)
 	bs.pose(th[500], ph[500])
 	ok(true, "7 posed")
+	# 8 HISTORY: every Part-built body keeps the Part feature list it came from
+	var PartsC := preload("res://scripts/build/clock_ch2_parts.gd")
+	var n_mov := 0
+	var n_fix := 0
+	var hist_ok := true
+	var bad_id := ""
+	for sp in PartsC.specs():
+		var nd: Node3D = bs.parts.get(sp["id"])
+		var h: PackedStringArray = nd.get_meta("part_features", PackedStringArray()) if nd != null else PackedStringArray()
+		var good := h.has("sketch") and h.has("extrude") and h == PartsC.history_of(sp)
+		if sp["id"] in ["ESC"] or (ClockC.gear(sp["id"]).size() > 0):
+			good = good and h.has("pattern") and h.has("combine")
+		if not good:
+			hist_ok = false
+			bad_id = sp["id"]
+		if sp["role"] == "moving":
+			n_mov += 1
+		else:
+			n_fix += 1
+	ok(hist_ok, "8 every Part-built body carries its feature history (sketch + extrude; wheels also pattern + combine) %s" % bad_id)
+	ok(n_mov >= 28 and n_mov + n_fix >= 38, "8 %d moving and %d structural Part-built bodies (%d with the pendulum rod, bob, case)" % [n_mov, n_fix, n_mov + n_fix + 2])
+	var emp := {"id": "X", "feats": [], "role": "moving"}
+	ok(PartsC.history_of(emp).is_empty() and not PartsC.history_of(emp).has("extrude"), "8 control: an empty feature list has no history and fails the check")
+	# the Part solids sit inside the model's outlines (so the model's clearance covers the real solids) and fill their teeth
+	var cont_ok := true
+	var cont_txt := ""
+	for gid in ["C64", "T60", "CAN12", "H40", "BAR56", "BP8"]:
+		var sp: Dictionary = PartsC.spec_of(gid)
+		var tri := PartsC.triangles(sp)
+		var gg := ClockC.gear(gid)
+		var outl := Geometry2D.offset_polygon(ClockC.involute_outline(gg[2], gg[3]), 0.03)[0]
+		var worst_out := 0
+		for v in tri:
+			if absf(v.z - gg[5] * 0.001) < 1e-6 and not Geometry2D.is_point_in_polygon(Vector2(v.x, v.y) * 1000.0, outl):
+				worst_out += 1
+		cont_ok = cont_ok and tri.size() > 0 and worst_out == 0
+		cont_txt += " %s:%d" % [gid, worst_out]
+	ok(cont_ok, "8 Part-built wheel vertices outside the model outline (+0.03 mm):" + cont_txt)
+	# 9 CLEAR2: the new parts (barrel + its gear + pinion, pillars, crutch, rod) over 1800 frames at 30 fps
+	var worst2 := 0.0
+	var who2 := ""
+	var newn := ["BARREL", "BARREL_LID", "BP8", "BAR56", "PILLAR0", "PILLAR1", "PILLAR2", "PILLAR3", "CRUTCH_STEM", "CRUTCH_PIN_L", "CRUTCH_PIN_R", "ROD"]
+	var min_gap := 1e9
+	for f in 1800:
+		var i2 := mini(int(f / 30.0 / dt), th.size() - 1)
+		var b2 := C.bodies(th[i2], ph[i2] * kk)
+		var pr2 := ClockC.z_pairs(b2)
+		var ar2 := ClockC.pair_overlaps(b2["polys"], b2["pose"], pr2)
+		for q in ar2.size():
+			var na: String = b2["names"][pr2[2 * q]]
+			var nb2: String = b2["names"][pr2[2 * q + 1]]
+			if na in newn or nb2 in newn:
+				var v2: float = ar2[q] * (minf(b2["z1"][pr2[2 * q]], b2["z1"][pr2[2 * q + 1]]) - maxf(b2["z0"][pr2[2 * q]], b2["z0"][pr2[2 * q + 1]]))
+				if v2 > worst2:
+					worst2 = v2
+					who2 = na + "-" + nb2
+	ok(worst2 < 1e-9, "9 new parts over 1800 frames: worst overlap %.9f mm3 %s" % [worst2, who2])
+	var rc2 := C.clearance(th[0], ph[100] * kk, {"CRUTCH_PIN_R": Vector2(-5.0, 0.0)})
+	ok(rc2["worst"] > 0.0, "9 control: a crutch pin moved 5 mm onto the rod overlaps %.3f mm3 (%s)" % [rc2["worst"], rc2["who"]])
 	print("ch2: %d fail (%d ms)" % [fails, Time.get_ticks_msec() - t0])
 	quit(1 if fails > 0 else 0)
