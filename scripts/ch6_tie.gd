@@ -208,9 +208,9 @@ func run(opts := {}) -> Dictionary:
 		var q: Vector3 = lay[i]
 		if i < 60 and q.y > -0.12 and q.y < -0.08 and absf(q.x) < 0.01:
 			a_idx.append(i)
-		if i < 80 and absf(Vector2(q.x + 0.05, q.y).length() - 0.05) < 0.004 and q.y > -0.04:
+		if i < 80 and absf(Vector2(q.x + 0.05, q.y).length() - 0.05) < 0.004 and q.y > -0.04 and q.x > -0.05:
 			h_idx.append(i)
-		if i < 80 and absf(Vector2(q.x + 0.05, q.y).length() - 0.05) < 0.004 and (q - hold_c).length() < 0.014:
+		if i < 80 and absf(Vector2(q.x + 0.05, q.y).length() - 0.05) < 0.004 and (q - hold_c).length() < 0.024:
 			g_idx.append(i)
 	var a_ref := _mean(pts, a_idx)
 	var h_ref := _mean(pts, h_idx)
@@ -232,7 +232,8 @@ func run(opts := {}) -> Dictionary:
 				var dA := _mean(xs, a_idx) - a_ref
 				var dH := _mean(xs, h_idx) - h_ref
 				dA.y = 0.0
-				dH.z = dH.z
+				dA = dA.limit_length(0.012)   # bounded: a feature the hand itself shoves must not make the hand chase it
+				dH = dH.limit_length(0.012)
 				var wy := clampf((-0.07 - path[f].y) / 0.02, 0.0, 1.0)   # 1 below the hole: anchored to the standing part
 				miss = reach_pinch(path[f] + O + dA * wy + dH * (1.0 - wy))
 			else:
