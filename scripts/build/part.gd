@@ -956,9 +956,17 @@ static func _tess_cached(id: int, coarse: bool) -> ArrayMesh:
 ## the same); if the distinct looks are still too many, the last looks' bodies share the final surface. Writes res["looks"] (one per surface) and
 ## res["surf_body"] (the first body of each surface).
 const MAX_SURFACES := 256
+## C65: what makes two looks one material: every field except the body's name (a named body used to get a surface of its own, and past 256 bodies the rest shared the last one)
+static func merge_key(look: Dictionary) -> String:
+	var l := look.duplicate()
+	l.erase("name")
+	return JSON.stringify(l)
+
+
 static func pack_surfaces(mesh: ArrayMesh, pend: Array, res: Dictionary) -> void:
 	var groups: Array = []   # [[pend index, ...]] one per surface
 	res["surf_ranges"] = []
+	res.erase("surface_cap")
 	var solo: Array = res.get("solo", [])   # s269c: bodies the film keys move on their own: never merged into another surface
 	if pend.size() <= MAX_SURFACES:
 		for k in pend.size():
@@ -970,12 +978,17 @@ static func pack_surfaces(mesh: ArrayMesh, pend: Array, res: Dictionary) -> void
 			if solo.has(int(pend[k][2])):
 				solos.append([k])
 				continue
-			var key := JSON.stringify(pend[k][1])
+			var key := merge_key(pend[k][1])   # C65: material only; the body's name is not part of the key
 			if not by_look.has(key):
 				by_look[key] = groups.size()
 				groups.append([])
 			groups[by_look[key]].append(k)
 		var room := maxi(MAX_SURFACES - solos.size(), 1)
+		if groups.size() > room:   # C65: say it: some bodies will wear a neighbouring material
+			var lost := 0
+			for gi in range(room, groups.size()):
+				lost += (groups[gi] as Array).size()
+			res["surface_cap"] = "This part has %d different materials; a model draws at most %d, so %d bodies share another body's material. Use fewer distinct materials." % [groups.size() + solos.size(), MAX_SURFACES, lost]
 		while groups.size() > room:
 			var tail: Array = groups.pop_back()
 			groups[room - 1].append_array(tail)
