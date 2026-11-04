@@ -11069,12 +11069,20 @@ func _hands_refresh() -> void:
 				if lb != null and is_instance_valid(lb) and lb.is_visible_in_tree():   # can be taller than BOTTOM_H: the strip covered them)
 					y1 = minf(y1, lb.get_global_rect().position.y - ps.y - 8.0)
 			var body := _body_screen_rect().grow(12.0)
-			var pick := Vector2(x1, y1)
-			for c in [Vector2(x1, y1), Vector2(x0, y0), Vector2(x0, y1), Vector2(x1, y0)]:
-				if not Rect2(c, ps).intersects(body):
-					pick = c
-					break
-			ui_hands_panel.position = PickDodge.fit(ui_hands_panel, pick, Rect2(float(LEFT_W) + 8.0, float(TOP_H) + 8.0, vs.x - float(LEFT_W) - float(RIGHT_W) - 16.0, vs.y - float(TOP_H) - 16.0 - float(BOTTOM_H) - 56.0), PickDodge.points(self))   # C29: never over a body pick point
+			var vrect := Rect2(float(LEFT_W), float(TOP_H), vs.x - float(LEFT_W) - float(RIGHT_W), vs.y - float(TOP_H) - float(bottom_h))   # C66
+			var hb_flow: Control = null
+			for d0 in ui_hands:
+				if not d0["easy"] and d0.has("both"):
+					hb_flow = (d0["both"] as Control).get_parent()
+					(d0["state"] as Label).text = st   # its wrapped height is part of the card's size
+			var docked: bool = hb_flow != null and HandsDock.place(ui_hands_panel, hb_flow, vrect, HandsDock.blockers(self, ui_hands_panel, vrect, [ui_status, ui_mouse, ui_bar, ui_cube]), body)
+			if not docked:
+				var pick := Vector2(x1, y1)
+				for c in [Vector2(x1, y1), Vector2(x0, y0), Vector2(x0, y1), Vector2(x1, y0)]:
+					if not Rect2(c, ps).intersects(body):
+						pick = c
+						break
+				ui_hands_panel.position = PickDodge.fit(ui_hands_panel, pick, Rect2(float(LEFT_W) + 8.0, float(TOP_H) + 8.0, vs.x - float(LEFT_W) - float(RIGHT_W) - 16.0, vs.y - float(TOP_H) - 16.0 - float(BOTTOM_H) - 56.0), PickDodge.points(self))   # C29: never over a body pick point
 		ui_hands_panel.position = ui_hands_panel.position.clamp(Vector2.ZERO, (vs - ui_hands_panel.size).max(Vector2.ZERO))   # no candidate fits a short window: it still stays on the view
 	for d in ui_hands:
 		if not is_instance_valid(d["box"]):
@@ -16277,6 +16285,7 @@ func _layout_bottom() -> void:
 	_force_place()
 	_place_nav()
 	_cam()
+	call_deferred("_hands_refresh")   # C66: the hands card finds its spot again once the status line and the view tools have moved
 
 
 ## a key, as if pressed in the view: a command that has a key runs through the key's own code, so the two never differ
