@@ -37,9 +37,11 @@
 #include <godot_cpp/variant/packed_vector2_array.hpp>
 #include <godot_cpp/variant/vector2.hpp>
 #include <cmath>
+#include <vector>
 #include <BRepAlgoAPI_Common.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepAlgoAPI_Fuse.hxx>
+#include <TopTools_ListOfShape.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <BRepGProp.hxx>
@@ -147,6 +149,7 @@ void KineCAD::_bind_methods() {
 	ClassDB::bind_static_method("KineCAD", D_METHOD("translate", "id", "by"), &KineCAD::translate);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("rotate", "id", "axis", "radians"), &KineCAD::rotate);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("union", "a", "b"), &KineCAD::union_);
+	ClassDB::bind_static_method("KineCAD", D_METHOD("union_many", "base", "tools"), &KineCAD::union_many);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("cut", "a", "b"), &KineCAD::cut);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("intersect", "a", "b"), &KineCAD::intersect);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("fillet_all", "id", "radius"), &KineCAD::fillet_all);
@@ -253,6 +256,29 @@ int KineCAD::union_(int a, int b) {
 	}
 	return kc_put(op.Shape());
 	KCAD_CATCH("union", 0)
+}
+
+int KineCAD::union_many(int a, const PackedInt32Array &tools) {
+	TopoDS_Shape sa;
+	if (!kc_get(a, sa)) {
+		return 0;
+	}
+	std::vector<TopoDS_Shape> ts;
+	for (int i = 0; i < tools.size(); i++) {
+		TopoDS_Shape t;
+		if (!kc_get(tools[i], t)) {
+			return 0;
+		}
+		ts.push_back(t);
+	}
+	KCAD_TRY
+	TopoDS_Shape r = fuse_list(sa, ts);
+	if (r.IsNull()) {
+		g_err = "union_many failed";
+		return 0;
+	}
+	return kc_put(r);
+	KCAD_CATCH("union_many", 0)
 }
 
 int KineCAD::cut(int a, int b) {
@@ -536,6 +562,29 @@ bool shape_normal(const TopoDS_Face &f, gp_Dir &n) {
 
 TopoDS_Shape fuse_all(const TopoDS_Shape &a, const TopoDS_Shape &b) {
 	BRepAlgoAPI_Fuse op(a, b);
+	if (!op.IsDone() || op.HasErrors()) {
+		return TopoDS_Shape();
+	}
+	return op.Shape();
+}
+
+
+// C70: one General Fuse of a base and a list of tools (the copies of a pattern). The one-by-one chain re-intersects the whole growing
+// body for every copy (super-linear: 64 teeth took 18-30 s); one boolean intersects every pair once.
+TopoDS_Shape fuse_list(const TopoDS_Shape &base, const std::vector<TopoDS_Shape> &tools) {
+	if (tools.empty()) {
+		return base;
+	}
+	TopTools_ListOfShape args, tl;
+	args.Append(base);
+	for (const TopoDS_Shape &t : tools) {
+		tl.Append(t);
+	}
+	BRepAlgoAPI_Fuse op;
+	op.SetArguments(args);
+	op.SetTools(tl);
+	op.SetRunParallel(true);
+	op.Build();
 	if (!op.IsDone() || op.HasErrors()) {
 		return TopoDS_Shape();
 	}
@@ -1161,15 +1210,16 @@ int KineCAD::pattern_linear(int id, const Vector3 &step, int count) {
 		return 0;
 	}
 	KCAD_TRY
-	TopoDS_Shape acc = s;
+	std::vector<TopoDS_Shape> copies;
 	for (int i = 1; i < count; i++) {
 		gp_Trsf t;
 		t.SetTranslation(gp_Vec(step.x * i, step.y * i, step.z * i));
-		acc = fuse_all(acc, BRepBuilderAPI_Transform(s, t, true).Shape());
-		if (acc.IsNull()) {
-			g_err = "pattern: fuse failed";
-			return 0;
-		}
+		copies.push_back(BRepBuilderAPI_Transform(s, t, true).Shape());
+	}
+	TopoDS_Shape acc = fuse_list(s, copies);   // C70: one boolean
+	if (acc.IsNull()) {
+		g_err = "pattern: fuse failed";
+		return 0;
 	}
 	return kc_put(acc);
 	KCAD_CATCH("pattern_linear", 0)
@@ -1189,15 +1239,16 @@ int KineCAD::pattern_circular(int id, const Vector3 &ao, const Vector3 &ad, int 
 	// a full turn spreads the copies evenly round it; a partial angle is the span from the first copy to the last
 	const bool full = std::fabs(total) >= 2.0 * M_PI - 1e-9;
 	const double step = count < 2 ? 0.0 : (full ? total / count : total / (count - 1));
-	TopoDS_Shape acc = s;
+	std::vector<TopoDS_Shape> copies;
 	for (int i = 1; i < count; i++) {
 		gp_Trsf t;
 		t.SetRotation(ax, step * i);
-		acc = fuse_all(acc, BRepBuilderAPI_Transform(s, t, true).Shape());
-		if (acc.IsNull()) {
-			g_err = "pattern: fuse failed";
-			return 0;
-		}
+		copies.push_back(BRepBuilderAPI_Transform(s, t, true).Shape());
+	}
+	TopoDS_Shape acc = fuse_list(s, copies);   // C70: one boolean
+	if (acc.IsNull()) {
+		g_err = "pattern: fuse failed";
+		return 0;
 	}
 	return kc_put(acc);
 	KCAD_CATCH("pattern_circular", 0)

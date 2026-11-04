@@ -3075,6 +3075,9 @@ static func _split_looks(looks: Array, n: int, pieces: Array) -> void:
 const AXIS_VEC := {"x": Vector3.RIGHT, "y": Vector3.UP, "z": Vector3.BACK}
 const PATTERN_MAX := PartArray.MAX_COPIES   # S266: ONE cap for linear / circular / path / grid / route (1000); past COPIES_SLOW the step says it is slow
 
+## C70: false = the old one-by-one join of a pattern's copies (tests compare the two; nothing else turns it off)
+static var bulk_fuse := true
+
 static func _pattern(bodies: Array, looks: Array, f: Dictionary, rec: Dictionary = {}) -> String:
 	if bodies.is_empty():
 		return "there is no body to pattern"
@@ -3269,6 +3272,14 @@ static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int,
 			cn += 1
 			looks.append(_numbered(src, cn))   # s212: a named body's copies are Name 2, Name 3 ...
 		return ""
+	if bulk_fuse and copies.size() >= 2 and KCad.has_union_many():   # C70: every copy fused in ONE boolean (one-by-one re-intersects the growing body each time)
+		var ub := KCad.union_many(bodies[bi], PackedInt32Array(copies))
+		if ub != 0:
+			for c in copies:
+				KCad.release(c)
+			KCad.release(bodies[bi])
+			bodies[bi] = ub
+			return ""
 	for k in copies.size():
 		var u := KCad.union(bodies[bi], copies[k])
 		KCad.release(copies[k])

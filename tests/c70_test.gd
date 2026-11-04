@@ -12,7 +12,7 @@ extends SceneTree
 ##   3 VOLUME  the pattern result volume equals the one-by-one path within 1e-9 relative on 3 parts: a 30-tooth wheel, a row of 12 overlapping bars (linear),
 ##             9 bars crossing at the middle (circular, copies overlap each other).  CONTROL: a wheel of 29 teeth differs from the 30 by more than 1e-9.
 ##   4 GEAR    the Gear tool (Shapes row > Gear): the dialog opens, shows pitch / tip / root diameters; Add gear puts the loop into the sketch as ONE undo step; the
-##             loop extrudes to 1 solid whose volume is within 0.2 percent of the polygon area x thickness; an impossible number (3 teeth) disables Add gear.
+##             loop extrudes to 1 solid whose volume is within 0.2 percent of the polygon area x thickness; an impossible number (6 teeth, 35 degrees, shift 1.5) disables Add gear.
 ##             Screenshots C:/Temp/claude/c70/*.png at 1280x720, looked at by eye.
 ##   5 PT_BR   the dialog's strings have non-empty msgstr in the .po (c31 holds the rest).
 ##   6 WATCHDOG the test quits itself at 600 s
@@ -234,7 +234,7 @@ func volume_bars() -> void:
 		Part.bulk_fuse = false
 		var vb := vol(rec_b)
 		Part.bulk_fuse = true
-		ok(va > 0.0 and vb > 0.0 and absf(va - vb) / vb <= 1e-9, "3 %s: one boolean %.12e m3, one by one %.12e m3, relative %.2e (bar 1e-9)" % [nm, va, vb, absf(va - vb) / maxf(vb, 1e-30)])
+		ok(va > 0.0 and vb > 0.0 and absf(va - vb) / vb <= 1e-9, "3 %s: one boolean %.9f mm3, one by one %.9f mm3, relative %s (bar 1e-9)" % [nm, va * 1e9, vb * 1e9, str(absf(va - vb) / maxf(vb, 1e-30))])
 	var r30 := Part.make("a")
 	r30["features"] = PGEAR.wheel_feats(2.0, 30, 20.0, 0.0, 5.0, 6.0)
 	var r29 := Part.make("a")
@@ -292,7 +292,7 @@ func ui_bars() -> void:
 	pu.shp.gear_ui.spins["bore"].value = 10.0
 	await idle(3)
 	var info: String = pu.shp.gear_ui.info.text
-	ok(info.contains("48.00") and info.contains("52.00") and info.contains("45.00"), "4 the dialog says the diameters: %s" % info)
+	ok(info.contains("48.00") and info.contains("52.00") and info.contains("43.00"), "4 the dialog says the diameters: %s" % info)
 	await shot("gear_dialog")
 	await click_ctl(pu.shp.gear_ui.add_btn)
 	var ents: Array = pu._sk()["ents"]
@@ -304,9 +304,11 @@ func ui_bars() -> void:
 	var ents_copy := ents.duplicate(true)
 	await click_ctl(pu.finish_btn)
 	ok(m.undo.size() == n0 + 1, "4 ONE undo step for the gear (%d)" % (m.undo.size() - n0))
-	pu.shp.gear_ui.spins["z"].value = 3
+	pu.shp.gear_ui.spins["z"].value = 6
+	pu.shp.gear_ui.spins["pa"].value = 35.0
+	pu.shp.gear_ui.spins["x"].value = 1.5
 	await idle(2)
-	ok(pu.shp.gear_ui.add_btn.disabled, "4 3 teeth: Add gear is disabled (%s)" % pu.shp.gear_ui.info.text)
+	ok(pu.shp.gear_ui.add_btn.disabled, "4 6 teeth, 35 degrees, shift 1.5: Add gear is disabled (%s)" % pu.shp.gear_ui.info.text)
 	var ext := Part.make("g")
 	var fs: Array = []
 	PartTemplates._ex(fs, PartTemplates._sk(fs, "front", ents_copy), "extrude", 8.0, "new")
@@ -314,10 +316,12 @@ func ui_bars() -> void:
 	var r: Dictionary = Part.replay(ext)
 	var want := area * 8.0 * 1e-9
 	ok((r["errors"] as Dictionary).is_empty() and int(r["bodies"]) == 1 and absf(float(r["volume"]) - want) / want < 0.002,
-		"4 extruded gear: errors %s, %d body, volume %.6e m3 vs polygon area x 8 = %.6e" % [r["errors"], int(r["bodies"]), r["volume"], want])
+		"4 extruded gear: errors %s, %d body, volume %.3f mm3 vs polygon area x 8 = %.3f" % [r["errors"], int(r["bodies"]), float(r["volume"]) * 1e9, want * 1e9])
 	for id in ["Involute gear", "Module (mm)", "Teeth", "Pressure angle", "Profile shift", "Root fillet (mm)", "Centre X (mm)", "Centre Y (mm)", "Bore diameter (mm)", "Add gear", "Close"]:
 		ok(ps_has(id), "5 pt_BR has \"%s\"" % id)
 	pu.shp.gear_ui.spins["z"].value = 24
+	pu.shp.gear_ui.spins["pa"].value = 20.0
+	pu.shp.gear_ui.spins["x"].value = 0.0
 	pu.shp.gear_ui.set_open(true)
 	await shot("gear_final")
 
