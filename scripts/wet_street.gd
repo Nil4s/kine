@@ -1,83 +1,95 @@
 class_name WetStreet
 extends Node3D
-## CH5: wet pavement at night. A cobble + asphalt height field, ONE water level, puddles = height < level (never painted),
-## wetness (darker, smoother) near water and in the joints, a lamp, and a planar mirror for the puddles.
-## Numbers and their sources: docs/CH5_REFERENCE.md. Shader: scripts/wet_street.gdshader.
-## World: metres, +y up. The patch is x in [X0, X0+SPAN_X], z in [Z0, Z0+SPAN_Z]; the camera stands on +z and looks toward -z.
+## CH5c: wet cobblestone street at night, rebuilt on the engine's PBR (StandardMaterial3D), SSR, a reflection probe and real omni lights.
+## No hand-written ground shader. The height field of the setts comes from a real CC0 photo texture (Poly Haven "Cobblestone Floor 04",
+## Rob Tuytel, https://polyhaven.com/a/cobblestone_floor_04): scripts/../tools/ch5c_prep_tiles.py segments its sett outlines (a LABEL raster) and
+## keeps its displacement map; the asphalt strip is Poly Haven "Worn Asphalt" (Amal Kumar, https://polyhaven.com/a/worn_asphalt), CC0.
+## World: metres, +y up. Patch x in [X0, X0+SPAN_X], z in [Z0, Z0+SPAN_Z]; the camera stands on +z and looks toward -z.
+## Data model (kept from CH5/CH5b so their bars A, C, E run unchanged): height(), himg (RF metres), mimg (RGBA8 wet albedo + wet roughness), bowls, level.
 
 const X0 := -3.2
 const Z0 := -13.6
 const SPAN_X := 6.4
 const SPAN_Z := 14.4
-const TEXEL := 0.003                 ## metres per baked pixel (3 mm: joints 4 px wide, rims resolved)
-const PITCH := 0.11                  ## cobble pitch (setts 100-120 mm)
-const GAP := 0.014                   ## joint width
+const TEXEL := 0.006                 ## metres per baked pixel
+const PITCH := 0.11                  ## nominal sett size (tests scale u, v with it)
+const GAP := 0.014                   ## joint width scale
 const GAP_FLOOR := -0.030            ## joint bottom below the stone tops
 const TOP_SIG := 0.004               ## per-stone top height sigma
-const DOME := 0.007                  ## each stone top is a dome, edge slope about 0.11
-const JOINT_DARK := 0.3              ## wet joints: albedo x this at the joint centre
-const TILT := 0.045                  ## per-stone tilt range
-const ROUND := 0.014                 ## rounding width of a stone edge
-const LEVEL := -0.034                ## THE water level: below the joint bottoms, so joints stay dry and only bowls flood
-const ASPHALT_X := 0.85              ## asphalt patch: x > this
+const DOME := 0.006                  ## extra per-stone dome on top of the photo's own relief
+const JOINT_DARK := 0.35             ## wet joints: albedo x this at the joint centre
+const ROUND := 0.012                 ## rounding width of a stone edge (metres from the outline)
+const LEVEL := -0.034                ## THE water level
+const ASPHALT_X := 0.85              ## asphalt strip: x > this
 const DRY_ROUGH_COBBLE := 0.85
 const DRY_ROUGH_ASPHALT := 0.92
-const WET_ROUGH_COBBLE := 0.15
-const WET_ROUGH_ASPHALT := 0.25
-const WATER_ROUGH := 0.04
-const DRY_ALB_COBBLE := 0.09
+const WET_ROUGH_COBBLE := 0.16
+const WET_ROUGH_ASPHALT := 0.30
+const WATER_ROUGH := 0.03
+const DRY_ALB_COBBLE := 0.11         ## linear albedo of a dry stone top (night granite is dark; the photo's 0.5 grey is scaled to this)
 const DRY_ALB_ASPHALT := 0.07
-const WET_DARKEN := 0.7             ## wet albedo = dry * this (Lekner & Dorf 1988: rough wet surfaces ~0.5-0.7)
-const AMBIENT_WET := 0.9             ## just after rain every stone top is wet (the photos show it); rims and joints go to 1
+const WET_DARKEN := 0.7             ## wet albedo = dry * this (Lekner & Dorf 1988)
+const AMBIENT_WET := 0.9
 const EYE := 1.6
-const LAMP_POS := Vector3(0.3, 6.0, -12.6)   ## the bulb
+const LAMP_POS := Vector3(0.3, 6.0, -12.6)   ## the bulb of lamp 0
 const BULB_R := 0.3
 const FOV := 62.0
 const PITCH_DEG := -6.0
+const TILE_M := 0.75                 ## the photo's 1.5 m tile is drawn at half size: setts about 11 cm
+const TILE_N := 1024
+const PX_M := TILE_M / float(TILE_N)
+const TILT := 0.12                   ## per-stone random tilt range (slope)
 
-## CH5b lamp row: [bulb position, colour (rgb x intensity), post x offset from the bulb]; lamp 0 is the parked scene's lamp
+## lamp row: [bulb position, colour, light energy, post x offset, bulb emission]; lamp 0 is the photo's lamp (white), the others are sodium
 const LAMPS := [
-	[Vector3(0.3, 6.0, -12.6), Vector3(1.0, 0.82, 0.6), 150.0, 1.2],
-	[Vector3(2.4, 4.8, -4.6), Vector3(1.0, 0.72, 0.42), 16.0, 0.55],
-	[Vector3(-2.4, 4.8, -5.8), Vector3(1.0, 0.75, 0.45), 16.0, -0.55],
-	[Vector3(2.9, 4.8, -8.8), Vector3(1.0, 0.72, 0.42), 16.0, 0.3],
-	[Vector3(-2.9, 4.8, -10.4), Vector3(1.0, 0.75, 0.45), 16.0, -0.3],
+	[Vector3(0.3, 6.0, -12.6), Vector3(1.0, 0.86, 0.68), 70.0, 1.2, 60.0],
+	[Vector3(2.4, 4.8, -4.6), Vector3(1.0, 0.62, 0.3), 16.0, 0.55, 30.0],
+	[Vector3(-2.4, 4.8, -5.8), Vector3(1.0, 0.62, 0.3), 16.0, -0.55, 30.0],
+	[Vector3(2.9, 4.8, -8.8), Vector3(1.0, 0.62, 0.3), 16.0, 0.3, 30.0],
+	[Vector3(-2.9, 4.8, -10.4), Vector3(1.0, 0.62, 0.3), 16.0, -0.3, 30.0],
 ]
 const BOLLARD := Vector3(0.3, 0.0, -4.0)     ## the S2 shadow caster, on the lamp 0 to camera axis
 const WALL_X := 3.3
-const AMB_SKY := Vector3(0.045, 0.034, 0.022)  ## sodium sky haze (irradiance / pi)
-const WALL_COL := Vector3(0.09, 0.056, 0.03)  ## warm bounce off the lit walls and their windows
-var occluders: Array = []            ## [x, z, r, h] vertical cylinders that cast the analytic soft shadows
 var light_r := BULB_R
 var legacy := false
 var env: Environment
 var set_pieces: Array = []   ## walls, windows, bollards: hidden in the legacy (one-lamp, black-void) control
 var probe := -1
-var bowls: Array = []                ## [cx, cz, radius, depth] settled low spots (the only reason water collects)
+var bowls: Array = []
 var level := LEVEL
 var himg: Image                      ## FORMAT_RF: height in metres
-var mimg: Image                      ## RGBA8: wet albedo rgb, wet roughness a
+var mimg: Image                      ## RGBA8: wet albedo rgb (sRGB), wet roughness a
 var wetimg: Image                    ## FORMAT_R8: wetness 0..1
 var painted := false                 ## planted control: puddles from a texture that ignores the height
-var streak_px := 10.0
-var lamp_intensity := 300.0          ## the pool is inverse-square in the shader: E = I cos / d^2
-var ripple_px := 30.0               ## ripple slope -> reflection offset in pixels
 var dry := false
-var refl_gain := 60.0
-var mat: ShaderMaterial
-var mirror_vp: SubViewport
-var mirror_cam: Camera3D
-var lamp_light: SpotLight3D
 var ground: MeshInstance3D
+var asphalt_mesh: MeshInstance3D
+var water: MeshInstance3D
+var refl_probe: ReflectionProbe
+var lights: Array = []               ## OmniLight3D per lamp
+var mat_wet: StandardMaterial3D
+var mat_dry: StandardMaterial3D
+var mat_probe: StandardMaterial3D
+var mat_asph_wet: StandardMaterial3D
+var mat_asph_dry: StandardMaterial3D
+var diff_img_dry: Image
 var _w := 0
 var _h := 0
+var _lab := PackedInt32Array()       ## sett label per tile pixel
+var _edge := PackedByteArray()       ## distance to the sett outline (px x 4)
+var _disp := PackedByteArray()
+var _alb := PackedByteArray()        ## tile albedo rgb8
+var _box := {}                       ## id -> [l, r, t, b] in tile px
+var _lin8 := PackedFloat32Array()
+var _d_lo := 0.25
+var _d_hi := 0.85
+var _loaded := false
 
 
 static func hash2(i: int, j: int) -> float:
 	return fposmod(sin(float(i) * 127.1 + float(j) * 311.7) * 43758.5453, 1.0)
 
 
-## the eye -> bulb mirror point on the plane y = level, and the angle between the view ray and the plane there
 static func reflection_point(eye: Vector3, bulb: Vector3, lvl: float) -> Vector3:
 	var t := (eye.y - lvl) / ((eye.y - lvl) + (bulb.y - lvl))
 	return Vector3(eye.x + (bulb.x - eye.x) * t, lvl, eye.z + (bulb.z - eye.z) * t)
@@ -87,7 +99,6 @@ static func grazing(eye: Vector3, x: Vector3) -> float:
 	return asin((eye.y - x.y) / eye.distance_to(x))
 
 
-## bowls placed so each camera pose has the lamp's reflection inside a puddle, plus two decoys that do not
 static func default_bowls(eyes: Array) -> Array:
 	var out := []
 	for e in eyes:
@@ -111,82 +122,105 @@ func is_asphalt(x: float, _z: float) -> bool:
 	return x > ASPHALT_X
 
 
-## CH5b irregular setts: rows 80-140 mm deep from Z_START, stones 80-140 mm wide with a per-row offset, all from hashes (no two alike).
-## Returns [stone id i, row id j, u, v, e (m to the nearest edge), left, right, top, bottom]; u, v are metres from the stone's left / top edge
-## divided by PITCH (so u * PITCH is the distance from the left edge).
-const Z_START := -20.0
-const X_START := -4.4
-var _row_z := PackedFloat32Array()      ## row j starts at _row_z[j]
-var _row_x: Array = []                  ## per row: PackedFloat32Array of stone left edges (one more than the stones)
-var _cj := 0
-var _ci := 0
+# ---------------------------------------------------------------------------------------------------------------- the sett layout (photo)
+func _load_tiles() -> void:
+	if _loaded:
+		return
+	var base := ProjectSettings.globalize_path("res://assets/ch5c/")
+	var li := Image.load_from_file(base + "cobble_label.png")
+	li.convert(Image.FORMAT_RGB8)
+	var ld := li.get_data()
+	_lab.resize(TILE_N * TILE_N)
+	for k in TILE_N * TILE_N:
+		_lab[k] = int(ld[k * 3]) + 256 * int(ld[k * 3 + 1])
+	var ei := Image.load_from_file(base + "cobble_edge.png")
+	ei.convert(Image.FORMAT_L8)
+	_edge = ei.get_data()
+	var di := Image.load_from_file(base + "cobble_disp.png")
+	di.convert(Image.FORMAT_L8)
+	_disp = di.get_data()
+	var ai := Image.load_from_file(base + "cobble_albedo.jpg")
+	ai.convert(Image.FORMAT_RGB8)
+	_alb = ai.get_data()
+	var f := FileAccess.open(base + "cobble_stones.csv", FileAccess.READ)
+	f.get_line()
+	while not f.eof_reached():
+		var ln := f.get_line().strip_edges()
+		if ln == "":
+			continue
+		var p := ln.split(",")
+		_box[int(p[0])] = [int(p[1]), int(p[2]), int(p[3]), int(p[4])]
+	_lin8.resize(256)
+	for k in 256:
+		_lin8[k] = pow(float(k) / 255.0, 2.2)
+	# calibrate the displacement: 10th..90th percentile over the stone pixels -> joint floor .. top
+	var hist := PackedInt32Array()
+	hist.resize(256)
+	var n := 0
+	for k in TILE_N * TILE_N:
+		if _lab[k] > 0:
+			hist[_disp[k]] += 1
+			n += 1
+	var acc := 0
+	for v in 256:
+		acc += hist[v]
+		if float(acc) < 0.1 * float(n):
+			_d_lo = float(v) / 255.0
+		if float(acc) < 0.9 * float(n):
+			_d_hi = float(v) / 255.0
+	_loaded = true
 
 
-func _build_layout() -> void:
-	_row_z = PackedFloat32Array()
-	_row_x = []
-	var z := Z_START
-	var j := 0
-	while z < 4.0:
-		_row_z.append(z)
-		var xs := PackedFloat32Array()
-		var x := X_START - 0.14 * hash2(j, 101)
-		var i := 0
-		while x < 4.4:
-			xs.append(x)
-			x += 0.08 + 0.06 * hash2(i, j + 500)
-			i += 1
-		xs.append(x)
-		_row_x.append(xs)
-		z += 0.08 + 0.06 * hash2(j, 77)
-		j += 1
-	_row_z.append(z)
+## tile pixel + tile index of a world point
+func _tile_px(x: float, z: float) -> Array:
+	var fx := (x + 5.0) / TILE_M
+	var fz := (z + 22.0) / TILE_M
+	var ix := floori(fx)
+	var iz := floori(fz)
+	var px := clampi(int((fx - float(ix)) * float(TILE_N)), 0, TILE_N - 1)
+	var pz := clampi(int((fz - float(iz)) * float(TILE_N)), 0, TILE_N - 1)
+	return [px, pz, ix, iz]
 
 
+## [stone id i, tile id j, u, v, e (m to the outline), left, right, top, bottom] in world metres; i = 0 on a joint (no stone)
 func cobble_cell(x: float, z: float) -> Array:
-	if _row_z.is_empty():
-		_build_layout()
-	var nr := _row_z.size() - 1
-	var j := _cj
-	if not (j < nr and z >= _row_z[j] and z < _row_z[j + 1]):
-		var lo := 0
-		var hi := nr - 1
-		while lo < hi:
-			var mid := (lo + hi + 1) >> 1
-			if _row_z[mid] <= z:
-				lo = mid
-			else:
-				hi = mid - 1
-		j = lo
-		_cj = j
-	var xs: PackedFloat32Array = _row_x[j]
-	var ns := xs.size() - 1
-	var i := _ci
-	if not (i < ns and x >= xs[i] and x < xs[i + 1]):
-		var lo2 := 0
-		var hi2 := ns - 1
-		while lo2 < hi2:
-			var mid2 := (lo2 + hi2 + 1) >> 1
-			if xs[mid2] <= x:
-				lo2 = mid2
-			else:
-				hi2 = mid2 - 1
-		i = lo2
-		_ci = i
-	var l := xs[i]
-	var r := xs[i + 1]
-	var t := _row_z[j]
-	var bt := _row_z[j + 1]
-	var e := minf(minf(x - l, r - x), minf(z - t, bt - z))
-	return [i, j, (x - l) / PITCH, (z - t) / PITCH, e, l, r, t, bt]
+	_load_tiles()
+	var t := _tile_px(x, z)
+	var px: int = t[0]
+	var pz: int = t[1]
+	var k := pz * TILE_N + px
+	var id: int = _lab[k]
+	var jt: int = int(t[2]) * 7919 + int(t[3]) * 104729
+	if id == 0:
+		return [0, jt, 0.0, 0.0, 0.0, x, x, z, z]
+	var bx: Array = _box[id]
+	# the box was measured around one copy of the stone: shift it by whole tiles until it holds this pixel
+	var sx := 0
+	for m in [0, -1, 1]:
+		if px >= int(bx[0]) + m * TILE_N and px < int(bx[1]) + m * TILE_N:
+			sx = m * TILE_N
+			break
+	var sz := 0
+	for m in [0, -1, 1]:
+		if pz >= int(bx[2]) + m * TILE_N and pz < int(bx[3]) + m * TILE_N:
+			sz = m * TILE_N
+			break
+	var gx := x - (float(px) + 0.5) * PX_M            ## world x of tile pixel 0's left edge
+	var gz := z - (float(pz) + 0.5) * PX_M
+	var l := gx + float(int(bx[0]) + sx) * PX_M
+	var r := gx + float(int(bx[1]) + sx) * PX_M
+	var tp := gz + float(int(bx[2]) + sz) * PX_M
+	var bt := gz + float(int(bx[3]) + sz) * PX_M
+	var e := float(_edge[k]) * 0.25 * PX_M
+	return [id, jt, (x - l) / PITCH, (z - tp) / PITCH, e, l, r, tp, bt]
 
 
-## the per-stone base height (the tilt and dome are added in height())
 func stone_top(i: int, j: int, _u: float, _v: float) -> float:
 	return (hash2(i, j) - 0.5) * 2.0 * TOP_SIG
 
 
-## the surface height in metres: irregular domed stones with a random tilt (up to about 16 degrees), dark joints, or asphalt, plus the bowls
+## the surface height in metres: the photo's displacement inside each outlined sett (rounded toward the joints), a hashed tilt and dome per
+## sett, joints at the floor, or the asphalt strip; plus the settled bowls
 func height(x: float, z: float) -> float:
 	var h := 0.0
 	if is_asphalt(x, z):
@@ -194,35 +228,46 @@ func height(x: float, z: float) -> float:
 		var gz := z * 3.0
 		h = 0.0015 * (sin(gx * 1.7 + sin(gz * 1.3)) * 0.6 + sin(gz * 2.1 - gx * 0.7) * 0.4)
 	else:
-		var c := cobble_cell(x, z)
-		var i: int = c[0]
-		var j: int = c[1]
-		var cx: float = 0.5 * (float(c[5]) + float(c[6]))
-		var cz: float = 0.5 * (float(c[7]) + float(c[8]))
-		var da := (x - cx) / (0.5 * (float(c[6]) - float(c[5])))
-		var db := (z - cz) / (0.5 * (float(c[8]) - float(c[7])))
-		var tx := (hash2(i + 7, j) - 0.5) * 0.4
-		var tz := (hash2(i, j + 9) - 0.5) * 0.4
-		var dome := DOME * (0.7 + 0.6 * hash2(i + 3, j + 5)) * (1.0 - 0.5 * (da * da + db * db))
-		var top := stone_top(i, j, 0.0, 0.0) + tx * (x - cx) + tz * (z - cz) + dome
-		var s := smoothstep(GAP * 0.5, GAP * 0.5 + ROUND, float(c[4]))
-		h = lerpf(GAP_FLOOR, top, s)
+		h = _cobble_h(x, z, cobble_cell(x, z))
 	return h + bowl_field(x, z)
 
 
-## joint-ness 0 (stone) .. 1 (joint centre)
+func _cobble_h(x: float, z: float, c: Array) -> float:
+	var id: int = c[0]
+	if id == 0:
+		return GAP_FLOOR
+	var i := id
+	var j: int = c[1]
+	var cx: float = 0.5 * (float(c[5]) + float(c[6]))
+	var cz: float = 0.5 * (float(c[7]) + float(c[8]))
+	var hw := maxf(0.5 * (float(c[6]) - float(c[5])), 0.02)
+	var hd := maxf(0.5 * (float(c[8]) - float(c[7])), 0.02)
+	var da := (x - cx) / hw
+	var db := (z - cz) / hd
+	var tx := (hash2(i + 7, j) - 0.5) * 2.0 * TILT
+	var tz := (hash2(i, j + 9) - 0.5) * 2.0 * TILT
+	var t := _tile_px(x, z)
+	var dd := float(_disp[int(t[1]) * TILE_N + int(t[0])]) / 255.0
+	var rel := clampf((dd - _d_lo) / maxf(_d_hi - _d_lo, 0.05), 0.0, 1.0)
+	var photo := lerpf(-0.012, 0.004, rel)
+	var dome := DOME * (0.7 + 0.6 * hash2(i + 3, j + 5)) * (1.0 - 0.5 * (da * da + db * db))
+	var top := stone_top(i, j, 0.0, 0.0) + tx * (x - cx) + tz * (z - cz) + dome + photo
+	var s := smoothstep(0.0, ROUND, float(c[4]))
+	return lerpf(GAP_FLOOR, top, s)
+
+
 func joint_amount(x: float, z: float) -> float:
 	if is_asphalt(x, z):
 		return 0.0
 	var c := cobble_cell(x, z)
-	return 1.0 - smoothstep(GAP * 0.5, GAP * 0.5 + ROUND, float(c[4]))
+	return 1.0 - smoothstep(0.0, ROUND, float(c[4]))
 
 
 func stone_shade(x: float, z: float) -> float:
 	if is_asphalt(x, z):
 		return 0.85 + 0.3 * hash2(floori(x / 0.004), floori(z / 0.004))
 	var c := cobble_cell(x, z)
-	return 0.8 + 0.4 * hash2(c[0] + 31, c[1] + 17)
+	return 0.7 + 0.6 * hash2(int(c[0]) + 31, int(c[1]) % 9973 + 17)
 
 
 func dry_albedo(x: float, z: float) -> float:
@@ -233,7 +278,6 @@ func dry_roughness(x: float, z: float) -> float:
 	return DRY_ROUGH_ASPHALT if is_asphalt(x, z) else DRY_ROUGH_COBBLE
 
 
-## wetness 0..1: rain-damp everywhere, wetter on the rim of a puddle (bowl field close to the level), joints stay damp, water = 1
 func wetness(x: float, z: float) -> float:
 	var b := bowl_field(x, z)
 	var rim := clampf((b + 0.003) / (level + 0.003), 0.0, 1.0)
@@ -254,14 +298,12 @@ func wet_albedo(x: float, z: float) -> float:
 	return dry_albedo(x, z) * lerpf(1.0, WET_DARKEN, wetness(x, z))
 
 
-## true where this scene has water. Unless the planted control is on, it is the height field against the level, nothing else.
 func has_water(x: float, z: float) -> bool:
 	if painted:
 		return painted_mask(x, z)
 	return height(x, z) < level
 
 
-## the planted control: blobs of "puddle" from noise that never looks at the height
 static func painted_mask(x: float, z: float) -> bool:
 	var v := sin(x * 2.9 + 1.3) * sin(z * 2.3 - 0.7) + 0.5 * sin(x * 7.1 + z * 5.3)
 	return v > 0.55
@@ -275,51 +317,204 @@ func texel_center(px: int, py: int) -> Vector2:
 	return Vector2(X0 + (float(px) + 0.5) * TEXEL, Z0 + (float(py) + 0.5) * TEXEL)
 
 
-## bake the height field and the wet material into images (GDScript; the ground quad is flat, the shader reads these)
+# ---------------------------------------------------------------------------------------------------------------- bake
+func _enc(v: float) -> int:
+	return clampi(int(pow(clampf(v, 0.0, 1.0), 1.0 / 2.2) * 255.0 + 0.5), 0, 255)
+
+
+## bake height, wet and dry albedo + roughness, wetness and the world normal map (GDScript: the data model and the render share one function)
 func bake() -> void:
+	_load_tiles()
 	_w = int(SPAN_X / TEXEL)
 	_h = int(SPAN_Z / TEXEL)
 	var hd := PackedFloat32Array()
 	hd.resize(_w * _h)
 	var md := PackedByteArray()
 	md.resize(_w * _h * 4)
+	var dd := PackedByteArray()
+	dd.resize(_w * _h * 4)
 	var wd := PackedByteArray()
 	wd.resize(_w * _h)
+	var at := _lin8
 	for py in _h:
 		for px in _w:
-			var p := texel_center(px, py)
-			var hh := height(p.x, p.y)
+			var x := X0 + (float(px) + 0.5) * TEXEL
+			var z := Z0 + (float(py) + 0.5) * TEXEL
 			var k := py * _w + px
+			var asph := x > ASPHALT_X
+			var c: Array = [] if asph else cobble_cell(x, z)
+			var hh := 0.0
+			if asph:
+				hh = height(x, z)
+			else:
+				hh = _cobble_h(x, z, c) + bowl_field(x, z)
 			hd[k] = hh
-			var w := 1.0 if hh < level else wetness_dry_height(p.x, p.y)
-			var a := dry_albedo(p.x, p.y) * lerpf(1.0, WET_DARKEN, w) * lerpf(1.0, JOINT_DARK, joint_amount(p.x, p.y))
-			var wr := WET_ROUGH_ASPHALT if is_asphalt(p.x, p.y) else WET_ROUGH_COBBLE
-			var r := lerpf(dry_roughness(p.x, p.y), wr, w)
-			var tint := 1.0 if is_asphalt(p.x, p.y) else 0.95
-			md[k * 4] = int(clampf(a * 255.0 * tint, 0.0, 255.0))
-			md[k * 4 + 1] = int(clampf(a * 255.0 * 0.97, 0.0, 255.0))
-			md[k * 4 + 2] = int(clampf(a * 255.0 * 0.92, 0.0, 255.0))
-			md[k * 4 + 3] = int(clampf(r * 255.0, 0.0, 255.0))
+			var ja := 0.0 if asph else 1.0 - smoothstep(0.0, ROUND, float(c[4]))
+			var rim := clampf((bowl_field(x, z) + 0.003) / (level + 0.003), 0.0, 1.0)
+			var w := 1.0 if hh < level else maxf(maxf(AMBIENT_WET, rim), 0.9 * ja)
+			var r_d := DRY_ROUGH_ASPHALT if asph else DRY_ROUGH_COBBLE
+			var r_w := WET_ROUGH_ASPHALT if asph else WET_ROUGH_COBBLE
+			if hh < level:
+				r_w = WATER_ROUGH
+			var rr := lerpf(r_d, r_w, w)
+			if not asph:
+				rr = lerpf(rr, minf(0.55, rr + 0.35), ja)    # joints are rough (mud and sand), the stone top is smooth
+			# albedo: the photo's own colour variation, desaturated and scaled to a night-dark granite
+			var ar := 0.0
+			var ag := 0.0
+			var ab := 0.0
+			if asph:
+				var sh := stone_shade(x, z)
+				ar = DRY_ALB_ASPHALT * sh * 1.05
+				ag = DRY_ALB_ASPHALT * sh * 0.97
+				ab = DRY_ALB_ASPHALT * sh * 0.9
+			else:
+				var t := _tile_px(x, z)
+				var tk := (int(t[1]) * TILE_N + int(t[0])) * 3
+				var lr := at[_alb[tk]]
+				var lg := at[_alb[tk + 1]]
+				var lb := at[_alb[tk + 2]]
+				var lu := 0.3 * lr + 0.59 * lg + 0.11 * lb
+				var sc := DRY_ALB_COBBLE / 0.22 * (0.8 + 0.4 * hash2(int(c[0]) + 31, int(c[1]) % 9973 + 17))
+				ar = lerpf(lu, lr, 0.5) * sc
+				ag = lerpf(lu, lg, 0.5) * sc
+				ab = lerpf(lu, lb, 0.5) * sc
+			var wf := lerpf(1.0, WET_DARKEN, w) * lerpf(1.0, JOINT_DARK, ja)
+			if hh < level:
+				wf = 0.2
+			md[k * 4] = _enc(ar * wf)
+			md[k * 4 + 1] = _enc(ag * wf)
+			md[k * 4 + 2] = _enc(ab * wf)
+			md[k * 4 + 3] = clampi(int(rr * 255.0), 0, 255)
+			dd[k * 4] = _enc(ar)
+			dd[k * 4 + 1] = _enc(ag)
+			dd[k * 4 + 2] = _enc(ab)
+			dd[k * 4 + 3] = clampi(int(lerpf(r_d, minf(0.95, r_d + 0.05), ja) * 255.0), 0, 255)
 			wd[k] = int(clampf(w * 255.0, 0.0, 255.0))
 	himg = Image.create_from_data(_w, _h, false, Image.FORMAT_RF, hd.to_byte_array())
 	mimg = Image.create_from_data(_w, _h, false, Image.FORMAT_RGBA8, md)
+	diff_img_dry = Image.create_from_data(_w, _h, false, Image.FORMAT_RGBA8, dd)
 	wetimg = Image.create_from_data(_w, _h, false, Image.FORMAT_R8, wd)
-	mimg.generate_mipmaps()
-	wetimg.generate_mipmaps()
+	# world normal map (OpenGL convention: r = +x slope, g = +z, b = up) from the height field
+	var nd := PackedByteArray()
+	nd.resize(_w * _h * 3)
+	for py in _h:
+		var y0 := maxi(py - 1, 0)
+		var y1 := mini(py + 1, _h - 1)
+		for px in _w:
+			var x0 := maxi(px - 1, 0)
+			var x1 := mini(px + 1, _w - 1)
+			var gx := (hd[py * _w + x1] - hd[py * _w + x0]) / (float(x1 - x0) * TEXEL)
+			var gz := (hd[y1 * _w + px] - hd[y0 * _w + px]) / (float(y1 - y0) * TEXEL)
+			var il := 1.0 / sqrt(gx * gx + gz * gz + 1.0)
+			var o := (py * _w + px) * 3
+			nd[o] = clampi(int((-gx * il * 0.5 + 0.5) * 255.0 + 0.5), 0, 255)
+			nd[o + 1] = clampi(int((-gz * il * 0.5 + 0.5) * 255.0 + 0.5), 0, 255)
+			nd[o + 2] = clampi(int((il * 0.5 + 0.5) * 255.0 + 0.5), 0, 255)
+	_nimg = Image.create_from_data(_w, _h, false, Image.FORMAT_RGB8, nd)
+	for im in [mimg, diff_img_dry, wetimg, _nimg]:
+		(im as Image).generate_mipmaps()
 
 
-## wetness for a pixel already known to be above the water (avoids the second height() call)
-func wetness_dry_height(x: float, z: float) -> float:
-	var b := bowl_field(x, z)
-	var rim := clampf((b + 0.003) / (level + 0.003), 0.0, 1.0)
-	return maxf(maxf(AMBIENT_WET, rim), 0.9 * joint_amount(x, z))
+var _nimg: Image
+
+
+# ---------------------------------------------------------------------------------------------------------------- scene
+func _grid_mesh(x0: float, x1: float, z0: float, z1: float, step: float) -> ArrayMesh:
+	var nx := int(ceil((x1 - x0) / step))
+	var nz := int(ceil((z1 - z0) / step))
+	var vs := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var ns := PackedVector3Array()
+	var ts := PackedFloat32Array()
+	vs.resize((nx + 1) * (nz + 1))
+	uvs.resize((nx + 1) * (nz + 1))
+	ns.resize((nx + 1) * (nz + 1))
+	ts.resize((nx + 1) * (nz + 1) * 4)
+	var k := 0
+	for iz in nz + 1:
+		var z := z0 + (z1 - z0) * float(iz) / float(nz)
+		for ix in nx + 1:
+			var x := x0 + (x1 - x0) * float(ix) / float(nx)
+			vs[k] = Vector3(x, bowl_field(x, z), z)
+			uvs[k] = Vector2((x - X0) / SPAN_X, (z - Z0) / SPAN_Z)
+			ns[k] = Vector3.UP
+			ts[k * 4] = 1.0
+			ts[k * 4 + 1] = 0.0
+			ts[k * 4 + 2] = 0.0
+			ts[k * 4 + 3] = -1.0
+			k += 1
+	var idx := PackedInt32Array()
+	idx.resize(nx * nz * 6)
+	var q := 0
+	for iz in nz:
+		for ix in nx:
+			var a := iz * (nx + 1) + ix
+			var b := a + 1
+			var c := a + nx + 1
+			var d := c + 1
+			idx[q] = a
+			idx[q + 1] = b
+			idx[q + 2] = c
+			idx[q + 3] = b
+			idx[q + 4] = d
+			idx[q + 5] = c
+			q += 6
+	var arr := []
+	arr.resize(Mesh.ARRAY_MAX)
+	arr[Mesh.ARRAY_VERTEX] = vs
+	arr[Mesh.ARRAY_NORMAL] = ns
+	arr[Mesh.ARRAY_TANGENT] = ts
+	arr[Mesh.ARRAY_TEX_UV] = uvs
+	arr[Mesh.ARRAY_INDEX] = idx
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
+	return m
+
+
+func _mk_ground_mat(alb: Image, nrm: Image) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	var at := ImageTexture.create_from_image(alb)
+	m.albedo_texture = at
+	m.roughness = 1.0
+	m.roughness_texture = at
+	m.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_ALPHA
+	m.normal_enabled = true
+	m.normal_texture = ImageTexture.create_from_image(nrm)
+	m.normal_scale = 1.0
+	m.metallic_specular = 0.5
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return m
+
+
+func _asphalt_mat(wet: bool) -> StandardMaterial3D:
+	var base := ProjectSettings.globalize_path("res://assets/ch5c/")
+	var m := StandardMaterial3D.new()
+	var d := Image.load_from_file(base + "asphalt_diff.jpg")
+	d.generate_mipmaps()
+	var n := Image.load_from_file(base + "asphalt_nor_gl.jpg")
+	n.generate_mipmaps()
+	var r := Image.load_from_file(base + "asphalt_rough.jpg")
+	r.generate_mipmaps()
+	m.albedo_texture = ImageTexture.create_from_image(d)
+	var lum := 0.07 * (WET_DARKEN if wet else 1.0) / 0.075      ## the photo's asphalt is mid-dark; night asphalt is darker
+	m.albedo_color = Color(lum, lum, lum)
+	m.normal_enabled = true
+	m.normal_texture = ImageTexture.create_from_image(n)
+	m.roughness_texture = ImageTexture.create_from_image(r)
+	m.roughness = WET_ROUGH_ASPHALT / 0.8 if wet else 1.0
+	m.uv1_scale = Vector3(SPAN_X / 2.0, SPAN_Z / 2.0, 1.0)     ## the photo tile is 2 m
+	m.uv1_triplanar = false
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	return m
 
 
 func build(eyes: Array = [Vector3(0, EYE, 1.5)]) -> void:
 	if bowls.is_empty():
 		bowls = default_bowls(eyes)
 	bake()
-	# environment: night
 	env = Environment.new()
 	var sky := Sky.new()
 	var psm := ProceduralSkyMaterial.new()
@@ -332,65 +527,89 @@ func build(eyes: Array = [Vector3(0, EYE, 1.5)]) -> void:
 	env.sky = sky
 	env.background_mode = Environment.BG_SKY
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.25, 0.3, 0.45)
-	env.ambient_light_energy = 0.12
+	env.ambient_light_color = Color(0.45, 0.32, 0.22)
+	env.ambient_light_energy = 0.1
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
+	env.ssr_enabled = true
+	env.ssr_max_steps = 256
+	env.ssr_fade_in = 0.1
+	env.ssr_fade_out = 1.5
+	env.ssr_depth_tolerance = 0.3
+	env.glow_enabled = true
+	env.glow_intensity = 0.8
+	env.glow_bloom = 0.0
+	env.glow_hdr_threshold = 1.0
+	env.glow_hdr_scale = 1.5
 	get_viewport().msaa_3d = Viewport.MSAA_4X
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
-	# ground: one flat quad, the shader reads the baked height
+	# ground: a displaced mesh (bowls are real geometry), world-baked PBR textures
+	mat_wet = _mk_ground_mat(mimg, _nimg)
+	mat_dry = _mk_ground_mat(diff_img_dry, _nimg)
+	mat_probe = StandardMaterial3D.new()
+	mat_probe.albedo_color = Color(1, 1, 1)
+	mat_probe.roughness = 1.0
+	mat_probe.metallic_specular = 0.0
+	ground = MeshInstance3D.new()
+	ground.mesh = _grid_mesh(X0, ASPHALT_X, Z0, Z0 + SPAN_Z, 0.02)
+	ground.material_override = mat_wet
+	add_child(ground)
+	asphalt_mesh = MeshInstance3D.new()
+	asphalt_mesh.mesh = _grid_mesh(ASPHALT_X, X0 + SPAN_X, Z0, Z0 + SPAN_Z, 0.02)
+	mat_asph_wet = _asphalt_mat(true)
+	mat_asph_dry = _asphalt_mat(false)
+	asphalt_mesh.material_override = mat_asph_wet
+	add_child(asphalt_mesh)
+	# the water: one flat quad at the water level; the ground hides it except in the bowls
 	var q := QuadMesh.new()
 	q.size = Vector2(SPAN_X, SPAN_Z)
 	q.orientation = PlaneMesh.FACE_Y
-	ground = MeshInstance3D.new()
-	ground.mesh = q
-	ground.position = Vector3(X0 + SPAN_X * 0.5, 0.0, Z0 + SPAN_Z * 0.5)
-	ground.custom_aabb = AABB(Vector3(-4, -1, -8), Vector3(8, 2, 16))
-	mat = ShaderMaterial.new()
-	mat.shader = load("res://scripts/wet_street.gdshader")
-	mat.set_shader_parameter("tex_h", ImageTexture.create_from_image(himg))
-	mat.set_shader_parameter("tex_m", ImageTexture.create_from_image(mimg))
-	mat.set_shader_parameter("level", level)
-	mat.set_shader_parameter("origin", Vector2(X0, Z0))
-	mat.set_shader_parameter("span", Vector2(SPAN_X, SPAN_Z))
-	mat.set_shader_parameter("texel", TEXEL)
-	mat.set_shader_parameter("streak_px", streak_px)
-	mat.set_shader_parameter("refl_gain", refl_gain)
-	mat.set_shader_parameter("tex_w", ImageTexture.create_from_image(wetimg))
-	_make_occluders()
-	_push_lights()
-	mat.set_shader_parameter("asphalt_x", ASPHALT_X)
-	mat.set_shader_parameter("ripple_px", ripple_px)
-	mat.set_shader_parameter("plane_y", level)
-	ground.material_override = mat
-	add_child(ground)
+	water = MeshInstance3D.new()
+	water.mesh = q
+	water.position = Vector3(X0 + SPAN_X * 0.5, level, Z0 + SPAN_Z * 0.5)
+	var wm := StandardMaterial3D.new()
+	wm.albedo_color = Color(0.012, 0.013, 0.016)
+	wm.roughness = WATER_ROUGH
+	wm.metallic_specular = 0.4
+	var nz := FastNoiseLite.new()
+	nz.frequency = 0.045
+	nz.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	var ni := nz.get_seamless_image(256, 256)
+	ni.bump_map_to_normal_map(3.0)
+	wm.normal_enabled = true
+	wm.normal_texture = ImageTexture.create_from_image(ni)
+	wm.normal_scale = 0.35
+	wm.uv1_scale = Vector3(SPAN_X / 0.5, SPAN_Z / 0.5, 1.0)
+	wm.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	water.material_override = wm
+	add_child(water)
+	# far field
 	var far := MeshInstance3D.new()
 	var fq := QuadMesh.new()
 	fq.size = Vector2(120, 120)
 	fq.orientation = PlaneMesh.FACE_Y
 	far.mesh = fq
-	far.position = Vector3(0, -0.03, -40)
+	far.position = Vector3(0, -0.12, -40)
 	var fm := StandardMaterial3D.new()
 	fm.albedo_color = Color(0.05, 0.04, 0.035)
-	fm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	fm.roughness = 0.8
 	far.material_override = fm
 	add_child(far)
-	# mirror: a second camera below the water plane
-	mirror_vp = SubViewport.new()
-	mirror_vp.size = Vector2i(1280, 720)
-	mirror_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	mirror_vp.own_world_3d = false
-	mirror_vp.msaa_3d = Viewport.MSAA_4X
-	add_child(mirror_vp)
-	mirror_cam = Camera3D.new()
-	mirror_cam.current = true
-	mirror_cam.cull_mask = 0xFFFFF & ~2   # the row's extra bulbs (layer 2) are not mirrored: only lamp 0's image is in the puddles (bar B)
-	mirror_vp.add_child(mirror_cam)
-	mat.set_shader_parameter("refl", mirror_vp.get_texture())
 	_build_lamps()
 	_build_walls()
 	_build_bollards()
+	# reflection probe: the alley's walls and lamps for the rough wet stone (SSR covers what is on screen)
+	refl_probe = ReflectionProbe.new()
+	refl_probe.position = Vector3(0, 3.5, -5.0)
+	refl_probe.size = Vector3(7.0, 8.0, 22.0)
+	refl_probe.box_projection = true
+	refl_probe.interior = false
+	refl_probe.update_mode = ReflectionProbe.UPDATE_ONCE
+	refl_probe.intensity = 0.5
+	refl_probe.ambient_mode = ReflectionProbe.AMBIENT_DISABLED
+	add_child(refl_probe)
+	_apply_modes()
 
 
 func lamp_count() -> int:
@@ -401,75 +620,77 @@ func bollard_pos() -> Vector3:
 	return BOLLARD
 
 
-func _make_occluders() -> void:
-	occluders.clear()
+func _occluders() -> Array:
+	var out := []
 	for l in LAMPS:
 		var lp: Vector3 = l[0]
-		occluders.append([lp.x + float(l[3]), lp.z, 0.07, lp.y + 0.6])
-	occluders.append([BOLLARD.x, BOLLARD.z, 0.12, 0.9])
-	occluders.append([-1.6, -7.0, 0.12, 0.9])
-	occluders.append([2.0, -2.2, 0.12, 0.9])
-	occluders.append([-2.0, -9.5, 0.12, 0.9])
+		out.append([lp.x + float(l[3]), lp.z, 0.07, lp.y + 0.6])
+	out.append([BOLLARD.x, BOLLARD.z, 0.12, 0.9])
+	out.append([-1.6, -7.0, 0.12, 0.9])
+	out.append([2.0, -2.2, 0.12, 0.9])
+	out.append([-2.0, -9.5, 0.12, 0.9])
+	return out
 
 
-func _push_lights() -> void:
-	var pa := PackedVector3Array()
-	var ca := PackedVector3Array()
-	for i in 8:
-		if i < LAMPS.size():
-			var l: Array = LAMPS[i]
-			pa.append((l[0] as Vector3) - Vector3(0, BULB_R, 0))
-			ca.append((l[1] as Vector3) * (float(l[2]) if i > 0 else lamp_intensity))
-		else:
-			pa.append(Vector3.ZERO)
-			ca.append(Vector3.ZERO)
-	var oa := PackedVector4Array()
-	for i in 16:
-		if i < occluders.size():
-			var o: Array = occluders[i]
-			oa.append(Vector4(o[0], o[1], o[2], o[3]))
-		else:
-			oa.append(Vector4(0, 0, 0, 0))
-	mat.set_shader_parameter("lamps", pa)
-	mat.set_shader_parameter("lamp_cols", ca)
-	mat.set_shader_parameter("n_lamps", lamp_count())
-	mat.set_shader_parameter("occ", oa)
-	mat.set_shader_parameter("n_occ", 0 if legacy else occluders.size())
-	mat.set_shader_parameter("light_r", light_r)
-	mat.set_shader_parameter("probe_lamp", probe)
-	mat.set_shader_parameter("amb_sky", Vector3(0.015, 0.018, 0.03) if legacy else AMB_SKY)
-	mat.set_shader_parameter("wall_col", Vector3.ZERO if legacy else WALL_COL)
-	mat.set_shader_parameter("wall_x", WALL_X - 0.1)
-	mat.set_shader_parameter("spec_gain", spec_gain)
-	mat.set_shader_parameter("diff_gain", 1.0 if legacy else diff_gain)
-	mat.set_shader_parameter("wide_gain", 0.0 if legacy else wide_gain)
-
-
-var spec_gain := 1.0
-var wide_gain := 0.0
-var diff_gain := 0.4          ## night exposure of the diffuse light: the stone is near black, only glints and reflections are bright
+func _apply_modes() -> void:
+	# ground materials
+	if probe >= 0:
+		ground.material_override = mat_probe
+		asphalt_mesh.material_override = mat_probe
+	elif dry:
+		ground.material_override = mat_dry
+		asphalt_mesh.material_override = mat_asph_dry
+	else:
+		ground.material_override = mat_wet
+		asphalt_mesh.material_override = mat_asph_wet
+	water.visible = not dry and probe < 0
+	env.ssr_enabled = probe < 0 and not dry
+	refl_probe.visible = probe < 0 and not legacy
+	for i in lights.size():
+		var o: OmniLight3D = lights[i]
+		o.visible = (i == 0) if (legacy or probe >= 0) else true
+		o.light_size = light_r
+	for n in set_pieces:
+		(n as Node3D).visible = not legacy and probe < 0
+	for n in _bollards:
+		(n as Node3D).visible = probe >= 0 or not legacy
+	if probe >= 0:
+		env.background_mode = Environment.BG_COLOR
+		env.background_color = Color(0, 0, 0)
+		env.ambient_light_energy = 0.0
+		env.glow_enabled = false
+	elif legacy:
+		env.background_mode = Environment.BG_COLOR
+		env.background_color = Color(0.01, 0.012, 0.02)
+		env.ambient_light_energy = 0.0
+		env.glow_enabled = true
+	else:
+		env.background_mode = Environment.BG_SKY
+		env.ambient_light_energy = 0.1
+		env.glow_enabled = true
 
 
 func set_legacy(on: bool) -> void:
 	legacy = on
-	for n in set_pieces:
-		(n as Node3D).visible = not on
-	if on:
-		env.background_mode = Environment.BG_COLOR
-		env.background_color = Color(0.01, 0.012, 0.02)
-	else:
-		env.background_mode = Environment.BG_SKY
-	_push_lights()
+	_apply_modes()
 
 
 func set_probe(i: int) -> void:
 	probe = i
-	_push_lights()
+	_apply_modes()
 
 
 func set_light_radius(r: float) -> void:
 	light_r = r
-	_push_lights()
+	_apply_modes()
+
+
+func set_dry(on: bool) -> void:
+	dry = on
+	_apply_modes()
+
+
+var _bollards: Array = []
 
 
 func _build_walls() -> void:
@@ -501,23 +722,16 @@ func _build_walls() -> void:
 				q.rotation_degrees = Vector3(0, -90.0 * side, 0)
 				var on := hash2(c + 3 * r, int(side) + 4) > 0.45
 				q.material_override = win_on if on else win_off
+				q.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 				add_child(q)
 				set_pieces.append(q)
-	for l in LAMPS:
-		var o := OmniLight3D.new()
-		o.position = (l[0] as Vector3) + Vector3(0, -0.2, 0)
-		o.omni_range = 9.0
-		o.light_energy = 1.3
-		o.light_specular = 0.0   # no engine highlights on the walls and posts in the mirror pass
-		o.light_color = Color(1.0, 0.76, 0.5)
-		add_child(o)
 
 
 func _build_bollards() -> void:
 	var bm := StandardMaterial3D.new()
 	bm.albedo_color = Color(0.08, 0.08, 0.09)
 	bm.roughness = 0.5
-	for o in occluders:
+	for o in _occluders():
 		if float(o[3]) > 1.0:
 			continue
 		var m := MeshInstance3D.new()
@@ -529,17 +743,32 @@ func _build_bollards() -> void:
 		m.position = Vector3(o[0], float(o[3]) * 0.5, o[1])
 		m.material_override = bm
 		add_child(m)
-		set_pieces.append(m)
+		_bollards.append(m)
+
+
+## a soft radial glare: a smooth falloff that is exactly 0 at the quad edge (no disc edge)
+static func glare_texture(n: int = 256) -> ImageTexture:
+	var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+	for y in n:
+		for x in n:
+			var r := Vector2(float(x) + 0.5 - float(n) * 0.5, float(y) + 0.5 - float(n) * 0.5).length() / (float(n) * 0.5)
+			var a := 0.0
+			if r < 1.0:
+				var s := 1.0 - r
+				a = s * s * s * (0.35 / (0.04 + r * r * 14.0) + 0.04) * 0.6
+			a = clampf(a, 0.0, 1.0)
+			img.set_pixel(x, y, Color(1, 1, 1, a))
+	return ImageTexture.create_from_image(img)
 
 
 func _build_lamps() -> void:
-	for l in LAMPS:
-		_build_lamp(l[0], l[3])
+	var gtex := glare_texture()
+	for i in LAMPS.size():
+		var l: Array = LAMPS[i]
+		_build_lamp(l[0], l[3], l[1], float(l[2]), float(l[4]), gtex, i)
 
 
-func _build_lamp(lpos: Vector3, post_dx: float = 1.2) -> void:
-	# a cantilever lamp: the pole stands 1.2 m to the side and an arm carries the globe on a thin cable, so the mirror image of the
-	# globe is not cut by the pole
+func _build_lamp(lpos: Vector3, post_dx: float, col: Vector3, energy: float, emission: float, gtex: Texture2D, idx: int) -> void:
 	var pm := StandardMaterial3D.new()
 	pm.albedo_color = Color(0.06, 0.06, 0.07)
 	pm.roughness = 0.5
@@ -577,79 +806,43 @@ func _build_lamp(lpos: Vector3, post_dx: float = 1.2) -> void:
 	bulb.position = lpos
 	var bm := StandardMaterial3D.new()
 	bm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	bm.albedo_color = Color(1.0, 0.97, 0.9)
+	var ec := Color(col.x, col.y, col.z)
+	bm.albedo_color = ec
 	bm.emission_enabled = true
-	bm.emission = Color(1.0, 0.97, 0.9)
-	bm.emission_energy_multiplier = 4.0
+	bm.emission = ec
+	bm.emission_energy_multiplier = emission
 	bulb.material_override = bm
-	if lamp_light != null:
-		bulb.layers = 2
+	bulb.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(bulb)
-	# glare around the bulb (bloom as in the photo): an additive billboard on layer 2, so the mirror does not draw it (bar B)
-	var gt := GradientTexture2D.new()
-	var gr := Gradient.new()
-	gr.colors = PackedColorArray([Color(1.0, 0.86, 0.62, 0.75), Color(1.0, 0.72, 0.4, 0.18), Color(1.0, 0.6, 0.3, 0.0)])
-	gr.offsets = PackedFloat32Array([0.0, 0.25, 1.0])
-	gt.gradient = gr
-	gt.fill = GradientTexture2D.FILL_RADIAL
-	gt.fill_from = Vector2(0.5, 0.5)
-	gt.fill_to = Vector2(1.0, 0.5)
-	gt.width = 128
-	gt.height = 128
+	# glare: an additive billboard with the soft radial texture (not a disc)
 	var gm := StandardMaterial3D.new()
 	gm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	gm.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
 	gm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	gm.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-	gm.albedo_texture = gt
+	gm.albedo_texture = gtex
+	gm.albedo_color = Color(col.x, col.y * 0.9, col.z * 0.8, 1.0)
 	gm.cull_mode = BaseMaterial3D.CULL_DISABLED
+	gm.no_depth_test = false
+	gm.disable_receive_shadows = true
 	var glare := MeshInstance3D.new()
 	var gq := QuadMesh.new()
-	gq.size = Vector2(3.2, 3.2)
+	gq.size = Vector2(5.0, 5.0) if idx == 0 else Vector2(3.0, 3.0)
 	glare.mesh = gq
 	glare.material_override = gm
 	glare.position = lpos
-	glare.layers = 2
+	glare.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(glare)
 	set_pieces.append(glare)
-	if lamp_light != null:
-		return
-	lamp_light = SpotLight3D.new()
-	lamp_light.position = lpos - Vector3(0, BULB_R + 0.02, 0)
-	lamp_light.rotation_degrees = Vector3(-90, 0, 0)
-	lamp_light.spot_angle = 75.0
-	lamp_light.spot_range = 30.0
-	lamp_light.light_energy = 10.0
-	lamp_light.light_specular = 0.0
-	lamp_light.light_color = Color(1.0, 0.86, 0.68)
-	lamp_light.spot_attenuation = 1.0
-	add_child(lamp_light)
-
-
-## aim the mirror camera: position mirrored about y = level, look direction y flipped, up = +y (image is the real view flipped vertically)
-func sync_mirror(cam: Camera3D) -> void:
-	var vs: Vector2i = cam.get_viewport().size
-	if mirror_vp.size != vs:
-		mirror_vp.size = vs
-	mirror_cam.fov = cam.fov
-	mirror_cam.near = cam.near
-	mirror_cam.far = cam.far
-	mirror_cam.keep_aspect = cam.keep_aspect
-	var c := cam.global_position
-	var d := -cam.global_transform.basis.z
-	var mc := Vector3(c.x, 2.0 * level - c.y, c.z)
-	mirror_cam.global_position = mc
-	mirror_cam.look_at(mc + Vector3(d.x, -d.y, d.z), Vector3.UP)
-	mat.set_shader_parameter("streak_px", streak_px)
-
-
-## the planted dry control: the same scene with the water and the wet look switched off (shader switch, no rebake)
-func set_dry(on: bool) -> void:
-	dry = on
-	mat.set_shader_parameter("dry", 1.0 if on else 0.0)
-
-
-func _process(_dt: float) -> void:
-	var cam := get_viewport().get_camera_3d()
-	if cam != null and mirror_cam != null and cam != mirror_cam:
-		sync_mirror(cam)
+	var o := OmniLight3D.new()
+	o.position = lpos - Vector3(0, BULB_R + 0.02, 0)
+	o.omni_range = 40.0 if idx == 0 else 16.0
+	o.omni_attenuation = 2.0
+	o.light_energy = energy
+	o.light_color = Color(col.x, col.y, col.z)
+	o.light_size = light_r
+	o.shadow_enabled = true
+	o.shadow_blur = 1.5
+	o.omni_shadow_mode = OmniLight3D.SHADOW_CUBE
+	add_child(o)
+	lights.append(o)
