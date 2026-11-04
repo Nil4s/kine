@@ -574,8 +574,9 @@ func _round_box() -> PanelContainer:
 	var vb0 := VBoxContainer.new()   # s013: row 1 = the filter chips + Make it stronger; row 2 = the Soft / Medium / Sharp presets
 	vb0.add_theme_constant_override("separation", 4)
 	box.add_child(vb0)
-	var h := HBoxContainer.new()
-	h.add_theme_constant_override("separation", 6)
+	var h := HFlowContainer.new()   # B07: wraps to a second row when the room left of the view buttons is short (_round_narrow sets its width)
+	h.add_theme_constant_override("h_separation", 6)
+	h.add_theme_constant_override("v_separation", 4)
 	vb0.add_child(h)
 	for rf in ROUND_FILTERS:
 		var b := _big_btn("easypart_round_" + String(rf[0]), String(rf[1]), String(rf[3]), _round_filter.bind(String(rf[0])))

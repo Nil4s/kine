@@ -124,7 +124,7 @@ func _init() -> void:
 				var b: Button = rects[j]
 				if a.is_ancestor_of(b) or b.is_ancestor_of(a):
 					continue
-				var ov := a.get_global_rect().intersection(b.get_global_rect())
+				var ov := vis_rect(a).intersection(vis_rect(b))
 				var ar := ov.size.x * ov.size.y if ov.size.x > 0.0 and ov.size.y > 0.0 else 0.0
 				if ar > 0.0:
 					total += ar
@@ -158,3 +158,14 @@ func btns(n: Node, out: Array) -> void:
 		out.append(n)
 	for c in n.get_children():
 		btns(c, out)
+
+
+## the part of a button that can be SEEN: its rect cut by every scroll panel it sits in (a step row half under the panel's foot is not on top of the button below)
+func vis_rect(c: Control) -> Rect2:
+	var r := c.get_global_rect()
+	var n: Node = c.get_parent()
+	while n != null:
+		if n is ScrollContainer:
+			r = r.intersection((n as Control).get_global_rect())
+		n = n.get_parent()
+	return r
