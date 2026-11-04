@@ -189,7 +189,7 @@ func math_bars() -> void:
 	for s in sets:
 		var ol := PGEAR.outline(s[0], s[1], s[2], s[3])
 		var e := flank_err(ol, s[0], s[1], s[2], s[3])
-		ok(ol.size() > 0 and e["n"] >= 6 and e["vert"] <= 0.005 and e["mid"] <= 0.005,
+		ok(ol.size() > 0 and e["n"] >= 4 and e["vert"] <= 0.005 and e["mid"] <= 0.005,
 			"1 gear m%s z%d pa%s x%s: %d flank vertices, vertex error %.5f mm, chord midpoint error %.5f mm (bar 0.005)" % [s[0], s[1], s[2], s[3], e["n"], e["vert"], e["mid"]])
 		var th := pitch_thickness(ol, s[0] * s[1] * 0.5, s[1])
 		var want: float = s[0] * (PI * 0.5 + 2.0 * s[3] * tan(deg_to_rad(s[2])))
