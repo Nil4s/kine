@@ -1,0 +1,23 @@
+{"name": "Snake skin", "features": [
+ {"t": "prim", "kind": "cylinder", "op": "new", "x": 0, "y": 0, "z": 0, "axis": "x", "r": 15, "len": 200},
+ {"t": "prim", "kind": "box", "op": "new", "x": 2.5, "y": 14, "z": -3, "w": 4.5, "h": 2.2, "d": 6},
+ {"t": "prim", "kind": "box", "op": "new", "x": 7.5, "y": 14, "z": -3, "w": 4.5, "h": 2.2, "d": 6},
+ {"t": "prim", "kind": "box", "op": "new", "x": 12.5, "y": 14, "z": -3, "w": 4.5, "h": 2.2, "d": 6},
+ {"t": "prim", "kind": "box", "op": "new", "x": 17.5, "y": 14, "z": -3, "w": 4.5, "h": 2.2, "d": 6},
+ {"t": "prim", "kind": "box", "op": "new", "x": 0.5, "y": -17, "z": -8, "w": 4.5, "h": 3, "d": 16},
+ {"t": "appear", "body": 0, "color": [0.35, 0.33, 0.18]},
+ {"t": "appear", "body": 1, "color": [0.62, 0.55, 0.3]},
+ {"t": "appear", "body": 2, "color": [0.62, 0.55, 0.3]},
+ {"t": "appear", "body": 3, "color": [0.15, 0.12, 0.07]},
+ {"t": "appear", "body": 4, "color": [0.15, 0.12, 0.07]},
+ {"t": "appear", "body": 5, "color": [0.85, 0.8, 0.6]},
+ {"t": "pattern", "body": 1, "kind": "circular", "count": 12, "axis": "x", "deg": 360, "op": "join"},
+ {"t": "pattern", "body": 2, "kind": "circular", "count": 12, "axis": "x", "deg": 360, "op": "join"},
+ {"t": "pattern", "body": 3, "kind": "circular", "count": 12, "axis": "x", "deg": 360, "op": "join"},
+ {"t": "pattern", "body": 4, "kind": "circular", "count": 12, "axis": "x", "deg": 360, "op": "join"},
+ {"t": "pattern", "body": 1, "kind": "linear", "count": 10, "mm": 20, "dir": "x", "op": "new"},
+ {"t": "pattern", "body": 2, "kind": "linear", "count": 10, "mm": 20, "dir": "x", "op": "new"},
+ {"t": "pattern", "body": 3, "kind": "linear", "count": 10, "mm": 20, "dir": "x", "op": "new"},
+ {"t": "pattern", "body": 4, "kind": "linear", "count": 10, "mm": 20, "dir": "x", "op": "new"},
+ {"t": "pattern", "body": 5, "kind": "linear", "count": 40, "mm": 5, "dir": "x", "op": "new"}
+]}

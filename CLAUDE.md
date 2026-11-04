@@ -28,3 +28,9 @@ ROADMAP 22 (type a move, get blocking) is done and merged as `wt-textmove2`. Ign
 - Work on your own branch and open a PR into `poser-ui-rounds`. Don't push straight to it.
 - To continue a WIP branch above, branch off it, finish it, and PR it.
 - Don't commit generated `.uid` files, `exports/`, `.playwright-mcp/`, or `__pycache__/`.
+
+## Building or editing a part with AI: the cheap way (docs/AI_COST.md)
+To make a part, write ONE JSON record (copy `data/part_examples/*.json`) and run
+`python tools/kine_call.py part_build @file.json` (add `"facts": true`). That cost $0.36 for a 28-body arm; a lane that
+wrote a GDScript generator for the same arm cost $7.88. Use `commands {"find": ...}`, never the whole list.
+Lost a session to a usage limit? `python tools/where_were_we.py` shows where it stopped.
