@@ -974,3 +974,6 @@ EXTRA="$EXTRA s249n:w"
 
 EXTRA="$EXTRA c64:w"   # c64: C++ conjugate gradient of the heat weights equals GDScript (1e-6), 5x faster (tests/c64_test.gd)
 EXTRA="$EXTRA c64_prof:w"   # c64: hot-loop profile table (tests/c64_prof_test.gd)
+
+
+EXTRA="$EXTRA c68:w"   # c68: Easy Part step hint fully visible (not overlapped or clipped) at 1024/1280/1600 (tests/c68_test.gd)
