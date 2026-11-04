@@ -892,6 +892,8 @@ msgstr "Usar um quadro salvo: o pivô e o eixo dele vão para esta dobradiça"
 
 msgid "Use frame"
 msgstr "Usar quadro"
+msgid "Reference from the solid"
+msgstr "Referência do sólido"
 
 msgid "   Pick what you want to make"
 msgstr "   Escolha o que você quer fazer"
