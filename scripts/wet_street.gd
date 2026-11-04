@@ -16,7 +16,7 @@ const PITCH := 0.11                  ## nominal sett size (tests scale u, v with
 const GAP := 0.014                   ## joint width scale
 const GAP_FLOOR := -0.030            ## joint bottom below the stone tops
 const TOP_SIG := 0.004               ## per-stone top height sigma
-const DOME := 0.006                  ## extra per-stone dome on top of the photo's own relief
+const DOME := 0.012                  ## extra per-stone dome on top of the photo's own relief
 const JOINT_DARK := 0.35             ## wet joints: albedo x this at the joint centre
 const ROUND := 0.012                 ## rounding width of a stone edge (metres from the outline)
 const LEVEL := -0.034                ## THE water level
@@ -38,15 +38,15 @@ const PITCH_DEG := -6.0
 const TILE_M := 0.75                 ## the photo's 1.5 m tile is drawn at half size: setts about 11 cm
 const TILE_N := 1024
 const PX_M := TILE_M / float(TILE_N)
-const TILT := 0.12                   ## per-stone random tilt range (slope)
+const TILT := 0.2                   ## per-stone random tilt range (slope)
 
 ## lamp row: [bulb position, colour, light energy, post x offset, bulb emission]; lamp 0 is the photo's lamp (white), the others are sodium
 const LAMPS := [
-	[Vector3(0.3, 6.0, -12.6), Vector3(1.0, 0.86, 0.68), 70.0, 1.2, 60.0],
-	[Vector3(2.4, 4.8, -4.6), Vector3(1.0, 0.62, 0.3), 16.0, 0.55, 30.0],
-	[Vector3(-2.4, 4.8, -5.8), Vector3(1.0, 0.62, 0.3), 16.0, -0.55, 30.0],
-	[Vector3(2.9, 4.8, -8.8), Vector3(1.0, 0.62, 0.3), 16.0, 0.3, 30.0],
-	[Vector3(-2.9, 4.8, -10.4), Vector3(1.0, 0.62, 0.3), 16.0, -0.3, 30.0],
+	[Vector3(0.3, 6.0, -12.6), Vector3(1.0, 0.95, 0.85), 45.0, 1.2, 60.0],
+	[Vector3(2.4, 4.8, -4.6), Vector3(1.0, 0.55, 0.2), 5.0, 0.55, 8.0],
+	[Vector3(-2.4, 4.8, -5.8), Vector3(1.0, 0.55, 0.2), 5.0, -0.55, 8.0],
+	[Vector3(2.9, 4.8, -8.8), Vector3(1.0, 0.55, 0.2), 5.0, 0.3, 8.0],
+	[Vector3(-2.9, 4.8, -10.4), Vector3(1.0, 0.55, 0.2), 5.0, -0.3, 8.0],
 ]
 const BOLLARD := Vector3(0.3, 0.0, -4.0)     ## the S2 shadow caster, on the lamp 0 to camera axis
 const WALL_X := 3.3
@@ -527,8 +527,8 @@ func build(eyes: Array = [Vector3(0, EYE, 1.5)]) -> void:
 	env.sky = sky
 	env.background_mode = Environment.BG_SKY
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.45, 0.32, 0.22)
-	env.ambient_light_energy = 0.1
+	env.ambient_light_color = Color(0.25, 0.3, 0.3)
+	env.ambient_light_energy = 0.04
 	env.tonemap_mode = Environment.TONE_MAPPER_LINEAR
 	env.ssr_enabled = true
 	env.ssr_max_steps = 256
@@ -536,9 +536,9 @@ func build(eyes: Array = [Vector3(0, EYE, 1.5)]) -> void:
 	env.ssr_fade_out = 1.5
 	env.ssr_depth_tolerance = 0.3
 	env.glow_enabled = true
-	env.glow_intensity = 0.8
+	env.glow_intensity = 0.25
 	env.glow_bloom = 0.0
-	env.glow_hdr_threshold = 1.0
+	env.glow_hdr_threshold = 1.5
 	env.glow_hdr_scale = 1.5
 	get_viewport().msaa_3d = Viewport.MSAA_4X
 	var we := WorldEnvironment.new()
@@ -606,7 +606,7 @@ func build(eyes: Array = [Vector3(0, EYE, 1.5)]) -> void:
 	refl_probe.box_projection = true
 	refl_probe.interior = false
 	refl_probe.update_mode = ReflectionProbe.UPDATE_ONCE
-	refl_probe.intensity = 0.5
+	refl_probe.intensity = 0.25
 	refl_probe.ambient_mode = ReflectionProbe.AMBIENT_DISABLED
 	add_child(refl_probe)
 	_apply_modes()
@@ -666,7 +666,7 @@ func _apply_modes() -> void:
 		env.glow_enabled = true
 	else:
 		env.background_mode = Environment.BG_SKY
-		env.ambient_light_energy = 0.1
+		env.ambient_light_energy = 0.04
 		env.glow_enabled = true
 
 
@@ -685,6 +685,12 @@ func set_light_radius(r: float) -> void:
 	_apply_modes()
 
 
+## planted control for bar F2: the wet scene without screen-space reflections or the reflection probe
+func set_reflections(on: bool) -> void:
+	env.ssr_enabled = on and probe < 0 and not dry
+	refl_probe.visible = on and probe < 0 and not legacy
+
+
 func set_dry(on: bool) -> void:
 	dry = on
 	_apply_modes()
@@ -695,7 +701,7 @@ var _bollards: Array = []
 
 func _build_walls() -> void:
 	var wm := StandardMaterial3D.new()
-	wm.albedo_color = Color(0.2, 0.13, 0.1)
+	wm.albedo_color = Color(0.07, 0.055, 0.05)
 	wm.roughness = 0.9
 	var win_on := StandardMaterial3D.new()
 	win_on.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
