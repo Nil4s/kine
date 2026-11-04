@@ -183,7 +183,7 @@ static func run(br: Dictionary, lat: Dictionary, o: Dictionary, force_gd := fals
 	var nseg: int = br["nseg"]
 	var model: Dictionary = br["model"].duplicate()
 	if o.get("retrofit", false):
-		model["dashpots"] = o.get("dash", dampers(br, lat, o.get("zeta_total", DAMP_ZETA)))
+		model["dashpots"] = o["dash"] if o.has("dash") else dampers(br, lat, o.get("zeta_total", DAMP_ZETA))
 	var nn: int = br["nn"]
 	var phi: PackedFloat64Array = lat["phi"]
 	var u0 := PackedFloat64Array()
