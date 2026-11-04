@@ -7,6 +7,7 @@
 #include "kine_cloth_native.h"
 #include "kine_meshcheck_native.h"
 #include "kine_meshops_native.h"
+#include "kine_clock_native.h"
 
 
 #include "kine_field_native.h"
@@ -21,6 +22,7 @@ void kine_native_initialize(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(KineClothNative);
 	GDREGISTER_ABSTRACT_CLASS(KineMeshCheckNative);
 	GDREGISTER_ABSTRACT_CLASS(KineMeshOpsNative);
+	GDREGISTER_ABSTRACT_CLASS(KineClockNative);
 
 
 	GDREGISTER_ABSTRACT_CLASS(KineFieldNative);

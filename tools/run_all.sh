@@ -940,3 +940,6 @@ EXTRA="$EXTRA c56:w"   # c56: English ANIMATE/SURFACE tabs fit their cell at 128
 
 
 EXTRA="$EXTRA c57:w"   # c57: slicer-like print estimate (walls + infill, time from flow, bigger-than-bed scale models, 5 kg sanity) against Bambu Studio on a cube and Benchy (tests/c57_test.gd)
+
+
+EXTRA="$EXTRA ch2:w"   # ch2: the regulator clock: 720:12:1 train, 994 mm pendulum period, 0 mm3 clearance over 60 s at 60 fps, backlash < 5 % module, minute hand 6 deg per 60 s, C++ = GDScript (tests/ch2_test.gd)
