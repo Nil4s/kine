@@ -1,5 +1,5 @@
 extends SceneTree
-## CH1f render: wood, confined masonry and light steel frame side by side (front wall cut away), soil strata under each footing coloured by Vs.
+## CH1f render: wood, confined masonry and light steel frame side by side (front wall cut away), soil under each footing coloured by Vs.
 ## godot --position -30000,-30000 --audio-driver Dummy --resolution 1280x720 --path . -s tools/ch1f_render.gd -- <out.png>
 ## Caption on the image: physics model with cited typical values, NOT an NBR code check.
 const SYS := preload("res://scripts/build/ch1f_systems.gd")
@@ -84,7 +84,7 @@ func _init() -> void:
 	env.environment = e
 	world.add_child(env)
 	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-50, 25, 0)
+	sun.rotation_degrees = Vector3(-50, 205, 0)
 	world.add_child(sun)
 	var names := ["wood", "masonry", "lsf"]
 	var titles := {"wood": "wood frame (CH10 house)", "masonry": "confined masonry (ceramic block, RC ties)", "lsf": "light steel frame (C90 studs, OSB)"}
@@ -94,7 +94,7 @@ func _init() -> void:
 		var n: String = names[si]
 		var sys := SYS.build(n, mj)
 		var g := Node3D.new()
-		g.position = Vector3((si - 1) * gap - 4.877, 0, -3.81)
+		g.position = Vector3((1 - si) * gap - 4.877, 0, -3.81)
 		world.add_child(g)
 		var xyz: PackedFloat64Array = sys["model"]["xyz"]
 		var bm: PackedFloat64Array = sys["model"]["beams"]
@@ -118,18 +118,18 @@ func _init() -> void:
 			box(g, p1, p2, 0.03, Color(0.15, 0.85, 0.55))
 		# roof schematic: back slope only (cut), translucent
 		slab(g, Vector3(4.877, 3.2, 5.6), Vector3(9.8, 0.05, 4.4), Color(0.7, 0.7, 0.75), 0.35)
-		# foundation slab and soil strata (top 0..-1.5 stiff clay Vs 270, below 1.5..-5 dense Vs 560)
+		# foundation slab and soil: the Gazetas springs assume one homogeneous half-space, so one colour (stiff clay, Vs 270); the 1.5 m band is the heave active depth
 		slab(g, Vector3(4.877, -0.05, 3.81), Vector3(9.754, 0.1, 7.62), Color(0.55, 0.55, 0.55))
 		slab(g, Vector3(4.877, -0.85, 3.81), Vector3(13.0, 1.5, 11.0), vs_color(270.0))
-		slab(g, Vector3(4.877, -3.35, 3.81), Vector3(13.0, 3.5, 11.0), vs_color(560.0))
+		slab(g, Vector3(4.877, -3.35, 3.81), Vector3(13.0, 3.5, 11.0), vs_color(270.0).darkened(0.25))
 		label(g, titles[n], Vector3(4.877, 6.0, 3.81), 0.012)
-		var gz := SO.gazetas(SO.soil("stiff_clay"))
-		label(g, "Vs 270 m/s over 560 m/s", Vector3(4.877, -0.6, 9.8), 0.009, Color(0, 0, 0))
+		label(g, "stiff clay Vs 270 m/s, half-space (top 1.5 m = swelling depth)", Vector3(4.877, -0.6, -2.0), 0.008)
 	label(world, "CH1f: physics model with cited typical values, NOT an NBR code check", Vector3(0, 8.6, -3.8), 0.016, Color(1, 0.9, 0.4))
 	label(world, "front wall cut away; green = shear panel springs; soil colour = Vs (red 120, orange 270, yellow-green 560, blue 1100 m/s)", Vector3(0, 7.4, -3.8), 0.0085)
 	cam = Camera3D.new()
-	cam.position = Vector3(0, 12.0, 34.0)
-	cam.look_at_from_position(cam.position, Vector3(0, -0.3, -3.0), Vector3.UP)
+	# viewed from the -z side, so the removed z < 0.5 wall line is the one nearest the camera
+	cam.position = Vector3(0, 12.0, -34.0)
+	cam.look_at_from_position(cam.position, Vector3(0, -0.3, 3.0), Vector3.UP)
 	cam.fov = 42.0
 	world.add_child(cam)
 	cam.current = true
