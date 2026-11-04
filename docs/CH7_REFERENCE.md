@@ -45,3 +45,28 @@ Consequences, stated plainly:
 - Needed to close it: a purpose-shot clip (drop landings off a 0.4, 0.8 and 1.2 m box, side view, fixed camera, planted feet), or a
   published drop-landing biomechanics table. Until then the monotonicity half of bar 3 is the only part that is a bar; the slope
   half is reported, not claimed as met against a reference.
+
+## Landing slope: the published source (added before any CH7 run knee number was read)
+
+Source: Zhang, Li, Trowell, Hou, Qiu, Chen, Ma (2025), "Optimizing stretch-shortening cycle performance: effects of drop height and
+landing strategy on lower-limb biomechanics in drop jumps", PeerJ 13:e19490, doi 10.7717/peerj.19490, PMC12103163 (CC BY 4.0).
+Found via PubMed / Europe PMC. 18 college athletes, 3D motion capture and force plate, drops from 30, 45 and 60 cm.
+
+Table 1, knee angular displacement (deg, mean +- SD; touchdown to deepest knee flexion):
+
+| strategy | 30 cm | 45 cm | 60 cm | slope 30 to 60 cm |
+|---|---|---|---|---|
+| hip-dominant (stiff knee) | 64.31 +- 11.02 | 64.96 +- 13.97 | 65.54 +- 8.98 | (65.54-64.31)/0.30 = 4.1 deg/m |
+| knee-dominant (soft landing) | 70.40 +- 16.69 | 75.13 +- 13.40 | 79.63 +- 13.10 | (79.63-70.40)/0.30 = 30.8 deg/m |
+
+Which one: a parkour landing absorbs with the knee (knee-dominant), so REF_SLOPE = 30.8 deg/m (the two-point slope over the full
+30 to 60 cm range; the 45 cm point lies on the same line, 75.13 vs 74.9 interpolated). Pooled across strategies it would be 17.4 deg/m, and
+the hip-dominant one 4.1; the choice is stated, not hidden.
+
+Limits, plainly: (1) the study spans drops of 0.30 to 0.60 m, CH7's drops reach 1.7 m, so the bar extrapolates the line;
+(2) it reports displacement from touchdown, while ch7_test.gd reads the absolute peak calf angle in 0.25 s after touchdown, which
+adds the touchdown knee angle (Peng et al. 2011, doi 10.1016/j.ptsp.2010.10.001, find a straighter knee at contact from 60 cm, so
+the absolute slope is at least the displacement slope); (3) drop jumps, not parkour landings. The bar is 30.8 deg/m +- 20 %
+(24.6 to 37.0). Other sources read and not usable for a slope: Mokhtarzadeh 2017 (doi 10.1080/10255842.2017.1366992, 30 vs 60 cm, max
+knee flexion "significantly higher", no numbers in the abstract, no open full text); Duan et al. 2025 (PLoS One, doi
+10.1371/journal.pone.0324656, 30 vs 45 cm, reports moments not angles).
