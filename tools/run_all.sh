@@ -977,3 +977,8 @@ EXTRA="$EXTRA c64_prof:w"   # c64: hot-loop profile table (tests/c64_prof_test.g
 
 
 EXTRA="$EXTRA c68:w"   # c68: Easy Part step hint fully visible (not overlapped or clipped) at 1024/1280/1600 (tests/c68_test.gd)
+
+
+
+
+EXTRA="$EXTRA ch2:w"   # ch2: the regulator clock: 720:12:1 train, 994 mm pendulum period, 0 mm3 clearance over 60 s at 60 fps, backlash < 5 % module, minute hand 6 deg per 60 s, C++ = GDScript (tests/ch2_test.gd)
