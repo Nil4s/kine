@@ -1167,6 +1167,14 @@ func _nav_fit() -> void:
 		mid += q
 	target = mid / pts.size()
 	var clear := nav_clear_rect()
+	var tb := find_child("top_tools", true, false)   # C62: the toolbar's real bottom edge (81 px at 1280 x 720; TOP_H says 74): the body is fitted below it
+	if tb is Control and (tb as Control).is_visible_in_tree():
+		var pn: Node = tb.get_parent()
+		while pn != null and not (pn is PanelContainer):
+			pn = pn.get_parent()
+		var top := ((pn if pn != null else tb) as Control).get_global_rect().end.y + 4.0
+		if top > clear.position.y:
+			clear = Rect2(clear.position.x, top, clear.size.x, maxf(clear.end.y - top, 40.0))
 	var vs := get_viewport().get_visible_rect().size
 	for it in 4:
 		_cam()
@@ -3123,6 +3131,11 @@ func _ready() -> void:
 	if cf.has_section_key("look", "light"):
 		pref = "light" if cf.get_value("look", "light", false) else "dark"
 	theme_pref = String(cf.get_value("look", "theme", pref))
+	if OS.get_cmdline_user_args().has("--c78-smoke"):   # C78: the installer test boots the installed build and builds a box (tools/c78_smoke.gd)
+		var _sm := Node.new()
+		_sm.set_script(load("res://tools/c78_smoke.gd"))
+		add_child(_sm)
+		_sm.call_deferred("run", self)
 	if OS.get_cmdline_user_args().has("--light") or OS.get_cmdline_user_args().has("--dark"):   # shots and tests choose
 		theme_pref = "light" if OS.get_cmdline_user_args().has("--light") else "dark"
 	if theme_pref not in ["system", "light", "dark"]:
@@ -3338,6 +3351,9 @@ func _ready() -> void:
 	_boot_watch.call_deferred()
 	await dummy_settle()   # round 14: the dummy measures on a worker; a shot shows what PLAYS (landed on it or not)
 	BootProfile.mark("dummy settle")
+	if not (args.has("--yaw") or args.has("--pitch") or args.has("--focus") or args.has("--dist")):
+		_view_home(false)   # C62: the opening view is HOME fitted to the free view, so no bone sits under the toolbar or a panel
+
 	if args.find("--t") >= 0 or args.find("--frame") >= 0:
 		_ps().apply(B, playhead)   # (and --dummy's range now counts: it used to move the dummy after --t had posed)
 		_refresh()
@@ -3460,6 +3476,7 @@ var intro: KineIntro   # the opening intro while it plays (null after, or when o
 
 ## a test's own settings file goes with it (ribbon_test clicks VIEW > Light like any button: one file per run piled up)
 func _exit_tree() -> void:
+	SlicerSend.shutdown()   # C79: the start-up slicer lookup (a `reg query` on a worker) must not hold the quit
 	if nb_ui != null:
 		nb_ui.finish()   # I44: the fatigue worker ends before the scenes it reads go
 	for sc in _bake_scenes():
@@ -3509,6 +3526,7 @@ func _process(dt: float) -> void:
 
 func _process_body(dt: float) -> void:
 	_mesh_hint_sync()
+	_hands_dock_tick()   # C66
 	if _drop_line != null and _drop_line.visible:
 		var hov := get_viewport().gui_get_hovered_control()
 		if not get_viewport().gui_is_dragging() or hov == null or not (hov == ui_card_row or ui_card_row.is_ancestor_of(hov)):
@@ -5541,6 +5559,40 @@ func _view_home(smooth := true) -> void:
 		_turn_to(HOME["yaw"], HOME["pitch"], easy.frame_dist(), easy.follow_target(), smooth)
 		return
 	_turn_to(HOME["yaw"], HOME["pitch"], _home_dist(), HOME["target"], smooth)
+	_home_fit(smooth)
+
+
+## C62: HOME's yaw / pitch, then the Fit button's framing (the whole body inside nav_clear_rect: under the toolbar, beside the
+## panels, above the bottom bar). At 1280 x 720 the 4 m HOME view drew the head at y 38..80, under the Pose-from-words button.
+## Smooth: the fitted goal is worked out on the spot and the turn is run again towards it
+func _home_fit(smooth: bool) -> void:
+	if shot_through or (easy != null and easy.on) or _mesh_orbit():
+		return
+	var y0 := yaw
+	var p0 := pitch
+	var d0 := dist
+	var t0 := target
+	yaw = HOME["yaw"]
+	pitch = HOME["pitch"]
+	dist = _home_dist()
+	target = HOME["target"]
+	_nav_fit()
+	var d1 := dist
+	var t1 := target
+	yaw = y0
+	pitch = p0
+	dist = d0
+	target = t0
+	_home_set = [d1, t1]
+	_turn_to(HOME["yaw"], HOME["pitch"], d1, t1, smooth)
+
+
+var _home_set: Array = []   # [dist, target] the last home fit chose: while the camera still sits there the user has not moved it
+
+
+func _home_refit() -> void:
+	if _home_set.size() == 2 and is_equal_approx(dist, float(_home_set[0])) and target.is_equal_approx(_home_set[1]) 			and is_equal_approx(yaw, float(HOME["yaw"])) and is_equal_approx(pitch, float(HOME["pitch"])):
+		_home_fit(false)
 
 
 ## HOME's distance, but never so close that the body (feet to head: 1.9 m about the target) is cut by the panels: the free view is
@@ -9877,6 +9929,14 @@ func _cape_cancel() -> void:
 	_say("cancelling the cape bake: the scene keeps its last cape")
 
 
+func _cape_fold_toggle() -> void:
+	Cloth.self_collide = not Cloth.self_collide
+	if Cloth.self_collide:
+		_say("Cape: folds onto itself - ON (slower, about 0.5 s a frame to bake)")
+	else:
+		_say("Cape: folds onto itself - OFF")
+
+
 func _cape_clear() -> void:
 	if S.cape.is_empty():
 		_say("no cape to take off: 'Cape: add to the back' first")
@@ -10989,6 +11049,24 @@ func _hands_block(easy_side: bool) -> VBoxContainer:
 	return box
 
 
+## C66: the hands card finds a free spot again when the camera or the layout moved something under it (only then: it does not
+## follow an orbit that leaves it clear)
+var _hands_sig := ""
+
+
+func _hands_dock_tick() -> void:
+	if ui_hands_panel == null or not is_instance_valid(ui_hands_panel) or not ui_hands_panel.visible or cam == null or B == null or (easy != null and easy.on):
+		return
+	var sig := str([cam.global_transform, cam.fov, cam.size, bottom_h, get_viewport().get_visible_rect().size, ui_bar.get_global_rect() if ui_bar != null else Rect2()])
+	if sig == _hands_sig:
+		return
+	_hands_sig = sig
+	var vs := get_viewport().get_visible_rect().size
+	var vrect := Rect2(float(LEFT_W), float(TOP_H), vs.x - float(LEFT_W) - float(RIGHT_W), vs.y - float(TOP_H) - float(bottom_h))
+	if not HandsDock.clear(ui_hands_panel, HandsDock.blockers(self, ui_hands_panel, vrect, [ui_status, ui_mouse, ui_bar, ui_cube]), HandsDock.points(self), vrect):
+		_hands_refresh()
+
+
 func _hands_refresh() -> void:
 	if B == null:
 		return
@@ -11024,12 +11102,20 @@ func _hands_refresh() -> void:
 				if lb != null and is_instance_valid(lb) and lb.is_visible_in_tree():   # can be taller than BOTTOM_H: the strip covered them)
 					y1 = minf(y1, lb.get_global_rect().position.y - ps.y - 8.0)
 			var body := _body_screen_rect().grow(12.0)
-			var pick := Vector2(x1, y1)
-			for c in [Vector2(x1, y1), Vector2(x0, y0), Vector2(x0, y1), Vector2(x1, y0)]:
-				if not Rect2(c, ps).intersects(body):
-					pick = c
-					break
-			ui_hands_panel.position = PickDodge.fit(ui_hands_panel, pick, Rect2(float(LEFT_W) + 8.0, float(TOP_H) + 8.0, vs.x - float(LEFT_W) - float(RIGHT_W) - 16.0, vs.y - float(TOP_H) - 16.0 - float(BOTTOM_H) - 56.0), PickDodge.points(self))   # C29: never over a body pick point
+			var vrect := Rect2(float(LEFT_W), float(TOP_H), vs.x - float(LEFT_W) - float(RIGHT_W), vs.y - float(TOP_H) - float(bottom_h))   # C66
+			var hb_flow: Control = null
+			for d0 in ui_hands:
+				if not d0["easy"] and d0.has("both"):
+					hb_flow = (d0["both"] as Control).get_parent()
+					(d0["state"] as Label).text = st   # its wrapped height is part of the card's size
+			var docked: bool = hb_flow != null and HandsDock.place(ui_hands_panel, hb_flow, vrect, HandsDock.blockers(self, ui_hands_panel, vrect, [ui_status, ui_mouse, ui_bar, ui_cube]), body, HandsDock.points(self))
+			if not docked:
+				var pick := Vector2(x1, y1)
+				for c in [Vector2(x1, y1), Vector2(x0, y0), Vector2(x0, y1), Vector2(x1, y0)]:
+					if not Rect2(c, ps).intersects(body):
+						pick = c
+						break
+				ui_hands_panel.position = PickDodge.fit(ui_hands_panel, pick, Rect2(float(LEFT_W) + 8.0, float(TOP_H) + 8.0, vs.x - float(LEFT_W) - float(RIGHT_W) - 16.0, vs.y - float(TOP_H) - 16.0 - float(BOTTOM_H) - 56.0), PickDodge.points(self))   # C29: never over a body pick point
 		ui_hands_panel.position = ui_hands_panel.position.clamp(Vector2.ZERO, (vs - ui_hands_panel.size).max(Vector2.ZERO))   # no candidate fits a short window: it still stays on the view
 	for d in ui_hands:
 		if not is_instance_valid(d["box"]):
@@ -11786,11 +11872,13 @@ func _theme() -> Theme:
 		th.set_color("font_color", "PopupMenu", tx)
 		th.set_color("font_hover_color", "PopupMenu", tx)
 		th.set_stylebox("hover", "PopupMenu", box.call(Tok.c("btn_hover"), 3, 2))
-		th.set_stylebox("panel", "TooltipPanel", box.call(Tok.c("float"), 4, 6))
 		th.set_color("font_color", "TooltipLabel", tx)
 		th.set_stylebox("slider", "HSlider", box.call(Tok.c("btn_hover").darkened(0.1), 3, 2))
 		th.set_stylebox("grabber_area", "HSlider", box.call(Tok.c("accent"), 3, 2))
 		th.set_stylebox("grabber_area_highlight", "HSlider", box.call(Tok.c("accent"), 3, 2))
+	# C72: the tooltip popup in both palettes (the block above is light only): opaque, 1 px rim
+	th.set_stylebox("panel", "TooltipPanel", _tip_box())
+	th.set_color("font_color", "TooltipLabel", Tok.c("text"))
 	return th
 
 
@@ -12333,9 +12421,29 @@ func _focus_theme() -> void:
 		_retheme()
 
 
+## C72: Godot's tooltip popup is its own window under the root Window, not under ui_root, so it never saw ui_root's theme and drew the
+## engine's translucent black. It is opaque now, with a 1 px rim, in the app's colours (dark and light).
+func _tip_box() -> StyleBoxFlat:
+	var b := StyleBoxFlat.new()
+	b.bg_color = Color(Tok.c("float"), 1.0)
+	b.border_color = Tok.c("btn_hover").lerp(Tok.c("text"), 0.35)
+	b.set_border_width_all(1)
+	b.set_corner_radius_all(4)
+	b.set_content_margin_all(6)
+	return b
+
+
+func _tip_theme() -> Theme:
+	var t := Theme.new()
+	t.set_stylebox("panel", "TooltipPanel", _tip_box())
+	t.set_color("font_color", "TooltipLabel", Tok.c("text"))
+	return t
+
+
 ## everything built with the old palette takes the new one
 func _retheme() -> void:
 	ui_root.theme = _theme()
+	get_window().theme = _tip_theme()
 	ui_tinted = ui_tinted.filter(func(x): return is_instance_valid(x[0]))
 	for x in ui_tinted:
 		(x[0] as Label).add_theme_color_override("font_color", Tok.of(x[1]))
@@ -12517,7 +12625,7 @@ func _hover_hints() -> void:
 		# the tooltip leads with the name (an icon has no words); the hover line keeps "name:  what it does"
 		if b.get_meta("label", "") != "" and not b.tooltip_text.begins_with(t):
 			b.tooltip_text = t + ("\n" + b.tooltip_text if b.tooltip_text != "" else "")
-		b.mouse_entered.connect(func(): _hover_hint = "%s:  %s" % [t, b.tooltip_text.trim_prefix(t + "\n").trim_prefix(t)])
+		b.mouse_entered.connect(func(): _hover_hint = "%s:  %s" % [t, TooltipFit.source_of(b).trim_prefix(t + "\n").trim_prefix(t)])
 		b.mouse_exited.connect(func(): _hover_hint = "")
 
 
@@ -12722,6 +12830,7 @@ func _ui() -> void:
 	ui_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ui_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_root.theme = _theme()
+	get_window().theme = _tip_theme()
 	layer.add_child(ui_root)
 	ui_root.add_child(sk)   # I9: the sketch's gold strokes and the faint fitted skeleton are drawn over the view
 
@@ -13900,6 +14009,9 @@ func _ui() -> void:
 	ui_cmd.pose_by_words = _pose_words
 	ui_cmd.tools_provider = func(): return MeshTools.rows(self)   # ROADMAP_400 P02: the mesh tools (scripts/mesh_tools.gd), built on the S box's first search
 	_hover_hints()
+	var tipfit := TooltipFit.new()   # C69: every tooltip wrapped to fit the window (scripts/tooltip_fit.gd)
+	tipfit.name = "tooltip_fit"
+	add_child(tipfit)
 	tips = TipVideo.new()   # ROADMAP 49: a 2 s clip of the tool beside the hint, after 0.6 s on a button
 	tips.name = "tips"
 	add_child(tips)
@@ -16232,6 +16344,7 @@ func _layout_bottom() -> void:
 	_force_place()
 	_place_nav()
 	_cam()
+	call_deferred("_hands_refresh")   # C66: the hands card finds its spot again once the status line and the view tools have moved
 
 
 ## a key, as if pressed in the view: a command that has a key runs through the key's own code, so the two never differ
@@ -16465,6 +16578,7 @@ func _commands() -> Array:
 	add.call("Hair: take the hair off", "", _hair_clear, "hair ponytail strands clear remove off", true, "removes the hair strands from the scene (Ctrl+Z puts them back)")
 	add.call("Cape: add to the back (bakes the cloth)", "", _cape_add, "cape cloth back cloak robe sim bake drape", true, "a cape hangs from the shoulders on the back and swings in a turn: a cloth grid that collides with the body, baked over the scene; Ctrl+Z takes it back")
 	add.call("Cape: cancel the bake", "", _cape_cancel, "cape cloth bake cancel stop abort background", false, "stops a cape bake that is running in the background; the scene keeps its last cape")
+	add.call("Cape: folds onto itself (slower)", "", _cape_fold_toggle, "cape cloth fold self collision layers pass through itself slower", false, "makes the next cape bake keep its folds from passing through each other: about 0.5 s of baking a frame instead of 0.03 s, so it is off until you switch it on (the toggle says which way it is)")
 	add.call("Cape: take off", "", _cape_clear, "cape cloth remove clear off delete", true, "takes the cape off the scene (Ctrl+Z puts it back)")
 	add.call("Cape: export its vertices (JSON)", "", _cape_export, "cape cloth export mesh json vertices", false, "writes the cape's vertex positions for every frame to a JSON file in the user folder")
 	add.call("Secondary: bake", "", _sec_bake, "secondary bake keys rebake update animation", true, "bake every secondary item again over the scene (after the animation changed)")
@@ -22968,6 +23082,10 @@ func _import_video(path: String, raw := false) -> void:
 	if _video_pid >= 0 and OS.is_process_running(_video_pid):
 		_say("still tracking %s: one video at a time; try again when it arrives" % _video_name)
 		return
+	var _gate := VideoAddon.gate("tracking a video")   # C78: an installed build has no Python
+	if _gate != "":
+		_say(_gate)
+		return
 	_video_cancelled = false
 	if not FileAccess.file_exists(path):
 		_say("could not track %s: no such file; pick the video again" % path.get_file())
@@ -23346,6 +23464,9 @@ func _multicam_ask() -> void:
 
 
 func _multicam_start(paths: PackedStringArray) -> void:
+	if VideoAddon.gate("several cameras") != "":   # C78
+		_say(VideoAddon.gate("several cameras"))
+		return
 	if _mc_i >= 0:
 		_say("still tracking the cameras: one set at a time; try again when it arrives")
 		return
@@ -24397,6 +24518,8 @@ func _open_scene_dict(path: String, d: Dictionary, work: bool, built := false) -
 			journal.trim()   # ... and its journal goes with it
 	_props_show()   # the opened scene's set is drawn now (a load used to leave the props out of the view until the next edit)
 	S.apply(B, 0.0)
+	_home_refit()   # C62: a scene opened under the untouched home view is framed for ITS body
+	_home_refit.call_deferred()   # ... and again once its first pose has settled
 	_bld_scene_changed(true, built)
 
 

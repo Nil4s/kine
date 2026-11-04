@@ -435,6 +435,10 @@ static func _foot(sz: Vector3) -> Array:
 
 
 static func _surface_under(bodies: Array, pts: Array, top_y: float, low_y: float) -> Array:
+	return PartFast.surface_under(bodies, pts, top_y, low_y)   # s249: same answers, a grid per host body (was 40 s of the temple build)
+
+
+static func _surface_under_ref(bodies: Array, pts: Array, top_y: float, low_y: float) -> Array:   # the s237 original, kept as the control for tests/s249_test.gd
 	var hits: Array = []   # per sample: the highest surface y in [low_y, top_y], or NAN
 	var region := AABB()
 	var first := true
@@ -579,6 +583,7 @@ static func add(bodies: Array, f: Dictionary) -> String:
 			for mid in made:
 				PartMeshSolid.KCad.release(int(mid))
 			return PartMeshSolid.KCad.last_error()
+		PartFast.hint_box(id, d["km"], bas, at_mm)   # s249n: its box is known without tessellating it (a later ornament's seat skips it by box)
 		made.append(id)
 	for id in made:
 		bodies.append(id)

@@ -2727,6 +2727,8 @@ func _rebuild(show: bool) -> void:
 		return   # s169: the slider preview tessellates on a worker; the old mesh stays until the new one is ready
 	_tess_floor = _tess_seq + 1   # a synchronous rebuild is the newest: any background result still on its way is stale
 	res = replay_once(_rec(), up, want)
+	if res.has("surface_cap"):
+		_say(String(res["surface_cap"]))   # C65
 	if sk == "":
 		part_mesh.mesh = _exploded(res["mesh"])
 		_look_surfaces()
@@ -4721,6 +4723,10 @@ func _look_surfaces() -> void:
 	var ls: Array = res.get("looks", [])
 	for s in mini(ls.size(), part_mesh.mesh.get_surface_count()):
 		var l: Dictionary = ls[s]
+		var wood := WoodSolid.look_material(l)   # CH4: a solid-wood look is a 3D grain field
+		if wood != null:
+			part_mesh.set_surface_override_material(s, wood)
+			continue
 		var mm := MaterialMaker.look_material(l, PartViewTools.X_ALPHA if xray else 1.0, MaterialMaker.dims_for(l, part_mesh.mesh, s))   # s223: a made material, triplanar in mm (s273: brushed = scaled to the face)
 		if mm != null:
 			PartGlow.apply(mm, l)   # s258
@@ -5371,6 +5377,8 @@ func _tess_poll() -> void:
 			res["mesh"] = tmp["mesh"]
 			res["aabb"] = tmp["aabb"]
 			res["looks"] = tmp["looks"]
+			if tmp.has("surface_cap"):
+				_say(String(tmp["surface_cap"]))   # C65
 			part_mesh.mesh = _exploded(res["mesh"])
 			_look_surfaces()
 			tess_landed += 1

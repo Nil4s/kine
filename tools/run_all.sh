@@ -891,6 +891,7 @@ EXTRA="$EXTRA c39:w"   # c39: FBX materials (tests/c39_test.gd)
 
 
 EXTRA="$EXTRA c41:w"   # c41: #184 invert orbit X / Y apart, #311 bad spots (built by C05) checked
+EXTRA="$EXTRA c54:w"   # c54: cloth self-collision (tests/c54_test.gd)
 
 EXTRA="$EXTRA c53:w"   # c53: SVG/DXF import into a Part sketch (tests/c53_test.gd)
 
@@ -942,3 +943,73 @@ EXTRA="$EXTRA c56:w"   # c56: English ANIMATE/SURFACE tabs fit their cell at 128
 EXTRA="$EXTRA c57:w"   # c57: slicer-like print estimate (walls + infill, time from flow, bigger-than-bed scale models, 5 kg sanity) against Bambu Studio on a cube and Benchy (tests/c57_test.gd)
 
 EXTRA="$EXTRA ch8:w"   # ch8: APIC liquid in C++ (KineFluidNative) vs Martin and Moyce 1952, hydrostatic tank, mug fill and spill, C++ == GDScript (tests/ch8_test.gd)
+EXTRA="$EXTRA ch1a:w"   # ch1a: one-storey house from a real reference, tests/ch1a_test.gd
+EXTRA="$EXTRA ch1b:w"   # ch1b: house check, IRC spans/headers/studs/bracing/uplift/footing + first-principles cross-check (tests/ch1b_test.gd)
+
+
+EXTRA="$EXTRA c59:w"   # c59: Easy Part left column: no button/label overlap and no edge chip cut below 4 letters at 1024/1280/1600 (tests/c59_test.gd)
+
+
+EXTRA="$EXTRA c54n:w"   # c54n: C++ cloth self-collision (tests/c54n_test.gd; SKIPs without the DLL)
+
+
+EXTRA="$EXTRA c49b:w"   # C49b: Off/Look/Print strip clear of Part dialogs, browser, timeline, cube; tests/c49b_test.gd
+
+
+
+EXTRA="$EXTRA c63:w"   # c63: the no-printer print estimate lands on a measured flow and names the printer it assumes (tests/c63_test.gd)
+
+
+EXTRA="$EXTRA c65:w"   # c65: over 256 bodies the look-merge ignores the body name: 600 named boxes in 6 materials each keep their own (tests/c65_test.gd)
+
+
+EXTRA="$EXTRA c62:w"   # C62: no bone end under the toolbar or a panel in the opening view / Fit / Home at 1024, 1280, 1920
+
+
+
+
+
+EXTRA="$EXTRA c70:w"   # C70: involute Gear sketch tool + a pattern fused in one boolean (tests/c70_test.gd)
+EXTRA="$EXTRA ch10:w"   # ch10: the house under wind and El Centro, 3D frame solver (native KineFrameNative + GDScript twin), tests/ch10_test.gd
+
+
+EXTRA="$EXTRA s249:w"
+EXTRA="$EXTRA s249n:w"
+
+
+
+EXTRA="$EXTRA c64:w"   # c64: C++ conjugate gradient of the heat weights equals GDScript (1e-6), 5x faster (tests/c64_test.gd)
+EXTRA="$EXTRA c64_prof:w"   # c64: hot-loop profile table (tests/c64_prof_test.gd)
+
+
+EXTRA="$EXTRA c68:w"   # c68: Easy Part step hint fully visible (not overlapped or clipped) at 1024/1280/1600 (tests/c68_test.gd)
+
+
+
+
+EXTRA="$EXTRA ch2:w"   # ch2: the regulator clock: 720:12:1 train, 994 mm pendulum period, 0 mm3 clearance over 60 s at 60 fps, backlash < 5 % module, minute hand 6 deg per 60 s, C++ = GDScript (tests/ch2_test.gd)
+
+
+EXTRA="$EXTRA c66:w"   # C66: the hands card overlaps no button or status text and sits inside the 3D view at 1024, 1280, 1920
+
+
+EXTRA="$EXTRA c69:w"   # C69: every tooltip in Easy Part / Pose is wrapped to <= 440 px and fits the window at 1024 and 1280 (scripts/tooltip_fit.gd; tests/c69_test.gd)
+
+
+EXTRA="$EXTRA c70:w"   # C70: involute Gear sketch tool + a pattern fused in one boolean (tests/c70_test.gd)
+
+
+EXTRA="$EXTRA c72:w"   # C72: the tooltip popup (TooltipPanel) is opaque with a 1 px border
+
+
+EXTRA="$EXTRA c73:w"   # C73: no CR inside any .gd string literal (.gitattributes *.gd eol=lf); GREY_TAG hints match (tests/c73_test.gd)
+
+
+EXTRA="$EXTRA ch4:w"   # ch4: solid oak grain, dovetailed box (docs/CH4_REFERENCE.md, tests/ch4_test.gd)
+
+
+EXTRA="$EXTRA c78:w"   # c78: installer unit bars (docs/C78_INSTALLER.md); the installer run itself is tests/c78_test.sh
+EXTRA="$EXTRA c79:w"   # c79: slicer lookup no longer holds the quit (docs/C79_FEEDBACK.md); the quit-time bars are tests/c79_test.sh
+EXTRA="$EXTRA c75:w"   # C75: KineSkinNative.correct, the DQ/LBS skinning pre-correction in C++ (equal to GDScript within 1e-5, >=10x, fallback, ulp control) (tests/c75_test.gd)
+EXTRA="$EXTRA c77:w"   # C77: exit-hang guard: no ungated OCCT parallel switch, every Thread.start joined, planted controls caught (tests/c77_test.gd)
+EXTRA="$EXTRA ch12:w"   # ch12: footbridge sway under a phase-locking crowd (Dallard 2001), tests/ch12_test.gd

@@ -71,6 +71,8 @@ func start_replay(tool_path: String, file: String) -> String:
 
 
 func _start(tool_path: String, extra: PackedStringArray) -> String:
+	if VideoAddon.gate("the webcam puppet") != "":   # C78
+		return VideoAddon.gate("the webcam puppet")
 	stop()
 	if not listen():
 		return "could not open a local port on 127.0.0.1 (every port in the range is in use)"

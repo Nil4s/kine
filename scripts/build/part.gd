@@ -556,6 +556,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	var res := {"mesh": null, "volume": 0.0, "bodies": 0, "volumes": [], "errors": {}, "edges": [], "faces": [], "aabb": AABB(), "props": [], "looks": [], "body_looks": [], "tess_ids": [], "tess_looks": [], "surf_body": [], "warnings": {}}
 	if not available():
 		return res
+	PartFast.enabled = bool(rec.get("fast_build", false))   # s249: opt-in Fast build
 	var feats: Array = rec.get("features", [])
 	var n := feats.size() if upto < 0 else mini(upto + 1, feats.size())
 	var bodies: Array = []
@@ -956,9 +957,17 @@ static func _tess_cached(id: int, coarse: bool) -> ArrayMesh:
 ## the same); if the distinct looks are still too many, the last looks' bodies share the final surface. Writes res["looks"] (one per surface) and
 ## res["surf_body"] (the first body of each surface).
 const MAX_SURFACES := 256
+## C65: what makes two looks one material: every field except the body's name (a named body used to get a surface of its own, and past 256 bodies the rest shared the last one)
+static func merge_key(look: Dictionary) -> String:
+	var l := look.duplicate()
+	l.erase("name")
+	return JSON.stringify(l)
+
+
 static func pack_surfaces(mesh: ArrayMesh, pend: Array, res: Dictionary) -> void:
 	var groups: Array = []   # [[pend index, ...]] one per surface
 	res["surf_ranges"] = []
+	res.erase("surface_cap")
 	var solo: Array = res.get("solo", [])   # s269c: bodies the film keys move on their own: never merged into another surface
 	if pend.size() <= MAX_SURFACES:
 		for k in pend.size():
@@ -970,12 +979,17 @@ static func pack_surfaces(mesh: ArrayMesh, pend: Array, res: Dictionary) -> void
 			if solo.has(int(pend[k][2])):
 				solos.append([k])
 				continue
-			var key := JSON.stringify(pend[k][1])
+			var key := merge_key(pend[k][1])   # C65: material only; the body's name is not part of the key
 			if not by_look.has(key):
 				by_look[key] = groups.size()
 				groups.append([])
 			groups[by_look[key]].append(k)
 		var room := maxi(MAX_SURFACES - solos.size(), 1)
+		if groups.size() > room:   # C65: say it: some bodies will wear a neighbouring material
+			var lost := 0
+			for gi in range(room, groups.size()):
+				lost += (groups[gi] as Array).size()
+			res["surface_cap"] = "This part has %d different materials; a model draws at most %d, so %d bodies share another body's material. Use fewer distinct materials." % [groups.size() + solos.size(), MAX_SURFACES, lost]
 		while groups.size() > room:
 			var tail: Array = groups.pop_back()
 			groups[room - 1].append_array(tail)
@@ -3001,6 +3015,10 @@ static func paint(mesh: ArrayMesh, looks: Array) -> void:
 		var l: Dictionary = looks[s]
 		var c: Color = l["c"]
 		var a := float(l["alpha"])
+		var wood := WoodSolid.look_material(l)   # CH4: a solid-wood look is a 3D grain field (scripts/build/wood_solid.gd)
+		if wood != null:
+			mesh.surface_set_material(s, wood)
+			continue
 		var mt := StandardMaterial3D.new()
 		var mm := MaterialMaker.look_material(l, 1.0, MaterialMaker.dims_for(l, mesh, s))   # s223: a made material (triplanar maps) when the look has one; s273: a brushed one scaled to the face
 		if mm != null:
@@ -3061,6 +3079,9 @@ static func _split_looks(looks: Array, n: int, pieces: Array) -> void:
 ## body N; "new" keeps each copy as a body of its own (with body N's look). "" or the failure message; a failure changes nothing.
 const AXIS_VEC := {"x": Vector3.RIGHT, "y": Vector3.UP, "z": Vector3.BACK}
 const PATTERN_MAX := PartArray.MAX_COPIES   # S266: ONE cap for linear / circular / path / grid / route (1000); past COPIES_SLOW the step says it is slow
+
+## C70: false = the old one-by-one join of a pattern's copies (tests compare the two; nothing else turns it off)
+static var bulk_fuse := true
 
 static func _pattern(bodies: Array, looks: Array, f: Dictionary, rec: Dictionary = {}) -> String:
 	if bodies.is_empty():
@@ -3256,6 +3277,14 @@ static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int,
 			cn += 1
 			looks.append(_numbered(src, cn))   # s212: a named body's copies are Name 2, Name 3 ...
 		return ""
+	if bulk_fuse and copies.size() >= 2 and KCad.has_union_many():   # C70: every copy fused in ONE boolean (one-by-one re-intersects the growing body each time)
+		var ub := KCad.union_many(bodies[bi], PackedInt32Array(copies))
+		if ub != 0:
+			for c in copies:
+				KCad.release(c)
+			KCad.release(bodies[bi])
+			bodies[bi] = ub
+			return ""
 	for k in copies.size():
 		var u := KCad.union(bodies[bi], copies[k])
 		KCad.release(copies[k])
