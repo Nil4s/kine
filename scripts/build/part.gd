@@ -3015,6 +3015,10 @@ static func paint(mesh: ArrayMesh, looks: Array) -> void:
 		var l: Dictionary = looks[s]
 		var c: Color = l["c"]
 		var a := float(l["alpha"])
+		var wood := WoodSolid.look_material(l)   # CH4: a solid-wood look is a 3D grain field (scripts/build/wood_solid.gd)
+		if wood != null:
+			mesh.surface_set_material(s, wood)
+			continue
 		var mt := StandardMaterial3D.new()
 		var mm := MaterialMaker.look_material(l, 1.0, MaterialMaker.dims_for(l, mesh, s))   # s223: a made material (triplanar maps) when the look has one; s273: a brushed one scaled to the face
 		if mm != null:

@@ -997,3 +997,6 @@ EXTRA="$EXTRA c72:w"   # C72: the tooltip popup (TooltipPanel) is opaque with a 
 
 
 EXTRA="$EXTRA c73:w"   # C73: no CR inside any .gd string literal (.gitattributes *.gd eol=lf); GREY_TAG hints match (tests/c73_test.gd)
+
+
+EXTRA="$EXTRA ch4:w"   # ch4: solid oak grain, dovetailed box (docs/CH4_REFERENCE.md, tests/ch4_test.gd)
