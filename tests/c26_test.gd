@@ -104,11 +104,32 @@ func _init() -> void:
 	var sel0: String = m.sel
 	var un0: int = m.undo.size()
 	var r: Dictionary = m.pickchk.run()
-	ok(int(r["n"]) == probes.size() and (r["blocked"] as Array).size() == probes.size() - got1 and absi(int(r["first_try"]) - got1) <= 1 and (r["blocked"] as Array).size() >= 1,
+	ok(int(r["n"]) == probes.size() and (r["blocked"] as Array).size() == probes.size() - got1 and absi(int(r["first_try"]) - got1) <= 1,   # C62 (the framing commit after 26769c61): the old "and blocked >= 1" held only while the ribbon covered the head, the bug C62 fixes; A2b below keeps the check shown to catch a blocked probe
 		"A2 the check: %d probes, %d on the first try, blocked %s (real clicks %d)" % [r["n"], r["first_try"], r["blocked"], got1])
 	ok(float(r["median_ms"]) <= 25.0 and float(r["max_ms"]) <= 100.0 and p95(us) <= 50.0,
 		"A3 latency: check median %.2f ms, slowest %.2f ms; real-click pick p95 %.2f ms" % [r["median_ms"], r["max_ms"], p95(us)])
 	ok(m.undo.size() == un0 and m.sel == sel0, "A5 the check changed no selection and no undo step")
+	# A2b (replaces the dropped ">= 1 blocked" clause): a mouse-taking ColorRect planted over one probe is reported blocked, and the real click there selects nothing
+	var pj: String = probes[7][0]
+	var plant := ColorRect.new()
+	plant.mouse_filter = Control.MOUSE_FILTER_STOP
+	plant.color = Color(0, 0, 0, 0.01)
+	plant.position = (probes[7][1] as Vector2) - Vector2(20, 20)
+	plant.size = Vector2(40, 40)
+	m.ui_root.add_child(plant)
+	await idle(2)
+	var rp: Dictionary = m.pickchk.run()
+	m.sel = "pelvis"
+	await click(probes[7][1])
+	var sel_p: String = m.sel
+	plant.queue_free()
+	await idle(2)
+	var hit_p := false
+	for bs in rp["blocked"]:
+		if String(bs).begins_with(pj + " under"):
+			hit_p = true
+	ok(hit_p and sel_p == "pelvis", "A2b a planted mouse-taking rect over the %s probe: check lists it blocked %s, the real click selected '%s'" % [pj, rp["blocked"], sel_p])
+	m.sel = sel0
 	PickCheck.burn_ms = 60.0
 	var rb: Dictionary = m.pickchk.run()
 	PickCheck.burn_ms = 0.0
