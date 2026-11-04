@@ -44,11 +44,32 @@ static func _gemini_schema(sc: Variant) -> Variant:
 	return sc
 
 
+## AI COST (11-04): the part of a system text after NOW_MARK changes every turn (AiBox puts the scene there). Sent
+## inside the system text it changes the START of every request, so no backend can reuse the turns before it: every
+## turn pays the whole conversation again. build() moves it to the END of the request instead (after the cache
+## breakpoint on Anthropic; a last user line on the others). Tools, the fixed system text and the earlier turns then
+## stay byte-identical turn after turn: Anthropic reads them from its cache at 0.1x (cache_control below), OpenAI and
+## Gemini cache an identical prefix by themselves, and Ollama reuses its loaded context instead of re-reading it.
+const NOW_MARK := "\n\nThe scene now: "
+const CACHE := {"type": "ephemeral"}
+
+
+## [fixed system text, the changing tail ("" if none)]
+static func split_now(system: String) -> Array:
+	var i := system.find(NOW_MARK)
+	if i < 0:
+		return [system, ""]
+	return [system.left(i), system.substr(i + 2)]
+
+
 ## the request for one turn: tools = [{"name", "description", "schema"}]
 static func build(be: String, mdl: String, url: String, k: String, system: String, convo: Array, tools: Array) -> Dictionary:
 	var b := base_of(be, url)
 	var h := PackedStringArray(["Content-Type: application/json"])
 	var body := {}
+	var sp := split_now(system)
+	system = sp[0]
+	var now: String = sp[1]
 	match be:
 		"ollama", "openai":
 			var msgs := [{"role": "system", "content": system}]
@@ -76,11 +97,14 @@ static func build(be: String, mdl: String, url: String, k: String, system: Strin
 							msgs.append({"role": "tool", "content": it["result"], "tool_name": it["name"]})
 						else:
 							msgs.append({"role": "tool", "tool_call_id": it["id"], "content": it["result"]})
+			if now != "":   # the changing scene last: everything before it is the same as last turn
+				msgs.append({"role": "user", "content": now})
 			body = {"model": mdl, "messages": msgs}
 			if not tools.is_empty():   # a turn with no tools (a picture to read) sends none
 				body["tools"] = tools.map(func(t): return {"type": "function", "function": {"name": t["name"], "description": t["description"], "parameters": t["schema"]}})
 			if be == "ollama":
 				body["stream"] = false
+				body["keep_alive"] = "30m"   # the model stays loaded between turns (default 5 min: a slow turn reloaded it)
 				return {"url": b + "/api/chat", "headers": h, "body": body}
 			h.append("Authorization: Bearer " + k)
 			return {"url": b + "/v1/chat/completions", "headers": h, "body": body}
@@ -106,9 +130,24 @@ static func build(be: String, mdl: String, url: String, k: String, system: Strin
 							msgs[-1]["content"].append(tr)
 						else:
 							msgs.append({"role": "user", "content": [tr]})
+			# prompt caching: a breakpoint on the last tool (tools + system are the same every turn) and one on the last
+			# block of the conversation (next turn starts with exactly these blocks, read back at 0.1x). Below the
+			# model's minimum (about 1024 tokens) Anthropic just doesn't cache: no error, no extra cost.
+			if not msgs.is_empty():
+				var lm: Dictionary = msgs[-1]
+				if lm["content"] is String:
+					lm["content"] = [{"type": "text", "text": lm["content"]}]
+				if not (lm["content"] as Array).is_empty():
+					lm["content"][-1]["cache_control"] = CACHE
+			if now != "":   # after the breakpoint: it changes every turn, so it is never part of a cached prefix
+				if not msgs.is_empty() and msgs[-1]["role"] == "user":
+					msgs[-1]["content"].append({"type": "text", "text": now})
+				else:
+					msgs.append({"role": "user", "content": [{"type": "text", "text": now}]})
 			body = {"model": mdl, "max_tokens": 4096, "system": system, "messages": msgs}
 			if not tools.is_empty():
 				body["tools"] = tools.map(func(t): return {"name": t["name"], "description": t["description"], "input_schema": t["schema"]})
+				body["tools"][-1]["cache_control"] = CACHE
 			h.append("x-api-key: " + k)
 			h.append("anthropic-version: 2023-06-01")
 			return {"url": b + "/v1/messages", "headers": h, "body": body}
@@ -140,6 +179,11 @@ static func build(be: String, mdl: String, url: String, k: String, system: Strin
 				if not (t["schema"].get("properties", {}) as Dictionary).is_empty():
 					d["parameters"] = _gemini_schema(t["schema"])
 				decl.append(d)
+			if now != "":   # last, so the identical prefix before it can come from Gemini's own cache
+				if not cts.is_empty() and cts[-1]["role"] == "user":
+					cts[-1]["parts"].append({"text": now})
+				else:
+					cts.append({"role": "user", "parts": [{"text": now}]})
 			body = {"systemInstruction": {"parts": [{"text": system}]}, "contents": cts}
 			if not tools.is_empty():
 				body["tools"] = [{"functionDeclarations": decl}]
@@ -192,7 +236,35 @@ static func parse(be: String, code: int, raw: String) -> Dictionary:
 	for c in calls:   # a call whose arguments did not parse gets {} (the tool then says what it needs)
 		if not (c["args"] is Dictionary):
 			c["args"] = {}
-	return {"ok": true, "text": text, "calls": calls, "why": ""}
+	return {"ok": true, "text": text, "calls": calls, "why": "", "usage": usage_of(be, d)}
+
+
+## AI COST: one answer's tokens in ONE shape for every backend: {"in", "out", "cache_read", "cache_write"}.
+## "in" counts ALL prompt tokens (cached ones too), so in - cache_read is what was read at full price.
+static func usage_of(be: String, d: Dictionary) -> Dictionary:
+	var u := {"in": 0, "out": 0, "cache_read": 0, "cache_write": 0}
+	match be:
+		"anthropic":
+			var a: Dictionary = d.get("usage", {}) if d.get("usage") is Dictionary else {}
+			u["cache_read"] = int(a.get("cache_read_input_tokens", 0))
+			u["cache_write"] = int(a.get("cache_creation_input_tokens", 0))
+			u["in"] = int(a.get("input_tokens", 0)) + u["cache_read"] + u["cache_write"]
+			u["out"] = int(a.get("output_tokens", 0))
+		"openai":
+			var a: Dictionary = d.get("usage", {}) if d.get("usage") is Dictionary else {}
+			u["in"] = int(a.get("prompt_tokens", 0))
+			u["out"] = int(a.get("completion_tokens", 0))
+			var det: Variant = a.get("prompt_tokens_details")
+			u["cache_read"] = int(det.get("cached_tokens", 0)) if det is Dictionary else 0
+		"gemini":
+			var a: Dictionary = d.get("usageMetadata", {}) if d.get("usageMetadata") is Dictionary else {}
+			u["in"] = int(a.get("promptTokenCount", 0))
+			u["out"] = int(a.get("candidatesTokenCount", 0)) + int(a.get("thoughtsTokenCount", 0))
+			u["cache_read"] = int(a.get("cachedContentTokenCount", 0))
+		"ollama":
+			u["in"] = int(d.get("prompt_eval_count", 0))
+			u["out"] = int(d.get("eval_count", 0))
+	return u
 
 
 ## calls the model made up: [why] for each name not in tools (the loop sends these back as the tool's result)

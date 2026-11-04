@@ -72,8 +72,9 @@ TOOLS = {
                    {"type": "object", "properties": {"part": {"type": "object"}, "path": S, "gap": {"type": "array", "items": N, "minItems": 2, "maxItems": 2}, "cap": N, "near_mm": N}, "additionalProperties": False}),
     "part_assert": ("part_assert", "One-line checks on the part (e.g. 'piston touches barrel clearance 0.0-0.2 mm'); no lines = the record's saved asserts; save keeps the lines that pass.",
                     {"type": "object", "properties": {"lines": {"type": "array", "items": S}, "part": {"type": "object"}, "path": S, "save": {"type": "boolean"}, "clear": {"type": "boolean"}}, "additionalProperties": False}),
-    "commands": ("commands", "Every command the window has (id, name, keys, whether it edits): the ids are run steps.",
-                 {"type": "object", "properties": {}, "additionalProperties": False}),
+    "commands": ("commands", "The window's commands (id, name, keys, whether it edits): the ids are run steps. The whole list is 500+ "
+                 "commands (20-30k tokens): give find (a few words, e.g. 'mirror pose') to get only the best 25 matches.",
+                 {"type": "object", "properties": {"find": S}, "additionalProperties": False}),
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
@@ -168,7 +169,8 @@ def handle(msg, sess):
             e = r["error"]
             text = e["message"] + (("\n" + json.dumps(e["data"])) if e.get("data") else "")
             return result(id_, {"content": [{"type": "text", "text": text}], "isError": True})
-        return result(id_, {"content": [{"type": "text", "text": json.dumps(r["result"])}],
+        # compact JSON (no spaces after , and :): the same data, about 10% fewer tokens for the agent reading it
+        return result(id_, {"content": [{"type": "text", "text": json.dumps(r["result"], separators=(",", ":"))}],
                             "structuredContent": r["result"] if isinstance(r["result"], dict) else {"items": r["result"]},
                             "isError": False})
     return error(id_, -32601, "no method '%s' (initialize, ping, tools/list, tools/call)" % m)
