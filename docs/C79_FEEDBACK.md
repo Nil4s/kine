@@ -29,7 +29,7 @@ Shell test (bars committed in `c8945b53` before any number was read): S1 exporte
 Unit bars (`tests/c79_test.gd`, registered `c79:w`; written together with the fix, with the old lookup kept as the reference and a control that shows the query is slow enough to measure): same slicer list as the old code; `shutdown()` 300 ms into a lookup ends it in 2 ms; the control without shutdown still runs at 400 ms; a stopped lookup caches nothing; a direct call after shutdown runs in full.
 
 ## Runs
-c79 (6 ok), c78 unit (7 ok), easypart (73 ok), peasy3 (23 ok), freestart (14 ok), n05 (15 ok, it exercises prewarm and the cache): all pass with `WT_MAX=8`. `tests/c78_test.sh` with the smoke on `quit()`: see the report. c77 is not in this branch's base (it lives on `w4-c77`), so it was not run here.
+c79 (6 ok), c78 unit (7 ok), easypart (73 ok), peasy3 (23 ok), freestart (14 ok), n05 (15 ok, it exercises prewarm and the cache): all pass with `WT_MAX=8`. `tests/c78_test.sh` with the smoke on `quit()`: C78 PASS (B3 smoke exit 0 in 13.7 s whole process, no OS.kill). B7 had a race of its own (the uninstaller's helper still deletes `unins000.exe` after `Kine.exe` is gone; the test waited only for Kine.exe, and failed twice once the exit was clean); the wait now covers the folder being empty, the bar is unchanged. c77 is not in this branch's base (it lives on `w4-c77`), so it was not run here.
 
 ## Notes
 - `tools/c78_smoke.gd` now ends with a real `get_tree().quit()` plus the phase tracer (`tools/c79_trace.gd`), and has bisect switches `--c79-at=start|part|partfree|free`.
