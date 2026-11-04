@@ -17,6 +17,18 @@ static func dam_break(F: Object, res := 20) -> Dictionary:
 	return {"h": h, "a": MM_A, "x0": h}
 
 
+## CH8 bar c2 fixture: Martin & Moyce SQUARE column (n^2 = 1: width a, height a), a long dry floor (7 a) so the surge is never stopped by the far wall in the window.
+static func dam_square(F: Object, res := 20) -> Dictionary:
+	var h := MM_A / res
+	var nx := 7 * res + 2
+	var ny := 2 * res + 2
+	var nz := 10
+	F.setup(nx, ny, nz, h, Vector3.ZERO)
+	F.set_params(9.81, 0.2, 0.5, 0.005, 300, 1e-7)
+	F.add_fluid_box(Vector3(h, h, h), Vector3((res + 1) * h, (res + 1) * h, 9 * h), Vector3.ZERO, 1)
+	return {"h": h, "a": MM_A, "x0": h}
+
+
 ## Triangles of the Part "mug" (metres), the mesh moved so the cup axis is at (cx, cz) and the underside sits at y0. Needs the CAD DLL.
 static func mug_mesh() -> Dictionary:
 	var rec := PartTemplates.make("mug")

@@ -101,6 +101,7 @@ void KineFluidNative::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("volume_ratio"), &KineFluidNative::volume_ratio);
 	ClassDB::bind_method(D_METHOD("surface", "smooth", "iso"), &KineFluidNative::surface);
 	ClassDB::bind_method(D_METHOD("clear_particles"), &KineFluidNative::clear_particles);
+	ClassDB::bind_method(D_METHOD("set_wall_friction", "f"), &KineFluidNative::set_wall_friction);
 }
 
 void KineFluidNative::setup(int p_nx, int p_ny, int p_nz, double p_h, Vector3 p_origin) {
@@ -355,7 +356,7 @@ void KineFluidNative::pcg() {
 		double s = 0; for (double v : part) s += v; return s;
 	};
 	auto matvec = [&](const std::vector<double> &s, std::vector<double> &out) {
-		pfor(n < 20000 ? 1 : n, nt, [&](int b, int e) {
+		pfor(n, n < 20000 ? 1 : nt, [&](int b, int e) {
 			for (int q = b; q < e; q++) {
 				int c = fl[q];
 				double t = adiag[c] * s[c];
@@ -394,8 +395,34 @@ void KineFluidNative::pcg() {
 	}
 }
 
+void KineFluidNative::apply_wall_friction() {
+	// A face that touches a solid wall sideways (a transverse neighbour of either of its two cells is solid) keeps (1 - wfr) of its speed.
+	if (wfr <= 0.0) return;
+	const double s = 1.0 - wfr;
+	const int off[3] = { 1, nx, nx * ny };
+	for (int c : fl) {
+		for (int ax = 0; ax < 3; ax++) {
+			for (int side = 0; side < 2; side++) {
+				int a = side == 0 ? c - off[ax] : c, b = side == 0 ? c : c + off[ax];
+				if (side == 1 && type[b] == 1) continue;
+				bool touch = false;
+				for (int t = 0; t < 3 && !touch; t++) {
+					if (t == ax) continue;
+					if (solid[a - off[t]] || solid[a + off[t]] || solid[b - off[t]] || solid[b + off[t]]) touch = true;
+				}
+				if (!touch) continue;
+				int i = b % nx, j = (b / nx) % ny, k = b / (nx * ny);
+				if (ax == 0) U[i + (size_t)(nx + 1) * (j + (size_t)ny * k)] *= s;
+				else if (ax == 1) Vg[i + (size_t)nx * (j + (size_t)(ny + 1) * k)] *= s;
+				else W[i + (size_t)nx * (j + (size_t)ny * k)] *= s;
+			}
+		}
+	}
+}
+
 void KineFluidNative::project(double dt) {
 	for (size_t n = 0; n < Vg.size(); n++) Vg[n] -= grav * dt;
+	apply_wall_friction();
 	for (int k = 0; k < nz; k++)
 		for (int j = 0; j < ny; j++)
 			for (int i = 0; i <= nx; i++) {
@@ -422,7 +449,7 @@ void KineFluidNative::project(double dt) {
 				+ Vg[i + (size_t)nx * ((j + 1) + (size_t)(ny + 1) * k)] - Vg[i + (size_t)nx * (j + (size_t)(ny + 1) * k)]
 				+ W[i + (size_t)nx * (j + (size_t)ny * (k + 1))] - W[i + (size_t)nx * (j + (size_t)ny * k)];
 		double eps = std::min(1.0, std::max(0.0, (double)cnt[c] / ppc - 1.0));
-		rhs[c] = -sc * div + sc * sc * drift * eps;
+		rhs[c] = -sc * div + sc * (h / std::max(dt, dtmax)) * drift * eps;
 	}
 	pcg();
 	double f = dt / h;

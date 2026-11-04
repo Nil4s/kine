@@ -8,6 +8,12 @@ extends SceneTree
 ##       (it only loses volume where cells are over-crowded: compression drift) at every sampled step.
 ##   (c) DAM BREAK vs Martin & Moyce 1952, n^2 = 2: the surge front Z = x/a (front = furthest x of particles within 0.15 a of the floor)
 ##       is within 10 % of the table Z at each T in the table (T = t*sqrt(2g/a)). Plus a physics bound: Z <= 1 + 2T (Ritter, frictionless) at every T.
+##   (c2) AVERAGE FRONT SPEED vs the CITED measurements (added 11-04, committed before its first run; the lead's decision on bar (c)).
+##       n^2 = 1 square column (scene FluidScenes.dam_square), H = a. Definition as in the source: non-dimensional time tau = t*sqrt(g/H), average front
+##       speed v/sqrt(gH) of the surge on the dry bed for tau > 1 (Table 1 of arXiv:1308.0115, Fig. 12; cross-check arXiv:2108.08769 sec 3.3.2).
+##       The source gives no end of window; MINE: tau in [1, 2], v = (Z(2) - Z(1)) / 1 with Z = x/H as in bar (c). PASS if v lies in the published
+##       experimental span 1.48 .. 1.74 (Martin & Moyce H = 57 mm 1.48, H = 114 mm 1.69; Dressler 1954 H = 55/110/220 mm 1.54/1.70/1.74).
+##       CONTROL: the frictionless Ritter value 2.0 must FAIL the same band test.
 ##   (d) C++ == GDScript on 16^3 for 20 steps: every particle position and velocity within 1e-6 (threads = 1).
 ##   (e) MUG (the real Part "mug" mesh, Part.replay -> voxelised): pour in. 0 particles in wall voxels at every check AND 0 particles inside the mesh
 ##       by an independent ray-parity test; while less than 0.9 of the cup's volume has been poured, 0 particles are outside the cup below the rim;
@@ -31,17 +37,42 @@ func ok(c: bool, what: String) -> void:
 
 func _init() -> void:
 	var t0 := Time.get_ticks_msec()
-	var native := ClassDB.class_exists("KineFluidNative")
+	var native := Fluid.native()
 	print("native class present: ", native)
 	ok(native, "KineFluidNative is registered (build native/ first)")
 	await _a_hydro(false)
 	await _a_hydro(true)   # control: gravity 0 must FAIL the pressure bar
 	await _bc_dam()
+	await _c2_speed()
 	await _d_equal()
 	await _e_mug()
 	await _f_bench()
 	print("ch8: %d fail  (%.0f s)" % [fails, (Time.get_ticks_msec() - t0) / 1000.0])
 	quit(1 if fails > 0 else 0)
+
+
+## (c2) average surge-front speed over tau in [1, 2] for the square column, in units of sqrt(g H)
+const C2_LO := 1.48
+const C2_HI := 1.74
+
+
+func _c2_speed() -> void:
+	var F = Fluid.make()
+	F.set_threads(4)
+	var sc := FluidScenes.dam_square(F, 20)
+	var a: float = sc["a"]
+	var h: float = sc["h"]
+	var t := 0.0
+	var z := []
+	for tau in [1.0, 2.0]:
+		var tt: float = tau * sqrt(a / G)   # tau = t sqrt(g/H), H = a
+		F.advance(tt - t)
+		t = tt
+		z.append(_front(F, h))
+	var v: float = (z[1] - z[0]) / (2.0 - 1.0)
+	print("      c2: Z(tau=1) = %.3f  Z(tau=2) = %.3f  average front speed = %.3f sqrt(gH)" % [z[0], z[1], v])
+	ok(v >= C2_LO and v <= C2_HI, "(c2) average front speed %.3f sqrt(gH) over tau 1..2 is inside the published span %.2f .. %.2f (arXiv:1308.0115 Table 1)" % [v, C2_LO, C2_HI])
+	ok(not (2.0 >= C2_LO and 2.0 <= C2_HI), "(g) CONTROL the frictionless Ritter value 2.0 fails the c2 span (the bar can fail)")
 
 
 func _maxspeed(d: PackedFloat64Array) -> float:
@@ -74,7 +105,7 @@ func _a_hydro(control: bool) -> void:
 		ok(absf(c["p_bottom"] - c["p_expect"]) > 0.02 * c["p_expect"], "(g) CONTROL gravity 0: bottom pressure %.1f Pa is NOT within 2 %% of rho g H = %.1f (the bar can fail)" % [c["p_bottom"], c["p_expect"]])
 		return
 	var r := _tank(G)
-	ok(r["vmax"] < 1e-3, "(a) hydrostatic: max |v| = %.2e m/s after 1 s (bar < 1e-3)" % r["vmax"])
+	ok(r["vmax"] < 1e-3, "(a) hydrostatic: max |v| = %s m/s after 1 s (bar < 1e-3)" % String.num_scientific(r["vmax"]))
 	var err: float = absf(r["p_bottom"] - r["p_expect"]) / r["p_expect"]
 	ok(err <= 0.02, "(a) hydrostatic: bottom layer %.1f Pa vs rho g H = %.1f Pa (H = %.4f m): %.2f %% (bar 2 %%)" % [r["p_bottom"], r["p_expect"], r["H"], err * 100.0])
 
@@ -159,7 +190,7 @@ func _d_equal() -> void:
 	var md := 0.0
 	for i in mini(a.size(), b.size()):
 		md = maxf(md, absf(a[i] - b[i]))
-	ok(a.size() == b.size() and a.size() > 0 and md <= 1e-6, "(d) C++ == GDScript, 16^3, 20 steps: %d values, max |diff| = %.2e (bar 1e-6)" % [a.size(), md])
+	ok(a.size() == b.size() and a.size() > 0 and md <= 1e-6, "(d) C++ == GDScript, 16^3, 20 steps: %d values, max |diff| = %s (bar 1e-6)" % [a.size(), String.num_scientific(md)])
 	# control: a different seed must differ by far more than the bar
 	var F3 = Fluid.make(true)
 	F3.setup(16, 16, 16, 0.05, Vector3.ZERO)
@@ -168,7 +199,7 @@ func _d_equal() -> void:
 	var cd := 0.0
 	for i in mini(c.size(), a.size()):
 		cd = maxf(cd, absf(c[i] - a[i]))
-	ok(cd > 1e-6, "(g) CONTROL a different seed differs by %.2e (> 1e-6: the comparison can fail)" % cd)
+	ok(cd > 1e-6, "(g) CONTROL a different seed differs by %s (> 1e-6: the comparison can fail)" % String.num_scientific(cd))
 
 
 func _e_mug() -> void:

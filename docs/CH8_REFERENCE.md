@@ -59,3 +59,19 @@ the pressure is zero in the air cell above and one `rho g h` is added per cell d
   extracted by **marching tetrahedra** (each cell cut into six tetrahedra around the main diagonal). This is the tetrahedral cousin of marching
   cubes: it has no ambiguous cases and a 16-case table; it gives a few more triangles than the 256-case cube table. The normals come from the
   gradient of the density field.
+
+
+## 4. Citations and the n^2 note (added 11-04 after the lead's review)
+
+* Bar (c) judges against the table in section 1, which was **written from memory, not checked against the 1952 paper. It stays as committed and is reported
+  as "against an UNVERIFIED remembered table".** It is a table for the scene with n^2 = 2 (column 2a tall).
+* **Inference, not a fact:** the table's late-time slope (about 1.1 Z per unit T) is what a SQUARE column (n^2 = 1) gives, and the same solver on a square
+  column reproduces that slope (1.15) with a 0.2 to 0.3 Z lead that is the size of the gate-removal effect the experimenters describe. So the remembered table
+  may belong to n^2 = 1. I did not check this against the paper and nothing was changed because of it (the scene of bar (c) was not switched).
+* Bar **c2** (added after that, bar text committed before its first run) uses published, citable numbers: the non-dimensional average velocity v/sqrt(gH) of the
+  downstream surge front on a dry horizontal bed for tau = t sqrt(g/H) > 1, from Table 1 of "Experimental investigation of dynamic pressure loads during dam
+  break", arXiv:1308.0115 (Fig. 12 plots x/H against tau): Martin & Moyce 1952 H = 57 mm 1.48, H = 114 mm 1.69; Dressler 1954 H = 55 mm 1.54, 110 mm 1.70,
+  220 mm 1.74 (Hu 2010 1.21/1.14 and Koshizuka 1996 1.30 are n^2 = 2 columns and are not used). Ritter's frictionless value is 2. Cross-checked with
+  arXiv:2108.08769 section 3.3.2 (Martin & Moyce square columns a = 2 1/4 in and 4 1/2 in compared with a Godunov scheme; time scaled by g/a).
+  The source gives no end of the window "tau > 1"; the window tau in [1, 2] is my choice, stated in the test.
+* Martin & Moyce, Phil. Trans. R. Soc. Lond. A 244 (1952) 312-324 itself was not available offline; page-level values still need checking against it.

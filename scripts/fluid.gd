@@ -4,7 +4,7 @@ extends RefCounted
 
 
 static func native() -> bool:
-	return ClassDB.class_exists("KineFluidNative")
+	return NativeExt.ensure("kine_native", "KineFluidNative")
 
 
 static func make(force_gd := false) -> Object:

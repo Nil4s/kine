@@ -36,6 +36,8 @@ public:
 	int last_iters = 0;
 	double last_res = 0;
 	int ppc = 8;
+	double wfr = 0.0; // wall friction: 0 = free slip, 1 = no slip
+	void set_wall_friction(double f) { wfr = f < 0 ? 0 : (f > 1 ? 1 : f); }
 
 	void setup(int p_nx, int p_ny, int p_nz, double p_h, Vector3 p_origin);
 	void set_threads(int p_n) { nt = p_n < 1 ? 1 : p_n; }
@@ -62,6 +64,7 @@ private:
 	void sort_particles();
 	void mark_cells();
 	void p2g();
+	void apply_wall_friction();
 	void project(double dt);
 	void g2p();
 	void advect(double dt);

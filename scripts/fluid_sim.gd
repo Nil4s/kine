@@ -17,6 +17,7 @@ var dtmax := 0.01
 var tol := 1e-6
 var max_iter := 300
 var ppc := 8
+var wfr := 0.0   # wall friction: 0 = free slip, 1 = no slip
 var solid := PackedByteArray()
 var type := PackedByteArray()
 var cnt := PackedInt32Array()
@@ -87,6 +88,43 @@ func _zeros(n: int) -> PackedFloat64Array:
 
 func set_threads(_n: int) -> void:
 	pass
+
+
+func set_wall_friction(f: float) -> void:
+	wfr = clampf(f, 0.0, 1.0)
+
+
+## A face that touches a solid wall sideways keeps (1 - wfr) of its speed (same loops as the C++ twin).
+func _wall_friction() -> void:
+	if wfr <= 0.0:
+		return
+	var s := 1.0 - wfr
+	var off := [1, nx, nx * ny]
+	for c in fl:
+		for ax in 3:
+			for side in 2:
+				var a: int = c - off[ax] if side == 0 else c
+				var b: int = c if side == 0 else c + off[ax]
+				if side == 1 and type[b] == 1:
+					continue
+				var touch := false
+				for t in 3:
+					if t == ax:
+						continue
+					if solid[a - off[t]] != 0 or solid[a + off[t]] != 0 or solid[b - off[t]] != 0 or solid[b + off[t]] != 0:
+						touch = true
+						break
+				if not touch:
+					continue
+				var i: int = b % nx
+				var j: int = (b / nx) % ny
+				var k: int = b / (nx * ny)
+				if ax == 0:
+					U[i + (nx + 1) * (j + ny * k)] *= s
+				elif ax == 1:
+					Vg[i + nx * (j + (ny + 1) * k)] *= s
+				else:
+					W[i + nx * (j + ny * (k + 0))] *= s
 
 
 func set_params(p_g: float, p_drift: float, p_cfl: float, p_dtmax: float, p_iters: int, p_tol: float) -> void:
@@ -382,6 +420,7 @@ func _pcg() -> void:
 func _project(dt: float) -> void:
 	for n in Vg.size():
 		Vg[n] -= grav * dt
+	_wall_friction()
 	for k in nz:
 		for j in ny:
 			for i in nx + 1:
@@ -410,7 +449,7 @@ func _project(dt: float) -> void:
 				+ Vg[i + nx * ((j + 1) + (ny + 1) * k)] - Vg[i + nx * (j + (ny + 1) * k)] \
 				+ W[i + nx * (j + ny * (k + 1))] - W[i + nx * (j + ny * k)]
 		var eps := minf(1.0, maxf(0.0, float(cnt[c]) / ppc - 1.0))
-		rhs[c] = -sc * div + sc * sc * drift * eps
+		rhs[c] = -sc * div + sc * (h / maxf(dt, dtmax)) * drift * eps
 	_pcg()
 	var f := dt / h
 	for k in nz:
