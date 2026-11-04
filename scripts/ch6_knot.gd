@@ -6,7 +6,7 @@ extends RefCounted
 
 const R_ROPE := 0.004
 const DS := 0.008
-const PEG := Vector3(0.05, -0.004, 0.0)   # peg axis along z through this point
+const PEG := Vector3(0.07, -0.024, 0.0)   # peg axis along z through this point
 const PEG_R := 0.018
 
 
@@ -53,7 +53,7 @@ static func resample(c: PackedVector3Array, ds: float) -> PackedVector3Array:
 ## the leg E leaving over A, the loop round the peg, and the long free end R that lies behind and ends behind the hole.
 static func layout() -> PackedVector3Array:
 	var c: Array = []
-	for q in [[0, -0.35, 0], [0, -0.25, 0], [0, -0.18, 0], [0, -0.10, 0], [0, -0.06, -0.004], [0, -0.03, -0.007], [0, -0.01, -0.003]]:
+	for q in [[0, -0.35, 0], [0, -0.25, 0], [0, -0.16, 0], [0, -0.10, 0], [0, -0.075, -0.004], [0, -0.05, -0.007], [0, -0.02, -0.003]]:
 		c.append(Vector3(q[0], q[1], q[2]))
 	var d := 0
 	while d <= 270:
@@ -61,16 +61,16 @@ static func layout() -> PackedVector3Array:
 		var z := 0.0
 		if d >= 247:
 			z = 0.007 * (d - 247) / 23.0
-		c.append(Vector3(-0.03 + 0.03 * cos(a), 0.03 * sin(a), z))
+		c.append(Vector3(-0.05 + 0.05 * cos(a), 0.05 * sin(a), z))
 		d += 22
-	for q in [[-0.03, -0.03, 0.004], [-0.012, -0.03, 0.007], [0.0, -0.03, 0.007], [0.025, -0.03, 0.004], [0.05, -0.03, 0.0]]:
+	for q in [[-0.05, -0.05, 0.004], [-0.02, -0.05, 0.007], [0.0, -0.05, 0.007], [0.03, -0.05, 0.004], [0.07, -0.05, 0.0]]:
 		c.append(Vector3(q[0], q[1], q[2]))
 	d = 285
 	while d <= 450:
 		var a2 := deg_to_rad(d)
 		c.append(Vector3(PEG.x + 0.026 * cos(a2), PEG.y + 0.026 * sin(a2), 0.0))
 		d += 15
-	for q in [[0.03, 0.03, -0.02], [0.0, 0.10, -0.05], [-0.15, 0.2, -0.06], [-0.2, 0.1, -0.06], [-0.12, 0.02, -0.055], [-0.036, 0.0, -0.05]]:
+	for q in [[0.04, 0.03, -0.02], [0.0, 0.13, -0.05], [-0.15, 0.22, -0.06], [-0.22, 0.12, -0.06], [-0.14, 0.03, -0.055], [-0.06, 0.0, -0.05]]:
 		c.append(Vector3(q[0], q[1], q[2]))
 	return resample(spline(c), DS)
 
