@@ -46,6 +46,8 @@ func _init() -> void:
 	await _c2_speed()
 	await _d_equal()
 	await _e_mug()
+	await _h_verified()
+	await _i_bars()
 	await _f_bench()
 	print("ch8: %d fail  (%.0f s)" % [fails, (Time.get_ticks_msec() - t0) / 1000.0])
 	quit(1 if fails > 0 else 0)
@@ -297,3 +299,133 @@ func _f_bench() -> void:
 		if sps < 3.0:
 			break
 	ok(best >= 200000, "(f) the largest count at >= 10 sim steps/s here: %d particles (bar >= 200000; the 1M goal is reported by the table above)" % best)
+
+
+## ===== CH8b bars (added 11-04 by lane CH8b; bar text written and committed BEFORE its first run; no existing bar above was edited) =====
+## Martin & Moyce 1952 Table 2 (rectangular section, plane symmetry, n^2 = 2), the "mean" column of the a = 2 1/4 in runs, read from the scan of the paper
+## (Phil. Trans. R. Soc. A 244, p. 317; scan at www.math.ntu.edu.tw/~shyue/orch08/benchmarks/lowmach/broken-dam/91519.pdf). T = n t sqrt(g/a) = t sqrt(2g/a),
+## Z = x/a from the axis of symmetry. Rows with Z > 4 are not used (the tank wall of the scene is at Z = 4).
+const MMV_T := [0.41, 0.84, 1.19, 1.43, 1.63, 1.83, 1.98, 2.20, 2.32, 2.51, 2.65, 2.83, 2.97, 3.11]
+const MMV_Z := [1.11, 1.22, 1.44, 1.67, 1.89, 2.11, 2.33, 2.56, 2.78, 3.00, 3.22, 3.44, 3.67, 3.89]
+
+
+func _peak_count(F: Object) -> int:
+	var h := 0.01   # the dam-break scene: a / 20
+	var cnt := {}
+	var peak := 0
+	for p in F.positions():
+		var key := int(floor(p.x / h)) + 1000 * int(floor(p.y / h)) + 1000000 * int(floor(p.z / h))
+		var n: int = cnt.get(key, 0) + 1
+		cnt[key] = n
+		peak = maxi(peak, n)
+	return peak
+
+
+## (h) dam break against the VERIFIED table; (h2) the remembered table of bar (c) against the paper; (b2) peak cell count; (b3) the legacy drift as control
+func _h_verified() -> void:
+	var rows := []
+	for i in MM_T.size():
+		var hit := false
+		for j in MMV_T.size():
+			if absf(MM_T[i] - MMV_T[j]) <= 0.02 and absf(MM_Z[i] - MMV_Z[j]) <= 0.01:
+				hit = true
+		rows.append(hit)
+	ok(not rows.has(false), "(h2) the remembered table of bar (c) equals the paper's Table 2 mean column row by row (|dT| <= 0.02, |dZ| <= 0.01): %s" % str(rows))
+	var bad_hit := false
+	for j in MMV_T.size():
+		if absf(MM_T[1] - MMV_T[j]) <= 0.02 and absf(1.3 * MM_Z[1] - MMV_Z[j]) <= 0.01:
+			bad_hit = true
+	ok(not bad_hit, "(g) CONTROL a planted row (Z x 1.3) does not match the paper's table (the table check can fail)")
+	var F = Fluid.make()
+	F.set_threads(4)
+	var sc := FluidScenes.dam_break(F, 20)
+	var a: float = sc["a"]
+	var h: float = sc["h"]
+	var tscale := sqrt(a / (2.0 * G))
+	var t := 0.0
+	var worst := 0.0
+	var worst_planted := false
+	var peak := 0
+	var worst_v := 1.0
+	var lines := []
+	for i in MMV_T.size():
+		F.advance(MMV_T[i] * tscale - t)
+		t = MMV_T[i] * tscale
+		var z := _front(F, h)
+		var e: float = absf(z - MMV_Z[i]) / MMV_Z[i]
+		worst = maxf(worst, e)
+		if absf(z - 1.3 * MMV_Z[i]) / (1.3 * MMV_Z[i]) > 0.10:
+			worst_planted = true
+		lines.append("T %.2f Z sim %.3f paper %.2f (%.1f %%)" % [MMV_T[i], z, MMV_Z[i], e * 100.0])
+		peak = maxi(peak, _peak_count(F))
+		worst_v = minf(worst_v, F.volume_ratio())
+	for l in lines:
+		print("      ", l)
+	ok(worst <= 0.10, "(h) dam break vs Martin & Moyce, VERIFIED table (paper Table 2, mean, a = 2 1/4 in): worst surge-front error %.1f %% over %d points (bar 10 %%)" % [worst * 100.0, MMV_T.size()])
+	ok(worst_planted, "(g) CONTROL the planted verified table (Z x 1.3) fails the 10 %% bar (the bar can fail)")
+	ok(peak <= 12, "(b2) peak cell count %d <= 12 (1.5 x rest density, 8 per cell) at every sampled T of the dam break to T = 3.11" % peak)
+	print("      (b2) worst V/V0 on this run: %.4f" % worst_v)
+	# control for (b2): the first-version density drift in the velocity solve (dmode 0) must break the same cap
+	var F0 = Fluid.make()
+	F0.set_threads(4)
+	FluidScenes.dam_break(F0, 20)
+	F0.set_density_mode(0)
+	var t0 := 0.0
+	var peak0 := 0
+	for T in [1.0, 2.0, 3.0, 4.0, 5.0]:
+		F0.advance(T * tscale - t0)
+		t0 = T * tscale
+		peak0 = maxi(peak0, _peak_count(F0))
+	ok(peak0 > 12, "(g) CONTROL the first-version drift (density mode 0) breaks the same cap: peak %d > 12 (the cap bar can fail)" % peak0)
+
+
+## (a2) settled tank speed 10x tighter than (a); (d2) C++ == GDScript with the density projection ACTIVE; (r) surface volume
+func _i_bars() -> void:
+	var r := _tank(G)
+	ok(r["vmax"] < 1e-4, "(a2) hydrostatic: max |v| = %s m/s after 1 s (bar < 1e-4, ten times tighter than (a))" % String.num_scientific(r["vmax"]))
+	# (d2): two overlapping boxes put 16 particles in the overlap cells, so the projection has real excess to push away
+	var out := []
+	for mode in [1, 1, 0]:
+		var gd: bool = out.size() == 1
+		var F = Fluid.make(gd)
+		F.setup(16, 16, 16, 0.05, Vector3.ZERO)
+		F.set_params(9.81, 0.2, 0.5, 0.01, 300, 1e-6)
+		F.set_threads(1)
+		F.set_density_mode(mode)
+		F.add_solid_box(Vector3(0.25, 0.05, 0.05), Vector3(0.55, 0.2, 0.5))
+		F.add_fluid_box(Vector3(0.1, 0.3, 0.1), Vector3(0.4, 0.5, 0.35), Vector3(0.2, 0, 0.1), 7)
+		F.add_fluid_box(Vector3(0.2, 0.3, 0.1), Vector3(0.45, 0.45, 0.3), Vector3(0.2, 0, 0.1), 9)
+		for s in 20:
+			F.step(0.01)
+		out.append(F.particle_data())
+	var a1: PackedFloat64Array = out[0]
+	var a2: PackedFloat64Array = out[1]
+	var a3: PackedFloat64Array = out[2]
+	var md := 0.0
+	var mc := 0.0
+	for i in mini(a1.size(), a2.size()):
+		md = maxf(md, absf(a1[i] - a2[i]))
+	for i in mini(a1.size(), a3.size()):
+		mc = maxf(mc, absf(a1[i] - a3[i]))
+	ok(a1.size() == a2.size() and a1.size() > 0 and md <= 1e-6, "(d2) C++ == GDScript with density projection active (16^3, 20 steps, overlapping boxes): max |diff| = %s (bar 1e-6)" % String.num_scientific(md))
+	ok(mc > 1e-6, "(g) CONTROL density mode 0 differs from mode 1 by %s (> 1e-6: the projection is really active in that scene)" % String.num_scientific(mc))
+	# (r) the reconstructed surface of the settled tank encloses the particles' volume within 10 %
+	var F2 = Fluid.make()
+	if not F2.has_method("surface_aniso"):
+		ok(false, "(r) native surface_aniso is needed")
+		return
+	F2.setup(14, 20, 14, 0.01, Vector3.ZERO)
+	F2.set_params(G, 0.2, 0.5, 0.004, 300, 1e-7)
+	F2.set_threads(4)
+	var n: int = F2.add_fluid_box(Vector3(0.01, 0.01, 0.01), Vector3(0.13, 0.11, 0.13), Vector3.ZERO, 3)
+	F2.advance(1.0)
+	var vol_p := float(n) / 8.0 * pow(0.01, 3)
+	var sf: Dictionary = F2.surface_aniso(0.5, 4)
+	var vs: PackedVector3Array = sf["verts"]
+	var vol_m := 0.0
+	for i in range(0, vs.size() - 2, 3):
+		vol_m += vs[i].dot(vs[i + 1].cross(vs[i + 2])) / 6.0
+	vol_m = absf(vol_m)
+	print("      (r) mesh %d triangles, enclosed volume %.6f m3, particles %.6f m3" % [vs.size() / 3, vol_m, vol_p])
+	ok(vs.size() >= 3 and absf(vol_m - vol_p) / vol_p <= 0.10, "(r) surface_aniso encloses %.1f %% of the particle volume (bar within 10 %%)" % [100.0 * vol_m / vol_p])
+	ok(absf(vol_m - 1.3 * vol_p) / (1.3 * vol_p) > 0.10, "(g) CONTROL a planted volume (particles x 1.3) fails the same 10 %% bar (the bar can fail)")
