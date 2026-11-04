@@ -61,7 +61,7 @@ IF97 [F] (regions 1, 2 and 4 are the only ones the cycle touches: compressed liq
 | R2 700 K 30 MPa | v 0.542946619e-2, h 2631.49474, s 5.17540298, cp 10.3505092 |
 | R4 p_s(300, 500, 600 K) | 0.353658941e-2, 2.63889776, 12.3443146 MPa |
 | R4 T_s(0.1, 1, 10 MPa) | 372.755919, 453.035632, 584.149488 K |
-R = 0.461526 kJ/kg K. The tables print 9 significant digits; "to 1e-6" is read as relative 1e-6 (the printed digits are 1e-9 relative), at least 5 points (the test checks 24 numbers).
+R = 0.461526 kJ/kg K. The tables print 9 significant digits; "to 1e-6" is read as relative 1e-6 (the printed digits are 1e-9 relative), at least 5 points (the test checks 30 numbers: v, h, s, cp of the six states and the six saturation values).
 Implementation: GDScript only (scripts/build/ch15_if97.gd). The cycle needs about 20 property calls and the tests about 40: under a millisecond in GDScript doubles, so a C++ twin would add a build and an equality bar for no speed that anyone would see.
 
 ## 3. Electrical (bar 3)
