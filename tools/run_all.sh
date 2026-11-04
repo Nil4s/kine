@@ -1006,3 +1006,4 @@ EXTRA="$EXTRA c73:w"   # C73: no CR inside any .gd string literal (.gitattribute
 EXTRA="$EXTRA ch4:w"   # ch4: solid oak grain, dovetailed box (docs/CH4_REFERENCE.md, tests/ch4_test.gd)
 
 
+EXTRA="$EXTRA ch1f:w"   # ch1f: soil-structure interaction + masonry / light steel / wood on the CH1 plan, heave and wind (physics model, NOT an NBR check), tests/ch1f_test.gd
