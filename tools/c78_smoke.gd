@@ -46,7 +46,16 @@ func run(m: Node) -> void:
 		return
 	print("C78_GATE=", VideoAddon.gate("tracking a video"))
 	print("C78_SMOKE_OK ms=%d tris=%d vol=%f" % [Time.get_ticks_msec(), tris, vol])
-	# a clean quit() unloads the whole script graph and takes ~90 s headless; the smoke's verdict is the line above, so end the process
-	# right after stdout is flushed (OS.kill on Windows ends it with exit code 0)
+	# C79: a clean quit(), with a line per shutdown phase (tools/c79_trace.gd); the test times the exit from outside
+	var Tr := load("res://tools/c79_trace.gd")
+	var root := get_tree().root
+	for pair in [["root_exits_last", 0], ["root_exits_first", -1]]:
+		var t: Node = Tr.new()
+		t.label = pair[0]
+		root.add_child(t)
+		if pair[1] == 0:
+			root.move_child(t, 0)
+	m.tree_exiting.connect(func(): Tr.mark("main tree_exiting"))
 	await get_tree().process_frame
-	OS.kill(OS.get_process_id())
+	Tr.mark("quit() called")
+	get_tree().quit()
