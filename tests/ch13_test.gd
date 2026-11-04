@@ -15,6 +15,11 @@ extends SceneTree
 ##  g  PARTS         seven Parts build (one body each); volumes vs closed form (piston with the pin hole by quadrature, pin, cylinder, head, crankcase), rod bore volume by hand. CONTROL: a part with a 13.5 pin bore fails the volume bar.
 ##  h  ASSEMBLY      the posed parts: crank pin = rod big end, rod small end = piston pin, pin height = x(theta) (1e-6 mm), over 2 revolutions; periodic at +360; piston stroke 41.4. CONTROL: a rod left unturned is > 1 mm off.
 ##  i  SHEET         12 frames over 2 revolutions rendered: each differs from the last, frame(theta) == frame(theta + 360), frame(0) != frame(180); the section view shows cap colours (>= 800 px), the whole view none. Skipped when headless.
+##  j  INTERFERENCE  (added at the lead's review, committed before its first run) KCad.overlap_volume on the posed exact solids. At 36 crank angles (every 10 deg, TDC and BDC included) every pair
+##                   that is not a fit pair overlaps 0, and the 5 fit pairs overlap 0 too (the joints stay coaxial). Each fit pair at 40 deg, nominal (mid-zone) sizes: a gauge of the shaft grown to the
+##                   fit's minimum clearance overlaps 0 (the geometry carries at least the fit's clearance) and a gauge 2 um bigger than the hole overlaps (the check can see a few um). The piston
+##                   crown to head gap at TDC, measured on the solids (bisection on a lift of the piston), equals the deck clearance nominal within 5 um.
+##                   CONTROLS: a rod 2 mm longer puts the piston into the head at TDC; a pin 1 mm oversize overlaps the rod's small end.
 var fails := 0
 var nok := 0
 const E := preload("res://scripts/build/ch13_engine.gd")
@@ -53,6 +58,7 @@ func _init() -> void:
 	bars_print()
 	bars_parts()
 	bars_assembly()
+	bars_interference()
 	await bars_sheet()
 	print("ch13: %d ok, %d fail" % [nok, fails])
 	quit(1 if fails > 0 else 0)
@@ -314,6 +320,179 @@ func bars_assembly() -> void:
 	ok(((a["pin"] as Vector3) - (b["pin"] as Vector3)).length() < TOL_MM and ((a["crankpin"] as Vector3) - (b["crankpin"] as Vector3)).length() < TOL_MM, "h the pose repeats after 360 deg")
 	var bad: Dictionary = P.points(90.0, {"skip_rod_turn": true})
 	ctl(((bad["rod_small"] as Vector3) - (bad["pin"] as Vector3)).length() > 1.0, "h a rod left unturned is %.2f mm off the pin at 90 deg" % ((bad["rod_small"] as Vector3) - (bad["pin"] as Vector3)).length())
+
+
+# ------------------------------------------------------------------------------------------------ j
+const OV_EPS := 1e-12   # m3 = 0.001 mm3: below this two solids share no volume (the kernel's own early-out, KineCAD::overlap_volume)
+const MOVING := ["crankshaft", "rod", "piston", "pin"]
+const FITS := {"pin|rod": "G6/h5", "piston|pin": "JS6/h5", "cylinder|piston": "H7/e7", "crankcase|crankshaft": "H7/f7", "crankshaft|rod": "H7/f7"}
+var _kcalls := 0
+
+
+func pair_key(a: String, b: String) -> String:
+	return a + "|" + b if a < b else b + "|" + a
+
+
+func ov(a: int, b: int) -> float:
+	_kcalls += 1
+	return KCad.overlap_volume(a, b)
+
+
+## the overlap (m3) of the gauge record placed at p with the solid `other`
+func gauge_ov(g: Dictionary, p: Dictionary, other: int) -> float:
+	var s0 := P.solid(g)
+	var s := P.place(s0, p)
+	var v := ov(s, other) if s != 0 else -1.0
+	KCad.release(s)
+	KCad.release(s0)
+	return v
+
+
+## the piston crown to head gap (mm) at crank angle th: the smallest lift of the posed piston that makes it overlap the head, by bisection to 1e-4 mm; -1 when it overlaps unlifted, 99 when 10 mm is not enough
+func crown_gap(piston: int, head: int) -> float:
+	if ov(piston, head) > OV_EPS:
+		return -1.0
+	var lo := 0.0
+	var hi := 10.0
+	var up := KCad.translate(piston, Vector3(0, hi, 0) * Assembly.MM)
+	var hit := ov(up, head) > OV_EPS
+	KCad.release(up)
+	if not hit:
+		return 99.0
+	while hi - lo > 1e-4:
+		var mid := (lo + hi) / 2.0
+		var t := KCad.translate(piston, Vector3(0, mid, 0) * Assembly.MM)
+		if ov(t, head) > OV_EPS:
+			hi = mid
+		else:
+			lo = mid
+		KCad.release(t)
+	return (lo + hi) / 2.0
+
+
+func bars_interference() -> void:
+	if not Part.available() or not ClassDB.class_has_method("KineCAD", "overlap_volume"):
+		ok(false, "j KineCAD with overlap_volume is missing")
+		return
+	var t0 := Time.get_ticks_msec()
+	var local := {}
+	var recs := {}
+	for nm in P.NAMES:
+		recs[nm] = P.record(nm)
+		local[nm] = P.solid(recs[nm])
+	var built_all := true
+	for nm in P.NAMES:
+		built_all = built_all and int(local[nm]) != 0
+	ok(built_all, "j every part gives one exact solid to pose")
+	if not built_all:
+		return
+	var po0: Dictionary = P.pose_of(0.0)
+	var placed_static := {}
+	for nm in P.NAMES:
+		if not MOVING.has(nm):
+			placed_static[nm] = P.place(int(local[nm]), po0[nm])
+	var worst := {}     # pair -> [overlap mm3, angle]
+	var clashes := PackedStringArray()
+	var skipped := 0
+	for k in 36:
+		var th := 10.0 * k
+		var po: Dictionary = P.pose_of(th)
+		var placed := placed_static.duplicate()
+		for nm in MOVING:
+			placed[nm] = P.place(int(local[nm]), po[nm])
+		for i in P.NAMES.size():
+			for j in range(i + 1, P.NAMES.size()):
+				var a: String = P.NAMES[i]
+				var b: String = P.NAMES[j]
+				if k > 0 and not MOVING.has(a) and not MOVING.has(b):
+					continue   # two fixed parts: once is enough
+				var ka := pair_key(a, b)
+				var wa: AABB = Assembly.world_aabb({"rec": recs[a], "pos": po[a]["pos"], "rot": po[a]["rot"]}).grow(1e-4)
+				var wb: AABB = Assembly.world_aabb({"rec": recs[b], "pos": po[b]["pos"], "rot": po[b]["rot"]}).grow(1e-4)
+				var v := 0.0
+				if wa.intersects(wb):
+					v = ov(int(placed[a]), int(placed[b]))
+				else:
+					skipped += 1
+				if not worst.has(ka) or v > float(worst[ka][0]):
+					worst[ka] = [v, th]
+				if v > OV_EPS or v < 0.0:
+					clashes.append("%s %.0f deg %.3f mm3" % [ka, th, v * 1e9])
+		for nm in MOVING:
+			KCad.release(int(placed[nm]))
+	var bad_free := PackedStringArray()
+	var bad_fit := PackedStringArray()
+	for ka in worst:
+		var v: float = worst[ka][0]
+		if v > OV_EPS or v < 0.0:
+			var line := "%s %.3f mm3 at %.0f deg" % [ka, v * 1e9, worst[ka][1]]
+			if FITS.has(ka):
+				bad_fit.append(line)
+			else:
+				bad_free.append(line)
+	print("j  sweep: %d pairs, %d kernel overlaps, %d skipped by box, %.1f s; clashes: %s" % [worst.size(), _kcalls, skipped, (Time.get_ticks_msec() - t0) / 1000.0, ", ".join(clashes.slice(0, 12)) if clashes.size() > 0 else "none"])
+	ok(bad_free.is_empty() and worst.size() == 21, "j no two parts that are not a fit pair share volume at any of 36 crank angles (%d pairs): %s" % [worst.size() - FITS.size(), "none" if bad_free.is_empty() else "; ".join(bad_free)])
+	ok(bad_fit.is_empty(), "j the 5 fit pairs share no volume at any of the 36 angles: %s" % ("none" if bad_fit.is_empty() else "; ".join(bad_fit)))
+
+	# each fit pair at its nominal size: shaft gauge grown to the fit's min clearance -> 0; a gauge 2 um over the hole -> overlap
+	var d: Dictionary = P.dims()
+	var po40: Dictionary = P.pose_of(40.0)
+	var at40 := {}
+	for nm in P.NAMES:
+		at40[nm] = P.place(int(local[nm]), po40[nm])
+	var fe: Dictionary = {"G6/h5": E.fit(13.0, "G6", "h5"), "JS6/h5": E.fit(13.0, "JS6", "h5"), "H7/e7": E.fit(39.0, "H7", "e7"), "H7/f7_20": E.fit(20.0, "H7", "f7"), "H7/f7_18": E.fit(18.0, "H7", "f7")}
+	# [label, fit, shaft dia, hole dia, gauge maker (dia -> record), gauge part (its pose), hole part]
+	var rows := [
+		["pin in rod small end", "G6/h5", d["pin_d"], d["bush_d"], func(g: float) -> Dictionary: return P.gauge(0, 0, g / 2.0, 0.0, 33.0), "pin", "rod"],
+		["pin in piston boss", "JS6/h5", d["pin_d"], d["boss_d"], func(g: float) -> Dictionary: return P.gauge(0, 0, g / 2.0, 0.0, 33.0), "pin", "piston"],
+		["piston in bore", "H7/e7", d["skirt_d"], d["bore_d"], func(g: float) -> Dictionary: return P.gauge(0, 0, g / 2.0, 0.0, P.PISTON_H), "piston", "cylinder"],
+		["crank journal (drive side) in bearing", "H7/f7_20", d["journal_d"], d["bearing_d"], func(g: float) -> Dictionary: return P.gauge(0, 0, g / 2.0, -20.0, 29.0), "crankshaft", "crankcase"],
+		["crank journal (far side) in bearing", "H7/f7_20", d["journal_d"], d["bearing_d"], func(g: float) -> Dictionary: return P.gauge(0, 0, g / 2.0, 49.0, 29.0), "crankshaft", "crankcase"],
+		["crank pin in big end", "H7/f7_18", d["crankpin_d"], d["bigend_d"], func(g: float) -> Dictionary: return P.gauge(0, P.R, g / 2.0, 17.0, 24.0), "crankshaft", "rod"],
+	]
+	var fit_ok := true
+	var sees_ok := true
+	var lines := PackedStringArray()
+	for r in rows:
+		var f: Dictionary = fe[r[1]]
+		var cmin_mm := maxf(float(f["cmin"]), 0.0) / 1000.0
+		var mk: Callable = r[4]
+		var v_min := gauge_ov(mk.call(float(r[2]) + cmin_mm), po40[r[5]], int(at40[r[6]]))
+		var v_over := gauge_ov(mk.call(float(r[3]) + 0.002), po40[r[5]], int(at40[r[6]]))
+		var c_um := (float(r[3]) - float(r[2])) * 1000.0
+		fit_ok = fit_ok and v_min >= 0.0 and v_min <= OV_EPS and c_um >= float(f["cmin"])
+		sees_ok = sees_ok and v_over > OV_EPS
+		lines.append("%s %s: as built %.1f um (fit %.1f..%.1f), gauge at min %.4f mm3, gauge hole+2um %.4f mm3" % [r[0], String(r[1]).get_slice("_", 0), c_um, f["cmin"], f["cmax"], v_min * 1e9, v_over * 1e9])
+	for l in lines:
+		print("j  " + l)
+	ok(fit_ok, "j every fit pair carries at least its minimum clearance in the geometry (shaft gauge grown to the fit's min overlaps 0, 6 bearings)")
+	ok(sees_ok, "j a gauge 2 um bigger than each hole overlaps it (the check sees a few um)")
+	for nm in P.NAMES:
+		KCad.release(int(at40[nm]))
+
+	# crown to head at TDC against the deck clearance
+	var deck: float = float(E.stack(E.deck_chain())["nominal"])
+	var pis_tdc := P.place(int(local["piston"]), po0["piston"])
+	var gap := crown_gap(pis_tdc, int(placed_static["head"]))
+	KCad.release(pis_tdc)
+	print("j  crown to head at TDC: %.4f mm measured on the solids; deck clearance (stack-up nominal) %.4f mm" % [gap, deck])
+	ok(near(gap, deck, 0.005), "j crown to head gap at TDC %.4f mm = deck clearance %.4f mm (5 um)" % [gap, deck])
+
+	# controls
+	var pl: Dictionary = P.pose_of(0.0, {"rod_len": P.L + 2.0})
+	var pis_long := P.place(int(local["piston"]), pl["piston"])
+	var v_long := ov(pis_long, int(placed_static["head"]))
+	KCad.release(pis_long)
+	ctl(v_long > OV_EPS, "j a rod 2 mm longer drives the piston into the head at TDC (overlap %.3f mm3)" % (v_long * 1e9))
+	var rod40 := P.place(int(local["rod"]), po40["rod"])
+	var v_pin := gauge_ov(P.gauge(0, 0, (float(d["pin_d"]) + 1.0) / 2.0, 0.0, 33.0), po40["pin"], rod40)
+	KCad.release(rod40)
+	ctl(v_pin > OV_EPS, "j a pin 1 mm oversize overlaps the rod's small end (%.2f mm3)" % (v_pin * 1e9))
+	for nm in placed_static:
+		KCad.release(int(placed_static[nm]))
+	for nm in local:
+		KCad.release(int(local[nm]))
+	print("j  %d kernel overlaps in %.1f s" % [_kcalls, (Time.get_ticks_msec() - t0) / 1000.0])
 
 
 # ------------------------------------------------------------------------------------------------ i

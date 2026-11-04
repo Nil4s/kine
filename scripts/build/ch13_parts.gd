@@ -9,7 +9,8 @@ const L := 80.0            # rod centres (ASSUMED)
 const ZC := 39.15          # cylinder / rod / crank-pin centre plane (case cavity 10..68.3, centre 39.15)
 const Z_CRANK0 := 10.15    # case z of the crank's left thrust face (nominal end-float 0.30 mm, centred)
 const DECK := 111.2        # crank axis to the cylinder top face
-const PIN_Z := 34.0        # pin axis height above the piston's skirt edge (crown at 44)
+const PIN_Z := 34.0        # pin axis height above the piston's skirt edge
+const PISTON_H := 44.0     # skirt edge to crown
 const CYL_H := 71.2        # cylinder from the case top (y = 40) to the deck
 static var _m_recip := -1.0
 
@@ -71,7 +72,7 @@ static func record(nm: String, opts := {}) -> Dictionary:
 	match nm:
 		"piston":
 			var dp: float = d["skirt_d"]
-			_cyl(fs, 0, 0, dp / 2.0, 0.0, 44.0, "new")
+			_cyl(fs, 0, 0, dp / 2.0, 0.0, PISTON_H, "new")
 			_cyl(fs, 0, 0, 17.0, 0.0, 22.0, "cut")
 			var bd: float = float(opts.get("boss_override", d["boss_d"]))
 			# the pin bore: axis along y (the "top" plane: sketch (u, v) = (x, -z)), through the whole piston
@@ -113,16 +114,17 @@ static func record(nm: String, opts := {}) -> Dictionary:
 			_paint(fs, [0.95, 0.55, 0.12], 0.15, 0.4, 1.0, "Crankshaft")
 		"rod":
 			var sbd: float = float(opts.get("small_override", d["bush_d"]))
+			var rl: float = float(opts.get("rod_len", L))
 			_cyl(fs, 0, 0, 15.0, 0.0, 20.0, "new")
-			_cyl(fs, 0, L, 10.0, 0.0, 20.0, "join")
-			var shank := [[-8.0, 12.0], [8.0, 12.0], [5.0, L - 12.0], [-5.0, L - 12.0]]
+			_cyl(fs, 0, rl, 10.0, 0.0, 20.0, "join")
+			var shank := [[-8.0, 12.0], [8.0, 12.0], [5.0, rl - 12.0], [-5.0, rl - 12.0]]
 			var ents := []
 			for i in 4:
 				ents.append({"k": "line", "a": shank[i], "b": shank[(i + 1) % 4]})
 			_ex(fs, _sk(fs, "front", ents), 20.0, "join")
 			if not bool(opts.get("no_bores", false)):
 				_cyl(fs, 0, 0, float(d["bigend_d"]) / 2.0, 0.0, 20.0, "cut")
-				_cyl(fs, 0, L, sbd / 2.0, 0.0, 20.0, "cut")
+				_cyl(fs, 0, rl, sbd / 2.0, 0.0, 20.0, "cut")
 			_paint(fs, [0.55, 0.70, 0.90], 0.15, 0.4, 1.0, "Connecting rod")
 	var rec := Part.make("Engine " + nm)
 	rec["features"] = fs
@@ -131,15 +133,16 @@ static func record(nm: String, opts := {}) -> Dictionary:
 
 
 # ------------------------------------------------------------------ the pose
-static func rod_angle(th: float) -> float:
-	return atan2(R * sin(th), E.piston_x(th, R, L) - R * cos(th))
+static func rod_angle(th: float, rl := L) -> float:
+	return atan2(R * sin(th), E.piston_x(th, R, rl) - R * cos(th))
 
 
-## each part's {"pos": mm, "rot": deg} for the crank angle th_deg. opts skip_rod_turn: the planted control (the rod keeps its upright pose)
+## each part's {"pos": mm, "rot": deg} for the crank angle th_deg. opts skip_rod_turn: the planted control (the rod keeps its upright pose); rod_len: another rod (bar j's control)
 static func pose_of(th_deg: float, opts := {}) -> Dictionary:
 	var th := deg_to_rad(th_deg)
-	var x := E.piston_x(th, R, L)
-	var psi := 0.0 if bool(opts.get("skip_rod_turn", false)) else rod_angle(th)
+	var rl: float = float(opts.get("rod_len", L))
+	var x := E.piston_x(th, R, rl)
+	var psi := 0.0 if bool(opts.get("skip_rod_turn", false)) else rod_angle(th, rl)
 	return {
 		"crankcase": {"pos": [0.0, 0.0, 0.0], "rot": [0.0, 0.0, 0.0]},
 		"crankshaft": {"pos": [0.0, 0.0, Z_CRANK0], "rot": [0.0, 0.0, -th_deg]},
@@ -172,6 +175,45 @@ static func assembly(th_deg: float) -> Dictionary:
 		asm["parts"].append({"id": "p%d" % i, "name": String(nm).capitalize(), "src": "", "rec": record(nm), "pos": po[nm]["pos"], "rot": po[nm]["rot"]})
 	asm["seq"] = i
 	return asm
+
+
+## bar j: the exact solid of a record in its own frame (metres); 0 unless it builds ONE body. The caller releases it (KCad.release)
+static func solid(rec: Dictionary) -> int:
+	var ids: Array = Part.replay(rec, -1, {"keep": true}).get("ids", [])
+	if ids.size() == 1:
+		return int(ids[0])
+	Part.release_kept(ids)
+	return 0
+
+
+## bar j: a NEW solid, src moved to the part's place p ({"pos": mm, "rot": deg}) the way Assembly.xf_of places its mesh
+## (Basis.from_euler, order YXZ: z turns first, then x, then y). src stays valid; the caller releases both
+static func place(src: int, p: Dictionary) -> int:
+	var s := src
+	var rot: Array = p["rot"]
+	for step in [[Vector3.BACK, float(rot[2])], [Vector3.RIGHT, float(rot[0])], [Vector3.UP, float(rot[1])]]:
+		if absf(float(step[1])) > 1e-12:
+			var t := KCad.rotate(s, step[0], deg_to_rad(float(step[1])))
+			if s != src:
+				KCad.release(s)
+			s = t
+			if s == 0:
+				return 0
+	var pos: Array = p["pos"]
+	var m := KCad.translate(s, Vector3(float(pos[0]), float(pos[1]), float(pos[2])) * Assembly.MM)
+	if s != src:
+		KCad.release(s)
+	return m
+
+
+## bar j: a plain cylinder record (a gauge): radius r about the part-local z axis through (cx, cy), z0 .. z0 + len (mm)
+static func gauge(cx: float, cy: float, r: float, z0: float, len: float) -> Dictionary:
+	var fs: Array = []
+	_cyl(fs, cx, cy, r, z0, len, "new")
+	var rec := Part.make("CH13 gauge")
+	rec["features"] = fs
+	rec["seq"] = fs.size()
+	return rec
 
 
 ## reciprocating mass (kg) from the CAD volumes: piston (Al 2700), pin (steel 7850), rings (12 g, ASSUMED), one third of the rod (steel)
