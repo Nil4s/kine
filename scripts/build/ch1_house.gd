@@ -32,7 +32,7 @@ static func _extent(members: Array, w: String) -> Array:
 	return [lo, hi]
 
 
-static func from_members(mj: Dictionary) -> Dictionary:
+static func from_members(mj: Dictionary, site := "") -> Dictionary:
 	var members: Array = mj["members"]
 	var meta: Dictionary = mj.get("meta", {})
 	var xs := 0.0
@@ -67,7 +67,11 @@ static func from_members(mj: Dictionary) -> Dictionary:
 				var a1: float = float(b[along + 3]) - float(ext[0])
 				var nominal: String = m["nominal"]
 				if bear[w]:
-					ops.append({"width_ft": float(m["span_mm"]) / MM_FT, "header": nominal, "name": m["name"]})
+					var nj := 0
+					for sname in m["supports"]:
+						if String(sname).begins_with("jack."):
+							nj += 1
+					ops.append({"width_ft": float(m["span_mm"]) / MM_FT, "header": nominal, "name": m["name"], "jacks": maxi(1, nj / 2)})
 				cuts.append([a0 - T, a1 + T])      # the header runs between the kings; a braced panel ends at the king's outer face
 		cuts.sort_custom(func(p, q): return p[0] < q[0])
 		var panels := []
@@ -101,28 +105,53 @@ static func from_members(mj: Dictionary) -> Dictionary:
 			ridge = m["nominal"]
 	var bolts: Dictionary = meta.get("anchor_bolts", {})
 	var foot: Dictionary = meta.get("footing", {})
-	return {
+	var counts := {}
+	for m in members:
+		counts[m["kind"]] = int(counts.get(m["kind"], 0)) + 1
+	var conns := []
+	var spec: Dictionary = meta.get("fasteners", {})
+	var key_kinds := {"stud_to_plate": ["stud", "king", "jack", "cripple", "corner", "gable_stud", "end"], "joist_to_plate": ["joist"], "rafter_to_plate": ["rafter", "rafter_pair"], "rafter_to_ridge": ["rafter", "rafter_pair"],
+		"plate_to_plate": ["top_plate2"], "plate_lap": ["top_plate2"], "stud_to_stud": ["king", "jack", "nailer"], "header_built_up": ["header"], "header_to_stud": ["header"]}
+	for key in HouseCheck.connections_of(meta.get("member_kinds", [])):
+		var n := 0
+		for k in key_kinds[key]:
+			n += int(counts.get(k, 0))
+		conns.append({"key": key, "count": n, "fastener": spec.get(key, {})})
+	var rc: Dictionary = meta.get("rafter_cut", {}) if meta.get("rafter_cut", null) != null else {}
+	var rafters_rec := {"size": rn, "spacing_in": int(round(rafter_sp / MM_IN)), "rise_per_12": float(meta.get("rise_per_12", 4.0)), "ridge": ridge, "tie": meta.get("tie", "none")}
+	if rc.has("birdsmouth_in"):
+		rafters_rec["birdsmouth_in"] = float(rc["birdsmouth_in"])
+		rafters_rec["seat_in"] = float(rc["seat_in"])
+	var rec := {
 		"species": meta.get("species", "DF-L#2"), "width_ft": zs / MM_FT, "length_ft": xs / MM_FT, "wall_h_ft": wall_top / MM_FT,
 		"loads": {"roof": "live", "psf": 20.0}, "wind_mph": int(meta.get("wind_mph", 115)), "exposure": meta.get("exposure", "B"), "seismic": meta.get("seismic", "A-B"),
 		"walls": walls,
 		"ceiling_joists": {"size": jn.replace(" PT", ""), "spacing_in": int(round(joist_sp / MM_IN)), "interior_bearing_wall": true},
-		"rafters": {"size": rn, "spacing_in": int(round(rafter_sp / MM_IN)), "rise_per_12": float(meta.get("rise_per_12", 4.0)), "ridge": ridge, "tie": meta.get("tie", "none")},
+		"rafters": rafters_rec,
 		"sill": {"on": "slab", "lumber": "2x4", "bolt_dia_in": float(bolts.get("dia_in", 0.0)), "bolt_spacing_in": float(bolts.get("max_spacing_in", 999.0)),
-			"bolt_from_end_in": float(bolts.get("max_end_in", 999.0))},
+			"bolt_from_end_in": float(bolts.get("max_end_in", 999.0)), "embed_in": float(bolts.get("embed_in", 0.0))},
 		"footing": {"type": "slab", "width_in": float(foot.get("width_in", 0.0)), "thickness_in": float(foot.get("thickness_in", 0.0)), "wall_in": 3.5, "soil_psf": int(meta.get("soil_psf", 1500))},
 	}
+	if not conns.is_empty():
+		rec["connections"] = conns
+	if meta.has("sheathing_nailing"):
+		rec["sheathing_nailing"] = meta["sheathing_nailing"]
+	var sid: String = site if site != "" else String(meta.get("site", ""))
+	if sid != "" and HouseCheck.SITES.has(sid):
+		rec = HouseCheck.with_site(rec, sid)
+	return rec
 
 
 ## HouseCheck lines for the record, in report order. Walls marked braced=false skip the bracing line (HouseCheck.check is given a copy without them).
-static func run(mj: Dictionary) -> Array:
-	var h := from_members(mj)
+static func run(mj: Dictionary, site := "") -> Array:
+	var h := from_members(mj, site)
 	return HouseCheck.check(h)
 
 
 ## every line of the report: the check lines, then what is UNVERIFIED and what is not checked at all
-static func report(mj: Dictionary) -> PackedStringArray:
+static func report(mj: Dictionary, site := "") -> PackedStringArray:
 	var out := PackedStringArray()
-	var lines := run(mj)
+	var lines := run(mj, site)
 	var nfail := 0
 	var unv := 0
 	for l in lines:
@@ -137,9 +166,9 @@ static func report(mj: Dictionary) -> PackedStringArray:
 	return out
 
 
-static func failing(mj: Dictionary) -> Array:
+static func failing(mj: Dictionary, site := "") -> Array:
 	var f := []
-	for l in run(mj):
+	for l in run(mj, site):
 		if not l["pass"]:
 			f.append(l["text"])
 	return f
