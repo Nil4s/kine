@@ -32,7 +32,7 @@ const WET_DARKEN := 0.7             ## wet albedo = dry * this (Lekner & Dorf 19
 const AMBIENT_WET := 0.9
 const EYE := 1.6
 const LAMP_POS := Vector3(0.3, 5.2, -33.0)   ## the bulb of lamp 0
-const BULB_R := 1.0                  ## light_size of the lamps (engine soft-shadow radius; a big opal luminaire); the visible globe stays 0.3
+const BULB_R := 0.3                  ## light_size (soft-shadow radius) of every lamp: a street luminaire emits from a ~0.6 m x 0.3 m window (typical cobra-head fixture, from memory, not re-fetched), so radius 0.3 m. NOT tuned to a bar.
 const BULB_VIS := 0.3
 const FOV := 62.0
 const PITCH_DEG := -6.0
