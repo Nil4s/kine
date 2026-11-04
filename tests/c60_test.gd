@@ -112,6 +112,12 @@ func settle(pu, label: String, tool: String, sz: Vector2i, scen := "") -> void:
 			return
 	var bs := []
 	var ss := []
+	var nb := [0]
+	var ns := [0]
+	var fb := func(): nb[0] += 1
+	var fs := func(): ns[0] += 1
+	pu.browser.resized.connect(fb)
+	pu.side.resized.connect(fs)
 	for i in 60:
 		await process_frame
 		bs.append(pu.browser.size)
@@ -119,7 +125,11 @@ func settle(pu, label: String, tool: String, sz: Vector2i, scen := "") -> void:
 	var tag := "%s %dx%d" % [label, sz.x, sz.y] + " " + scen
 	var b := spread(bs)
 	ok(b == Vector2.ZERO, "browser at %s: size spread %s over 60 frames (first %s last %s)" % [tag, str(b), str(bs[0]), str(bs[59])])
+	pu.browser.resized.disconnect(fb)
+	pu.side.resized.disconnect(fs)
+	ok(nb[0] == 0, "browser at %s: resized fired %d times in 60 idle frames (a size that is set and set back inside one frame counts)" % [tag, nb[0]])
 	if tool != "":
+		ok(ns[0] == 0, "dialog at %s: resized fired %d times in 60 idle frames" % [tag, ns[0]])
 		var d := spread(ss)
 		ok(d == Vector2.ZERO, "dialog at %s: size spread %s over 60 frames (first %s last %s)" % [tag, str(d), str(ss[0]), str(ss[59])])
 	pu.close_dialog()
