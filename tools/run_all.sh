@@ -959,3 +959,6 @@ EXTRA="$EXTRA c63:w"   # c63: the no-printer print estimate lands on a measured 
 
 
 EXTRA="$EXTRA c65:w"   # c65: over 256 bodies the look-merge ignores the body name: 600 named boxes in 6 materials each keep their own (tests/c65_test.gd)
+
+
+EXTRA="$EXTRA c62:w"   # C62: no bone end under the toolbar or a panel in the opening view / Fit / Home at 1024, 1280, 1920
