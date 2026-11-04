@@ -912,3 +912,5 @@ EXTRA="$EXTRA c45:w"   # c45: Alt+click through to the hidden face; sketch stack
 
 
 EXTRA="$EXTRA c47:w"   # c47: mirror you can trust: facing axis from geometry (#273), side from geometry (#274), mirror seam kink (#251) (tests/c47_test.gd)
+
+EXTRA="$EXTRA c57:w"   # c57: slicer-like print estimate (walls + infill, time from flow, bigger-than-bed scale models, 5 kg sanity) against Bambu Studio on a cube and Benchy (tests/c57_test.gd)

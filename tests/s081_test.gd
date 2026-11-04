@@ -3,8 +3,9 @@ extends SceneTree
 ## 3 wood boards (600x89x38 twice, 900x89x38 once), painted with the Colour > Wood chip (real clicks), then the Export dialog's Cut list target and its Export button.
 ##   1 LIST   2 rows, counts 2 and 1, total 2.1 board-metres within 0.001 (from the built solids)
 ##   2 CSV    the file the dialog wrote, re-read from disk: same rows, counts and total
-##   3 COST   a 20 cm3 PLA part: the Size line says "about R$ 2,98" within R$ 0,01 of 20*1.24/1000*120
-##   4 PRICE  changing the PLA price in the dialog's Prices row (240) doubles the readout (R$ 5,95)
+##   3 COST   a 20 cm3 PLA part: the Size line says "about R$ 0,94" within R$ 0,01 (C57 REWRITE of the solid-volume bar R$ 2,98: the row C57 of LEDGER_210 makes PLA a walls + 15 pct infill estimate;
+##            40x25x20 block: shell 4600 mm2 x 0.85 = 3910 mm3, infill 15 pct of 16090 = 2414, 6.32 cm3 x 1.24 g x R$ 120/kg = 0,94)
+##   4 PRICE  changing the PLA price in the dialog's Prices row (240) doubles the readout (R$ 1,88; C57 rewrite of 5,95)
 const DIR := "user://zz_s081"
 const DIRT := "user://zz_s081_scenes"
 const SHOT := "C:/Temp/claude/s081"
@@ -211,9 +212,9 @@ func _init() -> void:
 	pu.sync()
 	await idle(10)
 	var txt: String = ep.size_l.text
-	var want := 20.0 * 1.24 / 1000.0 * 120.0
+	var want := 6.3235 * 1.24 / 1000.0 * 120.0   # C57: was 20.0 * ...
 	var got := brl_in(txt)
-	ok(got >= 0.0 and absf(got - want) <= 0.01 and txt.contains("about R$ 2,98"), "3 20 cm3 PLA: the Size line says [%s] -> R$ %.2f (want %.3f within 0.01, Brazilian comma); visible %s" % [txt, got, want, str(ep.size_l.visible)])
+	ok(got >= 0.0 and absf(got - want) <= 0.01 and txt.contains("about R$ 0,94"), "3 20 cm3 PLA: the Size line says [%s] -> R$ %.2f (want %.3f within 0.01, Brazilian comma); visible %s" % [txt, got, want, str(ep.size_l.visible)])
 	await shot("cost_pla")
 
 	# 4 PRICE: change PLA to 240 in the dialog's Prices row

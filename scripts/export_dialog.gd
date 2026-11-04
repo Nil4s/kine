@@ -626,6 +626,7 @@ func checks(id: String, run: String) -> Array:
 		var pl: Array = MeshExport.check_lines(m.S.part, quality(), ExportBudget.BUDGETS[ui_budget.selected] if ui_budget != null and ui_budget.selected >= 0 else 0)
 		if not (m.S.part as Dictionary).is_empty() and Part.available():
 			pl.append_array(PrintSplit.size_lines(m.S.part, bed_mm, split_fit))
+			pl.append_array(C57PrintEst.lines(m.S.part))   # C57: walls + infill mass, time, scale models, the 5 kg sanity line
 			if ui_fit != null and ui_fit.button_pressed:   # C20
 				var fbo := MeshExport.bodies_of(m.S.part, quality())
 				if not (fbo["bodies"] as Array).is_empty():
