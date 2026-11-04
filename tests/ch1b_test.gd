@@ -162,5 +162,95 @@ func _init() -> void:
 		if not c["capped"] and c["printed"] * 1.10 > c["phys"] * 1.03:
 			inflated = true
 	ok(inflated, "6 control: a printed cell inflated 10 pct trips the bar")
+	# ---- CH1d (bars written before the Miami / NY numbers were run through them; see the commit order) ----
+	var mj = JSON.parse_string(FileAccess.get_file_as_string("res://out/ch1/members.json"))
+	var ny := Ch1House.from_members(mj, "levittown_ny")
+	var mia := Ch1House.from_members(mj, "miami_fl")
+	var Lny: Array = HC.check(ny)
+	var Lmi: Array = HC.check(mia)
+	# D1 NY passes every line, with at least 45 lines
+	ok(Lny.size() >= 45 and failing(Lny).is_empty(), "D1 NY house: %d lines, %d failing" % [Lny.size(), failing(Lny).size()])
+	# D2 Miami fails a wind rule with the number: the roof-tie line, against an independent hand calc: 396 lb (140 mph <5:12, 24 in o.c., 25 ft: 384 + 48/4) x (175/140)^2 x 1.2 (exposure C)
+	var up = null
+	for l in Lmi:
+		if l["kind"] == "uplift":
+			up = l
+	ok(up != null and not up["pass"] and near(up["value"], 396.0 * 1.5625 * 1.2, 1.0) and up["limit"] == 625.0, "D2 Miami roof ties FAIL with %.0f lb against 625 lb (hand calc %.0f)" % [up["value"] if up != null else -1.0, 396.0 * 1.5625 * 1.2])
+	var upn = null
+	for l in Lny:
+		if l["kind"] == "uplift":
+			upn = l
+	ok(upn != null and upn["pass"] and near(upn["value"], 298.0 + 36.0 / 4.0, 0.5), "D2 NY roof ties pass with %.1f lb (hand calc 307.0: 298 + (334-298)/4 at 130 mph <5:12 24 in o.c.)" % upn["value"])
+	var site_fail := failing(Lmi).filter(func(x): return x["kind"] == "site")
+	ok(site_fail.size() == 1 and failing(Lmi).filter(func(x): return x["kind"] == "bracing").size() >= 1, "D2 Miami also fails the site wind range and the bracing lines (175 mph is off the tables)")
+	ok(not failing(Lmi).is_empty() and failing(Lny).is_empty(), "D2 the same house passes in NY and fails in Miami: only the site record changed")
+	# D3 each new rule, planted alone on the NY record, fails exactly its own kind
+	var plants := {}
+	var p1: Dictionary = ny.duplicate(true)
+	for c in p1["connections"]:
+		if c["key"] == "rafter_to_plate":
+			c["fastener"] = {}      # the drawing calls out no nails for this connection
+	plants["fastener (rafter to plate has no nails)"] = [p1, "fastener"]
+	var p2: Dictionary = ny.duplicate(true)
+	for c in p2["connections"]:
+		if c["key"] == "plate_to_plate":
+			c["fastener"]["spacing_in"] = 24
+	plants["fastener (plate to plate at 24 in)"] = [p2, "fastener"]
+	var p3: Dictionary = ny.duplicate(true)
+	p3["sheathing_nailing"]["wall"]["edge_in"] = 12.0
+	plants["sheathing nailing"] = [p3, "sheathing_nail"]
+	var p4: Dictionary = ny.duplicate(true)
+	p4["walls"][0]["openings"][0]["jacks"] = 0
+	plants["header bearing"] = [p4, "header_bearing"]
+	var p5: Dictionary = ny.duplicate(true)
+	p5["rafters"]["birdsmouth_in"] = 3.0
+	plants["birdsmouth"] = [p5, "birdsmouth"]
+	var p6: Dictionary = ny.duplicate(true)
+	p6["sill"]["embed_in"] = 3.0
+	plants["anchorage"] = [p6, "anchorage"]
+	var p7: Dictionary = ny.duplicate(true)
+	p7["site"]["sdc"] = "D1"
+	plants["seismic SDC D1"] = [p7, "seismic"]
+	for nm in plants:
+		var fp2 := failing(HC.check(plants[nm][0]))
+		ok(kinds(fp2) == [plants[nm][1]], "D3 planted %s: fails only %s (got %s)" % [nm, plants[nm][1], str(kinds(fp2))])
+	# D4 every connection type the member list has gets a fastener line
+	var mk := []
+	for m in mj["members"]:
+		if not mk.has(m["kind"]):
+			mk.append(m["kind"])
+	var need_keys: Array = HC.connections_of(mk)
+	var have_keys := []
+	for l in Lny:
+		if l["kind"] == "fastener":
+			have_keys.append(String(l["member"]).substr(9).split(" (")[0].replace(" ", "_"))
+	ok(need_keys.size() >= 9 and have_keys.size() == need_keys.size() and need_keys.all(func(k): return have_keys.has(k)), "D4 %d connection types in the member list, %d fastener lines" % [need_keys.size(), have_keys.size()])
+	# D5 the corrected panel rule: first panel must begin within 10 ft of the line end (the 12.5 ft held before was wrong); a panel starting 11 ft in fails alone
+	var h5: Dictionary = h.duplicate(true)
+	h5["walls"][0]["bracing"] = [{"pos_ft": 11.0, "len_ft": 4.0}, {"pos_ft": 18.0, "len_ft": 4.0}, {"pos_ft": 36.0, "len_ft": 4.0}]
+	var f5 := failing(HC.check(h5))
+	ok(kinds(f5) == ["bracing"] and f5.size() == 1, "D5 first panel 11 ft from the end fails (R602.10.2.2, 10 ft): %s" % str(kinds(f5)))
+	# D6 uplift table sanity: never lower with wind, span or closer spacing wider
+	var mono := true
+	for sp in [12.0, 16.0, 24.0]:
+		for rise in [4.0, 6.0]:
+			var pv := 0.0
+			for v in [110.0, 115.0, 120.0, 130.0, 140.0]:
+				var q: float = HC.uplift_demand(v, "B", rise, 24.0, sp)[0]
+				if q < pv:
+					mono = false
+				pv = q
+		for v in [110.0, 130.0, 140.0]:
+			if HC.uplift_demand(v, "B", 4.0, 28.0, sp)[0] < HC.uplift_demand(v, "B", 4.0, 24.0, sp)[0] or HC.uplift_demand(v, "B", 4.0, 24.0, 24.0)[0] < HC.uplift_demand(v, "B", 4.0, 24.0, 16.0)[0]:
+				mono = false
+	ok(mono, "D6 Table R802.11 cells ordered by wind, span and spacing")
+	# D7 the sites are records: lat/lon/zip/exposure/soil and a source for every load
+	var rec_ok := true
+	for sid in HC.SITES:
+		var st: Dictionary = HC.SITES[sid]
+		for key in ["lat", "lon", "zip", "exposure", "soil_class", "wind_mph", "ground_snow_psf", "sdc", "source", "edition", "lookup_status"]:
+			if not st.has(key):
+				rec_ok = false
+	ok(rec_ok and HC.SITES.size() == 2, "D7 two stored site records with every field and a source")
 	print("ch1b: %d fail" % fails)
 	quit(1 if fails > 0 else 0)

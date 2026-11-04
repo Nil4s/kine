@@ -115,15 +115,33 @@ func structure_sheet(b: Dictionary, pick: Dictionary) -> Dictionary:
 	var denom := int(pick["denom"])
 	var mj = JSON.parse_string(FileAccess.get_file_as_string("res://out/ch1/members.json"))
 	var lines := Ch1House.run(mj)
+	var h07 := Ch1House.from_members(mj)
+	var st07: Dictionary = h07.get("site", {})
 	var ents := []
 	var y := 0.0
-	var tx := 3.0
+	var tx := 2.8
 	var nfail := 0
 	var nunv := 0
+	var tfail := 0
+	var tunv := 0
 	for l in lines:
+		tfail += 0 if l["pass"] else 1
+		tunv += 1 if String(l["text"]).contains("UNVERIFIED") else 0
+	if not st07.is_empty():
+		ents.append(Blueprint._text(Vector2(0, y), "CODE: IRC 2021 (ICC International Residential Code), tables read from mirrors. Jurisdiction: " + String(st07["edition"]), 2.6, "l", "text"))
+		y += 4.6
+		ents.append(Blueprint._text(Vector2(0, y), "SITE: %s  lat %.4f lon %.4f  zip %s  |  Vult %d mph  exposure %s  soil class %s  ground snow %s psf  SDC %s" % [st07["name"], st07["lat"], st07["lon"], st07["zip"], int(st07["wind_mph"]), st07["exposure"], st07["soil_class"], HouseCheck.g(float(st07["ground_snow_psf"])), st07["sdc"]], 2.6, "l", "text"))
+		y += 4.6
+		ents.append(Blueprint._text(Vector2(0, y), "SITE VALUES: " + String(st07["source"]), 2.2, "l", "text"))
+		y += 6.0
+	for l in lines:
+		if ["fastener", "sheathing_nail", "birdsmouth", "anchorage"].has(String(l["kind"])):
+			continue      # sheet 08
 		var fp := ""
 		var parts := String(l["text"]).split(" | ")
 		var tail := String(parts[parts.size() - 1])
+		if String(l["kind"]) == "site":
+			tail = String(parts[3])
 		if tail.contains("first principles"):
 			parts = PackedStringArray(String(l["text"]).split(" | first principles"))
 			tail = String(String(parts[0]).split(" | ")[-1])
@@ -132,9 +150,9 @@ func structure_sheet(b: Dictionary, pick: Dictionary) -> Dictionary:
 		nunv += 1 if unv != "" else 0
 		nfail += 0 if l["pass"] else 1
 		ents.append(Blueprint._text(Vector2(0, y), "%s  %s: %s%s%s" % ["PASS" if l["pass"] else "FAIL", l["member"], tail, fp, unv], tx, "l", "text"))
-		y += 5.2
-	y += 4.0
-	ents.append(Blueprint._text(Vector2(0, y), "RESULT  %d lines, %d FAIL, %d PASS, %d marked UNVERIFIED (a table cell or rule that could not be read)" % [lines.size(), nfail, lines.size() - nfail, nunv], 3.6, "l", "text"))
+		y += 4.5
+	y += 3.0
+	ents.append(Blueprint._text(Vector2(0, y), "RESULT (sheets 07 + 08): %d lines, %d FAIL, %d PASS, %d marked UNVERIFIED (a table cell, site value or rule that could not be read)" % [lines.size(), tfail, lines.size() - tfail, tunv], 3.2, "l", "text"))
 	y += 7.0
 	ents.append(Blueprint._text(Vector2(0, y), "Tables: " + HouseCheck.TABLES_SOURCE, 2.4, "l", "text"))
 	y += 5.0
@@ -144,12 +162,107 @@ func structure_sheet(b: Dictionary, pick: Dictionary) -> Dictionary:
 	ents = Blueprint._shift(ents, area.position + Vector2(12, 14) - bb2.position)
 	var bd := b.duplicate(true)
 	bd["name"] = String(b["name"]) + " structure check"
-	ents.append_array(Blueprint._frame(bd, "Front", paper, denom, 7, 7))
+	ents.append_array(Blueprint._frame(bd, "Front", paper, denom, 7, 8))
 	for e in ents:
 		if String(e.get("t", "")) == "text" and String(e["s"]) == "Front elevation":
 			e["s"] = "Structure check (IRC 2021)"
 	var sz := Blueprint.paper_size(paper)
 	return {"paper": paper, "w": sz.x, "h": sz.y, "denom": denom, "k": 1000.0 / denom, "tab": "Structure", "title": "Structure check", "name": bd["name"], "ents": ents, "area": area}
+
+
+## sheet 8: connections + nailing table (Table R602.3(1) rows against what the drawing calls out) and two details at 1:5: the foundation section and the eave connection (CH1d)
+func connection_sheet(b: Dictionary, pick: Dictionary) -> Dictionary:
+	var paper: String = pick["paper"]
+	var mj = JSON.parse_string(FileAccess.get_file_as_string("res://out/ch1/members.json"))
+	var lines := Ch1House.run(mj)
+	var h := Ch1House.from_members(mj)
+	var tab := []
+	var y := 0.0
+	tab.append(Blueprint._text(Vector2(0, y), "CONNECTIONS AND NAILING  -  IRC 2021 Table R602.3(1) row against what this drawing calls out", 3.6, "l", "text"))
+	y += 7.0
+	for l in lines:
+		if not ["fastener", "sheathing_nail", "birdsmouth", "anchorage", "uplift"].has(String(l["kind"])):
+			continue
+		var parts := String(l["text"]).split(" | ")
+		var words := String(parts[parts.size() - 1])
+		var unv := "  [UNVERIFIED]" if String(l["text"]).contains("UNVERIFIED") else ""
+		tab.append(Blueprint._text(Vector2(0, y), "%s  %s: %s%s" % ["PASS" if l["pass"] else "FAIL", l["member"], words, unv], 2.5, "l", "text"))
+		y += 4.2
+	y += 2.0
+	var st: Dictionary = h.get("site", {})
+	tab.append(Blueprint._text(Vector2(0, y), "Site loads on every line: Vult %s mph, exposure %s (%s). Anchor bolts placed: %d. Rafter ties: %d H2.5A." % [str(st.get("wind_mph", "?")), st.get("exposure", "?"), st.get("name", ""), int(mj["meta"]["anchor_bolts"]["count"]), int(mj["meta"]["ties"]["count"])], 2.4, "l", "text"))
+	y += 4.6
+	tab.append(Blueprint._text(Vector2(0, y), "UNVERIFIED here: anchor bolt tension capacity (ACI 318 hand calc), toenail capacity, Fc-perp, Table R602.3(3) wind cell for 7/16 OSB, and the site values marked on sheet 07.", 2.4, "l", "text"))
+	var area := Blueprint._area(paper)
+	var tb := Blueprint._bounds(tab)
+	tab = Blueprint._shift(tab, area.position + Vector2(0, 2) - tb.position)
+	var top := area.position.y + 2 + tb.size.y + 14.0
+	# detail A: foundation section at 1:10 (model mm, y up -> paper mm / 5, y down)
+	var k := 10.0
+	var P := func(z: float, yy: float) -> Vector2:
+		return Vector2(z / k, -yy / k)
+	var A := []
+	A.append(Blueprint._poly([P.call(-600, -102), P.call(0, -102), P.call(0, -305), P.call(305, -305), P.call(305, -102), P.call(900, -102), P.call(900, 0), P.call(0, 0), P.call(0, -102)], "roof"))
+	A.append(Blueprint._poly([P.call(0, 0), P.call(89, 0), P.call(89, 38), P.call(0, 38)], "elev-wall"))
+	A.append(Blueprint._poly([P.call(0, 38), P.call(89, 38), P.call(89, 300), P.call(0, 300)], "elev-wall"))
+	A.append(Blueprint._poly([P.call(-11, 0), P.call(0, 0), P.call(0, 300), P.call(-11, 300)], "elev-door"))
+	A.append(Blueprint._poly([P.call(-30, 0), P.call(-11, 0), P.call(-11, 300), P.call(-30, 300)], "elev-wall"))
+	A.append(Blueprint._poly([P.call(38.2, -178), P.call(50.8, -178), P.call(50.8, 55), P.call(38.2, 55)], "wall"))
+	A.append(Blueprint._poly([P.call(28, 38), P.call(61, 38), P.call(61, 50), P.call(28, 50)], "wall"))
+	A.append(Blueprint._line(P.call(-600, -102), P.call(0, -102), "ground"))
+	var ax := 1000.0
+	var lab := [["1/2 in A307 anchor bolt, 7 in embed (R403.1.6), 68 in o.c. max, 9 in from each plate end", P.call(44, -120), P.call(ax, -120)], ["2x4 pressure-treated bottom plate", P.call(60, 18), P.call(ax, 18)],
+		["2x4 stud: 4-8d box toe nails to the plate (Table R602.3(1))", P.call(70, 150), P.call(ax, 150)], ["7/16 OSB, 6d common 6 in edges / 12 in field", P.call(-5, 250), P.call(ax, 250)],
+		["4 in slab on grade", P.call(500, -50), P.call(ax, -50)], ["footing 12 x 8 in (Table R403.1(1), 1500 psf soil)", P.call(150, -230), P.call(ax, -230)]]
+	for t in lab:
+		A.append(Blueprint._line(t[1], t[2] + Vector2(-2, 0), "leader"))
+		A.append(Blueprint._text(t[2] + Vector2(0, 0.8), String(t[0]), 2.5, "l", "callout-text"))
+	A.append(Blueprint._text(P.call(-600, 460), "A  FOUNDATION SECTION AT THE WALL  1:10", 3.2, "l", "text"))
+	var ab := Blueprint._bounds(A)
+	A = Blueprint._shift(A, Vector2(area.position.x, top) - ab.position)
+	# detail B: eave connection at 1:10, the heel of a rafter (clipped from its own sketch polygon), double top plate, ceiling joist, H2.5A
+	var B := []
+	var raf: Dictionary = {}
+	for m in d["members"]:
+		if String(m["kind"]) == "rafter" and m.has("poly") and m["poly"] != null:
+			raf = m
+			break
+	var pts := []
+	for q in raf["poly"]:
+		pts.append(Vector2(float(q[0]), float(q[1])))
+	var cl := Ch1House.clip(pts, [Vector2(-420, 2300), Vector2(620, 2300), Vector2(620, 2750), Vector2(-420, 2750)])
+	var rp := []
+	for q in cl:
+		rp.append(P.call(q.x, q.y))
+	B.append(Blueprint._poly(rp, "elev-wall"))
+	B.append(Blueprint._poly([P.call(0, 2353), P.call(89, 2353), P.call(89, 2391), P.call(0, 2391)], "elev-wall"))
+	B.append(Blueprint._poly([P.call(0, 2391), P.call(89, 2391), P.call(89, 2429), P.call(0, 2429)], "elev-wall"))
+	B.append(Blueprint._poly([P.call(0, 2429), P.call(89, 2429), P.call(89, 2467), P.call(0, 2467)], "elev-wall"))
+	B.append(Blueprint._poly([P.call(0, 2300), P.call(89, 2300), P.call(89, 2353), P.call(0, 2353)], "elev-wall"))
+	B.append(Blueprint._poly([P.call(-11, 2300), P.call(0, 2300), P.call(0, 2467), P.call(-11, 2467)], "elev-door"))
+	B.append(Blueprint._poly([P.call(95, 2467), P.call(620, 2467), P.call(620, 2651), P.call(95, 2651)], "elev-wall"))
+	B.append(Blueprint._poly([P.call(-8, 2440), P.call(-8, 2515), P.call(2, 2515), P.call(2, 2440)], "wall"))
+	var bx := 1000.0
+	var labb := [["H2.5A hurricane tie at every rafter: rated 625 lb, uplift 307 lb at 130 mph (Table R802.11)", P.call(-8, 2480), P.call(bx, 2400)],
+		["rafter 2x10 @ 24 in: 3-16d box toe nails to the plate (2 + 1), Table R602.3(1)", P.call(150, 2660), P.call(bx, 2680)],
+		["birdsmouth seat 1.17 in deep in 9.25 in (max 1/4 = 2.31 in, R802.7.1 -> R502.8.1), 3.5 in bearing (R802.6)", P.call(40, 2440), P.call(bx, 2470)],
+		["double top plate: 16d common at 16 in o.c. (plate to plate)", P.call(80, 2410), P.call(bx, 2540)],
+		["ceiling joist 2x8: 4-8d box toe nails to the plate", P.call(300, 2560), P.call(bx, 2610)], ["stud: 4-8d box toe nails to the plate", P.call(60, 2330), P.call(bx, 2330)]]
+	for t in labb:
+		B.append(Blueprint._line(t[1], t[2] + Vector2(-2, 0), "leader"))
+		B.append(Blueprint._text(t[2] + Vector2(0, 0.8), String(t[0]), 2.5, "l", "callout-text"))
+	B.append(Blueprint._text(P.call(-420, 2800), "B  EAVE CONNECTION, HEEL OF THE RAFTER  1:10", 3.2, "l", "text"))
+	var bb2 := Blueprint._bounds(B)
+	B = Blueprint._shift(B, Vector2(area.position.x, top + ab.size.y + 12.0) - bb2.position)
+	var ents := tab + A + B
+	var bd := b.duplicate(true)
+	bd["name"] = String(b["name"]) + " connections"
+	ents.append_array(Blueprint._frame(bd, "Front", paper, 10, 8, 8))
+	for e in ents:
+		if String(e.get("t", "")) == "text" and String(e["s"]) == "Front elevation":
+			e["s"] = "Connections, nailing, foundation (IRC 2021)"
+	var sz := Blueprint.paper_size(paper)
+	return {"paper": paper, "w": sz.x, "h": sz.y, "denom": 10, "k": 100.0, "tab": "Connections", "title": "Connections", "name": bd["name"], "ents": ents, "area": area}
 
 
 func sheets() -> void:
@@ -168,6 +281,7 @@ func sheets() -> void:
 	await save_sheet(Blueprint.sheet(bl, "Side", pick), "05_left_elevation")
 	await save_sheet(section_sheet(b, pick), "06_section")
 	await save_sheet(structure_sheet(b, pick), "07_structure")
+	await save_sheet(connection_sheet(b, pick), "08_connections")
 
 
 # ------------------------------------------------------------------ 3D
