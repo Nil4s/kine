@@ -48,11 +48,12 @@ class R:
         return d
 
     def look(self, body, kind, name):
+        kind0 = kind
         c = COL[kind]
         kw = {"body": float(body), "color": list(c), "metal": 0.0, "rough": 0.9, "preset": "Custom"}
         if kind == "window":
             kw.update({"alpha": 0.35, "rough": 0.05})
-        self.feat("appear", "Paint " + name, **kw)
+        self.feat("appear", "Paint " + gname(kind), **kw)
 
     def member(self, name, kind, nominal, box, **extra):
         m = {"name": name, "kind": kind, "nominal": nominal, "box": [round(v, 3) for v in box]}
@@ -60,7 +61,7 @@ class R:
         self.members.append(m)
 
     def box(self, name, kind, nominal, x0, y0, z0, x1, y1, z1, look=None, **extra):
-        self.feat("prim", name, kind="box", op="new", x=x0, y=y0, z=z0, w=x1 - x0, h=y1 - y0, d=z1 - z0)
+        self.feat("prim", gname(kind), kind="box", op="new", x=x0, y=y0, z=z0, w=x1 - x0, h=y1 - y0, d=z1 - z0)
         b = self.nb
         self.nb += 1
         self.look(b, look or kind_look(kind), name)
@@ -71,7 +72,7 @@ class R:
         """one box and a linear pattern: count boxes step apart along axis ('x'|'z'); a single box when count == 1"""
         if count == 1:
             return self.box(namefmt(0) if namefmt else name, kind, nominal, x0, y0, z0, x1, y1, z1, look, **extra)
-        self.feat("prim", name, kind="box", op="new", x=x0, y=y0, z=z0, w=x1 - x0, h=y1 - y0, d=z1 - z0)
+        self.feat("prim", gname(kind), kind="box", op="new", x=x0, y=y0, z=z0, w=x1 - x0, h=y1 - y0, d=z1 - z0)
         b = self.nb
         self.nb += 1
         self.look(b, look or kind_look(kind), name)
@@ -99,7 +100,7 @@ class R:
             b = pts_zy[(i + 1) % n]
             ents.append({"a": [-a[0], a[1]], "b": [-b[0], b[1]], "k": "line"})
         sk = self.feat("sketch", name + " section", plane=pid, dims=[], ents=ents)
-        self.feat("extrude", name, sketch=sk["id"], dist=thick, both=False, op="new")
+        self.feat("extrude", gname(kind), sketch=sk["id"], dist=thick, both=False, op="new")
         b = self.nb
         self.nb += 1
         self.look(b, look or kind_look(kind), name)
@@ -116,6 +117,10 @@ class R:
 
     def mark(self, name):
         self.stage_marks.append({"name": name, "upto": len(self.f)})
+
+
+def gname(kind):
+    return kind.replace("_", " ").capitalize()
 
 
 def kind_look(kind):

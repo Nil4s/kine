@@ -1,0 +1,195 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="420.0mm" height="297.0mm" viewBox="0 0 420.0 297.0">
+<title>Levitt Ranch 1949 (CH1) - Front elevation</title>
+<rect x="0" y="0" width="420.0" height="297.0" fill="#ffffff"/>
+<g id="sheet" data-paper="A3" data-scale="1:50" data-denom="50" data-mm-per-m="20.0" data-units="mm">
+<polygon class="elev-wall" data-room="r1" points="115.735,120.474 310.815,120.474 310.815,169.814 115.735,169.814" fill="#ececec" stroke="#000000" stroke-width="0.35" stroke-linejoin="miter"/>
+<polygon class="elev-door" data-id="o1" data-kind="door" data-room="r1" points="172.595,129.174 190.875,129.174 190.875,169.814 172.595,169.814" fill="#ffffff" stroke="#000000" stroke-width="0.3" stroke-linejoin="miter"/>
+<text class="dim-text" data-kind="width" data-id="o1" x="181.735" y="127.974" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">0.91</text>
+<polygon class="elev-window" data-id="o2" data-kind="window" data-room="r1" points="128.595,127.154 146.875,127.154 146.875,151.534 128.595,151.534" fill="#d6e6f2" stroke="#000000" stroke-width="0.3" stroke-linejoin="miter"/>
+<line class="window" data-id="o2" data-kind="window" data-room="r1" x1="137.735" y1="127.154" x2="137.735" y2="151.534" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o2" data-kind="window" data-room="r1" x1="128.595" y1="139.344" x2="146.875" y2="139.344" stroke="#000000" stroke-width="0.18"/>
+<text class="dim-text" data-kind="width" data-id="o2" x="137.735" y="125.954" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">0.91</text>
+<polygon class="elev-window" data-id="o3" data-kind="window" data-room="r1" points="270.595,127.154 288.875,127.154 288.875,151.534 270.595,151.534" fill="#d6e6f2" stroke="#000000" stroke-width="0.3" stroke-linejoin="miter"/>
+<line class="window" data-id="o3" data-kind="window" data-room="r1" x1="279.735" y1="127.154" x2="279.735" y2="151.534" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o3" data-kind="window" data-room="r1" x1="270.595" y1="139.344" x2="288.875" y2="139.344" stroke="#000000" stroke-width="0.18"/>
+<text class="dim-text" data-kind="width" data-id="o3" x="279.735" y="125.954" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">0.91</text>
+<polygon class="roof" data-kind="gable" points="107.615,92.376 318.935,92.376 318.935,120.474 107.615,120.474" fill="#c8c8c8" stroke="#000000" stroke-width="0.4" stroke-linejoin="miter"/>
+<line class="roof-edge" x1="107.615" y1="120.474" x2="107.615" y2="92.376" stroke="#000000" stroke-width="0.18"/>
+<line class="roof-edge" x1="318.935" y1="92.376" x2="318.935" y2="120.474" stroke="#000000" stroke-width="0.18"/>
+<line class="roof-edge" x1="318.935" y1="120.474" x2="107.615" y2="120.474" stroke="#000000" stroke-width="0.18"/>
+<line class="roof-edge" x1="318.935" y1="92.376" x2="107.615" y2="92.376" stroke="#000000" stroke-width="0.18"/>
+<line class="ground" x1="87.615" y1="169.814" x2="338.935" y2="169.814" stroke="#000000" stroke-width="0.6"/>
+<line class="ground-hatch" x1="89.615" y1="170.114" x2="87.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="91.415" y1="170.114" x2="89.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="93.215" y1="170.114" x2="91.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="95.015" y1="170.114" x2="93.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="96.815" y1="170.114" x2="94.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="98.615" y1="170.114" x2="96.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="100.415" y1="170.114" x2="98.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="102.215" y1="170.114" x2="100.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="104.015" y1="170.114" x2="102.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="105.815" y1="170.114" x2="103.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="107.615" y1="170.114" x2="105.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="109.415" y1="170.114" x2="107.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="111.215" y1="170.114" x2="109.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="113.015" y1="170.114" x2="111.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="114.815" y1="170.114" x2="112.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="116.615" y1="170.114" x2="114.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="118.415" y1="170.114" x2="116.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="120.215" y1="170.114" x2="118.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="122.015" y1="170.114" x2="120.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="123.815" y1="170.114" x2="121.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="125.615" y1="170.114" x2="123.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="127.415" y1="170.114" x2="125.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="129.215" y1="170.114" x2="127.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="131.015" y1="170.114" x2="129.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="132.815" y1="170.114" x2="130.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="134.615" y1="170.114" x2="132.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="136.415" y1="170.114" x2="134.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="138.215" y1="170.114" x2="136.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="140.015" y1="170.114" x2="138.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="141.815" y1="170.114" x2="139.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="143.615" y1="170.114" x2="141.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="145.415" y1="170.114" x2="143.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="147.215" y1="170.114" x2="145.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="149.015" y1="170.114" x2="147.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="150.815" y1="170.114" x2="148.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="152.615" y1="170.114" x2="150.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="154.415" y1="170.114" x2="152.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="156.215" y1="170.114" x2="154.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="158.015" y1="170.114" x2="156.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="159.815" y1="170.114" x2="157.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="161.615" y1="170.114" x2="159.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="163.415" y1="170.114" x2="161.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="165.215" y1="170.114" x2="163.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="167.015" y1="170.114" x2="165.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="168.815" y1="170.114" x2="166.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="170.615" y1="170.114" x2="168.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="172.415" y1="170.114" x2="170.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="174.215" y1="170.114" x2="172.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="176.015" y1="170.114" x2="174.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="177.815" y1="170.114" x2="175.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="179.615" y1="170.114" x2="177.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="181.415" y1="170.114" x2="179.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="183.215" y1="170.114" x2="181.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="185.015" y1="170.114" x2="183.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="186.815" y1="170.114" x2="184.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="188.615" y1="170.114" x2="186.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="190.415" y1="170.114" x2="188.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="192.215" y1="170.114" x2="190.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="194.015" y1="170.114" x2="192.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="195.815" y1="170.114" x2="193.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="197.615" y1="170.114" x2="195.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="199.415" y1="170.114" x2="197.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="201.215" y1="170.114" x2="199.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="203.015" y1="170.114" x2="201.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="204.815" y1="170.114" x2="202.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="206.615" y1="170.114" x2="204.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="208.415" y1="170.114" x2="206.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="210.215" y1="170.114" x2="208.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="212.015" y1="170.114" x2="210.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="213.815" y1="170.114" x2="211.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="215.615" y1="170.114" x2="213.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="217.415" y1="170.114" x2="215.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="219.215" y1="170.114" x2="217.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="221.015" y1="170.114" x2="219.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="222.815" y1="170.114" x2="220.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="224.615" y1="170.114" x2="222.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="226.415" y1="170.114" x2="224.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="228.215" y1="170.114" x2="226.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="230.015" y1="170.114" x2="228.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="231.815" y1="170.114" x2="229.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="233.615" y1="170.114" x2="231.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="235.415" y1="170.114" x2="233.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="237.215" y1="170.114" x2="235.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="239.015" y1="170.114" x2="237.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="240.815" y1="170.114" x2="238.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="242.615" y1="170.114" x2="240.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="244.415" y1="170.114" x2="242.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="246.215" y1="170.114" x2="244.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="248.015" y1="170.114" x2="246.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="249.815" y1="170.114" x2="247.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="251.615" y1="170.114" x2="249.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="253.415" y1="170.114" x2="251.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="255.215" y1="170.114" x2="253.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="257.015" y1="170.114" x2="255.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="258.815" y1="170.114" x2="256.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="260.615" y1="170.114" x2="258.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="262.415" y1="170.114" x2="260.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="264.215" y1="170.114" x2="262.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="266.015" y1="170.114" x2="264.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="267.815" y1="170.114" x2="265.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="269.615" y1="170.114" x2="267.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="271.415" y1="170.114" x2="269.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="273.215" y1="170.114" x2="271.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="275.015" y1="170.114" x2="273.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="276.815" y1="170.114" x2="274.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="278.615" y1="170.114" x2="276.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="280.415" y1="170.114" x2="278.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="282.215" y1="170.114" x2="280.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="284.015" y1="170.114" x2="282.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="285.815" y1="170.114" x2="283.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="287.615" y1="170.114" x2="285.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="289.415" y1="170.114" x2="287.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="291.215" y1="170.114" x2="289.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="293.015" y1="170.114" x2="291.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="294.815" y1="170.114" x2="292.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="296.615" y1="170.114" x2="294.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="298.415" y1="170.114" x2="296.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="300.215" y1="170.114" x2="298.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="302.015" y1="170.114" x2="300.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="303.815" y1="170.114" x2="301.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="305.615" y1="170.114" x2="303.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="307.415" y1="170.114" x2="305.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="309.215" y1="170.114" x2="307.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="311.015" y1="170.114" x2="309.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="312.815" y1="170.114" x2="310.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="314.615" y1="170.114" x2="312.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="316.415" y1="170.114" x2="314.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="318.215" y1="170.114" x2="316.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="320.015" y1="170.114" x2="318.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="321.815" y1="170.114" x2="319.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="323.615" y1="170.114" x2="321.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="325.415" y1="170.114" x2="323.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="327.215" y1="170.114" x2="325.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="329.015" y1="170.114" x2="327.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="330.815" y1="170.114" x2="328.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="332.615" y1="170.114" x2="330.615" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="334.415" y1="170.114" x2="332.415" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="336.215" y1="170.114" x2="334.215" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="338.015" y1="170.114" x2="336.015" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="ground-hatch" x1="339.815" y1="170.114" x2="337.815" y2="172.114" stroke="#404040" stroke-width="0.13"/>
+<line class="dim" x1="115.735" y1="173.614" x2="115.735" y2="181.614" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="310.815" y1="173.614" x2="310.815" y2="181.614" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="115.735" y1="180.114" x2="310.815" y2="180.114" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="114.745" y1="179.124" x2="116.725" y2="181.104" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="309.825" y1="179.124" x2="311.805" y2="181.104" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="overall" data-axis="u" x="213.275" y="179.314" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">9.75</text>
+<line class="dim" x1="340.435" y1="169.814" x2="348.435" y2="169.814" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="340.435" y1="92.376" x2="348.435" y2="92.376" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="346.935" y1="169.814" x2="346.935" y2="92.376" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="345.945" y1="170.804" x2="347.925" y2="168.824" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="345.945" y1="93.366" x2="347.925" y2="91.386" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="overall" data-axis="y" x="346.135" y="131.095" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 346.135 131.095)">3.87</text>
+<line class="level" x1="78.615" y1="169.814" x2="85.615" y2="169.814" stroke="#000000" stroke-width="0.18"/>
+<text class="text" data-kind="level" x="77.615" y="169.014" font-family="Arial, Helvetica, sans-serif" font-size="2.2" text-anchor="end" fill="#000000">+0.00</text>
+<polygon class="border" points="10.0,10.0 410.0,10.0 410.0,287.0 10.0,287.0" fill="none" stroke="#000000" stroke-width="0.5" stroke-linejoin="miter"/>
+<line class="title" x1="10.0" y1="263.0" x2="410.0" y2="263.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="12.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">PROJECT</text>
+<text class="title-text" data-field="project" x="12.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Levitt Ranch 1949 (CH1)</text>
+<line class="title" x1="130.0" y1="263.0" x2="130.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="132.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">SHEET  (dimensions in metres)</text>
+<text class="title-text" data-field="sheet" x="132.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Front elevation</text>
+<text class="title-label" data-field="size" x="132.0" y="284.0" font-family="Arial, Helvetica, sans-serif" font-size="2.4" text-anchor="start" fill="#606060">A3   2 / 3</text>
+<line class="title" x1="250.0" y1="263.0" x2="250.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="252.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">SCALE</text>
+<text class="title-text" data-field="scale" x="252.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">1:50</text>
+<line class="title" x1="290.0" y1="263.0" x2="290.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="292.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">DATE</text>
+<text class="title-text" data-field="date" x="292.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">2026-11-03</text>
+<line class="title" x1="346.0" y1="263.0" x2="346.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="348.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">DRAWN WITH</text>
+<text class="title-text" data-field="drawn" x="348.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Kine</text>
+</g>
+</svg>

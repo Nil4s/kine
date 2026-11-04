@@ -36,7 +36,7 @@
    {
     "t": "prim",
     "id": "f3",
-    "name": "Slab on grade",
+    "name": "Slab",
     "kind": "box",
     "op": "new",
     "x": 0,
@@ -49,7 +49,7 @@
    {
     "t": "appear",
     "id": "f4",
-    "name": "Paint Slab on grade",
+    "name": "Paint Slab",
     "body": 1.0,
     "color": [
      0.62,
@@ -63,7 +63,7 @@
    {
     "t": "prim",
     "id": "f5",
-    "name": "plate_b.F.0",
+    "name": "Bottom plate",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -76,7 +76,7 @@
    {
     "t": "appear",
     "id": "f6",
-    "name": "Paint plate_b.F.0",
+    "name": "Paint Plate",
     "body": 2.0,
     "color": [
      0.55,
@@ -90,7 +90,7 @@
    {
     "t": "prim",
     "id": "f7",
-    "name": "plate_b.F.1",
+    "name": "Bottom plate",
     "kind": "box",
     "op": "new",
     "x": 3769.5,
@@ -103,7 +103,7 @@
    {
     "t": "appear",
     "id": "f8",
-    "name": "Paint plate_b.F.1",
+    "name": "Paint Plate",
     "body": 3.0,
     "color": [
      0.55,
@@ -117,7 +117,7 @@
    {
     "t": "prim",
     "id": "f9",
-    "name": "plate_b.B.0",
+    "name": "Bottom plate",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -130,7 +130,7 @@
    {
     "t": "appear",
     "id": "f10",
-    "name": "Paint plate_b.B.0",
+    "name": "Paint Plate",
     "body": 4.0,
     "color": [
      0.55,
@@ -144,7 +144,7 @@
    {
     "t": "prim",
     "id": "f11",
-    "name": "plate_b.L.0",
+    "name": "Bottom plate",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -157,7 +157,7 @@
    {
     "t": "appear",
     "id": "f12",
-    "name": "Paint plate_b.L.0",
+    "name": "Paint Plate",
     "body": 5.0,
     "color": [
      0.55,
@@ -171,7 +171,7 @@
    {
     "t": "prim",
     "id": "f13",
-    "name": "plate_b.R.0",
+    "name": "Bottom plate",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -184,7 +184,7 @@
    {
     "t": "appear",
     "id": "f14",
-    "name": "Paint plate_b.R.0",
+    "name": "Paint Plate",
     "body": 6.0,
     "color": [
      0.55,
@@ -198,7 +198,7 @@
    {
     "t": "prim",
     "id": "f15",
-    "name": "plate_b.H.0",
+    "name": "Bottom plate",
     "kind": "box",
     "op": "new",
     "x": 89.0,
@@ -211,7 +211,7 @@
    {
     "t": "appear",
     "id": "f16",
-    "name": "Paint plate_b.H.0",
+    "name": "Paint Plate",
     "body": 7.0,
     "color": [
      0.55,
@@ -225,7 +225,7 @@
    {
     "t": "prim",
     "id": "f17",
-    "name": "plate_b.H.1",
+    "name": "Bottom plate",
     "kind": "box",
     "op": "new",
     "x": 2691.5,
@@ -238,7 +238,7 @@
    {
     "t": "appear",
     "id": "f18",
-    "name": "Paint plate_b.H.1",
+    "name": "Paint Plate",
     "body": 8.0,
     "color": [
      0.55,
@@ -252,7 +252,7 @@
    {
     "t": "prim",
     "id": "f19",
-    "name": "plate_b.H.2",
+    "name": "Bottom plate",
     "kind": "box",
     "op": "new",
     "x": 5969.5,
@@ -265,7 +265,7 @@
    {
     "t": "appear",
     "id": "f20",
-    "name": "Paint plate_b.H.2",
+    "name": "Paint Plate",
     "body": 9.0,
     "color": [
      0.55,
@@ -279,7 +279,7 @@
    {
     "t": "prim",
     "id": "f21",
-    "name": "plate_b.V1.0",
+    "name": "Bottom plate",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -292,7 +292,7 @@
    {
     "t": "appear",
     "id": "f22",
-    "name": "Paint plate_b.V1.0",
+    "name": "Paint Plate",
     "body": 10.0,
     "color": [
      0.55,
@@ -306,7 +306,7 @@
    {
     "t": "prim",
     "id": "f23",
-    "name": "plate_b.V1.1",
+    "name": "Bottom plate",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -319,7 +319,7 @@
    {
     "t": "appear",
     "id": "f24",
-    "name": "Paint plate_b.V1.1",
+    "name": "Paint Plate",
     "body": 11.0,
     "color": [
      0.55,
@@ -333,7 +333,7 @@
    {
     "t": "prim",
     "id": "f25",
-    "name": "plate_b.V1.2",
+    "name": "Bottom plate",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -346,7 +346,7 @@
    {
     "t": "appear",
     "id": "f26",
-    "name": "Paint plate_b.V1.2",
+    "name": "Paint Plate",
     "body": 12.0,
     "color": [
      0.55,
@@ -360,7 +360,7 @@
    {
     "t": "prim",
     "id": "f27",
-    "name": "plate_b.V1.3",
+    "name": "Bottom plate",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -373,7 +373,7 @@
    {
     "t": "appear",
     "id": "f28",
-    "name": "Paint plate_b.V1.3",
+    "name": "Paint Plate",
     "body": 13.0,
     "color": [
      0.55,
@@ -387,7 +387,7 @@
    {
     "t": "prim",
     "id": "f29",
-    "name": "plate_b.V2.0",
+    "name": "Bottom plate",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -400,7 +400,7 @@
    {
     "t": "appear",
     "id": "f30",
-    "name": "Paint plate_b.V2.0",
+    "name": "Paint Plate",
     "body": 14.0,
     "color": [
      0.55,
@@ -414,7 +414,7 @@
    {
     "t": "prim",
     "id": "f31",
-    "name": "plate_b.V2.1",
+    "name": "Bottom plate",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -427,7 +427,7 @@
    {
     "t": "appear",
     "id": "f32",
-    "name": "Paint plate_b.V2.1",
+    "name": "Paint Plate",
     "body": 15.0,
     "color": [
      0.55,
@@ -441,7 +441,7 @@
    {
     "t": "prim",
     "id": "f33",
-    "name": "plate_b.V2.2",
+    "name": "Bottom plate",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -454,7 +454,7 @@
    {
     "t": "appear",
     "id": "f34",
-    "name": "Paint plate_b.V2.2",
+    "name": "Paint Plate",
     "body": 16.0,
     "color": [
      0.55,
@@ -468,7 +468,7 @@
    {
     "t": "prim",
     "id": "f35",
-    "name": "plate_b.V2.3",
+    "name": "Bottom plate",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -481,7 +481,7 @@
    {
     "t": "appear",
     "id": "f36",
-    "name": "Paint plate_b.V2.3",
+    "name": "Paint Plate",
     "body": 17.0,
     "color": [
      0.55,
@@ -495,7 +495,7 @@
    {
     "t": "prim",
     "id": "f37",
-    "name": "corner.F.0.0",
+    "name": "Corner",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -508,7 +508,7 @@
    {
     "t": "appear",
     "id": "f38",
-    "name": "Paint corner.F.0.0",
+    "name": "Paint Stud",
     "body": 18.0,
     "color": [
      0.8,
@@ -522,7 +522,7 @@
    {
     "t": "prim",
     "id": "f39",
-    "name": "corner.F.0.1",
+    "name": "Corner",
     "kind": "box",
     "op": "new",
     "x": 9716.0,
@@ -535,7 +535,7 @@
    {
     "t": "appear",
     "id": "f40",
-    "name": "Paint corner.F.0.1",
+    "name": "Paint Stud",
     "body": 19.0,
     "color": [
      0.8,
@@ -549,7 +549,7 @@
    {
     "t": "prim",
     "id": "f41",
-    "name": "nailer.F.0",
+    "name": "Nailer",
     "kind": "box",
     "op": "new",
     "x": 4381.5,
@@ -562,7 +562,7 @@
    {
     "t": "appear",
     "id": "f42",
-    "name": "Paint nailer.F.0",
+    "name": "Paint Stud",
     "body": 20.0,
     "color": [
      0.8,
@@ -576,7 +576,7 @@
    {
     "t": "prim",
     "id": "f43",
-    "name": "nailer.F.1",
+    "name": "Nailer",
     "kind": "box",
     "op": "new",
     "x": 6604.5,
@@ -589,7 +589,7 @@
    {
     "t": "appear",
     "id": "f44",
-    "name": "Paint nailer.F.1",
+    "name": "Paint Stud",
     "body": 21.0,
     "color": [
      0.8,
@@ -603,7 +603,7 @@
    {
     "t": "prim",
     "id": "f45",
-    "name": "king.F.0a",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 2754.5,
@@ -616,7 +616,7 @@
    {
     "t": "appear",
     "id": "f46",
-    "name": "Paint king.F.0a",
+    "name": "Paint Stud",
     "body": 22.0,
     "color": [
      0.8,
@@ -630,7 +630,7 @@
    {
     "t": "prim",
     "id": "f47",
-    "name": "jack.F.0a",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 2792.5,
@@ -643,7 +643,7 @@
    {
     "t": "appear",
     "id": "f48",
-    "name": "Paint jack.F.0a",
+    "name": "Paint Stud",
     "body": 23.0,
     "color": [
      0.8,
@@ -657,7 +657,7 @@
    {
     "t": "prim",
     "id": "f49",
-    "name": "king.F.0b",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 3807.5,
@@ -670,7 +670,7 @@
    {
     "t": "appear",
     "id": "f50",
-    "name": "Paint king.F.0b",
+    "name": "Paint Stud",
     "body": 24.0,
     "color": [
      0.8,
@@ -684,7 +684,7 @@
    {
     "t": "prim",
     "id": "f51",
-    "name": "jack.F.0b",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 3769.5,
@@ -697,7 +697,7 @@
    {
     "t": "appear",
     "id": "f52",
-    "name": "Paint jack.F.0b",
+    "name": "Paint Stud",
     "body": 25.0,
     "color": [
      0.8,
@@ -711,7 +711,7 @@
    {
     "t": "prim",
     "id": "f53",
-    "name": "header.F.0",
+    "name": "Header",
     "kind": "box",
     "op": "new",
     "x": 2754.5,
@@ -724,7 +724,7 @@
    {
     "t": "appear",
     "id": "f54",
-    "name": "Paint header.F.0",
+    "name": "Paint Header",
     "body": 26.0,
     "color": [
      0.7,
@@ -738,7 +738,7 @@
    {
     "t": "prim",
     "id": "f55",
-    "name": "king.F.1a",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 554.5,
@@ -751,7 +751,7 @@
    {
     "t": "appear",
     "id": "f56",
-    "name": "Paint king.F.1a",
+    "name": "Paint Stud",
     "body": 27.0,
     "color": [
      0.8,
@@ -765,7 +765,7 @@
    {
     "t": "prim",
     "id": "f57",
-    "name": "jack.F.1a",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 592.5,
@@ -778,7 +778,7 @@
    {
     "t": "appear",
     "id": "f58",
-    "name": "Paint jack.F.1a",
+    "name": "Paint Stud",
     "body": 28.0,
     "color": [
      0.8,
@@ -792,7 +792,7 @@
    {
     "t": "prim",
     "id": "f59",
-    "name": "king.F.1b",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 1607.5,
@@ -805,7 +805,7 @@
    {
     "t": "appear",
     "id": "f60",
-    "name": "Paint king.F.1b",
+    "name": "Paint Stud",
     "body": 29.0,
     "color": [
      0.8,
@@ -819,7 +819,7 @@
    {
     "t": "prim",
     "id": "f61",
-    "name": "jack.F.1b",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 1569.5,
@@ -832,7 +832,7 @@
    {
     "t": "appear",
     "id": "f62",
-    "name": "Paint jack.F.1b",
+    "name": "Paint Stud",
     "body": 30.0,
     "color": [
      0.8,
@@ -846,7 +846,7 @@
    {
     "t": "prim",
     "id": "f63",
-    "name": "header.F.1",
+    "name": "Header",
     "kind": "box",
     "op": "new",
     "x": 554.5,
@@ -859,7 +859,7 @@
    {
     "t": "appear",
     "id": "f64",
-    "name": "Paint header.F.1",
+    "name": "Paint Header",
     "body": 31.0,
     "color": [
      0.7,
@@ -873,7 +873,7 @@
    {
     "t": "prim",
     "id": "f65",
-    "name": "sill.F.1",
+    "name": "Sill",
     "kind": "box",
     "op": "new",
     "x": 630.5,
@@ -886,7 +886,7 @@
    {
     "t": "appear",
     "id": "f66",
-    "name": "Paint sill.F.1",
+    "name": "Paint Sill",
     "body": 32.0,
     "color": [
      0.7,
@@ -900,7 +900,7 @@
    {
     "t": "prim",
     "id": "f67",
-    "name": "king.F.2a",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 7654.5,
@@ -913,7 +913,7 @@
    {
     "t": "appear",
     "id": "f68",
-    "name": "Paint king.F.2a",
+    "name": "Paint Stud",
     "body": 33.0,
     "color": [
      0.8,
@@ -927,7 +927,7 @@
    {
     "t": "prim",
     "id": "f69",
-    "name": "jack.F.2a",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 7692.5,
@@ -940,7 +940,7 @@
    {
     "t": "appear",
     "id": "f70",
-    "name": "Paint jack.F.2a",
+    "name": "Paint Stud",
     "body": 34.0,
     "color": [
      0.8,
@@ -954,7 +954,7 @@
    {
     "t": "prim",
     "id": "f71",
-    "name": "king.F.2b",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 8707.5,
@@ -967,7 +967,7 @@
    {
     "t": "appear",
     "id": "f72",
-    "name": "Paint king.F.2b",
+    "name": "Paint Stud",
     "body": 35.0,
     "color": [
      0.8,
@@ -981,7 +981,7 @@
    {
     "t": "prim",
     "id": "f73",
-    "name": "jack.F.2b",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 8669.5,
@@ -994,7 +994,7 @@
    {
     "t": "appear",
     "id": "f74",
-    "name": "Paint jack.F.2b",
+    "name": "Paint Stud",
     "body": 36.0,
     "color": [
      0.8,
@@ -1008,7 +1008,7 @@
    {
     "t": "prim",
     "id": "f75",
-    "name": "header.F.2",
+    "name": "Header",
     "kind": "box",
     "op": "new",
     "x": 7654.5,
@@ -1021,7 +1021,7 @@
    {
     "t": "appear",
     "id": "f76",
-    "name": "Paint header.F.2",
+    "name": "Paint Header",
     "body": 37.0,
     "color": [
      0.7,
@@ -1035,7 +1035,7 @@
    {
     "t": "prim",
     "id": "f77",
-    "name": "sill.F.2",
+    "name": "Sill",
     "kind": "box",
     "op": "new",
     "x": 7730.5,
@@ -1048,7 +1048,7 @@
    {
     "t": "appear",
     "id": "f78",
-    "name": "Paint sill.F.2",
+    "name": "Paint Sill",
     "body": 38.0,
     "color": [
      0.7,
@@ -1062,7 +1062,7 @@
    {
     "t": "prim",
     "id": "f79",
-    "name": "stud.F.0.0",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 387.4,
@@ -1075,7 +1075,7 @@
    {
     "t": "appear",
     "id": "f80",
-    "name": "Paint stud.F.0.0",
+    "name": "Paint Stud",
     "body": 39.0,
     "color": [
      0.8,
@@ -1089,7 +1089,7 @@
    {
     "t": "prim",
     "id": "f81",
-    "name": "stud.F.1",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 2013.0,
@@ -1102,7 +1102,7 @@
    {
     "t": "appear",
     "id": "f82",
-    "name": "Paint stud.F.1",
+    "name": "Paint Stud",
     "body": 40.0,
     "color": [
      0.8,
@@ -1127,7 +1127,7 @@
    {
     "t": "prim",
     "id": "f84",
-    "name": "stud.F.2",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 4045.0,
@@ -1140,7 +1140,7 @@
    {
     "t": "appear",
     "id": "f85",
-    "name": "Paint stud.F.2",
+    "name": "Paint Stud",
     "body": 42.0,
     "color": [
      0.8,
@@ -1165,7 +1165,7 @@
    {
     "t": "prim",
     "id": "f87",
-    "name": "stud.F.3",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 8921.8,
@@ -1178,7 +1178,7 @@
    {
     "t": "appear",
     "id": "f88",
-    "name": "Paint stud.F.3",
+    "name": "Paint Stud",
     "body": 51.0,
     "color": [
      0.8,
@@ -1203,7 +1203,7 @@
    {
     "t": "prim",
     "id": "f90",
-    "name": "cripple.F.a0",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 793.8,
@@ -1216,7 +1216,7 @@
    {
     "t": "appear",
     "id": "f91",
-    "name": "Paint cripple.F.a0",
+    "name": "Paint Stud",
     "body": 53.0,
     "color": [
      0.8,
@@ -1230,7 +1230,7 @@
    {
     "t": "prim",
     "id": "f92",
-    "name": "cripple.F.a1",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 1200.1999999999998,
@@ -1243,7 +1243,7 @@
    {
     "t": "appear",
     "id": "f93",
-    "name": "Paint cripple.F.a1",
+    "name": "Paint Stud",
     "body": 54.0,
     "color": [
      0.8,
@@ -1257,7 +1257,7 @@
    {
     "t": "prim",
     "id": "f94",
-    "name": "cripple.F.a2",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 3232.2,
@@ -1270,7 +1270,7 @@
    {
     "t": "appear",
     "id": "f95",
-    "name": "Paint cripple.F.a2",
+    "name": "Paint Stud",
     "body": 55.0,
     "color": [
      0.8,
@@ -1284,7 +1284,7 @@
    {
     "t": "prim",
     "id": "f96",
-    "name": "cripple.F.a3",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 3638.6,
@@ -1297,7 +1297,7 @@
    {
     "t": "appear",
     "id": "f97",
-    "name": "Paint cripple.F.a3",
+    "name": "Paint Stud",
     "body": 56.0,
     "color": [
      0.8,
@@ -1311,7 +1311,7 @@
    {
     "t": "prim",
     "id": "f98",
-    "name": "cripple.F.a4",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 8109.0,
@@ -1324,7 +1324,7 @@
    {
     "t": "appear",
     "id": "f99",
-    "name": "Paint cripple.F.a4",
+    "name": "Paint Stud",
     "body": 57.0,
     "color": [
      0.8,
@@ -1338,7 +1338,7 @@
    {
     "t": "prim",
     "id": "f100",
-    "name": "cripple.F.a5",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 8515.4,
@@ -1351,7 +1351,7 @@
    {
     "t": "appear",
     "id": "f101",
-    "name": "Paint cripple.F.a5",
+    "name": "Paint Stud",
     "body": 58.0,
     "color": [
      0.8,
@@ -1365,7 +1365,7 @@
    {
     "t": "prim",
     "id": "f102",
-    "name": "cripple.F.b0",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 793.8,
@@ -1378,7 +1378,7 @@
    {
     "t": "appear",
     "id": "f103",
-    "name": "Paint cripple.F.b0",
+    "name": "Paint Stud",
     "body": 59.0,
     "color": [
      0.8,
@@ -1392,7 +1392,7 @@
    {
     "t": "prim",
     "id": "f104",
-    "name": "cripple.F.b1",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 1200.1999999999998,
@@ -1405,7 +1405,7 @@
    {
     "t": "appear",
     "id": "f105",
-    "name": "Paint cripple.F.b1",
+    "name": "Paint Stud",
     "body": 60.0,
     "color": [
      0.8,
@@ -1419,7 +1419,7 @@
    {
     "t": "prim",
     "id": "f106",
-    "name": "cripple.F.b2",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 8109.0,
@@ -1432,7 +1432,7 @@
    {
     "t": "appear",
     "id": "f107",
-    "name": "Paint cripple.F.b2",
+    "name": "Paint Stud",
     "body": 61.0,
     "color": [
      0.8,
@@ -1446,7 +1446,7 @@
    {
     "t": "prim",
     "id": "f108",
-    "name": "cripple.F.b3",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 8515.4,
@@ -1459,7 +1459,7 @@
    {
     "t": "appear",
     "id": "f109",
-    "name": "Paint cripple.F.b3",
+    "name": "Paint Stud",
     "body": 62.0,
     "color": [
      0.8,
@@ -1473,7 +1473,7 @@
    {
     "t": "prim",
     "id": "f110",
-    "name": "corner.B.0.0",
+    "name": "Corner",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -1486,7 +1486,7 @@
    {
     "t": "appear",
     "id": "f111",
-    "name": "Paint corner.B.0.0",
+    "name": "Paint Stud",
     "body": 63.0,
     "color": [
      0.8,
@@ -1500,7 +1500,7 @@
    {
     "t": "prim",
     "id": "f112",
-    "name": "corner.B.0.1",
+    "name": "Corner",
     "kind": "box",
     "op": "new",
     "x": 9716.0,
@@ -1513,7 +1513,7 @@
    {
     "t": "appear",
     "id": "f113",
-    "name": "Paint corner.B.0.1",
+    "name": "Paint Stud",
     "body": 64.0,
     "color": [
      0.8,
@@ -1527,7 +1527,7 @@
    {
     "t": "prim",
     "id": "f114",
-    "name": "nailer.B.0",
+    "name": "Nailer",
     "kind": "box",
     "op": "new",
     "x": 4381.5,
@@ -1540,7 +1540,7 @@
    {
     "t": "appear",
     "id": "f115",
-    "name": "Paint nailer.B.0",
+    "name": "Paint Stud",
     "body": 65.0,
     "color": [
      0.8,
@@ -1554,7 +1554,7 @@
    {
     "t": "prim",
     "id": "f116",
-    "name": "nailer.B.1",
+    "name": "Nailer",
     "kind": "box",
     "op": "new",
     "x": 6604.5,
@@ -1567,7 +1567,7 @@
    {
     "t": "appear",
     "id": "f117",
-    "name": "Paint nailer.B.1",
+    "name": "Paint Stud",
     "body": 66.0,
     "color": [
      0.8,
@@ -1581,7 +1581,7 @@
    {
     "t": "prim",
     "id": "f118",
-    "name": "king.B.0a",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 754.5,
@@ -1594,7 +1594,7 @@
    {
     "t": "appear",
     "id": "f119",
-    "name": "Paint king.B.0a",
+    "name": "Paint Stud",
     "body": 67.0,
     "color": [
      0.8,
@@ -1608,7 +1608,7 @@
    {
     "t": "prim",
     "id": "f120",
-    "name": "jack.B.0a",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 792.5,
@@ -1621,7 +1621,7 @@
    {
     "t": "appear",
     "id": "f121",
-    "name": "Paint jack.B.0a",
+    "name": "Paint Stud",
     "body": 68.0,
     "color": [
      0.8,
@@ -1635,7 +1635,7 @@
    {
     "t": "prim",
     "id": "f122",
-    "name": "king.B.0b",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 1807.5,
@@ -1648,7 +1648,7 @@
    {
     "t": "appear",
     "id": "f123",
-    "name": "Paint king.B.0b",
+    "name": "Paint Stud",
     "body": 69.0,
     "color": [
      0.8,
@@ -1662,7 +1662,7 @@
    {
     "t": "prim",
     "id": "f124",
-    "name": "jack.B.0b",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 1769.5,
@@ -1675,7 +1675,7 @@
    {
     "t": "appear",
     "id": "f125",
-    "name": "Paint jack.B.0b",
+    "name": "Paint Stud",
     "body": 70.0,
     "color": [
      0.8,
@@ -1689,7 +1689,7 @@
    {
     "t": "prim",
     "id": "f126",
-    "name": "header.B.0",
+    "name": "Header",
     "kind": "box",
     "op": "new",
     "x": 754.5,
@@ -1702,7 +1702,7 @@
    {
     "t": "appear",
     "id": "f127",
-    "name": "Paint header.B.0",
+    "name": "Paint Header",
     "body": 71.0,
     "color": [
      0.7,
@@ -1716,7 +1716,7 @@
    {
     "t": "prim",
     "id": "f128",
-    "name": "sill.B.0",
+    "name": "Sill",
     "kind": "box",
     "op": "new",
     "x": 830.5,
@@ -1729,7 +1729,7 @@
    {
     "t": "appear",
     "id": "f129",
-    "name": "Paint sill.B.0",
+    "name": "Paint Sill",
     "body": 72.0,
     "color": [
      0.7,
@@ -1743,7 +1743,7 @@
    {
     "t": "prim",
     "id": "f130",
-    "name": "king.B.1a",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 2754.5,
@@ -1756,7 +1756,7 @@
    {
     "t": "appear",
     "id": "f131",
-    "name": "Paint king.B.1a",
+    "name": "Paint Stud",
     "body": 73.0,
     "color": [
      0.8,
@@ -1770,7 +1770,7 @@
    {
     "t": "prim",
     "id": "f132",
-    "name": "jack.B.1a",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 2792.5,
@@ -1783,7 +1783,7 @@
    {
     "t": "appear",
     "id": "f133",
-    "name": "Paint jack.B.1a",
+    "name": "Paint Stud",
     "body": 74.0,
     "color": [
      0.8,
@@ -1797,7 +1797,7 @@
    {
     "t": "prim",
     "id": "f134",
-    "name": "king.B.1b",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 3807.5,
@@ -1810,7 +1810,7 @@
    {
     "t": "appear",
     "id": "f135",
-    "name": "Paint king.B.1b",
+    "name": "Paint Stud",
     "body": 75.0,
     "color": [
      0.8,
@@ -1824,7 +1824,7 @@
    {
     "t": "prim",
     "id": "f136",
-    "name": "jack.B.1b",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 3769.5,
@@ -1837,7 +1837,7 @@
    {
     "t": "appear",
     "id": "f137",
-    "name": "Paint jack.B.1b",
+    "name": "Paint Stud",
     "body": 76.0,
     "color": [
      0.8,
@@ -1851,7 +1851,7 @@
    {
     "t": "prim",
     "id": "f138",
-    "name": "header.B.1",
+    "name": "Header",
     "kind": "box",
     "op": "new",
     "x": 2754.5,
@@ -1864,7 +1864,7 @@
    {
     "t": "appear",
     "id": "f139",
-    "name": "Paint header.B.1",
+    "name": "Paint Header",
     "body": 77.0,
     "color": [
      0.7,
@@ -1878,7 +1878,7 @@
    {
     "t": "prim",
     "id": "f140",
-    "name": "sill.B.1",
+    "name": "Sill",
     "kind": "box",
     "op": "new",
     "x": 2830.5,
@@ -1891,7 +1891,7 @@
    {
     "t": "appear",
     "id": "f141",
-    "name": "Paint sill.B.1",
+    "name": "Paint Sill",
     "body": 78.0,
     "color": [
      0.7,
@@ -1905,7 +1905,7 @@
    {
     "t": "prim",
     "id": "f142",
-    "name": "king.B.2a",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 5106.5,
@@ -1918,7 +1918,7 @@
    {
     "t": "appear",
     "id": "f143",
-    "name": "Paint king.B.2a",
+    "name": "Paint Stud",
     "body": 79.0,
     "color": [
      0.8,
@@ -1932,7 +1932,7 @@
    {
     "t": "prim",
     "id": "f144",
-    "name": "jack.B.2a",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 5144.5,
@@ -1945,7 +1945,7 @@
    {
     "t": "appear",
     "id": "f145",
-    "name": "Paint jack.B.2a",
+    "name": "Paint Stud",
     "body": 80.0,
     "color": [
      0.8,
@@ -1959,7 +1959,7 @@
    {
     "t": "prim",
     "id": "f146",
-    "name": "king.B.2b",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 5855.5,
@@ -1972,7 +1972,7 @@
    {
     "t": "appear",
     "id": "f147",
-    "name": "Paint king.B.2b",
+    "name": "Paint Stud",
     "body": 81.0,
     "color": [
      0.8,
@@ -1986,7 +1986,7 @@
    {
     "t": "prim",
     "id": "f148",
-    "name": "jack.B.2b",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 5817.5,
@@ -1999,7 +1999,7 @@
    {
     "t": "appear",
     "id": "f149",
-    "name": "Paint jack.B.2b",
+    "name": "Paint Stud",
     "body": 82.0,
     "color": [
      0.8,
@@ -2013,7 +2013,7 @@
    {
     "t": "prim",
     "id": "f150",
-    "name": "header.B.2",
+    "name": "Header",
     "kind": "box",
     "op": "new",
     "x": 5106.5,
@@ -2026,7 +2026,7 @@
    {
     "t": "appear",
     "id": "f151",
-    "name": "Paint header.B.2",
+    "name": "Paint Header",
     "body": 83.0,
     "color": [
      0.7,
@@ -2040,7 +2040,7 @@
    {
     "t": "prim",
     "id": "f152",
-    "name": "sill.B.2",
+    "name": "Sill",
     "kind": "box",
     "op": "new",
     "x": 5182.5,
@@ -2053,7 +2053,7 @@
    {
     "t": "appear",
     "id": "f153",
-    "name": "Paint sill.B.2",
+    "name": "Paint Sill",
     "body": 84.0,
     "color": [
      0.7,
@@ -2067,7 +2067,7 @@
    {
     "t": "prim",
     "id": "f154",
-    "name": "king.B.3a",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 7454.5,
@@ -2080,7 +2080,7 @@
    {
     "t": "appear",
     "id": "f155",
-    "name": "Paint king.B.3a",
+    "name": "Paint Stud",
     "body": 85.0,
     "color": [
      0.8,
@@ -2094,7 +2094,7 @@
    {
     "t": "prim",
     "id": "f156",
-    "name": "jack.B.3a",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 7492.5,
@@ -2107,7 +2107,7 @@
    {
     "t": "appear",
     "id": "f157",
-    "name": "Paint jack.B.3a",
+    "name": "Paint Stud",
     "body": 86.0,
     "color": [
      0.8,
@@ -2121,7 +2121,7 @@
    {
     "t": "prim",
     "id": "f158",
-    "name": "king.B.3b",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 8507.5,
@@ -2134,7 +2134,7 @@
    {
     "t": "appear",
     "id": "f159",
-    "name": "Paint king.B.3b",
+    "name": "Paint Stud",
     "body": 87.0,
     "color": [
      0.8,
@@ -2148,7 +2148,7 @@
    {
     "t": "prim",
     "id": "f160",
-    "name": "jack.B.3b",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 8469.5,
@@ -2161,7 +2161,7 @@
    {
     "t": "appear",
     "id": "f161",
-    "name": "Paint jack.B.3b",
+    "name": "Paint Stud",
     "body": 88.0,
     "color": [
      0.8,
@@ -2175,7 +2175,7 @@
    {
     "t": "prim",
     "id": "f162",
-    "name": "header.B.3",
+    "name": "Header",
     "kind": "box",
     "op": "new",
     "x": 7454.5,
@@ -2188,7 +2188,7 @@
    {
     "t": "appear",
     "id": "f163",
-    "name": "Paint header.B.3",
+    "name": "Paint Header",
     "body": 89.0,
     "color": [
      0.7,
@@ -2202,7 +2202,7 @@
    {
     "t": "prim",
     "id": "f164",
-    "name": "sill.B.3",
+    "name": "Sill",
     "kind": "box",
     "op": "new",
     "x": 7530.5,
@@ -2215,7 +2215,7 @@
    {
     "t": "appear",
     "id": "f165",
-    "name": "Paint sill.B.3",
+    "name": "Paint Sill",
     "body": 90.0,
     "color": [
      0.7,
@@ -2229,7 +2229,7 @@
    {
     "t": "prim",
     "id": "f166",
-    "name": "stud.B.0.0",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 387.4,
@@ -2242,7 +2242,7 @@
    {
     "t": "appear",
     "id": "f167",
-    "name": "Paint stud.B.0.0",
+    "name": "Paint Stud",
     "body": 91.0,
     "color": [
      0.8,
@@ -2256,7 +2256,7 @@
    {
     "t": "prim",
     "id": "f168",
-    "name": "stud.B.1",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 2013.0,
@@ -2269,7 +2269,7 @@
    {
     "t": "appear",
     "id": "f169",
-    "name": "Paint stud.B.1",
+    "name": "Paint Stud",
     "body": 92.0,
     "color": [
      0.8,
@@ -2294,7 +2294,7 @@
    {
     "t": "prim",
     "id": "f171",
-    "name": "stud.B.2",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 4045.0,
@@ -2307,7 +2307,7 @@
    {
     "t": "appear",
     "id": "f172",
-    "name": "Paint stud.B.2",
+    "name": "Paint Stud",
     "body": 94.0,
     "color": [
      0.8,
@@ -2332,7 +2332,7 @@
    {
     "t": "prim",
     "id": "f174",
-    "name": "stud.B.3",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 6077.0,
@@ -2345,7 +2345,7 @@
    {
     "t": "appear",
     "id": "f175",
-    "name": "Paint stud.B.3",
+    "name": "Paint Stud",
     "body": 97.0,
     "color": [
      0.8,
@@ -2370,7 +2370,7 @@
    {
     "t": "prim",
     "id": "f177",
-    "name": "stud.B.4",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 8921.8,
@@ -2383,7 +2383,7 @@
    {
     "t": "appear",
     "id": "f178",
-    "name": "Paint stud.B.4",
+    "name": "Paint Stud",
     "body": 101.0,
     "color": [
      0.8,
@@ -2408,7 +2408,7 @@
    {
     "t": "prim",
     "id": "f180",
-    "name": "cripple.B.a0",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 1200.1999999999998,
@@ -2421,7 +2421,7 @@
    {
     "t": "appear",
     "id": "f181",
-    "name": "Paint cripple.B.a0",
+    "name": "Paint Stud",
     "body": 103.0,
     "color": [
      0.8,
@@ -2435,7 +2435,7 @@
    {
     "t": "prim",
     "id": "f182",
-    "name": "cripple.B.a1",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 1606.6,
@@ -2448,7 +2448,7 @@
    {
     "t": "appear",
     "id": "f183",
-    "name": "Paint cripple.B.a1",
+    "name": "Paint Stud",
     "body": 104.0,
     "color": [
      0.8,
@@ -2462,7 +2462,7 @@
    {
     "t": "prim",
     "id": "f184",
-    "name": "cripple.B.a2",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 3232.2,
@@ -2475,7 +2475,7 @@
    {
     "t": "appear",
     "id": "f185",
-    "name": "Paint cripple.B.a2",
+    "name": "Paint Stud",
     "body": 105.0,
     "color": [
      0.8,
@@ -2489,7 +2489,7 @@
    {
     "t": "prim",
     "id": "f186",
-    "name": "cripple.B.a3",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 3638.6,
@@ -2502,7 +2502,7 @@
    {
     "t": "appear",
     "id": "f187",
-    "name": "Paint cripple.B.a3",
+    "name": "Paint Stud",
     "body": 106.0,
     "color": [
      0.8,
@@ -2516,7 +2516,7 @@
    {
     "t": "prim",
     "id": "f188",
-    "name": "cripple.B.a4",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 5264.2,
@@ -2529,7 +2529,7 @@
    {
     "t": "appear",
     "id": "f189",
-    "name": "Paint cripple.B.a4",
+    "name": "Paint Stud",
     "body": 107.0,
     "color": [
      0.8,
@@ -2543,7 +2543,7 @@
    {
     "t": "prim",
     "id": "f190",
-    "name": "cripple.B.a5",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 5670.599999999999,
@@ -2556,7 +2556,7 @@
    {
     "t": "appear",
     "id": "f191",
-    "name": "Paint cripple.B.a5",
+    "name": "Paint Stud",
     "body": 108.0,
     "color": [
      0.8,
@@ -2570,7 +2570,7 @@
    {
     "t": "prim",
     "id": "f192",
-    "name": "cripple.B.a6",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 7702.599999999999,
@@ -2583,7 +2583,7 @@
    {
     "t": "appear",
     "id": "f193",
-    "name": "Paint cripple.B.a6",
+    "name": "Paint Stud",
     "body": 109.0,
     "color": [
      0.8,
@@ -2597,7 +2597,7 @@
    {
     "t": "prim",
     "id": "f194",
-    "name": "cripple.B.a7",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 8109.0,
@@ -2610,7 +2610,7 @@
    {
     "t": "appear",
     "id": "f195",
-    "name": "Paint cripple.B.a7",
+    "name": "Paint Stud",
     "body": 110.0,
     "color": [
      0.8,
@@ -2624,7 +2624,7 @@
    {
     "t": "prim",
     "id": "f196",
-    "name": "cripple.B.b0",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 1200.1999999999998,
@@ -2637,7 +2637,7 @@
    {
     "t": "appear",
     "id": "f197",
-    "name": "Paint cripple.B.b0",
+    "name": "Paint Stud",
     "body": 111.0,
     "color": [
      0.8,
@@ -2651,7 +2651,7 @@
    {
     "t": "prim",
     "id": "f198",
-    "name": "cripple.B.b1",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 1606.6,
@@ -2664,7 +2664,7 @@
    {
     "t": "appear",
     "id": "f199",
-    "name": "Paint cripple.B.b1",
+    "name": "Paint Stud",
     "body": 112.0,
     "color": [
      0.8,
@@ -2678,7 +2678,7 @@
    {
     "t": "prim",
     "id": "f200",
-    "name": "cripple.B.b2",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 3232.2,
@@ -2691,7 +2691,7 @@
    {
     "t": "appear",
     "id": "f201",
-    "name": "Paint cripple.B.b2",
+    "name": "Paint Stud",
     "body": 113.0,
     "color": [
      0.8,
@@ -2705,7 +2705,7 @@
    {
     "t": "prim",
     "id": "f202",
-    "name": "cripple.B.b3",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 3638.6,
@@ -2718,7 +2718,7 @@
    {
     "t": "appear",
     "id": "f203",
-    "name": "Paint cripple.B.b3",
+    "name": "Paint Stud",
     "body": 114.0,
     "color": [
      0.8,
@@ -2732,7 +2732,7 @@
    {
     "t": "prim",
     "id": "f204",
-    "name": "cripple.B.b4",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 5264.2,
@@ -2745,7 +2745,7 @@
    {
     "t": "appear",
     "id": "f205",
-    "name": "Paint cripple.B.b4",
+    "name": "Paint Stud",
     "body": 115.0,
     "color": [
      0.8,
@@ -2759,7 +2759,7 @@
    {
     "t": "prim",
     "id": "f206",
-    "name": "cripple.B.b5",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 5670.599999999999,
@@ -2772,7 +2772,7 @@
    {
     "t": "appear",
     "id": "f207",
-    "name": "Paint cripple.B.b5",
+    "name": "Paint Stud",
     "body": 116.0,
     "color": [
      0.8,
@@ -2786,7 +2786,7 @@
    {
     "t": "prim",
     "id": "f208",
-    "name": "cripple.B.b6",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 7702.599999999999,
@@ -2799,7 +2799,7 @@
    {
     "t": "appear",
     "id": "f209",
-    "name": "Paint cripple.B.b6",
+    "name": "Paint Stud",
     "body": 117.0,
     "color": [
      0.8,
@@ -2813,7 +2813,7 @@
    {
     "t": "prim",
     "id": "f210",
-    "name": "cripple.B.b7",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 8109.0,
@@ -2826,7 +2826,7 @@
    {
     "t": "appear",
     "id": "f211",
-    "name": "Paint cripple.B.b7",
+    "name": "Paint Stud",
     "body": 118.0,
     "color": [
      0.8,
@@ -2840,7 +2840,7 @@
    {
     "t": "prim",
     "id": "f212",
-    "name": "corner.L.0.0",
+    "name": "Corner",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -2853,7 +2853,7 @@
    {
     "t": "appear",
     "id": "f213",
-    "name": "Paint corner.L.0.0",
+    "name": "Paint Stud",
     "body": 119.0,
     "color": [
      0.8,
@@ -2867,7 +2867,7 @@
    {
     "t": "prim",
     "id": "f214",
-    "name": "corner.L.0.1",
+    "name": "Corner",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -2880,7 +2880,7 @@
    {
     "t": "appear",
     "id": "f215",
-    "name": "Paint corner.L.0.1",
+    "name": "Paint Stud",
     "body": 120.0,
     "color": [
      0.8,
@@ -2894,7 +2894,7 @@
    {
     "t": "prim",
     "id": "f216",
-    "name": "king.L.0a",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -2907,7 +2907,7 @@
    {
     "t": "appear",
     "id": "f217",
-    "name": "Paint king.L.0a",
+    "name": "Paint Stud",
     "body": 121.0,
     "color": [
      0.8,
@@ -2921,7 +2921,7 @@
    {
     "t": "prim",
     "id": "f218",
-    "name": "jack.L.0a",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -2934,7 +2934,7 @@
    {
     "t": "appear",
     "id": "f219",
-    "name": "Paint jack.L.0a",
+    "name": "Paint Stud",
     "body": 122.0,
     "color": [
      0.8,
@@ -2948,7 +2948,7 @@
    {
     "t": "prim",
     "id": "f220",
-    "name": "king.L.0b",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -2961,7 +2961,7 @@
    {
     "t": "appear",
     "id": "f221",
-    "name": "Paint king.L.0b",
+    "name": "Paint Stud",
     "body": 123.0,
     "color": [
      0.8,
@@ -2975,7 +2975,7 @@
    {
     "t": "prim",
     "id": "f222",
-    "name": "jack.L.0b",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -2988,7 +2988,7 @@
    {
     "t": "appear",
     "id": "f223",
-    "name": "Paint jack.L.0b",
+    "name": "Paint Stud",
     "body": 124.0,
     "color": [
      0.8,
@@ -3002,7 +3002,7 @@
    {
     "t": "prim",
     "id": "f224",
-    "name": "header.L.0",
+    "name": "Header",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -3015,7 +3015,7 @@
    {
     "t": "appear",
     "id": "f225",
-    "name": "Paint header.L.0",
+    "name": "Paint Header",
     "body": 125.0,
     "color": [
      0.7,
@@ -3029,7 +3029,7 @@
    {
     "t": "prim",
     "id": "f226",
-    "name": "sill.L.0",
+    "name": "Sill",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -3042,7 +3042,7 @@
    {
     "t": "appear",
     "id": "f227",
-    "name": "Paint sill.L.0",
+    "name": "Paint Sill",
     "body": 126.0,
     "color": [
      0.7,
@@ -3056,7 +3056,7 @@
    {
     "t": "prim",
     "id": "f228",
-    "name": "king.L.1a",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -3069,7 +3069,7 @@
    {
     "t": "appear",
     "id": "f229",
-    "name": "Paint king.L.1a",
+    "name": "Paint Stud",
     "body": 127.0,
     "color": [
      0.8,
@@ -3083,7 +3083,7 @@
    {
     "t": "prim",
     "id": "f230",
-    "name": "jack.L.1a",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -3096,7 +3096,7 @@
    {
     "t": "appear",
     "id": "f231",
-    "name": "Paint jack.L.1a",
+    "name": "Paint Stud",
     "body": 128.0,
     "color": [
      0.8,
@@ -3110,7 +3110,7 @@
    {
     "t": "prim",
     "id": "f232",
-    "name": "king.L.1b",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -3123,7 +3123,7 @@
    {
     "t": "appear",
     "id": "f233",
-    "name": "Paint king.L.1b",
+    "name": "Paint Stud",
     "body": 129.0,
     "color": [
      0.8,
@@ -3137,7 +3137,7 @@
    {
     "t": "prim",
     "id": "f234",
-    "name": "jack.L.1b",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -3150,7 +3150,7 @@
    {
     "t": "appear",
     "id": "f235",
-    "name": "Paint jack.L.1b",
+    "name": "Paint Stud",
     "body": 130.0,
     "color": [
      0.8,
@@ -3164,7 +3164,7 @@
    {
     "t": "prim",
     "id": "f236",
-    "name": "header.L.1",
+    "name": "Header",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -3177,7 +3177,7 @@
    {
     "t": "appear",
     "id": "f237",
-    "name": "Paint header.L.1",
+    "name": "Paint Header",
     "body": 131.0,
     "color": [
      0.7,
@@ -3191,7 +3191,7 @@
    {
     "t": "prim",
     "id": "f238",
-    "name": "sill.L.1",
+    "name": "Sill",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -3204,7 +3204,7 @@
    {
     "t": "appear",
     "id": "f239",
-    "name": "Paint sill.L.1",
+    "name": "Paint Sill",
     "body": 132.0,
     "color": [
      0.7,
@@ -3218,7 +3218,7 @@
    {
     "t": "prim",
     "id": "f240",
-    "name": "stud.L.0",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -3231,7 +3231,7 @@
    {
     "t": "appear",
     "id": "f241",
-    "name": "Paint stud.L.0",
+    "name": "Paint Stud",
     "body": 133.0,
     "color": [
      0.8,
@@ -3256,7 +3256,7 @@
    {
     "t": "prim",
     "id": "f243",
-    "name": "stud.L.1",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -3269,7 +3269,7 @@
    {
     "t": "appear",
     "id": "f244",
-    "name": "Paint stud.L.1",
+    "name": "Paint Stud",
     "body": 136.0,
     "color": [
      0.8,
@@ -3294,7 +3294,7 @@
    {
     "t": "prim",
     "id": "f246",
-    "name": "stud.L.2",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -3307,7 +3307,7 @@
    {
     "t": "appear",
     "id": "f247",
-    "name": "Paint stud.L.2",
+    "name": "Paint Stud",
     "body": 143.0,
     "color": [
      0.8,
@@ -3332,7 +3332,7 @@
    {
     "t": "prim",
     "id": "f249",
-    "name": "cripple.L.a0",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -3345,7 +3345,7 @@
    {
     "t": "appear",
     "id": "f250",
-    "name": "Paint cripple.L.a0",
+    "name": "Paint Stud",
     "body": 147.0,
     "color": [
      0.8,
@@ -3359,7 +3359,7 @@
    {
     "t": "prim",
     "id": "f251",
-    "name": "cripple.L.a1",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -3372,7 +3372,7 @@
    {
     "t": "appear",
     "id": "f252",
-    "name": "Paint cripple.L.a1",
+    "name": "Paint Stud",
     "body": 148.0,
     "color": [
      0.8,
@@ -3386,7 +3386,7 @@
    {
     "t": "prim",
     "id": "f253",
-    "name": "cripple.L.a2",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -3399,7 +3399,7 @@
    {
     "t": "appear",
     "id": "f254",
-    "name": "Paint cripple.L.a2",
+    "name": "Paint Stud",
     "body": 149.0,
     "color": [
      0.8,
@@ -3413,7 +3413,7 @@
    {
     "t": "prim",
     "id": "f255",
-    "name": "cripple.L.a3",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -3426,7 +3426,7 @@
    {
     "t": "appear",
     "id": "f256",
-    "name": "Paint cripple.L.a3",
+    "name": "Paint Stud",
     "body": 150.0,
     "color": [
      0.8,
@@ -3440,7 +3440,7 @@
    {
     "t": "prim",
     "id": "f257",
-    "name": "cripple.L.b0",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -3453,7 +3453,7 @@
    {
     "t": "appear",
     "id": "f258",
-    "name": "Paint cripple.L.b0",
+    "name": "Paint Stud",
     "body": 151.0,
     "color": [
      0.8,
@@ -3467,7 +3467,7 @@
    {
     "t": "prim",
     "id": "f259",
-    "name": "cripple.L.b1",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -3480,7 +3480,7 @@
    {
     "t": "appear",
     "id": "f260",
-    "name": "Paint cripple.L.b1",
+    "name": "Paint Stud",
     "body": 152.0,
     "color": [
      0.8,
@@ -3494,7 +3494,7 @@
    {
     "t": "prim",
     "id": "f261",
-    "name": "cripple.L.b2",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -3507,7 +3507,7 @@
    {
     "t": "appear",
     "id": "f262",
-    "name": "Paint cripple.L.b2",
+    "name": "Paint Stud",
     "body": 153.0,
     "color": [
      0.8,
@@ -3521,7 +3521,7 @@
    {
     "t": "prim",
     "id": "f263",
-    "name": "cripple.L.b3",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -3534,7 +3534,7 @@
    {
     "t": "appear",
     "id": "f264",
-    "name": "Paint cripple.L.b3",
+    "name": "Paint Stud",
     "body": 154.0,
     "color": [
      0.8,
@@ -3548,7 +3548,7 @@
    {
     "t": "prim",
     "id": "f265",
-    "name": "corner.R.0.0",
+    "name": "Corner",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -3561,7 +3561,7 @@
    {
     "t": "appear",
     "id": "f266",
-    "name": "Paint corner.R.0.0",
+    "name": "Paint Stud",
     "body": 155.0,
     "color": [
      0.8,
@@ -3575,7 +3575,7 @@
    {
     "t": "prim",
     "id": "f267",
-    "name": "corner.R.0.1",
+    "name": "Corner",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -3588,7 +3588,7 @@
    {
     "t": "appear",
     "id": "f268",
-    "name": "Paint corner.R.0.1",
+    "name": "Paint Stud",
     "body": 156.0,
     "color": [
      0.8,
@@ -3602,7 +3602,7 @@
    {
     "t": "prim",
     "id": "f269",
-    "name": "king.R.0a",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -3615,7 +3615,7 @@
    {
     "t": "appear",
     "id": "f270",
-    "name": "Paint king.R.0a",
+    "name": "Paint Stud",
     "body": 157.0,
     "color": [
      0.8,
@@ -3629,7 +3629,7 @@
    {
     "t": "prim",
     "id": "f271",
-    "name": "jack.R.0a",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -3642,7 +3642,7 @@
    {
     "t": "appear",
     "id": "f272",
-    "name": "Paint jack.R.0a",
+    "name": "Paint Stud",
     "body": 158.0,
     "color": [
      0.8,
@@ -3656,7 +3656,7 @@
    {
     "t": "prim",
     "id": "f273",
-    "name": "king.R.0b",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -3669,7 +3669,7 @@
    {
     "t": "appear",
     "id": "f274",
-    "name": "Paint king.R.0b",
+    "name": "Paint Stud",
     "body": 159.0,
     "color": [
      0.8,
@@ -3683,7 +3683,7 @@
    {
     "t": "prim",
     "id": "f275",
-    "name": "jack.R.0b",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -3696,7 +3696,7 @@
    {
     "t": "appear",
     "id": "f276",
-    "name": "Paint jack.R.0b",
+    "name": "Paint Stud",
     "body": 160.0,
     "color": [
      0.8,
@@ -3710,7 +3710,7 @@
    {
     "t": "prim",
     "id": "f277",
-    "name": "header.R.0",
+    "name": "Header",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -3723,7 +3723,7 @@
    {
     "t": "appear",
     "id": "f278",
-    "name": "Paint header.R.0",
+    "name": "Paint Header",
     "body": 161.0,
     "color": [
      0.7,
@@ -3737,7 +3737,7 @@
    {
     "t": "prim",
     "id": "f279",
-    "name": "sill.R.0",
+    "name": "Sill",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -3750,7 +3750,7 @@
    {
     "t": "appear",
     "id": "f280",
-    "name": "Paint sill.R.0",
+    "name": "Paint Sill",
     "body": 162.0,
     "color": [
      0.7,
@@ -3764,7 +3764,7 @@
    {
     "t": "prim",
     "id": "f281",
-    "name": "king.R.1a",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -3777,7 +3777,7 @@
    {
     "t": "appear",
     "id": "f282",
-    "name": "Paint king.R.1a",
+    "name": "Paint Stud",
     "body": 163.0,
     "color": [
      0.8,
@@ -3791,7 +3791,7 @@
    {
     "t": "prim",
     "id": "f283",
-    "name": "jack.R.1a",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -3804,7 +3804,7 @@
    {
     "t": "appear",
     "id": "f284",
-    "name": "Paint jack.R.1a",
+    "name": "Paint Stud",
     "body": 164.0,
     "color": [
      0.8,
@@ -3818,7 +3818,7 @@
    {
     "t": "prim",
     "id": "f285",
-    "name": "king.R.1b",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -3831,7 +3831,7 @@
    {
     "t": "appear",
     "id": "f286",
-    "name": "Paint king.R.1b",
+    "name": "Paint Stud",
     "body": 165.0,
     "color": [
      0.8,
@@ -3845,7 +3845,7 @@
    {
     "t": "prim",
     "id": "f287",
-    "name": "jack.R.1b",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -3858,7 +3858,7 @@
    {
     "t": "appear",
     "id": "f288",
-    "name": "Paint jack.R.1b",
+    "name": "Paint Stud",
     "body": 166.0,
     "color": [
      0.8,
@@ -3872,7 +3872,7 @@
    {
     "t": "prim",
     "id": "f289",
-    "name": "header.R.1",
+    "name": "Header",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -3885,7 +3885,7 @@
    {
     "t": "appear",
     "id": "f290",
-    "name": "Paint header.R.1",
+    "name": "Paint Header",
     "body": 167.0,
     "color": [
      0.7,
@@ -3899,7 +3899,7 @@
    {
     "t": "prim",
     "id": "f291",
-    "name": "sill.R.1",
+    "name": "Sill",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -3912,7 +3912,7 @@
    {
     "t": "appear",
     "id": "f292",
-    "name": "Paint sill.R.1",
+    "name": "Paint Sill",
     "body": 168.0,
     "color": [
      0.7,
@@ -3926,7 +3926,7 @@
    {
     "t": "prim",
     "id": "f293",
-    "name": "stud.R.0",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -3939,7 +3939,7 @@
    {
     "t": "appear",
     "id": "f294",
-    "name": "Paint stud.R.0",
+    "name": "Paint Stud",
     "body": 169.0,
     "color": [
      0.8,
@@ -3964,7 +3964,7 @@
    {
     "t": "prim",
     "id": "f296",
-    "name": "stud.R.1",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -3977,7 +3977,7 @@
    {
     "t": "appear",
     "id": "f297",
-    "name": "Paint stud.R.1",
+    "name": "Paint Stud",
     "body": 172.0,
     "color": [
      0.8,
@@ -4002,7 +4002,7 @@
    {
     "t": "prim",
     "id": "f299",
-    "name": "stud.R.2",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -4015,7 +4015,7 @@
    {
     "t": "appear",
     "id": "f300",
-    "name": "Paint stud.R.2",
+    "name": "Paint Stud",
     "body": 179.0,
     "color": [
      0.8,
@@ -4040,7 +4040,7 @@
    {
     "t": "prim",
     "id": "f302",
-    "name": "cripple.R.a0",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -4053,7 +4053,7 @@
    {
     "t": "appear",
     "id": "f303",
-    "name": "Paint cripple.R.a0",
+    "name": "Paint Stud",
     "body": 183.0,
     "color": [
      0.8,
@@ -4067,7 +4067,7 @@
    {
     "t": "prim",
     "id": "f304",
-    "name": "cripple.R.a1",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -4080,7 +4080,7 @@
    {
     "t": "appear",
     "id": "f305",
-    "name": "Paint cripple.R.a1",
+    "name": "Paint Stud",
     "body": 184.0,
     "color": [
      0.8,
@@ -4094,7 +4094,7 @@
    {
     "t": "prim",
     "id": "f306",
-    "name": "cripple.R.a2",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -4107,7 +4107,7 @@
    {
     "t": "appear",
     "id": "f307",
-    "name": "Paint cripple.R.a2",
+    "name": "Paint Stud",
     "body": 185.0,
     "color": [
      0.8,
@@ -4121,7 +4121,7 @@
    {
     "t": "prim",
     "id": "f308",
-    "name": "cripple.R.a3",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -4134,7 +4134,7 @@
    {
     "t": "appear",
     "id": "f309",
-    "name": "Paint cripple.R.a3",
+    "name": "Paint Stud",
     "body": 186.0,
     "color": [
      0.8,
@@ -4148,7 +4148,7 @@
    {
     "t": "prim",
     "id": "f310",
-    "name": "cripple.R.b0",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -4161,7 +4161,7 @@
    {
     "t": "appear",
     "id": "f311",
-    "name": "Paint cripple.R.b0",
+    "name": "Paint Stud",
     "body": 187.0,
     "color": [
      0.8,
@@ -4175,7 +4175,7 @@
    {
     "t": "prim",
     "id": "f312",
-    "name": "cripple.R.b1",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -4188,7 +4188,7 @@
    {
     "t": "appear",
     "id": "f313",
-    "name": "Paint cripple.R.b1",
+    "name": "Paint Stud",
     "body": 188.0,
     "color": [
      0.8,
@@ -4202,7 +4202,7 @@
    {
     "t": "prim",
     "id": "f314",
-    "name": "cripple.R.b2",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -4215,7 +4215,7 @@
    {
     "t": "appear",
     "id": "f315",
-    "name": "Paint cripple.R.b2",
+    "name": "Paint Stud",
     "body": 189.0,
     "color": [
      0.8,
@@ -4229,7 +4229,7 @@
    {
     "t": "prim",
     "id": "f316",
-    "name": "cripple.R.b3",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -4242,7 +4242,7 @@
    {
     "t": "appear",
     "id": "f317",
-    "name": "Paint cripple.R.b3",
+    "name": "Paint Stud",
     "body": 190.0,
     "color": [
      0.8,
@@ -4256,7 +4256,7 @@
    {
     "t": "prim",
     "id": "f318",
-    "name": "end.H.0.0",
+    "name": "End",
     "kind": "box",
     "op": "new",
     "x": 89.0,
@@ -4269,7 +4269,7 @@
    {
     "t": "appear",
     "id": "f319",
-    "name": "Paint end.H.0.0",
+    "name": "Paint Stud",
     "body": 191.0,
     "color": [
      0.8,
@@ -4283,7 +4283,7 @@
    {
     "t": "prim",
     "id": "f320",
-    "name": "end.H.0.1",
+    "name": "End",
     "kind": "box",
     "op": "new",
     "x": 9627.0,
@@ -4296,7 +4296,7 @@
    {
     "t": "appear",
     "id": "f321",
-    "name": "Paint end.H.0.1",
+    "name": "Paint Stud",
     "body": 192.0,
     "color": [
      0.8,
@@ -4310,7 +4310,7 @@
    {
     "t": "prim",
     "id": "f322",
-    "name": "nailer.H.0",
+    "name": "Nailer",
     "kind": "box",
     "op": "new",
     "x": 4381.5,
@@ -4323,7 +4323,7 @@
    {
     "t": "appear",
     "id": "f323",
-    "name": "Paint nailer.H.0",
+    "name": "Paint Stud",
     "body": 193.0,
     "color": [
      0.8,
@@ -4337,7 +4337,7 @@
    {
     "t": "prim",
     "id": "f324",
-    "name": "nailer.H.1",
+    "name": "Nailer",
     "kind": "box",
     "op": "new",
     "x": 6604.5,
@@ -4350,7 +4350,7 @@
    {
     "t": "appear",
     "id": "f325",
-    "name": "Paint nailer.H.1",
+    "name": "Paint Stud",
     "body": 194.0,
     "color": [
      0.8,
@@ -4364,7 +4364,7 @@
    {
     "t": "prim",
     "id": "f326",
-    "name": "king.H.0a",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 1676.5,
@@ -4377,7 +4377,7 @@
    {
     "t": "appear",
     "id": "f327",
-    "name": "Paint king.H.0a",
+    "name": "Paint Stud",
     "body": 195.0,
     "color": [
      0.8,
@@ -4391,7 +4391,7 @@
    {
     "t": "prim",
     "id": "f328",
-    "name": "jack.H.0a",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 1714.5,
@@ -4404,7 +4404,7 @@
    {
     "t": "appear",
     "id": "f329",
-    "name": "Paint jack.H.0a",
+    "name": "Paint Stud",
     "body": 196.0,
     "color": [
      0.8,
@@ -4418,7 +4418,7 @@
    {
     "t": "prim",
     "id": "f330",
-    "name": "king.H.0b",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 2729.5,
@@ -4431,7 +4431,7 @@
    {
     "t": "appear",
     "id": "f331",
-    "name": "Paint king.H.0b",
+    "name": "Paint Stud",
     "body": 197.0,
     "color": [
      0.8,
@@ -4445,7 +4445,7 @@
    {
     "t": "prim",
     "id": "f332",
-    "name": "jack.H.0b",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 2691.5,
@@ -4458,7 +4458,7 @@
    {
     "t": "appear",
     "id": "f333",
-    "name": "Paint jack.H.0b",
+    "name": "Paint Stud",
     "body": 198.0,
     "color": [
      0.8,
@@ -4472,7 +4472,7 @@
    {
     "t": "prim",
     "id": "f334",
-    "name": "header.H.0",
+    "name": "Header",
     "kind": "box",
     "op": "new",
     "x": 1676.5,
@@ -4485,7 +4485,7 @@
    {
     "t": "appear",
     "id": "f335",
-    "name": "Paint header.H.0",
+    "name": "Paint Header",
     "body": 199.0,
     "color": [
      0.7,
@@ -4499,7 +4499,7 @@
    {
     "t": "prim",
     "id": "f336",
-    "name": "king.H.1a",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 4954.5,
@@ -4512,7 +4512,7 @@
    {
     "t": "appear",
     "id": "f337",
-    "name": "Paint king.H.1a",
+    "name": "Paint Stud",
     "body": 200.0,
     "color": [
      0.8,
@@ -4526,7 +4526,7 @@
    {
     "t": "prim",
     "id": "f338",
-    "name": "jack.H.1a",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 4992.5,
@@ -4539,7 +4539,7 @@
    {
     "t": "appear",
     "id": "f339",
-    "name": "Paint jack.H.1a",
+    "name": "Paint Stud",
     "body": 201.0,
     "color": [
      0.8,
@@ -4553,7 +4553,7 @@
    {
     "t": "prim",
     "id": "f340",
-    "name": "king.H.1b",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 6007.5,
@@ -4566,7 +4566,7 @@
    {
     "t": "appear",
     "id": "f341",
-    "name": "Paint king.H.1b",
+    "name": "Paint Stud",
     "body": 202.0,
     "color": [
      0.8,
@@ -4580,7 +4580,7 @@
    {
     "t": "prim",
     "id": "f342",
-    "name": "jack.H.1b",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 5969.5,
@@ -4593,7 +4593,7 @@
    {
     "t": "appear",
     "id": "f343",
-    "name": "Paint jack.H.1b",
+    "name": "Paint Stud",
     "body": 203.0,
     "color": [
      0.8,
@@ -4607,7 +4607,7 @@
    {
     "t": "prim",
     "id": "f344",
-    "name": "header.H.1",
+    "name": "Header",
     "kind": "box",
     "op": "new",
     "x": 4954.5,
@@ -4620,7 +4620,7 @@
    {
     "t": "appear",
     "id": "f345",
-    "name": "Paint header.H.1",
+    "name": "Paint Header",
     "body": 204.0,
     "color": [
      0.7,
@@ -4634,7 +4634,7 @@
    {
     "t": "prim",
     "id": "f346",
-    "name": "stud.H.0",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 387.4,
@@ -4647,7 +4647,7 @@
    {
     "t": "appear",
     "id": "f347",
-    "name": "Paint stud.H.0",
+    "name": "Paint Stud",
     "body": 205.0,
     "color": [
      0.8,
@@ -4672,7 +4672,7 @@
    {
     "t": "prim",
     "id": "f349",
-    "name": "stud.H.1",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 2825.7999999999997,
@@ -4685,7 +4685,7 @@
    {
     "t": "appear",
     "id": "f350",
-    "name": "Paint stud.H.1",
+    "name": "Paint Stud",
     "body": 209.0,
     "color": [
      0.8,
@@ -4710,7 +4710,7 @@
    {
     "t": "prim",
     "id": "f352",
-    "name": "stud.H.2",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 6077.0,
@@ -4723,7 +4723,7 @@
    {
     "t": "appear",
     "id": "f353",
-    "name": "Paint stud.H.2",
+    "name": "Paint Stud",
     "body": 215.0,
     "color": [
      0.8,
@@ -4748,7 +4748,7 @@
    {
     "t": "prim",
     "id": "f355",
-    "name": "cripple.H.a0",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 2013.0,
@@ -4761,7 +4761,7 @@
    {
     "t": "appear",
     "id": "f356",
-    "name": "Paint cripple.H.a0",
+    "name": "Paint Stud",
     "body": 224.0,
     "color": [
      0.8,
@@ -4775,7 +4775,7 @@
    {
     "t": "prim",
     "id": "f357",
-    "name": "cripple.H.a1",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 2419.3999999999996,
@@ -4788,7 +4788,7 @@
    {
     "t": "appear",
     "id": "f358",
-    "name": "Paint cripple.H.a1",
+    "name": "Paint Stud",
     "body": 225.0,
     "color": [
      0.8,
@@ -4802,7 +4802,7 @@
    {
     "t": "prim",
     "id": "f359",
-    "name": "cripple.H.a2",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 5264.2,
@@ -4815,7 +4815,7 @@
    {
     "t": "appear",
     "id": "f360",
-    "name": "Paint cripple.H.a2",
+    "name": "Paint Stud",
     "body": 226.0,
     "color": [
      0.8,
@@ -4829,7 +4829,7 @@
    {
     "t": "prim",
     "id": "f361",
-    "name": "cripple.H.a3",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 5670.599999999999,
@@ -4842,7 +4842,7 @@
    {
     "t": "appear",
     "id": "f362",
-    "name": "Paint cripple.H.a3",
+    "name": "Paint Stud",
     "body": 227.0,
     "color": [
      0.8,
@@ -4856,7 +4856,7 @@
    {
     "t": "prim",
     "id": "f363",
-    "name": "end.V1.0.0",
+    "name": "End",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -4869,7 +4869,7 @@
    {
     "t": "appear",
     "id": "f364",
-    "name": "Paint end.V1.0.0",
+    "name": "Paint Stud",
     "body": 228.0,
     "color": [
      0.8,
@@ -4883,7 +4883,7 @@
    {
     "t": "prim",
     "id": "f365",
-    "name": "end.V1.0.1",
+    "name": "End",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -4896,7 +4896,7 @@
    {
     "t": "appear",
     "id": "f366",
-    "name": "Paint end.V1.0.1",
+    "name": "Paint Stud",
     "body": 229.0,
     "color": [
      0.8,
@@ -4910,7 +4910,7 @@
    {
     "t": "prim",
     "id": "f367",
-    "name": "end.V1.1.0",
+    "name": "End",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -4923,7 +4923,7 @@
    {
     "t": "appear",
     "id": "f368",
-    "name": "Paint end.V1.1.0",
+    "name": "Paint Stud",
     "body": 230.0,
     "color": [
      0.8,
@@ -4937,7 +4937,7 @@
    {
     "t": "prim",
     "id": "f369",
-    "name": "end.V1.1.1",
+    "name": "End",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -4950,7 +4950,7 @@
    {
     "t": "appear",
     "id": "f370",
-    "name": "Paint end.V1.1.1",
+    "name": "Paint Stud",
     "body": 231.0,
     "color": [
      0.8,
@@ -4964,7 +4964,7 @@
    {
     "t": "prim",
     "id": "f371",
-    "name": "king.V1.0a",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -4977,7 +4977,7 @@
    {
     "t": "appear",
     "id": "f372",
-    "name": "Paint king.V1.0a",
+    "name": "Paint Stud",
     "body": 232.0,
     "color": [
      0.8,
@@ -4991,7 +4991,7 @@
    {
     "t": "prim",
     "id": "f373",
-    "name": "jack.V1.0a",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -5004,7 +5004,7 @@
    {
     "t": "appear",
     "id": "f374",
-    "name": "Paint jack.V1.0a",
+    "name": "Paint Stud",
     "body": 233.0,
     "color": [
      0.8,
@@ -5018,7 +5018,7 @@
    {
     "t": "prim",
     "id": "f375",
-    "name": "king.V1.0b",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -5031,7 +5031,7 @@
    {
     "t": "appear",
     "id": "f376",
-    "name": "Paint king.V1.0b",
+    "name": "Paint Stud",
     "body": 234.0,
     "color": [
      0.8,
@@ -5045,7 +5045,7 @@
    {
     "t": "prim",
     "id": "f377",
-    "name": "jack.V1.0b",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -5058,7 +5058,7 @@
    {
     "t": "appear",
     "id": "f378",
-    "name": "Paint jack.V1.0b",
+    "name": "Paint Stud",
     "body": 235.0,
     "color": [
      0.8,
@@ -5072,7 +5072,7 @@
    {
     "t": "prim",
     "id": "f379",
-    "name": "header.V1.0",
+    "name": "Header",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -5085,7 +5085,7 @@
    {
     "t": "appear",
     "id": "f380",
-    "name": "Paint header.V1.0",
+    "name": "Paint Header",
     "body": 236.0,
     "color": [
      0.7,
@@ -5099,7 +5099,7 @@
    {
     "t": "prim",
     "id": "f381",
-    "name": "king.V1.1a",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -5112,7 +5112,7 @@
    {
     "t": "appear",
     "id": "f382",
-    "name": "Paint king.V1.1a",
+    "name": "Paint Stud",
     "body": 237.0,
     "color": [
      0.8,
@@ -5126,7 +5126,7 @@
    {
     "t": "prim",
     "id": "f383",
-    "name": "jack.V1.1a",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -5139,7 +5139,7 @@
    {
     "t": "appear",
     "id": "f384",
-    "name": "Paint jack.V1.1a",
+    "name": "Paint Stud",
     "body": 238.0,
     "color": [
      0.8,
@@ -5153,7 +5153,7 @@
    {
     "t": "prim",
     "id": "f385",
-    "name": "king.V1.1b",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -5166,7 +5166,7 @@
    {
     "t": "appear",
     "id": "f386",
-    "name": "Paint king.V1.1b",
+    "name": "Paint Stud",
     "body": 239.0,
     "color": [
      0.8,
@@ -5180,7 +5180,7 @@
    {
     "t": "prim",
     "id": "f387",
-    "name": "jack.V1.1b",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -5193,7 +5193,7 @@
    {
     "t": "appear",
     "id": "f388",
-    "name": "Paint jack.V1.1b",
+    "name": "Paint Stud",
     "body": 240.0,
     "color": [
      0.8,
@@ -5207,7 +5207,7 @@
    {
     "t": "prim",
     "id": "f389",
-    "name": "header.V1.1",
+    "name": "Header",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -5220,7 +5220,7 @@
    {
     "t": "appear",
     "id": "f390",
-    "name": "Paint header.V1.1",
+    "name": "Paint Header",
     "body": 241.0,
     "color": [
      0.7,
@@ -5234,7 +5234,7 @@
    {
     "t": "prim",
     "id": "f391",
-    "name": "stud.V1.0",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -5247,7 +5247,7 @@
    {
     "t": "appear",
     "id": "f392",
-    "name": "Paint stud.V1.0",
+    "name": "Paint Stud",
     "body": 242.0,
     "color": [
      0.8,
@@ -5272,7 +5272,7 @@
    {
     "t": "prim",
     "id": "f394",
-    "name": "stud.V1.1",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -5285,7 +5285,7 @@
    {
     "t": "appear",
     "id": "f395",
-    "name": "Paint stud.V1.1",
+    "name": "Paint Stud",
     "body": 245.0,
     "color": [
      0.8,
@@ -5310,7 +5310,7 @@
    {
     "t": "prim",
     "id": "f397",
-    "name": "stud.V1.2",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -5323,7 +5323,7 @@
    {
     "t": "appear",
     "id": "f398",
-    "name": "Paint stud.V1.2",
+    "name": "Paint Stud",
     "body": 252.0,
     "color": [
      0.8,
@@ -5348,7 +5348,7 @@
    {
     "t": "prim",
     "id": "f400",
-    "name": "cripple.V1.a0",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -5361,7 +5361,7 @@
    {
     "t": "appear",
     "id": "f401",
-    "name": "Paint cripple.V1.a0",
+    "name": "Paint Stud",
     "body": 255.0,
     "color": [
      0.8,
@@ -5375,7 +5375,7 @@
    {
     "t": "prim",
     "id": "f402",
-    "name": "cripple.V1.a1",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -5388,7 +5388,7 @@
    {
     "t": "appear",
     "id": "f403",
-    "name": "Paint cripple.V1.a1",
+    "name": "Paint Stud",
     "body": 256.0,
     "color": [
      0.8,
@@ -5402,7 +5402,7 @@
    {
     "t": "prim",
     "id": "f404",
-    "name": "cripple.V1.a2",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -5415,7 +5415,7 @@
    {
     "t": "appear",
     "id": "f405",
-    "name": "Paint cripple.V1.a2",
+    "name": "Paint Stud",
     "body": 257.0,
     "color": [
      0.8,
@@ -5429,7 +5429,7 @@
    {
     "t": "prim",
     "id": "f406",
-    "name": "end.V2.0.0",
+    "name": "End",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5442,7 +5442,7 @@
    {
     "t": "appear",
     "id": "f407",
-    "name": "Paint end.V2.0.0",
+    "name": "Paint Stud",
     "body": 258.0,
     "color": [
      0.8,
@@ -5456,7 +5456,7 @@
    {
     "t": "prim",
     "id": "f408",
-    "name": "end.V2.0.1",
+    "name": "End",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5469,7 +5469,7 @@
    {
     "t": "appear",
     "id": "f409",
-    "name": "Paint end.V2.0.1",
+    "name": "Paint Stud",
     "body": 259.0,
     "color": [
      0.8,
@@ -5483,7 +5483,7 @@
    {
     "t": "prim",
     "id": "f410",
-    "name": "end.V2.1.0",
+    "name": "End",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5496,7 +5496,7 @@
    {
     "t": "appear",
     "id": "f411",
-    "name": "Paint end.V2.1.0",
+    "name": "Paint Stud",
     "body": 260.0,
     "color": [
      0.8,
@@ -5510,7 +5510,7 @@
    {
     "t": "prim",
     "id": "f412",
-    "name": "end.V2.1.1",
+    "name": "End",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5523,7 +5523,7 @@
    {
     "t": "appear",
     "id": "f413",
-    "name": "Paint end.V2.1.1",
+    "name": "Paint Stud",
     "body": 261.0,
     "color": [
      0.8,
@@ -5537,7 +5537,7 @@
    {
     "t": "prim",
     "id": "f414",
-    "name": "king.V2.0a",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5550,7 +5550,7 @@
    {
     "t": "appear",
     "id": "f415",
-    "name": "Paint king.V2.0a",
+    "name": "Paint Stud",
     "body": 262.0,
     "color": [
      0.8,
@@ -5564,7 +5564,7 @@
    {
     "t": "prim",
     "id": "f416",
-    "name": "jack.V2.0a",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5577,7 +5577,7 @@
    {
     "t": "appear",
     "id": "f417",
-    "name": "Paint jack.V2.0a",
+    "name": "Paint Stud",
     "body": 263.0,
     "color": [
      0.8,
@@ -5591,7 +5591,7 @@
    {
     "t": "prim",
     "id": "f418",
-    "name": "king.V2.0b",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5604,7 +5604,7 @@
    {
     "t": "appear",
     "id": "f419",
-    "name": "Paint king.V2.0b",
+    "name": "Paint Stud",
     "body": 264.0,
     "color": [
      0.8,
@@ -5618,7 +5618,7 @@
    {
     "t": "prim",
     "id": "f420",
-    "name": "jack.V2.0b",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5631,7 +5631,7 @@
    {
     "t": "appear",
     "id": "f421",
-    "name": "Paint jack.V2.0b",
+    "name": "Paint Stud",
     "body": 265.0,
     "color": [
      0.8,
@@ -5645,7 +5645,7 @@
    {
     "t": "prim",
     "id": "f422",
-    "name": "header.V2.0",
+    "name": "Header",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5658,7 +5658,7 @@
    {
     "t": "appear",
     "id": "f423",
-    "name": "Paint header.V2.0",
+    "name": "Paint Header",
     "body": 266.0,
     "color": [
      0.7,
@@ -5672,7 +5672,7 @@
    {
     "t": "prim",
     "id": "f424",
-    "name": "king.V2.1a",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5685,7 +5685,7 @@
    {
     "t": "appear",
     "id": "f425",
-    "name": "Paint king.V2.1a",
+    "name": "Paint Stud",
     "body": 267.0,
     "color": [
      0.8,
@@ -5699,7 +5699,7 @@
    {
     "t": "prim",
     "id": "f426",
-    "name": "jack.V2.1a",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5712,7 +5712,7 @@
    {
     "t": "appear",
     "id": "f427",
-    "name": "Paint jack.V2.1a",
+    "name": "Paint Stud",
     "body": 268.0,
     "color": [
      0.8,
@@ -5726,7 +5726,7 @@
    {
     "t": "prim",
     "id": "f428",
-    "name": "king.V2.1b",
+    "name": "King",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5739,7 +5739,7 @@
    {
     "t": "appear",
     "id": "f429",
-    "name": "Paint king.V2.1b",
+    "name": "Paint Stud",
     "body": 269.0,
     "color": [
      0.8,
@@ -5753,7 +5753,7 @@
    {
     "t": "prim",
     "id": "f430",
-    "name": "jack.V2.1b",
+    "name": "Jack",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5766,7 +5766,7 @@
    {
     "t": "appear",
     "id": "f431",
-    "name": "Paint jack.V2.1b",
+    "name": "Paint Stud",
     "body": 270.0,
     "color": [
      0.8,
@@ -5780,7 +5780,7 @@
    {
     "t": "prim",
     "id": "f432",
-    "name": "header.V2.1",
+    "name": "Header",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5793,7 +5793,7 @@
    {
     "t": "appear",
     "id": "f433",
-    "name": "Paint header.V2.1",
+    "name": "Paint Header",
     "body": 271.0,
     "color": [
      0.7,
@@ -5807,7 +5807,7 @@
    {
     "t": "prim",
     "id": "f434",
-    "name": "stud.V2.0",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5820,7 +5820,7 @@
    {
     "t": "appear",
     "id": "f435",
-    "name": "Paint stud.V2.0",
+    "name": "Paint Stud",
     "body": 272.0,
     "color": [
      0.8,
@@ -5845,7 +5845,7 @@
    {
     "t": "prim",
     "id": "f437",
-    "name": "stud.V2.1",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5858,7 +5858,7 @@
    {
     "t": "appear",
     "id": "f438",
-    "name": "Paint stud.V2.1",
+    "name": "Paint Stud",
     "body": 275.0,
     "color": [
      0.8,
@@ -5883,7 +5883,7 @@
    {
     "t": "prim",
     "id": "f440",
-    "name": "stud.V2.2",
+    "name": "Stud",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5896,7 +5896,7 @@
    {
     "t": "appear",
     "id": "f441",
-    "name": "Paint stud.V2.2",
+    "name": "Paint Stud",
     "body": 282.0,
     "color": [
      0.8,
@@ -5921,7 +5921,7 @@
    {
     "t": "prim",
     "id": "f443",
-    "name": "cripple.V2.a0",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5934,7 +5934,7 @@
    {
     "t": "appear",
     "id": "f444",
-    "name": "Paint cripple.V2.a0",
+    "name": "Paint Stud",
     "body": 285.0,
     "color": [
      0.8,
@@ -5948,7 +5948,7 @@
    {
     "t": "prim",
     "id": "f445",
-    "name": "cripple.V2.a1",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5961,7 +5961,7 @@
    {
     "t": "appear",
     "id": "f446",
-    "name": "Paint cripple.V2.a1",
+    "name": "Paint Stud",
     "body": 286.0,
     "color": [
      0.8,
@@ -5975,7 +5975,7 @@
    {
     "t": "prim",
     "id": "f447",
-    "name": "cripple.V2.a2",
+    "name": "Cripple",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -5988,7 +5988,7 @@
    {
     "t": "appear",
     "id": "f448",
-    "name": "Paint cripple.V2.a2",
+    "name": "Paint Stud",
     "body": 287.0,
     "color": [
      0.8,
@@ -6002,7 +6002,7 @@
    {
     "t": "prim",
     "id": "f449",
-    "name": "plate_t1.F.0",
+    "name": "Top plate1",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -6015,7 +6015,7 @@
    {
     "t": "appear",
     "id": "f450",
-    "name": "Paint plate_t1.F.0",
+    "name": "Paint Plate",
     "body": 288.0,
     "color": [
      0.55,
@@ -6029,7 +6029,7 @@
    {
     "t": "prim",
     "id": "f451",
-    "name": "plate_t2.F.0",
+    "name": "Top plate2",
     "kind": "box",
     "op": "new",
     "x": 89.0,
@@ -6042,7 +6042,7 @@
    {
     "t": "appear",
     "id": "f452",
-    "name": "Paint plate_t2.F.0",
+    "name": "Paint Plate",
     "body": 289.0,
     "color": [
      0.55,
@@ -6056,7 +6056,7 @@
    {
     "t": "prim",
     "id": "f453",
-    "name": "plate_t1.B.0",
+    "name": "Top plate1",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -6069,7 +6069,7 @@
    {
     "t": "appear",
     "id": "f454",
-    "name": "Paint plate_t1.B.0",
+    "name": "Paint Plate",
     "body": 290.0,
     "color": [
      0.55,
@@ -6083,7 +6083,7 @@
    {
     "t": "prim",
     "id": "f455",
-    "name": "plate_t2.B.0",
+    "name": "Top plate2",
     "kind": "box",
     "op": "new",
     "x": 89.0,
@@ -6096,7 +6096,7 @@
    {
     "t": "appear",
     "id": "f456",
-    "name": "Paint plate_t2.B.0",
+    "name": "Paint Plate",
     "body": 291.0,
     "color": [
      0.55,
@@ -6110,7 +6110,7 @@
    {
     "t": "prim",
     "id": "f457",
-    "name": "plate_t1.L.0",
+    "name": "Top plate1",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -6123,7 +6123,7 @@
    {
     "t": "appear",
     "id": "f458",
-    "name": "Paint plate_t1.L.0",
+    "name": "Paint Plate",
     "body": 292.0,
     "color": [
      0.55,
@@ -6137,7 +6137,7 @@
    {
     "t": "prim",
     "id": "f459",
-    "name": "plate_t2.L.0",
+    "name": "Top plate2",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -6150,7 +6150,7 @@
    {
     "t": "appear",
     "id": "f460",
-    "name": "Paint plate_t2.L.0",
+    "name": "Paint Plate",
     "body": 293.0,
     "color": [
      0.55,
@@ -6164,7 +6164,7 @@
    {
     "t": "prim",
     "id": "f461",
-    "name": "plate_t1.R.0",
+    "name": "Top plate1",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -6177,7 +6177,7 @@
    {
     "t": "appear",
     "id": "f462",
-    "name": "Paint plate_t1.R.0",
+    "name": "Paint Plate",
     "body": 294.0,
     "color": [
      0.55,
@@ -6191,7 +6191,7 @@
    {
     "t": "prim",
     "id": "f463",
-    "name": "plate_t2.R.0",
+    "name": "Top plate2",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -6204,7 +6204,7 @@
    {
     "t": "appear",
     "id": "f464",
-    "name": "Paint plate_t2.R.0",
+    "name": "Paint Plate",
     "body": 295.0,
     "color": [
      0.55,
@@ -6218,7 +6218,7 @@
    {
     "t": "prim",
     "id": "f465",
-    "name": "plate_t1.H.0",
+    "name": "Top plate1",
     "kind": "box",
     "op": "new",
     "x": 89.0,
@@ -6231,7 +6231,7 @@
    {
     "t": "appear",
     "id": "f466",
-    "name": "Paint plate_t1.H.0",
+    "name": "Paint Plate",
     "body": 296.0,
     "color": [
      0.55,
@@ -6245,7 +6245,7 @@
    {
     "t": "prim",
     "id": "f467",
-    "name": "plate_t2.H.0",
+    "name": "Top plate2",
     "kind": "box",
     "op": "new",
     "x": 89.0,
@@ -6258,7 +6258,7 @@
    {
     "t": "appear",
     "id": "f468",
-    "name": "Paint plate_t2.H.0",
+    "name": "Paint Plate",
     "body": 297.0,
     "color": [
      0.55,
@@ -6272,7 +6272,7 @@
    {
     "t": "prim",
     "id": "f469",
-    "name": "plate_t2.H.1",
+    "name": "Top plate2",
     "kind": "box",
     "op": "new",
     "x": 4445.0,
@@ -6285,7 +6285,7 @@
    {
     "t": "appear",
     "id": "f470",
-    "name": "Paint plate_t2.H.1",
+    "name": "Paint Plate",
     "body": 298.0,
     "color": [
      0.55,
@@ -6299,7 +6299,7 @@
    {
     "t": "prim",
     "id": "f471",
-    "name": "plate_t2.H.2",
+    "name": "Top plate2",
     "kind": "box",
     "op": "new",
     "x": 6668.0,
@@ -6312,7 +6312,7 @@
    {
     "t": "appear",
     "id": "f472",
-    "name": "Paint plate_t2.H.2",
+    "name": "Paint Plate",
     "body": 299.0,
     "color": [
      0.55,
@@ -6326,7 +6326,7 @@
    {
     "t": "prim",
     "id": "f473",
-    "name": "plate_t1.V1.0",
+    "name": "Top plate1",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -6339,7 +6339,7 @@
    {
     "t": "appear",
     "id": "f474",
-    "name": "Paint plate_t1.V1.0",
+    "name": "Paint Plate",
     "body": 300.0,
     "color": [
      0.55,
@@ -6353,7 +6353,7 @@
    {
     "t": "prim",
     "id": "f475",
-    "name": "plate_t1.V1.1",
+    "name": "Top plate1",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -6366,7 +6366,7 @@
    {
     "t": "appear",
     "id": "f476",
-    "name": "Paint plate_t1.V1.1",
+    "name": "Paint Plate",
     "body": 301.0,
     "color": [
      0.55,
@@ -6380,7 +6380,7 @@
    {
     "t": "prim",
     "id": "f477",
-    "name": "plate_t2.V1.0",
+    "name": "Top plate2",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -6393,7 +6393,7 @@
    {
     "t": "appear",
     "id": "f478",
-    "name": "Paint plate_t2.V1.0",
+    "name": "Paint Plate",
     "body": 302.0,
     "color": [
      0.55,
@@ -6407,7 +6407,7 @@
    {
     "t": "prim",
     "id": "f479",
-    "name": "plate_t1.V2.0",
+    "name": "Top plate1",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -6420,7 +6420,7 @@
    {
     "t": "appear",
     "id": "f480",
-    "name": "Paint plate_t1.V2.0",
+    "name": "Paint Plate",
     "body": 303.0,
     "color": [
      0.55,
@@ -6434,7 +6434,7 @@
    {
     "t": "prim",
     "id": "f481",
-    "name": "plate_t1.V2.1",
+    "name": "Top plate1",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -6447,7 +6447,7 @@
    {
     "t": "appear",
     "id": "f482",
-    "name": "Paint plate_t1.V2.1",
+    "name": "Paint Plate",
     "body": 304.0,
     "color": [
      0.55,
@@ -6461,7 +6461,7 @@
    {
     "t": "prim",
     "id": "f483",
-    "name": "plate_t2.V2.0",
+    "name": "Top plate2",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -6474,7 +6474,7 @@
    {
     "t": "appear",
     "id": "f484",
-    "name": "Paint plate_t2.V2.0",
+    "name": "Paint Plate",
     "body": 305.0,
     "color": [
      0.55,
@@ -6488,7 +6488,7 @@
    {
     "t": "prim",
     "id": "f485",
-    "name": "joist.0",
+    "name": "Joist",
     "kind": "box",
     "op": "new",
     "x": 387.4,
@@ -6501,7 +6501,7 @@
    {
     "t": "appear",
     "id": "f486",
-    "name": "Paint joist.0",
+    "name": "Paint Joist",
     "body": 306.0,
     "color": [
      0.86,
@@ -6526,7 +6526,7 @@
    {
     "t": "prim",
     "id": "f488",
-    "name": "joist.1",
+    "name": "Joist",
     "kind": "box",
     "op": "new",
     "x": 387.4,
@@ -6539,7 +6539,7 @@
    {
     "t": "appear",
     "id": "f489",
-    "name": "Paint joist.1",
+    "name": "Paint Joist",
     "body": 329.0,
     "color": [
      0.86,
@@ -6624,7 +6624,7 @@
    {
     "t": "extrude",
     "id": "f493",
-    "name": "gable_stud.0.1",
+    "name": "Gable stud",
     "sketch": "f492",
     "dist": 89.0,
     "both": false,
@@ -6633,7 +6633,7 @@
    {
     "t": "appear",
     "id": "f494",
-    "name": "Paint gable_stud.0.1",
+    "name": "Paint Stud",
     "body": 352.0,
     "color": [
      0.8,
@@ -6700,7 +6700,7 @@
    {
     "t": "extrude",
     "id": "f496",
-    "name": "gable_stud.0.2",
+    "name": "Gable stud",
     "sketch": "f495",
     "dist": 89.0,
     "both": false,
@@ -6709,7 +6709,7 @@
    {
     "t": "appear",
     "id": "f497",
-    "name": "Paint gable_stud.0.2",
+    "name": "Paint Stud",
     "body": 353.0,
     "color": [
      0.8,
@@ -6776,7 +6776,7 @@
    {
     "t": "extrude",
     "id": "f499",
-    "name": "gable_stud.0.3",
+    "name": "Gable stud",
     "sketch": "f498",
     "dist": 89.0,
     "both": false,
@@ -6785,7 +6785,7 @@
    {
     "t": "appear",
     "id": "f500",
-    "name": "Paint gable_stud.0.3",
+    "name": "Paint Stud",
     "body": 354.0,
     "color": [
      0.8,
@@ -6852,7 +6852,7 @@
    {
     "t": "extrude",
     "id": "f502",
-    "name": "gable_stud.0.4",
+    "name": "Gable stud",
     "sketch": "f501",
     "dist": 89.0,
     "both": false,
@@ -6861,7 +6861,7 @@
    {
     "t": "appear",
     "id": "f503",
-    "name": "Paint gable_stud.0.4",
+    "name": "Paint Stud",
     "body": 355.0,
     "color": [
      0.8,
@@ -6928,7 +6928,7 @@
    {
     "t": "extrude",
     "id": "f505",
-    "name": "gable_stud.0.5",
+    "name": "Gable stud",
     "sketch": "f504",
     "dist": 89.0,
     "both": false,
@@ -6937,7 +6937,7 @@
    {
     "t": "appear",
     "id": "f506",
-    "name": "Paint gable_stud.0.5",
+    "name": "Paint Stud",
     "body": 356.0,
     "color": [
      0.8,
@@ -7004,7 +7004,7 @@
    {
     "t": "extrude",
     "id": "f508",
-    "name": "gable_stud.0.6",
+    "name": "Gable stud",
     "sketch": "f507",
     "dist": 89.0,
     "both": false,
@@ -7013,7 +7013,7 @@
    {
     "t": "appear",
     "id": "f509",
-    "name": "Paint gable_stud.0.6",
+    "name": "Paint Stud",
     "body": 357.0,
     "color": [
      0.8,
@@ -7080,7 +7080,7 @@
    {
     "t": "extrude",
     "id": "f511",
-    "name": "gable_stud.0.7",
+    "name": "Gable stud",
     "sketch": "f510",
     "dist": 89.0,
     "both": false,
@@ -7089,7 +7089,7 @@
    {
     "t": "appear",
     "id": "f512",
-    "name": "Paint gable_stud.0.7",
+    "name": "Paint Stud",
     "body": 358.0,
     "color": [
      0.8,
@@ -7156,7 +7156,7 @@
    {
     "t": "extrude",
     "id": "f514",
-    "name": "gable_stud.0.8",
+    "name": "Gable stud",
     "sketch": "f513",
     "dist": 89.0,
     "both": false,
@@ -7165,7 +7165,7 @@
    {
     "t": "appear",
     "id": "f515",
-    "name": "Paint gable_stud.0.8",
+    "name": "Paint Stud",
     "body": 359.0,
     "color": [
      0.8,
@@ -7232,7 +7232,7 @@
    {
     "t": "extrude",
     "id": "f517",
-    "name": "gable_stud.0.9",
+    "name": "Gable stud",
     "sketch": "f516",
     "dist": 89.0,
     "both": false,
@@ -7241,7 +7241,7 @@
    {
     "t": "appear",
     "id": "f518",
-    "name": "Paint gable_stud.0.9",
+    "name": "Paint Stud",
     "body": 360.0,
     "color": [
      0.8,
@@ -7308,7 +7308,7 @@
    {
     "t": "extrude",
     "id": "f520",
-    "name": "gable_stud.0.10",
+    "name": "Gable stud",
     "sketch": "f519",
     "dist": 89.0,
     "both": false,
@@ -7317,7 +7317,7 @@
    {
     "t": "appear",
     "id": "f521",
-    "name": "Paint gable_stud.0.10",
+    "name": "Paint Stud",
     "body": 361.0,
     "color": [
      0.8,
@@ -7384,7 +7384,7 @@
    {
     "t": "extrude",
     "id": "f523",
-    "name": "gable_stud.0.11",
+    "name": "Gable stud",
     "sketch": "f522",
     "dist": 89.0,
     "both": false,
@@ -7393,7 +7393,7 @@
    {
     "t": "appear",
     "id": "f524",
-    "name": "Paint gable_stud.0.11",
+    "name": "Paint Stud",
     "body": 362.0,
     "color": [
      0.8,
@@ -7460,7 +7460,7 @@
    {
     "t": "extrude",
     "id": "f526",
-    "name": "gable_stud.0.12",
+    "name": "Gable stud",
     "sketch": "f525",
     "dist": 89.0,
     "both": false,
@@ -7469,7 +7469,7 @@
    {
     "t": "appear",
     "id": "f527",
-    "name": "Paint gable_stud.0.12",
+    "name": "Paint Stud",
     "body": 363.0,
     "color": [
      0.8,
@@ -7536,7 +7536,7 @@
    {
     "t": "extrude",
     "id": "f529",
-    "name": "gable_stud.0.13",
+    "name": "Gable stud",
     "sketch": "f528",
     "dist": 89.0,
     "both": false,
@@ -7545,7 +7545,7 @@
    {
     "t": "appear",
     "id": "f530",
-    "name": "Paint gable_stud.0.13",
+    "name": "Paint Stud",
     "body": 364.0,
     "color": [
      0.8,
@@ -7612,7 +7612,7 @@
    {
     "t": "extrude",
     "id": "f532",
-    "name": "gable_stud.0.14",
+    "name": "Gable stud",
     "sketch": "f531",
     "dist": 89.0,
     "both": false,
@@ -7621,7 +7621,7 @@
    {
     "t": "appear",
     "id": "f533",
-    "name": "Paint gable_stud.0.14",
+    "name": "Paint Stud",
     "body": 365.0,
     "color": [
      0.8,
@@ -7688,7 +7688,7 @@
    {
     "t": "extrude",
     "id": "f535",
-    "name": "gable_stud.0.15",
+    "name": "Gable stud",
     "sketch": "f534",
     "dist": 89.0,
     "both": false,
@@ -7697,7 +7697,7 @@
    {
     "t": "appear",
     "id": "f536",
-    "name": "Paint gable_stud.0.15",
+    "name": "Paint Stud",
     "body": 366.0,
     "color": [
      0.8,
@@ -7764,7 +7764,7 @@
    {
     "t": "extrude",
     "id": "f538",
-    "name": "gable_stud.0.16",
+    "name": "Gable stud",
     "sketch": "f537",
     "dist": 89.0,
     "both": false,
@@ -7773,7 +7773,7 @@
    {
     "t": "appear",
     "id": "f539",
-    "name": "Paint gable_stud.0.16",
+    "name": "Paint Stud",
     "body": 367.0,
     "color": [
      0.8,
@@ -7840,7 +7840,7 @@
    {
     "t": "extrude",
     "id": "f541",
-    "name": "gable_stud.0.17",
+    "name": "Gable stud",
     "sketch": "f540",
     "dist": 89.0,
     "both": false,
@@ -7849,7 +7849,7 @@
    {
     "t": "appear",
     "id": "f542",
-    "name": "Paint gable_stud.0.17",
+    "name": "Paint Stud",
     "body": 368.0,
     "color": [
      0.8,
@@ -7916,7 +7916,7 @@
    {
     "t": "extrude",
     "id": "f544",
-    "name": "gable_stud.0.18",
+    "name": "Gable stud",
     "sketch": "f543",
     "dist": 89.0,
     "both": false,
@@ -7925,7 +7925,7 @@
    {
     "t": "appear",
     "id": "f545",
-    "name": "Paint gable_stud.0.18",
+    "name": "Paint Stud",
     "body": 369.0,
     "color": [
      0.8,
@@ -7999,7 +7999,7 @@
    {
     "t": "extrude",
     "id": "f548",
-    "name": "gable_stud.1.1",
+    "name": "Gable stud",
     "sketch": "f547",
     "dist": 89.0,
     "both": false,
@@ -8008,7 +8008,7 @@
    {
     "t": "appear",
     "id": "f549",
-    "name": "Paint gable_stud.1.1",
+    "name": "Paint Stud",
     "body": 370.0,
     "color": [
      0.8,
@@ -8075,7 +8075,7 @@
    {
     "t": "extrude",
     "id": "f551",
-    "name": "gable_stud.1.2",
+    "name": "Gable stud",
     "sketch": "f550",
     "dist": 89.0,
     "both": false,
@@ -8084,7 +8084,7 @@
    {
     "t": "appear",
     "id": "f552",
-    "name": "Paint gable_stud.1.2",
+    "name": "Paint Stud",
     "body": 371.0,
     "color": [
      0.8,
@@ -8151,7 +8151,7 @@
    {
     "t": "extrude",
     "id": "f554",
-    "name": "gable_stud.1.3",
+    "name": "Gable stud",
     "sketch": "f553",
     "dist": 89.0,
     "both": false,
@@ -8160,7 +8160,7 @@
    {
     "t": "appear",
     "id": "f555",
-    "name": "Paint gable_stud.1.3",
+    "name": "Paint Stud",
     "body": 372.0,
     "color": [
      0.8,
@@ -8227,7 +8227,7 @@
    {
     "t": "extrude",
     "id": "f557",
-    "name": "gable_stud.1.4",
+    "name": "Gable stud",
     "sketch": "f556",
     "dist": 89.0,
     "both": false,
@@ -8236,7 +8236,7 @@
    {
     "t": "appear",
     "id": "f558",
-    "name": "Paint gable_stud.1.4",
+    "name": "Paint Stud",
     "body": 373.0,
     "color": [
      0.8,
@@ -8303,7 +8303,7 @@
    {
     "t": "extrude",
     "id": "f560",
-    "name": "gable_stud.1.5",
+    "name": "Gable stud",
     "sketch": "f559",
     "dist": 89.0,
     "both": false,
@@ -8312,7 +8312,7 @@
    {
     "t": "appear",
     "id": "f561",
-    "name": "Paint gable_stud.1.5",
+    "name": "Paint Stud",
     "body": 374.0,
     "color": [
      0.8,
@@ -8379,7 +8379,7 @@
    {
     "t": "extrude",
     "id": "f563",
-    "name": "gable_stud.1.6",
+    "name": "Gable stud",
     "sketch": "f562",
     "dist": 89.0,
     "both": false,
@@ -8388,7 +8388,7 @@
    {
     "t": "appear",
     "id": "f564",
-    "name": "Paint gable_stud.1.6",
+    "name": "Paint Stud",
     "body": 375.0,
     "color": [
      0.8,
@@ -8455,7 +8455,7 @@
    {
     "t": "extrude",
     "id": "f566",
-    "name": "gable_stud.1.7",
+    "name": "Gable stud",
     "sketch": "f565",
     "dist": 89.0,
     "both": false,
@@ -8464,7 +8464,7 @@
    {
     "t": "appear",
     "id": "f567",
-    "name": "Paint gable_stud.1.7",
+    "name": "Paint Stud",
     "body": 376.0,
     "color": [
      0.8,
@@ -8531,7 +8531,7 @@
    {
     "t": "extrude",
     "id": "f569",
-    "name": "gable_stud.1.8",
+    "name": "Gable stud",
     "sketch": "f568",
     "dist": 89.0,
     "both": false,
@@ -8540,7 +8540,7 @@
    {
     "t": "appear",
     "id": "f570",
-    "name": "Paint gable_stud.1.8",
+    "name": "Paint Stud",
     "body": 377.0,
     "color": [
      0.8,
@@ -8607,7 +8607,7 @@
    {
     "t": "extrude",
     "id": "f572",
-    "name": "gable_stud.1.9",
+    "name": "Gable stud",
     "sketch": "f571",
     "dist": 89.0,
     "both": false,
@@ -8616,7 +8616,7 @@
    {
     "t": "appear",
     "id": "f573",
-    "name": "Paint gable_stud.1.9",
+    "name": "Paint Stud",
     "body": 378.0,
     "color": [
      0.8,
@@ -8683,7 +8683,7 @@
    {
     "t": "extrude",
     "id": "f575",
-    "name": "gable_stud.1.10",
+    "name": "Gable stud",
     "sketch": "f574",
     "dist": 89.0,
     "both": false,
@@ -8692,7 +8692,7 @@
    {
     "t": "appear",
     "id": "f576",
-    "name": "Paint gable_stud.1.10",
+    "name": "Paint Stud",
     "body": 379.0,
     "color": [
      0.8,
@@ -8759,7 +8759,7 @@
    {
     "t": "extrude",
     "id": "f578",
-    "name": "gable_stud.1.11",
+    "name": "Gable stud",
     "sketch": "f577",
     "dist": 89.0,
     "both": false,
@@ -8768,7 +8768,7 @@
    {
     "t": "appear",
     "id": "f579",
-    "name": "Paint gable_stud.1.11",
+    "name": "Paint Stud",
     "body": 380.0,
     "color": [
      0.8,
@@ -8835,7 +8835,7 @@
    {
     "t": "extrude",
     "id": "f581",
-    "name": "gable_stud.1.12",
+    "name": "Gable stud",
     "sketch": "f580",
     "dist": 89.0,
     "both": false,
@@ -8844,7 +8844,7 @@
    {
     "t": "appear",
     "id": "f582",
-    "name": "Paint gable_stud.1.12",
+    "name": "Paint Stud",
     "body": 381.0,
     "color": [
      0.8,
@@ -8911,7 +8911,7 @@
    {
     "t": "extrude",
     "id": "f584",
-    "name": "gable_stud.1.13",
+    "name": "Gable stud",
     "sketch": "f583",
     "dist": 89.0,
     "both": false,
@@ -8920,7 +8920,7 @@
    {
     "t": "appear",
     "id": "f585",
-    "name": "Paint gable_stud.1.13",
+    "name": "Paint Stud",
     "body": 382.0,
     "color": [
      0.8,
@@ -8987,7 +8987,7 @@
    {
     "t": "extrude",
     "id": "f587",
-    "name": "gable_stud.1.14",
+    "name": "Gable stud",
     "sketch": "f586",
     "dist": 89.0,
     "both": false,
@@ -8996,7 +8996,7 @@
    {
     "t": "appear",
     "id": "f588",
-    "name": "Paint gable_stud.1.14",
+    "name": "Paint Stud",
     "body": 383.0,
     "color": [
      0.8,
@@ -9063,7 +9063,7 @@
    {
     "t": "extrude",
     "id": "f590",
-    "name": "gable_stud.1.15",
+    "name": "Gable stud",
     "sketch": "f589",
     "dist": 89.0,
     "both": false,
@@ -9072,7 +9072,7 @@
    {
     "t": "appear",
     "id": "f591",
-    "name": "Paint gable_stud.1.15",
+    "name": "Paint Stud",
     "body": 384.0,
     "color": [
      0.8,
@@ -9139,7 +9139,7 @@
    {
     "t": "extrude",
     "id": "f593",
-    "name": "gable_stud.1.16",
+    "name": "Gable stud",
     "sketch": "f592",
     "dist": 89.0,
     "both": false,
@@ -9148,7 +9148,7 @@
    {
     "t": "appear",
     "id": "f594",
-    "name": "Paint gable_stud.1.16",
+    "name": "Paint Stud",
     "body": 385.0,
     "color": [
      0.8,
@@ -9215,7 +9215,7 @@
    {
     "t": "extrude",
     "id": "f596",
-    "name": "gable_stud.1.17",
+    "name": "Gable stud",
     "sketch": "f595",
     "dist": 89.0,
     "both": false,
@@ -9224,7 +9224,7 @@
    {
     "t": "appear",
     "id": "f597",
-    "name": "Paint gable_stud.1.17",
+    "name": "Paint Stud",
     "body": 386.0,
     "color": [
      0.8,
@@ -9291,7 +9291,7 @@
    {
     "t": "extrude",
     "id": "f599",
-    "name": "gable_stud.1.18",
+    "name": "Gable stud",
     "sketch": "f598",
     "dist": 89.0,
     "both": false,
@@ -9300,7 +9300,7 @@
    {
     "t": "appear",
     "id": "f600",
-    "name": "Paint gable_stud.1.18",
+    "name": "Paint Stud",
     "body": 387.0,
     "color": [
      0.8,
@@ -9314,7 +9314,7 @@
    {
     "t": "prim",
     "id": "f601",
-    "name": "ridge",
+    "name": "Ridge",
     "kind": "box",
     "op": "new",
     "x": 0,
@@ -9327,7 +9327,7 @@
    {
     "t": "appear",
     "id": "f602",
-    "name": "Paint ridge",
+    "name": "Paint Ridge",
     "body": 388.0,
     "color": [
      0.68,
@@ -9434,7 +9434,7 @@
    {
     "t": "extrude",
     "id": "f605",
-    "name": "rafter.front",
+    "name": "Rafter",
     "sketch": "f604",
     "dist": 38.0,
     "both": false,
@@ -9443,7 +9443,7 @@
    {
     "t": "appear",
     "id": "f606",
-    "name": "Paint rafter.front",
+    "name": "Paint Rafter",
     "body": 389.0,
     "color": [
      0.82,
@@ -9554,7 +9554,7 @@
    {
     "t": "extrude",
     "id": "f609",
-    "name": "gable_rafter.front.0",
+    "name": "Gable rafter",
     "sketch": "f608",
     "dist": 38.0,
     "both": false,
@@ -9563,7 +9563,7 @@
    {
     "t": "appear",
     "id": "f610",
-    "name": "Paint gable_rafter.front.0",
+    "name": "Paint Rafter",
     "body": 404.0,
     "color": [
      0.82,
@@ -9670,7 +9670,7 @@
    {
     "t": "extrude",
     "id": "f613",
-    "name": "gable_rafter.front.1",
+    "name": "Gable rafter",
     "sketch": "f612",
     "dist": 38.0,
     "both": false,
@@ -9679,7 +9679,7 @@
    {
     "t": "appear",
     "id": "f614",
-    "name": "Paint gable_rafter.front.1",
+    "name": "Paint Rafter",
     "body": 405.0,
     "color": [
      0.82,
@@ -9779,7 +9779,7 @@
    {
     "t": "extrude",
     "id": "f616",
-    "name": "rafter.back",
+    "name": "Rafter",
     "sketch": "f615",
     "dist": 38.0,
     "both": false,
@@ -9788,7 +9788,7 @@
    {
     "t": "appear",
     "id": "f617",
-    "name": "Paint rafter.back",
+    "name": "Paint Rafter",
     "body": 406.0,
     "color": [
      0.82,
@@ -9899,7 +9899,7 @@
    {
     "t": "extrude",
     "id": "f620",
-    "name": "gable_rafter.back.0",
+    "name": "Gable rafter",
     "sketch": "f619",
     "dist": 38.0,
     "both": false,
@@ -9908,7 +9908,7 @@
    {
     "t": "appear",
     "id": "f621",
-    "name": "Paint gable_rafter.back.0",
+    "name": "Paint Rafter",
     "body": 421.0,
     "color": [
      0.82,
@@ -10008,7 +10008,7 @@
    {
     "t": "extrude",
     "id": "f623",
-    "name": "gable_rafter.back.1",
+    "name": "Gable rafter",
     "sketch": "f622",
     "dist": 38.0,
     "both": false,
@@ -10017,7 +10017,7 @@
    {
     "t": "appear",
     "id": "f624",
-    "name": "Paint gable_rafter.back.1",
+    "name": "Paint Rafter",
     "body": 422.0,
     "color": [
      0.82,
@@ -10031,7 +10031,7 @@
    {
     "t": "prim",
     "id": "f625",
-    "name": "sheathing.F.0",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -10044,7 +10044,7 @@
    {
     "t": "appear",
     "id": "f626",
-    "name": "Paint sheathing.F.0",
+    "name": "Paint Osb",
     "body": 423.0,
     "color": [
      0.76,
@@ -10058,7 +10058,7 @@
    {
     "t": "prim",
     "id": "f627",
-    "name": "sheathing.F.1",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 630.5,
@@ -10071,7 +10071,7 @@
    {
     "t": "appear",
     "id": "f628",
-    "name": "Paint sheathing.F.1",
+    "name": "Paint Osb",
     "body": 424.0,
     "color": [
      0.76,
@@ -10085,7 +10085,7 @@
    {
     "t": "prim",
     "id": "f629",
-    "name": "sheathing.F.2",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 630.5,
@@ -10098,7 +10098,7 @@
    {
     "t": "appear",
     "id": "f630",
-    "name": "Paint sheathing.F.2",
+    "name": "Paint Osb",
     "body": 425.0,
     "color": [
      0.76,
@@ -10112,7 +10112,7 @@
    {
     "t": "prim",
     "id": "f631",
-    "name": "sheathing.F.3",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 1219.2,
@@ -10125,7 +10125,7 @@
    {
     "t": "appear",
     "id": "f632",
-    "name": "Paint sheathing.F.3",
+    "name": "Paint Osb",
     "body": 426.0,
     "color": [
      0.76,
@@ -10139,7 +10139,7 @@
    {
     "t": "prim",
     "id": "f633",
-    "name": "sheathing.F.4",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 1219.2,
@@ -10152,7 +10152,7 @@
    {
     "t": "appear",
     "id": "f634",
-    "name": "Paint sheathing.F.4",
+    "name": "Paint Osb",
     "body": 427.0,
     "color": [
      0.76,
@@ -10166,7 +10166,7 @@
    {
     "t": "prim",
     "id": "f635",
-    "name": "sheathing.F.5",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 1569.5,
@@ -10179,7 +10179,7 @@
    {
     "t": "appear",
     "id": "f636",
-    "name": "Paint sheathing.F.5",
+    "name": "Paint Osb",
     "body": 428.0,
     "color": [
      0.76,
@@ -10193,7 +10193,7 @@
    {
     "t": "prim",
     "id": "f637",
-    "name": "sheathing.F.6",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 2438.4,
@@ -10206,7 +10206,7 @@
    {
     "t": "appear",
     "id": "f638",
-    "name": "Paint sheathing.F.6",
+    "name": "Paint Osb",
     "body": 429.0,
     "color": [
      0.76,
@@ -10220,7 +10220,7 @@
    {
     "t": "prim",
     "id": "f639",
-    "name": "sheathing.F.7",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 2830.5,
@@ -10233,7 +10233,7 @@
    {
     "t": "appear",
     "id": "f640",
-    "name": "Paint sheathing.F.7",
+    "name": "Paint Osb",
     "body": 430.0,
     "color": [
      0.76,
@@ -10247,7 +10247,7 @@
    {
     "t": "prim",
     "id": "f641",
-    "name": "sheathing.F.8",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 3657.6000000000004,
@@ -10260,7 +10260,7 @@
    {
     "t": "appear",
     "id": "f642",
-    "name": "Paint sheathing.F.8",
+    "name": "Paint Osb",
     "body": 431.0,
     "color": [
      0.76,
@@ -10274,7 +10274,7 @@
    {
     "t": "prim",
     "id": "f643",
-    "name": "sheathing.F.9",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 3769.5,
@@ -10287,7 +10287,7 @@
    {
     "t": "appear",
     "id": "f644",
-    "name": "Paint sheathing.F.9",
+    "name": "Paint Osb",
     "body": 432.0,
     "color": [
      0.76,
@@ -10301,7 +10301,7 @@
    {
     "t": "prim",
     "id": "f645",
-    "name": "sheathing.F.10",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 4876.8,
@@ -10314,7 +10314,7 @@
    {
     "t": "appear",
     "id": "f646",
-    "name": "Paint sheathing.F.10",
+    "name": "Paint Osb",
     "body": 433.0,
     "color": [
      0.76,
@@ -10328,7 +10328,7 @@
    {
     "t": "prim",
     "id": "f647",
-    "name": "sheathing.F.11",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 6096.0,
@@ -10341,7 +10341,7 @@
    {
     "t": "appear",
     "id": "f648",
-    "name": "Paint sheathing.F.11",
+    "name": "Paint Osb",
     "body": 434.0,
     "color": [
      0.76,
@@ -10355,7 +10355,7 @@
    {
     "t": "prim",
     "id": "f649",
-    "name": "sheathing.F.12",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 7315.200000000001,
@@ -10368,7 +10368,7 @@
    {
     "t": "appear",
     "id": "f650",
-    "name": "Paint sheathing.F.12",
+    "name": "Paint Osb",
     "body": 435.0,
     "color": [
      0.76,
@@ -10382,7 +10382,7 @@
    {
     "t": "prim",
     "id": "f651",
-    "name": "sheathing.F.13",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 7730.5,
@@ -10395,7 +10395,7 @@
    {
     "t": "appear",
     "id": "f652",
-    "name": "Paint sheathing.F.13",
+    "name": "Paint Osb",
     "body": 436.0,
     "color": [
      0.76,
@@ -10409,7 +10409,7 @@
    {
     "t": "prim",
     "id": "f653",
-    "name": "sheathing.F.14",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 7730.5,
@@ -10422,7 +10422,7 @@
    {
     "t": "appear",
     "id": "f654",
-    "name": "Paint sheathing.F.14",
+    "name": "Paint Osb",
     "body": 437.0,
     "color": [
      0.76,
@@ -10436,7 +10436,7 @@
    {
     "t": "prim",
     "id": "f655",
-    "name": "sheathing.F.15",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 8534.4,
@@ -10449,7 +10449,7 @@
    {
     "t": "appear",
     "id": "f656",
-    "name": "Paint sheathing.F.15",
+    "name": "Paint Osb",
     "body": 438.0,
     "color": [
      0.76,
@@ -10463,7 +10463,7 @@
    {
     "t": "prim",
     "id": "f657",
-    "name": "sheathing.F.16",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 8534.4,
@@ -10476,7 +10476,7 @@
    {
     "t": "appear",
     "id": "f658",
-    "name": "Paint sheathing.F.16",
+    "name": "Paint Osb",
     "body": 439.0,
     "color": [
      0.76,
@@ -10490,7 +10490,7 @@
    {
     "t": "prim",
     "id": "f659",
-    "name": "sheathing.F.17",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 8669.5,
@@ -10503,7 +10503,7 @@
    {
     "t": "appear",
     "id": "f660",
-    "name": "Paint sheathing.F.17",
+    "name": "Paint Osb",
     "body": 440.0,
     "color": [
      0.76,
@@ -10517,7 +10517,7 @@
    {
     "t": "prim",
     "id": "f661",
-    "name": "sheathing.F.18",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 9753.6,
@@ -10530,7 +10530,7 @@
    {
     "t": "appear",
     "id": "f662",
-    "name": "Paint sheathing.F.18",
+    "name": "Paint Osb",
     "body": 441.0,
     "color": [
      0.76,
@@ -10544,7 +10544,7 @@
    {
     "t": "prim",
     "id": "f663",
-    "name": "sheathing.B.0",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -10557,7 +10557,7 @@
    {
     "t": "appear",
     "id": "f664",
-    "name": "Paint sheathing.B.0",
+    "name": "Paint Osb",
     "body": 442.0,
     "color": [
      0.76,
@@ -10571,7 +10571,7 @@
    {
     "t": "prim",
     "id": "f665",
-    "name": "sheathing.B.1",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 830.5,
@@ -10584,7 +10584,7 @@
    {
     "t": "appear",
     "id": "f666",
-    "name": "Paint sheathing.B.1",
+    "name": "Paint Osb",
     "body": 443.0,
     "color": [
      0.76,
@@ -10598,7 +10598,7 @@
    {
     "t": "prim",
     "id": "f667",
-    "name": "sheathing.B.2",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 830.5,
@@ -10611,7 +10611,7 @@
    {
     "t": "appear",
     "id": "f668",
-    "name": "Paint sheathing.B.2",
+    "name": "Paint Osb",
     "body": 444.0,
     "color": [
      0.76,
@@ -10625,7 +10625,7 @@
    {
     "t": "prim",
     "id": "f669",
-    "name": "sheathing.B.3",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 1219.2,
@@ -10638,7 +10638,7 @@
    {
     "t": "appear",
     "id": "f670",
-    "name": "Paint sheathing.B.3",
+    "name": "Paint Osb",
     "body": 445.0,
     "color": [
      0.76,
@@ -10652,7 +10652,7 @@
    {
     "t": "prim",
     "id": "f671",
-    "name": "sheathing.B.4",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 1219.2,
@@ -10665,7 +10665,7 @@
    {
     "t": "appear",
     "id": "f672",
-    "name": "Paint sheathing.B.4",
+    "name": "Paint Osb",
     "body": 446.0,
     "color": [
      0.76,
@@ -10679,7 +10679,7 @@
    {
     "t": "prim",
     "id": "f673",
-    "name": "sheathing.B.5",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 1769.5,
@@ -10692,7 +10692,7 @@
    {
     "t": "appear",
     "id": "f674",
-    "name": "Paint sheathing.B.5",
+    "name": "Paint Osb",
     "body": 447.0,
     "color": [
      0.76,
@@ -10706,7 +10706,7 @@
    {
     "t": "prim",
     "id": "f675",
-    "name": "sheathing.B.6",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 2438.4,
@@ -10719,7 +10719,7 @@
    {
     "t": "appear",
     "id": "f676",
-    "name": "Paint sheathing.B.6",
+    "name": "Paint Osb",
     "body": 448.0,
     "color": [
      0.76,
@@ -10733,7 +10733,7 @@
    {
     "t": "prim",
     "id": "f677",
-    "name": "sheathing.B.7",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 2830.5,
@@ -10746,7 +10746,7 @@
    {
     "t": "appear",
     "id": "f678",
-    "name": "Paint sheathing.B.7",
+    "name": "Paint Osb",
     "body": 449.0,
     "color": [
      0.76,
@@ -10760,7 +10760,7 @@
    {
     "t": "prim",
     "id": "f679",
-    "name": "sheathing.B.8",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 2830.5,
@@ -10773,7 +10773,7 @@
    {
     "t": "appear",
     "id": "f680",
-    "name": "Paint sheathing.B.8",
+    "name": "Paint Osb",
     "body": 450.0,
     "color": [
      0.76,
@@ -10787,7 +10787,7 @@
    {
     "t": "prim",
     "id": "f681",
-    "name": "sheathing.B.9",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 3657.6000000000004,
@@ -10800,7 +10800,7 @@
    {
     "t": "appear",
     "id": "f682",
-    "name": "Paint sheathing.B.9",
+    "name": "Paint Osb",
     "body": 451.0,
     "color": [
      0.76,
@@ -10814,7 +10814,7 @@
    {
     "t": "prim",
     "id": "f683",
-    "name": "sheathing.B.10",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 3657.6000000000004,
@@ -10827,7 +10827,7 @@
    {
     "t": "appear",
     "id": "f684",
-    "name": "Paint sheathing.B.10",
+    "name": "Paint Osb",
     "body": 452.0,
     "color": [
      0.76,
@@ -10841,7 +10841,7 @@
    {
     "t": "prim",
     "id": "f685",
-    "name": "sheathing.B.11",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 3769.5,
@@ -10854,7 +10854,7 @@
    {
     "t": "appear",
     "id": "f686",
-    "name": "Paint sheathing.B.11",
+    "name": "Paint Osb",
     "body": 453.0,
     "color": [
      0.76,
@@ -10868,7 +10868,7 @@
    {
     "t": "prim",
     "id": "f687",
-    "name": "sheathing.B.12",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 4876.8,
@@ -10881,7 +10881,7 @@
    {
     "t": "appear",
     "id": "f688",
-    "name": "Paint sheathing.B.12",
+    "name": "Paint Osb",
     "body": 454.0,
     "color": [
      0.76,
@@ -10895,7 +10895,7 @@
    {
     "t": "prim",
     "id": "f689",
-    "name": "sheathing.B.13",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 5182.5,
@@ -10908,7 +10908,7 @@
    {
     "t": "appear",
     "id": "f690",
-    "name": "Paint sheathing.B.13",
+    "name": "Paint Osb",
     "body": 455.0,
     "color": [
      0.76,
@@ -10922,7 +10922,7 @@
    {
     "t": "prim",
     "id": "f691",
-    "name": "sheathing.B.14",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 5182.5,
@@ -10935,7 +10935,7 @@
    {
     "t": "appear",
     "id": "f692",
-    "name": "Paint sheathing.B.14",
+    "name": "Paint Osb",
     "body": 456.0,
     "color": [
      0.76,
@@ -10949,7 +10949,7 @@
    {
     "t": "prim",
     "id": "f693",
-    "name": "sheathing.B.15",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 5817.5,
@@ -10962,7 +10962,7 @@
    {
     "t": "appear",
     "id": "f694",
-    "name": "Paint sheathing.B.15",
+    "name": "Paint Osb",
     "body": 457.0,
     "color": [
      0.76,
@@ -10976,7 +10976,7 @@
    {
     "t": "prim",
     "id": "f695",
-    "name": "sheathing.B.16",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 6096.0,
@@ -10989,7 +10989,7 @@
    {
     "t": "appear",
     "id": "f696",
-    "name": "Paint sheathing.B.16",
+    "name": "Paint Osb",
     "body": 458.0,
     "color": [
      0.76,
@@ -11003,7 +11003,7 @@
    {
     "t": "prim",
     "id": "f697",
-    "name": "sheathing.B.17",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 7315.200000000001,
@@ -11016,7 +11016,7 @@
    {
     "t": "appear",
     "id": "f698",
-    "name": "Paint sheathing.B.17",
+    "name": "Paint Osb",
     "body": 459.0,
     "color": [
      0.76,
@@ -11030,7 +11030,7 @@
    {
     "t": "prim",
     "id": "f699",
-    "name": "sheathing.B.18",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 7530.5,
@@ -11043,7 +11043,7 @@
    {
     "t": "appear",
     "id": "f700",
-    "name": "Paint sheathing.B.18",
+    "name": "Paint Osb",
     "body": 460.0,
     "color": [
      0.76,
@@ -11057,7 +11057,7 @@
    {
     "t": "prim",
     "id": "f701",
-    "name": "sheathing.B.19",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 7530.5,
@@ -11070,7 +11070,7 @@
    {
     "t": "appear",
     "id": "f702",
-    "name": "Paint sheathing.B.19",
+    "name": "Paint Osb",
     "body": 461.0,
     "color": [
      0.76,
@@ -11084,7 +11084,7 @@
    {
     "t": "prim",
     "id": "f703",
-    "name": "sheathing.B.20",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 8469.5,
@@ -11097,7 +11097,7 @@
    {
     "t": "appear",
     "id": "f704",
-    "name": "Paint sheathing.B.20",
+    "name": "Paint Osb",
     "body": 462.0,
     "color": [
      0.76,
@@ -11111,7 +11111,7 @@
    {
     "t": "prim",
     "id": "f705",
-    "name": "sheathing.B.21",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 8534.4,
@@ -11124,7 +11124,7 @@
    {
     "t": "appear",
     "id": "f706",
-    "name": "Paint sheathing.B.21",
+    "name": "Paint Osb",
     "body": 463.0,
     "color": [
      0.76,
@@ -11138,7 +11138,7 @@
    {
     "t": "prim",
     "id": "f707",
-    "name": "sheathing.B.22",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 9753.6,
@@ -11151,7 +11151,7 @@
    {
     "t": "appear",
     "id": "f708",
-    "name": "Paint sheathing.B.22",
+    "name": "Paint Osb",
     "body": 464.0,
     "color": [
      0.76,
@@ -11165,7 +11165,7 @@
    {
     "t": "prim",
     "id": "f709",
-    "name": "sheathing.L.0",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": -11.1,
@@ -11178,7 +11178,7 @@
    {
     "t": "appear",
     "id": "f710",
-    "name": "Paint sheathing.L.0",
+    "name": "Paint Osb",
     "body": 465.0,
     "color": [
      0.76,
@@ -11192,7 +11192,7 @@
    {
     "t": "prim",
     "id": "f711",
-    "name": "sheathing.L.1",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": -11.1,
@@ -11205,7 +11205,7 @@
    {
     "t": "appear",
     "id": "f712",
-    "name": "Paint sheathing.L.1",
+    "name": "Paint Osb",
     "body": 466.0,
     "color": [
      0.76,
@@ -11219,7 +11219,7 @@
    {
     "t": "prim",
     "id": "f713",
-    "name": "sheathing.L.2",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": -11.1,
@@ -11232,7 +11232,7 @@
    {
     "t": "appear",
     "id": "f714",
-    "name": "Paint sheathing.L.2",
+    "name": "Paint Osb",
     "body": 467.0,
     "color": [
      0.76,
@@ -11246,7 +11246,7 @@
    {
     "t": "prim",
     "id": "f715",
-    "name": "sheathing.L.3",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": -11.1,
@@ -11259,7 +11259,7 @@
    {
     "t": "appear",
     "id": "f716",
-    "name": "Paint sheathing.L.3",
+    "name": "Paint Osb",
     "body": 468.0,
     "color": [
      0.76,
@@ -11273,7 +11273,7 @@
    {
     "t": "prim",
     "id": "f717",
-    "name": "sheathing.L.4",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": -11.1,
@@ -11286,7 +11286,7 @@
    {
     "t": "appear",
     "id": "f718",
-    "name": "Paint sheathing.L.4",
+    "name": "Paint Osb",
     "body": 469.0,
     "color": [
      0.76,
@@ -11300,7 +11300,7 @@
    {
     "t": "prim",
     "id": "f719",
-    "name": "sheathing.L.5",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": -11.1,
@@ -11313,7 +11313,7 @@
    {
     "t": "appear",
     "id": "f720",
-    "name": "Paint sheathing.L.5",
+    "name": "Paint Osb",
     "body": 470.0,
     "color": [
      0.76,
@@ -11327,7 +11327,7 @@
    {
     "t": "prim",
     "id": "f721",
-    "name": "sheathing.L.6",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": -11.1,
@@ -11340,7 +11340,7 @@
    {
     "t": "appear",
     "id": "f722",
-    "name": "Paint sheathing.L.6",
+    "name": "Paint Osb",
     "body": 471.0,
     "color": [
      0.76,
@@ -11354,7 +11354,7 @@
    {
     "t": "prim",
     "id": "f723",
-    "name": "sheathing.L.7",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": -11.1,
@@ -11367,7 +11367,7 @@
    {
     "t": "appear",
     "id": "f724",
-    "name": "Paint sheathing.L.7",
+    "name": "Paint Osb",
     "body": 472.0,
     "color": [
      0.76,
@@ -11381,7 +11381,7 @@
    {
     "t": "prim",
     "id": "f725",
-    "name": "sheathing.L.8",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": -11.1,
@@ -11394,7 +11394,7 @@
    {
     "t": "appear",
     "id": "f726",
-    "name": "Paint sheathing.L.8",
+    "name": "Paint Osb",
     "body": 473.0,
     "color": [
      0.76,
@@ -11408,7 +11408,7 @@
    {
     "t": "prim",
     "id": "f727",
-    "name": "sheathing.L.9",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": -11.1,
@@ -11421,7 +11421,7 @@
    {
     "t": "appear",
     "id": "f728",
-    "name": "Paint sheathing.L.9",
+    "name": "Paint Osb",
     "body": 474.0,
     "color": [
      0.76,
@@ -11435,7 +11435,7 @@
    {
     "t": "prim",
     "id": "f729",
-    "name": "sheathing.L.10",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": -11.1,
@@ -11448,7 +11448,7 @@
    {
     "t": "appear",
     "id": "f730",
-    "name": "Paint sheathing.L.10",
+    "name": "Paint Osb",
     "body": 475.0,
     "color": [
      0.76,
@@ -11462,7 +11462,7 @@
    {
     "t": "prim",
     "id": "f731",
-    "name": "sheathing.L.11",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": -11.1,
@@ -11475,7 +11475,7 @@
    {
     "t": "appear",
     "id": "f732",
-    "name": "Paint sheathing.L.11",
+    "name": "Paint Osb",
     "body": 476.0,
     "color": [
      0.76,
@@ -11489,7 +11489,7 @@
    {
     "t": "prim",
     "id": "f733",
-    "name": "sheathing.L.12",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": -11.1,
@@ -11502,7 +11502,7 @@
    {
     "t": "appear",
     "id": "f734",
-    "name": "Paint sheathing.L.12",
+    "name": "Paint Osb",
     "body": 477.0,
     "color": [
      0.76,
@@ -11516,7 +11516,7 @@
    {
     "t": "prim",
     "id": "f735",
-    "name": "sheathing.R.0",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 9754.0,
@@ -11529,7 +11529,7 @@
    {
     "t": "appear",
     "id": "f736",
-    "name": "Paint sheathing.R.0",
+    "name": "Paint Osb",
     "body": 478.0,
     "color": [
      0.76,
@@ -11543,7 +11543,7 @@
    {
     "t": "prim",
     "id": "f737",
-    "name": "sheathing.R.1",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 9754.0,
@@ -11556,7 +11556,7 @@
    {
     "t": "appear",
     "id": "f738",
-    "name": "Paint sheathing.R.1",
+    "name": "Paint Osb",
     "body": 479.0,
     "color": [
      0.76,
@@ -11570,7 +11570,7 @@
    {
     "t": "prim",
     "id": "f739",
-    "name": "sheathing.R.2",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 9754.0,
@@ -11583,7 +11583,7 @@
    {
     "t": "appear",
     "id": "f740",
-    "name": "Paint sheathing.R.2",
+    "name": "Paint Osb",
     "body": 480.0,
     "color": [
      0.76,
@@ -11597,7 +11597,7 @@
    {
     "t": "prim",
     "id": "f741",
-    "name": "sheathing.R.3",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 9754.0,
@@ -11610,7 +11610,7 @@
    {
     "t": "appear",
     "id": "f742",
-    "name": "Paint sheathing.R.3",
+    "name": "Paint Osb",
     "body": 481.0,
     "color": [
      0.76,
@@ -11624,7 +11624,7 @@
    {
     "t": "prim",
     "id": "f743",
-    "name": "sheathing.R.4",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 9754.0,
@@ -11637,7 +11637,7 @@
    {
     "t": "appear",
     "id": "f744",
-    "name": "Paint sheathing.R.4",
+    "name": "Paint Osb",
     "body": 482.0,
     "color": [
      0.76,
@@ -11651,7 +11651,7 @@
    {
     "t": "prim",
     "id": "f745",
-    "name": "sheathing.R.5",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 9754.0,
@@ -11664,7 +11664,7 @@
    {
     "t": "appear",
     "id": "f746",
-    "name": "Paint sheathing.R.5",
+    "name": "Paint Osb",
     "body": 483.0,
     "color": [
      0.76,
@@ -11678,7 +11678,7 @@
    {
     "t": "prim",
     "id": "f747",
-    "name": "sheathing.R.6",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 9754.0,
@@ -11691,7 +11691,7 @@
    {
     "t": "appear",
     "id": "f748",
-    "name": "Paint sheathing.R.6",
+    "name": "Paint Osb",
     "body": 484.0,
     "color": [
      0.76,
@@ -11705,7 +11705,7 @@
    {
     "t": "prim",
     "id": "f749",
-    "name": "sheathing.R.7",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 9754.0,
@@ -11718,7 +11718,7 @@
    {
     "t": "appear",
     "id": "f750",
-    "name": "Paint sheathing.R.7",
+    "name": "Paint Osb",
     "body": 485.0,
     "color": [
      0.76,
@@ -11732,7 +11732,7 @@
    {
     "t": "prim",
     "id": "f751",
-    "name": "sheathing.R.8",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 9754.0,
@@ -11745,7 +11745,7 @@
    {
     "t": "appear",
     "id": "f752",
-    "name": "Paint sheathing.R.8",
+    "name": "Paint Osb",
     "body": 486.0,
     "color": [
      0.76,
@@ -11759,7 +11759,7 @@
    {
     "t": "prim",
     "id": "f753",
-    "name": "sheathing.R.9",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 9754.0,
@@ -11772,7 +11772,7 @@
    {
     "t": "appear",
     "id": "f754",
-    "name": "Paint sheathing.R.9",
+    "name": "Paint Osb",
     "body": 487.0,
     "color": [
      0.76,
@@ -11786,7 +11786,7 @@
    {
     "t": "prim",
     "id": "f755",
-    "name": "sheathing.R.10",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 9754.0,
@@ -11799,7 +11799,7 @@
    {
     "t": "appear",
     "id": "f756",
-    "name": "Paint sheathing.R.10",
+    "name": "Paint Osb",
     "body": 488.0,
     "color": [
      0.76,
@@ -11813,7 +11813,7 @@
    {
     "t": "prim",
     "id": "f757",
-    "name": "sheathing.R.11",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 9754.0,
@@ -11826,7 +11826,7 @@
    {
     "t": "appear",
     "id": "f758",
-    "name": "Paint sheathing.R.11",
+    "name": "Paint Osb",
     "body": 489.0,
     "color": [
      0.76,
@@ -11840,7 +11840,7 @@
    {
     "t": "prim",
     "id": "f759",
-    "name": "sheathing.R.12",
+    "name": "Wall sheathing",
     "kind": "box",
     "op": "new",
     "x": 9754.0,
@@ -11853,7 +11853,7 @@
    {
     "t": "appear",
     "id": "f760",
-    "name": "Paint sheathing.R.12",
+    "name": "Paint Osb",
     "body": 490.0,
     "color": [
      0.76,
@@ -11938,7 +11938,7 @@
    {
     "t": "extrude",
     "id": "f763",
-    "name": "sheathing.gable.0",
+    "name": "Gable sheathing",
     "sketch": "f762",
     "dist": 11.1,
     "both": false,
@@ -11947,7 +11947,7 @@
    {
     "t": "appear",
     "id": "f764",
-    "name": "Paint sheathing.gable.0",
+    "name": "Paint Osb",
     "body": 491.0,
     "color": [
      0.76,
@@ -12032,7 +12032,7 @@
    {
     "t": "extrude",
     "id": "f767",
-    "name": "sheathing.gable.1",
+    "name": "Gable sheathing",
     "sketch": "f766",
     "dist": 11.1,
     "both": false,
@@ -12041,7 +12041,7 @@
    {
     "t": "appear",
     "id": "f768",
-    "name": "Paint sheathing.gable.1",
+    "name": "Paint Osb",
     "body": 492.0,
     "color": [
      0.76,
@@ -12108,7 +12108,7 @@
    {
     "t": "extrude",
     "id": "f770",
-    "name": "roof_sheathing.front.0",
+    "name": "Roof sheathing",
     "sketch": "f769",
     "dist": 1219.2,
     "both": false,
@@ -12117,7 +12117,7 @@
    {
     "t": "appear",
     "id": "f771",
-    "name": "Paint roof_sheathing.front.0",
+    "name": "Paint Osb",
     "body": 493.0,
     "color": [
      0.76,
@@ -12195,7 +12195,7 @@
    {
     "t": "extrude",
     "id": "f774",
-    "name": "roof_sheathing.front.1",
+    "name": "Roof sheathing",
     "sketch": "f773",
     "dist": 1219.2,
     "both": false,
@@ -12204,7 +12204,7 @@
    {
     "t": "appear",
     "id": "f775",
-    "name": "Paint roof_sheathing.front.1",
+    "name": "Paint Osb",
     "body": 501.0,
     "color": [
      0.76,
@@ -12282,7 +12282,7 @@
    {
     "t": "extrude",
     "id": "f778",
-    "name": "roof_sheathing.back.0",
+    "name": "Roof sheathing",
     "sketch": "f777",
     "dist": 1219.2,
     "both": false,
@@ -12291,7 +12291,7 @@
    {
     "t": "appear",
     "id": "f779",
-    "name": "Paint roof_sheathing.back.0",
+    "name": "Paint Osb",
     "body": 509.0,
     "color": [
      0.76,
@@ -12369,7 +12369,7 @@
    {
     "t": "extrude",
     "id": "f782",
-    "name": "roof_sheathing.back.1",
+    "name": "Roof sheathing",
     "sketch": "f781",
     "dist": 1219.2,
     "both": false,
@@ -12378,7 +12378,7 @@
    {
     "t": "appear",
     "id": "f783",
-    "name": "Paint roof_sheathing.back.1",
+    "name": "Paint Osb",
     "body": 517.0,
     "color": [
      0.76,
@@ -12456,7 +12456,7 @@
    {
     "t": "extrude",
     "id": "f786",
-    "name": "shingles.front",
+    "name": "Shingle",
     "sketch": "f785",
     "dist": 9754.0,
     "both": false,
@@ -12465,7 +12465,7 @@
    {
     "t": "appear",
     "id": "f787",
-    "name": "Paint shingles.front",
+    "name": "Paint Shingle",
     "body": 525.0,
     "color": [
      0.23,
@@ -12532,7 +12532,7 @@
    {
     "t": "extrude",
     "id": "f789",
-    "name": "shingles.back",
+    "name": "Shingle",
     "sketch": "f788",
     "dist": 9754.0,
     "both": false,
@@ -12541,7 +12541,7 @@
    {
     "t": "appear",
     "id": "f790",
-    "name": "Paint shingles.back",
+    "name": "Paint Shingle",
     "body": 526.0,
     "color": [
      0.23,
@@ -12555,7 +12555,7 @@
    {
     "t": "prim",
     "id": "f791",
-    "name": "siding.F.0",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -12568,7 +12568,7 @@
    {
     "t": "appear",
     "id": "f792",
-    "name": "Paint siding.F.0",
+    "name": "Paint Siding",
     "body": 527.0,
     "color": [
      0.9,
@@ -12582,7 +12582,7 @@
    {
     "t": "prim",
     "id": "f793",
-    "name": "siding.F.1",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 630.5,
@@ -12595,7 +12595,7 @@
    {
     "t": "appear",
     "id": "f794",
-    "name": "Paint siding.F.1",
+    "name": "Paint Siding",
     "body": 528.0,
     "color": [
      0.9,
@@ -12609,7 +12609,7 @@
    {
     "t": "prim",
     "id": "f795",
-    "name": "siding.F.2",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 630.5,
@@ -12622,7 +12622,7 @@
    {
     "t": "appear",
     "id": "f796",
-    "name": "Paint siding.F.2",
+    "name": "Paint Siding",
     "body": 529.0,
     "color": [
      0.9,
@@ -12636,7 +12636,7 @@
    {
     "t": "prim",
     "id": "f797",
-    "name": "siding.F.3",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 1569.5,
@@ -12649,7 +12649,7 @@
    {
     "t": "appear",
     "id": "f798",
-    "name": "Paint siding.F.3",
+    "name": "Paint Siding",
     "body": 530.0,
     "color": [
      0.9,
@@ -12663,7 +12663,7 @@
    {
     "t": "prim",
     "id": "f799",
-    "name": "siding.F.4",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 2830.5,
@@ -12676,7 +12676,7 @@
    {
     "t": "appear",
     "id": "f800",
-    "name": "Paint siding.F.4",
+    "name": "Paint Siding",
     "body": 531.0,
     "color": [
      0.9,
@@ -12690,7 +12690,7 @@
    {
     "t": "prim",
     "id": "f801",
-    "name": "siding.F.5",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 3769.5,
@@ -12703,7 +12703,7 @@
    {
     "t": "appear",
     "id": "f802",
-    "name": "Paint siding.F.5",
+    "name": "Paint Siding",
     "body": 532.0,
     "color": [
      0.9,
@@ -12717,7 +12717,7 @@
    {
     "t": "prim",
     "id": "f803",
-    "name": "siding.F.6",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 7730.5,
@@ -12730,7 +12730,7 @@
    {
     "t": "appear",
     "id": "f804",
-    "name": "Paint siding.F.6",
+    "name": "Paint Siding",
     "body": 533.0,
     "color": [
      0.9,
@@ -12744,7 +12744,7 @@
    {
     "t": "prim",
     "id": "f805",
-    "name": "siding.F.7",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 7730.5,
@@ -12757,7 +12757,7 @@
    {
     "t": "appear",
     "id": "f806",
-    "name": "Paint siding.F.7",
+    "name": "Paint Siding",
     "body": 534.0,
     "color": [
      0.9,
@@ -12771,7 +12771,7 @@
    {
     "t": "prim",
     "id": "f807",
-    "name": "siding.F.8",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 8669.5,
@@ -12784,7 +12784,7 @@
    {
     "t": "appear",
     "id": "f808",
-    "name": "Paint siding.F.8",
+    "name": "Paint Siding",
     "body": 535.0,
     "color": [
      0.9,
@@ -12798,7 +12798,7 @@
    {
     "t": "prim",
     "id": "f809",
-    "name": "siding.B.0",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -12811,7 +12811,7 @@
    {
     "t": "appear",
     "id": "f810",
-    "name": "Paint siding.B.0",
+    "name": "Paint Siding",
     "body": 536.0,
     "color": [
      0.9,
@@ -12825,7 +12825,7 @@
    {
     "t": "prim",
     "id": "f811",
-    "name": "siding.B.1",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 830.5,
@@ -12838,7 +12838,7 @@
    {
     "t": "appear",
     "id": "f812",
-    "name": "Paint siding.B.1",
+    "name": "Paint Siding",
     "body": 537.0,
     "color": [
      0.9,
@@ -12852,7 +12852,7 @@
    {
     "t": "prim",
     "id": "f813",
-    "name": "siding.B.2",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 830.5,
@@ -12865,7 +12865,7 @@
    {
     "t": "appear",
     "id": "f814",
-    "name": "Paint siding.B.2",
+    "name": "Paint Siding",
     "body": 538.0,
     "color": [
      0.9,
@@ -12879,7 +12879,7 @@
    {
     "t": "prim",
     "id": "f815",
-    "name": "siding.B.3",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 1769.5,
@@ -12892,7 +12892,7 @@
    {
     "t": "appear",
     "id": "f816",
-    "name": "Paint siding.B.3",
+    "name": "Paint Siding",
     "body": 539.0,
     "color": [
      0.9,
@@ -12906,7 +12906,7 @@
    {
     "t": "prim",
     "id": "f817",
-    "name": "siding.B.4",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 2830.5,
@@ -12919,7 +12919,7 @@
    {
     "t": "appear",
     "id": "f818",
-    "name": "Paint siding.B.4",
+    "name": "Paint Siding",
     "body": 540.0,
     "color": [
      0.9,
@@ -12933,7 +12933,7 @@
    {
     "t": "prim",
     "id": "f819",
-    "name": "siding.B.5",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 2830.5,
@@ -12946,7 +12946,7 @@
    {
     "t": "appear",
     "id": "f820",
-    "name": "Paint siding.B.5",
+    "name": "Paint Siding",
     "body": 541.0,
     "color": [
      0.9,
@@ -12960,7 +12960,7 @@
    {
     "t": "prim",
     "id": "f821",
-    "name": "siding.B.6",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 3769.5,
@@ -12973,7 +12973,7 @@
    {
     "t": "appear",
     "id": "f822",
-    "name": "Paint siding.B.6",
+    "name": "Paint Siding",
     "body": 542.0,
     "color": [
      0.9,
@@ -12987,7 +12987,7 @@
    {
     "t": "prim",
     "id": "f823",
-    "name": "siding.B.7",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 5182.5,
@@ -13000,7 +13000,7 @@
    {
     "t": "appear",
     "id": "f824",
-    "name": "Paint siding.B.7",
+    "name": "Paint Siding",
     "body": 543.0,
     "color": [
      0.9,
@@ -13014,7 +13014,7 @@
    {
     "t": "prim",
     "id": "f825",
-    "name": "siding.B.8",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 5182.5,
@@ -13027,7 +13027,7 @@
    {
     "t": "appear",
     "id": "f826",
-    "name": "Paint siding.B.8",
+    "name": "Paint Siding",
     "body": 544.0,
     "color": [
      0.9,
@@ -13041,7 +13041,7 @@
    {
     "t": "prim",
     "id": "f827",
-    "name": "siding.B.9",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 5817.5,
@@ -13054,7 +13054,7 @@
    {
     "t": "appear",
     "id": "f828",
-    "name": "Paint siding.B.9",
+    "name": "Paint Siding",
     "body": 545.0,
     "color": [
      0.9,
@@ -13068,7 +13068,7 @@
    {
     "t": "prim",
     "id": "f829",
-    "name": "siding.B.10",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 7530.5,
@@ -13081,7 +13081,7 @@
    {
     "t": "appear",
     "id": "f830",
-    "name": "Paint siding.B.10",
+    "name": "Paint Siding",
     "body": 546.0,
     "color": [
      0.9,
@@ -13095,7 +13095,7 @@
    {
     "t": "prim",
     "id": "f831",
-    "name": "siding.B.11",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 7530.5,
@@ -13108,7 +13108,7 @@
    {
     "t": "appear",
     "id": "f832",
-    "name": "Paint siding.B.11",
+    "name": "Paint Siding",
     "body": 547.0,
     "color": [
      0.9,
@@ -13122,7 +13122,7 @@
    {
     "t": "prim",
     "id": "f833",
-    "name": "siding.B.12",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 8469.5,
@@ -13135,7 +13135,7 @@
    {
     "t": "appear",
     "id": "f834",
-    "name": "Paint siding.B.12",
+    "name": "Paint Siding",
     "body": 548.0,
     "color": [
      0.9,
@@ -13149,7 +13149,7 @@
    {
     "t": "prim",
     "id": "f835",
-    "name": "siding.L.0",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": -30.1,
@@ -13162,7 +13162,7 @@
    {
     "t": "appear",
     "id": "f836",
-    "name": "Paint siding.L.0",
+    "name": "Paint Siding",
     "body": 549.0,
     "color": [
      0.9,
@@ -13176,7 +13176,7 @@
    {
     "t": "prim",
     "id": "f837",
-    "name": "siding.L.1",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": -30.1,
@@ -13189,7 +13189,7 @@
    {
     "t": "appear",
     "id": "f838",
-    "name": "Paint siding.L.1",
+    "name": "Paint Siding",
     "body": 550.0,
     "color": [
      0.9,
@@ -13203,7 +13203,7 @@
    {
     "t": "prim",
     "id": "f839",
-    "name": "siding.L.2",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": -30.1,
@@ -13216,7 +13216,7 @@
    {
     "t": "appear",
     "id": "f840",
-    "name": "Paint siding.L.2",
+    "name": "Paint Siding",
     "body": 551.0,
     "color": [
      0.9,
@@ -13230,7 +13230,7 @@
    {
     "t": "prim",
     "id": "f841",
-    "name": "siding.L.3",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": -30.1,
@@ -13243,7 +13243,7 @@
    {
     "t": "appear",
     "id": "f842",
-    "name": "Paint siding.L.3",
+    "name": "Paint Siding",
     "body": 552.0,
     "color": [
      0.9,
@@ -13257,7 +13257,7 @@
    {
     "t": "prim",
     "id": "f843",
-    "name": "siding.L.4",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": -30.1,
@@ -13270,7 +13270,7 @@
    {
     "t": "appear",
     "id": "f844",
-    "name": "Paint siding.L.4",
+    "name": "Paint Siding",
     "body": 553.0,
     "color": [
      0.9,
@@ -13284,7 +13284,7 @@
    {
     "t": "prim",
     "id": "f845",
-    "name": "siding.L.5",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": -30.1,
@@ -13297,7 +13297,7 @@
    {
     "t": "appear",
     "id": "f846",
-    "name": "Paint siding.L.5",
+    "name": "Paint Siding",
     "body": 554.0,
     "color": [
      0.9,
@@ -13311,7 +13311,7 @@
    {
     "t": "prim",
     "id": "f847",
-    "name": "siding.L.6",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": -30.1,
@@ -13324,7 +13324,7 @@
    {
     "t": "appear",
     "id": "f848",
-    "name": "Paint siding.L.6",
+    "name": "Paint Siding",
     "body": 555.0,
     "color": [
      0.9,
@@ -13338,7 +13338,7 @@
    {
     "t": "prim",
     "id": "f849",
-    "name": "siding.R.0",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 9765.1,
@@ -13351,7 +13351,7 @@
    {
     "t": "appear",
     "id": "f850",
-    "name": "Paint siding.R.0",
+    "name": "Paint Siding",
     "body": 556.0,
     "color": [
      0.9,
@@ -13365,7 +13365,7 @@
    {
     "t": "prim",
     "id": "f851",
-    "name": "siding.R.1",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 9765.1,
@@ -13378,7 +13378,7 @@
    {
     "t": "appear",
     "id": "f852",
-    "name": "Paint siding.R.1",
+    "name": "Paint Siding",
     "body": 557.0,
     "color": [
      0.9,
@@ -13392,7 +13392,7 @@
    {
     "t": "prim",
     "id": "f853",
-    "name": "siding.R.2",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 9765.1,
@@ -13405,7 +13405,7 @@
    {
     "t": "appear",
     "id": "f854",
-    "name": "Paint siding.R.2",
+    "name": "Paint Siding",
     "body": 558.0,
     "color": [
      0.9,
@@ -13419,7 +13419,7 @@
    {
     "t": "prim",
     "id": "f855",
-    "name": "siding.R.3",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 9765.1,
@@ -13432,7 +13432,7 @@
    {
     "t": "appear",
     "id": "f856",
-    "name": "Paint siding.R.3",
+    "name": "Paint Siding",
     "body": 559.0,
     "color": [
      0.9,
@@ -13446,7 +13446,7 @@
    {
     "t": "prim",
     "id": "f857",
-    "name": "siding.R.4",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 9765.1,
@@ -13459,7 +13459,7 @@
    {
     "t": "appear",
     "id": "f858",
-    "name": "Paint siding.R.4",
+    "name": "Paint Siding",
     "body": 560.0,
     "color": [
      0.9,
@@ -13473,7 +13473,7 @@
    {
     "t": "prim",
     "id": "f859",
-    "name": "siding.R.5",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 9765.1,
@@ -13486,7 +13486,7 @@
    {
     "t": "appear",
     "id": "f860",
-    "name": "Paint siding.R.5",
+    "name": "Paint Siding",
     "body": 561.0,
     "color": [
      0.9,
@@ -13500,7 +13500,7 @@
    {
     "t": "prim",
     "id": "f861",
-    "name": "siding.R.6",
+    "name": "Siding",
     "kind": "box",
     "op": "new",
     "x": 9765.1,
@@ -13513,7 +13513,7 @@
    {
     "t": "appear",
     "id": "f862",
-    "name": "Paint siding.R.6",
+    "name": "Paint Siding",
     "body": 562.0,
     "color": [
      0.9,
@@ -13527,7 +13527,7 @@
    {
     "t": "prim",
     "id": "f863",
-    "name": "door.F.0",
+    "name": "Door",
     "kind": "box",
     "op": "new",
     "x": 2830.5,
@@ -13540,7 +13540,7 @@
    {
     "t": "appear",
     "id": "f864",
-    "name": "Paint door.F.0",
+    "name": "Paint Door",
     "body": 563.0,
     "color": [
      0.45,
@@ -13554,7 +13554,7 @@
    {
     "t": "prim",
     "id": "f865",
-    "name": "window.F.1",
+    "name": "Window",
     "kind": "box",
     "op": "new",
     "x": 630.5,
@@ -13567,7 +13567,7 @@
    {
     "t": "appear",
     "id": "f866",
-    "name": "Paint window.F.1",
+    "name": "Paint Window",
     "body": 564.0,
     "color": [
      0.55,
@@ -13582,7 +13582,7 @@
    {
     "t": "prim",
     "id": "f867",
-    "name": "window.F.2",
+    "name": "Window",
     "kind": "box",
     "op": "new",
     "x": 7730.5,
@@ -13595,7 +13595,7 @@
    {
     "t": "appear",
     "id": "f868",
-    "name": "Paint window.F.2",
+    "name": "Paint Window",
     "body": 565.0,
     "color": [
      0.55,
@@ -13610,7 +13610,7 @@
    {
     "t": "prim",
     "id": "f869",
-    "name": "window.B.0",
+    "name": "Window",
     "kind": "box",
     "op": "new",
     "x": 830.5,
@@ -13623,7 +13623,7 @@
    {
     "t": "appear",
     "id": "f870",
-    "name": "Paint window.B.0",
+    "name": "Paint Window",
     "body": 566.0,
     "color": [
      0.55,
@@ -13638,7 +13638,7 @@
    {
     "t": "prim",
     "id": "f871",
-    "name": "window.B.1",
+    "name": "Window",
     "kind": "box",
     "op": "new",
     "x": 2830.5,
@@ -13651,7 +13651,7 @@
    {
     "t": "appear",
     "id": "f872",
-    "name": "Paint window.B.1",
+    "name": "Paint Window",
     "body": 567.0,
     "color": [
      0.55,
@@ -13666,7 +13666,7 @@
    {
     "t": "prim",
     "id": "f873",
-    "name": "window.B.2",
+    "name": "Window",
     "kind": "box",
     "op": "new",
     "x": 5182.5,
@@ -13679,7 +13679,7 @@
    {
     "t": "appear",
     "id": "f874",
-    "name": "Paint window.B.2",
+    "name": "Paint Window",
     "body": 568.0,
     "color": [
      0.55,
@@ -13694,7 +13694,7 @@
    {
     "t": "prim",
     "id": "f875",
-    "name": "window.B.3",
+    "name": "Window",
     "kind": "box",
     "op": "new",
     "x": 7530.5,
@@ -13707,7 +13707,7 @@
    {
     "t": "appear",
     "id": "f876",
-    "name": "Paint window.B.3",
+    "name": "Paint Window",
     "body": 569.0,
     "color": [
      0.55,
@@ -13722,7 +13722,7 @@
    {
     "t": "prim",
     "id": "f877",
-    "name": "window.L.0",
+    "name": "Window",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -13735,7 +13735,7 @@
    {
     "t": "appear",
     "id": "f878",
-    "name": "Paint window.L.0",
+    "name": "Paint Window",
     "body": 570.0,
     "color": [
      0.55,
@@ -13750,7 +13750,7 @@
    {
     "t": "prim",
     "id": "f879",
-    "name": "window.L.1",
+    "name": "Window",
     "kind": "box",
     "op": "new",
     "x": 0.0,
@@ -13763,7 +13763,7 @@
    {
     "t": "appear",
     "id": "f880",
-    "name": "Paint window.L.1",
+    "name": "Paint Window",
     "body": 571.0,
     "color": [
      0.55,
@@ -13778,7 +13778,7 @@
    {
     "t": "prim",
     "id": "f881",
-    "name": "window.R.0",
+    "name": "Window",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -13791,7 +13791,7 @@
    {
     "t": "appear",
     "id": "f882",
-    "name": "Paint window.R.0",
+    "name": "Paint Window",
     "body": 572.0,
     "color": [
      0.55,
@@ -13806,7 +13806,7 @@
    {
     "t": "prim",
     "id": "f883",
-    "name": "window.R.1",
+    "name": "Window",
     "kind": "box",
     "op": "new",
     "x": 9665.0,
@@ -13819,7 +13819,7 @@
    {
     "t": "appear",
     "id": "f884",
-    "name": "Paint window.R.1",
+    "name": "Paint Window",
     "body": 573.0,
     "color": [
      0.55,
@@ -13834,7 +13834,7 @@
    {
     "t": "prim",
     "id": "f885",
-    "name": "door.V1.0",
+    "name": "Idoor",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -13847,7 +13847,7 @@
    {
     "t": "appear",
     "id": "f886",
-    "name": "Paint door.V1.0",
+    "name": "Paint Idoor",
     "body": 574.0,
     "color": [
      0.72,
@@ -13861,7 +13861,7 @@
    {
     "t": "prim",
     "id": "f887",
-    "name": "door.V1.1",
+    "name": "Idoor",
     "kind": "box",
     "op": "new",
     "x": 4356.0,
@@ -13874,7 +13874,7 @@
    {
     "t": "appear",
     "id": "f888",
-    "name": "Paint door.V1.1",
+    "name": "Paint Idoor",
     "body": 575.0,
     "color": [
      0.72,
@@ -13888,7 +13888,7 @@
    {
     "t": "prim",
     "id": "f889",
-    "name": "door.V2.0",
+    "name": "Idoor",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -13901,7 +13901,7 @@
    {
     "t": "appear",
     "id": "f890",
-    "name": "Paint door.V2.0",
+    "name": "Paint Idoor",
     "body": 576.0,
     "color": [
      0.72,
@@ -13915,7 +13915,7 @@
    {
     "t": "prim",
     "id": "f891",
-    "name": "door.V2.1",
+    "name": "Idoor",
     "kind": "box",
     "op": "new",
     "x": 6579.0,
@@ -13928,7 +13928,7 @@
    {
     "t": "appear",
     "id": "f892",
-    "name": "Paint door.V2.1",
+    "name": "Paint Idoor",
     "body": 577.0,
     "color": [
      0.72,

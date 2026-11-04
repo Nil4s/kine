@@ -89,8 +89,8 @@ func section_sheet(b: Dictionary, pick: Dictionary) -> Dictionary:
 			pts = [P.call(z0, y0), P.call(z1, y0), P.call(z1, y1), P.call(z0, y1)]
 		ents.append(Blueprint._poly(pts, cls, {"member": String(m["name"])}))
 	var tx := 2.5
-	var notes := [[200.0, 1200.0, "2x4 studs @ 16 in o.c., single bottom plate (PT) + double top plate"], [2000.0, 2600.0, "2x8 ceiling joists @ 16 in o.c. (rafter ties)"],
-		[900.0, 3300.0, "2x10 rafters @ 24 in o.c., 4:12"], [3000.0, 4150.0, "2x12 ridge board"], [200.0, -450.0, "4 in slab on grade"], [5200.0, 700.0, "2x4 hall wall (bearing, joist splice)"]]
+	var notes := [[200.0, 1200.0, "2x4 studs @ 16 in o.c., single bottom plate (PT) + double top plate"], [1500.0, 2850.0, "2x8 ceiling joists @ 16 in o.c. (rafter ties)"],
+		[-1100.0, 3750.0, "2x10 rafters @ 24 in o.c., 4:12"], [2900.0, 4250.0, "2x12 ridge board"], [200.0, -450.0, "4 in slab on grade"], [4300.0, 1700.0, "(cut passes the 36 in cased opening in the hall wall: 2-2x8 header)"]]
 	for n in notes:
 		ents.append(Blueprint._text(P.call(float(n[0]), float(n[1])), String(n[2]), tx, "l", "text"))
 	ents.append_array(Blueprint._dim(P.call(0.0, -102.0), P.call(7620.0, -102.0), Vector2(0, 1), 14.0, "%.2f" % 7.62, {"kind": "overall", "axis": "z"}))
@@ -102,6 +102,9 @@ func section_sheet(b: Dictionary, pick: Dictionary) -> Dictionary:
 	var bd := b.duplicate(true)
 	bd["name"] = String(b["name"]) + " section A-A"
 	ents.append_array(Blueprint._frame(bd, "Front", paper, int(denom), 6, 6))
+	for e in ents:
+		if String(e.get("t", "")) == "text" and String(e["s"]) == "Front elevation":
+			e["s"] = "Section A-A (transverse)"
 	var sz := Blueprint.paper_size(paper)
 	return {"paper": paper, "w": sz.x, "h": sz.y, "denom": int(denom), "k": 1000.0 / denom, "tab": "Section", "title": "Section A-A", "name": bd["name"], "ents": ents, "area": area}
 
@@ -111,14 +114,16 @@ func sheets() -> void:
 	var pick := Blueprint.choose(b)
 	print("pick ", pick)
 	var bb: Dictionary = b.duplicate(true)
-	save_sheet(Blueprint.sheet(bb, "Floor 1", pick), "01_plan")
-	save_sheet(Blueprint.sheet(bb, "Front", pick), "02_front_elevation")
-	save_sheet(Blueprint.sheet(bb, "Side", pick), "03_right_elevation")
+	var s1 := Blueprint.sheet(bb, "Floor 1", pick)
+	print("sheet made ", s1.size())
+	await save_sheet(s1, "01_plan")
+	await save_sheet(Blueprint.sheet(bb, "Front", pick), "02_front_elevation")
+	await save_sheet(Blueprint.sheet(bb, "Side", pick), "03_right_elevation")
 	var by := yawed(b, "(rear)")
-	save_sheet(Blueprint.sheet(by, "Front", pick), "04_rear_elevation")
+	await save_sheet(Blueprint.sheet(by, "Front", pick), "04_rear_elevation")
 	var bl := yawed(b, "(left)")
-	save_sheet(Blueprint.sheet(bl, "Side", pick), "05_left_elevation")
-	save_sheet(section_sheet(b, pick), "06_section")
+	await save_sheet(Blueprint.sheet(bl, "Side", pick), "05_left_elevation")
+	await save_sheet(section_sheet(b, pick), "06_section")
 
 
 # ------------------------------------------------------------------ 3D
@@ -251,7 +256,7 @@ func video() -> void:
 		var cuts := []
 		for i in range(prev, up):
 			if shown.has(String(feats[i]["t"])):
-				cuts.append(i + 1)
+				cuts.append(i + 2 if i + 1 < feats.size() and String(feats[i + 1]["t"]) == "appear" else i + 1)
 		var m: int = int(steps.get(s["name"], 3))
 		for j in m:
 			var idx := mini(cuts.size() - 1, int(round(float(j + 1) / float(m) * cuts.size())) - 1)

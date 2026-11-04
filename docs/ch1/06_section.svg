@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="420.0mm" height="297.0mm" viewBox="0 0 420.0 297.0">
+<title>Levitt Ranch 1949 (CH1) section A-A - Section A-A</title>
+<rect x="0" y="0" width="420.0" height="297.0" fill="#ffffff"/>
+<g id="sheet" data-paper="A3" data-scale="1:50" data-denom="50" data-mm-per-m="20.0" data-units="mm">
+<line class="ground" x1="108.938" y1="173.52" x2="309.337" y2="173.52" stroke="#000000" stroke-width="0.6"/>
+<polygon class="wall" data-member="Slab on grade" points="132.938,173.52 285.337,173.52 285.337,171.48 132.938,171.48" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-member="plate_b.F.0" points="132.938,171.48 134.717,171.48 134.717,170.72 132.938,170.72" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-member="plate_b.B.0" points="283.557,171.48 285.337,171.48 285.337,170.72 283.557,170.72" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-member="stud.F.1.1" points="132.938,170.72 134.717,170.72 134.717,123.66 132.938,123.66" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-member="stud.B.1.1" points="283.557,170.72 285.337,170.72 285.337,123.66 283.557,123.66" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-member="header.H.0" points="201.777,130.34 203.557,130.34 203.557,126.66 201.777,126.66" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-member="cripple.H.a1" points="201.777,126.66 203.557,126.66 203.557,123.66 201.777,123.66" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-member="plate_t1.F.0" points="132.938,123.66 134.717,123.66 134.717,122.9 132.938,122.9" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-member="plate_t2.F.0" points="132.938,122.9 134.717,122.9 134.717,122.14 132.938,122.14" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-member="plate_t1.B.0" points="283.557,123.66 285.337,123.66 285.337,122.9 283.557,122.9" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-member="plate_t2.B.0" points="283.557,122.9 285.337,122.9 285.337,122.14 283.557,122.14" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-member="plate_t1.H.0" points="201.777,123.66 203.557,123.66 203.557,122.9 201.777,122.9" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-member="plate_t2.H.0" points="201.777,122.9 203.557,122.9 203.557,122.14 201.777,122.14" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-member="joist.0.5" points="132.938,122.14 202.668,122.14 202.668,118.46 132.938,118.46" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-member="joist.1.5" points="202.668,122.14 285.337,122.14 285.337,118.46 202.668,118.46" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-member="ridge" points="208.758,97.88 209.518,97.88 209.518,92.16 208.758,92.16" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-member="rafter.front.3" points="124.817,125.44 132.938,122.733 132.938,122.14 134.717,122.14 208.758,97.46 208.758,92.506 124.817,120.486" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-member="rafter.back.3" points="293.458,125.44 285.337,122.733 285.337,122.14 283.557,122.14 209.518,97.46 209.518,92.506 293.458,120.486" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="roof" data-member="roof_sheathing.front.0.1" points="124.817,120.486 171.083,105.064 171.013,104.853 124.747,120.275" fill="#c8c8c8" stroke="#000000" stroke-width="0.4" stroke-linejoin="miter"/>
+<polygon class="roof" data-member="roof_sheathing.front.0.2" points="124.817,120.486 171.083,105.064 171.013,104.853 124.747,120.275" fill="#c8c8c8" stroke="#000000" stroke-width="0.4" stroke-linejoin="miter"/>
+<polygon class="roof" data-member="roof_sheathing.front.1.1" points="171.083,105.064 208.758,92.506 208.687,92.295 171.013,104.853" fill="#c8c8c8" stroke="#000000" stroke-width="0.4" stroke-linejoin="miter"/>
+<polygon class="roof" data-member="roof_sheathing.front.1.2" points="171.083,105.064 208.758,92.506 208.687,92.295 171.013,104.853" fill="#c8c8c8" stroke="#000000" stroke-width="0.4" stroke-linejoin="miter"/>
+<polygon class="roof" data-member="roof_sheathing.back.0.1" points="293.458,120.486 247.192,105.064 247.262,104.853 293.528,120.275" fill="#c8c8c8" stroke="#000000" stroke-width="0.4" stroke-linejoin="miter"/>
+<polygon class="roof" data-member="roof_sheathing.back.0.2" points="293.458,120.486 247.192,105.064 247.262,104.853 293.528,120.275" fill="#c8c8c8" stroke="#000000" stroke-width="0.4" stroke-linejoin="miter"/>
+<polygon class="roof" data-member="roof_sheathing.back.1.1" points="247.192,105.064 209.518,92.506 209.588,92.295 247.262,104.853" fill="#c8c8c8" stroke="#000000" stroke-width="0.4" stroke-linejoin="miter"/>
+<polygon class="roof" data-member="roof_sheathing.back.1.2" points="247.192,105.064 209.518,92.506 209.588,92.295 247.262,104.853" fill="#c8c8c8" stroke="#000000" stroke-width="0.4" stroke-linejoin="miter"/>
+<polygon class="roof" data-member="shingles.front" points="124.747,120.275 208.687,92.295 208.627,92.115 124.687,120.095" fill="#c8c8c8" stroke="#000000" stroke-width="0.4" stroke-linejoin="miter"/>
+<polygon class="roof" data-member="shingles.back" points="293.528,120.275 209.588,92.295 209.648,92.115 293.588,120.095" fill="#c8c8c8" stroke="#000000" stroke-width="0.4" stroke-linejoin="miter"/>
+<text class="text" x="136.938" y="147.48" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="start" fill="#000000">2x4 studs @ 16 in o.c., single bottom plate (PT) + double top plate</text>
+<text class="text" x="162.938" y="114.48" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="start" fill="#000000">2x8 ceiling joists @ 16 in o.c. (rafter ties)</text>
+<text class="text" x="110.938" y="96.48" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="start" fill="#000000">2x10 rafters @ 24 in o.c., 4:12</text>
+<text class="text" x="190.938" y="86.48" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="start" fill="#000000">2x12 ridge board</text>
+<text class="text" x="136.938" y="180.48" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="start" fill="#000000">4 in slab on grade</text>
+<text class="text" x="218.938" y="137.48" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="start" fill="#000000">(cut passes the 36 in cased opening in the hall wall: 2-2x8 header)</text>
+<line class="dim" x1="132.938" y1="175.02" x2="132.938" y2="189.02" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="285.337" y1="175.02" x2="285.337" y2="189.02" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="132.938" y1="187.52" x2="285.337" y2="187.52" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="131.948" y1="186.53" x2="133.927" y2="188.51" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="284.348" y1="186.53" x2="286.327" y2="188.51" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="overall" data-axis="z" x="209.137" y="186.72" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">7.62</text>
+<line class="dim" x1="131.438" y1="171.48" x2="117.438" y2="171.48" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="131.438" y1="122.14" x2="117.438" y2="122.14" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="118.938" y1="171.48" x2="118.938" y2="122.14" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="119.927" y1="172.47" x2="117.948" y2="170.49" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="119.927" y1="123.13" x2="117.948" y2="121.15" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="wall" data-axis="y" x="118.137" y="146.81" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 118.137 146.81)">2.467</text>
+<line class="dim" x1="286.837" y1="171.48" x2="300.837" y2="171.48" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="286.837" y1="92.16" x2="300.837" y2="92.16" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="299.337" y1="171.48" x2="299.337" y2="92.16" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="298.348" y1="172.47" x2="300.327" y2="170.49" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="298.348" y1="93.15" x2="300.327" y2="91.17" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="ridge" data-axis="y" x="298.537" y="131.82" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 298.537 131.82)">3.97</text>
+<polygon class="border" points="10.0,10.0 410.0,10.0 410.0,287.0 10.0,287.0" fill="none" stroke="#000000" stroke-width="0.5" stroke-linejoin="miter"/>
+<line class="title" x1="10.0" y1="263.0" x2="410.0" y2="263.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="12.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">PROJECT</text>
+<text class="title-text" data-field="project" x="12.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Levitt Ranch 1949 (CH1) section A-A</text>
+<line class="title" x1="130.0" y1="263.0" x2="130.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="132.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">SHEET  (dimensions in metres)</text>
+<text class="title-text" data-field="sheet" x="132.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Section A-A (transverse)</text>
+<text class="title-label" data-field="size" x="132.0" y="284.0" font-family="Arial, Helvetica, sans-serif" font-size="2.4" text-anchor="start" fill="#606060">A3   6 / 6</text>
+<line class="title" x1="250.0" y1="263.0" x2="250.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="252.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">SCALE</text>
+<text class="title-text" data-field="scale" x="252.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">1:50</text>
+<line class="title" x1="290.0" y1="263.0" x2="290.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="292.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">DATE</text>
+<text class="title-text" data-field="date" x="292.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">2026-11-03</text>
+<line class="title" x1="346.0" y1="263.0" x2="346.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="348.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">DRAWN WITH</text>
+<text class="title-text" data-field="drawn" x="348.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Kine</text>
+</g>
+</svg>
