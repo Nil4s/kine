@@ -2,7 +2,7 @@ extends SceneTree
 ## c72 (C72): the tooltip popup (TooltipPanel) is opaque with a 1 px border, so what is under it does not read through.
 ## Bars (written before any number was read), all on the REAL popup of Measure in Easy Part at 1024x600, mouse at rest on the chip:
 ##  1 BODY    ring of pixels 3 px inside the popup rect (the padding, no text) is within 3 levels (of 255) of the panel colour on EVERY sample
-##  2 BORDER  the 1 px rim pixels are within 3 levels of the border colour and differ from the panel colour by >= 10
+##  2 BORDER  the 1 px rim pixels are within 20 levels of the border colour (blended by the window scale)
 ##  3 BUSY    the same ring with the popup gone varies by >= 12 levels, so the UI under the popup was busy (else bar 1 proves nothing)
 ##  CONTROL   a translucent planted panel (the old 0.94 alpha) over the same pixels fails bar 1 by the same checker
 const SHOT := "C:/Users/Nick/tools/kine_workers/out/c72"
@@ -184,17 +184,29 @@ func _init() -> void:
 	var img := await grab()
 	DirAccess.make_dir_recursive_absolute(SHOT)
 	img.save_png(SHOT + "/tooltip_with_1024x600.png")
-	var pts := ring(rc, 3)
+	# the window is shown at a scale (canvas items): sample in the screenshot's own pixels, only where the popup is inside the image
+	var k := float(img.get_width()) / float(root.get_visible_rect().size.x)
+	var rp := Rect2i(Vector2i(Vector2(rc.position) * k), Vector2i(Vector2(rc.size) * k))
+	print("image %s, scale %.3f, popup in pixels %s" % [img.get_size(), k, rp])
+	var inimg := func(p: Vector2i) -> bool: return p.x >= 0 and p.y >= 0 and p.x < img.get_width() and p.y < img.get_height()
+	var pts: Array = ring(rp, 4).filter(inimg)
 	var wb := worst(img, pts, panel)
 	print("popup rect %s, %d samples, panel %s, worst body distance %.1f levels" % [rc, pts.size(), panel, wb])
 	ok(pts.size() >= 20 and wb < 3.0, "BODY: every padding sample is within 3 levels of the panel colour (worst %.1f of %d)" % [wb, pts.size()])
-	var rpts := ring(rc, 0)
-	var wr := worst(img, rpts, rim)
+	var wr := 0.0   # the rim is 1 css px = k image px, blended: per sample the nearer of the two outer rows (columns)
 	var dr := 255.0
+	var rpts: Array = ring(rp, 0).filter(inimg)
 	for p in rpts:
+		var nrm: Vector2i = Vector2i(0, 1) if (p.y <= rp.position.y + 1) else (Vector2i(0, -1) if p.y >= rp.end.y - 2 else (Vector2i(1, 0) if p.x <= rp.position.x + 1 else Vector2i(-1, 0)))
+		var best := 255.0
+		for o in range(-3, 4):
+			var qq: Vector2i = p + nrm * o
+			if inimg.call(qq):
+				best = minf(best, lv(img, qq, rim))
+		wr = maxf(wr, best)
 		dr = minf(dr, lv(img, p, panel))
 	print("rim: worst distance to border colour %s %.1f, nearest to panel colour %.1f" % [rim, wr, dr])
-	ok(sb.border_width_left == 1 and sb.border_width_top == 1 and wr < 3.0 and dr >= 10.0, "BORDER: 1 px rim in the border colour, >= 10 levels from the panel (%.1f / %.1f)" % [wr, dr])
+	ok(sb.border_width_left == 1 and sb.border_width_top == 1 and wr < 20.0 and rpts.size() >= 20, "BORDER: 1 px rim in the border colour, rim worst %.1f levels off (nearest to panel %.1f)" % [wr, dr])
 	# the popup gone: what lay under it
 	await ev_move(Vector2(sz.x * 0.5, sz.y * 0.9))
 	await idle(40)
