@@ -109,6 +109,49 @@ func section_sheet(b: Dictionary, pick: Dictionary) -> Dictionary:
 	return {"paper": paper, "w": sz.x, "h": sz.y, "denom": int(denom), "k": 1000.0 / denom, "tab": "Section", "title": "Section A-A", "name": bd["name"], "ents": ents, "area": area}
 
 
+## sheet 7: the HouseCheck report, one line per member, printed on the paper (CH1c)
+func structure_sheet(b: Dictionary, pick: Dictionary) -> Dictionary:
+	var paper: String = pick["paper"]
+	var denom := int(pick["denom"])
+	var mj = JSON.parse_string(FileAccess.get_file_as_string("res://out/ch1/members.json"))
+	var lines := Ch1House.run(mj)
+	var ents := []
+	var y := 0.0
+	var tx := 3.0
+	var nfail := 0
+	var nunv := 0
+	for l in lines:
+		var fp := ""
+		var parts := String(l["text"]).split(" | ")
+		var tail := String(parts[parts.size() - 1])
+		if tail.contains("first principles"):
+			parts = PackedStringArray(String(l["text"]).split(" | first principles"))
+			tail = String(String(parts[0]).split(" | ")[-1])
+			fp = " | physics " + ("agrees" if bool(l.get("agree", true)) else "DISAGREES")
+		var unv := " [UNVERIFIED]" if String(l["text"]).contains("UNVERIFIED") else ""
+		nunv += 1 if unv != "" else 0
+		nfail += 0 if l["pass"] else 1
+		ents.append(Blueprint._text(Vector2(0, y), "%s  %s: %s%s%s" % ["PASS" if l["pass"] else "FAIL", l["member"], tail, fp, unv], tx, "l", "text"))
+		y += 5.2
+	y += 4.0
+	ents.append(Blueprint._text(Vector2(0, y), "RESULT  %d lines, %d FAIL, %d PASS, %d marked UNVERIFIED (a table cell or rule that could not be read)" % [lines.size(), nfail, lines.size() - nfail, nunv], 3.6, "l", "text"))
+	y += 7.0
+	ents.append(Blueprint._text(Vector2(0, y), "Tables: " + HouseCheck.TABLES_SOURCE, 2.4, "l", "text"))
+	y += 5.0
+	ents.append(Blueprint._text(Vector2(0, y), "Not checked by Kine: " + "; ".join(PackedStringArray(HouseCheck.NOT_CHECKED)), 2.4, "l", "text"))
+	var area := Blueprint._area(paper)
+	var bb2 := Blueprint._bounds(ents)
+	ents = Blueprint._shift(ents, area.position + Vector2(12, 14) - bb2.position)
+	var bd := b.duplicate(true)
+	bd["name"] = String(b["name"]) + " structure check"
+	ents.append_array(Blueprint._frame(bd, "Front", paper, denom, 7, 7))
+	for e in ents:
+		if String(e.get("t", "")) == "text" and String(e["s"]) == "Front elevation":
+			e["s"] = "Structure check (IRC 2021)"
+	var sz := Blueprint.paper_size(paper)
+	return {"paper": paper, "w": sz.x, "h": sz.y, "denom": denom, "k": 1000.0 / denom, "tab": "Structure", "title": "Structure check", "name": bd["name"], "ents": ents, "area": area}
+
+
 func sheets() -> void:
 	var b: Dictionary = d["building"]
 	var pick := Blueprint.choose(b)
@@ -124,6 +167,7 @@ func sheets() -> void:
 	var bl := yawed(b, "(left)")
 	await save_sheet(Blueprint.sheet(bl, "Side", pick), "05_left_elevation")
 	await save_sheet(section_sheet(b, pick), "06_section")
+	await save_sheet(structure_sheet(b, pick), "07_structure")
 
 
 # ------------------------------------------------------------------ 3D
@@ -239,6 +283,11 @@ func shots() -> void:
 	lab.text = "Framing only"
 	aim(-35.0, 28.0, 17.0)
 	await grab(outdir + "/framing_3q.png")
+	# the same framing from straight above: the front slope and the back slope meet at the ridge, they do not cross
+	aim(0.0, 89.0, 17.0)
+	cam.look_at_from_position(cam.position, Vector3(4.877, 1.4, 3.81), Vector3(0, 0, -1))
+	lab.text = "Framing from above"
+	await grab(outdir + "/framing_top.png")
 	print("shots done")
 
 
@@ -280,6 +329,34 @@ func video() -> void:
 	# a last hold on the front
 	for h in 36:
 		aim(-35.0, 22.0, 18.0)
+		await grab("%s/frames/f_%04d.jpg" % [outdir, frame], true)
+		frame += 1
+	# the end card: the structure check result, held 3 s
+	var mj = JSON.parse_string(FileAccess.get_file_as_string("res://out/ch1/members.json"))
+	var lines := Ch1House.run(mj)
+	var nf := 0
+	var nu := 0
+	for l in lines:
+		nf += 0 if l["pass"] else 1
+		nu += 1 if String(l["text"]).contains("UNVERIFIED") else 0
+	var show := "STRUCTURE CHECK (IRC 2021)
+%d lines   %d PASS   %d FAIL
+%d marked UNVERIFIED, listed on sheet 07
+rafters, joists, headers, studs, bracing, ties, anchor bolts, footing" % [lines.size(), lines.size() - nf, nf, nu]
+	mi.visible = false
+	lab.text = ""
+	lab2.text = ""
+	var card := ColorRect.new()
+	card.color = Color(0.07, 0.09, 0.12) if nf == 0 else Color(0.25, 0.05, 0.05)
+	card.size = Vector2(1280, 720)
+	vp.add_child(card)
+	var cl2 := Label.new()
+	cl2.text = show
+	cl2.position = Vector2(90, 220)
+	cl2.add_theme_font_size_override("font_size", 44)
+	cl2.add_theme_color_override("font_color", Color(0.55, 0.95, 0.6) if nf == 0 else Color(1, 0.5, 0.5))
+	vp.add_child(cl2)
+	for h in 72:
 		await grab("%s/frames/f_%04d.jpg" % [outdir, frame], true)
 		frame += 1
 	print("frames ", frame)

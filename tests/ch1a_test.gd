@@ -9,6 +9,9 @@ extends SceneTree
 ##   E  LOAD PATH every member is in one touching chain (gap < 1 mm) down to the ground, and every vertical member rests on a member below
 ##   F  PLAN      the Building record's plan (Blueprint) has the six rooms' sizes within 2 % (walls from Blueprint.room_walls)
 ##   G  MEMBERS   out/ch1/members.json lists kind, nominal size, span, spacing and supports for every member
+##   H  RAFTERS  (CH1c) every rafter's axis (longest edge of its sketch polygon) is perpendicular to the ridge axis: |dot| < 1e-3, and the front and back slopes meet at the ridge
+##   I  OVERLAP   (CH1c) no two framing members overlap: the volume of intersection of every pair is under 1 mm3 (rafter heels sit beside the joists, birdsmouth on the top plate)
+##   J  HOUSE     (CH1c) HouseCheck.check on the house record built from out/ch1/members.json passes on every line (UNVERIFIED lines stay listed as such)
 ##   CONTROL      a stud moved 20 mm fails D; a stud lifted 5 mm fails E; a room 4 % short fails B; a 4 % short slab fails C
 var fails := 0
 const TOL_ROOM := 0.02
@@ -285,6 +288,77 @@ func _run() -> void:
 				okm = false
 				break
 	ok(okm, "G out/ch1/members.json has kind, nominal, span_mm, spacing_mm and supports for all %d members" % members.size())
+	# ---- CH1c bars (written before the numbers were read)
+	var ax := Ch1House.rafter_axes(members)
+	var worst_dot := 0.0
+	var nraf := 0
+	for k in ax["rafters"]:
+		worst_dot = maxf(worst_dot, absf((ax["rafters"][k] as Vector3).dot(ax["ridge"])))
+		nraf += 1
+	print("rafter axes ", nraf, " worst |dot| with the ridge ", worst_dot, " ridge axis ", ax["ridge"])
+	ok(nraf >= 34 and worst_dot < 1e-3, "H all %d rafter axes are perpendicular to the ridge (worst |dot| %s)" % [nraf, str(worst_dot)])
+	var fz1 := -1e9
+	var bz0 := 1e9
+	var steep := 0
+	for m in members:
+		if m["kind"] in ["rafter", "rafter_pair"]:
+			if String(m["name"]).contains("front"):
+				fz1 = maxf(fz1, float(m["box"][5]))
+			else:
+				bz0 = minf(bz0, float(m["box"][2]))
+	for k in ax["rafters"]:
+		var v: Vector3 = ax["rafters"][k]
+		steep += 1 if absf(v.y) > 0.2 and absf(v.z) > 0.9 * 0.5 else 0
+	print("front rafters end at z ", fz1, " back rafters start at z ", bz0, " sloping axes ", steep)
+	ok(fz1 <= bz0 + 0.01 and steep == nraf, "H the front slope ends at z %.1f and the back slope starts at z %.1f: they meet at the ridge, no rafter crosses to the other side (%d of %d axes slope)" % [fz1, bz0, steep, nraf])
+	var ov := Ch1House.overlaps(members)
+	print("framing overlaps ", ov.size(), " ", ov.slice(0, 6))
+	ok(ov.is_empty(), "I no two framing members overlap by more than 1 mm3 (%d pairs, first %s)" % [ov.size(), str(ov.slice(0, 3))])
+	var paired := 0
+	var pair_bad := 0
+	for m in members:
+		if m["kind"] != "rafter_pair":
+			continue
+		paired += 1
+		var near := false
+		for n in members:
+			if n["kind"] == "joist" and absf(float(m["box"][0]) - float(n["box"][3])) < 1.0:
+				near = true
+				break
+		pair_bad += 0 if near else 1
+	ok(paired >= 14 and pair_bad == 0, "I each of %d paired rafters has a ceiling joist against its face (%d without)" % [paired, pair_bad])
+	var lines := Ch1House.run(mj)
+	var fl := Ch1House.failing(mj)
+	var unv := 0
+	for l in lines:
+		if String(l["text"]).contains("UNVERIFIED"):
+			unv += 1
+	print("HouseCheck lines ", lines.size(), " failing ", fl.size(), " UNVERIFIED ", unv)
+	ok(lines.size() >= 25 and fl.is_empty(), "J HouseCheck passes on the generated house: %d lines, %d FAIL, %d carry UNVERIFIED" % [lines.size(), fl.size(), unv])
+	# CH1c controls
+	var mj2: Dictionary = mj.duplicate(true)
+	for m in mj2["members"]:
+		if m["kind"] == "rafter" and m["spacing_mm"] != null:
+			m["nominal"] = "2x4"
+	ok(Ch1House.failing(mj2).size() >= 1, "CONTROL J: rafters made 2x4 are caught by HouseCheck")
+	var ms2: Array = members.duplicate(true)
+	for m in ms2:
+		if m["kind"] == "rafter_pair":
+			m["box"][0] = float(m["box"][0]) - 38.0
+			m["box"][3] = float(m["box"][3]) - 38.0
+			break
+	ok(Ch1House.overlaps(ms2).size() >= 1, "CONTROL I: a rafter moved back onto its joist is caught as an overlap")
+	var ms4: Array = members.duplicate(true)
+	for m in ms4:
+		if m["kind"] == "ridge":
+			var b4: Array = m["box"]
+			m["box"] = [b4[2], b4[1], b4[0], b4[5], b4[4], b4[3]]    # a ridge turned 90 degrees: its axis is z, the rafter axes are no longer perpendicular
+			break
+	var ax4 := Ch1House.rafter_axes(ms4)
+	var w4 := 0.0
+	for k in ax4["rafters"]:
+		w4 = maxf(w4, absf((ax4["rafters"][k] as Vector3).dot(ax4["ridge"])))
+	ok(w4 >= 1e-3, "CONTROL H: a ridge turned to run front to back makes the rafters parallel to it (worst |dot| %.3f) and fails the bar" % w4)
 	# CONTROLS
 	var some_stud := ""
 	for e in list:

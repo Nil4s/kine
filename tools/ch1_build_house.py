@@ -26,7 +26,7 @@ RFT = T                       # rafter thickness
 KITCHEN_DOOR_X = 3300.0
 
 COL = {"ground": (0.32, 0.46, 0.26), "slab": (0.62, 0.62, 0.60), "plate": (0.55, 0.62, 0.46), "stud": (0.80, 0.65, 0.42),
-       "header": (0.70, 0.52, 0.32), "joist": (0.86, 0.72, 0.48), "rafter": (0.82, 0.66, 0.42), "ridge": (0.68, 0.52, 0.34),
+       "header": (0.70, 0.52, 0.32), "joist": (0.86, 0.72, 0.48), "rafter": (0.82, 0.66, 0.42), "footing": (0.55, 0.55, 0.53), "ridge": (0.68, 0.52, 0.34),
        "osb": (0.76, 0.63, 0.40), "shingle": (0.23, 0.24, 0.27), "siding": (0.90, 0.84, 0.66), "window": (0.55, 0.72, 0.85),
        "door": (0.45, 0.17, 0.12), "idoor": (0.72, 0.62, 0.48), "sill": (0.70, 0.55, 0.35)}
 
@@ -132,7 +132,7 @@ def kind_look(kind):
         return "header"
     if kind in ("joist",):
         return "joist"
-    if kind in ("rafter", "gable_rafter"):
+    if kind in ("rafter", "gable_rafter", "rafter_pair"):
         return "rafter"
     if kind == "ridge":
         return "ridge"
@@ -178,9 +178,9 @@ RO = 25.0     # rough opening is the unit + 25 mm
 
 # openings per wall: along = centre along the wall's axis; kind door|window|cased; bearing: header 2-2x8 (else a 2x4 flat)
 OPEN = {
-    "F": [("door", 3300.0, DOOR_W, DOOR_H, 0.0, True, "Entry door (through the kitchen)"), ("window", 1100.0, WIN_W, WIN_H, WIN_SILL, True, "Kitchen window"),
+    "F": [("door", 3300.0, DOOR_W, DOOR_H, 0.0, True, "Entry door (through the kitchen)"), ("window", 900.0, WIN_W, WIN_H, WIN_SILL, True, "Kitchen window"),
           ("window", 8200.0, WIN_W, WIN_H, WIN_SILL, True, "Bedroom 2 window front")],
-    "B": [("window", 1300.0, WIN_W, WIN_H, WIN_SILL, True, "Living window 1"), ("window", 3300.0, WIN_W, WIN_H, WIN_SILL, True, "Living window 2"),
+    "B": [("window", 1000.0, WIN_W, WIN_H, WIN_SILL, True, "Living window 1"), ("window", 3400.0, WIN_W, WIN_H, WIN_SILL, True, "Living window 2"),
           ("window", 5500.0, BATH_W, BATH_H, BATH_SILL, True, "Bath window"), ("window", 8000.0, WIN_W, WIN_H, WIN_SILL, True, "Bedroom 1 window rear")],
     "L": [("window", 1800.0, WIN_W, WIN_H, WIN_SILL, True, "Kitchen window side"), ("window", 5500.0, WIN_W, WIN_H, WIN_SILL, True, "Living window side")],
     "R": [("window", 1800.0, WIN_W, WIN_H, WIN_SILL, True, "Bedroom 2 window side"), ("window", 5500.0, WIN_W, WIN_H, WIN_SILL, True, "Bedroom 1 window side")],
@@ -229,6 +229,13 @@ def build():
     # ---- ground and slab
     r.box("Ground", "ground", "grade", -6000, -700, -6000, W + 6000, -102, DP + 6000)
     r.box("Slab on grade", "slab", "4 in concrete", 0, -102, 0, W, 0, DP)
+    # thickened-edge footing under the exterior walls and the bearing hall wall: 12 in wide, 8 in below the slab (IRC R403.1 one storey, 1500 psf)
+    FW, FT = 305.0, 203.0
+    r.box("footing.F", "footing", "12 x 8 in", 0, -102 - FT, 0, W, -102, FW)
+    r.box("footing.B", "footing", "12 x 8 in", 0, -102 - FT, DP - FW, W, -102, DP)
+    r.box("footing.L", "footing", "12 x 8 in", 0, -102 - FT, FW, FW, -102, DP - FW)
+    r.box("footing.R", "footing", "12 x 8 in", W - FW, -102 - FT, FW, W, -102, DP - FW)
+    r.box("footing.H", "footing", "12 x 8 in", FW, -102 - FT, HZ - FW / 2, W - FW, -102, HZ + FW / 2)
     r.mark("Slab")
     # ---- bottom plates (cut at door openings)
     for w, ww in WALLS.items():
@@ -280,7 +287,7 @@ def build():
             else:
                 hy0, hy1, nom = yt, yt + T, "2x4 flat"
             assert hy1 <= Y_T1 + 0.01, (w, oi, hy1)
-            r.box("header.%s.%d" % (w, oi), "header", nom, *bx(w, ro0 - 2 * T, ro1 + 2 * T, hy0, hy1), span=ro1 - ro0, label=label)
+            r.box("header.%s.%d" % (w, oi), "header", nom, *bx(w, ro0 - T, ro1 + T, hy0, hy1), span=ro1 - ro0, label=label)   # king inner face to king inner face: the header sits between the kings, on the jacks
             # window sill and cripples under
             if kind == "window":
                 r.box("sill.%s.%d" % (w, oi), "sill", "2x4", *bx(w, ro0, ro1, yb - T, yb), span=ro1 - ro0)
@@ -367,7 +374,10 @@ def build():
         if face == "back":
             pts = [(DP - z, y) for z, y in pts]
         # rafters at 24 in o.c.: centres k*G24, k = 1..15, and a rafter flush with each gable end
-        r.poly("rafter.%s" % face, "rafter", "2x10", pts, G24 - T / 2, RFT, count=15, step=G24, spacing=G24, span=(RIDGE_Z - D / 2), slope="4:12")
+        # rafters at 24 in o.c.: centres k*G24, k = 1..15. Where a rafter falls on a ceiling joist (every 1219.2 mm, k even) the heel sits BESIDE the
+        # joist, one thickness over (real practice: the pair is nailed face to face); those seven are kind rafter_pair, the other eight stay rafter.
+        r.poly("rafter.%s" % face, "rafter", "2x10", pts, G24 - T / 2, RFT, count=8, step=2 * G24, spacing=G24, span=(RIDGE_Z - D / 2), slope="4:12")
+        r.poly("rafter_pair.%s" % face, "rafter_pair", "2x10", pts, 2 * G24 - T / 2 + T, RFT, count=7, step=2 * G24, spacing=G24, span=(RIDGE_Z - D / 2), slope="4:12")
         r.poly("gable_rafter.%s.0" % face, "gable_rafter", "2x10", pts, 0.0, RFT, span=(RIDGE_Z - D / 2))
         r.poly("gable_rafter.%s.1" % face, "gable_rafter", "2x10", pts, W - RFT, RFT, span=(RIDGE_Z - D / 2))
     r.mark("Rafters and ridge")
@@ -493,6 +503,41 @@ def supports(members):
     return out
 
 
+def meta(r):
+    """what the member list cannot say by geometry: species, climate, connectors and anchor bolts (specified here, not modelled as bodies)"""
+    # anchor bolts: every bottom-plate run gets a bolt 9 in from each end and more at <= 72 in o.c. (IRC R403.1.6: 1/2 in, 6 ft, within 12 in of each end,
+    # at least 7 diameters = 3.5 in from the end); a piece shorter than 18 in gets one bolt at its middle, which is within 12 in of both ends
+    plates = [m for m in r.members if m["kind"] == "bottom_plate"]
+    pos = {}
+    max_sp = 0.0
+    max_end = 0.0
+    min_end = 1e9
+    skipped = []
+    for m in plates:
+        b = m["box"]
+        a0, a1 = (b[0], b[3]) if (b[3] - b[0]) > (b[5] - b[2]) else (b[2], b[5])
+        L = (a1 - a0) / 25.4
+        if L < 12.0:
+            skipped.append(m["name"])      # a jamb-side offcut under 12 in: held by the king stud and the sheathing, no bolt of its own
+            continue
+        if L < 18.0:
+            xs = [L / 2]
+        else:
+            n = max(1, int(math.ceil((L - 18.0) / 72.0)))
+            xs = [9.0 + i * (L - 18.0) / n for i in range(n + 1)]
+        pos[m["name"]] = [round(a0 + x * 25.4, 1) for x in xs]
+        gaps = [q - p for p, q in zip(xs[:-1], xs[1:])]
+        max_sp = max([max_sp] + gaps)
+        max_end = max(max_end, xs[0], L - xs[-1])
+        min_end = min(min_end, xs[0], L - xs[-1])
+    rafters = [m for m in r.members if m["kind"] in ("rafter", "rafter_pair", "gable_rafter")]
+    return {"species": "DF-L#2", "species_note": "assumed: not on the reference drawing", "wind_mph": 115, "exposure": "B", "seismic": "A-B", "soil_psf": 1500, "rise_per_12": 4.0,
+            "tie": "H2.5A", "ties": {"type": "Simpson H2.5A", "count": len(rafters), "at": "one at the heel of every rafter, rafter to double top plate"},
+            "anchor_bolts": {"dia_in": 0.5, "max_spacing_in": round(max_sp, 2), "max_end_in": round(max_end, 2), "min_end_in": round(min_end, 2), "positions_mm": pos,
+                             "pieces_without_bolt": skipped, "count": sum(len(v) for v in pos.values())},
+            "footing": {"width_in": 12.0, "thickness_in": 8.0}}
+
+
 def building():
     p = {"wall_height": HW / 1000.0, "wall_thickness": D / 1000.0, "floor_thickness": 0.102, "door_width": 0.914, "door_height": 2.057, "window_width": 0.939,
          "window_height": 1.244, "window_sill": 0.914, "grid": 0.05, "floor_height": 2.8, "roof_overhang": OVER / 1000.0, "inner_wall_thickness": D / 1000.0}
@@ -535,11 +580,11 @@ def main():
     with open(os.path.join(out_dir, "data", "challenges", "ch1_house.json"), "w") as fh:
         json.dump(data, fh, indent=1)
     mem = [{"name": m["name"], "kind": m["kind"], "nominal": m["nominal"], "span_mm": m.get("span"), "spacing_mm": m.get("spacing"), "supports": m["supports"],
-            "box_mm": m["box"]} for m in r.members]
+            "box_mm": m["box"], "poly": m.get("poly")} for m in r.members]
     od = os.path.join(out_dir, "out", "ch1")
     os.makedirs(od, exist_ok=True)
     with open(os.path.join(od, "members.json"), "w") as fh:
-        json.dump({"house": "Levitt Ranch 1949", "units": "mm", "members": mem}, fh, indent=1)
+        json.dump({"house": "Levitt Ranch 1949", "units": "mm", "members": mem, "meta": meta(r)}, fh, indent=1)
     print("features", len(r.f), "bodies", r.nb, "members", len(r.members))
 
 

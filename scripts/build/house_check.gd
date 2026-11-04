@@ -91,6 +91,14 @@ static func ranch() -> Dictionary:
 	}
 
 
+## like C printf %g (GDScript's % has no g): at most 3 decimals, no trailing zeros
+static func g(x: float) -> String:
+	var t := "%.3f" % x
+	while t.contains(".") and (t.ends_with("0") or t.ends_with(".")):
+		t = t.left(t.length() - 1)
+	return t
+
+
 static func fi(inches: float) -> String:
 	var t := int(floor(inches + 0.5))
 	return "%d'-%d\"" % [t / 12, t % 12]
@@ -187,11 +195,11 @@ static func check(h: Dictionary) -> Array:
 	var cut := float(rdim[1]) * sqrt(rise * rise + 144.0) / 12.0
 	var rg := _dims(str(R.get("ridge", "2x8")))
 	var rg_d: float = rg[1] if not rg.is_empty() else 0.0
-	out.append(_line("ridge board", "ridge", "rafter plumb cut %.2f in deep at %g/12" % [cut, rise], "IRC 2021 R802.3 ridge board at least as deep as the rafter cut", rg_d >= cut, rg_d, cut,
+	out.append(_line("ridge board", "ridge", "rafter plumb cut %.2f in deep at %s/12" % [cut, g(rise)], "IRC 2021 R802.3 ridge board at least as deep as the rafter cut", rg_d >= cut, rg_d, cut,
 		"ridge %s is %.2f in deep, the rafter cut is %.2f in" % [R.get("ridge", "?"), rg_d, cut]))
 	# rafter ties: ceiling joists parallel to the rafters keep the walls from spreading (R802.3.1)
 	var has_cj: bool = h.has("ceiling_joists") and not (h["ceiling_joists"] as Dictionary).is_empty()
-	out.append(_line("rafter ties", "tie", "outward thrust of a %g/12 roof at the plate" % rise, "IRC 2021 R802.3.1 ceiling joists as rafter ties, lower third of the rafter", has_cj, 1.0 if has_cj else 0.0, 1.0,
+	out.append(_line("rafter ties", "tie", "outward thrust of a %s/12 roof at the plate" % g(rise), "IRC 2021 R802.3.1 ceiling joists as rafter ties, lower third of the rafter", has_cj, 1.0 if has_cj else 0.0, 1.0,
 		"ceiling joists %s act as ties" % ("present" if has_cj else "missing")))
 	# ---- ceiling joists (R802.4)
 	if has_cj:
@@ -219,19 +227,20 @@ static func check(h: Dictionary) -> Array:
 		var row: Array = tbl.get(ss, [0, 0.0])
 		var sps: float = wl["spacing_in"]
 		var sok: bool = sps <= float(row[0]) and wall_h <= float(row[1])
-		out.append(_line("%s wall studs %s @%d in" % [nm, ss, int(sps)], "stud", "%s wall, %g ft high, roof + ceiling only (one story)" % ["bearing" if bearing else "non-bearing", wall_h],
-			"IRC 2021 R602.3(5) stud size, height, spacing", sok, sps, float(row[0]), "spacing %d in against max %d in, height %g ft against max %g ft" % [int(sps), int(row[0]), wall_h, float(row[1])]))
+		out.append(_line("%s wall studs %s @%d in" % [nm, ss, int(sps)], "stud", "%s wall, %s ft high, roof + ceiling only (one story)" % ["bearing" if bearing else "non-bearing", g(wall_h)],
+			"IRC 2021 R602.3(5) stud size, height, spacing", sok, sps, float(row[0]), "spacing %d in against max %d in, height %s ft against max %s ft" % [int(sps), int(row[0]), g(wall_h), g(float(row[1]))]))
 		var k := 0
 		for op in wl.get("openings", []):
 			k += 1
 			out.append(_header_line(nm, k, op, bearing, W, sp_name, sp, cd_roof))
-		out.append(_bracing_line(nm, wl, wall_h, h))
+		if wl.get("braced", true):
+			out.append(_bracing_line(nm, wl, wall_h, h))
 	# ---- uplift (R802.11)
 	var tie: String = R.get("tie", "none")
 	var exc2: bool = int(h.get("wind_mph", 115)) <= 115 and h.get("exposure", "B") == "B" and rise >= 5.0 and W <= 32.0 and rsp <= 24.0
 	var demand := UPLIFT_LB_PER_FT * W * rsp / 24.0
 	var cap: float = TIES.get(tie, 0.0)
-	var loadw := "%d mph, exposure %s, %g/12 pitch, %g ft roof span, rafters %d in o.c." % [int(h.get("wind_mph", 115)), h.get("exposure", "B"), rise, W, int(rsp)]
+	var loadw := "%d mph, exposure %s, %s/12 pitch, %s ft roof span, rafters %d in o.c." % [int(h.get("wind_mph", 115)), h.get("exposure", "B"), g(rise), g(W), int(rsp)]
 	if exc2:
 		out.append(_line("roof to wall ties (%s)" % tie, "uplift", loadw, "IRC 2021 R802.11 Exception 2 (wind <= 115 mph, exposure B, pitch >= 5:12, span <= 32 ft, <= 24 in o.c.): attach by Table R602.3(1)",
 			tie != "none", 0.0, 0.0, "no uplift calculation needed; ties present: %s" % tie))
@@ -244,7 +253,7 @@ static func check(h: Dictionary) -> Array:
 	var bs: float = S.get("bolt_spacing_in", 72.0)
 	var be: float = S.get("bolt_from_end_in", 9.0)
 	var sill_ok: bool = bd >= 0.5 and bs <= 72.0 and be <= 12.0 and be >= 7.0 * bd
-	out.append(_line("sill plate on %s" % str(S.get("on", "slab")).replace("_", " "), "sill", "anchor bolts %.3g in dia at %d in, %d in from each plate end" % [bd, int(bs), int(be)],
+	out.append(_line("sill plate on %s" % str(S.get("on", "slab")).replace("_", " "), "sill", "anchor bolts %s in dia at %d in, %d in from each plate end" % [g(bd), int(bs), int(be)],
 		"IRC 2021 R403.1.6 anchor bolts (1/2 in, 6 ft o.c., within 12 in and 7 diameters of each end)", sill_ok, bs, 72.0, "spacing %d in against max 72 in, end distance %d in within %.1f to 12 in" % [int(bs), int(be), 7.0 * bd]))
 	var F: Dictionary = h["footing"]
 	var soil := float(F.get("soil_psf", 1500))
@@ -259,7 +268,7 @@ static func check(h: Dictionary) -> Array:
 	var proj := (fw - float(F.get("wall_in", 8.0))) / 2.0
 	out.append(_line("footing (%s)" % ftype, "footing", "one story, 20 psf roof live, %d psf soil" % int(soil), "IRC 2021 Table R403.1(1) width, R403.1.1 thickness 6 in and projection 2 in",
 		need > 0 and fw >= need and ft >= 6.0 and proj >= 2.0, fw, need,
-		"width %g in against %s, thickness %g in against 6 in, projection %.1f in against 2 in" % [fw, ("%g in" % need) if need > 0 else "none (soil under 1500 psf needs an engineer)", ft, proj]))
+		"width %s in against %s, thickness %s in against 6 in, projection %.1f in against 2 in" % [g(fw), (g(need) + " in") if need > 0 else "none (soil under 1500 psf needs an engineer)", g(ft), proj]))
 	return out
 
 
@@ -289,8 +298,8 @@ static func _header_line(wall: String, k: int, op: Dictionary, bearing: bool, W:
 	if not dm.is_empty():
 		ph = beam(dm[0], dm[1], dm[2], span, ld[0], ld[1], 1.15, 1.0, 240.0, sp)
 	var ag: bool = tok == ph["pass"]
-	var loadwords := "30 psf ground snow: roof 31 psf over %g ft + ceiling 15 psf over %g ft = %.0f plf%s" % [W / 2.0 + 2.0, W / 2.0, ld[0] * 12.0, "" if bearing else " (non-bearing wall held to the bearing table)"]
-	var ln := _line("%s wall opening %d header %s over %g ft" % [wall, k, hs, op["width_ft"]], "header", loadwords, "IRC 2021 R602.7(1) headers in exterior bearing walls, roof and ceiling, 30 psf ground snow", tok, span, tab,
+	var loadwords := "30 psf ground snow: roof 31 psf over %s ft + ceiling 15 psf over %s ft = %.0f plf%s" % [g(W / 2.0 + 2.0), g(W / 2.0), ld[0] * 12.0, "" if bearing else " (non-bearing wall held to the bearing table)"]
+	var ln := _line("%s wall opening %d header %s over %s ft" % [wall, k, hs, g(op["width_ft"])], "header", loadwords, "IRC 2021 R602.7(1) headers in exterior bearing walls, roof and ceiling, 30 psf ground snow", tok, span, tab,
 		"span %s against table %s" % [fi(span), fi(tab) if tab > 0 else "none (not a tabulated built-up header, or width outside 12-36 ft)"] + _physwords(ph, ag))
 	ln["phys"] = ph
 	ln["agree"] = ag
@@ -312,7 +321,7 @@ static func _bracing_line(nm: String, wl: Dictionary, wall_h: float, h: Dictiona
 	for p in panels:
 		var pl: float = p["len_ft"]
 		if pl + 1e-6 < min_len:
-			problems.append("panel %g ft is under the %.2f ft minimum" % [pl, min_len])
+			problems.append("panel %s ft is under the %.2f ft minimum" % [g(pl), min_len])
 		total += pl
 		var gap: float = float(p["pos_ft"]) - prev_end
 		if first and gap > BRACE_END_FT + 1e-6:
@@ -327,7 +336,7 @@ static func _bracing_line(nm: String, wl: Dictionary, wall_h: float, h: Dictiona
 		problems.append("last panel ends %.1f ft from the line end (max %.1f)" % [length - prev_end, BRACE_END_FT])
 	if total + 1e-6 < need:
 		problems.append("%.1f ft of panel is under the %.1f ft needed" % [total, need])
-	return _line("%s wall bracing line" % nm, "bracing", "%d mph, exposure %s, %g ft line, %g ft to the next braced wall line, seismic %s not read (UNVERIFIED)" % [int(h.get("wind_mph", 115)), h.get("exposure", "B"), length, spacing, h.get("seismic", "A-B")],
+	return _line("%s wall bracing line" % nm, "bracing", "%d mph, exposure %s, %s ft line, %s ft to the next braced wall line, seismic %s not read (UNVERIFIED)" % [int(h.get("wind_mph", 115)), h.get("exposure", "B"), g(length), g(spacing), h.get("seismic", "A-B")],
 		"IRC 2021 Table R602.10.3(1) method WSP, panel spacing and end rules R602.10.2.2 (not re-read online)", problems.is_empty(), total, need,
 		"%.1f ft of braced panel against %.1f ft needed%s" % [total, need, "" if problems.is_empty() else " (" + "; ".join(PackedStringArray(problems)) + ")"])
 
