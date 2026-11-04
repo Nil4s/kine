@@ -10,7 +10,7 @@ extends SceneTree
 ##                 boxes, not from the module's contact list);
 ##               - anchor bolts: 1/2 in, embed >= 7 in, spacing <= 72 in and within 12 in (>= 3.5 in) of each plate end, a plate washer on each; H2.5A: one per rafter (count == meta ties.count == 34).
 ##  F FLOAT      no fastener floats: the shank start is within 1 mm (+ the connector's sheet thickness for tie and hold-down fasteners) of the surface of its first member; the shank has >= 3 mm
-##               inside the first member and >= 3 mm inside the second; every sample of the shank is inside some framing / sheathing / concrete member except a tip tail of at most 16 mm
+##               inside the first member and (for fasteners that cross an interface between two members: not the connector screws and tie nails) >= 3 mm inside the second; every sample of the shank is inside some framing / sheathing / concrete member except a tip tail of at most 16 mm
 ##               (a 3-1/2 in nail through 3 in of lumber, as the code row itself implies). CONTROL: one nail moved 20 mm sideways is caught.
 ##  C COUNT      total and per type printed; the nails of ONE wall (left gable wall L) equal a hand count made in this file:
 ##               toenails = 8 per vertical member (4 at each end), sheathing nails = per piece: edge intervals ceil(edge/152.4) around the 9.5 mm inset rectangle + field lines at the studs
@@ -171,7 +171,7 @@ func _float(F: Dictionary, V: Dictionary) -> void:
 		mb = minf(mb, V["len_b"][i])
 		mt = maxf(mt, V["tail"][i])
 		mh = maxf(mh, V["holes"][i])
-		if hg > 1.0 or V["len_a"][i] < 3.0 or V["len_b"][i] < 3.0 or V["tail"][i] > 16.0 or V["holes"][i] > 0.5:
+		if hg > 1.0 or V["len_a"][i] < 3.0 or (F["need_b"][i] == 1 and V["len_b"][i] < 3.0) or V["tail"][i] > 16.0 or V["holes"][i] > 0.5:
 			bad.append(i)
 	ok(bad.is_empty(), "F1 no fastener floats: %d of %d fail (worst head gap %.2f mm, min in first member %.1f mm, min in second %.1f mm, max tail %.1f mm, max hole %.2f mm)" % [bad.size(), n, mg, ma, mb, mt, mh])
 	if not bad.is_empty():
@@ -186,7 +186,7 @@ func _float(F: Dictionary, V: Dictionary) -> void:
 	G["head"] = hh
 	var V2: Dictionary = CF.validate(G, false, [100])
 	var st100: float = F["stand"][100]
-	var flagged: bool = (V2["head_gap"][100] - st100 > 1.0) or V2["len_a"][100] < 3.0 or V2["len_b"][100] < 3.0 or V2["tail"][100] > 16.0 or V2["holes"][100] > 0.5
+	var flagged: bool = (V2["head_gap"][100] - st100 > 1.0) or V2["len_a"][100] < 3.0 or (F["need_b"][100] == 1 and V2["len_b"][100] < 3.0) or V2["tail"][100] > 16.0 or V2["holes"][100] > 0.5
 	ok(flagged, "F2 control: nail 100 moved 20 mm is caught (gap %.2f a %.1f b %.1f tail %.1f hole %.2f)" % [V2["head_gap"][100] - st100, V2["len_a"][100], V2["len_b"][100], V2["tail"][100], V2["holes"][100]])
 
 
@@ -218,11 +218,18 @@ func _count(F: Dictionary, mj: Dictionary) -> void:
 		if c["key"] == "sheathing" and c["wall"] == "L":
 			sh_got += c["nails"].size()
 	var sh_hand := 0
+	var sh_full_got := 0
 	var studs_l: Array = []
 	for m in members:
 		var p := String(m["name"]).split(".")
 		if p.size() > 1 and p[1] == "L" and m["kind"] in ["stud", "king", "jack", "cripple"]:
 			studs_l.append(m)
+	var got_by_piece := {}
+	for c in F["conns"]:
+		if c["key"] == "sheathing" and c["wall"] == "L":
+			got_by_piece[F["names"][c["a"]]] = c["nails"].size()
+	var exact_bad: Array = []
+	var npieces := 0
 	for m in members:
 		if m["kind"] == "wall_sheathing" and String(m["name"]).begins_with("sheathing.L."):
 			var b: Array = m["box_mm"]
@@ -230,18 +237,24 @@ func _count(F: Dictionary, mj: Dictionary) -> void:
 			var u1: float = b[5]
 			var y0: float = b[1]
 			var y1: float = b[4]
+			if y0 > 1.0 or y1 < 2466.0:
+				continue    # a piece beside an opening: partial field lines (cripples, jacks) are counted by the module, not by this hand count
+			npieces += 1
 			var w := (u1 - u0) - 19.0
 			var h := (y1 - y0) - 19.0
-			sh_hand += 2 * (int(ceil(w / 152.4 - 1e-9)) + int(ceil(h / 152.4 - 1e-9)))
+			var hand := 2 * (int(ceil(w / 152.4 - 1e-9)) + int(ceil(h / 152.4 - 1e-9)))
 			var m_int := int(ceil(h / 304.8 - 1e-9))
 			for s in studs_l:
 				var sb: Array = s["box_mm"]
 				var uc: float = 0.5 * (float(sb[2]) + float(sb[5]))
-				# a field line: a supporting member whose centre is >= 30 mm from the two side edges, and that is behind the piece for the whole height
-				if uc > u0 + 30.0 and uc < u1 - 30.0 and float(sb[1]) <= y0 + 40.0 + 1e-6 and float(sb[4]) >= y1 - 40.0 - 1e-6:
-					sh_hand += m_int - 1
-	print("   wall L sheathing nails placed %d, hand count (full-height lines) %d" % [sh_got, sh_hand])
-	ok(sh_got >= sh_hand, "C3 wall L sheathing: placed %d >= hand count %d of the full-height field lines + perimeters (partial lines beside the openings add the rest)" % [sh_got, sh_hand])
+				# a full field line: a stud whose centre is >= 30 mm from the two side edges and that spans the piece (its top 80 mm are the plates behind it)
+				if uc > u0 + 30.0 and uc < u1 - 30.0 and float(sb[1]) <= y0 + 40.0 and float(sb[4]) >= y1 - 80.0:
+					hand += m_int - 1
+			sh_hand += hand
+			if int(got_by_piece.get(m["name"], -1)) != hand:
+				exact_bad.append("%s placed %d hand %d" % [m["name"], int(got_by_piece.get(m["name"], -1)), hand])
+	print("   wall L sheathing nails placed %d; hand count of the %d full-height pieces %d" % [sh_got, npieces, sh_hand])
+	ok(npieces > 0 and exact_bad.is_empty(), "C3 wall L sheathing: every full-height piece (%d) equals its hand count (%d differ: %s)" % [npieces, exact_bad.size(), str(exact_bad.slice(0, 3))])
 
 
 func _pk(F: Dictionary, k: String) -> int:
