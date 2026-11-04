@@ -197,7 +197,7 @@ static func endfloat_chain() -> Array:
 
 ## deck clearance at TDC = crank axis to deck - stroke radius - rod length - crown to pin axis
 static func deck_chain() -> Array:
-	return [_link("crank axis to deck", 111.2, 10, 1), _link("crank radius", 20.7, 8, -1), _link("rod centres", 80.0, 7, -1), _link("crown to pin axis", 10.0, 9, -1)]
+	return [_link("crank axis to deck", 115.2, 10, 1), _link("crank radius", 20.7, 8, -1), _link("rod centres", 80.0, 7, -1), _link("crown to pin axis", 14.0, 9, -1)]   # bar j: crown 10 -> 14 (room over the rod eye)
 
 
 static func stack(chain: Array) -> Dictionary:

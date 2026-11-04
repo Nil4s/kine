@@ -149,9 +149,10 @@ func bars_stack() -> void:
 	var cs: Dictionary = E.stack_corners(ch)
 	ok(near(cs["min"], st["min_worst"], 1e-9) and near(cs["max"], st["max_worst"], 1e-9) and cs["n"] == 16, "c end-float: all 16 corners give the worst case %.4f..%.4f mm" % [cs["min"], cs["max"]])
 	var dk: Dictionary = E.stack(E.deck_chain())
-	# gap = 111.2 - 20.7 - 80.0 - 10.0 = 0.500; IT10 80-120 140 -> 70; IT8 18-30 33 -> 16.5; IT7 50-80 30 -> 15; IT9 6-10 36 -> 18
-	var dw := 70.0 + 16.5 + 15.0 + 18.0
-	var dr := sqrt(70.0 * 70.0 + 16.5 * 16.5 + 15.0 * 15.0 + 18.0 * 18.0)
+	# gap = 115.2 - 20.7 - 80.0 - 14.0 = 0.500; IT10 80-120 140 -> 70; IT8 18-30 33 -> 16.5; IT7 50-80 30 -> 15; IT9 10-18 43 -> 21.5
+	# (AMENDED after bar j's first run: the geometry changed, crown to pin 10 -> 14 and deck 111.2 -> 115.2; was IT9 6-10 36 -> 18)
+	var dw := 70.0 + 16.5 + 15.0 + 21.5
+	var dr := sqrt(70.0 * 70.0 + 16.5 * 16.5 + 15.0 * 15.0 + 21.5 * 21.5)
 	ok(near(dk["nominal"], 0.500, 1e-9) and near(dk["tol_worst"], dw, 1e-9) and near(dk["tol_rss"], dr, 1e-9), "c deck clearance: nominal 0.500 mm, worst +-%.1f um, RSS +-%.3f um" % [dk["tol_worst"], dk["tol_rss"]])
 	var dc: Dictionary = E.stack_corners(E.deck_chain())
 	ok(near(dc["min"], dk["min_worst"], 1e-9) and dk["min_worst"] > 0.0, "c deck: corners agree, worst min %.4f mm (piston never touches the head cold)" % dc["min"])
@@ -247,14 +248,16 @@ func bars_parts() -> void:
 	var dp := 38.9375   # 39 e7 mid: (-50 + -75)/2 = -62.5 um
 	var rh := 13.0 / 2.0   # boss JS6 mid 13.000
 	ok(near(d["skirt_d"], dp, 1e-9) and near(d["boss_d"], 13.0, 1e-9) and near(d["pin_d"], 12.996, 1e-9) and near(d["bore_d"], 39.0125, 1e-9), "g dims from the fits: skirt 38.9375, boss 13.000, pin 12.996, bore 39.0125")
-	# piston: cylinder dp x 44, pocket 34 x 22 from the bottom, pin hole (axis perpendicular to the piston axis, wholly inside the solid crown block): quadrature of the chord
+	# piston: cylinder dp x 48, pocket 34 x 22 from the bottom, rod slot 28 x 21 x 22.5 above the pocket, pin hole (axis perpendicular to the piston axis, inside the crown block): quadrature
+	# of the chord, less the 21 mm of it that runs through the slot (pi 6.5^2 21). AMENDED after bar j's first run: was dp x 44 with no slot (the rod eye sat in the solid crown)
 	var R := dp / 2.0
 	var n := 20000
 	var hv := 0.0
 	for i in n:
 		var x := -rh + (i + 0.5) * (2.0 * rh) / n
 		hv += 2.0 * sqrt(R * R - x * x) * 2.0 * sqrt(rh * rh - x * x) * (2.0 * rh) / n
-	var vp := PI / 4.0 * dp * dp * 44.0 - PI / 4.0 * 34.0 * 34.0 * 22.0 - hv
+	hv -= PI * rh * rh * 21.0
+	var vp := PI / 4.0 * dp * dp * 48.0 - PI / 4.0 * 34.0 * 34.0 * 22.0 - 28.0 * 21.0 * 22.5 - hv
 	var vk := vol_mm3(P.record("piston"))
 	ok(relnear(vk, vp, 0.001), "g piston volume %.1f mm3 vs closed form %.1f (hole %.1f by quadrature), rel %s" % [vk, vp, hv, String.num_scientific(absf(vk - vp) / vp)])
 	var bad := vol_mm3(P.record("piston", {"boss_override": 13.5}))
@@ -263,11 +266,13 @@ func bars_parts() -> void:
 	var vpin_h := PI / 4.0 * 12.996 * 12.996 * 33.0
 	ok(relnear(vpin, vpin_h, 0.001), "g pin volume %.1f mm3 vs pi/4 x 12.996^2 x 33 = %.1f" % [vpin, vpin_h])
 	var vcyl := vol_mm3(P.record("cylinder"))
-	var vcyl_h := PI / 4.0 * ((56.0 * 56.0 - 39.0125 * 39.0125) * 71.2 + 5.0 * (70.0 * 70.0 - 56.0 * 56.0) * 2.0)
+	# AMENDED after bar j's first run (geometry): cylinder 71.2 -> 75.2 tall; head chamber 39 x 4.6 -> 32 x 6.8326 (same volume: 39^2 x 4.6 = 32^2 x 6.8326), plug 14 x 23.1674
+	var vcyl_h := PI / 4.0 * ((56.0 * 56.0 - 39.0125 * 39.0125) * 75.2 + 5.0 * (70.0 * 70.0 - 56.0 * 56.0) * 2.0)
 	ok(relnear(vcyl, vcyl_h, 0.001), "g cylinder (bore 39.0125, 5 fins) %.1f mm3 vs %.1f" % [vcyl, vcyl_h])
 	var vhd := vol_mm3(P.record("head"))
-	var vhd_h := PI / 4.0 * (70.0 * 70.0 * 30.0 - 39.0 * 39.0 * 4.6 - 14.0 * 14.0 * 25.4)
-	ok(relnear(vhd, vhd_h, 0.001), "g head (chamber 39 x 4.6, plug 14) %.1f mm3 vs %.1f" % [vhd, vhd_h])
+	var ch_h := 4.6 * 39.0 * 39.0 / (32.0 * 32.0)
+	var vhd_h := PI / 4.0 * (70.0 * 70.0 * 30.0 - 39.0 * 39.0 * 4.6 - 14.0 * 14.0 * (30.0 - ch_h))
+	ok(relnear(vhd, vhd_h, 0.001), "g head (chamber 32 x %.4f with a squish band, plug 14) %.1f mm3 vs %.1f" % [ch_h, vhd, vhd_h])
 	var vcc := vol_mm3(P.record("crankcase"))
 	var vcc_h := 90.0 * 90.0 * 78.3 - 80.0 * 80.0 * 58.3 - 2.0 * PI / 4.0 * 20.0105 * 20.0105 * 10.0 - PI / 4.0 * 44.0 * 44.0 * 5.0
 	ok(relnear(vcc, vcc_h, 0.001), "g crankcase %.1f mm3 vs %.1f" % [vcc, vcc_h])

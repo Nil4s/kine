@@ -9,10 +9,16 @@ const R := 20.7            # crank radius (stroke 41.4, Honda C50)
 const L := 80.0            # rod centres (ASSUMED)
 const ZC := 39.15          # cylinder / rod / crank-pin centre plane (case cavity 10..68.3, centre 39.15)
 const Z_CRANK0 := 10.15    # case z of the crank's left thrust face (nominal end-float 0.30 mm, centred)
-const DECK := 111.2        # crank axis to the cylinder top face
+## bar j (CAD interference) moved these: crown to pin 10 -> 14 mm (the rod's small eye, r 10, sat in the solid crown; now a slot between the bosses and 3.5 mm of crown
+## over the eye), so the deck went 111.2 -> 115.2 and the cylinder 71.2 -> 75.2. The head chamber went from bore-wide (39 x 4.6, the piston could rise into it) to 32 mm
+## with a squish band, at the same volume (compression ratio unchanged)
+const DECK := 115.2        # crank axis to the cylinder top face
 const PIN_Z := 34.0        # pin axis height above the piston's skirt edge
-const PISTON_H := 44.0     # skirt edge to crown
-const CYL_H := 71.2        # cylinder from the case top (y = 40) to the deck
+const PISTON_H := 48.0     # skirt edge to crown (crown 14 above the pin)
+const CYL_H := 75.2        # cylinder from the case top (y = 40) to the deck
+const CHAMBER_D := 32.0    # head chamber; the squish band is the rest of the bore
+const CHAMBER_H := 4.6 * (39.0 / 32.0) * (39.0 / 32.0)   # the old 39 x 4.6 chamber's volume
+const SLOT := [14.0, 10.5, 22.0]   # piston rod slot: half width across the pin, half width along it (the eyes are 20 thick), from the pocket top to 0.5 over the eye
 static var _m_recip := -1.0
 
 
@@ -75,6 +81,8 @@ static func record(nm: String, opts := {}) -> Dictionary:
 			var dp: float = d["skirt_d"]
 			_cyl(fs, 0, 0, dp / 2.0, 0.0, PISTON_H, "new")
 			_cyl(fs, 0, 0, 17.0, 0.0, 22.0, "cut")
+			var sl := _plane(fs, "front", float(SLOT[2]))
+			_ex(fs, _sk(fs, sl, [{"k": "rect", "a": [-float(SLOT[0]), -float(SLOT[1])], "b": [float(SLOT[0]), float(SLOT[1])]}]), PIN_Z + 10.5 - float(SLOT[2]), "cut")
 			var bd: float = float(opts.get("boss_override", d["boss_d"]))
 			# the pin bore: axis along y (the "top" plane: sketch (u, v) = (x, -z)), through the whole piston
 			_ex(fs, _sk(fs, "top", [_circle([0.0, -PIN_Z], bd / 2.0)]), 60.0, "cut", true)
@@ -90,8 +98,8 @@ static func record(nm: String, opts := {}) -> Dictionary:
 			_paint(fs, [0.35, 0.42, 0.55], 0.1, 0.5, 0.35, "Cylinder")
 		"head":
 			_cyl(fs, 0, 0, 35.0, 0.0, 30.0, "new")
-			_cyl(fs, 0, 0, 19.5, 0.0, 4.6, "cut")
-			_cyl(fs, 0, 0, 7.0, 4.6, 25.4, "cut")
+			_cyl(fs, 0, 0, CHAMBER_D / 2.0, 0.0, CHAMBER_H, "cut")
+			_cyl(fs, 0, 0, 7.0, CHAMBER_H, 30.0 - CHAMBER_H, "cut")
 			_paint(fs, [0.70, 0.35, 0.25], 0.1, 0.5, 1.0, "Head")
 		"crankcase":
 			var sk := _sk(fs, "front", [{"k": "rect", "a": [-45.0, -50.0], "b": [45.0, 40.0]}])
@@ -118,11 +126,12 @@ static func record(nm: String, opts := {}) -> Dictionary:
 			var rl: float = float(opts.get("rod_len", L))
 			_cyl(fs, 0, 0, 15.0, 0.0, 20.0, "new")
 			_cyl(fs, 0, rl, 10.0, 0.0, 20.0, "join")
-			var shank := [[-8.0, 12.0], [8.0, 12.0], [5.0, rl - 12.0], [-5.0, rl - 12.0]]
+			# the shank is 12 thick (the eyes 20): a 20 thick shank met the round bore where the bore is only +-16.75 wide at the rod's faces (bar j)
+			var shank := [[-7.0, 12.0], [7.0, 12.0], [4.5, rl - 12.0], [-4.5, rl - 12.0]]
 			var ents := []
 			for i in 4:
 				ents.append({"k": "line", "a": shank[i], "b": shank[(i + 1) % 4]})
-			_ex(fs, _sk(fs, "front", ents), 20.0, "join")
+			_ex(fs, _sk(fs, _plane(fs, "front", 4.0), ents), 12.0, "join")
 			if not bool(opts.get("no_bores", false)):
 				_cyl(fs, 0, 0, float(d["bigend_d"]) / 2.0, 0.0, 20.0, "cut")
 				_cyl(fs, 0, rl, sbd / 2.0, 0.0, 20.0, "cut")

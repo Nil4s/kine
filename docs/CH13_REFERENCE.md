@@ -9,7 +9,7 @@ Honda C50 Super Cub (2007), 4-stroke single cylinder, air cooled:
   Source: https://www.motorcyclespecs.co.za/model/Honda/Honda_C50_Cub_07.html and https://www.moto-data.net/honda/c50-super-cub-2007 (the two agree).
   (Older C50 listings give 37 mm bore and 8.8:1; this lane uses the 2007 figures.)
 - NOT in any source found, ASSUMED by me (design inputs, not Honda data): rod centre distance L = 80 mm, piston pin O.D. 13 mm,
-  crank main journal O.D. 20 mm, crank pin O.D. 18 mm, piston height 40 mm, piston mass from the CAD volume (aluminium 2700 kg/m3).
+  crank main journal O.D. 20 mm, crank pin O.D. 18 mm, piston height 40 mm (built 44; 48 with crown 14 over the pin after bar j's interference check), piston mass from the CAD volume (aluminium 2700 kg/m3).
 
 ## 2. Limits and fits (ISO 286-1:2010 / ISO 286-2)
 
