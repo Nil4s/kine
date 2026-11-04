@@ -8,6 +8,9 @@ extends RefCounted
 const NOTE := "needs the video add-on (Python with mediapipe and opencv), which this install does not include: install the Kine video add-on, or run Kine from the source folder"
 
 
+static var force_missing := false   # a test says "pretend this is an install without the add-on"
+
+
 static func exported() -> bool:
 	return OS.has_feature("template") and not OS.has_feature("editor")
 
@@ -18,6 +21,8 @@ static func addon_dir() -> String:
 
 ## is the add-on beside Kine.exe? (always true when not an exported build)
 static func installed() -> bool:
+	if force_missing:
+		return false
 	if not exported():
 		return true
 	return FileAccess.file_exists(addon_dir().path_join("python/python.exe"))
