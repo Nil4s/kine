@@ -2727,6 +2727,8 @@ func _rebuild(show: bool) -> void:
 		return   # s169: the slider preview tessellates on a worker; the old mesh stays until the new one is ready
 	_tess_floor = _tess_seq + 1   # a synchronous rebuild is the newest: any background result still on its way is stale
 	res = replay_once(_rec(), up, want)
+	if res.has("surface_cap"):
+		_say(String(res["surface_cap"]))   # C65
 	if sk == "":
 		part_mesh.mesh = _exploded(res["mesh"])
 		_look_surfaces()
@@ -5371,6 +5373,8 @@ func _tess_poll() -> void:
 			res["mesh"] = tmp["mesh"]
 			res["aabb"] = tmp["aabb"]
 			res["looks"] = tmp["looks"]
+			if tmp.has("surface_cap"):
+				_say(String(tmp["surface_cap"]))   # C65
 			part_mesh.mesh = _exploded(res["mesh"])
 			_look_surfaces()
 			tess_landed += 1

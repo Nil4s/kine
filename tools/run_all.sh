@@ -891,6 +891,7 @@ EXTRA="$EXTRA c39:w"   # c39: FBX materials (tests/c39_test.gd)
 
 
 EXTRA="$EXTRA c41:w"   # c41: #184 invert orbit X / Y apart, #311 bad spots (built by C05) checked
+EXTRA="$EXTRA c54:w"   # c54: cloth self-collision (tests/c54_test.gd)
 
 EXTRA="$EXTRA c53:w"   # c53: SVG/DXF import into a Part sketch (tests/c53_test.gd)
 
@@ -940,3 +941,24 @@ EXTRA="$EXTRA c56:w"   # c56: English ANIMATE/SURFACE tabs fit their cell at 128
 
 
 EXTRA="$EXTRA c57:w"   # c57: slicer-like print estimate (walls + infill, time from flow, bigger-than-bed scale models, 5 kg sanity) against Bambu Studio on a cube and Benchy (tests/c57_test.gd)
+EXTRA="$EXTRA ch1a:w"   # ch1a: one-storey house from a real reference, tests/ch1a_test.gd
+EXTRA="$EXTRA ch1b:w"   # ch1b: house check, IRC spans/headers/studs/bracing/uplift/footing + first-principles cross-check (tests/ch1b_test.gd)
+
+
+EXTRA="$EXTRA c59:w"   # c59: Easy Part left column: no button/label overlap and no edge chip cut below 4 letters at 1024/1280/1600 (tests/c59_test.gd)
+
+
+EXTRA="$EXTRA c54n:w"   # c54n: C++ cloth self-collision (tests/c54n_test.gd; SKIPs without the DLL)
+
+
+EXTRA="$EXTRA c49b:w"   # C49b: Off/Look/Print strip clear of Part dialogs, browser, timeline, cube; tests/c49b_test.gd
+
+
+
+EXTRA="$EXTRA c63:w"   # c63: the no-printer print estimate lands on a measured flow and names the printer it assumes (tests/c63_test.gd)
+
+
+EXTRA="$EXTRA c65:w"   # c65: over 256 bodies the look-merge ignores the body name: 600 named boxes in 6 materials each keep their own (tests/c65_test.gd)
+
+
+EXTRA="$EXTRA c62:w"   # C62: no bone end under the toolbar or a panel in the opening view / Fit / Home at 1024, 1280, 1920

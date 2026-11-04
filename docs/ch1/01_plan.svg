@@ -1,0 +1,300 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="420.0mm" height="297.0mm" viewBox="0 0 420.0 297.0">
+<title>Levitt Ranch 1949 (CH1) - Floor 1 plan</title>
+<rect x="0" y="0" width="420.0" height="297.0" fill="#ffffff"/>
+<g id="sheet" data-paper="A3" data-scale="1:50" data-denom="50" data-mm-per-m="20.0" data-units="mm">
+<polygon class="wall" data-room="r1" data-wall="front" points="100.36,208.1 109.22,208.1 109.22,206.32 100.36,206.32" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="front" points="127.5,208.1 157.22,208.1 157.22,206.32 127.5,206.32" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="front" points="175.5,208.1 255.22,208.1 255.22,206.32 175.5,206.32" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="front" points="273.5,208.1 295.44,208.1 295.44,206.32 273.5,206.32" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="back" points="100.36,57.48 111.22,57.48 111.22,55.7 100.36,55.7" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="back" points="129.5,57.48 159.22,57.48 159.22,55.7 129.5,55.7" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="back" points="177.5,57.48 204.26,57.48 204.26,55.7 177.5,55.7" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="back" points="216.46,57.48 251.22,57.48 251.22,55.7 216.46,55.7" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="back" points="269.5,57.48 295.44,57.48 295.44,55.7 269.5,55.7" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="left" points="100.36,206.32 100.36,181.24 102.14,181.24 102.14,206.32" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="left" points="100.36,162.96 100.36,107.24 102.14,107.24 102.14,162.96" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="left" points="100.36,88.96 100.36,57.48 102.14,57.48 102.14,88.96" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="right" points="293.66,206.32 293.66,181.24 295.44,181.24 295.44,206.32" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="right" points="293.66,162.96 293.66,107.24 295.44,107.24 295.44,162.96" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="right" points="293.66,88.96 293.66,57.48 295.44,57.48 295.44,88.96" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="i1" points="102.14,139.26 135.66,139.26 135.66,137.48 102.14,137.48" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="i1" points="153.94,139.26 201.22,139.26 201.22,137.48 153.94,137.48" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="i1" points="219.5,139.26 293.66,139.26 293.66,137.48 219.5,137.48" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="i2" points="187.48,206.32 187.48,177.72 189.26,177.72 189.26,206.32" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="i2" points="187.48,162.48 187.48,101.72 189.26,101.72 189.26,162.48" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="i2" points="187.48,86.48 187.48,57.48 189.26,57.48 189.26,86.48" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="i3" points="231.94,206.32 231.94,177.72 233.72,177.72 233.72,206.32" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="i3" points="231.94,162.48 231.94,101.72 233.72,101.72 233.72,162.48" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-room="r1" data-wall="i3" points="231.94,86.48 231.94,57.48 233.72,57.48 233.72,86.48" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<line class="jamb" data-id="o2" data-kind="window" data-room="r1" data-wall="front" x1="109.22" y1="208.1" x2="109.22" y2="206.32" stroke="#000000" stroke-width="0.35"/>
+<line class="jamb" data-id="o2" data-kind="window" data-room="r1" data-wall="front" x1="127.5" y1="208.1" x2="127.5" y2="206.32" stroke="#000000" stroke-width="0.35"/>
+<line class="window" data-id="o2" data-kind="window" data-room="r1" data-wall="front" x1="109.22" y1="208.1" x2="127.5" y2="208.1" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o2" data-kind="window" data-room="r1" data-wall="front" x1="109.22" y1="207.21" x2="127.5" y2="207.21" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o2" data-kind="window" data-room="r1" data-wall="front" x1="109.22" y1="206.32" x2="127.5" y2="206.32" stroke="#000000" stroke-width="0.18"/>
+<line class="jamb" data-id="o1" data-kind="door" data-room="r1" data-wall="front" x1="157.22" y1="208.1" x2="157.22" y2="206.32" stroke="#000000" stroke-width="0.35"/>
+<line class="jamb" data-id="o1" data-kind="door" data-room="r1" data-wall="front" x1="175.5" y1="208.1" x2="175.5" y2="206.32" stroke="#000000" stroke-width="0.35"/>
+<line class="door-leaf" data-id="o1" data-kind="door" data-room="r1" data-wall="front" x1="157.22" y1="206.32" x2="157.22" y2="188.04" stroke="#000000" stroke-width="0.35"/>
+<path class="door-arc" data-id="o1" data-kind="door" data-room="r1" data-wall="front" data-r="18.28" d="M 157.22 188.04 A 18.28 18.28 0 0 1 175.5 206.32" fill="none" stroke="#000000" stroke-width="0.18"/>
+<line class="jamb" data-id="o3" data-kind="window" data-room="r1" data-wall="front" x1="255.22" y1="208.1" x2="255.22" y2="206.32" stroke="#000000" stroke-width="0.35"/>
+<line class="jamb" data-id="o3" data-kind="window" data-room="r1" data-wall="front" x1="273.5" y1="208.1" x2="273.5" y2="206.32" stroke="#000000" stroke-width="0.35"/>
+<line class="window" data-id="o3" data-kind="window" data-room="r1" data-wall="front" x1="255.22" y1="208.1" x2="273.5" y2="208.1" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o3" data-kind="window" data-room="r1" data-wall="front" x1="255.22" y1="207.21" x2="273.5" y2="207.21" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o3" data-kind="window" data-room="r1" data-wall="front" x1="255.22" y1="206.32" x2="273.5" y2="206.32" stroke="#000000" stroke-width="0.18"/>
+<line class="jamb" data-id="o4" data-kind="window" data-room="r1" data-wall="back" x1="111.22" y1="57.48" x2="111.22" y2="55.7" stroke="#000000" stroke-width="0.35"/>
+<line class="jamb" data-id="o4" data-kind="window" data-room="r1" data-wall="back" x1="129.5" y1="57.48" x2="129.5" y2="55.7" stroke="#000000" stroke-width="0.35"/>
+<line class="window" data-id="o4" data-kind="window" data-room="r1" data-wall="back" x1="111.22" y1="57.48" x2="129.5" y2="57.48" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o4" data-kind="window" data-room="r1" data-wall="back" x1="111.22" y1="56.59" x2="129.5" y2="56.59" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o4" data-kind="window" data-room="r1" data-wall="back" x1="111.22" y1="55.7" x2="129.5" y2="55.7" stroke="#000000" stroke-width="0.18"/>
+<line class="jamb" data-id="o5" data-kind="window" data-room="r1" data-wall="back" x1="159.22" y1="57.48" x2="159.22" y2="55.7" stroke="#000000" stroke-width="0.35"/>
+<line class="jamb" data-id="o5" data-kind="window" data-room="r1" data-wall="back" x1="177.5" y1="57.48" x2="177.5" y2="55.7" stroke="#000000" stroke-width="0.35"/>
+<line class="window" data-id="o5" data-kind="window" data-room="r1" data-wall="back" x1="159.22" y1="57.48" x2="177.5" y2="57.48" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o5" data-kind="window" data-room="r1" data-wall="back" x1="159.22" y1="56.59" x2="177.5" y2="56.59" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o5" data-kind="window" data-room="r1" data-wall="back" x1="159.22" y1="55.7" x2="177.5" y2="55.7" stroke="#000000" stroke-width="0.18"/>
+<line class="jamb" data-id="o6" data-kind="window" data-room="r1" data-wall="back" x1="204.26" y1="57.48" x2="204.26" y2="55.7" stroke="#000000" stroke-width="0.35"/>
+<line class="jamb" data-id="o6" data-kind="window" data-room="r1" data-wall="back" x1="216.46" y1="57.48" x2="216.46" y2="55.7" stroke="#000000" stroke-width="0.35"/>
+<line class="window" data-id="o6" data-kind="window" data-room="r1" data-wall="back" x1="204.26" y1="57.48" x2="216.46" y2="57.48" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o6" data-kind="window" data-room="r1" data-wall="back" x1="204.26" y1="56.59" x2="216.46" y2="56.59" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o6" data-kind="window" data-room="r1" data-wall="back" x1="204.26" y1="55.7" x2="216.46" y2="55.7" stroke="#000000" stroke-width="0.18"/>
+<line class="jamb" data-id="o7" data-kind="window" data-room="r1" data-wall="back" x1="251.22" y1="57.48" x2="251.22" y2="55.7" stroke="#000000" stroke-width="0.35"/>
+<line class="jamb" data-id="o7" data-kind="window" data-room="r1" data-wall="back" x1="269.5" y1="57.48" x2="269.5" y2="55.7" stroke="#000000" stroke-width="0.35"/>
+<line class="window" data-id="o7" data-kind="window" data-room="r1" data-wall="back" x1="251.22" y1="57.48" x2="269.5" y2="57.48" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o7" data-kind="window" data-room="r1" data-wall="back" x1="251.22" y1="56.59" x2="269.5" y2="56.59" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o7" data-kind="window" data-room="r1" data-wall="back" x1="251.22" y1="55.7" x2="269.5" y2="55.7" stroke="#000000" stroke-width="0.18"/>
+<line class="jamb" data-id="o8" data-kind="window" data-room="r1" data-wall="left" x1="100.36" y1="181.24" x2="102.14" y2="181.24" stroke="#000000" stroke-width="0.35"/>
+<line class="jamb" data-id="o8" data-kind="window" data-room="r1" data-wall="left" x1="100.36" y1="162.96" x2="102.14" y2="162.96" stroke="#000000" stroke-width="0.35"/>
+<line class="window" data-id="o8" data-kind="window" data-room="r1" data-wall="left" x1="100.36" y1="181.24" x2="100.36" y2="162.96" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o8" data-kind="window" data-room="r1" data-wall="left" x1="101.25" y1="181.24" x2="101.25" y2="162.96" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o8" data-kind="window" data-room="r1" data-wall="left" x1="102.14" y1="181.24" x2="102.14" y2="162.96" stroke="#000000" stroke-width="0.18"/>
+<line class="jamb" data-id="o9" data-kind="window" data-room="r1" data-wall="left" x1="100.36" y1="107.24" x2="102.14" y2="107.24" stroke="#000000" stroke-width="0.35"/>
+<line class="jamb" data-id="o9" data-kind="window" data-room="r1" data-wall="left" x1="100.36" y1="88.96" x2="102.14" y2="88.96" stroke="#000000" stroke-width="0.35"/>
+<line class="window" data-id="o9" data-kind="window" data-room="r1" data-wall="left" x1="100.36" y1="107.24" x2="100.36" y2="88.96" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o9" data-kind="window" data-room="r1" data-wall="left" x1="101.25" y1="107.24" x2="101.25" y2="88.96" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o9" data-kind="window" data-room="r1" data-wall="left" x1="102.14" y1="107.24" x2="102.14" y2="88.96" stroke="#000000" stroke-width="0.18"/>
+<line class="jamb" data-id="o10" data-kind="window" data-room="r1" data-wall="right" x1="293.66" y1="181.24" x2="295.44" y2="181.24" stroke="#000000" stroke-width="0.35"/>
+<line class="jamb" data-id="o10" data-kind="window" data-room="r1" data-wall="right" x1="293.66" y1="162.96" x2="295.44" y2="162.96" stroke="#000000" stroke-width="0.35"/>
+<line class="window" data-id="o10" data-kind="window" data-room="r1" data-wall="right" x1="293.66" y1="181.24" x2="293.66" y2="162.96" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o10" data-kind="window" data-room="r1" data-wall="right" x1="294.55" y1="181.24" x2="294.55" y2="162.96" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o10" data-kind="window" data-room="r1" data-wall="right" x1="295.44" y1="181.24" x2="295.44" y2="162.96" stroke="#000000" stroke-width="0.18"/>
+<line class="jamb" data-id="o11" data-kind="window" data-room="r1" data-wall="right" x1="293.66" y1="107.24" x2="295.44" y2="107.24" stroke="#000000" stroke-width="0.35"/>
+<line class="jamb" data-id="o11" data-kind="window" data-room="r1" data-wall="right" x1="293.66" y1="88.96" x2="295.44" y2="88.96" stroke="#000000" stroke-width="0.35"/>
+<line class="window" data-id="o11" data-kind="window" data-room="r1" data-wall="right" x1="293.66" y1="107.24" x2="293.66" y2="88.96" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o11" data-kind="window" data-room="r1" data-wall="right" x1="294.55" y1="107.24" x2="294.55" y2="88.96" stroke="#000000" stroke-width="0.18"/>
+<line class="window" data-id="o11" data-kind="window" data-room="r1" data-wall="right" x1="295.44" y1="107.24" x2="295.44" y2="88.96" stroke="#000000" stroke-width="0.18"/>
+<line class="jamb" data-id="o12" data-kind="arch" data-room="r1" data-wall="i1" x1="135.66" y1="139.26" x2="135.66" y2="137.48" stroke="#000000" stroke-width="0.35"/>
+<line class="jamb" data-id="o12" data-kind="arch" data-room="r1" data-wall="i1" x1="153.94" y1="139.26" x2="153.94" y2="137.48" stroke="#000000" stroke-width="0.35"/>
+<line class="jamb" data-id="o13" data-kind="arch" data-room="r1" data-wall="i1" x1="201.22" y1="139.26" x2="201.22" y2="137.48" stroke="#000000" stroke-width="0.35"/>
+<line class="jamb" data-id="o13" data-kind="arch" data-room="r1" data-wall="i1" x1="219.5" y1="139.26" x2="219.5" y2="137.48" stroke="#000000" stroke-width="0.35"/>
+<line class="jamb" data-id="o14" data-kind="door" data-room="r1" data-wall="i2" x1="187.48" y1="177.72" x2="189.26" y2="177.72" stroke="#000000" stroke-width="0.35"/>
+<line class="jamb" data-id="o14" data-kind="door" data-room="r1" data-wall="i2" x1="187.48" y1="162.48" x2="189.26" y2="162.48" stroke="#000000" stroke-width="0.35"/>
+<line class="door-leaf" data-id="o14" data-kind="door" data-room="r1" data-wall="i2" x1="189.26" y1="177.72" x2="204.5" y2="177.72" stroke="#000000" stroke-width="0.35"/>
+<path class="door-arc" data-id="o14" data-kind="door" data-room="r1" data-wall="i2" data-r="15.24" d="M 204.5 177.72 A 15.24 15.24 0 0 0 189.26 162.48" fill="none" stroke="#000000" stroke-width="0.18"/>
+<line class="jamb" data-id="o15" data-kind="door" data-room="r1" data-wall="i2" x1="187.48" y1="101.72" x2="189.26" y2="101.72" stroke="#000000" stroke-width="0.35"/>
+<line class="jamb" data-id="o15" data-kind="door" data-room="r1" data-wall="i2" x1="187.48" y1="86.48" x2="189.26" y2="86.48" stroke="#000000" stroke-width="0.35"/>
+<line class="door-leaf" data-id="o15" data-kind="door" data-room="r1" data-wall="i2" x1="189.26" y1="101.72" x2="204.5" y2="101.72" stroke="#000000" stroke-width="0.35"/>
+<path class="door-arc" data-id="o15" data-kind="door" data-room="r1" data-wall="i2" data-r="15.24" d="M 204.5 101.72 A 15.24 15.24 0 0 0 189.26 86.48" fill="none" stroke="#000000" stroke-width="0.18"/>
+<line class="jamb" data-id="o16" data-kind="door" data-room="r1" data-wall="i3" x1="231.94" y1="177.72" x2="233.72" y2="177.72" stroke="#000000" stroke-width="0.35"/>
+<line class="jamb" data-id="o16" data-kind="door" data-room="r1" data-wall="i3" x1="231.94" y1="162.48" x2="233.72" y2="162.48" stroke="#000000" stroke-width="0.35"/>
+<line class="door-leaf" data-id="o16" data-kind="door" data-room="r1" data-wall="i3" x1="233.72" y1="177.72" x2="248.96" y2="177.72" stroke="#000000" stroke-width="0.35"/>
+<path class="door-arc" data-id="o16" data-kind="door" data-room="r1" data-wall="i3" data-r="15.24" d="M 248.96 177.72 A 15.24 15.24 0 0 0 233.72 162.48" fill="none" stroke="#000000" stroke-width="0.18"/>
+<line class="jamb" data-id="o17" data-kind="door" data-room="r1" data-wall="i3" x1="231.94" y1="101.72" x2="233.72" y2="101.72" stroke="#000000" stroke-width="0.35"/>
+<line class="jamb" data-id="o17" data-kind="door" data-room="r1" data-wall="i3" x1="231.94" y1="86.48" x2="233.72" y2="86.48" stroke="#000000" stroke-width="0.35"/>
+<line class="door-leaf" data-id="o17" data-kind="door" data-room="r1" data-wall="i3" x1="233.72" y1="101.72" x2="248.96" y2="101.72" stroke="#000000" stroke-width="0.35"/>
+<path class="door-arc" data-id="o17" data-kind="door" data-room="r1" data-wall="i3" data-r="15.24" d="M 248.96 101.72 A 15.24 15.24 0 0 0 233.72 86.48" fill="none" stroke="#000000" stroke-width="0.18"/>
+<line class="dim" x1="100.36" y1="209.6" x2="100.36" y2="231.6" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="295.44" y1="209.6" x2="295.44" y2="231.6" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="100.36" y1="230.1" x2="295.44" y2="230.1" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="99.37" y1="229.11" x2="101.35" y2="231.09" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="294.45" y1="229.11" x2="296.43" y2="231.09" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="overall" data-axis="x" x="197.9" y="229.3" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">9.75</text>
+<line class="dim" x1="296.94" y1="208.1" x2="318.94" y2="208.1" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="296.94" y1="55.7" x2="318.94" y2="55.7" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="317.44" y1="208.1" x2="317.44" y2="55.7" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="316.45" y1="209.09" x2="318.43" y2="207.11" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="316.45" y1="56.69" x2="318.43" y2="54.71" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="overall" data-axis="z" x="316.64" y="131.9" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 316.64 131.9)">7.62</text>
+<line class="dim" x1="100.36" y1="209.6" x2="100.36" y2="220.6" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="109.22" y1="209.6" x2="109.22" y2="220.6" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="100.36" y1="219.1" x2="109.22" y2="219.1" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="99.37" y1="218.11" x2="101.35" y2="220.09" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="108.23" y1="218.11" x2="110.21" y2="220.09" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="gap" data-wall="front" x="104.79" y="218.3" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">0.44</text>
+<line class="dim" x1="109.22" y1="209.6" x2="109.22" y2="220.6" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="127.5" y1="209.6" x2="127.5" y2="220.6" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="109.22" y1="219.1" x2="127.5" y2="219.1" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="108.23" y1="218.11" x2="110.21" y2="220.09" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="126.51" y1="218.11" x2="128.49" y2="220.09" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="width" data-wall="front" data-id="o2" x="118.36" y="218.3" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">0.91</text>
+<line class="dim" x1="127.5" y1="209.6" x2="127.5" y2="220.6" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="157.22" y1="209.6" x2="157.22" y2="220.6" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="127.5" y1="219.1" x2="157.22" y2="219.1" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="126.51" y1="218.11" x2="128.49" y2="220.09" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="156.23" y1="218.11" x2="158.21" y2="220.09" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="gap" data-wall="front" x="142.36" y="218.3" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">1.49</text>
+<line class="dim" x1="157.22" y1="209.6" x2="157.22" y2="220.6" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="175.5" y1="209.6" x2="175.5" y2="220.6" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="157.22" y1="219.1" x2="175.5" y2="219.1" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="156.23" y1="218.11" x2="158.21" y2="220.09" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="174.51" y1="218.11" x2="176.49" y2="220.09" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="width" data-wall="front" data-id="o1" x="166.36" y="218.3" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">0.91</text>
+<line class="dim" x1="175.5" y1="209.6" x2="175.5" y2="220.6" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="255.22" y1="209.6" x2="255.22" y2="220.6" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="175.5" y1="219.1" x2="255.22" y2="219.1" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="174.51" y1="218.11" x2="176.49" y2="220.09" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="254.23" y1="218.11" x2="256.21" y2="220.09" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="gap" data-wall="front" x="215.36" y="218.3" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">3.99</text>
+<line class="dim" x1="255.22" y1="209.6" x2="255.22" y2="220.6" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="273.5" y1="209.6" x2="273.5" y2="220.6" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="255.22" y1="219.1" x2="273.5" y2="219.1" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="254.23" y1="218.11" x2="256.21" y2="220.09" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="272.51" y1="218.11" x2="274.49" y2="220.09" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="width" data-wall="front" data-id="o3" x="264.36" y="218.3" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">0.91</text>
+<line class="dim" x1="273.5" y1="209.6" x2="273.5" y2="220.6" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="295.44" y1="209.6" x2="295.44" y2="220.6" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="273.5" y1="219.1" x2="295.44" y2="219.1" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="272.51" y1="218.11" x2="274.49" y2="220.09" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="294.45" y1="218.11" x2="296.43" y2="220.09" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="gap" data-wall="front" x="284.47" y="218.3" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">1.10</text>
+<line class="dim" x1="100.36" y1="54.2" x2="100.36" y2="43.2" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="111.22" y1="54.2" x2="111.22" y2="43.2" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="100.36" y1="44.7" x2="111.22" y2="44.7" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="99.37" y1="45.69" x2="101.35" y2="43.71" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="110.23" y1="45.69" x2="112.21" y2="43.71" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="gap" data-wall="back" x="105.79" y="43.9" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">0.54</text>
+<line class="dim" x1="111.22" y1="54.2" x2="111.22" y2="43.2" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="129.5" y1="54.2" x2="129.5" y2="43.2" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="111.22" y1="44.7" x2="129.5" y2="44.7" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="110.23" y1="45.69" x2="112.21" y2="43.71" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="128.51" y1="45.69" x2="130.49" y2="43.71" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="width" data-wall="back" data-id="o4" x="120.36" y="43.9" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">0.91</text>
+<line class="dim" x1="129.5" y1="54.2" x2="129.5" y2="43.2" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="159.22" y1="54.2" x2="159.22" y2="43.2" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="129.5" y1="44.7" x2="159.22" y2="44.7" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="128.51" y1="45.69" x2="130.49" y2="43.71" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="158.23" y1="45.69" x2="160.21" y2="43.71" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="gap" data-wall="back" x="144.36" y="43.9" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">1.49</text>
+<line class="dim" x1="159.22" y1="54.2" x2="159.22" y2="43.2" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="177.5" y1="54.2" x2="177.5" y2="43.2" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="159.22" y1="44.7" x2="177.5" y2="44.7" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="158.23" y1="45.69" x2="160.21" y2="43.71" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="176.51" y1="45.69" x2="178.49" y2="43.71" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="width" data-wall="back" data-id="o5" x="168.36" y="43.9" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">0.91</text>
+<line class="dim" x1="177.5" y1="54.2" x2="177.5" y2="43.2" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="204.26" y1="54.2" x2="204.26" y2="43.2" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="177.5" y1="44.7" x2="204.26" y2="44.7" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="176.51" y1="45.69" x2="178.49" y2="43.71" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="203.27" y1="45.69" x2="205.25" y2="43.71" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="gap" data-wall="back" x="190.88" y="43.9" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">1.34</text>
+<line class="dim" x1="204.26" y1="54.2" x2="204.26" y2="43.2" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="216.46" y1="54.2" x2="216.46" y2="43.2" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="204.26" y1="44.7" x2="216.46" y2="44.7" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="203.27" y1="45.69" x2="205.25" y2="43.71" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="215.47" y1="45.69" x2="217.45" y2="43.71" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="width" data-wall="back" data-id="o6" x="210.36" y="43.9" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">0.61</text>
+<line class="dim" x1="216.46" y1="54.2" x2="216.46" y2="43.2" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="251.22" y1="54.2" x2="251.22" y2="43.2" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="216.46" y1="44.7" x2="251.22" y2="44.7" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="215.47" y1="45.69" x2="217.45" y2="43.71" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="250.23" y1="45.69" x2="252.21" y2="43.71" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="gap" data-wall="back" x="233.84" y="43.9" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">1.74</text>
+<line class="dim" x1="251.22" y1="54.2" x2="251.22" y2="43.2" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="269.5" y1="54.2" x2="269.5" y2="43.2" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="251.22" y1="44.7" x2="269.5" y2="44.7" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="250.23" y1="45.69" x2="252.21" y2="43.71" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="268.51" y1="45.69" x2="270.49" y2="43.71" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="width" data-wall="back" data-id="o7" x="260.36" y="43.9" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">0.91</text>
+<line class="dim" x1="269.5" y1="54.2" x2="269.5" y2="43.2" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="295.44" y1="54.2" x2="295.44" y2="43.2" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="269.5" y1="44.7" x2="295.44" y2="44.7" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="268.51" y1="45.69" x2="270.49" y2="43.71" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="294.45" y1="45.69" x2="296.43" y2="43.71" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="gap" data-wall="back" x="282.47" y="43.9" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">1.30</text>
+<line class="dim" x1="98.86" y1="208.1" x2="87.86" y2="208.1" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="98.86" y1="181.24" x2="87.86" y2="181.24" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="89.36" y1="208.1" x2="89.36" y2="181.24" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="90.35" y1="209.09" x2="88.37" y2="207.11" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="90.35" y1="182.23" x2="88.37" y2="180.25" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="gap" data-wall="left" x="88.56" y="194.67" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 88.56 194.67)">1.34</text>
+<line class="dim" x1="98.86" y1="181.24" x2="87.86" y2="181.24" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="98.86" y1="162.96" x2="87.86" y2="162.96" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="89.36" y1="181.24" x2="89.36" y2="162.96" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="90.35" y1="182.23" x2="88.37" y2="180.25" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="90.35" y1="163.95" x2="88.37" y2="161.97" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="width" data-wall="left" data-id="o8" x="88.56" y="172.1" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 88.56 172.1)">0.91</text>
+<line class="dim" x1="98.86" y1="162.96" x2="87.86" y2="162.96" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="98.86" y1="107.24" x2="87.86" y2="107.24" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="89.36" y1="162.96" x2="89.36" y2="107.24" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="90.35" y1="163.95" x2="88.37" y2="161.97" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="90.35" y1="108.23" x2="88.37" y2="106.25" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="gap" data-wall="left" x="88.56" y="135.1" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 88.56 135.1)">2.79</text>
+<line class="dim" x1="98.86" y1="107.24" x2="87.86" y2="107.24" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="98.86" y1="88.96" x2="87.86" y2="88.96" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="89.36" y1="107.24" x2="89.36" y2="88.96" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="90.35" y1="108.23" x2="88.37" y2="106.25" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="90.35" y1="89.95" x2="88.37" y2="87.97" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="width" data-wall="left" data-id="o9" x="88.56" y="98.1" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 88.56 98.1)">0.91</text>
+<line class="dim" x1="98.86" y1="88.96" x2="87.86" y2="88.96" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="98.86" y1="55.7" x2="87.86" y2="55.7" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="89.36" y1="88.96" x2="89.36" y2="55.7" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="90.35" y1="89.95" x2="88.37" y2="87.97" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="90.35" y1="56.69" x2="88.37" y2="54.71" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="gap" data-wall="left" x="88.56" y="72.33" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 88.56 72.33)">1.66</text>
+<line class="dim" x1="296.94" y1="208.1" x2="307.94" y2="208.1" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="296.94" y1="181.24" x2="307.94" y2="181.24" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="306.44" y1="208.1" x2="306.44" y2="181.24" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="305.45" y1="209.09" x2="307.43" y2="207.11" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="305.45" y1="182.23" x2="307.43" y2="180.25" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="gap" data-wall="right" x="305.64" y="194.67" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 305.64 194.67)">1.34</text>
+<line class="dim" x1="296.94" y1="181.24" x2="307.94" y2="181.24" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="296.94" y1="162.96" x2="307.94" y2="162.96" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="306.44" y1="181.24" x2="306.44" y2="162.96" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="305.45" y1="182.23" x2="307.43" y2="180.25" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="305.45" y1="163.95" x2="307.43" y2="161.97" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="width" data-wall="right" data-id="o10" x="305.64" y="172.1" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 305.64 172.1)">0.91</text>
+<line class="dim" x1="296.94" y1="162.96" x2="307.94" y2="162.96" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="296.94" y1="107.24" x2="307.94" y2="107.24" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="306.44" y1="162.96" x2="306.44" y2="107.24" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="305.45" y1="163.95" x2="307.43" y2="161.97" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="305.45" y1="108.23" x2="307.43" y2="106.25" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="gap" data-wall="right" x="305.64" y="135.1" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 305.64 135.1)">2.79</text>
+<line class="dim" x1="296.94" y1="107.24" x2="307.94" y2="107.24" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="296.94" y1="88.96" x2="307.94" y2="88.96" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="306.44" y1="107.24" x2="306.44" y2="88.96" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="305.45" y1="108.23" x2="307.43" y2="106.25" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="305.45" y1="89.95" x2="307.43" y2="87.97" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="width" data-wall="right" data-id="o11" x="305.64" y="98.1" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 305.64 98.1)">0.91</text>
+<line class="dim" x1="296.94" y1="88.96" x2="307.94" y2="88.96" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="296.94" y1="55.7" x2="307.94" y2="55.7" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="306.44" y1="88.96" x2="306.44" y2="55.7" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="305.45" y1="89.95" x2="307.43" y2="87.97" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="305.45" y1="56.69" x2="307.43" y2="54.71" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-kind="gap" data-wall="right" x="305.64" y="72.33" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 305.64 72.33)">1.66</text>
+<text class="dim-text" data-kind="width" data-id="o12" data-wall="i1" x="144.8" y="141.26" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">0.91</text>
+<text class="dim-text" data-kind="width" data-id="o13" data-wall="i1" x="210.36" y="141.26" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">0.91</text>
+<text class="dim-text" data-kind="width" data-id="o14" data-wall="i2" x="185.48" y="170.1" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">0.76</text>
+<text class="dim-text" data-kind="width" data-id="o15" data-wall="i2" x="185.48" y="94.1" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">0.76</text>
+<text class="dim-text" data-kind="width" data-id="o16" data-wall="i3" x="229.94" y="170.1" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">0.76</text>
+<text class="dim-text" data-kind="width" data-id="o17" data-wall="i3" x="229.94" y="94.1" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">0.76</text>
+<polygon class="north" points="333.94,53.4 333.77,54.694 333.27,55.9 332.476,56.936 331.44,57.73 330.234,58.23 328.94,58.4 327.646,58.23 326.44,57.73 325.404,56.936 324.61,55.9 324.11,54.694 323.94,53.4 324.11,52.106 324.61,50.9 325.404,49.864 326.44,49.07 327.646,48.57 328.94,48.4 330.234,48.57 331.44,49.07 332.476,49.864 333.27,50.9 333.77,52.106" fill="none" stroke="#000000" stroke-width="0.3" stroke-linejoin="miter"/>
+<line class="north" x1="328.94" y1="58.4" x2="328.94" y2="48.4" stroke="#000000" stroke-width="0.3"/>
+<polygon class="north-head" points="328.94,48.4 326.94,54.4 330.94,54.4" fill="#000000" stroke="#000000" stroke-width="0.3" stroke-linejoin="miter"/>
+<text class="text" x="328.94" y="46.4" font-family="Arial, Helvetica, sans-serif" font-size="3.5" text-anchor="middle" fill="#000000">N</text>
+<polygon class="border" points="10.0,10.0 410.0,10.0 410.0,287.0 10.0,287.0" fill="none" stroke="#000000" stroke-width="0.5" stroke-linejoin="miter"/>
+<line class="title" x1="10.0" y1="263.0" x2="410.0" y2="263.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="12.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">PROJECT</text>
+<text class="title-text" data-field="project" x="12.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Levitt Ranch 1949 (CH1)</text>
+<line class="title" x1="130.0" y1="263.0" x2="130.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="132.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">SHEET  (dimensions in metres)</text>
+<text class="title-text" data-field="sheet" x="132.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Floor 1 plan</text>
+<text class="title-label" data-field="size" x="132.0" y="284.0" font-family="Arial, Helvetica, sans-serif" font-size="2.4" text-anchor="start" fill="#606060">A3   1 / 3</text>
+<line class="title" x1="250.0" y1="263.0" x2="250.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="252.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">SCALE</text>
+<text class="title-text" data-field="scale" x="252.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">1:50</text>
+<line class="title" x1="290.0" y1="263.0" x2="290.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="292.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">DATE</text>
+<text class="title-text" data-field="date" x="292.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">2026-11-03</text>
+<line class="title" x1="346.0" y1="263.0" x2="346.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="348.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">DRAWN WITH</text>
+<text class="title-text" data-field="drawn" x="348.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Kine</text>
+</g>
+</svg>

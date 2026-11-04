@@ -14,6 +14,7 @@ const BADGE_COL := {"look": Color(0.30, 0.62, 0.38), "print": Color(0.76, 0.52, 
 var m: Node
 var pu: Object
 var box: VBoxContainer
+var body: VBoxContainer          # C49b: help, status, rows, mutes (hidden in the narrow form)
 var lv_btns := {}
 var help: Label
 var scroll: ScrollContainer
@@ -24,6 +25,11 @@ var status: Label
 var shown := {}                  # the last report shown
 var _key := ""
 var _t := 0
+var narrow := false              # C49b: no clear spot for the full panel: the four level buttons alone, short words (tooltips carry the rest)
+var places := 0                  # C49b: how many times the strip was placed (a layout change, never a frame)
+var _pkey := ""
+var _wired := false
+var _placing := false
 
 
 func build(parent: Node) -> void:
@@ -50,6 +56,7 @@ func build(parent: Node) -> void:
 		var b := Button.new()
 		b.name = "partwarn_lv_" + lv
 		b.text = PartWarn.LEVEL_WORDS[lv]
+		b.tooltip_text = String(PartWarn.LEVEL_HELP[lv])
 		b.toggle_mode = true
 		b.button_group = grp
 		b.focus_mode = Control.FOCUS_NONE
@@ -58,24 +65,28 @@ func build(parent: Node) -> void:
 		b.pressed.connect(_pick.bind(lv))
 		top.add_child(b)
 		lv_btns[lv] = b
+	body = VBoxContainer.new()
+	body.name = "partwarn_body"
+	body.add_theme_constant_override("separation", 5)
+	box.add_child(body)
 	help = Label.new()
 	help.name = "partwarn_help"
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	help.custom_minimum_size = Vector2(W - 20, 0)
 	help.add_theme_font_size_override("font_size", 11)
 	help.add_theme_color_override("font_color", Color(0.7, 0.74, 0.8))
-	box.add_child(help)
+	body.add_child(help)
 	status = Label.new()
 	status.name = "partwarn_status"
 	status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status.custom_minimum_size = Vector2(W - 20, 0)
 	status.add_theme_font_size_override("font_size", 12)
-	box.add_child(status)
+	body.add_child(status)
 	scroll = ScrollContainer.new()
 	scroll.name = "partwarn_scroll"
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.custom_minimum_size = Vector2(W - 20, 0)
-	box.add_child(scroll)
+	body.add_child(scroll)
 	rows_box = VBoxContainer.new()
 	rows_box.name = "partwarn_rows"
 	rows_box.add_theme_constant_override("separation", 6)
@@ -84,12 +95,12 @@ func build(parent: Node) -> void:
 	muted_title = Label.new()
 	muted_title.add_theme_font_size_override("font_size", 11)
 	muted_title.add_theme_color_override("font_color", Color(0.7, 0.74, 0.8))
-	box.add_child(muted_title)
+	body.add_child(muted_title)
 	muted_box = HFlowContainer.new()
 	muted_box.name = "partwarn_muted"
 	muted_box.add_theme_constant_override("h_separation", 4)
 	muted_box.add_theme_constant_override("v_separation", 3)
-	box.add_child(muted_box)
+	body.add_child(muted_box)
 	parent.add_child(self)
 	resized.connect(_place)
 
@@ -98,15 +109,115 @@ func _rec() -> Dictionary:
 	return m.S.part
 
 
+## C49b: the strip stands where it covers nothing: not the side dialog, the browser, the timeline, the view cube. Full panel first, then the narrow form (levels only).
+## Called on a layout change (resize, a dialog or browser opening, closing or resizing, the report changing), not per frame.
 func _place() -> void:
+	if _placing or not visible:
+		return
 	var vp: Vector2 = get_viewport_rect().size
-	position = Vector2(vp.x - size.x - GIZMO_W, TOP_Y)
+	var obs := _obstacles()
+	var k := "%s|%s" % [str(vp), str(obs)]   # the content changing clears _pkey itself (_fill)
+	if k == _pkey:
+		return
+	_pkey = k
+	_placing = true
+	var was_nar := narrow
+	var was_pos := position
+	var spot := Vector2(-1, -1)
+	for form in [false, true]:
+		_apply_form(form)
+		spot = _free_spot(vp, obs)
+		if spot.x >= 0.0:
+			break
+	if spot.x < 0.0:
+		spot = Vector2(maxf(vp.x - size.x - GIZMO_W, 8.0), TOP_Y)
+	position = spot
+	if narrow != was_nar or not position.is_equal_approx(was_pos):
+		places += 1   # counted when the strip actually moved or changed form: a side dialog whose width flaps by a scrollbar does not move it
+	_placing = false
+
+
+func _apply_form(nar: bool) -> void:
+	narrow = nar
+	for lv in lv_btns:
+		var b: Button = lv_btns[lv]
+		b.add_theme_font_size_override("font_size", 11 if nar else 12)
+		for st in ["normal", "hover", "pressed", "hover_pressed", "focus", "disabled"]:
+			if nar:
+				var sb := b.get_theme_stylebox(st).duplicate() as StyleBox
+				sb.content_margin_left = 4
+				sb.content_margin_right = 4
+				b.add_theme_stylebox_override(st, sb)
+			else:
+				b.remove_theme_stylebox_override(st)
+		b.text = ("Eng" if lv == "engineering" else String(PartWarn.LEVEL_WORDS[lv])) if nar else String(PartWarn.LEVEL_WORDS[lv])
+	body.visible = not nar
+	custom_minimum_size = Vector2(0.0 if nar else W, 0)
+	reset_size()
+
+
+## rects (view space) the strip must keep clear of; a panel that is not there is skipped
+func _obstacles() -> Array:
+	var out: Array = []
+	if pu == null:
+		return out
+	var nodes: Array = [pu.get("side"), pu.get("browser"), m.get("ui_cube"), m.get("ui_timeline")]
+	for n in nodes:
+		if n is Control and (n as Control).is_visible_in_tree():
+			var c := n as Control
+			var r := c.get_global_rect().grow(2.0)
+			if n != m.get("ui_timeline"):   # a column: the strip stands on the top row, and the browser's height changes every frame on its own (a height that flaps must not re-place the strip)
+				r.size.y = 100000.0
+			out.append(r)
+	return out
+
+
+## the first top-row spot (left of the side dialog, right of the browser, left of the cube) that clears every obstacle, or (-1, -1)
+func _free_spot(vp: Vector2, obs: Array) -> Vector2:
+	var want := get_combined_minimum_size()
+	var xs: Array = [vp.x - want.x - GIZMO_W]
+	for r in obs:
+		xs.append((r as Rect2).position.x - want.x - 4.0)
+		xs.append((r as Rect2).end.x + 4.0)
+	xs.sort()
+	xs.reverse()
+	if position.y == TOP_Y:   # a spot that is still clear stays (a dialog whose edge flaps by a scrollbar does not walk the strip)
+		xs.push_front(position.x)
+	for x in xs:
+		if x < 8.0 or x + want.x > vp.x - 8.0:
+			continue
+		var me := Rect2(Vector2(x, TOP_Y), want)
+		var clear := true
+		for r in obs:
+			if me.intersects(r):
+				clear = false
+				break
+		if clear:
+			return Vector2(x, TOP_Y)
+	return Vector2(-1, -1)
+
+
+## watch the panels the strip must keep clear of; each change re-places once
+func _wire() -> void:
+	if _wired or pu == null:
+		return
+	_wired = true
+	for n in [pu.get("side"), pu.get("browser"), m.get("ui_cube"), m.get("ui_timeline")]:
+		if n is Control:
+			(n as Control).resized.connect(_place)
+			(n as Control).visibility_changed.connect(_place)
+			(n as Control).item_rect_changed.connect(_place)
+	get_viewport().size_changed.connect(_place)
 
 
 func _process(_dt: float) -> void:
 	var on: bool = pu != null and pu.chrome() and not _rec().is_empty()   # the Expert chrome; Easy keeps its own screen
 	if on != visible:
 		visible = on
+		if on:
+			_wire()
+			_pkey = ""
+			_place()
 	if not on:
 		return
 	refresh(false)
@@ -169,6 +280,7 @@ func _fill() -> void:
 		b.pressed.connect(_mute.bind(String(k), false))
 		muted_box.add_child(b)
 		i += 1
+	_pkey = ""
 	reset_size()
 	_place()
 

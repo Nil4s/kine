@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="420.0mm" height="297.0mm" viewBox="0 0 420.0 297.0">
+<title>Levitt Ranch 1949 (CH1) structure check - Structure check</title>
+<rect x="0" y="0" width="420.0" height="297.0" fill="#ffffff"/>
+<g id="sheet" data-paper="A3" data-scale="1:50" data-denom="50" data-mm-per-m="20.0" data-units="mm">
+<text class="text" x="26.0" y="31.0" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  rafters 2x10 @24 in: span 12'-5&quot; against table 18'-5&quot; | physics agrees</text>
+<text class="text" x="26.0" y="36.2" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  ridge board: ridge 2x12 is 11.25 in deep, the rafter cut is 9.75 in</text>
+<text class="text" x="26.0" y="41.4" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  rafter ties: ceiling joists present act as ties</text>
+<text class="text" x="26.0" y="46.6" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  ceiling joists 2x8 @16 in: span 12'-5&quot; against table 23'-4&quot; | physics agrees</text>
+<text class="text" x="26.0" y="51.8" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  front wall studs 2x4 @16 in: spacing 16 in against max 24 in, height 8.094 ft against max 10 ft</text>
+<text class="text" x="26.0" y="57.0" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  front wall opening 1 header 2-2x8 over 3.081 ft: span 3'-1&quot; against table 5'-8&quot; | physics agrees</text>
+<text class="text" x="26.0" y="62.2" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  front wall opening 2 header 2-2x8 over 3.081 ft: span 3'-1&quot; against table 5'-8&quot; | physics agrees</text>
+<text class="text" x="26.0" y="67.4" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  front wall opening 3 header 2-2x8 over 3.081 ft: span 3'-1&quot; against table 5'-8&quot; | physics agrees</text>
+<text class="text" x="26.0" y="72.6" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  front wall bracing line: 16.8 ft of braced panel against 4.5 ft needed [UNVERIFIED]</text>
+<text class="text" x="26.0" y="77.8" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  rear wall studs 2x4 @16 in: spacing 16 in against max 24 in, height 8.094 ft against max 10 ft</text>
+<text class="text" x="26.0" y="83.0" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  rear wall opening 1 header 2-2x8 over 3.081 ft: span 3'-1&quot; against table 5'-8&quot; | physics agrees</text>
+<text class="text" x="26.0" y="88.2" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  rear wall opening 2 header 2-2x8 over 3.081 ft: span 3'-1&quot; against table 5'-8&quot; | physics agrees</text>
+<text class="text" x="26.0" y="93.4" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  rear wall opening 3 header 2-2x8 over 2.083 ft: span 2'-1&quot; against table 5'-8&quot; | physics agrees</text>
+<text class="text" x="26.0" y="98.6" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  rear wall opening 4 header 2-2x8 over 3.081 ft: span 3'-1&quot; against table 5'-8&quot; | physics agrees</text>
+<text class="text" x="26.0" y="103.8" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  rear wall bracing line: 9.4 ft of braced panel against 4.5 ft needed [UNVERIFIED]</text>
+<text class="text" x="26.0" y="109.0" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  left gable wall studs 2x4 @16 in: spacing 16 in against max 24 in, height 8.094 ft against max 10 ft</text>
+<text class="text" x="26.0" y="114.2" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  left gable wall bracing line: 17.8 ft of braced panel against 5.8 ft needed [UNVERIFIED]</text>
+<text class="text" x="26.0" y="119.4" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  right gable wall studs 2x4 @16 in: spacing 16 in against max 24 in, height 8.094 ft against max 10 ft</text>
+<text class="text" x="26.0" y="124.6" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  right gable wall bracing line: 17.8 ft of braced panel against 5.8 ft needed [UNVERIFIED]</text>
+<text class="text" x="26.0" y="129.8" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  hall wall (interior, bearing) wall studs 2x4 @16 in: spacing 16 in against max 24 in, height 8.094 ft against max 10 ft</text>
+<text class="text" x="26.0" y="135.0" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  hall wall (interior, bearing) wall opening 1 header 2-2x8 over 3.081 ft: span 3'-1&quot; against table 5'-8&quot; | physics agrees</text>
+<text class="text" x="26.0" y="140.2" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  hall wall (interior, bearing) wall opening 2 header 2-2x8 over 3.081 ft: span 3'-1&quot; against table 5'-8&quot; | physics agrees</text>
+<text class="text" x="26.0" y="145.4" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  partition 1 wall studs 2x4 @16 in: spacing 16 in against max 24 in, height 8.094 ft against max 10 ft</text>
+<text class="text" x="26.0" y="150.6" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  partition 2 wall studs 2x4 @16 in: spacing 16 in against max 24 in, height 8.094 ft against max 10 ft</text>
+<text class="text" x="26.0" y="155.8" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  roof to wall ties (H2.5A): UNVERIFIED estimate: uplift 93 lb per rafter against the connector's 535 lb [UNVERIFIED]</text>
+<text class="text" x="26.0" y="161.0" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  sill plate on slab: spacing 68 in against max 72 in, end distance 9 in within 3.5 to 12 in</text>
+<text class="text" x="26.0" y="166.2" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="start" fill="#000000">PASS  footing (slab): width 12 in against 12 in, thickness 8 in against 6 in, projection 4.3 in against 2 in</text>
+<text class="text" x="26.0" y="175.4" font-family="Arial, Helvetica, sans-serif" font-size="3.6" text-anchor="start" fill="#000000">RESULT  27 lines, 0 FAIL, 27 PASS, 5 marked UNVERIFIED (a table cell or rule that could not be read)</text>
+<text class="text" x="26.0" y="182.4" font-family="Arial, Helvetica, sans-serif" font-size="2.4" text-anchor="start" fill="#000000">Tables: span, header, bracing, footing cells are printed 2021 IRC values read from mirrors (ICC site blocked); lines marked UNVERIFIED could not be read</text>
+<text class="text" x="26.0" y="187.4" font-family="Arial, Helvetica, sans-serif" font-size="2.4" text-anchor="start" fill="#000000">Not checked by Kine: floor framing and second storeys; load path below the sill (hold-downs, shear transfer); trusses and engineered lumber; snow loads other than 20 psf; notching and drilling; bearing under headers; seismic design categories above B; a stamped design</text>
+<polygon class="border" points="10.0,10.0 410.0,10.0 410.0,287.0 10.0,287.0" fill="none" stroke="#000000" stroke-width="0.5" stroke-linejoin="miter"/>
+<line class="title" x1="10.0" y1="263.0" x2="410.0" y2="263.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="12.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">PROJECT</text>
+<text class="title-text" data-field="project" x="12.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Levitt Ranch 1949 (CH1) structure check</text>
+<line class="title" x1="130.0" y1="263.0" x2="130.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="132.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">SHEET  (dimensions in metres)</text>
+<text class="title-text" data-field="sheet" x="132.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Structure check (IRC 2021)</text>
+<text class="title-label" data-field="size" x="132.0" y="284.0" font-family="Arial, Helvetica, sans-serif" font-size="2.4" text-anchor="start" fill="#606060">A3   7 / 7</text>
+<line class="title" x1="250.0" y1="263.0" x2="250.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="252.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">SCALE</text>
+<text class="title-text" data-field="scale" x="252.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">1:50</text>
+<line class="title" x1="290.0" y1="263.0" x2="290.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="292.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">DATE</text>
+<text class="title-text" data-field="date" x="292.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">2026-11-03</text>
+<line class="title" x1="346.0" y1="263.0" x2="346.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="348.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">DRAWN WITH</text>
+<text class="title-text" data-field="drawn" x="348.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Kine</text>
+</g>
+</svg>
