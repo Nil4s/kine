@@ -249,6 +249,7 @@ func ask(text: String) -> void:
 	stats["turns"] = turns
 	stats["calls"] = calls_made
 	stats["seconds"] = snappedf((Time.get_ticks_msec() - t_start) / 1000.0, 0.1)
+	stats["usd"] = LlmClient.cost_usd((client as LlmClient).backend, (client as LlmClient).model, stats) if client is LlmClient else -1.0
 	var used := usage_line(stats)
 	if used != "":
 		_line("USED: " + used)
@@ -280,8 +281,10 @@ static func usage_line(st: Dictionary) -> String:
 	if i == 0 and o == 0:
 		return ""
 	var cr := int(st.get("cache_read", 0))
-	return "%d turn%s, %s tokens in%s, %s out, %.1f s" % [int(st.get("turns", 0)), "" if int(st.get("turns", 0)) == 1 else "s",
-		_k(i), " (%s from cache)" % _k(cr) if cr > 0 else "", _k(o), float(st.get("seconds", 0.0))]
+	var usd := float(st.get("usd", -1.0))
+	var money := "" if usd < 0.0 else (", free (this machine)" if usd == 0.0 else ", about $%s" % ("%.4f" % usd if usd < 0.01 else "%.3f" % usd))
+	return "%d turn%s, %s tokens in%s, %s out, %.1f s%s" % [int(st.get("turns", 0)), "" if int(st.get("turns", 0)) == 1 else "s",
+		_k(i), " (%s from cache)" % _k(cr) if cr > 0 else "", _k(o), float(st.get("seconds", 0.0)), money]
 
 
 ## one line per question: when, backend, model, turns, calls, in, cache_read, cache_write, out, seconds (no prompt text, no key)
@@ -296,10 +299,12 @@ func _log_usage() -> void:
 	if f == null:
 		return
 	if new_file:
-		f.store_line("time,backend,model,turns,calls,in,cache_read,cache_write,out,seconds")
+		f.store_line("time,backend,model,turns,calls,in,cache_read,cache_write,out,seconds,usd")
 	f.seek_end()
-	f.store_line("%s,%s,%s,%d,%d,%d,%d,%d,%d,%.1f" % [Time.get_datetime_string_from_system(), be, mdl.replace(",", " "),
-		int(stats["turns"]), int(stats["calls"]), int(stats["in"]), int(stats["cache_read"]), int(stats["cache_write"]), int(stats["out"]), float(stats["seconds"])])
+	var usd := float(stats.get("usd", -1.0))
+	f.store_line("%s,%s,%s,%d,%d,%d,%d,%d,%d,%.1f,%s" % [Time.get_datetime_string_from_system(), be, mdl.replace(",", " "),
+		int(stats["turns"]), int(stats["calls"]), int(stats["in"]), int(stats["cache_read"]), int(stats["cache_write"]), int(stats["out"]), float(stats["seconds"]),
+		"" if usd < 0.0 else "%.5f" % usd])
 	f.close()
 
 

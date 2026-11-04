@@ -239,6 +239,33 @@ static func parse(be: String, code: int, raw: String) -> Dictionary:
 	return {"ok": true, "text": text, "calls": calls, "why": "", "usage": usage_of(be, d)}
 
 
+## AI COST: approximate list prices, USD per million tokens [in, out, cache read x, cache write x], matched by the
+## FIRST key the model name contains (so "mini" rows come before the plain family). Prices move: edit here. ollama
+## (this machine) is free. A model no row matches gets no price (cost_usd -> -1), never a guess.
+const PRICES := {
+	"anthropic": [["haiku", 1.0, 5.0, 0.1, 1.25], ["sonnet", 3.0, 15.0, 0.1, 1.25], ["opus", 5.0, 25.0, 0.1, 1.25]],
+	"openai": [["gpt-5-nano", 0.05, 0.4, 0.1, 1.0], ["gpt-5-mini", 0.25, 2.0, 0.1, 1.0], ["gpt-5", 1.25, 10.0, 0.1, 1.0],
+		["gpt-4.1-nano", 0.1, 0.4, 0.25, 1.0], ["gpt-4.1-mini", 0.4, 1.6, 0.25, 1.0], ["gpt-4.1", 2.0, 8.0, 0.25, 1.0],
+		["gpt-4o-mini", 0.15, 0.6, 0.5, 1.0], ["gpt-4o", 2.5, 10.0, 0.5, 1.0]],
+	"gemini": [["flash-lite", 0.1, 0.4, 0.25, 1.0], ["flash", 0.3, 2.5, 0.25, 1.0], ["pro", 1.25, 10.0, 0.25, 1.0]],
+}
+
+
+## the estimated USD for usage {"in", "out", "cache_read", "cache_write"} on backend/model: 0 for ollama, -1 when unknown
+static func cost_usd(be: String, mdl: String, u: Dictionary) -> float:
+	if be == "ollama":
+		return 0.0
+	var low := mdl.to_lower()
+	for row in PRICES.get(be, []):
+		if low.contains(String(row[0])):
+			var cr := int(u.get("cache_read", 0))
+			var cw := int(u.get("cache_write", 0))
+			var fresh := maxi(0, int(u.get("in", 0)) - cr - cw)
+			return (fresh * float(row[1]) + cr * float(row[1]) * float(row[3]) + cw * float(row[1]) * float(row[4])
+				+ int(u.get("out", 0)) * float(row[2])) / 1e6
+	return -1.0
+
+
 ## AI COST: one answer's tokens in ONE shape for every backend: {"in", "out", "cache_read", "cache_write"}.
 ## "in" counts ALL prompt tokens (cached ones too), so in - cache_read is what was read at full price.
 static func usage_of(be: String, d: Dictionary) -> Dictionary:

@@ -10,6 +10,8 @@
 ##     and appends one line (no prompt text) to user://ai_usage.csv
 ##   5 commands {find}: "mirror pose" gives <= 25 commands, a mirror command first, under 5 % of the whole list's bytes;
 ##     no find = the whole list as before
+##   6 $ per question from LlmClient.PRICES: a hand-computed sonnet case to 1e-9, the "mini" row wins over its family,
+##     ollama is free, an unknown model gets no price (never a guess); the box's USED line ends "about $0.019"
 extends SceneTree
 
 var fails := 0
@@ -171,6 +173,16 @@ func _init() -> void:
 	var first_id: String = String(fd[0]["id"]) if not fd.is_empty() else ""
 	ok(fl.size() > 300 and not fd.is_empty() and fd.size() <= AgentTools.FIND_MAX and first_id.contains("mirror") and db * 20 < fb,
 		"5 commands: whole list %d commands / %d bytes; find 'mirror pose' %d commands / %d bytes (%.1f %%), first '%s'" % [fl.size(), fb, fd.size(), db, 100.0 * db / maxf(1.0, fb), first_id])
+	# 6 $ per question: sonnet 3/15 per M, cache read 0.1x, write 1.25x. 10k in = 2k fresh + 7k read + 1k written, 500 out:
+	# (2000*3 + 7000*0.3 + 1000*3.75 + 500*15) / 1e6 = (6000 + 2100 + 3750 + 7500) / 1e6 = 0.01935
+	var uu := {"in": 10000, "cache_read": 7000, "cache_write": 1000, "out": 500}
+	var c_son := LlmClient.cost_usd("anthropic", "claude-sonnet-4-5", uu)
+	var c_mini := LlmClient.cost_usd("openai", "gpt-4o-mini", {"in": 1000000, "out": 0})   # the mini row, not gpt-4o's
+	var c_loc := LlmClient.cost_usd("ollama", "glm-4.7-flash", uu)
+	var c_unk := LlmClient.cost_usd("openai", "some-new-model", uu)
+	var line6 := AiBox.usage_line({"turns": 2, "in": 10000, "cache_read": 7000, "out": 500, "seconds": 3.0, "usd": c_son})
+	ok(absf(c_son - 0.01935) < 1e-9 and absf(c_mini - 0.15) < 1e-9 and c_loc == 0.0 and c_unk < 0.0 and line6.ends_with("about $0.019"),
+		"6 $: sonnet %.5f (want 0.01935), gpt-4o-mini 1M in %.3f (want 0.150), ollama %.1f, unknown model %.0f (no guess); the box line '%s'" % [c_son, c_mini, c_loc, c_unk, line6])
 	m.queue_free()
 	print("aicost: %d fail" % fails)
 	TestFiles.cleanup()
