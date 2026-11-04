@@ -12,6 +12,7 @@
 
 #include "kine_field_native.h"
 #include "kine_frame_native.h"
+#include "kine_seat_native.h"
 
 using namespace godot;
 
@@ -28,6 +29,7 @@ void kine_native_initialize(ModuleInitializationLevel p_level) {
 
 	GDREGISTER_ABSTRACT_CLASS(KineFieldNative);
 	GDREGISTER_ABSTRACT_CLASS(KineFrameNative);
+	GDREGISTER_ABSTRACT_CLASS(KineSeatNative);
 }
 
 void kine_native_terminate(ModuleInitializationLevel p_level) {

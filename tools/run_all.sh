@@ -965,3 +965,7 @@ EXTRA="$EXTRA c62:w"   # C62: no bone end under the toolbar or a panel in the op
 
 
 EXTRA="$EXTRA ch10:w"   # ch10: the house under wind and El Centro, 3D frame solver (native KineFrameNative + GDScript twin), tests/ch10_test.gd
+
+
+EXTRA="$EXTRA s249:w"
+EXTRA="$EXTRA s249n:w"
