@@ -38,6 +38,12 @@ var ss := PackedFloat64Array()
 var qq := PackedFloat64Array()
 var pre := PackedFloat64Array()
 var adiag := PackedFloat64Array()
+var dq := PackedFloat64Array()
+var db := PackedFloat64Array()
+var dmode := 1   # 0 = density drift as a pressure source in the velocity solve (first version), 1 = implicit density projection on positions
+var idp_tol := 1e-3
+var idp_max := 60
+var extrap := 1   # velocity extrapolation into the air after the projection (1 = on)
 var fl := PackedInt32Array()
 var vmax := 0.0
 var last_iters := 0
@@ -75,6 +81,8 @@ func setup(p_nx: int, p_ny: int, p_nz: int, p_h: float, p_origin: Vector3) -> vo
 	qq = pr.duplicate()
 	pre = pr.duplicate()
 	adiag = pr.duplicate()
+	dq = pr.duplicate()
+	db = pr.duplicate()
 	P = PackedFloat64Array()
 	V = PackedFloat64Array()
 	C = PackedFloat64Array()
@@ -88,6 +96,14 @@ func _zeros(n: int) -> PackedFloat64Array:
 
 func set_threads(_n: int) -> void:
 	pass
+
+
+func set_density_mode(m: int) -> void:
+	dmode = m
+
+
+func set_extrapolation(on: int) -> void:
+	extrap = on
 
 
 func set_wall_friction(f: float) -> void:
@@ -337,7 +353,7 @@ func _dot(a: PackedFloat64Array, b: PackedFloat64Array) -> float:
 	return s
 
 
-func _pcg() -> void:
+func _pcg(x: PackedFloat64Array, b: PackedFloat64Array, tl: float, maxit: int, warm: bool) -> void:
 	var n := fl.size()
 	last_iters = 0
 	if n == 0:
@@ -372,35 +388,38 @@ func _pcg() -> void:
 		pre[c] = 1.0 / sqrt(e)
 	var bmax := 0.0
 	for c in fl:
-		bmax = maxf(bmax, absf(rhs[c]))
+		bmax = maxf(bmax, absf(b[c]))
 	if bmax == 0.0:
 		for c in fl:
-			pr[c] = 0.0
+			x[c] = 0.0
 		return
+	if not warm:
+		for c in fl:
+			x[c] = 0.0
 	var r0 := 0.0
 	for c in fl:
-		var t := adiag[c] * pr[c]
+		var t := adiag[c] * x[c]
 		if type[c - sx] == 1:
-			t -= pr[c - sx]
+			t -= x[c - sx]
 		if type[c + sx] == 1:
-			t -= pr[c + sx]
+			t -= x[c + sx]
 		if type[c - sy] == 1:
-			t -= pr[c - sy]
+			t -= x[c - sy]
 		if type[c + sy] == 1:
-			t -= pr[c + sy]
+			t -= x[c + sy]
 		if type[c - sz] == 1:
-			t -= pr[c - sz]
+			t -= x[c - sz]
 		if type[c + sz] == 1:
-			t -= pr[c + sz]
-		rr[c] = rhs[c] - t
+			t -= x[c + sz]
+		rr[c] = b[c] - t
 		r0 = maxf(r0, absf(rr[c]))
-	if r0 < tol * bmax:
+	if r0 < tl * bmax:
 		return
 	_precond(rr, zz)
 	for c in fl:
 		ss[c] = zz[c]
 	var sig := _dot(zz, rr)
-	for it in max_iter:
+	for it in maxit:
 		for c in fl:
 			var t := adiag[c] * ss[c]
 			if type[c - sx] == 1:
@@ -422,11 +441,11 @@ func _pcg() -> void:
 		var al := sig / den
 		var rmax := 0.0
 		for c in fl:
-			pr[c] += al * ss[c]
+			x[c] += al * ss[c]
 			rr[c] -= al * zz[c]
 			rmax = maxf(rmax, absf(rr[c]))
 		last_iters = it + 1
-		if rmax < tol * bmax:
+		if rmax < tl * bmax:
 			break
 		_precond(rr, zz)
 		var sig2 := _dot(zz, rr)
@@ -469,11 +488,13 @@ func _project(dt: float) -> void:
 		var div := U[(i + 1) + (nx + 1) * (j + ny * k)] - U[i + (nx + 1) * (j + ny * k)] \
 				+ Vg[i + nx * ((j + 1) + (ny + 1) * k)] - Vg[i + nx * (j + (ny + 1) * k)] \
 				+ W[i + nx * (j + ny * (k + 1))] - W[i + nx * (j + ny * k)]
-		var eps := minf(1.0, maxf(0.0, float(cnt[c]) / ppc - 1.0))
-		if eps == 0.0 and cnt[c] < ppc and type[c - 1] == 1 and type[c + 1] == 1 and type[c - nx] == 1 and type[c + nx] == 1 and type[c - nx * ny] == 1 and type[c + nx * ny] == 1:
-			eps = maxf(-0.5, float(cnt[c]) / ppc - 1.0)
+		var eps := 0.0
+		if dmode == 0:
+			eps = minf(1.0, maxf(0.0, float(cnt[c]) / ppc - 1.0))
+			if eps == 0.0 and cnt[c] < ppc and type[c - 1] == 1 and type[c + 1] == 1 and type[c - nx] == 1 and type[c + nx] == 1 and type[c - nx * ny] == 1 and type[c + nx * ny] == 1:
+				eps = maxf(-0.5, float(cnt[c]) / ppc - 1.0)
 		rhs[c] = -sc * div + sc * (h / maxf(dt, dtmax)) * drift * eps
-	_pcg()
+	_pcg(pr, rhs, tol, max_iter, true)
 	var f := dt / h
 	for k in nz:
 		for j in ny:
@@ -502,6 +523,176 @@ func _project(dt: float) -> void:
 					continue
 				if type[a] == 1 or type[b] == 1:
 					W[i + nx * (j + ny * k)] -= f * (pr[b] - pr[a])
+	if extrap == 1:
+		_extrapolate()
+
+
+## Velocity extrapolation into the air (twin of KineFluidNative::extrapolate; Bridson 2015): two layers of faces beyond the fluid get the mean of their
+## valid face neighbours. Valid = touches a fluid cell. Faces on walls and solids stay as they are.
+func _extrapolate() -> void:
+	for c in 3:
+		var g: PackedFloat64Array = U if c == 0 else (Vg if c == 1 else W)
+		var d := [nx, ny, nz]
+		d[c] += 1
+		var st := [1, d[0], d[0] * d[1]]
+		var cs := [1, nx, nx * ny]
+		var tot := g.size()
+		var vf := PackedByteArray()
+		vf.resize(tot)
+		for k in d[2]:
+			for j in d[1]:
+				for i in d[0]:
+					var f: int = i + d[0] * (j + d[1] * k)
+					var ij := [i, j, k]
+					if ij[c] == 0 or ij[c] == d[c] - 1:
+						vf[f] = 2
+						continue
+					var b: int = i + nx * (j + ny * k)
+					var a: int = b - cs[c]
+					if type[a] == 2 or type[b] == 2:
+						vf[f] = 2
+					elif type[a] == 1 or type[b] == 1:
+						vf[f] = 1
+		for layer in 2:
+			var nf := PackedByteArray()
+			nf.resize(tot)
+			for k in d[2]:
+				for j in d[1]:
+					for i in d[0]:
+						var f: int = i + d[0] * (j + d[1] * k)
+						if vf[f] != 0:
+							continue
+						var sum := 0.0
+						var n := 0
+						if i > 0 and vf[f - st[0]] == 1:
+							sum += g[f - st[0]]
+							n += 1
+						if i < d[0] - 1 and vf[f + st[0]] == 1:
+							sum += g[f + st[0]]
+							n += 1
+						if j > 0 and vf[f - st[1]] == 1:
+							sum += g[f - st[1]]
+							n += 1
+						if j < d[1] - 1 and vf[f + st[1]] == 1:
+							sum += g[f + st[1]]
+							n += 1
+						if k > 0 and vf[f - st[2]] == 1:
+							sum += g[f - st[2]]
+							n += 1
+						if k < d[2] - 1 and vf[f + st[2]] == 1:
+							sum += g[f + st[2]]
+							n += 1
+						if n > 0:
+							g[f] = sum / n
+							nf[f] = 1
+			for f in tot:
+				if nf[f] != 0:
+					vf[f] = 1
+		# g is a typed local copy of the member: write it back
+		if c == 0:
+			U = g
+		elif c == 1:
+			Vg = g
+		else:
+			W = g
+
+
+## Density correction on POSITIONS (dmode 1): the twin of KineFluidNative::density_project (Kugelstadt et al., Implicit Density Projection for Volume
+## Conserving Liquids, IEEE TVCG 2019; particle shifting: Xu, Stansby, Laurence 2009, Lind et al. 2012). A q = h * excess, d = -grad q, particles move by d.
+func _density_project() -> void:
+	var n := fl.size()
+	if n == 0:
+		return
+	var sx := 1
+	var sy := nx
+	var sz := nx * ny
+	for c in fl:
+		var ex := 0.0
+		if cnt[c] > ppc:
+			ex = float(cnt[c]) / ppc - 1.0
+		elif cnt[c] < ppc and type[c - sx] == 1 and type[c + sx] == 1 and type[c - sy] == 1 and type[c + sy] == 1 and type[c - sz] == 1 and type[c + sz] == 1:
+			ex = maxf(-0.5, float(cnt[c]) / ppc - 1.0)
+		db[c] = h * ex
+	for c in dq.size():
+		if type[c] != 1:
+			dq[c] = 0.0
+	var saved := last_iters
+	_pcg(dq, db, idp_tol, idp_max, false)
+	last_iters = saved
+	U.fill(0.0)
+	Vg.fill(0.0)
+	W.fill(0.0)
+	for k in nz:
+		for j in ny:
+			for i in range(1, nx):
+				var a := _cid(i - 1, j, k)
+				var b := _cid(i, j, k)
+				if type[a] == 2 or type[b] == 2:
+					continue
+				if type[a] == 1 or type[b] == 1:
+					U[i + (nx + 1) * (j + ny * k)] = -(dq[b] - dq[a])
+	for k in nz:
+		for j in range(1, ny):
+			for i in nx:
+				var a := _cid(i, j - 1, k)
+				var b := _cid(i, j, k)
+				if type[a] == 2 or type[b] == 2:
+					continue
+				if type[a] == 1 or type[b] == 1:
+					Vg[i + nx * (j + (ny + 1) * k)] = -(dq[b] - dq[a])
+	for k in range(1, nz):
+		for j in ny:
+			for i in nx:
+				var a := _cid(i, j, k - 1)
+				var b := _cid(i, j, k)
+				if type[a] == 2 or type[b] == 2:
+					continue
+				if type[a] == 1 or type[b] == 1:
+					W[i + nx * (j + ny * k)] = -(dq[b] - dq[a])
+	var N := particle_count()
+	var org := [o.x, o.y, o.z]
+	var dimc := [nx, ny, nz]
+	for p in N:
+		var dsp := [0.0, 0.0, 0.0]
+		for c in 3:
+			var off := [0.5, 0.5, 0.5]
+			off[c] = 0.0
+			var dim := [nx, ny, nz]
+			dim[c] += 1
+			var g: PackedFloat64Array = U if c == 0 else (Vg if c == 1 else W)
+			var wx := _w3((P[3 * p] - o.x) / h - off[0])
+			var wy := _w3((P[3 * p + 1] - o.y) / h - off[1])
+			var wz := _w3((P[3 * p + 2] - o.z) / h - off[2])
+			var vs := 0.0
+			for kk in 3:
+				var nk: int = wz[0] + kk
+				if nk < 0 or nk >= dim[2]:
+					continue
+				for jj in 3:
+					var nj: int = wy[0] + jj
+					if nj < 0 or nj >= dim[1]:
+						continue
+					for ii in 3:
+						var ni: int = wx[0] + ii
+						if ni < 0 or ni >= dim[0]:
+							continue
+						vs += wx[2 + ii] * wy[2 + jj] * wz[2 + kk] * g[ni + dim[0] * (nj + dim[1] * nk)]
+			dsp[c] = vs
+		for a in 3:
+			var m := 0.5 * h
+			var dd := maxf(-m, minf(m, dsp[a]))
+			var nxp := [P[3 * p], P[3 * p + 1], P[3 * p + 2]]
+			nxp[a] += dd
+			var cc := [0, 0, 0]
+			var bad := false
+			for q in 3:
+				cc[q] = int(floor((nxp[q] - org[q]) / h))
+				if cc[q] < 0 or cc[q] >= dimc[q]:
+					bad = true
+			if not bad and solid[_cid(cc[0], cc[1], cc[2])] != 0:
+				bad = true
+			if not bad:
+				P[3 * p + a] = nxp[a]
 
 
 func _g2p() -> void:
@@ -574,6 +765,9 @@ func _advect(dt: float) -> void:
 
 func step(dt: float) -> void:
 	_mark()
+	if dmode == 1:
+		_density_project()
+		_mark()
 	_p2g()
 	_project(dt)
 	_g2p()

@@ -25,12 +25,22 @@ public:
 	int nx = 0, ny = 0, nz = 0;
 	double h = 0.01, ox = 0, oy = 0, oz = 0;
 	double grav = 9.81, drift = 0.2, cfl = 0.5, dtmax = 0.01, tol = 1e-6;
-	int max_iter = 300, nt = 1;
+	int max_iter = 300, nt = 1, nte = 1;
 	std::vector<uint8_t> solid, type;
 	std::vector<int32_t> cnt;
 	std::vector<double> P, V, C; // 3N, 3N, 9N
 	std::vector<double> U, Vg, W, mU, mV, mW; // grid momentum / velocity / weight sums
-	std::vector<double> pr, rhs, rr, zz, ss, qq, pre, adiag;
+	std::vector<double> pr, rhs, rr, zz, ss, qq, pre, adiag, dq, db; // dq, db: the density-projection solve
+	std::vector<int> blo, bhi; // per solve task: lowest / highest cell index it owns
+	bool pre_ok = false;
+	int dmode = 1; // 0 = density drift as a pressure source in the velocity solve (first version), 1 = implicit density projection on positions
+	double idp_tol = 1e-3;
+	int idp_max = 60, idp_iters_last = 0;
+	double tm_idp = 0;
+	void set_density_mode(int m) { dmode = m; }
+	int extrap = 1; // velocity extrapolation into the air after the projection (1 = on)
+	void set_extrapolation(int on) { extrap = on; }
+	std::vector<uint8_t> vflag[3], vflag2[3];
 	std::vector<int32_t> fl, order, cstart;
 	double vmax = 0, tm_p2g = 0, tm_proj = 0, tm_g2p = 0, tm_adv = 0, tm_sort = 0;
 	int last_iters = 0;
@@ -57,6 +67,7 @@ public:
 	int particles_in_mesh(const PackedVector3Array &p_verts, const PackedInt32Array &p_tris) const;
 	double volume_ratio() const;
 	Dictionary surface(int p_smooth, double p_iso);
+	Dictionary surface_aniso(double p_iso, int p_ndiv);
 	void clear_particles();
 
 private:
@@ -68,7 +79,12 @@ private:
 	void project(double dt);
 	void g2p();
 	void advect(double dt);
-	void pcg();
+	void pcg(std::vector<double> &x, const std::vector<double> &b, double tl, int maxit, bool warm);
+	void build_precond();
+	void precond_apply(const std::vector<double> &r, std::vector<double> &z, std::vector<double> *part);
+	int solve_tasks() const;
+	void density_project();
+	void extrapolate();
 };
 
 } // namespace godot
