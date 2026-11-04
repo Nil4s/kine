@@ -69,7 +69,7 @@ done
 BEFORE=$(md5sum < "$W/before.md5")
 # B7
 MSYS_NO_PATHCONV=1 /usr/bin/timeout 300 "$W/inst/unins000.exe" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART; rc=$?
-for i in 1 2 3 4 5 6 7 8 9 10; do [ ! -f "$W/inst/Kine.exe" ] && break; sleep 1; done   # the uninstaller finishes in a helper process
+for i in $(seq 1 60); do [ ! -f "$W/inst/Kine.exe" ] && [ -z "$(ls -A "$W/inst" 2>/dev/null)" ] && break; sleep 1; done   # the uninstaller finishes in a helper process (C79: wait for unins000.exe to go too; the bar below is unchanged)
 (cd "$W/appdata" && find . -type f | sort | xargs md5sum) > "$W/after.md5"
 AFTER=$(md5sum < "$W/after.md5")
 diff "$W/before.md5" "$W/after.md5" | head -5
