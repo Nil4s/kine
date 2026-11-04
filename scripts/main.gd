@@ -268,7 +268,7 @@ const RIBBON_GROUPS := {
 		["PHYSICS", ["Make it physical", "Accept span", "Keep this pose", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check"]],
 		["FIGHT", ["Fight distance", "Fit the ring", "Auto opponent", "Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound"]],
 		["MUSIC", ["Fight to the beat", "Choreograph to the song"]], ["STYLE", ["My style", "Use my style", "Star this clip", "My best take", "Make this one more like my best", "What I learned from you", "My combos"]],
-		["CAMERA", ["Auto camera", "My camera", "Frame it my way"]], ["SHOW", ["Dummy (H)", "Frame data", "Frame boxes", "Frame rate"]]],
+		["CAMERA", ["Auto camera", "My camera", "Frame it my way", "Shot list", "Scene lines"]], ["SHOW", ["Dummy (H)", "Frame data", "Frame boxes", "Frame rate"]]],
 	"EXPORT": [["FILES", ["Export...", "Export model (GLB / OBJ)", "Export frame data (json)...", "Render shots (mp4)", "Use as a prop", "Open exports folder"]], ["PLAN", ["Floor plan", "Save version"]], ["SHARE", ["Share as QR", "Pack scene (zip)", "Unpack zip..."]]],
 	"VIEW": [["CAMERA", ["Front (1)", "His right (2)", "Top (3)", "Back (4)", "His left (5)", "Big view (Tab)"]],
 		["DISPLAY", ["Hints", "Light", "Follow system", "UI size", "Easy mode", "Corrective shapes", "Contact shadows", "Local API", "Next poses"]]],
@@ -282,7 +282,7 @@ const RIBBON_REST := {"MODEL": ["Save to body", "Open...", "Use in scene", "Loop
 	"SET": ["Turn left", "Turn right", "Step up", "Throw to...", "Sit down", "Stand up", "Get up", "Add impact frames", "Remove impact frames"],
 	"EXPORT": ["Use as a prop", "Open exports folder"], "CHECK": ["Fit the ring", "Safety sheet", "Real-mocap check", "Speed limits", "Weapon weight", "Breakfall check", "Recovery step", "Fatigue", "Momentum ledger", "Airborne spin check",
 	"Sell the hit", "Gaze director", "Reaction direction", "Fight rhythm", "Precog check", "Parry rebound", "Star this clip", "My best take", "Make this one more like my best",
-	"What I learned from you", "My combos", "Frame it my way"],
+	"What I learned from you", "My combos", "Frame it my way", "Shot list", "Scene lines"],
 	# BUILD (the Part workspace's rarer tools): under their captions SKETCH / CREATE / MODIFY, not on the row, so Fillet fits at 1280 x 720
 	"BUILD": ["Arc", "Dimension", "Constrain", "Mirror", "Chamfer", "Loft", "Offset plane", "Canvas", "Appearance", "Sweep", "Pattern", "Combine", "Offset face", "Draft", "Roof shell", "Primitive", "Ornament"]}
 ## PAGES (docs/PAGES_PLAN.md, step 1; DaVinci Resolve's page bar): one bar along the bottom, each page its own layout over
@@ -1167,6 +1167,14 @@ func _nav_fit() -> void:
 		mid += q
 	target = mid / pts.size()
 	var clear := nav_clear_rect()
+	var tb := find_child("top_tools", true, false)   # C62: the toolbar's real bottom edge (81 px at 1280 x 720; TOP_H says 74): the body is fitted below it
+	if tb is Control and (tb as Control).is_visible_in_tree():
+		var pn: Node = tb.get_parent()
+		while pn != null and not (pn is PanelContainer):
+			pn = pn.get_parent()
+		var top := ((pn if pn != null else tb) as Control).get_global_rect().end.y + 4.0
+		if top > clear.position.y:
+			clear = Rect2(clear.position.x, top, clear.size.x, maxf(clear.end.y - top, 40.0))
 	var vs := get_viewport().get_visible_rect().size
 	for it in 4:
 		_cam()
@@ -2991,6 +2999,7 @@ func _shade_menu_sync() -> void:
 		lp.set_item_checked(i, shading.sky if k2 == "sky" else (shading.hdri != "" if k2 == "hdri" else k2 == shading.lights))
 		if k2 == "hdri_clear":
 			lp.set_item_disabled(i, shading.hdri == "")
+			lp.set_item_tooltip(i, "" if shading.hdri != "" else GREY_TAG.strip_edges() + " no picture background is set: choose Picture background first")   # B07
 	ui_shade_btn.icon = Icons.tex({"wireframe": "shade_wire", "matcap": "shade_matcap", "xray": "shade_xray", "silhouette": "shade_sil"}.get(shading.mode, "shade_solid"))
 
 
@@ -3337,6 +3346,9 @@ func _ready() -> void:
 	_boot_watch.call_deferred()
 	await dummy_settle()   # round 14: the dummy measures on a worker; a shot shows what PLAYS (landed on it or not)
 	BootProfile.mark("dummy settle")
+	if not (args.has("--yaw") or args.has("--pitch") or args.has("--focus") or args.has("--dist")):
+		_view_home(false)   # C62: the opening view is HOME fitted to the free view, so no bone sits under the toolbar or a panel
+
 	if args.find("--t") >= 0 or args.find("--frame") >= 0:
 		_ps().apply(B, playhead)   # (and --dummy's range now counts: it used to move the dummy after --t had posed)
 		_refresh()
@@ -3508,6 +3520,7 @@ func _process(dt: float) -> void:
 
 func _process_body(dt: float) -> void:
 	_mesh_hint_sync()
+	_hands_dock_tick()   # C66
 	if _drop_line != null and _drop_line.visible:
 		var hov := get_viewport().gui_get_hovered_control()
 		if not get_viewport().gui_is_dragging() or hov == null or not (hov == ui_card_row or ui_card_row.is_ancestor_of(hov)):
@@ -5540,6 +5553,40 @@ func _view_home(smooth := true) -> void:
 		_turn_to(HOME["yaw"], HOME["pitch"], easy.frame_dist(), easy.follow_target(), smooth)
 		return
 	_turn_to(HOME["yaw"], HOME["pitch"], _home_dist(), HOME["target"], smooth)
+	_home_fit(smooth)
+
+
+## C62: HOME's yaw / pitch, then the Fit button's framing (the whole body inside nav_clear_rect: under the toolbar, beside the
+## panels, above the bottom bar). At 1280 x 720 the 4 m HOME view drew the head at y 38..80, under the Pose-from-words button.
+## Smooth: the fitted goal is worked out on the spot and the turn is run again towards it
+func _home_fit(smooth: bool) -> void:
+	if shot_through or (easy != null and easy.on) or _mesh_orbit():
+		return
+	var y0 := yaw
+	var p0 := pitch
+	var d0 := dist
+	var t0 := target
+	yaw = HOME["yaw"]
+	pitch = HOME["pitch"]
+	dist = _home_dist()
+	target = HOME["target"]
+	_nav_fit()
+	var d1 := dist
+	var t1 := target
+	yaw = y0
+	pitch = p0
+	dist = d0
+	target = t0
+	_home_set = [d1, t1]
+	_turn_to(HOME["yaw"], HOME["pitch"], d1, t1, smooth)
+
+
+var _home_set: Array = []   # [dist, target] the last home fit chose: while the camera still sits there the user has not moved it
+
+
+func _home_refit() -> void:
+	if _home_set.size() == 2 and is_equal_approx(dist, float(_home_set[0])) and target.is_equal_approx(_home_set[1]) 			and is_equal_approx(yaw, float(HOME["yaw"])) and is_equal_approx(pitch, float(HOME["pitch"])):
+		_home_fit(false)
 
 
 ## HOME's distance, but never so close that the body (feet to head: 1.9 m about the target) is cut by the panels: the free view is
@@ -9876,6 +9923,14 @@ func _cape_cancel() -> void:
 	_say("cancelling the cape bake: the scene keeps its last cape")
 
 
+func _cape_fold_toggle() -> void:
+	Cloth.self_collide = not Cloth.self_collide
+	if Cloth.self_collide:
+		_say("Cape: folds onto itself - ON (slower, about 0.5 s a frame to bake)")
+	else:
+		_say("Cape: folds onto itself - OFF")
+
+
 func _cape_clear() -> void:
 	if S.cape.is_empty():
 		_say("no cape to take off: 'Cape: add to the back' first")
@@ -10988,6 +11043,24 @@ func _hands_block(easy_side: bool) -> VBoxContainer:
 	return box
 
 
+## C66: the hands card finds a free spot again when the camera or the layout moved something under it (only then: it does not
+## follow an orbit that leaves it clear)
+var _hands_sig := ""
+
+
+func _hands_dock_tick() -> void:
+	if ui_hands_panel == null or not is_instance_valid(ui_hands_panel) or not ui_hands_panel.visible or cam == null or B == null or (easy != null and easy.on):
+		return
+	var sig := str([cam.global_transform, cam.fov, cam.size, bottom_h, get_viewport().get_visible_rect().size, ui_bar.get_global_rect() if ui_bar != null else Rect2()])
+	if sig == _hands_sig:
+		return
+	_hands_sig = sig
+	var vs := get_viewport().get_visible_rect().size
+	var vrect := Rect2(float(LEFT_W), float(TOP_H), vs.x - float(LEFT_W) - float(RIGHT_W), vs.y - float(TOP_H) - float(bottom_h))
+	if not HandsDock.clear(ui_hands_panel, HandsDock.blockers(self, ui_hands_panel, vrect, [ui_status, ui_mouse, ui_bar, ui_cube]), HandsDock.points(self), vrect):
+		_hands_refresh()
+
+
 func _hands_refresh() -> void:
 	if B == null:
 		return
@@ -11023,12 +11096,20 @@ func _hands_refresh() -> void:
 				if lb != null and is_instance_valid(lb) and lb.is_visible_in_tree():   # can be taller than BOTTOM_H: the strip covered them)
 					y1 = minf(y1, lb.get_global_rect().position.y - ps.y - 8.0)
 			var body := _body_screen_rect().grow(12.0)
-			var pick := Vector2(x1, y1)
-			for c in [Vector2(x1, y1), Vector2(x0, y0), Vector2(x0, y1), Vector2(x1, y0)]:
-				if not Rect2(c, ps).intersects(body):
-					pick = c
-					break
-			ui_hands_panel.position = PickDodge.fit(ui_hands_panel, pick, Rect2(float(LEFT_W) + 8.0, float(TOP_H) + 8.0, vs.x - float(LEFT_W) - float(RIGHT_W) - 16.0, vs.y - float(TOP_H) - 16.0 - float(BOTTOM_H) - 56.0), PickDodge.points(self))   # C29: never over a body pick point
+			var vrect := Rect2(float(LEFT_W), float(TOP_H), vs.x - float(LEFT_W) - float(RIGHT_W), vs.y - float(TOP_H) - float(bottom_h))   # C66
+			var hb_flow: Control = null
+			for d0 in ui_hands:
+				if not d0["easy"] and d0.has("both"):
+					hb_flow = (d0["both"] as Control).get_parent()
+					(d0["state"] as Label).text = st   # its wrapped height is part of the card's size
+			var docked: bool = hb_flow != null and HandsDock.place(ui_hands_panel, hb_flow, vrect, HandsDock.blockers(self, ui_hands_panel, vrect, [ui_status, ui_mouse, ui_bar, ui_cube]), body, HandsDock.points(self))
+			if not docked:
+				var pick := Vector2(x1, y1)
+				for c in [Vector2(x1, y1), Vector2(x0, y0), Vector2(x0, y1), Vector2(x1, y0)]:
+					if not Rect2(c, ps).intersects(body):
+						pick = c
+						break
+				ui_hands_panel.position = PickDodge.fit(ui_hands_panel, pick, Rect2(float(LEFT_W) + 8.0, float(TOP_H) + 8.0, vs.x - float(LEFT_W) - float(RIGHT_W) - 16.0, vs.y - float(TOP_H) - 16.0 - float(BOTTOM_H) - 56.0), PickDodge.points(self))   # C29: never over a body pick point
 		ui_hands_panel.position = ui_hands_panel.position.clamp(Vector2.ZERO, (vs - ui_hands_panel.size).max(Vector2.ZERO))   # no candidate fits a short window: it still stays on the view
 	for d in ui_hands:
 		if not is_instance_valid(d["box"]):
@@ -11040,8 +11121,8 @@ func _hands_refresh() -> void:
 			continue
 		(d["state"] as Label).text = st
 		(d["both"] as Button).disabled = on_h
-		(d["let_l"] as Button).disabled = not (on_h and o == "hand_l")
-		(d["let_r"] as Button).disabled = not (on_h and o == "hand_r")
+		_grey(d["let_l"], "" if (on_h and o == "hand_l") else "the left hand is not holding the weapon: nothing to let go")   # B07: greyed says why
+		_grey(d["let_r"], "" if (on_h and o == "hand_r") else "the right hand is not holding the weapon: nothing to let go")
 		(d["follow"] as Button).set_pressed_no_signal(held)
 		(d["only"] as Button).set_pressed_no_signal(only_part)
 	_blade_sync()
@@ -11785,11 +11866,13 @@ func _theme() -> Theme:
 		th.set_color("font_color", "PopupMenu", tx)
 		th.set_color("font_hover_color", "PopupMenu", tx)
 		th.set_stylebox("hover", "PopupMenu", box.call(Tok.c("btn_hover"), 3, 2))
-		th.set_stylebox("panel", "TooltipPanel", box.call(Tok.c("float"), 4, 6))
 		th.set_color("font_color", "TooltipLabel", tx)
 		th.set_stylebox("slider", "HSlider", box.call(Tok.c("btn_hover").darkened(0.1), 3, 2))
 		th.set_stylebox("grabber_area", "HSlider", box.call(Tok.c("accent"), 3, 2))
 		th.set_stylebox("grabber_area_highlight", "HSlider", box.call(Tok.c("accent"), 3, 2))
+	# C72: the tooltip popup in both palettes (the block above is light only): opaque, 1 px rim
+	th.set_stylebox("panel", "TooltipPanel", _tip_box())
+	th.set_color("font_color", "TooltipLabel", Tok.c("text"))
 	return th
 
 
@@ -12332,9 +12415,29 @@ func _focus_theme() -> void:
 		_retheme()
 
 
+## C72: Godot's tooltip popup is its own window under the root Window, not under ui_root, so it never saw ui_root's theme and drew the
+## engine's translucent black. It is opaque now, with a 1 px rim, in the app's colours (dark and light).
+func _tip_box() -> StyleBoxFlat:
+	var b := StyleBoxFlat.new()
+	b.bg_color = Color(Tok.c("float"), 1.0)
+	b.border_color = Tok.c("btn_hover").lerp(Tok.c("text"), 0.35)
+	b.set_border_width_all(1)
+	b.set_corner_radius_all(4)
+	b.set_content_margin_all(6)
+	return b
+
+
+func _tip_theme() -> Theme:
+	var t := Theme.new()
+	t.set_stylebox("panel", "TooltipPanel", _tip_box())
+	t.set_color("font_color", "TooltipLabel", Tok.c("text"))
+	return t
+
+
 ## everything built with the old palette takes the new one
 func _retheme() -> void:
 	ui_root.theme = _theme()
+	get_window().theme = _tip_theme()
 	ui_tinted = ui_tinted.filter(func(x): return is_instance_valid(x[0]))
 	for x in ui_tinted:
 		(x[0] as Label).add_theme_color_override("font_color", Tok.of(x[1]))
@@ -12386,11 +12489,13 @@ func _label(t: String, size := 16, col: Variant = "text", wrap := false) -> Labe
 
 
 ## the ribbon's icons (GATES P5): a tool button's label -> its drawing in scripts/icons.gd
-const ICON_OF := {"Library": "library", "Export model (GLB / OBJ)": "export_glb", "Throw to...": "throw","Reactions": "react", "React to the hit (physics)": "react_hit", "Impact frames": "impact", "Add impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Pack scene (zip)": "pack", "Unpack zip...": "unpack", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Mirror to facing": "mirror_facing", "Symmetry": "symmetry", "Smart drag": "smart", "Keep balance": "keep_balance", "Ouch meter": "ouch", "Show problems on the body": "red_spots", "Collision (C)": "collision",
+const ICON_OF := {"Library": "library", "Export model (GLB / OBJ)": "export_glb", "Throw to...": "throw","Reactions": "react", "React to the hit (physics)": "react_hit", "Impact frames": "impact", "Remove impact frames": "impact_off", "Share as QR": "qr", "Pack scene (zip)": "pack", "Unpack zip...": "unpack", "Open from QR...": "qr_open", "Reset body": "reset", "Snap to floor": "floor", "Arms 25°": "arms", "Mirror pose (Shift+M)": "mirror", "Mirror to facing": "mirror_facing", "Symmetry": "symmetry", "Smart drag": "smart", "Keep balance": "keep_balance", "Ouch meter": "ouch", "Show problems on the body": "red_spots", "Collision (C)": "collision",
 	"Trail (T)": "trail", "Onion (O)": "onion", "Weight paint": "weights", "Spacing (Shift+O)": "spacing", "Speed graph (Y)": "graph", "Balance (Shift+B)": "balance", "Force view": "force", "Stepped": "stepped",
 	"Moving holds": "holds", "Airborne": "air", "Auto-key (Ctrl+K)": "autokey", "Animator tools": "tools", "Check": "check", "Timing coach": "timing", "Weapon weight": "weapon_weight", "Parry rebound": "parry", "What I learned from you": "learned", "Fight to the beat": "fightbeat", "Choreograph to the song": "choreo_song", "Fight distance": "keeper", "Reaction direction": "reactdir", "Sell the hit": "sellhit", "Gaze director": "gaze", "Safety sheet": "safety", "Floor plan": "floorplan", "Breakfall check": "breakfall", "Recovery step": "recovery", "Fight rhythm": "rhythm", "Precog check": "precog", "Auto opponent": "autoopp", "Sound cues": "sound_cues", "Fatigue": "fatigue", "Momentum ledger": "momentum", "Airborne spin check": "spin", "Real-mocap check": "mocapchk", "Realism score": "realism", "My style": "mystyle", "Use my style": "usestyle", "Star this clip": "star_clip", "My best take": "best_take", "Make this one more like my best": "best_nudge", "Speed limits": "speed_env", "My combos": "combos", "Auto camera": "autocam", "My camera": "mycam", "Frame it my way": "frameit", "Make it physical": "physical", "Accept span": "physical_ok", "Keep this pose": "keep", "Style dial": "style_dial", "Match the reference timing": "match_timing", "Polish": "polish", "Fix moves through the body": "fix", "Fit the ring": "arena",
 	"Dummy (H)": "dummy", "Body: proportions...": "body_prop", "Body: fighter archetype...": "archetype", "Body: from height, weight, sex, age, build": "body_nums", "Mannequin as shipped": "mannequin_ship", "Front (1)": "front", "His right (2)": "right", "Top (3)": "top", "Back (4)": "back", "His left (5)": "left",
 	"Big view (Tab)": "big", "Light": "light", "Follow system": "auto_theme", "Hints": "hints", "Contact shadows": "contact", "Next poses": "nextpose", "Export...": "export", "Save version": "version", "UI size": "size", "CLIP this pose (Enter)": "clip", "Undo (Ctrl+Z)": "undo", "Redo (Ctrl+Y)": "redo", "History": "history", "Search (S)": "search", "? Help": "help",
+	# B05: pictures for the buttons that had none
+	"Face: brows, eyes, jaw, mouth...": "face_rig", "Hair: add a ponytail": "hair_add", "Hair: take the hair off": "hair_off", "Shot list": "shot_list", "Scene lines": "scene_lines", "Realistic": "realistic", "Temple light": "temple_light", "Light and camera": "light_cam", "Final shot": "final_shot", "Graphics card": "gpu_card", "Make it a solid part": "part_solid", "Sculpt the part": "part_sculpt", "Back into the part": "part_back", "Add impact frames": "impact_add",
 	"Crowd: make 20 copies of this fighter": "crowd", "Crowd: re-roll (new seed)": "reroll", "Crowd: remove": "crowd_remove",
 	"Light: three-point": "lit_three", "Light: rim": "lit_rim", "Light: noir": "lit_noir", "Light: daylight": "lit_day",
 	"Add prop": "prop", "Object library...": "library", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
@@ -12514,7 +12619,7 @@ func _hover_hints() -> void:
 		# the tooltip leads with the name (an icon has no words); the hover line keeps "name:  what it does"
 		if b.get_meta("label", "") != "" and not b.tooltip_text.begins_with(t):
 			b.tooltip_text = t + ("\n" + b.tooltip_text if b.tooltip_text != "" else "")
-		b.mouse_entered.connect(func(): _hover_hint = "%s:  %s" % [t, b.tooltip_text.trim_prefix(t + "\n").trim_prefix(t)])
+		b.mouse_entered.connect(func(): _hover_hint = "%s:  %s" % [t, TooltipFit.source_of(b).trim_prefix(t + "\n").trim_prefix(t)])
 		b.mouse_exited.connect(func(): _hover_hint = "")
 
 
@@ -12719,6 +12824,7 @@ func _ui() -> void:
 	ui_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ui_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_root.theme = _theme()
+	get_window().theme = _tip_theme()
 	layer.add_child(ui_root)
 	ui_root.add_child(sk)   # I9: the sketch's gold strokes and the faint fitted skeleton are drawn over the view
 
@@ -13897,6 +14003,9 @@ func _ui() -> void:
 	ui_cmd.pose_by_words = _pose_words
 	ui_cmd.tools_provider = func(): return MeshTools.rows(self)   # ROADMAP_400 P02: the mesh tools (scripts/mesh_tools.gd), built on the S box's first search
 	_hover_hints()
+	var tipfit := TooltipFit.new()   # C69: every tooltip wrapped to fit the window (scripts/tooltip_fit.gd)
+	tipfit.name = "tooltip_fit"
+	add_child(tipfit)
 	tips = TipVideo.new()   # ROADMAP 49: a 2 s clip of the tool beside the hint, after 0.6 s on a button
 	tips.name = "tips"
 	add_child(tips)
@@ -15512,6 +15621,8 @@ func _fit_page_bar() -> void:
 	var w := clampf(floorf((room - NEXT_RESERVE) / maxi(shown, 1)), TAB_MIN_W, TAB_W)
 	for b in ui_page_btns.values():
 		((b as Button).get_parent() as Control).custom_minimum_size.x = w   # the tab's cell (its clip) takes the width
+	for p in ui_page_btns:   # C51: a narrow cell (1024x600) drops the icon so the name fits
+		C51Tabs.apply(p, ui_page_btns[p], w)
 
 
 ## R6: THE ONE NEXT STEP, computed from the state; the same on every page, never empty. {text, cmd, kind}: cmd is the
@@ -16227,6 +16338,7 @@ func _layout_bottom() -> void:
 	_force_place()
 	_place_nav()
 	_cam()
+	call_deferred("_hands_refresh")   # C66: the hands card finds its spot again once the status line and the view tools have moved
 
 
 ## a key, as if pressed in the view: a command that has a key runs through the key's own code, so the two never differ
@@ -16460,6 +16572,7 @@ func _commands() -> Array:
 	add.call("Hair: take the hair off", "", _hair_clear, "hair ponytail strands clear remove off", true, "removes the hair strands from the scene (Ctrl+Z puts them back)")
 	add.call("Cape: add to the back (bakes the cloth)", "", _cape_add, "cape cloth back cloak robe sim bake drape", true, "a cape hangs from the shoulders on the back and swings in a turn: a cloth grid that collides with the body, baked over the scene; Ctrl+Z takes it back")
 	add.call("Cape: cancel the bake", "", _cape_cancel, "cape cloth bake cancel stop abort background", false, "stops a cape bake that is running in the background; the scene keeps its last cape")
+	add.call("Cape: folds onto itself (slower)", "", _cape_fold_toggle, "cape cloth fold self collision layers pass through itself slower", false, "makes the next cape bake keep its folds from passing through each other: about 0.5 s of baking a frame instead of 0.03 s, so it is off until you switch it on (the toggle says which way it is)")
 	add.call("Cape: take off", "", _cape_clear, "cape cloth remove clear off delete", true, "takes the cape off the scene (Ctrl+Z puts it back)")
 	add.call("Cape: export its vertices (JSON)", "", _cape_export, "cape cloth export mesh json vertices", false, "writes the cape's vertex positions for every frame to a JSON file in the user folder")
 	add.call("Secondary: bake", "", _sec_bake, "secondary bake keys rebake update animation", true, "bake every secondary item again over the scene (after the animation changed)")
@@ -24392,6 +24505,8 @@ func _open_scene_dict(path: String, d: Dictionary, work: bool, built := false) -
 			journal.trim()   # ... and its journal goes with it
 	_props_show()   # the opened scene's set is drawn now (a load used to leave the props out of the view until the next edit)
 	S.apply(B, 0.0)
+	_home_refit()   # C62: a scene opened under the untouched home view is framed for ITS body
+	_home_refit.call_deferred()   # ... and again once its first pose has settled
 	_bld_scene_changed(true, built)
 
 
@@ -25763,6 +25878,7 @@ func _gpu_menu_build(pm: PopupMenu) -> void:
 	pm.add_separator("This PC's graphics card")
 	pm.add_item(GpuTier.summary(GpuTier.info()), 100)
 	pm.set_item_disabled(pm.get_item_index(100), true)
+	pm.set_item_tooltip(pm.get_item_index(100), GREY_TAG.strip_edges() + " this line only names the graphics card this PC has")   # B07
 	pm.add_check_item("Fast view (FSR 2)", 101)
 	pm.set_item_tooltip(pm.get_item_index(101), "the live view is drawn at 2/3 size and sharpened back up (AMD FSR 2, built into Godot): for a PC whose graphics card is the limit. Videos you save are always full quality. Needs the High drawing engine (Forward+)")
 	pm.add_separator("Saving video")
@@ -25776,11 +25892,15 @@ func _gpu_menu_sync(pm: PopupMenu) -> void:
 	var tier := String(GpuTier.info()["tier"])
 	pm.set_item_checked(pm.get_item_index(101), GpuTier.fast_view)
 	pm.set_item_disabled(pm.get_item_index(101), Quality.current_renderer() != "forward_plus")
+	var _t101 := "the live view is drawn at 2/3 size and sharpened back up (AMD FSR 2, built into Godot): for a PC whose graphics card is the limit. Videos you save are always full quality. Needs the High drawing engine (Forward+)"
+	pm.set_item_tooltip(pm.get_item_index(101), _t101 + ("" if Quality.current_renderer() == "forward_plus" else " " + GREY_TAG.strip_edges() + " this needs the High drawing engine: switch the drawing engine to High first"))   # B07
 	for k in GpuTier.ENCODERS.size():
 		var e: String = GpuTier.ENCODERS[k]
 		var i := pm.get_item_index(110 + k)
 		pm.set_item_checked(i, e == GpuTier.pref)
-		pm.set_item_disabled(i, e != "auto" and not GpuTier.encoders_for(tier).has(e))
+		var _no: bool = e != "auto" and not GpuTier.encoders_for(tier).has(e)
+		pm.set_item_disabled(i, _no)
+		pm.set_item_tooltip(i, "which chip makes the .mp4. Auto and 'on the CPU' use the processor. The graphics card (NVENC) frees the processor but was not measurably faster in Kine's own exports; a choice it cannot do here falls back to the processor (remembered)" + (" " + GREY_TAG.strip_edges() + " this PC's graphics card cannot make this video: pick Auto or the CPU" if _no else ""))   # B07
 
 
 func _gpu_pressed(id: int, pm: PopupMenu) -> void:

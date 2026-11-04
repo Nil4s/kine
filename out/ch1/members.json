@@ -1,0 +1,13470 @@
+{
+ "house": "Levitt Ranch 1949",
+ "units": "mm",
+ "members": [
+  {
+   "name": "Ground",
+   "kind": "ground",
+   "nominal": "grade",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -6000,
+    -700,
+    -6000,
+    15754.0,
+    -102,
+    13620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "Slab on grade",
+   "kind": "slab",
+   "nominal": "4 in concrete",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [
+    "Ground",
+    "footing.F",
+    "footing.B",
+    "footing.L",
+    "footing.R",
+    "footing.H"
+   ],
+   "box_mm": [
+    0,
+    -102,
+    0,
+    9754.0,
+    0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "footing.F",
+   "kind": "footing",
+   "nominal": "12 x 8 in",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    0,
+    -305.0,
+    0,
+    9754.0,
+    -102,
+    305.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "footing.B",
+   "kind": "footing",
+   "nominal": "12 x 8 in",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    0,
+    -305.0,
+    7315.0,
+    9754.0,
+    -102,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "footing.L",
+   "kind": "footing",
+   "nominal": "12 x 8 in",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    0,
+    -305.0,
+    305.0,
+    305.0,
+    -102,
+    7315.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "footing.R",
+   "kind": "footing",
+   "nominal": "12 x 8 in",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9449.0,
+    -305.0,
+    305.0,
+    9754.0,
+    -102,
+    7315.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "footing.H",
+   "kind": "footing",
+   "nominal": "12 x 8 in",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    305.0,
+    -305.0,
+    3334.0,
+    9449.0,
+    -102,
+    3639.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_b.F.0",
+   "kind": "bottom_plate",
+   "nominal": "2x4 PT",
+   "span_mm": 2830.5,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    0.0,
+    0.0,
+    0.0,
+    2830.5,
+    38.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_b.F.1",
+   "kind": "bottom_plate",
+   "nominal": "2x4 PT",
+   "span_mm": 5984.5,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    3769.5,
+    0.0,
+    0.0,
+    9754.0,
+    38.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_b.B.0",
+   "kind": "bottom_plate",
+   "nominal": "2x4 PT",
+   "span_mm": 9754.0,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    0.0,
+    0.0,
+    7531.0,
+    9754.0,
+    38.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_b.L.0",
+   "kind": "bottom_plate",
+   "nominal": "2x4 PT",
+   "span_mm": 7442.0,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    0.0,
+    0.0,
+    89.0,
+    89.0,
+    38.0,
+    7531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_b.R.0",
+   "kind": "bottom_plate",
+   "nominal": "2x4 PT",
+   "span_mm": 7442.0,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    9665.0,
+    0.0,
+    89.0,
+    9754.0,
+    38.0,
+    7531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_b.H.0",
+   "kind": "bottom_plate",
+   "nominal": "2x4 PT",
+   "span_mm": 1663.5,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    89.0,
+    0.0,
+    3442.0,
+    1752.5,
+    38.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_b.H.1",
+   "kind": "bottom_plate",
+   "nominal": "2x4 PT",
+   "span_mm": 2339.0,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    2691.5,
+    0.0,
+    3442.0,
+    5030.5,
+    38.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_b.H.2",
+   "kind": "bottom_plate",
+   "nominal": "2x4 PT",
+   "span_mm": 3695.5,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    5969.5,
+    0.0,
+    3442.0,
+    9665.0,
+    38.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_b.V1.0",
+   "kind": "bottom_plate",
+   "nominal": "2x4 PT",
+   "span_mm": 1417.5,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    4356.0,
+    0.0,
+    89.0,
+    4445.0,
+    38.0,
+    1506.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_b.V1.1",
+   "kind": "bottom_plate",
+   "nominal": "2x4 PT",
+   "span_mm": 1148.5,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    4356.0,
+    0.0,
+    2293.5,
+    4445.0,
+    38.0,
+    3442.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_b.V1.2",
+   "kind": "bottom_plate",
+   "nominal": "2x4 PT",
+   "span_mm": 1775.5,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    4356.0,
+    0.0,
+    3531.0,
+    4445.0,
+    38.0,
+    5306.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_b.V1.3",
+   "kind": "bottom_plate",
+   "nominal": "2x4 PT",
+   "span_mm": 1437.5,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    4356.0,
+    0.0,
+    6093.5,
+    4445.0,
+    38.0,
+    7531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_b.V2.0",
+   "kind": "bottom_plate",
+   "nominal": "2x4 PT",
+   "span_mm": 1417.5,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    6579.0,
+    0.0,
+    89.0,
+    6668.0,
+    38.0,
+    1506.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_b.V2.1",
+   "kind": "bottom_plate",
+   "nominal": "2x4 PT",
+   "span_mm": 1148.5,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    6579.0,
+    0.0,
+    2293.5,
+    6668.0,
+    38.0,
+    3442.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_b.V2.2",
+   "kind": "bottom_plate",
+   "nominal": "2x4 PT",
+   "span_mm": 1775.5,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    6579.0,
+    0.0,
+    3531.0,
+    6668.0,
+    38.0,
+    5306.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_b.V2.3",
+   "kind": "bottom_plate",
+   "nominal": "2x4 PT",
+   "span_mm": 1437.5,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    6579.0,
+    0.0,
+    6093.5,
+    6668.0,
+    38.0,
+    7531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "corner.F.0.0",
+   "kind": "corner",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    0.0,
+    38.0,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "corner.F.0.1",
+   "kind": "corner",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    9716.0,
+    38.0,
+    0.0,
+    9754.0,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "nailer.F.0",
+   "kind": "nailer",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    4381.5,
+    38.0,
+    0.0,
+    4419.5,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "nailer.F.1",
+   "kind": "nailer",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    6604.5,
+    38.0,
+    0.0,
+    6642.5,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.F.0a",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.0"
+   ],
+   "box_mm": [
+    2754.5,
+    38.0,
+    0.0,
+    2792.5,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.F.0a",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2019.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.0"
+   ],
+   "box_mm": [
+    2792.5,
+    38.0,
+    0.0,
+    2830.5,
+    2057.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.F.0b",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    3807.5,
+    38.0,
+    0.0,
+    3845.5,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.F.0b",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2019.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    3769.5,
+    38.0,
+    0.0,
+    3807.5,
+    2057.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "header.F.0",
+   "kind": "header",
+   "nominal": "2-2x8",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "jack.F.0a",
+    "jack.F.0b"
+   ],
+   "box_mm": [
+    2792.5,
+    2057.0,
+    0.0,
+    3807.5,
+    2241.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.F.1a",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.0"
+   ],
+   "box_mm": [
+    354.5,
+    38.0,
+    0.0,
+    392.5,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.F.1a",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.0"
+   ],
+   "box_mm": [
+    392.5,
+    38.0,
+    0.0,
+    430.5,
+    2158.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.F.1b",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.0"
+   ],
+   "box_mm": [
+    1407.5,
+    38.0,
+    0.0,
+    1445.5,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.F.1b",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.0"
+   ],
+   "box_mm": [
+    1369.5,
+    38.0,
+    0.0,
+    1407.5,
+    2158.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "header.F.1",
+   "kind": "header",
+   "nominal": "2-2x8",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "jack.F.1a",
+    "jack.F.1b",
+    "window.F.1"
+   ],
+   "box_mm": [
+    392.5,
+    2158.0,
+    0.0,
+    1407.5,
+    2342.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sill.F.1",
+   "kind": "sill",
+   "nominal": "2x4",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "cripple.F.b0",
+    "cripple.F.b1"
+   ],
+   "box_mm": [
+    430.5,
+    876.0,
+    0.0,
+    1369.5,
+    914.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.F.2a",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    7654.5,
+    38.0,
+    0.0,
+    7692.5,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.F.2a",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    7692.5,
+    38.0,
+    0.0,
+    7730.5,
+    2158.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.F.2b",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    8707.5,
+    38.0,
+    0.0,
+    8745.5,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.F.2b",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    8669.5,
+    38.0,
+    0.0,
+    8707.5,
+    2158.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "header.F.2",
+   "kind": "header",
+   "nominal": "2-2x8",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "jack.F.2a",
+    "jack.F.2b",
+    "window.F.2"
+   ],
+   "box_mm": [
+    7692.5,
+    2158.0,
+    0.0,
+    8707.5,
+    2342.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sill.F.2",
+   "kind": "sill",
+   "nominal": "2x4",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "cripple.F.b2",
+    "cripple.F.b3"
+   ],
+   "box_mm": [
+    7730.5,
+    876.0,
+    0.0,
+    8669.5,
+    914.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.F.0.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.F.0"
+   ],
+   "box_mm": [
+    1606.6,
+    38.0,
+    0.0,
+    1644.6,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.F.0.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.F.0"
+   ],
+   "box_mm": [
+    2013.0,
+    38.0,
+    0.0,
+    2051.0,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.F.0.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.F.0"
+   ],
+   "box_mm": [
+    2419.4,
+    38.0,
+    0.0,
+    2457.4,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.F.1.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    4045.0,
+    38.0,
+    0.0,
+    4083.0,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.F.1.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    4451.4,
+    38.0,
+    0.0,
+    4489.4,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.F.1.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    4857.8,
+    38.0,
+    0.0,
+    4895.8,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.F.1.3",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    5264.2,
+    38.0,
+    0.0,
+    5302.2,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.F.1.4",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    5670.6,
+    38.0,
+    0.0,
+    5708.6,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.F.1.5",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    6077.0,
+    38.0,
+    0.0,
+    6115.0,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.F.1.6",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    6483.4,
+    38.0,
+    0.0,
+    6521.4,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.F.1.7",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    6889.8,
+    38.0,
+    0.0,
+    6927.8,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.F.1.8",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    7296.2,
+    38.0,
+    0.0,
+    7334.2,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.F.2.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    8921.8,
+    38.0,
+    0.0,
+    8959.8,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.F.2.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    9328.2,
+    38.0,
+    0.0,
+    9366.2,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.F.a0",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.F.1"
+   ],
+   "box_mm": [
+    793.8,
+    2342.0,
+    0.0,
+    831.8,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.F.a1",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.F.1"
+   ],
+   "box_mm": [
+    1200.2,
+    2342.0,
+    0.0,
+    1238.2,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.F.a2",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 150.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.F.0"
+   ],
+   "box_mm": [
+    3232.2,
+    2241.0,
+    0.0,
+    3270.2,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.F.a3",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 150.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.F.0"
+   ],
+   "box_mm": [
+    3638.6,
+    2241.0,
+    0.0,
+    3676.6,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.F.a4",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.F.2"
+   ],
+   "box_mm": [
+    8109.0,
+    2342.0,
+    0.0,
+    8147.0,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.F.a5",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.F.2"
+   ],
+   "box_mm": [
+    8515.4,
+    2342.0,
+    0.0,
+    8553.4,
+    2391.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.F.b0",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 838.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.0"
+   ],
+   "box_mm": [
+    793.8,
+    38.0,
+    0.0,
+    831.8,
+    876.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.F.b1",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 838.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.0"
+   ],
+   "box_mm": [
+    1200.2,
+    38.0,
+    0.0,
+    1238.2,
+    876.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.F.b2",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 838.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    8109.0,
+    38.0,
+    0.0,
+    8147.0,
+    876.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.F.b3",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 838.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.F.1"
+   ],
+   "box_mm": [
+    8515.4,
+    38.0,
+    0.0,
+    8553.4,
+    876.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "corner.B.0.0",
+   "kind": "corner",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    7531.0,
+    38.0,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "corner.B.0.1",
+   "kind": "corner",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    9716.0,
+    38.0,
+    7531.0,
+    9754.0,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "nailer.B.0",
+   "kind": "nailer",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    4381.5,
+    38.0,
+    7531.0,
+    4419.5,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "nailer.B.1",
+   "kind": "nailer",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    6604.5,
+    38.0,
+    7531.0,
+    6642.5,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.B.0a",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    454.5,
+    38.0,
+    7531.0,
+    492.5,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.B.0a",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    492.5,
+    38.0,
+    7531.0,
+    530.5,
+    2158.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.B.0b",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    1507.5,
+    38.0,
+    7531.0,
+    1545.5,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.B.0b",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    1469.5,
+    38.0,
+    7531.0,
+    1507.5,
+    2158.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "header.B.0",
+   "kind": "header",
+   "nominal": "2-2x8",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "jack.B.0a",
+    "jack.B.0b",
+    "window.B.0"
+   ],
+   "box_mm": [
+    492.5,
+    2158.0,
+    7531.0,
+    1507.5,
+    2342.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sill.B.0",
+   "kind": "sill",
+   "nominal": "2x4",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "cripple.B.b0",
+    "cripple.B.b1"
+   ],
+   "box_mm": [
+    530.5,
+    876.0,
+    7531.0,
+    1469.5,
+    914.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.B.1a",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    2854.5,
+    38.0,
+    7531.0,
+    2892.5,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.B.1a",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    2892.5,
+    38.0,
+    7531.0,
+    2930.5,
+    2158.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.B.1b",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    3907.5,
+    38.0,
+    7531.0,
+    3945.5,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.B.1b",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    3869.5,
+    38.0,
+    7531.0,
+    3907.5,
+    2158.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "header.B.1",
+   "kind": "header",
+   "nominal": "2-2x8",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "jack.B.1a",
+    "jack.B.1b",
+    "window.B.1"
+   ],
+   "box_mm": [
+    2892.5,
+    2158.0,
+    7531.0,
+    3907.5,
+    2342.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sill.B.1",
+   "kind": "sill",
+   "nominal": "2x4",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "cripple.B.b2",
+    "cripple.B.b3"
+   ],
+   "box_mm": [
+    2930.5,
+    876.0,
+    7531.0,
+    3869.5,
+    914.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.B.2a",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    5106.5,
+    38.0,
+    7531.0,
+    5144.5,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.B.2a",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    5144.5,
+    38.0,
+    7531.0,
+    5182.5,
+    2158.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.B.2b",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    5855.5,
+    38.0,
+    7531.0,
+    5893.5,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.B.2b",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    5817.5,
+    38.0,
+    7531.0,
+    5855.5,
+    2158.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "header.B.2",
+   "kind": "header",
+   "nominal": "2-2x8",
+   "span_mm": 635.0,
+   "spacing_mm": null,
+   "supports": [
+    "jack.B.2a",
+    "jack.B.2b",
+    "window.B.2"
+   ],
+   "box_mm": [
+    5144.5,
+    2158.0,
+    7531.0,
+    5855.5,
+    2342.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sill.B.2",
+   "kind": "sill",
+   "nominal": "2x4",
+   "span_mm": 635.0,
+   "spacing_mm": null,
+   "supports": [
+    "cripple.B.b4",
+    "cripple.B.b5"
+   ],
+   "box_mm": [
+    5182.5,
+    1181.0,
+    7531.0,
+    5817.5,
+    1219.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.B.3a",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    7454.5,
+    38.0,
+    7531.0,
+    7492.5,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.B.3a",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    7492.5,
+    38.0,
+    7531.0,
+    7530.5,
+    2158.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.B.3b",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    8507.5,
+    38.0,
+    7531.0,
+    8545.5,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.B.3b",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    8469.5,
+    38.0,
+    7531.0,
+    8507.5,
+    2158.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "header.B.3",
+   "kind": "header",
+   "nominal": "2-2x8",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "jack.B.3a",
+    "jack.B.3b",
+    "window.B.3"
+   ],
+   "box_mm": [
+    7492.5,
+    2158.0,
+    7531.0,
+    8507.5,
+    2342.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sill.B.3",
+   "kind": "sill",
+   "nominal": "2x4",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "cripple.B.b6",
+    "cripple.B.b7"
+   ],
+   "box_mm": [
+    7530.5,
+    876.0,
+    7531.0,
+    8469.5,
+    914.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.B.0.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    387.4,
+    38.0,
+    7531.0,
+    425.4,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.B.1.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    1606.6,
+    38.0,
+    7531.0,
+    1644.6,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.B.1.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    2013.0,
+    38.0,
+    7531.0,
+    2051.0,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.B.1.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    2419.4,
+    38.0,
+    7531.0,
+    2457.4,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.B.2.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    4045.0,
+    38.0,
+    7531.0,
+    4083.0,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.B.2.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    4451.4,
+    38.0,
+    7531.0,
+    4489.4,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.B.2.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    4857.8,
+    38.0,
+    7531.0,
+    4895.8,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.B.3.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    6077.0,
+    38.0,
+    7531.0,
+    6115.0,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.B.3.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    6483.4,
+    38.0,
+    7531.0,
+    6521.4,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.B.3.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    6889.8,
+    38.0,
+    7531.0,
+    6927.8,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.B.3.3",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    7296.2,
+    38.0,
+    7531.0,
+    7334.2,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.B.4.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    8921.8,
+    38.0,
+    7531.0,
+    8959.8,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.B.4.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    9328.2,
+    38.0,
+    7531.0,
+    9366.2,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.B.a0",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.B.0"
+   ],
+   "box_mm": [
+    793.8,
+    2342.0,
+    7531.0,
+    831.8,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.B.a1",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.B.0"
+   ],
+   "box_mm": [
+    1200.2,
+    2342.0,
+    7531.0,
+    1238.2,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.B.a2",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.B.1"
+   ],
+   "box_mm": [
+    3232.2,
+    2342.0,
+    7531.0,
+    3270.2,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.B.a3",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.B.1"
+   ],
+   "box_mm": [
+    3638.6,
+    2342.0,
+    7531.0,
+    3676.6,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.B.a4",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.B.2"
+   ],
+   "box_mm": [
+    5264.2,
+    2342.0,
+    7531.0,
+    5302.2,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.B.a5",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.B.2"
+   ],
+   "box_mm": [
+    5670.6,
+    2342.0,
+    7531.0,
+    5708.6,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.B.a6",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.B.3"
+   ],
+   "box_mm": [
+    7702.6,
+    2342.0,
+    7531.0,
+    7740.6,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.B.a7",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.B.3"
+   ],
+   "box_mm": [
+    8109.0,
+    2342.0,
+    7531.0,
+    8147.0,
+    2391.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.B.b0",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 838.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    793.8,
+    38.0,
+    7531.0,
+    831.8,
+    876.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.B.b1",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 838.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    1200.2,
+    38.0,
+    7531.0,
+    1238.2,
+    876.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.B.b2",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 838.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    3232.2,
+    38.0,
+    7531.0,
+    3270.2,
+    876.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.B.b3",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 838.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    3638.6,
+    38.0,
+    7531.0,
+    3676.6,
+    876.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.B.b4",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 1143.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    5264.2,
+    38.0,
+    7531.0,
+    5302.2,
+    1181.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.B.b5",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 1143.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    5670.6,
+    38.0,
+    7531.0,
+    5708.6,
+    1181.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.B.b6",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 838.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    7702.6,
+    38.0,
+    7531.0,
+    7740.6,
+    876.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.B.b7",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 838.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.B.0"
+   ],
+   "box_mm": [
+    8109.0,
+    38.0,
+    7531.0,
+    8147.0,
+    876.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "corner.L.0.0",
+   "kind": "corner",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    89.0,
+    89.0,
+    2391.0,
+    127.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "corner.L.0.1",
+   "kind": "corner",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    7493.0,
+    89.0,
+    2391.0,
+    7531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.L.0a",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    1254.5,
+    89.0,
+    2391.0,
+    1292.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.L.0a",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    1292.5,
+    89.0,
+    2158.0,
+    1330.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.L.0b",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    2307.5,
+    89.0,
+    2391.0,
+    2345.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.L.0b",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    2269.5,
+    89.0,
+    2158.0,
+    2307.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "header.L.0",
+   "kind": "header",
+   "nominal": "2-2x8",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "jack.L.0a",
+    "jack.L.0b",
+    "window.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2158.0,
+    1292.5,
+    89.0,
+    2342.0,
+    2307.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "sill.L.0",
+   "kind": "sill",
+   "nominal": "2x4",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "cripple.L.b0",
+    "cripple.L.b1"
+   ],
+   "box_mm": [
+    0.0,
+    876.0,
+    1330.5,
+    89.0,
+    914.0,
+    2269.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.L.1a",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    4954.5,
+    89.0,
+    2391.0,
+    4992.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.L.1a",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    4992.5,
+    89.0,
+    2158.0,
+    5030.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.L.1b",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    6007.5,
+    89.0,
+    2391.0,
+    6045.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.L.1b",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    5969.5,
+    89.0,
+    2158.0,
+    6007.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "header.L.1",
+   "kind": "header",
+   "nominal": "2-2x8",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "jack.L.1a",
+    "jack.L.1b",
+    "window.L.1"
+   ],
+   "box_mm": [
+    0.0,
+    2158.0,
+    4992.5,
+    89.0,
+    2342.0,
+    6007.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "sill.L.1",
+   "kind": "sill",
+   "nominal": "2x4",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "cripple.L.b2",
+    "cripple.L.b3"
+   ],
+   "box_mm": [
+    0.0,
+    876.0,
+    5030.5,
+    89.0,
+    914.0,
+    5969.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.L.0.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    387.4,
+    89.0,
+    2391.0,
+    425.4
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.L.0.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    793.8,
+    89.0,
+    2391.0,
+    831.8
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.L.0.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    1200.2,
+    89.0,
+    2391.0,
+    1238.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.L.1.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    2419.4,
+    89.0,
+    2391.0,
+    2457.4
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.L.1.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    2825.8,
+    89.0,
+    2391.0,
+    2863.8
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.L.1.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    3232.2,
+    89.0,
+    2391.0,
+    3270.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.L.1.3",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    3638.6,
+    89.0,
+    2391.0,
+    3676.6
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.L.1.4",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    4045.0,
+    89.0,
+    2391.0,
+    4083.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.L.1.5",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    4451.4,
+    89.0,
+    2391.0,
+    4489.4
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.L.1.6",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    4857.8,
+    89.0,
+    2391.0,
+    4895.8
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.L.2.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    6077.0,
+    89.0,
+    2391.0,
+    6115.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.L.2.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    6483.4,
+    89.0,
+    2391.0,
+    6521.4
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.L.2.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    6889.8,
+    89.0,
+    2391.0,
+    6927.8
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.L.2.3",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    7296.2,
+    89.0,
+    2391.0,
+    7334.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.L.a0",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2342.0,
+    1606.6,
+    89.0,
+    2391.0,
+    1644.6
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.L.a1",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2342.0,
+    2013.0,
+    89.0,
+    2391.0,
+    2051.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.L.a2",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.L.1"
+   ],
+   "box_mm": [
+    0.0,
+    2342.0,
+    5264.2,
+    89.0,
+    2391.0,
+    5302.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.L.a3",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.L.1"
+   ],
+   "box_mm": [
+    0.0,
+    2342.0,
+    5670.6,
+    89.0,
+    2391.0,
+    5708.6
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.L.b0",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 838.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    1606.6,
+    89.0,
+    876.0,
+    1644.6
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.L.b1",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 838.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    2013.0,
+    89.0,
+    876.0,
+    2051.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.L.b2",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 838.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    5264.2,
+    89.0,
+    876.0,
+    5302.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.L.b3",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 838.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    38.0,
+    5670.6,
+    89.0,
+    876.0,
+    5708.6
+   ],
+   "poly": null
+  },
+  {
+   "name": "corner.R.0.0",
+   "kind": "corner",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    89.0,
+    9754.0,
+    2391.0,
+    127.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "corner.R.0.1",
+   "kind": "corner",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    7493.0,
+    9754.0,
+    2391.0,
+    7531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.R.0a",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    1254.5,
+    9754.0,
+    2391.0,
+    1292.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.R.0a",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    1292.5,
+    9754.0,
+    2158.0,
+    1330.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.R.0b",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    2307.5,
+    9754.0,
+    2391.0,
+    2345.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.R.0b",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    2269.5,
+    9754.0,
+    2158.0,
+    2307.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "header.R.0",
+   "kind": "header",
+   "nominal": "2-2x8",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "jack.R.0a",
+    "jack.R.0b",
+    "window.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2158.0,
+    1292.5,
+    9754.0,
+    2342.0,
+    2307.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "sill.R.0",
+   "kind": "sill",
+   "nominal": "2x4",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "cripple.R.b0",
+    "cripple.R.b1"
+   ],
+   "box_mm": [
+    9665.0,
+    876.0,
+    1330.5,
+    9754.0,
+    914.0,
+    2269.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.R.1a",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    4954.5,
+    9754.0,
+    2391.0,
+    4992.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.R.1a",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    4992.5,
+    9754.0,
+    2158.0,
+    5030.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.R.1b",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    6007.5,
+    9754.0,
+    2391.0,
+    6045.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.R.1b",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2120.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    5969.5,
+    9754.0,
+    2158.0,
+    6007.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "header.R.1",
+   "kind": "header",
+   "nominal": "2-2x8",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "jack.R.1a",
+    "jack.R.1b",
+    "window.R.1"
+   ],
+   "box_mm": [
+    9665.0,
+    2158.0,
+    4992.5,
+    9754.0,
+    2342.0,
+    6007.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "sill.R.1",
+   "kind": "sill",
+   "nominal": "2x4",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "cripple.R.b2",
+    "cripple.R.b3"
+   ],
+   "box_mm": [
+    9665.0,
+    876.0,
+    5030.5,
+    9754.0,
+    914.0,
+    5969.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.R.0.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    387.4,
+    9754.0,
+    2391.0,
+    425.4
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.R.0.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    793.8,
+    9754.0,
+    2391.0,
+    831.8
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.R.0.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    1200.2,
+    9754.0,
+    2391.0,
+    1238.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.R.1.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    2419.4,
+    9754.0,
+    2391.0,
+    2457.4
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.R.1.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    2825.8,
+    9754.0,
+    2391.0,
+    2863.8
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.R.1.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    3232.2,
+    9754.0,
+    2391.0,
+    3270.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.R.1.3",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    3638.6,
+    9754.0,
+    2391.0,
+    3676.6
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.R.1.4",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    4045.0,
+    9754.0,
+    2391.0,
+    4083.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.R.1.5",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    4451.4,
+    9754.0,
+    2391.0,
+    4489.4
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.R.1.6",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    4857.8,
+    9754.0,
+    2391.0,
+    4895.8
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.R.2.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    6077.0,
+    9754.0,
+    2391.0,
+    6115.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.R.2.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    6483.4,
+    9754.0,
+    2391.0,
+    6521.4
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.R.2.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    6889.8,
+    9754.0,
+    2391.0,
+    6927.8
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.R.2.3",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    7296.2,
+    9754.0,
+    2391.0,
+    7334.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.R.a0",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2342.0,
+    1606.6,
+    9754.0,
+    2391.0,
+    1644.6
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.R.a1",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2342.0,
+    2013.0,
+    9754.0,
+    2391.0,
+    2051.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.R.a2",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.R.1"
+   ],
+   "box_mm": [
+    9665.0,
+    2342.0,
+    5264.2,
+    9754.0,
+    2391.0,
+    5302.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.R.a3",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 49.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.R.1"
+   ],
+   "box_mm": [
+    9665.0,
+    2342.0,
+    5670.6,
+    9754.0,
+    2391.0,
+    5708.6
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.R.b0",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 838.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    1606.6,
+    9754.0,
+    876.0,
+    1644.6
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.R.b1",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 838.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    2013.0,
+    9754.0,
+    876.0,
+    2051.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.R.b2",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 838.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    5264.2,
+    9754.0,
+    876.0,
+    5302.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.R.b3",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 838.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    38.0,
+    5670.6,
+    9754.0,
+    876.0,
+    5708.6
+   ],
+   "poly": null
+  },
+  {
+   "name": "end.H.0.0",
+   "kind": "end",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.H.0"
+   ],
+   "box_mm": [
+    89.0,
+    38.0,
+    3442.0,
+    127.0,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "end.H.0.1",
+   "kind": "end",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.H.2"
+   ],
+   "box_mm": [
+    9627.0,
+    38.0,
+    3442.0,
+    9665.0,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "nailer.H.0",
+   "kind": "nailer",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.H.1"
+   ],
+   "box_mm": [
+    4381.5,
+    38.0,
+    3442.0,
+    4419.5,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "nailer.H.1",
+   "kind": "nailer",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.H.2"
+   ],
+   "box_mm": [
+    6604.5,
+    38.0,
+    3442.0,
+    6642.5,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.H.0a",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.H.0"
+   ],
+   "box_mm": [
+    1676.5,
+    38.0,
+    3442.0,
+    1714.5,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.H.0a",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2019.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.H.0"
+   ],
+   "box_mm": [
+    1714.5,
+    38.0,
+    3442.0,
+    1752.5,
+    2057.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.H.0b",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.H.1"
+   ],
+   "box_mm": [
+    2729.5,
+    38.0,
+    3442.0,
+    2767.5,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.H.0b",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2019.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.H.1"
+   ],
+   "box_mm": [
+    2691.5,
+    38.0,
+    3442.0,
+    2729.5,
+    2057.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "header.H.0",
+   "kind": "header",
+   "nominal": "2-2x8",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "jack.H.0a",
+    "jack.H.0b"
+   ],
+   "box_mm": [
+    1714.5,
+    2057.0,
+    3442.0,
+    2729.5,
+    2241.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.H.1a",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.H.1"
+   ],
+   "box_mm": [
+    4954.5,
+    38.0,
+    3442.0,
+    4992.5,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.H.1a",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2019.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.H.1"
+   ],
+   "box_mm": [
+    4992.5,
+    38.0,
+    3442.0,
+    5030.5,
+    2057.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.H.1b",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.H.2"
+   ],
+   "box_mm": [
+    6007.5,
+    38.0,
+    3442.0,
+    6045.5,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.H.1b",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2019.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.H.2"
+   ],
+   "box_mm": [
+    5969.5,
+    38.0,
+    3442.0,
+    6007.5,
+    2057.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "header.H.1",
+   "kind": "header",
+   "nominal": "2-2x8",
+   "span_mm": 939.0,
+   "spacing_mm": null,
+   "supports": [
+    "jack.H.1a",
+    "jack.H.1b"
+   ],
+   "box_mm": [
+    4992.5,
+    2057.0,
+    3442.0,
+    6007.5,
+    2241.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.H.0.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.H.0"
+   ],
+   "box_mm": [
+    387.4,
+    38.0,
+    3442.0,
+    425.4,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.H.0.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.H.0"
+   ],
+   "box_mm": [
+    793.8,
+    38.0,
+    3442.0,
+    831.8,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.H.0.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.H.0"
+   ],
+   "box_mm": [
+    1200.2,
+    38.0,
+    3442.0,
+    1238.2,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.H.0.3",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.H.0"
+   ],
+   "box_mm": [
+    1606.6,
+    38.0,
+    3442.0,
+    1644.6,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.H.1.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.H.1"
+   ],
+   "box_mm": [
+    2825.8,
+    38.0,
+    3442.0,
+    2863.8,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.H.1.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.H.1"
+   ],
+   "box_mm": [
+    3232.2,
+    38.0,
+    3442.0,
+    3270.2,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.H.1.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.H.1"
+   ],
+   "box_mm": [
+    3638.6,
+    38.0,
+    3442.0,
+    3676.6,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.H.1.3",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.H.1"
+   ],
+   "box_mm": [
+    4045.0,
+    38.0,
+    3442.0,
+    4083.0,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.H.1.4",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.H.1"
+   ],
+   "box_mm": [
+    4451.4,
+    38.0,
+    3442.0,
+    4489.4,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.H.1.5",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.H.1"
+   ],
+   "box_mm": [
+    4857.8,
+    38.0,
+    3442.0,
+    4895.8,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.H.2.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.H.2"
+   ],
+   "box_mm": [
+    6077.0,
+    38.0,
+    3442.0,
+    6115.0,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.H.2.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.H.2"
+   ],
+   "box_mm": [
+    6483.4,
+    38.0,
+    3442.0,
+    6521.4,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.H.2.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.H.2"
+   ],
+   "box_mm": [
+    6889.8,
+    38.0,
+    3442.0,
+    6927.8,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.H.2.3",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.H.2"
+   ],
+   "box_mm": [
+    7296.2,
+    38.0,
+    3442.0,
+    7334.2,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.H.2.4",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.H.2"
+   ],
+   "box_mm": [
+    7702.6,
+    38.0,
+    3442.0,
+    7740.6,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.H.2.5",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.H.2"
+   ],
+   "box_mm": [
+    8109.0,
+    38.0,
+    3442.0,
+    8147.0,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.H.2.6",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.H.2"
+   ],
+   "box_mm": [
+    8515.4,
+    38.0,
+    3442.0,
+    8553.4,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.H.2.7",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.H.2"
+   ],
+   "box_mm": [
+    8921.8,
+    38.0,
+    3442.0,
+    8959.8,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.H.2.8",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.H.2"
+   ],
+   "box_mm": [
+    9328.2,
+    38.0,
+    3442.0,
+    9366.2,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.H.a0",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 150.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.H.0"
+   ],
+   "box_mm": [
+    2013.0,
+    2241.0,
+    3442.0,
+    2051.0,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.H.a1",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 150.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.H.0"
+   ],
+   "box_mm": [
+    2419.4,
+    2241.0,
+    3442.0,
+    2457.4,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.H.a2",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 150.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.H.1"
+   ],
+   "box_mm": [
+    5264.2,
+    2241.0,
+    3442.0,
+    5302.2,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.H.a3",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 150.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.H.1"
+   ],
+   "box_mm": [
+    5670.6,
+    2241.0,
+    3442.0,
+    5708.6,
+    2391.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "end.V1.0.0",
+   "kind": "end",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V1.0"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    89.0,
+    4445.0,
+    2391.0,
+    127.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "end.V1.0.1",
+   "kind": "end",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V1.1"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    3404.0,
+    4445.0,
+    2391.0,
+    3442.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "end.V1.1.0",
+   "kind": "end",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V1.2"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    3531.0,
+    4445.0,
+    2391.0,
+    3569.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "end.V1.1.1",
+   "kind": "end",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V1.3"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    7493.0,
+    4445.0,
+    2391.0,
+    7531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.V1.0a",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V1.0"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    1430.5,
+    4445.0,
+    2391.0,
+    1468.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.V1.0a",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2019.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V1.0"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    1468.5,
+    4445.0,
+    2057.0,
+    1506.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.V1.0b",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V1.1"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    2331.5,
+    4445.0,
+    2391.0,
+    2369.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.V1.0b",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2019.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V1.1"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    2293.5,
+    4445.0,
+    2057.0,
+    2331.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "header.V1.0",
+   "kind": "header",
+   "nominal": "2x4 flat",
+   "span_mm": 787.0,
+   "spacing_mm": null,
+   "supports": [
+    "jack.V1.0a",
+    "jack.V1.0b"
+   ],
+   "box_mm": [
+    4356.0,
+    2057.0,
+    1468.5,
+    4445.0,
+    2095.0,
+    2331.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.V1.1a",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V1.2"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    5230.5,
+    4445.0,
+    2391.0,
+    5268.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.V1.1a",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2019.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V1.2"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    5268.5,
+    4445.0,
+    2057.0,
+    5306.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.V1.1b",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V1.3"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    6131.5,
+    4445.0,
+    2391.0,
+    6169.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.V1.1b",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2019.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V1.3"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    6093.5,
+    4445.0,
+    2057.0,
+    6131.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "header.V1.1",
+   "kind": "header",
+   "nominal": "2x4 flat",
+   "span_mm": 787.0,
+   "spacing_mm": null,
+   "supports": [
+    "jack.V1.1a",
+    "jack.V1.1b"
+   ],
+   "box_mm": [
+    4356.0,
+    2057.0,
+    5268.5,
+    4445.0,
+    2095.0,
+    6131.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V1.0.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V1.0"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    387.4,
+    4445.0,
+    2391.0,
+    425.4
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V1.0.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V1.0"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    793.8,
+    4445.0,
+    2391.0,
+    831.8
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V1.0.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V1.0"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    1200.2,
+    4445.0,
+    2391.0,
+    1238.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V1.1.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V1.1"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    2419.4,
+    4445.0,
+    2391.0,
+    2457.4
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V1.1.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V1.1"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    2825.8,
+    4445.0,
+    2391.0,
+    2863.8
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V1.1.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V1.1"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    3232.2,
+    4445.0,
+    2391.0,
+    3270.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V1.1.3",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V1.2"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    3638.6,
+    4445.0,
+    2391.0,
+    3676.6
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V1.1.4",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V1.2"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    4045.0,
+    4445.0,
+    2391.0,
+    4083.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V1.1.5",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V1.2"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    4451.4,
+    4445.0,
+    2391.0,
+    4489.4
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V1.1.6",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V1.2"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    4857.8,
+    4445.0,
+    2391.0,
+    4895.8
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V1.2.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V1.3"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    6483.4,
+    4445.0,
+    2391.0,
+    6521.4
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V1.2.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V1.3"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    6889.8,
+    4445.0,
+    2391.0,
+    6927.8
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V1.2.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V1.3"
+   ],
+   "box_mm": [
+    4356.0,
+    38.0,
+    7296.2,
+    4445.0,
+    2391.0,
+    7334.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.V1.a0",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 296.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.V1.0"
+   ],
+   "box_mm": [
+    4356.0,
+    2095.0,
+    1606.6,
+    4445.0,
+    2391.0,
+    1644.6
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.V1.a1",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 296.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.V1.0"
+   ],
+   "box_mm": [
+    4356.0,
+    2095.0,
+    2013.0,
+    4445.0,
+    2391.0,
+    2051.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.V1.a2",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 296.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.V1.1"
+   ],
+   "box_mm": [
+    4356.0,
+    2095.0,
+    5670.6,
+    4445.0,
+    2391.0,
+    5708.6
+   ],
+   "poly": null
+  },
+  {
+   "name": "end.V2.0.0",
+   "kind": "end",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V2.0"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    89.0,
+    6668.0,
+    2391.0,
+    127.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "end.V2.0.1",
+   "kind": "end",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V2.1"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    3404.0,
+    6668.0,
+    2391.0,
+    3442.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "end.V2.1.0",
+   "kind": "end",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V2.2"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    3531.0,
+    6668.0,
+    2391.0,
+    3569.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "end.V2.1.1",
+   "kind": "end",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V2.3"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    7493.0,
+    6668.0,
+    2391.0,
+    7531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.V2.0a",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V2.0"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    1430.5,
+    6668.0,
+    2391.0,
+    1468.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.V2.0a",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2019.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V2.0"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    1468.5,
+    6668.0,
+    2057.0,
+    1506.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.V2.0b",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V2.1"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    2331.5,
+    6668.0,
+    2391.0,
+    2369.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.V2.0b",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2019.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V2.1"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    2293.5,
+    6668.0,
+    2057.0,
+    2331.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "header.V2.0",
+   "kind": "header",
+   "nominal": "2x4 flat",
+   "span_mm": 787.0,
+   "spacing_mm": null,
+   "supports": [
+    "jack.V2.0a",
+    "jack.V2.0b"
+   ],
+   "box_mm": [
+    6579.0,
+    2057.0,
+    1468.5,
+    6668.0,
+    2095.0,
+    2331.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.V2.1a",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V2.2"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    5230.5,
+    6668.0,
+    2391.0,
+    5268.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.V2.1a",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2019.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V2.2"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    5268.5,
+    6668.0,
+    2057.0,
+    5306.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "king.V2.1b",
+   "kind": "king",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V2.3"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    6131.5,
+    6668.0,
+    2391.0,
+    6169.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "jack.V2.1b",
+   "kind": "jack",
+   "nominal": "2x4",
+   "span_mm": 2019.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_b.V2.3"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    6093.5,
+    6668.0,
+    2057.0,
+    6131.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "header.V2.1",
+   "kind": "header",
+   "nominal": "2x4 flat",
+   "span_mm": 787.0,
+   "spacing_mm": null,
+   "supports": [
+    "jack.V2.1a",
+    "jack.V2.1b"
+   ],
+   "box_mm": [
+    6579.0,
+    2057.0,
+    5268.5,
+    6668.0,
+    2095.0,
+    6131.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V2.0.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V2.0"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    387.4,
+    6668.0,
+    2391.0,
+    425.4
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V2.0.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V2.0"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    793.8,
+    6668.0,
+    2391.0,
+    831.8
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V2.0.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V2.0"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    1200.2,
+    6668.0,
+    2391.0,
+    1238.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V2.1.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V2.1"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    2419.4,
+    6668.0,
+    2391.0,
+    2457.4
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V2.1.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V2.1"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    2825.8,
+    6668.0,
+    2391.0,
+    2863.8
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V2.1.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V2.1"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    3232.2,
+    6668.0,
+    2391.0,
+    3270.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V2.1.3",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V2.2"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    3638.6,
+    6668.0,
+    2391.0,
+    3676.6
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V2.1.4",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V2.2"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    4045.0,
+    6668.0,
+    2391.0,
+    4083.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V2.1.5",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V2.2"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    4451.4,
+    6668.0,
+    2391.0,
+    4489.4
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V2.1.6",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V2.2"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    4857.8,
+    6668.0,
+    2391.0,
+    4895.8
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V2.2.0",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V2.3"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    6483.4,
+    6668.0,
+    2391.0,
+    6521.4
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V2.2.1",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V2.3"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    6889.8,
+    6668.0,
+    2391.0,
+    6927.8
+   ],
+   "poly": null
+  },
+  {
+   "name": "stud.V2.2.2",
+   "kind": "stud",
+   "nominal": "2x4",
+   "span_mm": 2353.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_b.V2.3"
+   ],
+   "box_mm": [
+    6579.0,
+    38.0,
+    7296.2,
+    6668.0,
+    2391.0,
+    7334.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.V2.a0",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 296.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.V2.0"
+   ],
+   "box_mm": [
+    6579.0,
+    2095.0,
+    1606.6,
+    6668.0,
+    2391.0,
+    1644.6
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.V2.a1",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 296.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.V2.0"
+   ],
+   "box_mm": [
+    6579.0,
+    2095.0,
+    2013.0,
+    6668.0,
+    2391.0,
+    2051.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "cripple.V2.a2",
+   "kind": "cripple",
+   "nominal": "2x4",
+   "span_mm": 296.0,
+   "spacing_mm": null,
+   "supports": [
+    "header.V2.1"
+   ],
+   "box_mm": [
+    6579.0,
+    2095.0,
+    5670.6,
+    6668.0,
+    2391.0,
+    5708.6
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_t1.F.0",
+   "kind": "top_plate1",
+   "nominal": "2x4",
+   "span_mm": 9754.0,
+   "spacing_mm": null,
+   "supports": [
+    "corner.F.0.0",
+    "corner.F.0.1",
+    "nailer.F.0",
+    "nailer.F.1",
+    "king.F.0a",
+    "king.F.0b",
+    "king.F.1a",
+    "king.F.1b",
+    "king.F.2a",
+    "king.F.2b",
+    "stud.F.0.0",
+    "stud.F.0.1",
+    "stud.F.0.2",
+    "stud.F.1.0",
+    "stud.F.1.1",
+    "stud.F.1.2",
+    "stud.F.1.3",
+    "stud.F.1.4",
+    "stud.F.1.5",
+    "stud.F.1.6",
+    "stud.F.1.7",
+    "stud.F.1.8",
+    "stud.F.2.0",
+    "stud.F.2.1",
+    "cripple.F.a0",
+    "cripple.F.a1",
+    "cripple.F.a2",
+    "cripple.F.a3",
+    "cripple.F.a4",
+    "cripple.F.a5"
+   ],
+   "box_mm": [
+    0.0,
+    2391.0,
+    0.0,
+    9754.0,
+    2429.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_t2.F.0",
+   "kind": "top_plate2",
+   "nominal": "2x4",
+   "span_mm": 9576.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t1.F.0"
+   ],
+   "box_mm": [
+    89.0,
+    2429.0,
+    0.0,
+    9665.0,
+    2467.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_t1.B.0",
+   "kind": "top_plate1",
+   "nominal": "2x4",
+   "span_mm": 9754.0,
+   "spacing_mm": null,
+   "supports": [
+    "corner.B.0.0",
+    "corner.B.0.1",
+    "nailer.B.0",
+    "nailer.B.1",
+    "king.B.0a",
+    "king.B.0b",
+    "king.B.1a",
+    "king.B.1b",
+    "king.B.2a",
+    "king.B.2b",
+    "king.B.3a",
+    "king.B.3b",
+    "stud.B.0.0",
+    "stud.B.1.0",
+    "stud.B.1.1",
+    "stud.B.1.2",
+    "stud.B.2.0",
+    "stud.B.2.1",
+    "stud.B.2.2",
+    "stud.B.3.0",
+    "stud.B.3.1",
+    "stud.B.3.2",
+    "stud.B.3.3",
+    "stud.B.4.0",
+    "stud.B.4.1",
+    "cripple.B.a0",
+    "cripple.B.a1",
+    "cripple.B.a2",
+    "cripple.B.a3",
+    "cripple.B.a4",
+    "cripple.B.a5",
+    "cripple.B.a6",
+    "cripple.B.a7"
+   ],
+   "box_mm": [
+    0.0,
+    2391.0,
+    7531.0,
+    9754.0,
+    2429.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_t2.B.0",
+   "kind": "top_plate2",
+   "nominal": "2x4",
+   "span_mm": 9576.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t1.B.0"
+   ],
+   "box_mm": [
+    89.0,
+    2429.0,
+    7531.0,
+    9665.0,
+    2467.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_t1.L.0",
+   "kind": "top_plate1",
+   "nominal": "2x4",
+   "span_mm": 7442.0,
+   "spacing_mm": null,
+   "supports": [
+    "corner.L.0.0",
+    "corner.L.0.1",
+    "king.L.0a",
+    "king.L.0b",
+    "king.L.1a",
+    "king.L.1b",
+    "stud.L.0.0",
+    "stud.L.0.1",
+    "stud.L.0.2",
+    "stud.L.1.0",
+    "stud.L.1.1",
+    "stud.L.1.2",
+    "stud.L.1.3",
+    "stud.L.1.4",
+    "stud.L.1.5",
+    "stud.L.1.6",
+    "stud.L.2.0",
+    "stud.L.2.1",
+    "stud.L.2.2",
+    "stud.L.2.3",
+    "cripple.L.a0",
+    "cripple.L.a1",
+    "cripple.L.a2",
+    "cripple.L.a3"
+   ],
+   "box_mm": [
+    0.0,
+    2391.0,
+    89.0,
+    89.0,
+    2429.0,
+    7531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_t2.L.0",
+   "kind": "top_plate2",
+   "nominal": "2x4",
+   "span_mm": 7620.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t1.F.0",
+    "plate_t1.B.0",
+    "plate_t1.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2429.0,
+    0.0,
+    89.0,
+    2467.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_t1.R.0",
+   "kind": "top_plate1",
+   "nominal": "2x4",
+   "span_mm": 7442.0,
+   "spacing_mm": null,
+   "supports": [
+    "corner.R.0.0",
+    "corner.R.0.1",
+    "king.R.0a",
+    "king.R.0b",
+    "king.R.1a",
+    "king.R.1b",
+    "stud.R.0.0",
+    "stud.R.0.1",
+    "stud.R.0.2",
+    "stud.R.1.0",
+    "stud.R.1.1",
+    "stud.R.1.2",
+    "stud.R.1.3",
+    "stud.R.1.4",
+    "stud.R.1.5",
+    "stud.R.1.6",
+    "stud.R.2.0",
+    "stud.R.2.1",
+    "stud.R.2.2",
+    "stud.R.2.3",
+    "cripple.R.a0",
+    "cripple.R.a1",
+    "cripple.R.a2",
+    "cripple.R.a3"
+   ],
+   "box_mm": [
+    9665.0,
+    2391.0,
+    89.0,
+    9754.0,
+    2429.0,
+    7531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_t2.R.0",
+   "kind": "top_plate2",
+   "nominal": "2x4",
+   "span_mm": 7620.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t1.F.0",
+    "plate_t1.B.0",
+    "plate_t1.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2429.0,
+    0.0,
+    9754.0,
+    2467.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_t1.H.0",
+   "kind": "top_plate1",
+   "nominal": "2x4",
+   "span_mm": 9576.0,
+   "spacing_mm": null,
+   "supports": [
+    "end.H.0.0",
+    "end.H.0.1",
+    "nailer.H.0",
+    "nailer.H.1",
+    "king.H.0a",
+    "king.H.0b",
+    "king.H.1a",
+    "king.H.1b",
+    "stud.H.0.0",
+    "stud.H.0.1",
+    "stud.H.0.2",
+    "stud.H.0.3",
+    "stud.H.1.0",
+    "stud.H.1.1",
+    "stud.H.1.2",
+    "stud.H.1.3",
+    "stud.H.1.4",
+    "stud.H.1.5",
+    "stud.H.2.0",
+    "stud.H.2.1",
+    "stud.H.2.2",
+    "stud.H.2.3",
+    "stud.H.2.4",
+    "stud.H.2.5",
+    "stud.H.2.6",
+    "stud.H.2.7",
+    "stud.H.2.8",
+    "cripple.H.a0",
+    "cripple.H.a1",
+    "cripple.H.a2",
+    "cripple.H.a3"
+   ],
+   "box_mm": [
+    89.0,
+    2391.0,
+    3442.0,
+    9665.0,
+    2429.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_t2.H.0",
+   "kind": "top_plate2",
+   "nominal": "2x4",
+   "span_mm": 4267.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t1.H.0"
+   ],
+   "box_mm": [
+    89.0,
+    2429.0,
+    3442.0,
+    4356.0,
+    2467.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_t2.H.1",
+   "kind": "top_plate2",
+   "nominal": "2x4",
+   "span_mm": 2134.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t1.H.0"
+   ],
+   "box_mm": [
+    4445.0,
+    2429.0,
+    3442.0,
+    6579.0,
+    2467.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_t2.H.2",
+   "kind": "top_plate2",
+   "nominal": "2x4",
+   "span_mm": 2997.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t1.H.0"
+   ],
+   "box_mm": [
+    6668.0,
+    2429.0,
+    3442.0,
+    9665.0,
+    2467.0,
+    3531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_t1.V1.0",
+   "kind": "top_plate1",
+   "nominal": "2x4",
+   "span_mm": 3353.0,
+   "spacing_mm": null,
+   "supports": [
+    "end.V1.0.0",
+    "end.V1.0.1",
+    "king.V1.0a",
+    "king.V1.0b",
+    "stud.V1.0.0",
+    "stud.V1.0.1",
+    "stud.V1.0.2",
+    "stud.V1.1.0",
+    "stud.V1.1.1",
+    "stud.V1.1.2",
+    "cripple.V1.a0",
+    "cripple.V1.a1"
+   ],
+   "box_mm": [
+    4356.0,
+    2391.0,
+    89.0,
+    4445.0,
+    2429.0,
+    3442.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_t1.V1.1",
+   "kind": "top_plate1",
+   "nominal": "2x4",
+   "span_mm": 4000.0,
+   "spacing_mm": null,
+   "supports": [
+    "end.V1.1.0",
+    "end.V1.1.1",
+    "king.V1.1a",
+    "king.V1.1b",
+    "stud.V1.1.3",
+    "stud.V1.1.4",
+    "stud.V1.1.5",
+    "stud.V1.1.6",
+    "stud.V1.2.0",
+    "stud.V1.2.1",
+    "stud.V1.2.2",
+    "cripple.V1.a2"
+   ],
+   "box_mm": [
+    4356.0,
+    2391.0,
+    3531.0,
+    4445.0,
+    2429.0,
+    7531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_t2.V1.0",
+   "kind": "top_plate2",
+   "nominal": "2x4",
+   "span_mm": 7442.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t1.H.0",
+    "plate_t1.V1.0",
+    "plate_t1.V1.1"
+   ],
+   "box_mm": [
+    4356.0,
+    2429.0,
+    89.0,
+    4445.0,
+    2467.0,
+    7531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_t1.V2.0",
+   "kind": "top_plate1",
+   "nominal": "2x4",
+   "span_mm": 3353.0,
+   "spacing_mm": null,
+   "supports": [
+    "end.V2.0.0",
+    "end.V2.0.1",
+    "king.V2.0a",
+    "king.V2.0b",
+    "stud.V2.0.0",
+    "stud.V2.0.1",
+    "stud.V2.0.2",
+    "stud.V2.1.0",
+    "stud.V2.1.1",
+    "stud.V2.1.2",
+    "cripple.V2.a0",
+    "cripple.V2.a1"
+   ],
+   "box_mm": [
+    6579.0,
+    2391.0,
+    89.0,
+    6668.0,
+    2429.0,
+    3442.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_t1.V2.1",
+   "kind": "top_plate1",
+   "nominal": "2x4",
+   "span_mm": 4000.0,
+   "spacing_mm": null,
+   "supports": [
+    "end.V2.1.0",
+    "end.V2.1.1",
+    "king.V2.1a",
+    "king.V2.1b",
+    "stud.V2.1.3",
+    "stud.V2.1.4",
+    "stud.V2.1.5",
+    "stud.V2.1.6",
+    "stud.V2.2.0",
+    "stud.V2.2.1",
+    "stud.V2.2.2",
+    "cripple.V2.a2"
+   ],
+   "box_mm": [
+    6579.0,
+    2391.0,
+    3531.0,
+    6668.0,
+    2429.0,
+    7531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "plate_t2.V2.0",
+   "kind": "top_plate2",
+   "nominal": "2x4",
+   "span_mm": 7442.0,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t1.H.0",
+    "plate_t1.V2.0",
+    "plate_t1.V2.1"
+   ],
+   "box_mm": [
+    6579.0,
+    2429.0,
+    89.0,
+    6668.0,
+    2467.0,
+    7531.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.0",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    387.4,
+    2467.0,
+    0.0,
+    425.4,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.1",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    793.8,
+    2467.0,
+    0.0,
+    831.8,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.2",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    1200.2,
+    2467.0,
+    0.0,
+    1238.2,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.3",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    1606.6,
+    2467.0,
+    0.0,
+    1644.6,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.4",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    2013.0,
+    2467.0,
+    0.0,
+    2051.0,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.5",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    2419.4,
+    2467.0,
+    0.0,
+    2457.4,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.6",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    2825.8,
+    2467.0,
+    0.0,
+    2863.8,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.7",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    3232.2,
+    2467.0,
+    0.0,
+    3270.2,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.8",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    3638.6,
+    2467.0,
+    0.0,
+    3676.6,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.9",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    4045.0,
+    2467.0,
+    0.0,
+    4083.0,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.10",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.1"
+   ],
+   "box_mm": [
+    4451.4,
+    2467.0,
+    0.0,
+    4489.4,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.11",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.1"
+   ],
+   "box_mm": [
+    4857.8,
+    2467.0,
+    0.0,
+    4895.8,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.12",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.1"
+   ],
+   "box_mm": [
+    5264.2,
+    2467.0,
+    0.0,
+    5302.2,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.13",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.1"
+   ],
+   "box_mm": [
+    5670.6,
+    2467.0,
+    0.0,
+    5708.6,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.14",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.1"
+   ],
+   "box_mm": [
+    6077.0,
+    2467.0,
+    0.0,
+    6115.0,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.15",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.1"
+   ],
+   "box_mm": [
+    6483.4,
+    2467.0,
+    0.0,
+    6521.4,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.16",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.2"
+   ],
+   "box_mm": [
+    6889.8,
+    2467.0,
+    0.0,
+    6927.8,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.17",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.2"
+   ],
+   "box_mm": [
+    7296.2,
+    2467.0,
+    0.0,
+    7334.2,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.18",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.2"
+   ],
+   "box_mm": [
+    7702.6,
+    2467.0,
+    0.0,
+    7740.6,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.19",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.2"
+   ],
+   "box_mm": [
+    8109.0,
+    2467.0,
+    0.0,
+    8147.0,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.20",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.2"
+   ],
+   "box_mm": [
+    8515.4,
+    2467.0,
+    0.0,
+    8553.4,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.21",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.2"
+   ],
+   "box_mm": [
+    8921.8,
+    2467.0,
+    0.0,
+    8959.8,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.0.22",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 3397.5,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.F.0",
+    "plate_t2.H.2"
+   ],
+   "box_mm": [
+    9328.2,
+    2467.0,
+    0.0,
+    9366.2,
+    2651.0,
+    3486.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.0",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    387.4,
+    2467.0,
+    3486.5,
+    425.4,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.1",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    793.8,
+    2467.0,
+    3486.5,
+    831.8,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.2",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    1200.2,
+    2467.0,
+    3486.5,
+    1238.2,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.3",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    1606.6,
+    2467.0,
+    3486.5,
+    1644.6,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.4",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    2013.0,
+    2467.0,
+    3486.5,
+    2051.0,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.5",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    2419.4,
+    2467.0,
+    3486.5,
+    2457.4,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.6",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    2825.8,
+    2467.0,
+    3486.5,
+    2863.8,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.7",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    3232.2,
+    2467.0,
+    3486.5,
+    3270.2,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.8",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    3638.6,
+    2467.0,
+    3486.5,
+    3676.6,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.9",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.0"
+   ],
+   "box_mm": [
+    4045.0,
+    2467.0,
+    3486.5,
+    4083.0,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.10",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.1"
+   ],
+   "box_mm": [
+    4451.4,
+    2467.0,
+    3486.5,
+    4489.4,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.11",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.1"
+   ],
+   "box_mm": [
+    4857.8,
+    2467.0,
+    3486.5,
+    4895.8,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.12",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.1"
+   ],
+   "box_mm": [
+    5264.2,
+    2467.0,
+    3486.5,
+    5302.2,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.13",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.1"
+   ],
+   "box_mm": [
+    5670.6,
+    2467.0,
+    3486.5,
+    5708.6,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.14",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.1"
+   ],
+   "box_mm": [
+    6077.0,
+    2467.0,
+    3486.5,
+    6115.0,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.15",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.1"
+   ],
+   "box_mm": [
+    6483.4,
+    2467.0,
+    3486.5,
+    6521.4,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.16",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.2"
+   ],
+   "box_mm": [
+    6889.8,
+    2467.0,
+    3486.5,
+    6927.8,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.17",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.2"
+   ],
+   "box_mm": [
+    7296.2,
+    2467.0,
+    3486.5,
+    7334.2,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.18",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.2"
+   ],
+   "box_mm": [
+    7702.6,
+    2467.0,
+    3486.5,
+    7740.6,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.19",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.2"
+   ],
+   "box_mm": [
+    8109.0,
+    2467.0,
+    3486.5,
+    8147.0,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.20",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.2"
+   ],
+   "box_mm": [
+    8515.4,
+    2467.0,
+    3486.5,
+    8553.4,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.21",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.2"
+   ],
+   "box_mm": [
+    8921.8,
+    2467.0,
+    3486.5,
+    8959.8,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "joist.1.22",
+   "kind": "joist",
+   "nominal": "2x8",
+   "span_mm": 4089.0,
+   "spacing_mm": 406.4,
+   "supports": [
+    "plate_t2.B.0",
+    "plate_t2.H.2"
+   ],
+   "box_mm": [
+    9328.2,
+    2467.0,
+    3486.5,
+    9366.2,
+    2651.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "gable_stud.0.1",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 105.80000000000018,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2467.0,
+    387.4,
+    89.0,
+    2579.133,
+    425.4
+   ],
+   "poly": [
+    [
+     387.4,
+     2467.0
+    ],
+    [
+     425.4,
+     2467.0
+    ],
+    [
+     425.4,
+     2579.133
+    ],
+    [
+     387.4,
+     2566.467
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.0.2",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 241.26666666666642,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2467.0,
+    793.8,
+    89.0,
+    2714.6,
+    831.8
+   ],
+   "poly": [
+    [
+     793.8,
+     2467.0
+    ],
+    [
+     831.8,
+     2467.0
+    ],
+    [
+     831.8,
+     2714.6
+    ],
+    [
+     793.8,
+     2701.933
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.0.3",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 376.7333333333331,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2467.0,
+    1200.2,
+    89.0,
+    2850.067,
+    1238.2
+   ],
+   "poly": [
+    [
+     1200.2,
+     2467.0
+    ],
+    [
+     1238.2,
+     2467.0
+    ],
+    [
+     1238.2,
+     2850.067
+    ],
+    [
+     1200.2,
+     2837.4
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.0.4",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 512.1999999999998,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2467.0,
+    1606.6,
+    89.0,
+    2985.533,
+    1644.6
+   ],
+   "poly": [
+    [
+     1606.6,
+     2467.0
+    ],
+    [
+     1644.6,
+     2467.0
+    ],
+    [
+     1644.6,
+     2985.533
+    ],
+    [
+     1606.6,
+     2972.867
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.0.5",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 647.6666666666665,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2467.0,
+    2013.0,
+    89.0,
+    3121.0,
+    2051.0
+   ],
+   "poly": [
+    [
+     2013.0,
+     2467.0
+    ],
+    [
+     2051.0,
+     2467.0
+    ],
+    [
+     2051.0,
+     3121.0
+    ],
+    [
+     2013.0,
+     3108.333
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.0.6",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 783.1333333333332,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2467.0,
+    2419.4,
+    89.0,
+    3256.467,
+    2457.4
+   ],
+   "poly": [
+    [
+     2419.4,
+     2467.0
+    ],
+    [
+     2457.4,
+     2467.0
+    ],
+    [
+     2457.4,
+     3256.467
+    ],
+    [
+     2419.4,
+     3243.8
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.0.7",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 918.5999999999999,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2467.0,
+    2825.8,
+    89.0,
+    3391.933,
+    2863.8
+   ],
+   "poly": [
+    [
+     2825.8,
+     2467.0
+    ],
+    [
+     2863.8,
+     2467.0
+    ],
+    [
+     2863.8,
+     3391.933
+    ],
+    [
+     2825.8,
+     3379.267
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.0.8",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 1054.0666666666666,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2467.0,
+    3232.2,
+    89.0,
+    3527.4,
+    3270.2
+   ],
+   "poly": [
+    [
+     3232.2,
+     2467.0
+    ],
+    [
+     3270.2,
+     2467.0
+    ],
+    [
+     3270.2,
+     3527.4
+    ],
+    [
+     3232.2,
+     3514.733
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.0.9",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 1189.5333333333333,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2467.0,
+    3638.6,
+    89.0,
+    3662.867,
+    3676.6
+   ],
+   "poly": [
+    [
+     3638.6,
+     2467.0
+    ],
+    [
+     3676.6,
+     2467.0
+    ],
+    [
+     3676.6,
+     3662.867
+    ],
+    [
+     3638.6,
+     3650.2
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.0.10",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 1155.6666666666665,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2467.0,
+    4045.0,
+    89.0,
+    3629.0,
+    4083.0
+   ],
+   "poly": [
+    [
+     4045.0,
+     2467.0
+    ],
+    [
+     4083.0,
+     2467.0
+    ],
+    [
+     4083.0,
+     3616.333
+    ],
+    [
+     4045.0,
+     3629.0
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.0.11",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 1020.1999999999998,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2467.0,
+    4451.4,
+    89.0,
+    3493.533,
+    4489.4
+   ],
+   "poly": [
+    [
+     4451.4,
+     2467.0
+    ],
+    [
+     4489.4,
+     2467.0
+    ],
+    [
+     4489.4,
+     3480.867
+    ],
+    [
+     4451.4,
+     3493.533
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.0.12",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 884.7333333333336,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2467.0,
+    4857.8,
+    89.0,
+    3358.067,
+    4895.8
+   ],
+   "poly": [
+    [
+     4857.8,
+     2467.0
+    ],
+    [
+     4895.8,
+     2467.0
+    ],
+    [
+     4895.8,
+     3345.4
+    ],
+    [
+     4857.8,
+     3358.067
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.0.13",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 749.2666666666664,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2467.0,
+    5264.2,
+    89.0,
+    3222.6,
+    5302.2
+   ],
+   "poly": [
+    [
+     5264.2,
+     2467.0
+    ],
+    [
+     5302.2,
+     2467.0
+    ],
+    [
+     5302.2,
+     3209.933
+    ],
+    [
+     5264.2,
+     3222.6
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.0.14",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 613.8000000000002,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2467.0,
+    5670.6,
+    89.0,
+    3087.133,
+    5708.6
+   ],
+   "poly": [
+    [
+     5670.6,
+     2467.0
+    ],
+    [
+     5708.6,
+     2467.0
+    ],
+    [
+     5708.6,
+     3074.467
+    ],
+    [
+     5670.6,
+     3087.133
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.0.15",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 478.3333333333335,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2467.0,
+    6077.0,
+    89.0,
+    2951.667,
+    6115.0
+   ],
+   "poly": [
+    [
+     6077.0,
+     2467.0
+    ],
+    [
+     6115.0,
+     2467.0
+    ],
+    [
+     6115.0,
+     2939.0
+    ],
+    [
+     6077.0,
+     2951.667
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.0.16",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 342.8666666666668,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2467.0,
+    6483.4,
+    89.0,
+    2816.2,
+    6521.4
+   ],
+   "poly": [
+    [
+     6483.4,
+     2467.0
+    ],
+    [
+     6521.4,
+     2467.0
+    ],
+    [
+     6521.4,
+     2803.533
+    ],
+    [
+     6483.4,
+     2816.2
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.0.17",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 207.4000000000001,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2467.0,
+    6889.8,
+    89.0,
+    2680.733,
+    6927.8
+   ],
+   "poly": [
+    [
+     6889.8,
+     2467.0
+    ],
+    [
+     6927.8,
+     2467.0
+    ],
+    [
+     6927.8,
+     2668.067
+    ],
+    [
+     6889.8,
+     2680.733
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.0.18",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 71.9333333333334,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    2467.0,
+    7296.2,
+    89.0,
+    2545.267,
+    7334.2
+   ],
+   "poly": [
+    [
+     7296.2,
+     2467.0
+    ],
+    [
+     7334.2,
+     2467.0
+    ],
+    [
+     7334.2,
+     2532.6
+    ],
+    [
+     7296.2,
+     2545.267
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.1.1",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 105.80000000000018,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2467.0,
+    387.4,
+    9754.0,
+    2579.133,
+    425.4
+   ],
+   "poly": [
+    [
+     387.4,
+     2467.0
+    ],
+    [
+     425.4,
+     2467.0
+    ],
+    [
+     425.4,
+     2579.133
+    ],
+    [
+     387.4,
+     2566.467
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.1.2",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 241.26666666666642,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2467.0,
+    793.8,
+    9754.0,
+    2714.6,
+    831.8
+   ],
+   "poly": [
+    [
+     793.8,
+     2467.0
+    ],
+    [
+     831.8,
+     2467.0
+    ],
+    [
+     831.8,
+     2714.6
+    ],
+    [
+     793.8,
+     2701.933
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.1.3",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 376.7333333333331,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2467.0,
+    1200.2,
+    9754.0,
+    2850.067,
+    1238.2
+   ],
+   "poly": [
+    [
+     1200.2,
+     2467.0
+    ],
+    [
+     1238.2,
+     2467.0
+    ],
+    [
+     1238.2,
+     2850.067
+    ],
+    [
+     1200.2,
+     2837.4
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.1.4",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 512.1999999999998,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2467.0,
+    1606.6,
+    9754.0,
+    2985.533,
+    1644.6
+   ],
+   "poly": [
+    [
+     1606.6,
+     2467.0
+    ],
+    [
+     1644.6,
+     2467.0
+    ],
+    [
+     1644.6,
+     2985.533
+    ],
+    [
+     1606.6,
+     2972.867
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.1.5",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 647.6666666666665,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2467.0,
+    2013.0,
+    9754.0,
+    3121.0,
+    2051.0
+   ],
+   "poly": [
+    [
+     2013.0,
+     2467.0
+    ],
+    [
+     2051.0,
+     2467.0
+    ],
+    [
+     2051.0,
+     3121.0
+    ],
+    [
+     2013.0,
+     3108.333
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.1.6",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 783.1333333333332,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2467.0,
+    2419.4,
+    9754.0,
+    3256.467,
+    2457.4
+   ],
+   "poly": [
+    [
+     2419.4,
+     2467.0
+    ],
+    [
+     2457.4,
+     2467.0
+    ],
+    [
+     2457.4,
+     3256.467
+    ],
+    [
+     2419.4,
+     3243.8
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.1.7",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 918.5999999999999,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2467.0,
+    2825.8,
+    9754.0,
+    3391.933,
+    2863.8
+   ],
+   "poly": [
+    [
+     2825.8,
+     2467.0
+    ],
+    [
+     2863.8,
+     2467.0
+    ],
+    [
+     2863.8,
+     3391.933
+    ],
+    [
+     2825.8,
+     3379.267
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.1.8",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 1054.0666666666666,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2467.0,
+    3232.2,
+    9754.0,
+    3527.4,
+    3270.2
+   ],
+   "poly": [
+    [
+     3232.2,
+     2467.0
+    ],
+    [
+     3270.2,
+     2467.0
+    ],
+    [
+     3270.2,
+     3527.4
+    ],
+    [
+     3232.2,
+     3514.733
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.1.9",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 1189.5333333333333,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2467.0,
+    3638.6,
+    9754.0,
+    3662.867,
+    3676.6
+   ],
+   "poly": [
+    [
+     3638.6,
+     2467.0
+    ],
+    [
+     3676.6,
+     2467.0
+    ],
+    [
+     3676.6,
+     3662.867
+    ],
+    [
+     3638.6,
+     3650.2
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.1.10",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 1155.6666666666665,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2467.0,
+    4045.0,
+    9754.0,
+    3629.0,
+    4083.0
+   ],
+   "poly": [
+    [
+     4045.0,
+     2467.0
+    ],
+    [
+     4083.0,
+     2467.0
+    ],
+    [
+     4083.0,
+     3616.333
+    ],
+    [
+     4045.0,
+     3629.0
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.1.11",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 1020.1999999999998,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2467.0,
+    4451.4,
+    9754.0,
+    3493.533,
+    4489.4
+   ],
+   "poly": [
+    [
+     4451.4,
+     2467.0
+    ],
+    [
+     4489.4,
+     2467.0
+    ],
+    [
+     4489.4,
+     3480.867
+    ],
+    [
+     4451.4,
+     3493.533
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.1.12",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 884.7333333333336,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2467.0,
+    4857.8,
+    9754.0,
+    3358.067,
+    4895.8
+   ],
+   "poly": [
+    [
+     4857.8,
+     2467.0
+    ],
+    [
+     4895.8,
+     2467.0
+    ],
+    [
+     4895.8,
+     3345.4
+    ],
+    [
+     4857.8,
+     3358.067
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.1.13",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 749.2666666666664,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2467.0,
+    5264.2,
+    9754.0,
+    3222.6,
+    5302.2
+   ],
+   "poly": [
+    [
+     5264.2,
+     2467.0
+    ],
+    [
+     5302.2,
+     2467.0
+    ],
+    [
+     5302.2,
+     3209.933
+    ],
+    [
+     5264.2,
+     3222.6
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.1.14",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 613.8000000000002,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2467.0,
+    5670.6,
+    9754.0,
+    3087.133,
+    5708.6
+   ],
+   "poly": [
+    [
+     5670.6,
+     2467.0
+    ],
+    [
+     5708.6,
+     2467.0
+    ],
+    [
+     5708.6,
+     3074.467
+    ],
+    [
+     5670.6,
+     3087.133
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.1.15",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 478.3333333333335,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2467.0,
+    6077.0,
+    9754.0,
+    2951.667,
+    6115.0
+   ],
+   "poly": [
+    [
+     6077.0,
+     2467.0
+    ],
+    [
+     6115.0,
+     2467.0
+    ],
+    [
+     6115.0,
+     2939.0
+    ],
+    [
+     6077.0,
+     2951.667
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.1.16",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 342.8666666666668,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2467.0,
+    6483.4,
+    9754.0,
+    2816.2,
+    6521.4
+   ],
+   "poly": [
+    [
+     6483.4,
+     2467.0
+    ],
+    [
+     6521.4,
+     2467.0
+    ],
+    [
+     6521.4,
+     2803.533
+    ],
+    [
+     6483.4,
+     2816.2
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.1.17",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 207.4000000000001,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2467.0,
+    6889.8,
+    9754.0,
+    2680.733,
+    6927.8
+   ],
+   "poly": [
+    [
+     6889.8,
+     2467.0
+    ],
+    [
+     6927.8,
+     2467.0
+    ],
+    [
+     6927.8,
+     2668.067
+    ],
+    [
+     6889.8,
+     2680.733
+    ]
+   ]
+  },
+  {
+   "name": "gable_stud.1.18",
+   "kind": "gable_stud",
+   "nominal": "2x4",
+   "span_mm": 71.9333333333334,
+   "spacing_mm": null,
+   "supports": [
+    "plate_t2.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    2467.0,
+    7296.2,
+    9754.0,
+    2545.267,
+    7334.2
+   ],
+   "poly": [
+    [
+     7296.2,
+     2467.0
+    ],
+    [
+     7334.2,
+     2467.0
+    ],
+    [
+     7334.2,
+     2532.6
+    ],
+    [
+     7296.2,
+     2545.267
+    ]
+   ]
+  },
+  {
+   "name": "ridge",
+   "kind": "ridge",
+   "nominal": "2x12",
+   "span_mm": 9754.0,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    0,
+    3680.0,
+    3791.0,
+    9754.0,
+    3966.0,
+    3829.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "rafter.front.0",
+   "kind": "rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    590.6,
+    2302.0,
+    -406.0,
+    628.6,
+    3948.712,
+    3791.0
+   ],
+   "poly": [
+    [
+     -406.0,
+     2302.0
+    ],
+    [
+     0.0,
+     2437.333
+    ],
+    [
+     0.0,
+     2467.0
+    ],
+    [
+     89.0,
+     2467.0
+    ],
+    [
+     3791.0,
+     3701.0
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     -406.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter.front.1",
+   "kind": "rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    1809.8,
+    2302.0,
+    -406.0,
+    1847.8,
+    3948.712,
+    3791.0
+   ],
+   "poly": [
+    [
+     -406.0,
+     2302.0
+    ],
+    [
+     0.0,
+     2437.333
+    ],
+    [
+     0.0,
+     2467.0
+    ],
+    [
+     89.0,
+     2467.0
+    ],
+    [
+     3791.0,
+     3701.0
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     -406.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter.front.2",
+   "kind": "rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    3029.0,
+    2302.0,
+    -406.0,
+    3067.0,
+    3948.712,
+    3791.0
+   ],
+   "poly": [
+    [
+     -406.0,
+     2302.0
+    ],
+    [
+     0.0,
+     2437.333
+    ],
+    [
+     0.0,
+     2467.0
+    ],
+    [
+     89.0,
+     2467.0
+    ],
+    [
+     3791.0,
+     3701.0
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     -406.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter.front.3",
+   "kind": "rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    4248.2,
+    2302.0,
+    -406.0,
+    4286.2,
+    3948.712,
+    3791.0
+   ],
+   "poly": [
+    [
+     -406.0,
+     2302.0
+    ],
+    [
+     0.0,
+     2437.333
+    ],
+    [
+     0.0,
+     2467.0
+    ],
+    [
+     89.0,
+     2467.0
+    ],
+    [
+     3791.0,
+     3701.0
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     -406.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter.front.4",
+   "kind": "rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    5467.4,
+    2302.0,
+    -406.0,
+    5505.4,
+    3948.712,
+    3791.0
+   ],
+   "poly": [
+    [
+     -406.0,
+     2302.0
+    ],
+    [
+     0.0,
+     2437.333
+    ],
+    [
+     0.0,
+     2467.0
+    ],
+    [
+     89.0,
+     2467.0
+    ],
+    [
+     3791.0,
+     3701.0
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     -406.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter.front.5",
+   "kind": "rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    6686.6,
+    2302.0,
+    -406.0,
+    6724.6,
+    3948.712,
+    3791.0
+   ],
+   "poly": [
+    [
+     -406.0,
+     2302.0
+    ],
+    [
+     0.0,
+     2437.333
+    ],
+    [
+     0.0,
+     2467.0
+    ],
+    [
+     89.0,
+     2467.0
+    ],
+    [
+     3791.0,
+     3701.0
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     -406.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter.front.6",
+   "kind": "rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    7905.8,
+    2302.0,
+    -406.0,
+    7943.8,
+    3948.712,
+    3791.0
+   ],
+   "poly": [
+    [
+     -406.0,
+     2302.0
+    ],
+    [
+     0.0,
+     2437.333
+    ],
+    [
+     0.0,
+     2467.0
+    ],
+    [
+     89.0,
+     2467.0
+    ],
+    [
+     3791.0,
+     3701.0
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     -406.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter.front.7",
+   "kind": "rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    9125.0,
+    2302.0,
+    -406.0,
+    9163.0,
+    3948.712,
+    3791.0
+   ],
+   "poly": [
+    [
+     -406.0,
+     2302.0
+    ],
+    [
+     0.0,
+     2437.333
+    ],
+    [
+     0.0,
+     2467.0
+    ],
+    [
+     89.0,
+     2467.0
+    ],
+    [
+     3791.0,
+     3701.0
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     -406.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter_pair.front.0",
+   "kind": "rafter_pair",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    1238.2,
+    2302.0,
+    -406.0,
+    1276.2,
+    3948.712,
+    3791.0
+   ],
+   "poly": [
+    [
+     -406.0,
+     2302.0
+    ],
+    [
+     0.0,
+     2437.333
+    ],
+    [
+     0.0,
+     2467.0
+    ],
+    [
+     89.0,
+     2467.0
+    ],
+    [
+     3791.0,
+     3701.0
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     -406.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter_pair.front.1",
+   "kind": "rafter_pair",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    2457.4,
+    2302.0,
+    -406.0,
+    2495.4,
+    3948.712,
+    3791.0
+   ],
+   "poly": [
+    [
+     -406.0,
+     2302.0
+    ],
+    [
+     0.0,
+     2437.333
+    ],
+    [
+     0.0,
+     2467.0
+    ],
+    [
+     89.0,
+     2467.0
+    ],
+    [
+     3791.0,
+     3701.0
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     -406.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter_pair.front.2",
+   "kind": "rafter_pair",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    3676.6,
+    2302.0,
+    -406.0,
+    3714.6,
+    3948.712,
+    3791.0
+   ],
+   "poly": [
+    [
+     -406.0,
+     2302.0
+    ],
+    [
+     0.0,
+     2437.333
+    ],
+    [
+     0.0,
+     2467.0
+    ],
+    [
+     89.0,
+     2467.0
+    ],
+    [
+     3791.0,
+     3701.0
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     -406.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter_pair.front.3",
+   "kind": "rafter_pair",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    4895.8,
+    2302.0,
+    -406.0,
+    4933.8,
+    3948.712,
+    3791.0
+   ],
+   "poly": [
+    [
+     -406.0,
+     2302.0
+    ],
+    [
+     0.0,
+     2437.333
+    ],
+    [
+     0.0,
+     2467.0
+    ],
+    [
+     89.0,
+     2467.0
+    ],
+    [
+     3791.0,
+     3701.0
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     -406.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter_pair.front.4",
+   "kind": "rafter_pair",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    6115.0,
+    2302.0,
+    -406.0,
+    6153.0,
+    3948.712,
+    3791.0
+   ],
+   "poly": [
+    [
+     -406.0,
+     2302.0
+    ],
+    [
+     0.0,
+     2437.333
+    ],
+    [
+     0.0,
+     2467.0
+    ],
+    [
+     89.0,
+     2467.0
+    ],
+    [
+     3791.0,
+     3701.0
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     -406.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter_pair.front.5",
+   "kind": "rafter_pair",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    7334.2,
+    2302.0,
+    -406.0,
+    7372.2,
+    3948.712,
+    3791.0
+   ],
+   "poly": [
+    [
+     -406.0,
+     2302.0
+    ],
+    [
+     0.0,
+     2437.333
+    ],
+    [
+     0.0,
+     2467.0
+    ],
+    [
+     89.0,
+     2467.0
+    ],
+    [
+     3791.0,
+     3701.0
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     -406.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter_pair.front.6",
+   "kind": "rafter_pair",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    8553.4,
+    2302.0,
+    -406.0,
+    8591.4,
+    3948.712,
+    3791.0
+   ],
+   "poly": [
+    [
+     -406.0,
+     2302.0
+    ],
+    [
+     0.0,
+     2437.333
+    ],
+    [
+     0.0,
+     2467.0
+    ],
+    [
+     89.0,
+     2467.0
+    ],
+    [
+     3791.0,
+     3701.0
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     -406.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "gable_rafter.front.0",
+   "kind": "gable_rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    0.0,
+    2302.0,
+    -406.0,
+    38.0,
+    3948.712,
+    3791.0
+   ],
+   "poly": [
+    [
+     -406.0,
+     2302.0
+    ],
+    [
+     0.0,
+     2437.333
+    ],
+    [
+     0.0,
+     2467.0
+    ],
+    [
+     89.0,
+     2467.0
+    ],
+    [
+     3791.0,
+     3701.0
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     -406.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "gable_rafter.front.1",
+   "kind": "gable_rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9716.0,
+    2302.0,
+    -406.0,
+    9754.0,
+    3948.712,
+    3791.0
+   ],
+   "poly": [
+    [
+     -406.0,
+     2302.0
+    ],
+    [
+     0.0,
+     2437.333
+    ],
+    [
+     0.0,
+     2467.0
+    ],
+    [
+     89.0,
+     2467.0
+    ],
+    [
+     3791.0,
+     3701.0
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     -406.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter.back.0",
+   "kind": "rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    590.6,
+    2302.0,
+    3829.0,
+    628.6,
+    3948.712,
+    8026.0
+   ],
+   "poly": [
+    [
+     8026.0,
+     2302.0
+    ],
+    [
+     7620.0,
+     2437.333
+    ],
+    [
+     7620.0,
+     2467.0
+    ],
+    [
+     7531.0,
+     2467.0
+    ],
+    [
+     3829.0,
+     3701.0
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     8026.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter.back.1",
+   "kind": "rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    1809.8,
+    2302.0,
+    3829.0,
+    1847.8,
+    3948.712,
+    8026.0
+   ],
+   "poly": [
+    [
+     8026.0,
+     2302.0
+    ],
+    [
+     7620.0,
+     2437.333
+    ],
+    [
+     7620.0,
+     2467.0
+    ],
+    [
+     7531.0,
+     2467.0
+    ],
+    [
+     3829.0,
+     3701.0
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     8026.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter.back.2",
+   "kind": "rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    3029.0,
+    2302.0,
+    3829.0,
+    3067.0,
+    3948.712,
+    8026.0
+   ],
+   "poly": [
+    [
+     8026.0,
+     2302.0
+    ],
+    [
+     7620.0,
+     2437.333
+    ],
+    [
+     7620.0,
+     2467.0
+    ],
+    [
+     7531.0,
+     2467.0
+    ],
+    [
+     3829.0,
+     3701.0
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     8026.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter.back.3",
+   "kind": "rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    4248.2,
+    2302.0,
+    3829.0,
+    4286.2,
+    3948.712,
+    8026.0
+   ],
+   "poly": [
+    [
+     8026.0,
+     2302.0
+    ],
+    [
+     7620.0,
+     2437.333
+    ],
+    [
+     7620.0,
+     2467.0
+    ],
+    [
+     7531.0,
+     2467.0
+    ],
+    [
+     3829.0,
+     3701.0
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     8026.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter.back.4",
+   "kind": "rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    5467.4,
+    2302.0,
+    3829.0,
+    5505.4,
+    3948.712,
+    8026.0
+   ],
+   "poly": [
+    [
+     8026.0,
+     2302.0
+    ],
+    [
+     7620.0,
+     2437.333
+    ],
+    [
+     7620.0,
+     2467.0
+    ],
+    [
+     7531.0,
+     2467.0
+    ],
+    [
+     3829.0,
+     3701.0
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     8026.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter.back.5",
+   "kind": "rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    6686.6,
+    2302.0,
+    3829.0,
+    6724.6,
+    3948.712,
+    8026.0
+   ],
+   "poly": [
+    [
+     8026.0,
+     2302.0
+    ],
+    [
+     7620.0,
+     2437.333
+    ],
+    [
+     7620.0,
+     2467.0
+    ],
+    [
+     7531.0,
+     2467.0
+    ],
+    [
+     3829.0,
+     3701.0
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     8026.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter.back.6",
+   "kind": "rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    7905.8,
+    2302.0,
+    3829.0,
+    7943.8,
+    3948.712,
+    8026.0
+   ],
+   "poly": [
+    [
+     8026.0,
+     2302.0
+    ],
+    [
+     7620.0,
+     2437.333
+    ],
+    [
+     7620.0,
+     2467.0
+    ],
+    [
+     7531.0,
+     2467.0
+    ],
+    [
+     3829.0,
+     3701.0
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     8026.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter.back.7",
+   "kind": "rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    9125.0,
+    2302.0,
+    3829.0,
+    9163.0,
+    3948.712,
+    8026.0
+   ],
+   "poly": [
+    [
+     8026.0,
+     2302.0
+    ],
+    [
+     7620.0,
+     2437.333
+    ],
+    [
+     7620.0,
+     2467.0
+    ],
+    [
+     7531.0,
+     2467.0
+    ],
+    [
+     3829.0,
+     3701.0
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     8026.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter_pair.back.0",
+   "kind": "rafter_pair",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    1238.2,
+    2302.0,
+    3829.0,
+    1276.2,
+    3948.712,
+    8026.0
+   ],
+   "poly": [
+    [
+     8026.0,
+     2302.0
+    ],
+    [
+     7620.0,
+     2437.333
+    ],
+    [
+     7620.0,
+     2467.0
+    ],
+    [
+     7531.0,
+     2467.0
+    ],
+    [
+     3829.0,
+     3701.0
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     8026.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter_pair.back.1",
+   "kind": "rafter_pair",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    2457.4,
+    2302.0,
+    3829.0,
+    2495.4,
+    3948.712,
+    8026.0
+   ],
+   "poly": [
+    [
+     8026.0,
+     2302.0
+    ],
+    [
+     7620.0,
+     2437.333
+    ],
+    [
+     7620.0,
+     2467.0
+    ],
+    [
+     7531.0,
+     2467.0
+    ],
+    [
+     3829.0,
+     3701.0
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     8026.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter_pair.back.2",
+   "kind": "rafter_pair",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    3676.6,
+    2302.0,
+    3829.0,
+    3714.6,
+    3948.712,
+    8026.0
+   ],
+   "poly": [
+    [
+     8026.0,
+     2302.0
+    ],
+    [
+     7620.0,
+     2437.333
+    ],
+    [
+     7620.0,
+     2467.0
+    ],
+    [
+     7531.0,
+     2467.0
+    ],
+    [
+     3829.0,
+     3701.0
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     8026.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter_pair.back.3",
+   "kind": "rafter_pair",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    4895.8,
+    2302.0,
+    3829.0,
+    4933.8,
+    3948.712,
+    8026.0
+   ],
+   "poly": [
+    [
+     8026.0,
+     2302.0
+    ],
+    [
+     7620.0,
+     2437.333
+    ],
+    [
+     7620.0,
+     2467.0
+    ],
+    [
+     7531.0,
+     2467.0
+    ],
+    [
+     3829.0,
+     3701.0
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     8026.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter_pair.back.4",
+   "kind": "rafter_pair",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    6115.0,
+    2302.0,
+    3829.0,
+    6153.0,
+    3948.712,
+    8026.0
+   ],
+   "poly": [
+    [
+     8026.0,
+     2302.0
+    ],
+    [
+     7620.0,
+     2437.333
+    ],
+    [
+     7620.0,
+     2467.0
+    ],
+    [
+     7531.0,
+     2467.0
+    ],
+    [
+     3829.0,
+     3701.0
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     8026.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter_pair.back.5",
+   "kind": "rafter_pair",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    7334.2,
+    2302.0,
+    3829.0,
+    7372.2,
+    3948.712,
+    8026.0
+   ],
+   "poly": [
+    [
+     8026.0,
+     2302.0
+    ],
+    [
+     7620.0,
+     2437.333
+    ],
+    [
+     7620.0,
+     2467.0
+    ],
+    [
+     7531.0,
+     2467.0
+    ],
+    [
+     3829.0,
+     3701.0
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     8026.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "rafter_pair.back.6",
+   "kind": "rafter_pair",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": 609.6,
+   "supports": [],
+   "box_mm": [
+    8553.4,
+    2302.0,
+    3829.0,
+    8591.4,
+    3948.712,
+    8026.0
+   ],
+   "poly": [
+    [
+     8026.0,
+     2302.0
+    ],
+    [
+     7620.0,
+     2437.333
+    ],
+    [
+     7620.0,
+     2467.0
+    ],
+    [
+     7531.0,
+     2467.0
+    ],
+    [
+     3829.0,
+     3701.0
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     8026.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "gable_rafter.back.0",
+   "kind": "gable_rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    0.0,
+    2302.0,
+    3829.0,
+    38.0,
+    3948.712,
+    8026.0
+   ],
+   "poly": [
+    [
+     8026.0,
+     2302.0
+    ],
+    [
+     7620.0,
+     2437.333
+    ],
+    [
+     7620.0,
+     2467.0
+    ],
+    [
+     7531.0,
+     2467.0
+    ],
+    [
+     3829.0,
+     3701.0
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     8026.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "gable_rafter.back.1",
+   "kind": "gable_rafter",
+   "nominal": "2x10",
+   "span_mm": 3765.5,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9716.0,
+    2302.0,
+    3829.0,
+    9754.0,
+    3948.712,
+    8026.0
+   ],
+   "poly": [
+    [
+     8026.0,
+     2302.0
+    ],
+    [
+     7620.0,
+     2437.333
+    ],
+    [
+     7620.0,
+     2467.0
+    ],
+    [
+     7531.0,
+     2467.0
+    ],
+    [
+     3829.0,
+     3701.0
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     8026.0,
+     2549.712
+    ]
+   ]
+  },
+  {
+   "name": "sheathing.F.0",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    0.0,
+    0.0,
+    -11.1,
+    430.5,
+    2467.0,
+    0.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.F.1",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    430.5,
+    0.0,
+    -11.1,
+    1219.2,
+    914.0,
+    0.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.F.2",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    430.5,
+    2158.0,
+    -11.1,
+    1219.2,
+    2467.0,
+    0.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.F.3",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    1219.2,
+    0.0,
+    -11.1,
+    1369.5,
+    914.0,
+    0.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.F.4",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    1219.2,
+    2158.0,
+    -11.1,
+    1369.5,
+    2467.0,
+    0.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.F.5",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    1369.5,
+    0.0,
+    -11.1,
+    2438.4,
+    2467.0,
+    0.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.F.6",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    2438.4,
+    0.0,
+    -11.1,
+    2830.5,
+    2467.0,
+    0.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.F.7",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    2830.5,
+    2057.0,
+    -11.1,
+    3657.6,
+    2467.0,
+    0.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.F.8",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    3657.6,
+    2057.0,
+    -11.1,
+    3769.5,
+    2467.0,
+    0.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.F.9",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    3769.5,
+    0.0,
+    -11.1,
+    4876.8,
+    2467.0,
+    0.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.F.10",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    4876.8,
+    0.0,
+    -11.1,
+    6096.0,
+    2467.0,
+    0.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.F.11",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    6096.0,
+    0.0,
+    -11.1,
+    7315.2,
+    2467.0,
+    0.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.F.12",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    7315.2,
+    0.0,
+    -11.1,
+    7730.5,
+    2467.0,
+    0.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.F.13",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    7730.5,
+    0.0,
+    -11.1,
+    8534.4,
+    914.0,
+    0.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.F.14",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    7730.5,
+    2158.0,
+    -11.1,
+    8534.4,
+    2467.0,
+    0.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.F.15",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    8534.4,
+    0.0,
+    -11.1,
+    8669.5,
+    914.0,
+    0.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.F.16",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    8534.4,
+    2158.0,
+    -11.1,
+    8669.5,
+    2467.0,
+    0.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.F.17",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    8669.5,
+    0.0,
+    -11.1,
+    9753.6,
+    2467.0,
+    0.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.F.18",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9753.6,
+    0.0,
+    -11.1,
+    9754.0,
+    2467.0,
+    0.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.0",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    0.0,
+    0.0,
+    7620.0,
+    530.5,
+    2467.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.1",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    530.5,
+    0.0,
+    7620.0,
+    1219.2,
+    914.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.2",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    530.5,
+    2158.0,
+    7620.0,
+    1219.2,
+    2467.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.3",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    1219.2,
+    0.0,
+    7620.0,
+    1469.5,
+    914.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.4",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    1219.2,
+    2158.0,
+    7620.0,
+    1469.5,
+    2467.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.5",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    1469.5,
+    0.0,
+    7620.0,
+    2438.4,
+    2467.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.6",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    2438.4,
+    0.0,
+    7620.0,
+    2930.5,
+    2467.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.7",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    2930.5,
+    0.0,
+    7620.0,
+    3657.6,
+    914.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.8",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    2930.5,
+    2158.0,
+    7620.0,
+    3657.6,
+    2467.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.9",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    3657.6,
+    0.0,
+    7620.0,
+    3869.5,
+    914.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.10",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    3657.6,
+    2158.0,
+    7620.0,
+    3869.5,
+    2467.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.11",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    3869.5,
+    0.0,
+    7620.0,
+    4876.8,
+    2467.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.12",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    4876.8,
+    0.0,
+    7620.0,
+    5182.5,
+    2467.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.13",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    5182.5,
+    0.0,
+    7620.0,
+    5817.5,
+    1219.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.14",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    5182.5,
+    2158.0,
+    7620.0,
+    5817.5,
+    2467.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.15",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    5817.5,
+    0.0,
+    7620.0,
+    6096.0,
+    2467.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.16",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    6096.0,
+    0.0,
+    7620.0,
+    7315.2,
+    2467.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.17",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    7315.2,
+    0.0,
+    7620.0,
+    7530.5,
+    2467.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.18",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    7530.5,
+    0.0,
+    7620.0,
+    8469.5,
+    914.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.19",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    7530.5,
+    2158.0,
+    7620.0,
+    8469.5,
+    2467.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.20",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    8469.5,
+    0.0,
+    7620.0,
+    8534.4,
+    2467.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.21",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    8534.4,
+    0.0,
+    7620.0,
+    9753.6,
+    2467.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.B.22",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9753.6,
+    0.0,
+    7620.0,
+    9754.0,
+    2467.0,
+    7631.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.L.0",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -11.1,
+    0.0,
+    0.0,
+    0.0,
+    2467.0,
+    1219.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.L.1",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -11.1,
+    0.0,
+    1219.2,
+    0.0,
+    2467.0,
+    1330.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.L.2",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -11.1,
+    0.0,
+    1330.5,
+    0.0,
+    914.0,
+    2269.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.L.3",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -11.1,
+    2158.0,
+    1330.5,
+    0.0,
+    2467.0,
+    2269.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.L.4",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -11.1,
+    0.0,
+    2269.5,
+    0.0,
+    2467.0,
+    2438.4
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.L.5",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -11.1,
+    0.0,
+    2438.4,
+    0.0,
+    2467.0,
+    3657.6
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.L.6",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -11.1,
+    0.0,
+    3657.6,
+    0.0,
+    2467.0,
+    4876.8
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.L.7",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -11.1,
+    0.0,
+    4876.8,
+    0.0,
+    2467.0,
+    5030.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.L.8",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -11.1,
+    0.0,
+    5030.5,
+    0.0,
+    914.0,
+    5969.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.L.9",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -11.1,
+    2158.0,
+    5030.5,
+    0.0,
+    2467.0,
+    5969.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.L.10",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -11.1,
+    0.0,
+    5969.5,
+    0.0,
+    2467.0,
+    6096.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.L.11",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -11.1,
+    0.0,
+    6096.0,
+    0.0,
+    2467.0,
+    7315.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.L.12",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -11.1,
+    0.0,
+    7315.2,
+    0.0,
+    2467.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.R.0",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9754.0,
+    0.0,
+    0.0,
+    9765.1,
+    2467.0,
+    1219.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.R.1",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9754.0,
+    0.0,
+    1219.2,
+    9765.1,
+    2467.0,
+    1330.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.R.2",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9754.0,
+    0.0,
+    1330.5,
+    9765.1,
+    914.0,
+    2269.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.R.3",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9754.0,
+    2158.0,
+    1330.5,
+    9765.1,
+    2467.0,
+    2269.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.R.4",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9754.0,
+    0.0,
+    2269.5,
+    9765.1,
+    2467.0,
+    2438.4
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.R.5",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9754.0,
+    0.0,
+    2438.4,
+    9765.1,
+    2467.0,
+    3657.6
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.R.6",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9754.0,
+    0.0,
+    3657.6,
+    9765.1,
+    2467.0,
+    4876.8
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.R.7",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9754.0,
+    0.0,
+    4876.8,
+    9765.1,
+    2467.0,
+    5030.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.R.8",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9754.0,
+    0.0,
+    5030.5,
+    9765.1,
+    914.0,
+    5969.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.R.9",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9754.0,
+    2158.0,
+    5030.5,
+    9765.1,
+    2467.0,
+    5969.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.R.10",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9754.0,
+    0.0,
+    5969.5,
+    9765.1,
+    2467.0,
+    6096.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.R.11",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9754.0,
+    0.0,
+    6096.0,
+    9765.1,
+    2467.0,
+    7315.2
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.R.12",
+   "kind": "wall_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9754.0,
+    0.0,
+    7315.2,
+    9765.1,
+    2467.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "sheathing.gable.0",
+   "kind": "gable_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [
+    "sheathing.L.0",
+    "sheathing.L.1",
+    "sheathing.L.3",
+    "sheathing.L.4",
+    "sheathing.L.5",
+    "sheathing.L.6",
+    "sheathing.L.7",
+    "sheathing.L.9",
+    "sheathing.L.10",
+    "sheathing.L.11",
+    "sheathing.L.12"
+   ],
+   "box_mm": [
+    -11.1,
+    2467.0,
+    0.0,
+    0.0,
+    3948.712,
+    7620.0
+   ],
+   "poly": [
+    [
+     0.0,
+     2467.0
+    ],
+    [
+     7620.0,
+     2467.0
+    ],
+    [
+     7620.0,
+     2685.045
+    ],
+    [
+     3810.0,
+     3948.712
+    ],
+    [
+     0.0,
+     2685.045
+    ]
+   ]
+  },
+  {
+   "name": "sheathing.gable.1",
+   "kind": "gable_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [
+    "sheathing.R.0",
+    "sheathing.R.1",
+    "sheathing.R.3",
+    "sheathing.R.4",
+    "sheathing.R.5",
+    "sheathing.R.6",
+    "sheathing.R.7",
+    "sheathing.R.9",
+    "sheathing.R.10",
+    "sheathing.R.11",
+    "sheathing.R.12"
+   ],
+   "box_mm": [
+    9754.0,
+    2467.0,
+    0.0,
+    9765.1,
+    3948.712,
+    7620.0
+   ],
+   "poly": [
+    [
+     0.0,
+     2467.0
+    ],
+    [
+     7620.0,
+     2467.0
+    ],
+    [
+     7620.0,
+     2685.045
+    ],
+    [
+     3810.0,
+     3948.712
+    ],
+    [
+     0.0,
+     2685.045
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.front.0.0",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    0.0,
+    2549.712,
+    -409.51,
+    1219.2,
+    3331.332,
+    1907.269
+   ],
+   "poly": [
+    [
+     -406.0,
+     2549.712
+    ],
+    [
+     1907.269,
+     3320.802
+    ],
+    [
+     1903.759,
+     3331.332
+    ],
+    [
+     -409.51,
+     2560.242
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.front.0.1",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    1219.2,
+    2549.712,
+    -409.51,
+    2438.4,
+    3331.332,
+    1907.269
+   ],
+   "poly": [
+    [
+     -406.0,
+     2549.712
+    ],
+    [
+     1907.269,
+     3320.802
+    ],
+    [
+     1903.759,
+     3331.332
+    ],
+    [
+     -409.51,
+     2560.242
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.front.0.2",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    2438.4,
+    2549.712,
+    -409.51,
+    3657.6,
+    3331.332,
+    1907.269
+   ],
+   "poly": [
+    [
+     -406.0,
+     2549.712
+    ],
+    [
+     1907.269,
+     3320.802
+    ],
+    [
+     1903.759,
+     3331.332
+    ],
+    [
+     -409.51,
+     2560.242
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.front.0.3",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    3657.6,
+    2549.712,
+    -409.51,
+    4876.8,
+    3331.332,
+    1907.269
+   ],
+   "poly": [
+    [
+     -406.0,
+     2549.712
+    ],
+    [
+     1907.269,
+     3320.802
+    ],
+    [
+     1903.759,
+     3331.332
+    ],
+    [
+     -409.51,
+     2560.242
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.front.0.4",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    4876.8,
+    2549.712,
+    -409.51,
+    6096.0,
+    3331.332,
+    1907.269
+   ],
+   "poly": [
+    [
+     -406.0,
+     2549.712
+    ],
+    [
+     1907.269,
+     3320.802
+    ],
+    [
+     1903.759,
+     3331.332
+    ],
+    [
+     -409.51,
+     2560.242
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.front.0.5",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    6096.0,
+    2549.712,
+    -409.51,
+    7315.2,
+    3331.332,
+    1907.269
+   ],
+   "poly": [
+    [
+     -406.0,
+     2549.712
+    ],
+    [
+     1907.269,
+     3320.802
+    ],
+    [
+     1903.759,
+     3331.332
+    ],
+    [
+     -409.51,
+     2560.242
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.front.0.6",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    7315.2,
+    2549.712,
+    -409.51,
+    8534.4,
+    3331.332,
+    1907.269
+   ],
+   "poly": [
+    [
+     -406.0,
+     2549.712
+    ],
+    [
+     1907.269,
+     3320.802
+    ],
+    [
+     1903.759,
+     3331.332
+    ],
+    [
+     -409.51,
+     2560.242
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.front.0.7",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    8534.4,
+    2549.712,
+    -409.51,
+    9753.6,
+    3331.332,
+    1907.269
+   ],
+   "poly": [
+    [
+     -406.0,
+     2549.712
+    ],
+    [
+     1907.269,
+     3320.802
+    ],
+    [
+     1903.759,
+     3331.332
+    ],
+    [
+     -409.51,
+     2560.242
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.front.1.0",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    0.0,
+    3320.802,
+    1903.759,
+    1219.2,
+    3959.242,
+    3791.0
+   ],
+   "poly": [
+    [
+     1907.269,
+     3320.802
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     3787.49,
+     3959.242
+    ],
+    [
+     1903.759,
+     3331.332
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.front.1.1",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    1219.2,
+    3320.802,
+    1903.759,
+    2438.4,
+    3959.242,
+    3791.0
+   ],
+   "poly": [
+    [
+     1907.269,
+     3320.802
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     3787.49,
+     3959.242
+    ],
+    [
+     1903.759,
+     3331.332
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.front.1.2",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    2438.4,
+    3320.802,
+    1903.759,
+    3657.6,
+    3959.242,
+    3791.0
+   ],
+   "poly": [
+    [
+     1907.269,
+     3320.802
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     3787.49,
+     3959.242
+    ],
+    [
+     1903.759,
+     3331.332
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.front.1.3",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    3657.6,
+    3320.802,
+    1903.759,
+    4876.8,
+    3959.242,
+    3791.0
+   ],
+   "poly": [
+    [
+     1907.269,
+     3320.802
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     3787.49,
+     3959.242
+    ],
+    [
+     1903.759,
+     3331.332
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.front.1.4",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    4876.8,
+    3320.802,
+    1903.759,
+    6096.0,
+    3959.242,
+    3791.0
+   ],
+   "poly": [
+    [
+     1907.269,
+     3320.802
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     3787.49,
+     3959.242
+    ],
+    [
+     1903.759,
+     3331.332
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.front.1.5",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    6096.0,
+    3320.802,
+    1903.759,
+    7315.2,
+    3959.242,
+    3791.0
+   ],
+   "poly": [
+    [
+     1907.269,
+     3320.802
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     3787.49,
+     3959.242
+    ],
+    [
+     1903.759,
+     3331.332
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.front.1.6",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    7315.2,
+    3320.802,
+    1903.759,
+    8534.4,
+    3959.242,
+    3791.0
+   ],
+   "poly": [
+    [
+     1907.269,
+     3320.802
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     3787.49,
+     3959.242
+    ],
+    [
+     1903.759,
+     3331.332
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.front.1.7",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    8534.4,
+    3320.802,
+    1903.759,
+    9753.6,
+    3959.242,
+    3791.0
+   ],
+   "poly": [
+    [
+     1907.269,
+     3320.802
+    ],
+    [
+     3791.0,
+     3948.712
+    ],
+    [
+     3787.49,
+     3959.242
+    ],
+    [
+     1903.759,
+     3331.332
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.back.0.0",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    0.0,
+    2549.712,
+    5712.731,
+    1219.2,
+    3331.332,
+    8029.51
+   ],
+   "poly": [
+    [
+     8026.0,
+     2549.712
+    ],
+    [
+     5712.731,
+     3320.802
+    ],
+    [
+     5716.241,
+     3331.332
+    ],
+    [
+     8029.51,
+     2560.242
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.back.0.1",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    1219.2,
+    2549.712,
+    5712.731,
+    2438.4,
+    3331.332,
+    8029.51
+   ],
+   "poly": [
+    [
+     8026.0,
+     2549.712
+    ],
+    [
+     5712.731,
+     3320.802
+    ],
+    [
+     5716.241,
+     3331.332
+    ],
+    [
+     8029.51,
+     2560.242
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.back.0.2",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    2438.4,
+    2549.712,
+    5712.731,
+    3657.6,
+    3331.332,
+    8029.51
+   ],
+   "poly": [
+    [
+     8026.0,
+     2549.712
+    ],
+    [
+     5712.731,
+     3320.802
+    ],
+    [
+     5716.241,
+     3331.332
+    ],
+    [
+     8029.51,
+     2560.242
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.back.0.3",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    3657.6,
+    2549.712,
+    5712.731,
+    4876.8,
+    3331.332,
+    8029.51
+   ],
+   "poly": [
+    [
+     8026.0,
+     2549.712
+    ],
+    [
+     5712.731,
+     3320.802
+    ],
+    [
+     5716.241,
+     3331.332
+    ],
+    [
+     8029.51,
+     2560.242
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.back.0.4",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    4876.8,
+    2549.712,
+    5712.731,
+    6096.0,
+    3331.332,
+    8029.51
+   ],
+   "poly": [
+    [
+     8026.0,
+     2549.712
+    ],
+    [
+     5712.731,
+     3320.802
+    ],
+    [
+     5716.241,
+     3331.332
+    ],
+    [
+     8029.51,
+     2560.242
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.back.0.5",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    6096.0,
+    2549.712,
+    5712.731,
+    7315.2,
+    3331.332,
+    8029.51
+   ],
+   "poly": [
+    [
+     8026.0,
+     2549.712
+    ],
+    [
+     5712.731,
+     3320.802
+    ],
+    [
+     5716.241,
+     3331.332
+    ],
+    [
+     8029.51,
+     2560.242
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.back.0.6",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    7315.2,
+    2549.712,
+    5712.731,
+    8534.4,
+    3331.332,
+    8029.51
+   ],
+   "poly": [
+    [
+     8026.0,
+     2549.712
+    ],
+    [
+     5712.731,
+     3320.802
+    ],
+    [
+     5716.241,
+     3331.332
+    ],
+    [
+     8029.51,
+     2560.242
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.back.0.7",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    8534.4,
+    2549.712,
+    5712.731,
+    9753.6,
+    3331.332,
+    8029.51
+   ],
+   "poly": [
+    [
+     8026.0,
+     2549.712
+    ],
+    [
+     5712.731,
+     3320.802
+    ],
+    [
+     5716.241,
+     3331.332
+    ],
+    [
+     8029.51,
+     2560.242
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.back.1.0",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    0.0,
+    3320.802,
+    3829.0,
+    1219.2,
+    3959.242,
+    5716.241
+   ],
+   "poly": [
+    [
+     5712.731,
+     3320.802
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     3832.51,
+     3959.242
+    ],
+    [
+     5716.241,
+     3331.332
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.back.1.1",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    1219.2,
+    3320.802,
+    3829.0,
+    2438.4,
+    3959.242,
+    5716.241
+   ],
+   "poly": [
+    [
+     5712.731,
+     3320.802
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     3832.51,
+     3959.242
+    ],
+    [
+     5716.241,
+     3331.332
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.back.1.2",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    2438.4,
+    3320.802,
+    3829.0,
+    3657.6,
+    3959.242,
+    5716.241
+   ],
+   "poly": [
+    [
+     5712.731,
+     3320.802
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     3832.51,
+     3959.242
+    ],
+    [
+     5716.241,
+     3331.332
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.back.1.3",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    3657.6,
+    3320.802,
+    3829.0,
+    4876.8,
+    3959.242,
+    5716.241
+   ],
+   "poly": [
+    [
+     5712.731,
+     3320.802
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     3832.51,
+     3959.242
+    ],
+    [
+     5716.241,
+     3331.332
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.back.1.4",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    4876.8,
+    3320.802,
+    3829.0,
+    6096.0,
+    3959.242,
+    5716.241
+   ],
+   "poly": [
+    [
+     5712.731,
+     3320.802
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     3832.51,
+     3959.242
+    ],
+    [
+     5716.241,
+     3331.332
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.back.1.5",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    6096.0,
+    3320.802,
+    3829.0,
+    7315.2,
+    3959.242,
+    5716.241
+   ],
+   "poly": [
+    [
+     5712.731,
+     3320.802
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     3832.51,
+     3959.242
+    ],
+    [
+     5716.241,
+     3331.332
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.back.1.6",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    7315.2,
+    3320.802,
+    3829.0,
+    8534.4,
+    3959.242,
+    5716.241
+   ],
+   "poly": [
+    [
+     5712.731,
+     3320.802
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     3832.51,
+     3959.242
+    ],
+    [
+     5716.241,
+     3331.332
+    ]
+   ]
+  },
+  {
+   "name": "roof_sheathing.back.1.7",
+   "kind": "roof_sheathing",
+   "nominal": "7/16 OSB",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    8534.4,
+    3320.802,
+    3829.0,
+    9753.6,
+    3959.242,
+    5716.241
+   ],
+   "poly": [
+    [
+     5712.731,
+     3320.802
+    ],
+    [
+     3829.0,
+     3948.712
+    ],
+    [
+     3832.51,
+     3959.242
+    ],
+    [
+     5716.241,
+     3331.332
+    ]
+   ]
+  },
+  {
+   "name": "shingles.front",
+   "kind": "shingle",
+   "nominal": "asphalt shingles",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    0.0,
+    2560.242,
+    -412.514,
+    9754.0,
+    3968.255,
+    3787.49
+   ],
+   "poly": [
+    [
+     -409.51,
+     2560.242
+    ],
+    [
+     3787.49,
+     3959.242
+    ],
+    [
+     3784.486,
+     3968.255
+    ],
+    [
+     -412.514,
+     2569.255
+    ]
+   ]
+  },
+  {
+   "name": "shingles.back",
+   "kind": "shingle",
+   "nominal": "asphalt shingles",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    0.0,
+    2560.242,
+    3832.51,
+    9754.0,
+    3968.255,
+    8032.514
+   ],
+   "poly": [
+    [
+     8029.51,
+     2560.242
+    ],
+    [
+     3832.51,
+     3959.242
+    ],
+    [
+     3835.514,
+     3968.255
+    ],
+    [
+     8032.514,
+     2569.255
+    ]
+   ]
+  },
+  {
+   "name": "siding.F.0",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    0.0,
+    0.0,
+    -30.1,
+    430.5,
+    2467.0,
+    -11.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.F.1",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    430.5,
+    0.0,
+    -30.1,
+    1369.5,
+    914.0,
+    -11.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.F.2",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    430.5,
+    2158.0,
+    -30.1,
+    1369.5,
+    2467.0,
+    -11.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.F.3",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    1369.5,
+    0.0,
+    -30.1,
+    2830.5,
+    2467.0,
+    -11.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.F.4",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    2830.5,
+    2057.0,
+    -30.1,
+    3769.5,
+    2467.0,
+    -11.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.F.5",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    3769.5,
+    0.0,
+    -30.1,
+    7730.5,
+    2467.0,
+    -11.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.F.6",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    7730.5,
+    0.0,
+    -30.1,
+    8669.5,
+    914.0,
+    -11.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.F.7",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    7730.5,
+    2158.0,
+    -30.1,
+    8669.5,
+    2467.0,
+    -11.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.F.8",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    8669.5,
+    0.0,
+    -30.1,
+    9754.0,
+    2467.0,
+    -11.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.B.0",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    0.0,
+    0.0,
+    7631.1,
+    530.5,
+    2467.0,
+    7650.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.B.1",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    530.5,
+    0.0,
+    7631.1,
+    1469.5,
+    914.0,
+    7650.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.B.2",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    530.5,
+    2158.0,
+    7631.1,
+    1469.5,
+    2467.0,
+    7650.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.B.3",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    1469.5,
+    0.0,
+    7631.1,
+    2930.5,
+    2467.0,
+    7650.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.B.4",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    2930.5,
+    0.0,
+    7631.1,
+    3869.5,
+    914.0,
+    7650.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.B.5",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    2930.5,
+    2158.0,
+    7631.1,
+    3869.5,
+    2467.0,
+    7650.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.B.6",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    3869.5,
+    0.0,
+    7631.1,
+    5182.5,
+    2467.0,
+    7650.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.B.7",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    5182.5,
+    0.0,
+    7631.1,
+    5817.5,
+    1219.0,
+    7650.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.B.8",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    5182.5,
+    2158.0,
+    7631.1,
+    5817.5,
+    2467.0,
+    7650.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.B.9",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    5817.5,
+    0.0,
+    7631.1,
+    7530.5,
+    2467.0,
+    7650.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.B.10",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    7530.5,
+    0.0,
+    7631.1,
+    8469.5,
+    914.0,
+    7650.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.B.11",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    7530.5,
+    2158.0,
+    7631.1,
+    8469.5,
+    2467.0,
+    7650.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.B.12",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    8469.5,
+    0.0,
+    7631.1,
+    9754.0,
+    2467.0,
+    7650.1
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.L.0",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -30.1,
+    0.0,
+    0.0,
+    -11.1,
+    2467.0,
+    1330.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.L.1",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -30.1,
+    0.0,
+    1330.5,
+    -11.1,
+    914.0,
+    2269.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.L.2",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -30.1,
+    2158.0,
+    1330.5,
+    -11.1,
+    2467.0,
+    2269.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.L.3",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -30.1,
+    0.0,
+    2269.5,
+    -11.1,
+    2467.0,
+    5030.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.L.4",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -30.1,
+    0.0,
+    5030.5,
+    -11.1,
+    914.0,
+    5969.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.L.5",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -30.1,
+    2158.0,
+    5030.5,
+    -11.1,
+    2467.0,
+    5969.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.L.6",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    -30.1,
+    0.0,
+    5969.5,
+    -11.1,
+    2467.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.R.0",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9765.1,
+    0.0,
+    0.0,
+    9784.1,
+    2467.0,
+    1330.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.R.1",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9765.1,
+    0.0,
+    1330.5,
+    9784.1,
+    914.0,
+    2269.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.R.2",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9765.1,
+    2158.0,
+    1330.5,
+    9784.1,
+    2467.0,
+    2269.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.R.3",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9765.1,
+    0.0,
+    2269.5,
+    9784.1,
+    2467.0,
+    5030.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.R.4",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9765.1,
+    0.0,
+    5030.5,
+    9784.1,
+    914.0,
+    5969.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.R.5",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9765.1,
+    2158.0,
+    5030.5,
+    9784.1,
+    2467.0,
+    5969.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "siding.R.6",
+   "kind": "siding",
+   "nominal": "19 mm lap siding",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [],
+   "box_mm": [
+    9765.1,
+    0.0,
+    5969.5,
+    9784.1,
+    2467.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "door.F.0",
+   "kind": "door",
+   "nominal": "36 x 80 in",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    2830.5,
+    0.0,
+    0.0,
+    3769.5,
+    2032.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "window.F.1",
+   "kind": "window",
+   "nominal": "35 x 47 unit",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [
+    "sill.F.1"
+   ],
+   "box_mm": [
+    430.5,
+    914.0,
+    0.0,
+    1369.5,
+    2158.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "window.F.2",
+   "kind": "window",
+   "nominal": "35 x 47 unit",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [
+    "sill.F.2"
+   ],
+   "box_mm": [
+    7730.5,
+    914.0,
+    0.0,
+    8669.5,
+    2158.0,
+    89.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "window.B.0",
+   "kind": "window",
+   "nominal": "35 x 47 unit",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [
+    "sill.B.0"
+   ],
+   "box_mm": [
+    530.5,
+    914.0,
+    7531.0,
+    1469.5,
+    2158.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "window.B.1",
+   "kind": "window",
+   "nominal": "35 x 47 unit",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [
+    "sill.B.1"
+   ],
+   "box_mm": [
+    2930.5,
+    914.0,
+    7531.0,
+    3869.5,
+    2158.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "window.B.2",
+   "kind": "window",
+   "nominal": "24 x 35 unit",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [
+    "sill.B.2"
+   ],
+   "box_mm": [
+    5182.5,
+    1219.0,
+    7531.0,
+    5817.5,
+    2158.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "window.B.3",
+   "kind": "window",
+   "nominal": "35 x 47 unit",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [
+    "sill.B.3"
+   ],
+   "box_mm": [
+    7530.5,
+    914.0,
+    7531.0,
+    8469.5,
+    2158.0,
+    7620.0
+   ],
+   "poly": null
+  },
+  {
+   "name": "window.L.0",
+   "kind": "window",
+   "nominal": "35 x 47 unit",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [
+    "sill.L.0"
+   ],
+   "box_mm": [
+    0.0,
+    914.0,
+    1330.5,
+    89.0,
+    2158.0,
+    2269.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "window.L.1",
+   "kind": "window",
+   "nominal": "35 x 47 unit",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [
+    "sill.L.1"
+   ],
+   "box_mm": [
+    0.0,
+    914.0,
+    5030.5,
+    89.0,
+    2158.0,
+    5969.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "window.R.0",
+   "kind": "window",
+   "nominal": "35 x 47 unit",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [
+    "sill.R.0"
+   ],
+   "box_mm": [
+    9665.0,
+    914.0,
+    1330.5,
+    9754.0,
+    2158.0,
+    2269.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "window.R.1",
+   "kind": "window",
+   "nominal": "35 x 47 unit",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [
+    "sill.R.1"
+   ],
+   "box_mm": [
+    9665.0,
+    914.0,
+    5030.5,
+    9754.0,
+    2158.0,
+    5969.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "door.V1.0",
+   "kind": "idoor",
+   "nominal": "30 x 80 in",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    4356.0,
+    0.0,
+    1506.5,
+    4445.0,
+    2032.0,
+    2293.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "door.V1.1",
+   "kind": "idoor",
+   "nominal": "30 x 80 in",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    4356.0,
+    0.0,
+    5306.5,
+    4445.0,
+    2032.0,
+    6093.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "door.V2.0",
+   "kind": "idoor",
+   "nominal": "30 x 80 in",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    6579.0,
+    0.0,
+    1506.5,
+    6668.0,
+    2032.0,
+    2293.5
+   ],
+   "poly": null
+  },
+  {
+   "name": "door.V2.1",
+   "kind": "idoor",
+   "nominal": "30 x 80 in",
+   "span_mm": null,
+   "spacing_mm": null,
+   "supports": [
+    "Slab on grade"
+   ],
+   "box_mm": [
+    6579.0,
+    0.0,
+    5306.5,
+    6668.0,
+    2032.0,
+    6093.5
+   ],
+   "poly": null
+  }
+ ],
+ "meta": {
+  "site": "levittown_ny",
+  "fasteners": {
+   "stud_to_plate": {
+    "d": 8,
+    "n": 4,
+    "type": "box"
+   },
+   "joist_to_plate": {
+    "d": 8,
+    "n": 4,
+    "type": "box"
+   },
+   "rafter_to_plate": {
+    "d": 16,
+    "n": 3,
+    "type": "box"
+   },
+   "rafter_to_ridge": {
+    "d": 16,
+    "n": 4,
+    "type": "box"
+   },
+   "plate_to_plate": {
+    "d": 16,
+    "n": 1,
+    "type": "common",
+    "spacing_in": 16
+   },
+   "plate_lap": {
+    "d": 10,
+    "n": 3,
+    "type": "box"
+   },
+   "stud_to_stud": {
+    "d": 16,
+    "n": 1,
+    "type": "common",
+    "spacing_in": 24
+   },
+   "header_built_up": {
+    "d": 16,
+    "n": 1,
+    "type": "common",
+    "spacing_in": 16
+   },
+   "header_to_stud": {
+    "d": 8,
+    "n": 5,
+    "type": "box"
+   }
+  },
+  "sheathing_nailing": {
+   "wall": {
+    "nail": "6d common",
+    "d": 6,
+    "edge_in": 6.0,
+    "field_in": 12.0
+   },
+   "roof": {
+    "nail": "6d common",
+    "d": 6,
+    "edge_in": 6.0,
+    "field_in": 12.0
+   }
+  },
+  "rafter_cut": {
+   "birdsmouth_in": 1.168,
+   "seat_in": 3.504
+  },
+  "member_kinds": [
+   "bottom_plate",
+   "corner",
+   "cripple",
+   "door",
+   "end",
+   "footing",
+   "gable_rafter",
+   "gable_sheathing",
+   "gable_stud",
+   "ground",
+   "header",
+   "idoor",
+   "jack",
+   "joist",
+   "king",
+   "nailer",
+   "rafter",
+   "rafter_pair",
+   "ridge",
+   "roof_sheathing",
+   "shingle",
+   "siding",
+   "sill",
+   "slab",
+   "stud",
+   "top_plate1",
+   "top_plate2",
+   "wall_sheathing",
+   "window"
+  ],
+  "species": "DF-L#2",
+  "species_note": "assumed: not on the reference drawing",
+  "wind_mph": 115,
+  "exposure": "B",
+  "seismic": "A-B",
+  "soil_psf": 1500,
+  "rise_per_12": 4.0,
+  "tie": "H2.5A",
+  "ties": {
+   "type": "Simpson H2.5A",
+   "count": 34,
+   "at": "one at the heel of every rafter, rafter to double top plate"
+  },
+  "anchor_bolts": {
+   "dia_in": 0.5,
+   "embed_in": 7.0,
+   "max_spacing_in": 68.75,
+   "max_end_in": 9.0,
+   "min_end_in": 9.0,
+   "positions_mm": {
+    "plate_b.F.0": [
+     228.6,
+     1415.2,
+     2601.9
+    ],
+    "plate_b.F.1": [
+     3998.1,
+     5379.9,
+     6761.8,
+     8143.6,
+     9525.4
+    ],
+    "plate_b.B.0": [
+     228.6,
+     1778.1,
+     3327.5,
+     4877.0,
+     6426.5,
+     7975.9,
+     9525.4
+    ],
+    "plate_b.L.0": [
+     317.6,
+     2063.8,
+     3810.0,
+     5556.2,
+     7302.4
+    ],
+    "plate_b.R.0": [
+     317.6,
+     2063.8,
+     3810.0,
+     5556.2,
+     7302.4
+    ],
+    "plate_b.H.0": [
+     317.6,
+     1523.9
+    ],
+    "plate_b.H.1": [
+     2920.1,
+     3861.0,
+     4801.9
+    ],
+    "plate_b.H.2": [
+     6198.1,
+     7817.2,
+     9436.4
+    ],
+    "plate_b.V1.0": [
+     317.6,
+     1277.9
+    ],
+    "plate_b.V1.1": [
+     2522.1,
+     3213.4
+    ],
+    "plate_b.V1.2": [
+     3759.6,
+     5077.9
+    ],
+    "plate_b.V1.3": [
+     6322.1,
+     7302.4
+    ],
+    "plate_b.V2.0": [
+     317.6,
+     1277.9
+    ],
+    "plate_b.V2.1": [
+     2522.1,
+     3213.4
+    ],
+    "plate_b.V2.2": [
+     3759.6,
+     5077.9
+    ],
+    "plate_b.V2.3": [
+     6322.1,
+     7302.4
+    ]
+   },
+   "pieces_without_bolt": [],
+   "count": 49
+  },
+  "footing": {
+   "width_in": 12.0,
+   "thickness_in": 8.0
+  }
+ }
+}

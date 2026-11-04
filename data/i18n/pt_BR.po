@@ -420,6 +420,18 @@ msgstr "Came e seguidor"
 msgid "Gear pair"
 msgstr "Par de engrenagens"
 
+msgid "Mode"
+msgstr "Modo"
+
+msgid "Rack length"
+msgstr "Comprimento da cremalheira"
+
+msgid "Rack and pinion"
+msgstr "Cremalheira e pinhão"
+
+msgid "Spur gears only: flat teeth, no helical, bevel or worm"
+msgstr "Só engrenagens retas: dentes planos, sem helicoidal, cônica ou sem-fim"
+
 msgid "Like a photo:"
 msgstr "Igual a uma foto:"
 
@@ -842,6 +854,186 @@ msgstr "FBX: incluir materiais (cor, textura)"
 
 msgid "Invert orbit left-right only"
 msgstr "Inverter só a órbita esquerda-direita"
+msgid "Frame name"
+msgstr "Nome do quadro"
+
+msgid "Save frame"
+msgstr "Salvar quadro"
+
+msgid "Keep this pivot and axis under the name, to use on another hinge"
+msgstr "Guarda este pivô e eixo com o nome, para usar em outra dobradiça"
+
+msgid "Use a saved frame"
+msgstr "Usar um quadro salvo"
+
+msgid "Joints (glTF, URDF)"
+msgstr "Juntas (glTF, URDF)"
+
+msgid "glTF (.glb): a node per hinged piece, pivot as origin, axis stated"
+msgstr "glTF (.glb): um nó por peça articulada, pivô como origem, eixo declarado"
+
+msgid "A .glb in metres in the part's own axes: each hinged piece is a node whose origin is the hinge pivot and whose extras state the axis and limits, so Blender, Unity or Godot can turn it."
+msgstr "Um .glb em metros nos eixos da própria peça: cada peça articulada é um nó cuja origem é o pivô da dobradiça e cujos extras indicam o eixo e os limites, para o Blender, Unity ou Godot poderem girá-la."
+
+msgid "URDF (.urdf): the hinges as revolute joints"
+msgstr "URDF (.urdf): as dobradiças como juntas rotativas"
+
+msgid "A .urdf listing each hinge as a revolute joint with origin, axis and limits (radians). The shapes are in the .glb."
+msgstr "Um .urdf listando cada dobradiça como junta rotativa com origem, eixo e limites (radianos). As formas estão no .glb."
+
+msgid "The part's hinges as joints."
+msgstr "As dobradiças da peça como juntas."
+
+msgid "Joint types that leave the app: Part hinge (turns about an axis, with its limit) -> glTF: a node whose origin is the pivot and whose extras state the axis; URDF: a revolute joint with origin, axis and limits.\nJoint types that do not: slide joints, the swing's angle curve (only the limit is written) and the must-not-touch pairs stay in Kine; a body skeleton joint is exported by the animation targets."
+msgstr "Tipos de junta que saem do app: dobradiça da peça (gira em torno de um eixo, com seu limite) -> glTF: um nó cuja origem é o pivô e cujos extras indicam o eixo; URDF: uma junta rotativa com origem, eixo e limites.\nTipos que não saem: juntas deslizantes, a curva de ângulo do movimento (só o limite é escrito) e os pares de não encostar ficam no Kine; uma junta de esqueleto é exportada pelos alvos de animação."
+
+msgid "none: the joints are a still pose, the hinge limits"
+msgstr "nenhum: as juntas são uma pose parada, os limites das dobradiças"
+
+msgid "%s turns no part yet: it is left out of the .glb"
+msgstr "%s ainda não gira nenhuma peça: ficou fora do .glb"
+
+msgid "%d hinge(s) will be written as joints (glTF node + URDF revolute joint)"
+msgstr "%d dobradiça(s) serão escritas como juntas (nó glTF + junta rotativa URDF)"
+
+msgid "no hinge in this part: the .glb holds its shape only and the .urdf is not written"
+msgstr "nenhuma dobradiça nesta peça: o .glb guarda só a forma e o .urdf não é escrito"
+
+msgid "Use a saved frame: its pivot and axis go on this hinge"
+msgstr "Usar um quadro salvo: o pivô e o eixo dele vão para esta dobradiça"
+
+msgid "Use frame"
+msgstr "Usar quadro"
+msgid "Reference from the solid"
+msgstr "Referência do sólido"
+
+msgid "Import 2D"
+msgstr "Importar 2D"
+
+msgid "Import 2D: an .svg or .dxf drawing becomes a new sketch on the chosen plane, in mm (SVG px at 96 dpi). Closed shapes can be extruded. What cannot be read is listed, never dropped quietly (one undo step)"
+msgstr "Importar 2D: um desenho .svg ou .dxf vira um novo esboço no plano escolhido, em mm (px do SVG a 96 dpi). Formas fechadas podem ser extrudadas. O que não pode ser lido é listado, nunca descartado em silêncio (um passo de desfazer)"
+
+msgid "Right"
+msgstr "Direita"
+
+msgid "Import 2D drawing (.svg, .dxf)"
+msgstr "Importar desenho 2D (.svg, .dxf)"
+
+msgid "Could not read %s: the file is empty or not there"
+msgstr "Não foi possível ler %s: o arquivo está vazio ou não existe"
+
+msgid "Nothing to import: the file has no lines, arcs, circles or closed shapes this can read%s"
+msgstr "Nada para importar: o arquivo não tem linhas, arcos, círculos ou formas fechadas que possam ser lidos%s"
+
+msgid ". Not imported: %s"
+msgstr ". Não importado: %s"
+
+msgid "Imported %d shapes from the %s file. %s%s"
+msgstr "%d formas importadas do arquivo %s. %s%s"
+
+msgid "Cape: folds onto itself (slower)"
+msgstr "Capa: dobra sobre si mesma (mais lento)"
+
+msgid "Cape: folds onto itself - ON (slower, about 0.5 s a frame to bake)"
+msgstr "Capa: dobra sobre si mesma - LIGADO (mais lento, cerca de 0,5 s por quadro para assar)"
+
+msgid "Cape: folds onto itself - OFF"
+msgstr "Capa: dobra sobre si mesma - DESLIGADO"
+
+msgid "Involute gear"
+msgstr "Engrenagem evolvente"
+
+msgid "Module (mm)"
+msgstr "Módulo (mm)"
+
+msgid "Pressure angle"
+msgstr "Ângulo de pressão"
+
+msgid "Profile shift"
+msgstr "Deslocamento do perfil"
+
+msgid "Root fillet (mm)"
+msgstr "Arredondamento da raiz (mm)"
+
+msgid "Centre X (mm)"
+msgstr "Centro X (mm)"
+
+msgid "Centre Y (mm)"
+msgstr "Centro Y (mm)"
+
+msgid "Bore diameter (mm)"
+msgstr "Diâmetro do furo (mm)"
+
+msgid "Add gear"
+msgstr "Adicionar engrenagem"
+
+msgid "Pitch diameter %.2f mm, tip %.2f mm, root %.2f mm, %d teeth."
+msgstr "Diâmetro primitivo %.2f mm, topo %.2f mm, raiz %.2f mm, %d dentes."
+
+msgid "Gear added: %d teeth, module %s. Extrude it to make the solid."
+msgstr "Engrenagem adicionada: %d dentes, módulo %s. Extrude para fazer o sólido."
+
+msgid "GEAR: an involute spur gear from module, teeth, pressure angle, profile shift and root fillet, as one closed loop in the sketch. Extrude it for the solid."
+msgstr "ENGRENAGEM: uma engrenagem reta evolvente a partir de módulo, dentes, ângulo de pressão, deslocamento do perfil e arredondamento da raiz, como um contorno fechado no esboço. Extrude para fazer o sólido."
+
+msgid "Put this gear into the open sketch (one edit; Undo takes it out)."
+msgstr "Coloca esta engrenagem no esboço aberto (uma edição; Desfazer tira)."
+
+msgid "MODULE: the tooth size in mm. Pitch diameter = module x teeth."
+msgstr "MÓDULO: o tamanho do dente em mm. Diâmetro primitivo = módulo x dentes."
+
+msgid "TEETH: how many teeth round the wheel (6 to 400)."
+msgstr "DENTES: quantos dentes tem a roda (de 6 a 400)."
+
+msgid "PRESSURE ANGLE (degrees): 20 is the usual one. A bigger angle makes a stronger, wider-footed tooth."
+msgstr "ÂNGULO DE PRESSÃO (graus): 20 é o mais usado. Um ângulo maior faz um dente mais forte, de pé mais largo."
+
+msgid "PROFILE SHIFT (in modules): moves the tooth out (+) or in (-). A small pinion needs + to avoid undercut."
+msgstr "DESLOCAMENTO DO PERFIL (em módulos): move o dente para fora (+) ou para dentro (-). Um pinhão pequeno precisa de + para não ficar cavado."
+
+msgid "ROOT FILLET (mm): rounds the corner where a tooth meets the root. 0 = the usual 0.38 x module."
+msgstr "ARREDONDAMENTO DA RAIZ (mm): arredonda o canto onde o dente encontra a raiz. 0 = o usual, 0,38 x módulo."
+
+msgid "CENTRE X: where the gear's middle goes in the sketch."
+msgstr "CENTRO X: onde fica o meio da engrenagem no esboço."
+
+msgid "CENTRE Y: where the gear's middle goes in the sketch."
+msgstr "CENTRO Y: onde fica o meio da engrenagem no esboço."
+
+msgid "BORE: a round hole through the middle (0 = none)."
+msgstr "FURO: um furo redondo no meio (0 = nenhum)."
+
+msgid "The module must be above 0"
+msgstr "O módulo precisa ser maior que 0"
+
+msgid "The teeth must be between 6 and 400"
+msgstr "Os dentes precisam estar entre 6 e 400"
+
+msgid "The pressure angle must be between 5 and 35 degrees"
+msgstr "O ângulo de pressão precisa estar entre 5 e 35 graus"
+
+msgid "The profile shift must be between -1.5 and 1.5"
+msgstr "O deslocamento do perfil precisa estar entre -1,5 e 1,5"
+
+msgid "The root circle would be below zero: more teeth or less negative shift"
+msgstr "O círculo da raiz ficaria abaixo de zero: mais dentes ou menos deslocamento negativo"
+
+msgid "The tip circle is inside the base circle: raise the profile shift or the teeth"
+msgstr "O círculo de topo ficaria dentro do círculo de base: aumente o deslocamento ou os dentes"
+
+msgid "The teeth come to a point (too much shift for this pressure angle): lower the shift"
+msgstr "Os dentes ficam em ponta (deslocamento demais para este ângulo de pressão): diminua o deslocamento"
+
+msgid "The teeth are too crowded: lower the shift"
+msgstr "Os dentes ficam apertados demais: diminua o deslocamento"
+msgid "Library: ready-made parts (screws, boards, pipes, gears and more); click one to put it in"
+msgstr "Biblioteca: peças prontas (parafusos, tábuas, canos, engrenagens e mais); clique em uma para colocá-la"
+
+msgid "My parts: the parts you built and saved; click one to put it in"
+msgstr "Minhas peças: as peças que você montou e salvou; clique em uma para colocá-la"
+
+msgid "Assemblies: the assemblies you saved; click one to put it in as one piece"
+msgstr "Montagens: as montagens que você salvou; clique em uma para colocá-la como uma peça só"
 
 msgid "   Pick what you want to make"
 msgstr "   Escolha o que você quer fazer"

@@ -52,6 +52,12 @@ func ev_move(p: Vector2, held := true) -> void:
 
 
 func click_ctl(c: Control) -> void:
+	var _sc: Node = c.get_parent()   # navigation only (B07): a button below the fold of its scroll panel is scrolled into view before the click
+	while _sc != null and not (_sc is ScrollContainer):
+		_sc = _sc.get_parent()
+	if _sc != null:
+		(_sc as ScrollContainer).ensure_control_visible(c)
+		await idle(3)
 	var p := c.get_global_rect().get_center()
 	await ev_move(p, false)
 	await ev_mouse(p, true)
@@ -194,6 +200,7 @@ func _init() -> void:
 	await idle(60)
 	var ep = pu().ep
 	await click_ctl(root.find_child("easypart_chip_parts", true, false) as Control)
+	await click_ctl(root.find_child("easypart_libgroup_Moving parts", true, false) as Control)   # navigation only: Gears moved into the Moving parts group tab (s239)
 	await click_ctl(root.find_child("easypart_lib_Gears", true, false) as Control)
 	await click_ctl(root.find_child("easypart_gearpair_pick", true, false) as Button)
 	await idle(10)
@@ -214,6 +221,12 @@ func _init() -> void:
 	var ub: int = m.undo.size()
 	await shot("00_turn_panel")
 	if gslider != null:
+		var _sc: Node = gslider.get_parent()   # navigation only: the Gear pair has two more sliders now (Mode, Rack length), so Turn it can sit below the fold
+		while _sc != null and not (_sc is ScrollContainer):
+			_sc = _sc.get_parent()
+		if _sc != null:
+			(_sc as ScrollContainer).ensure_control_visible(gslider)
+			await idle(3)
 		await drag_screen(knob_x(gslider, gslider.value), knob_x(gslider, 360.0) + Vector2(60, 0))   # past the end: the slider stops at 360
 	await idle(6)
 	var wl := root.find_child("easypart_gear_turn_words", true, false) as Label

@@ -162,6 +162,7 @@ func _init() -> void:
 	await idle(60)
 	var ep = pu().ep
 	await click_ctl(root.find_child("easypart_chip_parts", true, false) as Control)
+	await click_ctl(root.find_child("easypart_libgroup_Moving parts", true, false) as Control)   # navigation only: Gears moved into the Moving parts group tab (s239)
 	await click_ctl(root.find_child("easypart_lib_Gears", true, false) as Control)
 	var gp_chip := root.find_child("easypart_gearpair_pick", true, false) as Button
 	ok(gp_chip != null and gp_chip.is_visible_in_tree(), "0 Parts > Gears shows the Gear pair button")

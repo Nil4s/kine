@@ -1,0 +1,345 @@
+{
+ "ceiling_joists": {
+  "interior_bearing_wall": true,
+  "size": "2x8",
+  "spacing_in": 16
+ },
+ "connections": [
+  {
+   "count": 274,
+   "fastener": {
+    "d": 8.0,
+    "n": 4.0,
+    "type": "box"
+   },
+   "key": "stud_to_plate"
+  },
+  {
+   "count": 46,
+   "fastener": {
+    "d": 8.0,
+    "n": 4.0,
+    "type": "box"
+   },
+   "key": "joist_to_plate"
+  },
+  {
+   "count": 30,
+   "fastener": {
+    "d": 16.0,
+    "n": 3.0,
+    "type": "box"
+   },
+   "key": "rafter_to_plate"
+  },
+  {
+   "count": 30,
+   "fastener": {
+    "d": 16.0,
+    "n": 4.0,
+    "type": "box"
+   },
+   "key": "rafter_to_ridge"
+  },
+  {
+   "count": 9,
+   "fastener": {
+    "d": 16.0,
+    "n": 1.0,
+    "spacing_in": 16.0,
+    "type": "common"
+   },
+   "key": "plate_to_plate"
+  },
+  {
+   "count": 9,
+   "fastener": {
+    "d": 10.0,
+    "n": 3.0,
+    "type": "box"
+   },
+   "key": "plate_lap"
+  },
+  {
+   "count": 74,
+   "fastener": {
+    "d": 16.0,
+    "n": 1.0,
+    "spacing_in": 24.0,
+    "type": "common"
+   },
+   "key": "stud_to_stud"
+  },
+  {
+   "count": 17,
+   "fastener": {
+    "d": 16.0,
+    "n": 1.0,
+    "spacing_in": 16.0,
+    "type": "common"
+   },
+   "key": "header_built_up"
+  },
+  {
+   "count": 17,
+   "fastener": {
+    "d": 8.0,
+    "n": 5.0,
+    "type": "box"
+   },
+   "key": "header_to_stud"
+  }
+ ],
+ "exposure": "B",
+ "footing": {
+  "soil_psf": 1500,
+  "thickness_in": 8.0,
+  "type": "slab",
+  "wall_in": 3.5,
+  "width_in": 12.0
+ },
+ "length_ft": 32.001312335958,
+ "loads": {
+  "psf": 20.0,
+  "roof": "live"
+ },
+ "rafters": {
+  "birdsmouth_in": 1.168,
+  "ridge": "2x12",
+  "rise_per_12": 4.0,
+  "seat_in": 3.504,
+  "size": "2x10",
+  "spacing_in": 24,
+  "tie": "H2.5A"
+ },
+ "seismic": "B",
+ "sheathing_nailing": {
+  "roof": {
+   "d": 6.0,
+   "edge_in": 6.0,
+   "field_in": 12.0,
+   "nail": "6d common"
+  },
+  "wall": {
+   "d": 6.0,
+   "edge_in": 6.0,
+   "field_in": 12.0,
+   "nail": "6d common"
+  }
+ },
+ "sill": {
+  "bolt_dia_in": 0.5,
+  "bolt_from_end_in": 9.0,
+  "bolt_spacing_in": 68.75,
+  "embed_in": 7.0,
+  "lumber": "2x4",
+  "on": "slab"
+ },
+ "site": {
+  "edition": "IRC 2021 (ICC). New York State adopts it as the NYS Residential Code (the 2025 edition is 2021-IRC based, per the Town of Ithaca R301.2 file name); Town of Hempstead amendments NOT read",
+  "exposure": "B",
+  "ground_snow_psf": 25.0,
+  "id": "levittown_ny",
+  "lat": 40.7259,
+  "lon": -73.5143,
+  "lookup_status": {
+   "exposure": "chosen: suburban, B",
+   "ground_snow_psf": "memory",
+   "sdc": "memory",
+   "soil_class": "ASCE 7 default D",
+   "wind_mph": "memory"
+  },
+  "name": "Levittown, Nassau County, NY",
+  "risk": "II",
+  "sdc": "B",
+  "soil_bearing_psf": 1500,
+  "soil_class": "D",
+  "source": "wind 130 mph = ASCE 7-16 RC II for Nassau County, from memory (UNVERIFIED SITE); snow 25 psf = NYS ground-snow map, from memory (UNVERIFIED SITE); SDC B from low Ss and default class D (UNVERIFIED SITE); soil 1500 psf = IRC R401.4.1 presumptive value, assumed",
+  "wind_mph": 130,
+  "zip": "11756"
+ },
+ "species": "DF-L#2",
+ "wall_h_ft": 8.09383202099738,
+ "walls": [
+  {
+   "bearing": true,
+   "bracing": [
+    {
+     "len_ft": 4.29461942257218,
+     "pos_ft": 4.74245406824147
+    },
+    {
+     "len_ft": 12.496719160105,
+     "pos_ft": 12.616469816273
+    }
+   ],
+   "key": "F",
+   "length_ft": 32.001312335958,
+   "line_spacing_ft": 25.0,
+   "name": "front",
+   "openings": [
+    {
+     "header": "2-2x8",
+     "jacks": 1,
+     "name": "header.F.0",
+     "width_ft": 3.08070866141732
+    },
+    {
+     "header": "2-2x8",
+     "jacks": 1,
+     "name": "header.F.1",
+     "width_ft": 3.08070866141732
+    },
+    {
+     "header": "2-2x8",
+     "jacks": 1,
+     "name": "header.F.2",
+     "width_ft": 3.08070866141732
+    }
+   ],
+   "spacing_in": 16,
+   "stud": "2x4"
+  },
+  {
+   "bearing": true,
+   "bracing": [
+    {
+     "len_ft": 4.29461942257218,
+     "pos_ft": 5.07053805774278
+    },
+    {
+     "len_ft": 5.12139107611549,
+     "pos_ft": 19.3356299212598
+    }
+   ],
+   "key": "B",
+   "length_ft": 32.001312335958,
+   "line_spacing_ft": 25.0,
+   "name": "rear",
+   "openings": [
+    {
+     "header": "2-2x8",
+     "jacks": 1,
+     "name": "header.B.0",
+     "width_ft": 3.08070866141732
+    },
+    {
+     "header": "2-2x8",
+     "jacks": 1,
+     "name": "header.B.1",
+     "width_ft": 3.08070866141732
+    },
+    {
+     "header": "2-2x8",
+     "jacks": 1,
+     "name": "header.B.2",
+     "width_ft": 2.08333333333333
+    },
+    {
+     "header": "2-2x8",
+     "jacks": 1,
+     "name": "header.B.3",
+     "width_ft": 3.08070866141732
+    }
+   ],
+   "spacing_in": 16,
+   "stud": "2x4"
+  },
+  {
+   "bearing": false,
+   "bracing": [
+    {
+     "len_ft": 4.11581364829396,
+     "pos_ft": 0.0
+    },
+    {
+     "len_ft": 8.55971128608924,
+     "pos_ft": 7.69520997375328
+    },
+    {
+     "len_ft": 5.16568241469816,
+     "pos_ft": 19.8343175853018
+    }
+   ],
+   "key": "L",
+   "length_ft": 25.0,
+   "line_spacing_ft": 32.001312335958,
+   "name": "left gable",
+   "openings": [],
+   "spacing_in": 16,
+   "stud": "2x4"
+  },
+  {
+   "bearing": false,
+   "bracing": [
+    {
+     "len_ft": 4.11581364829396,
+     "pos_ft": 0.0
+    },
+    {
+     "len_ft": 8.55971128608924,
+     "pos_ft": 7.69520997375328
+    },
+    {
+     "len_ft": 5.16568241469816,
+     "pos_ft": 19.8343175853018
+    }
+   ],
+   "key": "R",
+   "length_ft": 25.0,
+   "line_spacing_ft": 32.001312335958,
+   "name": "right gable",
+   "openings": [],
+   "spacing_in": 16,
+   "stud": "2x4"
+  },
+  {
+   "bearing": true,
+   "braced": false,
+   "key": "H",
+   "length_ft": 31.4173228346457,
+   "line_spacing_ft": 32.001312335958,
+   "name": "hall wall (interior, bearing)",
+   "openings": [
+    {
+     "header": "2-2x8",
+     "jacks": 1,
+     "name": "header.H.0",
+     "width_ft": 3.08070866141732
+    },
+    {
+     "header": "2-2x8",
+     "jacks": 1,
+     "name": "header.H.1",
+     "width_ft": 3.08070866141732
+    }
+   ],
+   "spacing_in": 16,
+   "stud": "2x4"
+  },
+  {
+   "bearing": false,
+   "braced": false,
+   "key": "V1",
+   "length_ft": 24.4160104986877,
+   "line_spacing_ft": 32.001312335958,
+   "name": "partition 1",
+   "openings": [],
+   "spacing_in": 16,
+   "stud": "2x4"
+  },
+  {
+   "bearing": false,
+   "braced": false,
+   "key": "V2",
+   "length_ft": 24.4160104986877,
+   "line_spacing_ft": 32.001312335958,
+   "name": "partition 2",
+   "openings": [],
+   "spacing_in": 16,
+   "stud": "2x4"
+  }
+ ],
+ "width_ft": 25.0,
+ "wind_mph": 130
+}

@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include "kine_cad.h"
 
 #include <godot_cpp/variant/array.hpp>
@@ -19,6 +20,12 @@
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepBuilderAPI_MakePolygon.hxx>
 #include <BRepBuilderAPI_MakeSolid.hxx>
+#include <BRepBuilderAPI_MakeVertex.hxx>
+#include <BRep_Builder.hxx>
+#include <TopoDS_Shell.hxx>
+#include <unordered_map>
+#include <vector>
+#include <algorithm>
 #include <BRepLib.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <GC_MakeArcOfCircle.hxx>
@@ -37,9 +44,12 @@
 #include <godot_cpp/variant/packed_vector2_array.hpp>
 #include <godot_cpp/variant/vector2.hpp>
 #include <cmath>
+#include <vector>
 #include <BRepAlgoAPI_Common.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepAlgoAPI_Fuse.hxx>
+#include <TopTools_ListOfShape.hxx>
+#include <TopExp_Explorer.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <BRepGProp.hxx>
@@ -147,6 +157,8 @@ void KineCAD::_bind_methods() {
 	ClassDB::bind_static_method("KineCAD", D_METHOD("translate", "id", "by"), &KineCAD::translate);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("rotate", "id", "axis", "radians"), &KineCAD::rotate);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("union", "a", "b"), &KineCAD::union_);
+	ClassDB::bind_static_method("KineCAD", D_METHOD("union_many", "base", "tools"), &KineCAD::union_many);
+	ClassDB::bind_static_method("KineCAD", D_METHOD("overlap_volume", "a", "b"), &KineCAD::overlap_volume);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("cut", "a", "b"), &KineCAD::cut);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("intersect", "a", "b"), &KineCAD::intersect);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("fillet_all", "id", "radius"), &KineCAD::fillet_all);
@@ -240,12 +252,28 @@ int KineCAD::rotate(int id, const Vector3 &axis, double radians) {
 	KCAD_CATCH("rotate", 0)
 }
 
+namespace {
+TopoDS_Shape fuse_list(const TopoDS_Shape &base, const std::vector<TopoDS_Shape> &tools);
+} // namespace
+
 int KineCAD::union_(int a, int b) {
 	TopoDS_Shape sa, sb;
 	if (!kc_get(a, sa) || !kc_get(b, sb)) {
 		return 0;
 	}
 	KCAD_TRY
+	{   // C70: a tool that is a compound of several solids (a pattern's copies) fuses with the base in ONE general fuse, solid by solid
+		std::vector<TopoDS_Shape> parts;
+		for (TopExp_Explorer ex(sb, TopAbs_SOLID); ex.More(); ex.Next()) {
+			parts.push_back(ex.Current());
+		}
+		if (parts.size() > 1) {
+			TopoDS_Shape r = fuse_list(sa, parts);
+			if (!r.IsNull()) {
+				return kc_put(r);
+			}
+		}
+	}
 	BRepAlgoAPI_Fuse op(sa, sb);
 	if (!op.IsDone() || op.HasErrors()) {
 		g_err = "union failed";
@@ -253,6 +281,61 @@ int KineCAD::union_(int a, int b) {
 	}
 	return kc_put(op.Shape());
 	KCAD_CATCH("union", 0)
+}
+
+int KineCAD::union_many(int a, const PackedInt32Array &tools) {
+	TopoDS_Shape sa;
+	if (!kc_get(a, sa)) {
+		return 0;
+	}
+	std::vector<TopoDS_Shape> ts;
+	for (int i = 0; i < tools.size(); i++) {
+		TopoDS_Shape t;
+		if (!kc_get(tools[i], t)) {
+			return 0;
+		}
+		ts.push_back(t);
+	}
+	KCAD_TRY
+	TopoDS_Shape r = fuse_list(sa, ts);
+	if (r.IsNull()) {
+		g_err = "union_many failed";
+		return 0;
+	}
+	return kc_put(r);
+	KCAD_CATCH("union_many", 0)
+}
+
+// C70: the biggest volume a and any one solid of b share (m3), stopping at the first that is clearly above a skin. For "do they overlap?" questions:
+// a compound of 64 teeth intersected whole took 2 s, one tooth at a time the first answers at once
+double KineCAD::overlap_volume(int a, int b) {
+	TopoDS_Shape sa, sb;
+	if (!kc_get(a, sa) || !kc_get(b, sb)) {
+		return -1.0;
+	}
+	KCAD_TRY
+	std::vector<TopoDS_Shape> parts;
+	for (TopExp_Explorer ex(sb, TopAbs_SOLID); ex.More(); ex.Next()) {
+		parts.push_back(ex.Current());
+	}
+	if (parts.empty()) {
+		parts.push_back(sb);
+	}
+	double best = 0.0;
+	for (const TopoDS_Shape &p : parts) {
+		BRepAlgoAPI_Common op(sa, p);
+		if (!op.IsDone() || op.HasErrors() || op.Shape().IsNull()) {
+			continue;
+		}
+		GProp_GProps gp;
+		BRepGProp::VolumeProperties(op.Shape(), gp);
+		best = std::fmax(best, std::fabs(gp.Mass()));
+		if (best > 1e-12) {
+			break;
+		}
+	}
+	return best;
+	KCAD_CATCH("overlap_volume", -1.0)
 }
 
 int KineCAD::cut(int a, int b) {
@@ -397,7 +480,8 @@ Ref<ArrayMesh> KineCAD::tessellate(int id, double deflection, double angle) {
 		return mesh;
 	}
 	KCAD_TRY
-	BRepMesh_IncrementalMesh inc(s, deflection, false, angle, false);
+	// c74: OCCT's parallel mesher starts the OSD thread pool, whose workers keep the process from exiting on Windows (blueprint/s257 hung to the 900 s timeout). Serial by default; KINE_PAR_MESH=1 opts back in.
+	BRepMesh_IncrementalMesh inc(s, deflection, false, angle, std::getenv("KINE_PAR_MESH") != nullptr);
 	PackedVector3Array verts, norms;
 	PackedInt32Array idx;
 	for (TopExp_Explorer ex(s, TopAbs_FACE); ex.More(); ex.Next()) {
@@ -536,6 +620,30 @@ bool shape_normal(const TopoDS_Face &f, gp_Dir &n) {
 
 TopoDS_Shape fuse_all(const TopoDS_Shape &a, const TopoDS_Shape &b) {
 	BRepAlgoAPI_Fuse op(a, b);
+	if (!op.IsDone() || op.HasErrors()) {
+		return TopoDS_Shape();
+	}
+	return op.Shape();
+}
+
+
+// C70: one General Fuse of a base and a list of tools (the copies of a pattern). The one-by-one chain re-intersects the whole growing
+// body for every copy (super-linear: 64 teeth took 18-30 s); one boolean intersects every pair once.
+TopoDS_Shape fuse_list(const TopoDS_Shape &base, const std::vector<TopoDS_Shape> &tools) {
+	if (tools.empty()) {
+		return base;
+	}
+	TopTools_ListOfShape args, tl;
+	args.Append(base);
+	for (const TopoDS_Shape &t : tools) {
+		tl.Append(t);
+	}
+	BRepAlgoAPI_Fuse op;
+	op.SetArguments(args);
+	op.SetTools(tl);
+	// C70/c74: OCCT's parallel mode starts the OSD thread pool, whose workers keep Godot from exiting on Windows: serial unless KINE_PAR_MESH is set
+	op.SetRunParallel(std::getenv("KINE_PAR_MESH") != nullptr);
+	op.Build();
 	if (!op.IsDone() || op.HasErrors()) {
 		return TopoDS_Shape();
 	}
@@ -1161,15 +1269,16 @@ int KineCAD::pattern_linear(int id, const Vector3 &step, int count) {
 		return 0;
 	}
 	KCAD_TRY
-	TopoDS_Shape acc = s;
+	std::vector<TopoDS_Shape> copies;
 	for (int i = 1; i < count; i++) {
 		gp_Trsf t;
 		t.SetTranslation(gp_Vec(step.x * i, step.y * i, step.z * i));
-		acc = fuse_all(acc, BRepBuilderAPI_Transform(s, t, true).Shape());
-		if (acc.IsNull()) {
-			g_err = "pattern: fuse failed";
-			return 0;
-		}
+		copies.push_back(BRepBuilderAPI_Transform(s, t, true).Shape());
+	}
+	TopoDS_Shape acc = fuse_list(s, copies);   // C70: one boolean
+	if (acc.IsNull()) {
+		g_err = "pattern: fuse failed";
+		return 0;
 	}
 	return kc_put(acc);
 	KCAD_CATCH("pattern_linear", 0)
@@ -1189,15 +1298,16 @@ int KineCAD::pattern_circular(int id, const Vector3 &ao, const Vector3 &ad, int 
 	// a full turn spreads the copies evenly round it; a partial angle is the span from the first copy to the last
 	const bool full = std::fabs(total) >= 2.0 * M_PI - 1e-9;
 	const double step = count < 2 ? 0.0 : (full ? total / count : total / (count - 1));
-	TopoDS_Shape acc = s;
+	std::vector<TopoDS_Shape> copies;
 	for (int i = 1; i < count; i++) {
 		gp_Trsf t;
 		t.SetRotation(ax, step * i);
-		acc = fuse_all(acc, BRepBuilderAPI_Transform(s, t, true).Shape());
-		if (acc.IsNull()) {
-			g_err = "pattern: fuse failed";
-			return 0;
-		}
+		copies.push_back(BRepBuilderAPI_Transform(s, t, true).Shape());
+	}
+	TopoDS_Shape acc = fuse_list(s, copies);   // C70: one boolean
+	if (acc.IsNull()) {
+		g_err = "pattern: fuse failed";
+		return 0;
 	}
 	return kc_put(acc);
 	KCAD_CATCH("pattern_circular", 0)
@@ -1236,6 +1346,105 @@ int KineCAD::live_count() {
 }
 
 
+
+// s249n DIRECT SHELL: a mesh whose triangles already share vertex INDICES (every edge used by exactly two triangles, once each way) needs no sewing:
+// one vertex per index, one edge per undirected pair, one planar face per triangle. Sewing searches for the matches the indices already name (the
+// 54k-triangle temple roofs took 33 s that way). Anything else (unwelded copies, open or non-manifold edges, a bad index) returns false and the
+// caller sews as before, so the solid is the same one and only the time differs.
+static bool kc_direct_solid(const PackedVector3Array &p_verts, const PackedInt32Array &p_tris, TopoDS_Solid &r_solid) {
+	const int nv = p_verts.size();
+	std::unordered_map<long long, int> use; // undirected edge -> bit 1: seen a->b (a<b), bit 2: seen b->a
+	std::vector<char> ok_tri(p_tris.size() / 3, 0);
+	for (int t = 0; t + 2 < p_tris.size(); t += 3) {
+		int ix[3] = { p_tris[t], p_tris[t + 1], p_tris[t + 2] };
+		for (int k = 0; k < 3; k++) {
+			if (ix[k] < 0 || ix[k] >= nv) {
+				return false;
+			}
+		}
+		if (ix[0] == ix[1] || ix[1] == ix[2] || ix[0] == ix[2]) {
+			continue;
+		}
+		ok_tri[t / 3] = 1;
+		for (int k = 0; k < 3; k++) {
+			int a = ix[k], b = ix[(k + 1) % 3];
+			long long key = (long long)std::min(a, b) * (long long)nv + std::max(a, b);
+			int bit = a < b ? 1 : 2;
+			int &u = use[key];
+			if (u & bit) {
+				return false; // the same direction twice: non-manifold or flipped
+			}
+			u |= bit;
+		}
+	}
+	for (auto &kv : use) {
+		if (kv.second != 3) {
+			return false; // open edge
+		}
+	}
+	std::vector<TopoDS_Vertex> vtx(nv);
+	std::vector<char> have(nv, 0);
+	std::unordered_map<long long, TopoDS_Edge> edges;
+	BRep_Builder bb;
+	TopoDS_Shell shell;
+	bb.MakeShell(shell);
+	int nf = 0;
+	for (int t = 0; t + 2 < p_tris.size(); t += 3) {
+		if (!ok_tri[t / 3]) {
+			continue;
+		}
+		int ix[3] = { p_tris[t], p_tris[t + 1], p_tris[t + 2] };
+		for (int k = 0; k < 3; k++) {
+			if (!have[ix[k]]) {
+				Vector3 v = p_verts[ix[k]];
+				vtx[ix[k]] = BRepBuilderAPI_MakeVertex(gp_Pnt(v.x, v.y, v.z));
+				have[ix[k]] = 1;
+			}
+		}
+		BRepBuilderAPI_MakeWire mw;
+		for (int k = 0; k < 3; k++) {
+			int a = ix[k], b = ix[(k + 1) % 3];
+			int lo = std::min(a, b), hi = std::max(a, b);
+			long long key = (long long)lo * (long long)nv + hi;
+			auto it = edges.find(key);
+			if (it == edges.end()) {
+				BRepBuilderAPI_MakeEdge me(vtx[lo], vtx[hi]);
+				if (!me.IsDone()) {
+					return false;
+				}
+				it = edges.emplace(key, me.Edge()).first;
+			}
+			TopoDS_Edge e = it->second;
+			mw.Add(a < b ? e : TopoDS::Edge(e.Reversed()));
+			if (!mw.IsDone()) {
+				return false;
+			}
+		}
+		Vector3 va = p_verts[ix[0]], vb = p_verts[ix[1]], vc = p_verts[ix[2]];
+		gp_Vec n = gp_Vec(gp_Pnt(va.x, va.y, va.z), gp_Pnt(vb.x, vb.y, vb.z)).Crossed(gp_Vec(gp_Pnt(va.x, va.y, va.z), gp_Pnt(vc.x, vc.y, vc.z)));
+		if (n.Magnitude() < 1e-30) {
+			return false;
+		}
+		BRepBuilderAPI_MakeFace mf(gp_Pln(gp_Pnt(va.x, va.y, va.z), gp_Dir(n)), mw.Wire(), true); // the plane is known: no plane search
+		if (!mf.IsDone()) {
+			return false;
+		}
+		bb.Add(shell, mf.Face());
+		nf++;
+	}
+	if (nf < 4) {
+		return false;
+	}
+	shell.Closed(true);
+	BRepBuilderAPI_MakeSolid ms(shell);
+	if (!ms.IsDone()) {
+		return false;
+	}
+	r_solid = ms.Solid();
+	BRepLib::OrientClosedSolid(r_solid);
+	return true;
+}
+
 // s155 MESH -> SOLID: every triangle becomes a planar face, the faces are sewn into one shell (shared vertices, tolerance p_tol metres),
 // the shell must be CLOSED and be the only one, then it becomes a solid with its faces pointing outward. 0 + last_error() otherwise.
 int KineCAD::solid_from_mesh(const PackedVector3Array &p_verts, const PackedInt32Array &p_tris, double p_tol) {
@@ -1244,6 +1453,12 @@ int KineCAD::solid_from_mesh(const PackedVector3Array &p_verts, const PackedInt3
 		return 0;
 	}
 	KCAD_TRY
+	if (std::getenv("KINE_NO_DIRECT") == nullptr) {
+		TopoDS_Solid direct;
+		if (kc_direct_solid(p_verts, p_tris, direct)) {
+			return kc_put_solid(direct);
+		}
+	}
 	BRepBuilderAPI_Sewing sew(p_tol > 0.0 ? p_tol : 1e-6, true, true, true, false);
 	int added = 0;
 	for (int t = 0; t + 2 < p_tris.size(); t += 3) {

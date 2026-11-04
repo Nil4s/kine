@@ -1166,6 +1166,21 @@ func _steps_place(cl: Rect2, _y: float) -> void:
 	steps_box.position = Vector2(cl.end.x - PW - 8.0, maxf(float(g["steps_y"]), _y))   # bug5: under the panel when the panel needs more than the room above the anchored foot (a short window)
 	flat_box.reset_size()   # p113: the printing box sits under the step list
 	flat_box.position = Vector2(cl.position.x + 12.0, float(g["flat_y"]))
+	_flat_beside_status(cl, steps_box.position.x)
+
+
+## C59: at 1024 the printing box and the "Looks good" sentence both stood at the window's foot, one on top of the other. Narrow: the sentence keeps the
+## corner, the printing chips (shortened) stand to its right, ending before the step list. Wide: unchanged
+func _flat_beside_status(cl: Rect2, steps_x: float) -> void:
+	var narrow := get_viewport().get_visible_rect().size.x < NARROW_W
+	for b in [get("lay_btn"), get("paint_btn")]:   # declared further down the chain (easy_part.gd)
+		if b == null:
+			continue
+		(b as Button).custom_minimum_size.x = 118.0 if narrow else (PW - 40.0) * 0.5
+	flat_box.reset_size()
+	if narrow and flat_box.visible:
+		var x := cl.position.x + 12.0 + status.get_combined_minimum_size().x + 6.0
+		flat_box.position = Vector2(minf(x, steps_x - 6.0 - flat_box.size.x), flat_box.position.y)
 
 
 ## p108measuregri, Friday plan 108: THE GRID'S NUMBERS. The floor grid (_floor_sync) gets plain cm numbers along its two axes, standing
@@ -1238,6 +1253,15 @@ func _grid_labels_lay(st: float) -> void:
 
 ## p108measuregri: only the numbers the lens can see are shown: one behind the camera or outside the 1280 x 720 view is hidden,
 ## so the spacing on the screen is the spacing of the numbers that are there (a number far off the edge sat 40 px from its neighbour)
+## C68: true when a grid number drawn at screen point sp (about 64 x 18 px) would touch the sentence or a chip row
+func _grid_label_under_box(sp: Vector2) -> bool:
+	var r := Rect2(sp - Vector2(32, 9), Vector2(64, 18))
+	for bx in [hint, round_box, shape_box, hole_box, split_box, colour_box]:
+		if bx != null and (bx as Control).is_visible_in_tree() and r.intersects((bx as Control).get_global_rect()):
+			return true
+	return false
+
+
 func _grid_labels_cull() -> void:
 	var c: Camera3D = m.cam
 	var view := c.get_viewport().get_visible_rect()
@@ -1246,7 +1270,8 @@ func _grid_labels_cull() -> void:
 		var p := l.global_position
 		var on := not c.is_position_behind(p)
 		if on:
-			on = view.has_point(c.unproject_position(p))
+			var sp := c.unproject_position(p)
+			on = view.has_point(sp) and not _grid_label_under_box(sp)   # C68: a number half hidden by the sentence or a chip row shows as a cut-off line
 		l.visible = on
 	_grid_labels_screen_size(c, view)   # integ95: a fixed screen size, and no two numbers on top of each other
 
@@ -1397,18 +1422,59 @@ func _flat_narrow() -> void:
 		flat_box.position = Vector2(260.0, vp.end.y - 6.0 - flat_box.size.y)
 
 
+## C59: a chip too narrow for its words shows ONE short whole word (All, Outside, Top, Bevel, Stronger) with its icon, not the first letters of two
+## chips that begin alike ("Only", "Only"). The full words come back when the room does; the tooltip always has them
+const CHIP_WORDS := {"easypart_round_all": ["All edges", "All"], "easypart_round_outside": ["Only the outside", "Outside", "Outer"], "easypart_round_top": ["Only the top", "Top"],
+	"easypart_bevel": ["Bevel"], "easypart_stronger": ["Make it stronger", "Stronger", "Strong", "Rib"]}
+
+
+func _chip_words(b: Button, short: bool) -> void:
+	if not CHIP_WORDS.has(String(b.name)):
+		return
+	if short:
+		b.add_theme_constant_override("icon_max_width", 16)
+	else:
+		b.remove_theme_constant_override("icon_max_width")
+	var f := b.get_theme_font("font")
+	var fs := b.get_theme_font_size("font_size")
+	var room := b.custom_minimum_size.x - b.get_theme_stylebox("normal").get_minimum_size().x - (16.0 + 4.0 if (short and b.icon != null) else (26.0 if b.icon != null else 0.0))
+	var words: Array = CHIP_WORDS[String(b.name)]
+	var pick: String = String(words[0]) if not short else String(words[words.size() - 1])
+	if short:
+		for w in words:
+			if f.get_string_size(String(w), HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x <= room - 6.0:
+				pick = String(w)
+				break
+	b.text = pick
+
+
 ## P172LAYOUTS: the round filter row (four 176 px chips) at 1024 wide: the chips share the room left of the view column, so the row
 ## stops short of the views and the panel's sliders. The chips narrow and their words trim (the tooltips have the full words); wide, nothing changes
 func _round_narrow() -> void:
 	var btns := ((round_box.get_child(0).get_child(0)) as Control).get_children()   # s013: box > column > the chip row
-	var room := view_box.position.x - 8.0 - round_box.position.x - 14.0 - 6.0 * float(btns.size() - 1)
-	var narrow := get_viewport().get_visible_rect().size.x < NARROW_W
-	var bw := clampf(floorf(room / float(btns.size())), 96.0, 176.0) if narrow else 176.0
+	var room_all := view_box.position.x - 8.0 - round_box.position.x - 14.0   # B07: the row's whole width left of the view buttons
+	var n := btns.size()
+	var bw := 176.0
+	var rows := 1
+	var is_narrow := get_viewport().get_visible_rect().size.x < NARROW_W
+	for r in ([1] if is_narrow else [1, 2, 3, 4]):   # narrow (1024): one row only, the Tilt column and the printing box below have no room for a second   # B07: the fewest rows whose chips are at least 96 px (176 if they all fit on one row, as before)
+		rows = r
+		var k := ceili(float(n) / float(r))
+		bw = clampf(floorf((room_all - 6.0 * float(k - 1)) / float(k)), 56.0 if is_narrow else 96.0, 176.0)
+		if (room_all - 6.0 * float(k - 1)) / float(k) >= 96.0:
+			break
+	var narrow := bw < 176.0 or get_viewport().get_visible_rect().size.x < NARROW_W
+	if get_viewport().get_visible_rect().size.x < NARROW_W and rows == 1:
+		bw = clampf(floorf((room_all - 6.0 * float(n - 1)) / float(n)), 56.0, 176.0)
 	for b in btns:
 		(b as Button).custom_minimum_size.x = bw
 		(b as Button).clip_text = narrow
 		(b as Button).text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS if narrow else TextServer.OVERRUN_NO_TRIMMING
 		(b as Button).add_theme_font_size_override("font_size", 14 if narrow else 16)
+		_chip_words(b as Button, bw < 150.0)
+	var k2 := ceili(float(n) / float(rows))
+	(round_box.get_child(0).get_child(0) as Control).custom_minimum_size.x = minf(room_all, float(k2) * bw + 6.0 * float(k2 - 1))
+	round_box.get_child(0).get_child(0).reset_size()
 	round_box.reset_size()
 
 
