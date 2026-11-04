@@ -185,6 +185,14 @@ func _float(F: Dictionary, V: Dictionary) -> void:
 			var kk := "%s|%s|%s" % [F["tname"][i], String(F["names"][F["a"][i]]).split(".")[0], String(F["names"][F["b"][i]]).split(".")[0]] if F["b"][i] >= 0 else "%s|%s|-" % [F["tname"][i], String(F["names"][F["a"][i]]).split(".")[0]]
 			grp[kk] = int(grp.get(kk, 0)) + 1
 		print("   failing by type|a|b: ", str(grp))
+		var seen := {}
+		for i in bad:
+			var k2 := "%s|%s|%d" % [F["tname"][i], String(F["names"][F["a"][i]]).split(".")[0], 1 if F["b"][i] >= 0 else 0]
+			if seen.has(k2):
+				continue
+			seen[k2] = true
+			var bb2 := "-" if F["b"][i] < 0 else "%s %s" % [F["names"][F["b"][i]], str(F["solids"][F["b"][i]]["b"])]
+			print("   EX %s #%d head %s dir %s len %.1f stand %.1f  A %s %s  B %s  gap %.2f la %.1f lb %.1f tail %.1f hole %.2f" % [k2, i, str(F["head"][i]), str(F["dir"][i]), F["len"][i], F["stand"][i], F["names"][F["a"][i]], str(F["solids"][F["a"][i]]["b"]), bb2, V["head_gap"][i] - F["stand"][i], V["len_a"][i], V["len_b"][i], V["tail"][i], V["holes"][i]])
 	# CONTROL: move one nail 20 mm along z and x, the check must flag it
 	var G: Dictionary = F.duplicate()
 	var hh: PackedVector3Array = F["head"].duplicate()

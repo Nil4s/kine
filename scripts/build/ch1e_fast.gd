@@ -225,9 +225,11 @@ static func validate(F: Dictionary, native := true, only := []) -> Dictionary:
 	for i in ids:
 		var h: Vector3 = F["head"][i]
 		var d: Vector3 = F["dir"][i]
+		var sd: float = F["stand"][i]
+		h += d * sd     # CH1e: the head stands off the wood by the strap / washer / nut thickness; the shank is only checked from the wood face on (head_gap gets the stand added back below)
 		heads.append_array(PackedFloat64Array([h.x, h.y, h.z]))
 		dirs.append_array(PackedFloat64Array([d.x, d.y, d.z]))
-		lens.append(F["len"][i])
+		lens.append(F["len"][i] - sd)
 		aa.append(F["a"][i])
 		bb.append(F["b"][i])
 	var raw: PackedFloat64Array
@@ -244,6 +246,8 @@ static func validate(F: Dictionary, native := true, only := []) -> Dictionary:
 		for q in ids.size():
 			arr[ids[q]] = raw[5 * q + c]
 		cols.append(arr)
+	for q in ids.size():
+		cols[0][ids[q]] += F["stand"][ids[q]]
 	var out := {}
 	for c in 5:
 		out[keys[c]] = cols[c]
@@ -602,6 +606,13 @@ static func _place_frame(F: Dictionary) -> void:
 			var hj_hit := _probe(F, far_j)
 			if hj_hit < 0 or hj_hit == j4:
 				a4 = j4; b4 = i4; nd = -dirs
+		# CH1e fix: a 16d common (88.9 mm) cannot start through a member 89 mm thick and still reach the next: drive it from the thinner member's free face
+		var l16: float = float(TYPES["16d_com"]["L"]) * IN
+		if _ext(S[a4], ax) > l16 - 6.0 and _ext(S[b4], ax) <= l16 - 6.0:
+			var t4 := a4
+			a4 = b4
+			b4 = t4
+			nd = -nd
 		var ba: Array = S[a4]["b"]
 		var bbx: Array = S[b4]["b"]
 		var face_c: float = (ba[ax] if nd > 0 else ba[ax + 3])
@@ -706,7 +717,7 @@ static func _place_roof(F: Dictionary) -> void:
 			continue
 		var pb: Array = S[pl]["b"]
 		var cn := _conn(F, "rafter_to_plate", "toe", i, pl)
-		_toe(F, cn, "16d_box", i, pl, 1, -1, [2, 1], 22.0, pb[2] + 4.0, pb[5] - 4.0, HW)
+		_toe(F, cn, "16d_box", i, pl, 1, -1, [2, 1], 22.0, maxf(pb[2], zseat - 40.5), minf(pb[5], zseat + 40.5), HW)     # CH1e: only where the rafter bears on the plate (a gable rafter sits on the side plate, which runs the whole depth)
 		# ridge
 		if ridge >= 0:
 			var zr: float = 3791.0 if front else 3829.0
@@ -738,8 +749,9 @@ static func _place_layout(F: Dictionary) -> void:
 		var joist := _probe_kind(F, Vector3(xc, 2640.0, zin), "joist")
 		if joist >= 0:
 			var cn := _conn(F, "rafter_bearing", "toe", i, joist, "", "layout rafter on joist %s" % S[i]["name"])
-			var lo: float = minf(zc, zc + (60.0 if front else -60.0)) + 2.0
-			var hi: float = maxf(zc, zc + (60.0 if front else -60.0)) - 2.0
+			# the underside rises 1 in 3 from the heel point, so the rafter touches the joist only at the heel: the toenails go in within 2.4 mm of it, where the wedge is under the 0.6 mm the checker covers
+			var lo: float = minf(zc + (0.6 if front else -0.6), zc + (2.4 if front else -2.4))
+			var hi: float = maxf(zc + (0.6 if front else -0.6), zc + (2.4 if front else -2.4))
 			_toe(F, cn, "8d_box", i, joist, 1, -1, [2, 2], 30.0, lo, hi, float(b[1]))
 		else:
 			F["findings"].append("layout rafter %s: no joist under its heel" % S[i]["name"])
@@ -1011,7 +1023,7 @@ static func _panels(F: Dictionary) -> Array:
 		var b: Array = S[i]["b"]
 		var p := {"solid": i, "name": S[i]["name"], "kind": k, "wall": wall_of(S[i]["name"])}
 		if k == "wall_sheathing":
-			var tax := 0 if _ext(S[i], 0) < 20.0 else 2
+			var tax := 2 if (p["wall"] == "F" or p["wall"] == "B") else 0     # CH1e: from the wall name; a 0.4 mm sliver of a front sheet is thin in x too and had been taken for a side-wall sheet
 			var uax := 2 if tax == 0 else 0
 			var cen := 4877.0 if tax == 0 else 3810.0
 			var low: bool = (b[tax] + b[tax + 3]) * 0.5 < cen
@@ -1134,6 +1146,12 @@ static func _place_sheathing(F: Dictionary, opts: Dictionary) -> void:
 	var L: float = float(TYPES["6d_com"]["L"]) * IN
 	var support_kinds := {"wall_sheathing": ["stud", "king", "jack", "cripple"], "gable_sheathing": ["gable_stud"], "roof_sheathing": ["rafter", "rafter_pair", "rafter_layout", "gable_rafter"]}
 	for p in panels:
+		var pw := 0.0
+		for q0 in p["poly"]:
+			pw = maxf(pw, (q0 as Vector2).x)
+		if p["kind"] == "wall_sheathing" and pw < 25.0:
+			F["findings"].append("%s: %.1f mm wide, a cut-off sliver of the sheet beside it (builder rounding at the wall end), not a nailable piece" % [p["name"], pw])
+			continue
 		var cn := _conn(F, "sheathing", "sheath", p["solid"], -1, "", "OSB %s" % p["name"])
 		var origin: Vector3 = p["origin"]
 		var U: Vector3 = p["U"]
