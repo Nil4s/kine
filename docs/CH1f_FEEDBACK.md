@@ -53,3 +53,18 @@ Wind on dense soil: 15.05 kN on every system against zone 0 bounds of 20.2 (wood
 ## Merge note
 
 origin/poser-ui-rounds (CH12 lateral dashpots and crowd) conflicted in the Newmark step of both solvers. Resolved by keeping the CH1f form (Rayleigh on the structural stiffness Kd, soil dashpots on the diagonal) and adding the CH12 dashpots on top in both twins. Kd equals K for CH12's models, so its numbers are unchanged. ch12 21 ok, and bar h still gives 1e-12.
+
+## Engineering level reached (docs/CHALLENGE_FEEDBACK.md scale)
+- **Structural dynamics: L3.** Gazetas springs, P-delta and modal analysis are checked against closed forms (footing 0.04 pct, buckling exact), the C++ and GDScript solvers agree to about 1e-12, and there are planted controls. Not L4: El Centro is a stand-in record, not a Mato Grosso design spectrum, and there is no load-combination check against NBR 6118 / 15421 / 16055 / 15961.
+- **Geotechnical: L2-L3.** The soil classes and the swelling pressure are typical values, not a site investigation (no SPT, no Cuiaba swelling test found).
+- **Masonry and light steel frame: L2-L3.** The member and material values are unverified, and the masonry walls are frame lines, not shell elements.
+- **Next level would need:** a Brazilian code load path (NBR 6123 wind, NBR 15421 seismic zone 0), the design combinations, shell or panel walls, and a real soil report.
+
+## What Kine lacked
+| needed | exists today | workaround | proposed feature |
+|---|---|---|---|
+| soil under a structure (springs, dashpots per soil class) | nothing in the app | ch1f_soil.gd (Gazetas closed forms) | a "Foundation" property on a building: soil class -> springs, used by the CH10 solver |
+| wall systems as materials (confined masonry, LSF, wood) on one plan | wood framing only (CH1 house) | ch1f_systems.gd builds each system's members by hand | a wall-system picker on the house plan that regenerates members, masses and stiffness |
+| Brazilian code loads (NBR 6123 wind, NBR 15421 seismic) | nothing | constants from memory (35 m/s, 0.025 g) | load generators per code and region, with the source printed |
+| masonry and shear walls as panels | 3D frame (beam) solver only | walls drawn as lines; stiffness approximated | a shell or equivalent-strut wall element in the frame solver |
+| a section/cutaway render of a building | SectionLook (CH13 used it) | a custom cutaway in tools/ch1f_render.gd, first drawn on the wrong side: a DISCOVERABILITY gap | one render helper: building + cut plane -> picture (G11 in the ledger) |
