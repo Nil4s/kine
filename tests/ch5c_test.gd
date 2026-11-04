@@ -11,8 +11,12 @@ extends "res://tests/ch5_test.gd"
 ##           brightest 10 % of that stone's own pixels (luminance) and average them: the stone's highlight. The statistic is the mean over stones of that
 ##           highlight. Wet / dry >= 3. The pixel choice follows the same rule in both images (it is never taken from one image and reused in the other).
 ##           CONTROL (planted): the wet scene with SSR and the reflection probe switched off (ws.set_reflections(false)) must give a ratio < 3.
-## H VEIL    (the pale asphalt) In the DRY render, pose x = 0, the asphalt strip (ground x 1.2..2.6, z -7..-1, outside the bowls) has mean sRGB luminance
-##           < 0.10 (the parked CH5b shader measured 0.156 dry, a flat pale veil; tests/ch5cdiag in commit 67a12af7). CONTROL: the parked value 0.156 fails the bar.
+## H VEIL   (the pale asphalt) PRE-RUN CHANGE of an unrun bar (lead 11-04): the first draft limit "< 0.10 dry" had no source. Now it comes from ref2.jpg:
+##           the only flat, non-sett ground in the photo is the wet flat patch at the left edge of the lane (hand-masked once, assets/ch5c/ref2_flat_patch_mask.png,
+##           polygon in photo px (458,1246)..(594,1286), 5047 px). Its mean sRGB luminance (0.2126 R + 0.7152 G + 0.0722 B of the 8-bit values) is 0.302.
+##           The photo patch is WET and shows the sky haze, so the comparison is wet render to wet photo. BAR: in the WET render, pose x = 0, the asphalt strip
+##           (ground x 1.2..2.6, z -7..-1, outside the bowls) has mean sRGB luminance within +-25 % of 0.302, i.e. in [0.227, 0.378].
+##           CONTROL: the parked CH5b shader's wet value 0.1207 (commit 67a12af7 diagnosis) is outside the band and fails. The dry value is printed, not barred.
 const OUT := "C:/Users/Nick/tools/kine_workers/out/ch5c/"
 
 
@@ -105,6 +109,7 @@ func _run() -> void:
 	ok(not (cratio >= 3.0), "F2 CONTROL: the wet scene with SSR and the reflection probe off gives %.1fx and fails the bar" % cratio)
 	# H VEIL
 	var hv := 0.0
+	var hd := 0.0
 	var hn := 0
 	for y in range(0, 720, 2):
 		for x in range(0, 1280, 2):
@@ -115,10 +120,12 @@ func _run() -> void:
 			var g2 := o2 + d2 * (-o2.y / d2.y)
 			if g2.x < 1.2 or g2.x > 2.6 or g2.z < -7.0 or g2.z > -1.0 or ws.bowl_field(g2.x, g2.z) < -0.01:
 				continue
-			hv += ylum(dry.get_pixel(x, y))
+			hv += ylum(wet.get_pixel(x, y))
+			hd += ylum(dry.get_pixel(x, y))
 			hn += 1
 	var hm := hv / maxf(float(hn), 1.0)
-	ok(hn > 500 and hm < 0.10, "H VEIL: dry asphalt strip mean luminance %.4f (need < 0.10; the parked shader gave 0.156), n=%d" % [hm, hn])
-	ok(not (0.156 < 0.10), "H CONTROL: the parked value 0.156 fails the bar")
+	print("     H: dry asphalt mean luminance %.4f (printed, not barred)" % (hd / maxf(float(hn), 1.0)))
+	ok(hn > 500 and hm >= 0.227 and hm <= 0.378, "H VEIL: wet asphalt strip mean luminance %.4f vs the photo's flat patch 0.302 (band 0.227-0.378), n=%d" % [hm, hn])
+	ok(not (0.1207 >= 0.227 and 0.1207 <= 0.378), "H CONTROL: the parked wet value 0.1207 is outside the band and fails")
 	print("ch5c: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
