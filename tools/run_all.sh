@@ -988,3 +988,6 @@ EXTRA="$EXTRA c66:w"   # C66: the hands card overlaps no button or status text a
 
 
 EXTRA="$EXTRA c69:w"   # C69: every tooltip in Easy Part / Pose is wrapped to <= 440 px and fits the window at 1024 and 1280 (scripts/tooltip_fit.gd; tests/c69_test.gd)
+
+
+EXTRA="$EXTRA c70:w"   # C70: involute Gear sketch tool + a pattern fused in one boolean (tests/c70_test.gd)
