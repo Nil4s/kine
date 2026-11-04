@@ -1007,6 +1007,7 @@ EXTRA="$EXTRA c73:w"   # C73: no CR inside any .gd string literal (.gitattribute
 EXTRA="$EXTRA ch4:w"   # ch4: solid oak grain, dovetailed box (docs/CH4_REFERENCE.md, tests/ch4_test.gd)
 
 
+EXTRA="$EXTRA ch1f:w"   # ch1f: soil-structure interaction + masonry / light steel / wood on the CH1 plan, heave and wind (physics model, NOT an NBR check), tests/ch1f_test.gd
 
 EXTRA="$EXTRA ch1e:w"   # ch1e: real fasteners on the CH1 house (docs/CH1e_REFERENCE.md, tests/ch1e_test.gd)
 EXTRA="$EXTRA c78:w"   # c78: installer unit bars (docs/C78_INSTALLER.md); the installer run itself is tests/c78_test.sh
