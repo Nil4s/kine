@@ -183,6 +183,28 @@ func _init() -> void:
 	var line6 := AiBox.usage_line({"turns": 2, "in": 10000, "cache_read": 7000, "out": 500, "seconds": 3.0, "usd": c_son})
 	ok(absf(c_son - 0.01935) < 1e-9 and absf(c_mini - 0.15) < 1e-9 and c_loc == 0.0 and c_unk < 0.0 and line6.ends_with("about $0.019"),
 		"6 $: sonnet %.5f (want 0.01935), gpt-4o-mini 1M in %.3f (want 0.150), ollama %.1f, unknown model %.0f (no guess); the box line '%s'" % [c_son, c_mini, c_loc, c_unk, line6])
+	# 7 part_build: a whole part in ONE call, then only the new step with append. By hand: box 100x10x50 = 50000 mm3, a separate
+	# cylinder r10 len30 = pi*100*30 = 9424.78 (2 bodies, 59424.78); the appended cut r5 len10 through the box: -pi*25*10 = -785.40 -> 58639.38
+	if Part.available():
+		var T := AgentTools.new(m)
+		var u0: int = m.undo.size()
+		var r7: Dictionary = await T.request(7, "part_build", {"name": "aicost block", "steps": [
+			{"t": "prim", "kind": "box", "op": "new", "x": 0, "y": 0, "z": 0, "w": 100, "h": 10, "d": 50},
+			{"t": "prim", "kind": "cylinder", "op": "new", "x": 20, "y": 10, "z": 25, "axis": "y", "r": 10, "len": 30}]})
+		var a7: Dictionary = r7.get("result", {})
+		var r7b: Dictionary = await T.request(8, "part_build", {"append": true, "steps": [
+			{"t": "prim", "kind": "cylinder", "op": "cut", "into": 0, "x": 70, "y": 0, "z": 25, "axis": "y", "r": 5, "len": 10}]})
+		var b7: Dictionary = r7b.get("result", {})
+		var r7c: Dictionary = await T.request(9, "part_build", {"steps": [{"t": "teleport"}]})
+		var reply_bytes := JSON.stringify(a7).length()
+		ok(int(a7.get("bodies", 0)) == 2 and absf(float(a7.get("volume_mm3", 0)) - 59424.78) < 59424.78 * 0.005
+			and int(b7.get("steps", 0)) == 3 and absf(float(b7.get("volume_mm3", 0)) - 58639.38) < 58639.38 * 0.005 and (b7.get("errors", {}) as Dictionary).is_empty()
+			and m.undo.size() == u0 + 2 and (m.S.part["features"] as Array).size() == 3 and r7c.has("error") and String(r7c["error"]["message"]).contains("prim")
+			and reply_bytes < 400,
+			"7 part_build: %d bodies %.1f mm3 (want 2, 59424.8), append -> %d steps %.1f mm3 (want 3, 58639.4), errors %s, undo +%d (want 2), unknown kind refused %s; reply %d bytes (bar < 400)"
+			% [int(a7.get("bodies", 0)), float(a7.get("volume_mm3", 0)), int(b7.get("steps", 0)), float(b7.get("volume_mm3", 0)), b7.get("errors", {}), m.undo.size() - u0, r7c.has("error"), reply_bytes])
+	else:
+		ok(false, "7 part_build: the CAD DLL did not load (Part.available() false)")
 	m.queue_free()
 	print("aicost: %d fail" % fails)
 	TestFiles.cleanup()

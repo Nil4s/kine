@@ -440,6 +440,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"part_roof":   # ITEM 226: a thin curved roof step (hip / gable / xieshan / pyramid / shed / flat, sag, corner lift, open top) on the part on screen; ONE undo step (scripts/build/part_roof.gd). Not in METHODS
 			var prf := PartRoof.serve(m, p)
 			return _ok(id, prf) if prf["ok"] else _err(id, -32602, String(prf["error"]))
+		"part_build":   # 11-04 AI COST: a whole part from JSON steps in ONE call, or {append} only the new steps (scripts/build/part_build.gd). Not in METHODS
+			var pb := PartBuild.serve(m, p)
+			return _ok(id, pb) if pb["ok"] else _err(id, -32602, String(pb["error"]))
 		"part_facts", "part_assert":
 			# ITEM 220 MODELING VIEW WITH MATHS (scripts/part_facts.gd, scripts/part_assert.gd): the part as text, and one-line checks on it, the
 			# way assert / state give the body. {part | path} or the part on screen. Not in METHODS (the transcript's ready line)

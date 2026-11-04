@@ -72,13 +72,19 @@ TOOLS = {
                    {"type": "object", "properties": {"part": {"type": "object"}, "path": S, "gap": {"type": "array", "items": N, "minItems": 2, "maxItems": 2}, "cap": N, "near_mm": N}, "additionalProperties": False}),
     "part_assert": ("part_assert", "One-line checks on the part (e.g. 'piston touches barrel clearance 0.0-0.2 mm'); no lines = the record's saved asserts; save keeps the lines that pass.",
                     {"type": "object", "properties": {"lines": {"type": "array", "items": S}, "part": {"type": "object"}, "path": S, "save": {"type": "boolean"}, "clear": {"type": "boolean"}}, "additionalProperties": False}),
+    "part_build": ("part_build", "Build a part from steps in ONE call (mm, y up); append: true adds steps to the part on screen (send only new ones). "
+                   "Main step: {t:'prim', kind: box|cylinder|tube|cone|sphere|wedge, op: new|join|cut|intersect, into: body, box/wedge x,y,z (corner) w,h,d; "
+                   "cylinder x,y,z (cap centre) axis x|y|z r len; tube +r_in; cone +r2; sphere x,y,z r}. Also pattern {body,kind linear|circular,count,mm,dir|axis,deg}, "
+                   "move {body,d:[x,y,z]}, appear {body,color:[r,g,b]}, bname {body,called}, hinge, shell, combine. Returns bodies, box_mm, per-step errors; save, facts optional.",
+                   {"type": "object", "properties": {"steps": {"type": "array", "items": {"type": "object"}}, "part": {"type": "object"}, "append": {"type": "boolean"},
+                                                     "name": S, "save": {"type": "boolean"}, "facts": {"type": "boolean"}}, "additionalProperties": False}),
     "commands": ("commands", "The window's commands (id, name, keys, whether it edits): the ids are run steps. The whole list is 500+ "
                  "commands (20-30k tokens): give find (a few words, e.g. 'mirror pose') to get only the best 25 matches.",
                  {"type": "object", "properties": {"find": S}, "additionalProperties": False}),
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert"]
+MATH_TOOLS = ["frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:
