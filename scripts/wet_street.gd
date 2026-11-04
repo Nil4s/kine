@@ -8,9 +8,9 @@ extends Node3D
 ## Data model (kept from CH5/CH5b so their bars A, C, E run unchanged): height(), himg (RF metres), mimg (RGBA8 wet albedo + wet roughness), bowls, level.
 
 const X0 := -3.2
-const Z0 := -13.6
+const Z0 := -34.0
 const SPAN_X := 6.4
-const SPAN_Z := 14.4
+const SPAN_Z := 35.6        ## the lane runs 34 m: the lamp is far, as in the photo, so the wet stone tops glint all along the way
 const TEXEL := 0.006                 ## metres per baked pixel
 const PITCH := 0.11                  ## nominal sett size (tests scale u, v with it)
 const GAP := 0.014                   ## joint width scale
@@ -31,8 +31,9 @@ const DRY_ALB_ASPHALT := 0.07
 const WET_DARKEN := 0.7             ## wet albedo = dry * this (Lekner & Dorf 1988)
 const AMBIENT_WET := 0.9
 const EYE := 1.6
-const LAMP_POS := Vector3(0.3, 6.0, -12.6)   ## the bulb of lamp 0
-const BULB_R := 0.3
+const LAMP_POS := Vector3(0.3, 5.2, -33.0)   ## the bulb of lamp 0
+const BULB_R := 1.0                  ## light_size of the lamps (engine soft-shadow radius; a big opal luminaire); the visible globe stays 0.3
+const BULB_VIS := 0.3
 const FOV := 62.0
 const PITCH_DEG := -6.0
 const TILE_M := 0.75                 ## the photo's 1.5 m tile is drawn at half size: setts about 11 cm
@@ -42,11 +43,11 @@ const TILT := 0.2                   ## per-stone random tilt range (slope)
 
 ## lamp row: [bulb position, colour, light energy, post x offset, bulb emission]; lamp 0 is the photo's lamp (white), the others are sodium
 const LAMPS := [
-	[Vector3(0.3, 6.0, -12.6), Vector3(1.0, 0.95, 0.85), 45.0, 1.2, 60.0],
-	[Vector3(2.4, 4.8, -4.6), Vector3(1.0, 0.55, 0.2), 5.0, 0.55, 8.0],
-	[Vector3(-2.4, 4.8, -5.8), Vector3(1.0, 0.55, 0.2), 5.0, -0.55, 8.0],
-	[Vector3(2.9, 4.8, -8.8), Vector3(1.0, 0.55, 0.2), 5.0, 0.3, 8.0],
-	[Vector3(-2.9, 4.8, -10.4), Vector3(1.0, 0.55, 0.2), 5.0, -0.3, 8.0],
+	[Vector3(0.3, 5.2, -33.0), Vector3(1.0, 0.95, 0.85), 260.0, 1.2, 60.0],
+	[Vector3(2.4, 4.8, -5.0), Vector3(1.0, 0.55, 0.2), 5.0, 0.55, 8.0],
+	[Vector3(-2.4, 4.8, -11.0), Vector3(1.0, 0.55, 0.2), 6.0, -0.55, 8.0],
+	[Vector3(2.9, 4.8, -17.0), Vector3(1.0, 0.55, 0.2), 7.0, 0.3, 8.0],
+	[Vector3(-2.9, 4.8, -24.0), Vector3(1.0, 0.55, 0.2), 8.0, -0.3, 8.0],
 ]
 const BOLLARD := Vector3(0.3, 0.0, -4.0)     ## the S2 shadow caster, on the lamp 0 to camera axis
 const WALL_X := 3.3
@@ -541,6 +542,7 @@ func build(eyes: Array = [Vector3(0, EYE, 1.5)]) -> void:
 	env.glow_hdr_threshold = 1.5
 	env.glow_hdr_scale = 1.5
 	get_viewport().msaa_3d = Viewport.MSAA_4X
+	get_viewport().positional_shadow_atlas_size = 8192
 	var we := WorldEnvironment.new()
 	we.environment = env
 	add_child(we)
@@ -601,12 +603,13 @@ func build(eyes: Array = [Vector3(0, EYE, 1.5)]) -> void:
 	_build_bollards()
 	# reflection probe: the alley's walls and lamps for the rough wet stone (SSR covers what is on screen)
 	refl_probe = ReflectionProbe.new()
-	refl_probe.position = Vector3(0, 3.5, -5.0)
-	refl_probe.size = Vector3(7.0, 8.0, 22.0)
+	refl_probe.position = Vector3(0, 3.5, -16.0)
+	refl_probe.size = Vector3(7.0, 8.0, 44.0)
 	refl_probe.box_projection = true
 	refl_probe.interior = false
 	refl_probe.update_mode = ReflectionProbe.UPDATE_ONCE
 	refl_probe.intensity = 0.25
+	refl_probe.max_distance = 60.0
 	refl_probe.ambient_mode = ReflectionProbe.AMBIENT_DISABLED
 	add_child(refl_probe)
 	_apply_modes()
@@ -712,14 +715,14 @@ func _build_walls() -> void:
 	for side in [-1.0, 1.0]:
 		var w := MeshInstance3D.new()
 		var bm := BoxMesh.new()
-		bm.size = Vector3(0.2, 10.0, 18.0)
+		bm.size = Vector3(0.2, 10.0, 40.0)
 		w.mesh = bm
-		w.position = Vector3(side * (WALL_X + 0.1), 5.0, -6.0)
+		w.position = Vector3(side * (WALL_X + 0.1), 5.0, -17.0)
 		w.material_override = wm
 		add_child(w)
 		set_pieces.append(w)
 		for r in 2:
-			for c in 6:
+			for c in 14:
 				var q := MeshInstance3D.new()
 				var qm := QuadMesh.new()
 				qm.size = Vector2(1.0, 1.4)
@@ -806,8 +809,8 @@ func _build_lamp(lpos: Vector3, post_dx: float, col: Vector3, energy: float, emi
 	add_child(cable)
 	var bulb := MeshInstance3D.new()
 	var sm := SphereMesh.new()
-	sm.radius = BULB_R
-	sm.height = BULB_R * 2.0
+	sm.radius = BULB_VIS
+	sm.height = BULB_VIS * 2.0
 	bulb.mesh = sm
 	bulb.position = lpos
 	var bm := StandardMaterial3D.new()
@@ -833,7 +836,7 @@ func _build_lamp(lpos: Vector3, post_dx: float, col: Vector3, energy: float, emi
 	gm.disable_receive_shadows = true
 	var glare := MeshInstance3D.new()
 	var gq := QuadMesh.new()
-	gq.size = Vector2(5.0, 5.0) if idx == 0 else Vector2(3.0, 3.0)
+	gq.size = Vector2(9.0, 9.0) if idx == 0 else Vector2(3.0, 3.0)
 	glare.mesh = gq
 	glare.material_override = gm
 	glare.position = lpos
@@ -841,8 +844,8 @@ func _build_lamp(lpos: Vector3, post_dx: float, col: Vector3, energy: float, emi
 	add_child(glare)
 	set_pieces.append(glare)
 	var o := OmniLight3D.new()
-	o.position = lpos - Vector3(0, BULB_R + 0.02, 0)
-	o.omni_range = 40.0 if idx == 0 else 16.0
+	o.position = lpos - Vector3(0, BULB_VIS + 0.02, 0)
+	o.omni_range = 90.0 if idx == 0 else 18.0
 	o.omni_attenuation = 2.0
 	o.light_energy = energy
 	o.light_color = Color(col.x, col.y, col.z)
