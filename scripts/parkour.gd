@@ -38,13 +38,11 @@ static func body() -> Body:
 		_body = Body.new()
 		_body.load_files("res://data/skeleton.json", "res://data/body_limits.json")
 		_base = JSON.parse_string(FileAccess.get_file_as_string(BASE))
-		# this Body only (the app's limits file is untouched): a vault plant needs the hand to lie flat under a forearm that is steep,
-		# which a real wrist does with forearm pronation and 70+ deg of extension; the rig has no forearm twist bones, so the hand's
-		# own side and bend ranges take it (docs/CH7_FEEDBACK.md)
+		# this Body only (the app's limits file is untouched): the hand's extension stop goes from 60 to 70 deg (AAOS wrist extension
+		# about 70 deg, flexion about 80), nothing else; the side range keeps the file's -20 / 30 (radial / ulnar deviation 20 / 30)
 		for sd in ["_l", "_r"]:
 			var L: Dictionary = _body.lim["hand" + sd]
-			L["bend"] = Vector2(-85.0, 70.0)
-			L["side"] = Vector2(-45.0, 45.0)
+			L["bend"] = Vector2(-70.0, (L["bend"] as Vector2).y)
 	return _body
 
 

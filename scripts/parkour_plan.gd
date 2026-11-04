@@ -14,6 +14,7 @@ const Y0 := Parkour.Y0
 const BALL := 0.0152          # a flat foot's toe base above the surface (Body p0 ball y)
 const WRIST := 0.098          # a hand plant's wrist above the surface: the palm cannot lie flat (the wrist stops at 50 deg, measured: ContactIK gap -0.04 at 0.054), so the wrist rides 4 cm higher
 const HIP := 0.80             # pelvis height over the roof in a run's stance (m)
+const TOE_STAND := 0.13       # the toe base this far off a wall face: the foot (flat, the ankle stops at 25 deg) touches it with its toe tip
 const DEPTH_SOLE := 0.104     # ankle to sole (m): a foot on a wall has its ankle this far off it
 
 
@@ -125,9 +126,9 @@ static func build() -> Dictionary:
 	_stance(P, R, 4.30, 4.47, 0.05)
 	_stance(P, L, 4.60, 4.76)
 	_stance(P, R, 4.82, 4.96)                  # the cat leap's take-off
-	# the cat: soles on the ledge's face (z = 22.7) under the hands
-	_hold(P, "feet", "foot_l", 5.32, 5.50, Vector3(0.12, Y0 + 0.78, 22.7 - DEPTH_SOLE), "face")
-	_hold(P, "feet", "foot_r", 5.32, 5.50, Vector3(-0.12, Y0 + 0.55, 22.7 - DEPTH_SOLE), "face")
+	# the cat: toe tips on the ledge's face (z = 22.7) under the hands (the ankle cannot turn the sole flat to a face: docs/CH7_FEEDBACK.md)
+	_hold(P, "feet", "foot_l", 5.32, 5.50, Vector3(0.12, Y0 + 0.28, 22.7 - TOE_STAND))
+	_hold(P, "feet", "foot_r", 5.32, 5.50, Vector3(-0.12, Y0 + 0.16, 22.7 - TOE_STAND))
 	_hold(P, "feet", "foot_r", 5.78, 5.92, Vector3(-0.09, Y0 + 1.7 + BALL, 23.25))   # up on the ledge
 	_hold(P, "feet", "foot_l", 5.94, 6.04, Vector3(0.09, Y0 + 1.7 + BALL, 24.05))     # the step off its edge
 	_hold(P, "feet", "foot_l", 6.58, 6.68, Vector3(0.12, Y0 + BALL, 25.65))            # the landing, both feet, into the roll
@@ -166,10 +167,11 @@ static func build() -> Dictionary:
 	_rel(P, "feet", "foot_r", 5.05, Vector3(-0.10, -0.50, -0.30))
 	_rel(P, "feet", "foot_r", 5.20, Vector3(-0.12, -0.50, 0.20))
 	# the mantle to the ledge's top and the step off, the drop
-	_rel(P, "feet", "foot_l", 5.60, Vector3(0.12, -0.50, 0.05))
-	_rel(P, "feet", "foot_l", 5.75, Vector3(0.10, -0.40, -0.25))
-	_rel(P, "feet", "foot_r", 5.50, Vector3(-0.12, -0.55, 0.0))
-	_rel(P, "feet", "foot_r", 5.64, Vector3(-0.12, -0.60, 0.10))
+	_rel(P, "feet", "foot_l", 5.60, Vector3(0.12, -0.50, -0.40))
+	_rel(P, "feet", "foot_l", 5.75, Vector3(0.10, -0.45, -0.10))
+	_rel(P, "feet", "foot_r", 5.50, Vector3(-0.12, -0.55, -0.45))
+	_rel(P, "feet", "foot_r", 5.64, Vector3(-0.12, -0.50, -0.30))
+	_rel(P, "feet", "foot_r", 5.72, Vector3(-0.12, -0.35, 0.20))
 	_rel(P, "feet", "foot_r", 6.04, Vector3(-0.10, -0.55, -0.20))
 	_rel(P, "feet", "foot_r", 6.25, Vector3(-0.10, -0.45, 0.25))
 	_rel(P, "feet", "foot_r", 6.45, Vector3(-0.12, -0.60, 0.30))
@@ -179,10 +181,10 @@ static func build() -> Dictionary:
 	# roll then the slide: legs follow the trunk (FK tuck during the roll), then both reach forward on the slide
 	_rel(P, "feet", "foot_l", 7.25, Vector3(0.09, -0.62, 0.15))
 	_rel(P, "feet", "foot_r", 7.25, Vector3(-0.09, -0.62, -0.1))
-	_rel(P, "feet", "foot_l", 7.40, Vector3(0.10, 0.10, 0.85))
-	_rel(P, "feet", "foot_r", 7.40, Vector3(-0.10, 0.04, 0.80))
-	_rel(P, "feet", "foot_l", 8.0, Vector3(0.10, 0.10, 0.85))
-	_rel(P, "feet", "foot_r", 8.0, Vector3(-0.10, 0.04, 0.80))
+	_rel(P, "feet", "foot_l", 7.40, Vector3(0.10, 0.12, 0.88))
+	_rel(P, "feet", "foot_r", 7.40, Vector3(-0.10, 0.12, 0.88))
+	_rel(P, "feet", "foot_l", 8.0, Vector3(0.10, 0.12, 0.88))
+	_rel(P, "feet", "foot_r", 8.0, Vector3(-0.10, 0.12, 0.88))
 	# ---------------- the hands
 	_hand_run(P)
 	var hz := 5.0     # the speed vault's right hand: on the box's near edge (z = 5.0), a hand's width from his centre line
