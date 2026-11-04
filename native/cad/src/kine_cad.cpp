@@ -258,6 +258,10 @@ int KineCAD::union_(int a, int b) {
 	KCAD_CATCH("union", 0)
 }
 
+namespace {
+TopoDS_Shape fuse_list(const TopoDS_Shape &base, const std::vector<TopoDS_Shape> &tools);
+} // namespace
+
 int KineCAD::union_many(int a, const PackedInt32Array &tools) {
 	TopoDS_Shape sa;
 	if (!kc_get(a, sa)) {
