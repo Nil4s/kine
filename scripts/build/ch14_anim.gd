@@ -25,7 +25,8 @@ static func top_after(k: int) -> float:
 
 
 ## the waypoints: [{"yaw","r","z","g" (grip stroke 0 open .. 8 closed),"held" (can index or -1),"t" (arrival time s),"label"}]
-static func waypoints(d: Dictionary, transit_clear := CLEAR) -> Array:
+## approach: the height over its target the carried can arrives at when the base has turned (bar 11's planted control arrives 40 mm BELOW it)
+static func waypoints(d: Dictionary, transit_clear := CLEAR, approach := HOVER) -> Array:
 	var ps := A.poses(d)
 	var pick: Dictionary = ps[0]
 	var zc := A.CAN_H / 2.0
@@ -46,7 +47,7 @@ static func waypoints(d: Dictionary, transit_clear := CLEAR) -> Array:
 		add.call(-90.0, pick["r"], zc, 0.0, -1, "can %d: down to the can" % (k + 1))
 		add.call(-90.0, pick["r"], zc, 8.0, k, "can %d: grip closes" % (k + 1), T_GRIP)
 		add.call(-90.0, pick["r"], zc + HOVER + transit_clear, 8.0, k, "can %d: lift" % (k + 1))
-		add.call(90.0, tgt["r"], float(tgt["z"]) + HOVER, 8.0, k, "can %d: base turns 180 deg" % (k + 1), 5.5)
+		add.call(90.0, tgt["r"], float(tgt["z"]) + approach, 8.0, k, "can %d: base turns 180 deg" % (k + 1), 5.5)
 		add.call(90.0, tgt["r"], tgt["z"], 8.0, k, "can %d: down onto the stack" % (k + 1))
 		add.call(90.0, tgt["r"], tgt["z"], 0.0, -1, "can %d: released" % (k + 1), T_GRIP)
 		var r_up: float = float(tgt["r"]) + (40.0 if k == 5 else 0.0)     # the top can has nothing beside it: the gripper also slides out 40 mm so the shoulder stays inside its limit
@@ -188,24 +189,64 @@ static func clearance(d: Dictionary, st: Dictionary, placed: Array) -> float:
 	return best
 
 
-## sweep the whole job at dt; returns {"min": smallest clearance, "at": label, "lost_ik": states without a solution, "t_end"}
+## the gap (mm, negative = overlap) between two upright cans (exact for parallel vertical cylinders): centres c1, c2 (plan x, z), heights [lo, hi]
+static func can_gap(c1: Vector2, lo1: float, hi1: float, c2: Vector2, lo2: float, hi2: float) -> float:
+	var h := c1.distance_to(c2) - A.CAN_D
+	var v := maxf(lo1 - hi2, lo2 - hi1)
+	if v <= 0.0:
+		return h
+	if h <= 0.0:
+		return v
+	return sqrt(h * h + v * v)
+
+
+## the carried can against every placed can, in the transit moves only (lift and the 180 deg turn: setting it down onto its supports ends in contact on purpose)
+static func held_clearance(d: Dictionary, st: Dictionary, placed: Array) -> float:
+	if int(st.get("held", -1)) < 0 or not st.has("th1"):
+		return 1e9
+	var lb := String(st["label"])
+	if not (lb.ends_with("lift") or lb.ends_with("base turns 180 deg")):
+		return 1e9
+	var c: Vector3 = joints(d, st)["c"]
+	var ps := A.poses(d)
+	var u := rad_dir(90.0)
+	var best := 1e9
+	for k in placed:
+		var tp: Dictionary = ps[int(k) + 1]
+		var b: Vector3 = u * float(tp["r"])
+		best = minf(best, can_gap(Vector2(c.x, c.z), c.y - A.CAN_H / 2.0, c.y + A.CAN_H / 2.0, Vector2(b.x, b.z), float(tp["z"]) - A.CAN_H / 2.0, float(tp["z"]) + A.CAN_H / 2.0))
+	return best
+
+
+## sweep the whole job at dt; returns {"min": smallest arm/gripper clearance, "at": label, "held_min": the carried can's smallest transit gap, "held_at",
+## "lost_ik": states without a solution, "t_end", "yaw": [min, max]}
 static func sweep(d: Dictionary, wp: Array, dt := 0.1) -> Dictionary:
 	var t_end: float = wp[wp.size() - 1]["t"]
 	var best := 1e9
 	var at := ""
+	var hbest := 1e9
+	var hat := ""
 	var lost := 0
+	var ymin := 1e9
+	var ymax := -1e9
 	var t := 0.0
 	while t <= t_end:
 		var st := state(d, wp, t)
 		if not (st["ik"] as Dictionary)["ok"]:
 			lost += 1
+		ymin = minf(ymin, st["yaw"])
+		ymax = maxf(ymax, st["yaw"])
 		var pl := placed_at(d, wp, t)
 		var c := clearance(d, st, pl)
 		if c < best:
 			best = c
 			at = "%s at t %.1f s" % [st["label"], t]
+		var hc := held_clearance(d, st, pl)
+		if hc < hbest:
+			hbest = hc
+			hat = "%s at t %.1f s" % [st["label"], t]
 		t += dt
-	return {"min": best, "at": at, "lost_ik": lost, "t_end": t_end}
+	return {"min": best, "at": at, "held_min": hbest, "held_at": hat, "lost_ik": lost, "t_end": t_end, "yaw": [ymin, ymax]}
 
 
 # ---------------------------------------------------------------- the strokes the state implies

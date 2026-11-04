@@ -1011,3 +1011,4 @@ EXTRA="$EXTRA c79:w"   # c79: slicer lookup no longer holds the quit (docs/C79_F
 EXTRA="$EXTRA c75:w"   # C75: KineSkinNative.correct, the DQ/LBS skinning pre-correction in C++ (equal to GDScript within 1e-5, >=10x, fallback, ulp control) (tests/c75_test.gd)
 EXTRA="$EXTRA c77:w"   # C77: exit-hang guard: no ungated OCCT parallel switch, every Thread.start joined, planted controls caught (tests/c77_test.gd)
 EXTRA="$EXTRA ch12:w"   # ch12: footbridge sway under a phase-locking crowd (Dallard 2001), tests/ch12_test.gd
+EXTRA="$EXTRA ch14:w"   # ch14: water-syringe arm builds a 3-2-1 can pyramid: reach, 180 deg rack base, torque, grip, compliance backlash, stack stability, materials, build sweep, BOM cost (docs/CH14_REFERENCE.md), tests/ch14_test.gd

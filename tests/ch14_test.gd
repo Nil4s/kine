@@ -19,8 +19,25 @@ extends SceneTree
 ##             plywood, PLA+); the bar passes if at least one material meets all three, the passing ones are named. PLANTED: a 25 mm boom of foam-soft E = 20 MPa fails.
 ##  9 HAND     Pascal ratio, beam formula (closed form and Simpson unit-load), rack travel, Lame, bubble, stack tolerances, jaw force each equal the hand-arithmetic value to 1e-9.
 ##             PLANTED: the diameter ratio used as the force ratio fails the check.
+## Bars 10-13 (added when the lane was resumed, committed before their first run):
+## 10 PARTS    all 14 part records build (>= 1 body, volume > 0); the printed pin hole is drawn at 4 + 0.15 + 0.30 = 4.45 mm and its worst print (- 0.30 undersize - 0.10 scatter)
+##             still clears the 4 mm dowel; the six printed parts write as binary STL (84 + 50 n bytes, n > 0) whose box equals the part's box to 0.01 mm. PLANTED: a hole drawn
+##             at the nominal 4.0 prints at 3.60 worst and does not clear.
+## 11 BUILD    the whole build sequence sampled every 0.05 s: no sample without an IK solution inside the limits, arm + gripper never touch a placed can (clearance > 0),
+##             the carried can never touches a placed can in transit (> 0), the base stays inside -90..+90, all six cans end up placed, and every master plunger stays
+##             inside its own stroke (the thumb can actually push it there). PLANTED: arriving 40 mm BELOW the target height after the turn drives the carried can into the stack.
+## 12 SHEET    (skipped headless) 12 frames over the job: each differs from the one before; the last shows more can red than the first; the syringe-pair section shows water
+##             blue. PLANTED: the red counter on an empty background is 0.
+## 13 COST     the BOM lines add up to its total (hand sum); the cheapest design over boom material x tube x syringe sizes that passes bars 2b, 4, 5 and 6 is found and costs no
+##             more than the current one. PLANTED: the current design with soft PVC tube (the cheapest tube) fails the working bars.
 var fails := 0
 const A := preload("res://scripts/build/ch14_arm.gd")
+const N := preload("res://scripts/build/ch14_anim.gd")
+const PT := preload("res://scripts/build/ch14_parts.gd")
+const SC := preload("res://scripts/build/ch14_scene.gd")
+const BOM := preload("res://scripts/build/ch14_bom.gd")
+const ME := preload("res://scripts/build/mesh_export.gd")
+const OUT := "C:/Temp/claude/ch14"
 
 
 func ok(c: bool, w: String) -> void:
@@ -169,5 +186,235 @@ func _init() -> void:
 	ok(rel((A.P0 + 0.2) * (0.5 - dva), A.P0 * 0.5) < 1e-9, "9 isothermal identity (p0 + p)(V - dV) = p0 V")
 	ok(rel(tol["x"], 16.9) < 1e-9 and rel(tol["y"], 37.92347557911853) < 1e-9, "9 stack tolerances 16.9 mm and 37.923476 mm")
 	ok(rel(A.grip(d, A.CAN_M1, 1.5, A.F_HAND)["need"], 7.079175468749999) < 1e-9, "9 jaw N needed for the full can = 7.0791755 N")
+	DirAccess.make_dir_recursive_absolute(OUT + "/stl")
+	var vols := bars_parts()
+	bars_build(d)
+	await bars_sheet()
+	bars_cost(d, vols)
 	print("ch14: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
+
+
+# ------------------------------------------------ 10
+const PRINTED := ["turntable", "pinion", "rack", "gripper_body", "jaw", "jaw"]
+
+
+func records() -> Dictionary:
+	return {"syringe_barrel_20": PT.syringe_barrel(20), "syringe_plunger_20": PT.syringe_plunger(20, 80.0), "baseboard": PT.baseboard(), "console": PT.console(),
+		"turntable": PT.turntable(), "pinion": PT.pinion(), "rack": PT.rack(), "upper_arm": PT.upper_arm(), "forearm": PT.forearm(), "gripper_body": PT.gripper_body(),
+		"jaw": PT.jaw(), "can": PT.can_rec(), "stand": PT.stand(), "pair_section": PT.pair_section()}
+
+
+## the part's triangles in mm, Z up (STL convention; Kine is Y up), every surface
+func stl_body(rec: Dictionary) -> Dictionary:
+	var m: ArrayMesh = Assembly.built(rec)["mesh"]
+	var v := PackedVector3Array()
+	var t := PackedInt32Array()
+	for s in m.get_surface_count():
+		var arr := m.surface_get_arrays(s)
+		var sv: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var base := v.size()
+		for p in sv:
+			v.append(Vector3(p.x, -p.z, p.y) * 1000.0)
+		var si = arr[Mesh.ARRAY_INDEX]
+		if si == null or (si as PackedInt32Array).is_empty():
+			for i in sv.size():
+				t.append(base + i)
+		else:
+			for i in (si as PackedInt32Array):
+				t.append(base + i)
+	return {"v": v, "t": t}
+
+
+func bars_parts() -> Dictionary:
+	var recs := records()
+	var built_ok := true
+	var bad := []
+	for k in recs:
+		var b := Assembly.built(recs[k])
+		if int(b["bodies"]) < 1 or float(b["volume"]) <= 0.0:
+			built_ok = false
+			bad.append(k)
+	ok(built_ok and recs.size() == 14, "10 all %d part records build: %s" % [recs.size(), "ok" if bad.is_empty() else str(bad)])
+	var hd := A.hole_design(PT.PIN_D)
+	var worst := hd - A.FDM_UNDERSIZE - 0.10
+	ok(rel(hd, 4.45) < 1e-9 and worst > PT.PIN_D, "10 pin hole drawn %.2f mm, worst print %.2f mm > the 4 mm dowel" % [hd, worst])
+	var nom_worst := PT.PIN_D - A.FDM_UNDERSIZE - 0.10
+	ok(nom_worst < PT.PIN_D, "10 PLANTED a hole drawn at the nominal 4.00 prints %.2f worst: no clearance (caught)" % nom_worst)
+	var stl_ok := true
+	var vols := {}
+	var seen := {}
+	for nm in PRINTED:
+		var rec: Dictionary = recs[nm]
+		var key: String = nm if not seen.has(nm) else nm + "_2"
+		seen[nm] = true
+		vols[key] = float(Assembly.built(rec)["volume"]) * 1e9
+		var body := stl_body(rec)
+		var path := "%s/stl/ch14_%s.stl" % [OUT, key]
+		ME.write_stl(path, [body])
+		var n := (body["t"] as PackedInt32Array).size() / 3
+		var sz := FileAccess.get_file_as_bytes(path).size()
+		var bb := AABB((body["v"] as PackedVector3Array)[0], Vector3.ZERO)
+		for p in (body["v"] as PackedVector3Array):
+			bb = bb.expand(p)
+		var pb: AABB = Assembly.built(rec)["aabb"]
+		var want := Vector3(pb.size.x, pb.size.z, pb.size.y) * 1000.0
+		var good := n > 0 and sz == 84 + 50 * n and (bb.size - want).length() < 0.01
+		stl_ok = stl_ok and good
+		print("     STL %-14s %6d triangles %8d bytes box %s mm" % [key, n, sz, bb.size])
+	ok(stl_ok, "10 six printed parts written as binary STL, sizes and boxes match (%s/stl)" % OUT)
+	return vols
+
+
+# ------------------------------------------------ 11
+func bars_build(d: Dictionary) -> void:
+	var wp := N.waypoints(d)
+	var sw := N.sweep(d, wp, 0.05)
+	print("     build: %.1f s, %d waypoints, arm clearance min %.2f mm (%s), carried can min %.2f mm (%s), yaw %.1f..%.1f" % [sw["t_end"], wp.size(), sw["min"], sw["at"], sw["held_min"], sw["held_at"], sw["yaw"][0], sw["yaw"][1]])
+	ok(int(sw["lost_ik"]) == 0, "11 every sample has an IK solution inside the joint limits (%d lost)" % sw["lost_ik"])
+	ok(float(sw["min"]) > 0.0, "11 arm and gripper never touch a placed can (min %.2f mm)" % sw["min"])
+	ok(float(sw["held_min"]) > 0.0, "11 the carried can never touches a placed can in transit (min %.2f mm)" % sw["held_min"])
+	ok(float(sw["yaw"][0]) >= -90.0 - 1e-9 and float(sw["yaw"][1]) <= 90.0 + 1e-9, "11 base yaw stays inside -90..+90")
+	ok(N.placed_at(d, wp, float(sw["t_end"]) + 1.0).size() == 6, "11 all six cans are placed at the end")
+	var t := 0.0
+	var worst_out := 0.0
+	var worst_axis := ""
+	while t <= float(sw["t_end"]):
+		var st := N.state(d, wp, t)
+		if st.has("th1"):
+			var sk := N.strokes(d, st)
+			for j in sk["master_out"]:
+				var full := A.stroke(int(d["cyl"][j][0]))
+				var m: float = sk["master_out"][j]
+				var over := maxf(-m, m - full)
+				if over > worst_out:
+					worst_out = over
+					worst_axis = "%s %.2f of %.1f mm at t %.1f" % [j, m, full, t]
+		t += 0.05
+	ok(worst_out <= 0.01, "11 every master plunger stays inside its stroke (worst overrun %.3f mm %s)" % [worst_out, worst_axis])
+	var low := N.sweep(d, N.waypoints(d, N.CLEAR, -40.0), 0.05)
+	ok(float(low["held_min"]) < 0.0, "11 PLANTED arriving 40 mm below the target height drives the carried can into the stack (%.2f mm at %s)" % [low["held_min"], low["held_at"]])
+
+
+# ------------------------------------------------ 12
+func grab() -> Image:
+	for i in 4:
+		await process_frame
+	var im: Image = root.get_texture().get_image()
+	im.convert(Image.FORMAT_RGBA8)
+	return im
+
+
+func diff(a: Image, b: Image) -> float:
+	var s := 0.0
+	var n := 0
+	for y in range(0, a.get_height(), 4):
+		for x in range(0, a.get_width(), 4):
+			var c := a.get_pixel(x, y)
+			var e := b.get_pixel(x, y)
+			s += absf(c.r - e.r) + absf(c.g - e.g) + absf(c.b - e.b)
+			n += 3
+	return s / maxf(n, 1)
+
+
+func count_px(img: Image, want: Color, tol: float) -> int:
+	var n := 0
+	for y in range(0, img.get_height(), 2):
+		for x in range(0, img.get_width(), 2):
+			var c := img.get_pixel(x, y)
+			if c.r > want.r - tol and absf(c.g - want.g) < tol and absf(c.b - want.b) < tol and (want.r < 0.5 or c.r > c.g + 0.25):
+				n += 1
+	return n
+
+
+func red_px(img: Image) -> int:
+	var n := 0
+	for y in range(0, img.get_height(), 2):
+		for x in range(0, img.get_width(), 2):
+			var c := img.get_pixel(x, y)
+			if c.r > 0.45 and c.g < 0.25 and c.b < 0.25:
+				n += 1
+	return n
+
+
+func blue_px(img: Image) -> int:
+	var n := 0
+	for y in range(0, img.get_height(), 2):
+		for x in range(0, img.get_width(), 2):
+			var c := img.get_pixel(x, y)
+			if c.b > 0.55 and c.r < 0.4 and c.b > c.g + 0.15:
+				n += 1
+	return n
+
+
+func bars_sheet() -> void:
+	if DisplayServer.get_name() == "headless":
+		print("skip 12 (headless: no pixels)")
+		return
+	var blank: Image = await grab()
+	var sc: Dictionary = SC.build(root)
+	var te := SC.t_end(sc)
+	var frames := []
+	var labels := []
+	for k in 12:
+		var t := te * float(k) / 11.0
+		var st := SC.pose(sc, t)
+		var im: Image = await grab()
+		frames.append(im)
+		labels.append("%.0f s %s" % [t, st["label"]])
+		im.save_png("%s/frame_%02d.png" % [OUT, k])
+	var moves := true
+	var low := 1e9
+	for k in range(1, 12):
+		var dd := diff(frames[k - 1], frames[k])
+		low = minf(low, dd)
+		moves = moves and dd > 0.001
+	ok(moves, "12 each of 12 frames differs from the one before (smallest mean diff %.4f)" % low)
+	var r0 := red_px(frames[0])
+	var r1 := red_px(frames[11])
+	ok(r1 > 3 * r0 and r0 > 0, "12 can red: first frame %d px, last %d px (six cans stacked)" % [r0, r1])
+	ok(red_px(blank) == 0, "12 PLANTED the red counter on an empty background gives %d" % red_px(blank))
+	var w: int = (frames[0] as Image).get_width() / 4
+	var h: int = (frames[0] as Image).get_height() / 4
+	var sheet := Image.create(4 * w, 3 * h, false, Image.FORMAT_RGBA8)
+	for k in 12:
+		var im: Image = (frames[k] as Image).duplicate()
+		im.resize(w, h, Image.INTERPOLATE_BILINEAR)
+		sheet.blit_rect(im, Rect2i(0, 0, w, h), Vector2i((k % 4) * w, (k / 4) * h))
+	sheet.save_png(OUT + "/sheet_build.png")
+	print("     frames: " + " | ".join(labels))
+	(sc["root"] as Node).queue_free()
+	await process_frame
+	var sec: Dictionary = SC.build_section(root)
+	var simg: Image = await grab()
+	simg.save_png(OUT + "/section_pair.png")
+	var bp := blue_px(simg)
+	ok(bp > 500, "12 the syringe-pair section shows water blue (%d px)" % bp)
+	(sec["root"] as Node).queue_free()
+	print("     sheet: %s/sheet_build.png  section: %s/section_pair.png" % [OUT, OUT])
+
+
+# ------------------------------------------------ 13
+func bars_cost(d: Dictionary, vols: Dictionary) -> void:
+	var b := BOM.bom(d, vols)
+	var hand := 0.0
+	for l in b["lines"]:
+		hand += float(l["qty"]) * float(l["each"])
+		print("     BOM %-72s %8.3f %-4s x %6.2f = %6.2f USD" % [l["item"], l["qty"], l["unit"], l["each"], l["cost"]])
+	print("     BOM total %.2f USD" % b["total"])
+	ok(rel(b["total"], hand) < 1e-9, "13 BOM lines add up: %.4f = %.4f USD" % [b["total"], hand])
+	var w := BOM.works(d)
+	ok(w["ok"], "13 the current design passes the working bars (%s)" % w["why"])
+	var ch := BOM.cheapest(vols)
+	var best: Dictionary = ch["best"]
+	var n_ok := 0
+	for r in ch["rows"]:
+		if r["ok"]:
+			n_ok += 1
+	for r in (ch["rows"] as Array).slice(0, 10):
+		print("     option %-9s %-5s big %-8s small %-7s %6.2f USD in-plane %5.2f mm %s" % [r["mat"], r["hose"], str(r["big"]), str(r["small"]), r["cost"], r["in"], "WORKS" if r["ok"] else "fails: " + String(r["why"])])
+	ok(not best.is_empty() and float(best["cost"]) <= float(b["total"]) + 1e-9, "13 cheapest working design of %d (%d work): %s boom, %s tube, joints %s, wrist/gripper %s: %.2f USD vs current %.2f USD" % [(ch["rows"] as Array).size(), n_ok, best.get("mat", "?"), best.get("hose", "?"), str(best.get("big", [])), str(best.get("small", [])), float(best.get("cost", -1.0)), b["total"]])
+	var pvc := A.design()
+	pvc["hose"] = "pvc"
+	var wp := BOM.works(pvc)
+	ok(not wp["ok"], "13 PLANTED the current design with soft PVC tube fails the working bars (%s)" % wp["why"])
