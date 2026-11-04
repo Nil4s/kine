@@ -52,6 +52,12 @@ func ev_move(p: Vector2, held := true) -> void:
 
 
 func click_ctl(c: Control) -> void:
+	var _sc: Node = c.get_parent()   # navigation only (B07): a button below the fold of its scroll panel is scrolled into view before the click
+	while _sc != null and not (_sc is ScrollContainer):
+		_sc = _sc.get_parent()
+	if _sc != null:
+		(_sc as ScrollContainer).ensure_control_visible(c)
+		await idle(3)
 	var p := c.get_global_rect().get_center()
 	await ev_move(p, false)
 	await ev_mouse(p, true)

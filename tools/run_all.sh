@@ -930,3 +930,6 @@ EXTRA="$EXTRA s245:w"   # s245: look-table kinds window back / window grid / doo
 
 
 EXTRA="$EXTRA c55:w"   # c55: one SVG parser, 16 recorded output hashes unchanged (tests/c55_test.gd)
+
+
+EXTRA="$EXTRA b07:w"   # b07: no two visible buttons overlap in Easy Part at 1600x900 / 1280x720 / 1024x600 (tests/b07_test.gd)
