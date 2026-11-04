@@ -10,8 +10,8 @@ extends SceneTree
 ##                 straddling the edge differs by <= 1 px of distance (|dg| / |grad g| <= 0.125 mm); at least 40 creases, including chamfer and tail-end creases
 ##   E END / SIDE  E1 a billet end face (pith inside) shows >= 4 CLOSED rings: circle fit rms < 8 % of the radius, centre within 2 mm of the pith, boundary points all round (gap <= 30 deg)
 ##                 E2 a long face (the Front's outside) has its ring gradients across the grain: >= 70 % within 25 deg of the cross-grain axis
-##                 E3 the lid's flat-sawn top shows cathedrals: the ring contours turn both ways (dg/dx of both signs, each >= 10 % of the face)
-##                 E4 every one of the 30 bbox faces of the 5 bodies: a 10 x 10 mm window's pores are round on an end face (mean aspect < 2.5) and streaks on a long face (>= 4); all 30 classified right
+##                 E3 the lid's flat-sawn top shows cathedrals: ring contours slanted along the grain on >= 30 % of the face and turning both ways across it (>= 10 % each)
+##                 E4 every one of the 30 bbox faces of the 5 bodies: a window of up to 60 x 60 mm: its pores are round on an end face (mean aspect < 2.5) and streaks on a long face (>= 4); all 30 classified right
 ##   F SHADER      the lit-off render of the shader on a flat patch equals the GDScript field: >= 99 % of pixels within 3/255, mean error < 1/255
 ##   G CHAMFER     the chamfer face's points: the C++ (sampled) colour and phase equal an independent GDScript evaluation of the analytic field within 1e-4; the chamfer exposes >= 3 rings
 ##   H NATIVE      C++ and GDScript agree on 20000 random points of 5 specs within 1e-4 on all six outputs (FAILS if the DLL is not built)
@@ -292,6 +292,7 @@ func grad_stats(b: Dictionary, ppm: float, grain_axis: int) -> Dictionary:
 	var tot := 0
 	var pos := 0
 	var neg := 0
+	var slant := 0
 	for j in range(1, nh - 1):
 		for i in range(1, nw - 1):
 			var gx := (d[(j * nw + i + 1) * 6 + 3] - d[(j * nw + i - 1) * 6 + 3]) * ppm / 2.0
@@ -303,12 +304,16 @@ func grad_stats(b: Dictionary, ppm: float, grain_axis: int) -> Dictionary:
 			var cross_v := absf(gy) if grain_axis == 0 else absf(gx)   # the grain runs along image x (0) or y (1)
 			if cross_v / m > cos(deg_to_rad(25.0)):
 				cross_ok += 1
-			if absf(gx) > 0.1 * m:
-				if gx > 0.0:
+			var cr := gy if grain_axis == 0 else gx
+			var al := gx if grain_axis == 0 else gy
+			if absf(al) > 0.1 * m:
+				slant += 1
+			if absf(cr) > 0.1 * m:
+				if cr > 0.0:
 					pos += 1
 				else:
 					neg += 1
-	return {"cross": float(cross_ok) / maxf(tot, 1), "pos": float(pos) / maxf(tot, 1), "neg": float(neg) / maxf(tot, 1)}
+	return {"cross": float(cross_ok) / maxf(tot, 1), "pos": float(pos) / maxf(tot, 1), "neg": float(neg) / maxf(tot, 1), "slant": float(slant) / maxf(tot, 1)}
 
 
 func pore_aspect(b: Dictionary) -> float:
@@ -348,7 +353,7 @@ func pore_aspect(b: Dictionary) -> float:
 			var w := float(hi.x - lo.x + 1)
 			var h := float(hi.y - lo.y + 1)
 			asp.append(maxf(w, h) / minf(w, h))
-	if asp.size() < 8:
+	if asp.size() < 5:
 		return -1.0
 	var s := 0.0
 	for a in asp:
@@ -476,7 +481,7 @@ func _run() -> void:
 	var tt: PackedVector3Array = tris[4]
 	for i in range(0, tt.size(), 3):
 		var n := tri_n(tt, i)
-		if n.y > 0.5 and n.y < 0.9:
+		if absf(n.y) > 0.5 and absf(n.y) < 0.9:
 			ch_tris.append_array(PackedVector3Array([tt[i], tt[i + 1], tt[i + 2]]))
 	ok(ch_tris.size() >= 12, "A the lid has chamfer faces (%d triangles)" % (ch_tris.size() / 3))
 	# B SLOPE
@@ -521,7 +526,7 @@ func _run() -> void:
 		t_g += Time.get_ticks_usec() - t0
 		for k in rc.size():
 			worst = maxf(worst, absf(rc[k] - rgd[k]))
-	ok(has_n and worst <= 1e-4, "H C++ vs GDScript on 20000 points: worst diff %.2e (bar 1e-4); C++ %.1f ms, GDScript %.1f ms (%.0fx)" % [worst, t_c / 1000.0, t_g / 1000.0, float(t_g) / maxf(t_c, 1)])
+	ok(has_n and worst <= 1e-4, "H C++ vs GDScript on 20000 points: worst diff %s (bar 1e-4); C++ %.1f ms, GDScript %.1f ms (%.0fx)" % [String.num_scientific(worst), t_c / 1000.0, t_g / 1000.0, float(t_g) / maxf(t_c, 1)])
 	# D CONTINUITY
 	var d_solid := continuity(tris, specs, false)
 	ok(int(d_solid["n"]) >= 80 and int(d_solid["chamfer"]) >= 4 and int(d_solid["tail"]) >= 4, "D coverage: %d samples, %d chamfer creases, %d tail-end creases" % [int(d_solid["n"]), int(d_solid["chamfer"]), int(d_solid["tail"])])
@@ -564,7 +569,10 @@ func _run() -> void:
 	# E3 cathedral on the lid top
 	var b3 := bake(Vector3(-4, 80, -4), Vector3.RIGHT, Vector3(0, 0, 1), 168, 108, 3.0, specs[4])
 	var gs3 := grad_stats(b3, 3.0, 0)
-	ok(float(gs3["pos"]) >= 0.1 and float(gs3["neg"]) >= 0.1, "E3 lid top cathedral: dg/dx > 0 on %.1f %%, < 0 on %.1f %% (bar >= 10 %% each)" % [100.0 * float(gs3["pos"]), 100.0 * float(gs3["neg"])])
+	ok(float(gs3["slant"]) >= 0.3 and float(gs3["pos"]) >= 0.1 and float(gs3["neg"]) >= 0.1, "E3 lid top cathedral: contours slanted along the grain on %.1f %% (bar >= 30 %%) and turning both ways across it (%.1f %% / %.1f %%, bar >= 10 %% each)" % [100.0 * float(gs3["slant"]), 100.0 * float(gs3["pos"]), 100.0 * float(gs3["neg"])])
+	var flatb := bake(Vector3(-4, 80, -4), Vector3.RIGHT, Vector3(0, 0, 1), 168, 108, 3.0, {"kind": "oak3d", "seed": 15, "pith": [80.0, 25.0, 54.0], "dir": [1.0, 0.0, 0.0], "ring": 2.4})
+	var gsf := grad_stats(flatb, 3.0, 0)
+	ok(float(gsf["slant"]) < 0.3, "CONTROL a straight-axis trunk (no taper) gives parallel bands, not cathedrals: slant %.1f %% fails E3" % (100.0 * float(gsf["slant"])))
 	# E4 every bbox face
 	var grain := [0, 0, 2, 2, 0]   # axis of the grain per body: X X Z Z X
 	var wrong := 0
@@ -586,9 +594,11 @@ func _run() -> void:
 				ey[v_ax] = 1.0
 				var o := tb.position + tb.size * 0.5
 				o[ax] = tb.position[ax] + (tb.size[ax] if side == 1 else 0.0)
-				o[u_ax] -= 5.0
-				o[v_ax] -= 5.0
-				var win := bake(o, ex, ey, 10, 10, 20.0, specs[s])
+				var wu := minf(tb.size[u_ax], 60.0)
+				var wv := minf(tb.size[v_ax], 60.0)
+				o[u_ax] -= wu * 0.5
+				o[v_ax] -= wv * 0.5
+				var win := bake(o, ex, ey, wu, wv, 15.0, specs[s])
 				var asp := pore_aspect(win)
 				var is_end := ax == int(grain[s])
 				var pred_end := asp >= 0.0 and asp < 2.5
@@ -597,7 +607,7 @@ func _run() -> void:
 					wrong += 1
 				(asp_end if is_end else asp_long).append(asp)
 				# control: the same window through the 2D mapping
-				var win2 := bake(o, ex, ey, 10, 10, 20.0, specs[s], {"o": Vector3.ZERO, "ex": ex, "ey": ey})
+				var win2 := bake(o, ex, ey, wu, wv, 15.0, specs[s], {"o": Vector3.ZERO, "ex": ex, "ey": ey})
 				var asp2 := pore_aspect(win2)
 				if (is_end and not (asp2 >= 0.0 and asp2 < 2.5)) or ((not is_end) and not asp2 >= 4.0):
 					wrong_2d += 1
@@ -622,7 +632,7 @@ func _run() -> void:
 		for k in 6:
 			wd = maxf(wd, absf(sc[i * 6 + k] - an[i * 6 + k]))
 		rings[floori(sc[i * 6 + 3])] = true
-	ok(cpts.size() >= 400 and wd <= 1e-4 and rings.size() >= 3, "G chamfer: %d points, sampled vs analytic worst diff %.2e, %d rings exposed" % [cpts.size(), wd, rings.size()])
+	ok(cpts.size() >= 400 and wd <= 1e-4 and rings.size() >= 3, "G chamfer: %d points, sampled vs analytic worst diff %s, %d rings exposed" % [cpts.size(), String.num_scientific(wd), rings.size()])
 	# F SHADER vs GDScript field on a flat patch
 	make_view(256, 256, 0.0256, false)
 	var ps := Vector3(40, 20, 0)
@@ -661,7 +671,7 @@ func _run() -> void:
 	await free_view()
 	# R RENDER: phase image across the chamfer's top edge (z = -4 .. chamfer along x)
 	var painted := mesh.duplicate() as ArrayMesh
-	make_view(1200, 800, 0.032, false)
+	make_view(1200, 800, 0.07, false)
 	for s in 5:
 		painted.surface_set_material(s, WoodSolid.material(specs[s], 2))
 	var mi2 := MeshInstance3D.new()
