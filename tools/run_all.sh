@@ -952,6 +952,7 @@ EXTRA="$EXTRA c54n:w"   # c54n: C++ cloth self-collision (tests/c54n_test.gd; SK
 
 
 EXTRA="$EXTRA c49b:w"   # C49b: Off/Look/Print strip clear of Part dialogs, browser, timeline, cube; tests/c49b_test.gd
+EXTRA="$EXTRA c60:w"   # C60: Part browser and side dialogs hold a stable size over 60 idle frames, tests/c60_test.gd
 
 
 
@@ -1007,6 +1008,8 @@ EXTRA="$EXTRA ch4:w"   # ch4: solid oak grain, dovetailed box (docs/CH4_REFERENC
 
 
 EXTRA="$EXTRA ch1f:w"   # ch1f: soil-structure interaction + masonry / light steel / wood on the CH1 plan, heave and wind (physics model, NOT an NBR check), tests/ch1f_test.gd
+
+EXTRA="$EXTRA ch1e:w"   # ch1e: real fasteners on the CH1 house (docs/CH1e_REFERENCE.md, tests/ch1e_test.gd)
 EXTRA="$EXTRA c78:w"   # c78: installer unit bars (docs/C78_INSTALLER.md); the installer run itself is tests/c78_test.sh
 EXTRA="$EXTRA c79:w"   # c79: slicer lookup no longer holds the quit (docs/C79_FEEDBACK.md); the quit-time bars are tests/c79_test.sh
 EXTRA="$EXTRA c75:w"   # C75: KineSkinNative.correct, the DQ/LBS skinning pre-correction in C++ (equal to GDScript within 1e-5, >=10x, fallback, ulp control) (tests/c75_test.gd)
