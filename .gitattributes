@@ -3,3 +3,7 @@
 refs/agent/*.jsonl -text
 docs/PT_BR_REVIEW.md text eol=lf
 data/i18n/pt_BR.po text eol=crlf
+*.gd text eol=lf
+*.gdshader text eol=lf
+*.tscn text eol=lf
+*.tres text eol=lf

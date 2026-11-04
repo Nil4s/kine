@@ -318,7 +318,7 @@ func _init() -> void:
 		"F off puts every value back (key %.2f, tonemap %d, ssao %s)" % [key0, tm0, ssao0])
 	var tog_found := false
 	for b in m.ui_ribbon["VIEW"].get_children():
-		if b is Button and (b as Button).text == "Realistic":
+		if b is Button and m.label_of(b) == "Realistic":   # 86ec0c27 (B05) made it an icon-only button: the name lives in meta "label"
 			tog_found = true
 	ok(tog_found, "F VIEW > Realistic is a button in the View menu (no new row on any panel)")
 	if m.export_ui == null:

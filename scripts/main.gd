@@ -11866,11 +11866,13 @@ func _theme() -> Theme:
 		th.set_color("font_color", "PopupMenu", tx)
 		th.set_color("font_hover_color", "PopupMenu", tx)
 		th.set_stylebox("hover", "PopupMenu", box.call(Tok.c("btn_hover"), 3, 2))
-		th.set_stylebox("panel", "TooltipPanel", box.call(Tok.c("float"), 4, 6))
 		th.set_color("font_color", "TooltipLabel", tx)
 		th.set_stylebox("slider", "HSlider", box.call(Tok.c("btn_hover").darkened(0.1), 3, 2))
 		th.set_stylebox("grabber_area", "HSlider", box.call(Tok.c("accent"), 3, 2))
 		th.set_stylebox("grabber_area_highlight", "HSlider", box.call(Tok.c("accent"), 3, 2))
+	# C72: the tooltip popup in both palettes (the block above is light only): opaque, 1 px rim
+	th.set_stylebox("panel", "TooltipPanel", _tip_box())
+	th.set_color("font_color", "TooltipLabel", Tok.c("text"))
 	return th
 
 
@@ -12413,9 +12415,29 @@ func _focus_theme() -> void:
 		_retheme()
 
 
+## C72: Godot's tooltip popup is its own window under the root Window, not under ui_root, so it never saw ui_root's theme and drew the
+## engine's translucent black. It is opaque now, with a 1 px rim, in the app's colours (dark and light).
+func _tip_box() -> StyleBoxFlat:
+	var b := StyleBoxFlat.new()
+	b.bg_color = Color(Tok.c("float"), 1.0)
+	b.border_color = Tok.c("btn_hover").lerp(Tok.c("text"), 0.35)
+	b.set_border_width_all(1)
+	b.set_corner_radius_all(4)
+	b.set_content_margin_all(6)
+	return b
+
+
+func _tip_theme() -> Theme:
+	var t := Theme.new()
+	t.set_stylebox("panel", "TooltipPanel", _tip_box())
+	t.set_color("font_color", "TooltipLabel", Tok.c("text"))
+	return t
+
+
 ## everything built with the old palette takes the new one
 func _retheme() -> void:
 	ui_root.theme = _theme()
+	get_window().theme = _tip_theme()
 	ui_tinted = ui_tinted.filter(func(x): return is_instance_valid(x[0]))
 	for x in ui_tinted:
 		(x[0] as Label).add_theme_color_override("font_color", Tok.of(x[1]))
@@ -12597,7 +12619,7 @@ func _hover_hints() -> void:
 		# the tooltip leads with the name (an icon has no words); the hover line keeps "name:  what it does"
 		if b.get_meta("label", "") != "" and not b.tooltip_text.begins_with(t):
 			b.tooltip_text = t + ("\n" + b.tooltip_text if b.tooltip_text != "" else "")
-		b.mouse_entered.connect(func(): _hover_hint = "%s:  %s" % [t, b.tooltip_text.trim_prefix(t + "\n").trim_prefix(t)])
+		b.mouse_entered.connect(func(): _hover_hint = "%s:  %s" % [t, TooltipFit.source_of(b).trim_prefix(t + "\n").trim_prefix(t)])
 		b.mouse_exited.connect(func(): _hover_hint = "")
 
 
@@ -12802,6 +12824,7 @@ func _ui() -> void:
 	ui_root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	ui_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_root.theme = _theme()
+	get_window().theme = _tip_theme()
 	layer.add_child(ui_root)
 	ui_root.add_child(sk)   # I9: the sketch's gold strokes and the faint fitted skeleton are drawn over the view
 
@@ -13980,6 +14003,9 @@ func _ui() -> void:
 	ui_cmd.pose_by_words = _pose_words
 	ui_cmd.tools_provider = func(): return MeshTools.rows(self)   # ROADMAP_400 P02: the mesh tools (scripts/mesh_tools.gd), built on the S box's first search
 	_hover_hints()
+	var tipfit := TooltipFit.new()   # C69: every tooltip wrapped to fit the window (scripts/tooltip_fit.gd)
+	tipfit.name = "tooltip_fit"
+	add_child(tipfit)
 	tips = TipVideo.new()   # ROADMAP 49: a 2 s clip of the tool beside the hint, after 0.6 s on a button
 	tips.name = "tips"
 	add_child(tips)
