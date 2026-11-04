@@ -1011,3 +1011,4 @@ EXTRA="$EXTRA c79:w"   # c79: slicer lookup no longer holds the quit (docs/C79_F
 EXTRA="$EXTRA c75:w"   # C75: KineSkinNative.correct, the DQ/LBS skinning pre-correction in C++ (equal to GDScript within 1e-5, >=10x, fallback, ulp control) (tests/c75_test.gd)
 EXTRA="$EXTRA c77:w"   # C77: exit-hang guard: no ungated OCCT parallel switch, every Thread.start joined, planted controls caught (tests/c77_test.gd)
 EXTRA="$EXTRA ch12:w"   # ch12: footbridge sway under a phase-locking crowd (Dallard 2001), tests/ch12_test.gd
+EXTRA="$EXTRA sretopo:w"   # sretopo (lane I11): stroke-guided retopology after Takayama et al. 2013, C++ KineRetopoNative + GDScript fill twin (tests/sretopo_test.gd)

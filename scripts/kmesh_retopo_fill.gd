@@ -2,7 +2,7 @@ class_name KMeshRetopoFill
 extends RefCounted
 ## I11: the PATCH FILL of stroke-guided retopology, the GDScript twin of native/src/kine_retopo_native.cpp (plan / fill).
 ## Same integer system, same vertex order, same operation order, plain floats (64-bit) in flat arrays, so the two agree to 1e-9
-## (tests/i11_test.gd bar 7). The C++ is the fast path; this is the reference and the fallback.
+## (tests/sretopo_test.gd bar 7). The C++ is the fast path; this is the reference and the fallback.
 ##
 ## METHOD: Takayama, Panozzo, Sorkine-Hornung and Sorkine-Hornung, "Sketch-Based Generation and Editing of Quad Meshes",
 ## ACM Transactions on Graphics 32(4) (SIGGRAPH 2013), art. 97: strokes cut the surface into patches of 2 to 6 sides, each side
