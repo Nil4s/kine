@@ -27,16 +27,49 @@ var contacts := 0                  # contacts pushed in the last solve
 func _init(faces: PackedInt32Array, thickness: float) -> void:
 	tris = faces
 	thick = thickness
+	# the near ring: triangles within two vertex hops of each other (sharing a vertex, or sharing a vertex with a triangle that
+	# does) are the distance constraints' business, not this solver's: a flat cloth then has no pairs at all
+	var nt := tris.size() / 3
+	var by_vert := {}
+	for t in nt:
+		for i in 3:
+			var v := tris[3 * t + i]
+			if not by_vert.has(v):
+				by_vert[v] = PackedInt32Array()
+			var l: PackedInt32Array = by_vert[v]
+			l.append(t)
+			by_vert[v] = l
+	var sharing: Array = []
+	for t in nt:
+		var s := {}
+		for i in 3:
+			for u in (by_vert[tris[3 * t + i]] as PackedInt32Array):
+				s[u] = true
+		sharing.append(s)
+	ring = {}
+	for t in nt:
+		for u in (sharing[t] as Dictionary):
+			for w in (sharing[u] as Dictionary):
+				ring[t * nt + w] = true
 
 
-## the triangle pairs near each other (sharing no vertex), through a spatial hash of the triangles' padded boxes
+var ring := {}   # t * nt + u -> true for the triangles u within two hops of t
+
+
+## the triangle pairs near each other (outside the near ring), through a spatial hash of the triangles' padded boxes. A pair is
+## listed once, in the cell holding the larger corner of the two boxes' overlap (no dedupe table). A cheap sphere test drops
+## boxes that merely touch.
 func begin(p: PackedVector3Array) -> int:
 	var nt := tris.size() / 3
 	var grid := {}
 	var lo := PackedVector3Array()
 	var hi := PackedVector3Array()
+	var cen := PackedVector3Array()
+	var rad := PackedFloat32Array()
 	lo.resize(nt)
 	hi.resize(nt)
+	cen.resize(nt)
+	rad.resize(nt)
 	var pad := Vector3.ONE * (thick * 0.5 + PAD)
 	var inv := 1.0 / CELL
 	for t in nt:
@@ -47,6 +80,9 @@ func begin(p: PackedVector3Array) -> int:
 		var h := a.max(b).max(c) + pad
 		lo[t] = l
 		hi[t] = h
+		var ce := (a + b + c) / 3.0
+		cen[t] = ce
+		rad[t] = sqrt(maxf(maxf(a.distance_squared_to(ce), b.distance_squared_to(ce)), c.distance_squared_to(ce)))
 		for ix in range(int(floor(l.x * inv)), int(floor(h.x * inv)) + 1):
 			for iy in range(int(floor(l.y * inv)), int(floor(h.y * inv)) + 1):
 				for iz in range(int(floor(l.z * inv)), int(floor(h.z * inv)) + 1):
@@ -57,26 +93,32 @@ func begin(p: PackedVector3Array) -> int:
 						grid[key] = cell
 					else:
 						grid[key] = PackedInt32Array([t])
-	var seen := {}
 	var out := PackedInt32Array()
+	var reach := thick + 2.0 * PAD
 	for key in grid:
 		var lst: PackedInt32Array = grid[key]
 		var n := lst.size()
+		if n < 2:
+			continue
 		for i in n:
 			var ta := lst[i]
 			for j in range(i + 1, n):
 				var tb := lst[j]
-				var k := ta * nt + tb if ta < tb else tb * nt + ta
-				if seen.has(k):
-					continue
-				seen[k] = true
-				if _share(ta, tb):
-					continue
 				var l1 := lo[ta]
 				var h1 := hi[ta]
 				var l2 := lo[tb]
 				var h2 := hi[tb]
 				if l1.x > h2.x or l2.x > h1.x or l1.y > h2.y or l2.y > h1.y or l1.z > h2.z or l2.z > h1.z:
+					continue
+				# the owner cell: the one holding the larger corner of the overlap
+				var ox := int(floor(maxf(l1.x, l2.x) * inv))
+				var oy := int(floor(maxf(l1.y, l2.y) * inv))
+				var oz := int(floor(maxf(l1.z, l2.z) * inv))
+				if key != ((ox & 0x1FFFFF) | ((oy & 0x1FFFFF) << 21) | ((oz & 0x1FFFFF) << 42)):
+					continue
+				if cen[ta].distance_to(cen[tb]) > rad[ta] + rad[tb] + reach:
+					continue
+				if ring.has(ta * nt + tb):
 					continue
 				out.append(ta)
 				out.append(tb)
