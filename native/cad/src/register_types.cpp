@@ -4,6 +4,8 @@
 #include <godot_cpp/godot.hpp>
 
 #include "kine_cad.h"
+#include <OSD_ThreadPool.hxx>
+#include <cstdlib>
 
 using namespace godot;
 
@@ -17,6 +19,11 @@ void kine_cad_initialize(ModuleInitializationLevel p_level) {
 void kine_cad_terminate(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
+	}
+	// c77: with KINE_PAR_MESH the OCCT default pool has live workers that keep Godot from exiting on Windows;
+	// Init(1) joins and drops them (a pool of 1 = the calling thread only).
+	if (std::getenv("KINE_PAR_MESH") != nullptr) {
+		OSD_ThreadPool::DefaultPool()->Init(1);
 	}
 }
 

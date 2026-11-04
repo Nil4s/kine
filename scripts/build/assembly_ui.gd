@@ -231,6 +231,10 @@ func _row_fields(title: String, names: Array, store: Array, prefix: String) -> C
 	return v
 
 
+## the three source tabs' hover hints (C71: the tab had none, so hovering "Library" said nothing; s213 722cdf50)
+const SRC_TIPS := {"library": "Library: ready-made parts (screws, boards, pipes, gears and more); click one to put it in", "mine": "My parts: the parts you built and saved; click one to put it in", "asm": "Assemblies: the assemblies you saved; click one to put it in as one piece"}
+
+
 func _build_src() -> void:
 	src_panel = PanelContainer.new()
 	src_panel.name = "asm_src_panel"
@@ -242,7 +246,7 @@ func _build_src() -> void:
 	vb.add_child(_lbl("PUT A PART IN", 15, "asm_src_title"))
 	var h := HBoxContainer.new()
 	for t in [["library", "Library"], ["mine", "My parts"], ["asm", "Assemblies"]]:
-		var b := _btn(String(t[1]), "asm_tab_" + String(t[0]), "", func(): _set_tab(String(t[0])), true)
+		var b := _btn(String(t[1]), "asm_tab_" + String(t[0]), String(SRC_TIPS[String(t[0])]), func(): _set_tab(String(t[0])), true)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		h.add_child(b)
 		src_tabs[String(t[0])] = b

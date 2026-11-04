@@ -10,3 +10,11 @@ static func solid_from_mesh(verts: PackedVector3Array, tris: PackedInt32Array, t
 
 static func offset(id: int, distance_m: float) -> int:
 	return KineCAD.offset(id, distance_m)
+
+
+static func union_many(base: int, tools: PackedInt32Array) -> int:   # C70
+	return KineCAD.union_many(base, tools)
+
+
+static func overlap_volume(a: int, b: int) -> float:   # C70
+	return KineCAD.overlap_volume(a, b)

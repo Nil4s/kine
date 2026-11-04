@@ -57,6 +57,8 @@ func clip_dict(S: Scene, Bx: Body) -> Dictionary:
 
 ## write the clip and start the judge. "" = started; else the sentence to say (what to do next)
 func begin(S: Scene, Bx: Body, python := "python") -> String:
+	if VideoAddon.gate("Make it physical") != "":   # C78
+		return VideoAddon.gate("Make it physical")
 	DirAccess.make_dir_recursive_absolute(DIR)
 	var keep := Bx.state()
 	var clip := clip_dict(S, Bx)

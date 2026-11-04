@@ -219,7 +219,38 @@ static func frame_of(mats: Array) -> Dictionary:
 ## THE PRE-CORRECTION of one surface's arrays (the fast pass): a copy whose rest vertices (and normals, tangents) make the
 ## GPU's LBS draw the blend k of LBS and DQS, on the vertices in `multi` only. fr = frame_of(mats). msk: per-vertex 0..1 or
 ## empty. Pure math on packed arrays (safe on a worker thread). -> [arrays, vertices corrected, vertices left singular]
+static var force_gd := false   # tests: true = the GDScript pass even with the DLL (C75)
+static var _door = null        # scripts/dq_skin_native.gd once KineSkinNative is known to exist
+static var _door_tried := false
+
+
+## C75: true when the C++ pass (KineSkinNative) is loaded and not switched off (force_gd, KINE_NO_NATIVE=1)
+static func native_ok() -> bool:
+	if force_gd or OS.get_environment("KINE_NO_NATIVE") == "1":
+		return false
+	if not _door_tried:
+		_door_tried = true
+		if NativeExt.ensure("kine_native", "KineSkinNative"):
+			_door = load("res://scripts/dq_skin_native.gd")
+	return _door != null and ClassDB.class_exists("KineSkinNative")
+
+
 static func correct_arrays(arr: Array, fr: Dictionary, k: float, multi: PackedInt32Array, msk := PackedFloat32Array()) -> Array:
+	if not native_ok():
+		return correct_arrays_gd(arr, fr, k, multi, msk)
+	var has_n: bool = arr[Mesh.ARRAY_NORMAL] != null
+	var has_t: bool = arr[Mesh.ARRAY_TANGENT] != null
+	var r: Dictionary = _door.correct(arr[Mesh.ARRAY_VERTEX], arr[Mesh.ARRAY_NORMAL] if has_n else PackedVector3Array(), arr[Mesh.ARRAY_TANGENT] if has_t else PackedFloat32Array(), arr[Mesh.ARRAY_BONES], arr[Mesh.ARRAY_WEIGHTS], fr, k, multi, msk)
+	var out := arr.duplicate()
+	out[Mesh.ARRAY_VERTEX] = r["v"]
+	if has_n:
+		out[Mesh.ARRAY_NORMAL] = r["n"]
+	if has_t:
+		out[Mesh.ARRAY_TANGENT] = r["t"]
+	return [out, int(r["cnt"]), int(r["sing"])]
+
+
+static func correct_arrays_gd(arr: Array, fr: Dictionary, k: float, multi: PackedInt32Array, msk := PackedFloat32Array()) -> Array:
 	var vs: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
 	var bo: PackedInt32Array = arr[Mesh.ARRAY_BONES]
 	var w: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS]
@@ -426,6 +457,7 @@ func update(k: float) -> void:
 		_sig = 0
 		last_ms = (Time.get_ticks_usec() - t0) / 1000.0
 		return
+	native_ok()   # resolve the door on the main thread before the workers run
 	var mats := bind_mats(skel, skin)
 	var sig := hash([mats, k, mask.size()])
 	if sig == _sig:

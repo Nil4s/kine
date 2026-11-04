@@ -556,6 +556,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	var res := {"mesh": null, "volume": 0.0, "bodies": 0, "volumes": [], "errors": {}, "edges": [], "faces": [], "aabb": AABB(), "props": [], "looks": [], "body_looks": [], "tess_ids": [], "tess_looks": [], "surf_body": [], "warnings": {}}
 	if not available():
 		return res
+	PartFast.enabled = bool(rec.get("fast_build", false))   # s249: opt-in Fast build
 	var feats: Array = rec.get("features", [])
 	var n := feats.size() if upto < 0 else mini(upto + 1, feats.size())
 	var bodies: Array = []
@@ -3014,6 +3015,10 @@ static func paint(mesh: ArrayMesh, looks: Array) -> void:
 		var l: Dictionary = looks[s]
 		var c: Color = l["c"]
 		var a := float(l["alpha"])
+		var wood := WoodSolid.look_material(l)   # CH4: a solid-wood look is a 3D grain field (scripts/build/wood_solid.gd)
+		if wood != null:
+			mesh.surface_set_material(s, wood)
+			continue
 		var mt := StandardMaterial3D.new()
 		var mm := MaterialMaker.look_material(l, 1.0, MaterialMaker.dims_for(l, mesh, s))   # s223: a made material (triplanar maps) when the look has one; s273: a brushed one scaled to the face
 		if mm != null:
@@ -3074,6 +3079,9 @@ static func _split_looks(looks: Array, n: int, pieces: Array) -> void:
 ## body N; "new" keeps each copy as a body of its own (with body N's look). "" or the failure message; a failure changes nothing.
 const AXIS_VEC := {"x": Vector3.RIGHT, "y": Vector3.UP, "z": Vector3.BACK}
 const PATTERN_MAX := PartArray.MAX_COPIES   # S266: ONE cap for linear / circular / path / grid / route (1000); past COPIES_SLOW the step says it is slow
+
+## C70: false = the old one-by-one join of a pattern's copies (tests compare the two; nothing else turns it off)
+static var bulk_fuse := true
 
 static func _pattern(bodies: Array, looks: Array, f: Dictionary, rec: Dictionary = {}) -> String:
 	if bodies.is_empty():
@@ -3269,6 +3277,14 @@ static func _pattern_copies(bodies: Array, looks: Array, f: Dictionary, bi: int,
 			cn += 1
 			looks.append(_numbered(src, cn))   # s212: a named body's copies are Name 2, Name 3 ...
 		return ""
+	if bulk_fuse and copies.size() >= 2 and KCad.has_union_many():   # C70: every copy fused in ONE boolean (one-by-one re-intersects the growing body each time)
+		var ub := KCad.union_many(bodies[bi], PackedInt32Array(copies))
+		if ub != 0:
+			for c in copies:
+				KCad.release(c)
+			KCad.release(bodies[bi])
+			bodies[bi] = ub
+			return ""
 	for k in copies.size():
 		var u := KCad.union(bodies[bi], copies[k])
 		KCad.release(copies[k])

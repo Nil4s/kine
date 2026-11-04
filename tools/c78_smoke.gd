@@ -1,0 +1,89 @@
+extends Node
+## C78 smoke test, started by main.gd when the command line has the user arg --c78-smoke:
+##   Kine.console.exe --headless -- --c78-smoke          (an installed Kine; also works from source)
+## Opens Part (BUILD), builds a 2x1x1 box through KineCAD (OpenCASCADE), meshes it, checks the volume, quits 0.
+## Any failure prints "C78_SMOKE_FAIL <why>" and quits 1. Success prints "C78_SMOKE_OK ms=<ms since engine start>".
+const KCad := preload("res://scripts/kcad.gd")
+
+
+func _fail(why: String) -> void:
+	print("C78_SMOKE_FAIL ", why)
+	get_tree().quit(1)
+
+
+func run(m: Node) -> void:
+	print("C78_SMOKE_START ms=", Time.get_ticks_msec())
+	var at := ""
+	for a in OS.get_cmdline_user_args():
+		if a.begins_with("--c79-at="):
+			at = a.substr(9)   # C79 bisect switches: start | part (quit there instead of after the CAD box); free = free main first
+	for i in 6:
+		await get_tree().process_frame
+	if at == "start":
+		await _c79_quit(m, false)
+		return
+	m.tour_step = -1
+	var pu = m.bld.part
+	pu.set_on(true)
+	for i in 4:
+		await get_tree().process_frame
+	if not pu.on:
+		_fail("Part did not open")
+		return
+	if at == "part" or at == "partfree":
+		await _c79_quit(m, at == "partfree")
+		return
+	if not KCad.available():
+		_fail("KineCAD not available: " + KCad.last_error())
+		return
+	var id := KCad.box(2.0, 1.0, 1.0)
+	if id == 0:
+		_fail("box failed: " + KCad.last_error())
+		return
+	var vol := KCad.volume(id)
+	if absf(vol - 2.0) > 1e-6:
+		_fail("box volume %f" % vol)
+		return
+	var mesh := KCad.tessellate(id, 0.01, 0.3)
+	if mesh == null or mesh.get_surface_count() == 0:
+		_fail("tessellate gave no mesh")
+		return
+	var tris := 0
+	for s in mesh.get_surface_count():
+		tris += mesh.surface_get_array_index_len(s) / 3
+	if tris < 12:
+		_fail("mesh has %d triangles" % tris)
+		return
+	print("C78_GATE=", VideoAddon.gate("tracking a video"))
+	print("C78_SMOKE_OK ms=%d tris=%d vol=%f" % [Time.get_ticks_msec(), tris, vol])
+	await _c79_quit(m, at == "free")
+
+
+## C79: a clean quit(), with a line per shutdown phase (tools/c79_trace.gd); the test times the exit from outside.
+## free_first: queue_free the main scene and wait for it, to price the node/script-instance free apart from the engine's final cleanup.
+func _c79_quit(m: Node, free_first: bool) -> void:
+	var Tr := load("res://tools/c79_trace.gd")
+	var root := get_tree().root
+	for pair in [["root_exits_last", 0], ["root_exits_first", -1]]:
+		var t: Node = Tr.new()
+		t.label = pair[0]
+		root.add_child(t)
+		if pair[1] == 0:
+			root.move_child(t, 0)
+	m.tree_exiting.connect(func(): Tr.mark("main tree_exiting"))
+	await get_tree().process_frame
+	if free_first:
+		var tree := get_tree()
+		reparent(root)   # this node is main's child: it moves out first so the coroutine survives the free
+		Tr.mark("free main: start")
+		m.get_parent().remove_child(m)
+		Tr.mark("free main: removed from tree")
+		m.free()
+		Tr.mark("free main: freed")
+		await tree.process_frame
+		Tr.mark("free main: next frame")
+		Tr.mark("quit() called")
+		tree.quit()
+		return
+	Tr.mark("quit() called")
+	get_tree().quit()
