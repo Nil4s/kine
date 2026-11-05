@@ -118,3 +118,9 @@ Several lanes rebuilt tools Kine already had (gaps G9, G26, and the CH1f cutaway
 - **The hand's collision shape, a palm laid flat, a hook, a grip on rope:** scripts/hand_shape.gd (HandShape.caps, palm_flat, close_on, forearm_caps; HandShape.legacy for the old capsule).
 
 The lane brief (kine_workers/q4/_sonnet_brief.txt) carries the same list.
+
+## 6. Cheaper lanes (CH16 cost analysis)
+- **Read docs/API_FOR_AGENTS.md first** (the digest of Part/Assembly/stage/render/BOM/KCad APIs). Do not read whole modules to learn an API.
+- **Scaffold new lanes** with python tools/new_challenge.py CH17 "Title": reference doc, feedback doc, test skeleton with ok/ctl, suite registration.
+- **Terse direct runs:** ash tools/ktest.sh <suite> [--window] prints only failures and the summary (wtest.sh is already terse).
+- **Cache external data** in docs/CHxx_REFERENCE.md on first use; prefer search snippets to webfetch.
