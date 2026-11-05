@@ -25,7 +25,7 @@ Branch `w4-g45dist` (from `origin/poser-ui-rounds`). Test: `tests/g45dist_test.g
 
 ## 1. Result
 
-The bars were committed before the first run (b7d3c0e5).
+The bars were committed before the first run (25fa269e). The code was last changed in 1c558de3.
 
 | bar | result | numbers |
 |---|---|---|
