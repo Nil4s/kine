@@ -266,6 +266,7 @@ static func check(asm: Dictionary, opts := {}) -> Dictionary:
 		vol["_ground"] = w * span * d
 	var cnt := {"calls": 0, "skipped": 0}   # a lambda captures ints by value: the counts live in a Dictionary
 	var memo := {}
+	var ov := {}      # "a|b" (sorted) -> the overlap at rest (m3): the collision pass and the touch test share it
 	var touch := func(a: String, b: String) -> bool:
 		var key := a + "|" + b
 		if memo.has(key):
@@ -274,9 +275,12 @@ static func check(asm: Dictionary, opts := {}) -> Dictionary:
 		if not (box[a] as AABB).grow(tol * 1.01 + 1e-9).intersects(box[b]):
 			cnt["skipped"] += 1
 		else:
-			var r0 := _vol(sol[a], sol[b])
-			cnt["calls"] += int(r0[1])
-			var v0 := float(r0[0])
+			var pk := a + "|" + b if a < b else b + "|" + a
+			if not ov.has(pk):
+				var r0 := _vol(sol[a], sol[b])
+				cnt["calls"] += int(r0[1])
+				ov[pk] = float(r0[0])
+			var v0 := float(ov[pk])
 			if v0 > hit:
 				res = true
 			else:
@@ -323,6 +327,7 @@ static func check(asm: Dictionary, opts := {}) -> Dictionary:
 					continue
 				var r := _vol(sol[a], sol[b])
 				cnt["calls"] += int(r[1])
+				ov[a + "|" + String(b) if a < String(b) else String(b) + "|" + a] = float(r[0])
 				if float(r[0]) > hit:
 					coll.append({"id": a, "name": String(pmap[a]["name"]), "with": String(b), "with_name": String(pmap[b]["name"]), "stage": k, "stage_name": nm, "mm3": float(r[0]) * 1e9})
 		# support: a fixed point inside the stage (a chain must reach the ground or a built part)
@@ -337,7 +342,10 @@ static func check(asm: Dictionary, opts := {}) -> Dictionary:
 				if gnd != null and touch.call(a, "_ground"):
 					why = {"by": "ground", "on": "", "stage": k}
 				else:
-					for b in built + held.keys():
+					var cands: Array = built + held.keys()
+					var bot := (box[a] as AABB).position.y
+					cands.sort_custom(func(x, y): return absf((box[x] as AABB).end.y - bot) < absf((box[y] as AABB).end.y - bot))   # what it most likely rests on first
+					for b in cands:
 						if touch.call(a, String(b)):
 							why = {"by": "contact", "on": String(b), "stage": k}
 							break

@@ -136,7 +136,7 @@ func bars_overlap() -> void:
 	var sunk := one_block(Vector3(40, 18, 40), Vector3(20, 20, 20))
 	var c: Array = sunk["collisions"]
 	var mm3 := float(c[0]["mm3"]) if c.size() == 1 else -1.0
-	ok(c.size() == 1 and String(c[0]["with"]) == "p1" and rel(mm3, 800.0) < 1e-4 and (sunk["unsupported"] as Array).is_empty(), "c cube sunk 2 mm into the base: %s with %s, %.6f mm3 vs hand 800 (rel %.2e); supported %s" % [c[0]["name"] if c.size() > 0 else "-", c[0]["with_name"] if c.size() > 0 else "-", mm3, rel(mm3, 800.0), str((sunk["unsupported"] as Array).is_empty())])
+	ok(c.size() == 1 and String(c[0]["with"]) == "p1" and rel(mm3, 800.0) < 1e-4 and (sunk["unsupported"] as Array).is_empty(), "c cube sunk 2 mm into the base: %s with %s, %.6f mm3 vs hand 800 (rel %s); supported %s" % [c[0]["name"] if c.size() > 0 else "-", c[0]["with_name"] if c.size() > 0 else "-", mm3, str(rel(mm3, 800.0)), str((sunk["unsupported"] as Array).is_empty())])
 	var rest := one_block(Vector3(40, 20, 40), Vector3(20, 20, 20))
 	var tiny := one_block(Vector3(40, 19.999, 40), Vector3(20, 20, 20))
 	ctl((rest["collisions"] as Array).is_empty() and (tiny["collisions"] as Array).is_empty() and bool(rest["ok"]) and bool(tiny["ok"]), "c resting (0 mm) and sunk 0.001 mm (0.4 mm3 < 1 mm3): collisions %s / %s" % [str(names_of(rest["collisions"])), str(names_of(tiny["collisions"]))])
