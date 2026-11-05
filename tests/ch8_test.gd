@@ -6,6 +6,8 @@ extends SceneTree
 ##       bottom fluid layer is within 2 % of rho*g*H, H = (particles / 8) * h^3 / floor area (the height the particles themselves say).
 ##   (b) VOLUME: over the dam break to T = 5 (past the wall hit), V(t) = sum over cells of min(n_cell, 8) / particles stays within 2 % of 1.0
 ##       (it only loses volume where cells are over-crowded: compression drift) at every sampled step.
+##       AMENDED per Nick 11-04: the per-cell count reads 0.926 on a rigidly moved block, it measures particle spacing not volume. (b) and (b2) are
+##       printed as information only; the volume bars are (b4) smoothed-density volume >= 0.98 and (r) render-surface volume within 10 %.
 ##   (c) DAM BREAK vs Martin & Moyce 1952, n^2 = 2: the surge front Z = x/a (front = furthest x of particles within 0.15 a of the floor)
 ##       is within 10 % of the table Z at each T in the table (T = t*sqrt(2g/a)). Plus a physics bound: Z <= 1 + 2T (Ritter, frictionless) at every T.
 ##   (c2) AVERAGE FRONT SPEED vs the CITED measurements (added 11-04, committed before its first run; the lead's decision on bar (c)).
@@ -155,7 +157,8 @@ func _bc_dam() -> void:
 			rows.append("T %.2f  Z sim %.3f  M&M %.2f" % [T, z, MM_Z[MM_T.find(T)]])
 	for r in rows:
 		print("      ", r)
-	ok(worst_v >= 0.98, "(b) volume: worst V/V0 = %.4f over the dam break to T = 5 (bar >= 0.98)" % worst_v)
+	# AMENDED per Nick 11-04: the per-cell count reads 0.926 on a rigidly moved block, it measures particle spacing not volume (information only; see (b4))
+	print("      info (b, retired) per-cell count statistic: worst sum min(n, 8) / N = %.4f over the dam break to T = 5 (was bar >= 0.98)" % worst_v)
 	ok(ritter_ok, "(c) physics bound: Z <= 1 + 2T (Ritter) at every sampled T")
 	var all_in := true
 	var worst := 0.0
@@ -350,6 +353,7 @@ func _h_verified() -> void:
 	var peak := 0
 	var worst_v := 1.0
 	var worst_vs := 1.0
+	var n0: int = F.particle_count()   # (b4) is measured against the particles seeded at t = 0, so a lost particle is lost volume
 	var lines := []
 	for i in MMV_T.size():
 		F.advance(MMV_T[i] * tscale - t)
@@ -362,7 +366,7 @@ func _h_verified() -> void:
 		lines.append("T %.2f Z sim %.3f paper %.2f (%.1f %%)" % [MMV_T[i], z, MMV_Z[i], e * 100.0])
 		peak = maxi(peak, _peak_count(F))
 		worst_v = minf(worst_v, F.volume_ratio())
-		worst_vs = minf(worst_vs, F.volume_smooth())
+		worst_vs = minf(worst_vs, F.volume_smooth() * F.particle_count() / float(n0))
 	for l in lines:
 		print("      ", l)
 	# the rest of bar (b)'s window, to T = 5 (past the wall hit), for the peak count and the smooth volume
@@ -372,13 +376,19 @@ func _h_verified() -> void:
 		t = T3 * tscale
 		peak = maxi(peak, _peak_count(F))
 		worst_v = minf(worst_v, F.volume_ratio())
-		worst_vs = minf(worst_vs, F.volume_smooth())
+		worst_vs = minf(worst_vs, F.volume_smooth() * F.particle_count() / float(n0))
 		T3 += 0.25
 	ok(worst <= 0.10, "(h) dam break vs Martin & Moyce, VERIFIED table (paper Table 2, mean, a = 2 1/4 in): worst surge-front error %.1f %% over %d points (bar 10 %%)" % [worst * 100.0, MMV_T.size()])
 	ok(worst_planted, "(g) CONTROL the planted verified table (Z x 1.3) fails the 10 %% bar (the bar can fail)")
-	ok(peak <= 12, "(b2) peak cell count %d <= 12 (1.5 x rest density, 8 per cell) at every sampled T of the dam break to T = 5" % peak)
+	# AMENDED per Nick 11-04: the per-cell count reads 0.926 on a rigidly moved block, it measures particle spacing not volume (information only)
+	print("      info (b2, retired) peak cell count %d (was bar <= 12) over the dam break to T = 5" % peak)
 	print("      (b) statistic on this run: worst V/V0 = %.4f (min(count, 8) per cell, the lattice-phase sensitive one)" % worst_v)
-	ok(worst_vs >= 0.98, "(b4) smooth volume (B-spline density at the cell centres, capped at rest density; a partition of unity, so lattice phase does not enter): worst %.4f over the dam break to T = 5 (bar >= 0.98)" % worst_vs)
+	ok(worst_vs >= 0.98, "(b4) VOLUME BAR (amended per Nick 11-04, replaces (b)): smoothed volume against the seeded count (B-spline density at the cell centres, capped at rest density; a partition of unity, so lattice phase does not enter): worst %.4f over the dam break to T = 5 (bar >= 0.98)" % worst_vs)
+	# (b4) is a volume bar since the amendment: AMENDED per Nick 11-04: the per-cell count reads 0.926 on a rigidly moved block, it measures particle spacing not volume.
+	# planted control: remove every 20th particle (5 %) of the same dam break at T = 5; the smoothed volume against the seeded count must fail 0.98
+	F.remove_every(20)
+	var v_del: float = F.volume_smooth() * F.particle_count() / float(n0)
+	ok(v_del < 0.98, "(g) CONTROL 5 %% of the particles deleted (%d of %d left): (b4) reads %.4f < 0.98 (the volume bar can fail)" % [F.particle_count(), n0, v_del])
 	# controls for (b4): a block with DOUBLE the particles per cell (two overlapping seeds) reads about 0.5; and the lattice-phase demonstration:
 	# a block translated rigidly (gravity 0, no deformation, nothing compressed) must read >= 0.98 by (b4) while the min(count, 8) statistic of (b) reads lower
 	var Fd = Fluid.make()
@@ -407,7 +417,7 @@ func _h_verified() -> void:
 		F0.advance(T * tscale - t0)
 		t0 = T * tscale
 		peak0 = maxi(peak0, _peak_count(F0))
-	ok(peak0 > 12, "(g) CONTROL the first-version drift (density mode 0) breaks the same cap: peak %d > 12 (the cap bar can fail)" % peak0)
+	print("      info (b2, retired) first-version drift (density mode 0) peak cell count %d" % peak0)
 
 
 ## (a2) settled tank speed 10x tighter than (a); (d2) C++ == GDScript with the density projection ACTIVE; (r) surface volume
@@ -440,7 +450,8 @@ func _i_bars() -> void:
 		mc = maxf(mc, absf(a1[i] - a3[i]))
 	ok(a1.size() == a2.size() and a1.size() > 0 and md <= 1e-6, "(d2) C++ == GDScript with density projection active (16^3, 20 steps, overlapping boxes): max |diff| = %s (bar 1e-6)" % String.num_scientific(md))
 	ok(mc > 1e-6, "(g) CONTROL density mode 0 differs from mode 1 by %s (> 1e-6: the projection is really active in that scene)" % String.num_scientific(mc))
-	# (r) the reconstructed surface of the settled tank encloses the particles' volume within 10 %
+	# (r) the reconstructed surface of the settled tank encloses the particles' volume within 10 %. A volume bar with (b4): AMENDED per Nick 11-04: the
+	# per-cell count reads 0.926 on a rigidly moved block, it measures particle spacing not volume
 	var F2 = Fluid.make()
 	if not F2.has_method("surface_aniso"):
 		ok(false, "(r) native surface_aniso is needed")

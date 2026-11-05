@@ -161,6 +161,7 @@ void KineFluidNative::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("volume_smooth"), &KineFluidNative::volume_smooth);
 	ClassDB::bind_method(D_METHOD("surface", "smooth", "iso"), &KineFluidNative::surface);
 	ClassDB::bind_method(D_METHOD("clear_particles"), &KineFluidNative::clear_particles);
+	ClassDB::bind_method(D_METHOD("remove_every", "k"), &KineFluidNative::remove_every);
 	ClassDB::bind_method(D_METHOD("set_wall_friction", "f"), &KineFluidNative::set_wall_friction);
 	ClassDB::bind_method(D_METHOD("set_density_mode", "mode"), &KineFluidNative::set_density_mode);
 	ClassDB::bind_method(D_METHOD("set_surface_taubin", "on"), &KineFluidNative::set_surface_taubin);
@@ -191,6 +192,20 @@ void KineFluidNative::set_params(double p_g, double p_drift, double p_cfl, doubl
 }
 
 void KineFluidNative::clear_particles() { P.clear(); V.clear(); C.clear(); }
+
+// removes every k-th particle (index % k == k - 1); a planted-control helper for the volume bar (returns the number removed)
+int KineFluidNative::remove_every(int k) {
+	if (k < 1) return 0;
+	int N = particle_count(), w = 0;
+	for (int p = 0; p < N; p++) {
+		if (p % k == k - 1) continue;
+		for (int a = 0; a < 3; a++) { P[3 * w + a] = P[3 * p + a]; V[3 * w + a] = V[3 * p + a]; }
+		for (int a = 0; a < 9; a++) C[9 * w + a] = C[9 * p + a];
+		w++;
+	}
+	P.resize(3 * (size_t)w); V.resize(3 * (size_t)w); C.resize(9 * (size_t)w);
+	return N - w;
+}
 
 void KineFluidNative::add_solid_box(Vector3 mn, Vector3 mx) {
 	for (int k = 0; k < nz; k++)

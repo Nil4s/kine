@@ -72,6 +72,7 @@ public:
 	Dictionary surface(int p_smooth, double p_iso);
 	Dictionary surface_aniso(double p_iso, int p_ndiv);
 	void clear_particles();
+	int remove_every(int p_k);
 
 private:
 	inline int cid(int i, int j, int k) const { return i + nx * (j + ny * k); }
