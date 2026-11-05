@@ -83,6 +83,19 @@ static func overlap_volume(a: int, b: int) -> float:   # C70: -1 when the kernel
 	return load(NATIVE_NEW).overlap_volume(a, b) if n != null and ClassDB.class_exists("KineCAD") and ClassDB.class_has_method("KineCAD", "overlap_volume") else -1.0
 
 
+## G45 (KineCAD 6): the kernel's minimum distance between two shapes (OCCT BRepExtrema_DistShapeShape, solid by solid).
+## {"ok", "d" (m; 0 when they touch or overlap, also when one is wholly inside the other), "pa" / "pb" (the witness points on a / b, Vector3:
+## float32), "pa64" / "pb64" (the same points as PackedFloat64Array [x, y, z], doubles), "inner" (one is partly or wholly inside the other)}.
+## {"ok": false, "d": -1} when the library is older than 6 or the kernel refuses (last_error()).
+static func distance(a: int, b: int) -> Dictionary:
+	var n = _n()
+	return load(NATIVE_NEW).distance(a, b) if n != null and has_distance() else {"ok": false, "d": -1.0}
+
+
+static func has_distance() -> bool:
+	return ClassDB.class_exists("KineCAD") and ClassDB.class_has_method("KineCAD", "distance")
+
+
 static func has_union_many() -> bool:
 	return ClassDB.class_exists("KineCAD") and ClassDB.class_has_method("KineCAD", "union_many")
 

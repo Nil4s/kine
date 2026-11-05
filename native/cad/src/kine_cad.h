@@ -33,6 +33,7 @@ public:
 
 	static int union_(int p_a, int p_b);
 	static double overlap_volume(int p_a, int p_b); // C70
+	static Dictionary distance(int p_a, int p_b); // G45 (v6): {d, pa, pb, pa64, pb64, inner, ok}; BRepExtrema_DistShapeShape
 	static int union_many(int p_base, const PackedInt32Array &p_tools); // C70: base fused with every tool in ONE boolean (0 + last_error when the kernel refuses: the caller falls back to pairs)
 	static int cut(int p_a, int p_b);
 	static int intersect(int p_a, int p_b);

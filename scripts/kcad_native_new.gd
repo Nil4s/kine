@@ -18,3 +18,7 @@ static func union_many(base: int, tools: PackedInt32Array) -> int:   # C70
 
 static func overlap_volume(a: int, b: int) -> float:   # C70
 	return KineCAD.overlap_volume(a, b)
+
+
+static func distance(a: int, b: int) -> Dictionary:   # G45 (version 6)
+	return KineCAD.distance(a, b)
