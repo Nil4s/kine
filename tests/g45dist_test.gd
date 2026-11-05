@@ -188,6 +188,7 @@ func bars_same() -> void:
 	var cn := AssemblyStage.check(g)   # the new path FIRST: it pays any cold cache
 	var co := AssemblyStage.check(g, {"touch": "overlap"})
 	print("     ch15 new: %d ms, %d dist calls, %d booleans, %d gated, %d skipped; old: %d ms, %d booleans, %d skipped; 'on' differs for %d" % [int(cn["ms"]), int(cn["dist_calls"]), int(cn["kernel_calls"]) - int(cn["dist_calls"]), int(cn["gated"]), int(cn["skipped"]), int(co["ms"]), int(co["kernel_calls"]), int(co["skipped"]), on_diffs(co, cn)])
+	print("     ch15 collision pass: %d pairs asked a boolean at d == 0, %d gated at d > 0 of which %d at 0 < d <= 1 um" % [int(cn.get("bool_d0", -1)), int(cn["gated"]), int(cn.get("gated_near", -1))])
 	ok(sig(cn) == sig(co) and n == 53 and (cn["unsupported"] as Array).is_empty() and int(cn["placed"]) == 53, "b CH15 as stages: new %d of %d supported, %d collisions; verdicts identical %s" % [int(cn["placed"]) - (cn["unsupported"] as Array).size(), n, (cn["collisions"] as Array).size(), str(sig(cn) == sig(co))])
 	var dn := AssemblyStage.check(ch15_staged(true))
 	var dold := AssemblyStage.check(ch15_staged(true), {"touch": "overlap"})

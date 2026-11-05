@@ -12,7 +12,7 @@
 ## two parts touch when they overlap, or when one moved by tol along any of the six axis directions overlaps the other more than before
 ## (a face within tol along an axis; a slanted face counts from tol / sqrt(3)). G45: with KineCAD 6 the touch test is ONE KCad.distance per
 ## solid pair instead (touching = the smallest distance <= tol, any direction), and the collision pass skips the boolean of a pair farther apart
-## than GATE; opts "touch": "overlap" keeps the seven-boolean test above (the equality check of tests/g45dist_test.gd).
+## 0 (it cannot overlap: only d == 0, i.e. face contact, overlap or inside, needs the clash boolean); opts "touch": "overlap" keeps the seven-boolean test above (the equality check of tests/g45dist_test.gd).
 ## A box prefilter (KineCAD 6: each posed solid's exact-geometry box, KCad.bounds; the old path: a coarse tessellation grown by its chord error;
 ## both grown by tol) skips pairs that are far apart. The ground is a solid half-space under the plane. Every new part is also
 ## checked against the parts built before it and earlier in its stage: an overlap over Part.HIT_VOL (1 mm3) is a collision, listed in mm3.
@@ -29,7 +29,7 @@ const DIRS := [Vector3.DOWN, Vector3.UP, Vector3.LEFT, Vector3.RIGHT, Vector3.FO
 const REL_EPS := 1e-9    # a touch must add more overlap than this fraction of the smaller part's volume (the kernel's noise is far below)
 const ABS_EPS := 1e-15   # m3
 const BOX_DEFL := 20.0   # the prefilter's tessellation: this many times Part.fine_defl
-const GATE := 1e-6       # m (G45): two parts farther apart than this cannot overlap, the collision pass skips their boolean
+const NEAR := 1e-6       # m (G45): only for the count: pairs apart by (0, NEAR] were asked a boolean before the d > 0 gate
 
 
 static func stages(asm: Dictionary) -> Array:
@@ -287,7 +287,7 @@ static func check(asm: Dictionary, opts := {}) -> Dictionary:
 		sol["_ground"] = [gs]
 		box["_ground"] = AABB(Vector3(c.x - w * 0.5, g - span, c.z - d * 0.5), Vector3(w, span, d))
 		vol["_ground"] = w * span * d
-	var cnt := {"calls": 0, "skipped": 0, "dist_calls": 0, "gated": 0}   # a lambda captures ints by value: the counts live in a Dictionary
+	var cnt := {"calls": 0, "skipped": 0, "dist_calls": 0, "gated": 0, "gated_near": 0, "bool_d0": 0}   # a lambda captures ints by value: the counts live in a Dictionary
 	var memo := {}
 	var ov := {}      # "a|b" (sorted) -> the overlap at rest (m3): the collision pass and the touch test share it
 	var dist := {}    # G45: "a|b" (sorted) -> the smallest distance between the posed solids (m), -1 when the kernel refused a pair
@@ -307,7 +307,7 @@ static func check(asm: Dictionary, opts := {}) -> Dictionary:
 				best = minf(best, float(r["d"]))
 			if best <= 0.0:
 				break
-		var d := -1.0 if bad and best > tol else best
+		var d := -1.0 if bad and best > 0.0 else best   # a refused solid pair: only a sure 0 stands, else the old test
 		dist[pk] = d
 		return d
 	var touch := func(a: String, b: String) -> bool:
@@ -370,10 +370,13 @@ static func check(asm: Dictionary, opts := {}) -> Dictionary:
 				if not (box[a] as AABB).intersects(box[b]):
 					cnt["skipped"] += 1
 					continue
-				if use_dist and float(gap.call(a, String(b))) > GATE:   # apart: they cannot overlap, no boolean
+				var dg: float = float(gap.call(a, String(b))) if use_dist else -1.0
+				if dg > 0.0:   # apart, even by less than tol: they cannot overlap, no boolean (clash volume 0)
 					cnt["gated"] += 1
+					cnt["gated_near"] += 1 if dg <= NEAR else 0
 					ov[a + "|" + String(b) if a < String(b) else String(b) + "|" + a] = 0.0
 					continue
+				cnt["bool_d0"] += 1 if dg == 0.0 else 0
 				var r := _vol(sol[a], sol[b])
 				cnt["calls"] += int(r[1])
 				ov[a + "|" + String(b) if a < String(b) else String(b) + "|" + a] = float(r[0])
@@ -428,6 +431,8 @@ static func check(asm: Dictionary, opts := {}) -> Dictionary:
 	out["kernel_calls"] = cnt["calls"] + cnt["dist_calls"]
 	out["dist_calls"] = cnt["dist_calls"]
 	out["gated"] = cnt["gated"]
+	out["gated_near"] = cnt["gated_near"]
+	out["bool_d0"] = cnt["bool_d0"]
 	out["skipped"] = cnt["skipped"]
 	out["ok"] = unsup.is_empty() and coll.is_empty()
 	out["ms"] = Time.get_ticks_msec() - t0
