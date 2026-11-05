@@ -46,6 +46,8 @@ var remove_btn: Button
 var stl_btn: Button
 var glb_btn: Button
 var step_btn: Button
+var video_btn: Button          # G7TIME: the animation filmed (scripts/build/assembly_render.gd)
+var filming := false
 var done_btn: Button
 var status_l: Label
 var src_tab := "library"
@@ -212,9 +214,10 @@ func _build_panel() -> void:
 	stl_btn = _btn("STL", "asm_export_stl", "One .stl with every part, in place", func(): export("stl"))
 	glb_btn = _btn("GLB", "asm_export_glb", "One .glb, a node for each part", func(): export("glb"))
 	step_btn = _btn("STEP", "asm_export_step", "One .step with the exact solids of every part", func(): export("step"))
+	video_btn = _btn("Video", "asm_export_video", "Film the animation (Check motion > Timeline): PNG frames, a contact sheet and an .mp4, seen from the way you look at it now", export_video)
 	done_btn = _btn("Done", "asm_done", "Leave the assembly (save it first)", close)
 	r3.add_child(_lbl("Export", 13))
-	for b in [stl_btn, glb_btn, step_btn, done_btn]:
+	for b in [stl_btn, glb_btn, step_btn, video_btn, done_btn]:
 		(b as Button).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		r3.add_child(b)
 	vb.add_child(r3)
@@ -375,6 +378,7 @@ func _process(dt: float) -> void:
 			_t = 0.0
 			_pull_edits()
 	if on:
+		motion.tick(dt)   # G7TIME: Play
 		_layout()
 		ov.queue_redraw()
 
@@ -932,6 +936,32 @@ func export(fmt: String) -> Dictionary:
 			r = Assembly.export_glb(asm)
 		_:
 			r = Assembly.export_step(asm)
+	last_export = r
+	_say(String(r["text"]))
+	return r
+
+
+## G7TIME: the animation filmed into <exports>/<name>_motion_<stamp>/: frame_0000.png ..., sheet.png and <name>.mp4 (when ffmpeg is found).
+## The camera looks the way the view does now, framed on the box the parts sweep through. opts go to AssemblyRender.render
+func export_video(opts := {}) -> Dictionary:
+	if filming:
+		return {}
+	if editing != "":
+		_pull_edits()
+	if not AssemblyAnim.has_anim(asm):
+		_say("Nothing to film: key a drive first (Check motion > Timeline: set the drive, pick a time, press Key)")
+		return {}
+	var o := {"width": 1280, "height": 720}
+	if m.cam != null:
+		o["view_dir"] = (m.cam.global_transform.basis.z as Vector3)
+	o.merge(opts, true)
+	filming = true
+	video_btn.disabled = true
+	_say("Filming %d frames..." % AssemblyAnim.frame_count(asm))
+	var r: Dictionary = await AssemblyRender.render(m, asm, o)
+	filming = false
+	video_btn.disabled = false
+	r["text"] = ("Filmed %d frames to %s: sheet.png%s" % [int(r["n"]), String(r["dir"]).get_file(), ", " + String(r["mp4"]).get_file() if String(r["mp4"]) != "" else " (no .mp4: ffmpeg was not found; install it with winget install Gyan.FFmpeg)"]) if bool(r["ok"]) else "NOT DONE: " + String(r["why"])
 	last_export = r
 	_say(String(r["text"]))
 	return r

@@ -1,0 +1,1468 @@
+{
+	"drives": [
+		{
+			"axis": [
+				0.0,
+				0.0,
+				-1.0
+			],
+			"kind": "rotate",
+			"name": "Crank",
+			"origin": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"part": "p2",
+			"range": [
+				0.0,
+				360.0
+			]
+		}
+	],
+	"joints": [
+		{
+			"a": "p2",
+			"axis": [
+				0.0,
+				0.0,
+				1.0
+			],
+			"b": "ground",
+			"kind": "revolute",
+			"name": "crank in the case",
+			"origin": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"origin_b": [
+				0.0,
+				0.0,
+				10.15
+			]
+		},
+		{
+			"a": "p3",
+			"axis": [
+				0.0,
+				0.0,
+				1.0
+			],
+			"b": "p2",
+			"kind": "revolute",
+			"name": "big end on the crank pin",
+			"origin": [
+				0.0,
+				0.0,
+				10.0
+			],
+			"origin_b": [
+				0.0,
+				20.7,
+				29.0
+			]
+		},
+		{
+			"a": "p3",
+			"axis": [
+				0.0,
+				0.0,
+				1.0
+			],
+			"b": "p5",
+			"kind": "revolute",
+			"name": "small end on the piston pin",
+			"origin": [
+				0.0,
+				80.0,
+				10.0
+			],
+			"origin_b": [
+				0.0,
+				0.0,
+				16.5
+			]
+		},
+		{
+			"a": "p5",
+			"axis": [
+				0.0,
+				0.0,
+				1.0
+			],
+			"b": "p4",
+			"kind": "fixed",
+			"name": "pin in the piston",
+			"origin": [
+				0.0,
+				0.0,
+				16.5
+			],
+			"origin_b": [
+				0.0,
+				0.0,
+				34.0
+			]
+		},
+		{
+			"a": "p4",
+			"axis": [
+				0.0,
+				0.0,
+				1.0
+			],
+			"b": "ground",
+			"kind": "slider",
+			"name": "piston in the bore",
+			"origin": [
+				0.0,
+				0.0,
+				34.0
+			]
+		}
+	],
+	"kind": "assembly",
+	"name": "joint_204",
+	"parts": [
+		{
+			"id": "p1",
+			"name": "Crankcase",
+			"pos": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"features": [
+					{
+						"dims": [],
+						"ents": [
+							{
+								"a": [
+									-45.0,
+									-50.0
+								],
+								"b": [
+									45.0,
+									40.0
+								],
+								"k": "rect"
+							}
+						],
+						"id": "f1",
+						"name": "Sketch1",
+						"plane": "front",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 78.3,
+						"id": "f2",
+						"name": "Extrude2",
+						"op": "new",
+						"sketch": "f1",
+						"t": "extrude"
+					},
+					{
+						"from": "front",
+						"id": "f3",
+						"mm": 10.0,
+						"name": "Plane3",
+						"t": "plane"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"a": [
+									-40.0,
+									-45.0
+								],
+								"b": [
+									40.0,
+									35.0
+								],
+								"k": "rect"
+							}
+						],
+						"id": "f4",
+						"name": "Sketch4",
+						"plane": "f3",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 58.3,
+						"id": "f5",
+						"name": "Extrude5",
+						"op": "cut",
+						"sketch": "f4",
+						"t": "extrude"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 10.00525
+							}
+						],
+						"id": "f6",
+						"name": "Sketch6",
+						"plane": "front",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 78.3,
+						"id": "f7",
+						"name": "Extrude7",
+						"op": "cut",
+						"sketch": "f6",
+						"t": "extrude"
+					},
+					{
+						"from": "top",
+						"id": "f8",
+						"mm": 35.0,
+						"name": "Plane8",
+						"t": "plane"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									-39.15
+								],
+								"k": "circle",
+								"r": 22.0
+							}
+						],
+						"id": "f9",
+						"name": "Sketch9",
+						"plane": "f8",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 5.0,
+						"id": "f10",
+						"name": "Extrude10",
+						"op": "cut",
+						"sketch": "f9",
+						"t": "extrude"
+					},
+					{
+						"alpha": 0.28,
+						"body": 0,
+						"color": [
+							0.55,
+							0.6,
+							0.68
+						],
+						"id": "f11",
+						"metal": 0.1,
+						"name": "Paint",
+						"preset": "Custom",
+						"rough": 0.5,
+						"t": "appear"
+					},
+					{
+						"body": 0,
+						"called": "Crankcase",
+						"id": "f12",
+						"name": "Name",
+						"t": "bname"
+					}
+				],
+				"name": "Engine crankcase",
+				"seq": 12,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p2",
+			"name": "Crankshaft",
+			"pos": [
+				0.0,
+				0.0,
+				10.15
+			],
+			"rec": {
+				"features": [
+					{
+						"from": "front",
+						"id": "f1",
+						"mm": -20.0,
+						"name": "Plane1",
+						"t": "plane"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 9.98475
+							}
+						],
+						"id": "f2",
+						"name": "Sketch2",
+						"plane": "f1",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 29.0,
+						"id": "f3",
+						"name": "Extrude3",
+						"op": "new",
+						"sketch": "f2",
+						"t": "extrude"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 14.0
+							}
+						],
+						"id": "f4",
+						"name": "Sketch4",
+						"plane": "front",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 9.0,
+						"id": "f5",
+						"name": "Extrude5",
+						"op": "join",
+						"sketch": "f4",
+						"t": "extrude"
+					},
+					{
+						"from": "front",
+						"id": "f6",
+						"mm": 9.0,
+						"name": "Plane6",
+						"t": "plane"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 22.0
+							}
+						],
+						"id": "f7",
+						"name": "Sketch7",
+						"plane": "f6",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 8.0,
+						"id": "f8",
+						"name": "Extrude8",
+						"op": "join",
+						"sketch": "f7",
+						"t": "extrude"
+					},
+					{
+						"from": "front",
+						"id": "f9",
+						"mm": 9.0,
+						"name": "Plane9",
+						"t": "plane"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									20.7
+								],
+								"k": "circle",
+								"r": 14.0
+							}
+						],
+						"id": "f10",
+						"name": "Sketch10",
+						"plane": "f9",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 8.0,
+						"id": "f11",
+						"name": "Extrude11",
+						"op": "join",
+						"sketch": "f10",
+						"t": "extrude"
+					},
+					{
+						"from": "front",
+						"id": "f12",
+						"mm": 41.0,
+						"name": "Plane12",
+						"t": "plane"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 22.0
+							}
+						],
+						"id": "f13",
+						"name": "Sketch13",
+						"plane": "f12",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 8.0,
+						"id": "f14",
+						"name": "Extrude14",
+						"op": "join",
+						"sketch": "f13",
+						"t": "extrude"
+					},
+					{
+						"from": "front",
+						"id": "f15",
+						"mm": 41.0,
+						"name": "Plane15",
+						"t": "plane"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									20.7
+								],
+								"k": "circle",
+								"r": 14.0
+							}
+						],
+						"id": "f16",
+						"name": "Sketch16",
+						"plane": "f15",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 8.0,
+						"id": "f17",
+						"name": "Extrude17",
+						"op": "join",
+						"sketch": "f16",
+						"t": "extrude"
+					},
+					{
+						"from": "front",
+						"id": "f18",
+						"mm": 17.0,
+						"name": "Plane18",
+						"t": "plane"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									20.7
+								],
+								"k": "circle",
+								"r": 8.9875
+							}
+						],
+						"id": "f19",
+						"name": "Sketch19",
+						"plane": "f18",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 24.0,
+						"id": "f20",
+						"name": "Extrude20",
+						"op": "join",
+						"sketch": "f19",
+						"t": "extrude"
+					},
+					{
+						"from": "front",
+						"id": "f21",
+						"mm": 49.0,
+						"name": "Plane21",
+						"t": "plane"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 14.0
+							}
+						],
+						"id": "f22",
+						"name": "Sketch22",
+						"plane": "f21",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 9.0,
+						"id": "f23",
+						"name": "Extrude23",
+						"op": "join",
+						"sketch": "f22",
+						"t": "extrude"
+					},
+					{
+						"from": "front",
+						"id": "f24",
+						"mm": 49.0,
+						"name": "Plane24",
+						"t": "plane"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 9.98475
+							}
+						],
+						"id": "f25",
+						"name": "Sketch25",
+						"plane": "f24",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 29.0,
+						"id": "f26",
+						"name": "Extrude26",
+						"op": "join",
+						"sketch": "f25",
+						"t": "extrude"
+					},
+					{
+						"alpha": 1.0,
+						"body": 0,
+						"color": [
+							0.95,
+							0.55,
+							0.12
+						],
+						"id": "f27",
+						"metal": 0.15,
+						"name": "Paint",
+						"preset": "Custom",
+						"rough": 0.4,
+						"t": "appear"
+					},
+					{
+						"body": 0,
+						"called": "Crankshaft",
+						"id": "f28",
+						"name": "Name",
+						"t": "bname"
+					}
+				],
+				"name": "Engine crankshaft",
+				"seq": 28,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p3",
+			"name": "Rod",
+			"pos": [
+				0.0,
+				20.7,
+				29.15
+			],
+			"rec": {
+				"features": [
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 15.0
+							}
+						],
+						"id": "f1",
+						"name": "Sketch1",
+						"plane": "front",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 20.0,
+						"id": "f2",
+						"name": "Extrude2",
+						"op": "new",
+						"sketch": "f1",
+						"t": "extrude"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									80.0
+								],
+								"k": "circle",
+								"r": 10.0
+							}
+						],
+						"id": "f3",
+						"name": "Sketch3",
+						"plane": "front",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 20.0,
+						"id": "f4",
+						"name": "Extrude4",
+						"op": "join",
+						"sketch": "f3",
+						"t": "extrude"
+					},
+					{
+						"from": "front",
+						"id": "f5",
+						"mm": 4.0,
+						"name": "Plane5",
+						"t": "plane"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"a": [
+									-7.0,
+									12.0
+								],
+								"b": [
+									7.0,
+									12.0
+								],
+								"k": "line"
+							},
+							{
+								"a": [
+									7.0,
+									12.0
+								],
+								"b": [
+									4.5,
+									68.0
+								],
+								"k": "line"
+							},
+							{
+								"a": [
+									4.5,
+									68.0
+								],
+								"b": [
+									-4.5,
+									68.0
+								],
+								"k": "line"
+							},
+							{
+								"a": [
+									-4.5,
+									68.0
+								],
+								"b": [
+									-7.0,
+									12.0
+								],
+								"k": "line"
+							}
+						],
+						"id": "f6",
+						"name": "Sketch6",
+						"plane": "f5",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 12.0,
+						"id": "f7",
+						"name": "Extrude7",
+						"op": "join",
+						"sketch": "f6",
+						"t": "extrude"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 9.0045
+							}
+						],
+						"id": "f8",
+						"name": "Sketch8",
+						"plane": "front",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 20.0,
+						"id": "f9",
+						"name": "Extrude9",
+						"op": "cut",
+						"sketch": "f8",
+						"t": "extrude"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									80.0
+								],
+								"k": "circle",
+								"r": 6.50575
+							}
+						],
+						"id": "f10",
+						"name": "Sketch10",
+						"plane": "front",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 20.0,
+						"id": "f11",
+						"name": "Extrude11",
+						"op": "cut",
+						"sketch": "f10",
+						"t": "extrude"
+					},
+					{
+						"alpha": 1.0,
+						"body": 0,
+						"color": [
+							0.55,
+							0.7,
+							0.9
+						],
+						"id": "f12",
+						"metal": 0.15,
+						"name": "Paint",
+						"preset": "Custom",
+						"rough": 0.4,
+						"t": "appear"
+					},
+					{
+						"body": 0,
+						"called": "Connecting rod",
+						"id": "f13",
+						"name": "Name",
+						"t": "bname"
+					}
+				],
+				"name": "Engine rod",
+				"seq": 13,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p4",
+			"name": "Piston",
+			"pos": [
+				0.0,
+				66.7,
+				39.15
+			],
+			"rec": {
+				"features": [
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 19.46875
+							}
+						],
+						"id": "f1",
+						"name": "Sketch1",
+						"plane": "front",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 48.0,
+						"id": "f2",
+						"name": "Extrude2",
+						"op": "new",
+						"sketch": "f1",
+						"t": "extrude"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 17.0
+							}
+						],
+						"id": "f3",
+						"name": "Sketch3",
+						"plane": "front",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 22.0,
+						"id": "f4",
+						"name": "Extrude4",
+						"op": "cut",
+						"sketch": "f3",
+						"t": "extrude"
+					},
+					{
+						"from": "front",
+						"id": "f5",
+						"mm": 22.0,
+						"name": "Plane5",
+						"t": "plane"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"a": [
+									-14.0,
+									-10.5
+								],
+								"b": [
+									14.0,
+									10.5
+								],
+								"k": "rect"
+							}
+						],
+						"id": "f6",
+						"name": "Sketch6",
+						"plane": "f5",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 22.5,
+						"id": "f7",
+						"name": "Extrude7",
+						"op": "cut",
+						"sketch": "f6",
+						"t": "extrude"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									-34.0
+								],
+								"k": "circle",
+								"r": 6.5
+							}
+						],
+						"id": "f8",
+						"name": "Sketch8",
+						"plane": "top",
+						"t": "sketch"
+					},
+					{
+						"both": true,
+						"dist": 60.0,
+						"id": "f9",
+						"name": "Extrude9",
+						"op": "cut",
+						"sketch": "f8",
+						"t": "extrude"
+					},
+					{
+						"alpha": 1.0,
+						"body": 0,
+						"color": [
+							0.86,
+							0.87,
+							0.92
+						],
+						"id": "f10",
+						"metal": 0.15,
+						"name": "Paint",
+						"preset": "Custom",
+						"rough": 0.45,
+						"t": "appear"
+					},
+					{
+						"body": 0,
+						"called": "Piston",
+						"id": "f11",
+						"name": "Name",
+						"t": "bname"
+					}
+				],
+				"name": "Engine piston",
+				"seq": 11,
+				"version": 1
+			},
+			"rot": [
+				-90.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p5",
+			"name": "Pin",
+			"pos": [
+				0.0,
+				100.7,
+				22.65
+			],
+			"rec": {
+				"features": [
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 6.498
+							}
+						],
+						"id": "f1",
+						"name": "Sketch1",
+						"plane": "front",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 33.0,
+						"id": "f2",
+						"name": "Extrude2",
+						"op": "new",
+						"sketch": "f1",
+						"t": "extrude"
+					},
+					{
+						"alpha": 1.0,
+						"body": 0,
+						"color": [
+							0.95,
+							0.8,
+							0.3
+						],
+						"id": "f3",
+						"metal": 0.15,
+						"name": "Paint",
+						"preset": "Custom",
+						"rough": 0.4,
+						"t": "appear"
+					},
+					{
+						"body": 0,
+						"called": "Piston pin",
+						"id": "f4",
+						"name": "Name",
+						"t": "bname"
+					}
+				],
+				"name": "Engine pin",
+				"seq": 4,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p6",
+			"name": "Cylinder",
+			"pos": [
+				0.0,
+				40.0,
+				39.15
+			],
+			"rec": {
+				"features": [
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 28.0
+							}
+						],
+						"id": "f1",
+						"name": "Sketch1",
+						"plane": "front",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 75.2,
+						"id": "f2",
+						"name": "Extrude2",
+						"op": "new",
+						"sketch": "f1",
+						"t": "extrude"
+					},
+					{
+						"from": "front",
+						"id": "f3",
+						"mm": 19.0,
+						"name": "Plane3",
+						"t": "plane"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 35.0
+							}
+						],
+						"id": "f4",
+						"name": "Sketch4",
+						"plane": "f3",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 2.0,
+						"id": "f5",
+						"name": "Extrude5",
+						"op": "join",
+						"sketch": "f4",
+						"t": "extrude"
+					},
+					{
+						"from": "front",
+						"id": "f6",
+						"mm": 29.0,
+						"name": "Plane6",
+						"t": "plane"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 35.0
+							}
+						],
+						"id": "f7",
+						"name": "Sketch7",
+						"plane": "f6",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 2.0,
+						"id": "f8",
+						"name": "Extrude8",
+						"op": "join",
+						"sketch": "f7",
+						"t": "extrude"
+					},
+					{
+						"from": "front",
+						"id": "f9",
+						"mm": 39.0,
+						"name": "Plane9",
+						"t": "plane"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 35.0
+							}
+						],
+						"id": "f10",
+						"name": "Sketch10",
+						"plane": "f9",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 2.0,
+						"id": "f11",
+						"name": "Extrude11",
+						"op": "join",
+						"sketch": "f10",
+						"t": "extrude"
+					},
+					{
+						"from": "front",
+						"id": "f12",
+						"mm": 49.0,
+						"name": "Plane12",
+						"t": "plane"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 35.0
+							}
+						],
+						"id": "f13",
+						"name": "Sketch13",
+						"plane": "f12",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 2.0,
+						"id": "f14",
+						"name": "Extrude14",
+						"op": "join",
+						"sketch": "f13",
+						"t": "extrude"
+					},
+					{
+						"from": "front",
+						"id": "f15",
+						"mm": 59.0,
+						"name": "Plane15",
+						"t": "plane"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 35.0
+							}
+						],
+						"id": "f16",
+						"name": "Sketch16",
+						"plane": "f15",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 2.0,
+						"id": "f17",
+						"name": "Extrude17",
+						"op": "join",
+						"sketch": "f16",
+						"t": "extrude"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 19.50625
+							}
+						],
+						"id": "f18",
+						"name": "Sketch18",
+						"plane": "front",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 75.2,
+						"id": "f19",
+						"name": "Extrude19",
+						"op": "cut",
+						"sketch": "f18",
+						"t": "extrude"
+					},
+					{
+						"alpha": 0.35,
+						"body": 0,
+						"color": [
+							0.35,
+							0.42,
+							0.55
+						],
+						"id": "f20",
+						"metal": 0.1,
+						"name": "Paint",
+						"preset": "Custom",
+						"rough": 0.5,
+						"t": "appear"
+					},
+					{
+						"body": 0,
+						"called": "Cylinder",
+						"id": "f21",
+						"name": "Name",
+						"t": "bname"
+					}
+				],
+				"name": "Engine cylinder",
+				"seq": 21,
+				"version": 1
+			},
+			"rot": [
+				-90.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p7",
+			"name": "Head",
+			"pos": [
+				0.0,
+				115.2,
+				39.15
+			],
+			"rec": {
+				"features": [
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 35.0
+							}
+						],
+						"id": "f1",
+						"name": "Sketch1",
+						"plane": "front",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 30.0,
+						"id": "f2",
+						"name": "Extrude2",
+						"op": "new",
+						"sketch": "f1",
+						"t": "extrude"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 16.0
+							}
+						],
+						"id": "f3",
+						"name": "Sketch3",
+						"plane": "front",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 6.8326171875,
+						"id": "f4",
+						"name": "Extrude4",
+						"op": "cut",
+						"sketch": "f3",
+						"t": "extrude"
+					},
+					{
+						"from": "front",
+						"id": "f5",
+						"mm": 6.8326171875,
+						"name": "Plane5",
+						"t": "plane"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 7.0
+							}
+						],
+						"id": "f6",
+						"name": "Sketch6",
+						"plane": "f5",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 23.1673828125,
+						"id": "f7",
+						"name": "Extrude7",
+						"op": "cut",
+						"sketch": "f6",
+						"t": "extrude"
+					},
+					{
+						"alpha": 1.0,
+						"body": 0,
+						"color": [
+							0.7,
+							0.35,
+							0.25
+						],
+						"id": "f8",
+						"metal": 0.1,
+						"name": "Paint",
+						"preset": "Custom",
+						"rough": 0.5,
+						"t": "appear"
+					},
+					{
+						"body": 0,
+						"called": "Head",
+						"id": "f9",
+						"name": "Name",
+						"t": "bname"
+					}
+				],
+				"name": "Engine head",
+				"seq": 9,
+				"version": 1
+			},
+			"rot": [
+				-90.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		}
+	],
+	"seq": 7,
+	"version": 1
+}

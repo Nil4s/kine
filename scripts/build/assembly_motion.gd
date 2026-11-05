@@ -157,7 +157,9 @@ static func _pk(a: String, b: String) -> String:
 ## "pairs" (pairs looked at), "kernel_calls" (overlap_volume calls), "skipped" (pair checks the boxes ruled out), "steps", "values", "moving" (ids), "ms"}
 ## opts: "prefilter" (default true): false asks the kernel about every pair (a test counts the calls by hand); "hit_mm3": the overlap that counts
 ## as a clash (default Part.HIT_VOL, 1 mm3). With "joints" (G2LOOP) the parts follow the loop solver's sweep (AssemblyLoop.sweep, each step from
-## the last); a step with no pose is not checked, and "loop" = {"locks", "unsolved", "iters_total", "iters_max", "ms"}
+## the last); a step with no pose is not checked, and "loop" = {"locks", "unsolved", "iters_total", "iters_max", "ms"}.
+## G7TIME: opts "moves" (one moves dict per step, null = no pose), "states" and "values" (the drive's value per step) replace the sweep
+## (AssemblyAnim.check); every clash also carries its step index "k"
 static func check_motion(asm: Dictionary, drive_name: String, steps: int, opts := {}) -> Dictionary:
 	var t0 := Time.get_ticks_msec()
 	var out := {"ok": false, "why": "", "clashes": [], "by_pair": {}, "pairs": 0, "kernel_calls": 0, "skipped": 0, "steps": steps, "values": [], "moving": [], "ms": 0}
@@ -171,12 +173,23 @@ static func check_motion(asm: Dictionary, drive_name: String, steps: int, opts :
 	var prefilter := bool(opts.get("prefilter", true))
 	var hit_vol := float(opts["hit_mm3"]) * 1e-9 if opts.has("hit_mm3") else Part.HIT_VOL
 	var ps: Array = asm["parts"]
-	var vals := values(d, steps)
+	var vals: Array = opts["values"] if opts.has("moves") else values(d, steps)
 	out["values"] = vals
 	var track: Array = []   # G2LOOP: the moves at each value (null: no pose)
 	var tstates: Array = [] # and the solver's planar states (doubles), which place the solids without float32 (G4)
 	var moving: Array = []
-	if AssemblyLoop.has_joints(asm):
+	if opts.has("moves"):   # G7TIME: the steps posed by the caller (AssemblyAnim.check: one step per frame, every keyed drive moved)
+		track = opts["moves"]
+		tstates = opts.get("states", [])
+		for mv in track:
+			if mv != null:
+				for id in mv:
+					if not moving.has(id):
+						moving.append(id)
+		if moving.is_empty():
+			out["why"] = "no frame of the animation has a pose"
+			return out
+	elif AssemblyLoop.has_joints(asm):
 		var sw := AssemblyLoop.sweep(asm, drive_name, vals)
 		if int(sw["n"]) == 0 and not bool(sw["ok"]) and (sw["steps"] as Array).is_empty():
 			out["why"] = String(sw["why"])
@@ -267,7 +280,7 @@ static func check_motion(asm: Dictionary, drive_name: String, steps: int, opts :
 					if vol * 1e9 > float(row["worst_mm3"]):
 						row["worst_mm3"] = vol * 1e9
 						row["worst_at"] = v
-					clashes.append({"a": String(a["name"]), "b": String(b["name"]), "ida": ia, "idb": ib, "at": v, "mm3": vol * 1e9, "static": still})
+					clashes.append({"a": String(a["name"]), "b": String(b["name"]), "ida": ia, "idb": ib, "at": v, "k": k, "mm3": vol * 1e9, "static": still})
 		for id in mv:
 			for s in placed[id]:
 				KCad.release(int(s))
