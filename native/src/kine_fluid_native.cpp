@@ -158,6 +158,7 @@ void KineFluidNative::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("particles_in_solid"), &KineFluidNative::particles_in_solid);
 	ClassDB::bind_method(D_METHOD("particles_in_mesh", "verts", "tris"), &KineFluidNative::particles_in_mesh);
 	ClassDB::bind_method(D_METHOD("volume_ratio"), &KineFluidNative::volume_ratio);
+	ClassDB::bind_method(D_METHOD("volume_smooth"), &KineFluidNative::volume_smooth);
 	ClassDB::bind_method(D_METHOD("surface", "smooth", "iso"), &KineFluidNative::surface);
 	ClassDB::bind_method(D_METHOD("clear_particles"), &KineFluidNative::clear_particles);
 	ClassDB::bind_method(D_METHOD("set_wall_friction", "f"), &KineFluidNative::set_wall_friction);
@@ -1011,6 +1012,33 @@ double KineFluidNative::volume_ratio() const {
 	double s = 0;
 	for (int32_t c : c2) s += std::min(c, ppc);
 	return s / N;
+}
+
+// Translation-invariant volume: the particles' kernel density at the cell centres (quadratic B-spline, a partition of unity, so the sum of the field over all
+// cells is exactly N / ppc), capped at the rest density 1. The lattice-phase of the particles against the cells does not enter, unlike volume_ratio() whose
+// min(count, 8) reads a rigidly shifted lattice as a loss. Only a smoothed density above 1 (a real compression) loses volume here.
+double KineFluidNative::volume_smooth() const {
+	int N = particle_count();
+	if (N == 0) return 1.0;
+	size_t nc = (size_t)nx * ny * nz;
+	std::vector<double> F(nc, 0.0);
+	for (int p = 0; p < N; p++) {
+		int bx, by, bz;
+		double fx, fy, fz, wx[3], wy[3], wz[3];
+		w3((P[3 * p] - ox) / h - 0.5, bx, fx, wx);
+		w3((P[3 * p + 1] - oy) / h - 0.5, by, fy, wy);
+		w3((P[3 * p + 2] - oz) / h - 0.5, bz, fz, wz);
+		for (int kk = 0; kk < 3; kk++)
+			for (int jj = 0; jj < 3; jj++)
+				for (int ii = 0; ii < 3; ii++) {
+					int i = bx + ii, j = by + jj, k = bz + kk;
+					if (i < 0 || j < 0 || k < 0 || i >= nx || j >= ny || k >= nz) continue;
+					F[cid(i, j, k)] += wx[ii] * wy[jj] * wz[kk] / ppc;
+				}
+	}
+	double s = 0;
+	for (double v : F) s += std::min(v, 1.0);
+	return s / ((double)N / ppc);
 }
 
 // smoothed particle density field (quadratic kernel at cell centres), blurred, then marching tetrahedra at `iso` (fraction of rest density)

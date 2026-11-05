@@ -66,6 +66,7 @@ public:
 	int particles_in_solid() const;
 	int particles_in_mesh(const PackedVector3Array &p_verts, const PackedInt32Array &p_tris) const;
 	double volume_ratio() const;
+	double volume_smooth() const;
 	Dictionary surface(int p_smooth, double p_iso);
 	Dictionary surface_aniso(double p_iso, int p_ndiv);
 	void clear_particles();

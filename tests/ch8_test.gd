@@ -347,6 +347,7 @@ func _h_verified() -> void:
 	var worst_planted := false
 	var peak := 0
 	var worst_v := 1.0
+	var worst_vs := 1.0
 	var lines := []
 	for i in MMV_T.size():
 		F.advance(MMV_T[i] * tscale - t)
@@ -359,12 +360,40 @@ func _h_verified() -> void:
 		lines.append("T %.2f Z sim %.3f paper %.2f (%.1f %%)" % [MMV_T[i], z, MMV_Z[i], e * 100.0])
 		peak = maxi(peak, _peak_count(F))
 		worst_v = minf(worst_v, F.volume_ratio())
+		worst_vs = minf(worst_vs, F.volume_smooth())
 	for l in lines:
 		print("      ", l)
+	# the rest of bar (b)'s window, to T = 5 (past the wall hit), for the peak count and the smooth volume
+	var T3 := 3.25
+	while T3 <= 5.0 + 1e-9:
+		F.advance(T3 * tscale - t)
+		t = T3 * tscale
+		peak = maxi(peak, _peak_count(F))
+		worst_v = minf(worst_v, F.volume_ratio())
+		worst_vs = minf(worst_vs, F.volume_smooth())
+		T3 += 0.25
 	ok(worst <= 0.10, "(h) dam break vs Martin & Moyce, VERIFIED table (paper Table 2, mean, a = 2 1/4 in): worst surge-front error %.1f %% over %d points (bar 10 %%)" % [worst * 100.0, MMV_T.size()])
 	ok(worst_planted, "(g) CONTROL the planted verified table (Z x 1.3) fails the 10 %% bar (the bar can fail)")
-	ok(peak <= 12, "(b2) peak cell count %d <= 12 (1.5 x rest density, 8 per cell) at every sampled T of the dam break to T = 3.11" % peak)
-	print("      (b2) worst V/V0 on this run: %.4f" % worst_v)
+	ok(peak <= 12, "(b2) peak cell count %d <= 12 (1.5 x rest density, 8 per cell) at every sampled T of the dam break to T = 5" % peak)
+	print("      (b) statistic on this run: worst V/V0 = %.4f (min(count, 8) per cell, the lattice-phase sensitive one)" % worst_v)
+	ok(worst_vs >= 0.98, "(b4) smooth volume (B-spline density at the cell centres, capped at rest density; a partition of unity, so lattice phase does not enter): worst %.4f over the dam break to T = 5 (bar >= 0.98)" % worst_vs)
+	# controls for (b4): a block with DOUBLE the particles per cell (two overlapping seeds) reads about 0.5; and the lattice-phase demonstration:
+	# a block translated rigidly (gravity 0, no deformation, nothing compressed) must read >= 0.98 by (b4) while the min(count, 8) statistic of (b) reads lower
+	var Fd = Fluid.make()
+	Fd.setup(30, 30, 30, 0.01, Vector3.ZERO)
+	Fd.add_fluid_box(Vector3(0.08, 0.08, 0.08), Vector3(0.18, 0.18, 0.18), Vector3.ZERO, 3)
+	Fd.add_fluid_box(Vector3(0.08, 0.08, 0.08), Vector3(0.18, 0.18, 0.18), Vector3.ZERO, 4)
+	var vd: float = Fd.volume_smooth()
+	ok(vd < 0.98, "(g) CONTROL a block with twice the rest density reads %.3f by (b4) (the bar can fail)" % vd)
+	var Fs = Fluid.make()
+	Fs.setup(30, 30, 30, 0.01, Vector3.ZERO)
+	Fs.set_params(0.0, 0.2, 0.5, 0.004, 300, 1e-7)
+	Fs.set_threads(1)
+	Fs.add_fluid_box(Vector3(0.08, 0.08, 0.08), Vector3(0.18, 0.18, 0.18), Vector3(0.37, 0.21, 0.5), 3)
+	Fs.advance(0.036)
+	var v_old: float = Fs.volume_ratio()
+	var v_new: float = Fs.volume_smooth()
+	ok(v_new >= 0.98 and v_old < 0.98, "(b4) lattice-phase demonstration: a block translated rigidly with gravity 0 reads %.4f by the smooth volume and %.4f by bar (b)'s min(count, 8) statistic (nothing was compressed)" % [v_new, v_old])
 	# control for (b2): the first-version density drift in the velocity solve (dmode 0) must break the same cap
 	var F0 = Fluid.make()
 	F0.set_threads(4)
