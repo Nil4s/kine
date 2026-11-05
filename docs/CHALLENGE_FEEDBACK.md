@@ -41,6 +41,8 @@ The lead copies section 3's rows into the ledger below, one line each, so gaps f
 | CH1f soil + masonry/LSF house (Mato Grosso) | structural dynamics L3, geotechnical L2-L3, masonry/LSF L2-L3 | El Centro stand-in, not an NBR spectrum; no load combinations; walls as lines; no soil report |
 | SRETOPO stroke retopology | geometry processing L3 | open-edge regions are skipped, not filled; no comparison against a reference retopo tool on the same strokes |
 | CH5c wet street at night (PARKED) | rendering/optics L2-L3 | wet roughness, wetness and bump height unsourced; the glint streak needs a direction-aware roughness filter |
+| CH15 nuclear plant (Angra 2 class PWR) | thermal-fluids, electrical, containment, decay heat L3; mechanical and civil/layout L2 | 8 of 12 footprints and all heights assumed; no transient analysis; block-level equipment |
+| CH8b liquids (PARKED, 28/5) | fluids/CFD L3 | blocked-cell walls, no air phase; the Martin and Moyce front leads by 24 pct |
 | CH7b parkour run (PARKED, 21/1) | landings and flight L3, joint limits and timing L2 | no whole-body COM, contact impulses or conserved spin in flight; the course was changed to fit gravity |
 
 ## 4. Gap ledger (one row per gap; newest last)
@@ -73,3 +75,14 @@ The lead copies section 3's rows into the ledger below, one line each, so gaps f
 | G24 | CH7b | keep free limbs out of obstacles while animating | nothing | a custom avoidance pass | obstacle avoidance for non-contact limbs in IK |
 | G25 | CH7b | pinned body-surface contacts (shoulder, back, hip) for a roll | foot/hand contacts only | the roll became a tight ball | body-surface contact targets |
 | G26 | CH7b | whole-body centre of mass and jump arcs off obstacles | Balance.com and floor-only jump arcs exist: a DISCOVERABILITY gap | used the pelvis as the COM | list Balance.com in the agent brief; jump arcs from any surface |
+| G27 | CH15 | Part meshing at building scale | **FIXED #195**: Part.fine_defl scales the deflection with body size (28 m shell 144 s -> 8.9 s) | 1 cm self-meshing in the lane | done |
+| G28 | CH15 | Split of a body bigger than 20 m | **FIXED #195**: the half-space is sized from the bodies | a 2 km cut box | done |
+| G29 | CH15 | a refused boolean cut was silent | **FIXED #195**: it is the step's error naming the body (the concentric-sphere repro itself did not reproduce) | revolved profiles | done |
+| G30 | CH15 | blueprints of anything but Building records (site plan, section of a Part assembly) | blueprint.gd draws Building records only | site plan and section drawn by hand: they can drift from the model | Blueprint from an Assembly: plan and section views with dimensions |
+| G31 | CH15 | electrical one-line / schematic diagrams | nothing | SVG drawn by the lane's code | a schematic editor with IEC symbols and ratings on the parts |
+| G32 | CH15 | water/steam properties (IAPWS-IF97) and thermodynamic cycles | nothing | GDScript IF97 written in the lane (30 check values to 2.8e-9) | promote ch15's IF97 to a shared module with a cycle calculator |
+| G33 | CH15 | construction staging (build order, support check, sequence video) | nothing | ch15 build sequence and support check | Assembly stages: each stage adds parts, with a support check and a staged video |
+| G34 | CH8b | sub-cell fluid walls (a mug holds its real volume) | the grid blocks any cell a wall touches (caps the mug at 86-89 pct) | could not do it | cut-cell or variational walls (Batty 2007) in the fluid solver |
+| G35 | CH8b | an air phase and a better free-surface boundary | water only | none (the dam front leads the paper by 24 pct) | a two-phase option or ghost-fluid free surface |
+| G36 | CH8b | fluids in the app UI | the solver exists only in tests and tools | none | a Fluid emitter / container in the scene with a water material |
+| G37 | CH8b | testing native code without Godot | nothing checked in | Godot runs only | a small C++ test harness for native/ |
