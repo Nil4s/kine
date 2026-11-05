@@ -13,7 +13,7 @@ extends SceneTree
 ##                same support kind per part. CONTROL: the comparison tells the tower from roof-before-walls (their verdicts differ), and the two
 ##                runs really took the two paths (touch "dist" with distance calls; touch "overlap" with none)
 ##   c SPEED      the CH15 support check (whole AssemblyStage.check, ms) with the distance path is at least 5x faster than with the old path (the
-##                new one runs FIRST, so it pays any cold cache). CONTROL: the new path asks at least 5x fewer booleans than the old one
+##                new one runs FIRST, so it pays any cold cache). INFO (AMENDED per Nick 11-05, was a CONTROL): the boolean count, new vs old
 ##   d SUITE      the g33stage suite still passes all 28 bars with the new path (checked by the same wtest run, not in this file)
 const KCad := preload("res://scripts/kcad.gd")
 const S15 := preload("res://scripts/build/ch15_site.gd")
@@ -201,7 +201,7 @@ func bars_same() -> void:
 	ok(tn * 5.0 <= to, "c CH15 support check: old %.1f s, new %.1f s: %.1fx faster (bound >= 5x)" % [to / 1000.0, tn / 1000.0, to / maxf(tn, 1.0)])
 	var bn := int(cn["kernel_calls"]) - int(cn["dist_calls"])
 	var bo := int(co["kernel_calls"])
-	ctl(bn * 5 <= bo, "c booleans on CH15: new %d (+ %d distances), old %d" % [bn, int(cn["dist_calls"]), bo])
+	print("info c booleans on CH15: new %d (+ %d distances), old %d: %.1fx fewer" % [bn, int(cn["dist_calls"]), bo, float(bo) / maxf(float(bn), 1.0)])   # AMENDED per Nick 11-05: was a CONTROL (>= 5x fewer booleans); it read 4.6x. Its premise was wrong (the speed came from exact bounds, not fewer booleans; the 64 left are real face contacts that need their clash volume). Nick: keep the count as information, 4.6x is a good drop
 
 
 func _init() -> void:
