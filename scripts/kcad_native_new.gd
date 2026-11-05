@@ -22,3 +22,7 @@ static func overlap_volume(a: int, b: int) -> float:   # C70
 
 static func distance(a: int, b: int) -> Dictionary:   # G45 (version 6)
 	return KineCAD.distance(a, b)
+
+
+static func bounds(id: int) -> PackedFloat64Array:   # G45 (version 6)
+	return KineCAD.bounds(id)

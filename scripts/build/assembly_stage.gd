@@ -12,8 +12,9 @@
 ## two parts touch when they overlap, or when one moved by tol along any of the six axis directions overlaps the other more than before
 ## (a face within tol along an axis; a slanted face counts from tol / sqrt(3)). G45: with KineCAD 6 the touch test is ONE KCad.distance per
 ## solid pair instead (touching = the smallest distance <= tol, any direction), and the collision pass skips the boolean of a pair farther apart
-## than GATE; opts "touch": "overlap" keeps the seven-boolean test above (the equality check of tests/g45dist_test.gd). A box prefilter (a coarse tessellation of each posed solid,
-## grown by its chord error and tol) skips pairs that are far apart. The ground is a solid half-space under the plane. Every new part is also
+## than GATE; opts "touch": "overlap" keeps the seven-boolean test above (the equality check of tests/g45dist_test.gd).
+## A box prefilter (KineCAD 6: each posed solid's exact-geometry box, KCad.bounds; the old path: a coarse tessellation grown by its chord error;
+## both grown by tol) skips pairs that are far apart. The ground is a solid half-space under the plane. Every new part is also
 ## checked against the parts built before it and earlier in its stage: an overlap over Part.HIT_VOL (1 mm3) is a collision, listed in mm3.
 ## Time: stage k starts at the sum of the earlier stages' durations; its parts are shown from that time (pose_at); with "drop" they slide in
 ## over the stage's time (smooth ease). With an animation (AssemblyAnim) the drives' moves come first, the drop on top. video() films it
@@ -206,6 +207,22 @@ static func _box_of(sols: Array) -> AABB:
 	return out
 
 
+## G45: the same box from the kernel's exact geometry (KCad.bounds, no tessellation: the tessellated boxes took 172 of CH15's 177 s);
+## a solid the kernel gives no box for falls back to _box_of
+static func _bounds_of(sols: Array) -> AABB:
+	var out := AABB()
+	var first := true
+	for s in sols:
+		var b := KCad.bounds_aabb(int(s))
+		if b.size == Vector3.ZERO:
+			b = _box_of([s])
+			if b.size == Vector3.ZERO:
+				continue
+		out = b if first else out.merge(b)
+		first = false
+	return out
+
+
 static func _vol(a: Array, b: Array) -> Array:
 	var v := 0.0
 	var n := 0
@@ -250,7 +267,7 @@ static func check(asm: Dictionary, opts := {}) -> Dictionary:
 		var ids: Array = Part.replay(p["rec"], -1, {"keep": true, "errors_only": true}).get("ids", [])
 		sol[id] = AssemblyMotion._place_all(ids, Assembly.xf_of(p))
 		Part.release_kept(ids)
-		box[id] = _box_of(sol[id])
+		box[id] = _bounds_of(sol[id]) if use_dist else _box_of(sol[id])
 		var v := 0.0
 		for s in sol[id]:
 			v += absf(KCad.volume(int(s)))

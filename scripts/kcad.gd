@@ -96,6 +96,22 @@ static func has_distance() -> bool:
 	return ClassDB.class_exists("KineCAD") and ClassDB.class_has_method("KineCAD", "distance")
 
 
+## G45 (KineCAD 6): the shape's box from its exact geometry (no tessellation), doubles [xmin, ymin, zmin, xmax, ymax, zmax];
+## empty when the library is older or the kernel refuses. bounds_aabb: the same as a Godot AABB grown by 1e-6 of its size + 1 um (float32)
+static func bounds(id: int) -> PackedFloat64Array:
+	var n = _n()
+	return load(NATIVE_NEW).bounds(id) if n != null and ClassDB.class_exists("KineCAD") and ClassDB.class_has_method("KineCAD", "bounds") else PackedFloat64Array()
+
+
+static func bounds_aabb(id: int) -> AABB:
+	var b := bounds(id)
+	if b.size() != 6:
+		return AABB()
+	var lo := Vector3(b[0], b[1], b[2])
+	var sz := Vector3(b[3] - b[0], b[4] - b[1], b[5] - b[2])
+	return AABB(lo, sz).grow(1e-6 * sz.length() + 1e-6)
+
+
 static func has_union_many() -> bool:
 	return ClassDB.class_exists("KineCAD") and ClassDB.class_has_method("KineCAD", "union_many")
 

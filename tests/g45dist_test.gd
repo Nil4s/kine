@@ -59,7 +59,7 @@ func bars_distance() -> void:
 	var qv := Vector3(q[0], q[1], q[2])
 	var qlen := sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2])
 	var along := absf(q[0] - float(c.x) / cl * 0.01) < 1e-9 and absf(q[1] - float(c.y) / cl * 0.01) < 1e-9 and absf(q[2] - float(c.z) / cl * 0.01) < 1e-9
-	ok(bool(rs.get("ok", false)) and absf(ds - hand) < 1e-9 and absf(qlen - 0.01) < 1e-9 and along, "a spheres r 10 / 20 mm, centres %s m apart: d = %.12f m vs hand %.12f (err %s); witness on sphere 1 at r %.12f, along the centre line %s (%s)" % [str(cl), ds, hand, str(absf(ds - hand)), qlen, str(along), str(qv)])
+	ok(bool(rs.get("ok", false)) and absf(ds - hand) < 1e-9 and absf(qlen - 0.01) < 1e-9 and along, "a spheres r 10 / 20 mm, centres %s m apart: d = %.12f m vs hand %.12f (err %s); witness on sphere 1 at r %.12f, along the centre line %s (%s, off it by %s m)" % [str(cl), ds, hand, str(absf(ds - hand)), qlen, str(along), str(qv), str(maxf(absf(q[0] - float(c.x) / cl * 0.01), maxf(absf(q[1] - float(c.y) / cl * 0.01), absf(q[2] - float(c.z) / cl * 0.01))))])
 	var o: int = KCad.translate(b0, Vector3(0.005, 0.0, 0.0))
 	var ro := KCad.distance(a, o)
 	var inside: int = KCad.sphere(0.005)

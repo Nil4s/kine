@@ -47,6 +47,8 @@
 #include <vector>
 #include <BRepAlgoAPI_Common.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
+#include <BRepBndLib.hxx>
+#include <Bnd_Box.hxx>
 #include <godot_cpp/variant/packed_float64_array.hpp>
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepAlgoAPI_Fuse.hxx>
@@ -162,6 +164,7 @@ void KineCAD::_bind_methods() {
 	ClassDB::bind_static_method("KineCAD", D_METHOD("union_many", "base", "tools"), &KineCAD::union_many);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("overlap_volume", "a", "b"), &KineCAD::overlap_volume);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("distance", "a", "b"), &KineCAD::distance);
+	ClassDB::bind_static_method("KineCAD", D_METHOD("bounds", "id"), &KineCAD::bounds);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("cut", "a", "b"), &KineCAD::cut);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("intersect", "a", "b"), &KineCAD::intersect);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("fillet_all", "id", "radius"), &KineCAD::fillet_all);
@@ -408,6 +411,30 @@ Dictionary KineCAD::distance(int a, int b) {
 	out["ok"] = true;
 	return out;
 	KCAD_CATCH("distance", out)
+}
+
+// G45 (v6): the shape's box from its exact geometry (BRepBndLib::AddOptimal, no triangulation, no shape tolerance), doubles
+// [xmin, ymin, zmin, xmax, ymax, zmax]; empty when the shape is void or the kernel refuses. A CH15 prefilter that tessellated each part took 172 s.
+PackedFloat64Array KineCAD::bounds(int id) {
+	PackedFloat64Array out;
+	TopoDS_Shape s;
+	if (!kc_get(id, s)) {
+		return out;
+	}
+	KCAD_TRY
+	Bnd_Box bb;
+	BRepBndLib::AddOptimal(s, bb, false, false);
+	if (bb.IsVoid()) {
+		g_err = "bounds: empty shape";
+		return out;
+	}
+	double x0, y0, z0, x1, y1, z1;
+	bb.Get(x0, y0, z0, x1, y1, z1);
+	for (double v : { x0, y0, z0, x1, y1, z1 }) {
+		out.push_back(v);
+	}
+	return out;
+	KCAD_CATCH("bounds", PackedFloat64Array())
 }
 
 int KineCAD::cut(int a, int b) {
