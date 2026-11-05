@@ -23,6 +23,7 @@ extends SceneTree
 ##  9 DRAWINGS  (extra) the site plan, the reactor building section and the one-line diagram write as SVG with a title block and a scale; every bus of the one-line has
 ##              its voltage and every transformer its MVA on the sheet. PLANTED: a one-line with a transformer stripped of its MVA is caught.
 var fails := 0
+var done := []   # the bars that ran to their end: a script error inside a bar stops that function without a FAIL line, so the end checks the list
 const W := preload("res://scripts/build/ch15_if97.gd")
 const P := preload("res://scripts/build/ch15_plant.gd")
 const S := preload("res://scripts/build/ch15_site.gd")
@@ -61,6 +62,8 @@ func _init() -> void:
 		bar6()
 		bar7()
 		await bar7_video()
+	var want := ["1", "2", "3", "4", "5", "8", "9", "6", "7"]
+	ok(done == want, "every bar ran to its end: %s" % str(done))
 	print("ch15: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
 
@@ -72,6 +75,7 @@ func bar1() -> void:
 	ok(float(pr["err"]) <= 0.03, "1 Q = m cp dT = %.1f MWt within 3 pct of %.0f MWt (%.2f pct)" % [pr["Q"], P.Q_TH, 100.0 * pr["err"]])
 	var one := P.primary({"loops": 1})
 	ok(float(one["err"]) > 0.03, "1 PLANTED one loop's flow gives %.1f MWt, %.1f pct off (caught)" % [one["Q"], 100.0 * one["err"]])
+	done.append("1")
 
 
 # ------------------------------------------------ 2
@@ -106,6 +110,7 @@ func bar2() -> void:
 	ok(float(rk["eta"]) < float(rk["carnot"]), "2b below Carnot %.2f pct between %.2f K and %.2f K" % [100.0 * rk["carnot"], rk["Th"], rk["Tc"]])
 	var ig := P.rankine("ideal_gas")
 	ok(absf(float(ig["eta"]) - target) > 0.03 or float(ig["eta"]) >= float(ig["carnot"]), "2b PLANTED ideal-gas steam gives %.1f pct (Carnot %.1f): caught" % [100.0 * ig["eta"], 100.0 * ig["carnot"]])
+	done.append("2")
 
 
 # ------------------------------------------------ 3
@@ -119,6 +124,7 @@ func bar3() -> void:
 	ok(bool(e["dg_ok"]), "3 diesels N+2: (%d - %d) x %.1f MW = %.1f MW >= %.1f MW safety load" % [e["n_dg"], e["redund"], e["dg_MW"], e["dg_avail"], e["P_safe"]])
 	var e3 := P.electrical({"diesels": 3})
 	ok(not bool(e3["dg_ok"]), "3 PLANTED three diesels: %.1f MW < %.1f MW (caught)" % [e3["dg_avail"], e3["P_safe"]])
+	done.append("3")
 
 
 # ------------------------------------------------ 4
@@ -130,6 +136,7 @@ func bar4() -> void:
 	ok(float(bo["m"]) <= float(bo["cap"]), "4 boil-off at 1 h: %.2f MW / %.2f kJ/kg = %.2f kg/s <= %.0f kg/s emergency feedwater" % [bo["P_MW"], bo["dh"], bo["m"], bo["cap"]])
 	var f0 := P.decay(3600.0, 0.0)
 	ok(not (f0 >= 0.005 and f0 <= 0.02), "4 PLANTED operating time 0 s gives %.6f at 1 h: outside the band (caught)" % f0)
+	done.append("4")
 
 
 # ------------------------------------------------ 5
@@ -140,6 +147,7 @@ func bar5() -> void:
 	ok(float(a3["sigma"]) <= float(a3["allow"]), "5 Angra 3 cross-check 38 mm WStE 370: sigma %.2f MPa <= %.0f MPa (cited)" % [a3["sigma"], a3["allow"]])
 	var cy := P.containment("angra3", "cylinder")
 	ok(rel(cy["sigma"], a3["sigma"]) > 0.5 and float(cy["sigma"]) > float(cy["allow"]), "5 PLANTED cylinder formula p R / t = %.2f MPa: %.1f x the sphere and over %.0f (flagged)" % [cy["sigma"], cy["sigma"] / a3["sigma"], cy["allow"]])
+	done.append("5")
 
 
 # ------------------------------------------------ 8
@@ -175,6 +183,7 @@ func bar8() -> void:
 	ok(rel(wrong, 0.010156457996154555) > 1e-3, "8 PLANTED exponent -0.25 gives %.6f (%.0f pct off): caught" % [wrong, 100.0 * rel(wrong, 0.010156457996154555)])
 	ok(rel(P.containment("angra2")["sigma"], 247.33333333333334) < 1e-9 and rel(P.containment("angra3")["sigma"], 195.26315789473685) < 1e-9 and rel(P.containment("angra3", "cylinder")["sigma"], 390.5263157894737) < 1e-9, "8 sphere 247.333333 / 195.263158 MPa, cylinder 390.526316 MPa")
 	ok(rel(P.containment("angra2")["allow"], 289.72972972972974) < 1e-9, "8 allowable 0.67 x 500 x 320/370 = 289.729730 MPa")
+	done.append("8")
 
 
 # ------------------------------------------------ 6
@@ -182,7 +191,7 @@ func bar6() -> void:
 	var asm := S.assembly()
 	var bad := []
 	for p in asm["parts"]:
-		var b := Assembly.built(p["rec"])
+		var b := S.built(p["rec"])   # plant-scale meshing (ch15_site.gd built(): Assembly.built tessellates at 0.3 mm, minutes per 56 m sphere)
 		if int(b["bodies"]) < 1 or float(b["volume"]) <= 0.0:
 			bad.append(p["name"])
 	ok(bad.is_empty() and (asm["parts"] as Array).size() >= 30, "6 all %d part records of the plant build %s" % [(asm["parts"] as Array).size(), "" if bad.is_empty() else str(bad)])
@@ -205,6 +214,7 @@ func bar6() -> void:
 	var moved := S.assembly({"th_into_rb": true})
 	var cm := S.clashes(S.buildings(moved))
 	ok(not (cm["hits"] as Array).is_empty(), "6 PLANTED the turbine hall moved into the reactor building is caught %s" % str(cm["hits"]))
+	done.append("6")
 
 
 # ------------------------------------------------ 7
@@ -216,6 +226,7 @@ func bar7() -> void:
 	ok(bool(sup["ok"]) and int(sup["placed"]) == (asm["parts"] as Array).size(), "7 every stage adds parts resting on built parts: %d of %d placed %s" % [sup["placed"], (asm["parts"] as Array).size(), str(sup["bad"])])
 	var bad := S.support_check(asm, S.stages({"dome_first": true}))
 	ok(not bool(bad["ok"]), "7 PLANTED the dome before the walls fails: %s" % str(bad["bad"]))
+	done.append("7")
 
 
 func grab() -> Image:
@@ -354,3 +365,4 @@ func bar9() -> void:
 	(stripped["xfmrs"] as Array)[0]["mva"] = 0.0
 	var miss2 := D.oneline_missing(P.one_line(), D.sheet("oneline", {"model": stripped}))
 	ok(not miss2.is_empty(), "9 PLANTED a transformer without its MVA is caught: %s" % str(miss2))
+	done.append("9")
