@@ -13,8 +13,9 @@ static func stage_color(k: int) -> Color:
 
 static func _section_rec(p: Dictionary) -> Dictionary:
 	var r: Dictionary = (p["rec"] as Dictionary).duplicate(true)
+	# not Split: its half-space is a 20 m box (Part._half), so at plant scale it bites a 20 m hole instead of cutting the building in two
 	var at := (float(p["cut"]) * 1000.0 - float(p["pos"][2]))
-	(r["features"] as Array).append({"t": "split", "id": "fcut", "name": "Section", "plane": "front", "at": at, "keep": -1})
+	(r["features"] as Array).append({"t": "prim", "id": "fcut", "name": "Section", "kind": "box", "op": "cut", "into": 0, "x": -1.0e6, "y": -2.0e5, "z": at, "w": 2.0e6, "h": 5.0e5, "d": 1.0e6})
 	return r
 
 
@@ -55,7 +56,7 @@ static func build(parent: Node, asm: Dictionary, section: bool) -> Dictionary:
 	cam.fov = 42.0
 	cam.far = 4000.0
 	root.add_child(cam)
-	cam.look_at_from_position(Vector3(-170, 230, 430), Vector3(70, 0, -40), Vector3.UP)
+	cam.look_at_from_position(Vector3(-120, 140, 250), Vector3(35, 5, -15), Vector3.UP)
 	cam.current = true
 	var sun := DirectionalLight3D.new()
 	root.add_child(sun)
@@ -98,5 +99,8 @@ static func shown_stage(sc: Dictionary) -> int:
 ## the camera square on to the reactor building's section plane, from plant south (+z); the highlight is cleared so the parts show their own colours
 static func camera_section(sc: Dictionary) -> void:
 	for nm in sc["nodes"]:
-		(sc["nodes"][nm]["mi"] as MeshInstance3D).material_override = null
-	(sc["cam"] as Camera3D).look_at_from_position(Vector3(0, 26, 135), Vector3(0, 22, 0), Vector3.UP)
+		var mi: MeshInstance3D = sc["nodes"][nm]["mi"]
+		mi.material_override = null
+		if String(nm) in ["Auxiliary building", "Fuel building", "Diesel building 1", "Diesel building 2", "Outfall structure", "Seawater intake"]:
+			mi.visible = false   # the buildings between this camera and the cut: a section view shows the building it cuts
+	(sc["cam"] as Camera3D).look_at_from_position(Vector3(30, 30, 125), Vector3(0, 18, 0), Vector3.UP)   # past the auxiliary building's corner (x <= 6 at z 39.5..84.5)

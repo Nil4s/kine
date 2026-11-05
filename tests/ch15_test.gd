@@ -333,7 +333,7 @@ func bar7_video() -> void:
 	for nm in ["site", "section", "oneline"]:
 		var sh: Dictionary = D.sheet(nm)
 		var png: Image = await D.render_png(root, sh, 4.0)
-		png.save_png("%s/ch15_%s.png" % [od, nm])
+		png.save_png("%s/ch15_sheet_%s.png" % [od, nm])
 	print("     pictures in %s" % od)
 
 

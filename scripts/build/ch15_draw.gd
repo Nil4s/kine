@@ -84,7 +84,8 @@ static func site_sheet() -> Dictionary:
 			ents.append(B._poly([a, Vector2(e.x, a.y), e, Vector2(a.x, e.y)], "elev-wall", {"bld": nm}))
 			ents.append_array(B._dim(a, Vector2(e.x, a.y), Vector2(0, -1), 4.0, B._m2(fp["w"]), {"bld": nm}))
 			ents.append_array(B._dim(Vector2(e.x, a.y), e, Vector2(1, 0), 4.0, B._m2(fp["d"]), {"bld": nm}))
-		ents.append(B._text(c + Vector2(0, 1.0), nm, 2.0, "m", "text", {"bld": nm}))
+		var below := nm != "Reactor building" and float(fp["w"]) < 45.0   # a small block's name goes under it (it does not fit inside at 1:2500)
+		ents.append(B._text(c + (Vector2(0, float(fp["d"]) * k / 2.0 + 3.0) if below else Vector2(0, 1.0)), nm, 1.8 if below else 2.0, "m", "text", {"bld": nm}))
 	# the primary loops' places and the turbine axis, light
 	var th: Dictionary = S.REF["Turbine hall"]
 	ents.append(B._line(pp.call(PT.R_SHIELD, float(th["pos"][1])), pp.call(float(th["pos"][0]) + 46.5, float(th["pos"][1])), "dashed"))
@@ -216,28 +217,25 @@ static func oneline_sheet(m: Dictionary) -> Dictionary:
 	_breaker(ents, Vector2(110, 40), "500 kV breaker")
 	ents.append(B._line(Vector2(110, 41.5), Vector2(110, 46), "dim"))
 	var b1 := _xfmr(ents, Vector2(110, 46), xf["MT"])
-	_bus(ents, Vector2(60, b1.y + 6), Vector2(170, b1.y + 6), bus["GEN"])
+	_bus(ents, Vector2(60, b1.y + 6), Vector2(230, b1.y + 6), bus["GEN"])
 	ents.append(B._line(b1, Vector2(110, b1.y + 6), "dim"))
 	ents.append(B._line(Vector2(110, b1.y + 6), Vector2(110, b1.y + 12), "dim"))
 	_breaker(ents, Vector2(110, b1.y + 14), "generator breaker 25 kV")
 	ents.append(B._line(Vector2(110, b1.y + 15.5), Vector2(110, b1.y + 20), "dim"))
 	_gen(ents, Vector2(110, b1.y + 24), gens["G"])
-	ents.append(B._text(Vector2(118, b1.y + 25), "1350 MW, cos phi 0.9, 1800 rpm, 60 Hz", 1.8, "l", "title-label"))
+	ents.append(B._text(Vector2(110, b1.y + 35), "1350 MW, cos phi 0.9, 1800 rpm, 60 Hz", 1.8, "m", "title-label"))
 	# unit auxiliary transformers from the generator bus (left of the GCB), standby from 138 kV
 	var ybus := b1.y + 50.0
 	var xs := {"BA": 40.0, "BB": 115.0, "BC": 190.0, "BD": 265.0}
-	for pair in [["UAT1", 70.0], ["UAT2", 150.0]]:
+	for pair in [["UAT1", 60.0], ["UAT2", 210.0]]:
 		var x0: float = pair[1]
 		ents.append(B._line(Vector2(x0, b1.y + 6), Vector2(x0, b1.y + 16), "dim"))
 		var bot := _xfmr(ents, Vector2(x0, b1.y + 16), xf[pair[0]])
 		var to := String(xf[pair[0]]["to"])
-		ents.append(B._line(bot, Vector2(x0, ybus), "dim"))
-		ents.append(B._line(Vector2(x0, ybus), Vector2(float(xs[to]) + 20.0, ybus), "dim"))
+		ents.append(B._line(bot, Vector2(x0, ybus), "dim"))   # drops straight onto its bus (BA at 40..95, BC at 190..245)
 	ents.append(B._line(Vector2(295, 30), Vector2(295, 46), "dim"))
 	var sbot := _xfmr(ents, Vector2(295, 46), xf["SST"])
-	ents.append(B._line(sbot, Vector2(295, ybus - 6), "dim"))
-	ents.append(B._line(Vector2(295, ybus - 6), Vector2(float(xs["BB"]) + 40.0, ybus - 6), "dim"))
-	ents.append(B._line(Vector2(float(xs["BB"]) + 40.0, ybus - 6), Vector2(float(xs["BB"]) + 40.0, ybus), "dim"))
+	ents.append(B._line(sbot, Vector2(295, ybus), "dim"))   # onto BD (265..320)
 	for id in ["BA", "BB", "BC", "BD"]:
 		_bus(ents, Vector2(xs[id], ybus), Vector2(float(xs[id]) + 55.0, ybus), bus[id])
 	# bus ties BA-BB, BC-BD

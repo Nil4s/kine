@@ -114,7 +114,7 @@ static func one_line() -> Dictionary:
 	var xf := [{"id": "MT", "mva": S_MT, "hv": V_GRID, "lv": V_GEN, "from": "GRID500", "to": "GEN", "label": "Main step-up 3 x 520 MVA"},
 		{"id": "UAT1", "mva": S_UAT, "hv": V_GEN, "lv": 10.5, "from": "GEN", "to": "BA", "label": "Unit aux 1"},
 		{"id": "UAT2", "mva": S_UAT, "hv": V_GEN, "lv": 10.5, "from": "GEN", "to": "BC", "label": "Unit aux 2"},
-		{"id": "SST", "mva": S_SST, "hv": 138.0, "lv": 10.5, "from": "GRID138", "to": "BB", "label": "Standby"}]
+		{"id": "SST", "mva": S_SST, "hv": 138.0, "lv": 10.5, "from": "GRID138", "to": "BD", "label": "Standby"}]
 	for k in 4:
 		xf.append({"id": "LT%d" % (k + 1), "mva": 2.5, "hv": 10.0, "lv": 0.4, "from": ["BU", "BV", "BW", "BX"][k], "to": "D2_%d" % (k + 1), "label": "Load centre %d" % (k + 1)})
 	var gens := [{"id": "G", "mva": S_NAME, "kv": V_GEN, "pf": PF, "bus": "GEN", "label": "Generator THFF 1458 MVA"}]
