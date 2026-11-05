@@ -85,6 +85,6 @@ func _init() -> void:
 	var rb := Part.replay(bad, -1, {})
 	var errs: Dictionary = rb.get("errors", {})
 	var v_full := 4.0 / 3.0 * PI * pow(0.025, 3)
-	ok(errs.has("f2") or absf(float(rb.get("volume", 0.0)) - v_full) / v_full < 1e-3, "3 a zero-size cut tool: error %s or the body unchanged (%.3e vs %.3e m3)" % [str(errs.get("f2", "none")), float(rb.get("volume", 0.0)), v_full])
+	ok(errs.has("f2") or absf(float(rb.get("volume", 0.0)) - v_full) / v_full < 1e-3, "3 a zero-size cut tool: error %s or the body unchanged (%.1f vs %.1f mm3)" % [str(errs.get("f2", "none")), float(rb.get("volume", 0.0)) * 1e9, v_full * 1e9])
 	print("scalefix: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
