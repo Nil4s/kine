@@ -46,6 +46,8 @@ var remove_btn: Button
 var stl_btn: Button
 var glb_btn: Button
 var step_btn: Button
+var video_btn: Button          # G7TIME: the animation filmed (scripts/build/assembly_render.gd)
+var filming := false
 var done_btn: Button
 var status_l: Label
 var src_tab := "library"
@@ -66,6 +68,14 @@ var lock_pos: Array = []       # C15: the six lock checks (slide X Y Z, turn X Y
 var lock_rot: Array = []
 var dof_l: Label
 var fix_btn: Button
+var motion_btn: Button         # G1MOTION: Check motion (scripts/build/assembly_motion_ui.gd)
+var motion: AssemblyMotionUI
+var bom_btn: Button            # G8BOM: the bill of materials (scripts/build/assembly_bom_ui.gd)
+var bom: AssemblyBomUI
+var stages_btn: Button         # G33STAGE: the build stages (scripts/build/assembly_stage_ui.gd)
+var stages: AssemblyStageUI
+var asm_undo: Array = []       # G1MOTION: [{"asm", "label"}]: this screen's own steps (the assembly is not in the scene's undo)
+var asm_redo: Array = []
 
 
 func setup(b: BuildUI) -> void:
@@ -81,6 +91,12 @@ func setup(b: BuildUI) -> void:
 	_build_panel()
 	_build_src()
 	_build_back()
+	motion = AssemblyMotionUI.new()
+	motion.setup(self)
+	bom = AssemblyBomUI.new()
+	bom.setup(self)
+	stages = AssemblyStageUI.new()
+	stages.setup(self)
 	ov = Control.new()
 	ov.name = "assembly_overlay"
 	ov.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -149,7 +165,19 @@ func _build_panel() -> void:
 		(b as Button).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		r1.add_child(b)
 	vb.add_child(r1)
-	vb.add_child(_lbl("Parts (double-click to edit one)", 12))
+	var hp := HBoxContainer.new()
+	var pl := _lbl("Parts", 12)   # G8BOM: was "Parts (double-click to edit one)"; the BOM button needed the room, the hint is on each row's hover now
+	pl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pl.tooltip_text = "Double-click a part to edit it"
+	pl.mouse_filter = Control.MOUSE_FILTER_PASS
+	hp.add_child(pl)
+	motion_btn = _btn("Check motion", "asm_motion", "Move a part through its range (a hinge, a slide) and list every pair of parts that passes through another", func(): bom.close(); stages.close(); motion.open())
+	hp.add_child(motion_btn)
+	bom_btn = _btn("BOM", "asm_bom", "Bill of materials: every part with its material, mass (from the solid) and price, the total, a CSV, and the cheaper choices", func(): stages.close(); bom.open())
+	hp.add_child(bom_btn)
+	stages_btn = _btn("Stages", "asm_stages", "Build stages: the order the parts go in, a check that each rests on what is built before it, and a video of the build", func(): stages.open())
+	hp.add_child(stages_btn)
+	vb.add_child(hp)
 	var sc := ScrollContainer.new()
 	sc.name = "asm_list_scroll"
 	sc.custom_minimum_size = Vector2(0, 112)
@@ -200,9 +228,10 @@ func _build_panel() -> void:
 	stl_btn = _btn("STL", "asm_export_stl", "One .stl with every part, in place", func(): export("stl"))
 	glb_btn = _btn("GLB", "asm_export_glb", "One .glb, a node for each part", func(): export("glb"))
 	step_btn = _btn("STEP", "asm_export_step", "One .step with the exact solids of every part", func(): export("step"))
+	video_btn = _btn("Video", "asm_export_video", "Film the animation (Check motion > Timeline): PNG frames, a contact sheet and an .mp4, seen from the way you look at it now", export_video)
 	done_btn = _btn("Done", "asm_done", "Leave the assembly (save it first)", close)
 	r3.add_child(_lbl("Export", 13))
-	for b in [stl_btn, glb_btn, step_btn, done_btn]:
+	for b in [stl_btn, glb_btn, step_btn, video_btn, done_btn]:
 		(b as Button).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		r3.add_child(b)
 	vb.add_child(r3)
@@ -294,6 +323,11 @@ func open_record(rec: Dictionary) -> void:
 
 
 func _begin() -> void:
+	asm_undo.clear()
+	asm_redo.clear()
+	motion.reset(true)
+	bom.close()
+	stages.close()
 	var pu: PartUI = bu.part
 	if not _had_stash and editing == "":
 		_stash = m.S.part
@@ -325,6 +359,9 @@ func close() -> void:
 	on = false
 	editing = ""
 	pu.asm_on = false
+	motion.reset(true)
+	bom.close()
+	stages.close()
 	panel.visible = false
 	src_panel.visible = false
 	back_panel.visible = false
@@ -359,6 +396,8 @@ func _process(dt: float) -> void:
 			_t = 0.0
 			_pull_edits()
 	if on:
+		motion.tick(dt)   # G7TIME: Play
+		stages.tick(dt)   # G33STAGE: Play the build
 		_layout()
 		ov.queue_redraw()
 
@@ -373,6 +412,9 @@ func _layout() -> void:
 	src_panel.reset_size()
 	src_panel.position = Vector2(cl.position.x + 8.0, cl.position.y + 4.0)
 	src_panel.size.x = SRC_W
+	motion.layout(Vector2(cl.position.x + 8.0, cl.position.y + 4.0))
+	bom.layout(Vector2(cl.position.x + 8.0, cl.position.y + 4.0))
+	stages.layout(Vector2(cl.position.x + 8.0, cl.position.y + 4.0))
 	var bw := back_panel.get_combined_minimum_size().x
 	back_panel.reset_size()
 	back_panel.position = Vector2(vs.x - bw - 4.0, vs.y * 0.42)   # the right edge under the view cube: the one strip both Easy Part and Expert leave free
@@ -388,6 +430,8 @@ func _sel_part() -> Dictionary:
 func _toggle_src() -> void:
 	src_open = add_btn.button_pressed
 	if src_open:
+		bom.close()
+		stages.close()
 		_set_tab(src_tab)
 	_sync_src()
 
@@ -487,6 +531,7 @@ func open_saved(path: String) -> void:
 func select(id: String) -> void:
 	sel = id
 	_refresh(false)
+	stages.refresh()
 	var p := _sel_part()
 	if not p.is_empty():
 		_say("%s is at %s mm" % [String(p["name"]), _pos_words(p)])
@@ -497,6 +542,8 @@ func remove_sel() -> void:
 		return
 	var nm := String(_sel_part().get("name", ""))
 	Assembly.remove_part(asm, sel)
+	if AssemblyStage.stage_of(asm, sel) >= 0:   # G33STAGE: a part taken out leaves its stage too
+		AssemblyStage.remove_part(asm, sel)
 	sel = ""
 	var ps: Array = asm["parts"]
 	if not ps.is_empty():
@@ -562,11 +609,15 @@ func _refresh(reframe: bool) -> void:
 			root3.add_child(mi)
 			meshes[id] = mi
 		mi.mesh = Assembly.built(p["rec"])["mesh"]
-		mi.transform = Assembly.xf_of(p)
+		mi.transform = motion.xf_of(p)   # G1MOTION: the scrubbed drive's pose (the record's pose when no drive is scrubbed)
+		mi.visible = true
+		var ovl := motion.overlay_of(id)
+		mi.material_overlay = ovl if ovl != null else stages.overlay_of(id)   # G33STAGE: red over the parts the stage Check flagged
 	for id in meshes.keys():
 		if not keep.has(id):
 			(meshes[id] as Node).queue_free()
 			meshes.erase(id)
+	stages.apply(meshes)   # G33STAGE: the build at the stage panel's time
 	_list_sync()
 	_fields_sync()
 	_dof_sync()
@@ -591,7 +642,7 @@ func _list_sync() -> void:
 		var b := Button.new()
 		b.name = "asm_row_%d" % i
 		b.text = String(p["name"])
-		b.tooltip_text = AssemblyDof.words(p)
+		b.tooltip_text = AssemblyDof.words(p) + "\nDouble-click to edit this part"
 		b.add_theme_color_override("font_color", AssemblyDof.colour(p))
 		b.toggle_mode = true
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -666,9 +717,9 @@ func _frame() -> void:
 	else:
 		var dist := clampf(bb.size.length() * 1.6, 0.4, 6.0)
 		m._turn_to(30.0, -22.0, dist, bb.get_center(), false)
-		if m.cam != null:   # the right panel covers a third of the view: the assembly sits in the free part, left of it
+		if m.cam != null:   # the right panel covers a third of the view: the assembly sits in the free part, left of it (Check motion's panel covers the left too: nearer the middle)
 			var right: Vector3 = m.cam.global_transform.basis.x
-			m._turn_to(30.0, -22.0, dist, bb.get_center() + right * dist * 0.24, false)
+			m._turn_to(30.0, -22.0, dist, bb.get_center() + right * dist * (0.08 if motion.is_open() else 0.24), false)
 
 
 # ---------------------------------------------------------------- the gizmo
@@ -682,7 +733,7 @@ func _px_per_m(c: Vector3) -> float:
 func handles() -> Array:
 	var p := _sel_part()
 	var out: Array = []
-	if p.is_empty() or m.cam == null:
+	if p.is_empty() or m.cam == null or motion.scrubbing():
 		return out
 	var c: Vector3 = Assembly.xf_of(p).origin
 	if m.cam.is_position_behind(c):
@@ -707,6 +758,8 @@ func _draw() -> void:
 	for p in asm["parts"]:
 		var id := String(p["id"])
 		var bb := Assembly.world_aabb(p)
+		if motion.scrubbing():
+			bb = motion.xf_of(p) * (Assembly.built(p["rec"])["aabb"] as AABB)
 		if bb.size == Vector3.ZERO:
 			continue
 		var mn := Vector2(1e9, 1e9)
@@ -831,6 +884,8 @@ func edit_part(id: String) -> void:
 	editing = id
 	on = false
 	pu.asm_on = false
+	bom.close()
+	stages.close()
 	panel.visible = false
 	src_panel.visible = false
 	ov.visible = false
@@ -915,6 +970,59 @@ func export(fmt: String) -> Dictionary:
 	last_export = r
 	_say(String(r["text"]))
 	return r
+
+
+## G7TIME: the animation filmed into <exports>/<name>_motion_<stamp>/: frame_0000.png ..., sheet.png and <name>.mp4 (when ffmpeg is found).
+## The camera looks the way the view does now, framed on the box the parts sweep through. opts go to AssemblyRender.render
+func export_video(opts := {}) -> Dictionary:
+	if filming:
+		return {}
+	if editing != "":
+		_pull_edits()
+	if not AssemblyAnim.has_anim(asm):
+		_say("Nothing to film: key a drive first (Check motion > Timeline: set the drive, pick a time, press Key)")
+		return {}
+	var o := {"width": 1280, "height": 720}
+	if m.cam != null:
+		o["view_dir"] = (m.cam.global_transform.basis.z as Vector3)
+	o.merge(opts, true)
+	filming = true
+	video_btn.disabled = true
+	_say("Filming %d frames..." % AssemblyAnim.frame_count(asm))
+	var r: Dictionary = await AssemblyRender.render(m, asm, o)
+	filming = false
+	video_btn.disabled = false
+	r["text"] = ("Filmed %d frames to %s: sheet.png%s" % [int(r["n"]), String(r["dir"]).get_file(), ", " + String(r["mp4"]).get_file() if String(r["mp4"]) != "" else " (no .mp4: ffmpeg was not found; install it with winget install Gyan.FFmpeg)"]) if bool(r["ok"]) else "NOT DONE: " + String(r["why"])
+	last_export = r
+	_say(String(r["text"]))
+	return r
+
+
+# ---------------------------------------------------------------- undo (G1MOTION)
+
+## before a change to the record: ONE step that Ctrl+Z takes back (main._mesh_undo asks undo_redo first while the screen is on)
+func push_undo(label: String) -> void:
+	asm_undo.append({"asm": asm.duplicate(true), "label": label})
+	asm_redo.clear()
+
+
+## Ctrl+Z (back) / Ctrl+Y: false when this screen has no step, so the scene's own undo runs as before
+func undo_redo(back: bool) -> bool:
+	var from: Array = asm_undo if back else asm_redo
+	if not on or from.is_empty():
+		return false
+	var s: Dictionary = from.pop_back()
+	(asm_redo if back else asm_undo).append({"asm": asm.duplicate(true), "label": s["label"]})
+	asm = s["asm"]
+	if Assembly.index_of(asm, sel) < 0:
+		sel = String((asm["parts"][0] as Dictionary)["id"]) if not (asm["parts"] as Array).is_empty() else ""
+	motion.reset(false)
+	stages._clear_check()
+	_refresh(false)
+	bom.refresh()
+	stages.refresh()
+	_say("%s: %s" % ["Undone" if back else "Redone", String(s["label"])])
+	return true
 
 
 func psb_of() -> StyleBoxFlat:

@@ -87,6 +87,20 @@ const PLANES := ["front", "top", "right"]
 const OPS := ["join", "new", "cut", "intersect"]
 const COMBINE_OPS := ["join", "cut", "intersect"]   # a combine step's op (the dialog's order: Join, Cut, Intersect)
 const COARSE_DEFL := 0.002   # NSLIDELOD: the slider preview tessellates at this deflection (m); full detail is 0.0003
+const FINE_DEFL := 0.0003    # m: full detail for anything up to about 0.6 m across (every hand-sized part keeps exactly this)
+const DEFL_PER_R := 0.0005   # CH15 (G27): bigger bodies get FINE_DEFL scaled with their size: a 56 m containment sphere at 0.3 mm took 576 s
+
+
+## the full-detail deflection (m) for a body: FINE_DEFL, or DEFL_PER_R x its rms radius sqrt(trace(I) / 2V) when that is larger
+## (a 28 m shell -> 1.4 cm). Uses the cached mass properties, so it costs one kernel call per shape
+static func fine_defl(id: int) -> float:
+	var mp := KCad.mass_properties(id)
+	var v: float = absf(float(mp.get("volume", 0.0)))
+	if v <= 0.0 or not mp.has("inertia"):
+		return FINE_DEFL
+	var ib: Basis = mp["inertia"]
+	var r := sqrt(absf(ib.x.x + ib.y.y + ib.z.z) / (2.0 * v))
+	return maxf(FINE_DEFL, DEFL_PER_R * r)
 const COARSE_ANGLE := 0.5    # NSLIDELOD: and this angle (rad); full detail is 0.25
 const MATCH_MAX := 0.25   # an edge matches when (box-position distance + 0.5 x direction mismatch) is below this
 const LOOK_CHIPS := [["Grey", Color("#bdc4d0")], ["Red", Color("#c0392b")], ["Blue", Color("#3a7bd5")], ["Yellow", Color("#f2c94c")], ["Green", Color("#4caf50")]]   # the colour chips; a body with no look takes chip (its index mod 5)
@@ -939,7 +953,7 @@ static func _tess_cached(id: int, coarse: bool) -> ArrayMesh:
 		var m2 := ArrayMesh.new()
 		m2.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, _tess_cache[key])
 		return m2
-	var tm: ArrayMesh = KCad.tessellate(id, COARSE_DEFL, COARSE_ANGLE) if coarse else KCad.tessellate(id, 0.0003, 0.25)
+	var tm: ArrayMesh = KCad.tessellate(id, maxf(COARSE_DEFL, fine_defl(id)), COARSE_ANGLE) if coarse else KCad.tessellate(id, fine_defl(id), 0.25)
 	if tm != null and tm.get_surface_count() > 0:
 		var arr := tm.surface_get_arrays(0)
 		var nv: int = (arr[Mesh.ARRAY_VERTEX] as PackedVector3Array).size()
@@ -2307,6 +2321,7 @@ static func _combine(bodies: Array, solid: int, op: String, into := -1, f := {})
 	if op == "cut" and into < 0 and (f.get("targets", []) as Array).is_empty():
 		return _cut_overlapping(bodies, solid)   # S268: no into / targets = the bodies the tool overlaps, and the words say which
 	if op == "cut":
+		var failed: Array = []   # CH15 G29: a cut the kernel refuses was skipped silently (the body kept, no error): now it is the step's error
 		for i in bodies.size():
 			if into >= 0 and i != into:   # p063: a cut with "into" touches only that body (Fasten these two: the screw hole of one piece)
 				continue
@@ -2316,8 +2331,10 @@ static func _combine(bodies: Array, solid: int, op: String, into := -1, f := {})
 			if c != 0:
 				KCad.release(bodies[i])
 				bodies[i] = c
+			else:
+				failed.append("Body%d" % (i + 1))
 		KCad.release(solid)
-		return ""
+		return _cut_failed_words(failed)
 	var t := into if into >= 0 and into < bodies.size() else bodies.size() - 1   # FLAMP5: a pull joins the body it sits on (see touching_body); else the last
 	var u := KCad.union(bodies[t], solid)
 	KCad.release(solid)
@@ -2328,13 +2345,23 @@ static func _combine(bodies: Array, solid: int, op: String, into := -1, f := {})
 	return ""
 
 
+## CH15 G29: the words for bodies a cut could not be made on ("" when none failed)
+static func _cut_failed_words(failed: Array) -> String:
+	if failed.is_empty():
+		return ""
+	var why := KCad.last_error()
+	return "the cut could not be made on %s%s" % [", ".join(failed), (": " + why) if why != "" else ""]
+
+
 ## S268: a cut with no "into" / "targets" cuts only the bodies the tool really overlaps (a cut that removes volume), so a notch meant for
 ## the board does not touch the chips beside it; PartPrim.last_warning says "cut 1 body: Body3" (or that it overlapped none)
 static func _cut_overlapping(bodies: Array, solid: int) -> String:
 	var hit: Array = []
+	var failed: Array = []
 	for i in bodies.size():
 		var c := KCad.cut(bodies[i], solid)
 		if c == 0:
+			failed.append("Body%d" % (i + 1))
 			continue
 		if KCad.volume(bodies[i]) - KCad.volume(c) > PPRIM.HIT_VOL:
 			KCad.release(bodies[i])
@@ -2347,7 +2374,7 @@ static func _cut_overlapping(bodies: Array, solid: int) -> String:
 		PPRIM.last_warning = "the cut overlaps no body, so nothing was cut"
 	else:
 		PPRIM.last_warning = ("cut 1 body: %s" % hit[0]) if hit.size() == 1 else ("cut %d bodies: %s" % [hit.size(), ", ".join(hit)])
-	return ""
+	return _cut_failed_words(failed)
 
 
 ## FIXIT: the first thing wrong with a part, for Easy Part's Fix it: {} when all is well. kind "failed": a step that does not build (id);
@@ -2659,9 +2686,10 @@ static func _vol(id: int) -> float:
 
 
 ## a box 20 m on a side with one face on the plane at offset o, lying on the side n points to
-static func _half(o: Vector3, n: Vector3) -> int:
-	var id := KCad.box(20.0, 20.0, 20.0)
-	var t := KCad.translate(id, o + n * 10.0)
+## the half-space on n's side of the plane through o, as a box of side "size" m (20 m, or bigger for big bodies: CH15 G28, a 20 m box bit a hole in a 56 m sphere)
+static func _half(o: Vector3, n: Vector3, size := 20.0) -> int:
+	var id := KCad.box(size, size, size)
+	var t := KCad.translate(id, o + n * (size / 2.0))
 	KCad.release(id)
 	return t
 
@@ -2673,7 +2701,14 @@ static func _split(bodies: Array, f: Dictionary, looks: Array = []) -> String:
 	var pl := plane(String(f.get("plane", "right")))
 	var n: Vector3 = pl["n"]
 	var o: Vector3 = (pl["o"] as Vector3) + n * float(f.get("at", 0.0)) * MM
-	var pos := _half(o, n)
+	var span := 20.0
+	for b in bodies:
+		var mp := KCad.mass_properties(int(b))
+		var v: float = absf(float(mp.get("volume", 0.0)))
+		if v > 0.0 and mp.has("inertia") and mp.has("center"):
+			var ib: Basis = mp["inertia"]
+			span = maxf(span, 4.0 * ((mp["center"] as Vector3).distance_to(o) + 2.0 * sqrt(absf(ib.x.x + ib.y.y + ib.z.z) / (2.0 * v))))
+	var pos := _half(o, n, span)
 	var pieces := []   # [index, the piece on n's side, the piece on the other side]
 	for i in bodies.size():
 		var a := KCad.intersect(bodies[i], pos)
@@ -4055,7 +4090,7 @@ static func finish_mesh(res: Dictionary, meshes: Array) -> void:
 ## the worker's job: tessellate each shape (coarse or fine). Pure kernel work on shapes only this task touches
 static func tessellate_job(ids: Array, out: Array, coarse: bool) -> void:
 	for k in ids.size():
-		out[k] = KCad.tessellate(int(ids[k]), COARSE_DEFL, COARSE_ANGLE) if coarse else KCad.tessellate(int(ids[k]), 0.0003, 0.25)
+		out[k] = KCad.tessellate(int(ids[k]), maxf(COARSE_DEFL, fine_defl(int(ids[k]))), COARSE_ANGLE) if coarse else KCad.tessellate(int(ids[k]), fine_defl(int(ids[k])), 0.25)
 
 
 ## s168: the errors of a replay ({step id: message}) without the mesh, from the cached prefix (a check that only asks "does every step hold?")

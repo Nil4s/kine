@@ -3,6 +3,8 @@
 ##   {"version": 1, "kind": "assembly", "name": "Engine", "seq": 2, "parts": [
 ##     {"id": "p1", "name": "Screw M4 x 16", "src": "library:screw_m4" | "mine:<saved name>" | "", "rec": <the Part record, a full copy>,
 ##      "pos": [x, y, z] (mm, where the part's own origin sits), "rot": [rx, ry, rz] (degrees, Basis.from_euler's XYZ order)}]}
+## Optional (G1MOTION): "drives" and "links" make parts move through a range for Check motion; a record without them is unchanged
+## (scripts/build/assembly_motion.gd has the format and the sweep).
 ## A part keeps its own origin: a part built on the floor stays on the floor of its own frame, then pos / rot place that frame in the
 ## assembly. Kine's frame: x right, y up, z toward the viewer; the kernel's metres, the record's millimetres.
 ## Files: one JSON per assembly under user://assemblies/ (the part records are inside it, so the file is the whole assembly). Tests use

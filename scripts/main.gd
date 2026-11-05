@@ -6934,6 +6934,8 @@ func _push_undo() -> void:
 
 ## the top bar's Undo / Redo on a mesh page: the page's own mesh history (the pose's is a different list). true = taken
 func _mesh_undo(back: bool) -> bool:
+	if bld != null and bld.asm != null and bld.asm.undo_redo(back):   # G1MOTION: the Assembly screen's own steps (a drive added), while it is on
+		return true
 	if ksc != null and ksc.on and ksc.showing:
 		ksc.undo_redo(back)
 		return true
@@ -17068,6 +17070,8 @@ func _commands() -> Array:
 	add.call("Help", "", func(): ui_help.visible = not ui_help.visible, "how manual", false, "show or hide the help panel")
 	add.call("Help: send feedback", "", _feedback_open, "feedback report bug problem wrong wish saved log send", false, "a box to say what went wrong or what you wish it did: saved to a log on this computer only (nothing is sent)")
 	add.call("Start screen", "", func(): start_screen.show_screen(), "start screen home new project open recent resume", false, "the start screen: New project (Animation, Modeling, 3D Building), Open, recent scenes, Resume")
+	add.call("Assembly: check motion", "", func(): bld.asm.motion.open() if bld != null and bld.asm != null else _say("Open an assembly first: BUILD > New assembly"), "assembly motion clash collision interference sweep drive hinge joint mechanism moving parts pass through", false, "in the Assembly screen: drive a part through its range (turn or slide) and list every pair of parts that passes through another, with the angle or position; clashing parts go red and a slider scrubs the drive (G1MOTION)")
+	add.call("Assembly: film the motion", "", func(): bld.asm.export_video() if bld != null and bld.asm != null and bld.asm.on else _say("Open an assembly first: BUILD > New assembly"), "assembly motion video film movie mp4 frames contact sheet render animation timeline keys mechanism", false, "in the Assembly screen: the animation keyed on Check motion's timeline filmed to PNG frames, a contact sheet and an .mp4 in the exports folder (G7TIME)")
 	add.call("What went wrong?", "", _why_toggle, "why error wrong refused refusal explain not work failed stuck", false, "says what the last refusal or error meant in plain words: what you tried, why it did not work, and the one next step (a button runs it)")
 	add.call("Pick a part", "", _select_set.bind(["upperarm_r"]), "pick select choose part body click", false, "picks the right upper arm, so the next command has a part to act on")
 	add.call("Scene: show cost per character", "", ccost.show, "cost compute characters actors fighters skinning ik cloth ms frame heavy slow scene panel", false, "a line in the scene panel: milliseconds a frame each character costs for skinning, the pose / IK solve and cloth")

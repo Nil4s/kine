@@ -46,6 +46,12 @@
 #include <cmath>
 #include <vector>
 #include <BRepAlgoAPI_Common.hxx>
+#include <BRepExtrema_DistShapeShape.hxx>
+#include <BRepBndLib.hxx>
+#include <Extrema_GenLocateExtSS.hxx>
+#include <Extrema_POnSurf.hxx>
+#include <Bnd_Box.hxx>
+#include <godot_cpp/variant/packed_float64_array.hpp>
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepAlgoAPI_Fuse.hxx>
 #include <TopTools_ListOfShape.hxx>
@@ -159,6 +165,8 @@ void KineCAD::_bind_methods() {
 	ClassDB::bind_static_method("KineCAD", D_METHOD("union", "a", "b"), &KineCAD::union_);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("union_many", "base", "tools"), &KineCAD::union_many);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("overlap_volume", "a", "b"), &KineCAD::overlap_volume);
+	ClassDB::bind_static_method("KineCAD", D_METHOD("distance", "a", "b"), &KineCAD::distance);
+	ClassDB::bind_static_method("KineCAD", D_METHOD("bounds", "id"), &KineCAD::bounds);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("cut", "a", "b"), &KineCAD::cut);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("intersect", "a", "b"), &KineCAD::intersect);
 	ClassDB::bind_static_method("KineCAD", D_METHOD("fillet_all", "id", "radius"), &KineCAD::fillet_all);
@@ -196,7 +204,7 @@ void KineCAD::_bind_methods() {
 }
 
 int KineCAD::version() {
-	return 5;
+	return 6;
 }
 String KineCAD::occt_version() {
 	return String(OCC_VERSION_COMPLETE);
@@ -336,6 +344,119 @@ double KineCAD::overlap_volume(int a, int b) {
 	}
 	return best;
 	KCAD_CATCH("overlap_volume", -1.0)
+}
+
+// G45 (v6): the smallest distance between two shapes (BRepExtrema_DistShapeShape), solid by solid so a solid inside the other one (no boundary
+// crossing) still gives 0 through the extrema's own inside test. {d (m, 0 when touching or overlapping), pa, pb (witness points, Vector3 = float32),
+// pa64, pb64 (the same as PackedFloat64Array [x, y, z], doubles), inner (one is partly or wholly inside the other), ok}
+Dictionary KineCAD::distance(int a, int b) {
+	Dictionary out;
+	out["ok"] = false;
+	out["d"] = -1.0;
+	TopoDS_Shape sa, sb;
+	if (!kc_get(a, sa) || !kc_get(b, sb)) {
+		return out;
+	}
+	KCAD_TRY
+	auto solids = [](const TopoDS_Shape &s) {
+		std::vector<TopoDS_Shape> v;
+		for (TopExp_Explorer ex(s, TopAbs_SOLID); ex.More(); ex.Next()) {
+			v.push_back(ex.Current());
+		}
+		if (v.empty()) {
+			v.push_back(s);
+		}
+		return v;
+	};
+	std::vector<TopoDS_Shape> pa = solids(sa), pb = solids(sb);
+	double best = -1.0;
+	gp_Pnt ba, bb;
+	bool inner = false;
+	for (const TopoDS_Shape &x : pa) {
+		for (const TopoDS_Shape &y : pb) {
+			BRepExtrema_DistShapeShape ds(x, y);
+			if (!ds.IsDone() || ds.NbSolution() < 1) {
+				continue;
+			}
+			double d = ds.InnerSolution() ? 0.0 : ds.Value();
+			if (best < 0.0 || d < best) {
+				best = d;
+				ba = ds.PointOnShape1(1);
+				bb = ds.PointOnShape2(1);
+				inner = ds.InnerSolution();
+				if (d > 0.0 && ds.SupportTypeShape1(1) == BRepExtrema_IsInFace && ds.SupportTypeShape2(1) == BRepExtrema_IsInFace) {
+					// the extrema stops once the DISTANCE has converged; on curved faces the witness points can still be ~1e-7 m off
+					// (the distance is flat there). Polish them with a local Newton from the found parameters; keep it only when it moved
+					// a hair and did not get farther.
+					TopoDS_Face f1 = TopoDS::Face(ds.SupportOnShape1(1)), f2 = TopoDS::Face(ds.SupportOnShape2(1));
+					double u1, v1, u2, v2;
+					ds.ParOnFaceS1(1, u1, v1);
+					ds.ParOnFaceS2(1, u2, v2);
+					BRepAdaptor_Surface a1(f1), a2(f2);
+					Extrema_GenLocateExtSS loc(a1, a2, u1, v1, u2, v2, 1e-12, 1e-12);
+					if (loc.IsDone()) {
+						gp_Pnt q1 = loc.PointOnS1().Value(), q2 = loc.PointOnS2().Value();
+						double dq = q1.Distance(q2);
+						if (dq <= d + 1e-12 && q1.Distance(ba) < 1e-5 && q2.Distance(bb) < 1e-5) {
+							ba = q1;
+							bb = q2;
+							best = dq;
+						}
+					}
+				}
+			}
+			if (best <= 0.0) {
+				break;
+			}
+		}
+		if (best == 0.0) {
+			break;
+		}
+	}
+	if (best < 0.0) {
+		g_err = "distance failed";
+		return out;
+	}
+	PackedFloat64Array a64, b64;
+	a64.push_back(ba.X());
+	a64.push_back(ba.Y());
+	a64.push_back(ba.Z());
+	b64.push_back(bb.X());
+	b64.push_back(bb.Y());
+	b64.push_back(bb.Z());
+	out["d"] = best;
+	out["pa"] = Vector3(ba.X(), ba.Y(), ba.Z());
+	out["pb"] = Vector3(bb.X(), bb.Y(), bb.Z());
+	out["pa64"] = a64;
+	out["pb64"] = b64;
+	out["inner"] = inner;
+	out["ok"] = true;
+	return out;
+	KCAD_CATCH("distance", out)
+}
+
+// G45 (v6): the shape's box from its exact geometry (BRepBndLib::AddOptimal, no triangulation, no shape tolerance), doubles
+// [xmin, ymin, zmin, xmax, ymax, zmax]; empty when the shape is void or the kernel refuses. A CH15 prefilter that tessellated each part took 172 s.
+PackedFloat64Array KineCAD::bounds(int id) {
+	PackedFloat64Array out;
+	TopoDS_Shape s;
+	if (!kc_get(id, s)) {
+		return out;
+	}
+	KCAD_TRY
+	Bnd_Box bb;
+	BRepBndLib::AddOptimal(s, bb, false, false);
+	if (bb.IsVoid()) {
+		g_err = "bounds: empty shape";
+		return out;
+	}
+	double x0, y0, z0, x1, y1, z1;
+	bb.Get(x0, y0, z0, x1, y1, z1);
+	for (double v : { x0, y0, z0, x1, y1, z1 }) {
+		out.push_back(v);
+	}
+	return out;
+	KCAD_CATCH("bounds", PackedFloat64Array())
 }
 
 int KineCAD::cut(int a, int b) {
