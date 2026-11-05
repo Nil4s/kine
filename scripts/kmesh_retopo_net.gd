@@ -25,7 +25,7 @@ var nat = null              # KineRetopoNative or null
 var diag := 1.0
 var hs := 0.01
 var edge_len := 0.1
-var iters := 12
+var iters := 20             # relaxation steps per patch (tests/sretopo_test.gd bar 4)
 var closed_src := true
 var strokes := {}           # id -> PackedVector3Array (resampled, on the surface)
 var next_id := 1
@@ -245,9 +245,12 @@ func rebuild() -> void:
 		return
 	var ids := strokes.keys()
 	ids.sort()
+	var sk := {}   # the strokes as used here (the drawn ones are kept as drawn: a rebuild must not grow them)
+	for id in ids:
+		sk[id] = strokes[id]
 	# 1 ends: join a stroke end that is near another stroke by one more point on it
 	for id in ids:
-		var pl: PackedVector3Array = strokes[id]
+		var pl: PackedVector3Array = sk[id]
 		for end in [0, 1]:
 			var pe: Vector3 = pl[0] if end == 0 else pl[pl.size() - 1]
 			var best := SNAP * hs
@@ -255,7 +258,7 @@ func rebuild() -> void:
 			var found := false
 			var cum := _cum(pl)
 			for id2 in ids:
-				var q: PackedVector3Array = strokes[id2]
+				var q: PackedVector3Array = sk[id2]
 				var cq := _cum(q)
 				for i in q.size() - 1:
 					if id2 == id:
@@ -280,12 +283,12 @@ func rebuild() -> void:
 					np.append_array(pl)
 					np.append(project(PackedVector3Array([bp]))["pts"][0])
 				pl = np
-				strokes[id] = pl
+				sk[id] = pl
 	# 2 hits: segment pairs that pass within TOL x hs, found with a hash grid
 	var segs: Array = []   # [stroke, i, p, q, s0, s1]
 	var cums := {}
 	for id in ids:
-		var pl2: PackedVector3Array = strokes[id]
+		var pl2: PackedVector3Array = sk[id]
 		var cu := _cum(pl2)
 		cums[id] = cu
 		for i in pl2.size() - 1:
@@ -359,7 +362,7 @@ func rebuild() -> void:
 		nodes.append({"pos": node_pos[i], "nrm": (pr["nrm"] as PackedVector3Array)[i], "hes": []})
 	# 4 arcs: along each stroke between consecutive node tags
 	for id in ids:
-		var pl3: PackedVector3Array = strokes[id]
+		var pl3: PackedVector3Array = sk[id]
 		var cu3: PackedFloat64Array = cums[id]
 		var tl: Array = []   # [param, node]
 		for ni in nodes.size():
@@ -514,7 +517,7 @@ func _topology() -> void:
 
 func _make_patch(ring: PackedInt32Array) -> void:
 	var p := {"ring": ring, "corners": PackedInt32Array(), "ok": false, "reason": "", "kind": "none", "n": 0, "sig": "", "verts": PackedFloat64Array(),
-			"quads": PackedInt32Array(), "nring": 0, "ring_ids": PackedInt32Array(), "valid": true, "sing": PackedInt32Array(), "n_real": 0}
+			"quads": PackedInt32Array(), "nring": 0, "ring_ids": PackedInt32Array(), "valid": true, "sing": PackedInt32Array(), "n_real": 0, "solved_at": 0}
 	var inring := {}
 	for h in ring:
 		inring[h] = true
@@ -559,11 +562,14 @@ func _make_patch(ring: PackedInt32Array) -> void:
 				pa.append(pi)
 
 
-## On an OPEN source (a scan with a hole, a bust cut at the neck) the strokes' outside is a region too, and it contains the hole's
-## edge: not a patch. The source triangles the strokes pass through are walls; the rest is flooded into regions; a patch whose
-## left-hand side lies in a region holding a boundary edge of the source is dropped.
+## Not every cycle of the network bounds a disk. On an OPEN source (a scan with a hole, a bust cut at the neck) the strokes'
+## outside is a region too, and it holds the hole's edge. And a band between two rings of strokes (round the neck, between a
+## ring on the head and one on the chest) is traced as TWO cycles, one per ring, each of which would be filled as a disk across
+## the band's opening. So: the source triangles the strokes pass through are walls, the rest is flooded into regions, each cycle
+## looks at the region on its left; a region that holds a boundary edge of the source, or is claimed by more than one cycle, is
+## not a patch.
 func _flag_open_regions() -> void:
-	if closed_src:
+	if nat == null:
 		return
 	var nt := tris.size() / 3
 	if _tri_adj.size() != nt * 3:
@@ -625,30 +631,54 @@ func _flag_open_regions() -> void:
 					stack.append(o)
 		open.append(is_open)
 		nc += 1
-	for p in patches:
+	var claims := {}   # region -> [patch indices]
+	for pi in patches.size():
+		var p: Dictionary = patches[pi]
 		if not p["valid"]:
 			continue
-		var h: int = (p["ring"] as PackedInt32Array)[0]
+		var c := _left_region(p, wall, comp)
+		if c < 0:
+			continue
+		if open[c]:
+			p["valid"] = false
+			p["reason"] = "this region holds the open edge of the mesh"
+			continue
+		if not claims.has(c):
+			claims[c] = []
+		(claims[c] as Array).append(pi)
+	for c in claims:
+		var lst: Array = claims[c]
+		if lst.size() < 2:
+			continue
+		for pi in lst:
+			patches[pi]["valid"] = false
+			patches[pi]["reason"] = "this region is a band between two rings of strokes, not a disk: draw a stroke across it"
+	for pi in patches.size():   # the arcs list only the patches that are patches
+		if not patches[pi]["valid"]:
+			for h in patches[pi]["ring"]:
+				(arcs[h >> 1]["patches"] as Array).erase(pi)
+
+
+## the flood region on the left of a patch's first half-edges (-1: none found next to them)
+func _left_region(p: Dictionary, wall: PackedByteArray, comp: PackedInt32Array) -> int:
+	var ring: PackedInt32Array = p["ring"]
+	for hi in mini(ring.size(), 3):
+		var h: int = ring[hi]
 		var pl2: PackedVector3Array = arcs[h >> 1]["pts"]
 		var cu2 := _cum(pl2)
 		var tot: float = cu2[cu2.size() - 1]
 		var m0 := _at(pl2, cu2, tot * 0.5)
 		var m1 := _at(pl2, cu2, tot * 0.5 + 0.01 * tot)
 		var tg := (m1 - m0).normalized() * (1.0 if (h & 1) == 0 else -1.0)
-		var nrm: Vector3 = nodes[arcs[h >> 1]["a"]]["nrm"]
+		var nrm: Vector3 = (project(PackedVector3Array([m0]))["nrm"] as PackedVector3Array)[0]
 		var left := nrm.cross(tg).normalized()
-		for k in range(1, 7):
-			var q := m0 + left * (0.5 * _mean_edge * k)
-			var pr := project(PackedVector3Array([q]))
-			if nat == null:
-				break
-			var tri: int = (nat.project(PackedFloat64Array([pr["pts"][0].x, pr["pts"][0].y, pr["pts"][0].z]))["tris"] as PackedInt32Array)[0]
-			if wall[tri] == 1 or comp[tri] < 0:
+		for k in range(1, 25):
+			var q := m0 + left * (0.25 * _mean_edge * k)
+			var tri: int = (nat.project(PackedFloat64Array([q.x, q.y, q.z]))["tris"] as PackedInt32Array)[0]
+			if tri < 0 or wall[tri] == 1:
 				continue
-			if open[comp[tri]]:
-				p["valid"] = false
-				p["reason"] = "this region holds the open edge of the mesh"
-			break
+			return comp[tri]
+	return -1
 
 
 ## the edge counts of a patch's sides given the arcs' counts; [] if it has too few edges for sides
@@ -807,11 +837,9 @@ func ring_of(p: Dictionary) -> Dictionary:
 	return {"ids": ids, "pos": pos}
 
 
-func sides_of(p: Dictionary, rg: Dictionary) -> Array:
-	var cs := side_counts(p)
+## where each side starts on the ring (ring positions, as ring_of lists them)
+func side_starts(p: Dictionary) -> PackedInt32Array:
 	var ring: PackedInt32Array = p["ring"]
-	var pos: PackedVector3Array = rg["pos"]
-	var L := pos.size()
 	var corners: PackedInt32Array = p["corners"]
 	var starts := PackedInt32Array()
 	var acc := 0
@@ -819,6 +847,7 @@ func sides_of(p: Dictionary, rg: Dictionary) -> Array:
 	for h in ring:
 		cum.append(acc)
 		acc += int(arcs[h >> 1]["count"])
+	var L := acc
 	if corners.size() >= 2:
 		for c in corners:
 			starts.append(cum[c])
@@ -827,6 +856,14 @@ func sides_of(p: Dictionary, rg: Dictionary) -> Array:
 		starts.append(r0)
 		for k in range(1, 4):
 			starts.append((r0 + int(floor(float(k) * float(L) / 4.0 + 0.5))) % L)
+	return starts
+
+
+func sides_of(p: Dictionary, rg: Dictionary) -> Array:
+	var cs := side_counts(p)
+	var pos: PackedVector3Array = rg["pos"]
+	var L := pos.size()
+	var starts := side_starts(p)
 	var sides: Array = []
 	for i in starts.size():
 		var f := PackedFloat64Array()
@@ -853,7 +890,13 @@ func _layout_and_solve() -> void:
 			continue
 		var rg := ring_of(p)
 		var sides := sides_of(p, rg)
-		p["ring_ids"] = rg["ids"]
+		var ids0: PackedInt32Array = rg["ids"]
+		var r0: int = side_starts(p)[0]
+		var rid := PackedInt32Array()   # the fill's ring starts at the first side's start, not at ring position 0
+		rid.resize(ids0.size())
+		for r in ids0.size():
+			rid[r] = ids0[(r0 + r) % ids0.size()]
+		p["ring_ids"] = rid
 		p["n"] = cs.size()
 		var flat := PackedFloat64Array()
 		for s in sides:
@@ -868,8 +911,8 @@ func _layout_and_solve() -> void:
 			continue
 		if _old_patches.has(sig):
 			var o: Dictionary = _old_patches[sig]
-			for k in ["verts", "quads", "nring", "sing", "ok", "reason", "kind"]:
-				p[k] = o[k]
+			for k in ["verts", "quads", "nring", "sing", "ok", "reason", "kind", "solved_at"]:
+				p[k] = o.get(k, 0)
 			continue
 		todo.append([pi, sides])
 	if todo.is_empty():
@@ -885,15 +928,47 @@ func _layout_and_solve() -> void:
 		var p2: Dictionary = patches[t[0]]
 		p2["ok"] = r["ok"]
 		p2["reason"] = r["reason"]
+		p2["solved_at"] = solve_calls
 		if r["ok"]:
 			p2["verts"] = r["verts"]
 			p2["quads"] = r["quads"]
 			p2["nring"] = r["nring"]
 			p2["sing"] = r["singular"]
+			var folded := _folded(r["verts"], r["quads"])
+			if folded > 0:
+				p2["ok"] = false
+				p2["reason"] = "%d quads fold over (the sides are too curved for one patch): draw a stroke across it" % folded
 		patches[t[0]] = p2
 	for p in patches:
 		if p["ok"] and p["sig"] != "":
 			_old_patches[p["sig"]] = p
+
+
+## quads whose normal points against the source surface under them (a fill that folded over)
+func _folded(pv: PackedFloat64Array, qv: PackedInt32Array) -> int:
+	if nat == null:
+		return 0
+	var nq := qv.size() / 4
+	var flat := PackedFloat64Array()
+	flat.resize(nq * 3)
+	var nn := PackedVector3Array()
+	nn.resize(nq)
+	for q in nq:
+		var p := []
+		for c in 4:
+			var v := qv[q * 4 + c]
+			p.append(Vector3(pv[v * 3], pv[v * 3 + 1], pv[v * 3 + 2]))
+		var ce: Vector3 = (p[0] + p[1] + p[2] + p[3]) * 0.25
+		nn[q] = (p[2] - p[0]).cross(p[3] - p[1])
+		flat[q * 3] = ce.x
+		flat[q * 3 + 1] = ce.y
+		flat[q * 3 + 2] = ce.z
+	var sn: PackedFloat64Array = nat.project(flat)["normals"]
+	var bad := 0
+	for q in nq:
+		if nn[q].dot(Vector3(sn[q * 3], sn[q * 3 + 1], sn[q * 3 + 2])) < 0.0:
+			bad += 1
+	return bad
 
 
 ## the patches that all the given arcs' counts reach

@@ -73,6 +73,7 @@ func start() -> void:
 	net.setup(ui.mesh)
 	on = true
 	_build_panel()
+	(panel.find_child("edge_len", true, false) as SpinBox).set_value_no_signal(net.edge_len * 100.0)
 	panel.visible = true
 	_refresh()
 	_say("Retopo: drag on the mesh to draw strokes; where they meet they make patches that fill with quads. Wheel over a side = its edge count, Delete over a stroke removes it, Enter bakes, Esc leaves%s" % ("" if net.nat != null else " (the native solver is not built: patches are not fitted to the surface)"))
