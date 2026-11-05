@@ -440,8 +440,52 @@ func bake() -> void:
 			nd[o + 1] = clampi(int((-gz * il * 0.5 + 0.5) * 255.0 + 0.5), 0, 255)
 			nd[o + 2] = clampi(int((il * 0.5 + 0.5) * 255.0 + 0.5), 0, 255)
 	_nimg = Image.create_from_data(_w, _h, false, Image.FORMAT_RGB8, nd)
-	for im in [mimg, diff_img_dry, wetimg, _nimg]:
+	_shadow_img = _lamp_shadow(hd)
+	for im in [mimg, diff_img_dry, wetimg, _nimg, _shadow_img]:
 		(im as Image).generate_mipmaps()
+
+
+var _shadow_img: Image
+
+
+## MICRO-SHADOWS (fix pass 2, Nick 11-04): the ground mesh is 20 mm and the joints are 10-15 mm wide and 30-46 mm deep, so they exist only in
+## the normal map, which casts no shadow: every joint floor was lit as if the stone beside it were not there. Lamp 0 is static, so its
+## visibility over the baked height field is exact to bake: march from each texel toward lamp 0 (6 mm steps) and mark it shadowed if the
+## height field rises above the ray. Fed to the ground as an occlusion map with ao_light_affect = 1 (it also removes the ambient there:
+## a joint 3x deeper than wide sees almost no sky, so that is the right direction too).
+func _lamp_shadow(hd: PackedFloat32Array) -> Image:
+	var sd := PackedByteArray()
+	sd.resize(_w * _h)
+	var hmax := -1.0
+	for v in hd:
+		hmax = maxf(hmax, v)
+	var lp := LAMP_POS
+	for py in _h:
+		var z := Z0 + (float(py) + 0.5) * TEXEL
+		for px in _w:
+			var x := X0 + (float(px) + 0.5) * TEXEL
+			var k := py * _w + px
+			var h0 := hd[k]
+			var d := Vector2(lp.x - x, lp.z - z)
+			var dl := d.length()
+			var rise := (lp.y - h0) / dl                  ## ray height gained per metre of ground
+			var st := d / dl * TEXEL
+			var lit := 255
+			var t := 1
+			while true:
+				var yy := h0 + rise * TEXEL * float(t)
+				if yy > hmax:
+					break
+				var qx := px + int(round(st.x / TEXEL * float(t)))
+				var qy := py + int(round(st.y / TEXEL * float(t)))
+				if qx < 0 or qy < 0 or qx >= _w or qy >= _h:
+					break
+				if hd[qy * _w + qx] > yy:
+					lit = 0
+					break
+				t += 1
+			sd[k] = lit
+	return Image.create_from_data(_w, _h, false, Image.FORMAT_L8, sd)
 
 
 var _nimg: Image
@@ -578,6 +622,12 @@ func build(eyes: Array = [Vector3(0, EYE, 1.5)]) -> void:
 	# ground: a displaced mesh (bowls are real geometry), world-baked PBR textures
 	mat_wet = _mk_ground_mat(mimg, _nimg)
 	mat_dry = _mk_ground_mat(diff_img_dry, _nimg)
+	var stex := ImageTexture.create_from_image(_shadow_img)
+	for m in [mat_wet, mat_dry]:
+		(m as StandardMaterial3D).ao_enabled = true
+		(m as StandardMaterial3D).ao_texture = stex
+		(m as StandardMaterial3D).ao_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_RED
+		(m as StandardMaterial3D).ao_light_affect = 1.0
 	mat_probe = StandardMaterial3D.new()
 	mat_probe.albedo_color = Color(1, 1, 1)
 	mat_probe.roughness = 1.0
