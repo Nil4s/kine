@@ -254,7 +254,7 @@ func run() -> Dictionary:
 		set_scrub(float(cl[0]["at"]))
 	a._refresh(false)
 	if bool(res.get("ok", false)):
-		a._say("Check motion: %d clashing pair%s over %d steps (%d kernel checks, %d ruled out by the boxes, %d ms)" % [lines.size(), "" if lines.size() == 1 else "s", steps, int(res["kernel_calls"]), int(res["skipped"]), int(res["ms"])])
+		a._say("Check motion: %d clash%s, %d steps, %d ms" % [lines.size(), "" if lines.size() == 1 else "es", steps, int(res["ms"])])   # short: a long line drew over the Export row (the kernel-call counts are in the result)
 	return res
 
 
