@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="420.0mm" height="297.0mm" viewBox="0 0 420.0 297.0">
+<title>Angra 2 class PWR, 1350 MWe (CH15) - Reactor building section A-A</title>
+<rect x="0" y="0" width="420.0" height="297.0" fill="#ffffff"/>
+<g id="sheet" data-paper="A3" data-scale="1:400" data-denom="400" data-mm-per-m="2.5" data-units="mm">
+<line class="ground" x1="60.0" y1="191.725" x2="110.0" y2="191.725" stroke="#000000" stroke-width="0.6"/>
+<line class="ground" x1="110.0" y1="191.725" x2="110.0" y2="214.225" stroke="#000000" stroke-width="0.6"/>
+<line class="ground" x1="110.0" y1="214.225" x2="310.0" y2="214.225" stroke="#000000" stroke-width="0.6"/>
+<line class="ground" x1="310.0" y1="214.225" x2="310.0" y2="191.725" stroke="#000000" stroke-width="0.6"/>
+<line class="ground" x1="310.0" y1="191.725" x2="360.0" y2="191.725" stroke="#000000" stroke-width="0.6"/>
+<polygon class="wall" data-part="mat" points="117.5,214.225 302.5,214.225 302.5,206.725 117.5,206.725" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-part="shield wall" points="120.625,206.725 125.625,206.725 125.625,131.1 120.625,131.1" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-part="shield wall" points="299.375,206.725 294.375,206.725 294.375,131.1 299.375,131.1" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-part="dome" points="120.625,131.1 120.965,123.31 121.983,115.58 123.67,107.968 126.015,100.532 128.999,93.328 132.599,86.413 136.788,79.837 141.535,73.651 146.802,67.902 152.551,62.635 158.737,57.888 165.313,53.699 172.228,50.099 179.432,47.115 186.868,44.77 194.48,43.083 202.21,42.065 210.0,41.725 217.79,42.065 225.52,43.083 233.132,44.77 240.568,47.115 247.772,50.099 254.688,53.699 261.263,57.888 267.449,62.635 273.198,67.902 278.465,73.651 283.212,79.837 287.401,86.413 291.001,93.328 293.985,100.532 296.33,107.968 298.017,115.58 299.035,123.31 299.375,131.1 294.375,131.1 294.054,123.746 293.093,116.448 291.5,109.262 289.287,102.242 286.47,95.442 283.071,88.913 279.116,82.704 274.635,76.865 269.662,71.438 264.235,66.465 258.396,61.984 252.188,58.029 245.658,54.63 238.858,51.813 231.838,49.6 224.652,48.007 217.354,47.046 210.0,46.725 202.646,47.046 195.348,48.007 188.162,49.6 181.142,51.813 174.342,54.63 167.813,58.029 161.604,61.984 155.765,66.465 150.338,71.438 145.365,76.865 140.884,82.704 136.929,88.913 133.53,95.442 130.713,102.242 128.5,109.262 126.907,116.448 125.946,123.746 125.625,131.1" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="piece" data-part="steel sphere" points="280.0,136.725 279.933,139.778 279.734,142.826 279.401,145.862 278.937,148.88 278.341,151.876 277.615,154.842 276.76,157.774 275.778,160.666 274.672,163.513 273.442,166.308 272.091,169.047 270.622,171.725 269.037,174.336 267.341,176.875 265.535,179.338 263.623,181.72 261.609,184.016 259.497,186.222 257.291,188.334 254.995,190.348 252.613,192.26 250.15,194.066 247.611,195.762 245.0,197.347 242.322,198.816 239.583,200.167 236.788,201.397 233.941,202.503 231.049,203.485 228.117,204.34 225.151,205.066 222.155,205.662 219.137,206.126 216.101,206.459 213.053,206.658 210.0,206.725 206.947,206.658 203.899,206.459 200.863,206.126 197.845,205.662 194.849,205.066 191.883,204.34 188.951,203.485 186.059,202.503 183.212,201.397 180.417,200.167 177.678,198.816 175.0,197.347 172.389,195.762 169.85,194.066 167.387,192.26 165.005,190.348 162.709,188.334 160.503,186.222 158.391,184.016 156.377,181.72 154.465,179.338 152.659,176.875 150.963,174.336 149.378,171.725 147.909,169.047 146.558,166.308 145.328,163.513 144.222,160.666 143.24,157.774 142.385,154.842 141.659,151.876 141.063,148.88 140.599,145.862 140.266,142.826 140.067,139.778 140.0,136.725 140.067,133.672 140.266,130.624 140.599,127.588 141.063,124.57 141.659,121.574 142.385,118.608 143.24,115.676 144.222,112.784 145.328,109.937 146.558,107.142 147.909,104.403 149.378,101.725 150.963,99.114 152.659,96.575 154.465,94.112 156.377,91.73 158.391,89.434 160.503,87.228 162.709,85.116 165.005,83.102 167.387,81.19 169.85,79.384 172.389,77.688 175.0,76.103 177.678,74.634 180.417,73.283 183.212,72.053 186.059,70.947 188.951,69.965 191.883,69.11 194.849,68.384 197.845,67.788 200.863,67.324 203.899,66.991 206.947,66.792 210.0,66.725 213.053,66.792 216.101,66.991 219.137,67.324 222.155,67.788 225.151,68.384 228.117,69.11 231.049,69.965 233.941,70.947 236.788,72.053 239.583,73.283 242.322,74.634 245.0,76.103 247.611,77.688 250.15,79.384 252.613,81.19 254.995,83.102 257.291,85.116 259.497,87.228 261.609,89.434 263.623,91.73 265.535,94.112 267.341,96.575 269.037,99.114 270.622,101.725 272.091,104.403 273.442,107.142 274.672,109.937 275.778,112.784 276.76,115.676 277.615,118.608 278.341,121.574 278.937,124.57 279.401,127.588 279.734,130.624 279.933,133.672" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="elev-wall" data-part="fill" points="161.01,186.725 161.01,186.725 162.65,188.281 164.34,189.783 166.077,191.23 167.861,192.62 169.688,193.952 171.557,195.224 173.466,196.435 175.413,197.583 177.397,198.669 179.414,199.689 181.463,200.644 183.542,201.532 185.649,202.353 187.781,203.105 189.937,203.788 192.113,204.401 194.308,204.943 196.519,205.415 198.744,205.814 200.981,206.142 203.228,206.397 205.481,206.579 207.739,206.688 210.0,206.725 212.261,206.688 214.519,206.579 216.772,206.397 219.019,206.142 221.256,205.814 223.481,205.415 225.692,204.943 227.887,204.401 230.063,203.788 232.219,203.105 234.351,202.353 236.458,201.532 238.537,200.644 240.586,199.689 242.603,198.669 244.587,197.583 246.534,196.435 248.443,195.224 250.312,193.952 252.139,192.62 253.923,191.23 255.66,189.783 257.35,188.281 258.99,186.725 258.99,186.725" fill="#ececec" stroke="#000000" stroke-width="0.35" stroke-linejoin="miter"/>
+<polygon class="wall" data-part="cavity" points="201.75,186.725 195.0,186.725 195.0,152.975 201.75,152.975" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-part="deck" points="195.0,155.475 150.0,155.475 150.0,152.975 195.0,152.975" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-part="cavity" points="218.25,186.725 225.0,186.725 225.0,152.975 218.25,152.975" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-part="deck" points="225.0,155.475 270.0,155.475 270.0,152.975 225.0,152.975" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="elev-door" data-part="vessel" points="203.125,186.725 216.875,186.725 216.875,163.6 216.875,163.6 216.816,162.703 216.641,161.821 216.352,160.969 215.954,160.163 215.454,159.415 214.861,158.739 214.185,158.146 213.438,157.646 212.631,157.248 211.779,156.959 210.897,156.784 210.0,156.725 209.103,156.784 208.221,156.959 207.369,157.248 206.563,157.646 205.815,158.146 205.139,158.739 204.546,159.415 204.046,160.163 203.648,160.969 203.359,161.821 203.184,162.703 203.125,163.6 203.125,163.6" fill="#ffffff" stroke="#000000" stroke-width="0.3" stroke-linejoin="miter"/>
+<polygon class="piece" data-part="SG 3" points="182.269,186.725 191.769,186.725 191.769,156.725 193.269,152.975 193.269,139.225 193.269,139.225 193.174,138.14 192.892,137.087 192.432,136.1 191.807,135.208 191.036,134.437 190.144,133.812 189.157,133.352 188.104,133.07 187.019,132.975 185.934,133.07 184.881,133.352 183.894,133.812 183.002,134.437 182.231,135.208 181.606,136.1 181.146,137.087 180.864,138.14 180.769,139.225 180.769,152.975 182.269,156.725" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<text class="text" x="187.019" y="127.975" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">SG 3</text>
+<polygon class="dashed" data-part="RCP 3" points="196.97,186.725 204.47,186.725 204.47,164.225 196.97,164.225" fill="none" stroke="#000000" stroke-width="0.18" stroke-linejoin="miter" stroke-dasharray="1.8 1.26"/>
+<polygon class="piece" data-part="SG 4" points="228.231,186.725 237.731,186.725 237.731,156.725 239.231,152.975 239.231,139.225 239.231,139.225 239.136,138.14 238.854,137.087 238.394,136.1 237.769,135.208 236.998,134.437 236.106,133.812 235.119,133.352 234.066,133.07 232.981,132.975 231.896,133.07 230.843,133.352 229.856,133.812 228.964,134.437 228.193,135.208 227.568,136.1 227.108,137.087 226.826,138.14 226.731,139.225 226.731,152.975 228.231,156.725" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<text class="text" x="232.981" y="127.975" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">SG 4</text>
+<polygon class="dashed" data-part="RCP 4" points="228.112,186.725 235.612,186.725 235.612,164.225 228.112,164.225" fill="none" stroke="#000000" stroke-width="0.18" stroke-linejoin="miter" stroke-dasharray="1.8 1.26"/>
+<polygon class="piece" data-part="polar crane" points="147.5,116.725 272.5,116.725 272.5,110.475 147.5,110.475" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<text class="text" x="210.0" y="105.475" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">polar crane</text>
+<text class="text" x="210.0" y="177.975" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">RPV</text>
+<text class="text" x="210.0" y="86.725" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">steel sphere 56 m, 30 mm WStE 51</text>
+<text class="text" x="165.0" y="150.475" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">operating deck +15.50</text>
+<line class="level" x1="305.0" y1="214.225" x2="327.5" y2="214.225" stroke="#000000" stroke-width="0.18"/>
+<text class="text" x="328.75" y="215.025" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#000000">-9.00 excavation</text>
+<line class="level" x1="305.0" y1="206.725" x2="327.5" y2="206.725" stroke="#000000" stroke-width="0.18"/>
+<text class="text" x="328.75" y="207.525" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#000000">-6.00 mat top</text>
+<line class="level" x1="305.0" y1="191.725" x2="327.5" y2="191.725" stroke="#000000" stroke-width="0.18"/>
+<text class="text" x="328.75" y="192.525" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#000000">+0.00 grade</text>
+<line class="level" x1="305.0" y1="186.725" x2="327.5" y2="186.725" stroke="#000000" stroke-width="0.18"/>
+<text class="text" x="328.75" y="187.525" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#000000">+2.00 fill</text>
+<line class="level" x1="305.0" y1="136.725" x2="327.5" y2="136.725" stroke="#000000" stroke-width="0.18"/>
+<text class="text" x="328.75" y="137.525" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#000000">+22.00 sphere centre</text>
+<line class="level" x1="305.0" y1="131.1" x2="327.5" y2="131.1" stroke="#000000" stroke-width="0.18"/>
+<text class="text" x="328.75" y="131.9" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#000000">+24.25 dome springing</text>
+<line class="level" x1="305.0" y1="66.725" x2="327.5" y2="66.725" stroke="#000000" stroke-width="0.18"/>
+<text class="text" x="328.75" y="67.525" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#000000">+50.00 sphere top</text>
+<line class="level" x1="305.0" y1="41.725" x2="327.5" y2="41.725" stroke="#000000" stroke-width="0.18"/>
+<text class="text" x="328.75" y="42.525" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#000000">+60.00 dome top</text>
+<line class="dim" x1="120.625" y1="193.225" x2="120.625" y2="205.225" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="299.375" y1="193.225" x2="299.375" y2="205.225" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="120.625" y1="203.725" x2="299.375" y2="203.725" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="119.635" y1="202.735" x2="121.615" y2="204.715" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="298.385" y1="202.735" x2="300.365" y2="204.715" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" x="210.0" y="202.925" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">71.50</text>
+<line class="dim" x1="140.0" y1="135.225" x2="140.0" y2="132.225" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="280.0" y1="135.225" x2="280.0" y2="132.225" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="140.0" y1="133.725" x2="280.0" y2="133.725" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="139.01" y1="134.715" x2="140.99" y2="132.735" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="279.01" y1="134.715" x2="280.99" y2="132.735" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" x="210.0" y="132.925" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">56.00</text>
+<line class="dim" x1="119.125" y1="191.725" x2="111.125" y2="191.725" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="119.125" y1="41.725" x2="111.125" y2="41.725" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="112.625" y1="191.725" x2="112.625" y2="41.725" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="113.615" y1="192.715" x2="111.635" y2="190.735" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="113.615" y1="42.715" x2="111.635" y2="40.735" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" x="111.825" y="116.725" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 111.825 116.725)">60.00</text>
+<line class="dim" x1="116.0" y1="214.225" x2="112.0" y2="214.225" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="116.0" y1="206.725" x2="112.0" y2="206.725" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="113.5" y1="214.225" x2="113.5" y2="206.725" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="114.49" y1="215.215" x2="112.51" y2="213.235" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="114.49" y1="207.715" x2="112.51" y2="205.735" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" x="112.7" y="210.475" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 112.7 210.475)">3.00</text>
+<line class="dim" x1="294.375" y1="165.225" x2="294.375" y2="162.225" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="299.375" y1="165.225" x2="299.375" y2="162.225" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="294.375" y1="163.725" x2="299.375" y2="163.725" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="293.385" y1="164.715" x2="295.365" y2="162.735" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="298.385" y1="164.715" x2="300.365" y2="162.735" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" x="296.875" y="162.925" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">2.00</text>
+<text class="text" x="210.0" y="231.725" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="middle" fill="#000000">SECTION A-A through the reactor building (plant z = 0, seen from plant south)</text>
+<polygon class="border" points="10.0,10.0 410.0,10.0 410.0,287.0 10.0,287.0" fill="none" stroke="#000000" stroke-width="0.5" stroke-linejoin="miter"/>
+<line class="title" x1="10.0" y1="263.0" x2="410.0" y2="263.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="12.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">PROJECT</text>
+<text class="title-text" data-field="project" x="12.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Angra 2 class PWR, 1350 MWe (CH15)</text>
+<line class="title" x1="130.0" y1="263.0" x2="130.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="132.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">SHEET  (dimensions in metres)</text>
+<text class="title-text" data-field="sheet" x="132.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Reactor building section A-A</text>
+<text class="title-label" data-field="size" x="132.0" y="284.0" font-family="Arial, Helvetica, sans-serif" font-size="2.4" text-anchor="start" fill="#606060">A3   2 / 3</text>
+<line class="title" x1="250.0" y1="263.0" x2="250.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="252.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">SCALE</text>
+<text class="title-text" data-field="scale" x="252.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">1:400</text>
+<line class="title" x1="290.0" y1="263.0" x2="290.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="292.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">DATE</text>
+<text class="title-text" data-field="date" x="292.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">2026-11-04</text>
+<line class="title" x1="346.0" y1="263.0" x2="346.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="348.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">DRAWN WITH</text>
+<text class="title-text" data-field="drawn" x="348.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Kine</text>
+</g>
+</svg>
