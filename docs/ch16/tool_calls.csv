@@ -1,0 +1,151 @@
+n,tool,target,purpose,output_bytes,needed_in_hindsight,note
+1,read,docs/CH16_BRIEF.md,whole lane specification,2600,y,initial
+2,read,docs/CHALLENGE_FEEDBACK.md,feedback standard and existing tools,30000,y,initial
+3,read,docs/CH15_FEEDBACK.md,feedback format and prior pitfalls,14000,y,initial
+4,read,scripts/build/ch15_draw.gd,SVG and title-block pattern,24000,y,initial
+5,read,scripts/build/ch14_bom.gd,AssemblyBom pricing pattern,18000,y,initial
+6,read,scripts/build/assembly_stage.gd,staging API and support check,36000,y,initial slice
+7,read,scripts/build/assembly_render.gd,movie API and options,19000,y,initial
+8,read,scripts/build/assembly_bom.gd,BOM mass price cheaper API,33000,y,initial
+9,read,scripts/build/assembly_stage.gd:499,video helper tail,2600,y,re-read 1 new slice
+10,read,scripts/build/ch14_parts.gd,Part factory pattern,18000,y,initial slice
+11,read,tests/ch15_test.gd,test harness and bar pattern,22000,y,initial slice
+12,read,data/prices.json,material and bought-item schema,10000,y,initial
+13,read,tools/run_all.sh,suite registration and runner,30000,y,initial slice
+14,read,AGENTS.md,check project instructions,150,n,not present
+15,read,docs/CH15_REFERENCE.md,SEEN MEMORY ASSUMED format,22000,y,initial slice
+16,websearch,Sony ILCE-7 dimensions mass CIPA,published camera values,7000,y,search-result source text
+17,websearch,E-mount flange and throat,mount values,5500,y,search-result source text
+18,websearch,NP-FW50 voltage capacity,battery values,5000,y,search-result source text
+19,websearch,Sony a7 teardown board layout,teardown sources,6500,y,search-result source text
+20,websearch,Sony a7 EVF LCD BIONZ,display and processor values,6000,y,search-result source text
+21,webfetch,Sony ILCE-7 specifications,direct official source,180,n,HTTP 403; search text remained available
+22,webfetch,Sony NP-FW50,direct battery source,180,n,HTTP 403
+23,webfetch,iFixit a7 motherboard,teardown detail,0,n,no tool output
+24,webfetch,iFixit a7 rear disassembly,teardown detail,0,n,no tool output
+25,websearch,iFixit sensor motherboard steps,board stack and fasteners,7000,y,useful steps
+26,websearch,Sony a7 board layout photographs,alternative teardown,6000,y,found Lensrentals
+27,websearch,Sony mass and sensor official,474 g and sensor confirmation,6500,y,search-result source text
+28,websearch,NP-FW50 dimensions mass,42 g and package envelope,4500,y,search-result source text
+29,webfetch,DPReview A7R teardown,direct teardown source,180,n,HTTP 403
+30,webfetch,Lensrentals A7R teardown,layout glass screws and chassis,36000,y,full article read
+31,websearch,Lensrentals board sensor details,confirm teardown layout,900,y,small confirmation
+32,read,tests/ch15_test.gd:260,video and SVG test tail,11000,y,re-read 2 new slice
+33,grep,scripts/build/assembly.gd,locate Assembly API,500,y,targeted
+34,grep,scripts/build/blueprint.gd,locate SVG writer,350,y,targeted
+35,grep,tests/g33stage_test.gd,locate staged-video checks,1800,y,targeted
+36,write,docs/CH16_REFERENCE.md,sources statuses and every design number,13000,y,work-order 1
+37,shell,git commit reference,commit reference before model,500,y,d0082a61
+38,read,scripts/build/assembly.gd:1,pose and AABB API,10500,y,targeted slice
+39,read,tests/g33stage_test.gd:200,staged render and cap checks,7000,y,targeted slice
+40,grep,scripts/build/part.gd,search scaling support,700,y,no general scale helper
+41,write,tests/ch16_test.gd,all six bars and controls before running,19000,y,c036f050 parent
+42,shell,git commit tests,commit bars before first number,400,y,c036f050
+43,write,scripts/build/ch16_parts.gd,separate camera Parts assembly fit and stages,36000,y,initial implementation
+44,write,scripts/build/ch16_electronics.gd,power signal and budget model,4500,y,initial implementation
+45,write,scripts/build/ch16_draw.gd,blueprint and electronics sheets,14500,y,initial implementation
+46,edit,docs/CH16_REFERENCE.md,correct battery density,300,y,hand arithmetic
+47,edit,scripts/build/ch16_parts.gd,grip web battery clearance,400,y,pre-first-run fix
+48,edit,scripts/build/ch16_parts.gd,EVF chassis opening,250,y,pre-first-run fix
+49,edit,scripts/build/ch16_parts.gd,rear screw positions,300,y,pre-first-run fix
+50,edit,scripts/build/ch16_parts.gd,LCD exact depth,300,y,pre-first-run fix
+51,edit,scripts/build/ch16_parts.gd,LCD hinge contact,250,y,pre-first-run fix
+52,edit,scripts/build/ch16_parts.gd,battery terminal overlap,250,y,pre-first-run fix
+53,edit,scripts/build/ch16_parts.gd,SD slot chassis contact,250,y,pre-first-run fix
+54,edit,scripts/build/ch16_parts.gd,curtain call syntax,250,y,pre-first-run fix
+55,edit,data/prices.json,camera material densities,1800,y,AssemblyBom inputs
+56,edit,data/prices.json,camera bought-item prices,3500,y,AssemblyBom inputs
+57,edit,scripts/build/ch16_parts.gd,battery cheaper alternative,350,y,cheapest view
+58,grep,tools/run_all.sh,find CH15 registration tail,700,y,targeted
+59,read,tools/run_all.sh:1018,registration insertion point,6000,y,re-read 3 new slice
+60,edit,tools/run_all.sh,register ch16:w,500,y,required registration
+61,shell,git commit implementation,commit Parts electronics drawings BOM,700,y,f67b7538
+62,shell,wtest ch16 suites,first requested test attempt,500,n,PowerShell rejected env assignment
+63,shell,wtest ch16 suites,invoke through bash,500,n,WSL lacked Git path
+64,shell,locate Git bash,find usable test shell,500,y,environment discovery
+65,shell,wtest ch16 easypart peasy3 freestart,first real suite run,1800,y,22 ok 9 fail; regressions green
+66,read,C:/Temp/claude/w4-ch16/w1/ch16.log,diagnose first run,6500,y,full short log
+67,read,C:/Temp/opencode/ch16/ch16_bom.csv,mass by part,6500,y,targeted chassis mass
+68,read,scripts/build/ch16_draw.gd:145,parse-error line,900,y,targeted slice
+69,edit,scripts/build/ch16_draw.gd,explicit String token type,300,y,parse fix
+70,edit,tests/ch16_test.gd,sensor scalar Dictionary type,250,y,float32 fix
+71,edit,tests/ch16_test.gd,nominal scalar Dictionary type,250,y,float32 fix
+72,edit,docs/CH16_REFERENCE.md,correct sensor corner radius,250,y,hand arithmetic
+73,edit,scripts/build/ch16_parts.gd,rear screw grip clearance,300,y,fit fix
+74,edit,scripts/build/ch16_parts.gd,nominal dimensions as doubles,300,y,float32 fix
+75,edit,scripts/build/ch16_parts.gd,sensor dimensions as doubles,300,y,float32 fix
+76,edit,scripts/build/ch16_parts.gd,chassis mass and wall geometry,600,y,mass fix
+77,edit,scripts/build/ch16_parts.gd,grip PCB and screw clearances,450,y,fit fix
+78,edit,scripts/build/ch16_parts.gd,lower mount carrier below EVF,250,y,fit fix
+79,edit,scripts/build/ch16_parts.gd,copper spreader with cutouts,800,y,mass and teardown layout
+80,edit,scripts/build/ch16_parts.gd,add spreader to Assembly,350,y,mass fix
+81,edit,data/prices.json,price spreader,400,y,BOM completeness
+82,edit,tests/ch16_test.gd,print movie failure reason,300,y,harness diagnosis
+83,shell,wtest ch16 easypart peasy3 freestart,second suite run,1400,y,26 ok 5 fail; regressions green
+84,read,C:/Temp/claude/w4-ch16/w2/ch16.log,diagnose clashes and host,6000,y,full short log
+85,read,tests/g33stage_test.gd:30,startup helper pattern,5000,y,targeted slice
+86,grep,tests/g33stage_test.gd,find scene-tree initialisation,650,y,targeted
+87,read,tests/g33stage_test.gd:450,startup implementation,1800,y,re-read 4 new slice
+88,edit,tests/ch16_test.gd,await scene-tree startup,300,y,movie host fix
+89,edit,scripts/build/ch16_parts.gd,chassis screw pocket,350,y,fit fix
+90,edit,scripts/build/ch16_parts.gd,carrier and flex clearances,400,y,fit fix
+91,edit,scripts/build/ch16_parts.gd,spreader above chassis base,300,y,fit fix
+92,shell,wtest ch16 easypart peasy3 freestart,third suite run,1000,y,31 ok 1 fail; regressions green
+93,glob,C:/Temp/opencode/ch16 PNGs,list pictures for LOOK,1800,y,found overwrite issue
+94,grep,scripts/build/section_look.gd,inspect cap colours,900,y,diagnose false positive
+95,shell,copy review1 PNGs,fresh paths for image reader,0,y,four pictures
+96,read,review1/closed.png,LOOK closed camera,21,y,image inspected
+97,read,review1/build_sheet.png,LOOK all stages,21,y,image inspected
+98,read,review1/blueprint.png,LOOK blueprint,21,y,label collisions found
+99,read,review1/electronics.png,LOOK electronics,21,y,title-block collision found
+100,edit,scripts/build/ch16_parts.gd,darken copper away from cap colour,250,y,closed cap false-positive fix
+101,edit,tests/ch16_test.gd,closed-view unique output directory,300,y,preserve evidence
+102,edit,tests/ch16_test.gd,cut-view unique output directory,300,y,preserve evidence
+103,edit,docs/CH16_REFERENCE.md,document actual PCB and spreader stack,500,y,reference sync
+104,edit,docs/CH16_REFERENCE.md,correct chassis description,350,y,reference sync
+105,edit,scripts/build/ch16_draw.gd,separate front labels,800,y,post-LOOK improvement
+106,edit,scripts/build/ch16_draw.gd,move top depth dimension,250,y,post-LOOK improvement
+107,edit,scripts/build/ch16_draw.gd,section leaders and flange label,1400,y,post-LOOK improvement
+108,edit,scripts/build/ch16_draw.gd,keep CIPA note on sheet,300,y,post-LOOK improvement
+109,edit,scripts/build/ch16_draw.gd,move signal notes above title block,900,y,post-LOOK improvement
+110,shell,wtest ch16 easypart peasy3 freestart,fourth suite run,700,y,all green
+111,shell,copy review2 PNGs,fresh paths for all pictures,0,y,17 pictures
+112,read,review2/section_cut.png,LOOK section interior,21,y,image inspected
+113,read,review2/section_closed.png,LOOK closed comparison,21,y,image inspected
+114,read,review2/blueprint.png,LOOK revised blueprint,21,y,image inspected
+115,read,review2/electronics.png,LOOK revised electronics,21,y,title overflow found
+116,read,review2/build_sheet.png,LOOK revised contact sheet,21,y,image inspected
+117,read,review2/frame_0000.png,LOOK stage frame 0,21,y,image inspected
+118,read,review2/frame_0001.png,LOOK stage frame 1,21,y,image inspected
+119,read,review2/frame_0002.png,LOOK stage frame 2,21,y,image inspected
+120,read,review2/frame_0003.png,LOOK stage frame 3,21,y,image inspected
+121,read,review2/frame_0004.png,LOOK stage frame 4,21,y,image inspected
+122,read,review2/frame_0005.png,LOOK stage frame 5,21,y,image inspected
+123,read,review2/frame_0006.png,LOOK stage frame 6,21,y,image inspected
+124,read,review2/frame_0007.png,LOOK stage frame 7,21,y,image inspected
+125,read,review2/frame_0008.png,LOOK stage frame 8,21,y,image inspected
+126,read,review2/frame_0009.png,LOOK stage frame 9,21,y,grip seam exposure found
+127,read,review2/frame_0010.png,LOOK stage frame 10,21,y,image inspected
+128,read,review2/frame_0011.png,LOOK final camera,21,y,image inspected
+129,edit,scripts/build/ch16_parts.gd,close grip upper shell seam,600,y,post-LOOK model improvement
+130,edit,scripts/build/ch16_draw.gd,shorten flange dimension label,350,y,post-LOOK improvement
+131,edit,scripts/build/ch16_draw.gd,shorten electronics title,250,y,post-LOOK improvement
+132,shell,CH16_PUBLISH=1 wtest suites,publish and verify all suites,700,y,all green
+133,glob,docs/ch16 artefacts,list published deliverables,2400,y,verified MP4 and sheets
+134,shell,copy review3 PNGs,fresh paths for published pictures,0,y,17 pictures
+135,read,review3/blueprint.png,LOOK published blueprint,21,y,remaining note collision found
+136,read,review3/electronics.png,LOOK published electronics,21,y,title now fits
+137,read,review3/section_cut.png,LOOK published section,21,y,image inspected
+138,read,review3/section_closed.png,LOOK published closed view,21,y,grip seam closed
+139,read,review3/build_sheet.png,LOOK published contact sheet,21,y,all frames inspected
+140,read,review3/frame_0011.png,LOOK published final camera,21,y,image inspected
+141,edit,scripts/build/ch16_draw.gd,move blueprint source note clear,250,y,final LOOK fix
+142,shell,CH16_PUBLISH=1 wtest suites,final publish and full verification,700,y,32/73/23/14 ok zero fail
+143,shell,copy final blueprint,fresh image-reader path,0,y,one picture
+144,read,review3/blueprint_final.png,LOOK final blueprint,21,y,labels clear enough; limitations documented
+145,read,C:/Temp/claude/w4-ch16/w6/ch16.log,collect final bar numbers,5000,y,32 ok zero fail
+146,shell,git status --short,inspect modified and generated files,70000,n,unfiltered uid noise; no uid staged
+147,shell,git commit model and artefacts,commit green model movie sheets BOM,1800,y,b88ca340
+148,write,docs/CH16_FEEDBACK.md,standard and A/B/C feedback,15000,y,final report
+149,write,docs/ch16/tool_calls.csv,one row per tool call,24000,y,this log; output_bytes are returned-text estimates for read/search rows
+150,shell,git add named feedback files and commit,final clean commit,1200,y,no uid native/bin frames or directory-wide add
