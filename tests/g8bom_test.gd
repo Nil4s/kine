@@ -50,6 +50,13 @@ func idle(n := 3) -> void:
 		await process_frame
 
 
+func sci(x: float) -> String:
+	if x == 0.0:
+		return "0"
+	var e := floori(log(absf(x)) / log(10.0))
+	return "%.2fe%d" % [x / pow(10.0, e), e]
+
+
 func rel(a: float, b: float) -> float:
 	return absf(a - b) / maxf(absf(b), 1e-300)
 
@@ -90,8 +97,8 @@ func bars_mass() -> void:
 		var e := maxf(rel(float(ln.get("volume_m3", 0.0)), hv), rel(float(ln.get("mass_kg", 0.0)), hm)) if not ln.is_empty() else 1.0
 		worst = maxf(worst, e)
 		tot += hm
-		print("     a %-14s volume %.6f cm3 (hand %.6f)  mass %.9f kg (hand %.9f)  rel %.2e" % [nm, float(ln.get("volume_m3", 0.0)) * 1e6, hv * 1e6, float(ln.get("mass_kg", 0.0)), hm, e])
-	ok(worst < 1e-9 and rel(float(b["mass_kg"]), tot) < 1e-9 and (b["lines"] as Array).size() == 3, "a three solids: mass = exact volume x density to %.2e (bar 1e-9), total %.9f kg = %.9f" % [worst, float(b["mass_kg"]), tot])
+		print("     a %-14s volume %.6f cm3 (hand %.6f)  mass %.9f kg (hand %.9f)  rel %s" % [nm, float(ln.get("volume_m3", 0.0)) * 1e6, hv * 1e6, float(ln.get("mass_kg", 0.0)), hm, sci(e)])
+	ok(worst < 1e-9 and rel(float(b["mass_kg"]), tot) < 1e-9 and (b["lines"] as Array).size() == 3, "a three solids: mass = exact volume x density to %s (bar 1e-9), total %.9f kg = %.9f" % [sci(worst), float(b["mass_kg"]), tot])
 	var bad: Dictionary = AssemblyBom.prices().duplicate(true)
 	bad["materials"]["pla"]["density_kg_m3"] = 1.24
 	var probs := AssemblyBom.validate(bad)
@@ -485,7 +492,10 @@ func bars_ui() -> void:
 			row = r
 	var want := String(row.get("best", {}).get("key", ""))
 	var sv := float(row.get("saving", 0.0))
+	var had_btn := btn != null   # the click rebuilds the table: the button is freed after it
 	if btn != null:
+		(nd("asm_bom_scroll") as ScrollContainer).ensure_control_visible(btn)   # the user scrolls the table to the line
+		await idle(3)
 		await click_ctl(btn)
 	await idle(3)
 	var mat_now := ""
@@ -493,12 +503,12 @@ func bars_ui() -> void:
 		if String(p["rec"]["name"]).begins_with("Upper arm"):
 			mat_now = String(p["rec"]["bom"]["material"])
 	var cost1 := float(AssemblyBom.bom(A.asm)["cost"])
-	ok(btn != null and want != "" and mat_now == want and A.asm_undo.size() == 1 and absf((cost0 - cost1) - sv) < 1e-9 and sv > 0.0, "f the upper arm's Cheaper button: material %s (cheapest meeting its need), 1 undo step (%d), total %.4f -> %.4f (saving shown %.4f)" % [mat_now, A.asm_undo.size(), cost0, cost1, sv])
+	ok(had_btn and want != "" and mat_now == want and A.asm_undo.size() == 1 and absf((cost0 - cost1) - sv) < 1e-9 and sv > 0.0, "f the upper arm's Cheaper button: material %s (the view's pick %s, cheapest meeting its need), 1 undo step (%d), total %.4f -> %.4f (saving shown %.4f, off by %s)" % [mat_now, want, A.asm_undo.size(), cost0, cost1, sv, sci((cost0 - cost1) - sv)])
 	var after := JSON.stringify(A.asm, "", true)
 	ctl(after != before, "f after the change the record differs from before")
 	await shot("bom_cheaper")
 	await click_ctl(nd("asm_bom_copy") as Button)
-	var clip := DisplayServer.clipboard_get()
+	var clip := DisplayServer.clipboard_get().replace("\r\n", "\n")   # the Windows clipboard hands text back with CRLF line ends
 	ok(clip == AssemblyBom.csv(AssemblyBom.bom(A.asm)) and clip.begins_with("part,item,qty"), "f Copy: the clipboard holds bom()'s CSV (%d chars)" % clip.length())
 	m.get_viewport().gui_release_focus()
 	await key(KEY_Z, 0, true)

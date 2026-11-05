@@ -148,7 +148,7 @@ static func assembly(d := {}) -> Dictionary:
 			var sz := int(d["cyl"][j][k])
 			var b := {"buy": "syr%d" % sz}
 			if k == 0 and j in ["sh", "el"]:
-				b = {"buy": "syr%d" % sz, "alt": ["syr10", "syr20"], "role": "master_lever"}
+				b = {"buy": "syr%d" % sz, "alt": ["syr10", "syr20"], "role": "master_lever", "name": "Master syringes of the shoulder and elbow (10 or 20 mL; drawn as %d mL)" % sz}
 			Assembly.add_part(asm, _with(PT.syringe_barrel(sz), b), "%s %s" % ["Master" if k == 0 else "Slave", j])
 	Assembly.add_part(asm, _with(PT.baseboard(), {"buy": "ply18_base_set", "material": "plywood"}))
 	Assembly.add_part(asm, _with(PT.console(), {"material": "plywood", "included": "cut from the baseboard set (Baseboard + console, 18 mm plywood)"}))

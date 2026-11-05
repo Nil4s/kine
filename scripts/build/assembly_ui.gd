@@ -162,10 +162,10 @@ func _build_panel() -> void:
 		r1.add_child(b)
 	vb.add_child(r1)
 	var hp := HBoxContainer.new()
-	var pl := _lbl("Parts (double-click to edit one)", 12)
+	var pl := _lbl("Parts", 12)   # G8BOM: was "Parts (double-click to edit one)"; the BOM button needed the room, the hint is on each row's hover now
 	pl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	pl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART   # G8BOM: two lines, so the BOM button fits beside Check motion
-	pl.custom_minimum_size.x = 100.0
+	pl.tooltip_text = "Double-click a part to edit it"
+	pl.mouse_filter = Control.MOUSE_FILTER_PASS
 	hp.add_child(pl)
 	motion_btn = _btn("Check motion", "asm_motion", "Move a part through its range (a hinge, a slide) and list every pair of parts that passes through another", func(): bom.close(); motion.open())
 	hp.add_child(motion_btn)
@@ -625,7 +625,7 @@ func _list_sync() -> void:
 		var b := Button.new()
 		b.name = "asm_row_%d" % i
 		b.text = String(p["name"])
-		b.tooltip_text = AssemblyDof.words(p)
+		b.tooltip_text = AssemblyDof.words(p) + "\nDouble-click to edit this part"
 		b.add_theme_color_override("font_color", AssemblyDof.colour(p))
 		b.toggle_mode = true
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT

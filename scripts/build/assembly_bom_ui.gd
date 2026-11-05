@@ -11,7 +11,7 @@ class_name AssemblyBomUI
 extends RefCounted
 
 const W := 640.0
-const COLW := [178.0, 64.0, 120.0, 66.0, 62.0, 112.0]   # part, qty, material, mass, cost, cheaper
+const COLW := [164.0, 64.0, 120.0, 66.0, 62.0, 112.0]   # part, qty, material, mass, cost, cheaper
 
 var a: AssemblyUI
 var panel: PanelContainer
@@ -45,7 +45,7 @@ func setup(owner: AssemblyUI) -> void:
 	totals_l.custom_minimum_size = Vector2(W - 24.0, 0)
 	vb.add_child(totals_l)
 	var hh := HBoxContainer.new()
-	hh.add_theme_constant_override("separation", 2)
+	hh.add_theme_constant_override("separation", 6)
 	for c in [["part", "Part", 0], ["qty", "Qty", 1], ["", "Material / item", 2], ["mass", "Mass", 3], ["cost", "Cost", 4], ["", "Cheaper", 5]]:
 		var w: float = COLW[int(c[2])]
 		if String(c[0]) == "":
@@ -66,7 +66,7 @@ func setup(owner: AssemblyUI) -> void:
 	grid = GridContainer.new()
 	grid.name = "asm_bom_grid"
 	grid.columns = 6
-	grid.add_theme_constant_override("h_separation", 2)
+	grid.add_theme_constant_override("h_separation", 6)
 	grid.add_theme_constant_override("v_separation", 1)
 	sc.add_child(grid)
 	vb.add_child(sc)
@@ -160,7 +160,8 @@ func _fill() -> void:
 		var nm := _cell(("%d x " % int(ln["count"]) if int(ln["count"]) > 1 else "") + String(ln["part"]), COLW[0], "asm_bom_part_%d" % i)
 		nm.tooltip_text = "%s\nprice: %s" % [String(ln["part"]), String(ln["source"]) if ln["priced"] else String(ln["why"])]
 		grid.add_child(nm)
-		var q := "%d" % int(ln["count"]) if String(ln["unit"]) == "pcs" else "%.2f %s" % [float(ln["qty"]), String(ln["unit"])]
+		var qv := float(ln["qty"])
+		var q := ("%d" % int(roundf(qv)) if absf(qv - roundf(qv)) < 1e-9 else "%.2f" % qv) + ("" if String(ln["unit"]) == "pcs" else " " + String(ln["unit"]))
 		grid.add_child(_cell(q, COLW[1], "asm_bom_qty_%d" % i))
 		if not ln["extra"] and String(ln["item"]) == "":
 			var ob := OptionButton.new()
@@ -182,7 +183,7 @@ func _fill() -> void:
 		else:
 			var it := String(ln["item"]) if String(ln["item"]) != "" else String(ln["material"])
 			grid.add_child(_cell(it, COLW[2], "asm_bom_mat_%d" % i))
-		grid.add_child(_cell("%.3f kg" % float(ln["line_mass_kg"]), COLW[3], "asm_bom_mass_%d" % i))
+		grid.add_child(_cell("%.3f kg" % float(ln["line_mass_kg"]) if ln["mass_known"] else "-", COLW[3], "asm_bom_mass_%d" % i))
 		var cl := _cell("%.2f" % float(ln["line_cost"]) if ln["priced"] else "-", COLW[4], "asm_bom_cost_%d" % i)
 		grid.add_child(cl)
 		var r: Dictionary = by_key.get(String(ln["key"]), {})

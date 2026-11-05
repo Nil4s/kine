@@ -84,7 +84,7 @@ static func price_one(b: Dictionary, vol: float, p: Dictionary) -> Dictionary:
 	var mk := String(b.get("material", ""))
 	var bk := String(b.get("buy", ""))
 	var fill := float(b.get("fill", 1.0))
-	var r := {"unit": "pcs", "amount": 1.0, "each": 0.0, "unit_cost": 0.0, "mass": 0.0, "source": "", "item": "", "material": mk, "priced": false, "why": ""}
+	var r := {"unit": "pcs", "amount": 1.0, "each": 0.0, "unit_cost": 0.0, "mass": 0.0, "mass_known": vol >= 0.0 and mk != "" and mats.has(mk), "source": "", "item": "", "material": mk, "priced": false, "why": ""}
 	var mass_solid := -1.0
 	if mk != "" and mats.has(mk) and vol >= 0.0:
 		mass_solid = vol * float(mats[mk]["density_kg_m3"]) * fill
@@ -102,6 +102,7 @@ static func price_one(b: Dictionary, vol: float, p: Dictionary) -> Dictionary:
 		r["unit_cost"] = amt * float(it["price"])
 		r["item"] = bk
 		r["mass"] = amt * float(it["mass_kg"]) if it.has("mass_kg") else maxf(mass_solid, 0.0)
+		r["mass_known"] = it.has("mass_kg") or mass_solid >= 0.0
 		r["source"] = String(it.get("source", "")) + " (" + String(it.get("date", "")) + ")"
 		r["priced"] = true
 		if b.has("included"):
@@ -166,7 +167,7 @@ static func bom(asm: Dictionary, p := {}) -> Dictionary:
 		var qty: float = n * float(one["amount"])
 		var lc: float = n * float(one["unit_cost"])
 		var ln := {"key": k, "part": g["name"], "count": n, "qty": qty, "unit": one["unit"], "material": one["material"], "item": one["item"],
-			"volume_m3": maxf(vol, 0.0), "mass_kg": one["mass"], "line_mass_kg": n * float(one["mass"]), "unit_price": lc / qty if qty > 0.0 else 0.0,
+			"volume_m3": maxf(vol, 0.0), "mass_kg": one["mass"], "mass_known": one["mass_known"], "line_mass_kg": n * float(one["mass"]), "unit_price": lc / qty if qty > 0.0 else 0.0,
 			"line_cost": lc, "source": one["source"], "ids": g["ids"], "extra": g["extra"], "bom": b, "priced": one["priced"], "why": one["why"]}
 		lines.append(ln)
 		cost += lc
