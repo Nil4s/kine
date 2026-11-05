@@ -1,0 +1,303 @@
+{
+	"kind": "assembly",
+	"name": "Old bracket and screw",
+	"parts": [
+		{
+			"id": "p1",
+			"name": "Screw M4 x 16",
+			"pos": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"easy": {
+					"n": 2,
+					"p": {
+						"L": 16.0,
+						"d": 4.0,
+						"h": 0.0
+					},
+					"t": "screw"
+				},
+				"features": [
+					{
+						"dims": [],
+						"ents": [
+							{
+								"a": [
+									0.0,
+									0.0
+								],
+								"b": [
+									2.0,
+									0.0
+								],
+								"k": "line"
+							},
+							{
+								"a": [
+									2.0,
+									0.0
+								],
+								"b": [
+									2.0,
+									16.0
+								],
+								"k": "line"
+							},
+							{
+								"a": [
+									2.0,
+									16.0
+								],
+								"b": [
+									3.5,
+									16.0
+								],
+								"k": "line"
+							},
+							{
+								"a": [
+									3.5,
+									16.0
+								],
+								"b": [
+									3.5,
+									20.0
+								],
+								"k": "line"
+							},
+							{
+								"a": [
+									3.5,
+									20.0
+								],
+								"b": [
+									0.0,
+									20.0
+								],
+								"k": "line"
+							},
+							{
+								"a": [
+									0.0,
+									20.0
+								],
+								"b": [
+									0.0,
+									0.0
+								],
+								"k": "line"
+							}
+						],
+						"id": "f1",
+						"name": "Sketch1",
+						"plane": "front",
+						"t": "sketch"
+					},
+					{
+						"axis": "y",
+						"deg": 360.0,
+						"id": "f2",
+						"name": "Revolve1",
+						"op": "new",
+						"sketch": "f1",
+						"t": "revolve"
+					}
+				],
+				"name": "Screw",
+				"seq": 2,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": "library:screw_m4"
+		},
+		{
+			"id": "p2",
+			"lock": {
+				"pos": [
+					false,
+					true,
+					false
+				],
+				"rot": [
+					false,
+					false,
+					false
+				]
+			},
+			"name": "Bracket",
+			"pos": [
+				40.5,
+				2.25,
+				-3.0
+			],
+			"rec": {
+				"easy": {
+					"n": 6,
+					"p": {
+						"kind": 1.0,
+						"leg": 80.0,
+						"thickness": 5.0,
+						"width": 30.0
+					},
+					"t": "bracket"
+				},
+				"features": [
+					{
+						"dims": [],
+						"ents": [
+							{
+								"a": [
+									0.0,
+									0.0
+								],
+								"b": [
+									80.0,
+									0.0
+								],
+								"k": "line"
+							},
+							{
+								"a": [
+									80.0,
+									0.0
+								],
+								"b": [
+									80.0,
+									5.0
+								],
+								"k": "line"
+							},
+							{
+								"a": [
+									80.0,
+									5.0
+								],
+								"b": [
+									5.0,
+									5.0
+								],
+								"k": "line"
+							},
+							{
+								"a": [
+									5.0,
+									5.0
+								],
+								"b": [
+									5.0,
+									80.0
+								],
+								"k": "line"
+							},
+							{
+								"a": [
+									5.0,
+									80.0
+								],
+								"b": [
+									0.0,
+									80.0
+								],
+								"k": "line"
+							},
+							{
+								"a": [
+									0.0,
+									80.0
+								],
+								"b": [
+									0.0,
+									0.0
+								],
+								"k": "line"
+							}
+						],
+						"id": "f1",
+						"name": "Sketch1",
+						"plane": "front",
+						"t": "sketch"
+					},
+					{
+						"both": true,
+						"dist": 30.0,
+						"id": "f2",
+						"name": "Extrude1",
+						"op": "new",
+						"sketch": "f1",
+						"t": "extrude"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									48.0,
+									0.0
+								],
+								"k": "circle",
+								"r": 3.0
+							}
+						],
+						"id": "f3",
+						"name": "Sketch2",
+						"plane": "top",
+						"t": "sketch"
+					},
+					{
+						"both": true,
+						"dist": 300.0,
+						"id": "f4",
+						"name": "Extrude2",
+						"op": "cut",
+						"sketch": "f3",
+						"t": "extrude"
+					},
+					{
+						"dims": [],
+						"ents": [
+							{
+								"c": [
+									0.0,
+									48.0
+								],
+								"k": "circle",
+								"r": 3.0
+							}
+						],
+						"id": "f5",
+						"name": "Sketch3",
+						"plane": "right",
+						"t": "sketch"
+					},
+					{
+						"both": true,
+						"dist": 300.0,
+						"id": "f6",
+						"name": "Extrude3",
+						"op": "cut",
+						"sketch": "f5",
+						"t": "extrude"
+					}
+				],
+				"name": "Bracket",
+				"seq": 6,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				30.0,
+				0.0
+			],
+			"src": "library:bracket_l"
+		}
+	],
+	"seq": 2,
+	"version": 1
+}

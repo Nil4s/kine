@@ -684,6 +684,18 @@ static func prop_hits(props: Array, B: Body, held := {}) -> Array:
 		for part in parts:
 			if part in held.get(pi, []):
 				continue
+			if part in ["hand_r", "hand_l"]:
+				# lane HAND (G23): a hand is its palm slab (HandShape), not one 9 cm capsule; reported as the hand. The
+				# fingers stay out, as they always were here (they wrap round things). HandShape.legacy = true gives the
+				# old capsule back, bit for bit
+				var worst := 0.0
+				for hc in HandShape.caps(B, part, false):
+					if Body.seg_seg(hc[0], hc[1], ball[0], ball[0]) > float(ball[1]) + float(hc[2]):
+						continue
+					worst = maxf(worst, Props.depth(p, hc[0], hc[1], float(hc[2])))
+				if worst > PROP_WARN:
+					out.append([part, pi, worst])
+				continue
 			var c := B.cap(part)
 			var r: float = sole_rad(B, part)
 			if Body.seg_seg(c[0], c[1], ball[0], ball[0]) > float(ball[1]) + r:
