@@ -147,7 +147,7 @@ static func section_sheet() -> Dictionary:
 		var r := PT.at_az(PT.R_RCP, PT.LOOP_AZ[kk] + PT.RCP_DAZ)
 		ents.append(B._poly([pp.call(r.x - PT.RCP_R, PT.Y_FILL), pp.call(r.x + PT.RCP_R, PT.Y_FILL), pp.call(r.x + PT.RCP_R, PT.Y_FILL + 9), pp.call(r.x - PT.RCP_R, PT.Y_FILL + 9)], "dashed", {"part": "RCP %d" % (kk + 1)}))
 	# polar crane
-	ents.append(B._poly([pp.call(-25, 30), pp.call(25, 30), pp.call(25, 32.5), pp.call(-25, 32.5)], "piece", {"part": "polar crane"}))
+	ents.append(B._poly([pp.call(-26, 30), pp.call(26, 30), pp.call(26, 32.0), pp.call(-26, 32.0)], "piece", {"part": "polar crane"}))
 	ents.append(B._text(pp.call(0, 34.5), "polar crane", 2.0, "m", "text"))
 	ents.append(B._text(pp.call(0, PT.Y_FILL + 3.5), "RPV", 2.0, "m", "text"))
 	ents.append(B._text(pp.call(0, 42), "steel sphere 56 m, 30 mm WStE 51", 2.0, "m", "text"))

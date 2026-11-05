@@ -14,6 +14,8 @@
 ##   "background" Color; "sheet" (default true), "sheet_tile" (tile width px, default 256), "sheet_cols" (default: about square);
 ##   "mp4" (default true: when ffmpeg is found, PlayblastExport's encoder), "ffmpeg" (a path; default PlayblastExport.find_ffmpeg)
 ##   "keep_images" true: the result carries the frames as Images too ("images")
+##   "steps"    G33STAGE: the frames already posed, [{"t", "moves", "visible": [ids] (optional)}] (AssemblyStage.steps): used instead of the
+##              animation; a part not in a step's "visible" is hidden in that frame. "fps": the .mp4's rate (default the animation's)
 ## Answers {"ok", "why", "dir", "frames": [paths], "n", "size": Vector2i, "times", "sheet": path | "", "tiles", "cols", "rows", "tile": Vector2i,
 ## "mp4": path | "", "ffmpeg": path | "", "unsolved": [t], "ms"}
 class_name AssemblyRender
@@ -160,12 +162,20 @@ static func render(host: Node, asm: Dictionary, opts := {}) -> Dictionary:
 		out["why"] = "no pictures without a screen (headless)"
 		return out
 	var ts: Array = opts.get("times", [])
-	if ts.is_empty():
-		ts = AssemblyAnim.times(asm) if AssemblyAnim.has_anim(asm) else [0.0]
-	var fr := AssemblyAnim.frames(asm, ts)
-	var steps: Array = fr["steps"]
+	var steps: Array = []
+	if opts.get("steps", null) is Array:   # G33STAGE: posed by the caller (AssemblyStage.steps)
+		steps = opts["steps"]
+		ts = steps.map(func(s): return float(s["t"]))
+		for s in steps:
+			if not bool(s.get("ok", true)):
+				(out["unsolved"] as Array).append(s["t"])
+	else:
+		if ts.is_empty():
+			ts = AssemblyAnim.times(asm) if AssemblyAnim.has_anim(asm) else [0.0]
+		var fr := AssemblyAnim.frames(asm, ts)
+		steps = fr["steps"]
+		out["unsolved"] = fr["unsolved"]
 	out["times"] = ts
-	out["unsolved"] = fr["unsolved"]
 	var dir := String(opts.get("dir", ""))
 	if dir == "":
 		dir = "%s/%s_motion_%s" % [Assembly._out_dir(), Assembly._stem(asm), _stamp()]
@@ -177,9 +187,13 @@ static func render(host: Node, asm: Dictionary, opts := {}) -> Dictionary:
 	var nodes: Dictionary = sc["nodes"]
 	var imgs: Array = []
 	var paths: Array = []
+	var only: Array = opts.get("only", [])
 	for k in steps.size():
 		for p in asm["parts"]:
-			(nodes[String(p["id"])] as MeshInstance3D).transform = xf_in(steps[k], p)
+			var mi := nodes[String(p["id"])] as MeshInstance3D
+			mi.transform = xf_in(steps[k], p)
+			if (steps[k] as Dictionary).get("visible", null) is Array:
+				mi.visible = (only.is_empty() or only.has(String(p["id"]))) and (steps[k]["visible"] as Array).has(String(p["id"]))
 		vp.render_target_update_mode = SubViewport.UPDATE_ONCE
 		await RenderingServer.frame_post_draw
 		var img := vp.get_texture().get_image()
@@ -217,7 +231,7 @@ static func render(host: Node, asm: Dictionary, opts := {}) -> Dictionary:
 		out["ffmpeg"] = ff
 		if ff != "":
 			var mp4 := "%s/%s.mp4" % [dir, Assembly._stem(asm)]
-			if PlayblastExport.encode(ff, dir, AssemblyAnim.fps(asm), mp4) == 0 and FileAccess.file_exists(mp4):
+			if PlayblastExport.encode(ff, dir, int(opts.get("fps", AssemblyAnim.fps(asm))), mp4) == 0 and FileAccess.file_exists(mp4):
 				out["mp4"] = mp4
 	if bool(opts.get("keep_images", false)):
 		out["images"] = imgs
