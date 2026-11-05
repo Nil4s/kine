@@ -183,7 +183,7 @@ func _build_panel() -> void:
 	vb.add_child(hp)
 	var sc := ScrollContainer.new()
 	sc.name = "asm_list_scroll"
-	sc.custom_minimum_size = Vector2(0, 112)
+	sc.custom_minimum_size = Vector2(0, 58)
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	list_vb = VBoxContainer.new()
 	list_vb.name = "asm_list"

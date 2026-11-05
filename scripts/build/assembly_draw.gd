@@ -76,7 +76,12 @@ static func _cut_geo(g: Dictionary, cut: Dictionary) -> void:
 	var n: Vector3 = (cut.get("n", Vector3.BACK) as Vector3).normalized()
 	var size := Vector3(b[3] - b[0], b[4] - b[1], b[5] - b[2]).length() * 2.0 + 1.0
 	var tool := KCad.box(size, size, size)
-	var rot := Basis(Vector3.BACK, n)
+	var axis := Vector3.BACK.cross(n)
+	var rot := Basis.IDENTITY
+	if axis.length() > 1e-8:
+		rot = Basis(axis.normalized(), Vector3.BACK.angle_to(n))
+	elif n.dot(Vector3.BACK) < 0.0:
+		rot = Basis(Vector3.RIGHT, PI)
 	var e := rot.get_euler()
 	for step in [[Vector3.BACK, e.z], [Vector3.UP, e.y], [Vector3.RIGHT, e.x]]:
 		if absf(float(step[1])) > 1e-9:
@@ -238,7 +243,7 @@ static func sheet(asm: Dictionary, opts := {}) -> Dictionary:
 		var bb := B._bounds(views[i])
 		ents.append_array(B._shift(views[i], centres[i] - bb.get_center()))
 	ents.append(B._text(Vector2(20, 224), "OCCT B-rep edge projection; exact-solid bounds. Section: SectionLook plane n.p = w, n.p > w removed. Dimensions in mm.", 2.1, "l", "text"))
-	var mass := _mass_g(asm)
+	var mass: float = _mass_g(asm)
 	if mass >= 0.0:
 		ents.append(B._text(Vector2(20, 232), "MODEL MASS %.3f g (exact solids x BOM densities)" % mass, 2.5, "l", "title-text", {"kind": "mass", "value_g": mass}))
 	var title := "Assembly plan / front / section"
@@ -246,6 +251,8 @@ static func sheet(asm: Dictionary, opts := {}) -> Dictionary:
 	for e in ents:
 		if e["t"] == "text" and e["d"].get("field", "") == "sheet":
 			e["s"] = title
+		if e["t"] == "text" and String(e["s"]).begins_with("SHEET"):
+			e["s"] = "SHEET (dimensions in mm)"
 	var P := B.paper_size("A3")
 	return {"paper": "A3", "w": P.x, "h": P.y, "denom": denom, "k": k, "tab": "Drawing", "title": title, "name": String(asm.get("name", "Assembly")), "ents": ents, "area": B._area("A3")}
 
@@ -277,7 +284,7 @@ static func validate_schematic(asm: Dictionary) -> Array:
 	for id in ids:
 		var rec := _rec(ids[id])
 		var kind := String(rec.get("kind", "")).to_lower()
-		if (kind == "transformer" and float(rec.get("mva", 0.0)) <= 0.0) or (kind == "bus" and float(rec.get("v", rec.get("kv", 0.0))) <= 0.0):
+		if (kind == "transformer" and float(rec.get("mva", 0.0)) <= 0.0) or (["bus", "grid"].has(kind) and float(rec.get("v", rec.get("kv", 0.0))) <= 0.0):
 			errors.append({"kind": "missing-rating", "part": id, "why": "MISSING RATING: " + id})
 		if _powered(rec):
 			var connected := false
@@ -294,37 +301,58 @@ static func _ratings(rec: Dictionary) -> Array:
 	for key in ["v", "kv", "mva", "w", "rail"]:
 		if not rec.has(key):
 			continue
-		var unit := String(rec.get("unit", "kV" if key == "kv" else ("V" if key == "v" else ("MVA" if key == "mva" else "W"))))
+		var default_unit := "kV" if key == "kv" else ("V" if key == "v" else ("MVA" if key == "mva" else "W"))
+		var unit := String(rec.get("unit", default_unit)) if key == "v" or key == "kv" else default_unit
 		if key == "rail":
-			out.append("rail %s" % String(rec[key]))
+			out.append("rail %s" % str(rec[key]))
 		else:
 			out.append("%s %s" % [String.num(float(rec[key])), unit])
 	return out
 
 
 static func _layers(asm: Dictionary) -> Dictionary:
+	# Shortest paths from real sources, not longest-path relaxation: electrical ties and breaker loops are cyclic.
 	var layers := {}
+	var incoming := {}
+	var wires: Array = []
 	for p in asm.get("parts", []):
-		layers[String(p["id"])] = 0
-	for pass_no in maxi(layers.size(), 1):
-		var changed := false
-		for w in asm.get("wires", []):
-			var a := String(w.get("a", ""))
-			var b := String(w.get("b", ""))
-			if String(w.get("kind", "power")) != "power" or not layers.has(a) or not layers.has(b):
-				continue
-			if int(layers[b]) < int(layers[a]) + 1:
-				layers[b] = int(layers[a]) + 1
-				changed = true
-		if not changed:
-			break
+		var id := String(p["id"])
+		var rec := _rec(p)
+		if ["battery", "generator", "grid", "source"].has(String(rec.get("kind", "")).to_lower()):
+			layers[id] = 0
+	for w in asm.get("wires", []):
+		var a := String(w.get("a", ""))
+		var b := String(w.get("b", ""))
+		if String(w.get("kind", "power")) != "power":
+			continue
+		wires.append([a, b])
+		incoming[b] = true
+	for p in asm.get("parts", []):
+		var id := String(p["id"])
+		if not incoming.has(id) and not layers.has(id):
+			layers[id] = 0
+	var queue: Array = layers.keys()
+	while not queue.is_empty():
+		var a := String(queue.pop_front())
+		for w in wires:
+			if w[0] == a and not layers.has(w[1]):
+				layers[w[1]] = int(layers[a]) + 1
+				queue.append(w[1])
+	# A completely cyclic island still gets a deterministic column and is never allowed to run to infinity.
+	var next_layer := 0
+	for v in layers.values():
+		next_layer = maxi(next_layer, int(v) + 1)
+	for p in asm.get("parts", []):
+		var id := String(p["id"])
+		if not layers.has(id):
+			layers[id] = next_layer
 	return layers
 
 
 static func _block(ents: Array, id: String, rec: Dictionary, c: Vector2, w: float, h: float) -> void:
 	var kind := String(rec.get("kind", "block")).to_lower()
 	var data := {"block": id, "kind": kind}
-	if kind == "bus":
+	if ["bus", "grid"].has(kind):
 		ents.append(B._line(c + Vector2(-w * 0.5, 0), c + Vector2(w * 0.5, 0), "border", data))
 	elif kind == "transformer":
 		for side in [-1.0, 1.0]:
@@ -350,25 +378,34 @@ static func _block(ents: Array, id: String, rec: Dictionary, c: Vector2, w: floa
 
 static func schematic_sheet(asm: Dictionary, _opts := {}) -> Dictionary:
 	var layers := _layers(asm)
-	var rows := {}
+	var counts := {}
+	var subs := {}
 	var max_layer := 0
-	var max_rows := 1
+	var max_sub := 1
 	for p in asm.get("parts", []):
 		var id := String(p["id"])
-		var layer := mini(int(layers.get(id, 0)), 11)
-		var row := int(rows.get(layer, 0))
-		rows[layer] = row + 1
-		max_rows = maxi(max_rows, row + 1)
+		var layer := int(layers.get(id, 0))
+		var count := int(counts.get(layer, 0))
+		var sub := int(count / 6)
+		var row := count % 6
+		counts[layer] = count + 1
+		subs[layer] = sub + 1
+		max_sub = maxi(max_sub, sub + 1)
 		max_layer = maxi(max_layer, layer)
-		layers[id] = [layer, row]
+		layers[id] = [layer, row, sub]
 	var places := {}
-	var bw := clampf(310.0 / maxi(max_layer + 1, 1) - 5.0, 30.0, 62.0)
-	var bh := clampf(165.0 / maxi(max_rows, 1) - 8.0, 15.0, 24.0)
+	var column_step := 330.0 / maxi(max_layer + 1, 1)
+	var sub_step := minf(58.0, column_step / max_sub)
+	var bw := clampf(sub_step - 4.0, 24.0, 54.0)
+	var bh := 18.0
 	for p in asm.get("parts", []):
 		var id := String(p["id"])
 		var lr: Array = layers[id]
-		var x := lerpf(45.0, 375.0, float(lr[0]) / maxi(max_layer, 1))
-		var y := 42.0 + float(lr[1]) * (174.0 / maxi(max_rows, 1))
+		var base := lerpf(55.0, 365.0, float(lr[0]) / maxi(max_layer, 1))
+		var sub_count := int(subs[lr[0]])
+		var x := base + (float(lr[2]) - float(sub_count - 1) * 0.5) * sub_step
+		x = clampf(x, 14.0 + bw * 0.5, 406.0 - bw * 0.5)
+		var y := 38.0 + float(lr[1]) * 34.0
 		places[id] = Vector2(x, y)
 	var ents: Array = []
 	for w in asm.get("wires", []):
@@ -378,7 +415,17 @@ static func schematic_sheet(asm: Dictionary, _opts := {}) -> Dictionary:
 			continue
 		var kind := String(w.get("kind", "power"))
 		var data := {"a": a, "b": b, "wire": kind}
-		ents.append(B._line(places[a], places[b], "border" if kind == "power" else "dashed", data))
+		var cls := "dim" if kind == "power" else "dashed"
+		var pa: Vector2 = places[a]
+		var pb: Vector2 = places[b]
+		if absf(pa.x - pb.x) > 1.0 and absf(pa.y - pb.y) > 1.0:
+			var elbow := Vector2((pa.x + pb.x) * 0.5, pa.y)
+			var elbow2 := Vector2(elbow.x, pb.y)
+			ents.append(B._line(pa, elbow, cls, data))
+			ents.append(B._line(elbow, elbow2, cls, data))
+			ents.append(B._line(elbow2, pb, cls, data))
+		else:
+			ents.append(B._line(pa, pb, cls, data))
 		if String(w.get("label", "")) != "":
 			ents.append(B._text((places[a] + places[b]) * 0.5 + Vector2(0, -1.5), String(w["label"]), 1.5, "m", "text", data))
 	for p in asm.get("parts", []):
@@ -396,6 +443,8 @@ static func schematic_sheet(asm: Dictionary, _opts := {}) -> Dictionary:
 			e["s"] = title
 		if e["t"] == "text" and e["d"].get("field", "") == "scale":
 			e["s"] = "NTS"
+		if e["t"] == "text" and String(e["s"]).begins_with("SHEET"):
+			e["s"] = "SHEET (power / signal, NTS)"
 	var P := B.paper_size("A3")
 	return {"paper": "A3", "w": P.x, "h": P.y, "denom": 0, "k": 0.0, "tab": "Schematic", "title": title, "name": String(asm.get("name", "Assembly")), "ents": ents, "area": B._area("A3"), "warnings": errors}
 

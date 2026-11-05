@@ -47,7 +47,7 @@ func fixture() -> Dictionary:
 	var a := Assembly.make("Drawing fixture")
 	put(a, "Base", box_rec("Base", 40, 20, 10))
 	put(a, "Tower", box_rec("Tower", 20, 30, 10), Vector3(50, 0, 0))
-	put(a, "Lug", box_rec("Lug", 10, 10, 30), Vector3(0, 20, 0))
+	put(a, "Lug", box_rec("Lug", 10, 10, 30), Vector3(0, 50, 0))
 	return a
 
 
@@ -113,7 +113,7 @@ func wire(a: Dictionary, x: String, y: String, kind := "power", label := "") -> 
 func ch15_record(model: Dictionary) -> Dictionary:
 	var a := Assembly.make("CH15 one-line from records")
 	for b in model["buses"]:
-		add_block(a, b["id"], {"name": b["id"], "kind": "bus", "v": b["kv"], "unit": "kV", "powered": true})
+		add_block(a, b["id"], {"name": b["id"], "kind": b.get("kind", "bus"), "v": b["kv"], "unit": "kV", "powered": true})
 	for x in model["xfmrs"]:
 		add_block(a, x["id"], {"name": x["id"], "kind": "transformer", "mva": x.get("mva", 0.0), "v": x["hv"], "unit": "kV", "rail": x["lv"], "powered": true})
 		wire(a, x["from"], x["id"])
@@ -134,7 +134,7 @@ func bars_reproduce() -> void:
 	var cam := P16.assembly()
 	var sh := D.sheet(cam)
 	var got := [dim(sh, "x"), dim(sh, "y"), dim(sh, "z")]
-	var mass := AssemblyBom.bom(cam)["mass_kg"] * 1000.0
+	var mass: float = float(AssemblyBom.bom(cam)["mass_kg"]) * 1000.0
 	var txt := text_of(sh)
 	ok(close_enough(got[0], P16.W) and close_enough(got[1], P16.H) and close_enough(got[2], P16.D_MAX), "c CH16 drawing %.6f x %.6f x %.6f mm = hand-written 126.9 x 94.4 x 54.8" % got)
 	ok(absf(mass - 448.288) < 0.001 and txt.contains("448.288 g"), "c CH16 model mass callout %.3f g = hand-written 448.288 g" % mass)
@@ -179,12 +179,18 @@ func xml_ok(s: String) -> bool:
 	var x := XMLParser.new()
 	if x.open_buffer(s.to_utf8_buffer()) != OK:
 		return false
+	var open_tags: Array = []
 	while true:
 		var e := x.read()
 		if e == ERR_FILE_EOF:
-			return true
+			return open_tags.is_empty()
 		if e != OK:
 			return false
+		if x.get_node_type() == XMLParser.NODE_ELEMENT and not x.is_empty():
+			open_tags.append(x.get_node_name())
+		elif x.get_node_type() == XMLParser.NODE_ELEMENT_END:
+			if open_tags.is_empty() or String(open_tags.pop_back()) != x.get_node_name():
+				return false
 	return false
 
 
@@ -195,6 +201,12 @@ func bars_files() -> void:
 		var svg := FileAccess.get_file_as_string(String(r.get("svg", "")))
 		ok(bool(r.get("ok", false)) and xml_ok(svg) and FileAccess.file_exists(String(r.get("png", ""))) and FileAccess.get_file_as_bytes(String(r.get("png", ""))).size() > 100, "e %s SVG re-parses (%d bytes) and PNG is written (%s)" % [kind, svg.length(), String(r.get("png", "")).get_file()])
 	ctl(not xml_ok("<svg><unclosed></svg>"), "e malformed XML is rejected")
+	var cam: Dictionary = await D.write(root, P16.assembly(), "drawing", {"dir": OUT, "stem": "ch16_assembly_drawing", "ppm": 2.0})
+	ok(bool(cam.get("ok", false)), "c CH16 Assembly drawing reproduced as SVG + PNG by the shared tool")
+	var one: Dictionary = await D.write(root, ch15_record(P15.one_line()), "schematic", {"dir": OUT, "stem": "ch15_assembly_oneline", "ppm": 2.0})
+	ok(bool(one.get("ok", false)), "c CH15 one-line reproduced as SVG + PNG from rated records")
+	var electronics: Dictionary = await D.write(root, ch16_schematic(), "schematic", {"dir": OUT, "stem": "ch16_assembly_electronics", "ppm": 2.0})
+	ok(bool(electronics.get("ok", false)), "c CH16 electronics reproduced as SVG + PNG from rated records")
 
 
 func ch16_schematic() -> Dictionary:
