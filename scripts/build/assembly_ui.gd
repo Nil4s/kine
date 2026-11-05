@@ -66,6 +66,10 @@ var lock_pos: Array = []       # C15: the six lock checks (slide X Y Z, turn X Y
 var lock_rot: Array = []
 var dof_l: Label
 var fix_btn: Button
+var motion_btn: Button         # G1MOTION: Check motion (scripts/build/assembly_motion_ui.gd)
+var motion: AssemblyMotionUI
+var asm_undo: Array = []       # G1MOTION: [{"asm", "label"}]: this screen's own steps (the assembly is not in the scene's undo)
+var asm_redo: Array = []
 
 
 func setup(b: BuildUI) -> void:
@@ -81,6 +85,8 @@ func setup(b: BuildUI) -> void:
 	_build_panel()
 	_build_src()
 	_build_back()
+	motion = AssemblyMotionUI.new()
+	motion.setup(self)
 	ov = Control.new()
 	ov.name = "assembly_overlay"
 	ov.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -196,6 +202,9 @@ func _build_panel() -> void:
 	dof_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	dof_l.custom_minimum_size = Vector2(PANEL_W - 24.0, 0)
 	vb.add_child(dof_l)
+	motion_btn = _btn("Check motion", "asm_motion", "Move a part through its range (a hinge, a slide) and list every pair of parts that passes through each other", func(): motion.open())
+	motion_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vb.add_child(motion_btn)
 	var r3 := HBoxContainer.new()
 	stl_btn = _btn("STL", "asm_export_stl", "One .stl with every part, in place", func(): export("stl"))
 	glb_btn = _btn("GLB", "asm_export_glb", "One .glb, a node for each part", func(): export("glb"))
@@ -294,6 +303,9 @@ func open_record(rec: Dictionary) -> void:
 
 
 func _begin() -> void:
+	asm_undo.clear()
+	asm_redo.clear()
+	motion.reset(true)
 	var pu: PartUI = bu.part
 	if not _had_stash and editing == "":
 		_stash = m.S.part
@@ -325,6 +337,7 @@ func close() -> void:
 	on = false
 	editing = ""
 	pu.asm_on = false
+	motion.reset(true)
 	panel.visible = false
 	src_panel.visible = false
 	back_panel.visible = false
@@ -373,6 +386,7 @@ func _layout() -> void:
 	src_panel.reset_size()
 	src_panel.position = Vector2(cl.position.x + 8.0, cl.position.y + 4.0)
 	src_panel.size.x = SRC_W
+	motion.layout(Vector2(cl.position.x + 8.0, cl.position.y + 4.0))
 	var bw := back_panel.get_combined_minimum_size().x
 	back_panel.reset_size()
 	back_panel.position = Vector2(vs.x - bw - 4.0, vs.y * 0.42)   # the right edge under the view cube: the one strip both Easy Part and Expert leave free
@@ -562,7 +576,8 @@ func _refresh(reframe: bool) -> void:
 			root3.add_child(mi)
 			meshes[id] = mi
 		mi.mesh = Assembly.built(p["rec"])["mesh"]
-		mi.transform = Assembly.xf_of(p)
+		mi.transform = motion.xf_of(p)   # G1MOTION: the scrubbed drive's pose (the record's pose when no drive is scrubbed)
+		mi.material_overlay = motion.overlay_of(id)
 	for id in meshes.keys():
 		if not keep.has(id):
 			(meshes[id] as Node).queue_free()
@@ -682,7 +697,7 @@ func _px_per_m(c: Vector3) -> float:
 func handles() -> Array:
 	var p := _sel_part()
 	var out: Array = []
-	if p.is_empty() or m.cam == null:
+	if p.is_empty() or m.cam == null or motion.scrubbing():
 		return out
 	var c: Vector3 = Assembly.xf_of(p).origin
 	if m.cam.is_position_behind(c):
@@ -707,6 +722,8 @@ func _draw() -> void:
 	for p in asm["parts"]:
 		var id := String(p["id"])
 		var bb := Assembly.world_aabb(p)
+		if motion.scrubbing():
+			bb = motion.xf_of(p) * (Assembly.built(p["rec"])["aabb"] as AABB)
 		if bb.size == Vector3.ZERO:
 			continue
 		var mn := Vector2(1e9, 1e9)
@@ -915,6 +932,30 @@ func export(fmt: String) -> Dictionary:
 	last_export = r
 	_say(String(r["text"]))
 	return r
+
+
+# ---------------------------------------------------------------- undo (G1MOTION)
+
+## before a change to the record: ONE step that Ctrl+Z takes back (main._mesh_undo asks undo_redo first while the screen is on)
+func push_undo(label: String) -> void:
+	asm_undo.append({"asm": asm.duplicate(true), "label": label})
+	asm_redo.clear()
+
+
+## Ctrl+Z (back) / Ctrl+Y: false when this screen has no step, so the scene's own undo runs as before
+func undo_redo(back: bool) -> bool:
+	var from: Array = asm_undo if back else asm_redo
+	if not on or from.is_empty():
+		return false
+	var s: Dictionary = from.pop_back()
+	(asm_redo if back else asm_undo).append({"asm": asm.duplicate(true), "label": s["label"]})
+	asm = s["asm"]
+	if Assembly.index_of(asm, sel) < 0:
+		sel = String((asm["parts"][0] as Dictionary)["id"]) if not (asm["parts"] as Array).is_empty() else ""
+	motion.reset(false)
+	_refresh(false)
+	_say("%s: %s" % ["Undone" if back else "Redone", String(s["label"])])
+	return true
 
 
 func psb_of() -> StyleBoxFlat:
