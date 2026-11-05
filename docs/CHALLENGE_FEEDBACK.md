@@ -98,12 +98,14 @@ The lead copies section 3's rows into the ledger below, one line each, so gaps f
 
 | G44 | G8BOM | a material per BODY of a Part (a jaw with a TPU pad, a printed turntable with a steel shaft) | one "bom" material per Part record | could not do it: the pad and the shafts are priced as PLA+ (as CH14 did) | "material" on the appear step, summed per body by AssemblyBom |
 | G4 (again) | G8BOM | primitives at the size drawn | prims built in doubles (box, cylinder, tube): **PART FIXED (this branch, w4-g8bom)**: part_prim.gd uses KCad.box / KCad.cylinder (+ cut for the tube) in doubles, so the 40 x 20 x 10 mm box is 8.000000 cm3 (it was 8.0000017) and g8bom bar a is 2.2e-15 (it was 2.8e-7). The faces are the same set; their order changed and no suite referenced it (docs/G8BOM_FEEDBACK.md 1b). Poses/Transform3D are still float32, and so are cones and sketch profiles | none needed for these three | keep CAD poses in doubles (see G4) |
+| G45 | G33STAGE | the minimum distance between two solids (touch test in one call, the gap of an unsupported part) and a cheap exact box | overlap_volume only; boxes from a tessellation | six shifted overlaps per pair; a tessellated box per part (172 of CH15's 177 s) | **FIXED #209**: KineCAD 6 adds KCad.distance(a, b) (BRepExtrema_DistShapeShape, witness points in doubles) and KCad.bounds(id) (BRepBndLib::AddOptimal); AssemblyStage.check uses them: CH15 180.3 s -> 7.6 s (23.8x), the same verdict on every g33stage fixture and CH15 (docs/G45DIST_FEEDBACK.md) |
 
 ## 5. Tools that already exist (search before writing your own)
 Several lanes rebuilt tools Kine already had (gaps G9, G26, and the CH1f cutaway). Before writing a helper, check this list and grep:
 - **Involute gears:** scripts/build/part_gear.gd (+ part_gear_ui.gd), clock_ch2.gd involute_outline(), scripts/gear_drive.gd.
 - **Mechanisms that move (hinges, slides, gear links, closed loops):** AssemblyMotion drives/links + check_motion (scripts/build/assembly_motion.gd), AssemblyLoop joints and the loop solver (scripts/build/assembly_loop.gd; ch13_parts.loop_assembly is a worked slider-crank).
 - **Overlap of posed parts:** KCad.overlap_volume (scripts/kcad.gd). Pose exact solids with ch13_parts.gd solid() / place().
+- **Distance between two solids, an exact box:** KCad.distance(a, b) -> {d (m, 0 when touching / overlapping / inside), pa, pb (Vector3), pa64, pb64 (doubles), inner, ok} and KCad.bounds(id) / bounds_aabb(id) (KineCAD 6, scripts/kcad.gd). "Touching or not" is one distance call, not shifted booleans; a box needs no tessellation.
 - **Section or cutaway render:** scripts/build/section_look.gd (SectionLook; ch13_scene.gd set_cut shows the use).
 - **Whole-body centre of mass:** Balance.com(body) (scripts/balance.gd).
 - **STL export:** scripts/build/mesh_export.gd write_stl. Print checks: print_check.gd, slicer_send.gd.

@@ -7,6 +7,7 @@
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
+#include <godot_cpp/variant/packed_float64_array.hpp>
 #include <godot_cpp/variant/packed_int32_array.hpp>
 #include <godot_cpp/variant/packed_vector3_array.hpp>
 #include <godot_cpp/variant/string.hpp>
@@ -33,6 +34,8 @@ public:
 
 	static int union_(int p_a, int p_b);
 	static double overlap_volume(int p_a, int p_b); // C70
+	static Dictionary distance(int p_a, int p_b); // G45 (v6): {d, pa, pb, pa64, pb64, inner, ok}; BRepExtrema_DistShapeShape
+	static PackedFloat64Array bounds(int p_id); // G45 (v6): exact-geometry box [xmin, ymin, zmin, xmax, ymax, zmax] (BRepBndLib::AddOptimal), empty on failure
 	static int union_many(int p_base, const PackedInt32Array &p_tools); // C70: base fused with every tool in ONE boolean (0 + last_error when the kernel refuses: the caller falls back to pairs)
 	static int cut(int p_a, int p_b);
 	static int intersect(int p_a, int p_b);
