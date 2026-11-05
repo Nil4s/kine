@@ -48,6 +48,8 @@
 #include <BRepAlgoAPI_Common.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
 #include <BRepBndLib.hxx>
+#include <Extrema_GenLocateExtSS.hxx>
+#include <Extrema_POnSurf.hxx>
 #include <Bnd_Box.hxx>
 #include <godot_cpp/variant/packed_float64_array.hpp>
 #include <BRepAlgoAPI_Cut.hxx>
@@ -382,6 +384,26 @@ Dictionary KineCAD::distance(int a, int b) {
 				ba = ds.PointOnShape1(1);
 				bb = ds.PointOnShape2(1);
 				inner = ds.InnerSolution();
+				if (d > 0.0 && ds.SupportTypeShape1(1) == BRepExtrema_IsInFace && ds.SupportTypeShape2(1) == BRepExtrema_IsInFace) {
+					// the extrema stops once the DISTANCE has converged; on curved faces the witness points can still be ~1e-7 m off
+					// (the distance is flat there). Polish them with a local Newton from the found parameters; keep it only when it moved
+					// a hair and did not get farther.
+					TopoDS_Face f1 = TopoDS::Face(ds.SupportOnShape1(1)), f2 = TopoDS::Face(ds.SupportOnShape2(1));
+					double u1, v1, u2, v2;
+					ds.ParOnFaceS1(1, u1, v1);
+					ds.ParOnFaceS2(1, u2, v2);
+					BRepAdaptor_Surface a1(f1), a2(f2);
+					Extrema_GenLocateExtSS loc(a1, a2, u1, v1, u2, v2, 1e-12, 1e-12);
+					if (loc.IsDone()) {
+						gp_Pnt q1 = loc.PointOnS1().Value(), q2 = loc.PointOnS2().Value();
+						double dq = q1.Distance(q2);
+						if (dq <= d + 1e-12 && q1.Distance(ba) < 1e-5 && q2.Distance(bb) < 1e-5) {
+							ba = q1;
+							bb = q2;
+							best = dq;
+						}
+					}
+				}
 			}
 			if (best <= 0.0) {
 				break;
