@@ -719,7 +719,7 @@ func _frame() -> void:
 		m._turn_to(30.0, -22.0, dist, bb.get_center(), false)
 		if m.cam != null:   # the right panel covers a third of the view: the assembly sits in the free part, left of it (Check motion's panel covers the left too: nearer the middle)
 			var right: Vector3 = m.cam.global_transform.basis.x
-			m._turn_to(30.0, -22.0, dist, bb.get_center() + right * dist * (0.08 if motion.is_open() else 0.24), false)
+			m._turn_to(30.0, -22.0, dist, bb.get_center() + right * dist * (0.08 if (motion.is_open() or stages.is_open() or bom.is_open()) else 0.24), false)
 
 
 # ---------------------------------------------------------------- the gizmo
