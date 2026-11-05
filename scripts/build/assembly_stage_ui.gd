@@ -147,6 +147,7 @@ func open() -> void:
 	a._sync_src()
 	panel.visible = true
 	a.m.ui_root.move_child(panel, a.m.ui_root.get_child_count() - 1)
+	a._frame()   # reframe for the panel: the model sat half behind it
 	time = -1.0
 	playing = false
 	sel_stage = clampi(sel_stage, -1, AssemblyStage.stages(a.asm).size() - 1)

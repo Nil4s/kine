@@ -15,7 +15,7 @@ class_name AssemblyMotionUI
 extends RefCounted
 
 const W := 290.0
-const RED := Color(1.0, 0.12, 0.08, 0.55)
+const RED := Color(1.0, 0.10, 0.85, 0.65)   # magenta: a red overlay was invisible on a part that is already red
 
 var a: AssemblyUI
 var panel: PanelContainer

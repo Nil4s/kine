@@ -104,9 +104,16 @@ static func assembly(opts := {}) -> Dictionary:
 		for lg in legs:
 			var a: Vector2 = lg[1]
 			var b: Vector2 = lg[2]
-			var dv := b - a
 			var ends := ["Reactor pressure vessel", String(lg[4])] if String(lg[0]).begins_with("Hot") or String(lg[0]).begins_with("Cold") else ["Steam generator %d" % (k + 1), "Coolant pump %d" % (k + 1)]
-			_add(asm, String(lg[0]), PT.pipe(String(lg[0]) + " (0.75 m bore)", dv.length(), 20 + k), Vector3(a.x, float(lg[3]), a.y), "", [[ends[0], "hang"], [ends[1], "hang"]], {"roty": -rad_to_deg(atan2(dv.y, dv.x))})
+			# stop at the equipment's outer wall, not its centre: centre-to-centre pipes ran into the vessel/SGs/pumps (33 overlaps found by G33)
+			var rad := {"Reactor pressure vessel": 2.75, "Steam generator": 2.5, "Coolant pump": 1.5}
+			var ra: float = rad["Reactor pressure vessel"] if ends[0] == "Reactor pressure vessel" else (rad["Steam generator"] if String(ends[0]).begins_with("Steam generator") else rad["Coolant pump"])
+			var rb: float = rad["Reactor pressure vessel"] if ends[1] == "Reactor pressure vessel" else (rad["Steam generator"] if String(ends[1]).begins_with("Steam generator") else rad["Coolant pump"])
+			var u := (b - a).normalized()
+			var a2 := a + u * ra
+			var b2 := b - u * rb
+			var dv := b2 - a2
+			_add(asm, String(lg[0]), PT.pipe(String(lg[0]) + " (0.75 m bore)", dv.length(), 20 + k), Vector3(a2.x, float(lg[3]), a2.y), "", [[ends[0], "hang"], [ends[1], "hang"]], {"roty": -rad_to_deg(atan2(dv.y, dv.x))})
 	_add(asm, "Shield wall", PT.shield_wall(), Vector3.ZERO, "Reactor building", [["Base mat", "on"]], {"cut": 0.0})
 	_add(asm, "Shield dome", PT.shield_dome(), Vector3.ZERO, "Reactor building", [["Shield wall", "on"]], {"cut": 0.0})
 	# the turbine hall: its parts are built round the hall's centre
