@@ -38,6 +38,10 @@ The lead copies section 3's rows into the ledger below, one line each, so gaps f
 | CH13 single-cylinder engine | mechanical L3-L4 (ISO 286 fits and stack-up are L4; the dimensions are assumed, not from a drawing) | L4 needs the real C50 drawings, crank balance, bearing life and an FEA of the rod |
 | CH14 syringe hydraulic arm | mechanical/fluids L3 | prices and several material values are ASSUMED; no prototype measurement; compliance is a lumped model |
 | CH1e fasteners on the house | structural L4 for connections (IRC schedule, Simpson values, R403.1.6) | L5 needs local code (Brazil NBR 7190) and an engineer's review |
+| CH1f soil + masonry/LSF house (Mato Grosso) | structural dynamics L3, geotechnical L2-L3, masonry/LSF L2-L3 | El Centro stand-in, not an NBR spectrum; no load combinations; walls as lines; no soil report |
+| SRETOPO stroke retopology | geometry processing L3 | open-edge regions are skipped, not filled; no comparison against a reference retopo tool on the same strokes |
+| CH5c wet street at night (PARKED) | rendering/optics L2-L3 | wet roughness, wetness and bump height unsourced; the glint streak needs a direction-aware roughness filter |
+| CH7b parkour run (PARKED, 21/1) | landings and flight L3, joint limits and timing L2 | no whole-body COM, contact impulses or conserved spin in flight; the course was changed to fit gravity |
 
 ## 4. Gap ledger (one row per gap; newest last)
 
@@ -54,3 +58,18 @@ The lead copies section 3's rows into the ledger below, one line each, so gaps f
 | G9 | CH14 | gears with involute teeth | an involute generator exists (clock_ch2, gear tool C-items) | the lane drew box teeth: a DISCOVERABILITY gap | Part step "gear" listed in the step menu and the agent brief |
 | G10 | CH14 | STL of a Part in Z-up mm from a script | print_check / slicer_send export from the UI | the test converted the mesh by hand | one scripted call: Part.export_stl(rec, path) |
 | G11 | CH13, CH14 | contact sheet and video of an assembly | each lane writes its own scene and grab loop | about 100 lines per lane | a shared "render sequence" helper: assembly + timeline -> frames, sheet, mp4 |
+| G12 | CH1f | soil under a structure (springs and dashpots per soil class) | nothing | ch1f_soil.gd (Gazetas closed forms) | a Foundation property on a building: soil class -> springs, used by the CH10 solver |
+| G13 | CH1f | wall systems as switchable materials on one plan | wood framing only | ch1f_systems.gd built each system by hand | a wall-system picker that regenerates members, mass and stiffness |
+| G14 | CH1f | Brazilian code loads (NBR 6123 wind, NBR 15421 seismic) | nothing | constants from memory | code load generators per region, with the source printed |
+| G15 | CH1f | masonry and shear walls as panels in the frame solver | beam elements only | walls drawn as lines | a shell or equivalent-strut wall element |
+| G16 | SRETOPO | retopo across a mesh's open edges (neck, face holes) | regions with a boundary edge are skipped; the UI says only "3 regions skipped" | none | name the skipped regions and offer to close the hole or use the boundary as a side |
+| G17 | CH5c | match a camera to a photo (lens, height, horizon) | nothing | camera solved by hand from EXIF and brick courses | a photo-match camera tool: pick lines -> focal, height, tilt |
+| G18 | CH5c | a direction-aware roughness filter so tiny shiny normals don't sparkle at a distance | nothing (Toksvig was tried: grey wash) | could not do it | anisotropic normal-map roughness filtering (LEAN/vMF style) in the PBR material |
+| G19 | CH5c | a wet material state (darkened albedo, low roughness, puddles) | nothing | hand-set roughness per material | a wetness slider on materials, plus puddle decals |
+| G20 | CH5c | soft shadows from a sized lamp 20 m away | the engine's shadow blur has a floor (both control and real at 2.8-3.1 px) | could not do it | PCSS with a light-size parameter that resolves at distance |
+| G21 | CH5c, CH13, CH14 | render-vs-photo and render-sequence comparison | each lane writes its own side-by-side and grab loop | about 100 lines per lane | one shared compare/render helper (see G11) |
+| G22 | CH7b | a contact-schedule solver: pin limbs to surfaces, solve the pelvis ballistically between contacts | nothing | about 520 lines of lane code | contact-first motion planning in the move tools |
+| G23 | CH7b | a hand that conforms flat to a surface | the hand is one capsule | 13-54 mm palm penetrations | a palm/fingers collision shape that can lie flat |
+| G24 | CH7b | keep free limbs out of obstacles while animating | nothing | a custom avoidance pass | obstacle avoidance for non-contact limbs in IK |
+| G25 | CH7b | pinned body-surface contacts (shoulder, back, hip) for a roll | foot/hand contacts only | the roll became a tight ball | body-surface contact targets |
+| G26 | CH7b | whole-body centre of mass and jump arcs off obstacles | Balance.com and floor-only jump arcs exist: a DISCOVERABILITY gap | used the pelvis as the COM | list Balance.com in the agent brief; jump arcs from any surface |
