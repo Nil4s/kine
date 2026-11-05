@@ -129,7 +129,9 @@ static func default_bowls(eyes: Array) -> Array:
 	var out := []
 	for e in eyes:
 		var x := reflection_point(e, LAMP_POS, LEVEL)
-		out.append([x.x, x.z, 0.62, 0.075])
+		## radius 0.3 m (was 0.62): ref2 has NO standing puddle on the lamp line (its streak is wet stone tops), and the three poses' bowls
+		## are only 1 m apart in a 2.3 m lane, so 0.62 m bowls merged into one lane-wide pool whose lamp image was the "one glare blob"
+		out.append([x.x, x.z, 0.3, 0.075])
 	return out
 
 
