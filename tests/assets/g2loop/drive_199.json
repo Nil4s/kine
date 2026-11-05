@@ -1,0 +1,182 @@
+{
+	"drives": [
+		{
+			"axis": [
+				0.0,
+				0.0,
+				1.0
+			],
+			"kind": "rotate",
+			"name": "Lid",
+			"origin": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"part": "p2",
+			"range": [
+				0.0,
+				70.0
+			]
+		}
+	],
+	"kind": "assembly",
+	"name": "drive_199",
+	"parts": [
+		{
+			"id": "p1",
+			"name": "Base",
+			"pos": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"features": [
+					{
+						"dims": [],
+						"ents": [
+							{
+								"a": [
+									-10.0,
+									-20.0
+								],
+								"b": [
+									90.0,
+									0.0
+								],
+								"k": "rect"
+							}
+						],
+						"id": "f1",
+						"name": "Sketch",
+						"plane": "front",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 20.0,
+						"id": "f2",
+						"name": "Extrude",
+						"op": "new",
+						"sketch": "f1",
+						"t": "extrude"
+					}
+				],
+				"name": "Base",
+				"seq": 2,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p2",
+			"name": "Lid",
+			"pos": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"features": [
+					{
+						"dims": [],
+						"ents": [
+							{
+								"a": [
+									0.0,
+									0.0
+								],
+								"b": [
+									85.0,
+									5.0
+								],
+								"k": "rect"
+							}
+						],
+						"id": "f1",
+						"name": "Sketch",
+						"plane": "front",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 20.0,
+						"id": "f2",
+						"name": "Extrude",
+						"op": "new",
+						"sketch": "f1",
+						"t": "extrude"
+					}
+				],
+				"name": "Lid",
+				"seq": 2,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p3",
+			"name": "Ceiling",
+			"pos": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"features": [
+					{
+						"dims": [],
+						"ents": [
+							{
+								"a": [
+									-20.0,
+									79.0
+								],
+								"b": [
+									100.0,
+									89.0
+								],
+								"k": "rect"
+							}
+						],
+						"id": "f1",
+						"name": "Sketch",
+						"plane": "front",
+						"t": "sketch"
+					},
+					{
+						"both": false,
+						"dist": 20.0,
+						"id": "f2",
+						"name": "Extrude",
+						"op": "new",
+						"sketch": "f1",
+						"t": "extrude"
+					}
+				],
+				"name": "Ceiling",
+				"seq": 2,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		}
+	],
+	"seq": 3,
+	"version": 1
+}

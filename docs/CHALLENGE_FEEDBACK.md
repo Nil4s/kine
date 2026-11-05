@@ -51,7 +51,7 @@ The lead copies section 3's rows into the ledger below, one line each, so gaps f
 | # | from | needed | exists today | workaround | proposed feature |
 |---|---|---|---|---|---|
 | G1 | CH13 | clash detection while a mechanism MOVES (parts passing through each other over a cycle) | **FIXED #199**: Assembly "Check motion" (assembly_motion.gd): rotate/slide drives + gain links in the record, exact-solid sweep with a box prefilter, clashing pairs listed with the angle, red parts, a scrub slider (docs/G1MOTION_FEEDBACK.md; closed loops are still G2) | bar j scripted 390 KCad booleans over 36 crank angles; it found 4 real clashes | done |
-| G2 | CH13 | kinematic joints in an Assembly (slider-crank: revolute + prismatic, closed loop) | Assembly parts have a pose (pos/rot) only | pose_of() computed every part's pose in GDScript | Assembly joints (revolute, slider, gear, rack) with a loop solver and a drive parameter |
+| G2 | CH13 | kinematic joints in an Assembly (slider-crank: revolute + prismatic, closed loop) | **FIXED #204**: "joints" in the Assembly record (revolute / slider / fixed), a planar Newton loop solver with lock (rank) detection (assembly_loop.gd); check_motion and the Check motion panel follow the loop; the CH13 engine drives itself from its record (ch13_parts.loop_assembly, pose_of matched to 6e-11 mm) (docs/G2LOOP_FEEDBACK.md; gears/cams as loop joints, velocities and spatial loops are left) | pose_of() computed every part's pose in GDScript | done |
 | G3 | CH13 | tolerances and fits on a Part (ISO 286 class on a hole/shaft, stack-up chains) | nothing in Part; the lane wrote ch13_engine.gd (IT tables, deviations) | 362 lines of GDScript | fit classes as Part dimension attributes, with a stack-up panel (worst case + RSS) |
 | G4 | CH13, CH14 | double precision in poses | Transform3D and Vector2 are float32: about 1e-4 mm at 100 mm | bars amended to 1e-4 mm | keep CAD poses in doubles (Dictionary floats / PackedFloat64Array) and convert only for display |
 | G5 | CH14 | hydraulic and fluid circuit elements (syringe pair, hose compliance, air) | nothing | ch14_arm.gd closed forms | a "circuit" layer: hydraulic and pneumatic actuators with line compliance, joined to Assembly joints |
@@ -99,6 +99,7 @@ The lead copies section 3's rows into the ledger below, one line each, so gaps f
 ## 5. Tools that already exist (search before writing your own)
 Several lanes rebuilt tools Kine already had (gaps G9, G26, and the CH1f cutaway). Before writing a helper, check this list and grep:
 - **Involute gears:** scripts/build/part_gear.gd (+ part_gear_ui.gd), clock_ch2.gd involute_outline(), scripts/gear_drive.gd.
+- **Mechanisms that move (hinges, slides, gear links, closed loops):** AssemblyMotion drives/links + check_motion (scripts/build/assembly_motion.gd), AssemblyLoop joints and the loop solver (scripts/build/assembly_loop.gd; ch13_parts.loop_assembly is a worked slider-crank).
 - **Overlap of posed parts:** KCad.overlap_volume (scripts/kcad.gd). Pose exact solids with ch13_parts.gd solid() / place().
 - **Section or cutaway render:** scripts/build/section_look.gd (SectionLook; ch13_scene.gd set_cut shows the use).
 - **Whole-body centre of mass:** Balance.com(body) (scripts/balance.gd).

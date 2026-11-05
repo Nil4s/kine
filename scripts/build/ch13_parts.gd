@@ -175,16 +175,37 @@ static func points(th_deg: float, opts := {}) -> Dictionary:
 	return {"crankpin": _at(po["crankshaft"], Vector3(0, R, 29.0)), "rod_big": _at(po["rod"], Vector3(0, 0, 10.0)), "rod_small": _at(po["rod"], Vector3(0, L, 10.0)), "pin": _at(po["pin"], Vector3(0, 0, 16.5))}
 
 
-## an Assembly record (the Friday-213 engine) at crank angle th_deg
-static func assembly(th_deg: float) -> Dictionary:
+## an Assembly record (the Friday-213 engine) at crank angle th_deg. opts rod_len: another rod (its record and the poses)
+static func assembly(th_deg: float, opts := {}) -> Dictionary:
 	var asm := Assembly.make("Single-cylinder engine (CH13)")
-	var po := pose_of(th_deg)
+	var po := pose_of(th_deg, opts)
 	var i := 0
 	for nm in NAMES:
 		i += 1
-		asm["parts"].append({"id": "p%d" % i, "name": String(nm).capitalize(), "src": "", "rec": record(nm), "pos": po[nm]["pos"], "rot": po[nm]["rot"]})
+		var rec := record(nm, {"rod_len": float(opts["rod_len"])}) if nm == "rod" and opts.has("rod_len") else record(nm)
+		asm["parts"].append({"id": "p%d" % i, "name": String(nm).capitalize(), "src": "", "rec": rec, "pos": po[nm]["pos"], "rot": po[nm]["rot"]})
 	asm["seq"] = i
 	return asm
+
+
+## G2LOOP: the drive and joints that let the engine record drive itself (AssemblyLoop), instead of pose_of(). The parts are p1..p7 in NAMES
+## order, posed at TDC. The crank turns clockwise seen from +z (a turn about -z), so the drive's value is pose_of's theta.
+## slider false leaves out the piston's slide in the bore (the UI test adds it on screen)
+static func with_loop(asm: Dictionary, rod_len := L, slider := true) -> Dictionary:
+	AssemblyMotion.set_drive(asm, AssemblyMotion.make_drive("Crank", "p2", "rotate", Vector3(0, 0, -1), Vector3.ZERO, 0.0, 360.0))
+	var Z := [0.0, 0.0, 1.0]
+	AssemblyLoop.add_joint(asm, AssemblyLoop.make_joint("revolute", "p2", "ground", Z, [0.0, 0.0, 0.0], [0.0, 0.0, Z_CRANK0], "crank in the case"))
+	AssemblyLoop.add_joint(asm, AssemblyLoop.make_joint("revolute", "p3", "p2", Z, [0.0, 0.0, 10.0], [0.0, R, 29.0], "big end on the crank pin"))
+	AssemblyLoop.add_joint(asm, AssemblyLoop.make_joint("revolute", "p3", "p5", Z, [0.0, rod_len, 10.0], [0.0, 0.0, 16.5], "small end on the piston pin"))
+	AssemblyLoop.add_joint(asm, AssemblyLoop.make_joint("fixed", "p5", "p4", Z, [0.0, 0.0, 16.5], [0.0, 0.0, PIN_Z], "pin in the piston"))
+	if slider:
+		AssemblyLoop.add_joint(asm, AssemblyLoop.make_joint("slider", "p4", "ground", Z, [0.0, 0.0, PIN_Z], [], "piston in the bore"))
+	return asm
+
+
+## the engine record at TDC with its drive and joints
+static func loop_assembly(rod_len := L, slider := true) -> Dictionary:
+	return with_loop(assembly(0.0, {"rod_len": rod_len}) if rod_len != L else assembly(0.0), rod_len, slider)
 
 
 ## bar j: the exact solid of a record in its own frame (metres); 0 unless it builds ONE body. The caller releases it (KCad.release)
