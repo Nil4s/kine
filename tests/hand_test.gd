@@ -116,7 +116,7 @@ func flat_case(name: String, c: Vector3, n: Vector3, fdir: Vector3, solids: Arra
 	var old: Dictionary = HandShape.deepest(HandShape.caps(B, H), solids)
 	var old_area := HandShape.contact_area(B, H, solids)
 	HandShape.legacy = false
-	print("     %s: wrist miss %.1f mm, clamped %s, palm gap %.2f mm, forearm gap (wrist capsule) %.1f mm, wrist angles %s" % [name, float(r["miss"]) * 1000, r["clamped"], float(r["palm_gap"]) * 1000, float(r["forearm_gap"]) * 1000, B.ang[H]])
+	print("     %s: wrist miss %.1f mm, clamped %s, heading turned %.0f deg, palm tilt %.1f deg, palm gap %.2f mm, forearm gap (wrist capsule) %.1f mm, wrist angles %s" % [name, float(r["miss"]) * 1000, r["clamped"], float(r["turn"]), float(r["tilt"]), float(r["palm_gap"]) * 1000, float(r["forearm_gap"]) * 1000, B.ang[H]])
 	print("     %s: new hand deepest %.2f mm (%s), contact %.0f %%; old capsule deepest %.1f mm, contact %.0f %%" % [name, float(pen["d"]) * 1000, pen["part"], area * 100, float(old["d"]) * 1000, old_area * 100])
 	ok(float(pen["d"]) <= 0.002 and area >= 0.5, "b %s: deepest hand capsule %.2f mm (bar 2), palm contact %.0f %% (bar 50)" % [name, float(pen["d"]) * 1000, area * 100])
 	ok(float(old["d"]) > 0.010, "b PLANTED %s: the old capsule at the same pose is %.1f mm into the box (> 10)" % [name, float(old["d"]) * 1000])
@@ -165,8 +165,8 @@ func bar_c() -> void:
 		if HandShape.deepest(fc, [wall])["gap"] <= 0.005:
 			hold += 1
 	var fpen: Dictionary = HandShape.deepest(HandShape.finger_caps(B, H), [wall])
-	print("     hook: wrist miss %.1f mm, clamped %s, palm gap %.2f mm, forearm gap %.1f mm; tips past the face / below the top: %s; finger angles %s %s %s" % [
-		float(r["miss"]) * 1000, r["clamped"], float(r["palm_gap"]) * 1000, float(r["forearm_gap"]) * 1000, ", ".join(tips), B.ang["middle_01" + sd], B.ang["middle_02" + sd], B.ang["middle_03" + sd]])
+	print("     hook: wrist miss %.1f mm, clamped %s, heading turned %.0f deg, palm gap %.2f mm, forearm gap %.1f mm; tips past the face / below the top: %s; finger angles %s %s %s" % [
+		float(r["miss"]) * 1000, r["clamped"], float(r["turn"]), float(r["palm_gap"]) * 1000, float(r["forearm_gap"]) * 1000, ", ".join(tips), B.ang["middle_01" + sd], B.ang["middle_02" + sd], B.ang["middle_03" + sd]])
 	ok(float(r["palm_gap"]) >= -1e-6 and float(r["palm_gap"]) <= 0.002 and below == 4 and past == 4 and float(fpen["d"]) <= 0.001 and hold >= 3,
 		"c hook over the 0.6 m wall top: palm gap %.2f mm, %d/4 tips 2 cm below the top, %d/4 past the face, deepest finger %.2f mm (%s), %d/4 fingers within 5 mm of the face" % [
 		float(r["palm_gap"]) * 1000, below, past, float(fpen["d"]) * 1000, fpen["part"], hold])

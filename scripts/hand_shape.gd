@@ -334,7 +334,7 @@ static func _bend_to_touch(B: Body, h: String, fg: String, j: String, lo: float,
 
 
 ## the thumb laid on the surface: thumb_01's bend and side searched over its range on a 5 deg grid (thumb_02 / 03 straight),
-## the pose kept that is clear (GAP) and nearest the surface; if none is clear, the least deep
+## the pose kept that is clear (GAP) and nearest the surface (plus 0.05 mm per degree off rest); if none is clear, the least deep
 static func _thumb_rest(B: Body, h: String, solids: Array) -> void:
 	var sd := h.substr(4)
 	var j := "thumb_01" + sd
@@ -350,7 +350,8 @@ static func _thumb_rest(B: Body, h: String, solids: Array) -> void:
 			B.ang[j] = Vector3(b, s, 0.0)
 			B.fk()
 			var g := _finger_gap(B, h, "thumb", solids)
-			var cost := (g - GAP) if g >= GAP else 10.0 + (GAP - g)
+			# nearest the surface, and (0.05 mm a degree) least swung from rest: not a thumb stuck out at a right angle
+			var cost := ((g - GAP) if g >= GAP else 10.0 + (GAP - g)) + 0.00005 * (absf(b) + absf(s))
 			if cost < best_c:
 				best_c = cost
 				best = Vector3(b, s, 0.0)
@@ -400,17 +401,67 @@ static func palm_flat(B: Body, h: String, c: Vector3, n: Vector3, opts := {}) ->
 	if fdir.length() < 1e-6:
 		fdir = n.cross(Vector3.FORWARD if absf(n.dot(Vector3.FORWARD)) < 0.9 else Vector3.RIGHT)
 	fdir = fdir.normalized()
-	var Q := _hand_rot(f, fdir, -n)
 	var sd := h.substr(4)
 	for fg in FINGERS4:
 		for k in 3:
 			B.ang["%s_0%d%s" % [fg, k + 1, sd]] = Vector3.ZERO
 	B.fk()
+	var hook: Dictionary = opts.get("hook", {})
+	var pole: Vector3 = opts.get("pole", LimbIK.pole_from_pose(B, h))
+	var ang0 := B.ang.duplicate()
+	# THE HEADING WITHIN THE LIMITS: the wrist turns -60..70 / -20..30 / -80..80 (bend / side / twist), so not every heading
+	# of the fingers can be reached with the palm flat. The asked heading first, then turned about n by 5, -5, 10, -10 ...
+	# up to opts "turn" (default 90) deg: the first whose wrist no limit stops is kept; if none, the one with the palm least
+	# tilted off the surface
+	var turn_max: float = opts.get("turn", 90.0)
+	var best := {}
+	var best_tilt := INF
+	var k := 0
+	while true:
+		var a := 5.0 * float((k + 1) / 2) * (1.0 if k % 2 == 1 else -1.0)
+		if absf(a) > turn_max + 1e-6:
+			break
+		k += 1
+		for j in ang0:
+			B.ang[j] = ang0[j]
+		B.fk()
+		var hd := Quaternion(n, deg_to_rad(a)) * fdir
+		var tr := _place(B, h, c, n, hd, hook, pole, f)
+		var tilt := ((B.G[h] as Quaternion) * (f["nr"] as Vector3)).angle_to(-n)
+		if tilt < best_tilt - 1e-6:
+			best_tilt = tilt
+			best = {"a": a, "hd": hd}
+		if not (h in tr["clamped"]):
+			best = {"a": a, "hd": hd}
+			break
+	for j in ang0:
+		B.ang[j] = ang0[j]
+	B.fk()
+	var r := _place(B, h, c, n, best["hd"], hook, pole, f)
+	r["turn"] = best["a"]
+	r["tilt"] = rad_to_deg(((B.G[h] as Quaternion) * (f["nr"] as Vector3)).angle_to(-n))
+	if hook.is_empty():
+		for fg in FINGERS4:
+			_bend_to_touch(B, h, fg, "%s_01%s" % [fg, sd], 0.0, 25.0, solids)
+	else:
+		for fg in FINGERS4:
+			for q in 3:
+				var j := "%s_0%d%s" % [fg, q + 1, sd]
+				_bend_to_touch(B, h, fg, j, 0.0, float(B.lim[j]["bend"].y), solids)
+	_thumb_rest(B, h, solids)
+	return {"miss": r["miss"], "clamped": r["clamped"], "turn": r["turn"], "tilt": r["tilt"], "pen": deepest(caps(B, h), solids)["d"],
+		"palm_gap": palm_plane_gap(B, h, c, n), "forearm_gap": deepest(forearm_caps(B, h), solids)["gap"]}
+
+
+## one placement of palm_flat for the finger heading fdir: the hand turned, the wrist solved, then moved along n until the
+## palm's lowest point is GAP off. {"miss" (m), "clamped"}
+static func _place(B: Body, h: String, c: Vector3, n: Vector3, fdir: Vector3, hook: Dictionary, pole: Vector3, f: Dictionary) -> Dictionary:
+	var sd := h.substr(4)
+	var Q := _hand_rot(f, fdir, -n)
 	var d := dims(B, h)
 	var w0: Vector3 = B.p0[h]
 	var o0 := _palm_rest(B, h, float(d["length"]) * 0.5, 0.0, float(d["rho"])) - w0
 	var W := c + n * GAP - Q * o0
-	var hook: Dictionary = opts.get("hook", {})
 	if not hook.is_empty():
 		var on: Vector3 = (hook["over_n"] as Vector3).normalized()
 		var k0: Vector3 = (B.p0["middle_01" + sd] as Vector3) - w0
@@ -418,7 +469,6 @@ static func palm_flat(B: Body, h: String, c: Vector3, n: Vector3, opts := {}) ->
 		var along := on.dot(fdir)
 		if absf(along) > 1e-6:
 			W += fdir * ((FINGER_R * B.hand_s(h) + GAP - on.dot(mcp - (hook["edge"] as Vector3))) / along)
-	var pole: Vector3 = opts.get("pole", LimbIK.pole_from_pose(B, h))
 	var r := {}
 	for it in 5:
 		r = LimbIK.solve(B, h, W, pole, Q)
@@ -426,43 +476,48 @@ static func palm_flat(B: Body, h: String, c: Vector3, n: Vector3, opts := {}) ->
 		if absf(g - GAP) < 0.0001:
 			break
 		W += n * (GAP - g)
-	if hook.is_empty():
-		for fg in FINGERS4:
-			_bend_to_touch(B, h, fg, "%s_01%s" % [fg, sd], 0.0, 25.0, solids)
-	else:
-		for fg in FINGERS4:
-			for k in 3:
-				var j := "%s_0%d%s" % [fg, k + 1, sd]
-				_bend_to_touch(B, h, fg, j, 0.0, float(B.lim[j]["bend"].y), solids)
-	_thumb_rest(B, h, solids)
-	return {"miss": ((B.P[h] as Vector3) - W).length(), "clamped": r.get("clamped", []), "pen": deepest(caps(B, h), solids)["d"],
-		"palm_gap": palm_plane_gap(B, h, c, n), "forearm_gap": deepest(forearm_caps(B, h), solids)["gap"]}
+	return {"miss": ((B.P[h] as Vector3) - W).length(), "clamped": r.get("clamped", [])}
 
 
-## the curl c of finger fg (0 = straight, 1 = Body.POSE_FIST, its three joints together, as a fist closes)
-static func _curl(B: Body, h: String, fg: String, c: float) -> void:
+## the most open pose of each finger's three joints (bend, side, twist): the knuckle at its -20 deg stop; the thumb swung
+## back (-20) and up off the palm side (-30), its tip joints straight back (-10). close_on opens a finger toward it only
+## when the finger starts inside an obstacle (the rig's rest thumb hangs 8 cm palm-side of the hand, across a rope there).
+const OPEN := {"finger": [Vector3(-20, 0, 0), Vector3.ZERO, Vector3.ZERO], "thumb": [Vector3(-20, -30, 0), Vector3(-10, 0, 0), Vector3(-10, 0, 0)]}
+
+
+## the curl c of finger fg: 0 = its start (the open pose x t), 1 = Body.POSE_FIST, its three joints together, as a fist closes
+static func _curl(B: Body, h: String, fg: String, c: float, t := 0.0) -> void:
 	var sd := h.substr(4)
 	var fi: int = (FINGERS4 + ["thumb"]).find(fg)
+	var op: Array = OPEN["thumb" if fg == "thumb" else "finger"]
 	for k in 3:
 		var j := "%s_0%d%s" % [fg, k + 1, sd]
 		var v: Vector3 = Body.POSE_FIST[3 * fi + k]
+		var o: Vector3 = (op[k] as Vector3) * t
 		if sd == "_l" and fg == "thumb" and k == 0:
 			v.z = -v.z
-		B.ang[j] = B.clamp_ang(j, v * c)
+			o.z = -o.z
+		B.ang[j] = B.clamp_ang(j, o.lerp(v, c))
 	B.fk()
 
 
 ## CLOSE ON (G38): each finger of hand h (and the thumb) curls (_curl, 0 -> 1 in steps of 0.02) until it would come within
 ## GAP of the obstacles ([[a, b, r], ...] capsules: a rope's segments with its own radius); the last clear step is refined
-## by bisection. A finger never enters. Returns {finger: [curl, clearance m]}
+## by bisection. A finger never enters: one that starts inside is first opened toward OPEN (t in steps of 0.05) until it is
+## clear, and closes from there. Returns {finger: [curl, clearance m, open t]}
 static func close_on(B: Body, h: String, obstacles: Array) -> Dictionary:
 	var out := {}
 	for fg in FINGERS4 + ["thumb"]:
+		var t := 0.0
+		_curl(B, h, fg, 0.0, t)
+		while caps_gap(_finger(B, h, fg), obstacles) < GAP and t < 1.0 - 1e-9:
+			t = minf(1.0, t + 0.05)
+			_curl(B, h, fg, 0.0, t)
 		var lo := 0.0
 		var hi := -1.0
 		var c := 0.0
 		while c <= 1.0 + 1e-9:
-			_curl(B, h, fg, c)
+			_curl(B, h, fg, c, t)
 			if caps_gap(_finger(B, h, fg), obstacles) < GAP:
 				hi = c
 				break
@@ -471,11 +526,11 @@ static func close_on(B: Body, h: String, obstacles: Array) -> Dictionary:
 		if hi >= 0.0:
 			for it in 25:
 				var mid := (lo + hi) * 0.5
-				_curl(B, h, fg, mid)
+				_curl(B, h, fg, mid, t)
 				if caps_gap(_finger(B, h, fg), obstacles) >= GAP:
 					lo = mid
 				else:
 					hi = mid
-		_curl(B, h, fg, lo)
-		out[fg] = [lo, caps_gap(_finger(B, h, fg), obstacles)]
+		_curl(B, h, fg, lo, t)
+		out[fg] = [lo, caps_gap(_finger(B, h, fg), obstacles), t]
 	return out
