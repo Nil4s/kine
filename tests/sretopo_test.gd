@@ -1363,7 +1363,7 @@ func look(mn: Node) -> void:
 	var ui = mn.kmed
 	var rows := []
 	for view in [[25.0, -8.0], [-140.0, -12.0]]:
-		await look_at_mesh(mn, view[0], view[1], 0.7)
+		await look_at_mesh(mn, view[0], view[1], 1.25)
 		rows.append([await shot()])
 	ui.input(key(KEY_Q))
 	var t := KMeshRetopoUI.of(ui)
@@ -1375,13 +1375,13 @@ func look(mn: Node) -> void:
 	t._refresh()
 	for i in 2:
 		var view: Array = [[25.0, -8.0], [-140.0, -12.0]][i]
-		await look_at_mesh(mn, view[0], view[1], 0.7)
+		await look_at_mesh(mn, view[0], view[1], 1.25)
 		rows[i].append(await shot())
 	t.bake()
 	await idle(3)
 	for i in 2:
 		var view: Array = [[25.0, -8.0], [-140.0, -12.0]][i]
-		await look_at_mesh(mn, view[0], view[1], 0.7)
+		await look_at_mesh(mn, view[0], view[1], 1.25)
 		rows[i].append(await shot())
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(SHOT_DIR))
 	var names := ["mannequin_front.png", "mannequin_back.png"]
