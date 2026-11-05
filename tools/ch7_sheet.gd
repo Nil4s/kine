@@ -1,6 +1,6 @@
 ## godot --position -30000,-30000 --path . -s tools/ch7_sheet.gd -- <out.png>   (CH7b: a contact sheet of the parkour run)
 ## Side view from -x (he runs left to right), an orthographic camera that follows the pelvis; every 7th frame, 7 columns x 5 rows.
-## The body is drawn as its own collision capsules (Body.cap / Body.rad), the course as its boxes, the planned contact points as
+## The body is drawn as its own collision capsules (Parkour.caps_all: Body.cap, HandShape hands), the course as its boxes, the planned contact points as
 ## red dots, so what the sheet shows is exactly what the penetration and contact bars read.
 extends SceneTree
 
@@ -60,8 +60,9 @@ func _run() -> void:
 		vp.add_child(mi)
 	var mbody := StandardMaterial3D.new()
 	mbody.albedo_color = Color(0.25, 0.4, 0.75)
-	var caps := {}
-	for part in Body.BODY:
+	var caps := []
+	S.apply(B, 0.0)
+	for i in Parkour.caps_all(B).size():
 		var mi := MeshInstance3D.new()
 		var cm := CapsuleMesh.new()
 		cm.radial_segments = 12
@@ -69,7 +70,7 @@ func _run() -> void:
 		mi.mesh = cm
 		mi.material_override = mbody
 		vp.add_child(mi)
-		caps[part] = mi
+		caps.append(mi)
 	var mdot := StandardMaterial3D.new()
 	mdot.albedo_color = Color(0.9, 0.1, 0.1)
 	mdot.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -90,12 +91,13 @@ func _run() -> void:
 		var k := mini(i * STEP, nfr - 1)
 		var t := k / 30.0
 		S.apply(B, t)
-		for part in Body.BODY:
-			var c: Array = B.cap(part)
+		var ca := Parkour.caps_all(B)
+		for ci in mini(ca.size(), caps.size()):
+			var c: Array = ca[ci]
 			var a: Vector3 = c[0]
 			var b: Vector3 = c[1]
-			var r: float = B.rad[part]
-			var mi: MeshInstance3D = caps[part]
+			var r: float = c[2]
+			var mi: MeshInstance3D = caps[ci]
 			var cm: CapsuleMesh = mi.mesh
 			cm.radius = r
 			cm.height = a.distance_to(b) + 2.0 * r

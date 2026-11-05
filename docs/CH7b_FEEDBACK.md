@@ -2,7 +2,10 @@
 
 Lane CH7b (branch w4-ch7b, off the parked w4-ch7). Task: an 8 s Vector-style run with a vault, a wall run or climb, a drop and a roll,
 with trajectories pinned to their contacts. The plan is `scripts/parkour_plan.gd`, the engine `scripts/parkour.gd`, the bars
-`tests/ch7_test.gd` (not changed). **Status: PARKED, 21 ok / 1 fail.** Last commit: see the end of this file.
+`tests/ch7_test.gd` (bars not changed). **Status: GREEN, 22 ok / 0 fail (round 2, below).** Round 1 parked at 21 / 1 (bar 5).
+
+**Course change accepted by Nick 11-04**: the kong box 0.6 m nearer (z 9.4-10.0) and the 0.6 m deep ledge (section 5). Recorded in the
+test header too.
 
 ## 1. Result
 
@@ -149,3 +152,47 @@ Red: bar 5 only, 80 mm. To close it:
 Each one is local to one move; none needs a bar change.
 
 Last tested commit: 1cd99663 (run 3, logs C:/Temp/claude/w4-ch7b/w4). Commits after it change comments and this doc only.
+
+
+## Round 2 (11-04): bar 5 closed, GREEN
+
+Merged origin/poser-ui-rounds (HandShape, PR #200; register_types.cpp: both sides kept, native rebuilt). Run 1 of round 2,
+`wtest.sh ch7 hand easypart peasy3 freestart`: **ch7 22 ok / 0 fail**, hand 15/0, easypart 73/0, peasy3 23/0, freestart 14/0 (logs
+C:/Temp/claude/w4-ch7b/w5).
+
+| bar | round 1 | round 2 | bar |
+|---|---|---|---|
+| 1 plants: vault / kong / catch / mantle | 0.4-1.0 cm edge, slide <= 0.8 cm | 0.1 / 1.0 / 0.9 / 0.6 cm edge, slide 0.3 / 0.0 / 0.1 / 0.2 cm | 2 / 1 cm |
+| 2 speed drop | 12.9 % | 12.9 % | 15 % |
+| 3, 3b knee vs drop | 26.3 deg/m | 27.4 deg/m (69 / 79 / 95 / 107 deg at 0.67 / 0.71 / 1.58 / 1.83 m), monotone | 30.8 +- 20 % |
+| 4 foot skate | 0.8 mm | 7.9 mm (left wall step; see below) | 10 mm |
+| 5 penetration | 80.0 mm (kong thigh) | **5.1 mm** (left calf on the wall, frame 107) | 10 mm |
+| 6, 7a-7g | ok | ok (native true) | |
+
+What changed (engine scripts/parkour.gd, plan scripts/parkour_plan.gd, test header only):
+- **The hands are HandShape's** in the pose AND in the bar 5 scan (`Parkour.caps_all`: palm slab of 6 capsules, one capsule per
+  finger phalanx as posed, the forearm ending in the cited 2.8 cm wrist; Body's 4.7 cm hand sausage dropped). This changes what bar 5
+  measures (fingers now count, the palm is the cited 3.15 cm thick); the bar's 10 mm is unchanged, and the test prints the old-capsule
+  reading as info beside it: also 5.1 mm on these poses (the deepest frame is a calf).
+- **Plants by `HandShape.palm_flat`** (`Parkour._palm_hs`): the slab laid on the surface, fingers resting or curled, the thumb laid
+  down, all kept out of the course solids; its centre moved in the surface plane until Body.palm_point (bar 1's point) is on the
+  contact. Headings: vault fingers out to his right, kong / catch / mantle / roll fingers along the run (palm_flat may turn up to 90 deg
+  to keep the wrist inside its range).
+- **Free hands half closed** (HandShape._curl 0.45): the rig's rest thumb hung 8 cm palm-side into every box.
+- **Speed vault**: the palm 20 cm further out (x -0.55) so the arm comes in slanted and the wrist stays short of its 70 deg stop; the
+  pendulum (`arm_y`) uses the real wrist for that heading.
+- **Kong**: knees tucked to the chest after the hands leave (FK window 2.50-2.64: hip 115, knee 140 deg), shoulders over the wrists at
+  2.50 (was 2.44) so the 0.167 s plant window is mostly arm-behind; the 80 mm thigh is gone.
+- **Wall run**: the turned-out hip (knee pole off the wall) for the left steps; the crossing right foot asks only for the 25 deg of
+  roll its ankle has, knee forward (asking for more had swung the foot to point off the wall and laid the shank into it, 52 mm).
+  The left toe base sits 6.25 cm off the face (the ball capsule touches at 4.7), which costs skate margin: 7.9 mm of 10.
+- **The roll**: the arms tuck only after the hands leave (6.98); the roof snap rests the lowest HandShape capsule, not Body's.
+- The free foot's swing after the kong landing started from (0, 0, 0) (a stale hold time, 3.10 for 3.07): fixed.
+
+What looks wrong now (contact sheet C:/Temp/claude/ch7b/sheet_green.png, the HandShape capsules drawn): the kong reads well (a long
+dive to the far edge, knees high over the box). Unchanged from round 1: the speed vault is a sideways sit, the roll is a forward ball
+that ends sitting (not the diagonal shoulder-to-hip roll), free arms are stiff, landings brake to about 2.1 m/s. Margins are thin on
+bar 4 (7.9 of 10 mm) and bar 3 (27.4, floor 24.6).
+
+Gap update: the "hand that conforms" row of section 3 is answered by HandShape (palm_flat + finger capsules); what remains is that
+a contact surface's own hand heading has to be chosen by the plan (palm_flat's search picks one per frame and can flip).
