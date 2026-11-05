@@ -47,6 +47,9 @@ var stl_btn: Button
 var glb_btn: Button
 var step_btn: Button
 var video_btn: Button          # G7TIME: the animation filmed (scripts/build/assembly_render.gd)
+var drawing_btn: Button        # G30DRAW: exact-solid drawing and rated-block schematic sheets
+var schematic_btn: Button
+var sheet_exporting := false
 var filming := false
 var done_btn: Button
 var status_l: Label
@@ -235,6 +238,14 @@ func _build_panel() -> void:
 		(b as Button).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		r3.add_child(b)
 	vb.add_child(r3)
+	var r4 := HBoxContainer.new()
+	drawing_btn = _btn("Drawing", "asm_export_drawing", "Plan / front / SectionLook section from the exact CAD solids, with model dimensions, part labels, SVG and PNG", func(): export_sheet("drawing"))
+	schematic_btn = _btn("Schematic", "asm_export_schematic", "Rated blocks and power / signal wires from this Assembly record, with connection and rating checks, SVG and PNG", func(): export_sheet("schematic"))
+	r4.add_child(_lbl("Sheets", 13))
+	for b in [drawing_btn, schematic_btn]:
+		(b as Button).size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		r4.add_child(b)
+	vb.add_child(r4)
 	status_l = _lbl("", 12, "asm_status")
 	status_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	status_l.custom_minimum_size = Vector2(PANEL_W - 24.0, 0)
@@ -967,6 +978,26 @@ func export(fmt: String) -> Dictionary:
 			r = Assembly.export_glb(asm)
 		_:
 			r = Assembly.export_step(asm)
+	last_export = r
+	_say(String(r["text"]))
+	return r
+
+
+## G30/G31: the Assembly itself as a titled SVG + PNG sheet. Drawing dimensions come from exact solids; schematic ratings/wires
+## are optional record fields, so exporting never changes an old record.
+func export_sheet(kind := "drawing", opts := {}) -> Dictionary:
+	if sheet_exporting:
+		return {}
+	if editing != "":
+		_pull_edits()
+	sheet_exporting = true
+	drawing_btn.disabled = true
+	schematic_btn.disabled = true
+	_say("Making the %s sheet..." % kind)
+	var r: Dictionary = await AssemblyDraw.write(m, asm, kind, opts)
+	sheet_exporting = false
+	drawing_btn.disabled = false
+	schematic_btn.disabled = false
 	last_export = r
 	_say(String(r["text"]))
 	return r

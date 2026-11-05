@@ -115,7 +115,7 @@ func ch15_record(model: Dictionary) -> Dictionary:
 	for b in model["buses"]:
 		add_block(a, b["id"], {"name": b["id"], "kind": "bus", "v": b["kv"], "unit": "kV", "powered": true})
 	for x in model["xfmrs"]:
-		add_block(a, x["id"], {"name": x["id"], "kind": "transformer", "mva": x["mva"], "v": x["hv"], "unit": "kV", "rail": x["lv"], "powered": true})
+		add_block(a, x["id"], {"name": x["id"], "kind": "transformer", "mva": x.get("mva", 0.0), "v": x["hv"], "unit": "kV", "rail": x["lv"], "powered": true})
 		wire(a, x["from"], x["id"])
 		wire(a, x["id"], x["to"])
 	for g in model["gens"]:
@@ -177,7 +177,15 @@ func bars_wires() -> void:
 
 func xml_ok(s: String) -> bool:
 	var x := XMLParser.new()
-	return x.open_buffer(s.to_utf8_buffer()) == OK and x.read() == OK
+	if x.open_buffer(s.to_utf8_buffer()) != OK:
+		return false
+	while true:
+		var e := x.read()
+		if e == ERR_FILE_EOF:
+			return true
+		if e != OK:
+			return false
+	return false
 
 
 func bars_files() -> void:
