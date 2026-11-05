@@ -256,8 +256,8 @@ func _sync_time() -> void:
 	else:
 		var parts := PackedStringArray()
 		for k in ks:
-			parts.append("%s s %s" % [String.num(float(k[0]), 2), a._fmt(snappedf(float(k[1]), 0.01))])
-		keys_l.text = "%s keys (s %s): %s" % [drive, _u(), ", ".join(parts)]
+			parts.append("%s s: %s" % [a._fmt(float(k[0])), a._fmt(snappedf(float(k[1]), 0.01))])
+		keys_l.text = "%s keys (%s): %s" % [drive, _u(), ", ".join(parts)]
 
 
 ## the animation's pose at time_t, solved once per time and record change

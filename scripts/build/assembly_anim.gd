@@ -13,6 +13,7 @@
 class_name AssemblyAnim
 extends RefCounted
 
+const KCad := preload("res://scripts/kcad.gd")
 const FPS := 30
 const LENGTH := 2.0
 const INTERPS := ["linear", "smooth", "constant"]
@@ -259,7 +260,8 @@ static func frames(asm: Dictionary, ts: Array = []) -> Dictionary:
 
 ## Check motion along the animation: every frame's poses go to AssemblyMotion.check_motion. Each clash gets "t" (s) next to "at" (the
 ## drive's value; drive = opts "drive", else the first keyed drive). opts "hit_mm3" as check_motion. Adds "times", "drive", "frames" (the
-## frames() result without its moves) and per pair "first_t" / "worst_t"
+## frames() result without its moves) and per pair "first_t" / "worst_t". opts "refine" (default true): each pair's first clash time is
+## bisected between the last clear frame and the first clashing one (_refine)
 static func check(asm: Dictionary, opts := {}) -> Dictionary:
 	var dl := driven(asm)
 	if dl.is_empty():
@@ -300,7 +302,70 @@ static func check(asm: Dictionary, opts := {}) -> Dictionary:
 			if float(c["mm3"]) > worst:
 				worst = float(c["mm3"])
 				r["worst_t"] = c["t"]
+	if bool(opts.get("refine", true)) and bool(res.get("ok", false)):
+		_refine(asm, res, mv, drive, float(opts["hit_mm3"]) * 1e-9 if opts.has("hit_mm3") else Part.HIT_VOL)
 	return res
+
+
+## the onset of each pair's first clash, between the last clear frame and the first clashing one, by bisection in time (REFINE_STEPS halvings
+## of one frame): "first_t" / "first" become the earliest time (and drive value) found with an overlap over hit; "first_frame_t" keeps the
+## frame's. A pair that clashes from the first frame, or after a frame with no pose, keeps its frame time
+const REFINE_STEPS := 14
+
+
+static func _refine(asm: Dictionary, res: Dictionary, mv: Array, drive: String, hit: float) -> void:
+	var ts: Array = res["times"]
+	for key in res.get("by_pair", {}):
+		var r: Dictionary = res["by_pair"][key]
+		r["first_frame_t"] = r.get("first_t")
+		var c0: Dictionary = {}
+		for c in res["clashes"]:
+			if AssemblyMotion._pk(String(c["ida"]), String(c["idb"])) == key:
+				c0 = c
+				break
+		if c0.is_empty() or bool(c0["static"]) or int(c0["k"]) == 0 or mv[int(c0["k"]) - 1] == null:
+			continue
+		var pa: Dictionary = asm["parts"][Assembly.index_of(asm, String(c0["ida"]))]
+		var pb: Dictionary = asm["parts"][Assembly.index_of(asm, String(c0["idb"]))]
+		var la: Array = Part.replay(pa["rec"], -1, {"keep": true}).get("ids", [])
+		var lb: Array = Part.replay(pb["rec"], -1, {"keep": true}).get("ids", [])
+		var lo := float(ts[int(c0["k"]) - 1])
+		var hi := float(ts[int(c0["k"])])
+		for i in REFINE_STEPS:
+			var mid := (lo + hi) * 0.5
+			var po := pose_at(asm, mid)
+			if not bool(po["ok"]):
+				break
+			if _pair_vol(pa, pb, la, lb, po) > hit:
+				hi = mid
+			else:
+				lo = mid
+		Part.release_kept(la)
+		Part.release_kept(lb)
+		r["first_t"] = hi
+		r["first"] = value_at(asm, drive, hi)
+
+
+## the overlap (m3) of two parts posed by pose (pose_at's result)
+static func _pair_vol(pa: Dictionary, pb: Dictionary, la: Array, lb: Array, pose: Dictionary) -> float:
+	var st: Dictionary = pose["states"]
+	var placed: Array = []
+	for pr in [[pa, la], [pb, lb]]:
+		var p: Dictionary = pr[0]
+		var id := String(p["id"])
+		var mvs: Dictionary = pose["moves"]
+		if st.has(id) and st[id] != null and st.has("_n"):
+			placed.append(AssemblyMotion._place_all_state(pr[1], p, st[id], st))
+		else:
+			placed.append(AssemblyMotion._place_all(pr[1], (mvs[id] as Transform3D) * Assembly.xf_of(p) if mvs.has(id) else Assembly.xf_of(p)))
+	var vol := 0.0
+	for sa in placed[0]:
+		for sb in placed[1]:
+			vol += maxf(float(KCad.overlap_volume(int(sa), int(sb))), 0.0)
+	for side in placed:
+		for s in side:
+			KCad.release(int(s))
+	return vol
 
 
 ## one line per clashing pair: "Lid and Ceiling: from 1.87 s (65.33 deg), worst 184.0 mm3 at 2 s (70 deg)"

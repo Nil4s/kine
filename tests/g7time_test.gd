@@ -173,13 +173,15 @@ func lid_check(top: float, interp: String) -> Dictionary:
 	AN.set_key(a, "Lid", 0.0, 0.0, interp)
 	AN.set_key(a, "Lid", 2.0, top, "linear")
 	var r := AN.check(a)
-	var first := INF
+	var first := INF   # the listed first time (by_pair first_t: the bisected onset; first run read the first clashing frame, see the doc)
 	var only := true
 	for c in r["clashes"]:
-		first = minf(first, float(c["t"]))
 		var s := [String(c["a"]), String(c["b"])]
 		s.sort()
 		only = only and s == ["Ceiling", "Lid"]
+	for key in r["by_pair"]:
+		if int(r["by_pair"][key]["n"]) > 0:
+			first = minf(first, float(r["by_pair"][key]["first_t"]))
 	return {"r": r, "first": first, "only": only, "words": AN.words(a, r)}
 
 
