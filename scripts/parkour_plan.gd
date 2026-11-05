@@ -1,6 +1,6 @@
 ## parkour_plan.gd - CH7b: the 8 s chained run, planned CONTACTS FIRST (see parkour.gd for the engine that poses it).
 ##
-## Order of work (docs/CH7B_CONTACTS.md):
+## Order of work (docs/CH7b_FEEDBACK.md):
 ##   1 the CONTACT SCHEDULE: which foot / palm touches which point of which obstacle, over which window (schedule() lists it)
 ##   2 the pelvis ROOT is solved from the contacts: z by anchors (a palm plant puts the shoulder over the palm, a landing puts the
 ##     ankle ahead of the hip), y by the leg and arm reach at each contact and by BALLISTIC FLIGHT between them (g = 9.81, a
@@ -565,7 +565,9 @@ static func _build(drops: Dictionary) -> Dictionary:
 	Y.ease(6.06, Y0 + 1.7 + 0.80)
 	_hold(P, "feet", "foot_r", 5.98, 6.06, top_r)
 	_log(P, "foot_r", 5.98, 6.06, top_r, "ledge top", "sole (take-off)")
-	# the drop: ballistic from the take-off to the landing on both feet, then the hands, the shoulder, the back (the roll)
+	# the drop: ballistic from the take-off to the landing on both feet, then the hands, the shoulder, the back (the roll: "from the feet
+	# to the hands and to the back", "Kinematic analyses of Parkour landings from as high as 2.7 m", J Hum Kinet 72 (2020),
+	# doi 10.2478/hukin-2019-0123; shoulder to the opposite side, Puddle & Maulder 2013 J Sports Sci Med, PMC3761764)
 	# the legs extend 15 cm out of the absorption as he dives onto the hands (y_end <= 0: that far over the bottom)
 	_land(P, Y, L, 6.58, 6.82, "roofB", -0.15, true)
 	var bz := _zat(P, 6.58) + HIP_DZ + H_TD + FOOT_DZ
