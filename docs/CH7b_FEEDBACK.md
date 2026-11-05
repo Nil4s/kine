@@ -147,3 +147,5 @@ Red: bar 5 only, 80 mm. To close it:
 - (d) the mantle hand (about 20 mm) wants the palm point lifted to the hand capsule's radius while it turns from hooked to flat.
 
 Each one is local to one move; none needs a bar change.
+
+Last tested commit: 1cd99663 (run 3, logs C:/Temp/claude/w4-ch7b/w4). Commits after it change comments and this doc only.
