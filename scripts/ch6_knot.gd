@@ -119,6 +119,8 @@ static func tie_plan(start: Vector3, speed := 0.08, wrong := false) -> Dictionar
 	for k in REGRIP:
 		if k < W.size() - 1:
 			cuts.append(k)
+	cuts.append(6)   # DOWN is a measured phase too: a dwell here, not a regrip
+	cuts.sort()
 	cuts.append(W.size() - 1)
 	for ci in cuts.size() - 1:
 		var a: int = cuts[ci] * sub
@@ -140,6 +142,8 @@ static func tie_plan(start: Vector3, speed := 0.08, wrong := false) -> Dictionar
 		var k: int = cuts[ci + 1]
 		if ci == cuts.size() - 2:
 			break
+		if not REGRIP.has(k):
+			continue
 		var P: Vector3 = W[k]
 		var sn := signf(P.z)
 		if sn == side:
@@ -150,7 +154,7 @@ static func tie_plan(start: Vector3, speed := 0.08, wrong := false) -> Dictionar
 		var back_side := sn if k == 11 else side
 		var slower := 2 if k == 11 else 1
 		var out := 0.14 if k == 11 else REGRIP_OUT
-		var transit_x := 0.20 if k == 11 else REGRIP_X
+		var transit_x := REGRIP_X   # +0.20 m was beyond the right arm's reach (T0: 176 mm miss)
 		var legs: Array = [[P, 8 * slower, "open"], [P + Vector3(0, 0, out * back_side), 14 * slower, "free"], [Vector3(transit_x, P.y, out * back_side), 18 * slower, "free"],
 			[Vector3(transit_x, P.y, out * sn), 14 * slower, "free"], [P + Vector3(0, 0, out * sn), 18 * slower, "seek"], [P, 12 * slower, "seek"], [P, 6 * slower, "close"]]
 		var cur := P
