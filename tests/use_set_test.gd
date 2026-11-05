@@ -44,6 +44,28 @@ func on_set(t: String) -> BaseButton:
 	return null
 
 
+## a SET tool as a user reaches it: its icon if the row shows it, else its group's caption menu (6bde3d2d put the rarer
+## tools, Step up among them, under the captions: RIBBON_REST); the menu item runs the same button
+func press_set(t: String) -> void:
+	var b := on_set(t)
+	if b.is_visible_in_tree():
+		await click_ctl(b)
+		return
+	for pair in m.ui_caps["SET"]:
+		var i: int = (pair[1] as Array).find(b)
+		if i < 0:
+			continue
+		var cap: MenuButton = pair[0]
+		await click_ctl(cap)
+		var pm := cap.get_popup()
+		ok(pm.visible and pm.get_item_text(i) == t, "  %s: under the %s caption, its menu open" % [t, cap.text])
+		pm.id_pressed.emit(i)
+		pm.hide()
+		await idle(3)
+		return
+	ok(false, "  %s: neither on the row nor under a caption" % t)
+
+
 func sole(sd: String) -> float:
 	var B: Body = m.B
 	return minf((B.P["ball" + sd] as Vector3).y - (B.p0["ball" + sd] as Vector3).y, (B.P["foot" + sd] as Vector3).y - (B.p0["foot" + sd] as Vector3).y)
@@ -129,7 +151,7 @@ func _init() -> void:
 	var n2: int = m.S.cards.size()
 	var u2: int = m.undo.size()
 	var st: Dictionary = m.B.state()
-	await click_ctl(on_set("Step up"))
+	await press_set("Step up")
 	ok(m.S.cards.size() == n2 and m.undo.size() == u2 and JSON.stringify(m.B.state()) == JSON.stringify(st) and m.ui_status.text.contains("out of the foot's reach"),
 		"Step up with the box %.1f m off: refused ('%s'), nothing changed" % [(m.S.props[m.sel_prop]["xf"] as Transform3D).origin.distance_to(m.B.P["pelvis"] * Vector3(1, 0, 1)), m.ui_status.text.left(70)])
 	var fr: Vector3 = m.B.P["ball_r"]
@@ -139,7 +161,7 @@ func _init() -> void:
 	m.S.props[m.sel_prop] = Props.from_dict(d)
 	m._props_show()
 	await idle(2)
-	await click_ctl(on_set("Step up"))
+	await press_set("Step up")
 	ok(m.S.cards.size() == n2 + 1 and String(m.S.cards[m.sel_card]["name"]) == "step up on the box", "the box 45 cm in front of the right foot: Step up adds '%s'" % m.S.cards[m.sel_card]["name"])
 	at_card()
 	var B: Body = m.B

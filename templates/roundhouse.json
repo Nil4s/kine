@@ -10674,6 +10674,7 @@
  ],
  "floor_body": false,
  "fps": 30,
+ "kind": "animation",
  "length_s": 6.029,
  "natural": true,
  "note": "cards = poses in order; move = seconds to arrive from the card before (-1 = auto), hold = seconds still. In-betweens: scene.gd / MATH.md (natural = body leads, hands follow, smootherstep). bad_frames = frames with parts inside each other.",
