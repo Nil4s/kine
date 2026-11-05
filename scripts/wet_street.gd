@@ -427,12 +427,6 @@ func bake() -> void:
 	# world normal map (OpenGL convention: r = +x slope, g = +z, b = up) from the height field
 	var nd := PackedByteArray()
 	nd.resize(_w * _h * 3)
-	var nxa := PackedFloat32Array()
-	var nza := PackedFloat32Array()
-	var nya := PackedFloat32Array()
-	nxa.resize(_w * _h)
-	nza.resize(_w * _h)
-	nya.resize(_w * _h)
 	for py in _h:
 		var y0 := maxi(py - 1, 0)
 		var y1 := mini(py + 1, _h - 1)
@@ -443,98 +437,12 @@ func bake() -> void:
 			var gz := (hd[y1 * _w + px] - hd[y0 * _w + px]) / (float(y1 - y0) * TEXEL)
 			var il := 1.0 / sqrt(gx * gx + gz * gz + 1.0)
 			var o := (py * _w + px) * 3
-			nxa[py * _w + px] = -gx * il
-			nza[py * _w + px] = -gz * il
-			nya[py * _w + px] = il
 			nd[o] = clampi(int((-gx * il * 0.5 + 0.5) * 255.0 + 0.5), 0, 255)
 			nd[o + 1] = clampi(int((-gz * il * 0.5 + 0.5) * 255.0 + 0.5), 0, 255)
 			nd[o + 2] = clampi(int((il * 0.5 + 0.5) * 255.0 + 0.5), 0, 255)
 	_nimg = Image.create_from_data(_w, _h, false, Image.FORMAT_RGB8, nd)
-	for im in [wetimg, _nimg]:
+	for im in [mimg, diff_img_dry, wetimg, _nimg]:
 		(im as Image).generate_mipmaps()
-	mimg_mip = _toksvig_mips(md, nxa, nya, nza)
-	dry_mip = _toksvig_mips(dd, nxa, nya, nza)
-
-
-var mimg_mip: Image          ## the wet ground texture WITH Toksvig mip levels (mimg stays level 0 only: the tests read it)
-var dry_mip: Image
-
-
-## SPECULAR ANTI-ALIASING (Toksvig 2005, "Mipmapping normal maps"): a mip level averages the normals of its footprint; the average's length
-## L < 1 measures their spread, and the roughness of that level must grow by it or the sub-pixel setts' glints alias into random sparkles
-## (fix pass 2 look) instead of the broad wet sheen a camera integrates. Blinn-Phong 1/s' = 1/s + (1 - L)/L, with GGX alpha^2 ~ 2/s:
-## alpha'^2 = alpha^2 + 2 (1 - L) / L. Godot's alpha = roughness^2. Colour channels are box-averaged as generate_mipmaps() does.
-func _toksvig_mips(lvl0: PackedByteArray, nxa: PackedFloat32Array, nya: PackedFloat32Array, nza: PackedFloat32Array) -> Image:
-	var w := _w
-	var h := _h
-	var out := PackedByteArray()
-	out.append_array(lvl0)
-	var cr := PackedFloat32Array()
-	var cg := PackedFloat32Array()
-	var cb := PackedFloat32Array()
-	var a2 := PackedFloat32Array()
-	cr.resize(w * h)
-	cg.resize(w * h)
-	cb.resize(w * h)
-	a2.resize(w * h)
-	for k in w * h:
-		cr[k] = float(lvl0[k * 4])
-		cg[k] = float(lvl0[k * 4 + 1])
-		cb[k] = float(lvl0[k * 4 + 2])
-		var rr := float(lvl0[k * 4 + 3]) / 255.0
-		a2[k] = rr * rr * rr * rr
-	var nx := nxa.duplicate()
-	var ny := nya.duplicate()
-	var nz := nza.duplicate()
-	while w > 1 or h > 1:
-		var w2 := maxi(w >> 1, 1)
-		var h2 := maxi(h >> 1, 1)
-		var r2 := PackedFloat32Array()
-		var g2 := PackedFloat32Array()
-		var b2 := PackedFloat32Array()
-		var q2 := PackedFloat32Array()
-		var x2 := PackedFloat32Array()
-		var y2 := PackedFloat32Array()
-		var z2 := PackedFloat32Array()
-		for arr in [r2, g2, b2, q2, x2, y2, z2]:
-			(arr as PackedFloat32Array).resize(w2 * h2)
-		var lv := PackedByteArray()
-		lv.resize(w2 * h2 * 4)
-		for y in h2:
-			var ya := mini(y * 2, h - 1)
-			var yb := mini(y * 2 + 1, h - 1)
-			for x in w2:
-				var xa := mini(x * 2, w - 1)
-				var xb := mini(x * 2 + 1, w - 1)
-				var i0 := ya * w + xa
-				var i1 := ya * w + xb
-				var i2 := yb * w + xa
-				var i3 := yb * w + xb
-				var k := y * w2 + x
-				r2[k] = 0.25 * (cr[i0] + cr[i1] + cr[i2] + cr[i3])
-				g2[k] = 0.25 * (cg[i0] + cg[i1] + cg[i2] + cg[i3])
-				b2[k] = 0.25 * (cb[i0] + cb[i1] + cb[i2] + cb[i3])
-				q2[k] = 0.25 * (a2[i0] + a2[i1] + a2[i2] + a2[i3])
-				x2[k] = 0.25 * (nx[i0] + nx[i1] + nx[i2] + nx[i3])
-				y2[k] = 0.25 * (ny[i0] + ny[i1] + ny[i2] + ny[i3])
-				z2[k] = 0.25 * (nz[i0] + nz[i1] + nz[i2] + nz[i3])
-				var ln := maxf(sqrt(x2[k] * x2[k] + y2[k] * y2[k] + z2[k] * z2[k]), 1e-4)
-				var al2 := minf(q2[k] + 2.0 * (1.0 - ln) / ln, 1.0)
-				lv[k * 4] = clampi(int(r2[k] + 0.5), 0, 255)
-				lv[k * 4 + 1] = clampi(int(g2[k] + 0.5), 0, 255)
-				lv[k * 4 + 2] = clampi(int(b2[k] + 0.5), 0, 255)
-				lv[k * 4 + 3] = clampi(int(pow(al2, 0.25) * 255.0 + 0.5), 0, 255)
-		out.append_array(lv)
-		cr = r2
-		cg = g2
-		cb = b2
-		a2 = q2
-		nx = x2
-		ny = y2
-		nz = z2
-		w = w2
-		h = h2
-	return Image.create_from_data(_w, _h, true, Image.FORMAT_RGBA8, out)
 
 
 var _nimg: Image
@@ -669,8 +577,8 @@ func build(eyes: Array = [Vector3(0, EYE, 1.5)]) -> void:
 	we.environment = env
 	add_child(we)
 	# ground: a displaced mesh (bowls are real geometry), world-baked PBR textures
-	mat_wet = _mk_ground_mat(mimg_mip, _nimg)
-	mat_dry = _mk_ground_mat(dry_mip, _nimg)
+	mat_wet = _mk_ground_mat(mimg, _nimg)
+	mat_dry = _mk_ground_mat(diff_img_dry, _nimg)
 	mat_probe = StandardMaterial3D.new()
 	mat_probe.albedo_color = Color(1, 1, 1)
 	mat_probe.roughness = 1.0
