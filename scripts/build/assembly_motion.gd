@@ -5,7 +5,8 @@
 ##   "links":  [{"drive": "Lid", "part": "p3", "kind": "rotate" | "slide", "axis": [..], "origin": [mm], "gain": g}]
 ##             the follower moves by gain x the drive's value (a gear pair: gain = -z1 / z2; a rack on a pinion: gain = r_pitch x pi / 180 mm per deg)
 ## A driven or linked part moves from its record pose: world = motion(value) * Assembly.xf_of(part). Nothing here writes pos / rot.
-## NOT HERE (the rest of G2): a closed loop (slider-crank, four-bar) needs a loop solver; a link is open, one value in, one pose out.
+## A link is open, one value in, one pose out. CLOSED loops (slider-crank, four-bar) are the optional "joints" list (G2LOOP,
+## scripts/build/assembly_loop.gd): with joints, moves_at and check_motion pose the parts through the loop solver.
 ## check_motion() poses the parts' EXACT solids (Part.replay keep, KCad.rotate + translate) and asks KCad.overlap_volume (C70) for each pair whose
 ## boxes meet (1 mm grown). An overlap of Part.HIT_VOL (1 mm3) or less is contact, not a clash. Two parts that both stay still are checked once.
 class_name AssemblyMotion
@@ -100,8 +101,16 @@ static func value_of(asm: Dictionary, drive_name: String, v: float, pid: String)
 	return 0.0
 
 
-## part id -> its world move at the drive's value v (only the parts the drive moves: the driven part and its links)
+## part id -> its world move at the drive's value v (only the parts the drive moves). With "joints" (G2LOOP) the loop solver poses every part
+## the joints tie to the drive (scripts/build/assembly_loop.gd); when it finds no pose, only the driven part and its links move
 static func moves_at(asm: Dictionary, drive_name: String, v: float) -> Dictionary:
+	if AssemblyLoop.has_joints(asm):
+		return AssemblyLoop.solve(asm, drive_name, v)["moves"]
+	return open_moves(asm, drive_name, v)
+
+
+## the open chain (G1MOTION): the driven part and its links only
+static func open_moves(asm: Dictionary, drive_name: String, v: float) -> Dictionary:
 	var out := {}
 	var d := drive_of(asm, drive_name)
 	if d.is_empty():
@@ -146,7 +155,9 @@ static func _pk(a: String, b: String) -> String:
 
 ## the sweep. {"ok", "why", "clashes": [{"a", "b" (names), "ida", "idb", "at" (drive value), "mm3", "static"}], "by_pair": {"ida|idb": {"a", "b", "first", "worst_at", "worst_mm3", "n"}},
 ## "pairs" (pairs looked at), "kernel_calls" (overlap_volume calls), "skipped" (pair checks the boxes ruled out), "steps", "values", "moving" (ids), "ms"}
-## opts: "prefilter" (default true): false asks the kernel about every pair (a test counts the calls by hand)
+## opts: "prefilter" (default true): false asks the kernel about every pair (a test counts the calls by hand); "hit_mm3": the overlap that counts
+## as a clash (default Part.HIT_VOL, 1 mm3). With "joints" (G2LOOP) the parts follow the loop solver's sweep (AssemblyLoop.sweep, each step from
+## the last); a step with no pose is not checked, and "loop" = {"locks", "unsolved", "iters_total", "iters_max", "ms"}
 static func check_motion(asm: Dictionary, drive_name: String, steps: int, opts := {}) -> Dictionary:
 	var t0 := Time.get_ticks_msec()
 	var out := {"ok": false, "why": "", "clashes": [], "by_pair": {}, "pairs": 0, "kernel_calls": 0, "skipped": 0, "steps": steps, "values": [], "moving": [], "ms": 0}
@@ -158,10 +169,29 @@ static func check_motion(asm: Dictionary, drive_name: String, steps: int, opts :
 		out["why"] = "the CAD kernel with overlap_volume is missing"
 		return out
 	var prefilter := bool(opts.get("prefilter", true))
+	var hit_vol := float(opts["hit_mm3"]) * 1e-9 if opts.has("hit_mm3") else Part.HIT_VOL
 	var ps: Array = asm["parts"]
 	var vals := values(d, steps)
 	out["values"] = vals
-	var moving := moves_at(asm, drive_name, float(vals[0])).keys()
+	var track: Array = []   # G2LOOP: the moves at each value (null: no pose)
+	var moving: Array = []
+	if AssemblyLoop.has_joints(asm):
+		var sw := AssemblyLoop.sweep(asm, drive_name, vals)
+		if int(sw["n"]) == 0 and not bool(sw["ok"]) and (sw["steps"] as Array).is_empty():
+			out["why"] = String(sw["why"])
+			return out
+		out["loop"] = {"locks": sw["locks"], "unsolved": sw["unsolved"], "iters_total": sw["iters_total"], "iters_max": sw["iters_max"], "ms": sw["ms"], "why": sw["why"]}
+		for st in sw["steps"]:
+			track.append(st["moves"] if bool(st["ok"]) else null)
+			if bool(st["ok"]):
+				for id in st["moves"]:
+					if not moving.has(id):
+						moving.append(id)
+		if moving.is_empty():
+			out["why"] = "the loop solver found no pose at any step: " + String(sw["why"])
+			return out
+	else:
+		moving = moves_at(asm, drive_name, float(vals[0])).keys()
 	out["moving"] = moving
 	var local := {}    # id -> [solid ids] in the part's own frame
 	var box := {}      # id -> AABB, own frame (m)
@@ -182,9 +212,14 @@ static func check_motion(asm: Dictionary, drive_name: String, steps: int, opts :
 	var calls := 0
 	var skipped := 0
 	var bad := false
+	var first_k := -1   # the first step with a pose: two still parts are checked there
 	for k in vals.size():
 		var v := float(vals[k])
-		var mv: Dictionary = moves_at(asm, drive_name, v)
+		if not track.is_empty() and track[k] == null:
+			continue
+		if first_k < 0:
+			first_k = k
+		var mv: Dictionary = track[k] if not track.is_empty() else open_moves(asm, drive_name, v)
 		var placed := placed_static.duplicate()
 		var wbox := {}
 		for p in ps:
@@ -200,7 +235,7 @@ static func check_motion(asm: Dictionary, drive_name: String, steps: int, opts :
 				var ia := String(a["id"])
 				var ib := String(b["id"])
 				var still := not mv.has(ia) and not mv.has(ib)
-				if still and k > 0:
+				if still and k > first_k:
 					continue   # two parts that never move: once is enough
 				var key := _pk(ia, ib)
 				if not by_pair.has(key):
@@ -216,7 +251,7 @@ static func check_motion(asm: Dictionary, drive_name: String, steps: int, opts :
 							if o < 0.0:
 								bad = true
 							vol += maxf(o, 0.0)
-				if vol > Part.HIT_VOL:
+				if vol > hit_vol:
 					var row: Dictionary = by_pair[key]
 					row["n"] = int(row["n"]) + 1
 					if row["first"] == null:

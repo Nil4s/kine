@@ -4,7 +4,9 @@
 ##   Run        sweeps the drive (steps + 1 samples, both ends) with the exact solids; each clashing pair is listed with its angle or place,
 ##              and the parts go red
 ##   slider     scrubs the drive: the parts move on screen only (the record keeps its poses); Close puts them back
-## The only record change is a drive added; Ctrl+Z takes it back (AssemblyUI.undo_redo).
+##   joint      (G2LOOP) Pin / Slide / Weld from the selected part to another part or Ground, at the axis and point above: ONE undo step.
+##              With joints, the drive moves every part they tie to it (AssemblyLoop): the scrub and the sweep follow the closed loop
+## The only record changes are a drive or a joint added; Ctrl+Z takes it back (AssemblyUI.undo_redo).
 class_name AssemblyMotionUI
 extends RefCounted
 
@@ -26,6 +28,13 @@ var list_vb: VBoxContainer
 var scrub: HSlider
 var at_l: Label
 var close_btn: Button
+var jkind_ob: OptionButton     # G2LOOP: a joint's kind, its other part, Add joint, the count
+var jto_ob: OptionButton
+var jadd_btn: Button
+var jcount_l: Label
+var rev := 0                   # bumped on every record change: the loop pose cache's key
+var _loop_key := ""
+var _loop_sol := {}
 var drive := ""                # the drive picked
 var res := {}                  # the last sweep (AssemblyMotion.check_motion)
 var scrub_on := false
@@ -89,6 +98,28 @@ func setup(owner: AssemblyUI) -> void:
 	vb.add_child(h3)
 	add_btn = a._btn("Add drive", "asm_motion_add", "Make the selected part a drive (one Ctrl+Z takes it back)", add_drive)
 	vb.add_child(add_btn)
+	vb.add_child(a._lbl("New joint: the selected part to", 12))
+	var hj := HBoxContainer.new()
+	jkind_ob = OptionButton.new()
+	jkind_ob.name = "asm_motion_jkind"
+	jkind_ob.focus_mode = Control.FOCUS_NONE
+	for t in ["Pin (turns)", "Slide", "Weld"]:
+		jkind_ob.add_item(t)
+	jkind_ob.tooltip_text = "Pin: turns about the axis through the point. Slide: moves along the axis. Weld: moves with the other part"
+	hj.add_child(jkind_ob)
+	jto_ob = OptionButton.new()
+	jto_ob.name = "asm_motion_jto"
+	jto_ob.focus_mode = Control.FOCUS_NONE
+	jto_ob.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	jto_ob.tooltip_text = "The other part of the joint, or Ground (the assembly itself)"
+	hj.add_child(jto_ob)
+	vb.add_child(hj)
+	jadd_btn = a._btn("Add joint", "asm_motion_jadd", "Join the selected part to the other one at the axis and point above (one Ctrl+Z takes it back). With joints, a drive moves every part they tie to it (a closed loop: slider-crank, four-bar)", add_joint)
+	vb.add_child(jadd_btn)
+	jcount_l = a._lbl("", 12, "asm_motion_joints")
+	jcount_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	jcount_l.custom_minimum_size = Vector2(W - 24.0, 0)
+	vb.add_child(jcount_l)
 	var h4 := HBoxContainer.new()
 	h4.add_child(a._lbl("Steps", 12))
 	steps_e = _num_edit("asm_motion_steps", "36")
@@ -164,6 +195,7 @@ func close() -> void:
 func reset(hide: bool) -> void:
 	res = {}
 	scrub_on = false
+	rev += 1
 	if hide and panel != null:
 		panel.visible = false
 	if AssemblyMotion.drive_of(a.asm, drive).is_empty():
@@ -191,10 +223,50 @@ func _fill_drives() -> void:
 		if drive_ob.get_item_text(i) == drive:
 			drive_ob.select(i)
 	run_btn.disabled = drive == ""
+	var keep := jto_ob.get_item_text(jto_ob.selected) if jto_ob.selected >= 0 else "Ground"
+	jto_ob.clear()
+	jto_ob.add_item("Ground")
+	for p in a.asm["parts"]:
+		jto_ob.add_item(String(p["name"]))
+	for i in jto_ob.item_count:
+		if jto_ob.get_item_text(i) == keep:
+			jto_ob.select(i)
+	var nj := AssemblyLoop.joints(a.asm).size()
+	jcount_l.text = "No joints: a drive moves only its part and its links" if nj == 0 else "%d joint%s: the drive moves every part they tie to it" % [nj, "" if nj == 1 else "s"]
+
+
+## G2LOOP: a joint from the selected part to the part (or Ground) picked, at the axis and point typed above
+func add_joint() -> void:
+	var p := a._sel_part()
+	if p.is_empty():
+		a._say("Select the part to join first (click it or its row), then Add joint")
+		return
+	var to_name := jto_ob.get_item_text(jto_ob.selected) if jto_ob.selected >= 0 else "Ground"
+	var to := "ground"
+	if to_name != "Ground":
+		for q in a.asm["parts"]:
+			if String(q["name"]) == to_name:
+				to = String(q["id"])
+	if to == String(p["id"]):
+		a._say("A part can't be joined to itself: pick the other part or Ground")
+		return
+	var kind: String = AssemblyLoop.KINDS[jkind_ob.selected]
+	var axis: Vector3 = AssemblyUI.AXES[axis_ob.selected]
+	var o := Vector3(a._num((org_e[0] as LineEdit).text, 0.0), a._num((org_e[1] as LineEdit).text, 0.0), a._num((org_e[2] as LineEdit).text, 0.0))
+	var nm := "%s %s %s" % [String(p["name"]), ["on", "in", "welded to"][jkind_ob.selected], to_name]
+	a.push_undo("joint " + nm)
+	AssemblyLoop.add_joint(a.asm, AssemblyLoop.joint_at(a.asm, kind, String(p["id"]), to, axis, o, nm))
+	rev += 1
+	res = {}
+	_fill_drives()
+	_sync_scrub()
+	a._refresh(false)
+	a._say("Joint added: %s (%s). Scrub or Run the sweep to see the loop move" % [nm, ["turns about", "slides along", "welded, axis"][jkind_ob.selected] + " " + ["X", "Y", "Z"][axis_ob.selected]])
 
 
 func pick(nm: String) -> void:
 	drive = nm
+	rev += 1
 	res = {}
 	scrub_on = false
 	_fill_drives()
@@ -219,6 +291,7 @@ func add_drive() -> void:
 	a.push_undo("drive " + nm)
 	AssemblyMotion.set_drive(a.asm, AssemblyMotion.make_drive(nm, String(p["id"]), kind, axis, o, lo, hi))
 	drive = nm
+	rev += 1
 	res = {}
 	scrub_on = false
 	_fill_drives()
@@ -246,6 +319,13 @@ func run() -> Dictionary:
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.custom_minimum_size = Vector2(W - 24.0, 0)
 		l.add_theme_color_override("font_color", Color(1.0, 0.45, 0.4))
+		list_vb.add_child(l)
+	var lw := AssemblyLoop.lock_words(res, "deg" if String(AssemblyMotion.drive_of(a.asm, drive).get("kind", "rotate")) == "rotate" else "mm")
+	for i in lw.size():
+		var l := a._lbl(lw[i], 12, "asm_motion_lock_%d" % i)
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(W - 24.0, 0)
+		l.add_theme_color_override("font_color", Color(1.0, 0.75, 0.3))
 		list_vb.add_child(l)
 	_sync_scrub()
 	var cl: Array = res.get("clashes", [])
@@ -294,6 +374,11 @@ func _at_words() -> void:
 	var u := "deg" if String(d.get("kind", "rotate")) == "rotate" else "mm"
 	var v := scrub_v if scrub_on else float((d["range"] as Array)[0])
 	var t := "%s at %s %s" % [drive, a._fmt(snappedf(v, 0.01)), u]
+	if AssemblyLoop.has_joints(a.asm):
+		var s := _loop_at(v)
+		if not bool(s["ok"]):
+			at_l.text = t + ": NOT SOLVED: " + String(s["why"])
+			return
 	if not res.is_empty():
 		var pairs := AssemblyMotion.clashing_at(res, v)
 		var names: PackedStringArray = []
@@ -315,8 +400,21 @@ func scrubbing() -> bool:
 ## the part's place on screen: moved by the scrubbed drive, else the record's pose
 func xf_of(p: Dictionary) -> Transform3D:
 	if scrubbing():
+		if AssemblyLoop.has_joints(a.asm):
+			var mv: Dictionary = _loop_at(scrub_v)["moves"]
+			var id := String(p["id"])
+			return (mv[id] as Transform3D) * Assembly.xf_of(p) if mv.has(id) else Assembly.xf_of(p)
 		return AssemblyMotion.xf_at(a.asm, drive, scrub_v, p)
 	return Assembly.xf_of(p)
+
+
+## G2LOOP: the loop solver's pose at v, solved once per value and record change (every part's xf_of asks)
+func _loop_at(v: float) -> Dictionary:
+	var k := "%d|%s|%s" % [rev, drive, str(v)]
+	if k != _loop_key:
+		_loop_sol = AssemblyLoop.solve(a.asm, drive, v)
+		_loop_key = k
+	return _loop_sol
 
 
 ## red over every part in a clash of the last sweep
