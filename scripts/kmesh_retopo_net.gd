@@ -60,7 +60,8 @@ func setup(mesh: KMesh, p_edge_len := -1.0) -> void:
 	hs = diag * HS_FRAC
 	edge_len = p_edge_len if p_edge_len > 0.0 else diag / 14.0
 	closed_src = mesh.boundary_edge_count() == 0
-	if ClassDB.class_exists("KineRetopoNative"):
+	nat = null
+	if NativeExt.ensure("kine_native", "KineRetopoNative"):
 		nat = ClassDB.instantiate("KineRetopoNative")
 		nat.set_source(mesh.verts, tris)
 	strokes = {}
@@ -591,9 +592,10 @@ func _flag_open_regions() -> void:
 				else:
 					em[key] = Vector2i(t, k)
 		_mean_edge = el / float(nt * 3)
-	var wall := PackedByteArray()
-	wall.resize(nt)
-	for a in arcs:
+	var wall := PackedInt32Array()
+	wall.resize(nt)   # 0 free, arc + 1, or -1 where several arcs pass
+	for ai in arcs.size():
+		var a: Dictionary = arcs[ai]
 		var pl: PackedVector3Array = a["pts"]
 		var cu := _cum(pl)
 		var n := maxi(2, int(ceil(cu[cu.size() - 1] / (0.25 * _mean_edge))))
@@ -608,14 +610,14 @@ func _flag_open_regions() -> void:
 				flat.append(q.z)
 			var tr: PackedInt32Array = nat.project(flat)["tris"]
 			for t in tr:
-				wall[t] = 1
+				wall[t] = ai + 1 if wall[t] == 0 or wall[t] == ai + 1 else -1
 	var comp := PackedInt32Array()
 	comp.resize(nt)
 	comp.fill(-1)
 	var open: Array = []
 	var nc := 0
 	for t0 in nt:
-		if wall[t0] == 1 or comp[t0] >= 0:
+		if wall[t0] != 0 or comp[t0] >= 0:
 			continue
 		var stack := [t0]
 		comp[t0] = nc
@@ -660,7 +662,7 @@ func _flag_open_regions() -> void:
 
 
 ## the flood region on the left of a patch's first half-edges (-1: none found next to them)
-func _left_region(p: Dictionary, wall: PackedByteArray, comp: PackedInt32Array) -> int:
+func _left_region(p: Dictionary, wall: PackedInt32Array, comp: PackedInt32Array) -> int:
 	var ring: PackedInt32Array = p["ring"]
 	for hi in mini(ring.size(), 3):
 		var h: int = ring[hi]
@@ -672,12 +674,23 @@ func _left_region(p: Dictionary, wall: PackedByteArray, comp: PackedInt32Array) 
 		var tg := (m1 - m0).normalized() * (1.0 if (h & 1) == 0 else -1.0)
 		var nrm: Vector3 = (project(PackedVector3Array([m0]))["nrm"] as PackedVector3Array)[0]
 		var left := nrm.cross(tg).normalized()
-		for k in range(1, 25):
-			var q := m0 + left * (0.25 * _mean_edge * k)
-			var tri: int = (nat.project(PackedFloat64Array([q.x, q.y, q.z]))["tris"] as PackedInt32Array)[0]
-			if tri < 0 or wall[tri] == 1:
-				continue
-			return comp[tri]
+		var own: int = (h >> 1) + 1
+		var wp := m0
+		for k in 24:   # walk on the surface to the left until a free triangle; another stroke's wall first = no answer here
+			var q := wp + left * (0.25 * _mean_edge)
+			var r: Dictionary = nat.project(PackedFloat64Array([q.x, q.y, q.z]))
+			var tri: int = (r["tris"] as PackedInt32Array)[0]
+			var rp: PackedFloat64Array = r["pts"]
+			var rn: PackedFloat64Array = r["normals"]
+			wp = Vector3(rp[0], rp[1], rp[2])
+			var n2 := Vector3(rn[0], rn[1], rn[2])
+			left = (left - n2 * left.dot(n2)).normalized()
+			if tri < 0:
+				break
+			if wall[tri] == 0:
+				return comp[tri]
+			if wall[tri] != own:
+				break
 	return -1
 
 

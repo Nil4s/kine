@@ -22,6 +22,10 @@ extends RefCounted
 ## corner of valence 2 adds 1, so n corners leave 4 - n for the interior: +2 (two valence-3), +1 (valence 3), 0, -1 (valence 5),
 ## -2 (one valence-6 vertex) for n = 2, 3, 4, 5, 6.
 const MIN_SING := {2: 2, 3: 1, 4: 0, 5: 1, 6: 1}   # interior singular vertices of the patch with n sides
+## The 2-sided patch's X and Y start at the parallelogram points a1 + b1 - P, which land on the wrong side of each other when
+## the corners are wide (a lens whose corners are near 180 degrees: tests/sretopo_test.gd bar 1 found 4 flipped fills), so its
+## interior is then relaxed by this many Laplacian steps (with a convex ring that is Tutte's embedding: nothing folds).
+const DIGON_SMOOTH := 100
 
 
 ## the integer plan for side counts d: {"ok", "kind", "reason", "n", "f", "p", "alpha", "beta", "singular" (their valences)}
@@ -218,6 +222,7 @@ static func fill(sides: Array) -> Dictionary:
 		for k in be + 1:
 			right.append(b.ring(1, k))
 		b.grid(bottom, right, sYB, sYA)
+		b.smooth(DIGON_SMOOTH)
 	var pv := PackedFloat64Array(b.P)
 	var qv := PackedInt32Array(b.Q)
 	return {"ok": true, "reason": "", "kind": pl["kind"], "verts": pv, "quads": qv, "nring": b.nring, "singular": PackedInt32Array(b.special)}
@@ -252,6 +257,40 @@ class _B:
 			out.append(addv(x, y, z))
 		out.append(b)
 		return out
+
+	## Gauss-Seidel steps of the uniform Laplacian on the non-ring verts (neighbours in ascending order, as the C++ does)
+	func smooth(steps: int) -> void:
+		var nv := P.size() / 3
+		var nb := []
+		nb.resize(nv)
+		for v in nv:
+			nb[v] = {}
+		for q in Q.size() / 4:
+			for k in 4:
+				var a: int = Q[q * 4 + k]
+				var c: int = Q[q * 4 + (k + 1) % 4]
+				nb[a][c] = true
+				nb[c][a] = true
+		var lists := []
+		for v in nv:
+			var l: Array = (nb[v] as Dictionary).keys()
+			l.sort()
+			lists.append(l)
+		for it in steps:
+			for v in range(nring, nv):
+				var l: Array = lists[v]
+				if l.is_empty():
+					continue
+				var sx := 0.0
+				var sy := 0.0
+				var sz := 0.0
+				for w in l:
+					sx += P[w * 3]
+					sy += P[w * 3 + 1]
+					sz += P[w * 3 + 2]
+				P[v * 3] = sx / float(l.size())
+				P[v * 3 + 1] = sy / float(l.size())
+				P[v * 3 + 2] = sz / float(l.size())
 
 	func grid(bottom: Array, right: Array, top: Array, left: Array) -> void:
 		var A := bottom.size() - 1

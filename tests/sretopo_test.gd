@@ -33,6 +33,11 @@
 ##     the surface; wheel over a side changes its count; Delete removes the hovered stroke; Bake replaces the mesh by an all-quad
 ##     mesh in ONE undo step and Ctrl+Z gives the source back exactly. The pole of the keys: Q was free in the model preview.
 ##   LOOK: screenshots of the mannequin head and torso: strokes, patches, baked quads with the heat map, beside the source.
+## AMENDED after the first runs (fixtures only, no bar moved): (a) bar 3/4 real mesh: the stroke rings were at heights where
+## the mannequin's head + chest piece is not a closed loop (its head shell is open below 1.67 m, its chest edge slants below
+## 1.32 m), so they are now at 1.69 / 1.75 m (head) and 1.34 / 1.39 / 1.44 m (chest). (b) bar 4 planted: every patch of both
+## networks already read >= 0.5 before relaxation, so none of them could be the planted; it is now a curved patch with skewed
+## counts (the sphere's octant, sides 4, 10, 12), measured with 20 steps (>= 0.3) and with 0 (< 0.3).
 extends SceneTree
 
 const MIN_SING := {2: 2, 3: 1, 4: 0, 5: 1, 6: 1}
@@ -66,7 +71,7 @@ func _init() -> void:
 		print("FAIL watchdog: the suite did not finish in 380 s")
 		fails += 1
 		_finish())
-	if ClassDB.class_exists("KineRetopoNative"):
+	if NativeExt.ensure("kine_native", "KineRetopoNative"):
 		nat = ClassDB.instantiate("KineRetopoNative")
 	ok(nat != null, "DLL: KineRetopoNative loads (version %s)" % (str(nat.version()) if nat != null else "-"))
 	sphere = KMeshPrims.uv_sphere(1.0, 64, 32)
@@ -278,7 +283,7 @@ static func check_patch(r: Dictionary, d: PackedInt32Array) -> String:
 			var b: int = f[(i + 1) % 4]
 			nz += (pv[a * 3] - pv[b * 3]) * (pv[a * 3 + 1] + pv[b * 3 + 1])
 		if nz <= 0.0:
-			return "quad %d is flipped (normal.z %.3g)" % [q, nz]
+			return "quad %d is flipped (normal.z %s)" % [q, String.num_scientific(nz)]
 		for i in 4:
 			var a: int = f[i]
 			var b: int = f[(i + 1) % 4]
@@ -444,7 +449,9 @@ func bar_dictionary() -> void:
 	var sj2 := []
 	for s in sj:
 		sj2.append((s as PackedFloat64Array).duplicate())
-	(sj2[0] as PackedFloat64Array)[3] += 1e-6
+	var s0p: PackedFloat64Array = sj2[0]   # a packed array in an Array is a copy: change it, put it back
+	s0p[3] += 1e-6
+	sj2[0] = s0p
 	var ra := KMeshRetopoFill.fill(sj)
 	var rb: Dictionary = nat.fill(sj2)
 	var pm := 0.0
@@ -726,6 +733,24 @@ func bar_sphere_net() -> void:
 	ok(worst2 / diag > SPHERE_FIT, "3 PLANTED: the baked sphere scaled 1.05 reads %.3f %% (> 1.0 %%)" % [100.0 * worst2 / diag])
 	var sj := min_sj(k.verts, k.faces)
 	ok(sj >= SJ_MIN, "4 QUALITY sphere: min scaled Jacobian %.3f after %d relaxation steps (>= 0.3)" % [sj, net.iters])
+	# 4 planted: a curved patch with skewed counts, the sphere's octant with sides of 4, 10 and 12 edges (great-circle arcs),
+	# solved with 20 steps and with 0. (First run: the networks' own patches all read >= 0.5 unrelaxed, so none could be the
+	# planted; this fixture replaced it, see the header's AMENDED note.)
+	var oct := [arc_pts(Vector3(1, 0, 0), Vector3(0, 1, 0), 4), arc_pts(Vector3(0, 1, 0), Vector3(0, 0, 1), 10), arc_pts(Vector3(0, 0, 1), Vector3(1, 0, 0), 12)]
+	var o20 := min_sj_patch(net.nat.solve_patch(oct, 20))
+	var o0 := min_sj_patch(net.nat.solve_patch(oct, 0))
+	ok(o20 >= SJ_MIN and o0 < SJ_MIN, "4 PLANTED: the skewed octant patch (sides 4, 10, 12) reads %.3f after 20 relaxation steps and %.3f with 0 (< 0.3)" % [o20, o0])
+
+
+## points along the great circle from a to b (unit vectors), n edges, flat xyz
+static func arc_pts(a: Vector3, b: Vector3, n: int) -> PackedFloat64Array:
+	var f := PackedFloat64Array()
+	for k in n + 1:
+		var p := a.slerp(b, float(k) / float(n))
+		f.append(p.x)
+		f.append(p.y)
+		f.append(p.z)
+	return f
 
 
 # ====================================================================================== the mannequin (bars 3, 4)
@@ -873,20 +898,22 @@ static func z_mid(k: KMesh, ylo: float, yhi: float) -> float:
 	return (lo + hi) * 0.5
 
 
-## the head: rings at 1.62 and 1.70 m, two section planes over the top; the chest: rings at 1.255, 1.295, 1.335 m and the
-## same two planes between 1.23 and 1.36 m (stroke ends run 2.5 cm past the outer rings and are left loose)
+## the head: rings at 1.69 and 1.75 m, two section planes over the top; the chest: rings at 1.34, 1.39, 1.44 m and the
+## same two planes between 1.315 and 1.465 m (stroke ends run 2.5 cm past the outer rings and are left loose). The piece is
+## a closed loop only at 1.32-1.48 m (chest) and above 1.67 m (head): below, the head shell is open and the chest's lower
+## edge slants. (The first run used rings at 1.62 / 1.255 / 1.295 m, which are not closed loops on this mesh: fixture fixed.)
 static func make_man_strokes(k: KMesh) -> Array:
 	var out := []
-	for y in [1.62, 1.70, 1.255, 1.295, 1.335]:
+	for y in [1.69, 1.75, 1.34, 1.39, 1.44]:
 		var r := ring_at(k, y)
 		if r.size() > 3:
 			out.append(r)
-	var zh := z_mid(k, 1.6, 2.0)
-	var zt := z_mid(k, 1.25, 1.34)
-	out.append_array(runs_between(k, Vector3(1, 0, 0), 1e-4, 1.595, 9.0, 0.08))
-	out.append_array(runs_between(k, Vector3(0, 0, 1), zh + 1e-4, 1.595, 9.0, 0.08))
-	out.append_array(runs_between(k, Vector3(1, 0, 0), 1e-4, 1.23, 1.36, 0.06))
-	out.append_array(runs_between(k, Vector3(0, 0, 1), zt + 1e-4, 1.23, 1.36, 0.06))
+	var zh := z_mid(k, 1.67, 2.0)
+	var zt := z_mid(k, 1.33, 1.45)
+	out.append_array(runs_between(k, Vector3(1, 0, 0), 1e-4, 1.665, 9.0, 0.08))
+	out.append_array(runs_between(k, Vector3(0, 0, 1), zh + 1e-4, 1.665, 9.0, 0.08))
+	out.append_array(runs_between(k, Vector3(1, 0, 0), 1e-4, 1.315, 1.465, 0.06))
+	out.append_array(runs_between(k, Vector3(0, 0, 1), zt + 1e-4, 1.315, 1.465, 0.06))
 	return out
 
 
@@ -916,8 +943,8 @@ func bar_real_net() -> void:
 	say("   filled: %s" % str(kinds))
 	var k := net.bake()
 	ok(st["patches"] >= 16 and st["unsolved"] == 0 and k.face_count() > 0, "real mesh network: %d patches filled (>= 16: 8 on the head, 8 on the chest), %d unsolved, %d quads" % [st["patches"], st["unsolved"], k.face_count()])
-	if k.face_count() == 0:
-		ok(false, "3 / 4 real mesh: nothing baked")
+	if k.face_count() == 0 or net.nat == null:
+		ok(false, "3 / 4 real mesh: nothing baked or no native solver")
 		return
 	var pts := fit_points(k.verts, k.faces)
 	var flat := PackedFloat64Array()
@@ -942,7 +969,7 @@ func bar_real_net() -> void:
 	ok(worst / diag <= REAL_FIT and agree < 1e-5, "3 SURFACE FIT real mesh: max distance to the mannequin %.3f %% of the diagonal (%.1f mm of %.0f cm) over %d points (<= 2.5 %%); the brute-force GDScript closest point on 40 samples agrees with the solver's to %s" % [100.0 * worst / diag, worst * 1000.0, diag * 100.0, pts.size(), String.num_scientific(agree)])
 	var sj := min_sj(k.verts, k.faces)
 	ok(sj >= SJ_MIN, "4 QUALITY real mesh: min scaled Jacobian %.3f after %d relaxation steps (>= 0.3)" % [sj, net.iters])
-	# 4 planted: the most curved patch (lowest quality before relaxation) solved again with 0 steps
+	# the patch of this network that reads lowest before relaxation (printed: it is not the planted, see bar_sphere_net)
 	var low := INF
 	var low20 := INF
 	var lowk := ""
@@ -955,7 +982,7 @@ func bar_real_net() -> void:
 			low = s0
 			low20 = min_sj_patch(net.nat.solve_patch(sides, 20))
 			lowk = "%s %s" % [p["kind"], str(net.side_counts(p))]
-	ok(low < SJ_MIN and low20 >= SJ_MIN, "4 PLANTED: the same curved patch (%s) with 0 relaxation steps reads %.3f (< 0.3); with 20 it reads %.3f" % [lowk, low, low20])
+	say("real mesh: its lowest patch before relaxation (%s) reads %.3f with 0 steps, %.3f with 20" % [lowk, low, low20])
 
 
 # ====================================================================================== edits + speed (bars 5, 6)
@@ -1277,9 +1304,9 @@ func bar_ui() -> void:
 	draw_stroke(ui, px.call(-0.3, -0.75), px.call(-0.3, 0.75))
 	draw_stroke(ui, px.call(0.3, -0.75), px.call(0.3, 0.75))
 	var net: KMeshRetopoNet = t.net
-	var on_surf := 0.0
+	var on_surf := 0.0 if net.nat != null else INF
 	var npts := 0
-	for id in net.strokes:
+	for id in (net.strokes if net.nat != null else {}):
 		var flat := PackedFloat64Array()
 		for p in net.strokes[id]:
 			flat.append(p.x)
@@ -1315,7 +1342,7 @@ func bar_ui() -> void:
 		expect_q += (net.patches[pi]["quads"] as PackedInt32Array).size() / 4
 	ui.input(key(KEY_ENTER))
 	await idle(2)
-	var allq := ui.mesh.faces.size() > 0
+	var allq: bool = ui.mesh.faces.size() > 0
 	for f in ui.mesh.faces:
 		allq = allq and (f as PackedInt32Array).size() == 4
 	var steps1: int = ui.undo.steps.size()

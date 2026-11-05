@@ -12,6 +12,7 @@ using namespace godot;
 namespace {
 
 typedef std::vector<int> VI;
+const int DIGON_SMOOTH = 100;   // = KMeshRetopoFill.DIGON_SMOOTH: Laplacian steps on a 2-sided patch's interior
 
 // ------------------------------------------------------------------------------------------------ the plan (integer system)
 struct Plan {
@@ -136,6 +137,36 @@ struct Builder {
 		}
 		out.push_back(b);
 		return out;
+	}
+	// Gauss-Seidel steps of the uniform Laplacian on the non-ring verts, neighbours ascending (= KMeshRetopoFill._B.smooth)
+	void smooth(int steps) {
+		int nv = (int)P.size() / 3;
+		std::vector<VI> nb(nv);
+		for (size_t q = 0; q < Q.size() / 4; q++) {
+			for (int k = 0; k < 4; k++) {
+				int a = Q[q * 4 + k], c = Q[q * 4 + (k + 1) % 4];
+				nb[a].push_back(c);
+				nb[c].push_back(a);
+			}
+		}
+		for (int v = 0; v < nv; v++) {
+			std::sort(nb[v].begin(), nb[v].end());
+			nb[v].erase(std::unique(nb[v].begin(), nb[v].end()), nb[v].end());
+		}
+		for (int it = 0; it < steps; it++) {
+			for (int v = B; v < nv; v++) {
+				if (nb[v].empty()) continue;
+				double sx = 0.0, sy = 0.0, sz = 0.0;
+				for (int w : nb[v]) {
+					sx += P[w * 3];
+					sy += P[w * 3 + 1];
+					sz += P[w * 3 + 2];
+				}
+				P[v * 3] = sx / double(nb[v].size());
+				P[v * 3 + 1] = sy / double(nb[v].size());
+				P[v * 3 + 2] = sz / double(nb[v].size());
+			}
+		}
 	}
 	void grid(const VI &bottom, const VI &right, const VI &top, const VI &left) {
 		int A = (int)bottom.size() - 1, Bn = (int)left.size() - 1;
@@ -268,6 +299,7 @@ bool build(const Plan &pl, const std::vector<std::vector<double>> &sides, Builde
 		for (int k = 0; k <= be; k++) right.push_back(B_(k));
 		b.grid(bottom, right, sYB, sYA);
 	}
+	b.smooth(DIGON_SMOOTH);
 	return true;
 }
 

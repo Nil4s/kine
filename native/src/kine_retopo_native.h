@@ -11,7 +11,7 @@
 //    of the sub-grids). 4 sides: one grid (opposite counts equal, 0 singularities). 3, 5, 6 sides: n sub-grids round one
 //    centre vertex of valence n joined to a vertex of every side (1 singularity). 2 sides: two valence-3 vertices
 //    (2 singularities). Everything in double precision, in the exact operation order of scripts/kmesh_retopo_fill.gd, so the
-//    two agree to 1e-9 (tests/i11_test.gd bar 7).
+//    two agree to 1e-9 (tests/sretopo_test.gd bar 7); a 2-sided patch's interior is then relaxed (DIGON_SMOOTH Laplacian steps).
 //  - set_source / project: closest point on the source triangle mesh (BVH), with the interpolated vertex normal.
 //  - solve_patch / solve_patches: fill, drop the interior vertices on the surface, then relax them (tangent-plane Gauss-Seidel
 //    smoothing, each step projected back), the patch border held. Timed in C++ (std::chrono).
