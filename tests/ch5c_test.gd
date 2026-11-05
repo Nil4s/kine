@@ -41,7 +41,10 @@ func render(cam: Camera3D) -> Image:
 	for f in 8:
 		await process_frame
 	await RenderingServer.frame_post_draw
-	return root.get_texture().get_image()
+	var raw := root.get_texture().get_image()
+	if not CameraResponse.calibrated:
+		CameraResponse.calibrate(raw)  # first call is always the canonical wet pose-0 frame
+	return CameraResponse.apply(raw)
 
 
 func sheen(img: Image, groups: Dictionary) -> Array:

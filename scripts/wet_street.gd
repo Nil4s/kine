@@ -77,6 +77,8 @@ const FENCE_H := 1.83
 const END_Z := -21.0                 ## the gate wall closing the lane (row 1050 -> 22.5 m)
 var light_r := BULB_R
 var legacy := false
+var area_probe := false             ## G43: one AreaLight3D probe for the S2 bollard shadow only
+var area_lamp0: AreaLight3D
 var env: Environment
 var set_pieces: Array = []   ## walls, windows, bollards: hidden in the legacy (one-lamp, black-void) control
 var probe := -1
@@ -736,6 +738,12 @@ func _apply_modes() -> void:
 		var o: OmniLight3D = lights[i]
 		o.visible = (i == 0) if (legacy or probe >= 0) else true
 		o.light_size = light_r
+	if is_instance_valid(area_lamp0):
+		area_lamp0.visible = area_probe and probe >= 0 and not legacy
+		area_lamp0.light_size = light_r
+		area_lamp0.area_size = Vector2(2.0 * light_r, 2.0 * light_r)
+		if area_lamp0.visible:
+			(lights[0] as OmniLight3D).visible = false
 	for n in set_pieces:
 		(n as Node3D).visible = not legacy and probe < 0
 	for n in _bollards:
@@ -764,6 +772,13 @@ func set_legacy(on: bool) -> void:
 func set_probe(i: int) -> void:
 	probe = i
 	_apply_modes()
+
+
+func set_area_probe(on: bool) -> void:
+	area_probe = on
+	_apply_modes()
+	if is_instance_valid(area_lamp0):
+		print("     G43 AreaLight3D probe: %s, area_size %s, PCSS light_size %.3f m" % ["on" if on else "off", str(area_lamp0.area_size), area_lamp0.light_size])
 
 
 func set_light_radius(r: float) -> void:
@@ -976,3 +991,20 @@ func _build_lamp(lpos: Vector3, post_dx: float, col: Vector3, energy: float, emi
 	o.omni_shadow_mode = OmniLight3D.SHADOW_CUBE
 	add_child(o)
 	lights.append(o)
+	if idx == 0:
+		# G43 cheap probe: a real 0.6 x 0.6 m emitter, aimed along the bollard shadow.
+		# Light3D.size remains the PCSS radius; AreaLight3D.area_size is the emitting rectangle.
+		area_lamp0 = AreaLight3D.new()
+		area_lamp0.position = o.position
+		area_lamp0.area_range = 40.0
+		area_lamp0.area_attenuation = 2.0
+		area_lamp0.area_normalize_energy = true
+		area_lamp0.area_size = Vector2(2.0 * BULB_R, 2.0 * BULB_R)
+		area_lamp0.light_size = BULB_R
+		area_lamp0.light_energy = energy
+		area_lamp0.light_color = Color(col.x, col.y, col.z)
+		area_lamp0.shadow_enabled = true
+		area_lamp0.shadow_blur = 1.0
+		add_child(area_lamp0)
+		area_lamp0.look_at(Vector3(BOLLARD.x, 0.0, BOLLARD.z + 2.5), Vector3.UP)
+		area_lamp0.visible = false

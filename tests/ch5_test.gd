@@ -145,6 +145,15 @@ func _run() -> void:
 	var top_h := ws.height(edge_x + WetStreet.PITCH * 0.5, -2.0 + (0.5 - float(cc[3])) * WetStreet.PITCH)
 	ok(joint_h < top_h - 0.005 and jh == jh, "E SCENE: joint %.1f mm below the stone beside it" % ((top_h - joint_h) * 1000.0))
 
+	# Calibrate the one shared camera response on the canonical wet pose-0 frame, before any pixel statistic.
+	cam.global_position = Vector3(0.0, WetStreet.EYE, 1.5)
+	cam.rotation_degrees = Vector3(WetStreet.PITCH_DEG, 0, 0)
+	cam.current = true
+	for f in 4:
+		await process_frame
+	await RenderingServer.frame_post_draw
+	CameraResponse.calibrate(root.get_texture().get_image())
+
 	# B MIRROR + D STREAK per pose
 	var contained := 0
 	var last_ref := 2.0
@@ -156,7 +165,7 @@ func _run() -> void:
 		for f in 4:
 			await process_frame
 		await RenderingServer.frame_post_draw
-		var img := root.get_texture().get_image()
+		var img := CameraResponse.apply(root.get_texture().get_image())
 		var bulb := WetStreet.LAMP_POS
 		var mirrored := Vector3(bulb.x, 2.0 * ws.level - bulb.y, bulb.z)
 		var pp := cam.unproject_position(mirrored)
@@ -353,7 +362,7 @@ func _look_bars(cam: Camera3D) -> void:
 	for f in 4:
 		await process_frame
 	await RenderingServer.frame_post_draw
-	var wet := root.get_texture().get_image()
+	var wet := CameraResponse.apply(root.get_texture().get_image())
 	var base := cam.unproject_position(Vector3(WetStreet.LAMP_POS.x, 0.0, WetStreet.LAMP_POS.z))
 	# D STREAK
 	var asp := streak_aspect(wet, 330, 970, clampi(int(base.y), 0, 700), 720)
@@ -387,7 +396,7 @@ func _look_bars(cam: Camera3D) -> void:
 	for f in 4:
 		await process_frame
 	await RenderingServer.frame_post_draw
-	var dry := root.get_texture().get_image()
+	var dry := CameraResponse.apply(root.get_texture().get_image())
 	ws.set_dry(false)
 	var sw := 0.0
 	var sd := 0.0

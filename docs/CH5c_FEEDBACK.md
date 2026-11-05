@@ -1,9 +1,9 @@
 # CH5c feedback: wet cobbled lane at night on Godot PBR + SSR, matched to ref2.jpg
 
-Branch w4-ch5c. Status: **PARKED after the fix pass for lead verdict RED 1 (11-04 12:40).** Files: scripts/wet_street.gd, tests/ch5c_test.gd,
-tools/ch5c_photo_estimates.py (every scene number from the photo), tools/ch5c_prep_tiles.py, tools/ch5c_side.py (side-by-side), assets/ch5c/.
-Renders: C:/Users/Nick/tools/kine_workers/out/ch5c/ch5c_night.png; side-by-side ch5c_side_by_side.png = [render's photo frame | ref2.jpg | full render].
-Logs of the final run: C:/Temp/claude/w4-ch5c/w13.
+Branch w4-ch5c. Status: **PARKED after the G42 camera-response / G43 AreaLight3D probe (11-05).** Files: scripts/camera_response.gd,
+scripts/wet_street.gd, tests/ch5_test.gd, tests/ch5b_test.gd, tests/ch5c_test.gd, tools/ch5c_photo_estimates.py, tools/ch5c_prep_tiles.py,
+tools/ch5c_side.py (side-by-side), assets/ch5c/. Renders: C:/Users/Nick/tools/kine_workers/out/ch5c/ch5c_night.png; side-by-side
+ch5c_side_by_side.png = [render's photo frame | ref2.jpg | full render]. Logs of the final run: C:/Temp/claude/w4-ch5c/w17.
 
 ## 1. Result (round 2, after Nick's 11-04 bar decisions and two fix passes; final run C:/Temp/claude/w4-ch5c/w16)
 
@@ -87,3 +87,35 @@ path-traced reference of the same scene to check Godot against.
   engine gap (Godot 4.7 has AreaLight3D, not tried). S1/S1B: the photo is bimodal (25 % of its lane is exactly 0: phone JPEG black clipping)
   while the render has no camera response curve; the remaining gap is mostly the camera, which the photo alone cannot calibrate. D/F/H: as in
   round 1 (the puddle blob, sub-pixel setts, the patch 2 % over its band).
+
+### Round 3 (G42 camera response, G43 one AreaLight3D probe; run w17)
+
+Status: **PARKED, four unique reds (D, F, S2, H); S1/S1B are green. No bar or band was edited.** ch5 27 ok / 2 fail, ch5b 9 ok / 3 fail,
+ch5c 3 ok / 1 fail; easypart 73/0, peasy3 23/0, freestart 14/0 PASS.
+
+| bar | round 2 | round 3 |
+|---|---:|---:|
+| S1 dark lane | 35.1 % (band 37.2-62.0) | **56.4 %, PASS** |
+| S1B dark frame | 18.8 % (band 24.0-39.9) | **34.1 %, PASS**; legacy control 78.4 %, still outside |
+| S2 penumbra | omni 5.6 px (need 6.7; geometry 13.5) | **AreaLight3D 4.4 px, FAIL** (edges 5.3 / 3.5; point control 5.1) |
+| D streak | 0.92 vs 2.32 | 0.92, unchanged fail |
+| F glint | 2.3x (need 3) | 2.4x, unchanged fail |
+| H veil | 0.387 (top 0.378) | 0.3783, unchanged fail |
+
+**G42 method (scripts/camera_response.gd).** One response is calibrated once from the canonical wet pose-0 image and the PHOTO histogram, then
+applied to every wet/dry/control/probe image before its pixel statistics. Decode Godot's sRGB output to linear light; apply
+`max(0, exposure_gain * (input_linear - black_level))`; encode with the standard sRGB curve. The photo's exactly-black fraction (18.88 % of the
+full frame) selects that quantile of the raw frame's max-channel linear luminance as the black level. The gain anchors the photo's median sRGB
+luminance (0.070588) against the raw median (0.085955): `linear(photo_median) / (linear(raw_median) - black_level)`. Derived and printed in all
+three suites: **black_level 0.00182116 linear = 0.023529 sRGB (6/255), exposure_gain 0.982178**. This is a sensor black clip plus exposure,
+not a free histogram warp; the S1/S1B 0.02 threshold and their bands are not calibration inputs. A physically sensible response did close both gaps.
+
+**G43 result.** One Godot 4.7.2 AreaLight3D replaced lamp 0 only for the S2 probe: emitting rectangle 0.6 x 0.6 m (the existing 0.3 m radius),
+PCSS `light_size` 0.3 m, `shadow_blur` 1, inverse-square attenuation, range 40 m, aimed along the bollard shadow. Its mean 10-90 % edge was
+**4.4 px**, worse than the parked omni's 5.6 px and below the unchanged 6.7 px requirement. The point-light control remained below the bar
+(5.1 px with the same camera response). This cheap engine alternative does not resolve the geometric penumbra; stopped after the one probe.
+
+**Looked at `ch5c_side_by_side_w17.png` (a new filename, after the run).** The response gives the right fence/wall and unlit joints deeper blacks,
+closer to the photo's contrast. The same visual gaps remain: the round foreground puddle reflection is still the brightest blob instead of a
+continuous stone-top streak; the tarmac repair is a clean pale ellipse; the sky and end wall are flat; the wall has none of the photo's ivy,
+graffiti, gutter or roofline; and the regular setts are more rectangular/lumpy than the photo's worn loaves. D/F/S2/H were not tuned in this lane.

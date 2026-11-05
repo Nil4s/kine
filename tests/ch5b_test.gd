@@ -155,7 +155,7 @@ func probe_width2(cam: Camera3D) -> Array:
 	for f in 4:
 		await process_frame
 	await RenderingServer.frame_post_draw
-	var img := root.get_texture().get_image()
+	var img := CameraResponse.apply(root.get_texture().get_image())
 	ws.set_probe(-1)
 	var bo: Vector3 = ws.bollard_pos()
 	var lp := WetStreet.LAMP_POS
@@ -181,7 +181,7 @@ func probe_width(cam: Camera3D) -> Array:
 	for f in 4:
 		await process_frame
 	await RenderingServer.frame_post_draw
-	var img := root.get_texture().get_image()
+	var img := CameraResponse.apply(root.get_texture().get_image())
 	ws.set_probe(-1)
 	var bo: Vector3 = ws.bollard_pos()
 	var scan_z := bo.z + 0.8
@@ -213,7 +213,9 @@ func _run() -> void:
 		await process_frame
 	await RenderingServer.frame_post_draw
 	DirAccess.make_dir_recursive_absolute(OUT)
-	var img := root.get_texture().get_image()
+	CameraResponse.calibrate(root.get_texture().get_image())
+	# The first capture above only calibrates; capture the identical frame through the shared response.
+	var img := CameraResponse.apply(root.get_texture().get_image())
 	img.save_png(OUT + "ch5b_night.png")
 	# S1 (AMENDED per Nick 11-04: the band is the photo's own dark fraction +-25 %)
 	var ph := photo_dark()
@@ -223,7 +225,7 @@ func _run() -> void:
 	for f in 4:
 		await process_frame
 	await RenderingServer.frame_post_draw
-	var old := root.get_texture().get_image()
+	var old := CameraResponse.apply(root.get_texture().get_image())
 	old.save_png(OUT + "ch5b_night_legacy.png")
 	var s1c := street_dark(cam, old)
 	# REVISION after the first run (disclosed in docs/CH5b_FEEDBACK.md): the old look's GROUND was already above 0.02 (0.1-0.6 % dark), the void
@@ -234,10 +236,13 @@ func _run() -> void:
 	ws.set_legacy(false)
 	# S2
 	# S2 (AMENDED per Nick 11-04: scanline 2.5 m behind the bollard, bar from the geometric penumbra)
+	# G43: exactly one AreaLight3D probe; the bar, scanline, emitter radius and point-light control are unchanged.
+	ws.set_area_probe(true)
 	var pw := await probe_width2(cam)
+	ws.set_area_probe(false)
 	var wmean: float = (float(pw[0]) + float(pw[1])) * 0.5
 	var need: float = 0.5 * float(pw[4])
-	ok(float(pw[0]) > 0.0 and float(pw[1]) > 0.0 and wmean >= need, "S2 PENUMBRA: shadow edges %.1f / %.1f px (10-90 %%), mean %.1f px; geometric penumbra %.1f px, need >= %.1f (scanline %.1f m from the camera; lit %.3f, umbra %.3f)" % [pw[0], pw[1], wmean, pw[4], need, pw[5], pw[2], pw[3]])
+	ok(float(pw[0]) > 0.0 and float(pw[1]) > 0.0 and wmean >= need, "S2 PENUMBRA (AreaLight3D probe): shadow edges %.1f / %.1f px (10-90 %%), mean %.1f px; geometric penumbra %.1f px, need >= %.1f (scanline %.1f m from the camera; lit %.3f, umbra %.3f)" % [pw[0], pw[1], wmean, pw[4], need, pw[5], pw[2], pw[3]])
 	ws.set_light_radius(0.0)
 	var hw := await probe_width2(cam)
 	var hmean: float = (float(hw[0]) + float(hw[1])) * 0.5
@@ -248,7 +253,7 @@ func _run() -> void:
 	for f in 4:
 		await process_frame
 	await RenderingServer.frame_post_draw
-	var wetimg := root.get_texture().get_image()
+	var wetimg := CameraResponse.apply(root.get_texture().get_image())
 	wetimg.save_png(OUT + "ch5b_night_final.png")
 	print("ch5b: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
