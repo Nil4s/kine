@@ -238,10 +238,34 @@ static func _clear_free_legs(B: Body, P: Dictionary, t: float, boxes: Array) -> 
 					worst = q
 			if float(worst["d"]) < 0.004:
 				break
-			tgt += (worst["n"] as Vector3) * (float(worst["d"]) + 0.01) * (2.0 if it > 1 else 1.0)
+			var nd: Vector3 = worst["n"]
+			if nd.y > 0.5:
+				nd = (nd + Vector3(0, 0, 0.6)).normalized()   # over a top: up and on the way he runs, as a tucked leg clears a box
+			tgt += nd * (float(worst["d"]) + 0.01) * (2.0 if it > 1 else 1.0)
 			B.plant(sd, tgt, 0.0, false)
 		if ((B.P["ball" + sd] as Vector3).y < Y0 + 0.1):
 			B.toes_flat(sd)
+	# the same for a free hand (its arm swinging into or out of a plant): the wrist target moves out, the arm is solved again
+	for sd: String in ["_l", "_r"]:
+		var tr: Array = P["hands"]["hand" + sd]
+		if tr.is_empty():
+			continue
+		var sh := limb_at(tr, t)
+		if bool(sh["on"]):
+			continue
+		var tip: String = "hand" + sd
+		var wt: Vector3 = B.P[tip]
+		var pole := LimbIK.pole_from_pose(B, tip)
+		for it in 5:
+			var worst := {"d": 0.0, "n": Vector3.UP}
+			for part in ["upperarm" + sd, "lowerarm" + sd, tip]:
+				var q := _part_in(B, part, boxes)
+				if float(q["d"]) > float(worst["d"]):
+					worst = q
+			if float(worst["d"]) < 0.004:
+				break
+			wt += (worst["n"] as Vector3) * (float(worst["d"]) + 0.01) * (2.0 if it > 1 else 1.0)
+			LimbIK.solve(B, tip, wt, pole)
 
 
 static func _legs(B: Body, P: Dictionary, t: float, drop: float, rt: Dictionary) -> float:

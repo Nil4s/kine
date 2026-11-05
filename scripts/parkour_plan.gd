@@ -732,10 +732,10 @@ static func _flight_legs(P: Dictionary) -> void:
 	# kong: legs tuck up between the arms, then reach for the roof
 	_flight(P, "feet", "foot_l", 1.95, pt.call(L, 1.95), 2.84, pt.call(L, 2.84), [
 		[1.95, Vector3(0.09, -0.60, -0.30)], [2.20, Vector3(0.12, -0.40, -0.30)], [2.45, Vector3(0.12, -0.15, 0.05)], [2.60, Vector3(0.12, -0.10, 0.30)],
-		[2.72, Vector3(0.10, -0.50, 0.40)], [2.84, Vector3(0.09, -0.80, 0.55)]])
+		[2.72, Vector3(0.10, -0.32, 0.55)], [2.84, Vector3(0.09, -0.80, 0.55)]])
 	_flight(P, "feet", "foot_r", 2.16, pt.call(R, 2.16), 3.12, pt.call(R, 3.12), [
 		[2.16, Vector3(-0.10, -0.55, -0.40)], [2.30, Vector3(-0.12, -0.40, -0.28)], [2.45, Vector3(-0.12, -0.15, 0.05)], [2.62, Vector3(-0.12, -0.10, 0.30)],
-		[2.75, Vector3(-0.10, -0.55, 0.40)], [2.95, Vector3(-0.09, -0.65, 0.20)], [3.12, Vector3(-0.09, -0.70, 0.45)]])
+		[2.75, Vector3(-0.10, -0.38, 0.55)], [2.95, Vector3(-0.09, -0.65, 0.20)], [3.12, Vector3(-0.09, -0.70, 0.45)]])
 	# wall run: the swing between wall steps
 	_flight(P, "feet", "foot_r", 3.26, pt.call(R, 3.26), 3.70, pt.call(R, 3.70), [
 		[3.26, Vector3(-0.09, -0.70, 0.30)], [3.45, Vector3(-0.10, -0.55, 0.25)], [3.60, Vector3(0.10, -0.55, 0.30)]])
