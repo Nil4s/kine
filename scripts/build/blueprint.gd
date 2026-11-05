@@ -628,7 +628,7 @@ static func _esc(s: String) -> String:
 static func _attrs(cls: String, d: Dictionary) -> String:
 	var s := ' class="%s"' % cls
 	for key in d:
-		s += ' data-%s="%s"' % [key, _esc(String(d[key]))]
+		s += ' data-%s="%s"' % [key, _esc(str(d[key]))]
 	return s
 
 
