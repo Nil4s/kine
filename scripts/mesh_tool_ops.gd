@@ -88,6 +88,8 @@ static func op(name: String, m) -> String:
 				said = KMeshDecimate.op(name, m)   # F03
 			elif name.begins_with("lod"):
 				said = KMeshLOD.op(name, m)   # F04
+			elif name == "retopo":
+				return KMeshRetopoUI.toggle(m)   # I11: it says what it did
 			elif name == "rigretopo":
 				said = KMeshRigRetopo.op(m)   # F10
 			elif name.begins_with("refplane"):   # B21 (scripts/kmesh_refplanes_ui.gd): it says what it did
