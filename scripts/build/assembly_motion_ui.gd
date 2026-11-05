@@ -6,7 +6,11 @@
 ##   slider     scrubs the drive: the parts move on screen only (the record keeps its poses); Close puts them back
 ##   joint      (G2LOOP) Pin / Slide / Weld from the selected part to another part or Ground, at the axis and point above: ONE undo step.
 ##              With joints, the drive moves every part they tie to it (AssemblyLoop): the scrub and the sweep follow the closed loop
-## The only record changes are a drive or a joint added; Ctrl+Z takes it back (AssemblyUI.undo_redo).
+##   timeline   (G7TIME, scripts/build/assembly_anim.gd) Play / Pause, a time slider, the length (s); Key puts the picked drive's value (the
+##              drive slider's, else the timeline's) at the current time, Linear / Smooth / Hold toward the next key; Delete key takes the key
+##              at the current time out. Each is ONE undo step. When the picked drive has keys, Run sweeps every frame of the animation and
+##              each clash is listed with its time and the drive's value
+## The only record changes are a drive, a joint, a key or the length; Ctrl+Z takes it back (AssemblyUI.undo_redo).
 class_name AssemblyMotionUI
 extends RefCounted
 
@@ -40,6 +44,19 @@ var res := {}                  # the last sweep (AssemblyMotion.check_motion)
 var scrub_on := false
 var scrub_v := 0.0
 var _red: StandardMaterial3D
+var play_btn: Button           # G7TIME: the timeline strip
+var time_sl: HSlider
+var time_l: Label
+var len_e: LineEdit
+var key_btn: Button
+var unkey_btn: Button
+var interp_ob: OptionButton
+var keys_l: Label
+var time_on := false           # the screen shows the animation at time_t (the timeline slider or Play moved last)
+var time_t := 0.0
+var playing := false
+var _anim_key := ""
+var _anim_pose := {}
 
 
 func setup(owner: AssemblyUI) -> void:
@@ -142,9 +159,214 @@ func setup(owner: AssemblyUI) -> void:
 	at_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	at_l.custom_minimum_size = Vector2(W - 24.0, 0)
 	vb.add_child(at_l)
+	_build_time(vb)
 	close_btn = a._btn("Close", "asm_motion_close", "Close Check motion: the parts go back to their places", close)
 	vb.add_child(close_btn)
 	a.m.ui_root.add_child(panel)
+
+
+## G7TIME: the timeline strip under the drive's slider
+func _build_time(vb: VBoxContainer) -> void:
+	var hh := HBoxContainer.new()
+	var tl := a._lbl("Timeline: keys of the drive", 12, "asm_time_title")
+	tl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hh.add_child(tl)
+	hh.add_child(a._lbl("Length", 12))
+	len_e = _num_edit("asm_time_len", "2")
+	len_e.custom_minimum_size.x = 36
+	len_e.size_flags_horizontal = Control.SIZE_SHRINK_END
+	len_e.tooltip_text = "The animation's length in seconds (one Ctrl+Z takes a change back)"
+	len_e.text_submitted.connect(func(t: String): set_length(a._num(t, AssemblyAnim.length(a.asm))))
+	hh.add_child(len_e)
+	hh.add_child(a._lbl("s", 12))
+	vb.add_child(hh)
+	var h1 := HBoxContainer.new()
+	play_btn = a._btn("Play", "asm_time_play", "Play the animation (the keyed drives move the parts, through the joints)", toggle_play)
+	h1.add_child(play_btn)
+	time_sl = HSlider.new()
+	time_sl.name = "asm_time_scrub"
+	time_sl.focus_mode = Control.FOCUS_NONE
+	time_sl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	time_sl.custom_minimum_size = Vector2(120, 22)
+	time_sl.tooltip_text = "The time: the parts move as the keys say (on screen only)"
+	time_sl.value_changed.connect(_on_time_slider)
+	h1.add_child(time_sl)
+	time_l = a._lbl("0 s", 12, "asm_time_at")
+	time_l.custom_minimum_size.x = 44
+	h1.add_child(time_l)
+	vb.add_child(h1)
+	var h2 := HBoxContainer.new()
+	key_btn = a._btn("Key", "asm_time_key", "Key the drive at this time: its value from the drive's slider above (one Ctrl+Z takes it back)", add_key)
+	unkey_btn = a._btn("Delete key", "asm_time_unkey", "Take out the drive's key at this time (one Ctrl+Z puts it back)", delete_key)
+	interp_ob = OptionButton.new()
+	interp_ob.name = "asm_time_interp"
+	interp_ob.focus_mode = Control.FOCUS_NONE
+	for t in ["Linear", "Smooth", "Hold"]:
+		interp_ob.add_item(t)
+	interp_ob.tooltip_text = "How the drive moves from the new key to the next one: Linear (steady), Smooth (eases out and in), Hold (stays, then jumps)"
+	for c in [key_btn, unkey_btn, interp_ob]:
+		(c as Control).size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		h2.add_child(c)
+	vb.add_child(h2)
+	keys_l = a._lbl("", 11, "asm_time_keys")
+	keys_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	keys_l.custom_minimum_size = Vector2(W - 24.0, 0)
+	vb.add_child(keys_l)
+
+
+func _on_time_slider(v: float) -> void:
+	playing = false
+	_sync_play()
+	set_time(v)
+
+
+func _sync_play() -> void:
+	if play_btn != null:
+		play_btn.text = "Pause" if playing else "Play"
+
+
+func _u() -> String:
+	return "deg" if String(AssemblyMotion.drive_of(a.asm, drive).get("kind", "rotate")) == "rotate" else "mm"
+
+
+## the timeline's widgets from the record (no signals)
+func _sync_time() -> void:
+	if time_sl == null:
+		return
+	var L := AssemblyAnim.length(a.asm)
+	time_t = clampf(time_t, 0.0, L)
+	time_sl.set_block_signals(true)
+	time_sl.min_value = 0.0
+	time_sl.max_value = L
+	time_sl.step = 1.0 / float(AssemblyAnim.fps(a.asm))
+	time_sl.value = time_t
+	time_sl.set_block_signals(false)
+	time_l.text = "%s s" % String.num(time_t, 2)
+	if not len_e.has_focus():
+		len_e.text = a._fmt(L)
+	var has_d := drive != ""
+	key_btn.disabled = not has_d
+	unkey_btn.disabled = not has_d or AssemblyAnim.key_at(a.asm, drive, time_t).is_empty()
+	play_btn.disabled = not AssemblyAnim.has_anim(a.asm)
+	var ks: Array = AssemblyAnim.track_of(a.asm, drive).get("keys", [])
+	if not has_d:
+		keys_l.text = ""
+	elif ks.is_empty():
+		keys_l.text = "%s has no keys: set its slider, pick a time, press Key" % drive
+	else:
+		var parts := PackedStringArray()
+		for k in ks:
+			parts.append("%s s %s" % [String.num(float(k[0]), 2), a._fmt(snappedf(float(k[1]), 0.01))])
+		keys_l.text = "%s keys (s %s): %s" % [drive, _u(), ", ".join(parts)]
+
+
+## the animation's pose at time_t, solved once per time and record change
+func _anim_at(t: float) -> Dictionary:
+	var k := "%d|%s" % [rev, str(t)]
+	if k != _anim_key:
+		_anim_pose = AssemblyAnim.pose_at(a.asm, t)
+		_anim_key = k
+	return _anim_pose
+
+
+func timing() -> bool:
+	return time_on and panel.visible and AssemblyAnim.has_anim(a.asm)
+
+
+func set_time(t: float) -> void:
+	time_t = clampf(t, 0.0, AssemblyAnim.length(a.asm))
+	time_on = true
+	scrub_on = false
+	if AssemblyAnim.has_anim(a.asm) and drive != "" and not AssemblyMotion.drive_of(a.asm, drive).is_empty():
+		scrub_v = AssemblyAnim.value_at(a.asm, drive, time_t)
+		scrub.set_block_signals(true)
+		scrub.value = scrub_v
+		scrub.set_block_signals(false)
+	_sync_time()
+	_at_words()
+	a._refresh(false)
+
+
+## Play / Pause; from the start when at the end
+func toggle_play() -> void:
+	if not AssemblyAnim.has_anim(a.asm):
+		a._say("Nothing to play: key the drive first (set its slider, pick a time, press Key)")
+		return
+	playing = not playing
+	if playing and time_t >= AssemblyAnim.length(a.asm) - 1e-9:
+		set_time(0.0)
+	_sync_play()
+
+
+## AssemblyUI._process: Play moves the time on
+func tick(dt: float) -> void:
+	if not playing:
+		return
+	if not panel.visible or not AssemblyAnim.has_anim(a.asm):
+		playing = false
+		_sync_play()
+		return
+	var L := AssemblyAnim.length(a.asm)
+	var t := minf(time_t + dt, L)
+	set_time(t)
+	if t >= L:
+		playing = false
+		_sync_play()
+
+
+func _interp() -> String:
+	return AssemblyAnim.INTERPS[interp_ob.selected] if interp_ob.selected >= 0 else "linear"
+
+
+## the picked drive's value (the drive slider's when it moved last, else the timeline's) keyed at the current time: ONE undo step
+func add_key() -> void:
+	if drive == "" or AssemblyMotion.drive_of(a.asm, drive).is_empty():
+		a._say("Add a drive first, then key it on the timeline")
+		return
+	var v := scrub_v if scrub_on else AssemblyAnim.value_at(a.asm, drive, time_t)
+	var t := snappedf(time_t, 1.0 / float(AssemblyAnim.fps(a.asm)))
+	a.push_undo("key %s at %s s" % [drive, String.num(t, 2)])
+	AssemblyAnim.set_key(a.asm, drive, t, v, _interp())
+	rev += 1
+	res = {}
+	_clear_list()
+	time_t = t
+	set_time(t)
+	a._say("Keyed %s at %s %s, %s s (%s to the next key)" % [drive, a._fmt(snappedf(v, 0.01)), _u(), String.num(t, 2), interp_ob.get_item_text(interp_ob.selected).to_lower()])
+
+
+func delete_key() -> void:
+	if drive == "" or AssemblyAnim.key_at(a.asm, drive, time_t).is_empty():
+		a._say("%s has no key at %s s: move the time to a key first" % [drive, String.num(time_t, 2)])
+		return
+	a.push_undo("delete key %s at %s s" % [drive, String.num(time_t, 2)])
+	AssemblyAnim.delete_key(a.asm, drive, time_t)
+	rev += 1
+	res = {}
+	_clear_list()
+	set_time(time_t)
+	a._say("Deleted %s's key at %s s" % [drive, String.num(time_t, 2)])
+
+
+func set_length(s: float) -> void:
+	len_e.release_focus()
+	if absf(s - AssemblyAnim.length(a.asm)) < 1e-9 or s <= 0.0:
+		_sync_time()
+		return
+	a.push_undo("length %s s" % a._fmt(s))
+	AssemblyAnim.set_length(a.asm, s)
+	rev += 1
+	res = {}
+	_clear_list()
+	set_time(time_t)
+	a._say("The animation is %s s long" % a._fmt(AssemblyAnim.length(a.asm)))
+
+
+func _clear_list() -> void:
+	if list_vb != null:
+		for c in list_vb.get_children():
+			list_vb.remove_child(c)
+			c.queue_free()
 
 
 func _num_edit(nm: String, t: String) -> LineEdit:
@@ -195,6 +417,9 @@ func close() -> void:
 func reset(hide: bool) -> void:
 	res = {}
 	scrub_on = false
+	time_on = false
+	playing = false
+	_sync_play()
 	rev += 1
 	if hide and panel != null:
 		panel.visible = false
@@ -233,6 +458,7 @@ func _fill_drives() -> void:
 			jto_ob.select(i)
 	var nj := AssemblyLoop.joints(a.asm).size()
 	jcount_l.text = "No joints: a drive moves only its part and its links" if nj == 0 else "%d joint%s: the drive moves every part they tie to it" % [nj, "" if nj == 1 else "s"]
+	_sync_time()
 
 
 ## G2LOOP: a joint from the selected part to the part (or Ground) picked, at the axis and point typed above
@@ -305,15 +531,18 @@ func run() -> Dictionary:
 		a._say("Add a drive first")
 		return {}
 	var steps := clampi(int(a._num(steps_e.text, 36.0)), 1, 720)
-	res = AssemblyMotion.check_motion(a.asm, drive, steps)
+	var on_time := not (AssemblyAnim.track_of(a.asm, drive).get("keys", []) as Array).is_empty()   # G7TIME: a keyed drive is swept along its animation
+	res = AssemblyAnim.check(a.asm, {"drive": drive}) if on_time else AssemblyMotion.check_motion(a.asm, drive, steps)
+	if on_time:
+		steps = (res.get("times", []) as Array).size()
 	for c in list_vb.get_children():
 		list_vb.remove_child(c)
 		c.queue_free()
-	var lines := AssemblyMotion.words(a.asm, drive, res)
+	var lines := AssemblyAnim.words(a.asm, res) if on_time else AssemblyMotion.words(a.asm, drive, res)
 	if not bool(res.get("ok", false)):
 		a._say("NOT DONE: " + String(res.get("why", "")))
 	elif lines.is_empty():
-		list_vb.add_child(a._lbl("No clash over the whole range", 12, "asm_motion_none"))
+		list_vb.add_child(a._lbl("No clash over the whole animation" if on_time else "No clash over the whole range", 12, "asm_motion_none"))
 	for i in lines.size():
 		var l := a._lbl(lines[i], 12, "asm_motion_row_%d" % i)
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -329,12 +558,14 @@ func run() -> Dictionary:
 		list_vb.add_child(l)
 	_sync_scrub()
 	var cl: Array = res.get("clashes", [])
-	if not cl.is_empty():
+	if not cl.is_empty() and on_time:
+		set_time(float(cl[0]["t"]))   # the first clash on screen, on the timeline
+	elif not cl.is_empty():
 		scrub.value = float(cl[0]["at"])   # the first clash on screen
 		set_scrub(float(cl[0]["at"]))
 	a._refresh(false)
 	if bool(res.get("ok", false)):
-		a._say("Check motion: %d clash%s, %d steps, %d ms" % [lines.size(), "" if lines.size() == 1 else "es", steps, int(res["ms"])])   # short: a long line drew over the Export row (the kernel-call counts are in the result)
+		a._say("Check motion: %d clash%s, %d %s, %d ms" % [lines.size(), "" if lines.size() == 1 else "es", steps, "frames" if on_time else "steps", int(res["ms"])])   # short: a long line drew over the Export row (the kernel-call counts are in the result)
 	return res
 
 
@@ -352,7 +583,7 @@ func _sync_scrub() -> void:
 	scrub.min_value = minf(float(r[0]), float(r[1]))
 	scrub.max_value = maxf(float(r[0]), float(r[1]))
 	scrub.step = 0.0
-	scrub.value = scrub_v if scrub_on else float(r[0])
+	scrub.value = scrub_v if (scrub_on or timing()) else float(r[0])
 	scrub.set_block_signals(false)
 	_at_words()
 
@@ -362,6 +593,9 @@ func set_scrub(v: float) -> void:
 		return
 	scrub_on = true
 	scrub_v = v
+	time_on = false
+	playing = false
+	_sync_play()
 	_at_words()
 	a._refresh(false)
 
@@ -373,14 +607,22 @@ func _at_words() -> void:
 		return
 	var u := "deg" if String(d.get("kind", "rotate")) == "rotate" else "mm"
 	var v := scrub_v if scrub_on else float((d["range"] as Array)[0])
+	if timing():
+		v = AssemblyAnim.value_at(a.asm, drive, time_t)
 	var t := "%s at %s %s" % [drive, a._fmt(snappedf(v, 0.01)), u]
-	if AssemblyLoop.has_joints(a.asm):
+	if timing():
+		t = "%s s: %s" % [String.num(time_t, 2), t]
+		var s := _anim_at(time_t)
+		if not bool(s["ok"]):
+			at_l.text = t + ": NOT SOLVED: " + String(s["why"])
+			return
+	elif AssemblyLoop.has_joints(a.asm):
 		var s := _loop_at(v)
 		if not bool(s["ok"]):
 			at_l.text = t + ": NOT SOLVED: " + String(s["why"])
 			return
 	if not res.is_empty():
-		var pairs := AssemblyMotion.clashing_at(res, v)
+		var pairs := _clashing_at_time(time_t) if timing() and res.has("times") else AssemblyMotion.clashing_at(res, v)
 		var names: PackedStringArray = []
 		for pr in pairs:
 			names.append("%s x %s" % [_name(pr[0]), _name(pr[1])])
@@ -393,12 +635,33 @@ func _name(id: String) -> String:
 	return String(a.asm["parts"][i]["name"]) if i >= 0 else id
 
 
+## G7TIME: the pairs clashing at the animation's frame nearest t
+func _clashing_at_time(t: float) -> Array:
+	var ts: Array = res.get("times", [])
+	if ts.is_empty():
+		return []
+	var best := 0
+	for k in ts.size():
+		if absf(float(ts[k]) - t) < absf(float(ts[best]) - t):
+			best = k
+	var out: Array = []
+	for c in res.get("clashes", []):
+		if bool(c["static"]) or int(c.get("k", -1)) == best:
+			out.append([String(c["ida"]), String(c["idb"])])
+	return out
+
+
+## the parts are moved on screen (the drive's slider or the timeline): the move gizmo hides
 func scrubbing() -> bool:
-	return scrub_on and panel.visible and not AssemblyMotion.drive_of(a.asm, drive).is_empty()
+	return panel.visible and ((scrub_on and not AssemblyMotion.drive_of(a.asm, drive).is_empty()) or timing())
 
 
-## the part's place on screen: moved by the scrubbed drive, else the record's pose
+## the part's place on screen: the animation at the timeline's time, else moved by the scrubbed drive, else the record's pose
 func xf_of(p: Dictionary) -> Transform3D:
+	if timing():
+		var mv: Dictionary = _anim_at(time_t)["moves"]
+		var id := String(p["id"])
+		return (mv[id] as Transform3D) * Assembly.xf_of(p) if mv.has(id) else Assembly.xf_of(p)
 	if scrubbing():
 		if AssemblyLoop.has_joints(a.asm):
 			var mv: Dictionary = _loop_at(scrub_v)["moves"]
