@@ -496,8 +496,13 @@ func _toksvig_mips(lvl0: PackedByteArray, nxa: PackedFloat32Array, nya: PackedFl
 		var x2 := PackedFloat32Array()
 		var y2 := PackedFloat32Array()
 		var z2 := PackedFloat32Array()
-		for arr in [r2, g2, b2, q2, x2, y2, z2]:
-			(arr as PackedFloat32Array).resize(w2 * h2)
+		r2.resize(w2 * h2)
+		g2.resize(w2 * h2)
+		b2.resize(w2 * h2)
+		q2.resize(w2 * h2)
+		x2.resize(w2 * h2)
+		y2.resize(w2 * h2)
+		z2.resize(w2 * h2)
 		var lv := PackedByteArray()
 		lv.resize(w2 * h2 * 4)
 		for y in h2:
