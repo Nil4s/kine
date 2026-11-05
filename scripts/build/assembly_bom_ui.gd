@@ -238,7 +238,7 @@ func use(key: String, c: String, why: String) -> bool:
 	a._refresh(false)
 	refresh()
 	var b: Dictionary = cheap.get("bom", {})
-	a._say("%s now uses %s (%s). The assembly costs %s %.2f. Ctrl+Z takes it back" % [nm, c, why, String(b.get("currency", "USD")), float(b.get("cost", 0.0))])
+	a._say("Now %s: total %s %.2f" % [c, String(b.get("currency", "USD")), float(b.get("cost", 0.0))])   # short: the long line drew over the Export row (part name and reason are in the table)
 	return true
 
 
@@ -250,7 +250,7 @@ func use_design() -> bool:
 	AssemblyBom.apply_design(a.asm, d["changes"])
 	a._refresh(false)
 	refresh()
-	a._say("The cheapest design is in: %s %.2f. Ctrl+Z takes it back" % [String(cheap["bom"]["currency"]), float(cheap["bom"]["cost"])])
+	a._say("Cheapest design in: %s %.2f" % [String(cheap["bom"]["currency"]), float(cheap["bom"]["cost"])])
 	return true
 
 
