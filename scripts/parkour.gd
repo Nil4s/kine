@@ -178,7 +178,12 @@ static func _wall_ball(B: Body, sd: String, tgt: Vector3) -> float:
 	var v0: Vector3 = (B.p0["ball" + sd] as Vector3) - (B.p0[ft] as Vector3)
 	var qf := Quaternion(Vector3.RIGHT, atan2(v0.y, v0.z))
 	var rot: Quaternion = Quaternion(Vector3(0, 0, 1), PI * 0.5) * qf
-	var pole: Vector3 = (B.P["thigh" + sd] as Vector3) + Vector3(-0.6, 0.0, 1.0)
+	var pole: Vector3 = (B.P["thigh" + sd] as Vector3) + Vector3(-1.0, -0.2, 0.4)   # the hip turned out: the knee points off the wall
+	if sd == "_r":
+		# the crossing foot: a right sole turned to his LEFT is inversion, stopped at 25 deg; asked for more, the foot swung to
+		# point off the wall and drove the ankle into it (52 mm). It asks only for what the ankle has: toes on, 25 deg rolled
+		rot = Quaternion(Vector3(0, 0, 1), deg_to_rad(25.0)) * qf
+		pole = (B.P["thigh" + sd] as Vector3) + Vector3(0.2, -0.2, 1.0)   # its knee forward: turned out it lay the shank flat into the wall
 	var a: Vector3 = tgt - (B.P["ball" + sd] as Vector3) + (B.P[ft] as Vector3)
 	var best_a := a
 	var best := INF
@@ -198,9 +203,13 @@ static func _wall_ball(B: Body, sd: String, tgt: Vector3) -> float:
 ## the deepest point of one capsule in the course and the way out of it: {"d": depth beyond the part's standing allowance (m),
 ## "n": the outward normal of the box face it is under}
 static func _part_in(B: Body, part: String, boxes: Array) -> Dictionary:
-	var c: Array = B.cap(part)
-	var r: float = B.rad[part]
-	var base: float = STAND_DEPTH.get(part, 0.0)
+	var cp: Array = B.cap(part)
+	return _cap_in([cp[0], cp[1], float(B.rad[part])], float(STAND_DEPTH.get(part, 0.0)), boxes)
+
+
+## the same for a capsule [a, b, r, ...] (HandShape's form)
+static func _cap_in(c: Array, base: float, boxes: Array) -> Dictionary:
+	var r: float = c[2]
 	var n := maxi(1, ceili((c[0] as Vector3).distance_to(c[1]) / Props.STEP))
 	var best := 0.0
 	var nb := Vector3.UP
@@ -258,8 +267,8 @@ static func _clear_free_legs(B: Body, P: Dictionary, t: float, boxes: Array) -> 
 		var pole := LimbIK.pole_from_pose(B, tip)
 		for it in 5:
 			var worst := {"d": 0.0, "n": Vector3.UP}
-			for part in ["upperarm" + sd, "lowerarm" + sd, tip]:
-				var q := _part_in(B, part, boxes)
+			for c in [B.cap("upperarm" + sd) + [float(B.rad["upperarm" + sd])]] + HandShape.forearm_caps(B, tip) + HandShape.caps(B, tip):
+				var q := _cap_in(c, 0.0, boxes)
 				if float(q["d"]) > float(worst["d"]):
 					worst = q
 			if float(worst["d"]) < 0.004:
@@ -316,6 +325,10 @@ static func _arms(B: Body, P: Dictionary, t: float, surfs: Array) -> float:
 		var tr: Array = P["hands"]["hand" + sd]
 		if tr.is_empty():
 			continue
+		# a free hand runs half closed (the rig's rest thumb hangs 8 cm palm-side, into whatever the hand passes); a planted hand's
+		# fingers are posed by HandShape.palm_flat below
+		for fg in HandShape.FINGERS:
+			HandShape._curl(B, "hand" + sd, fg, 0.45, 1.0)
 		var st := limb_at(tr, t)
 		var tgt: Vector3 = st["v"]
 		var w: float = st["w"]
@@ -345,7 +358,7 @@ static func _arms(B: Body, P: Dictionary, t: float, surfs: Array) -> float:
 					var span := maxf(float(kb["t"]) - float(ka["t"]), 1e-6)
 					var u := smoothstep(0.0, 1.0, clampf((t - float(ka["t"])) / span, 0.0, 1.0))
 					n = (ka["n"] as Vector3).slerp(kb.get("n", ka["n"]), u).normalized()
-				worst = maxf(worst, _palm_reach(B, tip, tgt, n, ka.get("f", Vector3.ZERO)) * w)
+				worst = maxf(worst, _palm_hs(B, tip, tgt, n, ka.get("f", Vector3.ZERO), P.get("_solids", [])) * w)
 			else:
 				var rr := ContactIK.reach(B, tip, tgt, surfs)
 				if rr.get("on", false):
@@ -355,6 +368,26 @@ static func _arms(B: Body, P: Dictionary, t: float, surfs: Array) -> float:
 					B.ang[j] = (a1[j] as Vector3).lerp(B.ang[j], w)
 				B.fk()
 	return worst
+
+
+## CH7b (PR #200): the palm laid flat by HandShape.palm_flat (the slab on the surface, the fingers resting on it or curled over an
+## edge, the thumb laid down, all kept out of the course solids), its face centre moved in the surface plane until Body.palm_point
+## (the point bar 1 reads) sits on `target`. Returns that point's miss in the plane (m)
+static func _palm_hs(B: Body, tip: String, target: Vector3, n: Vector3, fdir: Vector3, solids: Array) -> float:
+	var c := target
+	var opts := {"solids": solids}
+	if fdir != Vector3.ZERO:
+		opts["fdir"] = fdir
+		opts["turn"] = 90.0
+	var e := Vector3.ZERO
+	for it in 6:
+		HandShape.palm_flat(B, tip, c, n, opts)
+		e = target - B.palm_point(tip)
+		e -= n * e.dot(n)
+		if e.length() < 0.001:
+			break
+		c += e
+	return e.length()
 
 
 ## CH7b: put the PALM POINT (Body.palm_point, the point the bar reads) on `target`, the palm turned flat to the surface normal n.
@@ -388,9 +421,8 @@ static func _palm_reach(B: Body, tip: String, target: Vector3, n: Vector3, fdir 
 ## the lowest point of any body capsule (its axis end less its radius), m
 static func lowest(B: Body) -> float:
 	var lo := 1e9
-	for part in Body.BODY:
-		var c: Array = B.cap(part)
-		lo = minf(lo, minf((c[0] as Vector3).y, (c[1] as Vector3).y) - float(B.rad[part]))
+	for c in caps_all(B):
+		lo = minf(lo, minf((c[0] as Vector3).y, (c[1] as Vector3).y) - float(c[2]) + float(c[3]))
 	return lo
 
 
@@ -440,6 +472,22 @@ static func boxes_of(props: Array) -> Array:
 	return out
 
 
+## every collision capsule of the body as [a, b, r, standing allowance, name]. CH7b (11-04, after PR #200): the hands are
+## HandShape's (a palm slab of capsules and one capsule per finger phalanx, as posed) and the forearms HandShape.forearm_caps
+## (the muscle belly, then the cited wrist), instead of Body's one 4.7 cm hand sausage and the forearm's 5.4 cm ball at the wrist
+static func caps_all(B: Body) -> Array:
+	var out := []
+	for part in Body.BODY:
+		if part.begins_with("hand_") or part.begins_with("lowerarm_"):
+			continue
+		var cp: Array = B.cap(part)
+		out.append([cp[0], cp[1], float(B.rad[part]), float(STAND_DEPTH.get(part, 0.0)), part])
+	for h in ["hand_l", "hand_r"]:
+		for c in HandShape.forearm_caps(B, h) + HandShape.caps(B, h):
+			out.append([c[0], c[1], float(c[2]), 0.0, String(c[3])])
+	return out
+
+
 static func deepest(B: Body, boxes: Array) -> Dictionary:
 	if native_on():
 		var a := PackedVector3Array()
@@ -448,19 +496,19 @@ static func deepest(B: Body, boxes: Array) -> Dictionary:
 		var base := PackedFloat32Array()
 		var c := PackedVector3Array()
 		var h := PackedVector3Array()
-		for part in Body.BODY:
-			var cp: Array = B.cap(part)
+		var cs := caps_all(B)
+		for cp in cs:
 			a.append(cp[0])
 			b.append(cp[1])
-			r.append(B.rad[part])
-			base.append(STAND_DEPTH.get(part, 0.0))
+			r.append(cp[2])
+			base.append(cp[3])
 		for bx in boxes:
 			c.append(bx["c"])
 			h.append(bx["h"])
 		var o: Array = (load("res://scripts/parkour_native.gd") as GDScript).deepest(a, b, r, base, c, h)
 		var w := ""
 		if int(o[1]) >= 0:
-			w = "%s in %s" % [Body.BODY[int(o[1])], String(boxes[int(o[2])]["kind"])]
+			w = "%s in %s" % [String(cs[int(o[1])][4]), String(boxes[int(o[2])]["kind"])]
 		return {"d": float(o[0]), "where": w}
 	return deepest_gd(B, boxes)
 
@@ -468,10 +516,11 @@ static func deepest(B: Body, boxes: Array) -> Dictionary:
 static func deepest_gd(B: Body, boxes: Array) -> Dictionary:
 	var best := 0.0
 	var where := ""
-	for part in Body.BODY:
-		var c: Array = B.cap(part)
-		var r: float = B.rad[part]
-		var base: float = STAND_DEPTH.get(part, 0.0)
+	for cp in caps_all(B):
+		var part: String = cp[4]
+		var c: Array = [cp[0], cp[1]]
+		var r: float = cp[2]
+		var base: float = cp[3]
 		var n := maxi(1, ceili((c[0] as Vector3).distance_to(c[1]) / Props.STEP))
 		for bx in boxes:
 			var worst := 0.0
@@ -577,6 +626,10 @@ static func build(P: Dictionary) -> Dictionary:
 	add_course(S, P["obstacles"])
 	var surfs := ContactIK.surfaces(S.props)
 	var boxes := boxes_of(S.props)
+	var sol := []
+	for bx in boxes:
+		sol.append({"xf": Transform3D(Basis(), bx["c"]), "half": bx["h"]})
+	P["_solids"] = sol
 	var B := body()
 	var cards := []
 	var rep := []

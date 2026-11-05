@@ -294,8 +294,8 @@ static func sh_off(P: Dictionary, t: float, sd: String) -> Vector3:
 
 
 ## the wrist of a palm lying flat on a top face, fingers along +z
-static func _wrist_of(palm: Vector3) -> Vector3:
-	return palm + Vector3(0.0, 0.03, -PALM_WRIST)
+static func _wrist_of(palm: Vector3, f := Vector3(0, 0, 1)) -> Vector3:
+	return palm + Vector3(0.0, 0.035, 0.0) - f.normalized() * PALM_WRIST
 
 
 ## CONTACT FIRST, the support phase: the pelvis height that keeps every planted arm's shoulder A from its wrist (an inverted
@@ -306,7 +306,7 @@ static func arm_y(P: Dictionary, t: float, palms: Array, A: float) -> float:
 	var xt: float = Parkour.ch(P, "x", t)
 	for pp in palms:
 		var so := sh_off(P, t, String(pp[0]))
-		var w := _wrist_of(pp[1])
+		var w := _wrist_of(pp[1], pp[2] if pp.size() > 2 else Vector3(0, 0, 1))
 		var dh := Vector2(xt + so.x - w.x, zt + so.z - w.z).length()
 		best = minf(best, w.y + sqrt(maxf(0.0, A * A - dh * dh)) - so.y)
 	return best
@@ -469,7 +469,7 @@ static func _build(drops: Dictionary) -> Dictionary:
 	var zl := LEDGE_Z
 	# ================= 0 the trunk (pitch, roll, spine bend): the shoulders' place over the pelvis depends on it, so it comes first
 	_rows(P, "x", [[0, 0], [3.0, 0], [3.4, 0.52], [3.62, 0.52], [3.77, 0.55], [3.92, 0.52], [4.15, 0.52], [4.46, 0.0], [8.0, 0.0]])
-	_rows(P, "p", [[0, 10], [0.7, 12], [0.97, 15], [1.10, 5], [1.24, 5], [1.45, 12], [1.56, 12], [2.1, 12], [2.2, 40], [2.35, 80], [2.44, 90], [2.56, 75], [2.66, 45], [2.78, 20], [2.86, 12],
+	_rows(P, "p", [[0, 10], [0.7, 12], [0.97, 15], [1.10, 5], [1.24, 5], [1.45, 12], [1.56, 12], [2.1, 12], [2.2, 40], [2.35, 65], [2.47, 90], [2.58, 75], [2.66, 45], [2.78, 20], [2.86, 12],
 		[3.3, 12], [3.45, 8], [4.15, 8], [4.40, 12], [4.8, 12], [4.95, 22], [5.30, 24], [5.50, 24], [5.64, 24], [5.74, 45], [5.84, 40], [5.96, 25], [6.06, 15],
 		[6.30, 8], [6.45, 12], [6.58, 12], [6.70, 18], [6.80, 40], [6.95, 200], [7.08, 330], [7.15, 360], [7.25, 372], [7.36, 340], [7.5, -80], [8.0, -82]])
 	# the speed vault tips the body toward the planted right hand ("tw" is the pelvis's side tilt, the body lies sideways over the box);
@@ -482,14 +482,14 @@ static func _build(drops: Dictionary) -> Dictionary:
 		_sort(P["root"][k])
 	# ================= 1 the contacts that fix the pelvis in z
 	# speed vault: the right palm on the box's near edge; at mid-plant (1.17) the right shoulder is 5 cm past the wrist
-	var hv := Vector3(-0.35, Y0 + 0.8 + PALM_Y, 5.0)
-	var zv := _wrist_of(hv).z + 0.05 - sh_off(P, 1.17, R).z
+	var hv := Vector3(-0.55, Y0 + 0.8 + PALM_Y, 5.0)   # out to his right: the arm comes in slanted, the wrist short of its stop
+	var zv := hv.z - 0.02 - sh_off(P, 1.17, R).z
 	# kong: both palms on the box's FAR edge (a dive kong: the hands reach long, the body is already over the box); at 2.44 the
 	# shoulders are over the wrists
 	var kz := 10.0 - 0.01
 	var hkl := Vector3(0.20, Y0 + 1.0 + PALM_Y, kz)
 	var hkr := Vector3(-0.20, Y0 + 1.0 + PALM_Y, kz)
-	var zk := _wrist_of(hkl).z - 0.5 * (sh_off(P, 2.44, L).z + sh_off(P, 2.44, R).z)
+	var zk := _wrist_of(hkl).z - 0.5 * (sh_off(P, 2.50, L).z + sh_off(P, 2.50, R).z)
 	# the cat leap and the climb-up: the palms hook the wall top's near edge; the SHOULDER path about the palms is the plan
 	# (hang, sag, pull, over the edge, press), the pelvis follows from it through the trunk
 	var palm_c := Vector3(0.0, Y0 + 1.7 + 0.022, zl - 0.005)
@@ -500,7 +500,7 @@ static func _build(drops: Dictionary) -> Dictionary:
 		var so := 0.5 * (sh_off(P, tt, L) + sh_off(P, tt, R))
 		return palm_c + (PartKeys.at(shk, tt) as Vector3) - so
 	var rows := [[0.0, zv - 0.36 - 4.2 * 1.07], [1.07, zv - 0.36], [1.17, zv], [1.27, zv + 0.36], [1.48, zv + 1.20], [1.74, zv + 1.20 + 0.65],
-		[2.34, zk - 0.34], [2.44, zk], [2.54, zk + 0.34], [2.84, zk + 1.42], [3.10, zk + 2.07], [4.30, 17.10], [4.56, 17.75], [4.89, 19.35]]
+		[2.40, zk - 0.26], [2.50, zk], [2.60, zk + 0.34], [2.84, zk + 1.42], [3.10, zk + 2.07], [4.30, 17.10], [4.56, 17.75], [4.89, 19.35]]
 	var tc := 5.30
 	while tc <= 5.8401:
 		rows.append([tc, (pel_c.call(tc) as Vector3).z])
@@ -517,10 +517,10 @@ static func _build(drops: Dictionary) -> Dictionary:
 	_stance(P, Y, R, 0.53, 0.70, "run")
 	_stance(P, Y, L, 0.80, 0.97, "off", "roof")
 	# the speed vault: the right palm 1.10-1.24; the pelvis rides the arm (inverted pendulum over the hand), ballistic either side
-	var vpalm := [[R, hv]]
+	var vpalm := [[R, hv, Vector3(-1, 0, 0)]]
 	Y.par(1.10, arm_y(P, 1.10, vpalm, ARM_CH))
 	Y.fn(1.24, func(tt: float) -> float: return arm_y(P, tt, vpalm, ARM_CH))
-	_hand_palm(P, R, 1.10, 1.24, hv, "boxSpeed")
+	_hand_palm(P, R, 1.10, 1.24, hv, "boxSpeed", Vector3.ZERO, Vector3.ZERO, Vector3(-1, 0, 0))
 	_land(P, Y, R, 1.48, 1.74, "roof", _y_run(P, R, 1.74, 1.48))
 	_stance(P, Y, L, 1.78, 1.95, "run")
 	_stance(P, Y, R, 2.02, 2.16, "off")
@@ -534,13 +534,13 @@ static func _build(drops: Dictionary) -> Dictionary:
 	_stance(P, Y, R, 3.12, 3.26, "run")
 	# the wall run: the TOE BASE is pinned on the wall face (the foot pivots about it, the ankle's inversion stop allowing);
 	# the pelvis rides the leg's reach above it
-	var wall_steps := [[L, 3.40, 3.57, 0.57], [R, 3.70, 3.85, 0.74], [L, 4.00, 4.15, 0.62]]
+	var wall_steps := [[L, 3.40, 3.57, 0.57], [R, 3.70, 3.85, 0.62], [L, 4.00, 4.15, 0.62]]
 	for w in wall_steps:
 		var sd: String = w[0]
 		var tm: float = 0.5 * (float(w[1]) + float(w[2]))
 		var az := _zat(P, tm)
 		var ankle := Vector3(WALL_X - DEPTH_SOLE, Y0 + float(w[3]), az)
-		var ballw := Vector3(WALL_X - 0.06, Y0 + float(w[3]), az + 0.10)
+		var ballw := Vector3(WALL_X - (0.0625 if sd == L else 0.06), Y0 + float(w[3]), az + 0.10)
 		var o0 := _hip_off(P, sd, float(w[1]), ankle)
 		var o1 := _hip_off(P, sd, float(w[2]), ankle)
 		var om := _hip_off(P, sd, tm, ankle)
@@ -576,8 +576,8 @@ static func _build(drops: Dictionary) -> Dictionary:
 	_log(P, "foot_r", 6.58, 6.82, land_ball_r, "roofB", "sole (landing)")
 	var tb := Y.t
 	var hz := bz + 0.30
-	_hand_palm(P, L, 6.76, 6.90, Vector3(0.18, Y0 + PALM_Y, hz), "roofB")
-	_hand_palm(P, R, 6.76, 6.90, Vector3(-0.18, Y0 + PALM_Y, hz), "roofB")
+	_hand_palm(P, L, 6.76, 6.90, Vector3(0.18, Y0 + PALM_Y, hz), "roofB", Vector3.ZERO, Vector3.ZERO, Vector3(0, 0, 1))
+	_hand_palm(P, R, 6.76, 6.90, Vector3(-0.18, Y0 + PALM_Y, hz), "roofB", Vector3.ZERO, Vector3.ZERO, Vector3(0, 0, 1))
 	Y.ease(7.0, Y0 + 0.30)
 	Y.ease(7.4, Y0 + 0.20)
 	Y.ease(8.0, Y0 + 0.19)
@@ -597,10 +597,16 @@ static func _build(drops: Dictionary) -> Dictionary:
 	for g in ["feet", "hands"]:
 		for k in P[g]:
 			_sort(P[g][k])
+	# the kong: after the hands leave, the knees come to the chest over the box (FK tuck), then open for the landing
+	P["fk"].append({"t0": 2.50, "t1": 2.64, "ramp": 0.08, "ang": {
+		"thigh_l": Vector3(115, 6, 0), "thigh_r": Vector3(115, -6, 0), "calf_l": Vector3(140, 0, 0), "calf_r": Vector3(140, 0, 0),
+		"foot_l": Vector3(20, 0, 0), "foot_r": Vector3(20, 0, 0)}})
 	# the roll: the limbs are FK-tucked while the pelvis turns (angles in degrees, bend/side/twist)
 	P["fk"].append({"t0": 6.92, "t1": 7.20, "ramp": 0.08, "ang": {
 		"thigh_l": Vector3(115, 4, 0), "thigh_r": Vector3(115, -4, 0), "calf_l": Vector3(125, 0, 0), "calf_r": Vector3(125, 0, 0),
-		"foot_l": Vector3(20, 0, 0), "foot_r": Vector3(20, 0, 0),
+		"foot_l": Vector3(20, 0, 0), "foot_r": Vector3(20, 0, 0)}})
+	# the arms tuck only once the hands have left the roof (6.90)
+	P["fk"].append({"t0": 6.98, "t1": 7.20, "ramp": 0.06, "ang": {
 		"upperarm_l": Vector3(70, -30, 0), "upperarm_r": Vector3(70, -30, 0), "lowerarm_l": Vector3(95, 0, 0), "lowerarm_r": Vector3(95, 0, 0)}})
 	return P
 
@@ -660,7 +666,7 @@ static func _flight(P: Dictionary, grp: String, tip: String, ta: float, pa: Vect
 		pt = pb.lerp(pt, wb) if wb < 1.0 else pt
 		pt = _clear(P, pt, clear)
 		if pt.z < 14.3 or pt.z > 17.2:
-			pt.y = maxf(pt.y, Y0 + 0.06)   # a free foot stays over the roof it runs on
+			pt.y = maxf(pt.y, Y0 + 0.09)   # a free foot stays over the roof it runs on
 		(P[grp][tip] as Array).append({"t": snappedf(t, 0.0001), "v": pt, "c": false})
 		t += 1.0 / 30.0
 
@@ -729,7 +735,7 @@ static func _flight_legs(P: Dictionary) -> void:
 		[0.97, Vector3(0.12, -0.60, -0.30)], [1.12, Vector3(0.20, -0.12, 0.45)], [1.25, Vector3(0.15, -0.10, 0.68)], [1.35, Vector3(0.15, -0.25, 0.65)], [1.44, Vector3(0.15, -0.55, 0.45)],
 		[1.55, Vector3(0.12, -0.55, 0.40)], [1.78, Vector3(0.09, -0.62, 0.10)]])
 	_flight(P, "feet", "foot_r", 0.70, pt.call(R, 0.70), 1.48, pt.call(R, 1.48), [
-		[0.70, Vector3(-0.09, -0.50, -0.30)], [0.85, Vector3(-0.12, -0.45, 0.20)], [1.0, Vector3(-0.15, -0.35, -0.35)], [1.15, Vector3(0.0, -0.15, 0.45)],
+		[0.70, Vector3(-0.09, -0.50, -0.30)], [0.85, Vector3(-0.12, -0.45, 0.20)], [1.0, Vector3(-0.12, -0.25, 0.10)], [1.15, Vector3(0.0, -0.15, 0.45)],
 		[1.25, Vector3(-0.02, -0.12, 0.68)], [1.35, Vector3(-0.05, -0.30, 0.62)], [1.42, Vector3(-0.08, -0.55, 0.50)], [1.48, Vector3(-0.09, -0.80, 0.50)]])
 	# kong: legs tuck up between the arms, then reach for the roof
 	_flight(P, "feet", "foot_l", 1.95, pt.call(L, 1.95), 2.84, pt.call(L, 2.84), [
@@ -741,7 +747,7 @@ static func _flight_legs(P: Dictionary) -> void:
 	# wall run: the swing between wall steps
 	_flight(P, "feet", "foot_r", 3.26, pt.call(R, 3.26), 3.70, pt.call(R, 3.70), [
 		[3.26, Vector3(-0.09, -0.70, 0.30)], [3.45, Vector3(-0.10, -0.55, 0.25)], [3.60, Vector3(0.10, -0.55, 0.30)]])
-	_flight(P, "feet", "foot_l", 3.10, pt.call(L, 3.10), 3.40, pt.call(L, 3.40), [
+	_flight(P, "feet", "foot_l", 3.07, pt.call(L, 3.07), 3.40, pt.call(L, 3.40), [
 		[3.10, Vector3(0.09, -0.65, -0.20)], [3.22, Vector3(0.12, -0.45, 0.25)], [3.30, Vector3(0.12, -0.45, 0.30)]])
 	_flight(P, "feet", "foot_l", 3.57, pt.call(L, 3.57), 4.00, pt.call(L, 4.00), [
 		[3.57, Vector3(0.20, -0.55, -0.10)], [3.80, Vector3(0.16, -0.50, 0.25)], [3.92, Vector3(0.16, -0.45, 0.20)]])
@@ -794,7 +800,7 @@ static func _free_hands(P: Dictionary) -> void:
 	_rel(P, "hands", "hand_r", 2.16, Vector3(-0.25, 0.1, 0.5))
 	_free(P, "hands", "hand_l", 2.27, Vector3(0.20, Y0 + 1.22, 9.70))
 	_free(P, "hands", "hand_r", 2.27, Vector3(-0.20, Y0 + 1.22, 9.70))
-	_free(P, "hands", "hand_r", 1.28, Vector3(-0.40, Y0 + 0.98, 5.06))
+	_free(P, "hands", "hand_r", 1.28, Vector3(-0.62, Y0 + 1.06, 5.02))
 	_free(P, "hands", "hand_l", 2.61, Vector3(0.22, Y0 + 1.16, 10.06))
 	_free(P, "hands", "hand_r", 2.61, Vector3(-0.22, Y0 + 1.16, 10.06))
 	_free(P, "hands", "hand_l", 5.91, Vector3(0.24, Y0 + 1.86, LEDGE_Z + 0.06))

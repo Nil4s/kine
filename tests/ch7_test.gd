@@ -10,7 +10,10 @@
 ##     knee extends again), not the maximum over a window; same 30.8 +- 20 % target and monotone rule (added after run 1 showed the
 ##     0.25 s window of bar 3 also catches the next stride's knee fold; bar 3 is kept as written)
 ##   4 FOOT SKATE: a stance foot's toe base slides under 1 cm over each roof contact
-##   5 NO PENETRATION: no body part more than 1 cm into any solid of the course, on every frame
+##   5 NO PENETRATION: no body part more than 1 cm into any solid of the course, on every frame (11-04, CH7b: the hands are
+##     HandShape's palm slab and finger capsules and the forearms end in the cited wrist, PR #200, scripts/hand_shape.gd, in place
+##     of the one 4.7 cm hand capsule; the old-capsule reading is printed as info beside it)
+## COURSE: the kong box 0.6 m nearer (z 9.4-10.0) and a 0.6 m deep ledge (was 1.7 m), CH7b: course change accepted by Nick 11-04
 ##   6 the scene is 8 s at 30 fps, and playing it back reproduces the solved pose; C++ and GDScript give the same penetration
 ##   7 CONTROLS: each bar's function fails on a planted wrong series
 extends SceneTree
@@ -231,6 +234,13 @@ func _run() -> void:
 					worst_sk = maxf(worst_sk, slide_of(pts))
 	ok(worst_sk < SKATE_MAX and nstance >= 15, "4 %d stance contacts, worst toe-base slide %.1f mm (bar 10 mm)" % [nstance, worst_sk * 1000.0])
 	# ---- 5 penetration
+	var leg_worst := 0.0
+	HandShape.legacy = true
+	for k in nfr:
+		S.apply(B, float(k) / fps)
+		leg_worst = maxf(leg_worst, float(Parkour.deepest(B, boxes)["d"]))
+	HandShape.legacy = false
+	print("info bar 5 with the old single hand capsule (HandShape.legacy): %.1f mm" % (leg_worst * 1000.0))
 	ok(pen_worst <= PEN_MAX, "5 deepest body part in a solid: %.1f mm (%s, frame %d) (bar 10 mm)" % [pen_worst * 1000.0, pen_where, pen_frame])
 	# ---- 6 native == GDScript
 	var same := true
