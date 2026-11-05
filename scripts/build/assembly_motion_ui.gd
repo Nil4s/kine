@@ -19,6 +19,8 @@ const RED := Color(1.0, 0.12, 0.08, 0.55)
 
 var a: AssemblyUI
 var panel: PanelContainer
+var scroll: ScrollContainer    # POLISH: the panel scrolls instead of running past the bottom bar with a long clash list
+var vb: VBoxContainer
 var drive_ob: OptionButton
 var kind_ob: OptionButton
 var axis_ob: OptionButton
@@ -68,9 +70,13 @@ func setup(owner: AssemblyUI) -> void:
 	panel.name = "asm_motion_panel"
 	panel.visible = false
 	panel.add_theme_stylebox_override("panel", a.psb_of())
-	var vb := VBoxContainer.new()
+	scroll = ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	panel.add_child(scroll)
+	vb = VBoxContainer.new()
+	vb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	vb.add_theme_constant_override("separation", 4)
-	panel.add_child(vb)
+	scroll.add_child(vb)
 	vb.add_child(a._lbl("CHECK MOTION", 15, "asm_motion_title"))
 	var h0 := HBoxContainer.new()
 	h0.add_child(a._lbl("Drive", 13))
@@ -89,6 +95,7 @@ func setup(owner: AssemblyUI) -> void:
 	kind_ob.focus_mode = Control.FOCUS_NONE
 	kind_ob.add_item("Turn (deg)")
 	kind_ob.add_item("Slide (mm)")
+	kind_ob.item_selected.connect(func(_i: int) -> void: _axis_words())
 	h1.add_child(kind_ob)
 	axis_ob = OptionButton.new()
 	axis_ob.name = "asm_motion_axis"
@@ -98,6 +105,7 @@ func setup(owner: AssemblyUI) -> void:
 	axis_ob.select(2)
 	h1.add_child(axis_ob)
 	vb.add_child(h1)
+	_axis_words()
 	var h2 := HBoxContainer.new()
 	h2.add_child(a._lbl("From", 12))
 	lo_e = _num_edit("asm_motion_lo", "0")
@@ -122,6 +130,7 @@ func setup(owner: AssemblyUI) -> void:
 	jkind_ob.focus_mode = Control.FOCUS_NONE
 	for t in ["Pin (turns)", "Slide", "Weld"]:
 		jkind_ob.add_item(t)
+	jkind_ob.item_selected.connect(func(_i: int) -> void: _axis_words())
 	jkind_ob.tooltip_text = "Pin: turns about the axis through the point. Slide: moves along the axis. Weld: moves with the other part"
 	hj.add_child(jkind_ob)
 	jto_ob = OptionButton.new()
@@ -380,8 +389,14 @@ func _num_edit(nm: String, t: String) -> LineEdit:
 func layout(at: Vector2) -> void:
 	if panel.visible:
 		panel.reset_size()
+		# POLISH: cap the height above the bottom bar; the ScrollContainer takes the overflow
+		var max_h: float = maxf(200.0, panel.get_viewport_rect().size.y - at.y - 64.0)
+		scroll.custom_minimum_size.y = minf(vb.get_combined_minimum_size().y + 8.0, max_h)
+		panel.reset_size()
 		panel.position = at
 		panel.size.x = W
+		if panel.size.y > max_h + 24.0:
+			panel.size.y = max_h + 24.0
 
 
 func is_open() -> bool:
@@ -569,6 +584,19 @@ func run() -> Dictionary:
 	if bool(res.get("ok", false)):
 		a._say("Check motion: %d clash%s, %d %s, %d ms" % [lines.size(), "" if lines.size() == 1 else "es", steps, "frames" if on_time else "steps", int(res["ms"])])   # short: a long line drew over the Export row (the kernel-call counts are in the result)
 	return res
+
+
+## POLISH: the axis picker says "along" for a slide (drive or joint) and "about" for a turn, not always "about Y"
+func _axis_words() -> void:
+	if axis_ob == null:
+		return
+	var along: bool = (jkind_ob != null and jkind_ob.selected == 1) or (kind_ob != null and kind_ob.selected == 1)
+	var sel: int = axis_ob.selected
+	axis_ob.clear()
+	for t in ["X", "Y", "Z"]:
+		axis_ob.add_item(("along " if along else "about ") + t)
+	axis_ob.select(sel)
+	axis_ob.tooltip_text = "The joint/drive axis: a slide moves along it, a pin or turn rotates about it"
 
 
 func _sync_scrub() -> void:
