@@ -156,6 +156,21 @@ static func internals() -> Dictionary:
 		p.cyl(c.x, Y_DECK - 0.5, c.y, "y", SG_R + 0.3, 2.0, "cut")
 	var pz := at_az(R_PZR, 0.0)
 	p.cyl(pz.x, Y_DECK - 0.5, pz.y, "y", PZR_R + 0.3, 2.0, "cut")
+	# pipe sleeves through the cavity concrete: the hot (+11 m) and cold (+8 m) legs cross the 3.3-6.0 m annulus.
+	# A row of overlapping spheres is the block-level sleeve (the prim cylinder cannot take an arbitrary azimuth).
+	for az in LOOP_AZ:
+		var sg := at_az(R_SG, az)
+		var rc := at_az(R_RCP, az + RCP_DAZ)
+		for leg in [[Vector2.ZERO, sg, 2.75, 2.5, 11.0], [rc, Vector2.ZERO, 1.5, 2.75, 8.0]]:
+			var a: Vector2 = leg[0]
+			var b: Vector2 = leg[1]
+			var u := (b - a).normalized()
+			var a2 := a + u * float(leg[2])
+			var b2 := b - u * float(leg[3])
+			for i in 25:
+				var q := a2.lerp(b2, i / 24.0)
+				if q.length() >= 2.8 and q.length() <= 6.5:
+					p.sphere(q.x, float(leg[4]), q.y, PIPE_R + 0.15, "cut")
 	return _done(p, CONC, 6)
 
 
