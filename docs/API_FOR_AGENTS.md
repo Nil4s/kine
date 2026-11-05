@@ -19,6 +19,7 @@ Optional record fields (all backward compatible; old records must save back unch
 - `"anim"` (#205): `{"fps", "length", "tracks":[{"drive", "keys":[[t, value, "linear"|"smooth"|"hold"]]}]}`.
 - `"stages"` (#208): `[{"name","parts":[ids],"dur": seconds}]`; parts in no stage are there from the start.
 - `"buy"` on a part marks a purchased item for the BOM.
+- `"wires"` (#214): `[{"a","b","kind":"power"|"signal","label"}]`, endpoints are Assembly part ids. Ratings on a part's `rec`: `v`/`kv`, `mva`, `w`, `rail`, `kind` (`bus|grid|transformer|breaker|generator|battery|regulator|ic`), optional `unit`, `powered`. All optional.
 
 ## 3. Motion, staging, filming, cost (USE THESE; do not write your own)
 - `AssemblyMotion.check_motion(asm, drive_name, steps) -> {"clashes","pairs","kernel_calls","skipped","ms","values","moving"}`; with joints it follows the loop.
@@ -30,7 +31,9 @@ Optional record fields (all backward compatible; old records must save back unch
 ## 4. Drawing and documents
 - `scripts/build/blueprint.gd` + `blueprint_view.gd`: Building-record drawings. `scripts/build/ch15_draw.gd`: SVG sheet + title block pattern used by CH15/CH16 (site plan, section, one-line).
 - `SectionLook` (`scripts/build/section_look.gd`): section/cutaway rendering; `AssemblyRender` opts `cut` wraps it.
-- Assembly drawings/schematics from records: gap G30/G31 (lane w4-g30draw) — check whether `assembly_draw.gd` exists before writing SVG by hand.
+- `AssemblyDraw.sheet(asm, opts)` (`scripts/build/assembly_draw.gd`): exact posed B-rep edge projection -> plan/front/section Blueprint sheet; overall mm from `KCad.bounds`, part labels, BOM mass when present. `opts.cut = {"n":Vector3,"w":metres}` uses SectionLook semantics (`n.p > w` removed); `opts.denom` overrides scale.
+- `AssemblyDraw.schematic_sheet(asm)` / `validate_schematic(asm)`: rated IEC-ish blocks + power/signal wires, source-BFS layered layout; missing bus/transformer ratings, unknown endpoints and unpowered blocks are returned and printed on the sheet.
+- `await AssemblyDraw.write(host, asm, "drawing"|"schematic", opts) -> {"ok","svg","png","sheet","warnings"}`; opts `dir`, `stem`, `ppm`. UI: Assembly **Export → Sheets → Drawing / Schematic**. No hidden-line removal; not a pin-level editor.
 
 ## 5. Characters, hands, mesh
 - `Balance.com(body)` (`scripts/balance.gd`): whole-body centre of mass (do not approximate with the pelvis).
