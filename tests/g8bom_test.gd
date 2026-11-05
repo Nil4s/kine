@@ -5,6 +5,9 @@ extends SceneTree
 ##   a MASS       a 40 x 20 x 10 mm steel box, an r 5 x 30 mm aluminium cylinder and an r 10 / 8 x 50 mm PLA+ tube in an Assembly: each line's
 ##                volume (the exact solid) and mass equal the hand volume x density (7850, 2700, 1240 kg/m3) to 1e-9 relative, the total is their
 ##                sum. CONTROL: PLA+'s density typed as 1.24 (g/cm3 as kg/m3) is named by AssemblyBom.validate and its mass misses by > 50 pct
+##   h MIXED      G44: one part with a 40 x 20 x 10 mm steel body and a 20 mm cube PLA body (bom.body_materials {"1": "pla"}):
+##                mass and cost are the sums per body to 1e-9 relative, the line says "mixed", and there is no whole-part alternative.
+##                CONTROL: an unknown material on body 1 leaves the line unpriced.
 ##   b GROUP      four identical M4 bolts are ONE line of qty 4 (mass 4 x the solid x 7850, cost 4 x the item price).
 ##                CONTROL: one bolt 1 mm longer splits it into two lines (3 + 1)
 ##   c CH14       the CH14 arm as an Assembly (ch14_bom.assembly) through the new BOM: every line group except the boom links equals CH14's own
@@ -114,6 +117,25 @@ func bars_mass() -> void:
 func bolt(ln: float) -> Dictionary:
 	return rec_of("Hex bolt M4 x 16", [{"t": "prim", "kind": "cylinder", "op": "new", "x": 0, "y": 0, "z": 0, "axis": "y", "r": 2.0, "len": ln},
 		{"t": "prim", "kind": "cylinder", "op": "join", "into": 0, "x": 0, "y": ln, "z": 0, "axis": "y", "r": 3.5, "len": 2.8}], {"buy": "bolt_m4x16", "material": "steel"})
+
+
+func bars_mixed() -> void:
+	var asm := Assembly.make("Mixed bodies")
+	var rec := rec_of("Steel frame with a printed knob", [
+		{"t": "prim", "kind": "box", "op": "new", "x": 0, "y": 0, "z": 0, "w": 40, "h": 20, "d": 10},
+		{"t": "prim", "kind": "box", "op": "new", "x": 100, "y": 0, "z": 0, "w": 20, "h": 20, "d": 20}], {"material": "steel", "body_materials": {"1": "pla"}})
+	Assembly.add_part(asm, rec)
+	var b := AssemblyBom.bom(asm)
+	var ln := line_named(b, "Steel frame with a printed knob")
+	var m0 := 40.0 * 20.0 * 10.0 * 1e-9 * 7850.0
+	var m1 := 20.0 * 20.0 * 20.0 * 1e-9 * 1240.0
+	var cost := m0 * 3.0 + m1 * 22.0
+	ok(not ln.is_empty() and String(ln.get("material", "")) == "mixed" and rel(float(ln.get("mass_kg", 0.0)), m0 + m1) < 1e-9 and rel(float(ln.get("line_cost", 0.0)), cost) < 1e-9,
+		"h mixed bodies: mass %.9f kg (hand %.9f), cost %.9f (hand %.9f)" % [float(ln.get("mass_kg", 0.0)), m0 + m1, float(ln.get("line_cost", 0.0)), cost])
+	ok(AssemblyBom.candidates(ln, AssemblyBom.prices()).is_empty(), "h a mixed-material part offers no whole-part substitute")
+	(asm["parts"][0]["rec"]["bom"] as Dictionary)["body_materials"] = {"1": "unobtainium"}
+	var bad := line_named(AssemblyBom.bom(asm), "Steel frame with a printed knob")
+	ctl(not bool(bad.get("priced", true)), "h an unknown body material leaves the line unpriced (%s)" % String(bad.get("why", "")))
 
 
 func bars_group() -> void:
@@ -578,6 +600,7 @@ func _init() -> void:
 		return
 	DirAccess.make_dir_recursive_absolute(OUT)
 	bars_mass()
+	bars_mixed()
 	bars_group()
 	bars_ch14()
 	bars_csv()
