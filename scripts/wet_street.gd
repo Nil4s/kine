@@ -922,7 +922,7 @@ func _build_lamp(lpos: Vector3, post_dx: float, col: Vector3, energy: float, emi
 	o.light_color = Color(col.x, col.y, col.z)
 	o.light_size = light_r
 	o.shadow_enabled = true
-	o.shadow_blur = 0.5
+	o.shadow_blur = 1.0     ## Godot default. Godot's omni PCSS disk radius is light_size x shadow_blur (servers/rendering/renderer_rd: light_storage.cpp soft_shadow_scale = shadow_blur; scene_forward_lights_inc.glsl tangent *= soft_shadow_size * soft_shadow_scale), so pass 1's 0.5 halved the 0.3 m emitter
 	o.omni_shadow_mode = OmniLight3D.SHADOW_CUBE
 	add_child(o)
 	lights.append(o)
