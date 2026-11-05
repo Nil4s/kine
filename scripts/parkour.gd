@@ -180,12 +180,18 @@ static func _wall_ball(B: Body, sd: String, tgt: Vector3) -> float:
 	var rot: Quaternion = Quaternion(Vector3(0, 0, 1), PI * 0.5) * qf
 	var pole: Vector3 = (B.P["thigh" + sd] as Vector3) + Vector3(-0.3, 0.0, 1.0)
 	var a: Vector3 = tgt - (B.P["ball" + sd] as Vector3) + (B.P[ft] as Vector3)
-	for it in 6:
+	var best_a := a
+	var best := INF
+	for it in 14:
 		LimbIK.solve(B, ft, a, pole, rot)
 		var err: Vector3 = tgt - (B.P["ball" + sd] as Vector3)
+		if err.length() < best:
+			best = err.length()
+			best_a = a
 		if err.length() < 0.0005:
 			break
-		a += err
+		a += err * 0.8
+	LimbIK.solve(B, ft, best_a, pole, rot)
 	return (tgt - (B.P["ball" + sd] as Vector3)).length()
 
 
