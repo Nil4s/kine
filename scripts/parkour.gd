@@ -139,8 +139,59 @@ static func _surface_foot(B: Body, sd: String, tgt: Vector3, md: String) -> floa
 	return float(LimbIK.solve(B, ft, tgt, pole, rot)["miss"])
 
 
+## CH7b: a flat stance foot on its toe base, then the toes laid flat (Body.toes_flat): when the ankle reaches its
+## dorsiflexion stop (late stance, the hip far ahead) the heel comes up and the foot pivots on the ball, as a runner's does,
+## instead of the toe bone tipping into the roof
+static func _stance_foot(B: Body, sd: String, tgt: Vector3) -> float:
+	var m := B.plant(sd, tgt, 0.0, true)
+	if m > REACH_EPS:
+		# the ankle at its stop: the foot turns with the shank, so the ankle target is moved by the ball's miss until the ball sits
+		var ft: String = "foot" + sd
+		var js := ["thigh" + sd, "calf" + sd, ft]
+		var best := {}
+		for j in js:
+			best[j] = B.ang[j]
+		var a: Vector3 = (B.P[ft] as Vector3) + (tgt - (B.P["ball" + sd] as Vector3))
+		for i in 10:
+			B.reach(ft, a)
+			B.flat_foot(sd)
+			var err: Vector3 = tgt - (B.P["ball" + sd] as Vector3)
+			if err.length() < m:
+				m = err.length()
+				for j in js:
+					best[j] = B.ang[j]
+			if err.length() < 0.0005:
+				break
+			a += err * 0.7
+		for j in js:
+			B.ang[j] = best[j]
+		B.fk()
+	B.toes_flat(sd)
+	return maxf(m, ((B.P["ball" + sd] as Vector3) - tgt).length())
+
+
+## CH7b: a foot on the wall pinned at its TOE BASE (the point the skate bar reads): the sole is turned toward the wall face as far
+## as the ankle's inversion stop lets it (AAOS about 25 deg, data/body_limits.json), and the ankle target is moved by the ball's
+## miss each round, so the foot pivots about the pinned ball while the hip runs past
+static func _wall_ball(B: Body, sd: String, tgt: Vector3) -> float:
+	var ft: String = "foot" + sd
+	var v0: Vector3 = (B.p0["ball" + sd] as Vector3) - (B.p0[ft] as Vector3)
+	var qf := Quaternion(Vector3.RIGHT, atan2(v0.y, v0.z))
+	var rot: Quaternion = Quaternion(Vector3(0, 0, 1), PI * 0.5) * qf
+	var pole: Vector3 = (B.P["thigh" + sd] as Vector3) + Vector3(-0.3, 0.0, 1.0)
+	var a: Vector3 = tgt - (B.P["ball" + sd] as Vector3) + (B.P[ft] as Vector3)
+	for it in 6:
+		LimbIK.solve(B, ft, a, pole, rot)
+		var err: Vector3 = tgt - (B.P["ball" + sd] as Vector3)
+		if err.length() < 0.0005:
+			break
+		a += err
+	return (tgt - (B.P["ball" + sd] as Vector3)).length()
+
+
 static func _legs(B: Body, P: Dictionary, t: float, drop: float, rt: Dictionary) -> float:
-	## solve both legs; returns the worst stance miss (m)
+	## solve both legs; returns the worst stance miss (m). A foot easing into its contact (0 < w < 1) is not yet a stance:
+	## its miss never moves the pelvis
 	var worst := 0.0
 	for sd: String in ["_l", "_r"]:
 		var tr: Array = P["feet"]["foot" + sd]
@@ -158,18 +209,25 @@ static func _legs(B: Body, P: Dictionary, t: float, drop: float, rt: Dictionary)
 			var bidx := int(st["i"]) if w >= 1.0 else int(st["bi"])
 			var md := String((tr[bidx] as Dictionary).get("mode", "")) if bidx >= 0 else ""
 			if w >= 1.0 and md == "":
-				worst = maxf(worst, B.plant(sd, tgt, 0.0, true))
+				worst = maxf(worst, _stance_foot(B, sd, tgt))
+			elif w >= 1.0 and md == "wall":
+				worst = maxf(worst, _wall_ball(B, sd, tgt))
 			elif w >= 1.0:
 				worst = maxf(worst, _surface_foot(B, sd, tgt, md))
 			else:
-				var m1 := B.plant(sd, tgt, 0.0, false)
-				var a1 := {th: B.ang[th], cl: B.ang[cl], ft: B.ang[ft]}
-				var m2 := _surface_foot(B, sd, tgt, md) if md != "" else B.plant(sd, tgt, 0.0, true)
-				var a2 := {th: B.ang[th], cl: B.ang[cl], ft: B.ang[ft]}
+				var bl: String = "ball" + sd
+				B.plant(sd, tgt, 0.0, false)
+				var a1 := {th: B.ang[th], cl: B.ang[cl], ft: B.ang[ft], bl: B.ang[bl]}
+				if md == "wall":
+					_wall_ball(B, sd, tgt)
+				elif md != "":
+					_surface_foot(B, sd, tgt, md)
+				else:
+					_stance_foot(B, sd, tgt)
+				var a2 := {th: B.ang[th], cl: B.ang[cl], ft: B.ang[ft], bl: B.ang[bl]}
 				for j in a1:
 					B.ang[j] = (a1[j] as Vector3).lerp(a2[j], w)
 				B.fk()
-				worst = maxf(worst, m2 * w)
 	return worst
 
 
@@ -199,8 +257,16 @@ static func _arms(B: Body, P: Dictionary, t: float, surfs: Array) -> float:
 			var cidx := int(st["i"]) if w >= 1.0 else int(st["bi"])
 			var cmode := String((tr[cidx] as Dictionary).get("mode", "")) if cidx >= 0 else ""
 			if cmode == "palm":
-				# CH7b: the key is the PALM's point on the surface (the schedule's contact point), the hand flat on it
-				worst = maxf(worst, _palm_reach(B, tip, tgt, Vector3.UP) * w)
+				# CH7b: the key is the PALM's point on the surface (the schedule's contact point), the hand flat on it. A key may
+				# carry the palm's normal "n" (a hang hooks the hand over the edge: the normal is diagonal); it turns over the window
+				var ka: Dictionary = tr[cidx]
+				var kb: Dictionary = tr[mini(cidx + 1, tr.size() - 1)]
+				var n := Vector3.UP
+				if ka.has("n"):
+					var span := maxf(float(kb["t"]) - float(ka["t"]), 1e-6)
+					var u := smoothstep(0.0, 1.0, clampf((t - float(ka["t"])) / span, 0.0, 1.0))
+					n = (ka["n"] as Vector3).slerp(kb.get("n", ka["n"]), u).normalized()
+				worst = maxf(worst, _palm_reach(B, tip, tgt, n, ka.get("f", Vector3.ZERO)) * w)
 			else:
 				var rr := ContactIK.reach(B, tip, tgt, surfs)
 				if rr.get("on", false):
@@ -214,11 +280,20 @@ static func _arms(B: Body, P: Dictionary, t: float, surfs: Array) -> float:
 
 ## CH7b: put the PALM POINT (Body.palm_point, the point the bar reads) on `target`, the palm turned flat to the surface normal n.
 ## The wrist target is moved by the palm's miss each round, so a wrist limit that tilts the hand is reported (the return, m), not hidden.
-static func _palm_reach(B: Body, tip: String, target: Vector3, n: Vector3) -> float:
+static func _palm_reach(B: Body, tip: String, target: Vector3, n: Vector3, fdir := Vector3.ZERO) -> float:
 	var g: Quaternion = (B.G[tip] as Quaternion).normalized()
 	var palm_dir := (g * Body.PALM_DROP).normalized()
 	var turn: Quaternion = ContactIK._arc(palm_dir, -n)
 	var q: Quaternion = turn * g
+	if fdir != Vector3.ZERO:
+		# the fingers along fdir (in the surface plane): the hand's rest frame (palm, fingers) carried onto (-n, fdir)
+		var a0: Vector3 = Body.PALM_DROP.normalized()
+		var f0: Vector3 = (B.e0[tip] as Vector3) - (B.p0[tip] as Vector3)
+		var b0: Vector3 = (f0 - a0 * a0.dot(f0)).normalized()
+		var a1: Vector3 = -n.normalized()
+		var b1: Vector3 = (fdir - a1 * a1.dot(fdir)).normalized()
+		q = Quaternion(Basis(a1, b1, a1.cross(b1)) * Basis(a0, b0, a0.cross(b0)).transposed()).normalized()
+		turn = q * g.inverse()
 	var pole := LimbIK.pole_from_pose(B, tip)
 	var vf: Vector3 = turn * ((B.E[tip] as Vector3) - (B.P[tip] as Vector3))
 	var w: Vector3 = target - (0.6 * vf + q * (Body.PALM_DROP * B.hand_s(tip)))
@@ -374,7 +449,15 @@ static func pose(P: Dictionary, t: float, boxes: Array, surfs: Array) -> Diction
 	var pen := {"d": 0.0, "where": ""}
 	var pen0 := {"d": -1.0, "where": ""}
 	var y: float = float(rt["y"]) + _yadd(P, t)
-	for it in 6:
+	# CH7b: a stance that cannot reach lowers the pelvis, but only while that helps: the height with the smallest miss is kept
+	# (lowering into a foot that is too CLOSE had run the pelvis 0.72 m into the roof)
+	var best_y := y
+	var best_m := INF
+	var it := -1
+	while it < 6:
+		it += 1
+		if it == 6:
+			y = best_y
 		B.from_dict(_base)
 		_set_trunk(B, rt)
 		var p0: Vector3 = B.p0["pelvis"]
@@ -383,7 +466,13 @@ static func pose(P: Dictionary, t: float, boxes: Array, surfs: Array) -> Diction
 		miss = _legs(B, P, t, drop, rt)
 		var am := _arms(B, P, t, surfs)
 		_fk_windows(B, P, t)
-		if miss > REACH_EPS:
+		if miss > REACH_EPS and it < 6:
+			if miss < best_m - 1e-4:
+				best_m = miss
+				best_y = y
+			elif miss > best_m + 1e-4:
+				it = 5
+				continue
 			y -= minf(miss, 0.12)
 			continue
 		if _snap_on(P, t):

@@ -40,10 +40,10 @@ static func obstacles() -> Array:
 	return [
 		{"name": "roofA", "lo": Vector3(-3, 0, -8), "hi": Vector3(3, Y0, 14.3)},
 		{"name": "boxSpeed", "lo": Vector3(-1.5, Y0, 5.0), "hi": Vector3(1.5, Y0 + 0.8, 5.6)},
-		{"name": "boxKong", "lo": Vector3(-1.5, Y0, 10.0), "hi": Vector3(1.5, Y0 + 1.0, 10.6)},
+		{"name": "boxKong", "lo": Vector3(-1.5, Y0, 9.4), "hi": Vector3(1.5, Y0 + 1.0, 10.0)},
 		{"name": "wall", "lo": Vector3(0.8, 0, 13.0), "hi": Vector3(0.95, Y0 + 2.6, 18.2)},
 		{"name": "roofB", "lo": Vector3(-3, 0, 17.2), "hi": Vector3(3, Y0, 40)},
-		{"name": "ledge", "lo": Vector3(-1.5, Y0, LEDGE_Z), "hi": Vector3(1.5, Y0 + 1.7, LEDGE_Z + 1.7)},
+		{"name": "ledge", "lo": Vector3(-1.5, Y0, LEDGE_Z), "hi": Vector3(1.5, Y0 + 1.7, LEDGE_Z + 0.6)},
 		{"name": "barPostL", "lo": Vector3(1.15, Y0, 28.2), "hi": Vector3(1.25, Y0 + 0.75, 28.3)},
 		{"name": "barPostR", "lo": Vector3(-1.25, Y0, 28.2), "hi": Vector3(-1.15, Y0 + 0.75, 28.3)},
 		{"name": "bar", "lo": Vector3(-1.25, Y0 + 0.65, 28.2), "hi": Vector3(1.25, Y0 + 0.75, 28.3)},
@@ -111,6 +111,23 @@ class YPath extends RefCounted:
 		y = y1
 		v = 0.0
 
+	## a support: the height is a function of t over the window (the pelvis held by the arms on planted palms)
+	func fn(t1: float, f: Callable) -> void:
+		segs.append({"k": "fn", "t0": t, "t1": t1, "f": f})
+		t = t1
+		y = float(f.call(t1))
+		v = (y - float(f.call(t1 - 0.01))) / 0.01
+
+	## the state, to try segments and take them back (the landing's depth is searched this way)
+	func mark() -> Array:
+		return [segs.size(), t, y, v]
+
+	func back(m: Array) -> void:
+		segs.resize(int(m[0]))
+		t = m[1]
+		y = m[2]
+		v = m[3]
+
 	func at(tt: float) -> float:
 		if segs.is_empty():
 			return y
@@ -139,6 +156,8 @@ class YPath extends RefCounted:
 			"ease":
 				var u2 := smoothstep(0.0, 1.0, clampf(tau / T, 0.0, 1.0))
 				return lerpf(float(s["y0"]), float(s["y1"]), u2)
+			"fn":
+				return float((s["f"] as Callable).call(clampf(tt, float(s["t0"]), float(s["t1"]))))
 		return float(s["y0"])
 
 
@@ -250,123 +269,319 @@ static func _stance(P: Dictionary, Y: YPath, sd: String, t0: float, t1: float, k
 	return t_end
 
 
-static func _hand_palm(P: Dictionary, sd: String, t0: float, t1: float, pt: Vector3, surface: String) -> void:
+static func _hand_palm(P: Dictionary, sd: String, t0: float, t1: float, pt: Vector3, surface: String, n0 := Vector3.ZERO, n1 := Vector3.ZERO, fdir := Vector3.ZERO) -> void:
 	_hold(P, "hands", "hand" + sd, t0, t1, pt, "palm")
-	_log(P, "hand" + sd, t0, t1, pt, surface, "palm")
+	if fdir != Vector3.ZERO:
+		var kf: Array = P["hands"]["hand" + sd]
+		kf[kf.size() - 2]["f"] = fdir
+		kf[kf.size() - 1]["f"] = fdir
+	if n0 != Vector3.ZERO:
+		var ks: Array = P["hands"]["hand" + sd]
+		ks[ks.size() - 2]["n"] = n0.normalized()
+		ks[ks.size() - 1]["n"] = (n1 if n1 != Vector3.ZERO else n0).normalized()
+	_log(P, "hand" + sd, t0, t1, pt, surface, "palm" if n0 == Vector3.ZERO else "palm hooked over the edge")
 
 
+## the shoulder (the upperarm joint) of side sd from the pelvis joint, for the trunk as keyed at t: the engine's own Body posed by
+## Parkour._set_trunk, so the plan and the pose agree exactly
+static func sh_off(P: Dictionary, t: float, sd: String) -> Vector3:
+	var B := Parkour.body()
+	B.from_dict(Parkour._base)
+	Parkour._set_trunk(B, Parkour.root_at(P, t))
+	B.offset = Vector3.ZERO
+	B.fk()
+	return (B.P["upperarm" + sd] as Vector3) - (B.P["pelvis"] as Vector3)
+
+
+## the wrist of a palm lying flat on a top face, fingers along +z
+static func _wrist_of(palm: Vector3) -> Vector3:
+	return palm + Vector3(0.0, 0.03, -PALM_WRIST)
+
+
+## CONTACT FIRST, the support phase: the pelvis height that keeps every planted arm's shoulder A from its wrist (an inverted
+## pendulum over the hands: the shoulder rides a sphere about the wrist while the pelvis runs on in z). [[side, palm], ...]
+static func arm_y(P: Dictionary, t: float, palms: Array, A: float) -> float:
+	var best := INF
+	var zt := _zat(P, t)
+	var xt: float = Parkour.ch(P, "x", t)
+	for pp in palms:
+		var so := sh_off(P, t, String(pp[0]))
+		var w := _wrist_of(pp[1])
+		var dh := Vector2(xt + so.x - w.x, zt + so.z - w.z).length()
+		best = minf(best, w.y + sqrt(maxf(0.0, A * A - dh * dh)) - so.y)
+	return best
+
+
+## the knee flexion (deg) of a leg with the hip at `hip` and the ankle at `ankle` (law of cosines, thigh 0.400, calf 0.428)
+static func knee_of(hip: Vector3, ankle: Vector3) -> float:
+	var a := 0.400
+	var b := 0.428
+	var d := clampf(hip.distance_to(ankle), absf(a - b) + 1e-4, a + b - 1e-4)
+	return 180.0 - rad_to_deg(acos(clampf((a * a + b * b - d * d) / (2.0 * a * b), -1.0, 1.0)))
+
+
+## the knee flexion (deg) of a stance leg with the toe base pinned at `ball`: the foot lies flat until the shank leans past the
+## ankle's dorsiflexion stop (25 deg, data/body_limits.json), then the heel rises about the ball (as the engine's stance does)
+static func knee_heel(hip: Vector3, ball: Vector3) -> float:
+	var a := 0.400
+	var b := 0.428
+	var foot := Vector2(-FOOT_DZ, ANKLE_H - BALL)      # (z, y) of the ankle from the ball, flat
+	var th := 0.0
+	var flex := 0.0
+	for it in 6:
+		var af := foot.rotated(-th)                      # heel up: the ankle turns up and forward about the ball
+		var A := Vector2(ball.z + af.x, ball.y + af.y)
+		var H := Vector2(hip.z, hip.y)
+		var dv := A - H
+		var d := clampf(dv.length(), absf(a - b) + 1e-4, a + b - 1e-4)
+		var u := dv.normalized()
+		var s := (a * a - b * b + d * d) / (2.0 * d)
+		var h := sqrt(maxf(0.0, a * a - s * s))
+		var n := Vector2(-u.y, u.x)
+		if n.x < 0.0:
+			n = -n                                       # the knee bends forward (+z)
+		var K := H + u * s + n * h
+		flex = 180.0 - rad_to_deg(acos(clampf((a * a + b * b - d * d) / (2.0 * a * b), -1.0, 1.0)))
+		var shank := rad_to_deg(atan2(K.x - A.x, K.y - A.y))
+		th = deg_to_rad(maxf(0.0, shank - 25.0))
+	return flex
+
+
+## the knee flexion (deg) the ENGINE's stance gives with the pelvis at height y and the toe base pinned at `ball`: the plan poses the
+## engine's own Body (trunk, pelvis, Parkour._stance_foot) so the landing depth it plans is the knee the run will show
+static func knee_solved(P: Dictionary, sd: String, t: float, y: float, ball: Vector3) -> float:
+	var B := Parkour.body()
+	B.from_dict(Parkour._base)
+	var rt := Parkour.root_at(P, t)
+	Parkour._set_trunk(B, rt)
+	var p0: Vector3 = B.p0["pelvis"]
+	B.offset = Vector3(float(rt["x"]), y - p0.y, float(rt["z"]))
+	B.fk()
+	Parkour._stance_foot(B, sd, ball)
+	return float((B.ang["calf" + sd] as Vector3).x)
+
+
+## A LANDING, contact first: the foot is pinned H_TD ahead of the hip at touchdown; the pelvis falls ballistically into it and
+## stops in a constant deceleration whose depth is set so the knee's absorption peak is flex_at(fall), the fall being the pelvis
+## drop from the flight's apex (knee-dominant landing, Zhang et al. 2025 PeerJ 13:e19490, docs/CH7_REFERENCE.md: 30.8 deg/m);
+## then the leg extends to y_end by t1. Returns [t_end, fall (m), planned peak (deg)]
+static func _land(P: Dictionary, Y: YPath, sd: String, t0: float, t1: float, surface: String, y_end: float, both := false) -> Array:
+	var x := 0.09 if sd == "_l" else -0.09
+	if both:
+		x = 0.12 if sd == "_l" else -0.12
+	var bz := _zat(P, t0) + HIP_DZ + H_TD + FOOT_DZ
+	var ball := Vector3(x, Y0 + BALL, bz)
+	var ankle := Vector3(x, Y0 + ANKLE_H, bz - FOOT_DZ)
+	var y_td := Y0 + yext(0.0, H_TD)
+	# the flight's apex, for the fall
+	var apex := Y.y
+	Y.par(t0, y_td)
+	var seg: Dictionary = Y.segs[Y.segs.size() - 1]
+	var tau := clampf(float(seg["v0"]) / G, 0.0, t0 - float(seg["t0"]))
+	apex = maxf(apex, float(seg["y0"]) + float(seg["v0"]) * tau - 0.5 * G * tau * tau)
+	var fall := apex - y_td
+	var want := flex_at(fall)
+	var din: Dictionary = P.get("drops_in", {})
+	if din.has(t0):
+		want = flex_drop(float(din[t0]))
+	var v_td := Y.v
+	var m1 := Y.mark()
+	var lo := 0.01
+	var hi := 0.60
+	var peak := 0.0
+	for k in 22:
+		var D := 0.5 * (lo + hi)
+		Y.back(m1)
+		var vv := minf(v_td, -0.8)
+		var a := vv * vv / (2.0 * D)
+		Y.v = vv
+		Y.absorb(a)
+		if Y.t > t1 - 0.015:
+			hi = D
+			continue
+		Y.ease(t1, y_end if y_end > 0.0 else Y.y - y_end)
+		peak = 0.0
+		var tt := t0
+		while tt <= t0 + 0.2501:
+			var hip := Vector3(Parkour.ch(P, "x", tt) + (HIP_DX if sd == "_l" else -HIP_DX), Y.at(tt) + HIP_DY, _zat(P, tt) + HIP_DZ)
+			peak = maxf(peak, knee_solved(P, sd, tt, Y.at(tt), ball))
+			tt += 1.0 / 30.0
+		if peak > want:
+			hi = D
+		else:
+			lo = D
+	Y.back(m1)
+	var vf := minf(v_td, -0.8)
+	Y.v = vf
+	Y.absorb(vf * vf / (2.0 * lo))
+	Y.ease(maxf(t1, Y.t + 0.05), y_end if y_end > 0.0 else Y.y - y_end)
+	_hold(P, "feet", "foot" + sd, t0, t1, ball)
+	_log(P, "foot" + sd, t0, t1, ball, surface, "sole (landing, fall %.2f m, knee peak %.0f deg)" % [fall, peak])
+	(P["landings"] as Array).append({"foot": sd, "t": t0, "fall": fall, "peak": peak})
+	return [t1, fall, peak]
+
+
+## the planned knee absorption peak for a pelvis fall (deg): 30.8 deg per m (the published knee-dominant slope) from 52 deg at 0.3 m
+## the planned knee absorption peak for a drop of the feet (deg): the published knee-dominant slope, 30.8 deg per m, from 50 deg
+static func flex_drop(drop: float) -> float:
+	return 50.0 + 30.8 * drop
+
+
+static func flex_at(fall: float) -> float:
+	return 52.0 + 30.8 * (fall - 0.3)
+
+
+## the landings as the feet see them: [foot, touchdown, the start of the flight the drop is read from]
+const LANDS := [["_r", 1.48, 1.00], ["_l", 2.84, 2.16], ["_r", 4.30, 4.15], ["_l", 6.58, 6.04]]
+
+
+## the plan, built twice: the first pass lays the feet's flight paths, the second sets each landing's absorption from the drop of
+## the feet in that flight (the apex of the lower foot to the touchdown sole)
 static func build() -> Dictionary:
-	var P := {"obstacles": obstacles(), "length": 8.0, "lift": false, "two_pass": false,
+	var P1 := _build({})
+	var drops := {}
+	for l in LANDS:
+		drops[l[1]] = feet_drop(P1, float(l[1]), float(l[2]))
+	var P := _build(drops)
+	P["drops"] = drops
+	return P
+
+
+## the drop of the feet into a landing (m): the highest the lower foot's toe base gets after k0, less the sole on the roof
+static func feet_drop(P: Dictionary, t0: float, k0: float) -> float:
+	var apex := -INF
+	var t := k0
+	while t <= t0 + 1e-6:
+		var yl: float = (PartKeys.at(P["feet"]["foot_l"], t) as Vector3).y
+		var yr: float = (PartKeys.at(P["feet"]["foot_r"], t) as Vector3).y
+		apex = maxf(apex, minf(yl, yr))
+		t += 1.0 / 30.0
+	return apex - (Y0 + BALL)
+
+
+static func _build(drops: Dictionary) -> Dictionary:
+	var P := {"drops_in": drops, "obstacles": obstacles(), "length": 8.0, "lift": false, "two_pass": false,
 		"root": {"z": [], "y": [], "x": [], "p": [], "r": [], "s": [], "tw": []},
-		"feet": {"foot_l": [], "foot_r": []}, "hands": {"hand_l": [], "hand_r": []}, "fk": [], "poles": {}, "schedule": [], "snap": []}
+		"feet": {"foot_l": [], "foot_r": []}, "hands": {"hand_l": [], "hand_r": []}, "fk": [], "poles": {}, "schedule": [], "snap": [],
+		"landings": []}
 	var L := "_l"
 	var R := "_r"
-	var obs := {}
-	for o in P["obstacles"]:
-		obs[o["name"]] = o
-	# ================= 1 the anchors that fix the pelvis in z
-	# a palm plant puts the shoulder over the palm: the pelvis z follows from the plant (speed vault p_eff 57, kong 70)
-	var pv := plant_pelvis(Y0 + 0.8, 5.0 + 0.0, 57.0, 0.34)       # speed vault, right palm on the near edge (z = 5.0)
-	var pk := plant_pelvis(Y0 + 1.0, 10.0, 70.0, 0.34)            # kong, both palms on the near edge (z = 10.0)
-	var zv: float = pv.z
-	var zk: float = pk.z
 	var zl := LEDGE_Z
-	var pc := plant_pelvis(Y0 + 1.7, zl, 10.0, 0.12)              # the hang from the ledge's edge: the shoulder 12 cm behind the palm
-	# the pelvis z knots (t, z): ~4 m/s in a run, ~3.2 through a plant (the hands brake), the same ~3 m/s through the mantle and the drop
-	_zk(P, [[0.0, zv - 4.2 * 1.07 - 0.32 * 3.2 * 0.0 - 0.0], [1.07, zv - 0.32], [1.17, zv], [1.27, zv + 0.32],
-		[2.31, zk - 0.32], [2.41, zk], [2.51, zk + 0.32],
-		[4.385, 17.45], [4.89, 19.35], [5.30, pc.z], [5.50, pc.z + 0.04], [5.74, zl + 0.30], [5.88, zl + 0.80], [6.04, zl + 1.30],
-		[6.58, zl + 1.30 + 3.0 * 0.54], [6.78, zl + 1.30 + 3.0 * 0.54 + 0.55], [7.2, zl + 1.30 + 3.0 * 0.54 + 1.85], [7.6, zl + 1.30 + 3.0 * 0.54 + 2.95],
-		[8.0, zl + 1.30 + 3.0 * 0.54 + 3.85]])
-	# the first knot: constant speed from the start to the slow-down (the run-in is ~4.2 m/s)
-	(P["root"]["z"] as Array)[0]["v"] = Vector3(zv - 0.32 - 4.2 * 1.07, 0, 0)
+	# ================= 0 the trunk (pitch, roll, spine bend): the shoulders' place over the pelvis depends on it, so it comes first
 	_rows(P, "x", [[0, 0], [3.0, 0], [3.4, 0.52], [4.15, 0.52], [4.46, 0.0], [8.0, 0.0]])
-	_rows(P, "p", [[0, 10], [0.7, 12], [0.97, 25], [1.12, 55], [1.22, 55], [1.45, 22], [1.56, 12], [2.1, 12], [2.2, 35], [2.41, 70], [2.55, 70], [2.72, 40], [2.86, 12],
-		[3.3, 12], [3.45, 8], [4.15, 8], [4.40, 12], [4.8, 12], [4.95, 25], [5.25, 10], [5.5, 10], [5.74, 25], [5.9, 12], [6.2, 5], [6.45, 20], [6.58, 40], [6.72, 70],
-		[6.9, 200], [7.05, 330], [7.15, 360], [7.25, 372], [7.36, 340], [7.5, -80], [8.0, -82]])
+	_rows(P, "p", [[0, 10], [0.7, 12], [0.97, 15], [1.10, 5], [1.24, 5], [1.45, 12], [1.56, 12], [2.1, 12], [2.2, 40], [2.35, 80], [2.44, 90], [2.56, 75], [2.66, 45], [2.78, 20], [2.86, 12],
+		[3.3, 12], [3.45, 8], [4.15, 8], [4.40, 12], [4.8, 12], [4.95, 22], [5.30, 24], [5.50, 24], [5.64, 24], [5.74, 45], [5.84, 40], [5.96, 25], [6.06, 15],
+		[6.30, 8], [6.45, 12], [6.58, 20], [6.70, 30], [6.80, 45], [6.95, 200], [7.08, 330], [7.15, 360], [7.25, 372], [7.36, 340], [7.5, -80], [8.0, -82]])
+	# the speed vault tips the body toward the planted right hand ("tw" is the pelvis's side tilt, the body lies sideways over the box);
+	# "r" is the pelvis's turn (the wall run faces off the wall)
+	_rows(P, "tw", [[0, 0], [0.95, 0], [1.10, -45], [1.28, -45], [1.45, 0], [8.0, 0]])
 	_rows(P, "r", [[0, 0], [3.2, 0], [3.45, -22], [4.2, -22], [4.45, 0], [8.0, 0]])
-	_rows(P, "s", [[0, 6], [0.9, 6], [1.0, 10], [1.2, 10], [1.45, 5], [2.3, 6], [2.5, 12], [2.85, 6], [3.4, 8], [4.3, 6], [5.0, 8], [5.4, 0], [5.7, 10], [6.2, 6], [6.6, 20], [6.9, 30],
-		[7.2, 10], [7.4, 5], [8.0, 0]])
-	for k in ["z", "x", "p", "r", "s"]:
+	_rows(P, "s", [[0, 6], [0.9, 6], [1.0, 10], [1.2, 10], [1.45, 5], [2.3, 6], [2.5, 12], [2.85, 6], [3.4, 8], [4.3, 6], [5.0, 8], [5.30, 5], [5.64, 5],
+		[5.74, 15], [5.90, 10], [6.2, 6], [6.6, 20], [6.9, 30], [7.2, 10], [7.4, 5], [8.0, 0]])
+	for k in ["x", "p", "r", "s", "tw"]:
 		_sort(P["root"][k])
-	# ================= 2 the stances, in time order: each one fixes its foot and the pelvis height around it
+	# ================= 1 the contacts that fix the pelvis in z
+	# speed vault: the right palm on the box's near edge; at mid-plant (1.17) the right shoulder is 5 cm past the wrist
+	var hv := Vector3(-0.35, Y0 + 0.8 + PALM_Y, 5.0)
+	var zv := _wrist_of(hv).z + 0.05 - sh_off(P, 1.17, R).z
+	# kong: both palms on the box's FAR edge (a dive kong: the hands reach long, the body is already over the box); at 2.44 the
+	# shoulders are over the wrists
+	var kz := 10.0 - 0.01
+	var hkl := Vector3(0.20, Y0 + 1.0 + PALM_Y, kz)
+	var hkr := Vector3(-0.20, Y0 + 1.0 + PALM_Y, kz)
+	var zk := _wrist_of(hkl).z - 0.5 * (sh_off(P, 2.44, L).z + sh_off(P, 2.44, R).z)
+	# the cat leap and the climb-up: the palms hook the wall top's near edge; the SHOULDER path about the palms is the plan
+	# (hang, sag, pull, over the edge, press), the pelvis follows from it through the trunk
+	var palm_c := Vector3(0.0, Y0 + 1.7 + 0.015, zl - 0.005)
+	# the shoulder goes AROUND the wrist (never nearer than a folded arm, 0.22 m): behind it through the pull, over it in the press
+	var shk := [{"t": 5.30, "v": Vector3(0, -0.42, -0.30)}, {"t": 5.42, "v": Vector3(0, -0.44, -0.31)}, {"t": 5.50, "v": Vector3(0, -0.42, -0.30)},
+		{"t": 5.64, "v": Vector3(0, -0.05, -0.30)}, {"t": 5.70, "v": Vector3(0, 0.15, -0.26)}, {"t": 5.76, "v": Vector3(0, 0.30, -0.12)}, {"t": 5.84, "v": Vector3(0, 0.46, 0.06)}]
+	var pel_c := func(tt: float) -> Vector3:
+		var so := 0.5 * (sh_off(P, tt, L) + sh_off(P, tt, R))
+		return palm_c + (PartKeys.at(shk, tt) as Vector3) - so
+	var rows := [[0.0, zv - 0.36 - 4.2 * 1.07], [1.07, zv - 0.36], [1.17, zv], [1.27, zv + 0.36], [1.48, zv + 1.20], [1.74, zv + 1.20 + 0.65],
+		[2.34, zk - 0.34], [2.44, zk], [2.54, zk + 0.34], [2.84, zk + 1.42], [3.10, zk + 2.07], [4.30, 17.10], [4.56, 17.75], [4.89, 19.35]]
+	var tc := 5.30
+	while tc <= 5.8401:
+		rows.append([tc, (pel_c.call(tc) as Vector3).z])
+		tc += 1.0 / 30.0
+	var z_off := zl + 0.38
+	rows += [[5.96, zl + 0.08], [6.06, z_off], [6.58, z_off + 3.0 * 0.52], [6.82, z_off + 3.0 * 0.52 + 0.65], [7.2, z_off + 3.0 * 0.52 + 1.85],
+		[7.6, z_off + 3.0 * 0.52 + 2.95], [8.0, z_off + 3.0 * 0.52 + 3.85]]
+	_zk(P, rows)
+	_sort(P["root"]["z"])
+	# ================= 2 the contacts in time order: each fixes its limb's point and the pelvis height around it
 	var Y := YPath.new()
 	_stance(P, Y, R, 0.00, 0.18, "run")
 	_stance(P, Y, L, 0.27, 0.45, "run")
 	_stance(P, Y, R, 0.53, 0.70, "run")
 	_stance(P, Y, L, 0.80, 0.97, "off", "roof")
-	# the speed vault: right palm on the box's near edge at 1.10-1.24 (the schedule), the pelvis flies through the plant's height
-	var hv := Vector3(-0.22, Y0 + 0.8 + PALM_Y, 5.0)
-	Y.par(1.17, pv.y)
+	# the speed vault: the right palm 1.10-1.24; the pelvis rides the arm (inverted pendulum over the hand), ballistic either side
+	var vpalm := [[R, hv]]
+	Y.par(1.10, arm_y(P, 1.10, vpalm, ARM_CH))
+	Y.fn(1.24, func(tt: float) -> float: return arm_y(P, tt, vpalm, ARM_CH))
 	_hand_palm(P, R, 1.10, 1.24, hv, "boxSpeed")
-	var t_v := _stance(P, Y, R, 1.48, 1.64, "land")
+	_land(P, Y, R, 1.48, 1.74, "roof", _y_run(P, R, 1.74, 1.48))
 	_stance(P, Y, L, 1.78, 1.95, "run")
 	_stance(P, Y, R, 2.02, 2.16, "off")
-	# the kong: both palms on the near edge at 2.30-2.56
-	Y.par(2.41, pk.y)
-	_hand_palm(P, L, 2.30, 2.56, Vector3(0.20, Y0 + 1.0 + PALM_Y, 10.0), "boxKong")
-	_hand_palm(P, R, 2.30, 2.56, Vector3(-0.20, Y0 + 1.0 + PALM_Y, 10.0), "boxKong")
-	_stance(P, Y, L, 2.84, 3.00, "land")
-	_stance(P, Y, R, 3.10, 3.26, "run")
-	# the wall run: soles on the wall face. The ankle is the target; the pelvis rides the leg's reach above it.
+	# the kong: both palms 2.35-2.56 on the far edge
+	var kpalm := [[L, hkl], [R, hkr]]
+	Y.par(2.35, arm_y(P, 2.35, kpalm, ARM_CH))
+	Y.fn(2.56, func(tt: float) -> float: return arm_y(P, tt, kpalm, ARM_CH))
+	_hand_palm(P, L, 2.35, 2.56, hkl, "boxKong", Vector3.ZERO, Vector3.ZERO, Vector3(0, 0, 1))
+	_hand_palm(P, R, 2.35, 2.56, hkr, "boxKong", Vector3.ZERO, Vector3.ZERO, Vector3(0, 0, 1))
+	_land(P, Y, L, 2.84, 3.07, "roof", _y_run(P, L, 3.07, 2.84))
+	_stance(P, Y, R, 3.12, 3.26, "run")
+	# the wall run: the TOE BASE is pinned on the wall face (the foot pivots about it, the ankle's inversion stop allowing);
+	# the pelvis rides the leg's reach above it
 	var wall_steps := [[L, 3.40, 3.57, 0.57], [R, 3.70, 3.85, 0.74], [L, 4.00, 4.15, 0.62]]
 	for w in wall_steps:
 		var sd: String = w[0]
 		var tm: float = 0.5 * (float(w[1]) + float(w[2]))
 		var az := _zat(P, tm)
 		var ankle := Vector3(WALL_X - DEPTH_SOLE, Y0 + float(w[3]), az)
+		var ballw := Vector3(WALL_X - 0.05, Y0 + float(w[3]), az + 0.10)
 		var o0 := _hip_off(P, sd, float(w[1]), ankle)
 		var o1 := _hip_off(P, sd, float(w[2]), ankle)
 		var om := _hip_off(P, sd, tm, ankle)
-		Y.par(float(w[1]), Y0 + float(w[3]) - ANKLE_H + yext(o0.x, o0.y) - 0.02)
-		var ym := Y0 + float(w[3]) - ANKLE_H + yext(om.x, om.y) - 0.06
-		Y.dip(float(w[2]), Y0 + float(w[3]) - ANKLE_H + yext(o1.x, o1.y) - 0.02, ym)
-		_hold(P, "feet", "foot" + sd, float(w[1]), float(w[2]), ankle, "wall")
-		_log(P, "foot" + sd, float(w[1]), float(w[2]), ankle, "wall", "sole on the wall")
-	_stance(P, Y, R, 4.30, 4.47, "land", "roofB")
-	_stance(P, Y, L, 4.60, 4.76, "run", "roofB")
+		Y.par(float(w[1]), Y0 + float(w[3]) - ANKLE_H + yext(o0.x, o0.y) - 0.05)
+		var ym := Y0 + float(w[3]) - ANKLE_H + yext(om.x, om.y) - 0.09
+		Y.dip(float(w[2]), Y0 + float(w[3]) - ANKLE_H + yext(o1.x, o1.y) - 0.05, ym)
+		_hold(P, "feet", "foot" + sd, float(w[1]), float(w[2]), ballw, "wall")
+		_log(P, "foot" + sd, float(w[1]), float(w[2]), ballw, "wall", "toe base on the wall")
+	_land(P, Y, R, 4.30, 4.56, "roofB", _y_run(P, R, 4.56, 4.30))
+	_stance(P, Y, L, 4.62, 4.76, "run", "roofB")
 	_stance(P, Y, R, 4.82, 4.96, "off", "roofB")
-	# the cat leap: flight to the ledge, palms on its near edge (z = LEDGE_Z) 5.30-5.84 through the catch and the mantle, toe tips on the face
-	var hang_y := Y0 + 1.7 + 0.047 - ARM_CH * 0.95 - SH.y * cos(deg_to_rad(10.0))
-	Y.par(5.30, hang_y)
-	var hl := Vector3(0.20, Y0 + 1.7 + PALM_Y, zl)
-	_hand_palm(P, L, 5.30, 5.84, hl, "ledge")
-	_hand_palm(P, R, 5.30, 5.84, Vector3(-0.20, Y0 + 1.7 + PALM_Y, zl), "ledge")
-	Y.ease(5.50, hang_y - 0.06)         # the catch's sag
-	Y.ease(5.74, Y0 + 1.7 + 0.27)       # the pull: the pelvis rises past the edge over the palms
-	Y.ease(5.90, Y0 + 1.7 + 0.80)       # standing on the ledge
-	Y.ease(6.04, Y0 + 1.7 + 0.80)
-	_hold(P, "feet", "foot_l", 5.32, 5.50, Vector3(0.12, Y0 + 0.28, zl - TOE_STAND))
-	_log(P, "foot_l", 5.32, 5.50, Vector3(0.12, Y0 + 0.28, zl - TOE_STAND), "ledge face", "toe tip")
-	_hold(P, "feet", "foot_r", 5.32, 5.50, Vector3(-0.12, Y0 + 0.16, zl - TOE_STAND))
-	_log(P, "foot_r", 5.32, 5.50, Vector3(-0.12, Y0 + 0.16, zl - TOE_STAND), "ledge face", "toe tip")
-	_hold(P, "feet", "foot_r", 5.78, 5.92, Vector3(-0.09, Y0 + 1.7 + BALL, zl + 0.80))
-	_log(P, "foot_r", 5.78, 5.92, Vector3(-0.09, Y0 + 1.7 + BALL, zl + 0.80), "ledge top", "sole")
-	_hold(P, "feet", "foot_l", 5.94, 6.04, Vector3(0.09, Y0 + 1.7 + BALL, zl + 1.40))
-	_log(P, "foot_l", 5.94, 6.04, Vector3(0.09, Y0 + 1.7 + BALL, zl + 1.40), "ledge top", "sole")
-	# the drop: ballistic from the step-off to the landing, both feet, then the hands (Dai et al. 2020: feet, hands, back)
-	var zl_td := _zat(P, 6.58)
-	var bz := zl_td + HIP_DZ + H_TD + FOOT_DZ
-	var y_td := Y0 + yext(0.0, H_TD)
-	Y.par(6.58, y_td)
-	Y.absorb(A_LAND * 2.0)              # the roll shares the landing with the hands: a firmer stop in the legs
-	var tb := Y.t
-	var land_ball_l := Vector3(0.12, Y0 + BALL, bz)
+	# the cat leap: flight to the wall top, palms hooked on its near edge 5.30-5.86 through the catch, the pull and the press
+	Y.par(5.30, (pel_c.call(5.30) as Vector3).y)
+	Y.fn(5.84, func(tt: float) -> float: return (pel_c.call(tt) as Vector3).y)
+	var hook := Vector3(0, 1, -1)
+	_hand_palm(P, L, 5.30, 5.86, palm_c + Vector3(0.20, 0, 0), "ledge", hook, Vector3.UP, Vector3(0, 0, 1))
+	_hand_palm(P, R, 5.30, 5.86, palm_c + Vector3(-0.20, 0, 0), "ledge", hook, Vector3.UP, Vector3(0, 0, 1))
+	# the feet hang free at the catch: on a 1.7 m wall the toes reach the face near its foot, and a knee bent to them runs into it
+	# up: the right foot onto the wall top, the take-off from it over the far edge
+	var top_r := Vector3(-0.10, Y0 + 1.7 + BALL, zl + 0.30)
+	Y.ease(5.96, Y0 + 1.7 + 0.64)
+	Y.ease(6.06, Y0 + 1.7 + 0.80)
+	_hold(P, "feet", "foot_r", 5.98, 6.06, top_r)
+	_log(P, "foot_r", 5.98, 6.06, top_r, "ledge top", "sole (take-off)")
+	# the drop: ballistic from the take-off to the landing on both feet, then the hands, the shoulder, the back (the roll)
+	# the legs extend 15 cm out of the absorption as he dives onto the hands (y_end <= 0: that far over the bottom)
+	_land(P, Y, L, 6.58, 6.82, "roofB", -0.15, true)
+	var bz := _zat(P, 6.58) + HIP_DZ + H_TD + FOOT_DZ
 	var land_ball_r := Vector3(-0.12, Y0 + BALL, bz)
-	_hold(P, "feet", "foot_l", 6.58, 6.68, land_ball_l)
-	_hold(P, "feet", "foot_r", 6.58, 6.68, land_ball_r)
-	_log(P, "foot_l", 6.58, 6.68, land_ball_l, "roofB", "sole")
-	_log(P, "foot_r", 6.58, 6.68, land_ball_r, "roofB", "sole")
+	_hold(P, "feet", "foot_r", 6.58, 6.82, land_ball_r)
+	_log(P, "foot_r", 6.58, 6.82, land_ball_r, "roofB", "sole (landing)")
+	var tb := Y.t
 	var hz := bz + 0.30
-	_hand_palm(P, L, 6.62, 6.78, Vector3(0.18, Y0 + PALM_Y, hz), "roofB")
-	_hand_palm(P, R, 6.62, 6.78, Vector3(-0.18, Y0 + PALM_Y, hz), "roofB")
-	Y.ease(6.82, Y0 + 0.50)
+	_hand_palm(P, L, 6.76, 6.90, Vector3(0.18, Y0 + PALM_Y, hz), "roofB")
+	_hand_palm(P, R, 6.76, 6.90, Vector3(-0.18, Y0 + PALM_Y, hz), "roofB")
 	Y.ease(7.0, Y0 + 0.30)
 	Y.ease(7.4, Y0 + 0.20)
 	Y.ease(8.0, Y0 + 0.19)
 	P["snap"].append([6.86, 8.0])      # the roll and the slide: the lowest body point is the contact with the roof
-	_log(P, "shoulder_r", 6.80, 6.92, Vector3.ZERO, "roofB", "shoulder (diagonal)")
-	_log(P, "back", 6.92, 7.10, Vector3.ZERO, "roofB", "upper back")
+	_log(P, "shoulder_r", 6.84, 6.94, Vector3.ZERO, "roofB", "shoulder (diagonal)")
+	_log(P, "back", 6.94, 7.10, Vector3.ZERO, "roofB", "upper back")
 	_log(P, "hip_l", 7.10, 7.20, Vector3.ZERO, "roofB", "opposite hip")
 	# ================= the pelvis y channel: dense samples of the path
 	var t := -0.1
@@ -374,7 +589,6 @@ static func build() -> Dictionary:
 		(P["root"]["y"] as Array).append({"t": snappedf(t, 0.0001), "v": Vector3(Y.at(maxf(t, 0.0)), 0, 0)})
 		t += 1.0 / 60.0
 	P["ypath_bottom"] = tb
-	P["v_td_note"] = "absorb ends at %.3f" % tb
 	# ================= 3 the free limbs
 	_free_feet(P)
 	_free_hands(P)
@@ -382,11 +596,19 @@ static func build() -> Dictionary:
 		for k in P[g]:
 			_sort(P[g][k])
 	# the roll: the limbs are FK-tucked while the pelvis turns (angles in degrees, bend/side/twist)
-	P["fk"].append({"t0": 6.88, "t1": 7.20, "ramp": 0.08, "ang": {
+	P["fk"].append({"t0": 6.92, "t1": 7.20, "ramp": 0.08, "ang": {
 		"thigh_l": Vector3(115, 4, 0), "thigh_r": Vector3(115, -4, 0), "calf_l": Vector3(125, 0, 0), "calf_r": Vector3(125, 0, 0),
 		"foot_l": Vector3(20, 0, 0), "foot_r": Vector3(20, 0, 0),
 		"upperarm_l": Vector3(70, -30, 0), "upperarm_r": Vector3(70, -30, 0), "lowerarm_l": Vector3(95, 0, 0), "lowerarm_r": Vector3(95, 0, 0)}})
 	return P
+
+
+## the pelvis height a run leaves a landing at: the leg's reach at t1, no higher than a run's mid-stance spring
+static func _y_run(P: Dictionary, sd: String, t1: float, t0: float) -> float:
+	var bz := _zat(P, t0) + HIP_DZ + H_TD + FOOT_DZ
+	var ankle := Vector3(0.09 if sd == "_l" else -0.09, Y0 + ANKLE_H, bz - FOOT_DZ)
+	var o := _hip_off(P, sd, t1, ankle)
+	return Y0 + minf(yext(o.x, o.y), HIP_MID + 0.02)
 
 
 ## the contact schedule as text, for the report
@@ -435,6 +657,8 @@ static func _flight(P: Dictionary, grp: String, tip: String, ta: float, pa: Vect
 		pt = pa.lerp(pt, wa) if wa < 1.0 else pt
 		pt = pb.lerp(pt, wb) if wb < 1.0 else pt
 		pt = _clear(P, pt, clear)
+		if pt.z < 14.3 or pt.z > 17.2:
+			pt.y = maxf(pt.y, Y0 + 0.06)   # a free foot stays over the roof it runs on
 		(P[grp][tip] as Array).append({"t": snappedf(t, 0.0001), "v": pt, "c": false})
 		t += 1.0 / 30.0
 
@@ -500,53 +724,47 @@ static func _flight_legs(P: Dictionary) -> void:
 		return Vector3.ZERO
 	# speed vault: after L leaves (0.97) both legs fold up to his left over the box; R was the last swinging, lands at 1.48
 	_flight(P, "feet", "foot_l", 0.97, pt.call(L, 0.97), 1.78, pt.call(L, 1.78), [
-		[0.97, Vector3(0.12, -0.60, -0.30)], [1.12, Vector3(0.45, -0.30, -0.20)], [1.30, Vector3(0.48, -0.25, 0.0)], [1.42, Vector3(0.20, -0.45, 0.35)],
+		[0.97, Vector3(0.12, -0.60, -0.30)], [1.12, Vector3(0.20, -0.12, 0.45)], [1.25, Vector3(0.15, -0.10, 0.68)], [1.35, Vector3(0.15, -0.25, 0.65)], [1.44, Vector3(0.15, -0.55, 0.45)],
 		[1.55, Vector3(0.12, -0.55, 0.40)], [1.78, Vector3(0.09, -0.62, 0.10)]])
 	_flight(P, "feet", "foot_r", 0.70, pt.call(R, 0.70), 1.48, pt.call(R, 1.48), [
-		[0.70, Vector3(-0.09, -0.50, -0.30)], [0.85, Vector3(-0.12, -0.45, 0.20)], [1.0, Vector3(-0.15, -0.35, -0.35)], [1.15, Vector3(0.38, -0.20, -0.30)],
-		[1.32, Vector3(0.45, -0.20, 0.0)], [1.40, Vector3(0.15, -0.45, 0.30)], [1.48, Vector3(-0.09, -0.80, 0.50)]])
+		[0.70, Vector3(-0.09, -0.50, -0.30)], [0.85, Vector3(-0.12, -0.45, 0.20)], [1.0, Vector3(-0.15, -0.35, -0.35)], [1.15, Vector3(0.0, -0.15, 0.45)],
+		[1.25, Vector3(-0.02, -0.12, 0.68)], [1.35, Vector3(-0.05, -0.30, 0.62)], [1.42, Vector3(-0.08, -0.55, 0.50)], [1.48, Vector3(-0.09, -0.80, 0.50)]])
 	# kong: legs tuck up between the arms, then reach for the roof
 	_flight(P, "feet", "foot_l", 1.95, pt.call(L, 1.95), 2.84, pt.call(L, 2.84), [
-		[1.95, Vector3(0.09, -0.60, -0.30)], [2.20, Vector3(0.12, -0.40, -0.30)], [2.41, Vector3(0.12, -0.28, -0.05)], [2.60, Vector3(0.12, -0.30, 0.25)],
+		[1.95, Vector3(0.09, -0.60, -0.30)], [2.20, Vector3(0.12, -0.40, -0.30)], [2.45, Vector3(0.12, -0.15, 0.05)], [2.60, Vector3(0.12, -0.10, 0.30)],
 		[2.72, Vector3(0.10, -0.50, 0.40)], [2.84, Vector3(0.09, -0.80, 0.55)]])
-	_flight(P, "feet", "foot_r", 2.16, pt.call(R, 2.16), 3.10, pt.call(R, 3.10), [
-		[2.16, Vector3(-0.10, -0.55, -0.40)], [2.30, Vector3(-0.12, -0.40, -0.28)], [2.45, Vector3(-0.12, -0.30, 0.0)], [2.62, Vector3(-0.12, -0.30, 0.22)],
-		[2.75, Vector3(-0.10, -0.55, 0.40)], [2.95, Vector3(-0.09, -0.65, 0.20)], [3.10, Vector3(-0.09, -0.70, 0.45)]])
+	_flight(P, "feet", "foot_r", 2.16, pt.call(R, 2.16), 3.12, pt.call(R, 3.12), [
+		[2.16, Vector3(-0.10, -0.55, -0.40)], [2.30, Vector3(-0.12, -0.40, -0.28)], [2.45, Vector3(-0.12, -0.15, 0.05)], [2.62, Vector3(-0.12, -0.10, 0.30)],
+		[2.75, Vector3(-0.10, -0.55, 0.40)], [2.95, Vector3(-0.09, -0.65, 0.20)], [3.12, Vector3(-0.09, -0.70, 0.45)]])
 	# wall run: the swing between wall steps
-	for q in [[L, 3.26, 3.40], [R, 3.26, 3.40]]:
-		pass
 	_flight(P, "feet", "foot_r", 3.26, pt.call(R, 3.26), 3.70, pt.call(R, 3.70), [
 		[3.26, Vector3(-0.09, -0.70, 0.30)], [3.45, Vector3(-0.10, -0.55, 0.25)], [3.60, Vector3(0.10, -0.55, 0.30)]])
-	_flight(P, "feet", "foot_l", 3.00, pt.call(L, 3.00), 3.40, pt.call(L, 3.40), [
-		[3.00, Vector3(0.09, -0.65, -0.20)], [3.20, Vector3(0.12, -0.45, 0.25)], [3.30, Vector3(0.12, -0.45, 0.30)]])
+	_flight(P, "feet", "foot_l", 3.10, pt.call(L, 3.10), 3.40, pt.call(L, 3.40), [
+		[3.10, Vector3(0.09, -0.65, -0.20)], [3.22, Vector3(0.12, -0.45, 0.25)], [3.30, Vector3(0.12, -0.45, 0.30)]])
 	_flight(P, "feet", "foot_l", 3.57, pt.call(L, 3.57), 4.00, pt.call(L, 4.00), [
 		[3.57, Vector3(0.20, -0.55, -0.10)], [3.80, Vector3(0.16, -0.50, 0.25)], [3.92, Vector3(0.16, -0.45, 0.20)]])
 	_flight(P, "feet", "foot_r", 3.85, pt.call(R, 3.85), 4.30, pt.call(R, 4.30), [
 		[3.85, Vector3(0.0, -0.55, -0.20)], [4.05, Vector3(-0.09, -0.50, 0.10)], [4.20, Vector3(-0.09, -0.62, 0.35)], [4.30, Vector3(-0.09, -0.80, 0.50)]])
-	_flight(P, "feet", "foot_l", 4.15, pt.call(L, 4.15), 4.60, pt.call(L, 4.60), [
-		[4.15, Vector3(0.10, -0.45, -0.15)], [4.30, Vector3(0.10, -0.55, -0.30)], [4.45, Vector3(0.09, -0.50, 0.10)], [4.60, Vector3(0.09, -0.70, 0.40)]])
-	# cat leap: knees up to the face after the take-off, the toe tips on the face (5.32), then up onto the ledge
-	_flight(P, "feet", "foot_l", 4.76, pt.call(L, 4.76), 5.32, pt.call(L, 5.32), [
-		[4.76, Vector3(0.09, -0.60, -0.15)], [4.96, Vector3(0.10, -0.55, -0.40)], [5.12, Vector3(0.12, -0.45, 0.10)], [5.25, Vector3(0.12, -0.50, 0.30)]])
-	_flight(P, "feet", "foot_r", 4.96, pt.call(R, 4.96), 5.32, pt.call(R, 5.32), [
-		[4.96, Vector3(-0.09, -0.62, -0.20)], [5.05, Vector3(-0.10, -0.50, -0.30)], [5.20, Vector3(-0.12, -0.50, 0.20)], [5.30, Vector3(-0.12, -0.55, 0.30)]])
-	_flight(P, "feet", "foot_l", 5.50, pt.call(L, 5.50), 5.94, pt.call(L, 5.94), [
-		[5.50, Vector3(0.12, -0.55, -0.40)], [5.60, Vector3(0.12, -0.50, -0.40)], [5.75, Vector3(0.10, -0.40, 0.0)], [5.90, Vector3(0.09, -0.60, 0.10)]], 0.10)
-	_flight(P, "feet", "foot_r", 5.50, pt.call(R, 5.50), 5.78, pt.call(R, 5.78), [
-		[5.50, Vector3(-0.12, -0.55, -0.45)], [5.64, Vector3(-0.12, -0.50, -0.30)], [5.72, Vector3(-0.12, -0.45, 0.10)]], 0.10)
-	# the step off and the drop: legs open to reach for the roof
-	_flight(P, "feet", "foot_r", 5.92, pt.call(R, 5.92), 6.58, pt.call(R, 6.58), [
-		[5.92, Vector3(-0.09, -0.80, -0.20)], [6.15, Vector3(-0.10, -0.55, 0.25)], [6.45, Vector3(-0.12, -0.60, 0.30)], [6.58, Vector3(-0.12, -0.80, 0.50)]], 0.10)
-	_flight(P, "feet", "foot_l", 6.04, pt.call(L, 6.04), 6.58, pt.call(L, 6.58), [
-		[6.04, Vector3(0.09, -0.80, 0.0)], [6.30, Vector3(0.12, -0.52, 0.20)], [6.50, Vector3(0.12, -0.62, 0.25)], [6.58, Vector3(0.12, -0.80, 0.50)]], 0.10)
+	_flight(P, "feet", "foot_l", 4.15, pt.call(L, 4.15), 4.62, pt.call(L, 4.62), [
+		[4.15, Vector3(0.10, -0.45, -0.15)], [4.30, Vector3(0.10, -0.55, -0.30)], [4.45, Vector3(0.09, -0.50, 0.10)], [4.62, Vector3(0.09, -0.70, 0.40)]])
+	# cat leap and climb-up: knees up after the take-off, the legs hang under the pelvis through the catch and the pull (knees off
+	# the face), the right foot steps onto the wall top, the left knee tucks over the edge; then both reach for the landing
+	_flight(P, "feet", "foot_l", 4.76, pt.call(L, 4.76), 6.58, pt.call(L, 6.58), [
+		[4.76, Vector3(0.09, -0.60, -0.15)], [4.96, Vector3(0.10, -0.55, -0.40)], [5.12, Vector3(0.12, -0.45, 0.10)], [5.25, Vector3(0.12, -0.55, 0.15)],
+		[5.40, Vector3(0.12, -0.62, 0.10)], [5.66, Vector3(0.12, -0.75, -0.02)], [5.84, Vector3(0.12, -0.80, -0.05)], [5.96, Vector3(0.12, -0.45, 0.10)],
+		[6.10, Vector3(0.12, -0.40, 0.10)], [6.30, Vector3(0.12, -0.52, 0.20)], [6.50, Vector3(0.12, -0.62, 0.25)], [6.58, Vector3(0.12, -0.80, 0.50)]], 0.12)
+	_flight(P, "feet", "foot_r", 4.96, pt.call(R, 4.96), 5.98, pt.call(R, 5.98), [
+		[4.96, Vector3(-0.09, -0.62, -0.20)], [5.05, Vector3(-0.10, -0.50, -0.30)], [5.20, Vector3(-0.12, -0.50, 0.20)], [5.40, Vector3(-0.12, -0.62, 0.10)],
+		[5.66, Vector3(-0.12, -0.75, -0.02)], [5.84, Vector3(-0.12, -0.80, -0.05)], [5.88, Vector3(-0.11, -0.45, 0.0)], [5.93, Vector3(-0.11, -0.30, 0.30)]], 0.14)
+	_flight(P, "feet", "foot_r", 6.06, pt.call(R, 6.06), 6.58, pt.call(R, 6.58), [
+		[6.06, Vector3(-0.09, -0.75, -0.20)], [6.20, Vector3(-0.10, -0.50, 0.10)], [6.45, Vector3(-0.12, -0.60, 0.30)], [6.58, Vector3(-0.12, -0.80, 0.50)]], 0.12)
 	# the roll then the slide: the legs follow the trunk (FK tuck), then both reach forward on the slide
 	for sd in ["_l", "_r"]:
 		var sg := 1.0 if sd == "_l" else -1.0
-		_rel(P, "feet", "foot" + sd, 6.68, Vector3(sg * 0.12, -0.55, 0.45))
+		_rel(P, "feet", "foot" + sd, 6.90, Vector3(sg * 0.12, -0.55, 0.45))
 		_rel(P, "feet", "foot" + sd, 7.25, Vector3(sg * 0.09, -0.62, 0.15))
 		_rel(P, "feet", "foot" + sd, 7.40, Vector3(sg * 0.10, 0.12, 0.88))
 		_rel(P, "feet", "foot" + sd, 8.0, Vector3(sg * 0.10, 0.12, 0.88))
-
 
 ## free arms in a run: the arm opposite each foot swings forward when that foot lands (elbows bent, hands near the ribs)
 static func _hand_run(P: Dictionary) -> void:
@@ -569,9 +787,12 @@ static func _free_hands(P: Dictionary) -> void:
 	_rel(P, "hands", "hand_l", 1.0, Vector3(0.30, 0.20, 0.30))
 	_rel(P, "hands", "hand_l", 1.2, Vector3(0.45, 0.10, 0.1))
 	_rel(P, "hands", "hand_l", 1.40, Vector3(0.40, 0.10, 0.2))
-	# the kong: both palms on the near edge
+	# the kong: both palms reach long, over the box top, for its far edge
 	_rel(P, "hands", "hand_l", 2.16, Vector3(0.25, 0.1, 0.5))
 	_rel(P, "hands", "hand_r", 2.16, Vector3(-0.25, 0.1, 0.5))
+	_free(P, "hands", "hand_l", 2.27, Vector3(0.20, Y0 + 1.22, 9.70))
+	_free(P, "hands", "hand_r", 2.27, Vector3(-0.20, Y0 + 1.22, 9.70))
+	_free(P, "hands", "hand_r", 1.30, Vector3(-0.40, Y0 + 1.02, 5.20))
 	_rel(P, "hands", "hand_l", 2.72, Vector3(0.30, 0.15, 0.2))
 	_rel(P, "hands", "hand_r", 2.72, Vector3(-0.30, 0.15, 0.2))
 	# the wall run: the hands stay clear, arms out for balance
