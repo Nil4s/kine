@@ -12,9 +12,11 @@
 ## 5. OLD SCENES: a scene with only round-37 props (a carried box tossed, a chair, a table) saves, mirrors and plays its
 ##    props bit for bit as before row 22: a sha256 over all of it equals the digest taken on the code before row 22
 ##    (poser-ui-rounds c0ea5e4). If another round changes the body or the carry, re-take it on the commit before.
+##    Re-taken once: 456f92a3 (start screen) writes the project "kind" into every scene file; with that key left out
+##    the old digest still matched, so the motion, the mirror and the props are unchanged.
 extends SceneTree
 
-const OLD_DIGEST := "6fa7666760618e52ec2cef2e2dc83bbff6f245a3da41f9804717d5d41730c4ca"
+const OLD_DIGEST := "e828e86bf51441ded1c114a4cac438fb6e35736b8806c38d62e631898a5ebb99"
 const MM := 0.001
 
 var fails := 0
