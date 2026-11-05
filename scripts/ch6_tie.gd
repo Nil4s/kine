@@ -36,16 +36,9 @@ func _init() -> void:
 
 
 func caps_now() -> Array:
-	var o: Array = []
-	for j in cap_names:
-		if String(j).begins_with("palm_"):
-			# CH6b: the palm as four metacarpal capsules (wrist -> each finger's knuckle), not the rig's one hand_r capsule of
-			# radius 4.5 cm (a 9 cm thick sausage that could not pass a 9 cm hole); PALM_R: palm thickness ~2.6 cm
-			var k: String = String(j).substr(5) + "_01_r"
-			o.append([B.P["hand_r"], B.P[k], PALM_R])
-			continue
-		var c: Array = B.cap(j)
-		o.append([c[0], c[1], float(B.rad[j])])
+	# The shared hand model: a 3.15 cm palm slab, posed finger phalanges and a slim wrist.
+	var o: Array = HandShape.caps(B, "hand_r")
+	o.append_array(HandShape.forearm_caps(B, "hand_r"))
 	return o
 
 
