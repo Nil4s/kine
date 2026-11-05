@@ -40,11 +40,11 @@ The lead copies section 3's rows into the ledger below, one line each, so gaps f
 | CH1e fasteners on the house | structural L4 for connections (IRC schedule, Simpson values, R403.1.6) | L5 needs local code (Brazil NBR 7190) and an engineer's review |
 | CH1f soil + masonry/LSF house (Mato Grosso) | structural dynamics L3, geotechnical L2-L3, masonry/LSF L2-L3 | El Centro stand-in, not an NBR spectrum; no load combinations; walls as lines; no soil report |
 | SRETOPO stroke retopology | geometry processing L3 | open-edge regions are skipped, not filled; no comparison against a reference retopo tool on the same strokes |
-| CH5c wet street at night (PARKED) | rendering/optics L2-L3 | wet roughness, wetness and bump height unsourced; the glint streak needs a direction-aware roughness filter |
+| CH5c wet street at night (PARKED, 6 reds after Nick's amendments) | rendering/optics L2-L3 | wet roughness, wetness and bump height unsourced; the glint streak needs a direction-aware roughness filter |
 | CH15 nuclear plant (Angra 2 class PWR) | thermal-fluids, electrical, containment, decay heat L3; mechanical and civil/layout L2 | 8 of 12 footprints and all heights assumed; no transient analysis; block-level equipment |
-| CH8b liquids (PARKED, 28/5) | fluids/CFD L3 | blocked-cell walls, no air phase; the Martin and Moyce front leads by 24 pct |
+| CH8b liquids (PARKED, 28/3 after the volume decision) | fluids/CFD L3 | blocked-cell walls, no air phase; the Martin and Moyce front leads by 24 pct |
 | CH6b bowline on a simulated rope (PARKED, 11/16) | rope/contact mechanics L3, knot topology L2-L3, hand manipulation L1-L2 | no knot forms: the hand cannot pass from behind to in front of the standing part without crossing rope; the code check is view-dependent |
-| CH7b parkour run (PARKED, 21/1) | landings and flight L3, joint limits and timing L2 | no whole-body COM, contact impulses or conserved spin in flight; the course was changed to fit gravity |
+| CH7b parkour run (GREEN #202, 22/22) | landings and flight L3, joint limits and timing L2 | no whole-body COM, contact impulses or conserved spin in flight; the course was changed to fit gravity |
 
 ## 4. Gap ledger (one row per gap; newest last)
 
@@ -92,6 +92,9 @@ The lead copies section 3's rows into the ledger below, one line each, so gaps f
 | G39 | CH6b | a clearance-aware transit planner for a hand among rope and body | nothing | waypoints by hand; the hand dragged the rope | hand path planning that avoids rope and body (sampling or optimisation) |
 | G40 | CH6b | a real off hand that holds rope (not frozen particles) | frozen rope particles only | hand-through-held-rope never measured | two-hand rope holding with contact, both hands simulated |
 | G41 | CH6b | a topological knot invariant (not a view-dependent crossing code) | Gauss code from one view | false P2 fail in pass 1 | a knot-type check (e.g. Dowker-Thistlethwaite reduction or Alexander polynomial) |
+
+| G42 | CH5c | a camera response curve (sensor clipping, filmic toe) so dark fractions compare with a phone photo | Godot tonemappers only, nothing calibrated to a camera | none: S1/S1B stay red | a camera-response option on the render camera, calibrated from a grey card or EXIF |
+| G43 | CH5c | soft shadows that match the geometric penumbra | PCSS reads 5.6 px where geometry says 13.5 (see G20) | none | try AreaLight3D (Godot 4.7) or a ray-traced shadow pass for stills |
 
 ## 5. Tools that already exist (search before writing your own)
 Several lanes rebuilt tools Kine already had (gaps G9, G26, and the CH1f cutaway). Before writing a helper, check this list and grep:
