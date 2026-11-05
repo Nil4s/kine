@@ -28,7 +28,7 @@ func asphalt_mean(cam: Camera3D, img: Image) -> float:
 
 func _run() -> void:
 	root.size = Vector2i(1280, 720)
-	var poses := [Vector3(-1.2, WetStreet.EYE, 1.5), Vector3(0.0, WetStreet.EYE, 1.5), Vector3(1.2, WetStreet.EYE, 1.5)]
+	var poses := [Vector3(-1.2, WetStreet.EYE, 1.5), Vector3(0.0, WetStreet.EYE, 1.5), Vector3(0.7, WetStreet.EYE, 1.5)]   ## AMENDED per Nick 11-04: pose 2 was x = 1.2, over the plinth of the photo's 2.3 m lane (x -1.30..1.02); x 0.7 puts its puddle (x 0.49) on the stones
 	ws = WetStreet.new()
 	root.add_child(ws)
 	var t0 := Time.get_ticks_msec()

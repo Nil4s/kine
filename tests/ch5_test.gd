@@ -7,6 +7,8 @@ extends SceneTree
 ##   B MIRROR  per camera pose and visible puddle: if the ray through the mirrored lamp position hits that puddle, the bright
 ##             reflection's centroid is within 3 px of the projected mirrored bulb; otherwise the puddle shows no lamp (peak lum < 0.6).
 ##             At least 3 puddle/pose pairs must contain the lamp. CONTROL: the unmirrored bulb position is > 3 px away.
+##             AMENDED per Nick 11-04: pose 2 moved from x = 1.2 to x = 0.7 (the scene now copies ref2's 2.3 m lane, wall x -1.30, plinth face
+##             x 1.02; at 1.2 the camera stood over the plinth and its puddle lay against it). Same 3 poses, same 3 px tolerance, same counts.
 ##   C ROUGH   cobble + asphalt spots not under water (n >= 50): baked wet roughness < dry roughness at every one, and < dry - 0.2
 ##             where wetness > 0.5. CONTROL: dry used as wet fails.
 ##   D STREAK  the lamp reflection's second-moment aspect (vertical / horizontal) is within 30 % of the PHOTO-MEASURED value
@@ -53,7 +55,7 @@ func water_wrong(fn: Callable, pts: Array) -> Array:
 
 func _run() -> void:
 	root.size = Vector2i(1280, 720)
-	var poses := [Vector3(-1.2, WetStreet.EYE, 1.5), Vector3(0.0, WetStreet.EYE, 1.5), Vector3(1.2, WetStreet.EYE, 1.5)]
+	var poses := [Vector3(-1.2, WetStreet.EYE, 1.5), Vector3(0.0, WetStreet.EYE, 1.5), Vector3(0.7, WetStreet.EYE, 1.5)]   ## AMENDED per Nick 11-04: pose 2 was x = 1.2, over the plinth of the photo's 2.3 m lane (x -1.30..1.02); x 0.7 puts its puddle (x 0.49) on the stones
 	ws = WetStreet.new()
 	root.add_child(ws)
 	var t0 := Time.get_ticks_msec()

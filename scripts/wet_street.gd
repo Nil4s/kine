@@ -67,9 +67,8 @@ const LAMPS := [
 	[Vector3(-3.5, 5.0, -24.0), Vector3(1.0, 0.92, 0.8), 6.0, 0.0, 30.0],     ## behind the left wall's end, as seen from the camera
 	[Vector3(-6.0, 5.0, -24.0), Vector3(1.0, 0.92, 0.8), 6.0, 0.0, 30.0],
 ]
-const BOLLARD := Vector3(0.35, 0.0, -4.0)    ## the S2 shadow caster (NOT in the photo; kept for bar S2). Not on the lamp-camera axis any more: there it
-                                             ## stood in the mirror path of the B puddles (the path is 0.59 m up at z = -4); x 0.35 clears the
-                                             ## three poses' paths (x -1.04, -0.16, 0.73 at z = -4) and its shadow still falls toward the camera
+const BOLLARD := Vector3(0.2, 0.0, -6.0)     ## the S2 shadow caster (NOT in the photo; kept for bar S2). At z = -6 the B mirror paths are 1.19 m up,
+                                             ## above its 0.9 m top; x 0.2 keeps its shadow (x 0.2..0.36) off the tarmac patch (x <= -0.29) and the puddles
 const WALL_X := 1.30                 ## left brick wall face at x = -1.30
 const PLINTH_X := 1.02               ## right: a low brick plinth (face x 1.02, top 0.47 m) under a timber fence (face 1.33, top 1.83 m)
 const PLINTH_H := 0.47
