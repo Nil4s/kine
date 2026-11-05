@@ -1,0 +1,3407 @@
+{
+	"bom_check": "ch14_works",
+	"bom_extra": [
+		{
+			"bom": {
+				"alt": [
+					"tube_pvc",
+					"tube_pu98",
+					"tube_pa12"
+				],
+				"buy": "tube_pa12",
+				"need": {
+					"E_MPa": 50.0
+				},
+				"qty": 3.25,
+				"role": "hose_runs"
+			},
+			"name": "Tube 4 x 6 mm, the runs"
+		},
+		{
+			"bom": {
+				"buy": "tube_pu98",
+				"qty": 1.35,
+				"role": "hose_flex"
+			},
+			"name": "Tube 4 x 6 mm, the flex loops at the joints"
+		},
+		{
+			"bom": {
+				"buy": "pad_pair"
+			},
+			"name": "Jaw pads TPU / rubber"
+		},
+		{
+			"bom": {
+				"buy": "sundries"
+			},
+			"name": "Screws, zip ties, glue"
+		}
+	],
+	"kind": "assembly",
+	"name": "bom_206",
+	"parts": [
+		{
+			"id": "p1",
+			"name": "Master ba",
+			"pos": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"buy": "syr20"
+				},
+				"features": [
+					{
+						"axis": "x",
+						"id": "f1",
+						"kind": "tube",
+						"len": 81.5841256025047,
+						"name": "Prim1",
+						"op": "new",
+						"r": 10.565,
+						"r_in": 9.565,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f3",
+						"kind": "cone",
+						"len": 10.0,
+						"name": "Prim3",
+						"op": "new",
+						"r": 2.2,
+						"r2": 3.2,
+						"t": "prim",
+						"x": -10.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 1.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f4",
+						"metal": 0.0,
+						"name": "Appear4",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 37.13,
+						"h": 37.13,
+						"id": "f5",
+						"kind": "box",
+						"name": "Prim5",
+						"op": "new",
+						"t": "prim",
+						"w": 2.0,
+						"x": 79.5841256025047,
+						"y": -18.565,
+						"z": -18.565
+					},
+					{
+						"body": 2.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f6",
+						"metal": 0.0,
+						"name": "Appear6",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f7",
+						"into": 2,
+						"kind": "cylinder",
+						"len": 3.0,
+						"name": "Prim7",
+						"op": "cut",
+						"r": 9.565,
+						"t": "prim",
+						"x": 79.0841256025047,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"d": 12.0,
+						"h": 41.13,
+						"id": "f8",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim8",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 78.5841256025047,
+						"y": -20.565,
+						"z": -20.565
+					},
+					{
+						"d": 12.0,
+						"h": 41.13,
+						"id": "f9",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim9",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 78.5841256025047,
+						"y": -20.565,
+						"z": 8.565
+					}
+				],
+				"name": "Syringe barrel 20 mL (BD Luer-Lok class)",
+				"seq": 1020,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p2",
+			"name": "Slave ba",
+			"pos": [
+				101.58,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"buy": "syr20"
+				},
+				"features": [
+					{
+						"axis": "x",
+						"id": "f1",
+						"kind": "tube",
+						"len": 81.5841256025047,
+						"name": "Prim1",
+						"op": "new",
+						"r": 10.565,
+						"r_in": 9.565,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f3",
+						"kind": "cone",
+						"len": 10.0,
+						"name": "Prim3",
+						"op": "new",
+						"r": 2.2,
+						"r2": 3.2,
+						"t": "prim",
+						"x": -10.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 1.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f4",
+						"metal": 0.0,
+						"name": "Appear4",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 37.13,
+						"h": 37.13,
+						"id": "f5",
+						"kind": "box",
+						"name": "Prim5",
+						"op": "new",
+						"t": "prim",
+						"w": 2.0,
+						"x": 79.5841256025047,
+						"y": -18.565,
+						"z": -18.565
+					},
+					{
+						"body": 2.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f6",
+						"metal": 0.0,
+						"name": "Appear6",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f7",
+						"into": 2,
+						"kind": "cylinder",
+						"len": 3.0,
+						"name": "Prim7",
+						"op": "cut",
+						"r": 9.565,
+						"t": "prim",
+						"x": 79.0841256025047,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"d": 12.0,
+						"h": 41.13,
+						"id": "f8",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim8",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 78.5841256025047,
+						"y": -20.565,
+						"z": -20.565
+					},
+					{
+						"d": 12.0,
+						"h": 41.13,
+						"id": "f9",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim9",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 78.5841256025047,
+						"y": -20.565,
+						"z": 8.565
+					}
+				],
+				"name": "Syringe barrel 20 mL (BD Luer-Lok class)",
+				"seq": 1020,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p3",
+			"name": "Master sh",
+			"pos": [
+				203.16,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"alt": [
+						"syr10",
+						"syr20"
+					],
+					"buy": "syr20",
+					"name": "Master syringes of the shoulder and elbow (10 or 20 mL; drawn as 20 mL)",
+					"role": "master_lever"
+				},
+				"features": [
+					{
+						"axis": "x",
+						"id": "f1",
+						"kind": "tube",
+						"len": 81.5841256025047,
+						"name": "Prim1",
+						"op": "new",
+						"r": 10.565,
+						"r_in": 9.565,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f3",
+						"kind": "cone",
+						"len": 10.0,
+						"name": "Prim3",
+						"op": "new",
+						"r": 2.2,
+						"r2": 3.2,
+						"t": "prim",
+						"x": -10.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 1.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f4",
+						"metal": 0.0,
+						"name": "Appear4",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 37.13,
+						"h": 37.13,
+						"id": "f5",
+						"kind": "box",
+						"name": "Prim5",
+						"op": "new",
+						"t": "prim",
+						"w": 2.0,
+						"x": 79.5841256025047,
+						"y": -18.565,
+						"z": -18.565
+					},
+					{
+						"body": 2.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f6",
+						"metal": 0.0,
+						"name": "Appear6",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f7",
+						"into": 2,
+						"kind": "cylinder",
+						"len": 3.0,
+						"name": "Prim7",
+						"op": "cut",
+						"r": 9.565,
+						"t": "prim",
+						"x": 79.0841256025047,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"d": 12.0,
+						"h": 41.13,
+						"id": "f8",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim8",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 78.5841256025047,
+						"y": -20.565,
+						"z": -20.565
+					},
+					{
+						"d": 12.0,
+						"h": 41.13,
+						"id": "f9",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim9",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 78.5841256025047,
+						"y": -20.565,
+						"z": 8.565
+					}
+				],
+				"name": "Syringe barrel 20 mL (BD Luer-Lok class)",
+				"seq": 1020,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p4",
+			"name": "Slave sh",
+			"pos": [
+				304.74,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"buy": "syr20"
+				},
+				"features": [
+					{
+						"axis": "x",
+						"id": "f1",
+						"kind": "tube",
+						"len": 81.5841256025047,
+						"name": "Prim1",
+						"op": "new",
+						"r": 10.565,
+						"r_in": 9.565,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f3",
+						"kind": "cone",
+						"len": 10.0,
+						"name": "Prim3",
+						"op": "new",
+						"r": 2.2,
+						"r2": 3.2,
+						"t": "prim",
+						"x": -10.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 1.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f4",
+						"metal": 0.0,
+						"name": "Appear4",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 37.13,
+						"h": 37.13,
+						"id": "f5",
+						"kind": "box",
+						"name": "Prim5",
+						"op": "new",
+						"t": "prim",
+						"w": 2.0,
+						"x": 79.5841256025047,
+						"y": -18.565,
+						"z": -18.565
+					},
+					{
+						"body": 2.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f6",
+						"metal": 0.0,
+						"name": "Appear6",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f7",
+						"into": 2,
+						"kind": "cylinder",
+						"len": 3.0,
+						"name": "Prim7",
+						"op": "cut",
+						"r": 9.565,
+						"t": "prim",
+						"x": 79.0841256025047,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"d": 12.0,
+						"h": 41.13,
+						"id": "f8",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim8",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 78.5841256025047,
+						"y": -20.565,
+						"z": -20.565
+					},
+					{
+						"d": 12.0,
+						"h": 41.13,
+						"id": "f9",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim9",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 78.5841256025047,
+						"y": -20.565,
+						"z": 8.565
+					}
+				],
+				"name": "Syringe barrel 20 mL (BD Luer-Lok class)",
+				"seq": 1020,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p5",
+			"name": "Master el",
+			"pos": [
+				406.32,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"alt": [
+						"syr10",
+						"syr20"
+					],
+					"buy": "syr20",
+					"name": "Master syringes of the shoulder and elbow (10 or 20 mL; drawn as 20 mL)",
+					"role": "master_lever"
+				},
+				"features": [
+					{
+						"axis": "x",
+						"id": "f1",
+						"kind": "tube",
+						"len": 81.5841256025047,
+						"name": "Prim1",
+						"op": "new",
+						"r": 10.565,
+						"r_in": 9.565,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f3",
+						"kind": "cone",
+						"len": 10.0,
+						"name": "Prim3",
+						"op": "new",
+						"r": 2.2,
+						"r2": 3.2,
+						"t": "prim",
+						"x": -10.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 1.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f4",
+						"metal": 0.0,
+						"name": "Appear4",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 37.13,
+						"h": 37.13,
+						"id": "f5",
+						"kind": "box",
+						"name": "Prim5",
+						"op": "new",
+						"t": "prim",
+						"w": 2.0,
+						"x": 79.5841256025047,
+						"y": -18.565,
+						"z": -18.565
+					},
+					{
+						"body": 2.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f6",
+						"metal": 0.0,
+						"name": "Appear6",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f7",
+						"into": 2,
+						"kind": "cylinder",
+						"len": 3.0,
+						"name": "Prim7",
+						"op": "cut",
+						"r": 9.565,
+						"t": "prim",
+						"x": 79.0841256025047,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"d": 12.0,
+						"h": 41.13,
+						"id": "f8",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim8",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 78.5841256025047,
+						"y": -20.565,
+						"z": -20.565
+					},
+					{
+						"d": 12.0,
+						"h": 41.13,
+						"id": "f9",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim9",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 78.5841256025047,
+						"y": -20.565,
+						"z": 8.565
+					}
+				],
+				"name": "Syringe barrel 20 mL (BD Luer-Lok class)",
+				"seq": 1020,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p6",
+			"name": "Slave el",
+			"pos": [
+				507.9,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"buy": "syr20"
+				},
+				"features": [
+					{
+						"axis": "x",
+						"id": "f1",
+						"kind": "tube",
+						"len": 81.5841256025047,
+						"name": "Prim1",
+						"op": "new",
+						"r": 10.565,
+						"r_in": 9.565,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f3",
+						"kind": "cone",
+						"len": 10.0,
+						"name": "Prim3",
+						"op": "new",
+						"r": 2.2,
+						"r2": 3.2,
+						"t": "prim",
+						"x": -10.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 1.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f4",
+						"metal": 0.0,
+						"name": "Appear4",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 37.13,
+						"h": 37.13,
+						"id": "f5",
+						"kind": "box",
+						"name": "Prim5",
+						"op": "new",
+						"t": "prim",
+						"w": 2.0,
+						"x": 79.5841256025047,
+						"y": -18.565,
+						"z": -18.565
+					},
+					{
+						"body": 2.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f6",
+						"metal": 0.0,
+						"name": "Appear6",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f7",
+						"into": 2,
+						"kind": "cylinder",
+						"len": 3.0,
+						"name": "Prim7",
+						"op": "cut",
+						"r": 9.565,
+						"t": "prim",
+						"x": 79.0841256025047,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"d": 12.0,
+						"h": 41.13,
+						"id": "f8",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim8",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 78.5841256025047,
+						"y": -20.565,
+						"z": -20.565
+					},
+					{
+						"d": 12.0,
+						"h": 41.13,
+						"id": "f9",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim9",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 78.5841256025047,
+						"y": -20.565,
+						"z": 8.565
+					}
+				],
+				"name": "Syringe barrel 20 mL (BD Luer-Lok class)",
+				"seq": 1020,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p7",
+			"name": "Master wr",
+			"pos": [
+				609.48,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"buy": "syr10"
+				},
+				"features": [
+					{
+						"axis": "x",
+						"id": "f1",
+						"kind": "tube",
+						"len": 72.5583612240268,
+						"name": "Prim1",
+						"op": "new",
+						"r": 8.25,
+						"r_in": 7.25,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f3",
+						"kind": "cone",
+						"len": 10.0,
+						"name": "Prim3",
+						"op": "new",
+						"r": 2.2,
+						"r2": 3.2,
+						"t": "prim",
+						"x": -10.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 1.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f4",
+						"metal": 0.0,
+						"name": "Appear4",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 32.5,
+						"h": 32.5,
+						"id": "f5",
+						"kind": "box",
+						"name": "Prim5",
+						"op": "new",
+						"t": "prim",
+						"w": 2.0,
+						"x": 70.5583612240268,
+						"y": -16.25,
+						"z": -16.25
+					},
+					{
+						"body": 2.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f6",
+						"metal": 0.0,
+						"name": "Appear6",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f7",
+						"into": 2,
+						"kind": "cylinder",
+						"len": 3.0,
+						"name": "Prim7",
+						"op": "cut",
+						"r": 7.25,
+						"t": "prim",
+						"x": 70.0583612240268,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"d": 12.0,
+						"h": 36.5,
+						"id": "f8",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim8",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 69.5583612240268,
+						"y": -18.25,
+						"z": -18.25
+					},
+					{
+						"d": 12.0,
+						"h": 36.5,
+						"id": "f9",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim9",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 69.5583612240268,
+						"y": -18.25,
+						"z": 6.25
+					}
+				],
+				"name": "Syringe barrel 10 mL (BD Luer-Lok class)",
+				"seq": 1010,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p8",
+			"name": "Slave wr",
+			"pos": [
+				702.04,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"buy": "syr10"
+				},
+				"features": [
+					{
+						"axis": "x",
+						"id": "f1",
+						"kind": "tube",
+						"len": 72.5583612240268,
+						"name": "Prim1",
+						"op": "new",
+						"r": 8.25,
+						"r_in": 7.25,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f3",
+						"kind": "cone",
+						"len": 10.0,
+						"name": "Prim3",
+						"op": "new",
+						"r": 2.2,
+						"r2": 3.2,
+						"t": "prim",
+						"x": -10.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 1.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f4",
+						"metal": 0.0,
+						"name": "Appear4",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 32.5,
+						"h": 32.5,
+						"id": "f5",
+						"kind": "box",
+						"name": "Prim5",
+						"op": "new",
+						"t": "prim",
+						"w": 2.0,
+						"x": 70.5583612240268,
+						"y": -16.25,
+						"z": -16.25
+					},
+					{
+						"body": 2.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f6",
+						"metal": 0.0,
+						"name": "Appear6",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f7",
+						"into": 2,
+						"kind": "cylinder",
+						"len": 3.0,
+						"name": "Prim7",
+						"op": "cut",
+						"r": 7.25,
+						"t": "prim",
+						"x": 70.0583612240268,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"d": 12.0,
+						"h": 36.5,
+						"id": "f8",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim8",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 69.5583612240268,
+						"y": -18.25,
+						"z": -18.25
+					},
+					{
+						"d": 12.0,
+						"h": 36.5,
+						"id": "f9",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim9",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 69.5583612240268,
+						"y": -18.25,
+						"z": 6.25
+					}
+				],
+				"name": "Syringe barrel 10 mL (BD Luer-Lok class)",
+				"seq": 1010,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p9",
+			"name": "Master gr",
+			"pos": [
+				794.6,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"buy": "syr5"
+				},
+				"features": [
+					{
+						"axis": "x",
+						"id": "f1",
+						"kind": "tube",
+						"len": 55.7709031107303,
+						"name": "Prim1",
+						"op": "new",
+						"r": 7.03,
+						"r_in": 6.03,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f3",
+						"kind": "cone",
+						"len": 10.0,
+						"name": "Prim3",
+						"op": "new",
+						"r": 2.2,
+						"r2": 3.2,
+						"t": "prim",
+						"x": -10.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 1.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f4",
+						"metal": 0.0,
+						"name": "Appear4",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 30.06,
+						"h": 30.06,
+						"id": "f5",
+						"kind": "box",
+						"name": "Prim5",
+						"op": "new",
+						"t": "prim",
+						"w": 2.0,
+						"x": 53.7709031107303,
+						"y": -15.03,
+						"z": -15.03
+					},
+					{
+						"body": 2.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f6",
+						"metal": 0.0,
+						"name": "Appear6",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f7",
+						"into": 2,
+						"kind": "cylinder",
+						"len": 3.0,
+						"name": "Prim7",
+						"op": "cut",
+						"r": 6.03,
+						"t": "prim",
+						"x": 53.2709031107303,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"d": 12.0,
+						"h": 34.06,
+						"id": "f8",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim8",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 52.7709031107303,
+						"y": -17.03,
+						"z": -17.03
+					},
+					{
+						"d": 12.0,
+						"h": 34.06,
+						"id": "f9",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim9",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 52.7709031107303,
+						"y": -17.03,
+						"z": 5.03
+					}
+				],
+				"name": "Syringe barrel 5 mL (BD Luer-Lok class)",
+				"seq": 1005,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p10",
+			"name": "Slave gr",
+			"pos": [
+				870.37,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"buy": "syr5"
+				},
+				"features": [
+					{
+						"axis": "x",
+						"id": "f1",
+						"kind": "tube",
+						"len": 55.7709031107303,
+						"name": "Prim1",
+						"op": "new",
+						"r": 7.03,
+						"r_in": 6.03,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f3",
+						"kind": "cone",
+						"len": 10.0,
+						"name": "Prim3",
+						"op": "new",
+						"r": 2.2,
+						"r2": 3.2,
+						"t": "prim",
+						"x": -10.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 1.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f4",
+						"metal": 0.0,
+						"name": "Appear4",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 30.06,
+						"h": 30.06,
+						"id": "f5",
+						"kind": "box",
+						"name": "Prim5",
+						"op": "new",
+						"t": "prim",
+						"w": 2.0,
+						"x": 53.7709031107303,
+						"y": -15.03,
+						"z": -15.03
+					},
+					{
+						"body": 2.0,
+						"color": [
+							0.82,
+							0.92,
+							1.0
+						],
+						"id": "f6",
+						"metal": 0.0,
+						"name": "Appear6",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "x",
+						"id": "f7",
+						"into": 2,
+						"kind": "cylinder",
+						"len": 3.0,
+						"name": "Prim7",
+						"op": "cut",
+						"r": 6.03,
+						"t": "prim",
+						"x": 53.2709031107303,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"d": 12.0,
+						"h": 34.06,
+						"id": "f8",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim8",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 52.7709031107303,
+						"y": -17.03,
+						"z": -17.03
+					},
+					{
+						"d": 12.0,
+						"h": 34.06,
+						"id": "f9",
+						"into": 2,
+						"kind": "box",
+						"name": "Prim9",
+						"op": "cut",
+						"t": "prim",
+						"w": 4.0,
+						"x": 52.7709031107303,
+						"y": -17.03,
+						"z": 5.03
+					}
+				],
+				"name": "Syringe barrel 5 mL (BD Luer-Lok class)",
+				"seq": 1005,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p11",
+			"name": "Baseboard (18 mm plywood) and four posts",
+			"pos": [
+				1166.14,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"buy": "ply18_base_set",
+					"material": "plywood"
+				},
+				"features": [
+					{
+						"d": 340.0,
+						"h": 18.0,
+						"id": "f1",
+						"kind": "box",
+						"name": "Prim1",
+						"op": "new",
+						"t": "prim",
+						"w": 460.0,
+						"x": -230.0,
+						"y": -18.0,
+						"z": -170.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.78,
+							0.62,
+							0.4
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 20.0,
+						"h": 36.0,
+						"id": "f3",
+						"kind": "box",
+						"name": "Prim3",
+						"op": "new",
+						"t": "prim",
+						"w": 20.0,
+						"x": -55.0,
+						"y": 0.0,
+						"z": -55.0
+					},
+					{
+						"body": 1.0,
+						"color": [
+							0.78,
+							0.62,
+							0.4
+						],
+						"id": "f4",
+						"metal": 0.0,
+						"name": "Appear4",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 20.0,
+						"h": 36.0,
+						"id": "f5",
+						"kind": "box",
+						"name": "Prim5",
+						"op": "new",
+						"t": "prim",
+						"w": 20.0,
+						"x": -55.0,
+						"y": 0.0,
+						"z": 35.0
+					},
+					{
+						"body": 2.0,
+						"color": [
+							0.78,
+							0.62,
+							0.4
+						],
+						"id": "f6",
+						"metal": 0.0,
+						"name": "Appear6",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 20.0,
+						"h": 36.0,
+						"id": "f7",
+						"kind": "box",
+						"name": "Prim7",
+						"op": "new",
+						"t": "prim",
+						"w": 20.0,
+						"x": 35.0,
+						"y": 0.0,
+						"z": -55.0
+					},
+					{
+						"body": 3.0,
+						"color": [
+							0.78,
+							0.62,
+							0.4
+						],
+						"id": "f8",
+						"metal": 0.0,
+						"name": "Appear8",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 20.0,
+						"h": 36.0,
+						"id": "f9",
+						"kind": "box",
+						"name": "Prim9",
+						"op": "new",
+						"t": "prim",
+						"w": 20.0,
+						"x": 35.0,
+						"y": 0.0,
+						"z": 35.0
+					},
+					{
+						"body": 4.0,
+						"color": [
+							0.78,
+							0.62,
+							0.4
+						],
+						"id": "f10",
+						"metal": 0.0,
+						"name": "Appear10",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					}
+				],
+				"name": "Baseboard (18 mm plywood) and four posts",
+				"seq": 1,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p12",
+			"name": "Console of the five master syringes (plywood)",
+			"pos": [
+				1646.14,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"included": "cut from the baseboard set (Baseboard + console, 18 mm plywood)",
+					"material": "plywood"
+				},
+				"features": [
+					{
+						"d": 200.0,
+						"h": 10.0,
+						"id": "f1",
+						"kind": "box",
+						"name": "Prim1",
+						"op": "new",
+						"t": "prim",
+						"w": 120.0,
+						"x": -240.0,
+						"y": 0.0,
+						"z": -100.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.78,
+							0.62,
+							0.4
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 20.0,
+						"h": 26.0,
+						"id": "f3",
+						"kind": "box",
+						"name": "Prim3",
+						"op": "new",
+						"t": "prim",
+						"w": 8.0,
+						"x": -124.0,
+						"y": 10.0,
+						"z": -100.0
+					},
+					{
+						"body": 1.0,
+						"color": [
+							0.78,
+							0.62,
+							0.4
+						],
+						"id": "f4",
+						"metal": 0.0,
+						"name": "Appear4",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 20.0,
+						"h": 26.0,
+						"id": "f5",
+						"kind": "box",
+						"name": "Prim5",
+						"op": "new",
+						"t": "prim",
+						"w": 8.0,
+						"x": -124.0,
+						"y": 10.0,
+						"z": -60.0
+					},
+					{
+						"body": 2.0,
+						"color": [
+							0.78,
+							0.62,
+							0.4
+						],
+						"id": "f6",
+						"metal": 0.0,
+						"name": "Appear6",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 20.0,
+						"h": 26.0,
+						"id": "f7",
+						"kind": "box",
+						"name": "Prim7",
+						"op": "new",
+						"t": "prim",
+						"w": 8.0,
+						"x": -124.0,
+						"y": 10.0,
+						"z": -20.0
+					},
+					{
+						"body": 3.0,
+						"color": [
+							0.78,
+							0.62,
+							0.4
+						],
+						"id": "f8",
+						"metal": 0.0,
+						"name": "Appear8",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 20.0,
+						"h": 26.0,
+						"id": "f9",
+						"kind": "box",
+						"name": "Prim9",
+						"op": "new",
+						"t": "prim",
+						"w": 8.0,
+						"x": -124.0,
+						"y": 10.0,
+						"z": 20.0
+					},
+					{
+						"body": 4.0,
+						"color": [
+							0.78,
+							0.62,
+							0.4
+						],
+						"id": "f10",
+						"metal": 0.0,
+						"name": "Appear10",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 20.0,
+						"h": 26.0,
+						"id": "f11",
+						"kind": "box",
+						"name": "Prim11",
+						"op": "new",
+						"t": "prim",
+						"w": 8.0,
+						"x": -124.0,
+						"y": 10.0,
+						"z": 60.0
+					},
+					{
+						"body": 5.0,
+						"color": [
+							0.78,
+							0.62,
+							0.4
+						],
+						"id": "f12",
+						"metal": 0.0,
+						"name": "Appear12",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					}
+				],
+				"name": "Console of the five master syringes (plywood)",
+				"seq": 2,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p13",
+			"name": "Turntable, shaft, tower and shoulder clevis (PLA+)",
+			"pos": [
+				1600.03,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"alt": [
+						"pla"
+					],
+					"fill": 0.45,
+					"material": "pla"
+				},
+				"features": [
+					{
+						"axis": "y",
+						"id": "f1",
+						"kind": "cylinder",
+						"len": 12.0,
+						"name": "Prim1",
+						"op": "new",
+						"r": 60.0,
+						"t": "prim",
+						"x": 0.0,
+						"y": 36.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.95,
+							0.52,
+							0.12
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 20.0,
+						"h": 187.0,
+						"id": "f3",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim3",
+						"op": "join",
+						"t": "prim",
+						"w": 40.0,
+						"x": -20.0,
+						"y": 48.0,
+						"z": -10.0
+					},
+					{
+						"d": 4.0,
+						"h": 50.0,
+						"id": "f4",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim4",
+						"op": "join",
+						"t": "prim",
+						"w": 50.0,
+						"x": -25.0,
+						"y": 225.0,
+						"z": 13.5
+					},
+					{
+						"d": 4.0,
+						"h": 50.0,
+						"id": "f5",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim5",
+						"op": "join",
+						"t": "prim",
+						"w": 50.0,
+						"x": -25.0,
+						"y": 225.0,
+						"z": -17.5
+					},
+					{
+						"d": 24.0,
+						"h": 16.0,
+						"id": "f6",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim6",
+						"op": "join",
+						"t": "prim",
+						"w": 16.0,
+						"x": -8.0,
+						"y": 125.0,
+						"z": 14.0
+					},
+					{
+						"axis": "z",
+						"id": "f7",
+						"into": 0,
+						"kind": "cylinder",
+						"len": 44.0,
+						"name": "Prim7",
+						"op": "cut",
+						"r": 2.225,
+						"t": "prim",
+						"x": 0.0,
+						"y": 250.0,
+						"z": -22.0
+					},
+					{
+						"axis": "z",
+						"id": "f8",
+						"into": 0,
+						"kind": "cylinder",
+						"len": 34.0,
+						"name": "Prim8",
+						"op": "cut",
+						"r": 2.225,
+						"t": "prim",
+						"x": 0.0,
+						"y": 133.0,
+						"z": 10.0
+					},
+					{
+						"axis": "y",
+						"id": "f9",
+						"kind": "cylinder",
+						"len": 26.0,
+						"name": "Prim9",
+						"op": "new",
+						"r": 5.0,
+						"t": "prim",
+						"x": 0.0,
+						"y": 12.0,
+						"z": 0.0
+					},
+					{
+						"body": 1.0,
+						"color": [
+							0.7,
+							0.72,
+							0.76
+						],
+						"id": "f10",
+						"metal": 0.0,
+						"name": "Appear10",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					}
+				],
+				"name": "Turntable, shaft, tower and shoulder clevis (PLA+)",
+				"seq": 3,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p14",
+			"name": "Pinion, 20 teeth module 2 (PLA+)",
+			"pos": [
+				1692.03,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"alt": [
+						"pla"
+					],
+					"fill": 0.45,
+					"material": "pla"
+				},
+				"features": [
+					{
+						"axis": "y",
+						"id": "f1",
+						"kind": "cylinder",
+						"len": 12.0,
+						"name": "Prim1",
+						"op": "new",
+						"r": 17.5,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.95,
+							0.52,
+							0.12
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 3.14,
+						"h": 12.0,
+						"id": "f3",
+						"kind": "box",
+						"name": "Prim3",
+						"op": "new",
+						"t": "prim",
+						"w": 5.0,
+						"x": 17.0,
+						"y": 0.0,
+						"z": -1.57
+					},
+					{
+						"body": 1.0,
+						"color": [
+							0.95,
+							0.52,
+							0.12
+						],
+						"id": "f4",
+						"metal": 0.0,
+						"name": "Appear4",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"axis": "y",
+						"body": 1,
+						"count": 20,
+						"deg": 360.0,
+						"id": "f5",
+						"kind": "circular",
+						"name": "Pattern5",
+						"op": "join",
+						"t": "pattern"
+					},
+					{
+						"id": "f6",
+						"keep": false,
+						"name": "Combine6",
+						"op": "join",
+						"t": "combine",
+						"target": 0,
+						"tools": [
+							1
+						]
+					},
+					{
+						"axis": "y",
+						"id": "f7",
+						"into": 0,
+						"kind": "cylinder",
+						"len": 14.0,
+						"name": "Prim7",
+						"op": "cut",
+						"r": 2.6,
+						"t": "prim",
+						"x": 0.0,
+						"y": -1.0,
+						"z": 0.0
+					}
+				],
+				"name": "Pinion, 20 teeth module 2 (PLA+)",
+				"seq": 4,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p15",
+			"name": "Rack, module 2 (PLA+)",
+			"pos": [
+				1779.03,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"alt": [
+						"pla"
+					],
+					"fill": 0.45,
+					"material": "pla"
+				},
+				"features": [
+					{
+						"d": 8.0,
+						"h": 12.0,
+						"id": "f1",
+						"kind": "box",
+						"name": "Prim1",
+						"op": "new",
+						"t": "prim",
+						"w": 110.0,
+						"x": -55.0,
+						"y": 0.0,
+						"z": 22.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.95,
+							0.52,
+							0.12
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 4.5,
+						"h": 12.0,
+						"id": "f3",
+						"kind": "box",
+						"name": "Prim3",
+						"op": "new",
+						"t": "prim",
+						"w": 3.14,
+						"x": -55.0,
+						"y": 0.0,
+						"z": 18.0
+					},
+					{
+						"body": 1.0,
+						"color": [
+							0.95,
+							0.52,
+							0.12
+						],
+						"id": "f4",
+						"metal": 0.0,
+						"name": "Appear4",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"body": 1,
+						"count": 17,
+						"dir": "x",
+						"id": "f5",
+						"kind": "linear",
+						"mm": 6.2832,
+						"name": "Pattern5",
+						"op": "join",
+						"t": "pattern"
+					},
+					{
+						"id": "f6",
+						"keep": false,
+						"name": "Combine6",
+						"op": "join",
+						"t": "combine",
+						"target": 0,
+						"tools": [
+							1
+						]
+					}
+				],
+				"name": "Rack, module 2 (PLA+)",
+				"seq": 5,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p16",
+			"name": "Gripper body and wrist (PLA+, 5 mL slave)",
+			"pos": [
+				1880.39,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"alt": [
+						"pla"
+					],
+					"fill": 0.45,
+					"material": "pla"
+				},
+				"features": [
+					{
+						"d": 120.0,
+						"h": 28.0,
+						"id": "f1",
+						"kind": "box",
+						"name": "Prim1",
+						"op": "new",
+						"t": "prim",
+						"w": 50.0,
+						"x": -25.0,
+						"y": -4.0,
+						"z": -60.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.95,
+							0.52,
+							0.12
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 90.0,
+						"h": 5.0,
+						"id": "f3",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim3",
+						"op": "cut",
+						"t": "prim",
+						"w": 26.0,
+						"x": -13.0,
+						"y": -4.5,
+						"z": -45.0
+					},
+					{
+						"d": 5.0,
+						"h": 22.0,
+						"id": "f4",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim4",
+						"op": "join",
+						"t": "prim",
+						"w": 50.0,
+						"x": -25.0,
+						"y": 24.0,
+						"z": -17.5
+					},
+					{
+						"d": 5.0,
+						"h": 22.0,
+						"id": "f5",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim5",
+						"op": "join",
+						"t": "prim",
+						"w": 50.0,
+						"x": -25.0,
+						"y": 24.0,
+						"z": 12.5
+					},
+					{
+						"axis": "z",
+						"id": "f6",
+						"into": 0,
+						"kind": "cylinder",
+						"len": 40.0,
+						"name": "Prim6",
+						"op": "cut",
+						"r": 2.225,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": -20.0
+					},
+					{
+						"d": 20.0,
+						"h": 12.0,
+						"id": "f7",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim7",
+						"op": "join",
+						"t": "prim",
+						"w": 12.0,
+						"x": -36.3620929718018,
+						"y": -25.3427867889404,
+						"z": 12.5
+					},
+					{
+						"axis": "y",
+						"id": "f8",
+						"kind": "cylinder",
+						"len": 14.0,
+						"name": "Prim8",
+						"op": "new",
+						"r": 8.0,
+						"t": "prim",
+						"x": 0.0,
+						"y": 6.0,
+						"z": 0.0
+					},
+					{
+						"body": 1.0,
+						"color": [
+							0.7,
+							0.72,
+							0.76
+						],
+						"id": "f9",
+						"metal": 0.0,
+						"name": "Appear9",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 10.0,
+						"h": 14.0,
+						"id": "f10",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim10",
+						"op": "join",
+						"t": "prim",
+						"w": 24.0,
+						"x": -12.0,
+						"y": 24.0,
+						"z": 60.0
+					}
+				],
+				"name": "Gripper body and wrist (PLA+, 5 mL slave)",
+				"seq": 8,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p17",
+			"name": "Gripper jaw with TPU pad (right jaw; the left is its mirror)",
+			"pos": [
+				1937.39,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"alt": [
+						"pla"
+					],
+					"fill": 0.45,
+					"material": "pla"
+				},
+				"features": [
+					{
+						"d": 4.0,
+						"h": 86.0,
+						"id": "f1",
+						"kind": "box",
+						"name": "Prim1",
+						"op": "new",
+						"t": "prim",
+						"w": 44.0,
+						"x": -22.0,
+						"y": -90.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.95,
+							0.52,
+							0.12
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 2.0,
+						"h": 86.0,
+						"id": "f3",
+						"kind": "box",
+						"name": "Prim3",
+						"op": "new",
+						"t": "prim",
+						"w": 44.0,
+						"x": -22.0,
+						"y": -90.0,
+						"z": -2.0
+					},
+					{
+						"body": 1.0,
+						"color": [
+							0.12,
+							0.12,
+							0.13
+						],
+						"id": "f4",
+						"metal": 0.0,
+						"name": "Appear4",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 15.0,
+						"h": 6.0,
+						"id": "f5",
+						"kind": "box",
+						"name": "Prim5",
+						"op": "new",
+						"t": "prim",
+						"w": 24.0,
+						"x": -12.0,
+						"y": 6.0,
+						"z": 0.0
+					},
+					{
+						"body": 2.0,
+						"color": [
+							0.95,
+							0.52,
+							0.12
+						],
+						"id": "f6",
+						"metal": 0.0,
+						"name": "Appear6",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 15.0,
+						"h": 6.0,
+						"id": "f7",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim7",
+						"op": "join",
+						"t": "prim",
+						"w": 24.0,
+						"x": -12.0,
+						"y": 6.0,
+						"z": 0.0
+					}
+				],
+				"name": "Gripper jaw with TPU pad (right jaw; the left is its mirror)",
+				"seq": 9,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p18",
+			"name": "Gripper jaw with TPU pad (right jaw; the left is its mirror) 2",
+			"pos": [
+				1991.39,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"alt": [
+						"pla"
+					],
+					"fill": 0.45,
+					"material": "pla"
+				},
+				"features": [
+					{
+						"d": 4.0,
+						"h": 86.0,
+						"id": "f1",
+						"kind": "box",
+						"name": "Prim1",
+						"op": "new",
+						"t": "prim",
+						"w": 44.0,
+						"x": -22.0,
+						"y": -90.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.95,
+							0.52,
+							0.12
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 2.0,
+						"h": 86.0,
+						"id": "f3",
+						"kind": "box",
+						"name": "Prim3",
+						"op": "new",
+						"t": "prim",
+						"w": 44.0,
+						"x": -22.0,
+						"y": -90.0,
+						"z": -2.0
+					},
+					{
+						"body": 1.0,
+						"color": [
+							0.12,
+							0.12,
+							0.13
+						],
+						"id": "f4",
+						"metal": 0.0,
+						"name": "Appear4",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 15.0,
+						"h": 6.0,
+						"id": "f5",
+						"kind": "box",
+						"name": "Prim5",
+						"op": "new",
+						"t": "prim",
+						"w": 24.0,
+						"x": -12.0,
+						"y": 6.0,
+						"z": 0.0
+					},
+					{
+						"body": 2.0,
+						"color": [
+							0.95,
+							0.52,
+							0.12
+						],
+						"id": "f6",
+						"metal": 0.0,
+						"name": "Appear6",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 15.0,
+						"h": 6.0,
+						"id": "f7",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim7",
+						"op": "join",
+						"t": "prim",
+						"w": 24.0,
+						"x": -12.0,
+						"y": 6.0,
+						"z": 0.0
+					}
+				],
+				"name": "Gripper jaw with TPU pad (right jaw; the left is its mirror)",
+				"seq": 9,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p19",
+			"name": "Upper arm, 25 mm square PLA+ tube 1.6 mm wall",
+			"pos": [
+				2023.39,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"alt": [
+						"cardboard",
+						"pine",
+						"plywood",
+						"pla"
+					],
+					"material": "pla",
+					"need": {
+						"sigma_MPa": 45.0
+					},
+					"role": "boom"
+				},
+				"features": [
+					{
+						"d": 25.0,
+						"h": 25.0,
+						"id": "f1",
+						"kind": "box",
+						"name": "Prim1",
+						"op": "new",
+						"t": "prim",
+						"w": 240.0,
+						"x": 0.0,
+						"y": -12.5,
+						"z": -12.5
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.95,
+							0.52,
+							0.12
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 21.8,
+						"h": 21.8,
+						"id": "f3",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim3",
+						"op": "cut",
+						"t": "prim",
+						"w": 224.0,
+						"x": 8.0,
+						"y": -10.9,
+						"z": -10.9
+					},
+					{
+						"axis": "z",
+						"id": "f4",
+						"into": 0,
+						"kind": "cylinder",
+						"len": 40.0,
+						"name": "Prim4",
+						"op": "cut",
+						"r": 2.225,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": -20.0
+					},
+					{
+						"axis": "z",
+						"id": "f5",
+						"into": 0,
+						"kind": "cylinder",
+						"len": 40.0,
+						"name": "Prim5",
+						"op": "cut",
+						"r": 2.225,
+						"t": "prim",
+						"x": 240.0,
+						"y": 0.0,
+						"z": -20.0
+					},
+					{
+						"d": 5.0,
+						"h": 25.0,
+						"id": "f6",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim6",
+						"op": "join",
+						"t": "prim",
+						"w": 50.0,
+						"x": 215.0,
+						"y": -12.5,
+						"z": 12.5
+					},
+					{
+						"d": 5.0,
+						"h": 25.0,
+						"id": "f7",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim7",
+						"op": "join",
+						"t": "prim",
+						"w": 50.0,
+						"x": 215.0,
+						"y": -12.5,
+						"z": -17.5
+					},
+					{
+						"axis": "z",
+						"id": "f8",
+						"into": 0,
+						"kind": "cylinder",
+						"len": 40.0,
+						"name": "Prim8",
+						"op": "cut",
+						"r": 2.225,
+						"t": "prim",
+						"x": 240.0,
+						"y": 0.0,
+						"z": -20.0
+					},
+					{
+						"d": 20.0,
+						"h": 14.0,
+						"id": "f9",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim9",
+						"op": "join",
+						"t": "prim",
+						"w": 14.0,
+						"x": 11.811107635498,
+						"y": -58.6830940246582,
+						"z": 12.5
+					},
+					{
+						"d": 6.0,
+						"h": 6.0,
+						"id": "f10",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim10",
+						"op": "join",
+						"t": "prim",
+						"w": 18.811107635498,
+						"x": 0.0,
+						"y": -51.6830940246582,
+						"z": 12.5
+					},
+					{
+						"d": 24.0,
+						"h": 16.0,
+						"id": "f11",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim11",
+						"op": "join",
+						"t": "prim",
+						"w": 16.0,
+						"x": 114.0,
+						"y": -8.0,
+						"z": 12.5
+					}
+				],
+				"name": "Upper arm, 25 mm square PLA+ tube 1.6 mm wall",
+				"seq": 6,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p20",
+			"name": "Forearm, 25 mm square PLA+ tube 1.6 mm wall",
+			"pos": [
+				2300.39,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"alt": [
+						"cardboard",
+						"pine",
+						"plywood",
+						"pla"
+					],
+					"material": "pla",
+					"need": {
+						"sigma_MPa": 45.0
+					},
+					"role": "boom"
+				},
+				"features": [
+					{
+						"d": 25.0,
+						"h": 25.0,
+						"id": "f1",
+						"kind": "box",
+						"name": "Prim1",
+						"op": "new",
+						"t": "prim",
+						"w": 220.0,
+						"x": 0.0,
+						"y": -12.5,
+						"z": -12.5
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.95,
+							0.52,
+							0.12
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					},
+					{
+						"d": 21.8,
+						"h": 21.8,
+						"id": "f3",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim3",
+						"op": "cut",
+						"t": "prim",
+						"w": 204.0,
+						"x": 8.0,
+						"y": -10.9,
+						"z": -10.9
+					},
+					{
+						"axis": "z",
+						"id": "f4",
+						"into": 0,
+						"kind": "cylinder",
+						"len": 40.0,
+						"name": "Prim4",
+						"op": "cut",
+						"r": 2.225,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": -20.0
+					},
+					{
+						"d": 5.0,
+						"h": 25.0,
+						"id": "f5",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim5",
+						"op": "join",
+						"t": "prim",
+						"w": 50.0,
+						"x": 195.0,
+						"y": -12.5,
+						"z": 12.5
+					},
+					{
+						"d": 5.0,
+						"h": 25.0,
+						"id": "f6",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim6",
+						"op": "join",
+						"t": "prim",
+						"w": 50.0,
+						"x": 195.0,
+						"y": -12.5,
+						"z": -17.5
+					},
+					{
+						"axis": "z",
+						"id": "f7",
+						"into": 0,
+						"kind": "cylinder",
+						"len": 40.0,
+						"name": "Prim7",
+						"op": "cut",
+						"r": 2.225,
+						"t": "prim",
+						"x": 220.0,
+						"y": 0.0,
+						"z": -20.0
+					},
+					{
+						"d": 20.0,
+						"h": 14.0,
+						"id": "f8",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim8",
+						"op": "join",
+						"t": "prim",
+						"w": 14.0,
+						"x": 48.4550132751465,
+						"y": 0.793693542480469,
+						"z": 12.5
+					},
+					{
+						"d": 24.0,
+						"h": 16.0,
+						"id": "f9",
+						"into": 0,
+						"kind": "box",
+						"name": "Prim9",
+						"op": "join",
+						"t": "prim",
+						"w": 16.0,
+						"x": 86.0,
+						"y": -8.0,
+						"z": 12.5
+					},
+					{
+						"axis": "z",
+						"id": "f10",
+						"kind": "cylinder",
+						"len": 35.0,
+						"name": "Prim10",
+						"op": "new",
+						"r": 2.0,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": -17.5
+					},
+					{
+						"body": 1.0,
+						"color": [
+							0.7,
+							0.72,
+							0.76
+						],
+						"id": "f11",
+						"metal": 0.0,
+						"name": "Appear11",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					}
+				],
+				"name": "Forearm, 25 mm square PLA+ tube 1.6 mm wall",
+				"seq": 7,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p21",
+			"name": "Steel dowel pin 4 x 40 mm",
+			"pos": [
+				2557.39,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"buy": "dowel_4x40",
+					"material": "steel"
+				},
+				"features": [
+					{
+						"axis": "z",
+						"id": "f1",
+						"kind": "cylinder",
+						"len": 40.0,
+						"name": "Prim1",
+						"op": "new",
+						"r": 2.0,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.7,
+							0.72,
+							0.76
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					}
+				],
+				"name": "Steel dowel pin 4 x 40 mm",
+				"seq": 13,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p22",
+			"name": "Steel dowel pin 4 x 40 mm 2",
+			"pos": [
+				2571.39,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"buy": "dowel_4x40",
+					"material": "steel"
+				},
+				"features": [
+					{
+						"axis": "z",
+						"id": "f1",
+						"kind": "cylinder",
+						"len": 40.0,
+						"name": "Prim1",
+						"op": "new",
+						"r": 2.0,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.7,
+							0.72,
+							0.76
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					}
+				],
+				"name": "Steel dowel pin 4 x 40 mm",
+				"seq": 13,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p23",
+			"name": "Steel dowel pin 4 x 40 mm 3",
+			"pos": [
+				2585.39,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"buy": "dowel_4x40",
+					"material": "steel"
+				},
+				"features": [
+					{
+						"axis": "z",
+						"id": "f1",
+						"kind": "cylinder",
+						"len": 40.0,
+						"name": "Prim1",
+						"op": "new",
+						"r": 2.0,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.7,
+							0.72,
+							0.76
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					}
+				],
+				"name": "Steel dowel pin 4 x 40 mm",
+				"seq": 13,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p24",
+			"name": "Steel dowel pin 4 x 40 mm 4",
+			"pos": [
+				2599.39,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"buy": "dowel_4x40",
+					"material": "steel"
+				},
+				"features": [
+					{
+						"axis": "z",
+						"id": "f1",
+						"kind": "cylinder",
+						"len": 40.0,
+						"name": "Prim1",
+						"op": "new",
+						"r": 2.0,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.7,
+							0.72,
+							0.76
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					}
+				],
+				"name": "Steel dowel pin 4 x 40 mm",
+				"seq": 13,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p25",
+			"name": "Steel dowel pin 4 x 40 mm 5",
+			"pos": [
+				2613.39,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"buy": "dowel_4x40",
+					"material": "steel"
+				},
+				"features": [
+					{
+						"axis": "z",
+						"id": "f1",
+						"kind": "cylinder",
+						"len": 40.0,
+						"name": "Prim1",
+						"op": "new",
+						"r": 2.0,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.7,
+							0.72,
+							0.76
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					}
+				],
+				"name": "Steel dowel pin 4 x 40 mm",
+				"seq": 13,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		},
+		{
+			"id": "p26",
+			"name": "Steel dowel pin 4 x 40 mm 6",
+			"pos": [
+				2627.39,
+				0.0,
+				0.0
+			],
+			"rec": {
+				"bom": {
+					"buy": "dowel_4x40",
+					"material": "steel"
+				},
+				"features": [
+					{
+						"axis": "z",
+						"id": "f1",
+						"kind": "cylinder",
+						"len": 40.0,
+						"name": "Prim1",
+						"op": "new",
+						"r": 2.0,
+						"t": "prim",
+						"x": 0.0,
+						"y": 0.0,
+						"z": 0.0
+					},
+					{
+						"body": 0.0,
+						"color": [
+							0.7,
+							0.72,
+							0.76
+						],
+						"id": "f2",
+						"metal": 0.0,
+						"name": "Appear2",
+						"preset": "Custom",
+						"rough": 0.7,
+						"t": "appear"
+					}
+				],
+				"name": "Steel dowel pin 4 x 40 mm",
+				"seq": 13,
+				"version": 1
+			},
+			"rot": [
+				0.0,
+				0.0,
+				0.0
+			],
+			"src": ""
+		}
+	],
+	"seq": 26,
+	"version": 1
+}
