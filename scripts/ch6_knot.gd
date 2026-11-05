@@ -70,7 +70,9 @@ static func layout() -> PackedVector3Array:
 		var a2 := deg_to_rad(d)
 		c.append(Vector3(PEG.x + 0.026 * cos(a2), PEG.y + 0.026 * sin(a2), 0.0))
 		d += 15
-	for q in [[0.04, 0.03, -0.02], [0.06, 0.10, -0.05], [0.18, 0.18, -0.06], [0.25, 0.10, -0.06], [0.18, 0.03, -0.055], [0.08, 0.035, -0.052], [0.0, 0.02, -0.05], [-0.06, 0.0, -0.05]]:
+	# CH6b: the free end's coil is laid 0.45 m longer (it was used up by frame 170 of the tie, then the hand pulled the peg loop
+	# into the knot); same route and crossings (one curl behind, a Reidemeister I loop)
+	for q in [[0.04, 0.03, -0.02], [0.06, 0.14, -0.05], [0.22, 0.30, -0.07], [0.42, 0.20, -0.07], [0.40, 0.02, -0.06], [0.20, 0.03, -0.055], [0.08, 0.035, -0.052], [0.0, 0.02, -0.05], [-0.06, 0.0, -0.05]]:
 		c.append(Vector3(q[0], q[1], q[2]))
 	return resample(spline(c), DS)
 
@@ -89,9 +91,68 @@ static func tip_waypoints(start: Vector3, wrong := false) -> Array:
 	return W
 
 
-## the path sampled at `speed` m/s, one point per 1/30 s
+## the path sampled at `speed` m/s, one point per 1/30 s (CH6b: with the regrip dwells of tie_plan, where the end lies still)
 static func tip_path(start: Vector3, speed := 0.08, wrong := false) -> PackedVector3Array:
-	return resample(spline(tip_waypoints(start, wrong)), speed / 30.0)
+	return tie_plan(start, speed, wrong)["path"]
+
+
+## CH6b: waypoints where the hand lets go and takes the end again from the other side of the rope plane (it cannot follow the
+## end through the hole or round the standing part without its fingers and palm going through the held rope). The hand goes
+## to the side the end is on at that waypoint (sign of z): 3 = up through the hole (behind -> front), 7 = poked behind,
+## left of the standing part (front -> behind), 11 = come forward right of it (behind -> front), 17 = down through the hole.
+const REGRIP := [3, 7, 11, 17]
+const REGRIP_X := -0.19   # the hand goes round outside the hole's left arc (x = -0.104)
+const REGRIP_OUT := 0.07   # how far it backs off the rope plane
+
+
+## the tie, frame by frame (30 fps): path = the end's keyed position (dwelling during a regrip), target = the pinch's target,
+## mode = "hold" (the pinch carries the end), "open" (let go, 6 frames), "free" (the empty hand moves), "close" (take it, 6 frames)
+static func tie_plan(start: Vector3, speed := 0.08, wrong := false) -> Dictionary:
+	var W := tip_waypoints(start, wrong)
+	var sub := 20
+	var dense := spline(W, sub)
+	var path := PackedVector3Array()
+	var target := PackedVector3Array()
+	var mode := PackedStringArray()
+	var side := signf(W[0].z)
+	var cuts: Array = [0]
+	for k in REGRIP:
+		if k < W.size() - 1:
+			cuts.append(k)
+	cuts.append(W.size() - 1)
+	for ci in cuts.size() - 1:
+		var a: int = cuts[ci] * sub
+		var b: int = cuts[ci + 1] * sub
+		var piece := resample(dense.slice(a, b + 1), speed / 30.0)
+		if (piece[piece.size() - 1] as Vector3).distance_to(dense[b]) > 1e-6:
+			piece.append(dense[b])
+		for q in range(0 if ci == 0 else 1, piece.size()):
+			path.append(piece[q])
+			target.append(piece[q])
+			mode.append("hold")
+		var k: int = cuts[ci + 1]
+		if ci == cuts.size() - 2:
+			break
+		var P: Vector3 = W[k]
+		var sn := signf(P.z)
+		if sn == side:
+			continue
+		# "seek": the hand comes back to where the end really lies (the planned P plus the end's drift since it was let go)
+		var legs: Array = [[P, 8, "open"], [P + Vector3(0, 0, REGRIP_OUT * side), 14, "free"], [Vector3(REGRIP_X, P.y, REGRIP_OUT * side), 18, "free"],
+			[Vector3(REGRIP_X, P.y, REGRIP_OUT * sn), 14, "free"], [P + Vector3(0, 0, REGRIP_OUT * sn), 18, "seek"], [P, 12, "seek"], [P, 6, "close"]]
+		var cur := P
+		for L in legs:
+			var to: Vector3 = L[0]
+			var nf: int = L[1]
+			for j in nf:
+				var t := float(j + 1) / float(nf)
+				t = t * t * (3.0 - 2.0 * t)
+				path.append(P)
+				target.append(cur.lerp(to, t))
+				mode.append(L[2])
+			cur = to
+		side = sn
+	return {"path": path, "target": target, "mode": mode}
 
 
 # ---------------------------------------------------------------- the crossing code (Gauss code of a projection)

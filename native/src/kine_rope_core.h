@@ -269,7 +269,10 @@ struct Rope {
 			V d = ca - cb;
 			float dl = len(d);
 			float W = w[i] * (1 - s) * (1 - s) + w[i + 1] * s * s + w[j] * (1 - t) * (1 - t) + w[j + 1] * t * t;
-			if (W == 0) continue;
+			// CH6b lever guard: a contact whose movable mass sits at the far end of a lever (closest point next to a kinematic
+			// particle) would move the free particle by pen / s and give a kinematic one 0 x inf = NaN; the neighbouring pairs take it
+			float wm = std::max(std::max(w[i], w[i + 1]), std::max(w[j], w[j + 1]));
+			if (W <= 0.01f * wm) continue;
 			V nrm;
 			if (dl < 1e-9f) {
 				V ax = p[i + 1] - p[i];
@@ -295,7 +298,7 @@ struct Rope {
 				q.fric = want;
 				// friction moves the contact points at fixed (q.s, q.t)
 				float Wf = w[i] * (1 - q.s) * (1 - q.s) + w[i + 1] * q.s * q.s + w[j] * (1 - q.t) * (1 - q.t) + w[j + 1] * q.t * q.t;
-				if (Wf > 0) apply(i, j, q.s, q.t, dF * (1.0f / Wf), Wf);
+				if (Wf > 0.01f * wm) apply(i, j, q.s, q.t, dF * (1.0f / Wf), Wf);
 			}
 		}
 	}
@@ -319,7 +322,8 @@ struct Rope {
 			V d = ca - cc;
 			float dl = len(d);
 			float W = w[i] * (1 - s) * (1 - s) + w[i + 1] * s * s;
-			if (W == 0) continue;
+			float wm = std::max(w[i], w[i + 1]);
+			if (W <= 0.01f * wm) continue;
 			float R = r + c.r;
 			V nrm = dl < 1e-9f ? V{ 0, 0, 1 } : d * (1.0f / dl);
 			float pen = R - dl;
@@ -344,7 +348,7 @@ struct Rope {
 				V dF = want - q.fric;
 				q.fric = want;
 				float Wf = w[i] * (1 - q.s) * (1 - q.s) + w[i + 1] * q.s * q.s;
-				if (Wf > 0) {
+				if (Wf > 0.01f * wm) {
 					V corr = dF * (1.0f / Wf);
 					p[i] = p[i] + corr * (w[i] * (1 - q.s));
 					p[i + 1] = p[i + 1] + corr * (w[i + 1] * q.s);

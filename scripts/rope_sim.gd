@@ -350,7 +350,8 @@ func _solve_self() -> void:
 		var d := ca - cb
 		var dl := d.length()
 		var W: float = w[i] * (1.0 - s) * (1.0 - s) + w[i + 1] * s * s + w[j] * (1.0 - t) * (1.0 - t) + w[j + 1] * t * t
-		if W == 0.0:
+		var wm: float = maxf(maxf(w[i], w[i + 1]), maxf(w[j], w[j + 1]))   # CH6b lever guard, as kine_rope_core.h
+		if W <= 0.01 * wm:
 			continue
 		var nrm: Vector3
 		if dl < 1e-9:
@@ -379,7 +380,7 @@ func _solve_self() -> void:
 			var dF: Vector3 = want - (q[5] as Vector3)
 			q[5] = want
 			var Wf: float = w[i] * (1.0 - qs) * (1.0 - qs) + w[i + 1] * qs * qs + w[j] * (1.0 - qt) * (1.0 - qt) + w[j + 1] * qt * qt
-			if Wf > 0.0:
+			if Wf > 0.01 * wm:
 				_apply(i, j, qs, qt, dF * (1.0 / Wf))
 
 
@@ -395,7 +396,8 @@ func _solve_cols() -> void:
 		var d := ca - cc
 		var dl := d.length()
 		var W: float = w[i] * (1.0 - s) * (1.0 - s) + w[i + 1] * s * s
-		if W == 0.0:
+		var wm: float = maxf(w[i], w[i + 1])
+		if W <= 0.01 * wm:
 			continue
 		var R: float = r + float(c[4])
 		var nrm := Vector3(0, 0, 1) if dl < 1e-9 else d * (1.0 / dl)
@@ -421,7 +423,7 @@ func _solve_cols() -> void:
 			var dF: Vector3 = want - (q[5] as Vector3)
 			q[5] = want
 			var Wf: float = w[i] * (1.0 - qs) * (1.0 - qs) + w[i + 1] * qs * qs
-			if Wf > 0.0:
+			if Wf > 0.01 * wm:
 				var corr2 := dF * (1.0 / Wf)
 				p[i] = p[i] + corr2 * (w[i] * (1.0 - qs))
 				p[i + 1] = p[i + 1] + corr2 * (w[i + 1] * qs)
