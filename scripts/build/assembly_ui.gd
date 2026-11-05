@@ -766,6 +766,9 @@ func _draw() -> void:
 	if not on:
 		return
 	var f := ThemeDB.fallback_font
+	var placed: Array = []       # label declutter: boxes always draw, overlapping names are skipped (the selected part's name always draws)
+	var sel_label := {}
+	var pending: Array = []
 	for p in asm["parts"]:
 		var id := String(p["id"])
 		var bb := Assembly.world_aabb(p)
@@ -788,7 +791,24 @@ func _draw() -> void:
 			continue
 		var is_sel := id == sel
 		ov.draw_rect(Rect2(mn - Vector2(3, 3), mx - mn + Vector2(6, 6)), Color(1.0, 0.78, 0.22, 0.95) if is_sel else Color(1, 1, 1, 0.25), false, 2.0 if is_sel else 1.0)
-		ov.draw_string(f, Vector2(mn.x, mn.y - 7.0), String(p["name"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1.0, 0.85, 0.4) if is_sel else Color(1, 1, 1, 0.6))
+		var lp := Vector2(mn.x, mn.y - 7.0)
+		if is_sel:
+			sel_label = {"p": lp, "name": String(p["name"])}
+			placed.append(Rect2(lp - Vector2(0, 13), Vector2(f.get_string_size(String(p["name"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x, 16)))
+			continue
+		var lr := Rect2(lp - Vector2(0, 13), Vector2(f.get_string_size(String(p["name"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x, 16))
+		pending.append({"p": lp, "name": String(p["name"]), "r": lr})
+	if not sel_label.is_empty():
+		ov.draw_string(f, sel_label["p"], String(sel_label["name"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1.0, 0.85, 0.4))
+	for c in pending:
+		var clash := false
+		for r in placed:
+			if (r as Rect2).intersects(c["r"] as Rect2):
+				clash = true
+				break
+		if not clash:
+			ov.draw_string(f, c["p"], String(c["name"]), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1, 0.6))
+			placed.append(c["r"])
 	for h in handles():
 		var i := int(h["axis"])
 		var col: Color = AX_COL[i]
