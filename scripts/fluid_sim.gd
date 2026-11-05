@@ -549,7 +549,8 @@ func _extrapolate() -> void:
 						continue
 					var b: int = i + nx * (j + ny * k)
 					var a: int = b - cs[c]
-					if type[a] == 2 or type[b] == 2:
+					# solid on exactly one side: the wall's normal velocity (fixed 0); solid on both sides: inside the wall, extrapolated (free slip)
+					if (type[a] == 2) != (type[b] == 2):
 						vf[f] = 2
 					elif type[a] == 1 or type[b] == 1:
 						vf[f] = 1

@@ -584,7 +584,11 @@ void KineFluidNative::extrapolate() {
 						if (bnd) { vf[f] = 2; continue; } // fixed: the domain wall
 						int b = i + nx * (j + ny * k); // cell on the + side of the face along c; the - side is b - cs[c]
 						int a = b - cs[c];
-						if (type[a] == 2 || type[b] == 2) vf[f] = 2;
+						// fixed: a face with solid on exactly one side carries the wall's normal velocity (0). A face with solid on BOTH sides lies inside
+						// the wall: it is extrapolated like air, so a particle next to a wall interpolates its own tangential velocity there (free slip).
+						// Leaving those faces at 0 made the B-spline read zeros 1 cell into every wall: a numerical no-slip that held a sheet of particles
+						// on the tank's front and back walls at about 0.14 m/s in free fall (CH8b, 11-04).
+						if ((type[a] == 2) != (type[b] == 2)) vf[f] = 2;
 						else if (type[a] == 1 || type[b] == 1) vf[f] = 1;
 					}
 		});
