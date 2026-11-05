@@ -104,7 +104,12 @@ rgb[..., 0] = res & 255
 rgb[..., 1] = res >> 8
 Image.fromarray(rgb).save(os.path.join(out, "cobble_label.png"))
 Image.fromarray(np.clip(edge * 4.0, 0, 255).astype(np.uint8)).save(os.path.join(out, "cobble_edge.png"))
-Image.fromarray(disp.astype(np.uint8)).save(os.path.join(out, "cobble_disp.png"))
+dsave = disp
+if pre == "cf09":
+    # the baked height field samples this map at 6 mm (scripts/wet_street.gd TEXEL) but its pixels are 1.5 mm at the drawn size: unfiltered,
+    # the stone grain aliased into crinkled tops that glittered pixel by pixel (fix pass 2 look). Prefilter to the bake's own sampling: sigma 4 px.
+    dsave = ndi.gaussian_filter(disp, 4.0, mode="wrap")
+Image.fromarray(np.clip(dsave, 0, 255).astype(np.uint8)).save(os.path.join(out, "cobble_disp.png"))
 diff.save(os.path.join(out, "cobble_albedo.jpg"), quality=92)
 with open(os.path.join(out, "cobble_stones.csv"), "w") as f:
     f.write("id,l,r,t,b,disp\n")
