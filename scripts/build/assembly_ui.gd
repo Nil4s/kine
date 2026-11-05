@@ -70,6 +70,8 @@ var dof_l: Label
 var fix_btn: Button
 var motion_btn: Button         # G1MOTION: Check motion (scripts/build/assembly_motion_ui.gd)
 var motion: AssemblyMotionUI
+var bom_btn: Button            # G8BOM: the bill of materials (scripts/build/assembly_bom_ui.gd)
+var bom: AssemblyBomUI
 var asm_undo: Array = []       # G1MOTION: [{"asm", "label"}]: this screen's own steps (the assembly is not in the scene's undo)
 var asm_redo: Array = []
 
@@ -89,6 +91,8 @@ func setup(b: BuildUI) -> void:
 	_build_back()
 	motion = AssemblyMotionUI.new()
 	motion.setup(self)
+	bom = AssemblyBomUI.new()
+	bom.setup(self)
 	ov = Control.new()
 	ov.name = "assembly_overlay"
 	ov.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -158,11 +162,15 @@ func _build_panel() -> void:
 		r1.add_child(b)
 	vb.add_child(r1)
 	var hp := HBoxContainer.new()
-	var pl := _lbl("Parts (double-click to edit one)", 12)
+	var pl := _lbl("Parts", 12)   # G8BOM: was "Parts (double-click to edit one)"; the BOM button needed the room, the hint is on each row's hover now
 	pl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	pl.tooltip_text = "Double-click a part to edit it"
+	pl.mouse_filter = Control.MOUSE_FILTER_PASS
 	hp.add_child(pl)
-	motion_btn = _btn("Check motion", "asm_motion", "Move a part through its range (a hinge, a slide) and list every pair of parts that passes through another", func(): motion.open())
+	motion_btn = _btn("Check motion", "asm_motion", "Move a part through its range (a hinge, a slide) and list every pair of parts that passes through another", func(): bom.close(); motion.open())
 	hp.add_child(motion_btn)
+	bom_btn = _btn("BOM", "asm_bom", "Bill of materials: every part with its material, mass (from the solid) and price, the total, a CSV, and the cheaper choices", func(): bom.open())
+	hp.add_child(bom_btn)
 	vb.add_child(hp)
 	var sc := ScrollContainer.new()
 	sc.name = "asm_list_scroll"
@@ -312,6 +320,7 @@ func _begin() -> void:
 	asm_undo.clear()
 	asm_redo.clear()
 	motion.reset(true)
+	bom.close()
 	var pu: PartUI = bu.part
 	if not _had_stash and editing == "":
 		_stash = m.S.part
@@ -344,6 +353,7 @@ func close() -> void:
 	editing = ""
 	pu.asm_on = false
 	motion.reset(true)
+	bom.close()
 	panel.visible = false
 	src_panel.visible = false
 	back_panel.visible = false
@@ -394,6 +404,7 @@ func _layout() -> void:
 	src_panel.position = Vector2(cl.position.x + 8.0, cl.position.y + 4.0)
 	src_panel.size.x = SRC_W
 	motion.layout(Vector2(cl.position.x + 8.0, cl.position.y + 4.0))
+	bom.layout(Vector2(cl.position.x + 8.0, cl.position.y + 4.0))
 	var bw := back_panel.get_combined_minimum_size().x
 	back_panel.reset_size()
 	back_panel.position = Vector2(vs.x - bw - 4.0, vs.y * 0.42)   # the right edge under the view cube: the one strip both Easy Part and Expert leave free
@@ -409,6 +420,7 @@ func _sel_part() -> Dictionary:
 func _toggle_src() -> void:
 	src_open = add_btn.button_pressed
 	if src_open:
+		bom.close()
 		_set_tab(src_tab)
 	_sync_src()
 
@@ -613,7 +625,7 @@ func _list_sync() -> void:
 		var b := Button.new()
 		b.name = "asm_row_%d" % i
 		b.text = String(p["name"])
-		b.tooltip_text = AssemblyDof.words(p)
+		b.tooltip_text = AssemblyDof.words(p) + "\nDouble-click to edit this part"
 		b.add_theme_color_override("font_color", AssemblyDof.colour(p))
 		b.toggle_mode = true
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -855,6 +867,7 @@ func edit_part(id: String) -> void:
 	editing = id
 	on = false
 	pu.asm_on = false
+	bom.close()
 	panel.visible = false
 	src_panel.visible = false
 	ov.visible = false
@@ -987,6 +1000,7 @@ func undo_redo(back: bool) -> bool:
 		sel = String((asm["parts"][0] as Dictionary)["id"]) if not (asm["parts"] as Array).is_empty() else ""
 	motion.reset(false)
 	_refresh(false)
+	bom.refresh()
 	_say("%s: %s" % ["Undone" if back else "Redone", String(s["label"])])
 	return true
 

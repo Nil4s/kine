@@ -113,3 +113,111 @@ static func cheapest(print_vols: Dictionary) -> Dictionary:
 			best = r
 			break
 	return {"rows": rows, "best": best}
+
+
+# ---------------------------------------------------------------- G8BOM: the arm as an Assembly with "bom" fields (scripts/build/assembly_bom.gd)
+
+const PT := preload("res://scripts/build/ch14_parts.gd")
+const PRINT_ALT := ["pla"]   # the printed holes are compensated for PLA+ (CH14_REFERENCE section 7): another filament needs its own numbers first
+const BOOM_ALT := ["cardboard", "pine", "plywood", "pla"]   # the materials ch14_arm.gd models (MAT)
+const TUBE_ALT := ["tube_pvc", "tube_pu98", "tube_pa12"]
+
+
+static func _with(rec: Dictionary, b: Dictionary) -> Dictionary:
+	var r := rec.duplicate(true)
+	r["bom"] = b
+	return r
+
+
+## a 4 x 40 mm steel dowel pin, a Part
+static func dowel_rec() -> Dictionary:
+	var p := PT.PB.new("Steel dowel pin 4 x 40 mm")
+	p.cyl(0, 0, 0, "z", PT.PIN_D / 2.0, 40.0, PT.STEEL)
+	return p.rec(13)
+
+
+## the design d as an Assembly whose "bom" fields price it as bom(d) does: the ten syringes bought (the shoulder and elbow masters may be a
+## 10 or a 20 mL), the printed parts at INFILL of their solid, the boom links in any MAT material (their mass from the CAD solid, not from
+## ch14_arm's 30 mm section), the plywood set, six dowels, and the tube, pads and sundries as extras. "bom_check": ch14_works = works()
+static func assembly(d := {}) -> Dictionary:
+	if d.is_empty():
+		d = A.design()
+	var asm := Assembly.make("CH14 syringe arm")
+	for j in ["ba", "sh", "el", "wr", "gr"]:
+		for k in 2:
+			var sz := int(d["cyl"][j][k])
+			var b := {"buy": "syr%d" % sz}
+			if k == 0 and j in ["sh", "el"]:
+				b = {"buy": "syr%d" % sz, "alt": ["syr10", "syr20"], "role": "master_lever", "name": "Master syringes of the shoulder and elbow (10 or 20 mL; drawn as %d mL)" % sz}
+			Assembly.add_part(asm, _with(PT.syringe_barrel(sz), b), "%s %s" % ["Master" if k == 0 else "Slave", j])
+	Assembly.add_part(asm, _with(PT.baseboard(), {"buy": "ply18_base_set", "material": "plywood"}))
+	Assembly.add_part(asm, _with(PT.console(), {"material": "plywood", "included": "cut from the baseboard set (Baseboard + console, 18 mm plywood)"}))
+	for f in [PT.turntable(), PT.pinion(), PT.rack(), PT.gripper_body(), PT.jaw(), PT.jaw()]:
+		Assembly.add_part(asm, _with(f, {"material": "pla", "fill": INFILL, "alt": PRINT_ALT}))
+	var mat := String(d["mat"])
+	for f in [PT.upper_arm(), PT.forearm()]:
+		Assembly.add_part(asm, _with(f, {"material": mat, "alt": BOOM_ALT, "need": {"sigma_MPa": 45.0}, "role": "boom"}))
+	for i in DOWELS:
+		Assembly.add_part(asm, _with(dowel_rec(), {"buy": "dowel_4x40", "material": "steel"}))
+	var hm := hose_m(d)
+	var ex: Array = []
+	var hose := String(d["hose"])
+	var runs := "tube_pa12" if hose == "mix" else "tube_" + hose
+	var flex := "tube_pu98"
+	var run_m: float = hm["pa12"] if hose == "mix" else float(hm[hose])
+	ex.append({"name": "Tube 4 x 6 mm, the runs", "bom": {"buy": runs, "qty": run_m, "alt": TUBE_ALT, "need": {"E_MPa": 50.0}, "role": "hose_runs"}})
+	if hose == "mix":
+		ex.append({"name": "Tube 4 x 6 mm, the flex loops at the joints", "bom": {"buy": flex, "qty": float(hm["pu98"]), "role": "hose_flex"}})
+	ex.append({"name": "Jaw pads TPU / rubber", "bom": {"buy": "pad_pair"}})
+	ex.append({"name": "Screws, zip ties, glue", "bom": {"buy": "sundries"}})
+	asm["bom_extra"] = ex
+	asm["bom_check"] = "ch14_works"
+	return asm
+
+
+## the ch14_arm design an assembly made by assembly() describes now ({} with "why" when its choices are not one the arm model knows)
+static func design_of(asm: Dictionary) -> Dictionary:
+	var d := A.design()
+	var booms := {}
+	var masters := {}
+	for p in asm["parts"]:
+		var b: Dictionary = (p["rec"] as Dictionary).get("bom", {})
+		match String(b.get("role", "")):
+			"boom":
+				booms[String(b.get("material", ""))] = true
+			"master_lever":
+				masters[String(b.get("buy", ""))] = true
+	var runs := ""
+	var flex := ""
+	for e in asm.get("bom_extra", []):
+		var b: Dictionary = (e as Dictionary).get("bom", {})
+		if String(b.get("role", "")) == "hose_runs":
+			runs = String(b.get("buy", ""))
+		elif String(b.get("role", "")) == "hose_flex":
+			flex = String(b.get("buy", ""))
+	if booms.size() != 1 or not A.MAT.has(String(booms.keys()[0])):
+		return {"why": "the boom links are not one material the arm model knows (%s)" % str(booms.keys())}
+	d["mat"] = String(booms.keys()[0])
+	if masters.size() != 1 or not String(masters.keys()[0]) in ["syr10", "syr20"]:
+		return {"why": "the shoulder and elbow masters differ (%s)" % str(masters.keys())}
+	var msz := int(String(masters.keys()[0]).trim_prefix("syr"))
+	d["cyl"]["sh"][0] = msz
+	d["cyl"]["el"][0] = msz
+	if flex == "" or flex == runs:
+		d["hose"] = runs.trim_prefix("tube_")
+	elif runs == "tube_pa12" and flex == "tube_pu98":
+		d["hose"] = "mix"
+	else:
+		return {"why": "runs %s with %s loops is a tube mix the arm model does not know" % [runs, flex]}
+	if not A.HOSES.has(String(d["hose"])) and String(d["hose"]) != "mix":
+		return {"why": "the tube %s is not in the arm model" % runs}
+	return d
+
+
+## AssemblyBom's "ch14_works" check: the arm still passes its working bars (works(): 2b, 4, 5, 6) with the assembly's choices
+static func check_asm(asm: Dictionary) -> Dictionary:
+	var d := design_of(asm)
+	if d.has("why"):
+		return {"ok": false, "why": String(d["why"])}
+	var w := works(d)
+	return {"ok": bool(w["ok"]), "why": "fails CH14 bars " + String(w["why"]) if not w["ok"] else ""}
