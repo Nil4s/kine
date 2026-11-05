@@ -17,13 +17,17 @@ Prices are in `data/prices.json`. Each entry has a `source` and a `date`, and an
 
 ## 1. Result
 
-`WT_MAX=8 wtest.sh g8bom ch14 g7time g2loop g1motion easypart peasy3 freestart s213 c15` (logs C:/Temp/claude/w4-g8bom/w4):
-- PASS: ch14 60/0, g7time 27/0, g2loop 24/0, g1motion 22/0, easypart 73/0, peasy3 23/0, freestart 14/0, s213 27/0, c15 28/0.
-- **g8bom 18 ok / 1 FAIL** (bar a, below).
+After the prim fix (section 1b), one wtest run over every suite that replays prims (logs C:/Temp/claude/w4-g8bom/w5):
+- **g8bom 19/0.**
+- PASS: aicost 7, c21 28, s244 17, meshpages 20, s261 18, w03d 12, s241 38, psplit 15, ecut2 6, scalefix 7, ch13 92, ch14 60, ch1e 27, build 42, houses 26, s229 49, nscrew2 8, peasy3 23, freestart 14, s213 27, ch15 44, c15 28, g1motion 22, easypart 73, g2loop 24, w03c 10, g7time 27.
+- w03e was 15/1 in that run: its "edit faster than the full replay" timing failed (94 vs 83 s with 8 suites at once). Re-run alone (w6): 16/0.
+- meshclean 7/3: the same 3 fails (mesh body POSE apply, generation 0 -> 0) on untouched origin/poser-ui-rounds 597b5fd2 in a temporary worktree. They were there before this branch; meshclean does not use Part prims.
+
+Before the fix (logs w4): g8bom 18/1 (bar a).
 
 | bar | result | numbers |
 |---|---|---|
-| a MASS (1e-9 rel) | **FAIL** | steel box 8.000002 cm3 (hand 8), Al rod 2.356194 (hand 2.356194), PLA tube 5.654865 (hand 5.654867): worst 2.78e-7. Mass = the solid's volume x density holds exactly; the solid itself is not the drawn size, see below |
+| a MASS (1e-9 rel) | ok (after 1b) | steel box 8.000000 cm3, Al rod 2.356194, PLA tube 5.654867: worst 2.16e-15. Before the fix: FAIL at 2.78e-7 (box 8.000002, tube 5.654865): the solid was not the drawn size |
 | a CONTROL density 1.24 "kg/m3" | caught | validate names `materials pla: density 1.24 kg/m3 ... (a g/cm3 number?)`; the mass is 1000x low |
 | b GROUP | ok | 4 identical M4 bolts = 1 line, qty 4, 9.697 g (4 x 0.3088 cm3 x 7850), 0.32 USD |
 | b CONTROL one bolt 1 mm longer | caught | 2 lines, counts [1, 3] |
@@ -39,11 +43,27 @@ Prices are in `data/prices.json`. Each entry has a `source` and a `date`, and an
 | g OLD | ok | old_assembly, drive_199 (#199), joint_204 (#204) and anim_205 (#205, written by the #205 code before this branch) open, the BOM opens, sorts and closes, and each saves back equal. They have no "bom" fields, so every line says "no material: not priced" |
 | g CONTROL | caught | the #205 record with one material applied is not equal |
 
-**Bar a is red, and the bar was not changed.** The BOM reports the solid exactly: `KCad.volume` is Gauss-Kronrod at 1e-9. The solid is the wrong size because `part_prim.gd` builds every primitive from float32 numbers:
+**Bar a was red on the first runs, and the bar was not changed.** The BOM reports the solid exactly: `KCad.volume` is Gauss-Kronrod at 1e-9. The solid is the wrong size because `part_prim.gd` builds every primitive from float32 numbers:
 - the box uses `Vector3(w, h, d) * MM`;
 - the cylinder and tube profiles are `PackedVector2Array`.
 
-So the 40 x 20 x 10 mm box the kernel holds is 8.0000017 cm3. A probe gave the same 8.000001698732 cm3 from `KCad.box(0.04, 0.02, 0.01)` fed from a float32 Vector3, while doubles give exactly 8.0. This is gap **G4** again, now seen in mass. For a BOM, 3e-7 is nothing (a millionth of a cent), but the bar measures it, and it stays red until prims are built in doubles. The box can use `KCad.box(float, float, float)`. Cylinders and tubes need a float64 profile in the kernel, or `KCad.cylinder` plus booleans, and that changes their topology. Neither was done here: it touches every Part.
+So the 40 x 20 x 10 mm box the kernel holds is 8.0000017 cm3. A probe gave the same 8.000001698732 cm3 from `KCad.box(0.04, 0.02, 0.01)` fed from a float32 Vector3, while doubles give exactly 8.0. This is gap **G4** again, now seen in mass. For a BOM, 3e-7 is nothing (a millionth of a cent), but the bar measures it, and it stays red until prims are built in doubles. The box can use `KCad.box(float, float, float)`. Cylinders and tubes need a float64 profile in the kernel, or `KCad.cylinder` plus booleans, and that changes their topology. The lead's decision was to fix the cause; see 1b.
+
+### 1b. Prims built in doubles (box, cylinder, tube): PART FIXED (this branch); poses/Transform3D still float32
+
+The fix is in `scripts/build/part_prim.gd` `solid_of()`:
+- **Box:** w, h, d are float locals in mm x MM and go straight to `KCad.box` (doubles). Only the placing translate is a Vector3.
+- **Cylinder and tube:** `_round_exact` uses `KCad.cylinder(r, len)`, the kernel's own cylinder (along z, centred on z = 0, doubles). A tube is that cylinder cut by `cylinder(r_in, len)`.
+  - It is turned onto the axis: x is about +y by 90 deg, after a 180 deg turn about z so the seam sits on +z where the revolve had it; y is about +x by -90 deg.
+  - It is then moved to o + axis x len/2.
+- **Cone, sphere, wedge** stay on the old path. `PartPrim.exact_round = false` brings back the float32 revolve, for comparison.
+
+**Faces (a probe of old vs new, cylinder and tube on x, y, z):**
+- Same face count (3 / 4) and edge count (3 / 6).
+- The same faces: one cylindrical side (a tube has two) and two planar ends, at the same centres, normals and areas. The side's sample normal matches too, after the seam turn on x.
+- **The order differs.** The revolve listed start cap, side, end cap (inner side). The kernel cylinder lists side, end cap, start cap (inner side).
+- No suite references a prim face by its index: every suite above that replays prims passes with the new order. Selections that pick by place or normal are unchanged.
+- Volumes move from float32 to exact. For example, an r 10 x 50 cylinder goes from 15707.96280 to 15707.96327 mm3, a relative 3e-8.
 
 **How CH14 reproduces, line by line** (USD; CH14 = `ch14_bom.bom(d, vols)`, new = `AssemblyBom.bom(ch14_bom.assembly(d))`):
 
@@ -80,7 +100,7 @@ Each one was put through CH14's `works()` (bars 2b, 4, 5, 6). "Cheaper line by l
 | needed | exists today | workaround | cost | proposed feature |
 |---|---|---|---|---|
 | a BOM of an Assembly (G8) | CH14's ch14_bom.gd (one design, hard-coded lines), CH4's CutList (wood boards, BRL), the p057 weight chips (one Part, 3 densities) | none: this branch is the feature | 1 engine (401 lines), 1 panel (268), 1 data file, 108 lines in ch14_bom.gd | done |
-| solids at the size drawn (G4) | primitives are built from float32 Vector3 / Vector2 | none: bar a reports it | the bar is red at 2.8e-7 | build box / cylinder / tube from doubles in part_prim.gd (box: KCad.box with floats; round ones: a float64 profile in KineCAD) |
+| solids at the size drawn (G4) | primitives were built from float32 Vector3 / Vector2 | **PART FIXED (this branch)**: box, cylinder and tube are built in doubles (section 1b) | bar a went 2.8e-7 -> 2.2e-15 | cones and swept profiles still go through float32 Vector2; poses/Transform3D are still float32 |
 | a material per BODY, not per part (new, G44) | one "bom" per Part record | CH14's jaw prices its TPU pad as PLA+; the turntable's steel shaft and the gripper's steel idler are printed PLA+ in both BOMs (CH14 did the same, so the reproduction keeps it) | about 1 cm3 mispriced per part; it could not be done | "material" on the appear step (per body), and the BOM sums bodies |
 | a whole-design check written as data | the check is a GDScript function named in CHECKS | ch14_bom.check_asm maps "role" tags back to a ch14_arm design | about 75 of those 108 lines | a "requirements" list on the Assembly (min torque margin, max error) that the CH10/CH14 solvers evaluate |
 | one place for prices | CutList's user://kine_prices.json (BRL, 3 numbers), CH14's PRICE, now data/prices.json (USD) | the new file holds the CH14 prices | 3 price tables | CutList reads data/prices.json (+ the user's own overrides) and a currency setting |
