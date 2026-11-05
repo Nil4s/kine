@@ -64,7 +64,8 @@ func _box(p: Vector3, s: Vector3, col: Color) -> MeshInstance3D:
 
 
 func _set_surface(F: Object) -> void:
-	var sf: Dictionary = F.surface(1, 0.5)
+	# anisotropic-kernel surface (Yu & Turk 2013, Taubin-smoothed centres) when the native class has it; the isotropic blur otherwise
+	var sf: Dictionary = F.surface_aniso(0.5, 2) if F.has_method("surface_aniso") else F.surface(1, 0.5)
 	var vs: PackedVector3Array = sf["verts"]
 	if vs.is_empty():
 		return

@@ -163,6 +163,7 @@ void KineFluidNative::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("clear_particles"), &KineFluidNative::clear_particles);
 	ClassDB::bind_method(D_METHOD("set_wall_friction", "f"), &KineFluidNative::set_wall_friction);
 	ClassDB::bind_method(D_METHOD("set_density_mode", "mode"), &KineFluidNative::set_density_mode);
+	ClassDB::bind_method(D_METHOD("set_surface_taubin", "on"), &KineFluidNative::set_surface_taubin);
 	ClassDB::bind_method(D_METHOD("set_extrapolation", "on"), &KineFluidNative::set_extrapolation);
 	ClassDB::bind_method(D_METHOD("surface_aniso", "iso", "ndiv"), &KineFluidNative::surface_aniso);
 }
@@ -1253,6 +1254,41 @@ Dictionary KineFluidNative::surface_aniso(double iso, int ndiv) {
 			}
 		}
 	});
+	// Taubin's lambda|mu step (Taubin, "A signal processing approach to fair surface design", SIGGRAPH 1995): the lambda step above is a Laplacian
+	// low-pass that also shrinks (a surface particle's neighbour mean lies inside the liquid). The second step applies the SAME operator (same
+	// neighbours and weights, taken on the original positions) with mu < -lambda, 1/lambda + 1/mu = k_PB = 0.1 (Taubin's pass-band value), which
+	// cancels the shrink to first order while keeping the smoothing of the high frequencies.
+	if (sm_taubin) {
+		const double kpb = 0.1, mu = 1.0 / (kpb - 1.0 / lambda);
+		std::vector<double> xs2(xs);
+		pfor(N, nte, [&](int b0, int e0) {
+			for (int p = b0; p < e0; p++) {
+				const double *xp = &P[3 * p];
+				int ci = std::clamp((int)std::floor((xp[0] - ox) / h), 0, nx - 1), cj = std::clamp((int)std::floor((xp[1] - oy) / h), 0, ny - 1), ck = std::clamp((int)std::floor((xp[2] - oz) / h), 0, nz - 1);
+				double sw = 0, m[3] = { 0, 0, 0 };
+				int nn = 0;
+				for (int dk = -reach; dk <= reach; dk++)
+					for (int dj = -reach; dj <= reach; dj++)
+						for (int di = -reach; di <= reach; di++) {
+							int i = ci + di, j = cj + dj, k = ck + dk;
+							if (i < 0 || j < 0 || k < 0 || i >= nx || j >= ny || k >= nz) continue;
+							int c = cid(i, j, k);
+							for (int a = cstart[c]; a < cstart[c + 1]; a++) {
+								int qi = order[a];
+								const double *xq = &P[3 * qi];
+								double d0 = xq[0] - xp[0], d1 = xq[1] - xp[1], d2 = xq[2] - xp[2];
+								double dd = std::sqrt(d0 * d0 + d1 * d1 + d2 * d2);
+								if (dd >= rc) continue;
+								double q = dd / rc, w = 1.0 - q * q * q;
+								sw += w; m[0] += w * xs[3 * qi]; m[1] += w * xs[3 * qi + 1]; m[2] += w * xs[3 * qi + 2]; nn++;
+							}
+						}
+				if (nn < n_eps) continue;
+				for (int q = 0; q < 3; q++) xs2[3 * p + q] = xs[3 * p + q] + mu * (m[q] / sw - xs[3 * p + q]);
+			}
+		});
+		xs.swap(xs2);
+	}
 	// the field grid over the particles' box
 	double lo[3] = { 1e30, 1e30, 1e30 }, hi[3] = { -1e30, -1e30, -1e30 };
 	for (int p = 0; p < N; p++)

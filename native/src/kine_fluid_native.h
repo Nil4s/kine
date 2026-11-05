@@ -38,6 +38,8 @@ public:
 	int idp_max = 60, idp_iters_last = 0;
 	double tm_idp = 0;
 	void set_density_mode(int m) { dmode = m; }
+	int sm_taubin = 1; // surface_aniso: Taubin lambda|mu smoothing of the kernel centres (0 = the lambda step only, Yu & Turk 2013 as first written)
+	void set_surface_taubin(int p_on) { sm_taubin = p_on; }
 	int extrap = 1; // velocity extrapolation into the air after the projection (1 = on)
 	void set_extrapolation(int on) { extrap = on; }
 	std::vector<uint8_t> vflag[3], vflag2[3];

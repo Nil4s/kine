@@ -324,10 +324,12 @@ func _peak_count(F: Object) -> int:
 ## (h) dam break against the VERIFIED table; (h2) the remembered table of bar (c) against the paper; (b2) peak cell count; (b3) the legacy drift as control
 func _h_verified() -> void:
 	var rows := []
+	# compared in whole hundredths (both tables are printed to 2 decimals): in binary floats 2.00 - 1.98 = 0.020000000000000018 > 0.02, which failed
+	# the row that the bar's own text accepts (|dT| <= 0.02). Same tolerance as written; only the float round-off is removed (CH8b, 11-04).
 	for i in MM_T.size():
 		var hit := false
 		for j in MMV_T.size():
-			if absf(MM_T[i] - MMV_T[j]) <= 0.02 and absf(MM_Z[i] - MMV_Z[j]) <= 0.01:
+			if absi(roundi(MM_T[i] * 100.0) - roundi(MMV_T[j] * 100.0)) <= 2 and absi(roundi(MM_Z[i] * 100.0) - roundi(MMV_Z[j] * 100.0)) <= 1:
 				hit = true
 		rows.append(hit)
 	ok(not rows.has(false), "(h2) the remembered table of bar (c) equals the paper's Table 2 mean column row by row (|dT| <= 0.02, |dZ| <= 0.01): %s" % str(rows))
