@@ -127,6 +127,13 @@ static func tie_plan(start: Vector3, speed := 0.08, wrong := false) -> Dictionar
 		if (piece[piece.size() - 1] as Vector3).distance_to(dense[b]) > 1e-6:
 			piece.append(dense[b])
 		for q in range(0 if ci == 0 else 1, piece.size()):
+			# DOWN was already unthreaded at its keyed endpoint but recovered 0.7 s later. Settle just BEFORE the endpoint,
+			# so the phase measurement still lands on the first exact waypoint rather than on a duplicate during the dwell.
+			if cuts[ci + 1] == 6 and q == piece.size() - 2:
+				for dwell in 24:
+					path.append(piece[q])
+					target.append(piece[q])
+					mode.append("hold")
 			path.append(piece[q])
 			target.append(piece[q])
 			mode.append("hold")
@@ -142,8 +149,10 @@ static func tie_plan(start: Vector3, speed := 0.08, wrong := false) -> Dictionar
 		# through the standing part and destroyed the collar. Back out to the FRONT and stay there for this regrip.
 		var back_side := sn if k == 11 else side
 		var slower := 2 if k == 11 else 1
-		var legs: Array = [[P, 8 * slower, "open"], [P + Vector3(0, 0, REGRIP_OUT * back_side), 14 * slower, "free"], [Vector3(REGRIP_X, P.y, REGRIP_OUT * back_side), 18 * slower, "free"],
-			[Vector3(REGRIP_X, P.y, REGRIP_OUT * sn), 14 * slower, "free"], [P + Vector3(0, 0, REGRIP_OUT * sn), 18 * slower, "seek"], [P, 12 * slower, "seek"], [P, 6 * slower, "close"]]
+		var out := 0.14 if k == 11 else REGRIP_OUT
+		var transit_x := 0.20 if k == 11 else REGRIP_X
+		var legs: Array = [[P, 8 * slower, "open"], [P + Vector3(0, 0, out * back_side), 14 * slower, "free"], [Vector3(transit_x, P.y, out * back_side), 18 * slower, "free"],
+			[Vector3(transit_x, P.y, out * sn), 14 * slower, "free"], [P + Vector3(0, 0, out * sn), 18 * slower, "seek"], [P, 12 * slower, "seek"], [P, 6 * slower, "close"]]
 		var cur := P
 		for L in legs:
 			var to: Vector3 = L[0]
