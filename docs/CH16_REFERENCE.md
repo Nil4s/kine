@@ -88,7 +88,7 @@ Mass is summed by AssemblyBom from exact solid volume x density x fill. No total
 | optical glass | 2500 kg/m3 | MEMORY glass class |
 | copper flex / heat spreader | 8960 kg/m3 | MEMORY copper |
 | LCD/EVF module equivalent | 900 kg/m3 | ASSUMED equivalent including glass, frame and air |
-| battery equivalent | 1856.48 kg/m3 | ASSUMED density chosen so the SEEN 31.8 x 45.0 x 18.5 mm [BD] solid is about 42 g |
+| battery equivalent | 1586.49 kg/m3 | ASSUMED density chosen so the SEEN 31.8 x 45.0 x 18.5 mm [BD] solid is about 42 g |
 | SD card plastic equivalent | 950 kg/m3 | ASSUMED |
 | M1.5 x 4 camera screw | USD 0.02 each | ASSUMED small-pack replacement-hardware price, 2026-11-05 |
 | replacement NP-FW50 | USD 94.99 | SEEN current Sony store result [B], used as bought-price alternative view |

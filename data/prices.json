@@ -9,7 +9,16 @@
 		"pine": {"name": "Pine strip", "family": "wood", "density_kg_m3": 350.0, "price_per_kg": 8.0, "sigma_MPa": 59.0, "E_MPa": 8500.0, "source": "ASSUMED: 30 x 30 strip about 2.5 USD/m (CH14 PRICE boom_kg pine); E, density, strength: USDA FPL Wood Handbook FPL-GTR-190 Table 5-3, MEMORY (CH14_REFERENCE section 6)", "date": "2026-11-04"},
 		"plywood": {"name": "Birch plywood 3 mm", "family": "wood", "density_kg_m3": 650.0, "price_per_kg": 17.0, "sigma_MPa": 45.0, "E_MPa": 9000.0, "source": "ASSUMED: 3 mm ply about 33 USD/m2 (CH14 PRICE boom_kg plywood); E, density, strength: birch plywood class, MEMORY (CH14_REFERENCE section 6)", "date": "2026-11-04"},
 		"steel": {"name": "Mild steel", "family": "metal", "density_kg_m3": 7850.0, "price_per_kg": 3.0, "sigma_MPa": 250.0, "E_MPa": 200000.0, "source": "ASSUMED: small-quantity bar stock; density 7850 as PartWeapon.DENSITY steel, yield 250 MPa (S235/A36 class), MEMORY", "date": "2026-11-04"},
-		"aluminium": {"name": "Aluminium 6061-T6", "family": "metal", "density_kg_m3": 2700.0, "price_per_kg": 9.0, "sigma_MPa": 276.0, "E_MPa": 68900.0, "source": "ASSUMED: small-quantity bar stock; density 2700 as PartWeapon.DENSITY aluminium, yield 276 MPa (6061-T6 handbook value), MEMORY", "date": "2026-11-04"}
+		"aluminium": {"name": "Aluminium 6061-T6", "family": "metal", "density_kg_m3": 2700.0, "price_per_kg": 9.0, "sigma_MPa": 276.0, "E_MPa": 68900.0, "source": "ASSUMED: small-quantity bar stock; density 2700 as PartWeapon.DENSITY aluminium, yield 276 MPa (6061-T6 handbook value), MEMORY", "date": "2026-11-04"},
+		"camera_magnesium": {"name": "Camera magnesium alloy", "family": "camera_metal", "density_kg_m3": 1740.0, "price_per_kg": 15.0, "source": "ASSUMED: small machined chassis stock price; AZ91-class density MEMORY (CH16_REFERENCE section 3)", "date": "2026-11-05"},
+		"camera_polymer": {"name": "Camera PC/ABS engineering polymer", "family": "camera_shell", "density_kg_m3": 1200.0, "price_per_kg": 24.0, "source": "ASSUMED: moulding-compound equivalent price and PC/ABS-class density MEMORY (CH16_REFERENCE section 3)", "date": "2026-11-05"},
+		"camera_fr4": {"name": "Populated-camera-PCB equivalent", "family": "camera_electronic", "density_kg_m3": 1850.0, "price_per_kg": 45.0, "source": "ASSUMED: bulk density MEMORY and material-only fallback price; modules normally use bought prices (CH16_REFERENCE section 3)", "date": "2026-11-05"},
+		"camera_silicon": {"name": "Sensor silicon", "family": "camera_electronic", "density_kg_m3": 2330.0, "price_per_kg": 100.0, "source": "ASSUMED: material-only fallback; silicon density MEMORY (CH16_REFERENCE section 3)", "date": "2026-11-05"},
+		"camera_glass": {"name": "Optical cover glass", "family": "camera_glass", "density_kg_m3": 2500.0, "price_per_kg": 30.0, "source": "ASSUMED: material-only fallback; glass-class density MEMORY (CH16_REFERENCE section 3)", "date": "2026-11-05"},
+		"camera_copper": {"name": "Copper flex / antenna equivalent", "family": "camera_metal", "density_kg_m3": 8960.0, "price_per_kg": 12.0, "source": "ASSUMED: solid-equivalent density MEMORY and stock price; flex fill is not derated (CH16_REFERENCE section 3)", "date": "2026-11-05"},
+		"camera_display": {"name": "LCD/EVF module equivalent", "family": "camera_electronic", "density_kg_m3": 900.0, "price_per_kg": 40.0, "source": "ASSUMED: equivalent density including frame and voids (CH16_REFERENCE section 3)", "date": "2026-11-05"},
+		"camera_battery": {"name": "NP-FW50 lithium-ion solid equivalent", "family": "camera_battery", "density_kg_m3": 1586.49, "price_per_kg": 100.0, "source": "ASSUMED: density from 42 g / (31.8 x 45.0 x 18.5 mm), SEEN package values [BD] (CH16_REFERENCE section 3)", "date": "2026-11-05"},
+		"camera_sd_plastic": {"name": "SD card solid equivalent", "family": "camera_electronic", "density_kg_m3": 950.0, "price_per_kg": 20.0, "source": "ASSUMED: equivalent density and material-only fallback (CH16_REFERENCE section 3)", "date": "2026-11-05"}
 	},
 	"items": {
 		"syr5": {"name": "Luer syringe 5 mL (bore 12.06 mm)", "unit": "pcs", "price": 0.25, "mass_kg": 0.007, "source": "ASSUMED: each, from a 10-50 pack (CH14 PRICE syr5); mass ch14_arm.gd SYR", "date": "2026-11-04"},
@@ -22,6 +31,25 @@
 		"dowel_4x40": {"name": "Steel dowel pin 4 x 40 mm", "unit": "pcs", "price": 0.10, "source": "ASSUMED: each (CH14 PRICE dowel)", "date": "2026-11-04"},
 		"pad_pair": {"name": "Jaw pads TPU / rubber", "unit": "pair", "price": 0.20, "source": "ASSUMED: a pair (CH14 PRICE pad)", "date": "2026-11-04"},
 		"sundries": {"name": "Screws, zip ties, glue", "unit": "lot", "price": 1.00, "source": "ASSUMED: one lot (CH14 PRICE sundries)", "date": "2026-11-04"},
-		"bolt_m4x16": {"name": "Hex bolt M4 x 16, zinc plated", "unit": "pcs", "price": 0.08, "source": "ASSUMED: each, from a 100 box", "date": "2026-11-04"}
+		"bolt_m4x16": {"name": "Hex bolt M4 x 16, zinc plated", "unit": "pcs", "price": 0.08, "source": "ASSUMED: each, from a 100 box", "date": "2026-11-04"},
+		"camera_screw_m1_5": {"name": "Camera screw M1.5 x 4", "unit": "pcs", "price": 0.02, "source": "ASSUMED: small-pack replacement hardware, each; size SEEN in iFixit [I] (CH16_REFERENCE section 3)", "date": "2026-11-05"},
+		"np_fw50_sony": {"name": "Sony NP-FW50 battery", "unit": "pcs", "price": 94.99, "source": "SEEN: Sony store current listed price [B]; mass comes from the CAD solid, not an item override", "date": "2026-11-05"},
+		"np_fw50_pattern": {"name": "Pattern NP-FW50 battery", "unit": "pcs", "price": 24.00, "source": "ASSUMED: generic compatible-battery retail; costing alternative only, not a fit/safety endorsement", "date": "2026-11-05"},
+		"camera_mount": {"name": "E-mount ring/flange module", "unit": "pcs", "price": 18.00, "source": "ASSUMED: replacement-module allowance, not a Sony quote", "date": "2026-11-05"},
+		"camera_sensor_carrier": {"name": "Sensor carrier", "unit": "pcs", "price": 8.00, "source": "ASSUMED: replacement-module allowance", "date": "2026-11-05"},
+		"camera_cover_glass": {"name": "Sensor cover glass", "unit": "pcs", "price": 5.00, "source": "ASSUMED: replacement-module allowance", "date": "2026-11-05"},
+		"camera_sensor": {"name": "Full-frame sensor module", "unit": "pcs", "price": 120.00, "source": "ASSUMED: replacement-module allowance, not a Sony quote", "date": "2026-11-05"},
+		"camera_sensor_flex": {"name": "Sensor flex", "unit": "pcs", "price": 6.00, "source": "ASSUMED: replacement-module allowance", "date": "2026-11-05"},
+		"camera_shutter": {"name": "Focal-plane shutter module", "unit": "pcs", "price": 35.00, "source": "ASSUMED: replacement-module allowance", "date": "2026-11-05"},
+		"camera_main_pcb": {"name": "Main PCB with BIONZ X / DRAM / PMIC", "unit": "pcs", "price": 180.00, "source": "ASSUMED: populated-board replacement allowance, not a Sony quote", "date": "2026-11-05"},
+		"camera_sd_slot": {"name": "SD slot board", "unit": "pcs", "price": 12.00, "source": "ASSUMED: replacement-module allowance", "date": "2026-11-05"},
+		"camera_sd_card": {"name": "SD memory card", "unit": "pcs", "price": 8.00, "source": "ASSUMED: small-card 2026 retail", "date": "2026-11-05"},
+		"camera_ports": {"name": "USB/HDMI port block", "unit": "pcs", "price": 14.00, "source": "ASSUMED: replacement-module allowance", "date": "2026-11-05"},
+		"camera_antenna": {"name": "Wi-Fi/NFC antenna", "unit": "pcs", "price": 4.00, "source": "ASSUMED: replacement-module allowance", "date": "2026-11-05"},
+		"camera_evf": {"name": "OLED EVF module", "unit": "pcs", "price": 45.00, "source": "ASSUMED: replacement-module allowance", "date": "2026-11-05"},
+		"camera_lcd": {"name": "LCD module", "unit": "pcs", "price": 35.00, "source": "ASSUMED: replacement-module allowance", "date": "2026-11-05"},
+		"camera_lcd_hinge": {"name": "LCD hinge", "unit": "pcs", "price": 6.00, "source": "ASSUMED: replacement-module allowance", "date": "2026-11-05"},
+		"camera_controls": {"name": "Camera control/dial module", "unit": "pcs", "price": 12.00, "source": "ASSUMED: replacement-module allowance", "date": "2026-11-05"},
+		"camera_hotshoe": {"name": "Hot-shoe module", "unit": "pcs", "price": 9.00, "source": "ASSUMED: replacement-module allowance", "date": "2026-11-05"}
 	}
 }
