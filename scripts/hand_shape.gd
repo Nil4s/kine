@@ -384,7 +384,7 @@ static func palm_plane_gap(B: Body, h: String, c: Vector3, n: Vector3) -> float:
 ##   opts "fdir", default: where the fingers point now, laid into the surface). The palm's face centre goes to c, GAP off.
 ##   LimbIK.solve puts the wrist there inside the arm's limits; a limit that stops the turn leaves the palm tilted, so the
 ##   wrist then moves along n until the palm's lowest point is GAP off (4 passes): never into the surface.
-##   FINGERS (flat): straight, then each knuckle (MCP) bends down until the finger rests on the surface (GAP); the thumb
+##   FINGERS (flat): straight, then each knuckle (MCP, -20..25 deg) bends until the finger rests on the surface (GAP); the thumb
 ##   is laid on it (_thumb_rest). HOOK (opts "hook": {"edge": a point on the edge, "over_n": the outward normal of the face
 ##   the fingers curl onto}): the hand slides along fdir until the middle knuckle is FINGER_R + GAP past that face, then
 ##   each finger's three joints bend in turn, each as far as it goes without entering (_bend_to_touch).
@@ -442,7 +442,7 @@ static func palm_flat(B: Body, h: String, c: Vector3, n: Vector3, opts := {}) ->
 	r["tilt"] = rad_to_deg(((B.G[h] as Quaternion) * (f["nr"] as Vector3)).angle_to(-n))
 	if hook.is_empty():
 		for fg in FINGERS4:
-			_bend_to_touch(B, h, fg, "%s_01%s" % [fg, sd], 0.0, 25.0, solids)
+			_bend_to_touch(B, h, fg, "%s_01%s" % [fg, sd], -20.0, 25.0, solids)
 	else:
 		for fg in FINGERS4:
 			for q in 3:

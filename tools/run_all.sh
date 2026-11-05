@@ -1022,3 +1022,4 @@ EXTRA="$EXTRA aicost:w"   # AI COST (11-04): Ask AI caches its prompt (scene mov
 EXTRA="$EXTRA scalefix:w"   # scalefix: Part at building scale: size-scaled meshing, a split half-space sized to the bodies, a refused cut is an error (CH15 gaps G27-G29), tests/scalefix_test.gd
 EXTRA="$EXTRA ch15:w"   # ch15: Angra 2 class PWR plant: primary heat balance, IF97 Rankine, electrical one-line, decay heat, containment sphere, layout overlaps, build sequence + section video, blueprints (docs/CH15_REFERENCE.md), tests/ch15_test.gd
 EXTRA="$EXTRA g1motion:w"   # G1MOTION: Assembly Check motion: drives + links, exact-solid clash sweep with a box prefilter, contact vs clash, scrub slider, one undo step (gap G1, tests/g1motion_test.gd)
+EXTRA="$EXTRA hand:w"   # HAND (G23/G38): HandShape palm slab + finger capsules (ANSUR II sizes), palm_flat within the wrist limits, hook over an edge, close_on a 10 mm rope; Rulebook.prop_hits uses it (tests/hand_test.gd)
