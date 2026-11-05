@@ -252,7 +252,7 @@ func add_joint() -> void:
 		return
 	var kind: String = AssemblyLoop.KINDS[jkind_ob.selected]
 	var axis: Vector3 = AssemblyUI.AXES[axis_ob.selected]
-	var o := Vector3(a._num((org_e[0] as LineEdit).text, 0.0), a._num((org_e[1] as LineEdit).text, 0.0), a._num((org_e[2] as LineEdit).text, 0.0))
+	var o := [a._num((org_e[0] as LineEdit).text, 0.0), a._num((org_e[1] as LineEdit).text, 0.0), a._num((org_e[2] as LineEdit).text, 0.0)]   # doubles (G4)
 	var nm := "%s %s %s" % [String(p["name"]), ["on", "in", "welded to"][jkind_ob.selected], to_name]
 	a.push_undo("joint " + nm)
 	AssemblyLoop.add_joint(a.asm, AssemblyLoop.joint_at(a.asm, kind, String(p["id"]), to, axis, o, nm))

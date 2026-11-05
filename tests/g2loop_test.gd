@@ -399,7 +399,7 @@ func bars_convergence() -> void:
 	for st in sw["steps"]:
 		if bool(st["ok"]):
 			rmin = minf(rmin, float(st["ratio"]))
-	ok((sw["unsolved"] as Array).is_empty() and int(sw["iters_max"]) <= 5 and mean <= 4.0 and float(sw["ms"]) <= 1000.0, "e engine, 360 steps of 1 deg: %d iterations (mean %.2f per step, max %d; bound 5 / mean 4), %.1f ms (bound 1000); smallest pivot ratio %.3g (rank tol %g)" % [int(sw["iters_total"]), mean, int(sw["iters_max"]), float(sw["ms"]), rmin, AL.RANK_TOL])
+	ok((sw["unsolved"] as Array).is_empty() and int(sw["iters_max"]) <= 5 and mean <= 4.0 and float(sw["ms"]) <= 1000.0, "e engine, 360 steps of 1 deg: %d iterations (mean %.2f per step, max %d; bound 5 / mean 4), %.1f ms (bound 1000); smallest pivot ratio %s (rank tol %s)" % [int(sw["iters_total"]), mean, int(sw["iters_max"]), float(sw["ms"]), String.num_scientific(rmin), str(AL.RANK_TOL)])
 	var sc := AL.sweep(asm, "Crank", vals, {"warm": false})
 	var mc := float(sc["iters_total"]) / 361.0
 	ctl(mc > mean or not (sc["unsolved"] as Array).is_empty(), "e cold steps (zero guess, no continuation): mean %.2f iterations (warm %.2f), max %d, %d with no pose, %.1f ms" % [mc, mean, int(sc["iters_max"]), (sc["unsolved"] as Array).size(), float(sc["ms"])])
@@ -510,7 +510,14 @@ func bars_ui() -> void:
 	var y_free := piston_y_mm()
 	ok(at_free.contains("NOT SOLVED") and at_free.contains("degree"), "f with 4 joints the scrub says: '%s'" % at_free)
 	ctl(absf(y_free - y_rec) < 1e-6, "f before the slide joint the piston does not follow the crank: %.4f mm at 90 deg (record %.4f)" % [y_free, y_rec])
-	await click_ctl(nd("asm_row_3") as Button)
+	var row3 := nd("asm_row_3") as Control   # the 7-part list scrolls: Piston is the 4th row, below the fold (first run's click missed it)
+	var scr := row3.get_parent()
+	while scr != null and not (scr is ScrollContainer):
+		scr = scr.get_parent()
+	if scr != null:
+		(scr as ScrollContainer).ensure_control_visible(row3)
+		await idle(3)
+	await click_ctl(row3)
 	var jk := nd("asm_motion_jkind") as OptionButton
 	jk.select(1)
 	(nd("asm_motion_axis") as OptionButton).select(1)
@@ -571,7 +578,7 @@ func bars_old() -> void:
 		await idle(3)
 		A.motion.close()
 		await idle(2)
-	var p1 := Assembly.save(A.asm if A != null else rec, "old_assembly")
+	var p1 := Assembly.save(A.asm if A != null else rec)   # no name: a name renames the record (first run's mistake)
 	ok(not rec.is_empty() and not AL.has_joints(rec) and String(r["why"]).contains("no drive") and sorted_json(p1) == sorted_json(OLD), "g old_assembly.json: no joints, Check motion says '%s', saved back from the screen equal" % String(r["why"]))
 	var d := Assembly.read(D199)
 	var r1 := AM.check_motion(d, "Lid", 10)

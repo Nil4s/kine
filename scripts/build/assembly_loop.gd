@@ -47,10 +47,10 @@ static func add_joint(asm: Dictionary, j: Dictionary) -> void:
 
 
 ## a joint from a point and an axis in the ASSEMBLY frame (the screen): the origin and axis go into a's frame, the point into b's, at the record poses
-static func joint_at(asm: Dictionary, kind: String, a: String, b: String, axis_w: Vector3, point_mm: Vector3, nm := "") -> Dictionary:
+static func joint_at(asm: Dictionary, kind: String, a: String, b: String, axis_w: Vector3, point_mm: Array, nm := "") -> Dictionary:
 	var pa: Dictionary = asm["parts"][Assembly.index_of(asm, a)]
 	var ra := _rot(pa["rot"])
-	var P := [float(point_mm.x), float(point_mm.y), float(point_mm.z)]
+	var P := _arr(point_mm)
 	var oa := _tmul(ra, _sub(P, _arr(pa["pos"])))
 	var ax := _tmul(ra, [float(axis_w.x), float(axis_w.y), float(axis_w.z)])
 	var ob := P
@@ -519,7 +519,7 @@ static func _newton(md: Dictionary, q0: PackedFloat64Array, kn: Dictionary, max_
 	var it := 0
 	while res >= TOL:
 		if it >= max_it:
-			return {"ok": false, "why": "no convergence in %d iterations (residual %.3g mm)" % [max_it, res], "q": q, "it": it, "res": res}
+			return {"ok": false, "why": "no convergence in %d iterations (residual %s mm)" % [max_it, String.num_scientific(res)], "q": q, "it": it, "res": res}
 		var neg := PackedFloat64Array()
 		neg.resize(int(ev["m"]))
 		for i in neg.size():
@@ -543,7 +543,7 @@ static func _newton(md: Dictionary, q0: PackedFloat64Array, kn: Dictionary, max_
 				break
 			lam *= 0.5
 		if not (rn < res or rn < TOL):
-			return {"ok": false, "why": "Newton stalled (residual %.3g mm)" % res, "q": q, "it": it, "res": res}
+			return {"ok": false, "why": "Newton stalled (residual %s mm)" % String.num_scientific(res), "q": q, "it": it, "res": res}
 		q = qn
 		ev = evn
 		res = rn
@@ -645,7 +645,7 @@ static func solve(asm: Dictionary, drive_name: String, v: float, opts := {}) -> 
 		var off := _verify(md, r["q"], _knowns(md, v))
 		if off > VERIFY_MM:
 			out["ok"] = false
-			out["why"] = "a joint between the drive and a fixed part is broken by %.4g mm" % off
+			out["why"] = "a joint between the drive and a fixed part is broken by %s mm" % String.num_scientific(off)
 		out["moves"] = _moves(asm, md, drive_name, v, r["q"])
 		out["states"] = _states(md, v, r["q"])
 	else:
@@ -729,15 +729,19 @@ static func world_mm(asm: Dictionary, states: Dictionary, pid: String, local: Ar
 	var P := pose_mm(p, local)
 	if not states.has(pid) or states.get(pid) == null:
 		return P
-	var s: Array = states[pid]
-	var n: Array = states["_n"]
+	return apply_state(P, states[pid], states)
+
+
+## an assembly-frame point P (mm) carried by the planar state s = [x, y, phi, z along n] (doubles); frame = a states dict with "_n", "_u", "_w"
+static func apply_state(P: Array, s: Array, frame: Dictionary) -> Array:
+	var n: Array = frame["_n"]
 	var c := cos(s[2])
 	var sn := sin(s[2])
 	var nx := _cross(n, P)
 	var nd := _dot(n, P)
 	var R := [P[0] * c + nx[0] * sn + n[0] * nd * (1.0 - c), P[1] * c + nx[1] * sn + n[1] * nd * (1.0 - c), P[2] * c + nx[2] * sn + n[2] * nd * (1.0 - c)]
-	var u: Array = states["_u"]
-	var w: Array = states["_w"]
+	var u: Array = frame["_u"]
+	var w: Array = frame["_w"]
 	for i in 3:
 		R[i] += u[i] * s[0] + w[i] * s[1] + n[i] * s[3]
 	return R

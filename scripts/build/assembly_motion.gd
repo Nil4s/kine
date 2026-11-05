@@ -174,6 +174,7 @@ static func check_motion(asm: Dictionary, drive_name: String, steps: int, opts :
 	var vals := values(d, steps)
 	out["values"] = vals
 	var track: Array = []   # G2LOOP: the moves at each value (null: no pose)
+	var tstates: Array = [] # and the solver's planar states (doubles), which place the solids without float32 (G4)
 	var moving: Array = []
 	if AssemblyLoop.has_joints(asm):
 		var sw := AssemblyLoop.sweep(asm, drive_name, vals)
@@ -183,6 +184,7 @@ static func check_motion(asm: Dictionary, drive_name: String, steps: int, opts :
 		out["loop"] = {"locks": sw["locks"], "unsolved": sw["unsolved"], "iters_total": sw["iters_total"], "iters_max": sw["iters_max"], "ms": sw["ms"], "why": sw["why"]}
 		for st in sw["steps"]:
 			track.append(st["moves"] if bool(st["ok"]) else null)
+			tstates.append(st["states"] if bool(st["ok"]) else {})
 			if bool(st["ok"]):
 				for id in st["moves"]:
 					if not moving.has(id):
@@ -202,11 +204,16 @@ static func check_motion(asm: Dictionary, drive_name: String, steps: int, opts :
 		local[id] = ids
 		kept.append_array(ids)
 		box[id] = Assembly.built(p["rec"])["aabb"]
+	var frame: Dictionary = {}
+	for s in tstates:
+		if (s as Dictionary).has("_n"):
+			frame = s
+			break
 	var placed_static := {}
 	for p in ps:
 		var id := String(p["id"])
 		if not moving.has(id):
-			placed_static[id] = _place_all(local[id], Assembly.xf_of(p))
+			placed_static[id] = _place_all_state(local[id], p, [0.0, 0.0, 0.0, 0.0], frame) if not frame.is_empty() else _place_all(local[id], Assembly.xf_of(p))
 	var by_pair := {}
 	var clashes: Array = []
 	var calls := 0
@@ -227,7 +234,8 @@ static func check_motion(asm: Dictionary, drive_name: String, steps: int, opts :
 			var xf: Transform3D = (mv[id] as Transform3D) * Assembly.xf_of(p) if mv.has(id) else Assembly.xf_of(p)
 			wbox[id] = (xf * (box[id] as AABB)).grow(BOX_GROW)
 			if mv.has(id):
-				placed[id] = _place_all(local[id], xf)
+				var sk: Dictionary = tstates[k] if not tstates.is_empty() else {}
+				placed[id] = _place_all_state(local[id], p, sk[id], sk) if sk.has(id) and sk[id] != null else _place_all(local[id], xf)
 		for i in ps.size():
 			for j in range(i + 1, ps.size()):
 				var a: Dictionary = ps[i]
@@ -275,6 +283,36 @@ static func check_motion(asm: Dictionary, drive_name: String, steps: int, opts :
 	out["ok"] = not bad
 	out["why"] = "the kernel refused an overlap" if bad else ""
 	out["ms"] = Time.get_ticks_msec() - t0
+	return out
+
+
+## G2LOOP: a NEW solid placed in doubles: the record's turn as Basis.from_euler does it (z, then x, then y), the loop state's turn phi about
+## the common axis, then one move computed in doubles (only the final Vector3 is float32, ~1e-5 mm at 100 mm, as ch13_parts.place)
+static func place_state(src: int, p: Dictionary, s: Array, frame: Dictionary) -> int:
+	var rot: Array = p["rot"]
+	var cur := src
+	var n: Array = frame["_n"]
+	for step in [[Vector3.BACK, deg_to_rad(float(rot[2]))], [Vector3.RIGHT, deg_to_rad(float(rot[0]))], [Vector3.UP, deg_to_rad(float(rot[1]))], [Vector3(n[0], n[1], n[2]), float(s[2])]]:
+		if absf(float(step[1])) > 1e-15:
+			var t: int = KCad.rotate(cur, step[0], float(step[1]))
+			if cur != src:
+				KCad.release(cur)
+			cur = t
+			if cur == 0:
+				return 0
+	var T := AssemblyLoop.apply_state(AssemblyLoop._arr(p["pos"]), s, frame)
+	var m: int = KCad.translate(cur, Vector3(T[0], T[1], T[2]) * Assembly.MM)
+	if cur != src:
+		KCad.release(cur)
+	return m
+
+
+static func _place_all_state(ids: Array, p: Dictionary, s: Array, frame: Dictionary) -> Array:
+	var out: Array = []
+	for sid in ids:
+		var n := place_state(int(sid), p, s, frame)
+		if n != 0:
+			out.append(n)
 	return out
 
 
