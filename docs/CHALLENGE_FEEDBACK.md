@@ -86,3 +86,18 @@ The lead copies section 3's rows into the ledger below, one line each, so gaps f
 | G35 | CH8b | an air phase and a better free-surface boundary | water only | none (the dam front leads the paper by 24 pct) | a two-phase option or ghost-fluid free surface |
 | G36 | CH8b | fluids in the app UI | the solver exists only in tests and tools | none | a Fluid emitter / container in the scene with a water material |
 | G37 | CH8b | testing native code without Godot | nothing checked in | Godot runs only | a small C++ test harness for native/ |
+
+## 5. Tools that already exist (search before writing your own)
+Several lanes rebuilt tools Kine already had (gaps G9, G26, and the CH1f cutaway). Before writing a helper, check this list and grep:
+- **Involute gears:** scripts/build/part_gear.gd (+ part_gear_ui.gd), clock_ch2.gd involute_outline(), scripts/gear_drive.gd.
+- **Overlap of posed parts:** KCad.overlap_volume (scripts/kcad.gd). Pose exact solids with ch13_parts.gd solid() / place().
+- **Section or cutaway render:** scripts/build/section_look.gd (SectionLook; ch13_scene.gd set_cut shows the use).
+- **Whole-body centre of mass:** Balance.com(body) (scripts/balance.gd).
+- **STL export:** scripts/build/mesh_export.gd write_stl. Print checks: print_check.gd, slicer_send.gd.
+- **Blueprints and SVG with a title block:** scripts/build/blueprint.gd, blueprint_view.gd, ch15_draw.gd (site plan, section, one-line).
+- **Water/steam properties (IAPWS-IF97):** scripts/build/ch15_if97.gd.
+- **BOM with prices and a cheapest-design search:** ch14_bom.gd.
+- **Contact sheets and frame grabs:** grab() in tests/ch13_test.gd and ch14_test.gd, plus ch14_scene.gd.
+- **Big parts:** Part.fine_defl() scales the meshing with size, and Split works at any size (#195).
+
+The lane brief (kine_workers/q4/_sonnet_brief.txt) carries the same list.
