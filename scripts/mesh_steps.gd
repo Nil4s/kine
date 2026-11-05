@@ -50,7 +50,7 @@ func setup(ui: KMeshEditUI) -> void:
 func _process(_dt: float) -> void:
 	if kmed == null:
 		return
-	var on_page := kmed.on and kmed.showing and kmed._model_page
+	var on_page := kmed.on and kmed.showing and kmed._model_page and not kmed.has_meta("base_body")   # the test cube's panel, not the fighter's body's (it sat over the POSE page tab)
 	if not kmed.on and not entries.is_empty():
 		entries.clear()   # the test cube was left: the steps went with it
 		_show_rows()
