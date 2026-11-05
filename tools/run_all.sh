@@ -1020,3 +1020,4 @@ EXTRA="$EXTRA ch14:w"   # ch14: water-syringe arm builds a 3-2-1 can pyramid: re
 EXTRA="$EXTRA ch13:w"   # ch13: single-cylinder engine (Honda C50 class): ISO 286 fits, thermal clearance, stack-up, slider-crank torque, FDM compensation, 7 Parts animated + section (docs/CH13_REFERENCE.md), tests/ch13_test.gd
 EXTRA="$EXTRA aicost:w"   # AI COST (11-04): Ask AI caches its prompt (scene moved after the cache mark), counts tokens per question (user://ai_usage.csv), commands {find} (tests/aicost_test.gd)
 EXTRA="$EXTRA scalefix:w"   # scalefix: Part at building scale: size-scaled meshing, a split half-space sized to the bodies, a refused cut is an error (CH15 gaps G27-G29), tests/scalefix_test.gd
+EXTRA="$EXTRA ch15:w"   # ch15: Angra 2 class PWR plant: primary heat balance, IF97 Rankine, electrical one-line, decay heat, containment sphere, layout overlaps, build sequence + section video, blueprints (docs/CH15_REFERENCE.md), tests/ch15_test.gd
