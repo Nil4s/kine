@@ -137,12 +137,12 @@ func reach_pinch(target: Vector3) -> float:
 
 ## CH6b: clearance of the hand from the rope: the smallest surface gap (m) between any hand capsule and any rope particle
 ## within 0.18 m of the pinch, the held stub (and the next 4 particles, which leave the pinch) excluded
-func hand_clear(xs: PackedVector3Array) -> float:
+func hand_clear(xs: PackedVector3Array, skip_end := 7) -> float:
 	var pw := pinch_world()
 	var n := xs.size()
 	var m := INF
 	var caps := caps_now()
-	for i in n - 7:
+	for i in n - skip_end:
 		var q: Vector3 = xs[i]
 		if q.distance_squared_to(pw) > 0.0324:
 			continue
@@ -254,6 +254,7 @@ func run(opts := {}) -> Dictionary:
 	var drift := Vector3.ZERO
 	var slip := Vector3.ZERO
 	var slip_dir := Vector3.ZERO
+	var escape := Vector3.ZERO
 	var stub_rest: Array = [Vector3.ZERO, Vector3.ZERO, Vector3.ZERO]
 	# the hand starts on the end of the rope
 	var miss0 := reach_pinch(pts[n - 1])
@@ -347,6 +348,27 @@ func run(opts := {}) -> Dictionary:
 				if md == "seek" or md == "close" or md == "hold":
 					slip *= 0.85
 				tgt += slip
+				# CH6b pass 2: the empty hand first backs out of the rope it is wrapped in (the working part lies in the thumb-index
+				# web): each "free" frame the pinch target may step 6 mm along one of the six axes, whichever leaves the most room
+				# between the hand and the rope (only the 3 held end particles excluded); kept through the transit, faded in "seek"
+				if md == "free":
+					var snap: Dictionary = B.ang.duplicate()
+					var best_e := escape
+					var best_c := -INF
+					for d in [Vector3.ZERO, Vector3(0.006, 0, 0), Vector3(-0.006, 0, 0), Vector3(0, 0.006, 0), Vector3(0, -0.006, 0), Vector3(0, 0, 0.006), Vector3(0, 0, -0.006)]:
+						B.ang = snap.duplicate()
+						B.fk()
+						reach_pinch(tgt + escape + d)
+						var c := minf(hand_clear(xs, 3), 0.015) - (0.0 if d == Vector3.ZERO else 0.0002)
+						if c > best_c:
+							best_c = c
+							best_e = escape + d
+					B.ang = snap
+					B.fk()
+					escape = best_e
+				elif md == "seek" or md == "close" or md == "hold":
+					escape *= 0.85
+				tgt += escape
 				miss = reach_pinch_clear(tgt, xs) if opts.get("wrist_clear", true) else reach_pinch(tgt)
 			else:
 				# release: open the pinch a little (CH6b: to 0.4 over 12 frames, standing still; opening fully at once flicked
