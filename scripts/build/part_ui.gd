@@ -2881,15 +2881,16 @@ func layout(cl: Rect2) -> void:
 	tl.size = Vector2(cl.size.x - 16.0, TL_H)
 	tl.position = Vector2(cl.position.x + 8.0, cl.end.y - TL_H - 4.0)
 	var avail := tl.position.y - cl.position.y - 12.0
-	browser.reset_size()
 	var browser_need := browser_vb.get_combined_minimum_size().y + browser.get_theme_stylebox("panel").get_minimum_size().y
-	browser.size = Vector2(BROWSER_W, minf(browser_need, avail))
+	var bsz := Vector2(BROWSER_W, minf(browser_need, avail))   # C60: no reset_size (it fired resized twice a frame)
+	if browser.size != bsz:
+		browser.size = bsz
 	browser.position = Vector2(cl.position.x + 8.0, cl.position.y + 6.0)
-	side.reset_size()
 	PartDlgScroll.fit(dlg_scroll, dlg_rows, side, avail)   # C58
 	# PCUBE: a dialog's own width can be more than PANEL_W (its rows); the panel grows and stays LEFT of the cube column
-	side.size.x = maxf(PANEL_W, side.get_combined_minimum_size().x)
-	side.size.y = minf(side.get_combined_minimum_size().y, avail)
+	var ssz := Vector2(maxf(PANEL_W, side.get_combined_minimum_size().x), minf(side.get_combined_minimum_size().y, avail))
+	if side.size != ssz:
+		side.size = ssz
 	side.position = Vector2(cl.end.x - side.size.x - 8.0, cl.position.y + 6.0)
 	extras.reset_size()
 	extras.custom_minimum_size.x = PANEL_W
