@@ -13,6 +13,7 @@
 class_name AssemblyBom
 extends RefCounted
 
+const KCad := preload("res://scripts/kcad.gd")
 const PRICES := "res://data/prices.json"
 const CHECKS := {"ch14_works": "res://scripts/build/ch14_bom.gd"}   # name -> a script with static check_asm(asm) -> {"ok", "why"}
 const MAX_COMBOS := 4096
@@ -127,6 +128,34 @@ static func price_one(b: Dictionary, vol: float, p: Dictionary) -> Dictionary:
 	return r
 
 
+## G44: a part whose bodies have different materials. b["body_materials"] maps a body index (as text) to a material key;
+## bodies not named use b["material"]. Mass and price are summed per body from the exact solids. Returns price_one's shape.
+static func price_bodies(b: Dictionary, rec: Dictionary, p: Dictionary) -> Dictionary:
+	var rr := Part.replay(rec, -1, {"keep": true, "defer_tess": true})
+	var ids: Array = rr.get("ids", [])
+	if ids.is_empty():
+		return price_one(b, -1.0, p)
+	var mats: Dictionary = p.get("materials", {})
+	var base := String(b.get("material", ""))
+	var bm: Dictionary = b.get("body_materials", {})
+	var fill := float(b.get("fill", 1.0))
+	var mass := 0.0
+	var cost := 0.0
+	var known := true
+	for i in ids.size():
+		var mk := String(bm.get(str(i), base))
+		if not mats.has(mk):
+			known = false
+			continue
+		var m: Dictionary = mats[mk]
+		var kg: float = KCad.volume(int(ids[i])) * float(m["density_kg_m3"]) * fill
+		mass += kg
+		cost += kg * float(m["price_per_kg"])
+	Part.release_kept(ids)
+	return {"unit": "pcs", "amount": 1.0, "each": cost, "unit_cost": cost, "mass": mass, "mass_known": known,
+		"source": "per-body materials", "item": "", "material": "mixed", "priced": known, "why": "" if known else "a body has no priced material"}
+
+
 ## the bill of materials: {"lines": [line], "cost", "mass_kg", "parts" (solid parts), "items" (extras), "unpriced": n, "currency", "warnings"}.
 ## line = {"key", "part", "count", "qty", "unit", "material", "item", "volume_m3" (one part), "mass_kg" (one part), "line_mass_kg",
 ##         "unit_price" (per unit of qty), "line_cost", "source", "ids" (part ids; extras: "x<i>"), "extra": bool, "bom", "priced", "why"}
@@ -162,7 +191,7 @@ static func bom(asm: Dictionary, p := {}) -> Dictionary:
 		var vol := -1.0
 		if not g["extra"]:
 			vol = float(Assembly.built(g["rec"])["volume"])
-		var one := price_one(b, vol, pr)
+		var one: Dictionary = price_bodies(b, g["rec"], pr) if b.has("body_materials") and not g["extra"] else price_one(b, vol, pr)
 		var n: int = (g["ids"] as Array).size()
 		var qty: float = n * float(one["amount"])
 		var lc: float = n * float(one["unit_cost"])
@@ -203,7 +232,7 @@ static func sorted_lines(lines: Array, col: String, asc: bool) -> Array:
 ## the candidates a line may use: its "alt" list, else the materials of its material's family (a bought part without "alt" has none)
 static func candidates(ln: Dictionary, p: Dictionary) -> Array:
 	var b: Dictionary = ln["bom"]
-	if b.has("included"):
+	if b.has("included") or b.has("body_materials"):   # a mixed-material part has no single whole-part substitute
 		return []
 	if b.get("alt") is Array:
 		return (b["alt"] as Array).duplicate()

@@ -18,7 +18,7 @@ Optional record fields (all backward compatible; old records must save back unch
 - `"joints"` (#204): `AssemblyLoop.make_joint("revolute"|"slider"|"fixed", a, b, axis, origin, origin_b?, name?)`; `b` may be `"ground"`. Planar only (parallel revolute axes, sliders square to them). The Newton solver reports assembly mode and locks.
 - `"anim"` (#205): `{"fps", "length", "tracks":[{"drive", "keys":[[t, value, "linear"|"smooth"|"hold"]]}]}`.
 - `"stages"` (#208): `[{"name","parts":[ids],"dur": seconds}]`; parts in no stage are there from the start.
-- `"buy"` on a part marks a purchased item for the BOM.
+- `"buy"` on a part marks a purchased item for the BOM. `"bom.body_materials"` = `{"1": "pla"}` prices bodies individually (#216).
 - `"wires"` (#214): `[{"a","b","kind":"power"|"signal","label"}]`, endpoints are Assembly part ids. Ratings on a part's `rec`: `v`/`kv`, `mva`, `w`, `rail`, `kind` (`bus|grid|transformer|breaker|generator|battery|regulator|ic`), optional `unit`, `powered`. All optional.
 
 ## 3. Motion, staging, filming, cost (USE THESE; do not write your own)
