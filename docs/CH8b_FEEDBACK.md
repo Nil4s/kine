@@ -1,4 +1,4 @@
-# CH8b feedback (liquids, second lane): PARKED, 28 ok / 5 fail
+# CH8b feedback (liquids, second lane): PARKED, 28 ok / 3 fail after Nick's 11-04 volume amendment (was 28 / 5)
 
 Branch `w4-ch8b`. Last full run was on commit 91681812, with native built by `native_build.sh`. Suites: ch8 28 ok / 5 fail; easypart 73/0, peasy3 23/0, freestart 14/0.
 Merged origin/poser-ui-rounds (014dfbd4) with no conflicts. Every new bar was committed before its first run: bdfd9d99 holds h, h2, b2, a2, d2 and r, and 53101dd0 holds b4. No existing threshold was changed.
@@ -10,9 +10,9 @@ Merged origin/poser-ui-rounds (014dfbd4) with no conflicts. Every new bar was co
 | (a) still-water vmax < 1e-3 m/s | 1.21e-3 | 2.9e-9 | ok |
 | (a2) the same, < 1e-4 (new) | - | 2.9e-9 | ok |
 | (a) bottom pressure within 2 % | 0.20 % | 0.00 % | ok |
-| (b) V/V0 = sum min(n,8)/N >= 0.98 | 0.927 | 0.9445 | FAIL |
-| (b2) peak cell count <= 12 (new) | - | 15 | FAIL |
-| (b4) smooth B-spline volume >= 0.98 (new) | - | 0.984 | ok |
+| (b) V/V0 = sum min(n,8)/N >= 0.98 | 0.927 | 0.9445 | retired 11-04 (info) |
+| (b2) peak cell count <= 12 (new) | - | 15 | retired 11-04 (info) |
+| (b4) VOLUME BAR: smoothed volume vs seeded count >= 0.98 | - | 0.9838 | ok (5 %-deleted control 0.9449 fails) |
 | (c) M&M n^2=2 within 10 %, remembered table | 16.6 % | 24.3 % | FAIL |
 | (h2) remembered table = paper Table 2 (new) | - | 7/7 rows | ok |
 | (h) M&M n^2=2 within 10 %, VERIFIED table, 14 points (new) | - | 24.4 % | FAIL |
@@ -77,6 +77,20 @@ Merged origin/poser-ui-rounds (014dfbd4) with no conflicts. Every new bar was co
 
 ## 5. What was amended after seeing results
 
+- **(b), (b2) retired, AMENDED per Nick 11-04** (commit 05e45122, committed before its run): "the per-cell count reads 0.926 on a rigidly moved block, it measures particle spacing not volume".
+  - Both are now printed as information only. Last run: (b) 0.9445, (b2) peak 15.
+  - The volume bars are now (b4), the smoothed-density volume, at >= 0.98, and (r), the render-surface volume, within 10 %.
+  - (b4) is now measured against the particle count seeded at t = 0, so a lost particle counts as lost volume.
+  - New planted control: deleting 5 % of the dam-break particles makes (b4) read 0.9449, which fails as it must.
+  - Last run: (b4) worst 0.9838 ok, (r) 96.3 % ok.
+  - With the amendment, ch8 is at 28 ok / 3 fail: (c), (h) and (e).
+- **(e): one pass offered on sub-cell walls; not attempted, because it does not fit one pass.**
+  - Batty-style face weights only help if the cut cells also become fluid. That needs four things, each in both C++ and the GDScript twin:
+    - a mesh signed-distance field
+    - per-face open fractions
+    - weighted off-diagonals in the block-MIC preconditioner, the matvec, the pressure gradient and the density projection
+    - pushing particles out by the signed-distance field, to keep the "0 particles inside the mesh" bar
+  - (e) stays red at 78 %; the geometric cap of 86-89 % is shown below.
 - **(h2):** compared in whole hundredths instead of floats. 2.00 - 1.98 = 0.020000000000000018 > 0.02 had failed a row the bar's own text accepts. Same tolerance, reason in the test. No other bar was touched.
 
 ## Why the 5 reds stay red (precise park note)
