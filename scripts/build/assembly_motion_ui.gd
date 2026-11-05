@@ -332,7 +332,7 @@ func add_key() -> void:
 	_clear_list()
 	time_t = t
 	set_time(t)
-	a._say("Keyed %s at %s %s, %s s (%s to the next key)" % [drive, a._fmt(snappedf(v, 0.01)), _u(), String.num(t, 2), interp_ob.get_item_text(interp_ob.selected).to_lower()])
+	a._say("Key: %s %s %s at %s s, %s" % [drive, a._fmt(snappedf(v, 0.01)), _u(), String.num(t, 2), interp_ob.get_item_text(interp_ob.selected).to_lower()])   # short: the long line wrapped and drew under the panel
 
 
 func delete_key() -> void:
