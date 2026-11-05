@@ -137,9 +137,13 @@ static func tie_plan(start: Vector3, speed := 0.08, wrong := false) -> Dictionar
 		var sn := signf(P.z)
 		if sn == side:
 			continue
-		# "seek": the hand comes back to where the end really lies (the planned P plus the end's drift since it was let go)
-		var legs: Array = [[P, 8, "open"], [P + Vector3(0, 0, REGRIP_OUT * side), 14, "free"], [Vector3(REGRIP_X, P.y, REGRIP_OUT * side), 18, "free"],
-			[Vector3(REGRIP_X, P.y, REGRIP_OUT * sn), 14, "free"], [P + Vector3(0, 0, REGRIP_OUT * sn), 18, "seek"], [P, 12, "seek"], [P, 6, "close"]]
+		# "seek": the hand comes back to where the end really lies (the planned P plus the end's drift since it was let go).
+		# At ROUND's end the pinch has already come to the front with the end. Backing it toward the OLD side drove the palm
+		# through the standing part and destroyed the collar. Back out to the FRONT and stay there for this regrip.
+		var back_side := sn if k == 11 else side
+		var slower := 2 if k == 11 else 1
+		var legs: Array = [[P, 8 * slower, "open"], [P + Vector3(0, 0, REGRIP_OUT * back_side), 14 * slower, "free"], [Vector3(REGRIP_X, P.y, REGRIP_OUT * back_side), 18 * slower, "free"],
+			[Vector3(REGRIP_X, P.y, REGRIP_OUT * sn), 14 * slower, "free"], [P + Vector3(0, 0, REGRIP_OUT * sn), 18 * slower, "seek"], [P, 12 * slower, "seek"], [P, 6 * slower, "close"]]
 		var cur := P
 		for L in legs:
 			var to: Vector3 = L[0]

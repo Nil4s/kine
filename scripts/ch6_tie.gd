@@ -154,22 +154,26 @@ func reach_pinch_clear(target: Vector3, xs_world: PackedVector3Array, step := 4.
 	var a0: Vector3 = B.ang["hand_r"]
 	var best := a0
 	var best_s := -INF
-	var cands: Array = [a0]
-	for ax in 3:
-		for sg in [-1.0, 1.0]:
-			var d := Vector3.ZERO
-			d[ax] = step * sg
-			cands.append(a0 + d)
 	var snap: Dictionary = B.ang.duplicate()
-	for c in cands:
-		B.ang = snap.duplicate()
-		B.ang["hand_r"] = B.clamp_ang("hand_r", c)
-		B.fk()
-		var miss := reach_pinch(target)
-		var s := minf(hand_clear(xs_world), 0.02) - miss * 10.0 - (0.0 if c == a0 else 0.0005)
-		if s > best_s:
-			best_s = s
-			best = B.ang["hand_r"]
+	# The slab needs a wider escape than the old metacarpal chain. Only pay for the wide search when the local one penetrates.
+	for ring in 2:
+		var cands: Array = [a0]
+		for ax in 3:
+			for sg in [-1.0, 1.0]:
+				var d := Vector3.ZERO
+				d[ax] = step * sg * (1.0 + 2.0 * ring)
+				cands.append(a0 + d)
+		for c in cands:
+			B.ang = snap.duplicate()
+			B.ang["hand_r"] = B.clamp_ang("hand_r", c)
+			B.fk()
+			var miss := reach_pinch(target)
+			var s := minf(hand_clear(xs_world), 0.02) - miss * 10.0 - (0.0 if c == a0 else 0.0005)
+			if s > best_s:
+				best_s = s
+				best = B.ang["hand_r"]
+		if best_s >= 0.0:
+			break
 	B.ang = snap
 	B.ang["hand_r"] = best
 	B.fk()
