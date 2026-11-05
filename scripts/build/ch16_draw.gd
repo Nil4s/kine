@@ -50,12 +50,12 @@ static func blueprint_sheet() -> Dictionary:
 	ents.append(B._poly(_circle(fc + Vector2(0, (39.0 - P.H / 2.0) * k), P.THROAT_D / 2.0 * k), "dashed", {"part": "throat"}))
 	var sc := fc + Vector2(0, (39.0 - P.H / 2.0) * k)
 	ents.append(_rect(sc, P.SENSOR_W * k, P.SENSOR_H * k, "dashed", {"part": "sensor"}))
-	ents.append(B._text(sc + Vector2(0, 1), "35.8 x 23.9 mm FULL FRAME", 2.1, "m", "text"))
 	ents.append_array(B._dim(fc + Vector2(-P.W * k / 2, P.H * k / 2), fc + Vector2(P.W * k / 2, P.H * k / 2), Vector2(0, 1), 7.0, "126.9 mm"))
 	ents.append_array(B._dim(fc + Vector2(-P.W * k / 2, -P.H * k / 2), fc + Vector2(-P.W * k / 2, P.H * k / 2), Vector2(-1, 0), 8.0, "94.4 mm"))
-	ents.append_array(B._dim(sc + Vector2(-P.SENSOR_W * k / 2, -P.SENSOR_H * k / 2), sc + Vector2(P.SENSOR_W * k / 2, -P.SENSOR_H * k / 2), Vector2(0, -1), 10.0, "35.8 mm sensor"))
-	ents.append_array(B._dim(sc + Vector2(P.SENSOR_W * k / 2, -P.SENSOR_H * k / 2), sc + Vector2(P.SENSOR_W * k / 2, P.SENSOR_H * k / 2), Vector2(1, 0), 15.0, "23.9 mm"))
-	ents.append(B._text(fc + Vector2(0, P.H * k / 2 + 12), "FRONT", 3.0, "m", "title-text"))
+	ents.append_array(B._dim(sc + Vector2(-P.SENSOR_W * k / 2, -P.SENSOR_H * k / 2), sc + Vector2(P.SENSOR_W * k / 2, -P.SENSOR_H * k / 2), Vector2(0, 1), 25.0, "35.8 mm sensor"))
+	ents.append_array(B._dim(sc + Vector2(P.SENSOR_W * k / 2, -P.SENSOR_H * k / 2), sc + Vector2(P.SENSOR_W * k / 2, P.SENSOR_H * k / 2), Vector2(1, 0), 25.0, "23.9 mm"))
+	ents.append(B._text(fc + Vector2(0, -P.H * k / 2 - 10), "FRONT", 3.0, "m", "title-text"))
+	ents.append(B._text(fc + Vector2(0, P.H * k / 2 + 14), "Sensor active area 35.8 x 23.9 mm", 2.1, "m", "text"))
 	# TOP, model X right / Z down the paper (front at the bottom)
 	var tc := Vector2(85, 49)
 	ents.append(_rect(tc, P.W * k, P.D_MAX * k, "elev-wall", {"view": "top"}))
@@ -64,7 +64,7 @@ static func blueprint_sheet() -> Dictionary:
 		ents.append(B._poly(_circle(tc + Vector2(x * k, 5.0), 11.0 * k), "piece"))
 	ents.append(_rect(tc + Vector2(0, 5), 20.0 * k, 15.0 * k, "piece", {"part": "hot shoe"}))
 	ents.append_array(B._dim(tc + Vector2(-P.W * k / 2, -P.D_MAX * k / 2), tc + Vector2(-P.W * k / 2, P.D_MAX * k / 2), Vector2(-1, 0), 8.0, "54.8 mm max"))
-	ents.append_array(B._dim(tc + Vector2(P.W * k / 2, 0), tc + Vector2(P.W * k / 2, P.D_MAX * k / 2), Vector2(1, 0), 8.0, "48.2 mm body"))
+	ents.append_array(B._dim(tc + Vector2(P.W * k / 2, 0), tc + Vector2(P.W * k / 2, P.D_MAX * k / 2), Vector2(1, 0), 18.0, "48.2 mm body"))
 	ents.append(B._text(tc + Vector2(0, -P.D_MAX * k / 2 - 6), "TOP", 3.0, "m", "title-text"))
 	# SECTION on the optical axis: horizontal is depth, vertical is Y. Front/mount is at the right.
 	var xc := Vector2(260, 128)
@@ -75,6 +75,7 @@ static func blueprint_sheet() -> Dictionary:
 	ents.append(B._line(pp.call(0, 0), pp.call(0, P.H), "elev-wall"))
 	ents.append(B._line(pp.call(-P.D_MAX, 0), pp.call(-P.D_MAX, P.H), "elev-wall"))
 	# sensor/shutter/PCB/LCD stack, cut solids heavy, beyond outlines light
+	var leaders: Array = []
 	for row in [[-23.5, -22.3, 22.0, 56.0, "SHUTTER"], [-21.5, -20.0, 26.0, 52.0, "COVER GLASS"], [-18.35, -18.0, 27.05, 50.95, "SENSOR"], [-45.8, -44.6, 12.0, 70.0, "MAIN PCB"], [-54.8, -50.6, 12.0, 66.0, "LCD"]]:
 		var za: float = row[0]
 		var zb: float = row[1]
@@ -84,13 +85,19 @@ static func blueprint_sheet() -> Dictionary:
 		var b: Vector2 = pp.call(zb, yb)
 		var c := (a + b) / 2.0
 		ents.append(_rect(c, absf(b.x - a.x), absf(b.y - a.y), "wall" if String(row[4]) == "SENSOR" else "piece", {"part": row[4]}))
-		ents.append(B._text(c + Vector2(0, -2), String(row[4]), 1.8, "m", "text"))
-	# flange dimension on an offset below the sensor so its text is not squeezed into the 9 mm paper span
+		leaders.append([c, String(row[4])])
+	for i in leaders.size():
+		var c: Vector2 = leaders[i][0]
+		var label := Vector2(310, 100.0 + i * 18.0)
+		ents.append(B._line(c, label + Vector2(-3, 0), "dim"))
+		ents.append(B._text(label, String(leaders[i][1]), 2.0, "l", "text"))
+	# flange dimension on a long offset below the stack; the label is clear of the section title and part leaders
 	var mface: Vector2 = pp.call(0, 39)
 	var splane: Vector2 = pp.call(-P.FLANGE, 39)
-	ents.append_array(B._dim(splane, mface, Vector2(0, -1), 36.0, "18.00 mm FLANGE FOCAL DISTANCE"))
-	ents.append(B._text(xc + Vector2(0, -P.H * k / 2 - 7), "SECTION A-A: sensor / shutter / board stack", 3.0, "m", "title-text"))
-	ents.append(B._text(Vector2(180, 190), "SEEN: Sony envelope, sensor, E-mount flange. Internal block envelopes and wall thicknesses: ASSUMED; see CH16_REFERENCE.", 2.2, "l", "text"))
+	ents.append_array(B._dim(splane, mface, Vector2(0, 1), 48.0, "18.00 mm"))
+	ents.append(B._text(Vector2(260, 187), "FLANGE FOCAL DISTANCE", 2.0, "m", "text"))
+	ents.append(B._text(xc + Vector2(0, -P.H * k / 2 - 12), "SECTION A-A: sensor / shutter / board stack", 3.0, "m", "title-text"))
+	ents.append(B._text(Vector2(180, 205), "SEEN: Sony envelope, sensor, E-mount flange. Internal block envelopes and wall thicknesses: ASSUMED; see CH16_REFERENCE.", 2.2, "l", "text"))
 	return _sheet("Dimensioned front, top and optical section", 2, ents, 1)
 
 
@@ -108,7 +115,7 @@ static func electronics_sheet(m: Dictionary) -> Dictionary:
 	for x in [70, 142]:
 		ents.append(B._line(Vector2(x, 42), Vector2(x + 24, 42), "border"))
 	ents.append(B._line(Vector2(94, 42), Vector2(94, 42), "border"))
-	ents.append(B._text(Vector2(43, 63), "CIPA 340 shots = 0.0216 Wh = 77.76 J/shot (SEEN inputs; hand arithmetic)", 2.0, "m", "text"))
+	ents.append(B._text(Vector2(24, 68), "CIPA 340 shots = 0.0216 Wh = 77.76 J/shot (SEEN inputs; hand arithmetic)", 2.0, "l", "text"))
 	var ys: Array = []
 	for i in (m["rails"] as Array).size():
 		var r: Dictionary = m["rails"][i]
@@ -121,14 +128,14 @@ static func electronics_sheet(m: Dictionary) -> Dictionary:
 		ents.append(B._line(Vector2(211, 52), Vector2(211, y), "dim"))
 		ents.append(B._line(Vector2(211, y), Vector2(225, y), "dim"))
 	# Signal chain is separate from the power tree, but every destination IC also appears on a powered row above.
-	_block(ents, Vector2(60, 252), 70, 18, "CMOS SENSOR", "MIPI/LVDS image data", {"ic": "CMOS SENSOR"})
-	_block(ents, Vector2(160, 252), 64, 18, "BIONZ X", "processor / control", {"ic": "BIONZ X"})
-	_block(ents, Vector2(296, 252), 156, 18, "DRAM / SD / EVF / LCD / HDMI", "image buffer, storage and video outputs", {"ic": "DRAM"})
-	ents.append(B._line(Vector2(95, 252), Vector2(128, 252), "border"))
-	ents.append(B._line(Vector2(192, 252), Vector2(218, 252), "border"))
-	ents.append(B._text(Vector2(55, 275), "USB D+/D- and Wi-Fi/NFC SDIO are bidirectional to BIONZ X; BIONZ X controls sensor timing and shutter H-bridge. RF goes to the separate antenna.", 1.8, "l", "text"))
-	ents.append(B._text(Vector2(55, 281), "ASSUMED loads: 1.10 + 0.85 + 1.20 + 0.65 + 0.80 = 4.60 W; 4.60/0.90 = 5.11111 W; 12 s duty = 61.3333 J < 77.76 J.", 1.8, "l", "text"))
-	return _sheet("Power and signal block diagram (ASSUMED rails/loads)", 0, ents, 2, false)
+	_block(ents, Vector2(60, 228), 70, 18, "CMOS SENSOR", "MIPI/LVDS image data", {"ic": "CMOS SENSOR"})
+	_block(ents, Vector2(160, 228), 64, 18, "BIONZ X", "processor / control", {"ic": "BIONZ X"})
+	_block(ents, Vector2(296, 228), 156, 18, "DRAM / SD / EVF / LCD / HDMI", "image buffer, storage and video outputs", {"ic": "DRAM"})
+	ents.append(B._line(Vector2(95, 228), Vector2(128, 228), "border"))
+	ents.append(B._line(Vector2(192, 228), Vector2(218, 228), "border"))
+	ents.append(B._text(Vector2(35, 246), "USB D+/D- and Wi-Fi/NFC SDIO are bidirectional to BIONZ X; BIONZ X controls sensor timing and shutter H-bridge. RF goes to the separate antenna.", 1.8, "l", "text"))
+	ents.append(B._text(Vector2(35, 253), "ASSUMED loads: 1.10 + 0.85 + 1.20 + 0.65 + 0.80 = 4.60 W; 4.60/0.90 = 5.11111 W; 12 s duty = 61.3333 J < 77.76 J.", 1.8, "l", "text"))
+	return _sheet("Power and signal block diagram", 0, ents, 2, false)
 
 
 static func sheet(nm: String, opts := {}) -> Dictionary:
@@ -150,7 +157,7 @@ static func missing_labels(m: Dictionary, sh: Dictionary) -> Array:
 	for ic in m["ics"]:
 		var id := String(ic["id"])
 		# USB/Wi-Fi/LCD/EVF/SD are named in the destination or signal rows; all others have their own block.
-		var token := {"SD CARD": "SD", "WI-FI/NFC": "Wi-Fi/NFC", "OLED EVF": "EVF"}.get(id, id)
+		var token: String = {"SD CARD": "SD", "WI-FI/NFC": "Wi-Fi/NFC", "OLED EVF": "EVF"}.get(id, id)
 		if not text.contains(String(token)):
 			miss.append(id)
 	return miss

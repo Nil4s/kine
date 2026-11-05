@@ -1,0 +1,33 @@
+part,item,qty,unit,material,volume_cm3,mass_kg,unit_price,line_cost,source
+Chassis,,1.000000,pcs,camera_magnesium,102.384545,0.178149109,2.672237,2.672237,ASSUMED: small machined chassis stock price; AZ91-class density MEMORY (CH16_REFERENCE section 3) (2026-11-05)
+Bottom plate,,1.000000,pcs,camera_polymer,6.438160,0.007725792,0.185419,0.185419,ASSUMED: moulding-compound equivalent price and PC/ABS-class density MEMORY (CH16_REFERENCE section 3) (2026-11-05)
+E-mount ring and flange,camera_mount,1.000000,pcs,aluminium,2.381618,0.006430368,18.000000,18.000000,"ASSUMED: replacement-module allowance, not a Sony quote (2026-11-05)"
+Sensor carrier,camera_sensor_carrier,1.000000,pcs,camera_magnesium,0.639000,0.001111860,8.000000,8.000000,ASSUMED: replacement-module allowance (2026-11-05)
+Sensor cover glass,camera_cover_glass,1.000000,pcs,camera_glass,1.482000,0.003705000,5.000000,5.000000,ASSUMED: replacement-module allowance (2026-11-05)
+Full-frame CMOS sensor 35.8 x 23.9 mm,camera_sensor,1.000000,pcs,camera_silicon,0.299467,0.000697758,120.000000,120.000000,"ASSUMED: replacement-module allowance, not a Sony quote (2026-11-05)"
+Sensor flex,camera_sensor_flex,1.000000,pcs,camera_copper,0.940320,0.008425267,6.000000,6.000000,ASSUMED: replacement-module allowance (2026-11-05)
+Shutter mechanism frame,camera_shutter,1.000000,pcs,steel,0.772800,0.006066480,35.000000,35.000000,ASSUMED: replacement-module allowance (2026-11-05)
+Shutter curtain 1,camera_shutter,1.000000,pcs,steel,0.111000,0.000871350,35.000000,35.000000,ASSUMED: replacement-module allowance (2026-11-05)
+Shutter curtain 2,camera_shutter,1.000000,pcs,steel,0.111000,0.000871350,35.000000,35.000000,ASSUMED: replacement-module allowance (2026-11-05)
+"Main PCB with BIONZ X, DRAM and power ICs",camera_main_pcb,1.000000,pcs,camera_fr4,7.200800,0.013321480,180.000000,180.000000,"ASSUMED: populated-board replacement allowance, not a Sony quote (2026-11-05)"
+Main PCB copper heat spreader,camera_heatsink,1.000000,pcs,camera_copper,7.028000,0.062970880,8.000000,8.000000,ASSUMED: replacement-module allowance (2026-11-05)
+SD card slot and board,camera_sd_slot,1.000000,pcs,camera_fr4,1.876400,0.003471340,12.000000,12.000000,ASSUMED: replacement-module allowance (2026-11-05)
+SD card,camera_sd_card,1.000000,pcs,camera_sd_plastic,1.612800,0.001532160,8.000000,8.000000,ASSUMED: small-card 2026 retail (2026-11-05)
+USB and HDMI port block,camera_ports,1.000000,pcs,camera_fr4,2.451200,0.004534720,14.000000,14.000000,ASSUMED: replacement-module allowance (2026-11-05)
+Wi-Fi NFC antenna,camera_antenna,1.000000,pcs,camera_copper,0.096000,0.000860160,4.000000,4.000000,ASSUMED: replacement-module allowance (2026-11-05)
+NP-FW50 battery 7.2 V 1020 mAh,np_fw50_sony,1.000000,pcs,camera_battery,26.713500,0.042380701,94.990000,94.990000,"SEEN: Sony store current listed price [B]; mass comes from the CAD solid, not an item override (2026-11-05)"
+OLED EVF module,camera_evf,1.000000,pcs,camera_display,18.960000,0.017064000,45.000000,45.000000,ASSUMED: replacement-module allowance (2026-11-05)
+LCD module,camera_lcd,1.000000,pcs,camera_display,17.088000,0.015379200,35.000000,35.000000,ASSUMED: replacement-module allowance (2026-11-05)
+LCD hinge,camera_lcd_hinge,1.000000,pcs,aluminium,0.480000,0.001296000,6.000000,6.000000,ASSUMED: replacement-module allowance (2026-11-05)
+Rear control cluster,camera_controls,1.000000,pcs,camera_fr4,0.736703,0.001362901,12.000000,12.000000,ASSUMED: replacement-module allowance (2026-11-05)
+Top command and exposure dials,camera_controls,1.000000,pcs,camera_fr4,4.789672,0.008860893,12.000000,12.000000,ASSUMED: replacement-module allowance (2026-11-05)
+Shutter button,camera_controls,1.000000,pcs,aluminium,0.314159,0.000848230,12.000000,12.000000,ASSUMED: replacement-module allowance (2026-11-05)
+Hot shoe,camera_hotshoe,1.000000,pcs,aluminium,0.670400,0.001810080,9.000000,9.000000,ASSUMED: replacement-module allowance (2026-11-05)
+Front body shell,,1.000000,pcs,camera_polymer,21.391795,0.025670154,0.616084,0.616084,ASSUMED: moulding-compound equivalent price and PC/ABS-class density MEMORY (CH16_REFERENCE section 3) (2026-11-05)
+Rear body shell,,1.000000,pcs,camera_polymer,8.382584,0.010059101,0.241418,0.241418,ASSUMED: moulding-compound equivalent price and PC/ABS-class density MEMORY (CH16_REFERENCE section 3) (2026-11-05)
+Top plate,,1.000000,pcs,camera_polymer,4.364492,0.005237390,0.125697,0.125697,ASSUMED: moulding-compound equivalent price and PC/ABS-class density MEMORY (CH16_REFERENCE section 3) (2026-11-05)
+Grip shell,,1.000000,pcs,camera_polymer,12.599813,0.015119775,0.362875,0.362875,ASSUMED: moulding-compound equivalent price and PC/ABS-class density MEMORY (CH16_REFERENCE section 3) (2026-11-05)
+Battery door,,1.000000,pcs,camera_polymer,0.704160,0.000844992,0.020280,0.020280,ASSUMED: moulding-compound equivalent price and PC/ABS-class density MEMORY (CH16_REFERENCE section 3) (2026-11-05)
+M1.5 x 4 fastener Y,camera_screw_m1_5,15.000000,pcs,steel,0.007069,0.000055488,0.020000,0.300000,"ASSUMED: small-pack replacement hardware, each; size SEEN in iFixit [I] (CH16_REFERENCE section 3) (2026-11-05)"
+M1.5 x 4 fastener Z,camera_screw_m1_5,14.000000,pcs,steel,0.007069,0.000055488,0.020000,0.280000,"ASSUMED: small-pack replacement hardware, each; size SEEN in iFixit [I] (CH16_REFERENCE section 3) (2026-11-05)"
+TOTAL,,58 parts + 0 items,,,,0.448287654,,718.794010,USD

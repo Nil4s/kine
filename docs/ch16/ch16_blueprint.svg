@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="420.0mm" height="297.0mm" viewBox="0 0 420.0 297.0">
+<title>Sony a7 / ILCE-7 class camera (CH16) - Dimensioned front, top and optical section</title>
+<rect x="0" y="0" width="420.0" height="297.0" fill="#ffffff"/>
+<g id="sheet" data-paper="A3" data-scale="1:2" data-denom="2" data-mm-per-m="500.0" data-units="mm">
+<polygon class="elev-wall" data-view="front" points="79.687,122.975 143.137,122.975 143.137,170.175 79.687,170.175" fill="#ececec" stroke="#000000" stroke-width="0.35" stroke-linejoin="miter"/>
+<polygon class="piece" data-part="mount" points="125.412,142.475 125.345,143.847 125.143,145.206 124.81,146.539 124.347,147.833 123.759,149.075 123.053,150.253 122.235,151.357 121.312,152.374 120.294,153.297 119.19,154.116 118.012,154.822 116.77,155.409 115.476,155.872 114.144,156.206 112.785,156.408 111.412,156.475 110.04,156.408 108.681,156.206 107.349,155.872 106.055,155.409 104.813,154.822 103.635,154.116 102.531,153.297 101.513,152.374 100.59,151.357 99.772,150.253 99.066,149.075 98.478,147.833 98.015,146.539 97.681,145.206 97.48,143.847 97.412,142.475 97.48,141.103 97.681,139.744 98.015,138.411 98.478,137.117 99.066,135.875 99.772,134.697 100.59,133.593 101.513,132.576 102.531,131.653 103.635,130.834 104.813,130.128 106.055,129.541 107.349,129.078 108.681,128.744 110.04,128.542 111.412,128.475 112.785,128.542 114.144,128.744 115.476,129.078 116.77,129.541 118.012,130.128 119.19,130.834 120.294,131.653 121.312,132.576 122.235,133.593 123.053,134.697 123.759,135.875 124.347,137.117 124.81,138.411 125.143,139.744 125.345,141.103" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="dashed" data-part="throat" points="122.937,142.475 122.882,143.605 122.716,144.723 122.441,145.821 122.06,146.885 121.577,147.908 120.995,148.878 120.321,149.786 119.562,150.624 118.724,151.384 117.815,152.058 116.845,152.639 115.823,153.123 114.758,153.504 113.661,153.779 112.542,153.945 111.412,154.0 110.283,153.945 109.164,153.779 108.067,153.504 107.002,153.123 105.98,152.639 105.01,152.058 104.101,151.384 103.263,150.624 102.504,149.786 101.83,148.878 101.248,147.908 100.765,146.885 100.384,145.821 100.109,144.723 99.943,143.605 99.887,142.475 99.943,141.345 100.109,140.227 100.384,139.129 100.765,138.065 101.248,137.042 101.83,136.072 102.504,135.164 103.263,134.326 104.101,133.566 105.01,132.892 105.98,132.311 107.002,131.827 108.067,131.446 109.164,131.171 110.283,131.005 111.412,130.95 112.542,131.005 113.661,131.171 114.758,131.446 115.823,131.827 116.845,132.311 117.815,132.892 118.724,133.566 119.562,134.326 120.321,135.164 120.995,136.072 121.577,137.042 122.06,138.065 122.441,139.129 122.716,140.227 122.882,141.345" fill="none" stroke="#000000" stroke-width="0.18" stroke-linejoin="miter" stroke-dasharray="1.8 1.26"/>
+<polygon class="dashed" data-part="sensor" points="102.462,136.5 120.362,136.5 120.362,148.45 102.462,148.45" fill="none" stroke="#000000" stroke-width="0.18" stroke-linejoin="miter" stroke-dasharray="1.8 1.26"/>
+<line class="dim" x1="79.687" y1="171.675" x2="79.687" y2="178.675" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="143.137" y1="171.675" x2="143.137" y2="178.675" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="79.687" y1="177.175" x2="143.137" y2="177.175" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="78.698" y1="176.185" x2="80.677" y2="178.165" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="142.148" y1="176.185" x2="144.127" y2="178.165" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" x="111.412" y="176.375" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">126.9 mm</text>
+<line class="dim" x1="78.187" y1="122.975" x2="70.187" y2="122.975" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="78.187" y1="170.175" x2="70.187" y2="170.175" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="71.687" y1="122.975" x2="71.687" y2="170.175" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="72.677" y1="121.985" x2="70.698" y2="123.965" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="72.677" y1="169.185" x2="70.698" y2="171.165" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" x="70.887" y="146.575" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 70.887 146.575)">94.4 mm</text>
+<line class="dim" x1="102.462" y1="138.0" x2="102.462" y2="163.0" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="120.362" y1="138.0" x2="120.362" y2="163.0" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="102.462" y1="161.5" x2="120.362" y2="161.5" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="101.473" y1="160.51" x2="103.452" y2="162.49" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="119.373" y1="160.51" x2="121.352" y2="162.49" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" x="111.412" y="160.7" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">35.8 mm sensor</text>
+<line class="dim" x1="121.862" y1="136.5" x2="146.862" y2="136.5" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="121.862" y1="148.45" x2="146.862" y2="148.45" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="145.362" y1="136.5" x2="145.362" y2="148.45" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="144.373" y1="135.51" x2="146.352" y2="137.49" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="144.373" y1="147.46" x2="146.352" y2="149.44" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" x="144.562" y="142.475" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 144.562 142.475)">23.9 mm</text>
+<text class="title-text" x="111.412" y="112.975" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="middle" fill="#000000">FRONT</text>
+<text class="text" x="111.412" y="184.175" font-family="Arial, Helvetica, sans-serif" font-size="2.1" text-anchor="middle" fill="#000000">Sensor active area 35.8 x 23.9 mm</text>
+<polygon class="elev-wall" data-view="top" points="79.687,55.875 143.137,55.875 143.137,83.275 79.687,83.275" fill="#ececec" stroke="#000000" stroke-width="0.35" stroke-linejoin="miter"/>
+<line class="dashed" x1="79.687" y1="55.875" x2="143.137" y2="55.875" stroke="#000000" stroke-width="0.18" stroke-dasharray="1.8 1.26"/>
+<polygon class="piece" points="94.412,74.575 94.386,75.114 94.307,75.648 94.176,76.172 93.994,76.68 93.763,77.168 93.486,77.631 93.164,78.064 92.802,78.464 92.402,78.827 91.968,79.148 91.505,79.426 91.017,79.656 90.509,79.838 89.985,79.969 89.452,80.049 88.912,80.075 88.373,80.049 87.839,79.969 87.316,79.838 86.808,79.656 86.32,79.426 85.857,79.148 85.423,78.827 85.023,78.464 84.661,78.064 84.339,77.631 84.062,77.168 83.831,76.68 83.649,76.172 83.518,75.648 83.439,75.114 83.412,74.575 83.439,74.036 83.518,73.502 83.649,72.978 83.831,72.47 84.062,71.982 84.339,71.519 84.661,71.086 85.023,70.686 85.423,70.323 85.857,70.002 86.32,69.724 86.808,69.494 87.316,69.312 87.839,69.181 88.373,69.101 88.912,69.075 89.452,69.101 89.985,69.181 90.509,69.312 91.017,69.494 91.505,69.724 91.968,70.002 92.402,70.323 92.802,70.686 93.164,71.086 93.486,71.519 93.763,71.982 93.994,72.47 94.176,72.978 94.307,73.502 94.386,74.036" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="piece" points="139.412,74.575 139.386,75.114 139.307,75.648 139.176,76.172 138.994,76.68 138.763,77.168 138.486,77.631 138.164,78.064 137.802,78.464 137.402,78.827 136.968,79.148 136.505,79.426 136.017,79.656 135.509,79.838 134.985,79.969 134.452,80.049 133.912,80.075 133.373,80.049 132.839,79.969 132.316,79.838 131.808,79.656 131.32,79.426 130.857,79.148 130.423,78.827 130.023,78.464 129.661,78.064 129.339,77.631 129.062,77.168 128.831,76.68 128.649,76.172 128.518,75.648 128.439,75.114 128.412,74.575 128.439,74.036 128.518,73.502 128.649,72.978 128.831,72.47 129.062,71.982 129.339,71.519 129.661,71.086 130.023,70.686 130.423,70.323 130.857,70.002 131.32,69.724 131.808,69.494 132.316,69.312 132.839,69.181 133.373,69.101 133.912,69.075 134.452,69.101 134.985,69.181 135.509,69.312 136.017,69.494 136.505,69.724 136.968,70.002 137.402,70.323 137.802,70.686 138.164,71.086 138.486,71.519 138.763,71.982 138.994,72.47 139.176,72.978 139.307,73.502 139.386,74.036" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="piece" data-part="hot shoe" points="106.412,70.825 116.412,70.825 116.412,78.325 106.412,78.325" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<line class="dim" x1="78.187" y1="55.875" x2="70.187" y2="55.875" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="78.187" y1="83.275" x2="70.187" y2="83.275" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="71.687" y1="55.875" x2="71.687" y2="83.275" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="72.677" y1="54.885" x2="70.698" y2="56.865" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="72.677" y1="82.285" x2="70.698" y2="84.265" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" x="70.887" y="69.575" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 70.887 69.575)">54.8 mm max</text>
+<line class="dim" x1="144.637" y1="69.575" x2="162.637" y2="69.575" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="144.637" y1="83.275" x2="162.637" y2="83.275" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="161.137" y1="69.575" x2="161.137" y2="83.275" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="160.148" y1="68.585" x2="162.127" y2="70.565" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="160.148" y1="82.285" x2="162.127" y2="84.265" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" x="160.337" y="76.425" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 160.337 76.425)">48.2 mm body</text>
+<text class="title-text" x="111.412" y="49.875" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="middle" fill="#000000">TOP</text>
+<line class="ground" x1="272.712" y1="172.175" x2="300.112" y2="172.175" stroke="#000000" stroke-width="0.6"/>
+<line class="ground" x1="272.712" y1="124.975" x2="300.112" y2="124.975" stroke="#000000" stroke-width="0.6"/>
+<line class="elev-wall" x1="300.112" y1="172.175" x2="300.112" y2="124.975" stroke="#000000" stroke-width="0.35"/>
+<line class="elev-wall" x1="272.712" y1="172.175" x2="272.712" y2="124.975" stroke="#000000" stroke-width="0.35"/>
+<polygon class="piece" data-part="SHUTTER" points="288.362,144.175 288.962,144.175 288.962,161.175 288.362,161.175" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="piece" data-part="COVER GLASS" points="289.362,146.175 290.112,146.175 290.112,159.175 289.362,159.175" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="wall" data-part="SENSOR" points="290.937,146.7 291.112,146.7 291.112,158.65 290.937,158.65" fill="#1b1b1b" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="piece" data-part="MAIN PCB" points="277.213,137.175 277.813,137.175 277.813,166.175 277.213,166.175" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<polygon class="piece" data-part="LCD" points="272.713,139.175 274.813,139.175 274.813,166.175 272.713,166.175" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<line class="dim" x1="288.662" y1="152.675" x2="333.412" y2="120.575" stroke="#202020" stroke-width="0.13"/>
+<text class="text" x="336.412" y="120.575" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#000000">SHUTTER</text>
+<line class="dim" x1="289.737" y1="152.675" x2="333.412" y2="138.575" stroke="#202020" stroke-width="0.13"/>
+<text class="text" x="336.412" y="138.575" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#000000">COVER GLASS</text>
+<line class="dim" x1="291.025" y1="152.675" x2="333.412" y2="156.575" stroke="#202020" stroke-width="0.13"/>
+<text class="text" x="336.412" y="156.575" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#000000">SENSOR</text>
+<line class="dim" x1="277.513" y1="151.675" x2="333.412" y2="174.575" stroke="#202020" stroke-width="0.13"/>
+<text class="text" x="336.412" y="174.575" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#000000">MAIN PCB</text>
+<line class="dim" x1="273.763" y1="152.675" x2="333.412" y2="192.575" stroke="#202020" stroke-width="0.13"/>
+<text class="text" x="336.412" y="192.575" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#000000">LCD</text>
+<line class="dim" x1="291.112" y1="154.175" x2="291.112" y2="202.175" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="300.112" y1="154.175" x2="300.112" y2="202.175" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="291.112" y1="200.675" x2="300.112" y2="200.675" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="290.123" y1="199.685" x2="292.102" y2="201.665" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="299.123" y1="199.685" x2="301.102" y2="201.665" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" x="295.612" y="199.875" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">18.00 mm</text>
+<text class="text" x="286.412" y="207.575" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="middle" fill="#000000">FLANGE FOCAL DISTANCE</text>
+<text class="title-text" x="286.412" y="112.975" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="middle" fill="#000000">SECTION A-A: sensor / shutter / board stack</text>
+<text class="text" x="206.412" y="225.575" font-family="Arial, Helvetica, sans-serif" font-size="2.2" text-anchor="start" fill="#000000">SEEN: Sony envelope, sensor, E-mount flange. Internal block envelopes and wall thicknesses: ASSUMED; see CH16_REFERENCE.</text>
+<polygon class="border" points="10.0,10.0 410.0,10.0 410.0,287.0 10.0,287.0" fill="none" stroke="#000000" stroke-width="0.5" stroke-linejoin="miter"/>
+<line class="title" x1="10.0" y1="263.0" x2="410.0" y2="263.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="12.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">PROJECT</text>
+<text class="title-text" data-field="project" x="12.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Sony a7 / ILCE-7 class camera (CH16)</text>
+<line class="title" x1="130.0" y1="263.0" x2="130.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="132.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">SHEET  (dimensions in metres)</text>
+<text class="title-text" data-field="sheet" x="132.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Dimensioned front, top and optical section</text>
+<text class="title-label" data-field="size" x="132.0" y="284.0" font-family="Arial, Helvetica, sans-serif" font-size="2.4" text-anchor="start" fill="#606060">A3   1 / 2</text>
+<line class="title" x1="250.0" y1="263.0" x2="250.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="252.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">SCALE</text>
+<text class="title-text" data-field="scale" x="252.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">1:2</text>
+<line class="title" x1="290.0" y1="263.0" x2="290.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="292.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">DATE</text>
+<text class="title-text" data-field="date" x="292.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">2026-11-05</text>
+<line class="title" x1="346.0" y1="263.0" x2="346.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="348.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">DRAWN WITH</text>
+<text class="title-text" data-field="drawn" x="348.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Kine</text>
+</g>
+</svg>

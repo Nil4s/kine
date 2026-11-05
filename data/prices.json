@@ -42,6 +42,7 @@
 		"camera_sensor_flex": {"name": "Sensor flex", "unit": "pcs", "price": 6.00, "source": "ASSUMED: replacement-module allowance", "date": "2026-11-05"},
 		"camera_shutter": {"name": "Focal-plane shutter module", "unit": "pcs", "price": 35.00, "source": "ASSUMED: replacement-module allowance", "date": "2026-11-05"},
 		"camera_main_pcb": {"name": "Main PCB with BIONZ X / DRAM / PMIC", "unit": "pcs", "price": 180.00, "source": "ASSUMED: populated-board replacement allowance, not a Sony quote", "date": "2026-11-05"},
+		"camera_heatsink": {"name": "Main PCB copper heat spreader", "unit": "pcs", "price": 8.00, "source": "ASSUMED: replacement-module allowance", "date": "2026-11-05"},
 		"camera_sd_slot": {"name": "SD slot board", "unit": "pcs", "price": 12.00, "source": "ASSUMED: replacement-module allowance", "date": "2026-11-05"},
 		"camera_sd_card": {"name": "SD memory card", "unit": "pcs", "price": 8.00, "source": "ASSUMED: small-card 2026 retail", "date": "2026-11-05"},
 		"camera_ports": {"name": "USB/HDMI port block", "unit": "pcs", "price": 14.00, "source": "ASSUMED: replacement-module allowance", "date": "2026-11-05"},

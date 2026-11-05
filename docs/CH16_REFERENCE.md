@@ -57,7 +57,8 @@ The internal order follows [T]: mount on one side of a metal chassis; sensor shi
 | sensor die | 35.8 x 23.9 x 0.35 mm; front plane Z=-18.0 | active size SEEN [S]; thickness ASSUMED; a 1.65 mm carrier gap behind glass is ASSUMED |
 | sensor carrier | 46 x 34 x 1.0 mm ring with 37 x 25 mm opening, immediately behind die | ASSUMED |
 | sensor flex | 18 x 12 x 0.18 mm routed block to the main PCB region | ASSUMED; flex route exists in [T] |
-| main PCB | 78 x 58 x 1.2 mm, Z=-31.2…-30.0 | ASSUMED envelope, rear-board position SEEN [T][I] |
+| main PCB | 78 x 58 x 1.2 mm, Z=-45.8…-44.6 | ASSUMED envelope, rear-board position SEEN [T][I] |
+| main-PCB heat spreader | 78 x 55 x 2.0 mm copper, Z=-44.6…-42.6, component/flex cut-outs | ASSUMED; copper sensor/board shielding is SEEN [T] |
 | battery cavity | battery at right/grip, separate from board and sensor | position SEEN [I], exact coordinates ASSUMED |
 | EVF module | 28 x 22 x 30 mm inside the top hump | ASSUMED block; hump is filled by EVF in [T] |
 | LCD module | 76 x 54 x 4.0 mm plus separate hinge | 3.0-inch class SEEN [SI]; envelope ASSUMED |
@@ -65,11 +66,11 @@ The internal order follows [T]: mount on one side of a metal chassis; sensor shi
 | USB/HDMI block | 18 x 22 x 8 mm on left side | ASSUMED; side input connectors visible in [T] |
 | Wi-Fi/NFC antenna | 24 x 12 x 0.4 mm at left shell | ASSUMED dimensions; [T] blue coax/PCB antenna discussion supports separate antenna |
 
-The full-frame cone check is deliberately geometric and independent of any lens claim: the sensor corner radius is `sqrt(35.8^2 + 23.9^2)/2 = 21.63529 mm`; the throat radius is `46.1/2 = 23.05 mm`. Linear interpolation from the sensor corners to the mount opening therefore clears at every Z. The 18.00 mm check is `0 - (-18.00)` exactly, not a tessellation measurement.
+The full-frame cone check is deliberately geometric and independent of any lens claim: the sensor corner radius is `sqrt(35.8^2 + 23.9^2)/2 = 21.522372081 mm`; the throat radius is `46.1/2 = 23.05 mm`. Linear interpolation from the sensor corners to the mount opening therefore clears at every Z. The 18.00 mm check is `0 - (-18.00)` exactly, not a tessellation measurement.
 
 ### Shells, supports and fasteners
 
-Front and rear shells, top and bottom plates and grip are separate thin-wall Part records with apertures cut for mount, EVF, LCD, battery and screws. Wall values of 1.2 mm (shells), 1.5 mm (chassis), 0.8 mm (small brackets), 0.1 mm assembly-contact tolerance and 0.001 mm3 fit-volume threshold are **ASSUMED**. The threshold is a numerical contact allowance, not permission to bury a PCB in a shell. Declared `hang` links represent hidden screw/bracket attachments for stage support; no press-fit overlap is declared.
+Front and rear shells, top and bottom plates and grip are separate thin-wall Part records with apertures cut for mount, EVF, LCD, battery and screws. The 1.2 mm shell walls, solid chassis/mount-carrier block envelopes, 0.1 mm assembly-contact tolerance and 0.001 mm3 fit-volume threshold are **ASSUMED**. The threshold is a numerical contact allowance, not permission to bury a PCB in a shell. Declared `hang` links represent hidden screw/bracket attachments for stage support; no press-fit overlap is declared.
 
 All 29 fastener cylinders are individual Assembly parts so AssemblyBom counts and prices them. Their 0.75 mm shaft radius is SEEN M1.5 [I] / 2 by hand; 4.0 mm length is SEEN as one observed length [I] but **ASSUMED for every fastener**. Hole radius 0.90 mm and placement are **ASSUMED**.
 

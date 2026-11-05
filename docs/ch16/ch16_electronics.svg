@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="420.0mm" height="297.0mm" viewBox="0 0 420.0 297.0">
+<title>Sony a7 / ILCE-7 class camera (CH16) - Power and signal block diagram</title>
+<rect x="0" y="0" width="420.0" height="297.0" fill="#ffffff"/>
+<g id="sheet" data-paper="A3" data-scale="1:0" data-denom="0" data-mm-per-m="0.0" data-units="mm">
+<polygon class="piece" data-ic="BATTERY" points="16.0,32.0 70.0,32.0 70.0,52.0 16.0,52.0" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<text class="title-text" data-ic="BATTERY" x="43.0" y="41.0" font-family="Arial, Helvetica, sans-serif" font-size="2.3" text-anchor="middle" fill="#000000">NP-FW50 BATTERY</text>
+<text class="text" data-ic="BATTERY" x="43.0" y="45.0" font-family="Arial, Helvetica, sans-serif" font-size="1.65" text-anchor="middle" fill="#000000">7.2 V; 1.020 Ah; 7.344 Wh</text>
+<polygon class="piece" data-ic="PROTECTION" points="94.0,32.0 142.0,32.0 142.0,52.0 94.0,52.0" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<text class="title-text" data-ic="PROTECTION" x="118.0" y="41.0" font-family="Arial, Helvetica, sans-serif" font-size="2.3" text-anchor="middle" fill="#000000">PROTECTION</text>
+<text class="text" data-ic="PROTECTION" x="118.0" y="45.0" font-family="Arial, Helvetica, sans-serif" font-size="1.65" text-anchor="middle" fill="#000000">battery ID / fault</text>
+<polygon class="piece" data-ic="PMIC" points="165.0,32.0 211.0,32.0 211.0,52.0 165.0,52.0" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<text class="title-text" data-ic="PMIC" x="188.0" y="41.0" font-family="Arial, Helvetica, sans-serif" font-size="2.3" text-anchor="middle" fill="#000000">PMIC</text>
+<text class="text" data-ic="PMIC" x="188.0" y="45.0" font-family="Arial, Helvetica, sans-serif" font-size="1.65" text-anchor="middle" fill="#000000">8.00 W input budget</text>
+<line class="border" x1="70.0" y1="42.0" x2="94.0" y2="42.0" stroke="#000000" stroke-width="0.5"/>
+<line class="border" x1="142.0" y1="42.0" x2="166.0" y2="42.0" stroke="#000000" stroke-width="0.5"/>
+<line class="border" x1="94.0" y1="42.0" x2="94.0" y2="42.0" stroke="#000000" stroke-width="0.5"/>
+<text class="text" x="24.0" y="68.0" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#000000">CIPA 340 shots = 0.0216 Wh = 77.76 J/shot (SEEN inputs; hand arithmetic)</text>
+<polygon class="piece" data-rail="buck_core" points="125.0,79.0 195.0,79.0 195.0,97.0 125.0,97.0" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<text class="title-text" data-rail="buck_core" x="160.0" y="87.0" font-family="Arial, Helvetica, sans-serif" font-size="2.3" text-anchor="middle" fill="#000000">BUCK CORE</text>
+<text class="text" data-rail="buck_core" x="160.0" y="91.0" font-family="Arial, Helvetica, sans-serif" font-size="1.65" text-anchor="middle" fill="#000000">1.1 V  1.10 W</text>
+<polygon class="piece" data-rail_loads="buck_core" points="215.0,79.0 385.0,79.0 385.0,97.0 215.0,97.0" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<text class="title-text" data-rail_loads="buck_core" x="300.0" y="87.0" font-family="Arial, Helvetica, sans-serif" font-size="2.3" text-anchor="middle" fill="#000000">BIONZ X</text>
+<text class="text" data-rail_loads="buck_core" x="300.0" y="91.0" font-family="Arial, Helvetica, sans-serif" font-size="1.65" text-anchor="middle" fill="#000000">power + signal (see paths below)</text>
+<line class="border" x1="195.0" y1="88.0" x2="215.0" y2="88.0" stroke="#000000" stroke-width="0.5"/>
+<line class="dim" x1="211.0" y1="52.0" x2="211.0" y2="88.0" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="211.0" y1="88.0" x2="225.0" y2="88.0" stroke="#202020" stroke-width="0.13"/>
+<polygon class="piece" data-rail="buck_sensor" points="125.0,109.0 195.0,109.0 195.0,127.0 125.0,127.0" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<text class="title-text" data-rail="buck_sensor" x="160.0" y="117.0" font-family="Arial, Helvetica, sans-serif" font-size="2.3" text-anchor="middle" fill="#000000">BUCK SENSOR</text>
+<text class="text" data-rail="buck_sensor" x="160.0" y="121.0" font-family="Arial, Helvetica, sans-serif" font-size="1.65" text-anchor="middle" fill="#000000">1.8 V  0.85 W</text>
+<polygon class="piece" data-rail_loads="buck_sensor" points="215.0,109.0 385.0,109.0 385.0,127.0 215.0,127.0" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<text class="title-text" data-rail_loads="buck_sensor" x="300.0" y="117.0" font-family="Arial, Helvetica, sans-serif" font-size="2.3" text-anchor="middle" fill="#000000">CMOS SENSOR</text>
+<text class="text" data-rail_loads="buck_sensor" x="300.0" y="121.0" font-family="Arial, Helvetica, sans-serif" font-size="1.65" text-anchor="middle" fill="#000000">power + signal (see paths below)</text>
+<line class="border" x1="195.0" y1="118.0" x2="215.0" y2="118.0" stroke="#000000" stroke-width="0.5"/>
+<line class="dim" x1="211.0" y1="52.0" x2="211.0" y2="118.0" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="211.0" y1="118.0" x2="225.0" y2="118.0" stroke="#202020" stroke-width="0.13"/>
+<polygon class="piece" data-rail="buck_io" points="125.0,139.0 195.0,139.0 195.0,157.0 125.0,157.0" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<text class="title-text" data-rail="buck_io" x="160.0" y="147.0" font-family="Arial, Helvetica, sans-serif" font-size="2.3" text-anchor="middle" fill="#000000">BUCK I/O</text>
+<text class="text" data-rail="buck_io" x="160.0" y="151.0" font-family="Arial, Helvetica, sans-serif" font-size="1.65" text-anchor="middle" fill="#000000">3.3 V  1.20 W</text>
+<polygon class="piece" data-rail_loads="buck_io" points="215.0,139.0 385.0,139.0 385.0,157.0 215.0,157.0" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<text class="title-text" data-rail_loads="buck_io" x="300.0" y="147.0" font-family="Arial, Helvetica, sans-serif" font-size="2.3" text-anchor="middle" fill="#000000">DRAM+SD CARD+USB+HDMI+WI-FI/NFC</text>
+<text class="text" data-rail_loads="buck_io" x="300.0" y="151.0" font-family="Arial, Helvetica, sans-serif" font-size="1.65" text-anchor="middle" fill="#000000">power + signal (see paths below)</text>
+<line class="border" x1="195.0" y1="148.0" x2="215.0" y2="148.0" stroke="#000000" stroke-width="0.5"/>
+<line class="dim" x1="211.0" y1="52.0" x2="211.0" y2="148.0" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="211.0" y1="148.0" x2="225.0" y2="148.0" stroke="#202020" stroke-width="0.13"/>
+<polygon class="piece" data-rail="boost_display" points="125.0,169.0 195.0,169.0 195.0,187.0 125.0,187.0" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<text class="title-text" data-rail="boost_display" x="160.0" y="177.0" font-family="Arial, Helvetica, sans-serif" font-size="2.3" text-anchor="middle" fill="#000000">BOOST DISPLAY</text>
+<text class="text" data-rail="boost_display" x="160.0" y="181.0" font-family="Arial, Helvetica, sans-serif" font-size="1.65" text-anchor="middle" fill="#000000">5.0 V  0.65 W</text>
+<polygon class="piece" data-rail_loads="boost_display" points="215.0,169.0 385.0,169.0 385.0,187.0 215.0,187.0" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<text class="title-text" data-rail_loads="boost_display" x="300.0" y="177.0" font-family="Arial, Helvetica, sans-serif" font-size="2.3" text-anchor="middle" fill="#000000">OLED EVF+LCD</text>
+<text class="text" data-rail_loads="boost_display" x="300.0" y="181.0" font-family="Arial, Helvetica, sans-serif" font-size="1.65" text-anchor="middle" fill="#000000">power + signal (see paths below)</text>
+<line class="border" x1="195.0" y1="178.0" x2="215.0" y2="178.0" stroke="#000000" stroke-width="0.5"/>
+<line class="dim" x1="211.0" y1="52.0" x2="211.0" y2="178.0" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="211.0" y1="178.0" x2="225.0" y2="178.0" stroke="#202020" stroke-width="0.13"/>
+<polygon class="piece" data-rail="direct_motor" points="125.0,199.0 195.0,199.0 195.0,217.0 125.0,217.0" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<text class="title-text" data-rail="direct_motor" x="160.0" y="207.0" font-family="Arial, Helvetica, sans-serif" font-size="2.3" text-anchor="middle" fill="#000000">DIRECT MOTOR</text>
+<text class="text" data-rail="direct_motor" x="160.0" y="211.0" font-family="Arial, Helvetica, sans-serif" font-size="1.65" text-anchor="middle" fill="#000000">7.2 V  0.80 W</text>
+<polygon class="piece" data-rail_loads="direct_motor" points="215.0,199.0 385.0,199.0 385.0,217.0 215.0,217.0" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<text class="title-text" data-rail_loads="direct_motor" x="300.0" y="207.0" font-family="Arial, Helvetica, sans-serif" font-size="2.3" text-anchor="middle" fill="#000000">SHUTTER DRIVER</text>
+<text class="text" data-rail_loads="direct_motor" x="300.0" y="211.0" font-family="Arial, Helvetica, sans-serif" font-size="1.65" text-anchor="middle" fill="#000000">power + signal (see paths below)</text>
+<line class="border" x1="195.0" y1="208.0" x2="215.0" y2="208.0" stroke="#000000" stroke-width="0.5"/>
+<line class="dim" x1="211.0" y1="52.0" x2="211.0" y2="208.0" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="211.0" y1="208.0" x2="225.0" y2="208.0" stroke="#202020" stroke-width="0.13"/>
+<polygon class="piece" data-ic="CMOS SENSOR" points="25.0,219.0 95.0,219.0 95.0,237.0 25.0,237.0" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<text class="title-text" data-ic="CMOS SENSOR" x="60.0" y="227.0" font-family="Arial, Helvetica, sans-serif" font-size="2.3" text-anchor="middle" fill="#000000">CMOS SENSOR</text>
+<text class="text" data-ic="CMOS SENSOR" x="60.0" y="231.0" font-family="Arial, Helvetica, sans-serif" font-size="1.65" text-anchor="middle" fill="#000000">MIPI/LVDS image data</text>
+<polygon class="piece" data-ic="BIONZ X" points="128.0,219.0 192.0,219.0 192.0,237.0 128.0,237.0" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<text class="title-text" data-ic="BIONZ X" x="160.0" y="227.0" font-family="Arial, Helvetica, sans-serif" font-size="2.3" text-anchor="middle" fill="#000000">BIONZ X</text>
+<text class="text" data-ic="BIONZ X" x="160.0" y="231.0" font-family="Arial, Helvetica, sans-serif" font-size="1.65" text-anchor="middle" fill="#000000">processor / control</text>
+<polygon class="piece" data-ic="DRAM" points="218.0,219.0 374.0,219.0 374.0,237.0 218.0,237.0" fill="none" stroke="#000000" stroke-width="0.25" stroke-linejoin="miter"/>
+<text class="title-text" data-ic="DRAM" x="296.0" y="227.0" font-family="Arial, Helvetica, sans-serif" font-size="2.3" text-anchor="middle" fill="#000000">DRAM / SD / EVF / LCD / HDMI</text>
+<text class="text" data-ic="DRAM" x="296.0" y="231.0" font-family="Arial, Helvetica, sans-serif" font-size="1.65" text-anchor="middle" fill="#000000">image buffer, storage and video outputs</text>
+<line class="border" x1="95.0" y1="228.0" x2="128.0" y2="228.0" stroke="#000000" stroke-width="0.5"/>
+<line class="border" x1="192.0" y1="228.0" x2="218.0" y2="228.0" stroke="#000000" stroke-width="0.5"/>
+<text class="text" x="35.0" y="246.0" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="start" fill="#000000">USB D+/D- and Wi-Fi/NFC SDIO are bidirectional to BIONZ X; BIONZ X controls sensor timing and shutter H-bridge. RF goes to the separate antenna.</text>
+<text class="text" x="35.0" y="253.0" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="start" fill="#000000">ASSUMED loads: 1.10 + 0.85 + 1.20 + 0.65 + 0.80 = 4.60 W; 4.60/0.90 = 5.11111 W; 12 s duty = 61.3333 J &lt; 77.76 J.</text>
+<polygon class="border" points="10.0,10.0 410.0,10.0 410.0,287.0 10.0,287.0" fill="none" stroke="#000000" stroke-width="0.5" stroke-linejoin="miter"/>
+<line class="title" x1="10.0" y1="263.0" x2="410.0" y2="263.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="12.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">PROJECT</text>
+<text class="title-text" data-field="project" x="12.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Sony a7 / ILCE-7 class camera (CH16)</text>
+<line class="title" x1="130.0" y1="263.0" x2="130.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="132.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">SHEET  (dimensions in metres)</text>
+<text class="title-text" data-field="sheet" x="132.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Power and signal block diagram</text>
+<text class="title-label" data-field="size" x="132.0" y="284.0" font-family="Arial, Helvetica, sans-serif" font-size="2.4" text-anchor="start" fill="#606060">A3   2 / 2</text>
+<line class="title" x1="250.0" y1="263.0" x2="250.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="252.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">SCALE</text>
+<text class="title-text" data-field="scale" x="252.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">NTS</text>
+<line class="title" x1="290.0" y1="263.0" x2="290.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="292.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">DATE</text>
+<text class="title-text" data-field="date" x="292.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">2026-11-05</text>
+<line class="title" x1="346.0" y1="263.0" x2="346.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="348.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">DRAWN WITH</text>
+<text class="title-text" data-field="drawn" x="348.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Kine</text>
+</g>
+</svg>

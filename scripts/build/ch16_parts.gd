@@ -19,7 +19,7 @@ const PCB := [0.035, 0.24, 0.12]
 const CHIP := [0.055, 0.060, 0.070]
 const GLASS := [0.35, 0.75, 0.88]
 const SENSOR := [0.20, 0.42, 0.72]
-const COPPER := [0.72, 0.31, 0.10]
+const COPPER := [0.45, 0.12, 0.055]
 const WHITE := [0.78, 0.80, 0.82]
 const RED := [0.65, 0.08, 0.055]
 
@@ -73,7 +73,7 @@ static func bottom_screws() -> Array:
 
 
 static func rear_screws() -> Array:
-	return [[-58.0, 10.0], [58.0, 10.0], [-58.0, 70.0], [58.0, 70.0], [-15.0, 80.0], [15.0, 80.0], [-50.0, 60.0], [50.0, 60.0]]
+	return [[-58.0, 10.0], [58.0, 10.0], [-58.0, 70.0], [58.0, 70.0], [-15.0, 80.0], [15.0, 80.0], [-50.0, 65.0], [50.0, 65.0]]
 
 
 static func front_screws() -> Array:
@@ -86,11 +86,14 @@ static func top_screws() -> Array:
 
 static func chassis() -> Dictionary:
 	var p := PB.new("Chassis")
-	p.box(-40, 1.2, -44, 68, 13.8, 40, MAG)                 # deep bottom/mid frame
-	p.box(-46, 15, -44, 6, 59, 40, MAG)                    # left wall
-	p.box(24, 15, -42, 4, 59, 38, MAG)                     # right wall, clears battery and rear PCB
-	var fr := p.box(-30, 9, -12, 60, 60, 8, MAG)            # thick mount carrier, open through the optical path
-	p.cut_cyl(fr, 0, 39, -13, "z", 28.1, 10)
+	var base := p.box(-46, 1.2, -44, 74, 13.8, 40, MAG)      # deep bottom/mid frame
+	p.cut_cyl(base, -45, 1.0, -5, "y", 0.9, 3.2)             # bottom fastener clearance
+	var left := p.box(-56, 15, -44, 16, 59, 40, MAG)         # left wall, pocketed for the side I/O block
+	p.cut_box(left, -62, 39, -21, 16, 24, 10)
+	p.box(24, 15, -42, 6, 59, 38, MAG)                     # right wall, clears battery and rear PCB
+	var fr := p.box(-30, 9, -20, 60, 59, 16, MAG)           # thick mount carrier, open through the optical path
+	p.cut_cyl(fr, 0, 39, -21, "z", 30.0, 18)
+	p.cut_box(fr, -35, 15, -20.5, 18, 15, 1.0)              # sensor-flex turn through the carrier
 	p.box(-40, 70, -6, 66, 4, 2, MAG)                      # front upper bridge
 	var tr := p.box(-40, 70, -44, 66, 4, 5, MAG)            # rear upper bridge around the EVF
 	p.cut_box(tr, -16, 69, -44, 32, 6, 5)
@@ -135,11 +138,14 @@ static func top_plate() -> Dictionary:
 
 static func grip() -> Dictionary:
 	var p := PB.new("Grip shell")
-	p.box(62.25, 1.2, -45, 1.2, 58.8, 42, RUBBER)
+	p.box(62.25, 1.2, -45, 1.2, 73.8, 42, RUBBER)
 	p.box(38, 1.2, -47, 25.45, 0.8, 42, RUBBER)              # bottom web ends where the battery begins
-	var front := p.box(38, 15, -3, 25.45, 45, 3, RUBBER)
-	var rear := p.box(38, 1.2, -48.2, 25.45, 58.8, 1.2, RUBBER)
-	p.box(38, 60, -47, 25.45, 1.2, 44, RUBBER)
+	var front := p.box(38, 15, -3, 25.45, 60, 3, RUBBER)
+	var rear := p.box(38, 1.2, -48.2, 25.45, 73.8, 1.2, RUBBER)
+	p.box(39.2, 60, -47, 23.05, 1.2, 44, RUBBER)
+	for q in bottom_screws():
+		if float(q[0]) > 38.0:
+			p.cut_cyl(1, q[0], 1.0, q[1], "y", 0.9, 1.2)
 	for q in front_screws():
 		if float(q[0]) > 38.0:
 			p.cut_cyl(front, q[0], q[1], -4, "z", 0.9, 5)
@@ -212,6 +218,17 @@ static func main_pcb() -> Dictionary:
 	p.box(-28, 50, -44.6, 14, 10, 2.0, CHIP)                # power IC
 	p.box(20, 20, -44.6, 10, 8, 1.6, CHIP)                  # shutter driver
 	return p.rec(20)
+
+
+static func heat_spreader() -> Dictionary:
+	var p := PB.new("Main PCB copper heat spreader")
+	var a := p.box(-39, 15, -44.6, 78, 55, 2.0, COPPER)
+	p.cut_box(a, -10, 30, -44.7, 18, 18, 2.2)               # BIONZ X keeps its own clear footprint
+	p.cut_box(a, 12, 40, -44.7, 14, 14, 2.2)
+	p.cut_box(a, -28, 50, -44.7, 14, 10, 2.2)
+	p.cut_box(a, 20, 20, -44.7, 10, 8, 2.2)
+	p.cut_box(a, -35, 15, -44.7, 18, 2, 2.2)                # sensor-flex channel
+	return p.rec(34)
 
 
 static func evf() -> Dictionary:
@@ -338,6 +355,7 @@ static func assembly(opts := {}) -> Dictionary:
 	_add(asm, g, "Sensor and shutter", curtain(1), _b("steel", "camera_shutter"), [chassis_id])
 	_add(asm, g, "Sensor and shutter", curtain(2), _b("steel", "camera_shutter"), [chassis_id])
 	_add(asm, g, "Boards and power", main_pcb(), _b("camera_fr4", "camera_main_pcb"), [chassis_id])
+	_add(asm, g, "Boards and power", heat_spreader(), _b("camera_copper", "camera_heatsink"), [chassis_id])
 	_add(asm, g, "Boards and power", sd_slot(), _b("camera_fr4", "camera_sd_slot"), [chassis_id])
 	_add(asm, g, "Boards and power", sd_card(), _b("camera_sd_plastic", "camera_sd_card"), [chassis_id])
 	_add(asm, g, "Boards and power", ports(), _b("camera_fr4", "camera_ports"), [chassis_id])
@@ -400,8 +418,8 @@ static func body_depth_mm(asm: Dictionary) -> float:
 	return (Assembly.world_aabb(f).end.z - Assembly.world_aabb(r).position.z) / Assembly.MM
 
 
-static func nominal_dimensions() -> Vector3:
-	return Vector3(W, H, D)
+static func nominal_dimensions() -> Dictionary:
+	return {"x": W, "y": H, "z": D}
 
 
 static func flange_mm(asm: Dictionary) -> float:
@@ -409,8 +427,8 @@ static func flange_mm(asm: Dictionary) -> float:
 	return float(d["mount_face_z_mm"]) - float(d["sensor_plane_z_mm"])
 
 
-static func sensor_mm(_asm: Dictionary) -> Vector2:
-	return Vector2(SENSOR_W, SENSOR_H)
+static func sensor_mm(_asm: Dictionary) -> Dictionary:
+	return {"x": SENSOR_W, "y": SENSOR_H}
 
 
 static func sensor_corner_radius_mm() -> float:

@@ -39,6 +39,8 @@ func out_dir() -> String:
 func _init() -> void:
 	DirAccess.make_dir_recursive_absolute(TMP)
 	DirAccess.make_dir_recursive_absolute(out_dir())
+	await process_frame
+	await process_frame
 	if not Part.available():
 		ok(false, "1-5 KineCAD is required")
 		print("ch16: 1 fail")
@@ -86,7 +88,7 @@ func bar1() -> void:
 func bar2() -> void:
 	var asm := P.assembly()
 	var flange := P.flange_mm(asm)
-	var sens: Vector2 = P.sensor_mm(asm)
+	var sens: Dictionary = P.sensor_mm(asm)
 	var cone := P.cone_clearance_mm(asm)
 	ok(absf(flange - 18.0) <= 1e-6, "2 mount face to sensor datum %.9f mm = 18.0 to 1e-6" % flange)
 	ok(rel(sens.x, 35.8) < 1e-12 and rel(sens.y, 23.9) < 1e-12, "2 sensor %.9f x %.9f mm" % [sens.x, sens.y])
@@ -130,7 +132,7 @@ func bar4() -> void:
 
 func bar6() -> void:
 	var asm := P.assembly()
-	var nominal: Vector3 = P.nominal_dimensions()
+	var nominal: Dictionary = P.nominal_dimensions()
 	ok(rel(nominal.x, 126.9) < 1e-9 and rel(nominal.y, 94.4) < 1e-9 and rel(nominal.z, 48.2) < 1e-9, "6 hand dimensions 126.9 / 94.4 / 48.2 mm")
 	ok(rel(P.flange_mm(asm), 0.0 - -18.0) < 1e-9 and rel(P.sensor_mm(asm).x, 35.8) < 1e-9 and rel(P.sensor_mm(asm).y, 23.9) < 1e-9, "6 hand flange 0-(-18) and sensor 35.8 / 23.9 mm")
 	var corner := sqrt(35.8 * 35.8 + 23.9 * 23.9) / 2.0
@@ -198,10 +200,11 @@ func bar5_video() -> void:
 		previous = vis
 		if i > 0:
 			order = order and px_diff(imgs[i - 1], imgs[i]) > 0
-	ok(bool(r["ok"]) and order and String(r["mp4"]) != "", "5 AssemblyStage/AssemblyRender movie: %d frames in stage order, all consecutive frames change; MP4 %s" % [imgs.size(), String(r["mp4"]).get_file()])
-	var view := {"dir": out_dir() + "/section", "width": 640, "height": 360, "times": [AssemblyStage.total(asm)], "keep_images": true, "mp4": false, "sheet": false,
+	ok(bool(r["ok"]) and order and String(r["mp4"]) != "", "5 AssemblyStage/AssemblyRender movie: %d frames in stage order, all consecutive frames change; MP4 %s %s" % [imgs.size(), String(r["mp4"]).get_file(), String(r.get("why", ""))])
+	var view := {"dir": out_dir() + "/section_closed", "width": 640, "height": 360, "times": [AssemblyStage.total(asm)], "keep_images": true, "mp4": false, "sheet": false,
 		"camera": {"pos": Vector3(0.0, 0.047, 0.22), "look": Vector3(0.0, 0.047, -0.024), "fov": 32.0}}
 	var cut_opts: Dictionary = view.duplicate(true)
+	cut_opts["dir"] = out_dir() + "/section_cut"
 	cut_opts["cut"] = {"n": Vector3(0, 0, 1), "w": -0.026}
 	var cut: Dictionary = await AssemblyStage.video(root, asm, cut_opts)
 	var whole: Dictionary = await AssemblyStage.video(root, asm, view)
