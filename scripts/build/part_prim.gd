@@ -87,11 +87,14 @@ static func solid_of(f: Dictionary) -> int:
 	var o := Vector3(float(f.get("x", 0.0)), float(f.get("y", 0.0)), float(f.get("z", 0.0))) * MM
 	match kind:
 		"box":
-			var sz := Vector3(float(f["w"]), float(f["h"]), float(f["d"])) * MM
-			var b := KCad.box(sz.x, sz.y, sz.z)   # the kernel's box is centred on the origin
+			# G8BOM / G4: the sizes go to the kernel as doubles (a float32 Vector3 made a 40 x 20 x 10 mm box 8.0000017 cm3); only the place is a Vector3
+			var w := float(f["w"]) * MM
+			var h := float(f["h"]) * MM
+			var dd := float(f["d"]) * MM
+			var b := KCad.box(w, h, dd)   # the kernel's box is centred on the origin
 			if b == 0:
 				return 0
-			var at := o if bool(f.get("centre", false)) else o + sz * 0.5
+			var at := o if bool(f.get("centre", false)) else o + Vector3(w, h, dd) * 0.5
 			var t := KCad.translate(b, at)
 			KCad.release(b)
 			return t
@@ -116,7 +119,50 @@ static func solid_of(f: Dictionary) -> int:
 			var tw := KCad.translate(wd, o)
 			KCad.release(wd)
 			return tw
-	# cylinder / tube / cone: the profile (radius across, length up) turned once about the axis through o
+	if exact_round and kind in ["cylinder", "tube"]:
+		return _round_exact(f, o)
+	return _round_revolve(f, o, kind)
+
+
+static var exact_round := true   # G8BOM / G4: cylinder and tube from KCad.cylinder in doubles (false = the old float32 revolve, for comparison)
+
+
+## a cylinder or tube from the kernel's own cylinder (r, len in doubles), turned onto the axis and moved so its start cap's middle is at o
+static func _round_exact(f: Dictionary, o: Vector3) -> int:
+	var r := float(f["r"]) * MM
+	var ln := float(f["len"]) * MM
+	var c := KCad.cylinder(r, ln)   # along z, from z = -len/2 to +len/2
+	if c == 0:
+		return 0
+	if String(f.get("kind", "")) == "tube":
+		var bore := KCad.cylinder(float(f["r_in"]) * MM, ln)
+		var t := KCad.cut(c, bore) if bore != 0 else 0
+		KCad.release(c)
+		if bore != 0:
+			KCad.release(bore)
+		if t == 0:
+			return 0
+		c = t
+	var axis := String(f.get("axis", "z"))
+	if axis == "x":   # the seam where the revolve had it: on +z (the turn onto x alone puts it on -z)
+		var hz := KCad.rotate(c, Vector3(0, 0, 1), PI)
+		KCad.release(c)
+		if hz == 0:
+			return 0
+		c = hz
+	if axis != "z":
+		var rt := KCad.rotate(c, Vector3(0, 1, 0) if axis == "x" else Vector3(1, 0, 0), PI / 2.0 if axis == "x" else -PI / 2.0)   # z -> +x about y; z -> +y about x
+		KCad.release(c)
+		if rt == 0:
+			return 0
+		c = rt
+	var mv := KCad.translate(c, o + (AXES[axis] as Vector3) * (ln * 0.5))
+	KCad.release(c)
+	return mv
+
+
+## cylinder / tube / cone: the profile (radius across, length up) turned once about the axis through o
+static func _round_revolve(f: Dictionary, o: Vector3, kind: String) -> int:
 	var ax: Vector3 = AXES[String(f.get("axis", "z"))]
 	var xd := Vector3(0, 0, 1) if ax.is_equal_approx(Vector3(1, 0, 0)) else Vector3(1, 0, 0)   # across the axis
 	var nrm := xd.cross(ax)   # so that y = n x xd = the axis

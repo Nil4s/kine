@@ -83,6 +83,35 @@ static func overlap_volume(a: int, b: int) -> float:   # C70: -1 when the kernel
 	return load(NATIVE_NEW).overlap_volume(a, b) if n != null and ClassDB.class_exists("KineCAD") and ClassDB.class_has_method("KineCAD", "overlap_volume") else -1.0
 
 
+## G45 (KineCAD 6): the kernel's minimum distance between two shapes (OCCT BRepExtrema_DistShapeShape, solid by solid).
+## {"ok", "d" (m; 0 when they touch or overlap, also when one is wholly inside the other), "pa" / "pb" (the witness points on a / b, Vector3:
+## float32), "pa64" / "pb64" (the same points as PackedFloat64Array [x, y, z], doubles), "inner" (one is partly or wholly inside the other)}.
+## {"ok": false, "d": -1} when the library is older than 6 or the kernel refuses (last_error()).
+static func distance(a: int, b: int) -> Dictionary:
+	var n = _n()
+	return load(NATIVE_NEW).distance(a, b) if n != null and has_distance() else {"ok": false, "d": -1.0}
+
+
+static func has_distance() -> bool:
+	return ClassDB.class_exists("KineCAD") and ClassDB.class_has_method("KineCAD", "distance")
+
+
+## G45 (KineCAD 6): the shape's box from its exact geometry (no tessellation), doubles [xmin, ymin, zmin, xmax, ymax, zmax];
+## empty when the library is older or the kernel refuses. bounds_aabb: the same as a Godot AABB grown by 1e-6 of its size + 1 um (float32)
+static func bounds(id: int) -> PackedFloat64Array:
+	var n = _n()
+	return load(NATIVE_NEW).bounds(id) if n != null and ClassDB.class_exists("KineCAD") and ClassDB.class_has_method("KineCAD", "bounds") else PackedFloat64Array()
+
+
+static func bounds_aabb(id: int) -> AABB:
+	var b := bounds(id)
+	if b.size() != 6:
+		return AABB()
+	var lo := Vector3(b[0], b[1], b[2])
+	var sz := Vector3(b[3] - b[0], b[4] - b[1], b[5] - b[2])
+	return AABB(lo, sz).grow(1e-6 * sz.length() + 1e-6)
+
+
 static func has_union_many() -> bool:
 	return ClassDB.class_exists("KineCAD") and ClassDB.class_has_method("KineCAD", "union_many")
 

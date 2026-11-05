@@ -166,9 +166,11 @@ static func crane_runway() -> Dictionary:
 
 
 static func polar_crane() -> Dictionary:
-	var p := PB.new("Polar crane, 50 m bridge and trolley")
-	p.box(-25, 30.0, -2, 50, 2.5, 4)
-	p.box(-2, 32.5, -2, 4, 1.5, 4, "join")
+	# 52 m span (CH15_REFERENCE section 6): the bridge's ends sit on the ring runway (r 25.5..26.3). It was 50 m and stood clear of the runway;
+	# G33STAGE's exact support check found it (the box check of bar 7 could not). 2 m deep so its top corners (r 26.08) clear the sphere (inner r 26.12 at +32)
+	var p := PB.new("Polar crane, 52 m bridge and trolley")
+	p.box(-26, 30.0, -2, 52, 2.0, 4)
+	p.box(-2, 32.0, -2, 4, 1.5, 4, "join")
 	return _done(p, CRANE, 8)
 
 

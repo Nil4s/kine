@@ -964,6 +964,7 @@ EXTRA="$EXTRA c65:w"   # c65: over 256 bodies the look-merge ignores the body na
 
 EXTRA="$EXTRA c62:w"   # C62: no bone end under the toolbar or a panel in the opening view / Fit / Home at 1024, 1280, 1920
 
+EXTRA="$EXTRA ch7:w"   # CH7: the 8 s chained parkour run on a built course; hand plants, speed continuity, landing knee flex, foot skate, penetration (tests/ch7_test.gd)
 
 
 
@@ -1023,3 +1024,8 @@ EXTRA="$EXTRA scalefix:w"   # scalefix: Part at building scale: size-scaled mesh
 EXTRA="$EXTRA ch15:w"   # ch15: Angra 2 class PWR plant: primary heat balance, IF97 Rankine, electrical one-line, decay heat, containment sphere, layout overlaps, build sequence + section video, blueprints (docs/CH15_REFERENCE.md), tests/ch15_test.gd
 EXTRA="$EXTRA g1motion:w"   # G1MOTION: Assembly Check motion: drives + links, exact-solid clash sweep with a box prefilter, contact vs clash, scrub slider, one undo step (gap G1, tests/g1motion_test.gd)
 EXTRA="$EXTRA hand:w"   # HAND (G23/G38): HandShape palm slab + finger capsules (ANSUR II sizes), palm_flat within the wrist limits, hook over an edge, close_on a 10 mm rope; Rulebook.prop_hits uses it (tests/hand_test.gd)
+EXTRA="$EXTRA g2loop:w"   # G2LOOP: Assembly joints (revolute / slider / fixed) with a planar closed-loop Newton solver: slider-crank and four-bar vs closed forms, the CH13 engine driven from its own record, check_motion along the loop (gap G2, tests/g2loop_test.gd)
+EXTRA="$EXTRA g7time:w"   # G7TIME: Assembly drives keyed on a timeline (linear / smooth / hold), played through the loop solver, Check motion along the animation with clash times, the shared render helper (frames, contact sheet, mp4), the timeline strip in Check motion (gaps G7 / G11, tests/g7time_test.gd)
+EXTRA="$EXTRA g8bom:w"   # G8BOM: Assembly bill of materials: mass from the exact solids x density (data/prices.json, every price with a source + date), identical parts grouped, CH14 reproduced line by line, the cheaper view + cheapest whole design under a named check, CSV, the BOM panel with one-step undo (gap G8, tests/g8bom_test.gd)
+EXTRA="$EXTRA g33stage:w"   # G33STAGE: Assembly build stages: ordered stages add parts, an exact-solid support check (contact within tol, ground, declared hangs; collisions with built parts in mm3), drop-in poses, the staged video with a section cut (AssemblyRender steps), the Stages panel with one-step undo (gap G33, tests/g33stage_test.gd)
+EXTRA="$EXTRA g45dist:w"   # G45DIST: KCad.distance (OCCT BRepExtrema_DistShapeShape, KineCAD 6): boxes / spheres vs hand to 1e-9 m, the G33 support check on one distance per pair (same verdict as the seven-boolean test on every g33stage fixture and CH15, >= 5x faster), tests/g45dist_test.gd
