@@ -34,6 +34,11 @@ struct Model {
 	struct Spr { int a, b; double k; };
 	std::vector<Spr> sprs;
 	std::vector<char> fixedDof;
+	// CH1f: P-delta (per-beam axial force, tension +), grounded dof springs/dashpots (soil), penalty ties between dofs
+	Vd axial;
+	std::vector<std::pair<int, double>> dofk, dofc;
+	struct Tie { int a, b; double k; };
+	std::vector<Tie> ties;
 	Vd addMass;
 	std::vector<std::pair<int, double>> dash; // CH12: lateral viscous dampers, (global dof, c) added to the damping matrix diagonal
 	std::vector<int> map; // global dof -> free index, or -1
@@ -47,7 +52,7 @@ void cross3(const double *a, const double *b, double *c) {
 }
 
 // element stiffness K and consistent mass M in global coordinates (12x12, row major)
-bool elem_matrices(const Model &m, const std::array<double, 12> &e, double *K, double *M, int &n1, int &n2) {
+bool elem_matrices(const Model &m, const std::array<double, 12> &e, double *K, double *M, int &n1, int &n2, double Nax = 0.0) {
 	n1 = (int)e[0];
 	n2 = (int)e[1];
 	const double *p1 = &m.xyz[n1 * 3], *p2 = &m.xyz[n2 * 3];
@@ -100,6 +105,19 @@ bool elem_matrices(const Model &m, const std::array<double, 12> &e, double *K, d
 				ml[ix[i] * 12 + ix[j]] += cm * mb[i][j];
 			}
 	}
+	if (Nax != 0.0) { // geometric stiffness (P-delta) from the axial force, consistent form N/(30 L)
+		double c = Nax / (30.0 * L);
+		int ix1[4] = { 1, 5, 7, 11 }, ix2[4] = { 2, 4, 8, 10 };
+		double g1[4][4] = { { 36, 3 * L, -36, 3 * L }, { 3 * L, 4 * L2, -3 * L, -L2 }, { -36, -3 * L, 36, -3 * L }, { 3 * L, -L2, -3 * L, 4 * L2 } };
+		double g2[4][4] = { { 36, -3 * L, -36, -3 * L }, { -3 * L, 4 * L2, 3 * L, -L2 }, { -36, 3 * L, 36, 3 * L }, { -3 * L, -L2, 3 * L, 4 * L2 } };
+		for (int i = 0; i < 4; i++)
+			for (int j = 0; j < 4; j++) {
+				kl[ix1[i] * 12 + ix1[j]] += c * g1[i][j];
+				kl[ix2[i] * 12 + ix2[j]] += c * g2[i][j];
+			}
+		double kt = Nax * (Iz + Iy) / (A * L);
+		kl[3 * 12 + 3] += kt; kl[9 * 12 + 9] += kt; kl[3 * 12 + 9] -= kt; kl[9 * 12 + 3] -= kt;
+	}
 	double R[9] = { e1[0], e1[1], e1[2], e2[0], e2[1], e2[2], e3[0], e3[1], e3[2] };
 	double T[144];
 	std::memset(T, 0, sizeof(T));
@@ -132,6 +150,7 @@ void rcm_and_number(Model &m) {
 	auto link = [&](int a, int b) { if (a != b) { adj[a].push_back(b); adj[b].push_back(a); } };
 	for (auto &e : m.beams) link((int)e[0], (int)e[1]);
 	for (auto &s : m.sprs) link(s.a, s.b);
+	for (auto &t : m.ties) link(t.a / 6, t.b / 6);
 	for (auto &v : adj) { std::sort(v.begin(), v.end()); v.erase(std::unique(v.begin(), v.end()), v.end()); }
 	std::vector<int> order;
 	order.reserve(n);
@@ -173,6 +192,7 @@ void rcm_and_number(Model &m) {
 	};
 	for (auto &e : m.beams) { int gd[12]; for (int i = 0; i < 6; i++) { gd[i] = (int)e[0] * 6 + i; gd[6 + i] = (int)e[1] * 6 + i; } upd(gd, 12); }
 	for (auto &s : m.sprs) { int gd[6]; for (int i = 0; i < 3; i++) { gd[i] = s.a * 6 + i; gd[3 + i] = s.b * 6 + i; } upd(gd, 6); }
+	for (auto &t : m.ties) { int gd[2] = { t.a, t.b }; upd(gd, 2); }
 	m.bw = bw;
 }
 
@@ -180,9 +200,12 @@ bool assemble(Model &m, Band &K, Band &M) {
 	K.init(m.nf, m.bw);
 	M.init(m.nf, m.bw);
 	double ke[144], me[144];
+	size_t bi = 0;
 	for (auto &e : m.beams) {
 		int n1, n2;
-		if (!elem_matrices(m, e, ke, me, n1, n2)) return false;
+		double Nax = (m.axial.size() == m.beams.size()) ? m.axial[bi] : 0.0;
+		bi++;
+		if (!elem_matrices(m, e, ke, me, n1, n2, Nax)) return false;
 		int gd[12];
 		for (int i = 0; i < 6; i++) { gd[i] = n1 * 6 + i; gd[6 + i] = n2 * 6 + i; }
 		for (int i = 0; i < 12; i++) {
@@ -224,6 +247,17 @@ bool assemble(Model &m, Band &K, Band &M) {
 		}
 	}
 	return true;
+}
+
+// soil springs on single dofs and penalty ties (added to the total K only; Rayleigh damping uses the structural K)
+void add_found(const Model &m, Band &K) {
+	for (auto &d : m.dofk) { int f = m.map[d.first]; if (f >= 0) K.at(f, f) += d.second; }
+	for (auto &t : m.ties) {
+		int fa = m.map[t.a], fb = m.map[t.b];
+		if (fa >= 0) K.at(fa, fa) += t.k;
+		if (fb >= 0) K.at(fb, fb) += t.k;
+		if (fa >= 0 && fb >= 0) K.at(std::max(fa, fb), std::min(fa, fb)) -= t.k;
+	}
 }
 
 // in-place banded Cholesky A = L L^T. false if not positive definite
@@ -314,6 +348,16 @@ Dictionary KineFrameNative::solve(const Dictionary &p_model, const Dictionary &p
 	}
 	PackedFloat64Array sp = p_model.get("springs", PackedFloat64Array());
 	for (int64_t i = 0; i + 2 < sp.size(); i += 3) m.sprs.push_back({ (int)sp[i], (int)sp[i + 1], sp[i + 2] });
+	{
+		PackedFloat64Array ax = p_model.get("axial", PackedFloat64Array());
+		if ((size_t)ax.size() == m.beams.size()) m.axial.assign(ax.ptr(), ax.ptr() + ax.size());
+		PackedFloat64Array dk = p_model.get("dofk", PackedFloat64Array());
+		for (int64_t i = 0; i + 1 < dk.size(); i += 2) m.dofk.push_back({ (int)dk[i], dk[i + 1] });
+		PackedFloat64Array dc = p_model.get("dofc", PackedFloat64Array());
+		for (int64_t i = 0; i + 1 < dc.size(); i += 2) m.dofc.push_back({ (int)dc[i], dc[i + 1] });
+		PackedFloat64Array tz = p_model.get("ties", PackedFloat64Array());
+		for (int64_t i = 0; i + 2 < tz.size(); i += 3) m.ties.push_back({ (int)tz[i], (int)tz[i + 1], tz[i + 2] });
+	}
 	m.fixedDof.assign((size_t)m.nn * 6, 0);
 	PackedInt32Array fx = p_model.get("fixed", PackedInt32Array());
 	for (int64_t i = 0; i < fx.size(); i++) m.fixedDof[fx[i]] = 1;
@@ -325,6 +369,10 @@ Dictionary KineFrameNative::solve(const Dictionary &p_model, const Dictionary &p
 	rcm_and_number(m);
 	Band K, M;
 	if (!assemble(m, K, M)) { out["error"] = "degenerate element"; return out; }
+	Band Kd = K; // structural stiffness, for Rayleigh damping
+	add_found(m, K);
+	Vd cdiag(m.nf, 0.0);
+	for (auto &d : m.dofc) { int f = m.map[d.first]; if (f >= 0) cdiag[f] += d.second; }
 	int nf = m.nf;
 	out["bw"] = m.bw;
 	out["nfree"] = nf;
@@ -342,9 +390,12 @@ Dictionary KineFrameNative::solve(const Dictionary &p_model, const Dictionary &p
 	auto internal = [&](const Vd &ug) {
 		Vd f((size_t)m.nn * 6, 0.0);
 		double ke[144], me[144];
+		size_t bi = 0;
 		for (auto &e : m.beams) {
 			int n1, n2;
-			elem_matrices(m, e, ke, me, n1, n2);
+			double Nax = (m.axial.size() == m.beams.size()) ? m.axial[bi] : 0.0;
+			bi++;
+			elem_matrices(m, e, ke, me, n1, n2, Nax);
 			int gd[12];
 			for (int i = 0; i < 6; i++) { gd[i] = n1 * 6 + i; gd[6 + i] = n2 * 6 + i; }
 			for (int i = 0; i < 12; i++) {
@@ -362,8 +413,25 @@ Dictionary KineFrameNative::solve(const Dictionary &p_model, const Dictionary &p
 			for (int i = 0; i < 3; i++) ext += n[i] * (ug[s.b * 6 + i] - ug[s.a * 6 + i]);
 			for (int i = 0; i < 3; i++) { f[s.a * 6 + i] -= s.k * ext * n[i]; f[s.b * 6 + i] += s.k * ext * n[i]; }
 		}
+		for (auto &d : m.dofk) f[d.first] += d.second * ug[d.first];
+		for (auto &t : m.ties) { double dd = t.k * (ug[t.a] - ug[t.b]); f[t.a] += dd; f[t.b] -= dd; }
 		return f;
 	};
+	if (type == "axial") { // per-beam axial force (tension +) from a displacement field u (6n): N = E A / L e1 . (u2 - u1)
+		PackedFloat64Array ug = p_job["u"];
+		Vd N;
+		for (auto &e : m.beams) {
+			int a = (int)e[0], b = (int)e[1];
+			const double *p1 = &m.xyz[a * 3], *p2 = &m.xyz[b * 3];
+			double d[3] = { p2[0] - p1[0], p2[1] - p1[1], p2[2] - p1[2] };
+			double L = std::sqrt(d[0] * d[0] + d[1] * d[1] + d[2] * d[2]);
+			double ext = 0;
+			for (int i = 0; i < 3; i++) ext += d[i] / L * (ug[b * 6 + i] - ug[a * 6 + i]);
+			N.push_back(e[6] * e[2] / L * ext);
+		}
+		out["N"] = to_pf(N);
+		return out;
+	}
 	if (type == "static") {
 		PackedFloat64Array loads = p_job["loads"];
 		Vd rhs = gather(loads);
@@ -430,9 +498,9 @@ Dictionary KineFrameNative::solve(const Dictionary &p_model, const Dictionary &p
 		auto Cmul = [&](const Vd &x, Vd &y) {
 			Vd a1, a2;
 			band_mul(M, x, a1);
-			band_mul(K, x, a2);
+			band_mul(Kd, x, a2);
 			y.resize(nf);
-			for (int i = 0; i < nf; i++) y[i] = alpha * a1[i] + bet * a2[i];
+			for (int i = 0; i < nf; i++) y[i] = alpha * a1[i] + bet * a2[i] + cdiag[i] * x[i];
 		};
 		{
 			Vd P, Cv, Ku;
@@ -443,14 +511,21 @@ Dictionary KineFrameNative::solve(const Dictionary &p_model, const Dictionary &p
 			Vd rhs(nf);
 			for (int i = 0; i < nf; i++) rhs[i] = P[i] - Cv[i] - Ku[i];
 			Band Mf = M;
-			if (!chol(Mf)) { out["error"] = "mass not positive definite"; return out; }
+			if (!chol(Mf)) { // CH1f: massless dofs (rotations, rigid-link nodes) make M singular; regularise only then. At rest the load lives on mass dofs, so a0 = 0 elsewhere.
+				Mf = M;
+				double mx = 0;
+				for (int i = 0; i < nf; i++) mx = std::max(mx, M.at(i, i));
+				for (int i = 0; i < nf; i++) Mf.at(i, i) += 1e-9 * mx;
+				if (!chol(Mf)) { out["error"] = "mass not positive definite"; return out; }
+			}
 			chol_solve(Mf, rhs);
 			a = rhs;
 		}
 		Band Ke;
 		Ke.init(nf, m.bw);
 		double c1 = 1.0 / (beta * dt * dt), c2 = gam / (beta * dt);
-		for (size_t i = 0; i < Ke.a.size(); i++) Ke.a[i] = K.a[i] * (1.0 + c2 * bet) + M.a[i] * (c1 + c2 * alpha);
+		for (size_t i = 0; i < Ke.a.size(); i++) Ke.a[i] = K.a[i] + Kd.a[i] * (c2 * bet) + M.a[i] * (c1 + c2 * alpha);
+		for (int i = 0; i < nf; i++) Ke.at(i, i) += c2 * cdiag[i];
 		for (auto &d : m.dash) { int f = m.map[d.first]; if (f >= 0) Ke.at(f, f) += c2 * d.second; }
 		if (!chol(Ke)) { out["error"] = "effective stiffness not positive definite"; return out; }
 		// CH12 crowd: pedestrians whose lateral force F0 sin(theta) is phase-locked to the local deck velocity, theta' = omega + cp v cos(theta) (cp = 0: free-running random-phase control)
@@ -500,13 +575,14 @@ Dictionary KineFrameNative::solve(const Dictionary &p_model, const Dictionary &p
 			for (int i = 0; i < nf; i++) t2[i] = c2 * u[i] + (gam / beta - 1.0) * v[i] + dt * (gam / (2 * beta) - 1.0) * a[i];
 			// M t1 + (alpha M + bet K) t2 = M (t1 + alpha t2) + K (bet t2): two band products instead of three
 			Ct.resize(nf);
+			Vd cd(nf);
 			dashadd.resize(m.dash.size());
 			for (size_t k = 0; k < m.dash.size(); k++) { int f = m.map[m.dash[k].first]; dashadd[k] = f >= 0 ? m.dash[k].second * t2[f] : 0.0; }
-			for (int i = 0; i < nf; i++) { Ct[i] = bet * t2[i]; t2[i] = t1[i] + alpha * t2[i]; }
+			for (int i = 0; i < nf; i++) { cd[i] = cdiag[i] * t2[i]; Ct[i] = bet * t2[i]; t2[i] = t1[i] + alpha * t2[i]; }
 			band_mul(M, t2, Mt);
 			Vd Kt;
-			band_mul(K, Ct, Kt);
-			for (int i = 0; i < nf; i++) rhs[i] = P[i] + Mt[i] + Kt[i];
+			band_mul(Kd, Ct, Kt);
+			for (int i = 0; i < nf; i++) rhs[i] = P[i] + Mt[i] + Kt[i] + cd[i];
 			for (size_t k = 0; k < m.dash.size(); k++) { int f = m.map[m.dash[k].first]; if (f >= 0) rhs[f] += dashadd[k]; }
 			chol_solve(Ke, rhs);
 			for (int i = 0; i < nf; i++) {
