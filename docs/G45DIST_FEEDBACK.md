@@ -14,7 +14,7 @@ Branch `w4-g45dist` (from `origin/poser-ui-rounds`). Test: `tests/g45dist_test.g
   - Each one is -1 / empty on an older DLL (`KCad.has_distance()`).
 - **AssemblyStage.check** (`scripts/build/assembly_stage.gd`):
   - Touch is now one `distance` per solid pair: touching means d <= tol, in any direction. An overlap still counts as touching, and over Part.HIT_VOL it is still listed as a collision.
-  - The collision pass skips the boolean of a pair farther apart than 1 um (GATE).
+  - The collision pass asks the boolean only at d == 0. Any d > 0 cannot overlap, so its clash volume is 0. A refused distance falls back to the old test unless it is a sure 0.
   - The box prefilter uses `KCad.bounds`.
   - `opts {"touch": "overlap"}` runs the whole old check (tessellated boxes + seven booleans) for the equality check.
   - The result gains `"touch"`, `"dist_calls"` and `"gated"`. `kernel_calls` counts booleans + distances.
@@ -36,8 +36,8 @@ The bars were committed before the first run (25fa269e). The code was last chang
 | b CH15 | ok | 53 of 53 supported, 33 collisions, identical to the old path. 3 parts name a different (equally touching) "on" part, because the box order changed |
 | b dome first | ok | Shield dome unsupported at its stage, identical to the old path |
 | b CONTROL | ok | tower vs roof-before-walls verdicts differ; every run took its own path |
-| c speed | ok | CH15 check: old 180.3 s, new 7.6 s, **23.8x** (bound >= 5x). The new path ran first. Dome-first: 176.9 s -> 5.1 s |
-| c CONTROL | **FAIL** | the new path asks 82 booleans vs the old 296 (3.6x, bound 5x) |
+| c speed | ok | CH15 check: old 178.9 s, new 5.1 s, **34.8x** (bound >= 5x; the first version was 23.8x). The new path ran first. Dome-first: 176.9 s -> 5.1 s |
+| c CONTROL | **FAIL** | the new path asks 64 booleans vs the old 296 (4.6x, bound 5x). After the lead's d > 0 gate, all 64 are pairs at d == 0 exactly (face contact or overlap). 18 pairs at 0 < d <= 1 um no longer get a boolean (it was 82) |
 | d suite | ok | g33stage 28/0 in 86 s (was 436 s) |
 
 Suites (one wtest call, final code): g45dist 8/1 (396 s; the old path's two CH15 runs take 357 s of it), g33stage 28/0 (86 s), ch15 44/0 (65 s), g1motion 22/0 (28 s), ch13 92/0 (19 s), scalefix 7/0 (43 s), easypart 73/0 (61 s), peasy3 23/0 (31 s), freestart 14/0 (25 s).
