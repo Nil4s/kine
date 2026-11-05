@@ -43,6 +43,7 @@ The lead copies section 3's rows into the ledger below, one line each, so gaps f
 | CH5c wet street at night (PARKED) | rendering/optics L2-L3 | wet roughness, wetness and bump height unsourced; the glint streak needs a direction-aware roughness filter |
 | CH15 nuclear plant (Angra 2 class PWR) | thermal-fluids, electrical, containment, decay heat L3; mechanical and civil/layout L2 | 8 of 12 footprints and all heights assumed; no transient analysis; block-level equipment |
 | CH8b liquids (PARKED, 28/5) | fluids/CFD L3 | blocked-cell walls, no air phase; the Martin and Moyce front leads by 24 pct |
+| CH6b bowline on a simulated rope (PARKED, 11/16) | rope/contact mechanics L3, knot topology L2-L3, hand manipulation L1-L2 | no knot forms: the hand cannot pass from behind to in front of the standing part without crossing rope; the code check is view-dependent |
 | CH7b parkour run (PARKED, 21/1) | landings and flight L3, joint limits and timing L2 | no whole-body COM, contact impulses or conserved spin in flight; the course was changed to fit gravity |
 
 ## 4. Gap ledger (one row per gap; newest last)
@@ -86,6 +87,11 @@ The lead copies section 3's rows into the ledger below, one line each, so gaps f
 | G35 | CH8b | an air phase and a better free-surface boundary | water only | none (the dam front leads the paper by 24 pct) | a two-phase option or ghost-fluid free surface |
 | G36 | CH8b | fluids in the app UI | the solver exists only in tests and tools | none | a Fluid emitter / container in the scene with a water material |
 | G37 | CH8b | testing native code without Godot | nothing checked in | Godot runs only | a small C++ test harness for native/ |
+
+| G38 | CH6b | a hand that can grasp and pass rope (slim palm, fingers, wrist orientation) | the rig's palm is one 9 cm capsule (see G23) | replaced by 4 slim capsules | an articulated hand collision model and a grasp pose solver |
+| G39 | CH6b | a clearance-aware transit planner for a hand among rope and body | nothing | waypoints by hand; the hand dragged the rope | hand path planning that avoids rope and body (sampling or optimisation) |
+| G40 | CH6b | a real off hand that holds rope (not frozen particles) | frozen rope particles only | hand-through-held-rope never measured | two-hand rope holding with contact, both hands simulated |
+| G41 | CH6b | a topological knot invariant (not a view-dependent crossing code) | Gauss code from one view | false P2 fail in pass 1 | a knot-type check (e.g. Dowker-Thistlethwaite reduction or Alexander polynomial) |
 
 ## 5. Tools that already exist (search before writing your own)
 Several lanes rebuilt tools Kine already had (gaps G9, G26, and the CH1f cutaway). Before writing a helper, check this list and grep:
