@@ -178,7 +178,7 @@ static func _wall_ball(B: Body, sd: String, tgt: Vector3) -> float:
 	var v0: Vector3 = (B.p0["ball" + sd] as Vector3) - (B.p0[ft] as Vector3)
 	var qf := Quaternion(Vector3.RIGHT, atan2(v0.y, v0.z))
 	var rot: Quaternion = Quaternion(Vector3(0, 0, 1), PI * 0.5) * qf
-	var pole: Vector3 = (B.P["thigh" + sd] as Vector3) + Vector3(-0.3, 0.0, 1.0)
+	var pole: Vector3 = (B.P["thigh" + sd] as Vector3) + Vector3(-0.6, 0.0, 1.0)
 	var a: Vector3 = tgt - (B.P["ball" + sd] as Vector3) + (B.P[ft] as Vector3)
 	var best_a := a
 	var best := INF
@@ -193,6 +193,55 @@ static func _wall_ball(B: Body, sd: String, tgt: Vector3) -> float:
 		a += err * 0.8
 	LimbIK.solve(B, ft, best_a, pole, rot)
 	return (tgt - (B.P["ball" + sd] as Vector3)).length()
+
+
+## the deepest point of one capsule in the course and the way out of it: {"d": depth beyond the part's standing allowance (m),
+## "n": the outward normal of the box face it is under}
+static func _part_in(B: Body, part: String, boxes: Array) -> Dictionary:
+	var c: Array = B.cap(part)
+	var r: float = B.rad[part]
+	var base: float = STAND_DEPTH.get(part, 0.0)
+	var n := maxi(1, ceili((c[0] as Vector3).distance_to(c[1]) / Props.STEP))
+	var best := 0.0
+	var nb := Vector3.UP
+	for bx in boxes:
+		var hh: Vector3 = bx["h"]
+		for k in n + 1:
+			var l: Vector3 = (c[0] as Vector3).lerp(c[1], float(k) / n) - (bx["c"] as Vector3)
+			var q := Vector3(absf(l.x) - hh.x, absf(l.y) - hh.y, absf(l.z) - hh.z)
+			var sd := Vector3(maxf(q.x, 0.0), maxf(q.y, 0.0), maxf(q.z, 0.0)).length() + minf(maxf(q.x, maxf(q.y, q.z)), 0.0)
+			var d := r - sd - base
+			if d > best:
+				best = d
+				if q.x >= q.y and q.x >= q.z:
+					nb = Vector3(signf(l.x), 0, 0)
+				elif q.y >= q.z:
+					nb = Vector3(0, signf(l.y), 0)
+				else:
+					nb = Vector3(0, 0, signf(l.z))
+	return {"d": best, "n": nb}
+
+
+## CH7b: a FREE leg (no contact at t) that runs into the course is swung out of it: its foot target moves out along the face's
+## normal by the depth and the leg is solved again (a few rounds). Contacts never move; the pelvis never moves for it.
+static func _clear_free_legs(B: Body, P: Dictionary, t: float, boxes: Array) -> void:
+	for sd: String in ["_l", "_r"]:
+		var st := limb_at(P["feet"]["foot" + sd], t)
+		if bool(st["on"]):
+			continue
+		var tgt: Vector3 = st["v"]
+		for it in 7:
+			var worst := {"d": 0.0, "n": Vector3.UP}
+			for part in ["thigh" + sd, "calf" + sd, "foot" + sd, "ball" + sd]:
+				var q := _part_in(B, part, boxes)
+				if float(q["d"]) > float(worst["d"]):
+					worst = q
+			if float(worst["d"]) < 0.004:
+				break
+			tgt += (worst["n"] as Vector3) * (float(worst["d"]) + 0.01) * (2.0 if it > 1 else 1.0)
+			B.plant(sd, tgt, 0.0, false)
+		if ((B.P["ball" + sd] as Vector3).y < Y0 + 0.1):
+			B.toes_flat(sd)
 
 
 static func _legs(B: Body, P: Dictionary, t: float, drop: float, rt: Dictionary) -> float:
@@ -354,7 +403,8 @@ static var use_native := true
 
 
 static func native_on() -> bool:
-	return use_native and ClassDB.class_exists("KineParkourNative")
+	# CH7b: load the plug-in (native_ext.gd); class_exists alone read false in a fresh run, so ch7 had compared GDScript with itself
+	return use_native and NativeExt.ensure("kine_native", "KineParkourNative")
 
 
 static func boxes_of(props: Array) -> Array:
@@ -472,6 +522,7 @@ static func pose(P: Dictionary, t: float, boxes: Array, surfs: Array) -> Diction
 		miss = _legs(B, P, t, drop, rt)
 		var am := _arms(B, P, t, surfs)
 		_fk_windows(B, P, t)
+		_clear_free_legs(B, P, t, boxes)
 		if miss > REACH_EPS and it < 6:
 			if miss < best_m - 1e-4:
 				best_m = miss

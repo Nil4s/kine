@@ -468,13 +468,13 @@ static func _build(drops: Dictionary) -> Dictionary:
 	var R := "_r"
 	var zl := LEDGE_Z
 	# ================= 0 the trunk (pitch, roll, spine bend): the shoulders' place over the pelvis depends on it, so it comes first
-	_rows(P, "x", [[0, 0], [3.0, 0], [3.4, 0.52], [3.62, 0.52], [3.77, 0.58], [3.92, 0.52], [4.15, 0.52], [4.46, 0.0], [8.0, 0.0]])
+	_rows(P, "x", [[0, 0], [3.0, 0], [3.4, 0.52], [3.62, 0.52], [3.77, 0.55], [3.92, 0.52], [4.15, 0.52], [4.46, 0.0], [8.0, 0.0]])
 	_rows(P, "p", [[0, 10], [0.7, 12], [0.97, 15], [1.10, 5], [1.24, 5], [1.45, 12], [1.56, 12], [2.1, 12], [2.2, 40], [2.35, 80], [2.44, 90], [2.56, 75], [2.66, 45], [2.78, 20], [2.86, 12],
 		[3.3, 12], [3.45, 8], [4.15, 8], [4.40, 12], [4.8, 12], [4.95, 22], [5.30, 24], [5.50, 24], [5.64, 24], [5.74, 45], [5.84, 40], [5.96, 25], [6.06, 15],
 		[6.30, 8], [6.45, 12], [6.58, 12], [6.70, 18], [6.80, 40], [6.95, 200], [7.08, 330], [7.15, 360], [7.25, 372], [7.36, 340], [7.5, -80], [8.0, -82]])
 	# the speed vault tips the body toward the planted right hand ("tw" is the pelvis's side tilt, the body lies sideways over the box);
 	# "r" is the pelvis's turn (the wall run faces off the wall)
-	_rows(P, "tw", [[0, 0], [0.95, 0], [1.10, -45], [1.28, -45], [1.45, 0], [8.0, 0]])
+	_rows(P, "tw", [[0, 0], [0.95, 0], [1.10, -45], [1.28, -45], [1.45, 0], [3.3, 0], [3.45, -10], [4.15, -10], [4.40, 0], [8.0, 0]])
 	_rows(P, "r", [[0, 0], [3.2, 0], [3.45, -22], [4.2, -22], [4.45, 0], [8.0, 0]])
 	_rows(P, "s", [[0, 6], [0.9, 6], [1.0, 10], [1.2, 10], [1.45, 5], [2.3, 6], [2.5, 12], [2.85, 6], [3.4, 8], [4.3, 6], [5.0, 8], [5.30, 5], [5.64, 5],
 		[5.74, 15], [5.90, 10], [6.2, 6], [6.6, 20], [6.9, 30], [7.2, 10], [7.4, 5], [8.0, 0]])
@@ -492,7 +492,7 @@ static func _build(drops: Dictionary) -> Dictionary:
 	var zk := _wrist_of(hkl).z - 0.5 * (sh_off(P, 2.44, L).z + sh_off(P, 2.44, R).z)
 	# the cat leap and the climb-up: the palms hook the wall top's near edge; the SHOULDER path about the palms is the plan
 	# (hang, sag, pull, over the edge, press), the pelvis follows from it through the trunk
-	var palm_c := Vector3(0.0, Y0 + 1.7 + 0.015, zl - 0.005)
+	var palm_c := Vector3(0.0, Y0 + 1.7 + 0.022, zl - 0.005)
 	# the shoulder goes AROUND the wrist (never nearer than a folded arm, 0.22 m): behind it through the pull, over it in the press
 	var shk := [{"t": 5.30, "v": Vector3(0, -0.42, -0.30)}, {"t": 5.42, "v": Vector3(0, -0.44, -0.31)}, {"t": 5.50, "v": Vector3(0, -0.42, -0.30)},
 		{"t": 5.64, "v": Vector3(0, -0.05, -0.30)}, {"t": 5.70, "v": Vector3(0, 0.15, -0.26)}, {"t": 5.76, "v": Vector3(0, 0.30, -0.12)}, {"t": 5.84, "v": Vector3(0, 0.46, 0.06)}]
@@ -540,7 +540,7 @@ static func _build(drops: Dictionary) -> Dictionary:
 		var tm: float = 0.5 * (float(w[1]) + float(w[2]))
 		var az := _zat(P, tm)
 		var ankle := Vector3(WALL_X - DEPTH_SOLE, Y0 + float(w[3]), az)
-		var ballw := Vector3(WALL_X - 0.05, Y0 + float(w[3]), az + 0.10)
+		var ballw := Vector3(WALL_X - 0.06, Y0 + float(w[3]), az + 0.10)
 		var o0 := _hip_off(P, sd, float(w[1]), ankle)
 		var o1 := _hip_off(P, sd, float(w[2]), ankle)
 		var om := _hip_off(P, sd, tm, ankle)
@@ -792,7 +792,11 @@ static func _free_hands(P: Dictionary) -> void:
 	_rel(P, "hands", "hand_r", 2.16, Vector3(-0.25, 0.1, 0.5))
 	_free(P, "hands", "hand_l", 2.27, Vector3(0.20, Y0 + 1.22, 9.70))
 	_free(P, "hands", "hand_r", 2.27, Vector3(-0.20, Y0 + 1.22, 9.70))
-	_free(P, "hands", "hand_r", 1.30, Vector3(-0.40, Y0 + 1.02, 5.20))
+	_free(P, "hands", "hand_r", 1.28, Vector3(-0.40, Y0 + 0.98, 5.06))
+	_free(P, "hands", "hand_l", 2.61, Vector3(0.22, Y0 + 1.16, 10.06))
+	_free(P, "hands", "hand_r", 2.61, Vector3(-0.22, Y0 + 1.16, 10.06))
+	_free(P, "hands", "hand_l", 5.91, Vector3(0.24, Y0 + 1.86, LEDGE_Z + 0.06))
+	_free(P, "hands", "hand_r", 5.91, Vector3(-0.24, Y0 + 1.86, LEDGE_Z + 0.06))
 	_rel(P, "hands", "hand_l", 2.72, Vector3(0.30, 0.15, 0.2))
 	_rel(P, "hands", "hand_r", 2.72, Vector3(-0.30, 0.15, 0.2))
 	# the wall run: the hands stay clear, arms out for balance
@@ -802,6 +806,8 @@ static func _free_hands(P: Dictionary) -> void:
 	# the cat leap: reach for the edge
 	_rel(P, "hands", "hand_l", 4.96, Vector3(0.20, 0.30, 0.45))
 	_rel(P, "hands", "hand_r", 4.96, Vector3(-0.20, 0.30, 0.45))
+	_free(P, "hands", "hand_l", 5.22, Vector3(0.20, Y0 + 1.85, LEDGE_Z - 0.10))
+	_free(P, "hands", "hand_r", 5.22, Vector3(-0.20, Y0 + 1.85, LEDGE_Z - 0.10))
 	# up on the ledge, the drop: arms up and out
 	for sd in ["_l", "_r"]:
 		var sg := 1.0 if sd == "_l" else -1.0
