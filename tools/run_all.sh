@@ -1007,6 +1007,7 @@ EXTRA="$EXTRA c73:w"   # C73: no CR inside any .gd string literal (.gitattribute
 EXTRA="$EXTRA ch4:w"   # ch4: solid oak grain, dovetailed box (docs/CH4_REFERENCE.md, tests/ch4_test.gd)
 
 
+EXTRA="$EXTRA ch1f:w"   # ch1f: soil-structure interaction + masonry / light steel / wood on the CH1 plan, heave and wind (physics model, NOT an NBR check), tests/ch1f_test.gd
 
 EXTRA="$EXTRA ch1e:w"   # ch1e: real fasteners on the CH1 house (docs/CH1e_REFERENCE.md, tests/ch1e_test.gd)
 EXTRA="$EXTRA c78:w"   # c78: installer unit bars (docs/C78_INSTALLER.md); the installer run itself is tests/c78_test.sh
@@ -1014,6 +1015,7 @@ EXTRA="$EXTRA c79:w"   # c79: slicer lookup no longer holds the quit (docs/C79_F
 EXTRA="$EXTRA c75:w"   # C75: KineSkinNative.correct, the DQ/LBS skinning pre-correction in C++ (equal to GDScript within 1e-5, >=10x, fallback, ulp control) (tests/c75_test.gd)
 EXTRA="$EXTRA c77:w"   # C77: exit-hang guard: no ungated OCCT parallel switch, every Thread.start joined, planted controls caught (tests/c77_test.gd)
 EXTRA="$EXTRA ch12:w"   # ch12: footbridge sway under a phase-locking crowd (Dallard 2001), tests/ch12_test.gd
+EXTRA="$EXTRA sretopo:w"   # sretopo (lane I11): stroke-guided retopology after Takayama et al. 2013, C++ KineRetopoNative + GDScript fill twin (tests/sretopo_test.gd)
 EXTRA="$EXTRA ch14:w"   # ch14: water-syringe arm builds a 3-2-1 can pyramid: reach, 180 deg rack base, torque, grip, compliance backlash, stack stability, materials, build sweep, BOM cost (docs/CH14_REFERENCE.md), tests/ch14_test.gd
 EXTRA="$EXTRA ch13:w"   # ch13: single-cylinder engine (Honda C50 class): ISO 286 fits, thermal clearance, stack-up, slider-crank torque, FDM compensation, 7 Parts animated + section (docs/CH13_REFERENCE.md), tests/ch13_test.gd
 EXTRA="$EXTRA aicost:w"   # AI COST (11-04): Ask AI caches its prompt (scene moved after the cache mark), counts tokens per question (user://ai_usage.csv), commands {find} (tests/aicost_test.gd)
