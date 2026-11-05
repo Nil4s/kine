@@ -19,14 +19,22 @@ static func wrap(box: VBoxContainer, rows: VBoxContainer) -> ScrollContainer:
 	return sc
 
 
-## the scroll box is as tall as its rows, or shorter by what the side panel overflows `avail`
+## the scroll box is as tall as its rows, or shorter by what the side panel overflows `avail`.
+## C60: no reset_size (it resized the panel to its minimum and back, twice a frame), and the bar mode is set from the overflow, not left to AUTO:
+## AUTO shows the bar a frame late, which changed the panel's minimum width by the bar's 8 px and flapped it
 static func fit(sc: ScrollContainer, rows: Control, side: Control, avail: float) -> void:
 	if sc == null or not sc.is_visible_in_tree():
 		return
 	var h := rows.get_combined_minimum_size().y
+	var want_h := h
+	var mode := ScrollContainer.SCROLL_MODE_DISABLED
 	sc.custom_minimum_size.y = h
-	side.reset_size()
+	sc.vertical_scroll_mode = mode
 	var over := side.get_combined_minimum_size().y - avail
 	if over > 0.0:
-		sc.custom_minimum_size.y = maxf(MIN_H, h - over)
-		side.reset_size()
+		want_h = maxf(MIN_H, h - over)
+		mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	if sc.custom_minimum_size.y != want_h:
+		sc.custom_minimum_size.y = want_h
+	if sc.vertical_scroll_mode != mode:
+		sc.vertical_scroll_mode = mode

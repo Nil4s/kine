@@ -66,9 +66,10 @@ const BRACE_END_FT := 10.0           # R602.10.2.2 "a braced wall panel shall be
 const UPLIFT_LB_PER_FT := 3.7        # UNVERIFIED estimate, lb per ft of span at 24 in o.c.
 ## CH1d: H2.5A uplift (160 duration) from Simpson Strong-Tie's H2.5A page (strongtie.com, via search summary 11-03): 635 lb DF/SP with 0.131x1.5 in nails, SPF/HF x 0.86; one retailer lists 625 / 540. The LOWER
 ## pair is used. The toenail figure (NDS withdrawal of 3-8d) stays UNVERIFIED.
-const TIES := {"toenail3-8d": 113.0, "H2.5A": 625.0, "none": 0.0}
+## CH1e: toenail3-8d = 3 x 28 lb (AWC Design Aid DA-2, 8d box 0.113x2.5, G 0.50, Ctn 0.67 applied) x CD 1.6 = 134.4; H2.5A 625 confirmed in Simpson C-C-2021 p.277. See docs/CH1e_REFERENCE.md.
+const TIES := {"toenail3-8d": 134.4, "H2.5A": 625.0, "none": 0.0}
 const TIE_SPF := {"H2.5A": 540.0}
-const TIES_UNVERIFIED := ["toenail3-8d"]
+const TIES_UNVERIFIED := []
 ## IRC 2021 Table R802.11 roof uplift connection forces, lb per connection, EXPOSURE B, 15 psf roof+ceiling dead load, 33 ft mean roof height; read 11-03 from up.codes 2021 IRC (Connecticut) ch.8.
 ## rows: rafter spacing -> roof span (ft) -> [110<5:12, 110>=5:12, 115<5:12, 115>=5:12, 120<, 120>=, 130<, 130>=, 140<, 140>=]. Table notes: x0.75 for connections not within 8 ft of building corners (not used here).
 const UPLIFT_V := [110, 115, 120, 130, 140]

@@ -30,6 +30,8 @@ extends Node
 ##   O  proportional editing on / off (B07, KMeshProportional; Shift+O falloff, Alt+O connected only, wheel = radius in G)
 ##   Shift+H  colour by body region on / off (A18, KMeshBody: every vert's nearest bone + region, kept fresh every frame;
 ##      a legend bottom right, the hover readout at the mouse)
+##   Q  Retopo (I11, scripts/kmesh_retopo_ui.gd): draw strokes on the mesh, closed regions of 2 to 6 sides fill with quads, wheel over a side = its edge count,
+##      Delete over a stroke removes it, Enter bakes to a new quad mesh (one undo step), Esc leaves
 ##   Ctrl+P  pack the UV islands (D04, KMeshUVPack: 4 px margin, each island turned to its smallest box, equal texel density; one undo step)
 ##   Shift+U  the UV editor panel on / off (D01, scripts/kmesh_uv_editor.gd: select / move / rotate / scale UVs)
 ##   Alt+H  colour by anatomy on / off (A19, KMeshAnatomy: deltoid, patella, knuckles ... per vert, carried through edits);
@@ -279,6 +281,8 @@ func input(ev: InputEvent) -> bool:
 	if KMeshDragOp.handle(self, ev):   # E / I live drag: the mouse sets the distance, click / Enter confirms, Esc cancels (scripts/kmesh_drag_op.gd)
 		return true
 	if KMeshCutTool.handle(self, ev):   # B04: Ctrl+R loop cut, Shift+K knife, V edge split (modal while running)
+		return true
+	if KMeshRetopoUI.handle(self, ev):   # I11: Q Retopo mode (strokes -> patches -> quads)
 		return true
 	if KMeshCurvesUI.handle(self, ev):   # B12: drag a curve point / handle, Alt+click adds one (scripts/kmesh_curves_ui.gd)
 		return true
