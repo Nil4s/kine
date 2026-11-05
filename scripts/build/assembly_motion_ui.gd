@@ -394,6 +394,8 @@ func open() -> void:
 		return
 	a.src_open = false
 	a._sync_src()
+	if a.bom != null:
+		a.bom.close()   # G8BOM: the two left panels never overlap
 	panel.visible = true
 	a.m.ui_root.move_child(panel, a.m.ui_root.get_child_count() - 1)   # over the part names the overlay draws
 	a._frame()
