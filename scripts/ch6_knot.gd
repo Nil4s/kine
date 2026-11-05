@@ -119,8 +119,6 @@ static func tie_plan(start: Vector3, speed := 0.08, wrong := false) -> Dictionar
 	for k in REGRIP:
 		if k < W.size() - 1:
 			cuts.append(k)
-	cuts.append(6)   # DOWN is a measured phase too: a dwell here, not a regrip
-	cuts.sort()
 	cuts.append(W.size() - 1)
 	for ci in cuts.size() - 1:
 		var a: int = cuts[ci] * sub
@@ -129,34 +127,19 @@ static func tie_plan(start: Vector3, speed := 0.08, wrong := false) -> Dictionar
 		if (piece[piece.size() - 1] as Vector3).distance_to(dense[b]) > 1e-6:
 			piece.append(dense[b])
 		for q in range(0 if ci == 0 else 1, piece.size()):
-			# DOWN was already unthreaded at its keyed endpoint but recovered 0.7 s later. Settle just BEFORE the endpoint,
-			# so the phase measurement still lands on the first exact waypoint rather than on a duplicate during the dwell.
-			if cuts[ci + 1] == 6 and q == piece.size() - 2:
-				for dwell in 24:
-					path.append(piece[q])
-					target.append(piece[q])
-					mode.append("hold")
 			path.append(piece[q])
 			target.append(piece[q])
 			mode.append("hold")
 		var k: int = cuts[ci + 1]
 		if ci == cuts.size() - 2:
 			break
-		if not REGRIP.has(k):
-			continue
 		var P: Vector3 = W[k]
 		var sn := signf(P.z)
 		if sn == side:
 			continue
-		# "seek": the hand comes back to where the end really lies (the planned P plus the end's drift since it was let go).
-		# At ROUND's end the pinch has already come to the front with the end. Backing it toward the OLD side drove the palm
-		# through the standing part and destroyed the collar. Back out to the FRONT and stay there for this regrip.
-		var back_side := sn if k == 11 else side
-		var slower := 2 if k == 11 else 1
-		var out := 0.14 if k == 11 else REGRIP_OUT
-		var transit_x := REGRIP_X   # +0.20 m was beyond the right arm's reach (T0: 176 mm miss)
-		var legs: Array = [[P, 8 * slower, "open"], [P + Vector3(0, 0, out * back_side), 14 * slower, "free"], [Vector3(transit_x, P.y, out * back_side), 18 * slower, "free"],
-			[Vector3(transit_x, P.y, out * sn), 14 * slower, "free"], [P + Vector3(0, 0, out * sn), 18 * slower, "seek"], [P, 12 * slower, "seek"], [P, 6 * slower, "close"]]
+		# "seek": the hand comes back to where the end really lies (the planned P plus the end's drift since it was let go)
+		var legs: Array = [[P, 8, "open"], [P + Vector3(0, 0, REGRIP_OUT * side), 14, "free"], [Vector3(REGRIP_X, P.y, REGRIP_OUT * side), 18, "free"],
+			[Vector3(REGRIP_X, P.y, REGRIP_OUT * sn), 14, "free"], [P + Vector3(0, 0, REGRIP_OUT * sn), 18, "seek"], [P, 12, "seek"], [P, 6, "close"]]
 		var cur := P
 		for L in legs:
 			var to: Vector3 = L[0]
