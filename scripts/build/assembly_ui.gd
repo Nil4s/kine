@@ -155,7 +155,13 @@ func _build_panel() -> void:
 		(b as Button).size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		r1.add_child(b)
 	vb.add_child(r1)
-	vb.add_child(_lbl("Parts (double-click to edit one)", 12))
+	var hp := HBoxContainer.new()
+	var pl := _lbl("Parts (double-click to edit one)", 12)
+	pl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hp.add_child(pl)
+	motion_btn = _btn("Check motion", "asm_motion", "Move a part through its range (a hinge, a slide) and list every pair of parts that passes through another", func(): motion.open())
+	hp.add_child(motion_btn)
+	vb.add_child(hp)
 	var sc := ScrollContainer.new()
 	sc.name = "asm_list_scroll"
 	sc.custom_minimum_size = Vector2(0, 112)
@@ -202,9 +208,6 @@ func _build_panel() -> void:
 	dof_l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	dof_l.custom_minimum_size = Vector2(PANEL_W - 24.0, 0)
 	vb.add_child(dof_l)
-	motion_btn = _btn("Check motion", "asm_motion", "Move a part through its range (a hinge, a slide) and list every pair of parts that passes through each other", func(): motion.open())
-	motion_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vb.add_child(motion_btn)
 	var r3 := HBoxContainer.new()
 	stl_btn = _btn("STL", "asm_export_stl", "One .stl with every part, in place", func(): export("stl"))
 	glb_btn = _btn("GLB", "asm_export_glb", "One .glb, a node for each part", func(): export("glb"))
@@ -681,9 +684,9 @@ func _frame() -> void:
 	else:
 		var dist := clampf(bb.size.length() * 1.6, 0.4, 6.0)
 		m._turn_to(30.0, -22.0, dist, bb.get_center(), false)
-		if m.cam != null:   # the right panel covers a third of the view: the assembly sits in the free part, left of it
+		if m.cam != null:   # the right panel covers a third of the view: the assembly sits in the free part, left of it (Check motion's panel covers the left too: nearer the middle)
 			var right: Vector3 = m.cam.global_transform.basis.x
-			m._turn_to(30.0, -22.0, dist, bb.get_center() + right * dist * 0.24, false)
+			m._turn_to(30.0, -22.0, dist, bb.get_center() + right * dist * (0.08 if motion.is_open() else 0.24), false)
 
 
 # ---------------------------------------------------------------- the gizmo

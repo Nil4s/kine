@@ -36,7 +36,6 @@ var _red: StandardMaterial3D
 func setup(owner: AssemblyUI) -> void:
 	a = owner
 	_red = StandardMaterial3D.new()
-	_red.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	_red.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	_red.albedo_color = RED
 	panel = PanelContainer.new()
@@ -143,6 +142,8 @@ func open() -> void:
 	a.src_open = false
 	a._sync_src()
 	panel.visible = true
+	a.m.ui_root.move_child(panel, a.m.ui_root.get_child_count() - 1)   # over the part names the overlay draws
+	a._frame()
 	var p := a._sel_part()
 	if not p.is_empty():
 		for i in 3:
@@ -156,6 +157,7 @@ func close() -> void:
 	panel.visible = false
 	reset(false)
 	a._refresh(false)
+	a._frame()
 
 
 ## the results and the scrub go (after an undo, a new assembly, or Close); hide = the panel closes too
@@ -180,6 +182,9 @@ func _fill_drives() -> void:
 	var ds := AssemblyMotion.drives(a.asm)
 	for d in ds:
 		drive_ob.add_item(String(d["name"]))
+	drive_ob.disabled = ds.is_empty()
+	if ds.is_empty():
+		drive_ob.add_item("(none yet: add one below)")
 	if drive == "" and not ds.is_empty():
 		drive = String(ds[0]["name"])
 	for i in drive_ob.item_count:
@@ -249,7 +254,7 @@ func run() -> Dictionary:
 		set_scrub(float(cl[0]["at"]))
 	a._refresh(false)
 	if bool(res.get("ok", false)):
-		a._say("Check motion: %d clashing pair%s over %d steps (%d kernel checks, %d ruled out by the boxes, %.1f s)" % [lines.size(), "" if lines.size() == 1 else "s", steps, int(res["kernel_calls"]), int(res["skipped"]), float(res["ms"]) / 1000.0])
+		a._say("Check motion: %d clashing pair%s over %d steps (%d kernel checks, %d ruled out by the boxes, %d ms)" % [lines.size(), "" if lines.size() == 1 else "s", steps, int(res["kernel_calls"]), int(res["skipped"]), int(res["ms"])])
 	return res
 
 
@@ -257,6 +262,9 @@ func _sync_scrub() -> void:
 	var d := AssemblyMotion.drive_of(a.asm, drive)
 	scrub.editable = not d.is_empty()
 	if d.is_empty():
+		scrub.set_block_signals(true)
+		scrub.value = scrub.min_value
+		scrub.set_block_signals(false)
 		at_l.text = ""
 		return
 	var r: Array = d["range"]
