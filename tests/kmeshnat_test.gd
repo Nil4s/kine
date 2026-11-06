@@ -45,7 +45,7 @@ func cmp(a: KMesh, b: KMesh, tol := 1e-6) -> String:
 	for i in a.verts.size():
 		w = maxf(w, (a.verts[i] - b.verts[i]).length())
 	if w > tol:
-		return "vertex moved %.3g" % w
+		return "vertex moved %.6f" % w
 	for i in a.faces.size():
 		if a.faces[i] != b.faces[i]:
 			return "face %d differs" % i
@@ -58,7 +58,7 @@ func cmp(a: KMesh, b: KMesh, tol := 1e-6) -> String:
 	for i in a.face_normals.size():
 		wn = maxf(wn, (a.face_normals[i] - b.face_normals[i]).length())
 	if wn > tol:
-		return "normal differs %.3g" % wn
+		return "normal differs %.6f" % wn
 	if a.edge_count() != b.edge_count():
 		return "edge count %d vs %d" % [a.edge_count(), b.edge_count()]
 	if a.is_manifold() != b.is_manifold():

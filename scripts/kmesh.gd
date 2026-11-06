@@ -78,6 +78,9 @@ func _fresh() -> void:
 var _vf_start := PackedInt32Array()  # CSR: faces around each vertex
 var _vf_list := PackedInt32Array()
 var _edge_he := {}  # directed key a * V + b -> half-edge
+var _edge_ok := true   # L60: false after a native rebuild: _edge_he is filled on the first find_half_edge / GDScript is_manifold
+var _bnd := -1   # L60: boundary half-edge count from the native rebuild (-1 = unknown)
+var _manifold := -1   # L60: the native rebuild's verdict (1 / 0); -1 = not known, is_manifold() walks the fans itself
 
 
 func vert_count() -> int:
@@ -325,7 +328,13 @@ func from_arrays(p_verts: PackedVector3Array, p_faces: Array) -> KMesh:
 
 ## Recompute adjacency and normals from verts/faces (call after editing them).
 func rebuild() -> void:
+	if KMeshNatDoor.on():   # L60: the same build in C++ (native/src/kine_kmesh_native.cpp)
+		_apply_topo(KMeshNatDoor.door().topology(verts, faces))
+		return
 	_stale = false
+	_edge_ok = true
+	_manifold = -1
+	_bnd = -1
 	var nv := verts.size()
 	var nf := faces.size()
 	var total := 0
@@ -384,6 +393,52 @@ func rebuild() -> void:
 			if _he_vert[hh] != _he_vert[_he_next[hh]] and (t2 == -1 or hh < t2):
 				en += 1
 		_attr_fit(en)
+
+
+## take the arrays of a native topology() / from_tris() result
+func _apply_topo(r: Dictionary) -> void:
+	_stale = false
+	_he_vert = r["he_vert"]
+	_he_next = r["he_next"]
+	_he_twin = r["he_twin"]
+	_he_face = r["he_face"]
+	_face_he0 = r["face_he0"]
+	_vf_start = r["vf_start"]
+	_vf_list = r["vf_list"]
+	_face_normals = r["face_normals"]
+	_vert_normals = r["vert_normals"]
+	_manifold = int(r["manifold"])
+	_bnd = int(r["bnd"])
+	_edge_he.clear()
+	_edge_ok = false
+	if not attrs.is_empty():
+		var en := 0
+		for hh in _he_vert.size():
+			var t2 := _he_twin[hh]
+			if _he_vert[hh] != _he_vert[_he_next[hh]] and (t2 == -1 or hh < t2):
+				en += 1
+		_attr_fit(en)
+
+
+## the directed-edge map, filled on first use after a native rebuild
+func _emap() -> Dictionary:
+	if not _edge_ok:
+		_edge_he = KMeshNatDoor.door().edge_map(verts.size(), _he_vert, _he_next) if KMeshNatDoor.on() else _edge_map_gd()
+		_edge_ok = true
+	return _edge_he
+
+
+func _edge_map_gd() -> Dictionary:
+	var d := {}
+	var nv := verts.size()
+	for h in _he_vert.size():
+		var a := _he_vert[h]
+		var b := _he_vert[_he_next[h]]
+		if a != b:
+			var key := a * nv + b
+			if not d.has(key):
+				d[key] = h
+	return d
 
 
 func _newell(fi: int) -> Vector3:
@@ -458,7 +513,7 @@ func edge_count() -> int:
 ## the half-edge a->b, or -1
 func find_half_edge(a: int, b: int) -> int:
 	_fresh()
-	return _edge_he.get(a * verts.size() + b, -1)
+	return _emap().get(a * verts.size() + b, -1)
 
 
 ## true when the undirected edge a-b exists and only one face uses it
@@ -470,6 +525,8 @@ func is_boundary_edge(a: int, b: int) -> bool:
 
 func boundary_edge_count() -> int:
 	_fresh()
+	if _bnd >= 0:
+		return _bnd
 	var c := 0
 	for h in _he_twin.size():
 		if _he_twin[h] == -1 and _he_vert[h] != _he_vert[_he_next[h]]:
@@ -506,11 +563,14 @@ func he_prev(h: int) -> int:
 ## (a disc for an interior vertex, a single open strip on the boundary).
 func is_manifold() -> bool:
 	_fresh()
+	if _manifold >= 0:
+		return _manifold == 1
 	var nv := verts.size()
+	var emap := _emap()
 	for h in _he_vert.size():
 		var a := _he_vert[h]
 		var b := _he_vert[_he_next[h]]
-		if a == b or _edge_he.get(a * nv + b, -1) != h:
+		if a == b or emap.get(a * nv + b, -1) != h:
 			return false
 	for v in nv:
 		var out_he: Array = []
@@ -558,6 +618,12 @@ func from_array_mesh(am: ArrayMesh, surface := 0) -> KMesh:
 		idx.resize(pos.size())
 		for i in pos.size():
 			idx[i] = i
+	if KMeshNatDoor.on():   # L60: weld + half-edges in C++
+		var r: Dictionary = KMeshNatDoor.door().from_tris(pos, idx, WELD_TOL)
+		verts = r["verts"]
+		faces = r["faces"]
+		_apply_topo(r)
+		return self
 	var inv := 1.0 / WELD_TOL
 	var grid := {}
 	var remap := PackedInt32Array()
