@@ -173,6 +173,7 @@ func _lob_run(res: int, gate: bool, taus: Array) -> Array:
 	var out := []
 	var tsc := sqrt(LH / G)
 	var vols := []
+	var vinit: float = F.volume_smooth() * F.particle_count()
 	for tau in taus:
 		var tend: float = tau * tsc
 		while t < tend - 1e-9:
@@ -186,7 +187,7 @@ func _lob_run(res: int, gate: bool, taus: Array) -> Array:
 			t += d
 		out.append(_front(F, h, LH, xg))
 		vols.append(F.volume_smooth() * F.particle_count())
-	return [out, vols]
+	return [out, vols, vinit]
 
 
 func _l1_lobovsky() -> void:
@@ -217,7 +218,7 @@ func _l2_volume() -> void:
 	var vs: Array = r[1]
 	var wl := 0.0
 	for v in vs:
-		wl = maxf(wl, absf(v / v0 - 1.0))
+		wl = maxf(wl, absf(v / float(r[2]) - 1.0))
 	print("      L2: M&M worst |V/V0 - 1| %.4f, Lobovsky worst %.4f (V0 is the same smooth measure at t = 0; both seeds are 8 per cell)" % [worst, wl])
 	ok(worst <= 0.01, "(L2) M&M dam break to T = 5: smoothed volume drift %.2f %% (bar 1 %%)" % [worst * 100.0])
 	ok(wl <= 0.01, "(L2) Lobovsky run to tau 2: smoothed volume drift %.2f %% (bar 1 %%)" % [wl * 100.0])
