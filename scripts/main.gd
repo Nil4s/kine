@@ -879,6 +879,7 @@ var wp_bone_pick: OptionButton
 var wp_mode_pick: OptionButton
 var corr := Corrective.new()   # ROADMAP 71: the elbow / knee corrective on the body's pieces (View > Display)
 var dummy_corr := Corrective.new()   # the same on the dummy
+var stretch_skin := StretchSkin.new()   # L33: the skin follows Body.stretch / stretch_cross (scripts/stretch_skin.gd); inert without a stretch
 var dq_skin_pass := DqSkin.new()   # H04: dual-quaternion skinning on the body's pieces (the scene's dq_skin, 0 = plain LBS)
 var hidden_parts := {}
 
@@ -3965,6 +3966,7 @@ func _body() -> void:
 	_wp_setup()   # the skin weights, and the sidecar's if the character was painted before (ROADMAP 72)
 	BootProfile.mark("body: skin weights")
 	corr.attach(pieces.values(), skel)
+	stretch_skin.attach(pieces.values(), skel, bone_idx, corr)
 	BootProfile.mark("body: corrective attach")
 	dq_skin_pass.attach(pieces.values(), skel)
 	BootProfile.mark("body: dq skin attach")
@@ -5461,7 +5463,12 @@ func _refresh() -> void:
 	CharImportApp.update(self)   # L9: an imported rigged character stands on the pose (scripts/char_import_app.gd)
 	PerfDoc.add("skinning", _pk)
 	corr.update(B)
-	dq_skin_pass.update(S.dq_skin)   # H04: after the corrective (its mesh is the rest DQ corrects)
+	var spl_dq: bool = B.has_meta("spline_body")   # L33: a back driven by a spline chain
+	if spl_dq and B.has_stretch():
+		dq_skin_pass.update(0.0)   # the stretch pass builds on the rest mesh, not on the DQ one
+	stretch_skin.update(B)   # L33: after the corrective (its mesh is the rest this corrects); nothing without a stretch
+	dq_skin_pass.update(1.0 if (spl_dq and not B.has_stretch()) else S.dq_skin)   # L33: a back driven by a spline chain is skinned by DQ (a plain blend caves in at its bends; with a stretch the stretch pass owns the mesh)
+	# H04: after the corrective (its mesh is the rest DQ corrects)
 	_face_draw()   # ROADMAP 31 + 74: the jaw, the mouth shape, the brows and the eyes at the playhead (scripts/face.gd)
 	for tg in ui_toggles:
 		(tg[0] as Button).set_pressed_no_signal(tg[1].call())
@@ -22296,6 +22303,7 @@ func _body_smooth_set(on: bool) -> void:
 	wp_bind = -1
 	_wp_setup()
 	corr.attach(pieces.values(), skel)
+	stretch_skin.attach(pieces.values(), skel, bone_idx, corr)
 	dq_skin_pass.skin = null   # (DqSkin keeps the first skin it saw)
 	dq_skin_pass.attach(pieces.values(), skel)
 	_skp_build()

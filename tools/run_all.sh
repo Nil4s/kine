@@ -1057,3 +1057,4 @@ EXTRA="$EXTRA layouts:w"   # L20 layouts
 
 EXTRA="$EXTRA autorig:w"   # L29 quick rig: markers/template -> skeleton inside the mesh -> geodesic voxel weights -> character (tests/autorig_test.gd)
 EXTRA="$EXTRA splineik:w"   # L28: spline IK on bone chains + stretchy limbs (tests/splineik_test.gd)
+EXTRA="$EXTRA stretchskin:w"   # L33: the skin follows stretch + volume, spline chains drive the spine, exports carry the stretch (tests/stretchskin_test.gd)

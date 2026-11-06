@@ -246,16 +246,41 @@ static func _skel(S: Scene, B: Body, n: int, fps: float, L: float, pad: String, 
 	var qa := []
 	for _j in Body.ORDER.size():
 		qa.append([])
+	var keep_st := B.stretch.duplicate()
+	var keep_cr := B.stretch_cross.duplicate()
+	var sl := PackedStringArray()   # L33: the scale keys of every frame; written as time samples only when some frame stretches
+	var any_st := false
 	for i in n:
 		S.apply(B, minf(i / fps, L))
 		B.fk()
 		var t := PackedStringArray()
+		var sk: Dictionary = {}
+		var one := PackedStringArray()
+		if B.has_stretch():   # per-joint scale keys + the child offsets that land each joint exactly (StretchSkin.tree_keys; the rest frame is the world's)
+			any_st = true
+			var parent := {}
+			var rot := {}
+			var trest := {}
+			for j in Body.ORDER:
+				parent[j] = null if B.parent[j] == "" else B.parent[j]
+				rot[j] = B.compose(j, B.ang[j]).normalized()
+				trest[j] = B.P[j] if B.parent[j] == "" else (P0.call(j) as Vector3) - (P0.call(B.parent[j]) as Vector3)
+			sk = StretchSkin.tree_keys(Body.ORDER, parent, rot, trest, StretchSkin.own_world(B), B.stretch)
 		for jj in Body.ORDER.size():
 			var j: String = Body.ORDER[jj]
 			var off: Vector3 = B.P[j] if B.parent[j] == "" else (P0.call(j) as Vector3) - (P0.call(B.parent[j]) as Vector3)
+			if not sk.is_empty():
+				off = sk["pos"][j]
+				var sv: Vector3 = sk["scale"][j]
+				one.append("(%s, %s, %s)" % [_f(sv.x), _f(sv.y), _f(sv.z)])
+			else:
+				one.append("(1, 1, 1)")
 			t.append("(%s, %s, %s)" % [_f(off.x), _f(off.y), _f(off.z)])
 			qa[jj].append(B.compose(j, B.ang[j]).normalized())
 		tr.append(pad + "        %d: %s," % [i, q.call(t)])
+		sl.append(pad + "        %d: %s," % [i, q.call(one)])
+	if B.stretch != keep_st:
+		B.set_stretch(keep_st, keep_cr)
 	var hq := []
 	for jj in Body.ORDER.size():
 		hq.append(RotClean.hemisphere(qa[jj], clean))
@@ -271,7 +296,12 @@ static func _skel(S: Scene, B: Body, n: int, fps: float, L: float, pad: String, 
 	h.append(pad + "    quatf[] rotations.timeSamples = {")
 	h.append_array(ro)
 	h.append(pad + "    }")
-	h.append(pad + "    half3[] scales = " + q.call(scl))
+	if any_st:
+		h.append(pad + "    half3[] scales.timeSamples = {")
+		h.append_array(sl)
+		h.append(pad + "    }")
+	else:
+		h.append(pad + "    half3[] scales = " + q.call(scl))
 	h.append_array(extra)   # skinned export: the SkelAnimation's blendShapes / blendShapeWeights (empty for the flat writers)
 	h.append(pad + "}")
 	B.set_state(keep)
