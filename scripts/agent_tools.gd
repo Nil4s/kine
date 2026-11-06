@@ -507,6 +507,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"cad_part", "cad_asm", "check_fit", "bom", "eval_gd", "cad_reset":   # MCPFAST: not in METHODS (the transcript's ready line)
 			var mc := McpCad.serve(m, method, p)
 			return _ok(id, mc["result"]) if bool(mc["ok"]) else _err(id, -32602, String(mc["error"]))
+		"look4d", "sweep":   # L1 AI-COST: the zoomable digest and the one-summary sweep (scripts/build/mcp_cad.gd); not in METHODS
+			var lm: Dictionary = await McpCad.serve_async(m, method, p)
+			return _ok(id, lm["result"]) if bool(lm["ok"]) else _err(id, -32602, String(lm["error"]))
 		"quit":
 			return _ok(id, {"bye": true})
 		"events":

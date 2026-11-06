@@ -114,6 +114,13 @@ CAD_TOOLS = {
                 "Has H.write(path, text) (only scenes/_wip and the temp dir; anything else is refused), H.part(name), H.solids(name), H.assembly(), H.note(x), m, KCad. "
                 "Files, processes and engine internals are refused.",
                 {"type": "object", "properties": {"code": S, "detail": B, "prec": N}, "required": ["code"], "additionalProperties": False}),
+    "look4d": ("look4d", "Look at the live assembly in steps, cheapest first. level 0 (default, ~30 tokens): moving, fastest, contacts, near misses, hidden, held. level 1: moving parts [id, pos, vel, speed], static parts as names, touching and held pairs. "
+               "level 2 + part: one part in full (size, rotation, accel, joint and limits, mass, contacts with point/normal/penetration, nearest gaps with time to collision, support, visible share, last/next positions). "
+               "level 3 + ids, t, t1, step: a track. since: only what changed since that time. t in s (the assembly's animation) ; cam {pos, look, fov} optional. image: true returns the annotated image path when a display exists. A screenshot is the last resort.",
+               {"type": "object", "properties": {"level": N, "part": S, "ids": {"type": "array", "items": S}, "t": N, "t1": N, "step": N, "since": N, "parts": {"type": "array", "items": S}, "cam": OBJ, "h": N, "image": B, "tokens": B}, "additionalProperties": False}),
+    "sweep": ("sweep", "Sweep a drive or a parameter and get ONE summary instead of every step: {drive, from, to, steps} or {param: {id, field: pos|rot, axis}, from, to, steps} or values []. "
+              "metric overlap_mm3 (default) | n_overlaps | min_gap_mm (exact, slow); threshold. Returns worst {value, at, pair}, count over the threshold, where, min, max. The 36-angle CH13 sweep is ~0.4 KB instead of 15.9 KB.",
+              {"type": "object", "properties": {"drive": S, "param": OBJ, "from": N, "to": N, "steps": N, "values": {"type": "array", "items": N}, "metric": S, "threshold": N, "near_mm": N, "hit_mm3": N}, "additionalProperties": False}),
     "cad_reset": ("cad_reset", "Forget built parts (cache: true) and/or the assembly (asm: true); both by default.",
                   {"type": "object", "properties": {"cache": B, "asm": B}, "additionalProperties": False}),
 }
