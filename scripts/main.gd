@@ -5512,6 +5512,7 @@ func _refresh() -> void:
 	_actors_view()
 	PerfDoc.add("r_actors", _rf)
 	_curve_sync()
+	_simc_badge_sync()   # POL1106b: the sim cache badge follows every edit, undo and bake
 	if ui_akey != null and auto_key:
 		ui_akey.queue_redraw()   # the frame reads Tok on each draw: a palette switch shows at once
 	if not sel_more.is_empty() and sel != _group_sel:
@@ -10412,7 +10413,24 @@ func _simc_bake() -> Dictionary:
 	for n in done:
 		fr = maxi(fr, int(simc.meta[n]["frames"]))
 	_say("baked %s to a point cache: %d frames each, the timeline scrubs the file (Ctrl+Z takes it back; an edit makes it stale; 'Bake sim: free' removes it)" % [", ".join(done), fr])
+	_simc_badge_sync()
 	return {"objects": done, "frames": fr}
+
+
+## POL1106b: the timeline's "cache: fresh / stale / none" badge (SimCacheLive.badge)
+func _simc_badge_sync() -> void:
+	if ui_timeline == null:
+		return
+	if ui_simc_badge == null:
+		ui_simc_badge = Label.new()
+		ui_simc_badge.name = "sim_cache_badge"
+		ui_simc_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ui_simc_badge.add_theme_font_size_override("font_size", 10)
+		ui_timeline.add_child(ui_simc_badge)
+	ui_simc_badge.text = simc.badge(S)
+	ui_simc_badge.reset_size()
+	ui_simc_badge.position = Vector2(maxf(2.0, ui_timeline.size.x - ui_simc_badge.size.x - 6.0), 2.0)
+var ui_simc_badge: Label
 
 
 var _simc_clean := Callable()   # removes the pending files of the bake in flight
@@ -10481,6 +10499,7 @@ func _simc_free() -> void:
 		return
 	_do(func(): simc.free_all())
 	_say("freed the baked sim: the cape and the flesh simulate live again (Ctrl+Z brings the bake back)")
+	_simc_badge_sync()
 
 
 func _cape_draw() -> void:

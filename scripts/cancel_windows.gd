@@ -14,7 +14,7 @@ const V_MAX := 0.25         # m/s
 const H_MAX := 0.045        # m^2/s per unit mass
 const MARGIN_MIN := 0.0     # m
 const MIN_RUN := 3          # frames
-const COL_BAND := Color("2fbf9b")   # the band on the frame-data strip
+const COL_BAND := Color(0.05, 0.05, 0.07)   # the band on the frame-data strip (POL1106b: near-black, was teal 2fbf9b: 1.07:1 on the dark startup green)
 
 
 ## one frame's measurements of the body as posed now: {"margin", "com", "pos" (Array of Vector3, Balance.MASS order), "swing" (a foot is off the floor)}

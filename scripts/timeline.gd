@@ -1496,7 +1496,7 @@ func _draw_bx_lane(y: float) -> void:
 
 
 var _fd_y := 0.0   # the strip's top as last drawn (cancel_rects)
-const CANCEL_H := 4.0   # px: the cancel band along the top of the frame strip
+const CANCEL_H := 6.0   # px: the cancel band along the top of the frame strip (POL1106b: was 4)
 
 
 ## N081: one Rect2 per cancel window of the frame data (timeline coordinates; where _draw_fd_strip draws the bands)
