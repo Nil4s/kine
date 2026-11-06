@@ -13,6 +13,8 @@ extends SceneTree
 ##               Planted: the unclamped rect (the old start) leaves a 1366x728 usable screen.
 ##   6 VIEW      at 1920x1080 the 3D view keeps at least 60 % of the window on each screen. Planted: a 1920x700 panel drops it under.
 ##   7 COUNT     the visible interactive controls per screen, now (the "before" numbers are docs/uiexp/audit_before.json).
+##   8 LABELS    (L15) at 1920x1080 every rail button shows a label equal to its tool's name, and nothing is clipped (the label's rect lies inside the
+##               button, one line); at 1600x900 the rail is icons only. Planted: a truncated label, and a button squeezed under its label, are found.
 ## Only user:// is written (and screenshots under C:/Temp/claude/uiexp).
 const PartCad := preload("res://scripts/kcad.gd")
 var fails := 0
@@ -99,6 +101,8 @@ func _init() -> void:
 			if sz.x == 1920:
 				ok(float(r["view_share"]) >= 0.60, "6 %s: the 3D view keeps %.0f %% of the window" % [tag, float(r["view_share"]) * 100.0])
 				get_root().get_texture().get_image().save_png("C:/Temp/claude/uiexp/test_%s_%dx%d.png" % [sc, sz.x, sz.y])
+			if sz.x == 1920 or sz.x == 1600:
+				await rail_labels(sc, sz)
 			if sz.x == 1280:
 				get_root().get_texture().get_image().save_png("C:/Temp/claude/uiexp/test_%s_%dx%d.png" % [sc, sz.x, sz.y])
 			# PLANTED controls, on the first screen at each size (the probe must catch what it claims to)
@@ -110,6 +114,68 @@ func _init() -> void:
 	ok(true, "7 visible interactive controls reported for %d screen-sizes (before numbers: docs/uiexp/audit_before.json)" % counts.size())
 	print("uiexp: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
+
+
+## what is wrong with a labelled rail button b of tool `label` if it were `w` px wide: "" when fine
+func lab_bad(b: Button, label: String, w: float) -> String:
+	if b.text != label:
+		return "text '%s' != '%s'" % [b.text, label]
+	if not b.is_visible_in_tree():
+		return "not visible"
+	var font: Font = b.get_theme_font("font")
+	var fs := b.get_theme_font_size("font_size")
+	var sb: StyleBox = b.get_theme_stylebox("normal")
+	var tw := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var iw := float(b.icon.get_width()) + float(b.get_theme_constant("h_separation")) if b.icon != null else 0.0
+	var need := sb.get_margin(SIDE_LEFT) + iw + tw + sb.get_margin(SIDE_RIGHT)
+	if need > w + 0.5:
+		return "label needs %.0f px, button is %.0f" % [need, w]
+	if font.get_height(fs) > b.size.y:
+		return "label taller than the button"
+	if fs < 11 or fs > 12:
+		return "font size %d" % fs
+	if "
+" in label or b.autowrap_mode != TextServer.AUTOWRAP_OFF:
+		return "not one line"
+	return ""
+
+
+func rail_labels(sc: String, sz: Vector2i) -> void:
+	var sh: UiExpShell = m.bld.shell
+	var tag := "%s %dx%d" % [sc, sz.x, sz.y]
+	var n := 0
+	var bad := []
+	var texted := 0
+	for lab in sh.proxies:
+		var b: Button = sh.proxies[lab]["rail"]
+		if b == null:
+			continue
+		n += 1
+		if sz.x >= 1920:
+			var why := lab_bad(b, String(lab), b.size.x)
+			if why == "" and not sh.rail.get_global_rect().encloses(b.get_global_rect()):
+				why = "outside the rail"
+			if why != "":
+				bad.append("%s: %s" % [lab, why])
+		elif b.text != "":
+			texted += 1
+	if sz.x >= 1920:
+		ok(n >= 8 and bad.is_empty(), "8 %s: all %d rail buttons carry their tool's name inside the button (%s)" % [tag, n, str(bad)])
+		var first := ""
+		for lab in sh.proxies:
+			if sh.proxies[lab]["rail"] != null:
+				first = String(lab)
+				break
+		var fb: Button = sh.proxies[first]["rail"]
+		var keep := fb.text
+		fb.text = first.left(max(first.length() - 3, 1)) + "."
+		var caught_trunc := lab_bad(fb, first, fb.size.x) != ""
+		fb.text = keep
+		var caught_squeeze := lab_bad(fb, first, 30.0) != ""
+		ok(caught_trunc and caught_squeeze, "8 PLANTED %s: a truncated label (%s) and a button squeezed to 30 px are both found" % [tag, str(caught_trunc)])
+		get_root().get_texture().get_image().save_png("C:/Temp/claude/uiexp/test_labels_%s_%dx%d.png" % [sc, sz.x, sz.y])
+	else:
+		ok(n >= 8 and texted == 0, "8 %s: the rail is icons only (%d buttons, %d with text)" % [tag, n, texted])
 
 
 func planted(sz: Vector2i, vp: Rect2, kind: String) -> void:

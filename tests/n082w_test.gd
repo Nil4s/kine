@@ -11,6 +11,9 @@
 ##  c. PANEL: ReactableCells.build(fd, verdict) has N cells for the N-frame clip and every cell's colour equals the test's own per-frame state (active -> ACT;
 ##     tell frames [readable, first_active) -> OK / NO by status; else IDLE). The live timeline, with Frame data on and the slow clip open, owns that strip with
 ##     N cells. Control: an empty clip (fd {}) gives null and no crash; the slow tell cell is not red and the fast tell cell is not green.
+##  e. VISIBLE (L15, from #227 LOOK: a 3 px underline nobody could see): at 1600x900 with Frame data on, the react row's cells are >= 8 px tall, sit in their own
+##     row below the strip (not over it), and a tell cell contrasts with the startup block >= 3:1 (WCAG luminance ratio, measured on the PIXELS of the screenshot);
+##     a tooltip per cell names the frame and its state. Control: the old 3 px strip with the old plain green is caught by the same checker.
 ##  d. SIZE: the reply's bytes on combo3 and on the slow fixture are printed and are < 2048.
 extends SceneTree
 
@@ -22,6 +25,11 @@ func ok(c: bool, what: String) -> void:
 	print(("ok   " if c else "FAIL ") + what)
 	if not c:
 		fails += 1
+
+
+## the visibility checker: cell height, contrast of the tell cell against the startup block
+func strip_ok(h: float, tell: Color, startup: Color) -> bool:
+	return h >= 8.0 and ReactableCells.ratio(tell, startup) >= 3.0
 
 
 func control(claim: bool, what: String) -> void:
@@ -187,6 +195,52 @@ func _init() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://out"))
 	img.save_png(ProjectSettings.globalize_path("res://out/n082w_panel.png"))
 	print("SHOT out/n082w_panel.png %dx%d" % [img.get_width(), img.get_height()])
+	# e. visible at 1600x900
+	root.size = Vector2i(1600, 900)
+	for i in 12:
+		await process_frame
+	m.fd_on = true
+	m._refresh()
+	for i in 20:
+		await process_frame
+	await RenderingServer.frame_post_draw
+	var rxe: ReactableCells = tl.get("rx")
+	var ws := root.get_visible_rect().size
+	var cell_h := rxe.size.y if rxe != null else 0.0
+	var img9 := root.get_viewport().get_texture().get_image()
+	img9.save_png(ProjectSettings.globalize_path("res://out/n082w_1600.png"))
+	var tell_i := -1
+	var start_i := -1
+	var fde: Dictionary = m.fd_cache.get("fd", {})
+	var ve := Reactable.analyze(fde)
+	if rxe != null and not (ve.get("runs", []) as Array).is_empty():
+		tell_i = int(ve["runs"][0]["readable"])
+		for sp in FrameData.spans(fde):
+			if sp["kind"] == "startup":
+				start_i = int(sp["f0"])
+				break
+	var strip_y := 12.0 + 2.0 + 5.0   # RULER + 2 + half the strip: a row inside the strip
+	var tl_o: Vector2 = tl.get_global_rect().position
+	var c_tell := Color.BLACK
+	var c_start := Color.BLACK
+	if tell_i >= 0 and start_i >= 0:
+		var ft: float = float(tell_i) + 0.5
+		var fs0: float = float(start_i) + 0.5
+		var fpsd := float(fde["fps"])
+		var xt: float = tl.x_of(ft / fpsd)
+		var xs: float = tl.x_of(fs0 / fpsd)
+		var rect_r: Rect2 = rxe.get_global_rect()
+		c_tell = img9.get_pixel(clampi(int(tl_o.x + xt), 0, img9.get_width() - 1), clampi(int(rect_r.position.y + rect_r.size.y * 0.5), 0, img9.get_height() - 1))
+		c_start = img9.get_pixel(clampi(int(tl_o.x + xs), 0, img9.get_width() - 1), clampi(int(tl_o.y + strip_y), 0, img9.get_height() - 1))
+	var rr := ReactableCells.ratio(c_tell, c_start)
+	print("     react row at %s: cell h %.1f px, y %.1f (strip bottom %.1f), tell px %s vs startup px %s = %.2f:1" % [ws, cell_h, rxe.get_global_rect().position.y - tl_o.y if rxe != null else -1.0, 12.0 + 2.0 + 11.0, c_tell.to_html(false), c_start.to_html(false), rr])
+	ok(ws == Vector2(1600, 900) and rxe != null and strip_ok(cell_h, c_tell, c_start), "e react cells %.0f px tall (>= 8), tell %.2f:1 against the startup block (>= 3:1), at %s" % [cell_h, rr, ws])
+	ok(rxe != null and rxe.get_global_rect().position.y - tl_o.y >= 12.0 + 2.0 + 11.0 - 0.5, "e the react row sits below the frame strip, not over it")
+	var tip1 := tl._get_tooltip(Vector2(tl.x_of(float(tell_i) / float(fde.get("fps", 60)) + 0.002), 12.0 + 2.0 + 11.0 + 2.0 + 6.0)) if tell_i >= 0 else ""
+	var tip2 := tl._get_tooltip(Vector2(tl.x_of(0.002), 12.0 + 2.0 + 11.0 + 2.0 + 6.0))
+	print("     tooltips: tell '%s' | frame 0 '%s'" % [tip1, tip2])
+	ok(tip1.begins_with("frame %d " % tell_i) and "tell" in tip1 and tip2.begins_with("frame 0 "), "e a tooltip per cell: the frame and its state")
+	control(strip_ok(3.0, ReactableCells.COL_OK, Tok.c("fd_startup")), "e1 the old 3 px strip in its plain green (%.2f:1 against the startup block)" % ReactableCells.ratio(ReactableCells.COL_OK, Tok.c("fd_startup")))
 	print("N082W TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	TestFiles.cleanup()
 	quit(fails)
