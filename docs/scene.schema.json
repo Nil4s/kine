@@ -560,6 +560,33 @@
      },
      "additionalProperties": false
     },
+    "spline_body": {
+     "type": "object",
+     "description": "L33 SPLINE IK ON THE BODY (scripts/spline_chain.gd drive_body): chains of Kine joints (root first, the last is the tip the chain ends on) that follow a curve through 3-5 handles (ctrl: the root joint's parent's REST space, metres); only when any. Same kind / mode / tw0 / tw1 / volume as spline_chains",
+     "required": ["v", "chains"],
+     "properties": {
+      "v": {"type": "integer", "minimum": 1},
+      "chains": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "required": ["name", "joints", "ctrl"],
+        "properties": {
+         "name": {"type": "string"},
+         "joints": {"type": "array", "items": {"type": "string"}, "minItems": 2},
+         "ctrl": {"type": "array", "items": {"$ref": "#/$defs/vec3"}, "minItems": 3, "maxItems": 5},
+         "kind": {"type": "string", "enum": ["catmull", "bezier"]},
+         "mode": {"type": "string", "enum": ["keep", "stretch"]},
+         "tw0": {"type": "number"},
+         "tw1": {"type": "number"},
+         "volume": {"type": "boolean"}
+        },
+        "additionalProperties": false
+       }
+      }
+     },
+     "additionalProperties": false
+    },
     "spline_chains": {
      "type": "object",
      "description": "L28 SPLINE IK (scripts/spline_chain.gd): bone chains of the bone editor that follow a curve through 3-5 handles; only when any. v = the format version (1). Each chain: bones = names root first, ctrl = the handles in the root bone's parent's REST space (metres), kind = catmull | bezier, mode = keep (bones keep their length) | stretch (stretch to fit the curve), tw0 / tw1 = twist degrees at the root / tip, volume = cross-scale 1/sqrt(s) when stretched",

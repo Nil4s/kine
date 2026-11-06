@@ -881,6 +881,7 @@ var wp_bone_pick: OptionButton
 var wp_mode_pick: OptionButton
 var corr := Corrective.new()   # ROADMAP 71: the elbow / knee corrective on the body's pieces (View > Display)
 var dummy_corr := Corrective.new()   # the same on the dummy
+var stretch_skin := StretchSkin.new()   # L33: the skin follows Body.stretch / stretch_cross (scripts/stretch_skin.gd); inert without a stretch
 var dq_skin_pass := DqSkin.new()   # H04: dual-quaternion skinning on the body's pieces (the scene's dq_skin, 0 = plain LBS)
 var hidden_parts := {}
 
@@ -3967,6 +3968,7 @@ func _body() -> void:
 	_wp_setup()   # the skin weights, and the sidecar's if the character was painted before (ROADMAP 72)
 	BootProfile.mark("body: skin weights")
 	corr.attach(pieces.values(), skel)
+	stretch_skin.attach(pieces.values(), skel, bone_idx, corr)
 	BootProfile.mark("body: corrective attach")
 	dq_skin_pass.attach(pieces.values(), skel)
 	BootProfile.mark("body: dq skin attach")
@@ -4213,6 +4215,62 @@ func _bx_pick(i: int) -> void:
 	if hitbox_ui == null:
 		hitbox_ui = HitBoxesUI.new(self)
 	hitbox_ui.pick(i)
+
+
+# ---------------------------------------------------------------- THROW CHECK (INNOVATIONS N040 wired, L34; scripts/throw_panel.gd, throw_serve.gd)
+var throw_on := false                  # the Throw check panel is showing
+var throw_panel: ThrowPanel = null
+var throw_key := 0                     # what the panel's result was judged for (cards + the partner's cards and place + fps)
+var throw_done := false
+var throw_judge_runs := 0              # how many times the judge ran (a hidden panel must not run it)
+
+
+## called at every refresh: nothing at all while the panel is off; while on, the judge runs only when the scene (cards, partner, place) changed
+func _throw_refresh() -> void:
+	if not throw_on:
+		if throw_panel != null and throw_panel.visible:
+			throw_panel.visible = false
+		return
+	if throw_panel == null:
+		throw_panel = ThrowPanel.new()
+		throw_panel.z_index = 40
+		throw_panel.frame_picked.connect(_throw_pick)
+		ui_root.add_child(throw_panel)
+		throw_done = false
+	throw_panel.visible = true
+	_throw_place()
+	var key: int = -1 if S.actors.is_empty() else hash([S.cards, S.actors.map(func(a): return [a["xf"], (a["scene"] as Scene).cards])])
+	if throw_done and key == throw_key:
+		return
+	throw_done = true
+	throw_key = key
+	throw_judge_runs += 1
+	throw_panel.show_result({"ok": false} if key == -1 else ThrowTruth.judge(S, ThrowFixtures.FPS))
+
+
+func _throw_place() -> void:
+	if throw_panel == null:
+		return
+	throw_panel.anchor_top = 1.0
+	throw_panel.anchor_bottom = 1.0
+	throw_panel.offset_left = LEFT_W + 12
+	throw_panel.offset_right = LEFT_W + 12 + ThrowPanel.W
+	throw_panel.offset_bottom = -bottom_h - 8
+	throw_panel.offset_top = -bottom_h - 8 - ThrowPanel.H
+
+
+## a click on a cell of the panel: the playhead goes to that frame (what a scrub does: no undo step)
+func _throw_pick(f: int) -> void:
+	playing = false
+	playhead = float(f) / float(ThrowFixtures.FPS)
+	_ps().apply(B, playhead)
+	_audio_scrub()
+	_refresh()
+
+
+func _throw_toggle() -> void:
+	throw_on = not throw_on
+	_refresh()
 
 
 func _fd_toggle() -> void:
@@ -5407,7 +5465,12 @@ func _refresh() -> void:
 	CharImportApp.update(self)   # L9: an imported rigged character stands on the pose (scripts/char_import_app.gd)
 	PerfDoc.add("skinning", _pk)
 	corr.update(B)
-	dq_skin_pass.update(S.dq_skin)   # H04: after the corrective (its mesh is the rest DQ corrects)
+	var spl_dq: bool = B.has_meta("spline_body")   # L33: a back driven by a spline chain
+	if spl_dq and B.has_stretch():
+		dq_skin_pass.update(0.0)   # the stretch pass builds on the rest mesh, not on the DQ one
+	stretch_skin.update(B)   # L33: after the corrective (its mesh is the rest this corrects); nothing without a stretch
+	dq_skin_pass.update(1.0 if (spl_dq and not B.has_stretch()) else S.dq_skin)   # L33: a back driven by a spline chain is skinned by DQ (a plain blend caves in at its bends; with a stretch the stretch pass owns the mesh)
+	# H04: after the corrective (its mesh is the rest DQ corrects)
 	_face_draw()   # ROADMAP 31 + 74: the jaw, the mouth shape, the brows and the eyes at the playhead (scripts/face.gd)
 	for tg in ui_toggles:
 		(tg[0] as Button).set_pressed_no_signal(tg[1].call())
@@ -5415,6 +5478,7 @@ func _refresh() -> void:
 	_next_sync()
 	_insp_fit.call_deferred()   # RR2: rows shown / hidden change the box's height
 	_sync_weapon()
+	_throw_refresh()   # THROW CHECK (N040, L34)
 	_fd_refresh()   # FRAME DATA (ROADMAP 12): the strip and the boxes on active frames
 	if ui_browser != null and ui_browser.visible:
 		ui_browser.follow()
@@ -13505,6 +13569,7 @@ func _ui() -> void:
 	ui_ribbon["CHECK"].add_child(_button("Frame it my way", mc_ui.frame_it, "a shot for the open scene placed with your habits (your lens, distance, angle, thirds), cut before the contact the way you cut it, on one side of the line; no shots in your scenes yet: Auto camera instead; one undo step"))
 	tog.call("CHECK", "Dummy (H)", _dummy_toggle, func(): return dummy_on, "a second mannequin out front: red where the weapon is in it")
 	tog.call("CHECK", "Frame data", _fd_toggle, func(): return fd_on, "frame data: startup (green) / active (red) / recovery (blue) on the timeline, with the counts (ROADMAP 12)")
+	tog.call("CHECK", "Throw check", _throw_toggle, func(): return throw_on, "throw check (N040): for a scene with two bodies, whether the throw works frame by frame (throw works / no kuzushi / thrower falls / no contact), the key frame, how far the partner's balance is outside his feet and the thrower's own margin; click a frame to jump to it")
 	tog.call("CHECK", "Frame boxes", _fd_boxes_toggle, func(): return fd_boxes, "hitboxes (red) on active frames and hurtboxes (grey) on every frame, in the view")
 	fd_btn = _button("Frame rate", _fd_cycle_fps, "the frame rate the frame data counts in (24, 30, 60, 120 fps): now %d fps" % fd_fps)
 	ui_ribbon["CHECK"].add_child(fd_btn)
@@ -22316,6 +22381,7 @@ func _body_smooth_set(on: bool) -> void:
 	wp_bind = -1
 	_wp_setup()
 	corr.attach(pieces.values(), skel)
+	stretch_skin.attach(pieces.values(), skel, bone_idx, corr)
 	dq_skin_pass.skin = null   # (DqSkin keeps the first skin it saw)
 	dq_skin_pass.attach(pieces.values(), skel)
 	_skp_build()
