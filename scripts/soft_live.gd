@@ -188,7 +188,11 @@ func _apply(m: Node, S: Scene) -> void:
 	var door = null if force_gd else skin_door()
 	var disps := []
 	for n in names:
-		var d: PackedVector3Array = (bake["regions"][n]["disp"] as Array)[k]
+		var d := PackedVector3Array()
+		if not m.simc.meta.is_empty():
+			d = m.simc.frame_at(S, "soft:" + String(n), m.playhead)   # L35: a fresh point cache answers
+		if d.is_empty():
+			d = (bake["regions"][n]["disp"] as Array)[k]
 		disps.append(d if (door != null or s == 1.0) else _scaled(d, s))
 	if door != null:
 		var fl := _flat(m.B, disps)
