@@ -1,0 +1,955 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="420.0mm" height="297.0mm" viewBox="0 0 420.0 297.0">
+<title>CH17 water treatment plant - Assembly plan / front / section</title>
+<rect x="0" y="0" width="420.0" height="297.0" fill="#ffffff"/>
+<g id="sheet" data-paper="A3" data-scale="1:1000" data-denom="1000" data-mm-per-m="1.0" data-units="mm">
+<line class="piece" data-view="plan" data-part="INTAKE" x1="26.685" y1="108.6" x2="26.685" y2="114.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="INTAKE" x1="26.685" y1="108.6" x2="26.685" y2="114.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="INTAKE" x1="26.685" y1="108.6" x2="29.685" y2="108.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="INTAKE" x1="29.685" y1="108.6" x2="29.685" y2="114.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="INTAKE" x1="26.685" y1="114.6" x2="29.685" y2="114.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="INTAKE" x1="26.685" y1="114.6" x2="29.685" y2="114.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="INTAKE" x1="26.685" y1="108.6" x2="29.685" y2="108.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="INTAKE" x1="29.685" y1="108.6" x2="29.685" y2="114.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="INTAKE" x1="26.985" y1="114.3" x2="29.385" y2="114.3" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="INTAKE" x1="29.385" y1="108.9" x2="29.385" y2="114.3" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="INTAKE" x1="26.985" y1="108.9" x2="29.385" y2="108.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="INTAKE" x1="26.985" y1="108.9" x2="26.985" y2="114.3" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="INTAKE" x1="26.985" y1="114.3" x2="29.385" y2="114.3" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="INTAKE" x1="29.385" y1="108.9" x2="29.385" y2="114.3" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="INTAKE" x1="26.985" y1="108.9" x2="29.385" y2="108.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="INTAKE" x1="26.985" y1="108.9" x2="26.985" y2="114.3" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RM" x1="50.685" y1="110.3" x2="50.685" y2="112.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RM" x1="50.685" y1="110.3" x2="50.685" y2="112.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RM" x1="50.685" y1="110.3" x2="52.285" y2="110.3" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RM" x1="52.285" y1="110.3" x2="52.285" y2="112.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RM" x1="50.685" y1="112.9" x2="52.285" y2="112.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RM" x1="50.685" y1="112.9" x2="52.285" y2="112.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RM" x1="50.685" y1="110.3" x2="52.285" y2="110.3" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RM" x1="52.285" y1="110.3" x2="52.285" y2="112.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RM" x1="50.985" y1="112.6" x2="51.985" y2="112.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RM" x1="51.985" y1="110.6" x2="51.985" y2="112.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RM" x1="50.985" y1="110.6" x2="51.985" y2="110.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RM" x1="50.985" y1="110.6" x2="50.985" y2="112.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RM" x1="50.985" y1="112.6" x2="51.985" y2="112.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RM" x1="51.985" y1="110.6" x2="51.985" y2="112.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RM" x1="50.985" y1="110.6" x2="51.985" y2="110.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RM" x1="50.985" y1="110.6" x2="50.985" y2="112.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="FLOC" x1="53.685" y1="109.05" x2="53.685" y2="114.15" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="FLOC" x1="53.685" y1="109.05" x2="53.685" y2="114.15" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="FLOC" x1="53.685" y1="109.05" x2="59.385" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="FLOC" x1="59.385" y1="109.05" x2="59.385" y2="114.15" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="FLOC" x1="53.685" y1="114.15" x2="59.385" y2="114.15" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="FLOC" x1="53.685" y1="114.15" x2="59.385" y2="114.15" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="FLOC" x1="53.685" y1="109.05" x2="59.385" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="FLOC" x1="59.385" y1="109.05" x2="59.385" y2="114.15" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="FLOC" x1="53.985" y1="113.85" x2="59.085" y2="113.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="FLOC" x1="59.085" y1="109.35" x2="59.085" y2="113.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="FLOC" x1="53.985" y1="109.35" x2="59.085" y2="109.35" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="FLOC" x1="53.985" y1="109.35" x2="53.985" y2="113.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="FLOC" x1="53.985" y1="113.85" x2="59.085" y2="113.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="FLOC" x1="59.085" y1="109.35" x2="59.085" y2="113.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="FLOC" x1="53.985" y1="109.35" x2="59.085" y2="109.35" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="FLOC" x1="53.985" y1="109.35" x2="53.985" y2="113.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="SED" x1="61.185" y1="105.3" x2="61.185" y2="117.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="SED" x1="61.185" y1="105.3" x2="61.185" y2="117.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="SED" x1="61.185" y1="105.3" x2="77.785" y2="105.3" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="SED" x1="77.785" y1="105.3" x2="77.785" y2="117.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="SED" x1="61.185" y1="117.9" x2="77.785" y2="117.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="SED" x1="61.185" y1="117.9" x2="77.785" y2="117.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="SED" x1="61.185" y1="105.3" x2="77.785" y2="105.3" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="SED" x1="77.785" y1="105.3" x2="77.785" y2="117.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="SED" x1="61.485" y1="117.6" x2="77.485" y2="117.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="SED" x1="77.485" y1="105.6" x2="77.485" y2="117.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="SED" x1="61.485" y1="105.6" x2="77.485" y2="105.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="SED" x1="61.485" y1="105.6" x2="61.485" y2="117.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="SED" x1="61.485" y1="117.6" x2="77.485" y2="117.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="SED" x1="77.485" y1="105.6" x2="77.485" y2="117.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="SED" x1="61.485" y1="105.6" x2="77.485" y2="105.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="SED" x1="61.485" y1="105.6" x2="61.485" y2="117.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F1" x1="79.685" y1="105.05" x2="79.685" y2="109.15" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F1" x1="79.685" y1="105.05" x2="79.685" y2="109.15" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F1" x1="79.685" y1="105.05" x2="84.285" y2="105.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F1" x1="84.285" y1="105.05" x2="84.285" y2="109.15" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F1" x1="79.685" y1="109.15" x2="84.285" y2="109.15" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F1" x1="79.685" y1="109.15" x2="84.285" y2="109.15" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F1" x1="79.685" y1="105.05" x2="84.285" y2="105.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F1" x1="84.285" y1="105.05" x2="84.285" y2="109.15" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F1" x1="79.985" y1="108.85" x2="83.985" y2="108.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F1" x1="83.985" y1="105.35" x2="83.985" y2="108.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F1" x1="79.985" y1="105.35" x2="83.985" y2="105.35" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F1" x1="79.985" y1="105.35" x2="79.985" y2="108.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F1" x1="79.985" y1="108.85" x2="83.985" y2="108.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F1" x1="83.985" y1="105.35" x2="83.985" y2="108.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F1" x1="79.985" y1="105.35" x2="83.985" y2="105.35" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F1" x1="79.985" y1="105.35" x2="79.985" y2="108.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F2" x1="79.685" y1="109.55" x2="79.685" y2="113.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F2" x1="79.685" y1="109.55" x2="79.685" y2="113.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F2" x1="79.685" y1="109.55" x2="84.285" y2="109.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F2" x1="84.285" y1="109.55" x2="84.285" y2="113.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F2" x1="79.685" y1="113.65" x2="84.285" y2="113.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F2" x1="79.685" y1="113.65" x2="84.285" y2="113.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F2" x1="79.685" y1="109.55" x2="84.285" y2="109.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F2" x1="84.285" y1="109.55" x2="84.285" y2="113.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F2" x1="79.985" y1="113.35" x2="83.985" y2="113.35" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F2" x1="83.985" y1="109.85" x2="83.985" y2="113.35" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F2" x1="79.985" y1="109.85" x2="83.985" y2="109.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F2" x1="79.985" y1="109.85" x2="79.985" y2="113.35" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F2" x1="79.985" y1="113.35" x2="83.985" y2="113.35" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F2" x1="83.985" y1="109.85" x2="83.985" y2="113.35" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F2" x1="79.985" y1="109.85" x2="83.985" y2="109.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F2" x1="79.985" y1="109.85" x2="79.985" y2="113.35" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F3" x1="79.685" y1="114.05" x2="79.685" y2="118.15" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F3" x1="79.685" y1="114.05" x2="79.685" y2="118.15" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F3" x1="79.685" y1="114.05" x2="84.285" y2="114.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F3" x1="84.285" y1="114.05" x2="84.285" y2="118.15" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F3" x1="79.685" y1="118.15" x2="84.285" y2="118.15" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F3" x1="79.685" y1="118.15" x2="84.285" y2="118.15" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F3" x1="79.685" y1="114.05" x2="84.285" y2="114.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F3" x1="84.285" y1="114.05" x2="84.285" y2="118.15" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F3" x1="79.985" y1="117.85" x2="83.985" y2="117.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F3" x1="83.985" y1="114.35" x2="83.985" y2="117.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F3" x1="79.985" y1="114.35" x2="83.985" y2="114.35" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F3" x1="79.985" y1="114.35" x2="79.985" y2="117.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F3" x1="79.985" y1="117.85" x2="83.985" y2="117.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F3" x1="83.985" y1="114.35" x2="83.985" y2="117.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F3" x1="79.985" y1="114.35" x2="83.985" y2="114.35" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="F3" x1="79.985" y1="114.35" x2="79.985" y2="117.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="CW" x1="86.185" y1="104.3" x2="86.185" y2="118.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="CW" x1="86.185" y1="104.3" x2="86.185" y2="118.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="CW" x1="86.185" y1="104.3" x2="94.785" y2="104.3" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="CW" x1="94.785" y1="104.3" x2="94.785" y2="118.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="CW" x1="86.185" y1="118.9" x2="94.785" y2="118.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="CW" x1="86.185" y1="118.9" x2="94.785" y2="118.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="CW" x1="86.185" y1="104.3" x2="94.785" y2="104.3" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="CW" x1="94.785" y1="104.3" x2="94.785" y2="118.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="CW" x1="86.485" y1="118.6" x2="94.485" y2="118.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="CW" x1="94.485" y1="104.6" x2="94.485" y2="118.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="CW" x1="86.485" y1="104.6" x2="94.485" y2="104.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="CW" x1="86.485" y1="104.6" x2="86.485" y2="118.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="CW" x1="86.485" y1="118.6" x2="94.485" y2="118.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="CW" x1="94.485" y1="104.6" x2="94.485" y2="118.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="CW" x1="86.485" y1="104.6" x2="94.485" y2="104.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="CW" x1="86.485" y1="104.6" x2="86.485" y2="118.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RPA" x1="33.685" y1="112.1" x2="33.685" y2="112.7" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RPA" x1="33.685" y1="112.1" x2="33.685" y2="112.7" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RPA" x1="33.685" y1="112.1" x2="34.685" y2="112.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RPA" x1="34.685" y1="112.1" x2="34.685" y2="112.7" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RPA" x1="33.685" y1="112.7" x2="34.685" y2="112.7" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RPA" x1="33.685" y1="112.7" x2="34.685" y2="112.7" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RPA" x1="33.685" y1="112.1" x2="34.685" y2="112.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RPA" x1="34.685" y1="112.1" x2="34.685" y2="112.7" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="RPA" data-r="0.25" d="M 34.435 112.4 A 0.25 0.25 0 1 1 34.435 112.4" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="RPA" data-r="0.25" d="M 34.435 112.4 A 0.25 0.25 0 1 1 34.435 112.4" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RPB" x1="40.685" y1="110.5" x2="40.685" y2="111.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RPB" x1="40.685" y1="110.5" x2="40.685" y2="111.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RPB" x1="40.685" y1="110.5" x2="41.685" y2="110.5" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RPB" x1="41.685" y1="110.5" x2="41.685" y2="111.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RPB" x1="40.685" y1="111.1" x2="41.685" y2="111.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RPB" x1="40.685" y1="111.1" x2="41.685" y2="111.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RPB" x1="40.685" y1="110.5" x2="41.685" y2="110.5" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="RPB" x1="41.685" y1="110.5" x2="41.685" y2="111.1" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="RPB" data-r="0.25" d="M 41.435 110.8 A 0.25 0.25 0 1 1 41.435 110.8" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="RPB" data-r="0.25" d="M 41.435 110.8 A 0.25 0.25 0 1 1 41.435 110.8" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="HPA" x1="96.785" y1="112.1" x2="96.785" y2="112.7" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="HPA" x1="96.785" y1="112.1" x2="96.785" y2="112.7" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="HPA" x1="96.785" y1="112.1" x2="97.785" y2="112.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="HPA" x1="97.785" y1="112.1" x2="97.785" y2="112.7" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="HPA" x1="96.785" y1="112.7" x2="97.785" y2="112.7" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="HPA" x1="96.785" y1="112.7" x2="97.785" y2="112.7" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="HPA" x1="96.785" y1="112.1" x2="97.785" y2="112.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="HPA" x1="97.785" y1="112.1" x2="97.785" y2="112.7" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="HPA" data-r="0.25" d="M 97.535 112.4 A 0.25 0.25 0 1 1 97.535 112.4" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="HPA" data-r="0.25" d="M 97.535 112.4 A 0.25 0.25 0 1 1 97.535 112.4" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="HPB" x1="102.685" y1="110.5" x2="102.685" y2="111.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="HPB" x1="102.685" y1="110.5" x2="102.685" y2="111.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="HPB" x1="102.685" y1="110.5" x2="103.685" y2="110.5" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="HPB" x1="103.685" y1="110.5" x2="103.685" y2="111.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="HPB" x1="102.685" y1="111.1" x2="103.685" y2="111.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="HPB" x1="102.685" y1="111.1" x2="103.685" y2="111.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="HPB" x1="102.685" y1="110.5" x2="103.685" y2="110.5" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="HPB" x1="103.685" y1="110.5" x2="103.685" y2="111.1" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="HPB" data-r="0.25" d="M 103.435 110.8 A 0.25 0.25 0 1 1 103.435 110.8" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="HPB" data-r="0.25" d="M 103.435 110.8 A 0.25 0.25 0 1 1 103.435 110.8" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="STUBA" x1="108.685" y1="112.1" x2="108.685" y2="112.7" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="STUBA" x1="108.685" y1="112.1" x2="108.685" y2="112.7" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="STUBA" x1="109.285" y1="112.1" x2="109.285" y2="112.7" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="STUBA" x1="109.285" y1="112.1" x2="109.285" y2="112.7" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="STUBA" x1="108.685" y1="112.1" x2="109.285" y2="112.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="STUBA" x1="108.685" y1="112.7" x2="109.285" y2="112.7" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="STUBA" x1="108.685" y1="112.1" x2="109.285" y2="112.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="STUBA" x1="108.685" y1="112.7" x2="109.285" y2="112.7" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="STUBB" x1="108.685" y1="110.5" x2="108.685" y2="111.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="STUBB" x1="108.685" y1="110.5" x2="108.685" y2="111.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="STUBB" x1="109.285" y1="110.5" x2="109.285" y2="111.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="STUBB" x1="109.285" y1="110.5" x2="109.285" y2="111.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="STUBB" x1="108.685" y1="110.5" x2="109.285" y2="110.5" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="STUBB" x1="108.685" y1="111.1" x2="109.285" y2="111.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="STUBB" x1="108.685" y1="110.5" x2="109.285" y2="110.5" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="STUBB" x1="108.685" y1="111.1" x2="109.285" y2="111.1" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_IN_RPA" data-r="0.137" d="M 33.685 112.536 A 0.137 0.137 0 1 1 33.685 112.536" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_IN_RPA" x1="29.685" y1="112.536" x2="33.685" y2="112.536" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_IN_RPA" data-r="0.137" d="M 29.685 112.536 A 0.137 0.137 0 1 1 29.685 112.536" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_IN_RPA" data-r="0.131" d="M 33.685 112.531 A 0.131 0.131 0 1 1 33.685 112.531" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_IN_RPA" data-r="0.131" d="M 29.685 112.531 A 0.131 0.131 0 1 1 29.685 112.531" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_IN_RPA" x1="29.685" y1="112.531" x2="33.685" y2="112.531" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_RPA_RM" data-r="0.137" d="M 50.685 112.536 A 0.137 0.137 0 1 1 50.685 112.536" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_RPA_RM" x1="34.685" y1="112.536" x2="50.685" y2="112.536" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_RPA_RM" data-r="0.137" d="M 34.685 112.536 A 0.137 0.137 0 1 1 34.685 112.536" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_RPA_RM" data-r="0.131" d="M 50.685 112.531 A 0.131 0.131 0 1 1 50.685 112.531" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_RPA_RM" data-r="0.131" d="M 34.685 112.531 A 0.131 0.131 0 1 1 34.685 112.531" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_RPA_RM" x1="34.685" y1="112.531" x2="50.685" y2="112.531" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_IN_RPB" data-r="0.137" d="M 40.685 110.936 A 0.137 0.137 0 1 1 40.685 110.936" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_IN_RPB" x1="29.685" y1="110.937" x2="40.685" y2="110.937" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_IN_RPB" data-r="0.137" d="M 29.685 110.936 A 0.137 0.137 0 1 1 29.685 110.936" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_IN_RPB" data-r="0.131" d="M 40.685 110.93 A 0.131 0.131 0 1 1 40.685 110.93" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_IN_RPB" data-r="0.131" d="M 29.685 110.93 A 0.131 0.131 0 1 1 29.685 110.93" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_IN_RPB" x1="29.685" y1="110.93" x2="40.685" y2="110.93" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_RPB_RM" data-r="0.137" d="M 50.685 110.936 A 0.137 0.137 0 1 1 50.685 110.936" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_RPB_RM" x1="41.685" y1="110.937" x2="50.685" y2="110.937" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_RPB_RM" data-r="0.137" d="M 41.685 110.936 A 0.137 0.137 0 1 1 41.685 110.936" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_RPB_RM" data-r="0.131" d="M 50.685 110.93 A 0.131 0.131 0 1 1 50.685 110.93" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_RPB_RM" data-r="0.131" d="M 41.685 110.93 A 0.131 0.131 0 1 1 41.685 110.93" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_RPB_RM" x1="41.685" y1="110.93" x2="50.685" y2="110.93" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_RM_FLOC" data-r="0.137" d="M 53.685 111.736 A 0.137 0.137 0 1 1 53.685 111.736" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_RM_FLOC" x1="52.285" y1="111.736" x2="53.685" y2="111.736" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_RM_FLOC" data-r="0.137" d="M 52.285 111.736 A 0.137 0.137 0 1 1 52.285 111.736" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_RM_FLOC" data-r="0.131" d="M 53.685 111.73 A 0.131 0.131 0 1 1 53.685 111.73" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_RM_FLOC" data-r="0.131" d="M 52.285 111.73 A 0.131 0.131 0 1 1 52.285 111.73" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_RM_FLOC" x1="52.285" y1="111.73" x2="53.685" y2="111.73" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_FLOC_SED" data-r="0.137" d="M 61.185 111.736 A 0.137 0.137 0 1 1 61.185 111.736" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_FLOC_SED" x1="59.385" y1="111.736" x2="61.185" y2="111.736" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_FLOC_SED" data-r="0.137" d="M 59.385 111.736 A 0.137 0.137 0 1 1 59.385 111.736" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_FLOC_SED" data-r="0.131" d="M 61.185 111.73 A 0.131 0.131 0 1 1 61.185 111.73" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_FLOC_SED" data-r="0.131" d="M 59.385 111.73 A 0.131 0.131 0 1 1 59.385 111.73" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_FLOC_SED" x1="59.385" y1="111.73" x2="61.185" y2="111.73" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_SED_F1" data-r="0.109" d="M 79.685 107.209 A 0.109 0.109 0 1 1 79.685 107.209" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_SED_F1" x1="77.785" y1="107.209" x2="79.685" y2="107.209" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_SED_F1" data-r="0.109" d="M 77.785 107.209 A 0.109 0.109 0 1 1 77.785 107.209" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_SED_F1" data-r="0.103" d="M 79.685 107.203 A 0.103 0.103 0 1 1 79.685 107.203" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_SED_F1" data-r="0.103" d="M 77.785 107.203 A 0.103 0.103 0 1 1 77.785 107.203" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_SED_F1" x1="77.785" y1="107.203" x2="79.685" y2="107.203" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_SED_F2" data-r="0.109" d="M 79.685 111.709 A 0.109 0.109 0 1 1 79.685 111.709" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_SED_F2" x1="77.785" y1="111.709" x2="79.685" y2="111.709" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_SED_F2" data-r="0.109" d="M 77.785 111.709 A 0.109 0.109 0 1 1 77.785 111.709" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_SED_F2" data-r="0.104" d="M 79.685 111.703 A 0.104 0.104 0 1 1 79.685 111.703" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_SED_F2" data-r="0.104" d="M 77.785 111.703 A 0.104 0.104 0 1 1 77.785 111.703" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_SED_F2" x1="77.785" y1="111.703" x2="79.685" y2="111.703" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_SED_F3" data-r="0.109" d="M 79.685 116.209 A 0.109 0.109 0 1 1 79.685 116.209" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_SED_F3" x1="77.785" y1="116.209" x2="79.685" y2="116.209" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_SED_F3" data-r="0.109" d="M 77.785 116.209 A 0.109 0.109 0 1 1 77.785 116.209" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_SED_F3" data-r="0.103" d="M 79.685 116.203 A 0.103 0.103 0 1 1 79.685 116.203" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_SED_F3" data-r="0.103" d="M 77.785 116.203 A 0.103 0.103 0 1 1 77.785 116.203" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_SED_F3" x1="77.785" y1="116.203" x2="79.685" y2="116.203" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_F1_CW" data-r="0.109" d="M 86.185 107.209 A 0.109 0.109 0 1 1 86.185 107.209" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_F1_CW" x1="84.285" y1="107.209" x2="86.185" y2="107.209" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_F1_CW" data-r="0.109" d="M 84.285 107.209 A 0.109 0.109 0 1 1 84.285 107.209" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_F1_CW" data-r="0.103" d="M 86.185 107.203 A 0.103 0.103 0 1 1 86.185 107.203" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_F1_CW" data-r="0.103" d="M 84.285 107.203 A 0.103 0.103 0 1 1 84.285 107.203" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_F1_CW" x1="84.285" y1="107.203" x2="86.185" y2="107.203" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_F2_CW" data-r="0.109" d="M 86.185 111.709 A 0.109 0.109 0 1 1 86.185 111.709" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_F2_CW" x1="84.285" y1="111.709" x2="86.185" y2="111.709" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_F2_CW" data-r="0.109" d="M 84.285 111.709 A 0.109 0.109 0 1 1 84.285 111.709" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_F2_CW" data-r="0.104" d="M 86.185 111.703 A 0.104 0.104 0 1 1 86.185 111.703" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_F2_CW" data-r="0.104" d="M 84.285 111.703 A 0.104 0.104 0 1 1 84.285 111.703" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_F2_CW" x1="84.285" y1="111.703" x2="86.185" y2="111.703" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_F3_CW" data-r="0.109" d="M 86.185 116.209 A 0.109 0.109 0 1 1 86.185 116.209" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_F3_CW" x1="84.285" y1="116.209" x2="86.185" y2="116.209" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_F3_CW" data-r="0.109" d="M 84.285 116.209 A 0.109 0.109 0 1 1 84.285 116.209" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_F3_CW" data-r="0.103" d="M 86.185 116.203 A 0.103 0.103 0 1 1 86.185 116.203" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_F3_CW" data-r="0.103" d="M 84.285 116.203 A 0.103 0.103 0 1 1 84.285 116.203" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_F3_CW" x1="84.285" y1="116.203" x2="86.185" y2="116.203" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_CW_HPA" data-r="0.137" d="M 96.785 112.536 A 0.137 0.137 0 1 1 96.785 112.536" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_CW_HPA" x1="94.785" y1="112.536" x2="96.785" y2="112.536" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_CW_HPA" data-r="0.137" d="M 94.785 112.536 A 0.137 0.137 0 1 1 94.785 112.536" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_CW_HPA" data-r="0.131" d="M 96.785 112.531 A 0.131 0.131 0 1 1 96.785 112.531" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_CW_HPA" data-r="0.131" d="M 94.785 112.531 A 0.131 0.131 0 1 1 94.785 112.531" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_CW_HPA" x1="94.785" y1="112.531" x2="96.785" y2="112.531" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_HPA_STUBA" data-r="0.137" d="M 108.685 112.536 A 0.137 0.137 0 1 1 108.685 112.536" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_HPA_STUBA" x1="97.785" y1="112.536" x2="108.685" y2="112.536" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_HPA_STUBA" data-r="0.137" d="M 97.785 112.536 A 0.137 0.137 0 1 1 97.785 112.536" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_HPA_STUBA" data-r="0.131" d="M 108.685 112.531 A 0.131 0.131 0 1 1 108.685 112.531" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_HPA_STUBA" data-r="0.131" d="M 97.785 112.531 A 0.131 0.131 0 1 1 97.785 112.531" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_HPA_STUBA" x1="97.785" y1="112.531" x2="108.685" y2="112.531" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_CW_HPB" data-r="0.137" d="M 102.685 110.936 A 0.137 0.137 0 1 1 102.685 110.936" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_CW_HPB" x1="94.785" y1="110.937" x2="102.685" y2="110.937" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_CW_HPB" data-r="0.137" d="M 94.785 110.936 A 0.137 0.137 0 1 1 94.785 110.936" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_CW_HPB" data-r="0.131" d="M 102.685 110.93 A 0.131 0.131 0 1 1 102.685 110.93" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_CW_HPB" data-r="0.131" d="M 94.785 110.93 A 0.131 0.131 0 1 1 94.785 110.93" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_CW_HPB" x1="94.785" y1="110.93" x2="102.685" y2="110.93" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_HPB_STUBB" data-r="0.137" d="M 108.685 110.936 A 0.137 0.137 0 1 1 108.685 110.936" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_HPB_STUBB" x1="103.685" y1="110.937" x2="108.685" y2="110.937" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_HPB_STUBB" data-r="0.137" d="M 103.685 110.936 A 0.137 0.137 0 1 1 103.685 110.936" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_HPB_STUBB" data-r="0.131" d="M 108.685 110.93 A 0.131 0.131 0 1 1 108.685 110.93" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="P_HPB_STUBB" data-r="0.131" d="M 103.685 110.93 A 0.131 0.131 0 1 1 103.685 110.93" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="P_HPB_STUBB" x1="103.685" y1="110.93" x2="108.685" y2="110.93" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.685" y1="94.6" x2="62.685" y2="98.2" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.685" y1="98.2" x2="62.685" y2="99.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.685" y1="99.1" x2="62.685" y2="101.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.685" y1="94.6" x2="62.685" y2="101.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="74.685" y1="94.6" x2="74.685" y2="101.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.685" y1="101.1" x2="74.685" y2="101.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.685" y1="99.1" x2="62.985" y2="99.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.985" y1="99.1" x2="62.985" y2="100.8" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.985" y1="100.8" x2="74.385" y2="100.8" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="74.385" y1="94.9" x2="74.385" y2="100.8" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.985" y1="94.9" x2="74.385" y2="94.9" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.985" y1="94.9" x2="62.985" y2="98.2" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.685" y1="98.2" x2="62.985" y2="98.2" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.685" y1="94.6" x2="74.685" y2="94.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.685" y1="98.2" x2="62.985" y2="98.2" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.985" y1="98.2" x2="62.985" y2="99.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.685" y1="99.1" x2="62.985" y2="99.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.685" y1="101.1" x2="74.685" y2="101.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.685" y1="94.6" x2="74.685" y2="94.6" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="74.685" y1="94.6" x2="74.685" y2="101.1" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.985" y1="94.9" x2="62.985" y2="100.8" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.985" y1="100.8" x2="74.385" y2="100.8" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="74.385" y1="94.9" x2="74.385" y2="100.8" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="BLDG" x1="62.985" y1="94.9" x2="74.385" y2="94.9" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="ALUM" data-r="1.5" d="M 71.185 97.6 A 1.5 1.5 0 1 1 71.185 97.6" fill="none" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="plan" data-part="ALUM" data-r="1.5" d="M 71.185 97.6 A 1.5 1.5 0 1 1 71.185 97.6" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="MCC" x1="63.685" y1="100.2" x2="63.685" y2="100.8" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="MCC" x1="63.685" y1="100.2" x2="63.685" y2="100.8" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="MCC" x1="65.685" y1="100.2" x2="65.685" y2="100.8" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="MCC" x1="65.685" y1="100.2" x2="65.685" y2="100.8" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="MCC" x1="63.685" y1="100.2" x2="65.685" y2="100.2" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="MCC" x1="63.685" y1="100.8" x2="65.685" y2="100.8" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="MCC" x1="63.685" y1="100.2" x2="65.685" y2="100.2" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="plan" data-part="MCC" x1="63.685" y1="100.8" x2="65.685" y2="100.8" stroke="#000000" stroke-width="0.25"/>
+<text class="callout-text" data-view="plan" data-part="INTAKE" data-label="part" x="28.185" y="112.4" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">INTAKE</text>
+<text class="callout-text" data-view="plan" data-part="RM" data-label="part" x="51.485" y="112.4" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">RM</text>
+<text class="callout-text" data-view="plan" data-part="FLOC" data-label="part" x="56.535" y="112.4" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">FLOC</text>
+<text class="callout-text" data-view="plan" data-part="SED" data-label="part" x="69.485" y="112.4" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">SED</text>
+<text class="callout-text" data-view="plan" data-part="F1" data-label="part" x="81.985" y="107.9" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">F1</text>
+<text class="callout-text" data-view="plan" data-part="F2" data-label="part" x="81.985" y="112.4" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">F2</text>
+<text class="callout-text" data-view="plan" data-part="F3" data-label="part" x="81.985" y="116.9" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">F3</text>
+<text class="callout-text" data-view="plan" data-part="CW" data-label="part" x="90.485" y="112.4" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">CW</text>
+<text class="callout-text" data-view="plan" data-part="RPA" data-label="part" x="34.185" y="113.2" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">RPA</text>
+<text class="callout-text" data-view="plan" data-part="RPB" data-label="part" x="41.185" y="111.6" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">RPB</text>
+<text class="callout-text" data-view="plan" data-part="HPA" data-label="part" x="97.285" y="113.2" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">HPA</text>
+<text class="callout-text" data-view="plan" data-part="HPB" data-label="part" x="103.185" y="111.6" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">HPB</text>
+<text class="callout-text" data-view="plan" data-part="STUBA" data-label="part" x="108.985" y="113.2" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">STUBA</text>
+<text class="callout-text" data-view="plan" data-part="STUBB" data-label="part" x="108.985" y="111.6" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">STUBB</text>
+<text class="callout-text" data-view="plan" data-part="P_IN_RPA" data-label="part" x="31.685" y="113.2" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_IN_RPA</text>
+<text class="callout-text" data-view="plan" data-part="P_RPA_RM" data-label="part" x="42.685" y="113.2" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_RPA_RM</text>
+<text class="callout-text" data-view="plan" data-part="P_IN_RPB" data-label="part" x="35.185" y="111.6" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_IN_RPB</text>
+<text class="callout-text" data-view="plan" data-part="P_RPB_RM" data-label="part" x="46.185" y="111.6" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_RPB_RM</text>
+<text class="callout-text" data-view="plan" data-part="P_RM_FLOC" data-label="part" x="52.985" y="112.4" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_RM_FLOC</text>
+<text class="callout-text" data-view="plan" data-part="P_FLOC_SED" data-label="part" x="60.285" y="112.4" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_FLOC_SED</text>
+<text class="callout-text" data-view="plan" data-part="P_SED_F1" data-label="part" x="78.735" y="107.9" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_SED_F1</text>
+<text class="callout-text" data-view="plan" data-part="P_SED_F2" data-label="part" x="78.735" y="112.4" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_SED_F2</text>
+<text class="callout-text" data-view="plan" data-part="P_SED_F3" data-label="part" x="78.735" y="116.9" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_SED_F3</text>
+<text class="callout-text" data-view="plan" data-part="P_F1_CW" data-label="part" x="85.235" y="107.9" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_F1_CW</text>
+<text class="callout-text" data-view="plan" data-part="P_F2_CW" data-label="part" x="85.235" y="112.4" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_F2_CW</text>
+<text class="callout-text" data-view="plan" data-part="P_F3_CW" data-label="part" x="85.235" y="116.9" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_F3_CW</text>
+<text class="callout-text" data-view="plan" data-part="P_CW_HPA" data-label="part" x="95.785" y="113.2" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_CW_HPA</text>
+<text class="callout-text" data-view="plan" data-part="P_HPA_STUBA" data-label="part" x="103.235" y="113.2" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_HPA_STUBA</text>
+<text class="callout-text" data-view="plan" data-part="P_CW_HPB" data-label="part" x="98.735" y="111.6" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_CW_HPB</text>
+<text class="callout-text" data-view="plan" data-part="P_HPB_STUBB" data-label="part" x="106.185" y="111.6" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_HPB_STUBB</text>
+<text class="callout-text" data-view="plan" data-part="BLDG" data-label="part" x="68.685" y="98.65" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">BLDG</text>
+<text class="callout-text" data-view="plan" data-part="ALUM" data-label="part" x="69.685" y="98.4" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">ALUM</text>
+<text class="callout-text" data-view="plan" data-part="MCC" data-label="part" x="64.685" y="101.3" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">MCC</text>
+<text class="title-text" data-view="plan" data-label="view" x="67.985" y="82.6" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="middle" fill="#000000">PLAN / TOP</text>
+<line class="dim" x1="26.685" y1="120.4" x2="26.685" y2="128.4" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="109.285" y1="120.4" x2="109.285" y2="128.4" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="26.685" y1="126.9" x2="109.285" y2="126.9" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="25.695" y1="125.91" x2="27.675" y2="127.89" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="108.295" y1="125.91" x2="110.275" y2="127.89" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-view="plan" data-kind="overall" data-axis="x" data-value_mm="82600.0057339668" x="67.985" y="126.1" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">82600.006 mm</text>
+<line class="dim" x1="110.785" y1="118.9" x2="118.785" y2="118.9" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="110.785" y1="94.6" x2="118.785" y2="94.6" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="117.285" y1="118.9" x2="117.285" y2="94.6" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="116.295" y1="119.89" x2="118.275" y2="117.91" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="116.295" y1="95.59" x2="118.275" y2="93.61" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-view="plan" data-kind="overall" data-axis="z" data-value_mm="24300.0" x="116.485" y="106.75" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 116.485 106.75)">24300.000 mm</text>
+<line class="piece" data-view="front" data-part="INTAKE" x1="159.685" y1="109.05" x2="159.685" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="INTAKE" x1="159.685" y1="109.05" x2="159.685" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="INTAKE" x1="159.685" y1="109.05" x2="162.685" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="INTAKE" x1="159.685" y1="109.05" x2="162.685" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="INTAKE" x1="159.685" y1="105.55" x2="162.685" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="INTAKE" x1="162.685" y1="109.05" x2="162.685" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="INTAKE" x1="159.685" y1="105.55" x2="162.685" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="INTAKE" x1="159.985" y1="105.55" x2="162.385" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="INTAKE" x1="159.985" y1="105.55" x2="162.385" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="INTAKE" x1="162.685" y1="109.05" x2="162.685" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="INTAKE" x1="159.985" y1="108.65" x2="159.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="INTAKE" x1="162.385" y1="108.65" x2="162.385" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="INTAKE" x1="159.985" y1="108.65" x2="162.385" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="INTAKE" x1="162.385" y1="108.65" x2="162.385" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="INTAKE" x1="159.985" y1="108.65" x2="159.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="INTAKE" x1="159.985" y1="108.65" x2="162.385" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RM" x1="183.685" y1="109.05" x2="183.685" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RM" x1="183.685" y1="109.05" x2="183.685" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RM" x1="183.685" y1="109.05" x2="185.285" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RM" x1="183.685" y1="109.05" x2="185.285" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RM" x1="183.685" y1="107.05" x2="185.285" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RM" x1="185.285" y1="109.05" x2="185.285" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RM" x1="183.685" y1="107.05" x2="185.285" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RM" x1="183.985" y1="107.05" x2="184.985" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RM" x1="183.985" y1="107.05" x2="184.985" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RM" x1="185.285" y1="109.05" x2="185.285" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RM" x1="183.985" y1="108.65" x2="183.985" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RM" x1="184.985" y1="108.65" x2="184.985" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RM" x1="183.985" y1="108.65" x2="184.985" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RM" x1="184.985" y1="108.65" x2="184.985" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RM" x1="183.985" y1="108.65" x2="183.985" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RM" x1="183.985" y1="108.65" x2="184.985" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="FLOC" x1="186.685" y1="109.05" x2="186.685" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="FLOC" x1="186.685" y1="109.05" x2="186.685" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="FLOC" x1="186.685" y1="109.05" x2="192.385" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="FLOC" x1="186.685" y1="109.05" x2="192.385" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="FLOC" x1="186.685" y1="104.65" x2="192.385" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="FLOC" x1="192.385" y1="109.05" x2="192.385" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="FLOC" x1="186.685" y1="104.65" x2="192.385" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="FLOC" x1="186.985" y1="104.65" x2="192.085" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="FLOC" x1="186.985" y1="104.65" x2="192.085" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="FLOC" x1="192.385" y1="109.05" x2="192.385" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="FLOC" x1="186.985" y1="108.65" x2="186.985" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="FLOC" x1="192.085" y1="108.65" x2="192.085" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="FLOC" x1="186.985" y1="108.65" x2="192.085" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="FLOC" x1="192.085" y1="108.65" x2="192.085" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="FLOC" x1="186.985" y1="108.65" x2="186.985" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="FLOC" x1="186.985" y1="108.65" x2="192.085" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="SED" x1="194.185" y1="109.05" x2="194.185" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="SED" x1="194.185" y1="109.05" x2="194.185" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="SED" x1="194.185" y1="109.05" x2="210.785" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="SED" x1="194.185" y1="109.05" x2="210.785" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="SED" x1="194.185" y1="104.45" x2="210.785" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="SED" x1="210.785" y1="109.05" x2="210.785" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="SED" x1="194.185" y1="104.45" x2="210.785" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="SED" x1="194.485" y1="104.45" x2="210.485" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="SED" x1="194.485" y1="104.45" x2="210.485" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="SED" x1="210.785" y1="109.05" x2="210.785" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="SED" x1="194.485" y1="108.65" x2="194.485" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="SED" x1="210.485" y1="108.65" x2="210.485" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="SED" x1="194.485" y1="108.65" x2="210.485" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="SED" x1="210.485" y1="108.65" x2="210.485" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="SED" x1="194.485" y1="108.65" x2="194.485" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="SED" x1="194.485" y1="108.65" x2="210.485" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F1" x1="212.685" y1="109.05" x2="212.685" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F1" x1="212.685" y1="109.05" x2="212.685" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F1" x1="212.685" y1="109.05" x2="217.285" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F1" x1="212.685" y1="109.05" x2="217.285" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F1" x1="212.685" y1="105.55" x2="217.285" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F1" x1="217.285" y1="109.05" x2="217.285" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F1" x1="212.685" y1="105.55" x2="217.285" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F1" x1="212.985" y1="105.55" x2="216.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F1" x1="212.985" y1="105.55" x2="216.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F1" x1="217.285" y1="109.05" x2="217.285" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F1" x1="212.985" y1="108.65" x2="212.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F1" x1="216.985" y1="108.65" x2="216.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F1" x1="212.985" y1="108.65" x2="216.985" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F1" x1="216.985" y1="108.65" x2="216.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F1" x1="212.985" y1="108.65" x2="212.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F1" x1="212.985" y1="108.65" x2="216.985" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F2" x1="212.685" y1="109.05" x2="212.685" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F2" x1="212.685" y1="109.05" x2="212.685" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F2" x1="212.685" y1="109.05" x2="217.285" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F2" x1="212.685" y1="109.05" x2="217.285" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F2" x1="212.685" y1="105.55" x2="217.285" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F2" x1="217.285" y1="109.05" x2="217.285" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F2" x1="212.685" y1="105.55" x2="217.285" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F2" x1="212.985" y1="105.55" x2="216.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F2" x1="212.985" y1="105.55" x2="216.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F2" x1="217.285" y1="109.05" x2="217.285" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F2" x1="212.985" y1="108.65" x2="212.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F2" x1="216.985" y1="108.65" x2="216.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F2" x1="212.985" y1="108.65" x2="216.985" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F2" x1="216.985" y1="108.65" x2="216.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F2" x1="212.985" y1="108.65" x2="212.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F2" x1="212.985" y1="108.65" x2="216.985" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F3" x1="212.685" y1="109.05" x2="212.685" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F3" x1="212.685" y1="109.05" x2="212.685" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F3" x1="212.685" y1="109.05" x2="217.285" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F3" x1="212.685" y1="109.05" x2="217.285" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F3" x1="212.685" y1="105.55" x2="217.285" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F3" x1="217.285" y1="109.05" x2="217.285" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F3" x1="212.685" y1="105.55" x2="217.285" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F3" x1="212.985" y1="105.55" x2="216.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F3" x1="212.985" y1="105.55" x2="216.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F3" x1="217.285" y1="109.05" x2="217.285" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F3" x1="212.985" y1="108.65" x2="212.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F3" x1="216.985" y1="108.65" x2="216.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F3" x1="212.985" y1="108.65" x2="216.985" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F3" x1="216.985" y1="108.65" x2="216.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F3" x1="212.985" y1="108.65" x2="212.985" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="F3" x1="212.985" y1="108.65" x2="216.985" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="CW" x1="219.185" y1="109.05" x2="219.185" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="CW" x1="219.185" y1="109.05" x2="219.185" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="CW" x1="219.185" y1="109.05" x2="227.785" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="CW" x1="219.185" y1="109.05" x2="227.785" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="CW" x1="219.185" y1="104.65" x2="227.785" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="CW" x1="227.785" y1="109.05" x2="227.785" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="CW" x1="219.185" y1="104.65" x2="227.785" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="CW" x1="219.485" y1="104.65" x2="227.485" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="CW" x1="219.485" y1="104.65" x2="227.485" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="CW" x1="227.785" y1="109.05" x2="227.785" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="CW" x1="219.485" y1="108.65" x2="219.485" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="CW" x1="227.485" y1="108.65" x2="227.485" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="CW" x1="219.485" y1="108.65" x2="227.485" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="CW" x1="227.485" y1="108.65" x2="227.485" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="CW" x1="219.485" y1="108.65" x2="219.485" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="CW" x1="219.485" y1="108.65" x2="227.485" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RPA" x1="166.685" y1="108.65" x2="166.685" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RPA" x1="166.685" y1="108.65" x2="166.685" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RPA" x1="166.685" y1="108.65" x2="167.685" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RPA" x1="166.685" y1="108.65" x2="167.685" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RPA" x1="166.685" y1="107.85" x2="167.685" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RPA" x1="167.685" y1="108.65" x2="167.685" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RPA" x1="166.685" y1="107.85" x2="167.685" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="front" data-part="RPA" data-r="0.25" d="M 167.435 107.85 A 0.25 0.25 0 1 1 167.435 107.85" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RPA" x1="167.685" y1="108.65" x2="167.685" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="front" data-part="RPA" data-r="0.25" d="M 167.435 107.25 A 0.25 0.25 0 1 1 167.435 107.25" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RPA" x1="167.435" y1="107.85" x2="167.435" y2="107.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RPB" x1="173.685" y1="108.65" x2="173.685" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RPB" x1="173.685" y1="108.65" x2="173.685" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RPB" x1="173.685" y1="108.65" x2="174.685" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RPB" x1="173.685" y1="108.65" x2="174.685" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RPB" x1="173.685" y1="107.85" x2="174.685" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RPB" x1="174.685" y1="108.65" x2="174.685" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RPB" x1="173.685" y1="107.85" x2="174.685" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="front" data-part="RPB" data-r="0.25" d="M 174.435 107.85 A 0.25 0.25 0 1 1 174.435 107.85" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RPB" x1="174.685" y1="108.65" x2="174.685" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="front" data-part="RPB" data-r="0.25" d="M 174.435 107.25 A 0.25 0.25 0 1 1 174.435 107.25" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="RPB" x1="174.435" y1="107.85" x2="174.435" y2="107.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="HPA" x1="229.785" y1="108.65" x2="229.785" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="HPA" x1="229.785" y1="108.65" x2="229.785" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="HPA" x1="229.785" y1="108.65" x2="230.785" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="HPA" x1="229.785" y1="108.65" x2="230.785" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="HPA" x1="229.785" y1="107.85" x2="230.785" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="HPA" x1="230.785" y1="108.65" x2="230.785" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="HPA" x1="229.785" y1="107.85" x2="230.785" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="front" data-part="HPA" data-r="0.25" d="M 230.535 107.85 A 0.25 0.25 0 1 1 230.535 107.85" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="HPA" x1="230.785" y1="108.65" x2="230.785" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="front" data-part="HPA" data-r="0.25" d="M 230.535 107.25 A 0.25 0.25 0 1 1 230.535 107.25" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="HPA" x1="230.535" y1="107.85" x2="230.535" y2="107.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="HPB" x1="235.685" y1="108.65" x2="235.685" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="HPB" x1="235.685" y1="108.65" x2="235.685" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="HPB" x1="235.685" y1="108.65" x2="236.685" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="HPB" x1="235.685" y1="108.65" x2="236.685" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="HPB" x1="235.685" y1="107.85" x2="236.685" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="HPB" x1="236.685" y1="108.65" x2="236.685" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="HPB" x1="235.685" y1="107.85" x2="236.685" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="front" data-part="HPB" data-r="0.25" d="M 236.435 107.85 A 0.25 0.25 0 1 1 236.435 107.85" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="HPB" x1="236.685" y1="108.65" x2="236.685" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="front" data-part="HPB" data-r="0.25" d="M 236.435 107.25 A 0.25 0.25 0 1 1 236.435 107.25" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="HPB" x1="236.435" y1="107.85" x2="236.435" y2="107.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="STUBA" x1="241.685" y1="108.55" x2="241.685" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="STUBA" x1="241.685" y1="108.55" x2="241.685" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="STUBA" x1="242.285" y1="108.55" x2="242.285" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="STUBA" x1="242.285" y1="108.55" x2="242.285" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="STUBA" x1="241.685" y1="108.55" x2="242.285" y2="108.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="STUBA" x1="241.685" y1="108.55" x2="242.285" y2="108.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="STUBA" x1="241.685" y1="107.95" x2="242.285" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="STUBA" x1="241.685" y1="107.95" x2="242.285" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="STUBB" x1="241.685" y1="108.55" x2="241.685" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="STUBB" x1="241.685" y1="108.55" x2="241.685" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="STUBB" x1="242.285" y1="108.55" x2="242.285" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="STUBB" x1="242.285" y1="108.55" x2="242.285" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="STUBB" x1="241.685" y1="108.55" x2="242.285" y2="108.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="STUBB" x1="241.685" y1="108.55" x2="242.285" y2="108.55" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="STUBB" x1="241.685" y1="107.95" x2="242.285" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="STUBB" x1="241.685" y1="107.95" x2="242.285" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_IN_RPA" x1="162.685" y1="108.25" x2="166.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_IN_RPA" x1="162.685" y1="108.25" x2="166.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_RPA_RM" x1="167.685" y1="108.25" x2="183.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_RPA_RM" x1="167.685" y1="108.25" x2="183.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_IN_RPB" x1="162.685" y1="108.25" x2="173.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_IN_RPB" x1="162.685" y1="108.25" x2="173.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_RPB_RM" x1="174.685" y1="108.25" x2="183.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_RPB_RM" x1="174.685" y1="108.25" x2="183.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_RM_FLOC" x1="185.285" y1="108.25" x2="186.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_RM_FLOC" x1="185.285" y1="108.25" x2="186.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_FLOC_SED" x1="192.385" y1="108.25" x2="194.185" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_FLOC_SED" x1="192.385" y1="108.25" x2="194.185" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_SED_F1" x1="210.785" y1="108.25" x2="212.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_SED_F1" x1="210.785" y1="108.25" x2="212.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_SED_F2" x1="210.785" y1="108.25" x2="212.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_SED_F2" x1="210.785" y1="108.25" x2="212.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_SED_F3" x1="210.785" y1="108.25" x2="212.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_SED_F3" x1="210.785" y1="108.25" x2="212.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_F1_CW" x1="217.285" y1="108.25" x2="219.185" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_F1_CW" x1="217.285" y1="108.25" x2="219.185" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_F2_CW" x1="217.285" y1="108.25" x2="219.185" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_F2_CW" x1="217.285" y1="108.25" x2="219.185" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_F3_CW" x1="217.285" y1="108.25" x2="219.185" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_F3_CW" x1="217.285" y1="108.25" x2="219.185" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_CW_HPA" x1="227.785" y1="108.25" x2="229.785" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_CW_HPA" x1="227.785" y1="108.25" x2="229.785" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_HPA_STUBA" x1="230.785" y1="108.25" x2="241.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_HPA_STUBA" x1="230.785" y1="108.25" x2="241.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_CW_HPB" x1="227.785" y1="108.25" x2="235.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_CW_HPB" x1="227.785" y1="108.25" x2="235.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_HPB_STUBB" x1="236.685" y1="108.25" x2="241.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="P_HPB_STUBB" x1="236.685" y1="108.25" x2="241.685" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.685" y1="109.05" x2="195.685" y2="106.74" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.685" y1="109.05" x2="195.685" y2="106.74" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.685" y1="109.05" x2="195.685" y2="104.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.685" y1="109.05" x2="195.685" y2="104.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.685" y1="109.05" x2="207.685" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.685" y1="109.05" x2="195.985" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.985" y1="109.05" x2="207.385" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.985" y1="109.05" x2="207.385" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.685" y1="109.05" x2="195.985" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.685" y1="109.05" x2="207.685" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.685" y1="106.74" x2="195.985" y2="106.74" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.985" y1="109.05" x2="195.985" y2="106.74" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.685" y1="106.74" x2="195.985" y2="106.74" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.985" y1="109.05" x2="195.985" y2="106.74" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.685" y1="104.85" x2="207.685" y2="104.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="207.685" y1="109.05" x2="207.685" y2="104.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.685" y1="104.85" x2="207.685" y2="104.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="207.685" y1="109.05" x2="207.685" y2="104.85" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.985" y1="109.05" x2="195.985" y2="105.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.985" y1="109.05" x2="195.985" y2="105.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.985" y1="105.05" x2="207.385" y2="105.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="207.385" y1="109.05" x2="207.385" y2="105.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="207.385" y1="109.05" x2="207.385" y2="105.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="BLDG" x1="195.985" y1="105.05" x2="207.385" y2="105.05" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="front" data-part="ALUM" data-r="1.5" d="M 204.185 106.05 A 1.5 1.5 0 1 1 204.185 106.05" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="ALUM" x1="204.185" y1="109.05" x2="204.185" y2="106.05" stroke="#000000" stroke-width="0.25"/>
+<path class="piece" data-view="front" data-part="ALUM" data-r="1.5" d="M 204.185 109.05 A 1.5 1.5 0 1 1 204.185 109.05" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="MCC" x1="196.685" y1="109.05" x2="196.685" y2="106.75" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="MCC" x1="196.685" y1="109.05" x2="196.685" y2="106.75" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="MCC" x1="198.685" y1="109.05" x2="198.685" y2="106.75" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="MCC" x1="198.685" y1="109.05" x2="198.685" y2="106.75" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="MCC" x1="196.685" y1="109.05" x2="198.685" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="MCC" x1="196.685" y1="109.05" x2="198.685" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="MCC" x1="196.685" y1="106.75" x2="198.685" y2="106.75" stroke="#000000" stroke-width="0.25"/>
+<line class="piece" data-view="front" data-part="MCC" x1="196.685" y1="106.75" x2="198.685" y2="106.75" stroke="#000000" stroke-width="0.25"/>
+<text class="callout-text" data-view="front" data-part="INTAKE" data-label="part" x="161.185" y="108.1" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">INTAKE</text>
+<text class="callout-text" data-view="front" data-part="RM" data-label="part" x="184.485" y="108.85" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">RM</text>
+<text class="callout-text" data-view="front" data-part="FLOC" data-label="part" x="189.535" y="107.65" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">FLOC</text>
+<text class="callout-text" data-view="front" data-part="SED" data-label="part" x="202.485" y="107.55" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">SED</text>
+<text class="callout-text" data-view="front" data-part="F1" data-label="part" x="214.985" y="108.1" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">F1</text>
+<text class="callout-text" data-view="front" data-part="F2" data-label="part" x="214.985" y="108.1" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">F2</text>
+<text class="callout-text" data-view="front" data-part="F3" data-label="part" x="214.985" y="108.1" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">F3</text>
+<text class="callout-text" data-view="front" data-part="CW" data-label="part" x="223.485" y="107.65" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">CW</text>
+<text class="callout-text" data-view="front" data-part="RPA" data-label="part" x="167.185" y="108.75" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">RPA</text>
+<text class="callout-text" data-view="front" data-part="RPB" data-label="part" x="174.185" y="108.75" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">RPB</text>
+<text class="callout-text" data-view="front" data-part="HPA" data-label="part" x="230.285" y="108.75" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">HPA</text>
+<text class="callout-text" data-view="front" data-part="HPB" data-label="part" x="236.185" y="108.75" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">HPB</text>
+<text class="callout-text" data-view="front" data-part="STUBA" data-label="part" x="241.985" y="109.05" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">STUBA</text>
+<text class="callout-text" data-view="front" data-part="STUBB" data-label="part" x="241.985" y="109.05" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">STUBB</text>
+<text class="callout-text" data-view="front" data-part="P_IN_RPA" data-label="part" x="164.685" y="109.05" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_IN_RPA</text>
+<text class="callout-text" data-view="front" data-part="P_RPA_RM" data-label="part" x="175.685" y="109.05" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_RPA_RM</text>
+<text class="callout-text" data-view="front" data-part="P_IN_RPB" data-label="part" x="168.185" y="109.05" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_IN_RPB</text>
+<text class="callout-text" data-view="front" data-part="P_RPB_RM" data-label="part" x="179.185" y="109.05" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_RPB_RM</text>
+<text class="callout-text" data-view="front" data-part="P_RM_FLOC" data-label="part" x="185.985" y="109.05" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_RM_FLOC</text>
+<text class="callout-text" data-view="front" data-part="P_FLOC_SED" data-label="part" x="193.285" y="109.05" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_FLOC_SED</text>
+<text class="callout-text" data-view="front" data-part="P_SED_F1" data-label="part" x="211.735" y="109.05" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_SED_F1</text>
+<text class="callout-text" data-view="front" data-part="P_SED_F2" data-label="part" x="211.735" y="109.05" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_SED_F2</text>
+<text class="callout-text" data-view="front" data-part="P_SED_F3" data-label="part" x="211.735" y="109.05" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_SED_F3</text>
+<text class="callout-text" data-view="front" data-part="P_F1_CW" data-label="part" x="218.235" y="109.05" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_F1_CW</text>
+<text class="callout-text" data-view="front" data-part="P_F2_CW" data-label="part" x="218.235" y="109.05" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_F2_CW</text>
+<text class="callout-text" data-view="front" data-part="P_F3_CW" data-label="part" x="218.235" y="109.05" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_F3_CW</text>
+<text class="callout-text" data-view="front" data-part="P_CW_HPA" data-label="part" x="228.785" y="109.05" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_CW_HPA</text>
+<text class="callout-text" data-view="front" data-part="P_HPA_STUBA" data-label="part" x="236.235" y="109.05" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_HPA_STUBA</text>
+<text class="callout-text" data-view="front" data-part="P_CW_HPB" data-label="part" x="231.735" y="109.05" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_CW_HPB</text>
+<text class="callout-text" data-view="front" data-part="P_HPB_STUBB" data-label="part" x="239.185" y="109.05" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">P_HPB_STUBB</text>
+<text class="callout-text" data-view="front" data-part="BLDG" data-label="part" x="201.685" y="107.75" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">BLDG</text>
+<text class="callout-text" data-view="front" data-part="ALUM" data-label="part" x="202.685" y="108.35" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">ALUM</text>
+<text class="callout-text" data-view="front" data-part="MCC" data-label="part" x="197.685" y="108.7" font-family="Arial, Helvetica, sans-serif" font-size="1.8" text-anchor="middle" fill="#000000">MCC</text>
+<text class="title-text" data-view="front" data-label="view" x="200.985" y="92.45" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="middle" fill="#000000">FRONT</text>
+<line class="dim" x1="159.685" y1="110.55" x2="159.685" y2="118.55" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="242.285" y1="110.55" x2="242.285" y2="118.55" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="159.685" y1="117.05" x2="242.285" y2="117.05" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="158.695" y1="116.06" x2="160.675" y2="118.04" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="241.295" y1="116.06" x2="243.275" y2="118.04" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-view="front" data-kind="overall" data-axis="x" data-value_mm="82600.0057339668" x="200.985" y="116.25" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">82600.006 mm</text>
+<line class="dim" x1="243.785" y1="109.05" x2="251.785" y2="109.05" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="243.785" y1="104.45" x2="251.785" y2="104.45" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="250.285" y1="109.05" x2="250.285" y2="104.45" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="249.295" y1="110.04" x2="251.275" y2="108.06" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="249.295" y1="105.44" x2="251.275" y2="103.46" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-view="front" data-kind="overall" data-axis="y" data-value_mm="4600.00009536743" x="249.485" y="106.75" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 249.485 106.75)">4600.000 mm</text>
+<line class="wall" data-view="section" data-part="INTAKE" data-section="cut" x1="287.445" y1="109.05" x2="287.445" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="INTAKE" data-section="cut" x1="287.445" y1="109.05" x2="287.445" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="INTAKE" data-section="cut" x1="287.445" y1="109.05" x2="290.445" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="INTAKE" data-section="cut" x1="287.445" y1="109.05" x2="290.445" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="INTAKE" data-section="cut" x1="287.445" y1="105.55" x2="290.445" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="INTAKE" data-section="cut" x1="290.445" y1="109.05" x2="290.445" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="INTAKE" data-section="cut" x1="287.445" y1="105.55" x2="290.445" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="INTAKE" data-section="cut" x1="287.745" y1="105.55" x2="290.145" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="INTAKE" data-section="cut" x1="287.745" y1="105.55" x2="290.145" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="INTAKE" data-section="cut" x1="290.445" y1="109.05" x2="290.445" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="INTAKE" data-section="cut" x1="287.745" y1="108.65" x2="287.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="INTAKE" data-section="cut" x1="290.145" y1="108.65" x2="290.145" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="INTAKE" data-section="cut" x1="287.745" y1="108.65" x2="290.145" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="INTAKE" data-section="cut" x1="290.145" y1="108.65" x2="290.145" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="INTAKE" data-section="cut" x1="287.745" y1="108.65" x2="287.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="INTAKE" data-section="cut" x1="287.745" y1="108.65" x2="290.145" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RM" data-section="cut" x1="311.445" y1="109.05" x2="311.445" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RM" data-section="cut" x1="311.445" y1="109.05" x2="311.445" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RM" data-section="cut" x1="311.445" y1="109.05" x2="313.045" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RM" data-section="cut" x1="311.445" y1="109.05" x2="313.045" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RM" data-section="cut" x1="311.445" y1="107.05" x2="313.045" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RM" data-section="cut" x1="313.045" y1="109.05" x2="313.045" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RM" data-section="cut" x1="311.445" y1="107.05" x2="313.045" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RM" data-section="cut" x1="311.745" y1="107.05" x2="312.745" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RM" data-section="cut" x1="311.745" y1="107.05" x2="312.745" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RM" data-section="cut" x1="313.045" y1="109.05" x2="313.045" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RM" data-section="cut" x1="311.745" y1="108.65" x2="311.745" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RM" data-section="cut" x1="312.745" y1="108.65" x2="312.745" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RM" data-section="cut" x1="311.745" y1="108.65" x2="312.745" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RM" data-section="cut" x1="312.745" y1="108.65" x2="312.745" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RM" data-section="cut" x1="311.745" y1="108.65" x2="311.745" y2="107.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RM" data-section="cut" x1="311.745" y1="108.65" x2="312.745" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="FLOC" data-section="cut" x1="314.445" y1="109.05" x2="314.445" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="FLOC" data-section="cut" x1="314.445" y1="109.05" x2="314.445" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="FLOC" data-section="cut" x1="314.445" y1="109.05" x2="320.145" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="FLOC" data-section="cut" x1="314.445" y1="109.05" x2="320.145" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="FLOC" data-section="cut" x1="314.445" y1="104.65" x2="320.145" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="FLOC" data-section="cut" x1="320.145" y1="109.05" x2="320.145" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="FLOC" data-section="cut" x1="314.445" y1="104.65" x2="320.145" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="FLOC" data-section="cut" x1="314.745" y1="104.65" x2="319.845" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="FLOC" data-section="cut" x1="314.745" y1="104.65" x2="319.845" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="FLOC" data-section="cut" x1="320.145" y1="109.05" x2="320.145" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="FLOC" data-section="cut" x1="314.745" y1="108.65" x2="314.745" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="FLOC" data-section="cut" x1="319.845" y1="108.65" x2="319.845" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="FLOC" data-section="cut" x1="314.745" y1="108.65" x2="319.845" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="FLOC" data-section="cut" x1="319.845" y1="108.65" x2="319.845" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="FLOC" data-section="cut" x1="314.745" y1="108.65" x2="314.745" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="FLOC" data-section="cut" x1="314.745" y1="108.65" x2="319.845" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="SED" data-section="cut" x1="321.945" y1="109.05" x2="321.945" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="SED" data-section="cut" x1="321.945" y1="109.05" x2="321.945" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="SED" data-section="cut" x1="321.945" y1="109.05" x2="338.545" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="SED" data-section="cut" x1="321.945" y1="109.05" x2="338.545" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="SED" data-section="cut" x1="321.945" y1="104.45" x2="338.545" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="SED" data-section="cut" x1="338.545" y1="109.05" x2="338.545" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="SED" data-section="cut" x1="321.945" y1="104.45" x2="338.545" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="SED" data-section="cut" x1="322.245" y1="104.45" x2="338.245" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="SED" data-section="cut" x1="322.245" y1="104.45" x2="338.245" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="SED" data-section="cut" x1="338.545" y1="109.05" x2="338.545" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="SED" data-section="cut" x1="322.245" y1="108.65" x2="322.245" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="SED" data-section="cut" x1="338.245" y1="108.65" x2="338.245" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="SED" data-section="cut" x1="322.245" y1="108.65" x2="338.245" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="SED" data-section="cut" x1="338.245" y1="108.65" x2="338.245" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="SED" data-section="cut" x1="322.245" y1="108.65" x2="322.245" y2="104.45" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="SED" data-section="cut" x1="322.245" y1="108.65" x2="338.245" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F1" data-section="cut" x1="340.445" y1="109.05" x2="340.445" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F1" data-section="cut" x1="340.445" y1="109.05" x2="340.445" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F1" data-section="cut" x1="340.445" y1="109.05" x2="345.045" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F1" data-section="cut" x1="340.445" y1="109.05" x2="345.045" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F1" data-section="cut" x1="340.445" y1="105.55" x2="345.045" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F1" data-section="cut" x1="345.045" y1="109.05" x2="345.045" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F1" data-section="cut" x1="340.445" y1="105.55" x2="345.045" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F1" data-section="cut" x1="340.745" y1="105.55" x2="344.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F1" data-section="cut" x1="340.745" y1="105.55" x2="344.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F1" data-section="cut" x1="345.045" y1="109.05" x2="345.045" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F1" data-section="cut" x1="340.745" y1="108.65" x2="340.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F1" data-section="cut" x1="344.745" y1="108.65" x2="344.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F1" data-section="cut" x1="340.745" y1="108.65" x2="344.745" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F1" data-section="cut" x1="344.745" y1="108.65" x2="344.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F1" data-section="cut" x1="340.745" y1="108.65" x2="340.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F1" data-section="cut" x1="340.745" y1="108.65" x2="344.745" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F2" data-section="cut" x1="340.445" y1="109.05" x2="340.445" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F2" data-section="cut" x1="340.445" y1="109.05" x2="340.445" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F2" data-section="cut" x1="340.445" y1="109.05" x2="345.045" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F2" data-section="cut" x1="340.445" y1="109.05" x2="345.045" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F2" data-section="cut" x1="340.445" y1="105.55" x2="345.045" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F2" data-section="cut" x1="345.045" y1="109.05" x2="345.045" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F2" data-section="cut" x1="340.445" y1="105.55" x2="345.045" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F2" data-section="cut" x1="340.745" y1="105.55" x2="344.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F2" data-section="cut" x1="340.745" y1="105.55" x2="344.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F2" data-section="cut" x1="345.045" y1="109.05" x2="345.045" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F2" data-section="cut" x1="340.745" y1="108.65" x2="340.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F2" data-section="cut" x1="344.745" y1="108.65" x2="344.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F2" data-section="cut" x1="340.745" y1="108.65" x2="344.745" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F2" data-section="cut" x1="344.745" y1="108.65" x2="344.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F2" data-section="cut" x1="340.745" y1="108.65" x2="340.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F2" data-section="cut" x1="340.745" y1="108.65" x2="344.745" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F3" data-section="cut" x1="340.445" y1="109.05" x2="340.445" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F3" data-section="cut" x1="340.445" y1="109.05" x2="340.445" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F3" data-section="cut" x1="340.445" y1="109.05" x2="345.045" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F3" data-section="cut" x1="340.445" y1="109.05" x2="345.045" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F3" data-section="cut" x1="340.445" y1="105.55" x2="345.045" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F3" data-section="cut" x1="345.045" y1="109.05" x2="345.045" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F3" data-section="cut" x1="340.445" y1="105.55" x2="345.045" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F3" data-section="cut" x1="340.745" y1="105.55" x2="344.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F3" data-section="cut" x1="340.745" y1="105.55" x2="344.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F3" data-section="cut" x1="345.045" y1="109.05" x2="345.045" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F3" data-section="cut" x1="340.745" y1="108.65" x2="340.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F3" data-section="cut" x1="344.745" y1="108.65" x2="344.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F3" data-section="cut" x1="340.745" y1="108.65" x2="344.745" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F3" data-section="cut" x1="344.745" y1="108.65" x2="344.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F3" data-section="cut" x1="340.745" y1="108.65" x2="340.745" y2="105.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="F3" data-section="cut" x1="340.745" y1="108.65" x2="344.745" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="CW" data-section="cut" x1="346.945" y1="109.05" x2="346.945" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="CW" data-section="cut" x1="346.945" y1="109.05" x2="346.945" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="CW" data-section="cut" x1="346.945" y1="109.05" x2="355.545" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="CW" data-section="cut" x1="346.945" y1="109.05" x2="355.545" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="CW" data-section="cut" x1="346.945" y1="104.65" x2="355.545" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="CW" data-section="cut" x1="355.545" y1="109.05" x2="355.545" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="CW" data-section="cut" x1="346.945" y1="104.65" x2="355.545" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="CW" data-section="cut" x1="347.245" y1="104.65" x2="355.245" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="CW" data-section="cut" x1="347.245" y1="104.65" x2="355.245" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="CW" data-section="cut" x1="355.545" y1="109.05" x2="355.545" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="CW" data-section="cut" x1="347.245" y1="108.65" x2="347.245" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="CW" data-section="cut" x1="355.245" y1="108.65" x2="355.245" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="CW" data-section="cut" x1="347.245" y1="108.65" x2="355.245" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="CW" data-section="cut" x1="355.245" y1="108.65" x2="355.245" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="CW" data-section="cut" x1="347.245" y1="108.65" x2="347.245" y2="104.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="CW" data-section="cut" x1="347.245" y1="108.65" x2="355.245" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RPA" data-section="cut" x1="294.445" y1="108.65" x2="294.445" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RPA" data-section="cut" x1="294.445" y1="108.65" x2="294.445" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RPA" data-section="cut" x1="294.445" y1="108.65" x2="295.445" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RPA" data-section="cut" x1="294.445" y1="108.65" x2="295.445" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RPA" data-section="cut" x1="294.445" y1="107.85" x2="295.445" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RPA" data-section="cut" x1="295.445" y1="108.65" x2="295.445" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RPA" data-section="cut" x1="294.445" y1="107.85" x2="295.445" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<path class="wall" data-view="section" data-part="RPA" data-section="cut" data-r="0.25" d="M 295.195 107.85 A 0.25 0.25 0 1 1 295.195 107.85" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RPA" data-section="cut" x1="295.445" y1="108.65" x2="295.445" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<path class="wall" data-view="section" data-part="RPA" data-section="cut" data-r="0.25" d="M 295.195 107.25 A 0.25 0.25 0 1 1 295.195 107.25" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RPA" data-section="cut" x1="295.195" y1="107.85" x2="295.195" y2="107.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RPB" data-section="cut" x1="301.445" y1="108.65" x2="301.445" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RPB" data-section="cut" x1="301.445" y1="108.65" x2="301.445" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RPB" data-section="cut" x1="301.445" y1="108.65" x2="302.445" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RPB" data-section="cut" x1="301.445" y1="108.65" x2="302.445" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RPB" data-section="cut" x1="301.445" y1="107.85" x2="302.445" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RPB" data-section="cut" x1="302.445" y1="108.65" x2="302.445" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RPB" data-section="cut" x1="301.445" y1="107.85" x2="302.445" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<path class="wall" data-view="section" data-part="RPB" data-section="cut" data-r="0.25" d="M 302.195 107.85 A 0.25 0.25 0 1 1 302.195 107.85" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RPB" data-section="cut" x1="302.445" y1="108.65" x2="302.445" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<path class="wall" data-view="section" data-part="RPB" data-section="cut" data-r="0.25" d="M 302.195 107.25 A 0.25 0.25 0 1 1 302.195 107.25" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="RPB" data-section="cut" x1="302.195" y1="107.85" x2="302.195" y2="107.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="HPA" data-section="cut" x1="357.545" y1="108.65" x2="357.545" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="HPA" data-section="cut" x1="357.545" y1="108.65" x2="357.545" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="HPA" data-section="cut" x1="357.545" y1="108.65" x2="358.545" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="HPA" data-section="cut" x1="357.545" y1="108.65" x2="358.545" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="HPA" data-section="cut" x1="357.545" y1="107.85" x2="358.545" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="HPA" data-section="cut" x1="358.545" y1="108.65" x2="358.545" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="HPA" data-section="cut" x1="357.545" y1="107.85" x2="358.545" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<path class="wall" data-view="section" data-part="HPA" data-section="cut" data-r="0.25" d="M 358.295 107.85 A 0.25 0.25 0 1 1 358.295 107.85" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="HPA" data-section="cut" x1="358.545" y1="108.65" x2="358.545" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<path class="wall" data-view="section" data-part="HPA" data-section="cut" data-r="0.25" d="M 358.295 107.25 A 0.25 0.25 0 1 1 358.295 107.25" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="HPA" data-section="cut" x1="358.295" y1="107.85" x2="358.295" y2="107.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="HPB" data-section="cut" x1="363.445" y1="108.65" x2="363.445" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="HPB" data-section="cut" x1="363.445" y1="108.65" x2="363.445" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="HPB" data-section="cut" x1="363.445" y1="108.65" x2="364.445" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="HPB" data-section="cut" x1="363.445" y1="108.65" x2="364.445" y2="108.65" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="HPB" data-section="cut" x1="363.445" y1="107.85" x2="364.445" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="HPB" data-section="cut" x1="364.445" y1="108.65" x2="364.445" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="HPB" data-section="cut" x1="363.445" y1="107.85" x2="364.445" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<path class="wall" data-view="section" data-part="HPB" data-section="cut" data-r="0.25" d="M 364.195 107.85 A 0.25 0.25 0 1 1 364.195 107.85" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="HPB" data-section="cut" x1="364.445" y1="108.65" x2="364.445" y2="107.85" stroke="#000000" stroke-width="0.25"/>
+<path class="wall" data-view="section" data-part="HPB" data-section="cut" data-r="0.25" d="M 364.195 107.25 A 0.25 0.25 0 1 1 364.195 107.25" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="HPB" data-section="cut" x1="364.195" y1="107.85" x2="364.195" y2="107.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="STUBA" data-section="cut" x1="369.445" y1="108.55" x2="369.445" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="STUBA" data-section="cut" x1="369.445" y1="108.55" x2="369.445" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="STUBA" data-section="cut" x1="370.045" y1="108.55" x2="370.045" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="STUBA" data-section="cut" x1="370.045" y1="108.55" x2="370.045" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="STUBA" data-section="cut" x1="369.445" y1="108.55" x2="370.045" y2="108.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="STUBA" data-section="cut" x1="369.445" y1="108.55" x2="370.045" y2="108.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="STUBA" data-section="cut" x1="369.445" y1="107.95" x2="370.045" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="STUBA" data-section="cut" x1="369.445" y1="107.95" x2="370.045" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="STUBB" data-section="cut" x1="369.445" y1="108.55" x2="369.445" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="STUBB" data-section="cut" x1="369.445" y1="108.55" x2="369.445" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="STUBB" data-section="cut" x1="370.045" y1="108.55" x2="370.045" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="STUBB" data-section="cut" x1="370.045" y1="108.55" x2="370.045" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="STUBB" data-section="cut" x1="369.445" y1="108.55" x2="370.045" y2="108.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="STUBB" data-section="cut" x1="369.445" y1="108.55" x2="370.045" y2="108.55" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="STUBB" data-section="cut" x1="369.445" y1="107.95" x2="370.045" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="STUBB" data-section="cut" x1="369.445" y1="107.95" x2="370.045" y2="107.95" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_IN_RPA" data-section="cut" x1="290.445" y1="108.25" x2="294.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_IN_RPA" data-section="cut" x1="290.445" y1="108.25" x2="294.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_RPA_RM" data-section="cut" x1="295.445" y1="108.25" x2="311.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_RPA_RM" data-section="cut" x1="295.445" y1="108.25" x2="311.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_IN_RPB" data-section="cut" x1="290.445" y1="108.25" x2="301.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_IN_RPB" data-section="cut" x1="290.445" y1="108.25" x2="301.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_RPB_RM" data-section="cut" x1="302.445" y1="108.25" x2="311.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_RPB_RM" data-section="cut" x1="302.445" y1="108.25" x2="311.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_RM_FLOC" data-section="cut" x1="313.045" y1="108.25" x2="314.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_RM_FLOC" data-section="cut" x1="313.045" y1="108.25" x2="314.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_FLOC_SED" data-section="cut" x1="320.145" y1="108.25" x2="321.945" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_FLOC_SED" data-section="cut" x1="320.145" y1="108.25" x2="321.945" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_SED_F1" data-section="cut" x1="338.545" y1="108.25" x2="340.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_SED_F1" data-section="cut" x1="338.545" y1="108.25" x2="340.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_SED_F2" data-section="cut" x1="338.545" y1="108.25" x2="340.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_SED_F2" data-section="cut" x1="338.545" y1="108.25" x2="340.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_SED_F3" data-section="cut" x1="338.545" y1="108.25" x2="340.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_SED_F3" data-section="cut" x1="338.545" y1="108.25" x2="340.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_F1_CW" data-section="cut" x1="345.045" y1="108.25" x2="346.945" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_F1_CW" data-section="cut" x1="345.045" y1="108.25" x2="346.945" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_F2_CW" data-section="cut" x1="345.045" y1="108.25" x2="346.945" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_F2_CW" data-section="cut" x1="345.045" y1="108.25" x2="346.945" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_F3_CW" data-section="cut" x1="345.045" y1="108.25" x2="346.945" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_F3_CW" data-section="cut" x1="345.045" y1="108.25" x2="346.945" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_CW_HPA" data-section="cut" x1="355.545" y1="108.25" x2="357.545" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_CW_HPA" data-section="cut" x1="355.545" y1="108.25" x2="357.545" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_HPA_STUBA" data-section="cut" x1="358.545" y1="108.25" x2="369.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_HPA_STUBA" data-section="cut" x1="358.545" y1="108.25" x2="369.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_CW_HPB" data-section="cut" x1="355.545" y1="108.25" x2="363.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_CW_HPB" data-section="cut" x1="355.545" y1="108.25" x2="363.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_HPB_STUBB" data-section="cut" x1="364.445" y1="108.25" x2="369.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="P_HPB_STUBB" data-section="cut" x1="364.445" y1="108.25" x2="369.445" y2="108.25" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.445" y1="109.05" x2="323.445" y2="106.74" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.445" y1="109.05" x2="323.445" y2="106.74" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.445" y1="109.05" x2="323.445" y2="104.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.445" y1="109.05" x2="323.445" y2="104.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.445" y1="109.05" x2="335.445" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.445" y1="109.05" x2="323.745" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.745" y1="109.05" x2="335.145" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.745" y1="109.05" x2="335.145" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.445" y1="109.05" x2="323.745" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.445" y1="109.05" x2="335.445" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.445" y1="106.74" x2="323.745" y2="106.74" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.745" y1="109.05" x2="323.745" y2="106.74" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.445" y1="106.74" x2="323.745" y2="106.74" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.745" y1="109.05" x2="323.745" y2="106.74" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.445" y1="104.85" x2="335.445" y2="104.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="335.445" y1="109.05" x2="335.445" y2="104.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.445" y1="104.85" x2="335.445" y2="104.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="335.445" y1="109.05" x2="335.445" y2="104.85" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.745" y1="109.05" x2="323.745" y2="105.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.745" y1="109.05" x2="323.745" y2="105.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.745" y1="105.05" x2="335.145" y2="105.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="335.145" y1="109.05" x2="335.145" y2="105.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="335.145" y1="109.05" x2="335.145" y2="105.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="BLDG" data-section="cut" x1="323.745" y1="105.05" x2="335.145" y2="105.05" stroke="#000000" stroke-width="0.25"/>
+<path class="wall" data-view="section" data-part="ALUM" data-section="cut" data-r="1.5" d="M 331.945 106.05 A 1.5 1.5 0 1 1 331.945 106.05" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="ALUM" data-section="cut" x1="331.945" y1="109.05" x2="331.945" y2="106.05" stroke="#000000" stroke-width="0.25"/>
+<path class="wall" data-view="section" data-part="ALUM" data-section="cut" data-r="1.5" d="M 331.945 109.05 A 1.5 1.5 0 1 1 331.945 109.05" fill="none" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="MCC" data-section="cut" x1="324.445" y1="109.05" x2="324.445" y2="106.75" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="MCC" data-section="cut" x1="324.445" y1="109.05" x2="324.445" y2="106.75" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="MCC" data-section="cut" x1="326.445" y1="109.05" x2="326.445" y2="106.75" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="MCC" data-section="cut" x1="326.445" y1="109.05" x2="326.445" y2="106.75" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="MCC" data-section="cut" x1="324.445" y1="109.05" x2="326.445" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="MCC" data-section="cut" x1="324.445" y1="109.05" x2="326.445" y2="109.05" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="MCC" data-section="cut" x1="324.445" y1="106.75" x2="326.445" y2="106.75" stroke="#000000" stroke-width="0.25"/>
+<line class="wall" data-view="section" data-part="MCC" data-section="cut" x1="324.445" y1="106.75" x2="326.445" y2="106.75" stroke="#000000" stroke-width="0.25"/>
+<text class="title-text" data-view="section" data-label="view" x="328.745" y="92.45" font-family="Arial, Helvetica, sans-serif" font-size="3.0" text-anchor="middle" fill="#000000">SECTION A-A</text>
+<line class="dim" x1="287.445" y1="110.55" x2="287.445" y2="118.55" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="370.045" y1="110.55" x2="370.045" y2="118.55" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="287.445" y1="117.05" x2="370.045" y2="117.05" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="286.455" y1="116.06" x2="288.435" y2="118.04" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="369.055" y1="116.06" x2="371.035" y2="118.04" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-view="section" data-kind="overall" data-axis="x" data-value_mm="82600.0057339668" x="328.745" y="116.25" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000">82600.006 mm</text>
+<line class="dim" x1="371.545" y1="109.05" x2="379.545" y2="109.05" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="371.545" y1="104.45" x2="379.545" y2="104.45" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="378.045" y1="109.05" x2="378.045" y2="104.45" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="377.055" y1="110.04" x2="379.035" y2="108.06" stroke="#202020" stroke-width="0.13"/>
+<line class="dim" x1="377.055" y1="105.44" x2="379.035" y2="103.46" stroke="#202020" stroke-width="0.13"/>
+<text class="dim-text" data-view="section" data-kind="overall" data-axis="y" data-value_mm="4600.00009536743" x="377.245" y="106.75" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="middle" fill="#000000" transform="rotate(-90.0 377.245 106.75)">4600.000 mm</text>
+<text class="text" x="20.0" y="224.0" font-family="Arial, Helvetica, sans-serif" font-size="2.1" text-anchor="start" fill="#000000">OCCT B-rep edge projection; exact-solid bounds. Section: SectionLook plane n.p = w, n.p &gt; w removed. Dimensions in mm.</text>
+<text class="title-text" data-kind="mass" data-value_g="1293422588.20782" x="20.0" y="232.0" font-family="Arial, Helvetica, sans-serif" font-size="2.5" text-anchor="start" fill="#000000">MODEL MASS 1293422588.208 g (exact solids x BOM densities)</text>
+<polygon class="border" points="10.0,10.0 410.0,10.0 410.0,287.0 10.0,287.0" fill="none" stroke="#000000" stroke-width="0.5" stroke-linejoin="miter"/>
+<line class="title" x1="10.0" y1="263.0" x2="410.0" y2="263.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="12.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">PROJECT</text>
+<text class="title-text" data-field="project" x="12.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">CH17 water treatment plant</text>
+<line class="title" x1="130.0" y1="263.0" x2="130.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="132.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">SHEET (dimensions in mm)</text>
+<text class="title-text" data-field="sheet" x="132.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Assembly plan / front / section</text>
+<text class="title-label" data-field="size" x="132.0" y="284.0" font-family="Arial, Helvetica, sans-serif" font-size="2.4" text-anchor="start" fill="#606060">A3   1 / 1</text>
+<line class="title" x1="250.0" y1="263.0" x2="250.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="252.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">SCALE</text>
+<text class="title-text" data-field="scale" x="252.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">1:1000</text>
+<line class="title" x1="290.0" y1="263.0" x2="290.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="292.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">DATE</text>
+<text class="title-text" data-field="date" x="292.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">2026-11-05</text>
+<line class="title" x1="346.0" y1="263.0" x2="346.0" y2="287.0" stroke="#000000" stroke-width="0.3"/>
+<text class="title-label" x="348.0" y="267.5" font-family="Arial, Helvetica, sans-serif" font-size="2.0" text-anchor="start" fill="#606060">DRAWN WITH</text>
+<text class="title-text" data-field="drawn" x="348.0" y="277.5" font-family="Arial, Helvetica, sans-serif" font-size="5.0" text-anchor="start" fill="#000000">Kine</text>
+</g>
+</svg>
