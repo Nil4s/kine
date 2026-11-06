@@ -1041,3 +1041,4 @@ EXTRA="$EXTRA mcpfast:w"   # MCPFAST: the CAD tools of the local MCP (cad_part, 
 
 EXTRA="$EXTRA charimp:w"   # L9 CHARIMP: a rigged character (mesh, skin, blend shapes) from glb / fbx onto the Kine body: map by name then geometry, rest-pose alignment, pose transfer, proportions, scene key (tests/charimp_test.gd)
 EXTRA="$EXTRA uiexp:w ch17:w frender:w"   # UIEXP (lane L2): Expert Part / Assembly / Engineering on a wide window: tool rail with icons, nothing outside the window, no panel overlap, every old function reachable, window start inside the usable screen (tests/uiexp_test.gd, docs/UIEXP_DESIGN.md)
+EXTRA="$EXTRA soft:w"   # L17 soft-body
