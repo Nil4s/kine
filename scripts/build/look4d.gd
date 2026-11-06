@@ -423,7 +423,7 @@ static func plan(ctx: Dictionary, kin: Dictionary, meas: Dictionary, past: Array
 		var best := Rect2()
 		var found := false
 		var radii := [0.0, 10.0, 18.0, 26.0, 34.0, 44.0, 56.0, 70.0, 88.0, 110.0]
-		for rad in radii:
+		for rad: float in radii:
 			var steps := 1 if rad == 0.0 else 12
 			for si in steps:
 				var ang := TAU * float(si) / float(steps)
