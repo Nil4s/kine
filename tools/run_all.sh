@@ -1070,3 +1070,4 @@ EXTRA="$EXTRA render1:w"   # L49 RENDER1: Final HQ preset: GI raise, DOF edge wi
 EXTRA="$EXTRA render2:w"   # L51 RENDER2: native accumulate == GDScript, 1080p x16 <= 150 ms, edge-aware a-trous denoise (tests/render2_test.gd)
 EXTRA="$EXTRA tpaint:w"   # L53 TPAINT: texture paint across UV seams with screen projection, seam dilation, native == GDScript (tests/tpaint_test.gd)
 EXTRA="$EXTRA tpaint2:w"   # L55 TPAINT2: texture paint saved beside the scene (SHA-256 round trip, PNG missing = warning), the auto-unwrap is one undo step (tests/tpaint2_test.gd)
+EXTRA="$EXTRA perfscout:w"   # L54 PERF SCOUT: measures user-visible stalls (tools/perf_scout.gd), no speed bars

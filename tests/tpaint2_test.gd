@@ -98,6 +98,7 @@ func run() -> void:
 	var raw := KMeshPrims.uv_sphere(1.0, 32, 16)
 	var h_none := uvh(raw)
 	ok(h_none == "none" and not raw.has_attr("uv"), "c0 a UV-less sphere has no uv attribute (hash \"%s\")" % h_none)
+	var h_before := uvh(raw)   # the absent state, hashed explicitly ("none" = no uv attribute)
 	var u := KMeshUndo.new()
 	KMeshVPaintUI.unwrap_undoable(u, raw)
 	var h_un := uvh(raw)
@@ -107,8 +108,9 @@ func run() -> void:
 	var seams_back := raw.has_attr(KMeshUV.SEAM)
 	u.redo()
 	var h_redo := uvh(raw)
-	ok(h_un != "none" and seams_on and h_back == "none" and not seams_back and h_redo == h_un,
-		"c1 unwrap = 1 undo step: UV hash %s after, %s after undo (exact \"none\": %s), seams back %s, redo restores %s" % [h_un.left(12), h_back, h_back == "none", seams_back, h_redo == h_un])
+	ok(h_before == "none" and h_un != h_before and h_un != "none" and raw.has_attr("uv") and seams_on
+		and h_back == h_before and not seams_back and h_redo == h_un,
+		"c1 unwrap = 1 undo step: before %s, after unwrap %s (changed %s, uv attr %s), after undo %s (== before %s), seams back %s, redo restores %s" % [h_before, h_un.left(12), h_un != h_before, raw.has_attr("uv"), h_back, h_back == h_before, seams_back, h_redo == h_un])
 	var again := KMeshPrims.uv_sphere(1.0, 32, 16)
 	KMeshVPaintUI.unwrap_undoable(KMeshUndo.new(), again)
 	ok(uvh(again) == h_un, "c2 the unwrap is deterministic: a second sphere gives the same UV hash (%s)" % (uvh(again) == h_un))
