@@ -425,6 +425,8 @@ func ribbon_shows(b: Node, tab: String) -> bool:
 	if tab != "BUILD":
 		return true
 	var show := chrome()
+	if bu.shell != null and bu.shell.hides(b):
+		return false   # L2: the wide window's rail carries this tool
 	if b == part_btn:
 		return bu.on and not bu.easy_ui()
 	if b == reopen_btn:   # the way back to the chooser: in the Part ribbon too, with its words
@@ -815,7 +817,7 @@ func _xtime_buttons() -> Control:
 	sup_btn.text = "Suppress"
 	sup_btn.focus_mode = Control.FOCUS_NONE
 	sup_btn.custom_minimum_size = Vector2(150, 22)
-	sup_btn.add_theme_font_size_override("font_size", 11)
+	sup_btn.add_theme_font_size_override("font_size", 12)
 	sup_btn.tooltip_text = "Suppress: the selected step is skipped by the replay (Suppress again, or Undo, puts it back)"
 	sup_btn.pressed.connect(_suppress_toggle)
 	ab.add_child(sup_btn)
@@ -824,7 +826,7 @@ func _xtime_buttons() -> Control:
 	del_btn.text = "Delete step"
 	del_btn.focus_mode = Control.FOCUS_NONE
 	del_btn.custom_minimum_size = Vector2(150, 22)
-	del_btn.add_theme_font_size_override("font_size", 11)
+	del_btn.add_theme_font_size_override("font_size", 12)
 	del_btn.tooltip_text = "Delete step: removes the selected step; the steps after it replay, and a step that needs it says why (one undo step)"
 	del_btn.pressed.connect(_delete_step)
 	ab.add_child(del_btn)
@@ -839,7 +841,7 @@ func _build_timeline() -> void:
 	hb.add_theme_constant_override("separation", 6)
 	tl.add_child(hb)
 	var nav := VBoxContainer.new()
-	nav.add_child(_label("TIMELINE", 11, true))
+	nav.add_child(_label("TIMELINE", 12, true))
 	var nb := HBoxContainer.new()
 	for e in [["<<", "first step", "part_first"], ["<", "one step back", "part_back"], [">", "one step on", "part_next"], [">>", "every step", "part_last"]]:
 		var b := Button.new()
@@ -2662,13 +2664,13 @@ func sync() -> void:
 	if reopen_btn != null:
 		reopen_btn.text = "What to build" if on and not (easy and m.get_viewport().get_visible_rect().size.x < 1400.0) else ""   # bug6: Easy Part's bar at 1280 is full: the words went off the right edge, so the icon alone there   # icon only in the house ribbon (it is crowded there); with words in Part, Expert or Easy
 	for t in tool_btns:
-		(tool_btns[t] as Control).visible = show and not (t in m.RIBBON_REST.get("BUILD", [])) and (con_open or not (t in CON_TOOLS))   # the rarer ones live under their captions (main.gd RIBBON_REST); the rule row shows while Constrain is open
-	finish_btn.visible = show
+		(tool_btns[t] as Control).visible = show and not (t in m.RIBBON_REST.get("BUILD", [])) and (con_open or not (t in CON_TOOLS)) and not (bu.shell != null and bu.shell.hides(tool_btns[t]))   # the rarer ones live under their captions (main.gd RIBBON_REST); the rule row shows while Constrain is open
+	finish_btn.visible = show and not (bu.shell != null and bu.shell.hides(finish_btn))
 	if shp != null:
 		shp.sync()
 	easy_open_btn.visible = show
 	for c in my_seps:
-		(c as Control).visible = show
+		(c as Control).visible = show and not (bu.shell != null and bu.shell.hides(c))
 	if show != _was_show:
 		_was_show = show
 		if show:

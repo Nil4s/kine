@@ -35,6 +35,7 @@ var add_btn: Button
 var open_btn: Button
 var save_btn: Button
 var new_btn: Button
+var list_sc: ScrollContainer   # L2: the parts list shrinks (to 3 rows at least) when the panel would run under the page bar
 var list_vb: VBoxContainer
 var part_name: LineEdit
 var pos_edits: Array = []      # X Y Z LineEdits
@@ -189,6 +190,7 @@ func _build_panel() -> void:
 	vb.add_child(hp)
 	var sc := ScrollContainer.new()
 	sc.name = "asm_list_scroll"
+	list_sc = sc
 	sc.custom_minimum_size = Vector2(0, 58)
 	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	list_vb = VBoxContainer.new()
@@ -431,6 +433,15 @@ func _layout() -> void:
 	src_panel.reset_size()
 	src_panel.position = Vector2(cl.position.x + 8.0, cl.position.y + 4.0)
 	src_panel.size.x = SRC_W
+	# L2: the panel never runs under the page bar (a 1280 x 720 window): the parts list gives up its height first
+	var room: float = (m.ui_page_bar.position.y if m.ui_page_bar != null else vs.y) - panel.position.y - 4.0
+	var cur := list_sc.custom_minimum_size.y
+	var full := panel.get_combined_minimum_size().y + (58.0 - cur)
+	var want := clampf(58.0 - (full - room), 24.0, 58.0)
+	if absf(want - cur) > 0.5:
+		list_sc.custom_minimum_size.y = want
+		panel.reset_size()
+		panel.size.x = PANEL_W
 	motion.layout(Vector2(cl.position.x + 8.0, cl.position.y + 4.0))
 	bom.layout(Vector2(cl.position.x + 8.0, cl.position.y + 4.0))
 	fits.layout(Vector2(cl.position.x + 8.0, cl.position.y + 4.0))

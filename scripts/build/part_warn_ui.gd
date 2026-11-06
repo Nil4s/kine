@@ -73,7 +73,7 @@ func build(parent: Node) -> void:
 	help.name = "partwarn_help"
 	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	help.custom_minimum_size = Vector2(W - 20, 0)
-	help.add_theme_font_size_override("font_size", 11)
+	help.add_theme_font_size_override("font_size", 12)
 	help.add_theme_color_override("font_color", Color(0.7, 0.74, 0.8))
 	body.add_child(help)
 	status = Label.new()
@@ -93,7 +93,7 @@ func build(parent: Node) -> void:
 	rows_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.add_child(rows_box)
 	muted_title = Label.new()
-	muted_title.add_theme_font_size_override("font_size", 11)
+	muted_title.add_theme_font_size_override("font_size", 12)
 	muted_title.add_theme_color_override("font_color", Color(0.7, 0.74, 0.8))
 	body.add_child(muted_title)
 	muted_box = HFlowContainer.new()
