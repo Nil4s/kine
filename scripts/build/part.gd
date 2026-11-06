@@ -583,7 +583,8 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	var stepkeys: Array = []
 	var fx_on := bool(want.get("effects", false)) or keyed or bool(want.get("stepkeys", false))   # item 241: what each step did (scripts/build/part_fx.gd); not with the incremental cache
 	var fx: Dictionary = PartFx.begin() if fx_on else {}
-	var ck: bool = want.get("ckpt", true) != false and n >= CKPT_MIN   # L57: a long part keeps a checkpoint per step (an edit at step k replays from k-1) and fuses runs of plain joins in one boolean
+	var long_part: bool = want.get("ckpt", true) != false and n >= CKPT_MIN   # L57: a long part fuses runs of plain joins in one boolean (the full replay stops being O(n^2))
+	var ck: bool = long_part and (bool(want.get("effects", false)) or want.get("ckpt", false) == true)   # ... and an effects replay (what the UI and the agent ask) keeps a checkpoint per step: an edit at step k replays from k-1. A plain replay is cached only with want inc (as before)
 	var inc: bool = ((bool(want.get("inc", false)) and not bool(want.get("effects", false))) or ck) and n > 0 and not bool(want.get("stepkeys", false))   # W03e: a keyed part uses the cache too (its snapshots hold the body keys).   s168 INCREMENTAL REPLAY: the steps a cached prefix already made are not run again
 	var inc_keys: Array = []
 	var counts: Array = []
@@ -595,7 +596,7 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		print("INC replay n=%d from=%d caller=%s:%s want=%s" % [n, i0, get_stack()[1]["function"], get_stack()[1]["line"], str(want.keys())])
 	var t_prev := Time.get_ticks_usec()
 	var skip_to := 0   # L57: steps below this were done by a batched run of joins
-	var batch_ok: bool = ck and not keyed and KCad.has_union_many()
+	var batch_ok: bool = long_part and not keyed and KCad.has_union_many()
 	for i in range(i0, n):
 		if i < skip_to:
 			continue
