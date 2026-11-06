@@ -1464,13 +1464,32 @@ func search(js: Array, cost: Callable, pen0 := -1.0) -> float:
 
 
 ## FK for a few joints only (an arm), parents first: the same math as fk(), for fast sweeps
+## STRETCHY LIMBS (L28; LimbIK.solve with a stretch): {joint: s} makes the bone that ENDS at that joint s times longer (its offset from the
+## parent joint is scaled); stretch_cross {joint: c} is the volume-keeping cross scale (s * c * c = 1) for whoever draws the bone. Both empty
+## (the default) = the body as before, byte for byte: the branches below are not taken.
+var stretch := {}
+var stretch_cross := {}
+var _has_stretch := false
+
+
+func has_stretch() -> bool:
+	return _has_stretch
+
+
+func set_stretch(s: Dictionary, cross := {}) -> void:
+	stretch = s
+	stretch_cross = cross
+	_has_stretch = not s.is_empty()
+	_fk_a.clear()   # every joint is recomputed by the next fk()
+
+
 func fk_some(js: Array) -> void:
 	for j in js:
 		_fk_a.erase(j)
 		var A := compose(j, ang[j])
 		var pj: String = parent[j]
 		G[j] = G[pj] * A
-		P[j] = P[pj] + G[pj] * (p0[j] - p0[pj])
+		P[j] = P[pj] + G[pj] * (p0[j] - p0[pj]) if not _has_stretch else P[pj] + G[pj] * ((p0[j] - p0[pj]) * float(stretch.get(j, 1.0)))
 		E[j] = P[j] + G[j] * (e0[j] - p0[j])
 
 
@@ -2318,7 +2337,7 @@ func fk_sub(j: String) -> void:
 			P[k] = p0[k] + offset
 		else:
 			G[k] = G[pk] * A
-			P[k] = P[pk] + G[pk] * (p0[k] - p0[pk])
+			P[k] = P[pk] + G[pk] * (p0[k] - p0[pk]) if not _has_stretch else P[pk] + G[pk] * ((p0[k] - p0[pk]) * float(stretch.get(k, 1.0)))
 		E[k] = P[k] + G[k] * (e0[k] - p0[k])
 
 
@@ -2347,7 +2366,7 @@ func fk() -> void:
 			P[j] = p0[j] + offset
 		else:
 			G[j] = G[pj] * A
-			P[j] = P[pj] + G[pj] * (p0[j] - p0[pj])
+			P[j] = P[pj] + G[pj] * (p0[j] - p0[pj]) if not _has_stretch else P[pj] + G[pj] * ((p0[j] - p0[pj]) * float(stretch.get(j, 1.0)))
 		E[j] = P[j] + G[j] * (e0[j] - p0[j])
 	_fk_off = offset
 

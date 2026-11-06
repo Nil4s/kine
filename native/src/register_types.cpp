@@ -12,6 +12,7 @@
 #include "kine_parkour_native.h"
 #include "kine_retopo_native.h"
 #include "kine_solve_native.h"
+#include "kine_spline_native.h"
 #include "kine_skin_native.h"
 #include "kine_clock_native.h"
 
@@ -37,6 +38,7 @@ void kine_native_initialize(ModuleInitializationLevel p_level) {
 	GDREGISTER_ABSTRACT_CLASS(KineParkourNative);
 	GDREGISTER_CLASS(KineRetopoNative);
 	GDREGISTER_ABSTRACT_CLASS(KineSolveNative);
+	GDREGISTER_ABSTRACT_CLASS(KineSplineNative);
 	GDREGISTER_ABSTRACT_CLASS(KineSkinNative);
 	GDREGISTER_ABSTRACT_CLASS(KineClockNative);
 

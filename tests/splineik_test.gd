@@ -310,12 +310,20 @@ func _main() -> void:
 	var reach: float = (B.p0["lowerarm_l"] - B.p0["upperarm_l"]).length() + (B.p0["hand_l"] - B.p0["lowerarm_l"]).length()
 	var dir := Vector3(0.3, -0.5, 0.4).normalized()
 	var tgt: Vector3 = sh + dir * reach * 1.2
-	var r4 := LimbIK.solve(B, "hand_l", tgt, tgt + Vector3(0, 0, 1), null, 1.5, false)
-	var miss_on := (B.P["hand_l"] as Vector3).distance_to(tgt)
+	var dir2: Vector3 = ((B.p0["hand_l"] as Vector3) - (B.p0["upperarm_l"] as Vector3)).normalized()   # the arm's own rest line: inside the shoulder's limits
+	var tgt2: Vector3 = sh + dir2 * reach * 1.2
+	var r4 := LimbIK.solve(B, "hand_l", tgt2, tgt2 + Vector3(0, 0, 1), null, 1.5, false)
+	var miss_on := (B.P["hand_l"] as Vector3).distance_to(tgt2)
 	var el: Vector3 = B.P["lowerarm_l"]
-	var off_line := (el - sh - dir * (el - sh).dot(dir)).length()
+	var off_line := (el - sh - dir2 * (el - sh).dot(dir2)).length()
+	var Bq := body()
+	LimbIK.solve(Bq, "hand_l", tgt, tgt + Vector3(0, 0, 1), null, 1.5, false)
+	print("   (info) the golden direction, which presses the shoulder limit: hand %.2f mm off with stretch on" % (((Bq.P["hand_l"] as Vector3).distance_to(tgt)) * 1000.0))
 	ok(miss_on < 0.001, "4 stretch on, target 1.2x reach: hand %.4f mm off (reported miss %.4f mm), scales %s" % [miss_on * 1000.0, float(r4["miss"]) * 1000.0, str(B.stretch)])
-	ok(off_line < 0.002, "4 the elbow lies on the shoulder-target line (%.3f mm): a straight stretched arm" % (off_line * 1000.0))
+	# the rest arm has a 4.7 mm kink at the elbow of its own (data/skeleton.json): a stretched arm is that arm scaled, so the elbow
+	# sits 1.2x the rest kink off the shoulder-target line (+-0.5 mm), and the whole arm lies in a straight line otherwise
+	var rest_kink: float = ((B.p0["lowerarm_l"] as Vector3) - (B.p0["upperarm_l"] as Vector3) - dir2 * (((B.p0["lowerarm_l"] as Vector3) - (B.p0["upperarm_l"] as Vector3)).dot(dir2))).length()
+	ok(absf(off_line - 1.2 * rest_kink) < 0.0005, "4 the stretched arm is the rest arm scaled: elbow %.2f mm off the line, 1.2 x the rest kink of %.2f mm" % [off_line * 1000.0, rest_kink * 1000.0])
 	var B2 := body()
 	var r4b := LimbIK.solve(B2, "hand_l", tgt, tgt + Vector3(0, 0, 1))
 	var miss_off := (B2.P["hand_l"] as Vector3).distance_to(tgt)
@@ -327,7 +335,7 @@ func _main() -> void:
 	ok(B3.stretch.is_empty() and limb_hash(B3, r3c) == gold["limb_0.8"], "4 stretch on but the target in reach: nothing stretches, bytes equal the old solver's golden")
 	# 5 VOLUME (limb)
 	var B5 := body()
-	LimbIK.solve(B5, "hand_l", tgt, tgt + Vector3(0, 0, 1), null, 1.5, true)
+	LimbIK.solve(B5, "hand_l", tgt2, tgt2 + Vector3(0, 0, 1), null, 1.5, true)
 	var s_ok := not B5.stretch.is_empty()
 	for j in B5.stretch:
 		var pr: float = float(B5.stretch[j]) * float(B5.stretch_cross[j]) * float(B5.stretch_cross[j])
@@ -378,9 +386,11 @@ func _app_part() -> void:
 	var nb: int = m.S.bones.size()
 	var s1 := steps(func(): m._spline_make(b1))
 	ok(nb == 4 and s1 == 1 and m.S.spline_chains.size() == 1 and (m.S.spline_chains[0]["bones"] as Array).size() == 4, "8 spline IK on a 4-bone chain: %d step, %d chain" % [s1, m.S.spline_chains.size()])
-	var h1: Vector3 = (m.S.spline_chains[0]["ctrl"] as Array)[2]
+	var par: String = BoneEdit.get_bone(m.S.bones, m.S.spline_chains[0]["bones"][0])["parent"]
+	var Kx: Transform3D = BoneEdit.posed_xf(m.B, m.S.bones, par) * BoneEdit.rest_xf(m.B, m.S.bones, par).affine_inverse()   # rest space -> the posed world, from BoneEdit
+	var h1: Vector3 = Kx * ((m.S.spline_chains[0]["ctrl"] as Array)[2] as Vector3)
 	var s2 := steps(func(): m._spline_handle(0, 2, h1 + Vector3(0.15, 0.12, 0.0)))
-	var h2: Vector3 = (m.S.spline_chains[0]["ctrl"] as Array)[2]
+	var h2: Vector3 = Kx * ((m.S.spline_chains[0]["ctrl"] as Array)[2] as Vector3)
 	ok(s2 == 1 and h2.distance_to(h1 + Vector3(0.15, 0.12, 0.0)) < 1e-4, "8 moving a handle is one step (moved %.1f cm)" % (h2.distance_to(h1) * 100.0))
 	var s3 := steps(func(): m._spline_set(0, "mode", "stretch"))
 	ok(s3 == 1 and m.S.spline_chains[0]["mode"] == "stretch", "8 stretch to fit is one step")
@@ -399,7 +409,8 @@ func _app_part() -> void:
 	var tipb: String = (ch["bones"] as Array)[3]
 	var cs: Array = ch["ctrl"]
 	var end_pt: Vector3 = (pz[tipb] as Transform3D).origin + (pz[tipb] as Transform3D).basis.y * BoneEdit.length(m.B, m.S.bones, tipb)
-	ok(end_pt.distance_to(cs[cs.size() - 1]) < 0.002, "8 stretch mode: the last bone's tail reaches the last handle (%.2f mm)" % (end_pt.distance_to(cs[cs.size() - 1]) * 1000.0))
+	var last_w: Vector3 = Kx * (cs[cs.size() - 1] as Vector3)
+	ok(end_pt.distance_to(last_w) < 0.002, "8 stretch mode: the last bone's tail reaches the last handle (%.2f mm)" % (end_pt.distance_to(last_w) * 1000.0))
 	var path := "user://splineik_tmp.json"
 	var d1: Dictionary = m._scene_dict()
 	m._write(path, d1)
@@ -417,7 +428,7 @@ func _app_part() -> void:
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path2))
 	var before := var_to_str(m.S.spline_chains)
-	var u1 := steps(func(): m._spline_handle(0, 1, (m.S.spline_chains[0]["ctrl"] as Array)[1] + Vector3(0.05, 0, 0.05)))
+	var u1 := steps(func(): m._spline_handle(0, 1, Kx * ((m.S.spline_chains[0]["ctrl"] as Array)[1] as Vector3) + Vector3(0.05, 0, 0.05)))
 	var u2 := steps(func(): m._spline_set(0, "volume", true))
 	var u3 := steps(func(): m._spline_off(0))
 	ok(u1 == 1 and u2 == 1 and u3 == 1 and m.S.spline_chains.is_empty(), "8 three more edits, one step each; off removes the chain")
