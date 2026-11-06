@@ -119,6 +119,11 @@ func _init() -> void:
 		m._props_show()
 		await idle(2)
 		var t1 := save_text()
+		if rec:   # golden mode (run on the UNFIXED code, where every save costs seconds): only the hashes
+			newgold["save_%d" % n] = t1.sha256_text()
+			if n > 0:
+				newgold["usd_%d" % n] = String(UsdExport.text(m.S, m.B)[0]).sha256_text()
+			continue
 		var ref := reference_text()
 		ok(t1 == ref, "E1 %d props: save == reference (%d bytes)" % [n, t1.length()])
 		if n == 0:
@@ -170,10 +175,11 @@ func _init() -> void:
 		var after_prop := save_text()
 		ok(after_prop == reference_text(), "E2 %d: save after a prop edit == reference" % n)
 		ok(after_prop != before_edit, "P2 %d: the pre-edit text is stale against the post-edit reference (flagged)" % n)
-		var card_pose: Dictionary = m.S.cards[1]["pose"]
-		var jn: String = card_pose.keys()[0]
+		var card_j: Dictionary = (m.S.cards[1]["pose"] as Dictionary)["joints"]["upperarm_r"]
+		var card_pose: Dictionary = card_j
+		var jn := "bend"
 		var old = card_pose[jn]
-		card_pose[jn] = [old[0] + 40.0, old[1], old[2]] if old is Array else (old as Vector3) + Vector3(40, 0, 0)
+		card_pose[jn] = float(old) + 40.0
 		ok(save_text() == reference_text(), "E2 %d: save after a card pose edit == reference" % n)
 		card_pose[jn] = old
 		ok(save_text() == reference_text(), "E2 %d: save after the card edit is reverted == reference" % n)
