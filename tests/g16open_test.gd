@@ -82,7 +82,7 @@ func load_head() -> KMesh:
 		var best := INF
 		var bv := Vector3.ZERO
 		for v in k.verts:
-			if v.y > 1.70 and v.y < 1.78 and v.z > 0.03:
+			if v.y > 1.70 and v.y < 1.78 and v.z < -0.03:
 				var scr := absf(v.x - 0.035 * sx) + 0.5 * absf(v.y - 1.74)
 				if scr < best:
 					best = scr
