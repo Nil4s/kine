@@ -94,7 +94,7 @@ const DEFL_PER_R := 0.0005   # CH15 (G27): bigger bodies get FINE_DEFL scaled wi
 ## the full-detail deflection (m) for a body: FINE_DEFL, or DEFL_PER_R x its rms radius sqrt(trace(I) / 2V) when that is larger
 ## (a 28 m shell -> 1.4 cm). Uses the cached mass properties, so it costs one kernel call per shape
 static func fine_defl(id: int) -> float:
-	var mp := KCad.mass_properties(id)
+	var mp := KCad.volume_inertia(id)   # L57: no surface integral (fine_defl reads only volume and inertia; the numbers are mass_properties')
 	var v: float = absf(float(mp.get("volume", 0.0)))
 	if v <= 0.0 or not mp.has("inertia"):
 		return FINE_DEFL
@@ -583,7 +583,8 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	var stepkeys: Array = []
 	var fx_on := bool(want.get("effects", false)) or keyed or bool(want.get("stepkeys", false))   # item 241: what each step did (scripts/build/part_fx.gd); not with the incremental cache
 	var fx: Dictionary = PartFx.begin() if fx_on else {}
-	var inc := bool(want.get("inc", false)) and n > 0 and not bool(want.get("effects", false)) and not bool(want.get("stepkeys", false))   # W03e: a keyed part uses the cache too (its snapshots hold the body keys).   s168 INCREMENTAL REPLAY: the steps a cached prefix already made are not run again
+	var ck: bool = want.get("ckpt", true) != false and n >= CKPT_MIN   # L57: a long part keeps a checkpoint per step (an edit at step k replays from k-1) and fuses runs of plain joins in one boolean
+	var inc: bool = ((bool(want.get("inc", false)) and not bool(want.get("effects", false))) or ck) and n > 0 and not bool(want.get("stepkeys", false))   # W03e: a keyed part uses the cache too (its snapshots hold the body keys).   s168 INCREMENTAL REPLAY: the steps a cached prefix already made are not run again
 	var inc_keys: Array = []
 	var counts: Array = []
 	var i0 := 0
@@ -593,7 +594,11 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 	if inc_trace:
 		print("INC replay n=%d from=%d caller=%s:%s want=%s" % [n, i0, get_stack()[1]["function"], get_stack()[1]["line"], str(want.keys())])
 	var t_prev := Time.get_ticks_usec()
+	var skip_to := 0   # L57: steps below this were done by a batched run of joins
+	var batch_ok: bool = ck and not keyed and KCad.has_union_many()
 	for i in range(i0, n):
+		if i < skip_to:
+			continue
 		step_runs += 1
 		if step_log != null:
 			if i > i0:
@@ -608,6 +613,12 @@ static func replay(rec: Dictionary, upto := -1, want := {}) -> Dictionary:
 		var f: Dictionary = feats[i]
 		var id := String(f["id"])
 		look_fit(looks, bodies.size())
+		if batch_ok and _join_ok(f, bodies):
+			var jend := _join_run_end(feats, i, n)
+			if jend - 1 - i >= BATCH_MIN and _join_batch(bodies, feats, i, jend - 1, fx if fx_on else {}, fx_on, looks, errs, counts):
+				step_runs += jend - 1 - i
+				skip_to = jend - 1
+				continue
 		if fx_on:   # W03c: the keys of the bodies just before this step; its key fields are turned into body numbers
 			if want.get("stepkeys", false):
 				stepkeys.append((fx["keys"] as Array).duplicate())
@@ -3966,6 +3977,9 @@ static func _grow_copies(rec: Dictionary, f: Dictionary, srcb: int, copies: Arra
 
 # ---------------------------------------------------------------- s168 incremental replay: the shapes after each step, kept by what made them
 
+const CKPT_MIN := 24    # L57: a replay of at least this many steps keeps per-step checkpoints (the incremental cache) on its own
+const BATCH_MIN := 3    # L57: a run of plain prim joins this long is fused in one boolean
+const BATCH_MAX := 128   # L57: at most this many steps per run; the run's last step is replayed alone, so the checkpoint before it exists
 const INC_MAX := 320   # snapshots kept (s233: shapes are shared, a snapshot costs its id list; was 96 deep copies) (the least recently used go; their shapes are released)
 static var inc_trace := false   # s168 probe: print what each cached replay started from
 static var step_runs := 0   # s168 probe: steps the replay really ran (a cached step is not counted); tests/s168_test.gd reads it
@@ -4015,12 +4029,61 @@ static func _inc_restore(keys: Array, n: int, bodies: Array, looks: Array, errs:
 		var sfx: Dictionary = snap["fx"]
 		for fk in ["ids", "keys", "names", "looks"]:
 			fx[fk] = (sfx[fk] as Array).duplicate()
+		if sfx.has("steps"):   # L57
+			fx["steps"] = (sfx["steps"] as Array).duplicate()
+			fx["touch"] = (sfx["touch"] as Dictionary).duplicate(true)
 	for k in range(0, j + 1):   # the whole prefix was used: it stays young
 		if inc_cache.has(keys[k]):
 			_inc_tick += 1
 			inc_cache[keys[k]]["tick"] = _inc_tick
 	inc_hits += 1
 	return j + 1
+
+
+## L57: a step that is a plain `join` of a box / cylinder / ... into the last body (nothing for the replay to name, key or warn about)
+static func _join_ok(f: Dictionary, bodies: Array) -> bool:
+	return String(f.get("t", "")) == "prim" and not bool(f.get("off", false)) and String(f.get("op", "new")) == "join" and int(f.get("into", -1)) < 0 		and not bodies.is_empty() and PPRIM.problem(f) == ""
+
+
+## L57: the end (exclusive) of the run of joinable steps that starts at i, at most BATCH_MAX long
+static func _join_run_end(feats: Array, i: int, n: int) -> int:
+	var j := i + 1
+	while j < n and j - i < BATCH_MAX:
+		var g: Dictionary = feats[j]
+		if String(g.get("t", "")) != "prim" or bool(g.get("off", false)) or String(g.get("op", "new")) != "join" or int(g.get("into", -1)) >= 0 or PPRIM.problem(g) != "":
+			break
+		j += 1
+	return j
+
+
+## L57: steps i .. last-1 (all plain joins into the last body) fused with the last body in ONE boolean (union_many); the one-by-one chain
+## re-intersects the whole growing body for every step (O(n^2)). The step `last` is left to the normal loop, so the checkpoint before it exists.
+## Per step it still closes the effects entries (body id is a stand-in, as the real shapes of the middle steps are never made) and the counts.
+## false = nothing was done (a tool could not be made, or the kernel refused): the caller replays the steps one by one
+static func _join_batch(bodies: Array, feats: Array, i: int, last: int, fx: Dictionary, fx_on: bool, looks: Array, errs: Dictionary, counts: Array) -> bool:
+	var tools := PackedInt32Array()
+	for k in range(i, last):
+		var s := PPRIM.solid_of(feats[k])
+		if s == 0:
+			for t in tools:
+				KCad.release(int(t))
+			return false
+		tools.append(s)
+	var tix := bodies.size() - 1
+	var u := KCad.union_many(bodies[tix], tools)
+	for t in tools:
+		KCad.release(int(t))
+	if u == 0:
+		return false
+	var old: int = bodies[tix]
+	for k in range(i, last - 1):   # the middle steps' own entries (step last-1 is closed at the top of the next iteration, with the real shape)
+		if fx_on:
+			bodies[tix] = -(k + 1)
+			PartFx.close(fx, bodies, looks, feats[k], k, errs)
+		counts.append(bodies.size())
+	bodies[tix] = u
+	KCad.release(old)
+	return true
 
 
 ## keeps a copy of the state under `key` (the replay goes on mutating its own shapes)
@@ -4050,7 +4113,8 @@ static func _inc_store(key: String, bodies: Array, looks: Array, errs: Dictionar
 
 
 static func _inc_fx(fx: Dictionary) -> Dictionary:   # W03e: what PartFx knows after the step (body keys, names, looks; the ids are the kept shapes)
-	return {"ids": (fx["ids"] as Array).duplicate(), "keys": (fx["keys"] as Array).duplicate(), "names": (fx["names"] as Array).duplicate(), "looks": (fx["looks"] as Array).duplicate()}
+	return {"ids": (fx["ids"] as Array).duplicate(), "keys": (fx["keys"] as Array).duplicate(), "names": (fx["names"] as Array).duplicate(), "looks": (fx["looks"] as Array).duplicate(),
+		"steps": (fx["steps"] as Array).duplicate(), "touch": (fx["touch"] as Dictionary).duplicate(true)}   # L57: step entries are never changed after they are made; touch lists are
 
 
 static func _inc_drop(key: String) -> void:
