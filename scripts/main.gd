@@ -2051,6 +2051,14 @@ func _render_estimate() -> Dictionary:
 
 
 
+## the axes' MeshInstance3D (stage_marks holds it with the floor square)
+func _axis_node() -> Node3D:
+	for sm in stage_marks:
+		if sm is MeshInstance3D and (sm as MeshInstance3D).mesh == axis_mesh:
+			return sm
+	return null
+
+
 var ui_fr_dlg: ConfirmationDialog
 var ui_fr_res: OptionButton
 
@@ -2133,6 +2141,8 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "", opts := {}) -
 	var svp_cam: Camera3D = null
 	var fr_lights := [light_key, light_fill, light_rim]
 	var fr_saved := {}
+	var fr_hide := []
+	var fr_outline: Variant = null
 	if preset != "":
 		svp = SubViewport.new()
 		svp.size = Vector2i(int(opts.get("w", FinalRender.DEFAULT_RES.x)), int(opts.get("h", FinalRender.DEFAULT_RES.y)))
@@ -2143,6 +2153,14 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "", opts := {}) -
 		svp.add_child(svp_cam)
 		svp_cam.current = true
 		fr_saved = FinalRender.apply(preset, world_env, svp, fr_lights)
+		# the editor's own visuals are not part of the picture: the grid, the axes, the body's sky outline (collapsed to zero thickness)
+		for nd in [grid_node, _axis_node()]:
+			if nd != null:
+				fr_hide.append([nd, nd.visible])
+				nd.visible = false
+		if _body_outline != null:
+			fr_outline = _body_outline.get_shader_parameter("grow")
+			_body_outline.set_shader_parameter("grow", 0.0)
 	var done := 0
 	for r in rng:
 		for j in int(r["count"]):
@@ -2195,6 +2213,10 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "", opts := {}) -
 	_shot_blast_end(shot)
 	if svp != null:
 		FinalRender.restore(fr_saved, world_env, svp, fr_lights)
+		for h in fr_hide:
+			(h[0] as Node3D).visible = h[1]
+		if _body_outline != null and fr_outline != null:
+			_body_outline.set_shader_parameter("grow", fr_outline)
 		svp.queue_free()
 	ui_root.visible = true
 	clean = keep_clean

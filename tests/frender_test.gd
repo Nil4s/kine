@@ -175,6 +175,20 @@ func near_frac(img: Image, cols: Array, tol: float) -> float:
 	return float(n) / float(maxi(w * h, 1))
 
 
+## the fraction of pixels where any channel differs by more than tol
+func diff_frac(a: Image, b: Image, tol: float) -> float:
+	if a.get_size() != b.get_size():
+		return 1.0
+	var n := 0
+	for y in a.get_height():
+		for x in a.get_width():
+			var c := a.get_pixel(x, y)
+			var d := b.get_pixel(x, y)
+			if absf(c.r - d.r) > tol or absf(c.g - d.g) > tol or absf(c.b - d.b) > tol:
+				n += 1
+	return float(n) / float(maxi(a.get_width() * a.get_height(), 1))
+
+
 func probe(fp: String, mp4: String) -> Dictionary:
 	var out := []
 	OS.execute(fp, ["-v", "error", "-count_frames", "-select_streams", "v:0", "-show_entries", "stream=nb_read_frames,width,height", "-of", "csv=p=0", mp4], out, true)
@@ -368,35 +382,48 @@ func _init() -> void:
 	var r6: Dictionary = got[0] if not got.is_empty() else {}
 	var f6 := Image.load_from_file(String(r6.get("dir", "")) + "/frame_0000.png") if not r6.is_empty() else null
 	# the editor's own picture of the same frame (look-through, UI hidden): the control
-	m.clean = true
-	m._sides_apply()
-	m.ui_root.visible = false
+	var grab_editor := func() -> Image:
+		m.clean = true
+		m._sides_apply()
+		m.ui_root.visible = false
+		await process_frame
+		var sb: Dictionary = m._shot_blast_begin()
+		m.playhead = 34.0 / S.fps
+		m._ps().apply(m.B, m.playhead)
+		m._refresh()
+		m._shot_blast_frame(sb)
+		await process_frame
+		await RenderingServer.frame_post_draw
+		var im: Image = m._shot_blast_image(sb, root.get_viewport().get_texture().get_image())
+		m._shot_blast_end(sb)
+		m.ui_root.visible = true
+		m.clean = false
+		m._sides_apply()
+		return im
+	var ed6: Image = await grab_editor.call()
+	# the grid, by difference: the same final frame rendered with the grid already off must equal the one rendered with it on
+	m.grid_node.visible = false
+	var ed6_nogrid: Image = await grab_editor.call()
+	got.clear()
+	m._render_shots(out_root, "", {"preset": "final", "w": 1280, "h": 720, "first": 34, "count": 1})
 	await process_frame
-	var sb: Dictionary = m._shot_blast_begin()
-	m.playhead = 34.0 / S.fps
-	m._ps().apply(m.B, m.playhead)
-	m._refresh()
-	m._shot_blast_frame(sb)
-	await process_frame
-	await RenderingServer.frame_post_draw
-	var ed6: Image = m._shot_blast_image(sb, root.get_viewport().get_texture().get_image())
-	m._shot_blast_end(sb)
-	m.ui_root.visible = true
-	m.clean = false
-	m._sides_apply()
+	while m._sr_busy:
+		await process_frame
+	await idle(2)
+	var r6b: Dictionary = got[0] if not got.is_empty() else {}
+	var f6b := Image.load_from_file(String(r6b.get("dir", "")) + "/frame_0000.png") if not r6b.is_empty() else null
+	m.grid_node.visible = true
 	var oc: Color = Tok.c("body_outline")
-	var gc1: Color = Tok.c("grid").linear_to_srgb()
-	var gc2: Color = Tok.c("grid_major").linear_to_srgb()
 	var fo := near_frac(f6, [oc], 0.03) if f6 != null else 1.0
-	var fg := near_frac(f6, [gc1, gc2], 0.015) if f6 != null else 1.0
+	var fg := diff_frac(f6, f6b, 0.02) if f6 != null and f6b != null else 1.0
 	var eo := near_frac(ed6, [oc], 0.03)
-	var eg := near_frac(ed6, [gc1, gc2], 0.015)
-	print("     outline-coloured pixels: final %.4f%%, editor grab %.4f%%; grid-coloured: final %.4f%%, editor grab %.4f%%" % [fo * 100.0, eo * 100.0, fg * 100.0, eg * 100.0])
+	var eg := diff_frac(ed6, ed6_nogrid, 0.02)
+	print("     outline-coloured pixels: final %.4f%%, editor grab %.4f%%; pixels changed by the grid: final %.4f%%, editor grab %.4f%%" % [fo * 100.0, eo * 100.0, fg * 100.0, eg * 100.0])
 	if look_dir != "" and f6 != null:
 		f6.save_png(look_dir + "/look_bar6_final.png")
 		ed6.save_png(look_dir + "/look_bar6_editor.png")
 	ok(f6 != null and f6.get_width() == 1280 and fo < 0.0005, "6 the final frame has no outline pixels: %.4f%% (< 0.05%%)" % (fo * 100.0))
-	ok(f6 != null and fg < 0.0005, "  and no grid-coloured pixels: %.4f%% (< 0.05%%)" % (fg * 100.0))
+	ok(f6 != null and fg < 0.0005, "  and the grid changes %.4f%% of its pixels (< 0.05%%; the frame with the grid already off is the reference)" % (fg * 100.0))
 	ok(eo >= 0.0005, "  CONTROL: the editor's own picture of the same frame is caught for the outline: %.4f%% (>= 0.05%%)" % (eo * 100.0))
 	ok(eg >= 0.0005, "  CONTROL: ... and for the grid: %.4f%% (>= 0.05%%)" % (eg * 100.0))
 	ok(m.grid_node.visible and m._axis_node() != null and m._axis_node().visible == axis0 and is_equal_approx(float(m._body_outline.get_shader_parameter("grow")), grow0) and grow0 > 0.0,
