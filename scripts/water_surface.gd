@@ -158,3 +158,8 @@ static func make_mesh(pos: PackedVector3Array, idx: PackedInt32Array, nrm: Packe
 	var m := ArrayMesh.new()
 	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arr)
 	return m
+
+
+## L31 STUB (bars commit): volume preserving smoothing is not implemented yet; returns the positions unchanged.
+static func smooth_volume(pos: PackedVector3Array, _idx: PackedInt32Array, _iters := 40) -> PackedVector3Array:
+	return pos.duplicate()

@@ -944,6 +944,7 @@ EXTRA="$EXTRA c57:w"   # c57: slicer-like print estimate (walls + infill, time f
 
 EXTRA="$EXTRA ch8:w"   # ch8: APIC liquid in C++ (KineFluidNative) vs Martin and Moyce 1952, hydrostatic tank, mug fill and spill, C++ == GDScript (tests/ch8_test.gd)
 EXTRA="$EXTRA liq2:w"   # liq2: cut-cell liquid walls (Batty 2007), tilted-floor rest, mug fill with cut mesh, M&M, water render bars (tests/liq2_test.gd)
+EXTRA="$EXTRA water3:w"   # water3: smooth water surface (screen-space depth smoothing, curvature flow) vs a photo of a glass of water: band-pass roughness, streaks, volume (tests/water3_test.gd)
 EXTRA="$EXTRA ch1a:w"   # ch1a: one-storey house from a real reference, tests/ch1a_test.gd
 EXTRA="$EXTRA ch1b:w"   # ch1b: house check, IRC spans/headers/studs/bracing/uplift/footing + first-principles cross-check (tests/ch1b_test.gd)
 

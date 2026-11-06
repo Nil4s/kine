@@ -88,3 +88,8 @@ static func render(host: Node, opts: Dictionary) -> Dictionary:
 ## linear-light float of an sRGB 8 bit channel
 static func lin(c: float) -> float:
 	return c / 12.92 if c <= 0.04045 else pow((c + 0.055) / 1.055, 2.4)
+
+
+## L31 STUB (bars commit): the frame timing is not implemented yet.
+static func time_frames(_host: Node, _opts: Dictionary, _frames: int) -> float:
+	return -1.0
