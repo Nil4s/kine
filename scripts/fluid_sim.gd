@@ -17,6 +17,9 @@ var dtmax := 0.01
 var tol := 1e-6
 var max_iter := 300
 var ppc := 8
+var wlaw := 0
+var release_delay := 0.0   # L44: seconds the fluid is held (a diaphragm) before the clock of advance() starts moving it
+var wnu := 1e-6
 var wfr := 0.0   # wall friction: 0 = free slip, 1 = no slip
 ## CUT-CELL walls (twin of the C++ block; Batty, Bertails and Bridson 2007). phi: solid signed distance on the cell corners (< 0 inside); wxp/wyp/wzp[c]:
 ## open fraction of the face between cell c and c+1 / c+nx / c+nx*ny. Without a cut solid they are 0/1 from the solid voxels.
@@ -123,13 +126,36 @@ func set_extrapolation(on: int) -> void:
 	extrap = on
 
 
+func set_release_delay(t: float) -> void:
+	release_delay = maxf(t, 0.0)
+
+
+func set_wall_law(mask: int, nu: float) -> void:
+	wlaw = mask
+	wnu = nu if nu > 0.0 else 1e-6
+
+
 func set_wall_friction(f: float) -> void:
 	wfr = clampf(f, 0.0, 1.0)
 
 
-## A face that touches a solid wall sideways keeps (1 - wfr) of its speed (same loops as the C++ twin).
-func _wall_friction() -> void:
-	if wfr <= 0.0:
+static func _wall_utau(au: float, y: float, nu: float) -> float:
+	if au <= 0.0:
+		return 0.0
+	var kappa := 0.41
+	var E := exp(0.41 * 5.2)
+	var uv := sqrt(nu * au / y)
+	if y * uv / nu < 11.06:
+		return uv
+	var ut := 0.05 * au
+	for it in 30:
+		ut = kappa * au / log(E * y * ut / nu)
+	return ut
+
+
+## A face that touches a solid wall sideways keeps (1 - wfr) of its speed; the L44 wall law removes u_tau^2 dt / h (same loops as the C++ twin).
+func _wall_friction(dt: float) -> void:
+	if wfr <= 0.0 and wlaw == 0:
 		return
 	var s := 1.0 - wfr
 	var off := [1, nx, nx * ny]
@@ -141,23 +167,37 @@ func _wall_friction() -> void:
 				if side == 1 and type[b] == 1:
 					continue
 				var touch := false
+				var nw := 0
 				for t in 3:
 					if t == ax:
 						continue
-					if solid[a - off[t]] != 0 or solid[a + off[t]] != 0 or solid[b - off[t]] != 0 or solid[b + off[t]] != 0:
+					var lo: bool = solid[a - off[t]] != 0 or solid[b - off[t]] != 0
+					var hi: bool = solid[a + off[t]] != 0 or solid[b + off[t]] != 0
+					if lo or hi:
 						touch = true
-						break
+					if (wlaw >> t) & 1:
+						nw += (1 if lo else 0) + (1 if hi else 0)
 				if not touch:
 					continue
 				var i: int = b % nx
 				var j: int = (b / nx) % ny
 				var k: int = b / (nx * ny)
+				var idx: int
 				if ax == 0:
-					U[i + (nx + 1) * (j + ny * k)] *= s
+					idx = i + (nx + 1) * (j + ny * k)
 				elif ax == 1:
-					Vg[i + nx * (j + (ny + 1) * k)] *= s
+					idx = i + nx * (j + (ny + 1) * k)
 				else:
-					W[i + nx * (j + ny * (k + 0))] *= s
+					idx = i + nx * (j + ny * k)
+				var g: PackedFloat64Array = U if ax == 0 else (Vg if ax == 1 else W)
+				if wfr > 0.0:
+					g[idx] *= s
+				if nw > 0:
+					var au: float = absf(g[idx])
+					if au > 1e-12:
+						var ut := _wall_utau(au, 0.5 * h, wnu)
+						var fac: float = 1.0 - dt * nw * ut * ut / (h * au)
+						g[idx] *= fac if fac > 0.0 else 0.0
 
 
 func set_params(p_g: float, p_drift: float, p_cfl: float, p_dtmax: float, p_iters: int, p_tol: float) -> void:
@@ -738,7 +778,7 @@ func _pcg(x: PackedFloat64Array, b: PackedFloat64Array, tl: float, maxit: int, w
 func _project(dt: float) -> void:
 	for n in Vg.size():
 		Vg[n] -= grav * dt
-	_wall_friction()
+	_wall_friction(dt)
 	for k in nz:
 		for j in ny:
 			for i in nx + 1:
@@ -1063,7 +1103,12 @@ func step(dt: float) -> void:
 	_advect(dt)
 
 
-func advance(T: float) -> int:
+func advance(T_in: float) -> int:
+	var T := T_in
+	if release_delay > 0.0:   # a held column is at rest and nothing acts on it: the hold costs no steps
+		var hold := minf(release_delay, T)
+		release_delay -= hold
+		T -= hold
 	var t := 0.0
 	var n := 0
 	while t < T - 1e-12:

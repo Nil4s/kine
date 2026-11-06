@@ -186,6 +186,8 @@ void KineFluidNative::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("clear_particles"), &KineFluidNative::clear_particles);
 	ClassDB::bind_method(D_METHOD("remove_every", "k"), &KineFluidNative::remove_every);
 	ClassDB::bind_method(D_METHOD("set_wall_friction", "f"), &KineFluidNative::set_wall_friction);
+	ClassDB::bind_method(D_METHOD("set_wall_law", "mask", "nu"), &KineFluidNative::set_wall_law);
+	ClassDB::bind_method(D_METHOD("set_release_delay", "t"), &KineFluidNative::set_release_delay);
 	ClassDB::bind_method(D_METHOD("set_density_mode", "mode"), &KineFluidNative::set_density_mode);
 	ClassDB::bind_method(D_METHOD("set_surface_taubin", "on"), &KineFluidNative::set_surface_taubin);
 	ClassDB::bind_method(D_METHOD("set_extrapolation", "on"), &KineFluidNative::set_extrapolation);
@@ -966,9 +968,22 @@ void KineFluidNative::pcg(std::vector<double> &x, const std::vector<double> &b, 
 	}
 }
 
-void KineFluidNative::apply_wall_friction() {
+// Friction velocity of the smooth-wall log law for a tangential speed au at distance y from the wall (Prandtl / von Karman; Pope, Turbulent Flows, sec. 7.1):
+// u/u_tau = ln(E y u_tau / nu) / kappa, E = exp(kappa B), kappa 0.41, B 5.2; in the viscous sublayer (y+ < 11.06) u+ = y+. Deterministic, same code in the twin.
+static double wall_utau(double au, double y, double nu) {
+	if (au <= 0.0) return 0.0;
+	const double kappa = 0.41, E = std::exp(0.41 * 5.2);
+	double uv = std::sqrt(nu * au / y);
+	if (y * uv / nu < 11.06) return uv;
+	double ut = 0.05 * au;
+	for (int it = 0; it < 30; it++) ut = kappa * au / std::log(E * y * ut / nu);
+	return ut;
+}
+
+void KineFluidNative::apply_wall_friction(double dt) {
 	// A face that touches a solid wall sideways (a transverse neighbour of either of its two cells is solid) keeps (1 - wfr) of its speed.
-	if (wfr <= 0.0) return;
+	// L44: with the wall law on, the face loses the wall stress u_tau^2 over the cell height (du/dt = -u_tau^2 / h, u_tau from the log law at y = h/2).
+	if (wfr <= 0.0 && wlaw == 0) return;
 	const double s = 1.0 - wfr;
 	const int off[3] = { 1, nx, nx * ny };
 	for (int c : fl) {
@@ -977,15 +992,28 @@ void KineFluidNative::apply_wall_friction() {
 				int a = side == 0 ? c - off[ax] : c, b = side == 0 ? c : c + off[ax];
 				if (side == 1 && type[b] == 1) continue;
 				bool touch = false;
-				for (int t = 0; t < 3 && !touch; t++) {
+				int nw = 0;
+				for (int t = 0; t < 3; t++) {
 					if (t == ax) continue;
-					if (solid[a - off[t]] || solid[a + off[t]] || solid[b - off[t]] || solid[b + off[t]]) touch = true;
+					bool lo = solid[a - off[t]] || solid[b - off[t]], hi = solid[a + off[t]] || solid[b + off[t]];
+					if (lo || hi) touch = true;
+					if ((wlaw >> t) & 1) nw += (lo ? 1 : 0) + (hi ? 1 : 0);
 				}
 				if (!touch) continue;
 				int i = b % nx, j = (b / nx) % ny, k = b / (nx * ny);
-				if (ax == 0) U[i + (size_t)(nx + 1) * (j + (size_t)ny * k)] *= s;
-				else if (ax == 1) Vg[i + (size_t)nx * (j + (size_t)(ny + 1) * k)] *= s;
-				else W[i + (size_t)nx * (j + (size_t)ny * k)] *= s;
+				double *f;
+				if (ax == 0) f = &U[i + (size_t)(nx + 1) * (j + (size_t)ny * k)];
+				else if (ax == 1) f = &Vg[i + (size_t)nx * (j + (size_t)(ny + 1) * k)];
+				else f = &W[i + (size_t)nx * (j + (size_t)ny * k)];
+				if (wfr > 0.0) *f *= s;
+				if (nw > 0) {
+					double au = std::fabs(*f);
+					if (au > 1e-12) {
+						double ut = wall_utau(au, 0.5 * h, wnu);
+						double fac = 1.0 - dt * nw * ut * ut / (h * au);
+						*f *= fac > 0.0 ? fac : 0.0;
+					}
+				}
 			}
 		}
 	}
@@ -1053,7 +1081,7 @@ void KineFluidNative::extrapolate() {
 void KineFluidNative::project(double dt) {
 	const size_t NV = Vg.size();
 	pfor((int)NV, nte, [&](int b0, int e0) { for (int n = b0; n < e0; n++) Vg[n] -= grav * dt; });
-	apply_wall_friction();
+	apply_wall_friction(dt);
 	pfor(nz, nte, [&](int k0, int k1) {
 		for (int k = k0; k < k1; k++)
 			for (int j = 0; j < ny; j++)
@@ -1343,6 +1371,11 @@ void KineFluidNative::step(double dt) {
 }
 
 int KineFluidNative::advance(double T) {
+	if (release_delay > 0.0) {   // a held column is at rest and nothing acts on it: the hold costs no steps
+		double hold = std::min(release_delay, T);
+		release_delay -= hold;
+		T -= hold;
+	}
 	double t = 0;
 	int n = 0;
 	while (t < T - 1e-12) {

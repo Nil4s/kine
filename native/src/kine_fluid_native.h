@@ -50,6 +50,12 @@ public:
 	int ppc = 8;
 	double wfr = 0.0; // wall friction: 0 = free slip, 1 = no slip
 	void set_wall_friction(double f) { wfr = f < 0 ? 0 : (f > 1 ? 1 : f); }
+	// L44: smooth-wall log law (wall function) on the faces that touch a wall sideways. mask bit t = walls whose normal is axis t; nu = kinematic viscosity
+	double release_delay = 0.0; // L44: seconds the fluid is held (diaphragm) before advance() starts moving it
+	void set_release_delay(double t) { release_delay = t > 0 ? t : 0; }
+	int wlaw = 0;
+	double wnu = 1e-6;
+	void set_wall_law(int mask, double nu) { wlaw = mask; wnu = nu > 0 ? nu : 1e-6; }
 	// CUT-CELL walls (L5 liquids, 11-05): Batty, Bertails & Bridson 2007 ("A fast variational framework for accurate solid-fluid coupling", SIGGRAPH). A solid
 	// signed distance field phi (< 0 inside) lives on the cell corners; the open area fraction of every cell face comes from it (wxp/wyp/wzp[c] = the face
 	// between cell c and c+1 / c+nx / c+nx*ny), and the pressure matrix, the divergence and the pressure gradient are weighted by it. Without any cut solid
@@ -101,7 +107,7 @@ private:
 	void sort_particles();
 	void mark_cells();
 	void p2g();
-	void apply_wall_friction();
+	void apply_wall_friction(double dt);
 	inline int nid(int i, int j, int k) const { return i + (nx + 1) * (j + (ny + 1) * k); }
 	void project(double dt);
 	void g2p();

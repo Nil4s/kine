@@ -14,6 +14,7 @@ static func dam_break(F: Object, res := 20) -> Dictionary:
 	F.setup(nx, ny, nz, h, Vector3.ZERO)
 	F.set_params(9.81, 0.2, 0.5, 0.005, 300, 1e-7)
 	F.add_fluid_box(Vector3(h, h, h), Vector3((res + 1) * h, (2 * res + 1) * h, 9 * h), Vector3.ZERO, 1)
+	F.set_release_delay(mm_release_seconds(MM_A))   # L44: the M&M clock (see MM_RELEASE_T below)
 	return {"h": h, "a": MM_A, "x0": h}
 
 
@@ -122,10 +123,17 @@ static func dam_break_mm(F: Object, res := 20, cfg := "mm") -> Dictionary:
 	return sc
 
 
-## L44: the M&M diaphragm hold, in T units (T = t sqrt(2g/a)). STUB (bars first): 0 = instantaneous release.
-const MM_RELEASE_T := 0.0
+## L44: the M&M clock. Martin & Moyce normalised their times so that every record reads T = 1.19 at Z = 1.44 (Table 2 footnote "T normalized at this value
+## of Z"), and the zero is the application of the heater current, not the start of the motion (paper sec. 4). An instantaneous-release simulation reaches
+## Z = 1.44 at T = 0.836 (res 20, tests/l44_test.gd A1, shift 0.354 T), so the scene holds the column (the burning wax-paper diaphragm) for
+## MM_RELEASE_T = 1.19 - 0.836 = 0.354 T before it falls. This is the paper's own normalization row, applied once; the other 13 rows are not used to choose it.
+const MM_RELEASE_T := 0.354
 
 
-## L44: cancel the diaphragm hold of dam_break_mm (instantaneous release). STUB.
-static func dam_break_release_now(_F: Object) -> void:
-	pass
+static func mm_release_seconds(a: float) -> float:
+	return MM_RELEASE_T * sqrt(a / (2.0 * 9.81))
+
+
+## L44: cancel the diaphragm hold of dam_break_mm (instantaneous release).
+static func dam_break_release_now(F: Object) -> void:
+	F.set_release_delay(0.0)
