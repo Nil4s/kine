@@ -44,9 +44,9 @@ var outl_kinds := {"body": true, "light": true, "cam": true, "cloth": true, "sof
 var outl_query := ""   # the words typed in the Outliner's search box
 var _ol_sig := ""   # what the Outliner rows were built from (a rebuild only when it changes: a rebuild mid-click drops the click)
 var _ol_search: LineEdit
-var _ol_search_row: TreeItem
-var _ol_bar: HBoxContainer   # the filter toggles, drawn over their row
-var _ol_bar_row: TreeItem
+var _ol_bar: HBoxContainer   # the filter toggles
+var _ol_box: VBoxContainer   # the search box over the filter toggles: ONE overlay on ONE row, so the two can never overlap
+var _ol_box_row: TreeItem
 var _ol_closed := {}   # object id -> true for a row the user folded
 var _pending := false   # a clip-row rebuild is queued for the next frame   # true while the tree follows the view (a selection made here must not loop back)
 
@@ -82,13 +82,10 @@ func _ready() -> void:
 	_ol_search.clear_button_enabled = true
 	_ol_search.add_theme_font_size_override("font_size", 12)
 	_ol_search.tooltip_text = "words over the names of the scene's objects (any case); with the type toggles below it, only those objects are listed"
-	_ol_search.visible = false
 	_ol_search.text_changed.connect(set_outl_query)
-	add_child(_ol_search)
 	_ol_bar = HBoxContainer.new()
 	_ol_bar.name = "outl_filters"
 	_ol_bar.add_theme_constant_override("separation", 1)
-	_ol_bar.visible = false
 	for k in Outliner.KINDS:
 		var b := Button.new()
 		b.name = "outl_f_" + k
@@ -103,7 +100,13 @@ func _ready() -> void:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.toggled.connect(func(on: bool): set_outl_filter(k, on))
 		_ol_bar.add_child(b)
-	add_child(_ol_bar)
+	_ol_box = VBoxContainer.new()
+	_ol_box.name = "outl_box"
+	_ol_box.add_theme_constant_override("separation", 2)
+	_ol_box.visible = false
+	_ol_box.add_child(_ol_search)
+	_ol_box.add_child(_ol_bar)
+	add_child(_ol_box)
 	item_collapsed.connect(func(it: TreeItem):
 		var md = it.get_metadata(0)
 		if md is Dictionary and md.has("onode"):
@@ -192,12 +195,9 @@ func build() -> void:
 	_part(_wep, "bat_handle", "handle (drag it to swing the weapon)")
 	_outl_root = _folder(root, "Outliner", true)
 	_outl_root.set_tooltip_text(0, "every object of the scene by parent: drag a row onto another to parent it (it stays where it is); the eye hides, the lock freezes")
-	_ol_search_row = create_item(_outl_root)
-	_ol_search_row.set_selectable(0, false)
-	_ol_search_row.set_custom_minimum_height(26)
-	_ol_bar_row = create_item(_outl_root)
-	_ol_bar_row.set_selectable(0, false)
-	_ol_bar_row.set_custom_minimum_height(24)
+	_ol_box_row = create_item(_outl_root)
+	_ol_box_row.set_selectable(0, false)
+	_ol_box_row.set_custom_minimum_height(54)
 	_ol_sig = ""
 	_set_root = _folder(root, "Set")
 	_set_root.set_tooltip_text(0, "the scene's props: click one to pick it; SET adds, turns and deletes them")
@@ -417,7 +417,7 @@ func _fill_outl() -> void:
 		return
 	_ol_sig = sig
 	var kids := _outl_root.get_children()
-	for k in range(2, kids.size()):
+	for k in range(1, kids.size()):
 		kids[k].free()
 	var ctx := {"made": {}, "names": {}, "shown": shown, "S": S}
 	for o in Outliner.objects(S):
@@ -765,6 +765,12 @@ func _overlay(c: Control, row: TreeItem, pad: Vector2) -> void:
 	if c == null:
 		return
 	var show := row != null and is_instance_valid(row) and row.is_visible_in_tree()
+	var up := row.get_parent() if show else null
+	while up != null:   # is_visible_in_tree does not look at folds: a row inside a folded folder has no place on screen
+		if up.collapsed:
+			show = false
+			break
+		up = up.get_parent()
 	var r := get_item_area_rect(row, 0) if show else Rect2()
 	show = show and r.size.y > 0.0 and r.position.y >= 0.0 and r.end.y <= size.y
 	if c.visible != show:
@@ -778,8 +784,7 @@ func _overlay(c: Control, row: TreeItem, pad: Vector2) -> void:
 
 ## the search box rides on its row (shown only while that row is in sight)
 func _process(_dt: float) -> void:
-	_overlay(_ol_search, _ol_search_row, Vector2(2, 1))
-	_overlay(_ol_bar, _ol_bar_row, Vector2(2, 1))
+	_overlay(_ol_box, _ol_box_row, Vector2(2, 1))
 	if _search == null:
 		return
 	if pose_query != "":
