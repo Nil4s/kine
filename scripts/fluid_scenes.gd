@@ -109,13 +109,14 @@ static func mug_cut(F: Object, h := 0.003) -> Dictionary:
 			"corners_inside": inside, "bb": bb, "shift": shift, "cap": PI * (R - 0.004) * (R - 0.004) * (H - 0.004)}
 
 
-## L5: the Martin & Moyce dam break in the named configuration. "ch8" = the CH8 scene (free slip, voxel walls). "mm" = the same tank with the no-slip
-## wall condition water really has on glass (wall friction MM_WFR).
-const MM_WFR := 1.0
+## L5: the Martin & Moyce dam break in the named configuration. FIXED FROM THE PHYSICS, NOT FITTED (coordinator, 11-05): the standard dam-break comparison
+## uses a free-slip wall, friction 0, because the M&M data is read as inviscid at that scale. "mm" and "ch8" therefore are the same configuration; the
+## bar (M) is the CH8 (h) bar again and is reported as it reads. The wall-friction values 0 / 0.25 / 0.5 / 1.0 were probed once as information only
+## (docs/CH8b... see docs/liquid2/FEEDBACK.md) and never used to choose this value.
+const MM_WFR := 0.0
 
 
 static func dam_break_mm(F: Object, res := 20, cfg := "mm") -> Dictionary:
 	var sc := dam_break(F, res)
-	if cfg == "mm":
-		F.set_wall_friction(MM_WFR)
+	F.set_wall_friction(MM_WFR)
 	return sc
