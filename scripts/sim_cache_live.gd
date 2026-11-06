@@ -93,6 +93,18 @@ func state(S: Scene, name: String) -> String:
 	return "fresh" if _key(S, name) == String(meta[name]["key"]) else "stale"
 
 
+## POL1106b: the timeline badge. "cache: none" when nothing is baked, "cache: fresh" when every baked object is fresh, otherwise
+## "cache: stale" (a stale object, or a recorded file that is gone: neither serves a frame, both need a new Bake sim).
+func badge(S: Scene) -> String:
+	if S == null or meta.is_empty():
+		return "cache: none"
+	var out := "fresh"
+	for n in meta.keys():
+		if state(S, n) != "fresh":
+			out = "stale"
+	return "cache: " + out
+
+
 func _load(name: String) -> SimCache:
 	if _loaded.has(name):
 		return _loaded[name]
