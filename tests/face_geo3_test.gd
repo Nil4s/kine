@@ -13,7 +13,7 @@
 ##  T  TEETH (same finding). T1 ROUNDED CROWNS: the largest dihedral angle between the two faces at any shared edge of the upper and of
 ##     the lower row <= 55 deg (a box has 90). T2 NO GAP: frontal render of the upper row alone (white, unshaded, over a flat background):
 ##     along five scan lines through the middle of the crowns, no background run between two teeth is wider than 0.10 x the width of a
-##     central incisor (8.5 mm x s), and the row spans >= 33 mm; same for the lower row. T3 GUM LINE: the row's vertex colours carry a
+##     central incisor (8.5 mm x s), and the row spans >= 0.95 x the sum of its six anterior mesiodistal widths (Wheeler's Dental Anatomy, FROM MEMORY: upper I1 8.5 + I2 6.5 + C 7.5 mm, x2 = 45.0 mm; lower I1 5.0 + I2 5.5 + C 7.0 mm, x2 = 35.0 mm; 0.95 allows the arch's projection loss) = 42.75 / 33.25 mm, written down BEFORE re-measuring (an earlier 36 mm bar was above the source's own 35.0 mm lower sum); same for the lower row. T3 GUM LINE: the row's vertex colours carry a
 ##     pink gum: 12 .. 45 % of the vertices, on the root side (above the crowns for the upper row, below for the lower). CONTROLS: a row
 ##     of BoxMesh slabs (T1), crowns shrunk to 0.8 of their width (T2), a row with no gum (T3).
 ##  V  VISEMES (finding 2: "only E drives a mouth AU"). V0 every AU the visemes use (AU10 16 18 20 22 23 24 28; AU25 is the lens of
@@ -437,6 +437,15 @@ func make_studio(d: Dictionary, head_pts: PackedVector3Array, o := {}) -> Dictio
 		cm.visible = not hide.has("chin")
 		vp.add_child(cm)
 		parts["chin"] = cm
+	if o.get("skin_cyan", false):
+		var cy := StandardMaterial3D.new()
+		cy.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		cy.albedo_color = Color(0, 1, 1)
+		head_mi.material_override = cy
+		mask_mi.material_override = cy
+		for kk in parts:
+			if kk in ["nose", "chin", "ear_l", "ear_r"]:
+				(parts[kk] as MeshInstance3D).material_override = cy
 	if o.get("teeth_white", false):
 		var wm := StandardMaterial3D.new()
 		wm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
@@ -526,6 +535,54 @@ func bg_in_poly(img: Image, poly: PackedVector2Array) -> int:
 			if Geometry2D.is_point_in_polygon(Vector2(x + 0.5, y + 0.5), pl) and is_bg(img.get_pixel(x, y)):
 				n += 1
 	return n
+
+
+## the largest luminance step between neighbouring pixels along the rows y0-32 .. y0+8 (the plates sat just above the lips), over the columns x_lo .. x_hi, skipping the
+## columns within `skip` of the picture's mouth column xm (the lips' own edges)
+var step_at := Vector2i.ZERO
+
+
+func max_lum_step(img: Image, y0: int, x_lo: int, x_hi: int, xm: int, skip: int) -> float:
+	var best := 0.0
+	for y in range(y0 - 32, y0 + 9):
+		for x in range(x_lo, x_hi):
+			if absi(x - xm) < skip or absi(x + 1 - xm) < skip:
+				continue
+			var a := img.get_pixel(x, y)
+			var b := img.get_pixel(x + 1, y)
+			if is_bg(a) or is_bg(b):
+				continue
+			var dl := absf(b.get_luminance() - a.get_luminance())
+			if dl > best:
+				best = dl
+				step_at = Vector2i(x - xm, y - y0)
+	return best
+
+
+func is_cyan(c: Color) -> bool:
+	return c.r < 0.1 and c.g > 0.9 and c.b > 0.9
+
+
+## (skin pixels, all pixels) inside the aperture polygon (inset 2 px) of a render whose skin parts are unshaded cyan
+func skin_in_poly(img: Image, poly: PackedVector2Array) -> Vector2i:
+	var inner := Geometry2D.offset_polygon(poly, -2.0)
+	if inner.is_empty():
+		return Vector2i(0, 1)
+	var pl: PackedVector2Array = inner[0]
+	var mn := Vector2(1e9, 1e9)
+	var mx := Vector2(-1e9, -1e9)
+	for v in pl:
+		mn = Vector2(minf(mn.x, v.x), minf(mn.y, v.y))
+		mx = Vector2(maxf(mx.x, v.x), maxf(mx.y, v.y))
+	var n := 0
+	var tot := 0
+	for y in range(maxi(int(mn.y), 0), mini(int(mx.y) + 1, img.get_height())):
+		for x in range(maxi(int(mn.x), 0), mini(int(mx.x) + 1, img.get_width())):
+			if Geometry2D.is_point_in_polygon(Vector2(x + 0.5, y + 0.5), pl):
+				tot += 1
+				if is_cyan(img.get_pixel(x, y)):
+					n += 1
+	return Vector2i(n, maxi(tot, 1))
 
 
 ## the screen polygon (px) of the mouth rim loop for a state
@@ -854,6 +911,60 @@ func _init() -> void:
 	var bgn_nc := bg_in_poly(img_lnc, mouth_poly(s_lit_nc, d, open))
 	ok(bgn_nc > 0, "O4 CONTROL the cavity hidden: %d background pixels inside the opening, caught" % bgn_nc)
 
+	# O5 (coordinator, after the LOOK): the aperture shows only lip, teeth, tongue and cavity. SKIN (head, mask, chin, nose, ears drawn
+	# unshaded cyan) inside the aperture polygon is the cheek/jaw seam showing through: <= 2 % of the aperture's pixels.
+	var s_cy := await make_studio(d, head_pts, {"skin_cyan": true})
+	frame(s_cy, mc, 0.45, 12.0)
+	var img_cy: Image = await shot(s_cy, d, open)
+	var sk := skin_in_poly(img_cy, poly)
+	var skf := float(sk.x) / float(sk.y)
+	if OS.get_environment("FACE_GEO3_SHOT") != "":
+		img_cy.save_png(OS.get_environment("FACE_GEO3_SHOT") + "_skin.png")
+	ok(skf <= 0.02, "O5 skin inside the open aperture: %d of %d px = %.1f %% (<= 2 %%)" % [sk.x, sk.y, skf * 100.0])
+	# CONTROLS (planted): the chin piece left at neutral, and the jaw bone only (AU26 = 0, jaw 11 deg) must each differ; a hidden
+	# mask makes the head show through the whole aperture
+	var d_old := d.duplicate()
+	d_old["chin"] = FG.call("chin_data_with", d, head_pts, 9.0)   # the first version of the chin piece (no cut): the aperture wall
+	var s_cy2 := await make_studio(d, head_pts, {"skin_cyan": true})
+	frame(s_cy2, mc, 0.45, 12.0)
+	var img_cy2: Image = await shot(s_cy2, d_old, open)
+	var sk2 := skin_in_poly(img_cy2, poly)
+	var skf2 := float(sk2.x) / float(sk2.y)
+	ok(skf2 > 0.02, "O5 CONTROL the old chin piece (committed f7b6c144, uncut): %.1f %% skin inside the aperture, caught" % [skf2 * 100.0])
+	var cyan_only := Image.create(40, 40, false, Image.FORMAT_RGB8)
+	cyan_only.fill(Color(0, 1, 1))
+	var sk3 := skin_in_poly(cyan_only, PackedVector2Array([Vector2(2, 2), Vector2(38, 2), Vector2(38, 38), Vector2(2, 38)]))
+	ok(float(sk3.x) / float(sk3.y) > 0.02, "O5 CONTROL a picture that is all skin: %d of %d px, caught" % [sk3.x, sk3.y])
+
+	# O6 (coordinator): O and U pushed flat rounded-rectangle patches onto the cheeks (a lighter plate with a sharp border). Shading
+	# continuity: the largest luminance step along a scanline at mouth height, across the cheeks (the lips' own columns skipped), of the O
+	# and U visemes <= 1.5 x the neutral face's.
+	var s_w := await make_studio(d, head_pts, {})
+	frame(s_w, Vector3(0, my, 0.12), 0.45, 30.0)
+	var pn_w := screen(s_w, Vector3(0, my, lip_z))
+	var pa_w := screen(s_w, Vector3(-0.05, my, lip_z))
+	var pb_w := screen(s_w, Vector3(0.05, my, lip_z))
+	var pxw := pa_w.distance_to(pb_w) / 100.0
+	var xlo := int(pn_w.x - 0.044 * 1000.0 * pxw)
+	var xhi := int(pn_w.x + 0.044 * 1000.0 * pxw)
+	var skip_of := func(sd: Dictionary) -> int:   # the state own half mouth width + 6 mm, in px
+		return int((float(mouth_rim(d, FaceGeo.posed(d, sd))["w"]) * 0.5 + 0.006) * 1000.0 * pxw)
+	var img_w0: Image = await shot(s_w, d, st())
+	var step0 := max_lum_step(img_w0, int(pn_w.y), xlo, xhi, int(pn_w.x), skip_of.call(st()))
+	for vn in ["O", "U"]:
+		var img_wv: Image = await shot(s_w, d, vst(vn))
+		if OS.get_environment("FACE_GEO3_SHOT") != "":
+			img_wv.save_png(OS.get_environment("FACE_GEO3_SHOT") + "_wide_%s.png" % vn)
+		var stepv := max_lum_step(img_wv, int(pn_w.y), xlo, xhi, int(pn_w.x), skip_of.call(vst(vn)))
+		ok(stepv <= 1.5 * step0, "O6 cheek shading, viseme %s: largest luminance step at mouth height %.4f (at %s px from the mouth column) against the neutral face's %.4f x 1.5 = %.4f" % [vn, stepv, str(step_at), step0, 1.5 * step0])
+	var img_pl := img_w0.duplicate() as Image
+	for yy in range(int(pn_w.y) - 20, int(pn_w.y) + 21):
+		for xx in range(int(pn_w.x - 0.042 * 1000.0 * pxw), int(pn_w.x - 0.034 * 1000.0 * pxw)):
+			var cc := img_pl.get_pixel(xx, yy)
+			img_pl.set_pixel(xx, yy, Color(minf(cc.r + 0.10, 1.0), minf(cc.g + 0.10, 1.0), minf(cc.b + 0.10, 1.0)))
+	var step_pl := max_lum_step(img_pl, int(pn_w.y), xlo, xhi, int(pn_w.x), skip_of.call(st()))
+	ok(step_pl > 1.5 * step0, "O6 CONTROL a lighter plate planted on the neutral cheek: step %.4f > %.4f, caught" % [step_pl, 1.5 * step0])
+
 	# ---------------- T: teeth
 	for up in [true, false]:
 		var nm := "upper" if up else "lower"
@@ -870,19 +981,20 @@ func _init() -> void:
 		var cz := tu.z + 0.006
 		var edge_y := (tu.y + 0.0004) if up else (tu.y - 0.0006)
 		var sgn := 1.0 if up else -1.0
+		var span_min := (0.95 * 45.0 if up else 0.95 * 35.0) * s   # Wheeler sums x 0.95, x the head scale (see the header)
 		var cen := Vector3(0, edge_y + sgn * 0.005, cz)
 		frame(s_t, cen, 0.30, 14.0)
 		(s_t["parts"]["teeth_up"] as MeshInstance3D).visible = up
 		(s_t["parts"]["teeth_lo"] as MeshInstance3D).visible = not up
 		var img_t: Image = await shot(s_t, d, st())
 		var gm := teeth_gap_stats(s_t, img_t, edge_y, sgn, cz, s)
-		ok(float(gm["span"]) >= 33.0 and float(gm["gap"]) <= 0.10 * 8.5 * s, "T2 render: the %s row spans %.1f mm and its widest gap between teeth is %.2f mm (<= %.2f = 0.10 x a central incisor)" % [nm2, gm["span"], gm["gap"], 0.10 * 8.5 * s])
+		ok(float(gm["span"]) >= span_min and float(gm["gap"]) <= 0.10 * 8.5 * s, "T2 render: the %s row spans %.1f mm (>= %.2f) and its widest gap between teeth is %.2f mm (<= %.2f = 0.10 x a central incisor)" % [nm2, gm["span"], span_min, gm["gap"], 0.10 * 8.5 * s])
 		# CONTROL: the crowns shrunk to 0.8 of their width
 		if arity("teeth_mesh") >= 3:
 			(s_t["parts"]["teeth_up" if up else "teeth_lo"] as MeshInstance3D).mesh = teeth(d, up, {"crown_w": 0.80})
 			var img_tn: Image = await shot(s_t, d, st())
 			var gn := teeth_gap_stats(s_t, img_tn, edge_y, sgn, cz, s)
-			ok(not (float(gn["span"]) >= 33.0 and float(gn["gap"]) <= 0.10 * 8.5 * s), "T2 CONTROL the %s crowns at 0.8 of their width: gap %.2f mm, caught" % [nm2, gn["gap"]])
+			ok(not (float(gn["span"]) >= span_min and float(gn["gap"]) <= 0.10 * 8.5 * s), "T2 CONTROL the %s crowns at 0.8 of their width: gap %.2f mm, caught" % [nm2, gn["gap"]])
 			(s_t["parts"]["teeth_up" if up else "teeth_lo"] as MeshInstance3D).mesh = teeth(d, up)
 		else:
 			ok(false, "T2 CONTROL needs teeth_mesh(d, upper, opts) with opts crown_w")
@@ -1114,6 +1226,9 @@ func _init() -> void:
 		(await shot(s_pic, d, st())).save_png(shotp + "_ear.png")
 		frame(s_pic, cc, 0.45, 26.0, 20.0, -32.0)
 		(await shot(s_pic, d, st())).save_png(shotp + "_chin.png")
+		(s_pic["parts"]["cavity"] as MeshInstance3D).visible = false
+		(await shot(s_pic, d, st())).save_png(shotp + "_chin_nocav.png")
+		(s_pic["parts"]["cavity"] as MeshInstance3D).visible = true
 		ok(FileAccess.file_exists(shotp + "_visemes.png"), "S the pictures are saved with prefix %s" % shotp)
 	print("FACE GEO3 TEST %s" % ["PASS" if fails == 0 else "FAIL %d" % fails])
 	print("face_geo3: %d fail" % fails)

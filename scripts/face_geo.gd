@@ -35,6 +35,7 @@ const REGION := {"face": 0, "lid_up_l": 1, "lid_lo_l": 2, "lid_up_r": 3, "lid_lo
 const AUS := ["AU1", "AU4", "AU6", "AU10", "AU12", "AU16", "AU18", "AU20", "AU22", "AU23", "AU24", "AU26", "AU28", "AU45"]   # AU25 (lips part) is the lens of posed()
 const VISEMES := ["rest", "A", "E", "I", "O", "U", "MBP", "FV", "L", "TH"]
 const JAW_MAX_DEG := 27.5
+const CHIN_CLIP := 0.022        # the chin sheet is cut this far above the mask's lowest vertex (m)
 const LIP_ARCH := 0.0036        # m x s: the upper lip's arch when the lips part (AU25)
 const LIP_TUCK := 0.0042        # m x s: the lower lip rises toward the incisors by this much per unit jaw fraction
 const LIP_PULL := 0.0018        # m x s: each mouth corner draws in by this much per unit jaw fraction
@@ -136,6 +137,17 @@ static func _hf_make(pts: PackedVector3Array, x0: float, y0: float, x1: float, y
 
 
 ## the height at (x, y): bilinear, -1e9 where the field has a hole
+## the delta with its z changed by the head surface's own z difference between the new and the old (x, y)
+static func _follow(hf: Dictionary, p: Vector3, dv: Vector3) -> Vector3:
+	if absf(dv.x) < 1.0e-7 and absf(dv.y) < 1.0e-7:
+		return dv
+	var z0 := _hz(hf, p.x, p.y)
+	var z1 := _hz(hf, p.x + dv.x, p.y + dv.y)
+	if z0 < -1.0e8 or z1 < -1.0e8:
+		return dv
+	return Vector3(dv.x, dv.y, dv.z + (z1 - z0))
+
+
 static func _hz(hf: Dictionary, x: float, y: float) -> float:
 	var res: float = hf["res"]
 	var nx: int = hf["nx"]
@@ -569,9 +581,9 @@ static func build(head_pts: PackedVector3Array, anchors_in: Dictionary = {}, opt
 		var lo_s := 1.0 - up_s
 		var cen := 1.0 - _ss(0.010, 0.024, ab)
 		var nr := 1.0 - _ss(0.0, 0.012, adv)
-		var nr2 := 1.0 - _ss(0.008, 0.018, adv)
+		var nr2 := 1.0 - _ss(0.0, 0.026, adv)       # L23 LOOK fix: a wide, soft fall-off (it was 8..18 mm: a plate with a visible border)
 		var cor := _ss(0.012, 0.026, ab) * (1.0 - _ss(0.030, 0.042, ab))
-		var cor2 := _ss(0.008, 0.026, ab) * (1.0 - _ss(0.026, 0.038, ab))
+		var cor2 := _ss(0.008, 0.026, ab) * (1.0 - _ss(0.024, 0.042, ab))
 		var fwd := (1.0 - _ss(0.012, 0.030, ab)) * (1.0 - _ss(0.006, 0.016, adv))
 		d10[v] = Vector3(0.0, 0.0035 * s * up_s * cen * nr, 0.0005 * up_s * cen * nr)
 		d16[v] = Vector3(0.0, -0.0045 * s * lo_s * cen * nr, 0.0)
@@ -579,6 +591,12 @@ static func build(head_pts: PackedVector3Array, anchors_in: Dictionary = {}, opt
 		d22[v] = Vector3(-sx * 0.0030 * s * cor2 * nr2, 0.0030 * s * (up_s - lo_s) * cen * nr, 0.0045 * s * fwd)
 		d20[v] = Vector3(sx * 0.0055 * s * cor * nr2, 0.0, -0.0020 * s * cor * nr2)
 		d23[v] = Vector3(-sx * 0.0020 * s * cor2 * nr2, 0.0, -0.0010 * s * cen * (1.0 - _ss(0.004, 0.012, adv)))
+		# L23 LOOK fix: a skin patch that slides sideways must ride the head's own surface (it curves toward the middle of the face): without
+		# it the shifted mask dipped under the head's facets and they showed as flat, lighter plates with a sharp border (O and U)
+		d18[v] = _follow(hf, p, d18[v])
+		d22[v] = _follow(hf, p, d22[v])
+		d20[v] = _follow(hf, p, d20[v])
+		d23[v] = _follow(hf, p, d23[v])
 		# AU24 presses the lips together: the two rim rows (+- 0.3 mm) meet exactly (the pressure fades over 4 mm)
 		var prs := (1.0 - _ss(0.029, 0.036, ab)) * (1.0 - _ss(0.0003, 0.004, adv))
 		d24[v] = Vector3(-sx * 0.0012 * s * cor2 * nr2, -0.0003 * prs * (up_s - lo_s), -0.0010 * s * cen * (1.0 - _ss(0.004, 0.012, adv)))
@@ -812,7 +830,22 @@ static func head_parts(d: Dictionary, skin: Color = SKIN) -> Array:
 ## head). The removed triangles that the mask does NOT cover (nothing of the mask within 4 mm over / beside them) are kept here as a
 ## piece of skin that rides the jaw: each vertex turns about the hinge by the jaw weight of the mask at the same (x, y) (so the two
 ## sheets turn alike at their seam) times a fade to 0 toward the back of the cut (z), where it meets the static head again.
-static func _chin_data(head_pts: PackedVector3Array, mverts: PackedVector3Array, cutd: Dictionary, my: float) -> Dictionary:
+## the chin piece rebuilt with another cut (clip = 9.0 keeps the whole uncovered sheet: the first version, with the aperture wall); tests use it
+static func chin_data_with(d: Dictionary, head_pts: PackedVector3Array, clip: float) -> Dictionary:
+	return _chin_data(head_pts, d["verts"], d["cut"], float((d["anchors"]["mouth"] as Vector3).y), clip)
+
+
+static func mverts_ymin(mverts: PackedVector3Array) -> float:
+	var lo := 1.0e9
+	var zl := 0.0
+	for v in mverts:
+		if v.y < lo:
+			lo = v.y
+			zl = v.z
+	return lo + zl     # y + z of the mask's lowest vertex: the chin sheet's cut plane constant (y + z <= K)
+
+
+static func _chin_data(head_pts: PackedVector3Array, mverts: PackedVector3Array, cutd: Dictionary, my: float, clip: float = CHIN_CLIP) -> Dictionary:
 	var ymn := {}     # x bin (2 mm) -> the lowest mask y
 	var xmx := {}     # y bin (1 mm) -> the largest mask |x|
 	for v in mverts:
@@ -825,6 +858,7 @@ static func _chin_data(head_pts: PackedVector3Array, mverts: PackedVector3Array,
 	var keyd := {}
 	var vs := PackedVector3Array()
 	var ix := PackedInt32Array()
+	var chin_top := float(mverts_ymin(mverts)) + clip   # K: the slanted plane y + z <= K (45 deg: the underside may rise toward the back, not toward the lips)
 	for t in range(0, head_pts.size() - 2, 3):
 		var a := head_pts[t]
 		var b := head_pts[t + 1]
@@ -842,13 +876,28 @@ static func _chin_data(head_pts: PackedVector3Array, mverts: PackedVector3Array,
 				break
 		if covered:
 			continue
-		for q in [a, b, c]:
-			var qv2: Vector3 = q
-			var key := Vector3i(int(round(qv2.x * 20000.0)), int(round(qv2.y * 20000.0)), int(round(qv2.z * 20000.0)))
-			if not keyd.has(key):
-				keyd[key] = vs.size()
-				vs.append(qv2)
-			ix.append(int(keyd[key]))
+		# L23 LOOK fix: the head is a coarse polyhedron, so one triangle can run from the chin (weight 1, it swings with the jaw) up to a
+		# static vertex at mouth height (weight 0): it stood as a diagonal wall across the open aperture (pale wedges). Clip the sheet to
+		# the half-space under the mask's own lower edge (y <= chin_top) and keep only that part.
+		var poly: Array = [a, b, c]
+		var clipped: Array = []
+		for pi_ in 3:
+			var p0: Vector3 = poly[pi_]
+			var p1: Vector3 = poly[(pi_ + 1) % 3]
+			var in0 := p0.y + p0.z <= chin_top
+			var in1 := p1.y + p1.z <= chin_top
+			if in0:
+				clipped.append(p0)
+			if in0 != in1:
+				clipped.append(p0.lerp(p1, (chin_top - p0.y - p0.z) / ((p1.y + p1.z) - (p0.y + p0.z))))
+		for fi in range(1, clipped.size() - 1):
+			for q in [clipped[0], clipped[fi], clipped[fi + 1]]:
+				var qv2: Vector3 = q
+				var key := Vector3i(int(round(qv2.x * 20000.0)), int(round(qv2.y * 20000.0)), int(round(qv2.z * 20000.0)))
+				if not keyd.has(key):
+					keyd[key] = vs.size()
+					vs.append(qv2)
+				ix.append(int(keyd[key]))
 	var w := PackedFloat32Array()
 	w.resize(vs.size())
 	for i in vs.size():
