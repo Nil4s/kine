@@ -4225,11 +4225,15 @@ var throw_on := false                  # the Throw check panel is showing
 var throw_panel: ThrowPanel = null
 var throw_key := 0                     # what the panel's result was judged for (cards + the partner's cards and place + fps)
 var throw_done := false
+var throw_band := false                # L45: the panel's band is in bottom_h (set with throw_on, by _throw_refresh)
 var throw_judge_runs := 0              # how many times the judge ran (a hidden panel must not run it)
 
 
 ## called at every refresh: nothing at all while the panel is off; while on, the judge runs only when the scene (cards, partner, place) changed
 func _throw_refresh() -> void:
+	if throw_on != throw_band:   # L45: the panel is a row of the bottom stack: the stack grows by its height while it shows
+		throw_band = throw_on
+		_layout_bottom()
 	if not throw_on:
 		if throw_panel != null and throw_panel.visible:
 			throw_panel.visible = false
@@ -4242,6 +4246,7 @@ func _throw_refresh() -> void:
 		throw_done = false
 	throw_panel.visible = true
 	_throw_place()
+	throw_panel.set_playhead(roundi(playhead * float(ThrowFixtures.FPS)))
 	var key: int = -1 if S.actors.is_empty() else hash([S.cards, S.actors.map(func(a): return [a["xf"], (a["scene"] as Scene).cards])])
 	if throw_done and key == throw_key:
 		return
@@ -4258,8 +4263,8 @@ func _throw_place() -> void:
 	throw_panel.anchor_bottom = 1.0
 	throw_panel.offset_left = LEFT_W + 12
 	throw_panel.offset_right = LEFT_W + 12 + ThrowPanel.W
-	throw_panel.offset_bottom = -bottom_h - 8
-	throw_panel.offset_top = -bottom_h - 8 - ThrowPanel.H
+	throw_panel.offset_top = -bottom_h   # L45: the band at the top of the bottom stack (_layout_bottom adds it), its bottom 8 px above the bar's panels
+	throw_panel.offset_bottom = -bottom_h + ThrowPanel.H
 
 
 ## a click on a cell of the panel: the playhead goes to that frame (what a scrub does: no undo step)
@@ -16861,6 +16866,8 @@ func _layout_bottom() -> void:
 	if eempty:
 		bottom_h += EASY_ROW_H - 26
 	_easy_bottom_style(eo)
+	if throw_band:   # L45: the Throw check band (ThrowPanel.H + 8 px) stands on the bottom stack, like the clip rows
+		bottom_h += ThrowPanel.H + 8
 	ui_card_row.visible = not folded
 	if ui_fold_btn.has("bottom_open"):
 		ui_fold_btn["bottom_open"].visible = folded

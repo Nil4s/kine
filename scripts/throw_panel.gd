@@ -16,6 +16,8 @@ const COL_TXT := Color("f5f5f5")
 
 var res: Dictionary = {}
 var empty_reason := "Throw check is off"
+var _frame := -1          # L45: the playhead's frame (set by the app at each refresh)
+var _mx := -INF           # the x the playhead marker was last drawn at
 
 
 func _init() -> void:
@@ -59,9 +61,16 @@ func _cw() -> float:
 	return (size.x - 2.0 * PAD) / float(maxi(n, 1))
 
 
-## L45 bar hook: the x the playhead marker is drawn at (-INF until the marker exists)
+## L45: the playhead marker, the frame it stands on; its x is the cell centre of that frame
+func set_playhead(f: int) -> void:
+	if f != _frame:
+		_frame = f
+		queue_redraw()
+
+
+## L45 bar hook: the x the playhead marker was drawn at (-INF when none is drawn)
 func marker_x() -> float:
-	return -INF
+	return _mx
 
 
 func x_of_frame(f: int) -> float:
@@ -98,6 +107,7 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), COL_BG)
 	var font := ThemeDB.fallback_font
 	draw_string(font, Vector2(PAD, 16), "Throw check", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, COL_TXT.darkened(0.3))
+	_mx = -INF
 	if res.is_empty():
 		draw_multiline_string(font, Vector2(PAD, 36), empty_reason, HORIZONTAL_ALIGNMENT_LEFT, size.x - 2.0 * PAD, 13, 3, COL_TXT)
 		return
@@ -107,6 +117,9 @@ func _draw() -> void:
 	var fr: Array = res["frames"]
 	for i in fr.size():
 		draw_rect(Rect2(PAD + i * cw, CELL_Y, maxf(cw - 1.0, 1.0), CELL_H), ThrowTruthStrip.color_of(String(fr[i]["verdict"])))
+	if _frame >= 0 and _frame < fr.size():
+		_mx = x_of_frame(_frame)
+		draw_line(Vector2(_mx, CELL_Y - 4.0), Vector2(_mx, CELL_Y + CELL_H + 4.0), COL_TXT, 1.0)
 	var kx := x_of_frame(int(res["frame"]))
 	draw_line(Vector2(kx, CELL_Y - 6.0), Vector2(kx, CELL_Y - 1.0), COL_TXT, 2.0)
 	draw_line(Vector2(kx, CELL_Y + CELL_H + 1.0), Vector2(kx, CELL_Y + CELL_H + 6.0), COL_TXT, 2.0)

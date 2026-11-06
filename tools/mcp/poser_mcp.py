@@ -62,8 +62,8 @@ TOOLS = {
                   "(plus latency_ms), status reactable / not reactable and the margin. clip = a scene file (else the live scene); frame adds what that frame is (tell / active / idle).",
                   {"type": "object", "properties": {"clip": S, "frame": {"type": "integer"}, "latency_ms": N, "fps": N}, "additionalProperties": False}),
     "throw_check": ("throw_check", "Does the throw work? Two bodies judged frame by frame: verdict (throw works / no kuzushi / thrower falls / no contact), the key frame, and per frame the partner's "
-                    "extrapolated centre of mass outside his feet (out_m) and the thrower's own balance margin (margin_m). clip = a scene file with a partner (else the live scene); thrower 0 = hero, 1 = partner.",
-                    {"type": "object", "properties": {"clip": S, "fps": N, "thrower": {"type": "integer"}}, "additionalProperties": False}),
+                    "extrapolated centre of mass outside his feet (out_m) and the thrower's own balance margin (margin_m). clip = a scene file with a partner (else the live scene); thrower 0 = hero, 1 = partner. brief true = only the verdict, the key frame, the partner out and the thrower margin (under 1 KB).",
+                    {"type": "object", "properties": {"clip": S, "fps": N, "thrower": {"type": "integer"}, "brief": {"type": "boolean"}}, "additionalProperties": False}),
     "look_facts": ("look_facts", "Numbers for how the final picture LOOKS per piece / kind / nature item (colour, contrast, neon, ring, share), from an id render. "
                    "Needs a part view or nature items showing: give piece, kind, nature or targets; camera, w, h optional.",
                    {"type": "object", "properties": {"piece": S, "kind": S, "nature": S, "targets": {"type": "array"}, "camera": {"type": "object"}, "w": N, "h": N}, "additionalProperties": True}),

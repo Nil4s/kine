@@ -152,7 +152,9 @@ func _init() -> void:
 	br.set_outl_query("")
 	br.refresh()
 	await idle(6)
-	print("     browser tree width %.0f px" % br.size.x)
+	br.scroll_to_item(br._ol_box_row)   # the search box and toggles ride on that row: measured only while it is in sight (as outliner_test does)
+	await idle(4)
+	print("     browser tree width %.0f px, search box %.0f px" % [br.size.x, br._ol_search.size.x])
 	var bar: HBoxContainer = br._ol_bar
 	ok(bar.get_child_count() == 6, "4 the filter bar has its 6 toggles (%d)" % bar.get_child_count())
 	var font := ThemeDB.fallback_font
