@@ -340,6 +340,7 @@ func _init() -> void:
 				await process_frame
 				probe.on = true
 	var bake_ms := Time.get_ticks_msec() - t_bake
+	ok(shot_done, "p the bake panel was caught on screen while the bake ran")
 	await idle(10)
 	probe.on = false
 	var p_bake: float = probe.p95()
