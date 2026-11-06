@@ -1032,3 +1032,4 @@ EXTRA="$EXTRA g45dist:w"   # G45DIST: KCad.distance (OCCT BRepExtrema_DistShapeS
 EXTRA="$EXTRA ch16:w"   # ch16: Sony a7 / ILCE-7 class camera, separate Parts, mount/sensor stack, electronics, staged movie, sheets and AssemblyBom (docs/CH16_REFERENCE.md), tests/ch16_test.gd
 EXTRA="$EXTRA g30draw:w"   # G30DRAW: Assembly exact-solid plan/front/section drawing + rated power/signal schematic, SVG/PNG and UI export (gaps G30/G31)
 EXTRA="$EXTRA g21compare:w"   # g21compare: shared render-vs-reference stats and side-by-side (CompareShot)
+EXTRA="$EXTRA g4dbl:w"   # G4DBL: CAD poses in doubles (Xform64, Assembly.xf64_of, place64): round trip 1e-12, CH13 pin height 1e-9 mm, display = float32 rounding, save/load bit-exact, tests/g4dbl_test.gd
