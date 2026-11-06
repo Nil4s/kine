@@ -75,6 +75,22 @@ func max_diff(a: Image, b: Image) -> float:
 	return m
 
 
+func _frames(w: int, h: int, f: Callable, n: int, sd: float, rng: RandomNumberGenerator) -> Array:
+	var out := []
+	for k in n:
+		var d := PackedByteArray()
+		d.resize(w * h * 3)
+		for y in h:
+			for x in w:
+				var c: Color = f.call(x, y)
+				var i := (y * w + x) * 3
+				d[i] = clampi(roundi((c.r + rng.randfn(0, sd)) * 255.0), 0, 255)
+				d[i + 1] = clampi(roundi((c.g + rng.randfn(0, sd)) * 255.0), 0, 255)
+				d[i + 2] = clampi(roundi((c.b + rng.randfn(0, sd)) * 255.0), 0, 255)
+		out.append(Image.create_from_data(w, h, false, Image.FORMAT_RGB8, d))
+	return out
+
+
 func _init() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 51
@@ -143,12 +159,29 @@ func _init() -> void:
 	var w_gd := edge_w(dn_gd, 8, 88, 44, 84)
 	ok(w_gd <= 1.2 * w_clean, "f GDScript fallback edge width %.3f px (x%.2f)" % [w_gd, w_gd / w_clean])
 	ok(bool(FinalHQ.PRESET.get("denoise", false)), "f the final_hq PRESET has denoise on")
-	# ---- c2 / d2: the call main.gd makes: SELF-guided (the image is its own guide), same thresholds as c and d
-	var sg_flat: Image = FinalHQ.denoise(noisy_flat, noisy_flat)
+	# ---- c2 / d2: the call main.gd makes: accumulate_var (N noisy sub-samples -> mean + variance of the mean), then SELF-guided denoise whose
+	## edge-stop is sigma_l * sqrt(variance) (SVGF style). Same thresholds as c and d; the baseline of c2 is the std of the ACCUMULATED mean.
+	var frames_flat := _frames(96, 96, func(_x, _y): return Color(0.5, 0.5, 0.5), 16, 0.12, rng)
+	var av: Dictionary = FinalHQ.accumulate_var(frames_flat)
+	var s_acc := chan_std(av["img"], patch)
+	var sg_flat: Image = FinalHQ.denoise(av["img"], av["img"], -1, -1.0, -1.0, av["var"])
 	var s2 := chan_std(sg_flat, patch)
-	ok(s0 / maxf(s2, 1e-9) >= 2.0, "c2 self-guided flat-patch std %.4f -> %.4f (x%.1f, >= 2)" % [s0, s2, s0 / maxf(s2, 1e-9)])
-	var sg_edge: Image = FinalHQ.denoise(noisy_edge, noisy_edge)
+	ok(s_acc / maxf(s2, 1e-9) >= 2.0, "c2 app path (accumulate_var + variance-guided self-guided denoise) flat-patch std %.4f -> %.4f (x%.1f, >= 2)" % [s_acc, s2, s_acc / maxf(s2, 1e-9)])
+	var frames_edge := _frames(128, 96, step, 16, 0.12, rng)
+	var ave: Dictionary = FinalHQ.accumulate_var(frames_edge)
+	var sg_edge: Image = FinalHQ.denoise(ave["img"], ave["img"], -1, -1.0, -1.0, ave["var"])
 	var w_sg := edge_w(sg_edge, 8, 88, 44, 84)
-	ok(w_sg <= 1.2 * w_clean, "d2 self-guided edge width %.3f px vs clean %.3f px (x%.2f, <= 1.2)" % [w_sg, w_clean, w_sg / w_clean])
+	ok(w_sg <= 1.2 * w_clean, "d2 app path edge width %.3f px vs clean %.3f px (x%.2f, <= 1.2)" % [w_sg, w_clean, w_sg / w_clean])
+	# g: native == GDScript for the variance output and the variance-guided denoise (small image: the twin is slow)
+	var sm := _frames(48, 40, step, 8, 0.12, rng)
+	var vn: Dictionary = FinalHQ.accumulate_var(sm)
+	var vg: Dictionary = FinalHQ.accumulate_var_gd(sm)
+	var vmax := 0.0
+	for i in vn["var"].size():
+		vmax = maxf(vmax, absf(vn["var"][i] - vg["var"][i]))
+	ok(max_diff(vn["img"], vg["img"]) <= 1.0 / 255.0 and vmax <= 1e-5, "g accumulate_var native == GDScript: mean diff %.6f, variance diff %.2e" % [max_diff(vn["img"], vg["img"]), vmax])
+	var dvn: Image = FinalHQ.denoise(vn["img"], vn["img"], -1, -1.0, -1.0, vn["var"])
+	var dvg: Image = FinalHQ.denoise_gd(vn["img"], vn["img"], -1, -1.0, -1.0, vn["var"])
+	ok(max_diff(dvn, dvg) <= 1.0 / 255.0, "g variance-guided denoise native == GDScript: max abs diff %.6f" % max_diff(dvn, dvg))
 	print("\nrender2: %s" % ("ALL OK" if fails == 0 else "%d FAIL" % fails))
 	quit(1 if fails > 0 else 0)

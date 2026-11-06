@@ -7,5 +7,9 @@ static func accumulate(datas: Array) -> PackedFloat32Array:
 	return KineRenderNative.accumulate(datas)
 
 
-static func denoise(rgb: PackedFloat32Array, guide: PackedFloat32Array, w: int, h: int, iters: int, sc: float, sg: float) -> PackedFloat32Array:
-	return KineRenderNative.denoise(rgb, guide, w, h, iters, sc, sg)
+static func denoise(rgb: PackedFloat32Array, guide: PackedFloat32Array, w: int, h: int, iters: int, sc: float, sg: float, vr: PackedFloat32Array, sl: float) -> PackedFloat32Array:
+	return KineRenderNative.denoise(rgb, guide, w, h, iters, sc, sg, vr, sl)
+
+
+static func accumulate_var(datas: Array) -> PackedFloat32Array:
+	return KineRenderNative.accumulate_var(datas)

@@ -22,7 +22,9 @@ public:
 	// p_imgs: Array of PackedByteArray (RGB8, equal sizes). Returns mean/255 per byte.
 	static PackedFloat32Array accumulate(const Array &p_imgs);
 	// p_rgb, p_guide: w*h*3 floats. Returns the filtered w*h*3 floats.
-	static PackedFloat32Array denoise(const PackedFloat32Array &p_rgb, const PackedFloat32Array &p_guide, int p_w, int p_h, int p_iters, double p_sigma_c, double p_sigma_g);
+	static PackedFloat32Array denoise(const PackedFloat32Array &p_rgb, const PackedFloat32Array &p_guide, int p_w, int p_h, int p_iters, double p_sigma_c, double p_sigma_g, const PackedFloat32Array &p_var, double p_sigma_l);
+	// like accumulate, plus the per-pixel VARIANCE OF THE MEAN of the luminance over the N samples: returns 3*npix mean floats then npix variances
+	static PackedFloat32Array accumulate_var(const Array &p_imgs);
 };
 
 } // namespace godot
