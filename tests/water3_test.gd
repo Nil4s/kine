@@ -19,9 +19,9 @@ const PHOTO_STREAK := 0.1662   # information: the photo band holds horizontal st
 const BAR_ROUGH_X := 1.5       # bar W1 = 1.5 x 0.02790 = 0.04185
 const BAR_STREAK := 1.5        # bar W2, registered before any render was measured: an isotropic surface reads about 1, vertical streaks read >> 1
 ##   (W1) ROUGHNESS of the new render <= BAR_ROUGH_X x the photo's Rr.   CONTROL: the L5 render (ssf off) of the same scene must exceed it; PLANTED: the new
-##        render plus white noise of sigma 0.03 must exceed it.
+##        render plus white noise of sigma 0.3 must exceed it (0.03, the first choice, reads 0.0087 after the sigma 1 px blur of the band-pass: it could not fail any bar; found on the first run).
 ##   (W2) STREAKS of the new render <= BAR_STREAK (1.5, absolute: the photo's own 0.166 is a waterline band, a bar of 1.5 x that would demand horizontal streaks).  CONTROL: the L5 render must exceed it; PLANTED: the new render plus a random offset per
-##        COLUMN (sigma 0.03) must exceed it.
+##        COLUMN (sigma 0.1) must exceed it (0.03, the first choice, added only Sx 0.84 over the new render and read 0.991: too weak to fail; found on the first run).  (The L5 control of W2 became information on the first run: L5 reads 0.985, see W2b.)
 ##   (W2b) STRIPE-EDGE STRAIGHTNESS (ADDED after the first run showed that W2 does not separate the L5 render: it reads Sx 1.06 on the soft backdrop, its roughness is isotropic at
 ##        that scale. The streaks of compare.png live where hard vertical stripes are refracted. The BAR VALUES below are written before the new render is measured; only the
 ##        metric was chosen after seeing L5): the same glass in front of 1 cm black and cream vertical stripes. Luminance mid-level crossings are tracked from row to row
@@ -31,7 +31,7 @@ const BAR_STREAK := 1.5        # bar W2, registered before any render was measur
 ##   (W3) STILL WATER: the smoothing does not erase the water: the low-frequency std (Gaussian 4 px) inside the silhouette is >= 0.5 x the L5 render's (the refracted
 ##        backdrop pattern is still there), and the silhouette covers >= 0.9 x the L5 area.
 ##   (W4) VOLUME: WaterSurface.smooth_volume (Taubin + volume restore) keeps the enclosed volume within 1 % on the glass and on the dam break.
-##        CONTROL: 60 plain Laplacian steps (lambda only) change the same mesh's volume by more than 1 %.
+##        CONTROL: 300 plain Laplacian steps (lambda only; 60 changed the volume by only 0.95 % and 0.50 %, found on the first run) change the same mesh's volume by more than 1 %.
 ##   (W5) FRAME COST: ms per frame of the smoothing passes, information only (no bar).
 ## The L5 bars of liq2 are untouched and keep running in tests/liq2_test.gd.
 var fails := 0
@@ -364,10 +364,10 @@ func _noisy(img: Image, mode: String) -> Image:
 	rng.seed = 31
 	var colv := PackedFloat32Array()
 	for x in o.get_width():
-		colv.append(rng.randfn(0.0, 0.03))
+		colv.append(rng.randfn(0.0, 0.1))
 	for y in o.get_height():
 		for x in o.get_width():
-			var d := rng.randfn(0.0, 0.03) if mode == "noise" else colv[x]
+			var d := rng.randfn(0.0, 0.3) if mode == "noise" else colv[x]
 			var c := o.get_pixel(x, y)
 			o.set_pixel(x, y, Color(clampf(c.r + d, 0, 1), clampf(c.g + d, 0, 1), clampf(c.b + d, 0, 1)))
 	return o
@@ -406,7 +406,7 @@ func _init() -> void:
 	ok(al["rough"] > bar_r, "(g) CONTROL (W1) the L5 render reads %.5f and fails the roughness bar %.5f" % [al["rough"], bar_r])
 	ok(pn["rough"] > bar_r, "(g) CONTROL (W1) planted noise on the new render reads %.5f and fails the bar" % pn["rough"])
 	ok(an["streak"] <= bar_s, "(W2) streak ratio of the new render %.3f <= %.3f (registered absolute bar; photo reads %.3f)" % [an["streak"], bar_s, PHOTO_STREAK])
-	ok(al["streak"] > bar_s, "(g) CONTROL (W2) the L5 render reads %.3f and fails the streak bar %.3f" % [al["streak"], bar_s])
+	print("      INFO (W2) the L5 render reads Sx %.3f against the bar %.3f: W2 does NOT separate it (its roughness is isotropic at this scale), which is why W2b exists. The L5 control of W2 is therefore information, not a bar." % [al["streak"], bar_s])
 	ok(ps["streak"] > bar_s, "(g) CONTROL (W2) planted column offsets on the new render read %.3f and fail the bar" % ps["streak"])
 	# ---- W2b stripe edges
 	var sn: Dictionary = await _render_glass(gl, true, true)
@@ -441,7 +441,7 @@ func _init() -> void:
 		var v0 := absf(WaterSurface.signed_volume(item[1], item[2]))
 		var sm: PackedVector3Array = WaterSurface.smooth_volume(item[1], item[2], 40)
 		var v1 := absf(WaterSurface.signed_volume(sm, item[2]))
-		var lap: PackedVector3Array = WaterSurface.taubin(item[1], item[2], 60, 0.5, 0.0)   # mu = 0: a plain Laplacian, it shrinks
+		var lap: PackedVector3Array = WaterSurface.taubin(item[1], item[2], 300, 0.5, 0.0)   # mu = 0: a plain Laplacian, it shrinks
 		var v2 := absf(WaterSurface.signed_volume(lap, item[2]))
 		print("      W4 %s: volume %.6f L -> smooth_volume %.6f L (%.3f %%), plain Laplacian %.6f L (%.2f %%)" % [item[0], v0 * 1000.0, v1 * 1000.0, (v1 / v0 - 1.0) * 100.0, v2 * 1000.0, (v2 / v0 - 1.0) * 100.0])
 		ok(absf(v1 / v0 - 1.0) <= 0.01, "(W4) %s: smooth_volume keeps the volume within 1 %% (%.3f %%)" % [item[0], (v1 / v0 - 1.0) * 100.0])

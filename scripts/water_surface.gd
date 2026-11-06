@@ -7,14 +7,14 @@ extends RefCounted
 
 
 ## triangle soup -> {pos: PackedVector3Array, idx: PackedInt32Array}; vertices closer than 1e-6 m are one vertex
-static func weld(soup: PackedVector3Array) -> Dictionary:
+static func weld(soup: PackedVector3Array, scale := 1e6) -> Dictionary:
 	var map := {}
 	var pos := PackedVector3Array()
 	var idx := PackedInt32Array()
 	idx.resize(soup.size())
 	for i in soup.size():
 		var p := soup[i]
-		var key := Vector3i(roundi(p.x * 1e6), roundi(p.y * 1e6), roundi(p.z * 1e6))
+		var key := Vector3i(roundi(p.x * scale), roundi(p.y * scale), roundi(p.z * scale))
 		var id: int = map.get(key, -1)
 		if id < 0:
 			id = pos.size()
@@ -54,8 +54,13 @@ static func taubin(pos: PackedVector3Array, idx: PackedInt32Array, iters: int, l
 			if seen.has(key):
 				continue
 			seen[key] = true
-			(nb[a] as PackedInt32Array).append(b)
-			(nb[b] as PackedInt32Array).append(a)
+			# L31 FIX: `(nb[a] as PackedInt32Array).append(b)` appended to a COPY, so nb stayed empty and this smoothing never moved a vertex (L5 ran with it off)
+			var la: PackedInt32Array = nb[a]
+			la.append(b)
+			nb[a] = la
+			var lb: PackedInt32Array = nb[b]
+			lb.append(a)
+			nb[b] = lb
 	var cur := pos.duplicate()
 	for it in iters:
 		for w in [lam, mu]:
@@ -160,6 +165,19 @@ static func make_mesh(pos: PackedVector3Array, idx: PackedInt32Array, nrm: Packe
 	return m
 
 
-## L31 STUB (bars commit): volume preserving smoothing is not implemented yet; returns the positions unchanged.
-static func smooth_volume(pos: PackedVector3Array, _idx: PackedInt32Array, _iters := 40) -> PackedVector3Array:
-	return pos.duplicate()
+## L31: volume preserving smoothing. Taubin lambda|mu steps (they already shrink little) and then the residual change of the enclosed volume is undone by a uniform
+## scale of the vertices about the volume weighted centroid, V1 -> V0, so the enclosed volume is the input's to rounding (the bar is 1 %).
+static func smooth_volume(pos: PackedVector3Array, idx: PackedInt32Array, iters := 40) -> PackedVector3Array:
+	var v0 := signed_volume(pos, idx)
+	var out := taubin(pos, idx, iters)
+	var v1 := signed_volume(out, idx)
+	if absf(v1) < 1e-18 or absf(v0) < 1e-18:
+		return out
+	var c := Vector3.ZERO   # centroid of the vertices
+	for p in out:
+		c += p
+	c /= float(out.size())
+	var k := pow(v0 / v1, 1.0 / 3.0)
+	for i in out.size():
+		out[i] = c + (out[i] - c) * k
+	return out
