@@ -22,6 +22,17 @@ extends SceneTree
 ##  8 HAND      every number of bars 1-5 equals its hand value to 1e-9. PLANTED: Way-Wigner with exponent -0.25 differs.
 ##  9 DRAWINGS  (extra) the site plan, the reactor building section and the one-line diagram write as SVG with a title block and a scale; every bus of the one-line has
 ##              its voltage and every transformer its MVA on the sheet. PLANTED: a one-line with a transformer stripped of its MVA is caught.
+##  --- L4 additions (lane w4-eng2, 11-05; docs/CH15_REFERENCE.md section 9; written and committed BEFORE their first run; bars 1-9 above are untouched) ---
+## 10 SHORTCIRCUIT  IEC 60909 initial symmetrical short-circuit currents, Ik'' = c Un / (sqrt3 Zk), c_max 1.1, KT = 0.95 c_max / (1 + 0.6 xT), KG = c_max / (1 + xd'' sin phi):
+##              grid 25 GVA at 500 kV, MT uk 14 pct, generator xd'' 0.28 (all ASSUMED). (a) the system-fed and the generator-fed current a 210 kA GCB must break equal their
+##              hand values to 1e-9 and are below 210 kA; (b) the 10.5 kV house bus (UAT 50 MVA uk 10 pct, sources in parallel, plus the motors: 80 pct of 35 MW, ILR/Ir 5)
+##              is below the 50 kA switchgear rating; (c) the diesel motor start dip S_start / (S_start + Sk''gen) <= 20 pct for every step of the load sequence.
+##              PLANTED: a UAT with uk 5 pct fails (b); starting the whole 4.6 MW sequence in one step fails (c).
+## 11 BUCKLING  external pressure on the 56 m sphere: p_cl = 2 E / sqrt(3 (1 - nu^2)) (t/R)^2 (Zoelly), knocked down by gamma 0.2, safety 2, must carry 0.02 MPa external
+##              differential (E 195 GPa, nu 0.3, gamma, SF, 0.02 MPa all ASSUMED), t = 30 mm. PLANTED: a 10 mm wall fails.
+## 12 HISTORY   decay heat of a 3-batch core (equal thirds irradiated 1, 2, 3 cycles of 13 months, 30 d outages) by Way-Wigner superposition: above the one-cycle value at
+##              10 s, 1 h, 1 d (by hand to 1e-9), below the infinite-irradiation bound 0.0622 t^-0.2, 1 h in 0.5..2 pct, the 1 h boil-off still <= 36 kg/s.
+##              PLANTED: four batches at one third each (weights sum 4/3) are rejected.
 var fails := 0
 var done := []   # the bars that ran to their end: a script error inside a bar stops that function without a FAIL line, so the end checks the list
 const W := preload("res://scripts/build/ch15_if97.gd")
@@ -56,13 +67,16 @@ func _init() -> void:
 	bar5()
 	bar8()
 	bar9()
+	bar10()
+	bar11()
+	bar12()
 	if not Part.available():
 		ok(false, "6/7 the CAD kernel (KineCAD) is missing")
 	else:
 		bar6()
 		bar7()
 		await bar7_video()
-	var want := ["1", "2", "3", "4", "5", "8", "9", "6", "7"]
+	var want := ["1", "2", "3", "4", "5", "8", "9", "10", "11", "12", "6", "7"]
 	ok(done == want, "every bar ran to its end: %s" % str(done))
 	print("ch15: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
@@ -366,3 +380,48 @@ func bar9() -> void:
 	var miss2 := D.oneline_missing(P.one_line(), D.sheet("oneline", {"model": stripped}))
 	ok(not miss2.is_empty(), "9 PLANTED a transformer without its MVA is caught: %s" % str(miss2))
 	done.append("9")
+
+
+# ------------------------------------------------ 10 (L4)
+func bar10() -> void:
+	var sc := P.short_circuit()
+	ok(rel(sc["ik_sys"], 194.64007448314305) < 1e-9 and rel(sc["ik_gen"], 134.93069135337697) < 1e-9, "10a GCB duty by hand: system-fed %.6f kA, generator-fed %.6f kA" % [sc["ik_sys"], sc["ik_gen"]])
+	ok(maxf(sc["ik_sys"], sc["ik_gen"]) <= 210.0, "10a both below the 210 kA GCB rating (%.1f kA, %.1f pct)" % [maxf(sc["ik_sys"], sc["ik_gen"]), 100.0 * maxf(sc["ik_sys"], sc["ik_gen"]) / 210.0])
+	ok(rel(sc["ik_net10"], 29.522135568038625) < 1e-9 and rel(sc["ik_mot10"], 10.486444517788868) < 1e-9 and rel(sc["ik_house"], 40.00858008582749) < 1e-9, "10b 10.5 kV bus by hand: network %.6f + motors %.6f = %.6f kA" % [sc["ik_net10"], sc["ik_mot10"], sc["ik_house"]])
+	ok(sc["ik_house"] <= 50.0, "10b %.2f kA is within the 50 kA switchgear rating" % sc["ik_house"])
+	var bad := P.short_circuit({"uk_uat": 0.05})
+	ok(rel(bad["ik_house"], 65.89310370449718) < 1e-9 and bad["ik_house"] > 50.0, "10b PLANTED UAT uk 5 pct gives %.2f kA > 50: caught" % bad["ik_house"])
+	var d := P.diesel_start()
+	var worst := 0.0
+	for x in d["dips"]:
+		worst = maxf(worst, x)
+	ok(rel(d["ssc"], 41.25) < 1e-9 and rel(d["dips"][0], 0.165374677002584) < 1e-9 and rel(d["dips"][2], 0.1293800539083558) < 1e-9, "10c diesel Sk'' = 6.6 / 0.16 = 41.25 MVA; first step dip %.6f" % d["dips"][0])
+	ok(worst <= 0.20 and rel(d["total_MW"], 4.6) < 1e-9, "10c every step of the sequence dips <= 20 pct (worst %.1f pct), sequence %.1f MW" % [100.0 * worst, d["total_MW"]])
+	var one := P.diesel_start({"one_step": true})
+	ok(rel(one["dips"][0], 0.4316715542521994) < 1e-9 and one["dips"][0] > 0.20, "10c PLANTED all 4.6 MW in one step dips %.1f pct: caught" % (100.0 * one["dips"][0]))
+	done.append("10")
+
+
+# ------------------------------------------------ 11 (L4)
+func bar11() -> void:
+	var b := P.buckling()
+	ok(rel(b["p_cl"], 0.27096283669228277) < 1e-9 and rel(b["p_allow"], 0.02709628366922828) < 1e-9, "11 Zoelly p_cl = %.9f MPa, allowed 0.2 x p_cl / 2 = %.9f MPa" % [b["p_cl"], b["p_allow"]])
+	ok(b["p_allow"] >= b["p_ext"], "11 the 30 mm sphere carries %.3f MPa external (margin %.2f)" % [b["p_ext"], b["p_allow"] / b["p_ext"]])
+	var thin := P.buckling({"t": 10.0})
+	ok(rel(thin["p_allow"], 0.003010698185469808) < 1e-9 and thin["p_allow"] < thin["p_ext"], "11 PLANTED 10 mm wall allows %.4f MPa < %.2f: caught" % [thin["p_allow"], thin["p_ext"]])
+	done.append("11")
+
+
+# ------------------------------------------------ 12 (L4)
+func bar12() -> void:
+	var hand := {10.0: 0.037506499233649696, 3600.0: 0.010353861468854607, 86400.0: 0.004666091850506044}
+	for t in hand:
+		var h := P.decay_history(t)
+		ok(rel(h, hand[t]) < 1e-9 and h > P.decay(t, P.T_OP) and h < 0.0622 * pow(t, -0.2), "12 3-batch core at %.0f s: %.9f (one cycle %.9f, bound %.9f)" % [t, h, P.decay(t, P.T_OP), 0.0622 * pow(t, -0.2)])
+	var h1 := P.decay_history(3600.0)
+	ok(h1 >= 0.005 and h1 <= 0.02, "12 1 h value %.3f pct is in the 0.5..2 pct band" % (100.0 * h1))
+	var bo := P.boiloff_history(3600.0)
+	ok(bo["m"] <= P.EFW_CAP, "12 boil-off at 1 h with the core history %.3f kg/s <= %.0f kg/s (one-cycle value 14.45)" % [bo["m"], P.EFW_CAP])
+	var four := P.decay_history(3600.0, {"batches": 4})
+	ok(four < 0.0, "12 PLANTED four batches at one third each: rejected (%s)" % str(four))
+	done.append("12")
