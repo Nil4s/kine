@@ -176,7 +176,7 @@ func dof_widths(dof_on: bool) -> Array:
 func bar_frames(times: Array, speed: float, svp: SubViewport, barn: Node3D) -> Array:
 	var imgs := []
 	for t in times:
-		barn.position.x = -3.0 + speed * float(t)
+		barn.position.x = -0.5 + speed * (float(t) - 1.0)   # centred on the frame time t = 1.0 (harness fix after run 1: the bar was off screen)
 		imgs.append(await grab(svp))
 	return imgs
 
