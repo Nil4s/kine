@@ -674,6 +674,8 @@ const LIBRARY := "user://library"
 var library := LIBRARY        # a test's own: user://zz_lib_<pid>, removed on exit
 var ui_props_root: Node3D
 var sel_prop := -1
+var sel_obj_part := ""   # m.sel when sel_obj was picked: a part picked since lets go of the object
+var sel_obj := ""   # L36 OUTLINER: the picked object that is not a prop ("light:key", "cam:0", "body:hero"...); a prop is sel_prop
 var _prop_drag := {}
 var ui_prop_btns := {}
 var ui_use_btns := {}         # TT3: Sit here / Step up (greyed by the picked prop's kind)
@@ -3624,6 +3626,10 @@ func _exit_tree() -> void:
 			(sc as Scene).baker.stop()   # ROADMAP 99: the bake tasks end before the scenes they read go
 	PoseBake.stop_all()   # ... and those of scenes already swapped out (a baker outlives its scene's turn on stage)
 	_imp_stop()   # R13: a video import's worker ends (and is waited for) before the scene it was given goes
+	if _simc_clean.is_valid():
+		_simc_clean.call()   # L42: a half-written Bake sim leaves no file behind
+	for jb in _throw_jobs:
+		WorkerThreadPool.wait_for_task_completion(jb["task"])   # L42: the throw judge's worker ends before the scenes go
 	Children.kill_all()   # the separate programs (video tracker, AI video maker, Save video's ffmpeg, webcam and multicam readers...) end with the app
 	if not _pv_job.is_empty():   # a fix preview still being worked out on a worker thread
 		WorkerThreadPool.wait_for_task_completion(_pv_job["task"])
@@ -3784,6 +3790,7 @@ func _process_body(dt: float) -> void:
 	PerfDoc.add("p_sj", _p0)
 	_p1 = PerfDoc.t()
 	_dm_poll()
+	_throw_poll()
 	PerfDoc.add("p_dm", _p1)
 	_p1 = PerfDoc.t()
 	_hit_ui_tick()
@@ -4223,7 +4230,13 @@ var throw_on := false                  # the Throw check panel is showing
 var throw_panel: ThrowPanel = null
 var throw_key := 0                     # what the panel's result was judged for (cards + the partner's cards and place + fps)
 var throw_done := false
-var throw_judge_runs := 0              # how many times the judge ran (a hidden panel must not run it)
+var throw_judge_runs := 0              # how many times the judge was started (a hidden panel must not run it)
+## L42: the judge runs on a WorkerThreadPool task on a clone of the scene, after THROW_DEBOUNCE_MS without a further edit. Every job carries the
+## generation (throw_gen, bumped by each edit that changes throw_key); a result of an older generation is dropped (_throw_land).
+const THROW_DEBOUNCE_MS := 150
+var throw_gen := 0
+var _throw_due := 0                    # msec tick at which the next judge starts (0 = none waiting)
+var _throw_jobs: Array = []            # {gen, task, out} in flight
 
 
 ## called at every refresh: nothing at all while the panel is off; while on, the judge runs only when the scene (cards, partner, place) changed
@@ -4245,8 +4258,51 @@ func _throw_refresh() -> void:
 		return
 	throw_done = true
 	throw_key = key
-	throw_judge_runs += 1
-	throw_panel.show_result({"ok": false} if key == -1 else ThrowTruth.judge(S, ThrowFixtures.FPS))
+	throw_gen += 1
+	if key == -1:
+		_throw_due = 0
+		throw_panel.show_result({"ok": false})
+		return
+	throw_panel.show_pending()
+	_throw_due = Time.get_ticks_msec() + THROW_DEBOUNCE_MS
+
+
+func _throw_busy() -> bool:
+	return _throw_due > 0 or not _throw_jobs.is_empty()
+
+
+## forget what the panel was judged for: the next refresh judges again
+func _throw_key_reset() -> void:
+	throw_done = false
+
+
+## every frame: starts the debounced judge, lands the finished ones
+func _throw_poll() -> void:
+	if _throw_due == 0 and _throw_jobs.is_empty():
+		return
+	if _throw_due > 0 and Time.get_ticks_msec() >= _throw_due:
+		_throw_due = 0
+		if throw_on:
+			throw_judge_runs += 1
+			var sc := S.clone()   # the worker reads its own copy; the scene goes on being edited
+			var job := {"gen": throw_gen, "out": {}}
+			job["task"] = WorkerThreadPool.add_task(func(): job["out"] = ThrowTruth.judge(sc, ThrowFixtures.FPS))
+			_throw_jobs.append(job)
+		else:
+			throw_done = false   # the panel was switched off while waiting: judge when it is back
+	for job in _throw_jobs.duplicate():
+		if WorkerThreadPool.is_task_completed(job["task"]):
+			WorkerThreadPool.wait_for_task_completion(job["task"])
+			_throw_jobs.erase(job)
+			_throw_land(int(job["gen"]), job["out"])
+
+
+## a result lands only if it is for the newest generation; false = dropped
+func _throw_land(gen: int, r: Dictionary) -> bool:
+	if gen != throw_gen or throw_panel == null:
+		return false
+	throw_panel.show_result(r)
+	return true
 
 
 func _throw_place() -> void:
@@ -4391,7 +4447,9 @@ func _fd_start(key: String) -> void:
 			Dm.place(dm["dist"], dm["yaw"])
 			Dm.xf = dm["xf"]
 			Dm.D.set_state(dm["st"])
-		box.append(FrameData.analyze(C, Bc, fps, Dm)))
+		var fdw := FrameData.analyze(C, Bc, fps, Dm)
+		CancelWindows.attach(fdw, C, Bc)   # N081: the cancel windows ride with the frame data
+		box.append(fdw))
 	_bg_live.append(thr)   # waited for if the app quits first
 	while thr.is_alive():
 		await get_tree().process_frame
@@ -4417,6 +4475,7 @@ func _fd_data() -> Dictionary:
 		Bc.ground()
 		var fdx := {} if dummy_on else FrameAdvantage.app_fd(self, Bc, fd_fps)   # N080: two fighters: hitstun / advantage as well
 		fd_cache = {"key": key, "fd": fdx if not fdx.is_empty() else FrameData.analyze(S, Bc, fd_fps, T if dummy_on else null)}
+		CancelWindows.attach(fd_cache["fd"], S, Bc)   # N081
 	return fd_cache["fd"]
 
 
@@ -6760,6 +6819,7 @@ func _after_edit() -> void:
 	if symmetry:
 		_mirror_changed()
 	B.apply_grip()
+	simc.edited()
 	_refresh()
 
 
@@ -6876,7 +6936,7 @@ func _snapshot() -> Dictionary:
 	# remove is undone by putting the list back), so _restore never puts one actor's body onto another
 	return {"actor": actor_on, "hero": H, "spath": scene_path, "hero_actors": H.actors.duplicate(), "rt": actors_rt.map(func(a): return (a as Dictionary).duplicate()),
 		"body": B.state(), "playhead": playhead, "pbody": S.body.duplicate(true), "scene": S,"cards": S.cards.duplicate(true), "sel": sel_card, "holds": S.moving_holds, "fps": S.fps, "bcol": body_colour, "bsm": Overlays.smooth,
-		"props": S.props.map(func(p): return Props.to_dict(p)), "building": _bld_file(), "part": _part_file(), "vehicle": _vehicle_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
+		"props": S.props.map(func(p): return Props.to_dict(p)), "pxf": S.props.map(func(p): return p["xf"]), "outl": S.outl.duplicate(true), "building": _bld_file(), "part": _part_file(), "vehicle": _vehicle_file(), "bmats": body_mats.duplicate(), "pk": S.part_keys.duplicate(true),
 		"markers": S.markers.duplicate(true), "refimgs": S.refimgs.duplicate(true), "crowd": S.crowd.duplicate(true), "fitness": S.fitness, "breath": S.breath, "layer": S.layer.duplicate(), "layer_w": S.layer_w,
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
@@ -7055,8 +7115,16 @@ func _restore(u: Dictionary) -> void:
 		_hero_scene().beats = u["beats"].duplicate(true)   # ROADMAP 13: the beats, undone like a card
 		if ui_choreo != null and is_instance_valid(ui_choreo.win):
 			ui_choreo.refresh()
+	if u["scene"] == S and u.has("outl") and var_to_str(u["outl"]) != var_to_str(S.outl):
+		S.outl = u["outl"].duplicate(true)   # L36: parents, hide and lock, undone like a card
+		_props_show()
+		if ui_browser != null:
+			ui_browser.refresh()
 	if u["scene"] == S and u.has("props") and JSON.stringify(u["props"]) != JSON.stringify(S.props.map(func(p): return Props.to_dict(p))):
 		S.props = u["props"].map(func(q): return Props.from_dict(q))   # the set, undone like a card (SS5)
+		if u.has("pxf") and (u["pxf"] as Array).size() == S.props.size():
+			for k in S.props.size():
+				S.props[k]["xf"] = u["pxf"][k]   # L36: the exact places (the file form keeps 1e-4), so a parent's children undo exactly
 		if sel_prop >= S.props.size():
 			sel_prop = -1
 		_props_show()
@@ -7197,6 +7265,7 @@ func _restore(u: Dictionary) -> void:
 ## next undo step). Every edit goes through _push_undo (and every undo/redo through _restore), so both drop the bakers
 ## first; _bake_poll starts fresh ones from the new content.
 func _bake_drop(extra: Scene = null) -> void:
+	simc.edited()   # L42: an edit / undo / redo: the sim cache's memoized scene keys are dropped
 	var seen := _bake_scenes()
 	if extra != null:
 		seen.append(extra)
@@ -10402,6 +10471,66 @@ func _simc_bake() -> Dictionary:
 		fr = maxi(fr, int(simc.meta[n]["frames"]))
 	_say("baked %s to a point cache: %d frames each, the timeline scrubs the file (Ctrl+Z takes it back; an edit makes it stale; 'Bake sim: free' removes it)" % [", ".join(done), fr])
 	return {"objects": done, "frames": fr}
+
+
+var _simc_clean := Callable()   # removes the pending files of the bake in flight
+
+
+## L42: Bake sim in the BACKGROUND (the menu action): the sims and the file writes run on a worker (progress bar and Cancel of the import panel);
+## the files are written as <file>.pending and renamed into place on the main thread when the bake completed AND the scene is still the one it read
+## (the keys are hashed again at landing), inside ONE undo step. Cancel, a scene edited meanwhile or a failed write leave no file and no undo step.
+func _simc_bake_bg() -> Dictionary:
+	if _imp_busy():
+		_say("still working on %s: one background job at a time; press Cancel on the bar, or wait for it" % _imp["label"])
+		return {"objects": []}
+	var names: Array = []
+	if not S.cape.is_empty():
+		names.append("cape")
+	for n in SoftBody.regions_of(S):
+		names.append("soft:" + String(n))
+	if names.is_empty():
+		_say("nothing to bake: 'Cape: add to the back' or a soft-body region on the BODY page first")
+		return {"objects": []}
+	var keys := {}
+	for n in names:
+		keys[n] = SimCacheLive.key_for(S, n)
+	var src := S
+	var sc := S.clone()   # on this thread; the worker never reads the open scene
+	var d: String = simc.dir
+	var sname: String = S.name
+	_simc_clean = func(): SimCacheLive.clear_pending(d, sname, names)
+	var work := func() -> Dictionary:
+		var r := SimCacheLive.compute(sc, true)
+		if r.is_empty():
+			return {}
+		var pend := SimCacheLive.write_pending(d, sname, r["objs"], keys)
+		if pend.is_empty():
+			return {}
+		return {"pend": pend, "cape": r["cape"]}
+	var land := func(out: Dictionary) -> void:
+		_simc_clean = Callable()
+		var same := S == src
+		if same:
+			for n in names:
+				same = same and SimCacheLive.key_for(S, n) == String(keys[n])
+		if not same:
+			SimCacheLive.clear_pending(d, sname, names)
+			_say("the scene changed while the sim baked: that result was dropped (no file written); run Bake sim again")
+			return
+		var done := []
+		_do(func():
+			done.append_array(simc.commit_pending(S, out["pend"]))
+			if not (out["cape"] as Dictionary).is_empty():
+				S.cape = out["cape"])
+		var fr := 0
+		for n in done:
+			fr = maxi(fr, int(simc.meta[n]["frames"]))
+		_say("baked %s to a point cache: %d frames each, the timeline scrubs the file (Ctrl+Z takes it back; an edit makes it stale; 'Bake sim: free' removes it)" % [", ".join(done), fr])
+	var fail := func() -> void:
+		_simc_clean = Callable()
+		SimCacheLive.clear_pending(d, sname, names)
+	_imp_begin("Bake sim", work, land, fail)
+	return {"objects": names, "background": true}
 
 
 func _simc_free() -> void:
@@ -17173,7 +17302,7 @@ func _commands() -> Array:
 	add.call("Cape: add to the back (bakes the cloth)", "", _cape_add, "cape cloth back cloak robe sim bake drape", true, "a cape hangs from the shoulders on the back and swings in a turn: a cloth grid that collides with the body, baked over the scene; Ctrl+Z takes it back")
 	add.call("Cape: cancel the bake", "", _cape_cancel, "cape cloth bake cancel stop abort background", false, "stops a cape bake that is running in the background; the scene keeps its last cape")
 	add.call("Cape: folds onto itself (slower)", "", _cape_fold_toggle, "cape cloth fold self collision layers pass through itself slower", false, "makes the next cape bake keep its folds from passing through each other: about 0.5 s of baking a frame instead of 0.03 s, so it is off until you switch it on (the toggle says which way it is)")
-	add.call("Bake sim (cache cloth and soft body)", "", _simc_bake, "bake sim simulation cache point cache cloth cape soft body flesh scrub timeline", true, "writes the cape's and the soft-body regions' vertex positions for every frame to a file each; the timeline then shows the saved frame and never re-simulates; an edit makes it stale; Ctrl+Z takes it back")
+	add.call("Bake sim (cache cloth and soft body)", "", _simc_bake_bg, "bake sim simulation cache point cache cloth cape soft body flesh scrub timeline", true, "writes the cape's and the soft-body regions' vertex positions for every frame to a file each; the timeline then shows the saved frame and never re-simulates; an edit makes it stale; Ctrl+Z takes it back")
 	add.call("Bake sim: free", "", _simc_free, "bake sim free remove delete cache point cache simulation", true, "removes the baked sim files; the cape and the flesh simulate live again; Ctrl+Z brings them back")
 	add.call("Cape: take off", "", _cape_clear, "cape cloth remove clear off delete", true, "takes the cape off the scene (Ctrl+Z puts it back)")
 	add.call("Cape: export its vertices (JSON)", "", _cape_export, "cape cloth export mesh json vertices", false, "writes the cape's vertex positions for every frame to a JSON file in the user folder")
@@ -22143,8 +22272,8 @@ func _props_show() -> void:
 		for i in g:
 			in_shared[i] = true
 	for i in S.props.size():
-		if in_shared.has(i):
-			continue
+		if in_shared.has(i) or Outliner.hidden(S, "prop:%d" % i):
+			continue   # L36: a hidden prop is not drawn (a shared copy is dropped below)
 		var n := Props.mesh(S.props[i])
 		if Props.model_missing(S.props[i]) and not _gone_said.has(S.props[i]["kind"]):
 			_gone_said[S.props[i]["kind"]] = true
@@ -22154,7 +22283,10 @@ func _props_show() -> void:
 			for mi in n.find_children("*", "MeshInstance3D", true, false):
 				(mi as MeshInstance3D).material_overlay = tint
 		ui_props_root.add_child(n)
-	for g in shared:   # M3: one MultiMeshInstance3D per mesh of the kind, one instance per copy (scripts/prop_instances.gd)
+	for g0 in shared:   # M3: one MultiMeshInstance3D per mesh of the kind, one instance per copy (scripts/prop_instances.gd)
+		var g: Array = g0.filter(func(i): return not Outliner.hidden(S, "prop:%d" % i))   # L36: hidden copies are left out
+		if g.is_empty():
+			continue
 		var parts_mm := PropInstances.build(S.props, g)
 		for j in parts_mm.size():
 			parts_mm[j].name = "shared_%d_%d" % [g[0], j]
@@ -22183,6 +22315,8 @@ func _pick_prop(mp: Vector2) -> Array:
 	var best := -1
 	var bt := INF
 	for i in S.props.size():
+		if Outliner.hidden(S, "prop:%d" % i):
+			continue   # L36: a hidden object is clicked through
 		for sw in Props.solids(S.props[i]):
 			var inv: Transform3D = (sw["xf"] as Transform3D).affine_inverse()
 			var lo := inv * o
@@ -22207,6 +22341,65 @@ func _pick_prop(mp: Vector2) -> Array:
 	return [best, bt]
 
 
+## ---- OUTLINER (L36, scripts/outliner.gd): each change is ONE undo step; a refusal is said and changes nothing
+func _outl_locked_say(i: int) -> bool:
+	if i >= 0 and Outliner.locked(S, "prop:%d" % i):
+		_say_plain("the %s is locked: unlock it in the Outliner first" % _prop_name(i))
+		return true
+	return false
+
+
+## `child` dropped on `parent` ("" = the top level), its world transform kept. Returns "" or the reason it was refused
+func _outl_reparent(child: String, parent: String) -> String:
+	var why := Outliner.can_reparent(S, child, parent)
+	if why != "":
+		_say(why)
+		return why
+	_step_hint = "Reparent"
+	_push_undo()
+	Outliner.reparent(S, child, parent)
+	_outl_changed()
+	_say_plain("%s is now %s; it stayed where it was in the view. Ctrl+Z takes it back" % [Outliner._name(S, child), ("under " + Outliner._name(S, parent)) if parent != "" else "at the top level"])
+	return ""
+
+
+func _outl_hide(id: String, on: bool) -> void:
+	if not Outliner.has(S, id) or S.outl.get("hide", {}).has(id) == on:
+		return
+	_step_hint = "Hide" if on else "Show"
+	_push_undo()
+	Outliner.set_hidden(S, id, on)
+	_outl_changed()
+
+
+func _outl_lock(id: String, on: bool) -> void:
+	if not Outliner.has(S, id) or Outliner.locked(S, id) == on:
+		return
+	_step_hint = "Lock" if on else "Unlock"
+	_push_undo()
+	Outliner.set_locked(S, id, on)
+	_outl_changed()
+
+
+func _outl_changed() -> void:
+	_props_show()
+	if ui_browser != null:
+		ui_browser.refresh()
+
+
+## a row picked in the Outliner: a prop is picked as in the view, anything else is the picked object
+func _outl_select(id: String) -> void:
+	var i := Outliner.prop_index(id)
+	if i >= 0:
+		_prop_select(i)
+		return
+	sel_prop = -1
+	sel_obj = id
+	sel_obj_part = sel
+	_props_show()
+	_say_plain("%s selected (from the Outliner)" % Outliner._name(S, id))
+
+
 func _prop_name(i: int) -> String:
 	if i >= 0 and i < S.props.size() and String(S.props[i]["kind"]).begins_with("part:"):
 		return PartScene.name_of(String(S.props[i]["kind"]))   # F146: a built part shows by its own name
@@ -22215,9 +22408,16 @@ func _prop_name(i: int) -> String:
 
 ## a press on a prop: picked, and a drag moves it over the floor (snapped onto what it stands over); one undo step
 func _prop_press(i: int, mp: Vector2, t: float) -> void:
+	if Outliner.locked(S, "prop:%d" % i):   # L36: a locked object is picked, never grabbed: no drag, no undo step
+		sel_prop = i
+		sel_obj = "prop:%d" % i
+		_props_show()
+		_say_plain("the %s is locked: unlock it in the Outliner (the lock on its row) to move it" % _prop_name(i))
+		return
 	_step_hint = "Move prop"
 	_push_undo()
 	sel_prop = i
+	sel_obj = "prop:%d" % i
 	playing = false
 	_prop_live(i)
 	var hp := cam.project_ray_origin(mp) + cam.project_ray_normal(mp) * t
@@ -22267,6 +22467,7 @@ func _prop_release() -> void:
 		_history_rows()
 	else:
 		_prop_autokey(_prop_drag["i"])   # row 22: a keyed prop moved = a key at the playhead
+		Outliner.moved(S, "prop:%d" % int(_prop_drag["i"]))   # L36: what is under it in the Outliner goes with it
 		_props_show()   # UU1: what stood on it settles
 		var y: float = (S.props[_prop_drag["i"]]["xf"] as Transform3D).origin.y
 		_say("moved the %s%s" % [_prop_name(_prop_drag["i"]), "" if y < 0.001 else ": it stands on what is under it, %.0f cm up" % (y * 100.0)])
@@ -22358,11 +22559,14 @@ func _prop_add(kind: String, at: Variant = null) -> void:   # at: a floor point 
 func _prop_turn(deg: float) -> void:
 	if sel_prop < 0 or sel_prop >= S.props.size():
 		return
+	if _outl_locked_say(sel_prop):
+		return
 	_push_undo()
 	_prop_live(sel_prop)
 	var d := Props.to_dict(S.props[sel_prop])
 	d["yaw"] = wrapf(float(d["yaw"]) + deg, -180.0, 180.0)
 	S.props[sel_prop] = Props.from_dict(d)
+	Outliner.moved(S, "prop:%d" % sel_prop)   # L36: its children turn / grow with it
 	_prop_autokey(sel_prop)
 	_props_show()
 	_doc_line()
@@ -22379,11 +22583,14 @@ func _prop_resize(f: float) -> void:
 	if absf(new_s - old) < 0.0005:
 		_say("the %s is as %s as it goes" % [_prop_name(sel_prop), "big" if f > 1.0 else "small"])
 		return
+	if _outl_locked_say(sel_prop):
+		return
 	_push_undo()
 	_prop_live(sel_prop)
 	var d := Props.to_dict(S.props[sel_prop])
 	d["scale"] = snappedf(new_s, 0.0001)
 	S.props[sel_prop] = Props.from_dict(d)
+	Outliner.moved(S, "prop:%d" % sel_prop)   # L36: its children turn / grow with it
 	_prop_autokey(sel_prop)
 	_props_show()
 	_doc_line()
@@ -22405,6 +22612,7 @@ func _prop_colour() -> void:
 	else:
 		d["colour"] = nxt
 	S.props[sel_prop] = Props.from_dict(d)
+	Outliner.moved(S, "prop:%d" % sel_prop)   # L36: its children turn / grow with it
 	_prop_autokey(sel_prop)
 	_props_show()
 	_doc_line()
@@ -22547,9 +22755,12 @@ func _prop_copies_row() -> void:
 func _prop_del() -> void:
 	if sel_prop < 0 or sel_prop >= S.props.size():
 		return
+	if _outl_locked_say(sel_prop):
+		return
 	_push_undo()
 	var nm := _prop_name(sel_prop)
 	S.props.remove_at(sel_prop)
+	Outliner.prop_removed(S, sel_prop)   # L36: the parents / hide / lock follow the new numbers
 	for c in S.cards:   # UU2: the cards' take / drop marks follow the props' new numbers
 		if c.has("take"):
 			if int(c["take"]["prop"]) == sel_prop:
@@ -22985,6 +23196,7 @@ func _prop_select(i: int) -> void:
 	if i < 0 or i >= S.props.size():
 		return
 	sel_prop = i
+	sel_obj = "prop:%d" % i
 	_props_show()
 	_say_plain(("the %s: drag it in the view to move it" % _prop_name(i)) if easy.on else ("the %s: drag it in the view to move it; Turn and Delete are in SET" % _prop_name(i)))
 

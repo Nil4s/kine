@@ -422,6 +422,20 @@ func _init() -> void:
 			var xr := ExplainMotion.serve(m, xp)
 			say(String(xr.get("text", xr.get("error", ""))))
 			done(xr)
+		"cancel_windows":   # N081: cancel_windows <scene> [frame=N] [fps=N] [v_max=X] [h_max=X] (scripts/cancel_windows.gd)
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "cancel_windows <scene.json> [frame=N] [fps=N] [v_max=X] [h_max=X]  (N081; scripts/cancel_windows.gd)"})
+				return
+			var cwp := {}
+			for x in a.slice(2):
+				var kvc := String(x).split("=", true, 1)
+				if kvc.size() == 2 and kvc[1].is_valid_float():
+					cwp[kvc[0]] = int(kvc[1]) if kvc[0] == "frame" or kvc[0] == "fps" else float(kvc[1])
+			var cwo := CancelWindows.serve(m, cwp)
+			if cwo["ok"]:
+				say(String(cwo["result"]["text"]))
+			done(cwo["result"] if cwo["ok"] else cwo)
 		"reactable":   # N082 wired (L11): reactable <scene> [frame=N] [latency=MS] [fps=N] (scripts/reactable_serve.gd)
 			if a.size() < 2 or not open_scene(a[1]):
 				if a.size() < 2:

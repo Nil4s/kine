@@ -23,6 +23,13 @@ func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
 
+## L42: the judge is working on a worker: no result is shown (an older edit's is never shown as current)
+func show_pending() -> void:
+	res = {}
+	empty_reason = "checking..."
+	queue_redraw()
+
+
 func show_result(r: Dictionary) -> void:
 	res = r
 	empty_reason = ""

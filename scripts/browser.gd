@@ -39,6 +39,15 @@ var _search: LineEdit   # sits over the first row under Poses
 var _search_row: TreeItem
 var _chips: Control   # the layer that draws the matching tags as chips on the rows
 var _followed := ""   # the part whose row follow() last went to (a change of it is the only thing that scrolls the tree to it)
+var _outl_root: TreeItem   # L36 OUTLINER (scripts/outliner.gd): the scene's objects as a tree by parent
+var outl_kinds := {"body": true, "light": true, "cam": true, "cloth": true, "soft": true, "prop": true}   # the type filter toggles
+var outl_query := ""   # the words typed in the Outliner's search box
+var _ol_sig := ""   # what the Outliner rows were built from (a rebuild only when it changes: a rebuild mid-click drops the click)
+var _ol_search: LineEdit
+var _ol_bar: HBoxContainer   # the filter toggles
+var _ol_box: VBoxContainer   # the search box over the filter toggles: ONE overlay on ONE row, so the two can never overlap
+var _ol_box_row: TreeItem
+var _ol_closed := {}   # object id -> true for a row the user folded
 var _pending := false   # a clip-row rebuild is queued for the next frame   # true while the tree follows the view (a selection made here must not loop back)
 
 
@@ -66,7 +75,46 @@ func _ready() -> void:
 	_chips.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_chips.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(_chips)
-	item_collapsed.connect(func(_it): m._browser_fit.call_deferred())   # RR6: a folder opened or closed: the box follows
+	drop_mode_flags = Tree.DROP_MODE_ON_ITEM
+	_ol_search = LineEdit.new()
+	_ol_search.name = "outl_search"
+	_ol_search.placeholder_text = "search the scene: chair, key light..."
+	_ol_search.clear_button_enabled = true
+	_ol_search.add_theme_font_size_override("font_size", 12)
+	_ol_search.tooltip_text = "words over the names of the scene's objects (any case); with the type toggles below it, only those objects are listed"
+	_ol_search.text_changed.connect(set_outl_query)
+	_ol_bar = HBoxContainer.new()
+	_ol_bar.name = "outl_filters"
+	_ol_bar.add_theme_constant_override("separation", 1)
+	for k in Outliner.KINDS:
+		var b := Button.new()
+		b.name = "outl_f_" + k
+		b.toggle_mode = true
+		b.button_pressed = true
+		b.text = {"body": "Body", "light": "Light", "cam": "Cam", "cloth": "Cloth", "soft": "Soft", "prop": "Prop"}[k]
+		b.tooltip_text = "show / hide the %s in the list below" % Outliner.KIND_NAMES[k].to_lower()
+		b.focus_mode = Control.FOCUS_NONE
+		b.add_theme_font_size_override("font_size", 10)
+		b.clip_text = true   # six toggles in a 214 px tree: a label may be cut, the row may not run off the edge
+		b.custom_minimum_size = Vector2(10, 18)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.toggled.connect(func(on: bool): set_outl_filter(k, on))
+		_ol_bar.add_child(b)
+	_ol_box = VBoxContainer.new()
+	_ol_box.name = "outl_box"
+	_ol_box.add_theme_constant_override("separation", 2)
+	_ol_box.visible = false
+	_ol_box.add_child(_ol_search)
+	_ol_box.add_child(_ol_bar)
+	add_child(_ol_box)
+	item_collapsed.connect(func(it: TreeItem):
+		var md = it.get_metadata(0)
+		if md is Dictionary and md.has("onode"):
+			if it.collapsed:
+				_ol_closed[md["onode"]] = true
+			else:
+				_ol_closed.erase(md["onode"])
+		m._browser_fit.call_deferred())   # RR6: a folder opened or closed: the box follows
 	gui_input.connect(_motion)
 	mouse_exited.connect(_left)
 	build()
@@ -145,6 +193,12 @@ func build() -> void:
 	_bodies = _folder(root, "Bodies", true)
 	_wep = _folder(root, "Weapon")
 	_part(_wep, "bat_handle", "handle (drag it to swing the weapon)")
+	_outl_root = _folder(root, "Outliner", true)
+	_outl_root.set_tooltip_text(0, "every object of the scene by parent: drag a row onto another to parent it (it stays where it is); the eye hides, the lock freezes")
+	_ol_box_row = create_item(_outl_root)
+	_ol_box_row.set_selectable(0, false)
+	_ol_box_row.set_custom_minimum_height(54)
+	_ol_sig = ""
 	_set_root = _folder(root, "Set")
 	_set_root.set_tooltip_text(0, "the scene's props: click one to pick it; SET adds, turns and deletes them")
 	_dummy = _folder(root, "Target dummy")
@@ -220,6 +274,7 @@ func _refresh_now() -> void:
 			c.free()
 		PartSets.of(m).fill(self, _psets[k], k)
 	_fill_poses()
+	_fill_outl()
 	BodyFile.fill_browser(m, self, _bodies)   # G07 (scripts/body_file.gd)
 	if m.ui_dummy != null:
 		_dummy.set_text(0, "Target dummy: " + (m.ui_dummy.text.get_slice("\n", 0) if m.dummy_on else "off"))
@@ -255,6 +310,22 @@ func follow() -> void:
 			wh.set_tooltip_text(0, want)
 	_sync_buttons()
 	_light(rows.get(m.hover_part) if m.hover_part != m.sel else null)
+	var oid := _outl_selected_id()
+	var orw := _outl_find(oid) if oid != "" else null
+	if orw != null:   # L36: a prop or object picked: its Outliner row lights up (the view and the tree stay one selection)
+		var q := orw.get_parent()
+		while q != null:
+			q.collapsed = false
+			q = q.get_parent()
+		if get_selected() != orw:
+			_quiet = true
+			orw.select(0)
+			_quiet = false
+		if picked_now or _followed_obj != oid:
+			_scroll_if_hidden_o.call_deferred(orw)
+		_followed_obj = oid
+		return
+	_followed_obj = ""
 	var it: TreeItem = rows.get(m.sel)
 	if it == null:   # nothing picked, or a part with no row
 		deselect_all()
@@ -272,6 +343,154 @@ func follow() -> void:
 	# above it stay in sight. Deferred: a just-unfolded tree has no layout yet this frame
 	if picked_now:
 		_scroll_if_hidden.call_deferred(it)
+
+
+var _followed_obj := ""
+
+
+func _outl_selected_id() -> String:
+	if m.sel_prop >= 0:
+		return "prop:%d" % m.sel_prop
+	if m.sel_obj != "" and not m.sel_obj.begins_with("prop:") and m.sel_obj_part == m.sel:
+		return m.sel_obj
+	return ""
+
+
+func _outl_find(id: String) -> TreeItem:
+	if _outl_root == null or not is_instance_valid(_outl_root):
+		return null
+	var stack: Array = [_outl_root]
+	while not stack.is_empty():
+		var it: TreeItem = stack.pop_back()
+		var md = it.get_metadata(0)
+		if md is Dictionary and md.get("onode", "") == id:
+			return it
+		for c in it.get_children():
+			stack.append(c)
+	return null
+
+
+func _scroll_if_hidden_o(it: TreeItem) -> void:
+	if it == null or not is_instance_valid(it):
+		return
+	var r := get_item_area_rect(it)
+	if r.position.y < 0.0 or r.end.y > size.y or r.size.y <= 0.0:
+		scroll_to_item(it, true)
+
+
+## ---- OUTLINER (L36): filter toggles, search, rows by parent, an eye and a lock per row, drag a row onto another to parent it
+func set_outl_filter(kind: String, on: bool) -> void:
+	outl_kinds[kind] = on
+	var b := _ol_bar.get_node_or_null("outl_f_" + kind) as Button if _ol_bar != null else null
+	if b != null and b.button_pressed != on:
+		b.set_pressed_no_signal(on)
+	_fill_outl()
+
+
+func set_outl_filter_all(on: bool) -> void:
+	for k in Outliner.KINDS:
+		outl_kinds[k] = on
+		var b := _ol_bar.get_node_or_null("outl_f_" + k) as Button if _ol_bar != null else null
+		if b != null:
+			b.set_pressed_no_signal(on)
+	_fill_outl()
+
+
+func set_outl_query(q: String) -> void:
+	outl_query = q
+	if _ol_search != null and _ol_search.text != q:
+		_ol_search.text = q
+	_fill_outl()
+
+
+func _fill_outl() -> void:
+	if _outl_root == null or not is_instance_valid(_outl_root) or m == null:
+		return
+	var S: Scene = m.S
+	var on := []
+	for k in outl_kinds:
+		if outl_kinds[k]:
+			on.append(k)
+	var shown: Array = Outliner.rows(S, on, outl_query)
+	var sig := var_to_str([Outliner.objects(S), S.outl, shown, _ol_closed.keys()])
+	if sig == _ol_sig:
+		return
+	_ol_sig = sig
+	var kids := _outl_root.get_children()
+	for k in range(1, kids.size()):
+		kids[k].free()
+	var ctx := {"made": {}, "names": {}, "shown": shown, "S": S}
+	for o in Outliner.objects(S):
+		ctx["names"][o["id"]] = o["name"]
+	for id in shown:
+		_ol_make(id, ctx)
+	for id in ctx["made"]:
+		if _ol_closed.has(id):
+			(ctx["made"][id] as TreeItem).collapsed = true
+	_followed_obj = ""
+	_outl_root.set_text(0, "Outliner  (%d)" % shown.size())
+	follow()
+
+
+func _ol_make(id: String, ctx: Dictionary) -> TreeItem:
+	var made: Dictionary = ctx["made"]
+	if made.has(id):
+		return made[id]
+	var S: Scene = ctx["S"]
+	var par: TreeItem = _outl_root
+	var a := Outliner.parent_of(S, id)
+	var n := 0
+	while a != "" and n < 1000:   # the nearest ancestor that is listed
+		if a in ctx["shown"]:
+			par = _ol_make(a, ctx)
+			break
+		a = Outliner.parent_of(S, a)
+		n += 1
+	var it := create_item(par)
+	made[id] = it
+	var nm: String = ctx["names"][id]
+	it.set_text(0, nm)
+	it.set_metadata(0, {"onode": id})
+	var hid_own: bool = S.outl.get("hide", {}).has(id)
+	var hid: bool = Outliner.hidden(S, id)
+	var lk: bool = Outliner.locked(S, id)
+	it.add_button(0, Icons.small("eye_off" if hid else "eye"), 10)
+	it.add_button(0, Icons.small("lock" if lk else "unlock"), 11)
+	it.set_button_tooltip_text(0, 0, ("hidden%s: click to show it again" % ("" if hid_own else " by what it is under")) if hid else "shown: click to hide it (it is not drawn and a click goes through it)")
+	it.set_button_tooltip_text(0, 1, "locked: click to free it" if lk else "free: click to lock it (a drag does not move it)")
+	it.set_button_color(0, 0, Tok.dim(0.4) if hid else Tok.c("text"))
+	it.set_button_color(0, 1, Tok.c("say") if lk else Tok.dim(0.4))
+	if hid:
+		it.set_custom_color(0, Tok.dim(0.4))
+	it.set_tooltip_text(0, "%s (%s): drag it onto another row to parent it" % [nm, Outliner.kind_of(id)])
+	return it
+
+
+func _outl_button(it: TreeItem, id: int) -> void:
+	var oid: String = (it.get_metadata(0) as Dictionary)["onode"]
+	if id == 10:
+		m._outl_hide(oid, not (m.S.outl.get("hide", {}) as Dictionary).has(oid))
+	else:
+		m._outl_lock(oid, not Outliner.locked(m.S, oid))
+
+
+func _can_drop_data(_at: Vector2, data: Variant) -> bool:
+	return data is Dictionary and (data as Dictionary).has("kine_outl")
+
+
+func _drop_data(at: Vector2, data: Variant) -> void:
+	if not (data is Dictionary) or not (data as Dictionary).has("kine_outl"):
+		return
+	var target := get_item_at_position(at)
+	var parent := ""
+	if target == null:
+		return
+	var md = target.get_metadata(0)
+	if md is Dictionary and md.has("onode"):
+		parent = md["onode"]
+	elif target != _outl_root:
+		return
+	m._outl_reparent(String(data["kine_outl"]), parent)
 
 
 func _scroll_if_hidden(it: TreeItem) -> void:
@@ -336,6 +555,9 @@ func _parts_of(it: TreeItem) -> Array:
 ## _motion, not Tree's button_clicked: the Tree re-checks the press against the OS mouse, so a pushed click (every
 ## test) was dropped there; the press is accepted, so the Tree's own path never toggles it a second time
 func _button(it: TreeItem, id: int) -> void:
+	if id >= 10:
+		_outl_button(it, id)
+		return
 	var js := _parts_of(it)
 	if js.is_empty():
 		return
@@ -396,6 +618,12 @@ func _motion(ev: InputEvent) -> void:
 func _get_drag_data(at: Vector2) -> Variant:
 	_pose_pending = -1
 	var it := get_item_at_position(at)
+	if it != null and it.get_metadata(0) is Dictionary and (it.get_metadata(0) as Dictionary).has("onode"):
+		var ol := Label.new()
+		ol.text = "  " + it.get_text(0)
+		ol.add_theme_font_size_override("font_size", 13)
+		set_drag_preview(ol)
+		return {"kine_outl": it.get_metadata(0)["onode"]}
 	if it == null or m.ui_poses == null:
 		return null
 	var md = it.get_metadata(0)
@@ -421,6 +649,9 @@ func _chosen() -> void:
 		return
 	var md = get_selected().get_metadata(0)
 	if md == null:
+		return
+	if md.has("onode"):
+		m._outl_select(md["onode"])
 		return
 	if md.has("part"):
 		m.sel = md["part"]
@@ -529,8 +760,31 @@ class ChipLayer extends Control:
 					x -= 3.0
 
 
+## a control rides on its row (shown only while that row is in sight)
+func _overlay(c: Control, row: TreeItem, pad: Vector2) -> void:
+	if c == null:
+		return
+	var show := row != null and is_instance_valid(row) and row.is_visible_in_tree()
+	var up := row.get_parent() if show else null
+	while up != null:   # is_visible_in_tree does not look at folds: a row inside a folded folder has no place on screen
+		if up.collapsed:
+			show = false
+			break
+		up = up.get_parent()
+	var r := get_item_area_rect(row, 0) if show else Rect2()
+	show = show and r.size.y > 0.0 and r.position.y >= 0.0 and r.end.y <= size.y
+	if c.visible != show:
+		c.visible = show
+	if show:
+		var want := Rect2(r.position + pad, Vector2(maxf(40.0, r.size.x - 6.0), r.size.y - 2.0))
+		if c.position != want.position or c.size != want.size:
+			c.position = want.position
+			c.size = want.size
+
+
 ## the search box rides on its row (shown only while that row is in sight)
 func _process(_dt: float) -> void:
+	_overlay(_ol_box, _ol_box_row, Vector2(2, 1))
 	if _search == null:
 		return
 	if pose_query != "":

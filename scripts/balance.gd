@@ -80,7 +80,7 @@ static func footprint(B: Body, side: String) -> PackedVector2Array:
 ## convex hull, counter-clockwise (Andrew's monotone chain)
 static func hull(pts: PackedVector2Array) -> PackedVector2Array:
 	var p := Array(pts)
-	p.sort_custom(func(a, b): return a.x < b.x or (a.x == b.x and a.y < b.y))
+	p.sort()   # Vector2 orders by x then y: the same order the old lambda gave, without a script call per compare (N081 cost)
 	if p.size() < 3:
 		return PackedVector2Array(p)
 	var lo := []

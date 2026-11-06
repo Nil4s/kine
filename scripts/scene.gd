@@ -90,6 +90,7 @@ var _plant_out := {}      # FootPlant.out_frames cache: {plant index: {"sig", "n
 var free_memo = null   # R2 (VideoCleanup.reachable): the plants-off reads of one reachable() call (PoseCache.plant_ref), null outside it, where the cards are fixed
 var drivers := []      # USER DRIVERS (GAP_ANALYSIS row 15): [{"driven", "axis", "source", "src_axis", "factor", "offset", "from"?}]; scripts/drivers.gd
 var cape := {}        # CAPE (ROADMAP 86; scripts/cloth.gd): the baked cloth frames; in the file as "cape" only when baked
+var outl := {}   # OUTLINER (L36; scripts/outliner.gd): parents, hide and lock of the scene's objects; in the file as "outliner" only when it holds something
 var soft := {}   # SOFT-BODY FLESH (L17; scripts/soft_body.gd): {"regions": ["belly", "thigh_l", ...]}; in the file as "soft" only when a region is on
 var secondary := {}   # SECONDARY MOTION (ROADMAP 26): {"items": [chains / rods], "keys": {"<name>_<i>": [[t, deg]]}, "fps"}; scripts/secondary_motion.gd; in the file as "secondary" only when there is an item
 var hair := {}         # HAIR STRANDS (ROADMAP 87): the ponytail's parameters (hair.gd); in the file as "hair" only when set; the frames are baked again on bake
@@ -1756,6 +1757,7 @@ func clone() -> Scene:
 	c.drivers = drivers.duplicate(true)   # user drivers (drivers.gd)
 	c.secondary = secondary.duplicate(true)   # secondary motion (secondary_motion.gd)
 	c.soft = soft.duplicate(true)   # soft-body flesh regions (soft_body.gd)
+	c.outl = outl.duplicate(true)   # outliner record (outliner.gd)
 	c.hair = hair.duplicate(true)   # hair strands (hair.gd)
 	c.rigx = rigx.duplicate(true)   # the words-made rig (rig_words.gd)
 	c.bones = bones.duplicate(true)   # the user's extra bones (bone_editor.gd)
@@ -2391,6 +2393,8 @@ func to_dict(B: Body, frames := true) -> Dictionary:
 		out["drivers"] = Drivers.to_file(drivers)   # user drivers: the same, only when there is one
 	if not cape.is_empty():
 		out["cape"] = Cloth.to_file(cape)   # the cape: the baked frames, only when there is one
+	if not outl.is_empty():
+		out["outliner"] = Outliner.to_file(self)   # L36: parents, hide, lock; only when any
 	if not (soft.get("regions", []) as Array).is_empty():
 		out["soft"] = {"regions": (soft["regions"] as Array).duplicate()}   # soft-body flesh: only when a region is on
 		if absf(float(soft.get("strength", 1.0)) - 1.0) > 1e-9:
@@ -2605,6 +2609,7 @@ func from_dict(d: Dictionary) -> void:
 	plants = FootPlant.from_file(d.get("plants", []))   # foot plants: absent = none
 	asserts = BodyAssert.from_file(d.get("asserts", []))   # N002 body assertions: absent = none
 	drivers = Drivers.from_file(d.get("drivers", []))   # user drivers: absent = none
+	outl = Outliner.from_file(d.get("outliner", {}))   # L36: absent = none
 	soft = {}
 	if d.get("soft") is Dictionary and d["soft"].get("regions") is Array:
 		var rg := []
