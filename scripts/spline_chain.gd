@@ -524,3 +524,109 @@ static func from_file(d: Variant) -> Array:
 			"ctrl": cs.map(func(p): return BoneEdit._v(p)), "kind": kind if kind in KINDS else "catmull", "mode": mode if mode in MODES else "keep",
 			"tw0": float(c.get("tw0", 0.0)), "tw1": float(c.get("tw1", 0.0)), "volume": bool(c.get("volume", false))})
 	return out
+
+
+# ------------------------------------------------------------------------------------------------ chains on the BODY's joints (L33)
+
+## a new chain on Kine joints (root first; the LAST joint is the tip the chain ends on, it is not turned): k handles along the rest polyline,
+## in the REST space of the root joint's parent
+static func make_body(B: Body, joints: Array, k := 4) -> Dictionary:
+	k = clampi(k, MIN_HANDLES, MAX_HANDLES)
+	var pts: Array = joints.map(func(j): return B.p0[j])
+	var lens: Array = []
+	var tot := 0.0
+	for i in pts.size() - 1:
+		lens.append((pts[i] as Vector3).distance_to(pts[i + 1]))
+		tot += lens[i]
+	var ctrl := []
+	for h in k:
+		var want: float = tot * float(h) / float(k - 1)
+		var acc := 0.0
+		var p: Vector3 = pts[pts.size() - 1]
+		for i in lens.size():
+			if want <= acc + lens[i] + 1e-12:
+				p = (pts[i] as Vector3).lerp(pts[i + 1], (want - acc) / lens[i] if lens[i] > 0.0 else 0.0)
+				break
+			acc += lens[i]
+		ctrl.append(p)
+	return {"name": "back", "joints": joints.duplicate(), "ctrl": ctrl, "kind": "catmull", "mode": "keep", "tw0": 0.0, "tw1": 0.0, "volume": false}
+
+
+## the chain turns its joints (Body.ang, so the SKIN follows) so that the joints lie on the curve; in "stretch" mode the bones also take
+## Body.stretch (and the cross scale with volume), which StretchSkin draws. Returns the solve. Joint limits are not applied (a curve asks
+## for its pose); the caller sees the result in B.P.
+static func drive_body(B: Body, ch: Dictionary) -> Dictionary:
+	var js: Array = ch["joints"]
+	var n := js.size() - 1
+	B.fk()
+	var par: String = B.parent[js[0]]
+	var K := Transform3D.IDENTITY
+	if par != "":
+		K = Transform3D(Basis(B.G[par] as Quaternion), B.P[par]) * Transform3D(Basis.IDENTITY, B.p0[par]).affine_inverse()
+	else:
+		K = Transform3D(Basis.IDENTITY, (B.P[js[0]] as Vector3) - (B.p0[js[0]] as Vector3))
+	var lens := []
+	var ys := []
+	for i in n:
+		var d: Vector3 = (B.p0[js[i + 1]] as Vector3) - (B.p0[js[i]] as Vector3)
+		lens.append(d.length())
+		ys.append(d.normalized())
+	var x0: Vector3 = Vector3.RIGHT - (ys[0] as Vector3) * (ys[0] as Vector3).x
+	x0 = x0.normalized()
+	var ctrl := (ch["ctrl"] as Array).map(func(p): return K * (p as Vector3))
+	var r := solve(K * (B.p0[js[0]] as Vector3), lens, ctrl, {"kind": ch["kind"], "mode": ch["mode"], "tw0": ch["tw0"], "tw1": ch["tw1"],
+		"volume": ch["volume"], "rest_y": K.basis * (ys[0] as Vector3), "rest_x": K.basis * x0})
+	# the rest frame of each bone: the first bone's, carried down the rest polyline by smallest swings (what the solver does at rest)
+	var ref := x0
+	var yp: Vector3 = ys[0]
+	var gp: Quaternion = B.G[par] if par != "" else Quaternion.IDENTITY
+	var st := B.stretch.duplicate()
+	var cr := B.stretch_cross.duplicate()
+	for i in n:
+		var y: Vector3 = ys[i]
+		ref = (Quaternion(yp, y) * ref)
+		yp = y
+		ref = (ref - y * ref.dot(y)).normalized()
+		var R0 := Basis(ref, y, ref.cross(y))
+		var Gt: Quaternion = ((r["axes"][i] as Basis) * R0.inverse()).get_rotation_quaternion()
+		var local: Quaternion = (gp.inverse() * Gt).normalized()
+		B.ang[js[i]] = B.decompose(js[i], local)
+		gp = Gt
+		var kj: String = js[i + 1]
+		st.erase(kj)
+		cr.erase(kj)
+		if ch["mode"] == "stretch" and absf(float(r["scale"][i]) - 1.0) > 1e-9:
+			st[kj] = float(r["scale"][i])
+			if bool(ch["volume"]):
+				cr[kj] = float(r["cross"][i])
+	B.set_stretch(st, cr)
+	B.fk()
+	return r
+
+
+static func body_to_file(chains: Array) -> Dictionary:
+	return {"v": VERSION, "chains": chains.map(func(c):
+		var d := {"name": String(c["name"]), "joints": (c["joints"] as Array).map(func(n): return String(n)),
+			"ctrl": (c["ctrl"] as Array).map(func(p): return BoneEdit._a(p)), "kind": String(c["kind"]), "mode": String(c["mode"]),
+			"tw0": snappedf(float(c["tw0"]), 0.0001), "tw1": snappedf(float(c["tw1"]), 0.0001)}
+		if bool(c["volume"]):
+			d["volume"] = true
+		return d)}
+
+
+static func body_from_file(d: Variant) -> Array:
+	var out := []
+	if not (d is Dictionary and d.has("chains") and d["chains"] is Array):
+		return out
+	for c in d["chains"]:
+		if not (c is Dictionary and c.has("name") and c.has("joints") and c.has("ctrl") and c["joints"] is Array and c["ctrl"] is Array):
+			continue
+		var cs: Array = c["ctrl"]
+		if cs.size() < MIN_HANDLES or cs.size() > MAX_HANDLES or (c["joints"] as Array).size() < 2:
+			continue
+		var kind := String(c.get("kind", "catmull"))
+		var mode := String(c.get("mode", "keep"))
+		out.append({"name": String(c["name"]), "joints": (c["joints"] as Array).map(func(n): return String(n)),
+			"ctrl": cs.map(func(p): return BoneEdit._v(p)), "kind": kind if kind in KINDS else "catmull", "mode": mode if mode in MODES else "keep",
+			"tw0": float(c.get("tw0", 0.0)), "tw1": float(c.get("tw1", 0.0)), "volume": bool(c.get("volume", false))})
+	return out

@@ -92,7 +92,7 @@ func rest_of(mi: MeshInstance3D, si: int) -> PackedVector3Array:
 					_src.append((xi.mesh as ArrayMesh).surface_get_arrays(s2))
 	var bo: PackedInt32Array = (mi.mesh as ArrayMesh).surface_get_arrays(si)[Mesh.ARRAY_BONES]
 	for a in _src:
-		if (a[Mesh.ARRAY_BONES] as PackedInt32Array) == bo:
+		if (a[Mesh.ARRAY_BONES] as PackedInt32Array).size() == bo.size():   # (the engine re-packs a piece's bone array: the influence count is the key)
 			return a[Mesh.ARRAY_VERTEX]
 	return PackedVector3Array()
 
@@ -143,8 +143,8 @@ func worst(parts: Array, scaled: bool) -> float:
 	return w
 
 
-## the pure vertices (weight on `joint` >= 0.999) of a piece: [[posed point, rest point] ...]
-func pure(part: String, joint: String) -> Array:
+## the pure vertices (weight on `joint` >= thr; the spine bar uses 0.5, the bone that weighs most: no spine vertex weighs 0.8 on one bone) of a piece: [[posed point, rest point] ...]
+func pure(part: String, joint: String, thr := 0.999) -> Array:
 	var mi: MeshInstance3D = m.pieces[part]
 	var rows := kine_rows(mi)
 	var got := CharImport.skin_points(m.skel, mi)
@@ -153,8 +153,17 @@ func pure(part: String, joint: String) -> Array:
 		var rest := rest_of(mi, si)
 		var used := used_of(mi, si)
 		for v in used:
-			if float(rows[si][v].get(joint, 0.0)) >= 0.999:
+			if float(rows[si][v].get(joint, 0.0)) >= thr:
 				out.append([got[si][v], rest[v]])
+	return out
+
+
+## the dominant vertices of a joint over the torso pieces (the triangles of the back are split between several pieces)
+func pure_any(joint: String, thr: float) -> Array:
+	var out := []
+	for part in ["pelvis", "spine_01", "spine_02", "spine_03", "neck_01", "clavicle_l", "clavicle_r"]:
+		if m.pieces.has(part):
+			out.append_array(pure(part, joint, thr))
 	return out
 
 
@@ -191,6 +200,7 @@ func pose_zero() -> void:
 	var B: Body = m.B
 	for j in B.ang.keys():
 		B.ang[j] = Vector3.ZERO
+	B.offset = Vector3.ZERO   # the pelvis at its rest place: a body chain's handles are in the pelvis's rest space
 	B.set_stretch({}, {})
 	B.fk()
 	m._refresh()
@@ -321,7 +331,7 @@ func _main() -> void:
 	var wc := 0.0
 	var n_pure := 0
 	for j in ["spine_01", "spine_02", "spine_03"]:
-		for pr in pure(j, j):
+		for pr in pure_any(j, 0.5):
 			n_pure += 1
 			var dr := dist_poly(rest_poly, pr[1])
 			wd = maxf(wd, absf(dist_poly(poly, pr[0]) - dr))

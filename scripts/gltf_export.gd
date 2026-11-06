@@ -86,6 +86,10 @@ static func build_actors(actors: Array, anim_name: String, with_mesh := true) ->
 ## 0..L at fps; the weapon nodes added under man
 static func _animate(S: Scene, B: Body, man: Node3D, anim: Animation, pre: String, L: float, fps_in: float, wpre := "", root_motion := false) -> void:
 	var keep := B.state()
+	var keep_st := B.stretch.duplicate()
+	var keep_cr := B.stretch_cross.duplicate()
+	var frames_t := []   # L33: every frame's time, and the stretch keys of the frames that stretch (null: none)
+	var st_frames := []
 	var sk: Skeleton3D = man.find_children("*", "Skeleton3D", true, false)[0]
 	var sk_path := pre + String(man.get_path_to(sk))
 	var rot := {}
@@ -138,6 +142,8 @@ static func _animate(S: Scene, B: Body, man: Node3D, anim: Animation, pre: Strin
 		S.apply(B, t)
 		for j in rot:
 			anim.rotation_track_insert_key(rot[j], t, B.gltf_local(j))
+		frames_t.append(t)
+		st_frames.append(_stretch_keys(sk, B) if B.has_stretch() else null)
 		var pp := B.gltf_pelvis_pos()
 		if rtr >= 0:
 			# the scene's pelvis travel since frame 0, horizontal only (Y is the height, kept on the pelvis)
@@ -166,6 +172,9 @@ static func _animate(S: Scene, B: Body, man: Node3D, anim: Animation, pre: Strin
 	for tr in anim.get_track_count():
 		if anim.track_get_type(tr) == Animation.TYPE_ROTATION_3D:
 			_hemi(anim, tr)
+	_stretch_tracks(sk, anim, sk_path, frames_t, st_frames)
+	if B.stretch != keep_st:
+		B.set_stretch(keep_st, keep_cr)
 	# each shaft's length: the scene's (a weapon keeps its kind through a scene)
 	B.set_state(keep)
 	for w in wtr:
@@ -178,6 +187,62 @@ static func _animate(S: Scene, B: Body, man: Node3D, anim: Animation, pre: Strin
 		var shaft: MeshInstance3D = wtr[w][3]
 		(shaft.mesh as CylinderMesh).height = WL
 		shaft.position = Vector3(0, WL * 0.5, 0)
+
+
+## L33 STRETCH KEYS for one frame (StretchSkin.tree_keys on the file's skeleton): per bone its local scale (a bone's own stretch (c, s, c) in its
+## own axes, its children compensated) and its local position (the child at the stretched joint, exact whatever the scaled parent does to it)
+static func _stretch_keys(sk: Skeleton3D, B: Body) -> Dictionary:
+	var order := []
+	var parent := {}
+	var rot := {}
+	var trest := {}
+	var of := {}
+	for j in Body.ORDER:
+		var bi := sk.find_bone("Head" if j == "head" else j)
+		if bi >= 0:
+			of[bi] = j
+	for i in sk.get_bone_count():
+		order.append(i)
+		var p := sk.get_bone_parent(i)
+		parent[i] = p if p >= 0 else null
+		rot[i] = B.gltf_local(of[i]) if of.has(i) else sk.get_bone_rest(i).basis.get_rotation_quaternion()
+		trest[i] = sk.get_bone_rest(i).origin
+	var own := {}
+	for j in StretchSkin.own_local(B):
+		var bi := sk.find_bone("Head" if j == "head" else j)
+		if bi >= 0:
+			own[bi] = StretchSkin.own_local(B)[j]
+	var mult := {}
+	for k in B.stretch:
+		var bk := sk.find_bone("Head" if k == "head" else k)
+		if bk >= 0:
+			mult[bk] = float(B.stretch[k])
+	return StretchSkin.tree_keys(order, parent, rot, trest, own, mult)
+
+
+## scale and position tracks for the bones the stretch touches (none when no frame stretches: the file is as it always was)
+static func _stretch_tracks(sk: Skeleton3D, anim: Animation, sk_path: String, frames_t: Array, st_frames: Array) -> void:
+	var sc_bones := {}
+	var ps_bones := {}
+	for f in st_frames:
+		if f == null:
+			continue
+		for i in f["scale"]:
+			if ((f["scale"][i] as Vector3) - Vector3.ONE).length() > 1e-9:
+				sc_bones[i] = true
+		for i in f["pos"]:
+			if sk.get_bone_name(i) != "pelvis" and ((f["pos"][i] as Vector3) - sk.get_bone_rest(i).origin).length() > 1e-7:
+				ps_bones[i] = true
+	for i in sc_bones:
+		var tr := anim.add_track(Animation.TYPE_SCALE_3D)
+		anim.track_set_path(tr, NodePath("%s:%s" % [sk_path, sk.get_bone_name(i)]))
+		for n in frames_t.size():
+			anim.scale_track_insert_key(tr, frames_t[n], (st_frames[n]["scale"][i] as Vector3) if st_frames[n] != null else Vector3.ONE)
+	for i in ps_bones:
+		var tr := anim.add_track(Animation.TYPE_POSITION_3D)
+		anim.track_set_path(tr, NodePath("%s:%s" % [sk_path, sk.get_bone_name(i)]))
+		for n in frames_t.size():
+			anim.position_track_insert_key(tr, frames_t[n], (st_frames[n]["pos"][i] as Vector3) if st_frames[n] != null else sk.get_bone_rest(i).origin)
 
 
 ## write the scene as a .glb at path (res:// or absolute); OK or the error
