@@ -17031,7 +17031,7 @@ func _commands() -> Array:
 	add.call("Pose: copy to the other fighter, mirrored", "", _pose_to_other.bind(true), "copy pose fighter actor other mirror flip left right", true, "the same, reflected left <-> right: the app's own mirror of the pose; one Ctrl+Z")
 	add.call("Actor: remove this fighter", "", _actor_remove, "actor fighter character opponent delete", true, "the active fighter leaves the scene (not the hero: the hero is the scene itself); Ctrl+Z brings it back")
 	add.call("Ragdoll: fall from here (pins: picked parts)", "", _ragdoll_fall, "ragdoll fall limp knockout drop gravity collapse faint pin hang", false, "the body goes limp and falls from the current pose under gravity, the picked parts held in place; baked as editable cards into a NEW scene in scenes/_wip (ROADMAP 27)")
-	add.call("Ragdoll: hit, fall, get back up", "", _ragdoll_hit, "ragdoll hit knock down fall limp blend back get up recover animation physics hurt punch", false, "the body at the playhead is hit (pushed), falls limp for 2 s, then blends back onto its own pose over 1 s; baked as editable cards into a NEW scene in scenes/_wip (Friday plan 147)")
+	add.call("Ragdoll: hit, fall, get back up", "", _ragdoll_hit, "ragdoll hit knock down fall limp blend back get up recover animation physics hurt punch", true, "the body at the playhead is hit (pushed), falls limp for 2 s, then blends back onto its own pose over 1 s; baked as editable cards into a NEW scene in scenes/_wip (Friday plan 147)")
 	add.call("Hits: make the struck fighter react", "", _hit_react, "hit hits react reaction struck fighter impact knock momentum recoil shove", true, "the first hit in the fighters' report on a body part turns the struck fighter by its momentum (0.3-0.6 s), baked as editable cards on its scene; one undo step (ROADMAP 14)")
 	add.call("Hit reactions: physics default / my usual", "Alt+H", _hit_physics_key, "hit reaction physics default usual habit amplitude delay recovery learned my edits plain", false, "one key: the next hit reaction is the plain physics (not shaped by your usual amplitude, start and recovery learned from your edits of earlier ones); press again for your usual (ROADMAP I46)")
 	add.call("Add marker at the playhead", "", _marker_add, "cue event hit step swoosh note flag sound", true, "a named moment (m1, m2, ...) on the timeline at the playhead; the game export lists it as an event")
@@ -26237,6 +26237,8 @@ const HIT_BLEND_S := 1.0    # s, from the fall's pose back onto the animation's 
 func _ragdoll_hit() -> void:
 	_say("hit: falling, then back up...")
 	await get_tree().process_frame
+	_step_hint = "Ragdoll: hit, fall, get back up"
+	_push_undo()   # the step is taken BEFORE the solver touches the body: the snapshot is the body as the user left it, to the byte
 	var keep := B.state()
 	var keep_ang: Dictionary = B.ang.duplicate()
 	var keep_off: Vector3 = B.offset
@@ -26259,6 +26261,9 @@ func _ragdoll_hit() -> void:
 	while FileAccess.file_exists(out):   # never over an earlier hit: _hit_2, _hit_3 ...
 		out = UserPaths.w("res://scenes/_wip/%s_%d.json" % [base, n])
 		n += 1
+	# opening the hit scene REPLACES the open one, so it is ONE undo step (a whole-scene swap, as New from template): Ctrl+Z puts the
+	# scene that was open back whole (the new file in scenes/_wip stays on disk), Ctrl+Y the hit scene
+	undo[-1]["swap"] = true
 	_write(out, d)
 	_load_scene(out, true)
 	_rebuild_cards()
