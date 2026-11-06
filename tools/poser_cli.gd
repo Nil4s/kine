@@ -97,6 +97,7 @@
 ##   frame_data {fps, frames, exchange, hit_clip, block_clip, moves}  N080 (scripts/frame_advantage.gd): startup / active /
 ##                                 recovery at 60 fps; opt-in "exchange": hitstun, blockstun, on_hit / on_block (+ = attacker
 ##                                 first), punishable, vs the other fighter on the stage or reaction clips (first card = impact)
+##   throw_check {clip?, fps?, thrower?}  N040 (scripts/throw_serve.gd): does the throw work? verdict, key frame, per frame partner out and thrower margin
 ##   reactable {clip?, frame?, latency_ms?, fps?}  N082 (scripts/reactable_serve.gd): per strike, the frames a viewer has between SEEING it
 ##                                 coming and its first active frame vs the frames a human needs: reactable / not reactable + margin
 ##   lint {path}                   N018: a .bvh/.glb/.gltf/.fbx made anywhere, on Kine's body (scripts/clip_lint.gd); live scene kept
@@ -437,6 +438,20 @@ func _init() -> void:
 			if rxo["ok"]:
 				say(Reactable.words(rxo["result"]))
 			done(rxo["result"] if rxo["ok"] else rxo)
+		"throw_check":   # N040 wired (L34): throw_check <scene> [fps=N] [thrower=0|1] (scripts/throw_serve.gd)
+			if a.size() < 2 or not open_scene(a[1]):
+				if a.size() < 2:
+					done({"ok": false, "error": "throw_check <scene.json> [fps=N] [thrower=0|1]  (N040; scripts/throw_serve.gd)"})
+				return
+			var tp := {}
+			for x in a.slice(2):
+				var kv3 := String(x).split("=", true, 1)
+				if kv3.size() == 2 and kv3[1].is_valid_int() and kv3[0] in ["fps", "thrower"]:
+					tp[kv3[0]] = int(kv3[1])
+			var tco := ThrowServe.serve(m, tp)
+			if tco["ok"]:
+				say(String(tco["result"]["text"]))
+			done(tco["result"] if tco["ok"] else tco)
 		"brief":   # N011 (scripts/scene_brief.gd)
 			var ti := a.find("--tokens")
 			var tk := int(a[ti + 1]) if ti >= 0 and ti + 1 < a.size() else SceneBrief.DEFAULT_TOKENS
