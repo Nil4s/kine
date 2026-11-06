@@ -2051,7 +2051,41 @@ func _render_estimate() -> Dictionary:
 
 
 
-func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary:
+var ui_fr_dlg: ConfirmationDialog
+var ui_fr_res: OptionButton
+
+
+## "Final render...": pick the resolution, OK renders (the shot camera over every frame; exports/shots/<scene>_<stamp>_final/)
+func _final_render_dialog() -> void:
+	if ui_fr_dlg == null:
+		ui_fr_dlg = ConfirmationDialog.new()
+		ui_fr_dlg.name = "final_render_dialog"
+		ui_fr_dlg.title = "Final render"
+		ui_fr_dlg.min_size = Vector2i(380, 0)
+		var v := VBoxContainer.new()
+		var l := Label.new()
+		l.text = "Client-ready frames from the shot camera: SSAO, reflections, global light, soft shadows, 4x MSAA, no glow. Makes a PNG sequence and an .mp4."
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(360, 0)
+		v.add_child(l)
+		ui_fr_res = OptionButton.new()
+		ui_fr_res.name = "opt_resolution"
+		for r in FinalRender.RES:
+			ui_fr_res.add_item("%d x %d" % [r.x, r.y])
+		ui_fr_res.select(FinalRender.RES.find(FinalRender.DEFAULT_RES))
+		v.add_child(ui_fr_res)
+		ui_fr_dlg.add_child(v)
+		ui_fr_dlg.confirmed.connect(func():
+			var r: Vector2i = FinalRender.RES[ui_fr_res.selected]
+			_render_shots(ShotRender.ROOT, "", {"preset": "final", "w": r.x, "h": r.y}))
+		add_child(ui_fr_dlg)
+	ui_fr_dlg.popup_centered()
+
+
+## FINAL RENDER (GAP_AUDIT_1106 #3; scripts/final_render.gd): opts {"preset": "final"|"draft", "w", "h", "first", "count"} makes this the same
+## render through a SubViewport of w x h (default 1920x1080) with the quality preset on, over the frame range first .. first+count-1
+## (default: every frame); the PNGs are numbered from 0000 within that range and the mp4 is made of exactly them.
+func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "", opts := {}) -> Dictionary:
 	root_dir = UserPaths.w(root_dir)   # an exported build: the user's folder
 	if _sr_busy:
 		_say_plain("A shot render is already running: press Esc (or Cancel render) to stop it, then run Render shots to video again")
@@ -2069,7 +2103,11 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 	var n := ShotRender.frame_count(length, fps)
 	var rng := ShotRender.ranges(_shot_shots(), length, fps)
 	var nm := safe_file(S.name) if S.name != "" else "scene"
-	var dir := "%s/%s_%s" % [root_dir, nm, _stamp()]
+	var preset := String(opts.get("preset", ""))
+	var first_f := clampi(int(opts.get("first", 0)), 0, n - 1)
+	var last_f := mini(n, first_f + int(opts.get("count", n)))
+	n = last_f - first_f   # the frames this render makes
+	var dir := "%s/%s_%s%s" % [root_dir, nm, _stamp(), ("_" + preset) if preset != "" else ""]
 	var gdir := ProjectSettings.globalize_path(dir)
 	if DirAccess.make_dir_recursive_absolute(gdir) != OK:
 		_say_plain("NOT DONE: the folder %s could not be made: close anything using it, or choose another place, and run Render shots to video again" % dir)
@@ -2091,15 +2129,31 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 	var shot := _shot_blast_begin()
 	clean = keep_clean
 	_sides_apply()
+	var svp: SubViewport = null
+	var svp_cam: Camera3D = null
+	var fr_lights := [light_key, light_fill, light_rim]
+	var fr_saved := {}
+	if preset != "":
+		svp = SubViewport.new()
+		svp.size = Vector2i(int(opts.get("w", FinalRender.DEFAULT_RES.x)), int(opts.get("h", FinalRender.DEFAULT_RES.y)))
+		svp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		add_child(svp)   # no own world: it draws this scene's World3D
+		svp_cam = Camera3D.new()
+		svp_cam.keep_aspect = Camera3D.KEEP_HEIGHT
+		svp.add_child(svp_cam)
+		svp_cam.current = true
+		fr_saved = FinalRender.apply(preset, world_env, svp, fr_lights)
 	var done := 0
 	for r in rng:
 		for j in int(r["count"]):
 			if _sr_cancel:
 				break
 			var f: int = int(r["first"]) + j
-			_sr_label.text = "Rendering shots: frame %d of %d  (shot %d of %d: %s)" % [f + 1, n, int(r["shot"]) + 1, _shot_shots().size(), _shot_shots()[int(r["shot"])]["name"]]
+			if f < first_f or f >= last_f:
+				continue
+			_sr_label.text = "Rendering shots: frame %d of %d  (shot %d of %d: %s)" % [f - first_f + 1, n, int(r["shot"]) + 1, _shot_shots().size(), _shot_shots()[int(r["shot"])]["name"]]
 			_sr_bar.value = 100.0 * float(done) / float(n)
-			_say_plain("rendering shots: %d%%  (frame %d of %d; Esc or Cancel render stops it)" % [int(100.0 * done / n), f + 1, n])
+			_say_plain("rendering shots: %d%%  (frame %d of %d; Esc or Cancel render stops it)" % [int(100.0 * done / n), f - first_f + 1, n])
 			await RenderingServer.frame_post_draw   # one drawn frame WITH the progress panel; a click on Cancel is read meanwhile
 			if _sr_cancel:
 				break
@@ -2115,10 +2169,20 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 				wt.render_active = true   # R23
 				_refresh()
 				_shot_blast_frame(shot)
-				await get_tree().process_frame
-				await RenderingServer.frame_post_draw
-				sub_imgs.append(_shot_blast_image(shot, get_viewport().get_texture().get_image()))
-			(sub_imgs[0] if sub_imgs.size() == 1 else PlayblastExport.average(sub_imgs)).save_png("%s/frame_%04d.png" % [gdir, f])
+				if svp != null:
+					var sv := shot_view_at(playhead)   # the shot camera itself, the whole frame (no crop of the window)
+					svp_cam.global_transform = sv["xf"]
+					svp_cam.fov = ShotCam.fov_v(float(sv["f"]))
+					svp_cam.attributes = cam.attributes
+					if preset == "final":
+						await get_tree().process_frame   # SSAO / SDFGI settle on the new pose
+						await get_tree().process_frame
+					sub_imgs.append(await FinalRender.grab(get_tree(), svp))
+				else:
+					await get_tree().process_frame
+					await RenderingServer.frame_post_draw
+					sub_imgs.append(_shot_blast_image(shot, get_viewport().get_texture().get_image()))
+			(sub_imgs[0] if sub_imgs.size() == 1 else PlayblastExport.average(sub_imgs)).save_png("%s/frame_%04d.png" % [gdir, f - first_f])
 			wt.render_active = false
 			ui_root.visible = true
 			_sr_layer.visible = true
@@ -2129,6 +2193,9 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 		if _sr_cancel:
 			break
 	_shot_blast_end(shot)
+	if svp != null:
+		FinalRender.restore(fr_saved, world_env, svp, fr_lights)
+		svp.queue_free()
 	ui_root.visible = true
 	clean = keep_clean
 	_sides_apply()
@@ -2149,7 +2216,7 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "") -> Dictionary
 		ff = PlayblastExport.find_ffmpeg(ffmpeg_path)
 		if ff == "":
 			how = ". No .mp4: ffmpeg was not found; install it (winget install Gyan.FFmpeg, or ffmpeg.org), then run Render shots to video again, or set POSER_FFMPEG to ffmpeg.exe"
-		elif PlayblastExport.encode(ff, gdir, fps, "%s/%s.mp4" % [gdir, nm], AudioTrack.audible_list(S.audio_tracks), 0.0) == OK and FileAccess.file_exists("%s/%s.mp4" % [gdir, nm]):
+		elif PlayblastExport.encode(ff, gdir, fps, "%s/%s.mp4" % [gdir, nm], AudioTrack.audible_list(S.audio_tracks), float(first_f) / float(fps)) == OK and FileAccess.file_exists("%s/%s.mp4" % [gdir, nm]):
 			mp4 = "%s/%s.mp4" % [gdir, nm]
 			how = " and %s.mp4" % nm
 		else:
@@ -12508,7 +12575,7 @@ const ICON_OF := {"Library": "library", "Export model (GLB / OBJ)": "export_glb"
 	"Light: three-point": "lit_three", "Light: rim": "lit_rim", "Light: noir": "lit_noir", "Light: daylight": "lit_day",
 	"Add prop": "prop", "Object library...": "library", "Import model": "import", "From video": "video", "From several cameras": "cameras", "Ask AI": "ai", "Turn left": "turn_l", "Turn right": "turn_r", "Delete prop": "delete",
 	"Sit here": "sit", "Sit down": "sit_down", "Stand up": "stand_up", "Get up": "get_up", "Step up": "step", "Pick up": "take", "Put down": "put", "Pose library": "poselib", "Easy mode": "easy", "View options": "gear", "Corrective shapes": "corrective", "Local API": "api",
-	"Pose from words...": "say_it", "Sketch to pose": "sketch_pose", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Stay in place": "stay_in_place", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "What went wrong?": "whywrong",
+	"Pose from words...": "say_it", "Sketch to pose": "sketch_pose", "Sketch line of action": "loa_sketch", "Line of action": "loa", "Mirror scene": "mirror_scene", "Mirror in place": "mirror_inplace", "Stay in place": "stay_in_place", "Walk along a path...": "pathwalk", "Frame data": "fd", "Frame boxes": "fd_boxes", "Frame rate": "fd_rate", "Export frame data (json)...": "export_fd", "Render shots (mp4)": "render_shots", "Final render...": "render_shots", "What went wrong?": "whywrong",
 	"Test cube": "mesh_cube", "Edit body": "mannequin", "Save": "save", "Save to body": "body_save", "Open...": "open", "Use in scene": "use_scene", "Move": "xf_move", "Rotate": "xf_rot", "Scale": "xf_scale",
 	"Extrude": "part_extrude", "Inset": "inset", "Loop cut": "loopcut", "Knife": "knife", "Bevel": "part_chamfer", "Proportional": "proportional", "Modifiers": "stack", "Validate": "validate", "Repair": "wrench",
 	"Test sphere": "sphere", "Sculpt the body": "sculpt_body", "Voxel remesh": "remesh", "Draw": "brush_draw", "Inflate": "brush_inflate", "Grab": "brush_grab", "Clay": "brush_clay", "Crease": "brush_crease", "Smooth": "smooth", "Flatten": "brush_flat", "Pinch": "brush_pinch", "Snake": "brush_snake",
@@ -13101,6 +13168,7 @@ func _ui() -> void:
 	ui_ribbon["EXPORT"].add_child(_button("Open exports folder", func(): _shell_open(UserPaths.w("res://exports")), "open the exports folder in Explorer (where Export model and the other exports are written)"))
 	ui_ribbon["EXPORT"].add_child(_button("Export frame data (json)...", _fd_export, "startup, active, recovery and the hitboxes per frame, in metres (Y up), saved where you pick (FRAME_DATA: docs/research/FRAME_DATA.md)"))
 	ui_ribbon["EXPORT"].add_child(_button("Render shots (mp4)", _render_shots, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode an .mp4 in exports/shots/ with ffmpeg; progress shows, Esc or Cancel stops it"))
+	ui_ribbon["EXPORT"].add_child(_button("Final render...", _final_render_dialog, "client-ready output from the shot camera: SSAO, reflections, global light, soft shadows and 4x MSAA, glow off; a PNG sequence and an .mp4 at the resolution you pick (1920x1080 default) in exports/shots/; slower than Render shots (mp4)"))
 	if fp_ui == null:
 		fp_ui = FloorPlanUI.new(self)
 	ui_ribbon["EXPORT"].add_child(_button("Floor plan", fp_ui.show, "a top-down rehearsal plan of the fight for the stunt crew: every foot placement numbered with its time, each fighter's path, the strike lines and the safety margins on a 100 cm grid; Export page writes a printable page and a PNG"))
@@ -16996,6 +17064,7 @@ func _commands() -> Array:
 	add.call("Deliver: breakdown video (with the judges drawn)", "", _export_judge_render, "breakdown judge render overlay balance centre of mass support polygon force ground reaction hit boxes joint limit verdict caption side by side video avi mp4 coach review", false, "the scene as a video with the judges drawn: left clean, right with the centre of mass over its support, the ground-force arrow, the hit boxes and red joint-limit markers; under each frame a caption with the time, the card and the Check verdicts that fire on that frame (off balance, foot slides ...); in user://breakdowns/")
 	add.call("Export playblast (video)", "", _export_playblast, "playblast render video mp4 png sequence ffmpeg movie export", false, "render the scene from the current camera, frame by frame at its fps over the preview range (or all of it): a PNG folder in exports/playblast/, and an .mp4 when ffmpeg is installed")
 	add.call("Render shots to video (mp4)", "", _render_shots, "render shots video mp4 camera sequence cuts sequencer movie export deliver ffmpeg", false, "walk the scene's shots in order, each through its own camera (cuts at the shot boundaries), and encode them to exports/shots/<scene>_<stamp>/<scene>.mp4 with ffmpeg; progress shows, Esc or Cancel stops it")
+	add.call("Final render (PNG sequence + mp4)", "", _final_render_dialog, "final render client quality ssao ssr shadows msaa 1080p 4k shot camera png sequence mp4 deliver ffmpeg", false, "the quality preset (SSAO, SSR, SDFGI, soft shadows, 4x MSAA, glow off) through the shot camera at the resolution you pick, as a PNG sequence and an .mp4 in exports/shots/<scene>_<stamp>_final/")
 	add.call("Review: export a review page", "", _export_review, "review comments frame notes feedback director page html share local", false, "one self-contained HTML file in exports/review/: the playblast frames, a scrubber, a comment box per frame, and Download comments (.json). Nothing is uploaded")
 	add.call("Review: import comments...", "", _review_import_ask, "review comments frame notes feedback director import json markers", true, "pick a comments .json from a review page: each comment becomes a marker on the timeline at its frame (click it to jump; Ctrl+Z undoes)")
 	add.call("Deliver: export the posed body as OBJ", "", _export_obj, "obj wavefront mesh export deliver posed body weapon blender maya zbrush static model", false, "the body as it stands at the playhead (its skinned meshes in world space) and the held weapon, as user://exports/<scene>.obj + .mtl: metres, Y up, v / vt / vn / f with one group per part (a static mesh, not an animation)")

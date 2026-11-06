@@ -69,7 +69,7 @@ func build_scene(svp: SubViewport, with_floor: bool) -> Dictionary:
 	we.environment = env
 	svp.add_child(we)
 	var key_l := DirectionalLight3D.new()
-	key_l.rotation_degrees = Vector3(-50, 35, 0)
+	key_l.rotation_degrees = Vector3(-55, 160, 0)
 	key_l.light_energy = 1.2
 	svp.add_child(key_l)
 	var mat := StandardMaterial3D.new()
@@ -88,7 +88,7 @@ func build_scene(svp: SubViewport, with_floor: bool) -> Dictionary:
 		var leg := MeshInstance3D.new()
 		var cm := CapsuleMesh.new()
 		cm.radius = 0.07
-		cm.height = 0.8
+		cm.height = 0.95
 		leg.mesh = cm
 		leg.position = Vector3(sx, 0.5, 0)
 		leg.material_override = bm
@@ -117,9 +117,8 @@ func build_scene(svp: SubViewport, with_floor: bool) -> Dictionary:
 	head.material_override = bm
 	svp.add_child(head)
 	var cam := Camera3D.new()
-	cam.position = Vector3(0.6, 1.1, 2.6)
 	svp.add_child(cam)
-	cam.look_at(Vector3(0, 0.35, 0.05))
+	cam.look_at_from_position(Vector3(0.6, 1.1, 2.6), Vector3(0, 0.35, 0.05))
 	cam.fov = 40.0
 	cam.current = true
 	return {"env": env, "key": key_l, "cam": cam}
@@ -275,15 +274,18 @@ func _init() -> void:
 	# bar 3 at 640x360: 12 frames from 30 across the cut at 36; bar 1 in the app: the env while it runs
 	var env_before := FinalRender.read(m.world_env, m.get_viewport(), [m.light_key])
 	var seen_ssr := false
-	var job = m._render_shots(out_root, "", {"preset": "final", "w": 640, "h": 360, "first": 30, "count": 12})
+	var got := []
+	m.shots_render_done.connect(func(r): got.append(r))
+	m._render_shots(out_root, "", {"preset": "final", "w": 640, "h": 360, "first": 30, "count": 12})
 	var guard := 0
+	await process_frame
 	while m._sr_busy and guard < 6000:
 		await process_frame
 		guard += 1
 		if m.world_env.ssr_enabled and m.world_env.ssao_enabled:
 			seen_ssr = true
-	var res_a: Dictionary = await job
 	await idle(2)
+	var res_a: Dictionary = got[0] if not got.is_empty() else {}
 	ok(seen_ssr, "1 in the app: while the final render runs, world_env has SSR and SSAO on")
 	ok(FinalRender.read(m.world_env, m.get_viewport(), [m.light_key]) == env_before, "  afterwards the app's environment, viewport and key light are as before")
 	var dir_a := String(res_a.get("dir", ""))
@@ -308,9 +310,13 @@ func _init() -> void:
 	var res_hd := {}
 	for pr in ["draft", "final"]:
 		var t0 := Time.get_ticks_usec()
-		var rr: Dictionary = await m._render_shots(out_root, "", {"preset": pr, "w": 1920, "h": 1080, "first": 34, "count": 3})
+		got.clear()
+		m._render_shots(out_root, "", {"preset": pr, "w": 1920, "h": 1080, "first": 34, "count": 3})
+		await process_frame
+		while m._sr_busy:
+			await process_frame
 		secs[pr] = float(Time.get_ticks_usec() - t0) / 1000000.0 / 3.0
-		res_hd[pr] = rr
+		res_hd[pr] = got[0] if not got.is_empty() else {}
 		await idle(2)
 	for pr in ["draft", "final"]:
 		var rr: Dictionary = res_hd[pr]
