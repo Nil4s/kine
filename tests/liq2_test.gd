@@ -43,6 +43,7 @@ func _init() -> void:
 		_b_rest()
 		_m_dam()
 		await _e_mug()
+		await _r_render()
 	print("liq2: %d fail  (%.0f s)" % [fails, (Time.get_ticks_msec() - t0) / 1000.0])
 	quit(1 if fails > 0 else 0)
 
@@ -340,3 +341,229 @@ func _e_mug() -> void:
 	var r2 := _pour(F2, m2)
 	var f2: float = r2["held"] / r2["cap"]
 	ok(f2 < 0.85, "(g) CONTROL (E3) the voxel mesh (add_solid_mesh) holds %.0f %% and fails the same 85 %% bar (the bar can fail)" % [f2 * 100.0])
+
+
+## ================================================================ RENDER bars (R), written and committed before their first run
+## The water shader (shaders/water_v2.gdshader) and the thickness pass (shaders/water_thick.gdshader), measured on analytic meshes so that the
+## prediction does not come from the renderer. Pixels are decoded from sRGB to linear light before any number is taken.
+##   (R0) THICKNESS PASS: a closed box 0.20 m deep seen head on reads 0.20 m within 3 % in the thickness map.
+##   (R1) FRESNEL: a water slab with a white sky and a black floor, seen at 80 and at 10 degrees from the surface normal: the reflected fraction F (pixel
+##        in linear light) is within 10 % (relative) of Schlick, F = F0 + (1 - F0)(1 - cos)^5, F0 = ((n-1)/(n+1))^2, n = 1.333, at both angles; so the edge
+##        brightening ratio F(80)/F(10) matches (about 19). CONTROL: the Fresnel term switched off (constant F0) must fail the ratio (reads about 1).
+##   (R2) BEER-LAMBERT: a water wedge over a white floor, seen from above. Its colour shift B - R at the path lengths 0.10, 0.20, 0.30 m equals the prediction
+##        (1 - F0)(exp(-sigma_B t) - exp(-sigma_R t)) within 25 % (sigma = pure water, Pope and Fry 1997: R 0.2916, G 0.0565, B 0.00922 per m), and
+##        grows with t. CONTROL: absorption switched off must fail.
+##   (R3) NO VISIBLE SHELL: the reconstructed surface of the dam break at T = 2 is a closed mesh (fraction of welded edges not shared by exactly two
+##        triangles <= 2 %), and in its thickness map at most 0.5 % of the covered pixels are incoherent (an odd number of faces crossed, or a negative
+##        thickness: the signature of a hole through which the shell shows). CONTROL: the same mesh with 8 % of its triangles removed must exceed both.
+func _slab_mesh(size: Vector3) -> ArrayMesh:
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var hx := size.x * 0.5
+	var hy := size.y * 0.5
+	var hz := size.z * 0.5
+	var v := [Vector3(-hx, -hy, -hz), Vector3(hx, -hy, -hz), Vector3(hx, hy, -hz), Vector3(-hx, hy, -hz), Vector3(-hx, -hy, hz), Vector3(hx, -hy, hz), Vector3(hx, hy, hz), Vector3(-hx, hy, hz)]
+	# outward winding (counter-clockwise seen from outside)
+	var f := [[0, 3, 2, 1], [4, 5, 6, 7], [0, 4, 7, 3], [1, 2, 6, 5], [3, 7, 6, 2], [0, 1, 5, 4]]
+	for q in f:
+		for t in [[0, 1, 2], [0, 2, 3]]:
+			for i in t:
+				st.add_vertex(v[q[i]])
+	st.generate_normals()
+	return st.commit()
+
+
+func _wedge_mesh() -> ArrayMesh:
+	# triangle (0,0), (0.6,0), (0.6,0.3) in x,y extruded over z in [-0.15, 0.15]; thickness (vertical) = 0.5 x
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	var a := Vector3(0, 0, -0.15)
+	var b := Vector3(0.6, 0, -0.15)
+	var c := Vector3(0.6, 0.3, -0.15)
+	var d := Vector3(0, 0, 0.15)
+	var e := Vector3(0.6, 0, 0.15)
+	var f := Vector3(0.6, 0.3, 0.15)
+	for t in [[a, c, b], [d, e, f], [a, b, e], [a, e, d], [b, c, f], [b, f, e], [a, d, f], [a, f, c]]:
+		for p in t:
+			st.add_vertex(p)
+	st.generate_normals()
+	return st.commit()
+
+
+func _unlit_box(p: Vector3, s: Vector3, col: Color) -> MeshInstance3D:
+	var m := MeshInstance3D.new()
+	var b := BoxMesh.new()
+	b.size = s
+	m.mesh = b
+	m.position = p
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = col
+	m.material_override = mat
+	return m
+
+
+func _patch_mean(img: Image, cx: int, cy: int, r: int) -> Color:
+	var s := Vector3.ZERO
+	var n := 0
+	for y in range(cy - r, cy + r + 1):
+		for x in range(cx - r, cx + r + 1):
+			var c := img.get_pixel(x, y)
+			s += Vector3(WaterRender.lin(c.r), WaterRender.lin(c.g), WaterRender.lin(c.b))
+			n += 1
+	s /= float(n)
+	return Color(s.x, s.y, s.z)
+
+
+func _schlick(cosv: float) -> float:
+	var f0 := pow((1.0 - 1.333) / (1.0 + 1.333), 2.0)
+	return f0 + (1.0 - f0) * pow(1.0 - cosv, 5.0)
+
+
+func _r_params_flat() -> Dictionary:
+	return {"sky_top": Vector3(1, 1, 1), "sky_horizon": Vector3(1, 1, 1), "scatter_on": 0.0, "sun_strength": 0.0}
+
+
+## pixel of a world point for a camera at pos looking at tgt with up (the Camera3D conventions, vertical fov)
+func _proj(pos: Vector3, tgt: Vector3, up: Vector3, fov_deg: float, size: Vector2i, wp: Vector3) -> Vector2i:
+	var fwd := (tgt - pos).normalized()
+	var right := fwd.cross(up).normalized()
+	var u := right.cross(fwd).normalized()
+	var d := wp - pos
+	var z := d.dot(fwd)
+	var tf := tan(deg_to_rad(fov_deg) * 0.5)
+	return Vector2i(roundi(size.x * 0.5 + d.dot(right) / z / tf * size.y * 0.5), roundi(size.y * 0.5 - d.dot(u) / z / tf * size.y * 0.5))
+
+
+func _r_render() -> void:
+	var size := Vector2i(640, 400)
+	# ---- R0: thickness of a 0.2 m box head on
+	var box := _slab_mesh(Vector3(0.3, 0.3, 0.2))
+	var r0: Dictionary = await WaterRender.render(root, {"size": size, "cam_pos": Vector3(0, 0, 1.5), "cam_look": Vector3.ZERO, "fov": 20.0, "water": box, "params": _r_params_flat()})
+	var ti: Image = r0["thick"]
+	var t0 := ti.get_pixel(size.x / 2, size.y / 2).r
+	ok(absf(t0 - 0.2) <= 0.006, "(R0) thickness pass reads %.4f m for a 0.200 m deep box (bar 3 %%)" % t0)
+	ok(absf(0.3 * 1.3 - 0.2) / 0.2 > 0.03, "(g) CONTROL (R0) a planted reading of 0.39 m fails the 3 % bar")
+	# ---- R1: Fresnel on a slab (black floor, white sky)
+	var slab := _slab_mesh(Vector3(0.6, 0.1, 0.6))
+	var res := {}
+	for mode in ["on", "off"]:
+		var vals := []
+		for ang in [80.0, 10.0]:
+			var a := deg_to_rad(ang)
+			var tgt := Vector3(0, 0.05, 0)
+			var pos := tgt + Vector3(sin(a), cos(a), 0.0) * 2.0
+			var prm := _r_params_flat()
+			prm["fresnel_on"] = 1.0 if mode == "on" else 0.0
+			prm["absorb_scale"] = 0.0
+			var rr: Dictionary = await WaterRender.render(root, {"size": size, "cam_pos": pos, "cam_look": tgt, "fov": 12.0, "water": slab, "props": [_unlit_box(Vector3(0, -0.5, 0), Vector3(3, 0.1, 3), Color(0, 0, 0))], "bg": Color(0, 0, 0), "params": prm})
+			var img: Image = rr["color"]
+			vals.append(_patch_mean(img, size.x / 2, size.y / 2, 4).g)
+		res[mode] = vals
+	var fp80 := _schlick(cos(deg_to_rad(80.0)))
+	var fp10 := _schlick(cos(deg_to_rad(10.0)))
+	var m80: float = res["on"][0]
+	var m10: float = res["on"][1]
+	print("      R1 Fresnel: measured F(80) %.4f F(10) %.4f ratio %.1f; Schlick %.4f %.4f ratio %.1f; Fresnel off: %.4f %.4f" % [m80, m10, m80 / maxf(m10, 1e-6), fp80, fp10, fp80 / fp10, res["off"][0], res["off"][1]])
+	ok(absf(m80 - fp80) / fp80 <= 0.10 and absf(m10 - fp10) / fp10 <= 0.10, "(R1) F at 80 deg %.4f vs Schlick %.4f, at 10 deg %.4f vs %.4f (bar 10 %%); edge brightening ratio %.1f vs %.1f" % [m80, fp80, m10, fp10, m80 / maxf(m10, 1e-6), fp80 / fp10])
+	var off_ratio: float = res["off"][0] / maxf(res["off"][1], 1e-6)
+	ok(absf(off_ratio - fp80 / fp10) / (fp80 / fp10) > 0.5, "(g) CONTROL (R1) with the Fresnel term off the 80/10 ratio reads %.2f against %.1f and fails" % [off_ratio, fp80 / fp10])
+	# ---- R2: Beer-Lambert on a wedge over a white floor, seen from above
+	var wedge := _wedge_mesh()
+	var sig := Vector3(0.2916, 0.0565, 0.00922)
+	var f0 := _schlick(1.0)
+	var shifts := {}
+	for mode in ["on", "off"]:
+		var pos2 := Vector3(0.3, 3.0, 0.0)
+		var tgt2 := Vector3(0.3, 0.0, 0.0)
+		var up2 := Vector3(0, 0, -1)
+		var prm2 := _r_params_flat()
+		prm2["absorb_scale"] = 1.0 if mode == "on" else 0.0
+		var rr2: Dictionary = await WaterRender.render(root, {"size": size, "cam_pos": pos2, "cam_look": tgt2, "up": up2, "fov": 14.0, "water": wedge, "props": [_unlit_box(Vector3(0.3, -0.05, 0), Vector3(2, 0.1, 2), Color(1, 1, 1))], "bg": Color(1, 1, 1), "params": prm2})
+		var img2: Image = rr2["color"]
+		var row := []
+		for tv in [0.10, 0.20, 0.30]:
+			var x: float = tv / 0.5   # wedge: vertical thickness = 0.5 x
+			var wp := Vector3(x, tv, 0.0)
+			var px := _proj(pos2, tgt2, up2, 14.0, size, wp)
+			var c := _patch_mean(img2, px.x, px.y, 2)
+			var dirv := (wp - pos2).normalized()
+			var path: float = tv / absf(dirv.y)
+			var pred := (1.0 - f0) * (exp(-sig.z * path) - exp(-sig.x * path))
+			row.append([c.b - c.r, pred, path])
+		shifts[mode] = row
+	var good := true
+	var line := []
+	for q in 3:
+		var meas: float = shifts["on"][q][0]
+		var pred: float = shifts["on"][q][1]
+		line.append("t %.3f: B-R measured %.4f predicted %.4f" % [shifts["on"][q][2], meas, pred])
+		if absf(meas - pred) > 0.25 * pred:
+			good = false
+	if not (shifts["on"][0][0] < shifts["on"][1][0] and shifts["on"][1][0] < shifts["on"][2][0]):
+		good = false
+	print("      R2 ", " | ".join(line))
+	ok(good, "(R2) colour shift B - R with thickness follows Beer-Lambert for pure water within 25 %% at 3 path lengths and grows with t")
+	var bad := true
+	for q in 3:
+		if absf(float(shifts["off"][q][0]) - float(shifts["off"][q][1])) <= 0.25 * float(shifts["off"][q][1]):
+			bad = false
+	ok(bad, "(g) CONTROL (R2) with the absorption off the colour shift is %.4f %.4f %.4f and fails the same bar" % [shifts["off"][0][0], shifts["off"][1][0], shifts["off"][2][0]])
+	# ---- R3: the dam break surface
+	var F = Fluid.make()
+	F.set_threads(8)
+	var sc := FluidScenes.dam_break(F, 20)
+	F.advance(2.0 * sqrt(sc["a"] / (2.0 * G)))
+	var bs := WaterSurface.build(F, 0.5, 4, 4, sc["h"], 1.0, false)
+	if bs["mesh"] == null:
+		ok(false, "(R3) the dam break produced no surface")
+		return
+	var pos3: PackedVector3Array = bs["pos"]
+	var idx3: PackedInt32Array = bs["idx"]
+	var open_f := _open_edge_fraction(idx3)
+	var idx_cut := PackedInt32Array()
+	for t in range(0, idx3.size() - 2, 3):
+		if (t / 3) % 25 != 7 and (t / 3) % 25 != 19:   # 2 of every 25 triangles = 8 %
+			idx_cut.append(idx3[t])
+			idx_cut.append(idx3[t + 1])
+			idx_cut.append(idx3[t + 2])
+	var open_cut := _open_edge_fraction(idx_cut)
+	var nrm3 := WaterSurface.normals(pos3, idx3)
+	var mesh_ok: ArrayMesh = WaterSurface.make_mesh(pos3, idx3, nrm3, PackedFloat32Array())
+	var mesh_cut: ArrayMesh = WaterSurface.make_mesh(pos3, idx_cut, nrm3, PackedFloat32Array())
+	var cpos := Vector3(0.45, 0.35, 1.0)
+	var ctgt := Vector3(0.3, 0.1, 0.05)
+	var inc := {}
+	for nm in ["ok", "cut"]:
+		var rr3: Dictionary = await WaterRender.render(root, {"size": size, "cam_pos": cpos, "cam_look": ctgt, "fov": 40.0, "water": mesh_ok if nm == "ok" else mesh_cut, "params": _r_params_flat()})
+		var ti3: Image = rr3["thick"]
+		var covered := 0
+		var incoh := 0
+		for y in size.y:
+			for x in size.x:
+				var c := ti3.get_pixel(x, y)
+				if c.g > 0.5:
+					covered += 1
+					if (roundi(c.g) % 2) == 1 or c.r < -1e-4:
+						incoh += 1
+		inc[nm] = float(incoh) / maxf(float(covered), 1.0)
+		print("      R3 %s: covered %d px, incoherent %d (%.3f %%)" % [nm, covered, incoh, inc[nm] * 100.0])
+	print("      R3 open-edge fraction: mesh %.4f, with 8 %% of the triangles removed %.4f; mesh %d triangles, enclosed volume %.5f m3" % [open_f, open_cut, idx3.size() / 3, bs["volume"]])
+	ok(open_f <= 0.02, "(R3) the welded surface is closed: %.2f %% of its edges are not shared by two triangles (bar 2 %%)" % [open_f * 100.0])
+	ok(inc["ok"] <= 0.005, "(R3) thickness map coherent: %.3f %% of the covered pixels are incoherent (bar 0.5 %%)" % [inc["ok"] * 100.0])
+	ok(open_cut > 0.02 and inc["cut"] > 0.005, "(g) CONTROL (R3) the mesh with 8 %% of its triangles removed reads %.2f %% open edges and %.2f %% incoherent pixels and fails both" % [open_cut * 100.0, inc["cut"] * 100.0])
+
+
+func _open_edge_fraction(idx: PackedInt32Array) -> float:
+	var cnt := {}
+	for t in range(0, idx.size() - 2, 3):
+		for e in 3:
+			var a := idx[t + e]
+			var b := idx[t + (e + 1) % 3]
+			var key := (mini(a, b) << 32) | maxi(a, b)
+			cnt[key] = int(cnt.get(key, 0)) + 1
+	var bad := 0
+	for k in cnt:
+		if cnt[k] != 2:
+			bad += 1
+	return float(bad) / maxf(float(cnt.size()), 1.0)
