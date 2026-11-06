@@ -161,13 +161,15 @@ func _init() -> void:
 		for i in 12:
 			await process_frame
 		await RenderingServer.frame_post_draw
-		var img := root.get_viewport().get_texture().get_image()
+		var img := ui.dlg.get_texture().get_image()   # the dialog is its own window: its own picture (coordinates are the dialog's)
+		if img.get_width() > 1000:
+			img.resize(1000, int(img.get_height() * 1000.0 / img.get_width()))
 		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://out"))
 		img.save_png(ProjectSettings.globalize_path("res://out/n084w_panel.png"))
 		print("SHOT out/n084w_panel.png %dx%d" % [img.get_width(), img.get_height()])
 		# PLACEMENT (numbers, not looking): every cell's box sits inside the grid control, the grid control inside the window, and the pixel at a cell's centre is that cell's colour
 		var pr: Rect2 = ui.panel.get_global_rect()
-		var wsz := root.get_visible_rect().size
+		var wsz := Vector2(ui.dlg.size)
 		var n_in := 0
 		var n_px := 0
 		var nn := int(ui.M.get("n", 0))
