@@ -126,10 +126,16 @@ func lab_bad(b: Button, label: String, w: float) -> String:
 	var fs := b.get_theme_font_size("font_size")
 	var sb: StyleBox = b.get_theme_stylebox("normal")
 	var tw := font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
-	var iw := float(b.icon.get_width()) + float(b.get_theme_constant("h_separation")) if b.icon != null else 0.0
+	var iw := 0.0
+	if b.icon != null:
+		var icw := float(b.icon.get_width())
+		var mx := b.get_theme_constant("icon_max_width")
+		iw = (minf(icw, float(mx)) if mx > 0 else icw) + float(b.get_theme_constant("h_separation"))
 	var need := sb.get_margin(SIDE_LEFT) + iw + tw + sb.get_margin(SIDE_RIGHT)
 	if need > w + 0.5:
-		return "label needs %.0f px, button is %.0f" % [need, w]
+		return "label needs %.0f px (text %.0f, icon %.0f, margins %.0f), button is %.0f" % [need, tw, iw, sb.get_margin(SIDE_LEFT) + sb.get_margin(SIDE_RIGHT), w]
+	if b.icon != null and b.icon_alignment != HORIZONTAL_ALIGNMENT_LEFT:
+		return "the icon is not left of the name (it is drawn over it)"
 	if font.get_height(fs) > b.size.y:
 		return "label taller than the button"
 	if fs < 11 or fs > 12:
@@ -172,7 +178,12 @@ func rail_labels(sc: String, sz: Vector2i) -> void:
 		var caught_trunc := lab_bad(fb, first, fb.size.x) != ""
 		fb.text = keep
 		var caught_squeeze := lab_bad(fb, first, 30.0) != ""
-		ok(caught_trunc and caught_squeeze, "8 PLANTED %s: a truncated label (%s) and a button squeezed to 30 px are both found" % [tag, str(caught_trunc)])
+		var ia := fb.icon_alignment
+		fb.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		var caught_over := lab_bad(fb, first, fb.size.x) != ""
+		fb.icon_alignment = ia
+		caught_squeeze = caught_squeeze and caught_over
+		ok(caught_trunc and caught_squeeze, "8 PLANTED %s: a truncated label (%s) and a button squeezed to 30 px, an icon drawn over the name are all found" % [tag, str(caught_trunc)])
 		get_root().get_texture().get_image().save_png("C:/Temp/claude/uiexp/test_labels_%s_%dx%d.png" % [sc, sz.x, sz.y])
 	else:
 		ok(n >= 8 and texted == 0, "8 %s: the rail is icons only (%d buttons, %d with text)" % [tag, n, texted])

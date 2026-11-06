@@ -4112,7 +4112,7 @@ func _tl_height() -> void:
 func _tl_under_ruler() -> float:
 	if ui_timeline == null:
 		return 0.0
-	return (Timeline.FD_H + 3.0 if not ui_timeline.fd.is_empty() else 0.0) + ui_timeline.bx_px() + ui_timeline.shots_px() + ui_timeline.sp_px() + ui_timeline.iq_px() + ui_timeline.sc_px()   # + the sound cue lane (I35) + the video confidence lane (VIDEO IQ)
+	return ui_timeline.fd_px() + ui_timeline.bx_px() + ui_timeline.shots_px() + ui_timeline.sp_px() + ui_timeline.iq_px() + ui_timeline.sc_px()   # + the sound cue lane (I35) + the video confidence lane (VIDEO IQ)
 
 
 # ---------------------------------------------------------------- FRAME DATA (ROADMAP 12; scripts/frame_data.gd)

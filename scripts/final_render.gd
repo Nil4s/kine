@@ -17,6 +17,8 @@ const PRESETS := {
 
 ## the global soft-shadow filter (RenderingServer has no getter): what this class last set, else the project's value
 static var _soft_q := -1
+## a hook called at the end of apply() with (env, vp, lights): a test compares a candidate against another setting on the same frame
+static var post_apply := Callable()
 
 
 static func soft_q_now() -> int:
@@ -53,7 +55,7 @@ static func apply(preset: String, env: Environment, vp: Viewport, lights: Array)
 		env.ssao_radius = 1.2
 		env.ssao_intensity = 3.0   # the contact darkening at feet and under props
 		env.ssao_power = 1.8
-	RenderingServer.environment_set_ssao_quality(RenderingServer.ENV_SSAO_QUALITY_HIGH if p["ssao"] else RenderingServer.ENV_SSAO_QUALITY_MEDIUM, true, 0.5, 2.0, 50.0, 300.0)   # less grain
+	RenderingServer.environment_set_ssao_quality(RenderingServer.ENV_SSAO_QUALITY_HIGH if p["ssao"] else RenderingServer.ENV_SSAO_QUALITY_MEDIUM, true, 0.5, 2.0, 50.0, 300.0)   # less grain (L15 measured: SSAO is not the grain; ULTRA / full-res / 4 passes changed it by < 2%)
 	vp.msaa_3d = p["msaa"]
 	vp.positional_shadow_atlas_size = p["atlas"]
 	_set_soft_q(p["soft_q"])
@@ -61,8 +63,10 @@ static func apply(preset: String, env: Environment, vp: Viewport, lights: Array)
 		var l := L as Light3D
 		l.shadow_enabled = p["shadows"]
 		if p["shadows"]:
-			l.shadow_blur = 1.6
+			l.shadow_blur = 0.5   # L15: 1.6 left a dithered hatch on the shadow side of the skinned body (measured: the grain is the soft-shadow filter, not the SSAO)
 			l.shadow_normal_bias = 2.0   # no acne on the skinned mesh
+	if post_apply.is_valid():
+		post_apply.call(env, vp, lights)
 	return saved
 
 

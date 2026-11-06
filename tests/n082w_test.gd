@@ -231,7 +231,16 @@ func _init() -> void:
 		var xs: float = tl.x_of(fs0 / fpsd)
 		var rect_r: Rect2 = rxe.get_global_rect()
 		c_tell = img9.get_pixel(clampi(int(tl_o.x + xt), 0, img9.get_width() - 1), clampi(int(rect_r.position.y + rect_r.size.y * 0.5), 0, img9.get_height() - 1))
-		c_start = img9.get_pixel(clampi(int(tl_o.x + xs), 0, img9.get_width() - 1), clampi(int(tl_o.y + strip_y), 0, img9.get_height() - 1))
+		# the startup block as drawn: the strip pixel in its span nearest to the token colour (the strip's labels are drawn over it in ink)
+		var tokc := Tok.c("fd_startup")
+		var bestd := 9.0
+		for sx in range(int(tl_o.x + xs), int(tl_o.x + tl.x_of(float(start_i + 12) / fpsd)), 1):
+			for sy in range(int(tl_o.y + 14.0), int(tl_o.y + 25.0)):
+				var pc := img9.get_pixel(clampi(sx, 0, img9.get_width() - 1), clampi(sy, 0, img9.get_height() - 1))
+				var dd := absf(pc.r - tokc.r) + absf(pc.g - tokc.g) + absf(pc.b - tokc.b)
+				if dd < bestd:
+					bestd = dd
+					c_start = pc
 	var rr := ReactableCells.ratio(c_tell, c_start)
 	print("     react row at %s: cell h %.1f px, y %.1f (strip bottom %.1f), tell px %s vs startup px %s = %.2f:1" % [ws, cell_h, rxe.get_global_rect().position.y - tl_o.y if rxe != null else -1.0, 12.0 + 2.0 + 11.0, c_tell.to_html(false), c_start.to_html(false), rr])
 	ok(ws == Vector2(1600, 900) and rxe != null and strip_ok(cell_h, c_tell, c_start), "e react cells %.0f px tall (>= 8), tell %.2f:1 against the startup block (>= 3:1), at %s" % [cell_h, rr, ws])
@@ -240,7 +249,7 @@ func _init() -> void:
 	var tip2 := tl._get_tooltip(Vector2(tl.x_of(0.002), 12.0 + 2.0 + 11.0 + 2.0 + 6.0))
 	print("     tooltips: tell '%s' | frame 0 '%s'" % [tip1, tip2])
 	ok(tip1.begins_with("frame %d " % tell_i) and "tell" in tip1 and tip2.begins_with("frame 0 "), "e a tooltip per cell: the frame and its state")
-	control(strip_ok(3.0, ReactableCells.COL_OK, Tok.c("fd_startup")), "e1 the old 3 px strip in its plain green (%.2f:1 against the startup block)" % ReactableCells.ratio(ReactableCells.COL_OK, Tok.c("fd_startup")))
+	control(strip_ok(3.0, ReactableStrip.COL_OK, Tok.c("fd_startup")), "e1 the old 3 px strip in its plain green (%.2f:1 against the startup block)" % ReactableCells.ratio(ReactableStrip.COL_OK, Tok.c("fd_startup")))
 	print("N082W TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	TestFiles.cleanup()
 	quit(fails)
