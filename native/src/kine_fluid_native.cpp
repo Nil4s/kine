@@ -1009,8 +1009,11 @@ void KineFluidNative::apply_wall_friction(double dt) {
 				if (nw > 0) {
 					double au = std::fabs(*f);
 					if (au > 1e-12) {
-						double ut = wall_utau(au, 0.5 * h, wnu);
-						double fac = 1.0 - dt * nw * ut * ut / (h * au);
+						// sub-cell layer depth: the fluid in the wall cell fills cnt/ppc of it, so a thin front (a film thinner than one cell) feels the stress over its own depth
+						double fill = (double)cnt[c] / (double)ppc;
+						double dep = h * (fill > 1.0 ? 1.0 : (fill < 0.1 ? 0.1 : fill));
+						double ut = wall_utau(au, 0.5 * dep, wnu);
+						double fac = 1.0 - dt * nw * ut * ut / (dep * au);
 						*f *= fac > 0.0 ? fac : 0.0;
 					}
 				}
