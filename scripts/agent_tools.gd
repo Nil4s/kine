@@ -15,7 +15,9 @@ const POINTS := ["head", "pelvis", "spine_03", "upperarm_l", "upperarm_r", "lowe
 const METHODS := ["commands", "open", "new", "run", "pose", "state", "measure", "describe", "ask", "check", "diff", "validate", "save", "quit", "assert", "events", "where", "place", "facts", "brief", "dry", "text_view", "lint", "frame_data"]
 ## C06: the methods the MCP server advertises on top of METHODS. They are NOT in METHODS: its list is the "ready" line and the -32601 text of the
 ## byte-for-byte transcript (refs/agent/serve_transcript.jsonl), which tests/agent_tools_test.gd replays. tools/mcp/poser_mcp.py names each of these (advertised with --math / POSER_MCP_MATH=1)
-const MCP_EXTRA := ["frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert"]
+const MCP_EXTRA := ["frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "fits"]
+## MCPFAST: the CAD tools (scripts/build/mcp_cad.gd); advertised with --cad
+const MCP_CAD := ["cad_part", "cad_asm", "check_fit", "bom", "eval_gd", "cad_reset"]
 
 var m: Node
 var reg := {}
@@ -448,6 +450,12 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			# way assert / state give the body. {part | path} or the part on screen. Not in METHODS (the transcript's ready line)
 			var pt := PartAssert.serve(self, method, p)
 			return _ok(id, pt["result"]) if pt["ok"] else _err(id, -32602, String(pt["error"]), {"grammar": pt["grammar"]} if pt.has("grammar") else null)
+		"fits":   # G3: ISO 286 fits of the mating pairs and the stack-ups (nominal, worst case, RSS) as data: the numbers the Fits panel shows (scripts/build/dim_fit.gd). Not in METHODS
+			if not p.has("assembly") and not p.has("path") and not McpCad.asm.is_empty():   # MCPFAST: the assembly built through cad_asm
+				p = p.duplicate()
+				p["assembly"] = McpCad.asm
+			var fr := DimFit.serve(m, p)
+			return _ok(id, fr["result"]) if fr["ok"] else _err(id, -32602, String(fr["error"]))
 		"part_warn":
 			# ITEM 221 WARNING LEVELS (scripts/build/part_warn.gd): the part's warnings at its level (off / look / print / engineering), the same list the
 			# Part panel shows; {level}, {mute}, {unmute} edit the record in one undo step. Not in METHODS (the transcript's ready line)
@@ -496,6 +504,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"nature":   # FRIDAY 225: trees, hedges, shrubs, grass, flowers, paths, scatter (scripts/build/nature_agent.gd); not in METHODS (the transcript's ready line)
 			var na := NatureAgent.serve(m, p)
 			return _ok(id, na) if bool(na["ok"]) else _err(id, -32602, String(na["error"]))
+		"cad_part", "cad_asm", "check_fit", "bom", "eval_gd", "cad_reset":   # MCPFAST: not in METHODS (the transcript's ready line)
+			var mc := McpCad.serve(m, method, p)
+			return _ok(id, mc["result"]) if bool(mc["ok"]) else _err(id, -32602, String(mc["error"]))
 		"quit":
 			return _ok(id, {"bye": true})
 		"events":

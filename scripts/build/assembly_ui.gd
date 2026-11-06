@@ -75,6 +75,8 @@ var motion_btn: Button         # G1MOTION: Check motion (scripts/build/assembly_
 var motion: AssemblyMotionUI
 var bom_btn: Button            # G8BOM: the bill of materials (scripts/build/assembly_bom_ui.gd)
 var bom: AssemblyBomUI
+var fits_btn: Button           # G3: fits and stack-up (scripts/build/assembly_fits_ui.gd)
+var fits: AssemblyFitsUI
 var stages_btn: Button         # G33STAGE: the build stages (scripts/build/assembly_stage_ui.gd)
 var stages: AssemblyStageUI
 var asm_undo: Array = []       # G1MOTION: [{"asm", "label"}]: this screen's own steps (the assembly is not in the scene's undo)
@@ -98,6 +100,8 @@ func setup(b: BuildUI) -> void:
 	motion.setup(self)
 	bom = AssemblyBomUI.new()
 	bom.setup(self)
+	fits = AssemblyFitsUI.new()
+	fits.setup(self)
 	stages = AssemblyStageUI.new()
 	stages.setup(self)
 	ov = Control.new()
@@ -174,12 +178,14 @@ func _build_panel() -> void:
 	pl.tooltip_text = "Double-click a part to edit it"
 	pl.mouse_filter = Control.MOUSE_FILTER_PASS
 	hp.add_child(pl)
-	motion_btn = _btn("Check motion", "asm_motion", "Move a part through its range (a hinge, a slide) and list every pair of parts that passes through another", func(): bom.close(); stages.close(); motion.open())
+	motion_btn = _btn("Check motion", "asm_motion", "Move a part through its range (a hinge, a slide) and list every pair of parts that passes through another", func(): bom.close(); stages.close(); fits.close(); motion.open())
 	hp.add_child(motion_btn)
-	bom_btn = _btn("BOM", "asm_bom", "Bill of materials: every part with its material, mass (from the solid) and price, the total, a CSV, and the cheaper choices", func(): stages.close(); bom.open())
+	bom_btn = _btn("BOM", "asm_bom", "Bill of materials: every part with its material, mass (from the solid) and price, the total, a CSV, and the cheaper choices", func(): stages.close(); fits.close(); bom.open())
 	hp.add_child(bom_btn)
 	stages_btn = _btn("Stages", "asm_stages", "Build stages: the order the parts go in, a check that each rests on what is built before it, and a video of the build", func(): stages.open())
 	hp.add_child(stages_btn)
+	fits_btn = _btn("Fits", "asm_fits", "Tolerances: the fit of each hole and shaft pair (clearance, transition, interference) and a stack-up with worst case and RSS", func(): bom.close(); stages.close(); fits.open())
+	hp.add_child(fits_btn)
 	vb.add_child(hp)
 	var sc := ScrollContainer.new()
 	sc.name = "asm_list_scroll"
@@ -338,6 +344,7 @@ func _begin() -> void:
 	asm_redo.clear()
 	motion.reset(true)
 	bom.close()
+	fits.close()
 	stages.close()
 	var pu: PartUI = bu.part
 	if not _had_stash and editing == "":
@@ -372,6 +379,7 @@ func close() -> void:
 	pu.asm_on = false
 	motion.reset(true)
 	bom.close()
+	fits.close()
 	stages.close()
 	panel.visible = false
 	src_panel.visible = false
@@ -425,6 +433,7 @@ func _layout() -> void:
 	src_panel.size.x = SRC_W
 	motion.layout(Vector2(cl.position.x + 8.0, cl.position.y + 4.0))
 	bom.layout(Vector2(cl.position.x + 8.0, cl.position.y + 4.0))
+	fits.layout(Vector2(cl.position.x + 8.0, cl.position.y + 4.0))
 	stages.layout(Vector2(cl.position.x + 8.0, cl.position.y + 4.0))
 	var bw := back_panel.get_combined_minimum_size().x
 	back_panel.reset_size()
@@ -442,6 +451,7 @@ func _toggle_src() -> void:
 	src_open = add_btn.button_pressed
 	if src_open:
 		bom.close()
+		fits.close()
 		stages.close()
 		_set_tab(src_tab)
 	_sync_src()
@@ -730,7 +740,7 @@ func _frame() -> void:
 		m._turn_to(30.0, -22.0, dist, bb.get_center(), false)
 		if m.cam != null:   # the right panel covers a third of the view: the assembly sits in the free part, left of it (Check motion's panel covers the left too: nearer the middle)
 			var right: Vector3 = m.cam.global_transform.basis.x
-			m._turn_to(30.0, -22.0, dist, bb.get_center() + right * dist * (0.08 if (motion.is_open() or stages.is_open() or bom.is_open()) else 0.24), false)
+			m._turn_to(30.0, -22.0, dist, bb.get_center() + right * dist * (0.08 if (motion.is_open() or stages.is_open() or bom.is_open() or fits.is_open()) else 0.24), false)
 
 
 # ---------------------------------------------------------------- the gizmo
@@ -916,6 +926,7 @@ func edit_part(id: String) -> void:
 	on = false
 	pu.asm_on = false
 	bom.close()
+	fits.close()
 	stages.close()
 	panel.visible = false
 	src_panel.visible = false
@@ -1071,6 +1082,7 @@ func undo_redo(back: bool) -> bool:
 	stages._clear_check()
 	_refresh(false)
 	bom.refresh()
+	fits.refresh()
 	stages.refresh()
 	_say("%s: %s" % ["Undone" if back else "Redone", String(s["label"])])
 	return true
