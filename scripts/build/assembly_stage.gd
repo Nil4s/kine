@@ -265,7 +265,7 @@ static func check(asm: Dictionary, opts := {}) -> Dictionary:
 		var id := String(p["id"])
 		pmap[id] = p
 		var ids: Array = Part.replay(p["rec"], -1, {"keep": true, "errors_only": true}).get("ids", [])
-		sol[id] = AssemblyMotion._place_all(ids, Assembly.xf_of(p))
+		sol[id] = AssemblyMotion._place_all64(ids, Assembly.xf64_of(p))
 		Part.release_kept(ids)
 		box[id] = _bounds_of(sol[id]) if use_dist else _box_of(sol[id])
 		var v := 0.0

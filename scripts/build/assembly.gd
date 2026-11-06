@@ -112,6 +112,12 @@ static func xf_of(p: Dictionary) -> Transform3D:
 	return Transform3D(b, Vector3(float(pos[0]), float(pos[1]), float(pos[2])) * MM)
 
 
+## G4DBL: the same place in doubles (metres); Xform64.to_t3d() of it is xf_of(p) rounded to float32, for display only
+static func xf64_of(p: Dictionary) -> PackedFloat64Array:
+	var pos: Array = p["pos"]
+	return Xform64.from_euler_deg(p["rot"], [float(pos[0]) * MM, float(pos[1]) * MM, float(pos[2]) * MM])
+
+
 static func set_pose(p: Dictionary, pos: Vector3, rot_deg: Vector3) -> void:
 	p["pos"] = [snappedf(pos.x, 0.001), snappedf(pos.y, 0.001), snappedf(pos.z, 0.001)]
 	p["rot"] = [snappedf(rot_deg.x, 0.001), snappedf(rot_deg.y, 0.001), snappedf(rot_deg.z, 0.001)]

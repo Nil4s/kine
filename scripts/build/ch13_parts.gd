@@ -169,6 +169,16 @@ static func _at(p: Dictionary, local: Vector3) -> Vector3:
 	return (xf * (local * Assembly.MM)) / Assembly.MM
 
 
+## G4DBL: the same four joints in doubles ([x, y, z] mm), through Xform64
+static func points64(th_deg: float, opts := {}) -> Dictionary:
+	var po := pose_of(th_deg, opts)
+	return {"crankpin": _at64(po["crankshaft"], [0.0, R, 29.0]), "rod_big": _at64(po["rod"], [0.0, 0.0, 10.0]), "rod_small": _at64(po["rod"], [0.0, L, 10.0]), "pin": _at64(po["pin"], [0.0, 0.0, 16.5])}
+
+
+static func _at64(p: Dictionary, local: Array) -> Array:
+	return Xform64.apply(Xform64.from_euler_deg(p["rot"], p["pos"]), local)   # mm throughout
+
+
 ## the four joints through the placed parts' own transforms: {"crankpin", "rod_big", "rod_small", "pin"} (mm)
 static func points(th_deg: float, opts := {}) -> Dictionary:
 	var po := pose_of(th_deg, opts)
