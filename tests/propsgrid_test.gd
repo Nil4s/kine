@@ -154,7 +154,7 @@ func _initialize() -> void:
 		worst_all = maxf(worst_all, worst(a, b))
 		if ma != mb:
 			moved_same = false
-	ok(worst_all <= 1e-5, "S2 native == GDScript twin over 20 random sets: worst position diff %.3g (bar 1e-5)" % worst_all)
+	ok(worst_all <= 1e-5, "S2 native == GDScript twin over 20 random sets: worst position diff %s (bar 1e-5)" % str(worst_all))
 	ok(moved_same, "S2 same moved count in all 20 sets")
 	var rng3 := RandomNumberGenerator.new()
 	rng3.seed = 99
@@ -165,7 +165,7 @@ func _initialize() -> void:
 	var xf: Transform3D = c1[3]["xf"]
 	xf.origin.y += 0.001
 	c1[3]["xf"] = xf
-	ok(worst(c1, c2) > 1e-5, "S3 control: a planted 1 mm shift is caught (diff %.4g)" % worst(c1, c2))
+	ok(worst(c1, c2) > 1e-5, "S3 control: a planted 1 mm shift is caught (diff %s)" % str(worst(c1, c2)))
 	# ---------------- U and P
 	for n in [256, 1000]:
 		m.S.props = grid_props(n)
@@ -233,6 +233,9 @@ func _initialize() -> void:
 		# prop 5 may be drawn shared (a MultiMesh): then the group node keeps its place instead
 		ok(kept or n5b == null, "P3 an untouched prop keeps its node @%d (%s)" % [n, "node kept" if kept else "drawn in a shared group"])
 		var pick_b: Array = m._pick_prop(Vector2(640, 360))
+		m._props_show()
+		var pick_c: Array = m._pick_prop(Vector2(640, 360))
+		ok(pick_b[0] == pick_c[0], "P3b pick answers the same before and after a no-change _props_show @%d (%s then %s)" % [n, pick_b[0], pick_c[0]])
 		ok(pick_a[0] == pick_b[0] or pick_a[0] == 0, "P3 pick answers the same after a one-prop edit @%d (%s then %s)" % [n, pick_a[0], pick_b[0]])
 	m.S.props = []
 	m._props_show()

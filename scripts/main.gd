@@ -7164,14 +7164,25 @@ func _restore(u: Dictionary) -> void:
 		_props_show()
 		if ui_browser != null:
 			ui_browser.refresh()
-	if u["scene"] == S and u.has("props") and JSON.stringify(u["props"]) != JSON.stringify(S.props.map(func(p): return Props.to_dict(p))):
-		S.props = u["props"].map(func(q): return Props.from_dict(q))   # the set, undone like a card (SS5)
+	var _cur_props: Array = S.props.map(func(p): return Props.to_dict(p)) if u["scene"] == S and u.has("props") else []
+	if u["scene"] == S and u.has("props") and u["props"] != _cur_props:   # L58: a native deep compare (was two JSON.stringify of the whole set)
+		var old_props: Array = S.props
+		var ups: Array = u["props"]
+		var np: Array = []
+		for k in ups.size():   # the set, undone like a card (SS5); a prop that did not change keeps its record (and so its drawn node)
+			if k < old_props.size() and k < _cur_props.size() and ups[k] == _cur_props[k]:
+				np.append(old_props[k])
+			else:
+				np.append(Props.from_dict(ups[k]))
+		S.props = np
+		var exact := false
 		if u.has("pxf") and (u["pxf"] as Array).size() == S.props.size():
 			for k in S.props.size():
 				S.props[k]["xf"] = u["pxf"][k]   # L36: the exact places (the file form keeps 1e-4), so a parent's children undo exactly
+			exact = true
 		if sel_prop >= S.props.size():
 			sel_prop = -1
-		_props_show()
+		_props_show(not exact)   # L58: the saved places are already at rest: nothing is settled again
 	if u["scene"] == S and u.has("building") and JSON.stringify(u["building"]) != JSON.stringify(_bld_file()):
 		S.building = Building.from_file(u["building"])   # BUILD: the house, undone like a card
 		if bld != null:
@@ -7272,7 +7283,7 @@ func _restore(u: Dictionary) -> void:
 		S.layer = u["layer"].duplicate()   # did not fingerprint them, so a lost breath / layer passed it)
 		S.layer_w = u["layer_w"]
 		_dummy_hits()
-	if u["scene"] == S and JSON.stringify(u["cards"]) != JSON.stringify(S.cards):
+	if u["scene"] == S and u["cards"] != S.cards and JSON.stringify(u["cards"]) != JSON.stringify(S.cards):   # L58: the native compare first
 		S.cards = u["cards"].duplicate(true)
 		sel_card = mini(u["sel"], S.cards.size() - 1)
 		_rebuild_cards()
@@ -7397,6 +7408,8 @@ func _undo() -> void:
 	var u: Dictionary = undo.pop_back()
 	_actor_set(int(u.get("actor", 0)))   # TC3: the redo step is taken on the actor this step changes
 	var now := _snapshot()
+	now["_sz"] = UndoBudget.raw_size_of(u)   # L58: an estimate until the next push measures it (UndoBudget.settle)
+	now["_szest"] = true
 	now["name"] = _step_label(u)   # the step keeps its name on the way back and forth
 	if u.has("lib"):   # ROADMAP 96: a pack imported into the library: its files go to the trash, redo brings them back
 		now["lib"] = u["lib"]
@@ -7409,7 +7422,7 @@ func _undo() -> void:
 	redo.append(now)
 	_tree.step_back(now)
 	_restore(u)
-	UndoBudget.settle(self)
+	UndoBudget.settle(self, true)
 	_easy_forget_msg()
 	_rehearse_again()   # I14: the comparison is read again from the clip as it now is
 	if u.has("lib"):
@@ -7451,6 +7464,8 @@ func _redo() -> void:
 	var r: Dictionary = redo.pop_back()
 	_actor_set(int(r.get("actor", 0)))   # TC3: as _undo
 	var now := _snapshot()
+	now["_sz"] = UndoBudget.raw_size_of(r)   # L58: as _undo
+	now["_szest"] = true
 	now["name"] = _step_label(r)
 	if r.has("lib"):   # ROADMAP 96: as _undo, the other way: the import's files come back out of the trash
 		now["lib"] = r["lib"]
@@ -7463,7 +7478,7 @@ func _redo() -> void:
 	undo.append(now)
 	_tree.step_forward(now)
 	_restore(r)
-	UndoBudget.settle(self)
+	UndoBudget.settle(self, true)
 	_easy_forget_msg()
 	_rehearse_again()   # I14
 	if r.has("lib"):
@@ -22320,14 +22335,25 @@ func _restore_work(a: Dictionary) -> void:
 var _gone_said := {}   # prop kinds whose missing model file was already said
 
 
-func _props_show() -> void:
-	Props.settle(S.props, C36Grip.air_held(S))   # UU1: whatever changed, every prop rests on what is under it
+var _pn := {}   # L58: the drawn prop nodes, kept between edits: key ("prop_i" / "grp_i") -> [signature, [nodes]]
+
+
+## forget the kept prop nodes and free them: the next _props_show draws every prop from scratch
+func props_nodes_reset() -> void:
+	_pn.clear()
+	if ui_props_root != null:
+		for c in ui_props_root.get_children():
+			ui_props_root.remove_child(c)
+			c.queue_free()
+
+
+## resettle: false = the props are already at rest (an undo step restores the places it saved), so nothing is settled again
+func _props_show(resettle := true) -> void:
+	if resettle:
+		Props.settle(S.props, C36Grip.air_held(S))   # UU1: whatever changed, every prop rests on what is under it
 	B.props = S.solid_props()   # TT2: the live body stands on the set too (never on what it carries)
 	if ui_props_root == null:
 		return
-	for c in ui_props_root.get_children():
-		ui_props_root.remove_child(c)
-		c.queue_free()
 	var tint := StandardMaterial3D.new()
 	tint.albedo_color = Color(Tok.c("accent"), 0.35)
 	tint.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
@@ -22340,26 +22366,65 @@ func _props_show() -> void:
 	for g in shared:
 		for i in g:
 			in_shared[i] = true
+	var hide_any: bool = not S.outl.get("hide", {}).is_empty()
+	var hid := {}
+	if hide_any:
+		for i in S.props.size():
+			hid[i] = Outliner.hidden(S, "prop:%d" % i)
+	var live := {}   # keys drawn this time
+	# L58: a prop keeps its node while its record (and the pick tint) is unchanged; a keyed or carried prop is always redrawn (it is posed)
 	for i in S.props.size():
-		if in_shared.has(i) or Outliner.hidden(S, "prop:%d" % i):
+		if in_shared.has(i) or hid.get(i, false):
 			continue   # L36: a hidden prop is not drawn (a shared copy is dropped below)
-		var n := Props.mesh(S.props[i])
-		if Props.model_missing(S.props[i]) and not _gone_said.has(S.props[i]["kind"]):
-			_gone_said[S.props[i]["kind"]] = true
-			_say_plain("the model file of the %s is missing: it is drawn as a box. Open the importer and add the model again, or delete the prop" % S.props[i]["kind"])
-		n.name = "prop_%d" % i
+		var p: Dictionary = S.props[i]
+		var key := "prop_%d" % i
+		live[key] = true
+		var vol := Props.animated(p) or Props.hinged(p) or carried_props.has(i)
+		var sig := hash(p) + (1 if i == sel_prop else 0)
+		var old = _pn.get(key)
+		if old != null and not vol and int(old[0]) == sig and is_instance_valid(old[1][0]) and (old[1][0] as Node3D).get_parent() == ui_props_root 				and ((old[1][0] as Node3D).transform).is_equal_approx(PropInstances.root_xf(p)):
+			continue
+		_pn_drop(key)
+		var n := Props.mesh(p)
+		if Props.model_missing(p) and not _gone_said.has(p["kind"]):
+			_gone_said[p["kind"]] = true
+			_say_plain("the model file of the %s is missing: it is drawn as a box. Open the importer and add the model again, or delete the prop" % p["kind"])
+		n.name = key
 		if i == sel_prop:
 			for mi in n.find_children("*", "MeshInstance3D", true, false):
 				(mi as MeshInstance3D).material_overlay = tint
 		ui_props_root.add_child(n)
+		_pn[key] = [sig, [n]]
 	for g0 in shared:   # M3: one MultiMeshInstance3D per mesh of the kind, one instance per copy (scripts/prop_instances.gd)
-		var g: Array = g0.filter(func(i): return not Outliner.hidden(S, "prop:%d" % i))   # L36: hidden copies are left out
+		var g: Array = g0.filter(func(i): return not hid.get(i, false))   # L36: hidden copies are left out
 		if g.is_empty():
 			continue
+		var key := "grp_%d" % g[0]
+		live[key] = true
+		var sigs := []
+		for i in g:
+			sigs.append(S.props[i])
+		var sig := hash(sigs)
+		var old = _pn.get(key)
+		if old != null and int(old[0]) == sig and not (old[1] as Array).is_empty() and is_instance_valid(old[1][0]) and (old[1][0] as Node).get_parent() == ui_props_root:
+			continue
+		_pn_drop(key)
 		var parts_mm := PropInstances.build(S.props, g)
 		for j in parts_mm.size():
 			parts_mm[j].name = "shared_%d_%d" % [g[0], j]
 			ui_props_root.add_child(parts_mm[j])
+		_pn[key] = [sig, parts_mm]
+	for key in _pn.keys():
+		if not live.has(key):
+			_pn_drop(key)
+	var known := {}
+	for key in _pn:
+		for n in _pn[key][1]:
+			known[n] = true
+	for c in ui_props_root.get_children():   # nothing else belongs here
+		if not known.has(c):
+			ui_props_root.remove_child(c)
+			c.queue_free()
 	for k in ui_prop_btns:
 		_grey(ui_prop_btns[k], "" if sel_prop >= 0 else "pick a prop first: click it in the view, or add one with Add prop")
 	var kind := String(S.props[sel_prop]["kind"]) if sel_prop >= 0 and sel_prop < S.props.size() else ""
@@ -22375,6 +22440,18 @@ func _props_show() -> void:
 		shading.set_mode(self, shading.mode)   # K01: the new prop nodes are drawn in the view's shading mode
 	if ui_browser != null:
 		ui_browser.refresh()
+
+
+func _pn_drop(key: String) -> void:
+	var old = _pn.get(key)
+	_pn.erase(key)
+	if old == null:
+		return
+	for n in old[1]:
+		if is_instance_valid(n):
+			if (n as Node).get_parent() != null:
+				(n as Node).get_parent().remove_child(n)
+			n.queue_free()
 
 
 ## the prop under the mouse: [index, distance along the ray] ([-1, INF] none); a ray against each solid box
