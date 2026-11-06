@@ -3129,6 +3129,12 @@ func _ready() -> void:
 	# THE QUALITY WORKER (Easy's My scenes badges): Kine --headless --kine-quality-worker <list.json> grades the list and quits
 	# before anything else starts (no UI, no autosave). Checked first, so the app's start-up never runs in that process.
 	var wargs := OS.get_cmdline_args()
+	var smoke_args := PackedStringArray(wargs) + OS.get_cmdline_user_args()
+	if InstallSmoke.wanted(smoke_args):   # L16: the clean-machine install test's launch; checks the install, writes nothing, exits 0 or 3
+		process_mode = Node.PROCESS_MODE_DISABLED
+		var smoke_code := InstallSmoke.run(smoke_args)
+		get_tree().quit(smoke_code)
+		return
 	var wi := wargs.find("--kine-quality-worker")
 	if wi >= 0 and wi + 1 < wargs.size():
 		process_mode = Node.PROCESS_MODE_DISABLED   # the app's per-frame work (autosave, auto-version) must not run in this process
@@ -3541,6 +3547,7 @@ func _ready() -> void:
 		get_tree().quit()
 
 
+	_after_first_frame(_update_check_now.bind(false))   # L16: opt-in (off, and no feed address, by default): does nothing unless the user turned it on
 	if args.has("--selfcheck-save"):   # an exported build's own check (see _selfcheck_save); nothing happens without the argument
 		await _selfcheck_save()
 		return
@@ -17083,6 +17090,9 @@ func _commands() -> Array:
 	add.call("File > Restore...", "", _restore_open, "restore autosave autosaved unsaved crash lost back earlier kept", false, "the last 5 autosaves (time, scene, cards) with a picture of each: pick one, it opens as a NEW copy in scenes/_wip (never over a file; the scene on screen asks first)")
 	add.call("File: restore unsaved work", "", _journal_restore, "journal unsaved recover restore crash lost work back", false, "bring back the work a session left unsaved when Kine did not close cleanly: the state after its last edit, still unsaved (the status line offers it at start)")
 	add.call("File > Crash report (last 20 commands)", "", _crash_report_now, "crash report bug problem error problem send lost last commands history what did i do", false, "writes the last 20 things you ran and the page you were on to a text file: you can read it and send it yourself. Nothing is sent")
+	add.call("Setting: update check on/off (off by default)", "", _update_toggle, "update check new version release feed setting online opt in", false, "turn the update check on or off. Off by default; it reads the feed address in user://online.cfg and shows a note on the status line when a newer version is listed. Nothing is downloaded")
+	add.call("File: check for updates now", "", func(): _update_check_now(true), "update check new version release now", false, "check the feed once (only if the update check is on and a feed address is set)")
+	add.call("File > Send crash report...", "", _crash_send_open, "crash report send upload bug problem error preview redacted", false, "shows exactly what would be sent (paths and your user name removed). Off by default: it only sends after you turn it on, set an endpoint and press Send")
 	add.call("Export...", "", _export_dialog_open, "export engine target unreal ue5 unity godot blender maya motionbuilder web three raw data format glb bvh usda game", false, "one dialog for every target: pick the engine or tool, see its format, what it needs, the frame rate and a checklist for this scene, then export")
 	add.call("Export to game", "", _export_game, "arpg unity posetable game export csharp json", false, "the scene as the game's PoseTable: exports/<scene>.json and .cs, paste-ready (11 bones; hands, feet and fingers do not reach the game)")
 	add.call("Export animation (.glb)", "", _export_glb, "gltf glb blender unreal ue5 unity godot universal export fbx", false, "the scene as exports/<scene>.glb, the open 3D standard: the mannequin, its skeleton (UE5 bone names) and the animation, for any engine")
@@ -21389,6 +21399,78 @@ func _crash_note(n: String) -> void:
 
 
 ## File > Crash report: the last 20 commands (the session that did not quit, when there is one) and the page, in a text file
+## L16 OPT-IN UPDATE CHECK (scripts/update_check.gd): off and no address until the user sets both. The notice is the status line, never a dialog.
+func _update_check_now(manual: bool) -> void:
+	var cfg: Dictionary = OnlineOpt.load_cfg()["update"]
+	if not bool(cfg["enabled"]):
+		if manual:
+			_say("update check is off: turn it on with 'Setting: update check on/off', then set the feed address in user://online.cfg")
+		return
+	var url := str(cfg["feed_url"])
+	var body = null
+	if url.begins_with("http://") or url.begins_with("https://"):
+		body = await _http_get_text(url)
+	var reader := func(u: String):
+		return body if body != null else UpdateCheck.file_reader(u)
+	var r := UpdateCheck.check(cfg, str(ProjectSettings.get_setting("application/config/version", "0.0.0")), reader)
+	if bool(r.get("notify", false)) or manual or r.get("state") == "no_feed":
+		if str(r.get("text", "")) != "":
+			_say(str(r["text"]))
+
+
+## the only place that opens the network for the update check; reached only when the user set a web address
+func _http_get_text(url: String):
+	var h := HTTPRequest.new()
+	h.timeout = 8.0
+	add_child(h)
+	if h.request(url) != OK:
+		h.queue_free()
+		return null
+	var res: Array = await h.request_completed
+	h.queue_free()
+	if res[0] != HTTPRequest.RESULT_SUCCESS or res[1] != 200:
+		return null
+	return (res[3] as PackedByteArray).get_string_from_utf8()
+
+
+func _update_toggle() -> void:
+	var c := OnlineOpt.load_cfg()
+	c["update"]["enabled"] = not bool(c["update"]["enabled"])
+	OnlineOpt.save_cfg(OnlineOpt.PATH, c)
+	_say("update check: " + ("on" if c["update"]["enabled"] else "off") + (" (no feed address set yet: edit user://online.cfg [update] feed_url)" if c["update"]["enabled"] and str(c["update"]["feed_url"]) == "" else ""))
+
+
+## L16 OPT-IN CRASH UPLOAD (scripts/crash_upload.gd): shows the redacted payload first; sends only after Send is pressed, only when
+## the user turned it on and an endpoint is set. Both are off/empty by default, so by default this only shows the preview.
+func _crash_send_open() -> void:
+	var lines: Array = crash_prev if not crash_prev.is_empty() else crash_cmds
+	var raw := "Page: %s\n%s" % [cur_page, "\n".join(lines.slice(-CrashReport.KEEP))]
+	var users := [OS.get_environment("USERNAME"), OS.get_environment("USER")]
+	var payload := CrashUpload.build_payload(raw, {"version": str(ProjectSettings.get_setting("application/config/version", "")), "os": OS.get_name(), "users": users})
+	var cfg: Dictionary = OnlineOpt.load_cfg()["crash"]
+	var d := ConfirmationDialog.new()
+	d.title = "Send crash report?"
+	d.dialog_text = CrashUpload.preview(payload, cfg)
+	d.ok_button_text = "Send" if bool(cfg["enabled"]) and str(cfg["endpoint"]) != "" else "Close"
+	d.size = Vector2i(760, 520)
+	add_child(d)
+	d.confirmed.connect(func():
+		var r := CrashUpload.send(cfg, payload, true, _crash_http_sink)
+		_say("crash report sent" if r["sent"] else "crash report not sent: " + str(r["why"]))
+		d.queue_free())
+	d.canceled.connect(d.queue_free)
+	d.popup_centered()
+
+
+func _crash_http_sink(endpoint: String, body: String) -> bool:
+	var h := HTTPRequest.new()
+	h.timeout = 8.0
+	add_child(h)
+	var ok_ := h.request(endpoint, ["Content-Type: text/plain; charset=utf-8"], HTTPClient.METHOD_POST, body) == OK
+	h.request_completed.connect(func(_a, _b, _c, _d): h.queue_free())
+	return ok_
+
+
 func _crash_report_now() -> void:
 	if crash_dir == "":
 		_say("the crash report is off in this test run")
