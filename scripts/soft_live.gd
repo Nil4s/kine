@@ -37,6 +37,23 @@ var _res: Array = [null]
 var _cache := {}              # piece instance id -> {orig, cur, surf: [...]}
 var _last_k := -1
 var _last_s := -1.0
+var _binds := {}              # piece instance id -> [bone index per bind, bind pose per bind, skin]: read from the engine once, not every frame
+var force_gd := false         # L32: draw with the GDScript path of #239 (a mesh rebuilt each frame, no normals); tests / the no-DLL fallback
+var normals_on := true        # L32: recompute the normals of the deformed region (C++ path only)
+static var _sdoor = null
+static var _sdoor_tried := false
+
+
+## the C++ skin deform (native/src/kine_softskin_native.cpp) through its one script; null when the DLL is missing or KINE_NO_NATIVE=1
+static func skin_door():
+	if SoftBody.force_gdscript or OS.get_environment("KINE_NO_NATIVE") == "1":
+		return null
+	if not _sdoor_tried:
+		_sdoor_tried = true
+		SoftBody.native_door()
+		if NativeExt.ensure("kine_native", "KineSoftSkinNative"):
+			_sdoor = load("res://scripts/soft_skin_native.gd")
+	return _sdoor
 
 
 func busy() -> bool:
@@ -137,6 +154,7 @@ func release(_m: Node) -> void:
 	_stop_task()
 	_restore_all()
 	_cache = {}
+	_binds = {}
 	bake = {}
 	names = []
 	regs = []
@@ -167,14 +185,51 @@ func _apply(m: Node, S: Scene) -> void:
 		_restore_all()
 		return
 	var k := frame_of(m.playhead)
+	var door = null if force_gd else skin_door()
 	var disps := []
 	for n in names:
 		var d: PackedVector3Array = (bake["regions"][n]["disp"] as Array)[k]
-		disps.append(d if s == 1.0 else _scaled(d, s))
+		disps.append(d if (door != null or s == 1.0) else _scaled(d, s))
+	if door != null:
+		var fl := _flat(m.B, disps)
+		for j in m.pieces:
+			var piece: MeshInstance3D = m.pieces[j]
+			if is_instance_valid(piece):
+				_deform_fast(piece, door, fl[0], fl[1], s)
+		return
 	for j in m.pieces:
 		var piece: MeshInstance3D = m.pieces[j]
 		if is_instance_valid(piece):
 			_deform_piece(piece, m.B, disps)
+
+
+## the regions as the C++ deform takes them: 19 doubles each (the rows of the world -> box-coordinate affine through the host's pose now, the box size,
+## the cells, the offset of its displacements) and the displacements of all regions in one array
+func _flat(B: Body, disps: Array) -> Array:
+	var rg := PackedFloat64Array()
+	var df := PackedVector3Array()
+	for ri in regs.size():
+		var r: Dictionary = regs[ri]
+		var host: String = r["host"]
+		var gq: Quaternion = (B.G[host] as Quaternion).inverse()
+		var t1 := Transform3D(Basis(gq), (B.p0[host] as Vector3) - gq * (B.P[host] as Vector3))
+		var a: Transform3D = Transform3D(Basis.IDENTITY, (r["size"] as Vector3) * 0.5) * (r["xf"] as Transform3D).affine_inverse() * t1
+		for rr in 3:
+			rg.append(a.basis.x[rr])
+			rg.append(a.basis.y[rr])
+			rg.append(a.basis.z[rr])
+			rg.append(a.origin[rr])
+		var sz: Vector3 = r["size"]
+		var nn: Vector3i = r["n"]
+		rg.append(sz.x)
+		rg.append(sz.y)
+		rg.append(sz.z)
+		rg.append(nn.x)
+		rg.append(nn.y)
+		rg.append(nn.z)
+		rg.append(df.size())
+		df.append_array(disps[ri])
+	return [rg, df]
 
 
 static func _scaled(d: PackedVector3Array, s: float) -> PackedVector3Array:
@@ -263,7 +318,7 @@ func _entry(piece: MeshInstance3D) -> Dictionary:
 			var pd: Dictionary = prev[si]
 			any = any or (pd["cand"] as PackedInt32Array).size() > 0
 			# a mesh Corrective built has no blend shapes and the same materials / format as its source: nothing to ask the engine
-			surfs.append({"arr": arr, "cand": pd["cand"], "by_reg": pd["by_reg"], "nv": verts.size(),
+			surfs.append({"arr": arr, "cand": pd["cand"], "by_reg": pd["by_reg"], "nv": verts.size(), "fast": pd.get("fast"), "dirty": true,
 				"blend": [] if not given.is_empty() else mesh.surface_get_blend_shape_arrays(si),
 				"mat": pd["mat"] if not given.is_empty() else mesh.surface_get_material(si),
 				"fmt": pd["fmt"] if not given.is_empty() else mesh.surface_get_format(si) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS})
@@ -296,9 +351,12 @@ func _entry(piece: MeshInstance3D) -> Dictionary:
 						hit_any = true
 					(by_reg[ri] as Array).append(cand.size() - 1)
 		any = any or cand.size() > 0
-		surfs.append({"arr": arr, "cand": cand, "by_reg": by_reg, "nv": verts.size(), "blend": mesh.surface_get_blend_shape_arrays(si), "mat": mesh.surface_get_material(si),
+		surfs.append({"arr": arr, "cand": cand, "by_reg": by_reg, "nv": verts.size(), "fast": null, "dirty": false, "blend": mesh.surface_get_blend_shape_arrays(si), "mat": mesh.surface_get_material(si),
 			"fmt": mesh.surface_get_format(si) & Mesh.ARRAY_FLAG_USE_8_BONE_WEIGHTS})
-	var ne := {"piece": piece, "orig": mesh, "cur": mesh, "names": names.duplicate(), "surf": surfs, "any": any}
+	var ne := {"piece": piece, "orig": mesh, "cur": mesh, "names": names.duplicate(), "surf": surfs, "any": any, "work": null}
+	# L32: the drawn mesh of the C++ path outlives the rebuilt base meshes of Corrective (same topology: only its vertex bytes are written)
+	if e != null and e.get("work") != null and not prev.is_empty():
+		ne["work"] = e["work"]
 	_cache[id] = ne
 	return ne
 
@@ -384,5 +442,122 @@ func _deform_piece(piece: MeshInstance3D, B: Body, disps: Array) -> void:
 			out.surface_set_material(si, sd["mat"])
 	piece.mesh = out
 	e["cur"] = out
+	prof[2] += Time.get_ticks_usec() - u0
+	prof[3] += 1
+
+
+# ------------------------------------------------------------ L32: the C++ path
+
+## the persistent ArrayMesh of a piece (its surfaces as `arr` has them now); only its vertex region is written after this
+func _work_mesh(e: Dictionary) -> ArrayMesh:
+	var w = e.get("work")
+	if w != null:
+		return w
+	var orig: ArrayMesh = e["orig"]
+	var out := ArrayMesh.new()
+	out.blend_shape_mode = orig.blend_shape_mode
+	for b in orig.get_blend_shape_count():
+		out.add_blend_shape(orig.get_blend_shape_name(b))
+	for si in e["surf"].size():
+		var sd: Dictionary = e["surf"][si]
+		out.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, sd["arr"], sd["blend"], {}, sd["fmt"])
+		if sd["mat"] != null:
+			out.surface_set_material(si, sd["mat"])
+		sd["dirty"] = false
+	e["work"] = out
+	return out
+
+
+## what the C++ deform needs of a surface besides its vertices: the indices, the topology around the candidates, the encoded normal region
+func _fast_of(door, sd: Dictionary) -> Dictionary:
+	var f = sd.get("fast")
+	if f != null:
+		return f
+	var arr: Array = sd["arr"]
+	var nv: int = sd["nv"]
+	var idx := PackedInt32Array()
+	if arr[Mesh.ARRAY_INDEX] is PackedInt32Array:
+		idx = arr[Mesh.ARRAY_INDEX]
+	var nrm := PackedVector3Array()
+	if arr[Mesh.ARRAY_NORMAL] is PackedVector3Array and (arr[Mesh.ARRAY_NORMAL] as PackedVector3Array).size() == nv:
+		nrm = arr[Mesh.ARRAY_NORMAL]
+	var tan := PackedFloat32Array()
+	if not nrm.is_empty() and arr[Mesh.ARRAY_TANGENT] is PackedFloat32Array and (arr[Mesh.ARRAY_TANGENT] as PackedFloat32Array).size() == nv * 4:
+		tan = arr[Mesh.ARRAY_TANGENT]
+	var tp: Dictionary = door.topo(idx, nv, sd["cand"]) if not idx.is_empty() else {"v1": PackedInt32Array(), "t2": PackedInt32Array()}
+	f = {"idx": idx, "nrm": nrm, "tan": tan, "nt0": door.encode_nt(nrm, tan) if not nrm.is_empty() else PackedByteArray(), "v1": tp["v1"], "t2": tp["t2"]}
+	sd["fast"] = f
+	return f
+
+
+func _deform_fast(piece: MeshInstance3D, door, rg: PackedFloat64Array, df: PackedVector3Array, s: float) -> void:
+	var u0 := Time.get_ticks_usec()
+	var e := _entry(piece)
+	prof[0] += Time.get_ticks_usec() - u0
+	u0 = Time.get_ticks_usec()
+	if e.is_empty() or not e["any"]:
+		return
+	var sk := piece.get_node_or_null(piece.skeleton) as Skeleton3D
+	var skin := piece.skin
+	if sk == null or skin == null:
+		return
+	var bc = _binds.get(piece.get_instance_id())
+	if bc == null or bc[2] != skin:
+		var bl := PackedInt32Array()
+		var pl := []
+		for b in skin.get_bind_count():
+			var bone := skin.get_bind_bone(b)
+			if bone < 0:
+				bone = sk.find_bone(skin.get_bind_name(b))
+			bl.append(bone)
+			pl.append(skin.get_bind_pose(b))
+		bc = [bl, pl, skin]
+		_binds[piece.get_instance_id()] = bc
+	var mb := []
+	for b in (bc[0] as PackedInt32Array).size():
+		mb.append(sk.get_bone_global_pose(bc[0][b]) * (bc[1][b] as Transform3D))
+	var gt: Transform3D = sk.global_transform
+	var res := []
+	var moved := 0
+	for sd in e["surf"]:
+		var cand: PackedInt32Array = sd["cand"]
+		if cand.is_empty():
+			res.append(null)
+			continue
+		var arr: Array = sd["arr"]
+		var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+		var bones: PackedInt32Array = arr[Mesh.ARRAY_BONES]
+		var weights: PackedFloat32Array = arr[Mesh.ARRAY_WEIGHTS]
+		var per := bones.size() / maxi(verts.size(), 1)
+		var f := _fast_of(door, sd)
+		var r: Dictionary = door.deform(verts, bones, weights, per, cand, mb, gt, rg, df, s, f["idx"], f["nrm"], f["tan"], f["nt0"], f["v1"], f["t2"], normals_on)
+		moved += int(r["moved"])
+		res.append(r.get("buf"))
+	prof[1] += Time.get_ticks_usec() - u0
+	u0 = Time.get_ticks_usec()
+	var orig: ArrayMesh = e["orig"]
+	if moved == 0:
+		if piece.mesh != orig:
+			piece.mesh = orig
+			e["cur"] = orig
+		for sd in e["surf"]:
+			sd["dirty"] = true   # the work mesh holds a stale frame now
+		return
+	var work := _work_mesh(e)
+	for si in e["surf"].size():
+		var sd: Dictionary = e["surf"][si]
+		if res[si] != null:
+			work.surface_update_vertex_region(si, 0, res[si])
+			sd["dirty"] = true
+		elif sd["dirty"]:
+			# undeformed this frame, but the work mesh holds an older frame (or the base mesh was rebuilt): write the base bytes
+			var f2 := _fast_of(door, sd)
+			var base := (sd["arr"][Mesh.ARRAY_VERTEX] as PackedVector3Array).to_byte_array()
+			base.append_array(f2["nt0"])
+			work.surface_update_vertex_region(si, 0, base)
+			sd["dirty"] = false
+	if piece.mesh != work:
+		piece.mesh = work
+	e["cur"] = work
 	prof[2] += Time.get_ticks_usec() - u0
 	prof[3] += 1
