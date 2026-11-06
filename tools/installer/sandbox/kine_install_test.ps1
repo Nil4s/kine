@@ -50,8 +50,10 @@ try {
   Step "4 headless smoke launch"
   $out = Join-Path $env:TEMP "kine_smoke_out.txt"
   $sp = Start-Process -FilePath (Join-Path $InstallDir "Kine.console.exe") -ArgumentList @("--headless", "--", "--install-smoke") `
-        -RedirectStandardOutput $out -NoNewWindow -PassThru
-  if (-not $sp.WaitForExit($SmokeTimeoutSec * 1000)) { Stop-Process -Id $sp.Id -Force; Fail "smoke launch timed out after $SmokeTimeoutSec s" }
+        -RedirectStandardOutput $out -RedirectStandardError (Join-Path $env:TEMP "kine_smoke_err.txt") -NoNewWindow -PassThru
+  $null = $sp.Handle   # without this, ExitCode is empty after a timed WaitForExit
+  $done = $sp.WaitForExit($SmokeTimeoutSec * 1000)
+  if (-not $done) { Stop-Process -Id $sp.Id -Force; Fail "smoke launch timed out after $SmokeTimeoutSec s" }
   elseif ($sp.ExitCode -ne 0) { Fail "smoke ExitCode $($sp.ExitCode)" }
   if (-not ((Get-Content $out -Raw -ErrorAction SilentlyContinue) -match "INSTALL_SMOKE OK")) { Fail "smoke output lacks INSTALL_SMOKE OK" }
 
