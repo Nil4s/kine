@@ -255,7 +255,7 @@ func bake() -> String:
 		return last_said
 	var nq := k.faces.size()
 	var rec := net.record()
-	var old_rec: Variant = ui.mesh.get_meta(KMeshRetopoNet.META, null)
+	var old_rec: Variant = ui.mesh.get_meta(KMeshRetopoNet.META) if ui.mesh.has_meta(KMeshRetopoNet.META) else null
 	ui.undo.begin(ui.mesh)
 	for an in ui.mesh.list_attrs():
 		ui.mesh.remove_attr(an)
