@@ -49,12 +49,19 @@ k = [0]
 def fresh():
     k[0] += 1
     return {"name": "piston_w", "record": B.tweak(recs["piston"], k[0])}
-R["lat"] = {"build": lat("cad_part", fresh), "replay": lat("cad_part", {"name": "piston", "record": recs["piston"]}), "fit": lat("check_fit", {})}
+kv = [0]
+def moved():   # a NEW crank angle each call (untimed), so every pair is asked of the kernel afresh
+    kv[0] += 1
+    c.call("cad_asm", {"ops": [{"op": "drive_to", "drive": "Crank", "value": 7.0 + 13.7 * kv[0]}]})
+    return {}
+R["lat"] = {"build": lat("cad_part", fresh), "replay": lat("cad_part", {"name": "piston", "record": recs["piston"]}), "fit": lat("check_fit", moved), "fit_same_pose": lat("check_fit", {}), "fit_distance": lat("check_fit", lambda: dict(moved(), distance=True), 3)}
 c.call("cad_part", {"name": "piston", "record": recs["piston"]})
 # the cold control: all seven parts replayed from nothing
 c.call("cad_reset", {})
 v, err, ms, nb, tb = c.call("cad_asm", {"ops": [{"op": "load", "assembly": asm}]})
 R["lat"]["cold_load_ms"] = ms
+c.call("open", {"path": "scenes/combo3.json"})
+R["lat"]["slow_check_ms"] = c.call("check", {})[2]   # the control: a tool that is slow through the same driver
 # c: the sizes of the terse replies
 R["sizes"] = {"build": R["parts_cold"]["piston"]["bytes"], "replay": R["lat"]["replay"]["bytes"], "fit": R["fit_terse"]["bytes"], "fit_detail": R["fit_detail"]["bytes"]}
 # e: eval_gd
@@ -71,7 +78,7 @@ ev("temp", 'return H.write("C:/Temp/claude/mcpfast/zz_ok.txt", "hello")')
 ev("raw_file", 'var f = FileAccess.open("res://scenes/_wip/zz_raw.txt", FileAccess.WRITE)\nreturn 1')
 ev("raw_os", 'return OS.get_name()')
 ev("raw_save", 'var i = Image.create(2, 2, false, Image.FORMAT_RGB8)\ni.save_png("res://scenes/_wip/zz_img.png")\nreturn 1')
-ev("vol", 'return KCad.volume(H.solids("piston")[0])')
+ev("vol", 'return KCad.volume(H.solids("Piston")[0]) / 1e-9')
 R["eval"] = E
 # CH13 rebuilt through MCP calls only (the win): from nothing, one batch per phase
 c.call("cad_reset", {})

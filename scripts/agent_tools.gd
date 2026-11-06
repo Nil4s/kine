@@ -451,6 +451,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 			var pt := PartAssert.serve(self, method, p)
 			return _ok(id, pt["result"]) if pt["ok"] else _err(id, -32602, String(pt["error"]), {"grammar": pt["grammar"]} if pt.has("grammar") else null)
 		"fits":   # G3: ISO 286 fits of the mating pairs and the stack-ups (nominal, worst case, RSS) as data: the numbers the Fits panel shows (scripts/build/dim_fit.gd). Not in METHODS
+			if not p.has("assembly") and not p.has("path") and not McpCad.asm.is_empty():   # MCPFAST: the assembly built through cad_asm
+				p = p.duplicate()
+				p["assembly"] = McpCad.asm
 			var fr := DimFit.serve(m, p)
 			return _ok(id, fr["result"]) if fr["ok"] else _err(id, -32602, String(fr["error"]))
 		"part_warn":

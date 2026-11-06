@@ -27,6 +27,7 @@ static var parts := {}        # name -> hash
 static var cache := {}        # hash -> {"rec", "ids" (kept solids), "aabbs" (local, m), "sum"}
 static var placed := {}       # "hash|pos|rot" -> solid id (a part at a place, built once)
 static var asm := {}
+static var pairs := {}        # "keyA|keyB|d" -> [overlap m3, distance m] (a part at a place = hash + transform)
 static var last := {}         # part id -> [pos, rot] as the last reply told it (so the next reply gives only what moved)
 static var pose := {}         # {"drive", "v"} set by drive_to
 static var stat := {"replays": 0, "hits": 0, "kernel": 0}
@@ -117,7 +118,7 @@ static func ensure(rec: Dictionary) -> Dictionary:
 	if not Part.available():
 		return {"hash": "", "error": Part.why_not()}
 	stat["replays"] += 1
-	var res := Part.replay(rec, -1, {"keep": true})
+	var res := Part.replay(rec, -1, {"keep": true, "defer_tess": true})   # no tessellation: the exact solids are all this needs
 	var ids: Array = res.get("ids", [])
 	var aabbs: Array = []
 	var vols: Array = []
@@ -377,14 +378,15 @@ static func check_fit(p: Dictionary) -> Dictionary:
 			sol.append(_placed(h, k, int(c["ids"][k]), xf))
 			var wb := _world_box(c["aabbs"][k], xf)
 			box = wb if k == 0 else box.merge(wb)
-		items.append({"id": String(q["id"]), "box": box, "sol": sol})
+		items.append({"id": String(q["id"]), "box": box, "sol": sol, "key": "%s@%s" % [h, var_to_str(xf)]})
 	var all := []
 	var overlaps := []
 	var near := []
 	var kernel := 0
 	var skipped := 0
 	var total := 0.0
-	var has_d := KCad.has_distance()
+	var has_d := KCad.has_distance() and bool(p.get("distance", p.get("detail", false)))   # the exact distance is the slow call (OCCT, 0.1-0.3 s a pair); overlaps are 1-10 ms
+	var prof := [0, 0, 0]   # distance us, overlap us, overlap calls
 	for i in items.size():
 		for j in range(i + 1, items.size()):
 			var a: Dictionary = items[i]
@@ -393,16 +395,30 @@ static func check_fit(p: Dictionary) -> Dictionary:
 				skipped += 1
 				all.append([a["id"], b["id"], 0.0, null])
 				continue
+			var pk := "%s|%s|%d" % [a["key"], b["key"], 1 if has_d else 0]
 			var ov := 0.0
 			var dm := INF
-			for sa in a["sol"]:
-				for sb in b["sol"]:
-					kernel += 1
-					ov += maxf(0.0, KCad.overlap_volume(int(sa), int(sb)))
-					if has_d:
-						var dd: Dictionary = KCad.distance(int(sa), int(sb))
+			if pairs.has(pk):   # the same two parts at the same two places: the answer is the same, no kernel call
+				ov = pairs[pk][0]
+				dm = pairs[pk][1]
+			else:
+				for sa in a["sol"]:
+					for sb in b["sol"]:
+						kernel += 1
+						var tk := Time.get_ticks_usec()
+						var dd: Dictionary = KCad.distance(int(sa), int(sb)) if has_d else {}
+						prof[0] += Time.get_ticks_usec() - tk
 						if bool(dd.get("ok", false)):
 							dm = minf(dm, float(dd["d"]))
+							if float(dd["d"]) > 0.0 and not bool(dd.get("inner", false)):
+								continue   # apart: no volume in common (one distance, no boolean: the G45 route)
+						tk = Time.get_ticks_usec()
+						ov += maxf(0.0, KCad.overlap_volume(int(sa), int(sb)))
+						prof[1] += Time.get_ticks_usec() - tk
+						prof[2] += 1
+				if pairs.size() > 4000:
+					pairs.clear()
+				pairs[pk] = [ov, dm]
 			var ovm := ov / (MM * MM * MM)
 			var dmm: Variant = dm / MM if dm < INF else null
 			all.append([a["id"], b["id"], ovm, dmm])
@@ -415,12 +431,19 @@ static func check_fit(p: Dictionary) -> Dictionary:
 	near.sort_custom(func(x, y): return float(x[2]) < float(y[2]))
 	var cap := int(p.get("cap", 8))
 	var out := {"parts": items.size(), "pairs": all.size(), "skipped": skipped, "overlaps": overlaps, "overlap_total_mm3": total,
-		"near": near.slice(0, cap), "near_more": maxi(0, near.size() - cap)}
+		"near": near.slice(0, cap), "near_more": maxi(0, near.size() - cap), "box_near": all.size() - skipped}
+	if not has_d:
+		out.erase("near")
+		out.erase("near_more")
+		out["distance"] = "not computed: pass distance: true (slow, exact) or detail: true"
 	if bool(p.get("detail", false)):
 		out["all"] = all
 		out["near"] = near
 		out["near_more"] = 0
 		out["kernel_calls"] = kernel
+		out["dist_ms"] = prof[0] / 1000.0
+		out["overlap_ms"] = prof[1] / 1000.0
+		out["overlap_calls"] = prof[2]
 		out["near_mm"] = near_mm
 	return good(out)
 
@@ -451,6 +474,7 @@ static func reset(p: Dictionary) -> Dictionary:
 			_drop(h)
 			dropped += 1
 		parts = {}
+		pairs = {}
 		stat = {"replays": 0, "hits": 0, "kernel": 0}
 	if bool(p.get("asm", true)):
 		asm = {}
@@ -543,7 +567,7 @@ static func eval_gd(m: Node, p: Dictionary) -> Dictionary:
 	var code := String(p.get("code", ""))
 	if code.strip_edges() == "":
 		return fail("eval_gd needs {code}: GDScript, the body of a function; `return x` gives x (one expression line returns itself). H.write(path, text), H.part(name), H.solids(name), H.assembly(), H.note(x), m (the live scene) and KCad are there.")
-	var why := scan(code)
+	var why := scan(code.replace("H.write(", "H_ok("))   # H.write is the sanctioned writer; everything else named write* is refused
 	if why != "":
 		return fail(why)
 	var lines := code.split("\n")

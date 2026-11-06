@@ -105,9 +105,9 @@ CAD_TOOLS = {
     "cad_asm": ("cad_asm", "Run N assembly steps in one call: ops [{op: new|load|add|place|remove|joint|drive|drive_to, ...}] (add {part, id?, name?, pos?, rot?}: mm, deg; load {assembly}; "
                 "joint {kind, a, b, axis, origin, origin_b?}; drive {name, part, kind, axis, origin, range}; drive_to {drive, value}). Returns ids + names added and ONLY the places that moved since the last reply.",
                 {"type": "object", "properties": {"ops": {"type": "array", "items": OBJ, "minItems": 1}, "detail": B, "prec": N}, "required": ["ops"], "additionalProperties": False}),
-    "check_fit": ("check_fit", "Every pair of placed parts, exact solids: overlap volume (mm3) and distance (mm). Terse: the overlaps and the 8 nearest pairs; detail: true lists every pair. "
+    "check_fit": ("check_fit", "Every pair of placed parts, exact solids: overlap volume (mm3) and distance (mm). Terse: the overlap volumes of the pairs whose boxes are near (1-10 ms each); distance: true (or detail: true) adds the exact distances (0.1-0.3 s a pair, the 8 nearest listed; detail lists every pair). "
                   "near_mm (2) = how close counts and the box prefilter; hit_mm3 (1) = what counts as an overlap; drive + value poses the assembly first.",
-                  {"type": "object", "properties": {"near_mm": N, "hit_mm3": N, "drive": S, "value": N, "cap": N, "detail": B, "prec": N}, "additionalProperties": False}),
+                  {"type": "object", "properties": {"near_mm": N, "hit_mm3": N, "drive": S, "value": N, "cap": N, "distance": B, "detail": B, "prec": N}, "additionalProperties": False}),
     "bom": ("bom", "The assembly's bill of materials: per line part, count, mass_kg, cost; totals. detail: true adds material, volume, ids, warnings.",
             {"type": "object", "properties": {"detail": B, "prec": N}, "additionalProperties": False}),
     "eval_gd": ("eval_gd", "Run a short GDScript snippet (the body of a function; one expression line returns itself) in the live session, to test an idea without a Godot boot. "
