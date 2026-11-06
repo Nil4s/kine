@@ -19,6 +19,8 @@ static func blockers(root: Node, card: Control, view: Rect2, labels: Array) -> A
 			continue
 		if n == card:
 			continue
+		if (n is MeshInstance3D or n is Skeleton3D) and not PerfDoc.slow:
+			continue   # L12: the body's pieces and bones (most of the tree) hold no Button; the equality bar in tests/perf60_test.gd checks the list is the same
 		if n is Button:
 			var r := (n as Control).get_global_rect()
 			if r.intersects(view):
@@ -68,8 +70,88 @@ static func measure(card: Control, hb: Control, w: float, compact: bool) -> Vect
 	return Vector2(w, h + pm.y + 10.0)
 
 
+## L12 PERF60: THE PLACEMENT CACHE. Where the card can go depends on the blockers (visible Buttons and the status labels), the view,
+## the card's size at a width, and then the body and the pick points. The first three change only when the layout does, the last two
+## every frame of a playback. So, once the same blockers and view have been seen on two calls in a row (a layout that is changing
+## every frame is never cached), the blocker-free grid positions of a width are listed once, in scan order, and each call only
+## tests those against the body and the points: the first that passes is the answer the full scan gives. A changed signature (the
+## view, or the set and rects of the blockers) drops the lists. place_fresh() is the uncached scan (PerfDoc.slow selects it).
+static var _sig: Array = []
+static var _stable := 0
+static var _lists := {}      # "wi|size" -> PackedFloat64Array [x0, y0, x1, y1, ...]: the grid spots no blocker touches, in scan order
+static var rebuilds := 0     # tests: how many lists were built
+static var cached_calls := 0 # tests: calls answered from the lists
+static var recomputes := 0   # tests: how many times the signature changed
+
+
+## the grid spots of a card of size ps that no blocker touches, in the order the scan visits them
+static func free_spots(view: Rect2, blk: Array, ps: Vector2) -> PackedFloat64Array:
+	var out := PackedFloat64Array()
+	var y := view.end.y - ps.y
+	while y >= view.position.y - 0.5:
+		var row_blk: Array = []
+		for b0 in blk:
+			if (b0 as Rect2).position.y < y + ps.y and (b0 as Rect2).end.y > y:
+				row_blk.append(b0)
+		var x := view.end.x - ps.x
+		while x >= view.position.x - 0.5:
+			var r := Rect2(x, y, ps.x, ps.y)
+			var hit := false
+			for b in row_blk:
+				if r.intersects(b):
+					hit = true
+					break
+			if not hit:
+				out.append(x)
+				out.append(y)
+			x -= STEP
+		y -= STEP
+	return out
+
+
 ## sets the card's width (via `hb`, the buttons' flow) and its position; returns true when a spot with no overlap was found
 static func place(card: Control, hb: Control, view: Rect2, blk: Array, body: Rect2, pts: Array = []) -> bool:
+	if PerfDoc.slow:
+		return place_fresh(card, hb, view, blk, body, pts)
+	var sig := [view, blk]
+	if sig == _sig:
+		_stable += 1
+	else:
+		_sig = sig
+		_stable = 0
+		_lists.clear()
+		recomputes += 1
+	if _stable < 1:
+		return place_fresh(card, hb, view, blk, body, pts)
+	cached_calls += 1
+	for avoid_body in [true, false]:
+		for wi in WIDTHS.size():
+			var w: float = WIDTHS[wi]
+			_compact(card, hb, wi >= PLAIN)
+			var ps := measure(card, hb, w, wi >= PLAIN)
+			if ps.x > view.size.x or ps.y > view.size.y:
+				continue
+			var key := "%d|%s" % [wi, str(ps)]
+			if not _lists.has(key):
+				_lists[key] = free_spots(view, blk, ps)
+				rebuilds += 1
+			var spots: PackedFloat64Array = _lists[key]
+			for i in range(0, spots.size(), 2):
+				var r := Rect2(spots[i], spots[i + 1], ps.x, ps.y)
+				if not (avoid_body and r.intersects(body)) and not PickDodge.covers(r, pts, 2.0):
+					_compact(card, hb, wi >= PLAIN)
+					hb.custom_minimum_size = Vector2(w - 20.0, 0)
+					card.size = ps
+					card.position = Vector2(spots[i], spots[i + 1])
+					return true
+	_compact(card, hb, false)
+	hb.custom_minimum_size = Vector2(WIDTHS[0] - 20.0, 0)
+	card.reset_size()
+	return false
+
+
+## sets the card's width (via `hb`, the buttons' flow) and its position; returns true when a spot with no overlap was found
+static func place_fresh(card: Control, hb: Control, view: Rect2, blk: Array, body: Rect2, pts: Array = []) -> bool:
 	for avoid_body in [true, false]:
 		for wi in WIDTHS.size():
 			var w: float = WIDTHS[wi]
@@ -79,11 +161,19 @@ static func place(card: Control, hb: Control, view: Rect2, blk: Array, body: Rec
 				continue
 			var y := view.end.y - ps.y
 			while y >= view.position.y - 0.5:
+				# L12: only the blockers whose rows overlap this row of candidates can be hit by it (Rect2.intersects needs both axes
+				# to overlap, strictly): the same answer from a short list
+				var row_blk: Array = blk
+				if not PerfDoc.slow:
+					row_blk = []
+					for b0 in blk:
+						if (b0 as Rect2).position.y < y + ps.y and (b0 as Rect2).end.y > y:
+							row_blk.append(b0)
 				var x := view.end.x - ps.x
 				while x >= view.position.x - 0.5:
 					var r := Rect2(x, y, ps.x, ps.y)
 					var hit := false
-					for b in blk:
+					for b in row_blk:
 						if r.intersects(b):
 							hit = true
 							break
