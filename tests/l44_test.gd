@@ -198,7 +198,7 @@ func _lob_run(res: int, gate: bool, taus: Array) -> Array:
 
 
 func _l1_lobovsky() -> void:
-	var r := _lob_run(20, true, [1.0, 2.0])
+	var r := _lob_run(30, true, [1.0, 2.0])   # Nick 11-06: res 30 (res 20 not converged: 1.696 vs 1.442 at 30)
 	var z: Array = r[0]
 	var v: float = (z[1] - z[0]) / 1.0
 	print("      L1: Z(tau 1) = %.3f  Z(tau 2) = %.3f  average front speed %.4f sqrt(gH)  (Lobovsky: 1.56 at H 300, 1.34 at H 600)" % [z[0], z[1], v])
