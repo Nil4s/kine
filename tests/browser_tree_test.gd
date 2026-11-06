@@ -111,6 +111,7 @@ func _init() -> void:
 			continue   # the Set folder (round 37) shows only when the scene has props
 		tops.append(c.get_text(0).get_slice(":", 0).get_slice("  ", 0))
 	tops.erase("Sets")   # the selection / keying sets folder (wave A)
+	tops.erase("Outliner")   # L36: the Outliner folder (scene objects by parent), tests/outliner_test.gd
 	ok(tops == ["Scene", "Poses", "Body", "Target dummy"] or tops == ["Scene", "Poses", "Body", "Weapon", "Target dummy"], "the top rows: %s" % [tops])
 	var hh := []
 	for t in ["Scene", "Poses", "Body", "Torso", "hips"]:
