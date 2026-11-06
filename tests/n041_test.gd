@@ -35,6 +35,7 @@
 ##    AgentTools.MCP_EXTRA, poser_mcp.py names it in TOOLS and MATH_TOOLS, poser_cli.gd has the one-shot subcommand.
 ##  8 LIMITS ARE THE FILE'S: judging the armbar against a copy of body_limits.json with the elbow's hyperextension opened to -20 is not "past limit".
 ##  9 CITATION: the file's values lie in the published ranges (listed in CITE below).
+##  P PLACEMENT (added after the first green run): the Lock check panel's rect lies inside the window and covers 1..15 %; at the armbar's key frame the nearest contact point is within 100 mm of the partner's wrist and within 100 mm of his elbow.
 ## 10 PLANTED CONTROLS (the claim is WRONG; the line is ok only when it is false): C1 the comparator accepts 0.2 deg off; C2 armbar_light is past limit;
 ##    C3 the apart clip (past-limit demand, no locker) is "past limit"; C4 the loosened-limits judge still says past limit; C5 the swapped armbar has the
 ##    same verdict; C6 a recompute that reads the wrist for the armbar gives 12.0; C7 the citation checker accepts an elbow flexion limit of 200; C8 the
@@ -374,9 +375,30 @@ func _init() -> void:
 		await process_frame
 	await RenderingServer.frame_post_draw
 	var img := root.get_viewport().get_texture().get_image()
+	# P: PLACEMENT numbers (added after the first green run, Nick's 11-06 rule; no earlier bar changed)
+	var vp := Vector2(img.get_width(), img.get_height())
+	var pr: Rect2 = m.lock_panel.get_global_rect()
+	var cov := 100.0 * pr.get_area() / (vp.x * vp.y)
+	ok(m.lock_panel.visible and pr.position.x >= 0.0 and pr.position.y >= 0.0 and pr.end.x <= vp.x and pr.end.y <= vp.y and cov <= 15.0 and cov >= 1.0, "P1 panel rect %s inside the %dx%d window, covers %.2f %% (bar 1..15 %%)" % [str(pr), vp.x, vp.y, cov])
+	var Sa: Scene = load_scene(paths["armbar"])
+	var pb := LockTruth.new_body()
+	var tk := float(kf) / float(FPS)
+	(Sa.actors[0]["scene"] as Scene).apply(pb, tk)
+	pb.fk()
+	var Xp: Transform3D = Constraints.actor_xf(Sa.actors[0]["xf"])
+	var wr: Vector3 = Xp * (pb.P["hand_r"] as Vector3)
+	var elb: Vector3 = Xp * (pb.P["lowerarm_r"] as Vector3)
+	var dw := INF
+	var de := INF
+	for c in A["frames"][kf]["points"]:
+		dw = minf(dw, (c["at"] as Vector3).distance_to(wr))
+		de = minf(de, (c["at"] as Vector3).distance_to(elb))
+	ok(dw <= 0.10 and de <= 0.10, "P2 armbar key frame: nearest contact point to the partner's wrist %.1f mm, to his elbow %.1f mm (bar <= 100 mm each)" % [dw * 1000.0, de * 1000.0])
+	var thumb := img.duplicate() as Image
+	thumb.resize(1000, int(1000.0 * vp.y / vp.x), Image.INTERPOLATE_BILINEAR)
 	DirAccess.make_dir_recursive_absolute("C:/Temp/claude/L39")
-	img.save_png("C:/Temp/claude/L39/lock_armbar.png")
-	print("SHOT C:/Temp/claude/L39/lock_armbar.png %dx%d" % [img.get_width(), img.get_height()])
+	thumb.save_png("C:/Temp/claude/L39/lock_armbar.png")
+	print("SHOT C:/Temp/claude/L39/lock_armbar.png %dx%d" % [thumb.get_width(), thumb.get_height()])
 	print("N041 TEST %s" % ("PASS" if fails == 0 else "FAIL %d" % fails))
 	TestFiles.cleanup()
 	quit(fails)
