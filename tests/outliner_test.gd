@@ -104,6 +104,41 @@ func row_pos(it: TreeItem, dx := 40.0) -> Vector2:
 	return br.get_global_transform() * (r.position + Vector2(dx, r.size.y * 0.5))
 
 
+## a real drag of a tree row (press, motions past the threshold, over the target), then the drop the way Godot makes it: it polls the
+## drop target at the OS cursor, which pushed events do not move (tests/r8_test.gd), so the drop is called on the tree with the
+## local point and the data the real drag produced. The release is off the tree. Returns whether the real drag started with the row's data
+func drag_drop(a: Vector2, b: Vector2) -> bool:
+	mouse(a, true)
+	await process_frame
+	for k in range(1, 9):
+		var mm := InputEventMouseMotion.new()
+		mm.position = a.lerp(b, k / 8.0)
+		mm.global_position = mm.position
+		mm.relative = (b - a) / 8.0
+		mm.button_mask = MOUSE_BUTTON_MASK_LEFT
+		root.push_input(mm)
+		await process_frame
+	await idle(2)
+	var dragging: bool = root.gui_is_dragging()
+	var dd: Variant = root.gui_get_drag_data()
+	var at: Vector2 = br.get_global_transform().affine_inverse() * b
+	if dragging and br._can_drop_data(at, dd):
+		br._drop_data(at, dd)
+	mouse(Vector2(900, 300), false)
+	await idle(3)
+	return dragging and dd is Dictionary and dd.has("kine_outl")
+
+
+## the screen points of two rows that are in sight together (scrolled to the first, both read after)
+func two_pos(a: TreeItem, b: TreeItem) -> Array:
+	br.scroll_to_item(a, true)
+	await idle(3)
+	var ra := br.get_item_area_rect(a)
+	var rb := br.get_item_area_rect(b)
+	var xf := br.get_global_transform()
+	return [xf * (ra.position + Vector2(40, ra.size.y * 0.5)), xf * (rb.position + Vector2(40, rb.size.y * 0.5))]
+
+
 func btn_pos(it: TreeItem, id: int) -> Vector2:
 	br.scroll_to_item(it, true)
 	await idle(3)
@@ -148,7 +183,9 @@ func fixture() -> void:
 	for i in 3:
 		names["cam:%d" % i] = String(S.shots[i]["name"])
 		kinds["cam:%d" % i] = "cam"
-	S.cape = {"name": "cape", "fps": 30, "frames": []}
+	var cv := PackedVector3Array()
+	cv.resize(Cloth.ROWS * Cloth.COLS)
+	S.cape = {"name": "cape", "fps": 30, "frames": [cv]}   # one frame of the cape's vertices: the view draws it
 	names["cloth:cape"] = "cape"
 	kinds["cloth:cape"] = "cloth"
 	S.soft = {"regions": ["belly", "thigh_l"]}
@@ -249,9 +286,9 @@ func _init() -> void:
 	var why: String = m._outl_reparent("prop:1", "prop:0")
 	await idle(2)
 	ok(why == "", "1 prop:1 under prop:0: accepted ('%s')" % why)
-	ok(xdiff(w("prop:1"), cw0) < 1e-5, "1 world transform unchanged: %.2e off" % xdiff(w("prop:1"), cw0))
+	ok(xdiff(w("prop:1"), cw0) < 1e-5, "1 world transform unchanged: %.8f off" % xdiff(w("prop:1"), cw0))
 	var rebuilt: Transform3D = Outliner.world_from_local(S, "prop:1")
-	ok(xdiff(rebuilt, cw0) < 1e-5, "1 parent world x local gives the same world: %.2e off" % xdiff(rebuilt, cw0))
+	ok(xdiff(rebuilt, cw0) < 1e-5, "1 parent world x local gives the same world: %.8f off" % xdiff(rebuilt, cw0))
 	ok(Outliner.parent_of(S, "prop:1") == "prop:0" and m.undo.size() == t0 + 1 and Outliner.state_hash(S) != h0,
 		"3 PLANTED: a legal drop is ONE undo step (%d) and changes the scene hash" % (m.undo.size() - t0))
 	var naive: Transform3D = pw0 * cw0   # the wrong way: the world value reused as the local one
@@ -263,7 +300,7 @@ func _init() -> void:
 	var np := Props.xf_at(Vector3(1.5, 0, 7.25), 73.0)
 	var r2: String = Outliner.set_world(S, "prop:0", np)
 	var want := np * cl
-	ok(r2 == "" and xdiff(w("prop:0"), np) < 1e-6 and xdiff(w("prop:1"), want) < 1e-5, "2 parent moved: the child followed, %.2e off parent x local" % xdiff(w("prop:1"), want))
+	ok(r2 == "" and xdiff(w("prop:0"), np) < 1e-6 and xdiff(w("prop:1"), want) < 1e-5, "2 parent moved: the child followed, %.8f off parent x local" % xdiff(w("prop:1"), want))
 
 	# ---------------------------------------------------------------- 3 cycle drops
 	m._outl_reparent("prop:2", "prop:1")   # chain 0 > 1 > 2
@@ -292,17 +329,17 @@ func _init() -> void:
 	m._undo()
 	await idle(3)
 	ok(Outliner.parent_of(S, "prop:5") == "prop:3" and xdiff(w("prop:5"), a_mid) == 0.0 and xdiff(Outliner.local(S, "prop:5"), l_mid) == 0.0,
-		"5 undo: parent back to prop:3, world %.2e and local %.2e off (exact)" % [xdiff(w("prop:5"), a_mid), xdiff(Outliner.local(S, "prop:5"), l_mid)])
+		"5 undo: parent back to prop:3, world %.8f and local %.8f off (exact)" % [xdiff(w("prop:5"), a_mid), xdiff(Outliner.local(S, "prop:5"), l_mid)])
 	m._undo()
 	await idle(3)
-	ok(Outliner.parent_of(S, "prop:5") == "" and xdiff(w("prop:5"), a_before) == 0.0, "5 undo again: no parent, world %.2e off the original" % xdiff(w("prop:5"), a_before))
+	ok(Outliner.parent_of(S, "prop:5") == "" and xdiff(w("prop:5"), a_before) == 0.0, "5 undo again: no parent, world %.8f off the original" % xdiff(w("prop:5"), a_before))
 	m._redo()
 	await idle(3)
 	ok(Outliner.parent_of(S, "prop:5") == "prop:3", "5 redo: under prop:3 again")
 	m._outl_reparent("prop:5", "")   # to the top level
 	await idle(2)
 	ok(Outliner.parent_of(S, "prop:5") == "" and xdiff(w("prop:5"), a_before) < 1e-5 and orow("prop:5").get_parent() == br._outl_root,
-		"5 dropped on the top level: no parent, world kept (%.2e)" % xdiff(w("prop:5"), a_before))
+		"5 dropped on the top level: no parent, world kept (%.8f)" % xdiff(w("prop:5"), a_before))
 	m._undo()
 	await idle(3)
 	ok(Outliner.parent_of(S, "prop:5") == "prop:3", "5 PLANTED: before that undo the parent was empty, after it prop:3: the check can tell")
@@ -380,7 +417,7 @@ func _init() -> void:
 	ok(int(pk2[0]) == 16, "7 the locked prop is still pickable at %s (picked %d)" % [mp0, int(pk2[0])])
 	await drag(mp0, mp0 + Vector2(90, 0))
 	var p16b := (S.props[16]["xf"] as Transform3D).origin
-	ok(p16b.distance_to(p16) < 1e-6 and m.undo.size() == u3, "7 a real drag on the locked prop: it did not move (%.2e), no undo step (%d)" % [p16b.distance_to(p16), m.undo.size() - u3])
+	ok(p16b.distance_to(p16) < 1e-6 and m.undo.size() == u3, "7 a real drag on the locked prop: it did not move (%.8f), no undo step (%d)" % [p16b.distance_to(p16), m.undo.size() - u3])
 	m._outl_lock("prop:16", false)
 	await idle(2)
 	var u4: int = m.undo.size()
@@ -394,16 +431,20 @@ func _init() -> void:
 	var wk := w("prop:17")
 	var rA := orow("prop:17")
 	var rB := orow("prop:18")
-	await drag(await row_pos(rA), await row_pos(rB))
+	var pr: Array = await two_pos(rA, rB)
+	var started: bool = await drag_drop(pr[0], pr[1])
 	await idle(3)
+	ok(started, "8 the press-and-move on a row starts a real drag carrying that row's object")
 	ok(Outliner.parent_of(S, "prop:17") == "prop:18" and m.undo.size() == ud + 1 and xdiff(w("prop:17"), wk) < 1e-5,
-		"8 a real drag of the prop:17 row onto prop:18: reparented (%s), one undo step (%d), world %.2e off" % [Outliner.parent_of(S, "prop:17"), m.undo.size() - ud, xdiff(w("prop:17"), wk)])
+		"8 a real drag of the prop:17 row onto prop:18: reparented (%s), one undo step (%d), world %.8f off" % [Outliner.parent_of(S, "prop:17"), m.undo.size() - ud, xdiff(w("prop:17"), wk)])
 	var ud2: int = m.undo.size()
-	await drag(await row_pos(orow("prop:18")), await row_pos(orow("prop:17")))
+	pr = await two_pos(orow("prop:18"), orow("prop:17"))
+	await drag_drop(pr[0], pr[1])
 	await idle(3)
 	ok(Outliner.parent_of(S, "prop:18") == "" and m.undo.size() == ud2, "8 a real drag of prop:18 onto its own child: refused, no undo step, no parent")
 	ok(m.say_text_has("inside") if m.has_method("say_text_has") else true, "8 (the refusal is said on the bar)")
-	await drag(await row_pos(orow("prop:18")), await row_pos(orow("prop:18")))
+	pr = await two_pos(orow("prop:18"), orow("prop:18"))
+	await drag_drop(pr[0], pr[1] + Vector2(0, 3))
 	ok(m.undo.size() == ud2, "8 a drop on itself: no undo step")
 
 	# ---------------------------------------------------------------- 9 file round trip, prop delete renumbers
@@ -422,8 +463,8 @@ func _init() -> void:
 	m._prop_select(2)
 	m._prop_del()   # prop 2 goes: 17 becomes 16, 18 becomes 17
 	await idle(3)
-	ok(Outliner.parent_of(S, "prop:16") == "prop:17" and xdiff(w("prop:16"), w17) < 1e-5 and xdiff(w("prop:17"), w18) < 1e-5 and Outliner.hidden(S, "prop:18") and Outliner.parent_of(S, "prop:1") == "",
-		"9 deleting prop 2: the parents and the hide / lock follow the new numbers, worlds kept (prop 1 lost its parent chain through 2 only as expected)")
+	ok(Outliner.parent_of(S, "prop:16") == "prop:17" and xdiff(w("prop:16"), w17) < 1e-5 and xdiff(w("prop:17"), w18) < 1e-5 and Outliner.hidden(S, "prop:18") and Outliner.parent_of(S, "prop:1") == "prop:0",
+		"9 deleting prop 2: the parents and the hide / lock follow the new numbers, worlds kept (prop 1 keeps its parent prop:0)")
 
 	print("OUTLINER: %d failed" % fails)
 	TestFiles.cleanup()
