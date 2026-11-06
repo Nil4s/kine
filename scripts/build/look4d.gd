@@ -492,9 +492,9 @@ static func plan(ctx: Dictionary, kin: Dictionary, meas: Dictionary, past: Array
 		legend.append({"k": "text", "p": Vector2(IMG_W + 8, yy), "s": "%d %s %.1f %s" % [int(mk["n"]), nm, float(pr["z"]), spd], "c": Color(1, 1, 1), "fs": 11})
 		yy += 16.0
 	var key: Array = [
-		"yellow arrow: where the part is in %.2g s at its present velocity" % arrow_t,
-		"white dots: its 3 earlier positions, %.2g s apart (dot nearest the part = latest)" % h,
-		"dashed cyan box: part hidden behind others (< 25 %% visible)",
+		"yellow arrow: where the part is in %s s at its present velocity" % String.num(arrow_t, 2),
+		"white dots: its 3 earlier positions, %s s apart (dot nearest the part = latest)" % String.num(h, 2),
+		"dashed cyan box: part hidden behind others (< 25% visible)",
 		"numbers: marks, one per listed part in the picture; see the list at the right"]
 	for i in key.size():
 		legend.append({"k": "text", "p": Vector2(8, IMG_H + 20 + 20 * i), "s": key[i], "c": Color(0.85, 0.85, 0.85), "fs": 12})

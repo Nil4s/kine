@@ -59,11 +59,13 @@ static func top_by_mass(sc: Dictionary, n: int, pinned: Array = []) -> Array:
 
 
 ## pairs of an assembly's parts at the poses xfs {part id: Transform3D}: [{a, b, gap_mm, pen_mm3}] for every pair within 2 mm (exact solids, KCad.distance and overlap_volume)
-static func asm_contacts(asm: Dictionary, xfs: Dictionary) -> Array:
+static func asm_contacts(asm: Dictionary, xfs: Dictionary, only: Array = []) -> Array:
 	var sol := {}
 	var boxes := {}
 	for p in asm["parts"]:
 		var pid := String(p["id"])
+		if only.size() > 0 and not only.has(_id(p)):
+			continue
 		var ids: Array = Part.replay(p["rec"], -1, {"keep": true, "errors_only": true}).get("ids", [])
 		sol[pid] = AssemblyMotion._place_all(ids, xfs[pid])
 		Part.release_kept(ids)
@@ -80,6 +82,8 @@ static func asm_contacts(asm: Dictionary, xfs: Dictionary) -> Array:
 		for j in range(i + 1, ps.size()):
 			var a := String(ps[i]["id"])
 			var b := String(ps[j]["id"])
+			if not boxes.has(a) or not boxes.has(b):
+				continue
 			if not (boxes[a] as AABB).intersects(boxes[b]):
 				continue
 			var dmin := INF
@@ -120,7 +124,7 @@ static func _asm_scene(nm: String, asm: Dictionary, posefn: Callable, cam: Dicti
 		for p in asm["parts"]:
 			((sc["nodes"] as Dictionary)[_id(p)] as MeshInstance3D).transform = cur[String(p["id"])]
 	sc["contacts"] = func() -> Array:
-		return asm_contacts(asm, cur)
+		return asm_contacts(asm, cur, sc.get("named", []))
 	for k in extra:
 		sc[k] = extra[k]
 	return sc
@@ -164,7 +168,7 @@ static func camera() -> Dictionary:
 # ---------------------------------------------------------------- S2 the arm
 static func arm() -> Dictionary:
 	var holder := {}
-	var sc := {"name": "s2_arm", "ids": [], "camera": {"pos": Vector3(0.61, 0.54, 0.60), "look": Vector3(0.2, 0.28, 0.03), "fov": 32.0}, "h": 0.5, "arrow_t": 1.0, "t0": 1.0, "own_env": true, "kind": "motion"}
+	var sc := {"name": "s2_arm", "ids": [], "camera": {"pos": Vector3(0.61, 0.54, 0.60), "look": Vector3(0.2, 0.28, 0.03), "fov": 32.0}, "h": 0.5, "arrow_t": 0.5, "t0": 1.0, "own_env": true, "kind": "motion"}
 	sc["build"] = func(world: Node3D) -> void:
 		var s14: Dictionary = SC14.build(world)
 		holder["s"] = s14
