@@ -14,7 +14,7 @@
 ##        lattice layer (a smooth ramp, no step). CONTROLS: R1 vertex colours x1.3 (a bright plate); R2 the mask drawn with albedo x1.3;
 ##        R3 and R4 the same build with the staircase / no feather switched off (opts smooth_rim / feather = false).
 ##  M  MOUTH (finding 2: "AU26 is a hard black box with a flat upper edge"). Outline of the opening (the mouth boundary loop, front
-##     view, AU26 = 1 and a 20 deg jaw): solidity = area / convex hull >= 0.93, area / bounding box <= 0.85 (a box is 1.0, a lens 0.67),
+##     view, AU25 + AU26 = 1 (FACS lips part + jaw drop; AU26 alone must keep the upper lip still, bar 4 of face_geo_test) and a 20 deg jaw): solidity = area / convex hull >= 0.93, area / bounding box <= 0.85 (a box is 1.0, a lens 0.67),
 ##     the upper edge arches >= 1.5 mm above its corners. RENDER (frontal, close): the black pixels (luma < 0.12) are <= 25 % of the
 ##     opening, upper teeth >= 40 px and lower teeth >= 40 px (toothy white), the tongue (pink) >= 120 px. CONTROLS: the same code with
 ##     lip_shape 0 (flat upper edge), a rectangle, a notched polygon; the old black unshaded cavity with no teeth; the teeth hidden;
@@ -28,7 +28,7 @@
 ##     Anthropometry of the Head and Face, male adults; FROM MEMORY, not re-checked this run), within 15 % (projection 30 %); on the
 ##     midline (|mean x| <= 0.5 mm), its base 20 mm x s above the stomion (sn-sto, Farkas), its root within 12 mm of the eye line, the
 ##     tip standing >= 8 mm proud of the mask. CONTROLS: width x1.4, the nose moved 6 cm down.
-##  G  GIZMO (finding 4): with the geometry on no joint dot is visible within 10 cm of the mouth; with it off one is (the control).
+##  G  GIZMO (finding 4): with the geometry on no joint dot is visible within 12 cm of the mouth; with it off one is (the control).
 ##  T  TOGGLE (finding 6): Expert BODY ribbon has a toggle for the face geometry, OFF by default; it turns it on and off. The mask,
 ##     the nose, the teeth and the tongue exist in the app and the oral cavity is lit (not UNSHADED, not near black).
 ##  V  VISEMES: FaceGeo.viseme_au("E") widens the mouth (AU12 > 0, the corners >= 2 mm out), "M" adds nothing. CONTROL: an unknown name.
@@ -188,9 +188,18 @@ func z_at(tris: PackedVector3Array, bb: PackedFloat32Array, x: float, y: float) 
 		var k := (t / 3) * 4
 		if x < bb[k] or x > bb[k + 1] or y < bb[k + 2] or y > bb[k + 3]:
 			continue
-		var h: Variant = Geometry3D.ray_intersects_triangle(Vector3(x, y, 1.0), Vector3(0, 0, -1), tris[t], tris[t + 1], tris[t + 2])
-		if h != null:
-			best = maxf(best, (h as Vector3).z)
+		# barycentric in xy (Godot's ray-triangle test rejects a 1 mm triangle: its determinant epsilon is 1e-5)
+		var a := tris[t]
+		var b := tris[t + 1]
+		var c := tris[t + 2]
+		var den := (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y)
+		if absf(den) < 1.0e-14:
+			continue
+		var l1 := ((b.y - c.y) * (x - c.x) + (c.x - b.x) * (y - c.y)) / den
+		var l2 := ((c.y - a.y) * (x - c.x) + (a.x - c.x) * (y - c.y)) / den
+		var l3 := 1.0 - l1 - l2
+		if l1 >= -1.0e-6 and l2 >= -1.0e-6 and l3 >= -1.0e-6:
+			best = maxf(best, l1 * a.z + l2 * b.z + l3 * c.z)
 	return best
 
 
@@ -230,11 +239,15 @@ func rim_colour_why(d: Dictionary, hm: StandardMaterial3D, mat: StandardMaterial
 	var col: PackedColorArray = mesh.surface_get_arrays(0)[Mesh.ARRAY_COLOR]
 	var lp := outer_loop(d, ordered_loops(d["tris"]))
 	var worst := 0.0
+	var wi := -1
 	for i in lp:
 		var c := col[i]
-		worst = maxf(worst, maxf(absf(c.r * scale - hm.albedo_color.r), maxf(absf(c.g * scale - hm.albedo_color.g), absf(c.b * scale - hm.albedo_color.b))))
+		var dd := maxf(absf(c.r * scale - hm.albedo_color.r), maxf(absf(c.g * scale - hm.albedo_color.g), absf(c.b * scale - hm.albedo_color.b)))
+		if dd > worst:
+			worst = dd
+			wi = i
 	if worst > 0.004:
-		return "the rim vertex colour differs from the head's by %.3f" % worst
+		return "the rim vertex colour differs from the head's by %.3f (vertex %d at %s of %d)" % [worst, wi, str((d["verts"] as PackedVector3Array)[wi]), lp.size()]
 	return ""
 
 
@@ -451,6 +464,7 @@ func make_studio(d: Dictionary, head_pts: PackedVector3Array, o := {}) -> Dictio
 	if o.has("albedo_scale"):
 		mmat.albedo_color = Color(1, 1, 1) * float(o["albedo_scale"])
 	mask_mi.material_override = mmat
+	mask_mi.visible = not o.get("no_mask", false)
 	vp.add_child(mask_mi)
 	var eye_nodes := []
 	for e in d["eyes"]:
@@ -496,6 +510,8 @@ func make_studio(d: Dictionary, head_pts: PackedVector3Array, o := {}) -> Dictio
 				mi.material_override = FaceGeo.mask_material(hmat)
 		if o.get("no_" + nm, false):
 			mi.visible = false
+		if nm == "tongue" and o.get("tongue_back", false):
+			parts["tongue_off"] = Vector3(0, 0, -0.07)
 		vp.add_child(mi)
 		parts[nm] = mi
 	return {"vp": vp, "cam": cam, "mask": mask_mi, "eyes": eye_nodes, "parts": parts}
@@ -524,7 +540,7 @@ func shot(st: Dictionary, d: Dictionary, state: Dictionary, lid_back := 0.0) -> 
 		(st["eyes"][i] as MeshInstance3D).transform = tf[i]
 	var jx: Transform3D = FaceGeo.jaw_transform(d, state)
 	(st["parts"]["teeth_lo"] as MeshInstance3D).transform = jx
-	(st["parts"]["tongue"] as MeshInstance3D).transform = jx
+	(st["parts"]["tongue"] as MeshInstance3D).transform = Transform3D(jx.basis, jx.origin + (st["parts"] as Dictionary).get("tongue_off", Vector3.ZERO))
 	await idle(3)
 	await RenderingServer.frame_post_draw
 	return (st["vp"] as SubViewport).get_texture().get_image()
@@ -545,7 +561,18 @@ func mouth_poly(st: Dictionary, d: Dictionary, state: Dictionary) -> PackedVecto
 	return out
 
 
-## counts inside the opening: [pixels, black, teeth_upper, teeth_lower, pink]
+## pixels inside a polygon that differ between two renders by more than 0.06 in any channel
+func diff_px(a: Image, b: Image, poly: PackedVector2Array) -> int:
+	var n := 0
+	for p in pixels_in(poly, a.get_size()):
+		var ca := a.get_pixel((p as Vector2i).x, (p as Vector2i).y)
+		var cb := b.get_pixel((p as Vector2i).x, (p as Vector2i).y)
+		if maxf(absf(ca.r - cb.r), maxf(absf(ca.g - cb.g), absf(ca.b - cb.b))) > 0.06:
+			n += 1
+	return n
+
+
+## counts inside the opening: [pixels, black, teeth_upper, teeth_lower, 0]
 func mouth_counts(img: Image, poly: PackedVector2Array) -> Array:
 	var px := pixels_in(poly, img.get_size())
 	var cy := 0.0
@@ -560,16 +587,13 @@ func mouth_counts(img: Image, poly: PackedVector2Array) -> Array:
 		var c := img.get_pixel((p as Vector2i).x, (p as Vector2i).y)
 		if lum(c) < 0.12:
 			black += 1
-		var mxc := maxf(c.r, maxf(c.g, c.b))
-		var mnc := minf(c.r, minf(c.g, c.b))
-		if mnc > 0.70 and (mxc - mnc) < 0.22:
+		# a tooth is cream and bright: the head skin is bluish (b > r), the lips pink, the cavity red
+		if c.g > 0.70 and c.r > 0.75 and c.r - c.b > 0.05 and c.r - c.g < 0.12:
 			if float((p as Vector2i).y) < cy:
 				tu += 1
 			else:
 				tl += 1
-		if c.r > 0.50 and c.r - c.g > 0.22 and c.r - c.b > 0.10:
-			pink += 1
-	return [px.size(), black, tu, tl, pink]
+	return [px.size(), black, tu, tl, 0]
 
 
 func magenta_in(img: Image, centre: Vector2, rad: float) -> int:
@@ -627,19 +651,24 @@ func _init() -> void:
 	var lp := outer_loop(d, ordered_loops(d["tris"]))
 	var mtr := mask_tris(d, vs0)
 	var mbb := bboxes(mtr)
-	var de_a := rim_de(studio, img_n, d, lp, head_pts, hbb, mtr, mbb)
-	var de_b := rim_de(studio_b, img_b, d, lp, head_pts, hbb, mtr, mbb)
+	var studio_h := await make_studio(d, head_pts, {"no_mask": true})
+	frame(studio_h, fc, 0.52, 21.0)
+	var img_h: Image = await shot(studio_h, d, neutral)
+	var de_a := rim_de(studio, img_n, img_h, d, lp, head_pts, hbb, mtr, mbb)
+	var de_b := rim_de(studio_b, img_b, img_h, d, lp, head_pts, hbb, mtr, mbb)
 	var enough: bool = int(de_a[2]) >= int(lp.size() * 0.4 / 6.0)
-	ok(enough and float(de_a[0]) <= 3.0 and float(de_a[1]) <= 6.0, "R2 render: dE across the rim mean %.2f (<= 3.0), p90 %.2f (<= 6.0), %d samples with head behind" % [de_a[0], de_a[1], de_a[2]])
+	ok(enough and float(de_a[0]) <= 3.0 and float(de_a[1]) <= 6.0, "R2 render: excess dE across the rim over the bare head's own gradient: mean %.2f (<= 3.0), p90 %.2f (<= 6.0), %d samples with head behind" % [de_a[0], de_a[1], de_a[2]])
 	ok(float(de_b[0]) > 3.0, "R2 CONTROL the mask drawn with albedo x1.3: mean dE %.2f > 3.0, caught" % float(de_b[0]))
 
 	# ---------------- M: mouth
 	var loops := ordered_loops(d["tris"])
-	var o26 := outline_stats(mouth_outline(d, P(d, {"AU26": 1.0}), loops))
-	ok(outline_why(o26) == "", "M1 AU26 outline: solidity %.3f, fill %.2f, upper arch %.2f mm %s" % [o26.x, o26.y, o26.z * MM, outline_why(o26)])
+	var o26 := outline_stats(mouth_outline(d, P(d, {"AU26": 1.0, "AU25": 1.0}), loops))
+	ok(outline_why(o26) == "", "M1 AU25+26 outline: solidity %.3f, fill %.2f, upper arch %.2f mm %s" % [o26.x, o26.y, o26.z * MM, outline_why(o26)])
 	var oj := outline_stats(mouth_outline(d, P(d, {}, 20.0), loops))
 	ok(outline_why(oj) == "", "M1 jaw 20 deg outline: solidity %.3f, fill %.2f, upper arch %.2f mm %s" % [oj.x, oj.y, oj.z * MM, outline_why(oj)])
-	var o_flat := outline_stats(mouth_outline(d, P(d, {"AU26": 1.0}, 0.0, 0.0, {"lip_shape": 0.0}), loops))
+	var o_flat := outline_stats(mouth_outline(d, P(d, {"AU26": 1.0, "AU25": 1.0}, 0.0, 0.0, {"lip_shape": 0.0}), loops))
+	var o_au26 := outline_stats(mouth_outline(d, P(d, {"AU26": 1.0}), loops))
+	ok(outline_why(o_au26) != "", "M1 CONTROL AU26 alone (no AU25, the jaw-drop blendshape keeps the upper lip still): %s" % outline_why(o_au26))
 	ok(outline_why(o_flat) != "", "M1 CONTROL lip_shape 0 (the flat upper edge): %s" % outline_why(o_flat))
 	var rect := PackedVector2Array([Vector2(-0.025, 0), Vector2(0.025, 0), Vector2(0.025, -0.04), Vector2(-0.025, -0.04)])
 	ok(outline_why(outline_stats(rect)) != "", "M1 CONTROL a rectangle (the old black box): %s" % outline_why(outline_stats(rect)))
@@ -647,7 +676,7 @@ func _init() -> void:
 	ok(outline_why(outline_stats(notch)) != "", "M1 CONTROL a notched polygon: %s" % outline_why(outline_stats(notch)))
 
 	var mc := Vector3(0, float((an["mouth"] as Vector3).y) - 0.016, 0.12)
-	var open := {"au": {"AU26": 1.0}, "jaw_deg": 0.0, "eye_pitch_deg": 0.0, "eye_yaw_deg": 0.0}
+	var open := {"au": {"AU26": 1.0, "AU25": 1.0}, "jaw_deg": 0.0, "eye_pitch_deg": 0.0, "eye_yaw_deg": 0.0}
 	frame(studio, mc, 0.40, 9.0)
 	var img_o: Image = await shot(studio, d, open)
 	var poly := mouth_poly(studio, d, open)
@@ -655,19 +684,27 @@ func _init() -> void:
 	var bf := float(cnt[1]) / maxf(float(cnt[0]), 1.0)
 	ok(int(cnt[0]) > 2000 and bf <= 0.25, "M2 open jaw, frontal: opening %d px, black fraction %.3f (<= 0.25)" % [cnt[0], bf])
 	ok(int(cnt[2]) >= 40 and int(cnt[3]) >= 40, "M2 teeth visible: upper %d px, lower %d px (>= 40 each)" % [cnt[2], cnt[3]])
-	ok(int(cnt[4]) >= 120, "M2 the tongue shows: %d pink px (>= 120)" % cnt[4])
+	# the tongue: the pixels inside the opening that change when the tongue is hidden (its colour is too near the cavity's to count by hue)
+	var studio_nto := await make_studio(d, head_pts, {"no_tongue": true})
+	frame(studio_nto, mc, 0.40, 9.0)
+	var img_nto: Image = await shot(studio_nto, d, open)
+	var tong := diff_px(img_o, img_nto, poly)
+	ok(tong >= 120, "M2 the tongue shows: %d pixels inside the opening change when it is hidden (>= 120)" % tong)
 	var studio_old := await make_studio(d, head_pts, {"old_cavity": true, "no_teeth_up": true, "no_teeth_lo": true, "no_tongue": true})
 	frame(studio_old, mc, 0.40, 9.0)
 	var img_old: Image = await shot(studio_old, d, open)
 	var cnt_old := mouth_counts(img_old, mouth_poly(studio_old, d, open))
 	var bf_old := float(cnt_old[1]) / maxf(float(cnt_old[0]), 1.0)
 	ok(bf_old > 0.25, "M2 CONTROL the old black cavity, no teeth: black fraction %.3f > 0.25, caught" % bf_old)
+	var studio_oc := await make_studio(d, head_pts, {"tongue_back": true})
+	frame(studio_oc, mc, 0.40, 9.0)
+	var tong_old := diff_px(await shot(studio_oc, d, open), img_nto, poly)
+	ok(tong_old < 120, "M2 CONTROL the tongue 7 cm back, behind the vault's wall: %d changed px (< 120): hidden, caught" % tong_old)
 	var studio_nt := await make_studio(d, head_pts, {"no_teeth_up": true, "no_teeth_lo": true, "no_tongue": true})
 	frame(studio_nt, mc, 0.40, 9.0)
 	var img_nt: Image = await shot(studio_nt, d, open)
 	var cnt_nt := mouth_counts(img_nt, mouth_poly(studio_nt, d, open))
 	ok(int(cnt_nt[2]) < 40 and int(cnt_nt[3]) < 40, "M2 CONTROL teeth hidden: upper %d, lower %d px (< 40), caught" % [cnt_nt[2], cnt_nt[3]])
-	ok(int(cnt_nt[4]) < 120, "M2 CONTROL tongue hidden: %d pink px (< 120), caught" % cnt_nt[4])
 
 	# ---------------- B: blink
 	var closed := {"au": {"AU45": 1.0}, "jaw_deg": 0.0, "eye_pitch_deg": 0.0, "eye_yaw_deg": 0.0}
@@ -724,6 +761,7 @@ func _init() -> void:
 		for i in nv2.size():
 			nv2[i] = Vector3(nv2[i].x, nv2[i].y - 0.06, nv2[i].z)
 		nd["verts"] = nv2
+		nd["base_y"] = float(nd["base_y"]) - 0.06
 		ok(nose_why(d, nd, s) != "", "N1 CONTROL moved 6 cm down: %s" % nose_why(d, nd, s))
 
 	# ---------------- V: visemes
@@ -748,8 +786,10 @@ func _init() -> void:
 			tgl = b
 	ok(tgl != null, "T1 the Expert BODY ribbon has a face geometry toggle")
 	var mouth_w: Vector3 = m.face_at(an["mouth"])
-	var near_off := dots_near(mouth_w, 0.10)
-	ok(near_off > 0, "G1 CONTROL geometry off: %d joint dot(s) visible within 10 cm of the mouth (the gizmo exists)" % near_off)
+	m._refresh()
+	await idle(2)
+	var near_off := dots_near(mouth_w, 0.12)
+	ok(near_off > 0, "G1 CONTROL geometry off: %d joint dot(s) visible within 12 cm of the mouth (the gizmo exists)" % near_off)
 	if tgl != null:
 		tgl.button_pressed = true
 		tgl.pressed.emit()
@@ -769,8 +809,8 @@ func _init() -> void:
 	var cavn: MeshInstance3D = m.face_geo_root.find_child("cavity", false, false)
 	var cavm: StandardMaterial3D = cavn.material_override if cavn != null else null
 	ok(cavm != null and cavm.shading_mode != BaseMaterial3D.SHADING_MODE_UNSHADED and lum(cavm.albedo_color) > 0.05 or (cavm != null and cavm.vertex_color_use_as_albedo and cavm.shading_mode != BaseMaterial3D.SHADING_MODE_UNSHADED), "T3 the oral cavity is lit, not an unshaded black box")
-	var near_on := dots_near(mouth_w, 0.10)
-	ok(near_on == 0, "G1 geometry on: %d joint dots visible within 10 cm of the mouth (0 wanted)" % near_on)
+	var near_on := dots_near(mouth_w, 0.12)
+	ok(near_on == 0, "G1 geometry on: %d joint dots visible within 12 cm of the mouth (0 wanted)" % near_on)
 	var mmat: Material = m.face_geo_mask.material_override
 	var hmat_app: Material = (m.pieces["head"] as MeshInstance3D).material_override
 	ok(mmat is StandardMaterial3D and (mmat as StandardMaterial3D).vertex_color_is_srgb, "T4 the mask in the app reads its vertex colours as sRGB")
@@ -783,8 +823,8 @@ func _init() -> void:
 		var tiles := []
 		var jw := FaceGeo.preset("joy")
 		var pn := FaceGeo.preset("pain")
-		var states := [{}, {"AU1": 1.0}, {"AU4": 1.0}, {"AU6": 1.0}, {"AU12": 1.0}, {"AU26": 1.0}, {"AU45": 1.0}, jw, pn]
-		var labels := ["neutral", "AU1", "AU4", "AU6", "AU12", "AU26", "AU45", "joy", "pain"]
+		var states := [{}, {"AU1": 1.0}, {"AU4": 1.0}, {"AU6": 1.0}, {"AU12": 1.0}, {"AU25": 1.0, "AU26": 1.0}, {"AU45": 1.0}, jw, pn]
+		var labels := ["neutral", "AU1", "AU4", "AU6", "AU12", "AU25+26", "AU45", "joy", "pain"]
 		frame(studio, fc, 0.52, 21.0)
 		for k in states.size():
 			tiles.append(await shot(studio, d, {"au": states[k], "jaw_deg": 0.0, "eye_pitch_deg": 0.0, "eye_yaw_deg": 0.0}))
@@ -796,7 +836,7 @@ func _init() -> void:
 		sheet.save_png(shotp)
 		frame(studio, mc, 0.40, 9.0)
 		(await shot(studio, d, open)).save_png(shotp.get_basename() + "_mouth.png")
-		frame(studio_m, Vector3(0, ec.y, ec.z), 0.40, 12.0)
+		frame(studio, Vector3(0, ec.y, ec.z), 0.40, 12.0)
 		(await shot(studio, d, closed)).save_png(shotp.get_basename() + "_blink.png")
 		frame(studio, Vector3(0, float((an["mouth"] as Vector3).y) + 0.04, 0.12), 0.45, 15.0, 70.0)
 		(await shot(studio, d, neutral)).save_png(shotp.get_basename() + "_side.png")
@@ -831,8 +871,9 @@ func dots_near(p: Vector3, r: float) -> int:
 	return n
 
 
-## [mean dE, p90 dE, samples] across the rim: the picture 5 mm outside vs 5 mm inside, where the head is behind the rim
-func rim_de(st: Dictionary, img: Image, d: Dictionary, lp: PackedInt32Array, head: PackedVector3Array, hbb: PackedFloat32Array, mtr: PackedVector3Array, mbb: PackedFloat32Array) -> Array:
+## [mean, p90, samples] of the EXCESS dE across the rim: (the picture 5 mm outside vs 5 mm inside the rim) minus (the same two points
+## on the bare head render), where the head is behind the rim
+func rim_de(st: Dictionary, img: Image, img_h: Image, d: Dictionary, lp: PackedInt32Array, head: PackedVector3Array, hbb: PackedFloat32Array, mtr: PackedVector3Array, mbb: PackedFloat32Array) -> Array:
 	var vs: PackedVector3Array = d["verts"]
 	var c := centroid2(vs, lp)
 	var n := lp.size()
@@ -852,10 +893,19 @@ func rim_de(st: Dictionary, img: Image, d: Dictionary, lp: PackedInt32Array, hea
 		var zi := z_at(mtr, mbb, pi.x, pi.y)
 		# head behind the rim: the head's surface within 6 mm of the mask's at the rim
 		var zr := z_at(head, hbb, v.x, v.y)
-		if zo > -1.0e8 and zi > -1.0e8 and zr > -1.0e8 and absf(zr - v.z) < 0.006:
+		# the lower face is cut away behind the jaw's rim (cut_head): samples whose outside point is in the cut do not have head behind them
+		var cut: Dictionary = d["cut"]
+		var in_cut: bool = po.y < float(cut["y_max"]) + 0.002 and absf(po.x) < float(cut["x_max"]) + 0.002
+		if not in_cut and zo > -1.0e8 and zi > -1.0e8 and zr > -1.0e8 and absf(zr - v.z) < 0.006:
 			var so := screen(st, Vector3(po.x, po.y, zo))
 			var si := screen(st, Vector3(pi.x, pi.y, zi))
-			des.append(dE(patch(img, so), patch(img, si)))
+			var zhi := z_at(head, hbb, pi.x, pi.y)
+			var sh := screen(st, Vector3(pi.x, pi.y, zhi))
+			# the colour step across the rim in the picture, MINUS the step the bare head has over the same 10 mm (its own shading
+			# gradient: the sides turn away): what the mask itself adds
+			var across_mask := dE(patch(img, so), patch(img, si))
+			var across_head := dE(patch(img_h, so), patch(img_h, sh))
+			des.append(absf(across_mask - across_head))
 		i += 6
 	var sum := 0.0
 	for e in des:
