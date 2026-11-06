@@ -22,6 +22,12 @@ const BAR_STREAK := 1.5        # bar W2, registered before any render was measur
 ##        render plus white noise of sigma 0.03 must exceed it.
 ##   (W2) STREAKS of the new render <= BAR_STREAK (1.5, absolute: the photo's own 0.166 is a waterline band, a bar of 1.5 x that would demand horizontal streaks).  CONTROL: the L5 render must exceed it; PLANTED: the new render plus a random offset per
 ##        COLUMN (sigma 0.03) must exceed it.
+##   (W2b) STRIPE-EDGE STRAIGHTNESS (ADDED after the first run showed that W2 does not separate the L5 render: it reads Sx 1.06 on the soft backdrop, its roughness is isotropic at
+##        that scale. The streaks of compare.png live where hard vertical stripes are refracted. The BAR VALUES below are written before the new render is measured; only the
+##        metric was chosen after seeing L5): the same glass in front of 1 cm black and cream vertical stripes. Luminance mid-level crossings are tracked from row to row
+##        (same direction, within 5 px of the row above). J = rms second difference of the crossing x along y, in px, over tracks of >= 60 rows; coverage = share of all
+##        crossings that sit on such a track. A flat water face keeps the stripe edges straight: J <= 0.35 px and coverage >= 0.9.
+##        CONTROL: the L5 render must fail one of the two; PLANTED: the new render with every row shifted by a random whole pixel (sigma 1 px) must fail.
 ##   (W3) STILL WATER: the smoothing does not erase the water: the low-frequency std (Gaussian 4 px) inside the silhouette is >= 0.5 x the L5 render's (the refracted
 ##        backdrop pattern is still there), and the silhouette covers >= 0.9 x the L5 area.
 ##   (W4) VOLUME: WaterSurface.smooth_volume (Taubin + volume restore) keeps the enclosed volume within 1 % on the glass and on the dam break.
@@ -136,6 +142,32 @@ func _measure(img: Image, mask: PackedByteArray, mw: int, mh: int) -> Dictionary
 			n += 1
 	var mean := lfs / n
 	return {"rough": sqrt(e2 / n), "streak": ex / maxf(ey, 1e-20), "lf": sqrt(maxf(lfq / n - mean * mean, 0.0)), "n": n}
+
+
+## information: gradient ratio Sx and the autocorrelation ratio Cv/Ch (lag px, vertical over horizontal) of a DoG(s1, s2) image inside the mask
+func _aniso(img: Image, mask: PackedByteArray, mw: int, mh: int, s1: float, s2: float, lag: int) -> Vector3:
+	var lum := _lum(img, Rect2i(0, 0, mw, mh))
+	var g1 := _blur(lum, mw, mh, s1)
+	var g2 := _blur(lum, mw, mh, s2)
+	var e2 := 0.0
+	var ex := 0.0
+	var ey := 0.0
+	var cv := 0.0
+	var ch := 0.0
+	for y in range(lag + 1, mh - lag - 1):
+		for x in range(lag + 1, mw - lag - 1):
+			var i := y * mw + x
+			if mask[i] == 0 or mask[i + lag * mw] == 0 or mask[i + lag] == 0:
+				continue
+			var b := g1[i] - g2[i]
+			e2 += b * b
+			cv += b * (g1[i + lag * mw] - g2[i + lag * mw])
+			ch += b * (g1[i + lag] - g2[i + lag])
+			var dx := 0.5 * ((g1[i + 1] - g2[i + 1]) - (g1[i - 1] - g2[i - 1]))
+			var dy := 0.5 * ((g1[i + mw] - g2[i + mw]) - (g1[i - mw] - g2[i - mw]))
+			ex += dx * dx
+			ey += dy * dy
+	return Vector3(ex / maxf(ey, 1e-20), cv / maxf(e2, 1e-20), ch / maxf(e2, 1e-20))
 
 
 func _erode(cov: PackedByteArray, w: int, h: int, rad: int) -> PackedByteArray:
@@ -277,12 +309,38 @@ func _init() -> void:
 	var pn := _measure(_noisy(rn["color"], "noise"), mn, SIZE.x, SIZE.y)
 	var ps := _measure(_noisy(rn["color"], "col"), mn, SIZE.x, SIZE.y)
 	print("      NEW  Rr %.5f Sx %.3f LF %.4f (%d px) | L5 Rr %.5f Sx %.3f LF %.4f (%d px) | planted noise Rr %.5f, planted columns Sx %.3f | bars Rr %.5f Sx %.3f" % [an["rough"], an["streak"], an["lf"], an["n"], al["rough"], al["streak"], al["lf"], al["n"], pn["rough"], ps["streak"], bar_r, bar_s])
+	for cand in [[1.0, 4.0, 6], [3.0, 12.0, 20]]:
+		var qn := _aniso(rn["color"], mn, SIZE.x, SIZE.y, cand[0], cand[1], cand[2])
+		var ql := _aniso(rl["color"], ml, SIZE.x, SIZE.y, cand[0], cand[1], cand[2])
+		print("      INFO anisotropy DoG(%.0f,%.0f) lag %d: new Sx %.3f Cv %.3f Ch %.3f | L5 Sx %.3f Cv %.3f Ch %.3f" % [cand[0], cand[1], cand[2], qn.x, qn.y, qn.z, ql.x, ql.y, ql.z])
 	ok(an["rough"] <= bar_r, "(W1) roughness of the new render %.5f <= %.5f (1.5 x photo %.5f)" % [an["rough"], bar_r, PHOTO_ROUGH])
 	ok(al["rough"] > bar_r, "(g) CONTROL (W1) the L5 render reads %.5f and fails the roughness bar %.5f" % [al["rough"], bar_r])
 	ok(pn["rough"] > bar_r, "(g) CONTROL (W1) planted noise on the new render reads %.5f and fails the bar" % pn["rough"])
 	ok(an["streak"] <= bar_s, "(W2) streak ratio of the new render %.3f <= %.3f (registered absolute bar; photo reads %.3f)" % [an["streak"], bar_s, PHOTO_STREAK])
 	ok(al["streak"] > bar_s, "(g) CONTROL (W2) the L5 render reads %.3f and fails the streak bar %.3f" % [al["streak"], bar_s])
 	ok(ps["streak"] > bar_s, "(g) CONTROL (W2) planted column offsets on the new render read %.3f and fail the bar" % ps["streak"])
+	# ---- W2b stripe edges
+	var sn: Dictionary = await _render_glass(gl, true, true)
+	var sl: Dictionary = await _render_glass(gl, false, true)
+	sn["color"].save_png("C:/Temp/claude/l31/w3_stripes_new.png")
+	sl["color"].save_png("C:/Temp/claude/l31/w3_stripes_l5.png")
+	var smn := _mask_of(sn["thick"])
+	var sml := _mask_of(sl["thick"])
+	var en := _edge_straightness(sn["color"], smn, SIZE.x, SIZE.y)
+	var el := _edge_straightness(sl["color"], sml, SIZE.x, SIZE.y)
+	var shifted := (sn["color"] as Image).duplicate() as Image
+	var rng2 := RandomNumberGenerator.new()
+	rng2.seed = 7
+	var src := (sn["color"] as Image).duplicate() as Image
+	for y in SIZE.y:
+		var sh := roundi(rng2.randfn(0.0, 1.0))
+		for x in SIZE.x:
+			shifted.set_pixel(x, y, src.get_pixel(clampi(x + sh, 0, SIZE.x - 1), y))
+	var ep := _edge_straightness(shifted, smn, SIZE.x, SIZE.y)
+	print("      W2b NEW J %.3f px cov %.3f (%d tracks, %d crossings) | L5 J %.3f cov %.3f (%d tracks, %d) | planted row shifts J %.3f cov %.3f" % [en["j"], en["cov"], en["tracks"], en["n"], el["j"], el["cov"], el["tracks"], el["n"], ep["j"], ep["cov"]])
+	ok(en["tracks"] >= 3 and en["j"] <= 0.35 and en["cov"] >= 0.9, "(W2b) stripe edges stay straight through the new surface: J %.3f px (<= 0.35), coverage %.3f (>= 0.9), %d tracks (>= 3)" % [en["j"], en["cov"], en["tracks"]])
+	ok(el["tracks"] < 3 or el["j"] > 0.35 or el["cov"] < 0.9, "(g) CONTROL (W2b) the L5 render reads J %.3f px, coverage %.3f and fails" % [el["j"], el["cov"]])
+	ok(ep["tracks"] < 3 or ep["j"] > 0.35 or ep["cov"] < 0.9, "(g) CONTROL (W2b) planted row shifts read J %.3f px, coverage %.3f and fail" % [ep["j"], ep["cov"]])
 	ok(an["lf"] >= 0.5 * al["lf"] and float(an["n"]) >= 0.9 * float(al["n"]), "(W3) the water is still there: LF std %.4f vs L5 %.4f (>= 0.5 x), area %d vs %d px (>= 0.9 x)" % [an["lf"], al["lf"], an["n"], al["n"]])
 	# ---- W4 volume
 	var F = Fluid.make()
@@ -296,7 +354,7 @@ func _init() -> void:
 		var v1 := absf(WaterSurface.signed_volume(sm, item[2]))
 		var lap: PackedVector3Array = WaterSurface.taubin(item[1], item[2], 60, 0.5, 0.0)   # mu = 0: a plain Laplacian, it shrinks
 		var v2 := absf(WaterSurface.signed_volume(lap, item[2]))
-		print("      W4 %s: volume %.6e -> smooth_volume %.6e (%.3f %%), plain Laplacian %.6e (%.2f %%)" % [item[0], v0, v1, (v1 / v0 - 1.0) * 100.0, v2, (v2 / v0 - 1.0) * 100.0])
+		print("      W4 %s: volume %.6f L -> smooth_volume %.6f L (%.3f %%), plain Laplacian %.6f L (%.2f %%)" % [item[0], v0 * 1000.0, v1 * 1000.0, (v1 / v0 - 1.0) * 100.0, v2 * 1000.0, (v2 / v0 - 1.0) * 100.0])
 		ok(absf(v1 / v0 - 1.0) <= 0.01, "(W4) %s: smooth_volume keeps the volume within 1 %% (%.3f %%)" % [item[0], (v1 / v0 - 1.0) * 100.0])
 		ok(absf(v2 / v0 - 1.0) > 0.01, "(g) CONTROL (W4) %s: plain Laplacian smoothing changes the volume by %.2f %% and fails" % [item[0], (v2 / v0 - 1.0) * 100.0])
 	# ---- W5 frame cost (information)
