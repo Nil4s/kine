@@ -4334,7 +4334,9 @@ func _fd_start(key: String) -> void:
 			Dm.place(dm["dist"], dm["yaw"])
 			Dm.xf = dm["xf"]
 			Dm.D.set_state(dm["st"])
-		box.append(FrameData.analyze(C, Bc, fps, Dm)))
+		var fdw := FrameData.analyze(C, Bc, fps, Dm)
+		CancelWindows.attach(fdw, C, Bc)   # N081: the cancel windows ride with the frame data
+		box.append(fdw))
 	_bg_live.append(thr)   # waited for if the app quits first
 	while thr.is_alive():
 		await get_tree().process_frame
@@ -4360,6 +4362,7 @@ func _fd_data() -> Dictionary:
 		Bc.ground()
 		var fdx := {} if dummy_on else FrameAdvantage.app_fd(self, Bc, fd_fps)   # N080: two fighters: hitstun / advantage as well
 		fd_cache = {"key": key, "fd": fdx if not fdx.is_empty() else FrameData.analyze(S, Bc, fd_fps, T if dummy_on else null)}
+		CancelWindows.attach(fd_cache["fd"], S, Bc)   # N081
 	return fd_cache["fd"]
 
 

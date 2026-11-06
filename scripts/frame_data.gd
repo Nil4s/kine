@@ -194,6 +194,8 @@ static func to_json(fd: Dictionary) -> Dictionary:
 	var out := {"fps": fd["fps"], "startup": fd["startup"], "active": fd["active"], "recovery": fd["recovery"], "frames": frames}
 	if fd.has("boxes"):
 		out["boxes"] = fd["boxes"]   # the scene's boxes (hit_boxes.gd), as the scene file keeps them
+	if fd.has("cancel"):
+		out["cancel"] = fd["cancel"]   # N081: cancel windows from the body (cancel_windows.gd); only after CancelWindows.attach
 	if fd.has("exchange"):
 		out["exchange"] = fd["exchange"]   # N080: hitstun, blockstun, advantage (frame_advantage.gd); only with a second fighter
 	return out

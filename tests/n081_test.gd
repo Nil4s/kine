@@ -314,7 +314,7 @@ func _init() -> void:
 			longenough = longenough and int(x[1]) - int(x[0]) >= REG_RUN
 			maximal = maximal and (int(x[0]) == 0 or not fl[int(x[0]) - 1]) and (int(x[1]) == fl.size() or not fl[int(x[1])])
 		ok(mw == ow and worst_v < 1e-6 and worst_h < 1e-6 and worst_m < 1e-9 and maximal and longenough,
-			"4 %s: %d windows %s equal the recompute; worst dv %.1e dh %.1e dmargin %.1e; maximal %s, all >= %d f" % [k, mw.size(), mw if mw.size() <= 4 else str(mw.slice(0, 4)) + "...", worst_v, worst_h, worst_m, maximal, REG_RUN])
+			"4 %s: %d windows %s equal the recompute; worst dv %s dh %s dmargin %s; maximal %s, all >= %d f" % [k, mw.size(), mw if mw.size() <= 4 else str(mw.slice(0, 4)) + "...", String.num_scientific(worst_v), String.num_scientific(worst_h), String.num_scientific(worst_m), maximal, REG_RUN])
 	# 5 monotone
 	for k in ["jab", "kick", "combo3"]:
 		var prev: Array = []
