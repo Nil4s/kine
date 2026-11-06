@@ -19,6 +19,8 @@ static func blockers(root: Node, card: Control, view: Rect2, labels: Array) -> A
 			continue
 		if n == card:
 			continue
+		if (n is MeshInstance3D or n is Skeleton3D) and not PerfDoc.slow:
+			continue   # L12: the body's pieces and bones (most of the tree) hold no Button; the equality bar in tests/perf60_test.gd checks the list is the same
 		if n is Button:
 			var r := (n as Control).get_global_rect()
 			if r.intersects(view):
@@ -79,11 +81,19 @@ static func place(card: Control, hb: Control, view: Rect2, blk: Array, body: Rec
 				continue
 			var y := view.end.y - ps.y
 			while y >= view.position.y - 0.5:
+				# L12: only the blockers whose rows overlap this row of candidates can be hit by it (Rect2.intersects needs both axes
+				# to overlap, strictly): the same answer from a short list
+				var row_blk: Array = blk
+				if not PerfDoc.slow:
+					row_blk = []
+					for b0 in blk:
+						if (b0 as Rect2).position.y < y + ps.y and (b0 as Rect2).end.y > y:
+							row_blk.append(b0)
 				var x := view.end.x - ps.x
 				while x >= view.position.x - 0.5:
 					var r := Rect2(x, y, ps.x, ps.y)
 					var hit := false
-					for b in blk:
+					for b in row_blk:
 						if r.intersects(b):
 							hit = true
 							break

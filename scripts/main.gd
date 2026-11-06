@@ -3525,25 +3525,38 @@ func _process(dt: float) -> void:
 
 
 func _process_body(dt: float) -> void:
+	var _pre := PerfDoc.t()
 	_mesh_hint_sync()
+	PerfDoc.add("p_hint", _pre)
+	var _p0 := PerfDoc.t()
 	_hands_dock_tick()   # C66
+	PerfDoc.add("p_dock", _p0)
 	if _drop_line != null and _drop_line.visible:
 		var hov := get_viewport().gui_get_hovered_control()
 		if not get_viewport().gui_is_dragging() or hov == null or not (hov == ui_card_row or ui_card_row.is_ancestor_of(hov)):
 			_drop_line.visible = false   # R8: the drag ended or left the strip
 	PoseBake.serving = playing   # the baked pose table serves playback only (pose_bake.gd)
+	var _pm := PerfDoc.t()
 	if ui_mouse != null:
 		ui_mouse.tick(dt)   # P05: at most every 50 ms
+	PerfDoc.add("p_mouse", _pm)
 	_co_tick()   # ROADMAP 30: the session's socket, the owned fighter's playhead
+	var _p1 := PerfDoc.t()
 	_doc_line()   # RR1: the strip catches up (throttled) after edits that do not refresh
+	PerfDoc.add("p_docline", _p1)
+	_p1 = PerfDoc.t()
 	_mark_play_card()   # the card at the playhead wears the gold frame; the strip follows it while playing
+	PerfDoc.add("p_markcard", _p1)
+	_p1 = PerfDoc.t()
 	_keys_camera(dt)
+	PerfDoc.add("p_keycam", _p1)
 	if campiv != null:
 		campiv.tick(dt)   # C07
 	if vx != null:
 		vx.tick(dt)   # K13-K16
 	if shot_through:
 		_shot_apply()   # THE SHOT CAMERA follows the playhead (play, scrub, an edit)
+	_p0 = PerfDoc.t()
 	_tour_poll()
 	_step_hint = ""   # a press that pushed no step must not name a later one
 	_pv_poll()
@@ -3552,10 +3565,12 @@ func _process_body(dt: float) -> void:
 	_multicam_poll(dt)
 	refimg.poll(dt)
 	_imp_poll()
+	PerfDoc.add("p_polls0", _p0)
 	var _pp := PerfDoc.t()
 	_live_poll(dt)
 	PerfDoc.add("live", _pp)
 	_sg_poll()
+	_p0 = PerfDoc.t()
 	if mm_ui != null:
 		mm_ui.tick(dt)   # MOTION MATCHING PREVIEW: steers and plays the matched frames while it is on (nothing otherwise)
 	if mp_ui != null:
@@ -3610,6 +3625,7 @@ func _process_body(dt: float) -> void:
 		sp_ui.tick(dt)
 	if rmc_ui != null:
 		rmc_ui.tick(dt)
+	PerfDoc.add("p_ticks", _p0)
 	sj.observe(undo.size())   # I26: undone / edited suggestions
 	if not myhits.pending.is_empty():   # I46: my edits of a written reaction become lessons once they settle
 		myhits.observe(undo.size(), func(vk: int): return (actors_rt[vk]["S"] as Scene) if vk < actors_rt.size() else null, B)
@@ -3623,11 +3639,22 @@ func _process_body(dt: float) -> void:
 		pr_ui.tick(dt)
 	if tc_ui != null:
 		tc_ui.tick(dt)   # TIMING COACH preview: plays a suggested timing on a copy (nothing otherwise)
+	PerfDoc.add("p_sj", _p0)
+	_p1 = PerfDoc.t()
 	_dm_poll()
+	PerfDoc.add("p_dm", _p1)
+	_p1 = PerfDoc.t()
 	_hit_ui_tick()
+	PerfDoc.add("p_hit", _p1)
+	_p1 = PerfDoc.t()
 	_bake_poll()
+	PerfDoc.add("p_bake", _p1)
+	_p1 = PerfDoc.t()
 	_kb_poll()
+	PerfDoc.add("p_kb", _p1)
+	_p1 = PerfDoc.t()
 	autover_tick()
+	PerfDoc.add("p_polls", _p1)
 	_as_wait += dt
 	if _as_wait >= 15.0:
 		_as_wait = 0.0
@@ -3640,6 +3667,7 @@ func _process_body(dt: float) -> void:
 			hover_part = ""
 			_fh_clear()
 			_refresh()
+	_p1 = PerfDoc.t()
 	var now := Time.get_ticks_msec() / 1000.0
 	if hover_part != _bar_want:
 		_bar_want = hover_part
@@ -3651,7 +3679,11 @@ func _process_body(dt: float) -> void:
 		if bt != ui_bar.text:   # rebuilt every frame, written only when it differs: no edit path can leave it stale
 			ui_bar.text = bt
 		ui_bar.visible = not (easy != null and easy.on) and not _hides("readout")   # Easy: no card count or seconds readout (Expert keeps it)
+	PerfDoc.add("p_bar", _p1)
+	_p1 = PerfDoc.t()
 	_props_pose()   # UU2: carried and falling props follow the playhead (nothing when no card carries)
+	PerfDoc.add("p_props", _p1)
+	PerfDoc.add("p_pre", _pre)
 	var _a_before := playhead   # the sound follows whatever moved the playhead this frame (_audio_tick)
 	if playing and not S.cards.is_empty():
 		# WW4: inside the preview range, if one is set. ROADMAP 48: how far the playhead moves is the play clock's mode
@@ -3676,7 +3708,9 @@ func _process_body(dt: float) -> void:
 			var ps := _ps()
 			ps.apply(B, ps.play_t(playhead))   # ROADMAP 99: the evaluated time is a tick of the bake grid, the pose a baked one
 		PerfDoc.add("body", _pp)
+		_pp = PerfDoc.t()
 		_refresh()
+		PerfDoc.add("p_refresh", _pp)
 		if play_delay > 0.0:
 			OS.delay_msec(roundi(play_delay * 1000.0))   # the test's slow frame: this frame really costs that long
 	_audio_tick(_a_before, dt)
@@ -5202,12 +5236,22 @@ func _place(mi: MeshInstance3D, a: Vector3, b: Vector3, r: float, capsule := tru
 
 
 func _refresh() -> void:
+	var _rf := PerfDoc.t()
 	if ic_ui != null:
 		ic_ui.sync()   # plan 137: the target's flash on its 2 frames
+	PerfDoc.add("r_ic", _rf)
+	_rf = PerfDoc.t()
 	_hands_refresh()   # HANDS (w4-handlock): the hands rows say the state
+	PerfDoc.add("r_hands", _rf)
+	_rf = PerfDoc.t()
 	_light_apply()
+	PerfDoc.add("r_light", _rf)
+	_rf = PerfDoc.t()
 	_refimg_sync()
+	PerfDoc.add("r_head", _rf)
+	_rf = PerfDoc.t()
 	_actors_view()
+	PerfDoc.add("r_actors", _rf)
 	_curve_sync()
 	if ui_akey != null and auto_key:
 		ui_akey.queue_redraw()   # the frame reads Tok on each draw: a palette switch shows at once
@@ -5232,15 +5276,10 @@ func _refresh() -> void:
 	_fd_refresh()   # FRAME DATA (ROADMAP 12): the strip and the boxes on active frames
 	if ui_browser != null and ui_browser.visible:
 		ui_browser.follow()
-	var touching := {}
-	for pr in B.pairs:
-		if not B.wep_on and (pr[0] in Body.WEAPON or pr[1] in Body.WEAPON):
-			continue
-		if not B.wep2_on and (pr[0] in Body.WEAPON2 or pr[1] in Body.WEAPON2):
-			continue
-		if B.depth(pr[0], pr[1]) - float(B.allow.get(pr[0] + "|" + pr[1], 0.0)) > 0.001:
-			touching[pr[0]] = true
-			touching[pr[1]] = true
+	_rf = PerfDoc.t()
+	var touching: Dictionary = B.touching_parts_ref() if PerfDoc.slow else B.touching_parts()   # L12: one capsule per part per frame
+	PerfDoc.add("r_touch", _rf)
+	_rf = PerfDoc.t()
 	var looks := {}   # PRECISE PICK: each body part's light on its own skin (SkinPick.set_looks)
 	# EASY QUIET: no standing pick light, name tag or joint dots on a beginner's body (a blue "right upper arm" over the punch
 	# read as a fault); the hover light stays (what a click would grab) and the pick shows while a part is dragged
@@ -5293,6 +5332,8 @@ func _refresh() -> void:
 			col.a = 0.0
 		mats[j].albedo_color = col
 		parts[j].visible = col.a > 0.0 and (B.wep_on or not j in Body.WEAPON) and (B.wep2_on or not j in Body.WEAPON2) and not hidden_parts.has(j)
+	PerfDoc.add("r_parts", _rf)
+	_rf = PerfDoc.t()
 	var _rk := {sel: true}
 	for sj in sel_more:
 		_rk[sj] = true
@@ -5340,6 +5381,7 @@ func _refresh() -> void:
 		dots[dj].visible = not clean and not quiet and not hidden_parts.has(dj) and not mesh_pg
 	tag.text = part_words(sel)
 	tag.position = ((c2[0] as Vector3) + (c2[1] as Vector3)) * 0.5 + Vector3(0, 0.1, 0)
+	PerfDoc.add("r_looks", _rf)
 	_dummy_refresh()
 	_pk = PerfDoc.t()
 	bal.show_body(B)
@@ -11090,11 +11132,13 @@ func _hands_refresh() -> void:
 		# the view's bottom RIGHT, over the floor, above the status line (under the top bar it covered the head; at the
 		# left it met the "Click a part" tip)
 		var vs := get_viewport().get_visible_rect().size
+		var _hk := PerfDoc.t()
 		ui_hands_panel.reset_size()
+		PerfDoc.add("h_reset", _hk)
 		if easy_on:   # Easy: the view's bottom left, over the floor (under its bar the "What should he do?" picker covered it: walk12;
 			# its slider panel is at the right)
 			ui_hands_panel.position = Vector2(12.0, vs.y - float(BOTTOM_H) - ui_hands_panel.size.y - 64.0)
-		else:   # Expert: the first corner of the view the body is not in (it covered the head, then a hand)
+		elif ui_hands_panel.visible or PerfDoc.slow:   # L12: a hidden card is not placed (it is placed in the refresh that shows it)
 			var ps := ui_hands_panel.size
 			var x0 := float(LEFT_W) + 12.0
 			var x1 := vs.x - float(RIGHT_W) - 12.0 - ps.x
@@ -11103,14 +11147,18 @@ func _hands_refresh() -> void:
 			for lb in [ui_mouse, ui_status]:   # ...and above where that line and the status line really are (the scene panel
 				if lb != null and is_instance_valid(lb) and lb.is_visible_in_tree():   # can be taller than BOTTOM_H: the strip covered them)
 					y1 = minf(y1, lb.get_global_rect().position.y - ps.y - 8.0)
+			_hk = PerfDoc.t()
 			var body := _body_screen_rect().grow(12.0)
+			PerfDoc.add("h_rect", _hk)
 			var vrect := Rect2(float(LEFT_W), float(TOP_H), vs.x - float(LEFT_W) - float(RIGHT_W), vs.y - float(TOP_H) - float(bottom_h))   # C66
 			var hb_flow: Control = null
 			for d0 in ui_hands:
 				if not d0["easy"] and d0.has("both"):
 					hb_flow = (d0["both"] as Control).get_parent()
 					(d0["state"] as Label).text = st   # its wrapped height is part of the card's size
+			_hk = PerfDoc.t()
 			var docked: bool = hb_flow != null and HandsDock.place(ui_hands_panel, hb_flow, vrect, HandsDock.blockers(self, ui_hands_panel, vrect, [ui_status, ui_mouse, ui_bar, ui_cube]), body, HandsDock.points(self))
+			PerfDoc.add("h_dock", _hk)
 			if not docked:
 				var pick := Vector2(x1, y1)
 				for c in [Vector2(x1, y1), Vector2(x0, y0), Vector2(x0, y1), Vector2(x1, y0)]:
@@ -11119,6 +11167,7 @@ func _hands_refresh() -> void:
 						break
 				ui_hands_panel.position = PickDodge.fit(ui_hands_panel, pick, Rect2(float(LEFT_W) + 8.0, float(TOP_H) + 8.0, vs.x - float(LEFT_W) - float(RIGHT_W) - 16.0, vs.y - float(TOP_H) - 16.0 - float(BOTTOM_H) - 56.0), PickDodge.points(self))   # C29: never over a body pick point
 		ui_hands_panel.position = ui_hands_panel.position.clamp(Vector2.ZERO, (vs - ui_hands_panel.size).max(Vector2.ZERO))   # no candidate fits a short window: it still stays on the view
+	var _hk2 := PerfDoc.t()
 	for d in ui_hands:
 		if not is_instance_valid(d["box"]):
 			continue
@@ -11133,7 +11182,10 @@ func _hands_refresh() -> void:
 		_grey(d["let_r"], "" if (on_h and o == "hand_r") else "the right hand is not holding the weapon: nothing to let go")
 		(d["follow"] as Button).set_pressed_no_signal(held)
 		(d["only"] as Button).set_pressed_no_signal(only_part)
+	PerfDoc.add("h_rows", _hk2)
+	_hk2 = PerfDoc.t()
 	_blade_sync()
+	PerfDoc.add("h_blade", _hk2)
 
 
 ## the body's box on screen (its joints projected; empty when it is behind the camera)
