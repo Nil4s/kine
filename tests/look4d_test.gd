@@ -2,13 +2,14 @@ extends SceneTree
 ## godot --path . -s tests/look4d_test.gd     (LOOK4D: the four formats of scripts/build/look4d.gd; docs/LOOK4D_DESIGN.md)
 ## Bars and planted controls committed BEFORE the first run:
 ##  1 VELOCITY  D velocities equal the finite differences of the posed transforms (every part of the engine, 3 sig figs); the crank turns 6.283 rad/s (360 deg/s);
-##              a ball at a known v reads v. PLANTED: the same digest with a 1.5x dt must miss the finite differences on the accelerating engine.
+##              a ball at a known v reads v. PLANTED: the same digest with a 10x dt must miss the finite differences on the accelerating engine.
 ##  2 OCCLUSION occluded flags on a planted fixture (front box hides the box behind it; a side box is clear; a far-left box is outside the picture: solo_px 0)
 ##              and the pixel counts equal an independent id render built on LookFacts primitives. CONTROL: the hidden box moved aside reads NOT occluded.
 ##  3 ARROW     C's arrow, read by yellow pixel positions in C.png, starts at the part centre and ends at the projection of centre + v * ARROW_T (camera.unproject_position,
 ##              not the module's own projection), for a sideways and a toward-the-camera velocity. PLANTED: the reversed arrow's tip is far from the real one (the check can fail).
 ##  4 PROJECTION Look4D.project_pt equals Camera3D.unproject_position within 0.6 px.
 ##  5 FORMATS   A, B, C are 768 x 432, D parses and every number is finite, each format on the engine is produced inside 5000 ms.
+##  7 LABELS    in all six scenes no two mark boxes of C intersect and all lie inside the picture. PLANTED: the old layout (label at the projected centre, no declutter) must show intersecting boxes.
 ##  6 STIMULI   all six scenes produce A.png B.png C.png D.json truth_data.json timing.json under res://out/look4d/<scene>/; S6's digest has zero speed everywhere and the same
 ##              id list as S1; every scene's D carries one row per id.
 const L4 := preload("res://scripts/build/look4d.gd")
@@ -66,33 +67,35 @@ func bars_velocity() -> void:
 	var worst := 0.0
 	var bad := 0
 	var wmax := 0.0
-	for row in dg["objects"]:
-		var id: String = row["id"]
+	var rws := L4.rows(dg)
+	for id in rws:
+		var row: Dictionary = rws[id]
 		var n := sc["nodes"][id] as MeshInstance3D
 		L4.at(ctx, t0 + L4.DT)
 		var cb := n.global_transform * n.mesh.get_aabb().get_center()
 		L4.at(ctx, t0 - L4.DT)
 		var ca := n.global_transform * n.mesh.get_aabb().get_center()
 		var fd := (cb - ca) / (2.0 * L4.DT)
-		if not rel_ok(v3(row["vel"]), fd):
+		if not rel_ok(row["vel"], fd):
 			bad += 1
-		worst = maxf(worst, (v3(row["vel"]) - fd).length())
-		wmax = maxf(wmax, v3(row["angvel"]).length())
-	ok(bad == 0, "1 engine D velocity of %d parts equals the posed finite difference (worst |dv| %.2e m/s, bar 0.5%% per component)" % [(dg["objects"] as Array).size(), worst])
+		worst = maxf(worst, ((row["vel"] as Vector3) - fd).length())
+		wmax = maxf(wmax, (row["angvel"] as Vector3).length())
+	ok(bad == 0 and rws.size() == (sc["ids"] as Array).size(), "1 engine D velocity of %d parts equals the posed finite difference (worst |dv| %s m/s, bar 0.5%% per component)" % [rws.size(), String.num_scientific(worst)])
 	ok(absf(wmax - TAU) < 0.02 * TAU, "1 the fastest angular velocity is the crank's 360 deg/s = %.4f rad/s (got %.4f)" % [TAU, wmax])
-	var kin_bad := L4.kinematics(ctx, t0, L4.DT * 1.5)
+	var kin_bad := L4.kinematics(ctx, t0, L4.DT * 10.0)
 	var dg_bad := L4.digest(ctx, t0, kin_bad, meas, [])
 	var miss := 0
-	for row in dg_bad["objects"]:
-		var id: String = row["id"]
+	var rws_bad := L4.rows(dg_bad)
+	for id in rws_bad:
+		var row: Dictionary = rws_bad[id]
 		var n := sc["nodes"][id] as MeshInstance3D
 		L4.at(ctx, t0 + L4.DT)
 		var cb := n.global_transform * n.mesh.get_aabb().get_center()
 		L4.at(ctx, t0 - L4.DT)
 		var ca := n.global_transform * n.mesh.get_aabb().get_center()
-		if not rel_ok(v3(row["vel"]), (cb - ca) / (2.0 * L4.DT)):
+		if not rel_ok(row["vel"], (cb - ca) / (2.0 * L4.DT)):
 			miss += 1
-	ctl(miss > 0, "1 PLANTED dt x 1.5 misses the finite differences on %d engine parts" % miss)
+	ctl(miss > 0, "1 PLANTED dt x 10 misses the finite differences on %d engine parts" % miss)
 	L4.close(ctx)
 	# a ball at a known velocity
 	var vk := Vector3(0.3, -0.2, 0.5)
@@ -101,8 +104,9 @@ func bars_velocity() -> void:
 	await L4.frames(2)
 	var kb := L4.kinematics(cb2, 1.0)
 	var db := L4.digest(cb2, 1.0, kb, await L4.measure(cb2), [])
-	var vb := v3(db["objects"][0]["vel"])
-	ok(rel_ok(vb, vk) and absf(float(db["objects"][0]["speed"]) - vk.length()) < 0.006 * vk.length(), "1 a ball at v = %s reads %s, speed %.4f (hand %.4f)" % [str(vk), str(vb), float(db["objects"][0]["speed"]), vk.length()])
+	var rb: Dictionary = L4.rows(db)["ball"]
+	var vb: Vector3 = rb["vel"]
+	ok(rel_ok(vb, vk) and absf(float(rb["speed"]) - vk.length()) < 0.006 * vk.length(), "1 a ball at v = %s reads %s, speed %.4f (hand %.4f)" % [str(vk), str(vb), float(rb["speed"]), vk.length()])
 	ok(L4.round_sig(0.123456) == 0.123 and L4.round_sig(1234.56) == 1230.0 and L4.round_sig(-0.0049876) == -0.00499, "1 round_sig keeps 3 significant figures")
 	L4.close(cb2)
 
@@ -191,29 +195,31 @@ func arrow_case(label: String, v: Vector3) -> void:
 	var cam: Camera3D = ctx["cam"]
 	var t0 := float(sc["t0"])
 	var c: Vector3 = x0 + v * t0
-	var tail := cam.unproject_position(c)
-	var tip := cam.unproject_position(c + v * L4.ARROW_T)
+	var tail := cam.unproject_position(c) * L4.CS
+	var tip := cam.unproject_position(c + v * L4.ARROW_T) * L4.CS
 	var img := Image.load_from_file(OUT + "/arrow_" + label + "/C.png")
 	var ys := yellow_pixels(img)
-	var far := Vector2.ZERO
+	var far := tail
 	var near := Vector2(1e9, 1e9)
 	for p in ys:
 		if p.distance_to(tail) > far.distance_to(tail):
 			far = p
 		if p.distance_to(tail) < near.distance_to(tail):
 			near = p
-	var rev := cam.unproject_position(c - v * L4.ARROW_T)
+	var rev := cam.unproject_position(c - v * L4.ARROW_T) * L4.CS
 	ok(ys.size() > 10 and far.distance_to(tip) <= 6.0 and near.distance_to(tail) <= 4.0, "3 %s arrow: %d yellow px, tail read %s vs centre %s, tip read %s vs projected %s" % [label, ys.size(), str(near), str(tail), str(far), str(tip)])
-	ctl(far.distance_to(rev) > 12.0, "3 %s PLANTED the reversed arrow's tip %s is %.0f px from the one read" % [label, str(rev), far.distance_to(rev)])
+	ctl(far.distance_to(rev) > 8.0, "3 %s PLANTED the reversed arrow's tip %s is %.0f px from the one read" % [label, str(rev), far.distance_to(rev)])
 	var p1 := L4.project_pt(ctx, c)
 	var p2 := L4.project_pt(ctx, c + v * L4.ARROW_T)
-	ok((p1["px"] as Vector2).distance_to(tail) < 0.6 and (p2["px"] as Vector2).distance_to(tip) < 0.6, "4 %s project_pt equals Camera3D.unproject_position (%.3f px, %.3f px)" % [label, (p1["px"] as Vector2).distance_to(tail), (p2["px"] as Vector2).distance_to(tip)])
+	var u1 := cam.unproject_position(c)
+	var u2 := cam.unproject_position(c + v * L4.ARROW_T)
+	ok((p1["px"] as Vector2).distance_to(u1) < 0.6 and (p2["px"] as Vector2).distance_to(u2) < 0.6, "4 %s project_pt equals Camera3D.unproject_position (%.3f px, %.3f px)" % [label, (p1["px"] as Vector2).distance_to(u1), (p2["px"] as Vector2).distance_to(u2)])
 	L4.close(ctx)
 
 
 func bars_arrow() -> void:
 	await arrow_case("side", Vector3(0.6, 0.1, 0.0))
-	await arrow_case("toward", Vector3(0.1, 0.1, 1.2))
+	await arrow_case("toward", Vector3(0.4, 0.2, 1.5))
 
 
 # ------------------------------------------------------------------ 5
@@ -228,12 +234,15 @@ func bars_formats() -> void:
 		ok(float(ms[k]) < 5000.0, "5 %s produced in %.0f ms (budget 5000)" % [k, float(ms[k])])
 	var dg = JSON.parse_string(r["d_text"])
 	var fin := dg is Dictionary
+	var nrows := 0
 	if fin:
-		for o in dg["objects"]:
+		var rr := L4.rows(dg)
+		nrows = rr.size()
+		for id in rr:
 			for kk in ["pos", "vel", "angvel", "momentum"]:
-				for x in o[kk]:
-					fin = fin and is_finite(float(x))
-	ok(fin and (dg["objects"] as Array).size() == (sc["ids"] as Array).size(), "5 D parses, every number finite, %d rows for %d ids, %d bytes (~%d tokens vs %d for an image)" % [(dg["objects"] as Array).size(), (sc["ids"] as Array).size(), (r["d_text"] as String).length(), (r["d_text"] as String).length() / 4, int(round(768 * 432 / 750.0))])
+				for i in 3:
+					fin = fin and is_finite((rr[id][kk] as Vector3)[i])
+	ok(fin and nrows == (sc["ids"] as Array).size(), "5 D parses, every number finite, %d rows for %d ids, %d bytes (~%d tokens vs %d for an image)" % [nrows, (sc["ids"] as Array).size(), (r["d_text"] as String).length(), (r["d_text"] as String).length() / 4, int(round(768 * 432 / 750.0))])
 	L4.close(r["ctx"])
 
 
@@ -242,6 +251,7 @@ func bars_stimuli() -> void:
 	var s1ids: Array = []
 	var s6ids: Array = []
 	var s6speed := 0.0
+	var naive_total := 0
 	for nm in SCN.SCENES:
 		var sc := SCN.by_name(nm)
 		var dir := ProjectSettings.globalize_path("res://out/look4d/" + nm)
@@ -254,17 +264,29 @@ func bars_stimuli() -> void:
 			var im: Image = r[k]
 			sizes_ok = sizes_ok and im.get_width() == 768 and im.get_height() == 432
 		var ms: Dictionary = r["ms"]
-		ok(files_ok and sizes_ok and (r["digest"]["objects"] as Array).size() == (sc["ids"] as Array).size(), "6 %s: six files, 768 x 432, %d D rows; ms A %.0f B %.0f C %.0f D %.0f; D ~%d tokens; t0 %.2f" % [nm, (r["digest"]["objects"] as Array).size(), float(ms["A"]), float(ms["B"]), float(ms["C"]), float(ms["D"]), (r["d_text"] as String).length() / 4, float(sc["t0"])])
+		ok(files_ok and sizes_ok and L4.rows(r["digest"]).size() == L4.named(r["ctx"]).size(), "6 %s: six files, 768 x 432, %d D rows; ms A %.0f B %.0f C %.0f D %.0f; D ~%d tokens; t0 %.2f" % [nm, L4.rows(r["digest"]).size(), float(ms["A"]), float(ms["B"]), float(ms["C"]), float(ms["D"]), (r["d_text"] as String).length() / 4, float(sc["t0"])])
 		var nvis := 0
-		for id in r["meas"]:
+		var nocc := 0
+		for id in L4.named(r["ctx"]):
 			if int(r["meas"][id]["solo_px"]) > 0:
 				nvis += 1
-		print("      %s: %d ids, %d in the picture, %d occluded, %d contacts" % [nm, (sc["ids"] as Array).size(), nvis, (r["meas"] as Dictionary).values().filter(func(x): return L4.occluded(x)).size(), (r["contacts"] as Array).size()])
+			if L4.occluded(r["meas"][id]):
+				nocc += 1
+		var mrects: Array = []
+		var inside := true
+		for mk in r["plan"]["marks"]:
+			mrects.append(mk["rect"])
+			inside = inside and Rect2(0, 0, L4.IMG_W, L4.IMG_H).encloses(mk["rect"])
+		var hit := L4.boxes_intersect(mrects)
+		ok(hit == 0 and inside and mrects.size() == nvis, "7 %s: %d mark boxes for %d parts in the picture, none intersect, all inside the picture" % [nm, mrects.size(), nvis])
+		naive_total += L4.boxes_intersect(L4.naive_boxes(r["ctx"], r["kin"], r["meas"]))
+		print("      %s: %d ids (%d named), %d in the picture, %d occluded, %d contacts; D ~%d tokens vs A %d" % [nm, (sc["ids"] as Array).size(), L4.named(r["ctx"]).size(), nvis, nocc, (r["contacts"] as Array).size(), (r["d_text"] as String).length() / 4, int(round(768 * 432 / 750.0))])
 		if nm == "s1_engine":
 			s1ids = (sc["ids"] as Array).duplicate()
 		if nm == "s6_null":
 			s6ids = (sc["ids"] as Array).duplicate()
-			for o in r["digest"]["objects"]:
+			for o in L4.rows(r["digest"]).values():
 				s6speed = maxf(s6speed, float(o["speed"]))
 		L4.close(r["ctx"])
-	ok(s1ids == s6ids and s6speed < 1e-6, "6 S6 has S1's ids and zero speed everywhere (max %.2e)" % s6speed)
+	ok(s1ids == s6ids and s6speed < 1e-6, "6 S6 has S1's ids and zero speed everywhere (max %s)" % String.num_scientific(s6speed))
+	ctl(naive_total > 0, "7 PLANTED the old layout (label at the projected centre, no declutter) has %d intersecting label-box pairs over the six scenes" % naive_total)

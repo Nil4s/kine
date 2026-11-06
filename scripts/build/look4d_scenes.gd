@@ -36,8 +36,26 @@ static func nominal_mass(mi: MeshInstance3D, density := 2700.0, fill := 0.3) -> 
 
 
 # ---------------------------------------------------------------- Assembly scenes
+const ALIAS := {"main_pcb_with_bionz_x,_dram_and_power_ics": "main_pcb", "np-fw50_battery_7.2_v_1020_mah": "battery", "e-mount_ring_and_flange": "mount_ring",
+	"top_command_and_exposure_dials": "top_dials", "usb_and_hdmi_port_block": "port_block", "sd_card_slot_and_board": "sd_board", "main_pcb_copper_heat_spreader": "heat_spreader",
+	"oled_evf_module": "evf", "front_body_shell": "front_shell", "rear_body_shell": "rear_shell", "grip_shell": "grip", "shutter_mechanism_frame": "shutter_frame",
+	"rear_control_cluster": "rear_controls", "sensor_cover_glass": "cover_glass", "sd_card_slot_and_board ": "sd_board"}
+
+
 static func _id(p: Dictionary) -> String:
-	return String(p.get("name", p["id"])).strip_edges().replace(" ", "_").to_lower()
+	var k := String(p.get("name", p["id"])).strip_edges().replace(" ", "_").to_lower()
+	return String(ALIAS.get(k, k))
+
+
+## the n parts with the largest nominal mass, plus the pinned ones
+static func top_by_mass(sc: Dictionary, n: int, pinned: Array = []) -> Array:
+	var ids_a: Array = (sc["ids"] as Array).duplicate()
+	ids_a.sort_custom(func(a, b): return float(sc["mass"][a]) > float(sc["mass"][b]))
+	var out: Array = ids_a.slice(0, n)
+	for p in pinned:
+		if sc["ids"].has(p) and not out.has(p):
+			out.append(p)
+	return out
 
 
 ## pairs of an assembly's parts at the poses xfs {part id: Transform3D}: [{a, b, gap_mm, pen_mm3}] for every pair within 2 mm (exact solids, KCad.distance and overlap_volume)
@@ -123,7 +141,7 @@ static func engine(frozen: bool) -> Dictionary:
 			var pid := String(p["id"])
 			out[pid] = (mv[pid] as Transform3D) * Assembly.xf_of(p) if mv.has(pid) else Assembly.xf_of(p)
 		return out
-	var cam := {"pos": Vector3(0.45, 0.35, 0.55), "look": Vector3(0.0, 0.05, 0.04), "fov": 38.0}
+	var cam := {"pos": Vector3(0.157, 0.209, 0.293), "look": Vector3(0.0, 0.10, 0.04), "fov": 18.0}
 	return _asm_scene("s6_null" if frozen else "s1_engine", asm, posefn, cam, t0, 0.06, {"kind": "null" if frozen else "motion"})
 
 
@@ -134,14 +152,19 @@ static func camera() -> Dictionary:
 		for p in asm["parts"]:
 			out[String(p["id"])] = Assembly.xf_of(p)
 		return out
-	var cam := {"pos": Vector3(0.14, 0.09, 0.2), "look": Vector3(0.0, 0.0, 0.0), "fov": 34.0}
-	return _asm_scene("s5_camera", asm, posefn, cam, 0.0, 0.1, {"kind": "static"})
+	var cam := {"pos": Vector3(0.18, 0.12, 0.22), "look": Vector3(-0.03, 0.05, -0.027), "fov": 16.0}
+	var sc := _asm_scene("s5_camera", asm, posefn, cam, 0.0, 0.1, {"kind": "static"})
+	var inner: Callable = sc["build"]
+	sc["build"] = func(world: Node3D) -> void:
+		inner.call(world)
+		sc["named"] = top_by_mass(sc, 16, ["main_pcb", "rear_shell"])
+	return sc
 
 
 # ---------------------------------------------------------------- S2 the arm
 static func arm() -> Dictionary:
 	var holder := {}
-	var sc := {"name": "s2_arm", "ids": [], "camera": {"pos": Vector3(0.55, 0.45, 0.75), "look": Vector3(0.1, 0.12, 0.0), "fov": 38.0}, "h": 0.25, "t0": 1.0, "own_env": true, "kind": "motion"}
+	var sc := {"name": "s2_arm", "ids": [], "camera": {"pos": Vector3(0.61, 0.54, 0.60), "look": Vector3(0.2, 0.28, 0.03), "fov": 32.0}, "h": 0.5, "arrow_t": 1.0, "t0": 1.0, "own_env": true, "kind": "motion"}
 	sc["build"] = func(world: Node3D) -> void:
 		var s14: Dictionary = SC14.build(world)
 		holder["s"] = s14
@@ -153,6 +176,8 @@ static func arm() -> Dictionary:
 				stack.append(c)
 			if n is MeshInstance3D and (n as MeshInstance3D).mesh != null:
 				var nm := String(n.name)
+				if nm.begins_with("@"):
+					nm = "table"
 				var k := 2
 				var base := nm
 				while seen.has(nm):
@@ -167,7 +192,7 @@ static func arm() -> Dictionary:
 		var best := -1.0
 		var tb := 1.0
 		var tt := 0.0
-		while tt < N14.t_end(s14) - 0.1:
+		while tt < SC14.t_end(s14) - 0.1:
 			var a: Dictionary = N14.state(d, s14["wp"], tt)
 			var b: Dictionary = N14.state(d, s14["wp"], tt + 0.1)
 			if int(a["held"]) >= 0:
@@ -177,8 +202,9 @@ static func arm() -> Dictionary:
 					tb = tt
 			tt += 0.1
 		sc["t0"] = tb + 0.05
+		sc["named"] = top_by_mass(sc, 16)
 	sc["set_time"] = func(t: float) -> void:
-		SC14.pose(holder["s"], clampf(t, 0.0, N14.t_end(holder["s"])))
+		SC14.pose(holder["s"], clampf(t, 0.0, SC14.t_end(holder["s"])))
 	sc["contacts"] = func() -> Array:
 		return box_contacts(sc)
 	return sc
@@ -223,7 +249,8 @@ static func walk() -> Dictionary:
 	S.from_dict(JSON.parse_string(FileAccess.get_file_as_string("res://scenes/walk_bat.json")))
 	var B := EventQuery._new_body()
 	var holder := {"caps": {}}
-	var sc := {"name": "s3_walk", "ids": [], "camera": {"pos": Vector3(2.2, 1.1, 2.6), "look": Vector3(0.0, 0.8, 0.0), "fov": 36.0}, "h": 0.1, "t0": 1.0, "kind": "motion"}
+	var sc := {"name": "s3_walk", "ids": [], "camera": {"pos": Vector3(2.6, 1.3, 0.9), "look": Vector3(0.0, 0.9, -1.3), "fov": 36.0}, "h": 0.1, "t0": 1.0, "kind": "motion",
+		"named": ["head", "chest_wide", "hips_wide", "upperarm_l", "upperarm_r", "lowerarm_l", "lowerarm_r", "hand_l", "hand_r", "thigh_l", "thigh_r", "calf_l", "calf_r", "foot_l", "foot_r", "ball_l", "ball_r", "bat_barrel", "floor"]}
 	S.apply(B, 0.0)
 	var parts: Array = []
 	for part in B.rad.keys():

@@ -21,8 +21,11 @@ const H := 432
 const DT := 1.0 / 60.0            # half step of the central difference: v = (x(t + DT) - x(t - DT)) / (2 DT)
 const ARROW_T := 0.25             # s: the arrow tip is where the part would be in ARROW_T at its present velocity
 const HIDE_FRAC := 0.25           # visible share under this (and a silhouette in the picture) = occluded
-const LABEL_MIN_PX := 250         # a part with a smaller silhouette gets no label (the id list is in the header of every format)
-const MAX_LABELS := 24
+const MOVE_MS := 0.001            # m/s: a part slower than this is static (no arrow, no ghosts, no velocity row in D)
+const CS := 0.71875               # C: the picture is drawn at this scale (552 x 311) so a legend strip fits in 768 x 432
+const IMG_W := 552
+const IMG_H := 311
+const LEG_W := 216
 const YELLOW := Color(1.0, 0.85, 0.0)
 const CYAN := Color(0.2, 0.9, 1.0)
 const SIG := 3                    # D: significant figures
@@ -234,11 +237,14 @@ static func measure(ctx: Dictionary) -> Dictionary:
 		if k > 0:
 			vis[k] = int(vis.get(k, 0)) + 1
 	var out := {}
+	var nm_set := {}
+	for id in named(ctx):
+		nm_set[id] = true
 	for i in ids_a.size():
 		var id: String = ids_a[i]
 		var node := (ctx["sc"]["nodes"][id] as MeshInstance3D)
 		var row := {"solo_px": 0, "vis_px": int(vis.get(cd[i], 0)), "frac": 0.0, "by": "", "bbox": [0, 0, 0, 0]}
-		if node.is_visible_in_tree():
+		if node.is_visible_in_tree() and nm_set.has(id):
 			_sync(ctx, ctx["solo_nodes"], id)
 			await frames(2)
 			var si: Image = (ctx["solo"] as SubViewport).get_texture().get_image()
@@ -303,100 +309,215 @@ static func _r(x: Variant) -> Variant:
 	return x
 
 
-## the digest at time t: {scene, t, units, camera, objects: [...]}; kin and meas from kinematics() / measure(), contacts from the scene
+## the parts a reader is told about (D rows, C marks, questions); the others are still in every picture and in the id pass
+static func named(ctx: Dictionary) -> Array:
+	return ctx["sc"].get("named", ctx["sc"]["ids"])
+
+
+static func _moving(k: Dictionary) -> bool:
+	return float(k["speed"]) > MOVE_MS or (k["w"] as Vector3).length() > 0.01
+
+
+## D v2 (compact): header row of field names, one array row per part. Moving parts carry pos, vel, speed, angvel, mass, momentum, depth, visible share, occluder;
+## static parts (speed <= 1 mm/s, no spin) only pos, mass, depth, visible share, occluder (vel = 0 is implied). Contacts: only pairs that touch (gap <= 0.1 mm) or overlap (> 1 mm3).
+## occluded = visible share under 0.25 (stated in "units"). Parts outside the picture have depth/vis as they are (vis 0), nothing else flags them.
 static func digest(ctx: Dictionary, t: float, kin: Dictionary, meas: Dictionary, contacts: Array) -> Dictionary:
 	var sc: Dictionary = ctx["sc"]
 	var cam: Camera3D = ctx["cam"]
-	var objs: Array = []
-	for id in sc["ids"]:
+	var nm: Array = named(ctx)
+	var mov: Array = []
+	var sta: Array = []
+	for id in nm:
 		var k: Dictionary = kin[id]
 		var m: Dictionary = meas[id]
 		var mass := float(sc["mass"].get(id, 1.0))
 		var pr := project_pt(ctx, k["c"])
-		var cons: Array = []
-		var pen := {}
-		for c in contacts:
-			if c["a"] == id or c["b"] == id:
-				var other: String = c["b"] if c["a"] == id else c["a"]
-				if float(c.get("gap_mm", 0.0)) <= 0.1 or float(c.get("pen_mm3", 0.0)) > 1.0:
-					cons.append(other)
-				if float(c.get("pen_mm3", 0.0)) > 1.0:
-					pen[other] = c["pen_mm3"]
-		objs.append({
-			"id": id, "pos": k["c"], "vel": k["v"], "speed": k["speed"], "angvel": k["w"], "mass_kg": mass,
-			"momentum": (k["v"] as Vector3) * mass, "depth_m": pr["z"], "visible_frac": m["frac"],
-			"occluded": occluded(m), "occluded_by": m["by"] if occluded(m) else "", "contacts": cons, "penetration_mm3": pen})
+		var by := ""
+		if occluded(m):
+			by = String(m["by"]) if nm.has(m["by"]) else "other"
+		if _moving(k):
+			mov.append([id, k["c"], k["v"], k["speed"], k["w"], mass, (k["v"] as Vector3) * mass, pr["z"], m["frac"], by])
+		else:
+			sta.append([id, k["c"], mass, pr["z"], m["frac"], by])
+	var cons: Array = []
+	for c in contacts:
+		if nm.has(c["a"]) and nm.has(c["b"]) and (float(c.get("gap_mm", 0.0)) <= 0.1 or float(c.get("pen_mm3", 0.0)) > 1.0):
+			cons.append([c["a"], c["b"], c.get("gap_mm", 0.0), c.get("pen_mm3", 0.0)])
 	return _r({
 		"scene": sc["name"], "t_s": t,
-		"units": "world metres, y up; vel m/s; angvel rad/s (world axes); momentum kg m/s; depth_m = distance along the camera axis; mass_kg is NOMINAL",
+		"units": "world m, y up; vel m/s; angvel rad/s; momentum kg m/s; mass kg NOMINAL; depth m along the camera axis; vis = visible share of the part's silhouette, occluded if < 0.25; occluded_by = covering part ('other' = unlisted); static parts have vel 0",
 		"camera": {"pos": cam.global_position, "look_dir": -cam.global_transform.basis.z, "up": cam.global_transform.basis.y, "fov_deg_vertical": cam.fov, "image_px": [W, H]},
-		"objects": objs})
+		"moving_cols": ["id", "pos", "vel", "speed", "angvel", "mass", "momentum", "depth", "vis", "occluded_by"], "moving": mov,
+		"static_cols": ["id", "pos", "mass", "depth", "vis", "occluded_by"], "static": sta,
+		"touching_or_overlapping": cons, "touching_cols": ["a", "b", "gap_mm", "overlap_mm3"]})
 
 
-# ---------------------------------------------------------------- C
-## the drawing list of C: [{k: "dot", p}, {k: "arrow", a, b, h1, h2}, {k: "dash", r}, {k: "text", p, s, c}] in picture pixels. Pure data, so the test can read it
-static func plan(ctx: Dictionary, kin: Dictionary, meas: Dictionary, past: Array) -> Array:
-	var items: Array = []
-	var cam: Camera3D = ctx["cam"]
-	var cz := cam.global_transform
-	var order: Array = []
-	for id in ctx["sc"]["ids"]:
+## the digest as {id: {pos, vel, speed, angvel, mass, momentum, depth, vis, by}} (static rows get zero velocities)
+static func rows(dg: Dictionary) -> Dictionary:
+	var out := {}
+	for r in dg["moving"]:
+		out[r[0]] = {"pos": _v3(r[1]), "vel": _v3(r[2]), "speed": float(r[3]), "angvel": _v3(r[4]), "mass": float(r[5]), "momentum": _v3(r[6]), "depth": float(r[7]), "vis": float(r[8]), "by": String(r[9])}
+	for r in dg["static"]:
+		out[r[0]] = {"pos": _v3(r[1]), "vel": Vector3.ZERO, "speed": 0.0, "angvel": Vector3.ZERO, "mass": float(r[2]), "momentum": Vector3.ZERO, "depth": float(r[3]), "vis": float(r[4]), "by": String(r[5])}
+	return out
+
+
+static func _v3(a: Array) -> Vector3:
+	return Vector3(a[0], a[1], a[2])
+
+
+# ---------------------------------------------------------------- C (Set-of-Mark style)
+## C is 768 x 432: the picture at CS scale in the top-left (IMG_W x IMG_H), a legend strip at the right (LEG_W), a key under the picture. Equal pixel count with A and B.
+## One numbered mark per named part that is in the picture; marks are placed greedily so no two boxes overlap, a leader line joins a moved mark to its part;
+## arrows (yellow) and ghost dots (white, 3 earlier positions h apart) only for parts faster than 1 mm/s; hidden parts (vis < 0.25) get a dashed cyan box.
+## plan() is pure data: {scene: [items in picture coordinates], marks: [{n, id, rect, anchor}], legend: [items in canvas coordinates]}
+static func plan(ctx: Dictionary, kin: Dictionary, meas: Dictionary, past: Array) -> Dictionary:
+	var sc: Dictionary = ctx["sc"]
+	var arrow_t := float(sc.get("arrow_t", ARROW_T))
+	var h := float(sc["h"])
+	var cz := (ctx["cam"] as Camera3D).global_transform
+	var inview: Array = []
+	for id in named(ctx):
 		if int(meas[id]["solo_px"]) > 0:
-			order.append(id)
-	order.sort_custom(func(a, b): return int(meas[a]["solo_px"]) > int(meas[b]["solo_px"]))
-	var labelled: Array = []
-	for id in order:
-		if int(meas[id]["solo_px"]) >= LABEL_MIN_PX and labelled.size() < MAX_LABELS:
-			labelled.append(id)
+			inview.append(id)
+	var number := {}
+	for i in inview.size():
+		number[inview[i]] = i + 1
+	var order: Array = inview.duplicate()
+	order.sort_custom(func(a, b):
+		var sa := float(kin[a]["speed"])
+		var sb := float(kin[b]["speed"])
+		if absf(sa - sb) > 1e-9:
+			return sa > sb
+		return int(meas[a]["solo_px"]) > int(meas[b]["solo_px"]))
+	var scene_items: Array = []
+	var marks: Array = []
 	var placed: Array = []
-	for id in labelled:
+	var area := Rect2(0, 0, IMG_W, IMG_H)
+	for id in order:
 		var k: Dictionary = kin[id]
 		var m: Dictionary = meas[id]
-		var pc := project_pt(ctx, k["c"])
-		var c: Vector2 = pc["px"]
 		var bb: Array = m["bbox"]
-		var hid := occluded(m)
-		if hid:
-			items.append({"k": "dash", "c": CYAN, "r": Rect2(Vector2(bb[0], bb[1]), Vector2(bb[2] - bb[0], bb[3] - bb[1]))})
-		for g in past:   # ghosts: positions at t - k h
-			var gp := project_pt(ctx, g[id])
-			if is_finite((gp["px"] as Vector2).x):
-				items.append({"k": "dot", "p": gp["px"]})
-		var v: Vector3 = k["v"]
-		var label := "%s d=%.1fm" % [id, float(pc["z"])]
-		if hid:
-			label = "%s (hidden) d=%.1fm" % [id, float(pc["z"])]
-		if v.length() >= 0.02 and is_finite(c.x):
-			var tip := project_pt(ctx, (k["c"] as Vector3) + v * ARROW_T)
-			var b: Vector2 = tip["px"]
-			if is_finite(b.x):
-				var dir := (b - c)
-				var L := dir.length()
-				var u := dir / maxf(L, 1e-6)
-				var n := Vector2(-u.y, u.x)
-				var hl := minf(10.0, L * 0.4)
-				items.append({"k": "arrow", "c": YELLOW, "a": c, "b": b, "h1": b - u * hl + n * hl * 0.5, "h2": b - u * hl - n * hl * 0.5})
-				var vz := (cz.affine_inverse().basis * v).z   # camera looks down -z: vz < 0 = away from the camera
-				var dirword := ""
-				if absf(vz) > 0.1 * v.length():
-					dirword = " away" if vz < 0.0 else " toward"
-				items.append({"k": "text", "p": b + Vector2(6, -4), "s": "%.1f m/s%s" % [v.length(), dirword], "c": Color(1.0, 0.95, 0.55)})
-		# the id label, nudged so labels do not sit on each other
-		var pos := c + Vector2(-20, 0)
-		var tries := [Vector2(0, 0), Vector2(0, 15), Vector2(0, -15), Vector2(0, 30), Vector2(0, -30), Vector2(40, 0), Vector2(-40, 15)]
-		for off in tries:
-			var r := Rect2(pos + off + Vector2(0, -12), Vector2(7.0 * label.length(), 15))
-			var clash := false
-			for q in placed:
-				if (q as Rect2).intersects(r):
-					clash = true
+		if occluded(m):
+			scene_items.append({"k": "dash", "c": CYAN, "r": Rect2(Vector2(bb[0], bb[1]) * CS, Vector2(bb[2] - bb[0], bb[3] - bb[1]) * CS)})
+		if float(k["speed"]) > MOVE_MS:
+			for g in past:
+				var gp := project_pt(ctx, g[id])
+				if is_finite((gp["px"] as Vector2).x):
+					scene_items.append({"k": "dot", "p": (gp["px"] as Vector2) * CS})
+			var pc := project_pt(ctx, k["c"])
+			var tip := project_pt(ctx, (k["c"] as Vector3) + (k["v"] as Vector3) * arrow_t)
+			var a: Vector2 = (pc["px"] as Vector2) * CS
+			var b: Vector2 = (tip["px"] as Vector2) * CS
+			if is_finite(a.x) and is_finite(b.x):
+				var u := (b - a) / maxf((b - a).length(), 1e-6)
+				var nrm := Vector2(-u.y, u.x)
+				var hl := minf(10.0, (b - a).length() * 0.4)
+				scene_items.append({"k": "arrow", "c": YELLOW, "a": a, "b": b, "h1": b - u * hl + nrm * hl * 0.5, "h2": b - u * hl - nrm * hl * 0.5})
+	# marks: greedy, nearest free spot to the silhouette centre
+	for id in order:
+		var bb: Array = meas[id]["bbox"]
+		var anchor := Vector2((bb[0] + bb[2]) * 0.5, (bb[1] + bb[3]) * 0.5) * CS
+		var txt := str(number[id])
+		var sz := Vector2(8.0 * txt.length() + 6.0, 15.0)
+		var best := Rect2()
+		var found := false
+		var radii := [0.0, 10.0, 18.0, 26.0, 34.0, 44.0, 56.0, 70.0, 88.0, 110.0]
+		for rad in radii:
+			var steps := 1 if rad == 0.0 else 12
+			for si in steps:
+				var ang := TAU * float(si) / float(steps)
+				var cpos := anchor + Vector2(cos(ang), sin(ang)) * rad
+				var r := Rect2(cpos - sz * 0.5, sz)
+				if not area.encloses(r):
+					continue
+				var clash := false
+				for q in placed:
+					if (q as Rect2).grow(1.0).intersects(r):
+						clash = true
+						break
+				if not clash:
+					best = r
+					found = true
 					break
-			if not clash:
-				pos += off
-				placed.append(r)
+			if found:
 				break
-		items.append({"k": "text", "p": pos, "s": label, "c": Color(1, 1, 1)})
-	return items
+		if not found:   # a last resort: scan the picture for any free box
+			var y := 0.0
+			while y + sz.y <= IMG_H and not found:
+				var x := 0.0
+				while x + sz.x <= IMG_W and not found:
+					var r2 := Rect2(Vector2(x, y), sz)
+					var clash2 := false
+					for q in placed:
+						if (q as Rect2).grow(1.0).intersects(r2):
+							clash2 = true
+							break
+					if not clash2:
+						best = r2
+						found = true
+					x += 4.0
+				y += 4.0
+		placed.append(best)
+		marks.append({"n": int(number[id]), "id": id, "rect": best, "anchor": anchor})
+		if (best.get_center() - anchor).length() > 7.0:
+			scene_items.append({"k": "leader", "a": best.get_center(), "b": anchor})
+	for mk in marks:
+		scene_items.append({"k": "mark", "r": mk["rect"], "s": str(mk["n"])})
+	marks.sort_custom(func(a, b): return int(a["n"]) < int(b["n"]))
+	# the legend strip and the key
+	var legend: Array = []
+	legend.append({"k": "text", "p": Vector2(IMG_W + 8, 14), "s": "# part  depth m  speed m/s", "c": Color(0.7, 0.8, 1.0), "fs": 11})
+	var yy := 31.0
+	for mk in marks:
+		var id: String = mk["id"]
+		var k: Dictionary = kin[id]
+		var pr := project_pt(ctx, k["c"])
+		var spd := ""
+		if float(k["speed"]) > MOVE_MS:
+			var vz := (cz.affine_inverse().basis * (k["v"] as Vector3)).z
+			spd = "%.2f" % float(k["speed"])
+			if absf(vz) > 0.1 * float(k["speed"]):
+				spd += " away" if vz < 0.0 else " toward"
+		else:
+			spd = "static"
+		var nm := String(id)
+		if nm.length() > 14:
+			nm = nm.substr(0, 14)
+		legend.append({"k": "text", "p": Vector2(IMG_W + 8, yy), "s": "%d %s %.1f %s" % [int(mk["n"]), nm, float(pr["z"]), spd], "c": Color(1, 1, 1), "fs": 11})
+		yy += 16.0
+	var key: Array = [
+		"yellow arrow: where the part is in %.2g s at its present velocity" % arrow_t,
+		"white dots: its 3 earlier positions, %.2g s apart (dot nearest the part = latest)" % h,
+		"dashed cyan box: part hidden behind others (< 25 %% visible)",
+		"numbers: marks, one per listed part in the picture; see the list at the right"]
+	for i in key.size():
+		legend.append({"k": "text", "p": Vector2(8, IMG_H + 20 + 20 * i), "s": key[i], "c": Color(0.85, 0.85, 0.85), "fs": 12})
+	return {"scene": scene_items, "marks": marks, "legend": legend}
+
+
+## the old layout (labels "name d=..m" at the projected centre, no declutter): used only as the test's planted control. Returns the label boxes in A's pixels
+static func naive_boxes(ctx: Dictionary, kin: Dictionary, meas: Dictionary) -> Array:
+	var out: Array = []
+	for id in named(ctx):
+		if int(meas[id]["solo_px"]) <= 0:
+			continue
+		var pc := project_pt(ctx, kin[id]["c"])
+		var c: Vector2 = pc["px"]
+		if not is_finite(c.x):
+			continue
+		var label := "%s d=%.1fm" % [id, float(pc["z"])]
+		out.append(Rect2(c + Vector2(-20, -12), Vector2(7.0 * label.length(), 15)))
+	return out
+
+
+static func boxes_intersect(rs: Array) -> int:
+	var n := 0
+	for i in rs.size():
+		for j in range(i + 1, rs.size()):
+			if (rs[i] as Rect2).intersects(rs[j] as Rect2):
+				n += 1
+	return n
 
 
 # ---------------------------------------------------------------- the whole production
@@ -449,7 +570,7 @@ static func produce(host: Node, sc: Dictionary, dir: String) -> Dictionary:
 	var ms_con := (Time.get_ticks_usec() - u) / 1000.0
 	u = Time.get_ticks_usec()
 	var dg := digest(ctx, t0, kin, meas, contacts)
-	var txt := JSON.stringify(dg, "\t")
+	var txt := JSON.stringify(dg)
 	ms["D"] = ms_kin + ms_meas + ms_con + (Time.get_ticks_usec() - u) / 1000.0
 	DirAccess.make_dir_recursive_absolute(dir)
 	var f := FileAccess.open(dir + "/D.json", FileAccess.WRITE)
@@ -487,15 +608,28 @@ static func draw_c(ctx: Dictionary, base: Image, kin: Dictionary, meas: Dictiona
 	vp.disable_3d = true
 	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	(ctx["host"] as Node).add_child(vp)
+	var bg := ColorRect.new()
+	bg.color = Color(0.09, 0.09, 0.11)
+	bg.size = Vector2(W, H)
+	vp.add_child(bg)
 	var tr := TextureRect.new()
 	tr.texture = ImageTexture.create_from_image(base)
-	tr.size = Vector2(W, H)
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_SCALE
+	tr.size = Vector2(IMG_W, IMG_H)
 	vp.add_child(tr)
-	var ctl := Overlay.new()
-	ctl.size = Vector2(W, H)
-	ctl.items = plan(ctx, kin, meas, past)
-	ctl.font = ThemeDB.fallback_font
-	vp.add_child(ctl)
+	var pl := plan(ctx, kin, meas, past)
+	var ov := Overlay.new()
+	ov.size = Vector2(IMG_W, IMG_H)
+	ov.clip_contents = true
+	ov.items = pl["scene"]
+	ov.font = ThemeDB.fallback_font
+	vp.add_child(ov)
+	var lg := Overlay.new()
+	lg.size = Vector2(W, H)
+	lg.items = pl["legend"]
+	lg.font = ThemeDB.fallback_font
+	vp.add_child(lg)
 	await frames(3)
 	var img := vp.get_texture().get_image()
 	img.convert(Image.FORMAT_RGB8)
@@ -503,7 +637,7 @@ static func draw_c(ctx: Dictionary, base: Image, kin: Dictionary, meas: Dictiona
 	return img
 
 
-## the drawing of a plan()
+## the drawing of a plan(): pure items in the Control's own coordinates
 class Overlay extends Control:
 	var items: Array = []
 	var font: Font
@@ -518,14 +652,20 @@ class Overlay extends Control:
 					draw_line(it["a"], it["b"], it["c"], 3.0)
 					draw_line(it["b"], it["h1"], it["c"], 3.0)
 					draw_line(it["b"], it["h2"], it["c"], 3.0)
+				"leader":
+					draw_line(it["a"], it["b"], Color(1, 1, 1), 1.0)
 				"dash":
 					var r: Rect2 = it["r"]
 					var ps := [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y), r.position]
 					for i in 4:
 						draw_dashed_line(ps[i], ps[i + 1], it["c"], 2.0, 6.0)
+				"mark":
+					var rr: Rect2 = it["r"]
+					draw_rect(rr, Color(0, 0, 0, 0.88))
+					draw_rect(rr, Color(1, 1, 1), false, 1.0)
+					draw_string(font, rr.position + Vector2(3, 12), it["s"], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(1, 1, 1))
 				"text":
-					draw_string_outline(font, it["p"], it["s"], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, Color(0, 0, 0))
-					draw_string(font, it["p"], it["s"], HORIZONTAL_ALIGNMENT_LEFT, -1, 14, it["c"])
+					draw_string(font, it["p"], it["s"], HORIZONTAL_ALIGNMENT_LEFT, -1, int(it.get("fs", 14)), it["c"])
 
 
 # ---------------------------------------------------------------- the truth data
@@ -540,17 +680,24 @@ static func truth_data(ctx: Dictionary, t0: float, kin: Dictionary, meas: Dictio
 		var st := state(ctx, t)
 		var shapes := shapes_now(ctx)
 		var row := {}
-		for id in st:
+		for id in named(ctx):
 			var pr := project_pt(ctx, st[id]["c"])
 			row[id] = {"c": _r2(st[id]["c"]), "px": [_fin(pr["px"].x), _fin(pr["px"].y)], "z": pr["z"], "shape": shapes[id], "vis": st[id]["vis"]}
 		samples.append({"t": t, "k": k, "objs": row})
 		k += 1
 	at(ctx, t0)
 	var kinout := {}
-	for id in kin:
+	for id in named(ctx):
 		kinout[id] = {"c": _r2(kin[id]["c"]), "v": _r2(kin[id]["v"]), "w": _r2(kin[id]["w"]), "speed": kin[id]["speed"]}
-	return {"scene": sc["name"], "t0": t0, "ids": sc["ids"], "names": sc.get("names", {}), "dt": DT, "image": [W, H], "kin": kinout, "meas": meas, "contacts": contacts, "samples": samples, "mass": sc["mass"],
+	return {"scene": sc["name"], "t0": t0, "ids": named(ctx), "all_ids": sc["ids"], "arrow_t": float(sc.get("arrow_t", ARROW_T)), "h": float(sc["h"]), "dt": DT, "image": [W, H], "kin": kinout, "meas": _named_meas(ctx, meas), "contacts": contacts, "samples": samples, "mass": sc["mass"],
 		"camera": {"pos": _r2(ctx["cam"].global_position), "look_dir": _r2(-ctx["cam"].global_transform.basis.z), "fov": ctx["cam"].fov}, "may_ask": sc.get("may_ask", []), "kind": sc.get("kind", "motion")}
+
+
+static func _named_meas(ctx: Dictionary, meas: Dictionary) -> Dictionary:
+	var o := {}
+	for id in named(ctx):
+		o[id] = meas[id]
+	return o
 
 
 static func _fin(x: float) -> Variant:
