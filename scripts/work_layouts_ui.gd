@@ -205,6 +205,7 @@ func open_dialog() -> void:
 	if get_parent() == null:
 		sh.m.ui_root.add_child(self)
 	visible = true
+	status.text = ""
 	set_page(page)
 	reset_size()
 	position = ((sh.m.get_viewport().get_visible_rect().size - size) / 2.0).floor()

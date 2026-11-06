@@ -378,6 +378,10 @@ func live_bars() -> void:
 			ok(good, "7 %s '%s': each panel sits on the side its layout names (%s)" % [sc, nm, want_msg.strip_edges()])
 			if sc == "part" and nm == "A inspector left":
 				root.get_texture().get_image().save_png("C:/Temp/claude/layouts/layout_a_part_1920x1080.png")
+			if sc == "part" and nm == "B browser right":
+				root.get_texture().get_image().save_png("C:/Temp/claude/layouts/layout_b_part_1920x1080.png")
+			if sc == "assembly" and nm == "A inspector left":
+				root.get_texture().get_image().save_png("C:/Temp/claude/layouts/layout_a_assembly_1920x1080.png")
 			if sc == "assembly" and nm == "B browser right":
 				root.get_texture().get_image().save_png("C:/Temp/claude/layouts/layout_b_assembly_1920x1080.png")
 		# planted: a panel dropped onto another is found
