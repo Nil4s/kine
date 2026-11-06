@@ -50,6 +50,23 @@ public:
 	int ppc = 8;
 	double wfr = 0.0; // wall friction: 0 = free slip, 1 = no slip
 	void set_wall_friction(double f) { wfr = f < 0 ? 0 : (f > 1 ? 1 : f); }
+	// CUT-CELL walls (L5 liquids, 11-05): Batty, Bertails & Bridson 2007 ("A fast variational framework for accurate solid-fluid coupling", SIGGRAPH). A solid
+	// signed distance field phi (< 0 inside) lives on the cell corners; the open area fraction of every cell face comes from it (wxp/wyp/wzp[c] = the face
+	// between cell c and c+1 / c+nx / c+nx*ny), and the pressure matrix, the divergence and the pressure gradient are weighted by it. Without any cut solid
+	// the weights are 0/1 from the solid voxels and everything is identical to the staircase solver.
+	bool cut = false, wdirty = true;
+	double wmin = 0.02;       // an open fraction below this is closed (a tiny fraction makes a stiff, nearly isolated row)
+	double push_margin = 0.02; // particles are kept at phi >= push_margin * h
+	std::vector<double> phi, wxp, wyp, wzp;
+	void add_cut_box(Vector3 p_min, Vector3 p_max);
+	void add_cut_halfspace(Vector3 p_point, Vector3 p_normal);
+	int add_cut_mesh(const PackedVector3Array &p_verts, const PackedInt32Array &p_tris);
+	void set_cut_wmin(double w) { wmin = w; wdirty = true; }
+	void rebuild_weights();
+	double phi_at(double x, double y, double z, double *g) const;
+	void push_out();
+	PackedFloat64Array face_weights() const; // wxp, wyp, wzp concatenated (the equality bar compares them with the twin)
+	double open_volume() const; // sum over cells of the open volume estimate: mean of the six face weights (fractions of the cell the fluid can occupy)
 
 	void setup(int p_nx, int p_ny, int p_nz, double p_h, Vector3 p_origin);
 	void set_threads(int p_n) { nt = p_n < 1 ? 1 : p_n; }
@@ -80,6 +97,7 @@ private:
 	void mark_cells();
 	void p2g();
 	void apply_wall_friction();
+	inline int nid(int i, int j, int k) const { return i + (nx + 1) * (j + (ny + 1) * k); }
 	void project(double dt);
 	void g2p();
 	void advect(double dt);

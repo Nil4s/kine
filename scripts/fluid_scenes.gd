@@ -82,3 +82,40 @@ static func mug(F: Object, h := 0.003, voxelise := true) -> Dictionary:
 	var H := bb.size.y
 	return {"verts": vs, "tris": m["tris"], "h": h, "rim": 1.4 * h + H, "R_out": R, "R_in": R - 0.004, "H": H, "floor": 0.004, "cx": axis_x, "cz": axis_z,
 			"solid_added": added, "bb": bb, "shift": shift, "cap": PI * (R - 0.004) * (R - 0.004) * (H - 0.004)}
+
+
+## L5 (11-05): the same mug scene with the mesh as a CUT solid (signed distance on the corners, open face fractions, particles pushed out by phi)
+## instead of conservative voxels. Needs the native class (add_cut_mesh).
+static func mug_cut(F: Object, h := 0.003) -> Dictionary:
+	var m := mug_mesh()
+	if m.is_empty():
+		return {}
+	var bb: AABB = m["aabb"]
+	var margin := 0.035
+	var size := Vector3(bb.size.x + 2 * margin, bb.size.y + 0.09, bb.size.z + 2 * margin)
+	var nx := int(ceil(size.x / h)) + 2
+	var ny := int(ceil(size.y / h)) + 2
+	var nz := int(ceil(size.z / h)) + 2
+	F.setup(nx, ny, nz, h, Vector3.ZERO)
+	F.set_params(9.81, 0.2, 0.5, 0.004, 300, 1e-6)
+	var shift := Vector3(nx * h * 0.5 - (bb.position.x + bb.size.x * 0.5), 1.4 * h - bb.position.y, nz * h * 0.5 - (bb.position.z + bb.size.z * 0.5))
+	var vs: PackedVector3Array = m["verts"]
+	for i in vs.size():
+		vs[i] += shift
+	var inside: int = F.add_cut_mesh(vs, m["tris"])
+	var R := 0.04
+	var H := bb.size.y
+	return {"verts": vs, "tris": m["tris"], "h": h, "rim": 1.4 * h + H, "R_out": R, "R_in": R - 0.004, "H": H, "floor": 0.004, "cx": shift.x, "cz": shift.z,
+			"corners_inside": inside, "bb": bb, "shift": shift, "cap": PI * (R - 0.004) * (R - 0.004) * (H - 0.004)}
+
+
+## L5: the Martin & Moyce dam break in the named configuration. "ch8" = the CH8 scene (free slip, voxel walls). "mm" = the same tank with the no-slip
+## wall condition water really has on glass (wall friction MM_WFR).
+const MM_WFR := 1.0
+
+
+static func dam_break_mm(F: Object, res := 20, cfg := "mm") -> Dictionary:
+	var sc := dam_break(F, res)
+	if cfg == "mm":
+		F.set_wall_friction(MM_WFR)
+	return sc

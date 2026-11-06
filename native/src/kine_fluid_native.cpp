@@ -138,6 +138,29 @@ bool tri_box(const double v0[3], const double v1[3], const double v2[3], double 
 	return true;
 }
 
+// fraction of a triangle (corner values a, b, c of a linear field) where the field is negative (= solid)
+inline double tri_neg(double a, double b, double c) {
+	int n = (a < 0 ? 1 : 0) + (b < 0 ? 1 : 0) + (c < 0 ? 1 : 0);
+	if (n == 0) return 0.0;
+	if (n == 3) return 1.0;
+	if (n == 1) {
+		double s, p, q;
+		if (a < 0) { s = a; p = b; q = c; } else if (b < 0) { s = b; p = a; q = c; } else { s = c; p = a; q = b; }
+		return (s / (s - p)) * (s / (s - q));
+	}
+	double x, y, z; // x >= 0, y and z < 0
+	if (a >= 0) { x = a; y = b; z = c; } else if (b >= 0) { x = b; y = a; z = c; } else { x = c; y = a; z = b; }
+	return 1.0 - (x / (x - y)) * (x / (x - z));
+}
+
+// open (fluid side, phi >= 0) area fraction of a square face with corner values p00, p10, p11, p01 (in order around the square): four triangles around
+// the corner mean, so the answer does not depend on a diagonal choice
+inline double face_open(double p00, double p10, double p11, double p01) {
+	double m = 0.25 * (p00 + p10 + p11 + p01);
+	double neg = tri_neg(p00, p10, m) + tri_neg(p10, p11, m) + tri_neg(p11, p01, m) + tri_neg(p01, p00, m);
+	return 1.0 - 0.25 * neg;
+}
+
 } // namespace
 
 void KineFluidNative::_bind_methods() {
@@ -167,6 +190,13 @@ void KineFluidNative::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_surface_taubin", "on"), &KineFluidNative::set_surface_taubin);
 	ClassDB::bind_method(D_METHOD("set_extrapolation", "on"), &KineFluidNative::set_extrapolation);
 	ClassDB::bind_method(D_METHOD("surface_aniso", "iso", "ndiv"), &KineFluidNative::surface_aniso);
+	ClassDB::bind_method(D_METHOD("add_cut_box", "min", "max"), &KineFluidNative::add_cut_box);
+	ClassDB::bind_method(D_METHOD("add_cut_halfspace", "point", "normal"), &KineFluidNative::add_cut_halfspace);
+	ClassDB::bind_method(D_METHOD("add_cut_mesh", "verts", "tris"), &KineFluidNative::add_cut_mesh);
+	ClassDB::bind_method(D_METHOD("set_cut_wmin", "w"), &KineFluidNative::set_cut_wmin);
+	ClassDB::bind_method(D_METHOD("rebuild_weights"), &KineFluidNative::rebuild_weights);
+	ClassDB::bind_method(D_METHOD("face_weights"), &KineFluidNative::face_weights);
+	ClassDB::bind_method(D_METHOD("open_volume"), &KineFluidNative::open_volume);
 }
 
 void KineFluidNative::setup(int p_nx, int p_ny, int p_nz, double p_h, Vector3 p_origin) {
@@ -185,6 +215,8 @@ void KineFluidNative::setup(int p_nx, int p_ny, int p_nz, double p_h, Vector3 p_
 	W.assign((size_t)nx * ny * (nz + 1), 0); mW = W;
 	pr.assign(nc, 0); rhs = pr; rr = pr; zz = pr; ss = pr; qq = pr; pre = pr; adiag = pr; dq = pr; db = pr; pre_ok = false;
 	P.clear(); V.clear(); C.clear();
+	cut = false; wdirty = true;
+	phi.clear(); wxp.clear(); wyp.clear(); wzp.clear();
 }
 
 void KineFluidNative::set_params(double p_g, double p_drift, double p_cfl, double p_dtmax, int p_iters, double p_tol) {
@@ -208,6 +240,7 @@ int KineFluidNative::remove_every(int k) {
 }
 
 void KineFluidNative::add_solid_box(Vector3 mn, Vector3 mx) {
+	wdirty = true;
 	for (int k = 0; k < nz; k++)
 		for (int j = 0; j < ny; j++)
 			for (int i = 0; i < nx; i++) {
@@ -217,6 +250,7 @@ void KineFluidNative::add_solid_box(Vector3 mn, Vector3 mx) {
 }
 
 int KineFluidNative::add_solid_mesh(const PackedVector3Array &vs, const PackedInt32Array &tr) {
+	wdirty = true;
 	int added = 0;
 	int nt3 = tr.size() / 3;
 	double e = h * 0.5;
@@ -247,6 +281,249 @@ int KineFluidNative::add_solid_mesh(const PackedVector3Array &vs, const PackedIn
 	return added;
 }
 
+// ---------------------------------------------------------------- cut-cell walls (L5 liquids)
+void KineFluidNative::add_cut_box(Vector3 mn, Vector3 mx) {
+	cut = true; wdirty = true;
+	if (phi.empty()) phi.assign((size_t)(nx + 1) * (ny + 1) * (nz + 1), 1e9);
+	double c[3] = { 0.5 * (mn.x + mx.x), 0.5 * (mn.y + mx.y), 0.5 * (mn.z + mx.z) };
+	double hf[3] = { 0.5 * (mx.x - mn.x), 0.5 * (mx.y - mn.y), 0.5 * (mx.z - mn.z) };
+	for (int k = 0; k <= nz; k++)
+		for (int j = 0; j <= ny; j++)
+			for (int i = 0; i <= nx; i++) {
+				double p[3] = { ox + i * h, oy + j * h, oz + k * h };
+				double q[3], out2 = 0, mq = -1e30;
+				for (int a = 0; a < 3; a++) {
+					q[a] = std::fabs(p[a] - c[a]) - hf[a];
+					if (q[a] > 0) out2 += q[a] * q[a];
+					mq = std::max(mq, q[a]);
+				}
+				double d = std::sqrt(out2) + std::min(mq, 0.0);
+				double &ph = phi[nid(i, j, k)];
+				ph = std::min(ph, d);
+			}
+}
+
+// solid on the side opposite to the normal: phi = dot(p - point, normal)
+void KineFluidNative::add_cut_halfspace(Vector3 pt, Vector3 nrm) {
+	cut = true; wdirty = true;
+	if (phi.empty()) phi.assign((size_t)(nx + 1) * (ny + 1) * (nz + 1), 1e9);
+	double l = std::sqrt(nrm.x * nrm.x + nrm.y * nrm.y + nrm.z * nrm.z);
+	double n[3] = { nrm.x / l, nrm.y / l, nrm.z / l };
+	for (int k = 0; k <= nz; k++)
+		for (int j = 0; j <= ny; j++)
+			for (int i = 0; i <= nx; i++) {
+				double d = (ox + i * h - pt.x) * n[0] + (oy + j * h - pt.y) * n[1] + (oz + k * h - pt.z) * n[2];
+				double &ph = phi[nid(i, j, k)];
+				ph = std::min(ph, d);
+			}
+}
+
+namespace {
+// squared distance from point p to triangle abc (Ericson, Real-Time Collision Detection, 5.1.5)
+double pt_tri_d2(const double p[3], const double a[3], const double b[3], const double c[3]) {
+	auto sub = [](const double *x, const double *y, double *o) { o[0] = x[0] - y[0]; o[1] = x[1] - y[1]; o[2] = x[2] - y[2]; };
+	auto dot = [](const double *x, const double *y) { return x[0] * y[0] + x[1] * y[1] + x[2] * y[2]; };
+	double ab[3], ac[3], ap[3];
+	sub(b, a, ab); sub(c, a, ac); sub(p, a, ap);
+	double d1 = dot(ab, ap), d2 = dot(ac, ap);
+	auto fin = [&](double x, double y, double z) { double e[3] = { p[0] - x, p[1] - y, p[2] - z }; return dot(e, e); };
+	if (d1 <= 0 && d2 <= 0) return fin(a[0], a[1], a[2]);
+	double bp[3]; sub(p, b, bp);
+	double d3 = dot(ab, bp), d4 = dot(ac, bp);
+	if (d3 >= 0 && d4 <= d3) return fin(b[0], b[1], b[2]);
+	double vc = d1 * d4 - d3 * d2;
+	if (vc <= 0 && d1 >= 0 && d3 <= 0) { double v = d1 / (d1 - d3); return fin(a[0] + v * ab[0], a[1] + v * ab[1], a[2] + v * ab[2]); }
+	double cp[3]; sub(p, c, cp);
+	double d5 = dot(ab, cp), d6 = dot(ac, cp);
+	if (d6 >= 0 && d5 <= d6) return fin(c[0], c[1], c[2]);
+	double vb = d5 * d2 - d1 * d6;
+	if (vb <= 0 && d2 >= 0 && d6 <= 0) { double w = d2 / (d2 - d6); return fin(a[0] + w * ac[0], a[1] + w * ac[1], a[2] + w * ac[2]); }
+	double va = d3 * d6 - d5 * d4;
+	if (va <= 0 && (d4 - d3) >= 0 && (d5 - d6) >= 0) { double w = (d4 - d3) / ((d4 - d3) + (d5 - d6)); return fin(b[0] + w * (c[0] - b[0]), b[1] + w * (c[1] - b[1]), b[2] + w * (c[2] - b[2])); }
+	double den = 1.0 / (va + vb + vc), v = vb * den, w = vc * den;
+	return fin(a[0] + ab[0] * v + ac[0] * w, a[1] + ab[1] * v + ac[1] * w, a[2] + ab[2] * v + ac[2] * w);
+}
+} // namespace
+
+// A mesh as a cut solid: signed distance at the cell corners. Unsigned distance is exact (point - triangle) inside a band of 3 cells, the sign is ray parity
+// along +x per corner column (the line is skewed by a fixed fraction of a cell so it never runs along an edge). Returns the number of corners inside.
+int KineFluidNative::add_cut_mesh(const PackedVector3Array &vs, const PackedInt32Array &tr) {
+	cut = true; wdirty = true;
+	size_t nn = (size_t)(nx + 1) * (ny + 1) * (nz + 1);
+	if (phi.empty()) phi.assign(nn, 1e9);
+	const double band = 3.0 * h;
+	std::vector<double> ud(nn, band * band);
+	int nt3 = tr.size() / 3;
+	std::vector<std::vector<double>> xs((size_t)(ny + 1) * (nz + 1));
+	const double sy = 0.0137 * h, sz = 0.0071 * h;
+	for (int t = 0; t < nt3; t++) {
+		double a[3] = { vs[tr[3 * t]].x, vs[tr[3 * t]].y, vs[tr[3 * t]].z };
+		double b[3] = { vs[tr[3 * t + 1]].x, vs[tr[3 * t + 1]].y, vs[tr[3 * t + 1]].z };
+		double c[3] = { vs[tr[3 * t + 2]].x, vs[tr[3 * t + 2]].y, vs[tr[3 * t + 2]].z };
+		double org[3] = { ox, oy, oz };
+		int dim[3] = { nx + 1, ny + 1, nz + 1 };
+		int i0[3], i1[3];
+		for (int ax = 0; ax < 3; ax++) {
+			double lo = std::min(a[ax], std::min(b[ax], c[ax])) - band, hi = std::max(a[ax], std::max(b[ax], c[ax])) + band;
+			i0[ax] = std::max(0, (int)std::ceil((lo - org[ax]) / h));
+			i1[ax] = std::min(dim[ax] - 1, (int)std::floor((hi - org[ax]) / h));
+		}
+		for (int k = i0[2]; k <= i1[2]; k++)
+			for (int j = i0[1]; j <= i1[1]; j++)
+				for (int i = i0[0]; i <= i1[0]; i++) {
+					double p[3] = { ox + i * h, oy + j * h, oz + k * h };
+					double d2 = pt_tri_d2(p, a, b, c);
+					double &u = ud[nid(i, j, k)];
+					if (d2 < u) u = d2;
+				}
+		double ylo = std::min(a[1], std::min(b[1], c[1])), yhi = std::max(a[1], std::max(b[1], c[1]));
+		double zlo = std::min(a[2], std::min(b[2], c[2])), zhi = std::max(a[2], std::max(b[2], c[2]));
+		int j0 = std::max(0, (int)std::ceil((ylo - sy - oy) / h)), j1 = std::min(ny, (int)std::floor((yhi - sy - oy) / h));
+		int k0 = std::max(0, (int)std::ceil((zlo - sz - oz) / h)), k1 = std::min(nz, (int)std::floor((zhi - sz - oz) / h));
+		double det = (b[1] - a[1]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[1] - a[1]);
+		if (std::fabs(det) < 1e-18) continue;
+		for (int k = k0; k <= k1; k++)
+			for (int j = j0; j <= j1; j++) {
+				double py = oy + j * h + sy, pz = oz + k * h + sz;
+				double u = ((py - a[1]) * (c[2] - a[2]) - (pz - a[2]) * (c[1] - a[1])) / det;
+				double v = ((b[1] - a[1]) * (pz - a[2]) - (b[2] - a[2]) * (py - a[1])) / det;
+				if (u < 0 || v < 0 || u + v > 1) continue;
+				xs[j + (size_t)(ny + 1) * k].push_back(a[0] + u * (b[0] - a[0]) + v * (c[0] - a[0]));
+			}
+	}
+	int inside = 0;
+	for (int k = 0; k <= nz; k++)
+		for (int j = 0; j <= ny; j++) {
+			std::vector<double> &col = xs[j + (size_t)(ny + 1) * k];
+			std::sort(col.begin(), col.end());
+			for (int i = 0; i <= nx; i++) {
+				double x = ox + i * h;
+				size_t nl = std::lower_bound(col.begin(), col.end(), x) - col.begin();
+				bool in = (nl & 1) != 0;
+				double d = std::sqrt(ud[nid(i, j, k)]);
+				double sd = in ? -d : d;
+				if (in) inside++;
+				double &ph = phi[nid(i, j, k)];
+				ph = std::min(ph, sd);
+			}
+		}
+	return inside;
+}
+
+// open (fluid side) area fraction of every face from the corner field; then the cells whose six faces are all closed become solid
+void KineFluidNative::rebuild_weights() {
+	wdirty = false;
+	size_t nc = (size_t)nx * ny * nz;
+	wxp.assign(nc, 0.0); wyp.assign(nc, 0.0); wzp.assign(nc, 0.0);
+	for (int k = 0; k < nz; k++)
+		for (int j = 0; j < ny; j++)
+			for (int i = 0; i < nx; i++) {
+				int c = cid(i, j, k);
+				if (solid[c]) continue;
+				if (i < nx - 1 && !solid[c + 1]) {
+					double f = 1.0;
+					if (cut) f = face_open(phi[nid(i + 1, j, k)], phi[nid(i + 1, j + 1, k)], phi[nid(i + 1, j + 1, k + 1)], phi[nid(i + 1, j, k + 1)]);
+					wxp[c] = f < wmin ? 0.0 : f;
+				}
+				if (j < ny - 1 && !solid[c + nx]) {
+					double f = 1.0;
+					if (cut) f = face_open(phi[nid(i, j + 1, k)], phi[nid(i + 1, j + 1, k)], phi[nid(i + 1, j + 1, k + 1)], phi[nid(i, j + 1, k + 1)]);
+					wyp[c] = f < wmin ? 0.0 : f;
+				}
+				if (k < nz - 1 && !solid[c + nx * ny]) {
+					double f = 1.0;
+					if (cut) f = face_open(phi[nid(i, j, k + 1)], phi[nid(i + 1, j, k + 1)], phi[nid(i + 1, j + 1, k + 1)], phi[nid(i, j + 1, k + 1)]);
+					wzp[c] = f < wmin ? 0.0 : f;
+				}
+			}
+	if (cut) {
+		for (int k = 1; k < nz - 1; k++)
+			for (int j = 1; j < ny - 1; j++)
+				for (int i = 1; i < nx - 1; i++) {
+					int c = cid(i, j, k);
+					if (solid[c]) continue;
+					if (wxp[c] == 0 && wxp[c - 1] == 0 && wyp[c] == 0 && wyp[c - nx] == 0 && wzp[c] == 0 && wzp[c - nx * ny] == 0) solid[c] = 1;
+				}
+	}
+	pre_ok = false;
+}
+
+PackedFloat64Array KineFluidNative::face_weights() const {
+	PackedFloat64Array out;
+	size_t nc = wxp.size();
+	out.resize(3 * nc);
+	for (size_t c = 0; c < nc; c++) { out[c] = wxp[c]; out[nc + c] = wyp[c]; out[2 * nc + c] = wzp[c]; }
+	return out;
+}
+
+// trilinear corner field and its gradient (g may be null); outside the grid the indices clamp
+double KineFluidNative::phi_at(double x, double y, double z, double *g) const {
+	double q[3] = { (x - ox) / h, (y - oy) / h, (z - oz) / h };
+	int b[3];
+	double f[3];
+	int dim[3] = { nx, ny, nz };
+	for (int a = 0; a < 3; a++) {
+		b[a] = (int)std::floor(q[a]);
+		if (b[a] < 0) b[a] = 0;
+		if (b[a] > dim[a] - 1) b[a] = dim[a] - 1;
+		f[a] = std::min(1.0, std::max(0.0, q[a] - b[a]));
+	}
+	double r = 0, gx = 0, gy = 0, gz = 0;
+	for (int dz = 0; dz < 2; dz++)
+		for (int dy = 0; dy < 2; dy++)
+			for (int dx = 0; dx < 2; dx++) {
+				double wx = dx ? f[0] : 1 - f[0], wy = dy ? f[1] : 1 - f[1], wz = dz ? f[2] : 1 - f[2];
+				double val = phi[nid(b[0] + dx, b[1] + dy, b[2] + dz)];
+				r += wx * wy * wz * val;
+				gx += (dx ? 1.0 : -1.0) * wy * wz * val;
+				gy += (dy ? 1.0 : -1.0) * wx * wz * val;
+				gz += (dz ? 1.0 : -1.0) * wx * wy * val;
+			}
+	if (g) { g[0] = gx / h; g[1] = gy / h; g[2] = gz / h; }
+	return r;
+}
+
+// keeps every particle on the fluid side of the cut solid: phi >= push_margin * h. The inward part of the velocity is removed (free slip).
+void KineFluidNative::push_out() {
+	if (!cut || phi.empty()) return;
+	int N = particle_count();
+	double m = push_margin * h;
+	pfor(N, nte, [&](int b0, int e0) {
+		for (int p = b0; p < e0; p++) {
+			double *x = &P[3 * p], *v = &V[3 * p];
+			for (int it = 0; it < 3; it++) {
+				double g[3];
+				double d = phi_at(x[0], x[1], x[2], g);
+				if (d >= m) break;
+				double gl = std::sqrt(g[0] * g[0] + g[1] * g[1] + g[2] * g[2]);
+				if (gl < 0.25) break;
+				double n[3] = { g[0] / gl, g[1] / gl, g[2] / gl };
+				double s = (m - d) / gl;
+				for (int a = 0; a < 3; a++) x[a] += s * n[a];
+				double vn = v[0] * n[0] + v[1] * n[1] + v[2] * n[2];
+				if (vn < 0) for (int a = 0; a < 3; a++) v[a] -= vn * n[a];
+			}
+		}
+	});
+}
+
+// volume the fluid can occupy inside the domain walls: 4^3 sub-samples of the corner field in every interior cell
+double KineFluidNative::open_volume() const {
+	double tot = 0;
+	for (int k = 1; k < nz - 1; k++)
+		for (int j = 1; j < ny - 1; j++)
+			for (int i = 1; i < nx - 1; i++) {
+				if (!cut && solid[cid(i, j, k)]) continue;
+				int n = 0;
+				for (int c = 0; c < 64; c++) {
+					double x = ox + (i + ((c & 3) + 0.5) / 4.0) * h, y = oy + (j + (((c >> 2) & 3) + 0.5) / 4.0) * h, z = oz + (k + ((c >> 4) + 0.5) / 4.0) * h;
+					if (!cut || phi_at(x, y, z, nullptr) >= 0) n++;
+				}
+				tot += n / 64.0;
+			}
+	return tot * h * h * h;
+}
+
 int KineFluidNative::add_fluid_box(Vector3 mn, Vector3 mx, Vector3 vel, int seed) {
 	int i0 = (int)std::floor((mn.x - ox) / h + 1e-9), i1 = (int)std::ceil((mx.x - ox) / h - 1e-9) - 1;
 	int j0 = (int)std::floor((mn.y - oy) / h + 1e-9), j1 = (int)std::ceil((mx.y - oy) / h - 1e-9) - 1;
@@ -266,6 +543,7 @@ int KineFluidNative::add_fluid_box(Vector3 mn, Vector3 mx, Vector3 vel, int seed
 						double u = hash32(key) / 4294967296.0;
 						pos[a] = (cell[a] + 0.5 * sub[a] + 0.5 * (0.1 + 0.8 * u)) * h;
 					}
+					if (cut && !phi.empty() && phi_at(ox + pos[0], oy + pos[1], oz + pos[2], nullptr) < push_margin * h) continue;
 					P.push_back(ox + pos[0]); P.push_back(oy + pos[1]); P.push_back(oz + pos[2]);
 					V.push_back(vel.x); V.push_back(vel.y); V.push_back(vel.z);
 					for (int q = 0; q < 9; q++) C.push_back(0.0);
@@ -400,11 +678,11 @@ void KineFluidNative::build_precond() {
 		if (q0 >= q1) return;
 		const int lo = blo[t], hi = bhi[t];
 		auto inb = [&](int c) { return c >= lo && c <= hi && type[c] == 1; };
-		auto ap = [&](int c, int off) { return (inb(c) && inb(c + off)) ? -1.0 : 0.0; };
+		auto ap = [&](int c, int off) { return (inb(c) && inb(c + off)) ? -(off == sx ? wxp[c] : (off == sy ? wyp[c] : wzp[c])) : 0.0; };
 		for (int q = q0; q < q1; q++) {
 			int c = fl[q];
 			double d = 0;
-			for (int off : { -sx, sx, -sy, sy, -sz, sz }) if (type[c + off] != 2) d += 1;
+			d = wxp[c - sx] + wxp[c] + wyp[c - sy] + wyp[c] + wzp[c - sz] + wzp[c];
 			adiag[c] = d;
 		}
 		const double tau = 0.97, sigma = 0.25;
@@ -442,7 +720,7 @@ void KineFluidNative::precond_apply(const std::vector<double> &r, std::vector<do
 		if (q0 >= q1) { if (part) (*part)[t] = 0; return; }
 		const int lo = blo[t], hi = bhi[t];
 		auto inb = [&](int c) { return c >= lo && c <= hi && type[c] == 1; };
-		auto ap = [&](int c, int off) { return (inb(c) && inb(c + off)) ? -1.0 : 0.0; };
+		auto ap = [&](int c, int off) { return (inb(c) && inb(c + off)) ? -(off == sx ? wxp[c] : (off == sy ? wyp[c] : wzp[c])) : 0.0; };
 		for (int q = q0; q < q1; q++) {
 			int c = fl[q];
 			double tt = r[c];
@@ -495,12 +773,12 @@ void KineFluidNative::pcg(std::vector<double> &x, const std::vector<double> &b, 
 		for (int q = q0; q < q1; q++) {
 			int c = fl[q];
 			double tt = adiag[c] * x[c];
-			if (isf(c - sx)) tt -= x[c - sx];
-			if (isf(c + sx)) tt -= x[c + sx];
-			if (isf(c - sy)) tt -= x[c - sy];
-			if (isf(c + sy)) tt -= x[c + sy];
-			if (isf(c - sz)) tt -= x[c - sz];
-			if (isf(c + sz)) tt -= x[c + sz];
+			if (isf(c - sx)) tt -= wxp[c - sx] * x[c - sx];
+			if (isf(c + sx)) tt -= wxp[c] * x[c + sx];
+			if (isf(c - sy)) tt -= wyp[c - sy] * x[c - sy];
+			if (isf(c + sy)) tt -= wyp[c] * x[c + sy];
+			if (isf(c - sz)) tt -= wzp[c - sz] * x[c - sz];
+			if (isf(c + sz)) tt -= wzp[c] * x[c + sz];
 			rr[c] = b[c] - tt;
 			m = std::max(m, std::fabs(rr[c]));
 		}
@@ -517,12 +795,12 @@ void KineFluidNative::pcg(std::vector<double> &x, const std::vector<double> &b, 
 			for (int q = q0; q < q1; q++) {
 				int c = fl[q];
 				double tt = adiag[c] * ss[c];
-				if (isf(c - sx)) tt -= ss[c - sx];
-				if (isf(c + sx)) tt -= ss[c + sx];
-				if (isf(c - sy)) tt -= ss[c - sy];
-				if (isf(c + sy)) tt -= ss[c + sy];
-				if (isf(c - sz)) tt -= ss[c - sz];
-				if (isf(c + sz)) tt -= ss[c + sz];
+				if (isf(c - sx)) tt -= wxp[c - sx] * ss[c - sx];
+				if (isf(c + sx)) tt -= wxp[c] * ss[c + sx];
+				if (isf(c - sy)) tt -= wyp[c - sy] * ss[c - sy];
+				if (isf(c + sy)) tt -= wyp[c] * ss[c + sy];
+				if (isf(c - sz)) tt -= wzp[c - sz] * ss[c - sz];
+				if (isf(c + sz)) tt -= wzp[c] * ss[c + sz];
 				zz[c] = tt;
 				dsum += ss[c] * tt;
 			}
@@ -578,6 +856,8 @@ void KineFluidNative::apply_wall_friction() {
 // was slowed and given a wrong affine matrix. Two layers of faces beyond the fluid get the mean of their already-valid face neighbours (valid = touching
 // a fluid cell, or filled by the previous layer). Faces on solid walls and the domain boundary stay as they are (normal velocity 0).
 void KineFluidNative::extrapolate() {
+	// is the face between cells a (lower side) and b closed (open fraction 0)? c = axis
+	auto wcl = [&](int c, int a) { return (c == 0 ? wxp[a] : (c == 1 ? wyp[a] : wzp[a])) == 0.0; };
 	for (int c = 0; c < 3; c++) {
 		std::vector<double> &g = c == 0 ? U : (c == 1 ? Vg : W);
 		int d[3] = { nx, ny, nz };
@@ -603,7 +883,7 @@ void KineFluidNative::extrapolate() {
 						// the wall: it is extrapolated like air, so a particle next to a wall interpolates its own tangential velocity there (free slip).
 						// Leaving those faces at 0 made the B-spline read zeros 1 cell into every wall: a numerical no-slip that held a sheet of particles
 						// on the tank's front and back walls at about 0.14 m/s in free fall (CH8b, 11-04).
-						if ((type[a] == 2) != (type[b] == 2)) vf[f] = 2;
+						if (wcl(c, a) && !(type[a] == 2 && type[b] == 2)) vf[f] = 2;
 						else if (type[a] == 1 || type[b] == 1) vf[f] = 1;
 					}
 		});
@@ -638,13 +918,13 @@ void KineFluidNative::project(double dt) {
 		for (int k = k0; k < k1; k++)
 			for (int j = 0; j < ny; j++)
 				for (int i = 0; i <= nx; i++) {
-					bool s = (i == 0 || i == nx) || solid[cid(i - 1, j, k)] || solid[cid(i, j, k)];
+					bool s = (i == 0 || i == nx) || wxp[cid(i - 1, j, k)] == 0.0;
 					if (s) U[i + (size_t)(nx + 1) * (j + (size_t)ny * k)] = 0;
 				}
 		for (int k = k0; k < k1; k++)
 			for (int j = 0; j <= ny; j++)
 				for (int i = 0; i < nx; i++) {
-					bool s = (j == 0 || j == ny) || solid[cid(i, j - 1, k)] || solid[cid(i, j, k)];
+					bool s = (j == 0 || j == ny) || wyp[cid(i, j - 1, k)] == 0.0;
 					if (s) Vg[i + (size_t)nx * (j + (size_t)(ny + 1) * k)] = 0;
 				}
 	});
@@ -652,7 +932,7 @@ void KineFluidNative::project(double dt) {
 		for (int k = k0; k < k1; k++)
 			for (int j = 0; j < ny; j++)
 				for (int i = 0; i < nx; i++) {
-					bool s = (k == 0 || k == nz) || solid[cid(i, j, k - 1)] || solid[cid(i, j, k)];
+					bool s = (k == 0 || k == nz) || wzp[cid(i, j, k - 1)] == 0.0;
 					if (s) W[i + (size_t)nx * (j + (size_t)ny * k)] = 0;
 				}
 	});
@@ -663,9 +943,9 @@ void KineFluidNative::project(double dt) {
 		for (int q = q0; q < q1; q++) {
 			int c = fl[q];
 			int i = c % nx, j = (c / nx) % ny, k = c / (nx * ny);
-			double div = U[(i + 1) + (size_t)(nx + 1) * (j + (size_t)ny * k)] - U[i + (size_t)(nx + 1) * (j + (size_t)ny * k)]
-					+ Vg[i + (size_t)nx * ((j + 1) + (size_t)(ny + 1) * k)] - Vg[i + (size_t)nx * (j + (size_t)(ny + 1) * k)]
-					+ W[i + (size_t)nx * (j + (size_t)ny * (k + 1))] - W[i + (size_t)nx * (j + (size_t)ny * k)];
+			double div = wxp[c] * U[(i + 1) + (size_t)(nx + 1) * (j + (size_t)ny * k)] - wxp[c - 1] * U[i + (size_t)(nx + 1) * (j + (size_t)ny * k)]
+					+ wyp[c] * Vg[i + (size_t)nx * ((j + 1) + (size_t)(ny + 1) * k)] - wyp[c - nx] * Vg[i + (size_t)nx * (j + (size_t)(ny + 1) * k)]
+					+ wzp[c] * W[i + (size_t)nx * (j + (size_t)ny * (k + 1))] - wzp[c - nx * ny] * W[i + (size_t)nx * (j + (size_t)ny * k)];
 			double eps = 0.0;
 			if (legacy) { // the first-version density drift: a pressure source in the velocity solve (dmode 0). dmode 1 does it on positions instead (density_project)
 				eps = std::min(1.0, std::max(0.0, (double)cnt[c] / ppc - 1.0));
@@ -684,14 +964,14 @@ void KineFluidNative::project(double dt) {
 			for (int j = 0; j < ny; j++)
 				for (int i = 1; i < nx; i++) {
 					int a = cid(i - 1, j, k), b = cid(i, j, k);
-					if (type[a] == 2 || type[b] == 2) continue;
+					if (wxp[a] == 0.0) continue;
 					if (type[a] == 1 || type[b] == 1) U[i + (size_t)(nx + 1) * (j + (size_t)ny * k)] -= f * (pr[b] - pr[a]);
 				}
 		for (int k = k0; k < k1; k++)
 			for (int j = 1; j < ny; j++)
 				for (int i = 0; i < nx; i++) {
 					int a = cid(i, j - 1, k), b = cid(i, j, k);
-					if (type[a] == 2 || type[b] == 2) continue;
+					if (wyp[a] == 0.0) continue;
 					if (type[a] == 1 || type[b] == 1) Vg[i + (size_t)nx * (j + (size_t)(ny + 1) * k)] -= f * (pr[b] - pr[a]);
 				}
 	});
@@ -700,7 +980,7 @@ void KineFluidNative::project(double dt) {
 			for (int j = 0; j < ny; j++)
 				for (int i = 0; i < nx; i++) {
 					int a = cid(i, j, k - 1), b = cid(i, j, k);
-					if (type[a] == 2 || type[b] == 2) continue;
+					if (wzp[a] == 0.0) continue;
 					if (type[a] == 1 || type[b] == 1) W[i + (size_t)nx * (j + (size_t)ny * k)] -= f * (pr[b] - pr[a]);
 				}
 	});
@@ -746,14 +1026,14 @@ void KineFluidNative::density_project() {
 			for (int j = 0; j < ny; j++)
 				for (int i = 1; i < nx; i++) {
 					int a = cid(i - 1, j, k), b = cid(i, j, k);
-					if (type[a] == 2 || type[b] == 2) continue;
+					if (wxp[a] == 0.0) continue;
 					if (type[a] == 1 || type[b] == 1) U[i + (size_t)(nx + 1) * (j + (size_t)ny * k)] = -(dq[b] - dq[a]);
 				}
 		for (int k = k0; k < k1; k++)
 			for (int j = 1; j < ny; j++)
 				for (int i = 0; i < nx; i++) {
 					int a = cid(i, j - 1, k), b = cid(i, j, k);
-					if (type[a] == 2 || type[b] == 2) continue;
+					if (wyp[a] == 0.0) continue;
 					if (type[a] == 1 || type[b] == 1) Vg[i + (size_t)nx * (j + (size_t)(ny + 1) * k)] = -(dq[b] - dq[a]);
 				}
 	});
@@ -762,7 +1042,7 @@ void KineFluidNative::density_project() {
 			for (int j = 0; j < ny; j++)
 				for (int i = 0; i < nx; i++) {
 					int a = cid(i, j, k - 1), b = cid(i, j, k);
-					if (type[a] == 2 || type[b] == 2) continue;
+					if (wzp[a] == 0.0) continue;
 					if (type[a] == 1 || type[b] == 1) W[i + (size_t)nx * (j + (size_t)ny * k)] = -(dq[b] - dq[a]);
 				}
 	});
@@ -814,6 +1094,7 @@ void KineFluidNative::density_project() {
 			}
 		}
 	});
+	push_out();
 	tm_idp = ms_since(t0);
 }
 
@@ -888,6 +1169,7 @@ void KineFluidNative::advect(double dt) {
 			vm[t] = m;
 		}
 	});
+	push_out();
 	vmax = 0;
 	for (double m : vm) vmax = std::max(vmax, m);
 }
@@ -896,6 +1178,7 @@ void KineFluidNative::step(double dt) {
 	auto t0 = Clk::now();
 	// threads only pay on a big grid or many particles: the pool barriers cost more than a small loop (and much more when the machine is shared)
 	nte = (nt > 1 && ((size_t)nx * ny * nz >= 40000 || particle_count() >= 16384)) ? nt : 1;
+	if (wdirty || wxp.empty()) rebuild_weights();
 	mark_cells();
 	if (dmode == 1) {
 		density_project();
