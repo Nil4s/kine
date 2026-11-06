@@ -175,7 +175,7 @@ func _init() -> void:
 	badge = m.find_child("sim_cache_badge", true, false) as Label
 	var t_fresh := badge.text if badge != null else ""
 	ok(t_fresh == "cache: fresh", "1 after Bake sim the badge reads 'cache: fresh' (%s)" % t_fresh)
-	control(t_fresh != "cache: none", "1 PLANTED the badge after a bake is not still 'none'")
+	control(t_fresh == "cache: none", "1 PLANTED the badge after a bake is not still 'none'")
 	if badge != null:
 		inside = inside and Rect2(win).encloses(badge.get_global_rect())
 
@@ -234,7 +234,7 @@ func _init() -> void:
 	await d.idle(6)
 	var dm = ui.dock_map
 	var before_chips: Array = dm.detached_chips()
-	control(before_chips.is_empty(), "3 PLANTED before the detach the map lists no detached chip")
+	control(not before_chips.is_empty(), "3 PLANTED before the detach the map lists no detached chip")
 	var pd: PanelDetach = m.detach
 	pd.native = false
 	pd.rescue = false
