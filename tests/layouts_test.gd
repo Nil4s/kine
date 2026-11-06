@@ -351,7 +351,7 @@ func live_bars() -> void:
 	for sc in UiExpDrive.SCREENS:
 		await d.screen(sc)
 		await d.idle(8)
-		var pg := sc
+		var pg: String = sc
 		ok(not sh.ws_live(), "7 %s: the factory layout leaves the app's own placement alone" % sc)
 		probe("%s factory" % sc)
 		for nm in ["A inspector left", "B browser right"]:
@@ -424,6 +424,8 @@ func live_bars() -> void:
 	dm._gui_input(rel)
 	await d.idle(8)
 	ok(String(wl.cur["pages"]["part"]["panels"]["inspector"]["dock"]) == "left", "7 dragging the inspector chip onto the left zone docks it left")
+	ui.close_dialog()
+	await d.idle(8)
 	probe("part after a drag")
 	ui.menu_dock("part", "inspector", "bottom")
 	await d.idle(8)
