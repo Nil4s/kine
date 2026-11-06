@@ -186,6 +186,7 @@ void KineFluidNative::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("clear_particles"), &KineFluidNative::clear_particles);
 	ClassDB::bind_method(D_METHOD("remove_every", "k"), &KineFluidNative::remove_every);
 	ClassDB::bind_method(D_METHOD("set_wall_friction", "f"), &KineFluidNative::set_wall_friction);
+	ClassDB::bind_method(D_METHOD("set_wall_separation", "on"), &KineFluidNative::set_wall_separation);
 	ClassDB::bind_method(D_METHOD("set_wall_law", "mask", "nu"), &KineFluidNative::set_wall_law);
 	ClassDB::bind_method(D_METHOD("set_release_delay", "t"), &KineFluidNative::set_release_delay);
 	ClassDB::bind_method(D_METHOD("set_density_mode", "mode"), &KineFluidNative::set_density_mode);
@@ -217,7 +218,7 @@ void KineFluidNative::setup(int p_nx, int p_ny, int p_nz, double p_h, Vector3 p_
 	U.assign((size_t)(nx + 1) * ny * nz, 0); mU = U;
 	Vg.assign((size_t)nx * (ny + 1) * nz, 0); mV = Vg;
 	W.assign((size_t)nx * ny * (nz + 1), 0); mW = W;
-	pr.assign(nc, 0); rhs = pr; rr = pr; zz = pr; ss = pr; qq = pr; pre = pr; adiag = pr; dq = pr; db = pr; pre_ok = false;
+	pr.assign(nc, 0); rhs = pr; rr = pr; zz = pr; ss = pr; qq = pr; pre = pr; adiag = pr; dq = pr; db = pr; sepd = pr; pre_ok = false;
 	P.clear(); V.clear(); C.clear();
 	cut = false; wdirty = true;
 	phi.clear(); wxp.clear(); wyp.clear(); wzp.clear();
@@ -824,7 +825,7 @@ void KineFluidNative::build_precond() {
 		for (int q = q0; q < q1; q++) {
 			int c = fl[q];
 			double d = 0;
-			d = wxp[c - sx] + wxp[c] + wyp[c - sy] + wyp[c] + wzp[c - sz] + wzp[c];
+			d = wxp[c - sx] + wxp[c] + wyp[c - sy] + wyp[c] + wzp[c - sz] + wzp[c] + sepd[c];
 			adiag[c] = d;
 		}
 		const double tau = 0.97, sigma = 0.25;
@@ -1083,6 +1084,7 @@ void KineFluidNative::project(double dt) {
 	const size_t NV = Vg.size();
 	pfor((int)NV, nte, [&](int b0, int e0) { for (int n = b0; n < e0; n++) Vg[n] -= grav * dt; });
 	apply_wall_friction(dt);
+	if (sep_on) { U0 = U; V0 = Vg; W0 = W; }
 	pfor(nz, nte, [&](int k0, int k1) {
 		for (int k = k0; k < k1; k++)
 			for (int j = 0; j < ny; j++)
@@ -1108,6 +1110,7 @@ void KineFluidNative::project(double dt) {
 	pfor((int)pr.size(), nte, [&](int b0, int e0) { for (int c = b0; c < e0; c++) if (type[c] != 1) pr[c] = 0.0; });
 	double sc = h / dt;
 	const bool legacy = dmode == 0;
+	auto build_rhs = [&]() {
 	pfor((int)fl.size(), solve_tasks(), [&](int q0, int q1) {
 		for (int q = q0; q < q1; q++) {
 			int c = fl[q];
@@ -1115,6 +1118,14 @@ void KineFluidNative::project(double dt) {
 			double div = wxp[c] * U[(i + 1) + (size_t)(nx + 1) * (j + (size_t)ny * k)] - wxp[c - 1] * U[i + (size_t)(nx + 1) * (j + (size_t)ny * k)]
 					+ wyp[c] * Vg[i + (size_t)nx * ((j + 1) + (size_t)(ny + 1) * k)] - wyp[c - nx] * Vg[i + (size_t)nx * (j + (size_t)(ny + 1) * k)]
 					+ wzp[c] * W[i + (size_t)nx * (j + (size_t)ny * (k + 1))] - wzp[c - nx * ny] * W[i + (size_t)nx * (j + (size_t)ny * k)];
+			if (sep_used && sepf[c]) { // free wall faces count with weight 1 (their own outward velocity)
+				if ((sepf[c] >> 0) & 1) div -= U[i + (size_t)(nx + 1) * (j + (size_t)ny * k)];
+				if ((sepf[c] >> 1) & 1) div += U[(i + 1) + (size_t)(nx + 1) * (j + (size_t)ny * k)];
+				if ((sepf[c] >> 2) & 1) div -= Vg[i + (size_t)nx * (j + (size_t)(ny + 1) * k)];
+				if ((sepf[c] >> 3) & 1) div += Vg[i + (size_t)nx * ((j + 1) + (size_t)(ny + 1) * k)];
+				if ((sepf[c] >> 4) & 1) div -= W[i + (size_t)nx * (j + (size_t)ny * k)];
+				if ((sepf[c] >> 5) & 1) div += W[i + (size_t)nx * (j + (size_t)ny * (k + 1))];
+			}
 			double eps = 0.0;
 			if (legacy) { // the first-version density drift: a pressure source in the velocity solve (dmode 0). dmode 1 does it on positions instead (density_project)
 				eps = std::min(1.0, std::max(0.0, (double)cnt[c] / ppc - 1.0));
@@ -1125,8 +1136,51 @@ void KineFluidNative::project(double dt) {
 			rhs[c] = -sc * div + sc * (h / std::max(dt, dtmax)) * drift * eps;
 		}
 	});
+	};
+	build_rhs();
 	if (!pre_ok) build_precond();
 	pcg(pr, rhs, tol, max_iter, true);
+	// L50 separating wall: a solid face can block flow INTO the wall but cannot pull the water back (no suction). A fluid cell whose pressure came out negative
+	// against a closed solid face is separating: that face becomes a free (p = 0) face carrying the fluid's own outward normal velocity, and the system is
+	// solved again. The result is clamped so the face never moves into the wall.
+	if (sep_on) {
+		const int off3[3] = { 1, nx, nx * ny };
+		const double thr = 1e-3 * h / dt;
+		sepf.assign(type.size(), 0);
+		bool any = false;
+		for (int c : fl) {
+			if (pr[c] >= -thr) continue;
+			for (int ax = 0; ax < 3; ax++) {
+				const std::vector<double> &wf = ax == 0 ? wxp : (ax == 1 ? wyp : wzp);
+				if (wf[c - off3[ax]] == 0.0 && type[c - off3[ax]] == 2) { sepf[c] |= (uint8_t)(1 << (2 * ax)); any = true; }
+				if (wf[c] == 0.0 && type[c + off3[ax]] == 2) { sepf[c] |= (uint8_t)(1 << (2 * ax + 1)); any = true; }
+			}
+		}
+		if (any) {
+			sep_used = true;
+			for (int c : fl) {
+				int cntb = 0;
+				for (int bb = 0; bb < 6; bb++) if ((sepf[c] >> bb) & 1) cntb++;
+				sepd[c] = cntb;
+				for (int ax = 0; ax < 3; ax++)
+					for (int side = 0; side < 2; side++) {
+						if (!((sepf[c] >> (2 * ax + side)) & 1)) continue;
+						int i = c % nx, j = (c / nx) % ny, k = c / (nx * ny);
+						size_t fi;
+						double u0;
+						if (ax == 0) { fi = (i + side) + (size_t)(nx + 1) * (j + (size_t)ny * k); u0 = U0[fi]; }
+						else if (ax == 1) { fi = i + (size_t)nx * ((j + side) + (size_t)(ny + 1) * k); u0 = V0[fi]; }
+						else { fi = i + (size_t)nx * (j + (size_t)ny * (k + side)); u0 = W0[fi]; }
+						u0 = side == 0 ? std::max(u0, 0.0) : std::min(u0, 0.0);
+						(ax == 0 ? U : (ax == 1 ? Vg : W))[fi] = u0;
+					}
+			}
+			pre_ok = false;
+			build_rhs();
+			build_precond();
+			pcg(pr, rhs, tol, max_iter, true);
+		}
+	}
 	double f = dt / h;
 	pfor(nz, nte, [&](int k0, int k1) {
 		for (int k = k0; k < k1; k++)
@@ -1153,6 +1207,25 @@ void KineFluidNative::project(double dt) {
 					if (type[a] == 1 || type[b] == 1) W[i + (size_t)nx * (j + (size_t)ny * k)] -= f * (pr[b] - pr[a]);
 				}
 	});
+	if (sep_used) {
+		for (int c : fl) {
+			if (!sepf[c]) continue;
+			int i = c % nx, j = (c / nx) % ny, k = c / (nx * ny);
+			for (int ax = 0; ax < 3; ax++)
+				for (int side = 0; side < 2; side++) {
+					if (!((sepf[c] >> (2 * ax + side)) & 1)) continue;
+					double *fp;
+					if (ax == 0) fp = &U[(i + side) + (size_t)(nx + 1) * (j + (size_t)ny * k)];
+					else if (ax == 1) fp = &Vg[i + (size_t)nx * ((j + side) + (size_t)(ny + 1) * k)];
+					else fp = &W[i + (size_t)nx * (j + (size_t)ny * (k + side))];
+					double v = side == 0 ? *fp - f * pr[c] : *fp + f * pr[c];
+					*fp = side == 0 ? std::max(v, 0.0) : std::min(v, 0.0);
+				}
+		}
+		std::fill(sepd.begin(), sepd.end(), 0.0);
+		sep_used = false;
+		pre_ok = false;
+	}
 	if (extrap) extrapolate();
 }
 

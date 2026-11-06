@@ -48,6 +48,10 @@ public:
 	int last_iters = 0;
 	double last_res = 0;
 	int ppc = 8;
+	bool sep_on = true, sep_used = false; // L50 separating wall (project): suction-free solid faces
+	std::vector<double> sepd, U0, V0, W0;
+	std::vector<uint8_t> sepf;
+	void set_wall_separation(bool on) { sep_on = on; }
 	double wfr = 0.0; // wall friction: 0 = free slip, 1 = no slip
 	void set_wall_friction(double f) { wfr = f < 0 ? 0 : (f > 1 ? 1 : f); }
 	// L44: smooth-wall log law (wall function) on the faces that touch a wall sideways. mask bit t = walls whose normal is axis t; nu = kinematic viscosity

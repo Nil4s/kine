@@ -11,7 +11,7 @@ var fails := 0
 
 
 func ok(c: bool, m: String) -> void:
-	print(("  ok   " if c else "  FAIL ") + m)
+	print(("ok   " if c else "FAIL ") + m)
 	if not c:
 		fails += 1
 
@@ -73,5 +73,8 @@ func _init() -> void:
 	var tw := _slide(0.01, 0.0, true, 0.15)
 	var nt := _slide(0.01, 0.0, false, 0.15)
 	ok(absf(tw["band"] - nt["band"]) <= 0.005, "(E) GDScript twin equals C++: band %.4f vs %.4f (<= 0.005)" % [tw["band"], nt["band"]])
+	var tw2 := _slide(0.01, 0.0, true, 0.0)
+	var nt2 := _slide(0.01, 0.0, false, 0.0)
+	ok(absf(tw2["band"] - nt2["band"]) <= 0.005, "(E2) GDScript twin equals C++ in the rear-wall scene (separating wall): band %.4f vs %.4f (<= 0.005)" % [tw2["band"], nt2["band"]])
 	print("water5: %d fail" % fails)
 	quit(1 if fails > 0 else 0)

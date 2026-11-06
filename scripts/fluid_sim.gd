@@ -52,6 +52,13 @@ var ss := PackedFloat64Array()
 var qq := PackedFloat64Array()
 var pre := PackedFloat64Array()
 var adiag := PackedFloat64Array()
+var sepd := PackedFloat64Array()   # L50 separating wall: extra diagonal of the free (p = 0) wall faces
+var sepf := PackedByteArray()
+var sep_on := true
+var sep_used := false
+var U0 := PackedFloat64Array()
+var V0 := PackedFloat64Array()
+var W0 := PackedFloat64Array()
 var dq := PackedFloat64Array()
 var db := PackedFloat64Array()
 var dmode := 1   # 0 = density drift as a pressure source in the velocity solve (first version), 1 = implicit density projection on positions
@@ -95,6 +102,7 @@ func setup(p_nx: int, p_ny: int, p_nz: int, p_h: float, p_origin: Vector3) -> vo
 	qq = pr.duplicate()
 	pre = pr.duplicate()
 	adiag = pr.duplicate()
+	sepd = pr.duplicate()
 	dq = pr.duplicate()
 	db = pr.duplicate()
 	cut = false
@@ -133,6 +141,10 @@ func set_release_delay(t: float) -> void:
 func set_wall_law(mask: int, nu: float) -> void:
 	wlaw = mask
 	wnu = nu if nu > 0.0 else 1e-6
+
+
+func set_wall_separation(on: bool) -> void:
+	sep_on = on
 
 
 func set_wall_friction(f: float) -> void:
@@ -685,7 +697,7 @@ func _pcg(x: PackedFloat64Array, b: PackedFloat64Array, tl: float, maxit: int, w
 	var sy := nx
 	var sz := nx * ny
 	for c in fl:
-		var d := wxp[c - sx] + wxp[c] + wyp[c - sy] + wyp[c] + wzp[c - sz] + wzp[c]
+		var d := wxp[c - sx] + wxp[c] + wyp[c - sy] + wyp[c] + wzp[c - sz] + wzp[c] + sepd[c]
 		adiag[c] = d
 	var tau := 0.97
 	var sigma := 0.25
@@ -779,6 +791,10 @@ func _project(dt: float) -> void:
 	for n in Vg.size():
 		Vg[n] -= grav * dt
 	_wall_friction(dt)
+	if sep_on:
+		U0 = U.duplicate()
+		V0 = Vg.duplicate()
+		W0 = W.duplicate()
 	for k in nz:
 		for j in ny:
 			for i in nx + 1:
@@ -801,20 +817,57 @@ func _project(dt: float) -> void:
 		if type[c] != 1:
 			pr[c] = 0.0
 	var sc := h / dt
-	for c in fl:
-		var i := c % nx
-		var j := (c / nx) % ny
-		var k := c / (nx * ny)
-		var div := wxp[c] * U[(i + 1) + (nx + 1) * (j + ny * k)] - wxp[c - 1] * U[i + (nx + 1) * (j + ny * k)] \
-				+ wyp[c] * Vg[i + nx * ((j + 1) + (ny + 1) * k)] - wyp[c - nx] * Vg[i + nx * (j + (ny + 1) * k)] \
-				+ wzp[c] * W[i + nx * (j + ny * (k + 1))] - wzp[c - nx * ny] * W[i + nx * (j + ny * k)]
-		var eps := 0.0
-		if dmode == 0:
-			eps = minf(1.0, maxf(0.0, float(cnt[c]) / ppc - 1.0))
-			if eps == 0.0 and cnt[c] < ppc and type[c - 1] == 1 and type[c + 1] == 1 and type[c - nx] == 1 and type[c + nx] == 1 and type[c - nx * ny] == 1 and type[c + nx * ny] == 1:
-				eps = maxf(-0.5, float(cnt[c]) / ppc - 1.0)
-		rhs[c] = -sc * div + sc * (h / maxf(dt, dtmax)) * drift * eps
+	_build_rhs(sc, dt)
 	_pcg(pr, rhs, tol, max_iter, true)
+	# L50 separating wall (twin of KineFluidNative::project): a negative pressure against a closed solid face means the wall would pull the water back; that
+	# face becomes a free (p = 0) face carrying the fluid's own outward normal velocity, the system is solved again, and no face ends up moving into the wall.
+	if sep_on:
+		var off3 := [1, nx, nx * ny]
+		var thr := 1e-3 * h / dt
+		sepf = PackedByteArray()
+		sepf.resize(type.size())
+		var any := false
+		for c in fl:
+			if pr[c] >= -thr:
+				continue
+			for ax in 3:
+				var wf: PackedFloat64Array = wxp if ax == 0 else (wyp if ax == 1 else wzp)
+				if wf[c - off3[ax]] == 0.0 and type[c - off3[ax]] == 2:
+					sepf[c] = sepf[c] | (1 << (2 * ax))
+					any = true
+				if wf[c] == 0.0 and type[c + off3[ax]] == 2:
+					sepf[c] = sepf[c] | (1 << (2 * ax + 1))
+					any = true
+		if any:
+			sep_used = true
+			for c in fl:
+				var cb := 0
+				for bb in 6:
+					if (sepf[c] >> bb) & 1:
+						cb += 1
+				sepd[c] = cb
+				var i := c % nx
+				var j := (c / nx) % ny
+				var k := c / (nx * ny)
+				for ax in 3:
+					for side in 2:
+						if not ((sepf[c] >> (2 * ax + side)) & 1):
+							continue
+						var u0: float
+						if ax == 0:
+							var fi: int = (i + side) + (nx + 1) * (j + ny * k)
+							u0 = U0[fi]
+							U[fi] = maxf(u0, 0.0) if side == 0 else minf(u0, 0.0)
+						elif ax == 1:
+							var fi: int = i + nx * ((j + side) + (ny + 1) * k)
+							u0 = V0[fi]
+							Vg[fi] = maxf(u0, 0.0) if side == 0 else minf(u0, 0.0)
+						else:
+							var fi: int = i + nx * (j + ny * (k + side))
+							u0 = W0[fi]
+							W[fi] = maxf(u0, 0.0) if side == 0 else minf(u0, 0.0)
+			_build_rhs(sc, dt)
+			_pcg(pr, rhs, tol, max_iter, true)
 	var f := dt / h
 	for k in nz:
 		for j in ny:
@@ -843,8 +896,63 @@ func _project(dt: float) -> void:
 					continue
 				if type[a] == 1 or type[b] == 1:
 					W[i + nx * (j + ny * k)] -= f * (pr[b] - pr[a])
+	if sep_used:
+		for c in fl:
+			if sepf[c] == 0:
+				continue
+			var i := c % nx
+			var j := (c / nx) % ny
+			var k := c / (nx * ny)
+			for ax in 3:
+				for side in 2:
+					if not ((sepf[c] >> (2 * ax + side)) & 1):
+						continue
+					if ax == 0:
+						var fi: int = (i + side) + (nx + 1) * (j + ny * k)
+						var v: float = U[fi] - f * pr[c] if side == 0 else U[fi] + f * pr[c]
+						U[fi] = maxf(v, 0.0) if side == 0 else minf(v, 0.0)
+					elif ax == 1:
+						var fi: int = i + nx * ((j + side) + (ny + 1) * k)
+						var v: float = Vg[fi] - f * pr[c] if side == 0 else Vg[fi] + f * pr[c]
+						Vg[fi] = maxf(v, 0.0) if side == 0 else minf(v, 0.0)
+					else:
+						var fi: int = i + nx * (j + ny * (k + side))
+						var v: float = W[fi] - f * pr[c] if side == 0 else W[fi] + f * pr[c]
+						W[fi] = maxf(v, 0.0) if side == 0 else minf(v, 0.0)
+		for c in sepd.size():
+			sepd[c] = 0.0
+		sep_used = false
 	if extrap == 1:
 		_extrapolate()
+
+
+func _build_rhs(sc: float, dt: float) -> void:
+	for c in fl:
+		var i := c % nx
+		var j := (c / nx) % ny
+		var k := c / (nx * ny)
+		var div := wxp[c] * U[(i + 1) + (nx + 1) * (j + ny * k)] - wxp[c - 1] * U[i + (nx + 1) * (j + ny * k)] \
+				+ wyp[c] * Vg[i + nx * ((j + 1) + (ny + 1) * k)] - wyp[c - nx] * Vg[i + nx * (j + (ny + 1) * k)] \
+				+ wzp[c] * W[i + nx * (j + ny * (k + 1))] - wzp[c - nx * ny] * W[i + nx * (j + ny * k)]
+		if sep_used and sepf[c] != 0:
+			if sepf[c] & 1:
+				div -= U[i + (nx + 1) * (j + ny * k)]
+			if sepf[c] & 2:
+				div += U[(i + 1) + (nx + 1) * (j + ny * k)]
+			if sepf[c] & 4:
+				div -= Vg[i + nx * (j + (ny + 1) * k)]
+			if sepf[c] & 8:
+				div += Vg[i + nx * ((j + 1) + (ny + 1) * k)]
+			if sepf[c] & 16:
+				div -= W[i + nx * (j + ny * k)]
+			if sepf[c] & 32:
+				div += W[i + nx * (j + ny * (k + 1))]
+		var eps := 0.0
+		if dmode == 0:
+			eps = minf(1.0, maxf(0.0, float(cnt[c]) / ppc - 1.0))
+			if eps == 0.0 and cnt[c] < ppc and type[c - 1] == 1 and type[c + 1] == 1 and type[c - nx] == 1 and type[c + nx] == 1 and type[c - nx * ny] == 1 and type[c + nx * ny] == 1:
+				eps = maxf(-0.5, float(cnt[c]) / ppc - 1.0)
+		rhs[c] = -sc * div + sc * (h / maxf(dt, dtmax)) * drift * eps
 
 
 ## Velocity extrapolation into the air (twin of KineFluidNative::extrapolate; Bridson 2015): two layers of faces beyond the fluid get the mean of their
