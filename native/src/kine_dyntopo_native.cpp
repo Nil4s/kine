@@ -38,7 +38,7 @@ struct Work {
 	std::unordered_set<int> vdead;
 	double cx = 0, cy = 0, cz = 0;
 	double r2 = 0, l2 = 0, s2 = 0;
-	int splits = 0, collapses = 0;
+	int splits = 0, collapses = 0, flips = 0;
 
 	double d2(const P3 &a, const P3 &b) const {
 		double x = (double)a.x - (double)b.x, y = (double)a.y - (double)b.y, z = (double)a.z - (double)b.z;
@@ -137,6 +137,179 @@ struct Work {
 			any = true;
 		}
 		return any;
+	}
+
+	void nrm(int t, double o[3]) const {
+		cross(P[T[3 * t]], P[T[3 * t + 1]], P[T[3 * t + 2]], o);
+	}
+	static bool tri_ok(const P3 &q0, const P3 &q1, const P3 &q2, const double n0[3]) {
+		double n1[3];
+		cross(q0, q1, q2, n1);
+		double co2 = n0[0] * n0[0] + n0[1] * n0[1] + n0[2] * n0[2];
+		double cn2 = n1[0] * n1[0] + n1[1] * n1[1] + n1[2] * n1[2];
+		double dt = n0[0] * n1[0] + n0[1] * n1[1] + n0[2] * n1[2];
+		return !(cn2 <= 0.04 * co2 || dt < 0.35 * std::sqrt(co2) * std::sqrt(cn2));
+	}
+	bool flip_phase() {
+		bool any = false;
+		for (uint64_t k : sorted_keys()) {
+			auto it = emap.find(k);
+			if (it == emap.end() || it->second.size() != 2) {
+				continue;
+			}
+			int a = (int)(k >> 32), b = (int)(k & 0xFFFFFFFFu);
+			if (d2c(P[a]) > r2 || d2c(P[b]) > r2) {
+				continue;
+			}
+			int t1 = it->second[0], t2 = it->second[1];
+			int i0 = -1;
+			for (int i = 0; i < 3; i++) {
+				int pp = T[3 * t1 + i], qq = T[3 * t1 + (i + 1) % 3];
+				if ((pp == a && qq == b) || (pp == b && qq == a)) {
+					i0 = i;
+				}
+			}
+			int p = T[3 * t1 + i0], q = T[3 * t1 + (i0 + 1) % 3], z = T[3 * t1 + (i0 + 2) % 3];
+			int w = -1;
+			for (int i = 0; i < 3; i++) {
+				int u = T[3 * t2 + i];
+				if (u != p && u != q) {
+					w = u;
+				}
+			}
+			if (w < 0 || w == z || emap.count(ekey(z, w))) {
+				continue;
+			}
+			if (d2c(P[z]) > r2 || d2c(P[w]) > r2) {
+				continue;
+			}
+			double lzw = d2(P[z], P[w]);
+			if (lzw > l2 || lzw < s2) {
+				continue;
+			}
+			int vp = (int)vt[p].size(), vq = (int)vt[q].size(), vz = (int)vt[z].size(), vw = (int)vt[w].size();
+			if (vp <= 3 || vq <= 3) {
+				continue;
+			}
+			int before = (vp - 6) * (vp - 6) + (vq - 6) * (vq - 6) + (vz - 6) * (vz - 6) + (vw - 6) * (vw - 6);
+			int after = (vp - 7) * (vp - 7) + (vq - 7) * (vq - 7) + (vz - 5) * (vz - 5) + (vw - 5) * (vw - 5);
+			if (after >= before) {
+				continue;
+			}
+			double n1[3], n2[3];
+			nrm(t1, n1);
+			nrm(t2, n2);
+			if (!(tri_ok(P[p], P[w], P[z], n1) && tri_ok(P[p], P[w], P[z], n2) && tri_ok(P[w], P[q], P[z], n1) && tri_ok(P[w], P[q], P[z], n2))) {
+				continue;
+			}
+			double m1[3], m2[3];
+			cross(P[p], P[w], P[z], m1);
+			cross(P[w], P[q], P[z], m2);
+			if (m1[0] * m2[0] + m1[1] * m2[1] + m1[2] * m2[2] < 0.35 * std::sqrt(m1[0] * m1[0] + m1[1] * m1[1] + m1[2] * m1[2]) * std::sqrt(m2[0] * m2[0] + m2[1] * m2[1] + m2[2] * m2[2])) {
+				continue;
+			}
+			rem(t1);
+			rem(t2);
+			T[3 * t1] = p;
+			T[3 * t1 + 1] = w;
+			T[3 * t1 + 2] = z;
+			T[3 * t2] = w;
+			T[3 * t2 + 1] = q;
+			T[3 * t2 + 2] = z;
+			add(t1);
+			add(t2);
+			flips++;
+			any = true;
+		}
+		return any;
+	}
+	void relax_phase() {
+		std::vector<int> vs;
+		vs.reserve(vt.size());
+		for (auto &kv : vt) {
+			vs.push_back(kv.first);
+		}
+		std::sort(vs.begin(), vs.end());
+		for (int sweep = 0; sweep < 2; sweep++) {
+			for (int v : vs) {
+				P3 pv = P[v];
+				if (d2c(pv) > r2) {
+					continue;
+				}
+				std::vector<int> ts = vt[v];
+				if (ts.empty()) {
+					continue;
+				}
+				std::vector<int> nb;
+				double nx = 0, ny = 0, nz = 0;
+				for (int t : ts) {
+					double nn[3];
+					nrm(t, nn);
+					nx += nn[0];
+					ny += nn[1];
+					nz += nn[2];
+					for (int k = 0; k < 3; k++) {
+						int u = T[3 * t + k];
+						if (u != v && std::find(nb.begin(), nb.end(), u) == nb.end()) {
+							nb.push_back(u);
+						}
+					}
+				}
+				double nl = std::sqrt(nx * nx + ny * ny + nz * nz);
+				if (nl <= 0.0 || nb.size() < 3) {
+					continue;
+				}
+				nx /= nl;
+				ny /= nl;
+				nz /= nl;
+				double qx = 0, qy = 0, qz = 0;
+				for (int u : nb) {
+					qx += P[u].x;
+					qy += P[u].y;
+					qz += P[u].z;
+				}
+				qx /= nb.size();
+				qy /= nb.size();
+				qz /= nb.size();
+				double mx = qx - pv.x, my = qy - pv.y, mz = qz - pv.z;
+				double md = mx * nx + my * ny + mz * nz;
+				mx -= md * nx;
+				my -= md * ny;
+				mz -= md * nz;
+				P3 np;
+				np.x = (float)(pv.x + 0.5 * mx);
+				np.y = (float)(pv.y + 0.5 * my);
+				np.z = (float)(pv.z + 0.5 * mz);
+				if (d2c(np) > r2) {
+					continue;
+				}
+				bool good = true;
+				for (int u : nb) {
+					double o = d2(pv, P[u]), n = d2(np, P[u]);
+					if ((n > l2 && n > o) || (n < s2 && n < o)) {
+						good = false;
+						break;
+					}
+				}
+				if (!good) {
+					continue;
+				}
+				for (int t : ts) {
+					double n0[3];
+					nrm(t, n0);
+					const P3 &q0 = T[3 * t] == v ? np : P[T[3 * t]];
+					const P3 &q1 = T[3 * t + 1] == v ? np : P[T[3 * t + 1]];
+					const P3 &q2 = T[3 * t + 2] == v ? np : P[T[3 * t + 2]];
+					if (!tri_ok(q0, q1, q2, n0)) {
+						good = false;
+						break;
+					}
+				}
+				if (good) {
+					P[v] = np;
+				}
+			}
+		}
 	}
 	std::unordered_set<int> nbrs(int v) {
 		std::unordered_set<int> d;
@@ -336,6 +509,12 @@ Dictionary KineDyntopoNative::refine(const PackedVector3Array &p_verts, const Pa
 	for (int p = 0; p < p_passes; p++) {
 		bool ch = w.split_phase();
 		bool ch2 = w.collapse_phase();
+		if (w.splits + w.collapses > 0) {
+			bool ch3 = w.flip_phase();
+			bool ch4 = w.collapse_phase();
+			w.relax_phase();
+			ch2 = ch2 || ch3 || ch4;
+		}
 		if (!ch && !ch2) {
 			break;
 		}
@@ -425,6 +604,7 @@ Dictionary KineDyntopoNative::refine(const PackedVector3Array &p_verts, const Pa
 	d["tris"] = ot;
 	d["splits"] = w.splits;
 	d["collapses"] = w.collapses;
+	d["flips"] = w.flips;
 	d["vsrc"] = ovs;
 	d["tsrc"] = ots;
 	return d;

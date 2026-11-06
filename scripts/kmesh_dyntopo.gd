@@ -30,6 +30,7 @@ var l2 := 0.0
 var s2 := 0.0
 var splits := 0
 var collapses := 0
+var flips := 0
 
 
 static func native_door():
@@ -189,6 +190,10 @@ func _run(verts: PackedVector3Array, tris: PackedInt32Array, centre: Vector3, ra
 	for _p in passes:
 		var ch := _split_phase()
 		ch = _collapse_phase() or ch
+		if splits + collapses > 0:   # Botsch & Kobbelt 2004 steps 3-5: flip toward valence 6, retry the refused collapses, relax tangentially
+			ch = _flip_phase() or ch
+			ch = _collapse_phase() or ch
+			_relax_phase()
 		if not ch:
 			break
 	if splits + collapses == 0:   # nothing to do: the input comes back as it is (same order), so a no-op stroke is a no-op for undo too
@@ -229,7 +234,7 @@ func _run(verts: PackedVector3Array, tris: PackedInt32Array, centre: Vector3, ra
 			ots.append(tsrc[t])
 			for k in 3:
 				ot.append(remap[T[3 * t + k]] if dead_n > 0 else T[3 * t + k])
-	return {"verts": ov, "tris": ot, "splits": splits, "collapses": collapses, "vsrc": ovs, "tsrc": ots}
+	return {"verts": ov, "tris": ot, "splits": splits, "collapses": collapses, "flips": flips, "vsrc": ovs, "tsrc": ots}
 
 
 func _split_phase() -> bool:
@@ -277,6 +282,165 @@ func _split_phase() -> bool:
 		splits += 1
 		any = true
 	return any
+
+
+func _nrm(t: int) -> Array:
+	return _cross(P[T[3 * t]], P[T[3 * t + 1]], P[T[3 * t + 2]])
+
+
+## a replacement triangle q (3 points) against an old normal n0: not turned over (dot >= 0.35 of the lengths) and not squashed (area >= 20 %)
+func _tri_ok(q0: Vector3, q1: Vector3, q2: Vector3, n0: Array) -> bool:
+	var n1 := _cross(q0, q1, q2)
+	var co2: float = n0[0] * n0[0] + n0[1] * n0[1] + n0[2] * n0[2]
+	var cn2: float = n1[0] * n1[0] + n1[1] * n1[1] + n1[2] * n1[2]
+	var dt: float = n0[0] * n1[0] + n0[1] * n1[1] + n0[2] * n1[2]
+	return not (cn2 <= 0.04 * co2 or dt < 0.35 * sqrt(co2) * sqrt(cn2))
+
+
+## edge flip toward valence 6: an interior edge (a, b) with both ends and both opposite verts (z, w) in the brush becomes (z, w) when that
+## lowers the sum of (valence - 6)^2 over the four, z-w is not an edge yet, the new edge lies in [0.4, 1.0] * L_max, and no tri turns over.
+func _flip_phase() -> bool:
+	var keys: Array = emap.keys()
+	keys.sort()
+	var any := false
+	for k in keys:
+		if not emap.has(k):
+			continue
+		var tl: Array = emap[k]
+		if tl.size() != 2:
+			continue
+		var a: int = k >> 32
+		var b: int = k & 0xFFFFFFFF
+		if _d2(P[a], c) > r2 or _d2(P[b], c) > r2:
+			continue
+		var t1: int = tl[0]
+		var t2: int = tl[1]
+		var i0 := -1
+		for i in 3:
+			var pp: int = T[3 * t1 + i]
+			var qq: int = T[3 * t1 + (i + 1) % 3]
+			if (pp == a and qq == b) or (pp == b and qq == a):
+				i0 = i
+		var p: int = T[3 * t1 + i0]
+		var q: int = T[3 * t1 + (i0 + 1) % 3]
+		var z: int = T[3 * t1 + (i0 + 2) % 3]
+		var w := -1
+		for i in 3:
+			var u: int = T[3 * t2 + i]
+			if u != p and u != q:
+				w = u
+		if w < 0 or w == z or emap.has(_key(z, w)):
+			continue
+		if _d2(P[z], c) > r2 or _d2(P[w], c) > r2:
+			continue
+		var lzw := _d2(P[z], P[w])
+		if lzw > l2 or lzw < s2:
+			continue
+		var vp: int = (vt[p] as Array).size()
+		var vq: int = (vt[q] as Array).size()
+		var vz: int = (vt[z] as Array).size()
+		var vw: int = (vt[w] as Array).size()
+		if vp <= 3 or vq <= 3:
+			continue
+		var before := (vp - 6) * (vp - 6) + (vq - 6) * (vq - 6) + (vz - 6) * (vz - 6) + (vw - 6) * (vw - 6)
+		var after := (vp - 7) * (vp - 7) + (vq - 7) * (vq - 7) + (vz - 5) * (vz - 5) + (vw - 5) * (vw - 5)
+		if after >= before:
+			continue
+		var n1 := _nrm(t1)
+		var n2 := _nrm(t2)
+		if not (_tri_ok(P[p], P[w], P[z], n1) and _tri_ok(P[p], P[w], P[z], n2) and _tri_ok(P[w], P[q], P[z], n1) and _tri_ok(P[w], P[q], P[z], n2)):
+			continue
+		var m1 := _cross(P[p], P[w], P[z])
+		var m2 := _cross(P[w], P[q], P[z])
+		if m1[0] * m2[0] + m1[1] * m2[1] + m1[2] * m2[2] < 0.35 * sqrt(m1[0] * m1[0] + m1[1] * m1[1] + m1[2] * m1[2]) * sqrt(m2[0] * m2[0] + m2[1] * m2[1] + m2[2] * m2[2]):
+			continue
+		_rem(t1)
+		_rem(t2)
+		T[3 * t1] = p
+		T[3 * t1 + 1] = w
+		T[3 * t1 + 2] = z
+		T[3 * t2] = w
+		T[3 * t2 + 1] = q
+		T[3 * t2 + 2] = z
+		_add(t1)
+		_add(t2)
+		flips += 1
+		any = true
+	return any
+
+
+## tangential relaxation (2 sweeps, ascending vert order): a vert in the brush goes half way to its neighbours' centroid, with the move
+## projected onto the tangent plane (normal = sum of its tris' area normals). Refused when it would leave the brush, turn or squash a tri,
+## or push an incident edge further out of [0.4, 1.0] * L_max.
+func _relax_phase() -> void:
+	var vs: Array = vt.keys()
+	vs.sort()
+	for _s in 2:
+		for v in vs:
+			var pv := P[v]
+			if _d2(pv, c) > r2:
+				continue
+			var ts: Array = vt[v]
+			if ts.is_empty():
+				continue
+			var nb: Array = []
+			var nx := 0.0
+			var ny := 0.0
+			var nz := 0.0
+			for t in ts:
+				var nn := _nrm(t)
+				nx += nn[0]
+				ny += nn[1]
+				nz += nn[2]
+				for k in 3:
+					var u: int = T[3 * t + k]
+					if u != v and not nb.has(u):
+						nb.append(u)
+			var nl := sqrt(nx * nx + ny * ny + nz * nz)
+			if nl <= 0.0 or nb.size() < 3:
+				continue
+			nx /= nl
+			ny /= nl
+			nz /= nl
+			var qx := 0.0
+			var qy := 0.0
+			var qz := 0.0
+			for u in nb:
+				qx += P[u].x
+				qy += P[u].y
+				qz += P[u].z
+			qx /= nb.size()
+			qy /= nb.size()
+			qz /= nb.size()
+			var mx: float = qx - pv.x
+			var my: float = qy - pv.y
+			var mz: float = qz - pv.z
+			var md: float = mx * nx + my * ny + mz * nz
+			mx -= md * nx
+			my -= md * ny
+			mz -= md * nz
+			var np := Vector3(pv.x + 0.5 * mx, pv.y + 0.5 * my, pv.z + 0.5 * mz)
+			if _d2(np, c) > r2:
+				continue
+			var good := true
+			for u in nb:
+				var o := _d2(pv, P[u])
+				var n := _d2(np, P[u])
+				if (n > l2 and n > o) or (n < s2 and n < o):
+					good = false
+					break
+			if not good:
+				continue
+			for t in ts:
+				var n0 := _nrm(t)
+				var q0 := np if T[3 * t] == v else P[T[3 * t]]
+				var q1 := np if T[3 * t + 1] == v else P[T[3 * t + 1]]
+				var q2 := np if T[3 * t + 2] == v else P[T[3 * t + 2]]
+				if not _tri_ok(q0, q1, q2, n0):
+					good = false
+					break
+			if good:
+				P[v] = np
 
 
 func _nbrs(v: int) -> Dictionary:
