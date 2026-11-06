@@ -143,5 +143,12 @@ func _init() -> void:
 	var w_gd := edge_w(dn_gd, 8, 88, 44, 84)
 	ok(w_gd <= 1.2 * w_clean, "f GDScript fallback edge width %.3f px (x%.2f)" % [w_gd, w_gd / w_clean])
 	ok(bool(FinalHQ.PRESET.get("denoise", false)), "f the final_hq PRESET has denoise on")
+	# ---- c2 / d2: the call main.gd makes: SELF-guided (the image is its own guide), same thresholds as c and d
+	var sg_flat: Image = FinalHQ.denoise(noisy_flat, noisy_flat)
+	var s2 := chan_std(sg_flat, patch)
+	ok(s0 / maxf(s2, 1e-9) >= 2.0, "c2 self-guided flat-patch std %.4f -> %.4f (x%.1f, >= 2)" % [s0, s2, s0 / maxf(s2, 1e-9)])
+	var sg_edge: Image = FinalHQ.denoise(noisy_edge, noisy_edge)
+	var w_sg := edge_w(sg_edge, 8, 88, 44, 84)
+	ok(w_sg <= 1.2 * w_clean, "d2 self-guided edge width %.3f px vs clean %.3f px (x%.2f, <= 1.2)" % [w_sg, w_clean, w_sg / w_clean])
 	print("\nrender2: %s" % ("ALL OK" if fails == 0 else "%d FAIL" % fails))
 	quit(1 if fails > 0 else 0)
