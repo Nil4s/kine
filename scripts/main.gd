@@ -639,6 +639,8 @@ var ui_bp: PanelContainer   # the bottom panel (the scene)
 var ui_card_row: ScrollContainer
 var ui_play_row: HBoxContainer
 var _band_sig := ""   # YY7: what the curve editor's people band was measured on (part + the scene's cards and keys)
+var detach: PanelDetach   # L37: timeline / graph editor / second view in their own OS windows (scripts/panel_detach.gd)
+var view2: SecondView     # L37: the second 3D view, made on first use
 var ui_curve: CurveEditor   # CURVE EDITOR (XX2): the picked part's part keys as curves, made on first use
 var ui_graph: Control       # SPEED GRAPH: tip / hips / head speed over the scene, cards marked, click to scrub
 var ui_tools: MenuButton
@@ -861,6 +863,7 @@ var _drag_locks := {}
 ## Overlays.split_parts), its capsule and dot are not drawn and a click goes through it. View state only, like a lock:
 ## no undo step, never in a pose or scene file
 var pieces := {}         # part -> its piece of the mannequin
+var simc := SimCacheLive.new()   # L35: the sim point caches (scripts/sim_cache_live.gd); empty until Bake sim
 var soft_live := SoftLive.new()   # L22: the soft-body flesh in the viewport (scripts/soft_live.gd); idle unless the scene has a region
 var skp := SkinPick.new()  # PRECISE PICK: the ray against the posed skin, and the part's own skin lit (scripts/skin_pick.gd)
 var pick_us := 0           # how long the last _pick took (microseconds): the hover's cost, read by precise_pick_test
@@ -881,6 +884,7 @@ var wp_bone_pick: OptionButton
 var wp_mode_pick: OptionButton
 var corr := Corrective.new()   # ROADMAP 71: the elbow / knee corrective on the body's pieces (View > Display)
 var dummy_corr := Corrective.new()   # the same on the dummy
+var stretch_skin := StretchSkin.new()   # L33: the skin follows Body.stretch / stretch_cross (scripts/stretch_skin.gd); inert without a stretch
 var dq_skin_pass := DqSkin.new()   # H04: dual-quaternion skinning on the body's pieces (the scene's dq_skin, 0 = plain LBS)
 var hidden_parts := {}
 
@@ -3967,6 +3971,7 @@ func _body() -> void:
 	_wp_setup()   # the skin weights, and the sidecar's if the character was painted before (ROADMAP 72)
 	BootProfile.mark("body: skin weights")
 	corr.attach(pieces.values(), skel)
+	stretch_skin.attach(pieces.values(), skel, bone_idx, corr)
 	BootProfile.mark("body: corrective attach")
 	dq_skin_pass.attach(pieces.values(), skel)
 	BootProfile.mark("body: dq skin attach")
@@ -4213,6 +4218,62 @@ func _bx_pick(i: int) -> void:
 	if hitbox_ui == null:
 		hitbox_ui = HitBoxesUI.new(self)
 	hitbox_ui.pick(i)
+
+
+# ---------------------------------------------------------------- THROW CHECK (INNOVATIONS N040 wired, L34; scripts/throw_panel.gd, throw_serve.gd)
+var throw_on := false                  # the Throw check panel is showing
+var throw_panel: ThrowPanel = null
+var throw_key := 0                     # what the panel's result was judged for (cards + the partner's cards and place + fps)
+var throw_done := false
+var throw_judge_runs := 0              # how many times the judge ran (a hidden panel must not run it)
+
+
+## called at every refresh: nothing at all while the panel is off; while on, the judge runs only when the scene (cards, partner, place) changed
+func _throw_refresh() -> void:
+	if not throw_on:
+		if throw_panel != null and throw_panel.visible:
+			throw_panel.visible = false
+		return
+	if throw_panel == null:
+		throw_panel = ThrowPanel.new()
+		throw_panel.z_index = 40
+		throw_panel.frame_picked.connect(_throw_pick)
+		ui_root.add_child(throw_panel)
+		throw_done = false
+	throw_panel.visible = true
+	_throw_place()
+	var key: int = -1 if S.actors.is_empty() else hash([S.cards, S.actors.map(func(a): return [a["xf"], (a["scene"] as Scene).cards])])
+	if throw_done and key == throw_key:
+		return
+	throw_done = true
+	throw_key = key
+	throw_judge_runs += 1
+	throw_panel.show_result({"ok": false} if key == -1 else ThrowTruth.judge(S, ThrowFixtures.FPS))
+
+
+func _throw_place() -> void:
+	if throw_panel == null:
+		return
+	throw_panel.anchor_top = 1.0
+	throw_panel.anchor_bottom = 1.0
+	throw_panel.offset_left = LEFT_W + 12
+	throw_panel.offset_right = LEFT_W + 12 + ThrowPanel.W
+	throw_panel.offset_bottom = -bottom_h - 8
+	throw_panel.offset_top = -bottom_h - 8 - ThrowPanel.H
+
+
+## a click on a cell of the panel: the playhead goes to that frame (what a scrub does: no undo step)
+func _throw_pick(f: int) -> void:
+	playing = false
+	playhead = float(f) / float(ThrowFixtures.FPS)
+	_ps().apply(B, playhead)
+	_audio_scrub()
+	_refresh()
+
+
+func _throw_toggle() -> void:
+	throw_on = not throw_on
+	_refresh()
 
 
 func _fd_toggle() -> void:
@@ -5407,7 +5468,12 @@ func _refresh() -> void:
 	CharImportApp.update(self)   # L9: an imported rigged character stands on the pose (scripts/char_import_app.gd)
 	PerfDoc.add("skinning", _pk)
 	corr.update(B)
-	dq_skin_pass.update(S.dq_skin)   # H04: after the corrective (its mesh is the rest DQ corrects)
+	var spl_dq: bool = B.has_meta("spline_body")   # L33: a back driven by a spline chain
+	if spl_dq and B.has_stretch():
+		dq_skin_pass.update(0.0)   # the stretch pass builds on the rest mesh, not on the DQ one
+	stretch_skin.update(B)   # L33: after the corrective (its mesh is the rest this corrects); nothing without a stretch
+	dq_skin_pass.update(1.0 if (spl_dq and not B.has_stretch()) else S.dq_skin)   # L33: a back driven by a spline chain is skinned by DQ (a plain blend caves in at its bends; with a stretch the stretch pass owns the mesh)
+	# H04: after the corrective (its mesh is the rest DQ corrects)
 	_face_draw()   # ROADMAP 31 + 74: the jaw, the mouth shape, the brows and the eyes at the playhead (scripts/face.gd)
 	for tg in ui_toggles:
 		(tg[0] as Button).set_pressed_no_signal(tg[1].call())
@@ -5415,6 +5481,7 @@ func _refresh() -> void:
 	_next_sync()
 	_insp_fit.call_deferred()   # RR2: rows shown / hidden change the box's height
 	_sync_weapon()
+	_throw_refresh()   # THROW CHECK (N040, L34)
 	_fd_refresh()   # FRAME DATA (ROADMAP 12): the strip and the boxes on active frames
 	if ui_browser != null and ui_browser.visible:
 		ui_browser.follow()
@@ -6758,6 +6825,7 @@ func _snapshot() -> Dictionary:
 		"layers": S.layers.duplicate(true), "ik": S.ik.duplicate(true),   # IK keys (limb_ik.gd), undone like a card
 		"secondary": S.secondary.duplicate(true),   # SECONDARY MOTION (ROADMAP 26), undone like a card
 		"soft": S.soft.duplicate(true),   # L22: the soft-body regions, undone like a card
+		"simc": simc.meta.duplicate(true),   # L35: the sim point caches (their files follow), undone like a card
 		"cape": S.cape.duplicate(true),   # the cape (ROADMAP 86), undone like a card
 		"rigx": S.rigx.duplicate(true),   # the words-made rig (rig_words.gd), undone like a card
 		"bones": S.bones.duplicate(true),   # J01: the user's extra bones (bone_editor.gd), undone like a card
@@ -6974,6 +7042,8 @@ func _restore(u: Dictionary) -> void:
 		S.secondary = u["secondary"].duplicate(true)   # SECONDARY MOTION (ROADMAP 26), undone like a card
 	if u["scene"] == S and u.has("soft") and var_to_str(u["soft"]) != var_to_str(S.soft):
 		S.soft = u["soft"].duplicate(true)   # L22: the soft-body regions, undone like a card
+	if u["scene"] == S and u.has("simc") and var_to_str(u["simc"]) != var_to_str(simc.meta):
+		simc.apply_meta(u["simc"])   # L35: the sim point caches, undone like a card
 	if u["scene"] == S and u.has("cape") and var_to_str(u["cape"]) != var_to_str(S.cape):
 		S.cape = u["cape"].duplicate(true)   # the cape (ROADMAP 86), undone like a card
 	if u["scene"] == S and u.has("rigx") and var_to_str(u["rigx"]) != var_to_str(S.rigx):
@@ -10266,6 +10336,34 @@ func _cape_export() -> void:
 	_say("exported the cape's vertices for every frame to %s (one list of 192 points per frame)" % p)
 
 
+## L35 SIM CACHE (scripts/sim_cache.gd, sim_cache_live.gd): Bake sim writes the cape's and the soft regions' vertex positions for every
+## frame to a file each; the timeline then scrubs the file. One undo step. Any edit marks it stale; Free bake removes it.
+func _simc_bake() -> Dictionary:
+	var r := SimCacheLive.compute(S)
+	var objs: Dictionary = r["objs"]
+	if objs.is_empty():
+		_say("nothing to bake: 'Cape: add to the back' or a soft-body region on the BODY page first")
+		return {"objects": []}
+	var done := []
+	_do(func():
+		done.append_array(simc.commit(S, objs))
+		if not (r["cape"] as Dictionary).is_empty():
+			S.cape = r["cape"])
+	var fr := 0
+	for n in done:
+		fr = maxi(fr, int(simc.meta[n]["frames"]))
+	_say("baked %s to a point cache: %d frames each, the timeline scrubs the file (Ctrl+Z takes it back; an edit makes it stale; 'Bake sim: free' removes it)" % [", ".join(done), fr])
+	return {"objects": done, "frames": fr}
+
+
+func _simc_free() -> void:
+	if simc.meta.is_empty():
+		_say("no baked sim to free: 'Bake sim (cache cloth and soft body)' first")
+		return
+	_do(func(): simc.free_all())
+	_say("freed the baked sim: the cape and the flesh simulate live again (Ctrl+Z brings the bake back)")
+
+
 func _cape_draw() -> void:
 	if _cape_mi == null:
 		_cape_mat = StandardMaterial3D.new()
@@ -10282,7 +10380,11 @@ func _cape_draw() -> void:
 		_cape_mi.visible = false
 		return
 	_cape_mi.visible = true
-	var v := Cloth.verts_at(S.cape, clampf(playhead, 0.0, S.length()))
+	var v := PackedVector3Array()
+	if not simc.meta.is_empty():
+		v = simc.frame_at(S, "cape", clampf(playhead, 0.0, S.length()))   # L35: a fresh point cache answers; the sim is not read
+	if v.is_empty():
+		v = Cloth.verts_at(S.cape, clampf(playhead, 0.0, S.length()))
 	var f := Cloth.faces()
 	im.surface_begin(Mesh.PRIMITIVE_TRIANGLES, _cape_mat)
 	for k in f.size():
@@ -10620,6 +10722,8 @@ func _kr_text(r: Dictionary) -> String:
 ## CURVE EDITOR (round 42, XX2, UPGRADES_300 #240): opens / closes the panel (scripts/curve_editor.gd) that draws the
 ## picked part's part keys as curves; dragging a key there is one undo step
 func _curve_toggle() -> void:
+	if detach != null and detach.is_detached("graph"):
+		detach.redock("graph")   # closing a detached graph editor brings it home first
 	if ui_curve == null:
 		ui_curve = GraphEditor.new()   # GE: the curve editor plus channels, pivot scale, normalize, cycles (graph_editor.gd)
 		ui_curve.anchor_top = 1.0
@@ -10633,11 +10737,65 @@ func _curve_toggle() -> void:
 		ui_curve.changed = func(): S.apply(B, playhead); _refresh()
 		ui_curve.say = func(t): _say(t)
 		ui_root.add_child(ui_curve)
+		ui_curve.add_child(_detach_button("graph"))
 	ui_curve.visible = not ui_curve.visible
 	_curve_sync()
 	if ui_curve.visible:
 		ui_curve.frame_all()
 	_say("curve editor open: drag a key to change its angle and time (Ctrl+Z takes a drag back)" if ui_curve.visible else "curve editor closed")
+
+
+## L37: the small Detach button a floating panel carries in its top-right corner (hidden while it is detached; the window has Re-dock)
+func _detach_button(id: String) -> Button:
+	var b := Button.new()
+	b.name = "detach_" + id
+	b.text = "Detach"
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_size_override("font_size", 11)
+	b.tooltip_text = "move this panel into its own window (for a second monitor); Re-dock or closing the window brings it back"
+	b.anchor_left = 1.0
+	b.anchor_right = 1.0
+	b.offset_left = -64.0
+	b.offset_right = -4.0
+	b.offset_top = 3.0
+	b.offset_bottom = 23.0
+	b.pressed.connect(func(): detach.detach(id))
+	return b
+
+
+func _curve_for_detach() -> Control:
+	if ui_curve == null or not ui_curve.visible:
+		_curve_toggle()
+	return ui_curve
+
+
+## SECOND VIEW (L37): a second camera on the same world, opened / closed here, detachable like the timeline
+func _view2_make() -> Control:
+	if view2 == null:
+		view2 = SecondView.new()
+		view2.setup(self)
+		view2.anchor_left = 1.0
+		view2.anchor_right = 1.0
+		view2.anchor_top = 1.0
+		view2.anchor_bottom = 1.0
+		view2.offset_right = -12.0
+		view2.offset_left = -372.0
+		view2.offset_bottom = -float(BOTTOM_H) - 110.0
+		view2.offset_top = view2.offset_bottom - 240.0
+		ui_root.add_child(view2)
+		view2.add_child(_detach_button("view2"))
+	view2.visible = true
+	return view2
+
+
+func _view2_toggle() -> void:
+	if view2 != null and detach.is_detached("view2"):
+		detach.redock("view2")
+		view2.visible = false
+	elif view2 != null and view2.visible:
+		view2.visible = false
+	else:
+		_view2_make()
 
 
 ## GRAPH EDITOR (round 51, GE1-GE4; scripts/graph_editor.gd): the channels view, the normalized view, the Cycles modifier
@@ -10680,8 +10838,9 @@ func _curve_sync() -> void:
 	ui_curve.playhead = playhead
 	ui_curve.fps = S.fps
 	ui_curve.card_times = S.times().map(func(x): return float(x[1]))   # DD0: Ctrl-snap to the cards
-	ui_curve.offset_left = lw() + 12
-	ui_curve.offset_right = -rw() - 12
+	if not PanelDetach.in_window(ui_curve):   # in its own window the panel fills it
+		ui_curve.offset_left = lw() + 12
+		ui_curve.offset_right = -rw() - 12
 	var sig := "%s|%d" % [sel, hash(var_to_str([S.cards, S.part_keys]))]
 	if sig != _band_sig and not ui_curve._dragging:   # YY7: the people's band, measured again only when the scene changed
 		_band_sig = sig   # (never mid-drag, and the view is refitted only for a new part: a refit under the mouse moved the key)
@@ -13253,6 +13412,9 @@ func _ui() -> void:
 	_build_page_bar()
 	for t in RIBBON_ALL:
 		tb.add_child(ui_ribbon[t])
+	detach = PanelDetach.new()
+	detach.name = "detach"
+	add_child(detach)
 	bld = BuildUI.new()
 	add_child(bld)
 	touch_in = TouchInput.new()   # Friday 173 + 174: touch, pen and gamepad drive the camera and the draw tools (scripts/touch_input.gd)
@@ -13453,6 +13615,7 @@ func _ui() -> void:
 	ui_ribbon["CHECK"].add_child(_button("Frame it my way", mc_ui.frame_it, "a shot for the open scene placed with your habits (your lens, distance, angle, thirds), cut before the contact the way you cut it, on one side of the line; no shots in your scenes yet: Auto camera instead; one undo step"))
 	tog.call("CHECK", "Dummy (H)", _dummy_toggle, func(): return dummy_on, "a second mannequin out front: red where the weapon is in it")
 	tog.call("CHECK", "Frame data", _fd_toggle, func(): return fd_on, "frame data: startup (green) / active (red) / recovery (blue) on the timeline, with the counts (ROADMAP 12)")
+	tog.call("CHECK", "Throw check", _throw_toggle, func(): return throw_on, "throw check (N040): for a scene with two bodies, whether the throw works frame by frame (throw works / no kuzushi / thrower falls / no contact), the key frame, how far the partner's balance is outside his feet and the thrower's own margin; click a frame to jump to it")
 	tog.call("CHECK", "Frame boxes", _fd_boxes_toggle, func(): return fd_boxes, "hitboxes (red) on active frames and hurtboxes (grey) on every frame, in the view")
 	fd_btn = _button("Frame rate", _fd_cycle_fps, "the frame rate the frame data counts in (24, 30, 60, 120 fps): now %d fps" % fd_fps)
 	ui_ribbon["CHECK"].add_child(fd_btn)
@@ -14092,6 +14255,14 @@ func _ui() -> void:
 	ui_timeline.custom_minimum_size = Vector2(0, 34)
 	ui_timeline.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ph.add_child(ui_timeline)
+	detach.register("timeline", func(): return ui_timeline, "Timeline")   # L37
+	detach.register("graph", _curve_for_detach, "Graph editor")
+	detach.register("view2", _view2_make, "Second view")
+	var tdb := _button("Detach", func(): detach.toggle("timeline"), "move the timeline into its own window (for a second monitor); the same button, or closing that window, brings it back")
+	tdb.name = "detach_timeline"
+	tdb.add_theme_font_size_override("font_size", 12)
+	ph.add_child(tdb)
+	detach.changed.connect(func(): tdb.text = "Re-dock" if detach.is_detached("timeline") else "Detach")
 	var ob := _button("Clips", _fold.bind("bottom", false), "open the scene panel again: the clips and the scene's buttons")
 	ob.name = "open_bottom"
 	ob.visible = false
@@ -16953,6 +17124,8 @@ func _commands() -> Array:
 	add.call("Cape: add to the back (bakes the cloth)", "", _cape_add, "cape cloth back cloak robe sim bake drape", true, "a cape hangs from the shoulders on the back and swings in a turn: a cloth grid that collides with the body, baked over the scene; Ctrl+Z takes it back")
 	add.call("Cape: cancel the bake", "", _cape_cancel, "cape cloth bake cancel stop abort background", false, "stops a cape bake that is running in the background; the scene keeps its last cape")
 	add.call("Cape: folds onto itself (slower)", "", _cape_fold_toggle, "cape cloth fold self collision layers pass through itself slower", false, "makes the next cape bake keep its folds from passing through each other: about 0.5 s of baking a frame instead of 0.03 s, so it is off until you switch it on (the toggle says which way it is)")
+	add.call("Bake sim (cache cloth and soft body)", "", _simc_bake, "bake sim simulation cache point cache cloth cape soft body flesh scrub timeline", true, "writes the cape's and the soft-body regions' vertex positions for every frame to a file each; the timeline then shows the saved frame and never re-simulates; an edit makes it stale; Ctrl+Z takes it back")
+	add.call("Bake sim: free", "", _simc_free, "bake sim free remove delete cache point cache simulation", true, "removes the baked sim files; the cape and the flesh simulate live again; Ctrl+Z brings them back")
 	add.call("Cape: take off", "", _cape_clear, "cape cloth remove clear off delete", true, "takes the cape off the scene (Ctrl+Z puts it back)")
 	add.call("Cape: export its vertices (JSON)", "", _cape_export, "cape cloth export mesh json vertices", false, "writes the cape's vertex positions for every frame to a JSON file in the user folder")
 	add.call("Secondary: bake", "", _sec_bake, "secondary bake keys rebake update animation", true, "bake every secondary item again over the scene (after the animation changed)")
@@ -16962,6 +17135,14 @@ func _commands() -> Array:
 	_shot_commands(add)   # THE SHOT CAMERA (shot_camera.gd)
 	if clips_ui == null:
 		clips_ui = ClipsUI.new(self)
+	add.call("Window: detach the timeline", "", func(): detach.toggle("timeline"), "window detach timeline second monitor screen float re-dock",
+		false, "the timeline into its own window, or back")
+	add.call("Window: detach the graph editor", "", func(): detach.toggle("graph"), "window detach graph curve editor second monitor screen float re-dock",
+		false, "the graph editor into its own window, or back")
+	add.call("Window: second 3D view", "", _view2_toggle, "window second view camera viewport extra 3d open close",
+		false, "a second camera on the same scene, in a panel you can detach to another monitor")
+	add.call("Window: re-dock all windows", "", detach.redock_all, "window re-dock all detach bring back",
+		false, "every detached panel back in the main window")
 	clips_ui.commands(add)   # CLIPS placed as strips (GAP row 12; scripts/clips_ui.gd)
 	if face_ui == null:
 		face_ui = FaceUI.new(self)
@@ -22327,6 +22508,7 @@ func _body_smooth_set(on: bool) -> void:
 	wp_bind = -1
 	_wp_setup()
 	corr.attach(pieces.values(), skel)
+	stretch_skin.attach(pieces.values(), skel, bone_idx, corr)
 	dq_skin_pass.skin = null   # (DqSkin keeps the first skin it saw)
 	dq_skin_pass.attach(pieces.values(), skel)
 	_skp_build()

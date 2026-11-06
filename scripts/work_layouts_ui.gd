@@ -293,6 +293,7 @@ func pick_name(n: String) -> void:
 
 func save_pressed() -> void:
 	var n := name_edit.text.strip_edges()
+	sh.sync_detached()   # L37: the windows as they are now go into the layout
 	status.text = ("saved as '%s'" % n) if ws.save_as(n) else "that name cannot be used (blank, 'Factory', or over 40 characters)"
 	_picked = n
 	refresh()

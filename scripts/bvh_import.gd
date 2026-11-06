@@ -27,7 +27,7 @@
 class_name BvhImport
 extends RefCounted
 
-const CHAN := ["Xposition", "Yposition", "Zposition", "Xrotation", "Yrotation", "Zrotation"]
+const CHAN := ["Xposition", "Yposition", "Zposition", "Xrotation", "Yrotation", "Zrotation", "Xscale", "Yscale", "Zscale"]   # L33: the scale channels are read and ignored by the pose import
 
 
 static func _fail(why: String) -> Dictionary:

@@ -66,6 +66,15 @@ static func text(S: Scene, B: Body, xf := Transform3D.IDENTITY, L := -1.0, fps_i
 	for j in Body.ORDER:
 		if B.parent[j] != "":
 			kids[B.parent[j]].append(j)
+	var keep_st := B.stretch.duplicate()
+	var keep_cr := B.stretch_cross.duplicate()
+	# L33: a scene that may stretch (a limb key with a stretch, a body spline chain) gives the stretched joint position channels (the OFFSET's
+	# growth, so a plain BVH reader lands the joint exactly) and its parent bone Xscale Yscale Zscale (the bone's own stretch on the world axes)
+	var st_pos := {}
+	var st_scl := {}
+	for k in StretchSkin.scene_joints(S, B):
+		st_pos[k] = true
+		st_scl[B.parent[k]] = true
 	var weps := weapons_of(S)
 	var wep_of := {}   # hand -> [weapon rows]
 	for w in weps:
@@ -82,7 +91,8 @@ static func text(S: Scene, B: Body, xf := Transform3D.IDENTITY, L := -1.0, fps_i
 		h.append(pad + ("ROOT " if depth == 0 else "JOINT ") + j)
 		h.append(pad + "{")
 		h.append(pad + "\tOFFSET %.6f %.6f %.6f" % [off.x, off.y, off.z])
-		h.append(pad + "\tCHANNELS " + ("6 Xposition Yposition Zposition " if depth == 0 else "3 ") + "Zrotation Xrotation Yrotation")
+		var nm := ("Xposition Yposition Zposition " if depth == 0 or st_pos.has(j) else "") + ("Xscale Yscale Zscale " if st_scl.has(j) else "") + "Zrotation Xrotation Yrotation"
+		h.append(pad + "\tCHANNELS %d %s" % [nm.count(" ") + 1, nm])
 		order.append(j)
 		var held: Array = wep_of.get(j, [])
 		if kids[j].is_empty() and held.is_empty():
@@ -125,6 +135,7 @@ static func text(S: Scene, B: Body, xf := Transform3D.IDENTITY, L := -1.0, fps_i
 	for i in n:
 		S.apply(B, minf(i / fps, span))
 		B.fk()
+		var ow := StretchSkin.own_world(B) if B.has_stretch() else {}
 		for k in order.size():
 			var oj: String = order[k]
 			var j: String = oj
@@ -147,6 +158,12 @@ static func text(S: Scene, B: Body, xf := Transform3D.IDENTITY, L := -1.0, fps_i
 				if B.parent[j] == "":
 					var p: Vector3 = xf * (B.P[j] as Vector3) if placed else B.P[j]
 					pt = "%.6f %.6f %.6f" % [p.x, p.y, p.z]
+				if st_pos.has(j) and B.parent[j] != "":
+					var dl := ((B.p0[j] as Vector3) - (B.p0[B.parent[j]] as Vector3)) * (float(B.stretch.get(j, 1.0)) - 1.0)
+					pt = "%.6f %.6f %.6f" % [dl.x, dl.y, dl.z]
+				if st_scl.has(j):
+					var sw: Vector3 = ow.get(j, Vector3.ONE)
+					pt = (pt + " " if pt != "" else "") + "%.6f %.6f %.6f" % [sw.x, sw.y, sw.z]
 				q = B.compose(j, B.ang[j]).normalized()
 				if placed and B.parent[j] == "":
 					q = (xq * q).normalized()
@@ -159,6 +176,8 @@ static func text(S: Scene, B: Body, xf := Transform3D.IDENTITY, L := -1.0, fps_i
 					var p: Vector3 = xf * (B.P[oj] as Vector3) if placed else B.P[oj]
 					f[oj] = [p.x, p.y, p.z]
 			checks[str(i)] = f
+	if B.stretch != keep_st:
+		B.set_stretch(keep_st, keep_cr)
 	B.set_state(keep)
 	# pass 2: the Euler channels, unrolled per joint (RotClean) unless clean is off
 	var tracks := []
