@@ -16,7 +16,7 @@ func ok(c: bool, m: String) -> void:
 		fails += 1
 
 
-func _slide(h: float, wfr: float, force_gd := false) -> Dictionary:
+func _slide(h: float, wfr: float, force_gd := false, xs := 0.0) -> Dictionary:
 	var s := 0.01 / h
 	var F = Fluid.make(force_gd)
 	F.setup(int(62 * s), int(10 * s), int(8 * s), h, Vector3.ZERO)
@@ -24,7 +24,7 @@ func _slide(h: float, wfr: float, force_gd := false) -> Dictionary:
 	F.set_threads(4)
 	if wfr > 0.0:
 		F.set_wall_friction(wfr)
-	F.add_fluid_box(Vector3(h, h, h), Vector3(0.31, 0.01 + 6 * 0.01, 7.0 * 0.01 + h), Vector3(1.0, 0, 0), 1)
+	F.add_fluid_box(Vector3(h + xs, h, h), Vector3(0.31 + xs, 0.01 + 6 * 0.01, 7.0 * 0.01 + h), Vector3(1.0, 0, 0), 1)
 	F.advance(0.1)
 	var d: PackedFloat64Array = F.particle_data()
 	var n := d.size() / 6
@@ -32,6 +32,8 @@ func _slide(h: float, wfr: float, force_gd := false) -> Dictionary:
 	var nl := 0
 	var all := 0.0
 	var rows := {}
+	var rear := 0.0
+	var nr := 0
 	for p in n:
 		all += d[6 * p + 3]
 		var r := int(floor(d[6 * p + 1] / h))
@@ -39,6 +41,9 @@ func _slide(h: float, wfr: float, force_gd := false) -> Dictionary:
 			rows[r] = [0.0, 0]
 		rows[r][0] += d[6 * p + 3]
 		rows[r][1] += 1
+		if d[6 * p + 1] < 0.01 + h and d[6 * p] < 0.06:
+			rear += d[6 * p + 3]
+			nr += 1
 		if d[6 * p + 1] < 0.01 + h:
 			low += d[6 * p + 3]
 			nl += 1
@@ -47,7 +52,7 @@ func _slide(h: float, wfr: float, force_gd := false) -> Dictionary:
 	var prof := ""
 	for r in keys.slice(0, 6):
 		prof += " r%d %.3f" % [r, rows[r][0] / rows[r][1]]
-	return {"band": low / maxi(nl, 1), "all": all / n, "nl": nl, "prof": prof}
+	return {"band": low / maxi(nl, 1), "all": all / n, "nl": nl, "prof": prof, "rear": rear / maxi(nr, 1)}
 
 
 func _init() -> void:
@@ -57,5 +62,16 @@ func _init() -> void:
 		ok(a["band"] >= 0.98, "(A) free-slip floor-row retention at h %.0f mm = %.4f (>= 0.98)" % [h * 1000.0, a["band"]])
 		var g := _slide(h, 1.0)
 		ok(g["band"] < 0.98, "(g) CONTROL forced no-slip at h %.0f mm reads %.4f and fails the bar" % [h * 1000.0, g["band"]])
+	# ---- (B) added after (A) failed and a probe showed the floor is exact: the same block started 0.15 m from the x = 0 wall (a block that starts IN CONTACT
+	# with the rear wall cannot detach from it: that wall face is pinned at u = 0). Bars B written before the fix attempt; (A) above is left as committed.
+	for h in [0.01, 0.005]:
+		var b := _slide(h, 0.0, false, 0.15)
+		print("      info B h %.3f: band %.4f  whole block %.4f  rows:%s" % [h, b["band"], b["all"], b["prof"]])
+		ok(b["band"] >= 0.98, "(B) free-slip floor-row retention, block clear of the rear wall, h %.0f mm = %.4f (>= 0.98)" % [h * 1000.0, b["band"]])
+		var g := _slide(h, 1.0, false, 0.15)
+		ok(g["band"] < 0.98, "(g) CONTROL (B) forced no-slip at h %.0f mm reads %.4f and fails" % [h * 1000.0, g["band"]])
+	var tw := _slide(0.01, 0.0, true, 0.15)
+	var nt := _slide(0.01, 0.0, false, 0.15)
+	ok(absf(tw["band"] - nt["band"]) <= 0.005, "(E) GDScript twin equals C++: band %.4f vs %.4f (<= 0.005)" % [tw["band"], nt["band"]])
 	print("water5: %d fail" % fails)
 	quit(1 if fails > 0 else 0)
