@@ -2078,11 +2078,7 @@ func seat_lift() -> float:
 	if legacy_ground:
 		return seat_lift_legacy()
 	# GROUNDSPEED: the same supports in the same order, each one's inverse transform computed once per call
-	var sups := []
-	for p in props:
-		for s in Props.supports(p):
-			s["inv"] = (s["xf"] as Transform3D).affine_inverse()
-			sups.append(s)
+	var sups := Props.support_cache(props)
 	var lift := 0.0
 	for part in SEAT_PARTS:
 		var c := cap(part)
@@ -2092,7 +2088,16 @@ func seat_lift() -> float:
 		if maxf(a.y, b.y) + r <= 0.0:
 			continue
 		var n := maxi(1, int(ceil(a.distance_to(b) / 0.02)))
+		var mx := (a.x + b.x) * 0.5   # FASTSAVE: the capsule axis lies inside this circle (world x, z)
+		var mz := (a.z + b.z) * 0.5
+		var mr := Vector2(a.x - b.x, a.z - b.z).length() * 0.5 + 1e-6
 		for s in sups:
+			if s.has("sr"):
+				var dx: float = mx - float(s["sx"])
+				var dz: float = mz - float(s["sz"])
+				var lim: float = float(s["sr"]) + mr
+				if dx * dx + dz * dz > lim * lim:
+					continue   # no sample of the axis can be over this support: lo stays INF, no lift
 			var top: float = s["y"]
 			var lo := INF
 			for k in n + 1:
