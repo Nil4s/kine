@@ -78,10 +78,10 @@ func _ready() -> void:
 	drop_mode_flags = Tree.DROP_MODE_ON_ITEM
 	_ol_search = LineEdit.new()
 	_ol_search.name = "outl_search"
-	_ol_search.placeholder_text = "search the scene: chair, key light..."
+	_ol_search.placeholder_text = "search the scene"   # L45: the examples are in the tooltip (the full line was cut at 214 px)
 	_ol_search.clear_button_enabled = true
 	_ol_search.add_theme_font_size_override("font_size", 12)
-	_ol_search.tooltip_text = "words over the names of the scene's objects (any case); with the type toggles below it, only those objects are listed"
+	_ol_search.tooltip_text = "words over the names of the scene's objects (any case, e.g. chair, key light); with the type toggles below it, only those objects are listed"
 	_ol_search.text_changed.connect(set_outl_query)
 	_ol_bar = HBoxContainer.new()
 	_ol_bar.name = "outl_filters"
@@ -100,6 +100,13 @@ func _ready() -> void:
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		b.toggled.connect(func(on: bool): set_outl_filter(k, on))
 		_ol_bar.add_child(b)
+		for st in ["normal", "hover", "pressed", "hover_pressed", "focus", "disabled"]:   # L45: the theme's own look, 2 px side margins in every state (a toggle on is drawn "pressed"): six labels fit a 214 px tree
+			var sb := b.get_theme_stylebox(st)
+			if sb is StyleBoxFlat:
+				var sf := (sb as StyleBoxFlat).duplicate() as StyleBoxFlat
+				sf.content_margin_left = 2.0
+				sf.content_margin_right = 2.0
+				b.add_theme_stylebox_override(st, sf)
 	_ol_box = VBoxContainer.new()
 	_ol_box.name = "outl_box"
 	_ol_box.add_theme_constant_override("separation", 2)
@@ -776,7 +783,8 @@ func _overlay(c: Control, row: TreeItem, pad: Vector2) -> void:
 	if c.visible != show:
 		c.visible = show
 	if show:
-		var want := Rect2(r.position + pad, Vector2(maxf(40.0, r.size.x - 6.0), r.size.y - 2.0))
+		# L45: the box runs across the whole tree from its left edge (less the pad and the scrollbar), not from the row's indent: the folder sits deep, so the box had 69 px at 214 px and the toggles 12 px each
+		var want := Rect2(Vector2(pad.x, r.position.y + pad.y), Vector2(maxf(40.0, size.x - 2.0 * pad.x - 12.0), r.size.y - 2.0))
 		if c.position != want.position or c.size != want.size:
 			c.position = want.position
 			c.size = want.size

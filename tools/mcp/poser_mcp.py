@@ -65,11 +65,17 @@ TOOLS = {
                   "(plus latency_ms), status reactable / not reactable and the margin. clip = a scene file (else the live scene); frame adds what that frame is (tell / active / idle).",
                   {"type": "object", "properties": {"clip": S, "frame": {"type": "integer"}, "latency_ms": N, "fps": N}, "additionalProperties": False}),
     "throw_check": ("throw_check", "Does the throw work? Two bodies judged frame by frame: verdict (throw works / no kuzushi / thrower falls / no contact), the key frame, and per frame the partner's "
-                    "extrapolated centre of mass outside his feet (out_m) and the thrower's own balance margin (margin_m). clip = a scene file with a partner (else the live scene); thrower 0 = hero, 1 = partner.",
-                    {"type": "object", "properties": {"clip": S, "fps": N, "thrower": {"type": "integer"}}, "additionalProperties": False}),
+                    "extrapolated centre of mass outside his feet (out_m) and the thrower's own balance margin (margin_m). clip = a scene file with a partner (else the live scene); thrower 0 = hero, 1 = partner. brief true = only the verdict, the key frame, the partner out and the thrower margin (under 1 KB).",
+                    {"type": "object", "properties": {"clip": S, "fps": N, "thrower": {"type": "integer"}, "brief": {"type": "boolean"}}, "additionalProperties": False}),
+    "lock_check": ("lock_check", "Does the lock reach his limit, or go past it? Two bodies judged frame by frame: the partner's elbow, wrist and shoulder angles the clip asks, against his joint limits, on the arm the locker touches. "
+                   "Verdict: lock not on / at limit (within 5 deg) / past limit: injury (joint, axis, degrees past) / no contact; the key frame; per frame margin_deg. clip = a scene file with a partner (else the live scene); locker 0 = hero, 1 = partner.",
+                   {"type": "object", "properties": {"clip": S, "fps": N, "locker": {"type": "integer"}}, "additionalProperties": False}),
     "look_facts": ("look_facts", "Numbers for how the final picture LOOKS per piece / kind / nature item (colour, contrast, neon, ring, share), from an id render. "
                    "Needs a part view or nature items showing: give piece, kind, nature or targets; camera, w, h optional.",
                    {"type": "object", "properties": {"piece": S, "kind": S, "nature": S, "targets": {"type": "array"}, "camera": {"type": "object"}, "w": N, "h": N}, "additionalProperties": True}),
+    "final_render": ("final_render", "Render the shot camera as a PNG sequence + mp4 with a quality preset: draft | final | final_hq (Final HQ = GI bounce, depth of field at the shot's focus, motion blur from sub-frames across the shutter, jittered accumulation). "
+                     "w, h (default 1920x1080), first, count (frame range), out (folder), subframes (default 8), accum (default 2), shutter (fraction of a frame, 0.5). Returns dir, frames, mp4.",
+                     {"type": "object", "properties": {"preset": S, "w": N, "h": N, "first": N, "count": N, "out": S, "subframes": N, "accum": N, "shutter": N}, "additionalProperties": False}),
     "nature": ("nature", "Trees, hedges, shrubs, grass, flowers, paths, scatter: op list | add {item} | words {text: '2 oak trees 5 m tall'} | remove {id} | clear | measure.",
                {"type": "object", "properties": {"op": S, "item": {"type": "object"}, "text": S, "id": S}, "additionalProperties": True}),
     "part_warn": ("part_warn", "The part's warnings at its level (off / look / print / engineering), the list the Part panel shows; level, mute, unmute edit the record "
@@ -81,6 +87,8 @@ TOOLS = {
                    {"type": "object", "properties": {"part": {"type": "object"}, "path": S, "gap": {"type": "array", "items": N, "minItems": 2, "maxItems": 2}, "cap": N, "near_mm": N}, "additionalProperties": False}),
     "part_assert": ("part_assert", "One-line checks on the part (e.g. 'piston touches barrel clearance 0.0-0.2 mm'); no lines = the record's saved asserts; save keeps the lines that pass.",
                     {"type": "object", "properties": {"lines": {"type": "array", "items": S}, "part": {"type": "object"}, "path": S, "save": {"type": "boolean"}, "clear": {"type": "boolean"}}, "additionalProperties": False}),
+    "lightrig": ("lightrig", "Light rig: {look: studio|noir|overcast|sunset|night} puts a preset on the shot at the playhead; {sky: clear_day|overcast|sunset|night|studio_grey|\"\"} sets the sky map with rot (deg) and int; {link: {key|fill|rim: true}} makes a light character-only (it skips the floor). {} returns the facts: sky, links, lights.",
+                 {"type": "object", "properties": {"look": S, "sky": S, "rot": N, "int": N, "link": {"type": "object"}}, "additionalProperties": True}),
     "fits": ("fits", "ISO 286 fits and stack-ups as data: each mating pair (fit kind, min/max clearance in um, interference-as-sliding flag), each stack-up (nominal, worst case, RSS) and every sized dimension with its class. assembly {record} or path, else the Assembly on screen, else the live part dimensions; csv adds each stack-up CSV.",
              {"type": "object", "properties": {"assembly": {"type": "object"}, "path": S, "part": {"type": "object"}, "csv": {"type": "boolean"}}, "additionalProperties": False}),
     "part_build": ("part_build", "Build a part from steps in ONE call (mm, y up); append: true adds steps to the part on screen (send only new ones). "
@@ -95,7 +103,7 @@ TOOLS = {
 }
 
 # C06: the maths tools are OPT-IN (--math or POSER_MCP_MATH=1): tests/py/mcp_drive.py pins the default list at 12 tools and an existing default does not change
-MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits"]
+MATH_TOOLS = ["cancel_windows", "reactable", "throw_check", "lock_check", "frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert", "part_build", "fits", "lightrig", "final_render"]
 MATH = "--math" in sys.argv or os.environ.get("POSER_MCP_MATH") == "1"
 _MATH = {k: TOOLS.pop(k) for k in MATH_TOOLS}
 if MATH:

@@ -13,6 +13,9 @@ const PRESETS := {
 		"soft_q": RenderingServer.SHADOW_QUALITY_SOFT_VERY_LOW, "atlas": 1024},
 	"final": {"ssao": true, "ssr": true, "sdfgi": true, "glow": false, "msaa": Viewport.MSAA_4X, "shadows": true,
 		"soft_q": RenderingServer.SHADOW_QUALITY_SOFT_ULTRA, "atlas": 4096},
+	## L49 "Final HQ": everything "final" does, plus SDFGI bounce, depth of field, sub-frame motion blur and the accumulation pass (scripts/final_hq.gd)
+	"final_hq": {"ssao": true, "ssr": true, "sdfgi": true, "glow": false, "msaa": Viewport.MSAA_4X, "shadows": true,
+		"soft_q": RenderingServer.SHADOW_QUALITY_SOFT_ULTRA, "atlas": 4096},
 }
 
 ## the global soft-shadow filter (RenderingServer has no getter): what this class last set, else the project's value
@@ -51,6 +54,8 @@ static func apply(preset: String, env: Environment, vp: Viewport, lights: Array)
 	env.ssr_enabled = p["ssr"]
 	env.sdfgi_enabled = p["sdfgi"]
 	env.glow_enabled = p["glow"]
+	if preset == "final_hq":
+		FinalHQ.gi(env, true, float(FinalHQ.PRESET["gi_bounce"]))
 	if p["ssao"]:
 		env.ssao_radius = 1.2
 		env.ssao_intensity = 3.0   # the contact darkening at feet and under props

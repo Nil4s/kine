@@ -2077,6 +2077,7 @@ func _axis_node() -> Node3D:
 
 var ui_fr_dlg: ConfirmationDialog
 var ui_fr_res: OptionButton
+var ui_fr_preset: OptionButton
 
 
 ## "Final render...": pick the resolution, OK renders (the shot camera over every frame; exports/shots/<scene>_<stamp>_final/)
@@ -2092,6 +2093,13 @@ func _final_render_dialog() -> void:
 		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		l.custom_minimum_size = Vector2(360, 0)
 		v.add_child(l)
+		ui_fr_preset = OptionButton.new()
+		ui_fr_preset.name = "opt_preset"
+		for pn in ["Draft", "Final", "Final HQ"]:
+			ui_fr_preset.add_item(pn)
+		ui_fr_preset.select(1)
+		ui_fr_preset.tooltip_text = "Final HQ adds global light bounce (SDFGI), depth of field at the shot's focus, motion blur from 8 sub-frames across the shutter and a 2-pass jittered accumulation; several times slower than Final"
+		v.add_child(ui_fr_preset)
 		ui_fr_res = OptionButton.new()
 		ui_fr_res.name = "opt_resolution"
 		for r in FinalRender.RES:
@@ -2101,7 +2109,7 @@ func _final_render_dialog() -> void:
 		ui_fr_dlg.add_child(v)
 		ui_fr_dlg.confirmed.connect(func():
 			var r: Vector2i = FinalRender.RES[ui_fr_res.selected]
-			_render_shots(ShotRender.ROOT, "", {"preset": "final", "w": r.x, "h": r.y}))
+			_render_shots(ShotRender.ROOT, "", {"preset": ["draft", "final", "final_hq"][ui_fr_preset.selected], "w": r.x, "h": r.y}))
 		add_child(ui_fr_dlg)
 	ui_fr_dlg.popup_centered()
 
@@ -2196,7 +2204,11 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "", opts := {}) -
 			ui_root.visible = false
 			_sr_layer.visible = false
 			var sub_imgs := []
-			for tt in BlastBlur.times(blast_blur, float(f) / fps, fps, blast_blur_n, blast_shutter, 0.0, float(maxi(n - 1, 0)) / fps):
+			var hq := preset == "final_hq"
+			var hq_sub := int(opts.get("subframes", FinalHQ.PRESET["subframes"]))
+			var hq_acc := maxi(1, int(opts.get("accum", FinalHQ.PRESET["accum"])))
+			var tt_list: Array = FinalHQ.motion_times(float(f) / fps, fps, hq_sub, float(opts.get("shutter", FinalHQ.PRESET["shutter"])), 0.0, float(maxi(ShotRender.frame_count(length, fps) - 1, 0)) / fps) if hq else BlastBlur.times(blast_blur, float(f) / fps, fps, blast_blur_n, blast_shutter, 0.0, float(maxi(n - 1, 0)) / fps)
+			for tt in tt_list:
 				playhead = tt
 				_ps().apply(B, playhead)
 				BlastBlur.on_time(playhead)
@@ -2208,15 +2220,32 @@ func _render_shots(root_dir := ShotRender.ROOT, ffmpeg_path := "", opts := {}) -
 					svp_cam.global_transform = sv["xf"]
 					svp_cam.fov = ShotCam.fov_v(float(sv["f"]))
 					svp_cam.attributes = cam.attributes
-					if preset == "final":
-						await get_tree().process_frame   # SSAO / SDFGI settle on the new pose
+					if hq:
+						var kk := shot_at(playhead)
+						var fd: float = float(sv["focus"]) if not is_nan(float(sv["focus"])) else maxf(0.5, (kk["pos"] as Vector3).distance_to(kk["aim"] as Vector3))
+						if svp_cam.attributes == null:
+							FinalHQ.dof(svp_cam, fd)
+						await get_tree().process_frame   # SDFGI / SSAO settle on the new pose
 						await get_tree().process_frame
-					sub_imgs.append(await FinalRender.grab(get_tree(), svp))
+						await get_tree().process_frame
+						var base_xf: Transform3D = svp_cam.global_transform
+						for ak in hq_acc:
+							svp_cam.global_transform = FinalHQ.jitter_xf(base_xf, FinalHQ.jitter(ak, hq_acc), svp_cam.fov, fd, svp.size.y)
+							sub_imgs.append(await FinalRender.grab(get_tree(), svp))
+						svp_cam.global_transform = base_xf
+					else:
+						if preset == "final":
+							await get_tree().process_frame   # SSAO / SDFGI settle on the new pose
+							await get_tree().process_frame
+						sub_imgs.append(await FinalRender.grab(get_tree(), svp))
 				else:
 					await get_tree().process_frame
 					await RenderingServer.frame_post_draw
 					sub_imgs.append(_shot_blast_image(shot, get_viewport().get_texture().get_image()))
-			(sub_imgs[0] if sub_imgs.size() == 1 else PlayblastExport.average(sub_imgs)).save_png("%s/frame_%04d.png" % [gdir, f - first_f])
+			if hq:
+				FinalHQ.to_rgb8(FinalHQ.accumulate(sub_imgs)).save_png("%s/frame_%04d.png" % [gdir, f - first_f])
+			else:
+				(sub_imgs[0] if sub_imgs.size() == 1 else PlayblastExport.average(sub_imgs)).save_png("%s/frame_%04d.png" % [gdir, f - first_f])
 			wt.render_active = false
 			ui_root.visible = true
 			_sr_layer.visible = true
@@ -4230,6 +4259,7 @@ var throw_on := false                  # the Throw check panel is showing
 var throw_panel: ThrowPanel = null
 var throw_key := 0                     # what the panel's result was judged for (cards + the partner's cards and place + fps)
 var throw_done := false
+var throw_band := false                # L45: the panel's band is in bottom_h (set with throw_on, by _throw_refresh)
 var throw_judge_runs := 0              # how many times the judge was started (a hidden panel must not run it)
 ## L42: the judge runs on a WorkerThreadPool task on a clone of the scene, after THROW_DEBOUNCE_MS without a further edit. Every job carries the
 ## generation (throw_gen, bumped by each edit that changes throw_key); a result of an older generation is dropped (_throw_land).
@@ -4241,6 +4271,9 @@ var _throw_jobs: Array = []            # {gen, task, out} in flight
 
 ## called at every refresh: nothing at all while the panel is off; while on, the judge runs only when the scene (cards, partner, place) changed
 func _throw_refresh() -> void:
+	if throw_on != throw_band:   # L45: the panel is a row of the bottom stack: the stack grows by its height while it shows
+		throw_band = throw_on
+		_layout_bottom()
 	if not throw_on:
 		if throw_panel != null and throw_panel.visible:
 			throw_panel.visible = false
@@ -4253,6 +4286,7 @@ func _throw_refresh() -> void:
 		throw_done = false
 	throw_panel.visible = true
 	_throw_place()
+	throw_panel.set_playhead(roundi(playhead * float(ThrowFixtures.FPS)))
 	var key: int = -1 if S.actors.is_empty() else hash([S.cards, S.actors.map(func(a): return [a["xf"], (a["scene"] as Scene).cards])])
 	if throw_done and key == throw_key:
 		return
@@ -4312,8 +4346,8 @@ func _throw_place() -> void:
 	throw_panel.anchor_bottom = 1.0
 	throw_panel.offset_left = LEFT_W + 12
 	throw_panel.offset_right = LEFT_W + 12 + ThrowPanel.W
-	throw_panel.offset_bottom = -bottom_h - 8
-	throw_panel.offset_top = -bottom_h - 8 - ThrowPanel.H
+	throw_panel.offset_top = -bottom_h   # L45: the band at the top of the bottom stack (_layout_bottom adds it), its bottom 8 px above the bar's panels
+	throw_panel.offset_bottom = -bottom_h + ThrowPanel.H
 
 
 ## a click on a cell of the panel: the playhead goes to that frame (what a scrub does: no undo step)
@@ -4327,6 +4361,63 @@ func _throw_pick(f: int) -> void:
 
 func _throw_toggle() -> void:
 	throw_on = not throw_on
+	_refresh()
+
+
+# ---------------------------------------------------------------- LOCK CHECK (INNOVATIONS N041 wired; scripts/lock_panel.gd, lock_serve.gd)
+var lock_on := false                  # the Lock check panel is showing
+var lock_panel: LockPanel = null
+var lock_key := 0                     # what the panel's result was judged for (cards + the partner's cards and place + fps)
+var lock_done := false
+var lock_judge_runs := 0              # how many times the judge ran (a hidden panel must not run it)
+
+
+## called at every refresh: nothing at all while the panel is off; while on, the judge runs only when the scene (cards, partner, place) changed
+func _lock_refresh() -> void:
+	if not lock_on:
+		if lock_panel != null and lock_panel.visible:
+			lock_panel.visible = false
+		return
+	if lock_panel == null:
+		lock_panel = LockPanel.new()
+		lock_panel.z_index = 40
+		lock_panel.frame_picked.connect(_lock_pick)
+		ui_root.add_child(lock_panel)
+		lock_done = false
+	lock_panel.visible = true
+	_lock_place()
+	var key: int = -1 if S.actors.is_empty() else hash([S.cards, S.actors.map(func(a): return [a["xf"], (a["scene"] as Scene).cards])])
+	if lock_done and key == lock_key:
+		return
+	lock_done = true
+	lock_key = key
+	lock_judge_runs += 1
+	lock_panel.show_result({"ok": false} if key == -1 else LockTruth.judge(S, LockFixtures.FPS))
+
+
+func _lock_place() -> void:
+	if lock_panel == null:
+		return
+	lock_panel.anchor_top = 1.0
+	lock_panel.anchor_bottom = 1.0
+	lock_panel.offset_left = LEFT_W + 12
+	lock_panel.offset_right = LEFT_W + 12 + LockPanel.W
+	var up := (ThrowPanel.H + 6.0) if throw_on else 0.0   # above the Throw check panel when both show
+	lock_panel.offset_bottom = -bottom_h - 8 - up
+	lock_panel.offset_top = -bottom_h - 8 - up - LockPanel.H
+
+
+## a click on a cell of the panel: the playhead goes to that frame (what a scrub does: no undo step)
+func _lock_pick(f: int) -> void:
+	playing = false
+	playhead = float(f) / float(LockFixtures.FPS)
+	_ps().apply(B, playhead)
+	_audio_scrub()
+	_refresh()
+
+
+func _lock_toggle() -> void:
+	lock_on = not lock_on
 	_refresh()
 
 
@@ -5512,6 +5603,7 @@ func _refresh() -> void:
 	_actors_view()
 	PerfDoc.add("r_actors", _rf)
 	_curve_sync()
+	_simc_badge_sync()   # POL1106b: the sim cache badge follows every edit, undo and bake
 	if ui_akey != null and auto_key:
 		ui_akey.queue_redraw()   # the frame reads Tok on each draw: a palette switch shows at once
 	if not sel_more.is_empty() and sel != _group_sel:
@@ -5539,6 +5631,7 @@ func _refresh() -> void:
 	_insp_fit.call_deferred()   # RR2: rows shown / hidden change the box's height
 	_sync_weapon()
 	_throw_refresh()   # THROW CHECK (N040, L34)
+	_lock_refresh()   # LOCK CHECK (N041)
 	_fd_refresh()   # FRAME DATA (ROADMAP 12): the strip and the boxes on active frames
 	if ui_browser != null and ui_browser.visible:
 		ui_browser.follow()
@@ -10412,7 +10505,24 @@ func _simc_bake() -> Dictionary:
 	for n in done:
 		fr = maxi(fr, int(simc.meta[n]["frames"]))
 	_say("baked %s to a point cache: %d frames each, the timeline scrubs the file (Ctrl+Z takes it back; an edit makes it stale; 'Bake sim: free' removes it)" % [", ".join(done), fr])
+	_simc_badge_sync()
 	return {"objects": done, "frames": fr}
+
+
+## POL1106b: the timeline's "cache: fresh / stale / none" badge (SimCacheLive.badge)
+func _simc_badge_sync() -> void:
+	if ui_timeline == null:
+		return
+	if ui_simc_badge == null:
+		ui_simc_badge = Label.new()
+		ui_simc_badge.name = "sim_cache_badge"
+		ui_simc_badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ui_simc_badge.add_theme_font_size_override("font_size", 10)
+		ui_timeline.add_child(ui_simc_badge)
+	ui_simc_badge.text = simc.badge(S)
+	ui_simc_badge.reset_size()
+	ui_simc_badge.position = Vector2(maxf(2.0, ui_timeline.size.x - ui_simc_badge.size.x - 6.0), 2.0)
+var ui_simc_badge: Label
 
 
 var _simc_clean := Callable()   # removes the pending files of the bake in flight
@@ -10481,6 +10591,7 @@ func _simc_free() -> void:
 		return
 	_do(func(): simc.free_all())
 	_say("freed the baked sim: the cape and the flesh simulate live again (Ctrl+Z brings the bake back)")
+	_simc_badge_sync()
 
 
 func _cape_draw() -> void:
@@ -13735,6 +13846,7 @@ func _ui() -> void:
 	tog.call("CHECK", "Dummy (H)", _dummy_toggle, func(): return dummy_on, "a second mannequin out front: red where the weapon is in it")
 	tog.call("CHECK", "Frame data", _fd_toggle, func(): return fd_on, "frame data: startup (green) / active (red) / recovery (blue) on the timeline, with the counts (ROADMAP 12)")
 	tog.call("CHECK", "Throw check", _throw_toggle, func(): return throw_on, "throw check (N040): for a scene with two bodies, whether the throw works frame by frame (throw works / no kuzushi / thrower falls / no contact), the key frame, how far the partner's balance is outside his feet and the thrower's own margin; click a frame to jump to it")
+	tog.call("CHECK", "Lock check", _lock_toggle, func(): return lock_on, "lock check (N041): for a scene with two bodies, whether an armbar, wristlock or kimura reaches the partner's joint limit (at limit) or goes past it (past limit: injury), frame by frame, with the joint and the degrees; click a frame to jump to it")
 	tog.call("CHECK", "Frame boxes", _fd_boxes_toggle, func(): return fd_boxes, "hitboxes (red) on active frames and hurtboxes (grey) on every frame, in the view")
 	fd_btn = _button("Frame rate", _fd_cycle_fps, "the frame rate the frame data counts in (24, 30, 60, 120 fps): now %d fps" % fd_fps)
 	ui_ribbon["CHECK"].add_child(fd_btn)
@@ -16980,6 +17092,8 @@ func _layout_bottom() -> void:
 	if eempty:
 		bottom_h += EASY_ROW_H - 26
 	_easy_bottom_style(eo)
+	if throw_band:   # L45: the Throw check band (ThrowPanel.H + 8 px) stands on the bottom stack, like the clip rows
+		bottom_h += ThrowPanel.H + 8
 	ui_card_row.visible = not folded
 	if ui_fold_btn.has("bottom_open"):
 		ui_fold_btn["bottom_open"].visible = folded
