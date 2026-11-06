@@ -16,6 +16,8 @@ const METHODS := ["commands", "open", "new", "run", "pose", "state", "measure", 
 ## C06: the methods the MCP server advertises on top of METHODS. They are NOT in METHODS: its list is the "ready" line and the -32601 text of the
 ## byte-for-byte transcript (refs/agent/serve_transcript.jsonl), which tests/agent_tools_test.gd replays. tools/mcp/poser_mcp.py names each of these (advertised with --math / POSER_MCP_MATH=1)
 const MCP_EXTRA := ["frame_facts", "look_facts", "nature", "part_warn", "part_facts", "part_assert"]
+## MCPFAST: the CAD tools (scripts/build/mcp_cad.gd); advertised with --cad
+const MCP_CAD := ["cad_part", "cad_asm", "check_fit", "bom", "eval_gd", "cad_reset"]
 
 var m: Node
 var reg := {}
@@ -496,6 +498,9 @@ func request(id: Variant, method: String, p: Dictionary) -> Dictionary:
 		"nature":   # FRIDAY 225: trees, hedges, shrubs, grass, flowers, paths, scatter (scripts/build/nature_agent.gd); not in METHODS (the transcript's ready line)
 			var na := NatureAgent.serve(m, p)
 			return _ok(id, na) if bool(na["ok"]) else _err(id, -32602, String(na["error"]))
+		"cad_part", "cad_asm", "check_fit", "bom", "eval_gd", "cad_reset":   # MCPFAST: not in METHODS (the transcript's ready line)
+			var mc := McpCad.serve(m, method, p)
+			return _ok(id, mc["result"]) if bool(mc["ok"]) else _err(id, -32602, String(mc["error"]))
 		"quit":
 			return _ok(id, {"bye": true})
 		"events":

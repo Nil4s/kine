@@ -10,7 +10,7 @@ what to do next). Scenes are saved only into scenes/_wip/ (serve refuses anythin
 
 Claude Code:  claude mcp add poser -- python C:/Users/Nick/Desktop/poser/tools/mcp/poser_mcp.py
 """
-import json, os, queue, subprocess, sys, threading
+import json, os, queue, subprocess, sys, threading, time
 
 PROJ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 GODOT = os.environ.get("POSER_GODOT", r"C:\Users\Nick\Tools\Godot\4.7.2\Godot_v4.7.2-stable_win64_console.exe")
@@ -91,6 +91,63 @@ if MATH:
     TOOLS.update(_MATH)
 
 
+# MCPFAST: --cad (or POSER_MCP_CAD=1) adds the CAD tools, the maths tools, `batch`, and the cheap replies (compact text only, numbers rounded to `prec`
+# decimals, `diff` for only what changed). Without it the server is exactly what it was.
+CAD = "--cad" in sys.argv or os.environ.get("POSER_MCP_CAD") == "1"
+OBJ = {"type": "object"}
+B = {"type": "boolean"}
+CAD_TOOLS = {
+    "cad_part": ("cad_part", "Build or replay a Part record in the live session: {name, record: {features: [...]}} or {name, path}; a name already built needs no record. "
+                 "Cached by the record's hash (cached: true = no replay); a changed record rebuilds. Returns name, hash, bodies, volume_mm3, size_mm. detail: true adds per-body volumes.",
+                 {"type": "object", "properties": {"name": S, "record": OBJ, "path": S, "detail": B, "prec": N}, "additionalProperties": False}),
+    "cad_asm": ("cad_asm", "Run N assembly steps in one call: ops [{op: new|load|add|place|remove|joint|drive|drive_to, ...}] (add {part, id?, name?, pos?, rot?}: mm, deg; load {assembly}; "
+                "joint {kind, a, b, axis, origin, origin_b?}; drive {name, part, kind, axis, origin, range}; drive_to {drive, value}). Returns ids + names added and ONLY the places that moved since the last reply.",
+                {"type": "object", "properties": {"ops": {"type": "array", "items": OBJ, "minItems": 1}, "detail": B, "prec": N}, "required": ["ops"], "additionalProperties": False}),
+    "check_fit": ("check_fit", "Every pair of placed parts, exact solids: overlap volume (mm3) and distance (mm). Terse: the overlaps and the 8 nearest pairs; detail: true lists every pair. "
+                  "near_mm (2) = how close counts and the box prefilter; hit_mm3 (1) = what counts as an overlap; drive + value poses the assembly first.",
+                  {"type": "object", "properties": {"near_mm": N, "hit_mm3": N, "drive": S, "value": N, "cap": N, "detail": B, "prec": N}, "additionalProperties": False}),
+    "bom": ("bom", "The assembly's bill of materials: per line part, count, mass_kg, cost; totals. detail: true adds material, volume, ids, warnings.",
+            {"type": "object", "properties": {"detail": B, "prec": N}, "additionalProperties": False}),
+    "eval_gd": ("eval_gd", "Run a short GDScript snippet (the body of a function; one expression line returns itself) in the live session, to test an idea without a Godot boot. "
+                "Has H.write(path, text) (only scenes/_wip and the temp dir; anything else is refused), H.part(name), H.solids(name), H.assembly(), H.note(x), m, KCad. "
+                "Files, processes and engine internals are refused.",
+                {"type": "object", "properties": {"code": S, "detail": B, "prec": N}, "required": ["code"], "additionalProperties": False}),
+    "cad_reset": ("cad_reset", "Forget built parts (cache: true) and/or the assembly (asm: true); both by default.",
+                  {"type": "object", "properties": {"cache": B, "asm": B}, "additionalProperties": False}),
+}
+BATCH = ("batch", "Run N tool calls in one round trip: calls [{tool, args}], stops at the first error. Returns one terse result per call.",
+         {"type": "object", "properties": {"calls": {"type": "array", "items": {"type": "object", "properties": {"tool": S, "args": OBJ}, "required": ["tool"]}, "minItems": 1}}, "required": ["calls"], "additionalProperties": False})
+if CAD:
+    TOOLS.update(_MATH)
+    TOOLS.update(CAD_TOOLS)
+    for _k, _v in list(TOOLS.items()):   # every serve tool takes prec (decimals kept, default 4) and diff (only what changed since this tool's last reply)
+        if _k not in CAD_TOOLS:
+            _v[2]["properties"].update({"prec": N, "diff": B})
+    TOOLS["batch"] = BATCH
+_LAST = {}   # tool -> its last result, for diff
+
+
+def rnd(v, prec):
+    if isinstance(v, float):
+        return round(v, prec)
+    if isinstance(v, list):
+        return [rnd(x, prec) for x in v]
+    if isinstance(v, dict):
+        return {k: rnd(x, prec) for k, x in v.items()}
+    return v
+
+
+def dif(new, old):
+    """only what differs from old: changed / new keys of a dict (recursively); anything else is given whole"""
+    if isinstance(new, dict) and isinstance(old, dict):
+        d = {k: dif(v, old[k]) if k in old else v for k, v in new.items() if k not in old or v != old[k]}
+        gone = [k for k in old if k not in new]
+        if gone:
+            d["_gone"] = gone
+        return d
+    return new
+
+
 def log(*a):
     print(*a, file=sys.stderr, flush=True)
 
@@ -102,14 +159,25 @@ class Session:
         self.p = None
         self.q = queue.Queue()
         self.n = 0
+        self.lock = threading.RLock()
+        self.startup_ms = None
+        self.reported = False
 
     def start(self):
+        with self.lock:
+            if self.p is not None and self.p.poll() is None:
+                return
+            self._start()
+
+    def _start(self):
+        t0 = time.time()
         self.p = subprocess.Popen([GODOT, "--headless", "--path", PROJ, "-s", "tools/poser_cli.gd", "--", "serve"],
                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                   text=True, encoding="utf-8", bufsize=1)
         threading.Thread(target=lambda: [self.q.put(l) for l in iter(self.p.stdout.readline, "")] + [self.q.put(None)], daemon=True).start()
         hello = self.read()
-        log("poser serve ready:", hello.get("params", {}).get("methods"))
+        self.startup_ms = round((time.time() - t0) * 1000)
+        log("poser serve ready:", hello.get("params", {}).get("methods"), "in %d ms" % self.startup_ms)
 
     def read(self):
         while True:
@@ -122,10 +190,11 @@ class Session:
     def call(self, method, params):
         if self.p is None or self.p.poll() is not None:
             self.start()
-        self.n += 1
-        self.p.stdin.write(json.dumps({"jsonrpc": "2.0", "id": self.n, "method": method, "params": params}) + "\n")
-        self.p.stdin.flush()
-        return self.read()
+        with self.lock:
+            self.n += 1
+            self.p.stdin.write(json.dumps({"jsonrpc": "2.0", "id": self.n, "method": method, "params": params}) + "\n")
+            self.p.stdin.flush()
+            return self.read()
 
     def stop(self):
         if self.p is not None and self.p.poll() is None:
@@ -144,12 +213,52 @@ def error(id_, code, msg):
     return {"jsonrpc": "2.0", "id": id_, "error": {"code": code, "message": msg}}
 
 
+def call_cad(name, args, sess):
+    """MCPFAST reply shaping: compact text only (no structuredContent twin), numbers rounded to prec, diff on request, the startup cost once"""
+    args = dict(args)
+    prec = int(args.pop("prec", 4)) if name not in CAD_TOOLS and name != "batch" else 4
+    want_diff = bool(args.pop("diff", False)) if name not in CAD_TOOLS else False
+    if name == "batch":
+        outs = []
+        for c in args.get("calls") or []:
+            if c.get("tool") not in TOOLS or c.get("tool") == "batch":
+                outs.append({"error": "no tool '%s'" % c.get("tool")})
+                break
+            r = call_cad(c["tool"], c.get("args") or {}, sess)
+            t = r["content"][0]["text"]
+            if r["isError"]:
+                outs.append({"error": t})
+                break
+            outs.append(json.loads(t))
+        return {"content": [{"type": "text", "text": json.dumps(outs, separators=(",", ":"))}], "isError": any(isinstance(o, dict) and "error" in o for o in outs)}
+    try:
+        r = sess.call(TOOLS[name][0], args)
+    except Exception as e:
+        sess.p = None
+        return {"content": [{"type": "text", "text": "the poser session failed: %s (the next call starts a new one)" % e}], "isError": True}
+    if "error" in r:
+        e = r["error"]
+        return {"content": [{"type": "text", "text": e["message"] + (("\n" + json.dumps(e["data"])) if e.get("data") else "")}], "isError": True}
+    res = r["result"]
+    if name not in CAD_TOOLS:
+        res = rnd(res, prec)
+    if want_diff:
+        full, res = res, dif(res, _LAST.get(name, {}))
+        _LAST[name] = full
+    if isinstance(res, dict) and not sess.reported and sess.startup_ms is not None:
+        sess.reported = True
+        res = dict(res, startup_ms=sess.startup_ms)
+    return {"content": [{"type": "text", "text": json.dumps(res, separators=(",", ":"))}], "isError": False}
+
+
 def handle(msg, sess):
     id_ = msg.get("id")
     m = msg.get("method")
     if id_ is None:   # a notification (notifications/initialized, cancelled): nothing to answer
         return None
     if m == "initialize":
+        if CAD and sess.p is None:   # boot Godot while the agent reads the tool list: the first call finds it ready
+            threading.Thread(target=sess.start, daemon=True).start()
         want = (msg.get("params") or {}).get("protocolVersion")
         return result(id_, {"protocolVersion": want if want in VERSIONS else VERSIONS[0],
                             "capabilities": {"tools": {"listChanged": False}},
@@ -166,6 +275,8 @@ def handle(msg, sess):
         if name not in TOOLS:
             return error(id_, -32602, "no tool '%s': the tools are %s" % (name, ", ".join(TOOLS)))
         args = p.get("arguments") or {}
+        if CAD:
+            return result(id_, call_cad(name, args, sess))
         try:
             r = sess.call(TOOLS[name][0], args)
         except Exception as e:   # the session died or timed out: a tool error the agent can read, not a dead server
